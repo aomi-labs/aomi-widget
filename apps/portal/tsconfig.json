@@ -41,6 +41,18 @@
       "@/lib/*": [
         "../registry/src/lib/*"
       ],
+      "@aomi-labs/auth": [
+        "../../packages/auth/src/index.ts"
+      ],
+      "@aomi-labs/auth/*": [
+        "../../packages/auth/src/*"
+      ],
+      "@aomi-labs/mcp-core": [
+        "../../packages/mcp-core/src/index.ts"
+      ],
+      "@aomi-labs/mcp-core/*": [
+        "../../packages/mcp-core/src/*"
+      ],
       "@aomi-labs/client": [
         "../../packages/client/src/index.ts"
       ],

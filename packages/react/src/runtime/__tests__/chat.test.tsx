@@ -171,7 +171,7 @@ describe("Chat API", () => {
       expect(messages[1].content).toEqual([
         {
           type: "text",
-          text: "You're out of credits for this account. Use x402 to add credits and continue with pay-per-message access.",
+          text: "You're out of funds, please set up a payment method.",
         },
       ]);
       expect(createThread).toHaveBeenCalledWith(api.currentThreadId, undefined);

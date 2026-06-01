@@ -3,10 +3,10 @@ import { stdin as input, stdout as output } from "node:process";
 import { chatCommand } from "./commands/chat";
 import { modelsCommand, setAppCommand, setModelCommand } from "./commands/control";
 import {
-  clearProviderKeysCommand,
-  saveProviderKeyCommand,
-  showProviderKeysCommand,
-} from "./commands/provider-keys";
+  clearByokKeysCommand,
+  saveByokKeyCommand,
+  showByokKeysCommand,
+} from "./commands/byok";
 import { buildCliConfig } from "./commands/defs/shared";
 import { CliSession } from "./cli-session";
 import { CliExit, fatal } from "./errors";
@@ -70,16 +70,16 @@ async function handleKeyCommand(config: CliConfig, command: string): Promise<voi
   }
 
   if (command === "show") {
-    await showProviderKeysCommand(config, { printLocation: false });
+    await showByokKeysCommand(config, { printLocation: false });
     return;
   }
 
   if (command === "clear") {
-    await clearProviderKeysCommand(config, { printLocation: false });
+    await clearByokKeysCommand(config, { printLocation: false });
     return;
   }
 
-  await saveProviderKeyCommand(config, command, { printLocation: false });
+  await saveByokKeyCommand(config, command, { printLocation: false });
 }
 
 export async function handleReplLine(
@@ -165,14 +165,12 @@ export async function runRootCli(args: Record<string, unknown>): Promise<void> {
   let config = buildCliConfig(args);
   const prompt = str(args.prompt);
   const showTool = args["show-tool"] === true;
-  const providerKey = str(args["provider-key"]);
+  const byokKey = str(args["provider-key"]);
 
-  if (providerKey) {
-    await saveProviderKeyCommand(config, providerKey, { printLocation: false });
-    // saveProviderKeyCommand may have created a fresh session (when
-    // config.freshSession=true). Disable freshSession so the subsequent
-    // chatCommand reuses that same session rather than spawning a second
-    // new one (which would have a different clientId and therefore no BYOK key).
+  if (byokKey) {
+    await saveByokKeyCommand(config, byokKey, { printLocation: false });
+    // Saving a key can create the backing session/client binding. Reuse it
+    // for the following prompt instead of spawning a second fresh session.
     config = { ...config, freshSession: false };
   }
 

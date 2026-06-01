@@ -47,38 +47,38 @@ var __copyProps = (to, from, except, desc) => {
 };
 var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
 
-// packages/react/src/index.ts
+// src/index.ts
 var index_exports = {};
 __export(index_exports, {
-  AomiClient: () => import_client8.AomiClient,
+  AomiClient: () => import_client9.AomiClient,
   AomiRuntimeApiProvider: () => AomiRuntimeApiProvider,
   AomiRuntimeProvider: () => AomiRuntimeProvider,
   ControlContextProvider: () => ControlContextProvider,
-  DISABLED_PROVIDER_STATE: () => import_client9.DISABLED_PROVIDER_STATE,
+  DISABLED_PROVIDER_STATE: () => import_client10.DISABLED_PROVIDER_STATE,
   EventContextProvider: () => EventContextProvider,
-  MAX_AUTO_FEE_WEI: () => import_client9.MAX_AUTO_FEE_WEI,
+  ExtUserProvider: () => ExtUserProvider,
+  MAX_AUTO_FEE_WEI: () => import_client10.MAX_AUTO_FEE_WEI,
   NotificationContextProvider: () => NotificationContextProvider,
   RuntimeUserStateProvider: () => RuntimeUserStateProvider,
   SUPPORTED_CHAINS: () => SUPPORTED_CHAINS,
   ThreadContextProvider: () => ThreadContextProvider,
-  UserContextProvider: () => UserContextProvider,
   UserState: () => import_client2.UserState,
-  aaModeFromExecutionKind: () => import_client9.aaModeFromExecutionKind,
-  appendFeeCallToPayload: () => import_client9.appendFeeCallToPayload,
-  buildFeeAAWalletCall: () => import_client9.buildFeeAAWalletCall,
+  aaModeFromExecutionKind: () => import_client10.aaModeFromExecutionKind,
+  appendFeeCallToPayload: () => import_client10.appendFeeCallToPayload,
+  buildFeeAAWalletCall: () => import_client10.buildFeeAAWalletCall,
   cn: () => cn,
-  executeWalletCalls: () => import_client9.executeWalletCalls,
+  executeWalletCalls: () => import_client10.executeWalletCalls,
   formatAddress: () => formatAddress,
   getChainInfo: () => getChainInfo,
   getNetworkName: () => getNetworkName,
-  hydrateTxPayloadFromUserState: () => import_client9.hydrateTxPayloadFromUserState,
+  hydrateTxPayloadFromUserState: () => import_client10.hydrateTxPayloadFromUserState,
   initThreadControl: () => initThreadControl,
-  normalizeSimulatedFee: () => import_client9.normalizeSimulatedFee,
-  parseChainId: () => import_client9.parseChainId,
+  normalizeSimulatedFee: () => import_client10.normalizeSimulatedFee,
+  parseChainId: () => import_client10.parseChainId,
   resolveAutoModel: () => resolveAutoModel,
-  toAAWalletCall: () => import_client9.toAAWalletCall,
-  toAAWalletCalls: () => import_client9.toAAWalletCalls,
-  toViemSignTypedDataArgs: () => import_client9.toViemSignTypedDataArgs,
+  toAAWalletCall: () => import_client10.toAAWalletCall,
+  toAAWalletCalls: () => import_client10.toAAWalletCalls,
+  toViemSignTypedDataArgs: () => import_client10.toViemSignTypedDataArgs,
   useAomiRuntime: () => useAomiRuntime,
   useControl: () => useControl,
   useCurrentThreadMessages: () => useCurrentThreadMessages,
@@ -91,17 +91,17 @@ __export(index_exports, {
   useWalletHandler: () => useWalletHandler
 });
 module.exports = __toCommonJS(index_exports);
-var import_client8 = require("@aomi-labs/client");
 var import_client9 = require("@aomi-labs/client");
+var import_client10 = require("@aomi-labs/client");
 
-// packages/react/src/runtime/aomi-runtime.tsx
+// src/runtime/aomi-runtime.tsx
 var import_react12 = require("react");
-var import_client7 = require("@aomi-labs/client");
+var import_client8 = require("@aomi-labs/client");
 
-// packages/react/src/contexts/control-context.tsx
+// src/contexts/control-context.tsx
 var import_react = require("react");
 
-// packages/react/src/utils/uuid.ts
+// src/utils/uuid.ts
 function generateUUID() {
   if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
     return crypto.randomUUID();
@@ -113,7 +113,7 @@ function generateUUID() {
   });
 }
 
-// packages/react/src/state/thread-store.ts
+// src/state/thread-store.ts
 var shouldLogThreadUpdates = process.env.NODE_ENV !== "production";
 var logThreadMetadataChange = (source, threadId, prev, next) => {
   if (!shouldLogThreadUpdates) return;
@@ -298,7 +298,7 @@ var ThreadStore = class {
   }
 };
 
-// packages/react/src/utils/model-selection.ts
+// src/utils/model-selection.ts
 var PREFERRED_DEFAULT_MODEL_PATTERNS = [
   /^claude.*opus.*4[.-]?6/i,
   /^claude.*4[.-]?6.*opus/i,
@@ -317,7 +317,7 @@ function resolveAutoModel(models) {
   return (_a = models[0]) != null ? _a : null;
 }
 
-// packages/react/src/utils/client-session.ts
+// src/utils/client-session.ts
 var CLIENT_ID_STORAGE_KEY = "aomi_client_id";
 var CONTROL_SESSION_PREFIX = "control:";
 function getOrCreateClientId() {
@@ -343,15 +343,18 @@ function getControlSessionId(clientId, fallbackSessionId) {
   return trimmedClientId ? `${CONTROL_SESSION_PREFIX}${trimmedClientId}` : fallbackSessionId;
 }
 
-// packages/react/src/contexts/control-context.tsx
+// src/contexts/control-context.tsx
 var import_jsx_runtime = require("react/jsx-runtime");
-var API_KEY_STORAGE_KEY = "aomi_api_key";
-var PROVIDER_KEYS_STORAGE_KEY = "aomi_provider_keys";
+var API_KEY_STORAGE_KEY = "aomi_secret_key";
+var BYOK_KEYS_STORAGE_KEY = "aomi_byok_keys";
 var MODEL_SELECTION_STORAGE_KEY = "aomi_model_selection";
-var PROVIDER_KEY_SECRET_PREFIX = "PROVIDER_KEY:";
+var BYOK_SECRET_PREFIX = "PROVIDER_KEY:";
 function getDefaultApp(apps) {
   var _a;
   return apps.includes("default") ? "default" : (_a = apps[0]) != null ? _a : null;
+}
+function namesFromDescriptors(apps) {
+  return apps.map((a) => a.name);
 }
 function readStoredModelPreference() {
   var _a;
@@ -424,9 +427,10 @@ function ControlContextProvider({
     clientId: getOrCreateClientId(),
     availableModels: [],
     authorizedApps: [],
+    appDescriptors: [],
     defaultModel: null,
     defaultApp: null,
-    providerKeys: {}
+    byokKeys: {}
   }));
   const stateRef = (0, import_react.useRef)(state);
   stateRef.current = state;
@@ -469,10 +473,10 @@ function ControlContextProvider({
   (0, import_react.useEffect)(() => {
     var _a2;
     try {
-      const raw = (_a2 = globalThis.localStorage) == null ? void 0 : _a2.getItem(PROVIDER_KEYS_STORAGE_KEY);
+      const raw = (_a2 = globalThis.localStorage) == null ? void 0 : _a2.getItem(BYOK_KEYS_STORAGE_KEY);
       if (raw) {
         const parsed = JSON.parse(raw);
-        setStateInternal((prev) => __spreadProps(__spreadValues({}, prev), { providerKeys: parsed }));
+        setStateInternal((prev) => __spreadProps(__spreadValues({}, prev), { byokKeys: parsed }));
       }
     } catch (e) {
     }
@@ -491,50 +495,53 @@ function ControlContextProvider({
   (0, import_react.useEffect)(() => {
     var _a2, _b2;
     try {
-      const keys = state.providerKeys;
+      const keys = state.byokKeys;
       if (Object.keys(keys).length > 0) {
         (_a2 = globalThis.localStorage) == null ? void 0 : _a2.setItem(
-          PROVIDER_KEYS_STORAGE_KEY,
+          BYOK_KEYS_STORAGE_KEY,
           JSON.stringify(keys)
         );
       } else {
-        (_b2 = globalThis.localStorage) == null ? void 0 : _b2.removeItem(PROVIDER_KEYS_STORAGE_KEY);
+        (_b2 = globalThis.localStorage) == null ? void 0 : _b2.removeItem(BYOK_KEYS_STORAGE_KEY);
       }
     } catch (e) {
     }
-  }, [state.providerKeys]);
+  }, [state.byokKeys]);
   (0, import_react.useEffect)(() => {
     if (!state.clientId) return;
-    const keys = stateRef.current.providerKeys;
+    const keys = stateRef.current.byokKeys;
     if (Object.keys(keys).length === 0) return;
     const secrets = {};
     for (const [provider, entry] of Object.entries(keys)) {
-      secrets[`${PROVIDER_KEY_SECRET_PREFIX}${provider}`] = entry.apiKey;
+      secrets[`${BYOK_SECRET_PREFIX}${provider}`] = entry.apiKey;
     }
     void aomiClientRef.current.ingestSecrets(getCurrentControlSessionId(), state.clientId, secrets).catch((err) => {
-      console.error("Failed to auto-ingest provider keys:", err);
+      console.error("Failed to auto-ingest BYOK keys:", err);
     });
-  }, [getCurrentControlSessionId, state.clientId, state.providerKeys]);
+  }, [getCurrentControlSessionId, state.clientId, state.byokKeys]);
   (0, import_react.useEffect)(() => {
     const fetchApps = async () => {
       var _a2;
       try {
-        const apps = await aomiClientRef.current.getApps(
+        const descriptors = await aomiClientRef.current.getApps(
           getCurrentControlSessionId(),
           {
             publicKey: publicKeyRef.current,
             apiKey: (_a2 = stateRef.current.apiKey) != null ? _a2 : void 0
           }
         );
-        const defaultApp = getDefaultApp(apps);
+        const names = namesFromDescriptors(descriptors);
+        const defaultApp = getDefaultApp(names);
         setStateInternal((prev) => __spreadProps(__spreadValues({}, prev), {
-          authorizedApps: apps,
+          authorizedApps: names,
+          appDescriptors: descriptors,
           defaultApp
         }));
       } catch (error) {
         console.error("Failed to fetch apps:", error);
         setStateInternal((prev) => __spreadProps(__spreadValues({}, prev), {
           authorizedApps: ["default"],
+          appDescriptors: [{ name: "default" }],
           defaultApp: "default"
         }));
       }
@@ -565,29 +572,53 @@ function ControlContextProvider({
     });
   }, []);
   const ingestSecrets = (0, import_react.useCallback)(
-    async (secrets) => {
+    async (secrets, app) => {
       const clientId = stateRef.current.clientId;
       if (!clientId) throw new Error("clientId not initialized");
       const { handles } = await aomiClientRef.current.ingestSecrets(
         getCurrentControlSessionId(),
         clientId,
-        secrets
+        secrets,
+        app
       );
       return handles;
     },
     [getCurrentControlSessionId]
   );
-  const clearSecrets = (0, import_react.useCallback)(async () => {
-    var _a2, _b2;
-    const clientId = stateRef.current.clientId;
-    if (!clientId) return;
-    await ((_b2 = (_a2 = aomiClientRef.current).clearSecrets) == null ? void 0 : _b2.call(
-      _a2,
-      getCurrentControlSessionId(),
-      clientId
-    ));
+  const clearSecrets = (0, import_react.useCallback)(
+    async (app) => {
+      var _a2, _b2;
+      const clientId = stateRef.current.clientId;
+      if (!clientId) return;
+      await ((_b2 = (_a2 = aomiClientRef.current).clearSecrets) == null ? void 0 : _b2.call(
+        _a2,
+        getCurrentControlSessionId(),
+        clientId,
+        app
+      ));
+    },
+    [getCurrentControlSessionId]
+  );
+  const deleteSecret = (0, import_react.useCallback)(
+    async (name, app) => {
+      const clientId = stateRef.current.clientId;
+      if (!clientId) return;
+      await aomiClientRef.current.deleteSecret(
+        getCurrentControlSessionId(),
+        clientId,
+        name,
+        app
+      );
+    },
+    [getCurrentControlSessionId]
+  );
+  const listSecrets = (0, import_react.useCallback)(async () => {
+    const { by_app } = await aomiClientRef.current.listSecrets(
+      getCurrentControlSessionId()
+    );
+    return by_app;
   }, [getCurrentControlSessionId]);
-  const setProviderKey = (0, import_react.useCallback)(
+  const setByok = (0, import_react.useCallback)(
     async (provider, apiKey, label) => {
       const trimmed = apiKey.trim();
       if (!trimmed) return;
@@ -598,7 +629,7 @@ function ControlContextProvider({
       };
       setStateInternal((prev) => {
         const next = __spreadProps(__spreadValues({}, prev), {
-          providerKeys: __spreadProps(__spreadValues({}, prev.providerKeys), { [provider]: entry })
+          byokKeys: __spreadProps(__spreadValues({}, prev.byokKeys), { [provider]: entry })
         });
         callbacks.current.forEach((cb) => cb(next));
         return next;
@@ -610,41 +641,41 @@ function ControlContextProvider({
             getCurrentControlSessionId(),
             clientId,
             {
-              [`${PROVIDER_KEY_SECRET_PREFIX}${provider}`]: trimmed
+              [`${BYOK_SECRET_PREFIX}${provider}`]: trimmed
             }
           );
         } catch (err) {
-          console.error("Failed to ingest provider key:", err);
+          console.error("Failed to ingest BYOK key:", err);
         }
       }
     },
     [getCurrentControlSessionId]
   );
-  const removeProviderKey = (0, import_react.useCallback)(
+  const removeByok = (0, import_react.useCallback)(
     async (provider) => {
       const clientId = stateRef.current.clientId;
       if (clientId) {
         await aomiClientRef.current.deleteSecret(
           getCurrentControlSessionId(),
           clientId,
-          `${PROVIDER_KEY_SECRET_PREFIX}${provider}`
+          `${BYOK_SECRET_PREFIX}${provider}`
         );
       }
       setStateInternal((prev) => {
-        const _a2 = prev.providerKeys, { [provider]: _ } = _a2, rest = __objRest(_a2, [__restKey(provider)]);
-        const next = __spreadProps(__spreadValues({}, prev), { providerKeys: rest });
+        const _a2 = prev.byokKeys, { [provider]: _ } = _a2, rest = __objRest(_a2, [__restKey(provider)]);
+        const next = __spreadProps(__spreadValues({}, prev), { byokKeys: rest });
         callbacks.current.forEach((cb) => cb(next));
         return next;
       });
     },
     [getCurrentControlSessionId]
   );
-  const getProviderKeys = (0, import_react.useCallback)(
-    () => stateRef.current.providerKeys,
+  const getByokKeys = (0, import_react.useCallback)(
+    () => stateRef.current.byokKeys,
     []
   );
-  const hasProviderKey = (0, import_react.useCallback)((provider) => {
-    const keys = stateRef.current.providerKeys;
+  const hasByok = (0, import_react.useCallback)((provider) => {
+    const keys = stateRef.current.byokKeys;
     if (provider) return provider in keys;
     return Object.keys(keys).length > 0;
   }, []);
@@ -666,23 +697,26 @@ function ControlContextProvider({
   const getAuthorizedApps = (0, import_react.useCallback)(async () => {
     var _a2;
     try {
-      const apps = await aomiClientRef.current.getApps(
+      const descriptors = await aomiClientRef.current.getApps(
         getCurrentControlSessionId(),
         {
           publicKey: publicKeyRef.current,
           apiKey: (_a2 = stateRef.current.apiKey) != null ? _a2 : void 0
         }
       );
-      const defaultApp = getDefaultApp(apps);
+      const names = namesFromDescriptors(descriptors);
+      const defaultApp = getDefaultApp(names);
       setStateInternal((prev) => __spreadProps(__spreadValues({}, prev), {
-        authorizedApps: apps,
+        authorizedApps: names,
+        appDescriptors: descriptors,
         defaultApp
       }));
-      return apps;
+      return names;
     } catch (error) {
       console.error("Failed to fetch apps:", error);
       setStateInternal((prev) => __spreadProps(__spreadValues({}, prev), {
         authorizedApps: ["default"],
+        appDescriptors: [{ name: "default" }],
         defaultApp: "default"
       }));
       return ["default"];
@@ -937,10 +971,12 @@ function ControlContextProvider({
         setApiKey,
         ingestSecrets,
         clearSecrets,
-        setProviderKey,
-        removeProviderKey,
-        getProviderKeys,
-        hasProviderKey,
+        deleteSecret,
+        listSecrets,
+        setByok,
+        removeByok,
+        getByokKeys,
+        hasByok,
         getAvailableModels,
         getAuthorizedApps,
         getCurrentThreadControl,
@@ -960,7 +996,7 @@ function ControlContextProvider({
   );
 }
 
-// packages/react/src/contexts/event-context.tsx
+// src/contexts/event-context.tsx
 var import_react2 = require("react");
 var import_jsx_runtime2 = require("react/jsx-runtime");
 var EventContextState = (0, import_react2.createContext)(null);
@@ -1030,7 +1066,7 @@ function EventContextProvider({
   return /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(EventContextState.Provider, { value: contextValue, children });
 }
 
-// packages/react/src/contexts/notification-context.tsx
+// src/contexts/notification-context.tsx
 var import_react3 = require("react");
 var import_jsx_runtime3 = require("react/jsx-runtime");
 var NotificationContext = (0, import_react3.createContext)(null);
@@ -1051,19 +1087,30 @@ function NotificationContextProvider({
   children
 }) {
   const [notifications, setNotifications] = (0, import_react3.useState)([]);
+  const paymentRequiredIdRef = (0, import_react3.useRef)(null);
   const showNotification = (0, import_react3.useCallback)((params) => {
+    if (params.kind === "payment_required" && paymentRequiredIdRef.current) {
+      return paymentRequiredIdRef.current;
+    }
     const id = generateId();
     const notification = __spreadProps(__spreadValues({}, params), {
       id,
       timestamp: Date.now()
     });
+    if (params.kind === "payment_required") {
+      paymentRequiredIdRef.current = id;
+    }
     setNotifications((prev) => [notification, ...prev]);
     return id;
   }, []);
   const dismissNotification = (0, import_react3.useCallback)((id) => {
+    if (paymentRequiredIdRef.current === id) {
+      paymentRequiredIdRef.current = null;
+    }
     setNotifications((prev) => prev.filter((n) => n.id !== id));
   }, []);
   const clearAll = (0, import_react3.useCallback)(() => {
+    paymentRequiredIdRef.current = null;
     setNotifications([]);
   }, []);
   const value = {
@@ -1075,7 +1122,7 @@ function NotificationContextProvider({
   return /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(NotificationContext.Provider, { value, children });
 }
 
-// packages/react/src/contexts/thread-context.tsx
+// src/contexts/thread-context.tsx
 var import_react4 = require("react");
 var import_jsx_runtime4 = require("react/jsx-runtime");
 var ThreadContextState = (0, import_react4.createContext)(null);
@@ -1119,16 +1166,60 @@ function useCurrentThreadMetadata() {
   );
 }
 
-// packages/react/src/contexts/user-context.tsx
+// src/contexts/ext-user-context.tsx
 var import_react5 = require("react");
 var import_client = require("@aomi-labs/client");
 var import_client2 = require("@aomi-labs/client");
 var import_jsx_runtime5 = require("react/jsx-runtime");
+function asRecord(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return void 0;
+  }
+  return value;
+}
+function mergeRecords(previous, incoming) {
+  const next = __spreadValues({}, previous);
+  for (const [key, value] of Object.entries(incoming)) {
+    const prevRecord = asRecord(next[key]);
+    const incomingRecord = asRecord(value);
+    if (prevRecord && incomingRecord) {
+      next[key] = mergeRecords(prevRecord, incomingRecord);
+    } else if (value !== void 0) {
+      next[key] = value;
+    }
+  }
+  return next;
+}
+function dropWalletBlocks(state) {
+  var _a;
+  return (_a = import_client.UserState.normalize({
+    connection: { is_connected: false },
+    ext: state.ext,
+    preferences: state.preferences
+  })) != null ? _a : { connection: { is_connected: false } };
+}
+function dropAddressScopedState(state) {
+  var _a;
+  const evm = asRecord(state.evm);
+  const nextEvm = evm ? __spreadValues({}, evm) : void 0;
+  if (nextEvm) {
+    delete nextEvm.aa;
+    delete nextEvm.ens_name;
+  }
+  const next = __spreadValues({}, state);
+  if (nextEvm && Object.keys(nextEvm).length > 0) {
+    next.evm = nextEvm;
+  } else {
+    delete next.evm;
+  }
+  delete next.pending;
+  return (_a = import_client.UserState.normalize(next)) != null ? _a : {};
+}
 var UserContext = (0, import_react5.createContext)(void 0);
 function useUser() {
   const context = (0, import_react5.useContext)(UserContext);
   if (!context) {
-    throw new Error("useUser must be used within UserContextProvider");
+    throw new Error("useUser must be used within ExtUserProvider");
   }
   return {
     user: context.user,
@@ -1139,12 +1230,16 @@ function useUser() {
     onUserStateChange: context.onUserStateChange
   };
 }
-function UserContextProvider({ children }) {
+function ExtUserProvider({ children }) {
+  const parent = (0, import_react5.useContext)(UserContext);
+  if (parent) {
+    return /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(import_jsx_runtime5.Fragment, { children });
+  }
+  return /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(ExtUserProviderImpl, { children });
+}
+function ExtUserProviderImpl({ children }) {
   const [user, setUserState] = (0, import_react5.useState)({
-    connection: {
-      is_connected: false
-    },
-    ext: void 0
+    connection: { is_connected: false }
   });
   const userRef = (0, import_react5.useRef)(user);
   userRef.current = user;
@@ -1160,8 +1255,23 @@ function UserContextProvider({ children }) {
   }, []);
   const setUser = (0, import_react5.useCallback)((data) => {
     setUserState((prev) => {
-      var _a;
-      const next = (_a = import_client.UserState.reconcile(prev, data)) != null ? _a : prev;
+      var _a, _b, _c;
+      const normalizedData = (_a = import_client.UserState.normalize(data)) != null ? _a : {};
+      const merged = (_c = import_client.UserState.normalize(
+        mergeRecords(
+          (_b = import_client.UserState.normalize(prev)) != null ? _b : {},
+          normalizedData
+        )
+      )) != null ? _c : prev;
+      let next;
+      if (import_client.UserState.isConnected(normalizedData) === false) {
+        next = dropWalletBlocks(merged);
+      } else {
+        const prevAddress = import_client.UserState.address(prev);
+        const nextAddress = import_client.UserState.address(merged);
+        const addressChanged = prevAddress !== void 0 && nextAddress !== void 0 && prevAddress.toLowerCase() !== nextAddress.toLowerCase();
+        next = addressChanged ? dropAddressScopedState(merged) : merged;
+      }
       notifyStateChange(next);
       return next;
     });
@@ -1214,16 +1324,16 @@ function UserContextProvider({ children }) {
   );
 }
 
-// packages/react/src/runtime/core.tsx
+// src/runtime/core.tsx
 var import_react10 = require("react");
 var import_react11 = require("@assistant-ui/react");
-var import_client6 = require("@aomi-labs/client");
+var import_client7 = require("@aomi-labs/client");
 
-// packages/react/src/runtime/orchestrator.ts
+// src/runtime/orchestrator.ts
 var import_react6 = require("react");
-var import_client4 = require("@aomi-labs/client");
+var import_client5 = require("@aomi-labs/client");
 
-// packages/react/src/runtime/session-manager.ts
+// src/runtime/session-manager.ts
 var import_client3 = require("@aomi-labs/client");
 var SessionManager = class {
   constructor(clientFactory) {
@@ -1280,7 +1390,8 @@ var SessionManager = class {
   }
 };
 
-// packages/react/src/runtime/utils.ts
+// src/runtime/utils.ts
+var import_client4 = require("@aomi-labs/client");
 var import_clsx = require("clsx");
 var import_tailwind_merge = require("tailwind-merge");
 function cn(...inputs) {
@@ -1308,7 +1419,7 @@ function toInboundMessage(msg) {
   if (msg.sender === "system") return null;
   const content = [];
   const role = msg.sender === "user" ? "user" : "assistant";
-  if (msg.content) {
+  if (msg.content && msg.content.trim().length > 0) {
     content.push({ type: "text", text: msg.content });
   }
   const [topic, toolContent] = (_a = parseToolPayload(msg)) != null ? _a : [];
@@ -1327,9 +1438,12 @@ function toInboundMessage(msg) {
       })()
     });
   }
+  if (content.length === 0 && role === "assistant" && !msg.is_streaming) {
+    return null;
+  }
   const threadMessage = __spreadValues({
     role,
-    content: content.length > 0 ? content : [{ type: "text", text: "" }]
+    content
   }, msg.timestamp && { createdAt: new Date(msg.timestamp) });
   return threadMessage;
 }
@@ -1360,10 +1474,14 @@ var getNetworkName = (chainId) => {
       return "optimism";
     case 11155111:
       return "sepolia";
+    case 143:
+      return "monad";
+    case 10143:
+      return "monad-testnet";
     case 1337:
     case 31337:
       return "testnet";
-    case 59140:
+    case 59141:
       return "linea-sepolia";
     case 59144:
       return "linea";
@@ -1372,17 +1490,10 @@ var getNetworkName = (chainId) => {
   }
 };
 var formatAddress = (addr) => addr ? `${addr.slice(0, 6)}...${addr.slice(-4)}` : "Connect Wallet";
-var SUPPORTED_CHAINS = [
-  { id: 1, name: "Ethereum", ticker: "ETH" },
-  { id: 137, name: "Polygon", ticker: "MATIC" },
-  { id: 42161, name: "Arbitrum", ticker: "ARB" },
-  { id: 8453, name: "Base", ticker: "BASE" },
-  { id: 10, name: "Optimism", ticker: "OP" },
-  { id: 11155111, name: "Sepolia", ticker: "SEP" }
-];
+var SUPPORTED_CHAINS = [...import_client4.SUPPORTED_CHAINS];
 var getChainInfo = (chainId) => chainId === void 0 ? void 0 : SUPPORTED_CHAINS.find((c) => c.id === chainId);
 
-// packages/react/src/runtime/orchestrator.ts
+// src/runtime/orchestrator.ts
 var toErrorMessage = (error) => error instanceof Error ? error.message : "Message failed to send";
 var getHttpStatus = (error) => {
   const status = error == null ? void 0 : error.status;
@@ -1392,13 +1503,14 @@ var getHttpStatus = (error) => {
   return match ? Number(match[1]) : void 0;
 };
 var isPaymentRequiredError = (error) => getHttpStatus(error) === 402;
+var PAYMENT_REQUIRED_MESSAGE = "You're out of funds, please set up a payment method.";
 var buildPaymentRequiredMessage = () => ({
   id: `aomi-payment-required-${Date.now()}`,
   role: "assistant",
   content: [
     {
       type: "text",
-      text: "You're out of credits for this account. Use x402 to add credits and continue with pay-per-message access."
+      text: PAYMENT_REQUIRED_MESSAGE
     }
   ],
   createdAt: /* @__PURE__ */ new Date(),
@@ -1454,8 +1566,13 @@ var updateOptimisticMessage = (threadContext, threadId, messageId, status, error
 var appendPaymentRequiredMessage = (threadContext, threadId) => {
   var _a, _b;
   const messages = threadContext.getThreadMessages(threadId);
-  const lastMessage = messages[messages.length - 1];
-  const hasPaymentNotice = ((_b = (_a = lastMessage == null ? void 0 : lastMessage.metadata) == null ? void 0 : _a.custom) == null ? void 0 : _b.aomiNoticeKind) === "payment_required";
+  let hasPaymentNotice = false;
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const message = messages[i];
+    if (message.role !== "assistant") continue;
+    hasPaymentNotice = ((_b = (_a = message.metadata) == null ? void 0 : _a.custom) == null ? void 0 : _b.aomiNoticeKind) === "payment_required";
+    break;
+  }
   if (hasPaymentNotice) return;
   threadContext.setThreadMessages(threadId, [
     ...messages,
@@ -1550,7 +1667,7 @@ function useRuntimeOrchestrator(aomiClient, options) {
         publicKey: nextPublicKey,
         apiKey: nextApiKey,
         clientId: nextClientId,
-        clientType: import_client4.CLIENT_TYPE_WEB_UI,
+        clientType: import_client5.CLIENT_TYPE_WEB_UI,
         syncPendingTxRequestsFromUserState: false,
         userState: nextUserState
       });
@@ -1794,7 +1911,7 @@ function useRuntimeOrchestrator(aomiClient, options) {
   };
 }
 
-// packages/react/src/runtime/threadlist-adapter.ts
+// src/runtime/threadlist-adapter.ts
 var sortByLastActiveDesc = ([, metaA], [, metaB]) => {
   const tsA = parseTimestamp(metaA.lastActiveAt);
   const tsB = parseTimestamp(metaB.lastActiveAt);
@@ -1953,7 +2070,7 @@ function buildThreadListAdapter({
   };
 }
 
-// packages/react/src/interface.tsx
+// src/interface.tsx
 var import_react7 = require("react");
 var AomiRuntimeContext = (0, import_react7.createContext)(null);
 var AomiRuntimeApiProvider = AomiRuntimeContext.Provider;
@@ -1967,7 +2084,7 @@ function useAomiRuntime() {
   return context;
 }
 
-// packages/react/src/handlers/wallet-handler.ts
+// src/handlers/wallet-handler.ts
 var import_react8 = require("react");
 function useWalletHandler({
   getSession
@@ -2057,9 +2174,9 @@ function useWalletHandler({
   };
 }
 
-// packages/react/src/runtime/user-state-provider.tsx
+// src/runtime/user-state-provider.tsx
 var import_react9 = require("react");
-var import_client5 = require("@aomi-labs/client");
+var import_client6 = require("@aomi-labs/client");
 var import_jsx_runtime6 = require("react/jsx-runtime");
 var THREAD_PREFETCH_LIMIT = 5;
 var PREFETCH_IDLE_TIMEOUT_MS = 1500;
@@ -2088,7 +2205,7 @@ function normalizeWalletId(value) {
 }
 function getConnectedWalletId(userState) {
   var _a;
-  return (_a = import_client5.UserState.address(userState)) != null ? _a : import_client5.UserState.solanaAddress(userState);
+  return (_a = import_client6.UserState.address(userState)) != null ? _a : import_client6.UserState.svmAddress(userState);
 }
 function useWalletStateSync(context, sessions, remoteThreads) {
   const { getUserState, onUserStateChange, threadContextRef } = context;
@@ -2096,19 +2213,34 @@ function useWalletStateSync(context, sessions, remoteThreads) {
   const { remoteThreadIdsRef } = remoteThreads;
   const walletSnapshot = (0, import_react9.useCallback)(
     (nextUser) => {
-      var _a, _b, _c;
+      var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n;
       return {
         connection: {
-          is_connected: (_a = import_client5.UserState.isConnected(nextUser)) != null ? _a : false,
-          primary_family: (_b = nextUser.connection) == null ? void 0 : _b.primary_family
+          is_connected: (_a = import_client6.UserState.isConnected(nextUser)) != null ? _a : false,
+          primary_family: (_b = nextUser.connection) == null ? void 0 : _b.primary_family,
+          provider: (_c = import_client6.UserState.walletProvider(nextUser)) != null ? _c : void 0,
+          wallet_provider_subject: (_d = import_client6.UserState.walletProviderSubject(nextUser)) != null ? _d : void 0,
+          auth_method: (_e = import_client6.UserState.authMethod(nextUser)) != null ? _e : void 0,
+          auth_value: (_f = import_client6.UserState.authValue(nextUser)) != null ? _f : void 0,
+          auth_verified_at: (_g = import_client6.UserState.authVerifiedAt(nextUser)) != null ? _g : void 0
         },
         evm: {
-          address: import_client5.UserState.address(nextUser),
-          chain_id: import_client5.UserState.chainId(nextUser),
-          ens_name: typeof ((_c = nextUser.evm) == null ? void 0 : _c.ens_name) === "string" ? nextUser.evm.ens_name : void 0
+          address: import_client6.UserState.address(nextUser),
+          chain_id: import_client6.UserState.chainId(nextUser),
+          ens_name: typeof ((_h = nextUser.evm) == null ? void 0 : _h.ens_name) === "string" ? nextUser.evm.ens_name : void 0,
+          aa: {
+            mode: (_i = import_client6.UserState.aaMode(nextUser)) != null ? _i : void 0,
+            smart_account: (_j = import_client6.UserState.SmartAccount4337(nextUser)) != null ? _j : void 0,
+            delegation_7702: (_k = import_client6.UserState.Delegation7702(nextUser)) != null ? _k : void 0
+          },
+          sponsorship: {
+            sponsored: (_l = import_client6.UserState.sponsored(nextUser)) != null ? _l : void 0,
+            sponsor_provider: (_m = import_client6.UserState.sponsorProvider(nextUser)) != null ? _m : void 0,
+            sponsor_account: (_n = import_client6.UserState.sponsorAccount(nextUser)) != null ? _n : void 0
+          }
         },
-        solana: {
-          address: import_client5.UserState.solanaAddress(nextUser)
+        svm: {
+          address: import_client6.UserState.svmAddress(nextUser)
         }
       };
     },
@@ -2159,7 +2291,7 @@ function useUserStateRequestResponder(context, sessions) {
       var _a, _b;
       const sessionId = threadContextRef.current.currentThreadId;
       const session = getSession(sessionId);
-      const payload = (_b = (_a = import_client5.UserState.reconcile(session.getUserState(), getUserState())) != null ? _a : session.getUserState()) != null ? _b : getUserState();
+      const payload = (_b = (_a = import_client6.UserState.reconcile(session.getUserState(), getUserState())) != null ? _a : session.getUserState()) != null ? _b : getUserState();
       eventContext.sendOutboundSystem({
         type: "user_state_response",
         sessionId,
@@ -2191,6 +2323,7 @@ function useRemoteThreadListSync(context, sessions, remoteThreads) {
     warmedThreadIdsRef,
     warmThread
   } = remoteThreads;
+  const connectedAddress = import_client6.UserState.isConnected(user) ? getConnectedWalletId(user) : void 0;
   const scheduleThreadPrefetch = (0, import_react9.useCallback)(
     (threadIds) => {
       var _a;
@@ -2229,7 +2362,7 @@ function useRemoteThreadListSync(context, sessions, remoteThreads) {
   );
   (0, import_react9.useEffect)(() => {
     var _a, _b;
-    const userAddress = import_client5.UserState.isConnected(user) ? getConnectedWalletId(user) : void 0;
+    const userAddress = connectedAddress;
     const normalizedUserAddress = normalizeWalletId(userAddress);
     const previousAddress = lastConnectedAddressRef.current;
     const walletChanged = previousAddress !== void 0 && normalizedUserAddress !== void 0 && previousAddress !== normalizedUserAddress;
@@ -2363,7 +2496,7 @@ function useRemoteThreadListSync(context, sessions, remoteThreads) {
     sessionManager,
     setIsThreadLoading,
     threadContextRef,
-    user,
+    connectedAddress,
     warmPromisesRef,
     warmedThreadIdsRef,
     warmThread
@@ -2409,6 +2542,7 @@ function RuntimeUserStateProvider({
   children,
   sessionManager,
   getUserState,
+  setUser,
   onUserStateChange
 }) {
   const lastSerializedStateRef = (0, import_react9.useRef)("");
@@ -2420,23 +2554,36 @@ function RuntimeUserStateProvider({
       }
       lastSerializedStateRef.current = serialized;
       sessionManager.forEach((session) => {
-        session.resolveUserState(next);
+        session.resolveUserState(next, { skipEmit: true });
       });
     };
+    const sessionListeners = [];
+    sessionManager.forEach((session) => {
+      const handler = (next) => {
+        setUser(next);
+      };
+      session.on("user_state_updated", handler);
+      sessionListeners.push(
+        () => session.off("user_state_updated", handler)
+      );
+    });
     applyToSessions(getUserState());
     const unsubscribe = onUserStateChange((next) => {
       applyToSessions(next);
     });
-    return unsubscribe;
-  }, [getUserState, onUserStateChange, sessionManager]);
+    return () => {
+      unsubscribe();
+      sessionListeners.forEach((off) => off());
+    };
+  }, [getUserState, onUserStateChange, sessionManager, setUser]);
   return /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(import_jsx_runtime6.Fragment, { children });
 }
 
-// packages/react/src/runtime/core.tsx
+// src/runtime/core.tsx
 var import_jsx_runtime7 = require("react/jsx-runtime");
 function getConnectedWalletId2(userState) {
   var _a;
-  return (_a = import_client6.UserState.address(userState)) != null ? _a : import_client6.UserState.solanaAddress(userState);
+  return (_a = import_client7.UserState.address(userState)) != null ? _a : import_client7.UserState.svmAddress(userState);
 }
 function normalizeWalletIdForStorage(value) {
   if (!value) {
@@ -2485,7 +2632,7 @@ function AomiRuntimeCore({
     closeAllSessions,
     aomiClientRef
   } = useRuntimeOrchestrator(aomiClient, {
-    getPublicKey: () => import_client6.UserState.isConnected(getUserState()) ? getConnectedWalletId2(getUserState()) : void 0,
+    getPublicKey: () => import_client7.UserState.isConnected(getUserState()) ? getConnectedWalletId2(getUserState()) : void 0,
     getUserState,
     getApp: getCurrentThreadApp,
     getApiKey: () => getControlState().apiKey,
@@ -2514,7 +2661,15 @@ function AomiRuntimeCore({
     onSendError: async (threadId, error) => {
       const wasMaterializedForSend = threadsMaterializedForSendRef.current.has(threadId);
       threadsMaterializedForSendRef.current.delete(threadId);
-      if (getHttpStatus2(error) !== 402 || !wasMaterializedForSend) {
+      const httpStatus = getHttpStatus2(error);
+      if (httpStatus === 402) {
+        notificationContext.showNotification({
+          type: "error",
+          kind: "payment_required",
+          title: "You're out of funds"
+        });
+      }
+      if (httpStatus !== 402 || !wasMaterializedForSend) {
         return;
       }
       try {
@@ -2562,7 +2717,7 @@ function AomiRuntimeCore({
       }
       const warmPromise = (async () => {
         const userState = getUserState();
-        if (import_client6.UserState.isConnected(userState)) {
+        if (import_client7.UserState.isConnected(userState)) {
           const publicKey = getConnectedWalletId2(userState);
           if (publicKey) {
             await ensureAccountForPublicKey(threadId, publicKey);
@@ -2570,7 +2725,7 @@ function AomiRuntimeCore({
         }
         await aomiClientRef.current.createThread(
           threadId,
-          import_client6.UserState.isConnected(userState) ? getConnectedWalletId2(userState) : void 0
+          import_client7.UserState.isConnected(userState) ? getConnectedWalletId2(userState) : void 0
         );
         warmedThreadIdsRef.current.add(threadId);
       })();
@@ -2587,7 +2742,7 @@ function AomiRuntimeCore({
     async (threadId) => {
       if (remoteThreadIdsRef.current.has(threadId)) return false;
       const userState = getUserState();
-      if (import_client6.UserState.isConnected(userState)) {
+      if (import_client7.UserState.isConnected(userState)) {
         const publicKey = getConnectedWalletId2(userState);
         if (publicKey) {
           await ensureAccountForPublicKey(threadId, publicKey);
@@ -2595,7 +2750,7 @@ function AomiRuntimeCore({
       }
       await aomiClientRef.current.createThread(
         threadId,
-        import_client6.UserState.isConnected(userState) ? getConnectedWalletId2(userState) : void 0
+        import_client7.UserState.isConnected(userState) ? getConnectedWalletId2(userState) : void 0
       );
       remoteThreadIdsRef.current.add(threadId);
       warmedThreadIdsRef.current.add(threadId);
@@ -2888,13 +3043,14 @@ function AomiRuntimeCore({
     {
       sessionManager,
       getUserState: userContext.getUserState,
+      setUser: userContext.setUser,
       onUserStateChange: userContext.onUserStateChange,
       children: /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(import_react11.AssistantRuntimeProvider, { runtime, children })
     }
   ) });
 }
 
-// packages/react/src/runtime/aomi-runtime.tsx
+// src/runtime/aomi-runtime.tsx
 var import_jsx_runtime8 = require("react/jsx-runtime");
 function normalizeBackendUrl(url) {
   try {
@@ -2921,12 +3077,12 @@ function AomiRuntimeProvider({
     [clientOptions]
   );
   const aomiClient = (0, import_react12.useMemo)(
-    () => new import_client7.AomiClient(__spreadValues({
+    () => new import_client8.AomiClient(__spreadValues({
       baseUrl: normalizeBackendUrl(backendUrl)
     }, resolvedClientOptions)),
     [backendUrl, resolvedClientOptions]
   );
-  return /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(ThreadContextProvider, { children: /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(NotificationContextProvider, { children: /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(UserContextProvider, { children: /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(AomiRuntimeInner, { aomiClient, children }) }) }) });
+  return /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(ThreadContextProvider, { children: /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(NotificationContextProvider, { children: /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(ExtUserProvider, { children: /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(AomiRuntimeInner, { aomiClient, children }) }) }) });
 }
 function AomiRuntimeInner({
   children,
@@ -2940,7 +3096,7 @@ function AomiRuntimeInner({
     {
       aomiClient,
       sessionId: threadContext.currentThreadId,
-      publicKey: import_client7.UserState.isConnected(user) ? (_a = import_client7.UserState.address(user)) != null ? _a : import_client7.UserState.solanaAddress(user) : void 0,
+      publicKey: import_client8.UserState.isConnected(user) ? (_a = import_client8.UserState.address(user)) != null ? _a : import_client8.UserState.svmAddress(user) : void 0,
       getThreadMetadata: threadContext.getThreadMetadata,
       updateThreadMetadata: threadContext.updateThreadMetadata,
       children: /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(
@@ -2955,7 +3111,7 @@ function AomiRuntimeInner({
   );
 }
 
-// packages/react/src/handlers/notification-handler.ts
+// src/handlers/notification-handler.ts
 var import_react13 = require("react");
 var notificationIdCounter2 = 0;
 function generateNotificationId() {
@@ -3004,12 +3160,12 @@ function useNotificationHandler({
   ControlContextProvider,
   DISABLED_PROVIDER_STATE,
   EventContextProvider,
+  ExtUserProvider,
   MAX_AUTO_FEE_WEI,
   NotificationContextProvider,
   RuntimeUserStateProvider,
   SUPPORTED_CHAINS,
   ThreadContextProvider,
-  UserContextProvider,
   UserState,
   aaModeFromExecutionKind,
   appendFeeCallToPayload,

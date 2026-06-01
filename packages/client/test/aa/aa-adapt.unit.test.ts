@@ -1,10 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
-import type { TransactionReceipt } from "viem";
+import type { Hex, TransactionReceipt } from "viem";
 
 import {
   adaptSmartAccount,
   isAlchemySponsorshipLimitError,
 } from "../../src/aa/adapt";
+
+const OWNER_ADDRESS: Hex = "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee";
 
 describe("adaptSmartAccount", () => {
   const mockReceipt = {
@@ -13,7 +15,7 @@ describe("adaptSmartAccount", () => {
 
   type MockAccount = Parameters<typeof adaptSmartAccount>[0];
 
-  function makeMockAccount(): MockAccount {
+  function makeMockAccount(overrides: Partial<MockAccount> = {}): MockAccount {
     return {
       provider: "ALCHEMY",
       mode: "7702",
@@ -21,50 +23,59 @@ describe("adaptSmartAccount", () => {
       delegationAddress: "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
       sendTransaction: vi.fn().mockResolvedValue(mockReceipt),
       sendBatchTransaction: vi.fn().mockResolvedValue(mockReceipt),
+      ...overrides,
     };
   }
 
-  it("maps smartAccountAddress to AAAddress", () => {
-    const account = makeMockAccount();
-    const adapted = adaptSmartAccount(account);
+  it("lowercases the SDK provider and exposes address + Delegation7702 in 7702 mode", () => {
+    const adapted = adaptSmartAccount(makeMockAccount(), OWNER_ADDRESS);
 
-    expect(adapted.AAAddress).toBe("0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
-    expect(adapted.provider).toBe("ALCHEMY");
+    expect(adapted.provider).toBe("alchemy");
     expect(adapted.mode).toBe("7702");
-    expect(adapted.delegationAddress).toBe("0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb");
-  });
-
-  it("drops a 7702 delegation address when it matches the smart account address", () => {
-    const account = {
-      ...makeMockAccount(),
-      smartAccountAddress: "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-      delegationAddress: "0xAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
-    } satisfies MockAccount;
-
-    const adapted = adaptSmartAccount(account);
-
-    expect(adapted.AAAddress).toBe("0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
-    expect(adapted.delegationAddress).toBeUndefined();
-  });
-
-  it("preserves matching smart and delegation addresses outside 7702 mode", () => {
-    const account = {
-      ...makeMockAccount(),
-      mode: "4337",
-      smartAccountAddress: "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-      delegationAddress: "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-    } satisfies MockAccount;
-
-    const adapted = adaptSmartAccount(account);
-
-    expect(adapted.delegationAddress).toBe(
-      "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    expect(adapted.address).toBe(OWNER_ADDRESS);
+    expect(adapted.Delegation7702).toBe(
+      "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
     );
+    expect(adapted.SmartAccount4337).toBeUndefined();
+  });
+
+  it("exposes SmartAccount4337 (and not Delegation7702) in 4337 mode", () => {
+    const adapted = adaptSmartAccount(
+      makeMockAccount({
+        mode: "4337",
+        smartAccountAddress: "0xcccccccccccccccccccccccccccccccccccccccc",
+      }),
+      OWNER_ADDRESS,
+    );
+
+    expect(adapted.mode).toBe("4337");
+    expect(adapted.address).toBe(OWNER_ADDRESS);
+    expect(adapted.SmartAccount4337).toBe(
+      "0xcccccccccccccccccccccccccccccccccccccccc",
+    );
+    expect(adapted.Delegation7702).toBeUndefined();
+  });
+
+  it("drops a 7702 delegation address when it matches the smart-account address", () => {
+    const adapted = adaptSmartAccount(
+      makeMockAccount({
+        smartAccountAddress: "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        delegationAddress: "0xAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+      }),
+      OWNER_ADDRESS,
+    );
+
+    expect(adapted.Delegation7702).toBeUndefined();
+  });
+
+  it("rejects an unsupported SDK provider", () => {
+    expect(() =>
+      adaptSmartAccount(makeMockAccount({ provider: "BICONOMY" }), OWNER_ADDRESS),
+    ).toThrow(/Unsupported AA provider/);
   });
 
   it("unwraps TransactionReceipt to { transactionHash }", async () => {
-    const account = makeMockAccount();
-    const adapted = adaptSmartAccount(account);
+    const adapted = adaptSmartAccount(makeMockAccount(), OWNER_ADDRESS);
 
     const result = await adapted.sendTransaction({
       to: "0x1111111111111111111111111111111111111111",
@@ -75,8 +86,7 @@ describe("adaptSmartAccount", () => {
   });
 
   it("unwraps batch TransactionReceipt", async () => {
-    const account = makeMockAccount();
-    const adapted = adaptSmartAccount(account);
+    const adapted = adaptSmartAccount(makeMockAccount(), OWNER_ADDRESS);
 
     const result = await adapted.sendBatchTransaction([
       { to: "0x1111111111111111111111111111111111111111", value: 0n },

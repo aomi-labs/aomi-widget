@@ -11,7 +11,7 @@ import {
 import { UserState, type AomiClient } from "@aomi-labs/client";
 import { useControl } from "../contexts/control-context";
 import { useEventContext } from "../contexts/event-context";
-import { useUser } from "../contexts/user-context";
+import { useUser } from "../contexts/ext-user-context";
 import { useThreadContext } from "../contexts/thread-context";
 import { useNotification } from "../contexts/notification-context";
 import { useRuntimeOrchestrator } from "./orchestrator";
@@ -33,7 +33,7 @@ export type AomiRuntimeCoreProps = {
 };
 
 function getConnectedWalletId(userState: ReturnType<typeof UserState.normalize>) {
-  return UserState.address(userState) ?? UserState.solanaAddress(userState);
+  return UserState.address(userState) ?? UserState.svmAddress(userState);
 }
 
 function normalizeWalletIdForStorage(value: string | undefined): string | undefined {
@@ -129,8 +129,20 @@ export function AomiRuntimeCore({
       const wasMaterializedForSend =
         threadsMaterializedForSendRef.current.has(threadId);
       threadsMaterializedForSendRef.current.delete(threadId);
+      const httpStatus = getHttpStatus(error);
 
-      if (getHttpStatus(error) !== 402 || !wasMaterializedForSend) {
+      if (httpStatus === 402) {
+        // The `payment_required` modal (apps/registry payment-required-gate)
+        // owns its own copy; only `kind` is consumed for routing. `message`
+        // would be dead config — leave it off so there's one source of truth.
+        notificationContext.showNotification({
+          type: "error",
+          kind: "payment_required",
+          title: "You're out of funds",
+        });
+      }
+
+      if (httpStatus !== 402 || !wasMaterializedForSend) {
         return;
       }
 
@@ -613,6 +625,7 @@ export function AomiRuntimeCore({
       <RuntimeUserStateProvider
         sessionManager={sessionManager}
         getUserState={userContext.getUserState}
+        setUser={userContext.setUser}
         onUserStateChange={userContext.onUserStateChange}
       >
         <AssistantRuntimeProvider runtime={runtime}>

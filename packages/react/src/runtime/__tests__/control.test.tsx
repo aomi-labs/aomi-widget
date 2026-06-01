@@ -23,7 +23,7 @@ describe("Control context", () => {
     // visually reset (e.g. when toggling between EVM and Solana wallets,
     // the new app list might omit the user's previous selection). Apps are
     // scoped to the api key / auth context, not to the connected wallet.
-    const getApps = vi.fn(async () => ["default"]);
+    const getApps = vi.fn(async () => [{ name: "default" }]);
     setAomiClientConfig({
       getApps,
       getModels: async () => [],
@@ -53,7 +53,7 @@ describe("Control context", () => {
   });
 
   it("does not refetch authorized apps on thread changes", async () => {
-    const getApps = vi.fn(async () => ["default", "special"]);
+    const getApps = vi.fn(async () => [{ name: "default" }, { name: "special" }]);
     setAomiClientConfig({
       getApps,
       getModels: async () => [],
@@ -83,7 +83,7 @@ describe("Control context", () => {
         messages: [],
       }),
     );
-    const getApps = vi.fn(async () => ["default", "special"]);
+    const getApps = vi.fn(async () => [{ name: "default" }, { name: "special" }]);
 
     setAomiClientConfig({
       getApps,
@@ -138,7 +138,7 @@ describe("Control context", () => {
     );
 
     setAomiClientConfig({
-      getApps: async () => ["default", "special"],
+      getApps: async () => [{ name: "default" }, { name: "special" }],
       getModels: async () => [],
       sendMessage,
     });

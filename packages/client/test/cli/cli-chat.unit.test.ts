@@ -91,6 +91,9 @@ describe("CLI chat wallet sync", () => {
         primary_family: "evm",
       },
       evm: {
+        aa: {
+          mode: "none",
+        },
         address: "0xnew",
         chain_id: 8453,
       },
@@ -111,6 +114,9 @@ describe("CLI chat wallet sync", () => {
           primary_family: "evm",
         },
         evm: {
+          aa: {
+            mode: "none",
+          },
           address: "0xnew",
           chain_id: 8453,
         },

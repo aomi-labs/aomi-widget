@@ -129,22 +129,16 @@ describe("ClientSession ext helpers", () => {
     await session.sendAsync("first");
 
     expect(sendMessage.mock.calls[0][2]?.userState).toEqual({
-      connection: { is_connected: true },
       evm: {
         address: "0xdef",
-        aa: undefined,
-        sponsorship: undefined,
       },
       ext: { SIMMER_API_KEY: "sk_live_3" },
-      pending: undefined,
-      solana: undefined,
     });
 
     session.removeExtValue("SIMMER_API_KEY");
     await session.sendAsync("second");
 
     expect(sendMessage.mock.calls[1][2]?.userState).toMatchObject({
-      connection: { is_connected: true },
       evm: {
         address: "0xdef",
       },
@@ -183,7 +177,6 @@ describe("ClientSession ext helpers", () => {
     await session.sendAsync("hello from web");
 
     expect(sendMessage.mock.calls[0][2]?.userState).toMatchObject({
-      connection: { is_connected: true },
       evm: {
         address: "0x123",
       },

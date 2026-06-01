@@ -14,6 +14,7 @@ import {
   type TExternalWallet,
 } from "@getpara/react-sdk";
 import { defineChain, http, type Chain, type Transport } from "viem";
+import { monad, monadTestnet } from "../../../registry/src";
 
 export const useAnvilForWallet =
   process.env.NEXT_PUBLIC_ANVIL_FOR_WALLET === "true";
@@ -55,6 +56,8 @@ const defaultNetworks = [
   sepolia,
   linea,
   lineaSepolia,
+  monad,
+  monadTestnet,
 ] as const;
 
 export const networks = (

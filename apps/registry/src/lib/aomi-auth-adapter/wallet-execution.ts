@@ -80,9 +80,11 @@ export function getPreferredRpcUrl(chain: Chain): string {
 export function resolveRequestedAAMode(
   payload: WalletTxPayload,
   isBatch: boolean,
+  preferAAForSingleCall = false,
+  forceAA = false,
 ): RequestedAAMode {
-  if (!isBatch) return "none";
-  if (payload.aaPreference === "none") return "none";
+  if (!forceAA && !isBatch && !preferAAForSingleCall) return "none";
+  if (!forceAA && payload.aaPreference === "none" && isBatch) return "none";
   if (payload.aaPreference === "eip4337") return "4337";
   return "7702";
 }
@@ -188,11 +190,15 @@ export async function executeAdapterTransaction({
   state,
   shouldUseExternalSigner = false,
   resolveAAProviderState,
+  preferAAForSingleCall = false,
+  forceAA = false,
 }: {
   payload: WalletTxPayload;
   state: WalletExecutionAdapterState;
   shouldUseExternalSigner?: boolean;
   resolveAAProviderState?: ResolveAAProviderState;
+  preferAAForSingleCall?: boolean;
+  forceAA?: boolean;
 }): Promise<AomiTxResult> {
   if (!payload.to && (!payload.calls || payload.calls.length === 0)) {
     throw new Error("pending_transaction_missing_call_data");
@@ -208,7 +214,12 @@ export async function executeAdapterTransaction({
     payload.chainId ?? state.currentChainId ?? 1,
   );
   const isBatch = callList.length > 1;
-  const aaRequestedMode = resolveRequestedAAMode(payload, isBatch);
+  const aaRequestedMode = resolveRequestedAAMode(
+    payload,
+    isBatch,
+    preferAAForSingleCall,
+    forceAA,
+  );
   const requiresSponsoredExecution =
     state.nativeWalletExecution?.sponsorship?.mode === "required";
   // Atomic-required is a payload-level intent (`aaStrict === true`),
@@ -349,7 +360,7 @@ export async function executeAdapterTransaction({
     batched: execution.batched,
     callCount: callList.length,
     sponsored: execution.sponsored,
-    smartAccountAddress: execution.AAAddress,
-    delegationAddress: execution.delegationAddress,
+    SmartAccount4337: execution.SmartAccount4337,
+    Delegation7702: execution.Delegation7702,
   };
 }

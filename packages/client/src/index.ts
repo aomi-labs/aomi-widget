@@ -9,7 +9,7 @@ export { AomiClient } from "./client";
 // =============================================================================
 
 export type {
-  AomiClientType,
+  AomiAppDescriptor,
   AomiClientOptions,
   AomiMessage,
   AomiChatResponse,
@@ -18,6 +18,8 @@ export type {
   AomiDeleteSecretResponse,
   AomiIngestSecretsResponse,
   AomiInterruptResponse,
+  AomiListSecretsResponse,
+  AomiSecretSlot,
   AomiSimulateFee,
   AomiSimulateResponse,
   AomiSSEEvent,
@@ -26,9 +28,16 @@ export type {
   AomiSystemEvent,
   AomiSystemResponse,
   AomiThread,
-  UserStateAAMode,
   Logger,
 } from "./types";
+export type {
+  AomiClientType,
+  UserStateAAMode,
+  UserStateAuthMethod,
+  UserStateWalletKind,
+  UserStateWalletProvider,
+  UserStateSponsorProvider,
+} from "./user-state";
 
 // =============================================================================
 // Type Guards
@@ -36,11 +45,10 @@ export type {
 
 export {
   UserState,
-  addUserStateExt,
   CLIENT_TYPE_TS_CLI,
   CLIENT_TYPE_WEB_UI,
-  getUserStateAAMode,
-  getUserStateSmartAccount,
+} from "./user-state";
+export {
   isAsyncCallback,
   isInlineCall,
   isSystemError,
@@ -96,6 +104,21 @@ export type {
   WalletSolanaSignMessagePayload,
   ViemSignTypedDataArgs,
 } from "./wallet-utils";
+
+// =============================================================================
+// Chains
+// =============================================================================
+
+export {
+  ALCHEMY_CHAIN_SLUGS,
+  CHAIN_NAMES,
+  CHAINS_BY_ID,
+  SUPPORTED_CHAINS,
+  SUPPORTED_CHAIN_IDS,
+  monad,
+  monadTestnet,
+} from "./chains";
+export type { ChainInfo } from "./chains";
 
 // =============================================================================
 // Account Abstraction

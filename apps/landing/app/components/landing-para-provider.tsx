@@ -9,7 +9,12 @@ import {
 import "@getpara/react-sdk/styles.css";
 import { defineChain, type Chain } from "viem";
 import { useAccount, useSwitchChain } from "wagmi";
-import { AomiWalletProvider } from "../../../registry/src";
+import {
+  AomiWalletProvider,
+  isFullTestnet,
+  monad,
+  monadTestnet,
+} from "../../../registry/src";
 import {
   arbitrum,
   base,
@@ -62,6 +67,8 @@ const defaultNetworks = [
   sepolia,
   linea,
   lineaSepolia,
+  monad,
+  monadTestnet,
 ] as const;
 
 const networks = (
@@ -119,6 +126,7 @@ function DevAnvilRpcHook({ children }: { children: ReactNode }) {
   const { switchChain } = useSwitchChain();
 
   useEffect(() => {
+    if (isFullTestnet()) return;
     if (!useAnvilForWallet) return;
     if (!isConnected || chainId === LOCALHOST_CHAIN_ID) return;
 
@@ -180,7 +188,9 @@ export function LandingParaProvider({ children }: { children: ReactNode }) {
       appName="Aomi Labs"
       appDescription="Interactive Aomi widget demo"
       appUrl={
-        typeof window !== "undefined" ? window.location.origin : "https://aomi.dev"
+        typeof window !== "undefined"
+          ? window.location.origin
+          : "https://aomi.dev"
       }
       walletConnectProjectId={walletConnectProjectId}
       networks={networks}

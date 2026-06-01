@@ -26,12 +26,18 @@ export {
 } from "./components/ui/sidebar";
 
 // Re-export types and utilities from @aomi-labs/react
-export type { UserConfig } from "@aomi-labs/react";
-export { formatAddress, getNetworkName } from "@aomi-labs/react";
+export type { ChainInfo, UserConfig } from "@aomi-labs/react";
+export {
+  formatAddress,
+  getChainInfo,
+  getNetworkName,
+  SUPPORTED_CHAINS,
+} from "@aomi-labs/react";
+export { ExtUserProvider, useUser, UserState } from "@aomi-labs/react";
+export { monad, monadTestnet } from "@aomi-labs/client";
 export type { AomiAuthAdapter } from "./lib/aomi-auth-adapter";
 export {
   AomiAuthAdapterProvider,
-  AomiAuthRuntimeUserSync,
   useAomiAuthAdapter,
 } from "./lib/aomi-auth-adapter";
 export { AomiWalletProvider } from "./lib/aomi-auth-adapter/providers";
@@ -41,10 +47,17 @@ export {
   AomiParaProvider,
 } from "./lib/aomi-auth-adapter/providers/para";
 export { AomiPrivyProvider } from "./lib/aomi-auth-adapter/providers/privy";
+export type { AomiParaAdapterProviderProps } from "./lib/aomi-auth-adapter/providers/para";
 export type { AomiAuthIdentity, AomiAuthStatus } from "./lib/aomi-auth-adapter";
 export {
   AOMI_AUTH_BOOTING_IDENTITY,
   AOMI_AUTH_DISCONNECTED_IDENTITY,
-  formatAuthProvider,
-  inferAuthProvider,
+  formatAuthMethod,
+  formatWalletProvider,
+  inferAuthMethod,
+} from "./lib/aomi-auth-adapter";
+export {
+  FullTestnetWalletRouter,
+  isFullTestnet,
+  useFullTestnet,
 } from "./lib/aomi-auth-adapter";

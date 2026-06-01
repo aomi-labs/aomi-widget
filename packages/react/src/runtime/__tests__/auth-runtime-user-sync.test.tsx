@@ -1,8 +1,9 @@
+"use client";
+
 import { afterEach, describe, expect, it } from "vitest";
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
-import { useUser, UserContextProvider } from "@aomi-labs/react";
+import { useUser, ExtUserProvider } from "@aomi-labs/react";
 import { AomiAuthAdapterProvider } from "../../../../../apps/registry/src/lib/aomi-auth-adapter/context";
-import { AomiAuthRuntimeUserSync } from "../../../../../apps/registry/src/lib/aomi-auth-adapter/runtime-user-sync";
 import type { AomiAuthAdapter } from "../../../../../apps/registry/src/lib/aomi-auth-adapter/types";
 
 afterEach(() => {
@@ -23,7 +24,6 @@ function connectedAdapter(
       isConnected: true,
       address: "0x1111111111111111111111111111111111111111",
       chainId: 8453,
-      primaryLabel: "0x1111..11",
       ...overrides,
     },
     isReady: true,
@@ -31,27 +31,31 @@ function connectedAdapter(
     canConnect: false,
     canOpenAccountUI: false,
     canDisconnect: false,
+    accounts: [],
+    selectAccount: async () => undefined,
     connect: async () => undefined,
   };
 }
 
 function renderWithAdapter(adapter: AomiAuthAdapter) {
   return render(
-    <UserContextProvider>
+    <ExtUserProvider>
       <AomiAuthAdapterProvider value={adapter}>
-        <AomiAuthRuntimeUserSync />
         <UserStateProbe />
       </AomiAuthAdapterProvider>
-    </UserContextProvider>,
+    </ExtUserProvider>,
   );
 }
 
-describe("AomiAuthRuntimeUserSync", () => {
-  it("publishes verified wallet provider metadata for connected adapters", async () => {
+describe("AomiAuthAdapterProvider user sync", () => {
+  it("publishes wallet provider and sponsorship as first-class UserState fields", async () => {
     renderWithAdapter(
       connectedAdapter({
-        authProvider: "baseAccount",
-        secondaryLabel: "Base Account",
+        walletProvider: "baseAccount",
+        walletKind: "smart-account",
+        aaMode: "4337",
+        sponsored: true,
+        sponsorProvider: "coinbase",
       }),
     );
 
@@ -60,50 +64,91 @@ describe("AomiAuthRuntimeUserSync", () => {
       expect(state).toMatchObject({
         connection: {
           is_connected: true,
-          primary_family: "evm",
           provider: "baseAccount",
-          provider_label: "Base Account",
         },
         evm: {
           address: "0x1111111111111111111111111111111111111111",
           chain_id: 8453,
-        },
-        ext: {
-          walletProvider: "baseAccount",
-          walletProviderLabel: "Base Account",
+          sponsorship: {
+            sponsored: true,
+            sponsor_provider: "coinbase",
+          },
         },
       });
+      expect(state.evm?.aa?.mode).toBeUndefined();
     });
   });
 
   it("clears wallet provider metadata when no verified provider is available", async () => {
     const { rerender } = renderWithAdapter(
       connectedAdapter({
-        authProvider: "baseAccount",
-        secondaryLabel: "Base Account",
+        walletProvider: "baseAccount",
+        walletKind: "smart-account",
+        aaMode: "4337",
+        sponsored: true,
+        sponsorProvider: "coinbase",
       }),
     );
 
     await waitFor(() => {
       const state = JSON.parse(screen.getByTestId("user-state").textContent!);
-      expect(state.ext).toMatchObject({
-        walletProvider: "baseAccount",
-        walletProviderLabel: "Base Account",
+      expect(state).toMatchObject({
+        connection: {
+          provider: "baseAccount",
+        },
+        evm: {
+          sponsorship: {
+            sponsored: true,
+            sponsor_provider: "coinbase",
+          },
+        },
       });
     });
 
     rerender(
-      <UserContextProvider>
+      <ExtUserProvider>
         <AomiAuthAdapterProvider value={connectedAdapter()}>
-          <AomiAuthRuntimeUserSync />
           <UserStateProbe />
         </AomiAuthAdapterProvider>
-      </UserContextProvider>,
+      </ExtUserProvider>,
     );
 
     await waitFor(() => {
       const state = JSON.parse(screen.getByTestId("user-state").textContent!);
-      expect(state.ext).toBeUndefined();
+      expect(state.connection.provider).toBeNull();
+      expect(state.evm.sponsorship.sponsored).toBeNull();
+      expect(state.evm.sponsorship.sponsor_provider).toBeNull();
+    });
+  });
+
+  it("publishes Para as wallet provider with sponsor account when alchemy gas policy is set", async () => {
+    renderWithAdapter(
+      connectedAdapter({
+        walletProvider: "para",
+        walletKind: "eoa",
+        aaMode: "none",
+        authMethod: "google",
+        sponsored: true,
+        sponsorProvider: "alchemy",
+        sponsorAccount: "gp_test_policy_id",
+      }),
+    );
+
+    await waitFor(() => {
+      const state = JSON.parse(screen.getByTestId("user-state").textContent!);
+      expect(state).toMatchObject({
+        connection: {
+          provider: "para",
+          auth_method: "google",
+        },
+        evm: {
+          sponsorship: {
+            sponsored: true,
+            sponsor_provider: "alchemy",
+            sponsor_account: "gp_test_policy_id",
+          },
+        },
+      });
     });
   });
 });

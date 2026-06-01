@@ -5,6 +5,10 @@ import { ParaProvider } from "@getpara/react-sdk";
 import { useEffect, useState, type ReactNode } from "react";
 import { useAccount, useSwitchChain } from "wagmi";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import {
+  FullTestnetWalletRouter,
+  useFullTestnet,
+} from "../../../registry/src";
 
 import {
   LOCALHOST_CHAIN_ID,
@@ -13,7 +17,6 @@ import {
   oAuthMethods,
   paraApiKey,
   paraEnvironment,
-  transports,
   useAnvilForWallet,
   walletConnectProjectId,
 } from "./config";
@@ -21,8 +24,12 @@ import {
 function DevAnvilRpcHook({ children }: { children: ReactNode }) {
   const { isConnected, chainId, connector } = useAccount();
   const { switchChain } = useSwitchChain();
+  const fullTestnetEnabled =
+    process.env.NEXT_PUBLIC_USE_FULL_TESTNET === "true" &&
+    Boolean(process.env.NEXT_PUBLIC_FULL_TESTNET_RPC_MAP?.trim());
 
   useEffect(() => {
+    if (fullTestnetEnabled) return;
     if (!useAnvilForWallet) return;
     if (!isConnected || chainId === LOCALHOST_CHAIN_ID) return;
 
@@ -78,6 +85,7 @@ function ContextProvider({
   cookies: string | null;
 }) {
   const [queryClient] = useState(() => new QueryClient());
+  const routing = useFullTestnet(networks);
 
   return (
     <QueryClientProvider client={queryClient}>
@@ -105,14 +113,20 @@ function ContextProvider({
           },
           evmConnector: {
             config: {
-              chains: networks,
-              transports,
+              chains: routing.routedChains,
+              transports: routing.transports,
               ssr: true,
             },
           },
         }}
       >
-        <DevAnvilRpcHook>{children}</DevAnvilRpcHook>
+        <FullTestnetWalletRouter
+          enabled={routing.enabled}
+          chains={routing.routedChains}
+          routedChainIds={routing.routedChainIds}
+        >
+          <DevAnvilRpcHook>{children}</DevAnvilRpcHook>
+        </FullTestnetWalletRouter>
       </ParaProvider>
     </QueryClientProvider>
   );

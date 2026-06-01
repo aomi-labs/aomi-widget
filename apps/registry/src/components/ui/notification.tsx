@@ -23,13 +23,14 @@ export function NotificationToaster() {
     }
 
     for (const notification of notifications) {
+      if (notification.kind === "payment_required") continue;
       if (shownRef.current.has(notification.id)) continue;
       shownRef.current.add(notification.id);
       showToast(notification, dismissNotification);
     }
   }, [notifications, dismissNotification]);
 
-  return <Toaster position="top-right" />;
+  return <Toaster position="top-center" />;
 }
 
 function showToast(
@@ -38,20 +39,30 @@ function showToast(
 ) {
   const options = {
     id: notification.id,
-    description: notification.title,
-    duration: Infinity,
+    duration: notification.duration ?? Infinity,
+    unstyled: true,
     onDismiss: () => dismissNotification(notification.id),
   };
 
-  if (notification.type === "success") {
-    toast.success(notification.title, options);
-    return;
-  }
-
-  if (notification.type === "error") {
-    toast.error(notification.title, options);
-    return;
-  }
-
-  toast(notification.title, options);
+  toast.custom(
+    () => (
+      <div className="bg-background text-foreground relative mx-auto inline-flex w-fit max-w-[calc(100vw-2rem)] items-center justify-center rounded-xl border px-5 py-3 shadow-lg">
+        <button
+          type="button"
+          aria-label="Close notification"
+          className="text-muted-foreground hover:text-foreground absolute right-2 top-2 inline-flex h-6 w-6 items-center justify-center rounded-md text-sm transition-colors"
+          onClick={() => {
+            dismissNotification(notification.id);
+            toast.dismiss(notification.id);
+          }}
+        >
+          x
+        </button>
+        <div className="min-w-0 pr-6 text-center text-sm font-medium leading-5">
+          {notification.message ?? notification.title}
+        </div>
+      </div>
+    ),
+    options,
+  );
 }
