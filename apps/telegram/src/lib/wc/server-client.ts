@@ -1,4 +1,4 @@
-import SignClient from '@walletconnect/sign-client';
+import SignClient from "@walletconnect/sign-client";
 
 import {
   DEFAULT_CHAIN_ID,
@@ -7,7 +7,7 @@ import {
   SUPPORTED_WC_EVENTS,
   SUPPORTED_WC_METHODS,
   WALLET_SOURCE_SERVER_WC,
-} from '@/lib/constants';
+} from "@/lib/constants";
 import {
   disconnectWallet,
   getWalletState,
@@ -17,8 +17,8 @@ import {
   markOperationAwaitingWallet,
   markOperationFailure,
   markOperationSuccess,
-} from '@/lib/wallet-state/store';
-import type { TxCall } from '@/lib/wallet-state/types';
+} from "@/lib/wallet-state/store";
+import type { TxCall } from "@/lib/wallet-state/types";
 
 type SignClientInstance = Awaited<ReturnType<typeof SignClient.init>>;
 
@@ -62,26 +62,26 @@ function isUserRejectedError(err: unknown): boolean {
   const lowered = message.toLowerCase();
 
   if (
-    lowered.includes('user rejected')
-    || lowered.includes('rejected by user')
-    || lowered.includes('user denied')
-    || lowered.includes('user cancelled')
+    lowered.includes("user rejected") ||
+    lowered.includes("rejected by user") ||
+    lowered.includes("user denied") ||
+    lowered.includes("user cancelled")
   ) {
     return true;
   }
 
   const code = errorCode(err);
-  return code === 4001 || code === 'ACTION_REJECTED';
+  return code === 4001 || code === "ACTION_REJECTED";
 }
 
 function errorCode(err: unknown, depth = 0): unknown {
-  if (depth > 4 || !err || typeof err !== 'object') return undefined;
+  if (depth > 4 || !err || typeof err !== "object") return undefined;
   const rec = err as Record<string, unknown>;
   if (rec.code !== undefined) return rec.code;
   return (
-    errorCode(rec.error, depth + 1)
-    ?? errorCode(rec.cause, depth + 1)
-    ?? errorCode(rec.data, depth + 1)
+    errorCode(rec.error, depth + 1) ??
+    errorCode(rec.cause, depth + 1) ??
+    errorCode(rec.data, depth + 1)
   );
 }
 
@@ -90,36 +90,38 @@ function errorMessage(err: unknown): string {
 }
 
 function errorMessageInner(err: unknown, depth: number): string {
-  if (depth > 4) return 'unknown';
-  if (typeof err === 'string') return err;
-  if (err instanceof Error) return err.message || 'unknown';
+  if (depth > 4) return "unknown";
+  if (typeof err === "string") return err;
+  if (err instanceof Error) return err.message || "unknown";
   if (Array.isArray(err)) {
-    const parts = err.map((v) => errorMessageInner(v, depth + 1)).filter(Boolean);
-    return parts.length > 0 ? parts.join('; ') : 'unknown';
+    const parts = err
+      .map((v) => errorMessageInner(v, depth + 1))
+      .filter(Boolean);
+    return parts.length > 0 ? parts.join("; ") : "unknown";
   }
-  if (err && typeof err === 'object') {
+  if (err && typeof err === "object") {
     const rec = err as Record<string, unknown>;
-    for (const key of ['shortMessage', 'reason', 'message']) {
+    for (const key of ["shortMessage", "reason", "message"]) {
       const val = rec[key];
-      if (typeof val === 'string' && val.trim()) return val;
+      if (typeof val === "string" && val.trim()) return val;
     }
-    for (const key of ['error', 'cause', 'data']) {
+    for (const key of ["error", "cause", "data"]) {
       const nested = errorMessageInner(rec[key], depth + 1);
-      if (nested !== 'unknown') return nested;
+      if (nested !== "unknown") return nested;
     }
     try {
       const json = JSON.stringify(err);
-      if (json && json !== '{}') return json;
+      if (json && json !== "{}") return json;
     } catch {
       // ignore
     }
   }
-  return String(err ?? 'unknown');
+  return String(err ?? "unknown");
 }
 
 function toHexQuantity(value: string): `0x${string}` {
-  if (value.startsWith('0x')) return value as `0x${string}`;
-  const int = BigInt(value || '0');
+  if (value.startsWith("0x")) return value as `0x${string}`;
+  const int = BigInt(value || "0");
   return `0x${int.toString(16)}`;
 }
 
@@ -128,8 +130,8 @@ function toHexChainId(chainId: number): `0x${string}` {
 }
 
 function parseAccount(account: string): { chainId: number; address: string } {
-  const [namespace, chain, address] = account.split(':');
-  if (!namespace || !chain || !address || namespace !== 'eip155') {
+  const [namespace, chain, address] = account.split(":");
+  if (!namespace || !chain || !address || namespace !== "eip155") {
     throw new Error(`invalid_account_format:${account}`);
   }
 
@@ -141,27 +143,32 @@ function parseAccount(account: string): { chainId: number; address: string } {
   return { chainId, address };
 }
 
-function pickSessionAccount(session: WcSession): { chainId: number; address: string } {
+function pickSessionAccount(session: WcSession): {
+  chainId: number;
+  address: string;
+} {
   const eip155 = session.namespaces?.eip155;
   const account = eip155?.accounts?.[0];
 
   if (!account) {
-    throw new Error('session_missing_eip155_account');
+    throw new Error("session_missing_eip155_account");
   }
 
   return parseAccount(account);
 }
 
-function extractTypedDataChainId(typedData: Record<string, unknown>): number | undefined {
+function extractTypedDataChainId(
+  typedData: Record<string, unknown>,
+): number | undefined {
   const domain = typedData.domain;
-  if (!domain || typeof domain !== 'object' || Array.isArray(domain)) {
+  if (!domain || typeof domain !== "object" || Array.isArray(domain)) {
     return undefined;
   }
 
   const value = (domain as { chainId?: unknown }).chainId;
-  if (typeof value === 'number' && Number.isFinite(value)) return value;
-  if (typeof value === 'string') {
-    if (value.startsWith('0x')) {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string") {
+    if (value.startsWith("0x")) {
       const parsed = Number.parseInt(value, 16);
       if (Number.isFinite(parsed) && parsed > 0) return parsed;
       return undefined;
@@ -174,12 +181,22 @@ function extractTypedDataChainId(typedData: Record<string, unknown>): number | u
   return undefined;
 }
 
+function isHexBytes(value: string): boolean {
+  return /^0x(?:[0-9a-fA-F]{2})*$/.test(value);
+}
+
+function personalSignData(message: string): string {
+  return isHexBytes(message)
+    ? message
+    : `0x${Buffer.from(message, "utf8").toString("hex")}`;
+}
+
 function buildTxRequest(call: TxCall, address: string) {
   return {
     from: address,
     to: call.to,
     value: toHexQuantity(call.value),
-    data: call.data ? (call.data as `0x${string}`) : '0x',
+    data: call.data ? (call.data as `0x${string}`) : "0x",
   };
 }
 
@@ -222,9 +239,11 @@ class ServerWcClient {
   private readonly pendingConnects = new Map<string, PendingConnect>();
 
   private getProjectId(): string {
-    const projectId = process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID || process.env.REOWN_PROJECT_ID;
+    const projectId =
+      process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID ||
+      process.env.REOWN_PROJECT_ID;
     if (!projectId) {
-      throw new Error('missing_walletconnect_project_id');
+      throw new Error("missing_walletconnect_project_id");
     }
 
     return projectId;
@@ -238,16 +257,17 @@ class ServerWcClient {
       // Prevent browser IndexedDB access in server runtime.
       storage: new MemoryStorage(getStorageMap()),
       metadata: {
-        name: 'Aomi Server WalletConnect',
-        description: 'Server-side WalletConnect proposer for Telegram bot flows',
-        url: process.env.MINI_APP_URL || 'https://mini-app.aomi.dev',
+        name: "Aomi Server WalletConnect",
+        description:
+          "Server-side WalletConnect proposer for Telegram bot flows",
+        url: process.env.MINI_APP_URL || "https://mini-app.aomi.dev",
         icons: [],
       },
     }).then((client) => {
-      client.on('session_delete', (event: { topic: string }) => {
+      client.on("session_delete", (event: { topic: string }) => {
         this.dropSessionByTopic(event.topic);
       });
-      client.on('session_expire', (event: { topic: string }) => {
+      client.on("session_expire", (event: { topic: string }) => {
         this.dropSessionByTopic(event.topic);
       });
 
@@ -255,7 +275,10 @@ class ServerWcClient {
     });
 
     const timeout = new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error('SignClient.init timed out after 15s')), 15_000),
+      setTimeout(
+        () => reject(new Error("SignClient.init timed out after 15s")),
+        15_000,
+      ),
     );
 
     this.clientPromise = Promise.race([initPromise, timeout]).catch((err) => {
@@ -308,7 +331,7 @@ class ServerWcClient {
     const session = this.sessions.get(userId);
     if (session?.topic === topic) {
       this.sessions.delete(userId);
-      disconnectWallet(userId, 'session_dropped');
+      disconnectWallet(userId, "session_dropped");
     }
 
     this.topicToUser.delete(topic);
@@ -317,7 +340,7 @@ class ServerWcClient {
   private getSession(userId: string): ServerSession {
     const session = this.sessions.get(userId);
     if (!session) {
-      throw new Error('wallet_not_connected_server_wc');
+      throw new Error("wallet_not_connected_server_wc");
     }
 
     return session;
@@ -338,7 +361,7 @@ class ServerWcClient {
     });
 
     if (!uri) {
-      throw new Error('walletconnect_uri_missing');
+      throw new Error("walletconnect_uri_missing");
     }
 
     this.cancelPendingConnect(userId);
@@ -349,10 +372,10 @@ class ServerWcClient {
         this.pendingConnects.delete(userId);
         const state = getWalletState(userId);
         const op = state.activeOperation;
-        if (op && op.kind === 'connect') {
+        if (op && op.kind === "connect") {
           markOperationFailure(op.operationId, {
-            errorCode: 'connect_timed_out',
-            errorMessage: 'Wallet connection approval timed out.',
+            errorCode: "connect_timed_out",
+            errorMessage: "Wallet connection approval timed out.",
             rejected: false,
           });
         }
@@ -370,7 +393,10 @@ class ServerWcClient {
     return { uri, expiresAt };
   }
 
-  private async awaitApproval(userId: string, expiresAt: number): Promise<void> {
+  private async awaitApproval(
+    userId: string,
+    expiresAt: number,
+  ): Promise<void> {
     const pending = this.pendingConnects.get(userId);
     if (!pending || pending.expiresAt !== expiresAt) {
       return;
@@ -395,19 +421,24 @@ class ServerWcClient {
 
       const state = getWalletState(userId);
       const op = state.activeOperation;
-      if (op && op.kind === 'connect') {
+      if (op && op.kind === "connect") {
         markOperationFailure(op.operationId, {
-          errorCode: isUserRejectedError(err) ? 'user_rejected' : 'connect_failed',
+          errorCode: isUserRejectedError(err)
+            ? "user_rejected"
+            : "connect_failed",
           errorMessage: errorMessage(err),
           rejected: isUserRejectedError(err),
         });
       }
 
-      console.warn('[wc-server] approval failed:', errorMessage(err));
+      console.warn("[wc-server] approval failed:", errorMessage(err));
     }
   }
 
-  async clearSession(userId: string, options?: { clearWallet?: boolean }): Promise<void> {
+  async clearSession(
+    userId: string,
+    options?: { clearWallet?: boolean },
+  ): Promise<void> {
     this.cancelPendingConnect(userId);
 
     const existing = this.sessions.get(userId);
@@ -427,11 +458,11 @@ class ServerWcClient {
         topic: existing.topic,
         reason: {
           code: 6000,
-          message: 'User disconnected',
+          message: "User disconnected",
         },
       });
     } catch (err) {
-      console.warn('[wc-server] disconnect failed:', errorMessage(err));
+      console.warn("[wc-server] disconnect failed:", errorMessage(err));
     }
 
     if (options?.clearWallet ?? true) {
@@ -441,12 +472,12 @@ class ServerWcClient {
 
   async startTx(userId: string, txId: string): Promise<void> {
     const found = getOperationStateById(txId);
-    if (!found || found.operation.kind !== 'sign_tx') {
-      throw new Error('pending_tx_not_found');
+    if (!found || found.operation.kind !== "sign_tx") {
+      throw new Error("pending_tx_not_found");
     }
     const payload = getOperationPayloadById(txId);
-    if (!payload || payload.kind !== 'sign_tx') {
-      throw new Error('pending_tx_payload_not_found');
+    if (!payload || payload.kind !== "sign_tx") {
+      throw new Error("pending_tx_payload_not_found");
     }
 
     this.getSession(userId);
@@ -466,12 +497,12 @@ class ServerWcClient {
           topic: session.topic,
           chainId: `eip155:${chainId}`,
           request: {
-            method: 'eth_sendTransaction',
+            method: "eth_sendTransaction",
             params: [buildTxRequest(call, session.address)],
           },
         });
 
-        if (typeof txHash === 'string') {
+        if (typeof txHash === "string") {
           hashes.push(txHash);
         }
       }
@@ -493,7 +524,7 @@ class ServerWcClient {
     } catch (err) {
       const rejected = isUserRejectedError(err);
       markOperationFailure(txId, {
-        errorCode: rejected ? 'user_rejected' : 'signing_failed',
+        errorCode: rejected ? "user_rejected" : "signing_failed",
         errorMessage: errorMessage(err),
         rejected,
       });
@@ -502,12 +533,12 @@ class ServerWcClient {
 
   async startEip712(userId: string, eip712Id: string): Promise<void> {
     const found = getOperationStateById(eip712Id);
-    if (!found || found.operation.kind !== 'sign_eip712') {
-      throw new Error('pending_eip712_not_found');
+    if (!found || found.operation.kind !== "sign_eip712") {
+      throw new Error("pending_eip712_not_found");
     }
     const payload = getOperationPayloadById(eip712Id);
-    if (!payload || payload.kind !== 'sign_eip712') {
-      throw new Error('pending_eip712_payload_not_found');
+    if (!payload || payload.kind !== "sign_eip712") {
+      throw new Error("pending_eip712_payload_not_found");
     }
 
     this.getSession(userId);
@@ -516,15 +547,28 @@ class ServerWcClient {
     try {
       const session = this.getSession(userId);
       const client = await this.getClient();
-      const chainId = extractTypedDataChainId(payload.typedData) || session.chainId || DEFAULT_CHAIN_ID;
+      const chainId = payload.typedData
+        ? extractTypedDataChainId(payload.typedData) ||
+          session.chainId ||
+          DEFAULT_CHAIN_ID
+        : session.chainId || DEFAULT_CHAIN_ID;
+      const request = payload.typedData
+        ? {
+            method: "eth_signTypedData_v4",
+            params: [session.address, JSON.stringify(payload.typedData)],
+          }
+        : {
+            method: "personal_sign",
+            params: [
+              personalSignData(payload.nonTypedData ?? ""),
+              session.address,
+            ],
+          };
 
       const signature = await client.request<string>({
         topic: session.topic,
         chainId: `eip155:${chainId}`,
-        request: {
-          method: 'eth_signTypedData_v4',
-          params: [session.address, JSON.stringify(payload.typedData)],
-        },
+        request,
       });
 
       markOperationSuccess(eip712Id, {
@@ -541,7 +585,7 @@ class ServerWcClient {
     } catch (err) {
       const rejected = isUserRejectedError(err);
       markOperationFailure(eip712Id, {
-        errorCode: rejected ? 'user_rejected' : 'signing_failed',
+        errorCode: rejected ? "user_rejected" : "signing_failed",
         errorMessage: errorMessage(err),
         rejected,
       });
@@ -550,12 +594,12 @@ class ServerWcClient {
 
   async startNetworkSwitch(userId: string, switchId: string): Promise<void> {
     const found = getOperationStateById(switchId);
-    if (!found || found.operation.kind !== 'switch_network') {
-      throw new Error('pending_network_switch_not_found');
+    if (!found || found.operation.kind !== "switch_network") {
+      throw new Error("pending_network_switch_not_found");
     }
     const payload = getOperationPayloadById(switchId);
-    if (!payload || payload.kind !== 'switch_network') {
-      throw new Error('pending_network_switch_payload_not_found');
+    if (!payload || payload.kind !== "switch_network") {
+      throw new Error("pending_network_switch_payload_not_found");
     }
 
     this.getSession(userId);
@@ -567,7 +611,7 @@ class ServerWcClient {
         topic: session.topic,
         chainId: `eip155:${session.chainId}`,
         request: {
-          method: 'wallet_switchEthereumChain',
+          method: "wallet_switchEthereumChain",
           params: [{ chainId: toHexChainId(payload.chainId) }],
         },
       });
@@ -585,7 +629,7 @@ class ServerWcClient {
     } catch (err) {
       const rejected = isUserRejectedError(err);
       markOperationFailure(switchId, {
-        errorCode: rejected ? 'user_rejected' : 'switch_failed',
+        errorCode: rejected ? "user_rejected" : "switch_failed",
         errorMessage: errorMessage(err),
         rejected,
       });

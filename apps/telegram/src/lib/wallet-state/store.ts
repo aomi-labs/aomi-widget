@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { randomUUID } from "node:crypto";
 
 import {
   DEFAULT_CHAIN_ID,
@@ -6,9 +6,9 @@ import {
   WALLET_OP_TTL_SIGN_EIP712_MS,
   WALLET_OP_TTL_SIGN_TX_MS,
   WALLET_OP_TTL_SWITCH_NETWORK_MS,
-} from '../constants';
+} from "../constants";
 
-import { deriveWalletStateLabel } from './labels';
+import { deriveWalletStateLabel } from "./labels";
 import type {
   OperationKind,
   OperationLookupResult,
@@ -18,24 +18,30 @@ import type {
   UserWalletState,
   WalletConnectionSource,
   WalletOperation,
-} from './types';
+} from "./types";
 
 const g = globalThis as typeof globalThis & {
   __walletStateByUser?: Map<string, UserWalletState>;
   __walletOperationToUser?: Map<string, string>;
 };
 
-const stateByUser = (g.__walletStateByUser ??= new Map<string, UserWalletState>());
-const operationToUser = (g.__walletOperationToUser ??= new Map<string, string>());
+const stateByUser = (g.__walletStateByUser ??= new Map<
+  string,
+  UserWalletState
+>());
+const operationToUser = (g.__walletOperationToUser ??= new Map<
+  string,
+  string
+>());
 
 function now(): number {
   return Date.now();
 }
 
 function ttlForKind(kind: OperationKind): number {
-  if (kind === 'connect') return WALLET_OP_TTL_CONNECT_MS;
-  if (kind === 'switch_network') return WALLET_OP_TTL_SWITCH_NETWORK_MS;
-  if (kind === 'sign_tx') return WALLET_OP_TTL_SIGN_TX_MS;
+  if (kind === "connect") return WALLET_OP_TTL_CONNECT_MS;
+  if (kind === "switch_network") return WALLET_OP_TTL_SWITCH_NETWORK_MS;
+  if (kind === "sign_tx") return WALLET_OP_TTL_SIGN_TX_MS;
   return WALLET_OP_TTL_SIGN_EIP712_MS;
 }
 
@@ -51,9 +57,9 @@ function touch(state: UserWalletState): UserWalletState {
 function emptyState(userId: string): UserWalletState {
   const base: UserWalletState = {
     userId,
-    presence: 'disconnected',
+    presence: "disconnected",
     chainId: null,
-    label: 'Wallet disconnected',
+    label: "Wallet disconnected",
     updatedAt: now(),
   };
   base.label = deriveWalletStateLabel(base);
@@ -70,7 +76,7 @@ function getOrInitState(userId: string): UserWalletState {
 
 function terminalizeActiveOperation(
   state: UserWalletState,
-  status: Exclude<OperationStatus, 'awaiting_wallet' | 'processing'>,
+  status: Exclude<OperationStatus, "awaiting_wallet" | "processing">,
   errorCode?: string,
   errorMessage?: string,
 ): UserWalletState {
@@ -97,9 +103,9 @@ function preemptIfNeeded(state: UserWalletState): UserWalletState {
   operationToUser.delete(state.activeOperation.operationId);
   return terminalizeActiveOperation(
     state,
-    'canceled',
-    'superseded_by_new_operation',
-    'A newer operation replaced this request.',
+    "canceled",
+    "superseded_by_new_operation",
+    "A newer operation replaced this request.",
   );
 }
 
@@ -124,7 +130,7 @@ function asSignTxMetadata(metadata: OperationMetadata): {
   Delegation7702?: string;
   attemptCount: number;
 } | null {
-  if (!('calls' in metadata)) return null;
+  if (!("calls" in metadata)) return null;
   return metadata as {
     sessionKey: string;
     calls: TxCall[];
@@ -143,32 +149,67 @@ function asSignTxMetadata(metadata: OperationMetadata): {
   };
 }
 
-function asSignEip712Metadata(metadata: OperationMetadata): { sessionKey: string; typedData: Record<string, unknown>; description: string; pendingEip712Id?: number; signature?: string; attemptCount: number } | null {
-  if (!('typedData' in metadata)) return null;
-  return metadata as { sessionKey: string; typedData: Record<string, unknown>; description: string; pendingEip712Id?: number; signature?: string; attemptCount: number };
+function asSignEip712Metadata(metadata: OperationMetadata): {
+  sessionKey: string;
+  typedData?: Record<string, unknown>;
+  nonTypedData?: string;
+  description: string;
+  pendingEip712Id?: number;
+  signature?: string;
+  attemptCount: number;
+} | null {
+  if (
+    !("description" in metadata) ||
+    (!("typedData" in metadata) && !("nonTypedData" in metadata))
+  )
+    return null;
+  return metadata as {
+    sessionKey: string;
+    typedData?: Record<string, unknown>;
+    nonTypedData?: string;
+    description: string;
+    pendingEip712Id?: number;
+    signature?: string;
+    attemptCount: number;
+  };
 }
 
-function asSwitchMetadata(metadata: OperationMetadata): { sessionKey: string; chainId: number; address?: string } | null {
-  if (!('chainId' in metadata) || !('sessionKey' in metadata) || 'calls' in metadata || 'typedData' in metadata) return null;
+function asSwitchMetadata(
+  metadata: OperationMetadata,
+): { sessionKey: string; chainId: number; address?: string } | null {
+  if (
+    !("chainId" in metadata) ||
+    !("sessionKey" in metadata) ||
+    "calls" in metadata ||
+    "typedData" in metadata ||
+    "nonTypedData" in metadata
+  )
+    return null;
   return metadata as { sessionKey: string; chainId: number; address?: string };
 }
 
 export function deriveUserIdFromSessionKey(sessionKey: string): string {
-  const parts = sessionKey.split(':');
-  if (parts.length >= 3 && parts[0] === 'telegram' && parts[1] === 'dm' && parts[2]) {
+  const parts = sessionKey.split(":");
+  if (
+    parts.length >= 3 &&
+    parts[0] === "telegram" &&
+    parts[1] === "dm" &&
+    parts[2]
+  ) {
     return parts[2];
   }
   return `session:${sessionKey}`;
 }
 
 export function buildOperationId(kind: OperationKind): string {
-  const prefix = kind === 'connect'
-    ? 'conn'
-    : kind === 'switch_network'
-      ? 'sw'
-      : kind === 'sign_tx'
-        ? 'tx'
-        : 'eip712';
+  const prefix =
+    kind === "connect"
+      ? "conn"
+      : kind === "switch_network"
+        ? "sw"
+        : kind === "sign_tx"
+          ? "tx"
+          : "eip712";
   return `${prefix}_${randomUUID()}`;
 }
 
@@ -178,7 +219,9 @@ export function getWalletState(userId: string): UserWalletState {
   return state ?? emptyState(userId);
 }
 
-export function getOperationStateById(operationId: string): OperationLookupResult | undefined {
+export function getOperationStateById(
+  operationId: string,
+): OperationLookupResult | undefined {
   sweepTimedOutOperations();
   const userId = operationToUser.get(operationId);
   if (!userId) return undefined;
@@ -191,24 +234,27 @@ export function getOperationStateById(operationId: string): OperationLookupResul
   return { userId, state, operation };
 }
 
-export function startConnect(userId: string, source: WalletConnectionSource): UserWalletState {
+export function startConnect(
+  userId: string,
+  source: WalletConnectionSource,
+): UserWalletState {
   const prev = getOrInitState(userId);
   const preempted = preemptIfNeeded(prev);
-  const operationId = buildOperationId('connect');
+  const operationId = buildOperationId("connect");
   const startedAt = now();
   const activeOperation: WalletOperation = {
     operationId,
-    kind: 'connect',
-    status: 'awaiting_wallet',
+    kind: "connect",
+    status: "awaiting_wallet",
     startedAt,
-    expiresAt: startedAt + ttlForKind('connect'),
+    expiresAt: startedAt + ttlForKind("connect"),
     metadata: { source },
   };
   operationToUser.set(operationId, userId);
 
   const next = touch({
     ...preempted,
-    presence: 'connecting',
+    presence: "connecting",
     source,
     activeOperation,
   });
@@ -231,7 +277,7 @@ export function markConnected(
 
   const next = touch({
     ...prev,
-    presence: 'connected',
+    presence: "connected",
     address: params.address,
     chainId: params.chainId ?? DEFAULT_CHAIN_ID,
     source: params.source,
@@ -241,15 +287,23 @@ export function markConnected(
   return setState(next);
 }
 
-export function disconnectWallet(userId: string, reason = 'user_disconnected'): UserWalletState {
+export function disconnectWallet(
+  userId: string,
+  reason = "user_disconnected",
+): UserWalletState {
   const prev = getOrInitState(userId);
   const next = prev.activeOperation
-    ? terminalizeActiveOperation(prev, 'canceled', reason, 'Wallet disconnected.')
+    ? terminalizeActiveOperation(
+        prev,
+        "canceled",
+        reason,
+        "Wallet disconnected.",
+      )
     : prev;
 
   const finalState = touch({
     ...next,
-    presence: 'disconnected',
+    presence: "disconnected",
     address: undefined,
     chainId: null,
     source: undefined,
@@ -260,7 +314,7 @@ export function disconnectWallet(userId: string, reason = 'user_disconnected'): 
 
 export function startOperation(
   userId: string,
-  kind: Exclude<OperationKind, 'connect'>,
+  kind: Exclude<OperationKind, "connect">,
   metadata: OperationMetadata,
   operationId?: string,
 ): { state: UserWalletState; operationId: string } {
@@ -272,7 +326,7 @@ export function startOperation(
   const activeOperation: WalletOperation = {
     operationId: opId,
     kind,
-    status: 'processing',
+    status: "processing",
     startedAt,
     expiresAt: startedAt + ttlForKind(kind),
     metadata,
@@ -288,7 +342,9 @@ export function startOperation(
   return { state: setState(next), operationId: opId };
 }
 
-export function markOperationAwaitingWallet(operationId: string): OperationLookupResult | undefined {
+export function markOperationAwaitingWallet(
+  operationId: string,
+): OperationLookupResult | undefined {
   const found = getOperationStateById(operationId);
   if (!found) return undefined;
 
@@ -296,12 +352,16 @@ export function markOperationAwaitingWallet(operationId: string): OperationLooku
     ...found.state,
     activeOperation: {
       ...found.operation,
-      status: 'awaiting_wallet',
+      status: "awaiting_wallet",
     },
   });
 
   setState(next);
-  return { userId: found.userId, state: next, operation: next.activeOperation! };
+  return {
+    userId: found.userId,
+    state: next,
+    operation: next.activeOperation!,
+  };
 }
 
 export function markOperationSuccess(
@@ -362,7 +422,7 @@ export function markOperationSuccess(
 
   const succeeded: WalletOperation = {
     ...found.operation,
-    status: 'succeeded',
+    status: "succeeded",
     metadata,
   };
 
@@ -414,7 +474,7 @@ export function markOperationFailure(
 
   const failed: WalletOperation = {
     ...found.operation,
-    status: params.rejected ? 'rejected' : 'failed',
+    status: params.rejected ? "rejected" : "failed",
     errorCode: params.errorCode,
     errorMessage: params.errorMessage,
     metadata,
@@ -423,7 +483,10 @@ export function markOperationFailure(
   const next = touch({
     ...found.state,
     activeOperation: failed,
-    presence: found.operation.kind === 'connect' ? 'disconnected' : found.state.presence,
+    presence:
+      found.operation.kind === "connect"
+        ? "disconnected"
+        : found.state.presence,
   });
 
   setState(next);
@@ -436,20 +499,20 @@ export function sweepTimedOutOperations(referenceTime = now()): number {
   for (const [userId, current] of stateByUser.entries()) {
     const op = current.activeOperation;
     if (!op) continue;
-    if (op.status !== 'awaiting_wallet' && op.status !== 'processing') continue;
+    if (op.status !== "awaiting_wallet" && op.status !== "processing") continue;
     if (referenceTime <= op.expiresAt) continue;
 
     const timedOut: WalletOperation = {
       ...op,
-      status: 'timed_out',
-      errorCode: 'operation_timed_out',
-      errorMessage: 'Wallet action timed out.',
+      status: "timed_out",
+      errorCode: "operation_timed_out",
+      errorMessage: "Wallet action timed out.",
     };
 
     const next = touch({
       ...current,
       activeOperation: timedOut,
-      presence: op.kind === 'connect' ? 'disconnected' : current.presence,
+      presence: op.kind === "connect" ? "disconnected" : current.presence,
     });
 
     stateByUser.set(userId, next);
@@ -460,34 +523,41 @@ export function sweepTimedOutOperations(referenceTime = now()): number {
 }
 
 export function getOperationPayloadById(operationId: string):
-  | { kind: 'sign_tx'; calls: TxCall[] }
-  | { kind: 'sign_eip712'; typedData: Record<string, unknown>; description: string; pendingEip712Id?: number }
-  | { kind: 'switch_network'; chainId: number }
+  | { kind: "sign_tx"; calls: TxCall[] }
+  | {
+      kind: "sign_eip712";
+      typedData?: Record<string, unknown>;
+      nonTypedData?: string;
+      description: string;
+      pendingEip712Id?: number;
+    }
+  | { kind: "switch_network"; chainId: number }
   | undefined {
   const found = getOperationStateById(operationId);
   if (!found) return undefined;
 
-  if (found.operation.kind === 'sign_tx') {
+  if (found.operation.kind === "sign_tx") {
     const txMeta = asSignTxMetadata(found.operation.metadata);
     if (!txMeta) return undefined;
-    return { kind: 'sign_tx', calls: txMeta.calls };
+    return { kind: "sign_tx", calls: txMeta.calls };
   }
 
-  if (found.operation.kind === 'sign_eip712') {
+  if (found.operation.kind === "sign_eip712") {
     const eipMeta = asSignEip712Metadata(found.operation.metadata);
     if (!eipMeta) return undefined;
     return {
-      kind: 'sign_eip712',
+      kind: "sign_eip712",
       typedData: eipMeta.typedData,
+      nonTypedData: eipMeta.nonTypedData,
       description: eipMeta.description,
       pendingEip712Id: eipMeta.pendingEip712Id,
     };
   }
 
-  if (found.operation.kind === 'switch_network') {
+  if (found.operation.kind === "switch_network") {
     const switchMeta = asSwitchMetadata(found.operation.metadata);
     if (!switchMeta) return undefined;
-    return { kind: 'switch_network', chainId: switchMeta.chainId };
+    return { kind: "switch_network", chainId: switchMeta.chainId };
   }
 
   return undefined;

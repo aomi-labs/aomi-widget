@@ -1,7 +1,4 @@
-import type {
-  ExecutionResult,
-  AAWalletCall,
-} from "../aa";
+import type { ExecutionResult, AAWalletCall } from "../aa";
 import type { WalletRequest } from "../session";
 import type {
   WalletEip712Payload,
@@ -126,7 +123,7 @@ export function formatTxLine(tx: PendingTx, prefix: string): string {
     if (tx.chainId) parts.push(`chain: ${tx.chainId}`);
     if (tx.data) parts.push(`data: ${tx.data.slice(0, 20)}...`);
   } else {
-    parts.push("eip712");
+    parts.push(tx.payload.non_typed_data ? "erc191" : "eip712");
     if (tx.description) parts.push(tx.description);
   }
   parts.push(`(${new Date(tx.timestamp).toLocaleTimeString()})`);
@@ -159,7 +156,10 @@ export function formatSignedTxLine(tx: SignedTx, prefix: string): string {
 }
 
 /** Render a pending Solana sign request for `aomi tx list`. */
-export function formatPendingSolTxLine(tx: PendingSolTx, prefix: string): string {
+export function formatPendingSolTxLine(
+  tx: PendingSolTx,
+  prefix: string,
+): string {
   const parts = [`${prefix} ${tx.id}`, "solana"];
   if (tx.cluster) parts.push(`cluster: ${tx.cluster}`);
   if (tx.description) parts.push(tx.description);
