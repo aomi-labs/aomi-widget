@@ -65,6 +65,7 @@ import {
 import type {
   AomiAuthAdapter,
   AomiAuthIdentity,
+  AomiAuthMethod,
   AomiTxResult,
   SolanaCluster,
   SolanaNetworkOption,
@@ -205,11 +206,32 @@ function useSafeSolanaWallets(): SolanaWalletsHook {
 
 type PrivyUser = ReturnType<typeof usePrivy>["user"];
 
-function inferPrivyAuthProvider(user: PrivyUser): string | undefined {
+const AOMI_AUTH_METHODS = new Set<AomiAuthMethod>([
+  "google",
+  "apple",
+  "facebook",
+  "x",
+  "discord",
+  "github",
+  "farcaster",
+  "telegram",
+  "email",
+  "phone",
+  "wagmi",
+]);
+
+function asAomiAuthMethod(value: string | undefined): AomiAuthMethod | undefined {
+  return value && AOMI_AUTH_METHODS.has(value as AomiAuthMethod)
+    ? (value as AomiAuthMethod)
+    : undefined;
+}
+
+function inferPrivyAuthProvider(user: PrivyUser): AomiAuthMethod | undefined {
   if (!user) return undefined;
   // Walk linked accounts in label-priority order. Privy account types map
-  // 1:1 to identity.formatAuthProvider's keys with light renaming.
-  const accountTypePriority: Array<[string, string]> = [
+  // 1:1 to identity.formatAuthProvider's keys with light renaming
+  // (e.g. a connected wallet surfaces as the `wagmi` auth method).
+  const accountTypePriority: Array<[string, AomiAuthMethod]> = [
     ["google_oauth", "google"],
     ["github_oauth", "github"],
     ["apple_oauth", "apple"],
@@ -219,14 +241,16 @@ function inferPrivyAuthProvider(user: PrivyUser): string | undefined {
     ["farcaster", "farcaster"],
     ["email", "email"],
     ["phone", "phone"],
-    ["wallet", "wallet"],
+    ["wallet", "wagmi"],
   ];
   const linked = (user.linkedAccounts ?? []) as Array<{ type?: string }>;
   for (const [privyType, label] of accountTypePriority) {
     if (linked.some((acc) => acc?.type === privyType)) return label;
   }
   const first = linked[0]?.type;
-  return typeof first === "string" ? first.toLowerCase() : undefined;
+  return asAomiAuthMethod(
+    typeof first === "string" ? first.toLowerCase() : undefined,
+  );
 }
 
 function inferPrivyPrimaryLabel(user: PrivyUser): string | undefined {
@@ -357,7 +381,7 @@ function AomiPrivyAdapterProvider({
             primaryLabel: primary ?? formatAddress(smartAddress) ?? "Privy",
             secondaryLabel: providerLabel,
             aaMode: "4337",
-            smartAccount: smartAddress,
+            SmartAccount4337: smartAddress,
             solanaCluster: solanaConfig.cluster,
             solanaWalletName: solanaWallet ? "Privy Solana" : undefined,
             solanaTransport: svmAddress ? "embedded" : undefined,
@@ -441,7 +465,7 @@ function AomiPrivyAdapterProvider({
         // Sponsorship is configured server-side in the Privy dashboard;
         // not observable from the client SDK at the call site.
         sponsored: undefined,
-        smartAccountAddress: smartAddress,
+        SmartAccount4337: smartAddress,
       };
     };
 

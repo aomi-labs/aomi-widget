@@ -111,7 +111,7 @@ describe("AomiClient transport selection", () => {
     }
   });
 
-  it("strips bulky svm sign payloads from both solana_sigs and svm_sigs during fetchState", async () => {
+  it("canonicalizes legacy solana_sigs into svm_sigs and strips bulky svm sign payloads during fetchState", async () => {
     const nativeResponse = {
       ok: true,
       status: 200,
@@ -138,25 +138,19 @@ describe("AomiClient transport selection", () => {
               kind: "solana_sign",
             },
           },
-          svm_sigs: {
-            1: {
-              signer: "Bv9abc",
-              description: "swap",
-              unsignedTx: "AQID",
-              pendingSvmSigId: 1,
-              kind: "solana_sign",
-            },
-          },
         },
       });
 
       const url = String(nativeFetch.mock.calls[0]?.[0]);
       const parsed = new URL(url);
       const userState = JSON.parse(parsed.searchParams.get("user_state") ?? "{}");
-      expect(userState.pending.solana_sigs["1"].unsignedTx).toBeUndefined();
+      // Legacy `solana_sigs` is canonicalized into `svm_sigs`; the bulky
+      // `unsignedTx` is stripped while correlation ids are preserved.
+      expect(userState.pending.solana_sigs).toBeUndefined();
+      // Bucket entries are snake-cased to match the backend input contract.
+      expect(userState.pending.svm_sigs["1"].unsigned_tx).toBeUndefined();
       expect(userState.pending.svm_sigs["1"].unsignedTx).toBeUndefined();
-      expect(userState.pending.solana_sigs["1"].pendingSvmSigId).toBe(1);
-      expect(userState.pending.svm_sigs["1"].pendingSvmSigId).toBe(1);
+      expect(userState.pending.svm_sigs["1"].pending_svm_sig_id).toBe(1);
     } finally {
       vi.stubGlobal("fetch", originalFetch);
     }
