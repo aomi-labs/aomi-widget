@@ -105,6 +105,9 @@ export type AomiAuthAdapter = {
   signTypedData?: (
     payload: WalletEip712Payload,
   ) => Promise<{ signature: string }>;
+  signMessage?: (
+    payload: WalletEip712Payload,
+  ) => Promise<{ signature: string }>;
   /**
    * Sign a Solana transaction with the user's wallet. Singular and
    * sign-only — apps submit the returned signed tx through their own
