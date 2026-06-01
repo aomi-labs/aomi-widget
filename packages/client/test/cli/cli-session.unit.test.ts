@@ -52,7 +52,8 @@ describe("CLI session lifecycle", () => {
 
   it("supports newSessionCommand as an explicit fresh-session command", async () => {
     const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
-    const { newSessionCommand } = await import("../../src/cli/commands/sessions");
+    const { newSessionCommand } =
+      await import("../../src/cli/commands/sessions");
     const { readState } = await import("../../src/cli/state");
 
     const config = {
@@ -71,9 +72,8 @@ describe("CLI session lifecycle", () => {
   });
 
   it("persists explicit wallet, chain, and backend settings on the active session", async () => {
-    const { setWalletCommand, setChainCommand, setBackendCommand } = await import(
-      "../../src/cli/commands/preferences"
-    );
+    const { setWalletCommand, setChainCommand, setBackendCommand } =
+      await import("../../src/cli/commands/preferences");
     const { readState } = await import("../../src/cli/state");
 
     setWalletCommand(
@@ -171,13 +171,15 @@ describe("CLI session lifecycle", () => {
         {
           sessionId: "session-1",
           baseUrl: "https://api.aomi.dev",
-          signedTxs: [{
-            id: "tx-1",
-            kind: "transaction",
-            txHash: "0xhash",
-            AAAddress: "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-            timestamp: 1,
-          }],
+          signedTxs: [
+            {
+              id: "tx-1",
+              kind: "transaction",
+              txHash: "0xhash",
+              AAAddress: "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              timestamp: 1,
+            },
+          ],
           localId: 1,
           createdAt: 1,
           updatedAt: 1,
@@ -358,16 +360,30 @@ describe("CLI session lifecycle", () => {
             message: { owner: "0xabc" },
           },
         },
+        "9": {
+          chain_id: 1,
+          signer: "0xabc",
+          description: "SIWE login",
+          non_typed_data: "Sign in with Ethereum",
+        },
       },
     });
 
     expect(cli.publicKey).toBe("0xabc");
     expect(cli.chainId).toBe(8453);
-    expect(synced.pendingTxs.map((tx) => tx.id)).toEqual(["tx-7", "tx-8"]);
+    expect(synced.pendingTxs.map((tx) => tx.id)).toEqual([
+      "tx-7",
+      "tx-8",
+      "tx-9",
+    ]);
     expect(synced.pendingTxs.map((tx) => tx.kind)).toEqual([
       "transaction",
       "eip712_sign",
+      "eip712_sign",
     ]);
+    expect(synced.pendingTxs[2]?.payload).toMatchObject({
+      non_typed_data: "Sign in with Ethereum",
+    });
     expect(synced.pendingSolTxs).toEqual([]);
   });
 

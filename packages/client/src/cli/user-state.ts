@@ -1,8 +1,4 @@
-import {
-  CLIENT_TYPE_TS_CLI,
-  UserState,
-  type UserStateAAMode,
-} from "../types";
+import { CLIENT_TYPE_TS_CLI, UserState, type UserStateAAMode } from "../types";
 import { getAddress } from "viem";
 import type { PendingSolTx, PendingTx } from "./state";
 import { normalizePendingTxData } from "../wallet-utils";
@@ -172,6 +168,7 @@ export function pendingTxsFromBackendUserState(
         pending_eip712_id: pendingId,
         eip712Id: pendingId,
         typed_data: request.typed_data,
+        non_typed_data: parseOptionalString(request.non_typed_data),
         description,
       },
     });
@@ -180,7 +177,9 @@ export function pendingTxsFromBackendUserState(
   nextPendingTxs.sort((left, right) => {
     const leftId = left.kind === "transaction" ? left.txId : left.eip712Id;
     const rightId = right.kind === "transaction" ? right.txId : right.eip712Id;
-    return (leftId ?? Number.MAX_SAFE_INTEGER) - (rightId ?? Number.MAX_SAFE_INTEGER);
+    return (
+      (leftId ?? Number.MAX_SAFE_INTEGER) - (rightId ?? Number.MAX_SAFE_INTEGER)
+    );
   });
 
   return nextPendingTxs;
@@ -206,7 +205,8 @@ export function pendingSolTxsFromBackendUserState(
   const fallbackNow = Date.now();
   const next: PendingSolTx[] = [];
 
-  const pendingSolanaTxs = asRecord(normalizedUserState.pending_solana_txs) ?? {};
+  const pendingSolanaTxs =
+    asRecord(normalizedUserState.pending_solana_txs) ?? {};
   for (const [rawId, rawValue] of Object.entries(pendingSolanaTxs)) {
     const pendingId = parsePendingId(rawId);
     const request = asRecord(rawValue);
@@ -269,7 +269,7 @@ export function walletSnapshotFromUserState(
         : undefined;
 
   const smartAccount: string | null | undefined =
-    walletKind === "smart-account" ? address ?? null : null;
+    walletKind === "smart-account" ? (address ?? null) : null;
 
   return {
     publicKey: isConnected === false ? undefined : address,

@@ -1570,6 +1570,12 @@ function parseBoolean(value) {
   if (normalized === "false" || normalized === "0") return false;
   return void 0;
 }
+function parseString(value) {
+  return typeof value === "string" ? value : void 0;
+}
+function isHexBytes(value) {
+  return /^0x(?:[0-9a-fA-F]{2})*$/.test(value);
+}
 function normalizeAaPreference(value) {
   if (typeof value !== "string") return void 0;
   const normalized = value.trim().toLowerCase();
@@ -1703,9 +1709,10 @@ function normalizeSolanaSignPayload(payload) {
   return { unsignedTx, description, cluster, pendingSolanaId };
 }
 function normalizeEip712Payload(payload) {
-  var _a3, _b, _c, _d;
+  var _a3, _b, _c, _d, _e;
   const args = getToolArgs(payload);
   const typedDataRaw = (_b = (_a3 = args.typed_data) != null ? _a3 : args["712_typed_data"]) != null ? _b : args.typedData;
+  const nonTypedData = parseString((_c = args.non_typed_data) != null ? _c : args.nonTypedData);
   let typedData;
   if (typeof typedDataRaw === "string") {
     try {
@@ -1720,8 +1727,13 @@ function normalizeEip712Payload(payload) {
     typedData = typedDataRaw;
   }
   const description = typeof args.description === "string" ? args.description : void 0;
-  const eip712Id = (_d = (_c = parsePendingId(args.eip712Id)) != null ? _c : parsePendingId(args.pending_eip712_id)) != null ? _d : parsePendingId(args.pendingEip712Id);
-  return { typed_data: typedData, description, eip712Id };
+  const eip712Id = (_e = (_d = parsePendingId(args.eip712Id)) != null ? _d : parsePendingId(args.pending_eip712_id)) != null ? _e : parsePendingId(args.pendingEip712Id);
+  return {
+    typed_data: typedData,
+    non_typed_data: nonTypedData,
+    description,
+    eip712Id
+  };
 }
 function toAAWalletCalls(payload, defaultChainId = 1) {
   var _a3, _b;
@@ -1766,6 +1778,15 @@ function toViemSignTypedDataArgs(payload) {
     ),
     primaryType,
     message: asRecord(typedData.message)
+  };
+}
+function toViemSignMessageArgs(payload) {
+  const nonTypedData = payload.non_typed_data;
+  if (typeof nonTypedData !== "string" || nonTypedData.length === 0) {
+    return null;
+  }
+  return {
+    message: isHexBytes(nonTypedData) ? { raw: nonTypedData } : nonTypedData
   };
 }
 var init_wallet_utils = __esm({
@@ -2653,6 +2674,7 @@ function pendingTxsFromBackendUserState(userState, existingPendingTxs = []) {
         pending_eip712_id: pendingId,
         eip712Id: pendingId,
         typed_data: request.typed_data,
+        non_typed_data: parseOptionalString(request.non_typed_data),
         description
       }
     });
@@ -3597,10 +3619,12 @@ async function syncWalletStateForChat(config, previous, next, cli, session) {
   if (!shouldBroadcastWalletStateChange(config, previous, next) || !next.publicKey) {
     return;
   }
-  session.resolveUserState(buildCliUserState(next.publicKey, next.chainId, {
-    aaMode: (_a3 = next.aaMode) != null ? _a3 : null,
-    smartAccount: (_b = next.smartAccount) != null ? _b : null
-  }));
+  session.resolveUserState(
+    buildCliUserState(next.publicKey, next.chainId, {
+      aaMode: (_a3 = next.aaMode) != null ? _a3 : null,
+      smartAccount: (_b = next.smartAccount) != null ? _b : null
+    })
+  );
   await session.syncUserState();
   const aaMode = next.aaMode === "4337" || next.aaMode === "7702" ? next.aaMode : "none";
   const walletKind = next.smartAccount && next.smartAccount === next.publicKey ? "smart-account" : "eoa";
@@ -3689,10 +3713,7 @@ async function chatCommand(config, message, verbose) {
       (entry) => entry.sender === "agent" || entry.sender === "assistant"
     ).length;
     if (verbose) {
-      printedAgentCount = printNewAgentMessages(
-        allMessages,
-        printedAgentCount
-      );
+      printedAgentCount = printNewAgentMessages(allMessages, printedAgentCount);
       session.on("messages", (messages) => {
         printedAgentCount = printNewAgentMessages(messages, printedAgentCount);
       });
@@ -3733,9 +3754,7 @@ async function chatCommand(config, message, verbose) {
       );
       console.log(`${DIM}\u2705 Done${RESET}`);
     }
-    const syncedPending = cli.syncPendingFromUserState(
-      session.getUserState()
-    );
+    const syncedPending = cli.syncPendingFromUserState(session.getUserState());
     const newPendingTxs = [
       ...syncedPending.pendingTxs,
       ...syncedPending.pendingSolTxs
@@ -3747,10 +3766,13 @@ async function chatCommand(config, message, verbose) {
         console.log(`   to:    ${payload.to}`);
         if (payload.value) console.log(`   value: ${payload.value}`);
         if (payload.chainId) console.log(`   chain: ${payload.chainId}`);
-      } else {
+      } else if (pending.kind === "eip712_sign") {
         const payload = pending.payload;
         if (payload.description) {
           console.log(`   desc:  ${payload.description}`);
+        }
+        if (payload.non_typed_data) {
+          console.log("   type:  erc191");
         }
       }
     }
@@ -5403,7 +5425,7 @@ function formatTxLine(tx, prefix) {
     if (tx.chainId) parts.push(`chain: ${tx.chainId}`);
     if (tx.data) parts.push(`data: ${tx.data.slice(0, 20)}...`);
   } else {
-    parts.push("eip712");
+    parts.push(tx.payload.non_typed_data ? "erc191" : "eip712");
     if (tx.description) parts.push(tx.description);
   }
   parts.push(`(${new Date(tx.timestamp).toLocaleTimeString()})`);
@@ -5648,7 +5670,14 @@ async function signSolanaPending(params) {
   console.log("Backend notified.");
 }
 async function executeCliTransaction(params) {
-  const { privateKey, currentChainId, chainsById, rpcUrl, providerState, callList } = params;
+  const {
+    privateKey,
+    currentChainId,
+    chainsById,
+    rpcUrl,
+    providerState,
+    callList
+  } = params;
   const unsupportedWalletMethod = async () => {
     throw new Error("wallet_client_path_unavailable_in_cli_private_key_mode");
   };
@@ -5674,7 +5703,9 @@ async function signCommand(config, txIds) {
   }
   const uniqueIds = Array.from(new Set(txIds));
   if (uniqueIds.length !== txIds.length) {
-    fatal("Duplicate transaction IDs are not allowed in a single `aomi tx sign` call.");
+    fatal(
+      "Duplicate transaction IDs are not allowed in a single `aomi tx sign` call."
+    );
   }
   const cli = CliSession.load();
   if (!cli) {
@@ -5690,16 +5721,22 @@ async function signCommand(config, txIds) {
       cli.clientId
     );
     cli.syncPendingFromUserState(initialState.user_state);
-    const solanaIds = uniqueIds.filter((id) => cli.findPendingSolTx(id) !== void 0);
-    const evmIds = uniqueIds.filter((id) => cli.findPendingTx(id) !== void 0);
+    const solanaIds = uniqueIds.filter(
+      (id) => cli.findPendingSolTx(id) !== void 0
+    );
+    const evmIds = uniqueIds.filter(
+      (id) => cli.findPendingTx(id) !== void 0
+    );
     const unknownIds = uniqueIds.filter(
       (id) => cli.findPendingSolTx(id) === void 0 && cli.findPendingTx(id) === void 0
     );
     if (unknownIds.length > 0) {
       const available = [...cli.pendingTxs, ...cli.pendingSolTxs].map((tx) => tx.id).join(", ") || "(none)";
       const label = unknownIds.length === 1 ? "Transaction" : "Transactions";
-      fatal(`${label} "${unknownIds.join('", "')}" not found.
-Available: ${available}`);
+      fatal(
+        `${label} "${unknownIds.join('", "')}" not found.
+Available: ${available}`
+      );
     }
     if (solanaIds.length > 0 && evmIds.length > 0) {
       fatal(
@@ -5708,9 +5745,7 @@ Available: ${available}`);
     }
     if (solanaIds.length > 0) {
       if (solanaIds.length > 1) {
-        fatal(
-          "Solana signing is singular \u2014 pass exactly one tx-id at a time."
-        );
+        fatal("Solana signing is singular \u2014 pass exactly one tx-id at a time.");
       }
       const solanaTx = cli.requirePendingSolTx(solanaIds[0]);
       await signSolanaPending({
@@ -5741,10 +5776,12 @@ Available: ${available}`);
       console.log("   Updating session to match the signing key...");
     }
     const rpcUrl = config.chainRpcUrl;
-    const resolvedChainIds = pendingTxs.map((tx) => {
-      var _a4, _b2;
-      return (_b2 = (_a4 = tx.chainId) != null ? _a4 : cli.chainId) != null ? _b2 : 1;
-    });
+    const resolvedChainIds = pendingTxs.map(
+      (tx) => {
+        var _a4, _b2;
+        return (_b2 = (_a4 = tx.chainId) != null ? _a4 : cli.chainId) != null ? _b2 : 1;
+      }
+    );
     const primaryChainId = resolvedChainIds[0];
     const chain = resolveChain(primaryChainId, rpcUrl);
     const resolvedRpcUrl = getPreferredRpcUrl(chain, rpcUrl);
@@ -5763,11 +5800,14 @@ Available: ${available}`);
     let resolvedUserStateSmartAccount4337 = null;
     let resolvedUserStateDelegation7702 = null;
     if (pendingTxs.every((tx) => tx.kind === "transaction")) {
-      console.log(`Kind:    transaction${pendingTxs.length > 1 ? " (batch)" : ""}`);
+      console.log(
+        `Kind:    transaction${pendingTxs.length > 1 ? " (batch)" : ""}`
+      );
       for (const tx of pendingTxs) {
         console.log(`Tx:      ${tx.id} -> ${tx.to}`);
         if (tx.value) console.log(`Value:   ${tx.value}`);
-        if ((_b = tx.chainId) != null ? _b : cli.chainId) console.log(`Chain:   ${(_c = tx.chainId) != null ? _c : cli.chainId}`);
+        if ((_b = tx.chainId) != null ? _b : cli.chainId)
+          console.log(`Chain:   ${(_c = tx.chainId) != null ? _c : cli.chainId}`);
         if (tx.data) {
           console.log(`Data:    ${tx.data.slice(0, 40)}...`);
         }
@@ -5779,7 +5819,9 @@ Available: ${available}`);
         }))
       );
       if (baseCallList.length > 1 && rpcUrl && new Set(baseCallList.map((call) => call.chainId)).size > 1) {
-        fatal("A single `--rpc-url` override cannot be used for a mixed-chain multi-sign request.");
+        fatal(
+          "A single `--rpc-url` override cannot be used for a mixed-chain multi-sign request."
+        );
       }
       const simulationDecision = resolveCliExecutionDecision({
         config,
@@ -5875,8 +5917,12 @@ Available: ${available}`);
       for (const strategy of strategies) {
         if (failures.length > 0) {
           const prev = strategies[failures.length - 1];
-          console.log(`${describeExecutionDecision(prev)} failed: ${failures[failures.length - 1].message}`);
-          console.log(`Retrying with ${describeExecutionDecision(strategy)}...`);
+          console.log(
+            `${describeExecutionDecision(prev)} failed: ${failures[failures.length - 1].message}`
+          );
+          console.log(
+            `Retrying with ${describeExecutionDecision(strategy)}...`
+          );
         }
         try {
           execution = await runWithDecision(strategy);
@@ -5889,7 +5935,9 @@ Available: ${available}`);
             if (config.execution === "aa") {
               fatal(
                 `\u274C AA execution failed with all modes.
-` + failures.map((f) => `  ${describeExecutionDecision(f.decision)}: ${f.message}`).join("\n") + "\nUse `--eoa` to sign without account abstraction."
+` + failures.map(
+                  (f) => `  ${describeExecutionDecision(f.decision)}: ${f.message}`
+                ).join("\n") + "\nUse `--eoa` to sign without account abstraction."
               );
             }
             throw error;
@@ -5947,7 +5995,9 @@ Available: ${available}`);
       }));
     } else {
       if (pendingTxs.length > 1) {
-        fatal("Batch signing is only supported for transaction requests, not EIP-712 requests.");
+        fatal(
+          "Batch signing is only supported for transaction requests, not EIP-712 requests."
+        );
       }
       const pendingTx = pendingTxs[0];
       const walletClient = createWalletClient2({
@@ -5955,35 +6005,48 @@ Available: ${available}`);
         chain,
         transport: http2(resolvedRpcUrl)
       });
-      const signArgs = toViemSignTypedDataArgs(
-        pendingTx.payload
-      );
-      if (!signArgs) {
-        fatal("EIP-712 request is missing typed_data payload.");
+      const signaturePayload = pendingTx.payload;
+      const signArgs = toViemSignTypedDataArgs(signaturePayload);
+      const messageArgs = toViemSignMessageArgs(signaturePayload);
+      if (signArgs && messageArgs) {
+        fatal(
+          "Signature request cannot include both typed_data and non_typed_data."
+        );
+      }
+      if (!signArgs && !messageArgs) {
+        fatal(
+          "Signature request is missing typed_data or non_typed_data payload."
+        );
       }
       if (pendingTx.description) {
         console.log(`Desc:    ${pendingTx.description}`);
       }
-      console.log(`Type:    ${signArgs.primaryType}`);
+      console.log(
+        signArgs ? `Type:    ${signArgs.primaryType}` : "Type:    erc191"
+      );
       console.log();
-      const signature = await walletClient.signTypedData(signArgs);
+      const signature = signArgs ? await walletClient.signTypedData(signArgs) : await walletClient.signMessage(messageArgs);
       console.log(`\u2705 Signed! Signature: ${signature.slice(0, 20)}...`);
-      signedRecords = [{
-        id: pendingTx.id,
-        kind: "eip712_sign",
-        signature,
-        from: account.address,
-        description: pendingTx.description,
-        timestamp: Date.now()
-      }];
-      backendNotifications = [{
-        type: "wallet_eip712_response",
-        payload: __spreadValues({
-          status: "success",
+      signedRecords = [
+        {
+          id: pendingTx.id,
+          kind: "eip712_sign",
           signature,
-          description: pendingTx.description
-        }, pendingTx.eip712Id !== void 0 ? { pending_eip712_id: pendingTx.eip712Id } : {})
-      }];
+          from: account.address,
+          description: pendingTx.description,
+          timestamp: Date.now()
+        }
+      ];
+      backendNotifications = [
+        {
+          type: "wallet_eip712_response",
+          payload: __spreadValues({
+            status: "success",
+            signature,
+            description: pendingTx.description
+          }, pendingTx.eip712Id !== void 0 ? { pending_eip712_id: pendingTx.eip712Id } : {})
+        }
+      ];
     }
     cli.setPublicKey(account.address);
     session.resolveWallet(account.address, primaryChainId, {
@@ -7514,7 +7577,7 @@ init_shared();
 // package.json
 var package_default = {
   name: "@aomi-labs/client",
-  version: "0.1.38",
+  version: "0.1.39",
   description: "Platform-agnostic TypeScript client for the Aomi backend API",
   type: "module",
   main: "./dist/index.cjs",
