@@ -1,27 +1,47 @@
 "use client";
 
-import type { AomiAuthIdentity } from "./types";
+import type { AomiAuthIdentity, AomiAuthMethod, AomiWalletProvider } from "./types";
 
 export const AOMI_AUTH_DISCONNECTED_IDENTITY: AomiAuthIdentity = {
   status: "disconnected",
   isConnected: false,
   address: undefined,
+  walletKind: undefined,
+  aaMode: undefined,
+  SmartAccount4337: undefined,
+  Delegation7702: undefined,
+  sponsored: undefined,
+  sponsorProvider: undefined,
+  sponsorAccount: undefined,
   chainId: undefined,
   svmAddress: undefined,
+  walletProvider: undefined,
+  walletProviderSubject: undefined,
+  authMethod: undefined,
   authProvider: undefined,
-  primaryLabel: "Not connected",
-  secondaryLabel: undefined,
+  authValue: undefined,
+  authVerifiedAt: undefined,
 };
 
 export const AOMI_AUTH_BOOTING_IDENTITY: AomiAuthIdentity = {
   status: "booting",
   isConnected: false,
   address: undefined,
+  walletKind: undefined,
+  aaMode: undefined,
+  SmartAccount4337: undefined,
+  Delegation7702: undefined,
+  sponsored: undefined,
+  sponsorProvider: undefined,
+  sponsorAccount: undefined,
   chainId: undefined,
   svmAddress: undefined,
+  walletProvider: undefined,
+  walletProviderSubject: undefined,
+  authMethod: undefined,
   authProvider: undefined,
-  primaryLabel: "Loading Wallet...",
-  secondaryLabel: undefined,
+  authValue: undefined,
+  authVerifiedAt: undefined,
 };
 
 export function formatAddress(address?: string): string | undefined {
@@ -29,10 +49,21 @@ export function formatAddress(address?: string): string | undefined {
   return `${address.slice(0, 5)}..${address.slice(-2)}`;
 }
 
-export function formatAuthProvider(provider?: string): string | undefined {
+export function formatWalletProvider(
+  provider?: AomiWalletProvider,
+): string | undefined {
   if (!provider) return undefined;
+  const labelMap: Record<AomiWalletProvider, string> = {
+    para: "Para",
+    privy: "Privy",
+    baseAccount: "Base Account",
+  };
+  return labelMap[provider];
+}
 
-  const labelMap: Record<string, string> = {
+export function formatAuthMethod(method?: AomiAuthMethod): string | undefined {
+  if (!method) return undefined;
+  const labelMap: Record<AomiAuthMethod, string> = {
     google: "Google",
     github: "GitHub",
     apple: "Apple",
@@ -43,35 +74,37 @@ export function formatAuthProvider(provider?: string): string | undefined {
     telegram: "Telegram",
     email: "Email",
     phone: "Phone",
-    wallet: "Wallet",
-    baseAccount: "Base Account",
+    wagmi: "External Wallet",
   };
-
-  return labelMap[provider] ?? provider;
+  return labelMap[method];
 }
 
-export function inferAuthProvider(authMethods: unknown): string | undefined {
-  if (!(authMethods instanceof Set) || authMethods.size === 0) return undefined;
+export const formatAuthProvider = formatAuthMethod;
 
-  const allowed = new Set([
-    "google",
-    "github",
-    "apple",
-    "facebook",
-    "x",
-    "discord",
-    "farcaster",
-    "telegram",
-    "email",
-    "phone",
-  ]);
+const OAUTH_METHODS: ReadonlySet<AomiAuthMethod> = new Set<AomiAuthMethod>([
+  "google",
+  "apple",
+  "facebook",
+  "x",
+  "discord",
+  "github",
+  "farcaster",
+  "telegram",
+  "email",
+  "phone",
+]);
+
+export function inferAuthMethod(
+  authMethods: unknown,
+): AomiAuthMethod | undefined {
+  if (!(authMethods instanceof Set) || authMethods.size === 0) return undefined;
 
   for (const method of authMethods) {
     if (typeof method !== "string") continue;
     const normalized = method.toLowerCase();
-    if (allowed.has(normalized)) return normalized;
+    if (OAUTH_METHODS.has(normalized as AomiAuthMethod)) {
+      return normalized as AomiAuthMethod;
+    }
   }
-
-  const first = authMethods.values().next().value;
-  return typeof first === "string" ? first.toLowerCase() : undefined;
+  return undefined;
 }

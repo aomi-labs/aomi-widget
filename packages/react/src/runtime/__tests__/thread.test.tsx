@@ -318,6 +318,36 @@ describe("Thread API", () => {
       expect(getApi().getThreadMetadata("thread-a")).toBeUndefined();
     });
 
+    it("does not refetch threads when only the connected chain changes", async () => {
+      const listThreads = vi.fn(
+        async (): Promise<AomiThread[]> => [
+          { session_id: "thread-1", title: "Wallet Thread" },
+        ],
+      );
+      setAomiClientConfig({ listThreads });
+
+      const { api, getApi } = renderRuntime();
+
+      await act(async () => {
+        api.setUser({ address: "0x123", chainId: 1, isConnected: true });
+        await flushPromises();
+      });
+
+      await waitFor(() => {
+        expect(getApi().getThreadMetadata("thread-1")?.title).toBe(
+          "Wallet Thread",
+        );
+      });
+      expect(listThreads).toHaveBeenCalledTimes(1);
+
+      await act(async () => {
+        api.setUser({ chainId: 8453 });
+        await flushPromises();
+      });
+
+      expect(listThreads).toHaveBeenCalledTimes(1);
+    });
+
     it("handles archived threads", async () => {
       const fetchThreads = vi.fn(
         async (): Promise<AomiThread[]> => [

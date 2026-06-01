@@ -3,21 +3,21 @@ import { CliExit } from "../../src/cli/errors";
 
 const {
   fetchStateMock,
-  listProviderKeysMock,
-  saveProviderKeyMock,
-  deleteProviderKeyMock,
+  listByokKeysMock,
+  saveByokKeyMock,
+  deleteByokKeyMock,
   loadOrCreateMock,
   ensureClientIdMock,
 } = vi.hoisted(() => ({
   fetchStateMock: vi.fn().mockResolvedValue({}),
-  listProviderKeysMock: vi.fn().mockResolvedValue([]),
-  saveProviderKeyMock: vi.fn().mockResolvedValue({
+  listByokKeysMock: vi.fn().mockResolvedValue([]),
+  saveByokKeyMock: vi.fn().mockResolvedValue({
     provider: "anthropic",
     key_prefix: "sk-ant-",
     label: null,
     is_active: true,
   }),
-  deleteProviderKeyMock: vi.fn().mockResolvedValue(true),
+  deleteByokKeyMock: vi.fn().mockResolvedValue(true),
   ensureClientIdMock: vi.fn(() => "client-1"),
   loadOrCreateMock: vi.fn(),
 }));
@@ -25,9 +25,9 @@ const {
 vi.mock("../../src/client", () => ({
   AomiClient: vi.fn(() => ({
     fetchState: fetchStateMock,
-    listProviderKeys: listProviderKeysMock,
-    saveProviderKey: saveProviderKeyMock,
-    deleteProviderKey: deleteProviderKeyMock,
+    listByokKeys: listByokKeysMock,
+    saveByokKey: saveByokKeyMock,
+    deleteByokKey: deleteByokKeyMock,
   })),
 }));
 
@@ -37,7 +37,7 @@ vi.mock("../../src/cli/cli-session", () => ({
   },
 }));
 
-describe("CLI provider-key commands", () => {
+describe("CLI BYOK-key commands", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     loadOrCreateMock.mockReturnValue({
@@ -47,23 +47,23 @@ describe("CLI provider-key commands", () => {
       ensureClientId: ensureClientIdMock,
     });
     fetchStateMock.mockResolvedValue({});
-    listProviderKeysMock.mockResolvedValue([]);
-    saveProviderKeyMock.mockResolvedValue({
+    listByokKeysMock.mockResolvedValue([]);
+    saveByokKeyMock.mockResolvedValue({
       provider: "anthropic",
       key_prefix: "sk-ant-",
       label: null,
       is_active: true,
     });
-    deleteProviderKeyMock.mockResolvedValue(true);
+    deleteByokKeyMock.mockResolvedValue(true);
   });
 
-  it("saves a provider key after binding the client to the session", async () => {
+  it("saves a BYOK key after binding the client to the session", async () => {
     const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
-    const { saveProviderKeyCommand } = await import(
-      "../../src/cli/commands/provider-keys"
+    const { saveByokKeyCommand } = await import(
+      "../../src/cli/commands/byok"
     );
 
-    await saveProviderKeyCommand(
+    await saveByokKeyCommand(
       {
         baseUrl: "https://api.aomi.dev",
         app: "default",
@@ -74,7 +74,7 @@ describe("CLI provider-key commands", () => {
     );
 
     expect(fetchStateMock).toHaveBeenCalledWith("session-1", undefined, "client-1");
-    expect(saveProviderKeyMock).toHaveBeenCalledWith(
+    expect(saveByokKeyMock).toHaveBeenCalledWith(
       "session-1",
       "anthropic",
       "sk-ant-test",
@@ -83,9 +83,9 @@ describe("CLI provider-key commands", () => {
     logSpy.mockRestore();
   });
 
-  it("shows configured provider keys", async () => {
+  it("shows configured BYOK keys", async () => {
     const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
-    listProviderKeysMock.mockResolvedValue([
+    listByokKeysMock.mockResolvedValue([
       {
         provider: "openai",
         key_prefix: "sk-open",
@@ -94,11 +94,11 @@ describe("CLI provider-key commands", () => {
       },
     ]);
 
-    const { showProviderKeysCommand } = await import(
-      "../../src/cli/commands/provider-keys"
+    const { showByokKeysCommand } = await import(
+      "../../src/cli/commands/byok"
     );
 
-    await showProviderKeysCommand(
+    await showByokKeysCommand(
       {
         baseUrl: "https://api.aomi.dev",
         app: "default",
@@ -107,14 +107,14 @@ describe("CLI provider-key commands", () => {
       { printLocation: false },
     );
 
-    expect(listProviderKeysMock).toHaveBeenCalledWith("session-1");
+    expect(listByokKeysMock).toHaveBeenCalledWith("session-1");
     expect(logSpy).toHaveBeenCalledWith("  openai: sk-open...");
     logSpy.mockRestore();
   });
 
-  it("clears all configured provider keys", async () => {
+  it("clears all configured BYOK keys", async () => {
     const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
-    listProviderKeysMock.mockResolvedValue([
+    listByokKeysMock.mockResolvedValue([
       {
         provider: "anthropic",
         key_prefix: "sk-ant-",
@@ -129,11 +129,11 @@ describe("CLI provider-key commands", () => {
       },
     ]);
 
-    const { clearProviderKeysCommand } = await import(
-      "../../src/cli/commands/provider-keys"
+    const { clearByokKeysCommand } = await import(
+      "../../src/cli/commands/byok"
     );
 
-    await clearProviderKeysCommand(
+    await clearByokKeysCommand(
       {
         baseUrl: "https://api.aomi.dev",
         app: "default",
@@ -142,20 +142,20 @@ describe("CLI provider-key commands", () => {
       { printLocation: false },
     );
 
-    expect(deleteProviderKeyMock).toHaveBeenNthCalledWith(1, "session-1", "anthropic");
-    expect(deleteProviderKeyMock).toHaveBeenNthCalledWith(2, "session-1", "openai");
-    expect(logSpy).toHaveBeenCalledWith("BYOK provider keys cleared. Using system keys.");
+    expect(deleteByokKeyMock).toHaveBeenNthCalledWith(1, "session-1", "anthropic");
+    expect(deleteByokKeyMock).toHaveBeenNthCalledWith(2, "session-1", "openai");
+    expect(logSpy).toHaveBeenCalledWith("BYOK keys cleared. Using system keys.");
     logSpy.mockRestore();
   });
 
-  it("rejects invalid provider-key input", async () => {
+  it("rejects invalid BYOK-key input", async () => {
     const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
-    const { saveProviderKeyCommand } = await import(
-      "../../src/cli/commands/provider-keys"
+    const { saveByokKeyCommand } = await import(
+      "../../src/cli/commands/byok"
     );
 
     await expect(
-      saveProviderKeyCommand(
+      saveByokKeyCommand(
         {
           baseUrl: "https://api.aomi.dev",
           app: "default",

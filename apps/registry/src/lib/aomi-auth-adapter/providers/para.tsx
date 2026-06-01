@@ -25,9 +25,16 @@ import {
   sepolia,
 } from "wagmi/chains";
 import type { WalletEip712Payload, WalletTxPayload } from "@aomi-labs/react";
-import { toViemSignTypedDataArgs } from "@aomi-labs/react";
+import {
+  ExtUserProvider,
+  toViemSignTypedDataArgs,
+  UserState,
+  useUser,
+} from "@aomi-labs/react";
 import {
   createAAProviderState,
+  monad,
+  monadTestnet,
   type AAMode,
   type AAProvider,
 } from "@aomi-labs/client";
@@ -41,9 +48,13 @@ import {
   AOMI_AUTH_BOOTING_IDENTITY,
   AOMI_AUTH_DISCONNECTED_IDENTITY,
   formatAddress,
-  formatAuthProvider,
-  inferAuthProvider,
+  formatAuthMethod,
+  inferAuthMethod,
 } from "../identity";
+import {
+  FullTestnetWalletRouter,
+  useFullTestnet,
+} from "../full-testnet-wallet-routing";
 import {
   useSafeCapabilities,
   useSafeConnections,
@@ -58,8 +69,12 @@ import {
   useSafeWalletClient,
 } from "../safe-wagmi-hooks";
 import { buildAccounts } from "../accounts";
-import type { AomiAuthAdapter, AomiAuthIdentity } from "../types";
-import type { WalletFamily } from "../types";
+import type {
+  AomiAuthAdapter,
+  AomiAuthIdentity,
+  AomiAuthMethod,
+  WalletFamily,
+} from "../types";
 import {
   executeAdapterTransaction,
   getPreferredRpcUrl,
@@ -144,6 +159,8 @@ const defaultNetworks = [
   sepolia,
   linea,
   lineaSepolia,
+  monad,
+  monadTestnet,
 ] as const;
 
 const defaultExternalWallets: TExternalWallet[] = [
@@ -191,6 +208,33 @@ function resolveAAProvider(): AAProvider | null {
   if (ALCHEMY_API_KEY) return "alchemy";
   if (PIMLICO_API_KEY) return "pimlico";
   return null;
+}
+
+function resolveParaSponsorship(): {
+  sponsored: boolean;
+  sponsorProvider: AomiAuthIdentity["sponsorProvider"];
+  sponsorAccount: AomiAuthIdentity["sponsorAccount"];
+} {
+  const aaProvider = resolveAAProvider();
+  if (aaProvider === "alchemy") {
+    return {
+      sponsored: Boolean(ALCHEMY_GAS_POLICY_ID),
+      sponsorProvider: "alchemy",
+      sponsorAccount: ALCHEMY_GAS_POLICY_ID || undefined,
+    };
+  }
+  if (aaProvider === "pimlico") {
+    return {
+      sponsored: Boolean(PIMLICO_API_KEY),
+      sponsorProvider: "pimlico",
+      sponsorAccount: undefined,
+    };
+  }
+  return {
+    sponsored: false,
+    sponsorProvider: "self",
+    sponsorAccount: undefined,
+  };
 }
 
 async function resolveParaAAProviderState({
@@ -325,13 +369,17 @@ async function resolveParaAAProviderState({
   }
 }
 
+export type AomiParaAdapterProviderProps = {
+  children: ReactNode;
+  supportedChains?: readonly Chain[];
+  solanaConfig?: ResolvedSolanaConfig;
+};
+
 export function AomiParaAdapterProvider({
   children,
+  supportedChains: configuredChains,
   solanaConfig,
-}: {
-  children: ReactNode;
-  solanaConfig?: ResolvedSolanaConfig;
-}) {
+}: AomiParaAdapterProviderProps) {
   const [pendingSolanaConnect, setPendingSolanaConnect] = useState(false);
   const paraAccount = useSafeParaAccount();
   const paraSession = useSafeParaClient();
@@ -377,13 +425,14 @@ export function AomiParaAdapterProvider({
     }),
     [solanaConfig],
   );
+  const supportedChains = useMemo(
+    () => configuredChains ?? wagmiConfig.chains,
+    [configuredChains, wagmiConfig.chains],
+  );
 
   const chainsById = useMemo<Record<number, Chain>>(
-    () =>
-      Object.fromEntries(
-        (wagmiConfig.chains ?? []).map((chain) => [chain.id, chain]),
-      ),
-    [wagmiConfig.chains],
+    () => Object.fromEntries(supportedChains.map((chain) => [chain.id, chain])),
+    [supportedChains],
   );
 
   useEffect(() => {
@@ -436,6 +485,11 @@ export function AomiParaAdapterProvider({
     solanaWallet.walletName,
   ]);
 
+  const { user } = useUser();
+  const userAAMode = UserState.aaMode(user);
+  const userSmartAccount4337 = UserState.SmartAccount4337(user);
+  const userDelegation7702 = UserState.Delegation7702(user);
+
   const adapter = useMemo<AomiAuthAdapter>(() => {
     const isConnected = Boolean(paraAccount.isConnected || wagmiConnected);
     const isBooting = paraAccount.isLoading && !isConnected;
@@ -452,8 +506,13 @@ export function AomiParaAdapterProvider({
     const externalAddress = paraAccount.external.evm?.address;
     const address =
       wagmiAddress ?? externalAddress ?? embeddedAddress ?? undefined;
-    const authProvider = inferAuthProvider(paraAccount.embedded.authMethods);
-    const providerLabel = formatAuthProvider(authProvider);
+    const walletProvider = "para" as const;
+    const authMethod = inferAuthMethod(paraAccount.embedded.authMethods);
+    const authValue = resolveParaAuthValue(paraAccount.embedded, authMethod);
+    const secondaryLabel =
+      formatAuthMethod(authMethod) ?? "Para";
+    const { sponsored, sponsorProvider, sponsorAccount } =
+      resolveParaSponsorship();
 
     const svmAddress = solanaWallet.publicKey;
     const solanaTransport = detectSolanaTransport(solanaWallet.walletName);
@@ -487,11 +546,21 @@ export function AomiParaAdapterProvider({
             status: "connected",
             isConnected: true,
             address,
+            walletKind: "eoa",
+            aaMode: userAAMode ?? "none",
+            SmartAccount4337: userSmartAccount4337 ?? undefined,
+            Delegation7702: userDelegation7702 ?? undefined,
+            sponsored,
+            sponsorProvider,
+            sponsorAccount,
             chainId: chainId ?? undefined,
             svmAddress,
-            authProvider,
+            walletProvider,
+            authMethod,
+            authProvider: authMethod,
+            authValue,
             primaryLabel: embeddedPrimary,
-            secondaryLabel: providerLabel,
+            secondaryLabel,
             solanaCluster: resolvedAdapterSolanaConfig.cluster,
             solanaWalletName: solanaWallet.walletName,
             solanaTransport: svmAddress ? solanaTransport : undefined,
@@ -502,11 +571,21 @@ export function AomiParaAdapterProvider({
               status: "connected",
               isConnected: true,
               address,
+              walletKind: "eoa",
+              aaMode: userAAMode ?? "none",
+              SmartAccount4337: userSmartAccount4337 ?? undefined,
+              Delegation7702: userDelegation7702 ?? undefined,
+              sponsored,
+              sponsorProvider,
+              sponsorAccount,
               chainId: chainId ?? undefined,
               svmAddress,
-              authProvider,
+              walletProvider,
+              authMethod,
+              authProvider: authMethod,
+              authValue,
               primaryLabel: formatAddress(address) ?? "Connected wallet",
-              secondaryLabel: undefined,
+              secondaryLabel,
               solanaCluster: resolvedAdapterSolanaConfig.cluster,
               solanaWalletName: solanaWallet.walletName,
               solanaTransport: svmAddress ? solanaTransport : undefined,
@@ -516,9 +595,14 @@ export function AomiParaAdapterProvider({
             ? {
                 status: "connected",
                 isConnected: true,
+                walletKind: undefined,
+                aaMode: undefined,
                 chainId: chainId ?? undefined,
                 svmAddress,
-                authProvider,
+                walletProvider,
+                authMethod,
+                authProvider: authMethod,
+                authValue,
                 primaryLabel:
                   formatAddress(svmAddress) ?? "Connected Solana wallet",
                 secondaryLabel: "Solana",
@@ -530,7 +614,10 @@ export function AomiParaAdapterProvider({
             : {
                 ...AOMI_AUTH_DISCONNECTED_IDENTITY,
                 chainId: chainId ?? undefined,
-                authProvider,
+                walletProvider,
+                authMethod,
+                authProvider: authMethod,
+                authValue,
                 solanaCluster: resolvedAdapterSolanaConfig.cluster,
               };
 
@@ -633,9 +720,9 @@ export function AomiParaAdapterProvider({
               setPendingSolanaConnect(true);
             }
           : undefined,
-      supportedChains: wagmiConfig.chains,
+      supportedChains,
       supportedNetworks: {
-        evm: wagmiConfig.chains,
+        evm: supportedChains,
         solana: supportedSolanaNetworks,
       },
       activeFamily,
@@ -647,7 +734,7 @@ export function AomiParaAdapterProvider({
                 chainId:
                   chainId ??
                   selectedEvmChainId ??
-                  wagmiConfig.chains[0]?.id ??
+                  supportedChains[0]?.id ??
                   1,
               }
             : undefined
@@ -818,8 +905,8 @@ export function AomiParaAdapterProvider({
         setSelectedSolanaNetworkId(target.networkId);
       },
       sendTransaction: sendTransactionAsync
-        ? async (payload: WalletTxPayload) =>
-            executeAdapterTransaction({
+        ? async (payload: WalletTxPayload) => {
+            const result = await executeAdapterTransaction({
               payload,
               state: {
                 currentChainId: chainId,
@@ -838,7 +925,11 @@ export function AomiParaAdapterProvider({
                   walletClient,
                   address,
                 }),
-            })
+              forceAA: true,
+              preferAAForSingleCall: true,
+            });
+            return result;
+          }
         : undefined,
       signTypedData: signTypedDataAsync
         ? async (payload: WalletEip712Payload) => {
@@ -874,10 +965,13 @@ export function AomiParaAdapterProvider({
     selectedSolanaNetwork,
     solanaWallet,
     supportedSolanaNetworks,
+    supportedChains,
     switchAccountAsync,
     switchChainAsync,
+    userAAMode,
+    userDelegation7702,
+    userSmartAccount4337,
     wagmiAddress,
-    wagmiConfig.chains,
     wagmiConfig.connectors,
     wagmiConnected,
     wagmiDisconnectAsync,
@@ -911,6 +1005,7 @@ function AomiParaProviderInner({
   solana,
 }: AomiParaProviderProps) {
   const [queryClient] = useState(() => new QueryClient());
+  const routing = useFullTestnet(networks);
   const { selectedSolanaNetworkId } = useAomiWalletNetworkPreferences();
   const resolvedWallets = walletConnectProjectId
     ? externalWallets
@@ -920,14 +1015,8 @@ function AomiParaProviderInner({
     [selectedSolanaNetworkId, solana],
   );
   const transports = useMemo(
-    () =>
-      Object.fromEntries(
-        networks.map((network) => [
-          network.id,
-          http(network.rpcUrls.default.http[0]),
-        ]),
-      ) as Record<number, Transport>,
-    [networks],
+    () => routing.transports as Record<number, Transport>,
+    [routing.transports],
   );
   const paraModalConfig = useMemo(
     () => ({
@@ -950,7 +1039,7 @@ function AomiParaProviderInner({
         : {}),
       evmConnector: {
         config: {
-          chains: networks,
+          chains: routing.routedChains,
           transports,
           ssr: true,
         },
@@ -959,7 +1048,7 @@ function AomiParaProviderInner({
     [
       appDescription,
       appUrl,
-      networks,
+      routing.routedChains,
       resolvedWallets,
       transports,
       walletConnectProjectId,
@@ -1002,40 +1091,76 @@ function AomiParaProviderInner({
   );
 
   return (
-    <QueryClientProvider client={queryClient}>
-      {apiKey ? (
-        <ParaProvider
-          paraClientConfig={{
-            apiKey,
-            env: environment,
-          }}
-          config={{ appName }}
-          paraModalConfig={paraModalConfig}
-          externalWalletConfig={externalWalletConfig}
-        >
-          <ParaSolanaWrapper
-            key={resolvedSolanaConfig.activeNetwork.id}
-            enabled={solanaEnabled}
-            config={solanaProviderConfig}
+    <ExtUserProvider>
+      <QueryClientProvider client={queryClient}>
+        {apiKey ? (
+          <ParaProvider
+            paraClientConfig={{
+              apiKey,
+              env: environment,
+            }}
+            config={{ appName }}
+            paraModalConfig={paraModalConfig}
+            externalWalletConfig={externalWalletConfig}
           >
-            {(solanaReady) =>
-              solanaReady ? (
-                <AomiParaAdapterProvider solanaConfig={resolvedSolanaConfig}>
-                  {children}
-                </AomiParaAdapterProvider>
-              ) : (
-                children
-              )
-            }
-          </ParaSolanaWrapper>
-        </ParaProvider>
-      ) : (
-        <AomiParaAdapterProvider solanaConfig={resolvedSolanaConfig}>
-          {children}
-        </AomiParaAdapterProvider>
-      )}
-    </QueryClientProvider>
+            <ParaSolanaWrapper
+              key={resolvedSolanaConfig.activeNetwork.id}
+              enabled={solanaEnabled}
+              config={solanaProviderConfig}
+            >
+              {(solanaReady) =>
+                solanaReady ? (
+                  <FullTestnetWalletRouter
+                    enabled={routing.enabled}
+                    chains={routing.routedChains}
+                    routedChainIds={routing.routedChainIds}
+                  >
+                    <AomiParaAdapterProvider
+                      supportedChains={routing.routedChains}
+                      solanaConfig={resolvedSolanaConfig}
+                    >
+                      {children}
+                    </AomiParaAdapterProvider>
+                  </FullTestnetWalletRouter>
+                ) : (
+                  children
+                )
+              }
+            </ParaSolanaWrapper>
+          </ParaProvider>
+        ) : (
+          <FullTestnetWalletRouter
+            enabled={routing.enabled}
+            chains={routing.routedChains}
+            routedChainIds={routing.routedChainIds}
+          >
+            <AomiParaAdapterProvider
+              supportedChains={routing.routedChains}
+              solanaConfig={resolvedSolanaConfig}
+            >
+              {children}
+            </AomiParaAdapterProvider>
+          </FullTestnetWalletRouter>
+        )}
+      </QueryClientProvider>
+    </ExtUserProvider>
   );
+}
+
+function resolveParaAuthValue(
+  embedded: ParaAccountShape["embedded"],
+  authMethod: AomiAuthMethod | undefined,
+): string | undefined {
+  if (authMethod === "telegram") {
+    return embedded.telegramUserId;
+  }
+  if (authMethod === "farcaster") {
+    return embedded.farcasterUsername;
+  }
+  if (!authMethod || authMethod === "wagmi") {
+    return undefined;
+  }
+  return embedded.email;
 }
 
 export function AomiParaProvider(props: AomiParaProviderProps) {

@@ -29,9 +29,9 @@ describe("CLI user state AA fields", () => {
     ).toMatchObject({
       connection: {
         is_connected: true,
-        primary_family: "solana",
+        primary_family: "svm",
       },
-      solana: {
+      svm: {
         address: "6ihjJiFMrn8VM1HLX8EMqAt8Ym8JxZCqxBai2bYHviZG",
       },
       ext: { client_type: "ts_cli" },
@@ -40,18 +40,19 @@ describe("CLI user state AA fields", () => {
 
   it("round-trips 4337 smart-account context", () => {
     const snapshot = walletSnapshotFromUserState({
-      address: "0xabc",
-      chain_id: 8453,
-      is_connected: true,
-      aa_mode: "4337",
-      smart_account: "0xdef",
+      connection: { is_connected: true },
+      evm: {
+        address: "0xabc",
+        chain_id: 8453,
+        aa: { mode: "4337", smart_account: "0xabc" },
+      },
     });
 
     expect(snapshot).toEqual({
       publicKey: "0xabc",
       chainId: 8453,
       aaMode: "4337",
-      smartAccount: "0xdef",
+      smartAccount: "0xabc",
     });
   });
 });
@@ -141,15 +142,13 @@ describe("pendingTxsFromBackendUserState", () => {
 describe("pendingSolTxsFromBackendUserState", () => {
   it("rebuilds Solana requests from legacy pending.solana_txs", () => {
     const result = pendingSolTxsFromBackendUserState({
-      pending: {
-        solana_txs: {
-          21: {
-            request_kind: "send_transaction",
-            description: "bridge back to main wallet",
-            cluster: "solana:devnet",
-            unsigned_tx: "U0VORE1F",
-            signer: "So1aBcExampleSigner",
-          },
+      pending_solana_txs: {
+        21: {
+          request_kind: "send_transaction",
+          description: "bridge back to main wallet",
+          cluster: "solana:devnet",
+          unsigned_tx: "U0VORE1F",
+          signer: "So1aBcExampleSigner",
         },
       },
     });

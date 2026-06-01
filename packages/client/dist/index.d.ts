@@ -1,10 +1,97 @@
+import * as viem from 'viem';
 import { Hex, Chain, TransactionReceipt } from 'viem';
+
+declare function address(userState?: UserState | null): string | undefined;
+declare function svmAddress(userState?: UserState | null): string | undefined;
+declare function preferredPublicKey(userState?: UserState | null): string | undefined;
+declare function chainId(userState?: UserState | null): number | undefined;
+declare function ensName(userState?: UserState | null): string | undefined;
+declare function aaMode(userState?: UserState | null): UserStateAAMode | null | undefined;
+declare function SmartAccount4337(userState?: UserState | null): string | null | undefined;
+declare function Delegation7702(userState?: UserState | null): string | null | undefined;
+declare function walletKind(userState?: UserState | null): UserStateWalletKind | undefined;
+declare function isConnected(userState?: UserState | null): boolean | undefined;
+declare function walletProvider(userState?: UserState | null): UserStateWalletProvider | null | undefined;
+declare function walletProviderSubject(userState?: UserState | null): string | null | undefined;
+declare function authMethod(userState?: UserState | null): UserStateAuthMethod | null | undefined;
+declare function authValue(userState?: UserState | null): string | null | undefined;
+declare function authVerifiedAt(userState?: UserState | null): number | null | undefined;
+declare function sponsored(userState?: UserState | null): boolean | null | undefined;
+declare function sponsorProvider(userState?: UserState | null): UserStateSponsorProvider | null | undefined;
+declare function sponsorAccount(userState?: UserState | null): string | null | undefined;
+declare function withExt(userState: UserState, key: string, value: unknown): UserState;
+
+declare function normalizeUserState(userState?: UserState | null): UserState | undefined;
+declare function reconcileUserState(previousUserState?: UserState | null, incomingUserState?: UserState | null): UserState | undefined;
 
 /**
  * Client-side user state synced with the backend.
  * Typically wallet connection info, but can be any key-value data.
  */
-type UserStateAAMode = "4337" | "7702";
+type UserStateAAMode = "none" | "4337" | "7702";
+type UserStateWalletKind = "eoa" | "smart-account";
+type UserStateWalletProvider = "para" | "privy" | "baseAccount";
+type UserStateAuthMethod = "google" | "apple" | "facebook" | "x" | "discord" | "github" | "farcaster" | "telegram" | "email" | "phone" | "wagmi";
+type UserStateSponsorProvider = "alchemy" | "coinbase" | "pimlico" | "self";
+type UserStatePrimaryFamily = "evm" | "svm" | "dual";
+/** Session-level connection facts shared across chain families. */
+interface UserStateConnection extends Record<string, unknown> {
+    is_connected?: boolean | null;
+    provider?: UserStateWalletProvider | null;
+    provider_label?: string | null;
+    primary_family?: UserStatePrimaryFamily | null;
+    wallet_provider_subject?: string | null;
+    auth_method?: UserStateAuthMethod | null;
+    auth_value?: string | null;
+    auth_verified_at?: number | string | null;
+}
+/** EVM account-abstraction sub-state (`evm.aa`). */
+interface UserStateEvmAa extends Record<string, unknown> {
+    mode?: UserStateAAMode | null;
+    /** Smart-account executor address (4337). */
+    smart_account?: string | null;
+    /** 7702 delegation contract address. */
+    delegation_7702?: string | null;
+    /** Bundler / AA infra provider, e.g. "alchemy". */
+    provider?: string | null;
+}
+/** EVM sponsorship sub-state (`evm.sponsorship`). */
+interface UserStateEvmSponsorship extends Record<string, unknown> {
+    eligible?: boolean | null;
+    required?: boolean | null;
+    mode?: string | null;
+    sponsored?: boolean | null;
+    sponsor_provider?: UserStateSponsorProvider | null;
+    sponsor_account?: string | null;
+}
+/** EVM-family wallet block (`evm`). */
+interface UserStateEvm extends Record<string, unknown> {
+    address?: string | null;
+    chain_id?: number | string | null;
+    ens_name?: string | null;
+    aa?: UserStateEvmAa | null;
+    sponsorship?: UserStateEvmSponsorship | null;
+}
+/** Solana-family wallet block (`svm`). */
+interface UserStateSvm extends Record<string, unknown> {
+    address?: string | null;
+    cluster?: string | null;
+    wallet_name?: string | null;
+    transport?: string | null;
+    /** Wallet-Standard capability identifiers, e.g. `"can_sign_message"`. */
+    capabilities?: string[] | null;
+}
+/**
+ * Backend-pushed in-flight wallet requests, chain-bucketed. Shape is owned by
+ * the backend; parsed by helpers like `pendingTxsFromBackendUserState`. The
+ * client forwards them transparently via reconciliation.
+ */
+interface UserStatePending extends Record<string, unknown> {
+    evm_txs?: Record<string, unknown> | null;
+    evm_sigs?: Record<string, unknown> | null;
+    svm_ixs?: Record<string, unknown> | null;
+    svm_sigs?: Record<string, unknown> | null;
+}
 /**
  * Known client surfaces that may want backend-specific UX strategies.
  * Additional string values are allowed for forward compatibility.
@@ -12,91 +99,46 @@ type UserStateAAMode = "4337" | "7702";
 type AomiClientType = "ts_cli" | "web_ui" | (string & {});
 declare const CLIENT_TYPE_TS_CLI: AomiClientType;
 declare const CLIENT_TYPE_WEB_UI: AomiClientType;
+/**
+ * Client-side user state, canonicalized to the backend's nested snake_case
+ * wire shape. EVM and Solana identities are independent blocks (`evm` / `svm`)
+ * so a single session can carry both families at once. `normalize` accepts the
+ * backend's nested camelCase responses and legacy flat host input, and emits
+ * this canonical shape.
+ */
 interface UserState extends Record<string, unknown> {
-    connection?: {
-        is_connected?: boolean | null;
-        primary_family?: "evm" | "solana" | "dual" | null;
-        provider?: string | null;
-        provider_label?: string | null;
-    };
-    evm?: {
-        address?: string | null;
-        chain_id?: number | string | null;
-        ens_name?: string | null;
-        aa?: {
-            mode?: UserStateAAMode | null;
-            smart_account?: string | null;
-            provider?: "alchemy" | "pimlico" | null;
-        };
-        sponsorship?: {
-            eligible?: boolean | null;
-            required?: boolean | null;
-            mode?: "disabled" | "optional" | "required" | null;
-        };
-    };
-    solana?: {
-        address?: string | null;
-        cluster?: "solana:mainnet" | "solana:devnet" | "solana:testnet" | null;
-        wallet_name?: string | null;
-        transport?: "extension" | "embedded" | "mwa" | null;
-        capabilities?: {
-            can_sign_message?: boolean | null;
-            can_sign_transaction?: boolean | null;
-            can_sign_all_transactions?: boolean | null;
-            can_send_transaction?: boolean | null;
-            can_sign_and_send_transaction?: boolean | null;
-        };
-    };
-    pending?: {
-        evm_txs?: Record<string, unknown>;
-        evmTxs?: Record<string, unknown>;
-        evm_sigs?: Record<string, unknown>;
-        evmSigs?: Record<string, unknown>;
-        svm_ixs?: Record<string, unknown>;
-        svmIxs?: Record<string, unknown>;
-        solana_txs?: Record<string, unknown>;
-        solanaTxs?: Record<string, unknown>;
-        solana_sigs?: Record<string, unknown>;
-        solanaSigs?: Record<string, unknown>;
-        svm_sigs?: Record<string, unknown>;
-        svmSigs?: Record<string, unknown>;
-        eip712_requests?: Record<string, unknown>;
-        eip712Requests?: Record<string, unknown>;
-        solana_requests?: Record<string, unknown>;
-        solanaRequests?: Record<string, unknown>;
-    };
+    connection?: UserStateConnection | null;
+    evm?: UserStateEvm | null;
+    svm?: UserStateSvm | null;
+    pending?: UserStatePending | null;
     ext?: Record<string, unknown> | null;
+    preferences?: Record<string, unknown> | null;
 }
 declare namespace UserState {
-    /**
-     * Canonicalize client-side user state to the backend's snake_case `UserState`.
-     * Existing snake_case keys win when both forms are present.
-     */
-    function normalize(userState?: UserState | null): UserState | undefined;
-    /**
-     * Reconcile a partial incoming snapshot against the previous canonical state.
-     * Preserves wallet context when backend/client snapshots omit address/chain_id.
-     */
-    function reconcile(previousUserState?: UserState | null, incomingUserState?: UserState | null): UserState | undefined;
-    function address(userState?: UserState | null): string | undefined;
-    /**
-     * Connected Solana wallet pubkey (base58). Independent of `address`,
-     * which is the EVM address. A session may have either, both, or neither.
-     */
-    function solanaAddress(userState?: UserState | null): string | undefined;
-    const svmAddress: typeof solanaAddress;
-    function chainId(userState?: UserState | null): number | undefined;
-    function isConnected(userState?: UserState | null): boolean | undefined;
-    function aaMode(userState?: UserState | null): UserStateAAMode | null | undefined;
-    function smartAccount(userState?: UserState | null): string | null | undefined;
-    /**
-     * Adds/updates an entry on `userState.ext` while keeping `ext` intentionally untyped.
-     */
-    function withExt(userState: UserState, key: string, value: unknown): UserState;
+    const normalize: typeof normalizeUserState;
+    const reconcile: typeof reconcileUserState;
+    const address: typeof address;
+    const evmAddress: typeof address;
+    const svmAddress: typeof svmAddress;
+    const preferredPublicKey: typeof preferredPublicKey;
+    const chainId: typeof chainId;
+    const ensName: typeof ensName;
+    const aaMode: typeof aaMode;
+    const SmartAccount4337: typeof SmartAccount4337;
+    const Delegation7702: typeof Delegation7702;
+    const walletKind: typeof walletKind;
+    const isConnected: typeof isConnected;
+    const walletProvider: typeof walletProvider;
+    const walletProviderSubject: typeof walletProviderSubject;
+    const authMethod: typeof authMethod;
+    const authValue: typeof authValue;
+    const authVerifiedAt: typeof authVerifiedAt;
+    const sponsored: typeof sponsored;
+    const sponsorProvider: typeof sponsorProvider;
+    const sponsorAccount: typeof sponsorAccount;
+    const withExt: typeof withExt;
 }
-declare function getUserStateAAMode(userState?: UserState | null): UserStateAAMode | null | undefined;
-declare function getUserStateSmartAccount(userState?: UserState | null): string | null | undefined;
-declare function addUserStateExt(userState: UserState, key: string, value: unknown): UserState;
+
 /**
  * Optional logger for debug output. Pass `console` or any compatible object.
  */
@@ -209,9 +251,9 @@ interface AomiCreateThreadResponse {
 }
 /**
  * GET/POST /api/control/provider-keys
- * Lists or saves BYOK provider keys for the bound client.
+ * Lists or saves BYOK keys (one per LLM provider) for the bound client.
  */
-interface AomiProviderKeyEntry {
+interface AomiByokKeyEntry {
     provider: string;
     key_prefix: string;
     label?: string | null;
@@ -246,6 +288,33 @@ interface AomiClearSecretsResponse {
  */
 interface AomiDeleteSecretResponse {
     deleted: boolean;
+}
+/**
+ * GET /api/secrets
+ * Per-app slot names currently filled for the session's client. The
+ * backend never returns raw values; only the names.
+ */
+interface AomiListSecretsResponse {
+    by_app: Record<string, string[]>;
+}
+/**
+ * One per-app secret slot declared by a plugin manifest. Surfaced via
+ * `AomiAppDescriptor.secrets` so the frontend can render input rows and
+ * gate app load on `required` slots being filled.
+ */
+interface AomiSecretSlot {
+    name: string;
+    description: string;
+    required: boolean;
+}
+/**
+ * GET /api/control/apps
+ * One entry per app the user can use. `secrets` is empty for apps that
+ * declare no slots.
+ */
+interface AomiAppDescriptor {
+    name: string;
+    secrets?: AomiSecretSlot[];
 }
 type AomiSSEEventType = "title_changed" | "tool_update" | "tool_complete" | "system_notice";
 /**
@@ -320,19 +389,30 @@ declare class AomiClient {
     interrupt(sessionId: string): Promise<AomiInterruptResponse>;
     /**
      * Ingest secrets for a client. Returns opaque `$SECRET:<name>` handles.
-     * Call this once at page load (or when secrets change) with a stable
-     * client_id for the browser tab. The same client_id should be passed
-     * to `sendMessage` / `fetchState` so sessions get associated.
+     *
+     * When `app` is provided, the values land in the per-app store keyed by
+     * `(client_id, app)` — this is the path the Secrets settings page uses
+     * (one app at a time). When `app` is omitted, secrets land in the flat
+     * client store (used by BYOK and other cross-app pools).
      */
-    ingestSecrets(sessionId: string, clientId: string, secrets: Record<string, string>): Promise<AomiIngestSecretsResponse>;
+    ingestSecrets(sessionId: string, clientId: string, secrets: Record<string, string>, app?: string): Promise<AomiIngestSecretsResponse>;
     /**
-     * Clear all secrets for a client (e.g. on page unload or logout).
+     * Clear secrets for a client. With `app`, removes every slot under that
+     * app. Without `app`, clears the entire client (legacy behavior — wipes
+     * both stores and unbinds the session).
      */
-    clearSecrets(sessionId: string, clientId: string): Promise<AomiClearSecretsResponse>;
+    clearSecrets(sessionId: string, clientId: string, app?: string): Promise<AomiClearSecretsResponse>;
     /**
-     * Remove a single secret for a client.
+     * Remove a single named secret. With `app`, targets the per-app store
+     * under that scope; without, targets the flat store.
      */
-    deleteSecret(sessionId: string, clientId: string, name: string): Promise<AomiDeleteSecretResponse>;
+    deleteSecret(sessionId: string, clientId: string, name: string, app?: string): Promise<AomiDeleteSecretResponse>;
+    /**
+     * List currently stored secret names per app for this client. The
+     * backend never returns raw values; the settings page uses this as the
+     * source of truth instead of trusting localStorage.
+     */
+    listSecrets(sessionId: string): Promise<AomiListSecretsResponse>;
     /**
      * Subscribe to real-time SSE updates for a session.
      * Automatically reconnects with exponential backoff on disconnects.
@@ -381,12 +461,14 @@ declare class AomiClient {
      */
     getSystemEvents(sessionId: string, count?: number): Promise<AomiSystemEvent[]>;
     /**
-     * Get available apps.
+     * Get available apps as full descriptors (name + declared secret slots).
+     * The settings page consumes the slot info to render per-app inputs and
+     * the chat shell uses it to gate app load when required slots are unfilled.
      */
     getApps(sessionId: string, options?: {
         publicKey?: string;
         apiKey?: string;
-    }): Promise<string[]>;
+    }): Promise<AomiAppDescriptor[]>;
     /**
      * Get available models.
      */
@@ -407,17 +489,17 @@ declare class AomiClient {
         created: boolean;
     }>;
     /**
-     * List BYOK provider keys bound to the current session's client.
+     * List BYOK keys (one per LLM provider) bound to the current session's client.
      */
-    listProviderKeys(sessionId: string): Promise<AomiProviderKeyEntry[]>;
+    listByokKeys(sessionId: string): Promise<AomiByokKeyEntry[]>;
     /**
-     * Save or replace a BYOK provider key for the client bound to this session.
+     * Save or replace a BYOK key for the client bound to this session.
      */
-    saveProviderKey(sessionId: string, provider: string, apiKey: string, label?: string): Promise<AomiProviderKeyEntry>;
+    saveByokKey(sessionId: string, provider: string, byokKey: string, label?: string): Promise<AomiByokKeyEntry>;
     /**
-     * Delete a BYOK provider key for the client bound to this session.
+     * Delete a BYOK key for the client bound to this session.
      */
-    deleteProviderKey(sessionId: string, provider: string): Promise<boolean>;
+    deleteByokKey(sessionId: string, provider: string): Promise<boolean>;
     /**
      * Simulate transactions as an atomic batch.
      * Each tx sees state changes from previous txs (e.g., approve → swap).
@@ -503,13 +585,22 @@ interface AAResolvedConfig {
 }
 /** The subset of AAWalletCall passed to smart account send methods (chainId already resolved). */
 type AACallPayload = Omit<AAWalletCall, "chainId">;
+/**
+ * Smart account used for AA execution. `address` is the EOA signer — the same
+ * value the user sees as their connected wallet address (`AomiAuthIdentity.address`).
+ *
+ * Exactly one of the mode-discriminated address fields is meaningful:
+ * - `mode === "4337"` ⟹ `SmartAccount4337` is the AA contract address;
+ *   `Delegation7702` is undefined.
+ * - `mode === "7702"` ⟹ `Delegation7702` is the delegation target contract;
+ *   `SmartAccount4337` is undefined.
+ */
 interface SmartAccount {
-    provider: string;
-    mode: string;
-    ownerAddress?: Hex;
-    executionAddress?: Hex;
-    AAAddress?: Hex;
-    delegationAddress?: Hex;
+    provider: "alchemy" | "pimlico";
+    mode: "4337" | "7702";
+    address: Hex;
+    SmartAccount4337?: Hex;
+    Delegation7702?: Hex;
     sendTransaction: (call: AACallPayload) => Promise<{
         transactionHash: string;
     }>;
@@ -528,9 +619,22 @@ interface ExecutionResult {
     txHashes: string[];
     executionKind: string;
     batched: boolean;
-    sponsored: boolean;
-    AAAddress?: Hex;
-    delegationAddress?: Hex;
+    /**
+     * Whether gas was paid by a paymaster.
+     *
+     * - `true`: paymaster paid, verified by the protocol (4337 userOp success
+     *   requires paymaster validation; `sponsorship.mode === "required"`
+     *   fails the tx if the paymaster rejects).
+     * - `false`: no paymaster was attached (EOA path, or sendCalls fallback
+     *   to sequential after sponsored-batch error).
+     * - `undefined`: paymaster config was passed but the wallet may have
+     *   silently fallen back to user-paid (Base Account with
+     *   `sponsorship.mode === "optional"`). We cannot tell post-hoc without
+     *   decoding the userOp logs.
+     */
+    sponsored: boolean | undefined;
+    SmartAccount4337?: Hex;
+    Delegation7702?: Hex;
 }
 interface AtomicBatchArgs {
     calls: AACallPayload[];
@@ -720,20 +824,7 @@ declare function toAAWalletCall(payload: WalletTxPayload, defaultChainId?: numbe
  */
 declare function toViemSignTypedDataArgs(payload: WalletEip712Payload): ViemSignTypedDataArgs | null;
 
-declare function aaModeFromExecutionKind(executionKind: string | undefined): "4337" | "7702" | "none" | undefined;
-
 type WalletRequestKind = "transaction" | "eip712_sign" | "solana_sign" | "solana_sign_message" | "solana_send" | "solana_sign_and_send";
-/**
- * Tagged union of in-flight wallet requests. The `kind` field is the
- * discriminator — narrowing on it auto-narrows `payload` to the matching
- * chain-specific shape, so consumers don't need `as` casts.
- *
- * The id namespace is shared (the backend assigns ids out of one
- * monotonic sequence), but the request shapes diverge per kind. Keeping
- * this as a real discriminated union (rather than a `kind` + flat union
- * `payload`) is the cheapest way to keep type information flowing from
- * the SDK up to consumer apps.
- */
 type WalletRequest = {
     id: string;
     kind: "transaction";
@@ -765,19 +856,6 @@ type WalletRequest = {
     payload: WalletSolanaSignPayload;
     timestamp: number;
 };
-/**
- * Tagged union of results passed to `Session.resolve(id, result)`. The
- * `kind` field is the discriminator — set it to match the originating
- * request's kind, and the result shape narrows to exactly the artifact
- * the backend expects:
- *   - "transaction"  → `txHash` (+ optional AA metadata)
- *   - "eip712_sign"  → `signature`
- *   - "solana_sign"  → `signedTx` (base64 of the full signed bytes)
- *
- * `Session.resolve` runtime-checks that `result.kind` matches the
- * originating `request.kind`, so a kind mismatch fails fast instead of
- * silently posting an empty artifact to the backend.
- */
 type WalletRequestResult = {
     kind: "transaction";
     txHash: string;
@@ -789,8 +867,8 @@ type WalletRequestResult = {
     batched?: boolean;
     callCount?: number;
     sponsored?: boolean;
-    smartAccountAddress?: string;
-    delegationAddress?: string;
+    SmartAccount4337?: string;
+    Delegation7702?: string;
 } | {
     kind: "eip712_sign";
     signature: string;
@@ -814,7 +892,6 @@ type SendResult = {
     messages: AomiMessage[];
     title?: string;
 };
-
 type SessionOptions = {
     /** Session ID. Auto-generated (crypto.randomUUID) if omitted. */
     sessionId?: string;
@@ -832,7 +909,7 @@ type SessionOptions = {
     clientId?: string;
     /**
      * When true (default), synthesize pending transaction wallet requests from
-     * `user_state.pending.evm_txs` during state sync. Web UI should disable this and
+     * `user_state.pending_txs` during state sync. Web UI should disable this and
      * rely on explicit `wallet_tx_request` events from `send_transaction_to_wallet`.
      */
     syncPendingTxRequestsFromUserState?: boolean;
@@ -850,69 +927,44 @@ type SessionRuntimeOptions = {
     clientId?: string;
     userState?: UserState;
 };
-/** Events emitted by Session. */
 type SessionEventMap = {
-    /** A transaction signing request arrived from the backend. */
     wallet_tx_request: WalletRequest;
-    /** An EIP-712 signing request arrived from the backend. */
     wallet_eip712_request: WalletRequest;
-    /**
-     * A Solana signing request arrived from the backend. Singular by design:
-     * one request per call (no batching). The wallet adapter signs and
-     * returns a base64-encoded full signed transaction via
-     * `Session.resolve(id, { signedTx })`.
-     */
     wallet_solana_sign_request: WalletRequest;
     wallet_solana_sign_message_request: WalletRequest;
     wallet_solana_send_request: WalletRequest;
     wallet_solana_sign_and_send_request: WalletRequest;
-    /** A system notice from the backend. */
     system_notice: {
         message: string;
     };
-    /** A system error from the backend. */
     system_error: {
         message: string;
     };
-    /** An async callback event. */
     async_callback: Record<string, unknown>;
-    /** SSE: tool execution in progress. */
     tool_update: AomiSSEEvent;
-    /** SSE: tool execution completed. */
     tool_complete: AomiSSEEvent;
-    /** Session title changed. */
     title_changed: {
         title: string;
     };
-    /** Messages updated (new messages from poll or send response). */
     messages: AomiMessage[];
-    /** AI started processing. */
+    user_state_updated: UserState;
     processing_start: undefined;
-    /** AI finished processing. */
     processing_end: undefined;
-    /** Authoritative pending wallet request list changed. */
     wallet_requests_changed: WalletRequest[];
-    /**
-     * Backend transitioned from processing to idle (is_processing went false).
-     * Unlike `processing_end`, this fires even when there are unresolved local
-     * wallet requests.  CLI consumers use it to know that all system events
-     * (including wallet requests) have been delivered for the current turn.
-     */
     backend_idle: undefined;
-    /** An error occurred during polling or SSE. */
     error: {
         error: unknown;
     };
-    /** Wildcard: receives all events as { type, payload }. */
     "*": {
         type: string;
         payload: unknown;
     };
 };
+
+declare function aaModeFromExecutionKind(executionKind: string | undefined): "4337" | "7702" | "none" | undefined;
+
 declare class ClientSession extends TypedEventEmitter<SessionEventMap> {
-    /** The underlying low-level client. */
     readonly client: AomiClient;
-    /** The session (thread) ID. */
     readonly sessionId: string;
     private app;
     private publicKey?;
@@ -924,24 +976,10 @@ declare class ClientSession extends TypedEventEmitter<SessionEventMap> {
     private logger?;
     private pollTimer;
     private unsubscribeSSE;
-    private sseActive;
+    private isSSEActive;
     private _isProcessing;
     private _backendWasProcessing;
-    private walletRequests;
-    private walletRequestNextId;
-    /**
-     * Permanent per-session tombstone set of request ids the user has already
-     * resolved/rejected locally. After a sign/submit, the backend may keep
-     * echoing the originating request for a few polls — either as a `pending.*`
-     * bucket entry or as a re-delivered `system_events` InlineCall — until it
-     * processes the completion. Every re-add path (`syncWalletRequests`, the
-     * preservation block, and `enqueueWalletRequest`) consults this set and skips
-     * tombstoned ids. Without it the request keeps `walletRequests` non-empty and
-     * the poll loop never terminates (`!is_processing && walletRequests.length
-     * === 0` can never hold). Never GC'd: backend pending ids are monotonic per
-     * session, so a resolved id can never legitimately reappear.
-     */
-    private resolvedWalletRequestIds;
+    private walletController;
     private _messages;
     private _title?;
     private closed;
@@ -996,14 +1034,17 @@ declare class ClientSession extends TypedEventEmitter<SessionEventMap> {
     getIsSSEActive(): boolean;
     setSSEActive(active: boolean): void;
     syncRuntimeOptions(options: SessionRuntimeOptions): void;
-    private commitUserState;
-    resolveUserState(userState: UserState): void;
+    resolveUserState(userState: UserState, opts?: {
+        skipEmit?: boolean;
+    }): void;
     setClientType(clientType: AomiClientType): void;
     addExtValue(key: string, value: unknown): void;
     removeExtValue(key: string): void;
     resolveWallet(address: string, chainId?: number, aa?: {
         aaMode?: UserStateAAMode | null;
         smartAccount?: string | null;
+        smartAccount4337?: string | null;
+        delegation7702?: string | null;
     }): void;
     syncUserState(): Promise<AomiStateResponse>;
     /** Whether the session is currently polling for state updates. */
@@ -1022,18 +1063,162 @@ declare class ClientSession extends TypedEventEmitter<SessionEventMap> {
     stopPolling(): void;
     private pollTick;
     private applyState;
-    private dispatchSystemEvents;
     private handleSSEEvent;
-    private stopSSESubscription;
-    private enqueueWalletRequest;
-    private removeWalletRequest;
     private sendSystemEvent;
     private resolvePending;
     private assertOpen;
     private assertUserStateAligned;
-    private getWalletRequestId;
-    private syncWalletRequests;
 }
+
+type ChainInfo = {
+    id: number;
+    name: string;
+    ticker: string;
+};
+declare const monad: {
+    blockExplorers: {
+        readonly default: {
+            readonly name: "Monad Explorer";
+            readonly url: "https://monadexplorer.com";
+        };
+    };
+    blockTime?: number | undefined | undefined;
+    contracts?: {
+        [x: string]: viem.ChainContract | {
+            [sourceId: number]: viem.ChainContract | undefined;
+        } | undefined;
+        ensRegistry?: viem.ChainContract | undefined;
+        ensUniversalResolver?: viem.ChainContract | undefined;
+        multicall3?: viem.ChainContract | undefined;
+        erc6492Verifier?: viem.ChainContract | undefined;
+    } | undefined;
+    ensTlds?: readonly string[] | undefined;
+    id: 143;
+    name: "Monad";
+    nativeCurrency: {
+        readonly decimals: 18;
+        readonly name: "Monad";
+        readonly symbol: "MON";
+    };
+    experimental_preconfirmationTime?: number | undefined | undefined;
+    rpcUrls: {
+        readonly default: {
+            readonly http: readonly ["https://rpc.monad.xyz"];
+        };
+    };
+    sourceId?: number | undefined | undefined;
+    testnet?: boolean | undefined | undefined;
+    custom?: Record<string, unknown> | undefined;
+    extendSchema?: Record<string, unknown> | undefined;
+    fees?: viem.ChainFees<undefined> | undefined;
+    formatters?: undefined;
+    prepareTransactionRequest?: ((args: viem.PrepareTransactionRequestParameters, options: {
+        phase: "beforeFillTransaction" | "beforeFillParameters" | "afterFillParameters";
+    }) => Promise<viem.PrepareTransactionRequestParameters>) | [fn: ((args: viem.PrepareTransactionRequestParameters, options: {
+        phase: "beforeFillTransaction" | "beforeFillParameters" | "afterFillParameters";
+    }) => Promise<viem.PrepareTransactionRequestParameters>) | undefined, options: {
+        runAt: readonly ("beforeFillTransaction" | "beforeFillParameters" | "afterFillParameters")[];
+    }] | undefined;
+    serializers?: viem.ChainSerializers<undefined, viem.TransactionSerializable> | undefined;
+    verifyHash?: ((client: viem.Client, parameters: viem.VerifyHashActionParameters) => Promise<viem.VerifyHashActionReturnType>) | undefined;
+};
+declare const monadTestnet: {
+    blockExplorers: {
+        readonly default: {
+            readonly name: "Monad Testnet Explorer";
+            readonly url: "https://testnet.monadexplorer.com";
+        };
+    };
+    blockTime?: number | undefined | undefined;
+    contracts?: {
+        [x: string]: viem.ChainContract | {
+            [sourceId: number]: viem.ChainContract | undefined;
+        } | undefined;
+        ensRegistry?: viem.ChainContract | undefined;
+        ensUniversalResolver?: viem.ChainContract | undefined;
+        multicall3?: viem.ChainContract | undefined;
+        erc6492Verifier?: viem.ChainContract | undefined;
+    } | undefined;
+    ensTlds?: readonly string[] | undefined;
+    id: 10143;
+    name: "Monad Testnet";
+    nativeCurrency: {
+        readonly decimals: 18;
+        readonly name: "Monad";
+        readonly symbol: "MON";
+    };
+    experimental_preconfirmationTime?: number | undefined | undefined;
+    rpcUrls: {
+        readonly default: {
+            readonly http: readonly ["https://testnet-rpc.monad.xyz"];
+        };
+    };
+    sourceId?: number | undefined | undefined;
+    testnet: true;
+    custom?: Record<string, unknown> | undefined;
+    extendSchema?: Record<string, unknown> | undefined;
+    fees?: viem.ChainFees<undefined> | undefined;
+    formatters?: undefined;
+    prepareTransactionRequest?: ((args: viem.PrepareTransactionRequestParameters, options: {
+        phase: "beforeFillTransaction" | "beforeFillParameters" | "afterFillParameters";
+    }) => Promise<viem.PrepareTransactionRequestParameters>) | [fn: ((args: viem.PrepareTransactionRequestParameters, options: {
+        phase: "beforeFillTransaction" | "beforeFillParameters" | "afterFillParameters";
+    }) => Promise<viem.PrepareTransactionRequestParameters>) | undefined, options: {
+        runAt: readonly ("beforeFillTransaction" | "beforeFillParameters" | "afterFillParameters")[];
+    }] | undefined;
+    serializers?: viem.ChainSerializers<undefined, viem.TransactionSerializable> | undefined;
+    verifyHash?: ((client: viem.Client, parameters: viem.VerifyHashActionParameters) => Promise<viem.VerifyHashActionReturnType>) | undefined;
+};
+declare const SUPPORTED_CHAINS: readonly [{
+    readonly id: 1;
+    readonly name: "Ethereum";
+    readonly ticker: "ETH";
+}, {
+    readonly id: 137;
+    readonly name: "Polygon";
+    readonly ticker: "MATIC";
+}, {
+    readonly id: 42161;
+    readonly name: "Arbitrum";
+    readonly ticker: "ARB";
+}, {
+    readonly id: 8453;
+    readonly name: "Base";
+    readonly ticker: "BASE";
+}, {
+    readonly id: 10;
+    readonly name: "Optimism";
+    readonly ticker: "OP";
+}, {
+    readonly id: 11155111;
+    readonly name: "Sepolia";
+    readonly ticker: "SEP";
+}, {
+    readonly id: 59144;
+    readonly name: "Linea Mainnet";
+    readonly ticker: "LINEA";
+}, {
+    readonly id: 59141;
+    readonly name: "Linea Sepolia Testnet";
+    readonly ticker: "LINEA";
+}, {
+    readonly id: 143;
+    readonly name: "Monad";
+    readonly ticker: "MON";
+}, {
+    readonly id: 10143;
+    readonly name: "Monad Testnet";
+    readonly ticker: "MON";
+}, {
+    readonly id: 31337;
+    readonly name: "Anvil (local)";
+    readonly ticker: "ETH";
+}];
+declare const SUPPORTED_CHAIN_IDS: (1 | 10 | 137 | 42161 | 8453 | 143 | 10143 | 11155111 | 59144 | 59141 | 31337)[];
+declare const CHAIN_NAMES: Record<number, string>;
+/** Alchemy network slugs for proxy URL construction. */
+declare const ALCHEMY_CHAIN_SLUGS: Record<number, string>;
+declare const CHAINS_BY_ID: Record<number, Chain>;
 
 declare function executeWalletCalls(params: ExecuteWalletCallsParams): Promise<ExecutionResult>;
 
@@ -1127,6 +1312,7 @@ interface CreatePimlicoAAProviderOptions<TAccount extends SmartAccount = SmartAc
 declare function createPimlicoAAProvider<TAccount extends SmartAccount = SmartAccount>({ accountAbstractionConfig, usePimlicoAA, chainsById, rpcUrl, }: CreatePimlicoAAProviderOptions<TAccount>): (calls: AAWalletCall[] | null, localPrivateKey: `0x${string}` | null) => AAState<TAccount>;
 
 type SdkSmartAccount = {
+    /** Para SDKs emit uppercase (e.g. "ALCHEMY", "PIMLICO"); normalized by the adapter. */
     provider: string;
     mode: AAMode;
     smartAccountAddress: Hex;
@@ -1136,11 +1322,15 @@ type SdkSmartAccount = {
 };
 /**
  * Bridges the provider SDK smart-account shape into the library's
- * SmartAccount interface:
- * - Maps `smartAccountAddress` → `AAAddress`
- * - Unwraps `TransactionReceipt` → `{ transactionHash }`
+ * `SmartAccount` interface.
+ *
+ * - `address` is the EOA signer — must be supplied by the caller (the SDK
+ *   account object only exposes the *executing* address, which differs from
+ *   the signer in 4337 mode).
+ * - `SmartAccount4337` is the AA contract address (only set in 4337 mode).
+ * - `Delegation7702` is the delegation target contract (only set in 7702 mode).
  */
-declare function adaptSmartAccount(account: SdkSmartAccount): SmartAccount;
+declare function adaptSmartAccount(account: SdkSmartAccount, address: Hex): SmartAccount;
 /**
  * Detects Alchemy gas sponsorship quota errors.
  */
@@ -1165,4 +1355,4 @@ interface CreateAAStateOptions {
  */
 declare function createAAProviderState(options: CreateAAStateOptions): Promise<AAState>;
 
-export { type AACallPayload, type AAChainConfig, type AAConfig, type AAMode, type AAOwner, type AAProvider, type AAResolvedConfig, type AASponsorship, type AAState, type AAWalletCall, type AlchemyHookParams, type AomiChatResponse, type AomiClearSecretsResponse, AomiClient, type AomiClientOptions, type AomiClientType, type AomiCreateThreadResponse, type AomiDeleteSecretResponse, type AomiIngestSecretsResponse, type AomiInterruptResponse, type AomiMessage, type AomiSSEEvent, type AomiSSEEventType, type AomiSimulateFee, type AomiSimulateResponse, type AomiStateResponse, type AomiSystemEvent, type AomiSystemResponse, type AomiThread, type AtomicBatchArgs, CLIENT_TYPE_TS_CLI, CLIENT_TYPE_WEB_UI, type CreateAAStateOptions, type CreateAlchemyAAProviderOptions, type CreatePimlicoAAProviderOptions, DEFAULT_AA_CONFIG, DISABLED_PROVIDER_STATE, type ExecuteWalletCallsParams, type ExecutionResult, type Logger, MAX_AUTO_FEE_WEI, type NativeWalletExecutionPolicy, type NativeWalletSponsorship, type NormalizedSimulatedFee, type NormalizedSolanaWalletRequest, type PimlicoHookParams, type PimlicoResolveOptions, type PimlicoResolvedConfig, type SendResult, ClientSession as Session, type SessionEventMap, type SessionOptions, type SmartAccount, type SponsorshipPaymasterServiceContext, TypedEventEmitter, type UnwrappedEvent, type UseAlchemyAAHook, type UsePimlicoAAHook, UserState, type UserStateAAMode, type ViemSignTypedDataArgs, type WalletAtomicCapability, type WalletCapabilities, type WalletEip712Payload, type WalletRequest, type WalletRequestKind, type WalletRequestResult, type WalletSolanaSignMessagePayload, type WalletSolanaSignPayload, type WalletTxAaPreference, type WalletTxCallPayload, type WalletTxPayload, aaModeFromExecutionKind, adaptSmartAccount, addUserStateExt, appendFeeCallToPayload, buildAAExecutionPlan, buildFeeAAWalletCall, createAAProviderState, createAlchemyAAProvider, createPimlicoAAProvider, executeWalletCalls, getAAChainConfig, getUserStateAAMode, getUserStateSmartAccount, getWalletExecutorReady, hydrateTxPayloadFromUserState, isAlchemySponsorshipLimitError, isAsyncCallback, isInlineCall, isSystemError, isSystemNotice, normalizeEip712Payload, normalizeSimulatedFee, normalizeSolanaSignMessagePayload, normalizeSolanaSignPayload, normalizeSolanaWalletRequest, normalizeTxPayload, parseChainId, resolvePimlicoConfig, toAAWalletCall, toAAWalletCalls, toViemSignTypedDataArgs, unwrapSystemEvent };
+export { type AACallPayload, type AAChainConfig, type AAConfig, type AAMode, type AAOwner, type AAProvider, type AAResolvedConfig, type AASponsorship, type AAState, type AAWalletCall, ALCHEMY_CHAIN_SLUGS, type AlchemyHookParams, type AomiAppDescriptor, type AomiChatResponse, type AomiClearSecretsResponse, AomiClient, type AomiClientOptions, type AomiClientType, type AomiCreateThreadResponse, type AomiDeleteSecretResponse, type AomiIngestSecretsResponse, type AomiInterruptResponse, type AomiListSecretsResponse, type AomiMessage, type AomiSSEEvent, type AomiSSEEventType, type AomiSecretSlot, type AomiSimulateFee, type AomiSimulateResponse, type AomiStateResponse, type AomiSystemEvent, type AomiSystemResponse, type AomiThread, type AtomicBatchArgs, CHAINS_BY_ID, CHAIN_NAMES, CLIENT_TYPE_TS_CLI, CLIENT_TYPE_WEB_UI, type ChainInfo, type CreateAAStateOptions, type CreateAlchemyAAProviderOptions, type CreatePimlicoAAProviderOptions, DEFAULT_AA_CONFIG, DISABLED_PROVIDER_STATE, type ExecuteWalletCallsParams, type ExecutionResult, type Logger, MAX_AUTO_FEE_WEI, type NativeWalletExecutionPolicy, type NativeWalletSponsorship, type NormalizedSimulatedFee, type NormalizedSolanaWalletRequest, type PimlicoHookParams, type PimlicoResolveOptions, type PimlicoResolvedConfig, SUPPORTED_CHAINS, SUPPORTED_CHAIN_IDS, type SendResult, ClientSession as Session, type SessionEventMap, type SessionOptions, type SmartAccount, type SponsorshipPaymasterServiceContext, TypedEventEmitter, type UnwrappedEvent, type UseAlchemyAAHook, type UsePimlicoAAHook, UserState, type UserStateAAMode, type UserStateAuthMethod, type UserStateSponsorProvider, type UserStateWalletKind, type UserStateWalletProvider, type ViemSignTypedDataArgs, type WalletAtomicCapability, type WalletCapabilities, type WalletEip712Payload, type WalletRequest, type WalletRequestKind, type WalletRequestResult, type WalletSolanaSignMessagePayload, type WalletSolanaSignPayload, type WalletTxAaPreference, type WalletTxCallPayload, type WalletTxPayload, aaModeFromExecutionKind, adaptSmartAccount, appendFeeCallToPayload, buildAAExecutionPlan, buildFeeAAWalletCall, createAAProviderState, createAlchemyAAProvider, createPimlicoAAProvider, executeWalletCalls, getAAChainConfig, getWalletExecutorReady, hydrateTxPayloadFromUserState, isAlchemySponsorshipLimitError, isAsyncCallback, isInlineCall, isSystemError, isSystemNotice, monad, monadTestnet, normalizeEip712Payload, normalizeSimulatedFee, normalizeSolanaSignMessagePayload, normalizeSolanaSignPayload, normalizeSolanaWalletRequest, normalizeTxPayload, parseChainId, resolvePimlicoConfig, toAAWalletCall, toAAWalletCalls, toViemSignTypedDataArgs, unwrapSystemEvent };

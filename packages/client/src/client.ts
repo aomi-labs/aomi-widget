@@ -1,16 +1,18 @@
 import type {
+  AomiAppDescriptor,
   AomiClientOptions,
   AomiMessage,
   AomiChatResponse,
   AomiClearSecretsResponse,
   AomiCreateThreadResponse,
-  AomiDeleteProviderKeyResponse,
+  AomiDeleteByokKeyResponse,
   AomiDeleteSecretResponse,
   AomiIngestSecretsResponse,
   AomiInterruptResponse,
-  AomiListProviderKeysResponse,
-  AomiProviderKeyEntry,
-  AomiSaveProviderKeyResponse,
+  AomiListByokKeysResponse,
+  AomiListSecretsResponse,
+  AomiByokKeyEntry,
+  AomiSaveByokKeyResponse,
   AomiSSEEvent,
   AomiSimulateResponse,
   AomiStateResponse,
@@ -19,7 +21,7 @@ import type {
   AomiThread,
   Logger,
 } from "./types";
-import { UserState, type UserState as UserStateShape } from "./types";
+import { UserState, type UserState as UserStateShape } from "./user-state";
 import { createSseSubscriber, type SseSubscriber } from "./sse";
 
 // =============================================================================
@@ -27,7 +29,7 @@ import { createSseSubscriber, type SseSubscriber } from "./sse";
 // =============================================================================
 
 const SESSION_ID_HEADER = "X-Session-Id";
-const API_KEY_HEADER = "X-API-Key";
+const APP_KEY_HEADER = "AOMI-APP-KEY";
 
 function previewText(value: string, max = 80): string {
   const singleLine = value.replace(/\s+/g, " ").trim();
@@ -56,9 +58,9 @@ const BULKY_PENDING_FIELDS = new Set<string>([
 ]);
 
 function pruneBucket(
-  bucket: Record<string, unknown> | undefined,
+  bucket: Record<string, unknown> | null | undefined,
 ): Record<string, unknown> | undefined {
-  if (!bucket) return bucket;
+  if (!bucket) return undefined;
   const out: Record<string, unknown> = {};
   for (const [id, entry] of Object.entries(bucket)) {
     if (entry && typeof entry === "object" && !Array.isArray(entry)) {
@@ -80,6 +82,7 @@ function stripBulkyPendingFields(
 ): UserStateShape | undefined {
   if (!userState?.pending) return userState;
   const pending = userState.pending;
+  const legacyPending = pending as Record<string, unknown>;
   return {
     ...userState,
     pending: {
@@ -87,9 +90,15 @@ function stripBulkyPendingFields(
       evm_txs: pruneBucket(pending.evm_txs),
       evm_sigs: pruneBucket(pending.evm_sigs),
       svm_ixs: pruneBucket(pending.svm_ixs),
-      solana_txs: pruneBucket(pending.solana_txs),
-      solana_sigs: pruneBucket(pending.solana_sigs),
-      svm_sigs: pruneBucket((pending as Record<string, unknown>).svm_sigs as Record<string, unknown> | undefined),
+      solana_txs: pruneBucket(
+        legacyPending.solana_txs as Record<string, unknown> | null | undefined,
+      ),
+      solana_sigs: pruneBucket(
+        legacyPending.solana_sigs as Record<string, unknown> | null | undefined,
+      ),
+      svm_sigs: pruneBucket(
+        legacyPending.svm_sigs as Record<string, unknown> | null | undefined,
+      ),
     },
   };
 }
@@ -142,7 +151,7 @@ async function postState<T>(
   const headers = new Headers(withSessionHeader(sessionId));
   headers.set("Content-Type", "application/json");
   if (apiKey) {
-    headers.set(API_KEY_HEADER, apiKey);
+    headers.set(APP_KEY_HEADER, apiKey);
   }
 
   logger?.debug("[aomi][client] POST start", {
@@ -372,22 +381,32 @@ export class AomiClient {
 
   /**
    * Ingest secrets for a client. Returns opaque `$SECRET:<name>` handles.
-   * Call this once at page load (or when secrets change) with a stable
-   * client_id for the browser tab. The same client_id should be passed
-   * to `sendMessage` / `fetchState` so sessions get associated.
+   *
+   * When `app` is provided, the values land in the per-app store keyed by
+   * `(client_id, app)` — this is the path the Secrets settings page uses
+   * (one app at a time). When `app` is omitted, secrets land in the flat
+   * client store (used by BYOK and other cross-app pools).
    */
   async ingestSecrets(
     sessionId: string,
     clientId: string,
     secrets: Record<string, string>,
+    app?: string,
   ): Promise<AomiIngestSecretsResponse> {
     const url = joinApiPath(this.baseUrl, "/api/secrets");
+    const body: { client_id: string; app?: string; secrets: Record<string, string> } = {
+      client_id: clientId,
+      secrets,
+    };
+    if (app && app.trim().length > 0) {
+      body.app = app.trim();
+    }
     const response = await this.fetchImpl(url, {
       method: "POST",
       headers: withSessionHeader(sessionId, {
         "Content-Type": "application/json",
       }),
-      body: JSON.stringify({ client_id: clientId, secrets }),
+      body: JSON.stringify(body),
     });
 
     if (!response.ok) {
@@ -398,15 +417,20 @@ export class AomiClient {
   }
 
   /**
-   * Clear all secrets for a client (e.g. on page unload or logout).
+   * Clear secrets for a client. With `app`, removes every slot under that
+   * app. Without `app`, clears the entire client (legacy behavior — wipes
+   * both stores and unbinds the session).
    */
   async clearSecrets(
     sessionId: string,
     clientId: string,
+    app?: string,
   ): Promise<AomiClearSecretsResponse> {
-    const url = buildApiUrl(this.baseUrl, "/api/secrets", {
-      client_id: clientId,
-    });
+    const params: Record<string, string> = { client_id: clientId };
+    if (app && app.trim().length > 0) {
+      params.app = app.trim();
+    }
+    const url = buildApiUrl(this.baseUrl, "/api/secrets", params);
     const response = await this.fetchImpl(url, {
       method: "DELETE",
       headers: withSessionHeader(sessionId),
@@ -420,19 +444,23 @@ export class AomiClient {
   }
 
   /**
-   * Remove a single secret for a client.
+   * Remove a single named secret. With `app`, targets the per-app store
+   * under that scope; without, targets the flat store.
    */
   async deleteSecret(
     sessionId: string,
     clientId: string,
     name: string,
+    app?: string,
   ): Promise<AomiDeleteSecretResponse> {
+    const params: Record<string, string> = { client_id: clientId };
+    if (app && app.trim().length > 0) {
+      params.app = app.trim();
+    }
     const url = buildApiUrl(
       this.baseUrl,
       `/api/secrets/${encodeURIComponent(name)}`,
-      {
-        client_id: clientId,
-      },
+      params,
     );
     const response = await this.fetchImpl(url, {
       method: "DELETE",
@@ -444,6 +472,25 @@ export class AomiClient {
     }
 
     return (await response.json()) as AomiDeleteSecretResponse;
+  }
+
+  /**
+   * List currently stored secret names per app for this client. The
+   * backend never returns raw values; the settings page uses this as the
+   * source of truth instead of trusting localStorage.
+   */
+  async listSecrets(sessionId: string): Promise<AomiListSecretsResponse> {
+    const url = joinApiPath(this.baseUrl, "/api/secrets");
+    const response = await this.fetchImpl(url, {
+      method: "GET",
+      headers: withSessionHeader(sessionId),
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+
+    return (await response.json()) as AomiListSecretsResponse;
   }
 
   // ===========================================================================
@@ -641,12 +688,14 @@ export class AomiClient {
   // ===========================================================================
 
   /**
-   * Get available apps.
+   * Get available apps as full descriptors (name + declared secret slots).
+   * The settings page consumes the slot info to render per-app inputs and
+   * the chat shell uses it to gate app load when required slots are unfilled.
    */
   async getApps(
     sessionId: string,
     options?: { publicKey?: string; apiKey?: string },
-  ): Promise<string[]> {
+  ): Promise<AomiAppDescriptor[]> {
     const url = buildApiUrl(this.baseUrl, "/api/control/apps", {
       public_key: options?.publicKey,
     });
@@ -654,7 +703,7 @@ export class AomiClient {
     const apiKey = options?.apiKey ?? this.apiKey;
     const headers = new Headers(withSessionHeader(sessionId));
     if (apiKey) {
-      headers.set(API_KEY_HEADER, apiKey);
+      headers.set(APP_KEY_HEADER, apiKey);
     }
 
     const response = await this.rawFetchImpl(url, { headers });
@@ -663,21 +712,22 @@ export class AomiClient {
       throw new Error(`Failed to get apps: HTTP ${response.status}`);
     }
 
-    // Backend may return either a list of strings or a list of
-    // `{ name, secrets? }` descriptor objects. Normalize to a plain
-    // string[] so downstream UI doesn't have to branch on shape.
     const data = (await response.json()) as unknown;
     if (!Array.isArray(data)) return [];
     return data
       .map((item) => {
-        if (typeof item === "string") return item;
+        if (typeof item === "string") {
+          return { name: item };
+        }
         if (item && typeof item === "object" && "name" in item) {
           const name = (item as { name?: unknown }).name;
-          return typeof name === "string" ? name : "";
+          if (typeof name === "string" && name.trim().length > 0) {
+            return item as AomiAppDescriptor;
+          }
         }
-        return "";
+        return null;
       })
-      .filter((id): id is string => id.length > 0);
+      .filter((item): item is AomiAppDescriptor => item !== null);
   }
 
   /**
@@ -691,7 +741,7 @@ export class AomiClient {
     const apiKey = options?.apiKey ?? this.apiKey;
     const headers = new Headers(withSessionHeader(sessionId));
     if (apiKey) {
-      headers.set(API_KEY_HEADER, apiKey);
+      headers.set(APP_KEY_HEADER, apiKey);
     }
 
     const response = await this.rawFetchImpl(url, {
@@ -743,31 +793,31 @@ export class AomiClient {
   }
 
   /**
-   * List BYOK provider keys bound to the current session's client.
+   * List BYOK keys (one per LLM provider) bound to the current session's client.
    */
-  async listProviderKeys(sessionId: string): Promise<AomiProviderKeyEntry[]> {
+  async listByokKeys(sessionId: string): Promise<AomiByokKeyEntry[]> {
     const url = buildApiUrl(this.baseUrl, "/api/control/provider-keys");
     const response = await this.fetchImpl(url, {
       headers: withSessionHeader(sessionId),
     });
 
     if (!response.ok) {
-      throw new Error(`Failed to get provider keys: HTTP ${response.status}`);
+      throw new Error(`Failed to get BYOK keys: HTTP ${response.status}`);
     }
 
-    const data = (await response.json()) as AomiListProviderKeysResponse;
-    return data.provider_keys ?? [];
+    const data = (await response.json()) as AomiListByokKeysResponse;
+    return data.byok_keys ?? [];
   }
 
   /**
-   * Save or replace a BYOK provider key for the client bound to this session.
+   * Save or replace a BYOK key for the client bound to this session.
    */
-  async saveProviderKey(
+  async saveByokKey(
     sessionId: string,
     provider: string,
-    apiKey: string,
+    byokKey: string,
     label?: string,
-  ): Promise<AomiProviderKeyEntry> {
+  ): Promise<AomiByokKeyEntry> {
     const url = joinApiPath(this.baseUrl, "/api/control/provider-keys");
     const response = await this.fetchImpl(url, {
       method: "POST",
@@ -776,23 +826,23 @@ export class AomiClient {
       }),
       body: JSON.stringify({
         provider,
-        byok_key: apiKey,
+        byok_key: byokKey,
         label,
       }),
     });
 
     if (!response.ok) {
-      throw new Error(`Failed to save provider key: HTTP ${response.status}`);
+      throw new Error(`Failed to save BYOK key: HTTP ${response.status}`);
     }
 
-    const data = (await response.json()) as AomiSaveProviderKeyResponse;
+    const data = (await response.json()) as AomiSaveByokKeyResponse;
     return data.key;
   }
 
   /**
-   * Delete a BYOK provider key for the client bound to this session.
+   * Delete a BYOK key for the client bound to this session.
    */
-  async deleteProviderKey(
+  async deleteByokKey(
     sessionId: string,
     provider: string,
   ): Promise<boolean> {
@@ -806,10 +856,10 @@ export class AomiClient {
     });
 
     if (!response.ok) {
-      throw new Error(`Failed to delete provider key: HTTP ${response.status}`);
+      throw new Error(`Failed to delete BYOK key: HTTP ${response.status}`);
     }
 
-    const data = (await response.json()) as AomiDeleteProviderKeyResponse;
+    const data = (await response.json()) as AomiDeleteByokKeyResponse;
     return data.deleted;
   }
 
@@ -839,7 +889,7 @@ export class AomiClient {
       withSessionHeader(sessionId, { "Content-Type": "application/json" }),
     );
     if (this.apiKey) {
-      headers.set(API_KEY_HEADER, this.apiKey);
+      headers.set(APP_KEY_HEADER, this.apiKey);
     }
 
     const normalizedTransactions = transactions.map((transaction) => ({

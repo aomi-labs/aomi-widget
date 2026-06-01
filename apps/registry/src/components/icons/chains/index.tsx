@@ -80,6 +80,38 @@ export function PolygonIcon(props: SVGProps<SVGSVGElement>) {
   );
 }
 
+const LineaIconMarkup =
+  '<g transform="translate(14 14.56) scale(.72)"><path d="M82.669 103.977H0V16.872h18.915v70.224H82.669v16.872z" fill="currentColor"/><path d="M82.669 33.744c9.318 0 16.872-7.554 16.872-16.872S91.987 0 82.669 0 65.797 7.554 65.797 16.872s7.554 16.872 16.872 16.872" fill="currentColor"/></g>';
+
+export function LineaIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg
+      viewBox="0 0 100 104"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      aria-hidden="true"
+      dangerouslySetInnerHTML={{ __html: LineaIconMarkup }}
+      {...props}
+    />
+  );
+}
+
+const MonadIconMarkup =
+  '<path transform="translate(2.35642 2.4) scale(.8)" fill="currentColor" fill-rule="evenodd" d="M11.782 0C8.37963 0 0 8.53443 0 11.9999C0 15.4654 8.37963 24 11.782 24C15.1844 24 23.5642 15.4653 23.5642 11.9999C23.5642 8.53458 15.1845 0 11.782 0ZM9.94598 18.8619C8.51124 18.4637 4.65378 11.5912 5.04481 10.1299C5.43584 8.66856 12.1834 4.73984 13.6181 5.1381C15.0529 5.5363 18.9104 12.4087 18.5194 13.87C18.1283 15.3314 11.3807 19.2602 9.94598 18.8619Z" clip-rule="evenodd"/>';
+
+export function MonadIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg
+      viewBox="0 0 23.5642 24"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      aria-hidden="true"
+      dangerouslySetInnerHTML={{ __html: MonadIconMarkup }}
+      {...props}
+    />
+  );
+}
+
 export function SepoliaIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg

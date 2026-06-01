@@ -2,7 +2,9 @@ import {
   CLIENT_TYPE_TS_CLI,
   UserState,
   type UserStateAAMode,
-} from "../types";
+  type UserStateEvm,
+  type UserStateEvmAa,
+} from "../user-state";
 import { getAddress } from "viem";
 import type { PendingSolTx, PendingTx } from "./state";
 import { normalizePendingTxData } from "../wallet-utils";
@@ -80,68 +82,69 @@ export function buildCliUserState(
   },
 ): UserState {
   const app = options?.app?.trim().toLowerCase();
-  // A publicKey that doesn't start with "0x" (EVM hex) is assumed to be a
-  // Solana base58 address. This lets `--public-key <solana-addr>` work
-  // correctly for Solana-first apps (e.g. byreal spot/lp) without requiring
-  // the user to also supply --solana-private-key.
+  const evm: UserStateEvm = {};
   const publicKeyIsSolana =
     publicKey !== undefined && !publicKey.trim().startsWith("0x");
   const publicKeyIsEvm =
     publicKey !== undefined && publicKey.trim().startsWith("0x");
-  // byreal supports BOTH Solana (spot/LP) and EVM (perps via Hyperliquid).
-  // When the publicKey is clearly EVM (0x-prefixed), classify as EVM even
-  // for byreal-app so commit_message routes through the EVM signer.
-  // When --public-key looks like a Solana address, promote it to svmAddress.
-  const svmAddress = options?.svmAddress ?? (publicKeyIsSolana ? publicKey : undefined);
-
-  // Dual-family: a session can have BOTH an EVM address and a Solana address
-  // simultaneously (e.g. byreal perps = EVM, spot/LP = Solana). Emit both
-  // sections whenever both are present; fall back to single-family logic when
-  // only one is known.
+  const svmAddress =
+    options?.svmAddress ?? (publicKeyIsSolana ? publicKey : undefined);
   const hasBoth = publicKeyIsEvm && svmAddress !== undefined;
   const isSolanaApp =
     !hasBoth &&
     !publicKeyIsEvm &&
-    (app === "sol" || app === "solana" || app === "svm" || app === "byreal" ||
+    (app === "sol" ||
+      app === "solana" ||
+      app === "svm" ||
+      app === "byreal" ||
       publicKeyIsSolana ||
       svmAddress !== undefined);
+  const hasEvm = hasBoth || (!isSolanaApp && publicKeyIsEvm);
+  const hasSvm = hasBoth || isSolanaApp;
+  const userState: UserState = {};
 
-  const primaryFamily: "evm" | "solana" = hasBoth
-    ? "evm" // dual: prefer EVM as primary so EVM tools (commit_message) route correctly
-    : isSolanaApp
-      ? "solana"
-      : "evm";
+  if (hasEvm && publicKey !== undefined) {
+    evm.address = publicKey;
+  }
 
-  const anyConnected = hasBoth
-    ? true
-    : (isSolanaApp ? svmAddress : publicKey) !== undefined;
+  if (hasEvm && chainId !== undefined) {
+    evm.chain_id = chainId;
+  }
 
-  const userState: UserState = {
-    connection: {
-      is_connected: anyConnected ? true : undefined,
-      primary_family: anyConnected ? primaryFamily : undefined,
-    },
-    evm: hasBoth || !isSolanaApp
-      ? {
-          address: publicKey,
-          chain_id: chainId,
-          aa: {
-            mode: options?.aaMode ?? null,
-            smart_account: options?.smartAccount ?? null,
-          },
-        }
-      : undefined,
-    solana: hasBoth || isSolanaApp
-      ? {
-          address: svmAddress ?? publicKey,
-          // Default to mainnet when an SVM address is present; the backend
-          // falls back to "devnet" when cluster is absent which causes mainnet
-          // DEXes (byreal etc.) to look for devnet liquidity and fail.
-          cluster: options?.svmCluster ?? (svmAddress !== undefined ? "solana:mainnet" : undefined),
-        }
-      : undefined,
-  };
+  if (hasEvm) {
+    if (options?.aaMode === "4337" || options?.aaMode === "7702") {
+      const aaState: UserStateEvmAa = { mode: options.aaMode };
+      if (options.smartAccount != null) {
+        aaState.smart_account = options.smartAccount;
+      }
+      evm.aa = aaState;
+    } else if (options?.aaMode === null) {
+      evm.aa = { mode: "none" };
+    }
+  }
 
+  if (Object.keys(evm).length > 0) {
+    userState.evm = evm;
+  }
+
+  if (hasSvm) {
+    userState.svm = {
+      address: svmAddress ?? publicKey,
+      cluster:
+        options?.svmCluster ??
+        (svmAddress !== undefined ? "solana:mainnet" : undefined),
+    };
+  }
+  const anyConnected = Boolean(
+    (hasEvm && publicKey !== undefined) ||
+      (hasSvm && (svmAddress ?? publicKey) !== undefined),
+  );
+  if (anyConnected) {
+    userState.connection = {
+      is_connected: true,
+      primary_family: hasBoth ? "dual" : hasSvm ? "svm" : "evm",
+    };
+  }
   return UserState.withExt(userState, "client_type", CLIENT_TYPE_TS_CLI);
 }
 
@@ -158,12 +161,10 @@ export function pendingTxsFromBackendUserState(
   const fallbackNow = Date.now();
   const nextPendingTxs: PendingTx[] = [];
 
-  // Backend serializes pending bucket as camelCase on the wire (`evmTxs`,
-  // `evmSigs`, `solanaTxs`, `solanaSigs`) but some older code paths still
-  // emit snake_case. Accept both.
+  const pending = asRecord(normalizedUserState.pending) ?? {};
   const pendingTxs =
-    asRecord(normalizedUserState.pending?.evmTxs) ??
-    asRecord(normalizedUserState.pending?.evm_txs) ??
+    asRecord(pending.evmTxs) ??
+    asRecord(pending.evm_txs) ??
     {};
   for (const [rawId, rawValue] of Object.entries(pendingTxs)) {
     const pendingId = parsePendingId(rawId);
@@ -203,8 +204,8 @@ export function pendingTxsFromBackendUserState(
   }
 
   const pendingEip712s =
-    asRecord(normalizedUserState.pending?.evmSigs) ??
-    asRecord(normalizedUserState.pending?.evm_sigs) ??
+    asRecord(pending.evmSigs) ??
+    asRecord(pending.evm_sigs) ??
     {};
   for (const [rawId, rawValue] of Object.entries(pendingEip712s)) {
     const pendingId = parsePendingId(rawId);
@@ -245,11 +246,21 @@ export function pendingTxsFromBackendUserState(
 
 /**
  * Rebuild the local Solana pending list from the backend's authoritative
- * pending-tx bucket. Accepts both the legacy `pending.solana_txs` shape and
- * the newer canonical `pending.svm_ixs` bucket. Mirrors
- * [`pendingTxsFromBackendUserState`] but for the Solana domain only — kept in
- * its own function so the caller's EVM/EIP-712 state and Solana state stay in
- * separate arrays rather than a discriminated union.
+ * `pending.svm_ixs` bucket. Mirrors [`pendingTxsFromBackendUserState`] but
+ * for the Solana domain only — kept in its own function so the caller's
+ * EVM/EIP-712 state and Solana state stay in separate arrays rather than
+ * a discriminated union.
+ *
+ * SEMANTIC GAP: the backend moved Solana from a full-tx signing model
+ * (`unsigned_tx`) to an instruction-staging model (`svm_ixs` + `svm_sigs`).
+ * Staged-instruction records carry no `unsigned_tx`, so the guard below filters
+ * them out — they render nothing rather than being mis-mapped. Wiring the
+ * instruction-staging / `svm_sigs` flow into the CLI signer needs product-level
+ * rework; this only keeps legacy unsigned-tx records working.
+ *
+ * Accept both the legacy `pending.solana_txs` / `pending.solana_sigs` shape
+ * and the canonical `pending.svm_ixs` / `pending.svm_sigs` buckets because the
+ * backend still has older camelCase and aliasing paths on some surfaces.
  */
 export function pendingSolTxsFromBackendUserState(
   userState: UserState | null | undefined,
@@ -264,11 +275,12 @@ export function pendingSolTxsFromBackendUserState(
   const fallbackNow = Date.now();
   const next: PendingSolTx[] = [];
 
+  const pending = asRecord(normalizedUserState.pending) ?? {};
   const pendingSolanaTxs =
-    asRecord(normalizedUserState.pending?.solanaTxs) ??
-    asRecord(normalizedUserState.pending?.solana_txs) ??
-    asRecord((normalizedUserState.pending as Record<string, unknown> | undefined)?.svmIxs) ??
-    asRecord((normalizedUserState.pending as Record<string, unknown> | undefined)?.svm_ixs) ??
+    asRecord(pending.solanaTxs) ??
+    asRecord(pending.solana_txs) ??
+    asRecord(pending.svmIxs) ??
+    asRecord(pending.svm_ixs) ??
     {};
   for (const [rawId, rawValue] of Object.entries(pendingSolanaTxs)) {
     const pendingId = parsePendingId(rawId);
@@ -374,11 +386,23 @@ export function walletSnapshotFromUserState(
 } {
   const address = UserState.address(userState);
   const isConnected = UserState.isConnected(userState);
+  const sessionAAMode = UserState.aaMode(userState);
+  const walletKind = UserState.walletKind(userState);
+
+  const aaMode: UserStateAAMode | null | undefined =
+    sessionAAMode === "4337" || sessionAAMode === "7702"
+      ? sessionAAMode
+      : sessionAAMode === "none"
+        ? null
+        : undefined;
+
+  const smartAccount: string | null | undefined =
+    walletKind === "smart-account" ? address ?? null : null;
 
   return {
     publicKey: isConnected === false ? undefined : address,
     chainId: UserState.chainId(userState),
-    aaMode: UserState.aaMode(userState),
-    smartAccount: UserState.smartAccount(userState),
+    aaMode,
+    smartAccount,
   };
 }

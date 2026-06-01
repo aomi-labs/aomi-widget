@@ -43,6 +43,8 @@ import { AppSelect } from "@/components/control-bar/app-select";
 import { ApiKeyInput } from "@/components/control-bar/api-key-input";
 import { NetworkSelect } from "@/components/control-bar/network-select";
 import { ConnectButton } from "@/components/control-bar/connect-button";
+import { SecretGate } from "@/components/control-bar/secret-gate";
+import { PaymentRequiredGate } from "@/components/control-bar/payment-required-gate";
 import {
   useAssistantApi,
   useAssistantState,
@@ -68,11 +70,13 @@ export const Thread: FC = () => {
     <LazyMotion features={domAnimation}>
       <MotionConfig reducedMotion="user">
         <ThreadPrimitive.Root
-          className="aui-root aui-thread-root @container bg-background flex h-full flex-col"
+          className="aui-root aui-thread-root @container bg-background relative flex h-full flex-col"
           style={{
             ["--thread-max-width" as string]: "44rem",
           }}
         >
+          <SecretGate />
+          <PaymentRequiredGate />
           <ThreadPrimitive.Viewport className="aui-thread-viewport relative flex min-h-0 flex-1 flex-col overflow-x-auto overflow-y-scroll px-2 [scrollbar-gutter:stable_both-edges]">
             <ThreadPrimitive.If empty>
               <ThreadWelcome />

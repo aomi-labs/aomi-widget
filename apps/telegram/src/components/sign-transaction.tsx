@@ -158,8 +158,8 @@ function SignContent({ restoreDone }: { restoreDone: boolean }) {
         call_count: callList.length,
         batched: result.batched,
         sponsored: result.sponsored,
-        smart_account_address: result.AAAddress,
-        delegation_address: result.delegationAddress,
+        smart_account_4337: result.SmartAccount4337,
+        delegation_7702: result.Delegation7702,
       });
     } catch (err) {
       const executionKind = providerState.AA
@@ -181,9 +181,9 @@ function SignContent({ restoreDone }: { restoreDone: boolean }) {
         sponsored: providerState.plan
           ? providerState.plan.sponsorship !== 'disabled'
           : undefined,
-        smart_account_address: providerState.AA?.AAAddress,
-        delegation_address:
-          providerState.AA?.mode === '7702' ? providerState.AA.delegationAddress : undefined,
+        smart_account_4337: providerState.AA?.SmartAccount4337,
+        delegation_7702:
+          providerState.AA?.mode === '7702' ? providerState.AA.Delegation7702 : undefined,
       });
     }
   }

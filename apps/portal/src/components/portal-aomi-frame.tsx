@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Settings } from "lucide-react";
 import { AomiFrame } from "@aomi-labs/widget-lib";
 import { type AomiClientOptions, useControl } from "@aomi-labs/react";
+import { RequiredSecretsGate } from "@portal/components/required-secrets-gate";
 import { x402Client } from "@x402/core/client";
 import { ExactEvmScheme } from "@x402/evm/exact/client";
 import { wrapFetchWithPayment } from "@x402/fetch";
@@ -219,7 +220,7 @@ export function PortalAomiFrame() {
   const backendUrl = getBackendUrl();
 
   return (
-    <main className="bg-background h-full w-full overflow-hidden">
+    <main className="bg-background relative h-full w-full overflow-hidden">
       <AomiFrame.Root
         width="100%"
         height="100%"
@@ -245,6 +246,7 @@ export function PortalAomiFrame() {
             hideApiKey: true,
           }}
         />
+        <RequiredSecretsGate />
       </AomiFrame.Root>
     </main>
   );

@@ -1,9 +1,20 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { useAomiAuthAdapter } from "@aomi-labs/widget-lib";
+import { Input, useAomiAuthAdapter } from "@aomi-labs/widget-lib";
 import { settingsApiFetch } from "@portal/lib/settings-api";
 import { defaultUsageDateRange } from "@portal/lib/usage-range";
+import {
+  settingsBodyTextClass,
+  settingsCardStackClass,
+  settingsCardTitleClass,
+  settingsInputClass,
+  settingsLabelClass,
+  settingsPageClass,
+  settingsSubTitleClass,
+  settingsTableCardClass,
+  settingsTitleClass,
+} from "./settings-styles";
 
 type AppRow = {
   app: string;
@@ -87,29 +98,26 @@ export function AppsSettings() {
   }, [fetchOverview]);
 
   return (
-    <div className="space-y-8">
+    <div className={settingsPageClass}>
       <div>
-        <h3 className="text-foreground mb-4 text-lg font-semibold">Apps</h3>
-        <div className="border-input bg-background space-y-4 rounded-3xl border p-5">
+        <h1 className={`${settingsTitleClass} mb-4`}>Usage</h1>
+        <div className={settingsCardStackClass}>
           {!identity.address && (
-            <p className="text-muted-foreground text-sm">
-              Connect a wallet to view app access.
+            <p className={settingsBodyTextClass}>
+              Connect a wallet to view usage across your apps.
             </p>
           )}
-          {loading && (
-            <p className="text-muted-foreground text-sm">
-              Loading app usage...
-            </p>
-          )}
+          {loading && <p className={settingsBodyTextClass}>Loading usage...</p>}
           {error && (
             <p className="text-destructive text-sm">
               Failed to load usage: {error}
             </p>
           )}
-          <div className="grid gap-3 sm:grid-cols-2">
-            <label className="text-muted-foreground block text-sm">
+          <p className={settingsCardTitleClass}>Date Range</p>
+          <div className="mr-2 grid gap-8 sm:grid-cols-2">
+            <label className={settingsLabelClass}>
               From
-              <input
+              <Input
                 type="date"
                 value={fromDate}
                 max={toDate}
@@ -120,12 +128,12 @@ export function AppsSettings() {
                     setToDate(next);
                   }
                 }}
-                className="border-input focus:ring-ring focus:border-ring bg-background text-foreground mt-1 w-full rounded-lg border px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2"
+                className={`${settingsInputClass} mt-2`}
               />
             </label>
-            <label className="text-muted-foreground block text-sm">
+            <label className={settingsLabelClass}>
               To
-              <input
+              <Input
                 type="date"
                 value={toDate}
                 min={fromDate}
@@ -136,20 +144,20 @@ export function AppsSettings() {
                     setFromDate(next);
                   }
                 }}
-                className="border-input focus:ring-ring focus:border-ring bg-background text-foreground mt-1 w-full rounded-lg border px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2"
+                className={`${settingsInputClass} mt-1`}
               />
             </label>
           </div>
           {!loading && overview && (
             <>
-              <p className="text-muted-foreground text-sm">
+              <p className={settingsBodyTextClass}>
                 Range: {overview.period_utc_from} to {overview.period_utc_to}
               </p>
-              <p className="text-muted-foreground text-sm">
+              <p className={settingsBodyTextClass}>
                 Credits: {formatNumber(overview.overall.credit_used)} /{" "}
                 {formatNumber(overview.overall.credit_paid)}
               </p>
-              <p className="text-muted-foreground text-sm">
+              <p className={settingsBodyTextClass}>
                 Tokens: in {formatNumber(overview.overall.input_tokens)} | out{" "}
                 {formatNumber(overview.overall.output_tokens)}
               </p>
@@ -159,13 +167,11 @@ export function AppsSettings() {
       </div>
 
       <div>
-        <h3 className="text-foreground mb-4 text-lg font-semibold">
-          Available Apps
-        </h3>
-        <div className="border-input bg-background overflow-x-auto rounded-3xl border p-2">
+        <h2 className={`${settingsSubTitleClass} mb-4`}>Usage by App</h2>
+        <div className={settingsTableCardClass}>
           <table className="min-w-full text-sm">
             <thead>
-              <tr className="text-muted-foreground text-left">
+              <tr className="text-muted-foreground text-center">
                 <th className="px-3 py-2">App</th>
                 <th className="px-3 py-2">Source</th>
                 <th className="px-3 py-2">Credits</th>
@@ -194,8 +200,11 @@ export function AppsSettings() {
               ))}
               {!overview?.apps?.length && (
                 <tr>
-                  <td className="text-muted-foreground px-3 py-4" colSpan={5}>
-                    No apps found.
+                  <td
+                    className="text-muted-foreground px-3 py-4 text-center"
+                    colSpan={5}
+                  >
+                    No usage found.
                   </td>
                 </tr>
               )}

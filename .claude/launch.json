@@ -42,6 +42,12 @@
       "runtimeExecutable": "pnpm",
       "runtimeArgs": ["--filter", "portal", "dev"],
       "autoPort": true
+    },
+    {
+      "name": "base",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--filter", "base", "dev:3001"],
+      "port": 3001
     }
   ]
 }

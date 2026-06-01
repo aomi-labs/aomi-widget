@@ -125,7 +125,7 @@ describe("executeWalletCalls AA execution", () => {
     expect(result).toMatchObject({
       txHash: TX_HASH,
       executionKind: "alchemy_7702",
-      delegationAddress: "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      Delegation7702: "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
     });
   });
 
@@ -156,7 +156,7 @@ describe("executeWalletCalls AA execution", () => {
       capabilities: undefined,
       localPrivateKey: null,
       providerState: make7702ProviderState({
-        delegationAddress: "0xcccccccccccccccccccccccccccccccccccccccc",
+        Delegation7702: "0xcccccccccccccccccccccccccccccccccccccccc",
       }),
       sendCallsSyncAsync: vi.fn(),
       sendTransactionAsync: vi.fn(),
@@ -166,7 +166,7 @@ describe("executeWalletCalls AA execution", () => {
     });
 
     expect(createPublicClientMock).not.toHaveBeenCalled();
-    expect(result.delegationAddress).toBe(
+    expect(result.Delegation7702).toBe(
       "0xcccccccccccccccccccccccccccccccccccccccc",
     );
   });

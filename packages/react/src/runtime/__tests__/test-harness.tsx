@@ -281,6 +281,8 @@ vi.mock("@aomi-labs/client", async (importOriginal) => {
     private _title?: string;
     private listeners = new Map<string, Set<(...args: unknown[]) => void>>();
     private _pollTimer: ReturnType<typeof setInterval> | null = null;
+    private _unsubscribeSSE: (() => void) | null = null;
+    private _isSSEActive = false;
 
     private _app?: string;
     private _publicKey?: string;
@@ -310,11 +312,6 @@ vi.mock("@aomi-labs/client", async (importOriginal) => {
       this._apiKey = opts?.apiKey;
       this._clientId = opts?.clientId;
       this.resolveUserState(opts?.userState);
-
-      // SSE subscription
-      this.client.subscribeSSE(this.sessionId, (event: AomiSSEEvent) => {
-        this.emit(event.type, event);
-      });
     }
 
     on(type: string, handler: (...args: unknown[]) => void) {
@@ -336,7 +333,7 @@ vi.mock("@aomi-labs/client", async (importOriginal) => {
         publicKey:
           this._publicKey ??
           UserState.address(this._userState) ??
-          UserState.solanaAddress(this._userState),
+          UserState.svmAddress(this._userState),
         apiKey: this._apiKey,
         userState: this._userState,
         clientId: this._clientId,
@@ -376,7 +373,7 @@ vi.mock("@aomi-labs/client", async (importOriginal) => {
       this._publicKey =
         UserState.isConnected(normalized) === false
           ? undefined
-          : UserState.address(normalized) ?? UserState.solanaAddress(normalized);
+          : UserState.address(normalized) ?? UserState.svmAddress(normalized);
       this.syncWalletRequests();
     }
     syncRuntimeOptions(
@@ -419,13 +416,35 @@ vi.mock("@aomi-labs/client", async (importOriginal) => {
         this._pollTimer = null;
       }
     }
+    getIsSSEActive() { return this._isSSEActive; }
+    setSSEActive(active: boolean) {
+      if (active === this._isSSEActive) return;
+      this._isSSEActive = active;
+      if (active) {
+        this._unsubscribeSSE = this.client.subscribeSSE(
+          this.sessionId,
+          (event: AomiSSEEvent) => {
+            this.emit(event.type, event);
+          },
+        );
+        return;
+      }
+      this._unsubscribeSSE?.();
+      this._unsubscribeSSE = null;
+    }
     getIsProcessing() { return this._isProcessing; }
     getIsPolling() { return this._pollTimer !== null; }
     getMessages() { return this._messages; }
     getTitle() { return this._title; }
     getPendingRequests() { return [...this._walletRequests]; }
     getUserState() { return this._userState ? { ...this._userState } : undefined; }
-    close() { this.stopPolling(); this.listeners.clear(); }
+    close() {
+      this.stopPolling();
+      this._unsubscribeSSE?.();
+      this._unsubscribeSSE = null;
+      this._isSSEActive = false;
+      this.listeners.clear();
+    }
     removeAllListeners() { this.listeners.clear(); }
 
     private applyState(

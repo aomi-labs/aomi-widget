@@ -12,7 +12,7 @@ import {
   UserState as UserStateHelpers,
   type UserStateAAMode,
   type UserState,
-} from "../types";
+} from "../user-state";
 import {
   pendingTxsFromBackendUserState,
   pendingSolTxsFromBackendUserState,
@@ -43,8 +43,8 @@ export type SignedTx = {
   aaMode?: string;
   batched?: boolean;
   sponsored?: boolean;
-  AAAddress?: string;
-  delegationAddress?: string;
+  smartAccount4337?: string;
+  Delegation7702?: string;
   signature?: string;
   from?: string;
   to?: string;
@@ -143,6 +143,14 @@ type StoredSessionState = CliSessionState & {
   updatedAt: number;
 };
 
+type LegacySignedTx = SignedTx & {
+  AAAddress?: string;
+};
+
+type LegacyStoredSessionState = Omit<StoredSessionState, "signedTxs"> & {
+  signedTxs?: LegacySignedTx[];
+};
+
 export type StoredSessionRecord = {
   localId: number;
   sessionId: string;
@@ -194,6 +202,8 @@ function toCliSessionState(stored: StoredSessionState): CliSessionState {
     svmPublicKey: stored.svmPublicKey,
     svmPrivateKey: stored.svmPrivateKey,
     chainId: stored.chainId,
+    aaMode: stored.aaMode,
+    smartAccount: stored.smartAccount,
     pendingTxs: stored.pendingTxs,
     pendingSolTxs: stored.pendingSolTxs,
     signedTxs: stored.signedTxs,
@@ -202,10 +212,24 @@ function toCliSessionState(stored: StoredSessionState): CliSessionState {
   };
 }
 
+function normalizeSignedTx(tx: LegacySignedTx): SignedTx {
+  const { AAAddress: _legacyAAAddress, ...rest } = tx;
+  return {
+    ...rest,
+    smartAccount4337: tx.smartAccount4337 ?? tx.AAAddress,
+  };
+}
+
+function normalizeSignedTxs(
+  signedTxs: LegacyStoredSessionState["signedTxs"],
+): SignedTx[] | undefined {
+  return signedTxs?.map(normalizeSignedTx);
+}
+
 function readStoredSession(path: string): StoredSessionState | null {
   try {
     const raw = readFileSync(path, "utf-8");
-    const parsed = JSON.parse(raw) as Partial<StoredSessionState>;
+    const parsed = JSON.parse(raw) as Partial<LegacyStoredSessionState>;
 
     if (typeof parsed.sessionId !== "string" || typeof parsed.baseUrl !== "string") {
       return null;
@@ -224,9 +248,11 @@ function readStoredSession(path: string): StoredSessionState | null {
       svmPublicKey: parsed.svmPublicKey,
       svmPrivateKey: parsed.svmPrivateKey,
       chainId: parsed.chainId,
+      aaMode: parsed.aaMode,
+      smartAccount: parsed.smartAccount,
       pendingTxs: parsed.pendingTxs,
       pendingSolTxs: parsed.pendingSolTxs,
-      signedTxs: parsed.signedTxs,
+      signedTxs: normalizeSignedTxs(parsed.signedTxs),
       signedSolTxs: parsed.signedSolTxs,
       secretHandles: parsed.secretHandles,
       localId:
@@ -322,7 +348,9 @@ function migrateLegacyStateIfNeeded(): void {
 
   try {
     const raw = readFileSync(LEGACY_STATE_FILE, "utf-8");
-    const legacy = JSON.parse(raw) as CliSessionState;
+    const legacy = JSON.parse(raw) as Partial<
+      Omit<CliSessionState, "signedTxs"> & { signedTxs?: LegacySignedTx[] }
+    >;
     if (!legacy.sessionId || !legacy.baseUrl) {
       return;
     }
@@ -330,6 +358,7 @@ function migrateLegacyStateIfNeeded(): void {
     const now = Date.now();
     const migrated: StoredSessionState = {
       ...legacy,
+      signedTxs: normalizeSignedTxs(legacy.signedTxs),
       localId: 1,
       createdAt: now,
       updatedAt: now,

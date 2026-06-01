@@ -1,7 +1,11 @@
 import type { ThreadMessageLike } from "@assistant-ui/react";
 
-import type { AomiMessage } from "@aomi-labs/client";
-import type { UserState } from "@aomi-labs/client";
+import {
+  SUPPORTED_CHAINS as CLIENT_SUPPORTED_CHAINS,
+  type AomiMessage,
+  type ChainInfo,
+  type UserState,
+} from "@aomi-labs/client";
 
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
@@ -50,7 +54,7 @@ export function toInboundMessage(msg: AomiMessage): ThreadMessageLike | null {
   const role: ThreadMessageLike["role"] =
     msg.sender === "user" ? "user" : "assistant";
 
-  if (msg.content) {
+  if (msg.content && msg.content.trim().length > 0) {
     content.push({ type: "text" as const, text: msg.content });
   }
 
@@ -71,11 +75,13 @@ export function toInboundMessage(msg: AomiMessage): ThreadMessageLike | null {
     });
   }
 
+  if (content.length === 0 && role === "assistant" && !msg.is_streaming) {
+    return null;
+  }
+
   const threadMessage = {
     role,
-    content: (content.length > 0
-      ? content
-      : [{ type: "text" as const, text: "" }]) as ThreadMessageLike["content"],
+    content: content as ThreadMessageLike["content"],
     ...(msg.timestamp && { createdAt: new Date(msg.timestamp) }),
   } satisfies ThreadMessageLike;
 
@@ -142,10 +148,14 @@ export const getNetworkName = (
       return "optimism";
     case 11155111:
       return "sepolia";
+    case 143:
+      return "monad";
+    case 10143:
+      return "monad-testnet";
     case 1337:
     case 31337:
       return "testnet";
-    case 59140:
+    case 59141:
       return "linea-sepolia";
     case 59144:
       return "linea";
@@ -159,18 +169,10 @@ export const formatAddress = (addr?: string): string =>
 
 // ==================== Chain Metadata ====================
 
-/** Static metadata for a supported chain */
-export type ChainInfo = { id: number; name: string; ticker: string };
+export type { ChainInfo } from "@aomi-labs/client";
 
-/** All chains supported by the application. Single source of truth. */
-export const SUPPORTED_CHAINS: ChainInfo[] = [
-  { id: 1, name: "Ethereum", ticker: "ETH" },
-  { id: 137, name: "Polygon", ticker: "MATIC" },
-  { id: 42161, name: "Arbitrum", ticker: "ARB" },
-  { id: 8453, name: "Base", ticker: "BASE" },
-  { id: 10, name: "Optimism", ticker: "OP" },
-  { id: 11155111, name: "Sepolia", ticker: "SEP" },
-];
+/** All chains supported by the application. Sourced from @aomi-labs/client. */
+export const SUPPORTED_CHAINS: ChainInfo[] = [...CLIENT_SUPPORTED_CHAINS];
 
 /** Look up ChainInfo by chain ID. Returns undefined for unknown chains. */
 export const getChainInfo = (
