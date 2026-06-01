@@ -368,6 +368,7 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
   // Internal state
   private pollTimer: ReturnType<typeof setInterval> | null = null;
   private unsubscribeSSE: (() => void) | null = null;
+  private sseActive = false;
   private _isProcessing = false;
   private _backendWasProcessing = false;
   private walletRequests: WalletRequest[] = [];
@@ -417,12 +418,6 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
     this.pollIntervalMs = sessionOptions?.pollIntervalMs ?? 500;
     this.logger = sessionOptions?.logger;
 
-    // Start SSE subscription
-    this.unsubscribeSSE = this.client.subscribeSSE(
-      this.sessionId,
-      (event) => this.handleSSEEvent(event),
-      (error) => this.emit("error", { error }),
-    );
   }
 
   // ===========================================================================
@@ -783,8 +778,7 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
     if (this.closed) return;
     this.closed = true;
     this.stopPolling();
-    this.unsubscribeSSE?.();
-    this.unsubscribeSSE = null;
+    this.stopSSESubscription("close");
     this.resolvePending();
     this.removeAllListeners();
   }
@@ -816,6 +810,28 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
   /** Whether the AI is currently processing. */
   getIsProcessing(): boolean {
     return this._isProcessing;
+  }
+
+  getIsSSEActive(): boolean {
+    return this.sseActive;
+  }
+
+  setSSEActive(active: boolean): void {
+    if (this.closed || this.sseActive === active) {
+      return;
+    }
+
+    this.sseActive = active;
+    if (active) {
+      this.unsubscribeSSE = this.client.subscribeSSE(
+        this.sessionId,
+        (event) => this.handleSSEEvent(event),
+        (error) => this.emit("error", { error }),
+      );
+      return;
+    }
+
+    this.stopSSESubscription("deactivate");
   }
 
   syncRuntimeOptions(options: SessionRuntimeOptions): void {
@@ -1171,6 +1187,15 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
     } else if (event.type === "tool_complete") {
       this.emit("tool_complete", event);
     }
+  }
+
+  private stopSSESubscription(reason: string): void {
+    this.unsubscribeSSE?.();
+    this.unsubscribeSSE = null;
+    this.logger?.debug("[session] sse stopped", {
+      sessionId: this.sessionId,
+      reason,
+    });
   }
 
   // ===========================================================================

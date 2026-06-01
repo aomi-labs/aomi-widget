@@ -234,6 +234,9 @@ export function useRuntimeOrchestrator(
           clientId: nextClientId,
           userState: nextUserState,
         });
+        existing.setSSEActive(
+          threadContextRef.current.currentThreadId === threadId,
+        );
         return existing;
       }
 
@@ -246,6 +249,7 @@ export function useRuntimeOrchestrator(
         syncPendingTxRequestsFromUserState: false,
         userState: nextUserState,
       });
+      session.setSSEActive(threadContextRef.current.currentThreadId === threadId);
 
       // Wire ClientSession events → React state
       const cleanups: Array<() => void> = [];
@@ -485,6 +489,13 @@ export function useRuntimeOrchestrator(
       await session.interrupt();
     }
   }, []);
+
+  // Keep SSE active only for the current thread.
+  useEffect(() => {
+    sessionManagerRef.current?.forEach((session, threadId) => {
+      session.setSSEActive(threadId === threadContext.currentThreadId);
+    });
+  }, [threadContext.currentThreadId]);
 
   // Cleanup on unmount
   useEffect(() => {
