@@ -1,8 +1,8 @@
 ---
-title: Demo Apps
+title: App Surfaces
 owner: frontend
 status: authoritative
-area: demo-apps
+area: apps
 review_after_days: 30
 sources_of_truth:
   - package.json
@@ -12,9 +12,9 @@ sources_of_truth:
   - apps/telegram/package.json
 ---
 
-# Demo Apps
+# App Surfaces
 
-The app surfaces in `apps/` are the main validation targets for package changes.
+The app surfaces in `apps/` are the main product and validation targets for package changes.
 
 ## Main Surfaces
 
@@ -36,5 +36,5 @@ The app surfaces in `apps/` are the main validation targets for package changes.
 
 ## Related Topics
 
-- [repo-overview.md](repo-overview.md)
-- [widget-frame.md](widget-frame.md)
+- [development/facts/workspace.md](../../development/facts/workspace.md)
+- [apps/facts/widget-frame.md](../../apps/facts/widget-frame.md)

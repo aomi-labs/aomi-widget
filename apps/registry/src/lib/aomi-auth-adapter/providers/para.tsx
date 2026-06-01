@@ -45,6 +45,7 @@ import type {
 } from "@aomi-labs/react";
 import {
   ExtUserProvider,
+  toViemSignMessageArgs,
   toViemSignTypedDataArgs,
   UserState,
   useUser,
@@ -71,6 +72,7 @@ import {
   useSafeCapabilities,
   useSafeSendCallsSync,
   useSafeSendTransaction,
+  useSafeSignMessage,
   useSafeSignTypedData,
   useSafeSwitchChain,
   useSafeWagmiAccount,
@@ -460,6 +462,7 @@ export function AomiParaAdapterProvider({
   const { sendCallsSyncAsync } = useSafeSendCallsSync();
   const { capabilities } = useSafeCapabilities();
   const { signTypedDataAsync } = useSafeSignTypedData();
+  const { signMessageAsync } = useSafeSignMessage();
   const wagmiConfig = useSafeWagmiConfig();
   const solanaWallet = useSafeSolanaWallet();
 
@@ -508,6 +511,10 @@ export function AomiParaAdapterProvider({
     const usingExternalWallet = Boolean(externalAddress || wagmiAddress);
     const authMethod: AomiAuthMethod | undefined =
       oauthMethod ?? (usingExternalWallet ? "wagmi" : undefined);
+    const authValue =
+      !usingExternalWallet && authMethod
+        ? resolveParaAuthValue(paraAccount.embedded, authMethod)
+        : undefined;
 
     const svmAddress = solanaWallet.publicKey;
     const { sponsored, sponsorProvider, sponsorAccount } =
@@ -535,6 +542,7 @@ export function AomiParaAdapterProvider({
             svmAddress,
             walletProvider,
             authMethod,
+            authValue,
           }
         : svmAddress
           ? {
@@ -546,6 +554,7 @@ export function AomiParaAdapterProvider({
               svmAddress,
               walletProvider,
               authMethod,
+              authValue,
             }
           : {
               ...AOMI_AUTH_DISCONNECTED_IDENTITY,
@@ -616,6 +625,16 @@ export function AomiParaAdapterProvider({
             return { signature };
           }
         : undefined,
+      signMessage: signMessageAsync
+        ? async (payload: WalletEip712Payload) => {
+            const messageArgs = toViemSignMessageArgs(payload);
+            if (!messageArgs) {
+              throw new Error("Missing non_typed_data payload");
+            }
+            const signature = await signMessageAsync(messageArgs as never);
+            return { signature };
+          }
+        : undefined,
       // Solana sign — only exposed when the user has actually connected
       // a Solana wallet through `<ParaSolanaProvider>`. `RuntimeTxHandler`
       // checks for this method's presence and rejects gracefully when
@@ -659,6 +678,7 @@ export function AomiParaAdapterProvider({
     paraSession,
     sendCallsSyncAsync,
     sendTransactionAsync,
+    signMessageAsync,
     signTypedDataAsync,
     solanaWallet.publicKey,
     solanaWallet.signTransaction,
@@ -799,6 +819,22 @@ export function AomiParaProvider({
       </QueryClientProvider>
     </ExtUserProvider>
   );
+}
+
+function resolveParaAuthValue(
+  embedded: ParaAccountShape["embedded"],
+  authMethod: AomiAuthMethod,
+): string | undefined {
+  if (authMethod === "telegram") {
+    return embedded.telegramUserId;
+  }
+  if (authMethod === "farcaster") {
+    return embedded.farcasterUsername;
+  }
+  if (authMethod === "wagmi") {
+    return undefined;
+  }
+  return embedded.email;
 }
 
 /**

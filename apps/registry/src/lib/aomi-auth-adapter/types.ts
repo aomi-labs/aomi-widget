@@ -11,7 +11,7 @@ export type AomiAuthStatus = "booting" | "disconnected" | "connected";
 export type AomiWalletKind = "eoa" | "smart-account";
 export type AomiAAMode = "none" | "4337" | "7702";
 export type AomiSponsorProvider = "alchemy" | "coinbase" | "pimlico" | "self";
-export type AomiWalletProvider = "para" | "baseAccount";
+export type AomiWalletProvider = "para" | "privy" | "baseAccount";
 export type AomiAuthMethod =
   | "google"
   | "apple"
@@ -60,8 +60,14 @@ export type AomiAuthIdentity = {
   svmAddress?: string;
   /** Wallet platform backing this session. */
   walletProvider?: AomiWalletProvider;
+  /** Stable subject inside the wallet provider, when exposed. */
+  walletProviderSubject?: string;
   /** Auth method used within the wallet platform (Para OAuth, etc). */
   authMethod?: AomiAuthMethod;
+  /** Verified auth value from the wallet platform, such as email or phone. */
+  authValue?: string;
+  /** Provider verification timestamp for `authValue`, unix seconds. */
+  authVerifiedAt?: number;
 };
 
 export type AomiTxResult = {
@@ -97,6 +103,9 @@ export type AomiAuthAdapter = {
 
   sendTransaction?: (payload: WalletTxPayload) => Promise<AomiTxResult>;
   signTypedData?: (
+    payload: WalletEip712Payload,
+  ) => Promise<{ signature: string }>;
+  signMessage?: (
     payload: WalletEip712Payload,
   ) => Promise<{ signature: string }>;
   /**

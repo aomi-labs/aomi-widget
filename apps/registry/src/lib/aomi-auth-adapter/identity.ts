@@ -16,7 +16,10 @@ export const AOMI_AUTH_DISCONNECTED_IDENTITY: AomiAuthIdentity = {
   chainId: undefined,
   svmAddress: undefined,
   walletProvider: undefined,
+  walletProviderSubject: undefined,
   authMethod: undefined,
+  authValue: undefined,
+  authVerifiedAt: undefined,
 };
 
 export const AOMI_AUTH_BOOTING_IDENTITY: AomiAuthIdentity = {
@@ -33,7 +36,10 @@ export const AOMI_AUTH_BOOTING_IDENTITY: AomiAuthIdentity = {
   chainId: undefined,
   svmAddress: undefined,
   walletProvider: undefined,
+  walletProviderSubject: undefined,
   authMethod: undefined,
+  authValue: undefined,
+  authVerifiedAt: undefined,
 };
 
 export function formatAddress(address?: string): string | undefined {
@@ -47,6 +53,7 @@ export function formatWalletProvider(
   if (!provider) return undefined;
   const labelMap: Record<AomiWalletProvider, string> = {
     para: "Para",
+    privy: "Privy",
     baseAccount: "Base Account",
   };
   return labelMap[provider];

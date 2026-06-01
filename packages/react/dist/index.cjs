@@ -77,6 +77,7 @@ __export(index_exports, {
   resolveAutoModel: () => resolveAutoModel,
   toAAWalletCall: () => import_client10.toAAWalletCall,
   toAAWalletCalls: () => import_client10.toAAWalletCalls,
+  toViemSignMessageArgs: () => import_client10.toViemSignMessageArgs,
   toViemSignTypedDataArgs: () => import_client10.toViemSignTypedDataArgs,
   useAomiRuntime: () => useAomiRuntime,
   useControl: () => useControl,
@@ -1242,7 +1243,10 @@ function ExtUserProviderImpl({ children }) {
           delegation_7702: void 0,
           svm_address: void 0,
           wallet_provider: void 0,
+          wallet_provider_subject: void 0,
           auth_method: void 0,
+          auth_value: void 0,
+          auth_verified_at: void 0,
           sponsored: void 0,
           sponsor_provider: void 0,
           sponsor_account: void 0,
@@ -2052,32 +2056,40 @@ function useWalletHandler({
       )
     );
   }, []);
-  const setRequests = (0, import_react8.useCallback)((requests) => {
-    const incomingIds = new Set(requests.map((request) => request.id));
-    for (const id of suppressedRequestSetRef.current) {
-      if (!incomingIds.has(id) && !inFlightRequestSetRef.current.has(id)) {
-        suppressedRequestSetRef.current.delete(id);
+  const setRequests = (0, import_react8.useCallback)(
+    (requests) => {
+      const incomingIds = new Set(requests.map((request) => request.id));
+      for (const id of suppressedRequestSetRef.current) {
+        if (!incomingIds.has(id) && !inFlightRequestSetRef.current.has(id)) {
+          suppressedRequestSetRef.current.delete(id);
+        }
       }
-    }
-    const preservedInFlight = requestsRef.current.filter(
-      (request) => inFlightRequestSetRef.current.has(request.id) && !incomingIds.has(request.id)
-    );
-    requestsRef.current = [...requests, ...preservedInFlight];
-    syncVisibleRequests();
-  }, [syncVisibleRequests]);
-  const startRequest = (0, import_react8.useCallback)((id) => {
-    if (!requestsRef.current.some((request) => request.id === id)) {
-      return;
-    }
-    inFlightRequestSetRef.current.add(id);
-    suppressedRequestSetRef.current.add(id);
-    syncVisibleRequests();
-  }, [syncVisibleRequests]);
+      const preservedInFlight = requestsRef.current.filter(
+        (request) => inFlightRequestSetRef.current.has(request.id) && !incomingIds.has(request.id)
+      );
+      requestsRef.current = [...requests, ...preservedInFlight];
+      syncVisibleRequests();
+    },
+    [syncVisibleRequests]
+  );
+  const startRequest = (0, import_react8.useCallback)(
+    (id) => {
+      if (!requestsRef.current.some((request) => request.id === id)) {
+        return;
+      }
+      inFlightRequestSetRef.current.add(id);
+      suppressedRequestSetRef.current.add(id);
+      syncVisibleRequests();
+    },
+    [syncVisibleRequests]
+  );
   const resolveRequest = (0, import_react8.useCallback)(
     async (id, result) => {
       const session = getSession();
       if (!session) {
-        console.error("[wallet-handler] No session available to resolve request");
+        console.error(
+          "[wallet-handler] No session available to resolve request"
+        );
         return;
       }
       startRequest(id);
@@ -2099,7 +2111,9 @@ function useWalletHandler({
     async (id, error) => {
       const session = getSession();
       if (!session) {
-        console.error("[wallet-handler] No session available to reject request");
+        console.error(
+          "[wallet-handler] No session available to reject request"
+        );
         return;
       }
       startRequest(id);
@@ -2155,19 +2169,22 @@ function useWalletStateSync(context, sessions, remoteThreads) {
   const { remoteThreadIdsRef } = remoteThreads;
   const walletSnapshot = (0, import_react9.useCallback)(
     (nextUser) => {
-      var _a, _b, _c, _d, _e, _f, _g, _h;
+      var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k;
       return {
         address: import_client6.UserState.address(nextUser),
         chain_id: import_client6.UserState.chainId(nextUser),
         is_connected: (_a = import_client6.UserState.isConnected(nextUser)) != null ? _a : false,
         ens_name: typeof nextUser.ens_name === "string" ? nextUser.ens_name : void 0,
         wallet_provider: (_b = import_client6.UserState.walletProvider(nextUser)) != null ? _b : void 0,
-        auth_method: (_c = import_client6.UserState.authMethod(nextUser)) != null ? _c : void 0,
-        sponsored: (_d = import_client6.UserState.sponsored(nextUser)) != null ? _d : void 0,
-        sponsor_provider: (_e = import_client6.UserState.sponsorProvider(nextUser)) != null ? _e : void 0,
-        sponsor_account: (_f = import_client6.UserState.sponsorAccount(nextUser)) != null ? _f : void 0,
-        smart_account_4337: (_g = import_client6.UserState.SmartAccount4337(nextUser)) != null ? _g : void 0,
-        delegation_7702: (_h = import_client6.UserState.Delegation7702(nextUser)) != null ? _h : void 0
+        wallet_provider_subject: (_c = import_client6.UserState.walletProviderSubject(nextUser)) != null ? _c : void 0,
+        auth_method: (_d = import_client6.UserState.authMethod(nextUser)) != null ? _d : void 0,
+        auth_value: (_e = import_client6.UserState.authValue(nextUser)) != null ? _e : void 0,
+        auth_verified_at: (_f = import_client6.UserState.authVerifiedAt(nextUser)) != null ? _f : void 0,
+        sponsored: (_g = import_client6.UserState.sponsored(nextUser)) != null ? _g : void 0,
+        sponsor_provider: (_h = import_client6.UserState.sponsorProvider(nextUser)) != null ? _h : void 0,
+        sponsor_account: (_i = import_client6.UserState.sponsorAccount(nextUser)) != null ? _i : void 0,
+        smart_account_4337: (_j = import_client6.UserState.SmartAccount4337(nextUser)) != null ? _j : void 0,
+        delegation_7702: (_k = import_client6.UserState.Delegation7702(nextUser)) != null ? _k : void 0
       };
     },
     [getUserState]
@@ -2181,7 +2198,7 @@ function useWalletStateSync(context, sessions, remoteThreads) {
       const prevWalletState = lastWalletStateRef.current;
       const previousAddress = (_a = prevWalletState.address) == null ? void 0 : _a.toLowerCase();
       const nextAddress = (_b = nextWalletState.address) == null ? void 0 : _b.toLowerCase();
-      if (prevWalletState.address === nextWalletState.address && prevWalletState.chain_id === nextWalletState.chain_id && prevWalletState.is_connected === nextWalletState.is_connected && prevWalletState.ens_name === nextWalletState.ens_name && prevWalletState.wallet_provider === nextWalletState.wallet_provider && prevWalletState.auth_method === nextWalletState.auth_method && prevWalletState.sponsored === nextWalletState.sponsored && prevWalletState.sponsor_provider === nextWalletState.sponsor_provider && prevWalletState.sponsor_account === nextWalletState.sponsor_account && prevWalletState.smart_account_4337 === nextWalletState.smart_account_4337 && prevWalletState.delegation_7702 === nextWalletState.delegation_7702) {
+      if (prevWalletState.address === nextWalletState.address && prevWalletState.chain_id === nextWalletState.chain_id && prevWalletState.is_connected === nextWalletState.is_connected && prevWalletState.ens_name === nextWalletState.ens_name && prevWalletState.wallet_provider === nextWalletState.wallet_provider && prevWalletState.wallet_provider_subject === nextWalletState.wallet_provider_subject && prevWalletState.auth_method === nextWalletState.auth_method && prevWalletState.auth_value === nextWalletState.auth_value && prevWalletState.auth_verified_at === nextWalletState.auth_verified_at && prevWalletState.sponsored === nextWalletState.sponsored && prevWalletState.sponsor_provider === nextWalletState.sponsor_provider && prevWalletState.sponsor_account === nextWalletState.sponsor_account && prevWalletState.smart_account_4337 === nextWalletState.smart_account_4337 && prevWalletState.delegation_7702 === nextWalletState.delegation_7702) {
         return;
       }
       lastWalletStateRef.current = nextWalletState;
@@ -3070,6 +3087,7 @@ function useNotificationHandler({
   resolveAutoModel,
   toAAWalletCall,
   toAAWalletCalls,
+  toViemSignMessageArgs,
   toViemSignTypedDataArgs,
   useAomiRuntime,
   useControl,

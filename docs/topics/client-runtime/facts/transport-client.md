@@ -1,8 +1,8 @@
 ---
-title: TypeScript Client
+title: Transport Client
 owner: sdk
 status: authoritative
-area: ts-client
+area: client-runtime
 review_after_days: 30
 sources_of_truth:
   - packages/client/src/client.ts
@@ -12,7 +12,7 @@ sources_of_truth:
   - packages/client/src/index.ts
 ---
 
-# TypeScript Client
+# Transport Client
 
 `@aomi-labs/client` is the transport and type layer shared by the widget runtime, CLI, and external consumers.
 
@@ -36,5 +36,5 @@ sources_of_truth:
 
 ## Related Topics
 
-- [runtime-react.md](runtime-react.md)
-- [cli.md](cli.md)
+- [client-runtime/facts/react-runtime.md](../../client-runtime/facts/react-runtime.md)
+- [client-runtime/facts/cli.md](../../client-runtime/facts/cli.md)

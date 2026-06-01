@@ -41,8 +41,15 @@ function AomiAuthAdapterSync({
       walletProvider: identity.isConnected
         ? (identity.walletProvider ?? null)
         : null,
+      walletProviderSubject: identity.isConnected
+        ? (identity.walletProviderSubject ?? null)
+        : null,
       authMethod: identity.isConnected
         ? (identity.authMethod ?? null)
+        : null,
+      authValue: identity.isConnected ? (identity.authValue ?? null) : null,
+      authVerifiedAt: identity.isConnected
+        ? (identity.authVerifiedAt ?? null)
         : null,
       sponsored: identity.isConnected ? (identity.sponsored ?? null) : null,
       sponsorProvider: identity.isConnected
@@ -55,6 +62,8 @@ function AomiAuthAdapterSync({
   }, [
     identity.address,
     identity.authMethod,
+    identity.authValue,
+    identity.authVerifiedAt,
     identity.chainId,
     identity.isConnected,
     identity.walletKind,
@@ -63,6 +72,7 @@ function AomiAuthAdapterSync({
     identity.sponsored,
     identity.svmAddress,
     identity.walletProvider,
+    identity.walletProviderSubject,
     setUser,
   ]);
 
