@@ -2,9 +2,35 @@
 
 ## Last Updated
 
-2026-04-27 - Release version bumps for publish
+2026-05-31 - Merge main into mcp-v1 + MCP doc cleanup
 
 ## Recent Changes
+
+### Merge main into mcp-v1 + stale-doc cleanup (2026-05-31)
+
+- **Merged `origin/main`** into `mcp-v1` (PR #159). Only conflicts were
+  generated `dist/` artifacts (`packages/client/dist/*.map`,
+  `packages/react/dist/*`); resolved by rebuilding via `pnpm run build:lib`.
+  Lint clean.
+- **Refreshed stale MCP handoff docs** — BE (`product-mono`) has shipped the
+  full integration the docs described as pending. Added status banners to
+  `specs/mcp-be-handoff.md` and `specs/mcp-be-integration.md` pointing at the
+  live BE handlers (`internal_approvals.rs`, `vault.rs` `ingest_identity`,
+  `authorized_signer/privy.rs`). Verified TS↔Rust contract matches
+  field-for-field (`POST /api/_internal/approvals`, `X-Aomi-User`/`X-Aomi-Auth`).
+- **Stripped Claude-transcript artifact** from `docs/krexa-wallet.md` header.
+
+
+### Move reusable portal adapters into packages/mcp-core (2026-05-25)
+
+- **Created `packages/mcp-core/src/backends/aomi-client.ts`** — moved `buildBackendPort` + `BackendPortDeps` from portal's `mcp-backend-bridge.ts`. Pure `BackendPort` implementation using `AomiClient`, zero portal-specific logic.
+- **Created `packages/mcp-core/src/adapters/auth-adapter.ts`** — extracted `buildAuthPort` + `AuthPortDeps` from portal's `mcp-server.ts`. Takes `{ store, providers, baseUrl }` as explicit deps instead of reaching into portal singleton.
+- **Updated `packages/mcp-core/package.json`** — added `@aomi-labs/client: "workspace:*"` dependency.
+- **Updated `packages/mcp-core/src/index.ts`** — added exports for `buildBackendPort`, `BackendPortDeps`, `buildAuthPort`, `AuthPortDeps`.
+- **Rewrote `apps/portal/src/lib/aomi-auth/mcp-server.ts`** — simplified to ~15 lines: reads portal config, injects into package-level factories from `@aomi-labs/mcp-core`.
+- **Deleted `apps/portal/src/lib/aomi-auth/mcp-backend-bridge.ts`** — replaced by `packages/mcp-core/src/backends/aomi-client.ts`.
+- `auth-config.ts` and `env.ts` remain in portal (deployment-specific singletons).
+- All type checks pass (mcp-core + portal), `build:lib` clean.
 
 ### Release version bumps for publish (2026-04-27)
 

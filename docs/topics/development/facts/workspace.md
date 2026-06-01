@@ -1,8 +1,8 @@
 ---
-title: Repo Overview
+title: Development Workspace
 owner: platform
 status: authoritative
-area: repo-overview
+area: development
 review_after_days: 30
 sources_of_truth:
   - package.json
@@ -13,9 +13,9 @@ sources_of_truth:
   - packages/react/package.json
 ---
 
-# Repo Overview
+# Development Workspace
 
-`aomi-widget` is a pnpm workspace that ships multiple Aomi entry points from one TypeScript repo.
+`aomi-widget` is a pnpm workspace that ships the widget UI, React runtime, TypeScript client, CLI, auth support, and app validation surfaces from one TypeScript repo.
 
 ## Workspace Shape
 
@@ -40,7 +40,7 @@ sources_of_truth:
 
 ## Related Topics
 
-- [widget-frame.md](widget-frame.md)
-- [runtime-react.md](runtime-react.md)
-- [ts-client.md](ts-client.md)
-- [demo-apps.md](demo-apps.md)
+- [apps/facts/widget-frame.md](../../apps/facts/widget-frame.md)
+- [client-runtime/facts/react-runtime.md](../../client-runtime/facts/react-runtime.md)
+- [client-runtime/facts/transport-client.md](../../client-runtime/facts/transport-client.md)
+- [apps/facts/app-surfaces.md](../../apps/facts/app-surfaces.md)

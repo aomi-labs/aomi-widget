@@ -8,7 +8,7 @@
  */
 export type UserStateAAMode = "none" | "4337" | "7702";
 export type UserStateWalletKind = "eoa" | "smart-account";
-export type UserStateWalletProvider = "para" | "baseAccount";
+export type UserStateWalletProvider = "para" | "privy" | "baseAccount";
 export type UserStateAuthMethod =
   | "google"
   | "apple"
@@ -44,7 +44,10 @@ export interface UserState extends Record<string, unknown> {
   ens_name?: string | null;
   svm_address?: string | null;
   wallet_provider?: UserStateWalletProvider | null;
+  wallet_provider_subject?: string | null;
   auth_method?: UserStateAuthMethod | null;
+  auth_value?: string | null;
+  auth_verified_at?: number | string | null;
   sponsored?: boolean | null;
   sponsor_provider?: UserStateSponsorProvider | null;
   sponsor_account?: string | null;
@@ -83,7 +86,10 @@ const USER_STATE_KEY_ALIASES: Record<string, string> = {
   pendingSolanaTxs: "pending_solana_txs",
   nextId: "next_id",
   walletProvider: "wallet_provider",
+  walletProviderSubject: "wallet_provider_subject",
   authMethod: "auth_method",
+  authValue: "auth_value",
+  authVerifiedAt: "auth_verified_at",
   sponsorProvider: "sponsor_provider",
   sponsorAccount: "sponsor_account",
 };
@@ -120,7 +126,34 @@ function parseUserStateWalletProvider(
   if (value === null) {
     return null;
   }
-  return value === "para" || value === "baseAccount" ? value : undefined;
+  return value === "para" || value === "privy" || value === "baseAccount"
+    ? value
+    : undefined;
+}
+
+function parseUserStateOptionalString(
+  value: unknown,
+): string | null | undefined {
+  if (value === null) {
+    return null;
+  }
+  return typeof value === "string" && value.trim().length > 0
+    ? value
+    : undefined;
+}
+
+function parseUserStateTimestamp(value: unknown): number | null | undefined {
+  if (value === null) {
+    return null;
+  }
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return Math.trunc(value);
+  }
+  if (typeof value !== "string") {
+    return undefined;
+  }
+  const parsed = Number.parseInt(value, 10);
+  return Number.isFinite(parsed) ? parsed : undefined;
 }
 
 const AUTH_METHODS = new Set<UserStateAuthMethod>([
@@ -341,6 +374,30 @@ export namespace UserState {
     }
 
     if (
+      !hasOwnKey(incoming, "wallet_provider_subject") &&
+      canPreserveAAContext &&
+      walletProviderSubject(previous) !== undefined
+    ) {
+      reconciled.wallet_provider_subject = walletProviderSubject(previous);
+    }
+
+    if (
+      !hasOwnKey(incoming, "auth_value") &&
+      canPreserveAAContext &&
+      authValue(previous) !== undefined
+    ) {
+      reconciled.auth_value = authValue(previous);
+    }
+
+    if (
+      !hasOwnKey(incoming, "auth_verified_at") &&
+      canPreserveAAContext &&
+      authVerifiedAt(previous) !== undefined
+    ) {
+      reconciled.auth_verified_at = authVerifiedAt(previous);
+    }
+
+    if (
       !hasOwnKey(incoming, "sponsored") &&
       canPreserveAAContext &&
       sponsored(previous) !== undefined
@@ -440,11 +497,32 @@ export namespace UserState {
     return parseUserStateWalletProvider(normalized?.wallet_provider);
   }
 
+  export function walletProviderSubject(
+    userState?: UserState | null,
+  ): string | null | undefined {
+    const normalized = normalize(userState);
+    return parseUserStateOptionalString(normalized?.wallet_provider_subject);
+  }
+
   export function authMethod(
     userState?: UserState | null,
   ): UserStateAuthMethod | null | undefined {
     const normalized = normalize(userState);
     return parseUserStateAuthMethod(normalized?.auth_method);
+  }
+
+  export function authValue(
+    userState?: UserState | null,
+  ): string | null | undefined {
+    const normalized = normalize(userState);
+    return parseUserStateOptionalString(normalized?.auth_value);
+  }
+
+  export function authVerifiedAt(
+    userState?: UserState | null,
+  ): number | null | undefined {
+    const normalized = normalize(userState);
+    return parseUserStateTimestamp(normalized?.auth_verified_at);
   }
 
   export function sponsored(

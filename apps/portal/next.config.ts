@@ -72,7 +72,9 @@ const nextConfig: NextConfig = {
     ignoreBuildErrors: true,
   },
   transpilePackages: [
+    "@aomi-labs/auth",
     "@aomi-labs/client",
+    "@aomi-labs/mcp-core",
     "@aomi-labs/react",
     "@aomi-labs/widget-lib",
     "@getpara/react-sdk",
@@ -81,6 +83,8 @@ const nextConfig: NextConfig = {
     resolveAlias: {
       "@portal": "./src",
       ...widgetTurbopackAliases,
+      "@aomi-labs/auth": "../../packages/auth/src/index.ts",
+      "@aomi-labs/mcp-core": "../../packages/mcp-core/src/index.ts",
       "@aomi-labs/client": "../../packages/client/src/index.ts",
       "@aomi-labs/react": "../../packages/react/src/index.ts",
       "@assistant-ui/react": "./node_modules/@assistant-ui/react",
@@ -102,6 +106,14 @@ const nextConfig: NextConfig = {
       ...(config.resolve.alias ?? {}),
       "@portal": portalSrc,
       ...widgetWebpackAliases,
+      "@aomi-labs/auth": path.join(
+        workspaceRoot,
+        "packages/auth/src/index.ts",
+      ),
+      "@aomi-labs/mcp-core": path.join(
+        workspaceRoot,
+        "packages/mcp-core/src/index.ts",
+      ),
       "@aomi-labs/client": path.join(
         workspaceRoot,
         "packages/client/src/index.ts",
