@@ -279,8 +279,7 @@ export function SolanaRuntimeDriver() {
     () => ({
       connection: {
         is_connected: true,
-        primary_family: "solana",
-        provider: "local-solana-driver",
+        primary_family: "svm",
         provider_label: "Local Solana Driver",
       },
       solana: {
@@ -315,6 +314,16 @@ export function SolanaRuntimeDriver() {
           canSignAndSendTransaction: true,
         },
       },
+      accounts: [
+        {
+          id: "Local Dev Signer",
+          family: "solana",
+          address: signer.publicKey.toBase58(),
+          walletName: "Local Dev Signer",
+          active: true,
+        },
+      ],
+      selectAccount: async () => undefined,
       isReady: true,
       isSwitchingChain: false,
       canConnect: false,

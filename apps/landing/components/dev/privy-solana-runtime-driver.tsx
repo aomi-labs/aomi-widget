@@ -117,9 +117,9 @@ function identityToUserState(adapter: AomiAuthAdapter): UserStateShape {
           : identity.address
             ? "evm"
             : identity.svmAddress
-              ? "solana"
+              ? "svm"
               : null,
-      provider: identity.authProvider ?? undefined,
+      provider: "privy",
       provider_label: identity.secondaryLabel ?? undefined,
     },
     evm: {
@@ -127,7 +127,7 @@ function identityToUserState(adapter: AomiAuthAdapter): UserStateShape {
       chain_id: identity.chainId ?? undefined,
       aa: {
         mode: identity.aaMode ?? null,
-        smart_account: identity.smartAccount ?? null,
+        smart_account: identity.SmartAccount4337 ?? null,
       },
     },
     solana: {
