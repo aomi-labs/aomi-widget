@@ -924,6 +924,7 @@ declare class ClientSession extends TypedEventEmitter<SessionEventMap> {
     private logger?;
     private pollTimer;
     private unsubscribeSSE;
+    private sseActive;
     private _isProcessing;
     private _backendWasProcessing;
     private walletRequests;
@@ -992,6 +993,8 @@ declare class ClientSession extends TypedEventEmitter<SessionEventMap> {
     getPendingRequests(): WalletRequest[];
     /** Whether the AI is currently processing. */
     getIsProcessing(): boolean;
+    getIsSSEActive(): boolean;
+    setSSEActive(active: boolean): void;
     syncRuntimeOptions(options: SessionRuntimeOptions): void;
     private commitUserState;
     resolveUserState(userState: UserState): void;
@@ -1021,6 +1024,7 @@ declare class ClientSession extends TypedEventEmitter<SessionEventMap> {
     private applyState;
     private dispatchSystemEvents;
     private handleSSEEvent;
+    private stopSSESubscription;
     private enqueueWalletRequest;
     private removeWalletRequest;
     private sendSystemEvent;

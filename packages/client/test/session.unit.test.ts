@@ -25,6 +25,45 @@ function createMockClient() {
   return { client, sendMessage, fetchState, sendSystemMessage };
 }
 
+describe("ClientSession SSE lifecycle", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("can deactivate and reactivate SSE without closing the session", () => {
+    const client = new AomiClient({ baseUrl: "http://unit.test" });
+    const unsubscribeA = vi.fn();
+    const unsubscribeB = vi.fn();
+    const subscribeSSE = vi
+      .spyOn(client, "subscribeSSE")
+      .mockReturnValueOnce(unsubscribeA)
+      .mockReturnValueOnce(unsubscribeB);
+
+    const session = new Session(client, { sessionId: "session-sse-1" });
+
+    expect(session.getIsSSEActive()).toBe(false);
+    expect(subscribeSSE).not.toHaveBeenCalled();
+
+    session.setSSEActive(true);
+    expect(session.getIsSSEActive()).toBe(true);
+    expect(subscribeSSE).toHaveBeenCalledTimes(1);
+
+    session.setSSEActive(false);
+    expect(session.getIsSSEActive()).toBe(false);
+    expect(unsubscribeA).toHaveBeenCalledTimes(1);
+
+    session.setSSEActive(false);
+    expect(unsubscribeA).toHaveBeenCalledTimes(1);
+
+    session.setSSEActive(true);
+    expect(session.getIsSSEActive()).toBe(true);
+    expect(subscribeSSE).toHaveBeenCalledTimes(2);
+
+    session.close();
+    expect(unsubscribeB).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe("ClientSession ext helpers", () => {
   afterEach(() => {
     vi.restoreAllMocks();

@@ -1540,6 +1540,9 @@ function useRuntimeOrchestrator(aomiClient, options) {
           clientId: nextClientId,
           userState: nextUserState
         });
+        existing.setSSEActive(
+          threadContextRef.current.currentThreadId === threadId
+        );
         return existing;
       }
       const session = manager.getOrCreate(threadId, {
@@ -1551,6 +1554,7 @@ function useRuntimeOrchestrator(aomiClient, options) {
         syncPendingTxRequestsFromUserState: false,
         userState: nextUserState
       });
+      session.setSSEActive(threadContextRef.current.currentThreadId === threadId);
       const cleanups = [];
       cleanups.push(
         session.on("messages", (msgs) => {
@@ -1764,6 +1768,12 @@ function useRuntimeOrchestrator(aomiClient, options) {
       await session.interrupt();
     }
   }, []);
+  (0, import_react6.useEffect)(() => {
+    var _a;
+    (_a = sessionManagerRef.current) == null ? void 0 : _a.forEach((session, threadId) => {
+      session.setSSEActive(threadId === threadContext.currentThreadId);
+    });
+  }, [threadContext.currentThreadId]);
   (0, import_react6.useEffect)(() => {
     return () => {
       closeAllSessions();

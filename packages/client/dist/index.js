@@ -1665,6 +1665,7 @@ var ClientSession = class extends TypedEventEmitter {
     // Internal state
     this.pollTimer = null;
     this.unsubscribeSSE = null;
+    this.sseActive = false;
     this._isProcessing = false;
     this._backendWasProcessing = false;
     this.walletRequests = [];
@@ -1697,11 +1698,6 @@ var ClientSession = class extends TypedEventEmitter {
     this.syncPendingTxRequestsFromUserState = (_d = sessionOptions == null ? void 0 : sessionOptions.syncPendingTxRequestsFromUserState) != null ? _d : true;
     this.pollIntervalMs = (_e = sessionOptions == null ? void 0 : sessionOptions.pollIntervalMs) != null ? _e : 500;
     this.logger = sessionOptions == null ? void 0 : sessionOptions.logger;
-    this.unsubscribeSSE = this.client.subscribeSSE(
-      this.sessionId,
-      (event) => this.handleSSEEvent(event),
-      (error) => this.emit("error", { error })
-    );
   }
   // ===========================================================================
   // Public API — Chat
@@ -1976,12 +1972,10 @@ var ClientSession = class extends TypedEventEmitter {
    * The session cannot be used after closing.
    */
   close() {
-    var _a;
     if (this.closed) return;
     this.closed = true;
     this.stopPolling();
-    (_a = this.unsubscribeSSE) == null ? void 0 : _a.call(this);
-    this.unsubscribeSSE = null;
+    this.stopSSESubscription("close");
     this.resolvePending();
     this.removeAllListeners();
   }
@@ -2007,6 +2001,24 @@ var ClientSession = class extends TypedEventEmitter {
   /** Whether the AI is currently processing. */
   getIsProcessing() {
     return this._isProcessing;
+  }
+  getIsSSEActive() {
+    return this.sseActive;
+  }
+  setSSEActive(active) {
+    if (this.closed || this.sseActive === active) {
+      return;
+    }
+    this.sseActive = active;
+    if (active) {
+      this.unsubscribeSSE = this.client.subscribeSSE(
+        this.sessionId,
+        (event) => this.handleSSEEvent(event),
+        (error) => this.emit("error", { error })
+      );
+      return;
+    }
+    this.stopSSESubscription("deactivate");
   }
   syncRuntimeOptions(options) {
     var _a;
@@ -2302,6 +2314,15 @@ var ClientSession = class extends TypedEventEmitter {
     } else if (event.type === "tool_complete") {
       this.emit("tool_complete", event);
     }
+  }
+  stopSSESubscription(reason) {
+    var _a, _b;
+    (_a = this.unsubscribeSSE) == null ? void 0 : _a.call(this);
+    this.unsubscribeSSE = null;
+    (_b = this.logger) == null ? void 0 : _b.debug("[session] sse stopped", {
+      sessionId: this.sessionId,
+      reason
+    });
   }
   enqueueWalletRequest(kind, payload) {
     var _a;
