@@ -33,6 +33,7 @@ export {
   DISABLED_PROVIDER_STATE,
   parseChainId,
   aaModeFromExecutionKind,
+  toViemSignMessageArgs,
 } from "@aomi-labs/client";
 
 // =============================================================================
@@ -81,6 +82,7 @@ export type {
   WalletRequestResult,
   WalletHandlerConfig,
   WalletHandlerApi,
+  ViemSignMessageArgs,
 } from "./handlers/wallet-handler";
 export type {
   NotificationHandlerConfig,
