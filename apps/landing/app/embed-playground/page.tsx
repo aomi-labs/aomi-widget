@@ -1,3 +1,5 @@
+// For Mintlify iframe embed — zero chrome, bare PlaygroundConfigurator
+
 import { PlaygroundConfigurator } from "@/content/components/playground/PlaygroundConfigurator";
 
 export const metadata = {
