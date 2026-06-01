@@ -338,7 +338,8 @@ describeLive("Control API (live backend)", () => {
       const apps = await client.getApps(sessionId);
       expect(Array.isArray(apps)).toBe(true);
       expect(apps.length).toBeGreaterThan(0);
-      expect(apps).toContain("default");
+      // getApps returns AomiAppDescriptor objects ({ name, ... }).
+      expect(apps.map((app) => app.name)).toContain("default");
     },
     TEST_TIMEOUT,
   );
