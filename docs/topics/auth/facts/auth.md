@@ -62,7 +62,7 @@ The callback stores only secret handles in approval metadata. It sorts the retur
 
 `dummyProvider` proves the end-to-end flow with an inline approval page and a synthesized token.
 
-`makePrivyProvider` redirects to a portal-hosted Privy login page. Its callback expects `access_token`, `user_id`, `wallet_id`, and `wallet_address`, validates the obvious Privy DID and EVM address shapes, and returns Privy credential slots for the secret store.
+`makePrivyProvider` redirects to a portal-hosted Privy login page. Its callback expects `access_token`, `user_id`, `wallet_id`, and `wallet_address`, verifies the access token server-side, rejects browser-reported user IDs that do not match the signed subject, validates the obvious Privy DID and EVM address shapes, and returns Privy credential slots for the secret store.
 
 ## Operational Notes
 
@@ -71,7 +71,7 @@ The callback stores only secret handles in approval metadata. It sorts the retur
 - Provider names are URL slugs under `/api/auth/{provider}` and keys in `ProviderRegistry`.
 - Portal's singleton auth runtime is stored on `globalThis` so `next dev` hot reloads do not lose pending auth state.
 - `AOMI_AUTH_TOKEN` is the v1 shared secret between portal and the backend trusted secret ingest path.
-- `PRIVY_APP_ID` or `NEXT_PUBLIC_PRIVY_APP_ID` controls whether the Privy provider is registered.
+- `PRIVY_APP_ID` or `NEXT_PUBLIC_PRIVY_APP_ID` plus the server-only `PRIVY_JWT_VERIFICATION_KEY` control whether the Privy provider is registered.
 - Production persistence is still future work; the current store implementation is in-memory.
 
 ## Related Topics
