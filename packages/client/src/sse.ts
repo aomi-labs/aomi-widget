@@ -6,6 +6,7 @@ export type SseSubscriber = {
     onUpdate: (event: AomiSSEEvent) => void,
     onError?: (error: unknown) => void,
   ) => () => void;
+  reconnect: (reason?: string) => void;
 };
 
 export type SseSubscriberOptions = {
@@ -194,36 +195,42 @@ export function createSseSubscriber({
 
         subscription.retries = 0;
 
-        await readSseStream(response.body, controller.signal, ({ data, id }) => {
-          if (id && subscription.seenEventIds.has(id)) {
-            return;
-          }
-          if (id) {
-            subscription.lastEventId = id;
-            subscription.seenEventIds.add(id);
-            if (subscription.seenEventIds.size > MAX_SEEN_EVENT_IDS) {
-              const oldestId = subscription.seenEventIds.values().next().value;
-              if (oldestId) subscription.seenEventIds.delete(oldestId);
+        await readSseStream(
+          response.body,
+          controller.signal,
+          ({ data, id }) => {
+            if (id && subscription.seenEventIds.has(id)) {
+              return;
             }
-          }
-          let parsed: AomiSSEEvent;
-          try {
-            parsed = JSON.parse(data) as AomiSSEEvent;
-          } catch (error) {
-            for (const item of subscription.listeners) {
-              item.onError?.(error);
+            if (id) {
+              subscription.lastEventId = id;
+              subscription.seenEventIds.add(id);
+              if (subscription.seenEventIds.size > MAX_SEEN_EVENT_IDS) {
+                const oldestId = subscription.seenEventIds
+                  .values()
+                  .next().value;
+                if (oldestId) subscription.seenEventIds.delete(oldestId);
+              }
             }
-            return;
-          }
-
-          for (const item of subscription.listeners) {
+            let parsed: AomiSSEEvent;
             try {
-              item.onUpdate(parsed);
+              parsed = JSON.parse(data) as AomiSSEEvent;
             } catch (error) {
-              item.onError?.(error);
+              for (const item of subscription.listeners) {
+                item.onError?.(error);
+              }
+              return;
             }
-          }
-        });
+
+            for (const item of subscription.listeners) {
+              try {
+                item.onUpdate(parsed);
+              } catch (error) {
+                item.onError?.(error);
+              }
+            }
+          },
+        );
         logger?.debug("[aomi][sse] stream ended", {
           sessionId,
           aborted: controller.signal.aborted,
@@ -261,5 +268,13 @@ export function createSseSubscriber({
     };
   };
 
-  return { subscribe };
+  const reconnect: SseSubscriber["reconnect"] = (reason) => {
+    for (const subscription of subscriptions.values()) {
+      if (!subscription.stopped) {
+        subscription.abortController?.abort(reason);
+      }
+    }
+  };
+
+  return { subscribe, reconnect };
 }

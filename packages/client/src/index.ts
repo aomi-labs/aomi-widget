@@ -3,6 +3,13 @@
 // =============================================================================
 
 export { AomiClient } from "./client";
+export { createAccountAccessTokenProvider } from "./account-session";
+export type {
+  AccountAccessTokenProviderOptions,
+  AccountAccessTokenProvider,
+  AccountCredentialProvider,
+  AccountSessionExchangeResponse,
+} from "./account-session";
 
 // =============================================================================
 // Types
@@ -11,6 +18,7 @@ export { AomiClient } from "./client";
 export type {
   AomiAppDescriptor,
   AomiClientOptions,
+  GetAccountAccessToken,
   AomiMessage,
   AomiChatResponse,
   AomiClearSecretsResponse,

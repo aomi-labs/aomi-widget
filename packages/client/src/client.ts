@@ -19,6 +19,7 @@ import type {
   AomiSystemEvent,
   AomiSystemResponse,
   AomiThread,
+  GetAccountAccessToken,
   Logger,
 } from "./types";
 import { UserState, type UserState as UserStateShape } from "./user-state";
@@ -127,13 +128,46 @@ function buildApiUrl(
   return queryString ? `${url}?${queryString}` : url;
 }
 
-function withSessionHeader(
-  sessionId: string,
-  init?: HeadersInit,
-): HeadersInit {
+function withSessionHeader(sessionId: string, init?: HeadersInit): HeadersInit {
   const headers = new Headers(init);
   headers.set(SESSION_ID_HEADER, sessionId);
   return headers;
+}
+
+function wrapFetchWithAccountBearer(
+  fetchImpl: typeof fetch,
+  getAccountAccessToken?: GetAccountAccessToken,
+): typeof fetch {
+  if (!getAccountAccessToken) return fetchImpl;
+
+  return async (input, init) => {
+    const baseHeaders = new Headers(
+      init?.headers ?? (input instanceof Request ? input.headers : undefined),
+    );
+    const fetchWithBearer = async (forceRefresh: boolean) => {
+      const headers = new Headers(baseHeaders);
+      const accessToken = await getAccountAccessToken({ forceRefresh });
+      if (accessToken) {
+        headers.set("Authorization", `Bearer ${accessToken}`);
+      }
+      return fetchImpl(input, { ...init, headers });
+    };
+
+    const response = await fetchWithBearer(false);
+    if (response.status !== 401) return response;
+    return fetchWithBearer(true);
+  };
+}
+
+function supportsTokenRefreshSubscription(
+  provider: GetAccountAccessToken | undefined,
+): provider is GetAccountAccessToken & {
+  subscribe: (listener: () => void) => () => void;
+} {
+  return (
+    typeof (provider as { subscribe?: unknown } | undefined)?.subscribe ===
+    "function"
+  );
 }
 
 async function postState<T>(
@@ -215,11 +249,19 @@ export class AomiClient {
     // Strip trailing slash
     this.baseUrl = options.baseUrl.replace(/\/+$/, "");
     this.apiKey = options.apiKey;
-    this.fetchImpl = options.fetch ?? globalThis.fetch.bind(globalThis);
-    this.rawFetchImpl =
+    const fetchImpl = options.fetch ?? globalThis.fetch.bind(globalThis);
+    const rawFetchImpl =
       typeof globalThis.fetch === "function"
         ? globalThis.fetch.bind(globalThis)
-        : this.fetchImpl;
+        : fetchImpl;
+    this.fetchImpl = wrapFetchWithAccountBearer(
+      fetchImpl,
+      options.getAccountAccessToken,
+    );
+    this.rawFetchImpl = wrapFetchWithAccountBearer(
+      rawFetchImpl,
+      options.getAccountAccessToken,
+    );
     this.logger = options.logger;
 
     this.sseSubscriber = createSseSubscriber({
@@ -231,6 +273,11 @@ export class AomiClient {
       fetchImpl: this.rawFetchImpl,
       logger: this.logger,
     });
+    if (supportsTokenRefreshSubscription(options.getAccountAccessToken)) {
+      options.getAccountAccessToken.subscribe(() => {
+        this.sseSubscriber.reconnect("account-token-refreshed");
+      });
+    }
   }
 
   // ===========================================================================
@@ -394,7 +441,11 @@ export class AomiClient {
     app?: string,
   ): Promise<AomiIngestSecretsResponse> {
     const url = joinApiPath(this.baseUrl, "/api/secrets");
-    const body: { client_id: string; app?: string; secrets: Record<string, string> } = {
+    const body: {
+      client_id: string;
+      app?: string;
+      secrets: Record<string, string>;
+    } = {
       client_id: clientId,
       secrets,
     };
@@ -540,7 +591,10 @@ export class AomiClient {
   /**
    * List all threads for a wallet address.
    */
-  async listThreads(sessionId: string, publicKey: string): Promise<AomiThread[]> {
+  async listThreads(
+    sessionId: string,
+    publicKey: string,
+  ): Promise<AomiThread[]> {
     const url = buildApiUrl(this.baseUrl, "/api/sessions", {
       public_key: publicKey,
     });
@@ -842,10 +896,7 @@ export class AomiClient {
   /**
    * Delete a BYOK key for the client bound to this session.
    */
-  async deleteByokKey(
-    sessionId: string,
-    provider: string,
-  ): Promise<boolean> {
+  async deleteByokKey(sessionId: string, provider: string): Promise<boolean> {
     const url = buildApiUrl(
       this.baseUrl,
       `/api/control/provider-keys/${encodeURIComponent(provider)}`,
@@ -914,7 +965,9 @@ export class AomiClient {
 
     if (!response.ok) {
       const body = await response.text().catch(() => "");
-      throw new Error(`HTTP ${response.status}: ${response.statusText}${body ? `\n${body}` : ""}`);
+      throw new Error(
+        `HTTP ${response.status}: ${response.statusText}${body ? `\n${body}` : ""}`,
+      );
     }
 
     return (await response.json()) as AomiSimulateResponse;

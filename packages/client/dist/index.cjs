@@ -67,6 +67,7 @@ __export(index_exports, {
   buildAAExecutionPlan: () => buildAAExecutionPlan,
   buildFeeAAWalletCall: () => buildFeeAAWalletCall,
   createAAProviderState: () => createAAProviderState,
+  createAccountAccessTokenProvider: () => createAccountAccessTokenProvider,
   createAlchemyAAProvider: () => createAlchemyAAProvider,
   createPimlicoAAProvider: () => createPimlicoAAProvider,
   executeWalletCalls: () => executeWalletCalls,
@@ -710,36 +711,40 @@ function createSseSubscriber({
           throw new Error("SSE response missing body");
         }
         subscription.retries = 0;
-        await readSseStream(response.body, controller.signal, ({ data, id }) => {
-          var _a2, _b;
-          if (id && subscription.seenEventIds.has(id)) {
-            return;
-          }
-          if (id) {
-            subscription.lastEventId = id;
-            subscription.seenEventIds.add(id);
-            if (subscription.seenEventIds.size > MAX_SEEN_EVENT_IDS) {
-              const oldestId = subscription.seenEventIds.values().next().value;
-              if (oldestId) subscription.seenEventIds.delete(oldestId);
+        await readSseStream(
+          response.body,
+          controller.signal,
+          ({ data, id }) => {
+            var _a2, _b;
+            if (id && subscription.seenEventIds.has(id)) {
+              return;
             }
-          }
-          let parsed;
-          try {
-            parsed = JSON.parse(data);
-          } catch (error) {
-            for (const item of subscription.listeners) {
-              (_a2 = item.onError) == null ? void 0 : _a2.call(item, error);
+            if (id) {
+              subscription.lastEventId = id;
+              subscription.seenEventIds.add(id);
+              if (subscription.seenEventIds.size > MAX_SEEN_EVENT_IDS) {
+                const oldestId = subscription.seenEventIds.values().next().value;
+                if (oldestId) subscription.seenEventIds.delete(oldestId);
+              }
             }
-            return;
-          }
-          for (const item of subscription.listeners) {
+            let parsed;
             try {
-              item.onUpdate(parsed);
+              parsed = JSON.parse(data);
             } catch (error) {
-              (_b = item.onError) == null ? void 0 : _b.call(item, error);
+              for (const item of subscription.listeners) {
+                (_a2 = item.onError) == null ? void 0 : _a2.call(item, error);
+              }
+              return;
+            }
+            for (const item of subscription.listeners) {
+              try {
+                item.onUpdate(parsed);
+              } catch (error) {
+                (_b = item.onError) == null ? void 0 : _b.call(item, error);
+              }
             }
           }
-        });
+        );
         logger == null ? void 0 : logger.debug("[aomi][sse] stream ended", {
           sessionId,
           aborted: controller.signal.aborted,
@@ -773,7 +778,15 @@ function createSseSubscriber({
       }
     };
   };
-  return { subscribe };
+  const reconnect = (reason) => {
+    var _a;
+    for (const subscription of subscriptions.values()) {
+      if (!subscription.stopped) {
+        (_a = subscription.abortController) == null ? void 0 : _a.abort(reason);
+      }
+    }
+  };
+  return { subscribe, reconnect };
 }
 
 // src/client.ts
@@ -858,6 +871,29 @@ function withSessionHeader(sessionId, init) {
   headers.set(SESSION_ID_HEADER, sessionId);
   return headers;
 }
+function wrapFetchWithAccountBearer(fetchImpl, getAccountAccessToken) {
+  if (!getAccountAccessToken) return fetchImpl;
+  return async (input, init) => {
+    var _a;
+    const baseHeaders = new Headers(
+      (_a = init == null ? void 0 : init.headers) != null ? _a : input instanceof Request ? input.headers : void 0
+    );
+    const fetchWithBearer = async (forceRefresh) => {
+      const headers = new Headers(baseHeaders);
+      const accessToken = await getAccountAccessToken({ forceRefresh });
+      if (accessToken) {
+        headers.set("Authorization", `Bearer ${accessToken}`);
+      }
+      return fetchImpl(input, __spreadProps(__spreadValues({}, init), { headers }));
+    };
+    const response = await fetchWithBearer(false);
+    if (response.status !== 401) return response;
+    return fetchWithBearer(true);
+  };
+}
+function supportsTokenRefreshSubscription(provider) {
+  return typeof (provider == null ? void 0 : provider.subscribe) === "function";
+}
 async function postState(baseUrl, path, payload, sessionId, fetchImpl, apiKey, logger) {
   const url = `${baseUrl}${path}`;
   const body = JSON.stringify(payload);
@@ -910,8 +946,16 @@ var AomiClient = class {
     var _a;
     this.baseUrl = options.baseUrl.replace(/\/+$/, "");
     this.apiKey = options.apiKey;
-    this.fetchImpl = (_a = options.fetch) != null ? _a : globalThis.fetch.bind(globalThis);
-    this.rawFetchImpl = typeof globalThis.fetch === "function" ? globalThis.fetch.bind(globalThis) : this.fetchImpl;
+    const fetchImpl = (_a = options.fetch) != null ? _a : globalThis.fetch.bind(globalThis);
+    const rawFetchImpl = typeof globalThis.fetch === "function" ? globalThis.fetch.bind(globalThis) : fetchImpl;
+    this.fetchImpl = wrapFetchWithAccountBearer(
+      fetchImpl,
+      options.getAccountAccessToken
+    );
+    this.rawFetchImpl = wrapFetchWithAccountBearer(
+      rawFetchImpl,
+      options.getAccountAccessToken
+    );
     this.logger = options.logger;
     this.sseSubscriber = createSseSubscriber({
       backendUrl: this.baseUrl,
@@ -921,6 +965,11 @@ var AomiClient = class {
       fetchImpl: this.rawFetchImpl,
       logger: this.logger
     });
+    if (supportsTokenRefreshSubscription(options.getAccountAccessToken)) {
+      options.getAccountAccessToken.subscribe(() => {
+        this.sseSubscriber.reconnect("account-token-refreshed");
+      });
+    }
   }
   // ===========================================================================
   // Chat & State
@@ -1451,12 +1500,93 @@ var AomiClient = class {
     });
     if (!response.ok) {
       const body = await response.text().catch(() => "");
-      throw new Error(`HTTP ${response.status}: ${response.statusText}${body ? `
-${body}` : ""}`);
+      throw new Error(
+        `HTTP ${response.status}: ${response.statusText}${body ? `
+${body}` : ""}`
+      );
     }
     return await response.json();
   }
 };
+
+// src/account-session.ts
+var DEFAULT_REFRESH_BEFORE_EXPIRY_MS = 2 * 60 * 1e3;
+function createAccountAccessTokenProvider({
+  baseUrl,
+  getProviderCredential,
+  fetch: fetchImpl = fetch,
+  now = Date.now,
+  refreshBeforeExpiryMs = DEFAULT_REFRESH_BEFORE_EXPIRY_MS
+}) {
+  let cached = null;
+  let pending = null;
+  let refreshTimer = null;
+  const listeners = /* @__PURE__ */ new Set();
+  const scheduleRefresh = (session) => {
+    if (refreshTimer) clearTimeout(refreshTimer);
+    const refreshAt = session.expires_at * 1e3 - refreshBeforeExpiryMs;
+    refreshTimer = setTimeout(
+      () => {
+        void getAccountAccessToken({ forceRefresh: true }).catch(
+          () => void 0
+        );
+      },
+      Math.max(refreshAt - now(), 1e3)
+    );
+  };
+  const exchange = async () => {
+    const credential = await getProviderCredential();
+    const response = await fetchImpl(
+      `${baseUrl.replace(/\/+$/, "")}/api/account/sessions/exchange`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          provider: credential.provider,
+          provider_token: credential.providerToken
+        })
+      }
+    );
+    if (!response.ok) {
+      throw new Error(
+        `Failed to exchange account credential: HTTP ${response.status}`
+      );
+    }
+    return await response.json();
+  };
+  const getAccountAccessToken = async ({
+    forceRefresh = false
+  } = {}) => {
+    const refreshAt = cached ? cached.expires_at * 1e3 - refreshBeforeExpiryMs : 0;
+    if (!forceRefresh && cached && now() < refreshAt) {
+      return cached.access_token;
+    }
+    if (!pending) {
+      pending = exchange().then((next) => {
+        const previous = cached;
+        cached = next;
+        scheduleRefresh(next);
+        if (previous && (previous.access_token !== next.access_token || previous.expires_at !== next.expires_at)) {
+          for (const listener of listeners) listener();
+        }
+        return next;
+      }).finally(() => {
+        pending = null;
+      });
+    }
+    return (await pending).access_token;
+  };
+  getAccountAccessToken.subscribe = (listener) => {
+    listeners.add(listener);
+    return () => listeners.delete(listener);
+  };
+  getAccountAccessToken.dispose = () => {
+    if (refreshTimer) clearTimeout(refreshTimer);
+    refreshTimer = null;
+    listeners.clear();
+  };
+  return getAccountAccessToken;
+}
 
 // src/types.ts
 function isInlineCall(event) {
@@ -4375,6 +4505,7 @@ async function createAAProviderState(options) {
   buildAAExecutionPlan,
   buildFeeAAWalletCall,
   createAAProviderState,
+  createAccountAccessTokenProvider,
   createAlchemyAAProvider,
   createPimlicoAAProvider,
   executeWalletCalls,

@@ -1006,36 +1006,40 @@ function createSseSubscriber({
           throw new Error("SSE response missing body");
         }
         subscription.retries = 0;
-        await readSseStream(response.body, controller.signal, ({ data, id }) => {
-          var _a4, _b;
-          if (id && subscription.seenEventIds.has(id)) {
-            return;
-          }
-          if (id) {
-            subscription.lastEventId = id;
-            subscription.seenEventIds.add(id);
-            if (subscription.seenEventIds.size > MAX_SEEN_EVENT_IDS) {
-              const oldestId = subscription.seenEventIds.values().next().value;
-              if (oldestId) subscription.seenEventIds.delete(oldestId);
+        await readSseStream(
+          response.body,
+          controller.signal,
+          ({ data, id }) => {
+            var _a4, _b;
+            if (id && subscription.seenEventIds.has(id)) {
+              return;
             }
-          }
-          let parsed;
-          try {
-            parsed = JSON.parse(data);
-          } catch (error) {
-            for (const item of subscription.listeners) {
-              (_a4 = item.onError) == null ? void 0 : _a4.call(item, error);
+            if (id) {
+              subscription.lastEventId = id;
+              subscription.seenEventIds.add(id);
+              if (subscription.seenEventIds.size > MAX_SEEN_EVENT_IDS) {
+                const oldestId = subscription.seenEventIds.values().next().value;
+                if (oldestId) subscription.seenEventIds.delete(oldestId);
+              }
             }
-            return;
-          }
-          for (const item of subscription.listeners) {
+            let parsed;
             try {
-              item.onUpdate(parsed);
+              parsed = JSON.parse(data);
             } catch (error) {
-              (_b = item.onError) == null ? void 0 : _b.call(item, error);
+              for (const item of subscription.listeners) {
+                (_a4 = item.onError) == null ? void 0 : _a4.call(item, error);
+              }
+              return;
+            }
+            for (const item of subscription.listeners) {
+              try {
+                item.onUpdate(parsed);
+              } catch (error) {
+                (_b = item.onError) == null ? void 0 : _b.call(item, error);
+              }
             }
           }
-        });
+        );
         logger == null ? void 0 : logger.debug("[aomi][sse] stream ended", {
           sessionId,
           aborted: controller.signal.aborted,
@@ -1069,7 +1073,15 @@ function createSseSubscriber({
       }
     };
   };
-  return { subscribe };
+  const reconnect = (reason) => {
+    var _a3;
+    for (const subscription of subscriptions.values()) {
+      if (!subscription.stopped) {
+        (_a3 = subscription.abortController) == null ? void 0 : _a3.abort(reason);
+      }
+    }
+  };
+  return { subscribe, reconnect };
 }
 var MAX_SEEN_EVENT_IDS;
 var init_sse = __esm({
@@ -1143,6 +1155,29 @@ function withSessionHeader(sessionId, init) {
   const headers = new Headers(init);
   headers.set(SESSION_ID_HEADER, sessionId);
   return headers;
+}
+function wrapFetchWithAccountBearer(fetchImpl, getAccountAccessToken) {
+  if (!getAccountAccessToken) return fetchImpl;
+  return async (input2, init) => {
+    var _a3;
+    const baseHeaders = new Headers(
+      (_a3 = init == null ? void 0 : init.headers) != null ? _a3 : input2 instanceof Request ? input2.headers : void 0
+    );
+    const fetchWithBearer = async (forceRefresh) => {
+      const headers = new Headers(baseHeaders);
+      const accessToken = await getAccountAccessToken({ forceRefresh });
+      if (accessToken) {
+        headers.set("Authorization", `Bearer ${accessToken}`);
+      }
+      return fetchImpl(input2, __spreadProps(__spreadValues({}, init), { headers }));
+    };
+    const response = await fetchWithBearer(false);
+    if (response.status !== 401) return response;
+    return fetchWithBearer(true);
+  };
+}
+function supportsTokenRefreshSubscription(provider) {
+  return typeof (provider == null ? void 0 : provider.subscribe) === "function";
 }
 async function postState(baseUrl, path, payload, sessionId, fetchImpl, apiKey, logger) {
   const url = `${baseUrl}${path}`;
@@ -1219,8 +1254,16 @@ var init_client = __esm({
         var _a3;
         this.baseUrl = options.baseUrl.replace(/\/+$/, "");
         this.apiKey = options.apiKey;
-        this.fetchImpl = (_a3 = options.fetch) != null ? _a3 : globalThis.fetch.bind(globalThis);
-        this.rawFetchImpl = typeof globalThis.fetch === "function" ? globalThis.fetch.bind(globalThis) : this.fetchImpl;
+        const fetchImpl = (_a3 = options.fetch) != null ? _a3 : globalThis.fetch.bind(globalThis);
+        const rawFetchImpl = typeof globalThis.fetch === "function" ? globalThis.fetch.bind(globalThis) : fetchImpl;
+        this.fetchImpl = wrapFetchWithAccountBearer(
+          fetchImpl,
+          options.getAccountAccessToken
+        );
+        this.rawFetchImpl = wrapFetchWithAccountBearer(
+          rawFetchImpl,
+          options.getAccountAccessToken
+        );
         this.logger = options.logger;
         this.sseSubscriber = createSseSubscriber({
           backendUrl: this.baseUrl,
@@ -1230,6 +1273,11 @@ var init_client = __esm({
           fetchImpl: this.rawFetchImpl,
           logger: this.logger
         });
+        if (supportsTokenRefreshSubscription(options.getAccountAccessToken)) {
+          options.getAccountAccessToken.subscribe(() => {
+            this.sseSubscriber.reconnect("account-token-refreshed");
+          });
+        }
       }
       // ===========================================================================
       // Chat & State
@@ -1760,8 +1808,10 @@ var init_client = __esm({
         });
         if (!response.ok) {
           const body = await response.text().catch(() => "");
-          throw new Error(`HTTP ${response.status}: ${response.statusText}${body ? `
-${body}` : ""}`);
+          throw new Error(
+            `HTTP ${response.status}: ${response.statusText}${body ? `
+${body}` : ""}`
+          );
         }
         return await response.json();
       }
