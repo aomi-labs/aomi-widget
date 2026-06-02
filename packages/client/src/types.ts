@@ -40,9 +40,16 @@ export type AomiClientOptions = {
   fetch?: typeof fetch;
   /** Default API key for non-default apps */
   apiKey?: string;
+  /** Supplies a short-lived Aomi account bearer for REST and SSE requests. */
+  getAccountAccessToken?: GetAccountAccessToken;
   /** Optional logger for debug output (default: silent) */
   logger?: Logger;
 };
+
+export type GetAccountAccessToken = (options?: {
+  /** Re-exchange the upstream Para/Privy credential after an API 401. */
+  forceRefresh?: boolean;
+}) => Promise<string | null | undefined>;
 
 // =============================================================================
 // Base Types
