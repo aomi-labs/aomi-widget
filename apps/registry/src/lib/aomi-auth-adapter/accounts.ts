@@ -10,10 +10,17 @@ export type EvmConnectionInput = {
   chainId?: number;
 };
 
+export type SolanaConnectionInput = {
+  id?: string;
+  publicKey: string;
+  walletName?: string;
+};
+
 export function buildAccounts(input: {
   evmConnections: readonly EvmConnectionInput[];
   activeEvmAddress?: string;
-  solana?: { publicKey?: string; walletName?: string };
+  solanaConnections?: readonly SolanaConnectionInput[];
+  activeSolanaAddress?: string;
 }): AomiAccount[] {
   const accounts: AomiAccount[] = [];
   const active = input.activeEvmAddress?.toLowerCase();
@@ -29,14 +36,14 @@ export function buildAccounts(input: {
     });
   }
 
-  if (input.solana?.publicKey) {
+  for (const connection of input.solanaConnections ?? []) {
     accounts.push({
-      id: input.solana.walletName ?? input.solana.publicKey,
+      id: connection.id ?? connection.walletName ?? connection.publicKey,
       family: "solana",
-      address: input.solana.publicKey,
-      label: formatAddress(input.solana.publicKey),
-      walletName: input.solana.walletName,
-      active: true,
+      address: connection.publicKey,
+      label: formatAddress(connection.publicKey),
+      walletName: connection.walletName,
+      active: connection.publicKey === input.activeSolanaAddress,
     });
   }
 

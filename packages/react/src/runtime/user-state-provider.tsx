@@ -153,6 +153,10 @@ function useWalletStateSync(
       },
       svm: {
         address: UserStateHelpers.svmAddress(nextUser),
+        cluster: nextUser.svm?.cluster,
+        wallet_name: nextUser.svm?.wallet_name,
+        transport: nextUser.svm?.transport,
+        capabilities: nextUser.svm?.capabilities,
       },
     }),
     [getUserState],

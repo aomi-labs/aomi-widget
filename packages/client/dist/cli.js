@@ -876,10 +876,15 @@ var init_user_state2 = __esm({
 });
 
 // src/sse.ts
-function extractSseData(rawEvent) {
+function extractSseMessage(rawEvent) {
+  const lines = rawEvent.split("\n");
   const dataLines = rawEvent.split("\n").filter((line) => line.startsWith("data:")).map((line) => line.slice(5).trimStart());
   if (!dataLines.length) return null;
-  return dataLines.join("\n");
+  const idLine = lines.find((line) => line.startsWith("id:"));
+  return {
+    data: dataLines.join("\n"),
+    id: idLine ? idLine.slice(3).trimStart() : null
+  };
 }
 async function readSseStream(stream, signal, onMessage) {
   const reader = stream.getReader();
@@ -895,9 +900,9 @@ async function readSseStream(stream, signal, onMessage) {
       while (separatorIndex >= 0) {
         const rawEvent = buffer.slice(0, separatorIndex);
         buffer = buffer.slice(separatorIndex + 2);
-        const data = extractSseData(rawEvent);
-        if (data) {
-          onMessage(data);
+        const message = extractSseMessage(rawEvent);
+        if (message) {
+          onMessage(message);
         }
         separatorIndex = buffer.indexOf("\n\n");
       }
@@ -938,6 +943,8 @@ function createSseSubscriber({
     }
     const subscription = {
       abortController: null,
+      lastEventId: null,
+      seenEventIds: /* @__PURE__ */ new Set(),
       retries: 0,
       retryTimer: null,
       stopped: false,
@@ -982,8 +989,12 @@ function createSseSubscriber({
       subscription.abortController = controller;
       const openedAt = Date.now();
       try {
+        const headers = new Headers(getHeaders(sessionId));
+        if (subscription.lastEventId) {
+          headers.set("Last-Event-ID", subscription.lastEventId);
+        }
         const response = await fetchImpl(`${backendUrl}/api/updates`, {
-          headers: getHeaders(sessionId),
+          headers,
           signal: controller.signal
         });
         if (!response.ok) {
@@ -995,8 +1006,19 @@ function createSseSubscriber({
           throw new Error("SSE response missing body");
         }
         subscription.retries = 0;
-        await readSseStream(response.body, controller.signal, (data) => {
+        await readSseStream(response.body, controller.signal, ({ data, id }) => {
           var _a4, _b;
+          if (id && subscription.seenEventIds.has(id)) {
+            return;
+          }
+          if (id) {
+            subscription.lastEventId = id;
+            subscription.seenEventIds.add(id);
+            if (subscription.seenEventIds.size > MAX_SEEN_EVENT_IDS) {
+              const oldestId = subscription.seenEventIds.values().next().value;
+              if (oldestId) subscription.seenEventIds.delete(oldestId);
+            }
+          }
           let parsed;
           try {
             parsed = JSON.parse(data);
@@ -1049,9 +1071,11 @@ function createSseSubscriber({
   };
   return { subscribe };
 }
+var MAX_SEEN_EVENT_IDS;
 var init_sse = __esm({
   "src/sse.ts"() {
     "use strict";
+    MAX_SEEN_EVENT_IDS = 256;
   }
 });
 

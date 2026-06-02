@@ -88,6 +88,8 @@ export type AomiRuntimeApi = {
   // -------------------------------------------------------------------------
   /** All queued wallet requests (tx + eip712 signing) */
   pendingWalletRequests: WalletRequest[];
+  /** True while switching wallets or networks could lose an unresolved request. */
+  hasBlockingWalletRequests: boolean;
   /** Mark a wallet request as in-flight — suppresses it from the pending list until acked */
   startWalletRequest: (id: string) => void;
   /** Complete a wallet request after the backend acknowledges the response */
@@ -170,4 +172,9 @@ export function useAomiRuntime(): AomiRuntimeApi {
     );
   }
   return context;
+}
+
+/** Returns the runtime when mounted, allowing standalone registry previews. */
+export function useOptionalAomiRuntime(): AomiRuntimeApi | null {
+  return useContext(AomiRuntimeContext);
 }

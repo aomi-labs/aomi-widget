@@ -26,10 +26,6 @@ function solanaClusterLabel(cluster?: string): string | undefined {
   return cluster.replace("solana:", "");
 }
 
-function familyLabel(family: "evm" | "solana"): string {
-  return family === "solana" ? "Solana" : "EVM";
-}
-
 const DualWalletBarInner: FC<DualWalletBarProps> = ({
   families,
   className,
@@ -46,21 +42,7 @@ const DualWalletBarInner: FC<DualWalletBarProps> = ({
     return families[0] ?? "evm";
   }, [adapter.activeFamily, families, selectedFamily]);
 
-  const connected =
-    activeFamily === "evm" ? !!identity.address : !!identity.svmAddress;
-  const addressLabel =
-    activeFamily === "evm"
-      ? formatAddress(identity.address)
-      : formatAddress(identity.svmAddress);
-  const networkLabel =
-    activeFamily === "evm"
-      ? identity.chainId
-        ? (getChainInfo(identity.chainId)?.ticker ?? undefined)
-        : undefined
-      : solanaClusterLabel(identity.solanaCluster);
-  const primaryLabel = connected
-    ? addressLabel
-    : `Connect ${familyLabel(activeFamily)}`;
+  const connected = Boolean(identity.address || identity.svmAddress);
 
   useEffect(() => {
     onConnectionChange?.(identity.isConnected);
@@ -82,11 +64,32 @@ const DualWalletBarInner: FC<DualWalletBarProps> = ({
         )}
         aria-label="Manage wallets"
       >
-        <span className="flex min-w-0 items-center gap-2">
-          <span className="max-w-[180px] truncate">{primaryLabel}</span>
-          {connected && networkLabel && (
-            <span className="opacity-50">{networkLabel}</span>
-          )}
+        <span className="flex min-w-0 items-center gap-1.5">
+          {families.map((family) => {
+            const address =
+              family === "evm" ? identity.address : identity.svmAddress;
+            const network =
+              family === "evm"
+                ? identity.chainId
+                  ? getChainInfo(identity.chainId)?.ticker
+                  : undefined
+                : solanaClusterLabel(identity.solanaCluster);
+            return (
+              <span
+                key={family}
+                className={cn(
+                  "rounded-full px-2 py-0.5 text-[11px]",
+                  family === activeFamily
+                    ? "bg-background/20"
+                    : "bg-background/10 opacity-70",
+                )}
+              >
+                {family === "evm" ? "EVM" : "SOL"}{" "}
+                {address ? formatAddress(address) : "Connect"}
+                {address && network ? ` ${network}` : ""}
+              </span>
+            );
+          })}
         </span>
         <ChevronDownIcon className="h-3 w-3 shrink-0 opacity-60" />
       </button>

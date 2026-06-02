@@ -588,6 +588,7 @@ export function AomiRuntimeCore({
 
       // Wallet API
       pendingWalletRequests: walletHandler.pendingRequests,
+      hasBlockingWalletRequests: walletHandler.hasBlockingWalletRequests,
       startWalletRequest: walletHandler.startRequest,
       resolveWalletRequest: walletHandler.resolveRequest,
       rejectWalletRequest: walletHandler.rejectRequest,

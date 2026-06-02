@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { useEffect } from "react";
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { AomiRuntimeApiProvider, ExtUserProvider } from "@aomi-labs/react";
 import type { AomiAuthAdapter } from "@/lib/aomi-auth-adapter";
 import { AomiAuthAdapterProvider } from "@/lib/aomi-auth-adapter";
 import { AomiWalletNetworkPreferencesProvider } from "@/lib/aomi-auth-adapter/network-preferences";
@@ -43,15 +44,26 @@ function OpenAndRender() {
   return <WalletPicker />;
 }
 
-function renderPicker(adapter: AomiAuthAdapter) {
+function renderPicker(
+  adapter: AomiAuthAdapter,
+  hasBlockingWalletRequests = false,
+) {
+  const runtime = {
+    hasBlockingWalletRequests,
+    showNotification: vi.fn(),
+  };
   return render(
-    <AomiAuthAdapterProvider value={adapter}>
-      <AomiWalletNetworkPreferencesProvider storageKey="test" evmChains={evmChains} solanaNetworks={solanaNetworks}>
-        <WalletPickerProvider>
-          <OpenAndRender />
-        </WalletPickerProvider>
-      </AomiWalletNetworkPreferencesProvider>
-    </AomiAuthAdapterProvider>,
+    <ExtUserProvider>
+      <AomiRuntimeApiProvider value={runtime as never}>
+        <AomiAuthAdapterProvider value={adapter}>
+          <AomiWalletNetworkPreferencesProvider storageKey="test" evmChains={evmChains} solanaNetworks={solanaNetworks}>
+            <WalletPickerProvider>
+              <OpenAndRender />
+            </WalletPickerProvider>
+          </AomiWalletNetworkPreferencesProvider>
+        </AomiAuthAdapterProvider>
+      </AomiRuntimeApiProvider>
+    </ExtUserProvider>,
   );
 }
 
@@ -116,5 +128,27 @@ describe("WalletPicker", () => {
     });
     fireEvent.click(screen.getByText("Phantom"));
     expect(adapter.selectAccount).toHaveBeenCalledWith("phantom");
+  });
+
+  it("blocks wallet selection while a wallet request is unresolved", () => {
+    const adapter = makeAdapter({
+      accounts: [
+        { id: "mm", family: "evm", address: "0xAAAAAAAA", walletName: "MetaMask", active: false },
+        { id: "rb", family: "evm", address: "0xBBBBBBBB", walletName: "Rabby", active: true },
+      ],
+    });
+    renderPicker(adapter, true);
+    fireEvent.click(screen.getByText("MetaMask"));
+    expect(adapter.selectAccount).not.toHaveBeenCalled();
+  });
+
+  it("connects an explicitly selected Solana wallet", () => {
+    const connectSolanaWallet = vi.fn(async () => undefined);
+    renderPicker(makeAdapter({
+      solanaWallets: [{ name: "Solflare", installed: true, ready: true }],
+      connectSolanaWallet,
+    }));
+    fireEvent.click(screen.getByText("Solflare"));
+    expect(connectSolanaWallet).toHaveBeenCalledWith("Solflare");
   });
 });

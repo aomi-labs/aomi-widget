@@ -6,7 +6,7 @@ import {
 } from "lucide-react";
 import { cn, getChainInfo } from "@aomi-labs/react";
 import {
-  useAomiAuthAdapter, formatAddress, formatAuthProvider,
+  useAomiAuthAdapter, formatAddress, formatAuthProvider, useWalletActivationGuard,
 } from "../../lib/aomi-auth-adapter";
 import { isAccountSelectable } from "../../lib/aomi-auth-adapter/accounts";
 import { useAomiWalletNetworkPreferences } from "../../lib/aomi-auth-adapter/network-preferences";
@@ -27,6 +27,7 @@ export function WalletPicker() {
   const { selectedFamily, setSelectedFamily } = useAomiWalletNetworkPreferences();
   const activeFamily: WalletFamily = adapter.activeFamily ?? selectedFamily;
   const [pending, setPending] = useState<string | null>(null);
+  const canActivateWallet = useWalletActivationGuard();
 
   useEffect(() => {
     if (!open) { setPending(null); return; }
@@ -36,13 +37,14 @@ export function WalletPicker() {
   }, [open, closePicker]);
 
   const runAction = useCallback(
-    async (key: string, fn: () => Promise<void> | void) => {
+    async (key: string, fn: () => Promise<void> | void, guard = false) => {
+      if (guard && !canActivateWallet()) return;
       setPending(key);
       try { await fn(); }
       catch (err) { console.warn("[WalletPicker] action failed", key, err); }
       finally { setPending(null); }
     },
-    [],
+    [canActivateWallet],
   );
 
   const evmAccounts = useMemo(
@@ -111,19 +113,59 @@ export function WalletPicker() {
           <FamilySection
             family="evm" accounts={evmAccounts} activeFamily={activeFamily}
             chainId={identity.chainId} pending={pending}
-            onSwitchFamily={() => setSelectedFamily("evm")}
-            onSelect={(id) => void runAction(`select:${id}`, () => adapter.selectAccount(id))}
-            onDisconnect={adapter.disconnect ? (id) => void runAction(`disconnect:${id}`, () => adapter.disconnect!({ accountId: id })) : undefined}
-            onConnect={adapter.canConnect ? () => void runAction("connect:evm", async () => { await adapter.connect({ family: "evm" }); closePicker(); }) : undefined}
+            onSwitchFamily={() => { if (canActivateWallet()) setSelectedFamily("evm"); }}
+            onSelect={(id) => void runAction(`select:${id}`, () => adapter.selectAccount(id), true)}
+            onDisconnect={adapter.disconnect ? (id) => void runAction(`disconnect:${id}`, () => adapter.disconnect!({ accountId: id }), true) : undefined}
+            onConnect={adapter.canConnect ? () => void runAction("connect:evm", async () => { await adapter.connect({ family: "evm" }); closePicker(); }, true) : undefined}
           />
           <FamilySection
             family="solana" accounts={solanaAccounts} activeFamily={activeFamily}
             pending={pending}
-            onSwitchFamily={() => setSelectedFamily("solana")}
-            onSelect={(id) => void runAction(`select:${id}`, () => adapter.selectAccount(id))}
-            onDisconnect={adapter.disconnect ? () => void runAction("disconnect:solana", () => adapter.disconnect!({ family: "solana" })) : undefined}
-            onConnect={adapter.canConnect ? () => void runAction("connect:solana", async () => { await adapter.connect({ family: "solana" }); closePicker(); }) : undefined}
+            onSwitchFamily={() => { if (canActivateWallet()) setSelectedFamily("solana"); }}
+            onSelect={(id) => void runAction(`select:${id}`, () => adapter.selectAccount(id), true)}
+            onDisconnect={adapter.disconnect ? () => void runAction("disconnect:solana", () => adapter.disconnect!({ family: "solana" }), true) : undefined}
+            onConnect={adapter.canConnect ? () => void runAction("connect:solana", async () => { await adapter.connect({ family: "solana" }); closePicker(); }, true) : undefined}
           />
+          {adapter.connectSolanaWallet && adapter.solanaWallets?.length ? (
+            <section className="flex flex-col gap-1.5">
+              <span className="text-muted-foreground px-1 text-[11px] font-medium uppercase tracking-wide">
+                Available Solana Wallets
+              </span>
+              {adapter.solanaWallets.map((wallet) => (
+                <button
+                  key={wallet.name}
+                  type="button"
+                  disabled={!wallet.ready || pending !== null}
+                  onClick={() =>
+                    void runAction(
+                      `connect-solana:${wallet.name}`,
+                      () => adapter.connectSolanaWallet!(wallet.name),
+                      true,
+                    )
+                  }
+                  className={cn(
+                    "border-border/60 bg-background hover:bg-accent/40 flex items-center gap-2 rounded-2xl border px-2.5 py-2 text-left",
+                    !wallet.ready && "opacity-50",
+                  )}
+                >
+                  <span className="bg-muted/40 flex size-8 items-center justify-center rounded-xl">
+                    <WalletIcon className="size-4" />
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-sm font-medium">{wallet.name}</span>
+                    <span className="text-muted-foreground block text-[11px]">
+                      {wallet.installed ? "Installed" : wallet.ready ? "Available" : "Not installed"}
+                    </span>
+                  </span>
+                  {pending === `connect-solana:${wallet.name}` ? (
+                    <Loader2Icon className="size-4 animate-spin" />
+                  ) : (
+                    <ChevronRightIcon className="text-muted-foreground size-4" />
+                  )}
+                </button>
+              ))}
+            </section>
+          ) : null}
         </div>
       </div>
     </div>

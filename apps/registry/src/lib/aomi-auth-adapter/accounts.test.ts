@@ -9,46 +9,52 @@ describe("buildAccounts", () => {
         { id: "rb", walletName: "Rabby", address: "0xBBB", chainId: 1 },
       ],
       activeEvmAddress: "0xbbb",
-      solana: undefined,
+      solanaConnections: [],
     });
     expect(accounts).toHaveLength(2);
     expect(accounts[0]).toMatchObject({ family: "evm", walletName: "MetaMask", active: false });
     expect(accounts[1]).toMatchObject({ family: "evm", walletName: "Rabby", active: true });
   });
 
-  it("adds the connected Solana wallet as a single active account", () => {
+  it("adds connected Solana wallets and marks the selected address active", () => {
     const accounts = buildAccounts({
       evmConnections: [],
       activeEvmAddress: undefined,
-      solana: { publicKey: "9xQpub", walletName: "Phantom" },
+      solanaConnections: [
+        { publicKey: "9xQpub", walletName: "Phantom" },
+        { publicKey: "AbCpub", walletName: "Solflare" },
+      ],
+      activeSolanaAddress: "AbCpub",
     });
-    expect(accounts).toEqual([
-      expect.objectContaining({ family: "solana", address: "9xQpub", walletName: "Phantom", active: true }),
-    ]);
+    expect(accounts).toHaveLength(2);
+    expect(accounts[0]).toMatchObject({ family: "solana", address: "9xQpub", active: false });
+    expect(accounts[1]).toMatchObject({ family: "solana", address: "AbCpub", active: true });
     expect(accounts[0].id).toBe("Phantom");
   });
 
-  it("falls back to publicKey for the Solana account id when walletName is absent", () => {
+  it("preserves Solana address case while matching the active wallet", () => {
     const accounts = buildAccounts({
       evmConnections: [],
       activeEvmAddress: undefined,
-      solana: { publicKey: "9xQpub" },
+      solanaConnections: [{ publicKey: "9xQpub" }],
+      activeSolanaAddress: "9XQPUB",
     });
-    expect(accounts[0]).toMatchObject({ family: "solana", id: "9xQpub", active: true });
+    expect(accounts[0]).toMatchObject({ family: "solana", id: "9xQpub", active: false });
   });
 
   it("returns both families for a dual connection", () => {
     const accounts = buildAccounts({
       evmConnections: [{ id: "mm", walletName: "MetaMask", address: "0xAAA", chainId: 1 }],
       activeEvmAddress: "0xAAA",
-      solana: { publicKey: "9xQpub", walletName: "Phantom" },
+      solanaConnections: [{ publicKey: "9xQpub", walletName: "Phantom" }],
+      activeSolanaAddress: "9xQpub",
     });
     expect(accounts.filter((a) => a.family === "evm")).toHaveLength(1);
     expect(accounts.filter((a) => a.family === "solana")).toHaveLength(1);
   });
 
   it("returns empty when nothing is connected", () => {
-    expect(buildAccounts({ evmConnections: [], activeEvmAddress: undefined, solana: undefined })).toEqual([]);
+    expect(buildAccounts({ evmConnections: [], activeEvmAddress: undefined })).toEqual([]);
   });
 });
 
