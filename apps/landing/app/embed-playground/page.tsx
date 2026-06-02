@@ -9,6 +9,28 @@ export const metadata = {
   robots: { index: false },
 };
 
+const DARK_THEME_VARS = {
+  "--background": "oklch(0.141 0.005 285.823)",
+  "--foreground": "oklch(0.985 0 0)",
+  "--card": "oklch(0.21 0.006 285.885)",
+  "--card-foreground": "oklch(0.985 0 0)",
+  "--popover": "oklch(0.21 0.006 285.885)",
+  "--popover-foreground": "oklch(0.985 0 0)",
+  "--primary": "oklch(0.92 0.004 286.32)",
+  "--primary-foreground": "oklch(0.21 0.006 285.885)",
+  "--secondary": "oklch(0.274 0.006 286.033)",
+  "--secondary-foreground": "oklch(0.985 0 0)",
+  "--muted": "oklch(0.274 0.006 286.033)",
+  "--muted-foreground": "oklch(0.705 0.015 286.067)",
+  "--accent": "oklch(0.274 0.006 286.033)",
+  "--accent-foreground": "oklch(0.985 0 0)",
+  "--destructive": "oklch(0.704 0.191 22.216)",
+  "--border": "oklch(1 0 0 / 10%)",
+  "--input": "oklch(0.6 0 0 / 15%)",
+  "--ring": "oklch(0.552 0.016 285.938)",
+  "--radius": "0.625rem",
+} as const;
+
 export default async function EmbedPlaygroundPage(props: {
   searchParams: Promise<{ embed?: string }>;
 }) {
@@ -17,11 +39,13 @@ export default async function EmbedPlaygroundPage(props: {
 
   return (
     <div
-      style={
-        isEmbed
+      className="dark"
+      style={{
+        ...DARK_THEME_VARS,
+        ...(isEmbed
           ? { width: "100%", minHeight: "80vh", background: "#0f0f0f" }
-          : { width: "100vw", height: "100vh", overflow: "auto", background: "#0f0f0f" }
-      }
+          : { width: "100vw", height: "100vh", overflow: "auto", background: "#0f0f0f" }),
+      }}
     >
       <PlaygroundConfigurator forceEmbed={isEmbed} />
     </div>
