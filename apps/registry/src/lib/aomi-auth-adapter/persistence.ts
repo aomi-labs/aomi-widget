@@ -19,7 +19,7 @@ export function loadWalletPreferences(key: string): WalletPreferences {
     if (!raw) return {};
     const parsed: unknown = JSON.parse(raw);
     if (typeof parsed !== "object" || parsed === null) return {};
-    const stored = parsed as WalletPreferences & {
+    const stored = parsed as Omit<WalletPreferences, "selectedFamily"> & {
       selectedFamily?: WalletFamily | "svm";
     };
     const preferences: WalletPreferences = {

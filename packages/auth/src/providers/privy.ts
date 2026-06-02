@@ -39,16 +39,12 @@
 //     (apps/portal/...), not to this package. The page hosts the React SDK
 //     and POSTs to /api/auth/privy/callback with the fields above.
 //
-//   * Server-side JWT validation. The state token already gates the
-//     callback (single-use, provider-bound). BE will validate the JWT on
-//     first use via `/v1/wallets/authenticate` — bogus tokens fail there.
-//     Layer in JWKS verification later if we ever want pre-validation.
-//
 //   * The authorization-key-as-owner upgrade that lets Aomi BE sign for
 //     Alice's wallet when she's offline. That's a Privy API call against
 //     the wallet (configures an Aomi-controlled P-256 key as an owner) and
 //     is a BE-side concern, not a provider concern.
 
+import { importSPKI, jwtVerify } from "jose";
 import type {
   ProviderCallbackRequest,
   ProviderCallbackResponse,
@@ -56,6 +52,16 @@ import type {
   ProviderStartRequest,
   ProviderStartResponse,
 } from "./types";
+
+export interface VerifiedPrivyAccessToken {
+  userId: string;
+  sessionId: string;
+  expiration: number;
+}
+
+export type VerifyPrivyAccessToken = (
+  accessToken: string,
+) => Promise<VerifiedPrivyAccessToken>;
 
 export interface PrivyProviderConfig {
   /** Aomi's Privy app ID. Surfaces in the `start` redirect so the portal
@@ -66,6 +72,48 @@ export interface PrivyProviderConfig {
    *  to `${baseUrl}/auth/privy`. Override in tests or if the portal moves
    *  the page. */
   loginPagePath?: string;
+
+  /** Verifies the browser-provided Privy access token on the server. The
+   *  callback must never trust browser-reported user IDs without this. */
+  verifyAccessToken: VerifyPrivyAccessToken;
+}
+
+export interface PrivyJwtVerifierConfig {
+  /** Aomi's Privy app ID. Checked against the JWT audience. */
+  appId: string;
+
+  /** SPKI public key copied from the Privy dashboard. */
+  jwtVerificationKey: string;
+}
+
+/** Build a verifier for Privy's ES256 access tokens. Privy documents
+ *  issuer `privy.io` and the app ID audience as required checks. */
+export function makePrivyJwtVerifier(
+  config: PrivyJwtVerifierConfig,
+): VerifyPrivyAccessToken {
+  const verificationKey = importSPKI(config.jwtVerificationKey, "ES256");
+
+  return async (accessToken: string): Promise<VerifiedPrivyAccessToken> => {
+    const { payload } = await jwtVerify(accessToken, await verificationKey, {
+      algorithms: ["ES256"],
+      audience: config.appId,
+      issuer: "privy.io",
+    });
+    if (
+      typeof payload.sub !== "string" ||
+      typeof payload.sid !== "string" ||
+      typeof payload.exp !== "number"
+    ) {
+      throw new Error(
+        "privy callback: access token is missing required claims",
+      );
+    }
+    return {
+      userId: payload.sub,
+      sessionId: payload.sid,
+      expiration: payload.exp,
+    };
+  };
 }
 
 /** Fields the portal-hosted login page POSTs to /api/auth/privy/callback
@@ -102,10 +150,15 @@ export function makePrivyProvider(config: PrivyProviderConfig): ProviderModule {
       req: ProviderCallbackRequest,
     ): Promise<ProviderCallbackResponse> {
       const body = parseCallbackBody(req);
+      const verifiedToken = await config.verifyAccessToken(body.access_token);
 
-      // Sanity-check `user_id` shape — Privy DIDs look like `did:privy:...`.
-      // Cheap defense against the portal page POSTing something obviously
-      // wrong. Real validation happens BE-side when the JWT is used.
+      // The browser reports `user_id`, but the signed token subject is
+      // authoritative. Reject cross-subject linking before secrets persist.
+      if (verifiedToken.userId !== body.user_id) {
+        throw new Error(
+          "privy callback: user_id does not match verified token subject",
+        );
+      }
       if (!body.user_id.startsWith("did:privy:")) {
         throw new Error(
           `privy callback: user_id does not look like a Privy DID`,
@@ -138,7 +191,9 @@ export function makePrivyProvider(config: PrivyProviderConfig): ProviderModule {
         authValue: body.user_id,
         isPrimary: false,
         grantKind: "oauth",
+        expiresAt: verifiedToken.expiration,
         identityMetadata: {
+          privy_session_id: verifiedToken.sessionId,
           wallet_address: body.wallet_address,
           wallet_id: body.wallet_id,
         },
