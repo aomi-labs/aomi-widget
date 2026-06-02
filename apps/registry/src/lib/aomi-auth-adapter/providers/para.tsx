@@ -526,9 +526,10 @@ export function AomiParaAdapterProvider({
         chainId: conn.chainId,
       })),
       activeEvmAddress: address,
-      solana: svmAddress
-        ? { publicKey: svmAddress, walletName: solanaWallet.walletName }
-        : undefined,
+      solanaConnections: svmAddress
+        ? [{ publicKey: svmAddress, walletName: solanaWallet.walletName }]
+        : [],
+      activeSolanaAddress: svmAddress,
     });
 
     const identity: AomiAuthIdentity = isBooting

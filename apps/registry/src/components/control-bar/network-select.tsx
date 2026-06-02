@@ -19,7 +19,10 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { getChainIcon } from "@/components/icons";
-import { useAomiAuthAdapter } from "../../lib/aomi-auth-adapter";
+import {
+  useAomiAuthAdapter,
+  useWalletActivationGuard,
+} from "../../lib/aomi-auth-adapter";
 import { useAomiWalletNetworkPreferences } from "../../lib/aomi-auth-adapter/network-preferences";
 import type {
   AomiNetworkTarget,
@@ -58,6 +61,7 @@ export const NetworkSelect: FC<NetworkSelectProps> = ({
     null,
   );
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const canActivateWallet = useWalletActivationGuard();
 
   const evmChains =
     chains ?? adapter.supportedNetworks?.evm ?? adapter.supportedChains ?? [];
@@ -108,6 +112,7 @@ export const NetworkSelect: FC<NetworkSelectProps> = ({
   }
 
   const applyTarget = async (target: AomiNetworkTarget) => {
+    if (!canActivateWallet()) return;
     if (adapter.selectNetwork) {
       await adapter.selectNetwork(target);
       setOpen(false);

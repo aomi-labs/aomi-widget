@@ -1,4 +1,5 @@
 import type { WalletFamily } from "./types";
+import { fromWireWalletFamily } from "./wallet-family";
 
 export type WalletPreferences = {
   selectedFamily?: WalletFamily;
@@ -18,7 +19,19 @@ export function loadWalletPreferences(key: string): WalletPreferences {
     if (!raw) return {};
     const parsed: unknown = JSON.parse(raw);
     if (typeof parsed !== "object" || parsed === null) return {};
-    return parsed as WalletPreferences;
+    const stored = parsed as WalletPreferences & {
+      selectedFamily?: WalletFamily | "svm";
+    };
+    const preferences: WalletPreferences = {
+      ...stored,
+      selectedFamily: stored.selectedFamily
+        ? fromWireWalletFamily(stored.selectedFamily)
+        : undefined,
+    };
+    if (stored.selectedFamily === "svm") {
+      saveWalletPreferences(key, preferences);
+    }
+    return preferences;
   } catch {
     return {};
   }

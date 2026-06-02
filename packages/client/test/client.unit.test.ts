@@ -268,4 +268,52 @@ describe("AomiClient transport selection", () => {
       vi.stubGlobal("fetch", originalFetch);
     }
   });
+
+  it("dedupes SSE event ids and resumes reconnects from the latest cursor", async () => {
+    const connections: Array<ReturnType<typeof createMockSseConnection>> = [];
+    const nativeFetch = vi.fn(async (_input, init) => {
+      const connection = createMockSseConnection(
+        (init as RequestInit).signal as AbortSignal,
+      );
+      connections.push(connection);
+      return connection.response;
+    });
+
+    const originalFetch = globalThis.fetch;
+    vi.stubGlobal("fetch", nativeFetch);
+
+    try {
+      const client = new AomiClient({ baseUrl: "http://unit.test" });
+      const onUpdate = vi.fn();
+      const unsubscribe = client.subscribeSSE("session-1", onUpdate);
+
+      await vi.waitFor(() => {
+        expect(nativeFetch).toHaveBeenCalledTimes(1);
+      });
+      connections[0]?.emit(
+        'id: evt-1\ndata: {"type":"tool_update","session_id":"session-1"}\n\n',
+      );
+      connections[0]?.emit(
+        'id: evt-1\ndata: {"type":"tool_update","session_id":"session-1"}\n\n',
+      );
+      await vi.waitFor(() => {
+        expect(onUpdate).toHaveBeenCalledTimes(1);
+      });
+
+      connections[0]?.close();
+      await vi.waitFor(
+        () => {
+          expect(nativeFetch).toHaveBeenCalledTimes(2);
+        },
+        { timeout: 1500 },
+      );
+      const reconnectHeaders = new Headers(
+        (nativeFetch.mock.calls[1]?.[1] as RequestInit | undefined)?.headers,
+      );
+      expect(reconnectHeaders.get("Last-Event-ID")).toBe("evt-1");
+      unsubscribe();
+    } finally {
+      vi.stubGlobal("fetch", originalFetch);
+    }
+  });
 });

@@ -1178,6 +1178,7 @@ function dropWalletBlocks(state) {
   var _a;
   return (_a = UserState.normalize({
     connection: { is_connected: false },
+    pending: state.pending,
     ext: state.ext,
     preferences: state.preferences
   })) != null ? _a : { connection: { is_connected: false } };
@@ -1196,7 +1197,6 @@ function dropAddressScopedState(state) {
   } else {
     delete next.evm;
   }
-  delete next.pending;
   return (_a = UserState.normalize(next)) != null ? _a : {};
 }
 var UserContext = createContext5(void 0);
@@ -2074,6 +2074,9 @@ function useAomiRuntime() {
   }
   return context;
 }
+function useOptionalAomiRuntime() {
+  return useContext6(AomiRuntimeContext);
+}
 
 // src/handlers/wallet-handler.ts
 import { useCallback as useCallback6, useRef as useRef7, useState as useState5 } from "react";
@@ -2081,6 +2084,7 @@ function useWalletHandler({
   getSession
 }) {
   const [pendingRequests, setPendingRequests] = useState5([]);
+  const [hasBlockingWalletRequests, setHasBlockingWalletRequests] = useState5(false);
   const requestsRef = useRef7(pendingRequests);
   const inFlightRequestSetRef = useRef7(/* @__PURE__ */ new Set());
   const suppressedRequestSetRef = useRef7(/* @__PURE__ */ new Set());
@@ -2089,6 +2093,9 @@ function useWalletHandler({
       requestsRef.current.filter(
         (request) => !suppressedRequestSetRef.current.has(request.id)
       )
+    );
+    setHasBlockingWalletRequests(
+      requestsRef.current.length > 0 || inFlightRequestSetRef.current.size > 0
     );
   }, []);
   const setRequests = useCallback6((requests) => {
@@ -2158,6 +2165,7 @@ function useWalletHandler({
   );
   return {
     pendingRequests,
+    hasBlockingWalletRequests,
     setRequests,
     startRequest,
     resolveRequest,
@@ -2209,7 +2217,7 @@ function useWalletStateSync(context, sessions, remoteThreads) {
   const { remoteThreadIdsRef } = remoteThreads;
   const walletSnapshot = useCallback7(
     (nextUser) => {
-      var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n;
+      var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q, _r;
       return {
         connection: {
           is_connected: (_a = UserStateHelpers.isConnected(nextUser)) != null ? _a : false,
@@ -2236,7 +2244,11 @@ function useWalletStateSync(context, sessions, remoteThreads) {
           }
         },
         svm: {
-          address: UserStateHelpers.svmAddress(nextUser)
+          address: UserStateHelpers.svmAddress(nextUser),
+          cluster: (_o = nextUser.svm) == null ? void 0 : _o.cluster,
+          wallet_name: (_p = nextUser.svm) == null ? void 0 : _p.wallet_name,
+          transport: (_q = nextUser.svm) == null ? void 0 : _q.transport,
+          capabilities: (_r = nextUser.svm) == null ? void 0 : _r.capabilities
         }
       };
     },
@@ -3004,6 +3016,7 @@ function AomiRuntimeCore({
       clearAllNotifications: notificationContext.clearAll,
       // Wallet API
       pendingWalletRequests: walletHandler.pendingRequests,
+      hasBlockingWalletRequests: walletHandler.hasBlockingWalletRequests,
       startWalletRequest: walletHandler.startRequest,
       resolveWalletRequest: walletHandler.resolveRequest,
       rejectWalletRequest: walletHandler.rejectRequest,
@@ -3185,6 +3198,7 @@ export {
   useEventContext,
   useNotification,
   useNotificationHandler,
+  useOptionalAomiRuntime,
   useThreadContext,
   useUser,
   useWalletHandler

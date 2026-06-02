@@ -10,6 +10,7 @@ import type {
 
 export type AomiAuthStatus = "booting" | "disconnected" | "connected";
 export type WalletFamily = "evm" | "solana";
+export type WireWalletFamily = "evm" | "svm";
 export type SolanaCluster =
   | "solana:mainnet"
   | "solana:devnet"

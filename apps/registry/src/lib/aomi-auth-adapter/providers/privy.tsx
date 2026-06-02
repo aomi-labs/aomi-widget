@@ -57,6 +57,7 @@ import {
   formatAddress,
   formatAuthProvider,
 } from "../identity";
+import { buildAccounts } from "../accounts";
 import {
   useSafeSwitchChain,
   useSafeWagmiAccount,
@@ -297,6 +298,9 @@ function AomiPrivyAdapterProvider({
   const { client: smartWalletClient, getClientForChain } =
     useSafeSmartWallets();
   const { wallets: solanaWallets } = useSafeSolanaWallets();
+  const [activeSolanaAddress, setActiveSolanaAddress] = useState<
+    string | undefined
+  >();
   const wagmiConfig = useSafeWagmiConfig();
   const { switchChainAsync, isPending: isSwitchingChain } =
     useSafeSwitchChain();
@@ -313,6 +317,16 @@ function AomiPrivyAdapterProvider({
     setSelectedSolanaNetworkId,
     supportedSolanaNetworks,
   } = useAomiWalletNetworkPreferences();
+
+  useEffect(() => {
+    if (
+      activeSolanaAddress &&
+      solanaWallets.some((wallet) => wallet.address === activeSolanaAddress)
+    ) {
+      return;
+    }
+    setActiveSolanaAddress(solanaWallets[0]?.address);
+  }, [activeSolanaAddress, solanaWallets]);
 
   useEffect(() => {
     if (
@@ -338,12 +352,33 @@ function AomiPrivyAdapterProvider({
     const providerLabel = formatAuthProvider(authProvider) ?? "Privy";
     const primary = inferPrivyPrimaryLabel(privy.user);
 
-    const solanaWallet = solanaWallets?.[0];
+    const solanaWallet =
+      solanaWallets.find((wallet) => wallet.address === activeSolanaAddress) ??
+      solanaWallets[0];
     const svmAddress = solanaWallet?.address;
     const activeFamily: WalletFamily =
       selectedFamily === "solana" && supportedSolanaNetworks.length > 0
         ? "solana"
         : "evm";
+    const accounts = buildAccounts({
+      evmConnections: smartAddress
+        ? [
+            {
+              id: `privy-smart:${smartAddress}`,
+              walletName: "Privy Smart Wallet",
+              address: smartAddress,
+              chainId,
+            },
+          ]
+        : [],
+      activeEvmAddress: smartAddress,
+      solanaConnections: solanaWallets.map((wallet) => ({
+        id: `privy-solana:${wallet.address}`,
+        walletName: "Privy Solana",
+        publicKey: wallet.address,
+      })),
+      activeSolanaAddress: svmAddress,
+    });
 
     // Connection state allows EVM-only (smart wallet) OR Solana-only OR both.
     // Smart-wallet enforcement is per-call in `sendTransaction` (we throw if
@@ -377,6 +412,7 @@ function AomiPrivyAdapterProvider({
             address: smartAddress,
             chainId: chainId ?? undefined,
             svmAddress,
+            walletProvider: "privy",
             authProvider,
             primaryLabel: primary ?? formatAddress(smartAddress) ?? "Privy",
             secondaryLabel: providerLabel,
@@ -393,6 +429,7 @@ function AomiPrivyAdapterProvider({
               isConnected: true,
               chainId: chainId ?? undefined,
               svmAddress,
+              walletProvider: "privy",
               authProvider,
               primaryLabel:
                 primary ?? formatAddress(svmAddress) ?? "Privy Solana",
@@ -473,8 +510,17 @@ function AomiPrivyAdapterProvider({
       identity,
       isReady: !isBooting,
       isSwitchingChain: isSwitchingChain,
-      accounts: [],
-      selectAccount: async () => undefined,
+      accounts,
+      selectAccount: async (id) => {
+        const target = accounts.find((account) => account.id === id);
+        if (!target) {
+          throw new Error(`Unknown account: ${id}`);
+        }
+        setSelectedFamily(target.family);
+        if (target.family === "solana") {
+          setActiveSolanaAddress(target.address);
+        }
+      },
       // Connect/disconnect aren't gated by the overall identity here —
       // even when the user has a Privy session, they may still want to
       // (re-)open the login modal to link a second wallet family.
@@ -626,6 +672,8 @@ function AomiPrivyAdapterProvider({
     selectedEvmChainId,
     selectedFamily,
     selectedSolanaNetwork,
+    activeSolanaAddress,
+    setActiveSolanaAddress,
     setSelectedEvmChainId,
     setSelectedFamily,
     setSelectedSolanaNetworkId,

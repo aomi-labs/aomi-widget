@@ -151,6 +151,13 @@ describe("User API", () => {
           address: "0x789",
           chainId: 1,
           isConnected: true,
+          svm: {
+            address: "Bv9abc",
+            cluster: "solana:mainnet",
+            wallet_name: "Phantom",
+            transport: "extension",
+            capabilities: ["can_sign_message", "can_sign_transaction"],
+          },
         });
         await flushPromises();
       });
@@ -182,6 +189,13 @@ describe("User API", () => {
       expect(messageJson.payload.ext).toBeUndefined();
       expect(messageJson.payload.evm.chain_id).toBe(137);
       expect(messageJson.payload.connection.is_connected).toBe(true);
+      expect(messageJson.payload.svm).toEqual({
+        address: "Bv9abc",
+        cluster: "solana:mainnet",
+        wallet_name: "Phantom",
+        transport: "extension",
+        capabilities: ["can_sign_message", "can_sign_transaction"],
+      });
     });
 
     it("keeps a materialized thread remote after a stale list fetch resolves", async () => {

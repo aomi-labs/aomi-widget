@@ -24,6 +24,15 @@ const DISCONNECTED_ADAPTER: AomiAuthAdapter = {
 const AomiAuthAdapterContext =
   createContext<AomiAuthAdapter>(DISCONNECTED_ADAPTER);
 
+function toSvmCapabilities(
+  capabilities: AomiAuthAdapter["identity"]["solanaCapabilities"],
+): string[] | undefined {
+  if (!capabilities) return undefined;
+  return Object.entries(capabilities)
+    .filter(([, enabled]) => enabled)
+    .map(([name]) => name.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`));
+}
+
 function AomiAuthAdapterSync({
   adapter,
 }: {
@@ -43,7 +52,13 @@ function AomiAuthAdapterSync({
       walletKind: identity.walletKind ?? undefined,
       chainId: identity.chainId ?? undefined,
       isConnected: identity.isConnected,
-      svmAddress: identity.svmAddress ?? undefined,
+      svm: {
+        address: identity.svmAddress ?? null,
+        cluster: identity.solanaCluster ?? undefined,
+        wallet_name: identity.solanaWalletName ?? null,
+        transport: identity.solanaTransport ?? null,
+        capabilities: toSvmCapabilities(identity.solanaCapabilities) ?? null,
+      },
       walletProvider: identity.isConnected
         ? (identity.walletProvider ?? null)
         : null,
@@ -76,6 +91,10 @@ function AomiAuthAdapterSync({
     identity.sponsorAccount,
     identity.sponsorProvider,
     identity.sponsored,
+    identity.solanaCapabilities,
+    identity.solanaCluster,
+    identity.solanaTransport,
+    identity.solanaWalletName,
     identity.svmAddress,
     identity.walletProvider,
     identity.walletProviderSubject,

@@ -32,4 +32,15 @@ describe("wallet preferences persistence", () => {
     saveWalletPreferences("para", { selectedFamily: "evm" });
     expect(loadWalletPreferences("privy")).toEqual({});
   });
+
+  it("migrates svm wire-family preferences back to the solana UI value", () => {
+    globalThis.localStorage.setItem(
+      "aomi.wallet-preferences.para",
+      JSON.stringify({ selectedFamily: "svm" }),
+    );
+    expect(loadWalletPreferences("para")).toEqual({ selectedFamily: "solana" });
+    expect(globalThis.localStorage.getItem("aomi.wallet-preferences.para")).toBe(
+      JSON.stringify({ selectedFamily: "solana" }),
+    );
+  });
 });

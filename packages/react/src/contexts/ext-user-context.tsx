@@ -38,6 +38,7 @@ function mergeRecords(previous: UnknownRecord, incoming: UnknownRecord): Unknown
 function dropWalletBlocks(state: UserState): UserState {
   return UserState.normalize({
     connection: { is_connected: false },
+    pending: state.pending,
     ext: state.ext,
     preferences: state.preferences,
   }) ?? { connection: { is_connected: false } };
@@ -57,7 +58,6 @@ function dropAddressScopedState(state: UserState): UserState {
   } else {
     delete next.evm;
   }
-  delete next.pending;
   return UserState.normalize(next) ?? {};
 }
 
@@ -155,8 +155,8 @@ function ExtUserProviderImpl({ children }: { children: ReactNode }) {
         next = dropWalletBlocks(merged);
       } else {
         // Address change while staying connected (wallet switch in place):
-        // per-tx AA outputs and pending request maps belong to the prior
-        // address — drop them so the new wallet starts with a clean slate.
+        // Per-tx AA outputs belong to the prior address. Pending requests stay
+        // until their backend callback resolves or rejects them.
         const prevAddress = UserState.address(prev);
         const nextAddress = UserState.address(merged);
         const addressChanged =
