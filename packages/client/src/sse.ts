@@ -38,6 +38,8 @@ type SseListener = {
 
 const MAX_SEEN_EVENT_IDS = 256;
 
+// The server intentionally uses at-least-once delivery around reconnects:
+// replay and live streams can overlap, so consumers MUST deduplicate by id.
 function extractSseMessage(rawEvent: string): ParsedSseMessage | null {
   const lines = rawEvent.split("\n");
   const dataLines = rawEvent
