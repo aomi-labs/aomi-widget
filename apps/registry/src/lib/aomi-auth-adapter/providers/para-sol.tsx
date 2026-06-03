@@ -399,7 +399,27 @@ export function ParaSolanaWrapper({
       config={config}
       internalConfig={{
         para: para as never,
-        walletsWithFullAuth: "ALL",
+        // Do NOT force full Para session auth on external Solana wallets.
+        // `"ALL"` re-authenticates the shared Para session whenever a Solana
+        // wallet (e.g. Phantom) attaches, which rebuilds Para's wagmi config
+        // and silently drops the active EVM/MetaMask connection (the
+        // `paraConnected: true→false→true` blip + wagmi disconnect observed
+        // when switching family). External Solana wallets sign directly via
+        // the wallet-adapter's `signTransaction`, so they don't need to be
+        // linked into the Para session at all. `[]` = connection-only for
+        // external wallets, leaving the EVM session untouched. Embedded
+        // Para Solana wallets are unaffected (they're session-native, not
+        // governed by this external-wallet flag).
+        walletsWithFullAuth: [],
+        // Attach external Solana wallets in connection-only mode so Para does
+        // NOT re-touch / re-initialize its shared session (and the EVM wagmi
+        // config it owns) when a Solana wallet connects. Without this, even
+        // with `walletsWithFullAuth: []`, attaching Phantom still resets the
+        // in-memory wagmi state — the EVM connection survives in storage (a
+        // page refresh restores it via autoConnect) but shows disconnected
+        // in-session. Signing still works: external Solana wallets sign
+        // directly through the wallet-adapter's `signTransaction`.
+        connectionOnly: true,
       }}
     >
       {children(true)}

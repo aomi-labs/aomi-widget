@@ -24,8 +24,6 @@ import {
   formatAuthProvider,
   useWalletActivationGuard,
 } from "../../lib/aomi-auth-adapter";
-import { isAccountSelectable } from "../../lib/aomi-auth-adapter/accounts";
-import { useAomiWalletNetworkPreferences } from "../../lib/aomi-auth-adapter/network-preferences";
 import type {
   AomiAccount,
   WalletFamily,
@@ -43,9 +41,6 @@ export function WalletPicker() {
   const { open, closePicker, providers } = useWalletPicker();
   const adapter = useAomiAuthAdapter();
   const identity = adapter.identity;
-  const { selectedFamily, setSelectedFamily } =
-    useAomiWalletNetworkPreferences();
-  const activeFamily: WalletFamily = adapter.activeFamily ?? selectedFamily;
   const [pending, setPending] = useState<string | null>(null);
   const canActivateWallet = useWalletActivationGuard();
 
@@ -138,24 +133,18 @@ export function WalletPicker() {
             <WalletSummaryCard
               family="evm"
               account={activeEvmAccount}
-              active={activeFamily === "evm"}
+              active={Boolean(activeEvmAccount)}
               detail={
                 activeEvmAccount && identity.chainId
                   ? getChainInfo(identity.chainId)?.ticker
                   : undefined
               }
-              onClick={() => {
-                if (canActivateWallet()) setSelectedFamily("evm");
-              }}
             />
             <WalletSummaryCard
               family="solana"
               account={activeSolanaAccount}
-              active={activeFamily === "solana"}
+              active={Boolean(activeSolanaAccount)}
               detail={identity.solanaCluster}
-              onClick={() => {
-                if (canActivateWallet()) setSelectedFamily("solana");
-              }}
             />
           </div>
         </div>
@@ -210,12 +199,8 @@ export function WalletPicker() {
           <FamilySection
             family="evm"
             accounts={evmAccounts}
-            activeFamily={activeFamily}
             chainId={identity.chainId}
             pending={pending}
-            onSwitchFamily={() => {
-              if (canActivateWallet()) setSelectedFamily("evm");
-            }}
             onSelect={(id) =>
               void runAction(
                 `select:${id}`,
@@ -250,11 +235,7 @@ export function WalletPicker() {
           <FamilySection
             family="solana"
             accounts={solanaAccounts}
-            activeFamily={activeFamily}
             pending={pending}
-            onSwitchFamily={() => {
-              if (canActivateWallet()) setSelectedFamily("solana");
-            }}
             onSelect={(id) =>
               void runAction(
                 `select:${id}`,
@@ -343,26 +324,22 @@ function WalletSummaryCard({
   account,
   active,
   detail,
-  onClick,
 }: {
   family: WalletFamily;
   account?: AomiAccount;
   active: boolean;
   detail?: string;
-  onClick: () => void;
 }) {
   const shortAddress = account
     ? formatAddress(account.address)
     : "Not connected";
   return (
-    <button
-      type="button"
-      onClick={onClick}
+    <div
       className={cn(
-        "group rounded-2xl border p-3 text-left transition-colors",
+        "rounded-2xl border p-3 text-left",
         active
           ? "bg-white/16 border-cyan-300/50 text-white shadow-[0_12px_28px_rgba(8,47,73,0.28)]"
-          : "text-white/72 border-white/10 bg-white/[0.07] hover:bg-white/[0.11]",
+          : "text-white/72 border-white/10 bg-white/[0.07]",
       )}
     >
       <span className="flex items-center justify-between gap-2">
@@ -375,7 +352,7 @@ function WalletSummaryCard({
             active ? "bg-cyan-300 text-slate-950" : "bg-white/10 text-white/60",
           )}
         >
-          {active ? "Active" : "Standby"}
+          {active ? "Connected" : "Not connected"}
         </span>
       </span>
       <span className="mt-3 block truncate text-sm font-semibold">
@@ -384,7 +361,7 @@ function WalletSummaryCard({
       <span className="mt-1 block truncate text-[11px] text-white/55">
         {account?.walletName ?? detail ?? "Connect signer"}
       </span>
-    </button>
+    </div>
   );
 }
 
@@ -478,10 +455,8 @@ function ProviderRow({
 type FamilySectionProps = {
   family: WalletFamily;
   accounts: readonly AomiAccount[];
-  activeFamily: WalletFamily;
   chainId?: number;
   pending: string | null;
-  onSwitchFamily: () => void;
   onSelect: (id: string) => void;
   onDisconnect?: (id: string) => void;
   onConnect?: () => void;
@@ -490,32 +465,18 @@ type FamilySectionProps = {
 function FamilySection({
   family,
   accounts,
-  activeFamily,
   chainId,
   pending,
-  onSwitchFamily,
   onSelect,
   onDisconnect,
   onConnect,
 }: FamilySectionProps) {
-  const isActiveFamily = family === activeFamily;
   return (
-    <section
-      className={cn("flex flex-col gap-1.5", !isActiveFamily && "opacity-60")}
-    >
+    <section className="flex flex-col gap-1.5">
       <div className="flex items-center justify-between px-1">
         <span className="text-muted-foreground text-[11px] font-medium uppercase tracking-wide">
           {familyLabel(family)}
         </span>
-        {!isActiveFamily && (
-          <button
-            type="button"
-            onClick={onSwitchFamily}
-            className="text-primary text-[11px] hover:underline"
-          >
-            Switch to {familyLabel(family)}
-          </button>
-        )}
       </div>
       {accounts.length === 0 ? (
         <p className="text-muted-foreground px-1 text-[11px]">
@@ -523,8 +484,9 @@ function FamilySection({
         </p>
       ) : (
         accounts.map((account) => {
-          const selectable =
-            isActiveFamily && isAccountSelectable(account, activeFamily);
+          // Any non-active account in this family can be selected to make it
+          // the live signer; the active one is shown with a check.
+          const selectable = !account.active;
           const chainTicker =
             family === "evm" && account.active && chainId
               ? getChainInfo(chainId)?.ticker
@@ -592,7 +554,7 @@ function FamilySection({
           );
         })
       )}
-      {isActiveFamily && onConnect && (
+      {onConnect && (
         <button
           type="button"
           onClick={onConnect}

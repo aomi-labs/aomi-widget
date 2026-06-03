@@ -27,7 +27,7 @@ function Harness({ onReady }: { onReady: (v: ReturnType<typeof useAomiWalletNetw
 }
 
 describe("network preferences persistence", () => {
-  it("persists family + chain selections and restores them on remount", () => {
+  it("persists chain + cluster selections and restores them on remount", () => {
     let api!: ReturnType<typeof useAomiWalletNetworkPreferences>;
     const { unmount } = render(
       <AomiWalletNetworkPreferencesProvider storageKey="test" evmChains={evmChains} solanaNetworks={solanaNetworks}>
@@ -35,8 +35,8 @@ describe("network preferences persistence", () => {
       </AomiWalletNetworkPreferencesProvider>,
     );
     act(() => {
-      api.setSelectedFamily("solana");
       api.setSelectedEvmChainId(8453);
+      api.setSelectedSolanaNetworkId("solana-devnet");
     });
     unmount();
 
@@ -46,7 +46,7 @@ describe("network preferences persistence", () => {
         <Harness onReady={(v) => (restored = v)} />
       </AomiWalletNetworkPreferencesProvider>,
     );
-    expect(restored.selectedFamily).toBe("solana");
     expect(restored.selectedEvmChainId).toBe(8453);
+    expect(restored.selectedSolanaNetworkId).toBe("solana-devnet");
   });
 });

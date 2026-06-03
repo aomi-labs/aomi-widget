@@ -50,7 +50,6 @@ function createHarnessAdapter(options?: {
   connected?: boolean;
   svmAddress?: string;
   solanaReconnect?: boolean;
-  onConnect?: (family: string) => void;
   onSelectNetwork?: (target: unknown) => void;
 }): AomiAuthAdapter {
   return {
@@ -74,10 +73,6 @@ function createHarnessAdapter(options?: {
       evm: evmChains,
       solana: solanaNetworks,
     },
-    activeFamily: options?.svmAddress ? "solana" : "evm",
-    activeNetwork: options?.svmAddress
-      ? { family: "solana", networkId: "solana-devnet" }
-      : { family: "evm", chainId: 8453 },
     solanaNetworkSwitchRequiresReconnect: options?.solanaReconnect,
     connect: async () => undefined,
     openAccountUI: async () => undefined,
@@ -93,8 +88,8 @@ function Harness({
   onOpenAccountUI,
 }: {
   adapter?: AomiAuthAdapter;
-  onConnect?: (family: string) => void;
-  onOpenAccountUI?: (family: string) => void;
+  onConnect?: () => void;
+  onOpenAccountUI?: () => void;
 }) {
   const preferences = useAomiWalletNetworkPreferences();
 
@@ -102,33 +97,16 @@ function Harness({
     const baseAdapter =
       adapter ??
       createHarnessAdapter({
-        onConnect: undefined,
         onSelectNetwork: (target) => preferences.selectTarget(target as never),
       });
-    const useProvidedNetworkState = adapter !== undefined;
 
     return {
       ...baseAdapter,
-      activeFamily: useProvidedNetworkState
-        ? (baseAdapter.activeFamily ?? preferences.selectedFamily)
-        : preferences.selectedFamily,
-      activeNetwork:
-        (useProvidedNetworkState ? baseAdapter.activeNetwork : undefined) ??
-        (preferences.selectedFamily === "solana" &&
-        preferences.selectedSolanaNetworkId
-          ? {
-              family: "solana",
-              networkId: preferences.selectedSolanaNetworkId,
-            }
-          : {
-              family: "evm",
-              chainId: preferences.selectedEvmChainId ?? evmChains[0].id,
-            }),
-      connect: async (options) => {
-        onConnect?.(options?.family ?? preferences.selectedFamily);
+      connect: async () => {
+        onConnect?.();
       },
-      openAccountUI: async (options) => {
-        onOpenAccountUI?.(options?.family ?? preferences.selectedFamily);
+      openAccountUI: async () => {
+        onOpenAccountUI?.();
       },
       selectNetwork: async (target) => {
         if (baseAdapter.selectNetwork) {
@@ -149,15 +127,20 @@ function Harness({
 }
 
 describe("NetworkSelect", () => {
-  it("renders while disconnected and uses the selected family for connect", async () => {
-    const onConnect = vi.fn();
+  it("selects a Solana network via the tabbed picker (no family toggle)", async () => {
+    const selectNetwork = vi.fn();
     render(
       <ExtUserProvider>
         <AomiWalletNetworkPreferencesProvider
           evmChains={evmChains}
           solanaNetworks={solanaNetworks}
         >
-          <Harness onConnect={onConnect} />
+          <Harness
+            adapter={createHarnessAdapter({
+              connected: true,
+              onSelectNetwork: selectNetwork,
+            })}
+          />
         </AomiWalletNetworkPreferencesProvider>
       </ExtUserProvider>,
     );
@@ -165,10 +148,12 @@ describe("NetworkSelect", () => {
     fireEvent.click(screen.getByRole("combobox"));
     fireEvent.click(screen.getByRole("button", { name: "Solana" }));
     fireEvent.click(screen.getByRole("button", { name: /Solana Mainnet/i }));
-    fireEvent.click(screen.getByRole("button", { name: "Connect account" }));
 
     await waitFor(() => {
-      expect(onConnect).toHaveBeenCalledWith("solana");
+      expect(selectNetwork).toHaveBeenCalledWith({
+        family: "solana",
+        networkId: "solana-mainnet",
+      });
     });
   });
 
@@ -198,7 +183,7 @@ describe("NetworkSelect", () => {
 
     expect(
       screen.getByText(/adapter needs a wallet reconnect to change clusters/i),
-    ).toBeInTheDocument();
+    ).toBeTruthy();
     expect(selectNetwork).not.toHaveBeenCalled();
 
     fireEvent.click(screen.getByRole("button", { name: "Switch Network" }));
@@ -211,32 +196,23 @@ describe("NetworkSelect", () => {
     });
   });
 
-  it("uses the selected family for manage account when already connected", async () => {
-    const onOpenAccountUI = vi.fn();
+  it("connects without a family selection", async () => {
+    const onConnect = vi.fn();
     render(
       <ExtUserProvider>
         <AomiWalletNetworkPreferencesProvider
           evmChains={evmChains}
           solanaNetworks={solanaNetworks}
         >
-          <Harness
-            adapter={createHarnessAdapter({
-              connected: true,
-              onSelectNetwork: vi.fn(),
-            })}
-            onOpenAccountUI={onOpenAccountUI}
-          />
+          <Harness onConnect={onConnect} />
         </AomiWalletNetworkPreferencesProvider>
       </ExtUserProvider>,
     );
 
-    fireEvent.click(screen.getByRole("combobox"));
-    fireEvent.click(screen.getByRole("button", { name: "Solana" }));
-    fireEvent.click(screen.getByRole("button", { name: /Solana Devnet/i }));
-    fireEvent.click(screen.getByRole("button", { name: "Manage account" }));
+    fireEvent.click(screen.getByRole("button", { name: "Connect account" }));
 
     await waitFor(() => {
-      expect(onOpenAccountUI).toHaveBeenCalledWith("solana");
+      expect(onConnect).toHaveBeenCalled();
     });
   });
 });

@@ -14,14 +14,11 @@ import type {
   AomiByokKeyEntry,
   AomiSaveByokKeyResponse,
   AomiSSEEvent,
-  AomiSessionWalletContext,
   AomiSimulateResponse,
   AomiStateResponse,
   AomiSystemEvent,
   AomiSystemResponse,
   AomiThread,
-  AomiPutSessionWalletContextRequest,
-  AomiWalletContextErrorBody,
   GetAccountAccessToken,
   Logger,
 } from "./types";
@@ -171,29 +168,6 @@ function supportsTokenRefreshSubscription(
     typeof (provider as { subscribe?: unknown } | undefined)?.subscribe ===
     "function"
   );
-}
-
-export class AomiWalletContextError extends Error {
-  readonly status: number;
-  readonly code: string;
-  readonly currentContext?: AomiSessionWalletContext | null;
-
-  constructor(status: number, body: AomiWalletContextErrorBody | undefined) {
-    super(`Wallet context update failed: ${body?.error ?? `HTTP ${status}`}`);
-    this.name = "AomiWalletContextError";
-    this.status = status;
-    this.code = body?.error ?? `http_${status}`;
-    this.currentContext = body?.current_context ?? null;
-  }
-}
-
-async function readWalletContextError(
-  response: Response,
-): Promise<AomiWalletContextError> {
-  const body = (await response.json().catch(() => undefined)) as
-    | AomiWalletContextErrorBody
-    | undefined;
-  return new AomiWalletContextError(response.status, body);
 }
 
 async function postState<T>(
@@ -703,55 +677,6 @@ export class AomiClient {
     if (!response.ok) {
       throw new Error(`Failed to rename thread: HTTP ${response.status}`);
     }
-  }
-
-  /**
-   * List authoritative wallet selections committed for a session.
-   */
-  async listSessionWalletContexts(
-    sessionId: string,
-  ): Promise<AomiSessionWalletContext[]> {
-    const url = buildApiUrl(
-      this.baseUrl,
-      `/api/sessions/${encodeURIComponent(sessionId)}/wallet-context`,
-    );
-    const response = await this.fetchImpl(url, {
-      method: "GET",
-      headers: withSessionHeader(sessionId),
-    });
-
-    if (!response.ok) {
-      throw await readWalletContextError(response);
-    }
-
-    return (await response.json()) as AomiSessionWalletContext[];
-  }
-
-  /**
-   * Commit the active wallet/network for one family. On stale versions the
-   * thrown error carries the server's current committed context.
-   */
-  async putSessionWalletContext(
-    sessionId: string,
-    request: AomiPutSessionWalletContextRequest,
-  ): Promise<AomiSessionWalletContext> {
-    const url = buildApiUrl(
-      this.baseUrl,
-      `/api/sessions/${encodeURIComponent(sessionId)}/wallet-context`,
-    );
-    const response = await this.fetchImpl(url, {
-      method: "PUT",
-      headers: withSessionHeader(sessionId, {
-        "Content-Type": "application/json",
-      }),
-      body: JSON.stringify(request),
-    });
-
-    if (!response.ok) {
-      throw await readWalletContextError(response);
-    }
-
-    return (await response.json()) as AomiSessionWalletContext;
   }
 
   /**

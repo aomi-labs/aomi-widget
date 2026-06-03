@@ -50,12 +50,8 @@ export const NetworkSelect: FC<NetworkSelectProps> = ({
   chains,
 }) => {
   const adapter = useAomiAuthAdapter();
-  const {
-    selectedFamily,
-    selectedEvmChainId,
-    selectedSolanaNetwork,
-    setSelectedFamily,
-  } = useAomiWalletNetworkPreferences();
+  const { selectedEvmChainId, selectedSolanaNetwork } =
+    useAomiWalletNetworkPreferences();
   const [open, setOpen] = useState(false);
   const [pendingTarget, setPendingTarget] = useState<AomiNetworkTarget | null>(
     null,
@@ -68,36 +64,33 @@ export const NetworkSelect: FC<NetworkSelectProps> = ({
   const solanaNetworks = adapter.supportedNetworks?.solana ?? [];
   const totalTargets = evmChains.length + solanaNetworks.length;
 
-  const activeFamily = adapter.activeFamily ?? selectedFamily;
-  const activeEvmChainId =
-    activeFamily === "evm"
-      ? (adapter.identity.chainId ?? selectedEvmChainId)
-      : selectedEvmChainId;
+  const activeEvmChainId = adapter.identity.chainId ?? selectedEvmChainId;
   const activeEvmChain = evmChains.find(
     (chain) => chain.id === activeEvmChainId,
   );
   const activeSolanaNetwork = selectedSolanaNetwork;
-  const activeNetwork = adapter.activeNetwork;
-  const displayLabel =
-    activeFamily === "solana"
-      ? (activeSolanaNetwork?.label ?? "Solana")
-      : (getChainInfo(activeEvmChainId)?.ticker ??
-        activeEvmChain?.name ??
-        "Network");
-  const CurrentChainIcon =
-    activeFamily === "evm" && activeEvmChainId
-      ? getChainIcon(activeEvmChainId)
-      : undefined;
   const canShowFamilyTabs = evmChains.length > 0 && solanaNetworks.length > 0;
-  const currentPanel =
-    activeFamily === "solana" && solanaNetworks.length > 0 ? "solana" : "evm";
-  const [panel, setPanel] = useState<WalletFamily>(currentPanel);
+  const defaultPanel: WalletFamily = evmChains.length > 0 ? "evm" : "solana";
+  const [panel, setPanel] = useState<WalletFamily>(defaultPanel);
+
+  // Both families are always active, so the trigger reflects both current
+  // networks (e.g. "ETH · Mainnet") rather than one "active family".
+  const evmLabel =
+    getChainInfo(activeEvmChainId)?.ticker ?? activeEvmChain?.name;
+  const solanaLabel = activeSolanaNetwork?.label;
+  const displayLabel =
+    [
+      evmChains.length > 0 ? evmLabel : undefined,
+      solanaNetworks.length > 0 ? solanaLabel : undefined,
+    ]
+      .filter(Boolean)
+      .join(" · ") || "Network";
 
   useEffect(() => {
     if (!open) {
-      setPanel(currentPanel);
+      setPanel(defaultPanel);
     }
-  }, [currentPanel, open]);
+  }, [defaultPanel, open]);
 
   const selectedTargetIds = useMemo(
     () => ({
@@ -125,8 +118,8 @@ export const NetworkSelect: FC<NetworkSelectProps> = ({
     if (
       target.family === "solana" &&
       adapter.solanaNetworkSwitchRequiresReconnect &&
-      activeNetwork?.family === "solana" &&
-      activeNetwork.networkId !== target.networkId
+      activeSolanaNetwork &&
+      activeSolanaNetwork.id !== target.networkId
     ) {
       setPendingTarget(target);
       setConfirmOpen(true);
@@ -143,7 +136,7 @@ export const NetworkSelect: FC<NetworkSelectProps> = ({
         onOpenChange={(nextOpen) => {
           setOpen(nextOpen);
           if (nextOpen) {
-            setPanel(currentPanel);
+            setPanel(defaultPanel);
           }
         }}
       >
@@ -161,13 +154,6 @@ export const NetworkSelect: FC<NetworkSelectProps> = ({
             )}
           >
             <span className="flex min-w-0 items-center gap-2">
-              <span className="flex h-3 w-3 shrink-0 items-center justify-center text-[10px] font-medium uppercase opacity-60">
-                {CurrentChainIcon ? (
-                  <CurrentChainIcon className="h-3 w-3" />
-                ) : (
-                  familyLabel(activeFamily).slice(0, 1)
-                )}
-              </span>
               <span className="min-w-0 truncate">{displayLabel}</span>
             </span>
             <ChevronDownIcon className="ml-1 h-3 w-3 shrink-0 opacity-50" />
@@ -194,7 +180,6 @@ export const NetworkSelect: FC<NetworkSelectProps> = ({
                   type="button"
                   onClick={() => {
                     setPanel(family);
-                    setSelectedFamily(family);
                   }}
                   className={cn(
                     "rounded-md px-2 py-1 text-xs font-medium transition-colors",
@@ -216,10 +201,8 @@ export const NetworkSelect: FC<NetworkSelectProps> = ({
                 ? String((item as Chain).id)
                 : (item as SolanaNetworkOption).id;
               const isActive = isEvm
-                ? activeFamily === "evm" &&
-                  selectedTargetIds.evm === (item as Chain).id
-                : activeFamily === "solana" &&
-                  selectedTargetIds.solana === (item as SolanaNetworkOption).id;
+                ? selectedTargetIds.evm === (item as Chain).id
+                : selectedTargetIds.solana === (item as SolanaNetworkOption).id;
               const ChainIcon = isEvm
                 ? getChainIcon((item as Chain).id)
                 : undefined;

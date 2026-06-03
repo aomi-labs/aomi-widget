@@ -1,6 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import {
   Environment,
   ParaProvider,
@@ -59,6 +65,7 @@ import {
   useSafeCapabilities,
   useSafeConnections,
   useSafeDisconnect,
+  useSafeReconnect,
   useSafeSendCallsSync,
   useSafeSendTransaction,
   useSafeSignTypedData,
@@ -393,6 +400,7 @@ export function AomiParaAdapterProvider({
   const { walletClient } = useSafeWalletClient();
   const { switchChainAsync, isPending } = useSafeSwitchChain();
   const { disconnectAsync: wagmiDisconnectAsync } = useSafeDisconnect();
+  const { reconnect: wagmiReconnect } = useSafeReconnect();
   const evmConnections = useSafeConnections();
   const { switchAccountAsync } = useSafeSwitchAccount();
   const { sendTransactionAsync } = useSafeSendTransaction();
@@ -402,10 +410,8 @@ export function AomiParaAdapterProvider({
   const wagmiConfig = useSafeWagmiConfig();
   const solanaWallet = useSafeSolanaWallet();
   const {
-    selectedFamily,
     selectedEvmChainId,
     selectedSolanaNetwork,
-    setSelectedFamily,
     setSelectedEvmChainId,
     setSelectedSolanaNetworkId,
     supportedSolanaNetworks,
@@ -446,6 +452,37 @@ export function AomiParaAdapterProvider({
     }
     void switchChainAsync({ chainId: selectedEvmChainId });
   }, [chainId, selectedEvmChainId, switchChainAsync, wagmiConnected]);
+
+  // Keep the EVM (wagmi) connection alive across Para's session re-init.
+  // When a Solana wallet attaches, Para re-initializes its shared session and
+  // resets the in-memory wagmi state — the EVM connection survives in wagmi
+  // storage (a page refresh restores it via autoConnect) but reads as
+  // disconnected in-session. We reproduce that refresh-time recovery here:
+  // if wagmi reads disconnected while the Para session is alive and we had an
+  // EVM connection earlier this session, call wagmi `reconnect()`. It only
+  // restores connectors persisted in storage, so it is a no-op after a
+  // deliberate user disconnect (which clears storage) — it can't fight the
+  // user or loop (guarded to one attempt until the connection is restored).
+  const hadEvmConnectionRef = useRef(false);
+  const evmReconnectAttemptedRef = useRef(false);
+  useEffect(() => {
+    if (wagmiConnected) {
+      hadEvmConnectionRef.current = true;
+      evmReconnectAttemptedRef.current = false;
+      return;
+    }
+    if (
+      hadEvmConnectionRef.current &&
+      paraAccount.isConnected &&
+      !evmReconnectAttemptedRef.current &&
+      wagmiReconnect
+    ) {
+      evmReconnectAttemptedRef.current = true;
+      void Promise.resolve(wagmiReconnect()).catch((error) => {
+        console.warn("[aomi-auth-adapter] EVM auto-reconnect failed", error);
+      });
+    }
+  }, [paraAccount.isConnected, wagmiConnected, wagmiReconnect]);
 
   useEffect(() => {
     if (pendingSolanaConnect && solanaWallet.publicKey) {
@@ -625,10 +662,6 @@ export function AomiParaAdapterProvider({
     const connectorName = connector?.name?.toLowerCase() ?? "";
     const isParaWallet = connectorName.includes("para");
     const shouldUseExternalSigner = Boolean(walletClient && !isParaWallet);
-    const activeFamily: WalletFamily =
-      selectedFamily === "solana" && supportedSolanaNetworks.length > 0
-        ? "solana"
-        : "evm";
 
     const hasAnyDisconnectablePath = Boolean(
       wagmiDisconnectAsync ||
@@ -671,7 +704,6 @@ export function AomiParaAdapterProvider({
           throw new Error(`Unknown account: ${id}`);
         }
         if (target.family === "evm") {
-          setSelectedFamily("evm");
           const connection = evmConnections.find(
             (conn) => conn.connectorId === id,
           );
@@ -689,8 +721,7 @@ export function AomiParaAdapterProvider({
           }
           return;
         }
-        // Solana is single-active; selecting it just focuses the family.
-        setSelectedFamily("solana");
+        // Solana is single-active; nothing to switch within the family.
       },
       solanaWallets: solanaWalletDescriptors,
       connectSolanaWallet:
@@ -702,7 +733,6 @@ export function AomiParaAdapterProvider({
               if (!target) {
                 throw new Error(`Unknown Solana wallet: ${walletName}`);
               }
-              setSelectedFamily("solana");
               // If the wallet is already the selected one and there's a
               // live connection, just no-op. Otherwise (re-)select then
               // ask the effect to wait for the adapter to swap before
@@ -726,29 +756,9 @@ export function AomiParaAdapterProvider({
         evm: supportedChains,
         solana: supportedSolanaNetworks,
       },
-      activeFamily,
-      activeNetwork:
-        activeFamily === "evm"
-          ? (chainId ?? selectedEvmChainId) !== undefined
-            ? {
-                family: "evm",
-                chainId:
-                  chainId ??
-                  selectedEvmChainId ??
-                  supportedChains[0]?.id ??
-                  1,
-              }
-            : undefined
-          : selectedSolanaNetwork
-            ? {
-                family: "solana",
-                networkId: selectedSolanaNetwork.id,
-              }
-            : undefined,
       solanaNetworkSwitchRequiresReconnect: Boolean(solanaWallet.publicKey),
       connect: async (options) => {
-        const requestedFamily = options?.family ?? selectedFamily;
-        setSelectedFamily(requestedFamily);
+        const requestedFamily = options?.family ?? "evm";
         if (requestedFamily === "solana" && !solanaWallet.publicKey) {
           // Solana doesn't need an EVM Para session first — the wallet
           // adapter can attach independently. Previously we gated this
@@ -804,7 +814,7 @@ export function AomiParaAdapterProvider({
           return;
         }
 
-        const requestedFamily = options?.family ?? activeFamily;
+        const requestedFamily = options?.family ?? "all";
         const wantsAll = requestedFamily === "all";
 
         // Solana family disconnect: detach the wallet-adapter session so
@@ -851,8 +861,7 @@ export function AomiParaAdapterProvider({
         // state.
       },
       openAccountUI: async (options) => {
-        const requestedFamily = options?.family ?? activeFamily;
-        setSelectedFamily(requestedFamily);
+        const requestedFamily = options?.family ?? "evm";
         if (requestedFamily === "solana" && !solanaWallet.publicKey) {
           try {
             const result = await connectPreferredSolanaWallet(solanaWallet);
@@ -876,14 +885,12 @@ export function AomiParaAdapterProvider({
       },
       switchChain: switchChainAsync
         ? async (nextChainId: number) => {
-            setSelectedFamily("evm");
             setSelectedEvmChainId(nextChainId);
             await switchChainAsync({ chainId: nextChainId });
           }
         : undefined,
       selectNetwork: async (target) => {
         if (target.family === "evm") {
-          setSelectedFamily("evm");
           setSelectedEvmChainId(target.chainId);
           if (
             switchChainAsync &&
@@ -895,7 +902,6 @@ export function AomiParaAdapterProvider({
           return;
         }
 
-        setSelectedFamily("solana");
         setPendingSolanaConnect(false);
         if (selectedSolanaNetwork?.id === target.networkId) {
           return;
@@ -962,7 +968,6 @@ export function AomiParaAdapterProvider({
     signTypedDataAsync,
     resolvedAdapterSolanaConfig,
     selectedEvmChainId,
-    selectedFamily,
     selectedSolanaNetwork,
     solanaWallet,
     supportedSolanaNetworks,
@@ -978,7 +983,6 @@ export function AomiParaAdapterProvider({
     wagmiDisconnectAsync,
     walletClient,
     setSelectedEvmChainId,
-    setSelectedFamily,
     setSelectedSolanaNetworkId,
   ]);
 

@@ -159,26 +159,6 @@ export interface AomiCreateThreadResponse {
 
 export type AomiWalletFamily = "evm" | "svm";
 
-export interface AomiSessionWalletContext {
-  session_id: string;
-  family: AomiWalletFamily;
-  identity_wallet_id: number;
-  network_id?: string | null;
-  version: number;
-}
-
-export interface AomiPutSessionWalletContextRequest {
-  family: AomiWalletFamily;
-  identity_wallet_id: number;
-  network_id?: string | null;
-  expected_version?: number | null;
-}
-
-export interface AomiWalletContextErrorBody {
-  error: string;
-  current_context?: AomiSessionWalletContext | null;
-}
-
 /**
  * GET/POST /api/control/provider-keys
  * Lists or saves BYOK keys (one per LLM provider) for the bound client.

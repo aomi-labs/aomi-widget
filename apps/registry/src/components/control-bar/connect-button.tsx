@@ -3,7 +3,6 @@
 import { useEffect, type FC } from "react";
 import { cn, formatAddress, getChainInfo } from "@aomi-labs/react";
 import { useAomiAuthAdapter } from "../../lib/aomi-auth-adapter";
-import { useAomiWalletNetworkPreferences } from "../../lib/aomi-auth-adapter/network-preferences";
 import { DualWalletBar } from "./dual-wallet-bar";
 import { formatWalletProvider } from "../../lib/aomi-auth-adapter";
 
@@ -20,7 +19,6 @@ const SingleConnectButton: FC<Omit<ConnectButtonProps, "families">> = ({
   onConnectionChange,
 }) => {
   const adapter = useAomiAuthAdapter();
-  const { selectedFamily } = useAomiWalletNetworkPreferences();
   const identity = adapter.identity;
 
   useEffect(() => {
@@ -29,7 +27,7 @@ const SingleConnectButton: FC<Omit<ConnectButtonProps, "families">> = ({
 
   const handleClick = () => {
     if (identity.isConnected && adapter.canOpenAccountUI && adapter.openAccountUI) {
-      void adapter.openAccountUI({ family: selectedFamily });
+      void adapter.openAccountUI();
       return;
     }
     if (identity.isConnected && adapter.canDisconnect && adapter.disconnect) {
@@ -37,7 +35,7 @@ const SingleConnectButton: FC<Omit<ConnectButtonProps, "families">> = ({
       return;
     }
     if (adapter.canConnect) {
-      void adapter.connect({ family: selectedFamily });
+      void adapter.connect();
     }
   };
 

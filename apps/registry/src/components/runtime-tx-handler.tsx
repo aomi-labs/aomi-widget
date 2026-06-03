@@ -109,14 +109,8 @@ export function RuntimeTxHandler() {
         (n) => n.cluster === requestedCluster,
       );
       if (!target) return;
-      const active = adapter.activeNetwork;
-      if (
-        active &&
-        active.family === "solana" &&
-        active.networkId === target.id
-      ) {
-        return;
-      }
+      // `selectNetwork` self-dedups (no-op when already on `target`), so we
+      // don't need to compare against a current "active network" here.
       if (adapter.solanaNetworkSwitchRequiresReconnect) {
         // The wallet currently has a session against a different cluster.
         // Don't silently disconnect the user — they'll see the wallet's
@@ -238,8 +232,6 @@ export function RuntimeTxHandler() {
             cluster: req.payload.cluster,
             description: req.payload.description,
             adapterReady: adapter.isReady,
-            activeFamily: adapter.activeFamily,
-            activeNetwork: adapter.activeNetwork,
             svmAddress: adapter.identity.svmAddress,
             solanaWalletName: adapter.identity.solanaWalletName,
             hasSignSolanaMessage: Boolean(adapter.signSolanaMessage),
