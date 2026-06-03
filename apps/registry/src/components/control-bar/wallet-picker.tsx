@@ -1,16 +1,35 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, type FC, type SVGProps } from "react";
 import {
-  CheckIcon, ChevronRightIcon, Loader2Icon, LogOutIcon, Settings2Icon, WalletIcon, XIcon,
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type FC,
+  type SVGProps,
+} from "react";
+import {
+  CheckIcon,
+  ChevronRightIcon,
+  Loader2Icon,
+  LogOutIcon,
+  Settings2Icon,
+  WalletIcon,
+  XIcon,
 } from "lucide-react";
 import { cn, getChainInfo } from "@aomi-labs/react";
 import {
-  useAomiAuthAdapter, formatAddress, formatAuthProvider, useWalletActivationGuard,
+  useAomiAuthAdapter,
+  formatAddress,
+  formatAuthProvider,
+  useWalletActivationGuard,
 } from "../../lib/aomi-auth-adapter";
 import { isAccountSelectable } from "../../lib/aomi-auth-adapter/accounts";
 import { useAomiWalletNetworkPreferences } from "../../lib/aomi-auth-adapter/network-preferences";
-import type { AomiAccount, WalletFamily } from "../../lib/aomi-auth-adapter/types";
+import type {
+  AomiAccount,
+  WalletFamily,
+} from "../../lib/aomi-auth-adapter/types";
 import {
   useWalletPicker,
   type WalletPickerProvider as WalletPickerProviderEntry,
@@ -24,14 +43,20 @@ export function WalletPicker() {
   const { open, closePicker, providers } = useWalletPicker();
   const adapter = useAomiAuthAdapter();
   const identity = adapter.identity;
-  const { selectedFamily, setSelectedFamily } = useAomiWalletNetworkPreferences();
+  const { selectedFamily, setSelectedFamily } =
+    useAomiWalletNetworkPreferences();
   const activeFamily: WalletFamily = adapter.activeFamily ?? selectedFamily;
   const [pending, setPending] = useState<string | null>(null);
   const canActivateWallet = useWalletActivationGuard();
 
   useEffect(() => {
-    if (!open) { setPending(null); return; }
-    const handleKey = (e: KeyboardEvent) => { if (e.key === "Escape") closePicker(); };
+    if (!open) {
+      setPending(null);
+      return;
+    }
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") closePicker();
+    };
     window.addEventListener("keydown", handleKey);
     return () => window.removeEventListener("keydown", handleKey);
   }, [open, closePicker]);
@@ -40,9 +65,13 @@ export function WalletPicker() {
     async (key: string, fn: () => Promise<void> | void, guard = false) => {
       if (guard && !canActivateWallet()) return;
       setPending(key);
-      try { await fn(); }
-      catch (err) { console.warn("[WalletPicker] action failed", key, err); }
-      finally { setPending(null); }
+      try {
+        await fn();
+      } catch (err) {
+        console.warn("[WalletPicker] action failed", key, err);
+      } finally {
+        setPending(null);
+      }
     },
     [canActivateWallet],
   );
@@ -55,6 +84,8 @@ export function WalletPicker() {
     () => adapter.accounts.filter((a) => a.family === "solana"),
     [adapter.accounts],
   );
+  const activeEvmAccount = evmAccounts.find((account) => account.active);
+  const activeSolanaAccount = solanaAccounts.find((account) => account.active);
 
   if (!open) return null;
 
@@ -63,47 +94,113 @@ export function WalletPicker() {
 
   return (
     <div
-      role="dialog" aria-modal="true" aria-labelledby="aomi-wallet-picker-title"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="aomi-wallet-picker-title"
       className="animate-in fade-in-0 fixed inset-0 z-50 flex items-center justify-center px-4 py-4 duration-150"
     >
-      <button type="button" aria-label="Close" onClick={closePicker} className="absolute inset-0 cursor-default bg-black/15 dark:bg-black/30" />
-      <div className={cn(
-        "relative z-10 flex w-full max-w-[360px] flex-col overflow-hidden",
-        "border-border/60 bg-popover text-popover-foreground rounded-3xl border shadow-lg",
-        "animate-in zoom-in-95 fade-in-0 duration-200",
-      )}>
-        <div className="border-border/60 relative border-b px-4 pb-3 pt-3">
-          <h2 id="aomi-wallet-picker-title" className="text-sm font-semibold tracking-tight">Wallets</h2>
-          <p className="text-muted-foreground mt-0.5 pr-7 text-xs leading-snug">
-            {identity.isConnected ? "Manage your connected wallets." : "Connect an EVM or Solana wallet."}
+      <button
+        type="button"
+        aria-label="Close"
+        onClick={closePicker}
+        className="absolute inset-0 cursor-default bg-slate-950/25 backdrop-blur-sm dark:bg-black/45"
+      />
+      <div
+        className={cn(
+          "relative z-10 flex max-h-[min(720px,92vh)] w-full max-w-[440px] flex-col overflow-hidden",
+          "border-border/60 bg-popover text-popover-foreground rounded-[28px] border shadow-2xl",
+          "animate-in zoom-in-95 fade-in-0 duration-200",
+        )}
+      >
+        <div className="relative overflow-hidden border-b border-white/10 bg-[radial-gradient(circle_at_12%_12%,rgba(14,165,233,0.22),transparent_34%),linear-gradient(135deg,rgba(15,23,42,0.96),rgba(17,24,39,0.88))] px-4 pb-4 pt-4 text-white">
+          <div className="pointer-events-none absolute -right-10 -top-12 size-32 rounded-full border border-white/15" />
+          <div className="pointer-events-none absolute -bottom-16 left-16 size-28 rounded-full bg-cyan-300/10 blur-2xl" />
+          <h2
+            id="aomi-wallet-picker-title"
+            className="relative text-base font-semibold tracking-tight"
+          >
+            Wallet center
+          </h2>
+          <p className="relative mt-1 max-w-[310px] pr-7 text-xs leading-snug text-white/70">
+            {identity.isConnected
+              ? "Choose one active signer per network family without losing the current chat."
+              : "Connect EVM and Solana wallets under the same account."}
           </p>
-          <button type="button" onClick={closePicker} aria-label="Close" className={cn(
-            "absolute right-3 top-3 rounded-full p-1 transition-colors",
-            "text-muted-foreground hover:bg-muted hover:text-foreground",
-          )}>
+          <button
+            type="button"
+            onClick={closePicker}
+            aria-label="Close"
+            className="absolute right-3 top-3 rounded-full p-1.5 text-white/60 transition-colors hover:bg-white/10 hover:text-white"
+          >
             <XIcon className="size-3.5" />
           </button>
+          <div className="relative mt-4 grid grid-cols-2 gap-2">
+            <WalletSummaryCard
+              family="evm"
+              account={activeEvmAccount}
+              active={activeFamily === "evm"}
+              detail={
+                activeEvmAccount && identity.chainId
+                  ? getChainInfo(identity.chainId)?.ticker
+                  : undefined
+              }
+              onClick={() => {
+                if (canActivateWallet()) setSelectedFamily("evm");
+              }}
+            />
+            <WalletSummaryCard
+              family="solana"
+              account={activeSolanaAccount}
+              active={activeFamily === "solana"}
+              detail={identity.solanaCluster}
+              onClick={() => {
+                if (canActivateWallet()) setSelectedFamily("solana");
+              }}
+            />
+          </div>
         </div>
 
-        <div className="flex flex-col gap-3 p-3">
+        <div className="flex flex-col gap-3 overflow-y-auto p-3">
           {/* Provider section (Para session) */}
           <section className="flex flex-col gap-1.5">
-            <span className="px-1 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Provider</span>
+            <span className="text-muted-foreground px-1 text-[11px] font-medium uppercase tracking-wide">
+              Account
+            </span>
             {providers.map((provider) => (
               <ProviderRow
                 key={provider.id}
                 provider={provider}
                 connected={identity.isConnected && provider.id === "para"}
-                subtitle={identity.isConnected && provider.id === "para" ? providerSubtitle : provider.description}
+                subtitle={
+                  identity.isConnected && provider.id === "para"
+                    ? providerSubtitle
+                    : provider.description
+                }
                 pending={pending}
                 onConnect={
-                  !identity.isConnected && adapter.canConnect && !provider.disabled
-                    ? () => void runAction(`connect-provider:${provider.id}`, async () => { await adapter.connect(); closePicker(); })
+                  !identity.isConnected &&
+                  adapter.canConnect &&
+                  !provider.disabled
+                    ? () =>
+                        void runAction(
+                          `connect-provider:${provider.id}`,
+                          async () => {
+                            await adapter.connect();
+                            closePicker();
+                          },
+                        )
                     : undefined
                 }
                 onManage={
-                  identity.isConnected && provider.id === "para" && adapter.canOpenAccountUI && adapter.openAccountUI
-                    ? () => void runAction(`manage:${provider.id}`, async () => { await adapter.openAccountUI?.(); closePicker(); })
+                  identity.isConnected &&
+                  provider.id === "para" &&
+                  adapter.canOpenAccountUI &&
+                  adapter.openAccountUI
+                    ? () =>
+                        void runAction(`manage:${provider.id}`, async () => {
+                          await adapter.openAccountUI?.();
+                          closePicker();
+                        })
                     : undefined
                 }
               />
@@ -111,20 +208,83 @@ export function WalletPicker() {
           </section>
 
           <FamilySection
-            family="evm" accounts={evmAccounts} activeFamily={activeFamily}
-            chainId={identity.chainId} pending={pending}
-            onSwitchFamily={() => { if (canActivateWallet()) setSelectedFamily("evm"); }}
-            onSelect={(id) => void runAction(`select:${id}`, () => adapter.selectAccount(id), true)}
-            onDisconnect={adapter.disconnect ? (id) => void runAction(`disconnect:${id}`, () => adapter.disconnect!({ accountId: id }), true) : undefined}
-            onConnect={adapter.canConnect ? () => void runAction("connect:evm", async () => { await adapter.connect({ family: "evm" }); closePicker(); }, true) : undefined}
+            family="evm"
+            accounts={evmAccounts}
+            activeFamily={activeFamily}
+            chainId={identity.chainId}
+            pending={pending}
+            onSwitchFamily={() => {
+              if (canActivateWallet()) setSelectedFamily("evm");
+            }}
+            onSelect={(id) =>
+              void runAction(
+                `select:${id}`,
+                () => adapter.selectAccount(id),
+                true,
+              )
+            }
+            onDisconnect={
+              adapter.disconnect
+                ? (id) =>
+                    void runAction(
+                      `disconnect:${id}`,
+                      () => adapter.disconnect!({ accountId: id }),
+                      true,
+                    )
+                : undefined
+            }
+            onConnect={
+              adapter.canConnect
+                ? () =>
+                    void runAction(
+                      "connect:evm",
+                      async () => {
+                        await adapter.connect({ family: "evm" });
+                        closePicker();
+                      },
+                      true,
+                    )
+                : undefined
+            }
           />
           <FamilySection
-            family="solana" accounts={solanaAccounts} activeFamily={activeFamily}
+            family="solana"
+            accounts={solanaAccounts}
+            activeFamily={activeFamily}
             pending={pending}
-            onSwitchFamily={() => { if (canActivateWallet()) setSelectedFamily("solana"); }}
-            onSelect={(id) => void runAction(`select:${id}`, () => adapter.selectAccount(id), true)}
-            onDisconnect={adapter.disconnect ? () => void runAction("disconnect:solana", () => adapter.disconnect!({ family: "solana" }), true) : undefined}
-            onConnect={adapter.canConnect ? () => void runAction("connect:solana", async () => { await adapter.connect({ family: "solana" }); closePicker(); }, true) : undefined}
+            onSwitchFamily={() => {
+              if (canActivateWallet()) setSelectedFamily("solana");
+            }}
+            onSelect={(id) =>
+              void runAction(
+                `select:${id}`,
+                () => adapter.selectAccount(id),
+                true,
+              )
+            }
+            onDisconnect={
+              adapter.disconnect
+                ? () =>
+                    void runAction(
+                      "disconnect:solana",
+                      () => adapter.disconnect!({ family: "solana" }),
+                      true,
+                    )
+                : undefined
+            }
+            onConnect={
+              adapter.canConnect
+                ? () =>
+                    void runAction(
+                      "connect:solana",
+                      async () => {
+                        await adapter.connect({ family: "solana" });
+                        closePicker();
+                      },
+                      true,
+                    )
+                : undefined
+            }
           />
           {adapter.connectSolanaWallet && adapter.solanaWallets?.length ? (
             <section className="flex flex-col gap-1.5">
@@ -144,7 +304,7 @@ export function WalletPicker() {
                     )
                   }
                   className={cn(
-                    "border-border/60 bg-background hover:bg-accent/40 flex items-center gap-2 rounded-2xl border px-2.5 py-2 text-left",
+                    "border-border/60 bg-background hover:border-primary/30 hover:bg-accent/40 flex items-center gap-2 rounded-2xl border px-2.5 py-2 text-left transition-colors",
                     !wallet.ready && "opacity-50",
                   )}
                 >
@@ -152,9 +312,15 @@ export function WalletPicker() {
                     <WalletIcon className="size-4" />
                   </span>
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate text-sm font-medium">{wallet.name}</span>
+                    <span className="block truncate text-sm font-medium">
+                      {wallet.name}
+                    </span>
                     <span className="text-muted-foreground block text-[11px]">
-                      {wallet.installed ? "Installed" : wallet.ready ? "Available" : "Not installed"}
+                      {wallet.installed
+                        ? "Installed"
+                        : wallet.ready
+                          ? "Available"
+                          : "Not installed"}
                     </span>
                   </span>
                   {pending === `connect-solana:${wallet.name}` ? (
@@ -172,8 +338,63 @@ export function WalletPicker() {
   );
 }
 
+function WalletSummaryCard({
+  family,
+  account,
+  active,
+  detail,
+  onClick,
+}: {
+  family: WalletFamily;
+  account?: AomiAccount;
+  active: boolean;
+  detail?: string;
+  onClick: () => void;
+}) {
+  const shortAddress = account
+    ? formatAddress(account.address)
+    : "Not connected";
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        "group rounded-2xl border p-3 text-left transition-colors",
+        active
+          ? "bg-white/16 border-cyan-300/50 text-white shadow-[0_12px_28px_rgba(8,47,73,0.28)]"
+          : "text-white/72 border-white/10 bg-white/[0.07] hover:bg-white/[0.11]",
+      )}
+    >
+      <span className="flex items-center justify-between gap-2">
+        <span className="text-[11px] font-semibold uppercase tracking-[0.16em]">
+          {family === "solana" ? "SOL" : "EVM"}
+        </span>
+        <span
+          className={cn(
+            "rounded-full px-2 py-0.5 text-[10px] font-medium",
+            active ? "bg-cyan-300 text-slate-950" : "bg-white/10 text-white/60",
+          )}
+        >
+          {active ? "Active" : "Standby"}
+        </span>
+      </span>
+      <span className="mt-3 block truncate text-sm font-semibold">
+        {shortAddress}
+      </span>
+      <span className="mt-1 block truncate text-[11px] text-white/55">
+        {account?.walletName ?? detail ?? "Connect signer"}
+      </span>
+    </button>
+  );
+}
+
 function ProviderRow({
-  provider, connected, subtitle, pending, onConnect, onManage,
+  provider,
+  connected,
+  subtitle,
+  pending,
+  onConnect,
+  onManage,
 }: {
   provider: WalletPickerProviderEntry;
   connected: boolean;
@@ -185,21 +406,33 @@ function ProviderRow({
   const Icon = provider.icon ?? WalletIcon;
   const content = (
     <>
-      <span className={cn(
-        "flex size-9 shrink-0 items-center justify-center rounded-xl border",
-        connected ? "border-primary/30 bg-primary/10 text-primary" : "border-border/60 bg-muted/40 text-foreground",
-      )}>
+      <span
+        className={cn(
+          "flex size-9 shrink-0 items-center justify-center rounded-xl border",
+          connected
+            ? "border-primary/30 bg-primary/10 text-primary"
+            : "border-border/60 bg-muted/40 text-foreground",
+        )}
+      >
         <Icon className="size-5" />
       </span>
       <span className="min-w-0 flex-1 leading-tight">
-        <span className="block truncate text-sm font-medium">{provider.label}</span>
-        {subtitle && <span className="text-muted-foreground mt-0.5 block truncate text-[11px]">{subtitle}</span>}
+        <span className="block truncate text-sm font-medium">
+          {provider.label}
+        </span>
+        {subtitle && (
+          <span className="text-muted-foreground mt-0.5 block truncate text-[11px]">
+            {subtitle}
+          </span>
+        )}
       </span>
     </>
   );
   const cardClass = cn(
     "flex items-center gap-3 rounded-2xl border px-2.5 py-2",
-    connected ? "border-primary/40 bg-primary/[0.04]" : "border-border/60 bg-background",
+    connected
+      ? "border-primary/40 bg-primary/[0.04]"
+      : "border-border/60 bg-background",
     provider.disabled && "opacity-50",
   );
   if (connected) {
@@ -207,18 +440,36 @@ function ProviderRow({
       <div className={cardClass}>
         {content}
         {onManage && (
-          <RowIconButton icon={Settings2Icon} ariaLabel="Manage account" disabled={pending !== null} loading={pending === `manage:${provider.id}`} onClick={onManage} />
+          <RowIconButton
+            icon={Settings2Icon}
+            ariaLabel="Manage account"
+            disabled={pending !== null}
+            loading={pending === `manage:${provider.id}`}
+            onClick={onManage}
+          />
         )}
       </div>
     );
   }
   return (
-    <button type="button" onClick={onConnect} disabled={!onConnect || pending !== null || provider.disabled}
+    <button
+      type="button"
+      onClick={onConnect}
+      disabled={!onConnect || pending !== null || provider.disabled}
       aria-label={`Connect with ${provider.label}`}
-      className={cn(cardClass, "w-full text-left", onConnect ? "cursor-pointer hover:bg-accent/40" : "cursor-default")}>
+      className={cn(
+        cardClass,
+        "w-full text-left",
+        onConnect ? "hover:bg-accent/40 cursor-pointer" : "cursor-default",
+      )}
+    >
       {content}
       <span className="text-muted-foreground shrink-0">
-        {pending === `connect-provider:${provider.id}` ? <Loader2Icon className="size-4 animate-spin" /> : onConnect ? <ChevronRightIcon className="size-4" /> : null}
+        {pending === `connect-provider:${provider.id}` ? (
+          <Loader2Icon className="size-4 animate-spin" />
+        ) : onConnect ? (
+          <ChevronRightIcon className="size-4" />
+        ) : null}
       </span>
     </button>
   );
@@ -236,55 +487,124 @@ type FamilySectionProps = {
   onConnect?: () => void;
 };
 
-function FamilySection({ family, accounts, activeFamily, chainId, pending, onSwitchFamily, onSelect, onDisconnect, onConnect }: FamilySectionProps) {
+function FamilySection({
+  family,
+  accounts,
+  activeFamily,
+  chainId,
+  pending,
+  onSwitchFamily,
+  onSelect,
+  onDisconnect,
+  onConnect,
+}: FamilySectionProps) {
   const isActiveFamily = family === activeFamily;
   return (
-    <section className={cn("flex flex-col gap-1.5", !isActiveFamily && "opacity-60")}>
+    <section
+      className={cn("flex flex-col gap-1.5", !isActiveFamily && "opacity-60")}
+    >
       <div className="flex items-center justify-between px-1">
-        <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">{familyLabel(family)}</span>
+        <span className="text-muted-foreground text-[11px] font-medium uppercase tracking-wide">
+          {familyLabel(family)}
+        </span>
         {!isActiveFamily && (
-          <button type="button" onClick={onSwitchFamily} className="text-primary text-[11px] hover:underline">
+          <button
+            type="button"
+            onClick={onSwitchFamily}
+            className="text-primary text-[11px] hover:underline"
+          >
             Switch to {familyLabel(family)}
           </button>
         )}
       </div>
       {accounts.length === 0 ? (
-        <p className="text-muted-foreground px-1 text-[11px]">No {familyLabel(family)} wallet connected.</p>
+        <p className="text-muted-foreground px-1 text-[11px]">
+          No {familyLabel(family)} wallet connected.
+        </p>
       ) : (
         accounts.map((account) => {
-          const selectable = isActiveFamily && isAccountSelectable(account, activeFamily);
-          const chainTicker = family === "evm" && account.active && chainId ? getChainInfo(chainId)?.ticker : undefined;
+          const selectable =
+            isActiveFamily && isAccountSelectable(account, activeFamily);
+          const chainTicker =
+            family === "evm" && account.active && chainId
+              ? getChainInfo(chainId)?.ticker
+              : undefined;
           return (
-            <div key={account.id} className={cn(
-              "flex items-center gap-2 rounded-2xl border px-2.5 py-2",
-              account.active ? "border-primary/40 bg-primary/[0.04]" : "border-border/60 bg-background",
-            )}>
-              <span className="bg-muted/40 text-foreground flex size-8 shrink-0 items-center justify-center rounded-xl"><WalletIcon className="size-4" /></span>
-              <button type="button" disabled={!selectable || pending !== null || account.active}
+            <div
+              key={account.id}
+              className={cn(
+                "flex items-center gap-2 rounded-2xl border px-2.5 py-2",
+                account.active
+                  ? "border-primary/40 bg-primary/[0.04]"
+                  : "border-border/60 bg-background",
+              )}
+            >
+              <span className="bg-muted/40 text-foreground flex size-8 shrink-0 items-center justify-center rounded-xl">
+                <WalletIcon className="size-4" />
+              </span>
+              <button
+                type="button"
+                disabled={!selectable || pending !== null || account.active}
                 onClick={() => onSelect(account.id)}
-                className={cn("min-w-0 flex-1 text-left", selectable && !account.active ? "cursor-pointer" : "cursor-default")}>
-                <span className="block truncate text-sm font-medium">{account.walletName ?? familyLabel(family)}</span>
+                className={cn(
+                  "min-w-0 flex-1 text-left",
+                  selectable && !account.active
+                    ? "cursor-pointer"
+                    : "cursor-default",
+                )}
+              >
+                <span className="block truncate text-sm font-medium">
+                  {account.walletName ?? familyLabel(family)}
+                </span>
                 <span className="text-muted-foreground block truncate text-[11px]">
-                  {[account.label ?? formatAddress(account.address), chainTicker].filter(Boolean).join(" / ")}
+                  {[
+                    account.label ?? formatAddress(account.address),
+                    chainTicker,
+                  ]
+                    .filter(Boolean)
+                    .join(" / ")}
                 </span>
               </button>
-              {account.active && <CheckIcon className="text-primary size-4 shrink-0" />}
-              {!account.active && selectable && (pending === `select:${account.id}` ? <Loader2Icon className="size-4 shrink-0 animate-spin" /> : <ChevronRightIcon className="text-muted-foreground size-4 shrink-0" />)}
+              {account.active && (
+                <CheckIcon className="text-primary size-4 shrink-0" />
+              )}
+              {!account.active &&
+                selectable &&
+                (pending === `select:${account.id}` ? (
+                  <Loader2Icon className="size-4 shrink-0 animate-spin" />
+                ) : (
+                  <ChevronRightIcon className="text-muted-foreground size-4 shrink-0" />
+                ))}
               {onDisconnect && (
-                <RowIconButton icon={LogOutIcon} ariaLabel="Disconnect" disabled={pending !== null} loading={
-                  family === "evm"
-                    ? pending === `disconnect:${account.id}`
-                    : pending === "disconnect:solana"
-                } onClick={() => onDisconnect(account.id)} />
+                <RowIconButton
+                  icon={LogOutIcon}
+                  ariaLabel="Disconnect"
+                  disabled={pending !== null}
+                  loading={
+                    family === "evm"
+                      ? pending === `disconnect:${account.id}`
+                      : pending === "disconnect:solana"
+                  }
+                  onClick={() => onDisconnect(account.id)}
+                />
               )}
             </div>
           );
         })
       )}
       {isActiveFamily && onConnect && (
-        <button type="button" onClick={onConnect} disabled={pending !== null}
-          className={cn("border-border flex items-center justify-center gap-2 rounded-2xl border border-dashed px-2.5 py-2 text-xs", "text-muted-foreground hover:bg-accent/40")}>
-          {(pending === `connect:${family}`) ? <Loader2Icon className="size-3.5 animate-spin" /> : null}
+        <button
+          type="button"
+          onClick={onConnect}
+          disabled={pending !== null}
+          className={cn(
+            "border-border flex items-center justify-center gap-2 rounded-2xl border border-dashed px-2.5 py-2 text-xs",
+            "text-muted-foreground hover:bg-accent/40",
+          )}
+        >
+          {pending === `connect:${family}` ? (
+            <Loader2Icon className="size-3.5 animate-spin" />
+          ) : null}
           Connect {familyLabel(family)} wallet
         </button>
       )}
@@ -292,13 +612,36 @@ function FamilySection({ family, accounts, activeFamily, chainId, pending, onSwi
   );
 }
 
-function RowIconButton({ icon: Icon, onClick, disabled, loading, ariaLabel }: {
-  icon: FC<SVGProps<SVGSVGElement>>; onClick: () => void; disabled?: boolean; loading?: boolean; ariaLabel: string;
+function RowIconButton({
+  icon: Icon,
+  onClick,
+  disabled,
+  loading,
+  ariaLabel,
+}: {
+  icon: FC<SVGProps<SVGSVGElement>>;
+  onClick: () => void;
+  disabled?: boolean;
+  loading?: boolean;
+  ariaLabel: string;
 }) {
   return (
-    <button type="button" onClick={onClick} disabled={disabled || loading} aria-label={ariaLabel}
-      className={cn("rounded-full p-1.5 transition-colors", "text-muted-foreground hover:bg-muted hover:text-foreground", "disabled:pointer-events-none disabled:opacity-50")}>
-      {loading ? <Loader2Icon className="size-3.5 animate-spin" /> : <Icon className="size-3.5" />}
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled || loading}
+      aria-label={ariaLabel}
+      className={cn(
+        "rounded-full p-1.5 transition-colors",
+        "text-muted-foreground hover:bg-muted hover:text-foreground",
+        "disabled:pointer-events-none disabled:opacity-50",
+      )}
+    >
+      {loading ? (
+        <Loader2Icon className="size-3.5 animate-spin" />
+      ) : (
+        <Icon className="size-3.5" />
+      )}
     </button>
   );
 }
