@@ -1,10 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, type FC } from "react";
+import { useEffect, type FC } from "react";
 import { ChevronDownIcon } from "lucide-react";
 import { cn, getChainInfo } from "@aomi-labs/react";
 import { useAomiAuthAdapter } from "../../lib/aomi-auth-adapter";
-import { useAomiWalletNetworkPreferences } from "../../lib/aomi-auth-adapter/network-preferences";
 import { formatAddress } from "../../lib/aomi-auth-adapter/identity";
 import { WalletPicker } from "./wallet-picker";
 import {
@@ -33,14 +32,7 @@ const DualWalletBarInner: FC<DualWalletBarProps> = ({
 }) => {
   const adapter = useAomiAuthAdapter();
   const identity = adapter.identity;
-  const { selectedFamily } = useAomiWalletNetworkPreferences();
   const { openPicker } = useWalletPicker();
-
-  const activeFamily: "evm" | "solana" = useMemo(() => {
-    const preferred = adapter.activeFamily ?? selectedFamily;
-    if (preferred && families.includes(preferred)) return preferred;
-    return families[0] ?? "evm";
-  }, [adapter.activeFamily, families, selectedFamily]);
 
   const connected = Boolean(identity.address || identity.svmAddress);
 
@@ -79,9 +71,7 @@ const DualWalletBarInner: FC<DualWalletBarProps> = ({
                 key={family}
                 className={cn(
                   "rounded-full px-2 py-0.5 text-[11px]",
-                  family === activeFamily
-                    ? "bg-background/20"
-                    : "bg-background/10 opacity-70",
+                  address ? "bg-background/20" : "bg-background/10 opacity-70",
                 )}
               >
                 {family === "evm" ? "EVM" : "SOL"}{" "}

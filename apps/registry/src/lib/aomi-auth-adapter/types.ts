@@ -133,8 +133,6 @@ export type SolanaWalletDescriptor = {
 export type AomiAccount = {
   /** Stable id: wagmi connector uid (EVM) or solana wallet name (Solana). */
   id: string;
-  /** Backend identity_wallets.id, populated once the account is linked. */
-  identityWalletId?: number;
   family: WalletFamily;
   address: string;
   /** Short display label, e.g. formatted address. */
@@ -173,8 +171,6 @@ export type AomiAuthAdapter = {
     evm: readonly Chain[];
     solana: readonly SolanaNetworkOption[];
   };
-  activeFamily?: WalletFamily;
-  activeNetwork?: AomiNetworkTarget;
   solanaNetworkSwitchRequiresReconnect?: boolean;
 
   /** All wallet accounts known to the adapter, tagged by family. */
@@ -199,7 +195,7 @@ export type AomiAuthAdapter = {
   connect: (options?: { family?: WalletFamily }) => Promise<void>;
   openAccountUI?: (options?: { family?: WalletFamily }) => Promise<void>;
   /**
-   * Disconnect from the wallet. By default disconnects the active family;
+   * Disconnect from the wallet. By default disconnects everything;
    * pass `{ family }` to disconnect a specific family while leaving the
    * other connected (e.g. drop just Solana while keeping the EVM Para
    * session, or vice versa). `{ family: "all" }` clears both.

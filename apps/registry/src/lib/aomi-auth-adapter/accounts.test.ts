@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildAccounts, isAccountSelectable } from "./accounts";
+import { buildAccounts } from "./accounts";
 
 describe("buildAccounts", () => {
   it("tags EVM connections and marks the active one", () => {
@@ -55,13 +55,5 @@ describe("buildAccounts", () => {
 
   it("returns empty when nothing is connected", () => {
     expect(buildAccounts({ evmConnections: [], activeEvmAddress: undefined })).toEqual([]);
-  });
-});
-
-describe("isAccountSelectable", () => {
-  it("only allows accounts in the active family", () => {
-    const evm = { id: "x", family: "evm", address: "0x", active: false } as const;
-    expect(isAccountSelectable(evm, "evm")).toBe(true);
-    expect(isAccountSelectable(evm, "solana")).toBe(false);
   });
 });

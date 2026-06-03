@@ -146,7 +146,7 @@ describe("WalletPicker", () => {
     expect(adapter.selectAccount).toHaveBeenCalledWith("mm");
   });
 
-  it("disables the inactive family and offers a switch affordance", () => {
+  it("selects an account in any family directly (no family switch needed)", () => {
     const adapter = makeAdapter({
       accounts: [
         {
@@ -166,11 +166,11 @@ describe("WalletPicker", () => {
       ],
     });
     renderPicker(adapter);
-    // EVM is the active family by default → Solana section is inactive.
-    expect(screen.getByText(/Switch to Solana/i)).toBeTruthy();
-    // Clicking the inactive Solana account must NOT select it.
+    // Both families are always active — no "Switch to X" affordance.
+    expect(screen.queryByText(/Switch to/i)).toBeNull();
+    // Clicking the (inactive) Solana account selects it directly.
     fireEvent.click(screen.getByText("Phantom"));
-    expect(adapter.selectAccount).not.toHaveBeenCalled();
+    expect(adapter.selectAccount).toHaveBeenCalledWith("phantom");
   });
 
   it("disconnects an EVM account by accountId", () => {
@@ -188,33 +188,6 @@ describe("WalletPicker", () => {
     renderPicker(adapter);
     fireEvent.click(screen.getByLabelText("Disconnect"));
     expect(adapter.disconnect).toHaveBeenCalledWith({ accountId: "mm" });
-  });
-
-  it("activates the Solana family after using the switch affordance", () => {
-    const adapter = makeAdapter({
-      accounts: [
-        {
-          id: "mm",
-          family: "evm",
-          address: "0xAAAAAAAA",
-          walletName: "MetaMask",
-          active: true,
-        },
-        {
-          id: "phantom",
-          family: "solana",
-          address: "9xQpubKey",
-          walletName: "Phantom",
-          active: false,
-        },
-      ],
-    });
-    renderPicker(adapter);
-    act(() => {
-      fireEvent.click(screen.getByText(/Switch to Solana/i));
-    });
-    fireEvent.click(screen.getByText("Phantom"));
-    expect(adapter.selectAccount).toHaveBeenCalledWith("phantom");
   });
 
   it("blocks wallet selection while a wallet request is unresolved", () => {

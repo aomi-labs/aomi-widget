@@ -9,6 +9,7 @@ import {
   useConnections,
   useConnectors,
   useDisconnect,
+  useReconnect,
   useSendCallsSync,
   useSendTransaction,
   useSignTypedData,
@@ -199,6 +200,17 @@ export function useSafeDisconnect(): {
     return { disconnectAsync, isPending };
   } catch {
     return { disconnectAsync: undefined, isPending: false };
+  }
+}
+
+export function useSafeReconnect(): {
+  reconnect?: ReturnType<typeof useReconnect>["reconnect"];
+} {
+  try {
+    const { reconnect } = useReconnect();
+    return { reconnect };
+  } catch {
+    return { reconnect: undefined };
   }
 }
 

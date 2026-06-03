@@ -157,9 +157,7 @@ function BaseAccountAdapterInner({
   const { signTypedDataAsync } = useSafeSignTypedData();
   const wagmiConfig = useSafeWagmiConfig();
   const {
-    selectedFamily,
     selectedEvmChainId,
-    setSelectedFamily,
     setSelectedEvmChainId,
     supportedSolanaNetworks,
   } = useAomiWalletNetworkPreferences();
@@ -225,7 +223,6 @@ function BaseAccountAdapterInner({
 
     const connect = async () => {
       if (!connectAsync || !baseConnector) return;
-      setSelectedFamily("evm");
       await connectAsync({ connector: baseConnector });
     };
     const disconnect = async () => {
@@ -248,29 +245,18 @@ function BaseAccountAdapterInner({
         evm: wagmiConfig.chains,
         solana: supportedSolanaNetworks,
       },
-      activeFamily: "evm",
-      activeNetwork:
-        (chainId ?? selectedEvmChainId) !== undefined
-          ? {
-              family: "evm",
-              chainId: chainId ?? selectedEvmChainId ?? wagmiConfig.chains[0]?.id ?? 1,
-            }
-          : undefined,
       connect: async () => {
-        setSelectedFamily("evm");
         await connect();
       },
       disconnect,
       switchChain: switchChainAsync
         ? async (nextChainId: number) => {
-            setSelectedFamily("evm");
             setSelectedEvmChainId(nextChainId);
             await switchChainAsync({ chainId: nextChainId });
           }
         : undefined,
       selectNetwork: async (target) => {
         if (target.family !== "evm") return;
-        setSelectedFamily("evm");
         setSelectedEvmChainId(target.chainId);
         if (switchChainAsync && chainId !== target.chainId && isConnected) {
           await switchChainAsync({ chainId: target.chainId });
@@ -345,7 +331,6 @@ function BaseAccountAdapterInner({
     isSwitchingChain,
     selectedEvmChainId,
     setSelectedEvmChainId,
-    setSelectedFamily,
     sendCallsSyncAsync,
     sendTransactionAsync,
     signTypedDataAsync,

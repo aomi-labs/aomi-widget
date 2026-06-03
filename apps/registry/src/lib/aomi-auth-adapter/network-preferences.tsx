@@ -9,22 +9,16 @@ import {
   type ReactNode,
 } from "react";
 import type { Chain } from "viem";
-import type {
-  AomiNetworkTarget,
-  SolanaNetworkOption,
-  WalletFamily,
-} from "./types";
+import type { AomiNetworkTarget, SolanaNetworkOption } from "./types";
 import { resolveSelectedSolanaNetwork } from "./solana-networks";
 import { loadWalletPreferences, saveWalletPreferences } from "./persistence";
 
 type NetworkPreferencesContextValue = {
-  selectedFamily: WalletFamily;
   selectedEvmChainId?: number;
   selectedSolanaNetworkId?: string;
   supportedEvmChains: readonly Chain[];
   supportedSolanaNetworks: readonly SolanaNetworkOption[];
   selectedSolanaNetwork?: SolanaNetworkOption;
-  setSelectedFamily: (family: WalletFamily) => void;
   setSelectedEvmChainId: (chainId: number | undefined) => void;
   setSelectedSolanaNetworkId: (networkId: string | undefined) => void;
   selectTarget: (target: AomiNetworkTarget) => void;
@@ -32,16 +26,6 @@ type NetworkPreferencesContextValue = {
 
 const NetworkPreferencesContext =
   createContext<NetworkPreferencesContextValue | null>(null);
-
-function resolveInitialFamily(
-  evmChains: readonly Chain[],
-  solanaNetworks: readonly SolanaNetworkOption[],
-): WalletFamily {
-  if (evmChains.length > 0) {
-    return "evm";
-  }
-  return solanaNetworks.length > 0 ? "solana" : "evm";
-}
 
 export function AomiWalletNetworkPreferencesProvider({
   children,
@@ -56,11 +40,6 @@ export function AomiWalletNetworkPreferencesProvider({
 }) {
   const [persisted] = useState(() => loadWalletPreferences(storageKey));
 
-  const [selectedFamily, setSelectedFamily] = useState<WalletFamily>(
-    () =>
-      persisted.selectedFamily ??
-      resolveInitialFamily(evmChains, solanaNetworks),
-  );
   const [selectedEvmChainId, setSelectedEvmChainId] = useState<
     number | undefined
   >(() =>
@@ -81,7 +60,6 @@ export function AomiWalletNetworkPreferencesProvider({
   useEffect(() => {
     if (!evmChains.length) {
       setSelectedEvmChainId(undefined);
-      if (solanaNetworks.length) setSelectedFamily("solana");
       return;
     }
     setSelectedEvmChainId((current) =>
@@ -92,7 +70,6 @@ export function AomiWalletNetworkPreferencesProvider({
   useEffect(() => {
     if (!solanaNetworks.length) {
       setSelectedSolanaNetworkId(undefined);
-      if (evmChains.length) setSelectedFamily("evm");
       return;
     }
     setSelectedSolanaNetworkId((current) =>
@@ -104,11 +81,10 @@ export function AomiWalletNetworkPreferencesProvider({
 
   useEffect(() => {
     saveWalletPreferences(storageKey, {
-      selectedFamily,
       selectedEvmChainId,
       selectedSolanaNetworkId,
     });
-  }, [storageKey, selectedFamily, selectedEvmChainId, selectedSolanaNetworkId]);
+  }, [storageKey, selectedEvmChainId, selectedSolanaNetworkId]);
 
   const selectedSolanaNetwork = useMemo(
     () =>
@@ -120,29 +96,24 @@ export function AomiWalletNetworkPreferencesProvider({
 
   const value = useMemo<NetworkPreferencesContextValue>(
     () => ({
-      selectedFamily,
       selectedEvmChainId,
       selectedSolanaNetworkId,
       supportedEvmChains: evmChains,
       supportedSolanaNetworks: solanaNetworks,
       selectedSolanaNetwork,
-      setSelectedFamily,
       setSelectedEvmChainId,
       setSelectedSolanaNetworkId,
       selectTarget: (target: AomiNetworkTarget) => {
         if (target.family === "evm") {
-          setSelectedFamily("evm");
           setSelectedEvmChainId(target.chainId);
           return;
         }
-        setSelectedFamily("solana");
         setSelectedSolanaNetworkId(target.networkId);
       },
     }),
     [
       evmChains,
       selectedEvmChainId,
-      selectedFamily,
       selectedSolanaNetwork,
       selectedSolanaNetworkId,
       solanaNetworks,

@@ -309,10 +309,8 @@ function AomiPrivyAdapterProvider({
   // so we read chainId from wagmi rather than the smart-wallet client.
   const { chainId: wagmiChainId } = useSafeWagmiAccount();
   const {
-    selectedFamily,
     selectedEvmChainId,
     selectedSolanaNetwork,
-    setSelectedFamily,
     setSelectedEvmChainId,
     setSelectedSolanaNetworkId,
     supportedSolanaNetworks,
@@ -356,10 +354,6 @@ function AomiPrivyAdapterProvider({
       solanaWallets.find((wallet) => wallet.address === activeSolanaAddress) ??
       solanaWallets[0];
     const svmAddress = solanaWallet?.address;
-    const activeFamily: WalletFamily =
-      selectedFamily === "solana" && supportedSolanaNetworks.length > 0
-        ? "solana"
-        : "evm";
     const accounts = buildAccounts({
       evmConnections: smartAddress
         ? [
@@ -516,7 +510,6 @@ function AomiPrivyAdapterProvider({
         if (!target) {
           throw new Error(`Unknown account: ${id}`);
         }
-        setSelectedFamily(target.family);
         if (target.family === "solana") {
           setActiveSolanaAddress(target.address);
         }
@@ -532,33 +525,12 @@ function AomiPrivyAdapterProvider({
         evm: wagmiConfig.chains,
         solana: supportedSolanaNetworks,
       },
-      activeFamily,
-      activeNetwork:
-        activeFamily === "evm"
-          ? (chainId ?? selectedEvmChainId) !== undefined
-            ? {
-                family: "evm",
-                chainId:
-                  chainId ??
-                  selectedEvmChainId ??
-                  wagmiConfig.chains[0]?.id ??
-                  1,
-              }
-            : undefined
-          : selectedSolanaNetwork
-            ? {
-                family: "solana",
-                networkId: selectedSolanaNetwork.id,
-              }
-            : undefined,
-      connect: async (options) => {
-        setSelectedFamily(options?.family ?? selectedFamily);
+      connect: async () => {
         await privy.login();
       },
       // Privy has no dedicated "account" modal — surface the login UI,
       // which doubles as the linked-accounts view when authenticated.
-      openAccountUI: async (options) => {
-        setSelectedFamily(options?.family ?? activeFamily);
+      openAccountUI: async () => {
         await privy.login();
       },
       disconnect: async () => {
@@ -566,7 +538,6 @@ function AomiPrivyAdapterProvider({
       },
       switchChain: switchChainAsync
         ? async (nextChainId: number) => {
-            setSelectedFamily("evm");
             setSelectedEvmChainId(nextChainId);
             await switchChainAsync({ chainId: nextChainId });
             await getClientForChain({ id: nextChainId });
@@ -574,7 +545,6 @@ function AomiPrivyAdapterProvider({
         : undefined,
       selectNetwork: async (target) => {
         if (target.family === "evm") {
-          setSelectedFamily("evm");
           setSelectedEvmChainId(target.chainId);
           if (switchChainAsync && wagmiChainId !== target.chainId) {
             await switchChainAsync({ chainId: target.chainId });
@@ -583,7 +553,6 @@ function AomiPrivyAdapterProvider({
           return;
         }
 
-        setSelectedFamily("solana");
         setSelectedSolanaNetworkId(target.networkId);
       },
       sendTransaction,
@@ -670,12 +639,10 @@ function AomiPrivyAdapterProvider({
     privy.ready,
     privy.user,
     selectedEvmChainId,
-    selectedFamily,
     selectedSolanaNetwork,
     activeSolanaAddress,
     setActiveSolanaAddress,
     setSelectedEvmChainId,
-    setSelectedFamily,
     setSelectedSolanaNetworkId,
     smartWalletClient,
     solanaConfig,
