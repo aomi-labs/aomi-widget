@@ -1126,24 +1126,12 @@ var AomiClient = class {
   // Thread / Session Management
   // ===========================================================================
   /**
-   * Ensure the backend has an account row for a wallet address.
-   *
-   * The hosted backend binds wallet-owned session lists through the account
-   * table. Calling this before thread list/create keeps first-run wallet flows
-   * from creating sessions that exist by ID but do not appear in
-   * GET /api/sessions?public_key=...
+   * @deprecated Account bootstrap is handled by session create/chat requests and
+   * the account-token exchange. `/api/settings/account` is now an authenticated
+   * profile endpoint, so this legacy helper intentionally does nothing.
    */
-  async ensureAccount(sessionId, publicKey) {
-    const url = buildApiUrl(this.baseUrl, "/api/settings/account", {
-      public_key: publicKey
-    });
-    const response = await this.fetchImpl(url, {
-      headers: withSessionHeader(sessionId)
-    });
-    if (!response.ok) {
-      throw new Error(`Failed to ensure account: HTTP ${response.status}`);
-    }
-    await response.json().catch(() => void 0);
+  async ensureAccount(_sessionId, _publicKey) {
+    return void 0;
   }
   /**
    * List all threads for a wallet address.
@@ -2565,6 +2553,17 @@ var SessionWalletController = class {
 };
 
 // src/session/index.ts
+function legacySessionPublicKey(userState) {
+  var _a;
+  const address3 = UserState.address(userState);
+  if (!(address3 == null ? void 0 : address3.startsWith("0x"))) {
+    return void 0;
+  }
+  if (UserState.chainId(userState) === void 0 && !((_a = userState == null ? void 0 : userState.evm) == null ? void 0 : _a.address)) {
+    return void 0;
+  }
+  return address3;
+}
 var ClientSession = class extends TypedEventEmitter {
   constructor(clientOrOptions, sessionOptions) {
     var _a, _b, _c, _d, _e;
@@ -2582,8 +2581,15 @@ var ClientSession = class extends TypedEventEmitter {
     this.app = (_b = sessionOptions == null ? void 0 : sessionOptions.app) != null ? _b : "default";
     this.publicKey = sessionOptions == null ? void 0 : sessionOptions.publicKey;
     this.apiKey = sessionOptions == null ? void 0 : sessionOptions.apiKey;
-    const initialUserState = UserState.reconcile(void 0, sessionOptions == null ? void 0 : sessionOptions.userState);
-    this.userState = (sessionOptions == null ? void 0 : sessionOptions.clientType) ? UserState.withExt(initialUserState != null ? initialUserState : {}, "client_type", sessionOptions.clientType) : initialUserState;
+    const initialUserState = UserState.reconcile(
+      void 0,
+      sessionOptions == null ? void 0 : sessionOptions.userState
+    );
+    this.userState = (sessionOptions == null ? void 0 : sessionOptions.clientType) ? UserState.withExt(
+      initialUserState != null ? initialUserState : {},
+      "client_type",
+      sessionOptions.clientType
+    ) : initialUserState;
     this.clientId = (_c = sessionOptions == null ? void 0 : sessionOptions.clientId) != null ? _c : crypto.randomUUID();
     this.syncPendingTxRequestsFromUserState = (_d = sessionOptions == null ? void 0 : sessionOptions.syncPendingTxRequestsFromUserState) != null ? _d : true;
     this.pollIntervalMs = (_e = sessionOptions == null ? void 0 : sessionOptions.pollIntervalMs) != null ? _e : 500;
@@ -2763,7 +2769,7 @@ var ClientSession = class extends TypedEventEmitter {
     const previousSerialized = stableUserStateString(this.userState);
     this.userState = UserState.reconcile(this.userState, userState);
     const nextSerialized = stableUserStateString(this.userState);
-    const publicKey = UserState.preferredPublicKey(this.userState);
+    const publicKey = legacySessionPublicKey(this.userState);
     const isConnected3 = UserState.isConnected(this.userState);
     if (publicKey && isConnected3 !== false) {
       this.publicKey = publicKey;
@@ -2777,7 +2783,9 @@ var ClientSession = class extends TypedEventEmitter {
   }
   setClientType(clientType) {
     var _a;
-    this.resolveUserState(UserState.withExt((_a = this.userState) != null ? _a : {}, "client_type", clientType));
+    this.resolveUserState(
+      UserState.withExt((_a = this.userState) != null ? _a : {}, "client_type", clientType)
+    );
   }
   addExtValue(key, value) {
     this.resolveUserState(addExtValue(this.userState, key, value));
@@ -2789,11 +2797,17 @@ var ClientSession = class extends TypedEventEmitter {
     }
   }
   resolveWallet(address3, chainId3, aa) {
-    this.resolveUserState(resolveWalletState(this.userState, address3, chainId3, aa));
+    this.resolveUserState(
+      resolveWalletState(this.userState, address3, chainId3, aa)
+    );
   }
   async syncUserState() {
     this.assertOpen();
-    const state = await this.client.fetchState(this.sessionId, this.userState, this.clientId);
+    const state = await this.client.fetchState(
+      this.sessionId,
+      this.userState,
+      this.clientId
+    );
     this.assertUserStateAligned(state.user_state);
     this.applyState(state);
     return state;

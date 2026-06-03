@@ -260,7 +260,7 @@ describe("User API", () => {
       });
     });
 
-    it("ensures the wallet account before listing remote threads", async () => {
+    it("lists EVM remote threads without calling stale account ensure", async () => {
       const ensureAccount = vi.fn(async () => undefined);
       const listThreads = vi.fn(async (): Promise<AomiThread[]> => []);
 
@@ -278,18 +278,36 @@ describe("User API", () => {
       });
 
       await waitFor(() => {
-        expect(ensureAccount).toHaveBeenCalledWith(
-          expect.stringMatching(/^control:/),
-          "0x789",
-        );
+        expect(listThreads).toHaveBeenCalled();
       });
+      expect(ensureAccount).not.toHaveBeenCalled();
       expect(listThreads).toHaveBeenCalledWith(
         expect.stringMatching(/^control:/),
         "0x789",
       );
-      expect(ensureAccount.mock.invocationCallOrder[0]).toBeLessThan(
-        listThreads.mock.invocationCallOrder[0],
-      );
+    });
+
+    it("does not list remote threads through legacy public_key for Solana-only wallets", async () => {
+      const ensureAccount = vi.fn(async () => undefined);
+      const listThreads = vi.fn(async (): Promise<AomiThread[]> => []);
+
+      setAomiClientConfig({ ensureAccount, listThreads });
+
+      const { api } = renderRuntime();
+
+      await act(async () => {
+        api.setUser({
+          connection: { is_connected: true, primary_family: "svm" },
+          svm: {
+            address: "So1anaCaseSensitiveSigner",
+            cluster: "solana:mainnet",
+          },
+        });
+        await flushPromises();
+      });
+
+      expect(ensureAccount).not.toHaveBeenCalled();
+      expect(listThreads).not.toHaveBeenCalled();
     });
 
     it("does not send wallet state changes to the previous wallet thread when the address changes", async () => {
