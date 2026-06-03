@@ -230,6 +230,7 @@ export function pendingTxsFromBackendUserState(
         pending_eip712_id: pendingId,
         eip712Id: pendingId,
         typed_data: typedData,
+        non_typed_data: parseOptionalString(request.non_typed_data),
         description,
       },
     });
@@ -238,7 +239,9 @@ export function pendingTxsFromBackendUserState(
   nextPendingTxs.sort((left, right) => {
     const leftId = left.kind === "transaction" ? left.txId : left.eip712Id;
     const rightId = right.kind === "transaction" ? right.txId : right.eip712Id;
-    return (leftId ?? Number.MAX_SAFE_INTEGER) - (rightId ?? Number.MAX_SAFE_INTEGER);
+    return (
+      (leftId ?? Number.MAX_SAFE_INTEGER) - (rightId ?? Number.MAX_SAFE_INTEGER)
+    );
   });
 
   return nextPendingTxs;
@@ -397,7 +400,7 @@ export function walletSnapshotFromUserState(
         : undefined;
 
   const smartAccount: string | null | undefined =
-    walletKind === "smart-account" ? address ?? null : null;
+    walletKind === "smart-account" ? (address ?? null) : null;
 
   return {
     publicKey: isConnected === false ? undefined : address,

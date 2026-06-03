@@ -5,6 +5,7 @@ import {
   normalizeEip712Payload,
   normalizeSolanaWalletRequest,
   normalizeTxPayload,
+  toViemSignMessageArgs,
 } from "../src/index";
 
 describe("wallet payload normalization", () => {
@@ -293,6 +294,41 @@ describe("wallet payload normalization", () => {
         cluster: "solana:devnet",
         pendingSolanaId: 17,
       },
+    });
+  });
+
+  it("retains ERC-191 non-typed signature payloads", () => {
+    expect(
+      normalizeEip712Payload({
+        pending_eip712_id: "12",
+        non_typed_data: "Sign in with Ethereum",
+        description: "Login signature",
+      }),
+    ).toEqual({
+      eip712Id: 12,
+      typed_data: undefined,
+      non_typed_data: "Sign in with Ethereum",
+      description: "Login signature",
+    });
+  });
+
+  it("converts ERC-191 hex strings into raw byte signMessage args", () => {
+    expect(
+      toViemSignMessageArgs({
+        non_typed_data: "0x5369676e20696e",
+      }),
+    ).toEqual({
+      message: { raw: "0x5369676e20696e" },
+    });
+  });
+
+  it("converts ERC-191 text strings into text signMessage args", () => {
+    expect(
+      toViemSignMessageArgs({
+        non_typed_data: "Sign in with Ethereum",
+      }),
+    ).toEqual({
+      message: "Sign in with Ethereum",
     });
   });
 });
