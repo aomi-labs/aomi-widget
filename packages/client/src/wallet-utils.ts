@@ -51,6 +51,7 @@ export type WalletEip712Payload = {
     primaryType?: string;
     message?: Record<string, unknown>;
   };
+  non_typed_data?: string;
   description?: string;
   eip712Id?: number;
 };
@@ -80,6 +81,10 @@ export type ViemSignTypedDataArgs = {
   types: Record<string, Array<{ name: string; type: string }>>;
   primaryType: string;
   message?: Record<string, unknown>;
+};
+
+export type ViemSignMessageArgs = {
+  message: string | { raw: Hex };
 };
 
 // =============================================================================
@@ -163,7 +168,17 @@ function parseBoolean(value: unknown): boolean | undefined {
   return undefined;
 }
 
-function normalizeAaPreference(value: unknown): WalletTxAaPreference | undefined {
+function parseString(value: unknown): string | undefined {
+  return typeof value === "string" ? value : undefined;
+}
+
+function isHexBytes(value: string): value is Hex {
+  return /^0x(?:[0-9a-fA-F]{2})*$/.test(value);
+}
+
+function normalizeAaPreference(
+  value: unknown,
+): WalletTxAaPreference | undefined {
   if (typeof value !== "string") return undefined;
   const normalized = value.trim().toLowerCase();
   if (
@@ -201,9 +216,10 @@ export function normalizePendingTxData(
     return undefined;
   }
 
-  const kind = typeof pendingEntry.kind === "string"
-    ? pendingEntry.kind.toLowerCase()
-    : undefined;
+  const kind =
+    typeof pendingEntry.kind === "string"
+      ? pendingEntry.kind.toLowerCase()
+      : undefined;
 
   if (kind === "native_transfer") {
     return undefined;
@@ -313,7 +329,8 @@ export function hydrateTxPayloadFromUserState(
         parseChainId(pendingEntry.chain_id) ??
         parseChainId(pendingEntry.chainId) ??
         parseChainId(payload.chainId),
-      from: typeof pendingEntry.from === "string" ? pendingEntry.from : undefined,
+      from:
+        typeof pendingEntry.from === "string" ? pendingEntry.from : undefined,
       gas: typeof pendingEntry.gas === "string" ? pendingEntry.gas : undefined,
       description:
         typeof pendingEntry.label === "string"
@@ -358,7 +375,8 @@ export function normalizeSolanaSignPayload(
   const args = getToolArgs(payload);
 
   const unsignedTxRaw = args.unsigned_tx ?? args.unsignedTx;
-  const unsignedTx = typeof unsignedTxRaw === "string" ? unsignedTxRaw : undefined;
+  const unsignedTx =
+    typeof unsignedTxRaw === "string" ? unsignedTxRaw : undefined;
 
   const description =
     typeof args.description === "string" ? args.description : undefined;
@@ -376,12 +394,11 @@ export function normalizeSolanaSignPayload(
 /**
  * Normalize an EIP-712 signing request payload.
  */
-export function normalizeEip712Payload(
-  payload: unknown,
-): WalletEip712Payload {
+export function normalizeEip712Payload(payload: unknown): WalletEip712Payload {
   const args = getToolArgs(payload);
   const typedDataRaw =
     args.typed_data ?? args["712_typed_data"] ?? args.typedData;
+  const nonTypedData = parseString(args.non_typed_data ?? args.nonTypedData);
   let typedData: WalletEip712Payload["typed_data"] | undefined;
 
   if (typeof typedDataRaw === "string") {
@@ -408,7 +425,12 @@ export function normalizeEip712Payload(
     parsePendingId(args.pending_eip712_id) ??
     parsePendingId(args.pendingEip712Id);
 
-  return { typed_data: typedData, description, eip712Id };
+  return {
+    typed_data: typedData,
+    non_typed_data: nonTypedData,
+    description,
+    eip712Id,
+  };
 }
 
 /**
@@ -477,5 +499,22 @@ export function toViemSignTypedDataArgs(
     ) as ViemSignTypedDataArgs["types"],
     primaryType,
     message: asRecord(typedData.message),
+  };
+}
+
+/**
+ * Convert normalized ERC-191/personal_sign payloads into viem signMessage args.
+ * Hex strings are opaque bytes; all other strings are signed as UTF-8 text.
+ */
+export function toViemSignMessageArgs(
+  payload: WalletEip712Payload,
+): ViemSignMessageArgs | null {
+  const nonTypedData = payload.non_typed_data;
+  if (typeof nonTypedData !== "string" || nonTypedData.length === 0) {
+    return null;
+  }
+
+  return {
+    message: isHexBytes(nonTypedData) ? { raw: nonTypedData } : nonTypedData,
   };
 }

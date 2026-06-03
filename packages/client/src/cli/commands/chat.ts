@@ -50,7 +50,8 @@ export function shouldBroadcastWalletStateChange(
   }
 
   return (
-    normalizeAddress(previous?.publicKey) !== normalizeAddress(next.publicKey) ||
+    normalizeAddress(previous?.publicKey) !==
+      normalizeAddress(next.publicKey) ||
     previous?.chainId !== next.chainId ||
     previous?.aaMode !== next.aaMode ||
     normalizeAddress(previous?.smartAccount ?? undefined) !==
@@ -66,23 +67,31 @@ export async function syncWalletStateForChat(
   session: {
     resolveUserState: (userState: ReturnType<typeof buildCliUserState>) => void;
     syncUserState: () => Promise<unknown>;
-    client: { sendSystemMessage: (sessionId: string, message: string) => Promise<unknown> };
+    client: {
+      sendSystemMessage: (
+        sessionId: string,
+        message: string,
+      ) => Promise<unknown>;
+    };
   },
 ): Promise<void> {
-  if (!shouldBroadcastWalletStateChange(config, previous, next) || !next.publicKey) {
+  if (
+    !shouldBroadcastWalletStateChange(config, previous, next) ||
+    !next.publicKey
+  ) {
     return;
   }
 
-  session.resolveUserState(buildCliUserState(next.publicKey, next.chainId, {
-    aaMode: next.aaMode ?? null,
-    smartAccount: next.smartAccount ?? null,
-  }));
+  session.resolveUserState(
+    buildCliUserState(next.publicKey, next.chainId, {
+      aaMode: next.aaMode ?? null,
+      smartAccount: next.smartAccount ?? null,
+    }),
+  );
   await session.syncUserState();
 
   const aaMode =
-    next.aaMode === "4337" || next.aaMode === "7702"
-      ? next.aaMode
-      : "none";
+    next.aaMode === "4337" || next.aaMode === "7702" ? next.aaMode : "none";
   const walletKind =
     next.smartAccount && next.smartAccount === next.publicKey
       ? "smart-account"
@@ -104,7 +113,11 @@ export async function syncWalletStateForChat(
   );
 }
 
-export async function chatCommand(config: CliConfig, message: string, verbose: boolean): Promise<void> {
+export async function chatCommand(
+  config: CliConfig,
+  message: string,
+  verbose: boolean,
+): Promise<void> {
   if (!message) {
     fatal("Usage: aomi chat <message>");
   }
@@ -181,15 +194,14 @@ export async function chatCommand(config: CliConfig, message: string, verbose: b
       }
     }
 
-    printedAgentCount = allMessages.slice(0, seedIdx).filter(
-      (entry) => entry.sender === "agent" || entry.sender === "assistant",
-    ).length;
+    printedAgentCount = allMessages
+      .slice(0, seedIdx)
+      .filter(
+        (entry) => entry.sender === "agent" || entry.sender === "assistant",
+      ).length;
 
     if (verbose) {
-      printedAgentCount = printNewAgentMessages(
-        allMessages,
-        printedAgentCount,
-      );
+      printedAgentCount = printNewAgentMessages(allMessages, printedAgentCount);
       session.on("messages", (messages) => {
         printedAgentCount = printNewAgentMessages(messages, printedAgentCount);
       });
@@ -241,9 +253,7 @@ export async function chatCommand(config: CliConfig, message: string, verbose: b
       console.log(`${DIM}✅ Done${RESET}`);
     }
 
-    const syncedPending = cli.syncPendingFromUserState(
-      session.getUserState(),
-    );
+    const syncedPending = cli.syncPendingFromUserState(session.getUserState());
     const newPendingTxs = [
       ...syncedPending.pendingTxs,
       ...syncedPending.pendingSolTxs,
@@ -256,18 +266,23 @@ export async function chatCommand(config: CliConfig, message: string, verbose: b
         console.log(`   to:    ${payload.to}`);
         if (payload.value) console.log(`   value: ${payload.value}`);
         if (payload.chainId) console.log(`   chain: ${payload.chainId}`);
-      } else {
+      } else if (pending.kind === "eip712_sign") {
         const payload = pending.payload as WalletEip712Payload;
         if (payload.description) {
           console.log(`   desc:  ${payload.description}`);
+        }
+        if (payload.non_typed_data) {
+          console.log("   type:  erc191");
         }
       }
     }
 
     if (!verbose) {
-      const agentMessages = session.getMessages().filter(
-        (entry) => entry.sender === "agent" || entry.sender === "assistant",
-      );
+      const agentMessages = session
+        .getMessages()
+        .filter(
+          (entry) => entry.sender === "agent" || entry.sender === "assistant",
+        );
       const last = agentMessages[agentMessages.length - 1];
 
       if (last?.content) {
