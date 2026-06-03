@@ -2,7 +2,7 @@
 // Client
 // =============================================================================
 
-export { AomiClient } from "./client";
+export { AomiClient, AomiWalletContextError } from "./client";
 export { createAccountAccessTokenProvider } from "./account-session";
 export type {
   AccountAccessTokenProviderOptions,
@@ -20,6 +20,10 @@ export type {
   AomiClientOptions,
   GetAccountAccessToken,
   AomiMessage,
+  AomiPutSessionWalletContextRequest,
+  AomiSessionWalletContext,
+  AomiWalletContextErrorBody,
+  AomiWalletFamily,
   AomiChatResponse,
   AomiClearSecretsResponse,
   AomiCreateThreadResponse,

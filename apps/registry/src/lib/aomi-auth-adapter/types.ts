@@ -133,6 +133,8 @@ export type SolanaWalletDescriptor = {
 export type AomiAccount = {
   /** Stable id: wagmi connector uid (EVM) or solana wallet name (Solana). */
   id: string;
+  /** Backend identity_wallets.id, populated once the account is linked. */
+  identityWalletId?: number;
   family: WalletFamily;
   address: string;
   /** Short display label, e.g. formatted address. */
