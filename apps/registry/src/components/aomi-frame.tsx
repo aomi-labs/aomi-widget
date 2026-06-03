@@ -6,8 +6,12 @@ import {
   type FC,
   createContext,
   useContext,
+  useEffect,
+  useMemo,
+  useRef,
 } from "react";
 import {
+  AomiClient,
   AomiRuntimeProvider,
   cn,
   useAomiRuntime,
@@ -28,6 +32,9 @@ import {
   BreadcrumbList,
 } from "@/components/ui/breadcrumb";
 import { ControlBar, type ControlBarProps } from "@/components/control-bar";
+import { useAomiAuthAdapter } from "@/lib/aomi-auth-adapter";
+import { toWireWalletFamily } from "@/lib/aomi-auth-adapter/wallet-family";
+import type { AomiAccount } from "@/lib/aomi-auth-adapter/types";
 
 // =============================================================================
 // Composer Control Context - signals Thread to show inline controls
@@ -117,6 +124,10 @@ const Root: FC<RootProps> = ({
       backendUrl={resolvedBackendUrl}
       clientOptions={clientOptions}
     >
+      <WalletContextSync
+        backendUrl={resolvedBackendUrl}
+        clientOptions={clientOptions}
+      />
       <SidebarProvider className="min-h-0! h-full">
         <div
           className={cn(
@@ -125,7 +136,12 @@ const Root: FC<RootProps> = ({
           )}
           style={frameStyle}
         >
-          {showSidebar && <ThreadListSidebar walletPosition={walletPosition} walletFamilies={walletFamilies} />}
+          {showSidebar && (
+            <ThreadListSidebar
+              walletPosition={walletPosition}
+              walletFamilies={walletFamilies}
+            />
+          )}
           <SidebarInset className="relative flex min-h-0 flex-col">
             {children}
           </SidebarInset>
@@ -136,6 +152,146 @@ const Root: FC<RootProps> = ({
     </AomiRuntimeProvider>
   );
 };
+
+function walletContextKey(
+  threadId: string,
+  account: AomiAccount,
+  networkId?: string | null,
+) {
+  return [
+    threadId,
+    toWireWalletFamily(account.family),
+    account.identityWalletId,
+    networkId ?? "",
+  ].join(":");
+}
+
+function isWalletContextError(error: unknown): error is {
+  status: number;
+  code: string;
+  currentContext?: {
+    identity_wallet_id: number;
+    network_id?: string | null;
+    version: number;
+  } | null;
+} {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    typeof (error as { status?: unknown }).status === "number" &&
+    typeof (error as { code?: unknown }).code === "string"
+  );
+}
+
+function WalletContextSync({
+  backendUrl,
+  clientOptions,
+}: {
+  backendUrl: string;
+  clientOptions?: Omit<AomiClientOptions, "baseUrl">;
+}) {
+  const runtime = useAomiRuntime();
+  const adapter = useAomiAuthAdapter();
+  const client = useMemo(
+    () => new AomiClient({ ...clientOptions, baseUrl: backendUrl }),
+    [backendUrl, clientOptions],
+  );
+  const committedKeysRef = useRef(new Set<string>());
+  const versionsRef = useRef(new Map<string, number>());
+
+  useEffect(() => {
+    if (!adapter.identity.isConnected) return;
+
+    const accounts = adapter.accounts.filter(
+      (account) => account.active && account.identityWalletId !== undefined,
+    );
+    if (accounts.length === 0) return;
+
+    let cancelled = false;
+
+    const commitAccount = async (account: AomiAccount) => {
+      const family = toWireWalletFamily(account.family);
+      const networkId =
+        account.family === "evm"
+          ? adapter.identity.chainId?.toString()
+          : adapter.identity.solanaCluster;
+      const key = walletContextKey(runtime.currentThreadId, account, networkId);
+      if (committedKeysRef.current.has(key)) return;
+
+      const versionKey = `${runtime.currentThreadId}:${family}`;
+      const request = {
+        family,
+        identity_wallet_id: account.identityWalletId!,
+        network_id: networkId ?? null,
+        expected_version: versionsRef.current.get(versionKey) ?? null,
+      };
+
+      try {
+        const context = await client.putSessionWalletContext(
+          runtime.currentThreadId,
+          request,
+        );
+        if (cancelled) return;
+        versionsRef.current.set(versionKey, context.version);
+        committedKeysRef.current.add(key);
+      } catch (error) {
+        if (cancelled || !isWalletContextError(error)) return;
+        if (
+          error.code !== "wallet_context_version_mismatch" ||
+          !error.currentContext
+        ) {
+          if (error.code !== "wallet_context_locked") {
+            console.warn("[AomiFrame] wallet context sync failed", error);
+          }
+          return;
+        }
+
+        versionsRef.current.set(versionKey, error.currentContext.version);
+        const serverStillMatchesIntent =
+          error.currentContext.identity_wallet_id ===
+            account.identityWalletId &&
+          (error.currentContext.network_id ?? null) === (networkId ?? null);
+        if (!serverStillMatchesIntent) return;
+
+        try {
+          const retryContext = await client.putSessionWalletContext(
+            runtime.currentThreadId,
+            {
+              ...request,
+              expected_version: error.currentContext.version,
+            },
+          );
+          if (cancelled) return;
+          versionsRef.current.set(versionKey, retryContext.version);
+          committedKeysRef.current.add(key);
+        } catch (retryError) {
+          if (!cancelled) {
+            console.warn("[AomiFrame] wallet context retry failed", retryError);
+          }
+        }
+      }
+    };
+
+    void Promise.all(accounts.map(commitAccount)).catch((error) => {
+      if (!cancelled) {
+        console.warn("[AomiFrame] wallet context sync failed", error);
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    adapter.accounts,
+    adapter.identity.chainId,
+    adapter.identity.isConnected,
+    adapter.identity.solanaCluster,
+    client,
+    runtime.currentThreadId,
+  ]);
+
+  return null;
+}
 
 /**
  * Header component - renders the header with optional control bar
@@ -236,7 +392,12 @@ const DefaultLayout: FC<DefaultLayoutProps> = ({
   const hideWalletInControlBar = walletPosition !== null;
 
   return (
-    <Root walletPosition={walletPosition} walletFamilies={walletFamilies} showSidebar={showSidebar} {...props}>
+    <Root
+      walletPosition={walletPosition}
+      walletFamilies={walletFamilies}
+      showSidebar={showSidebar}
+      {...props}
+    >
       <Header
         withControl
         showSidebarTrigger={showSidebar}

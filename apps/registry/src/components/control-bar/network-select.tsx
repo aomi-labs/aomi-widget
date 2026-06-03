@@ -285,8 +285,8 @@ export const NetworkSelect: FC<NetworkSelectProps> = ({
           <DialogHeader>
             <DialogTitle>Switch Solana Network?</DialogTitle>
             <DialogDescription>
-              Switching Solana network will disconnect your current Solana
-              wallet and require reconnect.
+              This Solana adapter needs a wallet reconnect to change clusters.
+              Your current chat and EVM wallet stay connected.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>

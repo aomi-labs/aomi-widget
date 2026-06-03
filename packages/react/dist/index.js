@@ -50,7 +50,10 @@ import {
 
 // packages/react/src/runtime/aomi-runtime.tsx
 import { useMemo as useMemo3 } from "react";
-import { AomiClient, UserState as UserState4 } from "@aomi-labs/client";
+import {
+  AomiClient,
+  UserState as UserState4
+} from "@aomi-labs/client";
 
 // packages/react/src/contexts/control-context.tsx
 import {
@@ -2392,8 +2395,14 @@ function useRemoteThreadListSync(context, sessions, remoteThreads) {
     const userAddress = connectedAddress;
     const normalizedUserAddress = normalizeWalletId(userAddress);
     const previousAddress = lastConnectedAddressRef.current;
+    const isConnected = UserStateHelpers.isConnected(user) === true;
     const walletChanged = previousAddress !== void 0 && normalizedUserAddress !== void 0 && previousAddress !== normalizedUserAddress;
     if (!userAddress) {
+      if (isConnected) {
+        lastConnectedAddressRef.current = void 0;
+        setIsThreadListLoading(false);
+        return;
+      }
       const wasPreviouslyConnected = lastConnectedAddressRef.current !== void 0;
       lastConnectedAddressRef.current = void 0;
       setIsThreadListLoading(false);
@@ -2413,14 +2422,12 @@ function useRemoteThreadListSync(context, sessions, remoteThreads) {
       return;
     }
     lastConnectedAddressRef.current = normalizedUserAddress;
-    const resetThreadId = walletChanged ? threadContextRef.current.resetToDefault() : void 0;
     if (walletChanged) {
       (_b = prefetchCancelRef.current) == null ? void 0 : _b.call(prefetchCancelRef);
       prefetchCancelRef.current = null;
       remoteThreadIdsRef.current.clear();
       warmedThreadIdsRef.current.clear();
       warmPromisesRef.current.clear();
-      closeAllSessions();
     }
     let cancelled = false;
     setIsThreadListLoading(true);
@@ -2431,7 +2438,7 @@ function useRemoteThreadListSync(context, sessions, remoteThreads) {
         const currentContext = threadContextRef.current;
         const controlSessionId = getControlSessionId(
           getControlState().clientId,
-          resetThreadId != null ? resetThreadId : currentContext.currentThreadId
+          currentContext.currentThreadId
         );
         const threadList = await aomiClientRef.current.listThreads(
           controlSessionId,
@@ -2439,13 +2446,8 @@ function useRemoteThreadListSync(context, sessions, remoteThreads) {
         );
         if (cancelled) return;
         const remoteThreadIds = /* @__PURE__ */ new Set();
-        const newMetadata = resetThreadId !== void 0 ? new Map(
-          (() => {
-            const resetMetadata = threadContextRef.current.getThreadMetadata(resetThreadId);
-            return resetMetadata ? [[resetThreadId, resetMetadata]] : [];
-          })()
-        ) : new Map(currentContext.allThreadsMetadata);
-        const baseThreadCount = resetThreadId !== void 0 ? 1 : currentContext.threadCnt;
+        const newMetadata = new Map(currentContext.allThreadsMetadata);
+        const baseThreadCount = currentContext.threadCnt;
         let maxChatNum = baseThreadCount;
         for (const thread of threadList) {
           remoteThreadIds.add(thread.session_id);
@@ -3058,6 +3060,10 @@ function normalizeBackendUrl(url) {
   }
   return url;
 }
+function legacySessionPublicKey(user) {
+  const address = UserState4.address(user);
+  return (address == null ? void 0 : address.startsWith("0x")) ? address : void 0;
+}
 function AomiRuntimeProvider({
   children,
   backendUrl = "http://127.0.0.1:8080",
@@ -3083,7 +3089,6 @@ function AomiRuntimeInner({
   children,
   aomiClient
 }) {
-  var _a;
   const threadContext = useThreadContext();
   const { user } = useUser();
   return /* @__PURE__ */ jsx8(
@@ -3091,7 +3096,7 @@ function AomiRuntimeInner({
     {
       aomiClient,
       sessionId: threadContext.currentThreadId,
-      publicKey: UserState4.isConnected(user) ? (_a = UserState4.address(user)) != null ? _a : UserState4.svmAddress(user) : void 0,
+      publicKey: UserState4.isConnected(user) ? legacySessionPublicKey(user) : void 0,
       getThreadMetadata: threadContext.getThreadMetadata,
       updateThreadMetadata: threadContext.updateThreadMetadata,
       children: /* @__PURE__ */ jsx8(

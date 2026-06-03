@@ -323,18 +323,26 @@ function useRemoteThreadListSync(
     const userAddress = connectedAddress;
     const normalizedUserAddress = normalizeWalletId(userAddress);
     const previousAddress = lastConnectedAddressRef.current;
+    const isConnected = UserStateHelpers.isConnected(user) === true;
     const walletChanged =
       previousAddress !== undefined &&
       normalizedUserAddress !== undefined &&
       previousAddress !== normalizedUserAddress;
 
     if (!userAddress) {
-      // Only tear down sessions when the user *actually disconnected* a
-      // previously-connected wallet.  When the user was never connected (e.g.
-      // anonymous chat), Para/wagmi fires multiple identity state changes
-      // during initialization that all land here with no address — those must
-      // not wipe the active session or reset the thread, otherwise the
-      // assistant response disappears mid-flight.
+      // Solana-only or family-focused states do not have a legacy EVM
+      // `public_key`. Keep the active chat/session visible; SVM wallet
+      // context is carried through user_state and the wallet-context API.
+      if (isConnected) {
+        lastConnectedAddressRef.current = undefined;
+        setIsThreadListLoading(false);
+        return;
+      }
+
+      // Only tear down sessions when the user actually disconnected every
+      // wallet. Para/wagmi can emit transient identity changes with no EVM
+      // address while a Solana wallet remains connected; those must not reset
+      // the active thread.
       const wasPreviouslyConnected =
         lastConnectedAddressRef.current !== undefined;
       lastConnectedAddressRef.current = undefined;
@@ -358,17 +366,12 @@ function useRemoteThreadListSync(
 
     lastConnectedAddressRef.current = normalizedUserAddress;
 
-    const resetThreadId = walletChanged
-      ? threadContextRef.current.resetToDefault()
-      : undefined;
-
     if (walletChanged) {
       prefetchCancelRef.current?.();
       prefetchCancelRef.current = null;
       remoteThreadIdsRef.current.clear();
       warmedThreadIdsRef.current.clear();
       warmPromisesRef.current.clear();
-      closeAllSessions();
     }
 
     let cancelled = false;
@@ -380,7 +383,7 @@ function useRemoteThreadListSync(
         const currentContext = threadContextRef.current;
         const controlSessionId = getControlSessionId(
           getControlState().clientId,
-          resetThreadId ?? currentContext.currentThreadId,
+          currentContext.currentThreadId,
         );
         const threadList = await aomiClientRef.current.listThreads(
           controlSessionId,
@@ -389,20 +392,8 @@ function useRemoteThreadListSync(
         if (cancelled) return;
 
         const remoteThreadIds = new Set<string>();
-        const newMetadata =
-          resetThreadId !== undefined
-            ? new Map(
-                (() => {
-                  const resetMetadata =
-                    threadContextRef.current.getThreadMetadata(resetThreadId);
-                  return resetMetadata
-                    ? ([[resetThreadId, resetMetadata]] as const)
-                    : [];
-                })(),
-              )
-            : new Map(currentContext.allThreadsMetadata);
-        const baseThreadCount =
-          resetThreadId !== undefined ? 1 : currentContext.threadCnt;
+        const newMetadata = new Map(currentContext.allThreadsMetadata);
+        const baseThreadCount = currentContext.threadCnt;
         let maxChatNum = baseThreadCount;
 
         for (const thread of threadList) {

@@ -421,7 +421,7 @@ describe("User API", () => {
       });
     });
 
-    it("recomputes the thread counter from the new wallet's threads after an address change", async () => {
+    it("keeps the thread counter stable when a wallet with older chat names connects", async () => {
       const listThreads = vi
         .fn<() => Promise<AomiThread[]>>()
         .mockResolvedValueOnce([
@@ -468,7 +468,7 @@ describe("User API", () => {
         );
       });
       await waitFor(() => {
-        expect(getThreadCount()).toBe(3);
+        expect(getThreadCount()).toBe(9);
       });
     });
   });

@@ -7,6 +7,7 @@ import {
   waitFor,
 } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { ExtUserProvider } from "@aomi-labs/react";
 import type { AomiAuthAdapter } from "@/lib/aomi-auth-adapter";
 import { AomiAuthAdapterProvider } from "@/lib/aomi-auth-adapter";
 import {
@@ -97,43 +98,47 @@ function Harness({
 }) {
   const preferences = useAomiWalletNetworkPreferences();
 
-  const value = useMemo<AomiAuthAdapter>(
-    () => {
-      const baseAdapter =
-        adapter ??
-        createHarnessAdapter({
-          onConnect: undefined,
-          onSelectNetwork: (target) => preferences.selectTarget(target as never),
-        });
+  const value = useMemo<AomiAuthAdapter>(() => {
+    const baseAdapter =
+      adapter ??
+      createHarnessAdapter({
+        onConnect: undefined,
+        onSelectNetwork: (target) => preferences.selectTarget(target as never),
+      });
+    const useProvidedNetworkState = adapter !== undefined;
 
-      return {
-        ...baseAdapter,
-        activeFamily: preferences.selectedFamily,
-        activeNetwork:
-          preferences.selectedFamily === "solana" &&
-          preferences.selectedSolanaNetworkId
-            ? { family: "solana", networkId: preferences.selectedSolanaNetworkId }
-            : {
-                family: "evm",
-                chainId: preferences.selectedEvmChainId ?? evmChains[0].id,
-              },
-        connect: async (options) => {
-          onConnect?.(options?.family ?? preferences.selectedFamily);
-        },
-        openAccountUI: async (options) => {
-          onOpenAccountUI?.(options?.family ?? preferences.selectedFamily);
-        },
-        selectNetwork: async (target) => {
-          if (baseAdapter.selectNetwork) {
-            await baseAdapter.selectNetwork(target);
-          } else {
-            preferences.selectTarget(target);
-          }
-        },
-      };
-    },
-    [adapter, onConnect, onOpenAccountUI, preferences],
-  );
+    return {
+      ...baseAdapter,
+      activeFamily: useProvidedNetworkState
+        ? (baseAdapter.activeFamily ?? preferences.selectedFamily)
+        : preferences.selectedFamily,
+      activeNetwork:
+        (useProvidedNetworkState ? baseAdapter.activeNetwork : undefined) ??
+        (preferences.selectedFamily === "solana" &&
+        preferences.selectedSolanaNetworkId
+          ? {
+              family: "solana",
+              networkId: preferences.selectedSolanaNetworkId,
+            }
+          : {
+              family: "evm",
+              chainId: preferences.selectedEvmChainId ?? evmChains[0].id,
+            }),
+      connect: async (options) => {
+        onConnect?.(options?.family ?? preferences.selectedFamily);
+      },
+      openAccountUI: async (options) => {
+        onOpenAccountUI?.(options?.family ?? preferences.selectedFamily);
+      },
+      selectNetwork: async (target) => {
+        if (baseAdapter.selectNetwork) {
+          await baseAdapter.selectNetwork(target);
+        } else {
+          preferences.selectTarget(target);
+        }
+      },
+    };
+  }, [adapter, onConnect, onOpenAccountUI, preferences]);
 
   return (
     <AomiAuthAdapterProvider value={value}>
@@ -147,12 +152,14 @@ describe("NetworkSelect", () => {
   it("renders while disconnected and uses the selected family for connect", async () => {
     const onConnect = vi.fn();
     render(
-      <AomiWalletNetworkPreferencesProvider
-        evmChains={evmChains}
-        solanaNetworks={solanaNetworks}
-      >
-        <Harness onConnect={onConnect} />
-      </AomiWalletNetworkPreferencesProvider>,
+      <ExtUserProvider>
+        <AomiWalletNetworkPreferencesProvider
+          evmChains={evmChains}
+          solanaNetworks={solanaNetworks}
+        >
+          <Harness onConnect={onConnect} />
+        </AomiWalletNetworkPreferencesProvider>
+      </ExtUserProvider>,
     );
 
     fireEvent.click(screen.getByRole("combobox"));
@@ -168,19 +175,21 @@ describe("NetworkSelect", () => {
   it("confirms destructive Para-style Solana network switches", async () => {
     const selectNetwork = vi.fn();
     render(
-      <AomiWalletNetworkPreferencesProvider
-        evmChains={evmChains}
-        solanaNetworks={solanaNetworks}
-      >
-        <Harness
-          adapter={createHarnessAdapter({
-            connected: true,
-            svmAddress: "So11111111111111111111111111111111111111112",
-            solanaReconnect: true,
-            onSelectNetwork: selectNetwork,
-          })}
-        />
-      </AomiWalletNetworkPreferencesProvider>,
+      <ExtUserProvider>
+        <AomiWalletNetworkPreferencesProvider
+          evmChains={evmChains}
+          solanaNetworks={solanaNetworks}
+        >
+          <Harness
+            adapter={createHarnessAdapter({
+              connected: true,
+              svmAddress: "So11111111111111111111111111111111111111112",
+              solanaReconnect: true,
+              onSelectNetwork: selectNetwork,
+            })}
+          />
+        </AomiWalletNetworkPreferencesProvider>
+      </ExtUserProvider>,
     );
 
     fireEvent.click(screen.getByRole("combobox"));
@@ -188,9 +197,7 @@ describe("NetworkSelect", () => {
     fireEvent.click(screen.getByRole("button", { name: /Solana Mainnet/i }));
 
     expect(
-      screen.getByText(
-        /Switching Solana network will disconnect your current Solana wallet/i,
-      ),
+      screen.getByText(/adapter needs a wallet reconnect to change clusters/i),
     ).toBeInTheDocument();
     expect(selectNetwork).not.toHaveBeenCalled();
 
@@ -207,18 +214,20 @@ describe("NetworkSelect", () => {
   it("uses the selected family for manage account when already connected", async () => {
     const onOpenAccountUI = vi.fn();
     render(
-      <AomiWalletNetworkPreferencesProvider
-        evmChains={evmChains}
-        solanaNetworks={solanaNetworks}
-      >
-        <Harness
-          adapter={createHarnessAdapter({
-            connected: true,
-            onSelectNetwork: vi.fn(),
-          })}
-          onOpenAccountUI={onOpenAccountUI}
-        />
-      </AomiWalletNetworkPreferencesProvider>,
+      <ExtUserProvider>
+        <AomiWalletNetworkPreferencesProvider
+          evmChains={evmChains}
+          solanaNetworks={solanaNetworks}
+        >
+          <Harness
+            adapter={createHarnessAdapter({
+              connected: true,
+              onSelectNetwork: vi.fn(),
+            })}
+            onOpenAccountUI={onOpenAccountUI}
+          />
+        </AomiWalletNetworkPreferencesProvider>
+      </ExtUserProvider>,
     );
 
     fireEvent.click(screen.getByRole("combobox"));
