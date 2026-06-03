@@ -227,7 +227,7 @@ describe("Chat API", () => {
       );
     });
 
-    it("ensures the wallet account before creating a connected thread", async () => {
+    it("creates a connected EVM thread without calling stale account ensure", async () => {
       const ensureAccount = vi.fn(async () => undefined);
       const createThread = vi.fn(async (threadId: string) => ({
         session_id: threadId,
@@ -254,13 +254,55 @@ describe("Chat API", () => {
         await api.sendMessage("Persist this wallet thread");
       });
 
-      expect(ensureAccount).toHaveBeenCalledWith(api.currentThreadId, "0xabc");
+      expect(ensureAccount).not.toHaveBeenCalled();
       expect(createThread).toHaveBeenCalledWith(api.currentThreadId, "0xabc");
-      expect(ensureAccount.mock.invocationCallOrder[0]).toBeLessThan(
-        createThread.mock.invocationCallOrder[0],
-      );
       expect(createThread.mock.invocationCallOrder[0]).toBeLessThan(
         postChatMessage.mock.invocationCallOrder[0],
+      );
+    });
+
+    it("sends a Solana-only chat without legacy public_key bootstrap", async () => {
+      const ensureAccount = vi.fn(async () => undefined);
+      const createThread = vi.fn(async (threadId: string) => ({
+        session_id: threadId,
+      }));
+      const postChatMessage = vi.fn(
+        async (): Promise<AomiChatResponse> => ({
+          is_processing: false,
+          messages: [],
+        }),
+      );
+      setAomiClientConfig({ ensureAccount, createThread, postChatMessage });
+
+      const { api } = renderRuntime();
+
+      await act(async () => {
+        api.setUser({
+          connection: { is_connected: true, primary_family: "svm" },
+          svm: {
+            address: "So1anaCaseSensitiveSigner",
+            cluster: "solana:mainnet",
+          },
+        });
+      });
+
+      await act(async () => {
+        await api.sendMessage("Use my Solana wallet");
+      });
+
+      expect(ensureAccount).not.toHaveBeenCalled();
+      expect(createThread).toHaveBeenCalledWith(api.currentThreadId, undefined);
+      expect(postChatMessage).toHaveBeenCalledWith(
+        api.currentThreadId,
+        "Use my Solana wallet",
+        expect.objectContaining({
+          publicKey: undefined,
+          userState: expect.objectContaining({
+            svm: expect.objectContaining({
+              address: "So1anaCaseSensitiveSigner",
+            }),
+          }),
+        }),
       );
     });
 

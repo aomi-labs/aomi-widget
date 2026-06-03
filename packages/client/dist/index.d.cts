@@ -450,14 +450,11 @@ declare class AomiClient {
      */
     subscribeSSE(sessionId: string, onUpdate: (event: AomiSSEEvent) => void, onError?: (error: unknown) => void): () => void;
     /**
-     * Ensure the backend has an account row for a wallet address.
-     *
-     * The hosted backend binds wallet-owned session lists through the account
-     * table. Calling this before thread list/create keeps first-run wallet flows
-     * from creating sessions that exist by ID but do not appear in
-     * GET /api/sessions?public_key=...
+     * @deprecated Account bootstrap is handled by session create/chat requests and
+     * the account-token exchange. `/api/settings/account` is now an authenticated
+     * profile endpoint, so this legacy helper intentionally does nothing.
      */
-    ensureAccount(sessionId: string, publicKey: string): Promise<void>;
+    ensureAccount(_sessionId: string, _publicKey: string): Promise<void>;
     /**
      * List all threads for a wallet address.
      */

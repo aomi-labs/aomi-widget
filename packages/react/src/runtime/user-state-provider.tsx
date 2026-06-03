@@ -11,10 +11,7 @@ import {
 import type { AomiClient, UserState } from "@aomi-labs/client";
 import { UserState as UserStateHelpers } from "@aomi-labs/client";
 
-import {
-  useControl,
-  type ControlState,
-} from "../contexts/control-context";
+import { useControl, type ControlState } from "../contexts/control-context";
 import { useEventContext } from "../contexts/event-context";
 import type { ThreadContext } from "../contexts/thread-context";
 import { useThreadContext } from "../contexts/thread-context";
@@ -104,6 +101,20 @@ function getConnectedWalletId(userState: UserState): string | undefined {
   );
 }
 
+function getLegacySessionPublicKey(userState: UserState): string | undefined {
+  const address = UserStateHelpers.address(userState);
+  if (!address?.startsWith("0x")) {
+    return undefined;
+  }
+  if (
+    UserStateHelpers.chainId(userState) === undefined &&
+    !userState.evm?.address
+  ) {
+    return undefined;
+  }
+  return address;
+}
+
 function useWalletStateSync(
   context: Pick<
     RuntimeUserStateContext,
@@ -174,7 +185,7 @@ function useWalletStateSync(
       const nextAddress = normalizeWalletId(nextWalletState.evm?.address);
       if (
         stableStateString(prevWalletState as UserState) ===
-          stableStateString(nextWalletState as UserState)
+        stableStateString(nextWalletState as UserState)
       ) {
         return;
       }
@@ -212,10 +223,7 @@ function useWalletStateSync(
 }
 
 function useUserStateRequestResponder(
-  context: Pick<
-    RuntimeUserStateContext,
-    "getUserState" | "threadContextRef"
-  >,
+  context: Pick<RuntimeUserStateContext, "getUserState" | "threadContextRef">,
   sessions: Pick<RuntimeSessionBridge, "getSession">,
 ) {
   const eventContext = useEventContext();
@@ -248,11 +256,7 @@ function useRemoteThreadListSync(
   const [isThreadListLoading, setIsThreadListLoading] = useState(true);
   const prefetchCancelRef = useRef<(() => void) | null>(null);
   const lastConnectedAddressRef = useRef<string | undefined>(undefined);
-  const {
-    getControlState,
-    threadContextRef,
-    user,
-  } = context;
+  const { getControlState, threadContextRef, user } = context;
   const {
     aomiClientRef,
     closeAllSessions,
@@ -267,7 +271,7 @@ function useRemoteThreadListSync(
     warmThread,
   } = remoteThreads;
   const connectedAddress = UserStateHelpers.isConnected(user)
-    ? getConnectedWalletId(user)
+    ? getLegacySessionPublicKey(user)
     : undefined;
 
   const scheduleThreadPrefetch = useCallback(
@@ -331,7 +335,8 @@ function useRemoteThreadListSync(
       // during initialization that all land here with no address — those must
       // not wipe the active session or reset the thread, otherwise the
       // assistant response disappears mid-flight.
-      const wasPreviouslyConnected = lastConnectedAddressRef.current !== undefined;
+      const wasPreviouslyConnected =
+        lastConnectedAddressRef.current !== undefined;
       lastConnectedAddressRef.current = undefined;
       setIsThreadListLoading(false);
       prefetchCancelRef.current?.();
@@ -377,7 +382,6 @@ function useRemoteThreadListSync(
           getControlState().clientId,
           resetThreadId ?? currentContext.currentThreadId,
         );
-        await aomiClientRef.current.ensureAccount(controlSessionId, userAddress);
         const threadList = await aomiClientRef.current.listThreads(
           controlSessionId,
           userAddress,
@@ -571,9 +575,7 @@ export function RuntimeUserStateProvider({
         setUser(next);
       };
       session.on("user_state_updated", handler);
-      sessionListeners.push(() =>
-        session.off("user_state_updated", handler),
-      );
+      sessionListeners.push(() => session.off("user_state_updated", handler));
     });
 
     applyToSessions(getUserState());

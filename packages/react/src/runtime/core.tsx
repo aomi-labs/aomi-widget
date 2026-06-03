@@ -32,15 +32,17 @@ export type AomiRuntimeCoreProps = {
   aomiClient: AomiClient;
 };
 
-function getConnectedWalletId(userState: ReturnType<typeof UserState.normalize>) {
-  return UserState.address(userState) ?? UserState.svmAddress(userState);
-}
-
-function normalizeWalletIdForStorage(value: string | undefined): string | undefined {
-  if (!value) {
+function getLegacySessionPublicKey(
+  userState: ReturnType<typeof UserState.normalize>,
+) {
+  const address = UserState.address(userState);
+  if (!address?.startsWith("0x")) {
     return undefined;
   }
-  return value.startsWith("0x") ? value.toLowerCase() : value;
+  if (UserState.chainId(userState) === undefined && !userState?.evm?.address) {
+    return undefined;
+  }
+  return address;
 }
 
 const getHttpStatus = (error: unknown): number | undefined => {
@@ -101,7 +103,7 @@ export function AomiRuntimeCore({
   } = useRuntimeOrchestrator(aomiClient, {
     getPublicKey: () =>
       UserState.isConnected(getUserState())
-        ? getConnectedWalletId(getUserState())
+        ? getLegacySessionPublicKey(getUserState())
         : undefined,
     getUserState,
     getApp: getCurrentThreadApp,
@@ -169,24 +171,7 @@ export function AomiRuntimeCore({
   const warmedThreadIdsRef = useRef(new Set<string>());
   const warmPromisesRef = useRef(new Map<string, Promise<void>>());
   const threadsMaterializedForSendRef = useRef(new Set<string>());
-  const ensuredAccountPublicKeysRef = useRef(new Set<string>());
   const [isThreadLoading, setIsThreadLoading] = useState(false);
-
-  const ensureAccountForPublicKey = useCallback(
-    async (sessionId: string, publicKey: string) => {
-      const normalizedPublicKey = normalizeWalletIdForStorage(publicKey);
-      if (!normalizedPublicKey) {
-        return;
-      }
-      if (ensuredAccountPublicKeysRef.current.has(normalizedPublicKey)) {
-        return;
-      }
-
-      await aomiClientRef.current.ensureAccount(sessionId, publicKey);
-      ensuredAccountPublicKeysRef.current.add(normalizedPublicKey);
-    },
-    [aomiClientRef],
-  );
 
   const warmThread = useCallback(
     async (threadId: string) => {
@@ -204,18 +189,10 @@ export function AomiRuntimeCore({
 
       const warmPromise = (async () => {
         const userState = getUserState();
-        if (UserState.isConnected(userState)) {
-          const publicKey = getConnectedWalletId(userState);
-          if (publicKey) {
-            await ensureAccountForPublicKey(threadId, publicKey);
-          }
-        }
-        await aomiClientRef.current.createThread(
-          threadId,
-          UserState.isConnected(userState)
-            ? getConnectedWalletId(userState)
-            : undefined,
-        );
+        const publicKey = UserState.isConnected(userState)
+          ? getLegacySessionPublicKey(userState)
+          : undefined;
+        await aomiClientRef.current.createThread(threadId, publicKey);
         warmedThreadIdsRef.current.add(threadId);
       })();
 
@@ -227,7 +204,7 @@ export function AomiRuntimeCore({
         warmPromisesRef.current.delete(threadId);
       }
     },
-    [aomiClientRef, ensureAccountForPublicKey, getUserState],
+    [aomiClientRef, getUserState],
   );
 
   // ---------------------------------------------------------------------------
@@ -238,23 +215,15 @@ export function AomiRuntimeCore({
       if (remoteThreadIdsRef.current.has(threadId)) return false;
 
       const userState = getUserState();
-      if (UserState.isConnected(userState)) {
-        const publicKey = getConnectedWalletId(userState);
-        if (publicKey) {
-          await ensureAccountForPublicKey(threadId, publicKey);
-        }
-      }
-      await aomiClientRef.current.createThread(
-        threadId,
-        UserState.isConnected(userState)
-          ? getConnectedWalletId(userState)
-          : undefined,
-      );
+      const publicKey = UserState.isConnected(userState)
+        ? getLegacySessionPublicKey(userState)
+        : undefined;
+      await aomiClientRef.current.createThread(threadId, publicKey);
       remoteThreadIdsRef.current.add(threadId);
       warmedThreadIdsRef.current.add(threadId);
       return true;
     },
-    [aomiClientRef, ensureAccountForPublicKey, getUserState],
+    [aomiClientRef, getUserState],
   );
 
   const getRuntimeSession = useCallback(
