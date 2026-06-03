@@ -410,10 +410,9 @@ describe("Chat API", () => {
         { userState?: Record<string, unknown> } | undefined,
       ];
       expect(call[2]?.userState).toEqual({
-        address: undefined,
-        chain_id: undefined,
-        is_connected: false,
-        ens_name: undefined,
+        connection: {
+          is_connected: false,
+        },
         ext: {
           SIMMER_API_KEY: "sk_react_test",
         },
@@ -495,13 +494,13 @@ describe("Chat API", () => {
 
       expect(call[2]?.publicKey).toBeUndefined();
       expect(call[2]?.userState).toMatchObject({
-        address: undefined,
-        chain_id: undefined,
-        is_connected: false,
+        connection: {
+          is_connected: false,
+        },
       });
     });
 
-    it("hydrates pending wallet requests from backend user_state", async () => {
+    it("does not synthesize pending wallet requests from backend user_state", async () => {
       setAomiClientConfig({
         fetchThreads: async () => [
           {
@@ -513,20 +512,26 @@ describe("Chat API", () => {
           is_processing: false,
           messages: [],
           user_state: {
-            address: "0xabc",
-            chain_id: 8453,
-            is_connected: true,
-            pending_eip712s: {
-              7: {
-                typed_data: {
-                  domain: { chainId: 8453 },
-                  types: {
-                    Permit: [{ name: "spender", type: "address" }],
+            connection: {
+              is_connected: true,
+            },
+            evm: {
+              address: "0xabc",
+              chain_id: 8453,
+            },
+            pending: {
+              evm_sigs: {
+                7: {
+                  typed_data: {
+                    domain: { chainId: 8453 },
+                    types: {
+                      Permit: [{ name: "spender", type: "address" }],
+                    },
+                    primaryType: "Permit",
+                    message: { spender: "0x123" },
                   },
-                  primaryType: "Permit",
-                  message: { spender: "0x123" },
+                  description: "Permit2",
                 },
-                description: "Permit2",
               },
             },
           },
@@ -553,18 +558,7 @@ describe("Chat API", () => {
         getApi().selectThread("thread-with-wallet-request");
       });
 
-      await waitFor(() => {
-        expect(getApi().pendingWalletRequests).toEqual([
-          expect.objectContaining({
-            id: "eip712-7",
-            kind: "eip712_sign",
-            payload: expect.objectContaining({
-              eip712Id: 7,
-              description: "Permit2",
-            }),
-          }),
-        ]);
-      });
+      expect(getApi().pendingWalletRequests).toEqual([]);
     });
   });
 
