@@ -45,7 +45,8 @@ import {
   executeWalletCalls,
   DISABLED_PROVIDER_STATE,
   parseChainId,
-  aaModeFromExecutionKind
+  aaModeFromExecutionKind,
+  toViemSignMessageArgs
 } from "@aomi-labs/client";
 
 // src/runtime/aomi-runtime.tsx
@@ -2051,32 +2052,40 @@ function useWalletHandler({
       )
     );
   }, []);
-  const setRequests = useCallback6((requests) => {
-    const incomingIds = new Set(requests.map((request) => request.id));
-    for (const id of suppressedRequestSetRef.current) {
-      if (!incomingIds.has(id) && !inFlightRequestSetRef.current.has(id)) {
-        suppressedRequestSetRef.current.delete(id);
+  const setRequests = useCallback6(
+    (requests) => {
+      const incomingIds = new Set(requests.map((request) => request.id));
+      for (const id of suppressedRequestSetRef.current) {
+        if (!incomingIds.has(id) && !inFlightRequestSetRef.current.has(id)) {
+          suppressedRequestSetRef.current.delete(id);
+        }
       }
-    }
-    const preservedInFlight = requestsRef.current.filter(
-      (request) => inFlightRequestSetRef.current.has(request.id) && !incomingIds.has(request.id)
-    );
-    requestsRef.current = [...requests, ...preservedInFlight];
-    syncVisibleRequests();
-  }, [syncVisibleRequests]);
-  const startRequest = useCallback6((id) => {
-    if (!requestsRef.current.some((request) => request.id === id)) {
-      return;
-    }
-    inFlightRequestSetRef.current.add(id);
-    suppressedRequestSetRef.current.add(id);
-    syncVisibleRequests();
-  }, [syncVisibleRequests]);
+      const preservedInFlight = requestsRef.current.filter(
+        (request) => inFlightRequestSetRef.current.has(request.id) && !incomingIds.has(request.id)
+      );
+      requestsRef.current = [...requests, ...preservedInFlight];
+      syncVisibleRequests();
+    },
+    [syncVisibleRequests]
+  );
+  const startRequest = useCallback6(
+    (id) => {
+      if (!requestsRef.current.some((request) => request.id === id)) {
+        return;
+      }
+      inFlightRequestSetRef.current.add(id);
+      suppressedRequestSetRef.current.add(id);
+      syncVisibleRequests();
+    },
+    [syncVisibleRequests]
+  );
   const resolveRequest = useCallback6(
     async (id, result) => {
       const session = getSession();
       if (!session) {
-        console.error("[wallet-handler] No session available to resolve request");
+        console.error(
+          "[wallet-handler] No session available to resolve request"
+        );
         return;
       }
       startRequest(id);
@@ -2098,7 +2107,9 @@ function useWalletHandler({
     async (id, error) => {
       const session = getSession();
       if (!session) {
-        console.error("[wallet-handler] No session available to reject request");
+        console.error(
+          "[wallet-handler] No session available to reject request"
+        );
         return;
       }
       startRequest(id);
@@ -3076,6 +3087,7 @@ export {
   resolveAutoModel,
   toAAWalletCall,
   toAAWalletCalls,
+  toViemSignMessageArgs,
   toViemSignTypedDataArgs,
   useAomiRuntime,
   useControl,

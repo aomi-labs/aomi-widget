@@ -5,6 +5,7 @@ import {
   appendFeeCallToPayload,
   hydrateTxPayloadFromUserState,
   parseChainId,
+  toViemSignMessageArgs,
   toViemSignTypedDataArgs,
   useAomiRuntime,
   type WalletRequest,
@@ -130,7 +131,10 @@ export function RuntimeTxHandler() {
           }
 
           const result = await adapter.sendTransaction(payloadWithFee);
-          await resolveWalletRequest(req.id, { kind: "transaction", ...result });
+          await resolveWalletRequest(req.id, {
+            kind: "transaction",
+            ...result,
+          });
           return;
         }
 
@@ -151,23 +155,40 @@ export function RuntimeTxHandler() {
           }
 
           const result = await adapter.signSolanaTransaction(req.payload);
-          await resolveWalletRequest(req.id, { kind: "solana_sign", ...result });
-          return;
-        }
-
-        // req.kind === "eip712_sign"
-        if (!adapter.signTypedData) {
-          await rejectWalletRequest(req.id, "Wallet provider is not ready");
+          await resolveWalletRequest(req.id, {
+            kind: "solana_sign",
+            ...result,
+          });
           return;
         }
 
         const signArgs = toViemSignTypedDataArgs(req.payload);
-        if (!signArgs) {
-          await rejectWalletRequest(req.id, "Missing typed_data payload");
+        const messageArgs = toViemSignMessageArgs(req.payload);
+        if (signArgs && messageArgs) {
+          await rejectWalletRequest(
+            req.id,
+            "Signature request cannot include both typed_data and non_typed_data",
+          );
+          return;
+        }
+        if (!signArgs && !messageArgs) {
+          await rejectWalletRequest(
+            req.id,
+            "Missing typed_data or non_typed_data payload",
+          );
           return;
         }
 
-        const domainChainId = signArgs.domain?.chainId;
+        if (signArgs && !adapter.signTypedData) {
+          await rejectWalletRequest(req.id, "Wallet provider is not ready");
+          return;
+        }
+        if (messageArgs && !adapter.signMessage) {
+          await rejectWalletRequest(req.id, "Wallet provider is not ready");
+          return;
+        }
+
+        const domainChainId = signArgs?.domain?.chainId;
         const requestChainId =
           typeof domainChainId === "number" || typeof domainChainId === "string"
             ? parseChainId(domainChainId)
@@ -181,10 +202,12 @@ export function RuntimeTxHandler() {
           await adapter.switchChain(requestChainId);
         }
 
-        const result = await adapter.signTypedData({
-          ...req.payload,
-          typed_data: signArgs,
-        });
+        const result = signArgs
+          ? await adapter.signTypedData!({
+              ...req.payload,
+              typed_data: signArgs,
+            })
+          : await adapter.signMessage!(req.payload);
         await resolveWalletRequest(req.id, { kind: "eip712_sign", ...result });
       } catch (error) {
         console.error("[RuntimeTxHandler] Request failed:", error);

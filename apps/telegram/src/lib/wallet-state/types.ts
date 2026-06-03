@@ -1,4 +1,4 @@
-export type WalletConnectionSource = 'mini_app' | 'server_wc';
+export type WalletConnectionSource = "mini_app" | "server_wc";
 
 export interface TxCall {
   to: string;
@@ -8,18 +8,22 @@ export interface TxCall {
   pending_tx_id?: number;
 }
 
-export type WalletPresence = 'disconnected' | 'connecting' | 'connected';
+export type WalletPresence = "disconnected" | "connecting" | "connected";
 
-export type OperationKind = 'connect' | 'switch_network' | 'sign_tx' | 'sign_eip712';
+export type OperationKind =
+  | "connect"
+  | "switch_network"
+  | "sign_tx"
+  | "sign_eip712";
 
 export type OperationStatus =
-  | 'awaiting_wallet'
-  | 'processing'
-  | 'succeeded'
-  | 'failed'
-  | 'rejected'
-  | 'timed_out'
-  | 'canceled';
+  | "awaiting_wallet"
+  | "processing"
+  | "succeeded"
+  | "failed"
+  | "rejected"
+  | "timed_out"
+  | "canceled";
 
 export interface ConnectOperationMetadata {
   source: WalletConnectionSource;
@@ -50,7 +54,8 @@ export interface SignTxOperationMetadata {
 
 export interface SignEip712OperationMetadata {
   sessionKey: string;
-  typedData: Record<string, unknown>;
+  typedData?: Record<string, unknown>;
+  nonTypedData?: string;
   description: string;
   pendingEip712Id?: number;
   signature?: string;

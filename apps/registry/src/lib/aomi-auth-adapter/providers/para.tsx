@@ -45,6 +45,7 @@ import type {
 } from "@aomi-labs/react";
 import {
   ExtUserProvider,
+  toViemSignMessageArgs,
   toViemSignTypedDataArgs,
   UserState,
   useUser,
@@ -71,6 +72,7 @@ import {
   useSafeCapabilities,
   useSafeSendCallsSync,
   useSafeSendTransaction,
+  useSafeSignMessage,
   useSafeSignTypedData,
   useSafeSwitchChain,
   useSafeWagmiAccount,
@@ -460,6 +462,7 @@ export function AomiParaAdapterProvider({
   const { sendCallsSyncAsync } = useSafeSendCallsSync();
   const { capabilities } = useSafeCapabilities();
   const { signTypedDataAsync } = useSafeSignTypedData();
+  const { signMessageAsync } = useSafeSignMessage();
   const wagmiConfig = useSafeWagmiConfig();
   const solanaWallet = useSafeSolanaWallet();
 
@@ -622,6 +625,16 @@ export function AomiParaAdapterProvider({
             return { signature };
           }
         : undefined,
+      signMessage: signMessageAsync
+        ? async (payload: WalletEip712Payload) => {
+            const messageArgs = toViemSignMessageArgs(payload);
+            if (!messageArgs) {
+              throw new Error("Missing non_typed_data payload");
+            }
+            const signature = await signMessageAsync(messageArgs as never);
+            return { signature };
+          }
+        : undefined,
       // Solana sign — only exposed when the user has actually connected
       // a Solana wallet through `<ParaSolanaProvider>`. `RuntimeTxHandler`
       // checks for this method's presence and rejects gracefully when
@@ -665,6 +678,7 @@ export function AomiParaAdapterProvider({
     paraSession,
     sendCallsSyncAsync,
     sendTransactionAsync,
+    signMessageAsync,
     signTypedDataAsync,
     solanaWallet.publicKey,
     solanaWallet.signTransaction,

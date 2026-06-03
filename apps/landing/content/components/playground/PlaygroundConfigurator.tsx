@@ -1,12 +1,13 @@
 "use client";
 
-import { useState, useMemo, useCallback, type FC } from "react";
+import { useState, useMemo, useCallback, useEffect, type FC } from "react";
 import { AomiFrame } from "@aomi-labs/widget-lib";
 import { CopyButton } from "./CopyButton";
 import {
   ThemeCustomizer,
   useThemeCustomizer,
 } from "./ThemeCustomizer";
+import { ChevronDown, ChevronUp } from "lucide-react";
 
 // =============================================================================
 // Types
@@ -272,11 +273,26 @@ const LayoutPanel: FC<{
 // Main Playground
 // =============================================================================
 
-export function PlaygroundConfigurator() {
+export function PlaygroundConfigurator({ forceEmbed }: { forceEmbed?: boolean }) {
   const [state, setState] = useState<PlaygroundState>(DEFAULT_STATE);
   const [configTab, setConfigTab] = useState<ConfigTab>("layout");
   const [codeTab, setCodeTab] = useState<CodeTab>("jsx");
+  const [isEmbedded, setIsEmbedded] = useState(forceEmbed ?? false);
+  const [codeExpanded, setCodeExpanded] = useState(!(forceEmbed ?? false));
   const backendUrl = "/";
+
+  useEffect(() => {
+    if (forceEmbed) {
+      setIsEmbedded(true);
+      setCodeExpanded(false);
+      return;
+    }
+    const detected = typeof window !== "undefined" && window.top !== window.self;
+    if (detected) {
+      setIsEmbedded(true);
+      setCodeExpanded(false);
+    }
+  }, [forceEmbed]);
 
   const update = useCallback(
     (patch: Partial<PlaygroundState>) => {
@@ -315,10 +331,12 @@ export function PlaygroundConfigurator() {
 
   const activeCode = codeTab === "jsx" ? jsxCode : theme.output.css;
 
+  const embedHeight = isEmbedded ? 400 : 560;
+
   return (
-    <div className="space-y-4">
+    <div className={isEmbedded ? "space-y-2" : "space-y-4"}>
       {/* Main split panel */}
-      <div className="flex flex-col gap-4 lg:flex-row">
+      <div className={`flex flex-col ${isEmbedded ? "gap-2" : "gap-4"} lg:flex-row`}>
         {/* Left: Live preview */}
         <div className="min-w-0 flex-1">
           <div
@@ -328,7 +346,7 @@ export function PlaygroundConfigurator() {
             style={theme.output.styleObject}
           >
             <AomiFrame.Root
-              height="560px"
+              height={`${embedHeight}px`}
               walletPosition={walletPropValue ?? null}
               showSidebar={state.sidebarShown}
               backendUrl={backendUrl}
@@ -355,7 +373,7 @@ export function PlaygroundConfigurator() {
         </div>
 
         {/* Right: Config sidebar with tabs */}
-        <div className="w-full shrink-0 lg:w-72" style={{ height: 560 }}>
+        <div className="w-full shrink-0 lg:w-72" style={{ height: embedHeight }}>
           <div className="flex h-full flex-col rounded-xl border border-fd-border bg-fd-card">
             {/* Tab header */}
             <div className="border-b border-fd-border px-4 py-3">
@@ -387,7 +405,7 @@ export function PlaygroundConfigurator() {
         </div>
       </div>
 
-      {/* Generated code panel with tabs */}
+      {/* Generated code panel with tabs (collapsible when embedded) */}
       <div className="rounded-xl border border-fd-border">
         <div className="flex items-center justify-between border-b border-fd-border px-4 py-2">
           <TabBar
@@ -398,11 +416,25 @@ export function PlaygroundConfigurator() {
             active={codeTab}
             onChange={(v) => setCodeTab(v as CodeTab)}
           />
-          <CopyButton value={activeCode} label="Copy" />
+          <div className="flex items-center gap-2">
+            <CopyButton value={activeCode} label="Copy" />
+            {isEmbedded && (
+              <button
+                type="button"
+                onClick={() => setCodeExpanded((v) => !v)}
+                className="text-fd-muted-foreground hover:text-fd-foreground transition-colors"
+                aria-label={codeExpanded ? "Collapse code" : "Expand code"}
+              >
+                {codeExpanded ? <ChevronUp className="size-4" /> : <ChevronDown className="size-4" />}
+              </button>
+            )}
+          </div>
         </div>
-        <pre className="overflow-x-auto bg-fd-secondary/30 px-4 py-3 text-xs leading-relaxed text-fd-foreground">
-          <code>{activeCode}</code>
-        </pre>
+        {codeExpanded && (
+          <pre className="overflow-x-auto bg-fd-secondary/30 px-4 py-3 text-xs leading-relaxed text-fd-foreground">
+            <code>{activeCode}</code>
+          </pre>
+        )}
       </div>
     </div>
   );

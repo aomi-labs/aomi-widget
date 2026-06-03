@@ -88,6 +88,7 @@ __export(index_exports, {
   resolvePimlicoConfig: () => resolvePimlicoConfig,
   toAAWalletCall: () => toAAWalletCall,
   toAAWalletCalls: () => toAAWalletCalls,
+  toViemSignMessageArgs: () => toViemSignMessageArgs,
   toViemSignTypedDataArgs: () => toViemSignTypedDataArgs,
   unwrapSystemEvent: () => unwrapSystemEvent
 });
@@ -1496,6 +1497,12 @@ function parseBoolean(value) {
   if (normalized === "false" || normalized === "0") return false;
   return void 0;
 }
+function parseString(value) {
+  return typeof value === "string" ? value : void 0;
+}
+function isHexBytes(value) {
+  return /^0x(?:[0-9a-fA-F]{2})*$/.test(value);
+}
 function normalizeAaPreference(value) {
   if (typeof value !== "string") return void 0;
   const normalized = value.trim().toLowerCase();
@@ -1628,9 +1635,10 @@ function normalizeSolanaSignPayload(payload) {
   return { unsignedTx, description, cluster, pendingSolanaId };
 }
 function normalizeEip712Payload(payload) {
-  var _a, _b, _c, _d;
+  var _a, _b, _c, _d, _e;
   const args = getToolArgs(payload);
   const typedDataRaw = (_b = (_a = args.typed_data) != null ? _a : args["712_typed_data"]) != null ? _b : args.typedData;
+  const nonTypedData = parseString((_c = args.non_typed_data) != null ? _c : args.nonTypedData);
   let typedData;
   if (typeof typedDataRaw === "string") {
     try {
@@ -1645,8 +1653,13 @@ function normalizeEip712Payload(payload) {
     typedData = typedDataRaw;
   }
   const description = typeof args.description === "string" ? args.description : void 0;
-  const eip712Id = (_d = (_c = parsePendingId(args.eip712Id)) != null ? _c : parsePendingId(args.pending_eip712_id)) != null ? _d : parsePendingId(args.pendingEip712Id);
-  return { typed_data: typedData, description, eip712Id };
+  const eip712Id = (_e = (_d = parsePendingId(args.eip712Id)) != null ? _d : parsePendingId(args.pending_eip712_id)) != null ? _e : parsePendingId(args.pendingEip712Id);
+  return {
+    typed_data: typedData,
+    non_typed_data: nonTypedData,
+    description,
+    eip712Id
+  };
 }
 function toAAWalletCalls(payload, defaultChainId = 1) {
   var _a, _b;
@@ -1691,6 +1704,15 @@ function toViemSignTypedDataArgs(payload) {
     ),
     primaryType,
     message: asRecord(typedData.message)
+  };
+}
+function toViemSignMessageArgs(payload) {
+  const nonTypedData = payload.non_typed_data;
+  if (typeof nonTypedData !== "string" || nonTypedData.length === 0) {
+    return null;
+  }
+  return {
+    message: isHexBytes(nonTypedData) ? { raw: nonTypedData } : nonTypedData
   };
 }
 
@@ -4020,6 +4042,7 @@ async function createAAProviderState(options) {
   resolvePimlicoConfig,
   toAAWalletCall,
   toAAWalletCalls,
+  toViemSignMessageArgs,
   toViemSignTypedDataArgs,
   unwrapSystemEvent
 });
