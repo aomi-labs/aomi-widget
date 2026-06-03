@@ -1,7 +1,7 @@
 import { DeployError } from "./errors";
 
 // =============================================================================
-// Access request — the pre-deploy onboarding ask
+// Activation request — the pre-deploy onboarding ask
 // =============================================================================
 //
 // Mirror of `aomi-git request` (sdk/bin/git/discord.rs). A new contributor
@@ -19,15 +19,15 @@ import { DeployError } from "./errors";
 //   - Pre-deploy: NO `app_release_tag` / `server_tags` (no release exists yet).
 
 /** Discriminator value for the payload `kind` field. */
-export const ACCESS_REQUEST_KIND = "access_request" as const;
+export const ACTIVATION_REQUEST_KIND = "activation_request" as const;
 
 /** Provenance stamp. Matches the `aomi-git` form (`<tool>/<version>`). */
-export const ACCESS_REQUEST_SOURCE = "@aomi-labs/deploy/0.1.0";
+export const ACTIVATION_REQUEST_SOURCE = "@aomi-labs/deploy/0.1.0";
 
 /** Discord embed accent color (blurple). Cosmetic only. Matches the CLI. */
-export const ACCESS_REQUEST_EMBED_COLOR = 5_793_266;
+export const ACTIVATION_REQUEST_EMBED_COLOR = 5_793_266;
 
-export interface AccessRequestInput {
+export interface ActivationRequestInput {
   /** Where ops sends the activation code. */
   email: string;
   /** GitHub account to invite as a platform-repo collaborator. */
@@ -46,8 +46,8 @@ export interface AccessRequestInput {
  * The canonical machine-readable payload. Snake_case keys match the CLI /
  * Discord contract exactly — do not rename without updating the consumer.
  */
-export interface AccessRequestPayload {
-  kind: typeof ACCESS_REQUEST_KIND;
+export interface ActivationRequestPayload {
+  kind: typeof ACTIVATION_REQUEST_KIND;
   email: string;
   github_account: string;
   app: string;
@@ -72,29 +72,29 @@ export interface DiscordWebhookBody {
 function requireField(value: string, name: string): string {
   const v = value?.trim();
   if (!v) {
-    throw new DeployError("ACCESS_REQUEST", `\`${name}\` must not be empty`);
+    throw new DeployError("ACTIVATION_REQUEST", `\`${name}\` must not be empty`);
   }
   return v;
 }
 
 /**
- * Build the canonical access-request payload. Validates inputs and normalizes
+ * Build the canonical activation-request payload. Validates inputs and normalizes
  * whitespace. `requestedAt` defaults to the current time in RFC3339.
  */
-export function buildAccessRequest(input: AccessRequestInput): AccessRequestPayload {
+export function buildActivationRequest(input: ActivationRequestInput): ActivationRequestPayload {
   const email = requireField(input.email, "email");
   if (!email.includes("@")) {
-    throw new DeployError("ACCESS_REQUEST", `\`email\` must be a valid email address (got ${JSON.stringify(input.email)})`);
+    throw new DeployError("ACTIVATION_REQUEST", `\`email\` must be a valid email address (got ${JSON.stringify(input.email)})`);
   }
   return {
-    kind: ACCESS_REQUEST_KIND,
+    kind: ACTIVATION_REQUEST_KIND,
     email,
     github_account: requireField(input.githubAccount, "githubAccount"),
     app: requireField(input.app, "app"),
     platform: requireField(input.platform, "platform"),
     repo: requireField(input.repo, "repo"),
     requested_at: input.requestedAt ?? new Date().toISOString().replace(/\.\d{3}Z$/, "Z"),
-    source: ACCESS_REQUEST_SOURCE,
+    source: ACTIVATION_REQUEST_SOURCE,
   };
 }
 
@@ -105,19 +105,19 @@ export function buildAccessRequest(input: AccessRequestInput): AccessRequestPayl
  *
  * `allowed_mentions` is scoped to users/roles only, never `@everyone`.
  */
-export function buildAccessRequestDiscordBody(
-  input: AccessRequestInput,
+export function buildActivationRequestDiscordBody(
+  input: ActivationRequestInput,
   opts?: { opsMention?: string },
 ): DiscordWebhookBody {
-  const payload = buildAccessRequest(input);
+  const payload = buildActivationRequest(input);
   const compact = JSON.stringify(payload);
   return {
     content: opts?.opsMention ?? "",
     allowed_mentions: { parse: ["users", "roles"] },
     embeds: [
       {
-        title: "Access request",
-        color: ACCESS_REQUEST_EMBED_COLOR,
+        title: "Activation request",
+        color: ACTIVATION_REQUEST_EMBED_COLOR,
         fields: [
           { name: "Requester", value: payload.email, inline: true },
           { name: "GitHub", value: payload.github_account, inline: true },

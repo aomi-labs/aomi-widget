@@ -36,13 +36,13 @@ export interface AomiConfig {
 }
 
 /**
- * Optional Discord delivery for access requests. Mirrors the `aomi-git`
+ * Optional Discord delivery for activation requests. Mirrors the `aomi-git`
  * code-owned webhook, but here the destination is consumer-configured (this
- * library never hardcodes secrets). When `webhookUrl` is set, `requestAccess`
+ * library never hardcodes secrets). When `webhookUrl` is set, `requestActivation`
  * POSTs the embed; otherwise it just returns the body for you to deliver.
  */
 export interface DiscordConfig {
-  /** Incoming webhook URL for the access-request channel. */
+  /** Incoming webhook URL for the activation-request channel. */
   webhookUrl?: string;
   /** Ops role/user mention, e.g. "<@&123>". Goes in the message `content`. */
   opsMention?: string;
@@ -69,7 +69,7 @@ export interface DeploymentClientOptions {
    * to guarantee the manifest matches the publish CI validator.
    */
   descriptor?: import("./contract").PlatformDescriptor;
-  /** Optional Discord delivery for `requestAccess`. */
+  /** Optional Discord delivery for `requestActivation`. */
   discord?: DiscordConfig;
   /** Called on every privileged op. The proxy MUST persist this (attribution). */
   onAudit?: (event: AuditEvent) => void | Promise<void>;

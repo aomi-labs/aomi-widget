@@ -9,11 +9,11 @@ import {
 import { assertValidCommit, deriveSourceCommit } from "./release-tag";
 import { GitHubCommitter, type GitHubRestClient } from "./github";
 import {
-  buildAccessRequest,
-  buildAccessRequestDiscordBody,
-  type AccessRequestPayload,
+  buildActivationRequest,
+  buildActivationRequestDiscordBody,
+  type ActivationRequestPayload,
   type DiscordWebhookBody,
-} from "./access-request";
+} from "./activation-request";
 import type { ActivateAppRequest, PlatformDescriptor } from "./contract";
 import type {
   ActivateInput,
@@ -58,7 +58,7 @@ export class DeploymentClient {
   }
 
   /**
-   * Build a pre-deploy access request (onboarding ask) for `app`, filling
+   * Build a pre-deploy activation request (onboarding ask) for `app`, filling
    * `platform` + `repo` from this client's config. Mirror of `aomi-git request`
    * — same canonical payload, so a request raised here and one from the CLI are
    * indistinguishable to the consumer.
@@ -68,13 +68,13 @@ export class DeploymentClient {
    * itself. The activation code is NEVER part of this — ops mint + deliver it
    * out-of-band.
    */
-  async requestAccess(input: {
+  async requestActivation(input: {
     email: string;
     githubAccount: string;
     app: string;
     requestedAt?: string;
     actor?: string;
-  }): Promise<{ payload: AccessRequestPayload; discordBody: DiscordWebhookBody; posted: boolean }> {
+  }): Promise<{ payload: ActivationRequestPayload; discordBody: DiscordWebhookBody; posted: boolean }> {
     assertValidSlug(input.app);
 
     const common = {
@@ -85,8 +85,8 @@ export class DeploymentClient {
       repo: this.descriptor.source_repo,
       requestedAt: input.requestedAt,
     };
-    const payload = buildAccessRequest(common);
-    const discordBody = buildAccessRequestDiscordBody(common, {
+    const payload = buildActivationRequest(common);
+    const discordBody = buildActivationRequestDiscordBody(common, {
       opsMention: this.opts.discord?.opsMention,
     });
 
@@ -102,13 +102,13 @@ export class DeploymentClient {
         });
       } catch (err) {
         throw new DeployError(
-          "ACCESS_REQUEST",
+          "ACTIVATION_REQUEST",
           `failed to POST Discord webhook: ${err instanceof Error ? err.message : String(err)}`,
         );
       }
       if (!res.ok) {
         const text = await res.text().catch(() => "");
-        throw new DeployError("ACCESS_REQUEST", `Discord webhook returned ${res.status}: ${text.trim()}`);
+        throw new DeployError("ACTIVATION_REQUEST", `Discord webhook returned ${res.status}: ${text.trim()}`);
       }
       posted = true;
     }

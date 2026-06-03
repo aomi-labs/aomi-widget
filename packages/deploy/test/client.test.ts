@@ -183,13 +183,13 @@ describe("DeploymentClient.activate", () => {
   });
 });
 
-describe("DeploymentClient.requestAccess", () => {
+describe("DeploymentClient.requestActivation", () => {
   it("fills platform + repo from config and audits without posting when no webhook set", async () => {
     const { api } = makeFakeGitHub();
     const audits: AuditEvent[] = [];
     const client = makeClient(api, (e) => audits.push(e as AuditEvent));
 
-    const { payload, posted } = await client.requestAccess({
+    const { payload, posted } = await client.requestActivation({
       email: "alice@gmail.com",
       githubAccount: "alice-git-acc",
       app: "krexa-finance",
@@ -199,7 +199,7 @@ describe("DeploymentClient.requestAccess", () => {
 
     expect(posted).toBe(false);
     expect(payload).toMatchObject({
-      kind: "access_request",
+      kind: "activation_request",
       email: "alice@gmail.com",
       github_account: "alice-git-acc",
       app: "krexa-finance",
@@ -223,7 +223,7 @@ describe("DeploymentClient.requestAccess", () => {
         octokit: api,
       });
 
-      const { posted } = await client.requestAccess({
+      const { posted } = await client.requestActivation({
         email: "alice@gmail.com",
         githubAccount: "alice-git-acc",
         app: "cecilia-test-2",
@@ -235,7 +235,7 @@ describe("DeploymentClient.requestAccess", () => {
       expect(url).toBe("https://discord.com/api/webhooks/x/y");
       const body = JSON.parse((init as RequestInit).body as string);
       expect(body.content).toBe("<@&123>");
-      expect(body.embeds[0].title).toBe("Access request");
+      expect(body.embeds[0].title).toBe("Activation request");
     } finally {
       vi.unstubAllGlobals();
     }
