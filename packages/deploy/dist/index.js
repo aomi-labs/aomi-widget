@@ -329,43 +329,43 @@ function errMsg(err) {
   return err instanceof Error ? err.message : String(err);
 }
 
-// src/access-request.ts
-var ACCESS_REQUEST_KIND = "access_request";
-var ACCESS_REQUEST_SOURCE = "@aomi-labs/deploy/0.1.0";
-var ACCESS_REQUEST_EMBED_COLOR = 5793266;
+// src/activation-request.ts
+var ACTIVATION_REQUEST_KIND = "activation_request";
+var ACTIVATION_REQUEST_SOURCE = "@aomi-labs/deploy/0.1.0";
+var ACTIVATION_REQUEST_EMBED_COLOR = 5793266;
 function requireField(value, name) {
   const v = value?.trim();
   if (!v) {
-    throw new DeployError("ACCESS_REQUEST", `\`${name}\` must not be empty`);
+    throw new DeployError("ACTIVATION_REQUEST", `\`${name}\` must not be empty`);
   }
   return v;
 }
-function buildAccessRequest(input) {
+function buildActivationRequest(input) {
   const email = requireField(input.email, "email");
   if (!email.includes("@")) {
-    throw new DeployError("ACCESS_REQUEST", `\`email\` must be a valid email address (got ${JSON.stringify(input.email)})`);
+    throw new DeployError("ACTIVATION_REQUEST", `\`email\` must be a valid email address (got ${JSON.stringify(input.email)})`);
   }
   return {
-    kind: ACCESS_REQUEST_KIND,
+    kind: ACTIVATION_REQUEST_KIND,
     email,
     github_account: requireField(input.githubAccount, "githubAccount"),
     app: requireField(input.app, "app"),
     platform: requireField(input.platform, "platform"),
     repo: requireField(input.repo, "repo"),
     requested_at: input.requestedAt ?? (/* @__PURE__ */ new Date()).toISOString().replace(/\.\d{3}Z$/, "Z"),
-    source: ACCESS_REQUEST_SOURCE
+    source: ACTIVATION_REQUEST_SOURCE
   };
 }
-function buildAccessRequestDiscordBody(input, opts) {
-  const payload = buildAccessRequest(input);
+function buildActivationRequestDiscordBody(input, opts) {
+  const payload = buildActivationRequest(input);
   const compact = JSON.stringify(payload);
   return {
     content: opts?.opsMention ?? "",
     allowed_mentions: { parse: ["users", "roles"] },
     embeds: [
       {
-        title: "Access request",
-        color: ACCESS_REQUEST_EMBED_COLOR,
+        title: "Activation request",
+        color: ACTIVATION_REQUEST_EMBED_COLOR,
         fields: [
           { name: "Requester", value: payload.email, inline: true },
           { name: "GitHub", value: payload.github_account, inline: true },
@@ -400,7 +400,7 @@ var DeploymentClient = class {
     this.committer = new GitHubCommitter(api, opts.github.repo, this.branch);
   }
   /**
-   * Build a pre-deploy access request (onboarding ask) for `app`, filling
+   * Build a pre-deploy activation request (onboarding ask) for `app`, filling
    * `platform` + `repo` from this client's config. Mirror of `aomi-git request`
    * — same canonical payload, so a request raised here and one from the CLI are
    * indistinguishable to the consumer.
@@ -410,7 +410,7 @@ var DeploymentClient = class {
    * itself. The activation code is NEVER part of this — ops mint + deliver it
    * out-of-band.
    */
-  async requestAccess(input) {
+  async requestActivation(input) {
     assertValidSlug(input.app);
     const common = {
       email: input.email,
@@ -420,8 +420,8 @@ var DeploymentClient = class {
       repo: this.descriptor.source_repo,
       requestedAt: input.requestedAt
     };
-    const payload = buildAccessRequest(common);
-    const discordBody = buildAccessRequestDiscordBody(common, {
+    const payload = buildActivationRequest(common);
+    const discordBody = buildActivationRequestDiscordBody(common, {
       opsMention: this.opts.discord?.opsMention
     });
     let posted = false;
@@ -436,13 +436,13 @@ var DeploymentClient = class {
         });
       } catch (err) {
         throw new DeployError(
-          "ACCESS_REQUEST",
+          "ACTIVATION_REQUEST",
           `failed to POST Discord webhook: ${err instanceof Error ? err.message : String(err)}`
         );
       }
       if (!res.ok) {
         const text = await res.text().catch(() => "");
-        throw new DeployError("ACCESS_REQUEST", `Discord webhook returned ${res.status}: ${text.trim()}`);
+        throw new DeployError("ACTIVATION_REQUEST", `Discord webhook returned ${res.status}: ${text.trim()}`);
       }
       posted = true;
     }
@@ -611,9 +611,9 @@ function resolveGitHubApi(opts) {
   return octokit.rest ?? octokit;
 }
 export {
-  ACCESS_REQUEST_EMBED_COLOR,
-  ACCESS_REQUEST_KIND,
-  ACCESS_REQUEST_SOURCE,
+  ACTIVATION_REQUEST_EMBED_COLOR,
+  ACTIVATION_REQUEST_KIND,
+  ACTIVATION_REQUEST_SOURCE,
   ActivationError,
   BrowserEnvironmentError,
   COMMIT_RE,
@@ -627,8 +627,8 @@ export {
   TagWideningError,
   assertServerOnly,
   assertValidCommit,
-  buildAccessRequest,
-  buildAccessRequestDiscordBody,
+  buildActivationRequest,
+  buildActivationRequestDiscordBody,
   buildDeploymentManifest,
   deriveSourceCommit,
   normalizeGithubRepo,

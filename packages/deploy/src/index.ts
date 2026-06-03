@@ -29,12 +29,12 @@ export {
   DEFAULT_RELEASE_TAG_CONVENTION,
 } from "./release-tag";
 export {
-  buildAccessRequest,
-  buildAccessRequestDiscordBody,
-  ACCESS_REQUEST_KIND,
-  ACCESS_REQUEST_SOURCE,
-  ACCESS_REQUEST_EMBED_COLOR,
-} from "./access-request";
+  buildActivationRequest,
+  buildActivationRequestDiscordBody,
+  ACTIVATION_REQUEST_KIND,
+  ACTIVATION_REQUEST_SOURCE,
+  ACTIVATION_REQUEST_EMBED_COLOR,
+} from "./activation-request";
 
 // ----- errors ---------------------------------------------------------------
 export {
@@ -63,10 +63,10 @@ export type {
 } from "./types";
 export type { DiscordConfig } from "./types";
 export type {
-  AccessRequestInput,
-  AccessRequestPayload,
+  ActivationRequestInput,
+  ActivationRequestPayload,
   DiscordWebhookBody,
-} from "./access-request";
+} from "./activation-request";
 export type {
   ActivateAppRequest,
   DeploymentManifest,

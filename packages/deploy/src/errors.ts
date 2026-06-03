@@ -16,7 +16,7 @@ export type DeployErrorCode =
   | "TAG_WIDENING"
   | "GITHUB_COMMIT"
   | "ACTIVATION"
-  | "ACCESS_REQUEST";
+  | "ACTIVATION_REQUEST";
 
 export class DeployError extends Error {
   readonly code: DeployErrorCode;

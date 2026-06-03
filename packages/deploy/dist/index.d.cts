@@ -1,10 +1,10 @@
 /** Discriminator value for the payload `kind` field. */
-declare const ACCESS_REQUEST_KIND: "access_request";
+declare const ACTIVATION_REQUEST_KIND: "activation_request";
 /** Provenance stamp. Matches the `aomi-git` form (`<tool>/<version>`). */
-declare const ACCESS_REQUEST_SOURCE = "@aomi-labs/deploy/0.1.0";
+declare const ACTIVATION_REQUEST_SOURCE = "@aomi-labs/deploy/0.1.0";
 /** Discord embed accent color (blurple). Cosmetic only. Matches the CLI. */
-declare const ACCESS_REQUEST_EMBED_COLOR = 5793266;
-interface AccessRequestInput {
+declare const ACTIVATION_REQUEST_EMBED_COLOR = 5793266;
+interface ActivationRequestInput {
     /** Where ops sends the activation code. */
     email: string;
     /** GitHub account to invite as a platform-repo collaborator. */
@@ -22,8 +22,8 @@ interface AccessRequestInput {
  * The canonical machine-readable payload. Snake_case keys match the CLI /
  * Discord contract exactly — do not rename without updating the consumer.
  */
-interface AccessRequestPayload {
-    kind: typeof ACCESS_REQUEST_KIND;
+interface ActivationRequestPayload {
+    kind: typeof ACTIVATION_REQUEST_KIND;
     email: string;
     github_account: string;
     app: string;
@@ -50,10 +50,10 @@ interface DiscordWebhookBody {
     }>;
 }
 /**
- * Build the canonical access-request payload. Validates inputs and normalizes
+ * Build the canonical activation-request payload. Validates inputs and normalizes
  * whitespace. `requestedAt` defaults to the current time in RFC3339.
  */
-declare function buildAccessRequest(input: AccessRequestInput): AccessRequestPayload;
+declare function buildActivationRequest(input: ActivationRequestInput): ActivationRequestPayload;
 /**
  * Build the Discord webhook body: a human-readable embed for ops plus the
  * canonical payload inlined as a fenced ```json block in the embed description
@@ -61,7 +61,7 @@ declare function buildAccessRequest(input: AccessRequestInput): AccessRequestPay
  *
  * `allowed_mentions` is scoped to users/roles only, never `@everyone`.
  */
-declare function buildAccessRequestDiscordBody(input: AccessRequestInput, opts?: {
+declare function buildActivationRequestDiscordBody(input: ActivationRequestInput, opts?: {
     opsMention?: string;
 }): DiscordWebhookBody;
 
@@ -192,13 +192,13 @@ interface AomiConfig {
     activatePath?: string;
 }
 /**
- * Optional Discord delivery for access requests. Mirrors the `aomi-git`
+ * Optional Discord delivery for activation requests. Mirrors the `aomi-git`
  * code-owned webhook, but here the destination is consumer-configured (this
- * library never hardcodes secrets). When `webhookUrl` is set, `requestAccess`
+ * library never hardcodes secrets). When `webhookUrl` is set, `requestActivation`
  * POSTs the embed; otherwise it just returns the body for you to deliver.
  */
 interface DiscordConfig {
-    /** Incoming webhook URL for the access-request channel. */
+    /** Incoming webhook URL for the activation-request channel. */
     webhookUrl?: string;
     /** Ops role/user mention, e.g. "<@&123>". Goes in the message `content`. */
     opsMention?: string;
@@ -223,7 +223,7 @@ interface DeploymentClientOptions {
      * to guarantee the manifest matches the publish CI validator.
      */
     descriptor?: PlatformDescriptor;
-    /** Optional Discord delivery for `requestAccess`. */
+    /** Optional Discord delivery for `requestActivation`. */
     discord?: DiscordConfig;
     /** Called on every privileged op. The proxy MUST persist this (attribution). */
     onAudit?: (event: AuditEvent) => void | Promise<void>;
@@ -306,7 +306,7 @@ declare class DeploymentClient {
     private readonly tagPrefix;
     constructor(opts: DeploymentClientOptions);
     /**
-     * Build a pre-deploy access request (onboarding ask) for `app`, filling
+     * Build a pre-deploy activation request (onboarding ask) for `app`, filling
      * `platform` + `repo` from this client's config. Mirror of `aomi-git request`
      * — same canonical payload, so a request raised here and one from the CLI are
      * indistinguishable to the consumer.
@@ -316,14 +316,14 @@ declare class DeploymentClient {
      * itself. The activation code is NEVER part of this — ops mint + deliver it
      * out-of-band.
      */
-    requestAccess(input: {
+    requestActivation(input: {
         email: string;
         githubAccount: string;
         app: string;
         requestedAt?: string;
         actor?: string;
     }): Promise<{
-        payload: AccessRequestPayload;
+        payload: ActivationRequestPayload;
         discordBody: DiscordWebhookBody;
         posted: boolean;
     }>;
@@ -402,7 +402,7 @@ declare function releaseTag(slug: string, commit: string, convention?: string): 
  */
 declare function deriveSourceCommit(files: StagedFile[]): string;
 
-type DeployErrorCode = "BROWSER_ENVIRONMENT" | "INVALID_SLUG" | "PATH_SCOPE" | "EMPTY_BUNDLE" | "RESERVED_PATH" | "INVALID_COMMIT" | "TAG_WIDENING" | "GITHUB_COMMIT" | "ACTIVATION" | "ACCESS_REQUEST";
+type DeployErrorCode = "BROWSER_ENVIRONMENT" | "INVALID_SLUG" | "PATH_SCOPE" | "EMPTY_BUNDLE" | "RESERVED_PATH" | "INVALID_COMMIT" | "TAG_WIDENING" | "GITHUB_COMMIT" | "ACTIVATION" | "ACTIVATION_REQUEST";
 declare class DeployError extends Error {
     readonly code: DeployErrorCode;
     readonly reason?: unknown;
@@ -528,4 +528,4 @@ interface GitHubRestClient {
     };
 }
 
-export { ACCESS_REQUEST_EMBED_COLOR, ACCESS_REQUEST_KIND, ACCESS_REQUEST_SOURCE, type AccessRequestInput, type AccessRequestPayload, type ActivateAppRequest, type ActivateInput, type ActivateResult, ActivationError, type AomiConfig, type AuditEvent, BrowserEnvironmentError, COMMIT_RE, type CiStatus, DEFAULT_RELEASE_TAG_CONVENTION, DEPLOYMENT_DIR, DEPLOYMENT_FILE, DeployError, type DeployErrorCode, type DeployInput, type DeployResult, type DeploymentApp, DeploymentClient, type DeploymentClientOptions, type DeploymentManifest, type DeploymentPlatform, type DeploymentSource, type DeploymentStateFlags, type DeploymentTarget, type DiscordConfig, type DiscordWebhookBody, type GitHubConfig, type GitHubRestClient, PathScopeError, type PlatformDescriptor, RESERVED_MANIFEST_PATH, type ReleaseStatus, type SourceBundle, type StagedFile, type StatusResult, TagWideningError, assertServerOnly, assertValidCommit, buildAccessRequest, buildAccessRequestDiscordBody, buildDeploymentManifest, deriveSourceCommit, normalizeGithubRepo, releaseTag, sha256Prefixed, shortCommit, stageFiles, validateManifest };
+export { ACTIVATION_REQUEST_EMBED_COLOR, ACTIVATION_REQUEST_KIND, ACTIVATION_REQUEST_SOURCE, type ActivateAppRequest, type ActivateInput, type ActivateResult, ActivationError, type ActivationRequestInput, type ActivationRequestPayload, type AomiConfig, type AuditEvent, BrowserEnvironmentError, COMMIT_RE, type CiStatus, DEFAULT_RELEASE_TAG_CONVENTION, DEPLOYMENT_DIR, DEPLOYMENT_FILE, DeployError, type DeployErrorCode, type DeployInput, type DeployResult, type DeploymentApp, DeploymentClient, type DeploymentClientOptions, type DeploymentManifest, type DeploymentPlatform, type DeploymentSource, type DeploymentStateFlags, type DeploymentTarget, type DiscordConfig, type DiscordWebhookBody, type GitHubConfig, type GitHubRestClient, PathScopeError, type PlatformDescriptor, RESERVED_MANIFEST_PATH, type ReleaseStatus, type SourceBundle, type StagedFile, type StatusResult, TagWideningError, assertServerOnly, assertValidCommit, buildActivationRequest, buildActivationRequestDiscordBody, buildDeploymentManifest, deriveSourceCommit, normalizeGithubRepo, releaseTag, sha256Prefixed, shortCommit, stageFiles, validateManifest };
