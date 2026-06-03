@@ -398,6 +398,9 @@ importers:
       '@aomi-labs/client':
         specifier: workspace:*
         version: link:../../packages/client
+      '@aomi-labs/deploy':
+        specifier: workspace:*
+        version: link:../../packages/deploy
       '@aomi-labs/mcp-core':
         specifier: workspace:*
         version: link:../../packages/mcp-core
