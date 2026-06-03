@@ -12,7 +12,10 @@ import type {
   WalletEip712Payload,
   WalletTxPayload,
 } from "@aomi-labs/react";
-import { toViemSignTypedDataArgs } from "@aomi-labs/react";
+import {
+  toViemSignMessageArgs,
+  toViemSignTypedDataArgs,
+} from "@aomi-labs/react";
 import { AomiAuthAdapterProvider } from "../context";
 import { AOMI_AUTH_DISCONNECTED_IDENTITY } from "../identity";
 import { useFullTestnet } from "../full-testnet-wallet-routing";
@@ -27,6 +30,7 @@ import {
   useSafeDisconnect,
   useSafeSendCallsSync,
   useSafeSendTransaction,
+  useSafeSignMessage,
   useSafeSignTypedData,
   useSafeSwitchChain,
   useSafeWagmiAccount,
@@ -155,6 +159,7 @@ function BaseAccountAdapterInner({
   const { sendCallsSyncAsync } = useSafeSendCallsSync();
   const { capabilities } = useSafeCapabilities();
   const { signTypedDataAsync } = useSafeSignTypedData();
+  const { signMessageAsync } = useSafeSignMessage();
   const wagmiConfig = useSafeWagmiConfig();
   const {
     selectedEvmChainId,
@@ -316,6 +321,16 @@ function BaseAccountAdapterInner({
             return { signature };
           }
         : undefined,
+      signMessage: signMessageAsync
+        ? async (payload: WalletEip712Payload) => {
+            const messageArgs = toViemSignMessageArgs(payload);
+            if (!messageArgs) {
+              throw new Error("Missing non_typed_data payload");
+            }
+            const signature = await signMessageAsync(messageArgs as never);
+            return { signature };
+          }
+        : undefined,
     };
   }, [
     address,
@@ -333,6 +348,7 @@ function BaseAccountAdapterInner({
     setSelectedEvmChainId,
     sendCallsSyncAsync,
     sendTransactionAsync,
+    signMessageAsync,
     signTypedDataAsync,
     sponsorship,
     supportedSolanaNetworks,

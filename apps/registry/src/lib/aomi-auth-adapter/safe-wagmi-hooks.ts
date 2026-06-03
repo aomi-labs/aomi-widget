@@ -12,6 +12,7 @@ import {
   useReconnect,
   useSendCallsSync,
   useSendTransaction,
+  useSignMessage,
   useSignTypedData,
   useSwitchAccount,
   useSwitchChain,
@@ -124,6 +125,18 @@ export function useSafeSignTypedData(): {
     };
   } catch {
     return { signTypedDataAsync: undefined };
+  }
+}
+
+export function useSafeSignMessage(): {
+  signMessageAsync?: (args: unknown) => Promise<string>;
+} {
+  try {
+    return useSignMessage() as {
+      signMessageAsync?: (args: unknown) => Promise<string>;
+    };
+  } catch {
+    return { signMessageAsync: undefined };
   }
 }
 

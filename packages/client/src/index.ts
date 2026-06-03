@@ -97,6 +97,7 @@ export {
   normalizeSolanaSignPayload,
   normalizeSolanaSignMessagePayload,
   normalizeSolanaWalletRequest,
+  toViemSignMessageArgs,
   toViemSignTypedDataArgs,
   toAAWalletCalls,
   toAAWalletCall,
@@ -111,6 +112,7 @@ export type {
   NormalizedSolanaWalletRequest,
   WalletSolanaSignPayload,
   WalletSolanaSignMessagePayload,
+  ViemSignMessageArgs,
   ViemSignTypedDataArgs,
 } from "./wallet-utils";
 

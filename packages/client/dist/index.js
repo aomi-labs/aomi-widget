@@ -816,20 +816,6 @@ function wrapFetchWithAccountBearer(fetchImpl, getAccountAccessToken) {
 function supportsTokenRefreshSubscription(provider) {
   return typeof (provider == null ? void 0 : provider.subscribe) === "function";
 }
-var AomiWalletContextError = class extends Error {
-  constructor(status, body) {
-    var _a, _b, _c;
-    super(`Wallet context update failed: ${(_a = body == null ? void 0 : body.error) != null ? _a : `HTTP ${status}`}`);
-    this.name = "AomiWalletContextError";
-    this.status = status;
-    this.code = (_b = body == null ? void 0 : body.error) != null ? _b : `http_${status}`;
-    this.currentContext = (_c = body == null ? void 0 : body.current_context) != null ? _c : null;
-  }
-};
-async function readWalletContextError(response) {
-  const body = await response.json().catch(() => void 0);
-  return new AomiWalletContextError(response.status, body);
-}
 async function postState(baseUrl, path, payload, sessionId, fetchImpl, apiKey, logger) {
   const url = `${baseUrl}${path}`;
   const body = JSON.stringify(payload);
@@ -1217,44 +1203,6 @@ var AomiClient = class {
     if (!response.ok) {
       throw new Error(`Failed to rename thread: HTTP ${response.status}`);
     }
-  }
-  /**
-   * List authoritative wallet selections committed for a session.
-   */
-  async listSessionWalletContexts(sessionId) {
-    const url = buildApiUrl(
-      this.baseUrl,
-      `/api/sessions/${encodeURIComponent(sessionId)}/wallet-context`
-    );
-    const response = await this.fetchImpl(url, {
-      method: "GET",
-      headers: withSessionHeader(sessionId)
-    });
-    if (!response.ok) {
-      throw await readWalletContextError(response);
-    }
-    return await response.json();
-  }
-  /**
-   * Commit the active wallet/network for one family. On stale versions the
-   * thrown error carries the server's current committed context.
-   */
-  async putSessionWalletContext(sessionId, request) {
-    const url = buildApiUrl(
-      this.baseUrl,
-      `/api/sessions/${encodeURIComponent(sessionId)}/wallet-context`
-    );
-    const response = await this.fetchImpl(url, {
-      method: "PUT",
-      headers: withSessionHeader(sessionId, {
-        "Content-Type": "application/json"
-      }),
-      body: JSON.stringify(request)
-    });
-    if (!response.ok) {
-      throw await readWalletContextError(response);
-    }
-    return await response.json();
   }
   /**
    * Archive a thread.
@@ -1773,6 +1721,12 @@ function parseBoolean(value) {
   if (normalized === "false" || normalized === "0") return false;
   return void 0;
 }
+function parseString(value) {
+  return typeof value === "string" ? value : void 0;
+}
+function isHexBytes(value) {
+  return /^0x(?:[0-9a-fA-F]{2})*$/.test(value);
+}
 function normalizeAaPreference(value) {
   if (typeof value !== "string") return void 0;
   const normalized = value.trim().toLowerCase();
@@ -1933,9 +1887,10 @@ function normalizeSolanaWalletRequest(payload) {
   return normalized.unsignedTx ? { kind, payload: normalized } : null;
 }
 function normalizeEip712Payload(payload) {
-  var _a, _b, _c, _d;
+  var _a, _b, _c, _d, _e;
   const args = getToolArgs(payload);
   const typedDataRaw = (_b = (_a = args.typed_data) != null ? _a : args["712_typed_data"]) != null ? _b : args.typedData;
+  const nonTypedData = parseString((_c = args.non_typed_data) != null ? _c : args.nonTypedData);
   let typedData;
   if (typeof typedDataRaw === "string") {
     try {
@@ -1950,8 +1905,13 @@ function normalizeEip712Payload(payload) {
     typedData = typedDataRaw;
   }
   const description = typeof args.description === "string" ? args.description : void 0;
-  const eip712Id = (_d = (_c = parsePendingId(args.eip712Id)) != null ? _c : parsePendingId(args.pending_eip712_id)) != null ? _d : parsePendingId(args.pendingEip712Id);
-  return { typed_data: typedData, description, eip712Id };
+  const eip712Id = (_e = (_d = parsePendingId(args.eip712Id)) != null ? _d : parsePendingId(args.pending_eip712_id)) != null ? _e : parsePendingId(args.pendingEip712Id);
+  return {
+    typed_data: typedData,
+    non_typed_data: nonTypedData,
+    description,
+    eip712Id
+  };
 }
 function toAAWalletCalls(payload, defaultChainId = 1) {
   var _a, _b;
@@ -1996,6 +1956,15 @@ function toViemSignTypedDataArgs(payload) {
     ),
     primaryType,
     message: asRecord(typedData.message)
+  };
+}
+function toViemSignMessageArgs(payload) {
+  const nonTypedData = payload.non_typed_data;
+  if (typeof nonTypedData !== "string" || nonTypedData.length === 0) {
+    return null;
+  }
+  return {
+    message: isHexBytes(nonTypedData) ? { raw: nonTypedData } : nonTypedData
   };
 }
 
@@ -4484,7 +4453,6 @@ async function createAAProviderState(options) {
 export {
   ALCHEMY_CHAIN_SLUGS,
   AomiClient,
-  AomiWalletContextError,
   CHAINS_BY_ID,
   CHAIN_NAMES,
   CLIENT_TYPE_TS_CLI,
@@ -4527,6 +4495,7 @@ export {
   resolvePimlicoConfig,
   toAAWalletCall,
   toAAWalletCalls,
+  toViemSignMessageArgs,
   toViemSignTypedDataArgs,
   unwrapSystemEvent
 };
