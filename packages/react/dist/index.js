@@ -31,7 +31,7 @@ var __objRest = (source, exclude) => {
   return target;
 };
 
-// src/index.ts
+// packages/react/src/index.ts
 import { AomiClient as AomiClient2 } from "@aomi-labs/client";
 import {
   toViemSignTypedDataArgs,
@@ -48,11 +48,11 @@ import {
   aaModeFromExecutionKind
 } from "@aomi-labs/client";
 
-// src/runtime/aomi-runtime.tsx
+// packages/react/src/runtime/aomi-runtime.tsx
 import { useMemo as useMemo3 } from "react";
 import { AomiClient, UserState as UserState4 } from "@aomi-labs/client";
 
-// src/contexts/control-context.tsx
+// packages/react/src/contexts/control-context.tsx
 import {
   createContext,
   useCallback,
@@ -62,7 +62,7 @@ import {
   useEffect
 } from "react";
 
-// src/utils/uuid.ts
+// packages/react/src/utils/uuid.ts
 function generateUUID() {
   if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
     return crypto.randomUUID();
@@ -74,7 +74,7 @@ function generateUUID() {
   });
 }
 
-// src/state/thread-store.ts
+// packages/react/src/state/thread-store.ts
 var shouldLogThreadUpdates = process.env.NODE_ENV !== "production";
 var logThreadMetadataChange = (source, threadId, prev, next) => {
   if (!shouldLogThreadUpdates) return;
@@ -259,7 +259,7 @@ var ThreadStore = class {
   }
 };
 
-// src/utils/model-selection.ts
+// packages/react/src/utils/model-selection.ts
 var PREFERRED_DEFAULT_MODEL_PATTERNS = [
   /^claude.*opus.*4[.-]?6/i,
   /^claude.*4[.-]?6.*opus/i,
@@ -278,7 +278,7 @@ function resolveAutoModel(models) {
   return (_a = models[0]) != null ? _a : null;
 }
 
-// src/utils/client-session.ts
+// packages/react/src/utils/client-session.ts
 var CLIENT_ID_STORAGE_KEY = "aomi_client_id";
 var CONTROL_SESSION_PREFIX = "control:";
 function getOrCreateClientId() {
@@ -304,7 +304,7 @@ function getControlSessionId(clientId, fallbackSessionId) {
   return trimmedClientId ? `${CONTROL_SESSION_PREFIX}${trimmedClientId}` : fallbackSessionId;
 }
 
-// src/contexts/control-context.tsx
+// packages/react/src/contexts/control-context.tsx
 import { jsx } from "react/jsx-runtime";
 var API_KEY_STORAGE_KEY = "aomi_secret_key";
 var BYOK_KEYS_STORAGE_KEY = "aomi_byok_keys";
@@ -957,7 +957,7 @@ function ControlContextProvider({
   );
 }
 
-// src/contexts/event-context.tsx
+// packages/react/src/contexts/event-context.tsx
 import {
   createContext as createContext2,
   useCallback as useCallback2,
@@ -1032,7 +1032,7 @@ function EventContextProvider({
   return /* @__PURE__ */ jsx2(EventContextState.Provider, { value: contextValue, children });
 }
 
-// src/contexts/notification-context.tsx
+// packages/react/src/contexts/notification-context.tsx
 import {
   createContext as createContext3,
   useCallback as useCallback3,
@@ -1094,7 +1094,7 @@ function NotificationContextProvider({
   return /* @__PURE__ */ jsx3(NotificationContext.Provider, { value, children });
 }
 
-// src/contexts/thread-context.tsx
+// packages/react/src/contexts/thread-context.tsx
 import {
   createContext as createContext4,
   useContext as useContext4,
@@ -1144,7 +1144,7 @@ function useCurrentThreadMetadata() {
   );
 }
 
-// src/contexts/ext-user-context.tsx
+// packages/react/src/contexts/ext-user-context.tsx
 import {
   createContext as createContext5,
   useCallback as useCallback4,
@@ -1199,6 +1199,10 @@ function dropAddressScopedState(state) {
   }
   return (_a = UserState.normalize(next)) != null ? _a : {};
 }
+function stableStateString(state) {
+  var _a;
+  return JSON.stringify((_a = UserState.normalize(state)) != null ? _a : {});
+}
 var UserContext = createContext5(void 0);
 function useUser() {
   const context = useContext5(UserContext);
@@ -1237,51 +1241,63 @@ function ExtUserProviderImpl({ children }) {
       });
     });
   }, []);
-  const setUser = useCallback4((data) => {
-    setUserState((prev) => {
-      var _a, _b, _c;
-      const normalizedData = (_a = UserState.normalize(data)) != null ? _a : {};
-      const merged = (_c = UserState.normalize(
-        mergeRecords(
-          (_b = UserState.normalize(prev)) != null ? _b : {},
-          normalizedData
-        )
-      )) != null ? _c : prev;
-      let next;
-      if (UserState.isConnected(normalizedData) === false) {
-        next = dropWalletBlocks(merged);
-      } else {
-        const prevAddress = UserState.address(prev);
-        const nextAddress = UserState.address(merged);
-        const addressChanged = prevAddress !== void 0 && nextAddress !== void 0 && prevAddress.toLowerCase() !== nextAddress.toLowerCase();
-        next = addressChanged ? dropAddressScopedState(merged) : merged;
-      }
-      notifyStateChange(next);
-      return next;
-    });
-  }, [notifyStateChange]);
-  const addExtValue = useCallback4((key, value) => {
-    setUserState((prev) => {
-      const next = UserState.withExt(prev, key, value);
-      notifyStateChange(next);
-      return next;
-    });
-  }, [notifyStateChange]);
-  const removeExtValue = useCallback4((key) => {
-    setUserState((prev) => {
-      const ext = prev.ext;
-      if (typeof ext !== "object" || ext === null || Array.isArray(ext) || !(key in ext)) {
-        return prev;
-      }
-      const nextExt = __spreadValues({}, ext);
-      delete nextExt[key];
-      const next = __spreadProps(__spreadValues({}, prev), {
-        ext: Object.keys(nextExt).length > 0 ? nextExt : void 0
+  const setUser = useCallback4(
+    (data) => {
+      setUserState((prev) => {
+        var _a, _b, _c;
+        const normalizedData = (_a = UserState.normalize(data)) != null ? _a : {};
+        const merged = (_c = UserState.normalize(
+          mergeRecords(
+            (_b = UserState.normalize(prev)) != null ? _b : {},
+            normalizedData
+          )
+        )) != null ? _c : prev;
+        let next;
+        if (UserState.isConnected(normalizedData) === false) {
+          next = dropWalletBlocks(merged);
+        } else {
+          const prevAddress = UserState.address(prev);
+          const nextAddress = UserState.address(merged);
+          const addressChanged = prevAddress !== void 0 && nextAddress !== void 0 && prevAddress.toLowerCase() !== nextAddress.toLowerCase();
+          next = addressChanged ? dropAddressScopedState(merged) : merged;
+        }
+        if (stableStateString(prev) === stableStateString(next)) {
+          return prev;
+        }
+        notifyStateChange(next);
+        return next;
       });
-      notifyStateChange(next);
-      return next;
-    });
-  }, [notifyStateChange]);
+    },
+    [notifyStateChange]
+  );
+  const addExtValue = useCallback4(
+    (key, value) => {
+      setUserState((prev) => {
+        const next = UserState.withExt(prev, key, value);
+        notifyStateChange(next);
+        return next;
+      });
+    },
+    [notifyStateChange]
+  );
+  const removeExtValue = useCallback4(
+    (key) => {
+      setUserState((prev) => {
+        const ext = prev.ext;
+        if (typeof ext !== "object" || ext === null || Array.isArray(ext) || !(key in ext)) {
+          return prev;
+        }
+        const nextExt = __spreadValues({}, ext);
+        delete nextExt[key];
+        const next = __spreadProps(__spreadValues({}, prev), {
+          ext: Object.keys(nextExt).length > 0 ? nextExt : void 0
+        });
+        notifyStateChange(next);
+        return next;
+      });
+    },
+    [notifyStateChange]
+  );
   const getUserState = useCallback4(() => userRef.current, []);
   const onUserStateChange = useCallback4(
     (callback) => {
@@ -1308,7 +1324,7 @@ function ExtUserProviderImpl({ children }) {
   );
 }
 
-// src/runtime/core.tsx
+// packages/react/src/runtime/core.tsx
 import { useCallback as useCallback8, useEffect as useEffect4, useMemo as useMemo2, useRef as useRef9, useState as useState7 } from "react";
 import {
   AssistantRuntimeProvider,
@@ -1316,11 +1332,11 @@ import {
 } from "@assistant-ui/react";
 import { UserState as UserState3 } from "@aomi-labs/client";
 
-// src/runtime/orchestrator.ts
+// packages/react/src/runtime/orchestrator.ts
 import { useCallback as useCallback5, useEffect as useEffect2, useRef as useRef6, useState as useState4 } from "react";
 import { CLIENT_TYPE_WEB_UI } from "@aomi-labs/client";
 
-// src/runtime/session-manager.ts
+// packages/react/src/runtime/session-manager.ts
 import {
   Session as ClientSession
 } from "@aomi-labs/client";
@@ -1379,7 +1395,7 @@ var SessionManager = class {
   }
 };
 
-// src/runtime/utils.ts
+// packages/react/src/runtime/utils.ts
 import {
   SUPPORTED_CHAINS as CLIENT_SUPPORTED_CHAINS
 } from "@aomi-labs/client";
@@ -1484,7 +1500,7 @@ var formatAddress = (addr) => addr ? `${addr.slice(0, 6)}...${addr.slice(-4)}` :
 var SUPPORTED_CHAINS = [...CLIENT_SUPPORTED_CHAINS];
 var getChainInfo = (chainId) => chainId === void 0 ? void 0 : SUPPORTED_CHAINS.find((c) => c.id === chainId);
 
-// src/runtime/orchestrator.ts
+// packages/react/src/runtime/orchestrator.ts
 var toErrorMessage = (error) => error instanceof Error ? error.message : "Message failed to send";
 var getHttpStatus = (error) => {
   const status = error == null ? void 0 : error.status;
@@ -1902,7 +1918,7 @@ function useRuntimeOrchestrator(aomiClient, options) {
   };
 }
 
-// src/runtime/threadlist-adapter.ts
+// packages/react/src/runtime/threadlist-adapter.ts
 var sortByLastActiveDesc = ([, metaA], [, metaB]) => {
   const tsA = parseTimestamp(metaA.lastActiveAt);
   const tsB = parseTimestamp(metaB.lastActiveAt);
@@ -2061,7 +2077,7 @@ function buildThreadListAdapter({
   };
 }
 
-// src/interface.tsx
+// packages/react/src/interface.tsx
 import { createContext as createContext6, useContext as useContext6 } from "react";
 var AomiRuntimeContext = createContext6(null);
 var AomiRuntimeApiProvider = AomiRuntimeContext.Provider;
@@ -2078,7 +2094,7 @@ function useOptionalAomiRuntime() {
   return useContext6(AomiRuntimeContext);
 }
 
-// src/handlers/wallet-handler.ts
+// packages/react/src/handlers/wallet-handler.ts
 import { useCallback as useCallback6, useRef as useRef7, useState as useState5 } from "react";
 function useWalletHandler({
   getSession
@@ -2173,7 +2189,7 @@ function useWalletHandler({
   };
 }
 
-// src/runtime/user-state-provider.tsx
+// packages/react/src/runtime/user-state-provider.tsx
 import {
   useCallback as useCallback7,
   useEffect as useEffect3,
@@ -2198,7 +2214,7 @@ function scheduleBackgroundTask(task) {
   const timeoutId = runtimeGlobal.setTimeout(task, 0);
   return () => runtimeGlobal.clearTimeout(timeoutId);
 }
-function stableStateString(state) {
+function stableStateString2(state) {
   return JSON.stringify(state != null ? state : {});
 }
 function normalizeWalletId(value) {
@@ -2263,7 +2279,7 @@ function useWalletStateSync(context, sessions, remoteThreads) {
       const prevWalletState = lastWalletStateRef.current;
       const previousAddress = normalizeWalletId((_a = prevWalletState.evm) == null ? void 0 : _a.address);
       const nextAddress = normalizeWalletId((_b = nextWalletState.evm) == null ? void 0 : _b.address);
-      if (stableStateString(prevWalletState) === stableStateString(nextWalletState)) {
+      if (stableStateString2(prevWalletState) === stableStateString2(nextWalletState)) {
         return;
       }
       lastWalletStateRef.current = nextWalletState;
@@ -2556,7 +2572,7 @@ function RuntimeUserStateProvider({
   const lastSerializedStateRef = useRef8("");
   useEffect3(() => {
     const applyToSessions = (next) => {
-      const serialized = stableStateString(next);
+      const serialized = stableStateString2(next);
       if (serialized === lastSerializedStateRef.current) {
         return;
       }
@@ -2587,7 +2603,7 @@ function RuntimeUserStateProvider({
   return /* @__PURE__ */ jsx6(Fragment2, { children });
 }
 
-// src/runtime/core.tsx
+// packages/react/src/runtime/core.tsx
 import { jsx as jsx7 } from "react/jsx-runtime";
 function getConnectedWalletId2(userState) {
   var _a;
@@ -3059,7 +3075,7 @@ function AomiRuntimeCore({
   ) });
 }
 
-// src/runtime/aomi-runtime.tsx
+// packages/react/src/runtime/aomi-runtime.tsx
 import { jsx as jsx8 } from "react/jsx-runtime";
 function normalizeBackendUrl(url) {
   try {
@@ -3120,7 +3136,7 @@ function AomiRuntimeInner({
   );
 }
 
-// src/handlers/notification-handler.ts
+// packages/react/src/handlers/notification-handler.ts
 import { useCallback as useCallback9, useEffect as useEffect5, useState as useState8 } from "react";
 var notificationIdCounter2 = 0;
 function generateNotificationId() {
