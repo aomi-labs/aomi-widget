@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { createAccountAccessTokenProvider } from "../src/account-session";
-import { AomiClient } from "../src/client";
+import { AomiClient, AomiWalletContextError } from "../src/client";
 
 const encoder = new TextEncoder();
 
@@ -185,6 +185,104 @@ describe("AomiClient transport selection", () => {
       expect(headers.get("Authorization")).toBe("Bearer sse-token");
 
       unsubscribe();
+    } finally {
+      vi.stubGlobal("fetch", originalFetch);
+    }
+  });
+
+  it("commits session wallet context with the expected session headers", async () => {
+    const responseBody = {
+      session_id: "session-1",
+      family: "svm",
+      identity_wallet_id: 42,
+      network_id: "solana:mainnet",
+      version: 3,
+    };
+    const nativeFetch = vi.fn(async () => ({
+      ok: true,
+      json: async () => responseBody,
+    })) as unknown as typeof globalThis.fetch;
+    const originalFetch = globalThis.fetch;
+    vi.stubGlobal("fetch", nativeFetch);
+
+    try {
+      const client = new AomiClient({ baseUrl: "http://unit.test" });
+      await expect(
+        client.putSessionWalletContext("session-1", {
+          family: "svm",
+          identity_wallet_id: 42,
+          network_id: "solana:mainnet",
+          expected_version: 2,
+        }),
+      ).resolves.toEqual(responseBody);
+
+      expect(nativeFetch).toHaveBeenCalledWith(
+        "http://unit.test/api/sessions/session-1/wallet-context",
+        expect.objectContaining({
+          method: "PUT",
+          body: JSON.stringify({
+            family: "svm",
+            identity_wallet_id: 42,
+            network_id: "solana:mainnet",
+            expected_version: 2,
+          }),
+        }),
+      );
+      const headers = new Headers(
+        (nativeFetch as unknown as ReturnType<typeof vi.fn>).mock.calls[0]?.[1]
+          .headers,
+      );
+      expect(headers.get("X-Session-Id")).toBe("session-1");
+      expect(headers.get("Content-Type")).toBe("application/json");
+    } finally {
+      vi.stubGlobal("fetch", originalFetch);
+    }
+  });
+
+  it("surfaces stale wallet context versions with the committed server context", async () => {
+    const nativeFetch = vi.fn(async () => ({
+      ok: false,
+      status: 409,
+      json: async () => ({
+        error: "wallet_context_version_mismatch",
+        current_context: {
+          session_id: "session-1",
+          family: "evm",
+          identity_wallet_id: 7,
+          network_id: "eip155:999",
+          version: 4,
+        },
+      }),
+    })) as unknown as typeof globalThis.fetch;
+    const originalFetch = globalThis.fetch;
+    vi.stubGlobal("fetch", nativeFetch);
+
+    try {
+      const client = new AomiClient({ baseUrl: "http://unit.test" });
+      await expect(
+        client.putSessionWalletContext("session-1", {
+          family: "evm",
+          identity_wallet_id: 6,
+          network_id: "eip155:1",
+          expected_version: 3,
+        }),
+      ).rejects.toMatchObject({
+        status: 409,
+        code: "wallet_context_version_mismatch",
+        currentContext: {
+          identity_wallet_id: 7,
+          version: 4,
+        },
+      });
+
+      await client
+        .putSessionWalletContext("session-1", {
+          family: "evm",
+          identity_wallet_id: 6,
+        })
+        .catch((error) => {
+          expect(error).toBeInstanceOf(AomiWalletContextError);
+        });
     } finally {
       vi.stubGlobal("fetch", originalFetch);
     }

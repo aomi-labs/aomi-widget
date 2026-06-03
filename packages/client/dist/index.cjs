@@ -49,6 +49,7 @@ var index_exports = {};
 __export(index_exports, {
   ALCHEMY_CHAIN_SLUGS: () => ALCHEMY_CHAIN_SLUGS,
   AomiClient: () => AomiClient,
+  AomiWalletContextError: () => AomiWalletContextError,
   CHAINS_BY_ID: () => CHAINS_BY_ID,
   CHAIN_NAMES: () => CHAIN_NAMES,
   CLIENT_TYPE_TS_CLI: () => CLIENT_TYPE_TS_CLI,
@@ -894,6 +895,20 @@ function wrapFetchWithAccountBearer(fetchImpl, getAccountAccessToken) {
 function supportsTokenRefreshSubscription(provider) {
   return typeof (provider == null ? void 0 : provider.subscribe) === "function";
 }
+var AomiWalletContextError = class extends Error {
+  constructor(status, body) {
+    var _a, _b, _c;
+    super(`Wallet context update failed: ${(_a = body == null ? void 0 : body.error) != null ? _a : `HTTP ${status}`}`);
+    this.name = "AomiWalletContextError";
+    this.status = status;
+    this.code = (_b = body == null ? void 0 : body.error) != null ? _b : `http_${status}`;
+    this.currentContext = (_c = body == null ? void 0 : body.current_context) != null ? _c : null;
+  }
+};
+async function readWalletContextError(response) {
+  const body = await response.json().catch(() => void 0);
+  return new AomiWalletContextError(response.status, body);
+}
 async function postState(baseUrl, path, payload, sessionId, fetchImpl, apiKey, logger) {
   const url = `${baseUrl}${path}`;
   const body = JSON.stringify(payload);
@@ -1293,6 +1308,44 @@ var AomiClient = class {
     if (!response.ok) {
       throw new Error(`Failed to rename thread: HTTP ${response.status}`);
     }
+  }
+  /**
+   * List authoritative wallet selections committed for a session.
+   */
+  async listSessionWalletContexts(sessionId) {
+    const url = buildApiUrl(
+      this.baseUrl,
+      `/api/sessions/${encodeURIComponent(sessionId)}/wallet-context`
+    );
+    const response = await this.fetchImpl(url, {
+      method: "GET",
+      headers: withSessionHeader(sessionId)
+    });
+    if (!response.ok) {
+      throw await readWalletContextError(response);
+    }
+    return await response.json();
+  }
+  /**
+   * Commit the active wallet/network for one family. On stale versions the
+   * thrown error carries the server's current committed context.
+   */
+  async putSessionWalletContext(sessionId, request) {
+    const url = buildApiUrl(
+      this.baseUrl,
+      `/api/sessions/${encodeURIComponent(sessionId)}/wallet-context`
+    );
+    const response = await this.fetchImpl(url, {
+      method: "PUT",
+      headers: withSessionHeader(sessionId, {
+        "Content-Type": "application/json"
+      }),
+      body: JSON.stringify(request)
+    });
+    if (!response.ok) {
+      throw await readWalletContextError(response);
+    }
+    return await response.json();
   }
   /**
    * Archive a thread.
@@ -4487,6 +4540,7 @@ async function createAAProviderState(options) {
 0 && (module.exports = {
   ALCHEMY_CHAIN_SLUGS,
   AomiClient,
+  AomiWalletContextError,
   CHAINS_BY_ID,
   CHAIN_NAMES,
   CLIENT_TYPE_TS_CLI,

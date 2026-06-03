@@ -1179,6 +1179,10 @@ function wrapFetchWithAccountBearer(fetchImpl, getAccountAccessToken) {
 function supportsTokenRefreshSubscription(provider) {
   return typeof (provider == null ? void 0 : provider.subscribe) === "function";
 }
+async function readWalletContextError(response) {
+  const body = await response.json().catch(() => void 0);
+  return new AomiWalletContextError(response.status, body);
+}
 async function postState(baseUrl, path, payload, sessionId, fetchImpl, apiKey, logger) {
   const url = `${baseUrl}${path}`;
   const body = JSON.stringify(payload);
@@ -1226,7 +1230,7 @@ async function postState(baseUrl, path, payload, sessionId, fetchImpl, apiKey, l
   }
   return await response.json();
 }
-var SESSION_ID_HEADER, APP_KEY_HEADER, BULKY_PENDING_FIELDS, AomiClient;
+var SESSION_ID_HEADER, APP_KEY_HEADER, BULKY_PENDING_FIELDS, AomiWalletContextError, AomiClient;
 var init_client = __esm({
   "src/client.ts"() {
     "use strict";
@@ -1249,6 +1253,16 @@ var init_client = __esm({
       "transactionBase64",
       "transaction_base64"
     ]);
+    AomiWalletContextError = class extends Error {
+      constructor(status, body) {
+        var _a3, _b, _c;
+        super(`Wallet context update failed: ${(_a3 = body == null ? void 0 : body.error) != null ? _a3 : `HTTP ${status}`}`);
+        this.name = "AomiWalletContextError";
+        this.status = status;
+        this.code = (_b = body == null ? void 0 : body.error) != null ? _b : `http_${status}`;
+        this.currentContext = (_c = body == null ? void 0 : body.current_context) != null ? _c : null;
+      }
+    };
     AomiClient = class {
       constructor(options) {
         var _a3;
@@ -1601,6 +1615,44 @@ var init_client = __esm({
         if (!response.ok) {
           throw new Error(`Failed to rename thread: HTTP ${response.status}`);
         }
+      }
+      /**
+       * List authoritative wallet selections committed for a session.
+       */
+      async listSessionWalletContexts(sessionId) {
+        const url = buildApiUrl(
+          this.baseUrl,
+          `/api/sessions/${encodeURIComponent(sessionId)}/wallet-context`
+        );
+        const response = await this.fetchImpl(url, {
+          method: "GET",
+          headers: withSessionHeader(sessionId)
+        });
+        if (!response.ok) {
+          throw await readWalletContextError(response);
+        }
+        return await response.json();
+      }
+      /**
+       * Commit the active wallet/network for one family. On stale versions the
+       * thrown error carries the server's current committed context.
+       */
+      async putSessionWalletContext(sessionId, request) {
+        const url = buildApiUrl(
+          this.baseUrl,
+          `/api/sessions/${encodeURIComponent(sessionId)}/wallet-context`
+        );
+        const response = await this.fetchImpl(url, {
+          method: "PUT",
+          headers: withSessionHeader(sessionId, {
+            "Content-Type": "application/json"
+          }),
+          body: JSON.stringify(request)
+        });
+        if (!response.ok) {
+          throw await readWalletContextError(response);
+        }
+        return await response.json();
       }
       /**
        * Archive a thread.

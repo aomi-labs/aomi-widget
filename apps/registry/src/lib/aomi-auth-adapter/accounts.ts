@@ -5,6 +5,7 @@ import type { AomiAccount, WalletFamily } from "./types";
 
 export type EvmConnectionInput = {
   id: string;
+  identityWalletId?: number;
   walletName: string;
   address: string;
   chainId?: number;
@@ -12,6 +13,7 @@ export type EvmConnectionInput = {
 
 export type SolanaConnectionInput = {
   id?: string;
+  identityWalletId?: number;
   publicKey: string;
   walletName?: string;
 };
@@ -28,6 +30,7 @@ export function buildAccounts(input: {
   for (const conn of input.evmConnections) {
     accounts.push({
       id: conn.id,
+      identityWalletId: conn.identityWalletId,
       family: "evm",
       address: conn.address,
       label: formatAddress(conn.address),
@@ -39,6 +42,7 @@ export function buildAccounts(input: {
   for (const connection of input.solanaConnections ?? []) {
     accounts.push({
       id: connection.id ?? connection.walletName ?? connection.publicKey,
+      identityWalletId: connection.identityWalletId,
       family: "solana",
       address: connection.publicKey,
       label: formatAddress(connection.publicKey),
