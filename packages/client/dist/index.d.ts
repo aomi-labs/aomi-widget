@@ -1,6 +1,29 @@
 import * as viem from 'viem';
 import { Hex, Chain, TransactionReceipt } from 'viem';
 
+declare function address(userState?: UserState | null): string | undefined;
+declare function svmAddress(userState?: UserState | null): string | undefined;
+declare function preferredPublicKey(userState?: UserState | null): string | undefined;
+declare function chainId(userState?: UserState | null): number | undefined;
+declare function ensName(userState?: UserState | null): string | undefined;
+declare function aaMode(userState?: UserState | null): UserStateAAMode | null | undefined;
+declare function SmartAccount4337(userState?: UserState | null): string | null | undefined;
+declare function Delegation7702(userState?: UserState | null): string | null | undefined;
+declare function walletKind(userState?: UserState | null): UserStateWalletKind | undefined;
+declare function isConnected(userState?: UserState | null): boolean | undefined;
+declare function walletProvider(userState?: UserState | null): UserStateWalletProvider | null | undefined;
+declare function walletProviderSubject(userState?: UserState | null): string | null | undefined;
+declare function authMethod(userState?: UserState | null): UserStateAuthMethod | null | undefined;
+declare function authValue(userState?: UserState | null): string | null | undefined;
+declare function authVerifiedAt(userState?: UserState | null): number | null | undefined;
+declare function sponsored(userState?: UserState | null): boolean | null | undefined;
+declare function sponsorProvider(userState?: UserState | null): UserStateSponsorProvider | null | undefined;
+declare function sponsorAccount(userState?: UserState | null): string | null | undefined;
+declare function withExt(userState: UserState, key: string, value: unknown): UserState;
+
+declare function normalizeUserState(userState?: UserState | null): UserState | undefined;
+declare function reconcileUserState(previousUserState?: UserState | null, incomingUserState?: UserState | null): UserState | undefined;
+
 /**
  * Client-side user state synced with the backend.
  * Typically wallet connection info, but can be any key-value data.
@@ -10,6 +33,65 @@ type UserStateWalletKind = "eoa" | "smart-account";
 type UserStateWalletProvider = "para" | "privy" | "baseAccount";
 type UserStateAuthMethod = "google" | "apple" | "facebook" | "x" | "discord" | "github" | "farcaster" | "telegram" | "email" | "phone" | "wagmi";
 type UserStateSponsorProvider = "alchemy" | "coinbase" | "pimlico" | "self";
+type UserStatePrimaryFamily = "evm" | "svm" | "dual";
+/** Session-level connection facts shared across chain families. */
+interface UserStateConnection extends Record<string, unknown> {
+    is_connected?: boolean | null;
+    provider?: UserStateWalletProvider | null;
+    provider_label?: string | null;
+    primary_family?: UserStatePrimaryFamily | null;
+    wallet_provider_subject?: string | null;
+    auth_method?: UserStateAuthMethod | null;
+    auth_value?: string | null;
+    auth_verified_at?: number | string | null;
+}
+/** EVM account-abstraction sub-state (`evm.aa`). */
+interface UserStateEvmAa extends Record<string, unknown> {
+    mode?: UserStateAAMode | null;
+    /** Smart-account executor address (4337). */
+    smart_account?: string | null;
+    /** 7702 delegation contract address. */
+    delegation_7702?: string | null;
+    /** Bundler / AA infra provider, e.g. "alchemy". */
+    provider?: string | null;
+}
+/** EVM sponsorship sub-state (`evm.sponsorship`). */
+interface UserStateEvmSponsorship extends Record<string, unknown> {
+    eligible?: boolean | null;
+    required?: boolean | null;
+    mode?: string | null;
+    sponsored?: boolean | null;
+    sponsor_provider?: UserStateSponsorProvider | null;
+    sponsor_account?: string | null;
+}
+/** EVM-family wallet block (`evm`). */
+interface UserStateEvm extends Record<string, unknown> {
+    address?: string | null;
+    chain_id?: number | string | null;
+    ens_name?: string | null;
+    aa?: UserStateEvmAa | null;
+    sponsorship?: UserStateEvmSponsorship | null;
+}
+/** Solana-family wallet block (`svm`). */
+interface UserStateSvm extends Record<string, unknown> {
+    address?: string | null;
+    cluster?: string | null;
+    wallet_name?: string | null;
+    transport?: string | null;
+    /** Wallet-Standard capability identifiers, e.g. `"can_sign_message"`. */
+    capabilities?: string[] | null;
+}
+/**
+ * Backend-pushed in-flight wallet requests, chain-bucketed. Shape is owned by
+ * the backend; parsed by helpers like `pendingTxsFromBackendUserState`. The
+ * client forwards them transparently via reconciliation.
+ */
+interface UserStatePending extends Record<string, unknown> {
+    evm_txs?: Record<string, unknown> | null;
+    evm_sigs?: Record<string, unknown> | null;
+    svm_ixs?: Record<string, unknown> | null;
+    svm_sigs?: Record<string, unknown> | null;
+}
 /**
  * Known client surfaces that may want backend-specific UX strategies.
  * Additional string values are allowed for forward compatibility.
@@ -17,77 +99,46 @@ type UserStateSponsorProvider = "alchemy" | "coinbase" | "pimlico" | "self";
 type AomiClientType = "ts_cli" | "web_ui" | (string & {});
 declare const CLIENT_TYPE_TS_CLI: AomiClientType;
 declare const CLIENT_TYPE_WEB_UI: AomiClientType;
+/**
+ * Client-side user state, canonicalized to the backend's nested snake_case
+ * wire shape. EVM and Solana identities are independent blocks (`evm` / `svm`)
+ * so a single session can carry both families at once. `normalize` accepts the
+ * backend's nested camelCase responses and legacy flat host input, and emits
+ * this canonical shape.
+ */
 interface UserState extends Record<string, unknown> {
-    /**
-     * Connected account address. When `wallet_kind === "smart-account"` this is
-     * the smart account address; when `wallet_kind === "eoa"` it is the EOA.
-     */
-    address?: string | null;
-    wallet_kind?: UserStateWalletKind | null;
-    aa_mode?: UserStateAAMode | null;
-    /** 4337 smart account address — populated after a 4337 tx resolves. */
-    smart_account_4337?: string | null;
-    /** 7702 delegation contract address — populated after a 7702 tx resolves. */
-    delegation_7702?: string | null;
-    chain_id?: number | string | null;
-    is_connected?: boolean | null;
-    ens_name?: string | null;
-    svm_address?: string | null;
-    wallet_provider?: UserStateWalletProvider | null;
-    wallet_provider_subject?: string | null;
-    auth_method?: UserStateAuthMethod | null;
-    auth_value?: string | null;
-    auth_verified_at?: number | string | null;
-    sponsored?: boolean | null;
-    sponsor_provider?: UserStateSponsorProvider | null;
-    sponsor_account?: string | null;
-    /**
-     * Backend-pushed in-flight wallet requests. Shape is owned by the backend;
-     * parsed by helpers like `pendingTxsFromBackendUserState`. The client
-     * forwards them transparently via reconciliation.
-     */
-    pending_txs?: Record<string, unknown> | null;
-    pending_eip712s?: Record<string, unknown> | null;
-    pending_solana_txs?: Record<string, unknown> | null;
-    next_id?: number | null;
+    connection?: UserStateConnection | null;
+    evm?: UserStateEvm | null;
+    svm?: UserStateSvm | null;
+    pending?: UserStatePending | null;
+    ext?: Record<string, unknown> | null;
+    preferences?: Record<string, unknown> | null;
 }
 declare namespace UserState {
-    /**
-     * Canonicalize client-side user state to the backend's snake_case `UserState`.
-     * Existing snake_case keys win when both forms are present.
-     */
-    function normalize(userState?: UserState | null): UserState | undefined;
-    /**
-     * Reconcile a partial incoming snapshot against the previous canonical state.
-     * Preserves wallet context when backend/client snapshots omit address/chain_id.
-     */
-    function reconcile(previousUserState?: UserState | null, incomingUserState?: UserState | null): UserState | undefined;
-    function address(userState?: UserState | null): string | undefined;
-    function walletKind(userState?: UserState | null): UserStateWalletKind | null | undefined;
-    function aaMode(userState?: UserState | null): UserStateAAMode | null | undefined;
-    function SmartAccount4337(userState?: UserState | null): string | null | undefined;
-    function Delegation7702(userState?: UserState | null): string | null | undefined;
-    /**
-     * Connected Solana wallet pubkey (base58). Independent of `address`,
-     * which is the EVM address. A session may have either, both, or neither.
-     */
-    function svmAddress(userState?: UserState | null): string | undefined;
-    function chainId(userState?: UserState | null): number | undefined;
-    function isConnected(userState?: UserState | null): boolean | undefined;
-    function ensName(userState?: UserState | null): string | undefined;
-    function walletProvider(userState?: UserState | null): UserStateWalletProvider | null | undefined;
-    function walletProviderSubject(userState?: UserState | null): string | null | undefined;
-    function authMethod(userState?: UserState | null): UserStateAuthMethod | null | undefined;
-    function authValue(userState?: UserState | null): string | null | undefined;
-    function authVerifiedAt(userState?: UserState | null): number | null | undefined;
-    function sponsored(userState?: UserState | null): boolean | null | undefined;
-    function sponsorProvider(userState?: UserState | null): UserStateSponsorProvider | null | undefined;
-    function sponsorAccount(userState?: UserState | null): string | null | undefined;
-    /**
-     * Adds/updates an entry on `userState.ext` while keeping `ext` intentionally untyped.
-     */
-    function withExt(userState: UserState, key: string, value: unknown): UserState;
+    const normalize: typeof normalizeUserState;
+    const reconcile: typeof reconcileUserState;
+    const address: typeof address;
+    const evmAddress: typeof address;
+    const svmAddress: typeof svmAddress;
+    const preferredPublicKey: typeof preferredPublicKey;
+    const chainId: typeof chainId;
+    const ensName: typeof ensName;
+    const aaMode: typeof aaMode;
+    const SmartAccount4337: typeof SmartAccount4337;
+    const Delegation7702: typeof Delegation7702;
+    const walletKind: typeof walletKind;
+    const isConnected: typeof isConnected;
+    const walletProvider: typeof walletProvider;
+    const walletProviderSubject: typeof walletProviderSubject;
+    const authMethod: typeof authMethod;
+    const authValue: typeof authValue;
+    const authVerifiedAt: typeof authVerifiedAt;
+    const sponsored: typeof sponsored;
+    const sponsorProvider: typeof sponsorProvider;
+    const sponsorAccount: typeof sponsorAccount;
+    const withExt: typeof withExt;
 }
+
 /**
  * Optional logger for debug output. Pass `console` or any compatible object.
  */
@@ -764,20 +815,7 @@ declare function toViemSignTypedDataArgs(payload: WalletEip712Payload): ViemSign
  */
 declare function toViemSignMessageArgs(payload: WalletEip712Payload): ViemSignMessageArgs | null;
 
-declare function aaModeFromExecutionKind(executionKind: string | undefined): "4337" | "7702" | "none" | undefined;
-
 type WalletRequestKind = "transaction" | "eip712_sign" | "solana_sign";
-/**
- * Tagged union of in-flight wallet requests. The `kind` field is the
- * discriminator — narrowing on it auto-narrows `payload` to the matching
- * chain-specific shape, so consumers don't need `as` casts.
- *
- * The id namespace is shared (the backend assigns ids out of one
- * monotonic sequence), but the request shapes diverge per kind. Keeping
- * this as a real discriminated union (rather than a `kind` + flat union
- * `payload`) is the cheapest way to keep type information flowing from
- * the SDK up to consumer apps.
- */
 type WalletRequest = {
     id: string;
     kind: "transaction";
@@ -794,19 +832,6 @@ type WalletRequest = {
     payload: WalletSolanaSignPayload;
     timestamp: number;
 };
-/**
- * Tagged union of results passed to `Session.resolve(id, result)`. The
- * `kind` field is the discriminator — set it to match the originating
- * request's kind, and the result shape narrows to exactly the artifact
- * the backend expects:
- *   - "transaction"  → `txHash` (+ optional AA metadata)
- *   - "eip712_sign"  → `signature`
- *   - "solana_sign"  → `signedTx` (base64 of the full signed bytes)
- *
- * `Session.resolve` runtime-checks that `result.kind` matches the
- * originating `request.kind`, so a kind mismatch fails fast instead of
- * silently posting an empty artifact to the backend.
- */
 type WalletRequestResult = {
     kind: "transaction";
     txHash: string;
@@ -832,7 +857,6 @@ type SendResult = {
     messages: AomiMessage[];
     title?: string;
 };
-
 type SessionOptions = {
     /** Session ID. Auto-generated (crypto.randomUUID) if omitted. */
     sessionId?: string;
@@ -868,76 +892,41 @@ type SessionRuntimeOptions = {
     clientId?: string;
     userState?: UserState;
 };
-/** Events emitted by Session. */
 type SessionEventMap = {
-    /** A transaction signing request arrived from the backend. */
     wallet_tx_request: WalletRequest;
-    /** An EIP-712 signing request arrived from the backend. */
     wallet_eip712_request: WalletRequest;
-    /**
-     * A Solana signing request arrived from the backend. Singular by design:
-     * one request per call (no batching). The wallet adapter signs and
-     * returns a base64-encoded full signed transaction via
-     * `Session.resolve(id, { signedTx })`.
-     */
     wallet_solana_sign_request: WalletRequest;
-    /** A system notice from the backend. */
     system_notice: {
         message: string;
     };
-    /** A system error from the backend. */
     system_error: {
         message: string;
     };
-    /** An async callback event. */
     async_callback: Record<string, unknown>;
-    /** SSE: tool execution in progress. */
     tool_update: AomiSSEEvent;
-    /** SSE: tool execution completed. */
     tool_complete: AomiSSEEvent;
-    /** Session title changed. */
     title_changed: {
         title: string;
     };
-    /** Messages updated (new messages from poll or send response). */
     messages: AomiMessage[];
-    /**
-     * Session-side UserState changed (e.g. post-tx writes from `resolveUserState`).
-     * The React UserContext subscribes to this so per-tx fields written by the
-     * Session reach `useUser()` without each consumer polling.
-     *
-     * Not emitted when the caller passes `{ skipEmit: true }` to
-     * `resolveUserState` — used by the React→Session direction to break the
-     * feedback loop (React→Session→event→setUser→React).
-     */
     user_state_updated: UserState;
-    /** AI started processing. */
     processing_start: undefined;
-    /** AI finished processing. */
     processing_end: undefined;
-    /** Authoritative pending wallet request list changed. */
     wallet_requests_changed: WalletRequest[];
-    /**
-     * Backend transitioned from processing to idle (is_processing went false).
-     * Unlike `processing_end`, this fires even when there are unresolved local
-     * wallet requests.  CLI consumers use it to know that all system events
-     * (including wallet requests) have been delivered for the current turn.
-     */
     backend_idle: undefined;
-    /** An error occurred during polling or SSE. */
     error: {
         error: unknown;
     };
-    /** Wildcard: receives all events as { type, payload }. */
     "*": {
         type: string;
         payload: unknown;
     };
 };
+
+declare function aaModeFromExecutionKind(executionKind: string | undefined): "4337" | "7702" | "none" | undefined;
+
 declare class ClientSession extends TypedEventEmitter<SessionEventMap> {
-    /** The underlying low-level client. */
     readonly client: AomiClient;
-    /** The session (thread) ID. */
     readonly sessionId: string;
     private app;
     private publicKey?;
@@ -951,8 +940,7 @@ declare class ClientSession extends TypedEventEmitter<SessionEventMap> {
     private unsubscribeSSE;
     private _isProcessing;
     private _backendWasProcessing;
-    private walletRequests;
-    private walletRequestNextId;
+    private walletController;
     private _messages;
     private _title?;
     private closed;
@@ -1034,16 +1022,11 @@ declare class ClientSession extends TypedEventEmitter<SessionEventMap> {
     stopPolling(): void;
     private pollTick;
     private applyState;
-    private dispatchSystemEvents;
     private handleSSEEvent;
-    private enqueueWalletRequest;
-    private removeWalletRequest;
     private sendSystemEvent;
     private resolvePending;
     private assertOpen;
     private assertUserStateAligned;
-    private getWalletRequestId;
-    private syncWalletRequests;
 }
 
 type ChainInfo = {
@@ -1190,7 +1173,7 @@ declare const SUPPORTED_CHAINS: readonly [{
     readonly name: "Anvil (local)";
     readonly ticker: "ETH";
 }];
-declare const SUPPORTED_CHAIN_IDS: (10 | 1 | 137 | 42161 | 8453 | 143 | 10143 | 11155111 | 59144 | 59141 | 31337)[];
+declare const SUPPORTED_CHAIN_IDS: (1 | 10 | 137 | 42161 | 8453 | 143 | 10143 | 11155111 | 59144 | 59141 | 31337)[];
 declare const CHAIN_NAMES: Record<number, string>;
 /** Alchemy network slugs for proxy URL construction. */
 declare const ALCHEMY_CHAIN_SLUGS: Record<number, string>;

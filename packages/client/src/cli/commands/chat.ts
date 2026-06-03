@@ -21,7 +21,7 @@ import {
 import { fatal } from "../errors";
 import type { CliConfig } from "../types";
 import { buildCliUserState } from "../user-state";
-import type { UserStateAAMode } from "../../types";
+import type { UserStateAAMode } from "../../user-state";
 
 type WalletSnapshot = {
   publicKey?: string;

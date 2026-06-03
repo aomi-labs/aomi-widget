@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { act, cleanup, render } from "@testing-library/react";
 import { createRef, forwardRef, useImperativeHandle } from "react";
 
-import { ExtUserProvider, useUser } from "../ext-user-context";
+import { ExtUserProvider, UserState, useUser } from "../ext-user-context";
 
 type Handle = ReturnType<typeof useUser>;
 
@@ -58,23 +58,15 @@ describe("ExtUserProvider.setUser", () => {
     });
 
     const u = ref.current!.user;
-    expect(u.is_connected).toBe(false);
-    expect(u.address).toBeUndefined();
-    expect(u.chain_id).toBeUndefined();
-    expect(u.ens_name).toBeUndefined();
-    expect(u.wallet_kind).toBeUndefined();
-    expect(u.aa_mode).toBeUndefined();
-    expect(u.smart_account_4337).toBeUndefined();
-    expect(u.delegation_7702).toBeUndefined();
-    expect(u.svm_address).toBeUndefined();
-    expect(u.wallet_provider).toBeUndefined();
-    expect(u.auth_method).toBeUndefined();
-    expect(u.sponsored).toBeUndefined();
-    expect(u.sponsor_provider).toBeUndefined();
-    expect(u.sponsor_account).toBeUndefined();
-    expect(u.pending_txs).toBeUndefined();
-    expect(u.pending_eip712s).toBeUndefined();
-    expect(u.pending_solana_txs).toBeUndefined();
+    expect(UserState.isConnected(u)).toBe(false);
+    expect(u.evm).toBeUndefined();
+    expect(u.svm).toBeUndefined();
+    expect(u.pending).toBeUndefined();
+    expect(UserState.walletProvider(u)).toBeUndefined();
+    expect(UserState.authMethod(u)).toBeUndefined();
+    expect(UserState.sponsored(u)).toBeUndefined();
+    expect(UserState.sponsorProvider(u)).toBeUndefined();
+    expect(UserState.sponsorAccount(u)).toBeUndefined();
   });
 
   it("clears per-tx AA fields when address changes while still connected", () => {
@@ -104,19 +96,16 @@ describe("ExtUserProvider.setUser", () => {
     });
 
     const u = ref.current!.user;
-    expect(u.address).toBe("0x4444444444444444444444444444444444444444");
+    expect(UserState.address(u)).toBe("0x4444444444444444444444444444444444444444");
     // Identity-static fields persist across the in-place switch.
-    expect(u.wallet_provider).toBe("para");
-    expect(u.wallet_kind).toBe("smart-account");
-    expect(u.chain_id).toBe(8453);
+    expect(UserState.walletProvider(u)).toBe("para");
+    expect(UserState.chainId(u)).toBe(8453);
     // Per-tx AA outputs + ens + pending maps belonged to the prior address.
-    expect(u.aa_mode).toBeUndefined();
-    expect(u.smart_account_4337).toBeUndefined();
-    expect(u.delegation_7702).toBeUndefined();
-    expect(u.ens_name).toBeUndefined();
-    expect(u.pending_txs).toBeUndefined();
-    expect(u.pending_eip712s).toBeUndefined();
-    expect(u.pending_solana_txs).toBeUndefined();
+    expect(UserState.aaMode(u)).toBeUndefined();
+    expect(UserState.SmartAccount4337(u)).toBeUndefined();
+    expect(UserState.Delegation7702(u)).toBeUndefined();
+    expect(UserState.ensName(u)).toBeUndefined();
+    expect(u.pending).toBeUndefined();
   });
 
   it("preserves AA fields when the same address re-sets (case-insensitive)", () => {
@@ -139,8 +128,8 @@ describe("ExtUserProvider.setUser", () => {
     });
 
     const u = ref.current!.user;
-    expect(u.aa_mode).toBe("4337");
-    expect(u.smart_account_4337).toBe(
+    expect(UserState.aaMode(u)).toBe("4337");
+    expect(UserState.SmartAccount4337(u)).toBe(
       "0x2222222222222222222222222222222222222222",
     );
   });

@@ -12,6 +12,55 @@ import { UserState } from "@aomi-labs/client";
 
 export { UserState } from "@aomi-labs/client";
 
+type UnknownRecord = Record<string, unknown>;
+
+function asRecord(value: unknown): UnknownRecord | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return undefined;
+  }
+  return value as UnknownRecord;
+}
+
+function mergeRecords(previous: UnknownRecord, incoming: UnknownRecord): UnknownRecord {
+  const next: UnknownRecord = { ...previous };
+  for (const [key, value] of Object.entries(incoming)) {
+    const prevRecord = asRecord(next[key]);
+    const incomingRecord = asRecord(value);
+    if (prevRecord && incomingRecord) {
+      next[key] = mergeRecords(prevRecord, incomingRecord);
+    } else if (value !== undefined) {
+      next[key] = value;
+    }
+  }
+  return next;
+}
+
+function dropWalletBlocks(state: UserState): UserState {
+  return UserState.normalize({
+    connection: { is_connected: false },
+    ext: state.ext,
+    preferences: state.preferences,
+  }) ?? { connection: { is_connected: false } };
+}
+
+function dropAddressScopedState(state: UserState): UserState {
+  const evm = asRecord(state.evm);
+  const nextEvm = evm ? { ...evm } : undefined;
+  if (nextEvm) {
+    delete nextEvm.aa;
+    delete nextEvm.ens_name;
+  }
+
+  const next: UserState = { ...state };
+  if (nextEvm && Object.keys(nextEvm).length > 0) {
+    next.evm = nextEvm;
+  } else {
+    delete next.evm;
+  }
+  delete next.pending;
+  return UserState.normalize(next) ?? {};
+}
+
 type UserContextValue = {
   user: UserState;
   setUser: (data: Partial<UserState>) => void;
@@ -65,11 +114,7 @@ export function ExtUserProvider({ children }: { children: ReactNode }) {
 
 function ExtUserProviderImpl({ children }: { children: ReactNode }) {
   const [user, setUserState] = useState<UserState>({
-    address: undefined,
-    chain_id: undefined,
-    is_connected: false,
-    ens_name: undefined,
-    ext: undefined,
+    connection: { is_connected: false },
   });
 
   // Refs for stable getter functions
@@ -89,30 +134,15 @@ function ExtUserProviderImpl({ children }: { children: ReactNode }) {
     });
   }, []);
 
-  const pruneUndefined = useCallback((state: UserState): UserState => {
-    return Object.fromEntries(
-      Object.entries(state).filter(([, value]) => value !== undefined),
-    );
-  }, []);
-
   const setUser = useCallback((data: Partial<UserState>) => {
     setUserState((prev) => {
-      const normalizedData = pruneUndefined(UserState.normalize(data) ?? {});
-      const nextPartial: UserState = { ...normalizedData };
-
-      // Guard against a transient "connected-without-chain" payload:
-      // keep the previous chain if present; otherwise, delay flipping
-      // `is_connected` until a concrete chain arrives.
-      if (
-        nextPartial.is_connected === true &&
-        nextPartial.chain_id === undefined
-      ) {
-        if (prev.chain_id !== undefined) {
-          nextPartial.chain_id = prev.chain_id;
-        } else {
-          delete nextPartial.is_connected;
-        }
-      }
+      const normalizedData = UserState.normalize(data) ?? {};
+      const merged = UserState.normalize(
+        mergeRecords(
+          UserState.normalize(prev) ?? {},
+          normalizedData,
+        ) as UserState,
+      ) ?? prev;
 
       // Wallet-context fields belong to a specific connected session. On
       // disconnect we wipe them all so that the next connection cannot
@@ -120,32 +150,9 @@ function ExtUserProviderImpl({ children }: { children: ReactNode }) {
       // from the previous wallet. AomiAuthAdapterUserSync deliberately
       // does not forward per-tx AA fields, so without this clear they
       // would survive across wallet switches.
-      const merged: UserState =
-        UserState.normalize({ ...prev, ...nextPartial }) ?? prev;
       let next: UserState;
-      if (nextPartial.is_connected === false) {
-        next = {
-          ...merged,
-          address: undefined,
-          chain_id: undefined,
-          ens_name: undefined,
-          wallet_kind: undefined,
-          aa_mode: undefined,
-          smart_account_4337: undefined,
-          delegation_7702: undefined,
-          svm_address: undefined,
-          wallet_provider: undefined,
-          wallet_provider_subject: undefined,
-          auth_method: undefined,
-          auth_value: undefined,
-          auth_verified_at: undefined,
-          sponsored: undefined,
-          sponsor_provider: undefined,
-          sponsor_account: undefined,
-          pending_txs: undefined,
-          pending_eip712s: undefined,
-          pending_solana_txs: undefined,
-        };
+      if (UserState.isConnected(normalizedData) === false) {
+        next = dropWalletBlocks(merged);
       } else {
         // Address change while staying connected (wallet switch in place):
         // per-tx AA outputs and pending request maps belong to the prior
@@ -156,24 +163,13 @@ function ExtUserProviderImpl({ children }: { children: ReactNode }) {
           prevAddress !== undefined &&
           nextAddress !== undefined &&
           prevAddress.toLowerCase() !== nextAddress.toLowerCase();
-        next = addressChanged
-          ? {
-              ...merged,
-              aa_mode: undefined,
-              smart_account_4337: undefined,
-              delegation_7702: undefined,
-              ens_name: undefined,
-              pending_txs: undefined,
-              pending_eip712s: undefined,
-              pending_solana_txs: undefined,
-            }
-          : merged;
+        next = addressChanged ? dropAddressScopedState(merged) : merged;
       }
       notifyStateChange(next);
 
       return next;
     });
-  }, [notifyStateChange, pruneUndefined]);
+  }, [notifyStateChange]);
 
   const addExtValue = useCallback((key: string, value: unknown) => {
     setUserState((prev) => {
