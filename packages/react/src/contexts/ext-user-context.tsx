@@ -21,7 +21,10 @@ function asRecord(value: unknown): UnknownRecord | undefined {
   return value as UnknownRecord;
 }
 
-function mergeRecords(previous: UnknownRecord, incoming: UnknownRecord): UnknownRecord {
+function mergeRecords(
+  previous: UnknownRecord,
+  incoming: UnknownRecord,
+): UnknownRecord {
   const next: UnknownRecord = { ...previous };
   for (const [key, value] of Object.entries(incoming)) {
     const prevRecord = asRecord(next[key]);
@@ -36,12 +39,14 @@ function mergeRecords(previous: UnknownRecord, incoming: UnknownRecord): Unknown
 }
 
 function dropWalletBlocks(state: UserState): UserState {
-  return UserState.normalize({
-    connection: { is_connected: false },
-    pending: state.pending,
-    ext: state.ext,
-    preferences: state.preferences,
-  }) ?? { connection: { is_connected: false } };
+  return (
+    UserState.normalize({
+      connection: { is_connected: false },
+      pending: state.pending,
+      ext: state.ext,
+      preferences: state.preferences,
+    }) ?? { connection: { is_connected: false } }
+  );
 }
 
 function dropAddressScopedState(state: UserState): UserState {
@@ -59,6 +64,10 @@ function dropAddressScopedState(state: UserState): UserState {
     delete next.evm;
   }
   return UserState.normalize(next) ?? {};
+}
+
+function stableStateString(state: UserState): string {
+  return JSON.stringify(UserState.normalize(state) ?? {});
 }
 
 type UserContextValue = {
@@ -134,72 +143,87 @@ function ExtUserProviderImpl({ children }: { children: ReactNode }) {
     });
   }, []);
 
-  const setUser = useCallback((data: Partial<UserState>) => {
-    setUserState((prev) => {
-      const normalizedData = UserState.normalize(data) ?? {};
-      const merged = UserState.normalize(
-        mergeRecords(
-          UserState.normalize(prev) ?? {},
-          normalizedData,
-        ) as UserState,
-      ) ?? prev;
+  const setUser = useCallback(
+    (data: Partial<UserState>) => {
+      setUserState((prev) => {
+        const normalizedData = UserState.normalize(data) ?? {};
+        const merged =
+          UserState.normalize(
+            mergeRecords(
+              UserState.normalize(prev) ?? {},
+              normalizedData,
+            ) as UserState,
+          ) ?? prev;
 
-      // Wallet-context fields belong to a specific connected session. On
-      // disconnect we wipe them all so that the next connection cannot
-      // inherit stale identity (address, AA mode, sponsor metadata, etc.)
-      // from the previous wallet. AomiAuthAdapterUserSync deliberately
-      // does not forward per-tx AA fields, so without this clear they
-      // would survive across wallet switches.
-      let next: UserState;
-      if (UserState.isConnected(normalizedData) === false) {
-        next = dropWalletBlocks(merged);
-      } else {
-        // Address change while staying connected (wallet switch in place):
-        // Per-tx AA outputs belong to the prior address. Pending requests stay
-        // until their backend callback resolves or rejects them.
-        const prevAddress = UserState.address(prev);
-        const nextAddress = UserState.address(merged);
-        const addressChanged =
-          prevAddress !== undefined &&
-          nextAddress !== undefined &&
-          prevAddress.toLowerCase() !== nextAddress.toLowerCase();
-        next = addressChanged ? dropAddressScopedState(merged) : merged;
-      }
-      notifyStateChange(next);
+        // Wallet-context fields belong to a specific connected session. On
+        // disconnect we wipe them all so that the next connection cannot
+        // inherit stale identity (address, AA mode, sponsor metadata, etc.)
+        // from the previous wallet. AomiAuthAdapterUserSync deliberately
+        // does not forward per-tx AA fields, so without this clear they
+        // would survive across wallet switches.
+        let next: UserState;
+        if (UserState.isConnected(normalizedData) === false) {
+          next = dropWalletBlocks(merged);
+        } else {
+          // Address change while staying connected (wallet switch in place):
+          // Per-tx AA outputs belong to the prior address. Pending requests stay
+          // until their backend callback resolves or rejects them.
+          const prevAddress = UserState.address(prev);
+          const nextAddress = UserState.address(merged);
+          const addressChanged =
+            prevAddress !== undefined &&
+            nextAddress !== undefined &&
+            prevAddress.toLowerCase() !== nextAddress.toLowerCase();
+          next = addressChanged ? dropAddressScopedState(merged) : merged;
+        }
 
-      return next;
-    });
-  }, [notifyStateChange]);
+        if (stableStateString(prev) === stableStateString(next)) {
+          return prev;
+        }
 
-  const addExtValue = useCallback((key: string, value: unknown) => {
-    setUserState((prev) => {
-      const next = UserState.withExt(prev, key, value);
-      notifyStateChange(next);
-      return next;
-    });
-  }, [notifyStateChange]);
+        notifyStateChange(next);
 
-  const removeExtValue = useCallback((key: string) => {
-    setUserState((prev) => {
-      const ext = prev.ext;
-      if (
-        typeof ext !== "object" ||
-        ext === null ||
-        Array.isArray(ext) ||
-        !(key in ext)
-      ) {
-        return prev;
-      }
-      const nextExt = { ...(ext as Record<string, unknown>) };
-      delete nextExt[key];
-      const next: UserState = {
-        ...prev,
-        ext: Object.keys(nextExt).length > 0 ? nextExt : undefined,
-      };
-      notifyStateChange(next);
-      return next;
-    });
-  }, [notifyStateChange]);
+        return next;
+      });
+    },
+    [notifyStateChange],
+  );
+
+  const addExtValue = useCallback(
+    (key: string, value: unknown) => {
+      setUserState((prev) => {
+        const next = UserState.withExt(prev, key, value);
+        notifyStateChange(next);
+        return next;
+      });
+    },
+    [notifyStateChange],
+  );
+
+  const removeExtValue = useCallback(
+    (key: string) => {
+      setUserState((prev) => {
+        const ext = prev.ext;
+        if (
+          typeof ext !== "object" ||
+          ext === null ||
+          Array.isArray(ext) ||
+          !(key in ext)
+        ) {
+          return prev;
+        }
+        const nextExt = { ...(ext as Record<string, unknown>) };
+        delete nextExt[key];
+        const next: UserState = {
+          ...prev,
+          ext: Object.keys(nextExt).length > 0 ? nextExt : undefined,
+        };
+        notifyStateChange(next);
+        return next;
+      });
+    },
+    [notifyStateChange],
+  );
 
   // Stable getters that runtime classes can call
   const getUserState = useCallback(() => userRef.current, []);
