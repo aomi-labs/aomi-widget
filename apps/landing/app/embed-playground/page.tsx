@@ -1,6 +1,6 @@
 // For Mintlify iframe embed — zero chrome, bare PlaygroundConfigurator
 // Supports ?embed=true param for compact iframe layout
-// Theme follows system preference via CSS media queries
+// Theme follows system prefers-color-scheme via CSS light-dark()
 
 import { PlaygroundConfigurator } from "@/content/components/playground/PlaygroundConfigurator";
 
@@ -28,49 +28,27 @@ export default async function EmbedPlaygroundPage(props: {
       <PlaygroundConfigurator forceEmbed={isEmbed} />
       <style>{`
         .embed-playground-root {
-          background: oklch(0.985 0 0);
-          --background: oklch(1 0 0);
-          --foreground: oklch(0.141 0.005 285.823);
-          --card: oklch(1 0 0);
-          --card-foreground: oklch(0.141 0.005 285.823);
-          --popover: oklch(1 0 0);
-          --popover-foreground: oklch(0.141 0.005 285.823);
-          --primary: oklch(0.21 0.006 285.885);
-          --primary-foreground: oklch(0.985 0 0);
-          --secondary: oklch(0.967 0.001 286.375);
-          --secondary-foreground: oklch(0.21 0.006 285.885);
-          --muted: oklch(0.967 0.001 286.375);
-          --muted-foreground: oklch(0.552 0.016 285.938);
-          --accent: oklch(0.967 0.001 286.375);
-          --accent-foreground: oklch(0.21 0.006 285.885);
-          --destructive: oklch(0.577 0.245 27.325);
-          --border: oklch(0.92 0.004 286.32);
-          --input: oklch(0.92 0.004 286.32);
-          --ring: oklch(0.705 0.015 286.067);
+          color-scheme: light dark;
+          background: light-dark(oklch(0.985 0 0), #0f0f0f);
+          --background: light-dark(oklch(1 0 0), oklch(0.141 0.005 285.823));
+          --foreground: light-dark(oklch(0.141 0.005 285.823), oklch(0.985 0 0));
+          --card: light-dark(oklch(1 0 0), oklch(0.21 0.006 285.885));
+          --card-foreground: light-dark(oklch(0.141 0.005 285.823), oklch(0.985 0 0));
+          --popover: light-dark(oklch(1 0 0), oklch(0.21 0.006 285.885));
+          --popover-foreground: light-dark(oklch(0.141 0.005 285.823), oklch(0.985 0 0));
+          --primary: light-dark(oklch(0.21 0.006 285.885), oklch(0.92 0.004 286.32));
+          --primary-foreground: light-dark(oklch(0.985 0 0), oklch(0.21 0.006 285.885));
+          --secondary: light-dark(oklch(0.967 0.001 286.375), oklch(0.274 0.006 286.033));
+          --secondary-foreground: light-dark(oklch(0.21 0.006 285.885), oklch(0.985 0 0));
+          --muted: light-dark(oklch(0.967 0.001 286.375), oklch(0.274 0.006 286.033));
+          --muted-foreground: light-dark(oklch(0.552 0.016 285.938), oklch(0.705 0.015 286.067));
+          --accent: light-dark(oklch(0.967 0.001 286.375), oklch(0.274 0.006 286.033));
+          --accent-foreground: light-dark(oklch(0.21 0.006 285.885), oklch(0.985 0 0));
+          --destructive: light-dark(oklch(0.577 0.245 27.325), oklch(0.704 0.191 22.216));
+          --border: light-dark(oklch(0.92 0.004 286.32), oklch(1 0 0 / 10%));
+          --input: light-dark(oklch(0.92 0.004 286.32), oklch(0.6 0 0 / 15%));
+          --ring: light-dark(oklch(0.705 0.015 286.067), oklch(0.552 0.016 285.938));
           --radius: 0.625rem;
-        }
-        @media (prefers-color-scheme: dark) {
-          .embed-playground-root {
-            background: #0f0f0f;
-            --background: oklch(0.141 0.005 285.823);
-            --foreground: oklch(0.985 0 0);
-            --card: oklch(0.21 0.006 285.885);
-            --card-foreground: oklch(0.985 0 0);
-            --popover: oklch(0.21 0.006 285.885);
-            --popover-foreground: oklch(0.985 0 0);
-            --primary: oklch(0.92 0.004 286.32);
-            --primary-foreground: oklch(0.21 0.006 285.885);
-            --secondary: oklch(0.274 0.006 286.033);
-            --secondary-foreground: oklch(0.985 0 0);
-            --muted: oklch(0.274 0.006 286.033);
-            --muted-foreground: oklch(0.705 0.015 286.067);
-            --accent: oklch(0.274 0.006 286.033);
-            --accent-foreground: oklch(0.985 0 0);
-            --destructive: oklch(0.704 0.191 22.216);
-            --border: oklch(1 0 0 / 10%);
-            --input: oklch(0.6 0 0 / 15%);
-            --ring: oklch(0.552 0.016 285.938);
-          }
         }
       `}</style>
     </div>
