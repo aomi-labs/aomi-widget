@@ -336,7 +336,7 @@ export function PlaygroundConfigurator({ forceEmbed }: { forceEmbed?: boolean })
   return (
     <div className={isEmbedded ? "space-y-2" : "space-y-4"}>
       {/* Main split panel */}
-      <div className={`flex flex-col ${isEmbedded ? "gap-2" : "gap-4"} lg:flex-row`}>
+      <div className={`flex flex-col ${isEmbedded ? "gap-2" : "gap-4"} md:flex-row`}>
         {/* Left: Live preview */}
         <div className="min-w-0 flex-1">
           <div
@@ -373,8 +373,8 @@ export function PlaygroundConfigurator({ forceEmbed }: { forceEmbed?: boolean })
         </div>
 
         {/* Right: Config sidebar with tabs */}
-        <div className="w-full shrink-0 lg:w-72" style={{ height: embedHeight }}>
-          <div className="flex h-full flex-col rounded-xl border border-fd-border bg-fd-card">
+        <div className="w-full shrink-0 md:w-72" style={{ maxHeight: embedHeight }}>
+          <div className="flex h-full max-h-[inherit] flex-col rounded-xl border border-fd-border bg-fd-card">
             {/* Tab header */}
             <div className="border-b border-fd-border px-4 py-3">
               <TabBar
