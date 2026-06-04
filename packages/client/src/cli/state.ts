@@ -12,7 +12,7 @@ import {
   UserState as UserStateHelpers,
   type UserStateAAMode,
   type UserState,
-} from "../types";
+} from "../user-state";
 import {
   pendingTxsFromBackendUserState,
   pendingSolTxsFromBackendUserState,
