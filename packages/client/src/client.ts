@@ -21,7 +21,7 @@ import type {
   AomiThread,
   Logger,
 } from "./types";
-import { UserState, type UserState as UserStateShape } from "./types";
+import { UserState, type UserState as UserStateShape } from "./user-state";
 import { createSseSubscriber, type SseSubscriber } from "./sse";
 
 // =============================================================================

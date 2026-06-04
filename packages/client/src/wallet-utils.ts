@@ -12,6 +12,7 @@
 
 import { type Hex, getAddress } from "viem";
 import type { AAWalletCall } from "./aa/types";
+import { UserState } from "./user-state";
 
 export type WalletTxAaPreference = "auto" | "eip4337" | "eip7702" | "none";
 
@@ -96,6 +97,12 @@ function asRecord(value: unknown): UnknownRecord | undefined {
   if (!value || typeof value !== "object" || Array.isArray(value))
     return undefined;
   return value as UnknownRecord;
+}
+
+function pendingTxsFromUserState(userState: unknown): UnknownRecord | undefined {
+  const normalized = UserState.normalize(userState as UserState);
+  const pending = asRecord(normalized?.pending);
+  return asRecord(pending?.evm_txs) ?? asRecord(asRecord(userState)?.pending_txs);
 }
 
 function getToolArgs(payload: unknown): UnknownRecord {
@@ -287,8 +294,7 @@ export function hydrateTxPayloadFromUserState(
     return payload;
   }
 
-  const normalizedUserState = asRecord(userState);
-  const pendingTxsRaw = asRecord(normalizedUserState?.pending_txs);
+  const pendingTxsRaw = pendingTxsFromUserState(userState);
   if (!pendingTxsRaw) {
     if (strict) {
       throw new Error("pending_tx_not_found");
