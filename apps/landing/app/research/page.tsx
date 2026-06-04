@@ -20,9 +20,9 @@ export const metadata: Metadata = {
 
 export default function ResearchPage() {
   return (
-    <main className="mx-auto flex min-h-screen w-full max-w-7xl flex-col gap-8 px-8 py-12 sm:px-12 lg:px-16">
-      <header className="space-y-4">
-        <div className="font-geist flex items-center justify-end gap-2 pr-5 text-lg font-normal tracking-tight text-foreground">
+    <main className="mx-auto flex min-h-screen w-full max-w-7xl flex-col gap-16 px-8 py-12 sm:px-12 lg:px-16">
+      <header>
+        <div className="flex items-center justify-end gap-2 pr-5 font-serif text-lg font-normal tracking-tight text-foreground">
           <img
             src="/assets/images/bubble.svg"
             alt=""
@@ -30,10 +30,10 @@ export default function ResearchPage() {
           />
           <span>aomi labs</span>
         </div>
-        <h1 className="font-serif text-4xl tracking-tight text-foreground md:text-5xl">
+        <h1 className="mt-8 font-serif text-4xl tracking-tight text-foreground md:text-5xl">
           Research
         </h1>
-        <div className="h-px w-full bg-stone-200" />
+        <div className="mt-8 h-px w-full bg-stone-200" />
       </header>
 
       <section className="space-y-5">
