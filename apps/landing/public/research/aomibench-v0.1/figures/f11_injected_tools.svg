@@ -1,0 +1,49 @@
+<svg viewBox="0 0 1120 600" xmlns="http://www.w3.org/2000/svg" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" role="img" aria-label="Injected tools: bounded capability, not a shell">
+<style>
+text{font-family:ui-monospace, SFMono-Regular, Menlo, monospace;}
+.h{font-size:13.5px;font-weight:700}
+.b{font-size:11.5px;fill:#1f2937}
+.c{font-size:11px;fill:#374151}
+.s{font-size:11px;fill:#6b7280}
+</style>
+<text x="40" y="30" font-size="18" font-weight="700" fill="#1f2937">Injected tools: bounded capability, not a shell</text>
+
+<!-- without -->
+<rect x="40" y="50" width="510" height="356" rx="10" fill="#fdeee7" stroke="#D85A30" stroke-width="1.4"/>
+<text x="60" y="78" class="h" fill="#9e3f17">WITHOUT an injected tool</text>
+<text x="60" y="100" class="s">model must hand-assemble the bytes:</text>
+<text x="60" y="128" class="c">• keccak256("multicall(uint256,bytes[])")</text>
+<text x="76" y="148" class="c">= 0xac9b49e1</text>
+<text x="60" y="172" class="c">• ABI-encode each inner call</text>
+<text x="60" y="196" class="c">• build bytes[] dynamic array</text>
+<text x="76" y="216" class="c">with offset pointers + lengths</text>
+<text x="60" y="240" class="c">• concat: selector + deadline + offset</text>
+<text x="76" y="260" class="c">+ length + [step1] + [step2] …</text>
+<text x="60" y="292" class="b">→ guesses layout, no simulation</text>
+<line x1="60" y1="316" x2="530" y2="316" stroke="#f4cdbd"/>
+<text x="60" y="344" class="h" fill="#9e3f17">✘ brittle · error-prone · opaque</text>
+
+<!-- with -->
+<rect x="570" y="50" width="510" height="356" rx="10" fill="#f6fcf9" stroke="#1D9E75" stroke-width="1.4"/>
+<text x="590" y="78" class="h" fill="#0F6E56">WITH encode_and_simulate_multicall</text>
+<text x="590" y="100" class="s">model emits high-level steps:</text>
+<text x="590" y="126" class="c">{ "to": "0x68b3…fc45",  // SwapRouter02</text>
+<text x="590" y="148" class="c">  "steps": [</text>
+<text x="590" y="170" class="c">    exactInputSingle((WETH,USDC,3000,</text>
+<text x="590" y="190" class="c">       recipient, amountIn, minOut, 0)),</text>
+<text x="590" y="212" class="c">    sweepToken(USDC, 0, recipient) ],</text>
+<text x="590" y="234" class="c">  "deadline": "1723045200" }</text>
+<text x="590" y="268" class="b">→ HARNESS encodes inner calls → wraps</text>
+<text x="606" y="288" class="b">multicall(bytes[]) → simulates →</text>
+<text x="606" y="308" class="b">guard checks (sentinel + sweep)</text>
+<line x1="590" y1="324" x2="1060" y2="324" stroke="#cdeadd"/>
+<text x="590" y="350" class="h" fill="#0F6E56">✔ model never sees the bytes</text>
+
+<!-- footer -->
+<rect x="40" y="424" width="1040" height="150" rx="10" fill="#f3f4f6" stroke="#9CA3AF" stroke-width="1.3"/>
+<text x="60" y="452" class="h" fill="#374151">SKILL-SCOPED — not general execution</text>
+<text x="60" y="480" class="b">gate_injected_tool(name): owner skill inactive → "skill_not_active"</text>
+<text x="60" y="506" class="b">• purpose-built encoders only (multicall, V4 packed actions, SVM instructions)</text>
+<text x="60" y="530" class="b">• NOT bash · NOT an arbitrary execute</text>
+<text x="60" y="554" class="b">• each turns ONE runtime capacity on; off by default</text>
+</svg>

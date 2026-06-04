@@ -1,0 +1,53 @@
+<svg viewBox="0 0 1000 720" xmlns="http://www.w3.org/2000/svg" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" role="img" aria-label="Guards: the post-simulation gate">
+<defs>
+<marker id="a" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#6b7280"/></marker>
+<marker id="ag" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#1D9E75"/></marker>
+<marker id="ab" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#D85A30"/></marker>
+<style>
+text{font-family:ui-monospace, SFMono-Regular, Menlo, monospace;}
+.h{font-size:13.5px;font-weight:700}
+.b{font-size:12px;fill:#1f2937}
+.s{font-size:11.5px;fill:#6b7280}
+.arw{stroke:#6b7280;stroke-width:1.5;fill:none}
+</style>
+</defs>
+<text x="40" y="30" font-size="18" font-weight="700" fill="#1f2937">Guards: the post-simulation gate</text>
+
+<rect x="330" y="46" width="340" height="44" rx="9" fill="#fafafa" stroke="#9CA3AF" stroke-width="1.3"/>
+<text x="500" y="73" class="b" text-anchor="middle">model → simulate_batch   (the tool executes)</text>
+<path class="arw" d="M500,90 V120" marker-end="url(#a)"/>
+
+<rect x="210" y="122" width="580" height="92" rx="9" fill="#eef5fc" stroke="#378ADD" stroke-width="1.3"/>
+<text x="500" y="148" class="h" fill="#185FA5" text-anchor="middle">dispatch_with_hooks()</text>
+<text x="500" y="170" class="b" text-anchor="middle">pre_call hooks  →  TOOL  →  post_call hooks</text>
+<text x="500" y="192" class="s" text-anchor="middle">post_call inspects the SIMULATION RESULT — before model or wallet see it</text>
+<path class="arw" d="M500,214 V244" marker-end="url(#a)"/>
+
+<rect x="170" y="246" width="660" height="232" rx="9" fill="#fffaf0" stroke="#EF9F27" stroke-width="1.4"/>
+<text x="194" y="272" class="h" fill="#B0710F">GUARD CHECKS  (per active skill)</text>
+<text x="194" y="298" class="b">• contract allowlist — target ∈ guard_addresses</text>
+<text x="194" y="320" class="b">• spender allowlist — approve(spender) ∈ approved set</text>
+<text x="194" y="342" class="b">• selector default-deny — only permitted selectors</text>
+<text x="194" y="364" class="b">• sentinel recipient — burn addr + no sweep → fund loss</text>
+<text x="194" y="386" class="b">• recipient / position owner = the user</text>
+<text x="194" y="408" class="b">• parameter sanity — fee &lt; 50% · deadline not past</text>
+<text x="194" y="430" class="b">• slippage clamp — min ≤ simulated_out ≤ max</text>
+<text x="194" y="458" class="s">checks run against the simulated outcome — the last safe moment, before any signature</text>
+
+<path class="arw" d="M360,478 C360,506 250,500 250,528" marker-end="url(#ag)" stroke="#1D9E75"/>
+<path class="arw" d="M640,478 C640,506 750,500 750,528" marker-end="url(#ab)" stroke="#D85A30"/>
+
+<rect x="60" y="530" width="380" height="118" rx="9" fill="#f6fcf9" stroke="#1D9E75" stroke-width="1.4"/>
+<text x="80" y="556" class="h" fill="#0F6E56">PASS</text>
+<text x="80" y="582" class="b">result → model</text>
+<text x="80" y="604" class="b">tx may be staged → commit_txs</text>
+<text x="80" y="628" class="s">authorization can proceed</text>
+
+<rect x="560" y="530" width="380" height="118" rx="9" fill="#fdeee7" stroke="#D85A30" stroke-width="1.4"/>
+<text x="580" y="556" class="h" fill="#9e3f17">BLOCK(reason)</text>
+<text x="580" y="582" class="b">tool_return = { error: hook_blocked }</text>
+<text x="580" y="604" class="b">tx is NEVER staged</text>
+<text x="580" y="628" class="b" font-weight="700" fill="#9e3f17">model CANNOT override — a hard gate</text>
+
+<text x="500" y="684" class="s" text-anchor="middle">27 guards registered via register_protocol_guards(); guard addrs / selectors / allowlists supplied by each skill manifest.</text>
+</svg>
