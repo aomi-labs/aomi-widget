@@ -23,7 +23,11 @@ export default function ResearchPage() {
     <main className="mx-auto flex min-h-screen w-full max-w-7xl flex-col gap-8 px-8 py-12 sm:px-12 lg:px-16">
       <header className="space-y-4">
         <div className="font-geist flex items-center justify-end gap-2 pr-5 text-lg font-normal tracking-tight text-foreground">
-          <img src="/assets/images/bubble.svg" alt="" className="h-5 w-5" />
+          <img
+            src="/assets/images/bubble.svg"
+            alt=""
+            className="h-5 w-5 dark:invert"
+          />
           <span>aomi labs</span>
         </div>
         <h1 className="font-serif text-4xl tracking-tight text-foreground md:text-5xl">
@@ -37,7 +41,7 @@ export default function ResearchPage() {
           <Link
             key={post.slug}
             href={`/research/${post.slug}`}
-            className="group grid min-h-[240px] overflow-hidden rounded-[28px] border border-stone-200 bg-white shadow-sm transition duration-200 hover:-translate-y-0.5 hover:border-stone-300 hover:shadow-md md:grid-cols-[minmax(260px,34%)_1fr]"
+            className="group grid min-h-[240px] overflow-hidden rounded-[28px] border border-stone-200 bg-white text-stone-950 shadow-sm transition duration-200 hover:-translate-y-0.5 hover:border-stone-300 hover:shadow-md md:grid-cols-[minmax(260px,34%)_1fr]"
           >
             <div
               aria-hidden="true"
@@ -56,15 +60,15 @@ export default function ResearchPage() {
                 <span className="font-geist-mono inline-flex w-fit rounded-full bg-stone-100 px-3 py-1 text-xs font-medium tracking-[0.12em] text-stone-600">
                   {post.tag}
                 </span>
-                <h2 className="max-w-4xl font-serif text-2xl leading-tight font-normal tracking-tight text-foreground md:text-4xl">
+                <h2 className="max-w-4xl font-serif text-2xl leading-tight font-normal tracking-tight text-stone-950 md:text-4xl">
                   {post.title}
                 </h2>
-                <p className="font-geist max-w-3xl text-base leading-7 text-muted-foreground">
+                <p className="font-geist max-w-3xl text-base leading-7 text-stone-500">
                   {post.subtitle}
                 </p>
               </div>
               <time
-                className="font-geist-mono text-sm text-muted-foreground"
+                className="font-geist-mono text-sm text-stone-500"
                 dateTime={post.isoDate}
               >
                 {post.date}
