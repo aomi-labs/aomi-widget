@@ -1,0 +1,88 @@
+import { existsSync } from "node:fs";
+import fs from "node:fs/promises";
+import path from "node:path";
+
+export type ResearchPost = {
+  slug: string;
+  title: string;
+  date: string;
+  isoDate: string;
+  tag: string;
+  subtitle: string;
+  fileName: string;
+};
+
+export const researchPosts: ResearchPost[] = [
+  {
+    slug: "aomibench-v0-1",
+    title: "AomiBench: Benchmarking Frontier Models on Onchain Execution",
+    date: "June 4, 2026",
+    isoDate: "2026-06-04",
+    tag: "benchmark",
+    subtitle:
+      "A wallet-aware harness for measuring frontier agents on real onchain tasks, simulations, and chain-state evidence.",
+    fileName: "aomibench-v0.1.md",
+  },
+];
+
+export function getResearchPost(slug: string) {
+  return researchPosts.find((post) => post.slug === slug) ?? null;
+}
+
+function renderPendingFigureComments(body: string) {
+  return body.replace(
+    /<!--\s*Figure\s+(\d+)(?:\s*\([^)]*\))?\s+—\s+([\s\S]*?)\.\s+Not yet built\.\s*-->/g,
+    (_match, number: string, title: string) => {
+      const cleanTitle = title.replace(/\s*\(←[^)]*\)/g, "").trim();
+
+      return `\n\n> **Figure ${number} — ${cleanTitle}**\n> Chart pending.\n\n`;
+    },
+  );
+}
+
+function renderMissingFigureImages(body: string) {
+  return body.replace(
+    /!\[([^\]]+)\]\(figures\/([^)]+)\)/g,
+    (match, alt: string, fileName: string) => {
+      const asset = path.join(
+        process.cwd(),
+        "public",
+        "research",
+        "aomibench-v0.1",
+        "figures",
+        fileName,
+      );
+
+      if (existsSync(asset)) {
+        return match;
+      }
+
+      const title = alt.split(".")[0]?.trim() || `Figure asset ${fileName}`;
+
+      return `\n\n> **${title}**\n> Figure asset pending: \`${fileName}\`.\n\n`;
+    },
+  );
+}
+
+function prepareResearchMarkdown(body: string) {
+  return renderMissingFigureImages(renderPendingFigureComments(body))
+    .replace(/^<!--[\s\S]*?-->\s*/, "")
+    .replace(/<!--[\s\S]*?-->/g, "")
+    .trim();
+}
+
+export async function readResearchPost(slug: string) {
+  const post = getResearchPost(slug);
+
+  if (post === null) {
+    return null;
+  }
+
+  const file = path.join(process.cwd(), "content", "research", post.fileName);
+  const body = await fs.readFile(file, "utf8");
+
+  return {
+    ...post,
+    body: prepareResearchMarkdown(body),
+  };
+}
