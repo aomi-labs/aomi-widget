@@ -1,4 +1,4 @@
-<svg viewBox="0 0 760 430" xmlns="http://www.w3.org/2000/svg" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" role="img" aria-label="Task success rate per model headline histogram">
+<svg width="760" height="430" viewBox="0 0 760 430" xmlns="http://www.w3.org/2000/svg" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" role="img" aria-label="Task success rate per model headline histogram">
 <style>
 .ax{stroke:#d1d5db;stroke-width:1}
 .gl{stroke:#eceef1;stroke-width:1}
