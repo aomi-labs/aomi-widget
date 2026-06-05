@@ -61,7 +61,7 @@ const markdownComponents: Components = {
     </h2>
   ),
   h3: ({ children }) => (
-    <h3 className="font-geist mt-9 text-xl font-normal tracking-tight text-foreground">
+    <h3 className="mt-9 font-serif text-2xl font-normal tracking-tight text-foreground">
       {children}
     </h3>
   ),
@@ -81,7 +81,7 @@ const markdownComponents: Components = {
     }
 
     return (
-      <p className="font-geist text-[17px] leading-8 text-stone-700 dark:text-white">
+      <p className="font-geist text-[15px] leading-[1.9] text-stone-700 dark:text-white">
         {children}
       </p>
     );
@@ -99,12 +99,12 @@ const markdownComponents: Components = {
     />
   ),
   ul: ({ children }) => (
-    <ul className="font-geist my-5 list-disc space-y-2 pl-6 text-[17px] leading-8 text-stone-700 dark:text-white">
+    <ul className="font-geist my-5 list-disc space-y-2 pl-6 text-[15px] leading-[1.9] text-stone-700 dark:text-white">
       {children}
     </ul>
   ),
   ol: ({ children }) => (
-    <ol className="font-geist my-5 list-decimal space-y-2 pl-6 text-[17px] leading-8 text-stone-700 dark:text-white">
+    <ol className="font-geist my-5 list-decimal space-y-2 pl-6 text-[15px] leading-[1.9] text-stone-700 dark:text-white">
       {children}
     </ol>
   ),
