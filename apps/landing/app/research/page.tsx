@@ -22,14 +22,18 @@ export default function ResearchPage() {
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-4xl flex-col gap-12 px-6 py-16">
       <header>
-        <div className="flex items-center justify-end gap-2 pr-5 font-serif text-lg font-normal tracking-tight text-foreground">
+        <Link
+          href="/"
+          aria-label="Aomi home"
+          className="flex items-center justify-end gap-2 pr-5 font-serif text-xl font-bold tracking-tight text-foreground"
+        >
           <img
             src="/assets/images/bubble.svg"
             alt=""
             className="h-5 w-5 dark:invert"
           />
-          <span>aomi labs</span>
-        </div>
+          <span>aomi</span>
+        </Link>
         <h1 className="mt-8 font-serif text-4xl tracking-tight text-foreground md:text-5xl">
           Research
         </h1>

@@ -25,19 +25,34 @@ export const metadata: Metadata = {
 export default function AgentsPage() {
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-4xl flex-col gap-8 px-6 py-16">
-      <div className="space-y-4">
-        <h1 className="font-serif text-4xl tracking-tight text-foreground md:text-5xl">
-          Aomi for Agents
-        </h1>
-        <p className="font-geist text-xl font-medium tracking-tight text-foreground md:text-2xl">
-          The blockchain harness for agentic AI.
-        </p>
-        <p className="font-geist max-w-3xl text-base leading-7 text-muted-foreground">
-          Use Aomi to transact on wallets, embed a chat surface, or expose your
-          product as callable AI tools — non-custodial by design, with
-          simulation and local signing built in.
-        </p>
-      </div>
+      <header>
+        <Link
+          href="/"
+          aria-label="Aomi home"
+          className="flex items-center justify-end gap-2 pr-5 font-serif text-xl font-bold tracking-tight text-foreground"
+        >
+          <img
+            src="/assets/images/bubble.svg"
+            alt=""
+            className="h-5 w-5 dark:invert"
+          />
+          <span>aomi</span>
+        </Link>
+        <div className="mt-8 space-y-4">
+          <h1 className="font-serif text-4xl tracking-tight text-foreground md:text-5xl">
+            Aomi for Agents
+          </h1>
+          <p className="font-geist text-xl font-medium tracking-tight text-foreground md:text-2xl">
+            The blockchain harness for agentic AI.
+          </p>
+          <p className="font-geist max-w-3xl text-base leading-7 text-muted-foreground">
+            Use Aomi to transact on wallets, embed a chat surface, or expose
+            your product as callable AI tools — non-custodial by design, with
+            simulation and local signing built in.
+          </p>
+        </div>
+        <div className="mt-8 h-px w-full bg-stone-200" />
+      </header>
 
       <section className="space-y-3">
         <h2 className="font-geist text-xl font-semibold">
