@@ -1,0 +1,52 @@
+[
+  {
+    "id": "pendle",
+    "name": "pendle",
+    "description": "Use when users want to trade yield via Pendle — buy/sell PT (principal tokens) or YT (yield tokens), add liquidity to Pendle markets, or redeem accrued interest and rewards on Ethereum.",
+    "tags": [
+      "yield",
+      "pendle",
+      "pt",
+      "yt",
+      "fixed-yield",
+      "defi"
+    ],
+    "tool_names": [
+      "get_time_and_onchain_context",
+      "brave_search",
+      "encode_and_call",
+      "get_account_info",
+      "get_contract",
+      "sync_chain",
+      "simulate_batch",
+      "stage_tx",
+      "commit_eip712",
+      "commit_txs"
+    ],
+    "injected_tools": [],
+    "source": "aomi_builtin",
+    "est_tokens": 1302,
+    "activation_tokens": 1307,
+    "instruction_md": "## Pendle: Contracts\n- PendleRouter: 0x888888888889758F76e7103c6CbF23ABbF58F946 (chain 1)\n\n- pendle_router: ApproxParams (guessMin, guessMax, guessOffchain, maxIteration, eps) MUST be fetched from the Pendle SDK or API — do NOT hardcode. Use the Pendle API at https://api-v2.pendle.finance/sdk/api to obtain them for each market.\n\n## Pendle: ABI Signatures (reference only)\nPendle Router [pendle_router]:\n- addLiquidityDualSyAndPt(address,address,uint256,uint256,uint256) → uint256,uint256,uint256\n- addLiquidityDualTokenAndPt(address,address,(address,uint256,address,address,(uint8,address,bytes,bool)),uint256,uint256) → uint256,uint256,uint256\n- addLiquiditySinglePt(address,address,uint256,uint256,(uint256,uint256,uint256,uint256,uint256),(address,uint256,((uint256,uint256,uint256,uint8,address,address,address,address,uint256,uint256,uint256,bytes),bytes,uint256)[],((uint256,uint256,uint256,uint8,address,address,address,address,uint256,uint256,uint256,bytes),bytes,uint256)[],bytes)) → uint256,uint256\n- addLiquiditySingleSy(address,address,uint256,uint256,(uint256,uint256,uint256,uint256,uint256),(address,uint256,((uint256,uint256,uint256,uint8,address,address,address,address,uint256,uint256,uint256,bytes),bytes,uint256)[],((uint256,uint256,uint256,uint8,address,address,address,address,uint256,uint256,uint256,bytes),bytes,uint256)[],bytes)) → uint256,uint256\n- addLiquiditySingleSyKeepYt(address,address,uint256,uint256,uint256) → uint256,uint256,uint256\n- addLiquiditySingleToken(address,address,uint256,(uint256,uint256,uint256,uint256,uint256),(address,uint256,address,address,(uint8,address,bytes,bool)),(address,uint256,((uint256,uint256,uint256,uint8,address,address,address,address,uint256,uint256,uint256,bytes),bytes,uint256)[],((uint256,uint256,uint256,uint8,address,address,address,address,uint256,uint256,uint256,bytes),bytes,uint256)[],bytes)) → uint256,uint256,uint256\n- addLiquiditySingleTokenKeepYt(address,address,uint256,uint256,(address,uint256,address,address,(uint8,address,bytes,bool))) → uint256,uint256,uint256,uint256\n- removeLiquidityDualSyAndPt(address,address,uint256,uint256,uint256) → uint256,uint256\n- removeLiquidityDualTokenAndPt(address,address,uint256,(address,uint256,address,address,(uint8,address,bytes,bool)),uint256) → uint256,uint256,uint256\n- removeLiquiditySinglePt(address,address,uint256,uint256,(uint256,uint256,uint256,uint256,uint256),(address,uint256,((uint256,uint256,uint256,uint8,address,address,address,address,uint256,uint256,uint256,bytes),bytes,uint256)[],((uint256,uint256,uint256,uint8,address,address,address,address,uint256,uint256,uint256,bytes),bytes,uint256)[],bytes)) → uint256,uint256\n- removeLiquiditySingleSy(address,address,uint256,uint256,(address,uint256,((uint256,uint256,uint256,uint8,address,address,address,address,uint256,uint256,uint256,bytes),bytes,uint256)[],((uint256,uint256,uint256,uint8,address,address,address,address,uint256,uint256,uint256,bytes),bytes,uint256)[],bytes)) → uint256,uint256\n- removeLiquiditySingleToken(address,address,uint256,(address,uint256,address,address,(uint8,address,bytes,bool)),(address,uint256,((uint256,uint256,uint256,uint8,address,address,address,address,uint256,uint256,uint256,bytes),bytes,uint256)[],((uint256,uint256,uint256,uint8,address,address,address,address,uint256,uint256,uint256,bytes),bytes,uint256)[],bytes)) → uint256,uint256,uint256\nERC20 [erc20]:\n- approve(address,uint256) → bool\n\n## Pendle: Limitation — ApproxParams\nThe router functions (swapExactTokenForPt, swapExactTokenForYt, addLiquiditySingleToken) require an `ApproxParams` tuple:\n`(guessMin, guessMax, guessOffchain, maxIteration, eps)`\n**ApproxParams CANNOT be manually constructed.** You MUST obtain them from the Pendle API (https://api-v2.pendle.finance/sdk/api) for each market and operation. If the API is unavailable, warn the user that the operation cannot be safely executed and do NOT proceed.\n\n## Pendle: Procedure\n1. Call `get_time_and_onchain_context` to confirm wallet, chain, and block context.\n2. Identify the target market address for the PT/YT the user wants to trade.\n3. Check token balance and allowance with `encode_and_call`.\n4. If allowance insufficient, build and simulate an `approve` transaction first.\n5. Obtain ApproxParams from Pendle API for the chosen market and operation.\n6. Build the transaction with `encode_and_call`.\n7. Inspect result and `pendle_guard_*` fields — if `pendle_guard_blocked`, do NOT proceed.\n8. Only after user confirmation, send via `commit_txs`.\n## Pendle: Critical Rules\n- ONLY use the official PendleRouter address listed above.\n- Always simulate with `encode_and_call` before sending.\n- Check `pendle_guard_blocked` in simulation result — if true, do NOT proceed.\n- The `receiver` parameter must always be the user's wallet address.\n- Token approval to the PendleRouter is required before any token-input operation.\n- For ETH-based operations, the router accepts native ETH via msg.value through the TokenInput struct (set tokenIn to address(0)).\n- redeemDueInterestAndRewards does not require ApproxParams and can be called directly.\n- NEVER guess, hardcode, or fabricate ApproxParams values. Doing so risks reverts or severe price impact.",
+    "tool_hooks": [
+      {
+        "tool": "simulate_batch",
+        "pre_call": [],
+        "post_call": [
+          "pendle-known-addrs"
+        ]
+      },
+      {
+        "tool": "stage_tx",
+        "pre_call": [],
+        "post_call": [
+          "pendle-known-addrs"
+        ]
+      }
+    ],
+    "tools_namespace": "evm-core",
+    "chain_ids": [
+      1
+    ]
+  }
+]

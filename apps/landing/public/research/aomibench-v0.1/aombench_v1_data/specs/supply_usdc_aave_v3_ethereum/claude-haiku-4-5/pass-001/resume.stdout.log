@@ -1,0 +1,3 @@
+[eval] PASS supply_usdc_aave_v3_ethereum 1 turn(s) 9 tool call(s) 2.19312 cr, 51531 in / 1626 out tok, 41922 cached / 0 reasoning tok 0 warning(s) duration 33s
+report full json: ../output/eval/model-bench-public-skills-expansion-20260531/specs/supply_usdc_aave_v3_ethereum/claude-haiku-4.5/pass-001/20260531T191151.099739000Z.full.json
+report compact json: ../output/eval/model-bench-public-skills-expansion-20260531/specs/supply_usdc_aave_v3_ethereum/claude-haiku-4.5/pass-001/20260531T191151.099739000Z.compact.json

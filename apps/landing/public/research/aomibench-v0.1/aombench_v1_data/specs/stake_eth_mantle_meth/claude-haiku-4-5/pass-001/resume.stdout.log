@@ -1,0 +1,3 @@
+[eval] PASS stake_eth_mantle_meth 1 turn(s) 10 tool call(s) 2.98604 cr, 71248 in / 2768 out tok, 61364 cached / 0 reasoning tok 0 warning(s) duration 53s
+report full json: ../output/eval/model-bench-public-skills-opus47-opus46-haiku45-20260531/specs/stake_eth_mantle_meth/claude-haiku-4.5/pass-001/20260531T120055.234373000Z.full.json
+report compact json: ../output/eval/model-bench-public-skills-opus47-opus46-haiku45-20260531/specs/stake_eth_mantle_meth/claude-haiku-4.5/pass-001/20260531T120055.234373000Z.compact.json

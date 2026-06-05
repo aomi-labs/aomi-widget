@@ -1,0 +1,7 @@
+[eval] FAIL deposit_eth_renzo 1 turn(s) 6 tool call(s) 5.9118 cr, 39270 in / 648 out tok, 34816 cached / 21 reasoning tok 0 warning(s) duration 25s
+errors:
+  tool sequence broke before expected tool 'commit_txs'
+  callback_observed no matching callback_observed; observed 0 value(s)
+  Alice receives ezETH from Renzo Alice receives ezETH from Renzo (before: 0 EZETH, after: 0 EZETH, delta: +0 EZETH, expected: +0.1 EZETH ± 0.02 EZETH)
+report full json: ../output/eval/model-bench-public-skills-gpt55-opus48-sonnet46-20260530/specs/deposit_eth_renzo/gpt-5.5/pass-002/20260530T232149.711405000Z.full.json
+report compact json: ../output/eval/model-bench-public-skills-gpt55-opus48-sonnet46-20260530/specs/deposit_eth_renzo/gpt-5.5/pass-002/20260530T232149.711405000Z.compact.json

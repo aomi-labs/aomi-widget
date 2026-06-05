@@ -1,0 +1,3 @@
+[eval] PASS deposit_steth_strategy_review_first 1 turn(s) 7 tool call(s) 6.3079 cr, 40983 in / 1114 out tok, 37708 cached / 0 reasoning tok 0 warning(s) duration 43s
+report full json: ../output/eval/model-bench-public-skills-opus47-opus46-haiku45-20260531/specs/deposit_steth_strategy_review_first/claude-opus-4.6/pass-001/20260531T114229.565627000Z.full.json
+report compact json: ../output/eval/model-bench-public-skills-opus47-opus46-haiku45-20260531/specs/deposit_steth_strategy_review_first/claude-opus-4.6/pass-001/20260531T114229.565627000Z.compact.json

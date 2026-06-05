@@ -1,0 +1,55 @@
+[
+  {
+    "id": "lido",
+    "name": "lido",
+    "description": "Use when users want to stake ETH with Lido to receive stETH, wrap/unwrap stETH to/from wstETH, or manage Lido withdrawal requests on Ethereum.",
+    "tags": [
+      "stake",
+      "lido",
+      "steth",
+      "wsteth",
+      "liquid-staking",
+      "withdraw",
+      "eth"
+    ],
+    "tool_names": [
+      "get_time_and_onchain_context",
+      "brave_search",
+      "encode_and_call",
+      "get_account_info",
+      "get_contract",
+      "sync_chain",
+      "simulate_batch",
+      "stage_tx",
+      "commit_eip712",
+      "commit_txs"
+    ],
+    "injected_tools": [
+      "prepare_lido_claim"
+    ],
+    "source": "aomi_builtin",
+    "est_tokens": 769,
+    "activation_tokens": 773,
+    "instruction_md": "## Lido: lido_stake\n- contract: 0xae7ab96520DE3A18E5e111B5EaAb095312D7fE84 (chain 1)\n- output_token: stETH\n- gotcha: submit(address) is payable — msg.value is the amount to stake. Pass address(0) as referral.\n\n## Lido: lido_wrap\n- contract: 0x7f39C581F595B53c5cb19bD0b3f8dA6c935E2Ca0 (chain 1)\n- output_token: wstETH\n- gotcha: Requires stETH approval to wstETH contract before wrapping.\n\n## Lido: lido_withdrawal\n- contract: 0x889edC2eDab5f40e902b864aD4d7AdE8E412F9B1 (chain 1)\n- gotcha: Withdrawals are not instant — they enter a queue and may take hours to days. The _owner parameter must match the user wallet.\n\n\n## Lido: Protocol tokens\n- stETH: 0xae7ab96520DE3A18E5e111B5EaAb095312D7fE84 (chain 1)\n- wstETH: 0x7f39C581F595B53c5cb19bD0b3f8dA6c935E2Ca0 (chain 1)\n\n## Lido: ABI Signatures (reference only)\nLido stETH [lido_steth]:\n- submit(address) → uint256\nLido wstETH [lido_wsteth]:\n- unwrap(uint256) → uint256\n- wrap(uint256) → uint256\nLido WithdrawalQueue [lido_withdrawal_queue]:\n- claimWithdrawal(uint256) → \n- claimWithdrawals(uint256[],uint256[]) → \n- requestWithdrawals(uint256[],address) → uint256[]\n- requestWithdrawalsWstETH(uint256[],address) → uint256[]\nERC20 [erc20]:\n- approve(address,uint256) → bool\n\n## Lido: Procedure\n1. Call `get_time_and_onchain_context` to confirm wallet, chain, and block context.\n2. Check token balance and allowance with `encode_and_call` (balanceOf, allowance).\n3. If allowance insufficient for wrap/unwrap/withdrawal, build and simulate an `approve` transaction first.\n4. Build the staking/wrapping/withdrawal transaction with `encode_and_call`.\n5. Inspect result and `lido_guard_*` fields — if `lido_guard_blocked`, do NOT proceed.\n6. For claiming withdrawals, use `prepare_lido_claim` instead of steps 4-5.\n7. Only after user confirmation, send via `commit_txs`.\n\n## Lido: Claiming Withdrawals\n- To claim finalized withdrawals, call `prepare_lido_claim` (no arguments needed).\n- It automatically: fetches all requests, filters claimable ones, computes checkpoint hints, and simulates `claimWithdrawals`.\n- Do NOT manually chain `getWithdrawalRequests` → `getWithdrawalStatus` → `findCheckpointHints` → `claimWithdrawals`. Use `prepare_lido_claim` instead.\n- If `status` is `\"ready\"`, show the user the claimable amounts and request confirmation before sending.\n\n## Lido: Critical Rules\n- ONLY use official Lido contract addresses listed above. Never send ETH or tokens to unknown addresses.\n- Always simulate staking calldata with `encode_and_call` before sending.\n- Check `lido_guard_blocked` in simulation result — if true, do NOT proceed.\n- For `submit(address)`: always pass `address(0)` as the referral parameter.\n- For `requestWithdrawals` / `requestWithdrawalsWstETH`: the `_owner` parameter MUST be the user's wallet address.\n- Warn the user that Lido withdrawals are NOT instant — they enter a queue and may take hours to days to finalize.\n- Before wrapping stETH to wstETH, ensure stETH approval to the wstETH contract.\n- Before requesting withdrawals, ensure stETH/wstETH approval to the WithdrawalQueue contract.",
+    "tool_hooks": [
+      {
+        "tool": "simulate_batch",
+        "pre_call": [],
+        "post_call": [
+          "lido-known-addrs"
+        ]
+      },
+      {
+        "tool": "stage_tx",
+        "pre_call": [],
+        "post_call": [
+          "lido-known-addrs"
+        ]
+      }
+    ],
+    "tools_namespace": "evm-core",
+    "chain_ids": [
+      1
+    ]
+  }
+]

@@ -1,0 +1,5 @@
+[eval] FAIL deposit_eth_kelp 1 turn(s) 7 tool call(s) 1.1555 cr, 75546 in / 194 out tok 0 warning(s) duration 35s
+errors:
+  Alice receives rsETH from Kelp Alice receives rsETH from Kelp (before: 0 RSETH, after: 0 RSETH, delta: +0 RSETH, expected: +0.1 RSETH ± 0.02 RSETH)
+report full json: ../output/eval/model-bench-public-skills-minimax-m25-kiro-20260531/specs/deposit_eth_kelp/minimax-m2.5/pass-002/20260531T090815.342648000Z.full.json
+report compact json: ../output/eval/model-bench-public-skills-minimax-m25-kiro-20260531/specs/deposit_eth_kelp/minimax-m2.5/pass-002/20260531T090815.342648000Z.compact.json
