@@ -1,0 +1,5 @@
+[eval] PASS add_eth_usdc_v2_lp_after_half_swap 1 turn(s) 25 tool call(s) 39.4445 cr, 239365 in / 4358 out tok, 207360 cached / 1077 reasoning tok 1 warning(s) duration 108s
+warnings:
+  no_tool_errors tool error envelope(s) observed for: Find Uniswap V2 factory ABI
+report full json: ../output/eval/model-bench-public-skills-expansion-20260531/specs/add_eth_usdc_v2_lp_after_half_swap/gpt-5.5/pass-001/20260531T211713.869276000Z.full.json
+report compact json: ../output/eval/model-bench-public-skills-expansion-20260531/specs/add_eth_usdc_v2_lp_after_half_swap/gpt-5.5/pass-001/20260531T211713.869276000Z.compact.json

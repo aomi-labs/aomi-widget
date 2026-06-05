@@ -1,0 +1,10 @@
+[eval] FAIL add_eth_usdc_lp_after_half_swap 1 turn(s) 35 tool call(s) 14.09902 cr, 531713 in / 13159 out tok, 507242 cached / 0 reasoning tok 2 warning(s) duration 222s
+errors:
+  Alice spends about 1 Base ETH total Alice spends about 1 Base ETH total (before: 100 ETH, after: 99.499999220366703096 ETH, delta: -0.500000779633296904 ETH, expected: -1 ETH ± 0.15 ETH)
+  Base USDC moved for swap and LP Base USDC moved for swap and LP observed 1 log(s), expected at least 2 from block 46734540 through 46734540
+  Aerodrome WETH/USDC LP token minted Aerodrome WETH/USDC LP token minted observed 0 log(s), expected at least 1 from block 46734540 through 46734540
+warnings:
+  no_tool_errors tool error envelope(s) observed for: Quote 0.5 ETH to USDC on Aerodrome stable pool, Fetch Aerodrome Router ABI to verify addLiquidityETH signature
+  max_tool_calls observed 35 tool call(s), max 28
+report full json: ../output/eval/model-bench-public-skills-expansion-20260531/specs/add_eth_usdc_lp_after_half_swap/claude-haiku-4.5/pass-002/20260531T201725.417801000Z.full.json
+report compact json: ../output/eval/model-bench-public-skills-expansion-20260531/specs/add_eth_usdc_lp_after_half_swap/claude-haiku-4.5/pass-002/20260531T201725.417801000Z.compact.json

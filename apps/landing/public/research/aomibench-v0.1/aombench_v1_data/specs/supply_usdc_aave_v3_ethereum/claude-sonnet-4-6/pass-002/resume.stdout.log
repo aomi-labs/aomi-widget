@@ -1,0 +1,3 @@
+[eval] PASS supply_usdc_aave_v3_ethereum 1 turn(s) 9 tool call(s) 4.29201 cr, 62244 in / 1140 out tok, 59597 cached / 0 reasoning tok 0 warning(s) duration 49s
+report full json: ../output/eval/model-bench-public-skills-expansion-20260531/specs/supply_usdc_aave_v3_ethereum/claude-sonnet-4.6/pass-002/20260531T190844.720984000Z.full.json
+report compact json: ../output/eval/model-bench-public-skills-expansion-20260531/specs/supply_usdc_aave_v3_ethereum/claude-sonnet-4.6/pass-002/20260531T190844.720984000Z.compact.json

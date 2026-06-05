@@ -1,0 +1,3 @@
+[eval] PASS stake_eth_mantle_meth 1 turn(s) 13 tool call(s) 12.6472 cr, 77396 in / 1454 out tok, 67584 cached / 210 reasoning tok 0 warning(s) duration 42s
+report full json: ../output/eval/model-bench-public-skills-gpt55-opus48-sonnet46-20260530/specs/stake_eth_mantle_meth/gpt-5.5/pass-002/20260530T231605.162546000Z.full.json
+report compact json: ../output/eval/model-bench-public-skills-gpt55-opus48-sonnet46-20260530/specs/stake_eth_mantle_meth/gpt-5.5/pass-002/20260530T231605.162546000Z.compact.json

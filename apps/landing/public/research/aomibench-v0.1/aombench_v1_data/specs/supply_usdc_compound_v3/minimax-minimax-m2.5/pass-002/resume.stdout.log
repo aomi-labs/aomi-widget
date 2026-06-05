@@ -1,0 +1,9 @@
+[eval] FAIL supply_usdc_compound_v3 1 turn(s) 16 tool call(s) 2.894955 cr, 192284 in / 93 out tok 1 warning(s) duration 82s
+errors:
+  tool no matching tool arguments for stage_tx:$.to
+  Alice supplies about 100 USDC to Compound Alice supplies about 100 USDC to Compound (before: 10000 USDC, after: 10000 USDC, delta: +0 USDC, expected: -100 USDC ± 5 USDC)
+  USDC Transfer log into Compound USDC Transfer log into Compound observed 0 log(s), expected at least 1 from block 25214322 through 25214323
+warnings:
+  no_tool_errors tool error envelope(s) observed for: Get Compound V3 cUSDCv3 contract ABI, activate_skills, Get Compound V3 cUSDCv3 contract source, Check USDC allowance to cUSDCv3, activate_skills
+report full json: ../output/eval/model-bench-public-skills-minimax-m25-kiro-20260531/specs/supply_usdc_compound_v3/minimax-m2.5/pass-002/20260531T090241.395914000Z.full.json
+report compact json: ../output/eval/model-bench-public-skills-minimax-m25-kiro-20260531/specs/supply_usdc_compound_v3/minimax-m2.5/pass-002/20260531T090241.395914000Z.compact.json

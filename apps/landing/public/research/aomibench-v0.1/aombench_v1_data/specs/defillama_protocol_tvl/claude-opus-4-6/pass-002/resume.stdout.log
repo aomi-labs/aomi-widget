@@ -1,0 +1,3 @@
+[eval] PASS defillama_protocol_tvl 1 turn(s) 1 tool call(s) 0 cr, 0 in / 0 out tok 0 warning(s) duration 8s
+report full json: ../output/eval/model-bench-public-skills-expansion-20260531/specs/defillama_protocol_tvl/claude-opus-4.6/pass-002/20260531T215813.642421000Z.full.json
+report compact json: ../output/eval/model-bench-public-skills-expansion-20260531/specs/defillama_protocol_tvl/claude-opus-4.6/pass-002/20260531T215813.642421000Z.compact.json

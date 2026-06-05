@@ -1,0 +1,3 @@
+[eval] PASS dydx_markets 1 turn(s) 2 tool call(s) 0.377465 cr, 21423 in / 488 out tok 0 warning(s) duration 12s
+report full json: ../output/eval/model-bench-public-skills-expansion-20260531/specs/dydx_markets/minimax-m2.5/pass-001/20260531T220237.022633000Z.full.json
+report compact json: ../output/eval/model-bench-public-skills-expansion-20260531/specs/dydx_markets/minimax-m2.5/pass-001/20260531T220237.022633000Z.compact.json

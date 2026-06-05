@@ -33,6 +33,9 @@ jobs:
       - name: Build library bundle
         run: pnpm run build:lib
 
+      - name: Build @aomi-labs/deploy
+        run: pnpm run build:deploy
+
       - name: Run library tests
         run: pnpm run test
 
@@ -78,8 +81,16 @@ jobs:
       - name: Build @aomi-labs/widget-lib (shadcn registry)
         run: pnpm run build:registry
 
+      - name: Build @aomi-labs/deploy
+        run: pnpm run build:deploy
+
       - name: Publish @aomi-labs/client
         run: pnpm --filter @aomi-labs/client publish --access public --no-git-checks
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Publish @aomi-labs/deploy
+        run: pnpm --filter @aomi-labs/deploy publish --access public --no-git-checks
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 

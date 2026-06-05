@@ -1,0 +1,5 @@
+[eval] PASS swap_base_eth_for_usdc_aerodrome 1 turn(s) 14 tool call(s) 3.455465 cr, 230004 in / 47 out tok 1 warning(s) duration 85s
+warnings:
+  no_tool_errors tool error envelope(s) observed for: Quote ETH→USDC swap on Aerodrome, Quote ETH→USDC swap on Aerodrome, Quote ETH→USDC swap on Aerodrome, Stage ETH→USDC swap on Aerodrome, Stage ETH→USDC swap on Aerodrome, Stage ETH→USDC swap on Aerodrome
+report full json: ../output/eval/model-bench-public-skills-minimax-m25-kiro-20260531/specs/swap_base_eth_for_usdc_aerodrome/minimax-m2.5/pass-002/20260531T085133.822450000Z.full.json
+report compact json: ../output/eval/model-bench-public-skills-minimax-m25-kiro-20260531/specs/swap_base_eth_for_usdc_aerodrome/minimax-m2.5/pass-002/20260531T085133.822450000Z.compact.json

@@ -1,0 +1,3 @@
+[eval] PASS deposit_usdc_yvusdc_yearn 2 turn(s) 9 tool call(s) 6.52566 cr, 69386 in / 2071 out tok, 64432 cached / 0 reasoning tok 0 warning(s) duration 63s
+report full json: ../output/eval/model-bench-public-skills-gpt55-opus48-sonnet46-20260530/specs/deposit_usdc_yvusdc_yearn/claude-sonnet-4.6/pass-002/20260530T233548.662825000Z.full.json
+report compact json: ../output/eval/model-bench-public-skills-gpt55-opus48-sonnet46-20260530/specs/deposit_usdc_yvusdc_yearn/claude-sonnet-4.6/pass-002/20260530T233548.662825000Z.compact.json

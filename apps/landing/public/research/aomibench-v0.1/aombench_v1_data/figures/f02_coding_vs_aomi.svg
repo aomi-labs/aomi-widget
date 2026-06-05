@@ -1,0 +1,120 @@
+<svg viewBox="0 0 1290 1130" xmlns="http://www.w3.org/2000/svg" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" role="img" aria-label="Coding harness vs Aomi harness, same loop, five divergences">
+<defs>
+<marker id="arw" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#6b7280"/></marker>
+<style>
+text{font-family:ui-monospace, SFMono-Regular, Menlo, monospace;}
+.t{font-size:19px;font-weight:700;fill:#1f2937;text-anchor:middle;letter-spacing:2px;}
+.sub{font-size:12px;fill:#6b7280;text-anchor:middle;letter-spacing:1px;}
+.lbl{font-size:13.5px;font-weight:700;fill:#6b7280;letter-spacing:1.5px;}
+.txt{font-size:14px;fill:#1f2937;}
+.dim{font-size:13px;fill:#6b7280;}
+.dv{font-size:12.5px;fill:#B0710F;}
+.bn{font-size:12px;font-weight:700;fill:#3a2a08;text-anchor:middle;}
+.foot{font-size:15px;font-weight:600;fill:#1f2937;text-anchor:middle;}
+.leg{font-size:12px;fill:#6b7280;text-anchor:middle;}
+.box{fill:none;stroke:#d1d5db;stroke-width:1.2;}
+.rule{stroke:#d1d5db;stroke-width:1.2;}
+.arw{stroke:#6b7280;stroke-width:1.4;}
+.divl{stroke:#e5e7eb;stroke-width:1;stroke-dasharray:2 6;}
+</style>
+</defs>
+<text class="t" x="250" y="42">CODING HARNESS</text>
+<text class="t" x="808" y="42">AOMI HARNESS</text>
+<line class="rule" x1="40" y1="58" x2="1250" y2="58"/>
+<line class="rule" x1="40" y1="63" x2="1250" y2="63"/>
+<text class="sub" x="250" y="84">the loop you already know</text>
+<text class="sub" x="808" y="84">the same loop — on-chain</text>
+<line class="divl" x1="529" y1="74" x2="529" y2="1046"/>
+<text class="lbl" x="110" y="120">USER INTENT</text>
+<text class="lbl" x="668" y="120">USER INTENT</text>
+<text class="txt" x="110" y="142">"add auth" · "fix the bug"</text>
+<text class="txt" x="668" y="142">"swap 10 ETH for USDC"</text>
+<text class="txt" x="668" y="162">"send to Bob"</text>
+<line class="arw" x1="250" y1="178" x2="250" y2="200" marker-end="url(#arw)"/>
+<line class="arw" x1="808" y1="178" x2="808" y2="200" marker-end="url(#arw)"/>
+<rect class="box" x="90" y="210" width="320" height="104" rx="8"/>
+<rect class="box" x="648" y="210" width="320" height="104" rx="8"/>
+<text class="lbl" x="110" y="238">STATE / WORLD</text>
+<text class="lbl" x="668" y="238">STATE / WORLD</text>
+<text class="txt" x="110" y="264">codebase + OS</text>
+<text class="txt" x="668" y="264">chain @ pinned block</text>
+<text class="dim" x="110" y="288">files · procs · env</text>
+<text class="dim" x="668" y="288">wallet · balances · storage</text>
+<line class="arw" x1="250" y1="322" x2="250" y2="346" marker-end="url(#arw)"/>
+<line class="arw" x1="808" y1="322" x2="808" y2="346" marker-end="url(#arw)"/>
+<text class="lbl" x="110" y="370">READ</text>
+<text class="lbl" x="668" y="370">READ</text>
+<text class="txt" x="110" y="394">cat · grep · ls · read_file</text>
+<text class="txt" x="668" y="394">get_account_info · get_contract</text>
+<text class="dim" x="668" y="414">get_time_and_onchain_context</text>
+<line class="arw" x1="250" y1="428" x2="250" y2="452" marker-end="url(#arw)"/>
+<line class="arw" x1="808" y1="428" x2="808" y2="452" marker-end="url(#arw)"/>
+<text class="lbl" x="110" y="478">PLAN / EDIT</text>
+<text class="lbl" x="668" y="478">STAGE</text>
+<text class="txt" x="110" y="502">edit_file</text>
+<text class="dim" x="202" y="502">(open-ended)</text>
+<text class="txt" x="668" y="502">stage_tx</text>
+<text class="dim" x="668" y="522">from a registered, namespaced catalog</text>
+<circle cx="1000" cy="492" r="11" fill="#EF9F27"/>
+<text class="bn" x="1000" y="496">1</text>
+<text class="dv" x="1022" y="488">typed, gated tool surface —</text>
+<text class="dv" x="1022" y="506">not free-form</text>
+<line class="arw" x1="250" y1="538" x2="250" y2="562" marker-end="url(#arw)"/>
+<line class="arw" x1="808" y1="538" x2="808" y2="562" marker-end="url(#arw)"/>
+<text class="lbl" x="110" y="588">VERIFY-BEFORE</text>
+<text class="lbl" x="668" y="588">SIMULATE</text>
+<text class="txt" x="110" y="612">run tests / build</text>
+<text class="dim" x="110" y="632">(cheap · repeatable)</text>
+<text class="txt" x="668" y="612">simulate_batch</text>
+<text class="dim" x="668" y="632">(dry-run on a fork)</text>
+<circle cx="1000" cy="602" r="11" fill="#EF9F27"/>
+<text class="bn" x="1000" y="606">2</text>
+<text class="dv" x="1022" y="598">dry-run is the only</text>
+<text class="dv" x="1022" y="616">safe rehearsal</text>
+<line class="arw" x1="250" y1="648" x2="250" y2="672" marker-end="url(#arw)"/>
+<line class="arw" x1="808" y1="648" x2="808" y2="672" marker-end="url(#arw)"/>
+<text class="lbl" x="110" y="698">COMMIT</text>
+<text class="lbl" x="668" y="698">COMMIT</text>
+<text class="txt" x="110" y="722">write to disk</text>
+<text class="txt" x="110" y="744" fill="#B0710F">HARNESS HAS AUTHORITY</text>
+<text class="dim" x="110" y="764">(direct · reversible)</text>
+<text class="txt" x="668" y="722">commit_txs</text>
+<text class="dim" x="668" y="744">→ wallet_tx_request</text>
+<text class="dim" x="668" y="764">→ wallet signs</text>
+<circle cx="1000" cy="730" r="11" fill="#EF9F27"/>
+<text class="bn" x="1000" y="734">3</text>
+<text class="dv" x="1022" y="718">harness has NO write</text>
+<text class="dv" x="1022" y="736">authority: wallet/user</text>
+<text class="dv" x="1022" y="754">gates it (≈ "open PRs")</text>
+<text class="dim" x="110" y="796">↶ undo / git revert</text>
+<text class="dim" x="110" y="816">(reversible)</text>
+<text class="txt" x="668" y="796" fill="#B0710F">✕ NO undo</text>
+<text class="dim" x="668" y="816">→ on-chain · FINAL</text>
+<circle cx="1000" cy="804" r="11" fill="#EF9F27"/>
+<text class="bn" x="1000" y="808">4</text>
+<text class="dv" x="1022" y="808">irreversible · real $$</text>
+<line class="arw" x1="250" y1="830" x2="250" y2="854" marker-end="url(#arw)"/>
+<line class="arw" x1="808" y1="830" x2="808" y2="854" marker-end="url(#arw)"/>
+<rect class="box" x="90" y="862" width="320" height="92" rx="8"/>
+<rect class="box" x="648" y="862" width="320" height="92" rx="8"/>
+<text class="lbl" x="110" y="890">VERIFY RESULT</text>
+<text class="lbl" x="668" y="890">VERIFY RESULT</text>
+<text class="txt" x="110" y="916">tests pass?</text>
+<text class="dim" x="110" y="938">OS output ok?</text>
+<text class="txt" x="668" y="916">balance Δ == expected?</text>
+<text class="dim" x="668" y="938">event emitted?</text>
+<line class="arw" x1="250" y1="962" x2="250" y2="986" marker-end="url(#arw)"/>
+<line class="arw" x1="808" y1="962" x2="808" y2="986" marker-end="url(#arw)"/>
+<text class="txt" x="110" y="1010">private · deterministic</text>
+<text class="dim" x="110" y="1030">world</text>
+<text class="txt" x="668" y="1010">shared · adversarial</text>
+<text class="dim" x="668" y="1030">slippage · MEV · gas · reverts</text>
+<circle cx="1000" cy="1016" r="11" fill="#EF9F27"/>
+<text class="bn" x="1000" y="1020">5</text>
+<text class="dv" x="1022" y="1012">stochastic world —</text>
+<text class="dv" x="1022" y="1030">a fork makes it replayable</text>
+<line class="rule" x1="40" y1="1058" x2="1250" y2="1058"/>
+<line class="rule" x1="40" y1="1063" x2="1250" y2="1063"/>
+<text class="foot" x="645" y="1090">SAME LOOP — typed action over a mutable world, judged by the world's end-state</text>
+<text class="leg" x="645" y="1114">①–⑤  where the AOMI harness diverges from a coding harness</text>
+</svg>

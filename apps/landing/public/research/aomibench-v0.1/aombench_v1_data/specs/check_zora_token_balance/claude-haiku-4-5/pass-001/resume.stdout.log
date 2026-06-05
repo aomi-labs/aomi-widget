@@ -1,0 +1,5 @@
+[eval] PASS check_zora_token_balance 1 turn(s) 4 tool call(s) 1.17451 cr, 31599 in / 1019 out tok, 27721 cached / 0 reasoning tok 1 warning(s) duration 21s
+warnings:
+  no_tool_errors tool error envelope(s) observed for: Find ZORA token contract on Base
+report full json: ../output/eval/model-bench-public-skills-opus47-opus46-haiku45-20260531/specs/check_zora_token_balance/claude-haiku-4.5/pass-001/20260531T110245.825299000Z.full.json
+report compact json: ../output/eval/model-bench-public-skills-opus47-opus46-haiku45-20260531/specs/check_zora_token_balance/claude-haiku-4.5/pass-001/20260531T110245.825299000Z.compact.json

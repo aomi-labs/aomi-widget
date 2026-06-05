@@ -1,0 +1,3 @@
+[eval] PASS bridge_eth_to_zksync_native_review_first 1 turn(s) 8 tool call(s) 7.6667 cr, 69009 in / 944 out tok, 64884 cached / 0 reasoning tok 0 warning(s) duration 58s
+report full json: ../output/eval/model-bench-public-skills-opus47-opus46-haiku45-20260531/specs/bridge_eth_to_zksync_native_review_first/claude-opus-4.7/pass-001/20260531T122707.075797000Z.full.json
+report compact json: ../output/eval/model-bench-public-skills-opus47-opus46-haiku45-20260531/specs/bridge_eth_to_zksync_native_review_first/claude-opus-4.7/pass-001/20260531T122707.075797000Z.compact.json

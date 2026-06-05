@@ -1,0 +1,53 @@
+[
+  {
+    "id": "optimism_native",
+    "name": "optimism_native",
+    "description": "Use when users want to bridge ETH or ERC20s between Ethereum L1 and Optimism (OP Mainnet) via the canonical OP Stack native bridge. Fully onchain: security is enforced by the rollup's fault-proof system — no relayers, bonders, or attesters.",
+    "tags": [
+      "bridge",
+      "optimism",
+      "op-stack",
+      "rollup",
+      "l1",
+      "l2",
+      "canonical"
+    ],
+    "tool_names": [
+      "get_time_and_onchain_context",
+      "brave_search",
+      "encode_and_call",
+      "get_account_info",
+      "get_contract",
+      "sync_chain",
+      "simulate_batch",
+      "stage_tx",
+      "commit_eip712",
+      "commit_txs"
+    ],
+    "injected_tools": [],
+    "source": "aomi_builtin",
+    "est_tokens": 837,
+    "activation_tokens": 844,
+    "instruction_md": "## Optimism Native Bridge: Scope\n\nCanonical L1↔L2 bridge between Ethereum (chain 1) and Optimism / OP Mainnet (chain 10) via the OP Stack `L1StandardBridge`. Fully onchain — security comes from the rollup's fault-proof system. No external relayers, bonders, or attesters.\n\nFor fast non-canonical bridging (seconds) to Optimism, use the `bridge` skill (Across / CCTP) instead.\n\n## Optimism Native Bridge: Router Addresses\n- Optimism L1StandardBridge: 0x99c9fc46f92e8a1c0dec1b1747d010903e884be1 (chain 1)\n- Optimism Portal (withdrawal finalization): 0xbeb5fc579115071764c7423a4f12edde41f106ed (chain 1)\n\n## Optimism Native Bridge: optimism_native\n- deposit_function: depositERC20To(address,address,address,uint256,uint32,bytes)\n- deposit_args:\n  - source_token\n  - destination_token\n  - recipient\n  - amount\n  - l2_gas\n  - data\n- preferred_deposit_function: depositETHTo(address,uint32,bytes)\n- preferred_deposit_args:\n  - recipient\n  - l2_gas\n  - data\n- value_formula: amount_for_eth_or_zero_for_erc20\n- settlement: deposit ~1-3 min, withdrawal ~7 days + onchain prove/finalize\n- deposit_contracts: {\"1\": \"0x99c9fc46f92e8a1c0dec1b1747d010903e884be1\"}\n- approve_to: {\"1\": \"0x99c9fc46f92e8a1c0dec1b1747d010903e884be1\"}\n- defaults:\n  - data: 0x\n  - l2_gas: 200000\n  - note: 200000 l2_gas is safe for standard ERC20; ETH uses the same\n- claim_function: finalizeWithdrawalTransaction((uint256,address,address,uint256,uint256,bytes))\n- claim_wait: ~7 days (fault proof challenge period)\n\n\n## Optimism Native Bridge: Parameter Rules\n\n- **recipient** (`_to`): MUST equal user's wallet. NEVER `address(0)` — tokens on L2 will be unrecoverable.\n- **source_token / destination_token** (ERC20): L1 address + canonical L2 address. Wrong L2 address = tokens stuck at an unclaimable mapping.\n- **l2_gas**: uint32. Use 200_000 for standard ERC20s. Must cover destination-side finalization.\n- **data**: usually `0x`. Non-empty data invokes L2 code; advanced flows only.\n- For ETH deposits, `depositETHTo` takes `msg.value = amount`; `amount` is not a calldata arg.\n\n## Optimism Native Bridge: Procedure\n\n1. Call `get_time_and_onchain_context`. Deposits start on chain_id 1.\n2. Pick the function by token direction:\n   - ETH: `depositETHTo(recipient, l2_gas, data)` with `msg.value = amount`.\n   - ERC20: `depositERC20To(l1Token, l2Token, recipient, amount, l2_gas, data)`.\n3. For ERC20: check allowance via `encode_and_call`; if short, simulate `approve(L1StandardBridge, amount)` first.\n4. Simulate the deposit with `encode_and_call`.\n5. Inspect `optimism_native_guard_*`. If blocked, stop and report.\n6. After explicit user confirmation, send via `commit_txs`.\n7. For L2→L1: explain the ~7-day challenge window and that the user must later call `finalizeWithdrawalTransaction` on the OptimismPortal with proof data from the rollup RPC.\n\n## Optimism Native Bridge: Critical Rules\n\n- Always simulate before sending. If `optimism_native_guard_blocked` is true, STOP.\n- Deposit target MUST be `0x99c9fc46f92e8a1c0dec1b1747d010903e884be1` (L1StandardBridge).\n- Approve spender MUST be the L1StandardBridge — never another address.\n- L2→L1 withdrawals require a prior L2-side `withdraw` plus a ~7-day wait; this skill only builds the L1 `proveWithdrawalTransaction` / `finalizeWithdrawalTransaction` calls. Proof data comes from a rollup node RPC — do not fabricate it.",
+    "tool_hooks": [
+      {
+        "tool": "simulate_batch",
+        "pre_call": [],
+        "post_call": [
+          "optimism-native-known-addrs"
+        ]
+      },
+      {
+        "tool": "stage_tx",
+        "pre_call": [],
+        "post_call": [
+          "optimism-native-known-addrs"
+        ]
+      }
+    ],
+    "tools_namespace": "evm-core",
+    "chain_ids": [
+      1
+    ]
+  }
+]

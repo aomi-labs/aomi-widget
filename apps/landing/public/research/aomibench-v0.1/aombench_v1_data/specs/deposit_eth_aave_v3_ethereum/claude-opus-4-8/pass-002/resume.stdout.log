@@ -1,0 +1,3 @@
+[eval] PASS deposit_eth_aave_v3_ethereum 1 turn(s) 7 tool call(s) 4.88875 cr, 55709 in / 558 out tok, 54135 cached / 0 reasoning tok 0 warning(s) duration 49s
+report full json: ../output/eval/model-bench-public-skills-gpt55-opus48-sonnet46-20260530/specs/deposit_eth_aave_v3_ethereum/claude-opus-4.8/pass-002/20260530T224324.504270000Z.full.json
+report compact json: ../output/eval/model-bench-public-skills-gpt55-opus48-sonnet46-20260530/specs/deposit_eth_aave_v3_ethereum/claude-opus-4.8/pass-002/20260530T224324.504270000Z.compact.json

@@ -1,0 +1,5 @@
+[eval] PASS stake_eth_lido 1 turn(s) 8 tool call(s) 7.39445 cr, 64704 in / 590 out tok, 58739 cached / 0 reasoning tok 1 warning(s) duration 38s
+warnings:
+  no_tool_errors tool error envelope(s) observed for: stage Lido stake 0.1 ETH
+report full json: ../output/eval/model-bench-public-skills-opus47-opus46-haiku45-20260531/specs/stake_eth_lido/claude-opus-4.7/pass-001/20260531T115232.458974000Z.full.json
+report compact json: ../output/eval/model-bench-public-skills-opus47-opus46-haiku45-20260531/specs/stake_eth_lido/claude-opus-4.7/pass-001/20260531T115232.458974000Z.compact.json

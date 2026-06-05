@@ -1,0 +1,3 @@
+[eval] PASS oneinch_requires_api_calldata 1 turn(s) 6 tool call(s) 0.900955 cr, 55249 in / 628 out tok 0 warning(s) duration 30s
+report full json: ../output/eval/model-bench-public-skills-minimax-m25-kiro-20260531/specs/oneinch_requires_api_calldata/minimax-m2.5/pass-002/20260531T092406.725421000Z.full.json
+report compact json: ../output/eval/model-bench-public-skills-minimax-m25-kiro-20260531/specs/oneinch_requires_api_calldata/minimax-m2.5/pass-002/20260531T092406.725421000Z.compact.json

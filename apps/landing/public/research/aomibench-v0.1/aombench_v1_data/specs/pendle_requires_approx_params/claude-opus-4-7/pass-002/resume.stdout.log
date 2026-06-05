@@ -1,0 +1,3 @@
+[eval] PASS pendle_requires_approx_params 1 turn(s) 1 tool call(s) 1.1041 cr, 13986 in / 145 out tok, 13892 cached / 0 reasoning tok 0 warning(s) duration 11s
+report full json: ../output/eval/model-bench-public-skills-opus47-opus46-haiku45-20260531/specs/pendle_requires_approx_params/claude-opus-4.7/pass-002/20260531T123517.523341000Z.full.json
+report compact json: ../output/eval/model-bench-public-skills-opus47-opus46-haiku45-20260531/specs/pendle_requires_approx_params/claude-opus-4.7/pass-002/20260531T123517.523341000Z.compact.json

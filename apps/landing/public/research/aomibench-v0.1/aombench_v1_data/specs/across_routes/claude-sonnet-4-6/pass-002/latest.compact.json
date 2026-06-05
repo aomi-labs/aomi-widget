@@ -1,0 +1,128 @@
+{
+  "run_id": "20260531T214539.621615000Z",
+  "mode": "spec",
+  "started_at": "2026-05-31T21:45:22.356005+00:00",
+  "finished_at": "2026-05-31T21:45:39.621446+00:00",
+  "spec_path": "bin/eval/specs/apps/across_routes.json",
+  "passed": true,
+  "git_commit": "5b02660942391bc7ae86c5cbb05e33f4c549266f",
+  "git_dirty": true,
+  "story": {
+    "run_id": "20260531T214539.621615000Z",
+    "story_id": "across_routes",
+    "user_story": "List Across bridge routes from Base to Arbitrum.",
+    "passed": true,
+    "warnings": [],
+    "model": "claude-sonnet-4-6",
+    "chain_id": 1,
+    "git_commit": "5b02660942391bc7ae86c5cbb05e33f4c549266f",
+    "git_dirty": true,
+    "total_turns": 1,
+    "total_tool_calls": 1,
+    "total_responses": 3,
+    "activated_skills": [],
+    "failed_assertions": [],
+    "budget_summary": {
+      "total": 1,
+      "exceeded": 0,
+      "required_failures": 0,
+      "warning_failures": 0
+    },
+    "usage": {
+      "input_tokens": 11874,
+      "output_tokens": 773,
+      "total_tokens": 12647,
+      "cached_input_tokens": 11292,
+      "cache_creation_input_tokens": 0,
+      "visible_output_tokens": 773,
+      "reasoning_output_tokens": 0,
+      "tool_call_count": 1,
+      "actual_events": 1,
+      "diagnostic_events": 0,
+      "aomi_cost_credits": 1.67286,
+      "user_charged_credits": 1.67286,
+      "credits": 1.67286
+    },
+    "transcript_previews": [
+      {
+        "sender": "user",
+        "content": "What Across routes are available from Base to Arbitrum for USDC?",
+        "tool": null,
+        "tool_topic": null,
+        "tool_result_preview": null
+      },
+      {
+        "sender": "assistant",
+        "content": "\nThe user wants to know what Across routes are available from Base (chain ID 8453) to Arbitrum (chain ID 42161) for USDC. I should call `across_list_routes` with the appropriate filters. I need to find the USDC address on Base first, or I can just filter by origin_chain_id and destination_chain_id and look for USDC in the results.\n\nActually, I can filter by origin_chain_id=8453 and destination_cha...token address if I don't know it off the top of my head - the results will show all routes between those chains and I can identify USDC ones.\n\nActually, I know USDC on Base is 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913 (native USDC). Let me just query with the chain IDs and filter for USDC in the results.\n\nLet me call across_list_routes with origin_chain_id=8453 and destination_chain_id=42161.\n",
+        "tool": null,
+        "tool_topic": null,
+        "tool_result_preview": null
+      },
+      {
+        "sender": "assistant",
+        "content": "",
+        "tool": "across_list_routes",
+        "tool_topic": "across_list_routes",
+        "tool_result_preview": "{\n  \"data\": [\n    {\n      \"destinationChainId\": 42161,\n      \"destinationToken\": \"0xaf88d065e77c8cC2239327C5EDb3A432268e5831\",\n      \"destinationTokenSymbol\": \"USDC\",\n      \"isNative\": false,\n      \"originChainId\": 8453,\n      \"originToken\": \"0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913\",\n      \"originTokenSymbol\": \"USDC\"\n    },\n    {\n      \"destinationChainId\": 42161,\n      \"destinationToken\": \"0xF...4049A917DB0Cb\",\n      \"originTokenSymbol\": \"DAI\"\n    },\n    {\n      \"destinationChainId\": 42161,\n      \"destinationToken\": \"0xaf88d065e77c8cC2239327C5EDb3A432268e5831\",\n      \"destinationTokenSymbol\": \"USDC\",\n      \"isNative\": false,\n      \"originChainId\": 8453,\n      \"originToken\": \"0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913\",\n      \"originTokenSymbol\": \"USDC\"\n    }\n  ],\n  \"source\": \"across\"\n}"
+      },
+      {
+        "sender": "assistant",
+        "content": "\nThe user asked about Across routes from Base to Arbitrum for USDC. I have the results. Let me filter and present only the USDC-related routes clearly.\n\nFrom the results, the USDC routes from Base (8453) to Arbitrum (42161) are:\n\n1. USDC → USDC (native USDC)\n   - Origin: 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913 (USDC on Base)\n   - Destination: 0xaf88d065e77c8cC2239327C5EDb3A432268e5831 (USDC on ... | **USDC** `0xaf88...5831` | Native USDC on both ends — recommended |\n| 2 | USDC `0x8335...2913` | **USDC.e** `0xFF97...CC8` | Arrives as bridged/legacy USDC.e |\n\nRoute 1 (USDC → USDC) is the better choice for most cases since you end up with native USDC on Arbitrum, which has broader DeFi support than USDC.e.\n\nWant me to pull a fee quote or go ahead and bridge? If so, just tell me the amount.",
+        "tool": null,
+        "tool_topic": null,
+        "tool_result_preview": null
+      }
+    ],
+    "tool_previews": [
+      {
+        "turn": 0,
+        "tool": "across_list_routes",
+        "topic": "across_list_routes",
+        "arguments": {
+          "origin_chain_id": 8453,
+          "destination_chain_id": 42161,
+          "origin_token": null,
+          "destination_token": null
+        },
+        "result_preview": "{\n  \"data\": [\n    {\n      \"destinationChainId\": 42161,\n      \"destinationToken\": \"0xaf88d065e77c8cC2239327C5EDb3A432268e5831\",\n      \"destinationTokenSymbol\": \"USDC\",\n      \"isNative\": false,\n      \"originChainId\": 8453,\n      \"originToken\": \"0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913\",\n      \"originTokenSymbol\": \"USDC\"\n    },\n    {\n      \"destinationChainId\": 42161,\n      \"destinationToken\": \"0xF...4049A917DB0Cb\",\n      \"originTokenSymbol\": \"DAI\"\n    },\n    {\n      \"destinationChainId\": 42161,\n      \"destinationToken\": \"0xaf88d065e77c8cC2239327C5EDb3A432268e5831\",\n      \"destinationTokenSymbol\": \"USDC\",\n      \"isNative\": false,\n      \"originChainId\": 8453,\n      \"originToken\": \"0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913\",\n      \"originTokenSymbol\": \"USDC\"\n    }\n  ],\n  \"source\": \"across\"\n}"
+      }
+    ],
+    "failure_category": null,
+    "app": {
+      "source": "path",
+      "path": "bin/eval/specs/apps/../../../../plugins/across.dylib",
+      "loaded_name": "across"
+    },
+    "skills": {
+      "mode": "disabled",
+      "allowed": [],
+      "activated_skills": [],
+      "bundle_path": null,
+      "bundle_revision": null
+    },
+    "environment": {
+      "chain_id": 1,
+      "network": "ethereum",
+      "providers_path": "/Users/aronmegyeri/.aomi/test-env/providers.toml",
+      "endpoint_name": "sim-ethereum",
+      "funding_ledger": [
+        {
+          "chain_id": 1,
+          "address": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+          "balances": {
+            "ETH": "100",
+            "USDC": "10000"
+          }
+        },
+        {
+          "chain_id": 1,
+          "address": "0x70997970c51812dc3a010c7d01b50e0d17dc79c8",
+          "balances": {
+            "ETH": "100",
+            "USDC": "10000"
+          }
+        }
+      ]
+    }
+  }
+}

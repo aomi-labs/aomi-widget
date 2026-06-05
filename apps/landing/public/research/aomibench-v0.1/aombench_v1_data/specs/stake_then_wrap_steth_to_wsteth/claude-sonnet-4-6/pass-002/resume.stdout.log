@@ -1,0 +1,3 @@
+[eval] PASS stake_then_wrap_steth_to_wsteth 1 turn(s) 10 tool call(s) 5.88231 cr, 71274 in / 2016 out tok, 68607 cached / 0 reasoning tok 0 warning(s) duration 62s
+report full json: ../output/eval/model-bench-public-skills-expansion-20260531/specs/stake_then_wrap_steth_to_wsteth/claude-sonnet-4.6/pass-002/20260531T204721.790554000Z.full.json
+report compact json: ../output/eval/model-bench-public-skills-expansion-20260531/specs/stake_then_wrap_steth_to_wsteth/claude-sonnet-4.6/pass-002/20260531T204721.790554000Z.compact.json

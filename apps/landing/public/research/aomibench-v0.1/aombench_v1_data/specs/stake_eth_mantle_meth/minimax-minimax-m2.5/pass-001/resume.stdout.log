@@ -1,0 +1,5 @@
+[eval] PASS stake_eth_mantle_meth 1 turn(s) 14 tool call(s) 3.57875 cr, 237027 in / 203 out tok 1 warning(s) duration 72s
+warnings:
+  no_tool_errors tool error envelope(s) observed for: Get minimum stake amount, Get implementation contract ABI, Calculate mETH output for 0.1 ETH, Get minimum stake amount
+report full json: ../output/eval/model-bench-public-skills-minimax-m25-kiro-20260531/specs/stake_eth_mantle_meth/minimax-m2.5/pass-001/20260531T091025.097755000Z.full.json
+report compact json: ../output/eval/model-bench-public-skills-minimax-m25-kiro-20260531/specs/stake_eth_mantle_meth/minimax-m2.5/pass-001/20260531T091025.097755000Z.compact.json

@@ -1,0 +1,10 @@
+[eval] FAIL supply_eth_then_borrow_usdc_aave_v3 1 turn(s) 13 tool call(s) 3.34812 cr, 222058 in / 150 out tok 1 warning(s) duration 286s
+errors:
+  Alice deposits about 1 ETH to Aave V3 Alice deposits about 1 ETH to Aave V3 (before: 100 ETH, after: 99.999961290621104304 ETH, delta: -0.000038709378895696 ETH, expected: -1 ETH ± 0.1 ETH)
+  Alice borrows about 100 USDC from Aave V3 Alice borrows about 100 USDC from Aave V3 (before: 10000 USDC, after: 10000 USDC, delta: +0 USDC, expected: +100 USDC ± 5 USDC)
+  Aave aWETH minted for collateral deposit Aave aWETH minted for collateral deposit observed 0 log(s), expected at least 1 from block 25217447 through 25217448
+  USDC Transfer from Aave borrow USDC Transfer from Aave borrow observed 0 log(s), expected at least 1 from block 25217447 through 25217448
+warnings:
+  no_tool_errors tool error envelope(s) observed for: Stage ETH deposit to Aave, Stage USDC borrow from Aave
+report full json: ../output/eval/model-bench-public-skills-expansion-20260531/specs/supply_eth_then_borrow_usdc_aave_v3/minimax-m2.5/pass-002/20260531T193329.254599000Z.full.json
+report compact json: ../output/eval/model-bench-public-skills-expansion-20260531/specs/supply_eth_then_borrow_usdc_aave_v3/minimax-m2.5/pass-002/20260531T193329.254599000Z.compact.json
