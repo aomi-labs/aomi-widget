@@ -1,0 +1,8 @@
+[eval] FAIL transfer_eth_to_charlie 1 turn(s) 4 tool call(s) 0.99948 cr, 26617 in / 1285 out tok, 25608 cached / 0 reasoning tok 0 warning(s) duration 20s
+errors:
+  tool sequence broke before expected tool 'commit_txs'
+  wallet_event_observed no matching wallet_event_observed; observed 0 value(s)
+  callback_observed no matching callback_observed; observed 0 value(s)
+  charlie ETH delta 10 charlie ETH delta 10 (before: 0.001 ETH, after: 0.001 ETH, delta: +0 ETH, expected: +10 ETH ± 0.5 ETH)
+report full json: ../output/eval/model-bench-public-skills-expansion-20260531/specs/transfer_eth_to_charlie/claude-haiku-4.5/pass-001/20260531T184422.353375000Z.full.json
+report compact json: ../output/eval/model-bench-public-skills-expansion-20260531/specs/transfer_eth_to_charlie/claude-haiku-4.5/pass-001/20260531T184422.353375000Z.compact.json

@@ -1,0 +1,328 @@
+{
+  "run_id": "20260531T120858.751703000Z",
+  "mode": "spec",
+  "started_at": "2026-05-31T12:08:17.309417+00:00",
+  "finished_at": "2026-05-31T12:08:58.751562+00:00",
+  "spec_path": "bin/eval/specs/rocket_pool/stake_eth_rocket_pool.json",
+  "passed": true,
+  "git_commit": "5b02660942391bc7ae86c5cbb05e33f4c549266f",
+  "git_dirty": true,
+  "story": {
+    "run_id": "20260531T120858.751703000Z",
+    "story_id": "stake_eth_rocket_pool",
+    "user_story": "Stake 0.1 ETH from Alice with Rocket Pool on Ethereum.",
+    "passed": true,
+    "warnings": [],
+    "model": "claude-opus-4-6",
+    "chain_id": 1,
+    "git_commit": "5b02660942391bc7ae86c5cbb05e33f4c549266f",
+    "git_dirty": true,
+    "total_turns": 1,
+    "total_tool_calls": 9,
+    "total_responses": 15,
+    "activated_skills": [
+      "rocket_pool"
+    ],
+    "failed_assertions": [],
+    "budget_summary": {
+      "total": 1,
+      "exceeded": 0,
+      "required_failures": 0,
+      "warning_failures": 0
+    },
+    "usage": {
+      "input_tokens": 49394,
+      "output_tokens": 792,
+      "total_tokens": 50186,
+      "cached_input_tokens": 47579,
+      "cache_creation_input_tokens": 0,
+      "visible_output_tokens": 792,
+      "reasoning_output_tokens": 0,
+      "tool_call_count": 9,
+      "actual_events": 1,
+      "diagnostic_events": 0,
+      "aomi_cost_credits": 5.266450000000001,
+      "user_charged_credits": 5.266450000000001,
+      "credits": 5.266450000000001
+    },
+    "transcript_previews": [
+      {
+        "sender": "user",
+        "content": "Stake 0.1 ETH from Alice with Rocket Pool on Ethereum.",
+        "tool": null,
+        "tool_topic": null,
+        "tool_result_preview": null
+      },
+      {
+        "sender": "assistant",
+        "content": "\nThe user wants to stake 0.1 ETH with Rocket Pool on Ethereum. Let me activate the rocket_pool skill and get the on-chain context.\n\nThe user wants to stake 0.1 ETH with Rocket Pool on Ethereum. Let me activate the rocket_pool skill and get the on-chain context.\n",
+        "tool": null,
+        "tool_topic": null,
+        "tool_result_preview": null
+      },
+      {
+        "sender": "assistant",
+        "content": "",
+        "tool": "activate_skills",
+        "tool_topic": "activate_skills",
+        "tool_result_preview": "{\n  \"activated\": [\n    \"rocket_pool\"\n  ],\n  \"rejected\": [],\n  \"applied_scope\": \"current_serve_cycle\"\n}"
+      },
+      {
+        "sender": "assistant",
+        "content": "",
+        "tool": "get_time_and_onchain_context",
+        "tool_topic": "Get current Ethereum context for Rocket Pool staking",
+        "tool_result_preview": "{\n  \"chain_name\": \"sim-ethereum\",\n  \"chain_id\": 1,\n  \"rpc_endpoint\": \"http://127.0.0.1:50135\",\n  \"current_time_unix\": 1780229301,\n  \"current_time_iso\": \"2026-05-31T12:08:21.647621+00:00\",\n  \"block_number\": 25215252,\n  \"gas_price_wei\": \"1099076785\",\n  \"supported_chains\": [\n    {\n      \"name\": \"sim-ethereum\",\n      \"chain_id\": 1\n    },\n    {\n      \"name\": \"sim-ethereum\",\n      \"chain_id\": 1\n    }\n  ]\n}"
+      },
+      {
+        "sender": "assistant",
+        "content": "\nGood, I have the context. Now I need to:\n1. Check Alice's ETH balance\n2. Check the deposit pool capacity (getBalance() and getMaximumDepositAmount())\n3. Check the exchange rate (getExchangeRate())\n4. Stage the deposit transaction\n5. Simulate\n6. Commit\n\nLet me do steps 1-3 in parallel.\n\nGood, I have the context. Now I need to:\n1. Check Alice's ETH balance\n2. Check the deposit pool capacity (getBalance() and getMaximumDepositAmount())\n3. Check the exchange rate (getExchangeRate())\n4. Stage the deposit transaction\n5. Simulate\n6. Commit\n\nLet me do steps 1-3 in parallel.\n",
+        "tool": null,
+        "tool_topic": null,
+        "tool_result_preview": null
+      },
+      {
+        "sender": "assistant",
+        "content": "",
+        "tool": "get_account_info",
+        "tool_topic": "Check Alice ETH balance",
+        "tool_result_preview": "{\n  \"address\": \"0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266\",\n  \"balance_wei\": \"10000000000000000000000\",\n  \"balance_eth\": \"10000\",\n  \"nonce\": 6436\n}"
+      },
+      {
+        "sender": "assistant",
+        "content": "",
+        "tool": "encode_and_call",
+        "tool_topic": "Check Rocket Pool deposit pool balance",
+        "tool_result_preview": "{\n  \"success\": true,\n  \"result\": \"0x00000000000000000000000000000000000000000000000033e418ad222cf8e3\",\n  \"revert_reason\": null,\n  \"tx\": {\n    \"from\": \"0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266\",\n    \"to\": \"0xCE15294273CFb9D9b628F4D61636623decDF4fdC\",\n    \"value_wei\": \"0\",\n    \"value_eth\": \"0\",\n    \"input\": \"0x12065fe0\",\n    \"chain_id\": 1\n  },\n  \"result_decoded\": {\n    \"kind\": \"single_abi_word\",\n    \"raw_hex\": \"0x00000000000000000000000000000000000000000000000033e418ad222cf8e3\",\n    \"decoded\": {\n      \"type\": \"uint256\",\n      \"decoded\": \"3739140722506135779\",\n      \"as_bool\": null,\n      \"as_address\": \"0x00000000000000000000000033e418ad222cf8e3\"\n    }\n  }\n}"
+      },
+      {
+        "sender": "assistant",
+        "content": "",
+        "tool": "encode_and_call",
+        "tool_topic": "Check Rocket Pool max deposit amount",
+        "tool_result_preview": "{\n  \"success\": true,\n  \"result\": \"0x000000000000000000000000000000000000000000050371a0b8e40eaf53071d\",\n  \"revert_reason\": null,\n  \"tx\": {\n    \"from\": \"0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266\",\n    \"to\": \"0xCE15294273CFb9D9b628F4D61636623decDF4fdC\",\n    \"value_wei\": \"0\",\n    \"value_eth\": \"0\",\n    \"input\": \"0x1eddb626\",\n    \"chain_id\": 1\n  },\n  \"result_decoded\": {\n    \"kind\": \"single_abi_word\",\n    \"raw_hex\": \"0x000000000000000000000000000000000000000000050371a0b8e40eaf53071d\",\n    \"decoded\": {\n      \"type\": \"uint256\",\n      \"decoded\": \"6060892260859277493864221\",\n      \"as_bool\": null,\n      \"as_address\": \"0x000000000000000000050371a0b8e40eaf53071d\"\n    }\n  }\n}"
+      },
+      {
+        "sender": "assistant",
+        "content": "",
+        "tool": "encode_and_call",
+        "tool_topic": "Check rETH exchange rate",
+        "tool_result_preview": "{\n  \"success\": true,\n  \"result\": \"0x00000000000000000000000000000000000000000000000010291475e0d36292\",\n  \"revert_reason\": null,\n  \"tx\": {\n    \"from\": \"0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266\",\n    \"to\": \"0xae78736Cd615f374D3085123A210448E74Fc6393\",\n    \"value_wei\": \"0\",\n    \"value_eth\": \"0\",\n    \"input\": \"0xe6aa216c\",\n    \"chain_id\": 1\n  },\n  \"result_decoded\": {\n    \"kind\": \"single_abi_word\",\n    \"raw_hex\": \"0x00000000000000000000000000000000000000000000000010291475e0d36292\",\n    \"decoded\": {\n      \"type\": \"uint256\",\n      \"decoded\": \"1164484475167662738\",\n      \"as_bool\": null,\n      \"as_address\": \"0x00000000000000000000000010291475e0d36292\"\n    }\n  }\n}"
+      },
+      {
+        "sender": "assistant",
+        "content": "\nLet me analyze the results:\n\n1. Exchange rate: 1164484475167662738 / 1e18 = ~1.1645 ETH per rETH (meaning 1 rETH = 1.1645 ETH, so for 0.1 ETH you'd get ~0.0859 rETH)\n2. Deposit pool balance: 3739140722506135779 / 1e18 = ~3.739 ETH\n3. Alice's ETH balance: 10000 ETH - plenty\n4. Max deposit amount: 6060892260859277493864221 / 1e18 = ~6,060,892 ETH - way more than 0.1 ETH\n\nEverything checks out. The ... The deposit pool has capacity, Alice has enough ETH, and 0.1 ETH is above the minimum (0.01 ETH). Let me stage the deposit transaction.\nEverything looks good:\n\n- **Alice's ETH balance:** 10,000 ETH — plenty\n- **Exchange rate:** 1 rETH ≈ 1.1645 ETH — you'll receive ~0.0859 rETH for 0.1 ETH\n- **Deposit pool capacity:** ~6M ETH max, ~3.74 ETH currently in pool — no issue\n\nStaging the deposit now.",
+        "tool": null,
+        "tool_topic": null,
+        "tool_result_preview": null
+      },
+      {
+        "sender": "assistant",
+        "content": "",
+        "tool": "stage_tx",
+        "tool_topic": "Stage Rocket Pool deposit of 0.1 ETH",
+        "tool_result_preview": "{\n  \"from\": \"0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266\",\n  \"chain_id\": 1,\n  \"to\": \"0xCE15294273CFb9D9b628F4D61636623decDF4fdC\",\n  \"value\": \"100000000000000000\",\n  \"data\": \"0xd0e30db0\",\n  \"description\": \"Stake 0.1 ETH with Rocket Pool to receive rETH\",\n  \"kind\": \"swap\",\n  \"pending_tx_id\": 1,\n  \"batch_status\": \"Batch [1] pending\",\n  \"status\": \"queued\"\n}"
+      },
+      {
+        "sender": "assistant",
+        "content": "\nNow I need to simulate the batch to verify it works correctly.\n\nNow I need to simulate the batch to verify it works correctly.\n",
+        "tool": null,
+        "tool_topic": null,
+        "tool_result_preview": null
+      },
+      {
+        "sender": "assistant",
+        "content": "",
+        "tool": "simulate_batch",
+        "tool_topic": "Simulate Rocket Pool 0.1 ETH deposit",
+        "tool_result_preview": "{\n  \"simulation\": {\n    \"batch_success\": true,\n    \"stateful\": true,\n    \"from\": \"0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266\",\n    \"network\": \"sim-ethereum\",\n    \"total_gas\": 177986,\n    \"steps\": [\n      {\n        \"step\": 1,\n        \"chain_id\": 1,\n        \"label\": \"Stake 0.1 ETH with Rocket Pool to receive rETH\",\n        \"success\": true,\n        \"result\": \"0x13903047e313b2df94dfbf7fd2806cd6f9ff7e0...om\": \"0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266\",\n  \"owner_address\": \"0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266\",\n  \"aa_override\": null,\n  \"resolved_ids\": [\n    1\n  ],\n  \"warnings\": [\n    {\n      \"tx_id\": 1,\n      \"field\": \"label\",\n      \"provided\": \"Rocket Pool deposit 0.1 ETH\",\n      \"actual\": \"Stake 0.1 ETH with Rocket Pool to receive rETH\"\n    }\n  ],\n  \"batch_status\": \"Batch [1] passed\"\n}"
+      },
+      {
+        "sender": "assistant",
+        "content": "\nSimulation passed. No guard warnings or blocks. I can proceed to commit.\n\nLet me summarize what I found:\n- Exchange rate: 1164484475167662738 / 1e18 ≈ 1.1645 ETH per rETH (so 0.1 ETH gets ~0.0859 rETH)\n- Deposit pool balance: ~3.74 ETH (sufficient)\n- Max deposit: ~6,060,892 ETH (way more than enough)\n- Alice has 10,000 ETH (plenty)\n- Simulation passed\n\nValue is 0.1 ETH which is well under $5000, ... ETH (way more than enough)\n- Alice has 10,000 ETH (plenty)\n- Simulation passed\n\nValue is 0.1 ETH which is well under $5000, so I can proceed without asking for confirmation.\n\n\nSimulation passed. Here's the summary:\n\n- **Staking:** 0.1 ETH → rETH\n- **Exchange rate:** 1 rETH ≈ 1.1645 ETH (you'll receive ~0.0859 rETH)\n- **Deposit pool capacity:** plenty available\n- **Gas:** ~178k\n\nCommitting now.",
+        "tool": null,
+        "tool_topic": null,
+        "tool_result_preview": null
+      },
+      {
+        "sender": "assistant",
+        "content": "",
+        "tool": "commit_txs",
+        "tool_topic": "Commit Rocket Pool 0.1 ETH stake",
+        "tool_result_preview": "{\n  \"status\": \"pending_approval\",\n  \"tx_ids\": [\n    1\n  ],\n  \"timestamp\": \"2026-05-31T12:08:53.339394+00:00\"\n}"
+      },
+      {
+        "sender": "assistant",
+        "content": "\nThe transaction has been committed and is now waiting for wallet approval. I should inform the user about the status.\n\nThe transaction has been committed and is now waiting for wallet approval. I should inform the user about the status.\nYour Rocket Pool stake is ready for signing:\n\n**tx-1** — Deposit 0.1 ETH → receive ~0.0859 rETH (rate: 1 rETH ≈ 1.1645 ETH)\n\nThe deposit pool has plenty of capacity and the simulation passed cleanly. Approve the transaction in your wallet to complete the stake.",
+        "tool": null,
+        "tool_topic": null,
+        "tool_result_preview": null
+      }
+    ],
+    "tool_previews": [
+      {
+        "turn": 0,
+        "tool": "activate_skills",
+        "topic": "activate_skills",
+        "arguments": {
+          "skill_ids": [
+            "rocket_pool"
+          ]
+        },
+        "result_preview": "{\n  \"activated\": [\n    \"rocket_pool\"\n  ],\n  \"rejected\": [],\n  \"applied_scope\": \"current_serve_cycle\"\n}"
+      },
+      {
+        "turn": 0,
+        "tool": "get_time_and_onchain_context",
+        "topic": "Get current Ethereum context for Rocket Pool staking",
+        "arguments": {
+          "topic": "Get current Ethereum context for Rocket Pool staking"
+        },
+        "result_preview": "{\n  \"chain_name\": \"sim-ethereum\",\n  \"chain_id\": 1,\n  \"rpc_endpoint\": \"http://127.0.0.1:50135\",\n  \"current_time_unix\": 1780229301,\n  \"current_time_iso\": \"2026-05-31T12:08:21.647621+00:00\",\n  \"block_number\": 25215252,\n  \"gas_price_wei\": \"1099076785\",\n  \"supported_chains\": [\n    {\n      \"name\": \"sim-ethereum\",\n      \"chain_id\": 1\n    },\n    {\n      \"name\": \"sim-ethereum\",\n      \"chain_id\": 1\n    }\n  ]\n}"
+      },
+      {
+        "turn": 0,
+        "tool": "get_account_info",
+        "topic": "Check Alice ETH balance",
+        "arguments": {
+          "address": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+          "chain_id": 1,
+          "include_tx_history": false,
+          "history_limit": 0,
+          "history_offset": 0,
+          "topic": "Check Alice ETH balance"
+        },
+        "result_preview": "{\n  \"address\": \"0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266\",\n  \"balance_wei\": \"10000000000000000000000\",\n  \"balance_eth\": \"10000\",\n  \"nonce\": 6436\n}"
+      },
+      {
+        "turn": 0,
+        "tool": "encode_and_call",
+        "topic": "Check Rocket Pool deposit pool balance",
+        "arguments": {
+          "function_signature": "getBalance()",
+          "arguments": [],
+          "to": "0xCE15294273CFb9D9b628F4D61636623decDF4fdC",
+          "value": "0",
+          "topic": "Check Rocket Pool deposit pool balance"
+        },
+        "result_preview": "{\n  \"success\": true,\n  \"result\": \"0x00000000000000000000000000000000000000000000000033e418ad222cf8e3\",\n  \"revert_reason\": null,\n  \"tx\": {\n    \"from\": \"0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266\",\n    \"to\": \"0xCE15294273CFb9D9b628F4D61636623decDF4fdC\",\n    \"value_wei\": \"0\",\n    \"value_eth\": \"0\",\n    \"input\": \"0x12065fe0\",\n    \"chain_id\": 1\n  },\n  \"result_decoded\": {\n    \"kind\": \"single_abi_word\",\n    \"raw_hex\": \"0x00000000000000000000000000000000000000000000000033e418ad222cf8e3\",\n    \"decoded\": {\n      \"type\": \"uint256\",\n      \"decoded\": \"3739140722506135779\",\n      \"as_bool\": null,\n      \"as_address\": \"0x00000000000000000000000033e418ad222cf8e3\"\n    }\n  }\n}"
+      },
+      {
+        "turn": 0,
+        "tool": "encode_and_call",
+        "topic": "Check Rocket Pool max deposit amount",
+        "arguments": {
+          "function_signature": "getMaximumDepositAmount()",
+          "arguments": [],
+          "to": "0xCE15294273CFb9D9b628F4D61636623decDF4fdC",
+          "value": "0",
+          "topic": "Check Rocket Pool max deposit amount"
+        },
+        "result_preview": "{\n  \"success\": true,\n  \"result\": \"0x000000000000000000000000000000000000000000050371a0b8e40eaf53071d\",\n  \"revert_reason\": null,\n  \"tx\": {\n    \"from\": \"0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266\",\n    \"to\": \"0xCE15294273CFb9D9b628F4D61636623decDF4fdC\",\n    \"value_wei\": \"0\",\n    \"value_eth\": \"0\",\n    \"input\": \"0x1eddb626\",\n    \"chain_id\": 1\n  },\n  \"result_decoded\": {\n    \"kind\": \"single_abi_word\",\n    \"raw_hex\": \"0x000000000000000000000000000000000000000000050371a0b8e40eaf53071d\",\n    \"decoded\": {\n      \"type\": \"uint256\",\n      \"decoded\": \"6060892260859277493864221\",\n      \"as_bool\": null,\n      \"as_address\": \"0x000000000000000000050371a0b8e40eaf53071d\"\n    }\n  }\n}"
+      },
+      {
+        "turn": 0,
+        "tool": "encode_and_call",
+        "topic": "Check rETH exchange rate",
+        "arguments": {
+          "function_signature": "getExchangeRate()",
+          "arguments": [],
+          "to": "0xae78736Cd615f374D3085123A210448E74Fc6393",
+          "value": "0",
+          "topic": "Check rETH exchange rate"
+        },
+        "result_preview": "{\n  \"success\": true,\n  \"result\": \"0x00000000000000000000000000000000000000000000000010291475e0d36292\",\n  \"revert_reason\": null,\n  \"tx\": {\n    \"from\": \"0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266\",\n    \"to\": \"0xae78736Cd615f374D3085123A210448E74Fc6393\",\n    \"value_wei\": \"0\",\n    \"value_eth\": \"0\",\n    \"input\": \"0xe6aa216c\",\n    \"chain_id\": 1\n  },\n  \"result_decoded\": {\n    \"kind\": \"single_abi_word\",\n    \"raw_hex\": \"0x00000000000000000000000000000000000000000000000010291475e0d36292\",\n    \"decoded\": {\n      \"type\": \"uint256\",\n      \"decoded\": \"1164484475167662738\",\n      \"as_bool\": null,\n      \"as_address\": \"0x00000000000000000000000010291475e0d36292\"\n    }\n  }\n}"
+      },
+      {
+        "turn": 0,
+        "tool": "stage_tx",
+        "topic": "Stage Rocket Pool deposit of 0.1 ETH",
+        "arguments": {
+          "to": "0xCE15294273CFb9D9b628F4D61636623decDF4fdC",
+          "description": "Stake 0.1 ETH with Rocket Pool to receive rETH",
+          "data": {
+            "signature": "deposit()",
+            "args": [],
+            "raw": ""
+          },
+          "value": "100000000000000000",
+          "gas_limit": "",
+          "kind": "swap",
+          "topic": "Stage Rocket Pool deposit of 0.1 ETH"
+        },
+        "result_preview": "{\n  \"from\": \"0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266\",\n  \"chain_id\": 1,\n  \"to\": \"0xCE15294273CFb9D9b628F4D61636623decDF4fdC\",\n  \"value\": \"100000000000000000\",\n  \"data\": \"0xd0e30db0\",\n  \"description\": \"Stake 0.1 ETH with Rocket Pool to receive rETH\",\n  \"kind\": \"swap\",\n  \"pending_tx_id\": 1,\n  \"batch_status\": \"Batch [1] pending\",\n  \"status\": \"queued\"\n}"
+      },
+      {
+        "turn": 0,
+        "tool": "simulate_batch",
+        "topic": "Simulate Rocket Pool 0.1 ETH deposit",
+        "arguments": {
+          "topic": "Simulate Rocket Pool 0.1 ETH deposit",
+          "transactions": [
+            {
+              "id": 1,
+              "kind": "swap",
+              "chain_id": 1,
+              "label": "Rocket Pool deposit 0.1 ETH"
+            }
+          ],
+          "aa_override": ""
+        },
+        "result_preview": "{\n  \"simulation\": {\n    \"batch_success\": true,\n    \"stateful\": true,\n    \"from\": \"0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266\",\n    \"network\": \"sim-ethereum\",\n    \"total_gas\": 177986,\n    \"steps\": [\n      {\n        \"step\": 1,\n        \"chain_id\": 1,\n        \"label\": \"Stake 0.1 ETH with Rocket Pool to receive rETH\",\n        \"success\": true,\n        \"result\": \"0x13903047e313b2df94dfbf7fd2806cd6f9ff7e0...om\": \"0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266\",\n  \"owner_address\": \"0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266\",\n  \"aa_override\": null,\n  \"resolved_ids\": [\n    1\n  ],\n  \"warnings\": [\n    {\n      \"tx_id\": 1,\n      \"field\": \"label\",\n      \"provided\": \"Rocket Pool deposit 0.1 ETH\",\n      \"actual\": \"Stake 0.1 ETH with Rocket Pool to receive rETH\"\n    }\n  ],\n  \"batch_status\": \"Batch [1] passed\"\n}"
+      },
+      {
+        "turn": 0,
+        "tool": "commit_txs",
+        "topic": "Commit Rocket Pool 0.1 ETH stake",
+        "arguments": {
+          "topic": "Commit Rocket Pool 0.1 ETH stake",
+          "tx_ids": [
+            1
+          ]
+        },
+        "result_preview": "{\n  \"status\": \"pending_approval\",\n  \"tx_ids\": [\n    1\n  ],\n  \"timestamp\": \"2026-05-31T12:08:53.339394+00:00\"\n}"
+      }
+    ],
+    "failure_category": null,
+    "app": {
+      "source": "default",
+      "path": null,
+      "loaded_name": "default"
+    },
+    "skills": {
+      "mode": "restricted",
+      "allowed": [
+        "rocket_pool"
+      ],
+      "activated_skills": [
+        "rocket_pool"
+      ],
+      "bundle_path": "../output/eval/model-bench-public-skills-opus47-opus46-haiku45-20260531/specs/stake_eth_rocket_pool/claude-opus-4.6/pass-002/spec-skills/stake_eth_rocket_pool-skills.json",
+      "bundle_revision": "fnv1a64:28c3eea94a529801"
+    },
+    "environment": {
+      "chain_id": 1,
+      "network": "ethereum",
+      "providers_path": "/Users/aronmegyeri/.aomi/test-env/providers.toml",
+      "endpoint_name": "sim-ethereum",
+      "funding_ledger": [
+        {
+          "chain_id": 1,
+          "address": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+          "balances": {
+            "ETH": "100",
+            "USDC": "10000"
+          }
+        },
+        {
+          "chain_id": 1,
+          "address": "0x70997970c51812dc3a010c7d01b50e0d17dc79c8",
+          "balances": {
+            "ETH": "100",
+            "USDC": "10000"
+          }
+        }
+      ]
+    }
+  }
+}

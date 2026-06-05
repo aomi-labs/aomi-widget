@@ -1,0 +1,3 @@
+[eval] PASS bybit_eth_orderbook 1 turn(s) 1 tool call(s) 1.80447 cr, 13277 in / 315 out tok, 9819 cached / 0 reasoning tok 0 warning(s) duration 10s
+report full json: ../output/eval/model-bench-public-skills-expansion-20260531/specs/bybit_eth_orderbook/claude-sonnet-4.6/pass-001/20260531T214817.875086000Z.full.json
+report compact json: ../output/eval/model-bench-public-skills-expansion-20260531/specs/bybit_eth_orderbook/claude-sonnet-4.6/pass-001/20260531T214817.875086000Z.compact.json

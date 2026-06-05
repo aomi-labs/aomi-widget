@@ -1,0 +1,52 @@
+[
+  {
+    "id": "avantis",
+    "name": "avantis",
+    "description": "Use when users want to open, close, or modify perpetual positions on Avantis on Base. Avantis is a gTrade-fork perp DEX with USDC collateral, isolated margin, up to ~100x leverage on majors, and Pyth-backed pricing.",
+    "tags": [
+      "perp",
+      "avantis",
+      "base",
+      "leverage",
+      "futures",
+      "derivatives"
+    ],
+    "tool_names": [
+      "get_time_and_onchain_context",
+      "brave_search",
+      "encode_and_call",
+      "get_account_info",
+      "get_contract",
+      "sync_chain",
+      "simulate_batch",
+      "stage_tx",
+      "commit_eip712",
+      "commit_txs"
+    ],
+    "injected_tools": [],
+    "source": "aomi_builtin",
+    "est_tokens": 2170,
+    "activation_tokens": 2174,
+    "instruction_md": "## Avantis: Scope\n\nAvantis is a gTrade-fork perpetuals DEX on Base (chain 8453). USDC collateral, isolated margin, up to ~100x leverage on majors, prices via Pyth Lazer (streaming) with Chainlink as the backup oracle. Three contracts make up the user-facing surface:\n\n- `AVANTIS_TRADING` — write entrypoint: `openTrade`, `closeTradeMarket`, `updateTpAndSl`, `updateMargin`, plus limit-order management.\n- `AVANTIS_TRADING_STORAGE` — read positions / open limit orders, AND the address that holds USDC custody (the approval target).\n- `AVANTIS_PAIR_STORAGE` — pair list, fees, gas-fee config, TP/SL bounds, Lazer feed ids.\n\nFor Aerodrome AMM swaps on Base, use the `aerodrome` skill.\n\nCommon market indices from PairStorage on Base:\n- ETH/USD: pairIndex `0`\n- BTC/USD: pairIndex `1`\n- SOL/USD: pairIndex `2`\n\n## Avantis: Contract Addresses (Base, chain 8453)\nUse these manifest-provided addresses directly. Do not call `get_contract` to discover Avantis ABIs or addresses during normal Avantis flows.\n- Avantis Trading (`avantis_trading`): 0x44914408af82bC9983bbb330e3578E1105e11d4e (chain 8453)\n- Avantis TradingStorage (`avantis_trading_storage`): 0x8a311D7048c35985aa31C131B9A13e03a5f7422d (chain 8453)\n- Avantis PairStorage (`avantis_pair_storage`): 0x5db3772136e5557EFE028Db05EE95C84D76faEC4 (chain 8453)\n\n## Avantis: avantis_perp_open\n- interface: gtrade-fork-trading\n- approval_spender: 0x8a311D7048c35985aa31C131B9A13e03a5f7422d\n- approval_mechanism: direct\n- deposit_function: openTrade((address,uint256,uint256,uint256,uint256,uint256,bool,uint256,uint256,uint256,uint256),uint8,uint256)\n- deposit_args:\n  - trade\n  - order_type\n  - slippage_p\n- gotcha: USDC collateral is approved against AVANTIS_TRADING_STORAGE (not Trading). The Trading proxy pulls USDC via TradingStorage during settlement. Approve TradingStorage; submit openTrade to Trading.\n- note: openTrade is payable: msg.value pays the keeper execution fee. Read it with PairStorage.getGasFees(pairIndex, collateral, 0, false) for open-trade simulation — pass that exact value as msg.value.\n- note: openTrade does NOT take priceUpdateData — Avantis uses Pyth Lazer (server-streamed). The keeper fills the trade against the latest Pyth price; the client only supplies orderType + slippageP. updateTpAndSl and updateMargin DO take bytes[] priceUpdateData because they validate against a fresh price.\n- note: Trade.pairIndex selects the perp market. Common Base indices: ETH/USD=0, BTC/USD=1, SOL/USD=2. For other symbols, inspect PairStorage.pairData(i) from 0 and stop after 20 probes if no match.\n- note: Trade.initialPosToken and Trade.positionSizeUSDC are both in USDC base units (6 decimals). positionSizeUSDC = collateral * leverage; the contract recomputes and rejects on mismatch, so set both consistently.\n- note: leverage is integer (e.g. 5 for 5x), confirmed against the live ABI (uint256, no fixed-point scaling).\n- note: Trade.openPrice is 0 for MARKET orders; for LIMIT/STOP orders it's the trigger price in 1e10 fixed-point.\n- note: slippageP is in 1e10 fixed-point of percent — e.g. 0.5% = 5_000_000_000.\n- note: orderType: 0=MARKET, 1=REVERSAL, 2=MOMENTUM. MARKET fills off the streamed Pyth price; LIMIT variants fill at the trigger.\n- note: Trade.timestamp is set by the contract — pass 0 from the client.\n- note: TP/SL prices: 0 disables. Validate non-zero values against PairStorage.correctTp / correctSl which clamp them to the protocol-allowed band before sending.\n\n\n## Avantis: ABI Signatures (reference only)\nAvantis Trading [avantis_trading]:\n- cancelOpenLimitOrder(uint256,uint256) → \n- cancelPendingMarketOrder(uint256) → \n- cancelRollLimitOrders(address,uint256,uint256) → \n- closeTradeMarket(uint256,uint256,uint256) → uint256\n- openTrade((address,uint256,uint256,uint256,uint256,uint256,bool,uint256,uint256,uint256,uint256),uint8,uint256) → uint256\n- updateMargin(uint256,uint256,uint8,uint256,bytes[],uint8) → uint256\n- updateOpenLimitOrder(uint256,uint256,uint256,uint256,uint256,uint256) → \n- updateTpAndSl(uint256,uint256,uint256,uint256,bytes[],uint8) → \nAvantis TradingStorage [avantis_trading_storage]:\n- openTrades(address,uint256,uint256) → (address,uint256,uint256,uint256,uint256,uint256,bool,uint256,uint256,uint256,uint256)\n- openTradesCount(address,uint256) → uint256\n- openTradesInfo(address,uint256,uint256) → (uint256,uint256,uint256,bool,uint256)\nAvantis PairStorage [avantis_pair_storage]:\n- correctSl(uint256,uint256,uint256,bool,uint256) → uint256\n- correctTp(uint256,uint256,uint256,bool,uint256) → uint256\n- getGasFees(uint256,uint256,int256,bool) → uint256\n- getLazerFeedId(uint256) → uint256\n- isPairListed(bytes32) → bool\n- pairData(uint256) → string,string,uint256\nERC20 [erc20]:\n- approve(address,uint256) → bool\n\n## Avantis: Trade Struct\n\n```\nTrade {\n  trader            address     wallet placing the trade (must equal user)\n  pairIndex         uint256     market index (look up via PairStorage)\n  index             uint256     position slot for this trader on this pair (0 to auto-assign)\n  initialPosToken   uint256     collateral, USDC base units (6 decimals)\n  positionSizeUSDC  uint256     notional = collateral × leverage, USDC base units\n  openPrice         uint256     0 for MARKET; trigger price (1e10 fixed) for LIMIT/STOP\n  buy               bool        true = long, false = short\n  leverage          uint256     integer leverage (e.g. 5 = 5x)\n  tp                uint256     take-profit price (1e10 fixed, 0 = none)\n  sl                uint256     stop-loss price (1e10 fixed, 0 = none)\n  timestamp         uint256     pass 0 — contract populates\n}\n```\n\n## Avantis: Procedure (open a market trade)\n\n1. `get_time_and_onchain_context` — confirm wallet and chain (must be 8453 / Base).\n2. Resolve `pairIndex`:\n   - Use the common market index table first for ETH/USD, BTC/USD, and SOL/USD.\n   - For other symbols, inspect `pairData(i)` starting at 0 and stop after 20 probes if no match. Do not loop indefinitely or use web search for pair indices.\n   - `isPairListed(pairIndex)` confirms the pair is currently tradeable.\n3. Read collateral availability:\n   - `erc20.balanceOf(user)` on USDC (`0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913`).\n   - `erc20.allowance(user, AVANTIS_TRADING_STORAGE)` on USDC.\n4. If allowance < collateral, simulate `erc20.approve(AVANTIS_TRADING_STORAGE, collateralUSDC)` first. Prefer exact amounts over unlimited.\n5. Read the keeper fee with `PairStorage.getGasFees(pairIndex, collateral, 0, false)`. This is `msg.value` for an open-trade simulation.\n6. Build the `Trade` struct: `(user, pairIndex, 0, collateralUSDC, collateralUSDC * leverage, 0, buy, leverage, tp, sl, 0)`. For LIMIT orders set `openPrice` to the trigger and use `orderType=1 or 2`.\n7. Simulate `openTrade(trade, orderType, slippageP)` with `msg.value = gasFee`.\n8. Inspect the simulation: revert reason, expected fill price, liquidation price, fees. Surface to the user.\n9. After explicit user confirmation, send via `commit_txs`.\n\n## Avantis: Procedure (close at market)\n\n1. Read open positions: `trading_storage.openTrades(user, pairIndex, index)` or iterate via `openTradesCount` / `openTradesInfo`.\n2. Read the keeper fee: `pair_storage.getGasFees(pairIndex)`.\n3. Simulate `trading.closeTradeMarket(pairIndex, index, amount)` with `msg.value = gasFee`. `amount` is collateral USDC base units to close (full position close = position's `initialPosToken`).\n4. Inspect simulation, surface estimated PnL + slippage, then `commit_txs` on confirmation.\n\n## Avantis: Critical Rules\n\n- USDC approval target is `AVANTIS_TRADING_STORAGE`, NOT Trading. Approving Trading is silent: the openTrade tx will revert because TradingStorage fails to pull collateral.\n- Always simulate `openTrade` with `encode_and_call` before sending. Inspect the simulated revert reason if any guard fields show rejection.\n- `msg.value` on `openTrade` and `closeTradeMarket` MUST equal the keeper gas fee from `PairStorage.getGasFees(pairIndex)`. Under-paying reverts; over-paying is not refunded.\n- `openTrade` does NOT carry `priceUpdateData`. Avantis fills market orders against the streamed Pyth Lazer feed via the Avantis keeper. Don't attempt to attach `bytes[]` to openTrade.\n- `updateTpAndSl` and `updateMargin` DO require `priceUpdateData` (a fresh Pyth update). Without a Pyth Hermes adapter wired into the runtime, those two calls cannot simulate cleanly today; surface that limitation to the user before staging them.\n- Verify `Trade.trader` equals the user's wallet on every open call.\n- For LIMIT orders, validate `tp` and `sl` against `PairStorage.correctTp(...)` and `correctSl(...)` before sending — protocol-side clamping rejects out-of-band values.",
+    "tool_hooks": [
+      {
+        "tool": "simulate_batch",
+        "pre_call": [],
+        "post_call": [
+          "avantis-known-addrs"
+        ]
+      },
+      {
+        "tool": "stage_tx",
+        "pre_call": [],
+        "post_call": [
+          "avantis-known-addrs"
+        ]
+      }
+    ],
+    "tools_namespace": "evm-core",
+    "chain_ids": [
+      8453
+    ]
+  }
+]

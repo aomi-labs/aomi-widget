@@ -1,0 +1,3 @@
+[eval] PASS manifold_search 1 turn(s) 1 tool call(s) 0.50964 cr, 29376 in / 600 out tok 0 warning(s) duration 12s
+report full json: ../output/eval/model-bench-public-skills-expansion-20260531/specs/manifold_search/minimax-m2.5/pass-002/20260531T221710.253279000Z.full.json
+report compact json: ../output/eval/model-bench-public-skills-expansion-20260531/specs/manifold_search/minimax-m2.5/pass-002/20260531T221710.253279000Z.compact.json

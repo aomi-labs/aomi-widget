@@ -1,0 +1,52 @@
+[
+  {
+    "id": "mantle_staked_eth",
+    "name": "mantle_staked_eth",
+    "description": "Use when users want to stake ETH with Mantle to receive mETH, or unstake mETH back to ETH via unstake requests on Ethereum.",
+    "tags": [
+      "stake",
+      "mantle",
+      "meth",
+      "liquid-staking",
+      "withdraw",
+      "eth"
+    ],
+    "tool_names": [
+      "get_time_and_onchain_context",
+      "brave_search",
+      "encode_and_call",
+      "get_account_info",
+      "get_contract",
+      "sync_chain",
+      "simulate_batch",
+      "stage_tx",
+      "commit_eip712",
+      "commit_txs"
+    ],
+    "injected_tools": [],
+    "source": "aomi_builtin",
+    "est_tokens": 1178,
+    "activation_tokens": 1186,
+    "instruction_md": "## Mantle mETH: mantle_stake\n- contract: 0xe3cBd06D7dadB3F4e6557bAb7EdD924CD1489E8f (chain 1)\n- output_token: Mantle mETH\n- gotcha: stake() is payable — msg.value is the amount to stake. Minimum stake amount may apply; check minStakeAmount().\n\n## Mantle mETH: mantle_unstake\n- contract: 0xe3cBd06D7dadB3F4e6557bAb7EdD924CD1489E8f (chain 1)\n- gotcha: Unstaking is two-step: first call unstakeRequest(uint128,uint128) to queue, then claimUnstakeRequest(uint256) after finalization. Requires mETH approval to the staking contract. Not instant — finalization may take days.\n\n\n## Mantle mETH: Token Registry\n- Mantle mETH: 0xd5F7838F5C461fefF7FE49ea5ebaF7728bB0ADfa (chain 1)\n- mantle_stake: 0xe3cBd06D7dadB3F4e6557bAb7EdD924CD1489E8f (chain 1)\n\n## Mantle mETH: ABI Signatures (reference only)\nMantle Staking [mantle_staking]:\n- claimUnstakeRequest(uint256) → \n- stake(uint256) → \n- unstakeRequest(uint128,uint128) → uint256\nMantle mETH [mantle_meth]:\n- ADD_BLOCK_LIST_CONTRACT_ROLE() → bytes32\n- BURNER_ROLE() → bytes32\n- DEFAULT_ADMIN_ROLE() → bytes32\n- DOMAIN_SEPARATOR() → bytes32\n- MINTER_ROLE() → bytes32\n- REMOVE_BLOCK_LIST_CONTRACT_ROLE() → bytes32\n- addBlockListContract(address) → \n- allowance(address,address) → uint256\n- approve(address,uint256) → bool\n- balanceOf(address) → uint256\n- burn(uint256) → \n- decimals() → uint8\n- decreaseAllowance(address,uint256) → bool\n- eip712Domain() → bytes1,string,string,uint256,address,bytes32,uint256[]\n- forceBurn(address,uint256) → \n- forceMint(address,uint256,bool) → \n- getBlockLists() → address[]\n- getRoleAdmin(bytes32) → bytes32\n- getRoleMember(bytes32,uint256) → address\n- getRoleMemberCount(bytes32) → uint256\n- grantRole(bytes32,address) → \n- hasRole(bytes32,address) → bool\n- increaseAllowance(address,uint256) → bool\n- initialize((address,address,address)) → \n- isBlocked(address) → bool\n- mint(address,uint256) → \n- name() → string\n- nonces(address) → uint256\n- permit(address,address,uint256,uint256,uint8,bytes32,bytes32) → \n- removeBlockListContract(address) → \n- renounceRole(bytes32,address) → \n- revokeRole(bytes32,address) → \n- stakingContract() → address\n- supportsInterface(bytes4) → bool\n- symbol() → string\n- totalSupply() → uint256\n- transfer(address,uint256) → bool\n- transferFrom(address,address,uint256) → bool\n- unstakeRequestsManagerContract() → address\nERC20 [erc20]:\n- approve(address,uint256) → bool\n\n## Mantle mETH: Procedure\n1. Call `get_time_and_onchain_context` to confirm wallet, chain, and block context.\n2. Check ETH balance, or mETH balance with `encode_and_call` (balanceOf).\n3. For staking: check `minStakeAmount()`. Compute expected mETH via `ethToMETH(amount)` and use 99.5% of it as the `minMETHAmount` slippage parameter.\n4. For unstaking: check mETH allowance to staking contract. If insufficient, build and simulate an `approve` first. Compute expected ETH via `mETHToETH(amount)` and use 99.5% of it as the `minETHAmount` slippage parameter.\n5. Build the stake/unstakeRequest/claimUnstakeRequest transaction with `encode_and_call`.\n6. Inspect result and `mantle_staked_eth_guard_*` fields — if `mantle_staked_eth_guard_blocked`, do NOT proceed.\n7. Only after user confirmation, send via `commit_txs`.\n## Mantle mETH: Critical Rules\n- ONLY use official Mantle staking contract addresses listed above. Never send ETH or tokens to unknown addresses.\n- Always simulate staking calldata with `encode_and_call` before sending.\n- Check `mantle_staked_eth_guard_blocked` in simulation result — if true, do NOT proceed.\n- For `stake(uint256)`: msg.value is the ETH to stake. The `uint256` parameter is `minMETHAmount` — the minimum mETH the user accepts back (slippage protection). Compute it from `ethToMETH(msg.value)` with a small tolerance (e.g., 0.5%). Never pass 0 — the user could receive far less mETH than expected.\n- Check `minStakeAmount()` before building the stake tx. If the user's amount is below minimum, warn them.\n- mETH is minted to msg.sender (the user). No recipient parameter exists.\n- For `unstakeRequest(uint128,uint128)`: first param is the mETH amount to unstake, second param is `minETHAmount` — the minimum ETH the user accepts (slippage protection). Compute from `mETHToETH(amount)` with a small tolerance. Never pass 0.\n- Unstaking is two-step: `unstakeRequest()` queues a withdrawal, `claimUnstakeRequest()` redeems after finalization. Warn the user that finalization may take several days.\n- Before calling `unstakeRequest`, ensure mETH approval to the staking contract.\n- Use `mETHToETH(uint256)` and `ethToMETH(uint256)` on the mETH token to show conversion rates.\n- For any `approve()` call, the spender MUST be the Mantle staking contract listed above — never approve an arbitrary address.",
+    "tool_hooks": [
+      {
+        "tool": "simulate_batch",
+        "pre_call": [],
+        "post_call": [
+          "mantle-staked-eth-known-addrs"
+        ]
+      },
+      {
+        "tool": "stage_tx",
+        "pre_call": [],
+        "post_call": [
+          "mantle-staked-eth-known-addrs"
+        ]
+      }
+    ],
+    "tools_namespace": "evm-core",
+    "chain_ids": [
+      1
+    ]
+  }
+]

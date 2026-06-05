@@ -1,0 +1,53 @@
+[
+  {
+    "id": "yearn",
+    "name": "yearn",
+    "description": "Use when users want to deposit into or withdraw from Yearn V3 vaults (ERC4626) on Ethereum for auto-compounding yield.",
+    "tags": [
+      "yield",
+      "yearn",
+      "vault",
+      "erc4626",
+      "deposit",
+      "withdraw",
+      "defi"
+    ],
+    "tool_names": [
+      "get_time_and_onchain_context",
+      "brave_search",
+      "encode_and_call",
+      "get_account_info",
+      "get_contract",
+      "sync_chain",
+      "simulate_batch",
+      "stage_tx",
+      "commit_eip712",
+      "commit_txs"
+    ],
+    "injected_tools": [],
+    "source": "aomi_builtin",
+    "est_tokens": 607,
+    "activation_tokens": 611,
+    "instruction_md": "## Yearn V3: Yearn V3\n- Vault Factory: 0x444045c5C13C246e117eD36437303cac8E250aB0\n- Popular vaults:\n  - yvUSDC: 0xBe53A109B494E5c9f97b9Cd39Fe969BE68BF6204 (USDC)\n  - yvDAI: 0x028eC7330ff87667b6dfb0D94b954c820195336c (DAI)\n  - yvWETH: 0xc56413869c6CDf96496f2b1eF801fEDBdFA7dDB0 (WETH)\n- All Yearn V3 vaults implement ERC4626 — use deposit(assets,receiver) and redeem(shares,receiver,owner)\n- Approve the vault address for the underlying asset before deposit\n- receiver and owner parameters must be the user's wallet address\n- Use convertToShares / convertToAssets for share-to-asset conversion\n- maxDeposit(receiver) returns the maximum deposit — check before depositing\n\n\n## Yearn V3: ABI Signatures (reference only)\nYearn V3 Vault (ERC4626) [yearn_vault_v3]:\n- deposit(uint256,address) → uint256\n- withdraw(uint256,address,address) → uint256\n- redeem(uint256,address,address) → uint256\nERC20 [erc20]:\n- approve(address,uint256) → bool\n\n## Yearn V3: Procedure\n1. Call `get_time_and_onchain_context` to confirm wallet, chain, and block context.\n2. Identify the vault address for the user's desired asset.\n3. Check token balance and allowance with `encode_and_call` (balanceOf, allowance).\n4. If allowance insufficient, build and simulate an `approve` transaction first.\n5. Build the deposit/withdraw transaction with `encode_and_call`.\n6. Inspect result and `yearn_guard_*` fields — if `yearn_guard_blocked`, do NOT proceed.\n7. Only after user confirmation, send via `commit_txs`.\n## Yearn V3: Critical Rules\n- `receiver` in `deposit(assets, receiver)` MUST be the user's wallet address.\n- `owner` in `withdraw(assets, receiver, owner)` and `redeem(shares, receiver, owner)` MUST be the user's wallet address. `receiver` in withdraw/redeem MUST also be the user's wallet.\n- Yearn vaults have dynamic addresses — they are NOT hardcoded in the guard registry. The guard allows any target when the yearn skill is active, so you MUST verify the vault address is legitimate (e.g., via Yearn registry or known lists) before interacting.\n- Approve the vault contract for the underlying asset before deposit.\n- Check `maxDeposit(receiver)` before depositing — vaults may have capacity limits.\n- Check `yearn_guard_blocked` in simulation result — if true, do NOT proceed.\n- Standard ERC-4626 interface: use `redeem(shares, receiver, owner)` to withdraw by share amount, or `withdraw(assets, receiver, owner)` to withdraw by asset amount.",
+    "tool_hooks": [
+      {
+        "tool": "simulate_batch",
+        "pre_call": [],
+        "post_call": [
+          "yearn-known-addrs"
+        ]
+      },
+      {
+        "tool": "stage_tx",
+        "pre_call": [],
+        "post_call": [
+          "yearn-known-addrs"
+        ]
+      }
+    ],
+    "tools_namespace": "evm-core",
+    "chain_ids": [
+      1
+    ]
+  }
+]

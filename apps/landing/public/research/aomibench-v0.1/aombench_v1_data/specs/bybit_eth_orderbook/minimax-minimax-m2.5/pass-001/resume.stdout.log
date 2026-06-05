@@ -1,0 +1,3 @@
+[eval] PASS bybit_eth_orderbook 1 turn(s) 1 tool call(s) 0.40117 cr, 23471 in / 427 out tok 0 warning(s) duration 13s
+report full json: ../output/eval/model-bench-public-skills-expansion-20260531/specs/bybit_eth_orderbook/minimax-m2.5/pass-001/20260531T214941.000265000Z.full.json
+report compact json: ../output/eval/model-bench-public-skills-expansion-20260531/specs/bybit_eth_orderbook/minimax-m2.5/pass-001/20260531T214941.000265000Z.compact.json

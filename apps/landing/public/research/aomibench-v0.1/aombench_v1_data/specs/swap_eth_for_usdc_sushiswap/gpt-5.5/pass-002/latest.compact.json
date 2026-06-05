@@ -1,0 +1,367 @@
+{
+  "run_id": "20260530T222843.279483000Z",
+  "mode": "spec",
+  "started_at": "2026-05-30T22:28:06.706383+00:00",
+  "finished_at": "2026-05-30T22:28:43.279462+00:00",
+  "spec_path": "bin/eval/specs/sushiswap/swap_eth_for_usdc_sushiswap.json",
+  "passed": true,
+  "git_commit": "5b02660942391bc7ae86c5cbb05e33f4c549266f",
+  "git_dirty": true,
+  "story": {
+    "run_id": "20260530T222843.279483000Z",
+    "story_id": "swap_eth_for_usdc_sushiswap",
+    "user_story": "Swap 0.05 ETH from Alice for USDC using SushiSwap on Ethereum.",
+    "passed": true,
+    "warnings": [],
+    "model": "gpt-5.5",
+    "chain_id": 1,
+    "git_commit": "5b02660942391bc7ae86c5cbb05e33f4c549266f",
+    "git_dirty": true,
+    "total_turns": 1,
+    "total_tool_calls": 9,
+    "total_responses": 15,
+    "activated_skills": [
+      "sushiswap"
+    ],
+    "failed_assertions": [],
+    "budget_summary": {
+      "total": 1,
+      "exceeded": 0,
+      "required_failures": 0,
+      "warning_failures": 0
+    },
+    "usage": {
+      "input_tokens": 72426,
+      "output_tokens": 1453,
+      "total_tokens": 73879,
+      "cached_input_tokens": 67072,
+      "cache_creation_input_tokens": 0,
+      "visible_output_tokens": 1121,
+      "reasoning_output_tokens": 332,
+      "tool_call_count": 9,
+      "actual_events": 1,
+      "diagnostic_events": 0,
+      "aomi_cost_credits": 10.3896,
+      "user_charged_credits": 10.3896,
+      "credits": 10.3896
+    },
+    "transcript_previews": [
+      {
+        "sender": "user",
+        "content": "Swap 0.05 ETH from Alice for USDC using SushiSwap on Ethereum.",
+        "tool": null,
+        "tool_topic": null,
+        "tool_result_preview": null
+      },
+      {
+        "sender": "assistant",
+        "content": "I’ll check Alice’s Ethereum context and SushiSwap routing details, then build and simulate the swap before sending it to the wallet.",
+        "tool": null,
+        "tool_topic": null,
+        "tool_result_preview": null
+      },
+      {
+        "sender": "assistant",
+        "content": "",
+        "tool": "activate_skills",
+        "tool_topic": "activate_skills",
+        "tool_result_preview": "{\n  \"activated\": [\n    \"sushiswap\"\n  ],\n  \"rejected\": [],\n  \"applied_scope\": \"current_serve_cycle\"\n}"
+      },
+      {
+        "sender": "assistant",
+        "content": "I’ll check Alice’s Ethereum context, quote the SushiSwap route, then simulate the swap before asking the wallet to sign.",
+        "tool": null,
+        "tool_topic": null,
+        "tool_result_preview": null
+      },
+      {
+        "sender": "assistant",
+        "content": "",
+        "tool": "get_time_and_onchain_context",
+        "tool_topic": "Confirm Ethereum context for SushiSwap ETH to USDC swap",
+        "tool_result_preview": "{\n  \"chain_name\": \"sim-ethereum\",\n  \"chain_id\": 1,\n  \"rpc_endpoint\": \"http://127.0.0.1:50581\",\n  \"current_time_unix\": 1780180091,\n  \"current_time_iso\": \"2026-05-30T22:28:11.326722+00:00\",\n  \"block_number\": 25211172,\n  \"gas_price_wei\": \"1004497802\",\n  \"supported_chains\": [\n    {\n      \"name\": \"sim-ethereum\",\n      \"chain_id\": 1\n    },\n    {\n      \"name\": \"sim-monad_testnet\",\n      \"chain_id\": 10143\n    },\n    {\n      \"name\": \"sim-ethereum\",\n      \"chain_id\": 1\n    },\n    {\n      \"name\": \"sim-monad_testnet\",\n      \"chain_id\": 10143\n    },\n    {\n      \"name\": \"sim-base\",\n      \"chain_id\": 8453\n    },\n    {\n      \"name\": \"sim-base\",\n      \"chain_id\": 8453\n    }\n  ]\n}"
+      },
+      {
+        "sender": "assistant",
+        "content": "I’m checking Alice’s ETH balance and the SushiSwap route quote before building the swap.",
+        "tool": null,
+        "tool_topic": null,
+        "tool_result_preview": null
+      },
+      {
+        "sender": "assistant",
+        "content": "",
+        "tool": "get_account_info",
+        "tool_topic": "Check Alice ETH balance",
+        "tool_result_preview": "{\n  \"address\": \"0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266\",\n  \"balance_wei\": \"10000000000000000000000\",\n  \"balance_eth\": \"10000\",\n  \"nonce\": 6436\n}"
+      },
+      {
+        "sender": "assistant",
+        "content": "",
+        "tool": "encode_and_call",
+        "tool_topic": "Get SushiSwap router WETH address",
+        "tool_result_preview": "{\n  \"success\": true,\n  \"result\": \"0x000000000000000000000000c02aaa39b223fe8d0a0e5c4f27ead9083c756cc2\",\n  \"revert_reason\": null,\n  \"tx\": {\n    \"from\": \"0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266\",\n    \"to\": \"0xd9e1cE17f2641f24aE83637ab66a2cca9C378B9F\",\n    \"value_wei\": \"0\",\n    \"value_eth\": \"0\",\n    \"input\": \"0xad5c4648\",\n    \"chain_id\": 1\n  },\n  \"result_decoded\": {\n    \"kind\": \"single_abi_word\",\n    \"raw_hex\": \"0x000000000000000000000000c02aaa39b223fe8d0a0e5c4f27ead9083c756cc2\",\n    \"decoded\": {\n      \"type\": \"uint256\",\n      \"decoded\": \"1097077688018008265106216665536940668749033598146\",\n      \"as_bool\": null,\n      \"as_address\": \"0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2\"\n    }\n  }\n}"
+      },
+      {
+        "sender": "assistant",
+        "content": "I’m checking the SushiSwap quote and then I’ll build the ETH→USDC swap with a conservative 1% minimum output.",
+        "tool": null,
+        "tool_topic": null,
+        "tool_result_preview": null
+      },
+      {
+        "sender": "assistant",
+        "content": "",
+        "tool": "encode_and_call",
+        "tool_topic": "Quote 0.05 ETH to USDC on SushiSwap",
+        "tool_result_preview": "{\n  \"success\": true,\n  \"result\": \"0x0000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000b1a2bc2ec500000000000000000000000000000000000000000000000000000000000006015283\",\n  \"revert_reason\": null,\n  \"tx\": {\n    \"from\": \"0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266\",\n    \"to\": \"0...d19d4a2e9eb0ce3606eb48\",\n    \"chain_id\": 1\n  },\n  \"result_decoded\": {\n    \"kind\": \"raw_bytes\",\n    \"raw_hex\": \"0x0000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000b1a2bc2ec500000000000000000000000000000000000000000000000000000000000006015283\",\n    \"byte_len\": 128\n  }\n}"
+      },
+      {
+        "sender": "assistant",
+        "content": "I’m checking the SushiSwap route and simulating the swap with a 1% minimum-output guard before asking you to sign.",
+        "tool": null,
+        "tool_topic": null,
+        "tool_result_preview": null
+      },
+      {
+        "sender": "assistant",
+        "content": "",
+        "tool": "encode_and_call",
+        "tool_topic": "Simulate SushiSwap 0.05 ETH to USDC swap",
+        "tool_result_preview": "{\n  \"success\": true,\n  \"result\": \"0x0000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000b1a2bc2ec500000000000000000000000000000000000000000000000000000000000006015283\",\n  \"revert_reason\": null,\n  \"tx\": {\n    \"from\": \"0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266\",\n    \"to\": \"0...d19d4a2e9eb0ce3606eb48\",\n    \"chain_id\": 1\n  },\n  \"result_decoded\": {\n    \"kind\": \"raw_bytes\",\n    \"raw_hex\": \"0x0000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000b1a2bc2ec500000000000000000000000000000000000000000000000000000000000006015283\",\n    \"byte_len\": 128\n  }\n}"
+      },
+      {
+        "sender": "assistant",
+        "content": "",
+        "tool": "stage_tx",
+        "tool_topic": "Stage SushiSwap ETH to USDC swap",
+        "tool_result_preview": "{\n  \"from\": \"0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266\",\n  \"chain_id\": 1,\n  \"to\": \"0xd9e1cE17f2641f24aE83637ab66a2cca9C378B9F\",\n  \"value\": \"50000000000000000\",\n  \"data\": \"0x7ff36ab50000000000000000000000000000000000000000000000000000000005f1f6ed0000000000000000000000000000000000000000000000000000000000000080000000000000000000000000f39fd6e51aad88f6f4ce6ab8827279cfffb9226600000000000000000000000000...0000006a1b692b0000000000000000000000000000000000000000000000000000000000000002000000000000000000000000c02aaa39b223fe8d0a0e5c4f27ead9083c756cc2000000000000000000000000a0b86991c6218b36c1d19d4a2e9eb0ce3606eb48\",\n  \"description\": \"Swap 0.05 ETH for at least 99.743469 USDC on SushiSwap V2 to Alice\",\n  \"kind\": \"swap\",\n  \"pending_tx_id\": 1,\n  \"batch_status\": \"Batch [1] pending\",\n  \"status\": \"queued\"\n}"
+      },
+      {
+        "sender": "assistant",
+        "content": "",
+        "tool": "simulate_batch",
+        "tool_topic": "Verify staged SushiSwap swap",
+        "tool_result_preview": "{\n  \"simulation\": {\n    \"batch_success\": true,\n    \"stateful\": true,\n    \"from\": \"0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266\",\n    \"network\": \"sim-ethereum\",\n    \"total_gas\": 114105,\n    \"steps\": [\n      {\n        \"step\": 1,\n        \"chain_id\": 1,\n        \"label\": \"Swap 0.05 ETH for at least 99.743469 USDC on SushiSwap V2 to Alice\",\n        \"success\": true,\n        \"result\": \"0x5ae42c22da7d962989f...00000000000000000000c02aaa39b223fe8d0a0e5c4f27ead9083c756cc2000000000000000000000000a0b86991c6218b36c1d19d4a2e9eb0ce3606eb48\"\n        }\n      }\n    ]\n  },\n  \"simulation_from\": \"0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266\",\n  \"owner_address\": \"0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266\",\n  \"aa_override\": null,\n  \"resolved_ids\": [\n    1\n  ],\n  \"warnings\": [],\n  \"batch_status\": \"Batch [1] passed\"\n}"
+      },
+      {
+        "sender": "assistant",
+        "content": "",
+        "tool": "commit_txs",
+        "tool_topic": "Request wallet approval for SushiSwap ETH to USDC swap",
+        "tool_result_preview": "{\n  \"status\": \"pending_approval\",\n  \"tx_ids\": [\n    1\n  ],\n  \"timestamp\": \"2026-05-30T22:28:40.064862+00:00\"\n}"
+      },
+      {
+        "sender": "assistant",
+        "content": "Swap is ready and passed simulation.\n\nAlice will swap:\n- Spend: 0.05 ETH\n- Receive: at least 99.743469 USDC\n- Recipient: Alice `0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266`\n- Route: WETH → USDC via SushiSwap V2\n\nWaiting for wallet approval now.",
+        "tool": null,
+        "tool_topic": null,
+        "tool_result_preview": null
+      }
+    ],
+    "tool_previews": [
+      {
+        "turn": 0,
+        "tool": "activate_skills",
+        "topic": "activate_skills",
+        "arguments": {
+          "skill_ids": [
+            "sushiswap"
+          ]
+        },
+        "result_preview": "{\n  \"activated\": [\n    \"sushiswap\"\n  ],\n  \"rejected\": [],\n  \"applied_scope\": \"current_serve_cycle\"\n}"
+      },
+      {
+        "turn": 0,
+        "tool": "get_time_and_onchain_context",
+        "topic": "Confirm Ethereum context for SushiSwap ETH to USDC swap",
+        "arguments": {
+          "topic": "Confirm Ethereum context for SushiSwap ETH to USDC swap"
+        },
+        "result_preview": "{\n  \"chain_name\": \"sim-ethereum\",\n  \"chain_id\": 1,\n  \"rpc_endpoint\": \"http://127.0.0.1:50581\",\n  \"current_time_unix\": 1780180091,\n  \"current_time_iso\": \"2026-05-30T22:28:11.326722+00:00\",\n  \"block_number\": 25211172,\n  \"gas_price_wei\": \"1004497802\",\n  \"supported_chains\": [\n    {\n      \"name\": \"sim-ethereum\",\n      \"chain_id\": 1\n    },\n    {\n      \"name\": \"sim-monad_testnet\",\n      \"chain_id\": 10143\n    },\n    {\n      \"name\": \"sim-ethereum\",\n      \"chain_id\": 1\n    },\n    {\n      \"name\": \"sim-monad_testnet\",\n      \"chain_id\": 10143\n    },\n    {\n      \"name\": \"sim-base\",\n      \"chain_id\": 8453\n    },\n    {\n      \"name\": \"sim-base\",\n      \"chain_id\": 8453\n    }\n  ]\n}"
+      },
+      {
+        "turn": 0,
+        "tool": "get_account_info",
+        "topic": "Check Alice ETH balance",
+        "arguments": {
+          "address": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+          "chain_id": 1,
+          "history_limit": 0,
+          "history_offset": 0,
+          "include_tx_history": false,
+          "topic": "Check Alice ETH balance"
+        },
+        "result_preview": "{\n  \"address\": \"0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266\",\n  \"balance_wei\": \"10000000000000000000000\",\n  \"balance_eth\": \"10000\",\n  \"nonce\": 6436\n}"
+      },
+      {
+        "turn": 0,
+        "tool": "encode_and_call",
+        "topic": "Get SushiSwap router WETH address",
+        "arguments": {
+          "arguments": [],
+          "function_signature": "WETH()",
+          "to": "0xd9e1cE17f2641f24aE83637ab66a2cca9C378B9F",
+          "topic": "Get SushiSwap router WETH address",
+          "value": "0"
+        },
+        "result_preview": "{\n  \"success\": true,\n  \"result\": \"0x000000000000000000000000c02aaa39b223fe8d0a0e5c4f27ead9083c756cc2\",\n  \"revert_reason\": null,\n  \"tx\": {\n    \"from\": \"0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266\",\n    \"to\": \"0xd9e1cE17f2641f24aE83637ab66a2cca9C378B9F\",\n    \"value_wei\": \"0\",\n    \"value_eth\": \"0\",\n    \"input\": \"0xad5c4648\",\n    \"chain_id\": 1\n  },\n  \"result_decoded\": {\n    \"kind\": \"single_abi_word\",\n    \"raw_hex\": \"0x000000000000000000000000c02aaa39b223fe8d0a0e5c4f27ead9083c756cc2\",\n    \"decoded\": {\n      \"type\": \"uint256\",\n      \"decoded\": \"1097077688018008265106216665536940668749033598146\",\n      \"as_bool\": null,\n      \"as_address\": \"0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2\"\n    }\n  }\n}"
+      },
+      {
+        "turn": 0,
+        "tool": "encode_and_call",
+        "topic": "Quote 0.05 ETH to USDC on SushiSwap",
+        "arguments": {
+          "arguments": [
+            "50000000000000000",
+            "[\"0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2\",\"0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48\"]"
+          ],
+          "function_signature": "getAmountsOut(uint256,address[])",
+          "to": "0xd9e1cE17f2641f24aE83637ab66a2cca9C378B9F",
+          "topic": "Quote 0.05 ETH to USDC on SushiSwap",
+          "value": "0"
+        },
+        "result_preview": "{\n  \"success\": true,\n  \"result\": \"0x0000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000b1a2bc2ec500000000000000000000000000000000000000000000000000000000000006015283\",\n  \"revert_reason\": null,\n  \"tx\": {\n    \"from\": \"0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266\",\n    \"to\": \"0...d19d4a2e9eb0ce3606eb48\",\n    \"chain_id\": 1\n  },\n  \"result_decoded\": {\n    \"kind\": \"raw_bytes\",\n    \"raw_hex\": \"0x0000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000b1a2bc2ec500000000000000000000000000000000000000000000000000000000000006015283\",\n    \"byte_len\": 128\n  }\n}"
+      },
+      {
+        "turn": 0,
+        "tool": "encode_and_call",
+        "topic": "Simulate SushiSwap 0.05 ETH to USDC swap",
+        "arguments": {
+          "arguments": [
+            "99743469",
+            "[\"0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2\",\"0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48\"]",
+            "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+            "1780181291"
+          ],
+          "function_signature": "swapExactETHForTokens(uint256,address[],address,uint256)",
+          "to": "0xd9e1cE17f2641f24aE83637ab66a2cca9C378B9F",
+          "topic": "Simulate SushiSwap 0.05 ETH to USDC swap",
+          "value": "50000000000000000"
+        },
+        "result_preview": "{\n  \"success\": true,\n  \"result\": \"0x0000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000b1a2bc2ec500000000000000000000000000000000000000000000000000000000000006015283\",\n  \"revert_reason\": null,\n  \"tx\": {\n    \"from\": \"0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266\",\n    \"to\": \"0...d19d4a2e9eb0ce3606eb48\",\n    \"chain_id\": 1\n  },\n  \"result_decoded\": {\n    \"kind\": \"raw_bytes\",\n    \"raw_hex\": \"0x0000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000b1a2bc2ec500000000000000000000000000000000000000000000000000000000000006015283\",\n    \"byte_len\": 128\n  }\n}"
+      },
+      {
+        "turn": 0,
+        "tool": "stage_tx",
+        "topic": "Stage SushiSwap ETH to USDC swap",
+        "arguments": {
+          "value": "50000000000000000",
+          "data": {
+            "args": [
+              "99743469",
+              "[\"0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2\",\"0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48\"]",
+              "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+              "1780181291"
+            ],
+            "raw": "",
+            "signature": "swapExactETHForTokens(uint256,address[],address,uint256)"
+          },
+          "description": "Swap 0.05 ETH for at least 99.743469 USDC on SushiSwap V2 to Alice",
+          "gas_limit": "",
+          "kind": "swap",
+          "to": "0xd9e1cE17f2641f24aE83637ab66a2cca9C378B9F",
+          "topic": "Stage SushiSwap ETH to USDC swap"
+        },
+        "result_preview": "{\n  \"from\": \"0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266\",\n  \"chain_id\": 1,\n  \"to\": \"0xd9e1cE17f2641f24aE83637ab66a2cca9C378B9F\",\n  \"value\": \"50000000000000000\",\n  \"data\": \"0x7ff36ab50000000000000000000000000000000000000000000000000000000005f1f6ed0000000000000000000000000000000000000000000000000000000000000080000000000000000000000000f39fd6e51aad88f6f4ce6ab8827279cfffb9226600000000000000000000000000...0000006a1b692b0000000000000000000000000000000000000000000000000000000000000002000000000000000000000000c02aaa39b223fe8d0a0e5c4f27ead9083c756cc2000000000000000000000000a0b86991c6218b36c1d19d4a2e9eb0ce3606eb48\",\n  \"description\": \"Swap 0.05 ETH for at least 99.743469 USDC on SushiSwap V2 to Alice\",\n  \"kind\": \"swap\",\n  \"pending_tx_id\": 1,\n  \"batch_status\": \"Batch [1] pending\",\n  \"status\": \"queued\"\n}"
+      },
+      {
+        "turn": 0,
+        "tool": "simulate_batch",
+        "topic": "Verify staged SushiSwap swap",
+        "arguments": {
+          "aa_override": "",
+          "topic": "Verify staged SushiSwap swap",
+          "transactions": [
+            {
+              "chain_id": 1,
+              "id": 1,
+              "kind": "swap",
+              "label": "Swap 0.05 ETH for at least 99.743469 USDC on SushiSwap V2 to Alice"
+            }
+          ]
+        },
+        "result_preview": "{\n  \"simulation\": {\n    \"batch_success\": true,\n    \"stateful\": true,\n    \"from\": \"0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266\",\n    \"network\": \"sim-ethereum\",\n    \"total_gas\": 114105,\n    \"steps\": [\n      {\n        \"step\": 1,\n        \"chain_id\": 1,\n        \"label\": \"Swap 0.05 ETH for at least 99.743469 USDC on SushiSwap V2 to Alice\",\n        \"success\": true,\n        \"result\": \"0x5ae42c22da7d962989f...00000000000000000000c02aaa39b223fe8d0a0e5c4f27ead9083c756cc2000000000000000000000000a0b86991c6218b36c1d19d4a2e9eb0ce3606eb48\"\n        }\n      }\n    ]\n  },\n  \"simulation_from\": \"0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266\",\n  \"owner_address\": \"0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266\",\n  \"aa_override\": null,\n  \"resolved_ids\": [\n    1\n  ],\n  \"warnings\": [],\n  \"batch_status\": \"Batch [1] passed\"\n}"
+      },
+      {
+        "turn": 0,
+        "tool": "commit_txs",
+        "topic": "Request wallet approval for SushiSwap ETH to USDC swap",
+        "arguments": {
+          "topic": "Request wallet approval for SushiSwap ETH to USDC swap",
+          "tx_ids": [
+            1
+          ]
+        },
+        "result_preview": "{\n  \"status\": \"pending_approval\",\n  \"tx_ids\": [\n    1\n  ],\n  \"timestamp\": \"2026-05-30T22:28:40.064862+00:00\"\n}"
+      }
+    ],
+    "failure_category": null,
+    "app": {
+      "source": "default",
+      "path": null,
+      "loaded_name": "default"
+    },
+    "skills": {
+      "mode": "restricted",
+      "allowed": [
+        "sushiswap"
+      ],
+      "activated_skills": [
+        "sushiswap"
+      ],
+      "bundle_path": "../output/eval/model-bench-public-skills-gpt55-opus48-sonnet46-20260530/specs/swap_eth_for_usdc_sushiswap/gpt-5.5/pass-002/spec-skills/swap_eth_for_usdc_sushiswap-skills.json",
+      "bundle_revision": "fnv1a64:71f80a80fc792556"
+    },
+    "environment": {
+      "chain_id": 1,
+      "network": "ethereum",
+      "providers_path": "/Users/aronmegyeri/.aomi/test-env/providers.toml",
+      "endpoint_name": "sim-ethereum",
+      "funding_ledger": [
+        {
+          "chain_id": 10143,
+          "address": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+          "balances": {}
+        },
+        {
+          "chain_id": 10143,
+          "address": "0x70997970c51812dc3a010c7d01b50e0d17dc79c8",
+          "balances": {}
+        },
+        {
+          "chain_id": 8453,
+          "address": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+          "balances": {
+            "ETH": "100",
+            "USDC": "10000"
+          }
+        },
+        {
+          "chain_id": 8453,
+          "address": "0x70997970c51812dc3a010c7d01b50e0d17dc79c8",
+          "balances": {
+            "ETH": "100",
+            "USDC": "10000"
+          }
+        },
+        {
+          "chain_id": 1,
+          "address": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+          "balances": {
+            "ETH": "100",
+            "USDC": "10000"
+          }
+        },
+        {
+          "chain_id": 1,
+          "address": "0x70997970c51812dc3a010c7d01b50e0d17dc79c8",
+          "balances": {
+            "ETH": "100",
+            "USDC": "10000"
+          }
+        }
+      ]
+    }
+  }
+}

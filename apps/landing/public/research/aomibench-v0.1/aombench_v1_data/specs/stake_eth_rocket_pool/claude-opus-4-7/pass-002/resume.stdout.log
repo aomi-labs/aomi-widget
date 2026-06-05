@@ -1,0 +1,3 @@
+[eval] PASS stake_eth_rocket_pool 1 turn(s) 9 tool call(s) 4.91915 cr, 49179 in / 659 out tok, 47373 cached / 0 reasoning tok 0 warning(s) duration 36s
+report full json: ../output/eval/model-bench-public-skills-opus47-opus46-haiku45-20260531/specs/stake_eth_rocket_pool/claude-opus-4.7/pass-002/20260531T125355.764598000Z.full.json
+report compact json: ../output/eval/model-bench-public-skills-opus47-opus46-haiku45-20260531/specs/stake_eth_rocket_pool/claude-opus-4.7/pass-002/20260531T125355.764598000Z.compact.json

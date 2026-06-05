@@ -1,0 +1,53 @@
+[
+  {
+    "id": "sushiswap",
+    "name": "sushiswap",
+    "description": "Use when users want to swap tokens on SushiSwap V2 on Ethereum.",
+    "tags": [
+      "swap",
+      "sushiswap",
+      "sushi",
+      "v2",
+      "amm",
+      "dex",
+      "token"
+    ],
+    "tool_names": [
+      "get_time_and_onchain_context",
+      "brave_search",
+      "encode_and_call",
+      "get_account_info",
+      "get_contract",
+      "sync_chain",
+      "simulate_batch",
+      "stage_tx",
+      "commit_eip712",
+      "commit_txs"
+    ],
+    "injected_tools": [],
+    "source": "aomi_builtin",
+    "est_tokens": 1285,
+    "activation_tokens": 1290,
+    "instruction_md": "## SushiSwap: sushiswap_v2_router\n- router: 0xd9e1cE17f2641f24aE83637ab66a2cca9C378B9F (chain 1)\n- interface: uniswap-v2-router02\n- approval_spender: 0xd9e1cE17f2641f24aE83637ab66a2cca9C378B9F\n- quote: getAmountsOut(uint256,address[])\n- swap: swapExactTokensForTokens(uint256,uint256,address[],address,uint256)\n- swap_eth_in: swapExactETHForTokens(uint256,address[],address,uint256)\n- swap_token_to_eth: swapExactTokensForETH(uint256,uint256,address[],address,uint256)\n- path_format: array\n- fee_tiers: [3000]\n- note: Fixed 0.3% fee (same as Uniswap V2)\n- note: Deadline param in every swap function\n- note: Path is address[] — include intermediate tokens for multi-hop\n- note: Same interface as Uniswap V2 Router02\n\n\n## SushiSwap: ABI Signatures (reference only)\nSushiSwap V2 Router [sushiswap_v2_router]:\n- swapExactETHForTokens(uint256,address[],address,uint256) → uint256[]\n- swapExactTokensForETH(uint256,uint256,address[],address,uint256) → uint256[]\n- swapExactTokensForTokens(uint256,uint256,address[],address,uint256) → uint256[]\n- swapTokensForExactTokens(uint256,uint256,address[],address,uint256) → uint256[]\nERC20 [erc20]:\n- approve(address,uint256) → bool\nsushiswap_v2_router [sushiswap_v2_router_router]:\n- WETH() → address\n- addLiquidity(address,address,uint256,uint256,uint256,uint256,address,uint256) → uint256,uint256,uint256\n- addLiquidityETH(address,uint256,uint256,uint256,address,uint256) → uint256,uint256,uint256\n- factory() → address\n- getAmountIn(uint256,uint256,uint256) → uint256\n- getAmountOut(uint256,uint256,uint256) → uint256\n- getAmountsIn(uint256,address[]) → uint256[]\n- getAmountsOut(uint256,address[]) → uint256[]\n- quote(uint256,uint256,uint256) → uint256\n- removeLiquidity(address,address,uint256,uint256,uint256,address,uint256) → uint256,uint256\n- removeLiquidityETH(address,uint256,uint256,uint256,address,uint256) → uint256,uint256\n- removeLiquidityETHSupportingFeeOnTransferTokens(address,uint256,uint256,uint256,address,uint256) → uint256\n- removeLiquidityETHWithPermit(address,uint256,uint256,uint256,address,uint256,bool,uint8,bytes32,bytes32) → uint256,uint256\n- removeLiquidityETHWithPermitSupportingFeeOnTransferTokens(address,uint256,uint256,uint256,address,uint256,bool,uint8,bytes32,bytes32) → uint256\n- removeLiquidityWithPermit(address,address,uint256,uint256,uint256,address,uint256,bool,uint8,bytes32,bytes32) → uint256,uint256\n- swapETHForExactTokens(uint256,address[],address,uint256) → uint256[]\n- swapExactETHForTokens(uint256,address[],address,uint256) → uint256[]\n- swapExactETHForTokensSupportingFeeOnTransferTokens(uint256,address[],address,uint256) → \n- swapExactTokensForETH(uint256,uint256,address[],address,uint256) → uint256[]\n- swapExactTokensForETHSupportingFeeOnTransferTokens(uint256,uint256,address[],address,uint256) → \n- swapExactTokensForTokens(uint256,uint256,address[],address,uint256) → uint256[]\n- swapExactTokensForTokensSupportingFeeOnTransferTokens(uint256,uint256,address[],address,uint256) → \n- swapTokensForExactETH(uint256,uint256,address[],address,uint256) → uint256[]\n- swapTokensForExactTokens(uint256,uint256,address[],address,uint256) → uint256[]\n\n## SushiSwap: Procedure\n1. Call `get_time_and_onchain_context` to confirm wallet, chain, and block context.\n2. Check token balance and allowance with `encode_and_call` (balanceOf, allowance).\n3. If allowance insufficient, build and simulate an `approve` transaction first.\n4. Quote expected output with `getAmountsOut` via `encode_and_call`.\n5. Build the swap call and simulate with `encode_and_call`.\n6. Inspect result and `sushiswap_guard_*` fields — if `sushiswap_guard_blocked`, do NOT proceed.\n7. Only after user confirmation, send via `commit_txs`.\n## SushiSwap: Critical Rules\n- The `to` / recipient parameter (the `address` argument after the path array) MUST be the user's wallet address in every swap call. This applies to ALL swap functions:\n  - `swapExactTokensForTokens(uint256,uint256,address[],address,uint256)` — the 4th arg (address after path) MUST be user wallet.\n  - `swapExactETHForTokens(uint256,address[],address,uint256)` — the 3rd arg (address after path) MUST be user wallet.\n  - `swapExactTokensForETH(uint256,uint256,address[],address,uint256)` — the 4th arg (address after path) MUST be user wallet.\n  - Setting recipient to any other address sends the swapped tokens to that address instead of the user. NEVER set recipient to the router, a third-party address, or any address that is not the user's own wallet.\n- Always simulate swap calldata with `encode_and_call` before sending.\n- Check `sushiswap_guard_blocked` in simulation result — if true, do NOT proceed.\n- Only use the official `router` and `approval_spender` addresses listed in this skill (registered in protocol_contracts.rs). Do not substitute user-supplied contract addresses for core SushiSwap routing.\n- Prefer exact-amount approvals over unlimited approvals. Only request broader token approvals if the user explicitly wants that tradeoff.\n- Set a reasonable deadline (current block timestamp + 20 minutes) in every swap call.\n- Path must start with the input token and end with the output token.",
+    "tool_hooks": [
+      {
+        "tool": "simulate_batch",
+        "pre_call": [],
+        "post_call": [
+          "sushiswap-known-addrs"
+        ]
+      },
+      {
+        "tool": "stage_tx",
+        "pre_call": [],
+        "post_call": [
+          "sushiswap-known-addrs"
+        ]
+      }
+    ],
+    "tools_namespace": "evm-core",
+    "chain_ids": [
+      1
+    ]
+  }
+]

@@ -1,0 +1,3 @@
+[eval] PASS deposit_eth_aave_v3_ethereum 1 turn(s) 7 tool call(s) 1.32635 cr, 48154 in / 1418 out tok, 46645 cached / 0 reasoning tok 0 warning(s) duration 30s
+report full json: ../output/eval/model-bench-public-skills-opus47-opus46-haiku45-20260531/specs/deposit_eth_aave_v3_ethereum/claude-haiku-4.5/pass-002/20260531T113147.093626000Z.full.json
+report compact json: ../output/eval/model-bench-public-skills-opus47-opus46-haiku45-20260531/specs/deposit_eth_aave_v3_ethereum/claude-haiku-4.5/pass-002/20260531T113147.093626000Z.compact.json

@@ -1,0 +1,343 @@
+{
+  "run_id": "20260530T234335.930928000Z",
+  "mode": "spec",
+  "started_at": "2026-05-30T23:42:46.232502+00:00",
+  "finished_at": "2026-05-30T23:43:35.930827+00:00",
+  "spec_path": "bin/eval/specs/cctp/bridge_usdc_to_base_cctp_review_first.json",
+  "passed": true,
+  "git_commit": "5b02660942391bc7ae86c5cbb05e33f4c549266f",
+  "git_dirty": true,
+  "story": {
+    "run_id": "20260530T234335.930928000Z",
+    "story_id": "bridge_usdc_to_base_cctp_review_first",
+    "user_story": "Prepare a CCTP transfer of 25 USDC from Ethereum to Base for Alice, but do not send yet.",
+    "passed": true,
+    "warnings": [],
+    "model": "claude-sonnet-4-6",
+    "chain_id": 1,
+    "git_commit": "5b02660942391bc7ae86c5cbb05e33f4c549266f",
+    "git_dirty": true,
+    "total_turns": 1,
+    "total_tool_calls": 7,
+    "total_responses": 13,
+    "activated_skills": [
+      "cctp"
+    ],
+    "failed_assertions": [],
+    "budget_summary": {
+      "total": 1,
+      "exceeded": 0,
+      "required_failures": 0,
+      "warning_failures": 0
+    },
+    "usage": {
+      "input_tokens": 47967,
+      "output_tokens": 1880,
+      "total_tokens": 49847,
+      "cached_input_tokens": 44914,
+      "cache_creation_input_tokens": 0,
+      "visible_output_tokens": 1880,
+      "reasoning_output_tokens": 0,
+      "tool_call_count": 7,
+      "actual_events": 1,
+      "diagnostic_events": 0,
+      "aomi_cost_credits": 5.0833200000000005,
+      "user_charged_credits": 5.0833200000000005,
+      "credits": 5.0833200000000005
+    },
+    "transcript_previews": [
+      {
+        "sender": "user",
+        "content": "Prepare a CCTP transfer of 25 USDC from Alice on Ethereum to Alice on Base, but don't send it yet.",
+        "tool": null,
+        "tool_topic": null,
+        "tool_result_preview": null
+      },
+      {
+        "sender": "assistant",
+        "content": "\nThe user wants to prepare a CCTP transfer of 25 USDC from Alice (0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266) on Ethereum to Alice on Base, but not send it yet. Let me activate the CCTP skill first, then gather context.\n\nLet me start by:\n1. Activating the CCTP skill\n2. Getting the on-chain context\n\nI'll do these in parallel.\n\nThe user wants to prepare a CCTP transfer of 25 USDC from Alice (0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266) on Ethereum to Alice on Base, but not send it yet. Let me activate the CCTP skill first, then gather context.\n\nLet me start by:\n1. Activating the CCTP skill\n2. Getting the on-chain context\n\nI'll do these in parallel.\n",
+        "tool": null,
+        "tool_topic": null,
+        "tool_result_preview": null
+      },
+      {
+        "sender": "assistant",
+        "content": "",
+        "tool": "activate_skills",
+        "tool_topic": "activate_skills",
+        "tool_result_preview": "{\n  \"activated\": [\n    \"cctp\"\n  ],\n  \"rejected\": [\n    [\n      \"common_erc20\",\n      \"invalid\"\n    ]\n  ],\n  \"applied_scope\": \"current_serve_cycle\"\n}"
+      },
+      {
+        "sender": "assistant",
+        "content": "",
+        "tool": "get_time_and_onchain_context",
+        "tool_topic": "CCTP USDC bridge Ethereum to Base",
+        "tool_result_preview": "{\n  \"chain_name\": \"sim-ethereum\",\n  \"chain_id\": 1,\n  \"rpc_endpoint\": \"http://127.0.0.1:50581\",\n  \"current_time_unix\": 1780184570,\n  \"current_time_iso\": \"2026-05-30T23:42:50.691176+00:00\",\n  \"block_number\": 25211544,\n  \"gas_price_wei\": \"1000000008\",\n  \"supported_chains\": [\n    {\n      \"name\": \"base\",\n      \"chain_id\": 8453\n    },\n    {\n      \"name\": \"monad_testnet\",\n      \"chain_id\": 10143\n    },\n    {\n      \"name\": \"sim-ethereum\",\n      \"chain_id\": 1\n    },\n    {\n      \"name\": \"sim-ethereum\",\n      \"chain_id\": 1\n    },\n    {\n      \"name\": \"base\",\n      \"chain_id\": 8453\n    },\n    {\n      \"name\": \"monad_testnet\",\n      \"chain_id\": 10143\n    }\n  ]\n}"
+      },
+      {
+        "sender": "assistant",
+        "content": "\nLet me think through this CCTP transfer setup:\n\n1. Alice's address: 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266\n2. Source: Ethereum (chain 1, domain 0)\n3. Destination: Base (chain 8453, domain 6)\n4. Amount: 25 USDC\n\nSteps needed:\n1. Check Alice's USDC balance on Ethereum\n2. Check current USDC allowance for the CCTP messenger\n3. Stage approve tx if needed\n4. Stage depositForBurn tx\n\nLet me first ge...10^6 = 25000000 (USDC has 6 decimals)\n\nRecipient in bytes32: Alice's address padded to 32 bytes\n0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266 → 0x000000000000000000000000f39Fd6e51aad88F6F4ce6aB8827279cffFb92266\n\nDestination domain for Base (chain 8453) = 6\n\nLet me check USDC balance and allowance first.\nNow let me check Alice's USDC balance and current allowance for the CCTP messenger in parallel.",
+        "tool": null,
+        "tool_topic": null,
+        "tool_result_preview": null
+      },
+      {
+        "sender": "assistant",
+        "content": "",
+        "tool": "encode_and_call",
+        "tool_topic": "Alice USDC balance on Ethereum",
+        "tool_result_preview": "{\n  \"success\": true,\n  \"result\": \"0x00000000000000000000000000000000000000000000000000000002540be400\",\n  \"revert_reason\": null,\n  \"tx\": {\n    \"from\": \"0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266\",\n    \"to\": \"0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48\",\n    \"value_wei\": \"0\",\n    \"value_eth\": \"0\",\n    \"input\": \"0x70a08231000000000000000000000000f39fd6e51aad88f6f4ce6ab8827279cfffb92266\",\n    \"chain_id\": 1\n  },\n  \"result_decoded\": {\n    \"kind\": \"single_abi_word\",\n    \"raw_hex\": \"0x00000000000000000000000000000000000000000000000000000002540be400\",\n    \"decoded\": {\n      \"type\": \"uint256\",\n      \"decoded\": \"10000000000\",\n      \"as_bool\": null,\n      \"as_address\": \"0x00000000000000000000000000000002540be400\"\n    }\n  }\n}"
+      },
+      {
+        "sender": "assistant",
+        "content": "",
+        "tool": "encode_and_call",
+        "tool_topic": "Alice USDC allowance for CCTP messenger",
+        "tool_result_preview": "{\n  \"success\": true,\n  \"result\": \"0x0000000000000000000000000000000000000000000000000000000000000000\",\n  \"revert_reason\": null,\n  \"tx\": {\n    \"from\": \"0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266\",\n    \"to\": \"0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48\",\n    \"value_wei\": \"0\",\n    \"value_eth\": \"0\",\n    \"input\": \"0xdd62ed3e000000000000000000000000f39fd6e51aad88f6f4ce6ab8827279cfffb9226600000000000000000000000028b5a0e9c621a5badaa536219b3a228c8168cf5d\",\n    \"chain_id\": 1\n  },\n  \"result_decoded\": {\n    \"kind\": \"single_abi_word\",\n    \"raw_hex\": \"0x0000000000000000000000000000000000000000000000000000000000000000\",\n    \"decoded\": {\n      \"type\": \"uint256\",\n      \"decoded\": \"0\",\n      \"as_bool\": false,\n      \"as_address\": \"0x0000000000000000000000000000000000000000\"\n    }\n  }\n}"
+      },
+      {
+        "sender": "assistant",
+        "content": "\nLet me analyze what I have:\n\n1. Alice's USDC balance: 10,000,000,000 (raw) = 10,000 USDC (6 decimals)\n2. Alice's current allowance for CCTP messenger: 0\n\nI need to:\n1. Stage an `approve` tx for 25 USDC to the CCTP messenger\n2. Stage a `depositForBurn` tx\n\nFor the `depositForBurn` parameters:\n- amount: 25 USDC = 25 * 10^6 = 25,000,000\n- destination_id: Base = domain 6\n- recipient: bytes32 of Alice...\n\nLet me stage both transactions:\n1. approve(messenger, 25000000)\n2. depositForBurn(25000000, 6, bytes32(alice), usdc_address, bytes32(0), 0, 0)\n\nFor the recipient bytes32: 0x000000000000000000000000f39Fd6e51aad88F6F4ce6aB8827279cffFb92266\n\nLet me stage both transactions now.\n\n\nAlice has 10,000 USDC and zero allowance for the messenger. I'll stage the approval and the `depositForBurn` in order.",
+        "tool": null,
+        "tool_topic": null,
+        "tool_result_preview": null
+      },
+      {
+        "sender": "assistant",
+        "content": "",
+        "tool": "stage_tx",
+        "tool_topic": "Approve USDC for CCTP messenger",
+        "tool_result_preview": "{\n  \"from\": \"0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266\",\n  \"chain_id\": 1,\n  \"to\": \"0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48\",\n  \"value\": \"0\",\n  \"data\": \"0x095ea7b300000000000000000000000028b5a0e9c621a5badaa536219b3a228c8168cf5d00000000000000000000000000000000000000000000000000000000017d7840\",\n  \"description\": \"Approve CCTP messenger to spend 25 USDC\",\n  \"kind\": \"erc20_approve\",\n  \"pending_tx_id\": 1,\n  \"batch_status\": \"Batch [1] pending\",\n  \"status\": \"queued\"\n}"
+      },
+      {
+        "sender": "assistant",
+        "content": "\nNow I need to stage the depositForBurn transaction. Let me construct the parameters:\n\n- amount: 25 USDC = 25,000,000 (6 decimals)\n- destination_id: Base = domain 6\n- recipient: bytes32 of Alice's address = 0x000000000000000000000000f39Fd6e51aad88F6F4ce6aB8827279cffFb92266\n- source_token: USDC on Ethereum = 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48\n- destination_caller: 0x000000000000000000000000...000000000f39Fd6e51aad88F6F4ce6aB8827279cffFb92266\"\n4. source_token: \"0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48\"\n5. destination_caller: \"0x0000000000000000000000000000000000000000000000000000000000000000\"\n6. fee: \"0\"\n7. min_finality_threshold: \"0\"\n\nLet me stage this transaction.\nNow staging the `depositForBurn` call. Recipient is Alice's address padded to bytes32, destination domain 6 for Base.",
+        "tool": null,
+        "tool_topic": null,
+        "tool_result_preview": null
+      },
+      {
+        "sender": "assistant",
+        "content": "",
+        "tool": "stage_tx",
+        "tool_topic": "CCTP depositForBurn 25 USDC Ethereum to Base",
+        "tool_result_preview": "{\n  \"from\": \"0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266\",\n  \"chain_id\": 1,\n  \"to\": \"0x28b5a0e9c621a5badaa536219b3a228c8168cf5d\",\n  \"value\": \"0\",\n  \"data\": \"0x8e0250ee00000000000000000000000000000000000000000000000000000000017d78400000000000000000000000000000000000000000000000000000000000000006000000000000000000000000f39fd6e51aad88f6f4ce6ab8827279cfffb92266000000000000000000000000a0b86991c6218b36c1...9eb0ce3606eb48000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000\",\n  \"description\": \"CCTP depositForBurn: send 25 USDC from Ethereum to Alice on Base\",\n  \"kind\": \"bridge\",\n  \"pending_tx_id\": 2,\n  \"batch_status\": \"Batch [2] pending\",\n  \"status\": \"queued\"\n}"
+      },
+      {
+        "sender": "assistant",
+        "content": "\nBoth transactions are staged. Now I need to simulate the batch together before presenting to the user. Let me run simulate_batch for tx-1 and tx-2.\n\nBoth transactions are staged. Now I need to simulate the batch together before presenting to the user. Let me run simulate_batch for tx-1 and tx-2.\n",
+        "tool": null,
+        "tool_topic": null,
+        "tool_result_preview": null
+      },
+      {
+        "sender": "assistant",
+        "content": "",
+        "tool": "simulate_batch",
+        "tool_topic": "Simulate CCTP 25 USDC Ethereum to Base",
+        "tool_result_preview": "{\n  \"simulation\": {\n    \"batch_success\": true,\n    \"stateful\": true,\n    \"from\": \"0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266\",\n    \"network\": \"sim-ethereum\",\n    \"total_gas\": 164891,\n    \"steps\": [\n      {\n        \"step\": 1,\n        \"chain_id\": 1,\n        \"label\": \"Approve CCTP messenger to spend 25 USDC\",\n        \"success\": true,\n        \"result\": \"0x0f24fb001b0b238bbe8fca752a5892a0f3bed652e737f9...\n      \"tx_id\": 1,\n      \"field\": \"label\",\n      \"provided\": \"Approve 25 USDC to CCTP messenger\",\n      \"actual\": \"Approve CCTP messenger to spend 25 USDC\"\n    },\n    {\n      \"tx_id\": 2,\n      \"field\": \"label\",\n      \"provided\": \"depositForBurn 25 USDC to Base\",\n      \"actual\": \"CCTP depositForBurn: send 25 USDC from Ethereum to Alice on Base\"\n    }\n  ],\n  \"batch_status\": \"Batch [1,2] passed\"\n}"
+      },
+      {
+        "sender": "assistant",
+        "content": "\nThe simulation passed for both transactions. The user asked to prepare the CCTP transfer but not send it yet. So I should present the results and let them know the transactions are staged and ready, without calling commit_txs.\n\nLet me summarize what's staged:\n- tx-1: Approve 25 USDC to CCTP messenger (0x28b5a0e9c621a5badaa536219b3a228c8168cf5d)\n- tx-2: depositForBurn 25 USDC → Base (domain 6), re...ositForBurn` 25 USDC → Base (domain 6), recipient: Alice (`0xf39F...2266`)\n\nKey details:\n- Amount: 25 USDC (25,000,000 raw)\n- Alice's balance: 10,000 USDC — sufficient\n- Destination caller: zero (anyone can claim on Base)\n- Fee: 0, min finality threshold: 0\n- Settlement: ~13–19 min via Circle attestation\n\nNothing has been sent. When you're ready, just say \"go\" and I'll commit both transactions.",
+        "tool": null,
+        "tool_topic": null,
+        "tool_result_preview": null
+      }
+    ],
+    "tool_previews": [
+      {
+        "turn": 0,
+        "tool": "activate_skills",
+        "topic": "activate_skills",
+        "arguments": {
+          "skill_ids": [
+            "cctp",
+            "common_erc20"
+          ]
+        },
+        "result_preview": "{\n  \"activated\": [\n    \"cctp\"\n  ],\n  \"rejected\": [\n    [\n      \"common_erc20\",\n      \"invalid\"\n    ]\n  ],\n  \"applied_scope\": \"current_serve_cycle\"\n}"
+      },
+      {
+        "turn": 0,
+        "tool": "get_time_and_onchain_context",
+        "topic": "CCTP USDC bridge Ethereum to Base",
+        "arguments": {
+          "topic": "CCTP USDC bridge Ethereum to Base"
+        },
+        "result_preview": "{\n  \"chain_name\": \"sim-ethereum\",\n  \"chain_id\": 1,\n  \"rpc_endpoint\": \"http://127.0.0.1:50581\",\n  \"current_time_unix\": 1780184570,\n  \"current_time_iso\": \"2026-05-30T23:42:50.691176+00:00\",\n  \"block_number\": 25211544,\n  \"gas_price_wei\": \"1000000008\",\n  \"supported_chains\": [\n    {\n      \"name\": \"base\",\n      \"chain_id\": 8453\n    },\n    {\n      \"name\": \"monad_testnet\",\n      \"chain_id\": 10143\n    },\n    {\n      \"name\": \"sim-ethereum\",\n      \"chain_id\": 1\n    },\n    {\n      \"name\": \"sim-ethereum\",\n      \"chain_id\": 1\n    },\n    {\n      \"name\": \"base\",\n      \"chain_id\": 8453\n    },\n    {\n      \"name\": \"monad_testnet\",\n      \"chain_id\": 10143\n    }\n  ]\n}"
+      },
+      {
+        "turn": 0,
+        "tool": "encode_and_call",
+        "topic": "Alice USDC balance on Ethereum",
+        "arguments": {
+          "function_signature": "balanceOf(address)",
+          "arguments": [
+            "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
+          ],
+          "to": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+          "value": "0",
+          "topic": "Alice USDC balance on Ethereum"
+        },
+        "result_preview": "{\n  \"success\": true,\n  \"result\": \"0x00000000000000000000000000000000000000000000000000000002540be400\",\n  \"revert_reason\": null,\n  \"tx\": {\n    \"from\": \"0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266\",\n    \"to\": \"0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48\",\n    \"value_wei\": \"0\",\n    \"value_eth\": \"0\",\n    \"input\": \"0x70a08231000000000000000000000000f39fd6e51aad88f6f4ce6ab8827279cfffb92266\",\n    \"chain_id\": 1\n  },\n  \"result_decoded\": {\n    \"kind\": \"single_abi_word\",\n    \"raw_hex\": \"0x00000000000000000000000000000000000000000000000000000002540be400\",\n    \"decoded\": {\n      \"type\": \"uint256\",\n      \"decoded\": \"10000000000\",\n      \"as_bool\": null,\n      \"as_address\": \"0x00000000000000000000000000000002540be400\"\n    }\n  }\n}"
+      },
+      {
+        "turn": 0,
+        "tool": "encode_and_call",
+        "topic": "Alice USDC allowance for CCTP messenger",
+        "arguments": {
+          "function_signature": "allowance(address,address)",
+          "arguments": [
+            "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+            "0x28b5a0e9c621a5badaa536219b3a228c8168cf5d"
+          ],
+          "to": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+          "value": "0",
+          "topic": "Alice USDC allowance for CCTP messenger"
+        },
+        "result_preview": "{\n  \"success\": true,\n  \"result\": \"0x0000000000000000000000000000000000000000000000000000000000000000\",\n  \"revert_reason\": null,\n  \"tx\": {\n    \"from\": \"0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266\",\n    \"to\": \"0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48\",\n    \"value_wei\": \"0\",\n    \"value_eth\": \"0\",\n    \"input\": \"0xdd62ed3e000000000000000000000000f39fd6e51aad88f6f4ce6ab8827279cfffb9226600000000000000000000000028b5a0e9c621a5badaa536219b3a228c8168cf5d\",\n    \"chain_id\": 1\n  },\n  \"result_decoded\": {\n    \"kind\": \"single_abi_word\",\n    \"raw_hex\": \"0x0000000000000000000000000000000000000000000000000000000000000000\",\n    \"decoded\": {\n      \"type\": \"uint256\",\n      \"decoded\": \"0\",\n      \"as_bool\": false,\n      \"as_address\": \"0x0000000000000000000000000000000000000000\"\n    }\n  }\n}"
+      },
+      {
+        "turn": 0,
+        "tool": "stage_tx",
+        "topic": "Approve USDC for CCTP messenger",
+        "arguments": {
+          "to": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+          "description": "Approve CCTP messenger to spend 25 USDC",
+          "data": {
+            "signature": "approve(address,uint256)",
+            "args": [
+              "0x28b5a0e9c621a5badaa536219b3a228c8168cf5d",
+              "25000000"
+            ],
+            "raw": ""
+          },
+          "value": "0",
+          "gas_limit": "",
+          "kind": "erc20_approve",
+          "topic": "Approve USDC for CCTP messenger"
+        },
+        "result_preview": "{\n  \"from\": \"0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266\",\n  \"chain_id\": 1,\n  \"to\": \"0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48\",\n  \"value\": \"0\",\n  \"data\": \"0x095ea7b300000000000000000000000028b5a0e9c621a5badaa536219b3a228c8168cf5d00000000000000000000000000000000000000000000000000000000017d7840\",\n  \"description\": \"Approve CCTP messenger to spend 25 USDC\",\n  \"kind\": \"erc20_approve\",\n  \"pending_tx_id\": 1,\n  \"batch_status\": \"Batch [1] pending\",\n  \"status\": \"queued\"\n}"
+      },
+      {
+        "turn": 0,
+        "tool": "stage_tx",
+        "topic": "CCTP depositForBurn 25 USDC Ethereum to Base",
+        "arguments": {
+          "to": "0x28b5a0e9c621a5badaa536219b3a228c8168cf5d",
+          "description": "CCTP depositForBurn: send 25 USDC from Ethereum to Alice on Base",
+          "data": {
+            "signature": "depositForBurn(uint256,uint32,bytes32,address,bytes32,uint256,uint32)",
+            "args": [
+              "25000000",
+              "6",
+              "0x000000000000000000000000f39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+              "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+              "0x0000000000000000000000000000000000000000000000000000000000000000",
+              "0",
+              "0"
+            ],
+            "raw": ""
+          },
+          "value": "0",
+          "gas_limit": "",
+          "kind": "bridge",
+          "topic": "CCTP depositForBurn 25 USDC Ethereum to Base"
+        },
+        "result_preview": "{\n  \"from\": \"0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266\",\n  \"chain_id\": 1,\n  \"to\": \"0x28b5a0e9c621a5badaa536219b3a228c8168cf5d\",\n  \"value\": \"0\",\n  \"data\": \"0x8e0250ee00000000000000000000000000000000000000000000000000000000017d78400000000000000000000000000000000000000000000000000000000000000006000000000000000000000000f39fd6e51aad88f6f4ce6ab8827279cfffb92266000000000000000000000000a0b86991c6218b36c1...9eb0ce3606eb48000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000\",\n  \"description\": \"CCTP depositForBurn: send 25 USDC from Ethereum to Alice on Base\",\n  \"kind\": \"bridge\",\n  \"pending_tx_id\": 2,\n  \"batch_status\": \"Batch [2] pending\",\n  \"status\": \"queued\"\n}"
+      },
+      {
+        "turn": 0,
+        "tool": "simulate_batch",
+        "topic": "Simulate CCTP 25 USDC Ethereum to Base",
+        "arguments": {
+          "transactions": [
+            {
+              "id": 1,
+              "kind": "erc20_approve",
+              "chain_id": 1,
+              "label": "Approve 25 USDC to CCTP messenger"
+            },
+            {
+              "id": 2,
+              "kind": "bridge",
+              "chain_id": 1,
+              "label": "depositForBurn 25 USDC to Base"
+            }
+          ],
+          "aa_override": "",
+          "topic": "Simulate CCTP 25 USDC Ethereum to Base"
+        },
+        "result_preview": "{\n  \"simulation\": {\n    \"batch_success\": true,\n    \"stateful\": true,\n    \"from\": \"0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266\",\n    \"network\": \"sim-ethereum\",\n    \"total_gas\": 164891,\n    \"steps\": [\n      {\n        \"step\": 1,\n        \"chain_id\": 1,\n        \"label\": \"Approve CCTP messenger to spend 25 USDC\",\n        \"success\": true,\n        \"result\": \"0x0f24fb001b0b238bbe8fca752a5892a0f3bed652e737f9...\n      \"tx_id\": 1,\n      \"field\": \"label\",\n      \"provided\": \"Approve 25 USDC to CCTP messenger\",\n      \"actual\": \"Approve CCTP messenger to spend 25 USDC\"\n    },\n    {\n      \"tx_id\": 2,\n      \"field\": \"label\",\n      \"provided\": \"depositForBurn 25 USDC to Base\",\n      \"actual\": \"CCTP depositForBurn: send 25 USDC from Ethereum to Alice on Base\"\n    }\n  ],\n  \"batch_status\": \"Batch [1,2] passed\"\n}"
+      }
+    ],
+    "failure_category": null,
+    "app": {
+      "source": "default",
+      "path": null,
+      "loaded_name": "default"
+    },
+    "skills": {
+      "mode": "restricted",
+      "allowed": [
+        "cctp"
+      ],
+      "activated_skills": [
+        "cctp"
+      ],
+      "bundle_path": "../output/eval/model-bench-public-skills-gpt55-opus48-sonnet46-20260530/specs/bridge_usdc_to_base_cctp_review_first/claude-sonnet-4.6/pass-001/spec-skills/bridge_usdc_to_base_cctp_review_first-skills.json",
+      "bundle_revision": "fnv1a64:d91d4c63b90bc381"
+    },
+    "environment": {
+      "chain_id": 1,
+      "network": "ethereum",
+      "providers_path": "/Users/aronmegyeri/.aomi/test-env/providers.toml",
+      "endpoint_name": "sim-ethereum",
+      "funding_ledger": [
+        {
+          "chain_id": 8453,
+          "address": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+          "balances": {
+            "ETH": "100",
+            "USDC": "10000"
+          }
+        },
+        {
+          "chain_id": 8453,
+          "address": "0x70997970c51812dc3a010c7d01b50e0d17dc79c8",
+          "balances": {
+            "ETH": "100",
+            "USDC": "10000"
+          }
+        },
+        {
+          "chain_id": 10143,
+          "address": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+          "balances": {}
+        },
+        {
+          "chain_id": 10143,
+          "address": "0x70997970c51812dc3a010c7d01b50e0d17dc79c8",
+          "balances": {}
+        },
+        {
+          "chain_id": 1,
+          "address": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+          "balances": {
+            "ETH": "100",
+            "USDC": "10000"
+          }
+        },
+        {
+          "chain_id": 1,
+          "address": "0x70997970c51812dc3a010c7d01b50e0d17dc79c8",
+          "balances": {
+            "ETH": "100",
+            "USDC": "10000"
+          }
+        }
+      ]
+    }
+  }
+}

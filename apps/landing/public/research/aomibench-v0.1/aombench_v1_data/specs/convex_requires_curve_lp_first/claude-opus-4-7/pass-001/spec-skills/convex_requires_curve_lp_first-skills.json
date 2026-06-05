@@ -1,0 +1,54 @@
+[
+  {
+    "id": "convex",
+    "name": "convex",
+    "description": "Use when users want to deposit Curve LP tokens into Convex Finance for boosted CRV rewards, withdraw from Convex pools, or claim accumulated rewards on Ethereum.",
+    "tags": [
+      "yield",
+      "convex",
+      "curve",
+      "crv",
+      "cvx",
+      "boost",
+      "rewards",
+      "defi"
+    ],
+    "tool_names": [
+      "get_time_and_onchain_context",
+      "brave_search",
+      "encode_and_call",
+      "get_account_info",
+      "get_contract",
+      "sync_chain",
+      "simulate_batch",
+      "stage_tx",
+      "commit_eip712",
+      "commit_txs"
+    ],
+    "injected_tools": [],
+    "source": "aomi_builtin",
+    "est_tokens": 698,
+    "activation_tokens": 702,
+    "instruction_md": "## Convex: Convex Booster\n- deposit(pid, amount, true) to deposit and auto-stake into the reward pool\n- Approve Curve LP token to Booster before deposit\n- Use poolInfo(pid) to look up the LP token, reward pool (crvRewards), and gauge for a given pool ID\n- To withdraw + claim: call withdrawAndUnwrap(amount, true) on the reward pool (crvRewards address from poolInfo)\n- To claim only: call getReward(user, true) on the reward pool\n- Rewards include CRV + CVX + any extra reward tokens\n\n\n## Convex: Reward tokens\n- CRV: 0xD533a949740bb3306d119CC777fa900bA034cd52 (chain 1)\n- CVX: 0x4e3FBD56CD56c3e72c1403e103b45Db9da5B9D2B (chain 1)\n\n## Convex: ABI Signatures (reference only)\nConvex Booster [convex_booster]:\n- deposit(uint256,uint256,bool) → bool\nConvex BaseRewardPool [convex_reward_pool]:\n- withdrawAndUnwrap(uint256,bool) → bool\n- getReward(address,bool) → bool\nERC20 [erc20]:\n- approve(address,uint256) → bool\n\n## Convex: Procedure\n1. Call `get_time_and_onchain_context` to confirm wallet, chain, and block context.\n2. Identify the pool ID (pid) for the user's Curve LP token using `poolInfo` or `poolLength`.\n3. Check LP token balance and allowance with `encode_and_call`.\n4. If the user does not already hold the required Curve LP token, stop and explain that Convex can only stake existing Curve LP tokens. Do not create Curve LP positions, do not approve Curve pools, and do not stage partial Convex transactions.\n5. If allowance insufficient and the LP balance is sufficient, build and simulate an `approve` to Booster first.\n6. Build the deposit/withdraw/claim transaction with `encode_and_call`.\n7. Inspect result and `convex_guard_*` fields — if `convex_guard_blocked`, do NOT proceed.\n8. Only after user confirmation, send via `commit_txs`.\n## Convex: Critical Rules\n- Approve the Curve LP token to the Booster contract before deposit.\n- Always pass `_stake = true` in deposit(pid, amount, stake) to auto-stake into the reward pool for CRV+CVX earnings.\n- Use `poolInfo(pid)` to look up the reward pool address (crvRewards) for a given pool ID.\n- `withdrawAndUnwrap` and `getReward` are called on the reward pool address, NOT the Booster.\n- The `account` parameter in `getReward(address account, bool claimExtras)` MUST be the user's wallet address.\n- Convex depends on Curve LP tokens — the user must already hold the correct Curve LP token before depositing. If they do not, stop without staging any transaction and tell them they need a Curve liquidity workflow first.\n- A request like \"put USDC into Convex\" is not a Convex-only transaction. It requires a separate Curve liquidity deposit before Convex. Do not infer permission to perform that Curve step while only the Convex skill is active.\n- Check `convex_guard_blocked` in simulation result — if true, do NOT proceed.",
+    "tool_hooks": [
+      {
+        "tool": "simulate_batch",
+        "pre_call": [],
+        "post_call": [
+          "convex-known-addrs"
+        ]
+      },
+      {
+        "tool": "stage_tx",
+        "pre_call": [],
+        "post_call": [
+          "convex-known-addrs"
+        ]
+      }
+    ],
+    "tools_namespace": "evm-core",
+    "chain_ids": [
+      1
+    ]
+  }
+]

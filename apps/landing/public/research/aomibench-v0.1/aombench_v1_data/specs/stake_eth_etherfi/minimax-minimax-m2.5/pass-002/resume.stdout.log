@@ -1,0 +1,5 @@
+[eval] PASS stake_eth_etherfi 1 turn(s) 8 tool call(s) 1.589475 cr, 103228 in / 357 out tok 1 warning(s) duration 33s
+warnings:
+  no_tool_errors tool error envelope(s) observed for: Stage ether.fi stake of 0.1 ETH
+report full json: ../output/eval/model-bench-public-skills-minimax-m25-kiro-20260531/specs/stake_eth_etherfi/minimax-m2.5/pass-002/20260531T090620.079509000Z.full.json
+report compact json: ../output/eval/model-bench-public-skills-minimax-m25-kiro-20260531/specs/stake_eth_etherfi/minimax-m2.5/pass-002/20260531T090620.079509000Z.compact.json

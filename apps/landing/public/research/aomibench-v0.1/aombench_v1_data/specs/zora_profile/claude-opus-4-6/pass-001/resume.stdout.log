@@ -1,0 +1,3 @@
+[eval] PASS zora_profile 1 turn(s) 1 tool call(s) 2.3599 cr, 11269 in / 272 out tok, 8788 cached / 0 reasoning tok 0 warning(s) duration 10s
+report full json: ../output/eval/model-bench-public-skills-expansion-20260531/specs/zora_profile/claude-opus-4.6/pass-001/20260531T223619.574949000Z.full.json
+report compact json: ../output/eval/model-bench-public-skills-expansion-20260531/specs/zora_profile/claude-opus-4.6/pass-001/20260531T223619.574949000Z.compact.json

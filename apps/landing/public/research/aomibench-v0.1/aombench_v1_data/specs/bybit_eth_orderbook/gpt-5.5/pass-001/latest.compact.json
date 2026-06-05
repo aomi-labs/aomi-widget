@@ -1,0 +1,127 @@
+{
+  "run_id": "20260531T214725.743435000Z",
+  "mode": "spec",
+  "started_at": "2026-05-31T21:47:19.479058+00:00",
+  "finished_at": "2026-05-31T21:47:25.743353+00:00",
+  "spec_path": "bin/eval/specs/apps/bybit_eth_orderbook.json",
+  "passed": true,
+  "git_commit": "5b02660942391bc7ae86c5cbb05e33f4c549266f",
+  "git_dirty": true,
+  "story": {
+    "run_id": "20260531T214725.743435000Z",
+    "story_id": "bybit_eth_orderbook",
+    "user_story": "Check the ETHUSDT orderbook on Bybit.",
+    "passed": true,
+    "warnings": [],
+    "model": "gpt-5.5",
+    "chain_id": 1,
+    "git_commit": "5b02660942391bc7ae86c5cbb05e33f4c549266f",
+    "git_dirty": true,
+    "total_turns": 1,
+    "total_tool_calls": 1,
+    "total_responses": 3,
+    "activated_skills": [],
+    "failed_assertions": [],
+    "budget_summary": {
+      "total": 1,
+      "exceeded": 0,
+      "required_failures": 0,
+      "warning_failures": 0
+    },
+    "usage": {
+      "input_tokens": 10945,
+      "output_tokens": 94,
+      "total_tokens": 11039,
+      "cached_input_tokens": 6656,
+      "cache_creation_input_tokens": 0,
+      "visible_output_tokens": 94,
+      "reasoning_output_tokens": 0,
+      "tool_call_count": 1,
+      "actual_events": 1,
+      "diagnostic_events": 0,
+      "aomi_cost_credits": 2.7593000000000005,
+      "user_charged_credits": 2.7593000000000005,
+      "credits": 2.7593000000000005
+    },
+    "transcript_previews": [
+      {
+        "sender": "user",
+        "content": "Show me the top of book for ETHUSDT perpetuals on Bybit.",
+        "tool": null,
+        "tool_topic": null,
+        "tool_result_preview": null
+      },
+      {
+        "sender": "assistant",
+        "content": "",
+        "tool": null,
+        "tool_topic": null,
+        "tool_result_preview": null
+      },
+      {
+        "sender": "assistant",
+        "content": "",
+        "tool": "bybit_get_orderbook",
+        "tool_topic": "bybit_get_orderbook",
+        "tool_result_preview": "{\n  \"result\": {\n    \"a\": [\n      [\n        \"2012.47\",\n        \"0.95\"\n      ]\n    ],\n    \"b\": [\n      [\n        \"2012.46\",\n        \"7.09\"\n      ]\n    ],\n    \"s\": \"ETHUSDT\",\n    \"ts\": 1780264042208,\n    \"u\": 2436116\n  },\n  \"retCode\": 0,\n  \"retMsg\": \"OK\",\n  \"source\": \"bybit\",\n  \"time\": 1780264042270\n}"
+      },
+      {
+        "sender": "assistant",
+        "content": "ETHUSDT perpetuals (linear) top of book on Bybit:\n\n- Best bid: **2012.46** for **7.09 ETH**\n- Best ask: **2012.47** for **0.95 ETH**\n- Spread: **0.01 USDT**",
+        "tool": null,
+        "tool_topic": null,
+        "tool_result_preview": null
+      }
+    ],
+    "tool_previews": [
+      {
+        "turn": 0,
+        "tool": "bybit_get_orderbook",
+        "topic": "bybit_get_orderbook",
+        "arguments": {
+          "category": "linear",
+          "limit": 1,
+          "symbol": "ETHUSDT"
+        },
+        "result_preview": "{\n  \"result\": {\n    \"a\": [\n      [\n        \"2012.47\",\n        \"0.95\"\n      ]\n    ],\n    \"b\": [\n      [\n        \"2012.46\",\n        \"7.09\"\n      ]\n    ],\n    \"s\": \"ETHUSDT\",\n    \"ts\": 1780264042208,\n    \"u\": 2436116\n  },\n  \"retCode\": 0,\n  \"retMsg\": \"OK\",\n  \"source\": \"bybit\",\n  \"time\": 1780264042270\n}"
+      }
+    ],
+    "failure_category": null,
+    "app": {
+      "source": "path",
+      "path": "bin/eval/specs/apps/../../../../plugins/bybit.dylib",
+      "loaded_name": "bybit"
+    },
+    "skills": {
+      "mode": "disabled",
+      "allowed": [],
+      "activated_skills": [],
+      "bundle_path": null,
+      "bundle_revision": null
+    },
+    "environment": {
+      "chain_id": 1,
+      "network": "ethereum",
+      "providers_path": "/Users/aronmegyeri/.aomi/test-env/providers.toml",
+      "endpoint_name": "sim-ethereum",
+      "funding_ledger": [
+        {
+          "chain_id": 1,
+          "address": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+          "balances": {
+            "ETH": "100",
+            "USDC": "10000"
+          }
+        },
+        {
+          "chain_id": 1,
+          "address": "0x70997970c51812dc3a010c7d01b50e0d17dc79c8",
+          "balances": {
+            "ETH": "100",
+            "USDC": "10000"
+          }
+        }
+      ]
+    }
+  }
+}

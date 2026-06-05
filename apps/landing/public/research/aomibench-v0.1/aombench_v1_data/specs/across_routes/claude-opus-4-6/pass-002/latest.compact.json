@@ -1,0 +1,128 @@
+{
+  "run_id": "20260531T214628.158987000Z",
+  "mode": "spec",
+  "started_at": "2026-05-31T21:46:16.707677+00:00",
+  "finished_at": "2026-05-31T21:46:28.158929+00:00",
+  "spec_path": "bin/eval/specs/apps/across_routes.json",
+  "passed": true,
+  "git_commit": "5b02660942391bc7ae86c5cbb05e33f4c549266f",
+  "git_dirty": true,
+  "story": {
+    "run_id": "20260531T214628.158987000Z",
+    "story_id": "across_routes",
+    "user_story": "List Across bridge routes from Base to Arbitrum.",
+    "passed": true,
+    "warnings": [],
+    "model": "claude-opus-4-6",
+    "chain_id": 1,
+    "git_commit": "5b02660942391bc7ae86c5cbb05e33f4c549266f",
+    "git_dirty": true,
+    "total_turns": 1,
+    "total_tool_calls": 1,
+    "total_responses": 3,
+    "activated_skills": [],
+    "failed_assertions": [],
+    "budget_summary": {
+      "total": 1,
+      "exceeded": 0,
+      "required_failures": 0,
+      "warning_failures": 0
+    },
+    "usage": {
+      "input_tokens": 11870,
+      "output_tokens": 366,
+      "total_tokens": 12236,
+      "cached_input_tokens": 11289,
+      "cache_creation_input_tokens": 0,
+      "visible_output_tokens": 366,
+      "reasoning_output_tokens": 0,
+      "tool_call_count": 1,
+      "actual_events": 1,
+      "diagnostic_events": 0,
+      "aomi_cost_credits": 1.7699500000000001,
+      "user_charged_credits": 1.7699500000000001,
+      "credits": 1.7699500000000001
+    },
+    "transcript_previews": [
+      {
+        "sender": "user",
+        "content": "What Across routes are available from Base to Arbitrum for USDC?",
+        "tool": null,
+        "tool_topic": null,
+        "tool_result_preview": null
+      },
+      {
+        "sender": "assistant",
+        "content": "\nThe user wants to know what Across bridge routes are available from Base (chain ID 8453) to Arbitrum (chain ID 42161) for USDC. Let me query the routes.\n\nThe user wants to know what Across bridge routes are available from Base (chain ID 8453) to Arbitrum (chain ID 42161) for USDC. Let me query the routes.\n",
+        "tool": null,
+        "tool_topic": null,
+        "tool_result_preview": null
+      },
+      {
+        "sender": "assistant",
+        "content": "",
+        "tool": "across_list_routes",
+        "tool_topic": "across_list_routes",
+        "tool_result_preview": "{\n  \"data\": [\n    {\n      \"destinationChainId\": 42161,\n      \"destinationToken\": \"0xaf88d065e77c8cC2239327C5EDb3A432268e5831\",\n      \"destinationTokenSymbol\": \"USDC\",\n      \"isNative\": false,\n      \"originChainId\": 8453,\n      \"originToken\": \"0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913\",\n      \"originTokenSymbol\": \"USDC\"\n    },\n    {\n      \"destinationChainId\": 42161,\n      \"destinationToken\": \"0xF...4049A917DB0Cb\",\n      \"originTokenSymbol\": \"DAI\"\n    },\n    {\n      \"destinationChainId\": 42161,\n      \"destinationToken\": \"0xaf88d065e77c8cC2239327C5EDb3A432268e5831\",\n      \"destinationTokenSymbol\": \"USDC\",\n      \"isNative\": false,\n      \"originChainId\": 8453,\n      \"originToken\": \"0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913\",\n      \"originTokenSymbol\": \"USDC\"\n    }\n  ],\n  \"source\": \"across\"\n}"
+      },
+      {
+        "sender": "assistant",
+        "content": "\nThe user asked about Across routes from Base to Arbitrum for USDC. Let me summarize the results clearly.\n\nThe user asked about Across routes from Base to Arbitrum for USDC. Let me summarize the results clearly.\nHere are the available Across routes for USDC from **Base → Arbitrum**:\n\n| Origin Token (Base) | Destination Token (Arbitrum) | Notes |\n|---|---|---|\n| USDC (`0x833589fCD6eDb6E08f4c7C32D4f...D6eDb6E08f4c7C32D4f71b54bdA02913`) | USDC.e (`0xFF970A61A04b1cA14834A43f5dE4533eBDDB5CC8`) | Native USDC → Bridged USDC.e |\n\nTwo options: you can receive native USDC or the older bridged USDC.e on Arbitrum. Most users want native USDC on the destination.\n\nWant me to check limits or get a quote for a specific amount? Or if you're ready to bridge, just let me know the amount and I'll kick it off.",
+        "tool": null,
+        "tool_topic": null,
+        "tool_result_preview": null
+      }
+    ],
+    "tool_previews": [
+      {
+        "turn": 0,
+        "tool": "across_list_routes",
+        "topic": "across_list_routes",
+        "arguments": {
+          "origin_chain_id": 8453,
+          "destination_chain_id": 42161,
+          "origin_token": null,
+          "destination_token": null
+        },
+        "result_preview": "{\n  \"data\": [\n    {\n      \"destinationChainId\": 42161,\n      \"destinationToken\": \"0xaf88d065e77c8cC2239327C5EDb3A432268e5831\",\n      \"destinationTokenSymbol\": \"USDC\",\n      \"isNative\": false,\n      \"originChainId\": 8453,\n      \"originToken\": \"0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913\",\n      \"originTokenSymbol\": \"USDC\"\n    },\n    {\n      \"destinationChainId\": 42161,\n      \"destinationToken\": \"0xF...4049A917DB0Cb\",\n      \"originTokenSymbol\": \"DAI\"\n    },\n    {\n      \"destinationChainId\": 42161,\n      \"destinationToken\": \"0xaf88d065e77c8cC2239327C5EDb3A432268e5831\",\n      \"destinationTokenSymbol\": \"USDC\",\n      \"isNative\": false,\n      \"originChainId\": 8453,\n      \"originToken\": \"0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913\",\n      \"originTokenSymbol\": \"USDC\"\n    }\n  ],\n  \"source\": \"across\"\n}"
+      }
+    ],
+    "failure_category": null,
+    "app": {
+      "source": "path",
+      "path": "bin/eval/specs/apps/../../../../plugins/across.dylib",
+      "loaded_name": "across"
+    },
+    "skills": {
+      "mode": "disabled",
+      "allowed": [],
+      "activated_skills": [],
+      "bundle_path": null,
+      "bundle_revision": null
+    },
+    "environment": {
+      "chain_id": 1,
+      "network": "ethereum",
+      "providers_path": "/Users/aronmegyeri/.aomi/test-env/providers.toml",
+      "endpoint_name": "sim-ethereum",
+      "funding_ledger": [
+        {
+          "chain_id": 1,
+          "address": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+          "balances": {
+            "ETH": "100",
+            "USDC": "10000"
+          }
+        },
+        {
+          "chain_id": 1,
+          "address": "0x70997970c51812dc3a010c7d01b50e0d17dc79c8",
+          "balances": {
+            "ETH": "100",
+            "USDC": "10000"
+          }
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,3 @@
+[eval] PASS eip712_login_signature_request 1 turn(s) 1 tool call(s) 0.345245 cr, 22334 in / 89 out tok 0 warning(s) duration 7s
+report full json: ../output/eval/model-bench-public-skills-expansion-20260531/specs/eip712_login_signature_request/minimax-m2.5/pass-002/20260531T185632.917949000Z.full.json
+report compact json: ../output/eval/model-bench-public-skills-expansion-20260531/specs/eip712_login_signature_request/minimax-m2.5/pass-002/20260531T185632.917949000Z.compact.json

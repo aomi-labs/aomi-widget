@@ -1,0 +1,323 @@
+{
+  "run_id": "20260531T111537.737214000Z",
+  "mode": "spec",
+  "started_at": "2026-05-31T11:15:10.450975+00:00",
+  "finished_at": "2026-05-31T11:15:37.737137+00:00",
+  "spec_path": "bin/eval/specs/sushiswap/swap_eth_for_usdc_sushiswap.json",
+  "passed": false,
+  "git_commit": "5b02660942391bc7ae86c5cbb05e33f4c549266f",
+  "git_dirty": true,
+  "story": {
+    "run_id": "20260531T111537.737214000Z",
+    "story_id": "swap_eth_for_usdc_sushiswap",
+    "user_story": "Swap 0.05 ETH from Alice for USDC using SushiSwap on Ethereum.",
+    "passed": false,
+    "warnings": [],
+    "model": "claude-opus-4-7",
+    "chain_id": 1,
+    "git_commit": "5b02660942391bc7ae86c5cbb05e33f4c549266f",
+    "git_dirty": true,
+    "total_turns": 1,
+    "total_tool_calls": 4,
+    "total_responses": 5,
+    "activated_skills": [
+      "sushiswap"
+    ],
+    "failed_assertions": [
+      {
+        "label": "tool",
+        "severity": "required",
+        "detail": "sequence broke before expected tool 'stage_tx'; no matching tool arguments for stage_tx:$.to; no matching tool arguments for stage_tx:$.value; no matching tool arguments for stage_tx:$.data.signature",
+        "observed": {
+          "kind": "tool_assertion",
+          "expected_tools": [
+            "activate_skills",
+            "stage_tx",
+            "simulate_batch",
+            "commit_txs"
+          ],
+          "observed_tools": [
+            "activate_skills",
+            "get_time_and_onchain_context",
+            "get_account_info",
+            "encode_and_call"
+          ],
+          "missing_tools": [
+            "stage_tx"
+          ],
+          "order": "sequential",
+          "turn": null,
+          "param_predicates": [
+            {
+              "tool": "stage_tx",
+              "path": "$.to",
+              "exists": null,
+              "equals": "0xd9e1cE17f2641f24aE83637ab66a2cca9C378B9F",
+              "contains": null,
+              "numeric_equals": null,
+              "tolerance": null
+            },
+            {
+              "tool": "stage_tx",
+              "path": "$.value",
+              "exists": null,
+              "equals": "50000000000000000",
+              "contains": null,
+              "numeric_equals": null,
+              "tolerance": null
+            },
+            {
+              "tool": "stage_tx",
+              "path": "$.data.signature",
+              "exists": null,
+              "equals": "swapExactETHForTokens(uint256,address[],address,uint256)",
+              "contains": null,
+              "numeric_equals": null,
+              "tolerance": null
+            }
+          ],
+          "missing_param_predicates": [
+            "stage_tx:$.to",
+            "stage_tx:$.value",
+            "stage_tx:$.data.signature"
+          ],
+          "sequence_broke_before": "stage_tx",
+          "tool_calls": [
+            {
+              "turn": 0,
+              "tool": "activate_skills",
+              "topic": "activate_skills",
+              "arguments": {
+                "skill_ids": [
+                  "sushiswap",
+                  "common_erc20"
+                ]
+              }
+            },
+            {
+              "turn": 0,
+              "tool": "get_time_and_onchain_context",
+              "topic": "confirm chain context",
+              "arguments": {
+                "topic": "confirm chain context"
+              }
+            },
+            {
+              "turn": 0,
+              "tool": "get_account_info",
+              "topic": "check Alice ETH balance",
+              "arguments": {
+                "address": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+                "chain_id": 1,
+                "include_tx_history": false,
+                "history_limit": 0,
+                "history_offset": 0,
+                "topic": "check Alice ETH balance"
+              }
+            },
+            {
+              "turn": 0,
+              "tool": "encode_and_call",
+              "topic": "quote 0.05 WETH -> USDC on Sushi",
+              "arguments": {
+                "function_signature": "getAmountsOut(uint256,address[])",
+                "arguments": [
+                  "50000000000000000",
+                  "[\"0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2\",\"0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48\"]"
+                ],
+                "to": "0xd9e1cE17f2641f24aE83637ab66a2cca9C378B9F",
+                "value": "0",
+                "topic": "quote 0.05 WETH -> USDC on Sushi"
+              }
+            }
+          ]
+        }
+      },
+      {
+        "label": "callback_observed",
+        "severity": "required",
+        "detail": "no matching callback_observed; observed 0 value(s)",
+        "observed": {
+          "kind": "callback_observed",
+          "path": "$.payload.status",
+          "equals": "success",
+          "contains": null,
+          "event_type": "wallet:tx_complete",
+          "observed_count": 0,
+          "filtered_count": 0,
+          "matching_count": 0,
+          "matching_values": []
+        }
+      },
+      {
+        "label": "USDC Transfer log from SushiSwap swap",
+        "severity": "required",
+        "detail": "USDC Transfer log from SushiSwap swap observed 0 log(s), expected at least 1 from block 25214988 through 25214987",
+        "observed": {
+          "to_block": 25214987,
+          "count": 0,
+          "logs": []
+        }
+      }
+    ],
+    "budget_summary": {
+      "total": 1,
+      "exceeded": 0,
+      "required_failures": 0,
+      "warning_failures": 0
+    },
+    "usage": {
+      "input_tokens": 22623,
+      "output_tokens": 240,
+      "total_tokens": 22863,
+      "cached_input_tokens": 21828,
+      "cache_creation_input_tokens": 0,
+      "visible_output_tokens": 240,
+      "reasoning_output_tokens": 0,
+      "tool_call_count": 4,
+      "actual_events": 1,
+      "diagnostic_events": 0,
+      "aomi_cost_credits": 2.0888999999999998,
+      "user_charged_credits": 2.0888999999999998,
+      "credits": 2.0888999999999998
+    },
+    "transcript_previews": [
+      {
+        "sender": "user",
+        "content": "Swap 0.05 ETH from Alice for USDC using SushiSwap on Ethereum.",
+        "tool": null,
+        "tool_topic": null,
+        "tool_result_preview": null
+      },
+      {
+        "sender": "assistant",
+        "content": "",
+        "tool": null,
+        "tool_topic": null,
+        "tool_result_preview": null
+      },
+      {
+        "sender": "assistant",
+        "content": "",
+        "tool": "activate_skills",
+        "tool_topic": "activate_skills",
+        "tool_result_preview": "{\n  \"activated\": [\n    \"sushiswap\"\n  ],\n  \"rejected\": [\n    [\n      \"common_erc20\",\n      \"invalid\"\n    ]\n  ],\n  \"applied_scope\": \"current_serve_cycle\"\n}"
+      },
+      {
+        "sender": "assistant",
+        "content": "",
+        "tool": "get_time_and_onchain_context",
+        "tool_topic": "confirm chain context",
+        "tool_result_preview": "{\n  \"chain_name\": \"ethereum\",\n  \"chain_id\": 1,\n  \"rpc_endpoint\": \"http://127.0.0.1:63005\",\n  \"current_time_unix\": 1780226122,\n  \"current_time_iso\": \"2026-05-31T11:15:22.757882+00:00\",\n  \"block_number\": 25214987,\n  \"gas_price_wei\": \"1004410743\",\n  \"supported_chains\": [\n    {\n      \"name\": \"ethereum\",\n      \"chain_id\": 1\n    },\n    {\n      \"name\": \"ethereum\",\n      \"chain_id\": 1\n    }\n  ]\n}"
+      },
+      {
+        "sender": "assistant",
+        "content": "",
+        "tool": "get_account_info",
+        "tool_topic": "check Alice ETH balance",
+        "tool_result_preview": "{\n  \"address\": \"0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266\",\n  \"balance_wei\": \"100000000000000000000\",\n  \"balance_eth\": \"100\",\n  \"nonce\": 6436\n}"
+      },
+      {
+        "sender": "assistant",
+        "content": "",
+        "tool": "encode_and_call",
+        "tool_topic": "quote 0.05 WETH -> USDC on Sushi",
+        "tool_result_preview": "{\n  \"success\": true,\n  \"result\": \"0x0000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000b1a2bc2ec500000000000000000000000000000000000000000000000000000000000005ff000a\",\n  \"revert_reason\": null,\n  \"tx\": {\n    \"from\": \"0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266\",\n    \"to\": \"0...d19d4a2e9eb0ce3606eb48\",\n    \"chain_id\": 1\n  },\n  \"result_decoded\": {\n    \"kind\": \"raw_bytes\",\n    \"raw_hex\": \"0x0000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000b1a2bc2ec500000000000000000000000000000000000000000000000000000000000005ff000a\",\n    \"byte_len\": 128\n  }\n}"
+      }
+    ],
+    "tool_previews": [
+      {
+        "turn": 0,
+        "tool": "activate_skills",
+        "topic": "activate_skills",
+        "arguments": {
+          "skill_ids": [
+            "sushiswap",
+            "common_erc20"
+          ]
+        },
+        "result_preview": "{\n  \"activated\": [\n    \"sushiswap\"\n  ],\n  \"rejected\": [\n    [\n      \"common_erc20\",\n      \"invalid\"\n    ]\n  ],\n  \"applied_scope\": \"current_serve_cycle\"\n}"
+      },
+      {
+        "turn": 0,
+        "tool": "get_time_and_onchain_context",
+        "topic": "confirm chain context",
+        "arguments": {
+          "topic": "confirm chain context"
+        },
+        "result_preview": "{\n  \"chain_name\": \"ethereum\",\n  \"chain_id\": 1,\n  \"rpc_endpoint\": \"http://127.0.0.1:63005\",\n  \"current_time_unix\": 1780226122,\n  \"current_time_iso\": \"2026-05-31T11:15:22.757882+00:00\",\n  \"block_number\": 25214987,\n  \"gas_price_wei\": \"1004410743\",\n  \"supported_chains\": [\n    {\n      \"name\": \"ethereum\",\n      \"chain_id\": 1\n    },\n    {\n      \"name\": \"ethereum\",\n      \"chain_id\": 1\n    }\n  ]\n}"
+      },
+      {
+        "turn": 0,
+        "tool": "get_account_info",
+        "topic": "check Alice ETH balance",
+        "arguments": {
+          "address": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+          "chain_id": 1,
+          "include_tx_history": false,
+          "history_limit": 0,
+          "history_offset": 0,
+          "topic": "check Alice ETH balance"
+        },
+        "result_preview": "{\n  \"address\": \"0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266\",\n  \"balance_wei\": \"100000000000000000000\",\n  \"balance_eth\": \"100\",\n  \"nonce\": 6436\n}"
+      },
+      {
+        "turn": 0,
+        "tool": "encode_and_call",
+        "topic": "quote 0.05 WETH -> USDC on Sushi",
+        "arguments": {
+          "function_signature": "getAmountsOut(uint256,address[])",
+          "arguments": [
+            "50000000000000000",
+            "[\"0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2\",\"0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48\"]"
+          ],
+          "to": "0xd9e1cE17f2641f24aE83637ab66a2cca9C378B9F",
+          "value": "0",
+          "topic": "quote 0.05 WETH -> USDC on Sushi"
+        },
+        "result_preview": "{\n  \"success\": true,\n  \"result\": \"0x0000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000b1a2bc2ec500000000000000000000000000000000000000000000000000000000000005ff000a\",\n  \"revert_reason\": null,\n  \"tx\": {\n    \"from\": \"0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266\",\n    \"to\": \"0...d19d4a2e9eb0ce3606eb48\",\n    \"chain_id\": 1\n  },\n  \"result_decoded\": {\n    \"kind\": \"raw_bytes\",\n    \"raw_hex\": \"0x0000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000b1a2bc2ec500000000000000000000000000000000000000000000000000000000000005ff000a\",\n    \"byte_len\": 128\n  }\n}"
+      }
+    ],
+    "failure_category": "tool_error",
+    "app": {
+      "source": "default",
+      "path": null,
+      "loaded_name": "default"
+    },
+    "skills": {
+      "mode": "restricted",
+      "allowed": [
+        "sushiswap"
+      ],
+      "activated_skills": [
+        "sushiswap"
+      ],
+      "bundle_path": "../output/eval/model-bench-public-skills-opus47-opus46-haiku45-20260531/specs/swap_eth_for_usdc_sushiswap/claude-opus-4.7/pass-002/spec-skills/swap_eth_for_usdc_sushiswap-skills.json",
+      "bundle_revision": "fnv1a64:71f80a80fc792556"
+    },
+    "environment": {
+      "chain_id": 1,
+      "network": "ethereum",
+      "providers_path": "/Users/aronmegyeri/.aomi/test-env/providers.toml",
+      "endpoint_name": "ethereum",
+      "funding_ledger": [
+        {
+          "chain_id": 1,
+          "address": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+          "balances": {
+            "ETH": "100",
+            "USDC": "10000"
+          }
+        },
+        {
+          "chain_id": 1,
+          "address": "0x70997970c51812dc3a010c7d01b50e0d17dc79c8",
+          "balances": {
+            "ETH": "100",
+            "USDC": "10000"
+          }
+        }
+      ]
+    }
+  }
+}
