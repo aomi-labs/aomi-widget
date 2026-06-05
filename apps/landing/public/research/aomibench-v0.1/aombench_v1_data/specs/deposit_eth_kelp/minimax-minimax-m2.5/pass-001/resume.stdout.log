@@ -1,0 +1,9 @@
+[eval] FAIL deposit_eth_kelp 1 turn(s) 12 tool call(s) 2.882465 cr, 189435 in / 356 out tok 1 warning(s) duration 77s
+errors:
+  tool sequence broke before expected tool 'stage_tx'; no matching tool arguments for stage_tx:$.to; no matching tool arguments for stage_tx:$.value; no matching tool arguments for stage_tx:$.data.signature
+  callback_observed no matching callback_observed; observed 0 value(s)
+  Alice receives rsETH from Kelp Alice receives rsETH from Kelp (before: 0 RSETH, after: 0 RSETH, delta: +0 RSETH, expected: +0.1 RSETH ± 0.02 RSETH)
+warnings:
+  no_tool_errors tool error envelope(s) observed for: Get Kelp rsETH deposit contract ABI, activate_skills, Get Kelp deposit contract ABI
+report full json: ../output/eval/model-bench-public-skills-minimax-m25-kiro-20260531/specs/deposit_eth_kelp/minimax-m2.5/pass-001/20260531T090738.617332000Z.full.json
+report compact json: ../output/eval/model-bench-public-skills-minimax-m25-kiro-20260531/specs/deposit_eth_kelp/minimax-m2.5/pass-001/20260531T090738.617332000Z.compact.json

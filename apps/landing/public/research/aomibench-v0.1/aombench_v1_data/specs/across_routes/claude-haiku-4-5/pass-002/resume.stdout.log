@@ -1,0 +1,3 @@
+[eval] PASS across_routes 1 turn(s) 1 tool call(s) 0.65516 cr, 11878 in / 968 out tok, 11296 cached / 0 reasoning tok 0 warning(s) duration 11s
+report full json: ../output/eval/model-bench-public-skills-expansion-20260531/specs/across_routes/claude-haiku-4.5/pass-002/20260531T214652.379840000Z.full.json
+report compact json: ../output/eval/model-bench-public-skills-expansion-20260531/specs/across_routes/claude-haiku-4.5/pass-002/20260531T214652.379840000Z.compact.json

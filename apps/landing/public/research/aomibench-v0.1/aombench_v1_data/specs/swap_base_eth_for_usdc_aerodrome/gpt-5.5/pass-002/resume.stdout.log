@@ -1,0 +1,3 @@
+[eval] PASS swap_base_eth_for_usdc_aerodrome 1 turn(s) 10 tool call(s) 11.9331 cr, 86295 in / 1576 out tok, 79872 cached / 203 reasoning tok 0 warning(s) duration 40s
+report full json: ../output/eval/model-bench-public-skills-gpt55-opus48-sonnet46-20260530/specs/swap_base_eth_for_usdc_aerodrome/gpt-5.5/pass-002/20260530T221656.219587000Z.full.json
+report compact json: ../output/eval/model-bench-public-skills-gpt55-opus48-sonnet46-20260530/specs/swap_base_eth_for_usdc_aerodrome/gpt-5.5/pass-002/20260530T221656.219587000Z.compact.json

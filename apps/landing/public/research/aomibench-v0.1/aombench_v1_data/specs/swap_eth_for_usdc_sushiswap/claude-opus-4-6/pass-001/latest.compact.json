@@ -1,0 +1,308 @@
+{
+  "run_id": "20260531T111639.864334000Z",
+  "mode": "spec",
+  "started_at": "2026-05-31T11:15:38.532153+00:00",
+  "finished_at": "2026-05-31T11:16:39.864254+00:00",
+  "spec_path": "bin/eval/specs/sushiswap/swap_eth_for_usdc_sushiswap.json",
+  "passed": true,
+  "git_commit": "5b02660942391bc7ae86c5cbb05e33f4c549266f",
+  "git_dirty": true,
+  "story": {
+    "run_id": "20260531T111639.864334000Z",
+    "story_id": "swap_eth_for_usdc_sushiswap",
+    "user_story": "Swap 0.05 ETH from Alice for USDC using SushiSwap on Ethereum.",
+    "passed": true,
+    "warnings": [],
+    "model": "claude-opus-4-6",
+    "chain_id": 1,
+    "git_commit": "5b02660942391bc7ae86c5cbb05e33f4c549266f",
+    "git_dirty": true,
+    "total_turns": 1,
+    "total_tool_calls": 7,
+    "total_responses": 14,
+    "activated_skills": [
+      "sushiswap"
+    ],
+    "failed_assertions": [],
+    "budget_summary": {
+      "total": 1,
+      "exceeded": 0,
+      "required_failures": 0,
+      "warning_failures": 0
+    },
+    "usage": {
+      "input_tokens": 62885,
+      "output_tokens": 2040,
+      "total_tokens": 64925,
+      "cached_input_tokens": 59044,
+      "cache_creation_input_tokens": 0,
+      "visible_output_tokens": 2040,
+      "reasoning_output_tokens": 0,
+      "tool_call_count": 7,
+      "actual_events": 1,
+      "diagnostic_events": 0,
+      "aomi_cost_credits": 9.9727,
+      "user_charged_credits": 9.9727,
+      "credits": 9.9727
+    },
+    "transcript_previews": [
+      {
+        "sender": "user",
+        "content": "Swap 0.05 ETH from Alice for USDC using SushiSwap on Ethereum.",
+        "tool": null,
+        "tool_topic": null,
+        "tool_result_preview": null
+      },
+      {
+        "sender": "assistant",
+        "content": "\nThe user wants to swap 0.05 ETH for USDC using SushiSwap on Ethereum. Let me activate the sushiswap skill and get the on-chain context.\n\nThe user wants to swap 0.05 ETH for USDC using SushiSwap on Ethereum. Let me activate the sushiswap skill and get the on-chain context.\n",
+        "tool": null,
+        "tool_topic": null,
+        "tool_result_preview": null
+      },
+      {
+        "sender": "assistant",
+        "content": "",
+        "tool": "activate_skills",
+        "tool_topic": "activate_skills",
+        "tool_result_preview": "{\n  \"activated\": [\n    \"sushiswap\"\n  ],\n  \"rejected\": [\n    [\n      \"common_erc20\",\n      \"invalid\"\n    ]\n  ],\n  \"applied_scope\": \"current_serve_cycle\"\n}"
+      },
+      {
+        "sender": "assistant",
+        "content": "",
+        "tool": "get_time_and_onchain_context",
+        "tool_topic": "Get current block and chain context for Ethereum mainnet",
+        "tool_result_preview": "{\n  \"chain_name\": \"sim-ethereum\",\n  \"chain_id\": 1,\n  \"rpc_endpoint\": \"http://127.0.0.1:63005\",\n  \"current_time_unix\": 1780226142,\n  \"current_time_iso\": \"2026-05-31T11:15:42.451056+00:00\",\n  \"block_number\": 25214989,\n  \"gas_price_wei\": \"1003378979\",\n  \"supported_chains\": [\n    {\n      \"name\": \"sim-ethereum\",\n      \"chain_id\": 1\n    },\n    {\n      \"name\": \"sim-ethereum\",\n      \"chain_id\": 1\n    }\n  ]\n}"
+      },
+      {
+        "sender": "assistant",
+        "content": "\nLet me proceed with the swap. I need to:\n1. Get the USDC address and WETH address\n2. Quote the swap using getAmountsOut\n3. Stage the swap transaction\n\nUSDC on Ethereum mainnet: 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48\nWETH on Ethereum mainnet: 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2\nSushiSwap V2 Router: 0xd9e1cE17f2641f24aE83637ab66a2cca9C378B9F\n\n0.05 ETH = 50000000000000000 wei\n\nFor swappin...A0e5C4F27eAD9083C756Cc2\nSushiSwap V2 Router: 0xd9e1cE17f2641f24aE83637ab66a2cca9C378B9F\n\n0.05 ETH = 50000000000000000 wei\n\nFor swapping ETH to tokens, I use swapExactETHForTokens. The path is [WETH, USDC].\n\nLet me first get a quote, then simulate the swap.\n\nDeadline: current_time_unix + 1200 (20 minutes) = 1780226142 + 1200 = 1780227342\nI have the context. Let me quote the swap and simulate it.",
+        "tool": null,
+        "tool_topic": null,
+        "tool_result_preview": null
+      },
+      {
+        "sender": "assistant",
+        "content": "",
+        "tool": "encode_and_call",
+        "tool_topic": "Quote 0.05 ETH to USDC on SushiSwap V2",
+        "tool_result_preview": "{\n  \"success\": true,\n  \"result\": \"0x0000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000b1a2bc2ec500000000000000000000000000000000000000000000000000000000000005ff000a\",\n  \"revert_reason\": null,\n  \"tx\": {\n    \"from\": \"0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266\",\n    \"to\": \"0...d19d4a2e9eb0ce3606eb48\",\n    \"chain_id\": 1\n  },\n  \"result_decoded\": {\n    \"kind\": \"raw_bytes\",\n    \"raw_hex\": \"0x0000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000b1a2bc2ec500000000000000000000000000000000000000000000000000000000000005ff000a\",\n    \"byte_len\": 128\n  }\n}"
+      },
+      {
+        "sender": "assistant",
+        "content": "\nLet me decode the result. The getAmountsOut returns a uint256[] array. The raw hex is:\n\n0x0000000000000000000000000000000000000000000000000000000000000020 - offset to array\n0000000000000000000000000000000000000002 - array length = 2\n00000000000000000000000000b1a2bc2ec50000 - amounts[0] = 50000000000000000 (0.05 ETH)\n0000000000000000000000000000000005ff000a - amounts[1] = 0x5ff000a = 100597770 in ...swapExactETHForTokens(uint256,address[],address,uint256)\n- amountOutMin: 100094781\n- path: [WETH, USDC]\n- to: user wallet (0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266)\n- deadline: 1780227342\n\nValue: 50000000000000000 wei (0.05 ETH)\n\nLet me first simulate with encode_and_call, then stage.\nThe quote shows 0.05 ETH → ~100.60 USDC. Let me simulate the swap with 0.5% slippage (min out: ~100.09 USDC).",
+        "tool": null,
+        "tool_topic": null,
+        "tool_result_preview": null
+      },
+      {
+        "sender": "assistant",
+        "content": "",
+        "tool": "encode_and_call",
+        "tool_topic": "Simulate swapExactETHForTokens 0.05 ETH to USDC on SushiSwap",
+        "tool_result_preview": "{\n  \"success\": true,\n  \"result\": \"0x0000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000b1a2bc2ec500000000000000000000000000000000000000000000000000000000000005ff000a\",\n  \"revert_reason\": null,\n  \"tx\": {\n    \"from\": \"0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266\",\n    \"to\": \"0...d19d4a2e9eb0ce3606eb48\",\n    \"chain_id\": 1\n  },\n  \"result_decoded\": {\n    \"kind\": \"raw_bytes\",\n    \"raw_hex\": \"0x0000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000b1a2bc2ec500000000000000000000000000000000000000000000000000000000000005ff000a\",\n    \"byte_len\": 128\n  }\n}"
+      },
+      {
+        "sender": "assistant",
+        "content": "\nThe simulation was successful. Let me decode the result:\n- The output amounts array has 2 elements:\n  - 0x00b1a2bc2ec50000 = 50000000000000000 (0.05 ETH input)\n  - 0x05ff000a = 100663306 (USDC output, 6 decimals = ~100.66 USDC)\n\nWait, let me recalculate: 0x05ff000a = 100663306 / 1e6 = 100.663306 USDC\n\nThe minAmountOut I used was 100094781 which is ~0.5% slippage from the quoted 100663306... wait,...97770 * 0.995 = 100094781.15, yes that's about right.\n\nThe swap simulation succeeded and returned the same amounts as the quote. Now I need to stage the transaction and simulate it, then commit.\n\nLet me stage the swap transaction.\nThe simulation succeeded. The quote shows ~100.60 USDC output for 0.05 ETH. I applied 0.5% slippage tolerance (min ~100.09 USDC). Let me stage and simulate the batch.",
+        "tool": null,
+        "tool_topic": null,
+        "tool_result_preview": null
+      },
+      {
+        "sender": "assistant",
+        "content": "",
+        "tool": "stage_tx",
+        "tool_topic": "Stage swap 0.05 ETH for USDC on SushiSwap",
+        "tool_result_preview": "{\n  \"from\": \"0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266\",\n  \"chain_id\": 1,\n  \"to\": \"0xd9e1cE17f2641f24aE83637ab66a2cca9C378B9F\",\n  \"value\": \"50000000000000000\",\n  \"data\": \"0x7ff36ab50000000000000000000000000000000000000000000000000000000005f7533d0000000000000000000000000000000000000000000000000000000000000080000000000000000000000000f39fd6e51aad88f6f4ce6ab8827279cfffb9226600000000000000000000000000...6a1c1d0e0000000000000000000000000000000000000000000000000000000000000002000000000000000000000000c02aaa39b223fe8d0a0e5c4f27ead9083c756cc2000000000000000000000000a0b86991c6218b36c1d19d4a2e9eb0ce3606eb48\",\n  \"description\": \"Swap 0.05 ETH for USDC on SushiSwap V2 (min ~100.09 USDC, 0.5% slippage)\",\n  \"kind\": \"swap\",\n  \"pending_tx_id\": 1,\n  \"batch_status\": \"Batch [1] pending\",\n  \"status\": \"queued\"\n}"
+      },
+      {
+        "sender": "assistant",
+        "content": "\nThe transaction is staged. Now I need to simulate it before committing.\n\nThe transaction is staged. Now I need to simulate it before committing.\n",
+        "tool": null,
+        "tool_topic": null,
+        "tool_result_preview": null
+      },
+      {
+        "sender": "assistant",
+        "content": "",
+        "tool": "simulate_batch",
+        "tool_topic": "Simulate swap 0.05 ETH for USDC on SushiSwap",
+        "tool_result_preview": "{\n  \"simulation\": {\n    \"batch_success\": true,\n    \"stateful\": true,\n    \"from\": \"0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266\",\n    \"network\": \"sim-ethereum\",\n    \"total_gas\": 114105,\n    \"steps\": [\n      {\n        \"step\": 1,\n        \"chain_id\": 1,\n        \"label\": \"Swap 0.05 ETH for USDC on SushiSwap V2 (min ~100.09 USDC, 0.5% slippage)\",\n        \"success\": true,\n        \"result\": \"0xb126ed91fcc7a...cffFb92266\",\n  \"owner_address\": \"0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266\",\n  \"aa_override\": null,\n  \"resolved_ids\": [\n    1\n  ],\n  \"warnings\": [\n    {\n      \"tx_id\": 1,\n      \"field\": \"label\",\n      \"provided\": \"Swap 0.05 ETH for USDC via SushiSwap V2\",\n      \"actual\": \"Swap 0.05 ETH for USDC on SushiSwap V2 (min ~100.09 USDC, 0.5% slippage)\"\n    }\n  ],\n  \"batch_status\": \"Batch [1] passed\"\n}"
+      },
+      {
+        "sender": "assistant",
+        "content": "\nSimulation passed. The swap of 0.05 ETH for USDC on SushiSwap V2 is ready to commit. The value is well under 5000 USD so I can proceed without asking for confirmation.\n\nSimulation passed. The swap of 0.05 ETH for USDC on SushiSwap V2 is ready to commit. The value is well under 5000 USD so I can proceed without asking for confirmation.\n\n\nSimulation passed. Here's the summary:\n\n- **Swap**: 0.05 ETH → ~100.09 USDC (min output with 0.5% slippage protection)\n- **Router**: SushiSwap V2 (`0xd9e1cE17f2641f24aE83637ab66a2cca9C378B9F`)\n- **Gas**: ~114,105\n\nCommitting now.",
+        "tool": null,
+        "tool_topic": null,
+        "tool_result_preview": null
+      },
+      {
+        "sender": "assistant",
+        "content": "",
+        "tool": "commit_txs",
+        "tool_topic": "Commit swap 0.05 ETH for USDC on SushiSwap V2",
+        "tool_result_preview": "{\n  \"status\": \"pending_approval\",\n  \"tx_ids\": [\n    1\n  ],\n  \"timestamp\": \"2026-05-31T11:16:34.130285+00:00\"\n}"
+      },
+      {
+        "sender": "assistant",
+        "content": "\nThe transaction has been committed and is now waiting for wallet approval. I should inform the user about the swap details and that it's pending their signature.\n\nThe transaction has been committed and is now waiting for wallet approval. I should inform the user about the swap details and that it's pending their signature.\nYour swap is ready for signing:\n\n**tx-1** — Swap 0.05 ETH → USDC on SushiSwap V2  \n- Expected output: ~100.60 USDC  \n- Minimum received: ~100.09 USDC (0.5% slippage protection)  \n- Deadline: ~20 minutes from now  \n- Gas: ~114k\n\nWaiting for your wallet approval to submit.",
+        "tool": null,
+        "tool_topic": null,
+        "tool_result_preview": null
+      }
+    ],
+    "tool_previews": [
+      {
+        "turn": 0,
+        "tool": "activate_skills",
+        "topic": "activate_skills",
+        "arguments": {
+          "skill_ids": [
+            "sushiswap",
+            "common_erc20"
+          ]
+        },
+        "result_preview": "{\n  \"activated\": [\n    \"sushiswap\"\n  ],\n  \"rejected\": [\n    [\n      \"common_erc20\",\n      \"invalid\"\n    ]\n  ],\n  \"applied_scope\": \"current_serve_cycle\"\n}"
+      },
+      {
+        "turn": 0,
+        "tool": "get_time_and_onchain_context",
+        "topic": "Get current block and chain context for Ethereum mainnet",
+        "arguments": {
+          "topic": "Get current block and chain context for Ethereum mainnet"
+        },
+        "result_preview": "{\n  \"chain_name\": \"sim-ethereum\",\n  \"chain_id\": 1,\n  \"rpc_endpoint\": \"http://127.0.0.1:63005\",\n  \"current_time_unix\": 1780226142,\n  \"current_time_iso\": \"2026-05-31T11:15:42.451056+00:00\",\n  \"block_number\": 25214989,\n  \"gas_price_wei\": \"1003378979\",\n  \"supported_chains\": [\n    {\n      \"name\": \"sim-ethereum\",\n      \"chain_id\": 1\n    },\n    {\n      \"name\": \"sim-ethereum\",\n      \"chain_id\": 1\n    }\n  ]\n}"
+      },
+      {
+        "turn": 0,
+        "tool": "encode_and_call",
+        "topic": "Quote 0.05 ETH to USDC on SushiSwap V2",
+        "arguments": {
+          "function_signature": "getAmountsOut(uint256,address[])",
+          "arguments": [
+            "50000000000000000",
+            "[\"0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2\",\"0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48\"]"
+          ],
+          "to": "0xd9e1cE17f2641f24aE83637ab66a2cca9C378B9F",
+          "value": "0",
+          "topic": "Quote 0.05 ETH to USDC on SushiSwap V2"
+        },
+        "result_preview": "{\n  \"success\": true,\n  \"result\": \"0x0000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000b1a2bc2ec500000000000000000000000000000000000000000000000000000000000005ff000a\",\n  \"revert_reason\": null,\n  \"tx\": {\n    \"from\": \"0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266\",\n    \"to\": \"0...d19d4a2e9eb0ce3606eb48\",\n    \"chain_id\": 1\n  },\n  \"result_decoded\": {\n    \"kind\": \"raw_bytes\",\n    \"raw_hex\": \"0x0000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000b1a2bc2ec500000000000000000000000000000000000000000000000000000000000005ff000a\",\n    \"byte_len\": 128\n  }\n}"
+      },
+      {
+        "turn": 0,
+        "tool": "encode_and_call",
+        "topic": "Simulate swapExactETHForTokens 0.05 ETH to USDC on SushiSwap",
+        "arguments": {
+          "function_signature": "swapExactETHForTokens(uint256,address[],address,uint256)",
+          "arguments": [
+            "100094781",
+            "[\"0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2\",\"0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48\"]",
+            "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+            "1780227342"
+          ],
+          "to": "0xd9e1cE17f2641f24aE83637ab66a2cca9C378B9F",
+          "value": "50000000000000000",
+          "topic": "Simulate swapExactETHForTokens 0.05 ETH to USDC on SushiSwap"
+        },
+        "result_preview": "{\n  \"success\": true,\n  \"result\": \"0x0000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000b1a2bc2ec500000000000000000000000000000000000000000000000000000000000005ff000a\",\n  \"revert_reason\": null,\n  \"tx\": {\n    \"from\": \"0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266\",\n    \"to\": \"0...d19d4a2e9eb0ce3606eb48\",\n    \"chain_id\": 1\n  },\n  \"result_decoded\": {\n    \"kind\": \"raw_bytes\",\n    \"raw_hex\": \"0x0000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000b1a2bc2ec500000000000000000000000000000000000000000000000000000000000005ff000a\",\n    \"byte_len\": 128\n  }\n}"
+      },
+      {
+        "turn": 0,
+        "tool": "stage_tx",
+        "topic": "Stage swap 0.05 ETH for USDC on SushiSwap",
+        "arguments": {
+          "to": "0xd9e1cE17f2641f24aE83637ab66a2cca9C378B9F",
+          "description": "Swap 0.05 ETH for USDC on SushiSwap V2 (min ~100.09 USDC, 0.5% slippage)",
+          "data": {
+            "signature": "swapExactETHForTokens(uint256,address[],address,uint256)",
+            "args": [
+              "100094781",
+              "[\"0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2\",\"0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48\"]",
+              "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+              "1780227342"
+            ],
+            "raw": ""
+          },
+          "value": "50000000000000000",
+          "gas_limit": "",
+          "kind": "swap",
+          "topic": "Stage swap 0.05 ETH for USDC on SushiSwap"
+        },
+        "result_preview": "{\n  \"from\": \"0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266\",\n  \"chain_id\": 1,\n  \"to\": \"0xd9e1cE17f2641f24aE83637ab66a2cca9C378B9F\",\n  \"value\": \"50000000000000000\",\n  \"data\": \"0x7ff36ab50000000000000000000000000000000000000000000000000000000005f7533d0000000000000000000000000000000000000000000000000000000000000080000000000000000000000000f39fd6e51aad88f6f4ce6ab8827279cfffb9226600000000000000000000000000...6a1c1d0e0000000000000000000000000000000000000000000000000000000000000002000000000000000000000000c02aaa39b223fe8d0a0e5c4f27ead9083c756cc2000000000000000000000000a0b86991c6218b36c1d19d4a2e9eb0ce3606eb48\",\n  \"description\": \"Swap 0.05 ETH for USDC on SushiSwap V2 (min ~100.09 USDC, 0.5% slippage)\",\n  \"kind\": \"swap\",\n  \"pending_tx_id\": 1,\n  \"batch_status\": \"Batch [1] pending\",\n  \"status\": \"queued\"\n}"
+      },
+      {
+        "turn": 0,
+        "tool": "simulate_batch",
+        "topic": "Simulate swap 0.05 ETH for USDC on SushiSwap",
+        "arguments": {
+          "topic": "Simulate swap 0.05 ETH for USDC on SushiSwap",
+          "transactions": [
+            {
+              "id": 1,
+              "kind": "swap",
+              "chain_id": 1,
+              "label": "Swap 0.05 ETH for USDC via SushiSwap V2"
+            }
+          ],
+          "aa_override": ""
+        },
+        "result_preview": "{\n  \"simulation\": {\n    \"batch_success\": true,\n    \"stateful\": true,\n    \"from\": \"0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266\",\n    \"network\": \"sim-ethereum\",\n    \"total_gas\": 114105,\n    \"steps\": [\n      {\n        \"step\": 1,\n        \"chain_id\": 1,\n        \"label\": \"Swap 0.05 ETH for USDC on SushiSwap V2 (min ~100.09 USDC, 0.5% slippage)\",\n        \"success\": true,\n        \"result\": \"0xb126ed91fcc7a...cffFb92266\",\n  \"owner_address\": \"0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266\",\n  \"aa_override\": null,\n  \"resolved_ids\": [\n    1\n  ],\n  \"warnings\": [\n    {\n      \"tx_id\": 1,\n      \"field\": \"label\",\n      \"provided\": \"Swap 0.05 ETH for USDC via SushiSwap V2\",\n      \"actual\": \"Swap 0.05 ETH for USDC on SushiSwap V2 (min ~100.09 USDC, 0.5% slippage)\"\n    }\n  ],\n  \"batch_status\": \"Batch [1] passed\"\n}"
+      },
+      {
+        "turn": 0,
+        "tool": "commit_txs",
+        "topic": "Commit swap 0.05 ETH for USDC on SushiSwap V2",
+        "arguments": {
+          "topic": "Commit swap 0.05 ETH for USDC on SushiSwap V2",
+          "tx_ids": [
+            1
+          ]
+        },
+        "result_preview": "{\n  \"status\": \"pending_approval\",\n  \"tx_ids\": [\n    1\n  ],\n  \"timestamp\": \"2026-05-31T11:16:34.130285+00:00\"\n}"
+      }
+    ],
+    "failure_category": null,
+    "app": {
+      "source": "default",
+      "path": null,
+      "loaded_name": "default"
+    },
+    "skills": {
+      "mode": "restricted",
+      "allowed": [
+        "sushiswap"
+      ],
+      "activated_skills": [
+        "sushiswap"
+      ],
+      "bundle_path": "../output/eval/model-bench-public-skills-opus47-opus46-haiku45-20260531/specs/swap_eth_for_usdc_sushiswap/claude-opus-4.6/pass-001/spec-skills/swap_eth_for_usdc_sushiswap-skills.json",
+      "bundle_revision": "fnv1a64:71f80a80fc792556"
+    },
+    "environment": {
+      "chain_id": 1,
+      "network": "ethereum",
+      "providers_path": "/Users/aronmegyeri/.aomi/test-env/providers.toml",
+      "endpoint_name": "sim-ethereum",
+      "funding_ledger": [
+        {
+          "chain_id": 1,
+          "address": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+          "balances": {
+            "ETH": "100",
+            "USDC": "10000"
+          }
+        },
+        {
+          "chain_id": 1,
+          "address": "0x70997970c51812dc3a010c7d01b50e0d17dc79c8",
+          "balances": {
+            "ETH": "100",
+            "USDC": "10000"
+          }
+        }
+      ]
+    }
+  }
+}

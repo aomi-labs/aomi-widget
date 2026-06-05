@@ -1,0 +1,3 @@
+[eval] PASS stake_eth_lido 1 turn(s) 6 tool call(s) 5.9278 cr, 47481 in / 409 out tok, 41856 cached / 0 reasoning tok 0 warning(s) duration 30s
+report full json: ../output/eval/model-bench-public-skills-opus47-opus46-haiku45-20260531/specs/stake_eth_lido/claude-opus-4.6/pass-001/20260531T115332.715956000Z.full.json
+report compact json: ../output/eval/model-bench-public-skills-opus47-opus46-haiku45-20260531/specs/stake_eth_lido/claude-opus-4.6/pass-001/20260531T115332.715956000Z.compact.json

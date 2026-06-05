@@ -1,0 +1,3 @@
+[eval] PASS stake_eth_rocket_pool 1 turn(s) 10 tool call(s) 7.3955 cr, 58411 in / 794 out tok, 53760 cached / 9 reasoning tok 0 warning(s) duration 26s
+report full json: ../output/eval/model-bench-public-skills-gpt55-opus48-sonnet46-20260530/specs/stake_eth_rocket_pool/gpt-5.5/pass-002/20260530T232600.705445000Z.full.json
+report compact json: ../output/eval/model-bench-public-skills-gpt55-opus48-sonnet46-20260530/specs/stake_eth_rocket_pool/gpt-5.5/pass-002/20260530T232600.705445000Z.compact.json

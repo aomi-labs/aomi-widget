@@ -1,0 +1,7 @@
+[eval] FAIL stake_eth_etherfi 1 turn(s) 6 tool call(s) 1.23678 cr, 39031 in / 1471 out tok, 37798 cached / 0 reasoning tok 0 warning(s) duration 29s
+errors:
+  tool sequence broke before expected tool 'commit_txs'
+  callback_observed no matching callback_observed; observed 0 value(s)
+  Alice receives eETH from ether.fi Alice receives eETH from ether.fi (before: 0 EETH, after: 0 EETH, delta: +0 EETH, expected: +0.1 EETH ± 0.012 EETH)
+report full json: ../output/eval/model-bench-public-skills-opus47-opus46-haiku45-20260531/specs/stake_eth_etherfi/claude-haiku-4.5/pass-002/20260531T114732.383606000Z.full.json
+report compact json: ../output/eval/model-bench-public-skills-opus47-opus46-haiku45-20260531/specs/stake_eth_etherfi/claude-haiku-4.5/pass-002/20260531T114732.383606000Z.compact.json

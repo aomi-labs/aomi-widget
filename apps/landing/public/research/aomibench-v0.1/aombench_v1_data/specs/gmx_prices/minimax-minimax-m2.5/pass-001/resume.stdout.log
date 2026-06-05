@@ -1,0 +1,3 @@
+[eval] PASS gmx_prices 1 turn(s) 1 tool call(s) 0.480745 cr, 29029 in / 394 out tok 0 warning(s) duration 23s
+report full json: ../output/eval/model-bench-public-skills-expansion-20260531/specs/gmx_prices/minimax-m2.5/pass-001/20260531T220708.934441000Z.full.json
+report compact json: ../output/eval/model-bench-public-skills-expansion-20260531/specs/gmx_prices/minimax-m2.5/pass-001/20260531T220708.934441000Z.compact.json

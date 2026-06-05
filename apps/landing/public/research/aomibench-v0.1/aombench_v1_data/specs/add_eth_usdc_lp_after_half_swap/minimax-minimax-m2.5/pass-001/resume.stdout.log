@@ -1,0 +1,13 @@
+[eval] FAIL add_eth_usdc_lp_after_half_swap 1 turn(s) 40 tool call(s) 16.31839 cr, 1078317 in / 1249 out tok 2 warning(s) duration 338s
+errors:
+  tool sequence broke before expected tool 'commit_txs'
+  callback_observed no matching callback_observed; observed 0 value(s)
+  Alice spends about 1 Base ETH total Alice spends about 1 Base ETH total (before: 100 ETH, after: 100 ETH, delta: +0 ETH, expected: -1 ETH ± 0.15 ETH)
+  Base USDC moved for swap and LP Base USDC moved for swap and LP observed 0 log(s), expected at least 2 from block 46734652 through 46734651
+  Base WETH moved into Aerodrome LP Base WETH moved into Aerodrome LP observed 0 log(s), expected at least 1 from block 46734652 through 46734651
+  Aerodrome WETH/USDC LP token minted Aerodrome WETH/USDC LP token minted observed 0 log(s), expected at least 1 from block 46734652 through 46734651
+warnings:
+  no_tool_errors tool error envelope(s) observed for: Quote 0.5 ETH swap to USDC, Quote ETH to USDC swap, Simulate swap 0.5 ETH to USDC, Stage swap 0.5 ETH for USDC
+  max_tool_calls observed 40 tool call(s), max 28
+report full json: ../output/eval/model-bench-public-skills-expansion-20260531/specs/add_eth_usdc_lp_after_half_swap/minimax-m2.5/pass-001/20260531T202304.908105000Z.full.json
+report compact json: ../output/eval/model-bench-public-skills-expansion-20260531/specs/add_eth_usdc_lp_after_half_swap/minimax-m2.5/pass-001/20260531T202304.908105000Z.compact.json

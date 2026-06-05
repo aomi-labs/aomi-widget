@@ -1,0 +1,5 @@
+[eval] FAIL deposit_steth_strategy_review_first 1 turn(s) 4 tool call(s) 5.0529 cr, 25917 in / 744 out tok, 22528 cached / 176 reasoning tok 0 warning(s) duration 18s
+errors:
+  tool no matching tool arguments for stage_tx:$.to; no matching tool arguments for stage_tx:$.data.signature
+report full json: ../output/eval/model-bench-public-skills-gpt55-opus48-sonnet46-20260530/specs/deposit_steth_strategy_review_first/gpt-5.5/pass-001/20260530T225817.068884000Z.full.json
+report compact json: ../output/eval/model-bench-public-skills-gpt55-opus48-sonnet46-20260530/specs/deposit_steth_strategy_review_first/gpt-5.5/pass-001/20260530T225817.068884000Z.compact.json

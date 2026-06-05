@@ -1,0 +1,3 @@
+[eval] PASS bridge_eth_to_base_native_review_first 1 turn(s) 6 tool call(s) 5.05825 cr, 46389 in / 625 out tok, 43775 cached / 0 reasoning tok 0 warning(s) duration 81s
+report full json: ../output/eval/model-bench-public-skills-opus47-opus46-haiku45-20260531/specs/bridge_eth_to_base_native_review_first/claude-opus-4.7/pass-001/20260531T121635.653009000Z.full.json
+report compact json: ../output/eval/model-bench-public-skills-opus47-opus46-haiku45-20260531/specs/bridge_eth_to_base_native_review_first/claude-opus-4.7/pass-001/20260531T121635.653009000Z.compact.json

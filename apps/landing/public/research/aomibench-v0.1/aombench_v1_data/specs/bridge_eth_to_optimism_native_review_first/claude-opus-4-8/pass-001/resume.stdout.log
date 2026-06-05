@@ -1,0 +1,3 @@
+[eval] PASS bridge_eth_to_optimism_native_review_first 1 turn(s) 6 tool call(s) 5.28535 cr, 47111 in / 669 out tok, 44317 cached / 0 reasoning tok 0 warning(s) duration 42s
+report full json: ../output/eval/model-bench-public-skills-gpt55-opus48-sonnet46-20260530/specs/bridge_eth_to_optimism_native_review_first/claude-opus-4.8/pass-001/20260530T234614.204717000Z.full.json
+report compact json: ../output/eval/model-bench-public-skills-gpt55-opus48-sonnet46-20260530/specs/bridge_eth_to_optimism_native_review_first/claude-opus-4.8/pass-001/20260530T234614.204717000Z.compact.json

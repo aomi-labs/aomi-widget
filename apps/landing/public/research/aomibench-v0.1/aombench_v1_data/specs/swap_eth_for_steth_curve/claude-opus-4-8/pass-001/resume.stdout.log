@@ -1,0 +1,3 @@
+[eval] PASS swap_eth_for_steth_curve 1 turn(s) 10 tool call(s) 6.74465 cr, 64824 in / 647 out tok, 60633 cached / 0 reasoning tok 0 warning(s) duration 66s
+report full json: ../output/eval/model-bench-public-skills-gpt55-opus48-sonnet46-20260530/specs/swap_eth_for_steth_curve/claude-opus-4.8/pass-001/20260530T222418.386958000Z.full.json
+report compact json: ../output/eval/model-bench-public-skills-gpt55-opus48-sonnet46-20260530/specs/swap_eth_for_steth_curve/claude-opus-4.8/pass-001/20260530T222418.386958000Z.compact.json

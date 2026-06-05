@@ -1,0 +1,55 @@
+[
+  {
+    "id": "cctp",
+    "name": "cctp",
+    "description": "Use when the user wants to bridge USDC cross-chain via Circle's Cross-Chain Transfer Protocol (CCTP v2). Native USDC on both sides, 13-19 min settlement via Circle attestation.",
+    "tags": [
+      "bridge",
+      "cctp",
+      "usdc",
+      "circle",
+      "cross-chain"
+    ],
+    "tool_names": [
+      "get_time_and_onchain_context",
+      "brave_search",
+      "encode_and_call",
+      "get_account_info",
+      "get_contract",
+      "sync_chain",
+      "simulate_batch",
+      "stage_tx",
+      "commit_eip712",
+      "commit_txs"
+    ],
+    "injected_tools": [],
+    "source": "aomi_builtin",
+    "est_tokens": 411,
+    "activation_tokens": 415,
+    "instruction_md": "## CCTP: USDC cross-chain transfer (Circle v2)\n\nMessenger contract (same on all chains): `0x28b5a0e9c621a5badaa536219b3a228c8168cf5d`\nDeposit function: `depositForBurn(uint256,uint32,bytes32,address,bytes32,uint256,uint32)`\nArgs (in order): amount, destination_id, recipient, source_token, destination_caller, fee, min_finality_threshold\n\nDestination-domain ids:\n- chain 1 → domain 0\n- chain 10 → domain 2\n- chain 137 → domain 7\n- chain 42161 → domain 3\n- chain 8453 → domain 6\n\nDefaults:\n- destination_caller: 0x0000000000000000000000000000000000000000000000000000000000000000\n- fee: 0\n- min_finality_threshold: 0\n\nSettlement: 13-19 min via Circle attestation.\n\n## Procedure\n1. `get_time_and_onchain_context`.\n2. `encode_and_call` USDC allowance for messenger; approve if short.\n3. Build `depositForBurn` calldata with destination domain from the table.\n4. `encode_and_call`. Check `cctp_guard_*`.\n5. On confirmation, `commit_txs`.\n## CCTP: Critical Rules\n- `recipient` is bytes32: 12 zero bytes then user's 20-byte EVM address. Never zero, never attacker. **A non-self recipient is a Critical block — the guard will stop the send.**\n- Only call `depositForBurn` on the messenger. Variants like `depositForBurnWithHook` execute attacker-controlled code on the destination after mint and are blocked.\n- Approve USDC to the messenger before `depositForBurn`.\n- Source must be chain 1, 10, 137, 8453, or 42161.\n- `destinationCaller` and `maxFee` should both be 0 by default. Non-zero `destinationCaller` lets a third party gate the destination claim; `maxFee` ≥ 50% of `amount` is a Critical block (fee drain).\n- If `cctp_guard_blocked`, stop.",
+    "tool_hooks": [
+      {
+        "tool": "simulate_batch",
+        "pre_call": [],
+        "post_call": [
+          "cctp-known-addrs"
+        ]
+      },
+      {
+        "tool": "stage_tx",
+        "pre_call": [],
+        "post_call": [
+          "cctp-known-addrs"
+        ]
+      }
+    ],
+    "tools_namespace": "evm-core",
+    "chain_ids": [
+      1,
+      10,
+      137,
+      8453,
+      42161
+    ]
+  }
+]

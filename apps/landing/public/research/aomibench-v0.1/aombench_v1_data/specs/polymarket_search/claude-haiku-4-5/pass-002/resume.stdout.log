@@ -1,0 +1,3 @@
+[eval] PASS polymarket_search 1 turn(s) 3 tool call(s) 3.34298 cr, 59020 in / 899 out tok, 33428 cached / 0 reasoning tok 0 warning(s) duration 17s
+report full json: ../output/eval/model-bench-public-skills-expansion-20260531/specs/polymarket_search/claude-haiku-4.5/pass-002/20260531T223334.594597000Z.full.json
+report compact json: ../output/eval/model-bench-public-skills-expansion-20260531/specs/polymarket_search/claude-haiku-4.5/pass-002/20260531T223334.594597000Z.compact.json
