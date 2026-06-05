@@ -45,8 +45,8 @@ function resolveBackendUrl(): string {
 }
 
 export interface DeployEnv {
-  botPat: string;
-  /** Empty unless APP_DEPLOY_ACTIVATION_TOKEN is set — only `activate` needs it. */
+  /** Optional GitHub read token — only needed for a PRIVATE platform repo. */
+  botPat?: string;
   activationToken: string;
   targetRepo: string;
   platform: string;
@@ -56,22 +56,31 @@ export interface DeployEnv {
 }
 
 /**
- * Resolve config. The ONLY required env var for deploy/status is the bot PAT.
- * The activation token is optional here and only enforced by the activate
- * route (so deploy + CI work with a single secret). Everything else is
- * hard-coded above.
+ * Resolve config. The portal targets the **public** playground repo, so it
+ * needs exactly ONE secret:
+ *  - `APP_DEPLOY_ACTIVATION_TOKEN` (required) — the platform bearer. `deploy`
+ *    authenticates to the backend's server-side publish endpoint with it (the
+ *    backend does the GitHub commit via its own stored bot PAT), and `activate`
+ *    uses it for the activation call.
+ *
+ * `APP_DEPLOY_BOT_PAT` is now **optional** and read-only: GitHub reads (status
+ * polling, the example-source fetch, the activate-time release fetch) are
+ * unauthenticated on a public repo. Set it only if you point the portal at a
+ * PRIVATE platform repo. The write credential is NOT here — it lives in the
+ * backend (Phase 6).
  */
 export function readDeployEnv(): DeployEnv {
-  const botPat = process.env.APP_DEPLOY_BOT_PAT;
-  if (!botPat) {
+  const activationToken = process.env.APP_DEPLOY_ACTIVATION_TOKEN;
+  if (!activationToken) {
     throw new Error(
-      "deploy proxy is not configured: set APP_DEPLOY_BOT_PAT (a GitHub PAT with " +
-        "Contents:read+write on the playground repo)",
+      "deploy proxy is not configured: set APP_DEPLOY_ACTIVATION_TOKEN (the platform " +
+        "activation bearer; deploy + activate authenticate to the backend with it)",
     );
   }
   return {
-    botPat,
-    activationToken: process.env.APP_DEPLOY_ACTIVATION_TOKEN ?? "",
+    // Optional: only a PRIVATE platform repo needs a read token.
+    botPat: process.env.APP_DEPLOY_BOT_PAT || undefined,
+    activationToken,
     targetRepo: TARGET_REPO,
     platform: PLATFORM,
     backendUrl: resolveBackendUrl(),
@@ -180,6 +189,15 @@ export async function fetchExampleBundle(
   }
 
   const displayName = `Aomi Example (${slug})`;
+
+  // The plugin's identity comes from the crate name (Cargo.toml) +
+  // `dyn_aomi_app!(name = ...)` in lib.rs — NOT the app slug. Without renaming
+  // those, every scaffold ships a plugin called `hyperliquid`, which collides
+  // with the real hyperliquid app (and across users) → the backend rejects
+  // "duplicate plugin" at activate. Rename them to the slug so each deploy is a
+  // distinct plugin.
+  const origName = readTomlName(files["aomi.toml"]?.toString() ?? "") ?? "hyperliquid";
+
   if (typeof files["aomi.toml"] !== "undefined") {
     files["aomi.toml"] = rewriteAomiToml(
       files["aomi.toml"].toString(),
@@ -189,7 +207,23 @@ export async function fetchExampleBundle(
       `https://github.com/${env.targetRepo}`,
     );
   }
+  if (typeof files["Cargo.toml"] !== "undefined") {
+    files["Cargo.toml"] = files["Cargo.toml"].toString().replace(/^\s*name\s*=\s*".*"/m, `name = "${slug}"`);
+  }
+  if (typeof files["src/lib.rs"] !== "undefined") {
+    // The only quoted occurrence of the original name in lib.rs is the
+    // dyn_aomi_app! plugin name; the Rust type (HyperliquidApp) is unquoted.
+    files["src/lib.rs"] = files["src/lib.rs"].toString().split(`"${origName}"`).join(`"${slug}"`);
+  }
+  // Renaming the crate makes the committed lock stale — drop it so CI
+  // regenerates a matching lock at build time.
+  delete files["Cargo.lock"];
+
   return { files, displayName };
+}
+
+function readTomlName(toml: string): string | undefined {
+  return toml.match(/^\s*name\s*=\s*"([^"]+)"/m)?.[1];
 }
 
 function rewriteAomiToml(
