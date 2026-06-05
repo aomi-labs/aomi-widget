@@ -1,0 +1,3 @@
+[eval] PASS stake_eth_lido 1 turn(s) 7 tool call(s) 4.30632 cr, 48428 in / 854 out tok, 42604 cached / 0 reasoning tok 0 warning(s) duration 35s
+report full json: ../output/eval/model-bench-public-skills-gpt55-opus48-sonnet46-20260530/specs/stake_eth_lido/claude-sonnet-4.6/pass-001/20260530T231333.575300000Z.full.json
+report compact json: ../output/eval/model-bench-public-skills-gpt55-opus48-sonnet46-20260530/specs/stake_eth_lido/claude-sonnet-4.6/pass-001/20260530T231333.575300000Z.compact.json

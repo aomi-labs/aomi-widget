@@ -1,0 +1,8 @@
+[eval] FAIL swap_eth_for_usdc_uniswap_v3 1 turn(s) 13 tool call(s) 14.82445 cr, 90309 in / 2419 out tok, 80839 cached / 0 reasoning tok 0 warning(s) duration 91s
+errors:
+  tool sequence broke before expected tool 'stage_tx'; no matching tool arguments for stage_tx:$.to; no matching tool arguments for stage_tx:$.value
+  callback_observed no matching callback_observed; observed 0 value(s)
+  Alice spends about 0.05 ETH on the Uniswap swap Alice spends about 0.05 ETH on the Uniswap swap (before: 100 ETH, after: 100 ETH, delta: +0 ETH, expected: -0.05 ETH ± 0.01 ETH)
+  USDC Transfer log from Uniswap swap USDC Transfer log from Uniswap swap observed 0 log(s), expected at least 1 from block 25215024 through 25215023
+report full json: ../output/eval/model-bench-public-skills-opus47-opus46-haiku45-20260531/specs/swap_eth_for_usdc_uniswap_v3/claude-opus-4.6/pass-001/20260531T112403.029465000Z.full.json
+report compact json: ../output/eval/model-bench-public-skills-opus47-opus46-haiku45-20260531/specs/swap_eth_for_usdc_uniswap_v3/claude-opus-4.6/pass-001/20260531T112403.029465000Z.compact.json

@@ -1,0 +1,5 @@
+[eval] PASS swap_base_eth_for_usdc_aerodrome 1 turn(s) 9 tool call(s) 7.47726 cr, 93799 in / 1844 out tok, 86772 cached / 0 reasoning tok 1 warning(s) duration 65s
+warnings:
+  no_tool_errors tool error envelope(s) observed for: Quote 0.05 ETH → USDC on Aerodrome volatile pool
+report full json: ../output/eval/model-bench-public-skills-gpt55-opus48-sonnet46-20260530/specs/swap_base_eth_for_usdc_aerodrome/claude-sonnet-4.6/pass-001/20260530T222054.026575000Z.full.json
+report compact json: ../output/eval/model-bench-public-skills-gpt55-opus48-sonnet46-20260530/specs/swap_base_eth_for_usdc_aerodrome/claude-sonnet-4.6/pass-001/20260530T222054.026575000Z.compact.json

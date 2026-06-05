@@ -1,0 +1,4 @@
+Error: failed to auto-approve local pending tx 1
+
+Caused by:
+    eth_sendTransaction JSON-RPC error -32000: intrinsic gas too low

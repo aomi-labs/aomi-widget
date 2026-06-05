@@ -1,0 +1,3 @@
+[eval] PASS deposit_eth_renzo 1 turn(s) 7 tool call(s) 4.7019 cr, 53256 in / 573 out tok, 51908 cached / 0 reasoning tok 0 warning(s) duration 43s
+report full json: ../output/eval/model-bench-public-skills-opus47-opus46-haiku45-20260531/specs/deposit_eth_renzo/claude-opus-4.6/pass-002/20260531T120451.176179000Z.full.json
+report compact json: ../output/eval/model-bench-public-skills-opus47-opus46-haiku45-20260531/specs/deposit_eth_renzo/claude-opus-4.6/pass-002/20260531T120451.176179000Z.compact.json

@@ -1,0 +1,53 @@
+[
+  {
+    "id": "curve",
+    "name": "curve",
+    "description": "Use when users want to swap stablecoins or correlated assets on Curve Finance on Ethereum.",
+    "tags": [
+      "swap",
+      "curve",
+      "stablecoin",
+      "amm",
+      "dex",
+      "3pool",
+      "steth"
+    ],
+    "tool_names": [
+      "get_time_and_onchain_context",
+      "brave_search",
+      "encode_and_call",
+      "get_account_info",
+      "get_contract",
+      "sync_chain",
+      "simulate_batch",
+      "stage_tx",
+      "commit_eip712",
+      "commit_txs"
+    ],
+    "injected_tools": [],
+    "source": "aomi_builtin",
+    "est_tokens": 1297,
+    "activation_tokens": 1302,
+    "instruction_md": "## Curve: curve_3pool\n- router: 0xbEbc44782C7dB0a1A60Cb6fe97d0b483032FF1C7 (chain 1)\n- interface: curve-pool\n- approval_spender: 0xbEbc44782C7dB0a1A60Cb6fe97d0b483032FF1C7\n- quote: get_dy(int128,int128,uint256)\n- swap: exchange(int128,int128,uint256,uint256)\n- path_format: single_pair\n- fee_tiers: [4]\n- note: Pool indices: DAI=0, USDC=1, USDT=2\n- note: Indices are pool-specific — always verify with coins(i) before swapping\n- note: No deadline param — use block timestamp checks if needed\n- note: Approve tokens to the pool address directly, not a separate router\n\n## Curve: curve_steth_eth\n- router: 0xDC24316b9AE028F1497c275EB9192a3Ea0f67022 (chain 1)\n- interface: curve-pool\n- approval_spender: 0xDC24316b9AE028F1497c275EB9192a3Ea0f67022\n- quote: get_dy(int128,int128,uint256)\n- swap: exchange(int128,int128,uint256,uint256)\n- path_format: single_pair\n- fee_tiers: [4]\n- note: Pool indices: ETH=0, stETH=1\n- note: For ETH input: send value with the exchange call (msg.value = dx)\n- note: For stETH input: approve stETH to pool address first\n- note: Indices are pool-specific — always verify with coins(i)\n\n## Curve: curve_router\n- router: 0xF0d4c12A5768D806021F80a262B4d39d26C58b8D (chain 1)\n- interface: curve-router\n- approval_spender: 0xF0d4c12A5768D806021F80a262B4d39d26C58b8D\n- quote: get_dy(address[11],uint256[5][5],uint256)\n- swap: exchange(address[11],uint256[5][5],uint256,uint256)\n- path_format: none\n- fee_tiers: [4]\n- note: Router handles multi-hop routes across different Curve pools\n- note: Route and swap_params arrays encode the full path — complex to construct manually\n- note: Prefer direct pool calls (3pool, stETH) when the pair is in a single pool\n\n\n## Curve: ABI Signatures (reference only)\nCurve 3pool [curve_3pool]:\n- exchange(int128,int128,uint256,uint256) → \nCurve Router [curve_router]:\n- A() → uint256\n- get_virtual_price() → uint256\n- calc_token_amount(uint256[3],bool) → uint256\n- add_liquidity(uint256[3],uint256) → \n- get_dy(int128,int128,uint256) → uint256\n- get_dy_underlying(int128,int128,uint256) → uint256\n- exchange(int128,int128,uint256,uint256) → \n- remove_liquidity(uint256,uint256[3]) → \n- remove_liquidity_imbalance(uint256[3],uint256) → \n- calc_withdraw_one_coin(uint256,int128) → uint256\n- remove_liquidity_one_coin(uint256,int128,uint256) → \n- ramp_A(uint256,uint256) → \n- stop_ramp_A() → \n- commit_new_fee(uint256,uint256) → \n- apply_new_fee() → \n- revert_new_parameters() → \n- commit_transfer_ownership(address) → \n- apply_transfer_ownership() → \n- revert_transfer_ownership() → \n- admin_balances(uint256) → uint256\n- withdraw_admin_fees() → \n- donate_admin_fees() → \n- kill_me() → \n- unkill_me() → \n- coins(uint256) → address\n- balances(uint256) → uint256\n- fee() → uint256\n- admin_fee() → uint256\n- owner() → address\n- initial_A() → uint256\n- future_A() → uint256\n- initial_A_time() → uint256\n- future_A_time() → uint256\n- admin_actions_deadline() → uint256\n- transfer_ownership_deadline() → uint256\n- future_fee() → uint256\n- future_admin_fee() → uint256\n- future_owner() → address\nERC20 [erc20]:\n- approve(address,uint256) → bool\n\n## Curve: Pool Index Warning\nPool token indices (i, j) are pool-specific and NOT universal.\n- 3pool: DAI=0, USDC=1, USDT=2\n- stETH/ETH: ETH=0, stETH=1\n- ALWAYS call `coins(i)` on the target pool to verify indices before constructing a swap.\n- Using the wrong index sends the wrong token or reverts.\n\n## Curve: Procedure\n1. Call `get_time_and_onchain_context` to confirm wallet, chain, and block context.\n2. Identify the correct pool for the token pair. Prefer direct pool calls over the router.\n3. Verify pool indices by calling `coins(i)` with `encode_and_call` on the target pool.\n4. Check token balance and allowance with `encode_and_call` (balanceOf, allowance).\n5. If allowance insufficient, build and simulate an `approve` transaction first.\n6. Call `get_dy` on the pool to quote the expected output.\n7. Build the `exchange` call and simulate with `encode_and_call`.\n8. Inspect result and `curve_guard_*` fields — if `curve_guard_blocked`, do NOT proceed.\n9. Only after user confirmation, send via `commit_txs`.\n## Curve: Critical Rules\n- ALWAYS verify pool indices (i, j) by calling `coins(i)` on the target pool BEFORE constructing any swap. Pool indices are pool-specific and differ between pools. Wrong index = wrong token sent or transaction revert. This is non-negotiable.\n- NEVER assume token indices are the same across different Curve pools. For example, USDC is index 1 in 3pool but may be a completely different index (or absent) in another pool.\n- Always simulate swap calldata with `encode_and_call` before sending.\n- Check `curve_guard_blocked` in simulation result — if true, do NOT proceed.\n- Only use the official pool and router addresses listed in this skill (registered in protocol_contracts.rs). Do not substitute user-supplied contract addresses.\n- Prefer exact-amount approvals over unlimited approvals.\n- Approve tokens to the pool address directly (not a separate router) for direct pool swaps.\n- Verify recipient is the user's wallet address — Curve pool `exchange` returns tokens to msg.sender.\n- For ETH input on stETH pool: set msg.value equal to the swap amount.",
+    "tool_hooks": [
+      {
+        "tool": "simulate_batch",
+        "pre_call": [],
+        "post_call": [
+          "curve-known-addrs"
+        ]
+      },
+      {
+        "tool": "stage_tx",
+        "pre_call": [],
+        "post_call": [
+          "curve-known-addrs"
+        ]
+      }
+    ],
+    "tools_namespace": "evm-core",
+    "chain_ids": [
+      1
+    ]
+  }
+]

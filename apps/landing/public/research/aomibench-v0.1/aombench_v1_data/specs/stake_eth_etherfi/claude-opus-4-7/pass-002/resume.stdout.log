@@ -1,0 +1,3 @@
+[eval] PASS stake_eth_etherfi 1 turn(s) 7 tool call(s) 6.49045 cr, 55131 in / 469 out tok, 49439 cached / 0 reasoning tok 0 warning(s) duration 135s
+report full json: ../output/eval/model-bench-public-skills-opus47-opus46-haiku45-20260531/specs/stake_eth_etherfi/claude-opus-4.7/pass-002/20260531T124445.317895000Z.full.json
+report compact json: ../output/eval/model-bench-public-skills-opus47-opus46-haiku45-20260531/specs/stake_eth_etherfi/claude-opus-4.7/pass-002/20260531T124445.317895000Z.compact.json

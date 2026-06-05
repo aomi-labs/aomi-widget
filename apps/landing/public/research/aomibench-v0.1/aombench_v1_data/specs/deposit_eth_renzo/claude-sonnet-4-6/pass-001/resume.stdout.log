@@ -1,0 +1,5 @@
+[eval] PASS deposit_eth_renzo 1 turn(s) 8 tool call(s) 3.67584 cr, 62107 in / 755 out tok, 59588 cached / 0 reasoning tok 1 warning(s) duration 47s
+warnings:
+  no_tool_errors tool error envelope(s) observed for: Stage Renzo depositETH 0.1 ETH
+report full json: ../output/eval/model-bench-public-skills-gpt55-opus48-sonnet46-20260530/specs/deposit_eth_renzo/claude-sonnet-4.6/pass-001/20260530T232417.137417000Z.full.json
+report compact json: ../output/eval/model-bench-public-skills-gpt55-opus48-sonnet46-20260530/specs/deposit_eth_renzo/claude-sonnet-4.6/pass-001/20260530T232417.137417000Z.compact.json

@@ -1,0 +1,3 @@
+[eval] PASS transfer_eth_to_charlie 1 turn(s) 3 tool call(s) 2.96435 cr, 26433 in / 530 out tok, 25727 cached / 0 reasoning tok 0 warning(s) duration 23s
+report full json: ../output/eval/model-bench-public-skills-expansion-20260531/specs/transfer_eth_to_charlie/claude-opus-4.6/pass-002/20260531T184400.726388000Z.full.json
+report compact json: ../output/eval/model-bench-public-skills-expansion-20260531/specs/transfer_eth_to_charlie/claude-opus-4.6/pass-002/20260531T184400.726388000Z.compact.json

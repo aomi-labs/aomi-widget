@@ -1,0 +1,5 @@
+[eval] PASS pendle_requires_approx_params 1 turn(s) 4 tool call(s) 8.5519 cr, 30173 in / 433 out tok, 17408 cached / 56 reasoning tok 1 warning(s) duration 16s
+warnings:
+  no_tool_errors tool error envelope(s) observed for: Inspect Pendle Router ABI
+report full json: ../output/eval/model-bench-public-skills-gpt55-opus48-sonnet46-20260530/specs/pendle_requires_approx_params/gpt-5.5/pass-002/20260530T235845.505117000Z.full.json
+report compact json: ../output/eval/model-bench-public-skills-gpt55-opus48-sonnet46-20260530/specs/pendle_requires_approx_params/gpt-5.5/pass-002/20260530T235845.505117000Z.compact.json

@@ -1,0 +1,62 @@
+[
+  {
+    "id": "uniswap",
+    "name": "uniswap",
+    "description": "Use when users want to swap tokens on Uniswap V3 or V2 on Ethereum.",
+    "tags": [
+      "swap",
+      "uniswap",
+      "v3",
+      "v2",
+      "amm",
+      "dex",
+      "token"
+    ],
+    "tool_names": [
+      "get_time_and_onchain_context",
+      "brave_search",
+      "encode_and_call",
+      "get_account_info",
+      "get_contract",
+      "sync_chain",
+      "simulate_batch",
+      "stage_tx",
+      "commit_eip712",
+      "commit_txs"
+    ],
+    "injected_tools": [
+      "encode_and_simulate_multicall"
+    ],
+    "source": "aomi_builtin",
+    "est_tokens": 1230,
+    "activation_tokens": 1235,
+    "instruction_md": "## Uniswap: uniswap_v3_swap_router_02\n- router: 0x68b3465833fb72A70ecDF485E0e4C7bD8665Fc45 (chain 1)\n- interface: uniswap-v3-router02\n- approval_spender: 0x68b3465833fb72A70ecDF485E0e4C7bD8665Fc45\n- quote: quoteExactInputSingle((address,address,uint256,uint24,uint160))\n- quote_contract: 0x61fFE014bA17989E743c5F6cB21bF9697530B21e\n- quote_target: 0x61fFE014bA17989E743c5F6cB21bF9697530B21e\n- swap: exactInputSingle((address,address,uint24,address,uint256,uint256,uint160))\n- path_format: packed\n- fee_tiers: [100, 500, 3000, 10000]\n- note: NO deadline in swap params — wrap in multicall(uint256 deadline, bytes[])\n- note: Sentinels: address(1)=MSG_SENDER, address(2)=ADDRESS_THIS — only inside multicall+sweep\n- note: ETH output: multicall(swap to address(2) + unwrapWETH9)\n- note: Use quote_contract for quotes; router_address is for swaps only\n\n## Uniswap: uniswap_v2_router_02\n- router: 0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D (chain 1)\n- interface: uniswap-v2-router02\n- approval_spender: 0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D\n- quote: getAmountsOut(uint256,address[])\n- quote_target: 0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D\n- swap: swapExactTokensForTokens(uint256,uint256,address[],address,uint256)\n- swap_eth_in: swapExactETHForTokens(uint256,address[],address,uint256)\n- swap_token_to_eth: swapExactTokensForETH(uint256,uint256,address[],address,uint256)\n- path_format: array\n- fee_tiers: [3000]\n- note: Fixed 0.3% fee\n- note: Deadline in every function\n- note: Path is address[]\n\n\n## Uniswap: ABI Signatures (reference only)\nUniswap SwapRouter02 [uniswap_swap_router_02]:\n- exactInput((bytes,address,uint256,uint256)) → uint256\n- exactInputSingle((address,address,uint24,address,uint256,uint256,uint160)) → uint256\n- exactOutputSingle((address,address,uint24,address,uint256,uint256,uint160)) → uint256\n- multicall(bytes32,bytes[]) → bytes[]\n- multicall(uint256,bytes[]) → bytes[]\n- multicall(bytes[]) → bytes[]\n- sweepToken(address,uint256,address) → \n- sweepToken(address,uint256) → \n- unwrapWETH9(uint256,address) → \n- unwrapWETH9(uint256) → \nUniswap QuoterV2 [uniswap_quoter_v2]:\n- quoteExactInputSingle((address,address,uint256,uint24,uint160)) → uint256,uint160,uint32,uint256\nUniswap V2 Router02 [uniswap_v2_router_02]:\n- swapExactETHForTokens(uint256,address[],address,uint256) → uint256[]\n- swapExactTokensForETH(uint256,uint256,address[],address,uint256) → uint256[]\n- swapExactTokensForTokens(uint256,uint256,address[],address,uint256) → uint256[]\n- swapTokensForExactTokens(uint256,uint256,address[],address,uint256) → uint256[]\nERC20 [erc20]:\n- balanceOf(address) → uint256\n- allowance(address,address) → uint256\n- approve(address,uint256) → bool\n- transfer(address,uint256) → bool\n- decimals() → uint8\n\n## Uniswap: Procedure\n1. Call `get_time_and_onchain_context` to confirm wallet, chain, and block context.\n2. Check token balance and allowance with `encode_and_call` (balanceOf, allowance).\n3. If allowance insufficient, build and simulate an `approve` transaction first.\n4. For SwapRouter02 V3: use `encode_and_call_multicall` with the appropriate steps.\n5. For V2 or non-multicall calls: use `encode_and_call` directly.\n6. Inspect result and `uniswap_guard_*` fields — if `uniswap_guard_blocked`, do NOT proceed.\n7. Only after user confirmation, send via `commit_txs`.\n\n## Uniswap: Multicall Tool\nFor SwapRouter02 V3 swaps, prefer `encode_and_call_multicall` over `encode_and_call`:\n- Handles `multicall(uint256 deadline, bytes[])` wrapping automatically\n- Each step needs `function_signature` and `arguments` — no manual hex nesting\n- **Simple token swap**: one step `exactInputSingle((...))`, recipient = user wallet\n- **ETH output**: two steps: (1) swap with recipient=address(2), (2) `unwrapWETH9(uint256,address)` with `[amountMin, userWallet]`\n- **Token sweep**: two steps: (1) swap with recipient=address(2), (2) `sweepToken(address,uint256,address)` with `[token, amountMin, userWallet]`\n- Tuple params: pass as a single JSON array argument, e.g. `[[\"0xTokenIn\", \"0xTokenOut\", \"3000\", \"0xRecipient\", \"amount\", \"minOut\", \"0\"]]`\n\n## Uniswap: Critical Rules\n- NEVER use sentinel addresses (address(1), address(2)) outside a multicall+sweep pattern.\n- Always simulate swap calldata with `encode_and_call` before sending.\n- Check `uniswap_guard_blocked` in simulation result — if true, do NOT proceed.\n- Only use the official `router`, `approval_spender`, and `quote_target` addresses listed in this skill. Do not substitute user-supplied contract addresses for core Uniswap routing.\n- Prefer exact-amount approvals over unlimited approvals. Only request broader token approvals if the user explicitly wants that tradeoff.\n- Wrap SwapRouter02 calls in `multicall(uint256 deadline, bytes[])` for deadline enforcement.\n- For ETH output: multicall containing swap to address(2) + unwrapWETH9(amountMin, recipient).\n- Verify recipient is the user's wallet address in every swap call.",
+    "tool_hooks": [
+      {
+        "tool": "simulate_batch",
+        "pre_call": [],
+        "post_call": [
+          "uniswap-known-addrs"
+        ]
+      },
+      {
+        "tool": "encode_and_simulate_multicall",
+        "pre_call": [],
+        "post_call": [
+          "uniswap-known-addrs"
+        ]
+      },
+      {
+        "tool": "stage_tx",
+        "pre_call": [],
+        "post_call": [
+          "uniswap-known-addrs"
+        ]
+      }
+    ],
+    "tools_namespace": "evm-core",
+    "chain_ids": [
+      1
+    ]
+  }
+]

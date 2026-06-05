@@ -1,0 +1,5 @@
+[eval] FAIL deposit_eth_renzo 1 turn(s) 7 tool call(s) 1.50784 cr, 99319 in / 157 out tok 0 warning(s) duration 38s
+errors:
+  Alice receives ezETH from Renzo Alice receives ezETH from Renzo (before: 0 EZETH, after: 0 EZETH, delta: +0 EZETH, expected: +0.1 EZETH ± 0.02 EZETH)
+report full json: ../output/eval/model-bench-public-skills-minimax-m25-kiro-20260531/specs/deposit_eth_renzo/minimax-m2.5/pass-002/20260531T091306.521299000Z.full.json
+report compact json: ../output/eval/model-bench-public-skills-minimax-m25-kiro-20260531/specs/deposit_eth_renzo/minimax-m2.5/pass-002/20260531T091306.521299000Z.compact.json
