@@ -1,0 +1,7 @@
+[eval] FAIL swap_eth_for_usdc_sushiswap 1 turn(s) 4 tool call(s) 2.0889 cr, 22623 in / 240 out tok, 21828 cached / 0 reasoning tok 0 warning(s) duration 27s
+errors:
+  tool sequence broke before expected tool 'stage_tx'; no matching tool arguments for stage_tx:$.to; no matching tool arguments for stage_tx:$.value; no matching tool arguments for stage_tx:$.data.signature
+  callback_observed no matching callback_observed; observed 0 value(s)
+  USDC Transfer log from SushiSwap swap USDC Transfer log from SushiSwap swap observed 0 log(s), expected at least 1 from block 25214988 through 25214987
+report full json: ../output/eval/model-bench-public-skills-opus47-opus46-haiku45-20260531/specs/swap_eth_for_usdc_sushiswap/claude-opus-4.7/pass-002/20260531T111537.737214000Z.full.json
+report compact json: ../output/eval/model-bench-public-skills-opus47-opus46-haiku45-20260531/specs/swap_eth_for_usdc_sushiswap/claude-opus-4.7/pass-002/20260531T111537.737214000Z.compact.json

@@ -1,0 +1,55 @@
+[
+  {
+    "id": "krexa",
+    "name": "krexa",
+    "description": "Use when users want to interact with Krexa Protocol on Monad testnet — register an AI agent identity, deploy a deterministic agent wallet (CREATE2), or make an x402 payment via PaymentRouter.",
+    "tags": [
+      "krexa",
+      "monad",
+      "monad-testnet",
+      "x402",
+      "agent",
+      "ai-agent",
+      "credit",
+      "wallet",
+      "payment"
+    ],
+    "tool_names": [
+      "get_time_and_onchain_context",
+      "brave_search",
+      "encode_and_call",
+      "get_account_info",
+      "get_contract",
+      "sync_chain",
+      "simulate_batch",
+      "stage_tx",
+      "commit_eip712",
+      "commit_txs"
+    ],
+    "injected_tools": [],
+    "source": "aomi_builtin",
+    "est_tokens": 1522,
+    "activation_tokens": 1526,
+    "instruction_md": "## Krexa: Overview\nKrexa is an AI-agent credit protocol on **Monad Testnet (chain 10143)**. It gives autonomous\nagents an on-chain identity, a deterministic CREATE2 wallet with 8 safety layers, and an\nx402 payment rail with a 2% platform fee. Credit scores (200–850) and KYA tiers are\nmaintained by an off-chain Krexa oracle; the bot cannot self-update them.\n\n## Krexa: Krexa Protocol on Monad Testnet\n- Chain ID: 10143 (Monad Testnet). Explorer: https://testnet.monadexplorer.com.\n- Agents must call registerAgent(metadataURI) first; KYA tier and credit score are set by an off-chain oracle.\n- Credit levels: L0 (none) -> L1 ($500) -> L2 ($20K) -> L3 ($50K) -> L4 ($500K). Requires score + KYA tier.\n- Wallets are deployed via CREATE2 (factory.createWallet): one wallet per owner, address is deterministic — always call predictWalletAddress first to show the user the address before deploy.\n- AgentWallet enforces 8 safety layers (venue whitelist, per-tx, per-trade, daily, per-venue, NAV health, freeze, liquidation).\n- x402 payments: PaymentRouter.executePayment(payment, oracleSignature) — the payment tuple must be signed by the Krexa oracle; clients cannot self-sign.\n- PaymentRouter charges a 2% platform fee. amount on the X402Payment is the GROSS amount (merchant gets amount * 0.98).\n- MockUSDC has 6 decimals — amounts are scaled by 1e6. Approve PaymentRouter before x402 payments.\n\n## Krexa: Contracts (chain 10143)\nUse these manifest-provided addresses directly. Do not call `get_contract` to discover Krexa ABIs or addresses during normal Krexa flows.\n- Krexa AgentRegistry (`krexa_agent_registry`): 0xd0CB44B07e922d3bc276061bCB9eF41e103Cc872 (chain 10143)\n- Krexa AgentWalletFactory (`krexa_wallet_factory`): 0x120E6fCDe2244ccE9CC02360e4f0Dc5e311a8c65 (chain 10143)\n- Krexa PaymentRouter (`krexa_payment_router`): 0xadfCaCbaC1B21fb0Ed86872E859E1b46a720A6e1 (chain 10143)\n- Krexa MockUSDC (testnet stablecoin) (`krexa_mock_usdc`): 0x460b023a87f7Dbe0114357Ab45830F1A41e9C103 (chain 10143)\n\n## Krexa: ABI Signatures (reference only)\nKrexa Read Calls:\n- getAgent(address) -> (address,string,uint256,uint256,uint256,uint256,bool,uint256,uint256)\n- getCreditLevel(address) -> uint256\n- getKyaTier(address) -> uint256\n- hasActiveCreditLine(address) -> bool\n- isCreditValid(address) -> bool\n- isRegistered(address) -> bool\n- balanceOf(address) -> uint256\nKrexa AgentRegistry [krexa_agent_registry]:\n- registerAgent(string) → \nKrexa AgentWalletFactory [krexa_wallet_factory]:\n- createWallet(address,uint256,uint256) → address\n- predictWalletAddress(address,address,uint256,uint256) → address\nKrexa PaymentRouter [krexa_payment_router]:\n- executePayment((address,address,uint256,uint256,uint256,bytes32),bytes) → \nKrexa MockUSDC (testnet stablecoin) [krexa_mock_usdc]:\n- approve(address,uint256) → bool\n\n## Krexa: Register an Agent\n1. Call `get_time_and_onchain_context` and confirm the user is on Monad Testnet (chain 10143).\n2. Ask for an IPFS / URL metadata URI describing the agent (name, capabilities, owner).\n3. Build the tx with `encode_and_call`: `to = AgentRegistry`, `function = registerAgent(string)`, `args = [metadataURI]`, `value = 0`.\n4. Simulate via `simulate_batch`, then `commit_txs` after user confirmation.\n5. After registration: the agent starts at credit score 350 (L0). KYA/score upgrades come from the Krexa oracle — not from the bot.\n\n## Krexa: Deploy a Deterministic Wallet\n1. Read `predictWalletAddress(owner, operator, dailyLimit, perTxLimit)` on `WALLET_FACTORY` first — show the user the predicted address before any deploy.\n2. Confirm with the user. Wallets are one-per-owner; re-deploying with the same owner reverts.\n3. Build `createWallet(operator, dailyLimit, perTxLimit)` on `WALLET_FACTORY`, simulate, then commit.\n4. `operator` is the address allowed to sign trades — usually the agent's hot key. `dailyLimit` / `perTxLimit` are in USDC base units (1e6 = 1 USDC).\n5. Verify the deployed address matches the predicted address before reporting success.\n\n## Krexa: x402 Payment\n1. Pre-check: confirm payer has MockUSDC balance and PaymentRouter allowance via `balanceOf` and `allowance` reads.\n2. If allowance insufficient, build `approve(PaymentRouter, amount)` on `MOCK_USDC`. Never approve a different spender.\n3. Obtain the oracle-signed `X402Payment` tuple + signature from the caller — the bot does not sign these. The tuple is `(address from, address to, uint256 amount, uint256 nonce, uint256 deadline, bytes32 paymentId)` — `paymentId` is **bytes32**, not a string. If the caller hands you a string id, hash it with `keccak256` first.\n4. Check `isNonceUsed(from, nonce)` on `PAYMENT_ROUTER` before submitting — replayed nonces revert.\n5. Build `executePayment(payment, oracleSignature)` on `PAYMENT_ROUTER`. `payment.amount` is the gross amount; the merchant receives `amount * (1 - platformFeeBps/10000)` (default 2% fee).\n6. Simulate the full batch (approve if needed, then executePayment) with `simulate_batch`. Verify no guard fired.\n7. Commit after user confirmation.\n\n## Krexa: Critical Rules\n- Chain is **Monad Testnet (10143)** only. Reject any request that names mainnet (143) or another chain.\n- Only the four allow-listed contracts (`AGENT_REGISTRY`, `WALLET_FACTORY`, `PAYMENT_ROUTER`, `MOCK_USDC`) are valid `to` addresses for Krexa actions.\n- Credit scores, KYA tiers, and credit-line status are read-only for the bot. Use `getCreditLevel(address)`, `getKyaTier(address)`, `hasActiveCreditLine(address)`, and `isCreditValid(address)` on AgentRegistry; never try to update them.\n- `approve` may only target `PAYMENT_ROUTER` as the spender. Approving anyone else is a hard reject.\n- Do not invent oracle signatures. `executePayment` requires a real signature from the Krexa oracle; if the user can't supply one, stop and explain.\n- Do not try to update KYA tier or credit score — those calls are oracle-only and will revert from any non-oracle caller.\n- Always read the predicted wallet address before `createWallet` and confirm with the user.\n- USDC values are 1e6 scaled. Ten USDC = `10_000_000`. Reject ambiguous amounts.",
+    "tool_hooks": [
+      {
+        "tool": "simulate_batch",
+        "pre_call": [],
+        "post_call": [
+          "krexa-known-addrs"
+        ]
+      },
+      {
+        "tool": "stage_tx",
+        "pre_call": [],
+        "post_call": [
+          "krexa-known-addrs"
+        ]
+      }
+    ],
+    "tools_namespace": "evm-core",
+    "chain_ids": [
+      10143
+    ]
+  }
+]

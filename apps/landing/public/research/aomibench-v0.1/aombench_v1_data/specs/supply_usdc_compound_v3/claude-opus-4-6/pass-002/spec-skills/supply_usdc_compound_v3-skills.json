@@ -1,0 +1,55 @@
+[
+  {
+    "id": "compound",
+    "name": "compound",
+    "description": "Use when users want to supply, withdraw, or claim rewards on Compound V3 (Comet) on Ethereum.",
+    "tags": [
+      "lend",
+      "compound",
+      "v3",
+      "comet",
+      "supply",
+      "withdraw",
+      "borrow",
+      "lending",
+      "defi"
+    ],
+    "tool_names": [
+      "get_time_and_onchain_context",
+      "brave_search",
+      "encode_and_call",
+      "get_account_info",
+      "get_contract",
+      "sync_chain",
+      "simulate_batch",
+      "stage_tx",
+      "commit_eip712",
+      "commit_txs"
+    ],
+    "injected_tools": [],
+    "source": "aomi_builtin",
+    "est_tokens": 1052,
+    "activation_tokens": 1057,
+    "instruction_md": "## Compound V3: Compound V3 (Comet) Ethereum\n- note: Compound V3 uses a single-asset Comet model — each Comet instance has one base asset (USDC or WETH)\n- note: cUSDCv3 base asset is USDC; cWETHv3 base asset is WETH\n- note: To supply: call supply(address asset, uint256 amount) on the correct Comet instance\n- note: To withdraw: call withdraw(address asset, uint256 amount) on the correct Comet instance\n- note: Borrowing is implicit — withdraw the base asset beyond your collateral to borrow; there is no separate borrow function for collateral assets\n- note: supplyTo(address dst, address asset, uint256 amount) sends the supplied position to a different address — dst must be the user's wallet\n- note: allow(address manager, bool isAllowed) grants or revokes a manager's permission to act on your behalf\n- note: To claim COMP rewards: call claim(address comet, address src, bool shouldAccrue) on CometRewards — src must be the user's wallet\n- note: Approve the Comet contract (not a separate router) before supplying\n- note: To repay max debt, supply type(uint256).max of the base asset — the contract caps to actual debt\n\n\n## Compound V3: Reward token\n- COMP: 0xc00e94Cb662C3520282E6f5717214004A7f26888 (chain 1)\n\n## Compound V3: Known Addresses\nUse these addresses from the manifest; do not look them up with `get_contract` during normal Compound V3 flows.\n- Compound V3 CometRewards (`compound_comet_rewards`): 0x1B0e765F6224C21223AeA2af16c1C46E38885a40 (chain 1)\n- WETH (`token_weth`): 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2 (chain 1)\n- USDC (`token_usdc`): 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48 (chain 1)\n- COMP (`token_comp`): 0xc00e94Cb662C3520282E6f5717214004A7f26888 (chain 1)\n- cUSDCv3 (`compound_v3_ethereum_cusdcv3`): 0xc3d688B66703497DAA19211EEdff47f25384cdc3 (chain 1)\n- cWETHv3 (`compound_v3_ethereum_cwethv3`): 0xA17581A9E3356d9A858b789D68B4d866e593aE94 (chain 1)\n\n## Compound V3: ABI Signatures (reference only)\nCompound V3 Comet [compound_comet_v3]:\n- supply(address,uint256) → \n- supplyTo(address,address,uint256) → \n- withdraw(address,uint256) → \n- withdrawTo(address,address,uint256) → \n- allow(address,bool) → \nCompound V3 CometRewards [compound_comet_rewards]:\n- claim(address,address,bool) → \n\n## Compound V3: Procedure\n1. Call `get_time_and_onchain_context` to confirm wallet, chain, and block context.\n2. Identify the correct Comet instance from Known Addresses (cUSDCv3 for USDC, cWETHv3 for WETH). Do not query contract discovery for Comet addresses.\n3. Read position with `encode_and_call`: call `borrowBalanceOf(user)` and `balanceOf(user)` on the Comet.\n4. Check token balance and allowance with `encode_and_call` (`balanceOf`, `allowance` on the ERC-20).\n5. If allowance insufficient for supply, build and simulate an `approve` transaction to the Comet address.\n6. Build the lending transaction and simulate with `encode_and_call`.\n7. Inspect result and `compound_guard_*` fields — if `compound_guard_blocked`, do NOT proceed.\n8. Only after user confirmation, send via `commit_txs`.\n## Compound V3: Critical Rules\n- `supplyTo` dst MUST be the user's wallet address — never a third-party address.\n- `withdrawTo` to MUST be the user's wallet address — never a third-party address.\n- Rewards `claim` src MUST be the user's wallet address.\n- `allow(manager, true)` is HIGH RISK — it grants a manager full permission to supply, withdraw, and transfer on the user's behalf. Warn the user before building this transaction and require explicit confirmation. Never set `isAllowed = true` for an address the user did not specifically request.\n- Each Comet instance has one base asset: cUSDCv3 = USDC, cWETHv3 = WETH. Target the correct Comet.\n- Borrowing is implicit: withdrawing the base asset beyond collateral creates a borrow position.\n- Before withdrawing, check `borrowBalanceOf` to understand existing debt.\n- Check `compound_guard_blocked` in simulation result — if true, do NOT proceed with `commit_txs`.\n- Approve the Comet contract itself (not a separate router) before calling `supply`.\n- To repay max debt, supply `type(uint256).max` of the base asset — the contract caps to actual debt.\n- To claim COMP rewards, call `claim(comet, user, true)` on CometRewards.",
+    "tool_hooks": [
+      {
+        "tool": "simulate_batch",
+        "pre_call": [],
+        "post_call": [
+          "compound-known-addrs"
+        ]
+      },
+      {
+        "tool": "stage_tx",
+        "pre_call": [],
+        "post_call": [
+          "compound-known-addrs"
+        ]
+      }
+    ],
+    "tools_namespace": "evm-core",
+    "chain_ids": [
+      1
+    ]
+  }
+]

@@ -1,0 +1,53 @@
+<svg viewBox="0 0 1120 700" xmlns="http://www.w3.org/2000/svg" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" role="img" aria-label="Two states: wallet state versus chain state">
+<defs>
+<marker id="am" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#B0710F"/></marker>
+<style>
+text{font-family:ui-monospace, SFMono-Regular, Menlo, monospace;}
+.sec{font-size:11.5px;font-weight:700;letter-spacing:1px;}
+.txt{font-size:13px;fill:#1f2937;}
+.dim{font-size:12px;fill:#6b7280;}
+.role{font-size:12.5px;font-weight:700;}
+</style>
+</defs>
+<!-- WALLET STATE panel (purple) -->
+<rect x="40" y="60" width="500" height="408" rx="10" fill="#faf9ff" stroke="#7F77DD" stroke-width="1.4"/>
+<rect x="40" y="60" width="500" height="46" rx="10" fill="#ece9fb"/>
+<rect x="40" y="92" width="500" height="14" fill="#ece9fb"/>
+<text x="62" y="90" font-size="16" font-weight="700" fill="#534AB7">WALLET STATE</text>
+<text x="528" y="90" font-size="11" fill="#6b7280" text-anchor="end">per-session · server-owned</text>
+<text class="sec" x="62" y="138" fill="#534AB7">IDENTITY</text>
+<text class="txt" x="62" y="160">address · chain_id · is_connected · ens_name</text>
+<text class="sec" x="62" y="196" fill="#534AB7">QUEUED ACTIONS  (the agent's output)</text>
+<text class="txt" x="62" y="218">pending_transactions   (staged, unsigned)</text>
+<text class="txt" x="62" y="240">pending_eip712s        (sign requests)</text>
+<text class="sec" x="62" y="286" fill="#534AB7">PROPERTIES</text>
+<text class="txt" x="62" y="308">reversible — discard pending</text>
+<text class="dim" x="62" y="330">owner: backend session (lock-protected)</text>
+<text class="sec" x="62" y="384" fill="#534AB7">EVAL ROLE</text>
+<text class="txt" x="62" y="406">tool / wallet / EIP-712 / pending assertions</text>
+<text class="role" x="62" y="436" fill="#534AB7">→ proves the agent formed the right INTENT</text>
+
+<!-- CHAIN STATE panel (green) -->
+<rect x="580" y="60" width="500" height="408" rx="10" fill="#f6fcf9" stroke="#1D9E75" stroke-width="1.4"/>
+<rect x="580" y="60" width="500" height="46" rx="10" fill="#e4f5ee"/>
+<rect x="580" y="92" width="500" height="14" fill="#e4f5ee"/>
+<text x="602" y="90" font-size="16" font-weight="700" fill="#0F6E56">CHAIN STATE</text>
+<text x="1068" y="90" font-size="11" fill="#6b7280" text-anchor="end">global · fork-backed ground truth</text>
+<text class="sec" x="602" y="138" fill="#0F6E56">FORKED INSTANCES  (per chain)</text>
+<text class="txt" x="602" y="160">ethereum (1) · base (8453) · …  @ pinned block</text>
+<text class="sec" x="602" y="196" fill="#0F6E56">HOLDS</text>
+<text class="txt" x="602" y="218">balances · contract storage · nonces · logs</text>
+<text class="sec" x="602" y="286" fill="#0F6E56">PROPERTIES</text>
+<text class="txt" x="602" y="308">final — only a SIGNED tx mutates it</text>
+<text class="dim" x="602" y="330">lifecycle: sync (reset) · refork (respawn)</text>
+<text class="sec" x="602" y="384" fill="#0F6E56">EVAL ROLE</text>
+<text class="txt" x="602" y="406">balance-Δ / event-log assertions (ground truth)</text>
+<text class="role" x="602" y="436" fill="#0F6E56">→ proves the OUTCOME actually landed</text>
+
+<!-- handoff strip -->
+<rect x="40" y="500" width="1040" height="118" rx="10" fill="#fffaf0" stroke="#EF9F27" stroke-width="1.4"/>
+<text x="62" y="528" font-size="12.5" font-weight="700" fill="#B0710F" letter-spacing="1px">THE HANDOFF</text>
+<text x="62" y="558" font-size="13" fill="#1f2937">AGENT stages → <tspan fill="#534AB7" font-weight="700">wallet.pending_txs</tspan>  <tspan fill="#B0710F">── commit_txs → wallet_tx_request → SIGN ──▶</tspan>  <tspan fill="#0F6E56" font-weight="700">CHAIN STATE mutates on the fork</tspan></text>
+<text x="62" y="584" font-size="13" fill="#1f2937"><tspan fill="#0F6E56" font-weight="700">CHAIN STATE</tspan>  <tspan fill="#B0710F">── wallet:tx_complete callback ──▶</tspan>  reconcile clears the staged ids from <tspan fill="#534AB7" font-weight="700">wallet state</tspan>  (success or fail)</text>
+<text x="62" y="606" font-size="11.5" fill="#6b7280">Two independent ground truths — a model can get intent right and outcome wrong, or the reverse.</text>
+</svg>

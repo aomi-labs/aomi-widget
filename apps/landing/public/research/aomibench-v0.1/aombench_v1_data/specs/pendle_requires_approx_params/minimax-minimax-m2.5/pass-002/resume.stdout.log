@@ -1,0 +1,3 @@
+[eval] PASS pendle_requires_approx_params 1 turn(s) 5 tool call(s) 1.007095 cr, 65476 in / 217 out tok 0 warning(s) duration 27s
+report full json: ../output/eval/model-bench-public-skills-minimax-m25-kiro-20260531/specs/pendle_requires_approx_params/minimax-m2.5/pass-002/20260531T092501.640533000Z.full.json
+report compact json: ../output/eval/model-bench-public-skills-minimax-m25-kiro-20260531/specs/pendle_requires_approx_params/minimax-m2.5/pass-002/20260531T092501.640533000Z.compact.json

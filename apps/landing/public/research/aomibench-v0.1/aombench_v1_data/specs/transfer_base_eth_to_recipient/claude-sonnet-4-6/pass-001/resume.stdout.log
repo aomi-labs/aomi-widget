@@ -1,0 +1,3 @@
+[eval] PASS transfer_base_eth_to_recipient 1 turn(s) 5 tool call(s) 2.19786 cr, 34021 in / 596 out tok, 32972 cached / 0 reasoning tok 0 warning(s) duration 27s
+report full json: ../output/eval/model-bench-public-skills-expansion-20260531/specs/transfer_base_eth_to_recipient/claude-sonnet-4.6/pass-001/20260531T183645.912358000Z.full.json
+report compact json: ../output/eval/model-bench-public-skills-expansion-20260531/specs/transfer_base_eth_to_recipient/claude-sonnet-4.6/pass-001/20260531T183645.912358000Z.compact.json

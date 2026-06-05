@@ -1,0 +1,8 @@
+[eval] FAIL swap_base_eth_for_usdc_aerodrome 1 turn(s) 0 tool call(s) 0 cr, 0 in / 0 out tok 0 warning(s) duration 0s
+errors:
+  tool sequence broke before expected tool 'activate_skills'; no matching tool arguments for stage_tx:$.to; no matching tool arguments for stage_tx:$.value
+  callback_observed no matching callback_observed; observed 0 value(s)
+  Alice spends about 0.05 Base ETH on Aerodrome Alice spends about 0.05 Base ETH on Aerodrome (before: 100 ETH, after: 100 ETH, delta: +0 ETH, expected: -0.05 ETH ± 0.01 ETH)
+  Base USDC Transfer log from Aerodrome swap Base USDC Transfer log from Aerodrome swap observed 0 log(s), expected at least 1 from block 46694554 through 46694553
+report full json: ../output/eval/model-bench-public-skills-gpt55-opus48-sonnet46-20260530/specs/swap_base_eth_for_usdc_aerodrome/claude-sonnet-4.6/pass-001/20260530T220051.493493000Z.full.json
+report compact json: ../output/eval/model-bench-public-skills-gpt55-opus48-sonnet46-20260530/specs/swap_base_eth_for_usdc_aerodrome/claude-sonnet-4.6/pass-001/20260530T220051.493493000Z.compact.json

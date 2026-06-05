@@ -1,0 +1,7 @@
+[eval] FAIL supply_usdc_aave_v3_ethereum 1 turn(s) 11 tool call(s) 1.772115 cr, 115266 in / 375 out tok 0 warning(s) duration 48s
+errors:
+  Alice supplies about 100 USDC to Aave V3 Alice supplies about 100 USDC to Aave V3 (before: 10000 USDC, after: 10000 USDC, delta: +0 USDC, expected: -100 USDC ± 5 USDC)
+  USDC Transfer into Aave V3 USDC Transfer into Aave V3 observed 0 log(s), expected at least 1 from block 25217366 through 25217367
+  Aave aUSDC minted Aave aUSDC minted observed 0 log(s), expected at least 1 from block 25217366 through 25217367
+report full json: ../output/eval/model-bench-public-skills-expansion-20260531/specs/supply_usdc_aave_v3_ethereum/minimax-m2.5/pass-001/20260531T191315.450044000Z.full.json
+report compact json: ../output/eval/model-bench-public-skills-expansion-20260531/specs/supply_usdc_aave_v3_ethereum/minimax-m2.5/pass-001/20260531T191315.450044000Z.compact.json

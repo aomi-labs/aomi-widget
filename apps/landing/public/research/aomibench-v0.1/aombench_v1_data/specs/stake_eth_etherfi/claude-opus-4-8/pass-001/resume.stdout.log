@@ -1,0 +1,5 @@
+[eval] PASS stake_eth_etherfi 1 turn(s) 8 tool call(s) 7.3703 cr, 64430 in / 586 out tok, 58466 cached / 0 reasoning tok 1 warning(s) duration 53s
+warnings:
+  no_tool_errors tool error envelope(s) observed for: Stage ether.fi stake
+report full json: ../output/eval/model-bench-public-skills-gpt55-opus48-sonnet46-20260530/specs/stake_eth_etherfi/claude-opus-4.8/pass-001/20260530T230413.903905000Z.full.json
+report compact json: ../output/eval/model-bench-public-skills-gpt55-opus48-sonnet46-20260530/specs/stake_eth_etherfi/claude-opus-4.8/pass-001/20260530T230413.903905000Z.compact.json

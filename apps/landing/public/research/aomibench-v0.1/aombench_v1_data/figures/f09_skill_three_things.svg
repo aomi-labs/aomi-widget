@@ -1,0 +1,62 @@
+<svg viewBox="0 0 1120 640" xmlns="http://www.w3.org/2000/svg" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" role="img" aria-label="A skill delivers three things: knowledge, capability, safety">
+<defs>
+<marker id="a" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#6b7280"/></marker>
+<style>
+text{font-family:ui-monospace, SFMono-Regular, Menlo, monospace;}
+.h{font-size:14.5px;font-weight:700}
+.s{font-size:11.5px;fill:#6b7280}
+.b{font-size:12.5px;fill:#1f2937}
+.arw{stroke:#6b7280;stroke-width:1.5;fill:none}
+</style>
+</defs>
+<!-- base model -->
+<rect x="290" y="38" width="540" height="98" rx="10" fill="#fafafa" stroke="#9CA3AF" stroke-width="1.3"/>
+<text x="560" y="64" class="h" fill="#374151" text-anchor="middle">BASE MODEL  (parametric, frozen)</text>
+<text x="312" y="90" class="b" fill="#0F6E56">✔ USDC / WETH · ERC-20 patterns · canonical swap shape</text>
+<text x="312" y="114" class="b" fill="#B0710F">✘ bespoke pools · niche protocols · meme coins · post-cutoff contracts</text>
+
+<path class="arw" d="M560,136 V168" marker-end="url(#a)"/>
+<rect x="468" y="170" width="184" height="34" rx="17" fill="#1f2937"/>
+<text x="560" y="192" font-size="13" font-weight="700" fill="#fff" text-anchor="middle">ACTIVATE SKILL</text>
+<text x="560" y="226" class="s" text-anchor="middle">patches the gap on three axes at once</text>
+
+<path class="arw" d="M560,232 C560,252 205,250 205,272" marker-end="url(#a)"/>
+<path class="arw" d="M560,238 V272" marker-end="url(#a)"/>
+<path class="arw" d="M560,232 C560,252 915,250 915,272" marker-end="url(#a)"/>
+
+<!-- column 1 knowledge -->
+<rect x="40" y="276" width="330" height="300" rx="10" fill="#f6fcf9" stroke="#1D9E75" stroke-width="1.4"/>
+<text x="58" y="304" class="h" fill="#0F6E56">① KNOWLEDGE</text>
+<text x="58" y="324" class="s">instruction_md</text>
+<text x="58" y="356" class="b">protocol addresses</text>
+<text x="58" y="380" class="b">ABI signatures</text>
+<text x="58" y="404" class="b">step-by-step procedure</text>
+<text x="58" y="428" class="s">"fetch decimals() first, then…"</text>
+<line x1="58" y1="452" x2="352" y2="452" stroke="#cdeadd"/>
+<text x="58" y="478" class="b" font-weight="700" fill="#0F6E56">tells the model WHAT to call</text>
+
+<!-- column 2 capability -->
+<rect x="395" y="276" width="330" height="300" rx="10" fill="#faf9ff" stroke="#7F77DD" stroke-width="1.4"/>
+<text x="413" y="304" class="h" fill="#534AB7">② CAPABILITY</text>
+<text x="413" y="324" class="s">injected_tools[]</text>
+<text x="413" y="356" class="b">purpose-built encoders</text>
+<text x="413" y="380" class="b">multicall(bytes[]) builder</text>
+<text x="413" y="404" class="b">Uniswap V4 packed actions</text>
+<text x="413" y="428" class="b">Solana instructions</text>
+<line x1="413" y1="452" x2="707" y2="452" stroke="#ddd9f7"/>
+<text x="413" y="478" class="b" font-weight="700" fill="#534AB7">gives a verb it didn't have</text>
+
+<!-- column 3 safety -->
+<rect x="750" y="276" width="330" height="300" rx="10" fill="#fffaf0" stroke="#EF9F27" stroke-width="1.4"/>
+<text x="768" y="304" class="h" fill="#B0710F">③ SAFETY</text>
+<text x="768" y="324" class="s">guards (tool hooks)</text>
+<text x="768" y="356" class="b">post-simulation checks</text>
+<text x="768" y="380" class="b">allowlists · sentinels</text>
+<text x="768" y="404" class="b">recipient / selector sanity</text>
+<text x="768" y="428" class="b">slippage clamp · BLOCK</text>
+<line x1="768" y1="452" x2="1062" y2="452" stroke="#f6e2bf"/>
+<text x="768" y="478" class="b" font-weight="700" fill="#B0710F">bounds what can go wrong</text>
+
+<rect x="40" y="592" width="1040" height="34" rx="8" fill="#f3f4f6" stroke="#d1d5db"/>
+<text x="560" y="614" font-size="12.5" fill="#374151" text-anchor="middle">All three are SKILL-SCOPED — present only while the skill is active; off by default.</text>
+</svg>

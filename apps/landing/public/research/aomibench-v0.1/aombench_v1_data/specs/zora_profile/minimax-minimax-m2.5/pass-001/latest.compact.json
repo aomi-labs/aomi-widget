@@ -1,0 +1,126 @@
+{
+  "run_id": "20260531T223653.918083000Z",
+  "mode": "spec",
+  "started_at": "2026-05-31T22:36:47.281458+00:00",
+  "finished_at": "2026-05-31T22:36:53.917992+00:00",
+  "spec_path": "bin/eval/specs/apps/zora_profile.json",
+  "passed": true,
+  "git_commit": "5b02660942391bc7ae86c5cbb05e33f4c549266f",
+  "git_dirty": true,
+  "story": {
+    "run_id": "20260531T223653.918083000Z",
+    "story_id": "zora_profile",
+    "user_story": "Fetch a Zora profile.",
+    "passed": true,
+    "warnings": [],
+    "model": "minimax/minimax-m2.5",
+    "chain_id": 1,
+    "git_commit": "5b02660942391bc7ae86c5cbb05e33f4c549266f",
+    "git_dirty": true,
+    "total_turns": 1,
+    "total_tool_calls": 1,
+    "total_responses": 3,
+    "activated_skills": [],
+    "failed_assertions": [],
+    "budget_summary": {
+      "total": 1,
+      "exceeded": 0,
+      "required_failures": 0,
+      "warning_failures": 0
+    },
+    "usage": {
+      "input_tokens": 20637,
+      "output_tokens": 179,
+      "total_tokens": 20816,
+      "cached_input_tokens": 0,
+      "cache_creation_input_tokens": 0,
+      "visible_output_tokens": 179,
+      "reasoning_output_tokens": 0,
+      "tool_call_count": 1,
+      "actual_events": 1,
+      "diagnostic_events": 0,
+      "aomi_cost_credits": 0.33014,
+      "user_charged_credits": 0.33014,
+      "credits": 0.33014
+    },
+    "transcript_previews": [
+      {
+        "sender": "user",
+        "content": "Look up the Zora profile for vitalik.eth.",
+        "tool": null,
+        "tool_topic": null,
+        "tool_result_preview": null
+      },
+      {
+        "sender": "assistant",
+        "content": "\n\n\n",
+        "tool": null,
+        "tool_topic": null,
+        "tool_result_preview": null
+      },
+      {
+        "sender": "assistant",
+        "content": "",
+        "tool": "zora_get_profile",
+        "tool_topic": "zora_get_profile",
+        "tool_result_preview": "{\n  \"profile\": {\n    \"__typename\": \"GraphQLWalletProfile\",\n    \"avatar\": null,\n    \"bio\": \"\",\n    \"handle\": \"vitalik.eth\",\n    \"id\": \"R3JhcGhRTFdhbGxldFByb2ZpbGU6dml0YWxpay5ldGg=\",\n    \"platformBlocked\": false\n  },\n  \"source\": \"zora\"\n}"
+      },
+      {
+        "sender": "assistant",
+        "content": "\n\n## Zora Profile: vitalik.eth\n\n| Field | Value |\n|-------|-------|\n| **Handle** | vitalik.eth |\n| **Profile ID** | R3JhcGhRTFdhbGxldFByb2ZpbGU6dml0YWxpay5ldGg= |\n| **Avatar** | Not set |\n| **Bio** | — |\n| **Platform blocked** | No |\n| **Source** | Zora |\n\nThis profile is quite minimal — no avatar or bio set. It appears Vitalik hasn't actively deployed a creator coin or filled out their Zora presence yet. If you'd like to check whether they have a creator coin deployed, let me know and I can look that up.",
+        "tool": null,
+        "tool_topic": null,
+        "tool_result_preview": null
+      }
+    ],
+    "tool_previews": [
+      {
+        "turn": 0,
+        "tool": "zora_get_profile",
+        "topic": "zora_get_profile",
+        "arguments": {
+          "identifier": "vitalik.eth",
+          "api_key": null
+        },
+        "result_preview": "{\n  \"profile\": {\n    \"__typename\": \"GraphQLWalletProfile\",\n    \"avatar\": null,\n    \"bio\": \"\",\n    \"handle\": \"vitalik.eth\",\n    \"id\": \"R3JhcGhRTFdhbGxldFByb2ZpbGU6dml0YWxpay5ldGg=\",\n    \"platformBlocked\": false\n  },\n  \"source\": \"zora\"\n}"
+      }
+    ],
+    "failure_category": null,
+    "app": {
+      "source": "path",
+      "path": "bin/eval/specs/apps/../../../../plugins/zora.dylib",
+      "loaded_name": "zora"
+    },
+    "skills": {
+      "mode": "disabled",
+      "allowed": [],
+      "activated_skills": [],
+      "bundle_path": null,
+      "bundle_revision": null
+    },
+    "environment": {
+      "chain_id": 1,
+      "network": "ethereum",
+      "providers_path": "/Users/aronmegyeri/.aomi/test-env/providers.toml",
+      "endpoint_name": "ethereum",
+      "funding_ledger": [
+        {
+          "chain_id": 1,
+          "address": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+          "balances": {
+            "ETH": "100",
+            "USDC": "10000"
+          }
+        },
+        {
+          "chain_id": 1,
+          "address": "0x70997970c51812dc3a010c7d01b50e0d17dc79c8",
+          "balances": {
+            "ETH": "100",
+            "USDC": "10000"
+          }
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,53 @@
+[
+  {
+    "id": "kelp",
+    "name": "kelp",
+    "description": "Use when users want to liquid-restake ETH or LSTs via Kelp DAO to receive rsETH, or initiate and complete withdrawals on Ethereum.",
+    "tags": [
+      "restaking",
+      "kelp",
+      "rseth",
+      "liquid-restaking",
+      "deposit",
+      "withdraw",
+      "defi"
+    ],
+    "tool_names": [
+      "get_time_and_onchain_context",
+      "brave_search",
+      "encode_and_call",
+      "get_account_info",
+      "get_contract",
+      "sync_chain",
+      "simulate_batch",
+      "stage_tx",
+      "commit_eip712",
+      "commit_txs"
+    ],
+    "injected_tools": [],
+    "source": "aomi_builtin",
+    "est_tokens": 636,
+    "activation_tokens": 640,
+    "instruction_md": "## Kelp: kelp_deposit\n- contract: 0x036676389e48133B63a802f8635AD39E752D375D (chain 1)\n- output_token: rsETH\n- gotcha: depositETH(minRSETHAmountExpected, referralId) is payable — msg.value is the amount to restake. Pass 0 for minRSETHAmountExpected (or compute via getRsETHAmountToMint) and empty string for referralId.\n\n## Kelp: kelp_withdraw\n- contract: 0x62De59c08eB5dAE4b7E6F7a8cAd3006d6965ec16 (chain 1)\n- gotcha: initiateWithdrawal(asset, rsETHAmount) requires rsETH approval to WithdrawalManager. Withdrawals enter a queue — call completeWithdrawal(requestId) after processing completes.\n\n\n## Kelp: Protocol token\n- rsETH: 0xA1290d69c65A6Fe4DF752f95823fae25cB99e5A7 (chain 1)\n\nUse the listed contracts and ABI signatures as the source of truth for Kelp flows. Do not call `get_contract` to inspect Kelp ABIs during normal deposits or withdrawals.\n\n## Kelp: ABI Signatures (reference only)\nKelp LRTDepositPool [kelp_lrt_deposit_pool]:\n- depositAsset(address,uint256,uint256,string) → \n- depositETH(uint256,string) → \nKelp WithdrawalManager [kelp_withdrawal_manager]:\n- completeWithdrawal(address,string) → \n- initiateWithdrawal(address,uint256,string) → \nERC20 [erc20]:\n- approve(address,uint256) → bool\n\n## Kelp: Procedure\n1. Call `get_time_and_onchain_context` to confirm wallet, chain, and block context.\n2. Check ETH balance or token balance/allowance with `encode_and_call`.\n3. If depositing a token and allowance insufficient, simulate an `approve` first.\n4. Build the deposit/withdraw transaction with `encode_and_call`.\n5. Inspect result and `kelp_guard_*` fields — if `kelp_guard_blocked`, do NOT proceed.\n6. Only after user confirmation, send via `commit_txs`.\n## Kelp: Critical Rules\n- For `depositETH(minRSETHAmountExpected, referralId)`: msg.value is the amount to restake. Use 0 for minRSETHAmountExpected (or compute via getRsETHAmountToMint) and empty string for referralId. This is a simple ETH deposit — no approval needed.\n- For LST deposits via `depositAsset`: approve the asset to LRTDepositPool first.\n- Withdrawals require rsETH approval to WithdrawalManager.\n- `initiateWithdrawal(asset, rsETHAmount)`: `asset` is the address of the underlying asset to receive; `rsETHAmount` is how much rsETH to burn. This enters a withdrawal queue — warn the user about the processing delay.\n- `completeWithdrawal(uint256 index)`: call after the withdrawal request has been processed. The `index` corresponds to the user's withdrawal request position.\n- Check `kelp_guard_blocked` in simulation result — if true, do NOT proceed.",
+    "tool_hooks": [
+      {
+        "tool": "simulate_batch",
+        "pre_call": [],
+        "post_call": [
+          "kelp-known-addrs"
+        ]
+      },
+      {
+        "tool": "stage_tx",
+        "pre_call": [],
+        "post_call": [
+          "kelp-known-addrs"
+        ]
+      }
+    ],
+    "tools_namespace": "evm-core",
+    "chain_ids": [
+      1
+    ]
+  }
+]

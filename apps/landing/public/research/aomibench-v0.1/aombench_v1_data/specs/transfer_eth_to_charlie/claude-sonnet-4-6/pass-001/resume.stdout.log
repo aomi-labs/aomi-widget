@@ -1,0 +1,8 @@
+[eval] FAIL transfer_eth_to_charlie 1 turn(s) 4 tool call(s) 2.05155 cr, 26622 in / 654 out tok, 25615 cached / 0 reasoning tok 0 warning(s) duration 23s
+errors:
+  tool sequence broke before expected tool 'commit_txs'
+  wallet_event_observed no matching wallet_event_observed; observed 0 value(s)
+  callback_observed no matching callback_observed; observed 0 value(s)
+  charlie ETH delta 10 charlie ETH delta 10 (before: 0.001 ETH, after: 0.001 ETH, delta: +0 ETH, expected: +10 ETH ± 0.5 ETH)
+report full json: ../output/eval/model-bench-public-skills-expansion-20260531/specs/transfer_eth_to_charlie/claude-sonnet-4.6/pass-001/20260531T184215.261827000Z.full.json
+report compact json: ../output/eval/model-bench-public-skills-expansion-20260531/specs/transfer_eth_to_charlie/claude-sonnet-4.6/pass-001/20260531T184215.261827000Z.compact.json

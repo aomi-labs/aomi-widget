@@ -1,0 +1,3 @@
+[eval] PASS check_krexa_credit_line 1 turn(s) 6 tool call(s) 4.4815 cr, 28517 in / 581 out tok, 25600 cached / 14 reasoning tok 0 warning(s) duration 17s
+report full json: ../output/eval/model-bench-public-skills-gpt55-opus48-sonnet46-20260530/specs/check_krexa_credit_line/gpt-5.5/pass-002/20260530T225552.795922000Z.full.json
+report compact json: ../output/eval/model-bench-public-skills-gpt55-opus48-sonnet46-20260530/specs/check_krexa_credit_line/gpt-5.5/pass-002/20260530T225552.795922000Z.compact.json

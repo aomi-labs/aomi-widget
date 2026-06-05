@@ -1,0 +1,3 @@
+[eval] PASS supply_usdc_compound_v3 1 turn(s) 11 tool call(s) 12.5509 cr, 65321 in / 1284 out tok, 53248 cached / 66 reasoning tok 0 warning(s) duration 33s
+report full json: ../output/eval/model-bench-public-skills-gpt55-opus48-sonnet46-20260530/specs/supply_usdc_compound_v3/gpt-5.5/pass-001/20260530T224516.619851000Z.full.json
+report compact json: ../output/eval/model-bench-public-skills-gpt55-opus48-sonnet46-20260530/specs/supply_usdc_compound_v3/gpt-5.5/pass-001/20260530T224516.619851000Z.compact.json

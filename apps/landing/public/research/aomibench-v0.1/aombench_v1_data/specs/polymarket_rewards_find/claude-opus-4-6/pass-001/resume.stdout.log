@@ -1,0 +1,3 @@
+[eval] PASS polymarket_rewards_find 1 turn(s) 1 tool call(s) 10.531 cr, 26214 in / 1063 out tok, 11630 cached / 0 reasoning tok 0 warning(s) duration 22s
+report full json: ../output/eval/model-bench-public-skills-expansion-20260531/specs/polymarket_rewards_find/claude-opus-4.6/pass-001/20260531T222508.203345000Z.full.json
+report compact json: ../output/eval/model-bench-public-skills-expansion-20260531/specs/polymarket_rewards_find/claude-opus-4.6/pass-001/20260531T222508.203345000Z.compact.json

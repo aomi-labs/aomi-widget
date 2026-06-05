@@ -1,0 +1,3 @@
+[eval] PASS manifold_search 1 turn(s) 1 tool call(s) 1.6995 cr, 19677 in / 999 out tok, 8530 cached / 0 reasoning tok 0 warning(s) duration 13s
+report full json: ../output/eval/model-bench-public-skills-expansion-20260531/specs/manifold_search/claude-haiku-4.5/pass-001/20260531T221615.239529000Z.full.json
+report compact json: ../output/eval/model-bench-public-skills-expansion-20260531/specs/manifold_search/claude-haiku-4.5/pass-001/20260531T221615.239529000Z.compact.json

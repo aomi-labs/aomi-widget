@@ -1,0 +1,125 @@
+{
+  "run_id": "20260531T222056.929508000Z",
+  "mode": "spec",
+  "started_at": "2026-05-31T22:20:30.757737+00:00",
+  "finished_at": "2026-05-31T22:20:56.929427+00:00",
+  "spec_path": "bin/eval/specs/apps/okx_tickers.json",
+  "passed": true,
+  "git_commit": "5b02660942391bc7ae86c5cbb05e33f4c549266f",
+  "git_dirty": true,
+  "story": {
+    "run_id": "20260531T222056.929508000Z",
+    "story_id": "okx_tickers",
+    "user_story": "Check OKX tickers.",
+    "passed": true,
+    "warnings": [],
+    "model": "minimax/minimax-m2.5",
+    "chain_id": 1,
+    "git_commit": "5b02660942391bc7ae86c5cbb05e33f4c549266f",
+    "git_dirty": true,
+    "total_turns": 1,
+    "total_tool_calls": 1,
+    "total_responses": 3,
+    "activated_skills": [],
+    "failed_assertions": [],
+    "budget_summary": {
+      "total": 1,
+      "exceeded": 0,
+      "required_failures": 0,
+      "warning_failures": 0
+    },
+    "usage": {
+      "input_tokens": 192150,
+      "output_tokens": 259,
+      "total_tokens": 192409,
+      "cached_input_tokens": 0,
+      "cache_creation_input_tokens": 0,
+      "visible_output_tokens": 259,
+      "reasoning_output_tokens": 0,
+      "tool_call_count": 1,
+      "actual_events": 1,
+      "diagnostic_events": 0,
+      "aomi_cost_credits": 2.912035,
+      "user_charged_credits": 2.912035,
+      "credits": 2.912035
+    },
+    "transcript_previews": [
+      {
+        "sender": "user",
+        "content": "Show me OKX tickers for BTC-USDT and ETH-USDT.",
+        "tool": null,
+        "tool_topic": null,
+        "tool_result_preview": null
+      },
+      {
+        "sender": "assistant",
+        "content": "\n\n\n",
+        "tool": null,
+        "tool_topic": null,
+        "tool_result_preview": null
+      },
+      {
+        "sender": "assistant",
+        "content": "",
+        "tool": "okx_get_tickers",
+        "tool_topic": "okx_get_tickers",
+        "tool_result_preview": "{\n  \"code\": \"0\",\n  \"data\": [\n    {\n      \"askPx\": \"0.005484\",\n      \"askSz\": \"33831.872114\",\n      \"bidPx\": \"0.005476\",\n      \"bidSz\": \"33881.005602\",\n      \"high24h\": \"0.005515\",\n      \"instId\": \"PEOPLE-EUR\",\n      \"instType\": \"SPOT\",\n      \"last\": \"0.005456\",\n      \"lastSz\": \"100\",\n      \"low24h\": \"0.005414\",\n      \"open24h\": \"0.005435\",\n      \"sodUtc0\": \"0.005515\",\n      \"sodUtc8\": \"0.005456\",\n...\": \"1.142\",\n      \"bidSz\": \"1008.94\",\n      \"high24h\": \"1.158\",\n      \"instId\": \"ZRO-USD\",\n      \"instType\": \"SPOT\",\n      \"last\": \"1.146\",\n      \"lastSz\": \"1\",\n      \"low24h\": \"1.108\",\n      \"open24h\": \"1.147\",\n      \"sodUtc0\": \"1.148\",\n      \"sodUtc8\": \"1.124\",\n      \"ts\": \"1780266024412\",\n      \"vol24h\": \"8644.552\",\n      \"volCcy24h\": \"9807.475709\"\n    }\n  ],\n  \"msg\": \"\",\n  \"source\": \"okx\"\n}"
+      },
+      {
+        "sender": "assistant",
+        "content": "\n\nHere are the OKX spot tickers for BTC-USDT and ETH-USDT:\n\n**BTC-USDT**\n- Last Price: $73,869.10\n- 24h High: $74,276.60\n- 24h Low: $73,402.10\n- 24h Open: $73,890.10\n- 24h Volume: 3,614.32 BTC\n- 24h Quote Volume: $267,198,456.66\n- Bid: $73,869.00 | Ask: $73,869.10\n\n**ETH-USDT**\n- Last Price: $2,009.15\n- 24h High: $2,037.91\n- 24h Low: $1,994.02\n- 24h Open: $2,024.74\n- 24h Volume: 47,450.37 ETH\n- 24h Quote Volume: $95,643,390.98\n- Bid: $2,009.14 | Ask: $2,009.15",
+        "tool": null,
+        "tool_topic": null,
+        "tool_result_preview": null
+      }
+    ],
+    "tool_previews": [
+      {
+        "turn": 0,
+        "tool": "okx_get_tickers",
+        "topic": "okx_get_tickers",
+        "arguments": {
+          "inst_type": "SPOT"
+        },
+        "result_preview": "{\n  \"code\": \"0\",\n  \"data\": [\n    {\n      \"askPx\": \"0.005484\",\n      \"askSz\": \"33831.872114\",\n      \"bidPx\": \"0.005476\",\n      \"bidSz\": \"33881.005602\",\n      \"high24h\": \"0.005515\",\n      \"instId\": \"PEOPLE-EUR\",\n      \"instType\": \"SPOT\",\n      \"last\": \"0.005456\",\n      \"lastSz\": \"100\",\n      \"low24h\": \"0.005414\",\n      \"open24h\": \"0.005435\",\n      \"sodUtc0\": \"0.005515\",\n      \"sodUtc8\": \"0.005456\",\n...\": \"1.142\",\n      \"bidSz\": \"1008.94\",\n      \"high24h\": \"1.158\",\n      \"instId\": \"ZRO-USD\",\n      \"instType\": \"SPOT\",\n      \"last\": \"1.146\",\n      \"lastSz\": \"1\",\n      \"low24h\": \"1.108\",\n      \"open24h\": \"1.147\",\n      \"sodUtc0\": \"1.148\",\n      \"sodUtc8\": \"1.124\",\n      \"ts\": \"1780266024412\",\n      \"vol24h\": \"8644.552\",\n      \"volCcy24h\": \"9807.475709\"\n    }\n  ],\n  \"msg\": \"\",\n  \"source\": \"okx\"\n}"
+      }
+    ],
+    "failure_category": null,
+    "app": {
+      "source": "path",
+      "path": "bin/eval/specs/apps/../../../../plugins/okx.dylib",
+      "loaded_name": "okx"
+    },
+    "skills": {
+      "mode": "disabled",
+      "allowed": [],
+      "activated_skills": [],
+      "bundle_path": null,
+      "bundle_revision": null
+    },
+    "environment": {
+      "chain_id": 1,
+      "network": "ethereum",
+      "providers_path": "/Users/aronmegyeri/.aomi/test-env/providers.toml",
+      "endpoint_name": "sim-ethereum",
+      "funding_ledger": [
+        {
+          "chain_id": 1,
+          "address": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+          "balances": {
+            "ETH": "100",
+            "USDC": "10000"
+          }
+        },
+        {
+          "chain_id": 1,
+          "address": "0x70997970c51812dc3a010c7d01b50e0d17dc79c8",
+          "balances": {
+            "ETH": "100",
+            "USDC": "10000"
+          }
+        }
+      ]
+    }
+  }
+}

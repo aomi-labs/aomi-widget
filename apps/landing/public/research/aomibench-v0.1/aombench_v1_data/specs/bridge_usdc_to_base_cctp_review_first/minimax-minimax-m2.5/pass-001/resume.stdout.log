@@ -1,0 +1,5 @@
+[eval] PASS bridge_usdc_to_base_cctp_review_first 1 turn(s) 12 tool call(s) 2.16247 cr, 140270 in / 508 out tok 1 warning(s) duration 63s
+warnings:
+  no_tool_errors tool error envelope(s) observed for: activate_skills
+report full json: ../output/eval/model-bench-public-skills-minimax-m25-kiro-20260531/specs/bridge_usdc_to_base_cctp_review_first/minimax-m2.5/pass-001/20260531T091759.070365000Z.full.json
+report compact json: ../output/eval/model-bench-public-skills-minimax-m25-kiro-20260531/specs/bridge_usdc_to_base_cctp_review_first/minimax-m2.5/pass-001/20260531T091759.070365000Z.compact.json

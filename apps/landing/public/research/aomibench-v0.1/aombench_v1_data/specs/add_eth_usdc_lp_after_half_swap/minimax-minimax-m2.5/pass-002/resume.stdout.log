@@ -1,0 +1,11 @@
+[eval] FAIL add_eth_usdc_lp_after_half_swap 1 turn(s) 30 tool call(s) 10.869675 cr, 695711 in / 3774 out tok 2 warning(s) duration 305s
+errors:
+  Alice spends about 1 Base ETH total Alice spends about 1 Base ETH total (before: 100 ETH, after: 99.999998992670035184 ETH, delta: -0.000001007329964816 ETH, expected: -1 ETH ± 0.15 ETH)
+  Base USDC moved for swap and LP Base USDC moved for swap and LP observed 0 log(s), expected at least 2 from block 46734822 through 46734822
+  Base WETH moved into Aerodrome LP Base WETH moved into Aerodrome LP observed 0 log(s), expected at least 1 from block 46734822 through 46734822
+  Aerodrome WETH/USDC LP token minted Aerodrome WETH/USDC LP token minted observed 0 log(s), expected at least 1 from block 46734822 through 46734822
+warnings:
+  no_tool_errors tool error envelope(s) observed for: Get Aerodrome PoolFactory ABI, Quote 0.5 ETH → USDC swap, Quote 0.5 ETH → USDC swap, Check Alice's USDC balance, Swap 0.5 ETH to USDC, Swap 0.5 ETH to USDC
+  max_tool_calls observed 30 tool call(s), max 28
+report full json: ../output/eval/model-bench-public-skills-expansion-20260531/specs/add_eth_usdc_lp_after_half_swap/minimax-m2.5/pass-002/20260531T202811.648658000Z.full.json
+report compact json: ../output/eval/model-bench-public-skills-expansion-20260531/specs/add_eth_usdc_lp_after_half_swap/minimax-m2.5/pass-002/20260531T202811.648658000Z.compact.json
