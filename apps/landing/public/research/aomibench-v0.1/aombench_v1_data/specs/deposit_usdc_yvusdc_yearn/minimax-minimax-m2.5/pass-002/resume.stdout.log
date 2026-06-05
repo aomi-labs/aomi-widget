@@ -1,0 +1,5 @@
+[eval] FAIL deposit_usdc_yvusdc_yearn 2 turn(s) 12 tool call(s) 2.488655 cr, 163020 in / 377 out tok 0 warning(s) duration 52s
+errors:
+  Alice supplies about 100 USDC to Yearn Alice supplies about 100 USDC to Yearn (before: 10000 USDC, after: 9800 USDC, delta: -200 USDC, expected: -100 USDC ± 5 USDC)
+report full json: ../output/eval/model-bench-public-skills-minimax-m25-kiro-20260531/specs/deposit_usdc_yvusdc_yearn/minimax-m2.5/pass-002/20260531T091605.326591000Z.full.json
+report compact json: ../output/eval/model-bench-public-skills-minimax-m25-kiro-20260531/specs/deposit_usdc_yvusdc_yearn/minimax-m2.5/pass-002/20260531T091605.326591000Z.compact.json

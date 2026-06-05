@@ -8,18 +8,90 @@ export default function sitemap(): MetadataRoute.Sitemap {
 
   // Static high-priority entries: agent surfaces and human landing pages.
   const staticEntries: MetadataRoute.Sitemap = [
-    { url: `${SITE}/`, lastModified: now, changeFrequency: "weekly", priority: 1.0 },
-    { url: `${SITE}/agents`, lastModified: now, changeFrequency: "weekly", priority: 0.9 },
-    { url: `${SITE}/agents.md`, lastModified: now, changeFrequency: "weekly", priority: 0.9 },
-    { url: `${SITE}/faq.md`, lastModified: now, changeFrequency: "weekly", priority: 0.8 },
-    { url: `${SITE}/agents/build`, lastModified: now, changeFrequency: "weekly", priority: 0.9 },
-    { url: `${SITE}/agents/build.md`, lastModified: now, changeFrequency: "weekly", priority: 0.9 },
-    { url: `${SITE}/agents/transact`, lastModified: now, changeFrequency: "weekly", priority: 0.9 },
-    { url: `${SITE}/agents/transact.md`, lastModified: now, changeFrequency: "weekly", priority: 0.9 },
-    { url: `${SITE}/llms.txt`, lastModified: now, changeFrequency: "weekly", priority: 0.9 },
-    { url: `${SITE}/llms-full.txt`, lastModified: now, changeFrequency: "weekly", priority: 0.8 },
-    { url: `${SITE}/playground`, lastModified: now, changeFrequency: "weekly", priority: 0.7 },
-    { url: `${SITE}/contact`, lastModified: now, changeFrequency: "monthly", priority: 0.5 },
+    {
+      url: `${SITE}/`,
+      lastModified: now,
+      changeFrequency: "weekly",
+      priority: 1.0,
+    },
+    {
+      url: `${SITE}/agents`,
+      lastModified: now,
+      changeFrequency: "weekly",
+      priority: 0.9,
+    },
+    {
+      url: `${SITE}/agents.md`,
+      lastModified: now,
+      changeFrequency: "weekly",
+      priority: 0.9,
+    },
+    {
+      url: `${SITE}/faq.md`,
+      lastModified: now,
+      changeFrequency: "weekly",
+      priority: 0.8,
+    },
+    {
+      url: `${SITE}/agents/build`,
+      lastModified: now,
+      changeFrequency: "weekly",
+      priority: 0.9,
+    },
+    {
+      url: `${SITE}/agents/build.md`,
+      lastModified: now,
+      changeFrequency: "weekly",
+      priority: 0.9,
+    },
+    {
+      url: `${SITE}/agents/transact`,
+      lastModified: now,
+      changeFrequency: "weekly",
+      priority: 0.9,
+    },
+    {
+      url: `${SITE}/agents/transact.md`,
+      lastModified: now,
+      changeFrequency: "weekly",
+      priority: 0.9,
+    },
+    {
+      url: `${SITE}/research`,
+      lastModified: now,
+      changeFrequency: "weekly",
+      priority: 0.8,
+    },
+    {
+      url: `${SITE}/research/aomibench-v0-1`,
+      lastModified: now,
+      changeFrequency: "weekly",
+      priority: 0.7,
+    },
+    {
+      url: `${SITE}/llms.txt`,
+      lastModified: now,
+      changeFrequency: "weekly",
+      priority: 0.9,
+    },
+    {
+      url: `${SITE}/llms-full.txt`,
+      lastModified: now,
+      changeFrequency: "weekly",
+      priority: 0.8,
+    },
+    {
+      url: `${SITE}/playground`,
+      lastModified: now,
+      changeFrequency: "weekly",
+      priority: 0.7,
+    },
+    {
+      url: `${SITE}/contact`,
+      lastModified: now,
+      changeFrequency: "monthly",
+      priority: 0.5,
+    },
   ];
 
   // Docs: HTML page + .md mirror for each.
@@ -29,8 +101,18 @@ export default function sitemap(): MetadataRoute.Sitemap {
       const path = slug.join("/");
       const url = `${SITE}/docs/${path}`;
       return [
-        { url, lastModified: now, changeFrequency: "weekly" as const, priority: 0.8 },
-        { url: `${url}.md`, lastModified: now, changeFrequency: "weekly" as const, priority: 0.7 },
+        {
+          url,
+          lastModified: now,
+          changeFrequency: "weekly" as const,
+          priority: 0.8,
+        },
+        {
+          url: `${url}.md`,
+          lastModified: now,
+          changeFrequency: "weekly" as const,
+          priority: 0.7,
+        },
       ];
     });
 
@@ -53,5 +135,10 @@ export default function sitemap(): MetadataRoute.Sitemap {
       priority: 0.6,
     }));
 
-  return [...staticEntries, ...docsEntries, ...exampleEntries, ...playgroundEntries];
+  return [
+    ...staticEntries,
+    ...docsEntries,
+    ...exampleEntries,
+    ...playgroundEntries,
+  ];
 }

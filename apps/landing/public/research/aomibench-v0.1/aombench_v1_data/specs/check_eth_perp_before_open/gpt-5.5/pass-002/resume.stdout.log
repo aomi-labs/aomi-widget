@@ -1,0 +1,3 @@
+[eval] PASS check_eth_perp_before_open 1 turn(s) 6 tool call(s) 5.504 cr, 30688 in / 944 out tok, 28160 cached / 23 reasoning tok 0 warning(s) duration 24s
+report full json: ../output/eval/model-bench-public-skills-gpt55-opus48-sonnet46-20260530/specs/check_eth_perp_before_open/gpt-5.5/pass-002/20260531T000429.961549000Z.full.json
+report compact json: ../output/eval/model-bench-public-skills-gpt55-opus48-sonnet46-20260530/specs/check_eth_perp_before_open/gpt-5.5/pass-002/20260531T000429.961549000Z.compact.json

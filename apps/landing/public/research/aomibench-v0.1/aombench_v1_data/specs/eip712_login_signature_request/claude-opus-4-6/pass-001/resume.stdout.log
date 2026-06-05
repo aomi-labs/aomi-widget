@@ -1,0 +1,3 @@
+[eval] PASS eip712_login_signature_request 1 turn(s) 1 tool call(s) 1.22105 cr, 12967 in / 129 out tok, 12411 cached / 0 reasoning tok 0 warning(s) duration 9s
+report full json: ../output/eval/model-bench-public-skills-expansion-20260531/specs/eip712_login_signature_request/claude-opus-4.6/pass-001/20260531T185547.574470000Z.full.json
+report compact json: ../output/eval/model-bench-public-skills-expansion-20260531/specs/eip712_login_signature_request/claude-opus-4.6/pass-001/20260531T185547.574470000Z.compact.json

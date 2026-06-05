@@ -1,0 +1,3 @@
+[eval] PASS add_eth_usdc_v2_lp_after_half_swap 1 turn(s) 21 tool call(s) 7.05775 cr, 268774 in / 6348 out tok, 255485 cached / 0 reasoning tok 0 warning(s) duration 118s
+report full json: ../output/eval/model-bench-public-skills-expansion-20260531/specs/add_eth_usdc_v2_lp_after_half_swap/claude-haiku-4.5/pass-002/20260531T214152.139887000Z.full.json
+report compact json: ../output/eval/model-bench-public-skills-expansion-20260531/specs/add_eth_usdc_v2_lp_after_half_swap/claude-haiku-4.5/pass-002/20260531T214152.139887000Z.compact.json

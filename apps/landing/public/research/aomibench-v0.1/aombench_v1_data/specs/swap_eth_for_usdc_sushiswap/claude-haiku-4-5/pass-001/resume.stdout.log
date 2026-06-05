@@ -1,0 +1,6 @@
+[eval] PASS swap_eth_for_usdc_sushiswap 1 turn(s) 25 tool call(s) 8.19153 cr, 310865 in / 7937 out tok, 298483 cached / 0 reasoning tok 2 warning(s) duration 144s
+warnings:
+  no_tool_errors tool error envelope(s) observed for: Stage corrected ETH-USDC swap
+  max_tool_calls observed 25 tool call(s), max 18
+report full json: ../output/eval/model-bench-public-skills-opus47-opus46-haiku45-20260531/specs/swap_eth_for_usdc_sushiswap/claude-haiku-4.5/pass-001/20260531T112017.697249000Z.full.json
+report compact json: ../output/eval/model-bench-public-skills-opus47-opus46-haiku45-20260531/specs/swap_eth_for_usdc_sushiswap/claude-haiku-4.5/pass-001/20260531T112017.697249000Z.compact.json

@@ -1,0 +1,5 @@
+[eval] PASS swap_eth_for_usdc_uniswap_v3 1 turn(s) 11 tool call(s) 2.42013 cr, 160169 in / 153 out tok 1 warning(s) duration 71s
+warnings:
+  no_tool_errors tool error envelope(s) observed for: Stage ETH to USDC swap transaction
+report full json: ../output/eval/model-bench-public-skills-minimax-m25-kiro-20260531/specs/swap_eth_for_usdc_uniswap_v3/minimax-m2.5/pass-001/20260531T085629.525319000Z.full.json
+report compact json: ../output/eval/model-bench-public-skills-minimax-m25-kiro-20260531/specs/swap_eth_for_usdc_uniswap_v3/minimax-m2.5/pass-001/20260531T085629.525319000Z.compact.json

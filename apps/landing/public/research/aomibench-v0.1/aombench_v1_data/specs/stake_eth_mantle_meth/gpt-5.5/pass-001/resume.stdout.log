@@ -1,0 +1,5 @@
+[eval] PASS stake_eth_mantle_meth 1 turn(s) 17 tool call(s) 18.7196 cr, 132886 in / 1833 out tok, 118272 cached / 210 reasoning tok 1 warning(s) duration 57s
+warnings:
+  no_tool_errors tool error envelope(s) observed for: Inspect Mantle staking implementation ABI, Inspect mETH implementation ABI
+report full json: ../output/eval/model-bench-public-skills-gpt55-opus48-sonnet46-20260530/specs/stake_eth_mantle_meth/gpt-5.5/pass-001/20260530T231521.873398000Z.full.json
+report compact json: ../output/eval/model-bench-public-skills-gpt55-opus48-sonnet46-20260530/specs/stake_eth_mantle_meth/gpt-5.5/pass-001/20260530T231521.873398000Z.compact.json

@@ -1,0 +1,3 @@
+[eval] PASS check_zora_token_balance 1 turn(s) 2 tool call(s) 2.05045 cr, 26921 in / 213 out tok, 26539 cached / 0 reasoning tok 0 warning(s) duration 17s
+report full json: ../output/eval/model-bench-public-skills-gpt55-opus48-sonnet46-20260530/specs/check_zora_token_balance/claude-opus-4.8/pass-002/20260530T221457.098488000Z.full.json
+report compact json: ../output/eval/model-bench-public-skills-gpt55-opus48-sonnet46-20260530/specs/check_zora_token_balance/claude-opus-4.8/pass-002/20260530T221457.098488000Z.compact.json

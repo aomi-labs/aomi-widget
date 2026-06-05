@@ -8,12 +8,14 @@ import {
   Lock,
   Unplug,
   Bot,
+  Rocket,
 } from "lucide-react";
 import Link from "next/link";
 
 export type SettingsCategory =
   | "general"
   | "apps"
+  | "deploy"
   | "app-keys"
   | "bots"
   | "secrets"
@@ -31,6 +33,7 @@ const categories: Array<{
 }> = [
   { id: "general", label: "General", icon: Settings },
   { id: "apps", label: "Usage", icon: Layers },
+  { id: "deploy", label: "Deploy", icon: Rocket },
   { id: "app-keys", label: "App Keys", icon: KeyRound },
   { id: "bots", label: "Bots", icon: Bot },
   { id: "secrets", label: "Secrets", icon: Lock },

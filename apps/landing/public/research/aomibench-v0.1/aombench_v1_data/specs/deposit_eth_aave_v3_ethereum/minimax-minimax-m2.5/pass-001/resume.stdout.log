@@ -1,0 +1,9 @@
+[eval] FAIL deposit_eth_aave_v3_ethereum 1 turn(s) 9 tool call(s) 1.771775 cr, 117712 in / 53 out tok 1 warning(s) duration 35s
+errors:
+  Alice spends about 1 ETH into Aave V3 Alice spends about 1 ETH into Aave V3 (before: 100 ETH, after: 99.999998829036606296 ETH, delta: -0.000001170963393704 ETH, expected: -1 ETH ± 0.1 ETH)
+  Alice receives about 1 aWETH Alice receives about 1 aWETH (before: 0 AWETH, after: 0 AWETH, delta: +0 AWETH, expected: +1 AWETH ± 0.1 AWETH)
+  Aave aWETH minted Aave aWETH minted observed 0 log(s), expected at least 1 from block 25214308 through 25214308
+warnings:
+  no_tool_errors tool error envelope(s) observed for: Simulate ETH deposit to Aave, Stage Aave ETH deposit
+report full json: ../output/eval/model-bench-public-skills-minimax-m25-kiro-20260531/specs/deposit_eth_aave_v3_ethereum/minimax-m2.5/pass-001/20260531T085912.265589000Z.full.json
+report compact json: ../output/eval/model-bench-public-skills-minimax-m25-kiro-20260531/specs/deposit_eth_aave_v3_ethereum/minimax-m2.5/pass-001/20260531T085912.265589000Z.compact.json

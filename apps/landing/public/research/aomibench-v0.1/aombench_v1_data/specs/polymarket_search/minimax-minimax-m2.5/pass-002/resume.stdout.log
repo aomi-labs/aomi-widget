@@ -1,0 +1,5 @@
+[eval] PASS polymarket_search 1 turn(s) 7 tool call(s) 2.15393 cr, 136519 in / 923 out tok 1 warning(s) duration 38s
+warnings:
+  max_tool_calls observed 7 tool call(s), max 4
+report full json: ../output/eval/model-bench-public-skills-expansion-20260531/specs/polymarket_search/minimax-m2.5/pass-002/20260531T223431.080943000Z.full.json
+report compact json: ../output/eval/model-bench-public-skills-expansion-20260531/specs/polymarket_search/minimax-m2.5/pass-002/20260531T223431.080943000Z.compact.json

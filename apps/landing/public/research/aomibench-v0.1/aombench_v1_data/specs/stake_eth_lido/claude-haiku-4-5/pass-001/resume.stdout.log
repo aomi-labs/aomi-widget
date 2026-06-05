@@ -1,0 +1,5 @@
+[eval] FAIL stake_eth_lido 1 turn(s) 7 tool call(s) 1.71669 cr, 48303 in / 1428 out tok, 42529 cached / 0 reasoning tok 0 warning(s) duration 29s
+errors:
+  Alice receives about 0.1 stETH Alice receives about 0.1 stETH (before: 0 STETH, after: 0 STETH, delta: +0 STETH, expected: +0.1 STETH ± 0.01 STETH)
+report full json: ../output/eval/model-bench-public-skills-opus47-opus46-haiku45-20260531/specs/stake_eth_lido/claude-haiku-4.5/pass-001/20260531T115433.630673000Z.full.json
+report compact json: ../output/eval/model-bench-public-skills-opus47-opus46-haiku45-20260531/specs/stake_eth_lido/claude-haiku-4.5/pass-001/20260531T115433.630673000Z.compact.json

@@ -1,0 +1,3 @@
+[eval] PASS bridge_usdc_to_base_cctp_review_first 1 turn(s) 8 tool call(s) 9.5381 cr, 49639 in / 1511 out tok, 44032 cached / 194 reasoning tok 0 warning(s) duration 36s
+report full json: ../output/eval/model-bench-public-skills-gpt55-opus48-sonnet46-20260530/specs/bridge_usdc_to_base_cctp_review_first/gpt-5.5/pass-002/20260530T234037.570955000Z.full.json
+report compact json: ../output/eval/model-bench-public-skills-gpt55-opus48-sonnet46-20260530/specs/bridge_usdc_to_base_cctp_review_first/gpt-5.5/pass-002/20260530T234037.570955000Z.compact.json

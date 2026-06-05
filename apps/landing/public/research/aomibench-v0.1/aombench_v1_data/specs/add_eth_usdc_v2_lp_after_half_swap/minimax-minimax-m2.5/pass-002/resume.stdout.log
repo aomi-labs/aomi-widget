@@ -1,0 +1,10 @@
+[eval] FAIL add_eth_usdc_v2_lp_after_half_swap 1 turn(s) 13 tool call(s) 3.51418 cr, 229349 in / 643 out tok 1 warning(s) duration 79s
+errors:
+  tool no matching tool arguments for stage_tx:$.data.signature
+  Alice spends about 1 ETH total on swap plus LP Alice spends about 1 ETH total on swap plus LP (before: 100 ETH, after: 99.499989022860155699 ETH, delta: -0.500010977139844301 ETH, expected: -1 ETH ± 0.2 ETH)
+  Ethereum USDC moved for swap and LP Ethereum USDC moved for swap and LP observed 1 log(s), expected at least 2 from block 25218116 through 25218116
+  Uniswap V2 WETH/USDC LP token minted Uniswap V2 WETH/USDC LP token minted observed 0 log(s), expected at least 1 from block 25218116 through 25218116
+warnings:
+  no_tool_errors tool error envelope(s) observed for: Swap 0.5 ETH for USDC
+report full json: ../output/eval/model-bench-public-skills-expansion-20260531/specs/add_eth_usdc_v2_lp_after_half_swap/minimax-m2.5/pass-002/20260531T214414.916587000Z.full.json
+report compact json: ../output/eval/model-bench-public-skills-expansion-20260531/specs/add_eth_usdc_v2_lp_after_half_swap/minimax-m2.5/pass-002/20260531T214414.916587000Z.compact.json

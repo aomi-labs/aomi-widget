@@ -1,0 +1,5 @@
+[eval] PASS swap_eth_for_steth_curve 1 turn(s) 10 tool call(s) 6.60801 cr, 64469 in / 2383 out tok, 60397 cached / 0 reasoning tok 1 warning(s) duration 66s
+warnings:
+  no_tool_errors tool error envelope(s) observed for: Curve stETH/ETH swap 0.05 ETH → stETH
+report full json: ../output/eval/model-bench-public-skills-gpt55-opus48-sonnet46-20260530/specs/swap_eth_for_steth_curve/claude-sonnet-4.6/pass-001/20260530T222632.389017000Z.full.json
+report compact json: ../output/eval/model-bench-public-skills-gpt55-opus48-sonnet46-20260530/specs/swap_eth_for_steth_curve/claude-sonnet-4.6/pass-001/20260530T222632.389017000Z.compact.json

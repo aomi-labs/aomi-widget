@@ -1,0 +1,3 @@
+[eval] PASS supply_eth_then_borrow_usdc_aave_v3 1 turn(s) 9 tool call(s) 6.23298 cr, 62456 in / 2386 out tok, 59566 cached / 0 reasoning tok 0 warning(s) duration 68s
+report full json: ../output/eval/model-bench-public-skills-expansion-20260531/specs/supply_eth_then_borrow_usdc_aave_v3/claude-sonnet-4.6/pass-002/20260531T192059.300927000Z.full.json
+report compact json: ../output/eval/model-bench-public-skills-expansion-20260531/specs/supply_eth_then_borrow_usdc_aave_v3/claude-sonnet-4.6/pass-002/20260531T192059.300927000Z.compact.json

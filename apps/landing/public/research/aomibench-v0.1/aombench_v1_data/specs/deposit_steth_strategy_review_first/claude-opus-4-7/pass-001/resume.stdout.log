@@ -1,0 +1,5 @@
+[eval] FAIL deposit_steth_strategy_review_first 1 turn(s) 4 tool call(s) 2.8236 cr, 21942 in / 543 out tok, 21122 cached / 0 reasoning tok 0 warning(s) duration 25s
+errors:
+  tool no matching tool arguments for stage_tx:$.to; no matching tool arguments for stage_tx:$.data.signature
+report full json: ../output/eval/model-bench-public-skills-opus47-opus46-haiku45-20260531/specs/deposit_steth_strategy_review_first/claude-opus-4.7/pass-001/20260531T114106.280525000Z.full.json
+report compact json: ../output/eval/model-bench-public-skills-opus47-opus46-haiku45-20260531/specs/deposit_steth_strategy_review_first/claude-opus-4.7/pass-001/20260531T114106.280525000Z.compact.json
