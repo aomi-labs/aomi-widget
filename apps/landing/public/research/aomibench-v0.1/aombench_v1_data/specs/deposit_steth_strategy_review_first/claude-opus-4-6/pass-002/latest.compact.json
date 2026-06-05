@@ -1,0 +1,306 @@
+{
+  "run_id": "20260531T114312.802502000Z",
+  "mode": "spec",
+  "started_at": "2026-05-31T11:42:30.406557+00:00",
+  "finished_at": "2026-05-31T11:43:12.802423+00:00",
+  "spec_path": "bin/eval/specs/eigenlayer/deposit_steth_strategy_review_first.json",
+  "passed": true,
+  "git_commit": "5b02660942391bc7ae86c5cbb05e33f4c549266f",
+  "git_dirty": true,
+  "story": {
+    "run_id": "20260531T114312.802502000Z",
+    "story_id": "deposit_steth_strategy_review_first",
+    "user_story": "Prepare an EigenLayer stETH strategy deposit for Alice, but do not send yet.",
+    "passed": true,
+    "warnings": [],
+    "model": "claude-opus-4-6",
+    "chain_id": 1,
+    "git_commit": "5b02660942391bc7ae86c5cbb05e33f4c549266f",
+    "git_dirty": true,
+    "total_turns": 1,
+    "total_tool_calls": 7,
+    "total_responses": 12,
+    "activated_skills": [
+      "eigenlayer"
+    ],
+    "failed_assertions": [],
+    "budget_summary": {
+      "total": 1,
+      "exceeded": 0,
+      "required_failures": 0,
+      "warning_failures": 0
+    },
+    "usage": {
+      "input_tokens": 40981,
+      "output_tokens": 1176,
+      "total_tokens": 42157,
+      "cached_input_tokens": 38916,
+      "cache_creation_input_tokens": 0,
+      "visible_output_tokens": 1176,
+      "reasoning_output_tokens": 0,
+      "tool_call_count": 7,
+      "actual_events": 1,
+      "diagnostic_events": 0,
+      "aomi_cost_credits": 5.9183,
+      "user_charged_credits": 5.9183,
+      "credits": 5.9183
+    },
+    "transcript_previews": [
+      {
+        "sender": "user",
+        "content": "Prepare an EigenLayer deposit of 0.05 stETH from Alice into the stETH strategy on Ethereum, but don't send it yet.",
+        "tool": null,
+        "tool_topic": null,
+        "tool_result_preview": null
+      },
+      {
+        "sender": "assistant",
+        "content": "\nThe user wants to prepare an EigenLayer deposit of 0.05 stETH into the stETH strategy on Ethereum. They want it staged but not committed. Let me activate the eigenlayer skill and common_erc20 skill to handle this.\n\nThe user wants to prepare an EigenLayer deposit of 0.05 stETH into the stETH strategy on Ethereum. They want it staged but not committed. Let me activate the eigenlayer skill and common_erc20 skill to handle this.\n",
+        "tool": null,
+        "tool_topic": null,
+        "tool_result_preview": null
+      },
+      {
+        "sender": "assistant",
+        "content": "",
+        "tool": "activate_skills",
+        "tool_topic": "activate_skills",
+        "tool_result_preview": "{\n  \"activated\": [\n    \"eigenlayer\"\n  ],\n  \"rejected\": [\n    [\n      \"common_erc20\",\n      \"invalid\"\n    ]\n  ],\n  \"applied_scope\": \"current_serve_cycle\"\n}"
+      },
+      {
+        "sender": "assistant",
+        "content": "",
+        "tool": "get_time_and_onchain_context",
+        "tool_topic": "Get current Ethereum mainnet context",
+        "tool_result_preview": "{\n  \"chain_name\": \"sim-ethereum\",\n  \"chain_id\": 1,\n  \"rpc_endpoint\": \"http://127.0.0.1:57678\",\n  \"current_time_unix\": 1780227754,\n  \"current_time_iso\": \"2026-05-31T11:42:34.534290+00:00\",\n  \"block_number\": 25215123,\n  \"gas_price_wei\": \"1093789145\",\n  \"supported_chains\": [\n    {\n      \"name\": \"sim-ethereum\",\n      \"chain_id\": 1\n    },\n    {\n      \"name\": \"sim-ethereum\",\n      \"chain_id\": 1\n    }\n  ]\n}"
+      },
+      {
+        "sender": "assistant",
+        "content": "\nLet me check Alice's stETH balance and current allowance to the StrategyManager before staging the transactions.\n\nAlice: 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266\nstETH: 0xae7ab96520DE3A18E5e111B5EaAb095312D7fE84\nStrategyManager: 0x858646372CC42E1A627fcE94aa7A7033e7CF075A\nstETH Strategy: 0x93c4b944D05dfe6df7645A86cd2206016c51564D\n\nAmount: 0.05 stETH = 0.05 * 10^18 = 50000000000000000 wei\n\nI need...0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266\nstETH: 0xae7ab96520DE3A18E5e111B5EaAb095312D7fE84\nStrategyManager: 0x858646372CC42E1A627fcE94aa7A7033e7CF075A\nstETH Strategy: 0x93c4b944D05dfe6df7645A86cd2206016c51564D\n\nAmount: 0.05 stETH = 0.05 * 10^18 = 50000000000000000 wei\n\nI need to:\n1. Check stETH balance\n2. Check allowance to StrategyManager\n3. Stage approve (if needed) and depositIntoStrategy\n",
+        "tool": null,
+        "tool_topic": null,
+        "tool_result_preview": null
+      },
+      {
+        "sender": "assistant",
+        "content": "",
+        "tool": "encode_and_call",
+        "tool_topic": "Check Alice's stETH balance",
+        "tool_result_preview": "{\n  \"success\": true,\n  \"result\": \"0x0000000000000000000000000000000000000000000000000000000000000000\",\n  \"revert_reason\": null,\n  \"tx\": {\n    \"from\": \"0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266\",\n    \"to\": \"0xae7ab96520DE3A18E5e111B5EaAb095312D7fE84\",\n    \"value_wei\": \"0\",\n    \"value_eth\": \"0\",\n    \"input\": \"0x70a08231000000000000000000000000f39fd6e51aad88f6f4ce6ab8827279cfffb92266\",\n    \"chain_id\": 1\n  },\n  \"result_decoded\": {\n    \"kind\": \"single_abi_word\",\n    \"raw_hex\": \"0x0000000000000000000000000000000000000000000000000000000000000000\",\n    \"decoded\": {\n      \"type\": \"uint256\",\n      \"decoded\": \"0\",\n      \"as_bool\": false,\n      \"as_address\": \"0x0000000000000000000000000000000000000000\"\n    }\n  }\n}"
+      },
+      {
+        "sender": "assistant",
+        "content": "",
+        "tool": "encode_and_call",
+        "tool_topic": "Check stETH allowance to StrategyManager",
+        "tool_result_preview": "{\n  \"success\": true,\n  \"result\": \"0x0000000000000000000000000000000000000000000000000000000000000000\",\n  \"revert_reason\": null,\n  \"tx\": {\n    \"from\": \"0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266\",\n    \"to\": \"0xae7ab96520DE3A18E5e111B5EaAb095312D7fE84\",\n    \"value_wei\": \"0\",\n    \"value_eth\": \"0\",\n    \"input\": \"0xdd62ed3e000000000000000000000000f39fd6e51aad88f6f4ce6ab8827279cfffb92266000000000000000000000000858646372cc42e1a627fce94aa7a7033e7cf075a\",\n    \"chain_id\": 1\n  },\n  \"result_decoded\": {\n    \"kind\": \"single_abi_word\",\n    \"raw_hex\": \"0x0000000000000000000000000000000000000000000000000000000000000000\",\n    \"decoded\": {\n      \"type\": \"uint256\",\n      \"decoded\": \"0\",\n      \"as_bool\": false,\n      \"as_address\": \"0x0000000000000000000000000000000000000000\"\n    }\n  }\n}"
+      },
+      {
+        "sender": "assistant",
+        "content": "\nAlice has 0 stETH balance and 0 allowance to the StrategyManager. The user wants to deposit 0.05 stETH into the stETH strategy. Since Alice has no stETH, this will likely fail in simulation. However, the user said \"prepare\" and \"don't send it yet\" — they want me to stage the transactions but not commit them.\n\nI should still note that Alice currently has 0 stETH, which means the deposit would fail...0000000000 wei, 18 decimals)\n2. depositIntoStrategy(strategy, token, amount) on StrategyManager\n\n0.05 stETH = 50000000000000000 wei (18 decimals)\n\nLet me stage both transactions.\nAlice currently holds **0 stETH**, so this deposit would revert on-chain as-is. That said, I'll stage the two transactions (approve + deposit) as requested so they're ready to go once she has the balance.\n\nStaging now:",
+        "tool": null,
+        "tool_topic": null,
+        "tool_result_preview": null
+      },
+      {
+        "sender": "assistant",
+        "content": "",
+        "tool": "stage_tx",
+        "tool_topic": "Approve stETH to EigenLayer StrategyManager",
+        "tool_result_preview": "{\n  \"from\": \"0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266\",\n  \"chain_id\": 1,\n  \"to\": \"0xae7ab96520DE3A18E5e111B5EaAb095312D7fE84\",\n  \"value\": \"0\",\n  \"data\": \"0x095ea7b3000000000000000000000000858646372cc42e1a627fce94aa7a7033e7cf075a00000000000000000000000000000000000000000000000000b1a2bc2ec50000\",\n  \"description\": \"Approve 0.05 stETH to EigenLayer StrategyManager\",\n  \"kind\": \"erc20_approve\",\n  \"pending_tx_id\": 1,\n  \"batch_status\": \"Batch [1] pending\",\n  \"status\": \"queued\"\n}"
+      },
+      {
+        "sender": "assistant",
+        "content": "",
+        "tool": "stage_tx",
+        "tool_topic": "Deposit 0.05 stETH into EigenLayer stETH Strategy",
+        "tool_result_preview": "{\n  \"from\": \"0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266\",\n  \"chain_id\": 1,\n  \"to\": \"0x858646372CC42E1A627fcE94aa7A7033e7CF075A\",\n  \"value\": \"0\",\n  \"data\": \"0xe7a050aa00000000000000000000000093c4b944d05dfe6df7645a86cd2206016c51564d000000000000000000000000ae7ab96520de3a18e5e111b5eaab095312d7fe8400000000000000000000000000000000000000000000000000b1a2bc2ec50000\",\n  \"description\": \"Deposit 0.05 stETH into EigenLayer stETH Strategy\",\n  \"kind\": \"deposit\",\n  \"pending_tx_id\": 2,\n  \"batch_status\": \"Batch [2] pending\",\n  \"status\": \"queued\"\n}"
+      },
+      {
+        "sender": "assistant",
+        "content": "\nI staged the transactions in the wrong order. The approve (tx-1) needs to come before the deposit (tx-2). Let me simulate them in the correct order: approve first (tx-1), then deposit (tx-2).\n\nBut wait - Alice has 0 stETH balance. The deposit will fail because she doesn't have any stETH. I should note this to the user.\n\nLet me simulate the batch in the correct order (approve first, then deposit) ...\nAlice's stETH balance is currently **0**, so the deposit will revert on-chain. I've staged the two transactions in the correct execution order:\n\n| ID | Action | Details |\n|----|--------|---------|\n| tx-1 | Approve stETH → StrategyManager | 0.05 stETH (50000000000000000 wei) |\n| tx-2 | Deposit into stETH Strategy | 0.05 stETH via StrategyManager |\n\nLet me simulate the batch to confirm behavior:",
+        "tool": null,
+        "tool_topic": null,
+        "tool_result_preview": null
+      },
+      {
+        "sender": "assistant",
+        "content": "",
+        "tool": "simulate_batch",
+        "tool_topic": "Simulate approve + deposit into EigenLayer stETH strategy",
+        "tool_result_preview": "{\n  \"simulation\": {\n    \"batch_success\": false,\n    \"stateful\": true,\n    \"from\": \"0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266\",\n    \"network\": \"sim-ethereum\",\n    \"total_gas\": 65306,\n    \"steps\": [\n      {\n        \"step\": 1,\n        \"chain_id\": 1,\n        \"label\": \"Approve 0.05 stETH to EigenLayer StrategyManager\",\n        \"success\": true,\n        \"result\": \"0x05e44ce765c8187be3fbf009d7f611609b2ce...d\": \"label\",\n      \"provided\": \"Approve 0.05 stETH to StrategyManager\",\n      \"actual\": \"Approve 0.05 stETH to EigenLayer StrategyManager\"\n    },\n    {\n      \"tx_id\": 2,\n      \"field\": \"label\",\n      \"provided\": \"Deposit 0.05 stETH into EigenLayer\",\n      \"actual\": \"Deposit 0.05 stETH into EigenLayer stETH Strategy\"\n    }\n  ],\n  \"batch_status\": \"Batch [1,2] failed at step 2: BALANCE_EXCEEDED\"\n}"
+      },
+      {
+        "sender": "assistant",
+        "content": "\nThe simulation shows that the approve succeeded but the deposit reverted with \"BALANCE_EXCEEDED\". This makes sense — Alice's stETH balance is 0 (as we checked earlier), so she can't deposit 0.05 stETH that she doesn't have.\n\nI should inform the user that the transactions are staged and ready, but the deposit will fail because Alice doesn't have any stETH. The user said \"prepare but don't send it ...: **Alice's stETH balance is 0**, so the deposit reverts with `BALANCE_EXCEEDED`. The approve step passes fine, but there's nothing to actually deposit.\n\nYou'll need to acquire at least 0.05 stETH first (e.g. wrap ETH via Lido) before this deposit can go through. Once the balance is there, I can re-simulate and commit. Want me to help get stETH, or would you like to proceed with something else?",
+        "tool": null,
+        "tool_topic": null,
+        "tool_result_preview": null
+      }
+    ],
+    "tool_previews": [
+      {
+        "turn": 0,
+        "tool": "activate_skills",
+        "topic": "activate_skills",
+        "arguments": {
+          "skill_ids": [
+            "eigenlayer",
+            "common_erc20"
+          ]
+        },
+        "result_preview": "{\n  \"activated\": [\n    \"eigenlayer\"\n  ],\n  \"rejected\": [\n    [\n      \"common_erc20\",\n      \"invalid\"\n    ]\n  ],\n  \"applied_scope\": \"current_serve_cycle\"\n}"
+      },
+      {
+        "turn": 0,
+        "tool": "get_time_and_onchain_context",
+        "topic": "Get current Ethereum mainnet context",
+        "arguments": {
+          "topic": "Get current Ethereum mainnet context"
+        },
+        "result_preview": "{\n  \"chain_name\": \"sim-ethereum\",\n  \"chain_id\": 1,\n  \"rpc_endpoint\": \"http://127.0.0.1:57678\",\n  \"current_time_unix\": 1780227754,\n  \"current_time_iso\": \"2026-05-31T11:42:34.534290+00:00\",\n  \"block_number\": 25215123,\n  \"gas_price_wei\": \"1093789145\",\n  \"supported_chains\": [\n    {\n      \"name\": \"sim-ethereum\",\n      \"chain_id\": 1\n    },\n    {\n      \"name\": \"sim-ethereum\",\n      \"chain_id\": 1\n    }\n  ]\n}"
+      },
+      {
+        "turn": 0,
+        "tool": "encode_and_call",
+        "topic": "Check Alice's stETH balance",
+        "arguments": {
+          "function_signature": "balanceOf(address)",
+          "arguments": [
+            "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
+          ],
+          "to": "0xae7ab96520DE3A18E5e111B5EaAb095312D7fE84",
+          "value": "0",
+          "topic": "Check Alice's stETH balance"
+        },
+        "result_preview": "{\n  \"success\": true,\n  \"result\": \"0x0000000000000000000000000000000000000000000000000000000000000000\",\n  \"revert_reason\": null,\n  \"tx\": {\n    \"from\": \"0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266\",\n    \"to\": \"0xae7ab96520DE3A18E5e111B5EaAb095312D7fE84\",\n    \"value_wei\": \"0\",\n    \"value_eth\": \"0\",\n    \"input\": \"0x70a08231000000000000000000000000f39fd6e51aad88f6f4ce6ab8827279cfffb92266\",\n    \"chain_id\": 1\n  },\n  \"result_decoded\": {\n    \"kind\": \"single_abi_word\",\n    \"raw_hex\": \"0x0000000000000000000000000000000000000000000000000000000000000000\",\n    \"decoded\": {\n      \"type\": \"uint256\",\n      \"decoded\": \"0\",\n      \"as_bool\": false,\n      \"as_address\": \"0x0000000000000000000000000000000000000000\"\n    }\n  }\n}"
+      },
+      {
+        "turn": 0,
+        "tool": "encode_and_call",
+        "topic": "Check stETH allowance to StrategyManager",
+        "arguments": {
+          "function_signature": "allowance(address,address)",
+          "arguments": [
+            "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+            "0x858646372CC42E1A627fcE94aa7A7033e7CF075A"
+          ],
+          "to": "0xae7ab96520DE3A18E5e111B5EaAb095312D7fE84",
+          "value": "0",
+          "topic": "Check stETH allowance to StrategyManager"
+        },
+        "result_preview": "{\n  \"success\": true,\n  \"result\": \"0x0000000000000000000000000000000000000000000000000000000000000000\",\n  \"revert_reason\": null,\n  \"tx\": {\n    \"from\": \"0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266\",\n    \"to\": \"0xae7ab96520DE3A18E5e111B5EaAb095312D7fE84\",\n    \"value_wei\": \"0\",\n    \"value_eth\": \"0\",\n    \"input\": \"0xdd62ed3e000000000000000000000000f39fd6e51aad88f6f4ce6ab8827279cfffb92266000000000000000000000000858646372cc42e1a627fce94aa7a7033e7cf075a\",\n    \"chain_id\": 1\n  },\n  \"result_decoded\": {\n    \"kind\": \"single_abi_word\",\n    \"raw_hex\": \"0x0000000000000000000000000000000000000000000000000000000000000000\",\n    \"decoded\": {\n      \"type\": \"uint256\",\n      \"decoded\": \"0\",\n      \"as_bool\": false,\n      \"as_address\": \"0x0000000000000000000000000000000000000000\"\n    }\n  }\n}"
+      },
+      {
+        "turn": 0,
+        "tool": "stage_tx",
+        "topic": "Approve stETH to EigenLayer StrategyManager",
+        "arguments": {
+          "to": "0xae7ab96520DE3A18E5e111B5EaAb095312D7fE84",
+          "description": "Approve 0.05 stETH to EigenLayer StrategyManager",
+          "data": {
+            "signature": "approve(address,uint256)",
+            "args": [
+              "0x858646372CC42E1A627fcE94aa7A7033e7CF075A",
+              "50000000000000000"
+            ],
+            "raw": ""
+          },
+          "value": "0",
+          "gas_limit": "",
+          "kind": "erc20_approve",
+          "topic": "Approve stETH to EigenLayer StrategyManager"
+        },
+        "result_preview": "{\n  \"from\": \"0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266\",\n  \"chain_id\": 1,\n  \"to\": \"0xae7ab96520DE3A18E5e111B5EaAb095312D7fE84\",\n  \"value\": \"0\",\n  \"data\": \"0x095ea7b3000000000000000000000000858646372cc42e1a627fce94aa7a7033e7cf075a00000000000000000000000000000000000000000000000000b1a2bc2ec50000\",\n  \"description\": \"Approve 0.05 stETH to EigenLayer StrategyManager\",\n  \"kind\": \"erc20_approve\",\n  \"pending_tx_id\": 1,\n  \"batch_status\": \"Batch [1] pending\",\n  \"status\": \"queued\"\n}"
+      },
+      {
+        "turn": 0,
+        "tool": "stage_tx",
+        "topic": "Deposit 0.05 stETH into EigenLayer stETH Strategy",
+        "arguments": {
+          "to": "0x858646372CC42E1A627fcE94aa7A7033e7CF075A",
+          "description": "Deposit 0.05 stETH into EigenLayer stETH Strategy",
+          "data": {
+            "signature": "depositIntoStrategy(address,address,uint256)",
+            "args": [
+              "0x93c4b944D05dfe6df7645A86cd2206016c51564D",
+              "0xae7ab96520DE3A18E5e111B5EaAb095312D7fE84",
+              "50000000000000000"
+            ],
+            "raw": ""
+          },
+          "value": "0",
+          "gas_limit": "",
+          "kind": "deposit",
+          "topic": "Deposit 0.05 stETH into EigenLayer stETH Strategy"
+        },
+        "result_preview": "{\n  \"from\": \"0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266\",\n  \"chain_id\": 1,\n  \"to\": \"0x858646372CC42E1A627fcE94aa7A7033e7CF075A\",\n  \"value\": \"0\",\n  \"data\": \"0xe7a050aa00000000000000000000000093c4b944d05dfe6df7645a86cd2206016c51564d000000000000000000000000ae7ab96520de3a18e5e111b5eaab095312d7fe8400000000000000000000000000000000000000000000000000b1a2bc2ec50000\",\n  \"description\": \"Deposit 0.05 stETH into EigenLayer stETH Strategy\",\n  \"kind\": \"deposit\",\n  \"pending_tx_id\": 2,\n  \"batch_status\": \"Batch [2] pending\",\n  \"status\": \"queued\"\n}"
+      },
+      {
+        "turn": 0,
+        "tool": "simulate_batch",
+        "topic": "Simulate approve + deposit into EigenLayer stETH strategy",
+        "arguments": {
+          "topic": "Simulate approve + deposit into EigenLayer stETH strategy",
+          "transactions": [
+            {
+              "id": 1,
+              "kind": "erc20_approve",
+              "chain_id": 1,
+              "label": "Approve 0.05 stETH to StrategyManager"
+            },
+            {
+              "id": 2,
+              "kind": "deposit",
+              "chain_id": 1,
+              "label": "Deposit 0.05 stETH into EigenLayer"
+            }
+          ],
+          "aa_override": ""
+        },
+        "result_preview": "{\n  \"simulation\": {\n    \"batch_success\": false,\n    \"stateful\": true,\n    \"from\": \"0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266\",\n    \"network\": \"sim-ethereum\",\n    \"total_gas\": 65306,\n    \"steps\": [\n      {\n        \"step\": 1,\n        \"chain_id\": 1,\n        \"label\": \"Approve 0.05 stETH to EigenLayer StrategyManager\",\n        \"success\": true,\n        \"result\": \"0x05e44ce765c8187be3fbf009d7f611609b2ce...d\": \"label\",\n      \"provided\": \"Approve 0.05 stETH to StrategyManager\",\n      \"actual\": \"Approve 0.05 stETH to EigenLayer StrategyManager\"\n    },\n    {\n      \"tx_id\": 2,\n      \"field\": \"label\",\n      \"provided\": \"Deposit 0.05 stETH into EigenLayer\",\n      \"actual\": \"Deposit 0.05 stETH into EigenLayer stETH Strategy\"\n    }\n  ],\n  \"batch_status\": \"Batch [1,2] failed at step 2: BALANCE_EXCEEDED\"\n}"
+      }
+    ],
+    "failure_category": null,
+    "app": {
+      "source": "default",
+      "path": null,
+      "loaded_name": "default"
+    },
+    "skills": {
+      "mode": "restricted",
+      "allowed": [
+        "eigenlayer"
+      ],
+      "activated_skills": [
+        "eigenlayer"
+      ],
+      "bundle_path": "../output/eval/model-bench-public-skills-opus47-opus46-haiku45-20260531/specs/deposit_steth_strategy_review_first/claude-opus-4.6/pass-002/spec-skills/deposit_steth_strategy_review_first-skills.json",
+      "bundle_revision": "fnv1a64:0e680e7c7b41b68f"
+    },
+    "environment": {
+      "chain_id": 1,
+      "network": "ethereum",
+      "providers_path": "/Users/aronmegyeri/.aomi/test-env/providers.toml",
+      "endpoint_name": "sim-ethereum",
+      "funding_ledger": [
+        {
+          "chain_id": 1,
+          "address": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+          "balances": {
+            "ETH": "100",
+            "USDC": "10000"
+          }
+        },
+        {
+          "chain_id": 1,
+          "address": "0x70997970c51812dc3a010c7d01b50e0d17dc79c8",
+          "balances": {
+            "ETH": "100",
+            "USDC": "10000"
+          }
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,3 @@
+[eval] PASS supply_then_withdraw_usdc_compound_v3 1 turn(s) 9 tool call(s) 8.69895 cr, 53853 in / 564 out tok, 43639 cached / 0 reasoning tok 0 warning(s) duration 33s
+report full json: ../output/eval/model-bench-public-skills-expansion-20260531/specs/supply_then_withdraw_usdc_compound_v3/claude-opus-4.7/pass-001/20260531T203505.625161000Z.full.json
+report compact json: ../output/eval/model-bench-public-skills-expansion-20260531/specs/supply_then_withdraw_usdc_compound_v3/claude-opus-4.7/pass-001/20260531T203505.625161000Z.compact.json

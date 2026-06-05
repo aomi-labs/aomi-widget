@@ -1,0 +1,3 @@
+[eval] PASS okx_tickers 1 turn(s) 1 tool call(s) 85.7616 cr, 177024 in / 312 out tok, 8192 cached / 78 reasoning tok 0 warning(s) duration 12s
+report full json: ../output/eval/model-bench-public-skills-expansion-20260531/specs/okx_tickers/gpt-5.5/pass-002/20260531T221734.803996000Z.full.json
+report compact json: ../output/eval/model-bench-public-skills-expansion-20260531/specs/okx_tickers/gpt-5.5/pass-002/20260531T221734.803996000Z.compact.json

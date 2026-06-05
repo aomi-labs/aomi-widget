@@ -1,0 +1,3 @@
+[eval] PASS gmx_prices 1 turn(s) 1 tool call(s) 4.63485 cr, 18410 in / 29 out tok, 10317 cached / 0 reasoning tok 0 warning(s) duration 12s
+report full json: ../output/eval/model-bench-public-skills-expansion-20260531/specs/gmx_prices/claude-opus-4.7/pass-002/20260531T220522.478259000Z.full.json
+report compact json: ../output/eval/model-bench-public-skills-expansion-20260531/specs/gmx_prices/claude-opus-4.7/pass-002/20260531T220522.478259000Z.compact.json

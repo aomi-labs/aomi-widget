@@ -1,0 +1,3 @@
+[eval] PASS lifi_chains 1 turn(s) 1 tool call(s) 0.757055 cr, 47741 in / 356 out tok 0 warning(s) duration 15s
+report full json: ../output/eval/model-bench-public-skills-expansion-20260531/specs/lifi_chains/minimax-m2.5/pass-001/20260531T221143.803971000Z.full.json
+report compact json: ../output/eval/model-bench-public-skills-expansion-20260531/specs/lifi_chains/minimax-m2.5/pass-001/20260531T221143.803971000Z.compact.json

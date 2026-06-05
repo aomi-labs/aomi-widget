@@ -1,0 +1,6 @@
+[eval] FAIL stake_then_wrap_steth_to_wsteth 1 turn(s) 11 tool call(s) 2.05931 cr, 69168 in / 1969 out tok, 64911 cached / 0 reasoning tok 0 warning(s) duration 44s
+errors:
+  Alice spends about 0.1 ETH before receiving wstETH Alice spends about 0.1 ETH before receiving wstETH (before: 100 ETH, after: 99.999980573713923309 ETH, delta: -0.000019426286076691 ETH, expected: -0.1 ETH ± 0.015 ETH)
+  wstETH Transfer event from wrap wstETH Transfer event from wrap observed 0 log(s), expected at least 1 from block 25217857 through 25217859
+report full json: ../output/eval/model-bench-public-skills-expansion-20260531/specs/stake_then_wrap_steth_to_wsteth/claude-haiku-4.5/pass-002/20260531T205142.818102000Z.full.json
+report compact json: ../output/eval/model-bench-public-skills-expansion-20260531/specs/stake_then_wrap_steth_to_wsteth/claude-haiku-4.5/pass-002/20260531T205142.818102000Z.compact.json

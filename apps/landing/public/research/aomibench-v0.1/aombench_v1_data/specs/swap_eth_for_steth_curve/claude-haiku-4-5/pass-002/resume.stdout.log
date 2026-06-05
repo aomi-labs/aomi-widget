@@ -1,0 +1,3 @@
+[eval] PASS swap_eth_for_steth_curve 1 turn(s) 7 tool call(s) 1.35304 cr, 50998 in / 1410 out tok, 49464 cached / 0 reasoning tok 0 warning(s) duration 31s
+report full json: ../output/eval/model-bench-public-skills-opus47-opus46-haiku45-20260531/specs/swap_eth_for_steth_curve/claude-haiku-4.5/pass-002/20260531T111429.027748000Z.full.json
+report compact json: ../output/eval/model-bench-public-skills-opus47-opus46-haiku45-20260531/specs/swap_eth_for_steth_curve/claude-haiku-4.5/pass-002/20260531T111429.027748000Z.compact.json

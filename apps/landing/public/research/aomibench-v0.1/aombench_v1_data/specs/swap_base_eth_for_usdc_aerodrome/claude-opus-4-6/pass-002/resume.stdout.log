@@ -1,0 +1,3 @@
+[eval] PASS swap_base_eth_for_usdc_aerodrome 1 turn(s) 8 tool call(s) 10.0612 cr, 80653 in / 1940 out tok, 78034 cached / 0 reasoning tok 0 warning(s) duration 63s
+report full json: ../output/eval/model-bench-public-skills-opus47-opus46-haiku45-20260531/specs/swap_base_eth_for_usdc_aerodrome/claude-opus-4.6/pass-002/20260531T110655.465881000Z.full.json
+report compact json: ../output/eval/model-bench-public-skills-opus47-opus46-haiku45-20260531/specs/swap_base_eth_for_usdc_aerodrome/claude-opus-4.6/pass-002/20260531T110655.465881000Z.compact.json

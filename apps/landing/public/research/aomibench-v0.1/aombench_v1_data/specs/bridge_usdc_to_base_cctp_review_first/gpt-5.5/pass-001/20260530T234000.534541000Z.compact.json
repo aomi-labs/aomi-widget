@@ -1,0 +1,370 @@
+{
+  "run_id": "20260530T234000.534541000Z",
+  "mode": "spec",
+  "started_at": "2026-05-30T23:39:21.728072+00:00",
+  "finished_at": "2026-05-30T23:40:00.534497+00:00",
+  "spec_path": "bin/eval/specs/cctp/bridge_usdc_to_base_cctp_review_first.json",
+  "passed": true,
+  "git_commit": "5b02660942391bc7ae86c5cbb05e33f4c549266f",
+  "git_dirty": true,
+  "story": {
+    "run_id": "20260530T234000.534541000Z",
+    "story_id": "bridge_usdc_to_base_cctp_review_first",
+    "user_story": "Prepare a CCTP transfer of 25 USDC from Ethereum to Base for Alice, but do not send yet.",
+    "passed": true,
+    "warnings": [],
+    "model": "gpt-5.5",
+    "chain_id": 1,
+    "git_commit": "5b02660942391bc7ae86c5cbb05e33f4c549266f",
+    "git_dirty": true,
+    "total_turns": 1,
+    "total_tool_calls": 8,
+    "total_responses": 14,
+    "activated_skills": [
+      "cctp"
+    ],
+    "failed_assertions": [],
+    "budget_summary": {
+      "total": 1,
+      "exceeded": 0,
+      "required_failures": 0,
+      "warning_failures": 0
+    },
+    "usage": {
+      "input_tokens": 57536,
+      "output_tokens": 1508,
+      "total_tokens": 59044,
+      "cached_input_tokens": 51200,
+      "cache_creation_input_tokens": 0,
+      "visible_output_tokens": 1304,
+      "reasoning_output_tokens": 204,
+      "tool_call_count": 8,
+      "actual_events": 1,
+      "diagnostic_events": 0,
+      "aomi_cost_credits": 10.252,
+      "user_charged_credits": 10.252,
+      "credits": 10.252
+    },
+    "transcript_previews": [
+      {
+        "sender": "user",
+        "content": "Prepare a CCTP transfer of 25 USDC from Alice on Ethereum to Alice on Base, but don't send it yet.",
+        "tool": null,
+        "tool_topic": null,
+        "tool_result_preview": null
+      },
+      {
+        "sender": "assistant",
+        "content": "I’ll prepare the Ethereum-side CCTP burn transaction for 25 USDC to Alice on Base, then simulate it without submitting.",
+        "tool": null,
+        "tool_topic": null,
+        "tool_result_preview": null
+      },
+      {
+        "sender": "assistant",
+        "content": "",
+        "tool": "activate_skills",
+        "tool_topic": "activate_skills",
+        "tool_result_preview": "{\n  \"activated\": [\n    \"cctp\"\n  ],\n  \"rejected\": [],\n  \"applied_scope\": \"current_serve_cycle\"\n}"
+      },
+      {
+        "sender": "assistant",
+        "content": "I’ll check Alice’s Ethereum context and USDC approval, then stage the CCTP transfer without sending it.",
+        "tool": null,
+        "tool_topic": null,
+        "tool_result_preview": null
+      },
+      {
+        "sender": "assistant",
+        "content": "",
+        "tool": "get_time_and_onchain_context",
+        "tool_topic": "Check Ethereum context for CCTP USDC transfer",
+        "tool_result_preview": "{\n  \"chain_name\": \"ethereum\",\n  \"chain_id\": 1,\n  \"rpc_endpoint\": \"http://127.0.0.1:50581\",\n  \"current_time_unix\": 1780184367,\n  \"current_time_iso\": \"2026-05-30T23:39:27.399753+00:00\",\n  \"block_number\": 25211527,\n  \"gas_price_wei\": \"1000000008\",\n  \"supported_chains\": [\n    {\n      \"name\": \"base\",\n      \"chain_id\": 8453\n    },\n    {\n      \"name\": \"monad_testnet\",\n      \"chain_id\": 10143\n    },\n    {\n      \"name\": \"monad_testnet\",\n      \"chain_id\": 10143\n    },\n    {\n      \"name\": \"ethereum\",\n      \"chain_id\": 1\n    },\n    {\n      \"name\": \"base\",\n      \"chain_id\": 8453\n    },\n    {\n      \"name\": \"ethereum\",\n      \"chain_id\": 1\n    }\n  ]\n}"
+      },
+      {
+        "sender": "assistant",
+        "content": "I’m checking Alice’s USDC approval to the CCTP messenger, then I’ll stage the required calls without submitting them.",
+        "tool": null,
+        "tool_topic": null,
+        "tool_result_preview": null
+      },
+      {
+        "sender": "assistant",
+        "content": "",
+        "tool": "encode_and_call",
+        "tool_topic": "Check USDC allowance for CCTP messenger",
+        "tool_result_preview": "{\n  \"success\": true,\n  \"result\": \"0x0000000000000000000000000000000000000000000000000000000000000000\",\n  \"revert_reason\": null,\n  \"tx\": {\n    \"from\": \"0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266\",\n    \"to\": \"0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48\",\n    \"value_wei\": \"0\",\n    \"value_eth\": \"0\",\n    \"input\": \"0xdd62ed3e000000000000000000000000f39fd6e51aad88f6f4ce6ab8827279cfffb9226600000000000000000000000028b5a0e9c621a5badaa536219b3a228c8168cf5d\",\n    \"chain_id\": 1\n  },\n  \"result_decoded\": {\n    \"kind\": \"single_abi_word\",\n    \"raw_hex\": \"0x0000000000000000000000000000000000000000000000000000000000000000\",\n    \"decoded\": {\n      \"type\": \"uint256\",\n      \"decoded\": \"0\",\n      \"as_bool\": false,\n      \"as_address\": \"0x0000000000000000000000000000000000000000\"\n    }\n  }\n}"
+      },
+      {
+        "sender": "assistant",
+        "content": "",
+        "tool": "encode_and_call",
+        "tool_topic": "Check Alice USDC balance",
+        "tool_result_preview": "{\n  \"success\": true,\n  \"result\": \"0x00000000000000000000000000000000000000000000000000000002540be400\",\n  \"revert_reason\": null,\n  \"tx\": {\n    \"from\": \"0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266\",\n    \"to\": \"0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48\",\n    \"value_wei\": \"0\",\n    \"value_eth\": \"0\",\n    \"input\": \"0x70a08231000000000000000000000000f39fd6e51aad88f6f4ce6ab8827279cfffb92266\",\n    \"chain_id\": 1\n  },\n  \"result_decoded\": {\n    \"kind\": \"single_abi_word\",\n    \"raw_hex\": \"0x00000000000000000000000000000000000000000000000000000002540be400\",\n    \"decoded\": {\n      \"type\": \"uint256\",\n      \"decoded\": \"10000000000\",\n      \"as_bool\": null,\n      \"as_address\": \"0x00000000000000000000000000000002540be400\"\n    }\n  }\n}"
+      },
+      {
+        "sender": "assistant",
+        "content": "I’m building the two required calls: approve 25 USDC to Circle’s messenger, then burn 25 USDC for minting to Alice on Base.",
+        "tool": null,
+        "tool_topic": null,
+        "tool_result_preview": null
+      },
+      {
+        "sender": "assistant",
+        "content": "",
+        "tool": "encode_and_call",
+        "tool_topic": "Validate CCTP depositForBurn for 25 USDC Ethereum to Base",
+        "tool_result_preview": "{\n  \"success\": false,\n  \"result\": null,\n  \"revert_reason\": \"ToolCallError: eth_call execution failed via http://127.0.0.1:50581: ErrorResp(\\n    ErrorPayload {\\n        code: 3,\\n        message: \\\"execution reverted: ERC20: transfer amount exceeds allowance\\\",\\n        data: Some(\\n            RawValue(\\n                \\\"0x08c379a000000000000000000000000000000000000000000000000000000000000000200...000000000000000000000000000000000000000000000000006000000000000000000000000f39fd6e51aad88f6f4ce6ab8827279cfffb92266000000000000000000000000a0b86991c6218b36c1d19d4a2e9eb0ce3606eb48000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000\",\n    \"chain_id\": 1\n  }\n}"
+      },
+      {
+        "sender": "assistant",
+        "content": "Allowance is currently 0, so I’m preparing the required USDC approval plus the CCTP burn as a two-transaction batch, without sending it.",
+        "tool": null,
+        "tool_topic": null,
+        "tool_result_preview": null
+      },
+      {
+        "sender": "assistant",
+        "content": "",
+        "tool": "stage_tx",
+        "tool_topic": "Stage USDC approval for CCTP",
+        "tool_result_preview": "{\n  \"from\": \"0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266\",\n  \"chain_id\": 1,\n  \"to\": \"0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48\",\n  \"value\": \"0\",\n  \"data\": \"0x095ea7b300000000000000000000000028b5a0e9c621a5badaa536219b3a228c8168cf5d00000000000000000000000000000000000000000000000000000000017d7840\",\n  \"description\": \"Approve 25 USDC for Circle CCTP messenger on Ethereum\",\n  \"kind\": \"erc20_approve\",\n  \"pending_tx_id\": 1,\n  \"batch_status\": \"Batch [1] pending\",\n  \"status\": \"queued\"\n}"
+      },
+      {
+        "sender": "assistant",
+        "content": "",
+        "tool": "stage_tx",
+        "tool_topic": "Stage CCTP transfer Ethereum to Base",
+        "tool_result_preview": "{\n  \"from\": \"0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266\",\n  \"chain_id\": 1,\n  \"to\": \"0x28b5a0e9c621a5badaa536219b3a228c8168cf5d\",\n  \"value\": \"0\",\n  \"data\": \"0x8e0250ee00000000000000000000000000000000000000000000000000000000017d78400000000000000000000000000000000000000000000000000000000000000006000000000000000000000000f39fd6e51aad88f6f4ce6ab8827279cfffb92266000000000000000000000000a0b86991c6218b36c1...eb0ce3606eb48000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000\",\n  \"description\": \"Burn 25 USDC on Ethereum via Circle CCTP to mint to Alice on Base\",\n  \"kind\": \"bridge\",\n  \"pending_tx_id\": 2,\n  \"batch_status\": \"Batch [2] pending\",\n  \"status\": \"queued\"\n}"
+      },
+      {
+        "sender": "assistant",
+        "content": "",
+        "tool": "simulate_batch",
+        "tool_topic": "Simulate staged CCTP approval and transfer",
+        "tool_result_preview": "{\n  \"simulation\": {\n    \"batch_success\": true,\n    \"stateful\": true,\n    \"from\": \"0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266\",\n    \"network\": \"sim-ethereum\",\n    \"total_gas\": 164891,\n    \"steps\": [\n      {\n        \"step\": 1,\n        \"chain_id\": 1,\n        \"label\": \"Approve 25 USDC for Circle CCTP messenger on Ethereum\",\n        \"success\": true,\n        \"result\": \"0x0f24fb001b0b238bbe8fca752a5892a0...0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000\"\n        }\n      }\n    ]\n  },\n  \"simulation_from\": \"0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266\",\n  \"owner_address\": \"0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266\",\n  \"aa_override\": null,\n  \"resolved_ids\": [\n    1,\n    2\n  ],\n  \"warnings\": [],\n  \"batch_status\": \"Batch [1,2] passed\"\n}"
+      },
+      {
+        "sender": "assistant",
+        "content": "Prepared and simulated successfully — not sent.\n\nStaged transactions:\n- `tx-1`: approve 25 USDC to Circle CCTP messenger on Ethereum\n- `tx-2`: burn 25 USDC on Ethereum to mint to Alice on Base via CCTP\n\nDetails:\n- Amount: 25 USDC\n- Source: Ethereum\n- Destination: Base\n- Recipient: Alice `0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266`\n- CCTP destination domain: `6`\n- Fee: `0`\n- Expected settlement: ~13–19 minutes after sending/attestation\n\nSimulation passed for the full batch. Say “send it” when you want me to submit `tx-1` and `tx-2`.",
+        "tool": null,
+        "tool_topic": null,
+        "tool_result_preview": null
+      }
+    ],
+    "tool_previews": [
+      {
+        "turn": 0,
+        "tool": "activate_skills",
+        "topic": "activate_skills",
+        "arguments": {
+          "skill_ids": [
+            "cctp"
+          ]
+        },
+        "result_preview": "{\n  \"activated\": [\n    \"cctp\"\n  ],\n  \"rejected\": [],\n  \"applied_scope\": \"current_serve_cycle\"\n}"
+      },
+      {
+        "turn": 0,
+        "tool": "get_time_and_onchain_context",
+        "topic": "Check Ethereum context for CCTP USDC transfer",
+        "arguments": {
+          "topic": "Check Ethereum context for CCTP USDC transfer"
+        },
+        "result_preview": "{\n  \"chain_name\": \"ethereum\",\n  \"chain_id\": 1,\n  \"rpc_endpoint\": \"http://127.0.0.1:50581\",\n  \"current_time_unix\": 1780184367,\n  \"current_time_iso\": \"2026-05-30T23:39:27.399753+00:00\",\n  \"block_number\": 25211527,\n  \"gas_price_wei\": \"1000000008\",\n  \"supported_chains\": [\n    {\n      \"name\": \"base\",\n      \"chain_id\": 8453\n    },\n    {\n      \"name\": \"monad_testnet\",\n      \"chain_id\": 10143\n    },\n    {\n      \"name\": \"monad_testnet\",\n      \"chain_id\": 10143\n    },\n    {\n      \"name\": \"ethereum\",\n      \"chain_id\": 1\n    },\n    {\n      \"name\": \"base\",\n      \"chain_id\": 8453\n    },\n    {\n      \"name\": \"ethereum\",\n      \"chain_id\": 1\n    }\n  ]\n}"
+      },
+      {
+        "turn": 0,
+        "tool": "encode_and_call",
+        "topic": "Check USDC allowance for CCTP messenger",
+        "arguments": {
+          "arguments": [
+            "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+            "0x28b5a0e9c621a5badaa536219b3a228c8168cf5d"
+          ],
+          "function_signature": "allowance(address,address)",
+          "to": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+          "topic": "Check USDC allowance for CCTP messenger",
+          "value": "0"
+        },
+        "result_preview": "{\n  \"success\": true,\n  \"result\": \"0x0000000000000000000000000000000000000000000000000000000000000000\",\n  \"revert_reason\": null,\n  \"tx\": {\n    \"from\": \"0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266\",\n    \"to\": \"0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48\",\n    \"value_wei\": \"0\",\n    \"value_eth\": \"0\",\n    \"input\": \"0xdd62ed3e000000000000000000000000f39fd6e51aad88f6f4ce6ab8827279cfffb9226600000000000000000000000028b5a0e9c621a5badaa536219b3a228c8168cf5d\",\n    \"chain_id\": 1\n  },\n  \"result_decoded\": {\n    \"kind\": \"single_abi_word\",\n    \"raw_hex\": \"0x0000000000000000000000000000000000000000000000000000000000000000\",\n    \"decoded\": {\n      \"type\": \"uint256\",\n      \"decoded\": \"0\",\n      \"as_bool\": false,\n      \"as_address\": \"0x0000000000000000000000000000000000000000\"\n    }\n  }\n}"
+      },
+      {
+        "turn": 0,
+        "tool": "encode_and_call",
+        "topic": "Check Alice USDC balance",
+        "arguments": {
+          "arguments": [
+            "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
+          ],
+          "function_signature": "balanceOf(address)",
+          "to": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+          "topic": "Check Alice USDC balance",
+          "value": "0"
+        },
+        "result_preview": "{\n  \"success\": true,\n  \"result\": \"0x00000000000000000000000000000000000000000000000000000002540be400\",\n  \"revert_reason\": null,\n  \"tx\": {\n    \"from\": \"0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266\",\n    \"to\": \"0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48\",\n    \"value_wei\": \"0\",\n    \"value_eth\": \"0\",\n    \"input\": \"0x70a08231000000000000000000000000f39fd6e51aad88f6f4ce6ab8827279cfffb92266\",\n    \"chain_id\": 1\n  },\n  \"result_decoded\": {\n    \"kind\": \"single_abi_word\",\n    \"raw_hex\": \"0x00000000000000000000000000000000000000000000000000000002540be400\",\n    \"decoded\": {\n      \"type\": \"uint256\",\n      \"decoded\": \"10000000000\",\n      \"as_bool\": null,\n      \"as_address\": \"0x00000000000000000000000000000002540be400\"\n    }\n  }\n}"
+      },
+      {
+        "turn": 0,
+        "tool": "encode_and_call",
+        "topic": "Validate CCTP depositForBurn for 25 USDC Ethereum to Base",
+        "arguments": {
+          "arguments": [
+            "25000000",
+            "6",
+            "0x000000000000000000000000f39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+            "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+            "0x0000000000000000000000000000000000000000000000000000000000000000",
+            "0",
+            "0"
+          ],
+          "function_signature": "depositForBurn(uint256,uint32,bytes32,address,bytes32,uint256,uint32)",
+          "to": "0x28b5a0e9c621a5badaa536219b3a228c8168cf5d",
+          "topic": "Validate CCTP depositForBurn for 25 USDC Ethereum to Base",
+          "value": "0"
+        },
+        "result_preview": "{\n  \"success\": false,\n  \"result\": null,\n  \"revert_reason\": \"ToolCallError: eth_call execution failed via http://127.0.0.1:50581: ErrorResp(\\n    ErrorPayload {\\n        code: 3,\\n        message: \\\"execution reverted: ERC20: transfer amount exceeds allowance\\\",\\n        data: Some(\\n            RawValue(\\n                \\\"0x08c379a000000000000000000000000000000000000000000000000000000000000000200...000000000000000000000000000000000000000000000000006000000000000000000000000f39fd6e51aad88f6f4ce6ab8827279cfffb92266000000000000000000000000a0b86991c6218b36c1d19d4a2e9eb0ce3606eb48000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000\",\n    \"chain_id\": 1\n  }\n}"
+      },
+      {
+        "turn": 0,
+        "tool": "stage_tx",
+        "topic": "Stage USDC approval for CCTP",
+        "arguments": {
+          "value": "0",
+          "data": {
+            "args": [
+              "0x28b5a0e9c621a5badaa536219b3a228c8168cf5d",
+              "25000000"
+            ],
+            "raw": "",
+            "signature": "approve(address,uint256)"
+          },
+          "description": "Approve 25 USDC for Circle CCTP messenger on Ethereum",
+          "gas_limit": "",
+          "kind": "erc20_approve",
+          "to": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+          "topic": "Stage USDC approval for CCTP"
+        },
+        "result_preview": "{\n  \"from\": \"0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266\",\n  \"chain_id\": 1,\n  \"to\": \"0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48\",\n  \"value\": \"0\",\n  \"data\": \"0x095ea7b300000000000000000000000028b5a0e9c621a5badaa536219b3a228c8168cf5d00000000000000000000000000000000000000000000000000000000017d7840\",\n  \"description\": \"Approve 25 USDC for Circle CCTP messenger on Ethereum\",\n  \"kind\": \"erc20_approve\",\n  \"pending_tx_id\": 1,\n  \"batch_status\": \"Batch [1] pending\",\n  \"status\": \"queued\"\n}"
+      },
+      {
+        "turn": 0,
+        "tool": "stage_tx",
+        "topic": "Stage CCTP transfer Ethereum to Base",
+        "arguments": {
+          "value": "0",
+          "data": {
+            "args": [
+              "25000000",
+              "6",
+              "0x000000000000000000000000f39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+              "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+              "0x0000000000000000000000000000000000000000000000000000000000000000",
+              "0",
+              "0"
+            ],
+            "raw": "",
+            "signature": "depositForBurn(uint256,uint32,bytes32,address,bytes32,uint256,uint32)"
+          },
+          "description": "Burn 25 USDC on Ethereum via Circle CCTP to mint to Alice on Base",
+          "gas_limit": "",
+          "kind": "bridge",
+          "to": "0x28b5a0e9c621a5badaa536219b3a228c8168cf5d",
+          "topic": "Stage CCTP transfer Ethereum to Base"
+        },
+        "result_preview": "{\n  \"from\": \"0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266\",\n  \"chain_id\": 1,\n  \"to\": \"0x28b5a0e9c621a5badaa536219b3a228c8168cf5d\",\n  \"value\": \"0\",\n  \"data\": \"0x8e0250ee00000000000000000000000000000000000000000000000000000000017d78400000000000000000000000000000000000000000000000000000000000000006000000000000000000000000f39fd6e51aad88f6f4ce6ab8827279cfffb92266000000000000000000000000a0b86991c6218b36c1...eb0ce3606eb48000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000\",\n  \"description\": \"Burn 25 USDC on Ethereum via Circle CCTP to mint to Alice on Base\",\n  \"kind\": \"bridge\",\n  \"pending_tx_id\": 2,\n  \"batch_status\": \"Batch [2] pending\",\n  \"status\": \"queued\"\n}"
+      },
+      {
+        "turn": 0,
+        "tool": "simulate_batch",
+        "topic": "Simulate staged CCTP approval and transfer",
+        "arguments": {
+          "aa_override": "",
+          "topic": "Simulate staged CCTP approval and transfer",
+          "transactions": [
+            {
+              "chain_id": 1,
+              "id": 1,
+              "kind": "erc20_approve",
+              "label": "Approve 25 USDC for Circle CCTP messenger on Ethereum"
+            },
+            {
+              "chain_id": 1,
+              "id": 2,
+              "kind": "bridge",
+              "label": "Burn 25 USDC on Ethereum via Circle CCTP to mint to Alice on Base"
+            }
+          ]
+        },
+        "result_preview": "{\n  \"simulation\": {\n    \"batch_success\": true,\n    \"stateful\": true,\n    \"from\": \"0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266\",\n    \"network\": \"sim-ethereum\",\n    \"total_gas\": 164891,\n    \"steps\": [\n      {\n        \"step\": 1,\n        \"chain_id\": 1,\n        \"label\": \"Approve 25 USDC for Circle CCTP messenger on Ethereum\",\n        \"success\": true,\n        \"result\": \"0x0f24fb001b0b238bbe8fca752a5892a0...0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000\"\n        }\n      }\n    ]\n  },\n  \"simulation_from\": \"0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266\",\n  \"owner_address\": \"0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266\",\n  \"aa_override\": null,\n  \"resolved_ids\": [\n    1,\n    2\n  ],\n  \"warnings\": [],\n  \"batch_status\": \"Batch [1,2] passed\"\n}"
+      }
+    ],
+    "failure_category": null,
+    "app": {
+      "source": "default",
+      "path": null,
+      "loaded_name": "default"
+    },
+    "skills": {
+      "mode": "restricted",
+      "allowed": [
+        "cctp"
+      ],
+      "activated_skills": [
+        "cctp"
+      ],
+      "bundle_path": "../output/eval/model-bench-public-skills-gpt55-opus48-sonnet46-20260530/specs/bridge_usdc_to_base_cctp_review_first/gpt-5.5/pass-001/spec-skills/bridge_usdc_to_base_cctp_review_first-skills.json",
+      "bundle_revision": "fnv1a64:d91d4c63b90bc381"
+    },
+    "environment": {
+      "chain_id": 1,
+      "network": "ethereum",
+      "providers_path": "/Users/aronmegyeri/.aomi/test-env/providers.toml",
+      "endpoint_name": "ethereum",
+      "funding_ledger": [
+        {
+          "chain_id": 8453,
+          "address": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+          "balances": {
+            "ETH": "100",
+            "USDC": "10000"
+          }
+        },
+        {
+          "chain_id": 8453,
+          "address": "0x70997970c51812dc3a010c7d01b50e0d17dc79c8",
+          "balances": {
+            "ETH": "100",
+            "USDC": "10000"
+          }
+        },
+        {
+          "chain_id": 10143,
+          "address": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+          "balances": {}
+        },
+        {
+          "chain_id": 10143,
+          "address": "0x70997970c51812dc3a010c7d01b50e0d17dc79c8",
+          "balances": {}
+        },
+        {
+          "chain_id": 1,
+          "address": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+          "balances": {
+            "ETH": "100",
+            "USDC": "10000"
+          }
+        },
+        {
+          "chain_id": 1,
+          "address": "0x70997970c51812dc3a010c7d01b50e0d17dc79c8",
+          "balances": {
+            "ETH": "100",
+            "USDC": "10000"
+          }
+        }
+      ]
+    }
+  }
+}

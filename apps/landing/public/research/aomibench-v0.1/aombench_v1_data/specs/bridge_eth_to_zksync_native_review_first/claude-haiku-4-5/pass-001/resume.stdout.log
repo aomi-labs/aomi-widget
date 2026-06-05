@@ -1,0 +1,5 @@
+[eval] FAIL bridge_eth_to_zksync_native_review_first 1 turn(s) 9 tool call(s) 3.25892 cr, 73877 in / 4170 out tok, 69042 cached / 0 reasoning tok 0 warning(s) duration 67s
+errors:
+  pending_txs expected at most 1 pending tx(s), got 2
+report full json: ../output/eval/model-bench-public-skills-opus47-opus46-haiku45-20260531/specs/bridge_eth_to_zksync_native_review_first/claude-haiku-4.5/pass-001/20260531T123034.784554000Z.full.json
+report compact json: ../output/eval/model-bench-public-skills-opus47-opus46-haiku45-20260531/specs/bridge_eth_to_zksync_native_review_first/claude-haiku-4.5/pass-001/20260531T123034.784554000Z.compact.json

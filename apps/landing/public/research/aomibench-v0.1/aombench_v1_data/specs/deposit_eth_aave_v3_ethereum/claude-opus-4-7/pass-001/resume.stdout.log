@@ -1,0 +1,5 @@
+[eval] PASS deposit_eth_aave_v3_ethereum 1 turn(s) 8 tool call(s) 9.06695 cr, 64363 in / 717 out tok, 55349 cached / 0 reasoning tok 1 warning(s) duration 46s
+warnings:
+  no_tool_errors tool error envelope(s) observed for: Stage Aave depositETH
+report full json: ../output/eval/model-bench-public-skills-opus47-opus46-haiku45-20260531/specs/deposit_eth_aave_v3_ethereum/claude-opus-4.7/pass-001/20260531T112837.113171000Z.full.json
+report compact json: ../output/eval/model-bench-public-skills-opus47-opus46-haiku45-20260531/specs/deposit_eth_aave_v3_ethereum/claude-opus-4.7/pass-001/20260531T112837.113171000Z.compact.json

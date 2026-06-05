@@ -1,0 +1,53 @@
+[
+  {
+    "id": "renzo",
+    "name": "renzo",
+    "description": "Use when users want to liquid-restake ETH or LSTs via Renzo to receive ezETH, or initiate and claim withdrawals on Ethereum.",
+    "tags": [
+      "restaking",
+      "renzo",
+      "ezeth",
+      "liquid-restaking",
+      "deposit",
+      "withdraw",
+      "defi"
+    ],
+    "tool_names": [
+      "get_time_and_onchain_context",
+      "brave_search",
+      "encode_and_call",
+      "get_account_info",
+      "get_contract",
+      "sync_chain",
+      "simulate_batch",
+      "stage_tx",
+      "commit_eip712",
+      "commit_txs"
+    ],
+    "injected_tools": [],
+    "source": "aomi_builtin",
+    "est_tokens": 631,
+    "activation_tokens": 636,
+    "instruction_md": "## Renzo: renzo_deposit\n- contract: 0x74a09653A083691711cF8215a6ab074BB4e99ef5 (chain 1)\n- output_token: ezETH\n- gotcha: depositETH(uint256) is payable — msg.value is the amount to restake. Pass 0 as _referralId.\n\n## Renzo: renzo_withdraw\n- contract: 0x5efc9D10E42FB517456f4ac41EB5e2eBe42C8918 (chain 1)\n- gotcha: withdraw(amount, assetOut) requires ezETH approval to WithdrawQueue. Withdrawals are not instant — they enter a cooldown queue. Use claim(index) after the cooldown completes.\n\n\n## Renzo: Token Registry\n- ezETH: 0xbf5495Efe5DB9ce00f80364C8B423567e58d2110 (chain 1)\n- renzo_deposit: 0x74a09653A083691711cF8215a6ab074BB4e99ef5 (chain 1)\n- renzo_withdraw: 0x5efc9D10E42FB517456f4ac41EB5e2eBe42C8918 (chain 1)\n\nUse the listed contracts and ABI signatures as the source of truth for Renzo flows. Do not call `get_contract` to inspect Renzo ABIs during normal deposits or withdrawals.\n\n## Renzo: ABI Signatures (reference only)\nRenzo RestakeManager [renzo_restake_manager]:\n- deposit(address,uint256,uint256) → \n- deposit(address,uint256) → \n- depositETH(uint256) → \n- depositETH() → \nRenzo WithdrawQueue [renzo_withdraw_queue]:\n- claim(uint256,address) → \n- withdraw(uint256,address) → \nERC20 [erc20]:\n- approve(address,uint256) → bool\n\n## Renzo: Procedure\n1. Call `get_time_and_onchain_context` to confirm wallet, chain, and block context.\n2. Check ETH balance or token balance/allowance with `encode_and_call`.\n3. If depositing a token and allowance insufficient, simulate an `approve` first.\n4. Build the deposit/withdraw transaction with `encode_and_call`.\n5. Inspect result and `renzo_guard_*` fields — if `renzo_guard_blocked`, do NOT proceed.\n6. Only after user confirmation, send via `commit_txs`.\n## Renzo: Critical Rules\n- For `depositETH(uint256)`: msg.value is the amount to restake. Pass 0 as _referralId. This is a simple deposit — no approval needed for native ETH.\n- For LST deposits via `deposit(token, amount, referralId)`: approve the token to RestakeManager first.\n- Withdrawals require ezETH approval to the WithdrawQueue contract.\n- **Withdrawals are NOT instant.** They enter a cooldown queue that may take days to process depending on protocol liquidity. Always warn the user about the withdrawal delay before proceeding with `withdraw`.\n- After the cooldown completes, call `claim(withdrawRequestIndex)` to receive the underlying asset. The user must track their request index from the withdraw transaction event.\n- Check `renzo_guard_blocked` in simulation result — if true, do NOT proceed.",
+    "tool_hooks": [
+      {
+        "tool": "simulate_batch",
+        "pre_call": [],
+        "post_call": [
+          "renzo-known-addrs"
+        ]
+      },
+      {
+        "tool": "stage_tx",
+        "pre_call": [],
+        "post_call": [
+          "renzo-known-addrs"
+        ]
+      }
+    ],
+    "tools_namespace": "evm-core",
+    "chain_ids": [
+      1
+    ]
+  }
+]

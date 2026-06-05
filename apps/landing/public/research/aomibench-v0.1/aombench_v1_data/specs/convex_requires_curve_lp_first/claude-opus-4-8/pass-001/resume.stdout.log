@@ -1,0 +1,3 @@
+[eval] PASS convex_requires_curve_lp_first 1 turn(s) 5 tool call(s) 3.663 cr, 21907 in / 673 out tok, 19940 cached / 0 reasoning tok 0 warning(s) duration 53s
+report full json: ../output/eval/model-bench-public-skills-gpt55-opus48-sonnet46-20260530/specs/convex_requires_curve_lp_first/claude-opus-4.8/pass-001/20260530T235445.613017000Z.full.json
+report compact json: ../output/eval/model-bench-public-skills-gpt55-opus48-sonnet46-20260530/specs/convex_requires_curve_lp_first/claude-opus-4.8/pass-001/20260530T235445.613017000Z.compact.json

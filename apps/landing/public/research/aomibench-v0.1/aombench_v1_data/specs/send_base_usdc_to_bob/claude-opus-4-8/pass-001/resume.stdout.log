@@ -1,0 +1,8 @@
+[eval] FAIL send_base_usdc_to_bob 1 turn(s) 5 tool call(s) 3.98145 cr, 21454 in / 259 out tok, 16429 cached / 0 reasoning tok 0 warning(s) duration 37s
+errors:
+  tool sequence broke before expected tool 'stage_tx'; no matching tool arguments for stage_tx:$.to; no matching tool arguments for stage_tx:$.data.signature
+  callback_observed no matching callback_observed; observed 0 value(s)
+  Bob receives 10 Base USDC Bob receives 10 Base USDC (before: 0 USDC, after: 0 USDC, delta: +0 USDC, expected: +10 USDC ± 0.1 USDC)
+  Base USDC Transfer to Bob Base USDC Transfer to Bob observed 0 log(s), expected at least 1 from block 46732245 through 46732244
+report full json: ../output/eval/model-bench-public-skills-expansion-20260531/specs/send_base_usdc_to_bob/claude-opus-4.8/pass-001/20260531T185749.157157000Z.full.json
+report compact json: ../output/eval/model-bench-public-skills-expansion-20260531/specs/send_base_usdc_to_bob/claude-opus-4.8/pass-001/20260531T185749.157157000Z.compact.json

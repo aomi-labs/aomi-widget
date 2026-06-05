@@ -1,0 +1,6 @@
+[eval] FAIL stake_eth_rocket_pool 1 turn(s) 9 tool call(s) 1.51793 cr, 49497 in / 1507 out tok, 46503 cached / 0 reasoning tok 0 warning(s) duration 34s
+errors:
+  Alice spends about 0.1 ETH staking with Rocket Pool Alice spends about 0.1 ETH staking with Rocket Pool (before: 100 ETH, after: 99.999990348769820944 ETH, delta: -0.000009651230179056 ETH, expected: -0.1 ETH ± 0.015 ETH)
+  Rocket Pool rETH Transfer log Rocket Pool rETH Transfer log observed 0 log(s), expected at least 1 from block 25215256 through 25215256
+report full json: ../output/eval/model-bench-public-skills-opus47-opus46-haiku45-20260531/specs/stake_eth_rocket_pool/claude-haiku-4.5/pass-001/20260531T120934.139353000Z.full.json
+report compact json: ../output/eval/model-bench-public-skills-opus47-opus46-haiku45-20260531/specs/stake_eth_rocket_pool/claude-haiku-4.5/pass-001/20260531T120934.139353000Z.compact.json

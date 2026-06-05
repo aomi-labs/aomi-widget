@@ -1,0 +1,3 @@
+[eval] PASS check_krexa_credit_line 1 turn(s) 8 tool call(s) 1.18831 cr, 24759 in / 1205 out tok, 21001 cached / 0 reasoning tok 0 warning(s) duration 22s
+report full json: ../output/eval/model-bench-public-skills-opus47-opus46-haiku45-20260531/specs/check_krexa_credit_line/claude-haiku-4.5/pass-001/20260531T114019.190999000Z.full.json
+report compact json: ../output/eval/model-bench-public-skills-opus47-opus46-haiku45-20260531/specs/check_krexa_credit_line/claude-haiku-4.5/pass-001/20260531T114019.190999000Z.compact.json

@@ -1,0 +1,3 @@
+[eval] PASS bridge_eth_to_optimism_native_review_first 1 turn(s) 4 tool call(s) 0.773455 cr, 49785 in / 232 out tok 0 warning(s) duration 20s
+report full json: ../output/eval/model-bench-public-skills-minimax-m25-kiro-20260531/specs/bridge_eth_to_optimism_native_review_first/minimax-m2.5/pass-002/20260531T092003.629747000Z.full.json
+report compact json: ../output/eval/model-bench-public-skills-minimax-m25-kiro-20260531/specs/bridge_eth_to_optimism_native_review_first/minimax-m2.5/pass-002/20260531T092003.629747000Z.compact.json

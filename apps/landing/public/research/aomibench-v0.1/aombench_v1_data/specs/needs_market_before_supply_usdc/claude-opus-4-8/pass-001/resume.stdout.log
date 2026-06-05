@@ -1,0 +1,5 @@
+[eval] PASS needs_market_before_supply_usdc 1 turn(s) 6 tool call(s) 6.49235 cr, 43392 in / 956 out tok, 39097 cached / 0 reasoning tok 1 warning(s) duration 126s
+warnings:
+  no_tool_errors tool error envelope(s) observed for: Find curated USDC MetaMorpho vaults
+report full json: ../output/eval/model-bench-public-skills-gpt55-opus48-sonnet46-20260530/specs/needs_market_before_supply_usdc/claude-opus-4.8/pass-001/20260530T225153.733967000Z.full.json
+report compact json: ../output/eval/model-bench-public-skills-gpt55-opus48-sonnet46-20260530/specs/needs_market_before_supply_usdc/claude-opus-4.8/pass-001/20260530T225153.733967000Z.compact.json

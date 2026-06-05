@@ -1,0 +1,380 @@
+{
+  "run_id": "20260531T204512.766053000Z",
+  "mode": "spec",
+  "started_at": "2026-05-31T20:43:41.246917+00:00",
+  "finished_at": "2026-05-31T20:45:12.765946+00:00",
+  "spec_path": "bin/eval/specs/lido/stake_then_wrap_steth_to_wsteth.json",
+  "passed": true,
+  "git_commit": "5b02660942391bc7ae86c5cbb05e33f4c549266f",
+  "git_dirty": true,
+  "story": {
+    "run_id": "20260531T204512.766053000Z",
+    "story_id": "stake_then_wrap_steth_to_wsteth",
+    "user_story": "Stake 0.1 ETH with Lido, then wrap 0.05 stETH into non-rebasing wstETH.",
+    "passed": true,
+    "warnings": [],
+    "model": "claude-opus-4-8",
+    "chain_id": 1,
+    "git_commit": "5b02660942391bc7ae86c5cbb05e33f4c549266f",
+    "git_dirty": true,
+    "total_turns": 1,
+    "total_tool_calls": 10,
+    "total_responses": 15,
+    "activated_skills": [
+      "lido"
+    ],
+    "failed_assertions": [],
+    "budget_summary": {
+      "total": 1,
+      "exceeded": 0,
+      "required_failures": 0,
+      "warning_failures": 0
+    },
+    "usage": {
+      "input_tokens": 60620,
+      "output_tokens": 690,
+      "total_tokens": 61310,
+      "cached_input_tokens": 57995,
+      "cache_creation_input_tokens": 0,
+      "visible_output_tokens": 690,
+      "reasoning_output_tokens": 0,
+      "tool_call_count": 10,
+      "actual_events": 1,
+      "diagnostic_events": 0,
+      "aomi_cost_credits": 5.93725,
+      "user_charged_credits": 5.93725,
+      "credits": 5.93725
+    },
+    "transcript_previews": [
+      {
+        "sender": "user",
+        "content": "Stake 0.1 ETH with Lido from Alice, then wrap 0.05 stETH into non-rebasing wstETH.",
+        "tool": null,
+        "tool_topic": null,
+        "tool_result_preview": null
+      },
+      {
+        "sender": "assistant",
+        "content": "",
+        "tool": null,
+        "tool_topic": null,
+        "tool_result_preview": null
+      },
+      {
+        "sender": "assistant",
+        "content": "",
+        "tool": "activate_skills",
+        "tool_topic": "activate_skills",
+        "tool_result_preview": "{\n  \"activated\": [\n    \"lido\"\n  ],\n  \"rejected\": [\n    [\n      \"common_erc20\",\n      \"invalid\"\n    ]\n  ],\n  \"applied_scope\": \"current_serve_cycle\"\n}"
+      },
+      {
+        "sender": "assistant",
+        "content": "I'll gather context first: confirm chain/block, then check Alice's ETH balance and current stETH allowance to the wstETH contract.",
+        "tool": null,
+        "tool_topic": null,
+        "tool_result_preview": null
+      },
+      {
+        "sender": "assistant",
+        "content": "",
+        "tool": "get_time_and_onchain_context",
+        "tool_topic": "Confirm wallet, chain, block context",
+        "tool_result_preview": "{\n  \"chain_name\": \"ethereum\",\n  \"chain_id\": 1,\n  \"rpc_endpoint\": \"http://127.0.0.1:60034\",\n  \"current_time_unix\": 1780260240,\n  \"current_time_iso\": \"2026-05-31T20:44:00.769504+00:00\",\n  \"block_number\": 25217820,\n  \"gas_price_wei\": \"1104894110\",\n  \"supported_chains\": [\n    {\n      \"name\": \"ethereum\",\n      \"chain_id\": 1\n    },\n    {\n      \"name\": \"ethereum\",\n      \"chain_id\": 1\n    }\n  ]\n}"
+      },
+      {
+        "sender": "assistant",
+        "content": "",
+        "tool": "get_account_info",
+        "tool_topic": "Check Alice ETH balance",
+        "tool_result_preview": "{\n  \"address\": \"0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266\",\n  \"balance_wei\": \"100000000000000000000\",\n  \"balance_eth\": \"100\",\n  \"nonce\": 6436\n}"
+      },
+      {
+        "sender": "assistant",
+        "content": "",
+        "tool": "encode_and_call",
+        "tool_topic": "Validate Lido stake of 0.1 ETH",
+        "tool_result_preview": "{\n  \"success\": true,\n  \"result\": \"0x000000000000000000000000000000000000000000000000011f79d6101c95ce\",\n  \"revert_reason\": null,\n  \"tx\": {\n    \"from\": \"0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266\",\n    \"to\": \"0xae7ab96520DE3A18E5e111B5EaAb095312D7fE84\",\n    \"value_wei\": \"100000000000000000\",\n    \"value_eth\": \"0.1\",\n    \"input\": \"0xa1903eab0000000000000000000000000000000000000000000000000000000000000000\",\n    \"chain_id\": 1\n  },\n  \"result_decoded\": {\n    \"kind\": \"single_abi_word\",\n    \"raw_hex\": \"0x000000000000000000000000000000000000000000000000011f79d6101c95ce\",\n    \"decoded\": {\n      \"type\": \"uint256\",\n      \"decoded\": \"80917278616229326\",\n      \"as_bool\": null,\n      \"as_address\": \"0x000000000000000000000000011f79d6101c95ce\"\n    }\n  }\n}"
+      },
+      {
+        "sender": "assistant",
+        "content": "",
+        "tool": "encode_and_call",
+        "tool_topic": "Validate stETH approval to wstETH contract",
+        "tool_result_preview": "{\n  \"success\": true,\n  \"result\": \"0x0000000000000000000000000000000000000000000000000000000000000001\",\n  \"revert_reason\": null,\n  \"tx\": {\n    \"from\": \"0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266\",\n    \"to\": \"0xae7ab96520DE3A18E5e111B5EaAb095312D7fE84\",\n    \"value_wei\": \"0\",\n    \"value_eth\": \"0\",\n    \"input\": \"0x095ea7b30000000000000000000000007f39c581f595b53c5cb19bd0b3f8da6c935e2ca000000000000000000000000000000000000000000000000000b1a2bc2ec50000\",\n    \"chain_id\": 1\n  },\n  \"result_decoded\": {\n    \"kind\": \"single_abi_word\",\n    \"raw_hex\": \"0x0000000000000000000000000000000000000000000000000000000000000001\",\n    \"decoded\": {\n      \"type\": \"uint256\",\n      \"decoded\": \"1\",\n      \"as_bool\": true,\n      \"as_address\": \"0x0000000000000000000000000000000000000001\"\n    }\n  }\n}"
+      },
+      {
+        "sender": "assistant",
+        "content": "Both standalone sims pass. Staking 0.1 ETH mints ~0.0999 stETH (the `80917278616229326` return is share units). Now staging the full sequence: stake → approve 0.05 stETH → wrap 0.05 stETH.",
+        "tool": null,
+        "tool_topic": null,
+        "tool_result_preview": null
+      },
+      {
+        "sender": "assistant",
+        "content": "",
+        "tool": "stage_tx",
+        "tool_topic": "Stage Lido stake",
+        "tool_result_preview": "{\n  \"from\": \"0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266\",\n  \"chain_id\": 1,\n  \"to\": \"0xae7ab96520DE3A18E5e111B5EaAb095312D7fE84\",\n  \"value\": \"100000000000000000\",\n  \"data\": \"0xa1903eab0000000000000000000000000000000000000000000000000000000000000000\",\n  \"description\": \"Stake 0.1 ETH with Lido (submit) to receive stETH\",\n  \"kind\": \"stake\",\n  \"pending_tx_id\": 1,\n  \"batch_status\": \"Batch [1] pending\",\n  \"status\": \"queued\"\n}"
+      },
+      {
+        "sender": "assistant",
+        "content": "",
+        "tool": "stage_tx",
+        "tool_topic": "Stage stETH approval",
+        "tool_result_preview": "{\n  \"from\": \"0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266\",\n  \"chain_id\": 1,\n  \"to\": \"0xae7ab96520DE3A18E5e111B5EaAb095312D7fE84\",\n  \"value\": \"0\",\n  \"data\": \"0x095ea7b30000000000000000000000007f39c581f595b53c5cb19bd0b3f8da6c935e2ca000000000000000000000000000000000000000000000000000b1a2bc2ec50000\",\n  \"description\": \"Approve 0.05 stETH to wstETH contract for wrapping\",\n  \"kind\": \"erc20_approve\",\n  \"pending_tx_id\": 2,\n  \"batch_status\": \"Batch [2] pending\",\n  \"status\": \"queued\"\n}"
+      },
+      {
+        "sender": "assistant",
+        "content": "",
+        "tool": "stage_tx",
+        "tool_topic": "Stage stETH wrap",
+        "tool_result_preview": "{\n  \"from\": \"0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266\",\n  \"chain_id\": 1,\n  \"to\": \"0x7f39C581F595B53c5cb19bD0b3f8dA6c935E2Ca0\",\n  \"value\": \"0\",\n  \"data\": \"0xea598cb000000000000000000000000000000000000000000000000000b1a2bc2ec50000\",\n  \"description\": \"Wrap 0.05 stETH into non-rebasing wstETH\",\n  \"kind\": \"wrap\",\n  \"pending_tx_id\": 3,\n  \"batch_status\": \"Batch [3] pending\",\n  \"status\": \"queued\"\n}"
+      },
+      {
+        "sender": "assistant",
+        "content": "",
+        "tool": "simulate_batch",
+        "tool_topic": "Simulate stake → approve → wrap as atomic batch",
+        "tool_result_preview": "{\n  \"simulation\": {\n    \"batch_success\": true,\n    \"stateful\": true,\n    \"from\": \"0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266\",\n    \"network\": \"sim-ethereum\",\n    \"total_gas\": 268047,\n    \"steps\": [\n      {\n        \"step\": 1,\n        \"chain_id\": 1,\n        \"label\": \"Stake 0.1 ETH with Lido (submit) to receive stETH\",\n        \"success\": true,\n        \"result\": \"0x0f00a4d4a578e615346f3b84b64622da44bc...stETH\"\n    },\n    {\n      \"tx_id\": 2,\n      \"field\": \"label\",\n      \"provided\": \"Approve 0.05 stETH to wstETH\",\n      \"actual\": \"Approve 0.05 stETH to wstETH contract for wrapping\"\n    },\n    {\n      \"tx_id\": 3,\n      \"field\": \"label\",\n      \"provided\": \"Wrap 0.05 stETH into wstETH\",\n      \"actual\": \"Wrap 0.05 stETH into non-rebasing wstETH\"\n    }\n  ],\n  \"batch_status\": \"Batch [1,2,3] passed\"\n}"
+      },
+      {
+        "sender": "assistant",
+        "content": "Simulation passed for all three legs in order: stake → approve → wrap, total gas ~268k. No guard blocks fired. Value at risk is 0.1 ETH, well within auto-proceed range, so committing the full set.",
+        "tool": null,
+        "tool_topic": null,
+        "tool_result_preview": null
+      },
+      {
+        "sender": "assistant",
+        "content": "",
+        "tool": "commit_txs",
+        "tool_topic": "Commit Lido stake, stETH approval, and wstETH wrap",
+        "tool_result_preview": "{\n  \"status\": \"pending_approval\",\n  \"tx_ids\": [\n    1,\n    2,\n    3\n  ],\n  \"timestamp\": \"2026-05-31T20:45:03.929043+00:00\"\n}"
+      },
+      {
+        "sender": "assistant",
+        "content": "Simulation passed for all three legs and the batch is now waiting for your wallet approval. Here's what you'll be signing, in order:\n\n- tx-1: stake 0.1 ETH with Lido → receive ~0.0809 stETH (submit, referral set to address(0))\n- tx-2: approve 0.05 stETH to the wstETH contract (0x7f39…2Ca0)\n- tx-3: wrap 0.05 stETH → non-rebasing wstETH\n\nNote that stETH is a rebasing balance, so the stake credits slightly less than 0.1 (~0.0809 stETH on the fork) due to Lido's share-based accounting — the 0.05 wrap is well within that.\n\nApprove the requests in your wallet to execute. Want me to confirm the resulting stETH and wstETH balances once the transactions land?",
+        "tool": null,
+        "tool_topic": null,
+        "tool_result_preview": null
+      }
+    ],
+    "tool_previews": [
+      {
+        "turn": 0,
+        "tool": "activate_skills",
+        "topic": "activate_skills",
+        "arguments": {
+          "skill_ids": [
+            "lido",
+            "common_erc20"
+          ]
+        },
+        "result_preview": "{\n  \"activated\": [\n    \"lido\"\n  ],\n  \"rejected\": [\n    [\n      \"common_erc20\",\n      \"invalid\"\n    ]\n  ],\n  \"applied_scope\": \"current_serve_cycle\"\n}"
+      },
+      {
+        "turn": 0,
+        "tool": "get_time_and_onchain_context",
+        "topic": "Confirm wallet, chain, block context",
+        "arguments": {
+          "topic": "Confirm wallet, chain, block context"
+        },
+        "result_preview": "{\n  \"chain_name\": \"ethereum\",\n  \"chain_id\": 1,\n  \"rpc_endpoint\": \"http://127.0.0.1:60034\",\n  \"current_time_unix\": 1780260240,\n  \"current_time_iso\": \"2026-05-31T20:44:00.769504+00:00\",\n  \"block_number\": 25217820,\n  \"gas_price_wei\": \"1104894110\",\n  \"supported_chains\": [\n    {\n      \"name\": \"ethereum\",\n      \"chain_id\": 1\n    },\n    {\n      \"name\": \"ethereum\",\n      \"chain_id\": 1\n    }\n  ]\n}"
+      },
+      {
+        "turn": 0,
+        "tool": "get_account_info",
+        "topic": "Check Alice ETH balance",
+        "arguments": {
+          "address": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+          "chain_id": 1,
+          "include_tx_history": false,
+          "history_limit": 0,
+          "history_offset": 0,
+          "topic": "Check Alice ETH balance"
+        },
+        "result_preview": "{\n  \"address\": \"0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266\",\n  \"balance_wei\": \"100000000000000000000\",\n  \"balance_eth\": \"100\",\n  \"nonce\": 6436\n}"
+      },
+      {
+        "turn": 0,
+        "tool": "encode_and_call",
+        "topic": "Validate Lido stake of 0.1 ETH",
+        "arguments": {
+          "function_signature": "submit(address)",
+          "arguments": [
+            "0x0000000000000000000000000000000000000000"
+          ],
+          "to": "0xae7ab96520DE3A18E5e111B5EaAb095312D7fE84",
+          "value": "100000000000000000",
+          "topic": "Validate Lido stake of 0.1 ETH"
+        },
+        "result_preview": "{\n  \"success\": true,\n  \"result\": \"0x000000000000000000000000000000000000000000000000011f79d6101c95ce\",\n  \"revert_reason\": null,\n  \"tx\": {\n    \"from\": \"0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266\",\n    \"to\": \"0xae7ab96520DE3A18E5e111B5EaAb095312D7fE84\",\n    \"value_wei\": \"100000000000000000\",\n    \"value_eth\": \"0.1\",\n    \"input\": \"0xa1903eab0000000000000000000000000000000000000000000000000000000000000000\",\n    \"chain_id\": 1\n  },\n  \"result_decoded\": {\n    \"kind\": \"single_abi_word\",\n    \"raw_hex\": \"0x000000000000000000000000000000000000000000000000011f79d6101c95ce\",\n    \"decoded\": {\n      \"type\": \"uint256\",\n      \"decoded\": \"80917278616229326\",\n      \"as_bool\": null,\n      \"as_address\": \"0x000000000000000000000000011f79d6101c95ce\"\n    }\n  }\n}"
+      },
+      {
+        "turn": 0,
+        "tool": "encode_and_call",
+        "topic": "Validate stETH approval to wstETH contract",
+        "arguments": {
+          "function_signature": "approve(address,uint256)",
+          "arguments": [
+            "0x7f39C581F595B53c5cb19bD0b3f8dA6c935E2Ca0",
+            "50000000000000000"
+          ],
+          "to": "0xae7ab96520DE3A18E5e111B5EaAb095312D7fE84",
+          "value": "0",
+          "topic": "Validate stETH approval to wstETH contract"
+        },
+        "result_preview": "{\n  \"success\": true,\n  \"result\": \"0x0000000000000000000000000000000000000000000000000000000000000001\",\n  \"revert_reason\": null,\n  \"tx\": {\n    \"from\": \"0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266\",\n    \"to\": \"0xae7ab96520DE3A18E5e111B5EaAb095312D7fE84\",\n    \"value_wei\": \"0\",\n    \"value_eth\": \"0\",\n    \"input\": \"0x095ea7b30000000000000000000000007f39c581f595b53c5cb19bd0b3f8da6c935e2ca000000000000000000000000000000000000000000000000000b1a2bc2ec50000\",\n    \"chain_id\": 1\n  },\n  \"result_decoded\": {\n    \"kind\": \"single_abi_word\",\n    \"raw_hex\": \"0x0000000000000000000000000000000000000000000000000000000000000001\",\n    \"decoded\": {\n      \"type\": \"uint256\",\n      \"decoded\": \"1\",\n      \"as_bool\": true,\n      \"as_address\": \"0x0000000000000000000000000000000000000001\"\n    }\n  }\n}"
+      },
+      {
+        "turn": 0,
+        "tool": "stage_tx",
+        "topic": "Stage Lido stake",
+        "arguments": {
+          "to": "0xae7ab96520DE3A18E5e111B5EaAb095312D7fE84",
+          "description": "Stake 0.1 ETH with Lido (submit) to receive stETH",
+          "data": {
+            "signature": "submit(address)",
+            "args": [
+              "0x0000000000000000000000000000000000000000"
+            ],
+            "raw": ""
+          },
+          "value": "100000000000000000",
+          "gas_limit": "",
+          "kind": "stake",
+          "topic": "Stage Lido stake"
+        },
+        "result_preview": "{\n  \"from\": \"0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266\",\n  \"chain_id\": 1,\n  \"to\": \"0xae7ab96520DE3A18E5e111B5EaAb095312D7fE84\",\n  \"value\": \"100000000000000000\",\n  \"data\": \"0xa1903eab0000000000000000000000000000000000000000000000000000000000000000\",\n  \"description\": \"Stake 0.1 ETH with Lido (submit) to receive stETH\",\n  \"kind\": \"stake\",\n  \"pending_tx_id\": 1,\n  \"batch_status\": \"Batch [1] pending\",\n  \"status\": \"queued\"\n}"
+      },
+      {
+        "turn": 0,
+        "tool": "stage_tx",
+        "topic": "Stage stETH approval",
+        "arguments": {
+          "to": "0xae7ab96520DE3A18E5e111B5EaAb095312D7fE84",
+          "description": "Approve 0.05 stETH to wstETH contract for wrapping",
+          "data": {
+            "signature": "approve(address,uint256)",
+            "args": [
+              "0x7f39C581F595B53c5cb19bD0b3f8dA6c935E2Ca0",
+              "50000000000000000"
+            ],
+            "raw": ""
+          },
+          "value": "0",
+          "gas_limit": "",
+          "kind": "erc20_approve",
+          "topic": "Stage stETH approval"
+        },
+        "result_preview": "{\n  \"from\": \"0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266\",\n  \"chain_id\": 1,\n  \"to\": \"0xae7ab96520DE3A18E5e111B5EaAb095312D7fE84\",\n  \"value\": \"0\",\n  \"data\": \"0x095ea7b30000000000000000000000007f39c581f595b53c5cb19bd0b3f8da6c935e2ca000000000000000000000000000000000000000000000000000b1a2bc2ec50000\",\n  \"description\": \"Approve 0.05 stETH to wstETH contract for wrapping\",\n  \"kind\": \"erc20_approve\",\n  \"pending_tx_id\": 2,\n  \"batch_status\": \"Batch [2] pending\",\n  \"status\": \"queued\"\n}"
+      },
+      {
+        "turn": 0,
+        "tool": "stage_tx",
+        "topic": "Stage stETH wrap",
+        "arguments": {
+          "to": "0x7f39C581F595B53c5cb19bD0b3f8dA6c935E2Ca0",
+          "description": "Wrap 0.05 stETH into non-rebasing wstETH",
+          "data": {
+            "signature": "wrap(uint256)",
+            "args": [
+              "50000000000000000"
+            ],
+            "raw": ""
+          },
+          "value": "0",
+          "gas_limit": "",
+          "kind": "wrap",
+          "topic": "Stage stETH wrap"
+        },
+        "result_preview": "{\n  \"from\": \"0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266\",\n  \"chain_id\": 1,\n  \"to\": \"0x7f39C581F595B53c5cb19bD0b3f8dA6c935E2Ca0\",\n  \"value\": \"0\",\n  \"data\": \"0xea598cb000000000000000000000000000000000000000000000000000b1a2bc2ec50000\",\n  \"description\": \"Wrap 0.05 stETH into non-rebasing wstETH\",\n  \"kind\": \"wrap\",\n  \"pending_tx_id\": 3,\n  \"batch_status\": \"Batch [3] pending\",\n  \"status\": \"queued\"\n}"
+      },
+      {
+        "turn": 0,
+        "tool": "simulate_batch",
+        "topic": "Simulate stake → approve → wrap as atomic batch",
+        "arguments": {
+          "aa_override": "",
+          "topic": "Simulate stake → approve → wrap as atomic batch",
+          "transactions": [
+            {
+              "id": 1,
+              "kind": "stake",
+              "chain_id": 1,
+              "label": "Stake 0.1 ETH with Lido"
+            },
+            {
+              "id": 2,
+              "kind": "erc20_approve",
+              "chain_id": 1,
+              "label": "Approve 0.05 stETH to wstETH"
+            },
+            {
+              "id": 3,
+              "kind": "wrap",
+              "chain_id": 1,
+              "label": "Wrap 0.05 stETH into wstETH"
+            }
+          ]
+        },
+        "result_preview": "{\n  \"simulation\": {\n    \"batch_success\": true,\n    \"stateful\": true,\n    \"from\": \"0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266\",\n    \"network\": \"sim-ethereum\",\n    \"total_gas\": 268047,\n    \"steps\": [\n      {\n        \"step\": 1,\n        \"chain_id\": 1,\n        \"label\": \"Stake 0.1 ETH with Lido (submit) to receive stETH\",\n        \"success\": true,\n        \"result\": \"0x0f00a4d4a578e615346f3b84b64622da44bc...stETH\"\n    },\n    {\n      \"tx_id\": 2,\n      \"field\": \"label\",\n      \"provided\": \"Approve 0.05 stETH to wstETH\",\n      \"actual\": \"Approve 0.05 stETH to wstETH contract for wrapping\"\n    },\n    {\n      \"tx_id\": 3,\n      \"field\": \"label\",\n      \"provided\": \"Wrap 0.05 stETH into wstETH\",\n      \"actual\": \"Wrap 0.05 stETH into non-rebasing wstETH\"\n    }\n  ],\n  \"batch_status\": \"Batch [1,2,3] passed\"\n}"
+      },
+      {
+        "turn": 0,
+        "tool": "commit_txs",
+        "topic": "Commit Lido stake, stETH approval, and wstETH wrap",
+        "arguments": {
+          "tx_ids": [
+            1,
+            2,
+            3
+          ],
+          "topic": "Commit Lido stake, stETH approval, and wstETH wrap"
+        },
+        "result_preview": "{\n  \"status\": \"pending_approval\",\n  \"tx_ids\": [\n    1,\n    2,\n    3\n  ],\n  \"timestamp\": \"2026-05-31T20:45:03.929043+00:00\"\n}"
+      }
+    ],
+    "failure_category": null,
+    "app": {
+      "source": "default",
+      "path": null,
+      "loaded_name": "default"
+    },
+    "skills": {
+      "mode": "restricted",
+      "allowed": [
+        "lido"
+      ],
+      "activated_skills": [
+        "lido"
+      ],
+      "bundle_path": "../output/eval/model-bench-public-skills-expansion-20260531/specs/stake_then_wrap_steth_to_wsteth/claude-opus-4.8/pass-002/spec-skills/stake_then_wrap_steth_to_wsteth-skills.json",
+      "bundle_revision": "fnv1a64:3dc3c3eb3312b7e4"
+    },
+    "environment": {
+      "chain_id": 1,
+      "network": "ethereum",
+      "providers_path": "/Users/aronmegyeri/.aomi/test-env/providers.toml",
+      "endpoint_name": "ethereum",
+      "funding_ledger": [
+        {
+          "chain_id": 1,
+          "address": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+          "balances": {
+            "ETH": "100",
+            "USDC": "10000"
+          }
+        },
+        {
+          "chain_id": 1,
+          "address": "0x70997970c51812dc3a010c7d01b50e0d17dc79c8",
+          "balances": {
+            "ETH": "100",
+            "USDC": "10000"
+          }
+        }
+      ]
+    }
+  }
+}

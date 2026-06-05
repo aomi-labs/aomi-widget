@@ -1,0 +1,95 @@
+<svg viewBox="0 0 1320 900" xmlns="http://www.w3.org/2000/svg" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" role="img" aria-label="The read/encode harness: read path and write path">
+<defs>
+<marker id="ar" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#1D9E75"/></marker>
+<marker id="aw" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#7F77DD"/></marker>
+<marker id="an" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#6b7280"/></marker>
+<style>
+text{font-family:ui-monospace, SFMono-Regular, Menlo, monospace;}
+.ttl{font-size:20px;font-weight:700;fill:#1f2937;}
+.sub{font-size:13px;fill:#6b7280;}
+.lg{font-size:12.5px;fill:#6b7280;}
+.hdR{font-size:14px;font-weight:700;fill:#0F6E56;letter-spacing:1.5px;text-anchor:middle;}
+.hdW{font-size:14px;font-weight:700;fill:#534AB7;letter-spacing:1.5px;text-anchor:middle;}
+.fnR{font-size:14px;font-weight:700;fill:#0F6E56;}
+.fnW{font-size:14px;font-weight:700;fill:#534AB7;}
+.fnRm{font-size:14px;font-weight:700;fill:#0F6E56;text-anchor:middle;}
+.fnWm{font-size:14px;font-weight:700;fill:#534AB7;text-anchor:middle;}
+.dim{font-size:12.5px;fill:#6b7280;}
+.dimm{font-size:12.5px;fill:#6b7280;text-anchor:middle;}
+.txm{font-size:14px;fill:#1f2937;text-anchor:middle;}
+.boxR{fill:#f6fcf9;stroke:#1D9E75;stroke-width:1.3;}
+.boxW{fill:#faf9ff;stroke:#7F77DD;stroke-width:1.3;}
+.model{font-size:14px;font-weight:700;fill:#1f2937;text-anchor:middle;}
+.arwR{stroke:#1D9E75;stroke-width:1.6;fill:none;}
+.arwW{stroke:#7F77DD;stroke-width:1.6;fill:none;}
+.arwN{stroke:#6b7280;stroke-width:1.4;fill:none;}
+.pillR{fill:#e4f5ee;stroke:#1D9E75;stroke-width:1.3;}
+.pillW{fill:#ece9fb;stroke:#7F77DD;stroke-width:1.3;}
+.own{fill:#fffaf0;stroke:#EF9F27;stroke-width:1.5;}
+.ow{font-size:13.5px;font-weight:700;fill:#B0710F;}
+.ov{font-size:13.5px;fill:#1f2937;}
+.rule{stroke:#d1d5db;stroke-width:1.2;}
+.foot{font-size:13.5px;fill:#6b7280;text-anchor:middle;}
+</style>
+</defs>
+<text class="ttl" x="40" y="34">The read / encode harness</text>
+<text class="sub" x="40" y="56">what's under "the model never sees a byte"</text>
+<rect x="620" y="26" width="13" height="13" rx="3" fill="#1D9E75"/>
+<text class="lg" x="640" y="37">READ path</text>
+<rect x="760" y="26" width="13" height="13" rx="3" fill="#7F77DD"/>
+<text class="lg" x="780" y="37">WRITE path</text>
+<rect x="908" y="26" width="13" height="13" rx="3" fill="#EF9F27"/>
+<text class="lg" x="928" y="37">ownership boundary</text>
+<text class="model" x="660" y="102">MODEL · high-level intent only</text>
+<path class="arwN" d="M660,114 V132"/>
+<line class="arwN" x1="340" y1="132" x2="980" y2="132"/>
+<path class="arwR" d="M340,132 V152" marker-end="url(#ar)"/>
+<path class="arwW" d="M980,132 V152" marker-end="url(#aw)"/>
+<text class="hdR" x="340" y="172">READ path</text>
+<text class="hdW" x="980" y="172">WRITE path</text>
+<rect class="boxR" x="70" y="186" width="540" height="196" rx="8"/>
+<text class="fnR" x="92" y="212">get_contract(addr, chain)</text>
+<text class="dim" x="108" y="236">· DB cache hit  → return</text>
+<text class="dim" x="108" y="258">· miss → Etherscan fetch</text>
+<text class="dim" x="108" y="280">· store back + proxy-resolve (EIP-1967)</text>
+<text class="fnR" x="92" y="308">get_account_info(addr, chain)</text>
+<text class="dim" x="108" y="330">→ {balance, nonce}   (gateway)</text>
+<text class="fnR" x="92" y="358">encode_and_call(sig, args, to)</text>
+<path class="arwR" d="M340,388 V412" marker-end="url(#ar)"/>
+<text class="fnRm" x="340" y="436">eth_call(chain, to, calldata)</text>
+<text class="dimm" x="340" y="458">(Anvil fork / gateway)</text>
+<path class="arwR" d="M340,472 V496" marker-end="url(#ar)"/>
+<text class="txm" x="340" y="520">raw 32-byte result</text>
+<path class="arwR" d="M340,534 V558" marker-end="url(#ar)"/>
+<text class="fnRm" x="340" y="582">format_token_units(raw, dec)</text>
+<text class="fnRm" x="340" y="604">format_wei_as_eth(wei)</text>
+<path class="arwR" d="M340,618 V642" marker-end="url(#ar)"/>
+<rect class="pillR" x="150" y="650" width="380" height="30" rx="15"/>
+<text class="txm" x="340" y="670">human-readable JSON → model</text>
+<rect class="boxW" x="700" y="186" width="560" height="72" rx="8"/>
+<text class="fnW" x="722" y="214">stage_tx { to, sig, args[] }</text>
+<text class="dim" x="738" y="238">args = base units   (from model)</text>
+<path class="arwW" d="M980,264 V288" marker-end="url(#aw)"/>
+<rect class="boxW" x="700" y="294" width="560" height="116" rx="8"/>
+<text class="fnW" x="722" y="320">abi_encoder::execute_call</text>
+<text class="dim" x="738" y="346">parse_function_signature → selector = keccak256[:4]</text>
+<text class="dim" x="738" y="370">parse_param_value  (str → DynSolValue)</text>
+<text class="dim" x="738" y="394">abi_encode_params → 32-byte words</text>
+<path class="arwW" d="M980,416 V440" marker-end="url(#aw)"/>
+<text class="txm" x="980" y="464">calldata = 0x&lt;selector&gt;&lt;words&gt;</text>
+<path class="arwW" d="M980,478 V502" marker-end="url(#aw)"/>
+<text class="fnWm" x="980" y="526">AssembledEvmTx{ from*, chain*, to, value, data, label, kind }</text>
+<text class="dimm" x="980" y="548">(*from / chain injected from wallet ctx)</text>
+<path class="arwW" d="M980,562 V586" marker-end="url(#aw)"/>
+<rect class="pillW" x="790" y="594" width="380" height="30" rx="15"/>
+<text class="txm" x="980" y="614">user_state.pending_txs → commit_txs → sign</text>
+<rect class="own" x="70" y="700" width="1190" height="100" rx="10"/>
+<text x="92" y="728" font-size="14" font-weight="700" fill="#B0710F">OWNERSHIP — why the model never sees a byte</text>
+<text class="ow" x="92" y="758">HARNESS owns</text>
+<text class="ov" x="252" y="758">selector · ABI words · eth_call · result decoding · output unit-format</text>
+<text class="ow" x="92" y="786">MODEL owns</text>
+<text class="ov" x="252" y="786">addresses · signatures · base-unit amounts</text>
+<line class="rule" x1="40" y1="824" x2="1280" y2="824"/>
+<line class="rule" x1="40" y1="829" x2="1280" y2="829"/>
+<text class="foot" x="660" y="858">Caches: contract ABI / source (SQLite / Postgres) · proxy-impl resolution</text>
+</svg>

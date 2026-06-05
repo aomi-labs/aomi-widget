@@ -1,0 +1,52 @@
+<svg viewBox="0 0 760 430" xmlns="http://www.w3.org/2000/svg" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" role="img" aria-label="Task success rate per model headline histogram">
+<style>
+.ax{stroke:#d1d5db;stroke-width:1}
+.gl{stroke:#eceef1;stroke-width:1}
+.tk{fill:#6b7280;font-size:11px}
+.nm{fill:#1f2937;font-size:12px;text-anchor:middle}
+.vl{fill:#1f2937;font-size:12px;font-weight:700;text-anchor:middle}
+.yl{fill:#6b7280;font-size:11px;text-anchor:middle}
+.ref{stroke:#EF9F27;stroke-width:1.4;stroke-dasharray:5 4}
+.refl{fill:#B0710F;font-size:11px;font-weight:700}
+</style>
+<!-- gridlines + y ticks (0,25,50,75,100) -->
+<line class="gl" x1="70" y1="50" x2="730" y2="50"/>
+<line class="gl" x1="70" y1="127.5" x2="730" y2="127.5"/>
+<line class="gl" x1="70" y1="205" x2="730" y2="205"/>
+<line class="gl" x1="70" y1="282.5" x2="730" y2="282.5"/>
+<line class="ax" x1="70" y1="360" x2="730" y2="360"/>
+<text class="tk" x="60" y="54" text-anchor="end">100</text>
+<text class="tk" x="60" y="131" text-anchor="end">75</text>
+<text class="tk" x="60" y="209" text-anchor="end">50</text>
+<text class="tk" x="60" y="286" text-anchor="end">25</text>
+<text class="tk" x="60" y="364" text-anchor="end">0</text>
+<text class="yl" x="22" y="205" transform="rotate(-90 22 205)">Task success rate (%)</text>
+<!-- bars: top five green, trailing two grey -->
+<rect x="89" y="53.1" width="56" height="306.9" fill="#1D9E75"/>
+<rect x="183" y="56.2" width="56" height="303.8" fill="#1D9E75"/>
+<rect x="277" y="62.4" width="56" height="297.6" fill="#1D9E75"/>
+<rect x="371" y="62.4" width="56" height="297.6" fill="#1D9E75"/>
+<rect x="465" y="66.1" width="56" height="293.9" fill="#1D9E75"/>
+<rect x="559" y="121.9" width="56" height="238.1" fill="#9CA3AF"/>
+<rect x="653" y="130.6" width="56" height="229.4" fill="#9CA3AF"/>
+<!-- value labels -->
+<text class="vl" x="117" y="46">99.0</text>
+<text class="vl" x="211" y="49">98.0</text>
+<text class="vl" x="305" y="55">96.0</text>
+<text class="vl" x="399" y="55">96.0</text>
+<text class="vl" x="493" y="59">94.8</text>
+<text class="vl" x="587" y="115">76.8</text>
+<text class="vl" x="681" y="123">74.0</text>
+<!-- overall reference line 90.6 -->
+<line class="ref" x1="70" y1="79.1" x2="730" y2="79.1"/>
+<text class="refl" x="74" y="74">overall 90.6%</text>
+<!-- model names -->
+<text class="nm" x="117" y="378">opus-4.6</text>
+<text class="nm" x="211" y="378">opus-4.8</text>
+<text class="nm" x="305" y="378">sonnet-4.6</text>
+<text class="nm" x="399" y="378">gpt-5.5</text>
+<text class="nm" x="493" y="378">opus-4.7</text>
+<text class="nm" x="587" y="378">minimax-m2.5</text>
+<text class="nm" x="681" y="378">haiku-4.5</text>
+<text x="70" y="408" fill="#6b7280" font-size="11px">50 specs · 2 passes · fixed scaffold · JSON-only, single-attempt (no CIs); crediting 9 safety pauses → 91.9%.</text>
+</svg>
