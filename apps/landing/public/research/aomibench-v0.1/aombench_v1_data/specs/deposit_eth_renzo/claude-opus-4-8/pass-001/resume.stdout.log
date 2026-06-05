@@ -1,0 +1,3 @@
+[eval] PASS deposit_eth_renzo 1 turn(s) 7 tool call(s) 5.1168 cr, 53421 in / 558 out tok, 51086 cached / 0 reasoning tok 0 warning(s) duration 50s
+report full json: ../output/eval/model-bench-public-skills-gpt55-opus48-sonnet46-20260530/specs/deposit_eth_renzo/claude-opus-4.8/pass-001/20260530T232241.173971000Z.full.json
+report compact json: ../output/eval/model-bench-public-skills-gpt55-opus48-sonnet46-20260530/specs/deposit_eth_renzo/claude-opus-4.8/pass-001/20260530T232241.173971000Z.compact.json

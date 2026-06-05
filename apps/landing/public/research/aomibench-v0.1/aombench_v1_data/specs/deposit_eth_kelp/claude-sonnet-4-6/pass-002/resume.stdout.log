@@ -1,0 +1,5 @@
+[eval] PASS deposit_eth_kelp 1 turn(s) 8 tool call(s) 3.3972 cr, 62431 in / 710 out tok, 60730 cached / 0 reasoning tok 1 warning(s) duration 45s
+warnings:
+  no_tool_errors tool error envelope(s) observed for: Stage Kelp depositETH 0.1 ETH
+report full json: ../output/eval/model-bench-public-skills-gpt55-opus48-sonnet46-20260530/specs/deposit_eth_kelp/claude-sonnet-4.6/pass-002/20260530T231043.525921000Z.full.json
+report compact json: ../output/eval/model-bench-public-skills-gpt55-opus48-sonnet46-20260530/specs/deposit_eth_kelp/claude-sonnet-4.6/pass-002/20260530T231043.525921000Z.compact.json

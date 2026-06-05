@@ -1,0 +1,3 @@
+[eval] PASS base_eth_balance_check 1 turn(s) 1 tool call(s) 1.0306 cr, 12415 in / 140 out tok, 12282 cached / 0 reasoning tok 0 warning(s) duration 7s
+report full json: ../output/eval/model-bench-public-skills-expansion-20260531/specs/base_eth_balance_check/claude-opus-4.7/pass-002/20260531T183350.955306000Z.full.json
+report compact json: ../output/eval/model-bench-public-skills-expansion-20260531/specs/base_eth_balance_check/claude-opus-4.7/pass-002/20260531T183350.955306000Z.compact.json

@@ -1,0 +1,3 @@
+[eval] PASS base_eth_balance_check 1 turn(s) 1 tool call(s) 1.138 cr, 10760 in / 122 out tok, 10240 cached / 12 reasoning tok 0 warning(s) duration 6s
+report full json: ../output/eval/model-bench-public-skills-expansion-20260531/specs/base_eth_balance_check/gpt-5.5/pass-002/20260531T183254.102834000Z.full.json
+report compact json: ../output/eval/model-bench-public-skills-expansion-20260531/specs/base_eth_balance_check/gpt-5.5/pass-002/20260531T183254.102834000Z.compact.json

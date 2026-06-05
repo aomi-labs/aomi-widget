@@ -1,0 +1,3 @@
+[eval] PASS transfer_eth_to_charlie 1 turn(s) 5 tool call(s) 4.3688 cr, 34816 in / 492 out tok, 32256 cached / 51 reasoning tok 0 warning(s) duration 24s
+report full json: ../output/eval/model-bench-public-skills-expansion-20260531/specs/transfer_eth_to_charlie/gpt-5.5/pass-001/20260531T184037.308528000Z.full.json
+report compact json: ../output/eval/model-bench-public-skills-expansion-20260531/specs/transfer_eth_to_charlie/gpt-5.5/pass-001/20260531T184037.308528000Z.compact.json

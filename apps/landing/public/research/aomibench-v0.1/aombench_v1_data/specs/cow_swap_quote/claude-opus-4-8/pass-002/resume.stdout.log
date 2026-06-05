@@ -1,0 +1,3 @@
+[eval] PASS cow_swap_quote 1 turn(s) 1 tool call(s) 2.67245 cr, 15718 in / 519 out tok, 14409 cached / 0 reasoning tok 0 warning(s) duration 40s
+report full json: ../output/eval/model-bench-public-skills-expansion-20260531/specs/cow_swap_quote/claude-opus-4.8/pass-002/20260531T215147.331042000Z.full.json
+report compact json: ../output/eval/model-bench-public-skills-expansion-20260531/specs/cow_swap_quote/claude-opus-4.8/pass-002/20260531T215147.331042000Z.compact.json

@@ -1,0 +1,3 @@
+[eval] PASS lifi_chains 1 turn(s) 1 tool call(s) 3.1779 cr, 35709 in / 407 out tok, 35328 cached / 0 reasoning tok 0 warning(s) duration 10s
+report full json: ../output/eval/model-bench-public-skills-expansion-20260531/specs/lifi_chains/gpt-5.5/pass-002/20260531T220751.503229000Z.full.json
+report compact json: ../output/eval/model-bench-public-skills-expansion-20260531/specs/lifi_chains/gpt-5.5/pass-002/20260531T220751.503229000Z.compact.json

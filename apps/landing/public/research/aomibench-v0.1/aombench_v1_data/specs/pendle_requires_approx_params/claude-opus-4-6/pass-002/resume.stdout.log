@@ -1,0 +1,6 @@
+[eval] PASS pendle_requires_approx_params 1 turn(s) 9 tool call(s) 12.0727 cr, 66062 in / 2628 out tok, 61174 cached / 0 reasoning tok 2 warning(s) duration 92s
+warnings:
+  no_tool_errors tool error envelope(s) observed for: Find Pendle SDK API endpoint for swap exact token for PT
+  max_tool_calls observed 9 tool call(s), max 8
+report full json: ../output/eval/model-bench-public-skills-opus47-opus46-haiku45-20260531/specs/pendle_requires_approx_params/claude-opus-4.6/pass-002/20260531T123834.338064000Z.full.json
+report compact json: ../output/eval/model-bench-public-skills-opus47-opus46-haiku45-20260531/specs/pendle_requires_approx_params/claude-opus-4.6/pass-002/20260531T123834.338064000Z.compact.json

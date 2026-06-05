@@ -1,0 +1,55 @@
+[
+  {
+    "id": "etherfi",
+    "name": "etherfi",
+    "description": "Use when users want to stake ETH with ether.fi to receive eETH, wrap eETH to weETH, or manage ether.fi withdrawal requests on Ethereum.",
+    "tags": [
+      "stake",
+      "etherfi",
+      "eeth",
+      "weeth",
+      "liquid-staking",
+      "withdraw",
+      "eth"
+    ],
+    "tool_names": [
+      "get_time_and_onchain_context",
+      "brave_search",
+      "encode_and_call",
+      "get_account_info",
+      "get_contract",
+      "sync_chain",
+      "simulate_batch",
+      "stage_tx",
+      "commit_eip712",
+      "commit_txs"
+    ],
+    "injected_tools": [
+      "prepare_etherfi_claim"
+    ],
+    "source": "aomi_builtin",
+    "est_tokens": 824,
+    "activation_tokens": 829,
+    "instruction_md": "## ether.fi: etherfi_stake\n- contract: 0x308861A430be4cce5502d0A12724771Fc6DaF216 (chain 1)\n- output_token: eETH\n- gotcha: deposit() is payable — msg.value is the amount to stake. Returns eETH (rebasing). For DeFi composability, wrap eETH to weETH.\n\n## ether.fi: etherfi_wrap\n- contract: 0xCd5fE23C85820F7B72D0926FC9b05b43E359b7ee (chain 1)\n- output_token: weETH\n- gotcha: Requires eETH approval to the weETH contract before wrapping. Call wrap(uint256) with eETH amount.\n\n## ether.fi: etherfi_withdrawal\n- contract: 0x7d5706f6ef3F89B3951E23e557CDFBC3239D4E2c (chain 1)\n- gotcha: Withdrawals mint an NFT representing the request. Call requestWithdraw() with eETH or requestWithdrawWithEEth(). Requires eETH approval. Claiming is separate after finalization.\n\n\n## ether.fi: Protocol tokens\n- eETH: 0x35fA164735182de50811E8e2E824cFb9B6118ac2 (chain 1)\n- weETH: 0xCd5fE23C85820F7B72D0926FC9b05b43E359b7ee (chain 1)\n\n## ether.fi: ABI Signatures (reference only)\nether.fi LiquidityPool [etherfi_liquidity_pool]:\n- deposit() → uint256\n- deposit(address) → uint256\n- deposit(address,address) → uint256\nether.fi weETH [etherfi_weeth]:\n- unwrap(uint256) → uint256\n- wrap(uint256) → uint256\nether.fi WithdrawRequestNFT [etherfi_withdraw_request_nft]:\n- claimWithdraw(uint256) → \n- requestWithdraw(uint96,uint96,address,uint256) → uint256\nERC20 [erc20]:\n- approve(address,uint256) → bool\n\n## ether.fi: Procedure\n1. Call `get_time_and_onchain_context` to confirm wallet, chain, and block context.\n2. Check ETH balance, or eETH/weETH balance with `encode_and_call` (balanceOf).\n3. If wrapping or withdrawing, check allowance with `encode_and_call` (allowance). If insufficient, build and simulate an `approve` transaction first.\n4. For `requestWithdraw`: confirm that the `address` (recipient) parameter is set to the user's wallet from step 1. Never use any other address.\n5. Build the stake/wrap/unwrap/withdrawal transaction with `encode_and_call`.\n6. Inspect result and `etherfi_guard_*` fields — if `etherfi_guard_blocked`, do NOT proceed.\n7. Only after user confirmation, send via `commit_txs`.\n## ether.fi: Critical Rules\n- ONLY use official ether.fi contract addresses listed above. Never send ETH or tokens to unknown addresses.\n- Always simulate staking calldata with `encode_and_call` before sending.\n- Check `etherfi_guard_blocked` in simulation result — if true, do NOT proceed.\n- For `deposit()` on LiquidityPool: msg.value is the ETH to stake. eETH is minted to msg.sender (the user). Returns rebasing eETH.\n- Recommend wrapping eETH to weETH for DeFi composability (eETH rebases, weETH is value-accruing).\n- Before wrapping eETH to weETH, ensure eETH approval to the weETH contract.\n- Before requesting withdrawals, ensure eETH approval to the WithdrawRequestNFT contract.\n- CRITICAL — `requestWithdraw(uint96,address)`: the second parameter (`address`) is the recipient who receives the withdrawal NFT. This MUST be the user's wallet address. Never set it to any other address — doing so sends the user's funds to someone else.\n- Withdrawals mint an NFT — they are NOT instant. The user must wait for finalization, then call `claimWithdraw(uint256)` with the NFT token ID.\n- For any `approve()` call, the spender MUST be an ether.fi contract listed above — never approve an arbitrary address.",
+    "tool_hooks": [
+      {
+        "tool": "simulate_batch",
+        "pre_call": [],
+        "post_call": [
+          "etherfi-known-addrs"
+        ]
+      },
+      {
+        "tool": "stage_tx",
+        "pre_call": [],
+        "post_call": [
+          "etherfi-known-addrs"
+        ]
+      }
+    ],
+    "tools_namespace": "evm-core",
+    "chain_ids": [
+      1
+    ]
+  }
+]

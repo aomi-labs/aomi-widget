@@ -1,0 +1,3 @@
+[eval] PASS swap_eth_for_steth_curve 1 turn(s) 9 tool call(s) 1.69869 cr, 112717 in / 69 out tok 0 warning(s) duration 39s
+report full json: ../output/eval/model-bench-public-skills-minimax-m25-kiro-20260531/specs/swap_eth_for_steth_curve/minimax-m2.5/pass-001/20260531T085214.779257000Z.full.json
+report compact json: ../output/eval/model-bench-public-skills-minimax-m25-kiro-20260531/specs/swap_eth_for_steth_curve/minimax-m2.5/pass-001/20260531T085214.779257000Z.compact.json

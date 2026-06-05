@@ -1,0 +1,3 @@
+[eval] PASS oneinch_requires_api_calldata 1 turn(s) 1 tool call(s) 2.44975 cr, 14351 in / 339 out tok, 12385 cached / 0 reasoning tok 0 warning(s) duration 17s
+report full json: ../output/eval/model-bench-public-skills-opus47-opus46-haiku45-20260531/specs/oneinch_requires_api_calldata/claude-opus-4.7/pass-001/20260531T123333.502129000Z.full.json
+report compact json: ../output/eval/model-bench-public-skills-opus47-opus46-haiku45-20260531/specs/oneinch_requires_api_calldata/claude-opus-4.7/pass-001/20260531T123333.502129000Z.compact.json

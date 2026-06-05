@@ -1,0 +1,359 @@
+{
+  "run_id": "20260531T213235.004280000Z",
+  "mode": "spec",
+  "started_at": "2026-05-31T21:31:14.583788+00:00",
+  "finished_at": "2026-05-31T21:32:35.004184+00:00",
+  "spec_path": "bin/eval/specs/uniswap/add_eth_usdc_v2_lp_after_half_swap.json",
+  "passed": true,
+  "git_commit": "5b02660942391bc7ae86c5cbb05e33f4c549266f",
+  "git_dirty": true,
+  "story": {
+    "run_id": "20260531T213235.004280000Z",
+    "story_id": "add_eth_usdc_v2_lp_after_half_swap",
+    "user_story": "Use 1 ETH total from Alice to add liquidity to the Uniswap V2 ETH/USDC pool on Ethereum. Swap half of the ETH to USDC first, then add both sides as liquidity.",
+    "passed": true,
+    "warnings": [],
+    "model": "claude-opus-4-7",
+    "chain_id": 1,
+    "git_commit": "5b02660942391bc7ae86c5cbb05e33f4c549266f",
+    "git_dirty": true,
+    "total_turns": 1,
+    "total_tool_calls": 9,
+    "total_responses": 13,
+    "activated_skills": [
+      "uniswap"
+    ],
+    "failed_assertions": [],
+    "budget_summary": {
+      "total": 1,
+      "exceeded": 0,
+      "required_failures": 0,
+      "warning_failures": 0
+    },
+    "usage": {
+      "input_tokens": 58470,
+      "output_tokens": 644,
+      "total_tokens": 59114,
+      "cached_input_tokens": 44125,
+      "cache_creation_input_tokens": 0,
+      "visible_output_tokens": 644,
+      "reasoning_output_tokens": 0,
+      "tool_call_count": 9,
+      "actual_events": 1,
+      "diagnostic_events": 0,
+      "aomi_cost_credits": 10.98875,
+      "user_charged_credits": 10.98875,
+      "credits": 10.98875
+    },
+    "transcript_previews": [
+      {
+        "sender": "user",
+        "content": "Use 1 ETH total from Alice to add liquidity to the Uniswap V2 ETH/USDC pool on Ethereum. Swap half of the ETH to USDC first, then approve USDC if needed and add the ETH and USDC sides as Uniswap V2 liquidity.",
+        "tool": null,
+        "tool_topic": null,
+        "tool_result_preview": null
+      },
+      {
+        "sender": "assistant",
+        "content": "",
+        "tool": null,
+        "tool_topic": null,
+        "tool_result_preview": null
+      },
+      {
+        "sender": "assistant",
+        "content": "",
+        "tool": "activate_skills",
+        "tool_topic": "activate_skills",
+        "tool_result_preview": "{\n  \"activated\": [\n    \"uniswap\"\n  ],\n  \"rejected\": [\n    [\n      \"common_erc20\",\n      \"invalid\"\n    ]\n  ],\n  \"applied_scope\": \"current_serve_cycle\"\n}"
+      },
+      {
+        "sender": "assistant",
+        "content": "",
+        "tool": "get_time_and_onchain_context",
+        "tool_topic": "chain context",
+        "tool_result_preview": "{\n  \"chain_name\": \"ethereum\",\n  \"chain_id\": 1,\n  \"rpc_endpoint\": \"http://127.0.0.1:58818\",\n  \"current_time_unix\": 1780263100,\n  \"current_time_iso\": \"2026-05-31T21:31:40.162657+00:00\",\n  \"block_number\": 25218057,\n  \"gas_price_wei\": \"1094569673\",\n  \"supported_chains\": [\n    {\n      \"name\": \"ethereum\",\n      \"chain_id\": 1\n    },\n    {\n      \"name\": \"ethereum\",\n      \"chain_id\": 1\n    }\n  ]\n}"
+      },
+      {
+        "sender": "assistant",
+        "content": "",
+        "tool": "get_account_info",
+        "tool_topic": "Alice balance",
+        "tool_result_preview": "{\n  \"address\": \"0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266\",\n  \"balance_wei\": \"100000000000000000000\",\n  \"balance_eth\": \"100\",\n  \"nonce\": 6436\n}"
+      },
+      {
+        "sender": "assistant",
+        "content": "",
+        "tool": "encode_and_call",
+        "tool_topic": "quote 0.5 ETH to USDC",
+        "tool_result_preview": "{\n  \"success\": true,\n  \"result\": \"0x0000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000006f05b59d3b20000000000000000000000000000000000000000000000000000000000003b79b6b8\",\n  \"revert_reason\": null,\n  \"tx\": {\n    \"from\": \"0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266\",\n    \"to\": \"0...d19d4a2e9eb0ce3606eb48\",\n    \"chain_id\": 1\n  },\n  \"result_decoded\": {\n    \"kind\": \"raw_bytes\",\n    \"raw_hex\": \"0x0000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000006f05b59d3b20000000000000000000000000000000000000000000000000000000000003b79b6b8\",\n    \"byte_len\": 128\n  }\n}"
+      },
+      {
+        "sender": "assistant",
+        "content": "Quote came back: 0.5 ETH ≈ 998.922424 USDC on V2. Alice has 100 ETH, plenty of room.\n\nPlan:\n- tx1: `swapExactETHForTokens(0.5 ETH → USDC)`, minOut = 988.93 USDC (1% slippage)\n- tx2: `approve` USDC to V2 router\n- tx3: `addLiquidityETH(USDC, ...)` with 0.5 ETH, USDC desired = 998.92, mins at ~2%\n\nDeadline: now + 1800s.",
+        "tool": null,
+        "tool_topic": null,
+        "tool_result_preview": null
+      },
+      {
+        "sender": "assistant",
+        "content": "",
+        "tool": "stage_tx",
+        "tool_topic": "stage swap ETH to USDC",
+        "tool_result_preview": "{\n  \"from\": \"0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266\",\n  \"chain_id\": 1,\n  \"to\": \"0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D\",\n  \"value\": \"500000000000000000\",\n  \"data\": \"0x7ff36ab5000000000000000000000000000000000000000000000000000000003af1ec500000000000000000000000000000000000000000000000000000000000000080000000000000000000000000f39fd6e51aad88f6f4ce6ab8827279cfffb922660000000000000000000000000...00000000000000006a1cafc40000000000000000000000000000000000000000000000000000000000000002000000000000000000000000c02aaa39b223fe8d0a0e5c4f27ead9083c756cc2000000000000000000000000a0b86991c6218b36c1d19d4a2e9eb0ce3606eb48\",\n  \"description\": \"Swap 0.5 ETH to USDC on Uniswap V2 (minOut ~988.93 USDC)\",\n  \"kind\": \"swap\",\n  \"pending_tx_id\": 1,\n  \"batch_status\": \"Batch [1] pending\",\n  \"status\": \"queued\"\n}"
+      },
+      {
+        "sender": "assistant",
+        "content": "",
+        "tool": "stage_tx",
+        "tool_topic": "stage approve USDC",
+        "tool_result_preview": "{\n  \"from\": \"0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266\",\n  \"chain_id\": 1,\n  \"to\": \"0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48\",\n  \"value\": \"0\",\n  \"data\": \"0x095ea7b30000000000000000000000007a250d5630b4cf539739df2c5dacb4c659f2488d000000000000000000000000000000000000000000000000000000003b8a58b8\",\n  \"description\": \"Approve 998.922424 USDC to Uniswap V2 router\",\n  \"kind\": \"erc20_approve\",\n  \"pending_tx_id\": 2,\n  \"batch_status\": \"Batch [2] pending\",\n  \"status\": \"queued\"\n}"
+      },
+      {
+        "sender": "assistant",
+        "content": "",
+        "tool": "stage_tx",
+        "tool_topic": "stage add liquidity",
+        "tool_result_preview": "{\n  \"from\": \"0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266\",\n  \"chain_id\": 1,\n  \"to\": \"0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D\",\n  \"value\": \"500000000000000000\",\n  \"data\": \"0xf305d719000000000000000000000000a0b86991c6218b36c1d19d4a2e9eb0ce3606eb48000000000000000000000000000000000000000000000000000000003b8a58b8000000000000000000000000000000000000000000000000000000003a597fe800000000000000000000000000000000000000000000000006ccd46763f10000000000000000000000000000f39fd6e51aad88f6f4ce6ab8827279cfffb92266000000000000000000000000000000000000000000000000000000006a1cafc4\",\n  \"description\": \"Add liquidity to Uniswap V2 ETH/USDC pool with 0.5 ETH + ~998.92 USDC\",\n  \"kind\": \"add_liquidity\",\n  \"pending_tx_id\": 3,\n  \"batch_status\": \"Batch [3] pending\",\n  \"status\": \"queued\"\n}"
+      },
+      {
+        "sender": "assistant",
+        "content": "",
+        "tool": "simulate_batch",
+        "tool_topic": "simulate swap → approve → add liquidity",
+        "tool_result_preview": "{\n  \"simulation\": {\n    \"batch_success\": true,\n    \"stateful\": true,\n    \"from\": \"0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266\",\n    \"network\": \"sim-ethereum\",\n    \"total_gas\": 355233,\n    \"steps\": [\n      {\n        \"step\": 1,\n        \"chain_id\": 1,\n        \"label\": \"Swap 0.5 ETH to USDC on Uniswap V2 (minOut ~988.93 USDC)\",\n        \"success\": true,\n        \"result\": \"0xefbd8a80fbe8d1f16c3a0d937929a...8.93 USDC)\"\n    },\n    {\n      \"tx_id\": 2,\n      \"field\": \"label\",\n      \"provided\": \"approve USDC\",\n      \"actual\": \"Approve 998.922424 USDC to Uniswap V2 router\"\n    },\n    {\n      \"tx_id\": 3,\n      \"field\": \"label\",\n      \"provided\": \"addLiquidityETH\",\n      \"actual\": \"Add liquidity to Uniswap V2 ETH/USDC pool with 0.5 ETH + ~998.92 USDC\"\n    }\n  ],\n  \"batch_status\": \"Batch [1,2,3] passed\"\n}"
+      },
+      {
+        "sender": "assistant",
+        "content": "Simulation passed for the full sequence. Committing now.",
+        "tool": null,
+        "tool_topic": null,
+        "tool_result_preview": null
+      },
+      {
+        "sender": "assistant",
+        "content": "",
+        "tool": "commit_txs",
+        "tool_topic": "commit swap, approve, add liquidity",
+        "tool_result_preview": "{\n  \"status\": \"pending_approval\",\n  \"tx_ids\": [\n    1,\n    2,\n    3\n  ],\n  \"timestamp\": \"2026-05-31T21:32:29.175882+00:00\"\n}"
+      },
+      {
+        "sender": "assistant",
+        "content": "Staged and simulated cleanly, batch sent for signing.\n\n- tx-1 swap 0.5 ETH → ~998.92 USDC (min 988.93)\n- tx-2 approve 998.922424 USDC to V2 router\n- tx-3 addLiquidityETH: 0.5 ETH + 998.922424 USDC, min 0.49 ETH / 978.94 USDC, LP to Alice\n\nQuote/min from `getAmountsOut` with 1% slippage. Waiting for wallet approval — want me to widen slippage or change anything if you reject?",
+        "tool": null,
+        "tool_topic": null,
+        "tool_result_preview": null
+      }
+    ],
+    "tool_previews": [
+      {
+        "turn": 0,
+        "tool": "activate_skills",
+        "topic": "activate_skills",
+        "arguments": {
+          "skill_ids": [
+            "uniswap",
+            "common_erc20"
+          ]
+        },
+        "result_preview": "{\n  \"activated\": [\n    \"uniswap\"\n  ],\n  \"rejected\": [\n    [\n      \"common_erc20\",\n      \"invalid\"\n    ]\n  ],\n  \"applied_scope\": \"current_serve_cycle\"\n}"
+      },
+      {
+        "turn": 0,
+        "tool": "get_time_and_onchain_context",
+        "topic": "chain context",
+        "arguments": {
+          "topic": "chain context"
+        },
+        "result_preview": "{\n  \"chain_name\": \"ethereum\",\n  \"chain_id\": 1,\n  \"rpc_endpoint\": \"http://127.0.0.1:58818\",\n  \"current_time_unix\": 1780263100,\n  \"current_time_iso\": \"2026-05-31T21:31:40.162657+00:00\",\n  \"block_number\": 25218057,\n  \"gas_price_wei\": \"1094569673\",\n  \"supported_chains\": [\n    {\n      \"name\": \"ethereum\",\n      \"chain_id\": 1\n    },\n    {\n      \"name\": \"ethereum\",\n      \"chain_id\": 1\n    }\n  ]\n}"
+      },
+      {
+        "turn": 0,
+        "tool": "get_account_info",
+        "topic": "Alice balance",
+        "arguments": {
+          "address": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+          "chain_id": 1,
+          "include_tx_history": false,
+          "history_limit": 0,
+          "history_offset": 0,
+          "topic": "Alice balance"
+        },
+        "result_preview": "{\n  \"address\": \"0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266\",\n  \"balance_wei\": \"100000000000000000000\",\n  \"balance_eth\": \"100\",\n  \"nonce\": 6436\n}"
+      },
+      {
+        "turn": 0,
+        "tool": "encode_and_call",
+        "topic": "quote 0.5 ETH to USDC",
+        "arguments": {
+          "function_signature": "getAmountsOut(uint256,address[])",
+          "arguments": [
+            "500000000000000000",
+            "[\"0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2\",\"0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48\"]"
+          ],
+          "to": "0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D",
+          "value": "0",
+          "topic": "quote 0.5 ETH to USDC"
+        },
+        "result_preview": "{\n  \"success\": true,\n  \"result\": \"0x0000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000006f05b59d3b20000000000000000000000000000000000000000000000000000000000003b79b6b8\",\n  \"revert_reason\": null,\n  \"tx\": {\n    \"from\": \"0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266\",\n    \"to\": \"0...d19d4a2e9eb0ce3606eb48\",\n    \"chain_id\": 1\n  },\n  \"result_decoded\": {\n    \"kind\": \"raw_bytes\",\n    \"raw_hex\": \"0x0000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000006f05b59d3b20000000000000000000000000000000000000000000000000000000000003b79b6b8\",\n    \"byte_len\": 128\n  }\n}"
+      },
+      {
+        "turn": 0,
+        "tool": "stage_tx",
+        "topic": "stage swap ETH to USDC",
+        "arguments": {
+          "to": "0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D",
+          "description": "Swap 0.5 ETH to USDC on Uniswap V2 (minOut ~988.93 USDC)",
+          "data": {
+            "signature": "swapExactETHForTokens(uint256,address[],address,uint256)",
+            "args": [
+              "988933200",
+              "[\"0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2\",\"0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48\"]",
+              "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+              "1780264900"
+            ],
+            "raw": ""
+          },
+          "value": "500000000000000000",
+          "gas_limit": "",
+          "kind": "swap",
+          "topic": "stage swap ETH to USDC"
+        },
+        "result_preview": "{\n  \"from\": \"0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266\",\n  \"chain_id\": 1,\n  \"to\": \"0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D\",\n  \"value\": \"500000000000000000\",\n  \"data\": \"0x7ff36ab5000000000000000000000000000000000000000000000000000000003af1ec500000000000000000000000000000000000000000000000000000000000000080000000000000000000000000f39fd6e51aad88f6f4ce6ab8827279cfffb922660000000000000000000000000...00000000000000006a1cafc40000000000000000000000000000000000000000000000000000000000000002000000000000000000000000c02aaa39b223fe8d0a0e5c4f27ead9083c756cc2000000000000000000000000a0b86991c6218b36c1d19d4a2e9eb0ce3606eb48\",\n  \"description\": \"Swap 0.5 ETH to USDC on Uniswap V2 (minOut ~988.93 USDC)\",\n  \"kind\": \"swap\",\n  \"pending_tx_id\": 1,\n  \"batch_status\": \"Batch [1] pending\",\n  \"status\": \"queued\"\n}"
+      },
+      {
+        "turn": 0,
+        "tool": "stage_tx",
+        "topic": "stage approve USDC",
+        "arguments": {
+          "to": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+          "description": "Approve 998.922424 USDC to Uniswap V2 router",
+          "data": {
+            "signature": "approve(address,uint256)",
+            "args": [
+              "0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D",
+              "998922424"
+            ],
+            "raw": ""
+          },
+          "value": "0",
+          "gas_limit": "",
+          "kind": "erc20_approve",
+          "topic": "stage approve USDC"
+        },
+        "result_preview": "{\n  \"from\": \"0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266\",\n  \"chain_id\": 1,\n  \"to\": \"0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48\",\n  \"value\": \"0\",\n  \"data\": \"0x095ea7b30000000000000000000000007a250d5630b4cf539739df2c5dacb4c659f2488d000000000000000000000000000000000000000000000000000000003b8a58b8\",\n  \"description\": \"Approve 998.922424 USDC to Uniswap V2 router\",\n  \"kind\": \"erc20_approve\",\n  \"pending_tx_id\": 2,\n  \"batch_status\": \"Batch [2] pending\",\n  \"status\": \"queued\"\n}"
+      },
+      {
+        "turn": 0,
+        "tool": "stage_tx",
+        "topic": "stage add liquidity",
+        "arguments": {
+          "to": "0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D",
+          "description": "Add liquidity to Uniswap V2 ETH/USDC pool with 0.5 ETH + ~998.92 USDC",
+          "data": {
+            "signature": "addLiquidityETH(address,uint256,uint256,uint256,address,uint256)",
+            "args": [
+              "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+              "998922424",
+              "978943976",
+              "490000000000000000",
+              "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+              "1780264900"
+            ],
+            "raw": ""
+          },
+          "value": "500000000000000000",
+          "gas_limit": "",
+          "kind": "add_liquidity",
+          "topic": "stage add liquidity"
+        },
+        "result_preview": "{\n  \"from\": \"0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266\",\n  \"chain_id\": 1,\n  \"to\": \"0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D\",\n  \"value\": \"500000000000000000\",\n  \"data\": \"0xf305d719000000000000000000000000a0b86991c6218b36c1d19d4a2e9eb0ce3606eb48000000000000000000000000000000000000000000000000000000003b8a58b8000000000000000000000000000000000000000000000000000000003a597fe800000000000000000000000000000000000000000000000006ccd46763f10000000000000000000000000000f39fd6e51aad88f6f4ce6ab8827279cfffb92266000000000000000000000000000000000000000000000000000000006a1cafc4\",\n  \"description\": \"Add liquidity to Uniswap V2 ETH/USDC pool with 0.5 ETH + ~998.92 USDC\",\n  \"kind\": \"add_liquidity\",\n  \"pending_tx_id\": 3,\n  \"batch_status\": \"Batch [3] pending\",\n  \"status\": \"queued\"\n}"
+      },
+      {
+        "turn": 0,
+        "tool": "simulate_batch",
+        "topic": "simulate swap → approve → add liquidity",
+        "arguments": {
+          "aa_override": "",
+          "topic": "simulate swap → approve → add liquidity",
+          "transactions": [
+            {
+              "id": 1,
+              "kind": "swap",
+              "chain_id": 1,
+              "label": "swap ETH→USDC"
+            },
+            {
+              "id": 2,
+              "kind": "erc20_approve",
+              "chain_id": 1,
+              "label": "approve USDC"
+            },
+            {
+              "id": 3,
+              "kind": "add_liquidity",
+              "chain_id": 1,
+              "label": "addLiquidityETH"
+            }
+          ]
+        },
+        "result_preview": "{\n  \"simulation\": {\n    \"batch_success\": true,\n    \"stateful\": true,\n    \"from\": \"0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266\",\n    \"network\": \"sim-ethereum\",\n    \"total_gas\": 355233,\n    \"steps\": [\n      {\n        \"step\": 1,\n        \"chain_id\": 1,\n        \"label\": \"Swap 0.5 ETH to USDC on Uniswap V2 (minOut ~988.93 USDC)\",\n        \"success\": true,\n        \"result\": \"0xefbd8a80fbe8d1f16c3a0d937929a...8.93 USDC)\"\n    },\n    {\n      \"tx_id\": 2,\n      \"field\": \"label\",\n      \"provided\": \"approve USDC\",\n      \"actual\": \"Approve 998.922424 USDC to Uniswap V2 router\"\n    },\n    {\n      \"tx_id\": 3,\n      \"field\": \"label\",\n      \"provided\": \"addLiquidityETH\",\n      \"actual\": \"Add liquidity to Uniswap V2 ETH/USDC pool with 0.5 ETH + ~998.92 USDC\"\n    }\n  ],\n  \"batch_status\": \"Batch [1,2,3] passed\"\n}"
+      },
+      {
+        "turn": 0,
+        "tool": "commit_txs",
+        "topic": "commit swap, approve, add liquidity",
+        "arguments": {
+          "topic": "commit swap, approve, add liquidity",
+          "tx_ids": [
+            1,
+            2,
+            3
+          ]
+        },
+        "result_preview": "{\n  \"status\": \"pending_approval\",\n  \"tx_ids\": [\n    1,\n    2,\n    3\n  ],\n  \"timestamp\": \"2026-05-31T21:32:29.175882+00:00\"\n}"
+      }
+    ],
+    "failure_category": null,
+    "app": {
+      "source": "default",
+      "path": null,
+      "loaded_name": "default"
+    },
+    "skills": {
+      "mode": "restricted",
+      "allowed": [
+        "uniswap"
+      ],
+      "activated_skills": [
+        "uniswap"
+      ],
+      "bundle_path": "../output/eval/model-bench-public-skills-expansion-20260531/specs/add_eth_usdc_v2_lp_after_half_swap/claude-opus-4.7/pass-001/spec-skills/add_eth_usdc_v2_lp_after_half_swap-skills.json",
+      "bundle_revision": "fnv1a64:b60b7265d48b4779"
+    },
+    "environment": {
+      "chain_id": 1,
+      "network": "ethereum",
+      "providers_path": "/Users/aronmegyeri/.aomi/test-env/providers.toml",
+      "endpoint_name": "ethereum",
+      "funding_ledger": [
+        {
+          "chain_id": 1,
+          "address": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+          "balances": {
+            "ETH": "100",
+            "USDC": "10000"
+          }
+        },
+        {
+          "chain_id": 1,
+          "address": "0x70997970c51812dc3a010c7d01b50e0d17dc79c8",
+          "balances": {
+            "ETH": "100",
+            "USDC": "10000"
+          }
+        }
+      ]
+    }
+  }
+}

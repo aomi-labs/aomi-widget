@@ -20,6 +20,7 @@
   "dependencies": {
     "@aomi-labs/auth": "workspace:*",
     "@aomi-labs/client": "workspace:*",
+    "@aomi-labs/deploy": "workspace:*",
     "@aomi-labs/mcp-core": "workspace:*",
     "@aomi-labs/react": "workspace:*",
     "@aomi-labs/widget-lib": "workspace:*",

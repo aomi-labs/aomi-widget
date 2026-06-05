@@ -1,0 +1,51 @@
+[
+  {
+    "id": "rocket_pool",
+    "name": "rocket_pool",
+    "description": "Use when users want to stake ETH with Rocket Pool to receive rETH, or burn rETH to redeem ETH, on Ethereum.",
+    "tags": [
+      "stake",
+      "rocket-pool",
+      "reth",
+      "liquid-staking",
+      "eth"
+    ],
+    "tool_names": [
+      "get_time_and_onchain_context",
+      "brave_search",
+      "encode_and_call",
+      "get_account_info",
+      "get_contract",
+      "sync_chain",
+      "simulate_batch",
+      "stage_tx",
+      "commit_eip712",
+      "commit_txs"
+    ],
+    "injected_tools": [],
+    "source": "aomi_builtin",
+    "est_tokens": 885,
+    "activation_tokens": 891,
+    "instruction_md": "## Rocket Pool: rocket_pool_deposit\n- contract: 0xCE15294273CFb9D9b628F4D61636623decDF4fdC (chain 1)\n- output_token: Rocket Pool rETH\n- gotcha: deposit() is payable — msg.value is the amount to stake. The pool may be full; check getBalance() against getMaximumDepositAmount() before depositing.\n\n## Rocket Pool: rocket_pool_burn\n- contract: 0xae78736Cd615f374D3085123A210448E74Fc6393 (chain 1)\n- gotcha: Call burn(uint256) on the rETH token to redeem for ETH. Requires sufficient rETH collateral in the protocol; check getTotalCollateral().\n\n\n## Rocket Pool: Protocol token\n- Rocket Pool rETH: 0xae78736Cd615f374D3085123A210448E74Fc6393 (chain 1)\n\n## Rocket Pool: ABI Signatures (reference only)\nRocket Pool Read Calls:\n- getBalance() -> uint256\n- getMaximumDepositAmount() -> uint256\n- getExchangeRate() -> uint256\n- getTotalCollateral() -> uint256\n- balanceOf(address) -> uint256\nRocket Pool DepositPool [rocket_deposit_pool]:\n- deposit() → \nRocket Pool rETH [rocket_reth]:\n- burn(uint256) → \n- transfer(address,uint256) → bool\n- transferFrom(address,address,uint256) → bool\nERC20 [erc20]:\n- approve(address,uint256) → bool\n\n## Rocket Pool: Procedure\n1. Call `get_time_and_onchain_context` to confirm wallet, chain, and block context.\n2. Check ETH balance, or rETH balance with `encode_and_call` (balanceOf).\n3. For staking: check deposit pool capacity (`getBalance()`, `getMaximumDepositAmount()`). Show exchange rate via `getExchangeRate()`.\n4. Stage the deposit/burn/approve transaction with `stage_tx`, then run `simulate_batch` on the staged id(s).\n5. Inspect the simulate_batch result and `rocket_pool_guard_*` fields — if `rocket_pool_guard_blocked`, STOP. Do NOT commit.\n6. Only after the simulation is clean and the user confirms, send via `commit_txs`.\n## Rocket Pool: Critical Rules\n- ONLY use official Rocket Pool contract addresses listed above. Never stage a transaction whose `to` is anything else.\n- Always stage and simulate the batch with `stage_tx` + `simulate_batch` before `commit_txs`. The guard runs on `simulate_batch` (post_call) and on `commit_txs` (pre_call) — both will block a fund-loss transaction.\n- Check `rocket_pool_guard_blocked` in the `simulate_batch` result — if true, STOP and surface the `rocket_pool_guard_warnings` to the user. Do NOT call `commit_txs`.\n- For `deposit()`: msg.value is the ETH to stake. rETH is minted to the calling wallet (the user). No recipient parameter exists — funds always go to msg.sender.\n- Before depositing, check deposit pool capacity: call `getBalance()` and `getMaximumDepositAmount()` on the DepositPool. If the requested stake exceeds available capacity, STOP and tell the user — the tx will revert.\n- Rocket Pool enforces a minimum deposit (currently 0.01 ETH). If the user's amount is below this, warn them before building the tx.\n- For burning rETH back to ETH, call `burn(uint256)` on the rETH token. ETH is returned to msg.sender. Check `getTotalCollateral()` — if insufficient collateral, the burn will revert.\n- Use `getExchangeRate()` on the rETH token to show the user the current rETH/ETH rate before staking or burning.\n- For any `approve()` call, the spender MUST be a Rocket Pool contract listed above — never approve an arbitrary address.\n- DO NOT stage `transfer` or `transferFrom` on the rETH token while this skill is active. The skill is for staking and burning only — moving rETH to a recipient is the most common drain pattern and will be blocked. If the user genuinely wants to send rETH, ask them to deactivate the rocket_pool skill first.",
+    "tool_hooks": [
+      {
+        "tool": "simulate_batch",
+        "pre_call": [],
+        "post_call": [
+          "rocket-pool-known-addrs"
+        ]
+      },
+      {
+        "tool": "stage_tx",
+        "pre_call": [],
+        "post_call": [
+          "rocket-pool-known-addrs"
+        ]
+      }
+    ],
+    "tools_namespace": "evm-core",
+    "chain_ids": [
+      1
+    ]
+  }
+]

@@ -1,0 +1,5 @@
+[eval] PASS stake_eth_rocket_pool 1 turn(s) 10 tool call(s) 3.49638 cr, 58930 in / 779 out tok, 56856 cached / 0 reasoning tok 1 warning(s) duration 42s
+warnings:
+  no_tool_errors tool error envelope(s) observed for: Rocket Pool stake 0.1 ETH
+report full json: ../output/eval/model-bench-public-skills-gpt55-opus48-sonnet46-20260530/specs/stake_eth_rocket_pool/claude-sonnet-4.6/pass-002/20260530T232928.715392000Z.full.json
+report compact json: ../output/eval/model-bench-public-skills-gpt55-opus48-sonnet46-20260530/specs/stake_eth_rocket_pool/claude-sonnet-4.6/pass-002/20260530T232928.715392000Z.compact.json

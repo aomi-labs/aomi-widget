@@ -1,0 +1,54 @@
+[
+  {
+    "id": "zksync_era_native",
+    "name": "zksync_era_native",
+    "description": "Use when users want to bridge ETH or ERC20s between Ethereum L1 and zkSync Era via the canonical L1SharedBridge / Mailbox. Fully onchain: security is enforced by the rollup's validity (zk) proofs — no relayers, bonders, or attesters.",
+    "tags": [
+      "bridge",
+      "zksync",
+      "zksync-era",
+      "zk-rollup",
+      "rollup",
+      "l1",
+      "l2",
+      "canonical"
+    ],
+    "tool_names": [
+      "get_time_and_onchain_context",
+      "brave_search",
+      "encode_and_call",
+      "get_account_info",
+      "get_contract",
+      "sync_chain",
+      "simulate_batch",
+      "stage_tx",
+      "commit_eip712",
+      "commit_txs"
+    ],
+    "injected_tools": [],
+    "source": "aomi_builtin",
+    "est_tokens": 1077,
+    "activation_tokens": 1085,
+    "instruction_md": "## zkSync Era Native Bridge: Scope\n\nCanonical L1↔L2 bridge between Ethereum (chain 1) and zkSync Era (chain 324) via the `L1SharedBridge` (ERC20) and the `Mailbox` (ETH + generic L2 calls). Fully onchain — security comes from the rollup's zk validity proofs. No external relayers, bonders, or attesters.\n\nFor fast non-canonical bridging to zkSync Era (where available), use third-party bridges. This skill is the trust-minimized canonical route.\n\n## zkSync Era Native Bridge: Router Addresses\n- zkSync Era L1SharedBridge: 0xd7f9f54194c633f36ccd5f3da84ad4a1c38cb2cb (chain 1)\n- zkSync Era Mailbox (ETH + generic L2 calls): 0x32400084c286cf3e17e7b677ea9583e60a000324 (chain 1)\n\nUse these router addresses and the ABI signatures below as the source of truth. Do not call `get_contract` to inspect zkSync bridge ABIs during normal bridge preparation.\n\n## zkSync Era Native Bridge: zksync_era_native\n- deposit_function (ERC20 via L1SharedBridge): deposit(address,address,uint256,uint256,uint256,address)\n- deposit_args:\n  - recipient\n  - source_token\n  - amount\n  - l2_tx_gas_limit\n  - l2_tx_gas_per_pubdata\n  - refund_recipient\n- preferred_deposit_function (ETH + generic via Mailbox): requestL2Transaction(address,uint256,bytes,uint256,uint256,bytes[],address)\n- preferred_deposit_args:\n  - recipient\n  - l2_value\n  - calldata\n  - l2_gas_limit\n  - gas_per_pubdata\n  - factory_deps\n  - refund_recipient\n- value_formula: l2_gas_cost_in_eth_plus_amount_for_eth\n- settlement: deposit ~10-20 min, withdrawal ~24h + onchain finalize\n- deposit_contracts: {\"1\": \"0xd7f9f54194c633f36ccd5f3da84ad4a1c38cb2cb\"}\n- approve_to: {\"1\": \"0xd7f9f54194c633f36ccd5f3da84ad4a1c38cb2cb\"}\n- defaults:\n  - l2_tx_gas_limit: 10000000\n  - l2_tx_gas_per_pubdata: 800\n  - note: ETH: Mailbox.requestL2Transaction with msg.value = amount + l2_gas_cost, l2_value = amount. ERC20: L1SharedBridge.deposit after approve.\n- claim_function: finalizeWithdrawal(uint256,uint256,uint16,bytes,bytes32[])\n- claim_wait: ~24h (zk proof finalization)\n\n\n## zkSync Era Native Bridge: Parameter Rules\n\n- **recipient / _l2Receiver**: MUST equal user's wallet. NEVER `address(0)`.\n- **refund_recipient**: where unused L2 gas returns. Set to user's wallet. `address(0)` here burns refunds.\n- **l2_tx_gas_limit** / **l2_tx_gas_per_pubdata**: zkSync-specific gas accounting. Defaults in the manifest are safe starting points; precise cost must be quoted by calling `L1SharedBridge.l2TransactionBaseCost(gasPrice, l2TxGasLimit, l2TxGasPerPubdata)` via `encode_and_call`.\n- **msg.value**:\n  - ETH deposits: `msg.value = amount + l2_gas_cost_in_eth` (the Mailbox routes `l2_value` as ETH on L2, excess pays L2 gas).\n  - ERC20 deposits: `msg.value = l2_gas_cost_in_eth` (only pays L2 gas; tokens go via L1SharedBridge escrow).\n\n## zkSync Era Native Bridge: Procedure\n\n1. Call `get_time_and_onchain_context`. Deposits start on chain_id 1.\n2. Pick the path by token direction:\n   - ETH: `Mailbox.requestL2Transaction(recipient, l2_value=amount, 0x, l2_gas_limit, pubdata, [], refund_recipient)` with `msg.value = amount + l2_gas_cost`.\n   - ERC20: `L1SharedBridge.deposit(recipient, source_token, amount, l2_gas_limit, pubdata, refund_recipient)` with `msg.value = l2_gas_cost`.\n3. Quote `l2_gas_cost` via `encode_and_call` against `L1SharedBridge.l2TransactionBaseCost`.\n4. For ERC20: check allowance; if short, simulate `approve(L1SharedBridge, amount)` first.\n5. Simulate the deposit with `encode_and_call`.\n6. Inspect `zksync_era_native_guard_*`. If blocked, stop and report.\n7. After explicit user confirmation, send via `commit_txs`.\n8. For L2→L1: explain the ~24h window and that finalization requires a Merkle proof from a zkSync RPC.\n\n## zkSync Era Native Bridge: Critical Rules\n\n- Always simulate before sending. If `zksync_era_native_guard_blocked` is true, STOP.\n- Deposit target MUST be one of: L1SharedBridge (`0xd7f9f54194c633f36ccd5f3da84ad4a1c38cb2cb`) for ERC20, or Mailbox (`0x32400084c286cf3e17e7b677ea9583e60a000324`) for ETH/generic.\n- Approve spender MUST be the L1SharedBridge.\n- L2→L1 withdrawals: the user must initiate `withdraw` on L2 first, then wait ~24h for zk proof finalization, then call `finalizeWithdrawal` on L1SharedBridge with a Merkle proof obtained from a zkSync Era node via `zks_getL2ToL1LogProof`. Do not fabricate proof data.",
+    "tool_hooks": [
+      {
+        "tool": "simulate_batch",
+        "pre_call": [],
+        "post_call": [
+          "zksync-era-native-known-addrs"
+        ]
+      },
+      {
+        "tool": "stage_tx",
+        "pre_call": [],
+        "post_call": [
+          "zksync-era-native-known-addrs"
+        ]
+      }
+    ],
+    "tools_namespace": "evm-core",
+    "chain_ids": [
+      1
+    ]
+  }
+]

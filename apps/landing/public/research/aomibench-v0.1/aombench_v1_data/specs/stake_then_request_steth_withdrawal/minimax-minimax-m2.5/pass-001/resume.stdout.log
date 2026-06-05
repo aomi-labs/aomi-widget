@@ -1,0 +1,8 @@
+[eval] FAIL stake_then_request_steth_withdrawal 1 turn(s) 21 tool call(s) 4.70466 cr, 309734 in / 510 out tok 1 warning(s) duration 320s
+errors:
+  tool no matching tool arguments for stage_tx:$.to
+  stETH Transfer events for mint and withdrawal request stETH Transfer events for mint and withdrawal request observed 0 log(s), expected at least 2 from block 25217949 through 25217951
+warnings:
+  no_tool_errors tool error envelope(s) observed for: Get Lido WithdrawalQueue contract ABI, activate_skills, Get Lido withdrawal queue contract, Get Lido contract ABI
+report full json: ../output/eval/model-bench-public-skills-expansion-20260531/specs/stake_then_request_steth_withdrawal/minimax-m2.5/pass-001/20260531T211443.775758000Z.full.json
+report compact json: ../output/eval/model-bench-public-skills-expansion-20260531/specs/stake_then_request_steth_withdrawal/minimax-m2.5/pass-001/20260531T211443.775758000Z.compact.json
