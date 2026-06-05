@@ -47,7 +47,12 @@ function init(): NonNullable<Globals["__aomiAuth"]> {
 
   const registered: ProviderModule[] = [dummyProvider];
   if (env.privyAppId) {
-    registered.push(makePrivyProvider({ appId: env.privyAppId }));
+    registered.push(
+      makePrivyProvider({
+        appId: env.privyAppId,
+        signerId: env.privySignerId,
+      }),
+    );
   }
   const providers = new MapProviderRegistry(registered);
 
