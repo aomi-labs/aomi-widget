@@ -18,8 +18,10 @@ const srcDir = path.resolve(baseDir, "../src");
 
 function resolveFileType(filePath) {
   if (filePath.endsWith(".css")) return "registry:style";
-  if (filePath.includes("/hooks/")) return "registry:hook";
-  if (filePath.includes("/lib/")) return "registry:lib";
+  if (filePath.includes("/hooks/") || filePath.startsWith("hooks/"))
+    return "registry:hook";
+  if (filePath.includes("/lib/") || filePath.startsWith("lib/"))
+    return "registry:lib";
   return "registry:component";
 }
 
