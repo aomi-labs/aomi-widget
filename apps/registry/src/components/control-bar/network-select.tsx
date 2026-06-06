@@ -23,7 +23,7 @@ import {
   useAomiAuthAdapter,
   useWalletActivationGuard,
 } from "../../lib/aomi-auth-adapter";
-import { useAomiWalletNetworkPreferences } from "../../lib/aomi-auth-adapter/network-preferences";
+import { useOptionalAomiWalletNetworkPreferences } from "../../lib/aomi-auth-adapter/network-preferences";
 import type {
   AomiNetworkTarget,
   SolanaNetworkOption,
@@ -50,8 +50,11 @@ export const NetworkSelect: FC<NetworkSelectProps> = ({
   chains,
 }) => {
   const adapter = useAomiAuthAdapter();
-  const { selectedEvmChainId, selectedSolanaNetwork } =
-    useAomiWalletNetworkPreferences();
+  // Optional: a standalone <AomiFrame /> (e.g. docs demo / SSR) may render
+  // without a wallet provider mounting the network preferences context.
+  const networkPreferences = useOptionalAomiWalletNetworkPreferences();
+  const selectedEvmChainId = networkPreferences?.selectedEvmChainId;
+  const selectedSolanaNetwork = networkPreferences?.selectedSolanaNetwork;
   const [open, setOpen] = useState(false);
   const [pendingTarget, setPendingTarget] = useState<AomiNetworkTarget | null>(
     null,
