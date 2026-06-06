@@ -223,7 +223,7 @@ const Composer: FC = () => {
       <ComposerPrimitive.Root className="aui-composer-root rounded-4xl bg-muted/20 text-card-foreground border-border/40 relative flex w-full flex-col border px-1 pt-2">
         <ComposerPrimitive.Input
           placeholder="Send a message..."
-          className="aui-composer-input text-foreground placeholder:text-muted-foreground/60 ml-3 mt-1 max-h-32 min-h-14 w-full resize-none bg-transparent px-3.5 pb-2 pt-1.5 text-sm outline-none dark:text-white"
+          className="aui-composer-input text-foreground placeholder:text-muted-foreground/70 ml-3 mt-1 max-h-32 min-h-14 w-full resize-none bg-transparent px-3.5 pb-2 pt-1.5 text-sm outline-none dark:text-foreground dark:placeholder:text-muted-foreground/80"
           rows={1}
           autoFocus
           aria-label="Message input"
@@ -266,7 +266,7 @@ const ComposerAction: FC = () => {
               type="submit"
               variant="default"
               size="icon"
-              className="aui-composer-send mr-2 size-[38px] shrink-0 rounded-full p-1 md:mr-3 md:size-[34px]"
+              className="aui-composer-send bg-foreground text-background hover:bg-foreground/90 mr-2 size-[38px] shrink-0 rounded-full p-1 md:mr-3 md:size-[34px]"
               aria-label="Send message"
             >
               <ArrowUpIcon className="aui-composer-send-icon size-5" />
