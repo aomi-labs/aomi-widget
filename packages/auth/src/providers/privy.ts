@@ -68,6 +68,11 @@ export interface PrivyProviderConfig {
    *  page can boot `<PrivyProvider>` with the right credential. Public. */
   appId: string;
 
+  /** Optional Privy key quorum id to grant as an additional signer on the
+   *  user's embedded wallet during the portal login flow. Public id; the
+   *  corresponding private key remains server-side. */
+  signerId?: string;
+
   /** Optional override of where the portal hosts the login page. Defaults
    *  to `${baseUrl}/auth/privy`. Override in tests or if the portal moves
    *  the page. */
@@ -140,6 +145,9 @@ export function makePrivyProvider(config: PrivyProviderConfig): ProviderModule {
       const url = new URL(loginPath, req.baseUrl);
       url.searchParams.set("state", req.pending.stateToken);
       url.searchParams.set("app_id", config.appId);
+      if (config.signerId) {
+        url.searchParams.set("signer_id", config.signerId);
+      }
       return {
         kind: "redirect",
         redirectUrl: url.toString(),
