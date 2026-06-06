@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import {
   Environment,
   type TExternalWallet,
@@ -174,6 +174,17 @@ function DevAnvilRpcHook({ children }: { children: ReactNode }) {
 }
 
 export function LandingParaProvider({ children }: { children: ReactNode }) {
+  // The Para SDK + wagmi providers are browser-only: they read `window` and
+  // wagmi hooks throw under SSR/prerender (`useConfig must be used within
+  // WagmiProvider`). Mount the wallet stack only after hydration so static
+  // export / SSR never renders it. Server and first client render both produce
+  // `null`, so there's no hydration mismatch.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+  if (!mounted) {
+    return null;
+  }
+
   const content = paraApiKey ? (
     <DevAnvilRpcHook>{children}</DevAnvilRpcHook>
   ) : (

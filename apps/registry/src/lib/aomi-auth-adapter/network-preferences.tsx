@@ -136,3 +136,14 @@ export function useAomiWalletNetworkPreferences(): NetworkPreferencesContextValu
   }
   return context;
 }
+
+/**
+ * Non-throwing variant for components that may render without a wallet
+ * provider in the tree — e.g. a standalone <AomiFrame /> on a docs page or
+ * during SSR/prerender, where no auth-adapter provider mounts the network
+ * preferences context. Returns null when the provider is absent so callers
+ * can degrade gracefully instead of crashing the render.
+ */
+export function useOptionalAomiWalletNetworkPreferences(): NetworkPreferencesContextValue | null {
+  return useContext(NetworkPreferencesContext);
+}

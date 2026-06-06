@@ -236,6 +236,7 @@ function PrivySolanaRuntimeDriverInner() {
       dismissNotification: () => undefined,
       clearAllNotifications: () => undefined,
       pendingWalletRequests,
+      hasBlockingWalletRequests: pendingWalletRequests.length > 0,
       startWalletRequest: () => undefined,
       resolveWalletRequest,
       rejectWalletRequest,
