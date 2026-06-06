@@ -4,6 +4,7 @@ import { useState } from "react";
 import { SettingsSidebar, SettingsCategory } from "./settings-sidebar";
 import { GeneralSettings } from "./general-settings";
 import { AppsSettings } from "./apps-settings";
+import { DeploySettings } from "./deploy-settings";
 import { AppKeys } from "./app-keys";
 import { Bots } from "./bots";
 import { Secrets } from "./secrets";
@@ -19,6 +20,8 @@ export function SettingsLayout() {
         return <GeneralSettings />;
       case "apps":
         return <AppsSettings />;
+      case "deploy":
+        return <DeploySettings />;
       case "app-keys":
         return <AppKeys />;
       case "bots":

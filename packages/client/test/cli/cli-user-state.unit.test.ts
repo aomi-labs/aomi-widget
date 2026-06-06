@@ -4,52 +4,52 @@ import {
   pendingTxsFromBackendUserState,
   walletSnapshotFromUserState,
 } from "../../src/cli/user-state";
+import { UserState } from "../../src/types";
 
 describe("CLI user state AA fields", () => {
   it("omits execution context when aa is unspecified", () => {
     const state = buildCliUserState("0xabc", 8453);
     expect(state).toMatchObject({
-      address: "0xabc",
-      chain_id: 8453,
-      is_connected: true,
+      evm: { address: "0xabc", chain_id: 8453 },
+      connection: { is_connected: true },
       ext: { client_type: "ts_cli" },
     });
-    expect(state.aa_mode).toBeUndefined();
-    expect(state.wallet_kind).toBeUndefined();
+    expect(state.evm?.aa).toBeUndefined();
+    expect(UserState.walletKind(state)).toBe("eoa");
   });
 
-  it("maps null aaMode input to aa_mode=none", () => {
+  it("maps null aaMode input to aa.mode=none", () => {
     expect(buildCliUserState("0xabc", 8453, { aaMode: null })).toMatchObject({
-      address: "0xabc",
-      chain_id: 8453,
-      is_connected: true,
-      aa_mode: "none",
-      wallet_kind: "eoa",
+      evm: { address: "0xabc", chain_id: 8453, aa: { mode: "none" } },
+      connection: { is_connected: true },
     });
   });
 
   it("maps 4337 with separate smart account to eoa walletKind", () => {
-    expect(
-      buildCliUserState("0xabc", 8453, {
-        aaMode: "4337",
-        smartAccount: "0xdef",
-      }),
-    ).toMatchObject({
-      address: "0xabc",
-      chain_id: 8453,
-      is_connected: true,
-      aa_mode: "4337",
-      wallet_kind: "eoa",
+    const state = buildCliUserState("0xabc", 8453, {
+      aaMode: "4337",
+      smartAccount: "0xdef",
     });
+    expect(state).toMatchObject({
+      evm: {
+        address: "0xabc",
+        chain_id: 8453,
+        aa: { mode: "4337", smart_account: "0xdef" },
+      },
+      connection: { is_connected: true },
+    });
+    // smart_account !== connected address → derived kind is eoa.
+    expect(UserState.walletKind(state)).toBe("eoa");
   });
 
-  it("derives aaMode and smartAccount from new UserState schema", () => {
+  it("derives aaMode and smartAccount from nested UserState schema", () => {
     const snapshot = walletSnapshotFromUserState({
-      address: "0xdef",
-      chain_id: 8453,
-      is_connected: true,
-      wallet_kind: "smart-account",
-      aa_mode: "4337",
+      evm: {
+        address: "0xdef",
+        chain_id: 8453,
+        aa: { mode: "4337", smart_account: "0xdef" },
+      },
+      connection: { is_connected: true },
     });
 
     expect(snapshot).toEqual({

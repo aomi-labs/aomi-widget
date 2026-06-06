@@ -58,10 +58,8 @@ describe("ClientSession ext helpers", () => {
     await session.sendAsync("ping");
 
     expect(sendMessage.mock.calls[0][2]?.userState).toEqual({
-      address: "0xabc",
-      chain_id: 1,
-      is_connected: true,
-      ens_name: "wallet.eth",
+      evm: { address: "0xabc", chain_id: 1, ens_name: "wallet.eth" },
+      connection: { is_connected: true },
       ext: {
         SIMMER_API_KEY: "sk_live_2",
         PARA_API_KEY: "para_live_2",
@@ -83,8 +81,10 @@ describe("ClientSession ext helpers", () => {
     session.removeExtValue("PARA_API_KEY");
     await session.sendAsync("first");
 
+    // Input has no chain_id, so reconcile strips is_connected and drops the
+    // now-empty connection block — leaving just the evm address.
     expect(sendMessage.mock.calls[0][2]?.userState).toEqual({
-      address: "0xdef",
+      evm: { address: "0xdef" },
       ext: { SIMMER_API_KEY: "sk_live_3" },
     });
 
@@ -92,7 +92,7 @@ describe("ClientSession ext helpers", () => {
     await session.sendAsync("second");
 
     expect(sendMessage.mock.calls[1][2]?.userState).toEqual({
-      address: "0xdef",
+      evm: { address: "0xdef" },
     });
     expect(sendMessage.mock.calls[1][2]?.userState?.ext).toBeUndefined();
 
@@ -128,7 +128,7 @@ describe("ClientSession ext helpers", () => {
     await session.sendAsync("hello from web");
 
     expect(sendMessage.mock.calls[0][2]?.userState).toEqual({
-      address: "0x123",
+      evm: { address: "0x123" },
       ext: { client_type: CLIENT_TYPE_WEB_UI },
     });
 
@@ -191,9 +191,8 @@ describe("ClientSession ext helpers", () => {
     await session.sendAsync("keep chain");
 
     expect(sendMessage.mock.calls[0][2]?.userState).toMatchObject({
-      address: "0xabc",
-      chain_id: 8453,
-      is_connected: true,
+      evm: { address: "0xabc", chain_id: 8453 },
+      connection: { is_connected: true },
     });
 
     session.close();
@@ -204,14 +203,14 @@ describe("ClientSession ext helpers", () => {
     const session = new Session(client, {
       sessionId: "session-unit-5c",
       userState: {
-        address: "0xabc",
-        chain_id: 8453,
-        is_connected: true,
-        wallet_kind: "smart-account",
-        aa_mode: "4337",
-        wallet_provider: "baseAccount",
-        sponsored: true,
-        sponsor_provider: "coinbase",
+        evm: {
+          address: "0xabc",
+          chain_id: 8453,
+          // smart_account === address ⟹ derived walletKind is smart-account.
+          aa: { mode: "4337", smart_account: "0xabc" },
+          sponsorship: { sponsored: true, sponsor_provider: "coinbase" },
+        },
+        connection: { is_connected: true, provider: "baseAccount" },
       },
     });
 
@@ -228,39 +227,37 @@ describe("ClientSession ext helpers", () => {
     await session.syncUserState();
     await session.sendAsync("keep aa state");
 
-    expect(sendMessage.mock.calls[0][2]?.userState).toMatchObject({
-      address: "0xabc",
-      chain_id: 8453,
-      is_connected: true,
-      wallet_kind: "smart-account",
-      aa_mode: "4337",
-      wallet_provider: "baseAccount",
-      sponsored: true,
-      sponsor_provider: "coinbase",
+    const sent = sendMessage.mock.calls[0][2]?.userState;
+    expect(sent).toMatchObject({
+      evm: {
+        address: "0xabc",
+        chain_id: 8453,
+        aa: { mode: "4337", smart_account: "0xabc" },
+        sponsorship: { sponsored: true, sponsor_provider: "coinbase" },
+      },
+      connection: { is_connected: true, provider: "baseAccount" },
     });
+    expect(UserState.walletKind(sent)).toBe("smart-account");
 
     session.close();
   });
 
-  it("normalizes camelCase user_state aliases", () => {
-    expect(
-      UserState.normalize({
-        address: "0xabc",
-        aaMode: "4337",
-        walletKind: "smart-account",
-        walletProvider: "baseAccount",
-        authMethod: "google",
-        sponsorProvider: "coinbase",
-        sponsorAccount: "gp_test",
-      }),
-    ).toMatchObject({
+  it("normalizes camelCase user_state aliases into the nested shape", () => {
+    expect(UserState.normalize({
       address: "0xabc",
-      aa_mode: "4337",
-      wallet_kind: "smart-account",
-      wallet_provider: "baseAccount",
-      auth_method: "google",
-      sponsor_provider: "coinbase",
-      sponsor_account: "gp_test",
+      aaMode: "4337",
+      walletKind: "smart-account",
+      walletProvider: "baseAccount",
+      authMethod: "google",
+      sponsorProvider: "coinbase",
+      sponsorAccount: "gp_test",
+    })).toMatchObject({
+      evm: {
+        address: "0xabc",
+        aa: { mode: "4337" },
+        sponsorship: { sponsor_provider: "coinbase", sponsor_account: "gp_test" },
+      },
+      connection: { provider: "baseAccount", auth_method: "google" },
     });
   });
 
@@ -647,11 +644,13 @@ describe("ClientSession ext helpers", () => {
     });
 
     expect(session.getUserState()).toMatchObject({
-      aa_mode: "7702",
-      pending_txs: {
-        7: expect.objectContaining({
-          chain_id: 8453,
-        }),
+      evm: { aa: { mode: "7702" } },
+      pending: {
+        evm_txs: {
+          7: expect.objectContaining({
+            chain_id: 8453,
+          }),
+        },
       },
     });
 
@@ -983,7 +982,7 @@ describe("ClientSession ext helpers", () => {
     session.close();
   });
 
-  it("rebuilds solana_sign requests from user_state.pending_solana_txs", async () => {
+  it("rebuilds solana_sign requests from user_state.pending.svm_ixs", async () => {
     const { client, fetchState } = createMockClient();
     const session = new Session(client, {
       sessionId: "session-solana-4",
@@ -1003,12 +1002,14 @@ describe("ClientSession ext helpers", () => {
         chain_id: 1,
         is_connected: true,
         svm_address: "So1aBcExampleSigner",
-        pending_solana_txs: {
-          12: {
-            signer: "So1aBcExampleSigner",
-            cluster: "solana:mainnet",
-            description: "byreal swap",
-            unsigned_tx: "AQABAg",
+        pending: {
+          svm_ixs: {
+            12: {
+              signer: "So1aBcExampleSigner",
+              cluster: "solana:mainnet",
+              description: "byreal swap",
+              unsigned_tx: "AQABAg",
+            },
           },
         },
       },
