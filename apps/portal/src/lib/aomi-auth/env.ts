@@ -18,6 +18,9 @@ export interface AomiAuthEnv {
   /** Privy's SPKI JWT verification key. Server-only. Privy auth remains
    *  disabled when unset so browser-reported subjects are never trusted. */
   privyJwtVerificationKey?: string;
+  /** Privy key quorum id to grant as an additional signer on login. Public;
+   *  the matching authorization private key stays server-side. */
+  privySignerId?: string;
 }
 
 export function readEnv(): AomiAuthEnv {
@@ -49,6 +52,8 @@ export function readEnv(): AomiAuthEnv {
   const privyAppId =
     process.env.PRIVY_APP_ID ?? process.env.NEXT_PUBLIC_PRIVY_APP_ID;
   const privyJwtVerificationKey = process.env.PRIVY_JWT_VERIFICATION_KEY;
+  const privySignerId =
+    process.env.PRIVY_SIGNER_ID ?? process.env.NEXT_PUBLIC_PRIVY_SIGNER_ID;
 
   return {
     beUrl,
@@ -57,5 +62,6 @@ export function readEnv(): AomiAuthEnv {
     devUserId,
     privyAppId,
     privyJwtVerificationKey,
+    privySignerId,
   };
 }

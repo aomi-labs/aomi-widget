@@ -51,6 +51,7 @@ function init(): NonNullable<Globals["__aomiAuth"]> {
     registered.push(
       makePrivyProvider({
         appId: env.privyAppId,
+        signerId: env.privySignerId,
         verifyAccessToken: makePrivyJwtVerifier({
           appId: env.privyAppId,
           jwtVerificationKey: env.privyJwtVerificationKey,
