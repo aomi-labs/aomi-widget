@@ -1,0 +1,35 @@
+{
+  "name": "@aomi-labs/deploy",
+  "version": "0.1.0",
+  "description": "Server-side TypeScript client to the Aomi deployment platform (GitHub publish + backend activate). Node-only; never bundle into a browser.",
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      }
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "clean:dist": "rm -rf dist"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "@octokit/rest": "^21.1.1"
+  }
+}

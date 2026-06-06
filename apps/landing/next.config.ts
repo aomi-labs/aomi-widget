@@ -46,6 +46,19 @@ const nextConfig: NextConfig = {
   experimental: {
     externalDir: true,
   },
+  async headers() {
+    return [
+      {
+        source: '/embed-playground',
+        headers: [
+          {
+            key: 'Content-Security-Policy',
+            value: "frame-ancestors 'self' https://aomilabs.mintlify.app https://*.mintlify.app",
+          },
+        ],
+      },
+    ];
+  },
   transpilePackages: [
     "@aomi-labs/react",
     "@aomi-labs/widget-lib",

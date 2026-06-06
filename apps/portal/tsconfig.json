@@ -59,6 +59,12 @@
       "@aomi-labs/client/*": [
         "../../packages/client/src/*"
       ],
+      "@aomi-labs/deploy": [
+        "../../packages/deploy/src/index.ts"
+      ],
+      "@aomi-labs/deploy/*": [
+        "../../packages/deploy/src/*"
+      ],
       "@aomi-labs/react": [
         "../../packages/react/src/index.ts"
       ],

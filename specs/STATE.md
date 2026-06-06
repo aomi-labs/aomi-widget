@@ -2,9 +2,76 @@
 
 ## Last Updated
 
-2026-05-31 - Merge main into mcp-v1 + MCP doc cleanup
+2026-06-01 - svm canonicalization (BE) + chain_id coercion (FE)
 
 ## Recent Changes
+
+### svm canonicalization + chain_id coercion (2026-06-01)
+
+- **BE (`product-mono` `aomi/`): `"svm"` is the single canonical key, no
+  `"solana"` alias.** Renamed `PrimaryWalletFamily::Solana` → `Svm`
+  (`wallet.rs`, with its `primary_family()` match arm), removed the `"solana"`
+  wallet-key deserialize alias in `mod.rs`, updated the `WIRE_KEY` doc in
+  `tx.rs` and the module doc in `wire.rs`, and migrated two test fixtures
+  (`mod.rs`, `bin/backend/src/endpoint/system.rs`) from `"solana"` → `"svm"`.
+  `cargo check -p backend` clean; `aomi-tools` lib tests 27/0. (Pre-existing,
+  unrelated test-bin breakage in `bin/backend/.../tests/chat.rs` — renamed
+  `AssembledEvmTx` fields — is from another commit, not this change.)
+- **FE: coerce `evm.chain_id` to a number in `buildEvm`
+  (`user-state/normalize.ts`).** The BE deserializes `chain_id` as a strict
+  `u64`, so a stringified id would fail `from_value`. `normalize` now runs the
+  hoisted `parseChainId` (handles `0x`-hex + decimal strings) and drops
+  unparseable values; explicit `null` passes through (BE reads it as `None`).
+  Full client suite passes; `build:client` + lint clean.
+- **NOTE:** the FE still carries a harmless `pick(src, "svm", "solana")` read
+  alias and surplus `connection` fields — left untouched to avoid conflicts
+  with codex's concurrent FE file split; to be reconciled at the main merge.
+
+### Multi-family nested UserState refactor — FE (2026-05-31)
+
+- **Goal:** evolve `UserState` from a single-wallet flat shape to a cross-family
+  multi-wallet model — one EVM wallet *and* one Solana wallet connected in the
+  same session (one wallet per family, but families are independent).
+- **Wire shape is now nested** (matches the BE `ScopedUserState` serialization in
+  `product-mono` `aomi/crates/tools/src/user_state/`): top-level `connection`,
+  `evm`, `svm`, `pending`, `ext`, `preferences` blocks; per-family fields live
+  under `evm`/`svm`. Pending buckets are `evm_txs` / `evm_sigs` / `svm_ixs` /
+  `svm_sigs`. The SVM block key is `"svm"` everywhere — no `"solana"` alias on
+  either side (see 2026-06-01 entry). Solana `capabilities` is an array.
+- **`packages/client/src/types.ts`** — rewrote `UserState.normalize` /
+  `reconcile` / accessors to read the nested shape natively (no dual flat
+  representation). `normalize` still lifts legacy flat host input
+  (`address`/`chainId`/`svmAddress`/`aaMode`/`pending_txs`…) into nested blocks
+  via `liftFlat`, and tolerates camelCase aliases — this is the single chokepoint
+  for both receive and send.
+  - Added `preferredPublicKey()` = `address() ?? svmAddress()` (canonical session
+    identity; SVM-only sessions resolve a stable id).
+  - `walletKind` is **derived**, not serialized: "smart-account" when connected
+    EVM address === `evm.aa.smart_account`, else "eoa".
+  - Extracted `stripDanglingConnection()` helper — a session can't be
+    `is_connected` without an EVM chain id or SVM pubkey; now applied on the
+    first-set path too (was only running when a prev state existed).
+  - `reconcile` now prunes an explicit empty `ext: {}` (a clear, not a value).
+- **`packages/client/src/session.ts`** — identity via `preferredPublicKey`;
+  rewrote `resolveWallet` + the tx-completion path + `resolveUserState` to build
+  nested `evm`/`connection`/`aa` blocks (fixes latent flat-spread-onto-nested
+  override bugs where `liftFlat` would not override an existing nested
+  `aa.mode`/`address`). `removeExtValue` now passes an explicit `ext: {}` to
+  signal a clear (an omitted ext means "preserve prior" to reconcile).
+  `syncWalletRequests` / `dispatchSystemEvents` read the nested pending buckets.
+- **`packages/client/src/cli/user-state.ts`** — `buildCliUserState` builds the
+  nested shape; pending readers use `pending.evm_txs` / `evm_sigs` / `svm_ixs`.
+  - **SEMANTIC GAP:** the BE moved Solana from full-tx signing (`unsigned_tx`) to
+    instruction-staging (`svm_ixs` + `svm_sigs`). Staged-ix records carry no
+    `unsigned_tx`, so the CLI signer filters them out; full support needs
+    product-level rework.
+- **Tests:** updated `session.unit.test.ts`, `cli/cli-user-state.unit.test.ts`,
+  `cli/cli-e2e-user-state.unit.test.ts`, `cli/cli-chat.unit.test.ts` to the
+  nested assertions. Full client suite: **265 passed, 26 skipped, 0 failures**;
+  `build:lib` clean.
+- **Doc:** refreshed `product-mono` `docs/topics/runtime/facts/user-state.md` to
+  the nested multi-family shape (capabilities array, `preferred_public_key`,
+  per-family accessors, four pending buckets) + corrected source-of-truth paths.
 
 ### Merge main into mcp-v1 + stale-doc cleanup (2026-05-31)
 
