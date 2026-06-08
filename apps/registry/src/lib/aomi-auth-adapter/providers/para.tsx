@@ -12,6 +12,7 @@ import {
   ParaProvider,
   useAccount as useParaAccount,
   useClient as useParaClient,
+  useIssueJwt,
   useModal,
   type TExternalWallet,
   type TOAuthMethod,
@@ -79,6 +80,7 @@ import {
 } from "../safe-wagmi-hooks";
 import { buildAccounts } from "../accounts";
 import type {
+  AomiAccountCredential,
   AomiAuthAdapter,
   AomiAuthIdentity,
   AomiAuthMethod,
@@ -201,6 +203,24 @@ function useSafeParaModal(): {
 function useSafeParaClient(): ParaWeb | null {
   try {
     return useParaClient() ?? null;
+  } catch {
+    return null;
+  }
+}
+
+function useSafeIssueJwt(): (() => Promise<AomiAccountCredential | null>) | null {
+  try {
+    const { issueJwtAsync } = useIssueJwt();
+    return async () => {
+      const result = await issueJwtAsync();
+      const token = result?.token?.trim();
+      return token
+        ? {
+            provider: "para",
+            providerToken: token,
+          }
+        : null;
+    };
   } catch {
     return null;
   }
@@ -392,6 +412,7 @@ export function AomiParaAdapterProvider({
   const [pendingSolanaConnect, setPendingSolanaConnect] = useState(false);
   const paraAccount = useSafeParaAccount();
   const paraSession = useSafeParaClient();
+  const issueJwt = useSafeIssueJwt();
   const paraModal = useSafeParaModal();
   const {
     address: wagmiAddress,
@@ -961,6 +982,7 @@ export function AomiParaAdapterProvider({
             return { signature };
           }
         : undefined,
+      getAccountCredential: issueJwt ?? undefined,
       ...buildParaSolanaMethods(solanaWallet, resolvedAdapterSolanaConfig),
     };
   }, [
@@ -970,6 +992,7 @@ export function AomiParaAdapterProvider({
     connector,
     evmConnections,
     isPending,
+    issueJwt,
     paraAccount.embedded,
     paraAccount.external,
     paraAccount.isConnected,

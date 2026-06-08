@@ -77,6 +77,7 @@ type RuntimeUserStateEffectsOptions = {
 
 type RuntimeUserStateContext = {
   getControlState: () => ControlState;
+  getCurrentThreadApp: () => string;
   getUserState: () => UserState;
   onUserStateChange: (callback: (user: UserState) => void) => () => void;
   threadContextRef: MutableRefObject<ThreadContext>;
@@ -118,12 +119,13 @@ function getLegacySessionPublicKey(userState: UserState): string | undefined {
 function useWalletStateSync(
   context: Pick<
     RuntimeUserStateContext,
-    "getUserState" | "onUserStateChange" | "threadContextRef"
+    "getCurrentThreadApp" | "getUserState" | "onUserStateChange" | "threadContextRef"
   >,
   sessions: Pick<RuntimeSessionBridge, "aomiClientRef">,
   remoteThreads: Pick<RemoteThreadRegistry, "remoteThreadIdsRef">,
 ) {
-  const { getUserState, onUserStateChange, threadContextRef } = context;
+  const { getCurrentThreadApp, getUserState, onUserStateChange, threadContextRef } =
+    context;
   const { aomiClientRef } = sessions;
   const { remoteThreadIdsRef } = remoteThreads;
 
@@ -208,12 +210,15 @@ function useWalletStateSync(
         type: "wallet:state_changed",
         payload: nextWalletState,
       });
-      await aomiClientRef.current.sendSystemMessage(sessionId, message);
+      await aomiClientRef.current.sendSystemMessage(sessionId, message, {
+        app: getCurrentThreadApp(),
+      });
     });
 
     return unsubscribe;
   }, [
     aomiClientRef,
+    getCurrentThreadApp,
     getUserState,
     onUserStateChange,
     remoteThreadIdsRef,
@@ -501,12 +506,13 @@ export function useRuntimeUserStateEffects({
 }: RuntimeUserStateEffectsOptions): { isThreadListLoading: boolean } {
   const threadContext = useThreadContext();
   const { user, getUserState, onUserStateChange } = useUser();
-  const { getControlState } = useControl();
+  const { getControlState, getCurrentThreadApp } = useControl();
   const threadContextRef = useRef(threadContext);
   threadContextRef.current = threadContext;
 
   const context: RuntimeUserStateContext = {
     getControlState,
+    getCurrentThreadApp,
     getUserState,
     onUserStateChange,
     threadContextRef,

@@ -1018,6 +1018,7 @@ function EventContextProvider({
   aomiClient,
   sessionId
 }) {
+  const { getCurrentThreadApp } = useControl();
   const subscribersRef = (0, import_react2.useRef)(/* @__PURE__ */ new Map());
   const subscribe = (0, import_react2.useCallback)(
     (type, callback) => {
@@ -1051,12 +1052,14 @@ function EventContextProvider({
           type: event.type,
           payload: event.payload
         });
-        await aomiClient.sendSystemMessage(event.sessionId, message);
+        await aomiClient.sendSystemMessage(event.sessionId, message, {
+          app: getCurrentThreadApp()
+        });
       } catch (error) {
         console.error("Failed to send outbound event:", error);
       }
     },
-    [aomiClient]
+    [aomiClient, getCurrentThreadApp]
   );
   const contextValue = {
     subscribe,
@@ -2253,7 +2256,7 @@ function getLegacySessionPublicKey(userState) {
   return address;
 }
 function useWalletStateSync(context, sessions, remoteThreads) {
-  const { getUserState, onUserStateChange, threadContextRef } = context;
+  const { getCurrentThreadApp, getUserState, onUserStateChange, threadContextRef } = context;
   const { aomiClientRef } = sessions;
   const { remoteThreadIdsRef } = remoteThreads;
   const walletSnapshot = (0, import_react9.useCallback)(
@@ -2319,11 +2322,14 @@ function useWalletStateSync(context, sessions, remoteThreads) {
         type: "wallet:state_changed",
         payload: nextWalletState
       });
-      await aomiClientRef.current.sendSystemMessage(sessionId, message);
+      await aomiClientRef.current.sendSystemMessage(sessionId, message, {
+        app: getCurrentThreadApp()
+      });
     });
     return unsubscribe;
   }, [
     aomiClientRef,
+    getCurrentThreadApp,
     getUserState,
     onUserStateChange,
     remoteThreadIdsRef,
@@ -2559,11 +2565,12 @@ function useRuntimeUserStateEffects({
 }) {
   const threadContext = useThreadContext();
   const { user, getUserState, onUserStateChange } = useUser();
-  const { getControlState } = useControl();
+  const { getControlState, getCurrentThreadApp } = useControl();
   const threadContextRef = (0, import_react9.useRef)(threadContext);
   threadContextRef.current = threadContext;
   const context = {
     getControlState,
+    getCurrentThreadApp,
     getUserState,
     onUserStateChange,
     threadContextRef,

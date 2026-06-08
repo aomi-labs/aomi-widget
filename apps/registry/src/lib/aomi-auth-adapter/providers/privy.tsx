@@ -64,6 +64,7 @@ import {
   useSafeWagmiConfig,
 } from "../safe-wagmi-hooks";
 import type {
+  AomiAccountCredential,
   AomiAuthAdapter,
   AomiAuthIdentity,
   AomiAuthMethod,
@@ -156,16 +157,20 @@ function deserializeSolanaTransaction(
 // ---------------------------------------------------------------------------
 
 type PrivyHook = ReturnType<typeof usePrivy>;
+type PrivyAccessTokenHook = PrivyHook & {
+  getAccessToken?: () => Promise<string | null>;
+};
 type SmartWalletsHook = ReturnType<typeof useSmartWallets>;
 type SolanaWalletsHook = ReturnType<typeof useSolanaWallets>;
 
-const DISCONNECTED_PRIVY: PrivyHook = {
+const DISCONNECTED_PRIVY: PrivyAccessTokenHook = {
   ready: false,
   authenticated: false,
   user: null,
   login: async () => undefined,
   logout: async () => undefined,
-} as unknown as PrivyHook;
+  getAccessToken: async () => null,
+} as unknown as PrivyAccessTokenHook;
 
 const DISCONNECTED_SMART_WALLETS: SmartWalletsHook = {
   client: undefined,
@@ -177,9 +182,9 @@ const DISCONNECTED_SOLANA_WALLETS: SolanaWalletsHook = {
   ready: false,
 } as unknown as SolanaWalletsHook;
 
-function useSafePrivy(): PrivyHook {
+function useSafePrivy(): PrivyAccessTokenHook {
   try {
-    return usePrivy();
+    return usePrivy() as PrivyAccessTokenHook;
   } catch {
     return DISCONNECTED_PRIVY;
   }
@@ -536,6 +541,17 @@ function AomiPrivyAdapterProvider({
       disconnect: async () => {
         await privy.logout();
       },
+      getAccountCredential: privy.getAccessToken
+        ? async (): Promise<AomiAccountCredential | null> => {
+            const token = (await privy.getAccessToken())?.trim();
+            return token
+              ? {
+                  provider: "privy",
+                  providerToken: token,
+                }
+              : null;
+          }
+        : undefined,
       switchChain: switchChainAsync
         ? async (nextChainId: number) => {
             setSelectedEvmChainId(nextChainId);
@@ -634,6 +650,7 @@ function AomiPrivyAdapterProvider({
     getClientForChain,
     isSwitchingChain,
     privy.authenticated,
+    privy.getAccessToken,
     privy.login,
     privy.logout,
     privy.ready,
