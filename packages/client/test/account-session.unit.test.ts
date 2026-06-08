@@ -154,7 +154,9 @@ describe("createAccountAccessTokenProvider", () => {
     provider.dispose();
   });
 
-  it("throws on a non-ok exchange response", async () => {
+  it("degrades to no token (undefined) on a non-ok exchange response", async () => {
+    // The bearer is optional/additive — a failed exchange must not break the
+    // caller's request, so the provider resolves undefined rather than throwing.
     const fetchImpl = vi.fn(
       async () => ({ ok: false, status: 401, json: async () => ({}) }) as unknown as Response,
     );
@@ -168,7 +170,72 @@ describe("createAccountAccessTokenProvider", () => {
       now,
     });
 
-    await expect(provider()).rejects.toThrow(/HTTP 401/);
+    await expect(provider()).resolves.toBeUndefined();
+
+    provider.dispose();
+  });
+
+  it("degrades to no token when the wallet cannot mint a credential (Para 403)", async () => {
+    // Mirrors Para issueJwtAsync() rejecting with 403 "user must verify
+    // biometrics or external wallets" before verification is complete.
+    const fetchImpl = vi.fn();
+    const getProviderCredential = vi.fn(async () => {
+      throw new Error("ParaApiError: user must verify biometrics or external wallets");
+    });
+    const provider = createAccountAccessTokenProvider({
+      baseUrl: BASE_URL,
+      getProviderCredential,
+      fetch: fetchImpl as unknown as typeof fetch,
+      now,
+    });
+
+    await expect(provider()).resolves.toBeUndefined();
+    // Never reached the exchange HTTP call.
+    expect(fetchImpl).not.toHaveBeenCalled();
+
+    provider.dispose();
+  });
+
+  it("backs off after a failure and does not re-attempt within the cooldown", async () => {
+    const getProviderCredential = vi.fn(async () => {
+      throw new Error("403");
+    });
+    const provider = createAccountAccessTokenProvider({
+      baseUrl: BASE_URL,
+      getProviderCredential,
+      fetch: vi.fn() as unknown as typeof fetch,
+      now,
+    });
+
+    await expect(provider()).resolves.toBeUndefined();
+    // A second passive request shortly after must not re-trigger the credential
+    // fetch (otherwise every backend poll would 403 the wallet provider).
+    nowMs += 1_000;
+    await expect(provider()).resolves.toBeUndefined();
+    expect(getProviderCredential).toHaveBeenCalledTimes(1);
+
+    provider.dispose();
+  });
+
+  it("forceRefresh bypasses the failure backoff (used by the 401 retry path)", async () => {
+    let attempt = 0;
+    const getProviderCredential = vi.fn(async () => {
+      attempt += 1;
+      if (attempt === 1) throw new Error("403");
+      return { provider: "para" as const, providerToken: "now-verified" };
+    });
+    const fetchImpl = vi.fn(async () => okResponse(exchangeResponse({ access_token: "token-A" })));
+    const provider = createAccountAccessTokenProvider({
+      baseUrl: BASE_URL,
+      getProviderCredential,
+      fetch: fetchImpl as unknown as typeof fetch,
+      now,
+    });
+
+    await expect(provider()).resolves.toBeUndefined();
+    // e.g. an endpoint that needs the bearer returned 401 → wrapper retries.
+    await expect(provider({ forceRefresh: true })).resolves.toBe("token-A");
+    expect(getProviderCredential).toHaveBeenCalledTimes(2);
 
     provider.dispose();
   });

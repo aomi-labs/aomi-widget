@@ -26,6 +26,7 @@ export type AccountAccessTokenProvider = GetAccountAccessToken & {
 };
 
 const DEFAULT_REFRESH_BEFORE_EXPIRY_MS = 2 * 60 * 1000;
+const FAILURE_COOLDOWN_MS = 30 * 1000;
 
 /** Cache and refresh the short-lived Aomi bearer minted from Para or Privy. */
 export function createAccountAccessTokenProvider({
@@ -36,8 +37,9 @@ export function createAccountAccessTokenProvider({
   refreshBeforeExpiryMs = DEFAULT_REFRESH_BEFORE_EXPIRY_MS,
 }: AccountAccessTokenProviderOptions): AccountAccessTokenProvider {
   let cached: AccountSessionExchangeResponse | null = null;
-  let pending: Promise<AccountSessionExchangeResponse> | null = null;
+  let pending: Promise<AccountSessionExchangeResponse | null> | null = null;
   let refreshTimer: ReturnType<typeof setTimeout> | null = null;
+  let failedAt: number | null = null;
   const listeners = new Set<() => void>();
 
   const scheduleRefresh = (session: AccountSessionExchangeResponse) => {
@@ -83,9 +85,23 @@ export function createAccountAccessTokenProvider({
     if (!forceRefresh && cached && now() < refreshAt) {
       return cached.access_token;
     }
+    // The account bearer is optional/additive. When the wallet provider can't
+    // mint a credential yet (e.g. Para before biometric/external-wallet
+    // verification 403s on issueJwt) or the exchange fails, resolve to no token
+    // so the caller's request proceeds unauthenticated instead of erroring.
+    // A short cooldown prevents every backend poll from re-triggering a failing
+    // exchange; an explicit forceRefresh (the 401 retry path) bypasses it.
+    if (
+      !forceRefresh &&
+      failedAt !== null &&
+      now() - failedAt < FAILURE_COOLDOWN_MS
+    ) {
+      return undefined;
+    }
     if (!pending) {
       pending = exchange()
         .then((next) => {
+          failedAt = null;
           const previous = cached;
           cached = next;
           scheduleRefresh(next);
@@ -98,11 +114,15 @@ export function createAccountAccessTokenProvider({
           }
           return next;
         })
+        .catch(() => {
+          failedAt = now();
+          return null;
+        })
         .finally(() => {
           pending = null;
         });
     }
-    return (await pending).access_token;
+    return (await pending)?.access_token;
   };
 
   getAccountAccessToken.subscribe = (listener) => {
