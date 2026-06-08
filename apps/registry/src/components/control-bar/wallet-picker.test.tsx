@@ -85,8 +85,9 @@ function makeAdapter(
         label: "Rabby",
         family: "evm",
         kind: "evm",
-        status: "available",
+        status: "installed",
         ready: true,
+        installed: true,
       },
       {
         id: "walletconnect",
@@ -101,12 +102,12 @@ function makeAdapter(
     socialLoginOptions: [
       {
         id: "google",
-        label: "Continue with Email",
+        label: "Email or Google",
         family: "multichain",
         kind: "social",
         status: "available",
         ready: true,
-        description: "Use email, or sign in with Google",
+        description: "Fast account sign-in",
       },
     ],
     connectSocial: vi.fn(async () => undefined),
@@ -153,12 +154,13 @@ function renderPicker(
 }
 
 describe("WalletPicker", () => {
-  it("renders wallet-first sections with connected accounts and sign-in options", () => {
+  it("renders quick sign-in, connected accounts, and wallet options", () => {
     renderPicker(makeAdapter());
     expect(screen.getByText("Select a wallet")).toBeTruthy();
+    expect(screen.getByText("Quick sign-in")).toBeTruthy();
     expect(screen.getByText("Connected")).toBeTruthy();
     expect(screen.getAllByText("Wallets").length).toBeGreaterThan(0);
-    expect(screen.getByText("Sign in another way")).toBeTruthy();
+    expect(screen.queryByText("Sign in another way")).toBeNull();
     expect(screen.queryByText(/^ETH$/)).toBeNull();
     expect(screen.queryByText(/^SOL$/)).toBeNull();
     expect(screen.getAllByTitle("MetaMask").length).toBeGreaterThan(0);
@@ -167,17 +169,20 @@ describe("WalletPicker", () => {
     expect(screen.getAllByText("Phantom").length).toBeGreaterThan(0);
     expect(screen.getByText("Rabby")).toBeTruthy();
     expect(screen.getByText("WalletConnect")).toBeTruthy();
-    expect(screen.getByText("Continue with Email")).toBeTruthy();
-    expect(screen.getByText("Use email, or sign in with Google")).toBeTruthy();
+    expect(screen.getByText("More wallet options")).toBeTruthy();
+    expect(screen.getByText("Email or Google")).toBeTruthy();
+    expect(screen.getByText("Fast account sign-in")).toBeTruthy();
     expect(
       screen.queryByRole("button", { name: /connect with para/i }),
     ).toBeNull();
     expect(screen.queryByRole("button", { name: "Connect Para" })).toBeNull();
   });
 
-  it("does not render inactive connected wallet switch rows", () => {
+  it("renders inactive connected EVM wallets and can make one active", async () => {
+    const selectAccount = vi.fn(async () => undefined);
     renderPicker(
       makeAdapter({
+        selectAccount,
         accounts: [
           {
             id: "rb-active",
@@ -207,13 +212,12 @@ describe("WalletPicker", () => {
       }),
     );
 
-    expect(screen.getByText("Rabby Wallet")).toBeTruthy();
-    expect(
-      screen.queryByRole("button", { name: "Select Rabby Wallet wallet" }),
-    ).toBeNull();
-    expect(
-      screen.queryByRole("button", { name: "Select MetaMask wallet" }),
-    ).toBeNull();
+    expect(screen.getAllByText("Rabby Wallet")).toHaveLength(2);
+    expect(screen.getAllByText("MetaMask").length).toBeGreaterThan(0);
+    await act(async () => {
+      fireEvent.click(screen.getByLabelText("Make MetaMask active"));
+    });
+    expect(selectAccount).toHaveBeenCalledWith("mm-duplicate");
   });
 
   it("hides the connected section when only stale inactive accounts exist", () => {
@@ -241,7 +245,7 @@ describe("WalletPicker", () => {
     ).toBeNull();
   });
 
-  it("disconnects the EVM family from the connected summary", async () => {
+  it("disconnects the active EVM account from the connected summary", async () => {
     const adapter = makeAdapter({
       accounts: [
         {
@@ -257,7 +261,7 @@ describe("WalletPicker", () => {
     await act(async () => {
       fireEvent.click(screen.getByLabelText("Disconnect Ethereum wallet"));
     });
-    expect(adapter.disconnect).toHaveBeenCalledWith({ family: "evm" });
+    expect(adapter.disconnect).toHaveBeenCalledWith({ accountId: "mm" });
   });
 
   it("blocks wallet connection while a wallet request is unresolved", () => {
@@ -344,9 +348,7 @@ describe("WalletPicker", () => {
     const connectSocial = vi.fn(async () => undefined);
     renderPicker(makeAdapter({ connectSocial }));
     await act(async () => {
-      fireEvent.click(
-        screen.getByRole("button", { name: "Continue with Email" }),
-      );
+      fireEvent.click(screen.getByRole("button", { name: "Email or Google" }));
     });
     expect(connectSocial).toHaveBeenCalledWith("google");
   });

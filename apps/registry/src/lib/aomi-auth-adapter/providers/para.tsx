@@ -193,14 +193,6 @@ const walletLabelOverrides: Record<string, string> = {
   walletconnect: "WalletConnect",
 };
 
-const externalWalletLabels: Partial<Record<TExternalWallet, string>> = {
-  COINBASE: "Coinbase Wallet",
-  METAMASK: "MetaMask",
-  RABBY: "Rabby",
-  RAINBOW: "Rainbow",
-  WALLETCONNECT: "WalletConnect",
-};
-
 const solanaWalletAllowlist = new Set([
   "phantom",
   "solflare",
@@ -208,14 +200,14 @@ const solanaWalletAllowlist = new Set([
   "glow",
 ]);
 
-type EthereumProviderFlags = {
+type InstalledWalletFlags = {
   metamask: boolean;
   rabby: boolean;
   coinbase: boolean;
   rainbow: boolean;
 };
 
-const emptyEthereumProviderFlags: EthereumProviderFlags = {
+const emptyInstalledWalletFlags: InstalledWalletFlags = {
   metamask: false,
   rabby: false,
   coinbase: false,
@@ -228,13 +220,13 @@ const socialLoginLabels: Partial<Record<TOAuthMethod, string>> = {
   FACEBOOK: "Continue with Facebook",
   FARCASTER: "Continue with Farcaster",
   GITHUB: "Continue with GitHub",
-  GOOGLE: "Continue with Email",
+  GOOGLE: "Email or Google",
   TELEGRAM: "Continue with Telegram",
   X: "Continue with X",
 };
 
 const socialLoginDescriptions: Partial<Record<TOAuthMethod, string>> = {
-  GOOGLE: "Use email, or sign in with Google",
+  GOOGLE: "Fast account sign-in",
 };
 
 function normalizeWalletOptionId(value: string): string {
@@ -259,10 +251,8 @@ function canonicalWalletKey(value: string): string {
   return normalized;
 }
 
-function ethereumProviderFlags(): EthereumProviderFlags {
-  if (typeof window === "undefined") {
-    return emptyEthereumProviderFlags;
-  }
+function detectInstalledWalletFlags(): InstalledWalletFlags {
+  if (typeof window === "undefined") return emptyInstalledWalletFlags;
 
   const hostWindow = window as typeof window & {
     ethereum?: unknown;
@@ -290,16 +280,16 @@ function ethereumProviderFlags(): EthereumProviderFlags {
       Boolean(rabbyProvider) ||
       providers.some((provider) => Boolean(provider?.isRabby)),
     coinbase:
-      providers.some((provider) => Boolean(provider?.isCoinbaseWallet)) ||
-      Boolean(hostWindow.coinbaseWalletExtension),
+      Boolean(hostWindow.coinbaseWalletExtension) ||
+      providers.some((provider) => Boolean(provider?.isCoinbaseWallet)),
     rainbow: providers.some((provider) => Boolean(provider?.isRainbow)),
   };
 }
 
-function mergeEthereumProviderFlags(
-  current: EthereumProviderFlags,
-  next: Partial<EthereumProviderFlags>,
-): EthereumProviderFlags {
+function mergeInstalledWalletFlags(
+  current: InstalledWalletFlags,
+  next: Partial<InstalledWalletFlags>,
+): InstalledWalletFlags {
   return {
     metamask: current.metamask || Boolean(next.metamask),
     rabby: current.rabby || Boolean(next.rabby),
@@ -311,7 +301,7 @@ function mergeEthereumProviderFlags(
 function flagsFromEip6963Provider(info: {
   name?: string;
   rdns?: string;
-}): Partial<EthereumProviderFlags> {
+}): Partial<InstalledWalletFlags> {
   const key = canonicalWalletKey(`${info.rdns ?? ""} ${info.name ?? ""}`);
   return {
     metamask: key === "metamask",
@@ -321,16 +311,16 @@ function flagsFromEip6963Provider(info: {
   };
 }
 
-function useEthereumProviderFlags(): EthereumProviderFlags {
-  const [flags, setFlags] = useState<EthereumProviderFlags>(() =>
-    ethereumProviderFlags(),
+function useInstalledWalletFlags(): InstalledWalletFlags {
+  const [flags, setFlags] = useState<InstalledWalletFlags>(() =>
+    detectInstalledWalletFlags(),
   );
 
   useEffect(() => {
     if (typeof window === "undefined") return;
 
     setFlags((current) =>
-      mergeEthereumProviderFlags(current, ethereumProviderFlags()),
+      mergeInstalledWalletFlags(current, detectInstalledWalletFlags()),
     );
 
     const handleProvider = (event: Event) => {
@@ -340,7 +330,7 @@ function useEthereumProviderFlags(): EthereumProviderFlags {
       const info = detail?.info;
       if (!info) return;
       setFlags((current) =>
-        mergeEthereumProviderFlags(current, flagsFromEip6963Provider(info)),
+        mergeInstalledWalletFlags(current, flagsFromEip6963Provider(info)),
       );
     };
 
@@ -353,17 +343,6 @@ function useEthereumProviderFlags(): EthereumProviderFlags {
   }, []);
 
   return flags;
-}
-
-function isExternalWalletInstalled(
-  wallet: TExternalWallet,
-  flags: EthereumProviderFlags,
-): boolean {
-  if (wallet === "METAMASK") return flags.metamask;
-  if (wallet === "RABBY") return flags.rabby;
-  if (wallet === "COINBASE") return flags.coinbase;
-  if (wallet === "RAINBOW") return flags.rainbow;
-  return false;
 }
 
 function inferWalletLabel(connector: Connector): string {
@@ -390,13 +369,34 @@ function isProviderInternalWalletLabel(label: string): boolean {
   return canonicalWalletKey(label) === "para";
 }
 
-function toEvmWalletOption(connector: Connector): AomiWalletOption {
+function knownWalletInstalled(
+  key: string,
+  flags: InstalledWalletFlags,
+): boolean | undefined {
+  if (key === "metamask") return flags.metamask;
+  if (key === "rabby") return flags.rabby;
+  if (key === "coinbase") return flags.coinbase;
+  if (key === "rainbow") return flags.rainbow;
+  return undefined;
+}
+
+function toEvmWalletOption(
+  connector: Connector,
+  installedWalletFlags: InstalledWalletFlags,
+): AomiWalletOption {
   const id =
     connector.uid || connector.id || normalizeWalletOptionId(connector.name);
   const kind = inferWalletKind(connector);
   const ready = connectorReady(connector);
-  const installed = ready === true || connector.type === "injected";
   const label = inferWalletLabel(connector);
+  const knownInstalled = knownWalletInstalled(
+    canonicalWalletKey(label),
+    installedWalletFlags,
+  );
+  const installed =
+    ready === true ||
+    knownInstalled === true ||
+    (knownInstalled === undefined && connector.type === "injected");
 
   return {
     id,
@@ -420,52 +420,6 @@ function toEvmWalletOption(connector: Connector): AomiWalletOption {
   };
 }
 
-function toExternalWalletOption(
-  wallet: TExternalWallet,
-  flags: EthereumProviderFlags,
-): AomiWalletOption {
-  const label = externalWalletLabels[wallet] ?? String(wallet);
-  const id = canonicalWalletKey(label);
-  const walletConnect = wallet === "WALLETCONNECT";
-  const installed = isExternalWalletInstalled(wallet, flags);
-
-  return {
-    id,
-    label,
-    family: walletConnect ? "multichain" : "evm",
-    kind: walletConnect ? "walletconnect" : "evm",
-    status: walletConnect ? "qr" : installed ? "installed" : "available",
-    installed,
-    ready: true,
-    description: walletConnect
-      ? "Scan with a mobile wallet"
-      : "Connect an Ethereum wallet",
-  };
-}
-
-function mergeWalletOptions(
-  preferred: readonly AomiWalletOption[],
-  detected: readonly AomiWalletOption[],
-): AomiWalletOption[] {
-  const detectedByLabel = new Map(
-    detected.map((option) => [canonicalWalletKey(option.label), option]),
-  );
-  const merged = preferred.map((option) => {
-    const detectedOption = detectedByLabel.get(
-      canonicalWalletKey(option.label),
-    );
-    return detectedOption
-      ? {
-          ...option,
-          id: detectedOption.id,
-          ready: detectedOption.ready !== false,
-        }
-      : option;
-  });
-
-  return dedupeWalletOptions(merged);
-}
-
 function dedupeWalletOptions(
   options: readonly AomiWalletOption[],
 ): AomiWalletOption[] {
@@ -480,6 +434,12 @@ function dedupeWalletOptions(
   }
 
   return result;
+}
+
+function walletOptionIsDetected(option: AomiWalletOption): boolean {
+  if (option.status === "unavailable" || option.ready === false) return false;
+  if (option.kind === "evm") return option.status === "installed";
+  return option.status === "installed" || option.status === "qr";
 }
 
 function toSocialLoginOption(method: TOAuthMethod): AomiWalletOption {
@@ -718,7 +678,6 @@ export type AomiParaAdapterProviderProps = {
   children: ReactNode;
   supportedChains?: readonly Chain[];
   solanaConfig?: ResolvedSolanaConfig;
-  externalWallets?: readonly TExternalWallet[];
   oAuthMethods?: readonly TOAuthMethod[];
 };
 
@@ -726,7 +685,6 @@ export function AomiParaAdapterProvider({
   children,
   supportedChains: configuredChains,
   solanaConfig,
-  externalWallets = defaultExternalWallets,
   oAuthMethods = ["GOOGLE"],
 }: AomiParaAdapterProviderProps) {
   const [pendingSolanaConnect, setPendingSolanaConnect] = useState(false);
@@ -744,7 +702,7 @@ export function AomiParaAdapterProvider({
   const { switchChainAsync, isPending } = useSafeSwitchChain();
   const { disconnectAsync: wagmiDisconnectAsync } = useSafeDisconnect();
   const { reconnect: wagmiReconnect } = useSafeReconnect();
-  const ethereumProviderFlags = useEthereumProviderFlags();
+  const installedWalletFlags = useInstalledWalletFlags();
   const evmConnections = useSafeConnections();
   const evmConnectors = useSafeConnectors();
   const { connectAsync: wagmiConnectAsync } = useSafeConnect();
@@ -1034,15 +992,14 @@ export function AomiParaAdapterProvider({
         ready:
           entry.readyState === "Installed" || entry.readyState === "Loadable",
       }));
-    const detectedEvmWalletOptions = evmConnectors
-      .map(toEvmWalletOption)
-      .filter((option) => !isProviderInternalWalletLabel(option.label));
-    const configuredEvmWalletOptions = externalWallets
-      .filter((wallet) => Boolean(externalWalletLabels[wallet]))
-      .map((wallet) => toExternalWalletOption(wallet, ethereumProviderFlags));
-    const evmWalletOptions = mergeWalletOptions(
-      configuredEvmWalletOptions,
-      detectedEvmWalletOptions,
+    const evmWalletOptions = dedupeWalletOptions(
+      evmConnectors
+        .map((connector) => toEvmWalletOption(connector, installedWalletFlags))
+        .filter(
+          (option) =>
+            !isProviderInternalWalletLabel(option.label) &&
+            walletOptionIsDetected(option),
+        ),
     );
     const socialLoginOptions = paraModal
       ? Array.from(oAuthMethods).map(toSocialLoginOption)
@@ -1090,7 +1047,7 @@ export function AomiParaAdapterProvider({
       evmWallets: evmWalletOptions,
       connectEvmWallet: async (id: string) => {
         const target = evmConnectors.find((candidate) => {
-          const option = toEvmWalletOption(candidate);
+          const option = toEvmWalletOption(candidate, installedWalletFlags);
           return (
             option.id === id ||
             candidate.id === id ||
@@ -1406,8 +1363,7 @@ export function AomiParaAdapterProvider({
     connector,
     evmConnections,
     evmConnectors,
-    ethereumProviderFlags,
-    externalWallets,
+    installedWalletFlags,
     isPending,
     issueJwt,
     oAuthMethods,
@@ -1579,7 +1535,6 @@ function AomiParaProviderInner({
                     <AomiParaAdapterProvider
                       supportedChains={routing.routedChains}
                       solanaConfig={resolvedSolanaConfig}
-                      externalWallets={resolvedWallets}
                       oAuthMethods={oAuthMethods}
                     >
                       {children}
@@ -1600,7 +1555,6 @@ function AomiParaProviderInner({
             <AomiParaAdapterProvider
               supportedChains={routing.routedChains}
               solanaConfig={resolvedSolanaConfig}
-              externalWallets={resolvedWallets}
               oAuthMethods={oAuthMethods}
             >
               {children}
