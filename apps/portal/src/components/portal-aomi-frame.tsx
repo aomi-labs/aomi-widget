@@ -3,7 +3,8 @@
 import { useEffect, useMemo, useRef } from "react";
 import Link from "next/link";
 import { Settings } from "lucide-react";
-import { AomiFrame } from "@aomi-labs/widget-lib";
+import { createAccountAccessTokenProvider } from "@aomi-labs/client";
+import { AomiFrame, useAomiAuthAdapter } from "@aomi-labs/widget-lib";
 import { type AomiClientOptions, useControl } from "@aomi-labs/react";
 import { RequiredSecretsGate } from "@portal/components/required-secrets-gate";
 import { x402Client } from "@x402/core/client";
@@ -28,11 +29,36 @@ function getRequestedAppFromSearch(search: string): string | null {
 }
 
 function usePortalClientOptions(): Omit<AomiClientOptions, "baseUrl"> | undefined {
+  const { getAccountCredential } = useAomiAuthAdapter();
   const wagmiConfig = useConfig();
   const walletClient = useWalletClient();
+  const backendUrl = getBackendUrl();
   const nativeFetch = useMemo(
     () => globalThis.fetch.bind(globalThis),
     [],
+  );
+  const accountAccessTokenProvider = useMemo(() => {
+    if (!getAccountCredential) {
+      return undefined;
+    }
+    return createAccountAccessTokenProvider({
+      baseUrl: backendUrl,
+      getProviderCredential: async () => {
+        const credential = await getAccountCredential();
+        if (!credential) {
+          throw new Error("Wallet provider is connected without an exchangeable credential");
+        }
+        return credential;
+      },
+      fetch: nativeFetch,
+    });
+  }, [backendUrl, getAccountCredential, nativeFetch]);
+
+  useEffect(
+    () => () => {
+      accountAccessTokenProvider?.dispose();
+    },
+    [accountAccessTokenProvider],
   );
 
   const mppClientOptions = useMemo(() => {
@@ -190,8 +216,14 @@ function usePortalClientOptions(): Omit<AomiClientOptions, "baseUrl"> | undefine
 
     return {
       fetch: routedFetch,
+      getAccountAccessToken: accountAccessTokenProvider,
     };
-  }, [mppClientOptions, nativeFetch, walletClient?.data]);
+  }, [
+    accountAccessTokenProvider,
+    mppClientOptions,
+    nativeFetch,
+    walletClient?.data,
+  ]);
 }
 
 function AppSelectUrlBootstrap() {

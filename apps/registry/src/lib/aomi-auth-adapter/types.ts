@@ -157,6 +157,11 @@ export type AomiTxResult = {
   Delegation7702?: string;
 };
 
+export type AomiAccountCredential = {
+  provider: "para" | "privy";
+  providerToken: string;
+};
+
 export type AomiAuthAdapter = {
   identity: AomiAuthIdentity;
   isReady: boolean;
@@ -247,6 +252,11 @@ export type AomiAuthAdapter = {
   signAndSendSolanaTransaction?: (
     payload: WalletSolanaSignPayload,
   ) => Promise<{ signature: string; signedTx?: string }>;
+  /**
+   * Return an upstream wallet-provider credential that the portal can exchange
+   * for a short-lived Aomi bearer.
+   */
+  getAccountCredential?: () => Promise<AomiAccountCredential | null>;
   solanaRpcHttpUrl?: string;
   solanaRpcWsUrl?: string;
 };

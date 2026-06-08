@@ -182,9 +182,11 @@ describe("User API", () => {
       const call = postSystemMessage.mock.calls[0] as unknown as [
         string,
         string,
+        { app?: string } | undefined,
       ];
       const messageJson = JSON.parse(call[1]);
       expect(messageJson.type).toBe("wallet:state_changed");
+      expect(call[2]).toEqual({ app: "default" });
       expect(messageJson.payload.evm.address).toBe("0x789");
       expect(messageJson.payload.ext).toBeUndefined();
       expect(messageJson.payload.evm.chain_id).toBe(137);
@@ -256,6 +258,7 @@ describe("User API", () => {
         expect(postSystemMessage).toHaveBeenCalledWith(
           materializedThreadId,
           expect.any(String),
+          { app: "default" },
         );
       });
     });
@@ -403,6 +406,7 @@ describe("User API", () => {
         expect(postSystemMessage).toHaveBeenCalledWith(
           expect.any(String),
           expect.any(String),
+          { app: "default" },
         );
       });
 

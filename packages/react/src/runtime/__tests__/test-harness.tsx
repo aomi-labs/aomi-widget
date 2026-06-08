@@ -41,6 +41,9 @@ export type AomiClientConfig = {
   sendSystemMessage?: (
     sessionId: string,
     message: string,
+    options?: {
+      app?: string;
+    },
   ) => Promise<{ res?: unknown }>;
   interrupt?: (sessionId: string) => Promise<AomiInterruptResponse>;
   renameThread?: (sessionId: string, title: string) => Promise<void>;
@@ -74,6 +77,9 @@ export type AomiClientConfig = {
   postSystemMessage?: (
     sessionId: string,
     message: string,
+    options?: {
+      app?: string;
+    },
   ) => Promise<{ res?: unknown }>;
   postInterrupt?: (sessionId: string) => Promise<AomiInterruptResponse>;
 };
@@ -202,14 +208,22 @@ vi.mock("@aomi-labs/client", async (importOriginal) => {
       },
     );
 
-    sendSystemMessage = vi.fn(async (sessionId: string, message: string) => {
+    sendSystemMessage = vi.fn(
+      async (
+        sessionId: string,
+        message: string,
+        options?: {
+          app?: string;
+        },
+      ) => {
       const fn =
         mockState.config.sendSystemMessage ??
         mockState.config.postSystemMessage;
       return fn
-        ? await fn(sessionId, message)
+        ? await fn(sessionId, message, options)
         : { res: { sender: "system", content: message } };
-    });
+      },
+    );
 
     interrupt = vi.fn(async (sessionId: string) => {
       const fn = mockState.config.interrupt ?? mockState.config.postInterrupt;
