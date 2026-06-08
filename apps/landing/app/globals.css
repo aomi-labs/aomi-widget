@@ -403,20 +403,6 @@ html {
 }
 
 /* ============================================
-   Composer Input Text Color Fix
-   ============================================ */
-
-/* Force dark text color for composer input */
-.aui-composer-input,
-.aui-composer-input::placeholder {
-  color: #292524 !important; /* stone-800 */
-}
-
-.aui-composer-input::placeholder {
-  color: #78716c !important; /* stone-500 for placeholder */
-}
-
-/* ============================================
    Assistant Message Alignment
    ============================================ */
 
