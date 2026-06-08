@@ -246,12 +246,14 @@ export function useSafeConnections(): WagmiConnectionShape[] {
   try {
     const connections = useConnections();
     return connections.flatMap((connection) =>
-      connection.accounts.map((address) => ({
-        connectorId: connection.connector.uid,
-        connectorName: connection.connector.name,
-        address,
-        chainId: connection.chainId,
-      })),
+      connection.accounts
+        .filter((address): address is `0x${string}` => address.startsWith("0x"))
+        .map((address) => ({
+          connectorId: connection.connector.uid,
+          connectorName: connection.connector.name,
+          address,
+          chainId: connection.chainId,
+        })),
     );
   } catch {
     return [];
