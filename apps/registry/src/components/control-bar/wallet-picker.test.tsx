@@ -159,8 +159,10 @@ describe("WalletPicker", () => {
     expect(screen.getByText("Connected")).toBeTruthy();
     expect(screen.getAllByText("Wallets").length).toBeGreaterThan(0);
     expect(screen.getByText("Sign in another way")).toBeTruthy();
-    expect(screen.getByText(/^ETH$/)).toBeTruthy();
-    expect(screen.getByText(/^SOL$/)).toBeTruthy();
+    expect(screen.queryByText(/^ETH$/)).toBeNull();
+    expect(screen.queryByText(/^SOL$/)).toBeNull();
+    expect(screen.getAllByTitle("MetaMask").length).toBeGreaterThan(0);
+    expect(screen.getByTitle("Phantom")).toBeTruthy();
     expect(screen.getAllByText("MetaMask").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Phantom").length).toBeGreaterThan(0);
     expect(screen.getByText("Rabby")).toBeTruthy();

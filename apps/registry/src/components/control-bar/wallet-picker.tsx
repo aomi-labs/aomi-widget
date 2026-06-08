@@ -464,16 +464,16 @@ function FamilyStatusRow({
           : "border-border/60 bg-background",
       )}
     >
-      <span
-        className={cn(
-          "flex size-9 shrink-0 items-center justify-center rounded-xl text-xs font-semibold",
-          account
-            ? "bg-primary/10 text-primary"
-            : "bg-muted/50 text-muted-foreground",
-        )}
-      >
-        {familyShortLabel(family)}
-      </span>
+      {account ? (
+        <WalletIconSlot
+          id={account.id}
+          label={account.walletName ?? familyLabel(family)}
+        />
+      ) : (
+        <span className="bg-muted/50 text-muted-foreground flex size-9 shrink-0 items-center justify-center rounded-xl text-xs font-semibold">
+          {familyShortLabel(family)}
+        </span>
+      )}
       <span className="min-w-0 flex-1">
         <span className="flex min-w-0 items-center gap-1.5">
           <span className="truncate text-sm font-medium">
