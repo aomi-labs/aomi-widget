@@ -13,6 +13,7 @@ import {
   ChevronRightIcon,
   Loader2Icon,
   LogOutIcon,
+  MailIcon,
   Settings2Icon,
   WalletIcon,
   XIcon,
@@ -24,21 +25,85 @@ import {
   formatAuthProvider,
   useWalletActivationGuard,
 } from "../../lib/aomi-auth-adapter";
+import { getWalletIcon } from "../icons";
 import type {
   AomiAccount,
+  AomiWalletOption,
   WalletFamily,
 } from "../../lib/aomi-auth-adapter/types";
-import {
-  useWalletPicker,
-  type WalletPickerProvider as WalletPickerProviderEntry,
-} from "./wallet-picker-context";
+import { useWalletPicker } from "./wallet-picker-context";
+
+type WalletAction = AomiWalletOption & {
+  actionKey: string;
+  connect: () => Promise<void>;
+};
 
 function familyLabel(family: WalletFamily): string {
-  return family === "solana" ? "Solana" : "EVM";
+  return family === "solana" ? "Solana" : "Ethereum";
+}
+
+function familyShortLabel(family: WalletFamily): string {
+  return family === "solana" ? "SOL" : "ETH";
+}
+
+function walletStatusLabel(option: AomiWalletOption): string {
+  if (option.status === "installed") return "Installed";
+  if (option.status === "qr") return "QR code";
+  if (option.status === "unavailable") return "Not installed";
+  return "Ready";
+}
+
+function statusRank(option: AomiWalletOption): number {
+  if (option.status === "installed") return 0;
+  if (option.status === "available") return 1;
+  if (option.status === "qr") return 2;
+  return 3;
+}
+
+function walletDisplayRank(option: AomiWalletOption): number {
+  const id = option.id.toLowerCase();
+  const label = option.label.toLowerCase();
+  if (id.includes("metamask") || label.includes("metamask")) return 0;
+  if (id.includes("rabby") || label.includes("rabby")) return 1;
+  if (id.includes("phantom") || label.includes("phantom")) return 2;
+  if (id.includes("solflare") || label.includes("solflare")) return 3;
+  if (id.includes("backpack") || label.includes("backpack")) return 4;
+  if (id.includes("coinbase") || label.includes("coinbase")) return 5;
+  if (id.includes("walletconnect") || label.includes("walletconnect")) return 6;
+  return 20;
+}
+
+function walletAliasKey(
+  wallet: Pick<AomiWalletOption, "id" | "label">,
+): string {
+  const value = `${wallet.id} ${wallet.label}`.toLowerCase();
+  if (value.includes("rabby")) return "rabby";
+  if (value.includes("metamask")) return "metamask";
+  if (value.includes("coinbase")) return "coinbase";
+  if (value.includes("walletconnect")) return "walletconnect";
+  if (value.includes("rainbow")) return "rainbow";
+  if (value.includes("phantom")) return "phantom";
+  if (value.includes("solflare")) return "solflare";
+  if (value.includes("backpack")) return "backpack";
+  return wallet.label.toLowerCase().replace(/[^a-z0-9]+/g, "");
+}
+
+function dedupeWalletActions(actions: readonly WalletAction[]): WalletAction[] {
+  const seen = new Set<string>();
+  const result: WalletAction[] = [];
+
+  for (const action of actions) {
+    const key = walletAliasKey(action);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    result.push(action);
+  }
+
+  return result;
 }
 
 export function WalletPicker() {
-  const { open, closePicker, providers } = useWalletPicker();
+  const { open, closePicker } = useWalletPicker();
   const adapter = useAomiAuthAdapter();
   const identity = adapter.identity;
   const [pending, setPending] = useState<string | null>(null);
@@ -49,11 +114,19 @@ export function WalletPicker() {
       setPending(null);
       return;
     }
+    const previousOverflow = document.body.style.overflow;
+    const previousOverscrollBehavior = document.body.style.overscrollBehavior;
+    document.body.style.overflow = "hidden";
+    document.body.style.overscrollBehavior = "none";
     const handleKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") closePicker();
     };
     window.addEventListener("keydown", handleKey);
-    return () => window.removeEventListener("keydown", handleKey);
+    return () => {
+      window.removeEventListener("keydown", handleKey);
+      document.body.style.overflow = previousOverflow;
+      document.body.style.overscrollBehavior = previousOverscrollBehavior;
+    };
   }, [open, closePicker]);
 
   const runAction = useCallback(
@@ -82,10 +155,100 @@ export function WalletPicker() {
   const activeEvmAccount = evmAccounts.find((account) => account.active);
   const activeSolanaAccount = solanaAccounts.find((account) => account.active);
 
-  if (!open) return null;
+  const walletActions = useMemo<WalletAction[]>(() => {
+    const evmWallets =
+      adapter.evmWallets?.map((wallet) => ({
+        ...wallet,
+        actionKey: `connect-evm:${wallet.id}`,
+        connect: async () => {
+          if (adapter.connectEvmWallet) {
+            await adapter.connectEvmWallet(wallet.id);
+            return;
+          }
+          await adapter.connect({ family: "evm" });
+        },
+      })) ?? [];
+    const solanaWallets =
+      adapter.solanaWallets?.map((wallet) => ({
+        id: wallet.name,
+        label: wallet.name,
+        family: "solana" as const,
+        kind: "solana" as const,
+        status: wallet.installed
+          ? ("installed" as const)
+          : wallet.ready
+            ? ("available" as const)
+            : ("unavailable" as const),
+        installed: wallet.installed,
+        ready: wallet.ready,
+        iconUrl: wallet.iconUrl,
+        description: "Connect a Solana wallet",
+        actionKey: `connect-solana:${wallet.name}`,
+        connect: async () => {
+          if (adapter.connectSolanaWallet) {
+            await adapter.connectSolanaWallet(wallet.name);
+            return;
+          }
+          await adapter.connect({ family: "solana" });
+        },
+      })) ?? [];
+    const fallbackWallets: WalletAction[] =
+      evmWallets.length === 0 &&
+      solanaWallets.length === 0 &&
+      adapter.canConnect
+        ? [
+            {
+              id: "evm",
+              label: "Ethereum wallet",
+              family: "evm",
+              kind: "evm",
+              status: "available",
+              ready: true,
+              description: "MetaMask, Rabby, Coinbase, and more",
+              actionKey: "connect-evm",
+              connect: () => adapter.connect({ family: "evm" }),
+            },
+            {
+              id: "solana",
+              label: "Solana wallet",
+              family: "solana",
+              kind: "solana",
+              status: "available",
+              ready: true,
+              description: "Phantom, Solflare, Backpack, and more",
+              actionKey: "connect-solana",
+              connect: () => adapter.connect({ family: "solana" }),
+            },
+          ]
+        : [];
 
+    return dedupeWalletActions([
+      ...evmWallets,
+      ...solanaWallets,
+      ...fallbackWallets,
+    ]).sort((a, b) => {
+      const priority = walletDisplayRank(a) - walletDisplayRank(b);
+      if (priority !== 0) return priority;
+      return statusRank(a) - statusRank(b) || a.label.localeCompare(b.label);
+    });
+  }, [
+    adapter,
+    adapter.canConnect,
+    adapter.connectEvmWallet,
+    adapter.connectSolanaWallet,
+    adapter.evmWallets,
+    adapter.solanaWallets,
+  ]);
+
+  const socialLoginOptions = adapter.socialLoginOptions ?? [];
   const providerSubtitle =
     identity.secondaryLabel ?? formatAuthProvider(identity.authProvider);
+  const hasAdvancedAccount =
+    identity.isConnected &&
+    (identity.walletProvider || adapter.canOpenAccountUI || providerSubtitle);
+  const hasConnectedWallets = Boolean(activeEvmAccount || activeSolanaAccount);
+
+  if (!open) return null;
 
   return (
     <div
@@ -102,215 +265,162 @@ export function WalletPicker() {
       />
       <div
         className={cn(
-          "relative z-10 flex max-h-[min(720px,92vh)] w-full max-w-[440px] flex-col overflow-hidden",
-          "border-border/60 bg-popover text-popover-foreground rounded-[28px] border shadow-2xl",
+          "relative z-10 flex max-h-[min(720px,92vh)] w-full max-w-[430px] flex-col overflow-hidden",
+          "border-border/70 bg-popover text-popover-foreground rounded-[24px] border text-left shadow-2xl",
           "animate-in zoom-in-95 fade-in-0 duration-200",
         )}
       >
-        <div className="relative overflow-hidden border-b border-white/10 bg-[radial-gradient(circle_at_12%_12%,rgba(14,165,233,0.22),transparent_34%),linear-gradient(135deg,rgba(15,23,42,0.96),rgba(17,24,39,0.88))] px-4 pb-4 pt-4 text-white">
-          <div className="pointer-events-none absolute -right-10 -top-12 size-32 rounded-full border border-white/15" />
-          <div className="pointer-events-none absolute -bottom-16 left-16 size-28 rounded-full bg-cyan-300/10 blur-2xl" />
-          <h2
-            id="aomi-wallet-picker-title"
-            className="relative text-base font-semibold tracking-tight"
-          >
-            Wallet center
-          </h2>
-          <p className="relative mt-1 max-w-[310px] pr-7 text-xs leading-snug text-white/70">
-            {identity.isConnected
-              ? "Choose one active signer per network family without losing the current chat."
-              : "Connect EVM and Solana wallets under the same account."}
-          </p>
+        <div className="border-border/60 flex items-start gap-3 border-b px-4 pb-3 pt-4">
+          <span className="bg-muted/60 text-foreground flex size-10 shrink-0 items-center justify-center rounded-2xl">
+            <WalletIcon className="size-5" />
+          </span>
+          <div className="min-w-0 flex-1">
+            <h2
+              id="aomi-wallet-picker-title"
+              className="text-base font-semibold tracking-tight"
+            >
+              Select a wallet
+            </h2>
+            <p className="text-muted-foreground mt-0.5 text-xs leading-snug">
+              Connect with your wallet, or continue with email.
+            </p>
+          </div>
           <button
             type="button"
             onClick={closePicker}
             aria-label="Close"
-            className="absolute right-3 top-3 rounded-full p-1.5 text-white/60 transition-colors hover:bg-white/10 hover:text-white"
+            className="text-muted-foreground hover:bg-muted hover:text-foreground rounded-full p-1.5 transition-colors"
           >
-            <XIcon className="size-3.5" />
+            <XIcon className="size-4" />
           </button>
-          <div className="relative mt-4 grid grid-cols-2 gap-2">
-            <WalletSummaryCard
-              family="evm"
-              account={activeEvmAccount}
-              active={Boolean(activeEvmAccount)}
-              detail={
-                activeEvmAccount && identity.chainId
-                  ? getChainInfo(identity.chainId)?.ticker
-                  : undefined
-              }
-            />
-            <WalletSummaryCard
-              family="solana"
-              account={activeSolanaAccount}
-              active={Boolean(activeSolanaAccount)}
-              detail={identity.solanaCluster}
-            />
-          </div>
         </div>
 
-        <div className="flex flex-col gap-3 overflow-y-auto p-3">
-          {/* Provider section (Para session) */}
-          <section className="flex flex-col gap-1.5">
-            <span className="text-muted-foreground px-1 text-[11px] font-medium uppercase tracking-wide">
-              Account
-            </span>
-            {providers.map((provider) => (
-              <ProviderRow
-                key={provider.id}
-                provider={provider}
-                connected={identity.isConnected && provider.id === "para"}
-                subtitle={
-                  identity.isConnected && provider.id === "para"
-                    ? providerSubtitle
-                    : provider.description
-                }
-                pending={pending}
-                onConnect={
-                  !identity.isConnected &&
-                  adapter.canConnect &&
-                  !provider.disabled
-                    ? () =>
-                        void runAction(
-                          `connect-provider:${provider.id}`,
-                          async () => {
-                            await adapter.connect();
-                            closePicker();
-                          },
-                        )
-                    : undefined
-                }
-                onManage={
-                  identity.isConnected &&
-                  provider.id === "para" &&
-                  adapter.canOpenAccountUI &&
-                  adapter.openAccountUI
-                    ? () =>
-                        void runAction(`manage:${provider.id}`, async () => {
-                          await adapter.openAccountUI?.();
-                          closePicker();
-                        })
-                    : undefined
-                }
-              />
-            ))}
-          </section>
-
-          <FamilySection
-            family="evm"
-            accounts={evmAccounts}
-            chainId={identity.chainId}
-            pending={pending}
-            onSelect={(id) =>
-              void runAction(
-                `select:${id}`,
-                () => adapter.selectAccount(id),
-                true,
-              )
-            }
-            onDisconnect={
-              adapter.disconnect
-                ? (id) =>
-                    void runAction(
-                      `disconnect:${id}`,
-                      () => adapter.disconnect!({ accountId: id }),
-                      true,
-                    )
-                : undefined
-            }
-            onConnect={
-              adapter.canConnect
-                ? () =>
-                    void runAction(
-                      "connect:evm",
-                      async () => {
-                        await adapter.connect({ family: "evm" });
-                        closePicker();
-                      },
-                      true,
-                    )
-                : undefined
-            }
-          />
-          <FamilySection
-            family="solana"
-            accounts={solanaAccounts}
-            pending={pending}
-            onSelect={(id) =>
-              void runAction(
-                `select:${id}`,
-                () => adapter.selectAccount(id),
-                true,
-              )
-            }
-            onDisconnect={
-              adapter.disconnect
-                ? () =>
-                    void runAction(
-                      "disconnect:solana",
-                      () => adapter.disconnect!({ family: "solana" }),
-                      true,
-                    )
-                : undefined
-            }
-            onConnect={
-              adapter.canConnect
-                ? () =>
-                    void runAction(
-                      "connect:solana",
-                      async () => {
-                        await adapter.connect({ family: "solana" });
-                        closePicker();
-                      },
-                      true,
-                    )
-                : undefined
-            }
-          />
-          {adapter.connectSolanaWallet && adapter.solanaWallets?.length ? (
+        <div className="flex flex-col gap-4 overflow-y-auto p-3.5">
+          {hasConnectedWallets ? (
             <section className="flex flex-col gap-1.5">
-              <span className="text-muted-foreground px-1 text-[11px] font-medium uppercase tracking-wide">
-                Available Solana Wallets
-              </span>
-              {adapter.solanaWallets.map((wallet) => (
-                <button
-                  key={wallet.name}
-                  type="button"
-                  disabled={!wallet.ready || pending !== null}
+              <SectionLabel>Connected</SectionLabel>
+              {activeEvmAccount ? (
+                <FamilyStatusRow
+                  family="evm"
+                  account={activeEvmAccount}
+                  detail={
+                    identity.chainId
+                      ? getChainInfo(identity.chainId)?.name
+                      : undefined
+                  }
+                  pending={pending}
+                  onDisconnect={
+                    adapter.disconnect
+                      ? () =>
+                          void runAction(
+                            `disconnect:${activeEvmAccount.id}`,
+                            () =>
+                              adapter.disconnect!({
+                                family: "evm",
+                              }),
+                            true,
+                          )
+                      : undefined
+                  }
+                />
+              ) : null}
+              {activeSolanaAccount ? (
+                <FamilyStatusRow
+                  family="solana"
+                  account={activeSolanaAccount}
+                  detail={identity.solanaCluster?.replace("solana:", "")}
+                  pending={pending}
+                  onDisconnect={
+                    adapter.disconnect
+                      ? () =>
+                          void runAction(
+                            "disconnect:solana",
+                            () => adapter.disconnect!({ family: "solana" }),
+                            true,
+                          )
+                      : undefined
+                  }
+                />
+              ) : null}
+            </section>
+          ) : null}
+
+          {walletActions.length ? (
+            <section className="flex flex-col gap-1.5">
+              <SectionLabel>Wallets</SectionLabel>
+              {walletActions.map((wallet) => (
+                <WalletActionRow
+                  key={`${wallet.family}:${wallet.id}`}
+                  wallet={wallet}
+                  pending={pending}
                   onClick={() =>
                     void runAction(
-                      `connect-solana:${wallet.name}`,
-                      () => adapter.connectSolanaWallet!(wallet.name),
+                      wallet.actionKey,
+                      async () => {
+                        await wallet.connect();
+                        closePicker();
+                      },
                       true,
                     )
                   }
-                  className={cn(
-                    "border-border/60 bg-background hover:border-primary/30 hover:bg-accent/40 flex items-center gap-2 rounded-2xl border px-2.5 py-2 text-left transition-colors",
-                    !wallet.ready && "opacity-50",
-                  )}
-                >
-                  <span className="bg-muted/40 flex size-8 items-center justify-center rounded-xl">
-                    <WalletIcon className="size-4" />
-                  </span>
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate text-sm font-medium">
-                      {wallet.name}
-                    </span>
-                    <span className="text-muted-foreground block text-[11px]">
-                      {wallet.installed
-                        ? "Installed"
-                        : wallet.ready
-                          ? "Available"
-                          : "Not installed"}
-                    </span>
-                  </span>
-                  {pending === `connect-solana:${wallet.name}` ? (
-                    <Loader2Icon className="size-4 animate-spin" />
-                  ) : (
-                    <ChevronRightIcon className="text-muted-foreground size-4" />
-                  )}
-                </button>
+                />
               ))}
+            </section>
+          ) : null}
+
+          {socialLoginOptions.length ? (
+            <section className="flex flex-col gap-1.5">
+              <SectionLabel>Sign in another way</SectionLabel>
+              {socialLoginOptions.map((option) => (
+                <SocialLoginRow
+                  key={option.id}
+                  option={option}
+                  pending={pending}
+                  onClick={() =>
+                    void runAction(`social:${option.id}`, async () => {
+                      if (adapter.connectSocial) {
+                        await adapter.connectSocial(option.id);
+                      } else {
+                        await adapter.connect();
+                      }
+                      closePicker();
+                    })
+                  }
+                />
+              ))}
+            </section>
+          ) : null}
+
+          {hasAdvancedAccount ? (
+            <section className="flex flex-col gap-1.5">
+              <SectionLabel>Advanced</SectionLabel>
+              <div className="border-border/60 bg-background flex items-center gap-3 rounded-2xl border px-3 py-2.5">
+                <span className="bg-muted/50 text-muted-foreground flex size-9 shrink-0 items-center justify-center rounded-xl">
+                  <Settings2Icon className="size-4" />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-sm font-medium">
+                    Aomi account session
+                  </span>
+                  <span className="text-muted-foreground block truncate text-[11px]">
+                    {providerSubtitle ?? "Provider account controls"}
+                  </span>
+                </span>
+                {adapter.openAccountUI && adapter.canOpenAccountUI ? (
+                  <RowIconButton
+                    icon={ChevronRightIcon}
+                    ariaLabel="Manage account session"
+                    disabled={pending !== null}
+                    loading={pending === "manage:account"}
+                    onClick={() =>
+                      void runAction("manage:account", async () => {
+                        await adapter.openAccountUI?.();
+                        closePicker();
+                      })
+                    }
+                  />
+                ) : null}
+              </div>
             </section>
           ) : null}
         </div>
@@ -319,258 +429,215 @@ export function WalletPicker() {
   );
 }
 
-function WalletSummaryCard({
+function SectionLabel({ children }: { children: string }) {
+  return (
+    <span className="text-muted-foreground px-1 text-[11px] font-medium uppercase tracking-wide">
+      {children}
+    </span>
+  );
+}
+
+function FamilyStatusRow({
   family,
   account,
-  active,
   detail,
+  pending,
+  onDisconnect,
 }: {
   family: WalletFamily;
   account?: AomiAccount;
-  active: boolean;
   detail?: string;
+  pending: string | null;
+  onDisconnect?: () => void;
 }) {
-  const shortAddress = account
-    ? formatAddress(account.address)
-    : "Not connected";
+  const disconnectKey =
+    family === "evm" && account
+      ? `disconnect:${account.id}`
+      : "disconnect:solana";
+
   return (
     <div
       className={cn(
-        "rounded-2xl border p-3 text-left",
-        active
-          ? "bg-white/16 border-cyan-300/50 text-white shadow-[0_12px_28px_rgba(8,47,73,0.28)]"
-          : "text-white/72 border-white/10 bg-white/[0.07]",
+        "flex items-center gap-3 rounded-2xl border px-3 py-2.5",
+        account
+          ? "border-primary/35 bg-primary/[0.04]"
+          : "border-border/60 bg-background",
       )}
     >
-      <span className="flex items-center justify-between gap-2">
-        <span className="text-[11px] font-semibold uppercase tracking-[0.16em]">
-          {family === "solana" ? "SOL" : "EVM"}
+      <span
+        className={cn(
+          "flex size-9 shrink-0 items-center justify-center rounded-xl text-xs font-semibold",
+          account
+            ? "bg-primary/10 text-primary"
+            : "bg-muted/50 text-muted-foreground",
+        )}
+      >
+        {familyShortLabel(family)}
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="flex min-w-0 items-center gap-1.5">
+          <span className="truncate text-sm font-medium">
+            {account?.walletName ?? familyLabel(family)}
+          </span>
+          {account ? (
+            <CheckIcon className="text-primary size-3.5 shrink-0" />
+          ) : null}
         </span>
-        <span
-          className={cn(
-            "rounded-full px-2 py-0.5 text-[10px] font-medium",
-            active ? "bg-cyan-300 text-slate-950" : "bg-white/10 text-white/60",
-          )}
-        >
-          {active ? "Connected" : "Not connected"}
+        <span className="text-muted-foreground block truncate text-[11px]">
+          {account
+            ? [account.label ?? formatAddress(account.address), detail]
+                .filter(Boolean)
+                .join(" / ")
+            : "Not connected"}
         </span>
       </span>
-      <span className="mt-3 block truncate text-sm font-semibold">
-        {shortAddress}
-      </span>
-      <span className="mt-1 block truncate text-[11px] text-white/55">
-        {account?.walletName ?? detail ?? "Connect signer"}
-      </span>
+      {onDisconnect ? (
+        <RowIconButton
+          icon={LogOutIcon}
+          ariaLabel={`Disconnect ${familyLabel(family)} wallet`}
+          disabled={pending !== null}
+          loading={pending === disconnectKey}
+          onClick={onDisconnect}
+        />
+      ) : null}
     </div>
   );
 }
 
-function ProviderRow({
-  provider,
-  connected,
-  subtitle,
+function WalletActionRow({
+  wallet,
   pending,
-  onConnect,
-  onManage,
+  onClick,
 }: {
-  provider: WalletPickerProviderEntry;
-  connected: boolean;
-  subtitle?: string;
+  wallet: WalletAction;
   pending: string | null;
-  onConnect?: () => void;
-  onManage?: () => void;
+  onClick: () => void;
 }) {
-  const Icon = provider.icon ?? WalletIcon;
-  const content = (
-    <>
-      <span
-        className={cn(
-          "flex size-9 shrink-0 items-center justify-center rounded-xl border",
-          connected
-            ? "border-primary/30 bg-primary/10 text-primary"
-            : "border-border/60 bg-muted/40 text-foreground",
-        )}
-      >
-        <Icon className="size-5" />
-      </span>
-      <span className="min-w-0 flex-1 leading-tight">
-        <span className="block truncate text-sm font-medium">
-          {provider.label}
-        </span>
-        {subtitle && (
-          <span className="text-muted-foreground mt-0.5 block truncate text-[11px]">
-            {subtitle}
-          </span>
-        )}
-      </span>
-    </>
-  );
-  const cardClass = cn(
-    "flex items-center gap-3 rounded-2xl border px-2.5 py-2",
-    connected
-      ? "border-primary/40 bg-primary/[0.04]"
-      : "border-border/60 bg-background",
-    provider.disabled && "opacity-50",
-  );
-  if (connected) {
-    return (
-      <div className={cardClass}>
-        {content}
-        {onManage && (
-          <RowIconButton
-            icon={Settings2Icon}
-            ariaLabel="Manage account"
-            disabled={pending !== null}
-            loading={pending === `manage:${provider.id}`}
-            onClick={onManage}
-          />
-        )}
-      </div>
-    );
-  }
+  const disabled = wallet.ready === false || pending !== null;
+  const showStatus =
+    wallet.status === "installed" ||
+    wallet.status === "qr" ||
+    wallet.status === "unavailable";
   return (
     <button
       type="button"
-      onClick={onConnect}
-      disabled={!onConnect || pending !== null || provider.disabled}
-      aria-label={`Connect with ${provider.label}`}
+      disabled={disabled}
+      onClick={onClick}
+      aria-label={`Connect ${wallet.label}`}
       className={cn(
-        cardClass,
-        "w-full text-left",
-        onConnect ? "hover:bg-accent/40 cursor-pointer" : "cursor-default",
+        "border-border/60 bg-background hover:border-primary/30 hover:bg-accent/40 flex items-center gap-3 rounded-2xl border px-3 py-3 text-left transition-colors",
+        "disabled:pointer-events-none disabled:opacity-50",
       )}
     >
-      {content}
-      <span className="text-muted-foreground shrink-0">
-        {pending === `connect-provider:${provider.id}` ? (
-          <Loader2Icon className="size-4 animate-spin" />
-        ) : onConnect ? (
-          <ChevronRightIcon className="size-4" />
-        ) : null}
+      <WalletIconSlot
+        iconUrl={wallet.iconUrl}
+        id={wallet.id}
+        label={wallet.label}
+      />
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-sm font-medium">
+          {wallet.label}
+        </span>
+        <span className="text-muted-foreground block truncate text-[11px]">
+          {wallet.description ??
+            (wallet.family === "solana"
+              ? "Connect a Solana wallet"
+              : "Connect an Ethereum wallet")}
+        </span>
       </span>
+      {showStatus ? (
+        <span className="bg-muted text-muted-foreground shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium">
+          {walletStatusLabel(wallet)}
+        </span>
+      ) : null}
+      {pending === wallet.actionKey ? (
+        <Loader2Icon className="size-4 shrink-0 animate-spin" />
+      ) : (
+        <ChevronRightIcon className="text-muted-foreground size-4 shrink-0" />
+      )}
     </button>
   );
 }
 
-type FamilySectionProps = {
-  family: WalletFamily;
-  accounts: readonly AomiAccount[];
-  chainId?: number;
-  pending: string | null;
-  onSelect: (id: string) => void;
-  onDisconnect?: (id: string) => void;
-  onConnect?: () => void;
-};
-
-function FamilySection({
-  family,
-  accounts,
-  chainId,
+function SocialLoginRow({
+  option,
   pending,
-  onSelect,
-  onDisconnect,
-  onConnect,
-}: FamilySectionProps) {
+  onClick,
+}: {
+  option: AomiWalletOption;
+  pending: string | null;
+  onClick: () => void;
+}) {
   return (
-    <section className="flex flex-col gap-1.5">
-      <div className="flex items-center justify-between px-1">
-        <span className="text-muted-foreground text-[11px] font-medium uppercase tracking-wide">
-          {familyLabel(family)}
+    <button
+      type="button"
+      disabled={pending !== null || option.ready === false}
+      onClick={onClick}
+      aria-label={option.label}
+      className={cn(
+        "border-border/60 bg-background hover:border-primary/30 hover:bg-accent/40 flex items-center gap-3 rounded-2xl border px-3 py-2.5 text-left transition-colors",
+        "disabled:pointer-events-none disabled:opacity-50",
+      )}
+    >
+      <span className="bg-muted/50 text-muted-foreground flex size-9 shrink-0 items-center justify-center rounded-xl">
+        <MailIcon className="size-4" />
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-sm font-medium">
+          {option.label}
         </span>
-      </div>
-      {accounts.length === 0 ? (
-        <p className="text-muted-foreground px-1 text-[11px]">
-          No {familyLabel(family)} wallet connected.
-        </p>
+        <span className="text-muted-foreground block truncate text-[11px]">
+          {option.description ?? "Use an Aomi account"}
+        </span>
+      </span>
+      {pending === `social:${option.id}` ? (
+        <Loader2Icon className="size-4 shrink-0 animate-spin" />
       ) : (
-        accounts.map((account) => {
-          // Any non-active account in this family can be selected to make it
-          // the live signer; the active one is shown with a check.
-          const selectable = !account.active;
-          const chainTicker =
-            family === "evm" && account.active && chainId
-              ? getChainInfo(chainId)?.ticker
-              : undefined;
-          return (
-            <div
-              key={account.id}
-              className={cn(
-                "flex items-center gap-2 rounded-2xl border px-2.5 py-2",
-                account.active
-                  ? "border-primary/40 bg-primary/[0.04]"
-                  : "border-border/60 bg-background",
-              )}
-            >
-              <span className="bg-muted/40 text-foreground flex size-8 shrink-0 items-center justify-center rounded-xl">
-                <WalletIcon className="size-4" />
-              </span>
-              <button
-                type="button"
-                disabled={!selectable || pending !== null || account.active}
-                onClick={() => onSelect(account.id)}
-                className={cn(
-                  "min-w-0 flex-1 text-left",
-                  selectable && !account.active
-                    ? "cursor-pointer"
-                    : "cursor-default",
-                )}
-              >
-                <span className="block truncate text-sm font-medium">
-                  {account.walletName ?? familyLabel(family)}
-                </span>
-                <span className="text-muted-foreground block truncate text-[11px]">
-                  {[
-                    account.label ?? formatAddress(account.address),
-                    chainTicker,
-                  ]
-                    .filter(Boolean)
-                    .join(" / ")}
-                </span>
-              </button>
-              {account.active && (
-                <CheckIcon className="text-primary size-4 shrink-0" />
-              )}
-              {!account.active &&
-                selectable &&
-                (pending === `select:${account.id}` ? (
-                  <Loader2Icon className="size-4 shrink-0 animate-spin" />
-                ) : (
-                  <ChevronRightIcon className="text-muted-foreground size-4 shrink-0" />
-                ))}
-              {onDisconnect && (
-                <RowIconButton
-                  icon={LogOutIcon}
-                  ariaLabel="Disconnect"
-                  disabled={pending !== null}
-                  loading={
-                    family === "evm"
-                      ? pending === `disconnect:${account.id}`
-                      : pending === "disconnect:solana"
-                  }
-                  onClick={() => onDisconnect(account.id)}
-                />
-              )}
-            </div>
-          );
-        })
+        <ChevronRightIcon className="text-muted-foreground size-4 shrink-0" />
       )}
-      {onConnect && (
-        <button
-          type="button"
-          onClick={onConnect}
-          disabled={pending !== null}
-          className={cn(
-            "border-border flex items-center justify-center gap-2 rounded-2xl border border-dashed px-2.5 py-2 text-xs",
-            "text-muted-foreground hover:bg-accent/40",
-          )}
-        >
-          {pending === `connect:${family}` ? (
-            <Loader2Icon className="size-3.5 animate-spin" />
-          ) : null}
-          Connect {familyLabel(family)} wallet
-        </button>
-      )}
-    </section>
+    </button>
+  );
+}
+
+function WalletIconSlot({
+  iconUrl,
+  id,
+  label,
+}: {
+  iconUrl?: string;
+  id?: string;
+  label: string;
+}) {
+  const WalletBrandIcon = getWalletIcon(`${id ?? ""} ${label}`);
+
+  if (WalletBrandIcon) {
+    return (
+      <span
+        className="bg-muted/50 text-muted-foreground flex size-9 shrink-0 items-center justify-center rounded-xl"
+        aria-hidden="true"
+        title={label}
+      >
+        <WalletBrandIcon className="size-6" />
+      </span>
+    );
+  }
+
+  if (iconUrl) {
+    return (
+      <span className="bg-muted/50 flex size-9 shrink-0 items-center justify-center overflow-hidden rounded-xl">
+        <img src={iconUrl} alt="" className="size-6 object-contain" />
+      </span>
+    );
+  }
+
+  return (
+    <span
+      className="bg-muted/50 text-muted-foreground flex size-9 shrink-0 items-center justify-center rounded-xl"
+      aria-hidden="true"
+      title={label}
+    >
+      <WalletIcon className="size-4" />
+    </span>
   );
 }
 

@@ -57,7 +57,7 @@
     {
       "type": "registry:component",
       "path": "components/icons/index.ts",
-      "content": "export { AutoModeIcon } from \"./auto-mode\";\nexport * from \"./apps\";\nexport * from \"./vendors\";\nexport * from \"./chains\";\nexport { getVendorIcon } from \"./vendor-map\";\nexport { getChainIcon } from \"./chain-map\";\nexport { getAppIcon } from \"./app-map\";\n"
+      "content": "export { AutoModeIcon } from \"./auto-mode\";\nexport * from \"./apps\";\nexport * from \"./vendors\";\nexport * from \"./chains\";\nexport * from \"./wallets\";\nexport { getVendorIcon } from \"./vendor-map\";\nexport { getChainIcon } from \"./chain-map\";\nexport { getAppIcon } from \"./app-map\";\nexport { getWalletIcon } from \"./wallet-map\";\n"
     },
     {
       "type": "registry:component",

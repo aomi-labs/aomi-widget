@@ -125,6 +125,35 @@ export type SolanaWalletDescriptor = {
   iconUrl?: string;
 };
 
+export type AomiWalletOptionStatus =
+  | "installed"
+  | "available"
+  | "qr"
+  | "unavailable";
+export type AomiWalletOptionFamily = WalletFamily | "multichain";
+export type AomiWalletOptionKind =
+  | "evm"
+  | "solana"
+  | "walletconnect"
+  | "social";
+
+/**
+ * One connectable wallet or sign-in surface the adapter can activate.
+ * UIs render these as normal wallet rows while the adapter remains free
+ * to route the click through Para, Privy, wagmi, wallet-adapter, etc.
+ */
+export type AomiWalletOption = {
+  id: string;
+  label: string;
+  family: AomiWalletOptionFamily;
+  kind: AomiWalletOptionKind;
+  status: AomiWalletOptionStatus;
+  installed?: boolean;
+  ready?: boolean;
+  iconUrl?: string;
+  description?: string;
+};
+
 /**
  * One wallet account known to the adapter, tagged by family. The registry
  * may hold several per family (e.g. MetaMask + Para-embedded EVM), but only
@@ -190,6 +219,23 @@ export type AomiAuthAdapter = {
    * pick their wallet explicitly rather than relying on auto-detection.
    */
   solanaWallets?: readonly SolanaWalletDescriptor[];
+  /**
+   * EVM wallet connectors the adapter can attach to. This keeps the picker
+   * wallet-brand-first even when the actual connector plumbing comes from
+   * Para/Privy/wagmi.
+   */
+  evmWallets?: readonly AomiWalletOption[];
+  /**
+   * Attach a specific EVM wallet by option id (matches `evmWallets[].id`).
+   */
+  connectEvmWallet?: (id: string) => Promise<void>;
+  /**
+   * Non-wallet account sign-in options, e.g. Google or email. These are
+   * rendered separately from wallet brands so users don't have to learn
+   * the underlying provider name.
+   */
+  socialLoginOptions?: readonly AomiWalletOption[];
+  connectSocial?: (id: string) => Promise<void>;
   /**
    * Attach a specific Solana wallet by name (matches
    * `solanaWallets[].name`). The promise resolves once the wallet adapter

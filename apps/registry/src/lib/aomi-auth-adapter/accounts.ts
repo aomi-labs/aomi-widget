@@ -19,6 +19,7 @@ export type SolanaConnectionInput = {
 export function buildAccounts(input: {
   evmConnections: readonly EvmConnectionInput[];
   activeEvmAddress?: string;
+  activeEvmConnectionId?: string;
   solanaConnections?: readonly SolanaConnectionInput[];
   activeSolanaAddress?: string;
 }): AomiAccount[] {
@@ -32,7 +33,9 @@ export function buildAccounts(input: {
       address: conn.address,
       label: formatAddress(conn.address),
       walletName: conn.walletName,
-      active: !!active && conn.address.toLowerCase() === active,
+      active: input.activeEvmConnectionId
+        ? conn.id === input.activeEvmConnectionId
+        : !!active && conn.address.toLowerCase() === active,
     });
   }
 
