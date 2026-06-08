@@ -32,6 +32,14 @@ function strictFeeBatchPayload(): WalletTxPayload {
   };
 }
 
+function optionalFeeBatchPayload(): WalletTxPayload {
+  return {
+    aaPreference: "eip7702",
+    aaStrict: false,
+    calls: CALLS,
+  };
+}
+
 function singleCallPayload(): WalletTxPayload {
   return {
     to: "0x1111111111111111111111111111111111111111",
@@ -55,7 +63,7 @@ describe("executeAdapterTransaction fallback behavior", () => {
     });
 
     const result = await executeAdapterTransaction({
-      payload: strictFeeBatchPayload(),
+      payload: optionalFeeBatchPayload(),
       state: {
         currentChainId: 1,
         sendCallsSyncAsync,
@@ -129,7 +137,7 @@ describe("executeAdapterTransaction fallback behavior", () => {
       .mockResolvedValueOnce("0x222");
 
     const result = await executeAdapterTransaction({
-      payload: strictFeeBatchPayload(),
+      payload: optionalFeeBatchPayload(),
       state: {
         currentChainId: 1,
         capabilities: {
@@ -368,7 +376,7 @@ describe("executeAdapterTransaction fallback behavior", () => {
       });
 
     const result = await executeAdapterTransaction({
-      payload: strictFeeBatchPayload(),
+      payload: optionalFeeBatchPayload(),
       state: {
         currentChainId: 1,
         sendCallsSyncAsync: vi.fn(),

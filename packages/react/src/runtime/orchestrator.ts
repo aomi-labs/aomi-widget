@@ -67,6 +67,12 @@ const buildPaymentRequiredMessage = (): ThreadMessageLike => ({
   },
 });
 
+const previewText = (value: string, max = 80) => {
+  const singleLine = value.replace(/\s+/g, " ").trim();
+  if (singleLine.length <= max) return singleLine;
+  return `${singleLine.slice(0, max - 1)}…`;
+};
+
 const getOptimisticStatus = (message: ThreadMessageLike) => {
   const status = message.metadata?.custom?.aomiSendStatus;
   return status === "sending" || status === "sent" || status === "failed"
@@ -244,6 +250,9 @@ export function useRuntimeOrchestrator(
           clientId: nextClientId,
           userState: nextUserState,
         });
+        existing.setSSEActive(
+          threadContextRef.current.currentThreadId === threadId,
+        );
         return existing;
       }
 
@@ -256,6 +265,7 @@ export function useRuntimeOrchestrator(
         syncPendingTxRequestsFromUserState: false,
         userState: nextUserState,
       });
+      session.setSSEActive(threadContextRef.current.currentThreadId === threadId);
 
       // Wire ClientSession events → React state
       const cleanups: Array<() => void> = [];
@@ -396,6 +406,10 @@ export function useRuntimeOrchestrator(
   /** Send a message on the given thread. */
   const sendMessage = useCallback(
     async (text: string, threadId: string) => {
+      console.debug("[aomi][runtime] sendMessage start", {
+        threadId,
+        messagePreview: previewText(text),
+      });
       const existingMessages =
         threadContextRef.current.getThreadMessages(threadId);
       const optimisticMessageId = String(existingMessages.length);
@@ -426,9 +440,25 @@ export function useRuntimeOrchestrator(
       }
 
       try {
+        console.debug("[aomi][runtime] sendMessage preparing thread", {
+          threadId,
+        });
         await optionsRef.current.prepareThreadForSend?.(threadId);
+        console.debug("[aomi][runtime] sendMessage prepare complete", {
+          threadId,
+        });
         const session = getSession(threadId);
+        console.debug("[aomi][runtime] sendMessage session ready", {
+          threadId,
+          sessionId: session.sessionId,
+        });
         await session.sendAsync(text);
+        console.debug("[aomi][runtime] sendMessage sendAsync complete", {
+          threadId,
+          sessionId: session.sessionId,
+          isProcessing: session.getIsProcessing(),
+          pendingRequestCount: session.getPendingRequests().length,
+        });
         optionsRef.current.onSendSuccess?.(threadId);
         if (threadContextRef.current.currentThreadId === threadId) {
           setIsRunning(session.getIsProcessing());
@@ -443,6 +473,11 @@ export function useRuntimeOrchestrator(
           session.getPendingRequests(),
         );
       } catch (error) {
+        console.error("[aomi][runtime] sendMessage failed", {
+          threadId,
+          messagePreview: previewText(text),
+          error,
+        });
         if (threadContextRef.current.currentThreadId === threadId) {
           setIsRunning(false);
         }
@@ -470,6 +505,13 @@ export function useRuntimeOrchestrator(
       await session.interrupt();
     }
   }, []);
+
+  // Keep SSE active only for the current thread.
+  useEffect(() => {
+    sessionManagerRef.current?.forEach((session, threadId) => {
+      session.setSSEActive(threadId === threadContext.currentThreadId);
+    });
+  }, [threadContext.currentThreadId]);
 
   // Cleanup on unmount
   useEffect(() => {

@@ -46,7 +46,11 @@ export { RuntimeUserStateProvider } from "./runtime/user-state-provider";
 // =============================================================================
 // Unified Runtime API
 // =============================================================================
-export { useAomiRuntime } from "./interface";
+export {
+  AomiRuntimeApiProvider,
+  useAomiRuntime,
+  useOptionalAomiRuntime,
+} from "./interface";
 export type { AomiRuntimeApi } from "./interface";
 
 // =============================================================================
@@ -76,6 +80,7 @@ export type {
   WalletRequest,
   WalletTxPayload,
   WalletEip712Payload,
+  WalletSolanaSignMessagePayload,
   WalletSolanaSignPayload,
   WalletRequestKind,
   WalletRequestStatus,

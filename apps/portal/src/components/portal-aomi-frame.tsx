@@ -3,7 +3,8 @@
 import { useEffect, useMemo, useRef } from "react";
 import Link from "next/link";
 import { Settings } from "lucide-react";
-import { AomiFrame } from "@aomi-labs/widget-lib";
+import { createAccountAccessTokenProvider } from "@aomi-labs/client";
+import { AomiFrame, useAomiAuthAdapter } from "@aomi-labs/widget-lib";
 import { type AomiClientOptions, useControl } from "@aomi-labs/react";
 import { RequiredSecretsGate } from "@portal/components/required-secrets-gate";
 import { x402Client } from "@x402/core/client";
@@ -28,8 +29,37 @@ function getRequestedAppFromSearch(search: string): string | null {
 }
 
 function usePortalClientOptions(): Omit<AomiClientOptions, "baseUrl"> | undefined {
+  const { getAccountCredential } = useAomiAuthAdapter();
   const wagmiConfig = useConfig();
   const walletClient = useWalletClient();
+  const backendUrl = getBackendUrl();
+  const nativeFetch = useMemo(
+    () => globalThis.fetch.bind(globalThis),
+    [],
+  );
+  const accountAccessTokenProvider = useMemo(() => {
+    if (!getAccountCredential) {
+      return undefined;
+    }
+    return createAccountAccessTokenProvider({
+      baseUrl: backendUrl,
+      getProviderCredential: async () => {
+        const credential = await getAccountCredential();
+        if (!credential) {
+          throw new Error("Wallet provider is connected without an exchangeable credential");
+        }
+        return credential;
+      },
+      fetch: nativeFetch,
+    });
+  }, [backendUrl, getAccountCredential, nativeFetch]);
+
+  useEffect(
+    () => () => {
+      accountAccessTokenProvider?.dispose();
+    },
+    [accountAccessTokenProvider],
+  );
 
   const mppClientOptions = useMemo(() => {
     if (!wagmiConfig) {
@@ -49,34 +79,151 @@ function usePortalClientOptions(): Omit<AomiClientOptions, "baseUrl"> | undefine
       ],
     });
 
-    return {
-      fetch: mppx.fetch,
-    };
+    return { fetch: mppx.fetch };
   }, [wagmiConfig]);
 
   return useMemo(() => {
-    const baseFetch = mppClientOptions?.fetch;
-    if (!baseFetch) {
-      return undefined;
-    }
+    const withDebugLogging = (
+      fetchName: string,
+      fetchImpl: typeof fetch,
+    ): typeof fetch => {
+      return async (input, init) => {
+        const rawUrl =
+          typeof input === "string"
+            ? input
+            : input instanceof URL
+              ? input.toString()
+              : input.url;
+        const normalizeLocalhostUrl = (value: string) => {
+          try {
+            const parsed = new URL(value, window.location.href);
+            if (parsed.hostname === "localhost") {
+              parsed.hostname = "127.0.0.1";
+            }
+            return parsed.toString();
+          } catch {
+            return value;
+          }
+        };
+        const url = normalizeLocalhostUrl(rawUrl);
+        const method = init?.method ?? (input instanceof Request ? input.method : "GET");
+        const startedAt = Date.now();
+        console.debug("[aomi][portal-fetch] start", {
+          fetchName,
+          method,
+          url,
+        });
 
-    const connectorClient = walletClient?.data;
-    if (!connectorClient) {
-      return {
-        fetch: baseFetch,
+        const pendingWarning = setTimeout(() => {
+          console.debug("[aomi][portal-fetch] still pending", {
+            fetchName,
+            method,
+            url,
+            pendingMs: Date.now() - startedAt,
+          });
+        }, 5000);
+
+        try {
+          const normalizedInput =
+            typeof input === "string"
+              ? url
+              : input instanceof URL
+                ? new URL(url)
+                : new Request(url, input);
+          const response = await fetchImpl(normalizedInput, init);
+          clearTimeout(pendingWarning);
+          console.debug("[aomi][portal-fetch] response", {
+            fetchName,
+            method,
+            url,
+            status: response.status,
+            ok: response.ok,
+            durationMs: Date.now() - startedAt,
+          });
+          return response;
+        } catch (error) {
+          clearTimeout(pendingWarning);
+          console.error("[aomi][portal-fetch] failed", {
+            fetchName,
+            method,
+            url,
+            durationMs: Date.now() - startedAt,
+            error,
+          });
+          throw error;
+        }
       };
-    }
+    };
 
-    const paymentClient = new x402Client();
-    paymentClient.register(
-      "eip155:*",
-      new ExactEvmScheme(connectorClient as never),
-    );
+    const parseUrl = (input: RequestInfo | URL): URL | null => {
+      try {
+        if (typeof input === "string") {
+          return new URL(input, window.location.href);
+        }
+        if (input instanceof URL) {
+          return input;
+        }
+        return new URL(input.url, window.location.href);
+      } catch {
+        return null;
+      }
+    };
+
+    const isChatPost = (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = parseUrl(input);
+      if (!url) return false;
+      const method = (init?.method ?? (input instanceof Request ? input.method : "GET"))
+        .toUpperCase();
+      return method === "POST" && url.pathname === "/api/chat";
+    };
+
+    const rawFetch = withDebugLogging("native.fetch", nativeFetch);
+    const baseFetch = mppClientOptions?.fetch;
+    const connectorClient = walletClient?.data;
+    const paymentFetch = (() => {
+      if (!baseFetch) {
+        return null;
+      }
+      if (!connectorClient) {
+        return withDebugLogging("mppx.fetch", baseFetch);
+      }
+
+      const paymentClient = new x402Client();
+      paymentClient.register(
+        "eip155:*",
+        new ExactEvmScheme(connectorClient as never),
+      );
+
+      return withDebugLogging(
+        "wrapFetchWithPayment",
+        wrapFetchWithPayment(baseFetch, paymentClient),
+      );
+    })();
+
+    const routedFetch: typeof fetch = async (input, init) => {
+      if (!isChatPost(input, init)) {
+        return rawFetch(input, init);
+      }
+
+      const firstResponse = await rawFetch(input, init);
+      if (firstResponse.status !== 402 || !paymentFetch) {
+        return firstResponse;
+      }
+
+      console.debug("[aomi][portal-fetch] retrying /api/chat with payment transport after 402");
+      return paymentFetch(input, init);
+    };
 
     return {
-      fetch: wrapFetchWithPayment(baseFetch, paymentClient),
+      fetch: routedFetch,
+      getAccountAccessToken: accountAccessTokenProvider,
     };
-  }, [mppClientOptions, walletClient?.data]);
+  }, [
+    accountAccessTokenProvider,
+    mppClientOptions,
+    nativeFetch,
+    walletClient?.data,
+  ]);
 }
 
 function AppSelectUrlBootstrap() {
@@ -111,6 +258,7 @@ export function PortalAomiFrame() {
         height="100%"
         backendUrl={backendUrl}
         walletPosition="footer"
+        walletFamilies={["evm", "solana"]}
         className="rounded-none border-0 shadow-none"
         clientOptions={clientOptions}
       >
