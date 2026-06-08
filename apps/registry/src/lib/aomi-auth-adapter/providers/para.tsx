@@ -1,12 +1,6 @@
 "use client";
 
-import {
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  type ReactNode,
-} from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   Environment,
   ParaProvider,
@@ -21,6 +15,7 @@ import "@getpara/react-sdk/styles.css";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { Chain, Hex, Transport } from "viem";
 import { http } from "viem";
+import type { Connector } from "wagmi";
 import {
   arbitrum,
   base,
@@ -65,6 +60,8 @@ import {
 } from "../full-testnet-wallet-routing";
 import {
   useSafeCapabilities,
+  useSafeConnect,
+  useSafeConnectors,
   useSafeConnections,
   useSafeDisconnect,
   useSafeReconnect,
@@ -84,6 +81,7 @@ import type {
   AomiAuthAdapter,
   AomiAuthIdentity,
   AomiAuthMethod,
+  AomiWalletOption,
   WalletFamily,
 } from "../types";
 import {
@@ -182,6 +180,322 @@ const defaultExternalWallets: TExternalWallet[] = [
   "RABBY",
 ];
 
+const walletLabelOverrides: Record<string, string> = {
+  base: "Base Account",
+  baseaccount: "Base Account",
+  coinbase: "Coinbase Wallet",
+  coinbasewallet: "Coinbase Wallet",
+  injected: "Browser wallet",
+  metamask: "MetaMask",
+  para: "Para",
+  rabby: "Rabby",
+  rainbow: "Rainbow",
+  walletconnect: "WalletConnect",
+};
+
+const externalWalletLabels: Partial<Record<TExternalWallet, string>> = {
+  COINBASE: "Coinbase Wallet",
+  METAMASK: "MetaMask",
+  RABBY: "Rabby",
+  RAINBOW: "Rainbow",
+  WALLETCONNECT: "WalletConnect",
+};
+
+const solanaWalletAllowlist = new Set([
+  "phantom",
+  "solflare",
+  "backpack",
+  "glow",
+]);
+
+type EthereumProviderFlags = {
+  metamask: boolean;
+  rabby: boolean;
+  coinbase: boolean;
+  rainbow: boolean;
+};
+
+const emptyEthereumProviderFlags: EthereumProviderFlags = {
+  metamask: false,
+  rabby: false,
+  coinbase: false,
+  rainbow: false,
+};
+
+const socialLoginLabels: Partial<Record<TOAuthMethod, string>> = {
+  APPLE: "Continue with Apple",
+  DISCORD: "Continue with Discord",
+  FACEBOOK: "Continue with Facebook",
+  FARCASTER: "Continue with Farcaster",
+  GITHUB: "Continue with GitHub",
+  GOOGLE: "Continue with Email",
+  TELEGRAM: "Continue with Telegram",
+  X: "Continue with X",
+};
+
+const socialLoginDescriptions: Partial<Record<TOAuthMethod, string>> = {
+  GOOGLE: "Use email, or sign in with Google",
+};
+
+function normalizeWalletOptionId(value: string): string {
+  return value.toLowerCase().replace(/[^a-z0-9]+/g, "");
+}
+
+function canonicalWalletKey(value: string): string {
+  const normalized = normalizeWalletOptionId(value);
+  if (normalized.includes("metamask")) return "metamask";
+  if (normalized.includes("rabby")) return "rabby";
+  if (normalized.includes("coinbase")) return "coinbase";
+  if (normalized.includes("rainbow")) return "rainbow";
+  if (normalized.includes("walletconnect")) return "walletconnect";
+  if (normalized.includes("baseaccount") || normalized === "base") {
+    return "base";
+  }
+  if (normalized.includes("phantom")) return "phantom";
+  if (normalized.includes("solflare")) return "solflare";
+  if (normalized.includes("backpack")) return "backpack";
+  if (normalized.includes("glow")) return "glow";
+  if (normalized.includes("para")) return "para";
+  return normalized;
+}
+
+function ethereumProviderFlags(): EthereumProviderFlags {
+  if (typeof window === "undefined") {
+    return emptyEthereumProviderFlags;
+  }
+
+  const hostWindow = window as typeof window & {
+    ethereum?: unknown;
+    rabby?: unknown;
+    coinbaseWalletExtension?: unknown;
+  };
+  type InjectedProvider = {
+    isMetaMask?: boolean;
+    isRabby?: boolean;
+    isCoinbaseWallet?: boolean;
+    isRainbow?: boolean;
+    providers?: InjectedProvider[];
+  };
+  const injected = hostWindow.ethereum as InjectedProvider | undefined;
+  const rabbyProvider = hostWindow.rabby as InjectedProvider | undefined;
+  const providers = [
+    injected,
+    rabbyProvider,
+    ...(injected?.providers ?? []),
+  ].filter(Boolean);
+
+  return {
+    metamask: providers.some((provider) => Boolean(provider?.isMetaMask)),
+    rabby:
+      Boolean(rabbyProvider) ||
+      providers.some((provider) => Boolean(provider?.isRabby)),
+    coinbase:
+      providers.some((provider) => Boolean(provider?.isCoinbaseWallet)) ||
+      Boolean(hostWindow.coinbaseWalletExtension),
+    rainbow: providers.some((provider) => Boolean(provider?.isRainbow)),
+  };
+}
+
+function mergeEthereumProviderFlags(
+  current: EthereumProviderFlags,
+  next: Partial<EthereumProviderFlags>,
+): EthereumProviderFlags {
+  return {
+    metamask: current.metamask || Boolean(next.metamask),
+    rabby: current.rabby || Boolean(next.rabby),
+    coinbase: current.coinbase || Boolean(next.coinbase),
+    rainbow: current.rainbow || Boolean(next.rainbow),
+  };
+}
+
+function flagsFromEip6963Provider(info: {
+  name?: string;
+  rdns?: string;
+}): Partial<EthereumProviderFlags> {
+  const key = canonicalWalletKey(`${info.rdns ?? ""} ${info.name ?? ""}`);
+  return {
+    metamask: key === "metamask",
+    rabby: key === "rabby",
+    coinbase: key === "coinbase",
+    rainbow: key === "rainbow",
+  };
+}
+
+function useEthereumProviderFlags(): EthereumProviderFlags {
+  const [flags, setFlags] = useState<EthereumProviderFlags>(() =>
+    ethereumProviderFlags(),
+  );
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    setFlags((current) =>
+      mergeEthereumProviderFlags(current, ethereumProviderFlags()),
+    );
+
+    const handleProvider = (event: Event) => {
+      const detail = (
+        event as CustomEvent<{ info?: { name?: string; rdns?: string } }>
+      ).detail;
+      const info = detail?.info;
+      if (!info) return;
+      setFlags((current) =>
+        mergeEthereumProviderFlags(current, flagsFromEip6963Provider(info)),
+      );
+    };
+
+    window.addEventListener("eip6963:announceProvider", handleProvider);
+    window.dispatchEvent(new Event("eip6963:requestProvider"));
+
+    return () => {
+      window.removeEventListener("eip6963:announceProvider", handleProvider);
+    };
+  }, []);
+
+  return flags;
+}
+
+function isExternalWalletInstalled(
+  wallet: TExternalWallet,
+  flags: EthereumProviderFlags,
+): boolean {
+  if (wallet === "METAMASK") return flags.metamask;
+  if (wallet === "RABBY") return flags.rabby;
+  if (wallet === "COINBASE") return flags.coinbase;
+  if (wallet === "RAINBOW") return flags.rainbow;
+  return false;
+}
+
+function inferWalletLabel(connector: Connector): string {
+  const connectorName = connector.name?.trim() || connector.id || "Wallet";
+  const normalized =
+    walletLabelOverrides[normalizeWalletOptionId(connectorName)] ??
+    walletLabelOverrides[normalizeWalletOptionId(connector.id ?? "")];
+
+  return normalized ?? connectorName;
+}
+
+function inferWalletKind(connector: Connector): AomiWalletOption["kind"] {
+  const key = normalizeWalletOptionId(
+    `${connector.id ?? ""} ${connector.name ?? ""} ${connector.type ?? ""}`,
+  );
+  return key.includes("walletconnect") ? "walletconnect" : "evm";
+}
+
+function connectorReady(connector: Connector): boolean | undefined {
+  return (connector as Connector & { ready?: boolean }).ready;
+}
+
+function isProviderInternalWalletLabel(label: string): boolean {
+  return canonicalWalletKey(label) === "para";
+}
+
+function toEvmWalletOption(connector: Connector): AomiWalletOption {
+  const id =
+    connector.uid || connector.id || normalizeWalletOptionId(connector.name);
+  const kind = inferWalletKind(connector);
+  const ready = connectorReady(connector);
+  const installed = ready === true || connector.type === "injected";
+  const label = inferWalletLabel(connector);
+
+  return {
+    id,
+    label,
+    family: kind === "walletconnect" ? "multichain" : "evm",
+    kind,
+    status:
+      kind === "walletconnect"
+        ? "qr"
+        : ready === false
+          ? "unavailable"
+          : installed
+            ? "installed"
+            : "available",
+    installed,
+    ready: ready !== false,
+    description:
+      kind === "walletconnect"
+        ? "Scan with a mobile wallet"
+        : "Connect an Ethereum wallet",
+  };
+}
+
+function toExternalWalletOption(
+  wallet: TExternalWallet,
+  flags: EthereumProviderFlags,
+): AomiWalletOption {
+  const label = externalWalletLabels[wallet] ?? String(wallet);
+  const id = canonicalWalletKey(label);
+  const walletConnect = wallet === "WALLETCONNECT";
+  const installed = isExternalWalletInstalled(wallet, flags);
+
+  return {
+    id,
+    label,
+    family: walletConnect ? "multichain" : "evm",
+    kind: walletConnect ? "walletconnect" : "evm",
+    status: walletConnect ? "qr" : installed ? "installed" : "available",
+    installed,
+    ready: true,
+    description: walletConnect
+      ? "Scan with a mobile wallet"
+      : "Connect an Ethereum wallet",
+  };
+}
+
+function mergeWalletOptions(
+  preferred: readonly AomiWalletOption[],
+  detected: readonly AomiWalletOption[],
+): AomiWalletOption[] {
+  const detectedByLabel = new Map(
+    detected.map((option) => [canonicalWalletKey(option.label), option]),
+  );
+  const merged = preferred.map((option) => {
+    const detectedOption = detectedByLabel.get(
+      canonicalWalletKey(option.label),
+    );
+    return detectedOption
+      ? {
+          ...option,
+          id: detectedOption.id,
+          ready: detectedOption.ready !== false,
+        }
+      : option;
+  });
+
+  return dedupeWalletOptions(merged);
+}
+
+function dedupeWalletOptions(
+  options: readonly AomiWalletOption[],
+): AomiWalletOption[] {
+  const seen = new Set<string>();
+  const result: AomiWalletOption[] = [];
+
+  for (const option of options) {
+    const key = canonicalWalletKey(option.label);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    result.push(option);
+  }
+
+  return result;
+}
+
+function toSocialLoginOption(method: TOAuthMethod): AomiWalletOption {
+  const id = method.toLowerCase();
+  return {
+    id,
+    label: socialLoginLabels[method] ?? `Continue with ${method}`,
+    family: "multichain",
+    kind: "social",
+    status: "available",
+    ready: true,
+    description:
+      socialLoginDescriptions[method] ?? "Create or use an Aomi account",
+  };
+}
+
 function useSafeParaAccount(): ParaAccountShape {
   try {
     return useParaAccount() as ParaAccountShape;
@@ -208,7 +522,9 @@ function useSafeParaClient(): ParaWeb | null {
   }
 }
 
-function useSafeIssueJwt(): (() => Promise<AomiAccountCredential | null>) | null {
+function useSafeIssueJwt():
+  | (() => Promise<AomiAccountCredential | null>)
+  | null {
   try {
     const { issueJwtAsync } = useIssueJwt();
     return async () => {
@@ -402,12 +718,16 @@ export type AomiParaAdapterProviderProps = {
   children: ReactNode;
   supportedChains?: readonly Chain[];
   solanaConfig?: ResolvedSolanaConfig;
+  externalWallets?: readonly TExternalWallet[];
+  oAuthMethods?: readonly TOAuthMethod[];
 };
 
 export function AomiParaAdapterProvider({
   children,
   supportedChains: configuredChains,
   solanaConfig,
+  externalWallets = defaultExternalWallets,
+  oAuthMethods = ["GOOGLE"],
 }: AomiParaAdapterProviderProps) {
   const [pendingSolanaConnect, setPendingSolanaConnect] = useState(false);
   const paraAccount = useSafeParaAccount();
@@ -424,7 +744,10 @@ export function AomiParaAdapterProvider({
   const { switchChainAsync, isPending } = useSafeSwitchChain();
   const { disconnectAsync: wagmiDisconnectAsync } = useSafeDisconnect();
   const { reconnect: wagmiReconnect } = useSafeReconnect();
+  const ethereumProviderFlags = useEthereumProviderFlags();
   const evmConnections = useSafeConnections();
+  const evmConnectors = useSafeConnectors();
+  const { connectAsync: wagmiConnectAsync } = useSafeConnect();
   const { switchAccountAsync } = useSafeSwitchAccount();
   const { sendTransactionAsync } = useSafeSendTransaction();
   const { sendCallsSyncAsync } = useSafeSendCallsSync();
@@ -570,8 +893,7 @@ export function AomiParaAdapterProvider({
     const walletProvider = "para" as const;
     const authMethod = inferAuthMethod(paraAccount.embedded.authMethods);
     const authValue = resolveParaAuthValue(paraAccount.embedded, authMethod);
-    const secondaryLabel =
-      formatAuthMethod(authMethod) ?? "Para";
+    const secondaryLabel = formatAuthMethod(authMethod) ?? "Para";
     const { sponsored, sponsorProvider, sponsorAccount } =
       resolveParaSponsorship();
 
@@ -587,6 +909,7 @@ export function AomiParaAdapterProvider({
         chainId: conn.chainId,
       })),
       activeEvmAddress: address,
+      activeEvmConnectionId: connector?.uid,
       solanaConnections: svmAddress
         ? [{ publicKey: svmAddress, walletName: solanaWallet.walletName }]
         : [],
@@ -689,24 +1012,41 @@ export function AomiParaAdapterProvider({
 
     const hasAnyDisconnectablePath = Boolean(
       wagmiDisconnectAsync ||
-        solanaWallet.disconnect ||
-        // Para's own session — `useParaClient().logout()` would also count
-        // here, but Para's logout has cross-tab implications so we
-        // currently leave it to `openAccountUI` (the Para account modal
-        // has a Disconnect button) and only handle wagmi + Solana below.
-        false,
+      solanaWallet.disconnect ||
+      // Para's own session — `useParaClient().logout()` would also count
+      // here, but Para's logout has cross-tab implications so we
+      // currently leave it to `openAccountUI` (the Para account modal
+      // has a Disconnect button) and only handle wagmi + Solana below.
+      false,
     );
 
     // Map the wallet-adapter's `wallets` array to our descriptor shape so
     // the UI can render an explicit picker (Phantom, Solflare, …) instead
     // of auto-picking. Wallets with `Installed` show up first; the rest
     // are still listed so the user can click to trigger the install flow.
-    const solanaWalletDescriptors = solanaWallet.wallets.map((entry) => ({
-      name: entry.adapter.name,
-      installed: entry.readyState === "Installed",
-      ready:
-        entry.readyState === "Installed" || entry.readyState === "Loadable",
-    }));
+    const solanaWalletDescriptors = solanaWallet.wallets
+      .filter((entry) =>
+        solanaWalletAllowlist.has(canonicalWalletKey(entry.adapter.name)),
+      )
+      .map((entry) => ({
+        name: entry.adapter.name,
+        installed: entry.readyState === "Installed",
+        ready:
+          entry.readyState === "Installed" || entry.readyState === "Loadable",
+      }));
+    const detectedEvmWalletOptions = evmConnectors
+      .map(toEvmWalletOption)
+      .filter((option) => !isProviderInternalWalletLabel(option.label));
+    const configuredEvmWalletOptions = externalWallets
+      .filter((wallet) => Boolean(externalWalletLabels[wallet]))
+      .map((wallet) => toExternalWalletOption(wallet, ethereumProviderFlags));
+    const evmWalletOptions = mergeWalletOptions(
+      configuredEvmWalletOptions,
+      detectedEvmWalletOptions,
+    );
+    const socialLoginOptions = paraModal
+      ? Array.from(oAuthMethods).map(toSocialLoginOption)
+      : [];
 
     return {
       identity,
@@ -746,6 +1086,28 @@ export function AomiParaAdapterProvider({
           return;
         }
         // Solana is single-active; nothing to switch within the family.
+      },
+      evmWallets: evmWalletOptions,
+      connectEvmWallet: async (id: string) => {
+        const target = evmConnectors.find((candidate) => {
+          const option = toEvmWalletOption(candidate);
+          return (
+            option.id === id ||
+            candidate.id === id ||
+            candidate.uid === id ||
+            canonicalWalletKey(option.label) === canonicalWalletKey(id) ||
+            canonicalWalletKey(candidate.name ?? "") === canonicalWalletKey(id)
+          );
+        });
+        if (target && wagmiConnectAsync) {
+          await wagmiConnectAsync({ connector: target });
+          return;
+        }
+        paraModal?.openModal({ step: "AUTH_MAIN" });
+      },
+      socialLoginOptions,
+      connectSocial: async () => {
+        paraModal?.openModal({ step: "AUTH_ALL_OPTIONS" });
       },
       solanaWallets: solanaWalletDescriptors,
       connectSolanaWallet:
@@ -823,13 +1185,39 @@ export function AomiParaAdapterProvider({
         if (options?.accountId) {
           const target = accounts.find((a) => a.id === options.accountId);
           if (target?.family === "evm" && wagmiDisconnectAsync) {
-            const connector = wagmiConfig.connectors.find(
-              (c) => c.uid === target.id,
+            const sameAddressConnections = evmConnections.filter(
+              (conn) =>
+                conn.address.toLowerCase() === target.address.toLowerCase(),
             );
-            try {
-              await wagmiDisconnectAsync(connector ? { connector } : undefined);
-            } catch (error) {
-              console.warn("[aomi-auth-adapter] EVM account disconnect failed", error);
+            const connectorIds = new Set([
+              target.id,
+              ...sameAddressConnections.map((conn) => conn.connectorId),
+            ]);
+            const connectors = wagmiConfig.connectors.filter((candidate) =>
+              connectorIds.has(candidate.uid),
+            );
+
+            if (connectors.length === 0) {
+              try {
+                await wagmiDisconnectAsync();
+              } catch (error) {
+                console.warn(
+                  "[aomi-auth-adapter] EVM account disconnect failed",
+                  error,
+                );
+              }
+              return;
+            }
+
+            for (const connector of connectors) {
+              try {
+                await wagmiDisconnectAsync({ connector });
+              } catch (error) {
+                console.warn(
+                  "[aomi-auth-adapter] EVM account disconnect failed",
+                  error,
+                );
+              }
             }
             return;
           }
@@ -837,6 +1225,40 @@ export function AomiParaAdapterProvider({
           // bail rather than falling through to a family-wide disconnect.
           return;
         }
+
+        const disconnectEvmFamily = async () => {
+          if (!wagmiDisconnectAsync) return;
+
+          const connectorIds = new Set(
+            evmConnections.map((connection) => connection.connectorId),
+          );
+          const connectors = wagmiConfig.connectors.filter((candidate) =>
+            connectorIds.has(candidate.uid),
+          );
+
+          if (connectors.length === 0) {
+            try {
+              await wagmiDisconnectAsync();
+            } catch (error) {
+              console.warn(
+                "[aomi-auth-adapter] Wagmi disconnect failed",
+                error,
+              );
+            }
+            return;
+          }
+
+          for (const connector of connectors) {
+            try {
+              await wagmiDisconnectAsync({ connector });
+            } catch (error) {
+              console.warn(
+                "[aomi-auth-adapter] Wagmi disconnect failed",
+                error,
+              );
+            }
+          }
+        };
 
         const requestedFamily = options?.family ?? "all";
         const wantsAll = requestedFamily === "all";
@@ -862,17 +1284,9 @@ export function AomiParaAdapterProvider({
 
         if (
           (wantsAll || requestedFamily === "evm") &&
-          wagmiConnected &&
-          wagmiDisconnectAsync
+          (wagmiConnected || evmConnections.length > 0)
         ) {
-          try {
-            await wagmiDisconnectAsync();
-          } catch (error) {
-            console.warn(
-              "[aomi-auth-adapter] Wagmi disconnect failed",
-              error,
-            );
-          }
+          await disconnectEvmFamily();
         }
 
         // The Para embedded account survives wagmi/Solana disconnects
@@ -991,8 +1405,12 @@ export function AomiParaAdapterProvider({
     chainsById,
     connector,
     evmConnections,
+    evmConnectors,
+    ethereumProviderFlags,
+    externalWallets,
     isPending,
     issueJwt,
+    oAuthMethods,
     paraAccount.embedded,
     paraAccount.external,
     paraAccount.isConnected,
@@ -1015,6 +1433,7 @@ export function AomiParaAdapterProvider({
     userDelegation7702,
     userSmartAccount4337,
     wagmiAddress,
+    wagmiConnectAsync,
     wagmiConfig.connectors,
     wagmiConnected,
     wagmiDisconnectAsync,
@@ -1062,7 +1481,7 @@ function AomiParaProviderInner({
   );
   const paraModalConfig = useMemo(
     () => ({
-      disableEmailLogin: true,
+      disableEmailLogin: false,
       oAuthMethods,
     }),
     [oAuthMethods],
@@ -1160,6 +1579,8 @@ function AomiParaProviderInner({
                     <AomiParaAdapterProvider
                       supportedChains={routing.routedChains}
                       solanaConfig={resolvedSolanaConfig}
+                      externalWallets={resolvedWallets}
+                      oAuthMethods={oAuthMethods}
                     >
                       {children}
                     </AomiParaAdapterProvider>
@@ -1179,6 +1600,8 @@ function AomiParaProviderInner({
             <AomiParaAdapterProvider
               supportedChains={routing.routedChains}
               solanaConfig={resolvedSolanaConfig}
+              externalWallets={resolvedWallets}
+              oAuthMethods={oAuthMethods}
             >
               {children}
             </AomiParaAdapterProvider>

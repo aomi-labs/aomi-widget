@@ -14,6 +14,9 @@ const DISCONNECTED_ADAPTER: AomiAuthAdapter = {
   canDisconnect: false,
   accounts: [],
   selectAccount: async () => undefined,
+  evmWallets: [],
+  solanaWallets: [],
+  socialLoginOptions: [],
   supportedNetworks: {
     evm: [],
     solana: [],
@@ -30,14 +33,12 @@ function toSvmCapabilities(
   if (!capabilities) return undefined;
   return Object.entries(capabilities)
     .filter(([, enabled]) => enabled)
-    .map(([name]) => name.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`));
+    .map(([name]) =>
+      name.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`),
+    );
 }
 
-function AomiAuthAdapterSync({
-  adapter,
-}: {
-  adapter: AomiAuthAdapter;
-}) {
+function AomiAuthAdapterSync({ adapter }: { adapter: AomiAuthAdapter }) {
   const { setUser } = useUser();
   const identity = adapter.identity;
 
@@ -65,9 +66,7 @@ function AomiAuthAdapterSync({
       walletProviderSubject: identity.isConnected
         ? (identity.walletProviderSubject ?? null)
         : null,
-      authMethod: identity.isConnected
-        ? (identity.authMethod ?? null)
-        : null,
+      authMethod: identity.isConnected ? (identity.authMethod ?? null) : null,
       authValue: identity.isConnected ? (identity.authValue ?? null) : null,
       authVerifiedAt: identity.isConnected
         ? (identity.authVerifiedAt ?? null)

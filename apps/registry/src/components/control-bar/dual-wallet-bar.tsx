@@ -2,14 +2,11 @@
 
 import { useEffect, type FC } from "react";
 import { ChevronDownIcon } from "lucide-react";
-import { cn, getChainInfo } from "@aomi-labs/react";
+import { cn } from "@aomi-labs/react";
 import { useAomiAuthAdapter } from "../../lib/aomi-auth-adapter";
 import { formatAddress } from "../../lib/aomi-auth-adapter/identity";
 import { WalletPicker } from "./wallet-picker";
-import {
-  WalletPickerProvider,
-  useWalletPicker,
-} from "./wallet-picker-context";
+import { WalletPickerProvider, useWalletPicker } from "./wallet-picker-context";
 
 export type DualWalletBarProps = {
   families: Array<"evm" | "solana">;
@@ -25,6 +22,21 @@ function solanaClusterLabel(cluster?: string): string | undefined {
   return cluster.replace("solana:", "");
 }
 
+function connectedWalletLabel({
+  walletName,
+  address,
+  network,
+}: {
+  walletName?: string;
+  address?: string;
+  network?: string;
+}): string | undefined {
+  if (!address) return undefined;
+  return [walletName, formatAddress(address), network]
+    .filter(Boolean)
+    .join(" ");
+}
+
 const DualWalletBarInner: FC<DualWalletBarProps> = ({
   families,
   className,
@@ -35,6 +47,27 @@ const DualWalletBarInner: FC<DualWalletBarProps> = ({
   const { openPicker } = useWalletPicker();
 
   const connected = Boolean(identity.address || identity.svmAddress);
+  const activeEvmAccount = adapter.accounts.find(
+    (account) => account.family === "evm" && account.active,
+  );
+  const activeSolanaAccount = adapter.accounts.find(
+    (account) => account.family === "solana" && account.active,
+  );
+  const labels = families
+    .map((family) =>
+      family === "evm"
+        ? connectedWalletLabel({
+            walletName: activeEvmAccount?.walletName,
+            address: identity.address,
+          })
+        : connectedWalletLabel({
+            walletName:
+              activeSolanaAccount?.walletName ?? identity.solanaWalletName,
+            address: identity.svmAddress,
+            network: solanaClusterLabel(identity.solanaCluster),
+          }),
+    )
+    .filter((label): label is string => Boolean(label));
 
   useEffect(() => {
     onConnectionChange?.(identity.isConnected);
@@ -47,39 +80,17 @@ const DualWalletBarInner: FC<DualWalletBarProps> = ({
         onClick={openPicker}
         className={cn(
           "inline-flex items-center justify-between gap-2 whitespace-nowrap text-sm font-medium",
-          "rounded-3xl px-5 py-2.5 transition-all duration-200 w-full",
+          "w-full rounded-3xl px-5 py-2.5 transition-all duration-200",
           "focus-visible:ring-ring focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2",
           connected
             ? "bg-primary text-primary-foreground hover:bg-primary/90"
-            : "bg-muted text-muted-foreground border border-dashed border-border hover:bg-muted/80",
+            : "bg-muted text-muted-foreground border-border hover:bg-muted/80 border border-dashed",
           className,
         )}
         aria-label="Manage wallets"
       >
-        <span className="flex min-w-0 items-center gap-1.5">
-          {families.map((family) => {
-            const address =
-              family === "evm" ? identity.address : identity.svmAddress;
-            const network =
-              family === "evm"
-                ? identity.chainId
-                  ? getChainInfo(identity.chainId)?.ticker
-                  : undefined
-                : solanaClusterLabel(identity.solanaCluster);
-            return (
-              <span
-                key={family}
-                className={cn(
-                  "rounded-full px-2 py-0.5 text-[11px]",
-                  address ? "bg-background/20" : "bg-background/10 opacity-70",
-                )}
-              >
-                {family === "evm" ? "EVM" : "SOL"}{" "}
-                {address ? formatAddress(address) : "Connect"}
-                {address && network ? ` ${network}` : ""}
-              </span>
-            );
-          })}
+        <span className="min-w-0 truncate">
+          {labels.length ? labels.join(" / ") : "Connect wallet"}
         </span>
         <ChevronDownIcon className="h-3 w-3 shrink-0 opacity-60" />
       </button>

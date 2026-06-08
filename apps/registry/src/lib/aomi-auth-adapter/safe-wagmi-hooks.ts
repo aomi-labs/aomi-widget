@@ -26,7 +26,7 @@ export type WagmiAccountShape = {
   address?: `0x${string}`;
   chainId?: number;
   isConnected: boolean;
-  connector?: { id?: string; name?: string; type?: string };
+  connector?: { id?: string; name?: string; type?: string; uid?: string };
 };
 
 export type WagmiConfigShape = {
