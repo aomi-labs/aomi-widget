@@ -3,6 +3,7 @@ import {
   BaseWalletIcon,
   CoinbaseWalletIcon,
   MetaMaskIcon,
+  PhantomIcon,
   RabbyIcon,
   RainbowIcon,
   WalletConnectIcon,
@@ -14,6 +15,7 @@ const WALLET_ICONS: Record<string, FC<SVGProps<SVGSVGElement>>> = {
   coinbase: CoinbaseWalletIcon,
   coinbasewallet: CoinbaseWalletIcon,
   metamask: MetaMaskIcon,
+  phantom: PhantomIcon,
   rabby: RabbyIcon,
   rabbywallet: RabbyIcon,
   rainbow: RainbowIcon,
@@ -37,6 +39,7 @@ export function getWalletIcon(
   if (key.includes("metamask")) return WALLET_ICONS.metamask;
   if (key.includes("rabby")) return WALLET_ICONS.rabby;
   if (key.includes("coinbase")) return WALLET_ICONS.coinbase;
+  if (key.includes("phantom")) return WALLET_ICONS.phantom;
   if (key.includes("rainbow")) return WALLET_ICONS.rainbow;
   if (key.includes("walletconnect")) return WALLET_ICONS.walletconnect;
   if (
