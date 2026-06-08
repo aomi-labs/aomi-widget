@@ -156,10 +156,15 @@ function renderPicker(
 describe("WalletPicker", () => {
   it("renders quick sign-in, connected accounts, and wallet options", () => {
     renderPicker(makeAdapter());
-    expect(screen.getByText("Select a wallet")).toBeTruthy();
+    expect(screen.getByText("Manage wallets")).toBeTruthy();
     expect(screen.getByText("Quick sign-in")).toBeTruthy();
     expect(screen.getByText("Connected")).toBeTruthy();
-    expect(screen.getAllByText("Wallets").length).toBeGreaterThan(0);
+    expect(screen.getByText("Link additional wallets")).toBeTruthy();
+    expect(
+      screen.getByRole("button", { name: "Manage your account" }),
+    ).toBeTruthy();
+    expect(screen.getByText("Account")).toBeTruthy();
+    expect(screen.queryByText("Advanced")).toBeNull();
     expect(screen.queryByText("Sign in another way")).toBeNull();
     expect(screen.queryByText(/^ETH$/)).toBeNull();
     expect(screen.queryByText(/^SOL$/)).toBeNull();
@@ -169,7 +174,7 @@ describe("WalletPicker", () => {
     expect(screen.getAllByText("Phantom").length).toBeGreaterThan(0);
     expect(screen.getByText("Rabby")).toBeTruthy();
     expect(screen.getByText("WalletConnect")).toBeTruthy();
-    expect(screen.getByText("More wallet options")).toBeTruthy();
+    expect(screen.getByText("Connect or link additional wallets")).toBeTruthy();
     expect(screen.getByText("Email or Google")).toBeTruthy();
     expect(screen.getByText("Fast account sign-in")).toBeTruthy();
     expect(
@@ -278,7 +283,7 @@ describe("WalletPicker", () => {
       ],
     });
     renderPicker(adapter, true);
-    fireEvent.click(screen.getByRole("button", { name: "Connect MetaMask" }));
+    fireEvent.click(screen.getByRole("button", { name: "Link MetaMask" }));
     expect(adapter.connectEvmWallet).not.toHaveBeenCalled();
   });
 
@@ -325,9 +330,9 @@ describe("WalletPicker", () => {
         ],
       }),
     );
-    expect(
-      screen.getAllByRole("button", { name: /Connect Rabby/ }),
-    ).toHaveLength(1);
+    expect(screen.getAllByRole("button", { name: /Link Rabby/ })).toHaveLength(
+      1,
+    );
   });
 
   it("connects an explicitly selected Solana wallet", async () => {
@@ -339,7 +344,7 @@ describe("WalletPicker", () => {
       }),
     );
     await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: "Connect Solflare" }));
+      fireEvent.click(screen.getByRole("button", { name: "Link Solflare" }));
     });
     expect(connectSolanaWallet).toHaveBeenCalledWith("Solflare");
   });
@@ -351,5 +356,18 @@ describe("WalletPicker", () => {
       fireEvent.click(screen.getByRole("button", { name: "Email or Google" }));
     });
     expect(connectSocial).toHaveBeenCalledWith("google");
+  });
+
+  it("opens account management from the picker header", async () => {
+    const openAccountUI = vi.fn(async () => undefined);
+    renderPicker(makeAdapter({ openAccountUI }));
+
+    await act(async () => {
+      fireEvent.click(
+        screen.getByRole("button", { name: "Manage your account" }),
+      );
+    });
+
+    expect(openAccountUI).toHaveBeenCalled();
   });
 });
