@@ -1165,7 +1165,12 @@ function wrapFetchWithAccountBearer(fetchImpl, getAccountAccessToken) {
     );
     const fetchWithBearer = async (forceRefresh) => {
       const headers = new Headers(baseHeaders);
-      const accessToken = await getAccountAccessToken({ forceRefresh });
+      let accessToken;
+      try {
+        accessToken = await getAccountAccessToken({ forceRefresh });
+      } catch (e) {
+        accessToken = void 0;
+      }
       if (accessToken) {
         headers.set("Authorization", `Bearer ${accessToken}`);
       }

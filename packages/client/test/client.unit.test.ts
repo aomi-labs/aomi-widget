@@ -116,6 +116,41 @@ describe("AomiClient transport selection", () => {
     }
   });
 
+  it("proceeds without a bearer when the token source throws", async () => {
+    // Defense-in-depth: a throwing getAccountAccessToken (e.g. an upstream
+    // wallet credential that 403s) must not break the request — the bearer is
+    // additive, so we send the call without an Authorization header.
+    const stateResponse = {
+      ok: true,
+      json: vi.fn(async () => ({ is_processing: false, messages: [] })),
+    } as unknown as Response;
+    const nativeFetch = vi.fn(async () => stateResponse);
+    const getAccountAccessToken = vi.fn(async () => {
+      throw new Error(
+        "ParaApiError: user must verify biometrics or external wallets",
+      );
+    });
+    const originalFetch = globalThis.fetch;
+    vi.stubGlobal("fetch", nativeFetch);
+
+    try {
+      const client = new AomiClient({
+        baseUrl: "http://unit.test",
+        getAccountAccessToken,
+      });
+
+      await expect(client.fetchState("session-1")).resolves.toBeDefined();
+      expect(nativeFetch).toHaveBeenCalledTimes(1);
+      expect(
+        new Headers(
+          (nativeFetch.mock.calls[0]?.[1] as RequestInit).headers,
+        ).get("Authorization"),
+      ).toBeNull();
+    } finally {
+      vi.stubGlobal("fetch", originalFetch);
+    }
+  });
+
   it("uses native fetch for SSE subscriptions even when a custom fetch is provided", async () => {
     let connection: ReturnType<typeof createMockSseConnection> | undefined;
     const nativeFetch = vi.fn(async (_input, init) => {

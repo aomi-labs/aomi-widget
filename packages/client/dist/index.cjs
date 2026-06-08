@@ -881,7 +881,12 @@ function wrapFetchWithAccountBearer(fetchImpl, getAccountAccessToken) {
     );
     const fetchWithBearer = async (forceRefresh) => {
       const headers = new Headers(baseHeaders);
-      const accessToken = await getAccountAccessToken({ forceRefresh });
+      let accessToken;
+      try {
+        accessToken = await getAccountAccessToken({ forceRefresh });
+      } catch (e) {
+        accessToken = void 0;
+      }
       if (accessToken) {
         headers.set("Authorization", `Bearer ${accessToken}`);
       }
@@ -1500,6 +1505,7 @@ ${body}` : ""}`
 
 // src/account-session.ts
 var DEFAULT_REFRESH_BEFORE_EXPIRY_MS = 2 * 60 * 1e3;
+var FAILURE_COOLDOWN_MS = 30 * 1e3;
 function createAccountAccessTokenProvider({
   baseUrl,
   getProviderCredential,
@@ -1510,6 +1516,7 @@ function createAccountAccessTokenProvider({
   let cached = null;
   let pending = null;
   let refreshTimer = null;
+  let failedAt = null;
   const listeners = /* @__PURE__ */ new Set();
   const scheduleRefresh = (session) => {
     if (refreshTimer) clearTimeout(refreshTimer);
@@ -1546,12 +1553,17 @@ function createAccountAccessTokenProvider({
   const getAccountAccessToken = async ({
     forceRefresh = false
   } = {}) => {
+    var _a;
     const refreshAt = cached ? cached.expires_at * 1e3 - refreshBeforeExpiryMs : 0;
     if (!forceRefresh && cached && now() < refreshAt) {
       return cached.access_token;
     }
+    if (!forceRefresh && failedAt !== null && now() - failedAt < FAILURE_COOLDOWN_MS) {
+      return void 0;
+    }
     if (!pending) {
       pending = exchange().then((next) => {
+        failedAt = null;
         const previous = cached;
         cached = next;
         scheduleRefresh(next);
@@ -1559,11 +1571,14 @@ function createAccountAccessTokenProvider({
           for (const listener of listeners) listener();
         }
         return next;
+      }).catch(() => {
+        failedAt = now();
+        return null;
       }).finally(() => {
         pending = null;
       });
     }
-    return (await pending).access_token;
+    return (_a = await pending) == null ? void 0 : _a.access_token;
   };
   getAccountAccessToken.subscribe = (listener) => {
     listeners.add(listener);

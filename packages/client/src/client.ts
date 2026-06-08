@@ -146,7 +146,14 @@ function wrapFetchWithAccountBearer(
     );
     const fetchWithBearer = async (forceRefresh: boolean) => {
       const headers = new Headers(baseHeaders);
-      const accessToken = await getAccountAccessToken({ forceRefresh });
+      // The account bearer is additive — never let a failing token source break
+      // the request. A throwing/absent token just means no Authorization header.
+      let accessToken: string | null | undefined;
+      try {
+        accessToken = await getAccountAccessToken({ forceRefresh });
+      } catch {
+        accessToken = undefined;
+      }
       if (accessToken) {
         headers.set("Authorization", `Bearer ${accessToken}`);
       }
