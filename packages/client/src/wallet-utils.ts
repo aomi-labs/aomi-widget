@@ -76,6 +76,26 @@ export type WalletSolanaSignPayload = {
   pendingSolanaId?: number;
 };
 
+export type WalletSolanaSignMessagePayload = {
+  /** Base64 of the raw message bytes to sign. */
+  message?: string;
+  /** Human-readable summary shown alongside the wallet's decoded preview. */
+  description?: string;
+  /** CAIP-2 cluster string (`"solana:mainnet"` / `"solana:devnet"`). */
+  cluster?: string;
+  /** Server-side correlation id for the staged sign request. */
+  pendingSolanaId?: number;
+};
+
+export type NormalizedSolanaWalletRequest = {
+  kind:
+    | "solana_sign"
+    | "solana_sign_message"
+    | "solana_send"
+    | "solana_sign_and_send";
+  payload: WalletSolanaSignPayload | WalletSolanaSignMessagePayload;
+};
+
 export type ViemSignTypedDataArgs = {
   domain?: Record<string, unknown>;
   types: Record<string, Array<{ name: string; type: string }>>;
@@ -109,6 +129,37 @@ function getToolArgs(payload: unknown): UnknownRecord {
   const root = asRecord(payload);
   const nestedArgs = asRecord(root?.args);
   return nestedArgs ?? root ?? {};
+}
+
+function parseChainKind(value: unknown): "evm" | "svm" | undefined {
+  return value === "evm" || value === "svm" ? value : undefined;
+}
+
+export function inferSolanaRequestKind(
+  payload: Record<string, unknown>,
+): NormalizedSolanaWalletRequest["kind"] {
+  const rawKind =
+    typeof payload.kind === "string"
+      ? payload.kind
+      : typeof payload.request_kind === "string"
+        ? payload.request_kind
+        : typeof payload.requestKind === "string"
+          ? payload.requestKind
+          : undefined;
+
+  switch (rawKind) {
+    case "solana_sign_message":
+    case "message_sign":
+      return "solana_sign_message";
+    case "solana_send":
+    case "send_transaction":
+      return "solana_send";
+    case "solana_sign_and_send":
+    case "sign_and_send_transaction":
+      return "solana_sign_and_send";
+    default:
+      return "solana_sign";
+  }
 }
 
 export function parseChainId(value: unknown): number | undefined {
@@ -386,9 +437,59 @@ export function normalizeSolanaSignPayload(
 
   const pendingSolanaId =
     parsePendingId(args.pendingSolanaId) ??
-    parsePendingId(args.pending_solana_id);
+    parsePendingId(args.pending_solana_id) ??
+    parsePendingId(args.pendingSvmSigId) ??
+    parsePendingId(args.pending_svm_sig_id);
 
   return { unsignedTx, description, cluster, pendingSolanaId };
+}
+
+export function normalizeSolanaSignMessagePayload(
+  payload: unknown,
+): WalletSolanaSignMessagePayload {
+  const args = getToolArgs(payload);
+
+  const messageRaw = args.message_base64 ?? args.messageBase64 ?? args.message;
+  const message = typeof messageRaw === "string" ? messageRaw : undefined;
+
+  const description =
+    typeof args.description === "string" ? args.description : undefined;
+
+  const clusterRaw = args.cluster;
+  const cluster = typeof clusterRaw === "string" ? clusterRaw : undefined;
+
+  const pendingSolanaId =
+    parsePendingId(args.pendingSolanaId) ??
+    parsePendingId(args.pending_solana_id) ??
+    parsePendingId(args.pendingSvmSigId) ??
+    parsePendingId(args.pending_svm_sig_id);
+
+  return { message, description, cluster, pendingSolanaId };
+}
+
+export function normalizeSolanaWalletRequest(
+  payload: unknown,
+): NormalizedSolanaWalletRequest | null {
+  const root = asRecord(payload);
+  const args = getToolArgs(payload);
+  const solanaRequest = {
+    ...(root ?? {}),
+    ...args,
+  };
+  const chainKind =
+    parseChainKind(args.chain_kind) ?? parseChainKind(root?.chain_kind);
+  if (chainKind !== "svm") {
+    return null;
+  }
+
+  const kind = inferSolanaRequestKind(solanaRequest);
+  if (kind === "solana_sign_message") {
+    const normalized = normalizeSolanaSignMessagePayload(payload);
+    return normalized.message ? { kind, payload: normalized } : null;
+  }
+
+  const normalized = normalizeSolanaSignPayload(payload);
+  return normalized.unsignedTx ? { kind, payload: normalized } : null;
 }
 
 /**

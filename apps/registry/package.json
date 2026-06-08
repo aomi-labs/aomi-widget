@@ -31,6 +31,8 @@
     "@assistant-ui/react-markdown": "^0.11.1",
     "@getpara/react-sdk": "2.19.0",
     "@getpara/solana-wallet-connectors": "2.19.0",
+    "@privy-io/react-auth": "^2.0.0",
+    "@privy-io/wagmi": "^1.0.0",
     "@solana-mobile/mobile-wallet-adapter-protocol": "^2.2.6",
     "@solana/wallet-adapter-react": "^0.15.39",
     "@solana/web3.js": "^1.98.4",

@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { Connection as SolanaConnection } from "@solana/web3.js";
 import {
+  UserState,
   appendFeeCallToPayload,
   hydrateTxPayloadFromUserState,
   parseChainId,
@@ -15,6 +17,13 @@ import { useAomiAuthAdapter } from "../lib/aomi-auth-adapter";
 
 function hasHydratedCalls(payload: WalletTxPayload): boolean {
   return Array.isArray(payload.calls) && payload.calls.length > 0;
+}
+
+function decodeBase64(value: string): Uint8Array {
+  if (typeof Buffer !== "undefined") {
+    return new Uint8Array(Buffer.from(value, "base64"));
+  }
+  return Uint8Array.from(atob(value), (char) => char.charCodeAt(0));
 }
 
 function toSimulationTransactions(payload: WalletTxPayload): Array<{
@@ -77,6 +86,51 @@ export function RuntimeTxHandler() {
       processingRef.current = false;
     });
 
+    /**
+     * Best-effort: switch the active Solana cluster to match the request's
+     * CAIP-2 cluster string before signing. Mirrors how the EVM signTypedData
+     * branch calls `adapter.switchChain` when `domain.chainId` differs.
+     *
+     * - No-op when the request didn't specify a cluster.
+     * - No-op when the adapter doesn't expose `selectNetwork` (single-network
+     *   builds).
+     * - No-op when the active Solana network already matches the request.
+     * - If a switch is needed but the adapter says
+     *   `solanaNetworkSwitchRequiresReconnect`, we don't tear the wallet down
+     *   from under the user — fall through and let the wallet either accept
+     *   the tx as-is (matching cluster) or reject it (mismatched cluster
+     *   surfaces as a normal wallet error).
+     */
+    async function maybeSwitchSolanaCluster(
+      requestedCluster: string | undefined,
+    ): Promise<void> {
+      if (!requestedCluster) return;
+      if (!adapter.selectNetwork || !adapter.supportedNetworks?.solana) return;
+      const target = adapter.supportedNetworks.solana.find(
+        (n) => n.cluster === requestedCluster,
+      );
+      if (!target) return;
+      // `selectNetwork` self-dedups (no-op when already on `target`), so we
+      // don't need to compare against a current "active network" here.
+      if (adapter.solanaNetworkSwitchRequiresReconnect) {
+        // The wallet currently has a session against a different cluster.
+        // Don't silently disconnect the user — they'll see the wallet's
+        // own cluster-mismatch UI on the sign prompt instead.
+        return;
+      }
+      try {
+        await adapter.selectNetwork({
+          family: "solana",
+          networkId: target.id,
+        });
+      } catch (error) {
+        console.warn(
+          "[RuntimeTxHandler] Solana cluster auto-switch failed",
+          error,
+        );
+      }
+    }
+
     async function processRequest(req: WalletRequest) {
       try {
         if (req.kind === "transaction") {
@@ -100,7 +154,7 @@ export function RuntimeTxHandler() {
           const simulationResult = await simulateBatchTransactions(
             toSimulationTransactions(payload),
             {
-              from: typeof user.address === "string" ? user.address : undefined,
+              from: UserState.address(user),
               chainId: defaultChainId,
             },
           );
@@ -139,9 +193,12 @@ export function RuntimeTxHandler() {
         }
 
         if (req.kind === "solana_sign") {
-          // No simulation, no fee injection, no chain switching — host
-          // doesn't have a Solana fork simulator and apps own RPC routing.
-          // Just sign the base64 unsigned tx and return base64 signed bytes.
+          // No simulation or fee injection — host doesn't have a Solana
+          // fork simulator and apps own RPC routing. We DO auto-switch the
+          // active Solana cluster to match the request's cluster (mirroring
+          // what the EVM eip712_sign branch does for `domain.chainId`):
+          // otherwise a request targeted at mainnet while the wallet is on
+          // devnet silently produces a tx for the wrong network.
           if (!adapter.signSolanaTransaction) {
             await rejectWalletRequest(
               req.id,
@@ -153,12 +210,119 @@ export function RuntimeTxHandler() {
             await rejectWalletRequest(req.id, "Missing unsigned_tx payload");
             return;
           }
+          await maybeSwitchSolanaCluster(req.payload.cluster);
 
           const result = await adapter.signSolanaTransaction(req.payload);
+          await resolveWalletRequest(req.id, { kind: "solana_sign", ...result });
+          return;
+        }
+
+        if (req.kind === "solana_sign_message") {
+          if (!adapter.signSolanaMessage) {
+            await rejectWalletRequest(
+              req.id,
+              "Solana wallet provider is not ready",
+            );
+            return;
+          }
+          if (!req.payload.message) {
+            await rejectWalletRequest(req.id, "Missing message payload");
+            return;
+          }
+
+          console.debug("[RuntimeTxHandler] invoking solana_sign_message", {
+            requestId: req.id,
+            pendingSolanaId: req.payload.pendingSolanaId,
+            cluster: req.payload.cluster,
+            description: req.payload.description,
+            adapterReady: adapter.isReady,
+            svmAddress: adapter.identity.svmAddress,
+            solanaWalletName: adapter.identity.solanaWalletName,
+            hasSignSolanaMessage: Boolean(adapter.signSolanaMessage),
+          });
+          const result = await adapter.signSolanaMessage(req.payload);
+          console.debug("[RuntimeTxHandler] resolved solana_sign_message", {
+            requestId: req.id,
+            pendingSolanaId: req.payload.pendingSolanaId,
+            signatureLength: result.signature?.length,
+          });
           await resolveWalletRequest(req.id, {
-            kind: "solana_sign",
+            kind: "solana_sign_message",
             ...result,
           });
+          return;
+        }
+
+        if (
+          req.kind === "solana_send" ||
+          req.kind === "solana_sign_and_send"
+        ) {
+          if (!req.payload.unsignedTx) {
+            await rejectWalletRequest(req.id, "Missing unsigned_tx payload");
+            return;
+          }
+          await maybeSwitchSolanaCluster(req.payload.cluster);
+
+          if (
+            req.kind === "solana_sign_and_send" &&
+            adapter.signAndSendSolanaTransaction
+          ) {
+            const result = await adapter.signAndSendSolanaTransaction(
+              req.payload,
+            );
+            await resolveWalletRequest(req.id, {
+              kind: "solana_sign_and_send",
+              ...result,
+            });
+            return;
+          }
+
+          if (adapter.sendSolanaTransaction) {
+            const result = await adapter.sendSolanaTransaction(req.payload);
+            await resolveWalletRequest(req.id, {
+              kind: req.kind,
+              ...result,
+            });
+            return;
+          }
+
+          if (!adapter.signSolanaTransaction) {
+            await rejectWalletRequest(
+              req.id,
+              "Solana wallet provider is not ready",
+            );
+            return;
+          }
+
+          if (!adapter.solanaRpcHttpUrl) {
+            await rejectWalletRequest(
+              req.id,
+              "Solana RPC is not configured for broadcast",
+            );
+            return;
+          }
+
+          const signResult = await adapter.signSolanaTransaction(req.payload);
+          const connection = new SolanaConnection(
+            adapter.solanaRpcHttpUrl,
+            "confirmed",
+          );
+          const signature = await connection.sendRawTransaction(
+            decodeBase64(signResult.signedTx),
+          );
+          await connection.confirmTransaction(signature, "confirmed");
+
+          await resolveWalletRequest(req.id, {
+            kind: req.kind,
+            signature,
+            signedTx: signResult.signedTx,
+          });
+          return;
+        }
+
+        // req.kind === "eip712_sign"
+        if (!adapter.signTypedData) {
+          await rejectWalletRequest(req.id, "Wallet provider is not ready");
           return;
         }
 

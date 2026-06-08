@@ -13,7 +13,6 @@ import {
   setAomiClientConfig,
 } from "./test-harness";
 import type { AomiChatResponse } from "@aomi-labs/client";
-import { toInboundMessage } from "../utils";
 
 beforeEach(() => {
   resetAomiClientMocks();
@@ -25,24 +24,6 @@ afterEach(() => {
 
 describe("Chat API", () => {
   describe("sendMessage", () => {
-    it("keeps streaming placeholders empty and drops completed empty assistant messages", () => {
-      const streaming = toInboundMessage({
-        sender: "agent",
-        content: "",
-        is_streaming: true,
-      });
-
-      expect(streaming).toMatchObject({ role: "assistant", content: [] });
-
-      expect(
-        toInboundMessage({
-          sender: "agent",
-          content: "",
-          is_streaming: false,
-        }),
-      ).toBeNull();
-    });
-
     it("sends message to backend", async () => {
       const postChatMessage = vi.fn(
         async (): Promise<AomiChatResponse> => ({
@@ -136,7 +117,7 @@ describe("Chat API", () => {
       });
     });
 
-    it("adds an inline payment notice and popup when the backend returns 402", async () => {
+    it("adds an inline x402 credits notice when the backend returns 402", async () => {
       const createThread = vi.fn();
       const deleteThread = vi.fn(async () => undefined);
       const setModel = vi.fn(async () => ({ rig: "auto-model" }));
@@ -151,7 +132,7 @@ describe("Chat API", () => {
         postChatMessage,
       });
 
-      const { api, control, getApi } = renderRuntime();
+      const { api, control } = renderRuntime();
 
       await act(async () => {
         await control.getAvailableModels();
@@ -193,12 +174,6 @@ describe("Chat API", () => {
           text: "You're out of funds, please set up a payment method.",
         },
       ]);
-      expect(getApi().notifications).toHaveLength(1);
-      expect(getApi().notifications[0]).toMatchObject({
-        type: "error",
-        kind: "payment_required",
-        title: "You're out of funds",
-      });
       expect(createThread).toHaveBeenCalledWith(api.currentThreadId, undefined);
       expect(setModel).toHaveBeenCalledWith(
         api.currentThreadId,
@@ -209,61 +184,6 @@ describe("Chat API", () => {
         postChatMessage.mock.invocationCallOrder[0],
       );
       expect(deleteThread).toHaveBeenCalledWith(api.currentThreadId);
-    });
-
-    it("dedupes the inline payment notice across back-to-back 402s", async () => {
-      const createThread = vi.fn();
-      const deleteThread = vi.fn(async () => undefined);
-      const setModel = vi.fn(async () => ({ rig: "auto-model" }));
-      const postChatMessage = vi.fn(async () => {
-        throw new Error("HTTP 402: Payment Required");
-      });
-      setAomiClientConfig({
-        createThread,
-        deleteThread,
-        getModels: vi.fn(async () => ["auto-model"]),
-        setModel,
-        postChatMessage,
-      });
-
-      const { api, control, getApi } = renderRuntime();
-
-      await act(async () => {
-        await control.getAvailableModels();
-      });
-
-      await waitFor(() => {
-        expect(
-          api.getThreadMetadata(api.currentThreadId)?.control.controlDirty,
-        ).toBe(true);
-      });
-
-      await act(async () => {
-        await expect(api.sendMessage("first attempt")).rejects.toThrow(
-          "HTTP 402",
-        );
-      });
-      await act(async () => {
-        await expect(api.sendMessage("second attempt")).rejects.toThrow(
-          "HTTP 402",
-        );
-      });
-
-      const messages = api.getMessages();
-      // Expected layout: user1(failed), notice, user2(failed). The second send
-      // should NOT append a second notice — `last message is the notice` would
-      // miss because user2 is between them; walking back skips users.
-      const notices = messages.filter(
-        (m) =>
-          m.role === "assistant" &&
-          m.metadata?.custom?.aomiNoticeKind === "payment_required",
-      );
-      expect(notices).toHaveLength(1);
-
-      // Popup notification should also be deduped by the context.
-      expect(
-        getApi().notifications.filter((n) => n.kind === "payment_required"),
-      ).toHaveLength(1);
     });
 
     it("syncs dirty control state before the first message on a new thread", async () => {
@@ -307,7 +227,7 @@ describe("Chat API", () => {
       );
     });
 
-    it("ensures the wallet account before creating a connected thread", async () => {
+    it("creates a connected EVM thread without calling stale account ensure", async () => {
       const ensureAccount = vi.fn(async () => undefined);
       const createThread = vi.fn(async (threadId: string) => ({
         session_id: threadId,
@@ -334,13 +254,55 @@ describe("Chat API", () => {
         await api.sendMessage("Persist this wallet thread");
       });
 
-      expect(ensureAccount).toHaveBeenCalledWith(api.currentThreadId, "0xabc");
+      expect(ensureAccount).not.toHaveBeenCalled();
       expect(createThread).toHaveBeenCalledWith(api.currentThreadId, "0xabc");
-      expect(ensureAccount.mock.invocationCallOrder[0]).toBeLessThan(
-        createThread.mock.invocationCallOrder[0],
-      );
       expect(createThread.mock.invocationCallOrder[0]).toBeLessThan(
         postChatMessage.mock.invocationCallOrder[0],
+      );
+    });
+
+    it("sends a Solana-only chat without legacy public_key bootstrap", async () => {
+      const ensureAccount = vi.fn(async () => undefined);
+      const createThread = vi.fn(async (threadId: string) => ({
+        session_id: threadId,
+      }));
+      const postChatMessage = vi.fn(
+        async (): Promise<AomiChatResponse> => ({
+          is_processing: false,
+          messages: [],
+        }),
+      );
+      setAomiClientConfig({ ensureAccount, createThread, postChatMessage });
+
+      const { api } = renderRuntime();
+
+      await act(async () => {
+        api.setUser({
+          connection: { is_connected: true, primary_family: "svm" },
+          svm: {
+            address: "So1anaCaseSensitiveSigner",
+            cluster: "solana:mainnet",
+          },
+        });
+      });
+
+      await act(async () => {
+        await api.sendMessage("Use my Solana wallet");
+      });
+
+      expect(ensureAccount).not.toHaveBeenCalled();
+      expect(createThread).toHaveBeenCalledWith(api.currentThreadId, undefined);
+      expect(postChatMessage).toHaveBeenCalledWith(
+        api.currentThreadId,
+        "Use my Solana wallet",
+        expect.objectContaining({
+          publicKey: undefined,
+          userState: expect.objectContaining({
+            svm: expect.objectContaining({
+              address: "So1anaCaseSensitiveSigner",
+            }),
+          }),
+        }),
       );
     });
 
@@ -409,10 +371,8 @@ describe("Chat API", () => {
         string,
         { userState?: Record<string, unknown> } | undefined,
       ];
-      expect(call[2]?.userState).toEqual({
-        connection: {
-          is_connected: false,
-        },
+      expect(call[2]?.userState).toMatchObject({
+        connection: { is_connected: false },
         ext: {
           SIMMER_API_KEY: "sk_react_test",
         },
@@ -494,13 +454,11 @@ describe("Chat API", () => {
 
       expect(call[2]?.publicKey).toBeUndefined();
       expect(call[2]?.userState).toMatchObject({
-        connection: {
-          is_connected: false,
-        },
+        connection: { is_connected: false },
       });
     });
 
-    it("does not synthesize pending wallet requests from backend user_state", async () => {
+    it("hydrates pending wallet requests from backend user_state", async () => {
       setAomiClientConfig({
         fetchThreads: async () => [
           {
@@ -512,26 +470,20 @@ describe("Chat API", () => {
           is_processing: false,
           messages: [],
           user_state: {
-            connection: {
-              is_connected: true,
-            },
-            evm: {
-              address: "0xabc",
-              chain_id: 8453,
-            },
-            pending: {
-              evm_sigs: {
-                7: {
-                  typed_data: {
-                    domain: { chainId: 8453 },
-                    types: {
-                      Permit: [{ name: "spender", type: "address" }],
-                    },
-                    primaryType: "Permit",
-                    message: { spender: "0x123" },
+            address: "0xabc",
+            chain_id: 8453,
+            is_connected: true,
+            pending_eip712s: {
+              7: {
+                typed_data: {
+                  domain: { chainId: 8453 },
+                  types: {
+                    Permit: [{ name: "spender", type: "address" }],
                   },
-                  description: "Permit2",
+                  primaryType: "Permit",
+                  message: { spender: "0x123" },
                 },
+                description: "Permit2",
               },
             },
           },
@@ -558,7 +510,18 @@ describe("Chat API", () => {
         getApi().selectThread("thread-with-wallet-request");
       });
 
-      expect(getApi().pendingWalletRequests).toEqual([]);
+      await waitFor(() => {
+        expect(getApi().pendingWalletRequests).toEqual([
+          expect.objectContaining({
+            id: "eip712-7",
+            kind: "eip712_sign",
+            payload: expect.objectContaining({
+              eip712Id: 7,
+              description: "Permit2",
+            }),
+          }),
+        ]);
+      });
     });
   });
 

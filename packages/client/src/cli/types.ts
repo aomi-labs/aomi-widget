@@ -20,6 +20,13 @@ export type CliConfig = {
    * when the targeted pending tx is `solana_sign` kind.
    */
   solanaPrivateKey?: string;
+  /**
+   * Solana cluster override. Accepts the short form used by the CLI
+   * ("mainnet-beta", "devnet", "testnet") or the CAIP-2 form
+   * ("solana:mainnet", "solana:devnet", "solana:testnet").
+   * Defaults to "solana:mainnet" when a Solana address is present.
+   */
+  svmCluster?: "solana:mainnet" | "solana:devnet" | "solana:testnet";
   chainRpcUrl?: string;
   chain?: number;
   secrets: Record<string, string>;

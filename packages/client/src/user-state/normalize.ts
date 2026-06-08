@@ -192,11 +192,15 @@ function buildPending(
     p,
     "svm_ixs",
     snakeizeBucket(
-      pick(src, "svm_ixs", "svmIxs") ??
+      pick(src, "svm_ixs", "svmIxs", "solana_txs", "solanaTxs") ??
         pick(flat, "pending_solana_txs", "pendingSolanaTxs"),
     ),
   );
-  assignDefined(p, "svm_sigs", snakeizeBucket(pick(src, "svm_sigs", "svmSigs")));
+  assignDefined(
+    p,
+    "svm_sigs",
+    snakeizeBucket(pick(src, "svm_sigs", "svmSigs", "solana_sigs", "solanaSigs")),
+  );
   return Object.keys(p).length ? p : undefined;
 }
 
