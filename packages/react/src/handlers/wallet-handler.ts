@@ -3,6 +3,7 @@
 import { useCallback, useRef, useState } from "react";
 import type {
   WalletEip712Payload,
+  WalletSolanaSignMessagePayload,
   WalletSolanaSignPayload,
   WalletTxPayload,
   WalletRequest,
@@ -20,6 +21,7 @@ export type {
   WalletRequestResult,
   WalletTxPayload,
   WalletEip712Payload,
+  WalletSolanaSignMessagePayload,
   WalletSolanaSignPayload,
   ViemSignMessageArgs,
 };
@@ -40,6 +42,8 @@ export type WalletHandlerApi = {
    * union auto-narrows the payload type.
    */
   pendingRequests: WalletRequest[];
+  /** True while a visible or callback-in-flight wallet request still exists. */
+  hasBlockingWalletRequests: boolean;
   /** Replace pending requests with the session's authoritative snapshot. */
   setRequests: (requests: WalletRequest[]) => void;
   /** Mark a request as in-flight so it is not replayed while awaiting backend ack. */
@@ -60,6 +64,8 @@ export function useWalletHandler({
   getSession,
 }: WalletHandlerConfig): WalletHandlerApi {
   const [pendingRequests, setPendingRequests] = useState<WalletRequest[]>([]);
+  const [hasBlockingWalletRequests, setHasBlockingWalletRequests] =
+    useState(false);
   const requestsRef = useRef<WalletRequest[]>(pendingRequests);
   const inFlightRequestSetRef = useRef<Set<string>>(new Set());
   const suppressedRequestSetRef = useRef<Set<string>>(new Set());
@@ -69,6 +75,10 @@ export function useWalletHandler({
       requestsRef.current.filter(
         (request) => !suppressedRequestSetRef.current.has(request.id),
       ),
+    );
+    setHasBlockingWalletRequests(
+      requestsRef.current.length > 0 ||
+        inFlightRequestSetRef.current.size > 0,
     );
   }, []);
 
@@ -162,6 +172,7 @@ export function useWalletHandler({
 
   return {
     pendingRequests,
+    hasBlockingWalletRequests,
     setRequests,
     startRequest,
     resolveRequest,

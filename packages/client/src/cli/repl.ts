@@ -162,13 +162,16 @@ export async function runInteractiveCli(
 }
 
 export async function runRootCli(args: Record<string, unknown>): Promise<void> {
-  const config = buildCliConfig(args);
+  let config = buildCliConfig(args);
   const prompt = str(args.prompt);
   const showTool = args["show-tool"] === true;
   const byokKey = str(args["provider-key"]);
 
   if (byokKey) {
     await saveByokKeyCommand(config, byokKey, { printLocation: false });
+    // Saving a key can create the backing session/client binding. Reuse it
+    // for the following prompt instead of spawning a second fresh session.
+    config = { ...config, freshSession: false };
   }
 
   if (prompt) {

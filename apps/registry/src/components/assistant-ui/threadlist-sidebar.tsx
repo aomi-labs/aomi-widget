@@ -35,10 +35,12 @@ const AomiLogo = ({ className }: { className?: string }) => (
 type ThreadListSidebarProps = React.ComponentProps<typeof Sidebar> & {
   /** Position of the wallet button: "header" (top), "footer" (bottom), or null (hidden) */
   walletPosition?: "header" | "footer" | null;
+  walletFamilies?: Array<"evm" | "solana">;
 };
 
 export function ThreadListSidebar({
   walletPosition = "footer",
+  walletFamilies,
   ...props
 }: ThreadListSidebarProps) {
   return (
@@ -58,7 +60,7 @@ export function ThreadListSidebar({
           >
             <AomiLogo className="aomi-sidebar-header-icon size-6" />
           </Link>
-          {walletPosition === "header" && <ConnectButton />}
+          {walletPosition === "header" && <ConnectButton families={walletFamilies} />}
         </div>
       </SidebarHeader>
       <SidebarContent className="aomi-sidebar-content">
@@ -68,7 +70,7 @@ export function ThreadListSidebar({
       {walletPosition === "footer" && (
         <SidebarFooter className="aomi-sidebar-footer mx-3 mb-4 border-0 pt-1">
           <div className="border-border/30 mx-2 mb-1 border-t" />
-          <ConnectButton className="w-full" />
+          <ConnectButton className="w-full" families={walletFamilies} />
         </SidebarFooter>
       )}
     </Sidebar>

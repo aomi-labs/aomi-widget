@@ -20,6 +20,12 @@
       "port": 3002
     },
     {
+      "name": "landing-3001",
+      "runtimeExecutable": "bash",
+      "runtimeArgs": ["-c", "PORT=3001 pnpm --filter landing dev"],
+      "port": 3001
+    },
+    {
       "name": "landing-auto",
       "runtimeExecutable": "pnpm",
       "runtimeArgs": ["--filter", "landing", "dev"],

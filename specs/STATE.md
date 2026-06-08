@@ -2,102 +2,42 @@
 
 ## Last Updated
 
-2026-06-01 - svm canonicalization (BE) + chain_id coercion (FE)
+2026-06-08 - Account token-exchange wiring review + e2e/test coverage
 
 ## Recent Changes
 
-### svm canonicalization + chain_id coercion (2026-06-01)
+### Account token-exchange runtime wiring + test coverage (2026-06-08)
 
-- **BE (`product-mono` `aomi/`): `"svm"` is the single canonical key, no
-  `"solana"` alias.** Renamed `PrimaryWalletFamily::Solana` → `Svm`
-  (`wallet.rs`, with its `primary_family()` match arm), removed the `"solana"`
-  wallet-key deserialize alias in `mod.rs`, updated the `WIRE_KEY` doc in
-  `tx.rs` and the module doc in `wire.rs`, and migrated two test fixtures
-  (`mod.rs`, `bin/backend/src/endpoint/system.rs`) from `"solana"` → `"svm"`.
-  `cargo check -p backend` clean; `aomi-tools` lib tests 27/0. (Pre-existing,
-  unrelated test-bin breakage in `bin/backend/.../tests/chat.rs` — renamed
-  `AssembledEvmTx` fields — is from another commit, not this change.)
-- **FE: coerce `evm.chain_id` to a number in `buildEvm`
-  (`user-state/normalize.ts`).** The BE deserializes `chain_id` as a strict
-  `u64`, so a stringified id would fail `from_value`. `normalize` now runs the
-  hoisted `parseChainId` (handles `0x`-hex + decimal strings) and drops
-  unparseable values; explicit `null` passes through (BE reads it as `None`).
-  Full client suite passes; `build:client` + lint clean.
-- **NOTE:** the FE still carries a harmless `pick(src, "svm", "solana")` read
-  alias and surplus `connection` fields — left untouched to avoid conflicts
-  with codex's concurrent FE file split; to be reconciled at the main merge.
+Branch `codex/para-solana-support-wip` (PR #150). Merged `fix/pr150-runtime-wiring` (commit "Wire account token exchange into runtime") after review: builds, dist in sync, 26 runtime tests, portal typecheck clean.
 
-### Multi-family nested UserState refactor — FE (2026-05-31)
-
-- **Goal:** evolve `UserState` from a single-wallet flat shape to a cross-family
-  multi-wallet model — one EVM wallet *and* one Solana wallet connected in the
-  same session (one wallet per family, but families are independent).
-- **Wire shape is now nested** (matches the BE `ScopedUserState` serialization in
-  `product-mono` `aomi/crates/tools/src/user_state/`): top-level `connection`,
-  `evm`, `svm`, `pending`, `ext`, `preferences` blocks; per-family fields live
-  under `evm`/`svm`. Pending buckets are `evm_txs` / `evm_sigs` / `svm_ixs` /
-  `svm_sigs`. The SVM block key is `"svm"` everywhere — no `"solana"` alias on
-  either side (see 2026-06-01 entry). Solana `capabilities` is an array.
-- **`packages/client/src/types.ts`** — rewrote `UserState.normalize` /
-  `reconcile` / accessors to read the nested shape natively (no dual flat
-  representation). `normalize` still lifts legacy flat host input
-  (`address`/`chainId`/`svmAddress`/`aaMode`/`pending_txs`…) into nested blocks
-  via `liftFlat`, and tolerates camelCase aliases — this is the single chokepoint
-  for both receive and send.
-  - Added `preferredPublicKey()` = `address() ?? svmAddress()` (canonical session
-    identity; SVM-only sessions resolve a stable id).
-  - `walletKind` is **derived**, not serialized: "smart-account" when connected
-    EVM address === `evm.aa.smart_account`, else "eoa".
-  - Extracted `stripDanglingConnection()` helper — a session can't be
-    `is_connected` without an EVM chain id or SVM pubkey; now applied on the
-    first-set path too (was only running when a prev state existed).
-  - `reconcile` now prunes an explicit empty `ext: {}` (a clear, not a value).
-- **`packages/client/src/session.ts`** — identity via `preferredPublicKey`;
-  rewrote `resolveWallet` + the tx-completion path + `resolveUserState` to build
-  nested `evm`/`connection`/`aa` blocks (fixes latent flat-spread-onto-nested
-  override bugs where `liftFlat` would not override an existing nested
-  `aa.mode`/`address`). `removeExtValue` now passes an explicit `ext: {}` to
-  signal a clear (an omitted ext means "preserve prior" to reconcile).
-  `syncWalletRequests` / `dispatchSystemEvents` read the nested pending buckets.
-- **`packages/client/src/cli/user-state.ts`** — `buildCliUserState` builds the
-  nested shape; pending readers use `pending.evm_txs` / `evm_sigs` / `svm_ixs`.
-  - **SEMANTIC GAP:** the BE moved Solana from full-tx signing (`unsigned_tx`) to
-    instruction-staging (`svm_ixs` + `svm_sigs`). Staged-ix records carry no
-    `unsigned_tx`, so the CLI signer filters them out; full support needs
-    product-level rework.
-- **Tests:** updated `session.unit.test.ts`, `cli/cli-user-state.unit.test.ts`,
-  `cli/cli-e2e-user-state.unit.test.ts`, `cli/cli-chat.unit.test.ts` to the
-  nested assertions. Full client suite: **265 passed, 26 skipped, 0 failures**;
-  `build:lib` clean.
-- **Doc:** refreshed `product-mono` `docs/topics/runtime/facts/user-state.md` to
-  the nested multi-family shape (capabilities array, `preferred_public_key`,
-  per-family accessors, four pending buckets) + corrected source-of-truth paths.
-
-### Merge main into mcp-v1 + stale-doc cleanup (2026-05-31)
-
-- **Merged `origin/main`** into `mcp-v1` (PR #159). Only conflicts were
-  generated `dist/` artifacts (`packages/client/dist/*.map`,
-  `packages/react/dist/*`); resolved by rebuilding via `pnpm run build:lib`.
-  Lint clean.
-- **Refreshed stale MCP handoff docs** — BE (`product-mono`) has shipped the
-  full integration the docs described as pending. Added status banners to
-  `specs/mcp-be-handoff.md` and `specs/mcp-be-integration.md` pointing at the
-  live BE handlers (`internal_approvals.rs`, `vault.rs` `ingest_identity`,
-  `authorized_signer/privy.rs`). Verified TS↔Rust contract matches
-  field-for-field (`POST /api/_internal/approvals`, `X-Aomi-User`/`X-Aomi-Auth`).
-- **Stripped Claude-transcript artifact** from `docs/krexa-wallet.md` header.
+- **Reviewed & verified adaptation** of the FE↔backend contracts: `createAccountAccessTokenProvider` → `POST /api/account/sessions/exchange` (`{ provider, provider_token }` ↔ backend `ExchangeAccountSessionRequest`), and `app` on `sendSystemMessage` → `/api/system` (backend merges query + JSON body via `select_system_params`). Both correct.
+- **Removed dead `ThreadContextTest.tsx`** debug component (referenced removed `threads`/`threadMetadata`; failed `tsc --noEmit`, not caught by CI). Registry typecheck now clean.
+- **FE unit coverage**: `packages/client/test/account-session.unit.test.ts` — caching, forceRefresh, single in-flight coalescing, proactive timer refresh + subscriber notify, dispose teardown, snake_case mapping (7 tests).
+- **Live e2e**: `client.integration.test.ts` gained an LLM-free app-scoped system-message test (green vs local backend :8080 + local supabase).
+- **Backend DB e2e** (product-mono, branch `test/account-exchange-db-e2e`): `entities.rs` test mirroring the exchange's Privy identity resolution + provider scoping (green vs local supabase :54322).
+- **Known gap (flagged, no code)**: backend `ScheduledIntentDueEvent` (`scheduled_intent_due`, declared System→UI) from product-mono #564 has no FE handler — falls through as a raw system message. Product decision needed.
 
 
-### Move reusable portal adapters into packages/mcp-core (2026-05-25)
 
-- **Created `packages/mcp-core/src/backends/aomi-client.ts`** — moved `buildBackendPort` + `BackendPortDeps` from portal's `mcp-backend-bridge.ts`. Pure `BackendPort` implementation using `AomiClient`, zero portal-specific logic.
-- **Created `packages/mcp-core/src/adapters/auth-adapter.ts`** — extracted `buildAuthPort` + `AuthPortDeps` from portal's `mcp-server.ts`. Takes `{ store, providers, baseUrl }` as explicit deps instead of reaching into portal singleton.
-- **Updated `packages/mcp-core/package.json`** — added `@aomi-labs/client: "workspace:*"` dependency.
-- **Updated `packages/mcp-core/src/index.ts`** — added exports for `buildBackendPort`, `BackendPortDeps`, `buildAuthPort`, `AuthPortDeps`.
-- **Rewrote `apps/portal/src/lib/aomi-auth/mcp-server.ts`** — simplified to ~15 lines: reads portal config, injects into package-level factories from `@aomi-labs/mcp-core`.
-- **Deleted `apps/portal/src/lib/aomi-auth/mcp-backend-bridge.ts`** — replaced by `packages/mcp-core/src/backends/aomi-client.ts`.
-- `auth-config.ts` and `env.ts` remain in portal (deployment-specific singletons).
-- All type checks pass (mcp-core + portal), `build:lib` clean.
+### Multi-wallet per-family connection + hybrid picker (2026-05-29)
+
+Branch `codex/para-solana-support-wip`. Design/plan in `docs/superpowers/specs/2026-05-29-multiwallet-per-family-picker-design.md` and `docs/superpowers/plans/2026-05-29-multiwallet-per-family-picker.md`. Backend contract unchanged.
+
+- **Default Solana cluster → mainnet** (was devnet) in `landing-para-provider.tsx`, `landing-privy-provider.tsx`, `portal/wallet-providers.tsx`.
+- **Account registry**: `AomiAccount` type + `accounts`/`selectAccount` on `AomiAuthAdapter`; `disconnect({accountId})` for per-account EVM disconnect (`types.ts`, new `accounts.ts` with `buildAccounts`/`isAccountSelectable` + tests).
+- **Persistence**: new `persistence.ts` (localStorage wallet prefs) wired into `network-preferences.tsx` (read-once `useState` init + save effect, `storageKey="para"`). `vitest.setup.ts` gained a localStorage polyfill + `IS_REACT_ACT_ENVIRONMENT`. Deviation from spec: persists selection only (family/chain/network), not active account — wagmi/solana-adapter restore their own active connection.
+- **wagmi multi-connection**: `safe-wagmi-hooks.ts` gained `useSafeConnections`, `useSafeSwitchAccount`, and `WagmiConfigShape.connectors`.
+- **para.tsx**: builds `accounts` from wagmi connections + Solana wallet; `selectAccount` → wagmi `switchAccount`; per-account EVM disconnect; EVM-connect guard (keys off `wagmiAddress`) so "Connect EVM" no longer reopens the Para modal when already connected. base-account/privy/context + network-select test mock got minimal `accounts:[]`/`selectAccount` conformance.
+- **Hybrid picker**: new `wallet-picker-context.tsx` + `wallet-picker.tsx` (Para provider row + EVM/Solana family sections, inactive family greyed with "Switch to X" affordance, select/disconnect/connect). `dual-wallet-bar.tsx` rewritten to a trigger that opens the picker. Deleted `wallet-family-slot.tsx` (+ its public export).
+
+### Registry app metadata crash guard (2026-05-27)
+
+- **Fixed control bar crash on malformed app ids** in `apps/registry/src/components/control-bar/app-metadata.ts` by:
+  - making `normalizeAppId` accept unknown values and safely return an empty string for non-strings
+  - adding a fallback `Unknown App` metadata entry for empty/invalid ids
+  - skipping invalid entries in `groupAppsByCategory` before calling `getAppInfo`
+  - normalizing returned `AppInfo.id` values for consistent icon/selection behavior
+- **Added regression test** `apps/registry/src/components/control-bar/app-metadata.test.ts` to verify non-string ids no longer crash grouping and empty ids resolve to fallback metadata
 
 ### Release version bumps for publish (2026-04-27)
 
@@ -449,7 +389,7 @@ aomi aa status|set|test|reset
 ### Event System
 
 - Added `EventContextProvider` for inbound/outbound system events
-- Added `ExtUserProvider` for wallet/user state (replaces local state)
+- Added `UserContextProvider` for wallet/user state (replaces local state)
 - Wallet state changes auto-synced via `onUserStateChange` subscription
 - Handler hooks: `useWalletHandler()`, `useNotificationHandler()`
 
@@ -478,7 +418,7 @@ aomi aa status|set|test|reset
 AomiRuntimeProvider
 └── ThreadContextProvider
     └── NotificationContextProvider
-        └── ExtUserProvider
+        └── UserContextProvider
             └── ControlContextProvider (receives getThreadMetadata, updateThreadMetadata)
                 └── EventContextProvider
                     └── AomiRuntimeCore (syncs isRunning → threadMetadata.control.isProcessing)

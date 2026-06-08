@@ -6,15 +6,19 @@ import {
   useCapabilities,
   useConfig,
   useConnect,
+  useConnections,
   useConnectors,
   useDisconnect,
+  useReconnect,
   useSendCallsSync,
   useSendTransaction,
   useSignMessage,
   useSignTypedData,
+  useSwitchAccount,
   useSwitchChain,
   useWalletClient,
 } from "wagmi";
+import type { Connector } from "wagmi";
 import type { executeWalletCalls } from "@aomi-labs/react";
 import { normalizeAtomicCapabilities } from "./wallet-execution";
 
@@ -27,6 +31,7 @@ export type WagmiAccountShape = {
 
 export type WagmiConfigShape = {
   chains: readonly Chain[];
+  connectors: readonly Connector[];
 };
 
 const DISCONNECTED_WAGMI_ACCOUNT: WagmiAccountShape = {
@@ -37,6 +42,7 @@ const DISCONNECTED_WAGMI_ACCOUNT: WagmiAccountShape = {
 
 const DISCONNECTED_WAGMI_CONFIG: WagmiConfigShape = {
   chains: [],
+  connectors: [],
 };
 
 export function useSafeWagmiAccount(): WagmiAccountShape {
@@ -63,6 +69,7 @@ export function useSafeWagmiConfig(): WagmiConfigShape {
     const config = useConfig();
     return {
       chains: config.chains ?? [],
+      connectors: config.connectors ?? [],
     };
   } catch {
     return DISCONNECTED_WAGMI_CONFIG;
@@ -209,10 +216,61 @@ export function useSafeDisconnect(): {
   }
 }
 
+export function useSafeReconnect(): {
+  reconnect?: ReturnType<typeof useReconnect>["reconnect"];
+} {
+  try {
+    const { reconnect } = useReconnect();
+    return { reconnect };
+  } catch {
+    return { reconnect: undefined };
+  }
+}
+
 export function useSafeConnectors(): ReturnType<typeof useConnectors> {
   try {
     return useConnectors();
   } catch {
     return [];
+  }
+}
+
+export type WagmiConnectionShape = {
+  connectorId: string;
+  connectorName: string;
+  address: `0x${string}`;
+  chainId?: number;
+};
+
+export function useSafeConnections(): WagmiConnectionShape[] {
+  try {
+    const connections = useConnections();
+    return connections.flatMap((connection) =>
+      connection.accounts
+        .filter((address): address is `0x${string}` => address.startsWith("0x"))
+        .map((address) => ({
+          connectorId: connection.connector.uid,
+          connectorName: connection.connector.name,
+          address,
+          chainId: connection.chainId,
+        })),
+    );
+  } catch {
+    return [];
+  }
+}
+
+export function useSafeSwitchAccount(): {
+  switchAccountAsync?: (args: {
+    connector: Parameters<
+      ReturnType<typeof useSwitchAccount>["switchAccountAsync"]
+    >[0]["connector"];
+  }) => Promise<unknown>;
+} {
+  try {
+    const { switchAccountAsync } = useSwitchAccount();
+    return { switchAccountAsync };
+  } catch {
+    return { switchAccountAsync: undefined };
   }
 }

@@ -55,6 +55,8 @@ type RootProps = {
   style?: CSSProperties;
   /** Position of the wallet button in the sidebar */
   walletPosition?: "header" | "footer" | null;
+  /** Which wallet families to show as dual slots (omit for single-family mode) */
+  walletFamilies?: Array<"evm" | "solana">;
   /** Whether to show the thread list sidebar (default: true) */
   showSidebar?: boolean;
   /** Backend URL for the Aomi runtime */
@@ -99,6 +101,7 @@ const Root: FC<RootProps> = ({
   className,
   style,
   walletPosition = "footer",
+  walletFamilies,
   showSidebar = true,
   backendUrl,
   clientOptions,
@@ -106,7 +109,7 @@ const Root: FC<RootProps> = ({
   const resolvedBackendUrl =
     backendUrl ??
     process.env.NEXT_PUBLIC_BACKEND_URL ??
-    "http://localhost:8080";
+    "http://127.0.0.1:8080";
   const frameStyle: CSSProperties = { width, height, ...style };
 
   return (
@@ -122,7 +125,12 @@ const Root: FC<RootProps> = ({
           )}
           style={frameStyle}
         >
-          {showSidebar && <ThreadListSidebar walletPosition={walletPosition} />}
+          {showSidebar && (
+            <ThreadListSidebar
+              walletPosition={walletPosition}
+              walletFamilies={walletFamilies}
+            />
+          )}
           <SidebarInset className="relative flex min-h-0 flex-col">
             {children}
           </SidebarInset>
@@ -225,6 +233,7 @@ type DefaultLayoutProps = Omit<RootProps, "children">;
  */
 const DefaultLayout: FC<DefaultLayoutProps> = ({
   walletPosition = "footer",
+  walletFamilies,
   showSidebar = true,
   ...props
 }) => {
@@ -232,7 +241,12 @@ const DefaultLayout: FC<DefaultLayoutProps> = ({
   const hideWalletInControlBar = walletPosition !== null;
 
   return (
-    <Root walletPosition={walletPosition} showSidebar={showSidebar} {...props}>
+    <Root
+      walletPosition={walletPosition}
+      walletFamilies={walletFamilies}
+      showSidebar={showSidebar}
+      {...props}
+    >
       <Header
         withControl
         showSidebarTrigger={showSidebar}
