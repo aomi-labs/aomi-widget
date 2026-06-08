@@ -22,12 +22,14 @@ import { fatal } from "../errors";
 import type { CliConfig } from "../types";
 import { buildCliUserState } from "../user-state";
 import type { UserStateAAMode } from "../../user-state";
+import { parseSolanaKeypairSecret } from "../solana-signer";
 
 type WalletSnapshot = {
   publicKey?: string;
   chainId?: number;
   aaMode?: UserStateAAMode | null;
   smartAccount?: string | null;
+  svmAddress?: string;
 };
 
 function normalizeAddress(address: string | undefined): string | undefined {
@@ -40,12 +42,35 @@ function extractMentionedTxIds(content: string | undefined): string[] {
   return Array.from(new Set(matches.map((id) => id.toLowerCase()))).sort();
 }
 
+/**
+ * Derive the Solana public key from a keypair secret string if provided.
+ * Returns undefined on any parse failure (non-fatal — just omits svm.address).
+ */
+function deriveSvmAddress(solanaPrivateKey: string | undefined): string | undefined {
+  if (!solanaPrivateKey) return undefined;
+  try {
+    return parseSolanaKeypairSecret(solanaPrivateKey).publicKey.toBase58();
+  } catch {
+    return undefined;
+  }
+}
+
 export function shouldBroadcastWalletStateChange(
   config: CliConfig,
   previous: WalletSnapshot | null,
   next: WalletSnapshot,
 ): boolean {
-  if (!config.privateKey || !next.publicKey || next.chainId === undefined) {
+  // SVM: always sync when a Solana address is present (previous is forced to
+  // undefined so this always fires for Solana-keyed sessions).
+  if (next.svmAddress) {
+    return previous?.svmAddress !== next.svmAddress;
+  }
+
+  // EVM: sync when publicKey and chainId are known. Don't require privateKey —
+  // wallet state needs to be broadcast even for read-only sessions so the
+  // backend's tools (commit_message etc.) can see the connected wallet.
+  // The privateKey is only needed at sign time (via `aomi tx sign`).
+  if (!next.publicKey || next.chainId === undefined) {
     return false;
   }
 
@@ -67,12 +92,7 @@ export async function syncWalletStateForChat(
   session: {
     resolveUserState: (userState: ReturnType<typeof buildCliUserState>) => void;
     syncUserState: () => Promise<unknown>;
-    client: {
-      sendSystemMessage: (
-        sessionId: string,
-        message: string,
-      ) => Promise<unknown>;
-    };
+    client: { sendSystemMessage: (sessionId: string, message: string, options?: { app?: string }) => Promise<unknown> };
   },
 ): Promise<void> {
   if (
@@ -82,34 +102,28 @@ export async function syncWalletStateForChat(
     return;
   }
 
-  session.resolveUserState(
-    buildCliUserState(next.publicKey, next.chainId, {
-      aaMode: next.aaMode ?? null,
-      smartAccount: next.smartAccount ?? null,
-    }),
-  );
-  await session.syncUserState();
+  // Build the canonical nested UserState payload — this is the structure the
+  // Rust backend's UserStateWire deserializer understands.  The flat format
+  // ({ address, isConnected, chainId }) is NOT parsed by the backend and
+  // would silently overwrite the correctly-set user state with an empty one.
+  const userState = buildCliUserState(next.publicKey, next.chainId, {
+    app: config.app,
+    aaMode: next.aaMode ?? null,
+    smartAccount: next.smartAccount ?? null,
+    svmAddress: next.svmAddress,
+    svmCluster: config.svmCluster,
+  });
 
-  const aaMode =
-    next.aaMode === "4337" || next.aaMode === "7702" ? next.aaMode : "none";
-  const walletKind =
-    next.smartAccount && next.smartAccount === next.publicKey
-      ? "smart-account"
-      : "eoa";
-  const payload: Record<string, unknown> = {
-    address: next.publicKey,
-    chainId: next.chainId,
-    isConnected: true,
-    wallet_kind: walletKind,
-    aa_mode: aaMode,
-  };
+  session.resolveUserState(userState);
+  await session.syncUserState();
 
   await session.client.sendSystemMessage(
     cli.sessionId,
     JSON.stringify({
       type: "wallet:state_changed",
-      payload,
+      payload: userState,
     }),
+    { app: config.app },
   );
 }
 
@@ -129,10 +143,17 @@ export async function chatCommand(
         chainId: previousCli.chainId,
         aaMode: previousCli.toState().aaMode ?? null,
         smartAccount: previousCli.toState().smartAccount ?? null,
+        svmAddress: undefined, // force re-sync of SVM state on every chat
       }
     : null;
   const cli = CliSession.loadOrCreate(config);
   const session = cli.createClientSession();
+
+  // Resolve Solana address after session is created/loaded so we pick up the
+  // key persisted by `wallet set --solana` even for `--new-session` flows
+  // (the key is seeded from the previous session into the new one in create()).
+  const resolvedSolanaKey = cli.resolvedSvmPrivateKey(config.solanaPrivateKey);
+  const svmAddress = deriveSvmAddress(resolvedSolanaKey) ?? cli.svmPublicKey;
 
   try {
     await ingestSecretsForSession(config, cli, session.client);
@@ -145,6 +166,7 @@ export async function chatCommand(
         chainId: cli.chainId,
         aaMode: cli.toState().aaMode ?? null,
         smartAccount: cli.toState().smartAccount ?? null,
+        svmAddress,
       },
       cli,
       session,
@@ -261,7 +283,7 @@ export async function chatCommand(
 
     for (const pending of newPendingTxs) {
       console.log(`⚡ Wallet request queued: ${pending.id}`);
-      if (pending.kind === "transaction") {
+      if ("kind" in pending && pending.kind === "transaction") {
         const payload = pending.payload as WalletTxPayload;
         console.log(`   to:    ${payload.to}`);
         if (payload.value) console.log(`   value: ${payload.value}`);

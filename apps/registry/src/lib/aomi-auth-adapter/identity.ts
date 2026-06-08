@@ -18,6 +18,7 @@ export const AOMI_AUTH_DISCONNECTED_IDENTITY: AomiAuthIdentity = {
   walletProvider: undefined,
   walletProviderSubject: undefined,
   authMethod: undefined,
+  authProvider: undefined,
   authValue: undefined,
   authVerifiedAt: undefined,
 };
@@ -38,6 +39,7 @@ export const AOMI_AUTH_BOOTING_IDENTITY: AomiAuthIdentity = {
   walletProvider: undefined,
   walletProviderSubject: undefined,
   authMethod: undefined,
+  authProvider: undefined,
   authValue: undefined,
   authVerifiedAt: undefined,
 };
@@ -76,6 +78,8 @@ export function formatAuthMethod(method?: AomiAuthMethod): string | undefined {
   };
   return labelMap[method];
 }
+
+export const formatAuthProvider = formatAuthMethod;
 
 const OAUTH_METHODS: ReadonlySet<AomiAuthMethod> = new Set<AomiAuthMethod>([
   "google",

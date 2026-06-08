@@ -280,7 +280,7 @@ describe("Thread API", () => {
       });
     });
 
-    it("drops previous wallet thread metadata when the connected address changes", async () => {
+    it("keeps the active chat visible when the connected address changes", async () => {
       const fetchThreads = vi
         .fn<() => Promise<AomiThread[]>>()
         .mockResolvedValueOnce([
@@ -292,6 +292,7 @@ describe("Thread API", () => {
       setAomiClientConfig({ fetchThreads });
 
       const { api, getApi } = renderRuntime();
+      const activeThreadId = api.currentThreadId;
 
       await act(async () => {
         api.setUser({ address: "0x123", chainId: 1, isConnected: true });
@@ -315,7 +316,52 @@ describe("Thread API", () => {
         );
       });
 
-      expect(getApi().getThreadMetadata("thread-a")).toBeUndefined();
+      expect(getApi().currentThreadId).toBe(activeThreadId);
+      expect(getApi().getThreadMetadata(activeThreadId)).toBeDefined();
+      expect(getApi().getThreadMetadata("thread-a")?.title).toBe(
+        "Wallet A Thread",
+      );
+    });
+
+    it("keeps the active chat visible when focus moves to a Solana-only state", async () => {
+      const listThreads = vi.fn(
+        async (): Promise<AomiThread[]> => [
+          { session_id: "thread-1", title: "Wallet Thread" },
+        ],
+      );
+      setAomiClientConfig({ listThreads });
+
+      const { api, getApi } = renderRuntime();
+      const activeThreadId = api.currentThreadId;
+
+      await act(async () => {
+        api.setUser({ address: "0x123", chainId: 1, isConnected: true });
+        await flushPromises();
+      });
+
+      await waitFor(() => {
+        expect(getApi().getThreadMetadata("thread-1")?.title).toBe(
+          "Wallet Thread",
+        );
+      });
+
+      await act(async () => {
+        getApi().setUser({
+          address: undefined,
+          chainId: undefined,
+          isConnected: true,
+          connection: { is_connected: true, primary_family: "svm" },
+          svm: {
+            address: "So1anaCaseSensitiveSigner",
+            cluster: "solana:mainnet",
+          },
+        });
+        await flushPromises();
+      });
+
+      expect(getApi().currentThreadId).toBe(activeThreadId);
+      expect(getApi().getThreadMetadata(activeThreadId)).toBeDefined();
+      expect(listThreads).toHaveBeenCalledTimes(1);
     });
 
     it("does not refetch threads when only the connected chain changes", async () => {

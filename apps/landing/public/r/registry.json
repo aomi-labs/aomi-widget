@@ -406,6 +406,33 @@
       ]
     },
     {
+      "name": "aomi-privy-provider",
+      "type": "registry:component",
+      "description": "Privy-backed Aomi auth adapter using Privy's hosted smart wallets (EVM 4337) and Privy's embedded Solana wallets. Bundler, paymaster, and AA implementation are configured in the integrator's Privy dashboard.",
+      "files": [
+        {
+          "type": "registry:component",
+          "path": "lib/aomi-auth-adapter/providers/privy.tsx"
+        },
+        {
+          "type": "registry:component",
+          "path": "lib/aomi-auth-adapter/safe-wagmi-hooks.ts"
+        }
+      ],
+      "dependencies": [
+        "@aomi-labs/react",
+        "@privy-io/react-auth",
+        "@privy-io/wagmi",
+        "@solana/web3.js",
+        "@tanstack/react-query",
+        "viem",
+        "wagmi"
+      ],
+      "registryDependencies": [
+        "https://aomi.dev/r/aomi-auth-adapter.json"
+      ]
+    },
+    {
       "name": "button",
       "type": "registry:component",
       "description": "Displays a button or a component that looks like a button.",

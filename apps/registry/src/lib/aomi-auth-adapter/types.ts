@@ -3,11 +3,38 @@
 import type { Chain } from "viem";
 import type {
   WalletEip712Payload,
+  WalletSolanaSignMessagePayload,
   WalletSolanaSignPayload,
   WalletTxPayload,
 } from "@aomi-labs/react";
 
 export type AomiAuthStatus = "booting" | "disconnected" | "connected";
+export type WalletFamily = "evm" | "solana";
+export type WireWalletFamily = "evm" | "svm";
+export type SolanaCluster =
+  | "solana:mainnet"
+  | "solana:devnet"
+  | "solana:testnet";
+
+export type SolanaNetworkOption = {
+  id: string;
+  label: string;
+  cluster: SolanaCluster;
+  rpcHttpUrl: string;
+  rpcWsUrl?: string;
+  isDefault?: boolean;
+};
+
+export type SolanaNetworkConfigInput = {
+  networks?: readonly SolanaNetworkOption[];
+  cluster?: SolanaCluster;
+  rpcHttpUrl?: string;
+  rpcWsUrl?: string;
+};
+
+export type AomiNetworkTarget =
+  | { family: "evm"; chainId: number }
+  | { family: "solana"; networkId: string };
 export type AomiWalletKind = "eoa" | "smart-account";
 export type AomiAAMode = "none" | "4337" | "7702";
 export type AomiSponsorProvider = "alchemy" | "coinbase" | "pimlico" | "self";
@@ -64,10 +91,56 @@ export type AomiAuthIdentity = {
   walletProviderSubject?: string;
   /** Auth method used within the wallet platform (Para OAuth, etc). */
   authMethod?: AomiAuthMethod;
+  /** Legacy alias retained while the control-bar migrates to `authMethod`. */
+  authProvider?: AomiAuthMethod;
   /** Verified auth value from the wallet platform, such as email or phone. */
   authValue?: string;
   /** Provider verification timestamp for `authValue`, unix seconds. */
   authVerifiedAt?: number;
+  primaryLabel?: string;
+  secondaryLabel?: string;
+  solanaCluster?: SolanaCluster;
+  solanaWalletName?: string;
+  solanaTransport?: "extension" | "embedded" | "mwa";
+  solanaCapabilities?: {
+    canSignMessage?: boolean;
+    canSignTransaction?: boolean;
+    canSignAllTransactions?: boolean;
+    canSendTransaction?: boolean;
+    canSignAndSendTransaction?: boolean;
+  };
+};
+
+/**
+ * One installable Solana wallet surface (e.g. Phantom, Solflare). Surfaced
+ * by adapters so the UI can render an inline picker instead of guessing
+ * the user's preferred wallet. `installed` is true when the wallet is
+ * actually detected in the browser; `ready` is true when it can be
+ * activated (either Installed or auto-loadable like in-browser providers).
+ */
+export type SolanaWalletDescriptor = {
+  name: string;
+  ready: boolean;
+  installed: boolean;
+  iconUrl?: string;
+};
+
+/**
+ * One wallet account known to the adapter, tagged by family. The registry
+ * may hold several per family (e.g. MetaMask + Para-embedded EVM), but only
+ * one per family is `active` (the live account reported to the backend).
+ */
+export type AomiAccount = {
+  /** Stable id: wagmi connector uid (EVM) or solana wallet name (Solana). */
+  id: string;
+  family: WalletFamily;
+  address: string;
+  /** Short display label, e.g. formatted address. */
+  label?: string;
+  /** Human wallet name, e.g. "MetaMask", "Phantom", "Para". */
+  walletName?: string;
+  /** True when this is the live account for its family. */
+  active: boolean;
 };
 
 export type AomiTxResult = {
@@ -84,6 +157,11 @@ export type AomiTxResult = {
   Delegation7702?: string;
 };
 
+export type AomiAccountCredential = {
+  provider: "para" | "privy";
+  providerToken: string;
+};
+
 export type AomiAuthAdapter = {
   identity: AomiAuthIdentity;
   isReady: boolean;
@@ -94,12 +172,51 @@ export type AomiAuthAdapter = {
   canDisconnect: boolean;
 
   supportedChains?: readonly Chain[];
+  supportedNetworks?: {
+    evm: readonly Chain[];
+    solana: readonly SolanaNetworkOption[];
+  };
+  solanaNetworkSwitchRequiresReconnect?: boolean;
 
-  connect: () => Promise<void>;
-  openAccountUI?: () => Promise<void>;
-  disconnect?: () => Promise<void>;
+  /** All wallet accounts known to the adapter, tagged by family. */
+  accounts: readonly AomiAccount[];
+  /** Make `accounts[id]` the active account for its family. */
+  selectAccount: (id: string) => Promise<void>;
+
+  /**
+   * Installed/loadable Solana wallets the adapter can attach to. Empty
+   * (or undefined) when the adapter doesn't support Solana or has no
+   * detected wallets. UIs use this to render an inline picker so users
+   * pick their wallet explicitly rather than relying on auto-detection.
+   */
+  solanaWallets?: readonly SolanaWalletDescriptor[];
+  /**
+   * Attach a specific Solana wallet by name (matches
+   * `solanaWallets[].name`). The promise resolves once the wallet adapter
+   * reports connected (or rejects if the wallet popup is cancelled).
+   */
+  connectSolanaWallet?: (name: string) => Promise<void>;
+
+  connect: (options?: { family?: WalletFamily }) => Promise<void>;
+  openAccountUI?: (options?: { family?: WalletFamily }) => Promise<void>;
+  /**
+   * Disconnect from the wallet. By default disconnects everything;
+   * pass `{ family }` to disconnect a specific family while leaving the
+   * other connected (e.g. drop just Solana while keeping the EVM Para
+   * session, or vice versa). `{ family: "all" }` clears both.
+   *
+   * Adapters that can't selectively disconnect should still implement
+   * this and disconnect everything regardless of `family`; the picker's
+   * per-family sections only rely on a best-effort behavior here.
+   */
+  disconnect?: (options?: {
+    family?: WalletFamily | "all";
+    /** Disconnect a single account by `AomiAccount.id` (EVM only). */
+    accountId?: string;
+  }) => Promise<void>;
 
   switchChain?: (chainId: number) => Promise<void>;
+  selectNetwork?: (target: AomiNetworkTarget) => Promise<void>;
 
   sendTransaction?: (payload: WalletTxPayload) => Promise<AomiTxResult>;
   signTypedData?: (
@@ -126,4 +243,20 @@ export type AomiAuthAdapter = {
   signSolanaTransaction?: (
     payload: WalletSolanaSignPayload,
   ) => Promise<{ signedTx: string }>;
+  signSolanaMessage?: (
+    payload: WalletSolanaSignMessagePayload,
+  ) => Promise<{ signature: string }>;
+  sendSolanaTransaction?: (
+    payload: WalletSolanaSignPayload,
+  ) => Promise<{ signature: string; signedTx?: string }>;
+  signAndSendSolanaTransaction?: (
+    payload: WalletSolanaSignPayload,
+  ) => Promise<{ signature: string; signedTx?: string }>;
+  /**
+   * Return an upstream wallet-provider credential that the portal can exchange
+   * for a short-lived Aomi bearer.
+   */
+  getAccountCredential?: () => Promise<AomiAccountCredential | null>;
+  solanaRpcHttpUrl?: string;
+  solanaRpcWsUrl?: string;
 };
