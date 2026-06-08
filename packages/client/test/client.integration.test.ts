@@ -201,6 +201,33 @@ describeLive("Chat scenarios (live backend)", () => {
     },
     TEST_TIMEOUT,
   );
+
+  it(
+    "accepts an app-scoped system message (wallet:state_changed)",
+    async () => {
+      // Exercises the app routing wired in db4cdb16: the runtime threads
+      // getCurrentThreadApp() into sendSystemMessage(..., { app }), which the
+      // client puts in the JSON body and the backend reads via
+      // select_system_params. Kept LLM-free — a fresh thread + system event.
+      const sessionId = freshSessionId();
+      await client.createThread(sessionId);
+
+      const sysResponse = await client.sendSystemMessage(
+        sessionId,
+        JSON.stringify({
+          type: "wallet:state_changed",
+          payload: { evm: { address: "0x789", chain_id: 137 } },
+        }),
+        { app: "default" },
+      );
+
+      expect(sysResponse).toBeDefined();
+      expect(sysResponse.res?.sender).toBe("system");
+
+      await client.deleteThread(sessionId).catch(() => {});
+    },
+    TEST_TIMEOUT,
+  );
 });
 
 // =============================================================================
