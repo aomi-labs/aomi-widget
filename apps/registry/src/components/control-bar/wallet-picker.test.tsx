@@ -153,42 +153,59 @@ function renderPicker(
   );
 }
 
+// When connected, the add-wallet options live behind a collapsed expander.
+function openAddWallets() {
+  const trigger = screen.queryByRole("button", { name: "Add another wallet" });
+  if (trigger) fireEvent.click(trigger);
+}
+
 describe("WalletPicker", () => {
-  it("renders quick sign-in, connected accounts, and wallet options", () => {
+  it("renders connected accounts with EVM/SVM tags and a collapsible add-wallet list", () => {
     renderPicker(makeAdapter());
     expect(screen.getByText("Manage wallets")).toBeTruthy();
     const connectedLabel = screen.getByText("Connected");
-    const quickSignInLabel = screen.getByText("Quick sign-in");
-    const linkLabel = screen.getByText("Link additional wallets");
-    // When connected, order is Connected -> Quick sign-in -> Link additional.
+    // When connected, the social section reframes as account linking.
+    const accountsLabel = screen.getByText("Link additional accounts");
+    const addLabel = screen.getByRole("button", { name: "Add another wallet" });
+    // Order is Connected -> Link additional accounts -> Add another wallet.
     expect(
-      connectedLabel.compareDocumentPosition(quickSignInLabel) &
+      connectedLabel.compareDocumentPosition(accountsLabel) &
         Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
     expect(
-      quickSignInLabel.compareDocumentPosition(linkLabel) &
+      accountsLabel.compareDocumentPosition(addLabel) &
         Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
     expect(
       screen.getByRole("button", { name: "Manage your account" }),
     ).toBeTruthy();
     expect(screen.getByText("Account")).toBeTruthy();
-    expect(screen.queryByText("Advanced")).toBeNull();
-    expect(screen.queryByText("Sign in another way")).toBeNull();
     expect(screen.queryByText(/^ETH$/)).toBeNull();
     expect(screen.queryByText(/^SOL$/)).toBeNull();
-    // Each connected row carries a full network label, distinguishing EVM vs SVM.
-    expect(screen.getByText("Ethereum")).toBeTruthy();
-    expect(screen.getByText("Solana")).toBeTruthy();
+    // Each connected row carries a compact EVM/SVM family tag.
+    expect(screen.getByText("EVM")).toBeTruthy();
+    expect(screen.getByText("SVM")).toBeTruthy();
     expect(screen.getAllByTitle("MetaMask").length).toBeGreaterThan(0);
     expect(screen.getByTitle("Phantom")).toBeTruthy();
     expect(screen.getAllByText("MetaMask").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Phantom").length).toBeGreaterThan(0);
-    expect(screen.getByText("Rabby")).toBeTruthy();
-    expect(screen.getByText("WalletConnect")).toBeTruthy();
-    expect(screen.getByText("Connect or link additional wallets")).toBeTruthy();
     expect(screen.getByText("Email or Google")).toBeTruthy();
-    expect(screen.getByText("Fast account sign-in")).toBeTruthy();
+
+    // Add-wallet options stay collapsed (hidden from the a11y tree) until expanded.
+    expect(addLabel.getAttribute("aria-expanded")).toBe("false");
+    expect(screen.queryByRole("button", { name: "Link Rabby" })).toBeNull();
+    expect(
+      screen.queryByRole("button", { name: "Link WalletConnect" }),
+    ).toBeNull();
+    fireEvent.click(addLabel);
+    expect(addLabel.getAttribute("aria-expanded")).toBe("true");
+    expect(screen.getByRole("button", { name: "Link Rabby" })).toBeTruthy();
+    expect(
+      screen.getByRole("button", { name: "Link WalletConnect" }),
+    ).toBeTruthy();
+    expect(screen.getByText("Connect or link additional wallets")).toBeTruthy();
+    // An already-connected brand (MetaMask) is not offered as an add option.
+    expect(screen.queryByRole("button", { name: "Link MetaMask" })).toBeNull();
     expect(
       screen.queryByRole("button", { name: /connect with para/i }),
     ).toBeNull();
@@ -305,6 +322,7 @@ describe("WalletPicker", () => {
       ],
     });
     renderPicker(adapter, true);
+    openAddWallets();
     fireEvent.click(screen.getByRole("button", { name: "Link MetaMask" }));
     expect(adapter.connectEvmWallet).not.toHaveBeenCalled();
   });
@@ -352,6 +370,7 @@ describe("WalletPicker", () => {
         ],
       }),
     );
+    openAddWallets();
     expect(screen.getAllByRole("button", { name: /Link Rabby/ })).toHaveLength(
       1,
     );
@@ -365,6 +384,7 @@ describe("WalletPicker", () => {
         connectSolanaWallet,
       }),
     );
+    openAddWallets();
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "Link Solflare" }));
     });
@@ -378,6 +398,45 @@ describe("WalletPicker", () => {
       fireEvent.click(screen.getByRole("button", { name: "Email or Google" }));
     });
     expect(connectSocial).toHaveBeenCalledWith("google");
+  });
+
+  it("stays open without a success popup after a direct wallet link", async () => {
+    const connectEvmWallet = vi.fn(async () => undefined);
+    renderPicker(makeAdapter({ connectEvmWallet }));
+    openAddWallets();
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Link Rabby" }));
+    });
+    expect(connectEvmWallet).toHaveBeenCalledWith("rabby");
+    // No success banner, and the picker stays open (the new wallet just lands
+    // in the connected list).
+    expect(screen.queryByText("Wallet connected")).toBeNull();
+    expect(screen.getByText("Manage wallets")).toBeTruthy();
+  });
+
+  it("keeps a dual-chain wallet connectable on both families", () => {
+    renderPicker(
+      makeAdapter({
+        identity: { status: "disconnected", isConnected: false },
+        accounts: [],
+        evmWallets: [
+          {
+            id: "phantom-evm",
+            label: "Phantom",
+            family: "evm",
+            kind: "evm",
+            status: "installed",
+            ready: true,
+            installed: true,
+          },
+        ],
+        solanaWallets: [{ name: "Phantom", installed: true, ready: true }],
+      }),
+    );
+    // Family-scoped dedup keeps Phantom reachable as both EVM and Solana.
+    expect(
+      screen.getAllByRole("button", { name: "Connect Phantom" }),
+    ).toHaveLength(2);
   });
 
   it("opens account management from the picker header", async () => {
