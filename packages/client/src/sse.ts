@@ -6,6 +6,7 @@ export type SseSubscriber = {
     onUpdate: (event: AomiSSEEvent) => void,
     onError?: (error: unknown) => void,
   ) => () => void;
+  reconnect: (reason?: string) => void;
 };
 
 export type SseSubscriberOptions = {
@@ -17,6 +18,8 @@ export type SseSubscriberOptions = {
 
 type SseSubscription = {
   abortController: AbortController | null;
+  lastEventId: string | null;
+  seenEventIds: Set<string>;
   retries: number;
   retryTimer: ReturnType<typeof setTimeout> | null;
   stopped: boolean;
@@ -24,24 +27,38 @@ type SseSubscription = {
   stop: (reason?: string) => void;
 };
 
+type ParsedSseMessage = {
+  data: string;
+  id: string | null;
+};
+
 type SseListener = {
   onUpdate: (event: AomiSSEEvent) => void;
   onError?: (error: unknown) => void;
 };
 
-function extractSseData(rawEvent: string): string | null {
+const MAX_SEEN_EVENT_IDS = 256;
+
+// The server intentionally uses at-least-once delivery around reconnects:
+// replay and live streams can overlap, so consumers MUST deduplicate by id.
+function extractSseMessage(rawEvent: string): ParsedSseMessage | null {
+  const lines = rawEvent.split("\n");
   const dataLines = rawEvent
     .split("\n")
     .filter((line) => line.startsWith("data:"))
     .map((line) => line.slice(5).trimStart());
   if (!dataLines.length) return null;
-  return dataLines.join("\n");
+  const idLine = lines.find((line) => line.startsWith("id:"));
+  return {
+    data: dataLines.join("\n"),
+    id: idLine ? idLine.slice(3).trimStart() : null,
+  };
 }
 
 async function readSseStream(
   stream: ReadableStream<Uint8Array>,
   signal: AbortSignal,
-  onMessage: (data: string) => void,
+  onMessage: (message: ParsedSseMessage) => void,
 ): Promise<void> {
   const reader = stream.getReader();
   const decoder = new TextDecoder();
@@ -59,9 +76,9 @@ async function readSseStream(
       while (separatorIndex >= 0) {
         const rawEvent = buffer.slice(0, separatorIndex);
         buffer = buffer.slice(separatorIndex + 2);
-        const data = extractSseData(rawEvent);
-        if (data) {
-          onMessage(data);
+        const message = extractSseMessage(rawEvent);
+        if (message) {
+          onMessage(message);
         }
         separatorIndex = buffer.indexOf("\n\n");
       }
@@ -109,6 +126,8 @@ export function createSseSubscriber({
 
     const subscription: SseSubscription = {
       abortController: null,
+      lastEventId: null,
+      seenEventIds: new Set(),
       retries: 0,
       retryTimer: null,
       stopped: false,
@@ -155,8 +174,12 @@ export function createSseSubscriber({
       const openedAt = Date.now();
 
       try {
+        const headers = new Headers(getHeaders(sessionId));
+        if (subscription.lastEventId) {
+          headers.set("Last-Event-ID", subscription.lastEventId);
+        }
         const response = await fetchImpl(`${backendUrl}/api/updates`, {
-          headers: getHeaders(sessionId),
+          headers,
           signal: controller.signal,
         });
 
@@ -172,25 +195,42 @@ export function createSseSubscriber({
 
         subscription.retries = 0;
 
-        await readSseStream(response.body, controller.signal, (data) => {
-          let parsed: AomiSSEEvent;
-          try {
-            parsed = JSON.parse(data) as AomiSSEEvent;
-          } catch (error) {
-            for (const item of subscription.listeners) {
-              item.onError?.(error);
+        await readSseStream(
+          response.body,
+          controller.signal,
+          ({ data, id }) => {
+            if (id && subscription.seenEventIds.has(id)) {
+              return;
             }
-            return;
-          }
-
-          for (const item of subscription.listeners) {
+            if (id) {
+              subscription.lastEventId = id;
+              subscription.seenEventIds.add(id);
+              if (subscription.seenEventIds.size > MAX_SEEN_EVENT_IDS) {
+                const oldestId = subscription.seenEventIds
+                  .values()
+                  .next().value;
+                if (oldestId) subscription.seenEventIds.delete(oldestId);
+              }
+            }
+            let parsed: AomiSSEEvent;
             try {
-              item.onUpdate(parsed);
+              parsed = JSON.parse(data) as AomiSSEEvent;
             } catch (error) {
-              item.onError?.(error);
+              for (const item of subscription.listeners) {
+                item.onError?.(error);
+              }
+              return;
             }
-          }
-        });
+
+            for (const item of subscription.listeners) {
+              try {
+                item.onUpdate(parsed);
+              } catch (error) {
+                item.onError?.(error);
+              }
+            }
+          },
+        );
         logger?.debug("[aomi][sse] stream ended", {
           sessionId,
           aborted: controller.signal.aborted,
@@ -228,5 +268,13 @@ export function createSseSubscriber({
     };
   };
 
-  return { subscribe };
+  const reconnect: SseSubscriber["reconnect"] = (reason) => {
+    for (const subscription of subscriptions.values()) {
+      if (!subscription.stopped) {
+        subscription.abortController?.abort(reason);
+      }
+    }
+  };
+
+  return { subscribe, reconnect };
 }

@@ -11,7 +11,9 @@ import type { SessionWalletController } from "./wallet";
 import {
   hydrateTxPayloadFromUserState,
   normalizeEip712Payload,
+  normalizeSolanaSignMessagePayload,
   normalizeSolanaSignPayload,
+  normalizeSolanaWalletRequest,
   normalizeTxPayload,
 } from "../wallet-utils";
 
@@ -74,6 +76,36 @@ function dispatchSystemEvents(events: AomiSystemEvent[], deps: StateDeps): void 
     if (!unwrapped) continue;
 
     if (unwrapped.type === "wallet_tx_request") {
+      const solanaRequest = normalizeSolanaWalletRequest(unwrapped.payload ?? {});
+      if (solanaRequest) {
+        if (solanaRequest.kind === "solana_sign_message") {
+          const req = deps.walletController.enqueue(
+            "solana_sign_message",
+            solanaRequest.payload,
+          );
+          deps.emit("wallet_solana_sign_message_request", req);
+        } else if (solanaRequest.kind === "solana_send") {
+          const req = deps.walletController.enqueue(
+            "solana_send",
+            solanaRequest.payload,
+          );
+          deps.emit("wallet_solana_send_request", req);
+        } else if (solanaRequest.kind === "solana_sign_and_send") {
+          const req = deps.walletController.enqueue(
+            "solana_sign_and_send",
+            solanaRequest.payload,
+          );
+          deps.emit("wallet_solana_sign_and_send_request", req);
+        } else {
+          const req = deps.walletController.enqueue(
+            "solana_sign",
+            solanaRequest.payload,
+          );
+          deps.emit("wallet_solana_sign_request", req);
+        }
+        continue;
+      }
+
       const normalizedPayload = normalizeTxPayload(unwrapped.payload);
       const payload = normalizedPayload
         ? hydrateTxPayloadFromUserState(normalizedPayload, deps.userState())
@@ -87,9 +119,51 @@ function dispatchSystemEvents(events: AomiSystemEvent[], deps: StateDeps): void 
       const req = deps.walletController.enqueue("eip712_sign", payload);
       deps.emit("wallet_eip712_request", req);
     } else if (unwrapped.type === "wallet::solana_sign_request") {
+      const solanaRequest = normalizeSolanaWalletRequest(unwrapped.payload ?? {});
+      if (solanaRequest) {
+        if (solanaRequest.kind === "solana_sign_message") {
+          const req = deps.walletController.enqueue(
+            "solana_sign_message",
+            solanaRequest.payload,
+          );
+          deps.emit("wallet_solana_sign_message_request", req);
+        } else if (solanaRequest.kind === "solana_send") {
+          const req = deps.walletController.enqueue(
+            "solana_send",
+            solanaRequest.payload,
+          );
+          deps.emit("wallet_solana_send_request", req);
+        } else if (solanaRequest.kind === "solana_sign_and_send") {
+          const req = deps.walletController.enqueue(
+            "solana_sign_and_send",
+            solanaRequest.payload,
+          );
+          deps.emit("wallet_solana_sign_and_send_request", req);
+        } else {
+          const req = deps.walletController.enqueue(
+            "solana_sign",
+            solanaRequest.payload,
+          );
+          deps.emit("wallet_solana_sign_request", req);
+        }
+        continue;
+      }
+
       const payload = normalizeSolanaSignPayload(unwrapped.payload ?? {});
       const req = deps.walletController.enqueue("solana_sign", payload);
       deps.emit("wallet_solana_sign_request", req);
+    } else if (unwrapped.type === "wallet::solana_sign_message_request") {
+      const payload = normalizeSolanaSignMessagePayload(unwrapped.payload ?? {});
+      const req = deps.walletController.enqueue("solana_sign_message", payload);
+      deps.emit("wallet_solana_sign_message_request", req);
+    } else if (unwrapped.type === "wallet::solana_send_request") {
+      const payload = normalizeSolanaSignPayload(unwrapped.payload ?? {});
+      const req = deps.walletController.enqueue("solana_send", payload);
+      deps.emit("wallet_solana_send_request", req);
+    } else if (unwrapped.type === "wallet::solana_sign_and_send_request") {
+      const payload = normalizeSolanaSignPayload(unwrapped.payload ?? {});
+      const req = deps.walletController.enqueue("solana_sign_and_send", payload);
+      deps.emit("wallet_solana_sign_and_send_request", req);
     } else if (
       unwrapped.type === "system_notice" ||
       unwrapped.type === "system_error" ||

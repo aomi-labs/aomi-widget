@@ -2,6 +2,9 @@
 // Re-export the main AomiFrame component
 export { AomiFrame } from "./components/aomi-frame";
 
+// Dual-wallet UI
+export { DualWalletBar, type DualWalletBarProps } from "./components/control-bar/dual-wallet-bar";
+
 // Notification UI
 export { NotificationToaster } from "./components/ui/notification";
 
@@ -43,6 +46,7 @@ export {
   AomiParaAdapterProvider,
   AomiParaProvider,
 } from "./lib/aomi-auth-adapter/providers/para";
+export { AomiPrivyProvider } from "./lib/aomi-auth-adapter/providers/privy";
 export type { AomiParaAdapterProviderProps } from "./lib/aomi-auth-adapter/providers/para";
 export type { AomiAuthIdentity, AomiAuthStatus } from "./lib/aomi-auth-adapter";
 export {
