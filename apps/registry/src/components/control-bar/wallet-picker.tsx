@@ -258,6 +258,108 @@ export function WalletPicker() {
     ? "Switch wallets or link another one."
     : "Sign in quickly, or connect a wallet.";
 
+  const quickSignInSection = socialLoginOptions.length ? (
+    <section className="flex flex-col gap-1.5">
+      <SectionLabel>Quick sign-in</SectionLabel>
+      {socialLoginOptions.map((option) => (
+        <SocialLoginRow
+          key={option.id}
+          option={option}
+          pending={pending}
+          onClick={() =>
+            void runAction(`social:${option.id}`, async () => {
+              if (adapter.connectSocial) {
+                await adapter.connectSocial(option.id);
+              } else {
+                await adapter.connect();
+              }
+              closePicker();
+            })
+          }
+        />
+      ))}
+    </section>
+  ) : null;
+
+  const connectedSection = hasConnectedWallets ? (
+    <section className="flex flex-col gap-1.5">
+      <SectionLabel>Connected</SectionLabel>
+      {connectedAccounts.map((account) => {
+        const networkLabel =
+          account.family === "solana"
+            ? familyLabel("solana")
+            : (getChainInfo(account.chainId)?.name ??
+              getChainInfo(identity.chainId)?.name ??
+              familyLabel("evm"));
+        return (
+          <FamilyStatusRow
+            key={`${account.family}:${account.id}`}
+            family={account.family}
+            account={account}
+            networkLabel={networkLabel}
+            detail={
+              account.family === "solana"
+                ? identity.solanaCluster?.replace("solana:", "")
+                : undefined
+            }
+            pending={pending}
+            onSelect={
+              account.family === "evm" && !account.active
+                ? () =>
+                    void runAction(
+                      `select:${account.id}`,
+                      () => adapter.selectAccount(account.id),
+                      true,
+                    )
+                : undefined
+            }
+            onDisconnect={
+              adapter.disconnect
+                ? () =>
+                    void runAction(
+                      `disconnect:${account.id}`,
+                      () =>
+                        adapter.disconnect!({
+                          ...(account.family === "evm"
+                            ? { accountId: account.id }
+                            : { family: "solana" as const }),
+                        }),
+                      true,
+                    )
+                : undefined
+            }
+          />
+        );
+      })}
+    </section>
+  ) : null;
+
+  const linkAdditionalSection = walletActions.length ? (
+    <section className="flex flex-col gap-1.5">
+      <SectionLabel>
+        {hasConnectedWallets ? "Link additional wallets" : "Wallets"}
+      </SectionLabel>
+      {walletActions.map((wallet) => (
+        <WalletActionRow
+          key={`${wallet.family}:${wallet.id}`}
+          wallet={wallet}
+          pending={pending}
+          linkedMode={hasConnectedWallets}
+          onClick={() =>
+            void runAction(
+              wallet.actionKey,
+              async () => {
+                await wallet.connect();
+                closePicker();
+              },
+              true,
+            )
+          }
+        />
+      ))}
+    </section>
+  ) : null;
+
   if (!open) return null;
 
   return (
@@ -323,102 +425,18 @@ export function WalletPicker() {
         </div>
 
         <div className="flex flex-col gap-4 overflow-y-auto p-3.5">
-          {socialLoginOptions.length ? (
-            <section className="flex flex-col gap-1.5">
-              <SectionLabel>Quick sign-in</SectionLabel>
-              {socialLoginOptions.map((option) => (
-                <SocialLoginRow
-                  key={option.id}
-                  option={option}
-                  pending={pending}
-                  onClick={() =>
-                    void runAction(`social:${option.id}`, async () => {
-                      if (adapter.connectSocial) {
-                        await adapter.connectSocial(option.id);
-                      } else {
-                        await adapter.connect();
-                      }
-                      closePicker();
-                    })
-                  }
-                />
-              ))}
-            </section>
-          ) : null}
-
           {hasConnectedWallets ? (
-            <section className="flex flex-col gap-1.5">
-              <SectionLabel>Connected</SectionLabel>
-              {connectedAccounts.map((account) => (
-                <FamilyStatusRow
-                  key={`${account.family}:${account.id}`}
-                  family={account.family}
-                  account={account}
-                  detail={
-                    account.family === "evm" &&
-                    account.active &&
-                    identity.chainId
-                      ? getChainInfo(identity.chainId)?.name
-                      : account.family === "solana"
-                        ? identity.solanaCluster?.replace("solana:", "")
-                        : undefined
-                  }
-                  pending={pending}
-                  onSelect={
-                    account.family === "evm" && !account.active
-                      ? () =>
-                          void runAction(
-                            `select:${account.id}`,
-                            () => adapter.selectAccount(account.id),
-                            true,
-                          )
-                      : undefined
-                  }
-                  onDisconnect={
-                    adapter.disconnect
-                      ? () =>
-                          void runAction(
-                            `disconnect:${account.id}`,
-                            () =>
-                              adapter.disconnect!({
-                                ...(account.family === "evm"
-                                  ? { accountId: account.id }
-                                  : { family: "solana" as const }),
-                              }),
-                            true,
-                          )
-                      : undefined
-                  }
-                />
-              ))}
-            </section>
-          ) : null}
-
-          {walletActions.length ? (
-            <section className="flex flex-col gap-1.5">
-              <SectionLabel>
-                {hasConnectedWallets ? "Link additional wallets" : "Wallets"}
-              </SectionLabel>
-              {walletActions.map((wallet) => (
-                <WalletActionRow
-                  key={`${wallet.family}:${wallet.id}`}
-                  wallet={wallet}
-                  pending={pending}
-                  linkedMode={hasConnectedWallets}
-                  onClick={() =>
-                    void runAction(
-                      wallet.actionKey,
-                      async () => {
-                        await wallet.connect();
-                        closePicker();
-                      },
-                      true,
-                    )
-                  }
-                />
-              ))}
-            </section>
-          ) : null}
+            <>
+              {connectedSection}
+              {quickSignInSection}
+              {linkAdditionalSection}
+            </>
+          ) : (
+            <>
+              {quickSignInSection}
+              {linkAdditionalSection}
+            </>
+          )}
         </div>
       </div>
     </div>
@@ -476,6 +494,7 @@ function FamilyStatusRow({
   family,
   account,
   detail,
+  networkLabel,
   pending,
   onSelect,
   onDisconnect,
@@ -483,6 +502,7 @@ function FamilyStatusRow({
   family: WalletFamily;
   account?: AomiAccount;
   detail?: string;
+  networkLabel?: string;
   pending: string | null;
   onSelect?: () => void;
   onDisconnect?: () => void;
@@ -519,6 +539,11 @@ function FamilyStatusRow({
           </span>
           {account?.active ? (
             <CheckIcon className="text-primary size-3.5 shrink-0" />
+          ) : null}
+          {networkLabel ? (
+            <span className="bg-muted text-muted-foreground shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium">
+              {networkLabel}
+            </span>
           ) : null}
         </span>
         <span className="text-muted-foreground block truncate text-[11px]">

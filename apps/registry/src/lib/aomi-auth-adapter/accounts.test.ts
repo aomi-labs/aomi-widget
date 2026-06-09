@@ -24,7 +24,7 @@ describe("buildAccounts", () => {
     });
   });
 
-  it("prefers the active EVM connector id over address-only matching", () => {
+  it("collapses one EVM address exposed by multiple connectors into a single active row", () => {
     const accounts = buildAccounts({
       evmConnections: [
         { id: "mm", walletName: "MetaMask", address: "0xAAA", chainId: 1 },
@@ -34,11 +34,60 @@ describe("buildAccounts", () => {
       activeEvmConnectionId: "rb",
       solanaConnections: [],
     });
+    expect(accounts).toHaveLength(1);
+    expect(accounts[0]).toMatchObject({
+      family: "evm",
+      walletName: "Rabby",
+      id: "rb",
+      active: true,
+    });
+    expect(accounts[0].connectorIds).toEqual(["mm", "rb"]);
+  });
+
+  it("dedupes three connectors for the same address (Rabby/MetaMask impersonation)", () => {
+    const accounts = buildAccounts({
+      evmConnections: [
+        { id: "rb1", walletName: "Rabby", address: "0xdA6", chainId: 8453 },
+        { id: "mm", walletName: "MetaMask", address: "0xDA6", chainId: 8453 },
+        { id: "rb2", walletName: "Rabby Wallet", address: "0xda6", chainId: 8453 },
+      ],
+      activeEvmAddress: "0xda6",
+      activeEvmConnectionId: "mm",
+      solanaConnections: [],
+    });
+    expect(accounts).toHaveLength(1);
     expect(accounts[0]).toMatchObject({
       walletName: "MetaMask",
-      active: false,
+      chainId: 8453,
+      active: true,
     });
-    expect(accounts[1]).toMatchObject({ walletName: "Rabby", active: true });
+    expect(accounts[0].connectorIds).toEqual(["rb1", "mm", "rb2"]);
+  });
+
+  it("keeps genuinely distinct EVM addresses as separate rows", () => {
+    const accounts = buildAccounts({
+      evmConnections: [
+        { id: "mm-a", walletName: "MetaMask", address: "0xAAA", chainId: 1 },
+        { id: "mm-b", walletName: "MetaMask", address: "0xBBB", chainId: 1 },
+      ],
+      activeEvmAddress: "0xaaa",
+      solanaConnections: [],
+    });
+    expect(accounts).toHaveLength(2);
+    expect(accounts.map((a) => a.address)).toEqual(["0xAAA", "0xBBB"]);
+  });
+
+  it("prefers a real brand name over a generic injected label when no active connector is given", () => {
+    const accounts = buildAccounts({
+      evmConnections: [
+        { id: "inj", walletName: "Injected", address: "0xAAA", chainId: 1 },
+        { id: "rb", walletName: "Rabby", address: "0xAAA", chainId: 1 },
+      ],
+      activeEvmAddress: "0xaaa",
+      solanaConnections: [],
+    });
+    expect(accounts).toHaveLength(1);
+    expect(accounts[0]).toMatchObject({ walletName: "Rabby", active: true });
   });
 
   it("adds connected Solana wallets and marks the selected address active", () => {

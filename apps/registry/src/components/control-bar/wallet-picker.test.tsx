@@ -157,9 +157,18 @@ describe("WalletPicker", () => {
   it("renders quick sign-in, connected accounts, and wallet options", () => {
     renderPicker(makeAdapter());
     expect(screen.getByText("Manage wallets")).toBeTruthy();
-    expect(screen.getByText("Quick sign-in")).toBeTruthy();
-    expect(screen.getByText("Connected")).toBeTruthy();
-    expect(screen.getByText("Link additional wallets")).toBeTruthy();
+    const connectedLabel = screen.getByText("Connected");
+    const quickSignInLabel = screen.getByText("Quick sign-in");
+    const linkLabel = screen.getByText("Link additional wallets");
+    // When connected, order is Connected -> Quick sign-in -> Link additional.
+    expect(
+      connectedLabel.compareDocumentPosition(quickSignInLabel) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(
+      quickSignInLabel.compareDocumentPosition(linkLabel) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
     expect(
       screen.getByRole("button", { name: "Manage your account" }),
     ).toBeTruthy();
@@ -168,6 +177,9 @@ describe("WalletPicker", () => {
     expect(screen.queryByText("Sign in another way")).toBeNull();
     expect(screen.queryByText(/^ETH$/)).toBeNull();
     expect(screen.queryByText(/^SOL$/)).toBeNull();
+    // Each connected row carries a full network label, distinguishing EVM vs SVM.
+    expect(screen.getByText("Ethereum")).toBeTruthy();
+    expect(screen.getByText("Solana")).toBeTruthy();
     expect(screen.getAllByTitle("MetaMask").length).toBeGreaterThan(0);
     expect(screen.getByTitle("Phantom")).toBeTruthy();
     expect(screen.getAllByText("MetaMask").length).toBeGreaterThan(0);
@@ -185,6 +197,8 @@ describe("WalletPicker", () => {
 
   it("renders inactive connected EVM wallets and can make one active", async () => {
     const selectAccount = vi.fn(async () => undefined);
+    // The adapter dedupes same-address connectors, so the picker receives one
+    // row per distinct address. Two genuinely different addresses stay distinct.
     renderPicker(
       makeAdapter({
         selectAccount,
@@ -198,18 +212,10 @@ describe("WalletPicker", () => {
             active: true,
           },
           {
-            id: "rb-duplicate",
+            id: "mm-other",
             family: "evm",
-            address: "0xBBBBBBBB",
-            label: "0xBBB..BB",
-            walletName: "Rabby Wallet",
-            active: false,
-          },
-          {
-            id: "mm-duplicate",
-            family: "evm",
-            address: "0xBBBBBBBB",
-            label: "0xBBB..BB",
+            address: "0xCCCCCCCC",
+            label: "0xCCC..CC",
             walletName: "MetaMask",
             active: false,
           },
@@ -217,12 +223,28 @@ describe("WalletPicker", () => {
       }),
     );
 
-    expect(screen.getAllByText("Rabby Wallet")).toHaveLength(2);
+    expect(screen.getByText("Rabby Wallet")).toBeTruthy();
     expect(screen.getAllByText("MetaMask").length).toBeGreaterThan(0);
     await act(async () => {
       fireEvent.click(screen.getByLabelText("Make MetaMask active"));
     });
-    expect(selectAccount).toHaveBeenCalledWith("mm-duplicate");
+    expect(selectAccount).toHaveBeenCalledWith("mm-other");
+  });
+
+  it("orders quick sign-in above the wallet list when disconnected", () => {
+    renderPicker(
+      makeAdapter({
+        identity: { status: "disconnected", isConnected: false },
+        accounts: [],
+      }),
+    );
+    expect(screen.queryByText("Connected")).toBeNull();
+    const quickSignInLabel = screen.getByText("Quick sign-in");
+    const walletsLabel = screen.getByText("Wallets");
+    expect(
+      quickSignInLabel.compareDocumentPosition(walletsLabel) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
   });
 
   it("hides the connected section when only stale inactive accounts exist", () => {
