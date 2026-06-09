@@ -3,16 +3,17 @@ import { globalArgs, buildCliConfig, getPositionals } from "./shared";
 
 const txListDef = defineCommand({
   meta: { name: "list", description: "List pending and signed transactions" },
-  args: {},
-  async run() {
+  args: { ...globalArgs },
+  async run({ args }) {
     const { txCommand } = await import("../wallet");
-    await txCommand();
+    await txCommand(buildCliConfig(args));
   },
 });
 
 const txSimulateDef = defineCommand({
   meta: { name: "simulate", description: "Simulate a batch of pending transactions" },
   args: {
+    ...globalArgs,
     txIds: {
       type: "positional",
       description: "Transaction IDs to simulate",
@@ -22,7 +23,7 @@ const txSimulateDef = defineCommand({
   async run({ args }) {
     const { simulateCommand } = await import("../simulate");
     const txIds = getPositionals(args);
-    await simulateCommand(txIds);
+    await simulateCommand(buildCliConfig(args), txIds);
   },
 });
 

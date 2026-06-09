@@ -272,6 +272,56 @@ describe("AomiClient transport selection", () => {
     }
   });
 
+  it("retries fetchState without sync params when the backend rejects query sync", async () => {
+    const responses = [
+      {
+        ok: false,
+        status: 400,
+        statusText: "Bad Request",
+      },
+      {
+        ok: true,
+        status: 200,
+        statusText: "OK",
+        json: vi.fn(async () => ({ is_processing: false, messages: [] })),
+      },
+    ] as Response[];
+    const nativeFetch = vi.fn(async () => responses.shift() as Response);
+    const originalFetch = globalThis.fetch;
+    vi.stubGlobal("fetch", nativeFetch);
+
+    try {
+      const client = new AomiClient({ baseUrl: "http://unit.test" });
+
+      await expect(
+        client.fetchState(
+          "session-1",
+          {
+            connection: { is_connected: true, provider: "para" },
+            evm: {
+              address: "0xC764D92E312195114595cB645f31C38Fad9c14eE",
+              chain_id: 1,
+            },
+            ext: { client_type: "web_ui" },
+          },
+          "client-1",
+        ),
+      ).resolves.toEqual({ is_processing: false, messages: [] });
+
+      expect(nativeFetch).toHaveBeenCalledTimes(2);
+
+      const firstUrl = new URL(String(nativeFetch.mock.calls[0]?.[0]));
+      expect(firstUrl.searchParams.get("client_id")).toBe("client-1");
+      expect(firstUrl.searchParams.get("user_state")).toBeTruthy();
+
+      const secondUrl = new URL(String(nativeFetch.mock.calls[1]?.[0]));
+      expect(secondUrl.searchParams.get("client_id")).toBeNull();
+      expect(secondUrl.searchParams.get("user_state")).toBeNull();
+    } finally {
+      vi.stubGlobal("fetch", originalFetch);
+    }
+  });
+
   it("reuses one SSE connection for multiple listeners on the same session", async () => {
     const connections: Array<ReturnType<typeof createMockSseConnection>> = [];
     const nativeFetch = vi.fn(async (_input, init) => {

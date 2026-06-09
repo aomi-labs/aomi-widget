@@ -41,7 +41,7 @@ import type { CliConfig } from "../types";
 import { ALCHEMY_CHAIN_SLUGS } from "../../chains";
 import { resolveAlchemyApiKey } from "../../aa/alchemy/defaults";
 
-export async function txCommand(): Promise<void> {
+export async function txCommand(config: CliConfig): Promise<void> {
   const cli = CliSession.load();
   if (!cli) {
     console.log("No active session");
@@ -49,7 +49,7 @@ export async function txCommand(): Promise<void> {
     return;
   }
 
-  const session = cli.createClientSession();
+  const session = cli.createClientSession(config);
   try {
     const apiState = await session.client.fetchState(
       cli.sessionId,
@@ -357,7 +357,7 @@ export async function signCommand(
   const privateKey = config.privateKey ?? cli.privateKey;
 
   cli.mergeConfig(config);
-  const session = cli.createClientSession();
+  const session = cli.createClientSession(config);
 
   try {
     const initialState = await session.client.fetchState(
@@ -747,7 +747,7 @@ export async function signCommand(
       // current state from the backend and reconstruct.
       if (!signArgs && pendingTx.kind === "eip712_sign" && pendingTx.eip712Id !== undefined) {
         try {
-          const session = cli.createClientSession();
+          const session = cli.createClientSession(config);
           const apiState = await session.client.fetchState(
             cli.sessionId,
             undefined,
