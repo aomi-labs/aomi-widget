@@ -1,12 +1,6 @@
 "use client";
 
-import {
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  type ReactNode,
-} from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   Environment,
   ParaProvider,
@@ -118,12 +112,27 @@ type AdapterSolanaRuntimeConfig = Pick<
 type ParaAccountShape = {
   isLoading: boolean;
   isConnected: boolean;
+  connectionType?: "embedded" | "external" | "both" | "none";
   embedded: {
+    isConnected?: boolean;
+    isGuestMode?: boolean;
+    userId?: string;
+    auth?: {
+      email?: string;
+      phone?: string;
+      farcasterUsername?: string;
+      telegramUserId?: string;
+      externalWalletAddress?: string;
+    };
+    authType?: string;
+    identifier?: string;
     email?: string;
+    phone?: string;
     farcasterUsername?: string;
     telegramUserId?: string;
+    externalWalletAddress?: string;
     authMethods?: Set<unknown>;
-    wallets?: Array<{ address?: string }>;
+    wallets?: Array<{ address?: string; type?: string; isExternal?: boolean }>;
   };
   external: {
     evm?: {
@@ -208,7 +217,9 @@ function useSafeParaClient(): ParaWeb | null {
   }
 }
 
-function useSafeIssueJwt(): (() => Promise<AomiAccountCredential | null>) | null {
+function useSafeIssueJwt():
+  | (() => Promise<AomiAccountCredential | null>)
+  | null {
   try {
     const { issueJwtAsync } = useIssueJwt();
     return async () => {
@@ -552,26 +563,29 @@ export function AomiParaAdapterProvider({
   const userDelegation7702 = UserState.Delegation7702(user);
 
   const adapter = useMemo<AomiAuthAdapter>(() => {
-    const isConnected = Boolean(paraAccount.isConnected || wagmiConnected);
+    const isParaConnected = Boolean(
+      paraAccount.isConnected || paraAccount.embedded.isConnected,
+    );
+    const isConnected = Boolean(isParaConnected || wagmiConnected);
     const isBooting = paraAccount.isLoading && !isConnected;
 
+    const authMethod = inferParaAuthMethod(paraAccount.embedded);
+    const authValue = resolveParaAuthValue(paraAccount.embedded, authMethod);
     const embeddedPrimary =
-      paraAccount.embedded.email ??
-      paraAccount.embedded.farcasterUsername ??
-      paraAccount.embedded.telegramUserId ??
+      authValue ??
+      paraAccount.embedded.identifier ??
+      paraAccount.embedded.userId ??
       undefined;
-    const embeddedWallet = paraAccount.embedded.wallets?.[0] as
-      | { address?: string }
-      | undefined;
+    const embeddedWallet =
+      paraAccount.embedded.wallets?.find(
+        (wallet) => wallet.address && wallet.type?.toUpperCase() === "EVM",
+      ) ?? paraAccount.embedded.wallets?.find((wallet) => wallet.address);
     const embeddedAddress = embeddedWallet?.address;
     const externalAddress = paraAccount.external.evm?.address;
     const address =
       wagmiAddress ?? externalAddress ?? embeddedAddress ?? undefined;
     const walletProvider = "para" as const;
-    const authMethod = inferAuthMethod(paraAccount.embedded.authMethods);
-    const authValue = resolveParaAuthValue(paraAccount.embedded, authMethod);
-    const secondaryLabel =
-      formatAuthMethod(authMethod) ?? "Para";
+    const secondaryLabel = formatAuthMethod(authMethod) ?? "Para";
     const { sponsored, sponsorProvider, sponsorAccount } =
       resolveParaSponsorship();
 
@@ -593,6 +607,10 @@ export function AomiParaAdapterProvider({
       activeSolanaAddress: svmAddress,
     });
 
+    const connectedPrimaryLabel =
+      embeddedPrimary ?? formatAddress(address) ?? "Para account";
+    const hasEvmAddress = Boolean(address);
+
     const identity: AomiAuthIdentity = isBooting
       ? {
           ...AOMI_AUTH_BOOTING_IDENTITY,
@@ -603,15 +621,19 @@ export function AomiParaAdapterProvider({
           solanaTransport: svmAddress ? solanaTransport : undefined,
           solanaCapabilities,
         }
-      : isConnected && embeddedPrimary
+      : isConnected
         ? {
             status: "connected",
             isConnected: true,
             address,
-            walletKind: "eoa",
-            aaMode: userAAMode ?? "none",
-            SmartAccount4337: userSmartAccount4337 ?? undefined,
-            Delegation7702: userDelegation7702 ?? undefined,
+            walletKind: hasEvmAddress ? "eoa" : undefined,
+            aaMode: hasEvmAddress ? (userAAMode ?? "none") : undefined,
+            SmartAccount4337: hasEvmAddress
+              ? (userSmartAccount4337 ?? undefined)
+              : undefined,
+            Delegation7702: hasEvmAddress
+              ? (userDelegation7702 ?? undefined)
+              : undefined,
             sponsored,
             sponsorProvider,
             sponsorAccount,
@@ -621,67 +643,43 @@ export function AomiParaAdapterProvider({
             authMethod,
             authProvider: authMethod,
             authValue,
-            primaryLabel: embeddedPrimary,
+            walletProviderSubject: paraAccount.embedded.userId,
+            primaryLabel: connectedPrimaryLabel,
             secondaryLabel,
             solanaCluster: resolvedAdapterSolanaConfig.cluster,
             solanaWalletName: solanaWallet.walletName,
             solanaTransport: svmAddress ? solanaTransport : undefined,
             solanaCapabilities,
           }
-        : isConnected && address
+        : svmAddress
           ? {
               status: "connected",
               isConnected: true,
-              address,
-              walletKind: "eoa",
-              aaMode: userAAMode ?? "none",
-              SmartAccount4337: userSmartAccount4337 ?? undefined,
-              Delegation7702: userDelegation7702 ?? undefined,
-              sponsored,
-              sponsorProvider,
-              sponsorAccount,
+              walletKind: undefined,
+              aaMode: undefined,
               chainId: chainId ?? undefined,
               svmAddress,
               walletProvider,
               authMethod,
               authProvider: authMethod,
               authValue,
-              primaryLabel: formatAddress(address) ?? "Connected wallet",
-              secondaryLabel,
+              primaryLabel:
+                formatAddress(svmAddress) ?? "Connected Solana wallet",
+              secondaryLabel: "Solana",
               solanaCluster: resolvedAdapterSolanaConfig.cluster,
               solanaWalletName: solanaWallet.walletName,
-              solanaTransport: svmAddress ? solanaTransport : undefined,
+              solanaTransport,
               solanaCapabilities,
             }
-          : svmAddress
-            ? {
-                status: "connected",
-                isConnected: true,
-                walletKind: undefined,
-                aaMode: undefined,
-                chainId: chainId ?? undefined,
-                svmAddress,
-                walletProvider,
-                authMethod,
-                authProvider: authMethod,
-                authValue,
-                primaryLabel:
-                  formatAddress(svmAddress) ?? "Connected Solana wallet",
-                secondaryLabel: "Solana",
-                solanaCluster: resolvedAdapterSolanaConfig.cluster,
-                solanaWalletName: solanaWallet.walletName,
-                solanaTransport,
-                solanaCapabilities,
-              }
-            : {
-                ...AOMI_AUTH_DISCONNECTED_IDENTITY,
-                chainId: chainId ?? undefined,
-                walletProvider,
-                authMethod,
-                authProvider: authMethod,
-                authValue,
-                solanaCluster: resolvedAdapterSolanaConfig.cluster,
-              };
+          : {
+              ...AOMI_AUTH_DISCONNECTED_IDENTITY,
+              chainId: chainId ?? undefined,
+              walletProvider,
+              authMethod,
+              authProvider: authMethod,
+              authValue,
+              solanaCluster: resolvedAdapterSolanaConfig.cluster,
+            };
 
     const connectorName = connector?.name?.toLowerCase() ?? "";
     const isParaWallet = connectorName.includes("para");
@@ -689,12 +687,12 @@ export function AomiParaAdapterProvider({
 
     const hasAnyDisconnectablePath = Boolean(
       wagmiDisconnectAsync ||
-        solanaWallet.disconnect ||
-        // Para's own session — `useParaClient().logout()` would also count
-        // here, but Para's logout has cross-tab implications so we
-        // currently leave it to `openAccountUI` (the Para account modal
-        // has a Disconnect button) and only handle wagmi + Solana below.
-        false,
+      solanaWallet.disconnect ||
+      // Para's own session — `useParaClient().logout()` would also count
+      // here, but Para's logout has cross-tab implications so we
+      // currently leave it to `openAccountUI` (the Para account modal
+      // has a Disconnect button) and only handle wagmi + Solana below.
+      false,
     );
 
     // Map the wallet-adapter's `wallets` array to our descriptor shape so
@@ -829,7 +827,10 @@ export function AomiParaAdapterProvider({
             try {
               await wagmiDisconnectAsync(connector ? { connector } : undefined);
             } catch (error) {
-              console.warn("[aomi-auth-adapter] EVM account disconnect failed", error);
+              console.warn(
+                "[aomi-auth-adapter] EVM account disconnect failed",
+                error,
+              );
             }
             return;
           }
@@ -868,10 +869,7 @@ export function AomiParaAdapterProvider({
           try {
             await wagmiDisconnectAsync();
           } catch (error) {
-            console.warn(
-              "[aomi-auth-adapter] Wagmi disconnect failed",
-              error,
-            );
+            console.warn("[aomi-auth-adapter] Wagmi disconnect failed", error);
           }
         }
 
@@ -1194,15 +1192,39 @@ function resolveParaAuthValue(
   authMethod: AomiAuthMethod | undefined,
 ): string | undefined {
   if (authMethod === "telegram") {
-    return embedded.telegramUserId;
+    return embedded.telegramUserId ?? embedded.auth?.telegramUserId;
   }
   if (authMethod === "farcaster") {
-    return embedded.farcasterUsername;
+    return embedded.farcasterUsername ?? embedded.auth?.farcasterUsername;
   }
-  if (!authMethod || authMethod === "wagmi") {
+  if (authMethod === "phone") {
+    return embedded.phone ?? embedded.auth?.phone;
+  }
+  if (authMethod === "wagmi") {
+    return (
+      embedded.externalWalletAddress ?? embedded.auth?.externalWalletAddress
+    );
+  }
+  if (!authMethod) {
     return undefined;
   }
-  return embedded.email;
+  return embedded.email ?? embedded.auth?.email ?? embedded.identifier;
+}
+
+function inferParaAuthMethod(
+  embedded: ParaAccountShape["embedded"],
+): AomiAuthMethod | undefined {
+  const authMethod = inferAuthMethod(embedded.authMethods);
+  if (authMethod) return authMethod;
+
+  const normalizedAuthType = embedded.authType?.toLowerCase();
+  if (!normalizedAuthType) return undefined;
+  if (normalizedAuthType === "externalwallet") return "wagmi";
+  if (normalizedAuthType === "email") return "email";
+  if (normalizedAuthType === "phone") return "phone";
+  if (normalizedAuthType === "farcaster") return "farcaster";
+  if (normalizedAuthType === "telegram") return "telegram";
+  return undefined;
 }
 
 export function AomiParaProvider(props: AomiParaProviderProps) {
