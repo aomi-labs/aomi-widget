@@ -2,9 +2,20 @@
 
 ## Last Updated
 
-2026-06-08 - Account token-exchange wiring review + e2e/test coverage
+2026-06-09 - Wallet picker dedup + layout polish (multi-wallet)
 
 ## Recent Changes
+
+### Wallet picker: same-address dedup + network labels + section reorder (2026-06-09)
+
+Branch `polish-multi-wallet`. GUI/adapter polish; backend contract unchanged.
+
+- **Fixed duplicate connected rows** (Rabby "take over MetaMask" / EIP-6963 impersonation). `buildAccounts` (`apps/registry/src/lib/aomi-auth-adapter/accounts.ts`) now groups EVM connections by **lowercased address** → one row per address. Display name/`id` prefer the active connector, else a real brand over a generic "Injected" label; the row carries `connectorIds: string[]` (all connectors for that address) and `chainId`. Solana loop deduped defensively by `publicKey`. Genuinely distinct addresses stay separate.
+- **Fixes "sign out one = sign out all"** as a side effect: `disconnect({accountId})` in `para.tsx` already groups by address and tears down every connector for it — correct once the display is one row per address. `para.tsx` unchanged (`selectAccount`/`disconnect` confirmed correct post-dedup).
+- **`AomiAccount` type** (`types.ts`) gained optional `chainId` + `connectorIds`.
+- **Picker layout** (`wallet-picker.tsx`): when connected, sections reorder to **Connected → Quick sign-in → Link additional**; disconnected keeps Quick sign-in on top. Each connected row shows an always-present **network badge** (EVM chain name / "Ethereum", or "Solana") so EVM vs SVM is clear even when inactive. Link-additional structure and the "Account" header pill kept as-is (per product decision).
+- **Tests**: `accounts.test.ts` rewritten for dedup (9 tests: 3-connector impersonation, distinct addresses, real-brand preference); `wallet-picker.test.tsx` updated for deduped rendering, DOM section order (connected + disconnected), and network-badge presence. Full registry suite green (42 tests). Registry typecheck clean for changed files (pre-existing unrelated `GITHUB` OAuth error in `para.tsx:222`). Lint clean.
+- **Not yet done**: live browser repro with real Rabby + MetaMask extensions (automated preview can't install wallet extensions).
 
 ### Account token-exchange runtime wiring + test coverage (2026-06-08)
 

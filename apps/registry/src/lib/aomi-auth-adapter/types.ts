@@ -160,7 +160,11 @@ export type AomiWalletOption = {
  * one per family is `active` (the live account reported to the backend).
  */
 export type AomiAccount = {
-  /** Stable id: wagmi connector uid (EVM) or solana wallet name (Solana). */
+  /**
+   * Stable id: wagmi connector uid (EVM) or solana wallet name (Solana). When
+   * one address is exposed by several connectors (e.g. Rabby impersonating
+   * MetaMask via EIP-6963), this is the active/preferred connector's uid.
+   */
   id: string;
   family: WalletFamily;
   address: string;
@@ -168,6 +172,10 @@ export type AomiAccount = {
   label?: string;
   /** Human wallet name, e.g. "MetaMask", "Phantom", "Para". */
   walletName?: string;
+  /** EVM chain id of this connection, for per-row network labels. */
+  chainId?: number;
+  /** All wagmi connector uids exposing this address (EVM, dedup metadata). */
+  connectorIds?: string[];
   /** True when this is the live account for its family. */
   active: boolean;
 };
