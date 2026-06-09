@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  Fragment,
   useCallback,
   useEffect,
   useMemo,
@@ -401,9 +402,11 @@ export function WalletPicker() {
             await wallet.connect();
             // WalletConnect / the full Para list open their own surface, so the
             // picker steps aside. Direct connects stay open — the new wallet
-            // simply appears in the connected list, no popup needed.
+            // simply appears in the connected list — and the add-list collapses.
             if (isExternalHandoff(wallet)) {
               closePicker();
+            } else {
+              setAddOpen(false);
             }
           },
           true,
@@ -411,6 +414,24 @@ export function WalletPicker() {
       }
     />
   );
+
+  // EVM and Solana connect options are visually split with a hairline so a
+  // dual-chain wallet (e.g. Phantom appearing on both) doesn't read as a dupe.
+  const renderGroupedActions = (actions: WalletAction[]) => {
+    const groups = [
+      actions.filter((a) => a.family === "evm"),
+      actions.filter((a) => a.family === "solana"),
+      actions.filter((a) => a.family !== "evm" && a.family !== "solana"),
+    ].filter((group) => group.length > 0);
+    return groups.map((group, index) => (
+      <Fragment key={index}>
+        {index > 0 ? (
+          <div className="bg-border/60 mx-2 my-1 h-px" aria-hidden="true" />
+        ) : null}
+        {group.map(renderWalletActionRow)}
+      </Fragment>
+    ));
+  };
 
   const addWalletSection = addableWalletActions.length
     ? hasConnectedWallets
@@ -452,7 +473,7 @@ export function WalletPicker() {
             >
               <div className="overflow-hidden">
                 <div className="flex flex-col gap-1.5 pt-1.5">
-                  {addableWalletActions.map(renderWalletActionRow)}
+                  {renderGroupedActions(addableWalletActions)}
                 </div>
               </div>
             </div>
@@ -461,7 +482,7 @@ export function WalletPicker() {
       : (
           <section className="flex flex-col gap-1.5">
             <SectionLabel>Wallets</SectionLabel>
-            {addableWalletActions.map(renderWalletActionRow)}
+            {renderGroupedActions(addableWalletActions)}
           </section>
         )
     : null;
