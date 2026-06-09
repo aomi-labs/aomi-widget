@@ -3815,6 +3815,9 @@ function toCliSessionState(stored) {
     model: stored.model,
     modelSynced: stored.modelSynced,
     apiKey: stored.apiKey,
+    accountAccessToken: stored.accountAccessToken,
+    accountProvider: stored.accountProvider,
+    accountProviderToken: stored.accountProviderToken,
     publicKey: stored.publicKey,
     privateKey: stored.privateKey,
     svmPublicKey: stored.svmPublicKey,
@@ -3855,6 +3858,9 @@ function readStoredSession(path) {
       app: parsed.app,
       model: parsed.model,
       apiKey: parsed.apiKey,
+      accountAccessToken: parsed.accountAccessToken,
+      accountProvider: parsed.accountProvider,
+      accountProviderToken: parsed.accountProviderToken,
       publicKey: parsed.publicKey,
       privateKey: parsed.privateKey,
       svmPublicKey: parsed.svmPublicKey,
@@ -4247,7 +4253,7 @@ var init_cli_session = __esm({
       }
       /** Create a fresh session and persist it. */
       static create(config, seed) {
-        var _a3, _b, _c, _d, _e, _f, _g, _h, _i;
+        var _a3, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l;
         let svmPublicKey;
         if (config.solanaPrivateKey) {
           try {
@@ -4262,14 +4268,17 @@ var init_cli_session = __esm({
           app: (_c = config.app) != null ? _c : seed == null ? void 0 : seed.app,
           model: (_d = config.model) != null ? _d : seed == null ? void 0 : seed.model,
           apiKey: (_e = config.apiKey) != null ? _e : seed == null ? void 0 : seed.apiKey,
-          publicKey: (_f = config.publicKey) != null ? _f : seed == null ? void 0 : seed.publicKey,
-          privateKey: (_g = config.privateKey) != null ? _g : seed == null ? void 0 : seed.privateKey,
+          accountAccessToken: (_f = config.accountAccessToken) != null ? _f : seed == null ? void 0 : seed.accountAccessToken,
+          accountProvider: (_g = config.accountProvider) != null ? _g : seed == null ? void 0 : seed.accountProvider,
+          accountProviderToken: (_h = config.accountProviderToken) != null ? _h : seed == null ? void 0 : seed.accountProviderToken,
+          publicKey: (_i = config.publicKey) != null ? _i : seed == null ? void 0 : seed.publicKey,
+          privateKey: (_j = config.privateKey) != null ? _j : seed == null ? void 0 : seed.privateKey,
           svmPublicKey: svmPublicKey != null ? svmPublicKey : seed == null ? void 0 : seed.svmPublicKey,
           // Carry forward the persisted Solana private key so `wallet set --solana`
           // survives `--new-session` — signing key is a user preference, not a
           // per-session artifact.
-          svmPrivateKey: (_h = config.solanaPrivateKey) != null ? _h : seed == null ? void 0 : seed.svmPrivateKey,
-          chainId: (_i = config.chain) != null ? _i : seed == null ? void 0 : seed.chainId,
+          svmPrivateKey: (_k = config.solanaPrivateKey) != null ? _k : seed == null ? void 0 : seed.svmPrivateKey,
+          chainId: (_l = config.chain) != null ? _l : seed == null ? void 0 : seed.chainId,
           secretHandles: seed == null ? void 0 : seed.secretHandles
         };
         const cli = new _CliSession(state);
@@ -4353,6 +4362,18 @@ var init_cli_session = __esm({
         }
         if (config.apiKey !== void 0 && config.apiKey !== this.state.apiKey) {
           this.state.apiKey = config.apiKey;
+          changed = true;
+        }
+        if (config.accountAccessToken !== void 0 && config.accountAccessToken !== this.state.accountAccessToken) {
+          this.state.accountAccessToken = config.accountAccessToken;
+          changed = true;
+        }
+        if (config.accountProvider !== void 0 && config.accountProvider !== this.state.accountProvider) {
+          this.state.accountProvider = config.accountProvider;
+          changed = true;
+        }
+        if (config.accountProviderToken !== void 0 && config.accountProviderToken !== this.state.accountProviderToken) {
+          this.state.accountProviderToken = config.accountProviderToken;
           changed = true;
         }
         if (config.publicKey !== void 0 && config.publicKey !== this.state.publicKey) {
@@ -4547,12 +4568,17 @@ Available: ${available}`);
       // ---------------------------------------------------------------------------
       /** Build a ClientSession from the current state. */
       createClientSession(config = {}) {
-        var _a3, _b;
+        var _a3, _b, _c, _d, _e;
         const session = new ClientSession(
           createCliClient(
             __spreadProps(__spreadValues({}, config), {
               baseUrl: this.state.baseUrl,
-              apiKey: this.state.apiKey
+              apiKey: this.state.apiKey,
+              // Fall back to the credential persisted on the session so a bearer
+              // supplied on an earlier invocation keeps authenticating requests.
+              accountAccessToken: (_a3 = config.accountAccessToken) != null ? _a3 : this.state.accountAccessToken,
+              accountProvider: (_b = config.accountProvider) != null ? _b : this.state.accountProvider,
+              accountProviderToken: (_c = config.accountProviderToken) != null ? _c : this.state.accountProviderToken
             }),
             {
               baseUrl: this.state.baseUrl,
@@ -4569,8 +4595,8 @@ Available: ${available}`);
         );
         session.resolveUserState(buildCliUserState(this.state.publicKey, this.state.chainId, {
           app: this.state.app,
-          aaMode: (_a3 = this.state.aaMode) != null ? _a3 : null,
-          smartAccount: (_b = this.state.smartAccount) != null ? _b : null,
+          aaMode: (_d = this.state.aaMode) != null ? _d : null,
+          smartAccount: (_e = this.state.smartAccount) != null ? _e : null,
           svmAddress: this.state.svmPublicKey
         }));
         return session;
