@@ -6,16 +6,29 @@
 
 ## Recent Changes
 
-### Wallet picker: same-address dedup + network labels + section reorder (2026-06-09)
+### Wallet picker: dedup + network grouping + collapsible add-list (2026-06-09)
 
-Branch `polish-multi-wallet`. GUI/adapter polish; backend contract unchanged.
+Branch `polish-multi-wallet`. GUI/adapter polish; backend contract unchanged. Done in two passes (same day).
 
-- **Fixed duplicate connected rows** (Rabby "take over MetaMask" / EIP-6963 impersonation). `buildAccounts` (`apps/registry/src/lib/aomi-auth-adapter/accounts.ts`) now groups EVM connections by **lowercased address** → one row per address. Display name/`id` prefer the active connector, else a real brand over a generic "Injected" label; the row carries `connectorIds: string[]` (all connectors for that address) and `chainId`. Solana loop deduped defensively by `publicKey`. Genuinely distinct addresses stay separate.
-- **Fixes "sign out one = sign out all"** as a side effect: `disconnect({accountId})` in `para.tsx` already groups by address and tears down every connector for it — correct once the display is one row per address. `para.tsx` unchanged (`selectAccount`/`disconnect` confirmed correct post-dedup).
+Adapter (`apps/registry/src/lib/aomi-auth-adapter/`):
+- **Fixed duplicate connected rows** (Rabby "take over MetaMask" / EIP-6963 impersonation). `buildAccounts` (`accounts.ts`) groups EVM connections by **lowercased address** → one row per address. Display name/`id` prefer the active connector, else a real brand over a generic "Injected" label; the row carries `connectorIds` + `chainId`. Solana deduped defensively by `publicKey`. Distinct addresses stay separate.
+- **"Sign out one = sign out all" fixed** as a side effect — `disconnect({accountId})` in `para.tsx` already groups by address; correct once the display is one row per address. `para.tsx` unchanged.
 - **`AomiAccount` type** (`types.ts`) gained optional `chainId` + `connectorIds`.
-- **Picker layout** (`wallet-picker.tsx`): when connected, sections reorder to **Connected → Quick sign-in → Link additional**; disconnected keeps Quick sign-in on top. Each connected row shows an always-present **network badge** (EVM chain name / "Ethereum", or "Solana") so EVM vs SVM is clear even when inactive. Link-additional structure and the "Account" header pill kept as-is (per product decision).
-- **Tests**: `accounts.test.ts` rewritten for dedup (9 tests: 3-connector impersonation, distinct addresses, real-brand preference); `wallet-picker.test.tsx` updated for deduped rendering, DOM section order (connected + disconnected), and network-badge presence. Full registry suite green (42 tests). Registry typecheck clean for changed files (pre-existing unrelated `GITHUB` OAuth error in `para.tsx:222`). Lint clean.
-- **Not yet done**: live browser repro with real Rabby + MetaMask extensions (automated preview can't install wallet extensions).
+
+Picker (`wallet-picker.tsx`):
+- **Connected section is one flat list** (network grouping was tried, then dropped per product feedback). Each row carries a compact **`FamilyTag`** — text "EVM"/"SVM" with a small green status dot (no chip outline) — so execution family is clear. Chain/cluster shows inline in the meta line (`0xdA6..F0 · Base`, cluster capitalized: `· Mainnet`) only when it adds info beyond the family name.
+- **Switching the active wallet = click the row.** The whole row (icon + name + meta) is one button for inactive EVM accounts (chevron removed); hover highlights the card + reveals a "Switch" hint, a spinner shows while switching, and the "Active" pill fades in. Disconnect stays a separate icon button beside it. Solana/active rows render as a static (non-clickable) row.
+- **Section order when connected:** Connected → Quick sign-in → Add wallet; disconnected keeps Quick sign-in on top.
+- **Collapsible "Add another wallet"** expander in the connected state (brand rows hidden until expanded, fade/slide in). Disconnected keeps the brand grid visible for onboarding.
+- **Already-connected brands filtered** from the add-list, **family-scoped** (a connected EVM Phantom hides the EVM add row but leaves its Solana entry connectable).
+- **Family-aware dedup** of add options (`walletFamilyAliasKey`) so a dual-chain wallet like **Phantom is reachable on both EVM and Solana** (previously its Solana entry was collapsed away by brand-only dedup — that's why Phantom only ever connected as EVM).
+- **Direct connect/switch keeps the picker open** (no success banner, no forced close — the new wallet just lands in the connected list). Only external handoffs (WalletConnect / full Para list, via `isExternalHandoff`) close the picker so their own surface can take over.
+- **Social section is context-aware:** label "Quick sign-in" (disconnected) → "Link additional accounts" (connected); row subtitle adapts to "Add an Aomi account" when connected.
+- Solana cluster label is capitalized in the row meta (`· Mainnet`). The "Account" header pill kept as-is (per product decision).
+
+Tests: `accounts.test.ts` (9 dedup cases) + `wallet-picker.test.tsx` (13 cases: grouping, collapsed/expanded add-list, connected-brand filtering, success state, dual-chain Phantom reachability, DOM order). Full registry suite green (44 tests). Registry typecheck clean for changed files (pre-existing unrelated `GITHUB`/`X` OAuth error in `para.tsx:222`, flagged separately). Lint clean.
+
+- **Not yet eyeballed live**: connected-state visuals need real Rabby/MetaMask/Phantom extensions (automated preview can't install them) — verify via screenshots in a real browser.
 
 ### Account token-exchange runtime wiring + test coverage (2026-06-08)
 
