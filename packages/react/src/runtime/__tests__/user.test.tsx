@@ -36,6 +36,7 @@ describe("User API", () => {
         connection: {
           is_connected: false,
         },
+        ext: undefined,
       });
     });
 
@@ -58,6 +59,7 @@ describe("User API", () => {
           address: "0xABC",
           chain_id: 1,
         },
+        ext: undefined,
       });
     });
   });
@@ -71,13 +73,13 @@ describe("User API", () => {
       });
 
       expect(getApi().user.evm?.address).toBe("0x123");
-      expect(getApi().user.connection?.is_connected).toBe(false); // unchanged
+      expect(getApi().user.connection?.is_connected).toBe(false);
 
       await act(async () => {
         api.setUser({ isConnected: true });
       });
 
-      expect(getApi().user.evm?.address).toBe("0x123"); // unchanged
+      expect(getApi().user.evm?.address).toBe("0x123");
       expect(getApi().user.connection?.is_connected).toBe(true);
 
       await act(async () => {
@@ -110,6 +112,7 @@ describe("User API", () => {
           chain_id: 137,
           ens_name: "user.eth",
         },
+        ext: undefined,
       });
     });
 
@@ -148,6 +151,13 @@ describe("User API", () => {
           address: "0x789",
           chainId: 1,
           isConnected: true,
+          svm: {
+            address: "Bv9abc",
+            cluster: "solana:mainnet",
+            wallet_name: "Phantom",
+            transport: "extension",
+            capabilities: ["can_sign_message", "can_sign_transaction"],
+          },
         });
         await flushPromises();
       });
@@ -172,13 +182,22 @@ describe("User API", () => {
       const call = postSystemMessage.mock.calls[0] as unknown as [
         string,
         string,
+        { app?: string } | undefined,
       ];
       const messageJson = JSON.parse(call[1]);
       expect(messageJson.type).toBe("wallet:state_changed");
-      expect(messageJson.payload.address).toBe("0x789");
+      expect(call[2]).toEqual({ app: "default" });
+      expect(messageJson.payload.evm.address).toBe("0x789");
       expect(messageJson.payload.ext).toBeUndefined();
-      expect(messageJson.payload.chain_id).toBe(137);
-      expect(messageJson.payload.is_connected).toBe(true);
+      expect(messageJson.payload.evm.chain_id).toBe(137);
+      expect(messageJson.payload.connection.is_connected).toBe(true);
+      expect(messageJson.payload.svm).toEqual({
+        address: "Bv9abc",
+        cluster: "solana:mainnet",
+        wallet_name: "Phantom",
+        transport: "extension",
+        capabilities: ["can_sign_message", "can_sign_transaction"],
+      });
     });
 
     it("keeps a materialized thread remote after a stale list fetch resolves", async () => {
@@ -239,11 +258,12 @@ describe("User API", () => {
         expect(postSystemMessage).toHaveBeenCalledWith(
           materializedThreadId,
           expect.any(String),
+          { app: "default" },
         );
       });
     });
 
-    it("ensures the wallet account before listing remote threads", async () => {
+    it("lists EVM remote threads without calling stale account ensure", async () => {
       const ensureAccount = vi.fn(async () => undefined);
       const listThreads = vi.fn(async (): Promise<AomiThread[]> => []);
 
@@ -261,18 +281,36 @@ describe("User API", () => {
       });
 
       await waitFor(() => {
-        expect(ensureAccount).toHaveBeenCalledWith(
-          expect.stringMatching(/^control:/),
-          "0x789",
-        );
+        expect(listThreads).toHaveBeenCalled();
       });
+      expect(ensureAccount).not.toHaveBeenCalled();
       expect(listThreads).toHaveBeenCalledWith(
         expect.stringMatching(/^control:/),
         "0x789",
       );
-      expect(ensureAccount.mock.invocationCallOrder[0]).toBeLessThan(
-        listThreads.mock.invocationCallOrder[0],
-      );
+    });
+
+    it("does not list remote threads through legacy public_key for Solana-only wallets", async () => {
+      const ensureAccount = vi.fn(async () => undefined);
+      const listThreads = vi.fn(async (): Promise<AomiThread[]> => []);
+
+      setAomiClientConfig({ ensureAccount, listThreads });
+
+      const { api } = renderRuntime();
+
+      await act(async () => {
+        api.setUser({
+          connection: { is_connected: true, primary_family: "svm" },
+          svm: {
+            address: "So1anaCaseSensitiveSigner",
+            cluster: "solana:mainnet",
+          },
+        });
+        await flushPromises();
+      });
+
+      expect(ensureAccount).not.toHaveBeenCalled();
+      expect(listThreads).not.toHaveBeenCalled();
     });
 
     it("does not send wallet state changes to the previous wallet thread when the address changes", async () => {
@@ -368,6 +406,7 @@ describe("User API", () => {
         expect(postSystemMessage).toHaveBeenCalledWith(
           expect.any(String),
           expect.any(String),
+          { app: "default" },
         );
       });
 
@@ -386,7 +425,7 @@ describe("User API", () => {
       });
     });
 
-    it("recomputes the thread counter from the new wallet's threads after an address change", async () => {
+    it("keeps the thread counter stable when a wallet with older chat names connects", async () => {
       const listThreads = vi
         .fn<() => Promise<AomiThread[]>>()
         .mockResolvedValueOnce([
@@ -433,7 +472,7 @@ describe("User API", () => {
         );
       });
       await waitFor(() => {
-        expect(getThreadCount()).toBe(3);
+        expect(getThreadCount()).toBe(9);
       });
     });
   });
@@ -665,7 +704,7 @@ describe("User API", () => {
       });
 
       expect(getApi().user.evm?.chain_id).toBe(137);
-      expect(getApi().user.evm?.address).toBe("0xUSER"); // address preserved
+      expect(getApi().user.evm?.address).toBe("0xUSER");
     });
   });
 });

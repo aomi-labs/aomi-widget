@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { Chain } from "viem";
 import { http } from "viem";
@@ -19,6 +19,10 @@ import {
 import { AomiAuthAdapterProvider } from "../context";
 import { AOMI_AUTH_DISCONNECTED_IDENTITY } from "../identity";
 import { useFullTestnet } from "../full-testnet-wallet-routing";
+import {
+  AomiWalletNetworkPreferencesProvider,
+  useAomiWalletNetworkPreferences,
+} from "../network-preferences";
 import {
   useSafeCapabilities,
   useSafeConnect,
@@ -157,6 +161,11 @@ function BaseAccountAdapterInner({
   const { signTypedDataAsync } = useSafeSignTypedData();
   const { signMessageAsync } = useSafeSignMessage();
   const wagmiConfig = useSafeWagmiConfig();
+  const {
+    selectedEvmChainId,
+    setSelectedEvmChainId,
+    supportedSolanaNetworks,
+  } = useAomiWalletNetworkPreferences();
 
   const chainsById = useMemo<Record<number, Chain>>(
     () =>
@@ -165,6 +174,18 @@ function BaseAccountAdapterInner({
       ),
     [wagmiConfig.chains],
   );
+
+  useEffect(() => {
+    if (
+      !isConnected ||
+      !selectedEvmChainId ||
+      !switchChainAsync ||
+      chainId === selectedEvmChainId
+    ) {
+      return;
+    }
+    void switchChainAsync({ chainId: selectedEvmChainId });
+  }, [chainId, isConnected, selectedEvmChainId, switchChainAsync]);
 
   // Per-tx AA fields are session-owned: `session.ts` writes them to UserState
   // on tx-complete and we read them back via `useUser()`. This makes UserState
@@ -218,18 +239,34 @@ function BaseAccountAdapterInner({
       identity,
       isReady: true,
       isSwitchingChain: isSwitchingChain || isConnecting || isDisconnecting,
+      accounts: [],
+      selectAccount: async () => undefined,
       canConnect:
         Boolean(connectAsync && baseConnector) && !identity.isConnected,
       canOpenAccountUI: false,
       canDisconnect: Boolean(disconnectAsync) && identity.isConnected,
       supportedChains: wagmiConfig.chains,
-      connect,
+      supportedNetworks: {
+        evm: wagmiConfig.chains,
+        solana: supportedSolanaNetworks,
+      },
+      connect: async () => {
+        await connect();
+      },
       disconnect,
       switchChain: switchChainAsync
         ? async (nextChainId: number) => {
+            setSelectedEvmChainId(nextChainId);
             await switchChainAsync({ chainId: nextChainId });
           }
         : undefined,
+      selectNetwork: async (target) => {
+        if (target.family !== "evm") return;
+        setSelectedEvmChainId(target.chainId);
+        if (switchChainAsync && chainId !== target.chainId && isConnected) {
+          await switchChainAsync({ chainId: target.chainId });
+        }
+      },
       sendTransaction: sendTransactionAsync
         ? async (payload: WalletTxPayload) => {
             const result = await executeAdapterTransaction({
@@ -307,11 +344,14 @@ function BaseAccountAdapterInner({
     isConnecting,
     isDisconnecting,
     isSwitchingChain,
+    selectedEvmChainId,
+    setSelectedEvmChainId,
     sendCallsSyncAsync,
     sendTransactionAsync,
     signMessageAsync,
     signTypedDataAsync,
     sponsorship,
+    supportedSolanaNetworks,
     switchChainAsync,
     userAAMode,
     userSmartAccount4337,
@@ -357,14 +397,19 @@ export function AomiBaseAccountProvider({
   // store — descendants of `AomiBaseAccountProvider` get one store,
   // siblings get their own.
   return (
-    <ExtUserProvider>
-      <WagmiProvider config={config}>
-        <QueryClientProvider client={queryClient}>
-          <BaseAccountAdapterInner sponsorship={sponsorship}>
-            {children}
-          </BaseAccountAdapterInner>
-        </QueryClientProvider>
-      </WagmiProvider>
-    </ExtUserProvider>
+    <AomiWalletNetworkPreferencesProvider
+      evmChains={routing.routedChains}
+      solanaNetworks={[]}
+    >
+      <ExtUserProvider>
+        <WagmiProvider config={config}>
+          <QueryClientProvider client={queryClient}>
+            <BaseAccountAdapterInner sponsorship={sponsorship}>
+              {children}
+            </BaseAccountAdapterInner>
+          </QueryClientProvider>
+        </WagmiProvider>
+      </ExtUserProvider>
+    </AomiWalletNetworkPreferencesProvider>
   );
 }

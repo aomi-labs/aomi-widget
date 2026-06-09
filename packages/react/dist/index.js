@@ -51,7 +51,10 @@ import {
 
 // src/runtime/aomi-runtime.tsx
 import { useMemo as useMemo3 } from "react";
-import { AomiClient, UserState as UserState4 } from "@aomi-labs/client";
+import {
+  AomiClient,
+  UserState as UserState4
+} from "@aomi-labs/client";
 
 // src/contexts/control-context.tsx
 import {
@@ -511,7 +514,7 @@ function ControlContextProvider({
       }
     };
     void fetchApps();
-  }, [getCurrentControlSessionId, state.apiKey, publicKey]);
+  }, [getCurrentControlSessionId, state.apiKey]);
   useEffect(() => {
     const fetchModels = async () => {
       try {
@@ -983,6 +986,7 @@ function EventContextProvider({
   aomiClient,
   sessionId
 }) {
+  const { getCurrentThreadApp } = useControl();
   const subscribersRef = useRef2(/* @__PURE__ */ new Map());
   const subscribe = useCallback2(
     (type, callback) => {
@@ -1016,12 +1020,14 @@ function EventContextProvider({
           type: event.type,
           payload: event.payload
         });
-        await aomiClient.sendSystemMessage(event.sessionId, message);
+        await aomiClient.sendSystemMessage(event.sessionId, message, {
+          app: getCurrentThreadApp()
+        });
       } catch (error) {
         console.error("Failed to send outbound event:", error);
       }
     },
-    [aomiClient]
+    [aomiClient, getCurrentThreadApp]
   );
   const contextValue = {
     subscribe,
@@ -1181,6 +1187,7 @@ function dropWalletBlocks(state) {
   var _a;
   return (_a = UserState.normalize({
     connection: { is_connected: false },
+    pending: state.pending,
     ext: state.ext,
     preferences: state.preferences
   })) != null ? _a : { connection: { is_connected: false } };
@@ -1199,8 +1206,11 @@ function dropAddressScopedState(state) {
   } else {
     delete next.evm;
   }
-  delete next.pending;
   return (_a = UserState.normalize(next)) != null ? _a : {};
+}
+function stableStateString(state) {
+  var _a;
+  return JSON.stringify((_a = UserState.normalize(state)) != null ? _a : {});
 }
 var UserContext = createContext5(void 0);
 function useUser() {
@@ -1240,51 +1250,63 @@ function ExtUserProviderImpl({ children }) {
       });
     });
   }, []);
-  const setUser = useCallback4((data) => {
-    setUserState((prev) => {
-      var _a, _b, _c;
-      const normalizedData = (_a = UserState.normalize(data)) != null ? _a : {};
-      const merged = (_c = UserState.normalize(
-        mergeRecords(
-          (_b = UserState.normalize(prev)) != null ? _b : {},
-          normalizedData
-        )
-      )) != null ? _c : prev;
-      let next;
-      if (UserState.isConnected(normalizedData) === false) {
-        next = dropWalletBlocks(merged);
-      } else {
-        const prevAddress = UserState.address(prev);
-        const nextAddress = UserState.address(merged);
-        const addressChanged = prevAddress !== void 0 && nextAddress !== void 0 && prevAddress.toLowerCase() !== nextAddress.toLowerCase();
-        next = addressChanged ? dropAddressScopedState(merged) : merged;
-      }
-      notifyStateChange(next);
-      return next;
-    });
-  }, [notifyStateChange]);
-  const addExtValue = useCallback4((key, value) => {
-    setUserState((prev) => {
-      const next = UserState.withExt(prev, key, value);
-      notifyStateChange(next);
-      return next;
-    });
-  }, [notifyStateChange]);
-  const removeExtValue = useCallback4((key) => {
-    setUserState((prev) => {
-      const ext = prev.ext;
-      if (typeof ext !== "object" || ext === null || Array.isArray(ext) || !(key in ext)) {
-        return prev;
-      }
-      const nextExt = __spreadValues({}, ext);
-      delete nextExt[key];
-      const next = __spreadProps(__spreadValues({}, prev), {
-        ext: Object.keys(nextExt).length > 0 ? nextExt : void 0
+  const setUser = useCallback4(
+    (data) => {
+      setUserState((prev) => {
+        var _a, _b, _c;
+        const normalizedData = (_a = UserState.normalize(data)) != null ? _a : {};
+        const merged = (_c = UserState.normalize(
+          mergeRecords(
+            (_b = UserState.normalize(prev)) != null ? _b : {},
+            normalizedData
+          )
+        )) != null ? _c : prev;
+        let next;
+        if (UserState.isConnected(normalizedData) === false) {
+          next = dropWalletBlocks(merged);
+        } else {
+          const prevAddress = UserState.address(prev);
+          const nextAddress = UserState.address(merged);
+          const addressChanged = prevAddress !== void 0 && nextAddress !== void 0 && prevAddress.toLowerCase() !== nextAddress.toLowerCase();
+          next = addressChanged ? dropAddressScopedState(merged) : merged;
+        }
+        if (stableStateString(prev) === stableStateString(next)) {
+          return prev;
+        }
+        notifyStateChange(next);
+        return next;
       });
-      notifyStateChange(next);
-      return next;
-    });
-  }, [notifyStateChange]);
+    },
+    [notifyStateChange]
+  );
+  const addExtValue = useCallback4(
+    (key, value) => {
+      setUserState((prev) => {
+        const next = UserState.withExt(prev, key, value);
+        notifyStateChange(next);
+        return next;
+      });
+    },
+    [notifyStateChange]
+  );
+  const removeExtValue = useCallback4(
+    (key) => {
+      setUserState((prev) => {
+        const ext = prev.ext;
+        if (typeof ext !== "object" || ext === null || Array.isArray(ext) || !(key in ext)) {
+          return prev;
+        }
+        const nextExt = __spreadValues({}, ext);
+        delete nextExt[key];
+        const next = __spreadProps(__spreadValues({}, prev), {
+          ext: Object.keys(nextExt).length > 0 ? nextExt : void 0
+        });
+        notifyStateChange(next);
+        return next;
+      });
+    },
+    [notifyStateChange]
+  );
   const getUserState = useCallback4(() => userRef.current, []);
   const onUserStateChange = useCallback4(
     (callback) => {
@@ -1515,6 +1537,11 @@ var buildPaymentRequiredMessage = () => ({
     }
   }
 });
+var previewText = (value, max = 80) => {
+  const singleLine = value.replace(/\s+/g, " ").trim();
+  if (singleLine.length <= max) return singleLine;
+  return `${singleLine.slice(0, max - 1)}\u2026`;
+};
 var getOptimisticStatus = (message) => {
   var _a, _b;
   const status = (_b = (_a = message.metadata) == null ? void 0 : _a.custom) == null ? void 0 : _b.aomiSendStatus;
@@ -1646,6 +1673,9 @@ function useRuntimeOrchestrator(aomiClient, options) {
           clientId: nextClientId,
           userState: nextUserState
         });
+        existing.setSSEActive(
+          threadContextRef.current.currentThreadId === threadId
+        );
         return existing;
       }
       const session = manager.getOrCreate(threadId, {
@@ -1657,6 +1687,7 @@ function useRuntimeOrchestrator(aomiClient, options) {
         syncPendingTxRequestsFromUserState: false,
         userState: nextUserState
       });
+      session.setSSEActive(threadContextRef.current.currentThreadId === threadId);
       const cleanups = [];
       cleanups.push(
         session.on("messages", (msgs) => {
@@ -1776,6 +1807,10 @@ function useRuntimeOrchestrator(aomiClient, options) {
   const sendMessage = useCallback5(
     async (text, threadId) => {
       var _a, _b, _c, _d, _e, _f, _g, _h;
+      console.debug("[aomi][runtime] sendMessage start", {
+        threadId,
+        messagePreview: previewText(text)
+      });
       const existingMessages = threadContextRef.current.getThreadMessages(threadId);
       const optimisticMessageId = String(existingMessages.length);
       const userMessage = {
@@ -1801,9 +1836,25 @@ function useRuntimeOrchestrator(aomiClient, options) {
         setIsRunning(true);
       }
       try {
+        console.debug("[aomi][runtime] sendMessage preparing thread", {
+          threadId
+        });
         await ((_b = (_a = optionsRef.current).prepareThreadForSend) == null ? void 0 : _b.call(_a, threadId));
+        console.debug("[aomi][runtime] sendMessage prepare complete", {
+          threadId
+        });
         const session = getSession(threadId);
+        console.debug("[aomi][runtime] sendMessage session ready", {
+          threadId,
+          sessionId: session.sessionId
+        });
         await session.sendAsync(text);
+        console.debug("[aomi][runtime] sendMessage sendAsync complete", {
+          threadId,
+          sessionId: session.sessionId,
+          isProcessing: session.getIsProcessing(),
+          pendingRequestCount: session.getPendingRequests().length
+        });
         (_d = (_c = optionsRef.current).onSendSuccess) == null ? void 0 : _d.call(_c, threadId);
         if (threadContextRef.current.currentThreadId === threadId) {
           setIsRunning(session.getIsProcessing());
@@ -1819,6 +1870,11 @@ function useRuntimeOrchestrator(aomiClient, options) {
           session.getPendingRequests()
         );
       } catch (error) {
+        console.error("[aomi][runtime] sendMessage failed", {
+          threadId,
+          messagePreview: previewText(text),
+          error
+        });
         if (threadContextRef.current.currentThreadId === threadId) {
           setIsRunning(false);
         }
@@ -1845,6 +1901,12 @@ function useRuntimeOrchestrator(aomiClient, options) {
       await session.interrupt();
     }
   }, []);
+  useEffect2(() => {
+    var _a;
+    (_a = sessionManagerRef.current) == null ? void 0 : _a.forEach((session, threadId) => {
+      session.setSSEActive(threadId === threadContext.currentThreadId);
+    });
+  }, [threadContext.currentThreadId]);
   useEffect2(() => {
     return () => {
       closeAllSessions();
@@ -2037,6 +2099,9 @@ function useAomiRuntime() {
   }
   return context;
 }
+function useOptionalAomiRuntime() {
+  return useContext6(AomiRuntimeContext);
+}
 
 // src/handlers/wallet-handler.ts
 import { useCallback as useCallback6, useRef as useRef7, useState as useState5 } from "react";
@@ -2044,6 +2109,7 @@ function useWalletHandler({
   getSession
 }) {
   const [pendingRequests, setPendingRequests] = useState5([]);
+  const [hasBlockingWalletRequests, setHasBlockingWalletRequests] = useState5(false);
   const requestsRef = useRef7(pendingRequests);
   const inFlightRequestSetRef = useRef7(/* @__PURE__ */ new Set());
   const suppressedRequestSetRef = useRef7(/* @__PURE__ */ new Set());
@@ -2052,6 +2118,9 @@ function useWalletHandler({
       requestsRef.current.filter(
         (request) => !suppressedRequestSetRef.current.has(request.id)
       )
+    );
+    setHasBlockingWalletRequests(
+      requestsRef.current.length > 0 || inFlightRequestSetRef.current.size > 0
     );
   }, []);
   const setRequests = useCallback6(
@@ -2131,6 +2200,7 @@ function useWalletHandler({
   );
   return {
     pendingRequests,
+    hasBlockingWalletRequests,
     setRequests,
     startRequest,
     resolveRequest,
@@ -2163,31 +2233,65 @@ function scheduleBackgroundTask(task) {
   const timeoutId = runtimeGlobal.setTimeout(task, 0);
   return () => runtimeGlobal.clearTimeout(timeoutId);
 }
-function stableStateString(state) {
+function stableStateString2(state) {
   return JSON.stringify(state != null ? state : {});
 }
+function normalizeWalletId(value) {
+  if (!value) {
+    return void 0;
+  }
+  return value.startsWith("0x") ? value.toLowerCase() : value;
+}
+function getLegacySessionPublicKey(userState) {
+  var _a;
+  const address = UserStateHelpers.address(userState);
+  if (!(address == null ? void 0 : address.startsWith("0x"))) {
+    return void 0;
+  }
+  if (UserStateHelpers.chainId(userState) === void 0 && !((_a = userState.evm) == null ? void 0 : _a.address)) {
+    return void 0;
+  }
+  return address;
+}
 function useWalletStateSync(context, sessions, remoteThreads) {
-  const { getUserState, onUserStateChange, threadContextRef } = context;
+  const { getCurrentThreadApp, getUserState, onUserStateChange, threadContextRef } = context;
   const { aomiClientRef } = sessions;
   const { remoteThreadIdsRef } = remoteThreads;
   const walletSnapshot = useCallback7(
     (nextUser) => {
-      var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k;
+      var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q, _r;
       return {
-        address: UserStateHelpers.address(nextUser),
-        chain_id: UserStateHelpers.chainId(nextUser),
-        is_connected: (_a = UserStateHelpers.isConnected(nextUser)) != null ? _a : false,
-        ens_name: typeof nextUser.ens_name === "string" ? nextUser.ens_name : void 0,
-        wallet_provider: (_b = UserStateHelpers.walletProvider(nextUser)) != null ? _b : void 0,
-        wallet_provider_subject: (_c = UserStateHelpers.walletProviderSubject(nextUser)) != null ? _c : void 0,
-        auth_method: (_d = UserStateHelpers.authMethod(nextUser)) != null ? _d : void 0,
-        auth_value: (_e = UserStateHelpers.authValue(nextUser)) != null ? _e : void 0,
-        auth_verified_at: (_f = UserStateHelpers.authVerifiedAt(nextUser)) != null ? _f : void 0,
-        sponsored: (_g = UserStateHelpers.sponsored(nextUser)) != null ? _g : void 0,
-        sponsor_provider: (_h = UserStateHelpers.sponsorProvider(nextUser)) != null ? _h : void 0,
-        sponsor_account: (_i = UserStateHelpers.sponsorAccount(nextUser)) != null ? _i : void 0,
-        smart_account_4337: (_j = UserStateHelpers.SmartAccount4337(nextUser)) != null ? _j : void 0,
-        delegation_7702: (_k = UserStateHelpers.Delegation7702(nextUser)) != null ? _k : void 0
+        connection: {
+          is_connected: (_a = UserStateHelpers.isConnected(nextUser)) != null ? _a : false,
+          primary_family: (_b = nextUser.connection) == null ? void 0 : _b.primary_family,
+          provider: (_c = UserStateHelpers.walletProvider(nextUser)) != null ? _c : void 0,
+          wallet_provider_subject: (_d = UserStateHelpers.walletProviderSubject(nextUser)) != null ? _d : void 0,
+          auth_method: (_e = UserStateHelpers.authMethod(nextUser)) != null ? _e : void 0,
+          auth_value: (_f = UserStateHelpers.authValue(nextUser)) != null ? _f : void 0,
+          auth_verified_at: (_g = UserStateHelpers.authVerifiedAt(nextUser)) != null ? _g : void 0
+        },
+        evm: {
+          address: UserStateHelpers.address(nextUser),
+          chain_id: UserStateHelpers.chainId(nextUser),
+          ens_name: typeof ((_h = nextUser.evm) == null ? void 0 : _h.ens_name) === "string" ? nextUser.evm.ens_name : void 0,
+          aa: {
+            mode: (_i = UserStateHelpers.aaMode(nextUser)) != null ? _i : void 0,
+            smart_account: (_j = UserStateHelpers.SmartAccount4337(nextUser)) != null ? _j : void 0,
+            delegation_7702: (_k = UserStateHelpers.Delegation7702(nextUser)) != null ? _k : void 0
+          },
+          sponsorship: {
+            sponsored: (_l = UserStateHelpers.sponsored(nextUser)) != null ? _l : void 0,
+            sponsor_provider: (_m = UserStateHelpers.sponsorProvider(nextUser)) != null ? _m : void 0,
+            sponsor_account: (_n = UserStateHelpers.sponsorAccount(nextUser)) != null ? _n : void 0
+          }
+        },
+        svm: {
+          address: UserStateHelpers.svmAddress(nextUser),
+          cluster: (_o = nextUser.svm) == null ? void 0 : _o.cluster,
+          wallet_name: (_p = nextUser.svm) == null ? void 0 : _p.wallet_name,
+          transport: (_q = nextUser.svm) == null ? void 0 : _q.transport,
+          capabilities: (_r = nextUser.svm) == null ? void 0 : _r.capabilities
+        }
       };
     },
     [getUserState]
@@ -2199,9 +2303,9 @@ function useWalletStateSync(context, sessions, remoteThreads) {
       var _a, _b;
       const nextWalletState = walletSnapshot(newUser);
       const prevWalletState = lastWalletStateRef.current;
-      const previousAddress = (_a = prevWalletState.address) == null ? void 0 : _a.toLowerCase();
-      const nextAddress = (_b = nextWalletState.address) == null ? void 0 : _b.toLowerCase();
-      if (prevWalletState.address === nextWalletState.address && prevWalletState.chain_id === nextWalletState.chain_id && prevWalletState.is_connected === nextWalletState.is_connected && prevWalletState.ens_name === nextWalletState.ens_name && prevWalletState.wallet_provider === nextWalletState.wallet_provider && prevWalletState.wallet_provider_subject === nextWalletState.wallet_provider_subject && prevWalletState.auth_method === nextWalletState.auth_method && prevWalletState.auth_value === nextWalletState.auth_value && prevWalletState.auth_verified_at === nextWalletState.auth_verified_at && prevWalletState.sponsored === nextWalletState.sponsored && prevWalletState.sponsor_provider === nextWalletState.sponsor_provider && prevWalletState.sponsor_account === nextWalletState.sponsor_account && prevWalletState.smart_account_4337 === nextWalletState.smart_account_4337 && prevWalletState.delegation_7702 === nextWalletState.delegation_7702) {
+      const previousAddress = normalizeWalletId((_a = prevWalletState.evm) == null ? void 0 : _a.address);
+      const nextAddress = normalizeWalletId((_b = nextWalletState.evm) == null ? void 0 : _b.address);
+      if (stableStateString2(prevWalletState) === stableStateString2(nextWalletState)) {
         return;
       }
       lastWalletStateRef.current = nextWalletState;
@@ -2216,11 +2320,14 @@ function useWalletStateSync(context, sessions, remoteThreads) {
         type: "wallet:state_changed",
         payload: nextWalletState
       });
-      await aomiClientRef.current.sendSystemMessage(sessionId, message);
+      await aomiClientRef.current.sendSystemMessage(sessionId, message, {
+        app: getCurrentThreadApp()
+      });
     });
     return unsubscribe;
   }, [
     aomiClientRef,
+    getCurrentThreadApp,
     getUserState,
     onUserStateChange,
     remoteThreadIdsRef,
@@ -2251,11 +2358,7 @@ function useRemoteThreadListSync(context, sessions, remoteThreads) {
   const [isThreadListLoading, setIsThreadListLoading] = useState6(true);
   const prefetchCancelRef = useRef8(null);
   const lastConnectedAddressRef = useRef8(void 0);
-  const {
-    getControlState,
-    threadContextRef,
-    user
-  } = context;
+  const { getControlState, threadContextRef, user } = context;
   const {
     aomiClientRef,
     closeAllSessions,
@@ -2269,7 +2372,7 @@ function useRemoteThreadListSync(context, sessions, remoteThreads) {
     warmedThreadIdsRef,
     warmThread
   } = remoteThreads;
-  const connectedAddress = UserStateHelpers.isConnected(user) ? UserStateHelpers.address(user) : void 0;
+  const connectedAddress = UserStateHelpers.isConnected(user) ? getLegacySessionPublicKey(user) : void 0;
   const scheduleThreadPrefetch = useCallback7(
     (threadIds) => {
       var _a;
@@ -2309,34 +2412,41 @@ function useRemoteThreadListSync(context, sessions, remoteThreads) {
   useEffect3(() => {
     var _a, _b;
     const userAddress = connectedAddress;
-    const normalizedUserAddress = userAddress == null ? void 0 : userAddress.toLowerCase();
+    const normalizedUserAddress = normalizeWalletId(userAddress);
     const previousAddress = lastConnectedAddressRef.current;
+    const isConnected = UserStateHelpers.isConnected(user) === true;
     const walletChanged = previousAddress !== void 0 && normalizedUserAddress !== void 0 && previousAddress !== normalizedUserAddress;
     if (!userAddress) {
+      if (isConnected) {
+        lastConnectedAddressRef.current = void 0;
+        setIsThreadListLoading(false);
+        return;
+      }
+      const wasPreviouslyConnected = lastConnectedAddressRef.current !== void 0;
       lastConnectedAddressRef.current = void 0;
-      const hadRemoteThreads = remoteThreadIdsRef.current.size > 0;
-      const hadSessions = sessionManager.size > 0;
       setIsThreadListLoading(false);
       (_a = prefetchCancelRef.current) == null ? void 0 : _a.call(prefetchCancelRef);
       prefetchCancelRef.current = null;
-      remoteThreadIdsRef.current.clear();
-      warmedThreadIdsRef.current.clear();
-      warmPromisesRef.current.clear();
-      closeAllSessions();
-      if (hadRemoteThreads || hadSessions) {
-        threadContextRef.current.resetToDefault();
+      if (wasPreviouslyConnected) {
+        const hadRemoteThreads = remoteThreadIdsRef.current.size > 0;
+        const hadSessions = sessionManager.size > 0;
+        remoteThreadIdsRef.current.clear();
+        warmedThreadIdsRef.current.clear();
+        warmPromisesRef.current.clear();
+        closeAllSessions();
+        if (hadRemoteThreads || hadSessions) {
+          threadContextRef.current.resetToDefault();
+        }
       }
       return;
     }
     lastConnectedAddressRef.current = normalizedUserAddress;
-    const resetThreadId = walletChanged ? threadContextRef.current.resetToDefault() : void 0;
     if (walletChanged) {
       (_b = prefetchCancelRef.current) == null ? void 0 : _b.call(prefetchCancelRef);
       prefetchCancelRef.current = null;
       remoteThreadIdsRef.current.clear();
       warmedThreadIdsRef.current.clear();
       warmPromisesRef.current.clear();
-      closeAllSessions();
     }
     let cancelled = false;
     setIsThreadListLoading(true);
@@ -2347,22 +2457,16 @@ function useRemoteThreadListSync(context, sessions, remoteThreads) {
         const currentContext = threadContextRef.current;
         const controlSessionId = getControlSessionId(
           getControlState().clientId,
-          resetThreadId != null ? resetThreadId : currentContext.currentThreadId
+          currentContext.currentThreadId
         );
-        await aomiClientRef.current.ensureAccount(controlSessionId, userAddress);
         const threadList = await aomiClientRef.current.listThreads(
           controlSessionId,
           userAddress
         );
         if (cancelled) return;
         const remoteThreadIds = /* @__PURE__ */ new Set();
-        const newMetadata = resetThreadId !== void 0 ? new Map(
-          (() => {
-            const resetMetadata = threadContextRef.current.getThreadMetadata(resetThreadId);
-            return resetMetadata ? [[resetThreadId, resetMetadata]] : [];
-          })()
-        ) : new Map(currentContext.allThreadsMetadata);
-        const baseThreadCount = resetThreadId !== void 0 ? 1 : currentContext.threadCnt;
+        const newMetadata = new Map(currentContext.allThreadsMetadata);
+        const baseThreadCount = currentContext.threadCnt;
         let maxChatNum = baseThreadCount;
         for (const thread of threadList) {
           remoteThreadIds.add(thread.session_id);
@@ -2459,11 +2563,12 @@ function useRuntimeUserStateEffects({
 }) {
   const threadContext = useThreadContext();
   const { user, getUserState, onUserStateChange } = useUser();
-  const { getControlState } = useControl();
+  const { getControlState, getCurrentThreadApp } = useControl();
   const threadContextRef = useRef8(threadContext);
   threadContextRef.current = threadContext;
   const context = {
     getControlState,
+    getCurrentThreadApp,
     getUserState,
     onUserStateChange,
     threadContextRef,
@@ -2491,7 +2596,7 @@ function RuntimeUserStateProvider({
   const lastSerializedStateRef = useRef8("");
   useEffect3(() => {
     const applyToSessions = (next) => {
-      const serialized = stableStateString(next);
+      const serialized = stableStateString2(next);
       if (serialized === lastSerializedStateRef.current) {
         return;
       }
@@ -2506,9 +2611,7 @@ function RuntimeUserStateProvider({
         setUser(next);
       };
       session.on("user_state_updated", handler);
-      sessionListeners.push(
-        () => session.off("user_state_updated", handler)
-      );
+      sessionListeners.push(() => session.off("user_state_updated", handler));
     });
     applyToSessions(getUserState());
     const unsubscribe = onUserStateChange((next) => {
@@ -2524,6 +2627,17 @@ function RuntimeUserStateProvider({
 
 // src/runtime/core.tsx
 import { jsx as jsx7 } from "react/jsx-runtime";
+function getLegacySessionPublicKey2(userState) {
+  var _a;
+  const address = UserState3.address(userState);
+  if (!(address == null ? void 0 : address.startsWith("0x"))) {
+    return void 0;
+  }
+  if (UserState3.chainId(userState) === void 0 && !((_a = userState == null ? void 0 : userState.evm) == null ? void 0 : _a.address)) {
+    return void 0;
+  }
+  return address;
+}
 var getHttpStatus2 = (error) => {
   const status = error == null ? void 0 : error.status;
   if (typeof status === "number") return status;
@@ -2565,7 +2679,7 @@ function AomiRuntimeCore({
     closeAllSessions,
     aomiClientRef
   } = useRuntimeOrchestrator(aomiClient, {
-    getPublicKey: () => UserState3.isConnected(getUserState()) ? UserState3.address(getUserState()) : void 0,
+    getPublicKey: () => UserState3.isConnected(getUserState()) ? getLegacySessionPublicKey2(getUserState()) : void 0,
     getUserState,
     getApp: getCurrentThreadApp,
     getApiKey: () => getControlState().apiKey,
@@ -2623,19 +2737,7 @@ function AomiRuntimeCore({
   const warmedThreadIdsRef = useRef9(/* @__PURE__ */ new Set());
   const warmPromisesRef = useRef9(/* @__PURE__ */ new Map());
   const threadsMaterializedForSendRef = useRef9(/* @__PURE__ */ new Set());
-  const ensuredAccountPublicKeysRef = useRef9(/* @__PURE__ */ new Set());
   const [isThreadLoading, setIsThreadLoading] = useState7(false);
-  const ensureAccountForPublicKey = useCallback8(
-    async (sessionId, publicKey) => {
-      const normalizedPublicKey = publicKey.toLowerCase();
-      if (ensuredAccountPublicKeysRef.current.has(normalizedPublicKey)) {
-        return;
-      }
-      await aomiClientRef.current.ensureAccount(sessionId, publicKey);
-      ensuredAccountPublicKeysRef.current.add(normalizedPublicKey);
-    },
-    [aomiClientRef]
-  );
   const warmThread = useCallback8(
     async (threadId) => {
       if (!remoteThreadIdsRef.current.has(threadId) || warmedThreadIdsRef.current.has(threadId)) {
@@ -2647,16 +2749,8 @@ function AomiRuntimeCore({
       }
       const warmPromise = (async () => {
         const userState = getUserState();
-        if (UserState3.isConnected(userState)) {
-          const publicKey = UserState3.address(userState);
-          if (publicKey) {
-            await ensureAccountForPublicKey(threadId, publicKey);
-          }
-        }
-        await aomiClientRef.current.createThread(
-          threadId,
-          UserState3.isConnected(userState) ? UserState3.address(userState) : void 0
-        );
+        const publicKey = UserState3.isConnected(userState) ? getLegacySessionPublicKey2(userState) : void 0;
+        await aomiClientRef.current.createThread(threadId, publicKey);
         warmedThreadIdsRef.current.add(threadId);
       })();
       warmPromisesRef.current.set(threadId, warmPromise);
@@ -2666,27 +2760,19 @@ function AomiRuntimeCore({
         warmPromisesRef.current.delete(threadId);
       }
     },
-    [aomiClientRef, ensureAccountForPublicKey, getUserState]
+    [aomiClientRef, getUserState]
   );
   const ensureBackendThread = useCallback8(
     async (threadId) => {
       if (remoteThreadIdsRef.current.has(threadId)) return false;
       const userState = getUserState();
-      if (UserState3.isConnected(userState)) {
-        const publicKey = UserState3.address(userState);
-        if (publicKey) {
-          await ensureAccountForPublicKey(threadId, publicKey);
-        }
-      }
-      await aomiClientRef.current.createThread(
-        threadId,
-        UserState3.isConnected(userState) ? UserState3.address(userState) : void 0
-      );
+      const publicKey = UserState3.isConnected(userState) ? getLegacySessionPublicKey2(userState) : void 0;
+      await aomiClientRef.current.createThread(threadId, publicKey);
       remoteThreadIdsRef.current.add(threadId);
       warmedThreadIdsRef.current.add(threadId);
       return true;
     },
-    [aomiClientRef, ensureAccountForPublicKey, getUserState]
+    [aomiClientRef, getUserState]
   );
   const getRuntimeSession = useCallback8(
     (threadId) => {
@@ -2938,6 +3024,7 @@ function AomiRuntimeCore({
       clearAllNotifications: notificationContext.clearAll,
       // Wallet API
       pendingWalletRequests: walletHandler.pendingRequests,
+      hasBlockingWalletRequests: walletHandler.hasBlockingWalletRequests,
       startWalletRequest: walletHandler.startRequest,
       resolveWalletRequest: walletHandler.resolveRequest,
       rejectWalletRequest: walletHandler.rejectRequest,
@@ -2982,14 +3069,39 @@ function AomiRuntimeCore({
 
 // src/runtime/aomi-runtime.tsx
 import { jsx as jsx8 } from "react/jsx-runtime";
+function normalizeBackendUrl(url) {
+  try {
+    const parsed = new URL(url);
+    if (parsed.hostname === "localhost") {
+      parsed.hostname = "127.0.0.1";
+      return parsed.toString().replace(/\/$/, "");
+    }
+  } catch (e) {
+  }
+  return url;
+}
+function legacySessionPublicKey(user) {
+  const address = UserState4.address(user);
+  return (address == null ? void 0 : address.startsWith("0x")) ? address : void 0;
+}
 function AomiRuntimeProvider({
   children,
-  backendUrl = "http://localhost:8080",
+  backendUrl = "http://127.0.0.1:8080",
   clientOptions
 }) {
+  const resolvedClientOptions = useMemo3(
+    () => __spreadValues({
+      logger: {
+        debug: (...args) => console.debug(...args)
+      }
+    }, clientOptions),
+    [clientOptions]
+  );
   const aomiClient = useMemo3(
-    () => new AomiClient(__spreadValues({ baseUrl: backendUrl }, clientOptions)),
-    [backendUrl, clientOptions]
+    () => new AomiClient(__spreadValues({
+      baseUrl: normalizeBackendUrl(backendUrl)
+    }, resolvedClientOptions)),
+    [backendUrl, resolvedClientOptions]
   );
   return /* @__PURE__ */ jsx8(ThreadContextProvider, { children: /* @__PURE__ */ jsx8(NotificationContextProvider, { children: /* @__PURE__ */ jsx8(ExtUserProvider, { children: /* @__PURE__ */ jsx8(AomiRuntimeInner, { aomiClient, children }) }) }) });
 }
@@ -2997,7 +3109,6 @@ function AomiRuntimeInner({
   children,
   aomiClient
 }) {
-  var _a;
   const threadContext = useThreadContext();
   const { user } = useUser();
   return /* @__PURE__ */ jsx8(
@@ -3005,7 +3116,7 @@ function AomiRuntimeInner({
     {
       aomiClient,
       sessionId: threadContext.currentThreadId,
-      publicKey: UserState4.isConnected(user) ? (_a = UserState4.address(user)) != null ? _a : void 0 : void 0,
+      publicKey: UserState4.isConnected(user) ? legacySessionPublicKey(user) : void 0,
       getThreadMetadata: threadContext.getThreadMetadata,
       updateThreadMetadata: threadContext.updateThreadMetadata,
       children: /* @__PURE__ */ jsx8(
@@ -3063,6 +3174,7 @@ function useNotificationHandler({
 }
 export {
   AomiClient2 as AomiClient,
+  AomiRuntimeApiProvider,
   AomiRuntimeProvider,
   ControlContextProvider,
   DISABLED_PROVIDER_STATE,
@@ -3098,6 +3210,7 @@ export {
   useEventContext,
   useNotification,
   useNotificationHandler,
+  useOptionalAomiRuntime,
   useThreadContext,
   useUser,
   useWalletHandler

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import {
   Environment,
   type TExternalWallet,
@@ -88,6 +88,38 @@ const adapterWallets = walletConnectProjectId
   : externalWallets.filter((wallet) => wallet !== "WALLETCONNECT");
 
 const oAuthMethods: TOAuthMethod[] = ["GOOGLE"];
+const solanaNetworks = [
+  {
+    id: "solana-devnet",
+    label: "Solana Devnet",
+    cluster: "solana:devnet",
+    rpcHttpUrl:
+      process.env.NEXT_PUBLIC_SOLANA_DEVNET_RPC_URL ??
+      process.env.NEXT_PUBLIC_SOLANA_RPC_URL ??
+      "https://api.devnet.solana.com",
+    rpcWsUrl: process.env.NEXT_PUBLIC_SOLANA_DEVNET_RPC_WS_URL ??
+      process.env.NEXT_PUBLIC_SOLANA_RPC_WS_URL,
+  },
+  {
+    id: "solana-mainnet",
+    label: "Solana Mainnet",
+    cluster: "solana:mainnet",
+    rpcHttpUrl:
+      process.env.NEXT_PUBLIC_SOLANA_MAINNET_RPC_URL ??
+      "https://api.mainnet-beta.solana.com",
+    rpcWsUrl: process.env.NEXT_PUBLIC_SOLANA_MAINNET_RPC_WS_URL,
+    isDefault: true,
+  },
+  {
+    id: "solana-testnet",
+    label: "Solana Testnet",
+    cluster: "solana:testnet",
+    rpcHttpUrl:
+      process.env.NEXT_PUBLIC_SOLANA_TESTNET_RPC_URL ??
+      "https://api.testnet.solana.com",
+    rpcWsUrl: process.env.NEXT_PUBLIC_SOLANA_TESTNET_RPC_WS_URL,
+  },
+] as const;
 
 function DevAnvilRpcHook({ children }: { children: ReactNode }) {
   const { isConnected, chainId, connector } = useAccount();
@@ -142,6 +174,17 @@ function DevAnvilRpcHook({ children }: { children: ReactNode }) {
 }
 
 export function LandingParaProvider({ children }: { children: ReactNode }) {
+  // The Para SDK + wagmi providers are browser-only: they read `window` and
+  // wagmi hooks throw under SSR/prerender (`useConfig must be used within
+  // WagmiProvider`). Mount the wallet stack only after hydration so static
+  // export / SSR never renders it. Server and first client render both produce
+  // `null`, so there's no hydration mismatch.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+  if (!mounted) {
+    return null;
+  }
+
   const content = paraApiKey ? (
     <DevAnvilRpcHook>{children}</DevAnvilRpcHook>
   ) : (
@@ -164,6 +207,10 @@ export function LandingParaProvider({ children }: { children: ReactNode }) {
       networks={networks}
       externalWallets={adapterWallets}
       oAuthMethods={oAuthMethods}
+      solana={{
+        networks: solanaNetworks,
+        preferDirectSend: true,
+      }}
     >
       {content}
     </AomiWalletProvider>

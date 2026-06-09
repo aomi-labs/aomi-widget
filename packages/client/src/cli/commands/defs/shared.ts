@@ -4,6 +4,32 @@ import type { CliConfig, CliExecutionMode } from "../../types";
 import { fatal } from "../../errors";
 import { parseChainId, normalizePrivateKey, parseAAProvider, parseAAMode } from "../../validation";
 
+type SvmCluster = NonNullable<CliConfig["svmCluster"]>;
+
+/**
+ * Normalise the user-facing --cluster value to the CAIP-2 form the backend
+ * expects.  Accepts both the friendly short form ("mainnet-beta", "devnet",
+ * "testnet") and the canonical CAIP-2 form ("solana:mainnet", etc.).
+ */
+function parseSvmCluster(raw: string | undefined): SvmCluster | undefined {
+  if (!raw) return undefined;
+  const lower = raw.trim().toLowerCase();
+  switch (lower) {
+    case "mainnet-beta":
+    case "mainnet":
+    case "solana:mainnet":
+      return "solana:mainnet";
+    case "devnet":
+    case "solana:devnet":
+      return "solana:devnet";
+    case "testnet":
+    case "solana:testnet":
+      return "solana:testnet";
+    default:
+      fatal(`Unknown --cluster value "${raw}". Use "mainnet-beta", "devnet", or "testnet".`);
+  }
+}
+
 /**
  * Global flags shared across all commands.
  * Defined here so every subcommand inherits them.
@@ -45,6 +71,12 @@ export const globalArgs = {
     type: "string",
     description:
       "Solana keypair secret (base58 secret key, or JSON byte array) for signing solana_sign requests",
+  },
+  cluster: {
+    type: "string",
+    description:
+      'Solana cluster override: "mainnet-beta" (default), "devnet", or "testnet". ' +
+      'Also accepts CAIP-2 form "solana:mainnet" / "solana:devnet" / "solana:testnet".',
   },
   "rpc-url": {
     type: "string",
@@ -125,6 +157,10 @@ export function buildCliConfig(args: Record<string, unknown>): CliConfig {
   const solanaPrivateKey =
     str(args["solana-private-key"]) ?? process.env.SOLANA_PRIVATE_KEY;
 
+  const svmCluster = parseSvmCluster(
+    str(args.cluster) ?? process.env.AOMI_SOLANA_CLUSTER,
+  );
+
   return {
     baseUrl:
       str(args["backend-url"]) ??
@@ -142,6 +178,7 @@ export function buildCliConfig(args: Record<string, unknown>): CliConfig {
     publicKey: configuredPublicKey ?? derivedPublicKey,
     privateKey,
     solanaPrivateKey,
+    svmCluster,
     chainRpcUrl:
       str(args["rpc-url"]) ??
       process.env.CHAIN_RPC_URL,

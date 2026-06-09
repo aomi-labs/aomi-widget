@@ -1,6 +1,7 @@
 import { AomiClientOptions, AomiClient, SessionOptions, Session, UserState, WalletRequest, WalletRequestResult, AomiSimulateResponse, ChainInfo, AomiAppDescriptor } from '@aomi-labs/client';
-export { AomiAppDescriptor, AomiChatResponse, AomiClient, AomiClientOptions, AomiCreateThreadResponse, AomiInterruptResponse, AomiMessage, AomiSSEEvent, AomiSecretSlot, AomiStateResponse, AomiSystemEvent, AomiSystemResponse, AomiThread, ChainInfo, DISABLED_PROVIDER_STATE, MAX_AUTO_FEE_WEI, NativeWalletExecutionPolicy, NativeWalletSponsorship, SponsorshipPaymasterServiceContext, UserState, ViemSignMessageArgs, WalletCapabilities, WalletEip712Payload, WalletRequest, WalletRequestKind, WalletRequestResult, WalletSolanaSignPayload, WalletTxPayload, aaModeFromExecutionKind, appendFeeCallToPayload, buildFeeAAWalletCall, executeWalletCalls, hydrateTxPayloadFromUserState, normalizeSimulatedFee, parseChainId, toAAWalletCall, toAAWalletCalls, toViemSignMessageArgs, toViemSignTypedDataArgs } from '@aomi-labs/client';
+export { AomiAppDescriptor, AomiChatResponse, AomiClient, AomiClientOptions, AomiCreateThreadResponse, AomiInterruptResponse, AomiMessage, AomiSSEEvent, AomiSecretSlot, AomiStateResponse, AomiSystemEvent, AomiSystemResponse, AomiThread, ChainInfo, DISABLED_PROVIDER_STATE, MAX_AUTO_FEE_WEI, NativeWalletExecutionPolicy, NativeWalletSponsorship, SponsorshipPaymasterServiceContext, UserState, ViemSignMessageArgs, WalletCapabilities, WalletEip712Payload, WalletRequest, WalletRequestKind, WalletRequestResult, WalletSolanaSignMessagePayload, WalletSolanaSignPayload, WalletTxPayload, aaModeFromExecutionKind, appendFeeCallToPayload, buildFeeAAWalletCall, executeWalletCalls, hydrateTxPayloadFromUserState, normalizeSimulatedFee, parseChainId, toAAWalletCall, toAAWalletCalls, toViemSignMessageArgs, toViemSignTypedDataArgs } from '@aomi-labs/client';
 import * as react_jsx_runtime from 'react/jsx-runtime';
+import * as react from 'react';
 import { ReactNode, SetStateAction } from 'react';
 import { ThreadMessageLike } from '@assistant-ui/react';
 import { ClassValue } from 'clsx';
@@ -169,6 +170,8 @@ type WalletHandlerApi = {
      * union auto-narrows the payload type.
      */
     pendingRequests: WalletRequest[];
+    /** True while a visible or callback-in-flight wallet request still exists. */
+    hasBlockingWalletRequests: boolean;
     /** Replace pending requests with the session's authoritative snapshot. */
     setRequests: (requests: WalletRequest[]) => void;
     /** Mark a request as in-flight so it is not replayed while awaiting backend ack. */
@@ -235,6 +238,8 @@ type AomiRuntimeApi = {
     clearAllNotifications: () => void;
     /** All queued wallet requests (tx + eip712 signing) */
     pendingWalletRequests: WalletRequest[];
+    /** True while switching wallets or networks could lose an unresolved request. */
+    hasBlockingWalletRequests: boolean;
     /** Mark a wallet request as in-flight — suppresses it from the pending list until acked */
     startWalletRequest: (id: string) => void;
     /** Complete a wallet request after the backend acknowledges the response */
@@ -264,6 +269,7 @@ type AomiRuntimeApi = {
     /** Current SSE connection status */
     sseStatus: SSEStatus;
 };
+declare const AomiRuntimeApiProvider: react.Provider<AomiRuntimeApi | null>;
 /**
  * Unified hook that provides access to all Aomi runtime APIs.
  *
@@ -293,6 +299,8 @@ type AomiRuntimeApi = {
  * ```
  */
 declare function useAomiRuntime(): AomiRuntimeApi;
+/** Returns the runtime when mounted, allowing standalone registry previews. */
+declare function useOptionalAomiRuntime(): AomiRuntimeApi | null;
 
 type Notification = {
     id: string;
@@ -475,4 +483,4 @@ type ControlContextProviderProps = {
 };
 declare function ControlContextProvider({ children, aomiClient, sessionId, publicKey, getThreadMetadata, updateThreadMetadata, }: ControlContextProviderProps): react_jsx_runtime.JSX.Element;
 
-export { type AomiRuntimeApi, AomiRuntimeProvider, type AomiRuntimeProviderProps, type ControlContextApi, ControlContextProvider, type ControlContextProviderProps, type ControlState, type EventContext, EventContextProvider, type EventContextProviderProps, type EventSubscriber, ExtUserProvider, type InboundEvent, type ModelSelectionMode, type Notification$1 as Notification, type NotificationApi, NotificationContextProvider, type NotificationContextProviderProps, type NotificationContextApi as NotificationContextValue, type NotificationHandlerConfig, type NotificationType, RuntimeUserStateProvider, type SSEStatus, SUPPORTED_CHAINS, type NotificationData as ShowNotificationParams, type StoredByokKey, type StoredModelPreference, type ThreadContext, ThreadContextProvider, type ThreadControlState, type ThreadMetadata, type UserConfig, type WalletHandlerApi, type WalletHandlerConfig, type WalletRequestStatus, cn, formatAddress, getChainInfo, getNetworkName, initThreadControl, resolveAutoModel, useAomiRuntime, useControl, useCurrentThreadMessages, useCurrentThreadMetadata, useEventContext, useNotification, useNotificationHandler, useThreadContext, useUser, useWalletHandler };
+export { type AomiRuntimeApi, AomiRuntimeApiProvider, AomiRuntimeProvider, type AomiRuntimeProviderProps, type ControlContextApi, ControlContextProvider, type ControlContextProviderProps, type ControlState, type EventContext, EventContextProvider, type EventContextProviderProps, type EventSubscriber, ExtUserProvider, type InboundEvent, type ModelSelectionMode, type Notification$1 as Notification, type NotificationApi, NotificationContextProvider, type NotificationContextProviderProps, type NotificationContextApi as NotificationContextValue, type NotificationHandlerConfig, type NotificationType, RuntimeUserStateProvider, type SSEStatus, SUPPORTED_CHAINS, type NotificationData as ShowNotificationParams, type StoredByokKey, type StoredModelPreference, type ThreadContext, ThreadContextProvider, type ThreadControlState, type ThreadMetadata, type UserConfig, type WalletHandlerApi, type WalletHandlerConfig, type WalletRequestStatus, cn, formatAddress, getChainInfo, getNetworkName, initThreadControl, resolveAutoModel, useAomiRuntime, useControl, useCurrentThreadMessages, useCurrentThreadMetadata, useEventContext, useNotification, useNotificationHandler, useOptionalAomiRuntime, useThreadContext, useUser, useWalletHandler };

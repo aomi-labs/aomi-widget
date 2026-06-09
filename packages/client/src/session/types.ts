@@ -8,11 +8,18 @@ import type {
 } from "../user-state";
 import type {
   WalletEip712Payload,
+  WalletSolanaSignMessagePayload,
   WalletSolanaSignPayload,
   WalletTxPayload,
 } from "../wallet-utils";
 
-export type WalletRequestKind = "transaction" | "eip712_sign" | "solana_sign";
+export type WalletRequestKind =
+  | "transaction"
+  | "eip712_sign"
+  | "solana_sign"
+  | "solana_sign_message"
+  | "solana_send"
+  | "solana_sign_and_send";
 
 export type WalletRequest =
   | {
@@ -30,6 +37,24 @@ export type WalletRequest =
   | {
       id: string;
       kind: "solana_sign";
+      payload: WalletSolanaSignPayload;
+      timestamp: number;
+    }
+  | {
+      id: string;
+      kind: "solana_sign_message";
+      payload: WalletSolanaSignMessagePayload;
+      timestamp: number;
+    }
+  | {
+      id: string;
+      kind: "solana_send";
+      payload: WalletSolanaSignPayload;
+      timestamp: number;
+    }
+  | {
+      id: string;
+      kind: "solana_sign_and_send";
       payload: WalletSolanaSignPayload;
       timestamp: number;
     };
@@ -57,6 +82,20 @@ export type WalletRequestResult =
       kind: "solana_sign";
       /** Base64 of the full signed Solana transaction bytes. */
       signedTx: string;
+    }
+  | {
+      kind: "solana_sign_message";
+      signature: string;
+    }
+  | {
+      kind: "solana_send";
+      signature: string;
+      signedTx?: string;
+    }
+  | {
+      kind: "solana_sign_and_send";
+      signature: string;
+      signedTx?: string;
     };
 
 export type SendResult = {
@@ -103,6 +142,9 @@ export type SessionEventMap = {
   wallet_tx_request: WalletRequest;
   wallet_eip712_request: WalletRequest;
   wallet_solana_sign_request: WalletRequest;
+  wallet_solana_sign_message_request: WalletRequest;
+  wallet_solana_send_request: WalletRequest;
+  wallet_solana_sign_and_send_request: WalletRequest;
   system_notice: { message: string };
   system_error: { message: string };
   async_callback: Record<string, unknown>;
