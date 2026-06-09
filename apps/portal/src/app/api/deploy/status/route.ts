@@ -9,8 +9,9 @@ export async function GET(req: Request) {
     if (!slug) {
       return NextResponse.json({ error: "missing `slug`" }, { status: 400 });
     }
-    const client = getDeploymentClient(readDeployEnv());
-    const status = await client.getStatus(slug);
+    const env = readDeployEnv();
+    const client = getDeploymentClient(env);
+    const status = await client.status({ platform: env.platform });
     return NextResponse.json(status);
   } catch (err) {
     return NextResponse.json(

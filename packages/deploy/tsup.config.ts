@@ -13,6 +13,4 @@ export default defineConfig({
   sourcemap: true,
   clean: true,
   tsconfig: "tsconfig.json",
-  // Node-only library; do not bundle the GitHub SDK.
-  external: ["@octokit/rest"],
 });

@@ -1,114 +1,71 @@
 /**
  * Live E2E for @aomi-labs/deploy.
  *
- * Bundles a local Aomi app source dir and deploys it to a real platform publish
- * repo via the deploy client (GitHub Git Data API), then polls status.
+ * Required env:
+ *   AOMI_BACKEND_URL
+ *   AOMI_APP_ACTIVATION_TOKEN
+ *   AOMI_PLATFORM
+ *   AOMI_APP_SOURCE_ID
  *
- * Usage (from the worktree root):
- *   APP_DIR=/Users/cecilia/Code/my-aomi-bots \
- *   SLUG=cecilia-test-2 \
- *   PUBLISH_REPO=aomi-labs/community-apps \
- *   PLATFORM=community \
- *   GITHUB_TOKEN="$(gh auth token)" \
- *   npx tsx packages/deploy/scripts/e2e-deploy.ts
- *
- * Optional: ACTIVATE=1 + AOMI_BACKEND_URL + AOMI_ACTIVATION_TOKEN to also try
- * the (502-gated) activate call.
+ * Optional env:
+ *   AOMI_SOURCE_BRANCH=main
+ *   AOMI_SOURCE_COMMIT=<sha>
+ *   AOMI_TOML_PATHS=aomi.toml,apps/bot/aomi.toml
+ *   AOMI_ACTIVATE=1
  */
-import { execFileSync } from "node:child_process";
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
+import { DeploymentClient } from "../src/index";
+import type { SourceRef, TargetRef } from "../src/index";
 
-import { DeploymentClient, type SourceBundle, type PlatformDescriptor } from "../src/index";
+const backendUrl = requiredEnv("AOMI_BACKEND_URL");
+const activationToken = requiredEnv("AOMI_APP_ACTIVATION_TOKEN");
+const platform = requiredEnv("AOMI_PLATFORM");
+const appSourceId = Number.parseInt(requiredEnv("AOMI_APP_SOURCE_ID"), 10);
+const aomiTomlPaths = (process.env.AOMI_TOML_PATHS ?? "aomi.toml")
+  .split(",")
+  .map((path) => path.trim())
+  .filter(Boolean);
 
-function env(name: string, fallback?: string): string {
-  const v = process.env[name] ?? fallback;
-  if (!v) throw new Error(`missing env ${name}`);
-  return v;
+if (!Number.isSafeInteger(appSourceId) || appSourceId <= 0) {
+  throw new Error("AOMI_APP_SOURCE_ID must be a positive integer");
 }
 
-const APP_DIR = env("APP_DIR");
-const SLUG = env("SLUG");
-const PUBLISH_REPO = env("PUBLISH_REPO");
-const PLATFORM = env("PLATFORM");
-const TOKEN = env("GITHUB_TOKEN");
+const sourceRef: SourceRef = process.env.AOMI_SOURCE_COMMIT
+  ? { kind: "commit", value: process.env.AOMI_SOURCE_COMMIT }
+  : { kind: "branch", value: process.env.AOMI_SOURCE_BRANCH ?? "main" };
 
-// community platform.json descriptor (captured 2026-06-01).
-const DESCRIPTOR: PlatformDescriptor = {
-  name: PLATFORM,
-  source_repo: PUBLISH_REPO,
-  publish_branch: "publish",
-  app_path_prefix: "apps",
-  release_tag_convention: "apps-{app_slug}-{short_commit}",
-  visibility: "public",
-};
-
-function trackedFiles(dir: string): string[] {
-  const out = execFileSync("git", ["-C", dir, "ls-files"], { encoding: "utf8" });
-  return out.split("\n").map((s) => s.trim()).filter(Boolean);
-}
-
-function buildBundle(dir: string): SourceBundle {
-  const bundle: SourceBundle = {};
-  for (const rel of trackedFiles(dir)) {
-    // .aomi/* is gitignored already; skip the manifest path defensively.
-    if (rel.startsWith(".aomi/")) continue;
-    bundle[rel] = readFileSync(join(dir, rel));
-  }
-  return bundle;
-}
-
-async function main() {
-  const files = buildBundle(APP_DIR);
-  console.log(`bundling ${Object.keys(files).length} files from ${APP_DIR}:`);
-  for (const p of Object.keys(files).sort()) console.log(`  - ${p}`);
-
-  const dc = new DeploymentClient({
-    github: { repo: PUBLISH_REPO, branch: "publish", botPat: TOKEN },
-    aomi: {
-      backendUrl: process.env.AOMI_BACKEND_URL ?? "https://unused.invalid",
-      platform: PLATFORM,
-      activationToken: process.env.AOMI_ACTIVATION_TOKEN ?? "unused",
-    },
-    descriptor: DESCRIPTOR,
-    onAudit: (e) => console.log("AUDIT", JSON.stringify(e)),
-  });
-
-  console.log(`\n=== deploy ${SLUG} → ${PUBLISH_REPO}:publish ===`);
-  const result = await dc.deploy({
-    slug: SLUG,
-    displayName: "Cecilia Test 2",
-    files,
-    serverTags: ["staging"],
-    isPublic: true,
-    actor: "e2e-script",
-  });
-  console.log("DEPLOY RESULT:", JSON.stringify(result, null, 2));
-
-  console.log(`\n=== status ${SLUG} ===`);
-  const status = await dc.getStatus(SLUG);
-  console.log("STATUS:", JSON.stringify(status, null, 2));
-
-  if (process.env.ACTIVATE === "1") {
-    console.log(`\n=== activate ${SLUG} (staging) ===`);
-    try {
-      const act = await dc.activate({
-        slug: SLUG,
-        targetEnv: "staging",
-        releaseTag: result.releaseTag,
-        sourceCommit: result.sourceCommit,
-        isPublic: true,
-        buildServerTags: result.serverTags,
-        actor: "e2e-script",
-      });
-      console.log("ACTIVATE RESULT:", JSON.stringify(act, null, 2));
-    } catch (err) {
-      console.log("ACTIVATE ERROR:", err instanceof Error ? `${err.name}: ${err.message}` : String(err));
-    }
-  }
-}
-
-main().catch((err) => {
-  console.error("E2E FAILED:", err);
-  process.exit(1);
+const dc = new DeploymentClient({
+  aomi: { backendUrl, activationToken },
+  onAudit: (event) => console.log("audit", JSON.stringify(event)),
 });
+
+const deploy = await dc.deploy({
+  platform,
+  appSourceId,
+  sourceRef,
+  aomiTomlPaths,
+  dryRun: process.env.AOMI_ACTIVATE !== "1",
+});
+
+console.log(JSON.stringify(deploy, null, 2));
+
+if (process.env.AOMI_ACTIVATE === "1") {
+  const target = activationTarget(deploy.deployment.platform.prUrl, deploy.deployment.platform.sourceBranch);
+  const activation = await dc.activate({
+    platform,
+    target,
+    apps: deploy.deployment.platform.apps.map((app) => app.name),
+    targetTags: ["staging"],
+  });
+  console.log(JSON.stringify(activation, null, 2));
+}
+
+function activationTarget(prUrl: string | null, sourceBranch: string): TargetRef {
+  if (prUrl) return { kind: "platform_pr", value: prUrl };
+  return { kind: "platform_branch", value: sourceBranch };
+}
+
+function requiredEnv(name: string): string {
+  const value = process.env[name]?.trim();
+  if (!value) throw new Error(`${name} is required`);
+  return value;
+}

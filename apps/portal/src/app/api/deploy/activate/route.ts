@@ -28,12 +28,10 @@ export async function POST(req: Request) {
     }
     const client = getDeploymentClient(env);
     const result = await client.activate({
-      slug: body.slug,
-      targetEnv: "staging",
-      releaseTag: body.releaseTag,
-      sourceCommit: body.sourceCommit,
-      isPublic: true,
-      buildServerTags: ["staging"],
+      platform: env.platform,
+      target: { kind: "release_tags", value: [body.releaseTag] },
+      apps: [body.slug],
+      targetTags: ["staging"],
       actor: body.actor ?? body.slug ?? "portal-demo",
     });
 
