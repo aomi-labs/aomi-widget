@@ -36,5 +36,10 @@ export type {
 export type { ProviderRegistry } from "./providers/registry";
 export { MapProviderRegistry } from "./providers/registry";
 export { dummyProvider } from "./providers/dummy";
-export { makePrivyProvider } from "./providers/privy";
-export type { PrivyProviderConfig } from "./providers/privy";
+export { makePrivyJwtVerifier, makePrivyProvider } from "./providers/privy";
+export type {
+  PrivyJwtVerifierConfig,
+  PrivyProviderConfig,
+  VerifiedPrivyAccessToken,
+  VerifyPrivyAccessToken,
+} from "./providers/privy";

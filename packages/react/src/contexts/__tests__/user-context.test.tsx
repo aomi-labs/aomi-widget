@@ -61,7 +61,11 @@ describe("ExtUserProvider.setUser", () => {
     expect(UserState.isConnected(u)).toBe(false);
     expect(u.evm).toBeUndefined();
     expect(u.svm).toBeUndefined();
-    expect(u.pending).toBeUndefined();
+    expect(u.pending).toMatchObject({
+      evm_txs: { "1": { foo: "bar" } },
+      evm_sigs: { "2": {} },
+      svm_ixs: { "3": {} },
+    });
     expect(UserState.walletProvider(u)).toBeUndefined();
     expect(UserState.authMethod(u)).toBeUndefined();
     expect(UserState.sponsored(u)).toBeUndefined();
@@ -69,7 +73,7 @@ describe("ExtUserProvider.setUser", () => {
     expect(UserState.sponsorAccount(u)).toBeUndefined();
   });
 
-  it("clears per-tx AA fields when address changes while still connected", () => {
+  it("clears per-tx AA fields but preserves pending requests during an address transition", () => {
     const ref = renderHarness();
 
     act(() => {
@@ -100,12 +104,16 @@ describe("ExtUserProvider.setUser", () => {
     // Identity-static fields persist across the in-place switch.
     expect(UserState.walletProvider(u)).toBe("para");
     expect(UserState.chainId(u)).toBe(8453);
-    // Per-tx AA outputs + ens + pending maps belonged to the prior address.
+    // Per-tx AA outputs + ens belonged to the prior address.
     expect(UserState.aaMode(u)).toBeUndefined();
     expect(UserState.SmartAccount4337(u)).toBeUndefined();
     expect(UserState.Delegation7702(u)).toBeUndefined();
     expect(UserState.ensName(u)).toBeUndefined();
-    expect(u.pending).toBeUndefined();
+    expect(u.pending).toMatchObject({
+      evm_txs: { "1": {} },
+      evm_sigs: { "2": {} },
+      svm_ixs: { "3": {} },
+    });
   });
 
   it("preserves AA fields when the same address re-sets (case-insensitive)", () => {

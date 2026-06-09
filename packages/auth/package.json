@@ -12,7 +12,9 @@
   "scripts": {
     "type-check": "tsc --noEmit"
   },
-  "dependencies": {},
+  "dependencies": {
+    "jose": "^6.1.3"
+  },
   "devDependencies": {
     "typescript": "^5.9.3"
   }

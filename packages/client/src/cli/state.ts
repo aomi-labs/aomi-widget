@@ -97,9 +97,17 @@ export type CliSessionState = {
   baseUrl: string;
   app?: string;
   model?: string;
+  /** Whether the active model has been pushed to the backend session. */
+  modelSynced?: boolean;
   apiKey?: string;
   publicKey?: string;
   privateKey?: string;
+  /** Solana public key (base58), derived from the Solana keypair when provided. */
+  svmPublicKey?: string;
+  /** Solana private key (base58), persisted by `wallet set --solana`. Used as
+   * the signing key fallback when `--solana-private-key` is not passed on a
+   * command. Never printed in output. */
+  svmPrivateKey?: string;
   chainId?: number;
   aaMode?: UserStateAAMode | null;
   smartAccount?: string | null;
@@ -187,9 +195,12 @@ function toCliSessionState(stored: StoredSessionState): CliSessionState {
     baseUrl: stored.baseUrl,
     app: stored.app,
     model: stored.model,
+    modelSynced: stored.modelSynced,
     apiKey: stored.apiKey,
     publicKey: stored.publicKey,
     privateKey: stored.privateKey,
+    svmPublicKey: stored.svmPublicKey,
+    svmPrivateKey: stored.svmPrivateKey,
     chainId: stored.chainId,
     aaMode: stored.aaMode,
     smartAccount: stored.smartAccount,
@@ -234,6 +245,8 @@ function readStoredSession(path: string): StoredSessionState | null {
       apiKey: parsed.apiKey,
       publicKey: parsed.publicKey,
       privateKey: parsed.privateKey,
+      svmPublicKey: parsed.svmPublicKey,
+      svmPrivateKey: parsed.svmPrivateKey,
       chainId: parsed.chainId,
       aaMode: parsed.aaMode,
       smartAccount: parsed.smartAccount,

@@ -9,6 +9,7 @@ import {
 import type { ReactNode } from "react";
 
 import type { AomiClient } from "@aomi-labs/client";
+import { useControl } from "./control-context";
 
 // =============================================================================
 // Lightweight event subscriber types (replaces event-buffer.ts)
@@ -82,6 +83,7 @@ export function EventContextProvider({
   aomiClient,
   sessionId,
 }: EventContextProviderProps) {
+  const { getCurrentThreadApp } = useControl();
   const subscribersRef = useRef<Map<string, Set<EventSubscriber>>>(new Map());
 
   const subscribe = useCallback(
@@ -121,12 +123,14 @@ export function EventContextProvider({
           type: event.type,
           payload: event.payload,
         });
-        await aomiClient.sendSystemMessage(event.sessionId, message);
+        await aomiClient.sendSystemMessage(event.sessionId, message, {
+          app: getCurrentThreadApp(),
+        });
       } catch (error) {
         console.error("Failed to send outbound event:", error);
       }
     },
-    [aomiClient],
+    [aomiClient, getCurrentThreadApp],
   );
 
   const contextValue: EventContext = {

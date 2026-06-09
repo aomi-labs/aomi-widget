@@ -11,10 +11,7 @@ import {
 import type { AomiClient, UserState } from "@aomi-labs/client";
 import { UserState as UserStateHelpers } from "@aomi-labs/client";
 
-import {
-  useControl,
-  type ControlState,
-} from "../contexts/control-context";
+import { useControl, type ControlState } from "../contexts/control-context";
 import { useEventContext } from "../contexts/event-context";
 import type { ThreadContext } from "../contexts/thread-context";
 import { useThreadContext } from "../contexts/thread-context";
@@ -80,6 +77,7 @@ type RuntimeUserStateEffectsOptions = {
 
 type RuntimeUserStateContext = {
   getControlState: () => ControlState;
+  getCurrentThreadApp: () => string;
   getUserState: () => UserState;
   onUserStateChange: (callback: (user: UserState) => void) => () => void;
   threadContextRef: MutableRefObject<ThreadContext>;
@@ -90,39 +88,89 @@ function stableStateString(state: UserState): string {
   return JSON.stringify(state ?? {});
 }
 
+function normalizeWalletId(value: string | undefined): string | undefined {
+  if (!value) {
+    return undefined;
+  }
+  return value.startsWith("0x") ? value.toLowerCase() : value;
+}
+
+function getConnectedWalletId(userState: UserState): string | undefined {
+  return (
+    UserStateHelpers.address(userState) ??
+    UserStateHelpers.svmAddress(userState)
+  );
+}
+
+function getLegacySessionPublicKey(userState: UserState): string | undefined {
+  const address = UserStateHelpers.address(userState);
+  if (!address?.startsWith("0x")) {
+    return undefined;
+  }
+  if (
+    UserStateHelpers.chainId(userState) === undefined &&
+    !userState.evm?.address
+  ) {
+    return undefined;
+  }
+  return address;
+}
+
 function useWalletStateSync(
   context: Pick<
     RuntimeUserStateContext,
-    "getUserState" | "onUserStateChange" | "threadContextRef"
+    "getCurrentThreadApp" | "getUserState" | "onUserStateChange" | "threadContextRef"
   >,
   sessions: Pick<RuntimeSessionBridge, "aomiClientRef">,
   remoteThreads: Pick<RemoteThreadRegistry, "remoteThreadIdsRef">,
 ) {
-  const { getUserState, onUserStateChange, threadContextRef } = context;
+  const { getCurrentThreadApp, getUserState, onUserStateChange, threadContextRef } =
+    context;
   const { aomiClientRef } = sessions;
   const { remoteThreadIdsRef } = remoteThreads;
 
   const walletSnapshot = useCallback(
     (nextUser: ReturnType<typeof getUserState>) => ({
-      address: UserStateHelpers.address(nextUser),
-      chain_id: UserStateHelpers.chainId(nextUser),
-      is_connected: UserStateHelpers.isConnected(nextUser) ?? false,
-      ens_name:
-        typeof nextUser.ens_name === "string" ? nextUser.ens_name : undefined,
-      wallet_provider: UserStateHelpers.walletProvider(nextUser) ?? undefined,
-      wallet_provider_subject:
-        UserStateHelpers.walletProviderSubject(nextUser) ?? undefined,
-      auth_method: UserStateHelpers.authMethod(nextUser) ?? undefined,
-      auth_value: UserStateHelpers.authValue(nextUser) ?? undefined,
-      auth_verified_at: UserStateHelpers.authVerifiedAt(nextUser) ?? undefined,
-      sponsored: UserStateHelpers.sponsored(nextUser) ?? undefined,
-      sponsor_provider:
-        UserStateHelpers.sponsorProvider(nextUser) ?? undefined,
-      sponsor_account: UserStateHelpers.sponsorAccount(nextUser) ?? undefined,
-      smart_account_4337:
-        UserStateHelpers.SmartAccount4337(nextUser) ?? undefined,
-      delegation_7702:
-        UserStateHelpers.Delegation7702(nextUser) ?? undefined,
+      connection: {
+        is_connected: UserStateHelpers.isConnected(nextUser) ?? false,
+        primary_family: nextUser.connection?.primary_family,
+        provider: UserStateHelpers.walletProvider(nextUser) ?? undefined,
+        wallet_provider_subject:
+          UserStateHelpers.walletProviderSubject(nextUser) ?? undefined,
+        auth_method: UserStateHelpers.authMethod(nextUser) ?? undefined,
+        auth_value: UserStateHelpers.authValue(nextUser) ?? undefined,
+        auth_verified_at:
+          UserStateHelpers.authVerifiedAt(nextUser) ?? undefined,
+      },
+      evm: {
+        address: UserStateHelpers.address(nextUser),
+        chain_id: UserStateHelpers.chainId(nextUser),
+        ens_name:
+          typeof nextUser.evm?.ens_name === "string"
+            ? nextUser.evm.ens_name
+            : undefined,
+        aa: {
+          mode: UserStateHelpers.aaMode(nextUser) ?? undefined,
+          smart_account:
+            UserStateHelpers.SmartAccount4337(nextUser) ?? undefined,
+          delegation_7702:
+            UserStateHelpers.Delegation7702(nextUser) ?? undefined,
+        },
+        sponsorship: {
+          sponsored: UserStateHelpers.sponsored(nextUser) ?? undefined,
+          sponsor_provider:
+            UserStateHelpers.sponsorProvider(nextUser) ?? undefined,
+          sponsor_account:
+            UserStateHelpers.sponsorAccount(nextUser) ?? undefined,
+        },
+      },
+      svm: {
+        address: UserStateHelpers.svmAddress(nextUser),
+        cluster: nextUser.svm?.cluster,
+        wallet_name: nextUser.svm?.wallet_name,
+        transport: nextUser.svm?.transport,
+        capabilities: nextUser.svm?.capabilities,
+      },
     }),
     [getUserState],
   );
@@ -135,26 +183,11 @@ function useWalletStateSync(
     const unsubscribe = onUserStateChange(async (newUser) => {
       const nextWalletState = walletSnapshot(newUser);
       const prevWalletState = lastWalletStateRef.current;
-      const previousAddress = prevWalletState.address?.toLowerCase();
-      const nextAddress = nextWalletState.address?.toLowerCase();
+      const previousAddress = normalizeWalletId(prevWalletState.evm?.address);
+      const nextAddress = normalizeWalletId(nextWalletState.evm?.address);
       if (
-        prevWalletState.address === nextWalletState.address &&
-        prevWalletState.chain_id === nextWalletState.chain_id &&
-        prevWalletState.is_connected === nextWalletState.is_connected &&
-        prevWalletState.ens_name === nextWalletState.ens_name &&
-        prevWalletState.wallet_provider === nextWalletState.wallet_provider &&
-        prevWalletState.wallet_provider_subject ===
-          nextWalletState.wallet_provider_subject &&
-        prevWalletState.auth_method === nextWalletState.auth_method &&
-        prevWalletState.auth_value === nextWalletState.auth_value &&
-        prevWalletState.auth_verified_at === nextWalletState.auth_verified_at &&
-        prevWalletState.sponsored === nextWalletState.sponsored &&
-        prevWalletState.sponsor_provider === nextWalletState.sponsor_provider &&
-        prevWalletState.sponsor_account === nextWalletState.sponsor_account &&
-        prevWalletState.smart_account_4337 ===
-          nextWalletState.smart_account_4337 &&
-        prevWalletState.delegation_7702 ===
-          nextWalletState.delegation_7702
+        stableStateString(prevWalletState as UserState) ===
+        stableStateString(nextWalletState as UserState)
       ) {
         return;
       }
@@ -177,12 +210,15 @@ function useWalletStateSync(
         type: "wallet:state_changed",
         payload: nextWalletState,
       });
-      await aomiClientRef.current.sendSystemMessage(sessionId, message);
+      await aomiClientRef.current.sendSystemMessage(sessionId, message, {
+        app: getCurrentThreadApp(),
+      });
     });
 
     return unsubscribe;
   }, [
     aomiClientRef,
+    getCurrentThreadApp,
     getUserState,
     onUserStateChange,
     remoteThreadIdsRef,
@@ -192,10 +228,7 @@ function useWalletStateSync(
 }
 
 function useUserStateRequestResponder(
-  context: Pick<
-    RuntimeUserStateContext,
-    "getUserState" | "threadContextRef"
-  >,
+  context: Pick<RuntimeUserStateContext, "getUserState" | "threadContextRef">,
   sessions: Pick<RuntimeSessionBridge, "getSession">,
 ) {
   const eventContext = useEventContext();
@@ -228,11 +261,7 @@ function useRemoteThreadListSync(
   const [isThreadListLoading, setIsThreadListLoading] = useState(true);
   const prefetchCancelRef = useRef<(() => void) | null>(null);
   const lastConnectedAddressRef = useRef<string | undefined>(undefined);
-  const {
-    getControlState,
-    threadContextRef,
-    user,
-  } = context;
+  const { getControlState, threadContextRef, user } = context;
   const {
     aomiClientRef,
     closeAllSessions,
@@ -247,7 +276,7 @@ function useRemoteThreadListSync(
     warmThread,
   } = remoteThreads;
   const connectedAddress = UserStateHelpers.isConnected(user)
-    ? UserStateHelpers.address(user)
+    ? getLegacySessionPublicKey(user)
     : undefined;
 
   const scheduleThreadPrefetch = useCallback(
@@ -297,35 +326,50 @@ function useRemoteThreadListSync(
 
   useEffect(() => {
     const userAddress = connectedAddress;
-    const normalizedUserAddress = userAddress?.toLowerCase();
+    const normalizedUserAddress = normalizeWalletId(userAddress);
     const previousAddress = lastConnectedAddressRef.current;
+    const isConnected = UserStateHelpers.isConnected(user) === true;
     const walletChanged =
       previousAddress !== undefined &&
       normalizedUserAddress !== undefined &&
       previousAddress !== normalizedUserAddress;
 
     if (!userAddress) {
+      // Solana-only or family-focused states do not have a legacy EVM
+      // `public_key`. Keep the active chat/session visible; SVM wallet
+      // context is carried through user_state and the wallet-context API.
+      if (isConnected) {
+        lastConnectedAddressRef.current = undefined;
+        setIsThreadListLoading(false);
+        return;
+      }
+
+      // Only tear down sessions when the user actually disconnected every
+      // wallet. Para/wagmi can emit transient identity changes with no EVM
+      // address while a Solana wallet remains connected; those must not reset
+      // the active thread.
+      const wasPreviouslyConnected =
+        lastConnectedAddressRef.current !== undefined;
       lastConnectedAddressRef.current = undefined;
-      const hadRemoteThreads = remoteThreadIdsRef.current.size > 0;
-      const hadSessions = sessionManager.size > 0;
       setIsThreadListLoading(false);
       prefetchCancelRef.current?.();
       prefetchCancelRef.current = null;
-      remoteThreadIdsRef.current.clear();
-      warmedThreadIdsRef.current.clear();
-      warmPromisesRef.current.clear();
-      closeAllSessions();
-      if (hadRemoteThreads || hadSessions) {
-        threadContextRef.current.resetToDefault();
+
+      if (wasPreviouslyConnected) {
+        const hadRemoteThreads = remoteThreadIdsRef.current.size > 0;
+        const hadSessions = sessionManager.size > 0;
+        remoteThreadIdsRef.current.clear();
+        warmedThreadIdsRef.current.clear();
+        warmPromisesRef.current.clear();
+        closeAllSessions();
+        if (hadRemoteThreads || hadSessions) {
+          threadContextRef.current.resetToDefault();
+        }
       }
       return;
     }
 
     lastConnectedAddressRef.current = normalizedUserAddress;
-
-    const resetThreadId = walletChanged
-      ? threadContextRef.current.resetToDefault()
-      : undefined;
 
     if (walletChanged) {
       prefetchCancelRef.current?.();
@@ -333,7 +377,6 @@ function useRemoteThreadListSync(
       remoteThreadIdsRef.current.clear();
       warmedThreadIdsRef.current.clear();
       warmPromisesRef.current.clear();
-      closeAllSessions();
     }
 
     let cancelled = false;
@@ -345,9 +388,8 @@ function useRemoteThreadListSync(
         const currentContext = threadContextRef.current;
         const controlSessionId = getControlSessionId(
           getControlState().clientId,
-          resetThreadId ?? currentContext.currentThreadId,
+          currentContext.currentThreadId,
         );
-        await aomiClientRef.current.ensureAccount(controlSessionId, userAddress);
         const threadList = await aomiClientRef.current.listThreads(
           controlSessionId,
           userAddress,
@@ -355,20 +397,8 @@ function useRemoteThreadListSync(
         if (cancelled) return;
 
         const remoteThreadIds = new Set<string>();
-        const newMetadata =
-          resetThreadId !== undefined
-            ? new Map(
-                (() => {
-                  const resetMetadata =
-                    threadContextRef.current.getThreadMetadata(resetThreadId);
-                  return resetMetadata
-                    ? ([[resetThreadId, resetMetadata]] as const)
-                    : [];
-                })(),
-              )
-            : new Map(currentContext.allThreadsMetadata);
-        const baseThreadCount =
-          resetThreadId !== undefined ? 1 : currentContext.threadCnt;
+        const newMetadata = new Map(currentContext.allThreadsMetadata);
+        const baseThreadCount = currentContext.threadCnt;
         let maxChatNum = baseThreadCount;
 
         for (const thread of threadList) {
@@ -476,12 +506,13 @@ export function useRuntimeUserStateEffects({
 }: RuntimeUserStateEffectsOptions): { isThreadListLoading: boolean } {
   const threadContext = useThreadContext();
   const { user, getUserState, onUserStateChange } = useUser();
-  const { getControlState } = useControl();
+  const { getControlState, getCurrentThreadApp } = useControl();
   const threadContextRef = useRef(threadContext);
   threadContextRef.current = threadContext;
 
   const context: RuntimeUserStateContext = {
     getControlState,
+    getCurrentThreadApp,
     getUserState,
     onUserStateChange,
     threadContextRef,
@@ -541,9 +572,7 @@ export function RuntimeUserStateProvider({
         setUser(next);
       };
       session.on("user_state_updated", handler);
-      sessionListeners.push(() =>
-        session.off("user_state_updated", handler),
-      );
+      sessionListeners.push(() => session.off("user_state_updated", handler));
     });
 
     applyToSessions(getUserState());
