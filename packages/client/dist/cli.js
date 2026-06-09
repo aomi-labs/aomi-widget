@@ -1729,6 +1729,26 @@ var init_client = __esm({
         }).filter((item) => item !== null);
       }
       /**
+       * Fetch the account bound to the authenticated request (resolved from the
+       * account bearer). Returns `null` when the session is not bound to a real
+       * user — the backend answers `/api/settings/account` with HTTP 400 for
+       * anonymous sessions, which is the normal "no bearer / not logged in" case
+       * rather than an error.
+       */
+      async fetchAccountProfile(sessionId) {
+        const url = buildApiUrl(this.baseUrl, "/api/settings/account");
+        const response = await this.rawFetchImpl(url, {
+          headers: withSessionHeader(sessionId)
+        });
+        if (response.status === 400 || response.status === 401 || response.status === 403) {
+          return null;
+        }
+        if (!response.ok) {
+          throw new Error(`Failed to fetch account profile: HTTP ${response.status}`);
+        }
+        return await response.json();
+      }
+      /**
        * Get available models.
        */
       async getModels(sessionId, options) {
@@ -8090,6 +8110,56 @@ var init_secrets = __esm({
   }
 });
 
+// src/cli/commands/account.ts
+var account_exports = {};
+__export(account_exports, {
+  whoamiCommand: () => whoamiCommand
+});
+async function whoamiCommand(config) {
+  var _a3, _b, _c;
+  const cli = CliSession.load();
+  if (!cli) {
+    console.log("No active session");
+    printDataFileLocation();
+    return;
+  }
+  cli.mergeConfig(config);
+  const state = cli.toState();
+  const hasCredential = Boolean(
+    (_c = (_b = (_a3 = config.accountAccessToken) != null ? _a3 : state.accountAccessToken) != null ? _b : config.accountProvider) != null ? _c : state.accountProvider
+  );
+  const session = cli.createClientSession(config);
+  try {
+    const profile = await session.client.fetchAccountProfile(cli.sessionId);
+    if (!profile) {
+      console.log("Not bound to an account (anonymous session).");
+      if (!hasCredential) {
+        console.log(
+          "No account credential configured. Pass --account-bearer, or --account-provider + --account-provider-token."
+        );
+      }
+      printDataFileLocation();
+      return;
+    }
+    const account = profile.account;
+    console.log(`Account:  ${account.user_id}`);
+    if (account.username) console.log(`Username: ${account.username}`);
+    if (account.verified_email) console.log(`Email:    ${account.verified_email}`);
+    if (account.tier) console.log(`Tier:     ${account.tier}`);
+    if (account.status) console.log(`Status:   ${account.status}`);
+    printDataFileLocation();
+  } finally {
+    session.close();
+  }
+}
+var init_account = __esm({
+  "src/cli/commands/account.ts"() {
+    "use strict";
+    init_cli_session();
+    init_output();
+  }
+});
+
 // src/cli/commands/byok.ts
 function parseByokKeyArg(input2) {
   const [providerPart, byokKeyPart] = input2.split(/:(.+)/, 2);
@@ -8327,7 +8397,7 @@ var init_repl = __esm({
 import { runMain } from "citty";
 
 // src/cli/root.ts
-import { defineCommand as defineCommand10 } from "citty";
+import { defineCommand as defineCommand11 } from "citty";
 
 // src/cli/commands/defs/chat.ts
 init_shared();
@@ -8771,6 +8841,27 @@ var secretDef = defineCommand9({
   }
 });
 
+// src/cli/commands/defs/account.ts
+init_shared();
+import { defineCommand as defineCommand10 } from "citty";
+var accountWhoamiDef = defineCommand10({
+  meta: {
+    name: "whoami",
+    description: "Show the account this session is bound to on the backend"
+  },
+  args: __spreadValues({}, globalArgs),
+  async run({ args }) {
+    const { whoamiCommand: whoamiCommand2 } = await Promise.resolve().then(() => (init_account(), account_exports));
+    await whoamiCommand2(buildCliConfig(args));
+  }
+});
+var accountDef = defineCommand10({
+  meta: { name: "account", description: "Account identity" },
+  subCommands: {
+    whoami: accountWhoamiDef
+  }
+});
+
 // src/cli/root.ts
 init_shared();
 
@@ -8829,9 +8920,10 @@ var SUBCOMMAND_NAMES = /* @__PURE__ */ new Set([
   "chain",
   "wallet",
   "config",
-  "secret"
+  "secret",
+  "account"
 ]);
-var root = defineCommand10({
+var root = defineCommand11({
   meta: {
     name: "aomi",
     version: package_default.version,
@@ -8869,7 +8961,8 @@ var root = defineCommand10({
     chain: chainDef,
     wallet: walletDef,
     config: configDef,
-    secret: secretDef
+    secret: secretDef,
+    account: accountDef
   }
 });
 
@@ -8884,7 +8977,8 @@ var ROOT_SUBCOMMANDS = /* @__PURE__ */ new Set([
   "chain",
   "wallet",
   "config",
-  "secret"
+  "secret",
+  "account"
 ]);
 function isPnpmExecWrapper() {
   var _a3, _b;
@@ -8954,6 +9048,7 @@ function printRootHelp() {
   console.log("  wallet                       Wallet configuration");
   console.log("  config                       CLI configuration");
   console.log("  secret                       Secret management");
+  console.log("  account                      Account identity (whoami)");
   console.log("");
   console.log("Use aomi <command> --help for command-specific details.");
 }

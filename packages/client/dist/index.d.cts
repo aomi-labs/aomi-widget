@@ -255,6 +255,27 @@ interface AomiCreateThreadResponse {
     session_id: string;
     title?: string;
 }
+/**
+ * GET /api/settings/account
+ * The account bound to the authenticated request (resolved from the account
+ * bearer). Returned only when the session is bound to a real user; an
+ * anonymous session yields HTTP 400.
+ */
+interface AomiAccount {
+    user_id: string;
+    username?: string | null;
+    apps?: string[];
+    tier?: string;
+    verified_email?: string | null;
+    status?: string;
+    last_seen_at?: number | null;
+    created_at?: number;
+    updated_at?: number;
+}
+interface AomiAccountProfile {
+    account: AomiAccount;
+    usage?: unknown;
+}
 type AomiWalletFamily = "evm" | "svm";
 /**
  * GET/POST /api/control/provider-keys
@@ -473,6 +494,14 @@ declare class AomiClient {
         publicKey?: string;
         apiKey?: string;
     }): Promise<AomiAppDescriptor[]>;
+    /**
+     * Fetch the account bound to the authenticated request (resolved from the
+     * account bearer). Returns `null` when the session is not bound to a real
+     * user — the backend answers `/api/settings/account` with HTTP 400 for
+     * anonymous sessions, which is the normal "no bearer / not logged in" case
+     * rather than an error.
+     */
+    fetchAccountProfile(sessionId: string): Promise<AomiAccountProfile | null>;
     /**
      * Get available models.
      */
