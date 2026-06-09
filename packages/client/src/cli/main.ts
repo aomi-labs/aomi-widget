@@ -13,6 +13,7 @@ const ROOT_SUBCOMMANDS = new Set([
   "wallet",
   "config",
   "secret",
+  "account",
 ]);
 
 function isPnpmExecWrapper(): boolean {
@@ -85,6 +86,7 @@ function printRootHelp(): void {
   console.log("  wallet                       Wallet configuration");
   console.log("  config                       CLI configuration");
   console.log("  secret                       Secret management");
+  console.log("  account                      Account identity (whoami)");
   console.log("");
   console.log("Use aomi <command> --help for command-specific details.");
 }

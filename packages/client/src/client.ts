@@ -1,4 +1,5 @@
 import type {
+  AomiAccountProfile,
   AomiAppDescriptor,
   AomiClientOptions,
   AomiMessage,
@@ -804,6 +805,31 @@ export class AomiClient {
         return null;
       })
       .filter((item): item is AomiAppDescriptor => item !== null);
+  }
+
+  /**
+   * Fetch the account bound to the authenticated request (resolved from the
+   * account bearer). Returns `null` when the session is not bound to a real
+   * user — the backend answers `/api/settings/account` with HTTP 400 for
+   * anonymous sessions, which is the normal "no bearer / not logged in" case
+   * rather than an error.
+   */
+  async fetchAccountProfile(
+    sessionId: string,
+  ): Promise<AomiAccountProfile | null> {
+    const url = buildApiUrl(this.baseUrl, "/api/settings/account");
+    const response = await this.rawFetchImpl(url, {
+      headers: withSessionHeader(sessionId),
+    });
+
+    if (response.status === 400 || response.status === 401 || response.status === 403) {
+      return null;
+    }
+    if (!response.ok) {
+      throw new Error(`Failed to fetch account profile: HTTP ${response.status}`);
+    }
+
+    return (await response.json()) as AomiAccountProfile;
   }
 
   /**

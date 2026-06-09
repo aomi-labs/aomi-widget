@@ -3,6 +3,73 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { createAccountAccessTokenProvider } from "../src/account-session";
 import { AomiClient } from "../src/client";
 
+describe("AomiClient account profile", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("fetches the bound account profile with the session header and account bearer", async () => {
+    const profile = {
+      account: {
+        user_id: "user-1",
+        username: null,
+        tier: "free",
+        status: "active",
+        verified_email: "a@b.c",
+      },
+    };
+    const response = {
+      ok: true,
+      status: 200,
+      statusText: "OK",
+      json: vi.fn(async () => profile),
+    } as unknown as Response;
+    const nativeFetch = vi.fn(async () => response);
+    const originalFetch = globalThis.fetch;
+    vi.stubGlobal("fetch", nativeFetch);
+
+    try {
+      const client = new AomiClient({
+        baseUrl: "http://unit.test",
+        getAccountAccessToken: async () => "bearer-1",
+      });
+
+      const result = await client.fetchAccountProfile("session-1");
+
+      expect(String(nativeFetch.mock.calls[0]?.[0])).toBe(
+        "http://unit.test/api/settings/account",
+      );
+      const headers = new Headers(
+        (nativeFetch.mock.calls[0]?.[1] as RequestInit).headers,
+      );
+      expect(headers.get("Authorization")).toBe("Bearer bearer-1");
+      expect(headers.get("X-Session-Id")).toBe("session-1");
+      expect(result?.account.user_id).toBe("user-1");
+    } finally {
+      vi.stubGlobal("fetch", originalFetch);
+    }
+  });
+
+  it("returns null when the session is not bound to an account (HTTP 400)", async () => {
+    const response = {
+      ok: false,
+      status: 400,
+      statusText: "Bad Request",
+      json: vi.fn(async () => ({})),
+    } as unknown as Response;
+    const nativeFetch = vi.fn(async () => response);
+    const originalFetch = globalThis.fetch;
+    vi.stubGlobal("fetch", nativeFetch);
+
+    try {
+      const client = new AomiClient({ baseUrl: "http://unit.test" });
+      expect(await client.fetchAccountProfile("session-1")).toBeNull();
+    } finally {
+      vi.stubGlobal("fetch", originalFetch);
+    }
+  });
+});
+
 const encoder = new TextEncoder();
 
 const createMockSseConnection = (signal: AbortSignal) => {

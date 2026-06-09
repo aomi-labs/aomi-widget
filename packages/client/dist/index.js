@@ -1300,6 +1300,26 @@ var AomiClient = class {
     }).filter((item) => item !== null);
   }
   /**
+   * Fetch the account bound to the authenticated request (resolved from the
+   * account bearer). Returns `null` when the session is not bound to a real
+   * user — the backend answers `/api/settings/account` with HTTP 400 for
+   * anonymous sessions, which is the normal "no bearer / not logged in" case
+   * rather than an error.
+   */
+  async fetchAccountProfile(sessionId) {
+    const url = buildApiUrl(this.baseUrl, "/api/settings/account");
+    const response = await this.rawFetchImpl(url, {
+      headers: withSessionHeader(sessionId)
+    });
+    if (response.status === 400 || response.status === 401 || response.status === 403) {
+      return null;
+    }
+    if (!response.ok) {
+      throw new Error(`Failed to fetch account profile: HTTP ${response.status}`);
+    }
+    return await response.json();
+  }
+  /**
    * Get available models.
    */
   async getModels(sessionId, options) {
