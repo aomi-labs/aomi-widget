@@ -5,6 +5,7 @@ import {
   type TOAuthMethod,
   type TExternalWallet,
 } from "@getpara/react-sdk";
+import { usePathname } from "next/navigation";
 import { type ReactNode, useEffect } from "react";
 import { useAccount, useSwitchChain } from "wagmi";
 import {
@@ -97,7 +98,8 @@ const solanaNetworks = [
       process.env.NEXT_PUBLIC_SOLANA_DEVNET_RPC_URL ??
       process.env.NEXT_PUBLIC_SOLANA_RPC_URL ??
       "https://api.devnet.solana.com",
-    rpcWsUrl: process.env.NEXT_PUBLIC_SOLANA_DEVNET_RPC_WS_URL ??
+    rpcWsUrl:
+      process.env.NEXT_PUBLIC_SOLANA_DEVNET_RPC_WS_URL ??
       process.env.NEXT_PUBLIC_SOLANA_RPC_WS_URL,
   },
   {
@@ -193,6 +195,11 @@ type Props = {
 };
 
 export function WalletProviders({ children }: Props) {
+  const pathname = usePathname();
+  if (pathname?.startsWith("/auth/privy")) {
+    return <>{children}</>;
+  }
+
   const content = paraApiKey ? (
     <LocalhostNetworkEnforcer>{children}</LocalhostNetworkEnforcer>
   ) : (
