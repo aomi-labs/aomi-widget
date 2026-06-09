@@ -2,9 +2,20 @@
 
 ## Last Updated
 
-2026-06-09 - Wallet picker dedup + layout polish (multi-wallet)
+2026-06-09 - Wallet picker dedup + layout polish + trigger restyle (multi-wallet)
 
 ## Recent Changes
+
+### Connect/wallet trigger button restyle (2026-06-09)
+
+Branch `polish-multi-wallet`. `dual-wallet-bar.tsx` only. Iterated once on product feedback.
+
+- **One shared button surface for both states.** Dropped the deep-black connected (`bg-primary`) state and the dashed-border disconnected state. Both now use the original `bg-muted` fill with a **solid** `border border-border` outline and `hover:bg-muted/70`, text in full `text-foreground` (was `text-muted-foreground`) so "Connect wallet" reads clearly. (First pass tried `bg-foreground/[0.05]`; reverted to muted per feedback.)
+- **Connected**: active wallets render as circular brand avatars **plus the short address(es)** beside them (`formatAddress`, joined ` / `). Discs are **opaque `bg-muted` with a `ring-1 ring-border` outline** and **stack** with `-ml-2` overlap — opaque so the front disc masks the one behind (a translucent fill let the back logo bleed through). Button padding tightened to `px-3.5 py-2` so more of the address fits.
+- **Shared icon rendering** (`wallet-icon-slot.tsx`): the picker's `WalletIconSlot` was extracted into its own module and is now used by **both** the picker rows and the trigger avatars, so brand mark colour (`text-muted-foreground`), proportional sizing, the Phantom-art quirk, and the iconUrl/generic fallbacks are defined **once**. It takes a numeric `size` (slot px; mark scales from it via fixed ratios) + a `className` to restyle the slot (the trigger passes `rounded-full ring-1 ring-border` + stack margin; picker uses the 36px default). The trigger uses `size={28}`. This fixed the "logo colours off (esp. Phantom)" by matching the modal exactly.
+- **Note**: the brand icons in `components/icons/wallets` are **monochrome** (`fill="currentColor"`), so they tint to `currentColor` — now consistently `text-muted-foreground` in both surfaces. True brand colours would need new colored SVG assets; not done (the muted-foreground look matches the approved modal).
+- **Responsive disclosure (container queries).** The trigger button is now an `@container`; its content reveals more as the bar widens (fixing "button grows but text doesn't"). Each connected wallet carries a `detail` (EVM chain name via `getChainInfo`, Solana cluster via `solanaClusterLabel`). For a **single** wallet (most empty space): network `· {detail}` appears at `@[12rem]`, and the address swaps short→`longAddress` (12+8 hex) at `@[15rem]`. For **two** wallets: addresses stay short (avatars stacked), network only at `@[20rem]`. `singleWallet = connectedWallets.length === 1` drives the breakpoint choice. Breakpoints tuned for a ~15rem (w-full sidebar-footer) button — easy to nudge.
+- **Not yet eyeballed live**: connected-state avatars + responsive tiers need a real wallet connection (preview can't sign one) — verify via screenshots in a real browser, and confirm/adjust the `@[...]` breakpoints against the actual sidebar width. Lint + registry typecheck clean; 13 picker tests pass.
 
 ### Wallet picker: dedup + network grouping + collapsible add-list (2026-06-09)
 

@@ -28,12 +28,12 @@ import {
   formatAuthProvider,
   useWalletActivationGuard,
 } from "../../lib/aomi-auth-adapter";
-import { getWalletIcon } from "../icons";
 import type {
   AomiAccount,
   AomiWalletOption,
   WalletFamily,
 } from "../../lib/aomi-auth-adapter/types";
+import { WalletIconSlot } from "./wallet-icon-slot";
 import { useWalletPicker } from "./wallet-picker-context";
 
 type WalletAction = AomiWalletOption & {
@@ -858,49 +858,6 @@ function SocialLoginRow({
         <ChevronRightIcon className="text-muted-foreground size-4 shrink-0" />
       )}
     </button>
-  );
-}
-
-function WalletIconSlot({
-  iconUrl,
-  id,
-  label,
-}: {
-  iconUrl?: string;
-  id?: string;
-  label: string;
-}) {
-  const WalletBrandIcon = getWalletIcon(`${id ?? ""} ${label}`);
-  const isPhantom = `${id ?? ""} ${label}`.toLowerCase().includes("phantom");
-
-  if (WalletBrandIcon) {
-    return (
-      <span
-        className="bg-muted text-muted-foreground flex size-9 shrink-0 items-center justify-center rounded-xl"
-        aria-hidden="true"
-        title={label}
-      >
-        <WalletBrandIcon className={isPhantom ? "size-[27.6px]" : "size-6"} />
-      </span>
-    );
-  }
-
-  if (iconUrl) {
-    return (
-      <span className="bg-muted/50 flex size-9 shrink-0 items-center justify-center overflow-hidden rounded-xl">
-        <img src={iconUrl} alt="" className="size-6 object-contain" />
-      </span>
-    );
-  }
-
-  return (
-    <span
-      className="bg-muted/50 text-muted-foreground flex size-9 shrink-0 items-center justify-center rounded-xl"
-      aria-hidden="true"
-      title={label}
-    >
-      <WalletIcon className="size-4" />
-    </span>
   );
 }
 
