@@ -134,6 +134,16 @@ function withSessionHeader(sessionId: string, init?: HeadersInit): HeadersInit {
   return headers;
 }
 
+async function fetchStateResponse(
+  fetchImpl: typeof fetch,
+  url: string,
+  sessionId: string,
+): Promise<Response> {
+  return fetchImpl(url, {
+    headers: withSessionHeader(sessionId),
+  });
+}
+
 function wrapFetchWithAccountBearer(
   fetchImpl: typeof fetch,
   getAccountAccessToken?: GetAccountAccessToken,
@@ -302,12 +312,15 @@ export class AomiClient {
     const normalizedUserState = stripBulkyPendingFields(
       UserState.normalize(userState),
     );
-    const url = buildApiUrl(this.baseUrl, "/api/state", {
+    const urlWithSyncParams = buildApiUrl(this.baseUrl, "/api/state", {
       user_state: normalizedUserState
         ? JSON.stringify(normalizedUserState)
         : undefined,
       client_id: clientId,
     });
+    const bareUrl = buildApiUrl(this.baseUrl, "/api/state");
+    const shouldRetryWithoutSyncParams =
+      Boolean(normalizedUserState) || Boolean(clientId);
 
     this.logger?.debug("[aomi][client] GET /api/state start", {
       sessionId,
@@ -315,9 +328,25 @@ export class AomiClient {
       hasUserState: Boolean(normalizedUserState),
     });
 
-    const response = await this.rawFetchImpl(url, {
-      headers: withSessionHeader(sessionId),
-    });
+    let response = await fetchStateResponse(
+      this.rawFetchImpl,
+      urlWithSyncParams,
+      sessionId,
+    );
+
+    if (
+      !response.ok &&
+      shouldRetryWithoutSyncParams &&
+      (response.status === 400 || response.status === 414)
+    ) {
+      this.logger?.debug("[aomi][client] GET /api/state retrying without sync params", {
+        sessionId,
+        initialStatus: response.status,
+        hadClientId: Boolean(clientId),
+        hadUserState: Boolean(normalizedUserState),
+      });
+      response = await fetchStateResponse(this.rawFetchImpl, bareUrl, sessionId);
+    }
 
     this.logger?.debug("[aomi][client] GET /api/state response", {
       sessionId,

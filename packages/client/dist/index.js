@@ -793,6 +793,11 @@ function withSessionHeader(sessionId, init) {
   headers.set(SESSION_ID_HEADER, sessionId);
   return headers;
 }
+async function fetchStateResponse(fetchImpl, url, sessionId) {
+  return fetchImpl(url, {
+    headers: withSessionHeader(sessionId)
+  });
+}
 function wrapFetchWithAccountBearer(fetchImpl, getAccountAccessToken) {
   if (!getAccountAccessToken) return fetchImpl;
   return async (input, init) => {
@@ -905,23 +910,36 @@ var AomiClient = class {
    * Fetch current session state (messages, processing status, title).
    */
   async fetchState(sessionId, userState, clientId) {
-    var _a, _b;
+    var _a, _b, _c;
     const normalizedUserState = stripBulkyPendingFields(
       UserState.normalize(userState)
     );
-    const url = buildApiUrl(this.baseUrl, "/api/state", {
+    const urlWithSyncParams = buildApiUrl(this.baseUrl, "/api/state", {
       user_state: normalizedUserState ? JSON.stringify(normalizedUserState) : void 0,
       client_id: clientId
     });
+    const bareUrl = buildApiUrl(this.baseUrl, "/api/state");
+    const shouldRetryWithoutSyncParams = Boolean(normalizedUserState) || Boolean(clientId);
     (_a = this.logger) == null ? void 0 : _a.debug("[aomi][client] GET /api/state start", {
       sessionId,
       clientId,
       hasUserState: Boolean(normalizedUserState)
     });
-    const response = await this.rawFetchImpl(url, {
-      headers: withSessionHeader(sessionId)
-    });
-    (_b = this.logger) == null ? void 0 : _b.debug("[aomi][client] GET /api/state response", {
+    let response = await fetchStateResponse(
+      this.rawFetchImpl,
+      urlWithSyncParams,
+      sessionId
+    );
+    if (!response.ok && shouldRetryWithoutSyncParams && (response.status === 400 || response.status === 414)) {
+      (_b = this.logger) == null ? void 0 : _b.debug("[aomi][client] GET /api/state retrying without sync params", {
+        sessionId,
+        initialStatus: response.status,
+        hadClientId: Boolean(clientId),
+        hadUserState: Boolean(normalizedUserState)
+      });
+      response = await fetchStateResponse(this.rawFetchImpl, bareUrl, sessionId);
+    }
+    (_c = this.logger) == null ? void 0 : _c.debug("[aomi][client] GET /api/state response", {
       sessionId,
       status: response.status,
       ok: response.ok

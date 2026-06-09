@@ -57,6 +57,10 @@ function printRootHelp(): void {
   console.log("");
   console.log("  --backend-url <url>          Backend URL");
   console.log("  --api-key <key>              API key for non-default apps");
+  console.log("  --account-bearer <token>     Aomi account bearer for authenticated requests");
+  console.log("  --account-provider <name>    Upstream auth provider (para | privy)");
+  console.log("  --account-provider-token <t>");
+  console.log("                               Provider token exchanged for an Aomi bearer");
   console.log("  --app <name>                 Active app");
   console.log("  --model <rig>                Active model");
   console.log("  --new-session                Create a fresh active session");
