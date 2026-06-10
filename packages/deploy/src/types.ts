@@ -17,11 +17,14 @@ export interface GitHubConfig {
   /** Publish branch; defaults to "publish". */
   branch?: string;
   /**
-   * Fine-grained bot PAT (Contents: read+write on this repo only). Used to
-   * commit, and reused as the transient read PAT the backend uses to fetch the
-   * private release at activate time.
+   * GitHub **read** token. Optional — only needed when the platform repo is
+   * **private**, for `status` polling and as the one-shot read PAT the backend
+   * uses to fetch the private release on `activate`. Public repos (the
+   * playground) need no token: GitHub reads are unauthenticated. The *write*
+   * credential is NOT here — the backend commits server-side with its own
+   * stored bot PAT (Phase 6).
    */
-  botPat: string;
+  botPat?: string;
 }
 
 export interface AomiConfig {

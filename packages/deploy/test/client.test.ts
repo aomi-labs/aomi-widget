@@ -2,44 +2,15 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { DeploymentClient } from "../src/client";
-import { BrowserEnvironmentError, TagWideningError } from "../src/errors";
+import { ActivationError, BrowserEnvironmentError, TagWideningError } from "../src/errors";
 import type { GitHubRestClient } from "../src/github";
 
 // ----- in-memory fake of the GitHub Git Data API ----------------------------
 
+// The client now only *reads* GitHub (status); the write (commit) moved to the
+// backend. The fake just satisfies the read interface used by the status reader.
 function makeFakeGitHub() {
-  const calls = {
-    blobs: [] as Array<{ content: string; encoding: string }>,
-    trees: [] as Array<{ base_tree?: string; tree: Array<{ path: string }> }>,
-    commits: [] as Array<{ message: string; tree: string; parents: string[] }>,
-    refUpdates: [] as Array<{ ref: string; sha: string }>,
-  };
-  let blobN = 0;
   const api: GitHubRestClient = {
-    git: {
-      async getRef() {
-        return { data: { object: { sha: "basecommitsha" } } };
-      },
-      async getCommit() {
-        return { data: { tree: { sha: "basetreesha" } } };
-      },
-      async createBlob(p) {
-        calls.blobs.push({ content: p.content, encoding: p.encoding });
-        return { data: { sha: `blob${blobN++}` } };
-      },
-      async createTree(p) {
-        calls.trees.push({ base_tree: p.base_tree, tree: p.tree });
-        return { data: { sha: "newtreesha" } };
-      },
-      async createCommit(p) {
-        calls.commits.push({ message: p.message, tree: p.tree, parents: p.parents });
-        return { data: { sha: "newcommitsha" } };
-      },
-      async updateRef(p) {
-        calls.refUpdates.push({ ref: p.ref, sha: p.sha });
-        return {};
-      },
-    },
     repos: {
       async listReleases() {
         return { data: [] };
@@ -51,7 +22,7 @@ function makeFakeGitHub() {
       },
     },
   };
-  return { api, calls };
+  return { api };
 }
 
 function makeClient(octokit: GitHubRestClient, onAudit?: (e: unknown) => void) {
@@ -64,8 +35,27 @@ function makeClient(octokit: GitHubRestClient, onAudit?: (e: unknown) => void) {
 }
 
 describe("DeploymentClient.deploy", () => {
-  it("commits source + manifest under apps/<slug>/ and returns the release tag", async () => {
-    const { api, calls } = makeFakeGitHub();
+  let fetchMock: ReturnType<typeof vi.fn>;
+
+  beforeEach(() => {
+    fetchMock = vi.fn(
+      async () =>
+        new Response(
+          JSON.stringify({
+            commit_sha: "newcommitsha",
+            branch: "publish",
+            release_tag: "apps-krexa-finance-0123456789ab",
+            app_path: "apps/krexa-finance",
+          }),
+          { status: 201 },
+        ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+  });
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("POSTs the bundle to the backend publish endpoint with the activation bearer", async () => {
+    const { api } = makeFakeGitHub();
     const audits: unknown[] = [];
     const client = makeClient(api, (e) => audits.push(e));
 
@@ -77,19 +67,29 @@ describe("DeploymentClient.deploy", () => {
       sourceCommit: "0123456789abcdef0123456789abcdef01234567",
     });
 
-    // 2 source files + 1 manifest = 3 blobs
-    expect(calls.blobs.length).toBe(3);
+    expect(fetchMock).toHaveBeenCalledOnce();
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe(
+      "https://staging-api.example.com/api/admin/platforms/krexa/apps/krexa-finance/publish",
+    );
+    expect((init as RequestInit).headers).toMatchObject({ Authorization: "Bearer act-token" });
+    const body = JSON.parse((init as RequestInit).body as string);
+    expect(body).toMatchObject({
+      source_commit: "0123456789abcdef0123456789abcdef01234567",
+      is_public: false,
+      server_tags: ["staging"],
+      label: "Krexa Finance",
+    });
+    // Files carried as base64 with app-relative paths (no apps/<slug>/ prefix —
+    // the backend prefixes it).
+    expect(body.files).toEqual(
+      expect.arrayContaining([
+        { path: "index.html", content_base64: Buffer.from("<html>").toString("base64") },
+        { path: "aomi.toml", content_base64: Buffer.from("name='krexa-finance'").toString("base64") },
+      ]),
+    );
 
-    // tree entries are all scoped under apps/krexa-finance/
-    const paths = calls.trees[0].tree.map((t) => t.path);
-    expect(paths).toContain("apps/krexa-finance/index.html");
-    expect(paths).toContain("apps/krexa-finance/aomi.toml");
-    expect(paths).toContain("apps/krexa-finance/.aomi/deployment.json");
-    expect(paths.every((p) => p.startsWith("apps/krexa-finance/"))).toBe(true);
-
-    expect(calls.commits[0].parents).toEqual(["basecommitsha"]);
-    expect(calls.refUpdates[0]).toEqual({ ref: "heads/publish", sha: "newcommitsha" });
-
+    // Result echoes the backend response.
     expect(result.releaseTag).toBe("apps-krexa-finance-0123456789ab");
     expect(result.publishCommitSha).toBe("newcommitsha");
     expect(result.appPath).toBe("apps/krexa-finance");
@@ -99,18 +99,22 @@ describe("DeploymentClient.deploy", () => {
     expect(audits[0]).toMatchObject({ action: "deploy", slug: "krexa-finance", releaseTag: result.releaseTag });
   });
 
-  it("derives a source commit when none is supplied", async () => {
+  it("derives a source commit when none is supplied and sends it to the backend", async () => {
     const { api } = makeFakeGitHub();
     const client = makeClient(api);
     const result = await client.deploy({ slug: "app", files: { "a.txt": "x" } });
     expect(result.sourceCommit).toMatch(/^[0-9a-f]{40}$/);
-    expect(result.releaseTag).toBe(`apps-app-${result.sourceCommit.slice(0, 12)}`);
+    const body = JSON.parse((fetchMock.mock.calls[0][1] as RequestInit).body as string);
+    expect(body.source_commit).toBe(result.sourceCommit);
   });
 
-  it("rejects an invalid slug", async () => {
+  it("rejects an invalid slug before any request", async () => {
     const { api } = makeFakeGitHub();
     const client = makeClient(api);
-    await expect(client.deploy({ slug: "Bad Slug", files: { "a.txt": "x" } })).rejects.toThrow(/invalid app slug/);
+    await expect(client.deploy({ slug: "Bad Slug", files: { "a.txt": "x" } })).rejects.toThrow(
+      /invalid app slug/,
+    );
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });
 
@@ -180,6 +184,36 @@ describe("DeploymentClient.activate", () => {
         sourceCommit: "0123456789abcdef0123456789abcdef01234567",
       }),
     ).rejects.toMatchObject({ name: "ActivationError", status: 502 });
+  });
+
+  it("surfaces the backend's classified { error } message into ActivationError.message", async () => {
+    // The activate endpoint returns a JSON `{ error }` body with actionable
+    // 409/422/502 text (e.g. a plugin-name collision). The thrown error's
+    // message must carry it so the portal route — which renders `err.message` —
+    // shows the detail instead of a bare "activation failed (409)".
+    const detail =
+      "release `apps-app-0123456789ab` collides with an already-installed plugin: rename + redeploy";
+    fetchMock.mockResolvedValueOnce(
+      new Response(JSON.stringify({ error: detail }), { status: 409 }),
+    );
+    const { api } = makeFakeGitHub();
+    const client = makeClient(api);
+    const err = await client
+      .activate({
+        slug: "app",
+        targetTags: ["staging"],
+        releaseTag: "apps-app-0123456789ab",
+        sourceCommit: "0123456789abcdef0123456789abcdef01234567",
+      })
+      .then(
+        () => {
+          throw new Error("expected activate to reject");
+        },
+        (e) => e as ActivationError,
+      );
+    expect(err.name).toBe("ActivationError");
+    expect(err.status).toBe(409);
+    expect(err.message).toContain(detail);
   });
 });
 
