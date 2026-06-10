@@ -3,23 +3,32 @@
 // =============================================================================
 //
 // These types are NOT free to change. They are pinned to:
-//   - backend `ActivateAppRequest`  (bin/backend/src/handler/activation.rs)
+//   - backend `ActivateAppReq`      (bin/backend/src/endpoint/admin_scope/activations.rs)
 //   - `aomi-git` `deployment.json`  (sdk/bin/git/deployment_state.rs, ADR 0004/0009)
 //   - publish CI validator          (.github/scripts/publish_app.py)
+//
+// NOTE: the backend activation layer was rewritten (HostedPlatform). The old
+// `handler/activation.rs` + `ActivateAppRequest` were deleted; the request is
+// now `ActivateAppReq` in the `admin_scope::activations` endpoint module. The
+// wire field names + aliases below are unchanged (`app_slug`→`name`,
+// `display_name`→`label`, `target_tags`), so this contract still holds.
 //
 // `test/contract-drift.test.ts` fixture-diffs the generated deployment.json
 // against real `aomi-git deploy` output to catch drift.
 
 /**
  * Body of `POST /api/admin/apps/activate`. Field names follow the backend
- * struct (verified against `main`): `name` accepts aliases `app_slug` / `slug`
- * / `application`; `label` accepts alias `display_name`.
+ * struct: `name` accepts aliases `app_slug` / `slug` / `application`; `label`
+ * accepts alias `display_name`. `app_release_tag` is required. `source_repo`
+ * is optional at the backend because existing platforms infer it from
+ * `platforms.github_repo`; this client still sends the descriptor repo for
+ * explicit provenance and private-release fetches.
  */
 export interface ActivateAppRequest {
   /** App slug. Sent as `app_slug` (a backend-accepted alias of `name`). */
   app_slug: string;
   platform: string;
-  source_repo: string;
+  source_repo?: string;
   app_release_tag: string;
   /** Provenance commit (12–40 lowercase hex). */
   source_commit: string;
@@ -63,8 +72,6 @@ export interface DeploymentPlatform {
 }
 
 export interface DeploymentTarget {
-  /** Branch the deploy lands on (e.g. "publish"). */
-  branch: string;
   /** `<app_path_prefix>/<slug>`, e.g. "apps/<slug>". */
   app_path: string;
   /** `apps-<slug>-<commit[:12]>`. */

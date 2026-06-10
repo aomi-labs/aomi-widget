@@ -1,23 +1,11 @@
 import { createHash } from "node:crypto";
 import { describe, expect, it } from "vitest";
 
-import {
-  buildDeploymentManifest,
-  normalizeGithubRepo,
-  sha256Prefixed,
-  stageFiles,
-  validateManifest,
-} from "../src/deployment-json";
-import type { PlatformDescriptor } from "../src/contract";
+import { normalizeGithubRepo, sha256Prefixed, stageFiles } from "../src/deployment-json";
 
-const KREXA: PlatformDescriptor = {
-  name: "krexa",
-  source_repo: "aomi-labs/krexa-hosted-apps",
-  publish_branch: "publish",
-  app_path_prefix: "apps",
-  release_tag_convention: "apps-{app_slug}-{short_commit}",
-  visibility: "private",
-};
+// NOTE: manifest generation (`buildDeploymentManifest`/`validateManifest`) moved
+// server-side (the backend builds + commits `.aomi/deployment.json` — Phase 6),
+// so those suites were removed. The client still stages + hashes files.
 
 describe("normalizeGithubRepo", () => {
   it("strips scheme/suffix and lowercases", () => {
@@ -71,89 +59,5 @@ describe("stageFiles", () => {
 
   it("rejects duplicate paths after normalization", () => {
     expect(() => stageFiles("app", { "a.txt": "1", "./a.txt": "2" })).toThrowError(/duplicate/);
-  });
-});
-
-describe("buildDeploymentManifest", () => {
-  const commit = "0123456789abcdef0123456789abcdef01234567";
-
-  it("produces a contract-valid manifest", () => {
-    const staged = stageFiles("krexa-finance", { "index.html": "<html>", "aomi.toml": "x" });
-    const manifest = buildDeploymentManifest({
-      slug: "krexa-finance",
-      displayName: "Krexa Finance",
-      descriptor: KREXA,
-      staged,
-      sourceCommit: commit,
-      serverTags: ["staging"],
-      isPublic: false,
-      now: 1_700_000_000,
-    });
-
-    expect(manifest.app).toMatchObject({
-      name: "krexa-finance",
-      display_name: "Krexa Finance",
-      platform: "krexa",
-      git: "https://github.com/aomi-labs/krexa-hosted-apps",
-      public: false,
-      server_tags: ["staging"],
-    });
-    expect(manifest.platform).toMatchObject({
-      name: "krexa",
-      github_repo: "aomi-labs/krexa-hosted-apps",
-    });
-    expect(manifest.target).toMatchObject({
-      branch: "publish",
-      app_path: "apps/krexa-finance",
-      release_tag: "apps-krexa-finance-0123456789ab",
-      server_tags: ["staging"],
-    });
-    expect(manifest.source.commit).toBe(commit);
-    expect(manifest.state).toEqual({ pushed: true, deployed: true, activated: false });
-    expect(manifest.files.length).toBe(2);
-    expect(manifest.updated_at).toBe(1_700_000_000);
-
-    // The generated manifest must pass the CI validator rules.
-    expect(() => validateManifest(manifest, KREXA)).not.toThrow();
-  });
-
-  it("defaults display_name to slug", () => {
-    const staged = stageFiles("app", { "a.txt": "x" });
-    const m = buildDeploymentManifest({
-      slug: "app",
-      descriptor: KREXA,
-      staged,
-      sourceCommit: commit,
-      serverTags: ["staging"],
-      isPublic: false,
-    });
-    expect(m.app.display_name).toBe("app");
-  });
-});
-
-describe("validateManifest", () => {
-  const commit = "abcabcabcabcabcabcabcabcabcabcabcabcabca";
-  const staged = stageFiles("app", { "a.txt": "x" });
-  const good = buildDeploymentManifest({
-    slug: "app",
-    descriptor: KREXA,
-    staged,
-    sourceCommit: commit,
-    serverTags: ["staging"],
-    isPublic: false,
-  });
-
-  it("rejects a wrong platform name", () => {
-    expect(() => validateManifest({ ...good, platform: { ...good.platform, name: "community" } }, KREXA)).toThrow();
-  });
-
-  it("rejects a tampered release tag", () => {
-    expect(() =>
-      validateManifest({ ...good, target: { ...good.target, release_tag: "apps-app-deadbeefdead" } }, KREXA),
-    ).toThrow();
-  });
-
-  it("rejects an empty files array", () => {
-    expect(() => validateManifest({ ...good, files: [] }, KREXA)).toThrow();
   });
 });

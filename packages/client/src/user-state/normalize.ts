@@ -107,6 +107,9 @@ function buildConnection(
   liftFlat(c, flat, "auth_method", ["auth_method", "authMethod"]);
   liftFlat(c, flat, "auth_value", ["auth_value", "authValue"]);
   liftFlat(c, flat, "auth_verified_at", ["auth_verified_at", "authVerifiedAt"]);
+  // `connection.is_connected` is a non-`Option` `bool` on the backend; an
+  // explicit `null` fails serde with a 400. Drop it (defaults to false).
+  dropNullKeys(c, "is_connected");
   return Object.keys(c).length ? c : undefined;
 }
 
@@ -165,6 +168,10 @@ function buildSvm(
   const s: UnknownRecord = { ...(src ?? {}) };
   renameKey(s, "walletName", "wallet_name");
   liftFlat(s, flat, "address", ["svm_address", "svmAddress"]);
+  // `svm.capabilities` is a non-`Option` `Vec` on the backend; an explicit
+  // `null` fails serde with a 400 (the staging chat-portal regression). Drop it
+  // when null/undefined — absence defaults to an empty capability set.
+  dropNullKeys(s, "capabilities");
   return Object.keys(s).length ? s : undefined;
 }
 
@@ -202,6 +209,23 @@ function buildPending(
     snakeizeBucket(pick(src, "svm_sigs", "svmSigs", "solana_sigs", "solanaSigs")),
   );
   return Object.keys(p).length ? p : undefined;
+}
+
+/**
+ * Delete keys whose value is an explicit `null`/`undefined`.
+ *
+ * Only safe for backend fields that are NOT `Option<…>` — serde rejects an
+ * explicit `null` for those with a deserialize error → HTTP 400. Most fields
+ * here are `Option<…>` where `null` is a meaningful tombstone (e.g. AA
+ * mode-exclusive clears `evm.aa.delegation_7702: null`), so callers must list
+ * only the genuinely non-nullable wire fields.
+ */
+function dropNullKeys(obj: UnknownRecord, ...keys: string[]): void {
+  for (const key of keys) {
+    if (obj[key] === null || obj[key] === undefined) {
+      delete obj[key];
+    }
+  }
 }
 
 function deepMergePreserve(
