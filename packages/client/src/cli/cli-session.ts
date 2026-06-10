@@ -10,6 +10,7 @@
 
 import { ClientSession } from "../session";
 import type { CliConfig } from "./types";
+import { createCliClient } from "./client-factory";
 import {
   readState,
   hasSameBackendPendingId,
@@ -76,6 +77,10 @@ export class CliSession {
       app: config.app ?? seed?.app,
       model: config.model ?? seed?.model,
       apiKey: config.apiKey ?? seed?.apiKey,
+      accountAccessToken: config.accountAccessToken ?? seed?.accountAccessToken,
+      accountProvider: config.accountProvider ?? seed?.accountProvider,
+      accountProviderToken:
+        config.accountProviderToken ?? seed?.accountProviderToken,
       publicKey: config.publicKey ?? seed?.publicKey,
       privateKey: config.privateKey ?? seed?.privateKey,
       svmPublicKey: svmPublicKey ?? seed?.svmPublicKey,
@@ -167,6 +172,27 @@ export class CliSession {
     }
     if (config.apiKey !== undefined && config.apiKey !== this.state.apiKey) {
       this.state.apiKey = config.apiKey;
+      changed = true;
+    }
+    if (
+      config.accountAccessToken !== undefined &&
+      config.accountAccessToken !== this.state.accountAccessToken
+    ) {
+      this.state.accountAccessToken = config.accountAccessToken;
+      changed = true;
+    }
+    if (
+      config.accountProvider !== undefined &&
+      config.accountProvider !== this.state.accountProvider
+    ) {
+      this.state.accountProvider = config.accountProvider;
+      changed = true;
+    }
+    if (
+      config.accountProviderToken !== undefined &&
+      config.accountProviderToken !== this.state.accountProviderToken
+    ) {
+      this.state.accountProviderToken = config.accountProviderToken;
       changed = true;
     }
     if (config.publicKey !== undefined && config.publicKey !== this.state.publicKey) {
@@ -391,9 +417,26 @@ export class CliSession {
   // ---------------------------------------------------------------------------
 
   /** Build a ClientSession from the current state. */
-  createClientSession(): ClientSession {
+  createClientSession(config: Partial<CliConfig> = {}): ClientSession {
     const session = new ClientSession(
-      { baseUrl: this.state.baseUrl, apiKey: this.state.apiKey },
+      createCliClient(
+        {
+          ...config,
+          baseUrl: this.state.baseUrl,
+          apiKey: this.state.apiKey,
+          // Fall back to the credential persisted on the session so a bearer
+          // supplied on an earlier invocation keeps authenticating requests.
+          accountAccessToken:
+            config.accountAccessToken ?? this.state.accountAccessToken,
+          accountProvider: config.accountProvider ?? this.state.accountProvider,
+          accountProviderToken:
+            config.accountProviderToken ?? this.state.accountProviderToken,
+        },
+        {
+          baseUrl: this.state.baseUrl,
+          apiKey: this.state.apiKey,
+        },
+      ),
       {
         sessionId: this.state.sessionId,
         clientId: this.state.clientId,

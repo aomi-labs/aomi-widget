@@ -157,6 +157,29 @@ export interface AomiCreateThreadResponse {
   title?: string;
 }
 
+/**
+ * GET /api/settings/account
+ * The account bound to the authenticated request (resolved from the account
+ * bearer). Returned only when the session is bound to a real user; an
+ * anonymous session yields HTTP 400.
+ */
+export interface AomiAccount {
+  user_id: string;
+  username?: string | null;
+  apps?: string[];
+  tier?: string;
+  verified_email?: string | null;
+  status?: string;
+  last_seen_at?: number | null;
+  created_at?: number;
+  updated_at?: number;
+}
+
+export interface AomiAccountProfile {
+  account: AomiAccount;
+  usage?: unknown;
+}
+
 export type AomiWalletFamily = "evm" | "svm";
 
 /**
