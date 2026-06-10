@@ -7,6 +7,7 @@ import {
   useAccount as useParaAccount,
   useClient as useParaClient,
   useIssueJwt,
+  useLogout,
   useModal,
   type TExternalWallet,
   type TOAuthMethod,
@@ -163,6 +164,34 @@ const DISCONNECTED_PARA_ACCOUNT: ParaAccountShape = {
   external: {},
 };
 const EVM_IDENTITY_GRACE_MS = 1800;
+
+// wagmi (and Para's connector, which re-asserts itself as the current account
+// on reconnect) don't reliably persist *which* EVM connection is active, so the
+// user's chosen active wallet reverts to Para after a refresh. We persist the
+// selected address ourselves and re-apply it once connections are restored.
+const ACTIVE_EVM_ADDRESS_KEY = "aomi.wallet.active-evm-address";
+
+function readPersistedActiveEvmAddress(): string | null {
+  if (typeof window === "undefined") return null;
+  try {
+    return window.localStorage.getItem(ACTIVE_EVM_ADDRESS_KEY);
+  } catch {
+    return null;
+  }
+}
+
+function writePersistedActiveEvmAddress(address: string | null): void {
+  if (typeof window === "undefined") return;
+  try {
+    if (address) {
+      window.localStorage.setItem(ACTIVE_EVM_ADDRESS_KEY, address);
+    } else {
+      window.localStorage.removeItem(ACTIVE_EVM_ADDRESS_KEY);
+    }
+  } catch {
+    // best-effort — persistence is non-critical.
+  }
+}
 
 const defaultNetworks = [
   mainnet,
@@ -511,6 +540,17 @@ function useSafeIssueJwt():
   }
 }
 
+function useSafeLogout(): (() => Promise<void>) | null {
+  try {
+    const { logoutAsync } = useLogout();
+    return async () => {
+      await logoutAsync();
+    };
+  } catch {
+    return null;
+  }
+}
+
 function resolveAAProvider(): AAProvider | null {
   if (
     AA_PROVIDER_OVERRIDE === "alchemy" ||
@@ -700,6 +740,7 @@ export function AomiParaAdapterProvider({
   const paraAccount = useSafeParaAccount();
   const paraSession = useSafeParaClient();
   const issueJwt = useSafeIssueJwt();
+  const paraLogout = useSafeLogout();
   const paraModal = useSafeParaModal();
   const {
     address: wagmiAddress,
@@ -760,6 +801,11 @@ export function AomiParaAdapterProvider({
   // concurrent wallet_switchEthereumChain for the same target (some wallets
   // surface that as a duplicate popup or a -32002 "already pending" error).
   const evmSwitchInFlightRef = useRef(false);
+  // Set while a user-initiated account switch (selectAccount → wagmi
+  // switchAccount) is awaiting the wallet. The reconnect effect skips while
+  // it's set so a transient "no current connection" mid-switch doesn't trigger
+  // a reconnect that stomps the freshly selected account back to the previous.
+  const accountSwitchInFlightRef = useRef(false);
   useEffect(() => {
     if (
       evmSwitchInFlightRef.current ||
@@ -798,6 +844,14 @@ export function AomiParaAdapterProvider({
       evmReconnectAttemptedRef.current = false;
       return;
     }
+    // Only recover a *wiped* session: no current connection AND no connections
+    // at all. During a user account switch wagmi briefly reports no current
+    // connection while the connections list stays populated — reconnecting then
+    // would stomp the freshly selected account back to the previous one (the
+    // "click MetaMask, it flips back to Para" bug on the first switch).
+    if (accountSwitchInFlightRef.current || evmConnections.length > 0) {
+      return;
+    }
     if (
       hadEvmConnectionRef.current &&
       !explicitEvmDisconnectRef.current &&
@@ -809,7 +863,42 @@ export function AomiParaAdapterProvider({
         console.warn("[aomi-auth-adapter] EVM auto-reconnect failed", error);
       });
     }
-  }, [wagmiConnected, wagmiReconnect]);
+  }, [wagmiConnected, evmConnections.length, wagmiReconnect]);
+
+  // Restore the user's last chosen active EVM account after wagmi reconnects on
+  // load. Runs once per load: once connections are available, if the persisted
+  // address isn't already current, switch to it. Sets the in-flight guard so
+  // the reconnect effect above doesn't fight the switch.
+  const persistedActiveEvmAddressRef = useRef<string | null>(
+    readPersistedActiveEvmAddress(),
+  );
+  const activeEvmRestoreAttemptedRef = useRef(false);
+  useEffect(() => {
+    if (activeEvmRestoreAttemptedRef.current) return;
+    const want = persistedActiveEvmAddressRef.current?.toLowerCase();
+    if (!want || !switchAccountAsync || evmConnections.length === 0) return;
+    if (wagmiAddress?.toLowerCase() === want) {
+      activeEvmRestoreAttemptedRef.current = true;
+      return;
+    }
+    const connection = evmConnections.find(
+      (conn) => conn.address.toLowerCase() === want,
+    );
+    if (!connection) return; // wanted account not connected (yet) — keep waiting
+    const connector = wagmiConfig.connectors.find(
+      (c) => c.uid === connection.connectorId,
+    );
+    if (!connector) return;
+    activeEvmRestoreAttemptedRef.current = true;
+    accountSwitchInFlightRef.current = true;
+    void Promise.resolve(switchAccountAsync({ connector }))
+      .catch((error) => {
+        console.warn("[aomi-auth-adapter] Active EVM restore failed", error);
+      })
+      .finally(() => {
+        accountSwitchInFlightRef.current = false;
+      });
+  }, [evmConnections, wagmiAddress, switchAccountAsync, wagmiConfig.connectors]);
 
   useEffect(() => {
     if (pendingSolanaConnect && solanaWallet.publicKey) {
@@ -959,7 +1048,7 @@ export function AomiParaAdapterProvider({
       });
     }
 
-    const accounts = buildAccounts({
+    const builtAccounts = buildAccounts({
       evmConnections: evmConnectionInputs,
       activeEvmAddress: address,
       activeEvmConnectionId:
@@ -969,6 +1058,18 @@ export function AomiParaAdapterProvider({
         : [],
       activeSolanaAddress: svmAddress,
     });
+    // Para's own embedded/social wallet is managed in the Para account modal
+    // (openAccountUI). External wallets connected through Para (MetaMask,
+    // Phantom, …) keep their own brand name and are managed in their own
+    // extension, so they stay unmanaged here.
+    const canManageParaAccount = Boolean(paraModal) && isConnected;
+    const accounts = canManageParaAccount
+      ? builtAccounts.map((account) =>
+          canonicalWalletKey(account.walletName ?? "") === "para"
+            ? { ...account, manageable: true }
+            : account,
+        )
+      : builtAccounts;
 
     const identity: AomiAuthIdentity = isBooting
       ? {
@@ -1129,7 +1230,15 @@ export function AomiParaAdapterProvider({
               (c) => c.uid === connection.connectorId,
             );
             if (connector) {
-              await switchAccountAsync({ connector });
+              accountSwitchInFlightRef.current = true;
+              try {
+                await switchAccountAsync({ connector });
+                // Remember the choice so it survives a refresh.
+                persistedActiveEvmAddressRef.current = connection.address;
+                writePersistedActiveEvmAddress(connection.address);
+              } finally {
+                accountSwitchInFlightRef.current = false;
+              }
             } else {
               console.warn(
                 `[aomi-auth-adapter] selectAccount: connector not found for ${id}`,
@@ -1235,10 +1344,24 @@ export function AomiParaAdapterProvider({
         paraModal?.openModal({ step: "AUTH_MAIN" });
       },
       disconnect: async (options) => {
+        // Clear Para's own embedded/social session (cross-tab). Without this a
+        // wagmi-only disconnect leaves Para logged in and it re-attaches on the
+        // next load.
+        const logoutParaSession = async () => {
+          if (!paraLogout) return;
+          try {
+            await paraLogout();
+          } catch (error) {
+            console.warn("[aomi-auth-adapter] Para logout failed", error);
+          }
+        };
+
         if (options?.accountId) {
           const target = accounts.find((a) => a.id === options.accountId);
           if (target?.family === "evm" && wagmiDisconnectAsync) {
             explicitEvmDisconnectRef.current = true;
+            const isParaAccount =
+              canonicalWalletKey(target.walletName ?? "") === "para";
             const sameAddressConnections = evmConnections.filter(
               (conn) =>
                 conn.address.toLowerCase() === target.address.toLowerCase(),
@@ -1260,18 +1383,36 @@ export function AomiParaAdapterProvider({
                   error,
                 );
               }
-              return;
+            } else {
+              for (const connector of connectors) {
+                try {
+                  await wagmiDisconnectAsync({ connector });
+                } catch (error) {
+                  console.warn(
+                    "[aomi-auth-adapter] EVM account disconnect failed",
+                    error,
+                  );
+                }
+              }
             }
 
-            for (const connector of connectors) {
-              try {
-                await wagmiDisconnectAsync({ connector });
-              } catch (error) {
-                console.warn(
-                  "[aomi-auth-adapter] EVM account disconnect failed",
-                  error,
-                );
-              }
+            // Drop the persisted active-account hint if it pointed here, so it
+            // doesn't try to restore a wallet the user just signed out of.
+            if (
+              persistedActiveEvmAddressRef.current?.toLowerCase() ===
+              target.address.toLowerCase()
+            ) {
+              persistedActiveEvmAddressRef.current = null;
+              writePersistedActiveEvmAddress(null);
+            }
+
+            // Para's embedded/social session is separate from the wagmi
+            // connection — dropping the connector alone leaves Para logged in,
+            // so it silently re-attaches on the next load (the "sign out
+            // doesn't stick after refresh" bug). When the user signs out of
+            // the Para account itself, actually log out of Para.
+            if (isParaAccount) {
+              await logoutParaSession();
             }
             return;
           }
@@ -1283,6 +1424,8 @@ export function AomiParaAdapterProvider({
         const disconnectEvmFamily = async () => {
           if (!wagmiDisconnectAsync) return;
           explicitEvmDisconnectRef.current = true;
+          persistedActiveEvmAddressRef.current = null;
+          writePersistedActiveEvmAddress(null);
 
           const connectorIds = new Set(
             evmConnections.map((connection) => connection.connectorId),
@@ -1344,14 +1487,13 @@ export function AomiParaAdapterProvider({
           await disconnectEvmFamily();
         }
 
-        // The Para embedded account survives wagmi/Solana disconnects
-        // by design — that lets a user drop one external wallet without
-        // losing their email/OAuth-backed Para session. To clear that
-        // too the user opens the Para account modal (`canOpenAccountUI`)
-        // and uses its Logout button. We don't call `paraSession.logout()`
-        // here because Para's session is cross-tab and dropping it
-        // silently from one tab leaves other tabs in an inconsistent
-        // state.
+        // A full ("all") disconnect wipes everything, including Para's own
+        // embedded/social session — otherwise it would silently re-attach on
+        // the next load. A family-scoped disconnect leaves the Para session
+        // alone so dropping just one external wallet keeps the user signed in.
+        if (wantsAll) {
+          await logoutParaSession();
+        }
       },
       openAccountUI: async (options) => {
         const requestedFamily = options?.family ?? "evm";
@@ -1480,6 +1622,7 @@ export function AomiParaAdapterProvider({
     isPending,
     issueJwt,
     oAuthMethods,
+    paraLogout,
     paraAccount.embedded,
     paraAccount.external,
     paraAccount.isConnected,
