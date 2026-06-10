@@ -2,9 +2,22 @@
 
 ## Last Updated
 
-2026-06-09 - Wallet picker dedup + layout polish + trigger restyle (multi-wallet)
+2026-06-09 - Network selector: connection-aware, unified list, brand logos (multi-wallet)
 
 ## Recent Changes
+
+### Network selector rebuild: connection-aware + unified + logos (2026-06-09)
+
+Branch `polish-multi-wallet`. `network-select.tsx` + `network-select.test.tsx` + `icons/chains/index.tsx`. GUI only; adapter/backend contract unchanged.
+
+- **Connection-aware gating.** Which families surface now follows what's actually *connected* (`identity.address` for EVM, `identity.svmAddress` for SVM), not just what the host *supports*. EVM-only wallet → only EVM networks; SVM-only → only SVM; both → both. When nothing is connected it falls back to showing all supported networks so the picker doubles as a pre-connect preference. (Was: gated on supported-network counts, so it always showed both EVM+SVM tabs regardless of connection.)
+- **Collapsed the EVM | Solana tab toggle into one unified list.** Single scrollable popover; when both families are present, subtle uppercase group headers (`EVM` / `SVM`) separate them. One family → no header. Matches the flat-list direction the wallet picker already landed on. Removed the `panel`/`setPanel` tab state + its reset effect + `canShowFamilyTabs`.
+- **Brand logos everywhere.** Added `SolanaIcon` to `icons/chains/index.tsx` (official 3-bar mark, monochrome `currentColor`, layered opacities). SVM rows + trigger now render it; EVM rows/trigger use `getChainIcon`. The **trigger** previously had no logo (the user's main gripe — sibling Model/App selects show one): it now renders `icon + label` per shown family, joined by a `/` separator (e.g. `[Base] Base / [◎] Mainnet`). EVM chip label = chain name; SVM chip label = cluster (`Mainnet`/`Devnet`/`Testnet`), the icon carrying the family.
+- **"Solana" → "SVM"** in UI chrome: group header + confirm-dialog title/body ("Switch SVM network?"). Network *row* titles keep their real names ("Solana Mainnet" etc.).
+- **Fixed first-row always looking pre-selected.** Radix auto-focuses the first row on open; `focus:bg-accent` painted it as if hovered/active. Switched to `focus-visible:` so the highlight only shows for keyboard nav, not the mouse-triggered open. `isActive && bg-accent` still marks the live network.
+- **Hide guard** now counts only *visible* (shown-family) targets — hides the selector when ≤1 switchable network is visible.
+- Tests reworked: dropped the tab-click steps; added an EVM-only gating case (Solana rows absent) + a both-connected unified-list case; `createHarnessAdapter` gained `address` / `evmChains` / `solanaNetworks` overrides. 45 registry tests green, lint clean, registry typecheck clean for changed files (pre-existing `GITHUB` error in `para.tsx:222` unchanged).
+- **Not yet eyeballed live**: trigger logos + connected-family gating need a real wallet connection to fully exercise (automated preview can't sign one) — user verifying via screenshots.
 
 ### Connect/wallet trigger button restyle (2026-06-09)
 
