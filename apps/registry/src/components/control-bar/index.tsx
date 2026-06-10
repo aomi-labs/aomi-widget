@@ -46,7 +46,7 @@ export const ControlBar: FC<ControlBarProps> = ({
   hideSecrets = false,
 }) => {
   return (
-    <div className={cn("flex items-center gap-2", className)}>
+    <div className={cn("flex items-center gap-1", className)}>
       {!hideNetwork && <NetworkSelect />}
       {!hideModel && <ModelSelect />}
       {!hideApp && <AppSelect />}

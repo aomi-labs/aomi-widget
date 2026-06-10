@@ -110,12 +110,12 @@ export const AppSelect: FC<AppSelectProps> = ({
           <CommandList>
             <CommandEmpty>No apps found.</CommandEmpty>
 
-            {/* All Apps — pinned at top */}
+            {/* Basic Apps (the "default" namespace) — pinned at top */}
             {hasAllApps && (
               <>
                 <CommandGroup>
                   <CommandItem
-                    value="all apps default"
+                    value="basic apps all default"
                     disabled={isProcessing}
                     onSelect={() => {
                       if (isProcessing) return;
@@ -134,7 +134,7 @@ export const AppSelect: FC<AppSelectProps> = ({
                         <AllAppsIcon className="h-3.5 w-3.5" />
                       </span>
                       <div className="flex flex-col">
-                        <span className="font-medium">All Apps</span>
+                        <span className="font-medium">Basic Apps</span>
                         <span className="text-muted-foreground text-xs">
                           Use all available apps
                         </span>

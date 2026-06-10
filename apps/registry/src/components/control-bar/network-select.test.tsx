@@ -7,9 +7,11 @@ import {
   waitFor,
 } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import type { Chain } from "viem";
 import { ExtUserProvider } from "@aomi-labs/react";
 import type { AomiAuthAdapter } from "@/lib/aomi-auth-adapter";
 import { AomiAuthAdapterProvider } from "@/lib/aomi-auth-adapter";
+import type { SolanaNetworkOption } from "@/lib/aomi-auth-adapter/types";
 import {
   AomiWalletNetworkPreferencesProvider,
   useAomiWalletNetworkPreferences,
@@ -23,6 +25,16 @@ const evmChains = [
     name: "Base",
     nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
     rpcUrls: { default: { http: ["https://base.example"] } },
+  },
+] as const;
+
+const evmChainsMulti = [
+  ...evmChains,
+  {
+    id: 1,
+    name: "Ethereum",
+    nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
+    rpcUrls: { default: { http: ["https://eth.example"] } },
   },
 ] as const;
 
@@ -48,15 +60,21 @@ afterEach(() => {
 
 function createHarnessAdapter(options?: {
   connected?: boolean;
+  address?: string;
   svmAddress?: string;
   solanaReconnect?: boolean;
+  evmChains?: readonly Chain[];
+  solanaNetworks?: readonly SolanaNetworkOption[];
   onSelectNetwork?: (target: unknown) => void;
 }): AomiAuthAdapter {
+  const harnessEvmChains = options?.evmChains ?? evmChains;
+  const harnessSolanaNetworks = options?.solanaNetworks ?? solanaNetworks;
   return {
     identity: {
       status: options?.connected ? "connected" : "disconnected",
       isConnected: Boolean(options?.connected),
       primaryLabel: options?.connected ? "Wallet" : "Connect Account",
+      address: options?.address,
       chainId: 8453,
       svmAddress: options?.svmAddress,
       solanaCluster: "solana:devnet",
@@ -68,10 +86,10 @@ function createHarnessAdapter(options?: {
     canDisconnect: false,
     accounts: [],
     selectAccount: vi.fn(async () => undefined),
-    supportedChains: evmChains,
+    supportedChains: harnessEvmChains,
     supportedNetworks: {
-      evm: evmChains,
-      solana: solanaNetworks,
+      evm: harnessEvmChains,
+      solana: harnessSolanaNetworks,
     },
     solanaNetworkSwitchRequiresReconnect: options?.solanaReconnect,
     connect: async () => undefined,
@@ -127,7 +145,7 @@ function Harness({
 }
 
 describe("NetworkSelect", () => {
-  it("selects a Solana network via the tabbed picker (no family toggle)", async () => {
+  it("selects a Solana network from the unified list when both families are connected", async () => {
     const selectNetwork = vi.fn();
     render(
       <ExtUserProvider>
@@ -138,6 +156,8 @@ describe("NetworkSelect", () => {
           <Harness
             adapter={createHarnessAdapter({
               connected: true,
+              address: "0xda6f0000000000000000000000000000000000f0",
+              svmAddress: "So11111111111111111111111111111111111111112",
               onSelectNetwork: selectNetwork,
             })}
           />
@@ -146,7 +166,8 @@ describe("NetworkSelect", () => {
     );
 
     fireEvent.click(screen.getByRole("combobox"));
-    fireEvent.click(screen.getByRole("button", { name: "Solana" }));
+    // Both families connected -> EVM + Solana groups render together, no tab.
+    expect(screen.getByRole("button", { name: /^Base/i })).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: /Solana Mainnet/i }));
 
     await waitFor(() => {
@@ -178,11 +199,12 @@ describe("NetworkSelect", () => {
     );
 
     fireEvent.click(screen.getByRole("combobox"));
-    fireEvent.click(screen.getByRole("button", { name: "Solana" }));
+    // Solana-only connection -> no EVM rows, no family tab.
+    expect(screen.queryByRole("button", { name: /^Base/i })).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: /Solana Mainnet/i }));
 
     expect(
-      screen.getByText(/adapter needs a wallet reconnect to change clusters/i),
+      screen.getByText(/needs to reconnect to change clusters/i),
     ).toBeTruthy();
     expect(selectNetwork).not.toHaveBeenCalled();
 
@@ -194,6 +216,30 @@ describe("NetworkSelect", () => {
         networkId: "solana-mainnet",
       });
     });
+  });
+
+  it("hides Solana networks when only an EVM wallet is connected", async () => {
+    render(
+      <ExtUserProvider>
+        <AomiWalletNetworkPreferencesProvider
+          evmChains={evmChainsMulti}
+          solanaNetworks={solanaNetworks}
+        >
+          <Harness
+            adapter={createHarnessAdapter({
+              connected: true,
+              address: "0xda6f0000000000000000000000000000000000f0",
+              evmChains: evmChainsMulti,
+            })}
+          />
+        </AomiWalletNetworkPreferencesProvider>
+      </ExtUserProvider>,
+    );
+
+    fireEvent.click(screen.getByRole("combobox"));
+    expect(screen.getByRole("button", { name: /^Base/i })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /Ethereum/i })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /Solana/i })).toBeNull();
   });
 
   it("connects without a family selection", async () => {
