@@ -4,7 +4,7 @@
 //
 // Backend-owned auth URLs land here after Aomi mints signed state. URL shape:
 //
-//   chat.aomi.dev/auth/privy?state=<token>&app_id=<aomi-privy-app-id>&callback_url=<backend-callback>
+//   chat.aomi.dev/auth/privy?state=<token>&app_id=<aomi-privy-app-id>&signer_id=<privy-quorum-id>&callback_url=<backend-callback>
 //
 // We don't render any of Privy's login UI from this server file — that's the
 // client component below. This page just guards on the required query params
@@ -15,6 +15,7 @@ import { PrivyAuthClient } from "./privy-login-client";
 type SearchParams = Promise<{
   state?: string;
   app_id?: string;
+  signer_id?: string;
   callback_url?: string;
 }>;
 
@@ -28,10 +29,12 @@ export default async function PrivyAuthPage({
   const {
     state,
     app_id: appId,
+    signer_id: signerIdFromQuery,
     callback_url: rawCallbackUrl,
   } = await searchParams;
   const callbackUrl = normalizeCallbackUrl(rawCallbackUrl);
   const signerId =
+    signerIdFromQuery?.trim() ||
     process.env.PRIVY_SIGNER_ID?.trim() ||
     process.env.NEXT_PUBLIC_PRIVY_SIGNER_ID?.trim();
 
