@@ -23,7 +23,10 @@ export class DeploymentClient {
   constructor(opts: DeploymentClientOptions) {
     assertServerOnly();
     this.opts = opts;
-    this.baseUrl = required(opts.aomi.backendUrl, "aomi.backendUrl").replace(/\/+$/, "");
+    this.baseUrl = required(opts.aomi.backendUrl, "aomi.backendUrl").replace(
+      /\/+$/,
+      "",
+    );
     this.bearer = required(opts.aomi.activationToken, "aomi.activationToken");
   }
 
@@ -56,7 +59,7 @@ export class DeploymentClient {
     await this.audit({
       action: "activate",
       platform,
-      apps: input.apps,
+      apps: input.apps ?? [],
       targetTags: input.targetTags,
       actor: input.actor,
       ts: Date.now(),
@@ -66,7 +69,8 @@ export class DeploymentClient {
 
   async status(input: StatusInput): Promise<StatusResult> {
     const platform = cleanPlatform(input.platform);
-    const path = input.path ?? `/api/platforms/${encodeURIComponent(platform)}/status`;
+    const path =
+      input.path ?? `/api/platforms/${encodeURIComponent(platform)}/status`;
     const result = await this.get<StatusResult>(path, "status");
     await this.audit({
       action: "status",
@@ -86,7 +90,11 @@ export class DeploymentClient {
     return this.request<Resp>(path, { method: "GET" }, operation);
   }
 
-  private async post<Resp>(path: string, body: unknown, operation: string): Promise<Resp> {
+  private async post<Resp>(
+    path: string,
+    body: unknown,
+    operation: string,
+  ): Promise<Resp> {
     return this.request<Resp>(
       path,
       {
@@ -98,7 +106,11 @@ export class DeploymentClient {
     );
   }
 
-  private async request<Resp>(path: string, init: RequestInit, operation: string): Promise<Resp> {
+  private async request<Resp>(
+    path: string,
+    init: RequestInit,
+    operation: string,
+  ): Promise<Resp> {
     const url = this.endpoint(path);
     let res: Response;
     try {
@@ -119,13 +131,23 @@ export class DeploymentClient {
 
     const text = await res.text();
     if (!res.ok) {
-      throw new BackendError(operation, res.status, `${operation} failed (${res.status})`, text);
+      throw new BackendError(
+        operation,
+        res.status,
+        `${operation} failed (${res.status})`,
+        text,
+      );
     }
     if (!text.trim()) return null as Resp;
     try {
       return JSON.parse(text) as Resp;
     } catch {
-      throw new BackendError(operation, res.status, `${operation} returned invalid JSON`, text);
+      throw new BackendError(
+        operation,
+        res.status,
+        `${operation} returned invalid JSON`,
+        text,
+      );
     }
   }
 
@@ -151,7 +173,10 @@ export function assertServerOnly(): void {
 function deployRequest(input: DeployInput): Record<string, unknown> {
   const appSourceId = Number(input.appSourceId);
   if (!Number.isSafeInteger(appSourceId) || appSourceId <= 0) {
-    throw new DeployError("INVALID_REQUEST", "deploy requires a positive appSourceId");
+    throw new DeployError(
+      "INVALID_REQUEST",
+      "deploy requires a positive appSourceId",
+    );
   }
   const aomiTomlPaths = cleanStringList(input.aomiTomlPaths, "aomiTomlPaths");
   return {
@@ -163,38 +188,50 @@ function deployRequest(input: DeployInput): Record<string, unknown> {
 }
 
 function activateRequest(input: ActivateInput): Record<string, unknown> {
-  const apps = cleanStringList(input.apps, "apps");
-  const releaseTags = cleanStringList(input.releaseTags ?? [], "releaseTags", true);
-  const targetTags = cleanStringList(input.targetTags ?? [], "targetTags", true);
-  if (input.target.kind === "platform_commit" && releaseTags.length === 0) {
-    throw new DeployError("INVALID_REQUEST", "platform_commit activation requires releaseTags");
+  const apps = cleanStringList(input.apps ?? [], "apps", true);
+  const targetTags = cleanStringList(
+    input.targetTags ?? [],
+    "targetTags",
+    true,
+  );
+  const target = releaseTagsTarget(input.target);
+  const releaseTags = target.value as string[];
+  if (apps.length > 0 && apps.length !== releaseTags.length) {
+    throw new DeployError(
+      "INVALID_REQUEST",
+      "release_tags activation requires the same number of apps and release tags",
+    );
   }
   return {
-    target: targetRef(input.target),
-    apps,
-    ...(releaseTags.length ? { release_tags: releaseTags } : {}),
+    target,
+    ...(apps.length ? { apps } : {}),
     ...(targetTags.length ? { target_tags: targetTags } : {}),
   };
 }
 
 function sourceRef(ref: DeployInput["sourceRef"]): Record<string, string> {
   if (ref.kind !== "branch" && ref.kind !== "commit") {
-    throw new DeployError("INVALID_REQUEST", "sourceRef.kind must be branch or commit");
+    throw new DeployError(
+      "INVALID_REQUEST",
+      "sourceRef.kind must be branch or commit",
+    );
   }
   return { kind: ref.kind, value: required(ref.value, "sourceRef.value") };
 }
 
-function targetRef(ref: ActivateInput["target"]): Record<string, unknown> {
-  switch (ref.kind) {
-    case "platform_pr":
-    case "platform_branch":
-    case "platform_commit":
-      return { kind: ref.kind, value: required(ref.value, "target.value") };
-    case "release_tags":
-      return { kind: "release_tags", value: cleanStringList(ref.value, "target.value") };
-    default:
-      throw new DeployError("INVALID_REQUEST", "unknown activation target kind");
+function releaseTagsTarget(
+  ref: ActivateInput["target"],
+): Record<string, unknown> {
+  if (ref.kind !== "release_tags") {
+    throw new DeployError(
+      "INVALID_REQUEST",
+      "activation target.kind must be release_tags",
+    );
   }
+  return {
+    kind: "release_tags",
+    value: cleanStringList(ref.value, "target.value"),
+  };
 }
 
 function cleanPlatform(value: string): string {
@@ -207,10 +244,17 @@ function required(value: string | undefined | null, field: string): string {
   return clean;
 }
 
-function cleanStringList(values: string[], field: string, allowEmpty = false): string[] {
+function cleanStringList(
+  values: string[],
+  field: string,
+  allowEmpty = false,
+): string[] {
   const clean = values.map((value) => value.trim()).filter(Boolean);
   if (!allowEmpty && clean.length === 0) {
-    throw new DeployError("INVALID_REQUEST", `${field} must contain at least one value`);
+    throw new DeployError(
+      "INVALID_REQUEST",
+      `${field} must contain at least one value`,
+    );
   }
   return clean;
 }
@@ -249,6 +293,7 @@ function camelDeployResult(result: unknown): DeployResult {
           path: app.path,
           aomiTomlPath: app.aomi_toml_path,
           releaseTag: app.release_tag,
+          target: app.target ?? null,
         })),
       },
     },
@@ -272,6 +317,18 @@ function camelActivateResult(result: unknown): ActivateResult {
         platformCommitHash: target.platform_commit_hash ?? null,
         ciStatus: target.ci_status ?? null,
         ciUrl: target.ci_url ?? null,
+        promoted: (target.promoted ?? []).map(
+          (promotion: Record<string, any>) => ({
+            name: promotion.name,
+            releaseTag: promotion.release_tag,
+            sourceBranch: promotion.source_branch,
+            platformCommitHash: promotion.platform_commit_hash,
+            liveCommitHash: promotion.live_commit_hash ?? null,
+            ciStatus: promotion.ci_status,
+            ciUrl: promotion.ci_url ?? null,
+            releaseAssets: promotion.release_assets ?? [],
+          }),
+        ),
       },
       apps: (activation.apps ?? []).map((app: Record<string, any>) => ({
         name: app.name,

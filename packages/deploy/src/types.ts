@@ -45,52 +45,57 @@ export type CiStatus = "pending" | "running" | "passed" | "failed";
 
 export interface DeployResult {
   ok: boolean;
-  deployment: {
-    id: string;
-    status: DeployStatus | string;
-    source: {
-      installationId: number;
-      repositoryId: number;
-      repositoryLink: string;
-      ownerRepoName?: string;
-      ref: SourceRef;
-      commitHash: string;
-      aomiTomlPaths: string[];
-    };
-    platform: {
-      platform: string;
-      repository: string;
-      deployBranch: string;
-      sourceBranch: string;
-      commitHash: string | null;
-      prNumber: number | null;
-      prUrl: string | null;
-      ciStatus: CiStatus | null;
-      ciUrl: string | null;
-      apps: DeployedApp[];
-    };
-  };
+  deployment: DeployPayload;
 }
 
-export interface DeployedApp {
+export interface DeployPayload {
+  id: string;
+  status: DeployStatus | string;
+  source: Source;
+  platform: Platform;
+}
+
+export interface Source {
+  installationId: number;
+  repositoryId: number;
+  repositoryLink: string;
+  ownerRepoName?: string;
+  ref: SourceRef;
+  commitHash: string;
+  aomiTomlPaths: string[];
+}
+
+export interface Platform {
+  platform: string;
+  repository: string;
+  deployBranch: string;
+  sourceBranch: string;
+  commitHash: string | null;
+  prNumber: number | null;
+  prUrl: string | null;
+  ciStatus: CiStatus | null;
+  ciUrl: string | null;
+  apps: AppRecord[];
+}
+
+export interface AppRecord {
   name: string;
   path: string;
   aomiTomlPath: string;
   releaseTag: string;
+  target?: string | null;
 }
 
-export type TargetRef =
-  | { kind: "platform_pr"; value: string }
-  | { kind: "platform_branch"; value: string }
-  | { kind: "platform_commit"; value: string }
-  | { kind: "release_tags"; value: string[] };
+export interface ReleaseTags {
+  kind: "release_tags";
+  value: string[];
+}
 
 export interface ActivateInput {
   platform: string;
-  target: TargetRef;
-  apps: string[];
-  /** Required for `platform_commit`; ignored for PR/branch targets. */
-  releaseTags?: string[];
+  target: ReleaseTags;
+  /** Apps to activate. Optional; the backend can derive names from release tags. */
+  apps?: string[];
   targetTags?: string[];
   actor?: string;
 }
@@ -108,9 +113,21 @@ export interface ActivateResult {
       platformCommitHash?: string | null;
       ciStatus?: CiStatus | null;
       ciUrl?: string | null;
+      promoted: ActivationPromotion[];
     };
     apps: ActivatedApp[];
   };
+}
+
+export interface ActivationPromotion {
+  name: string;
+  releaseTag: string;
+  sourceBranch: string;
+  platformCommitHash: string;
+  liveCommitHash?: string | null;
+  ciStatus: CiStatus | string;
+  ciUrl: string | null;
+  releaseAssets: string[];
 }
 
 export interface ActivatedApp {

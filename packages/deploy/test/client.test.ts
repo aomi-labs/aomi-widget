@@ -2,7 +2,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { DeploymentClient } from "../src/client";
-import { BackendError, BrowserEnvironmentError, DeployError } from "../src/errors";
+import {
+  BackendError,
+  BrowserEnvironmentError,
+  DeployError,
+} from "../src/errors";
 import type { AuditEvent } from "../src/types";
 
 function client(onAudit?: (event: AuditEvent) => void) {
@@ -50,6 +54,7 @@ describe("DeploymentClient.deploy", () => {
                 path: "apps/123/demo",
                 aomi_toml_path: "aomi.toml",
                 release_tag: "apps-123-demo-abc1234def56",
+                target: "x86_64-unknown-linux-gnu",
               },
             ],
           },
@@ -74,7 +79,9 @@ describe("DeploymentClient.deploy", () => {
 
     expect(fetchMock).toHaveBeenCalledOnce();
     const [url, init] = fetchMock.mock.calls[0];
-    expect(url).toBe("https://staging-api.example.com/api/platforms/community/deploy");
+    expect(url).toBe(
+      "https://staging-api.example.com/api/platforms/community/deploy",
+    );
     expect((init as RequestInit).headers).toMatchObject({
       Authorization: "Bearer act-token",
       "Content-Type": "application/json",
@@ -90,6 +97,7 @@ describe("DeploymentClient.deploy", () => {
     expect(result.deployment.platform.apps[0]).toMatchObject({
       aomiTomlPath: "aomi.toml",
       releaseTag: "apps-123-demo-abc1234def56",
+      target: "x86_64-unknown-linux-gnu",
     });
     expect(audits).toEqual([
       expect.objectContaining({
@@ -125,13 +133,18 @@ describe("DeploymentClient.activate", () => {
           status: "partial_failed",
           platform: "community",
           target: {
-            kind: "platform_pr",
-            value: "https://github.com/aomi-labs/community-apps/pull/9",
+            kind: "release_tags",
+            value: [
+              "apps-123-demo-abc1234def56",
+              "apps-123-broken-abc1234def56",
+            ],
             platform_repo: "aomi-labs/community-apps",
-            platform_branch: "alice/demo/123/abc1234def56",
+            platform_branch: "publish",
             platform_commit_hash: "ff00aa",
             ci_status: "passed",
-            ci_url: "https://github.com/aomi-labs/community-apps/actions/runs/1",
+            ci_url:
+              "https://github.com/aomi-labs/community-apps/actions/runs/1",
+            promoted: [],
           },
           apps: [
             {
@@ -158,29 +171,34 @@ describe("DeploymentClient.activate", () => {
 
   afterEach(() => vi.unstubAllGlobals());
 
-  it("POSTs one target-based activation request and maps partial failures", async () => {
+  it("POSTs one release-tags activation request and maps partial failures", async () => {
     const result = await client().activate({
       platform: "community",
       target: {
-        kind: "platform_pr",
-        value: "https://github.com/aomi-labs/community-apps/pull/9",
+        kind: "release_tags",
+        value: ["apps-123-demo-abc1234def56", "apps-123-broken-abc1234def56"],
       },
       apps: ["demo", "broken"],
       targetTags: ["staging"],
     });
 
     const [url, init] = fetchMock.mock.calls[0];
-    expect(url).toBe("https://staging-api.example.com/api/platforms/community/apps/activate");
+    expect(url).toBe(
+      "https://staging-api.example.com/api/platforms/community/apps/activate",
+    );
     expect(JSON.parse((init as RequestInit).body as string)).toEqual({
       target: {
-        kind: "platform_pr",
-        value: "https://github.com/aomi-labs/community-apps/pull/9",
+        kind: "release_tags",
+        value: ["apps-123-demo-abc1234def56", "apps-123-broken-abc1234def56"],
       },
       apps: ["demo", "broken"],
       target_tags: ["staging"],
     });
     expect(result.ok).toBe(false);
-    expect(result.activation.target.platformRepo).toBe("aomi-labs/community-apps");
+    expect(result.activation.target.platformRepo).toBe(
+      "aomi-labs/community-apps",
+    );
+    expect(result.activation.target.promoted).toEqual([]);
     expect(result.activation.apps[1]).toMatchObject({
       name: "broken",
       isActive: false,
@@ -189,29 +207,133 @@ describe("DeploymentClient.activate", () => {
     });
   });
 
-  it("requires releaseTags for platform_commit targets", async () => {
+  it("rejects empty release tag targets before calling the backend", async () => {
     await expect(
       client().activate({
         platform: "community",
-        target: { kind: "platform_commit", value: "abc1234" },
+        target: { kind: "release_tags", value: [] },
         apps: ["demo"],
       }),
-    ).rejects.toThrow(/releaseTags/);
+    ).rejects.toThrow(/target.value/);
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it("throws BackendError on non-2xx responses", async () => {
-    fetchMock.mockResolvedValueOnce(new Response("ci not passed", { status: 409 }));
+  it("rejects mismatched app and release tag counts before calling the backend", async () => {
+    await expect(
+      client().activate({
+        platform: "community",
+        target: { kind: "release_tags", value: ["apps-123-demo-abc1234def56"] },
+        apps: ["demo", "other"],
+      }),
+    ).rejects.toThrow(/same number/);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects non-release-tag activation targets before calling the backend", async () => {
     await expect(
       client().activate({
         platform: "community",
         target: {
-          kind: "platform_pr",
-          value: "https://github.com/aomi-labs/community-apps/pull/9",
+          kind: "unsupported",
+          value: "not-a-release-tag-target",
+        } as any,
+        apps: ["demo"],
+      }),
+    ).rejects.toThrow(/release_tag/);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("allows release_tags activation without app names and maps promotions", async () => {
+    fetchMock.mockResolvedValueOnce(
+      Response.json({
+        ok: true,
+        activation: {
+          status: "activated",
+          platform: "community",
+          target: {
+            kind: "release_tags",
+            value: ["apps-123-demo-abc1234def56"],
+            platform_repo: "aomi-labs/community-apps",
+            platform_branch: "publish",
+            promoted: [
+              {
+                name: "demo",
+                release_tag: "apps-123-demo-abc1234def56",
+                source_branch: "alice/demo/123/abc1234def56",
+                platform_commit_hash: "ff00aa",
+                live_commit_hash: "ff00bb",
+                ci_status: "passed",
+                ci_url:
+                  "https://github.com/aomi-labs/community-apps/actions/runs/1",
+                release_assets: [
+                  "aomi-plugins-apps-123-demo-abc1234def56-x86_64-unknown-linux-gnu.tar.gz",
+                  "manifest.json",
+                  "aomi-release.json",
+                ],
+              },
+            ],
+          },
+          apps: [
+            {
+              name: "demo",
+              path: "apps/123/demo",
+              release_tag: "apps-123-demo-abc1234def56",
+              is_active: true,
+              loaded: true,
+            },
+          ],
+        },
+      }),
+    );
+
+    const result = await client().activate({
+      platform: "community",
+      target: {
+        kind: "release_tags",
+        value: ["apps-123-demo-abc1234def56"],
+      },
+    });
+
+    const [, init] = fetchMock.mock.calls[0];
+    expect(JSON.parse((init as RequestInit).body as string)).toEqual({
+      target: {
+        kind: "release_tags",
+        value: ["apps-123-demo-abc1234def56"],
+      },
+    });
+    expect(result.activation.target.promoted[0]).toMatchObject({
+      name: "demo",
+      releaseTag: "apps-123-demo-abc1234def56",
+      sourceBranch: "alice/demo/123/abc1234def56",
+      platformCommitHash: "ff00aa",
+      liveCommitHash: "ff00bb",
+      ciStatus: "passed",
+      releaseAssets: [
+        "aomi-plugins-apps-123-demo-abc1234def56-x86_64-unknown-linux-gnu.tar.gz",
+        "manifest.json",
+        "aomi-release.json",
+      ],
+    });
+  });
+
+  it("throws BackendError on non-2xx responses", async () => {
+    fetchMock.mockResolvedValueOnce(
+      new Response("ci not passed", { status: 409 }),
+    );
+    await expect(
+      client().activate({
+        platform: "community",
+        target: {
+          kind: "release_tags",
+          value: ["apps-123-demo-abc1234def56"],
         },
         apps: ["demo"],
       }),
-    ).rejects.toMatchObject({ name: "ActivationError", status: 409, body: "ci not passed" });
+    ).rejects.toMatchObject({
+      name: "ActivationError",
+      status: 409,
+      body: "ci not passed",
+    });
   });
 });
 

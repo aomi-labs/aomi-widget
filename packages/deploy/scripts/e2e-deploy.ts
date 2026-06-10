@@ -14,7 +14,7 @@
  *   AOMI_ACTIVATE=1
  */
 import { DeploymentClient } from "../src/index";
-import type { SourceRef, TargetRef } from "../src/index";
+import type { SourceRef } from "../src/index";
 
 const backendUrl = requiredEnv("AOMI_BACKEND_URL");
 const activationToken = requiredEnv("AOMI_APP_ACTIVATION_TOKEN");
@@ -49,19 +49,16 @@ const deploy = await dc.deploy({
 console.log(JSON.stringify(deploy, null, 2));
 
 if (process.env.AOMI_ACTIVATE === "1") {
-  const target = activationTarget(deploy.deployment.platform.prUrl, deploy.deployment.platform.sourceBranch);
   const activation = await dc.activate({
     platform,
-    target,
+    target: {
+      kind: "release_tags",
+      value: deploy.deployment.platform.apps.map((app) => app.releaseTag),
+    },
     apps: deploy.deployment.platform.apps.map((app) => app.name),
     targetTags: ["staging"],
   });
   console.log(JSON.stringify(activation, null, 2));
-}
-
-function activationTarget(prUrl: string | null, sourceBranch: string): TargetRef {
-  if (prUrl) return { kind: "platform_pr", value: prUrl };
-  return { kind: "platform_branch", value: sourceBranch };
 }
 
 function requiredEnv(name: string): string {

@@ -1,9 +1,9 @@
 import "server-only";
 
 import { DeploymentClient } from "@aomi-labs/deploy";
-import type { DeployResult, SourceRef } from "@aomi-labs/deploy";
+import type { SourceRef } from "@aomi-labs/deploy";
 
-export const EXAMPLE_REPO = "aomi-labs/aomi-app-example";
+export const EXAMPLE_REPO = "CeciliaZ030/my-aomi-bots";
 export const EXAMPLE_REPO_URL = `https://github.com/${EXAMPLE_REPO}`;
 
 const PLATFORM = process.env.APP_DEPLOY_PLATFORM || "playground";
@@ -12,8 +12,8 @@ const DISCORD_WEBHOOK = process.env.APP_DEPLOY_DISCORD_WEBHOOK || undefined;
 
 function resolveBackendUrl(): string {
   return (
-    process.env.NEXT_PUBLIC_BACKEND_URL ||
     process.env.BACKEND_URL ||
+    process.env.NEXT_PUBLIC_BACKEND_URL ||
     "http://localhost:8080"
   );
 }
@@ -32,11 +32,18 @@ export interface DeployEnv {
 export function readDeployEnv(): DeployEnv {
   const activationToken = process.env.APP_DEPLOY_ACTIVATION_TOKEN;
   if (!activationToken) {
-    throw new Error("deploy proxy is not configured: set APP_DEPLOY_ACTIVATION_TOKEN");
+    throw new Error(
+      "deploy proxy is not configured: set APP_DEPLOY_ACTIVATION_TOKEN",
+    );
   }
-  const appSourceId = Number.parseInt(process.env.APP_DEPLOY_APP_SOURCE_ID ?? "", 10);
+  const appSourceId = Number.parseInt(
+    process.env.APP_DEPLOY_APP_SOURCE_ID ?? "",
+    10,
+  );
   if (!Number.isSafeInteger(appSourceId) || appSourceId <= 0) {
-    throw new Error("deploy proxy is not configured: set APP_DEPLOY_APP_SOURCE_ID");
+    throw new Error(
+      "deploy proxy is not configured: set APP_DEPLOY_APP_SOURCE_ID",
+    );
   }
   const sourceRef: SourceRef = process.env.APP_DEPLOY_SOURCE_COMMIT
     ? { kind: "commit", value: process.env.APP_DEPLOY_SOURCE_COMMIT }
@@ -57,7 +64,9 @@ export function readDeployEnv(): DeployEnv {
   };
 }
 
-export function getDeploymentClient(env: DeployEnv = readDeployEnv()): DeploymentClient {
+export function getDeploymentClient(
+  env: DeployEnv = readDeployEnv(),
+): DeploymentClient {
   return new DeploymentClient({
     aomi: { backendUrl: env.backendUrl, activationToken: env.activationToken },
     onAudit: (e) => {
@@ -75,6 +84,15 @@ export function appSlug(name: string | undefined | null): string {
     .slice(0, 40);
 }
 
+export function appNameFromReleaseTag(releaseTag: string): string | null {
+  const tag = releaseTag.trim();
+  const rest = tag.startsWith("apps-") ? tag.slice("apps-".length) : "";
+  const firstDash = rest.indexOf("-");
+  const lastDash = rest.lastIndexOf("-");
+  if (firstDash <= 0 || lastDash <= firstDash + 1) return null;
+  return rest.slice(firstDash + 1, lastDash) || null;
+}
+
 export function deployInput(env: DeployEnv, dryRun: boolean, actor?: string) {
   return {
     platform: env.platform,
@@ -83,20 +101,5 @@ export function deployInput(env: DeployEnv, dryRun: boolean, actor?: string) {
     aomiTomlPaths: env.aomiTomlPaths,
     dryRun,
     actor,
-  };
-}
-
-export function legacyDeployResult(result: DeployResult) {
-  const app = result.deployment.platform.apps[0];
-  return {
-    releaseTag: app?.releaseTag ?? "",
-    sourceCommit: result.deployment.source.commitHash,
-    publishCommitSha: result.deployment.platform.commitHash ?? "",
-    appPath: app?.path ?? "",
-    ciUrl: result.deployment.platform.ciUrl ?? "",
-    prUrl: result.deployment.platform.prUrl,
-    sourceBranch: result.deployment.platform.sourceBranch,
-    apps: result.deployment.platform.apps,
-    deployment: result.deployment,
   };
 }

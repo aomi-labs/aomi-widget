@@ -7,7 +7,8 @@ It is intentionally a thin backend relay:
 - `deploy()` calls `POST /api/platforms/:platform/deploy` with `app_source_id`,
   `source_ref`, `aomi_toml_paths`, and optional `dry_run`.
 - `activate()` calls `POST /api/platforms/:platform/apps/activate` with one
-  platform target and a multi-app list.
+  `release_tags` target. App names may be omitted because the backend derives
+  them from the tags.
 - The backend owns GitHub App source reads, platform repo writes, PR/CI checks,
   release-tag derivation, and runtime activation.
 
@@ -34,7 +35,10 @@ const deploy = await dc.deploy({
 
 await dc.activate({
   platform: "community",
-  target: { kind: "platform_pr", value: deploy.deployment.platform.prUrl! },
+  target: {
+    kind: "release_tags",
+    value: deploy.deployment.platform.apps.map((app) => app.releaseTag),
+  },
   apps: deploy.deployment.platform.apps.map((app) => app.name),
   targetTags: ["staging"],
 });
