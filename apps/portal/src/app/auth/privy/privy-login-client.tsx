@@ -26,6 +26,7 @@ import {
   type User,
   useCreateWallet,
   usePrivy,
+  useSigners,
   useWallets,
 } from "@privy-io/react-auth";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -33,10 +34,16 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 interface Props {
   state: string;
   appId: string;
+  signerId: string;
   callbackUrl?: string;
 }
 
-export function PrivyAuthClient({ state, appId, callbackUrl }: Props) {
+export function PrivyAuthClient({
+  state,
+  appId,
+  signerId,
+  callbackUrl,
+}: Props) {
   return (
     <PrivyProvider
       appId={appId}
@@ -53,7 +60,11 @@ export function PrivyAuthClient({ state, appId, callbackUrl }: Props) {
         },
       }}
     >
-      <PrivyConnectFlow state={state} callbackUrl={callbackUrl} />
+      <PrivyConnectFlow
+        state={state}
+        signerId={signerId}
+        callbackUrl={callbackUrl}
+      />
     </PrivyProvider>
   );
 }
@@ -61,20 +72,23 @@ export function PrivyAuthClient({ state, appId, callbackUrl }: Props) {
 type Status =
   | { kind: "loading" }
   | { kind: "ready" }
-  | { kind: "submitting" }
+  | { kind: "pending"; message: string }
   | { kind: "success"; address: string }
   | { kind: "error"; message: string };
 
 function PrivyConnectFlow({
   state,
+  signerId,
   callbackUrl,
 }: {
   state: string;
+  signerId: string;
   callbackUrl?: string;
 }) {
   const { ready, authenticated, user, login, getAccessToken, logout } =
     usePrivy();
   const { createWallet } = useCreateWallet();
+  const { addSigners } = useSigners();
   const { ready: walletsReady, wallets } = useWallets();
 
   const [status, setStatus] = useState<Status>({ kind: "loading" });
@@ -109,7 +123,7 @@ function PrivyConnectFlow({
     }
 
     setHasSubmitted(true);
-    setStatus({ kind: "submitting" });
+    setStatus({ kind: "pending", message: "Preparing your Privy wallet…" });
 
     let walletAddress = embeddedWallet?.address;
     let walletId = walletAddress
@@ -142,38 +156,33 @@ function PrivyConnectFlow({
       return;
     }
 
-    let accessToken: string | null;
     try {
-      accessToken = await getAccessToken();
-    } catch (err) {
       setStatus({
-        kind: "error",
-        message: `Could not read access token: ${errMsg(err)}`,
+        kind: "pending",
+        message: "Granting Aomi server-side access to your wallet…",
       });
-      return;
-    }
-    if (!accessToken) {
-      setStatus({ kind: "error", message: "No access token from Privy." });
-      return;
-    }
+      const signerGrantError = await ensureServerSignerAccess({
+        address: walletAddress,
+        signerId,
+        addSigners,
+      });
 
-    try {
-      const res = await fetch(callbackUrl ?? "/api/auth/privy/callback", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          state,
-          access_token: accessToken,
-          user_id: user.id,
-          wallet_id: walletId,
-          wallet_address: walletAddress,
-        }),
+      setStatus({
+        kind: "pending",
+        message: "Finalizing the wallet link with Aomi…",
       });
-      if (!res.ok) {
-        const text = await res.text().catch(() => "");
+      const callback = await postPrivyCallbackWithRefresh({
+        state,
+        userId: user.id,
+        walletId,
+        walletAddress,
+        callbackUrl,
+        getAccessToken,
+      });
+      if (!callback.ok) {
         setStatus({
           kind: "error",
-          message: `Callback failed: ${res.status} ${text.slice(0, 200)}`,
+          message: formatCallbackFailure(callback, signerGrantError),
         });
         return;
       }
@@ -190,6 +199,8 @@ function PrivyConnectFlow({
     embeddedWallet,
     getAccessToken,
     hasSubmitted,
+    addSigners,
+    signerId,
     state,
     user,
   ]);
@@ -275,8 +286,8 @@ function Body({
         </button>
       );
 
-    case "submitting":
-      return <Pending text="Connecting your wallet to Aomi…" />;
+    case "pending":
+      return <Pending text={status.message} />;
 
     case "success":
       return (
@@ -337,6 +348,121 @@ function ErrorBanner({ message }: { message: string }) {
 
 function errMsg(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
+}
+
+async function postPrivyCallbackWithRefresh({
+  state,
+  userId,
+  walletId,
+  walletAddress,
+  callbackUrl,
+  getAccessToken,
+}: {
+  state: string;
+  userId: string;
+  walletId: string;
+  walletAddress: string;
+  callbackUrl?: string;
+  getAccessToken: () => Promise<string | null>;
+}): Promise<{ ok: true } | { ok: false; status: number; detail: string }> {
+  // Privy documents that an "invalid auth token" response may require calling
+  // getAccessToken() again with backoff until the session refreshes.
+  const retryDelaysMs = [0, 400, 1200];
+
+  for (let attempt = 0; attempt < retryDelaysMs.length; attempt++) {
+    const delayMs = retryDelaysMs[attempt];
+    if (delayMs > 0) {
+      await sleep(delayMs);
+    }
+
+    const accessToken = await getAccessToken();
+    if (!accessToken) {
+      return { ok: false, status: 0, detail: "No access token from Privy." };
+    }
+
+    const res = await fetch(callbackUrl ?? "/api/auth/privy/callback", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        state,
+        access_token: accessToken,
+        user_id: userId,
+        wallet_id: walletId,
+        wallet_address: walletAddress,
+      }),
+    });
+    if (res.ok) {
+      return { ok: true };
+    }
+
+    const detail = await res.text().catch(() => "");
+    const shouldRetry =
+      attempt < retryDelaysMs.length - 1 &&
+      (res.status >= 500 || res.status === 412);
+    if (!shouldRetry) {
+      return { ok: false, status: res.status, detail };
+    }
+  }
+
+  return { ok: false, status: 0, detail: "Callback retry budget exhausted." };
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    window.setTimeout(resolve, ms);
+  });
+}
+
+async function ensureServerSignerAccess({
+  address,
+  signerId,
+  addSigners,
+}: {
+  address: string;
+  signerId: string;
+  addSigners: ({
+    address,
+    signers,
+  }: {
+    address: string;
+    signers: Array<{ signerId: string; policyIds?: string[] }>;
+  }) => Promise<{ user: User }>;
+}): Promise<string | null> {
+  const retryDelaysMs = [0, 500, 1500];
+  let lastError: string | null = null;
+
+  for (let attempt = 0; attempt < retryDelaysMs.length; attempt++) {
+    const delayMs = retryDelaysMs[attempt];
+    if (delayMs > 0) {
+      await sleep(delayMs);
+    }
+
+    try {
+      await addSigners({
+        address,
+        signers: [{ signerId, policyIds: [] }],
+      });
+      return null;
+    } catch (err) {
+      lastError = errMsg(err);
+    }
+  }
+
+  return lastError;
+}
+
+function formatCallbackFailure(
+  callback: { ok: false; status: number; detail: string },
+  signerGrantError: string | null,
+): string {
+  const detail = callback.detail.trim().slice(0, 240);
+  const callbackMessage = detail
+    ? `Callback failed: ${callback.status} ${detail}`
+    : `Callback failed: ${callback.status}`;
+  if (!signerGrantError) {
+    return callbackMessage;
+  }
+  return `${callbackMessage}. Privy signer grant also reported: ${signerGrantError}`;
 }
 
 function embeddedWalletIdForUser(user: User, address: string): string | null {
