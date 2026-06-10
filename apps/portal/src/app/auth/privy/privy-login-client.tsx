@@ -13,8 +13,7 @@
 //      this page's JS.
 //   3. Once authenticated, collect the EVM embedded wallet info + access
 //      token and POST to /api/auth/privy/callback with the state token.
-//      That endpoint stashes the credentials into the BE secret vault and
-//      completes the pending_auths row.
+//      That endpoint registers Aomi's signer and persists the approval.
 //   4. Show success (or error) — Alice closes the tab.
 //
 // We do NOT support unlinking, account switching, or wallet management here;
@@ -35,10 +34,11 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 interface Props {
   state: string;
   appId: string;
+  callbackUrl?: string;
   signerId?: string;
 }
 
-export function PrivyAuthClient({ state, appId, signerId }: Props) {
+export function PrivyAuthClient({ state, appId, callbackUrl, signerId }: Props) {
   return (
     <PrivyProvider
       appId={appId}
@@ -55,7 +55,11 @@ export function PrivyAuthClient({ state, appId, signerId }: Props) {
         },
       }}
     >
-      <PrivyConnectFlow state={state} signerId={signerId} />
+      <PrivyConnectFlow
+        state={state}
+        callbackUrl={callbackUrl}
+        signerId={signerId}
+      />
     </PrivyProvider>
   );
 }
@@ -69,9 +73,11 @@ type Status =
 
 function PrivyConnectFlow({
   state,
+  callbackUrl,
   signerId,
 }: {
   state: string;
+  callbackUrl?: string;
   signerId?: string;
 }) {
   const { ready, authenticated, user, login, getAccessToken, logout } =
@@ -156,7 +162,8 @@ function PrivyConnectFlow({
     if (!walletId) {
       setStatus({
         kind: "error",
-        message: "Privy did not return a stable wallet id for the embedded wallet.",
+        message:
+          "Privy did not return a stable wallet id for the embedded wallet.",
       });
       setHasSubmitted(false);
       return;
@@ -178,7 +185,7 @@ function PrivyConnectFlow({
     }
 
     try {
-      const res = await fetch("/api/auth/privy/callback", {
+      const res = await fetch(callbackUrl ?? "/api/auth/privy/callback", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -205,6 +212,7 @@ function PrivyConnectFlow({
       });
     }
   }, [
+    callbackUrl,
     addSigners,
     createWallet,
     embeddedWallet,
@@ -259,9 +267,9 @@ function Header() {
       </div>
       <h1 className="text-lg font-semibold">Connect a self-custody wallet</h1>
       <p className="text-muted-foreground text-sm">
-        Aomi is setting up a new wallet that you fully control. Privy holds
-        the key on your behalf — Aomi never sees it. The login UI below is
-        served by Privy directly.
+        Aomi is setting up a new wallet that you fully control. Privy holds the
+        key on your behalf — Aomi never sees it. The login UI below is served by
+        Privy directly.
       </p>
     </div>
   );
