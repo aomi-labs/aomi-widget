@@ -1,12 +1,7 @@
 import { createHash } from "node:crypto";
 
 import { DeployError, PathScopeError } from "./errors";
-import { releaseTag } from "./release-tag";
-import type {
-  DeploymentManifest,
-  PlatformDescriptor,
-  StagedFile,
-} from "./contract";
+import type { StagedFile } from "./contract";
 import type { SourceBundle } from "./types";
 
 // =============================================================================
@@ -104,95 +99,7 @@ export function stageFiles(slug: string, bundle: SourceBundle): StagedFile[] {
   return staged;
 }
 
-export interface BuildManifestArgs {
-  slug: string;
-  displayName?: string;
-  descriptor: PlatformDescriptor;
-  staged: StagedFile[];
-  sourceCommit: string;
-  serverTags: string[];
-  isPublic: boolean;
-  /** Unix seconds; injectable for deterministic tests. */
-  now?: number;
-}
-
-/** Build a contract-valid `.aomi/deployment.json` object. */
-export function buildDeploymentManifest(args: BuildManifestArgs): DeploymentManifest {
-  const { slug, descriptor, staged, sourceCommit, serverTags, isPublic } = args;
-  const appPath = `${descriptor.app_path_prefix.replace(/^\/+|\/+$/g, "")}/${slug}`;
-  const gitUrl = `https://github.com/${descriptor.source_repo}`;
-  const now = args.now ?? Math.floor(Date.now() / 1000);
-
-  return {
-    app: {
-      name: slug,
-      display_name: args.displayName ?? slug,
-      platform: descriptor.name,
-      git: gitUrl,
-      public: isPublic,
-      server_tags: serverTags,
-    },
-    source: {
-      commit: sourceCommit,
-    },
-    platform: {
-      name: descriptor.name,
-      github_repo: descriptor.source_repo,
-      resolved_deploy_branch: descriptor.publish_branch,
-    },
-    target: {
-      branch: descriptor.publish_branch,
-      app_path: appPath,
-      release_tag: releaseTag(slug, sourceCommit, descriptor.release_tag_convention),
-      server_tags: serverTags,
-    },
-    state: {
-      pushed: true,
-      deployed: true,
-      activated: false,
-    },
-    files: staged,
-    updated_at: now,
-  };
-}
-
-/**
- * Replicate the publish CI's `validate_deployment_manifest` checks. Used by the
- * contract-drift test and as optional defense before committing.
- */
-export function validateManifest(
-  manifest: DeploymentManifest,
-  descriptor: PlatformDescriptor,
-): void {
-  const fail = (m: string): never => {
-    throw new DeployError("GITHUB_COMMIT", `deployment manifest invalid: ${m}`);
-  };
-
-  if (manifest.platform?.name !== descriptor.name) {
-    fail(`platform.name must be ${descriptor.name}`);
-  }
-  if (
-    normalizeGithubRepo(manifest.platform.github_repo) !==
-    normalizeGithubRepo(descriptor.source_repo)
-  ) {
-    fail(`platform.github_repo must resolve to ${descriptor.source_repo}`);
-  }
-
-  const slug = manifest.app?.name;
-  if (!slug) fail("app.name must be a non-empty string");
-  if (!/^[0-9a-f]{12,40}$/.test(manifest.source?.commit ?? "")) {
-    fail("source.commit must be 12–40 lowercase hex");
-  }
-  if (!Array.isArray(manifest.files) || manifest.files.length === 0) {
-    fail("files must be a non-empty array");
-  }
-
-  const expectedAppPath = `${descriptor.app_path_prefix.replace(/^\/+|\/+$/g, "")}/${slug}`;
-  if (manifest.target?.app_path !== expectedAppPath) {
-    fail(`target.app_path must be ${expectedAppPath}`);
-  }
-  const expectedTag = releaseTag(slug, manifest.source.commit, descriptor.release_tag_convention);
-  if (manifest.target.release_tag !== expectedTag) {
-    fail(`target.release_tag must be ${expectedTag}, got ${manifest.target.release_tag}`);
-  }
-}
+// Manifest generation moved server-side (the backend builds + commits
+// `.aomi/deployment.json` from the bundle it receives — Phase 6). The client no
+// longer constructs or validates the manifest; it only stages + hashes files to
+// derive a provenance commit and to fail-fast on out-of-scope paths.
