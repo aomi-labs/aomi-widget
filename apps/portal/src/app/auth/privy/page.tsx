@@ -31,6 +31,9 @@ export default async function PrivyAuthPage({
     callback_url: rawCallbackUrl,
   } = await searchParams;
   const callbackUrl = normalizeCallbackUrl(rawCallbackUrl);
+  const signerId =
+    process.env.PRIVY_SIGNER_ID?.trim() ||
+    process.env.NEXT_PUBLIC_PRIVY_SIGNER_ID?.trim();
 
   if (!state || !appId || (rawCallbackUrl && !callbackUrl)) {
     return (
@@ -46,8 +49,27 @@ export default async function PrivyAuthPage({
     );
   }
 
+  if (!signerId) {
+    return (
+      <main className="bg-background text-foreground flex min-h-screen items-center justify-center px-6">
+        <div className="border-input bg-background w-full max-w-md rounded-3xl border p-8">
+          <h1 className="mb-2 text-lg font-semibold">Privy signer unavailable</h1>
+          <p className="text-muted-foreground text-sm">
+            This portal is missing `PRIVY_SIGNER_ID`, so it can&apos;t request
+            server-side access for your wallet.
+          </p>
+        </div>
+      </main>
+    );
+  }
+
   return (
-    <PrivyAuthClient state={state} appId={appId} callbackUrl={callbackUrl} />
+    <PrivyAuthClient
+      state={state}
+      appId={appId}
+      signerId={signerId}
+      callbackUrl={callbackUrl}
+    />
   );
 }
 
