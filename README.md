@@ -15,13 +15,13 @@ Aomi is an AI-assistant framework for on-chain apps. It gives you an agent that 
 
 You pick how you integrate:
 
-| Entry point | Package | Use when you want… |
-| --- | --- | --- |
-| React widget | `@aomi-labs/widget-lib` | A prebuilt chat UI inside a web app |
-| Headless runtime | `@aomi-labs/react` | Your own UI on top of Aomi's thread + wallet runtime |
-| TypeScript client | `@aomi-labs/client` | Node or browser programmatic access, no React |
-| CLI | `@aomi-labs/client` (`aomi` bin) | Chat + sign transactions from a terminal |
-| Agent skill | `skills/aomi-transact` | Let an AI agent use Aomi as a tool |
+| Entry point       | Package                          | Use when you want…                                   |
+| ----------------- | -------------------------------- | ---------------------------------------------------- |
+| React widget      | `@aomi-labs/widget-lib`          | A prebuilt chat UI inside a web app                  |
+| Headless runtime  | `@aomi-labs/react`               | Your own UI on top of Aomi's thread + wallet runtime |
+| TypeScript client | `@aomi-labs/client`              | Node or browser programmatic access, no React        |
+| CLI               | `@aomi-labs/client` (`aomi` bin) | Chat + sign transactions from a terminal             |
+| Agent skill       | `skills/aomi-transact`           | Let an AI agent use Aomi as a tool                   |
 
 All entry points share a common backend API, so a conversation started in the widget can be continued from the CLI and vice versa.
 
@@ -31,6 +31,7 @@ All entry points share a common backend API, so a conversation started in the wi
 - **Drop-in React widget** — one `<AomiFrame />` tag renders the full chat, sidebar, and composer.
 - **Headless runtime for custom UIs** — concurrent thread management, per-thread model/namespace state, backend polling/SSE, event bus, and wallet request handler, exposed as React hooks.
 - **Terminal-first CLI** — `aomi chat`, `aomi tx list`, `aomi tx simulate`, `aomi tx sign`, session management, secret ingestion.
+- **Account auth in CLI** — `aomi account login` opens a backend-minted Privy auth URL, and `aomi account whoami` confirms the backend session is bound to an Aomi account.
 - **Account Abstraction built in** — EIP-4337 and EIP-7702 signing via Alchemy or Pimlico, with automatic mode fallback.
 - **Batch simulation** — dry-run multi-step flows (approve → swap) on a forked chain before signing.
 - **Agent-ready** — install `aomi-transact` as a Claude/Codex skill and your agent can transact on-chain autonomously.
@@ -166,10 +167,7 @@ It manages:
 ### Mount the runtime
 
 ```tsx
-import {
-  ThreadContextProvider,
-  AomiRuntimeProvider,
-} from "@aomi-labs/react";
+import { ThreadContextProvider, AomiRuntimeProvider } from "@aomi-labs/react";
 
 export function App({ children }) {
   return (
@@ -310,13 +308,13 @@ aomi tx sign tx-1    # auto-detects AA, tries 7702 then 4337, errors if both fai
 
 ### AA execution model
 
-| AA configured? | Flag | Result |
-| --- | --- | --- |
-| Yes | (none) | AA automatically (preferred mode → alternative mode fallback) |
-| Yes | `--aa-provider` / `--aa-mode` | AA with explicit settings |
-| Yes | `--eoa` | EOA, skip AA |
-| No | (none) | EOA |
-| No | `--aa-provider` | Error: AA requires provider credentials |
+| AA configured? | Flag                          | Result                                                        |
+| -------------- | ----------------------------- | ------------------------------------------------------------- |
+| Yes            | (none)                        | AA automatically (preferred mode → alternative mode fallback) |
+| Yes            | `--aa-provider` / `--aa-mode` | AA with explicit settings                                     |
+| Yes            | `--eoa`                       | EOA, skip AA                                                  |
+| No             | (none)                        | EOA                                                           |
+| No             | `--aa-provider`               | Error: AA requires provider credentials                       |
 
 There is **no silent EOA fallback** — if AA is selected and both modes fail, the CLI returns a hard error suggesting `--eoa`. Supported providers: **Alchemy** (4337 sponsored + 7702) and **Pimlico** (4337 sponsored).
 

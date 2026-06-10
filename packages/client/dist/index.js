@@ -101,6 +101,7 @@ function buildConnection(src, flat) {
   liftFlat(c, flat, "auth_method", ["auth_method", "authMethod"]);
   liftFlat(c, flat, "auth_value", ["auth_value", "authValue"]);
   liftFlat(c, flat, "auth_verified_at", ["auth_verified_at", "authVerifiedAt"]);
+  dropNullKeys(c, "is_connected");
   return Object.keys(c).length ? c : void 0;
 }
 function buildEvm(src, flat) {
@@ -149,6 +150,7 @@ function buildSvm(src, flat) {
   const s = __spreadValues({}, src != null ? src : {});
   renameKey(s, "walletName", "wallet_name");
   liftFlat(s, flat, "address", ["svm_address", "svmAddress"]);
+  dropNullKeys(s, "capabilities");
   return Object.keys(s).length ? s : void 0;
 }
 function buildPending(src, flat) {
@@ -181,6 +183,13 @@ function buildPending(src, flat) {
     snakeizeBucket(pick(src, "svm_sigs", "svmSigs", "solana_sigs", "solanaSigs"))
   );
   return Object.keys(p).length ? p : void 0;
+}
+function dropNullKeys(obj, ...keys) {
+  for (const key of keys) {
+    if (obj[key] === null || obj[key] === void 0) {
+      delete obj[key];
+    }
+  }
 }
 function deepMergePreserve(previous, incoming) {
   const out = __spreadValues({}, previous);
@@ -931,13 +940,20 @@ var AomiClient = class {
       sessionId
     );
     if (!response.ok && shouldRetryWithoutSyncParams && (response.status === 400 || response.status === 414)) {
-      (_b = this.logger) == null ? void 0 : _b.debug("[aomi][client] GET /api/state retrying without sync params", {
-        sessionId,
-        initialStatus: response.status,
-        hadClientId: Boolean(clientId),
-        hadUserState: Boolean(normalizedUserState)
-      });
-      response = await fetchStateResponse(this.rawFetchImpl, bareUrl, sessionId);
+      (_b = this.logger) == null ? void 0 : _b.debug(
+        "[aomi][client] GET /api/state retrying without sync params",
+        {
+          sessionId,
+          initialStatus: response.status,
+          hadClientId: Boolean(clientId),
+          hadUserState: Boolean(normalizedUserState)
+        }
+      );
+      response = await fetchStateResponse(
+        this.rawFetchImpl,
+        bareUrl,
+        sessionId
+      );
     }
     (_c = this.logger) == null ? void 0 : _c.debug("[aomi][client] GET /api/state response", {
       sessionId,
@@ -1315,7 +1331,28 @@ var AomiClient = class {
       return null;
     }
     if (!response.ok) {
-      throw new Error(`Failed to fetch account profile: HTTP ${response.status}`);
+      throw new Error(
+        `Failed to fetch account profile: HTTP ${response.status}`
+      );
+    }
+    return await response.json();
+  }
+  /**
+   * Mint a Privy browser auth URL bound to the current backend session.
+   */
+  async beginPrivyAuth(sessionId, options) {
+    const url = buildApiUrl(this.baseUrl, "/api/auth/privy/begin");
+    const response = await this.rawFetchImpl(url, {
+      method: "POST",
+      headers: withSessionHeader(sessionId, {
+        "Content-Type": "application/json"
+      }),
+      body: JSON.stringify({
+        application: options == null ? void 0 : options.application
+      })
+    });
+    if (!response.ok) {
+      throw new Error(`Failed to begin Privy auth: HTTP ${response.status}`);
     }
     return await response.json();
   }

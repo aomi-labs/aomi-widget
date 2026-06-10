@@ -490,6 +490,7 @@ function buildConnection(src, flat) {
   liftFlat(c, flat, "auth_method", ["auth_method", "authMethod"]);
   liftFlat(c, flat, "auth_value", ["auth_value", "authValue"]);
   liftFlat(c, flat, "auth_verified_at", ["auth_verified_at", "authVerifiedAt"]);
+  dropNullKeys(c, "is_connected");
   return Object.keys(c).length ? c : void 0;
 }
 function buildEvm(src, flat) {
@@ -538,6 +539,7 @@ function buildSvm(src, flat) {
   const s = __spreadValues({}, src != null ? src : {});
   renameKey(s, "walletName", "wallet_name");
   liftFlat(s, flat, "address", ["svm_address", "svmAddress"]);
+  dropNullKeys(s, "capabilities");
   return Object.keys(s).length ? s : void 0;
 }
 function buildPending(src, flat) {
@@ -570,6 +572,13 @@ function buildPending(src, flat) {
     snakeizeBucket(pick(src, "svm_sigs", "svmSigs", "solana_sigs", "solanaSigs"))
   );
   return Object.keys(p).length ? p : void 0;
+}
+function dropNullKeys(obj, ...keys) {
+  for (const key of keys) {
+    if (obj[key] === null || obj[key] === void 0) {
+      delete obj[key];
+    }
+  }
 }
 function deepMergePreserve(previous, incoming) {
   const out = __spreadValues({}, previous);
@@ -1360,13 +1369,20 @@ var init_client = __esm({
           sessionId
         );
         if (!response.ok && shouldRetryWithoutSyncParams && (response.status === 400 || response.status === 414)) {
-          (_b = this.logger) == null ? void 0 : _b.debug("[aomi][client] GET /api/state retrying without sync params", {
-            sessionId,
-            initialStatus: response.status,
-            hadClientId: Boolean(clientId),
-            hadUserState: Boolean(normalizedUserState)
-          });
-          response = await fetchStateResponse(this.rawFetchImpl, bareUrl, sessionId);
+          (_b = this.logger) == null ? void 0 : _b.debug(
+            "[aomi][client] GET /api/state retrying without sync params",
+            {
+              sessionId,
+              initialStatus: response.status,
+              hadClientId: Boolean(clientId),
+              hadUserState: Boolean(normalizedUserState)
+            }
+          );
+          response = await fetchStateResponse(
+            this.rawFetchImpl,
+            bareUrl,
+            sessionId
+          );
         }
         (_c = this.logger) == null ? void 0 : _c.debug("[aomi][client] GET /api/state response", {
           sessionId,
@@ -1744,7 +1760,28 @@ var init_client = __esm({
           return null;
         }
         if (!response.ok) {
-          throw new Error(`Failed to fetch account profile: HTTP ${response.status}`);
+          throw new Error(
+            `Failed to fetch account profile: HTTP ${response.status}`
+          );
+        }
+        return await response.json();
+      }
+      /**
+       * Mint a Privy browser auth URL bound to the current backend session.
+       */
+      async beginPrivyAuth(sessionId, options) {
+        const url = buildApiUrl(this.baseUrl, "/api/auth/privy/begin");
+        const response = await this.rawFetchImpl(url, {
+          method: "POST",
+          headers: withSessionHeader(sessionId, {
+            "Content-Type": "application/json"
+          }),
+          body: JSON.stringify({
+            application: options == null ? void 0 : options.application
+          })
+        });
+        if (!response.ok) {
+          throw new Error(`Failed to begin Privy auth: HTTP ${response.status}`);
         }
         return await response.json();
       }
@@ -4236,6 +4273,42 @@ var init_solana_signer = __esm({
 });
 
 // src/cli/cli-session.ts
+function applyAccountCredentialConfig(state, config) {
+  let changed = false;
+  const selectsBearer = config.accountAccessToken !== void 0;
+  const selectsProviderExchange = config.accountProvider !== void 0 || config.accountProviderToken !== void 0;
+  if (selectsBearer) {
+    if (state.accountAccessToken !== config.accountAccessToken) {
+      state.accountAccessToken = config.accountAccessToken;
+      changed = true;
+    }
+    if (state.accountProvider !== void 0) {
+      state.accountProvider = void 0;
+      changed = true;
+    }
+    if (state.accountProviderToken !== void 0) {
+      state.accountProviderToken = void 0;
+      changed = true;
+    }
+    return changed;
+  }
+  if (!selectsProviderExchange) {
+    return changed;
+  }
+  if (state.accountAccessToken !== void 0) {
+    state.accountAccessToken = void 0;
+    changed = true;
+  }
+  if (config.accountProvider !== void 0 && state.accountProvider !== config.accountProvider) {
+    state.accountProvider = config.accountProvider;
+    changed = true;
+  }
+  if (config.accountProviderToken !== void 0 && state.accountProviderToken !== config.accountProviderToken) {
+    state.accountProviderToken = config.accountProviderToken;
+    changed = true;
+  }
+  return changed;
+}
 var CliSession;
 var init_cli_session = __esm({
   "src/cli/cli-session.ts"() {
@@ -4273,11 +4346,13 @@ var init_cli_session = __esm({
       }
       /** Create a fresh session and persist it. */
       static create(config, seed) {
-        var _a3, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l;
+        var _a3, _b, _c, _d, _e, _f, _g, _h, _i;
         let svmPublicKey;
         if (config.solanaPrivateKey) {
           try {
-            svmPublicKey = parseSolanaKeypairSecret(config.solanaPrivateKey).publicKey.toBase58();
+            svmPublicKey = parseSolanaKeypairSecret(
+              config.solanaPrivateKey
+            ).publicKey.toBase58();
           } catch (e) {
           }
         }
@@ -4288,19 +4363,20 @@ var init_cli_session = __esm({
           app: (_c = config.app) != null ? _c : seed == null ? void 0 : seed.app,
           model: (_d = config.model) != null ? _d : seed == null ? void 0 : seed.model,
           apiKey: (_e = config.apiKey) != null ? _e : seed == null ? void 0 : seed.apiKey,
-          accountAccessToken: (_f = config.accountAccessToken) != null ? _f : seed == null ? void 0 : seed.accountAccessToken,
-          accountProvider: (_g = config.accountProvider) != null ? _g : seed == null ? void 0 : seed.accountProvider,
-          accountProviderToken: (_h = config.accountProviderToken) != null ? _h : seed == null ? void 0 : seed.accountProviderToken,
-          publicKey: (_i = config.publicKey) != null ? _i : seed == null ? void 0 : seed.publicKey,
-          privateKey: (_j = config.privateKey) != null ? _j : seed == null ? void 0 : seed.privateKey,
+          accountAccessToken: seed == null ? void 0 : seed.accountAccessToken,
+          accountProvider: seed == null ? void 0 : seed.accountProvider,
+          accountProviderToken: seed == null ? void 0 : seed.accountProviderToken,
+          publicKey: (_f = config.publicKey) != null ? _f : seed == null ? void 0 : seed.publicKey,
+          privateKey: (_g = config.privateKey) != null ? _g : seed == null ? void 0 : seed.privateKey,
           svmPublicKey: svmPublicKey != null ? svmPublicKey : seed == null ? void 0 : seed.svmPublicKey,
           // Carry forward the persisted Solana private key so `wallet set --solana`
           // survives `--new-session` — signing key is a user preference, not a
           // per-session artifact.
-          svmPrivateKey: (_k = config.solanaPrivateKey) != null ? _k : seed == null ? void 0 : seed.svmPrivateKey,
-          chainId: (_l = config.chain) != null ? _l : seed == null ? void 0 : seed.chainId,
+          svmPrivateKey: (_h = config.solanaPrivateKey) != null ? _h : seed == null ? void 0 : seed.svmPrivateKey,
+          chainId: (_i = config.chain) != null ? _i : seed == null ? void 0 : seed.chainId,
           secretHandles: seed == null ? void 0 : seed.secretHandles
         };
+        applyAccountCredentialConfig(state, config);
         const cli = new _CliSession(state);
         cli.save();
         return cli;
@@ -4384,25 +4460,16 @@ var init_cli_session = __esm({
           this.state.apiKey = config.apiKey;
           changed = true;
         }
-        if (config.accountAccessToken !== void 0 && config.accountAccessToken !== this.state.accountAccessToken) {
-          this.state.accountAccessToken = config.accountAccessToken;
-          changed = true;
-        }
-        if (config.accountProvider !== void 0 && config.accountProvider !== this.state.accountProvider) {
-          this.state.accountProvider = config.accountProvider;
-          changed = true;
-        }
-        if (config.accountProviderToken !== void 0 && config.accountProviderToken !== this.state.accountProviderToken) {
-          this.state.accountProviderToken = config.accountProviderToken;
-          changed = true;
-        }
+        changed = applyAccountCredentialConfig(this.state, config) || changed;
         if (config.publicKey !== void 0 && config.publicKey !== this.state.publicKey) {
           this.state.publicKey = config.publicKey;
           changed = true;
         }
         if (config.solanaPrivateKey !== void 0) {
           try {
-            const svmPub = parseSolanaKeypairSecret(config.solanaPrivateKey).publicKey.toBase58();
+            const svmPub = parseSolanaKeypairSecret(
+              config.solanaPrivateKey
+            ).publicKey.toBase58();
             if (svmPub !== this.state.svmPublicKey) {
               this.state.svmPublicKey = svmPub;
               changed = true;
@@ -4562,7 +4629,9 @@ Available: ${available}`);
       requirePendingTxs(txIds) {
         const uniqueIds = Array.from(new Set(txIds));
         if (uniqueIds.length !== txIds.length) {
-          fatal("Duplicate transaction IDs are not allowed in a single `aomi tx sign` call.");
+          fatal(
+            "Duplicate transaction IDs are not allowed in a single `aomi tx sign` call."
+          );
         }
         return uniqueIds.map((txId) => this.requirePendingTx(txId));
       }
@@ -4589,16 +4658,22 @@ Available: ${available}`);
       /** Build a ClientSession from the current state. */
       createClientSession(config = {}) {
         var _a3, _b, _c, _d, _e;
+        const effectiveAccountProvider = config.accountAccessToken !== void 0 ? void 0 : (_a3 = config.accountProvider) != null ? _a3 : this.state.accountProvider;
+        const effectiveAccountProviderToken = config.accountAccessToken !== void 0 ? void 0 : (_b = config.accountProviderToken) != null ? _b : this.state.accountProviderToken;
+        const shouldUseProviderExchange = Boolean(
+          effectiveAccountProvider && effectiveAccountProviderToken
+        );
         const session = new ClientSession(
           createCliClient(
             __spreadProps(__spreadValues({}, config), {
               baseUrl: this.state.baseUrl,
               apiKey: this.state.apiKey,
-              // Fall back to the credential persisted on the session so a bearer
-              // supplied on an earlier invocation keeps authenticating requests.
-              accountAccessToken: (_a3 = config.accountAccessToken) != null ? _a3 : this.state.accountAccessToken,
-              accountProvider: (_b = config.accountProvider) != null ? _b : this.state.accountProvider,
-              accountProviderToken: (_c = config.accountProviderToken) != null ? _c : this.state.accountProviderToken
+              // Prefer an explicit or persisted provider exchange config over any
+              // stale bearer so switching auth modes does not get stuck on old
+              // session state.
+              accountAccessToken: shouldUseProviderExchange ? void 0 : (_c = config.accountAccessToken) != null ? _c : this.state.accountAccessToken,
+              accountProvider: effectiveAccountProvider,
+              accountProviderToken: effectiveAccountProviderToken
             }),
             {
               baseUrl: this.state.baseUrl,
@@ -4613,12 +4688,14 @@ Available: ${available}`);
             publicKey: this.state.publicKey
           }
         );
-        session.resolveUserState(buildCliUserState(this.state.publicKey, this.state.chainId, {
-          app: this.state.app,
-          aaMode: (_d = this.state.aaMode) != null ? _d : null,
-          smartAccount: (_e = this.state.smartAccount) != null ? _e : null,
-          svmAddress: this.state.svmPublicKey
-        }));
+        session.resolveUserState(
+          buildCliUserState(this.state.publicKey, this.state.chainId, {
+            app: this.state.app,
+            aaMode: (_d = this.state.aaMode) != null ? _d : null,
+            smartAccount: (_e = this.state.smartAccount) != null ? _e : null,
+            svmAddress: this.state.svmPublicKey
+          })
+        );
         return session;
       }
       /** Snapshot of the raw state (for backward compat or serialization). */
@@ -8113,10 +8190,27 @@ var init_secrets = __esm({
 // src/cli/commands/account.ts
 var account_exports = {};
 __export(account_exports, {
+  loginCommand: () => loginCommand,
   whoamiCommand: () => whoamiCommand
 });
+async function loginCommand(config) {
+  const cli = CliSession.loadOrCreate(config);
+  cli.mergeConfig(config);
+  const session = cli.createClientSession(config);
+  try {
+    const begin = await session.client.beginPrivyAuth(cli.sessionId, {
+      application: cli.app
+    });
+    console.log("Open this URL to authenticate with Privy:");
+    console.log(begin.auth_url);
+    console.log("After the browser flow completes, run `aomi account whoami`.");
+    printDataFileLocation();
+  } finally {
+    session.close();
+  }
+}
 async function whoamiCommand(config) {
-  var _a3, _b, _c;
+  var _a3;
   const cli = CliSession.load();
   if (!cli) {
     console.log("No active session");
@@ -8125,17 +8219,38 @@ async function whoamiCommand(config) {
   }
   cli.mergeConfig(config);
   const state = cli.toState();
+  const accountTokenProvider = createCliGetAccountAccessToken({
+    baseUrl: state.baseUrl,
+    apiKey: state.apiKey,
+    accountAccessToken: state.accountAccessToken,
+    accountProvider: state.accountProvider,
+    accountProviderToken: state.accountProviderToken,
+    app: state.app,
+    execution: config.execution,
+    secrets: {}
+  });
   const hasCredential = Boolean(
-    (_c = (_b = (_a3 = config.accountAccessToken) != null ? _a3 : state.accountAccessToken) != null ? _b : config.accountProvider) != null ? _c : state.accountProvider
+    (_a3 = state.accountAccessToken) != null ? _a3 : state.accountProvider && state.accountProviderToken
   );
   const session = cli.createClientSession(config);
   try {
     const profile = await session.client.fetchAccountProfile(cli.sessionId);
     if (!profile) {
+      const resolvedAccessToken = await (accountTokenProvider == null ? void 0 : accountTokenProvider({
+        forceRefresh: true
+      }));
       console.log("Not bound to an account (anonymous session).");
       if (!hasCredential) {
         console.log(
           "No account credential configured. Pass --account-bearer, or --account-provider + --account-provider-token."
+        );
+      } else if (state.accountProvider && state.accountProviderToken && !resolvedAccessToken) {
+        console.log(
+          "Configured provider credential could not be exchanged for an Aomi account bearer."
+        );
+      } else {
+        console.log(
+          "An account credential was sent, but the backend did not bind or accept this session."
         );
       }
       printDataFileLocation();
@@ -8144,7 +8259,9 @@ async function whoamiCommand(config) {
     const account = profile.account;
     console.log(`Account:  ${account.user_id}`);
     if (account.username) console.log(`Username: ${account.username}`);
-    if (account.verified_email) console.log(`Email:    ${account.verified_email}`);
+    if (account.verified_email) {
+      console.log(`Email:    ${account.verified_email}`);
+    }
     if (account.tier) console.log(`Tier:     ${account.tier}`);
     if (account.status) console.log(`Status:   ${account.status}`);
     printDataFileLocation();
@@ -8156,6 +8273,7 @@ var init_account = __esm({
   "src/cli/commands/account.ts"() {
     "use strict";
     init_cli_session();
+    init_client_factory();
     init_output();
   }
 });
@@ -8844,6 +8962,17 @@ var secretDef = defineCommand9({
 // src/cli/commands/defs/account.ts
 init_shared();
 import { defineCommand as defineCommand10 } from "citty";
+var accountLoginDef = defineCommand10({
+  meta: {
+    name: "login",
+    description: "Mint a Privy browser auth URL for the active session"
+  },
+  args: __spreadValues({}, globalArgs),
+  async run({ args }) {
+    const { loginCommand: loginCommand2 } = await Promise.resolve().then(() => (init_account(), account_exports));
+    await loginCommand2(buildCliConfig(args));
+  }
+});
 var accountWhoamiDef = defineCommand10({
   meta: {
     name: "whoami",
@@ -8858,6 +8987,7 @@ var accountWhoamiDef = defineCommand10({
 var accountDef = defineCommand10({
   meta: { name: "account", description: "Account identity" },
   subCommands: {
+    login: accountLoginDef,
     whoami: accountWhoamiDef
   }
 });
@@ -8994,7 +9124,9 @@ function shouldPrintRootHelp(rawArgs) {
   return !firstToken || !ROOT_SUBCOMMANDS.has(firstToken);
 }
 function printRootHelp() {
-  console.log(`CLI client for Aomi on-chain agent (aomi v${package_default.version})`);
+  console.log(
+    `CLI client for Aomi on-chain agent (aomi v${package_default.version})`
+  );
   console.log("");
   console.log("USAGE");
   console.log("");
@@ -9020,22 +9152,36 @@ function printRootHelp() {
   console.log("");
   console.log("  --backend-url <url>          Backend URL");
   console.log("  --api-key <key>              API key for non-default apps");
-  console.log("  --account-bearer <token>     Aomi account bearer for authenticated requests");
-  console.log("  --account-provider <name>    Upstream auth provider (para | privy)");
+  console.log(
+    "  --account-bearer <token>     Aomi account bearer for authenticated requests"
+  );
+  console.log(
+    "  --account-provider <name>    Upstream auth provider (para | privy)"
+  );
   console.log("  --account-provider-token <t>");
-  console.log("                               Provider token exchanged for an Aomi bearer");
+  console.log(
+    "                               Provider token exchanged for an Aomi bearer"
+  );
   console.log("  --app <name>                 Active app");
   console.log("  --model <rig>                Active model");
   console.log("  --new-session                Create a fresh active session");
-  console.log("  --chain <id>                 Active chain for chat/session context");
+  console.log(
+    "  --chain <id>                 Active chain for chat/session context"
+  );
   console.log("  --public-key <address>       Wallet address for chat context");
   console.log("  --private-key <hex>          Signing key for EVM tx sign");
-  console.log("  --solana-private-key <key>   Solana keypair (base58 or JSON byte array)");
+  console.log(
+    "  --solana-private-key <key>   Solana keypair (base58 or JSON byte array)"
+  );
   console.log("  --rpc-url <url>              RPC URL for signing");
   console.log("  -p, --prompt <prompt>        Send a single prompt and exit");
-  console.log("  --show-tool                  Show tool output in root prompt/REPL mode");
+  console.log(
+    "  --show-tool                  Show tool output in root prompt/REPL mode"
+  );
   console.log("  --provider-key <provider:key>");
-  console.log("                               Save a BYOK provider key before running");
+  console.log(
+    "                               Save a BYOK provider key before running"
+  );
   console.log("");
   console.log("COMMANDS");
   console.log("");
@@ -9048,7 +9194,9 @@ function printRootHelp() {
   console.log("  wallet                       Wallet configuration");
   console.log("  config                       CLI configuration");
   console.log("  secret                       Secret management");
-  console.log("  account                      Account identity (whoami)");
+  console.log(
+    "  account                      Account identity (login, whoami)"
+  );
   console.log("");
   console.log("Use aomi <command> --help for command-specific details.");
 }

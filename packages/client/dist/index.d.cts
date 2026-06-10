@@ -276,6 +276,11 @@ interface AomiAccountProfile {
     account: AomiAccount;
     usage?: unknown;
 }
+interface AomiBeginAccountAuthResponse {
+    state_token: string;
+    auth_url: string;
+    expires_at: number;
+}
 type AomiWalletFamily = "evm" | "svm";
 /**
  * GET/POST /api/control/provider-keys
@@ -502,6 +507,12 @@ declare class AomiClient {
      * rather than an error.
      */
     fetchAccountProfile(sessionId: string): Promise<AomiAccountProfile | null>;
+    /**
+     * Mint a Privy browser auth URL bound to the current backend session.
+     */
+    beginPrivyAuth(sessionId: string, options?: {
+        application?: string;
+    }): Promise<AomiBeginAccountAuthResponse>;
     /**
      * Get available models.
      */

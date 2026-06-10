@@ -180,6 +180,12 @@ export interface AomiAccountProfile {
   usage?: unknown;
 }
 
+export interface AomiBeginAccountAuthResponse {
+  state_token: string;
+  auth_url: string;
+  expires_at: number;
+}
+
 export type AomiWalletFamily = "evm" | "svm";
 
 /**
