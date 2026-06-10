@@ -81,4 +81,45 @@ describe("aomi account whoami", () => {
       expect.stringContaining("--account-bearer"),
     );
   });
+
+  it("reports provider exchange failures separately from anonymous sessions", async () => {
+    const { CliSession } = await import("../../src/cli/cli-session");
+    const { whoamiCommand } = await import("../../src/cli/commands/account");
+
+    CliSession.loadOrCreate({
+      ...baseConfig,
+      accountProvider: "privy",
+      accountProviderToken: "bad-provider-token",
+    });
+
+    const exchangeResponse = {
+      ok: false,
+      status: 401,
+      statusText: "Unauthorized",
+      json: vi.fn(async () => ({})),
+    } as unknown as Response;
+    const profileResponse = {
+      ok: false,
+      status: 400,
+      statusText: "Bad Request",
+      json: vi.fn(async () => ({})),
+    } as unknown as Response;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = String(input);
+        if (url.endsWith("/api/account/sessions/exchange")) {
+          return exchangeResponse;
+        }
+        return profileResponse;
+      }),
+    );
+    const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+
+    await whoamiCommand(baseConfig);
+
+    expect(logSpy).toHaveBeenCalledWith(
+      expect.stringContaining("could not be exchanged"),
+    );
+  });
 });

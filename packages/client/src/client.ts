@@ -1,6 +1,7 @@
 import type {
   AomiAccountProfile,
   AomiAppDescriptor,
+  AomiBeginAccountAuthResponse,
   AomiClientOptions,
   AomiMessage,
   AomiChatResponse,
@@ -340,13 +341,20 @@ export class AomiClient {
       shouldRetryWithoutSyncParams &&
       (response.status === 400 || response.status === 414)
     ) {
-      this.logger?.debug("[aomi][client] GET /api/state retrying without sync params", {
+      this.logger?.debug(
+        "[aomi][client] GET /api/state retrying without sync params",
+        {
+          sessionId,
+          initialStatus: response.status,
+          hadClientId: Boolean(clientId),
+          hadUserState: Boolean(normalizedUserState),
+        },
+      );
+      response = await fetchStateResponse(
+        this.rawFetchImpl,
+        bareUrl,
         sessionId,
-        initialStatus: response.status,
-        hadClientId: Boolean(clientId),
-        hadUserState: Boolean(normalizedUserState),
-      });
-      response = await fetchStateResponse(this.rawFetchImpl, bareUrl, sessionId);
+      );
     }
 
     this.logger?.debug("[aomi][client] GET /api/state response", {
@@ -822,14 +830,45 @@ export class AomiClient {
       headers: withSessionHeader(sessionId),
     });
 
-    if (response.status === 400 || response.status === 401 || response.status === 403) {
+    if (
+      response.status === 400 ||
+      response.status === 401 ||
+      response.status === 403
+    ) {
       return null;
     }
     if (!response.ok) {
-      throw new Error(`Failed to fetch account profile: HTTP ${response.status}`);
+      throw new Error(
+        `Failed to fetch account profile: HTTP ${response.status}`,
+      );
     }
 
     return (await response.json()) as AomiAccountProfile;
+  }
+
+  /**
+   * Mint a Privy browser auth URL bound to the current backend session.
+   */
+  async beginPrivyAuth(
+    sessionId: string,
+    options?: { application?: string },
+  ): Promise<AomiBeginAccountAuthResponse> {
+    const url = buildApiUrl(this.baseUrl, "/api/auth/privy/begin");
+    const response = await this.rawFetchImpl(url, {
+      method: "POST",
+      headers: withSessionHeader(sessionId, {
+        "Content-Type": "application/json",
+      }),
+      body: JSON.stringify({
+        application: options?.application,
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to begin Privy auth: HTTP ${response.status}`);
+    }
+
+    return (await response.json()) as AomiBeginAccountAuthResponse;
   }
 
   /**

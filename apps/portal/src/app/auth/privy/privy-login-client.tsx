@@ -26,7 +26,6 @@ import {
   type User,
   useCreateWallet,
   usePrivy,
-  useSigners,
   useWallets,
 } from "@privy-io/react-auth";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -35,10 +34,9 @@ interface Props {
   state: string;
   appId: string;
   callbackUrl?: string;
-  signerId?: string;
 }
 
-export function PrivyAuthClient({ state, appId, callbackUrl, signerId }: Props) {
+export function PrivyAuthClient({ state, appId, callbackUrl }: Props) {
   return (
     <PrivyProvider
       appId={appId}
@@ -55,11 +53,7 @@ export function PrivyAuthClient({ state, appId, callbackUrl, signerId }: Props) 
         },
       }}
     >
-      <PrivyConnectFlow
-        state={state}
-        callbackUrl={callbackUrl}
-        signerId={signerId}
-      />
+      <PrivyConnectFlow state={state} callbackUrl={callbackUrl} />
     </PrivyProvider>
   );
 }
@@ -74,16 +68,13 @@ type Status =
 function PrivyConnectFlow({
   state,
   callbackUrl,
-  signerId,
 }: {
   state: string;
   callbackUrl?: string;
-  signerId?: string;
 }) {
   const { ready, authenticated, user, login, getAccessToken, logout } =
     usePrivy();
   const { createWallet } = useCreateWallet();
-  const { addSigners } = useSigners();
   const { ready: walletsReady, wallets } = useWallets();
 
   const [status, setStatus] = useState<Status>({ kind: "loading" });
@@ -135,24 +126,6 @@ function PrivyConnectFlow({
         setStatus({
           kind: "error",
           message: `Could not create embedded Privy wallet: ${errMsg(err)}`,
-        });
-        setHasSubmitted(false);
-        return;
-      }
-    }
-
-    if (signerId) {
-      try {
-        const result = await addSigners({
-          address: walletAddress,
-          signers: [{ signerId, policyIds: [] }],
-        });
-        walletId =
-          walletId ?? embeddedWalletIdForUser(result.user, walletAddress);
-      } catch (err) {
-        setStatus({
-          kind: "error",
-          message: `Could not authorize Aomi signer: ${errMsg(err)}`,
         });
         setHasSubmitted(false);
         return;
@@ -213,12 +186,10 @@ function PrivyConnectFlow({
     }
   }, [
     callbackUrl,
-    addSigners,
     createWallet,
     embeddedWallet,
     getAccessToken,
     hasSubmitted,
-    signerId,
     state,
     user,
   ]);
