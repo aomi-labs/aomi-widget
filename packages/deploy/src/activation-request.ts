@@ -6,7 +6,7 @@ import { DeployError } from "./errors";
 //
 // Mirror of `aomi-git request` (sdk/bin/git/discord.rs). A new contributor
 // can't deploy until ops invites their GitHub account to the platform repo, and
-// can't self-activate until ops issues them a per-app activation code. This is
+// can't self-activate until ops issues them an activation bearer. This is
 // the structured ask carrying the requester identity ops needs to act.
 //
 // The canonical payload below is byte-compatible with what `aomi-git request`
@@ -14,7 +14,7 @@ import { DeployError } from "./errors";
 // indistinguishable to whatever consumes them (e.g. the Discord bot).
 //
 // HARD RULES (same as the CLI):
-//   - The activation code / token is NEVER part of this payload. Ops mint it and
+//   - The activation bearer is NEVER part of this payload. Ops mint it and
 //     deliver it to `email` out-of-band.
 //   - Pre-deploy: NO `app_release_tag` / `server_tags` (no release exists yet).
 
@@ -28,7 +28,7 @@ export const ACTIVATION_REQUEST_SOURCE = "@aomi-labs/deploy/0.1.0";
 export const ACTIVATION_REQUEST_EMBED_COLOR = 5_793_266;
 
 export interface ActivationRequestInput {
-  /** Where ops sends the activation code. */
+  /** Where ops sends the activation bearer. */
   email: string;
   /** GitHub account to invite as a platform-repo collaborator. */
   githubAccount: string;

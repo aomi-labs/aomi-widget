@@ -1,7 +1,4 @@
 {
-  "installCommand": "pnpm install --frozen-lockfile",
-  "buildCommand": "pnpm -w run vercel-build",
-  "outputDirectory": "apps/landing/.next",
   "rewrites": [
     {
       "source": "/_mintlify/:path*",
