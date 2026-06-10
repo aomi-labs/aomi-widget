@@ -6,6 +6,7 @@ import {
   fireEvent,
   render,
   screen,
+  within,
 } from "@testing-library/react";
 import { AomiRuntimeApiProvider, ExtUserProvider } from "@aomi-labs/react";
 import type { AomiAuthAdapter } from "@/lib/aomi-auth-adapter";
@@ -45,6 +46,7 @@ function makeAdapter(
       chainId: 1,
       svmAddress: "9xQpubKey",
       authProvider: "google",
+      walletProvider: "para",
       primaryLabel: "0xAAA..AA",
     },
     isReady: true,
@@ -164,16 +166,17 @@ describe("WalletPicker", () => {
     renderPicker(makeAdapter());
     expect(screen.getByText("Manage wallets")).toBeTruthy();
     const connectedLabel = screen.getByText("Connected");
-    // When connected, the social section reframes as account linking.
-    const accountsLabel = screen.getByText("Link additional accounts");
     const addLabel = screen.getByRole("button", { name: "Add another wallet" });
-    // Order is Connected -> Link additional accounts -> Add another wallet.
+    // Para isn't connected here (MetaMask + Phantom), so the Para sign-in row
+    // stays available under "Quick sign-in".
+    const quickSignInLabel = screen.getByText("Quick sign-in");
+    // Order is Connected -> Quick sign-in -> Add another wallet.
     expect(
-      connectedLabel.compareDocumentPosition(accountsLabel) &
+      connectedLabel.compareDocumentPosition(quickSignInLabel) &
         Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
     expect(
-      accountsLabel.compareDocumentPosition(addLabel) &
+      quickSignInLabel.compareDocumentPosition(addLabel) &
         Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
     expect(
@@ -203,7 +206,7 @@ describe("WalletPicker", () => {
     expect(
       screen.getByRole("button", { name: "Link WalletConnect" }),
     ).toBeTruthy();
-    expect(screen.getByText("Connect or link additional wallets")).toBeTruthy();
+    expect(screen.getByText("Other wallets")).toBeTruthy();
     // An already-connected brand (MetaMask) is not offered as an add option.
     expect(screen.queryByRole("button", { name: "Link MetaMask" })).toBeNull();
     expect(
@@ -393,11 +396,48 @@ describe("WalletPicker", () => {
 
   it("routes social sign-in through the adapter social action", async () => {
     const connectSocial = vi.fn(async () => undefined);
-    renderPicker(makeAdapter({ connectSocial }));
+    // Social sign-in shows only in the disconnected onboarding state.
+    renderPicker(
+      makeAdapter({
+        connectSocial,
+        identity: { status: "disconnected", isConnected: false },
+        accounts: [],
+      }),
+    );
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "Email or Google" }));
     });
     expect(connectSocial).toHaveBeenCalledWith("google");
+  });
+
+  it("brands the social row as the account provider with the method beneath", () => {
+    renderPicker(
+      makeAdapter({
+        identity: {
+          status: "disconnected",
+          isConnected: false,
+          walletProvider: "para",
+        },
+        accounts: [],
+      }),
+    );
+    const socialRow = screen.getByRole("button", { name: "Email or Google" });
+    // Title = provider brand ("Para"); subtitle = the sign-in method.
+    expect(within(socialRow).getByText("Para")).toBeTruthy();
+    expect(within(socialRow).getByText("Email or Google")).toBeTruthy();
+    // Provider brand mark, not the generic mail icon.
+    expect(within(socialRow).getByTitle("Para")).toBeTruthy();
+  });
+
+  it("falls back to the method label when no account provider brand exists", () => {
+    renderPicker(
+      makeAdapter({
+        identity: { status: "disconnected", isConnected: false },
+        accounts: [],
+      }),
+    );
+    const socialRow = screen.getByRole("button", { name: "Email or Google" });
+    expect(within(socialRow).queryByTitle("Para")).toBeNull();
   });
 
   it("stays open without a success popup after a direct wallet link", async () => {
@@ -450,5 +490,92 @@ describe("WalletPicker", () => {
     });
 
     expect(openAccountUI).toHaveBeenCalled();
+  });
+
+  it("shows a per-row manage action only for manageable wallets", async () => {
+    const openAccountUI = vi.fn(async () => undefined);
+    renderPicker(
+      makeAdapter({
+        openAccountUI,
+        accounts: [
+          {
+            id: "para",
+            family: "evm",
+            address: "0xAAAAAAAA",
+            walletName: "Para",
+            active: true,
+            manageable: true,
+          },
+          {
+            id: "phantom",
+            family: "solana",
+            address: "9xQpubKey",
+            walletName: "Phantom",
+            active: true,
+          },
+        ],
+      }),
+    );
+
+    // Para is manageable -> a manage button; Phantom isn't -> none.
+    expect(screen.getByRole("button", { name: "Manage Para" })).toBeTruthy();
+    expect(
+      screen.queryByRole("button", { name: "Manage Phantom" }),
+    ).toBeNull();
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Manage Para" }));
+    });
+
+    expect(openAccountUI).toHaveBeenCalledWith({ family: "evm" });
+  });
+
+  it("hides the social sign-in row when the Para account is connected", () => {
+    renderPicker(
+      makeAdapter({
+        accounts: [
+          {
+            id: "para",
+            family: "evm",
+            address: "0xAAAAAAAA",
+            walletName: "Para",
+            active: true,
+            manageable: true,
+          },
+        ],
+      }),
+    );
+
+    expect(screen.queryByText("Email or Google")).toBeNull();
+    expect(screen.queryByText("Link additional accounts")).toBeNull();
+    expect(screen.queryByText("Quick sign-in")).toBeNull();
+  });
+
+  it("shows the Para sign-in row when only external wallets are connected", () => {
+    // Default harness connects MetaMask + Phantom (no Para account), so Para
+    // stays reachable to (re)connect above "Add another wallet".
+    renderPicker(makeAdapter());
+    expect(screen.getByText("Email or Google")).toBeTruthy();
+    expect(screen.getByText("Quick sign-in")).toBeTruthy();
+  });
+
+  it("hides the per-row manage action when the adapter can't open account UI", () => {
+    renderPicker(
+      makeAdapter({
+        canOpenAccountUI: false,
+        accounts: [
+          {
+            id: "para",
+            family: "evm",
+            address: "0xAAAAAAAA",
+            walletName: "Para",
+            active: true,
+            manageable: true,
+          },
+        ],
+      }),
+    );
+
+    expect(screen.queryByRole("button", { name: "Manage Para" })).toBeNull();
   });
 });

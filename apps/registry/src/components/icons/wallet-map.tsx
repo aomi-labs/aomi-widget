@@ -8,6 +8,9 @@ import {
   RainbowIcon,
   WalletConnectIcon,
 } from "./wallets";
+// Reuse the brand mark already defined for the apps list so Para has a single
+// source of truth rather than a duplicate hand-drawn glyph.
+import { ParaIcon } from "./apps";
 
 const WALLET_ICONS: Record<string, FC<SVGProps<SVGSVGElement>>> = {
   base: BaseWalletIcon,
@@ -15,6 +18,7 @@ const WALLET_ICONS: Record<string, FC<SVGProps<SVGSVGElement>>> = {
   coinbase: CoinbaseWalletIcon,
   coinbasewallet: CoinbaseWalletIcon,
   metamask: MetaMaskIcon,
+  para: ParaIcon,
   phantom: PhantomIcon,
   rabby: RabbyIcon,
   rabbywallet: RabbyIcon,
@@ -42,6 +46,7 @@ export function getWalletIcon(
   if (key.includes("phantom")) return WALLET_ICONS.phantom;
   if (key.includes("rainbow")) return WALLET_ICONS.rainbow;
   if (key.includes("walletconnect")) return WALLET_ICONS.walletconnect;
+  if (key.includes("para")) return WALLET_ICONS.para;
   if (
     key.includes("baseaccount") ||
     key === "base" ||

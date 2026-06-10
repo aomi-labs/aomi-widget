@@ -16,6 +16,9 @@ import { getWalletIcon } from "../icons";
 const DEFAULT_SLOT = 36;
 const BRAND_RATIO = 24 / 36;
 const PHANTOM_RATIO = 27.6 / 36;
+// Para's mark reads heavier than the others at the shared ratio, so render it
+// 15% smaller to sit visually level with the rest.
+const PARA_RATIO = (24 * 0.85) / 36;
 const FALLBACK_RATIO = 16 / 36;
 
 export function WalletIconSlot({
@@ -33,11 +36,14 @@ export function WalletIconSlot({
 }) {
   const key = `${id ?? ""} ${label}`;
   const BrandIcon = getWalletIcon(key);
-  const isPhantom = key.toLowerCase().includes("phantom");
+  const lowerKey = key.toLowerCase();
+  const isPhantom = lowerKey.includes("phantom");
+  const isPara = lowerKey.includes("para");
   const slotStyle: CSSProperties = { width: size, height: size };
 
   if (BrandIcon) {
-    const mark = size * (isPhantom ? PHANTOM_RATIO : BRAND_RATIO);
+    const mark =
+      size * (isPhantom ? PHANTOM_RATIO : isPara ? PARA_RATIO : BRAND_RATIO);
     return (
       <span
         className={cn(
