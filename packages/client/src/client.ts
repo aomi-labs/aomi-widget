@@ -1,4 +1,5 @@
 import type {
+  AomiAccountProfile,
   AomiAppDescriptor,
   AomiClientOptions,
   AomiMessage,
@@ -132,6 +133,16 @@ function withSessionHeader(sessionId: string, init?: HeadersInit): HeadersInit {
   const headers = new Headers(init);
   headers.set(SESSION_ID_HEADER, sessionId);
   return headers;
+}
+
+async function fetchStateResponse(
+  fetchImpl: typeof fetch,
+  url: string,
+  sessionId: string,
+): Promise<Response> {
+  return fetchImpl(url, {
+    headers: withSessionHeader(sessionId),
+  });
 }
 
 function wrapFetchWithAccountBearer(
@@ -302,12 +313,15 @@ export class AomiClient {
     const normalizedUserState = stripBulkyPendingFields(
       UserState.normalize(userState),
     );
-    const url = buildApiUrl(this.baseUrl, "/api/state", {
+    const urlWithSyncParams = buildApiUrl(this.baseUrl, "/api/state", {
       user_state: normalizedUserState
         ? JSON.stringify(normalizedUserState)
         : undefined,
       client_id: clientId,
     });
+    const bareUrl = buildApiUrl(this.baseUrl, "/api/state");
+    const shouldRetryWithoutSyncParams =
+      Boolean(normalizedUserState) || Boolean(clientId);
 
     this.logger?.debug("[aomi][client] GET /api/state start", {
       sessionId,
@@ -315,9 +329,25 @@ export class AomiClient {
       hasUserState: Boolean(normalizedUserState),
     });
 
-    const response = await this.rawFetchImpl(url, {
-      headers: withSessionHeader(sessionId),
-    });
+    let response = await fetchStateResponse(
+      this.rawFetchImpl,
+      urlWithSyncParams,
+      sessionId,
+    );
+
+    if (
+      !response.ok &&
+      shouldRetryWithoutSyncParams &&
+      (response.status === 400 || response.status === 414)
+    ) {
+      this.logger?.debug("[aomi][client] GET /api/state retrying without sync params", {
+        sessionId,
+        initialStatus: response.status,
+        hadClientId: Boolean(clientId),
+        hadUserState: Boolean(normalizedUserState),
+      });
+      response = await fetchStateResponse(this.rawFetchImpl, bareUrl, sessionId);
+    }
 
     this.logger?.debug("[aomi][client] GET /api/state response", {
       sessionId,
@@ -775,6 +805,31 @@ export class AomiClient {
         return null;
       })
       .filter((item): item is AomiAppDescriptor => item !== null);
+  }
+
+  /**
+   * Fetch the account bound to the authenticated request (resolved from the
+   * account bearer). Returns `null` when the session is not bound to a real
+   * user — the backend answers `/api/settings/account` with HTTP 400 for
+   * anonymous sessions, which is the normal "no bearer / not logged in" case
+   * rather than an error.
+   */
+  async fetchAccountProfile(
+    sessionId: string,
+  ): Promise<AomiAccountProfile | null> {
+    const url = buildApiUrl(this.baseUrl, "/api/settings/account");
+    const response = await this.rawFetchImpl(url, {
+      headers: withSessionHeader(sessionId),
+    });
+
+    if (response.status === 400 || response.status === 401 || response.status === 403) {
+      return null;
+    }
+    if (!response.ok) {
+      throw new Error(`Failed to fetch account profile: HTTP ${response.status}`);
+    }
+
+    return (await response.json()) as AomiAccountProfile;
   }
 
   /**

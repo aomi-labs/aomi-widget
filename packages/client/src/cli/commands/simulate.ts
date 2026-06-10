@@ -1,9 +1,13 @@
-import { AomiClient } from "../../client";
 import { CliSession } from "../cli-session";
+import { createCliClient } from "../client-factory";
 import { fatal } from "../errors";
 import { DIM, GREEN, RESET } from "../output";
+import type { CliConfig } from "../types";
 
-export async function simulateCommand(txIds: string[]): Promise<void> {
+export async function simulateCommand(
+  config: CliConfig,
+  txIds: string[],
+): Promise<void> {
   const cli = CliSession.load();
   if (!cli) {
     fatal("No active session. Run `aomi chat` first.");
@@ -13,7 +17,7 @@ export async function simulateCommand(txIds: string[]): Promise<void> {
     fatal("Usage: aomi tx simulate <tx-id> [<tx-id> ...]\nRun `aomi tx list` to see available IDs.");
   }
 
-  const session = cli.createClientSession();
+  const session = cli.createClientSession(config);
   try {
     const apiState = await session.client.fetchState(
       cli.sessionId,
@@ -32,10 +36,16 @@ export async function simulateCommand(txIds: string[]): Promise<void> {
     `${DIM}Simulating ${txIds.length} transaction(s) as atomic batch...${RESET}`,
   );
 
-  const client = new AomiClient({
-    baseUrl: cli.baseUrl,
-    apiKey: cli.apiKey,
-  });
+  const client = createCliClient(
+    {
+      ...config,
+      secrets: config.secrets ?? {},
+    },
+    {
+      baseUrl: cli.baseUrl,
+      apiKey: cli.apiKey,
+    },
+  );
 
   const transactions = pendingTxs.map((tx) => ({
     to: tx.to ?? "",
