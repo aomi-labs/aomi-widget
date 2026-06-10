@@ -16,6 +16,7 @@ type SearchParams = Promise<{
   state?: string;
   app_id?: string;
   callback_url?: string;
+  signer_id?: string;
 }>;
 
 export const dynamic = "force-dynamic";
@@ -29,6 +30,7 @@ export default async function PrivyAuthPage({
     state,
     app_id: appId,
     callback_url: rawCallbackUrl,
+    signer_id: signerId,
   } = await searchParams;
   const callbackUrl = normalizeCallbackUrl(rawCallbackUrl);
 
@@ -47,8 +49,18 @@ export default async function PrivyAuthPage({
   }
 
   return (
-    <PrivyAuthClient state={state} appId={appId} callbackUrl={callbackUrl} />
+    <PrivyAuthClient
+      state={state}
+      appId={appId}
+      callbackUrl={callbackUrl}
+      signerId={normalizeSignerId(signerId)}
+    />
   );
+}
+
+function normalizeSignerId(value?: string): string | undefined {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : undefined;
 }
 
 function normalizeCallbackUrl(value?: string): string | undefined {
