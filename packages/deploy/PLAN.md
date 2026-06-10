@@ -97,11 +97,14 @@ lib (not taken from the caller) so the contract can't be forged.
 Written to `apps/<slug>/.aomi/deployment.json`. `contract-drift.test.ts` fixture-
 diffs this against real `aomi-git deploy` output to catch ADR-0004 drift.
 
-## Activate body (verified against backend `ActivateAppRequest` on main)
+## Activate body (verified against backend `ActivateAppReq`)
 
-`{ app_slug, platform, source_repo, app_release_tag, source_commit, is_public,
-   target_tags, github_token }` — Bearer = activation token; `github_token` =
-transient read PAT (one-shot fetch, never persisted by backend).
+`{ app_slug, platform, app_release_tag, source_commit, is_public, target_tags,
+   github_token, source_repo? }` — Bearer = activation token; `app_release_tag`
+is required; `source_repo` is optional for existing platforms because the
+backend infers it from `platforms.github_repo`. This client still sends the
+descriptor repo. `github_token` = transient read PAT (one-shot fetch, never
+persisted by backend).
 
 ## Build steps (in order)
 

@@ -12,8 +12,6 @@ export { DeploymentClient, assertServerOnly } from "./client";
 // ----- generators / utilities (pure, safe anywhere) -------------------------
 export {
   stageFiles,
-  buildDeploymentManifest,
-  validateManifest,
   normalizeGithubRepo,
   sha256Prefixed,
   RESERVED_MANIFEST_PATH,
