@@ -22,15 +22,23 @@
 // this browser (from a prior visit), `authenticated` will be true on mount —
 // in that case we just collect the cached credentials and POST. No re-prompt.
 
-import { PrivyProvider, usePrivy, useWallets } from "@privy-io/react-auth";
+import {
+  PrivyProvider,
+  type User,
+  useCreateWallet,
+  usePrivy,
+  useSigners,
+  useWallets,
+} from "@privy-io/react-auth";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 interface Props {
   state: string;
   appId: string;
+  signerId?: string;
 }
 
-export function PrivyAuthClient({ state, appId }: Props) {
+export function PrivyAuthClient({ state, appId, signerId }: Props) {
   return (
     <PrivyProvider
       appId={appId}
@@ -38,7 +46,7 @@ export function PrivyAuthClient({ state, appId }: Props) {
         // We only need an EVM embedded wallet for v1 (byreal perps + HL).
         // Solana wallet support gets added when we wire byreal spot/LP.
         embeddedWallets: {
-          ethereum: { createOnLogin: "users-without-wallets" },
+          ethereum: { createOnLogin: "all-users" },
         },
         loginMethods: ["email", "sms", "wallet"],
         appearance: {
@@ -47,7 +55,7 @@ export function PrivyAuthClient({ state, appId }: Props) {
         },
       }}
     >
-      <PrivyConnectFlow state={state} />
+      <PrivyConnectFlow state={state} signerId={signerId} />
     </PrivyProvider>
   );
 }
@@ -59,10 +67,18 @@ type Status =
   | { kind: "success"; address: string }
   | { kind: "error"; message: string };
 
-function PrivyConnectFlow({ state }: { state: string }) {
+function PrivyConnectFlow({
+  state,
+  signerId,
+}: {
+  state: string;
+  signerId?: string;
+}) {
   const { ready, authenticated, user, login, getAccessToken, logout } =
     usePrivy();
-  const { wallets } = useWallets();
+  const { createWallet } = useCreateWallet();
+  const { addSigners } = useSigners();
+  const { ready: walletsReady, wallets } = useWallets();
 
   const [status, setStatus] = useState<Status>({ kind: "loading" });
   const [hasSubmitted, setHasSubmitted] = useState(false);
@@ -87,16 +103,64 @@ function PrivyConnectFlow({ state }: { state: string }) {
 
   const submit = useCallback(async () => {
     if (hasSubmitted) return;
-    if (!user || !embeddedWallet) {
+    if (!user) {
       setStatus({
         kind: "error",
-        message: "No embedded wallet — Privy did not provision one.",
+        message: "No Privy user is authenticated.",
       });
       return;
     }
 
     setHasSubmitted(true);
     setStatus({ kind: "submitting" });
+
+    let walletAddress = embeddedWallet?.address;
+    let walletId = walletAddress
+      ? embeddedWalletIdForUser(user, walletAddress)
+      : null;
+
+    if (!walletAddress) {
+      try {
+        const createdWallet = await createWallet();
+        walletAddress = createdWallet.address;
+        walletId =
+          createdWallet.id ?? embeddedWalletIdForUser(user, walletAddress);
+      } catch (err) {
+        setStatus({
+          kind: "error",
+          message: `Could not create embedded Privy wallet: ${errMsg(err)}`,
+        });
+        setHasSubmitted(false);
+        return;
+      }
+    }
+
+    if (signerId) {
+      try {
+        const result = await addSigners({
+          address: walletAddress,
+          signers: [{ signerId, policyIds: [] }],
+        });
+        walletId =
+          walletId ?? embeddedWalletIdForUser(result.user, walletAddress);
+      } catch (err) {
+        setStatus({
+          kind: "error",
+          message: `Could not authorize Aomi signer: ${errMsg(err)}`,
+        });
+        setHasSubmitted(false);
+        return;
+      }
+    }
+
+    if (!walletId) {
+      setStatus({
+        kind: "error",
+        message: "Privy did not return a stable wallet id for the embedded wallet.",
+      });
+      setHasSubmitted(false);
+      return;
+    }
 
     let accessToken: string | null;
     try {
@@ -121,8 +185,8 @@ function PrivyConnectFlow({ state }: { state: string }) {
           state,
           access_token: accessToken,
           user_id: user.id,
-          wallet_id: embeddedWallet.address, // Privy uses address as wallet ID for embedded wallets in v3 SDK
-          wallet_address: embeddedWallet.address,
+          wallet_id: walletId,
+          wallet_address: walletAddress,
         }),
       });
       if (!res.ok) {
@@ -133,14 +197,23 @@ function PrivyConnectFlow({ state }: { state: string }) {
         });
         return;
       }
-      setStatus({ kind: "success", address: embeddedWallet.address });
+      setStatus({ kind: "success", address: walletAddress });
     } catch (err) {
       setStatus({
         kind: "error",
         message: `Callback request failed: ${errMsg(err)}`,
       });
     }
-  }, [embeddedWallet, getAccessToken, hasSubmitted, state, user]);
+  }, [
+    addSigners,
+    createWallet,
+    embeddedWallet,
+    getAccessToken,
+    hasSubmitted,
+    signerId,
+    state,
+    user,
+  ]);
 
   // Auto-submit once we have a wallet AND the user has already authenticated
   // in this browser (cached Privy session). On a fresh login, the user
@@ -150,12 +223,12 @@ function PrivyConnectFlow({ state }: { state: string }) {
     if (
       status.kind === "ready" &&
       authenticated &&
-      embeddedWallet &&
+      walletsReady &&
       !hasSubmitted
     ) {
       void submit();
     }
-  }, [authenticated, embeddedWallet, hasSubmitted, status.kind, submit]);
+  }, [authenticated, hasSubmitted, status.kind, submit, walletsReady]);
 
   return (
     <main className="bg-background text-foreground flex min-h-screen items-center justify-center px-6 py-12">
@@ -285,4 +358,20 @@ function ErrorBanner({ message }: { message: string }) {
 
 function errMsg(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
+}
+
+function embeddedWalletIdForUser(user: User, address: string): string | null {
+  const target = address.toLowerCase();
+
+  for (const account of user.linkedAccounts) {
+    if (
+      account.type === "wallet" &&
+      account.walletClientType === "privy" &&
+      account.address.toLowerCase() === target
+    ) {
+      return account.id ?? null;
+    }
+  }
+
+  return null;
 }

@@ -16,6 +16,7 @@ import { PrivyAuthClient } from "./privy-login-client";
 type SearchParams = Promise<{
   state?: string;
   app_id?: string;
+  signer_id?: string;
 }>;
 
 export const dynamic = "force-dynamic";
@@ -25,7 +26,7 @@ export default async function PrivyAuthPage({
 }: {
   searchParams: SearchParams;
 }) {
-  const { state, app_id: appId } = await searchParams;
+  const { state, app_id: appId, signer_id: signerId } = await searchParams;
 
   if (!state || !appId) {
     return (
@@ -41,5 +42,5 @@ export default async function PrivyAuthPage({
     );
   }
 
-  return <PrivyAuthClient state={state} appId={appId} />;
+  return <PrivyAuthClient state={state} appId={appId} signerId={signerId} />;
 }

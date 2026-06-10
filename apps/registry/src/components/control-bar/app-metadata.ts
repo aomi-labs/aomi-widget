@@ -222,16 +222,24 @@ function titleizeAppId(appId: string): string {
 export function getAppInfo(appId: string | null | undefined): AppInfo {
   const safeAppId = appId ?? "";
   const normalized = normalizeAppId(safeAppId);
+  if (!normalized) {
+    return {
+      id: "unknown",
+      displayName: "Unknown App",
+      abbr: "?",
+      category: APP_CATEGORIES.custom!,
+    };
+  }
   const canonicalId = APP_ALIASES[normalized] ?? normalized;
   const known = APP_DISPLAY_NAMES[canonicalId];
   if (known) {
-    return { id: safeAppId, ...known };
+    return { id: normalized, ...known };
   }
-  const displayName = titleizeAppId(safeAppId);
+  const displayName = titleizeAppId(normalized);
   return {
-    id: safeAppId,
+    id: normalized,
     displayName,
-    abbr: safeAppId.charAt(0).toUpperCase(),
+    abbr: normalized.charAt(0).toUpperCase(),
     category: APP_CATEGORIES.custom!,
   };
 }
@@ -240,6 +248,9 @@ export function groupAppsByCategory(apps: string[]): AppGroup[] {
   const grouped = new Map<string, AppInfo[]>();
 
   for (const app of apps) {
+    if (typeof app !== "string" || app.trim().length === 0) {
+      continue;
+    }
     const info = getAppInfo(app);
     const existing = grouped.get(info.category.id) ?? [];
     existing.push(info);

@@ -15,6 +15,12 @@ export interface AomiAuthEnv {
    *  query so the React SDK can boot. If unset, the Privy provider isn't
    *  registered and /api/auth/privy/* returns 404. */
   privyAppId?: string;
+  /** Privy's SPKI JWT verification key. Server-only. Privy auth remains
+   *  disabled when unset so browser-reported subjects are never trusted. */
+  privyJwtVerificationKey?: string;
+  /** Privy key quorum id to grant as an additional signer on login. Public;
+   *  the matching authorization private key stays server-side. */
+  privySignerId?: string;
 }
 
 export function readEnv(): AomiAuthEnv {
@@ -45,6 +51,17 @@ export function readEnv(): AomiAuthEnv {
   // NEXT_PUBLIC_PRIVY_APP_ID since it boots client-side.
   const privyAppId =
     process.env.PRIVY_APP_ID ?? process.env.NEXT_PUBLIC_PRIVY_APP_ID;
+  const privyJwtVerificationKey = process.env.PRIVY_JWT_VERIFICATION_KEY;
+  const privySignerId =
+    process.env.PRIVY_SIGNER_ID ?? process.env.NEXT_PUBLIC_PRIVY_SIGNER_ID;
 
-  return { beUrl, authToken, baseUrl, devUserId, privyAppId };
+  return {
+    beUrl,
+    authToken,
+    baseUrl,
+    devUserId,
+    privyAppId,
+    privyJwtVerificationKey,
+    privySignerId,
+  };
 }

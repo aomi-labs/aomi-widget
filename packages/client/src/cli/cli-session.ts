@@ -24,6 +24,7 @@ import {
 } from "./state";
 import { buildCliUserState } from "./user-state";
 import { fatal } from "./errors";
+import { parseSolanaKeypairSecret } from "./solana-signer";
 
 export class CliSession {
   private state: CliSessionState;
@@ -58,6 +59,16 @@ export class CliSession {
 
   /** Create a fresh session and persist it. */
   static create(config: CliConfig, seed?: CliSessionState): CliSession {
+    // Derive Solana public key from private key when provided.
+    let svmPublicKey: string | undefined;
+    if (config.solanaPrivateKey) {
+      try {
+        svmPublicKey = parseSolanaKeypairSecret(config.solanaPrivateKey).publicKey.toBase58();
+      } catch {
+        // Ignore — signing will produce a clearer error at sign time.
+      }
+    }
+
     const state: CliSessionState = {
       sessionId: crypto.randomUUID(),
       clientId: crypto.randomUUID(),
@@ -67,6 +78,11 @@ export class CliSession {
       apiKey: config.apiKey ?? seed?.apiKey,
       publicKey: config.publicKey ?? seed?.publicKey,
       privateKey: config.privateKey ?? seed?.privateKey,
+      svmPublicKey: svmPublicKey ?? seed?.svmPublicKey,
+      // Carry forward the persisted Solana private key so `wallet set --solana`
+      // survives `--new-session` — signing key is a user preference, not a
+      // per-session artifact.
+      svmPrivateKey: config.solanaPrivateKey ?? seed?.svmPrivateKey,
       chainId: config.chain ?? seed?.chainId,
       secretHandles: seed?.secretHandles,
     };
@@ -91,6 +107,9 @@ export class CliSession {
   get model(): string | undefined {
     return this.state.model;
   }
+  get modelSynced(): boolean {
+    return this.state.modelSynced === true;
+  }
   get apiKey(): string | undefined {
     return this.state.apiKey;
   }
@@ -99,6 +118,9 @@ export class CliSession {
   }
   get privateKey(): string | undefined {
     return this.state.privateKey;
+  }
+  get svmPublicKey(): string | undefined {
+    return this.state.svmPublicKey;
   }
   get chainId(): number | undefined {
     return this.state.chainId;
@@ -151,6 +173,18 @@ export class CliSession {
       this.state.publicKey = config.publicKey;
       changed = true;
     }
+    // Derive and persist the Solana public key when a keypair secret is provided.
+    if (config.solanaPrivateKey !== undefined) {
+      try {
+        const svmPub = parseSolanaKeypairSecret(config.solanaPrivateKey).publicKey.toBase58();
+        if (svmPub !== this.state.svmPublicKey) {
+          this.state.svmPublicKey = svmPub;
+          changed = true;
+        }
+      } catch {
+        // Ignore parse failures — signing will produce a clearer error at sign time.
+      }
+    }
     if (config.chain !== undefined && config.chain !== this.state.chainId) {
       this.state.chainId = config.chain;
       changed = true;
@@ -165,6 +199,7 @@ export class CliSession {
 
   setModel(model: string): void {
     this.state.model = model;
+    this.state.modelSynced = true;
     this.save();
   }
 
@@ -187,6 +222,19 @@ export class CliSession {
     this.state.privateKey = privateKey;
     this.state.publicKey = publicKey;
     this.save();
+  }
+
+  setSvmWallet(privateKey: string, publicKey: string): void {
+    this.state.svmPrivateKey = privateKey;
+    this.state.svmPublicKey = publicKey;
+    this.save();
+  }
+
+  /** The Solana private key to use for signing. Prefers the transiently-
+   * supplied `solanaPrivateKey` from `CliConfig` (i.e. `--solana-private-key`)
+   * and falls back to the key persisted by `wallet set --solana`. */
+  resolvedSvmPrivateKey(fromConfig?: string): string | undefined {
+    return fromConfig ?? this.state.svmPrivateKey;
   }
 
   setChainId(id: number): void {
@@ -355,8 +403,10 @@ export class CliSession {
       },
     );
     session.resolveUserState(buildCliUserState(this.state.publicKey, this.state.chainId, {
+      app: this.state.app,
       aaMode: this.state.aaMode ?? null,
       smartAccount: this.state.smartAccount ?? null,
+      svmAddress: this.state.svmPublicKey,
     }));
     return session;
   }

@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   hydrateTxPayloadFromUserState,
   normalizeEip712Payload,
+  normalizeSolanaWalletRequest,
   normalizeTxPayload,
   toViemSignMessageArgs,
 } from "../src/index";
@@ -249,6 +250,50 @@ describe("wallet payload normalization", () => {
         message: { owner: "0x123" },
       },
       description: "Permit2 signature",
+    });
+  });
+
+  it("normalizes backend svm wallet_tx_request payloads into a Solana send request", () => {
+    expect(
+      normalizeSolanaWalletRequest({
+        chain_kind: "svm",
+        svm_tx_ids: [12],
+        request_kind: "send_transaction",
+        unsigned_tx: "U0VORE1F",
+        cluster: "solana:devnet",
+        description: "send 0.01 SOL",
+        pending_solana_id: 12,
+      }),
+    ).toEqual({
+      kind: "solana_send",
+      payload: {
+        unsignedTx: "U0VORE1F",
+        description: "send 0.01 SOL",
+        cluster: "solana:devnet",
+        pendingSolanaId: 12,
+      },
+    });
+  });
+
+  it("normalizes backend svm message_sign payloads into a Solana message-sign request", () => {
+    expect(
+      normalizeSolanaWalletRequest({
+        chain_kind: "svm",
+        request_kind: "message_sign",
+        kind: "solana_sign_message",
+        message_base64: "TWVtbw==",
+        cluster: "solana:devnet",
+        description: "sign login proof",
+        pending_solana_id: 17,
+      }),
+    ).toEqual({
+      kind: "solana_sign_message",
+      payload: {
+        message: "TWVtbw==",
+        description: "sign login proof",
+        cluster: "solana:devnet",
+        pendingSolanaId: 17,
+      },
     });
   });
 

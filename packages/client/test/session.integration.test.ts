@@ -15,7 +15,7 @@ import type { AomiMessage, SendResult, SessionEventMap } from "../src/index";
 // Setup
 // =============================================================================
 
-const BACKEND_URL = "https://api.aomi.dev";
+const BACKEND_URL = process.env.AOMI_BASE_URL ?? "https://api.aomi.dev";
 const TEST_TIMEOUT = 30_000; // 30s — AI responses can be slow
 const describeLive = process.env.AOMI_LIVE_TESTS === "1" ? describe : describe.skip;
 
