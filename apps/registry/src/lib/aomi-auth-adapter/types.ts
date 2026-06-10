@@ -178,6 +178,13 @@ export type AomiAccount = {
   connectorIds?: string[];
   /** True when this is the live account for its family. */
   active: boolean;
+  /**
+   * True when this account exposes an in-app management surface (e.g. the Para
+   * account modal). UIs render a "manage" affordance for it; external wallets
+   * managed only in their own extension (MetaMask, Phantom) leave it unset.
+   * The handler is the adapter's `openAccountUI({ family })`.
+   */
+  manageable?: boolean;
 };
 
 export type AomiTxResult = {
