@@ -2,9 +2,21 @@
 
 ## Last Updated
 
-2026-06-10 - Fixed EVM wallet flashing + dead network switcher after an EVM network switch (multi-wallet)
+2026-06-10 - Debloated network selector: collapse testnets, lighter rows, Command primitive + gated search (multi-wallet)
 
 ## Recent Changes
+
+### Network selector debloat: testnet collapse + lighter rows + Command primitive (2026-06-10)
+
+Branch `polish-multi-wallet`. `network-select.tsx` + `network-select.test.tsx` + `vitest.setup.ts`. GUI only; adapter/backend contract unchanged. Driven by "the list looks bloated" — 13 rows with testnets at full weight.
+
+- **Collapse testnets behind a "Show testnets" toggle.** Mainnets show by default; testnets fold behind a footer toggle that advertises the hidden count ("3 hidden"). Partition is derived, not configured: `chain.testnet === true` for EVM, `cluster !== "solana:mainnet"` for SVM. Default landing view drops from 13 rows to 8. Toggle state persists to a standalone localStorage key (`aomi.network-select.show-testnets`) — kept out of `WalletPreferences` since it's a display pref, not a wallet selection. **Edge cases:** if the *active* network is a testnet the rows stay visible and the toggle is suppressed (can't hide the network you're on); a non-empty search query also forces testnets visible so search can jump to one ("sep" → Sepolia) while collapsed.
+- **Lighter rows.** Only the live network carries a filled icon chip (`bg-primary/10`); inactive rows show a bare brand mark (`text-muted-foreground`), so the list reads as one clean column instead of a stack of grey boxes.
+- **Rebuilt on the `Command` (cmdk) primitive** — same as the App/Model selectors, for keyboard nav + structural consistency. Kept real chain names in rows (per the earlier "row titles keep real names" decision); did NOT shorten labels.
+- **Search input is count-gated, not always-on.** Decided against a permanent search box: at ~8 branded rows it's chrome that re-bloats what we just trimmed, and logo-recognition beats typing for a small set. `CommandInput` renders only when the default (mainnet) list exceeds `SEARCH_VISIBLE_THRESHOLD` (=10) — so it stays hidden at today's scale but appears for hosts that configure many custom chains. One constant to tune (0 = always show). Search reveals testnets when active.
+- **Kept intact:** connection-aware family gating (EVM-only → no SVM rows, etc.), trigger chips ("Base / Mainnet"), the destructive-SVM-switch confirm dialog, the wallet-activation guard, and the `≤1 switchable target → render null` guard (counts all targets incl. testnets).
+- **Test env:** cmdk needs `ResizeObserver` + `Element.scrollIntoView`, both absent in jsdom — added no-op stubs to `vitest.setup.ts` (also unblocks future cmdk-based component tests). Reworked the 4 network-select tests for cmdk's `role="option"` items; added 2 cases (testnet hidden-by-default + toggle reveal; active-testnet keeps rows visible + suppresses toggle). 53 registry tests green, lint clean, typecheck clean except the pre-existing `GITHUB` OAuth-label error (`para.tsx:231`).
+- **Not yet eyeballed live** (preview infra was flaky this session): verify the dropdown visually — testnet collapse/expand, lighter rows, trigger unchanged. Layout separation (Axis B: unified list vs two control-bar pills) was discussed and deferred — staying on the unified popover for now.
 
 ### EVM network switch killed the wallet connection (flash loop + dead switcher) (2026-06-10)
 

@@ -1,10 +1,18 @@
 "use client";
 
-import { Fragment, useMemo, useState, type FC, type SVGProps } from "react";
+import { useMemo, useState, type FC, type SVGProps } from "react";
 import { CheckIcon, ChevronDownIcon } from "lucide-react";
 import { cn, getChainInfo } from "@aomi-labs/react";
 import type { Chain } from "viem";
 import { Button } from "@/components/ui/button";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
 import {
   Dialog,
   DialogContent,
@@ -45,7 +53,11 @@ type NetworkRow = {
   Icon?: GlyphIcon;
   /** Two-letter fallback when no brand mark exists (EVM only). */
   fallback: string;
+  /** Mainnets show by default; testnets fold behind the "Show testnets" toggle. */
+  isTestnet: boolean;
   isActive: boolean;
+  /** Free-text the search input matches against (name + family + ticker/cluster). */
+  searchValue: string;
   target: AomiNetworkTarget;
 };
 
@@ -54,8 +66,46 @@ type NetworkSection = {
   rows: NetworkRow[];
 };
 
+/**
+ * Show the search box only once the default (mainnet) list is long enough that
+ * scanning gets slow. At the typical handful of curated chains a search box is
+ * just chrome, so it stays hidden — matching the App/Model selectors' intent
+ * (search earns its place on large catalogs) without bloating the small case.
+ * One number to tune: drop it to 0 to always show search, raise it to never.
+ */
+const SEARCH_VISIBLE_THRESHOLD = 10;
+
+/** Standalone UI preference (not a wallet selection), so it lives outside WalletPreferences. */
+const TESTNET_PREF_KEY = "aomi.network-select.show-testnets";
+
+function readShowTestnetsPref(): boolean {
+  if (typeof window === "undefined") return false;
+  try {
+    return window.localStorage.getItem(TESTNET_PREF_KEY) === "true";
+  } catch {
+    return false;
+  }
+}
+
+function writeShowTestnetsPref(value: boolean): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(TESTNET_PREF_KEY, value ? "true" : "false");
+  } catch {
+    // best-effort — preference is non-critical.
+  }
+}
+
 function familyLabel(family: WalletFamily): string {
   return family === "solana" ? "SVM" : "EVM";
+}
+
+function isTestnetChain(chain: Chain): boolean {
+  return chain.testnet === true;
+}
+
+function isSolanaMainnet(network: SolanaNetworkOption): boolean {
+  return network.cluster === "solana:mainnet";
 }
 
 function formatSolanaBadge(network: SolanaNetworkOption): string {
@@ -75,6 +125,10 @@ export const NetworkSelect: FC<NetworkSelectProps> = ({
   const selectedEvmChainId = networkPreferences?.selectedEvmChainId;
   const selectedSolanaNetwork = networkPreferences?.selectedSolanaNetwork;
   const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const [showTestnets, setShowTestnets] = useState<boolean>(
+    readShowTestnetsPref,
+  );
   const [pendingTarget, setPendingTarget] = useState<AomiNetworkTarget | null>(
     null,
   );
@@ -93,8 +147,7 @@ export const NetworkSelect: FC<NetworkSelectProps> = ({
   const evmConnected = Boolean(identity.address);
   const solanaConnected = Boolean(identity.svmAddress);
   const anyConnected = evmConnected || solanaConnected;
-  const showEvm =
-    evmChains.length > 0 && (anyConnected ? evmConnected : true);
+  const showEvm = evmChains.length > 0 && (anyConnected ? evmConnected : true);
   const showSolana =
     solanaNetworks.length > 0 && (anyConnected ? solanaConnected : true);
 
@@ -119,7 +172,9 @@ export const NetworkSelect: FC<NetworkSelectProps> = ({
             title: chain.name,
             Icon: getChainIcon(chain.id),
             fallback: ticker.slice(0, 2),
+            isTestnet: isTestnetChain(chain),
             isActive: activeEvmChainId === chain.id,
+            searchValue: `${chain.name} evm ${ticker} ${chain.id}`,
             target: { family: "evm", chainId: chain.id },
           };
         }),
@@ -134,7 +189,9 @@ export const NetworkSelect: FC<NetworkSelectProps> = ({
           title: network.label,
           Icon: SolanaIcon,
           fallback: formatSolanaBadge(network).slice(0, 2),
+          isTestnet: !isSolanaMainnet(network),
           isActive: activeSolanaNetwork?.id === network.id,
+          searchValue: `${network.label} svm solana ${formatSolanaBadge(network)} ${network.id}`,
           target: { family: "solana", networkId: network.id },
         })),
       });
@@ -175,13 +232,31 @@ export const NetworkSelect: FC<NetworkSelectProps> = ({
       });
     }
     return chips;
-  }, [showEvm, showSolana, activeEvmChain, activeEvmChainId, activeSolanaNetwork]);
+  }, [
+    showEvm,
+    showSolana,
+    activeEvmChain,
+    activeEvmChainId,
+    activeSolanaNetwork,
+  ]);
 
   const showGroupHeaders = sections.length > 1;
-  const visibleTargetCount = sections.reduce(
-    (total, section) => total + section.rows.length,
-    0,
+  const allRows = sections.flatMap((section) => section.rows);
+  const visibleTargetCount = allRows.length;
+  const mainnetCount = allRows.filter((row) => !row.isTestnet).length;
+  const testnetCount = visibleTargetCount - mainnetCount;
+  // The active network being a testnet forces them visible — never hide the
+  // row the user is currently on. Search reveals testnets too, so a query can
+  // jump straight to one ("sep" → Sepolia) even while the list is collapsed.
+  const activeIsTestnet = allRows.some(
+    (row) => row.isActive && row.isTestnet,
   );
+  const searching = query.trim().length > 0;
+  const testnetsExpanded = showTestnets || activeIsTestnet || searching;
+  const showSearch = mainnetCount > SEARCH_VISIBLE_THRESHOLD;
+  // The toggle is redundant while searching (search surfaces testnets) and when
+  // the active network is itself a testnet (they're already shown, unhideable).
+  const showTestnetToggle = testnetCount > 0 && !searching && !activeIsTestnet;
 
   if (visibleTargetCount <= 1) {
     return null;
@@ -210,9 +285,56 @@ export const NetworkSelect: FC<NetworkSelectProps> = ({
     await applyTarget(target);
   };
 
+  const handleOpenChange = (next: boolean) => {
+    setOpen(next);
+    // Reset the search each time the popover closes so it reopens clean.
+    if (!next) setQuery("");
+  };
+
+  const toggleTestnets = () => {
+    setShowTestnets((current) => {
+      const next = !current;
+      writeShowTestnetsPref(next);
+      return next;
+    });
+  };
+
+  const renderRow = (row: NetworkRow) => {
+    if (row.isTestnet && !testnetsExpanded) return null;
+    return (
+      <CommandItem
+        key={row.key}
+        value={row.searchValue}
+        onSelect={() => void handleTargetSelect(row.target)}
+        className={cn(
+          "flex items-center gap-2 rounded-lg px-2 py-1.5",
+          row.isActive && "bg-accent",
+        )}
+      >
+        <span
+          className={cn(
+            "flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-[10px] font-medium uppercase",
+            // Lighter rows: only the live network carries a filled chip; the
+            // rest show a bare brand mark so the list reads as one clean column
+            // instead of a stack of grey boxes.
+            row.isActive
+              ? "bg-primary/10 text-primary"
+              : "text-muted-foreground",
+          )}
+        >
+          {row.Icon ? <row.Icon className="h-4 w-4" /> : row.fallback}
+        </span>
+        <span className="min-w-0 flex-1 truncate">{row.title}</span>
+        {row.isActive && (
+          <CheckIcon className="text-primary h-4 w-4 shrink-0" />
+        )}
+      </CommandItem>
+    );
+  };
+
   return (
     <>
-      <Popover open={open} onOpenChange={setOpen}>
+      <Popover open={open} onOpenChange={handleOpenChange}>
         <PopoverTrigger asChild>
           <Button
             variant="ghost"
@@ -234,7 +356,7 @@ export const NetworkSelect: FC<NetworkSelectProps> = ({
                 <span className="truncate">Network</span>
               ) : (
                 triggerChips.map((chip, index) => (
-                  <Fragment key={chip.family}>
+                  <span key={chip.family} className="flex items-center gap-1.5">
                     {index > 0 && (
                       <span
                         className="text-muted-foreground/40"
@@ -247,7 +369,7 @@ export const NetworkSelect: FC<NetworkSelectProps> = ({
                       <chip.Icon className="h-3.5 w-3.5 shrink-0" />
                     )}
                     <span className="truncate">{chip.label}</span>
-                  </Fragment>
+                  </span>
                 ))
               )}
             </span>
@@ -257,7 +379,7 @@ export const NetworkSelect: FC<NetworkSelectProps> = ({
         <PopoverContent
           align="start"
           sideOffset={4}
-          className="w-[240px] rounded-xl p-1"
+          className="w-[260px] overflow-hidden rounded-xl p-0"
           onOpenAutoFocus={(event) => {
             if (
               typeof window.matchMedia === "function" &&
@@ -267,45 +389,45 @@ export const NetworkSelect: FC<NetworkSelectProps> = ({
             }
           }}
         >
-          {sections.map((section) => (
-            <div key={section.family} className="flex flex-col gap-0.5">
-              {showGroupHeaders && (
-                <div className="text-muted-foreground px-2 pb-0.5 pt-1.5 text-[10px] font-medium uppercase tracking-wide first:pt-0.5">
-                  {familyLabel(section.family)}
-                </div>
-              )}
-              {section.rows.map((row) => (
-                <button
-                  key={row.key}
-                  type="button"
-                  onClick={() => void handleTargetSelect(row.target)}
-                  className={cn(
-                    "flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-sm outline-none transition-colors",
-                    "hover:bg-accent hover:text-accent-foreground",
-                    "focus-visible:bg-accent focus-visible:text-accent-foreground",
-                    row.isActive && "bg-accent",
-                  )}
+          <Command className="rounded-xl">
+            {showSearch && (
+              <CommandInput
+                placeholder="Search networks..."
+                value={query}
+                onValueChange={setQuery}
+              />
+            )}
+            <CommandList className="max-h-[300px] p-1">
+              <CommandEmpty>No networks found.</CommandEmpty>
+              {sections.map((section) => (
+                <CommandGroup
+                  key={section.family}
+                  heading={showGroupHeaders ? familyLabel(section.family) : undefined}
+                  className="p-0"
                 >
-                  <span
-                    className={cn(
-                      "bg-muted text-muted-foreground flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-[10px] font-medium uppercase",
-                      row.isActive && "bg-primary/10 text-primary",
-                    )}
-                  >
-                    {row.Icon ? (
-                      <row.Icon className="h-4 w-4" />
-                    ) : (
-                      row.fallback
-                    )}
-                  </span>
-                  <span className="min-w-0 flex-1 truncate">{row.title}</span>
-                  {row.isActive && (
-                    <CheckIcon className="text-primary h-4 w-4 shrink-0" />
-                  )}
-                </button>
+                  {section.rows.map(renderRow)}
+                </CommandGroup>
               ))}
-            </div>
-          ))}
+            </CommandList>
+            {showTestnetToggle && (
+              <button
+                type="button"
+                onClick={toggleTestnets}
+                className="text-muted-foreground hover:bg-accent flex w-full items-center justify-between gap-2 border-t px-3 py-2 text-xs transition-colors"
+              >
+                <span>{testnetsExpanded ? "Hide testnets" : "Show testnets"}</span>
+                <span className="flex items-center gap-1">
+                  {!testnetsExpanded && <span>{testnetCount} hidden</span>}
+                  <ChevronDownIcon
+                    className={cn(
+                      "h-3.5 w-3.5 transition-transform",
+                      testnetsExpanded && "rotate-180",
+                    )}
+                  />
+                </span>
+              </button>
+            )}
+          </Command>
         </PopoverContent>
       </Popover>
 
