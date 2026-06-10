@@ -1,7 +1,6 @@
 "use client";
 
 import {
-  Fragment,
   useCallback,
   useEffect,
   useMemo,
@@ -17,6 +16,7 @@ import {
   LogOutIcon,
   MailIcon,
   PlusIcon,
+  Settings2Icon,
   UserRoundIcon,
   WalletIcon,
   XIcon,
@@ -26,6 +26,7 @@ import {
   useAomiAuthAdapter,
   formatAddress,
   formatAuthProvider,
+  formatWalletProvider,
   useWalletActivationGuard,
 } from "../../lib/aomi-auth-adapter";
 import type {
@@ -190,6 +191,9 @@ export function WalletPicker() {
     () => (identity.isConnected ? [...evmAccounts, ...solanaAccounts] : []),
     [evmAccounts, identity.isConnected, solanaAccounts],
   );
+  const canManageAccounts = Boolean(
+    adapter.openAccountUI && adapter.canOpenAccountUI,
+  );
 
   const walletActions = useMemo<WalletAction[]>(() => {
     const evmWallets =
@@ -296,7 +300,15 @@ export function WalletPicker() {
   const socialLoginOptions = adapter.socialLoginOptions ?? [];
   const providerSubtitle =
     identity.secondaryLabel ?? formatAuthProvider(identity.authProvider);
+  // Social sign-in goes through the account provider (Para), so the row reads
+  // as the provider brand ("Para") with the method ("Email or Google") beneath.
+  const providerBrandLabel = formatWalletProvider(identity.walletProvider);
   const hasConnectedWallets = connectedAccounts.length > 0;
+  // The provider sign-in row (Para / "Email or Google") shows whenever Para is
+  // NOT connected — so it stays reachable to (re)connect even alongside other
+  // wallets — and hides once Para itself is connected.
+  const paraAccountConnected = connectedAccounts.some((a) => a.manageable);
+  const socialOptionsToShow = paraAccountConnected ? [] : socialLoginOptions;
   const hasManageAccount = identity.isConnected;
   const pickerTitle = hasConnectedWallets
     ? "Manage wallets"
@@ -305,17 +317,15 @@ export function WalletPicker() {
     ? "Switch wallets or link another one."
     : "Sign in quickly, or connect a wallet.";
 
-  const quickSignInSection = socialLoginOptions.length ? (
+  const quickSignInSection = socialOptionsToShow.length ? (
     <section className="flex flex-col gap-1.5">
-      <SectionLabel>
-        {hasConnectedWallets ? "Link additional accounts" : "Quick sign-in"}
-      </SectionLabel>
-      {socialLoginOptions.map((option) => (
+      <SectionLabel>Quick sign-in</SectionLabel>
+      {socialOptionsToShow.map((option) => (
         <SocialLoginRow
           key={option.id}
           option={option}
           pending={pending}
-          linkedMode={hasConnectedWallets}
+          brandLabel={providerBrandLabel}
           onClick={() =>
             void runAction(`social:${option.id}`, async () => {
               if (adapter.connectSocial) {
@@ -378,6 +388,15 @@ export function WalletPicker() {
                 )
             : undefined
         }
+        onManage={
+          account.manageable && canManageAccounts
+            ? () =>
+                void runAction(`manage:${account.id}`, async () => {
+                  await adapter.openAccountUI?.({ family: account.family });
+                  closePicker();
+                })
+            : undefined
+        }
       />
     );
   };
@@ -415,22 +434,16 @@ export function WalletPicker() {
     />
   );
 
-  // EVM and Solana connect options are visually split with a hairline so a
-  // dual-chain wallet (e.g. Phantom appearing on both) doesn't read as a dupe.
+  // Connect options render as one flat list — EVM brands, then Solana brands,
+  // then the "Other wallets" full-list row — with no separators between
+  // families.
   const renderGroupedActions = (actions: WalletAction[]) => {
-    const groups = [
-      actions.filter((a) => a.family === "evm"),
-      actions.filter((a) => a.family === "solana"),
-      actions.filter((a) => a.family !== "evm" && a.family !== "solana"),
-    ].filter((group) => group.length > 0);
-    return groups.map((group, index) => (
-      <Fragment key={index}>
-        {index > 0 ? (
-          <div className="bg-border/60 mx-2 my-1 h-px" aria-hidden="true" />
-        ) : null}
-        {group.map(renderWalletActionRow)}
-      </Fragment>
-    ));
+    const ordered = [
+      ...actions.filter((a) => a.family === "evm"),
+      ...actions.filter((a) => a.family === "solana"),
+      ...actions.filter((a) => a.family !== "evm" && a.family !== "solana"),
+    ];
+    return ordered.map(renderWalletActionRow);
   };
 
   const addWalletSection = addableWalletActions.length
@@ -555,6 +568,9 @@ export function WalletPicker() {
           {hasConnectedWallets ? (
             <>
               {connectedSection}
+              {(quickSignInSection || addWalletSection) && (
+                <div className="bg-border/70 h-px" aria-hidden="true" />
+              )}
               {quickSignInSection}
               {addWalletSection}
             </>
@@ -642,6 +658,7 @@ function FamilyStatusRow({
   pending,
   onSelect,
   onDisconnect,
+  onManage,
 }: {
   family: WalletFamily;
   account?: AomiAccount;
@@ -649,11 +666,13 @@ function FamilyStatusRow({
   pending: string | null;
   onSelect?: () => void;
   onDisconnect?: () => void;
+  onManage?: () => void;
 }) {
   const disconnectKey =
     family === "evm" && account
       ? `disconnect:${account.id}`
       : "disconnect:solana";
+  const manageKey = account ? `manage:${account.id}` : undefined;
   const selectKey = account ? `select:${account.id}` : undefined;
   const name = account?.walletName ?? familyLabel(family);
   const selectable = Boolean(onSelect);
@@ -710,15 +729,11 @@ function FamilyStatusRow({
           )}
         >
           {inner}
-          <span className="ml-1 flex shrink-0 items-center">
-            {isSelecting ? (
+          {isSelecting ? (
+            <span className="ml-1 flex shrink-0 items-center">
               <Loader2Icon className="text-muted-foreground size-4 animate-spin" />
-            ) : (
-              <span className="text-muted-foreground/70 text-[11px] font-medium opacity-0 transition-opacity duration-200 group-hover:opacity-100">
-                Switch
-              </span>
-            )}
-          </span>
+            </span>
+          ) : null}
         </button>
       ) : (
         <div className="flex min-w-0 flex-1 items-center gap-3 px-3 py-2.5">
@@ -726,10 +741,14 @@ function FamilyStatusRow({
         </div>
       )}
       <div className="flex shrink-0 items-center gap-1 py-2.5 pl-1 pr-2.5">
-        {account?.active ? (
-          <span className="animate-in fade-in zoom-in-95 bg-primary/10 text-primary shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium duration-200">
-            Active
-          </span>
+        {onManage ? (
+          <RowIconButton
+            icon={Settings2Icon}
+            ariaLabel={`Manage ${name}`}
+            disabled={pending !== null}
+            loading={pending === manageKey}
+            onClick={onManage}
+          />
         ) : null}
         {onDisconnect ? (
           <RowIconButton
@@ -762,21 +781,18 @@ function WalletActionRow({
     wallet.status === "qr" ||
     wallet.status === "unavailable";
   const actionVerb = linkedMode ? "Link" : "Connect";
+  const isMore = wallet.id === MORE_WALLET_OPTIONS_ID;
   const description =
     wallet.description ??
     (wallet.family === "solana"
       ? `${actionVerb} a Solana wallet`
       : `${actionVerb} an Ethereum wallet`);
-  const visibleLabel =
-    linkedMode && wallet.id === MORE_WALLET_OPTIONS_ID
-      ? "Connect or link additional wallets"
-      : wallet.label;
-  const visibleDescription =
-    linkedMode && wallet.id === MORE_WALLET_OPTIONS_ID
-      ? "Open the full wallet list"
-      : linkedMode
-        ? description.replace(/^Connect /, "Link ")
-        : description;
+  const visibleLabel = isMore ? "Other wallets" : wallet.label;
+  const visibleDescription = isMore
+    ? "Open the full wallet list"
+    : linkedMode
+      ? description.replace(/^Connect /, "Link ")
+      : description;
 
   return (
     <button
@@ -819,17 +835,19 @@ function WalletActionRow({
 function SocialLoginRow({
   option,
   pending,
-  linkedMode,
+  brandLabel,
   onClick,
 }: {
   option: AomiWalletOption;
   pending: string | null;
-  linkedMode: boolean;
+  /** Account-provider brand (e.g. "Para") shown as the row title, with the
+   * sign-in method ("Email or Google") beneath it. Falls back to the method
+   * label + mail icon when the provider has no brand. */
+  brandLabel?: string;
   onClick: () => void;
 }) {
-  const description = linkedMode
-    ? "Add an Aomi account"
-    : (option.description ?? "Use an Aomi account");
+  const title = brandLabel ?? option.label;
+  const subtitle = brandLabel ? option.label : (option.description ?? "Use an Aomi account");
   return (
     <button
       type="button"
@@ -841,15 +859,17 @@ function SocialLoginRow({
         "disabled:pointer-events-none disabled:opacity-50",
       )}
     >
-      <span className="bg-muted/50 text-muted-foreground flex size-9 shrink-0 items-center justify-center rounded-xl">
-        <MailIcon className="size-4" />
-      </span>
-      <span className="min-w-0 flex-1">
-        <span className="block truncate text-sm font-medium">
-          {option.label}
+      {brandLabel ? (
+        <WalletIconSlot id={brandLabel} label={brandLabel} />
+      ) : (
+        <span className="bg-muted/50 text-muted-foreground flex size-9 shrink-0 items-center justify-center rounded-xl">
+          <MailIcon className="size-4" />
         </span>
+      )}
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-sm font-medium">{title}</span>
         <span className="text-muted-foreground block truncate text-[11px]">
-          {description}
+          {subtitle}
         </span>
       </span>
       {pending === `social:${option.id}` ? (
