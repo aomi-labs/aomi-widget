@@ -1,13 +1,9 @@
 import { Octokit } from "@octokit/rest";
 
 import { ActivationError, BrowserEnvironmentError, DeployError, TagWideningError } from "./errors";
-import {
-  buildDeploymentManifest,
-  stageFiles,
-  validateManifest,
-} from "./deployment-json";
+import { stageFiles, toBytes } from "./deployment-json";
 import { assertValidCommit, deriveSourceCommit } from "./release-tag";
-import { GitHubCommitter, type GitHubRestClient } from "./github";
+import { GitHubStatusReader, type GitHubRestClient } from "./github";
 import {
   buildActivationRequest,
   buildActivationRequestDiscordBody,
@@ -22,6 +18,7 @@ import type {
   DeployInput,
   DeployResult,
   DeploymentClientOptions,
+  SourceBundle,
   StatusResult,
 } from "./types";
 
@@ -42,7 +39,7 @@ const SLUG_RE = /^[a-z0-9][a-z0-9-]*$/;
 export class DeploymentClient {
   private readonly opts: DeploymentClientOptions;
   private readonly descriptor: PlatformDescriptor;
-  private readonly committer: GitHubCommitter;
+  private readonly statusReader: GitHubStatusReader;
   private readonly branch: string;
   private readonly tagPrefix: string;
 
@@ -53,8 +50,10 @@ export class DeploymentClient {
     this.descriptor = opts.descriptor ?? defaultDescriptor(opts.aomi.platform, opts.github.repo, this.branch);
     this.tagPrefix = this.descriptor.release_tag_convention.split("{app_slug}")[0].replace(/-+$/, "");
 
+    // The backend now owns the write (commit) via its server-side bot PAT; the
+    // client only reads CI/release status from GitHub.
     const api = resolveGitHubApi(opts);
-    this.committer = new GitHubCommitter(api, opts.github.repo, this.branch);
+    this.statusReader = new GitHubStatusReader(api, opts.github.repo, this.branch);
   }
 
   /**
@@ -123,36 +122,75 @@ export class DeploymentClient {
     return { payload, discordBody, posted };
   }
 
-  /** Commit `apps/<slug>/` to the publish branch. Does NOT activate. */
+  /**
+   * Publish `apps/<slug>/` by handing the bundle to the backend, which commits
+   * it to the platform's deployment branch using the platform's server-side bot
+   * PAT (Phase 6). The portal no longer holds a write credential or talks to
+   * GitHub for the commit — it only forwards the bundle with the platform
+   * activation bearer. Does NOT activate.
+   */
   async deploy(input: DeployInput): Promise<DeployResult> {
     assertValidSlug(input.slug);
 
+    // Validate paths + derive a provenance commit when the caller has no git
+    // history (browser uploads). The backend re-validates and re-hashes; this
+    // is fail-fast defense, not the source of truth.
     const staged = stageFiles(input.slug, input.files);
     const sourceCommit = input.sourceCommit ?? deriveSourceCommit(staged);
     assertValidCommit(sourceCommit);
-
     const serverTags = normalizeTags(input.serverTags) ?? DEFAULT_SERVER_TAGS;
 
-    const manifest = buildDeploymentManifest({
-      slug: input.slug,
-      displayName: input.displayName,
-      descriptor: this.descriptor,
-      staged,
-      sourceCommit,
-      serverTags,
-      isPublic: input.isPublic ?? false,
-    });
-    // Defense: refuse to push a manifest CI would reject.
-    validateManifest(manifest, this.descriptor);
+    const url =
+      this.opts.aomi.backendUrl.replace(/\/+$/, "") +
+      `/api/admin/platforms/${encodeURIComponent(this.opts.aomi.platform)}` +
+      `/apps/${encodeURIComponent(input.slug)}/publish`;
+    const body = {
+      source_commit: sourceCommit,
+      is_public: input.isPublic ?? false,
+      server_tags: serverTags,
+      ...(input.displayName ? { label: input.displayName } : {}),
+      files: toPublishFiles(input.files),
+    };
 
-    const releaseTag = manifest.target.release_tag;
-    const publishCommitSha = await this.committer.commitApp({
-      slug: input.slug,
-      files: input.files,
-      staged,
-      manifest,
-      message: `deploy ${input.slug} (${releaseTag})`,
-    });
+    let res: Response;
+    try {
+      res = await fetch(url, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${this.opts.aomi.activationToken}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(body),
+      });
+    } catch (err) {
+      throw new DeployError(
+        "GITHUB_COMMIT",
+        `publish request failed: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+    const text = await res.text();
+    let parsed: unknown = text;
+    try {
+      parsed = text ? JSON.parse(text) : null;
+    } catch {
+      /* keep raw text */
+    }
+    if (!res.ok) {
+      const detail =
+        parsed && typeof parsed === "object" && "error" in parsed
+          ? String((parsed as { error: unknown }).error).trim()
+          : text.trim();
+      throw new DeployError(
+        "GITHUB_COMMIT",
+        detail ? `publish failed (${res.status}): ${detail}` : `publish failed (${res.status})`,
+      );
+    }
+    const out = (parsed ?? {}) as {
+      commit_sha?: string;
+      release_tag?: string;
+      app_path?: string;
+    };
+    const releaseTag = out.release_tag ?? "";
 
     await this.audit({
       action: "deploy",
@@ -165,9 +203,9 @@ export class DeploymentClient {
 
     return {
       releaseTag,
-      publishCommitSha,
+      publishCommitSha: out.commit_sha ?? "",
       sourceCommit,
-      appPath: manifest.target.app_path,
+      appPath: out.app_path ?? `apps/${input.slug}`,
       serverTags,
       ciUrl: `https://github.com/${this.opts.github.repo}/actions`,
     };
@@ -176,7 +214,7 @@ export class DeploymentClient {
   /** CI + release readiness for a slug's latest matching release. */
   async getStatus(slug: string): Promise<StatusResult> {
     assertValidSlug(slug);
-    return this.committer.status(slug, this.tagPrefix);
+    return this.statusReader.status(slug, this.tagPrefix);
   }
 
   /**
@@ -234,7 +272,21 @@ export class DeploymentClient {
     }
 
     if (!res.ok) {
-      throw new ActivationError(res.status, `activation failed (${res.status})`, text);
+      // Surface the backend's classified message (the activate path returns
+      // `{ "error": "..." }` with actionable 409/422/502 text — e.g. a
+      // plugin-name collision telling the contributor to rename + redeploy).
+      // Mirror the Rust `aomi-git` client, which inlines the body into the
+      // error; otherwise the portal route (which renders `err.message`) would
+      // only show a bare "activation failed (502)" and drop the detail.
+      const detail =
+        parsed && typeof parsed === "object" && "error" in parsed
+          ? String((parsed as { error: unknown }).error).trim()
+          : text.trim();
+      throw new ActivationError(
+        res.status,
+        detail ? `activation failed (${res.status}): ${detail}` : `activation failed (${res.status})`,
+        text,
+      );
     }
 
     await this.audit({
@@ -283,6 +335,16 @@ function assertValidSlug(slug: string): void {
       `invalid app slug ${JSON.stringify(slug)}: must match ${SLUG_RE} (lowercase alphanumeric + hyphen)`,
     );
   }
+}
+
+/** Turn a SourceBundle into the publish request's base64 file list. */
+function toPublishFiles(
+  files: SourceBundle,
+): Array<{ path: string; content_base64: string }> {
+  return Object.entries(files).map(([path, content]) => ({
+    path: path.replace(/\\/g, "/").replace(/^\.\//, ""),
+    content_base64: Buffer.from(toBytes(content)).toString("base64"),
+  }));
 }
 
 function normalizeTags(tags: string[] | undefined): string[] | undefined {
