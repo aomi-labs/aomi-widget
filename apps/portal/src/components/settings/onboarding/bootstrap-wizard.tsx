@@ -131,22 +131,24 @@ export function BootstrapWizard({
             pull requests & checks) on <code>{progress.repo}</code>. You&apos;ll
             return here automatically after GitHub confirms access.
           </p>
-          <Button
-            onClick={beginInstall}
-            disabled={installing}
-            className="h-10 rounded-full px-4 text-sm font-medium"
-          >
-            {installing ? "Opening GitHub..." : "Install on GitHub"}
-            <ExternalLink className="ml-1 h-4 w-4" />
-          </Button>
-          <Button
-            onClick={beginAuthorize}
-            disabled={installing}
-            className="h-10 rounded-full px-4 text-sm font-medium"
-          >
-            <RotateCcw className="mr-1 h-4 w-4" />
-            {installing ? "Opening GitHub..." : "Verify existing install"}
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              onClick={beginInstall}
+              disabled={installing}
+              className="h-10 max-w-full rounded-full px-4 text-sm font-medium"
+            >
+              {installing ? "Opening GitHub..." : "Install on GitHub"}
+              <ExternalLink className="ml-1 h-4 w-4 shrink-0" />
+            </Button>
+            <Button
+              onClick={beginAuthorize}
+              disabled={installing}
+              className="h-10 max-w-full rounded-full px-4 text-sm font-medium"
+            >
+              <RotateCcw className="mr-1 h-4 w-4 shrink-0" />
+              {installing ? "Opening GitHub..." : "Verify existing install"}
+            </Button>
+          </div>
         </div>
       )}
 
