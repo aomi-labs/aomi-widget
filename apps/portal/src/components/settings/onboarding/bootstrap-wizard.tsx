@@ -13,7 +13,7 @@ import {
 import { Stepper } from "./stepper";
 import { DeployStep } from "./deploy-step";
 import { LivePanel } from "./live-panel";
-import { WizardHeader } from "./oneshot-wizard";
+import { WizardError, WizardHeader } from "./oneshot-wizard";
 
 const STEPS = [
   { key: "template", label: "Template" },
@@ -29,6 +29,7 @@ export function BootstrapWizard({
   beginInstall,
   beginAuthorize,
   installing,
+  installError,
   patch,
 }: {
   progress: PathProgress;
@@ -37,6 +38,7 @@ export function BootstrapWizard({
   beginInstall: () => void;
   beginAuthorize: () => void;
   installing?: boolean;
+  installError?: string | null;
   patch: (patch: Partial<PathProgress>) => void;
 }) {
   const step = bootstrapStep(progress);
@@ -82,73 +84,82 @@ export function BootstrapWizard({
       )}
 
       {step === "template" && (
-        <div className="border-input space-y-3 rounded-2xl border p-4">
-          <div className="text-foreground text-sm font-medium">
-            Step 1 — Create your repo from the template
-          </div>
-          <p className="text-muted-foreground text-sm leading-5">
-            Opens GitHub&apos;s “Use this template”. Name it whatever you like,
-            then paste it back here.
-          </p>
-          <a
-            href={TEMPLATE_GENERATE_URL}
-            target="_blank"
-            rel="noreferrer"
-            className="bg-foreground text-background inline-flex h-10 items-center rounded-full px-4 text-sm font-medium"
-          >
-            Use this template <ExternalLink className="ml-1 h-4 w-4" />
-          </a>
-          <div className="flex items-start gap-2 pt-1">
-            <div className="flex-1">
-              <Input
-                value={repoInput}
-                onChange={(e) => setRepoInput(e.target.value)}
-                placeholder="your-account/my-agent"
-                onKeyDown={(e) => e.key === "Enter" && confirmRepo()}
-              />
-              {repoError && (
-                <p className="mt-1 pl-1 text-xs text-red-500">{repoError}</p>
-              )}
+        <div className="space-y-3">
+          <div className="border-input space-y-3 rounded-2xl border p-4">
+            <div className="text-foreground text-sm font-medium">
+              Step 1 — Create your repo from the template
             </div>
-            <Button
-              onClick={confirmRepo}
-              disabled={!repoInput.trim()}
-              className="h-10 rounded-full px-4 text-sm font-medium"
+            <p className="text-muted-foreground text-sm leading-5">
+              Opens GitHub&apos;s “Use this template”. Name it whatever you
+              like, then paste it back here.
+            </p>
+            <a
+              href={TEMPLATE_GENERATE_URL}
+              target="_blank"
+              rel="noreferrer"
+              className="bg-foreground text-background inline-flex h-10 items-center rounded-full px-4 text-sm font-medium"
             >
-              <Check className="mr-1 h-4 w-4" /> Confirm
-            </Button>
+              Use this template <ExternalLink className="ml-1 h-4 w-4" />
+            </a>
+            <div className="flex items-start gap-2 pt-1">
+              <div className="flex-1">
+                <Input
+                  value={repoInput}
+                  onChange={(e) => setRepoInput(e.target.value)}
+                  placeholder="your-account/my-agent"
+                  onKeyDown={(e) => e.key === "Enter" && confirmRepo()}
+                />
+                {repoError && (
+                  <p className="mt-1 pl-1 text-xs text-red-500">
+                    {repoError}
+                  </p>
+                )}
+              </div>
+              <Button
+                onClick={confirmRepo}
+                disabled={!repoInput.trim()}
+                className="h-10 rounded-full px-4 text-sm font-medium"
+              >
+                <Check className="mr-1 h-4 w-4" /> Confirm
+              </Button>
+            </div>
           </div>
+          <WizardError message={installError} />
         </div>
       )}
 
       {step === "install" && progress.repo && (
-        <div className="border-input space-y-3 rounded-2xl border p-4">
-          <div className="text-foreground text-sm font-medium">
-            Step 2 — Install the Aomi GitHub App on your repo
+        <div className="space-y-3">
+          <div className="border-input space-y-3 rounded-2xl border p-4">
+            <div className="text-foreground text-sm font-medium">
+              Step 2 — Install the Aomi GitHub App on your repo
+            </div>
+            <p className="text-muted-foreground text-sm leading-5">
+              Installs the narrow <code>aomi-build</code> App (one repo:
+              contents, pull requests & checks) on <code>{progress.repo}</code>.
+              You&apos;ll return here automatically after GitHub confirms
+              access.
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                onClick={beginInstall}
+                disabled={installing}
+                className="h-10 max-w-full rounded-full px-4 text-sm font-medium"
+              >
+                {installing ? "Opening GitHub..." : "Install on GitHub"}
+                <ExternalLink className="ml-1 h-4 w-4 shrink-0" />
+              </Button>
+              <Button
+                onClick={beginAuthorize}
+                disabled={installing}
+                className="h-10 max-w-full rounded-full px-4 text-sm font-medium"
+              >
+                <RotateCcw className="mr-1 h-4 w-4 shrink-0" />
+                {installing ? "Opening GitHub..." : "Verify existing install"}
+              </Button>
+            </div>
           </div>
-          <p className="text-muted-foreground text-sm leading-5">
-            Installs the narrow <code>aomi-build</code> App (one repo: contents,
-            pull requests & checks) on <code>{progress.repo}</code>. You&apos;ll
-            return here automatically after GitHub confirms access.
-          </p>
-          <div className="flex flex-wrap gap-2">
-            <Button
-              onClick={beginInstall}
-              disabled={installing}
-              className="h-10 max-w-full rounded-full px-4 text-sm font-medium"
-            >
-              {installing ? "Opening GitHub..." : "Install on GitHub"}
-              <ExternalLink className="ml-1 h-4 w-4 shrink-0" />
-            </Button>
-            <Button
-              onClick={beginAuthorize}
-              disabled={installing}
-              className="h-10 max-w-full rounded-full px-4 text-sm font-medium"
-            >
-              <RotateCcw className="mr-1 h-4 w-4 shrink-0" />
-              {installing ? "Opening GitHub..." : "Verify existing install"}
-            </Button>
-          </div>
+          <WizardError message={installError} />
         </div>
       )}
 
