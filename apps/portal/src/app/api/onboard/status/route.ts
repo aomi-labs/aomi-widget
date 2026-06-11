@@ -1,32 +1,37 @@
 import { NextResponse } from "next/server";
 
-// =============================================================================
-// Onboarding deploy status — BFF seam (STUB, pending backend; Codex).
-//
-//   GET /api/onboard/status?releaseTag=<tag>
-//
-//   Response { state: "building" | "activating" | "live" | "failed",
-//              releaseTag: string,
-//              message?: string }
-//
-// Backend should report release/activation progress for an in-flight onboarding
-// deploy keyed by release tag, returning "live" once the app is loaded and
-// serving. The FE polls this until live (or failed).
-// =============================================================================
+import {
+  type BackendDeploymentStatusResult,
+  backendRequest,
+  readOnboardDeployEnv,
+  releaseTagsFromDeployment,
+} from "@portal/lib/onboard-deploy";
+
 export async function GET(req: Request) {
-  const releaseTag = new URL(req.url).searchParams.get("releaseTag");
-  if (!releaseTag) {
+  const deploymentId = new URL(req.url).searchParams.get("deploymentId");
+  if (!deploymentId) {
     return NextResponse.json(
-      { error: "missing `releaseTag`" },
+      { error: "missing `deploymentId`" },
       { status: 400 },
     );
   }
 
-  return NextResponse.json(
-    {
-      error:
-        "Onboarding status is not wired yet — pending the backend application_id contract.",
-    },
-    { status: 501 },
-  );
+  try {
+    const env = readOnboardDeployEnv();
+    const result = await backendRequest<BackendDeploymentStatusResult>(
+      env,
+      `/api/platforms/${encodeURIComponent(env.platform)}/deployments/${encodeURIComponent(
+        deploymentId,
+      )}/status`,
+    );
+    return NextResponse.json({
+      ...result,
+      releaseTags: releaseTagsFromDeployment(result.deployment),
+    });
+  } catch (err) {
+    return NextResponse.json(
+      { error: err instanceof Error ? err.message : String(err) },
+      { status: 502 },
+    );
+  }
 }

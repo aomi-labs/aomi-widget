@@ -16,7 +16,6 @@ export async function POST(req: Request) {
       installationId?: string;
       repo?: string;
     };
-
     if (!body.installationId) {
       return NextResponse.json(
         { error: "missing `installationId`" },
@@ -34,19 +33,16 @@ export async function POST(req: Request) {
       `/api/platforms/${encodeURIComponent(env.platform)}/deploy`,
       {
         method: "POST",
-        body: deployRequestBody(env, appSourceId, false),
+        body: deployRequestBody(env, appSourceId, true),
       },
     );
-    return NextResponse.json(
-      {
-        ok: true,
-        repo: body.repo ?? result.deployment?.source?.repository_link,
-        deployment: result.deployment,
-        releaseTags: releaseTagsFromDeployment(result.deployment),
-        apps: appNamesFromDeployment(result.deployment),
-      },
-      { status: 202 },
-    );
+    return NextResponse.json({
+      ok: true,
+      repo: body.repo ?? result.deployment?.source?.repository_link,
+      deployment: result.deployment,
+      releaseTags: releaseTagsFromDeployment(result.deployment),
+      apps: appNamesFromDeployment(result.deployment),
+    });
   } catch (err) {
     return NextResponse.json(
       { error: err instanceof Error ? err.message : String(err) },

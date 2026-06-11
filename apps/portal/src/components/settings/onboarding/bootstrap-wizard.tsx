@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ExternalLink, Check } from "lucide-react";
+import { ExternalLink, Check, RotateCcw } from "lucide-react";
 import { Button, Input } from "@aomi-labs/widget-lib";
 import {
   bootstrapStep,
@@ -27,6 +27,7 @@ export function BootstrapWizard({
   actor,
   onBack,
   beginInstall,
+  beginAuthorize,
   installing,
   patch,
 }: {
@@ -34,6 +35,7 @@ export function BootstrapWizard({
   actor?: string;
   onBack: () => void;
   beginInstall: () => void;
+  beginAuthorize: () => void;
   installing?: boolean;
   patch: (patch: Partial<PathProgress>) => void;
 }) {
@@ -126,8 +128,8 @@ export function BootstrapWizard({
           </div>
           <p className="text-muted-foreground text-sm leading-5">
             Installs the narrow <code>aomi-build</code> App (one repo: contents,
-            pull requests & checks) on <code>{progress.repo}</code>.
-            You&apos;ll return here automatically after consent.
+            pull requests & checks) on <code>{progress.repo}</code>. You&apos;ll
+            return here automatically after GitHub confirms access.
           </p>
           <Button
             onClick={beginInstall}
@@ -136,6 +138,14 @@ export function BootstrapWizard({
           >
             {installing ? "Opening GitHub..." : "Install on GitHub"}
             <ExternalLink className="ml-1 h-4 w-4" />
+          </Button>
+          <Button
+            onClick={beginAuthorize}
+            disabled={installing}
+            className="h-10 rounded-full px-4 text-sm font-medium"
+          >
+            <RotateCcw className="mr-1 h-4 w-4" />
+            {installing ? "Opening GitHub..." : "Verify existing install"}
           </Button>
         </div>
       )}
@@ -150,23 +160,9 @@ export function BootstrapWizard({
             installationId={progress.installationId}
             repo={progress.repo}
             actor={actor}
-            active
-            releaseTag={progress.releaseTag}
-            onDeployStarted={(r) =>
-              patch({
-                repo: r.repo,
-                releaseTag: r.releaseTag,
-                applicationId: r.applicationId,
-              })
-            }
-            onLive={(r) =>
-              patch({
-                repo: r.repo,
-                releaseTag: r.releaseTag,
-                applicationId: r.applicationId,
-                live: true,
-              })
-            }
+            progress={progress}
+            onProgress={patch}
+            onReconnectInstall={beginAuthorize}
           />
         </div>
       )}

@@ -4,7 +4,6 @@ import { useEffect, useState } from "react";
 import { SettingsSidebar, SettingsCategory } from "./settings-sidebar";
 import { GeneralSettings } from "./general-settings";
 import { AppsSettings } from "./apps-settings";
-import { DeploySettings } from "./deploy-settings";
 import { Onboarding } from "./onboarding/onboarding";
 import { AppKeys } from "./app-keys";
 import { Bots } from "./bots";
@@ -33,16 +32,9 @@ export function SettingsLayout() {
       case "apps":
         return <AppsSettings />;
       case "deploy":
-        // Onboarding picker + two-path wizards on top; the manual / advanced
-        // deploy flow is preserved below, unchanged.
         return (
-          <div className="min-w-0 space-y-8">
+          <div className="min-w-0">
             <Onboarding />
-            <hr className="border-input" />
-            <p className="text-muted-foreground pl-4 text-xs uppercase tracking-wide">
-              Manual / advanced deploy
-            </p>
-            <DeploySettings />
           </div>
         );
       case "app-keys":

@@ -24,10 +24,59 @@ export const TEMPLATE_REPO = "aomi-labs/playground-example";
 export const TEMPLATE_REPO_URL = `https://github.com/${TEMPLATE_REPO}`;
 export const TEMPLATE_GENERATE_URL = `${TEMPLATE_REPO_URL}/generate`;
 
+export type OnboardDeployPayload = {
+  id: string;
+  status?: string;
+  source?: Record<string, unknown>;
+  platform?: {
+    platform?: string;
+    repository?: string;
+    deploy_branch?: string;
+    deployBranch?: string;
+    source_branch?: string;
+    sourceBranch?: string;
+    commit_hash?: string | null;
+    commitHash?: string | null;
+    pr_number?: number | null;
+    prNumber?: number | null;
+    pr_url?: string | null;
+    prUrl?: string | null;
+    ci_status?: string | null;
+    ciStatus?: string | null;
+    ci_url?: string | null;
+    ciUrl?: string | null;
+    apps?: Array<{
+      name: string;
+      path?: string;
+      aomi_toml_path?: string;
+      aomiTomlPath?: string;
+      release_tag?: string;
+      releaseTag?: string;
+      target?: string;
+    }>;
+  };
+};
+
 /** Accept "owner/name" or a full github.com URL; return "owner/name" or null. */
 export function normalizeRepo(input: string): string | null {
-  const trimmed = input.trim().replace(/^https?:\/\/github\.com\//i, "");
-  const m = trimmed.match(/^([\w.-]+)\/([\w.-]+?)(?:\.git)?\/?$/);
+  const trimmed = input.trim();
+  if (!trimmed) return null;
+
+  let candidate = trimmed;
+  try {
+    const url = new URL(trimmed);
+    const host = url.hostname.toLowerCase();
+    if (host !== "github.com" && host !== "www.github.com") return null;
+    const [owner, repo] = url.pathname
+      .split("/")
+      .map((part) => part.trim())
+      .filter(Boolean);
+    candidate = owner && repo ? `${owner}/${repo}` : "";
+  } catch {
+    candidate = trimmed.replace(/^github\.com\//i, "");
+  }
+
+  const m = candidate.match(/^([\w.-]+)\/([\w.-]+?)(?:\.git)?\/?$/);
   return m ? `${m[1]}/${m[2]}` : null;
 }
 
@@ -42,6 +91,14 @@ export type PathProgress = {
   repo?: string;
   /** Release tag emitted once a deploy has been kicked off. */
   releaseTag?: string;
+  /** Backend deployment id emitted by the deploy state machine. */
+  deploymentId?: string;
+  /** Latest backend deploy payload; this is what each .aomi/deployment.json contains. */
+  deployment?: OnboardDeployPayload;
+  /** Release tags emitted for the apps in deployment.platform.apps. */
+  releaseTags?: string[];
+  /** App names emitted for the apps in deployment.platform.apps. */
+  apps?: string[];
   /** Opaque backend app identity (the application_id contract). */
   applicationId?: string;
   /** True once activation has succeeded and the app is serving. */
@@ -146,6 +203,7 @@ export type GithubRedirect = {
   setupAction: string | null;
   state: string | null;
   onboard: string | null;
+  repo: string | null;
 };
 
 /** Parse the backend callback redirect back to `/settings`. GitHub may append
@@ -160,6 +218,7 @@ export function readGithubRedirect(search: string): GithubRedirect | null {
     setupAction: params.get("setup_action"),
     state: params.get("state"),
     onboard: params.get("onboard"),
+    repo: normalizeRepo(params.get("repo") ?? ""),
   };
 }
 
@@ -171,6 +230,7 @@ export const GITHUB_REDIRECT_KEYS = [
   "state",
   "code",
   "onboard",
+  "repo",
 ] as const;
 
 // --- step resolvers ---------------------------------------------------------
@@ -224,10 +284,15 @@ export type GithubAppOAuthStartResponse = {
 
 export async function githubAppInstallUrl(args: {
   platform?: string;
+  repo?: string;
+  mode?: "install" | "authorize";
 }): Promise<string> {
   const params = new URLSearchParams();
   const platform = args.platform?.trim();
   if (platform) params.set("platform", platform);
+  const repo = args.repo ? normalizeRepo(args.repo) : null;
+  if (repo) params.set("repo", repo);
+  if (args.mode === "authorize") params.set("mode", "authorize");
   const query = params.toString();
   const result = await settingsApiFetch<GithubAppOAuthStartResponse>(
     `/api/integrations/github-app/oauth/start${query ? `?${query}` : ""}`,
@@ -253,14 +318,16 @@ export type OnboardDeployInput = {
 export type OnboardDeployResult = {
   /** owner/name actually deployed (oneshot creates it backend-side). */
   repo: string;
-  releaseTag: string;
-  applicationId?: string;
+  deployment: OnboardDeployPayload;
+  releaseTags: string[];
+  apps: string[];
 };
 
-export async function onboardDeploy(
+async function postOnboardDeploy(
+  path: "/api/onboard/dry-run" | "/api/onboard/deploy",
   input: OnboardDeployInput,
 ): Promise<OnboardDeployResult> {
-  const res = await fetch("/api/onboard/deploy", {
+  const res = await fetch(path, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(input),
@@ -278,18 +345,38 @@ export async function onboardDeploy(
   return json as OnboardDeployResult;
 }
 
+export function onboardDryRun(
+  input: OnboardDeployInput,
+): Promise<OnboardDeployResult> {
+  return postOnboardDeploy("/api/onboard/dry-run", input);
+}
+
+export function onboardDeploy(
+  input: OnboardDeployInput,
+): Promise<OnboardDeployResult> {
+  return postOnboardDeploy("/api/onboard/deploy", input);
+}
+
 export type OnboardStatus = {
-  state: "building" | "activating" | "live" | "failed";
-  releaseTag: string;
+  state: "building" | "releasing" | "ready" | "failed";
+  deployment: OnboardDeployPayload;
+  releaseTags: string[];
+  apps?: Array<{
+    name: string;
+    release_tag: string;
+    release_ready: boolean;
+    message?: string | null;
+  }>;
+  ci?: { status?: string; url?: string; commit_hash?: string };
   message?: string;
 };
 
 /** Poll release/activation progress for an in-flight onboarding deploy. */
 export async function onboardStatus(
-  releaseTag: string,
+  deploymentId: string,
 ): Promise<OnboardStatus> {
   const res = await fetch(
-    `/api/onboard/status?releaseTag=${encodeURIComponent(releaseTag)}`,
+    `/api/onboard/status?deploymentId=${encodeURIComponent(deploymentId)}`,
   );
   const json = (await res.json().catch(() => ({}))) as
     | OnboardStatus
@@ -302,4 +389,100 @@ export async function onboardStatus(
     throw new Error(msg);
   }
   return json as OnboardStatus;
+}
+
+export type OnboardActivateResult = {
+  ok: boolean;
+  activation?: {
+    status?: string;
+    apps?: Array<{
+      name: string;
+      release_tag?: string | null;
+      is_active: boolean;
+      loaded: boolean;
+      error?: string | null;
+    }>;
+  };
+};
+
+export async function onboardActivate(input: {
+  releaseTags: string[];
+  apps?: string[];
+  actor?: string;
+}): Promise<OnboardActivateResult> {
+  const res = await fetch("/api/onboard/activate", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  const json = (await res.json().catch(() => ({}))) as
+    | OnboardActivateResult
+    | { error?: string };
+  if (!res.ok) {
+    const msg =
+      "error" in json && json.error
+        ? json.error
+        : `onboarding activation failed (${res.status})`;
+    throw new Error(msg);
+  }
+  return json as OnboardActivateResult;
+}
+
+export type OnboardAppStatus = {
+  ok: boolean;
+  state: "pending" | "live";
+  app?: {
+    name: string;
+    app_release_tag?: string | null;
+    is_active: boolean;
+    loaded: boolean;
+  };
+};
+
+export async function onboardAppStatus(input: {
+  name: string;
+  releaseTag?: string;
+}): Promise<OnboardAppStatus> {
+  const params = new URLSearchParams({ name: input.name });
+  if (input.releaseTag) params.set("releaseTag", input.releaseTag);
+  const res = await fetch(`/api/onboard/app?${params}`);
+  const json = (await res.json().catch(() => ({}))) as
+    | OnboardAppStatus
+    | { error?: string };
+  if (!res.ok) {
+    const msg =
+      "error" in json && json.error
+        ? json.error
+        : `onboarding app status failed (${res.status})`;
+    throw new Error(msg);
+  }
+  return json as OnboardAppStatus;
+}
+
+export type OnboardSyncInstalledResult = {
+  ok: boolean;
+  repo: string;
+  installationId: string;
+  appSourceId?: number;
+};
+
+export async function onboardSyncInstalled(input: {
+  repo: string;
+}): Promise<OnboardSyncInstalledResult> {
+  const res = await fetch("/api/onboard/sync-installed", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  const json = (await res.json().catch(() => ({}))) as
+    | OnboardSyncInstalledResult
+    | { error?: string };
+  if (!res.ok) {
+    const msg =
+      "error" in json && json.error
+        ? json.error
+        : `installed source sync failed (${res.status})`;
+    throw new Error(msg);
+  }
+  return json as OnboardSyncInstalledResult;
 }

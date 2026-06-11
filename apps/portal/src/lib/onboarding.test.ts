@@ -55,6 +55,20 @@ test("normalizeRepo accepts owner/name, URLs, .git, trailing slash", async () =>
     normalizeRepo("https://github.com/you/my-agent.git"),
     "you/my-agent",
   );
+  assert.equal(
+    normalizeRepo("https://github.com/phoebe-aomi/my-playground-2"),
+    "phoebe-aomi/my-playground-2",
+  );
+  assert.equal(
+    normalizeRepo("https://github.com/phoebe-aomi/my-playground-2?tab=readme"),
+    "phoebe-aomi/my-playground-2",
+  );
+  assert.equal(
+    normalizeRepo(
+      "https://github.com/phoebe-aomi/my-playground-2/tree/main/src",
+    ),
+    "phoebe-aomi/my-playground-2",
+  );
   assert.equal(normalizeRepo("you/my-agent/"), "you/my-agent");
   assert.equal(normalizeRepo("not-a-repo"), null);
   assert.equal(normalizeRepo(""), null);
@@ -70,14 +84,21 @@ test("readGithubRedirect parses installation_id + state + setup_action", async (
       setupAction: "install",
       state: "tok",
       onboard: null,
+      repo: null,
     },
   );
-  assert.deepEqual(readGithubRedirect("?installation_id=42&onboard=bound"), {
-    installationId: "42",
-    setupAction: null,
-    state: null,
-    onboard: "bound",
-  });
+  assert.deepEqual(
+    readGithubRedirect(
+      "?installation_id=42&onboard=bound&repo=phoebe-aomi%2Fmy-playground-2",
+    ),
+    {
+      installationId: "42",
+      setupAction: null,
+      state: null,
+      onboard: "bound",
+      repo: "phoebe-aomi/my-playground-2",
+    },
+  );
 });
 
 test("state transitions are immutable and correct", async () => {

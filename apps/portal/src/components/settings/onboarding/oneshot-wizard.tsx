@@ -95,23 +95,8 @@ export function OneshotWizard({
             installationId={progress.installationId}
             repo={progress.repo}
             actor={actor}
-            active
-            releaseTag={progress.releaseTag}
-            onDeployStarted={(r) =>
-              patch({
-                repo: r.repo,
-                releaseTag: r.releaseTag,
-                applicationId: r.applicationId,
-              })
-            }
-            onLive={(r) =>
-              patch({
-                repo: r.repo,
-                releaseTag: r.releaseTag,
-                applicationId: r.applicationId,
-                live: true,
-              })
-            }
+            progress={progress}
+            onProgress={patch}
           />
         </div>
       )}

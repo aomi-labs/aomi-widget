@@ -44,6 +44,7 @@ export function Onboarding() {
     if (matched) {
       const next = withPendingInstall(
         withProgress(withPath(cur, matched), matched, {
+          ...(redirect.repo ? { repo: redirect.repo } : {}),
           installationId: redirect.installationId,
           installationStatus: redirect.onboard ?? undefined,
         }),
@@ -85,27 +86,31 @@ export function Onboarding() {
   // Persist the pending-install path BEFORE leaving for github.com, so the
   // backend callback redirect can resume the correct wizard path.
   const makeBeginInstall = useCallback(
-    (path: OnboardingPath) => async () => {
-      const next = withPendingInstall(withPath(state, path), { path });
-      saveOnboarding(next);
-      setState(next);
-      setInstallError(null);
-      setInstallingPath(path);
-      try {
-        window.location.assign(
-          await githubAppInstallUrl({
-            platform: process.env.NEXT_PUBLIC_AOMI_DEPLOY_PLATFORM,
-          }),
-        );
-      } catch (error) {
-        setInstallingPath(null);
-        setInstallError(
-          error instanceof Error
-            ? error.message
-            : "Failed to start GitHub App install.",
-        );
-      }
-    },
+    (path: OnboardingPath, mode: "install" | "authorize" = "install") =>
+      async () => {
+        const next = withPendingInstall(withPath(state, path), { path });
+        saveOnboarding(next);
+        setState(next);
+        setInstallError(null);
+        setInstallingPath(path);
+        try {
+          const repo = next[path].repo;
+          window.location.assign(
+            await githubAppInstallUrl({
+              platform: process.env.NEXT_PUBLIC_AOMI_DEPLOY_PLATFORM,
+              repo,
+              mode,
+            }),
+          );
+        } catch (error) {
+          setInstallingPath(null);
+          setInstallError(
+            error instanceof Error
+              ? error.message
+              : "Failed to start GitHub App install.",
+          );
+        }
+      },
     [state],
   );
 
@@ -145,6 +150,7 @@ export function Onboarding() {
         actor={actor}
         onBack={back}
         beginInstall={makeBeginInstall("bootstrap")}
+        beginAuthorize={makeBeginInstall("bootstrap", "authorize")}
         installing={installingPath === "bootstrap"}
         patch={makePatch("bootstrap")}
       />
