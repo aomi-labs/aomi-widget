@@ -8,13 +8,8 @@
 
 export type DeployErrorCode =
   | "BROWSER_ENVIRONMENT"
-  | "INVALID_SLUG"
-  | "PATH_SCOPE"
-  | "EMPTY_BUNDLE"
-  | "RESERVED_PATH"
-  | "INVALID_COMMIT"
-  | "TAG_WIDENING"
-  | "GITHUB_COMMIT"
+  | "INVALID_REQUEST"
+  | "BACKEND"
   | "ACTIVATION"
   | "ACTIVATION_REQUEST";
 
@@ -38,40 +33,21 @@ export class BrowserEnvironmentError extends DeployError {
   }
 }
 
-/** Thrown when a staged file path escapes `apps/<slug>/` (the per-slug guard). */
-export class PathScopeError extends DeployError {
-  readonly path: string;
-  constructor(path: string, message: string) {
-    super("PATH_SCOPE", message);
-    this.name = "PathScopeError";
-    this.path = path;
-  }
-}
-
-/** Thrown when `target_tags` is not a subset of the build's `server_tags`. */
-export class TagWideningError extends DeployError {
-  readonly requested: string[];
-  readonly allowed: string[];
-  constructor(requested: string[], allowed: string[]) {
-    super(
-      "TAG_WIDENING",
-      `target_tags ${JSON.stringify(requested)} must be a subset of the build's ` +
-        `server_tags ${JSON.stringify(allowed)}; re-deploy with the wider tag instead`,
-    );
-    this.name = "TagWideningError";
-    this.requested = requested;
-    this.allowed = allowed;
-  }
-}
-
-/** Thrown when the Aomi backend rejects the activation. */
-export class ActivationError extends DeployError {
+/** Thrown when the Aomi backend rejects a deploy/activate/status call. */
+export class BackendError extends DeployError {
   readonly status: number;
   readonly body?: string;
-  constructor(status: number, message: string, body?: string) {
-    super("ACTIVATION", message);
-    this.name = "ActivationError";
+  constructor(operation: string, status: number, message: string, body?: string) {
+    super(operation === "activation" ? "ACTIVATION" : "BACKEND", message);
+    this.name = operation === "activation" ? "ActivationError" : "BackendError";
     this.status = status;
     this.body = body;
+  }
+}
+
+/** Backward-compatible class name for callers already branching on activation failures. */
+export class ActivationError extends BackendError {
+  constructor(status: number, message: string, body?: string) {
+    super("activation", status, message, body);
   }
 }

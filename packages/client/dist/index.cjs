@@ -180,6 +180,7 @@ function buildConnection(src, flat) {
   liftFlat(c, flat, "auth_method", ["auth_method", "authMethod"]);
   liftFlat(c, flat, "auth_value", ["auth_value", "authValue"]);
   liftFlat(c, flat, "auth_verified_at", ["auth_verified_at", "authVerifiedAt"]);
+  dropNullKeys(c, "is_connected");
   return Object.keys(c).length ? c : void 0;
 }
 function buildEvm(src, flat) {
@@ -228,6 +229,7 @@ function buildSvm(src, flat) {
   const s = __spreadValues({}, src != null ? src : {});
   renameKey(s, "walletName", "wallet_name");
   liftFlat(s, flat, "address", ["svm_address", "svmAddress"]);
+  dropNullKeys(s, "capabilities");
   return Object.keys(s).length ? s : void 0;
 }
 function buildPending(src, flat) {
@@ -260,6 +262,13 @@ function buildPending(src, flat) {
     snakeizeBucket(pick(src, "svm_sigs", "svmSigs", "solana_sigs", "solanaSigs"))
   );
   return Object.keys(p).length ? p : void 0;
+}
+function dropNullKeys(obj, ...keys) {
+  for (const key of keys) {
+    if (obj[key] === null || obj[key] === void 0) {
+      delete obj[key];
+    }
+  }
 }
 function deepMergePreserve(previous, incoming) {
   const out = __spreadValues({}, previous);
@@ -1333,7 +1342,7 @@ var AomiClient = class {
    */
   async getApps(sessionId, options) {
     var _a;
-    const url = buildApiUrl(this.baseUrl, "/api/control/apps", {
+    const url = buildApiUrl(this.baseUrl, "/api/session/apps", {
       public_key: options == null ? void 0 : options.publicKey
     });
     const apiKey = (_a = options == null ? void 0 : options.apiKey) != null ? _a : this.apiKey;
@@ -1365,7 +1374,7 @@ var AomiClient = class {
    */
   async getModels(sessionId, options) {
     var _a;
-    const url = buildApiUrl(this.baseUrl, "/api/control/models");
+    const url = buildApiUrl(this.baseUrl, "/api/session/models");
     const apiKey = (_a = options == null ? void 0 : options.apiKey) != null ? _a : this.apiKey;
     const headers = new Headers(withSessionHeader(sessionId));
     if (apiKey) {
@@ -1394,7 +1403,7 @@ var AomiClient = class {
     }
     return postState(
       this.baseUrl,
-      "/api/control/model",
+      "/api/session/model",
       payload,
       sessionId,
       this.fetchImpl,

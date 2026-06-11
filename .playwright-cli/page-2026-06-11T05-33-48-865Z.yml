@@ -1,0 +1,12 @@
+- generic [active] [ref=e1]:
+  - button "Open Next.js Dev Tools" [ref=e7] [cursor=pointer]:
+    - img [ref=e8]
+  - alert [ref=e11]
+  - generic [ref=e14]:
+    - paragraph [ref=e16]:
+      - text: We use cookies to understand how you use our site and improve your experience.
+      - link "Privacy Policy" [ref=e17] [cursor=pointer]:
+        - /url: /privacy
+    - generic [ref=e18]:
+      - button "Decline" [ref=e19]
+      - button "Accept" [ref=e20]
