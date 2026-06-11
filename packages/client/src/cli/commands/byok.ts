@@ -1,6 +1,6 @@
-import { AomiClient } from "../../client";
 import type { CliConfig } from "../types";
 import { CliSession } from "../cli-session";
+import { createCliClient } from "../client-factory";
 import { fatal } from "../errors";
 import { printDataFileLocation } from "../output";
 
@@ -28,9 +28,9 @@ function parseByokKeyArg(input: string): { provider: string; byokKey: string } {
 
 async function createByokKeyClient(
   config: CliConfig,
-): Promise<{ cli: CliSession; client: AomiClient }> {
+): Promise<{ cli: CliSession; client: ReturnType<typeof createCliClient> }> {
   const cli = CliSession.loadOrCreate(config);
-  const client = new AomiClient({
+  const client = createCliClient(config, {
     baseUrl: cli.baseUrl,
     apiKey: cli.apiKey,
   });

@@ -31,6 +31,8 @@
     "@getpara/react-sdk": "^2.24.0",
     "@modelcontextprotocol/sdk": "^1.29.0",
     "@privy-io/react-auth": "^3.27.1",
+    "@solana-program/memo": "^0.8.0",
+    "@solana/kit": ">=3.0.3",
     "@radix-ui/react-avatar": "^1.1.11",
     "@radix-ui/react-dialog": "^1.1.15",
     "@radix-ui/react-separator": "^1.1.8",

@@ -27,7 +27,7 @@ export async function logCommand(config: CliConfig): Promise<void> {
   }
   cli.mergeConfig(config);
 
-  const session = cli.createClientSession();
+  const session = cli.createClientSession(config);
   try {
     const apiState = await session.client.fetchState(cli.sessionId, undefined, cli.clientId);
     cli.syncPendingFromUserState(apiState.user_state);
@@ -114,7 +114,7 @@ export function closeCommand(config: CliConfig): void {
   const cli = CliSession.load();
   if (cli) {
     cli.mergeConfig(config);
-    const session = cli.createClientSession();
+    const session = cli.createClientSession(config);
     session.close();
   }
   clearState();

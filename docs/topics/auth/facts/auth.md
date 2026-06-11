@@ -64,6 +64,8 @@ The callback stores only secret handles in approval metadata. It sorts the retur
 
 `makePrivyProvider` redirects to a portal-hosted Privy login page. Its callback expects `access_token`, `user_id`, `wallet_id`, and `wallet_address`, verifies the access token server-side, rejects browser-reported user IDs that do not match the signed subject, validates the obvious Privy DID and EVM address shapes, and returns Privy credential slots for the secret store.
 
+The browser page does not register additional signers or receive `signer_id`. Embedded-wallet signer registration is backend-owned and happens during the Rust backend callback, after the browser POST succeeds.
+
 ## Operational Notes
 
 - Raw provider credentials must never be returned to MCP callers or persisted in approval rows.
@@ -72,6 +74,7 @@ The callback stores only secret handles in approval metadata. It sorts the retur
 - Portal's singleton auth runtime is stored on `globalThis` so `next dev` hot reloads do not lose pending auth state.
 - `AOMI_AUTH_TOKEN` is the v1 shared secret between portal and the backend trusted secret ingest path.
 - `PRIVY_APP_ID` or `NEXT_PUBLIC_PRIVY_APP_ID` plus the server-only `PRIVY_JWT_VERIFICATION_KEY` control whether the Privy provider is registered.
+- Backend-owned signing still requires separate backend env on the Rust side (`PRIVY_SIGNER_ID`, `PRIVY_AUTHORIZATION_PRIVATE_KEY`, and a public backend callback URL).
 - Production persistence is still future work; the current store implementation is in-memory.
 
 ## Related Topics
