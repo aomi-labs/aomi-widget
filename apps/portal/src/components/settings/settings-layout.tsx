@@ -1,10 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { SettingsSidebar, SettingsCategory } from "./settings-sidebar";
 import { GeneralSettings } from "./general-settings";
 import { AppsSettings } from "./apps-settings";
-import { DeploySettings } from "./deploy-settings";
+import { Onboarding } from "./onboarding/onboarding";
 import { AppKeys } from "./app-keys";
 import { Bots } from "./bots";
 import { Secrets } from "./secrets";
@@ -14,6 +14,17 @@ export function SettingsLayout() {
   const [activeCategory, setActiveCategory] =
     useState<SettingsCategory>("general");
 
+  // Returning from a GitHub App install lands on /settings?installation_id=…
+  // (category is React state, not the URL), so open the Deploy tab where the
+  // onboarding flow can pick the redirect up.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.has("installation_id")) {
+      setActiveCategory("deploy");
+    }
+  }, []);
+
   const renderContent = () => {
     switch (activeCategory) {
       case "general":
@@ -21,7 +32,11 @@ export function SettingsLayout() {
       case "apps":
         return <AppsSettings />;
       case "deploy":
-        return <DeploySettings />;
+        return (
+          <div className="min-w-0">
+            <Onboarding />
+          </div>
+        );
       case "app-keys":
         return <AppKeys />;
       case "bots":

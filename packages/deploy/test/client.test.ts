@@ -2,35 +2,20 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { DeploymentClient } from "../src/client";
-import { ActivationError, BrowserEnvironmentError, TagWideningError } from "../src/errors";
-import type { GitHubRestClient } from "../src/github";
+import {
+  BackendError,
+  BrowserEnvironmentError,
+  DeployError,
+} from "../src/errors";
+import type { AuditEvent } from "../src/types";
 
-// ----- in-memory fake of the GitHub Git Data API ----------------------------
-
-// The client now only *reads* GitHub (status); the write (commit) moved to the
-// backend. The fake just satisfies the read interface used by the status reader.
-function makeFakeGitHub() {
-  const api: GitHubRestClient = {
-    repos: {
-      async listReleases() {
-        return { data: [] };
-      },
-    },
-    actions: {
-      async listWorkflowRunsForRepo() {
-        return { data: { workflow_runs: [] } };
-      },
-    },
-  };
-  return { api };
-}
-
-function makeClient(octokit: GitHubRestClient, onAudit?: (e: unknown) => void) {
+function client(onAudit?: (event: AuditEvent) => void) {
   return new DeploymentClient({
-    github: { repo: "aomi-labs/krexa-hosted-apps", branch: "publish", botPat: "bot-pat" },
-    aomi: { backendUrl: "https://staging-api.example.com", platform: "krexa", activationToken: "act-token" },
-    onAudit: onAudit as never,
-    octokit,
+    aomi: {
+      backendUrl: "https://staging-api.example.com/",
+      activationToken: "act-token",
+    },
+    onAudit,
   });
 }
 
@@ -38,82 +23,101 @@ describe("DeploymentClient.deploy", () => {
   let fetchMock: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
-    fetchMock = vi.fn(
-      async () =>
-        new Response(
-          JSON.stringify({
-            commit_sha: "newcommitsha",
-            branch: "publish",
-            release_tag: "apps-krexa-finance-0123456789ab",
-            app_path: "apps/krexa-finance",
-          }),
-          { status: 201 },
-        ),
+    fetchMock = vi.fn(async () =>
+      Response.json({
+        ok: true,
+        deployment: {
+          id: "dep_123_abc1234",
+          status: "dry_run",
+          source: {
+            installation_id: 123,
+            repository_id: 987,
+            repository_link: "https://github.com/alice/demo.git",
+            owner_repo_name: "alice/demo",
+            ref: { kind: "branch", value: "main" },
+            commit_hash: "abc1234def5678",
+            aomi_toml_paths: ["aomi.toml"],
+          },
+          platform: {
+            platform: "community",
+            repository: "aomi-labs/community-apps",
+            deploy_branch: "main",
+            source_branch: "alice/demo/123/abc1234def56",
+            commit_hash: null,
+            pr_number: null,
+            pr_url: null,
+            ci_status: null,
+            ci_url: null,
+            apps: [
+              {
+                name: "demo",
+                path: "apps/123/demo",
+                aomi_toml_path: "aomi.toml",
+                release_tag: "apps-123-demo-abc1234def56",
+                target: "x86_64-unknown-linux-gnu",
+              },
+            ],
+          },
+        },
+      }),
     );
     vi.stubGlobal("fetch", fetchMock);
   });
+
   afterEach(() => vi.unstubAllGlobals());
 
-  it("POSTs the bundle to the backend publish endpoint with the activation bearer", async () => {
-    const { api } = makeFakeGitHub();
-    const audits: unknown[] = [];
-    const client = makeClient(api, (e) => audits.push(e));
-
-    const result = await client.deploy({
-      slug: "krexa-finance",
-      displayName: "Krexa Finance",
-      files: { "index.html": "<html>", "aomi.toml": "name='krexa-finance'" },
-      serverTags: ["staging"],
-      sourceCommit: "0123456789abcdef0123456789abcdef01234567",
+  it("POSTs the repo-scoped deploy request and maps the response to camelCase", async () => {
+    const audits: AuditEvent[] = [];
+    const result = await client((event) => audits.push(event)).deploy({
+      platform: "community",
+      appSourceId: 42,
+      sourceRef: { kind: "branch", value: "main" },
+      aomiTomlPaths: ["aomi.toml"],
+      dryRun: true,
+      actor: "alice",
     });
 
     expect(fetchMock).toHaveBeenCalledOnce();
     const [url, init] = fetchMock.mock.calls[0];
     expect(url).toBe(
-      "https://staging-api.example.com/api/admin/platforms/krexa/apps/krexa-finance/publish",
+      "https://staging-api.example.com/api/platforms/community/deploy",
     );
-    expect((init as RequestInit).headers).toMatchObject({ Authorization: "Bearer act-token" });
-    const body = JSON.parse((init as RequestInit).body as string);
-    expect(body).toMatchObject({
-      source_commit: "0123456789abcdef0123456789abcdef01234567",
-      is_public: false,
-      server_tags: ["staging"],
-      label: "Krexa Finance",
+    expect((init as RequestInit).headers).toMatchObject({
+      Authorization: "Bearer act-token",
+      "Content-Type": "application/json",
     });
-    // Files carried as base64 with app-relative paths (no apps/<slug>/ prefix —
-    // the backend prefixes it).
-    expect(body.files).toEqual(
-      expect.arrayContaining([
-        { path: "index.html", content_base64: Buffer.from("<html>").toString("base64") },
-        { path: "aomi.toml", content_base64: Buffer.from("name='krexa-finance'").toString("base64") },
-      ]),
-    );
+    expect(JSON.parse((init as RequestInit).body as string)).toEqual({
+      app_source_id: 42,
+      source_ref: { kind: "branch", value: "main" },
+      aomi_toml_paths: ["aomi.toml"],
+      dry_run: true,
+    });
 
-    // Result echoes the backend response.
-    expect(result.releaseTag).toBe("apps-krexa-finance-0123456789ab");
-    expect(result.publishCommitSha).toBe("newcommitsha");
-    expect(result.appPath).toBe("apps/krexa-finance");
-    expect(result.serverTags).toEqual(["staging"]);
-
-    expect(audits).toHaveLength(1);
-    expect(audits[0]).toMatchObject({ action: "deploy", slug: "krexa-finance", releaseTag: result.releaseTag });
+    expect(result.deployment.source.installationId).toBe(123);
+    expect(result.deployment.platform.apps[0]).toMatchObject({
+      aomiTomlPath: "aomi.toml",
+      releaseTag: "apps-123-demo-abc1234def56",
+      target: "x86_64-unknown-linux-gnu",
+    });
+    expect(audits).toEqual([
+      expect.objectContaining({
+        action: "deploy",
+        platform: "community",
+        appSourceId: 42,
+        actor: "alice",
+      }),
+    ]);
   });
 
-  it("derives a source commit when none is supplied and sends it to the backend", async () => {
-    const { api } = makeFakeGitHub();
-    const client = makeClient(api);
-    const result = await client.deploy({ slug: "app", files: { "a.txt": "x" } });
-    expect(result.sourceCommit).toMatch(/^[0-9a-f]{40}$/);
-    const body = JSON.parse((fetchMock.mock.calls[0][1] as RequestInit).body as string);
-    expect(body.source_commit).toBe(result.sourceCommit);
-  });
-
-  it("rejects an invalid slug before any request", async () => {
-    const { api } = makeFakeGitHub();
-    const client = makeClient(api);
-    await expect(client.deploy({ slug: "Bad Slug", files: { "a.txt": "x" } })).rejects.toThrow(
-      /invalid app slug/,
-    );
+  it("rejects invalid deploy input before calling the backend", async () => {
+    await expect(
+      client().deploy({
+        platform: "community",
+        appSourceId: 0,
+        sourceRef: { kind: "commit", value: "abc1234" },
+        aomiTomlPaths: ["aomi.toml"],
+      }),
+    ).rejects.toBeInstanceOf(DeployError);
     expect(fetchMock).not.toHaveBeenCalled();
   });
 });
@@ -122,157 +126,214 @@ describe("DeploymentClient.activate", () => {
   let fetchMock: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
-    fetchMock = vi.fn(async () => new Response(JSON.stringify({ activated: true }), { status: 200 }));
+    fetchMock = vi.fn(async () =>
+      Response.json({
+        ok: false,
+        activation: {
+          status: "partial_failed",
+          platform: "community",
+          target: {
+            kind: "release_tags",
+            value: [
+              "apps-123-demo-abc1234def56",
+              "apps-123-broken-abc1234def56",
+            ],
+            platform_repo: "aomi-labs/community-apps",
+            platform_branch: "publish",
+            platform_commit_hash: "ff00aa",
+            ci_status: "passed",
+            ci_url:
+              "https://github.com/aomi-labs/community-apps/actions/runs/1",
+            promoted: [],
+          },
+          apps: [
+            {
+              name: "demo",
+              path: "apps/123/demo",
+              release_tag: "apps-123-demo-abc1234def56",
+              is_active: true,
+              loaded: true,
+            },
+            {
+              name: "broken",
+              path: "apps/123/broken",
+              release_tag: "apps-123-broken-abc1234def56",
+              is_active: false,
+              loaded: false,
+              error: "release artifact not found",
+            },
+          ],
+        },
+      }),
+    );
     vi.stubGlobal("fetch", fetchMock);
   });
+
   afterEach(() => vi.unstubAllGlobals());
 
-  it("POSTs a backend-shaped body with Bearer token + transient read PAT", async () => {
-    const { api } = makeFakeGitHub();
-    const client = makeClient(api);
-
-    const res = await client.activate({
-      slug: "krexa-finance",
-      targetEnv: "staging",
-      releaseTag: "apps-krexa-finance-0123456789ab",
-      sourceCommit: "0123456789abcdef0123456789abcdef01234567",
-      buildServerTags: ["staging"],
+  it("POSTs one release-tags activation request and maps partial failures", async () => {
+    const result = await client().activate({
+      platform: "community",
+      target: {
+        kind: "release_tags",
+        value: ["apps-123-demo-abc1234def56", "apps-123-broken-abc1234def56"],
+      },
+      apps: ["demo", "broken"],
+      targetTags: ["staging"],
     });
 
-    expect(res.activated).toBe(true);
-    expect(fetchMock).toHaveBeenCalledOnce();
     const [url, init] = fetchMock.mock.calls[0];
-    expect(url).toBe("https://staging-api.example.com/api/admin/apps/activate");
-    expect((init as RequestInit).headers).toMatchObject({ Authorization: "Bearer act-token" });
-    const body = JSON.parse((init as RequestInit).body as string);
-    expect(body).toMatchObject({
-      app_slug: "krexa-finance",
-      platform: "krexa",
-      source_repo: "aomi-labs/krexa-hosted-apps",
-      app_release_tag: "apps-krexa-finance-0123456789ab",
-      source_commit: "0123456789abcdef0123456789abcdef01234567",
-      is_public: false,
+    expect(url).toBe(
+      "https://staging-api.example.com/api/platforms/community/apps/activate",
+    );
+    expect(JSON.parse((init as RequestInit).body as string)).toEqual({
+      target: {
+        kind: "release_tags",
+        value: ["apps-123-demo-abc1234def56", "apps-123-broken-abc1234def56"],
+      },
+      apps: ["demo", "broken"],
       target_tags: ["staging"],
-      github_token: "bot-pat",
+    });
+    expect(result.ok).toBe(false);
+    expect(result.activation.target.platformRepo).toBe(
+      "aomi-labs/community-apps",
+    );
+    expect(result.activation.target.promoted).toEqual([]);
+    expect(result.activation.apps[1]).toMatchObject({
+      name: "broken",
+      isActive: false,
+      loaded: false,
+      error: "release artifact not found",
     });
   });
 
-  it("enforces narrow-only: prod is rejected against a staging-only build", async () => {
-    const { api } = makeFakeGitHub();
-    const client = makeClient(api);
+  it("rejects empty release tag targets before calling the backend", async () => {
     await expect(
-      client.activate({
-        slug: "app",
-        targetEnv: "prod",
-        releaseTag: "apps-app-0123456789ab",
-        sourceCommit: "0123456789abcdef0123456789abcdef01234567",
-        buildServerTags: ["staging"],
+      client().activate({
+        platform: "community",
+        target: { kind: "release_tags", value: [] },
+        apps: ["demo"],
       }),
-    ).rejects.toBeInstanceOf(TagWideningError);
+    ).rejects.toThrow(/target.value/);
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it("throws ActivationError on a non-2xx backend response", async () => {
-    fetchMock.mockResolvedValueOnce(new Response("upstream fetch failed", { status: 502 }));
-    const { api } = makeFakeGitHub();
-    const client = makeClient(api);
+  it("rejects mismatched app and release tag counts before calling the backend", async () => {
     await expect(
-      client.activate({
-        slug: "app",
-        targetTags: ["staging"],
-        releaseTag: "apps-app-0123456789ab",
-        sourceCommit: "0123456789abcdef0123456789abcdef01234567",
+      client().activate({
+        platform: "community",
+        target: { kind: "release_tags", value: ["apps-123-demo-abc1234def56"] },
+        apps: ["demo", "other"],
       }),
-    ).rejects.toMatchObject({ name: "ActivationError", status: 502 });
+    ).rejects.toThrow(/same number/);
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it("surfaces the backend's classified { error } message into ActivationError.message", async () => {
-    // The activate endpoint returns a JSON `{ error }` body with actionable
-    // 409/422/502 text (e.g. a plugin-name collision). The thrown error's
-    // message must carry it so the portal route — which renders `err.message` —
-    // shows the detail instead of a bare "activation failed (409)".
-    const detail =
-      "release `apps-app-0123456789ab` collides with an already-installed plugin: rename + redeploy";
+  it("rejects non-release-tag activation targets before calling the backend", async () => {
+    await expect(
+      client().activate({
+        platform: "community",
+        target: {
+          kind: "unsupported",
+          value: "not-a-release-tag-target",
+        } as any,
+        apps: ["demo"],
+      }),
+    ).rejects.toThrow(/release_tag/);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("allows release_tags activation without app names and maps promotions", async () => {
     fetchMock.mockResolvedValueOnce(
-      new Response(JSON.stringify({ error: detail }), { status: 409 }),
-    );
-    const { api } = makeFakeGitHub();
-    const client = makeClient(api);
-    const err = await client
-      .activate({
-        slug: "app",
-        targetTags: ["staging"],
-        releaseTag: "apps-app-0123456789ab",
-        sourceCommit: "0123456789abcdef0123456789abcdef01234567",
-      })
-      .then(
-        () => {
-          throw new Error("expected activate to reject");
+      Response.json({
+        ok: true,
+        activation: {
+          status: "activated",
+          platform: "community",
+          target: {
+            kind: "release_tags",
+            value: ["apps-123-demo-abc1234def56"],
+            platform_repo: "aomi-labs/community-apps",
+            platform_branch: "publish",
+            promoted: [
+              {
+                name: "demo",
+                release_tag: "apps-123-demo-abc1234def56",
+                source_branch: "alice/demo/123/abc1234def56",
+                platform_commit_hash: "ff00aa",
+                live_commit_hash: "ff00bb",
+                ci_status: "passed",
+                ci_url:
+                  "https://github.com/aomi-labs/community-apps/actions/runs/1",
+                release_assets: [
+                  "aomi-plugins-apps-123-demo-abc1234def56-x86_64-unknown-linux-gnu.tar.gz",
+                  "manifest.json",
+                  "aomi-release.json",
+                ],
+              },
+            ],
+          },
+          apps: [
+            {
+              name: "demo",
+              path: "apps/123/demo",
+              release_tag: "apps-123-demo-abc1234def56",
+              is_active: true,
+              loaded: true,
+            },
+          ],
         },
-        (e) => e as ActivationError,
-      );
-    expect(err.name).toBe("ActivationError");
-    expect(err.status).toBe(409);
-    expect(err.message).toContain(detail);
-  });
-});
+      }),
+    );
 
-describe("DeploymentClient.requestActivation", () => {
-  it("fills platform + repo from config and audits without posting when no webhook set", async () => {
-    const { api } = makeFakeGitHub();
-    const audits: AuditEvent[] = [];
-    const client = makeClient(api, (e) => audits.push(e as AuditEvent));
-
-    const { payload, posted } = await client.requestActivation({
-      email: "alice@gmail.com",
-      githubAccount: "alice-git-acc",
-      app: "krexa-finance",
-      requestedAt: "2026-06-03T08:01:38Z",
-      actor: "user-1",
+    const result = await client().activate({
+      platform: "community",
+      target: {
+        kind: "release_tags",
+        value: ["apps-123-demo-abc1234def56"],
+      },
     });
 
-    expect(posted).toBe(false);
-    expect(payload).toMatchObject({
-      kind: "activation_request",
-      email: "alice@gmail.com",
-      github_account: "alice-git-acc",
-      app: "krexa-finance",
-      platform: "krexa", // from aomi config
-      repo: "aomi-labs/krexa-hosted-apps", // from descriptor (default from github.repo)
+    const [, init] = fetchMock.mock.calls[0];
+    expect(JSON.parse((init as RequestInit).body as string)).toEqual({
+      target: {
+        kind: "release_tags",
+        value: ["apps-123-demo-abc1234def56"],
+      },
     });
-    expect(audits).toEqual([
-      expect.objectContaining({ action: "request", slug: "krexa-finance", actor: "user-1" }),
-    ]);
+    expect(result.activation.target.promoted[0]).toMatchObject({
+      name: "demo",
+      releaseTag: "apps-123-demo-abc1234def56",
+      sourceBranch: "alice/demo/123/abc1234def56",
+      platformCommitHash: "ff00aa",
+      liveCommitHash: "ff00bb",
+      ciStatus: "passed",
+      releaseAssets: [
+        "aomi-plugins-apps-123-demo-abc1234def56-x86_64-unknown-linux-gnu.tar.gz",
+        "manifest.json",
+        "aomi-release.json",
+      ],
+    });
   });
 
-  it("POSTs the embed when a discord webhook is configured", async () => {
-    const fetchMock = vi.fn(async () => new Response(null, { status: 204 }));
-    vi.stubGlobal("fetch", fetchMock);
-    try {
-      const { api } = makeFakeGitHub();
-      const client = new DeploymentClient({
-        github: { repo: "aomi-labs/community-apps", branch: "publish", botPat: "bot" },
-        aomi: { backendUrl: "https://api", platform: "community", activationToken: "t" },
-        discord: { webhookUrl: "https://discord.com/api/webhooks/x/y", opsMention: "<@&123>" },
-        octokit: api,
-      });
-
-      const { posted } = await client.requestActivation({
-        email: "alice@gmail.com",
-        githubAccount: "alice-git-acc",
-        app: "cecilia-test-2",
-      });
-
-      expect(posted).toBe(true);
-      expect(fetchMock).toHaveBeenCalledOnce();
-      const [url, init] = fetchMock.mock.calls[0];
-      expect(url).toBe("https://discord.com/api/webhooks/x/y");
-      const body = JSON.parse((init as RequestInit).body as string);
-      expect(body.content).toBe("<@&123>");
-      expect(body.embeds[0].title).toBe("Activation request");
-    } finally {
-      vi.unstubAllGlobals();
-    }
+  it("throws BackendError on non-2xx responses", async () => {
+    fetchMock.mockResolvedValueOnce(
+      new Response("ci not passed", { status: 409 }),
+    );
+    await expect(
+      client().activate({
+        platform: "community",
+        target: {
+          kind: "release_tags",
+          value: ["apps-123-demo-abc1234def56"],
+        },
+        apps: ["demo"],
+      }),
+    ).rejects.toMatchObject({
+      name: "ActivationError",
+      status: 409,
+      body: "ci not passed",
+    });
   });
 });
 
@@ -282,7 +343,7 @@ describe("server-only guard", () => {
     g.window = {};
     g.document = {};
     try {
-      expect(() => makeClient(makeFakeGitHub().api)).toThrow(BrowserEnvironmentError);
+      expect(() => client()).toThrow(BrowserEnvironmentError);
     } finally {
       delete g.window;
       delete g.document;

@@ -1717,7 +1717,7 @@ var init_client = __esm({
        */
       async getApps(sessionId, options) {
         var _a3;
-        const url = buildApiUrl(this.baseUrl, "/api/control/apps", {
+        const url = buildApiUrl(this.baseUrl, "/api/session/apps", {
           public_key: options == null ? void 0 : options.publicKey
         });
         const apiKey = (_a3 = options == null ? void 0 : options.apiKey) != null ? _a3 : this.apiKey;
@@ -1790,7 +1790,7 @@ var init_client = __esm({
        */
       async getModels(sessionId, options) {
         var _a3;
-        const url = buildApiUrl(this.baseUrl, "/api/control/models");
+        const url = buildApiUrl(this.baseUrl, "/api/session/models");
         const apiKey = (_a3 = options == null ? void 0 : options.apiKey) != null ? _a3 : this.apiKey;
         const headers = new Headers(withSessionHeader(sessionId));
         if (apiKey) {
@@ -1819,7 +1819,7 @@ var init_client = __esm({
         }
         return postState(
           this.baseUrl,
-          "/api/control/model",
+          "/api/session/model",
           payload,
           sessionId,
           this.fetchImpl,

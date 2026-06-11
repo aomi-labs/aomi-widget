@@ -135,8 +135,8 @@ export function Bots() {
     setLoadingApps(true);
     try {
       const path = identity.address
-        ? `/api/control/apps?public_key=${encodeURIComponent(identity.address)}`
-        : "/api/control/apps";
+        ? `/api/session/apps?public_key=${encodeURIComponent(identity.address)}`
+        : "/api/session/apps";
       const data = await settingsApiFetch<AppOption[]>(path);
       const normalized = normalizeAppOptions(data ?? []);
       setAvailableApps(normalized);
