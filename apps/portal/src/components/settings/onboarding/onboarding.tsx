@@ -15,6 +15,7 @@ import {
   type OnboardingPath,
   type PathProgress,
 } from "@portal/lib/onboarding";
+import { resolveDeployPlatform } from "@portal/lib/deploy-platform";
 import { Picker } from "./picker";
 import { OneshotWizard } from "./oneshot-wizard";
 import { BootstrapWizard } from "./bootstrap-wizard";
@@ -97,7 +98,7 @@ export function Onboarding() {
           const repo = next[path].repo;
           window.location.assign(
             await githubAppInstallUrl({
-              platform: process.env.NEXT_PUBLIC_AOMI_DEPLOY_PLATFORM,
+              platform: resolveDeployPlatform(),
               repo,
               mode,
               app: path === "oneshot" ? 2 : undefined,

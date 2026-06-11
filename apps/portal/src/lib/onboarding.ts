@@ -305,10 +305,11 @@ export async function githubAppInstallUrl(args: {
   return result.install_url;
 }
 
-// --- backend seam (pending the application_id contract) ---------------------
-// These hit /api/onboard/*, which is currently a 501 stub. The wizards surface
-// a clear "pending backend" state when it errors, so the GitHub-side flow stays
-// fully exercisable in the meantime.
+// --- backend seam -----------------------------------------------------------
+// These call the portal BFF routes under /api/onboard/*, which proxy the
+// backend platform endpoints (create-from-template, dry-run/deploy, status,
+// activate, app) using a server-only activation token. The wizards surface a
+// clear error state if a call fails.
 export type OnboardDeployInput = {
   path: OnboardingPath;
   installationId: string;
