@@ -15,6 +15,7 @@ import {
   type OnboardingPath,
   type PathProgress,
 } from "@portal/lib/onboarding";
+import { resolveDeployPlatform } from "@portal/lib/deploy-platform";
 import { Picker } from "./picker";
 import { OneshotWizard } from "./oneshot-wizard";
 import { BootstrapWizard } from "./bootstrap-wizard";
@@ -97,9 +98,10 @@ export function Onboarding() {
           const repo = next[path].repo;
           window.location.assign(
             await githubAppInstallUrl({
-              platform: process.env.NEXT_PUBLIC_AOMI_DEPLOY_PLATFORM,
+              platform: resolveDeployPlatform(),
               repo,
               mode,
+              app: path === "oneshot" ? 2 : undefined,
             }),
           );
         } catch (error) {
@@ -120,40 +122,29 @@ export function Onboarding() {
 
   if (state.path === "oneshot") {
     return (
-      <>
-        {installError && (
-          <p className="rounded-md border border-red-500/20 bg-red-500/10 p-3 text-sm text-red-500">
-            {installError}
-          </p>
-        )}
-        <OneshotWizard
-          progress={state.oneshot}
-          actor={actor}
-          onBack={back}
-          beginInstall={makeBeginInstall("oneshot")}
-          installing={installingPath === "oneshot"}
-          patch={makePatch("oneshot")}
-        />
-      </>
+      <OneshotWizard
+        progress={state.oneshot}
+        actor={actor}
+        onBack={back}
+        beginInstall={makeBeginInstall("oneshot")}
+        beginAuthorize={makeBeginInstall("oneshot", "authorize")}
+        installing={installingPath === "oneshot"}
+        installError={installError}
+        patch={makePatch("oneshot")}
+      />
     );
   }
 
   return (
-    <>
-      {installError && (
-        <p className="rounded-md border border-red-500/20 bg-red-500/10 p-3 text-sm text-red-500">
-          {installError}
-        </p>
-      )}
-      <BootstrapWizard
-        progress={state.bootstrap}
-        actor={actor}
-        onBack={back}
-        beginInstall={makeBeginInstall("bootstrap")}
-        beginAuthorize={makeBeginInstall("bootstrap", "authorize")}
-        installing={installingPath === "bootstrap"}
-        patch={makePatch("bootstrap")}
-      />
-    </>
+    <BootstrapWizard
+      progress={state.bootstrap}
+      actor={actor}
+      onBack={back}
+      beginInstall={makeBeginInstall("bootstrap")}
+      beginAuthorize={makeBeginInstall("bootstrap", "authorize")}
+      installing={installingPath === "bootstrap"}
+      installError={installError}
+      patch={makePatch("bootstrap")}
+    />
   );
 }
