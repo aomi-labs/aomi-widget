@@ -29,6 +29,10 @@ import {
   useSigners,
   useWallets,
 } from "@privy-io/react-auth";
+import {
+  useCreateWallet as useCreateSolanaWallet,
+  useWallets as useSolanaWallets,
+} from "@privy-io/react-auth/solana";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 interface Props {
@@ -36,6 +40,7 @@ interface Props {
   appId: string;
   signerId: string;
   callbackUrl?: string;
+  requestedWalletFamily?: WalletChainType;
 }
 
 export function PrivyAuthClient({
@@ -43,16 +48,13 @@ export function PrivyAuthClient({
   appId,
   signerId,
   callbackUrl,
+  requestedWalletFamily,
 }: Props) {
   return (
     <PrivyProvider
       appId={appId}
       config={{
-        // We only need an EVM embedded wallet for v1 (byreal perps + HL).
-        // Solana wallet support gets added when we wire byreal spot/LP.
-        embeddedWallets: {
-          ethereum: { createOnLogin: "all-users" },
-        },
+        embeddedWallets: buildEmbeddedWalletConfig(requestedWalletFamily),
         loginMethods: ["email", "sms", "wallet"],
         appearance: {
           theme: "light",
@@ -64,6 +66,7 @@ export function PrivyAuthClient({
         state={state}
         signerId={signerId}
         callbackUrl={callbackUrl}
+        requestedWalletFamily={requestedWalletFamily}
       />
     </PrivyProvider>
   );
@@ -73,23 +76,36 @@ type Status =
   | { kind: "loading" }
   | { kind: "ready" }
   | { kind: "pending"; message: string }
-  | { kind: "success"; address: string }
+  | { kind: "success"; wallets: CallbackWallet[] }
   | { kind: "error"; message: string };
+
+type WalletChainType = "ethereum" | "solana";
+
+type CallbackWallet = {
+  id: string;
+  address: string;
+  chainType: WalletChainType;
+};
 
 function PrivyConnectFlow({
   state,
   signerId,
   callbackUrl,
+  requestedWalletFamily,
 }: {
   state: string;
   signerId: string;
   callbackUrl?: string;
+  requestedWalletFamily?: WalletChainType;
 }) {
   const { ready, authenticated, user, login, getAccessToken, logout } =
     usePrivy();
   const { createWallet } = useCreateWallet();
+  const { createWallet: createSolanaWallet } = useCreateSolanaWallet();
   const { addSigners } = useSigners();
   const { ready: walletsReady, wallets } = useWallets();
+  const { ready: solanaWalletsReady, wallets: solanaWallets } =
+    useSolanaWallets();
 
   const [status, setStatus] = useState<Status>({ kind: "loading" });
   const [hasSubmitted, setHasSubmitted] = useState(false);
@@ -98,9 +114,17 @@ function PrivyConnectFlow({
   // `walletClientType === 'privy'` filters out injected/external wallets that
   // the user might have linked — we only stash the embedded one because
   // that's the one Aomi BE will sign through.
-  const embeddedWallet = useMemo(
-    () => wallets.find((w) => w.walletClientType === "privy"),
+  const embeddedEvmWallet = useMemo(
+    () =>
+      wallets.find(
+        (w) =>
+          w.walletClientType === "privy" || w.walletClientType === "privy-v2",
+      ),
     [wallets],
+  );
+  const embeddedSolanaWallet = useMemo(
+    () => solanaWallets[0] ?? null,
+    [solanaWallets],
   );
 
   // Transition to `ready` once the SDK reports ready. Don't auto-submit on
@@ -123,34 +147,84 @@ function PrivyConnectFlow({
     }
 
     setHasSubmitted(true);
-    setStatus({ kind: "pending", message: "Preparing your Privy wallet…" });
+    setStatus({ kind: "pending", message: "Preparing your Privy wallets…" });
+    const shouldRequireSolana = requestedWalletFamily === "solana";
 
-    let walletAddress = embeddedWallet?.address;
-    let walletId = walletAddress
-      ? embeddedWalletIdForUser(user, walletAddress)
-      : null;
-
-    if (!walletAddress) {
+    let evmWallet = walletRefForUser(
+      user,
+      "ethereum",
+      embeddedEvmWallet?.address,
+    );
+    if (!evmWallet) {
       try {
         const createdWallet = await createWallet();
-        walletAddress = createdWallet.address;
-        walletId =
-          createdWallet.id ?? embeddedWalletIdForUser(user, walletAddress);
+        evmWallet = walletRefForUser(
+          user,
+          "ethereum",
+          createdWallet.address,
+        ) ?? {
+          id: createdWallet.id ?? "",
+          address: createdWallet.address,
+          chainType: "ethereum",
+        };
       } catch (err) {
         setStatus({
           kind: "error",
-          message: `Could not create embedded Privy wallet: ${errMsg(err)}`,
+          message: `Could not create embedded EVM wallet: ${errMsg(err)}`,
         });
         setHasSubmitted(false);
         return;
       }
     }
 
-    if (!walletId) {
+    let solanaWallet = walletRefForUser(
+      user,
+      "solana",
+      embeddedSolanaWallet?.address,
+    );
+    if (!solanaWallet && shouldRequireSolana && !embeddedSolanaWallet) {
+      try {
+        const { wallet: createdWallet } = await createSolanaWallet();
+        solanaWallet = walletRefForUser(
+          user,
+          "solana",
+          createdWallet.address,
+        ) ?? {
+          id: createdWallet.id ?? "",
+          address: createdWallet.address,
+          chainType: "solana",
+        };
+      } catch (err) {
+        setStatus({
+          kind: "error",
+          message: `Could not create embedded Solana wallet: ${errMsg(err)}`,
+        });
+        setHasSubmitted(false);
+        return;
+      }
+    }
+    if (!solanaWallet && shouldRequireSolana && embeddedSolanaWallet) {
       setStatus({
         kind: "error",
         message:
-          "Privy did not return a stable wallet id for the embedded wallet.",
+          "Privy already has an embedded Solana wallet for this user, but it has not exposed a stable wallet id yet. Retry the login.",
+      });
+      setHasSubmitted(false);
+      return;
+    }
+
+    const callbackWallets = [evmWallet, solanaWallet]
+      .filter((wallet): wallet is CallbackWallet => Boolean(wallet))
+      .map((wallet) => ({
+        id: wallet.id,
+        address: wallet.address,
+        chainType: wallet.chainType,
+      }));
+    const missingWallet = callbackWallets.find((wallet) => !wallet.id);
+    if (missingWallet) {
+      setStatus({
+        kind: "error",
+        message: `Privy did not return a stable wallet id for the ${missingWallet.chainType} embedded wallet.`,
       });
       setHasSubmitted(false);
       return;
@@ -159,10 +233,10 @@ function PrivyConnectFlow({
     try {
       setStatus({
         kind: "pending",
-        message: "Granting Aomi server-side access to your wallet…",
+        message: "Granting Aomi server-side access to your wallets…",
       });
       const signerGrantError = await ensureServerSignerAccess({
-        address: walletAddress,
+        wallets: callbackWallets,
         signerId,
         addSigners,
       });
@@ -174,8 +248,7 @@ function PrivyConnectFlow({
       const callback = await postPrivyCallbackWithRefresh({
         state,
         userId: user.id,
-        walletId,
-        walletAddress,
+        wallets: callbackWallets,
         callbackUrl,
         getAccessToken,
       });
@@ -186,7 +259,7 @@ function PrivyConnectFlow({
         });
         return;
       }
-      setStatus({ kind: "success", address: walletAddress });
+      setStatus({ kind: "success", wallets: callbackWallets });
     } catch (err) {
       setStatus({
         kind: "error",
@@ -196,10 +269,13 @@ function PrivyConnectFlow({
   }, [
     callbackUrl,
     createWallet,
-    embeddedWallet,
+    createSolanaWallet,
+    embeddedEvmWallet,
+    embeddedSolanaWallet,
     getAccessToken,
     hasSubmitted,
     addSigners,
+    requestedWalletFamily,
     signerId,
     state,
     user,
@@ -214,11 +290,20 @@ function PrivyConnectFlow({
       status.kind === "ready" &&
       authenticated &&
       walletsReady &&
+      (requestedWalletFamily !== "solana" || solanaWalletsReady) &&
       !hasSubmitted
     ) {
       void submit();
     }
-  }, [authenticated, hasSubmitted, status.kind, submit, walletsReady]);
+  }, [
+    authenticated,
+    hasSubmitted,
+    requestedWalletFamily,
+    solanaWalletsReady,
+    status.kind,
+    submit,
+    walletsReady,
+  ]);
 
   return (
     <main className="bg-background text-foreground flex min-h-screen items-center justify-center px-6 py-12">
@@ -292,7 +377,7 @@ function Body({
     case "success":
       return (
         <div className="space-y-4">
-          <SuccessBanner address={status.address} />
+          <SuccessBanner wallets={status.wallets} />
           <p className="text-muted-foreground text-sm">
             You can close this tab and return to your Aomi session.
           </p>
@@ -327,12 +412,20 @@ function Pending({ text }: { text: string }) {
   );
 }
 
-function SuccessBanner({ address }: { address: string }) {
-  const short = `${address.slice(0, 6)}…${address.slice(-4)}`;
+function SuccessBanner({ wallets }: { wallets: CallbackWallet[] }) {
   return (
     <div className="rounded-2xl border border-green-500/20 bg-green-500/10 p-4 text-sm text-green-700 dark:text-green-400">
       <p className="font-medium">Connected.</p>
-      <p className="mt-1 font-mono text-xs">{short}</p>
+      <div className="mt-2 space-y-1">
+        {wallets.map((wallet) => (
+          <p
+            key={`${wallet.chainType}:${wallet.id}`}
+            className="font-mono text-xs"
+          >
+            {wallet.chainType}: {shortAddress(wallet.address)}
+          </p>
+        ))}
+      </div>
     </div>
   );
 }
@@ -353,15 +446,13 @@ function errMsg(err: unknown): string {
 async function postPrivyCallbackWithRefresh({
   state,
   userId,
-  walletId,
-  walletAddress,
+  wallets,
   callbackUrl,
   getAccessToken,
 }: {
   state: string;
   userId: string;
-  walletId: string;
-  walletAddress: string;
+  wallets: CallbackWallet[];
   callbackUrl?: string;
   getAccessToken: () => Promise<string | null>;
 }): Promise<{ ok: true } | { ok: false; status: number; detail: string }> {
@@ -379,6 +470,14 @@ async function postPrivyCallbackWithRefresh({
     if (!accessToken) {
       return { ok: false, status: 0, detail: "No access token from Privy." };
     }
+    const evmWallet = wallets.find((wallet) => wallet.chainType === "ethereum");
+    if (!evmWallet) {
+      return {
+        ok: false,
+        status: 0,
+        detail: "Missing Ethereum embedded wallet for callback.",
+      };
+    }
 
     const res = await fetch(callbackUrl ?? "/api/auth/privy/callback", {
       method: "POST",
@@ -387,8 +486,13 @@ async function postPrivyCallbackWithRefresh({
         state,
         access_token: accessToken,
         user_id: userId,
-        wallet_id: walletId,
-        wallet_address: walletAddress,
+        wallet_id: evmWallet.id,
+        wallet_address: evmWallet.address,
+        wallets: wallets.map((wallet) => ({
+          id: wallet.id,
+          address: wallet.address,
+          chain_type: wallet.chainType,
+        })),
       }),
     });
     if (res.ok) {
@@ -414,11 +518,11 @@ function sleep(ms: number): Promise<void> {
 }
 
 async function ensureServerSignerAccess({
-  address,
+  wallets,
   signerId,
   addSigners,
 }: {
-  address: string;
+  wallets: CallbackWallet[];
   signerId: string;
   addSigners: ({
     address,
@@ -431,20 +535,27 @@ async function ensureServerSignerAccess({
   const retryDelaysMs = [0, 500, 1500];
   let lastError: string | null = null;
 
-  for (let attempt = 0; attempt < retryDelaysMs.length; attempt++) {
-    const delayMs = retryDelaysMs[attempt];
-    if (delayMs > 0) {
-      await sleep(delayMs);
+  for (const wallet of wallets) {
+    for (let attempt = 0; attempt < retryDelaysMs.length; attempt++) {
+      const delayMs = retryDelaysMs[attempt];
+      if (delayMs > 0) {
+        await sleep(delayMs);
+      }
+
+      try {
+        await addSigners({
+          address: wallet.address,
+          signers: [{ signerId, policyIds: [] }],
+        });
+        lastError = null;
+        break;
+      } catch (err) {
+        lastError = `${wallet.chainType}: ${errMsg(err)}`;
+      }
     }
 
-    try {
-      await addSigners({
-        address,
-        signers: [{ signerId, policyIds: [] }],
-      });
-      return null;
-    } catch (err) {
-      lastError = errMsg(err);
+    if (lastError) {
+      return lastError;
     }
   }
 
@@ -465,18 +576,56 @@ function formatCallbackFailure(
   return `${callbackMessage}. Privy signer grant also reported: ${signerGrantError}`;
 }
 
-function embeddedWalletIdForUser(user: User, address: string): string | null {
-  const target = address.toLowerCase();
+function buildEmbeddedWalletConfig(requestedWalletFamily?: WalletChainType): {
+  ethereum: { createOnLogin: "all-users" };
+  solana?: { createOnLogin: "all-users" };
+} {
+  return requestedWalletFamily === "solana"
+    ? {
+        ethereum: { createOnLogin: "all-users" },
+        solana: { createOnLogin: "all-users" },
+      }
+    : {
+        ethereum: { createOnLogin: "all-users" },
+      };
+}
+
+function walletRefForUser(
+  user: User,
+  chainType: WalletChainType,
+  address?: string | null,
+): CallbackWallet | null {
+  const target = address?.toLowerCase();
 
   for (const account of user.linkedAccounts) {
     if (
       account.type === "wallet" &&
-      account.walletClientType === "privy" &&
-      account.address.toLowerCase() === target
+      (account.walletClientType === "privy" ||
+        account.walletClientType === "privy-v2") &&
+      account.chainType === chainType &&
+      (!target || account.address.toLowerCase() === target)
     ) {
-      return account.id ?? null;
+      if (!account.id) {
+        return {
+          id: "",
+          address: account.address,
+          chainType,
+        };
+      }
+      return {
+        id: account.id,
+        address: account.address,
+        chainType,
+      };
     }
   }
 
   return null;
+}
+
+function shortAddress(address: string): string {
+  if (address.length <= 12) {
+    return address;
+  }
+  return `${address.slice(0, 6)}…${address.slice(-4)}`;
 }
