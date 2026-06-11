@@ -40,29 +40,29 @@ import type {
   WalletTxPayload,
 } from "@aomi-labs/react";
 import { toAAWalletCalls, toViemSignTypedDataArgs } from "@aomi-labs/react";
-import { AomiAuthAdapterProvider } from "../context";
+import { AomiAuthAdapterProvider } from "../../context";
 import {
   AomiWalletNetworkPreferencesProvider,
   useAomiWalletNetworkPreferences,
-} from "../network-preferences";
+} from "../../network-preferences";
 import {
   DEFAULT_SOLANA_CLUSTER,
   DEFAULT_SOLANA_RPC_HTTP_URLS,
   normalizeSolanaNetworkOptions,
   resolveSelectedSolanaNetwork,
-} from "../solana-networks";
+} from "../../solana-networks";
 import {
   AOMI_AUTH_BOOTING_IDENTITY,
   AOMI_AUTH_DISCONNECTED_IDENTITY,
   formatAddress,
   formatAuthProvider,
-} from "../identity";
-import { buildAccounts } from "../accounts";
+} from "../../identity";
+import { buildAccounts } from "../../accounts";
 import {
   useSafeSwitchChain,
   useSafeWagmiAccount,
   useSafeWagmiConfig,
-} from "../safe-wagmi-hooks";
+} from "../../safe-wagmi-hooks";
 import type {
   AomiAccountCredential,
   AomiAuthAdapter,
@@ -72,7 +72,7 @@ import type {
   SolanaCluster,
   SolanaNetworkOption,
   WalletFamily,
-} from "../types";
+} from "../../types";
 
 const DEFAULT_SOLANA_ENDPOINT =
   DEFAULT_SOLANA_RPC_HTTP_URLS[DEFAULT_SOLANA_CLUSTER];

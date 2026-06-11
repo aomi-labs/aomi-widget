@@ -69,6 +69,14 @@
         },
         {
           "type": "registry:component",
+          "path": "lib/aomi-auth-adapter/wallet-brands.ts"
+        },
+        {
+          "type": "registry:component",
+          "path": "lib/aomi-auth-adapter/wallet-debug.ts"
+        },
+        {
+          "type": "registry:component",
           "path": "lib/auth-identity.ts"
         }
       ],
@@ -188,6 +196,10 @@
         {
           "type": "registry:component",
           "path": "components/assistant-ui/thread.tsx"
+        },
+        {
+          "type": "registry:component",
+          "path": "components/assistant-ui/thread-loading.ts"
         }
       ],
       "dependencies": [
@@ -345,7 +357,27 @@
       "files": [
         {
           "type": "registry:component",
-          "path": "lib/aomi-auth-adapter/providers/para.tsx"
+          "path": "lib/aomi-auth-adapter/providers/para/index.ts"
+        },
+        {
+          "type": "registry:component",
+          "path": "lib/aomi-auth-adapter/providers/para/para.tsx"
+        },
+        {
+          "type": "registry:component",
+          "path": "lib/aomi-auth-adapter/providers/para/para-sol.tsx"
+        },
+        {
+          "type": "registry:component",
+          "path": "lib/aomi-auth-adapter/providers/para/para-aa.ts"
+        },
+        {
+          "type": "registry:component",
+          "path": "lib/aomi-auth-adapter/providers/para/evm-disconnect-plan.ts"
+        },
+        {
+          "type": "registry:component",
+          "path": "lib/aomi-auth-adapter/providers/para/evm-identity-grace.ts"
         },
         {
           "type": "registry:component",
@@ -383,7 +415,11 @@
       "files": [
         {
           "type": "registry:component",
-          "path": "lib/aomi-auth-adapter/providers/base-account.tsx"
+          "path": "lib/aomi-auth-adapter/providers/base-account/index.ts"
+        },
+        {
+          "type": "registry:component",
+          "path": "lib/aomi-auth-adapter/providers/base-account/base-account.tsx"
         },
         {
           "type": "registry:component",
@@ -412,7 +448,11 @@
       "files": [
         {
           "type": "registry:component",
-          "path": "lib/aomi-auth-adapter/providers/privy.tsx"
+          "path": "lib/aomi-auth-adapter/providers/privy/index.ts"
+        },
+        {
+          "type": "registry:component",
+          "path": "lib/aomi-auth-adapter/providers/privy/privy.tsx"
         },
         {
           "type": "registry:component",

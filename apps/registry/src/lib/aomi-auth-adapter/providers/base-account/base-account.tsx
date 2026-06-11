@@ -16,13 +16,13 @@ import {
   toViemSignMessageArgs,
   toViemSignTypedDataArgs,
 } from "@aomi-labs/react";
-import { AomiAuthAdapterProvider } from "../context";
-import { AOMI_AUTH_DISCONNECTED_IDENTITY } from "../identity";
-import { useFullTestnet } from "../full-testnet-wallet-routing";
+import { AomiAuthAdapterProvider } from "../../context";
+import { AOMI_AUTH_DISCONNECTED_IDENTITY } from "../../identity";
+import { useFullTestnet } from "../../full-testnet-wallet-routing";
 import {
   AomiWalletNetworkPreferencesProvider,
   useAomiWalletNetworkPreferences,
-} from "../network-preferences";
+} from "../../network-preferences";
 import {
   useSafeCapabilities,
   useSafeConnect,
@@ -35,13 +35,13 @@ import {
   useSafeSwitchChain,
   useSafeWagmiAccount,
   useSafeWagmiConfig,
-} from "../safe-wagmi-hooks";
-import type { AomiAuthAdapter, AomiAuthIdentity } from "../types";
+} from "../../safe-wagmi-hooks";
+import type { AomiAuthAdapter, AomiAuthIdentity } from "../../types";
 import { ExtUserProvider, UserState, useUser } from "@aomi-labs/react";
 import {
   executeAdapterTransaction,
   getPreferredRpcUrl,
-} from "../wallet-execution";
+} from "../../wallet-execution";
 
 export type AomiBaseAccountProviderProps = {
   children: ReactNode;

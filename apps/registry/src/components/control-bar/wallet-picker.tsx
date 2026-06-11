@@ -24,9 +24,11 @@ import {
 import { cn, getChainInfo } from "@aomi-labs/react";
 import {
   useAomiAuthAdapter,
+  canonicalWalletKey,
   formatAddress,
   formatAuthProvider,
   formatWalletProvider,
+  normalizeWalletOptionId,
   useWalletActivationGuard,
 } from "../../lib/aomi-auth-adapter";
 import type {
@@ -46,10 +48,6 @@ const MORE_WALLET_OPTIONS_ID = "more-wallet-options";
 
 function familyLabel(family: WalletFamily): string {
   return family === "solana" ? "Solana" : "Ethereum";
-}
-
-function familyShortLabel(family: WalletFamily): string {
-  return family === "solana" ? "SOL" : "ETH";
 }
 
 function walletStatusLabel(option: AomiWalletOption): string {
@@ -83,16 +81,13 @@ function walletDisplayRank(option: AomiWalletOption): number {
 function walletAliasKey(
   wallet: Pick<AomiWalletOption, "id" | "label">,
 ): string {
-  const value = `${wallet.id} ${wallet.label}`.toLowerCase();
-  if (value.includes("rabby")) return "rabby";
-  if (value.includes("metamask")) return "metamask";
-  if (value.includes("coinbase")) return "coinbase";
-  if (value.includes("walletconnect")) return "walletconnect";
-  if (value.includes("rainbow")) return "rainbow";
-  if (value.includes("phantom")) return "phantom";
-  if (value.includes("solflare")) return "solflare";
-  if (value.includes("backpack")) return "backpack";
-  return wallet.label.toLowerCase().replace(/[^a-z0-9]+/g, "");
+  const combined = `${wallet.id} ${wallet.label}`;
+  const brandKey = canonicalWalletKey(combined);
+  // canonicalWalletKey echoes the normalized input when no brand matched —
+  // key on the label alone in that case so connector uids don't fragment it.
+  return brandKey === normalizeWalletOptionId(combined)
+    ? canonicalWalletKey(wallet.label)
+    : brandKey;
 }
 
 /**
@@ -661,7 +656,7 @@ function FamilyStatusRow({
   onManage,
 }: {
   family: WalletFamily;
-  account?: AomiAccount;
+  account: AomiAccount;
   detail?: string;
   pending: string | null;
   onSelect?: () => void;
@@ -669,38 +664,28 @@ function FamilyStatusRow({
   onManage?: () => void;
 }) {
   const disconnectKey =
-    family === "evm" && account
-      ? `disconnect:${account.id}`
-      : "disconnect:solana";
-  const manageKey = account ? `manage:${account.id}` : undefined;
-  const selectKey = account ? `select:${account.id}` : undefined;
-  const name = account?.walletName ?? familyLabel(family);
+    family === "evm" ? `disconnect:${account.id}` : "disconnect:solana";
+  const manageKey = `manage:${account.id}`;
+  const selectKey = `select:${account.id}`;
+  const name = account.walletName ?? familyLabel(family);
   const selectable = Boolean(onSelect);
   const isSelecting = pending === selectKey;
 
   const inner = (
     <>
-      {account ? (
-        <WalletIconSlot id={account.id} label={name} />
-      ) : (
-        <span className="bg-muted/50 text-muted-foreground flex size-9 shrink-0 items-center justify-center rounded-xl text-xs font-semibold">
-          {familyShortLabel(family)}
-        </span>
-      )}
+      <WalletIconSlot id={account.id} label={name} />
       <span className="min-w-0 flex-1">
         <span className="flex min-w-0 items-center gap-1.5">
           <span className="truncate text-sm font-medium">{name}</span>
           <FamilyTag family={family} />
-          {account?.active ? (
+          {account.active ? (
             <CheckIcon className="text-primary size-3.5 shrink-0" />
           ) : null}
         </span>
         <span className="text-muted-foreground block truncate text-[11px]">
-          {account
-            ? [account.label ?? formatAddress(account.address), detail]
-                .filter(Boolean)
-                .join(" · ")
-            : "Not connected"}
+          {[account.label ?? formatAddress(account.address), detail]
+            .filter(Boolean)
+            .join(" · ")}
         </span>
       </span>
     </>
@@ -710,7 +695,7 @@ function FamilyStatusRow({
     <div
       className={cn(
         "group flex items-center rounded-2xl border transition-colors duration-200",
-        account?.active
+        account.active
           ? "border-primary/35 bg-primary/[0.05]"
           : "border-border/70 bg-card",
         selectable &&

@@ -51,6 +51,8 @@ export const registry: RegistryComponent[] = [
       "lib/aomi-auth-adapter/context.tsx",
       "lib/aomi-auth-adapter/types.ts",
       "lib/aomi-auth-adapter/identity.ts",
+      "lib/aomi-auth-adapter/wallet-brands.ts",
+      "lib/aomi-auth-adapter/wallet-debug.ts",
       "lib/auth-identity.ts",
     ],
     dependencies: ["@aomi-labs/react", "viem"],
@@ -101,7 +103,10 @@ export const registry: RegistryComponent[] = [
   },
   {
     name: "assistant-thread",
-    file: "components/assistant-ui/thread.tsx",
+    file: [
+      "components/assistant-ui/thread.tsx",
+      "components/assistant-ui/thread-loading.ts",
+    ],
     dependencies: [
       "@aomi-labs/react",
       "@assistant-ui/react@~0.11.28",
@@ -195,7 +200,12 @@ export const registry: RegistryComponent[] = [
   {
     name: "aomi-para-provider",
     file: [
-      "lib/aomi-auth-adapter/providers/para.tsx",
+      "lib/aomi-auth-adapter/providers/para/index.ts",
+      "lib/aomi-auth-adapter/providers/para/para.tsx",
+      "lib/aomi-auth-adapter/providers/para/para-sol.tsx",
+      "lib/aomi-auth-adapter/providers/para/para-aa.ts",
+      "lib/aomi-auth-adapter/providers/para/evm-disconnect-plan.ts",
+      "lib/aomi-auth-adapter/providers/para/evm-identity-grace.ts",
       "lib/aomi-auth-adapter/full-testnet-wallet-routing.tsx",
       "lib/aomi-auth-adapter/safe-wagmi-hooks.ts",
       "lib/aomi-auth-adapter/wallet-execution.ts",
@@ -219,7 +229,8 @@ export const registry: RegistryComponent[] = [
   {
     name: "aomi-base-account-provider",
     file: [
-      "lib/aomi-auth-adapter/providers/base-account.tsx",
+      "lib/aomi-auth-adapter/providers/base-account/index.ts",
+      "lib/aomi-auth-adapter/providers/base-account/base-account.tsx",
       "lib/aomi-auth-adapter/safe-wagmi-hooks.ts",
       "lib/aomi-auth-adapter/wallet-execution.ts",
     ],
@@ -237,7 +248,8 @@ export const registry: RegistryComponent[] = [
   {
     name: "aomi-privy-provider",
     file: [
-      "lib/aomi-auth-adapter/providers/privy.tsx",
+      "lib/aomi-auth-adapter/providers/privy/index.ts",
+      "lib/aomi-auth-adapter/providers/privy/privy.tsx",
       "lib/aomi-auth-adapter/safe-wagmi-hooks.ts",
     ],
     dependencies: [
