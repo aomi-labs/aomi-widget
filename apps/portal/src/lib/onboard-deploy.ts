@@ -1,5 +1,7 @@
 import "server-only";
 
+import { resolveDeployPlatform } from "@portal/lib/deploy-platform";
+
 type SourceRef =
   | { kind: "branch"; value: string }
   | { kind: "commit"; value: string };
@@ -15,6 +17,8 @@ export type OnboardDeployEnv = {
   adminSecret?: string;
   activationToken?: string;
   platform: string;
+  templateRepo: string;
+  createdRepoPrivate: boolean;
   sourceRef: SourceRef;
   aomiTomlPaths: string[];
   targetTags: string[];
@@ -74,7 +78,7 @@ export function readOnboardDeployEnv(): OnboardDeployEnv {
   const backendUrl = (
     process.env.BACKEND_URL ||
     process.env.NEXT_PUBLIC_BACKEND_URL ||
-    "http://localhost:8080"
+    "http://127.0.0.1:8080"
   ).replace(/\/+$/, "");
   const adminSecret = process.env.AOMI_ADMIN_SECRET;
   const activationToken = process.env.APP_DEPLOY_ACTIVATION_TOKEN;
@@ -100,7 +104,9 @@ export function readOnboardDeployEnv(): OnboardDeployEnv {
     bearer,
     adminSecret,
     activationToken,
-    platform: process.env.APP_DEPLOY_PLATFORM || "community",
+    platform: resolveDeployPlatform(),
+    templateRepo: process.env.APP_DEPLOY_TEMPLATE_REPO || "aomi-labs/playground-example",
+    createdRepoPrivate: process.env.APP_DEPLOY_CREATED_REPO_PRIVATE === "true",
     sourceRef,
     aomiTomlPaths,
     targetTags,
@@ -157,6 +163,12 @@ export async function backendRequest<T>(
     }
   }
   if (!res.ok) {
+    // A minted platform token can be rotated/expired backend-side; drop the
+    // cached one on an auth failure so the next activation re-mints instead of
+    // looping on a stale token for the lifetime of the server process.
+    if (res.status === 401 || res.status === 403) {
+      cachedPlatformActivationToken = null;
+    }
     const message =
       json && typeof json === "object" && "error" in json
         ? String((json as { error: unknown }).error)
