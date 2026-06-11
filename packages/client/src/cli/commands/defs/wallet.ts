@@ -1,4 +1,5 @@
 import { defineCommand } from "citty";
+import { buildCliConfig, globalArgs } from "./shared";
 
 const walletSetDef = defineCommand({
   meta: {
@@ -57,10 +58,53 @@ const walletCurrentDef = defineCommand({
   },
 });
 
+const walletLoginDef = defineCommand({
+  meta: {
+    name: "login",
+    description:
+      "Mint a Privy browser auth URL for the active session. Defaults to EVM; pass --solana to require a Solana wallet.",
+  },
+  args: {
+    ...globalArgs,
+    evm: {
+      type: "boolean",
+      description: "Request the default EVM embedded-wallet flow explicitly",
+    },
+    solana: {
+      type: "boolean",
+      description: "Request a Solana embedded-wallet login flow",
+    },
+  },
+  async run({ args }) {
+    if (args.evm === true && args.solana === true) {
+      const { fatal } = await import("../../errors");
+      fatal("Choose only one of `--evm` or `--solana`.");
+    }
+    const { loginCommand } = await import("../account");
+    await loginCommand(buildCliConfig(args), {
+      walletFamily: args.solana === true ? "solana" : "evm",
+    });
+  },
+});
+
+const walletWhoamiDef = defineCommand({
+  meta: {
+    name: "whoami",
+    description: "Show the bound account and every linked wallet on the backend",
+  },
+  args: { ...globalArgs },
+  async run({ args }) {
+    const { whoamiCommand } = await import("../account");
+    await whoamiCommand(buildCliConfig(args));
+  },
+});
+
 export const walletDef = defineCommand({
   meta: { name: "wallet", description: "Wallet configuration" },
   subCommands: {
     set: walletSetDef,
     current: walletCurrentDef,
+    login: walletLoginDef,
+    whoami: walletWhoamiDef,
   },
 });
