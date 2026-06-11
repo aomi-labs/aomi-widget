@@ -1,0 +1,5 @@
+[eval] PASS bridge_eth_to_base_native_review_first 1 turn(s) 6 tool call(s) 4.8215 cr, 46931 in / 709 out tok, 45370 cached / 0 reasoning tok 1 warning(s) duration 30s
+warnings:
+  no_tool_errors tool error envelope(s) observed for: stage Base ETH deposit
+report full json: ../output/eval/model-bench-public-skills-opus47-opus46-haiku45-20260531/specs/bridge_eth_to_base_native_review_first/claude-opus-4.7/pass-002/20260531T121706.557831000Z.full.json
+report compact json: ../output/eval/model-bench-public-skills-opus47-opus46-haiku45-20260531/specs/bridge_eth_to_base_native_review_first/claude-opus-4.7/pass-002/20260531T121706.557831000Z.compact.json

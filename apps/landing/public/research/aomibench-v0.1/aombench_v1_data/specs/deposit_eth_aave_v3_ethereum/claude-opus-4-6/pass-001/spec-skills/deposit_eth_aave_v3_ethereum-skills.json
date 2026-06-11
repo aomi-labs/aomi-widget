@@ -1,0 +1,55 @@
+[
+  {
+    "id": "aave",
+    "name": "aave",
+    "description": "Use when users want to supply, borrow, repay, or withdraw on Aave V3 on Ethereum.",
+    "tags": [
+      "lend",
+      "aave",
+      "v3",
+      "supply",
+      "borrow",
+      "repay",
+      "withdraw",
+      "lending",
+      "defi"
+    ],
+    "tool_names": [
+      "get_time_and_onchain_context",
+      "brave_search",
+      "encode_and_call",
+      "get_account_info",
+      "get_contract",
+      "sync_chain",
+      "simulate_batch",
+      "stage_tx",
+      "commit_eip712",
+      "commit_txs"
+    ],
+    "injected_tools": [],
+    "source": "aomi_builtin",
+    "est_tokens": 807,
+    "activation_tokens": 811,
+    "instruction_md": "## Aave V3: Protocol Contracts\n- Aave V3 WrappedTokenGatewayV3: 0xD322A49006FC828F9B5B37Ab215F99B4E5caB19C (chain 1)\n- Pool: 0x87870Bca3F3fD6335C3F4ce8392D69350B4fA4E2 (chain 1)\n- ProtocolDataProvider: 0x497a1994c46d4f6C864904A9f1fac6328Cb7C8a6 (chain 1)\n- PoolAddressesProvider: 0x2f39d218133AFaB8F2B819B1066c7E434Ad94E9e (chain 1)\n\n## Aave V3: Aave V3 Ethereum\n- note: interestRateMode: 1 = stable, 2 = variable (prefer variable)\n- note: referralCode: always 0\n- note: onBehalfOf / to must always be the user's wallet\n- note: For native ETH: use WrappedTokenGatewayV3 (depositETH, withdrawETH, borrowETH, repayETH)\n- note: Always check healthFactor before borrow or toggling collateral — must stay > 1e18\n- note: repayWithATokens does not require approval — burns aTokens directly\n- note: getUserReserveData on ProtocolDataProvider shows per-asset position\n\n\n## Aave V3: ABI Signatures (reference only)\nAave V3 Pool [aave_pool_v3]:\n- supply(address,uint256,address,uint16) → \n- withdraw(address,uint256,address) → uint256\n- borrow(address,uint256,uint256,uint16,address) → \n- repay(address,uint256,uint256,address) → uint256\n- repayWithATokens(address,uint256,uint256) → uint256\n- setUserUseReserveAsCollateral(address,bool) → \nAave V3 ProtocolDataProvider [aave_data_provider_v3]:\n- getUserReserveData(address,address) → uint256,uint256,uint256,uint256,uint256,uint256,uint256,uint40,bool\n- getReserveData(address) → uint256,uint256,uint256,uint256,uint256,uint256,uint256,uint256,uint256,uint256,uint256,uint40\n- getAllReservesTokens() → (string,address)[]\nAave V3 WrappedTokenGatewayV3 [aave_weth_gateway_v3]:\n- borrowETH(address,uint256,uint256,uint16) → \n- depositETH(address,address,uint16) → \n- repayETH(address,uint256,uint256,address) → \n- withdrawETH(address,uint256,address) → \n\n## Aave V3: Procedure\n1. Call `get_time_and_onchain_context` to confirm wallet, chain, and block context.\n2. Read position with `encode_and_call`: call `getUserAccountData(user)` on Pool to get health factor, collateral, debt.\n3. Optionally call `getUserReserveData(asset, user)` on ProtocolDataProvider for per-asset details.\n4. Check the asset token balance and allowance.\n5. If allowance insufficient for supply/repay, build and simulate an `approve` transaction first.\n6. Build the lending transaction and simulate with `encode_and_call`.\n7. Inspect result and `aave_guard_*` fields — if `aave_guard_blocked`, do NOT proceed.\n8. Only after user confirmation, send via `commit_txs`.\n## Aave V3: Critical Rules\n- `onBehalfOf` and `to` parameters must ALWAYS be the user's wallet address.\n- Before borrow or toggling collateral, check `getUserAccountData` — healthFactor must stay > 1e18.\n- Prefer `interestRateMode = 2` (variable rate) unless user explicitly requests stable (1).\n- Always use `referralCode = 0`.\n- Check `aave_guard_blocked` in simulation result — if true, do NOT proceed with `commit_txs`.\n- For native ETH operations, use WrappedTokenGatewayV3 (`depositETH`, `withdrawETH`, `borrowETH`, `repayETH`).\n- Approve the Pool (or WrappedTokenGatewayV3 for ETH) before supply/repay; `repayWithATokens` needs no approval.\n- To repay max variable debt, pass `type(uint256).max` as amount — the contract caps to actual debt.",
+    "tool_hooks": [
+      {
+        "tool": "simulate_batch",
+        "pre_call": [],
+        "post_call": [
+          "aave-known-addrs"
+        ]
+      },
+      {
+        "tool": "stage_tx",
+        "pre_call": [],
+        "post_call": [
+          "aave-known-addrs"
+        ]
+      }
+    ],
+    "tools_namespace": "evm-core",
+    "chain_ids": [
+      1
+    ]
+  }
+]

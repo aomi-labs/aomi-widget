@@ -1,0 +1,3 @@
+[eval] PASS needs_market_before_supply_usdc 1 turn(s) 3 tool call(s) 0.91932 cr, 23219 in / 878 out tok, 20462 cached / 0 reasoning tok 0 warning(s) duration 15s
+report full json: ../output/eval/model-bench-public-skills-opus47-opus46-haiku45-20260531/specs/needs_market_before_supply_usdc/claude-haiku-4.5/pass-001/20260531T113723.830023000Z.full.json
+report compact json: ../output/eval/model-bench-public-skills-opus47-opus46-haiku45-20260531/specs/needs_market_before_supply_usdc/claude-haiku-4.5/pass-001/20260531T113723.830023000Z.compact.json

@@ -1,0 +1,5 @@
+[eval] FAIL check_base_usdc_balance 1 turn(s) 0 tool call(s) 0 cr, 0 in / 0 out tok 0 warning(s) duration 0s
+errors:
+  tool sequence broke before expected tool 'activate_skills'; no matching tool arguments for encode_and_call:$.to; no matching tool arguments for encode_and_call:$.function_signature
+report full json: ../output/eval/model-bench-public-skills-gpt55-opus48-sonnet46-20260530/specs/check_base_usdc_balance/claude-sonnet-4.6/pass-001/20260530T215849.887567000Z.full.json
+report compact json: ../output/eval/model-bench-public-skills-gpt55-opus48-sonnet46-20260530/specs/check_base_usdc_balance/claude-sonnet-4.6/pass-001/20260530T215849.887567000Z.compact.json

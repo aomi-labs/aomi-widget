@@ -388,7 +388,9 @@ export function ControlContextProvider({
   }, [getCurrentControlSessionId, state.clientId, state.byokKeys]);
 
   // Fetch apps whenever the auth context changes. App authorization is scoped
-  // to auth/api-key state, so thread switches should not refetch it.
+  // to api-key state, so thread switches and wallet/network changes should
+  // not refetch it (refetching on publicKey change makes the app picker
+  // reset to default when the user switches between EVM and Solana wallets).
   useEffect(() => {
     const fetchApps = async () => {
       try {
@@ -418,7 +420,7 @@ export function ControlContextProvider({
       }
     };
     void fetchApps();
-  }, [getCurrentControlSessionId, state.apiKey, publicKey]);
+  }, [getCurrentControlSessionId, state.apiKey]);
 
   // Fetch models on mount
   useEffect(() => {

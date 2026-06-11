@@ -1,0 +1,3 @@
+[eval] PASS swap_eth_for_usdc_sushiswap 1 turn(s) 7 tool call(s) 3.88641 cr, 52178 in / 1207 out tok, 50287 cached / 0 reasoning tok 0 warning(s) duration 42s
+report full json: ../output/eval/model-bench-public-skills-gpt55-opus48-sonnet46-20260530/specs/swap_eth_for_usdc_sushiswap/claude-sonnet-4.6/pass-002/20260530T223255.669325000Z.full.json
+report compact json: ../output/eval/model-bench-public-skills-gpt55-opus48-sonnet46-20260530/specs/swap_eth_for_usdc_sushiswap/claude-sonnet-4.6/pass-002/20260530T223255.669325000Z.compact.json

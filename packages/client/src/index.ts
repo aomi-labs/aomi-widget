@@ -3,6 +3,13 @@
 // =============================================================================
 
 export { AomiClient } from "./client";
+export { createAccountAccessTokenProvider } from "./account-session";
+export type {
+  AccountAccessTokenProviderOptions,
+  AccountAccessTokenProvider,
+  AccountCredentialProvider,
+  AccountSessionExchangeResponse,
+} from "./account-session";
 
 // =============================================================================
 // Types
@@ -11,7 +18,9 @@ export { AomiClient } from "./client";
 export type {
   AomiAppDescriptor,
   AomiClientOptions,
+  GetAccountAccessToken,
   AomiMessage,
+  AomiWalletFamily,
   AomiChatResponse,
   AomiClearSecretsResponse,
   AomiCreateThreadResponse,
@@ -86,6 +95,8 @@ export {
   hydrateTxPayloadFromUserState,
   normalizeEip712Payload,
   normalizeSolanaSignPayload,
+  normalizeSolanaSignMessagePayload,
+  normalizeSolanaWalletRequest,
   toViemSignMessageArgs,
   toViemSignTypedDataArgs,
   toAAWalletCalls,
@@ -98,7 +109,9 @@ export type {
   WalletTxCallPayload,
   WalletTxAaPreference,
   WalletEip712Payload,
+  NormalizedSolanaWalletRequest,
   WalletSolanaSignPayload,
+  WalletSolanaSignMessagePayload,
   ViemSignMessageArgs,
   ViemSignTypedDataArgs,
 } from "./wallet-utils";

@@ -1,0 +1,338 @@
+{
+  "run_id": "20260530T232006.015532000Z",
+  "mode": "spec",
+  "started_at": "2026-05-30T23:19:18.450999+00:00",
+  "finished_at": "2026-05-30T23:20:06.015421+00:00",
+  "spec_path": "bin/eval/specs/mantle_staked_eth/stake_eth_mantle_meth.json",
+  "passed": true,
+  "git_commit": "5b02660942391bc7ae86c5cbb05e33f4c549266f",
+  "git_dirty": true,
+  "story": {
+    "run_id": "20260530T232006.015532000Z",
+    "story_id": "stake_eth_mantle_meth",
+    "user_story": "Stake 0.1 ETH from Alice for Mantle mETH on Ethereum.",
+    "passed": true,
+    "warnings": [],
+    "model": "claude-sonnet-4-6",
+    "chain_id": 1,
+    "git_commit": "5b02660942391bc7ae86c5cbb05e33f4c549266f",
+    "git_dirty": true,
+    "total_turns": 1,
+    "total_tool_calls": 8,
+    "total_responses": 14,
+    "activated_skills": [
+      "mantle_staked_eth"
+    ],
+    "failed_assertions": [],
+    "budget_summary": {
+      "total": 1,
+      "exceeded": 0,
+      "required_failures": 0,
+      "warning_failures": 0
+    },
+    "usage": {
+      "input_tokens": 50993,
+      "output_tokens": 1627,
+      "total_tokens": 52620,
+      "cached_input_tokens": 41568,
+      "cache_creation_input_tokens": 0,
+      "visible_output_tokens": 1627,
+      "reasoning_output_tokens": 0,
+      "tool_call_count": 8,
+      "actual_events": 1,
+      "diagnostic_events": 0,
+      "aomi_cost_credits": 6.51504,
+      "user_charged_credits": 6.51504,
+      "credits": 6.51504
+    },
+    "transcript_previews": [
+      {
+        "sender": "user",
+        "content": "Stake 0.1 ETH from Alice for Mantle mETH on Ethereum.",
+        "tool": null,
+        "tool_topic": null,
+        "tool_result_preview": null
+      },
+      {
+        "sender": "assistant",
+        "content": "\nThe user wants to stake 0.1 ETH from Alice's address (0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266) for Mantle mETH on Ethereum. Let me activate the mantle_staked_eth skill first, then gather context.\n\nThe user wants to stake 0.1 ETH from Alice's address (0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266) for Mantle mETH on Ethereum. Let me activate the mantle_staked_eth skill first, then gather context.\n",
+        "tool": null,
+        "tool_topic": null,
+        "tool_result_preview": null
+      },
+      {
+        "sender": "assistant",
+        "content": "",
+        "tool": "activate_skills",
+        "tool_topic": "activate_skills",
+        "tool_result_preview": "{\n  \"activated\": [\n    \"mantle_staked_eth\"\n  ],\n  \"rejected\": [],\n  \"applied_scope\": \"current_serve_cycle\"\n}"
+      },
+      {
+        "sender": "assistant",
+        "content": "\nThe user wants to stake 0.1 ETH from Alice (0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266) for Mantle mETH on Ethereum mainnet.\n\nFollowing the Mantle mETH procedure:\n1. Get time and on-chain context\n2. Check ETH balance\n3. Check minStakeAmount()\n4. Compute expected mETH via ethToMETH(amount)\n5. Build the stake transaction\n\nLet me start by getting the on-chain context and checking the balance, minSta... 0xe3cBd06D7dadB3F4e6557bAb7EdD924CD1489E8f\nAlice's address: 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266\n\n0.1 ETH = 100000000000000000 wei\n\nLet me parallelize:\n1. get_time_and_onchain_context\n2. get_account_info for Alice\n3. encode_and_call minStakeAmount()\n4. encode_and_call ethToMETH(100000000000000000)\n\n\nGathering chain context, Alice's balance, minimum stake, and conversion rate in parallel.",
+        "tool": null,
+        "tool_topic": null,
+        "tool_result_preview": null
+      },
+      {
+        "sender": "assistant",
+        "content": "",
+        "tool": "get_time_and_onchain_context",
+        "tool_topic": "Mantle mETH staking context",
+        "tool_result_preview": "{\n  \"chain_name\": \"ethereum\",\n  \"chain_id\": 1,\n  \"rpc_endpoint\": \"http://127.0.0.1:50581\",\n  \"current_time_unix\": 1780183171,\n  \"current_time_iso\": \"2026-05-30T23:19:31.620486+00:00\",\n  \"block_number\": 25211427,\n  \"gas_price_wei\": \"1000000008\",\n  \"supported_chains\": [\n    {\n      \"name\": \"ethereum\",\n      \"chain_id\": 1\n    },\n    {\n      \"name\": \"sim-monad_testnet\",\n      \"chain_id\": 10143\n    },\n    {\n      \"name\": \"ethereum\",\n      \"chain_id\": 1\n    },\n    {\n      \"name\": \"sim-monad_testnet\",\n      \"chain_id\": 10143\n    },\n    {\n      \"name\": \"sim-base\",\n      \"chain_id\": 8453\n    },\n    {\n      \"name\": \"sim-base\",\n      \"chain_id\": 8453\n    }\n  ]\n}"
+      },
+      {
+        "sender": "assistant",
+        "content": "",
+        "tool": "get_account_info",
+        "tool_topic": "Alice ETH balance check",
+        "tool_result_preview": "{\n  \"address\": \"0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266\",\n  \"balance_wei\": \"100000000000000000000\",\n  \"balance_eth\": \"100\",\n  \"nonce\": 6436\n}"
+      },
+      {
+        "sender": "assistant",
+        "content": "",
+        "tool": "encode_and_call",
+        "tool_topic": "Mantle mETH minimum stake amount",
+        "tool_result_preview": "{\n  \"success\": false,\n  \"result\": null,\n  \"revert_reason\": \"ToolCallError: eth_call execution failed via http://127.0.0.1:50581: ErrorResp(\\n    ErrorPayload {\\n        code: 3,\\n        message: \\\"execution reverted: 45,s\\\",\\n        data: Some(\\n            RawValue(\\n                \\\"0x34352c73\\\",\\n            ),\\n        ),\\n    },\\n)\",\n  \"tx\": {\n    \"from\": \"0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266\",\n    \"to\": \"0xe3cBd06D7dadB3F4e6557bAb7EdD924CD1489E8f\",\n    \"value_wei\": \"0\",\n    \"value_eth\": \"0\",\n    \"input\": \"0xf1887684\",\n    \"chain_id\": 1\n  }\n}"
+      },
+      {
+        "sender": "assistant",
+        "content": "",
+        "tool": "encode_and_call",
+        "tool_topic": "Mantle mETH conversion rate for 0.1 ETH",
+        "tool_result_preview": "{\n  \"success\": true,\n  \"result\": \"0x0000000000000000000000000000000000000000000000000144fd13f02b02bf\",\n  \"revert_reason\": null,\n  \"tx\": {\n    \"from\": \"0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266\",\n    \"to\": \"0xe3cBd06D7dadB3F4e6557bAb7EdD924CD1489E8f\",\n    \"value_wei\": \"0\",\n    \"value_eth\": \"0\",\n    \"input\": \"0x4461ff05000000000000000000000000000000000000000000000000016345785d8a0000\",\n    \"chain_id\": 1\n  },\n  \"result_decoded\": {\n    \"kind\": \"single_abi_word\",\n    \"raw_hex\": \"0x0000000000000000000000000000000000000000000000000144fd13f02b02bf\",\n    \"decoded\": {\n      \"type\": \"uint256\",\n      \"decoded\": \"91476154529809087\",\n      \"as_bool\": null,\n      \"as_address\": \"0x0000000000000000000000000144fd13f02b02bf\"\n    }\n  }\n}"
+      },
+      {
+        "sender": "assistant",
+        "content": "\nLet me analyze the results:\n\n1. **Alice's ETH balance**: 100 ETH — plenty for 0.1 ETH stake\n2. **minStakeAmount()**: Reverted with error `0x34352c73` — this is a custom error. Let me try to look up what this means. Actually, the `minStakeAmount()` call failed. This might mean the function signature is different. Let me check the contract ABI.\n\nWait, looking at the skill ABI, I see `stake(uint256)...ue: `100000000000000000` (0.1 ETH in wei)\n- To: `0xe3cBd06D7dadB3F4e6557bAb7EdD924CD1489E8f`\n\nLet me stage this transaction.\n`minStakeAmount()` doesn't exist on this contract version — not a blocker. The key data is in:\n\n- Alice's balance: **100 ETH** ✓\n- 0.1 ETH → **~0.09148 mETH** (`91,476,154,529,809,087` wei)\n- minMETHAmount at 0.5% slippage: `91,018,973,657,009,591`\n\nStaging the stake now.",
+        "tool": null,
+        "tool_topic": null,
+        "tool_result_preview": null
+      },
+      {
+        "sender": "assistant",
+        "content": "",
+        "tool": "stage_tx",
+        "tool_topic": "Mantle mETH stake 0.1 ETH",
+        "tool_result_preview": "{\n  \"from\": \"0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266\",\n  \"chain_id\": 1,\n  \"to\": \"0xe3cBd06D7dadB3F4e6557bAb7EdD924CD1489E8f\",\n  \"value\": \"100000000000000000\",\n  \"data\": \"0xa694fc3a00000000000000000000000000000000000000000000000001435d4638a58db7\",\n  \"description\": \"Stake 0.1 ETH for Mantle mETH (min ~0.09148 mETH with 0.5% slippage protection)\",\n  \"kind\": \"contract_call\",\n  \"pending_tx_id\": 1,\n  \"batch_status\": \"Batch [1] pending\",\n  \"status\": \"queued\"\n}"
+      },
+      {
+        "sender": "assistant",
+        "content": "\nThe transaction has been staged as tx-1. Now I need to simulate it before committing. Let me run simulate_batch on tx-1.\n\nThe transaction has been staged as tx-1. Now I need to simulate it before committing. Let me run simulate_batch on tx-1.\n",
+        "tool": null,
+        "tool_topic": null,
+        "tool_result_preview": null
+      },
+      {
+        "sender": "assistant",
+        "content": "",
+        "tool": "simulate_batch",
+        "tool_topic": "Simulate Mantle mETH stake 0.1 ETH",
+        "tool_result_preview": "{\n  \"simulation\": {\n    \"batch_success\": true,\n    \"stateful\": true,\n    \"from\": \"0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266\",\n    \"network\": \"sim-ethereum\",\n    \"total_gas\": 172288,\n    \"steps\": [\n      {\n        \"step\": 1,\n        \"chain_id\": 1,\n        \"label\": \"Stake 0.1 ETH for Mantle mETH (min ~0.09148 mETH with 0.5% slippage protection)\",\n        \"success\": true,\n        \"result\": \"0xd0a2a1...6aB8827279cffFb92266\",\n  \"owner_address\": \"0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266\",\n  \"aa_override\": null,\n  \"resolved_ids\": [\n    1\n  ],\n  \"warnings\": [\n    {\n      \"tx_id\": 1,\n      \"field\": \"label\",\n      \"provided\": \"Stake 0.1 ETH for mETH\",\n      \"actual\": \"Stake 0.1 ETH for Mantle mETH (min ~0.09148 mETH with 0.5% slippage protection)\"\n    }\n  ],\n  \"batch_status\": \"Batch [1] passed\"\n}"
+      },
+      {
+        "sender": "assistant",
+        "content": "\nThe simulation passed successfully. Now I should commit the transaction. The value is 0.1 ETH which is well below the $5000 threshold, so I can proceed directly to commit.\n\nThe simulation passed successfully. Now I should commit the transaction. The value is 0.1 ETH which is well below the $5000 threshold, so I can proceed directly to commit.\nSimulation passed. Committing now.",
+        "tool": null,
+        "tool_topic": null,
+        "tool_result_preview": null
+      },
+      {
+        "sender": "assistant",
+        "content": "",
+        "tool": "commit_txs",
+        "tool_topic": "Stake 0.1 ETH for Mantle mETH",
+        "tool_result_preview": "{\n  \"status\": \"pending_approval\",\n  \"tx_ids\": [\n    1\n  ],\n  \"timestamp\": \"2026-05-30T23:20:00.330538+00:00\"\n}"
+      },
+      {
+        "sender": "assistant",
+        "content": "\nThe commit_txs call returned \"pending_approval\" status, meaning the transaction is waiting for the user's wallet to sign/approve it. I should inform the user that the transaction is awaiting wallet approval.\n\nThe commit_txs call returned \"pending_approval\" status, meaning the transaction is waiting for the user's wallet to sign/approve it. I should inform the user that the transaction is awaiting wallet approval.\n\n\nSimulation passed. The stake transaction (tx-1) is now waiting for wallet approval.\n\n**Summary:**\n- Sending: **0.1 ETH**\n- Receiving: ~**0.09148 mETH** (min, with 0.5% slippage protection)\n- Contract: `0xe3cBd06D7dadB3F4e6557bAb7EdD924CD1489E8f`\n- Gas used (sim): ~172,288\n\nApprove the transaction in your wallet to complete the stake. Let me know if anything comes back!",
+        "tool": null,
+        "tool_topic": null,
+        "tool_result_preview": null
+      }
+    ],
+    "tool_previews": [
+      {
+        "turn": 0,
+        "tool": "activate_skills",
+        "topic": "activate_skills",
+        "arguments": {
+          "skill_ids": [
+            "mantle_staked_eth"
+          ]
+        },
+        "result_preview": "{\n  \"activated\": [\n    \"mantle_staked_eth\"\n  ],\n  \"rejected\": [],\n  \"applied_scope\": \"current_serve_cycle\"\n}"
+      },
+      {
+        "turn": 0,
+        "tool": "get_time_and_onchain_context",
+        "topic": "Mantle mETH staking context",
+        "arguments": {
+          "topic": "Mantle mETH staking context"
+        },
+        "result_preview": "{\n  \"chain_name\": \"ethereum\",\n  \"chain_id\": 1,\n  \"rpc_endpoint\": \"http://127.0.0.1:50581\",\n  \"current_time_unix\": 1780183171,\n  \"current_time_iso\": \"2026-05-30T23:19:31.620486+00:00\",\n  \"block_number\": 25211427,\n  \"gas_price_wei\": \"1000000008\",\n  \"supported_chains\": [\n    {\n      \"name\": \"ethereum\",\n      \"chain_id\": 1\n    },\n    {\n      \"name\": \"sim-monad_testnet\",\n      \"chain_id\": 10143\n    },\n    {\n      \"name\": \"ethereum\",\n      \"chain_id\": 1\n    },\n    {\n      \"name\": \"sim-monad_testnet\",\n      \"chain_id\": 10143\n    },\n    {\n      \"name\": \"sim-base\",\n      \"chain_id\": 8453\n    },\n    {\n      \"name\": \"sim-base\",\n      \"chain_id\": 8453\n    }\n  ]\n}"
+      },
+      {
+        "turn": 0,
+        "tool": "get_account_info",
+        "topic": "Alice ETH balance check",
+        "arguments": {
+          "address": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+          "chain_id": 1,
+          "include_tx_history": false,
+          "history_limit": 0,
+          "history_offset": 0,
+          "topic": "Alice ETH balance check"
+        },
+        "result_preview": "{\n  \"address\": \"0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266\",\n  \"balance_wei\": \"100000000000000000000\",\n  \"balance_eth\": \"100\",\n  \"nonce\": 6436\n}"
+      },
+      {
+        "turn": 0,
+        "tool": "encode_and_call",
+        "topic": "Mantle mETH minimum stake amount",
+        "arguments": {
+          "function_signature": "minStakeAmount()",
+          "arguments": [],
+          "to": "0xe3cBd06D7dadB3F4e6557bAb7EdD924CD1489E8f",
+          "value": "0",
+          "topic": "Mantle mETH minimum stake amount"
+        },
+        "result_preview": "{\n  \"success\": false,\n  \"result\": null,\n  \"revert_reason\": \"ToolCallError: eth_call execution failed via http://127.0.0.1:50581: ErrorResp(\\n    ErrorPayload {\\n        code: 3,\\n        message: \\\"execution reverted: 45,s\\\",\\n        data: Some(\\n            RawValue(\\n                \\\"0x34352c73\\\",\\n            ),\\n        ),\\n    },\\n)\",\n  \"tx\": {\n    \"from\": \"0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266\",\n    \"to\": \"0xe3cBd06D7dadB3F4e6557bAb7EdD924CD1489E8f\",\n    \"value_wei\": \"0\",\n    \"value_eth\": \"0\",\n    \"input\": \"0xf1887684\",\n    \"chain_id\": 1\n  }\n}"
+      },
+      {
+        "turn": 0,
+        "tool": "encode_and_call",
+        "topic": "Mantle mETH conversion rate for 0.1 ETH",
+        "arguments": {
+          "function_signature": "ethToMETH(uint256)",
+          "arguments": [
+            "100000000000000000"
+          ],
+          "to": "0xe3cBd06D7dadB3F4e6557bAb7EdD924CD1489E8f",
+          "value": "0",
+          "topic": "Mantle mETH conversion rate for 0.1 ETH"
+        },
+        "result_preview": "{\n  \"success\": true,\n  \"result\": \"0x0000000000000000000000000000000000000000000000000144fd13f02b02bf\",\n  \"revert_reason\": null,\n  \"tx\": {\n    \"from\": \"0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266\",\n    \"to\": \"0xe3cBd06D7dadB3F4e6557bAb7EdD924CD1489E8f\",\n    \"value_wei\": \"0\",\n    \"value_eth\": \"0\",\n    \"input\": \"0x4461ff05000000000000000000000000000000000000000000000000016345785d8a0000\",\n    \"chain_id\": 1\n  },\n  \"result_decoded\": {\n    \"kind\": \"single_abi_word\",\n    \"raw_hex\": \"0x0000000000000000000000000000000000000000000000000144fd13f02b02bf\",\n    \"decoded\": {\n      \"type\": \"uint256\",\n      \"decoded\": \"91476154529809087\",\n      \"as_bool\": null,\n      \"as_address\": \"0x0000000000000000000000000144fd13f02b02bf\"\n    }\n  }\n}"
+      },
+      {
+        "turn": 0,
+        "tool": "stage_tx",
+        "topic": "Mantle mETH stake 0.1 ETH",
+        "arguments": {
+          "to": "0xe3cBd06D7dadB3F4e6557bAb7EdD924CD1489E8f",
+          "description": "Stake 0.1 ETH for Mantle mETH (min ~0.09148 mETH with 0.5% slippage protection)",
+          "data": {
+            "signature": "stake(uint256)",
+            "args": [
+              "91018973657009591"
+            ],
+            "raw": ""
+          },
+          "value": "100000000000000000",
+          "gas_limit": "",
+          "kind": "contract_call",
+          "topic": "Mantle mETH stake 0.1 ETH"
+        },
+        "result_preview": "{\n  \"from\": \"0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266\",\n  \"chain_id\": 1,\n  \"to\": \"0xe3cBd06D7dadB3F4e6557bAb7EdD924CD1489E8f\",\n  \"value\": \"100000000000000000\",\n  \"data\": \"0xa694fc3a00000000000000000000000000000000000000000000000001435d4638a58db7\",\n  \"description\": \"Stake 0.1 ETH for Mantle mETH (min ~0.09148 mETH with 0.5% slippage protection)\",\n  \"kind\": \"contract_call\",\n  \"pending_tx_id\": 1,\n  \"batch_status\": \"Batch [1] pending\",\n  \"status\": \"queued\"\n}"
+      },
+      {
+        "turn": 0,
+        "tool": "simulate_batch",
+        "topic": "Simulate Mantle mETH stake 0.1 ETH",
+        "arguments": {
+          "transactions": [
+            {
+              "id": 1,
+              "kind": "contract_call",
+              "chain_id": 1,
+              "label": "Stake 0.1 ETH for mETH"
+            }
+          ],
+          "aa_override": "",
+          "topic": "Simulate Mantle mETH stake 0.1 ETH"
+        },
+        "result_preview": "{\n  \"simulation\": {\n    \"batch_success\": true,\n    \"stateful\": true,\n    \"from\": \"0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266\",\n    \"network\": \"sim-ethereum\",\n    \"total_gas\": 172288,\n    \"steps\": [\n      {\n        \"step\": 1,\n        \"chain_id\": 1,\n        \"label\": \"Stake 0.1 ETH for Mantle mETH (min ~0.09148 mETH with 0.5% slippage protection)\",\n        \"success\": true,\n        \"result\": \"0xd0a2a1...6aB8827279cffFb92266\",\n  \"owner_address\": \"0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266\",\n  \"aa_override\": null,\n  \"resolved_ids\": [\n    1\n  ],\n  \"warnings\": [\n    {\n      \"tx_id\": 1,\n      \"field\": \"label\",\n      \"provided\": \"Stake 0.1 ETH for mETH\",\n      \"actual\": \"Stake 0.1 ETH for Mantle mETH (min ~0.09148 mETH with 0.5% slippage protection)\"\n    }\n  ],\n  \"batch_status\": \"Batch [1] passed\"\n}"
+      },
+      {
+        "turn": 0,
+        "tool": "commit_txs",
+        "topic": "Stake 0.1 ETH for Mantle mETH",
+        "arguments": {
+          "tx_ids": [
+            1
+          ],
+          "topic": "Stake 0.1 ETH for Mantle mETH"
+        },
+        "result_preview": "{\n  \"status\": \"pending_approval\",\n  \"tx_ids\": [\n    1\n  ],\n  \"timestamp\": \"2026-05-30T23:20:00.330538+00:00\"\n}"
+      }
+    ],
+    "failure_category": null,
+    "app": {
+      "source": "default",
+      "path": null,
+      "loaded_name": "default"
+    },
+    "skills": {
+      "mode": "restricted",
+      "allowed": [
+        "mantle_staked_eth"
+      ],
+      "activated_skills": [
+        "mantle_staked_eth"
+      ],
+      "bundle_path": "../output/eval/model-bench-public-skills-gpt55-opus48-sonnet46-20260530/specs/stake_eth_mantle_meth/claude-sonnet-4.6/pass-001/spec-skills/stake_eth_mantle_meth-skills.json",
+      "bundle_revision": "fnv1a64:0c85696036b5a461"
+    },
+    "environment": {
+      "chain_id": 1,
+      "network": "ethereum",
+      "providers_path": "/Users/aronmegyeri/.aomi/test-env/providers.toml",
+      "endpoint_name": "ethereum",
+      "funding_ledger": [
+        {
+          "chain_id": 8453,
+          "address": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+          "balances": {
+            "ETH": "100",
+            "USDC": "10000"
+          }
+        },
+        {
+          "chain_id": 8453,
+          "address": "0x70997970c51812dc3a010c7d01b50e0d17dc79c8",
+          "balances": {
+            "ETH": "100",
+            "USDC": "10000"
+          }
+        },
+        {
+          "chain_id": 10143,
+          "address": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+          "balances": {}
+        },
+        {
+          "chain_id": 10143,
+          "address": "0x70997970c51812dc3a010c7d01b50e0d17dc79c8",
+          "balances": {}
+        },
+        {
+          "chain_id": 1,
+          "address": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+          "balances": {
+            "ETH": "100",
+            "USDC": "10000"
+          }
+        },
+        {
+          "chain_id": 1,
+          "address": "0x70997970c51812dc3a010c7d01b50e0d17dc79c8",
+          "balances": {
+            "ETH": "100",
+            "USDC": "10000"
+          }
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,3 @@
+[eval] PASS check_base_usdc_balance 1 turn(s) 2 tool call(s) 1.42224 cr, 20637 in / 469 out tok, 20268 cached / 0 reasoning tok 0 warning(s) duration 15s
+report full json: ../output/eval/model-bench-public-skills-gpt55-opus48-sonnet46-20260530/specs/check_base_usdc_balance/claude-sonnet-4.6/pass-002/20260530T221408.050876000Z.full.json
+report compact json: ../output/eval/model-bench-public-skills-gpt55-opus48-sonnet46-20260530/specs/check_base_usdc_balance/claude-sonnet-4.6/pass-002/20260530T221408.050876000Z.compact.json

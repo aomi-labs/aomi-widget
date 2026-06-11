@@ -1,0 +1,3 @@
+[eval] PASS supply_usdc_aave_v3_ethereum 1 turn(s) 13 tool call(s) 12.6397 cr, 86057 in / 1544 out tok, 77824 cached / 110 reasoning tok 0 warning(s) duration 52s
+report full json: ../output/eval/model-bench-public-skills-expansion-20260531/specs/supply_usdc_aave_v3_ethereum/gpt-5.5/pass-002/20260531T190317.474019000Z.full.json
+report compact json: ../output/eval/model-bench-public-skills-expansion-20260531/specs/supply_usdc_aave_v3_ethereum/gpt-5.5/pass-002/20260531T190317.474019000Z.compact.json

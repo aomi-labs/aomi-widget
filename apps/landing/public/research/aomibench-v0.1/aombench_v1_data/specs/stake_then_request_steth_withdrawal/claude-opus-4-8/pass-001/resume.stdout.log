@@ -1,0 +1,3 @@
+[eval] PASS stake_then_request_steth_withdrawal 1 turn(s) 12 tool call(s) 12.30975 cr, 73101 in / 930 out tok, 59035 cached / 0 reasoning tok 0 warning(s) duration 141s
+report full json: ../output/eval/model-bench-public-skills-expansion-20260531/specs/stake_then_request_steth_withdrawal/claude-opus-4.8/pass-001/20260531T210009.155195000Z.full.json
+report compact json: ../output/eval/model-bench-public-skills-expansion-20260531/specs/stake_then_request_steth_withdrawal/claude-opus-4.8/pass-001/20260531T210009.155195000Z.compact.json

@@ -17,6 +17,7 @@ import {
   MapProviderRegistry,
   MemoryStore,
   dummyProvider,
+  makePrivyJwtVerifier,
   makePrivyProvider,
   type ProviderModule,
   type ProviderRegistry,
@@ -46,8 +47,17 @@ function init(): NonNullable<Globals["__aomiAuth"]> {
   });
 
   const registered: ProviderModule[] = [dummyProvider];
-  if (env.privyAppId) {
-    registered.push(makePrivyProvider({ appId: env.privyAppId }));
+  if (env.privyAppId && env.privyJwtVerificationKey) {
+    registered.push(
+      makePrivyProvider({
+        appId: env.privyAppId,
+        signerId: env.privySignerId,
+        verifyAccessToken: makePrivyJwtVerifier({
+          appId: env.privyAppId,
+          jwtVerificationKey: env.privyJwtVerificationKey,
+        }),
+      }),
+    );
   }
   const providers = new MapProviderRegistry(registered);
 

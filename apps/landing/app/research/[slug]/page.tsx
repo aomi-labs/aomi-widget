@@ -61,7 +61,7 @@ const markdownComponents: Components = {
     </h2>
   ),
   h3: ({ children }) => (
-    <h3 className="font-geist mt-9 text-xl font-normal tracking-tight text-foreground">
+    <h3 className="mt-9 font-serif text-2xl font-normal tracking-tight text-foreground">
       {children}
     </h3>
   ),
@@ -81,7 +81,7 @@ const markdownComponents: Components = {
     }
 
     return (
-      <p className="font-geist text-[17px] leading-8 text-stone-700 dark:text-white">
+      <p className="font-geist text-[15px] leading-[1.9] text-stone-700 dark:text-white">
         {children}
       </p>
     );
@@ -99,12 +99,12 @@ const markdownComponents: Components = {
     />
   ),
   ul: ({ children }) => (
-    <ul className="font-geist my-5 list-disc space-y-2 pl-6 text-[17px] leading-8 text-stone-700 dark:text-white">
+    <ul className="font-geist my-5 list-disc space-y-2 pl-6 text-[15px] leading-[1.9] text-stone-700 dark:text-white">
       {children}
     </ul>
   ),
   ol: ({ children }) => (
-    <ol className="font-geist my-5 list-decimal space-y-2 pl-6 text-[17px] leading-8 text-stone-700 dark:text-white">
+    <ol className="font-geist my-5 list-decimal space-y-2 pl-6 text-[15px] leading-[1.9] text-stone-700 dark:text-white">
       {children}
     </ol>
   ),
@@ -168,6 +168,49 @@ const markdownComponents: Components = {
   ),
 };
 
+const aomiBenchSourceTree = [
+  { name: "figures", href: "/research/aomibench-v0-1/data/figures" },
+  {
+    name: "latest.json",
+    href: "/research/aomibench-v0.1/aombench_v1_data/latest.json",
+  },
+  {
+    name: "MANIFEST.md",
+    href: "/research/aomibench-v0.1/aombench_v1_data/MANIFEST.md",
+  },
+  {
+    name: "README.md",
+    href: "/research/aomibench-v0.1/aombench_v1_data/README.md",
+  },
+  { name: "specs", href: "/research/aomibench-v0-1/data/specs" },
+  { name: "summaries", href: "/research/aomibench-v0-1/data/summaries" },
+];
+
+function AomiBenchSourceData() {
+  return (
+    <section className="my-8">
+      <pre className="font-geist-mono overflow-x-auto rounded-xl border border-stone-200 bg-stone-50 p-5 text-sm leading-7 text-stone-700 dark:border-stone-800 dark:bg-stone-950 dark:text-white">
+        <Link
+          href="/research/aomibench-v0-1/data"
+          className="underline underline-offset-2"
+        >
+          aombench_v1_data
+        </Link>
+        {"\n"}
+        {aomiBenchSourceTree.map((entry, index) => (
+          <span key={entry.name}>
+            {index === aomiBenchSourceTree.length - 1 ? "└── " : "├── "}
+            <Link href={entry.href} className="underline underline-offset-2">
+              {entry.name}
+            </Link>
+            {"\n"}
+          </span>
+        ))}
+      </pre>
+    </section>
+  );
+}
+
 export function generateStaticParams() {
   return researchPosts.map((post) => ({ slug: post.slug }));
 }
@@ -205,6 +248,21 @@ export default async function ResearchPostPage({
     notFound();
   }
 
+  const components: Components =
+    post.slug === "aomibench-v0-1"
+      ? {
+          ...markdownComponents,
+          h1: ({ children }) => (
+            <>
+              <h1 className="font-serif text-4xl leading-tight font-normal tracking-tight text-foreground md:text-5xl">
+                {children}
+              </h1>
+              <AomiBenchSourceData />
+            </>
+          ),
+        }
+      : markdownComponents;
+
   return (
     <main className="mx-auto min-h-screen w-full max-w-4xl px-8 py-12 text-foreground sm:px-12 lg:px-16">
       <div className="font-geist-mono mb-10 flex flex-wrap items-center gap-3 text-xs tracking-[0.14em] text-muted-foreground">
@@ -223,7 +281,7 @@ export default async function ResearchPostPage({
       <article className="space-y-6">
         <ReactMarkdown
           remarkPlugins={[remarkGfm]}
-          components={markdownComponents}
+          components={components}
         >
           {post.body}
         </ReactMarkdown>

@@ -1,0 +1,3 @@
+[eval] PASS okx_tickers 1 turn(s) 1 tool call(s) 85.5073 cr, 179263 in / 245 out tok, 10526 cached / 0 reasoning tok 0 warning(s) duration 15s
+report full json: ../output/eval/model-bench-public-skills-expansion-20260531/specs/okx_tickers/claude-opus-4.7/pass-001/20260531T221905.773911000Z.full.json
+report compact json: ../output/eval/model-bench-public-skills-expansion-20260531/specs/okx_tickers/claude-opus-4.7/pass-001/20260531T221905.773911000Z.compact.json

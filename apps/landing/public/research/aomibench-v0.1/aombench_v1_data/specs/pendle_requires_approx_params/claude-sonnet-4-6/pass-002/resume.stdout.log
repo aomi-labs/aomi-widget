@@ -1,0 +1,5 @@
+[eval] PASS pendle_requires_approx_params 1 turn(s) 9 tool call(s) 6.91014 cr, 63642 in / 2471 out tok, 58848 cached / 0 reasoning tok 1 warning(s) duration 66s
+warnings:
+  max_tool_calls observed 9 tool call(s), max 8
+report full json: ../output/eval/model-bench-public-skills-gpt55-opus48-sonnet46-20260530/specs/pendle_requires_approx_params/claude-sonnet-4.6/pass-002/20260531T000941.893776000Z.full.json
+report compact json: ../output/eval/model-bench-public-skills-gpt55-opus48-sonnet46-20260530/specs/pendle_requires_approx_params/claude-sonnet-4.6/pass-002/20260531T000941.893776000Z.compact.json

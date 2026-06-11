@@ -1,0 +1,133 @@
+{
+  "run_id": "20260531T215533.043342000Z",
+  "mode": "spec",
+  "started_at": "2026-05-31T21:55:13.025242+00:00",
+  "finished_at": "2026-05-31T21:55:33.043216+00:00",
+  "spec_path": "bin/eval/specs/apps/cow_swap_quote.json",
+  "passed": true,
+  "git_commit": "5b02660942391bc7ae86c5cbb05e33f4c549266f",
+  "git_dirty": true,
+  "story": {
+    "run_id": "20260531T215533.043342000Z",
+    "story_id": "cow_swap_quote",
+    "user_story": "Get a CoW Swap quote without placing an order.",
+    "passed": true,
+    "warnings": [],
+    "model": "minimax/minimax-m2.5",
+    "chain_id": 1,
+    "git_commit": "5b02660942391bc7ae86c5cbb05e33f4c549266f",
+    "git_dirty": true,
+    "total_turns": 1,
+    "total_tool_calls": 1,
+    "total_responses": 3,
+    "activated_skills": [],
+    "failed_assertions": [],
+    "budget_summary": {
+      "total": 1,
+      "exceeded": 0,
+      "required_failures": 0,
+      "warning_failures": 0
+    },
+    "usage": {
+      "input_tokens": 26224,
+      "output_tokens": 550,
+      "total_tokens": 26774,
+      "cached_input_tokens": 0,
+      "cache_creation_input_tokens": 0,
+      "visible_output_tokens": 550,
+      "reasoning_output_tokens": 0,
+      "tool_call_count": 1,
+      "actual_events": 1,
+      "diagnostic_events": 0,
+      "aomi_cost_credits": 0.45660999999999996,
+      "user_charged_credits": 0.45660999999999996,
+      "credits": 0.45660999999999996
+    },
+    "transcript_previews": [
+      {
+        "sender": "user",
+        "content": "Quote swapping 100 USDC to WETH on CoW Swap, but don't place an order.",
+        "tool": null,
+        "tool_topic": null,
+        "tool_result_preview": null
+      },
+      {
+        "sender": "assistant",
+        "content": "\n\nI'll get a quote for swapping 100 USDC to WETH on Ethereum mainnet. Note that `get_cow_swap_quote` prices the trade and routes it through the wallet signature step — if you want to see the quote details before confirming, let me know and I can present just the pricing before proceeding to sign.\n",
+        "tool": null,
+        "tool_topic": null,
+        "tool_result_preview": null
+      },
+      {
+        "sender": "assistant",
+        "content": "",
+        "tool": "get_cow_swap_quote",
+        "tool_topic": "get_cow_swap_quote",
+        "tool_result_preview": "{\n  \"expiration\": \"2026-05-31T21:57:21.420252128Z\",\n  \"from\": \"0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266\",\n  \"id\": 1193924253,\n  \"prepared_order\": {\n    \"app_data_full\": \"{}\",\n    \"app_data_hash\": \"0xb48d38f93eaa084033fc5970bf96e559c33c4cdc07d889ab00b4d63f9590739d\",\n    \"buy_amount\": \"49649925981741110\",\n    \"buy_token\": \"0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2\",\n    \"buy_token_balance\": \"erc2...,\n    \"gasAmount\": \"225697\",\n    \"gasPrice\": \"396420421\",\n    \"kind\": \"sell\",\n    \"partiallyFillable\": false,\n    \"sellAmount\": \"99820229\",\n    \"sellToken\": \"0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48\",\n    \"sellTokenBalance\": \"erc20\",\n    \"sellTokenPrice\": \"497695658.392376720905303955078125\",\n    \"signingScheme\": \"eip712\",\n    \"validTo\": 1780266321\n  },\n  \"source\": \"cow\",\n  \"verified\": true\n}"
+      },
+      {
+        "sender": "assistant",
+        "content": "## Quote Summary\n\n| Field | Raw Value | Human Value |\n|-------|-----------|-------------|\n| **Sell** | 99820229 | 99.82 USDC |\n| **Buy** | 49649925981741110 | 0.04965 WETH |\n| **Fee** (protocol) | 179771 | 0.18 USDC |\n| **Valid until** | 1780266321 | ~2026-05-31 |\n\n**Effective price:** 1 WETH ≈ 2,009 USDC\n\nThe fee (0.18 USDC) is deducted from your sell amount, so you'd send 100 USDC and receive ~0.0496 WETH.\n\nReady to place the order when you confirm. Would you like me to proceed?",
+        "tool": null,
+        "tool_topic": null,
+        "tool_result_preview": null
+      }
+    ],
+    "tool_previews": [
+      {
+        "turn": 0,
+        "tool": "get_cow_swap_quote",
+        "topic": "get_cow_swap_quote",
+        "arguments": {
+          "slippage": null,
+          "order_side": null,
+          "buy_token": "WETH",
+          "chain": "ethereum",
+          "amount": 100,
+          "sell_token": "USDC",
+          "sender_address": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+          "signer_address": null,
+          "receiver_address": null
+        },
+        "result_preview": "{\n  \"expiration\": \"2026-05-31T21:57:21.420252128Z\",\n  \"from\": \"0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266\",\n  \"id\": 1193924253,\n  \"prepared_order\": {\n    \"app_data_full\": \"{}\",\n    \"app_data_hash\": \"0xb48d38f93eaa084033fc5970bf96e559c33c4cdc07d889ab00b4d63f9590739d\",\n    \"buy_amount\": \"49649925981741110\",\n    \"buy_token\": \"0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2\",\n    \"buy_token_balance\": \"erc2...,\n    \"gasAmount\": \"225697\",\n    \"gasPrice\": \"396420421\",\n    \"kind\": \"sell\",\n    \"partiallyFillable\": false,\n    \"sellAmount\": \"99820229\",\n    \"sellToken\": \"0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48\",\n    \"sellTokenBalance\": \"erc20\",\n    \"sellTokenPrice\": \"497695658.392376720905303955078125\",\n    \"signingScheme\": \"eip712\",\n    \"validTo\": 1780266321\n  },\n  \"source\": \"cow\",\n  \"verified\": true\n}"
+      }
+    ],
+    "failure_category": null,
+    "app": {
+      "source": "path",
+      "path": "bin/eval/specs/apps/../../../../plugins/cow.dylib",
+      "loaded_name": "cow"
+    },
+    "skills": {
+      "mode": "disabled",
+      "allowed": [],
+      "activated_skills": [],
+      "bundle_path": null,
+      "bundle_revision": null
+    },
+    "environment": {
+      "chain_id": 1,
+      "network": "ethereum",
+      "providers_path": "/Users/aronmegyeri/.aomi/test-env/providers.toml",
+      "endpoint_name": "ethereum",
+      "funding_ledger": [
+        {
+          "chain_id": 1,
+          "address": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+          "balances": {
+            "ETH": "100",
+            "USDC": "10000"
+          }
+        },
+        {
+          "chain_id": 1,
+          "address": "0x70997970c51812dc3a010c7d01b50e0d17dc79c8",
+          "balances": {
+            "ETH": "100",
+            "USDC": "10000"
+          }
+        }
+      ]
+    }
+  }
+}

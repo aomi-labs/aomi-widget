@@ -1,0 +1,6 @@
+[eval] FAIL stake_then_request_steth_withdrawal 1 turn(s) 13 tool call(s) 3.45116 cr, 86819 in / 2550 out tok, 72286 cached / 0 reasoning tok 0 warning(s) duration 55s
+errors:
+  Alice spends about 0.1 ETH staking before requesting stETH withdrawal Alice spends about 0.1 ETH staking before requesting stETH withdrawal (before: 100 ETH, after: 99.999980305837950678 ETH, delta: -0.000019694162049322 ETH, expected: -0.1 ETH ± 0.015 ETH)
+  stETH Transfer events for mint and withdrawal request stETH Transfer events for mint and withdrawal request observed 0 log(s), expected at least 2 from block 25217941 through 25217943
+report full json: ../output/eval/model-bench-public-skills-expansion-20260531/specs/stake_then_request_steth_withdrawal/claude-haiku-4.5/pass-001/20260531T210841.871532000Z.full.json
+report compact json: ../output/eval/model-bench-public-skills-expansion-20260531/specs/stake_then_request_steth_withdrawal/claude-haiku-4.5/pass-001/20260531T210841.871532000Z.compact.json

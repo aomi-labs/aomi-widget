@@ -1,0 +1,6 @@
+[eval] PASS needs_market_before_supply_usdc 1 turn(s) 11 tool call(s) 13.50009 cr, 86555 in / 2828 out tok, 61883 cached / 0 reasoning tok 2 warning(s) duration 90s
+warnings:
+  no_tool_errors tool error envelope(s) observed for: MetaMorpho USDC vault addresses Ethereum, High Yield USDC MetaMorpho vault, Steakhouse USDC MetaMorpho vault, Gauntlet USDC Core MetaMorpho vault
+  max_tool_calls observed 11 tool call(s), max 6
+report full json: ../output/eval/model-bench-public-skills-gpt55-opus48-sonnet46-20260530/specs/needs_market_before_supply_usdc/claude-sonnet-4.6/pass-002/20260530T225514.136551000Z.full.json
+report compact json: ../output/eval/model-bench-public-skills-gpt55-opus48-sonnet46-20260530/specs/needs_market_before_supply_usdc/claude-sonnet-4.6/pass-002/20260530T225514.136551000Z.compact.json

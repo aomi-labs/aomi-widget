@@ -1,3 +1,5 @@
+"use client";
+
 import { afterEach, describe, expect, it } from "vitest";
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import { useUser, ExtUserProvider } from "@aomi-labs/react";
@@ -29,6 +31,8 @@ function connectedAdapter(
     canConnect: false,
     canOpenAccountUI: false,
     canDisconnect: false,
+    accounts: [],
+    selectAccount: async () => undefined,
     connect: async () => undefined,
   };
 }
@@ -57,10 +61,6 @@ describe("AomiAuthAdapterProvider user sync", () => {
 
     await waitFor(() => {
       const state = JSON.parse(screen.getByTestId("user-state").textContent!);
-      // aa_mode / smart_account_4337 / delegation_7702 are session-owned and
-      // NOT forwarded by AomiAuthAdapterUserSync (it only forwards connect-time
-      // identity fields). They appear in UserState only after session.ts
-      // writes them on tx-complete.
       expect(state).toMatchObject({
         connection: {
           is_connected: true,

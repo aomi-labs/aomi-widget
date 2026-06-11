@@ -223,12 +223,14 @@ async function signSolanaPending(params: {
   pendingTx: PendingSolTx;
 }): Promise<void> {
   const { cli, session, config, pendingTx } = params;
-  const secret = config.solanaPrivateKey ?? process.env.SOLANA_PRIVATE_KEY;
+  const secret =
+    cli.resolvedSvmPrivateKey(config.solanaPrivateKey) ?? process.env.SOLANA_PRIVATE_KEY;
   if (!secret) {
     fatal(
       [
         "Solana keypair required for `aomi tx sign` on a solana_sign request.",
         "Pass one of:",
+        "  aomi wallet set --solana <base58-key>             # persist once",
         "  aomi tx sign --solana-private-key <base58|json> <tx-id>",
         "  SOLANA_PRIVATE_KEY=<base58|json> aomi tx sign <tx-id>",
         "",
@@ -275,6 +277,7 @@ async function signSolanaPending(params: {
         pending_solana_id: pendingTx.solanaId,
       },
     }),
+    { app: cli.app },
   );
 
   // Re-sync to drop the now-discarded pending entry on the host side.
@@ -735,8 +738,39 @@ export async function signCommand(
         transport: http(resolvedRpcUrl),
       });
       const signaturePayload = pendingTx.payload as WalletEip712Payload;
-      const signArgs = toViemSignTypedDataArgs(signaturePayload);
+      let signArgs = toViemSignTypedDataArgs(signaturePayload);
       const messageArgs = toViemSignMessageArgs(signaturePayload);
+
+      // Fallback: if the local pendingTx payload is missing typed_data
+      // (happens when the local state sync ran before the backend stored
+      // the sig, or before bug fixes for camelCase wire format), fetch the
+      // current state from the backend and reconstruct.
+      if (!signArgs && pendingTx.kind === "eip712_sign" && pendingTx.eip712Id !== undefined) {
+        try {
+          const session = cli.createClientSession();
+          const apiState = await session.client.fetchState(
+            cli.sessionId,
+            undefined,
+            cli.clientId,
+          );
+          session.close();
+          const evmSigs =
+            (apiState.user_state as { pending?: { evmSigs?: Record<string, unknown>; evm_sigs?: Record<string, unknown> } })?.pending?.evmSigs ??
+            (apiState.user_state as { pending?: { evm_sigs?: Record<string, unknown> } })?.pending?.evm_sigs ??
+            {};
+          const sig = (evmSigs as Record<string, { typedData?: unknown; typed_data?: unknown; description?: string }>)[String(pendingTx.eip712Id)];
+          const typed = sig?.typedData ?? sig?.typed_data;
+          if (typed) {
+            signArgs = toViemSignTypedDataArgs({
+              ...(pendingTx.payload as WalletEip712Payload),
+              typed_data: typed as WalletEip712Payload["typed_data"],
+              description: sig.description ?? pendingTx.description,
+            });
+          }
+        } catch (err) {
+          console.warn(`[aomi tx sign] failed to fetch typed_data from backend: ${err}`);
+        }
+      }
 
       if (signArgs && messageArgs) {
         fatal(
@@ -801,6 +835,7 @@ export async function signCommand(
       await session.client.sendSystemMessage(
         cli.sessionId,
         JSON.stringify(backendNotification),
+        { app: cli.app },
       );
     }
 

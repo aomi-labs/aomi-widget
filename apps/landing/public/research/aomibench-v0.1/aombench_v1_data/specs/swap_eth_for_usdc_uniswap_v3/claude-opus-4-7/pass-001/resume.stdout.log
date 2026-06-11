@@ -1,0 +1,3 @@
+[eval] PASS swap_eth_for_usdc_uniswap_v3 1 turn(s) 7 tool call(s) 11.43575 cr, 67217 in / 715 out tok, 53245 cached / 0 reasoning tok 0 warning(s) duration 45s
+report full json: ../output/eval/model-bench-public-skills-opus47-opus46-haiku45-20260531/specs/swap_eth_for_usdc_uniswap_v3/claude-opus-4.7/pass-001/20260531T112138.762058000Z.full.json
+report compact json: ../output/eval/model-bench-public-skills-opus47-opus46-haiku45-20260531/specs/swap_eth_for_usdc_uniswap_v3/claude-opus-4.7/pass-001/20260531T112138.762058000Z.compact.json

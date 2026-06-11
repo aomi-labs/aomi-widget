@@ -1,0 +1,3 @@
+[eval] PASS base_eth_balance_check 1 turn(s) 1 tool call(s) 0.330965 cr, 21658 in / 53 out tok 0 warning(s) duration 5s
+report full json: ../output/eval/model-bench-public-skills-expansion-20260531/specs/base_eth_balance_check/minimax-m2.5/pass-002/20260531T183437.772865000Z.full.json
+report compact json: ../output/eval/model-bench-public-skills-expansion-20260531/specs/base_eth_balance_check/minimax-m2.5/pass-002/20260531T183437.772865000Z.compact.json

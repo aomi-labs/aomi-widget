@@ -1,0 +1,5 @@
+[eval] PASS swap_eth_for_steth_curve 1 turn(s) 10 tool call(s) 6.08015 cr, 63809 in / 730 out tok, 61443 cached / 0 reasoning tok 1 warning(s) duration 37s
+warnings:
+  no_tool_errors tool error envelope(s) observed for: stage Curve ETH→stETH swap
+report full json: ../output/eval/model-bench-public-skills-opus47-opus46-haiku45-20260531/specs/swap_eth_for_steth_curve/claude-opus-4.7/pass-002/20260531T111136.323518000Z.full.json
+report compact json: ../output/eval/model-bench-public-skills-opus47-opus46-haiku45-20260531/specs/swap_eth_for_steth_curve/claude-opus-4.7/pass-002/20260531T111136.323518000Z.compact.json

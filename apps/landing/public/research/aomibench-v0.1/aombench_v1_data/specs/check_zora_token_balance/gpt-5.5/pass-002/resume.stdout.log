@@ -1,0 +1,5 @@
+[eval] FAIL check_zora_token_balance 1 turn(s) 1 tool call(s) 0 cr, 0 in / 0 out tok 0 warning(s) duration 4s
+errors:
+  tool sequence broke before expected tool 'encode_and_call'; no matching tool arguments for encode_and_call:$.to; no matching tool arguments for encode_and_call:$.function_signature
+report full json: ../output/eval/model-bench-public-skills-gpt55-opus48-sonnet46-20260530/specs/check_zora_token_balance/gpt-5.5/pass-002/20260530T221420.211501000Z.full.json
+report compact json: ../output/eval/model-bench-public-skills-gpt55-opus48-sonnet46-20260530/specs/check_zora_token_balance/gpt-5.5/pass-002/20260530T221420.211501000Z.compact.json

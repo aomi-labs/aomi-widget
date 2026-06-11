@@ -1,0 +1,282 @@
+{
+  "run_id": "20260531T114019.190999000Z",
+  "mode": "spec",
+  "started_at": "2026-05-31T11:39:57.169849+00:00",
+  "finished_at": "2026-05-31T11:40:19.190929+00:00",
+  "spec_path": "bin/eval/specs/krexa/check_krexa_credit_line.json",
+  "passed": true,
+  "git_commit": "5b02660942391bc7ae86c5cbb05e33f4c549266f",
+  "git_dirty": true,
+  "story": {
+    "run_id": "20260531T114019.190999000Z",
+    "story_id": "check_krexa_credit_line",
+    "user_story": "Check Alice's Krexa credit line and onchain balance without borrowing.",
+    "passed": true,
+    "warnings": [],
+    "model": "claude-haiku-4-5",
+    "chain_id": 10143,
+    "git_commit": "5b02660942391bc7ae86c5cbb05e33f4c549266f",
+    "git_dirty": true,
+    "total_turns": 1,
+    "total_tool_calls": 8,
+    "total_responses": 11,
+    "activated_skills": [
+      "krexa"
+    ],
+    "failed_assertions": [],
+    "budget_summary": {
+      "total": 1,
+      "exceeded": 0,
+      "required_failures": 0,
+      "warning_failures": 0
+    },
+    "usage": {
+      "input_tokens": 24759,
+      "output_tokens": 1205,
+      "total_tokens": 25964,
+      "cached_input_tokens": 21001,
+      "cache_creation_input_tokens": 0,
+      "visible_output_tokens": 1205,
+      "reasoning_output_tokens": 0,
+      "tool_call_count": 8,
+      "actual_events": 1,
+      "diagnostic_events": 0,
+      "aomi_cost_credits": 1.18831,
+      "user_charged_credits": 1.18831,
+      "credits": 1.18831
+    },
+    "transcript_previews": [
+      {
+        "sender": "user",
+        "content": "Check Alice's Krexa USDC balance and credit line on Monad testnet. Don't borrow or pay anything.",
+        "tool": null,
+        "tool_topic": null,
+        "tool_result_preview": null
+      },
+      {
+        "sender": "assistant",
+        "content": "\nThe user wants me to check Alice's Krexa USDC balance and credit line on Monad testnet. Let me break this down:\n\n1. User is connected to wallet 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266 (Alice)\n2. Chain ID is 10143 (Monad testnet)\n3. They want to check:\n   - Krexa USDC balance\n   - Credit line\n4. They explicitly say not to borrow or pay anything - just read-only checks\n\nThis is a Krexa Protocol ...protocol-specific knowledge and tools\n2. Get the current on-chain context to confirm we're on the right chain\n3. Use the skill's tools or `encode_and_call` to read the USDC balance and credit line\n\nLet me start by activating the krexa skill and getting context.\nI'll check Alice's Krexa USDC balance and credit line on Monad testnet. Let me activate the Krexa skill and gather the current context.",
+        "tool": null,
+        "tool_topic": null,
+        "tool_result_preview": null
+      },
+      {
+        "sender": "assistant",
+        "content": "",
+        "tool": "activate_skills",
+        "tool_topic": "activate_skills",
+        "tool_result_preview": "{\n  \"activated\": [\n    \"krexa\"\n  ],\n  \"rejected\": [],\n  \"applied_scope\": \"current_serve_cycle\"\n}"
+      },
+      {
+        "sender": "assistant",
+        "content": "",
+        "tool": "get_time_and_onchain_context",
+        "tool_topic": "Confirm Monad testnet context for Krexa balance check",
+        "tool_result_preview": "{\n  \"chain_name\": \"sim-monad_testnet\",\n  \"chain_id\": 10143,\n  \"rpc_endpoint\": \"http://127.0.0.1:56805\",\n  \"current_time_unix\": 1780227601,\n  \"current_time_iso\": \"2026-05-31T11:40:01.542721+00:00\",\n  \"block_number\": 35261198,\n  \"gas_price_wei\": \"88655509000\",\n  \"supported_chains\": [\n    {\n      \"name\": \"sim-monad_testnet\",\n      \"chain_id\": 10143\n    },\n    {\n      \"name\": \"sim-monad_testnet\",\n      \"chain_id\": 10143\n    }\n  ]\n}"
+      },
+      {
+        "sender": "assistant",
+        "content": "\nThe user wants me to check Alice's Krexa USDC balance and credit line on Monad testnet. They explicitly said \"Don't borrow or pay anything\" — so this is a read-only operation.\n\nAlice's address is 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266 (confirmed in USER_STATE as the connected wallet).\n\nI need to:\n1. Check USDC balance on MockUSDC (0x460b023a87f7Dbe0114357Ab45830F1A41e9C103)\n2. Check credit li...eturns bool\n- `balanceOf(address)` on AgentRegistry → returns uint256 (credit score)\n\nFor USDC balance:\n- `balanceOf(address)` on MockUSDC → returns uint256 (in 1e6 units)\n\nI'll use `encode_and_call` to read these values. Since these are read-only calls, they won't require staging or simulation.\n\n\nConfirmed on Monad Testnet (chain 10143). Now reading Alice's USDC balance and credit line status.",
+        "tool": null,
+        "tool_topic": null,
+        "tool_result_preview": null
+      },
+      {
+        "sender": "assistant",
+        "content": "",
+        "tool": "encode_and_call",
+        "tool_topic": "Check Alice's MockUSDC balance on Monad testnet",
+        "tool_result_preview": "{\n  \"success\": true,\n  \"result\": \"0x0000000000000000000000000000000000000000000000000000000000000000\",\n  \"revert_reason\": null,\n  \"tx\": {\n    \"from\": \"0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266\",\n    \"to\": \"0x460b023a87f7Dbe0114357Ab45830F1A41e9C103\",\n    \"value_wei\": \"0\",\n    \"value_eth\": \"0\",\n    \"input\": \"0x70a08231000000000000000000000000f39fd6e51aad88f6f4ce6ab8827279cfffb92266\",\n    \"chain_id\": 10143\n  },\n  \"result_decoded\": {\n    \"kind\": \"single_abi_word\",\n    \"raw_hex\": \"0x0000000000000000000000000000000000000000000000000000000000000000\",\n    \"decoded\": {\n      \"type\": \"uint256\",\n      \"decoded\": \"0\",\n      \"as_bool\": false,\n      \"as_address\": \"0x0000000000000000000000000000000000000000\"\n    }\n  }\n}"
+      },
+      {
+        "sender": "assistant",
+        "content": "",
+        "tool": "encode_and_call",
+        "tool_topic": "Check Alice's credit level on Krexa",
+        "tool_result_preview": "{\n  \"success\": true,\n  \"result\": \"0x0000000000000000000000000000000000000000000000000000000000000000\",\n  \"revert_reason\": null,\n  \"tx\": {\n    \"from\": \"0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266\",\n    \"to\": \"0xd0CB44B07e922d3bc276061bCB9eF41e103Cc872\",\n    \"value_wei\": \"0\",\n    \"value_eth\": \"0\",\n    \"input\": \"0x069a7882000000000000000000000000f39fd6e51aad88f6f4ce6ab8827279cfffb92266\",\n    \"chain_id\": 10143\n  },\n  \"result_decoded\": {\n    \"kind\": \"single_abi_word\",\n    \"raw_hex\": \"0x0000000000000000000000000000000000000000000000000000000000000000\",\n    \"decoded\": {\n      \"type\": \"uint256\",\n      \"decoded\": \"0\",\n      \"as_bool\": false,\n      \"as_address\": \"0x0000000000000000000000000000000000000000\"\n    }\n  }\n}"
+      },
+      {
+        "sender": "assistant",
+        "content": "",
+        "tool": "encode_and_call",
+        "tool_topic": "Check Alice's KYA tier on Krexa",
+        "tool_result_preview": "{\n  \"success\": true,\n  \"result\": \"0x0000000000000000000000000000000000000000000000000000000000000000\",\n  \"revert_reason\": null,\n  \"tx\": {\n    \"from\": \"0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266\",\n    \"to\": \"0xd0CB44B07e922d3bc276061bCB9eF41e103Cc872\",\n    \"value_wei\": \"0\",\n    \"value_eth\": \"0\",\n    \"input\": \"0x7b567ea2000000000000000000000000f39fd6e51aad88f6f4ce6ab8827279cfffb92266\",\n    \"chain_id\": 10143\n  },\n  \"result_decoded\": {\n    \"kind\": \"single_abi_word\",\n    \"raw_hex\": \"0x0000000000000000000000000000000000000000000000000000000000000000\",\n    \"decoded\": {\n      \"type\": \"uint256\",\n      \"decoded\": \"0\",\n      \"as_bool\": false,\n      \"as_address\": \"0x0000000000000000000000000000000000000000\"\n    }\n  }\n}"
+      },
+      {
+        "sender": "assistant",
+        "content": "",
+        "tool": "encode_and_call",
+        "tool_topic": "Check if Alice has active credit line on Krexa",
+        "tool_result_preview": "{\n  \"success\": true,\n  \"result\": \"0x0000000000000000000000000000000000000000000000000000000000000000\",\n  \"revert_reason\": null,\n  \"tx\": {\n    \"from\": \"0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266\",\n    \"to\": \"0xd0CB44B07e922d3bc276061bCB9eF41e103Cc872\",\n    \"value_wei\": \"0\",\n    \"value_eth\": \"0\",\n    \"input\": \"0x584bf3f4000000000000000000000000f39fd6e51aad88f6f4ce6ab8827279cfffb92266\",\n    \"chain_id\": 10143\n  },\n  \"result_decoded\": {\n    \"kind\": \"single_abi_word\",\n    \"raw_hex\": \"0x0000000000000000000000000000000000000000000000000000000000000000\",\n    \"decoded\": {\n      \"type\": \"uint256\",\n      \"decoded\": \"0\",\n      \"as_bool\": false,\n      \"as_address\": \"0x0000000000000000000000000000000000000000\"\n    }\n  }\n}"
+      },
+      {
+        "sender": "assistant",
+        "content": "",
+        "tool": "encode_and_call",
+        "tool_topic": "Check if Alice's credit is valid on Krexa",
+        "tool_result_preview": "{\n  \"success\": true,\n  \"result\": \"0x0000000000000000000000000000000000000000000000000000000000000000\",\n  \"revert_reason\": null,\n  \"tx\": {\n    \"from\": \"0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266\",\n    \"to\": \"0xd0CB44B07e922d3bc276061bCB9eF41e103Cc872\",\n    \"value_wei\": \"0\",\n    \"value_eth\": \"0\",\n    \"input\": \"0xfc8cd71f000000000000000000000000f39fd6e51aad88f6f4ce6ab8827279cfffb92266\",\n    \"chain_id\": 10143\n  },\n  \"result_decoded\": {\n    \"kind\": \"single_abi_word\",\n    \"raw_hex\": \"0x0000000000000000000000000000000000000000000000000000000000000000\",\n    \"decoded\": {\n      \"type\": \"uint256\",\n      \"decoded\": \"0\",\n      \"as_bool\": false,\n      \"as_address\": \"0x0000000000000000000000000000000000000000\"\n    }\n  }\n}"
+      },
+      {
+        "sender": "assistant",
+        "content": "",
+        "tool": "encode_and_call",
+        "tool_topic": "Check Alice's credit score on Krexa",
+        "tool_result_preview": "{\n  \"success\": false,\n  \"result\": null,\n  \"revert_reason\": \"ToolCallError: eth_call execution failed via http://127.0.0.1:56808: ErrorResp(\\n    ErrorPayload {\\n        code: 3,\\n        message: \\\"execution reverted\\\",\\n        data: Some(\\n            RawValue(\\n                \\\"0x\\\",\\n            ),\\n        ),\\n    },\\n)\",\n  \"tx\": {\n    \"from\": \"0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266\",\n    \"to\": \"0xd0CB44B07e922d3bc276061bCB9eF41e103Cc872\",\n    \"value_wei\": \"0\",\n    \"value_eth\": \"0\",\n    \"input\": \"0x70a08231000000000000000000000000f39fd6e51aad88f6f4ce6ab8827279cfffb92266\",\n    \"chain_id\": 10143\n  }\n}"
+      },
+      {
+        "sender": "assistant",
+        "content": "\nThe user asked me to check Alice's Krexa USDC balance and credit line on Monad testnet without borrowing or paying anything. I've made the calls and got results. Let me analyze them:\n\n1. **balanceOf on AgentRegistry (0xd0CB44B07e922d3bc276061bCB9eF41e103Cc872)** - FAILED with silent revert. This is odd because balanceOf shouldn't be on the AgentRegistry. I think I made an error - I called balance...o |\n| Active Credit Line | No |\n\n**Summary:** Alice is not yet registered as an agent on Krexa. She has no MockUSDC balance, no credit score, and no active credit line. To proceed with Krexa, she would need to:\n1. Register as an agent via `registerAgent(metadataURI)`\n2. Obtain KYA tier and credit score from the Krexa oracle\n3. Acquire MockUSDC to fund operations\n\nNo transactions were submitted.",
+        "tool": null,
+        "tool_topic": null,
+        "tool_result_preview": null
+      }
+    ],
+    "tool_previews": [
+      {
+        "turn": 0,
+        "tool": "activate_skills",
+        "topic": "activate_skills",
+        "arguments": {
+          "skill_ids": [
+            "krexa"
+          ]
+        },
+        "result_preview": "{\n  \"activated\": [\n    \"krexa\"\n  ],\n  \"rejected\": [],\n  \"applied_scope\": \"current_serve_cycle\"\n}"
+      },
+      {
+        "turn": 0,
+        "tool": "get_time_and_onchain_context",
+        "topic": "Confirm Monad testnet context for Krexa balance check",
+        "arguments": {
+          "topic": "Confirm Monad testnet context for Krexa balance check"
+        },
+        "result_preview": "{\n  \"chain_name\": \"sim-monad_testnet\",\n  \"chain_id\": 10143,\n  \"rpc_endpoint\": \"http://127.0.0.1:56805\",\n  \"current_time_unix\": 1780227601,\n  \"current_time_iso\": \"2026-05-31T11:40:01.542721+00:00\",\n  \"block_number\": 35261198,\n  \"gas_price_wei\": \"88655509000\",\n  \"supported_chains\": [\n    {\n      \"name\": \"sim-monad_testnet\",\n      \"chain_id\": 10143\n    },\n    {\n      \"name\": \"sim-monad_testnet\",\n      \"chain_id\": 10143\n    }\n  ]\n}"
+      },
+      {
+        "turn": 0,
+        "tool": "encode_and_call",
+        "topic": "Check Alice's MockUSDC balance on Monad testnet",
+        "arguments": {
+          "function_signature": "balanceOf(address)",
+          "arguments": [
+            "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
+          ],
+          "to": "0x460b023a87f7Dbe0114357Ab45830F1A41e9C103",
+          "value": "0",
+          "topic": "Check Alice's MockUSDC balance on Monad testnet"
+        },
+        "result_preview": "{\n  \"success\": true,\n  \"result\": \"0x0000000000000000000000000000000000000000000000000000000000000000\",\n  \"revert_reason\": null,\n  \"tx\": {\n    \"from\": \"0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266\",\n    \"to\": \"0x460b023a87f7Dbe0114357Ab45830F1A41e9C103\",\n    \"value_wei\": \"0\",\n    \"value_eth\": \"0\",\n    \"input\": \"0x70a08231000000000000000000000000f39fd6e51aad88f6f4ce6ab8827279cfffb92266\",\n    \"chain_id\": 10143\n  },\n  \"result_decoded\": {\n    \"kind\": \"single_abi_word\",\n    \"raw_hex\": \"0x0000000000000000000000000000000000000000000000000000000000000000\",\n    \"decoded\": {\n      \"type\": \"uint256\",\n      \"decoded\": \"0\",\n      \"as_bool\": false,\n      \"as_address\": \"0x0000000000000000000000000000000000000000\"\n    }\n  }\n}"
+      },
+      {
+        "turn": 0,
+        "tool": "encode_and_call",
+        "topic": "Check Alice's credit level on Krexa",
+        "arguments": {
+          "function_signature": "getCreditLevel(address)",
+          "arguments": [
+            "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
+          ],
+          "to": "0xd0CB44B07e922d3bc276061bCB9eF41e103Cc872",
+          "value": "0",
+          "topic": "Check Alice's credit level on Krexa"
+        },
+        "result_preview": "{\n  \"success\": true,\n  \"result\": \"0x0000000000000000000000000000000000000000000000000000000000000000\",\n  \"revert_reason\": null,\n  \"tx\": {\n    \"from\": \"0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266\",\n    \"to\": \"0xd0CB44B07e922d3bc276061bCB9eF41e103Cc872\",\n    \"value_wei\": \"0\",\n    \"value_eth\": \"0\",\n    \"input\": \"0x069a7882000000000000000000000000f39fd6e51aad88f6f4ce6ab8827279cfffb92266\",\n    \"chain_id\": 10143\n  },\n  \"result_decoded\": {\n    \"kind\": \"single_abi_word\",\n    \"raw_hex\": \"0x0000000000000000000000000000000000000000000000000000000000000000\",\n    \"decoded\": {\n      \"type\": \"uint256\",\n      \"decoded\": \"0\",\n      \"as_bool\": false,\n      \"as_address\": \"0x0000000000000000000000000000000000000000\"\n    }\n  }\n}"
+      },
+      {
+        "turn": 0,
+        "tool": "encode_and_call",
+        "topic": "Check Alice's KYA tier on Krexa",
+        "arguments": {
+          "function_signature": "getKyaTier(address)",
+          "arguments": [
+            "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
+          ],
+          "to": "0xd0CB44B07e922d3bc276061bCB9eF41e103Cc872",
+          "value": "0",
+          "topic": "Check Alice's KYA tier on Krexa"
+        },
+        "result_preview": "{\n  \"success\": true,\n  \"result\": \"0x0000000000000000000000000000000000000000000000000000000000000000\",\n  \"revert_reason\": null,\n  \"tx\": {\n    \"from\": \"0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266\",\n    \"to\": \"0xd0CB44B07e922d3bc276061bCB9eF41e103Cc872\",\n    \"value_wei\": \"0\",\n    \"value_eth\": \"0\",\n    \"input\": \"0x7b567ea2000000000000000000000000f39fd6e51aad88f6f4ce6ab8827279cfffb92266\",\n    \"chain_id\": 10143\n  },\n  \"result_decoded\": {\n    \"kind\": \"single_abi_word\",\n    \"raw_hex\": \"0x0000000000000000000000000000000000000000000000000000000000000000\",\n    \"decoded\": {\n      \"type\": \"uint256\",\n      \"decoded\": \"0\",\n      \"as_bool\": false,\n      \"as_address\": \"0x0000000000000000000000000000000000000000\"\n    }\n  }\n}"
+      },
+      {
+        "turn": 0,
+        "tool": "encode_and_call",
+        "topic": "Check if Alice has active credit line on Krexa",
+        "arguments": {
+          "function_signature": "hasActiveCreditLine(address)",
+          "arguments": [
+            "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
+          ],
+          "to": "0xd0CB44B07e922d3bc276061bCB9eF41e103Cc872",
+          "value": "0",
+          "topic": "Check if Alice has active credit line on Krexa"
+        },
+        "result_preview": "{\n  \"success\": true,\n  \"result\": \"0x0000000000000000000000000000000000000000000000000000000000000000\",\n  \"revert_reason\": null,\n  \"tx\": {\n    \"from\": \"0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266\",\n    \"to\": \"0xd0CB44B07e922d3bc276061bCB9eF41e103Cc872\",\n    \"value_wei\": \"0\",\n    \"value_eth\": \"0\",\n    \"input\": \"0x584bf3f4000000000000000000000000f39fd6e51aad88f6f4ce6ab8827279cfffb92266\",\n    \"chain_id\": 10143\n  },\n  \"result_decoded\": {\n    \"kind\": \"single_abi_word\",\n    \"raw_hex\": \"0x0000000000000000000000000000000000000000000000000000000000000000\",\n    \"decoded\": {\n      \"type\": \"uint256\",\n      \"decoded\": \"0\",\n      \"as_bool\": false,\n      \"as_address\": \"0x0000000000000000000000000000000000000000\"\n    }\n  }\n}"
+      },
+      {
+        "turn": 0,
+        "tool": "encode_and_call",
+        "topic": "Check if Alice's credit is valid on Krexa",
+        "arguments": {
+          "function_signature": "isCreditValid(address)",
+          "arguments": [
+            "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
+          ],
+          "to": "0xd0CB44B07e922d3bc276061bCB9eF41e103Cc872",
+          "value": "0",
+          "topic": "Check if Alice's credit is valid on Krexa"
+        },
+        "result_preview": "{\n  \"success\": true,\n  \"result\": \"0x0000000000000000000000000000000000000000000000000000000000000000\",\n  \"revert_reason\": null,\n  \"tx\": {\n    \"from\": \"0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266\",\n    \"to\": \"0xd0CB44B07e922d3bc276061bCB9eF41e103Cc872\",\n    \"value_wei\": \"0\",\n    \"value_eth\": \"0\",\n    \"input\": \"0xfc8cd71f000000000000000000000000f39fd6e51aad88f6f4ce6ab8827279cfffb92266\",\n    \"chain_id\": 10143\n  },\n  \"result_decoded\": {\n    \"kind\": \"single_abi_word\",\n    \"raw_hex\": \"0x0000000000000000000000000000000000000000000000000000000000000000\",\n    \"decoded\": {\n      \"type\": \"uint256\",\n      \"decoded\": \"0\",\n      \"as_bool\": false,\n      \"as_address\": \"0x0000000000000000000000000000000000000000\"\n    }\n  }\n}"
+      },
+      {
+        "turn": 0,
+        "tool": "encode_and_call",
+        "topic": "Check Alice's credit score on Krexa",
+        "arguments": {
+          "function_signature": "balanceOf(address)",
+          "arguments": [
+            "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
+          ],
+          "to": "0xd0CB44B07e922d3bc276061bCB9eF41e103Cc872",
+          "value": "0",
+          "topic": "Check Alice's credit score on Krexa"
+        },
+        "result_preview": "{\n  \"success\": false,\n  \"result\": null,\n  \"revert_reason\": \"ToolCallError: eth_call execution failed via http://127.0.0.1:56808: ErrorResp(\\n    ErrorPayload {\\n        code: 3,\\n        message: \\\"execution reverted\\\",\\n        data: Some(\\n            RawValue(\\n                \\\"0x\\\",\\n            ),\\n        ),\\n    },\\n)\",\n  \"tx\": {\n    \"from\": \"0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266\",\n    \"to\": \"0xd0CB44B07e922d3bc276061bCB9eF41e103Cc872\",\n    \"value_wei\": \"0\",\n    \"value_eth\": \"0\",\n    \"input\": \"0x70a08231000000000000000000000000f39fd6e51aad88f6f4ce6ab8827279cfffb92266\",\n    \"chain_id\": 10143\n  }\n}"
+      }
+    ],
+    "failure_category": null,
+    "app": {
+      "source": "default",
+      "path": null,
+      "loaded_name": "default"
+    },
+    "skills": {
+      "mode": "restricted",
+      "allowed": [
+        "krexa"
+      ],
+      "activated_skills": [
+        "krexa"
+      ],
+      "bundle_path": "../output/eval/model-bench-public-skills-opus47-opus46-haiku45-20260531/specs/check_krexa_credit_line/claude-haiku-4.5/pass-001/spec-skills/check_krexa_credit_line-skills.json",
+      "bundle_revision": "fnv1a64:d92ab920ef77d5a2"
+    },
+    "environment": {
+      "chain_id": 10143,
+      "network": "monad-testnet",
+      "providers_path": "/Users/aronmegyeri/.aomi/test-env/providers.toml",
+      "endpoint_name": "sim-monad_testnet",
+      "funding_ledger": [
+        {
+          "chain_id": 10143,
+          "address": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+          "balances": {}
+        },
+        {
+          "chain_id": 10143,
+          "address": "0x70997970c51812dc3a010c7d01b50e0d17dc79c8",
+          "balances": {}
+        }
+      ]
+    }
+  }
+}

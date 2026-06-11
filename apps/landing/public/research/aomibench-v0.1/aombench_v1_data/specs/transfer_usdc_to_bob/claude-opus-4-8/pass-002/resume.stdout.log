@@ -1,0 +1,3 @@
+[eval] PASS transfer_usdc_to_bob 1 turn(s) 7 tool call(s) 4.159 cr, 44137 in / 479 out tok, 42460 cached / 0 reasoning tok 0 warning(s) duration 42s
+report full json: ../output/eval/model-bench-public-skills-expansion-20260531/specs/transfer_usdc_to_bob/claude-opus-4.8/pass-002/20260531T184818.264503000Z.full.json
+report compact json: ../output/eval/model-bench-public-skills-expansion-20260531/specs/transfer_usdc_to_bob/claude-opus-4.8/pass-002/20260531T184818.264503000Z.compact.json
