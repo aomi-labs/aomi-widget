@@ -18,6 +18,7 @@ import {
   pendingSolTxsFromBackendUserState,
   walletSnapshotFromUserState,
 } from "./user-state";
+import type { CliAccountProvider } from "./types";
 
 export type PendingTx = {
   id: string;
@@ -100,6 +101,13 @@ export type CliSessionState = {
   /** Whether the active model has been pushed to the backend session. */
   modelSynced?: boolean;
   apiKey?: string;
+  /** Aomi account bearer for authenticated requests. Persisted so a bearer
+   * supplied once (via `--account-bearer`) survives across CLI invocations. */
+  accountAccessToken?: string;
+  /** Upstream provider used to exchange a provider token for an Aomi bearer. */
+  accountProvider?: CliAccountProvider;
+  /** Provider-issued token exchanged for an Aomi bearer. */
+  accountProviderToken?: string;
   publicKey?: string;
   privateKey?: string;
   /** Solana public key (base58), derived from the Solana keypair when provided. */
@@ -197,6 +205,9 @@ function toCliSessionState(stored: StoredSessionState): CliSessionState {
     model: stored.model,
     modelSynced: stored.modelSynced,
     apiKey: stored.apiKey,
+    accountAccessToken: stored.accountAccessToken,
+    accountProvider: stored.accountProvider,
+    accountProviderToken: stored.accountProviderToken,
     publicKey: stored.publicKey,
     privateKey: stored.privateKey,
     svmPublicKey: stored.svmPublicKey,
@@ -243,6 +254,9 @@ function readStoredSession(path: string): StoredSessionState | null {
       app: parsed.app,
       model: parsed.model,
       apiKey: parsed.apiKey,
+      accountAccessToken: parsed.accountAccessToken,
+      accountProvider: parsed.accountProvider,
+      accountProviderToken: parsed.accountProviderToken,
       publicKey: parsed.publicKey,
       privateKey: parsed.privateKey,
       svmPublicKey: parsed.svmPublicKey,

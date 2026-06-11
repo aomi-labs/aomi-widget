@@ -15,7 +15,7 @@ export async function statusCommand(config: CliConfig): Promise<void> {
   }
   cli.mergeConfig(config);
 
-  const session = cli.createClientSession();
+  const session = cli.createClientSession(config);
   try {
     const apiState = await session.client.fetchState(cli.sessionId, undefined, cli.clientId);
     console.log(
@@ -50,7 +50,7 @@ export async function eventsCommand(config: CliConfig): Promise<void> {
   }
   cli.mergeConfig(config);
 
-  const session = cli.createClientSession();
+  const session = cli.createClientSession(config);
   try {
     const events = await session.client.getSystemEvents(cli.sessionId);
     console.log(JSON.stringify(events, null, 2));
@@ -211,7 +211,7 @@ export async function setModelCommand(
   options?: { printLocation?: boolean },
 ): Promise<void> {
   const cli = CliSession.loadOrCreate(config);
-  const session = cli.createClientSession();
+  const session = cli.createClientSession(config);
   try {
     await session.client.setModel(cli.sessionId, model, {
       app: cli.app,
