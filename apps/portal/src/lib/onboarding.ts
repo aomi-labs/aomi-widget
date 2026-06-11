@@ -6,9 +6,9 @@
 // Pure client module — it owns only the GitHub-side flow and its persistence:
 //   • localStorage so progress survives the full-page redirect to github.com
 //     and back (installing a GitHub App leaves the SPA entirely),
-//   • a CSRF/return token so we can match the redirect to the path that started
-//     it and resume on the right step,
-//   • deep-link builders for the App-install and "use this template" pages,
+//   • a pending path marker so the backend callback redirect can resume on the
+//     right step,
+//   • deep-link builders for the "use this template" page,
 //   • a per-path step resolver derived from accumulated progress.
 //
 // The deploy/create calls that need the backend (create-repo-from-template,
@@ -16,35 +16,13 @@
 // which is the single seam pending the backend's opaque app-identity contract.
 // =============================================================================
 
-export type OnboardingPath = "oneshot" | "bootstrap";
+import { settingsApiFetch } from "@portal/lib/settings-api";
 
-// --- config -----------------------------------------------------------------
-// App slugs are deployment-time config (they differ per environment, and the
-// one-shot App may not be registered yet), so they're overridable via env.
-const ONESHOT_SLUG =
-  process.env.NEXT_PUBLIC_AOMI_BUILD_ONESHOT_SLUG || "aomi-build-oneshot";
-const BOOTSTRAP_SLUG = process.env.NEXT_PUBLIC_AOMI_BUILD_SLUG || "aomi-build";
+export type OnboardingPath = "oneshot" | "bootstrap";
 
 export const TEMPLATE_REPO = "aomi-labs/playground-example";
 export const TEMPLATE_REPO_URL = `https://github.com/${TEMPLATE_REPO}`;
 export const TEMPLATE_GENERATE_URL = `${TEMPLATE_REPO_URL}/generate`;
-
-/** GitHub App install page. After consent, GitHub redirects back to the App's
- *  configured Setup URL with `?installation_id=…&setup_action=…&state=<token>`. */
-export function appInstallUrl(
-  path: OnboardingPath,
-  state: string,
-  redirectUri?: string,
-): string {
-  const slug = path === "oneshot" ? ONESHOT_SLUG : BOOTSTRAP_SLUG;
-  const params = new URLSearchParams({ state });
-  // When the App has multiple callback URLs (e.g. a shared backend OAuth handler
-  // + this onboarding page), GitHub needs an explicit redirect_uri — which must
-  // EXACTLY match one of the App's registered callback URLs — to send the user
-  // back here after consent.
-  if (redirectUri) params.set("redirect_uri", redirectUri);
-  return `https://github.com/apps/${slug}/installations/new?${params.toString()}`;
-}
 
 /** Accept "owner/name" or a full github.com URL; return "owner/name" or null. */
 export function normalizeRepo(input: string): string | null {
@@ -57,6 +35,8 @@ export function normalizeRepo(input: string): string | null {
 export type PathProgress = {
   /** GitHub installation id, from the install-callback redirect. */
   installationId?: string;
+  /** Backend callback status: `bound`, `awaiting_webhook`, or `awaiting_install`. */
+  installationStatus?: string;
   /** `owner/name` — created from the template (oneshot) or supplied by the
    *  user (bootstrap). */
   repo?: string;
@@ -69,7 +49,6 @@ export type PathProgress = {
 };
 
 export type PendingInstall = {
-  token: string;
   path: OnboardingPath;
 };
 
@@ -88,6 +67,22 @@ function empty(): OnboardingState {
   return { path: null, oneshot: {}, bootstrap: {}, pendingInstall: null };
 }
 
+function stripMockProgress(progress: PathProgress): PathProgress {
+  if (
+    progress.applicationId !== "mock-app-1" &&
+    !progress.releaseTag?.startsWith("apps-playground-example-")
+  ) {
+    return progress;
+  }
+  const next: PathProgress = {};
+  if (progress.installationId) next.installationId = progress.installationId;
+  if (progress.installationStatus) {
+    next.installationStatus = progress.installationStatus;
+  }
+  if (progress.repo) next.repo = progress.repo;
+  return next;
+}
+
 export function loadOnboarding(): OnboardingState {
   if (typeof window === "undefined") return empty();
   try {
@@ -96,8 +91,8 @@ export function loadOnboarding(): OnboardingState {
     const parsed = JSON.parse(raw) as Partial<OnboardingState>;
     return {
       path: parsed.path ?? null,
-      oneshot: parsed.oneshot ?? {},
-      bootstrap: parsed.bootstrap ?? {},
+      oneshot: stripMockProgress(parsed.oneshot ?? {}),
+      bootstrap: stripMockProgress(parsed.bootstrap ?? {}),
       pendingInstall: parsed.pendingInstall ?? null,
     };
   } catch {
@@ -145,23 +140,17 @@ export function withPendingInstall(
   return { ...state, pendingInstall: pending };
 }
 
-// --- CSRF / return token ----------------------------------------------------
-export function newStateToken(): string {
-  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
-    return crypto.randomUUID();
-  }
-  return `s-${Date.now()}-${Math.random().toString(16).slice(2)}`;
-}
-
 // --- GitHub redirect parsing ------------------------------------------------
 export type GithubRedirect = {
   installationId: string;
   setupAction: string | null;
   state: string | null;
+  onboard: string | null;
 };
 
-/** Parse the `?installation_id=…&setup_action=…&state=…` GitHub appends to the
- *  App's Setup URL after an install. Returns null if this isn't such a redirect. */
+/** Parse the backend callback redirect back to `/settings`. GitHub may append
+ *  `setup_action`, `state`, and `code` when this page is registered directly;
+ *  the current secure flow returns from backend as `?installation_id=...&onboard=...`. */
 export function readGithubRedirect(search: string): GithubRedirect | null {
   const params = new URLSearchParams(search);
   const installationId = params.get("installation_id");
@@ -170,6 +159,7 @@ export function readGithubRedirect(search: string): GithubRedirect | null {
     installationId,
     setupAction: params.get("setup_action"),
     state: params.get("state"),
+    onboard: params.get("onboard"),
   };
 }
 
@@ -180,6 +170,7 @@ export const GITHUB_REDIRECT_KEYS = [
   "setup_action",
   "state",
   "code",
+  "onboard",
 ] as const;
 
 // --- step resolvers ---------------------------------------------------------
@@ -211,6 +202,40 @@ export function bootstrapStep(p: PathProgress): BootstrapStep {
   if (!p.installationId) return "install";
   if (!p.live) return "deploy";
   return "live";
+}
+
+export function installationStatusLabel(status?: string): string | null {
+  switch (status) {
+    case "bound":
+      return "installation done";
+    case "awaiting_webhook":
+      return "installed, syncing repositories";
+    case "awaiting_install":
+      return "installation requested";
+    default:
+      return null;
+  }
+}
+
+export type GithubAppOAuthStartResponse = {
+  ok: boolean;
+  install_url?: string;
+};
+
+export async function githubAppInstallUrl(args: {
+  platform?: string;
+}): Promise<string> {
+  const params = new URLSearchParams();
+  const platform = args.platform?.trim();
+  if (platform) params.set("platform", platform);
+  const query = params.toString();
+  const result = await settingsApiFetch<GithubAppOAuthStartResponse>(
+    `/api/integrations/github-app/oauth/start${query ? `?${query}` : ""}`,
+  );
+  if (!result.install_url) {
+    throw new Error("GitHub App install URL was not returned by the backend.");
+  }
+  return result.install_url;
 }
 
 // --- backend seam (pending the application_id contract) ---------------------
@@ -260,7 +285,9 @@ export type OnboardStatus = {
 };
 
 /** Poll release/activation progress for an in-flight onboarding deploy. */
-export async function onboardStatus(releaseTag: string): Promise<OnboardStatus> {
+export async function onboardStatus(
+  releaseTag: string,
+): Promise<OnboardStatus> {
   const res = await fetch(
     `/api/onboard/status?releaseTag=${encodeURIComponent(releaseTag)}`,
   );

@@ -3,11 +3,10 @@
 import { useCallback, useEffect, useState } from "react";
 import { useAomiAuthAdapter } from "@aomi-labs/widget-lib";
 import {
+  githubAppInstallUrl,
   loadOnboarding,
   saveOnboarding,
   readGithubRedirect,
-  newStateToken,
-  appInstallUrl,
   withPath,
   withProgress,
   withPendingInstall,
@@ -25,6 +24,9 @@ export function Onboarding() {
   const actor = adapter.identity.address ?? undefined;
 
   const [state, setState] = useState<OnboardingState>(() => loadOnboarding());
+  const [installingPath, setInstallingPath] =
+    useState<OnboardingPath | null>(null);
+  const [installError, setInstallError] = useState<string | null>(null);
 
   const update = useCallback((next: OnboardingState) => {
     setState(next);
@@ -38,16 +40,12 @@ export function Onboarding() {
     if (!redirect) return;
 
     const cur = loadOnboarding();
-    // Match the redirect to the path that started it via the state token; fall
-    // back to whatever path is currently selected.
-    const matched =
-      cur.pendingInstall && cur.pendingInstall.token === redirect.state
-        ? cur.pendingInstall.path
-        : cur.path;
+    const matched = cur.pendingInstall?.path ?? cur.path;
     if (matched) {
       const next = withPendingInstall(
         withProgress(withPath(cur, matched), matched, {
           installationId: redirect.installationId,
+          installationStatus: redirect.onboard ?? undefined,
         }),
         null,
       );
@@ -84,18 +82,29 @@ export function Onboarding() {
     [state, update],
   );
 
-  // Persist the pending-install token BEFORE leaving for github.com, so we can
-  // match the redirect when we come back.
+  // Persist the pending-install path BEFORE leaving for github.com, so the
+  // backend callback redirect can resume the correct wizard path.
   const makeBeginInstall = useCallback(
-    (path: OnboardingPath) => () => {
-      const token = newStateToken();
-      const next = withPendingInstall(withPath(state, path), { token, path });
+    (path: OnboardingPath) => async () => {
+      const next = withPendingInstall(withPath(state, path), { path });
       saveOnboarding(next);
       setState(next);
-      // Ask GitHub to send the user back to this onboarding page after consent.
-      // Must exactly match a callback URL registered on the GitHub App.
-      const redirectUri = `${window.location.origin}/settings`;
-      window.location.assign(appInstallUrl(path, token, redirectUri));
+      setInstallError(null);
+      setInstallingPath(path);
+      try {
+        window.location.assign(
+          await githubAppInstallUrl({
+            platform: process.env.NEXT_PUBLIC_AOMI_DEPLOY_PLATFORM,
+          }),
+        );
+      } catch (error) {
+        setInstallingPath(null);
+        setInstallError(
+          error instanceof Error
+            ? error.message
+            : "Failed to start GitHub App install.",
+        );
+      }
     },
     [state],
   );
@@ -106,23 +115,39 @@ export function Onboarding() {
 
   if (state.path === "oneshot") {
     return (
-      <OneshotWizard
-        progress={state.oneshot}
-        actor={actor}
-        onBack={back}
-        beginInstall={makeBeginInstall("oneshot")}
-        patch={makePatch("oneshot")}
-      />
+      <>
+        {installError && (
+          <p className="rounded-md border border-red-500/20 bg-red-500/10 p-3 text-sm text-red-500">
+            {installError}
+          </p>
+        )}
+        <OneshotWizard
+          progress={state.oneshot}
+          actor={actor}
+          onBack={back}
+          beginInstall={makeBeginInstall("oneshot")}
+          installing={installingPath === "oneshot"}
+          patch={makePatch("oneshot")}
+        />
+      </>
     );
   }
 
   return (
-    <BootstrapWizard
-      progress={state.bootstrap}
-      actor={actor}
-      onBack={back}
-      beginInstall={makeBeginInstall("bootstrap")}
-      patch={makePatch("bootstrap")}
-    />
+    <>
+      {installError && (
+        <p className="rounded-md border border-red-500/20 bg-red-500/10 p-3 text-sm text-red-500">
+          {installError}
+        </p>
+      )}
+      <BootstrapWizard
+        progress={state.bootstrap}
+        actor={actor}
+        onBack={back}
+        beginInstall={makeBeginInstall("bootstrap")}
+        installing={installingPath === "bootstrap"}
+        patch={makePatch("bootstrap")}
+      />
+    </>
   );
 }

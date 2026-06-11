@@ -554,7 +554,7 @@ export class AomiClient {
     sessionId: string,
     options?: { publicKey?: string; apiKey?: string },
   ): Promise<AomiAppDescriptor[]> {
-    const url = buildApiUrl(this.baseUrl, "/api/control/apps", {
+    const url = buildApiUrl(this.baseUrl, "/api/session/apps", {
       public_key: options?.publicKey,
     });
 
@@ -580,7 +580,7 @@ export class AomiClient {
     sessionId: string,
     options?: { apiKey?: string },
   ): Promise<string[]> {
-    const url = buildApiUrl(this.baseUrl, "/api/control/models");
+    const url = buildApiUrl(this.baseUrl, "/api/session/models");
     const apiKey = options?.apiKey ?? this.apiKey;
     const headers = new Headers(withSessionHeader(sessionId));
     if (apiKey) {
@@ -627,7 +627,7 @@ export class AomiClient {
       created: boolean;
     }>(
       this.baseUrl,
-      "/api/control/model",
+      "/api/session/model",
       payload,
       sessionId,
       this.fetchImpl,

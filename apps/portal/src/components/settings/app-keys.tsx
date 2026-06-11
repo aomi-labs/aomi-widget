@@ -103,8 +103,8 @@ export function AppKeys() {
     setLoadingApps(true);
     try {
       const path = identity.address
-        ? `/api/control/apps?public_key=${encodeURIComponent(identity.address)}`
-        : "/api/control/apps";
+        ? `/api/session/apps?public_key=${encodeURIComponent(identity.address)}`
+        : "/api/session/apps";
       const data = await settingsApiFetch<string[]>(path);
       const normalized = [
         ...new Set((data ?? []).map((app) => app.toLowerCase())),

@@ -37,14 +37,6 @@ export async function POST(req: Request) {
     );
   }
 
-  // Dev-only mock so the picker → wizard → live flow is exercisable in-browser
-  // before the real backend lands. Off by default; never set in production.
-  if (process.env.APP_ONBOARD_MOCK === "1") {
-    const repo = body.repo || "your-account/playground-example";
-    const releaseTag = `apps-playground-example-${Date.now()}`;
-    return NextResponse.json({ repo, releaseTag, applicationId: "mock-app-1" });
-  }
-
   return NextResponse.json(
     {
       error:

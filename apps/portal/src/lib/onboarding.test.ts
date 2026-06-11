@@ -33,6 +33,16 @@ test("bootstrapStep advances template → install → deploy → live", async ()
   );
 });
 
+test("installationStatusLabel describes backend callback statuses", async () => {
+  const { installationStatusLabel } = await import(moduleUrl);
+  assert.equal(installationStatusLabel("bound"), "installation done");
+  assert.equal(
+    installationStatusLabel("awaiting_webhook"),
+    "installed, syncing repositories",
+  );
+  assert.equal(installationStatusLabel("unknown"), null);
+});
+
 test("normalizeRepo accepts owner/name, URLs, .git, trailing slash", async () => {
   const { normalizeRepo } = await import(moduleUrl);
   assert.equal(normalizeRepo("you/my-agent"), "you/my-agent");
@@ -41,7 +51,10 @@ test("normalizeRepo accepts owner/name, URLs, .git, trailing slash", async () =>
     normalizeRepo("https://github.com/you/my-agent"),
     "you/my-agent",
   );
-  assert.equal(normalizeRepo("https://github.com/you/my-agent.git"), "you/my-agent");
+  assert.equal(
+    normalizeRepo("https://github.com/you/my-agent.git"),
+    "you/my-agent",
+  );
   assert.equal(normalizeRepo("you/my-agent/"), "you/my-agent");
   assert.equal(normalizeRepo("not-a-repo"), null);
   assert.equal(normalizeRepo(""), null);
@@ -52,23 +65,19 @@ test("readGithubRedirect parses installation_id + state + setup_action", async (
   assert.equal(readGithubRedirect("?foo=bar"), null);
   assert.deepEqual(
     readGithubRedirect("?installation_id=42&setup_action=install&state=tok"),
-    { installationId: "42", setupAction: "install", state: "tok" },
+    {
+      installationId: "42",
+      setupAction: "install",
+      state: "tok",
+      onboard: null,
+    },
   );
-  assert.deepEqual(readGithubRedirect("?installation_id=42"), {
+  assert.deepEqual(readGithubRedirect("?installation_id=42&onboard=bound"), {
     installationId: "42",
     setupAction: null,
     state: null,
+    onboard: "bound",
   });
-});
-
-test("appInstallUrl points at the right App slug and carries state", async () => {
-  const { appInstallUrl } = await import(moduleUrl);
-  const one = appInstallUrl("oneshot", "abc");
-  const boot = appInstallUrl("bootstrap", "xyz");
-  assert.match(one, /github\.com\/apps\/aomi-build-oneshot\/installations\/new/);
-  assert.match(one, /state=abc/);
-  assert.match(boot, /github\.com\/apps\/aomi-build\/installations\/new/);
-  assert.match(boot, /state=xyz/);
 });
 
 test("state transitions are immutable and correct", async () => {
@@ -85,8 +94,8 @@ test("state transitions are immutable and correct", async () => {
   assert.deepEqual(b.oneshot, { installationId: "9" });
   assert.deepEqual(a.oneshot, {}); // original untouched
 
-  const c = withPendingInstall(b, { token: "t", path: "oneshot" });
-  assert.deepEqual(c.pendingInstall, { token: "t", path: "oneshot" });
+  const c = withPendingInstall(b, { path: "oneshot" });
+  assert.deepEqual(c.pendingInstall, { path: "oneshot" });
   assert.equal(withPendingInstall(c, null).pendingInstall, null);
 });
 
@@ -118,9 +127,50 @@ test("load/save round-trips through a window.localStorage stub", async () => {
   (globalThis as { window?: unknown }).window = undefined;
 });
 
-test("GITHUB_REDIRECT_KEYS covers the params GitHub appends", async () => {
+test("loadOnboarding strips stale mock deploy progress", async () => {
+  const store = new Map<string, string>();
+  store.set(
+    "aomi_onboard",
+    JSON.stringify({
+      path: "bootstrap",
+      oneshot: {},
+      bootstrap: {
+        repo: "me/app",
+        installationId: "123",
+        releaseTag: "apps-playground-example-1781118750000",
+        applicationId: "mock-app-1",
+        live: true,
+      },
+      pendingInstall: null,
+    }),
+  );
+  const win = {
+    localStorage: {
+      getItem: (k: string) => (store.has(k) ? store.get(k)! : null),
+      setItem: (k: string, v: string) => void store.set(k, v),
+      removeItem: (k: string) => void store.delete(k),
+    },
+  } as unknown as Window & typeof globalThis;
+  globalThis.window = win;
+
+  const { loadOnboarding } = await import(moduleUrl);
+  assert.deepEqual(loadOnboarding().bootstrap, {
+    repo: "me/app",
+    installationId: "123",
+  });
+
+  (globalThis as { window?: unknown }).window = undefined;
+});
+
+test("GITHUB_REDIRECT_KEYS covers GitHub and backend redirect params", async () => {
   const { GITHUB_REDIRECT_KEYS } = await import(moduleUrl);
-  for (const k of ["installation_id", "setup_action", "state", "code"]) {
+  for (const k of [
+    "installation_id",
+    "setup_action",
+    "state",
+    "code",
+    "onboard",
+  ]) {
     assert.ok(GITHUB_REDIRECT_KEYS.includes(k), `missing ${k}`);
   }
 });

@@ -5,6 +5,7 @@ import { ExternalLink, Check } from "lucide-react";
 import { Button, Input } from "@aomi-labs/widget-lib";
 import {
   bootstrapStep,
+  installationStatusLabel,
   normalizeRepo,
   TEMPLATE_GENERATE_URL,
   type PathProgress,
@@ -26,15 +27,18 @@ export function BootstrapWizard({
   actor,
   onBack,
   beginInstall,
+  installing,
   patch,
 }: {
   progress: PathProgress;
   actor?: string;
   onBack: () => void;
   beginInstall: () => void;
+  installing?: boolean;
   patch: (patch: Partial<PathProgress>) => void;
 }) {
   const step = bootstrapStep(progress);
+  const installStatus = installationStatusLabel(progress.installationStatus);
   const [repoInput, setRepoInput] = useState("");
   const [repoError, setRepoError] = useState<string | null>(null);
 
@@ -71,6 +75,7 @@ export function BootstrapWizard({
               <code className="text-foreground">{progress.installationId}</code>
             </span>
           )}
+          {installStatus && <span>{installStatus}</span>}
         </div>
       )}
 
@@ -126,9 +131,11 @@ export function BootstrapWizard({
           </p>
           <Button
             onClick={beginInstall}
+            disabled={installing}
             className="h-10 rounded-full px-4 text-sm font-medium"
           >
-            Install on GitHub <ExternalLink className="ml-1 h-4 w-4" />
+            {installing ? "Opening GitHub..." : "Install on GitHub"}
+            <ExternalLink className="ml-1 h-4 w-4" />
           </Button>
         </div>
       )}

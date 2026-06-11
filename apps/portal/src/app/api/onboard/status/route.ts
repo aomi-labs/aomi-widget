@@ -22,15 +22,6 @@ export async function GET(req: Request) {
     );
   }
 
-  // Dev-only mock (see deploy route). The mock release tag embeds its start
-  // time; report ~6s of "building" then "live" so the poll UI is visible.
-  if (process.env.APP_ONBOARD_MOCK === "1") {
-    const m = releaseTag.match(/-(\d{10,})$/);
-    const startMs = m ? Number(m[1]) : 0;
-    const state = Date.now() - startMs < 6000 ? "building" : "live";
-    return NextResponse.json({ state, releaseTag });
-  }
-
   return NextResponse.json(
     {
       error:

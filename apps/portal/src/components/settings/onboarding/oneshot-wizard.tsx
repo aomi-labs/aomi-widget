@@ -3,6 +3,7 @@
 import { ExternalLink, ArrowLeft } from "lucide-react";
 import { Button } from "@aomi-labs/widget-lib";
 import {
+  installationStatusLabel,
   oneshotStep,
   type PathProgress,
 } from "@portal/lib/onboarding";
@@ -22,15 +23,18 @@ export function OneshotWizard({
   actor,
   onBack,
   beginInstall,
+  installing,
   patch,
 }: {
   progress: PathProgress;
   actor?: string;
   onBack: () => void;
   beginInstall: () => void;
+  installing?: boolean;
   patch: (patch: Partial<PathProgress>) => void;
 }) {
   const step = oneshotStep(progress);
+  const installStatus = installationStatusLabel(progress.installationStatus);
 
   return (
     <div className="space-y-6">
@@ -51,6 +55,7 @@ export function OneshotWizard({
               <code className="text-foreground">{progress.installationId}</code>
             </span>
           )}
+          {installStatus && <span>{installStatus}</span>}
           {progress.repo && (
             <span>
               repo <code className="text-foreground">{progress.repo}</code>
@@ -71,9 +76,11 @@ export function OneshotWizard({
           </p>
           <Button
             onClick={beginInstall}
+            disabled={installing}
             className="h-10 rounded-full px-4 text-sm font-medium"
           >
-            Install on GitHub <ExternalLink className="ml-1 h-4 w-4" />
+            {installing ? "Opening GitHub..." : "Install on GitHub"}
+            <ExternalLink className="ml-1 h-4 w-4" />
           </Button>
         </div>
       )}
