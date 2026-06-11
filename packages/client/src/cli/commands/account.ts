@@ -3,11 +3,16 @@ import { createCliGetAccountAccessToken } from "../client-factory";
 import { printDataFileLocation } from "../output";
 import type { CliConfig } from "../types";
 
+type LoginWalletFamily = "evm" | "solana";
+
 /**
  * Mint a backend-owned Privy auth URL for the active session and print it so
  * the user can complete browser login out of band.
  */
-export async function loginCommand(config: CliConfig): Promise<void> {
+export async function loginCommand(
+  config: CliConfig,
+  options?: { walletFamily?: LoginWalletFamily },
+): Promise<void> {
   const cli = CliSession.loadOrCreate(config);
   cli.mergeConfig(config);
 
@@ -15,10 +20,11 @@ export async function loginCommand(config: CliConfig): Promise<void> {
   try {
     const begin = await session.client.beginPrivyAuth(cli.sessionId, {
       application: cli.app,
+      walletFamily: options?.walletFamily,
     });
     console.log("Open this URL to authenticate with Privy:");
     console.log(begin.auth_url);
-    console.log("After the browser flow completes, run `aomi account whoami`.");
+    console.log("After the browser flow completes, run `aomi wallet whoami`.");
     printDataFileLocation();
   } finally {
     session.close();
@@ -93,8 +99,27 @@ export async function whoamiCommand(config: CliConfig): Promise<void> {
     }
     if (account.tier) console.log(`Tier:     ${account.tier}`);
     if (account.status) console.log(`Status:   ${account.status}`);
+    const wallets = profile.wallets ?? [];
+    console.log(`Wallets:  ${wallets.length}`);
+    for (const wallet of wallets) {
+      const walletId = wallet.wallet_id ? ` (${wallet.wallet_id})` : "";
+      console.log(
+        `- ${formatWalletChainType(wallet.chain_type)} [${wallet.wallet_provider}]: ${wallet.address}${walletId}`,
+      );
+    }
     printDataFileLocation();
   } finally {
     session.close();
   }
+}
+
+function formatWalletChainType(chainType: string): string {
+  const normalized = chainType.trim().toLowerCase();
+  if (normalized === "ethereum" || normalized === "evm") {
+    return "Ethereum";
+  }
+  if (normalized === "solana" || normalized === "svm") {
+    return "Solana";
+  }
+  return chainType;
 }

@@ -40,6 +40,20 @@ describe("aomi account whoami", () => {
       statusText: "OK",
       json: vi.fn(async () => ({
         account: { user_id: "user-1", verified_email: "a@b.c", tier: "free" },
+        wallets: [
+          {
+            wallet_id: "wallet-evm-1",
+            address: "0xabc",
+            chain_type: "ethereum",
+            wallet_provider: "privy",
+          },
+          {
+            wallet_id: "wallet-sol-1",
+            address: "So11111111111111111111111111111111111111112",
+            chain_type: "solana",
+            wallet_provider: "privy",
+          },
+        ],
       })),
     } as unknown as Response;
     vi.stubGlobal(
@@ -52,6 +66,13 @@ describe("aomi account whoami", () => {
 
     expect(logSpy).toHaveBeenCalledWith(expect.stringContaining("user-1"));
     expect(logSpy).toHaveBeenCalledWith(expect.stringContaining("a@b.c"));
+    expect(logSpy).toHaveBeenCalledWith(expect.stringContaining("Wallets:  2"));
+    expect(logSpy).toHaveBeenCalledWith(
+      expect.stringContaining("Ethereum [privy]: 0xabc"),
+    );
+    expect(logSpy).toHaveBeenCalledWith(
+      expect.stringContaining("Solana [privy]: So11111111111111111111111111111111111111112"),
+    );
   });
 
   it("reports an anonymous session and hints at the credential flags", async () => {
