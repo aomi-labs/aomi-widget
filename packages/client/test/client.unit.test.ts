@@ -17,6 +17,14 @@ describe("AomiClient account profile", () => {
         status: "active",
         verified_email: "a@b.c",
       },
+      wallets: [
+        {
+          wallet_id: "wallet-evm-1",
+          address: "0xabc",
+          chain_type: "ethereum",
+          wallet_provider: "privy",
+        },
+      ],
     };
     const response = {
       ok: true,
@@ -45,6 +53,7 @@ describe("AomiClient account profile", () => {
       expect(headers.get("Authorization")).toBe("Bearer bearer-1");
       expect(headers.get("X-Session-Id")).toBe("session-1");
       expect(result?.account.user_id).toBe("user-1");
+      expect(result?.wallets?.[0]?.wallet_id).toBe("wallet-evm-1");
     } finally {
       vi.stubGlobal("fetch", originalFetch);
     }
@@ -64,6 +73,49 @@ describe("AomiClient account profile", () => {
     try {
       const client = new AomiClient({ baseUrl: "http://unit.test" });
       expect(await client.fetchAccountProfile("session-1")).toBeNull();
+    } finally {
+      vi.stubGlobal("fetch", originalFetch);
+    }
+  });
+
+  it("sends wallet_family only for non-default beginPrivyAuth flows", async () => {
+    const response = {
+      ok: true,
+      status: 200,
+      statusText: "OK",
+      json: vi.fn(async () => ({
+        state_token: "state-1",
+        auth_url: "https://chat.example/auth/privy?state=state-1",
+        expires_at: 1_800_000_000,
+      })),
+    } as unknown as Response;
+    const nativeFetch = vi.fn(async () => response);
+    const originalFetch = globalThis.fetch;
+    vi.stubGlobal("fetch", nativeFetch);
+
+    try {
+      const client = new AomiClient({ baseUrl: "http://unit.test" });
+
+      await client.beginPrivyAuth("session-1", {
+        application: "byreal",
+        walletFamily: "evm",
+      });
+      await client.beginPrivyAuth("session-1", {
+        application: "byreal",
+        walletFamily: "solana",
+      });
+
+      expect(
+        JSON.parse((nativeFetch.mock.calls[0]?.[1] as RequestInit).body as string),
+      ).toEqual({
+        application: "byreal",
+      });
+      expect(
+        JSON.parse((nativeFetch.mock.calls[1]?.[1] as RequestInit).body as string),
+      ).toEqual({
+        application: "byreal",
+        wallet_family: "solana",
+      });
     } finally {
       vi.stubGlobal("fetch", originalFetch);
     }

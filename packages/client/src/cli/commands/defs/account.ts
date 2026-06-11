@@ -4,19 +4,36 @@ import { globalArgs, buildCliConfig } from "./shared";
 const accountLoginDef = defineCommand({
   meta: {
     name: "login",
-    description: "Mint a Privy browser auth URL for the active session",
+    description:
+      "Alias for `aomi wallet login`. Defaults to EVM; pass --solana to require a Solana wallet.",
   },
-  args: { ...globalArgs },
+  args: {
+    ...globalArgs,
+    evm: {
+      type: "boolean",
+      description: "Request the default EVM embedded-wallet flow explicitly",
+    },
+    solana: {
+      type: "boolean",
+      description: "Request a Solana embedded-wallet login flow",
+    },
+  },
   async run({ args }) {
+    if (args.evm === true && args.solana === true) {
+      const { fatal } = await import("../../errors");
+      fatal("Choose only one of `--evm` or `--solana`.");
+    }
     const { loginCommand } = await import("../account");
-    await loginCommand(buildCliConfig(args));
+    await loginCommand(buildCliConfig(args), {
+      walletFamily: args.solana === true ? "solana" : "evm",
+    });
   },
 });
 
 const accountWhoamiDef = defineCommand({
   meta: {
     name: "whoami",
-    description: "Show the account this session is bound to on the backend",
+    description: "Alias for `aomi wallet whoami`",
   },
   args: { ...globalArgs },
   async run({ args }) {

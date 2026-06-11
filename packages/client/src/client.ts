@@ -1,5 +1,6 @@
 import type {
   AomiAccountProfile,
+  AomiAuthWalletFamily,
   AomiAppDescriptor,
   AomiBeginAccountAuthResponse,
   AomiClientOptions,
@@ -851,7 +852,7 @@ export class AomiClient {
    */
   async beginPrivyAuth(
     sessionId: string,
-    options?: { application?: string },
+    options?: { application?: string; walletFamily?: AomiAuthWalletFamily },
   ): Promise<AomiBeginAccountAuthResponse> {
     const url = buildApiUrl(this.baseUrl, "/api/auth/privy/begin");
     const response = await this.rawFetchImpl(url, {
@@ -861,6 +862,8 @@ export class AomiClient {
       }),
       body: JSON.stringify({
         application: options?.application,
+        wallet_family:
+          options?.walletFamily === "evm" ? undefined : options?.walletFamily,
       }),
     });
 

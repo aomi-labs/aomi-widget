@@ -175,8 +175,16 @@ export interface AomiAccount {
   updated_at?: number;
 }
 
+export interface AomiAccountWallet {
+  wallet_id?: string | null;
+  address: string;
+  chain_type: string;
+  wallet_provider: string;
+}
+
 export interface AomiAccountProfile {
   account: AomiAccount;
+  wallets?: AomiAccountWallet[];
   usage?: unknown;
 }
 
@@ -187,6 +195,7 @@ export interface AomiBeginAccountAuthResponse {
 }
 
 export type AomiWalletFamily = "evm" | "svm";
+export type AomiAuthWalletFamily = "evm" | "solana";
 
 /**
  * GET/POST /api/control/provider-keys
