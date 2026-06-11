@@ -24,6 +24,7 @@ export function OneshotWizard({
   onBack,
   beginInstall,
   installing,
+  installError,
   patch,
 }: {
   progress: PathProgress;
@@ -31,6 +32,7 @@ export function OneshotWizard({
   onBack: () => void;
   beginInstall: () => void;
   installing?: boolean;
+  installError?: string | null;
   patch: (patch: Partial<PathProgress>) => void;
 }) {
   const step = oneshotStep(progress);
@@ -65,23 +67,26 @@ export function OneshotWizard({
       )}
 
       {step === "install" && (
-        <div className="border-input space-y-3 rounded-2xl border p-4">
-          <div className="text-foreground text-sm font-medium">
-            Step 1 — Install the Aomi GitHub App
+        <div className="space-y-3">
+          <div className="border-input space-y-3 rounded-2xl border p-4">
+            <div className="text-foreground text-sm font-medium">
+              Step 1 — Install the Aomi GitHub App
+            </div>
+            <p className="text-muted-foreground text-sm leading-5">
+              Installs <code>aomi-build-oneshot</code>. It can create a repo in
+              your account from our template and open deploy pull requests.
+              You&apos;ll return here automatically after consent.
+            </p>
+            <Button
+              onClick={beginInstall}
+              disabled={installing}
+              className="h-10 rounded-full px-4 text-sm font-medium"
+            >
+              {installing ? "Opening GitHub..." : "Install on GitHub"}
+              <ExternalLink className="ml-1 h-4 w-4" />
+            </Button>
           </div>
-          <p className="text-muted-foreground text-sm leading-5">
-            Installs <code>aomi-build-oneshot</code>. It can create a repo in
-            your account from our template and open deploy pull requests.
-            You&apos;ll return here automatically after consent.
-          </p>
-          <Button
-            onClick={beginInstall}
-            disabled={installing}
-            className="h-10 rounded-full px-4 text-sm font-medium"
-          >
-            {installing ? "Opening GitHub..." : "Install on GitHub"}
-            <ExternalLink className="ml-1 h-4 w-4" />
-          </Button>
+          <WizardError message={installError} />
         </div>
       )}
 
@@ -103,6 +108,16 @@ export function OneshotWizard({
 
       {step === "live" && <LivePanel repo={progress.repo} />}
     </div>
+  );
+}
+
+function WizardError({ message }: { message?: string | null }) {
+  if (!message) return null;
+
+  return (
+    <p className="mt-3 break-words rounded-md border border-red-500/20 bg-red-500/10 p-3 text-sm text-red-500">
+      {message}
+    </p>
   );
 }
 
@@ -132,4 +147,4 @@ function WizardHeader({
   );
 }
 
-export { WizardHeader };
+export { WizardHeader, WizardError };
