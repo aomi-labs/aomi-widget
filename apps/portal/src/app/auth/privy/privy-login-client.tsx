@@ -34,6 +34,7 @@ import {
   useWallets as useSolanaWallets,
 } from "@privy-io/react-auth/solana";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { ensureServerSignerAccess } from "./signer-grants";
 
 interface Props {
   state: string;
@@ -515,51 +516,6 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => {
     window.setTimeout(resolve, ms);
   });
-}
-
-async function ensureServerSignerAccess({
-  wallets,
-  signerId,
-  addSigners,
-}: {
-  wallets: CallbackWallet[];
-  signerId: string;
-  addSigners: ({
-    address,
-    signers,
-  }: {
-    address: string;
-    signers: Array<{ signerId: string; policyIds?: string[] }>;
-  }) => Promise<{ user: User }>;
-}): Promise<string | null> {
-  const retryDelaysMs = [0, 500, 1500];
-  let lastError: string | null = null;
-
-  for (const wallet of wallets) {
-    for (let attempt = 0; attempt < retryDelaysMs.length; attempt++) {
-      const delayMs = retryDelaysMs[attempt];
-      if (delayMs > 0) {
-        await sleep(delayMs);
-      }
-
-      try {
-        await addSigners({
-          address: wallet.address,
-          signers: [{ signerId, policyIds: [] }],
-        });
-        lastError = null;
-        break;
-      } catch (err) {
-        lastError = `${wallet.chainType}: ${errMsg(err)}`;
-      }
-    }
-
-    if (lastError) {
-      return lastError;
-    }
-  }
-
-  return lastError;
 }
 
 function formatCallbackFailure(
