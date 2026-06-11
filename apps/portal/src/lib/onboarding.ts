@@ -286,6 +286,7 @@ export async function githubAppInstallUrl(args: {
   platform?: string;
   repo?: string;
   mode?: "install" | "authorize";
+  app?: number;
 }): Promise<string> {
   const params = new URLSearchParams();
   const platform = args.platform?.trim();
@@ -293,6 +294,7 @@ export async function githubAppInstallUrl(args: {
   const repo = args.repo ? normalizeRepo(args.repo) : null;
   if (repo) params.set("repo", repo);
   if (args.mode === "authorize") params.set("mode", "authorize");
+  if (args.app && args.app !== 1) params.set("app", String(args.app));
   const query = params.toString();
   const result = await settingsApiFetch<GithubAppOAuthStartResponse>(
     `/api/integrations/github-app/oauth/start${query ? `?${query}` : ""}`,
@@ -355,6 +357,35 @@ export function onboardDeploy(
   input: OnboardDeployInput,
 ): Promise<OnboardDeployResult> {
   return postOnboardDeploy("/api/onboard/deploy", input);
+}
+
+export type OnboardCreateRepoResult = {
+  ok: boolean;
+  repo: string;
+  installationId: string;
+  appSourceId?: number;
+};
+
+export async function onboardCreateRepo(input: {
+  installationId: string;
+  repoName?: string;
+}): Promise<OnboardCreateRepoResult> {
+  const res = await fetch("/api/onboard/create", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  const json = (await res.json().catch(() => ({}))) as
+    | OnboardCreateRepoResult
+    | { error?: string };
+  if (!res.ok) {
+    const msg =
+      "error" in json && json.error
+        ? json.error
+        : `onboarding repo creation failed (${res.status})`;
+    throw new Error(msg);
+  }
+  return json as OnboardCreateRepoResult;
 }
 
 export type OnboardStatus = {

@@ -15,6 +15,8 @@ export type OnboardDeployEnv = {
   adminSecret?: string;
   activationToken?: string;
   platform: string;
+  templateRepo: string;
+  createdRepoPrivate: boolean;
   sourceRef: SourceRef;
   aomiTomlPaths: string[];
   targetTags: string[];
@@ -101,6 +103,8 @@ export function readOnboardDeployEnv(): OnboardDeployEnv {
     adminSecret,
     activationToken,
     platform: process.env.APP_DEPLOY_PLATFORM || "community",
+    templateRepo: process.env.APP_DEPLOY_TEMPLATE_REPO || "aomi-labs/playground-example",
+    createdRepoPrivate: process.env.APP_DEPLOY_CREATED_REPO_PRIVATE === "true",
     sourceRef,
     aomiTomlPaths,
     targetTags,

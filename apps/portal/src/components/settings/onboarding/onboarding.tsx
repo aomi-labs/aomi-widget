@@ -100,6 +100,7 @@ export function Onboarding() {
               platform: process.env.NEXT_PUBLIC_AOMI_DEPLOY_PLATFORM,
               repo,
               mode,
+              app: path === "oneshot" ? 2 : undefined,
             }),
           );
         } catch (error) {
@@ -125,6 +126,7 @@ export function Onboarding() {
         actor={actor}
         onBack={back}
         beginInstall={makeBeginInstall("oneshot")}
+        beginAuthorize={makeBeginInstall("oneshot", "authorize")}
         installing={installingPath === "oneshot"}
         installError={installError}
         patch={makePatch("oneshot")}
