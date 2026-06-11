@@ -1,6 +1,13 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import {
   Environment,
   ParaProvider,
@@ -14,9 +21,7 @@ import {
 } from "@getpara/react-sdk";
 import "@getpara/react-sdk/styles.css";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import type { Chain, Hex, Transport } from "viem";
-import { http } from "viem";
-import type { Connector } from "wagmi";
+import type { Chain, Transport } from "viem";
 import {
   arbitrum,
   base,
@@ -35,30 +40,24 @@ import {
   UserState,
   useUser,
 } from "@aomi-labs/react";
-import {
-  createAAProviderState,
-  monad,
-  monadTestnet,
-  type AAMode,
-  type AAProvider,
-} from "@aomi-labs/client";
+import { monad, monadTestnet } from "@aomi-labs/client";
 import type ParaWeb from "@getpara/react-sdk";
-import { AomiAuthAdapterProvider } from "../context";
+import { AomiAuthAdapterProvider } from "../../context";
 import {
   AomiWalletNetworkPreferencesProvider,
   useAomiWalletNetworkPreferences,
-} from "../network-preferences";
+} from "../../network-preferences";
 import {
   AOMI_AUTH_BOOTING_IDENTITY,
   AOMI_AUTH_DISCONNECTED_IDENTITY,
   formatAddress,
   formatAuthMethod,
   inferAuthMethod,
-} from "../identity";
+} from "../../identity";
 import {
   FullTestnetWalletRouter,
   useFullTestnet,
-} from "../full-testnet-wallet-routing";
+} from "../../full-testnet-wallet-routing";
 import {
   useSafeCapabilities,
   useSafeConnect,
@@ -75,31 +74,40 @@ import {
   useSafeWagmiAccount,
   useSafeWagmiConfig,
   useSafeWalletClient,
-} from "../safe-wagmi-hooks";
-import { buildAccounts, type EvmConnectionInput } from "../accounts";
+} from "../../safe-wagmi-hooks";
+import { buildAccounts, type EvmConnectionInput } from "../../accounts";
+import {
+  canonicalWalletKey,
+  dedupeWalletOptions,
+  isProviderInternalWalletLabel,
+  solanaWalletAllowlist,
+  toEvmWalletOption,
+  toSocialLoginOption,
+  useEvmProviderBrands,
+  useInstalledWalletFlags,
+  walletOptionIsDetected,
+} from "../../wallet-brands";
+import { walletDebug } from "../../wallet-debug";
 import type {
   AomiAccountCredential,
   AomiAuthAdapter,
   AomiAuthIdentity,
   AomiAuthMethod,
-  AomiWalletOption,
-  WalletFamily,
-} from "../types";
+} from "../../types";
 import {
   executeAdapterTransaction,
   getPreferredRpcUrl,
-  type RequestedAAMode,
-  type WalletExecutionCallList,
-  type WalletProviderState,
-} from "../wallet-execution";
+} from "../../wallet-execution";
+import { resolveParaAAProviderState, resolveParaSponsorship } from "./para-aa";
 import {
   DEFAULT_SOLANA_CLUSTER,
   normalizeSolanaNetworkOptions,
-} from "../solana-networks";
+} from "../../solana-networks";
 import {
   resolveGracefulEvmIdentity,
   type GracefulEvmIdentity,
 } from "./evm-identity-grace";
+import { planEvmAccountDisconnect } from "./evm-disconnect-plan";
 import {
   connectPreferredSolanaWallet,
   DEFAULT_SOLANA_ENDPOINT,
@@ -150,13 +158,6 @@ export type AomiParaProviderProps = {
   solana?: ParaSolanaOptions;
 };
 
-const ALCHEMY_API_KEY = process.env.NEXT_PUBLIC_ALCHEMY_API_KEY?.trim() ?? "";
-const ALCHEMY_GAS_POLICY_ID =
-  process.env.NEXT_PUBLIC_ALCHEMY_GAS_POLICY_ID?.trim();
-const PIMLICO_API_KEY = process.env.NEXT_PUBLIC_PIMLICO_API_KEY?.trim() ?? "";
-const AA_PROVIDER_OVERRIDE =
-  process.env.NEXT_PUBLIC_AA_PROVIDER?.trim().toLowerCase();
-
 const DISCONNECTED_PARA_ACCOUNT: ParaAccountShape = {
   isLoading: false,
   isConnected: false,
@@ -164,12 +165,14 @@ const DISCONNECTED_PARA_ACCOUNT: ParaAccountShape = {
   external: {},
 };
 const EVM_IDENTITY_GRACE_MS = 1800;
+const EVM_REATTACH_PROMPT_SUPPRESSION_MS = 5 * 60 * 1000;
 
 // wagmi (and Para's connector, which re-asserts itself as the current account
 // on reconnect) don't reliably persist *which* EVM connection is active, so the
 // user's chosen active wallet reverts to Para after a refresh. We persist the
 // selected address ourselves and re-apply it once connections are restored.
 const ACTIVE_EVM_ADDRESS_KEY = "aomi.wallet.active-evm-address";
+const DETACHED_PARA_EVM_ADDRESS_KEY = "aomi.wallet.detached-para-evm-address";
 
 function readPersistedActiveEvmAddress(): string | null {
   if (typeof window === "undefined") return null;
@@ -187,6 +190,28 @@ function writePersistedActiveEvmAddress(address: string | null): void {
       window.localStorage.setItem(ACTIVE_EVM_ADDRESS_KEY, address);
     } else {
       window.localStorage.removeItem(ACTIVE_EVM_ADDRESS_KEY);
+    }
+  } catch {
+    // best-effort — persistence is non-critical.
+  }
+}
+
+function readDetachedParaEvmAddress(): string | null {
+  if (typeof window === "undefined") return null;
+  try {
+    return window.localStorage.getItem(DETACHED_PARA_EVM_ADDRESS_KEY);
+  } catch {
+    return null;
+  }
+}
+
+function writeDetachedParaEvmAddress(address: string | null): void {
+  if (typeof window === "undefined") return;
+  try {
+    if (address) {
+      window.localStorage.setItem(DETACHED_PARA_EVM_ADDRESS_KEY, address);
+    } else {
+      window.localStorage.removeItem(DETACHED_PARA_EVM_ADDRESS_KEY);
     }
   } catch {
     // best-effort — persistence is non-critical.
@@ -217,282 +242,6 @@ const defaultExternalWallets: TExternalWallet[] = [
 // Shared default so the fallback keeps a stable identity across renders —
 // a fresh array per render would churn memos keyed on `oAuthMethods`.
 const defaultOAuthMethods: TOAuthMethod[] = ["GOOGLE"];
-
-const walletLabelOverrides: Record<string, string> = {
-  base: "Base Account",
-  baseaccount: "Base Account",
-  coinbase: "Coinbase Wallet",
-  coinbasewallet: "Coinbase Wallet",
-  injected: "Browser wallet",
-  metamask: "MetaMask",
-  para: "Para",
-  rabby: "Rabby",
-  rainbow: "Rainbow",
-  walletconnect: "WalletConnect",
-};
-
-const solanaWalletAllowlist = new Set([
-  "phantom",
-  "solflare",
-  "backpack",
-  "glow",
-]);
-
-type InstalledWalletFlags = {
-  metamask: boolean;
-  rabby: boolean;
-  coinbase: boolean;
-  rainbow: boolean;
-};
-
-const emptyInstalledWalletFlags: InstalledWalletFlags = {
-  metamask: false,
-  rabby: false,
-  coinbase: false,
-  rainbow: false,
-};
-
-const socialLoginLabels: Partial<Record<TOAuthMethod, string>> = {
-  APPLE: "Continue with Apple",
-  DISCORD: "Continue with Discord",
-  FACEBOOK: "Continue with Facebook",
-  FARCASTER: "Continue with Farcaster",
-  GITHUB: "Continue with GitHub",
-  GOOGLE: "Email or Google",
-  TELEGRAM: "Continue with Telegram",
-  X: "Continue with X",
-};
-
-const socialLoginDescriptions: Partial<Record<TOAuthMethod, string>> = {
-  GOOGLE: "Fast account sign-in",
-};
-
-function normalizeWalletOptionId(value: string): string {
-  return value.toLowerCase().replace(/[^a-z0-9]+/g, "");
-}
-
-function canonicalWalletKey(value: string): string {
-  const normalized = normalizeWalletOptionId(value);
-  if (normalized.includes("metamask")) return "metamask";
-  if (normalized.includes("rabby")) return "rabby";
-  if (normalized.includes("coinbase")) return "coinbase";
-  if (normalized.includes("rainbow")) return "rainbow";
-  if (normalized.includes("walletconnect")) return "walletconnect";
-  if (normalized.includes("baseaccount") || normalized === "base") {
-    return "base";
-  }
-  if (normalized.includes("phantom")) return "phantom";
-  if (normalized.includes("solflare")) return "solflare";
-  if (normalized.includes("backpack")) return "backpack";
-  if (normalized.includes("glow")) return "glow";
-  if (normalized.includes("para")) return "para";
-  return normalized;
-}
-
-function detectInstalledWalletFlags(): InstalledWalletFlags {
-  if (typeof window === "undefined") return emptyInstalledWalletFlags;
-
-  const hostWindow = window as typeof window & {
-    ethereum?: unknown;
-    rabby?: unknown;
-    coinbaseWalletExtension?: unknown;
-  };
-  type InjectedProvider = {
-    isMetaMask?: boolean;
-    isRabby?: boolean;
-    isCoinbaseWallet?: boolean;
-    isRainbow?: boolean;
-    providers?: InjectedProvider[];
-  };
-  const injected = hostWindow.ethereum as InjectedProvider | undefined;
-  const rabbyProvider = hostWindow.rabby as InjectedProvider | undefined;
-  const providers = [
-    injected,
-    rabbyProvider,
-    ...(injected?.providers ?? []),
-  ].filter(Boolean);
-
-  return {
-    metamask: providers.some((provider) => Boolean(provider?.isMetaMask)),
-    rabby:
-      Boolean(rabbyProvider) ||
-      providers.some((provider) => Boolean(provider?.isRabby)),
-    coinbase:
-      Boolean(hostWindow.coinbaseWalletExtension) ||
-      providers.some((provider) => Boolean(provider?.isCoinbaseWallet)),
-    rainbow: providers.some((provider) => Boolean(provider?.isRainbow)),
-  };
-}
-
-function mergeInstalledWalletFlags(
-  current: InstalledWalletFlags,
-  next: Partial<InstalledWalletFlags>,
-): InstalledWalletFlags {
-  return {
-    metamask: current.metamask || Boolean(next.metamask),
-    rabby: current.rabby || Boolean(next.rabby),
-    coinbase: current.coinbase || Boolean(next.coinbase),
-    rainbow: current.rainbow || Boolean(next.rainbow),
-  };
-}
-
-function flagsFromEip6963Provider(info: {
-  name?: string;
-  rdns?: string;
-}): Partial<InstalledWalletFlags> {
-  const key = canonicalWalletKey(`${info.rdns ?? ""} ${info.name ?? ""}`);
-  return {
-    metamask: key === "metamask",
-    rabby: key === "rabby",
-    coinbase: key === "coinbase",
-    rainbow: key === "rainbow",
-  };
-}
-
-function useInstalledWalletFlags(): InstalledWalletFlags {
-  const [flags, setFlags] = useState<InstalledWalletFlags>(() =>
-    detectInstalledWalletFlags(),
-  );
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-
-    setFlags((current) =>
-      mergeInstalledWalletFlags(current, detectInstalledWalletFlags()),
-    );
-
-    const handleProvider = (event: Event) => {
-      const detail = (
-        event as CustomEvent<{ info?: { name?: string; rdns?: string } }>
-      ).detail;
-      const info = detail?.info;
-      if (!info) return;
-      setFlags((current) =>
-        mergeInstalledWalletFlags(current, flagsFromEip6963Provider(info)),
-      );
-    };
-
-    window.addEventListener("eip6963:announceProvider", handleProvider);
-    window.dispatchEvent(new Event("eip6963:requestProvider"));
-
-    return () => {
-      window.removeEventListener("eip6963:announceProvider", handleProvider);
-    };
-  }, []);
-
-  return flags;
-}
-
-function inferWalletLabel(connector: Connector): string {
-  const connectorName = connector.name?.trim() || connector.id || "Wallet";
-  const normalized =
-    walletLabelOverrides[normalizeWalletOptionId(connectorName)] ??
-    walletLabelOverrides[normalizeWalletOptionId(connector.id ?? "")];
-
-  return normalized ?? connectorName;
-}
-
-function inferWalletKind(connector: Connector): AomiWalletOption["kind"] {
-  const key = normalizeWalletOptionId(
-    `${connector.id ?? ""} ${connector.name ?? ""} ${connector.type ?? ""}`,
-  );
-  return key.includes("walletconnect") ? "walletconnect" : "evm";
-}
-
-function connectorReady(connector: Connector): boolean | undefined {
-  return (connector as Connector & { ready?: boolean }).ready;
-}
-
-function isProviderInternalWalletLabel(label: string): boolean {
-  return canonicalWalletKey(label) === "para";
-}
-
-function knownWalletInstalled(
-  key: string,
-  flags: InstalledWalletFlags,
-): boolean | undefined {
-  if (key === "metamask") return flags.metamask;
-  if (key === "rabby") return flags.rabby;
-  if (key === "coinbase") return flags.coinbase;
-  if (key === "rainbow") return flags.rainbow;
-  return undefined;
-}
-
-function toEvmWalletOption(
-  connector: Connector,
-  installedWalletFlags: InstalledWalletFlags,
-): AomiWalletOption {
-  const id =
-    connector.uid || connector.id || normalizeWalletOptionId(connector.name);
-  const kind = inferWalletKind(connector);
-  const ready = connectorReady(connector);
-  const label = inferWalletLabel(connector);
-  const knownInstalled = knownWalletInstalled(
-    canonicalWalletKey(label),
-    installedWalletFlags,
-  );
-  const installed =
-    ready === true ||
-    knownInstalled === true ||
-    (knownInstalled === undefined && connector.type === "injected");
-
-  return {
-    id,
-    label,
-    family: kind === "walletconnect" ? "multichain" : "evm",
-    kind,
-    status:
-      kind === "walletconnect"
-        ? "qr"
-        : ready === false
-          ? "unavailable"
-          : installed
-            ? "installed"
-            : "available",
-    installed,
-    ready: ready !== false,
-    description:
-      kind === "walletconnect"
-        ? "Scan with a mobile wallet"
-        : "Connect an Ethereum wallet",
-  };
-}
-
-function dedupeWalletOptions(
-  options: readonly AomiWalletOption[],
-): AomiWalletOption[] {
-  const seen = new Set<string>();
-  const result: AomiWalletOption[] = [];
-
-  for (const option of options) {
-    const key = canonicalWalletKey(option.label);
-    if (seen.has(key)) continue;
-    seen.add(key);
-    result.push(option);
-  }
-
-  return result;
-}
-
-function walletOptionIsDetected(option: AomiWalletOption): boolean {
-  if (option.status === "unavailable" || option.ready === false) return false;
-  if (option.kind === "evm") return option.status === "installed";
-  return option.status === "installed" || option.status === "qr";
-}
-
-function toSocialLoginOption(method: TOAuthMethod): AomiWalletOption {
-  const id = method.toLowerCase();
-  return {
-    id,
-    label: socialLoginLabels[method] ?? `Continue with ${method}`,
-    family: "multichain",
-    kind: "social",
-    status: "available",
-    ready: true,
-    description:
-      socialLoginDescriptions[method] ?? "Create or use an Aomi account",
-  };
-}
 
 function useSafeParaAccount(): ParaAccountShape {
   try {
@@ -551,178 +300,6 @@ function useSafeLogout(): (() => Promise<void>) | null {
   }
 }
 
-function resolveAAProvider(): AAProvider | null {
-  if (
-    AA_PROVIDER_OVERRIDE === "alchemy" ||
-    AA_PROVIDER_OVERRIDE === "pimlico"
-  ) {
-    return AA_PROVIDER_OVERRIDE;
-  }
-
-  if (ALCHEMY_API_KEY) return "alchemy";
-  if (PIMLICO_API_KEY) return "pimlico";
-  return null;
-}
-
-function resolveParaSponsorship(): {
-  sponsored: boolean;
-  sponsorProvider: AomiAuthIdentity["sponsorProvider"];
-  sponsorAccount: AomiAuthIdentity["sponsorAccount"];
-} {
-  const aaProvider = resolveAAProvider();
-  if (aaProvider === "alchemy") {
-    return {
-      sponsored: Boolean(ALCHEMY_GAS_POLICY_ID),
-      sponsorProvider: "alchemy",
-      sponsorAccount: ALCHEMY_GAS_POLICY_ID || undefined,
-    };
-  }
-  if (aaProvider === "pimlico") {
-    return {
-      sponsored: Boolean(PIMLICO_API_KEY),
-      sponsorProvider: "pimlico",
-      sponsorAccount: undefined,
-    };
-  }
-  return {
-    sponsored: false,
-    sponsorProvider: "self",
-    sponsorAccount: undefined,
-  };
-}
-
-async function resolveParaAAProviderState({
-  callList,
-  chainsById,
-  requestedMode,
-  shouldUseExternalSigner,
-  paraSession,
-  walletClient,
-  address,
-  sponsored,
-}: {
-  callList: WalletExecutionCallList;
-  chainsById: Record<number, Chain>;
-  requestedMode: Exclude<RequestedAAMode, "none">;
-  shouldUseExternalSigner: boolean;
-  paraSession: ParaWeb | null;
-  walletClient: ReturnType<typeof useSafeWalletClient>["walletClient"];
-  address: string | undefined;
-  sponsored?: boolean;
-}): Promise<{
-  providerState: WalletProviderState;
-  resolvedMode: RequestedAAMode;
-  fallbackReason?: string;
-}> {
-  let resolvedMode: RequestedAAMode = requestedMode;
-  let fallbackReason: string | undefined;
-  if (requestedMode === "7702" && shouldUseExternalSigner) {
-    resolvedMode = "4337";
-    fallbackReason = "requested_7702_connected_wallet_fallback_4337";
-  }
-
-  const provider = resolveAAProvider();
-  if (!provider) {
-    return {
-      providerState: { resolved: null, pending: false, error: null },
-      resolvedMode,
-      fallbackReason:
-        fallbackReason ?? "aa_provider_not_configured_fallback_eoa",
-    };
-  }
-
-  if (!paraSession) {
-    return {
-      providerState: { resolved: null, pending: false, error: null },
-      resolvedMode,
-      fallbackReason: fallbackReason ?? "para_session_unavailable_fallback_eoa",
-    };
-  }
-
-  const chainId = callList[0]?.chainId;
-  const chain = chainId ? chainsById[chainId] : undefined;
-  if (!chainId || !chain) {
-    return {
-      providerState: { resolved: null, pending: false, error: null },
-      resolvedMode,
-      fallbackReason: fallbackReason ?? "aa_chain_not_supported_fallback_eoa",
-    };
-  }
-
-  const apiKey =
-    provider === "alchemy"
-      ? ALCHEMY_API_KEY || undefined
-      : PIMLICO_API_KEY || undefined;
-  if (!apiKey) {
-    return {
-      providerState: { resolved: null, pending: false, error: null },
-      resolvedMode,
-      fallbackReason:
-        fallbackReason ?? `aa_${provider}_api_key_missing_fallback_eoa`,
-    };
-  }
-
-  const ownerBase = {
-    kind: "session" as const,
-    adapter: "para",
-    session: paraSession,
-    address: address as Hex | undefined,
-  };
-  const owner =
-    shouldUseExternalSigner && walletClient
-      ? {
-          ...ownerBase,
-          signer: walletClient,
-        }
-      : ownerBase;
-
-  try {
-    const state = await createAAProviderState({
-      provider,
-      owner,
-      chain,
-      rpcUrl: getPreferredRpcUrl(chain),
-      callList,
-      mode: resolvedMode as AAMode,
-      apiKey,
-      gasPolicyId: provider === "alchemy" ? ALCHEMY_GAS_POLICY_ID : undefined,
-      sponsored,
-    });
-
-    if (!state.account || state.error) {
-      console.warn("[aomi-auth-adapter] AA unavailable; falling back to EOA", {
-        provider,
-        mode: resolvedMode,
-        error: state.error?.message ?? "account_unavailable",
-      });
-      return {
-        providerState: { resolved: null, pending: false, error: null },
-        resolvedMode,
-        fallbackReason:
-          fallbackReason ?? `aa_${provider}_account_unavailable_fallback_eoa`,
-      };
-    }
-
-    return {
-      providerState: state,
-      resolvedMode,
-      fallbackReason,
-    };
-  } catch (error) {
-    console.warn("[aomi-auth-adapter] AA init failed; falling back to EOA", {
-      provider,
-      mode: resolvedMode,
-      error: error instanceof Error ? error.message : String(error),
-    });
-    return {
-      providerState: { resolved: null, pending: false, error: null },
-      resolvedMode,
-      fallbackReason:
-        fallbackReason ?? `aa_${provider}_initialization_failed_fallback_eoa`,
-    };
-  }
-}
-
 export type AomiParaAdapterProviderProps = {
   children: ReactNode;
   supportedChains?: readonly Chain[];
@@ -736,7 +313,15 @@ export function AomiParaAdapterProvider({
   solanaConfig,
   oAuthMethods = defaultOAuthMethods,
 }: AomiParaAdapterProviderProps) {
-  const [pendingSolanaConnect, setPendingSolanaConnect] = useState(false);
+  // Name of the Solana wallet a user-initiated connect is waiting on. The
+  // wallet-adapter's `select()` is async-ish (the adapter swap lands on a later
+  // render), so the connect is finished by the effect below once the adapter
+  // reports the *target* wallet as selected. Tracking the name (not a boolean)
+  // keeps a stale `publicKey` from a previously connected wallet from
+  // cancelling the pending connect.
+  const [pendingSolanaWallet, setPendingSolanaWallet] = useState<string | null>(
+    null,
+  );
   const paraAccount = useSafeParaAccount();
   const paraSession = useSafeParaClient();
   const issueJwt = useSafeIssueJwt();
@@ -763,6 +348,10 @@ export function AomiParaAdapterProvider({
   const { signTypedDataAsync } = useSafeSignTypedData();
   const { signMessageAsync } = useSafeSignMessage();
   const wagmiConfig = useSafeWagmiConfig();
+  // Real brand behind each live EVM connection (connector names lie when a
+  // wallet like Rabby is set as the default and answers behind the "MetaMask"
+  // connector). Used for display names; falls back to the connector name.
+  const evmProviderBrands = useEvmProviderBrands(evmConnections, evmConnectors);
   const solanaWallet = useSafeSolanaWallet();
   const {
     selectedEvmChainId,
@@ -822,26 +411,67 @@ export function AomiParaAdapterProvider({
   }, [chainId, selectedEvmChainId, switchChainAsync, wagmiConnected]);
 
   // Keep the EVM (wagmi) connection alive across Para's session re-init.
-  // When Para re-initializes its shared session (e.g. a Solana wallet
-  // attaches, or the SDK recreates its wagmi config), the in-memory wagmi
-  // state resets — the EVM connection survives in wagmi storage (a page
-  // refresh restores it via autoConnect) but reads as disconnected
-  // in-session. We reproduce that refresh-time recovery here: if wagmi reads
-  // disconnected and we had an EVM connection earlier this session that the
-  // user did not deliberately drop, call wagmi `reconnect()`. It only
-  // restores connectors persisted in storage, so it is a no-op after a
-  // deliberate user disconnect (which clears storage) — it can't fight the
-  // user or loop (guarded to one attempt until the connection is restored).
+  // When Para re-initializes its shared session (a Solana wallet attaches,
+  // an OAuth login starts, the SDK recreates its wagmi config), the
+  // in-memory wagmi state resets while the user did nothing. Recovery is a
+  // two-step ladder:
+  //   1. wagmi `reconnect()` — restores connectors persisted in wagmi
+  //      storage (the same path a page refresh takes). No-op after a
+  //      deliberate disconnect, which clears storage.
+  //   2. If storage had nothing (some Para auth flows clear it), re-attach
+  //      the connectors we saw connected moments ago via `connectAsync` —
+  //      but skip this prompting fallback while Para auth/logout UI is active.
+  // Both steps re-arm whenever Para rebuilds the connector set, so repeated
+  // re-inits (e.g. OAuth popup open + OAuth completion) each get healed.
   const hadEvmConnectionRef = useRef(false);
   const evmReconnectAttemptedRef = useRef(false);
-  // True after a user-initiated EVM disconnect; cleared once an EVM address
-  // is live again. Shared by the reconnect effect (skip recovery) and the
-  // grace identity below (drop the cached identity immediately).
+  const evmReattachAttemptedRef = useRef(false);
+  // Lifetime cap on the re-attach step. `connectAsync` on a locked or
+  // de-authorized wallet pops the extension UI, and the step re-arms on every
+  // connector-set rebuild — without a cap it can keep popping MetaMask/Rabby
+  // prompts (observed while the Para login modal was open, which rebuilds the
+  // config). Storage-based reconnect stays unlimited; it is always silent.
+  const evmReattachBudgetRef = useRef(2);
+  // True after the user deliberately dropped the whole EVM family — blocks
+  // recovery and the grace identity until an address is live again. A
+  // single-account sign-out instead records the address below so the rest
+  // of the family can still self-heal.
   const explicitEvmDisconnectRef = useRef(false);
+  // Addresses the user explicitly signed out of this session. The grace
+  // identity won't resurrect them and the re-attach step skips them.
+  const explicitlyDroppedEvmAddressesRef = useRef<Set<string>>(new Set());
+  const evmReattachSuppressedUntilRef = useRef(0);
+  const evmReattachSuppressionReasonRef = useRef<string | null>(null);
+  const suppressPromptingEvmReattach = useCallback((reason: string) => {
+    evmReattachSuppressedUntilRef.current = Math.max(
+      evmReattachSuppressedUntilRef.current,
+      Date.now() + EVM_REATTACH_PROMPT_SUPPRESSION_MS,
+    );
+    evmReattachSuppressionReasonRef.current = reason;
+    walletDebug("evm:heal", {
+      suppress: "prompting-re-attach",
+      reason,
+      ms: EVM_REATTACH_PROMPT_SUPPRESSION_MS,
+    });
+  }, []);
+  // Last non-empty connection snapshot, for the re-attach step.
+  const lastEvmConnectionsRef = useRef<typeof evmConnections>([]);
+  useEffect(() => {
+    if (evmConnections.length > 0) {
+      lastEvmConnectionsRef.current = evmConnections;
+    }
+  }, [evmConnections]);
+  // A new connector set means Para rebuilt its wagmi config — a fresh wipe
+  // that deserves a fresh recovery attempt.
+  useEffect(() => {
+    evmReconnectAttemptedRef.current = false;
+    evmReattachAttemptedRef.current = false;
+  }, [evmConnectors]);
   useEffect(() => {
     if (wagmiConnected) {
       hadEvmConnectionRef.current = true;
       evmReconnectAttemptedRef.current = false;
+      evmReattachAttemptedRef.current = false;
       return;
     }
     // Only recover a *wiped* session: no current connection AND no connections
@@ -852,86 +482,280 @@ export function AomiParaAdapterProvider({
     if (accountSwitchInFlightRef.current || evmConnections.length > 0) {
       return;
     }
-    if (
-      hadEvmConnectionRef.current &&
-      !explicitEvmDisconnectRef.current &&
-      !evmReconnectAttemptedRef.current &&
-      wagmiReconnect
-    ) {
+    if (!hadEvmConnectionRef.current || explicitEvmDisconnectRef.current) {
+      return;
+    }
+    if (!evmReconnectAttemptedRef.current && wagmiReconnect) {
       evmReconnectAttemptedRef.current = true;
+      walletDebug("evm:heal", { step: "reconnect" });
       void Promise.resolve(wagmiReconnect()).catch((error) => {
         console.warn("[aomi-auth-adapter] EVM auto-reconnect failed", error);
       });
     }
-  }, [wagmiConnected, evmConnections.length, wagmiReconnect]);
+    // Step 2, delayed: if the storage-based reconnect brought nothing back
+    // (wagmi storage was cleared by the provider mid-auth), re-attach the
+    // remembered connectors directly. The timer is cancelled when a
+    // connection appears before it fires.
+    if (evmReattachAttemptedRef.current || !wagmiConnectAsync) return;
+    if (evmReattachBudgetRef.current <= 0) {
+      walletDebug("evm:heal", { skip: "re-attach-budget-exhausted" });
+      return;
+    }
+    if (Date.now() < evmReattachSuppressedUntilRef.current) {
+      walletDebug("evm:heal", {
+        skip: "prompting-re-attach-suppressed",
+        reason: evmReattachSuppressionReasonRef.current,
+      });
+      return;
+    }
+    const remembered = lastEvmConnectionsRef.current.filter((connection) => {
+      const key = canonicalWalletKey(connection.connectorName);
+      if (key === "para" || key === "walletconnect") return false;
+      return !explicitlyDroppedEvmAddressesRef.current.has(
+        connection.address.toLowerCase(),
+      );
+    });
+    if (remembered.length === 0) return;
+    const timer = window.setTimeout(() => {
+      if (evmReattachAttemptedRef.current) return;
+      evmReattachAttemptedRef.current = true;
+      evmReattachBudgetRef.current -= 1;
+      walletDebug("evm:heal", {
+        step: "re-attach",
+        wallets: remembered.map((conn) => conn.connectorName),
+        budgetLeft: evmReattachBudgetRef.current,
+      });
+      void (async () => {
+        for (const connection of remembered) {
+          const target = evmConnectors.find(
+            (candidate) =>
+              candidate.uid === connection.connectorId ||
+              canonicalWalletKey(candidate.name ?? "") ===
+                canonicalWalletKey(connection.connectorName),
+          );
+          if (!target) continue;
+          try {
+            await wagmiConnectAsync({ connector: target });
+          } catch (error) {
+            console.warn(
+              "[aomi-auth-adapter] EVM re-attach failed",
+              connection.connectorName,
+              error,
+            );
+          }
+        }
+      })();
+    }, 1500);
+    return () => window.clearTimeout(timer);
+  }, [
+    wagmiConnected,
+    evmConnections.length,
+    wagmiReconnect,
+    wagmiConnectAsync,
+    evmConnectors,
+  ]);
 
-  // Restore the user's last chosen active EVM account after wagmi reconnects on
-  // load. Runs once per load: once connections are available, if the persisted
-  // address isn't already current, switch to it. Sets the in-flight guard so
-  // the reconnect effect above doesn't fight the switch.
+  // Enforce the user's chosen active EVM account against Para re-assertion.
+  // Para's connector re-asserts itself as wagmi's current connection on
+  // reconnect and session syncs — stomping the chosen wallet after a refresh
+  // (an attempt-once restore loses that race) AND right after the user's
+  // first switch away from Para (the "click MetaMask, it flips back" bug).
+  // Whenever the persisted choice exists, its connection is live, and the
+  // current connection is Para (or vacant), switch back — bounded per theft
+  // so a genuinely user-driven change can always win.
   const persistedActiveEvmAddressRef = useRef<string | null>(
     readPersistedActiveEvmAddress(),
   );
-  const activeEvmRestoreAttemptedRef = useRef(false);
   useEffect(() => {
-    if (activeEvmRestoreAttemptedRef.current) return;
+    // mount-only: report what the enforcement will aim for this load
+    walletDebug("active-evm:init", {
+      persisted: persistedActiveEvmAddressRef.current,
+    });
+  }, []);
+  // Timeline of wagmi's current connection — shows exactly when Para (or a
+  // heal/switch) takes over. Key signal when diagnosing active-wallet bugs.
+  useEffect(() => {
+    walletDebug("evm:current-changed", {
+      address: wagmiAddress ?? null,
+      connector: connector?.name ?? null,
+      connectorUid: connector?.uid ?? null,
+    });
+  }, [wagmiAddress, connector?.uid, connector?.name]);
+  // Timeline of the connection set — shows whether the wanted external
+  // connection is restored at all after a refresh, and when it appears.
+  useEffect(() => {
+    walletDebug("evm:connections-changed", {
+      connections: evmConnections.map((conn) => ({
+        connector: conn.connectorName,
+        uid: conn.connectorId,
+        address: conn.address,
+      })),
+    });
+  }, [evmConnections]);
+  const activeEvmEnforceAttemptsRef = useRef(0);
+  // Re-arm the budget whenever the wanted connection (re)appears or gets a new
+  // connector uid (config rebuild) — early attempts can fail with "connector
+  // not ready" while wagmi is still reconnecting, and those must not consume
+  // the budget for the real fight later.
+  const lastWantedConnectionUidRef = useRef<string | null>(null);
+  useEffect(() => {
     const want = persistedActiveEvmAddressRef.current?.toLowerCase();
     if (!want || !switchAccountAsync || evmConnections.length === 0) return;
+    if (accountSwitchInFlightRef.current) {
+      walletDebug("active-evm:enforce", { skip: "switch-in-flight" });
+      return;
+    }
     if (wagmiAddress?.toLowerCase() === want) {
-      activeEvmRestoreAttemptedRef.current = true;
+      // Satisfied — re-arm the budget for a future re-assertion.
+      if (activeEvmEnforceAttemptsRef.current > 0) {
+        walletDebug("active-evm:enforce", { satisfied: want });
+      }
+      activeEvmEnforceAttemptsRef.current = 0;
       return;
     }
     const connection = evmConnections.find(
       (conn) => conn.address.toLowerCase() === want,
     );
-    if (!connection) return; // wanted account not connected (yet) — keep waiting
-    const connector = wagmiConfig.connectors.find(
+    if (!connection) {
+      walletDebug("active-evm:enforce", {
+        skip: "wanted-connection-absent",
+        want,
+      });
+      return; // wanted account not connected (yet) — keep waiting
+    }
+    if (lastWantedConnectionUidRef.current !== connection.connectorId) {
+      lastWantedConnectionUidRef.current = connection.connectorId;
+      activeEvmEnforceAttemptsRef.current = 0;
+    }
+    // Only fight the Para connector (or a vacant current connection). A
+    // different external connector being current implies a deliberate
+    // wallet-side switch the user made — respect it.
+    const currentIsPara = canonicalWalletKey(connector?.name ?? "") === "para";
+    if (wagmiAddress && !currentIsPara) {
+      walletDebug("active-evm:enforce", {
+        skip: "current-not-para",
+        current: connector?.name,
+        want,
+      });
+      return;
+    }
+    if (activeEvmEnforceAttemptsRef.current >= 3) {
+      walletDebug("active-evm:enforce", { skip: "budget-exhausted", want });
+      return;
+    }
+    const targetConnector = wagmiConfig.connectors.find(
       (c) => c.uid === connection.connectorId,
     );
-    if (!connector) return;
-    activeEvmRestoreAttemptedRef.current = true;
+    if (!targetConnector) {
+      walletDebug("active-evm:enforce", {
+        skip: "target-connector-missing",
+        wantedUid: connection.connectorId,
+        configUids: wagmiConfig.connectors.map((c) => c.uid),
+      });
+      return;
+    }
+    activeEvmEnforceAttemptsRef.current += 1;
+    walletDebug("active-evm:enforce", {
+      switching: want,
+      via: targetConnector.name,
+      attempt: activeEvmEnforceAttemptsRef.current,
+      stolenBy: connector?.name ?? null,
+    });
     accountSwitchInFlightRef.current = true;
-    void Promise.resolve(switchAccountAsync({ connector }))
+    void Promise.resolve(switchAccountAsync({ connector: targetConnector }))
+      .then(() => {
+        // A won fight refunds the budget. During boot Para's connector
+        // re-asserts current once per connection that finishes reconnecting
+        // (observed 4+ thefts in one load), and the effect often can't
+        // observe the satisfied state between thefts (the next steal lands
+        // while the previous switch is still settling) — so the budget must
+        // only count *consecutive failed* switches, not won rounds.
+        activeEvmEnforceAttemptsRef.current = 0;
+      })
       .catch((error) => {
-        console.warn("[aomi-auth-adapter] Active EVM restore failed", error);
+        walletDebug("active-evm:enforce", {
+          failed: String(error),
+          want,
+        });
+        console.warn("[aomi-auth-adapter] Active EVM enforce failed", error);
       })
       .finally(() => {
         accountSwitchInFlightRef.current = false;
       });
-  }, [evmConnections, wagmiAddress, switchAccountAsync, wagmiConfig.connectors]);
-
-  useEffect(() => {
-    if (pendingSolanaConnect && solanaWallet.publicKey) {
-      setPendingSolanaConnect(false);
-      return;
-    }
-
-    if (
-      !pendingSolanaConnect ||
-      solanaWallet.connecting ||
-      !solanaWallet.walletName ||
-      !solanaWallet.connect
-    ) {
-      return;
-    }
-
-    let cancelled = false;
-    void solanaWallet
-      .connect()
-      .catch((error) => {
-        console.warn("[aomi-auth-adapter] Solana wallet connect failed", error);
-      })
-      .finally(() => {
-        if (!cancelled) {
-          setPendingSolanaConnect(false);
-        }
-      });
-
-    return () => {
-      cancelled = true;
-    };
   }, [
-    pendingSolanaConnect,
+    evmConnections,
+    wagmiAddress,
+    connector,
+    switchAccountAsync,
+    wagmiConfig.connectors,
+  ]);
+
+  // True once a connect attempt (the provider's auto-connect or ours) has been
+  // observed for the current pending target. Reset per target.
+  const solanaConnectAttemptObservedRef = useRef(false);
+  useEffect(() => {
+    solanaConnectAttemptObservedRef.current = false;
+  }, [pendingSolanaWallet]);
+  useEffect(() => {
+    if (!pendingSolanaWallet) return;
+
+    // Done: the *target* wallet is connected. (A lingering publicKey from a
+    // previously connected wallet must not clear the pending connect — that
+    // was the original "click Phantom and nothing happens" bug.)
+    if (
+      solanaWallet.publicKey &&
+      solanaWallet.walletName === pendingSolanaWallet
+    ) {
+      setPendingSolanaWallet(null);
+      return;
+    }
+
+    if (solanaWallet.connecting) {
+      solanaConnectAttemptObservedRef.current = true;
+      return;
+    }
+    if (!solanaWallet.connect) return;
+    if (solanaWallet.walletName !== pendingSolanaWallet) {
+      // A failed attempt makes wallet-adapter unselect the wallet — settle the
+      // pending state then. Otherwise the `select()` swap hasn't landed yet.
+      if (solanaConnectAttemptObservedRef.current) {
+        setPendingSolanaWallet(null);
+      }
+      return;
+    }
+
+    // An attempt already ran for this target and ended without a connection
+    // (popup dismissed, wallet error). Don't fire another popup on our own —
+    // the user can click the wallet again.
+    if (solanaConnectAttemptObservedRef.current) {
+      setPendingSolanaWallet(null);
+      return;
+    }
+
+    // Para mounts the wallet-adapter provider with `autoConnect: true`, and
+    // `select()` marks the choice user-initiated, so the provider fires
+    // `adapter.connect()` itself once the adapter lands. Calling connect()
+    // concurrently races it — and the losing attempt's error path UNSELECTS
+    // the wallet (wallet-adapter's onConnectError → changeWallet(null)),
+    // which is how a click could silently do nothing until a refresh re-ran
+    // a clean auto-connect. Give the auto-connect a beat to start; connect
+    // manually only if no attempt appears (providers without autoConnect).
+    const timer = window.setTimeout(() => {
+      solanaConnectAttemptObservedRef.current = true;
+      void solanaWallet.connect!()
+        .catch((error) => {
+          console.warn(
+            "[aomi-auth-adapter] Solana wallet connect failed",
+            error,
+          );
+        })
+        .finally(() => {
+          setPendingSolanaWallet(null);
+        });
+    }, 400);
+    return () => window.clearTimeout(timer);
+  }, [
+    pendingSolanaWallet,
     solanaWallet.connect,
     solanaWallet.connecting,
     solanaWallet.publicKey,
@@ -943,21 +767,61 @@ export function AomiParaAdapterProvider({
   const userSmartAccount4337 = UserState.SmartAccount4337(user);
   const userDelegation7702 = UserState.Delegation7702(user);
   const [, bumpEvmIdentityGrace] = useState(0);
+  const [detachedParaEvmAddress, setDetachedParaEvmAddress] = useState<
+    string | null
+  >(() => readDetachedParaEvmAddress());
+  const updateDetachedParaEvmAddress = useCallback((address: string | null) => {
+    setDetachedParaEvmAddress(address);
+    writeDetachedParaEvmAddress(address);
+  }, []);
   const lastConfirmedEvmIdentityRef = useRef<GracefulEvmIdentity | null>(null);
   const evmDisconnectedAtRef = useRef<number | null>(null);
   const embeddedWallet = paraAccount.embedded.wallets?.[0] as
     | { address?: string }
     | undefined;
+  const paraEvmAddress =
+    paraAccount.external.evm?.address ?? embeddedWallet?.address ?? undefined;
+  const detachedParaAddress = detachedParaEvmAddress?.toLowerCase() ?? null;
+  const paraSessionLocallyDetached = Boolean(
+    paraAccount.isConnected &&
+    detachedParaAddress &&
+    (!paraEvmAddress || paraEvmAddress.toLowerCase() === detachedParaAddress),
+  );
+  const exposedParaEvmAddress = paraSessionLocallyDetached
+    ? undefined
+    : paraEvmAddress;
   const currentEvmIdentity: GracefulEvmIdentity = {
-    address:
-      wagmiAddress ??
-      paraAccount.external.evm?.address ??
-      embeddedWallet?.address ??
-      undefined,
+    address: wagmiAddress ?? exposedParaEvmAddress,
     chainId,
     connectorId: connector?.uid,
-    walletName: connector?.name,
+    walletName:
+      (connector?.uid ? evmProviderBrands[connector.uid] : undefined) ??
+      connector?.name,
   };
+
+  useEffect(() => {
+    if (!detachedParaAddress) return;
+    if (!paraAccount.isConnected) {
+      if (!paraAccount.isLoading) {
+        updateDetachedParaEvmAddress(null);
+      }
+      return;
+    }
+    if (
+      paraEvmAddress &&
+      paraEvmAddress.toLowerCase() !== detachedParaAddress
+    ) {
+      updateDetachedParaEvmAddress(null);
+    }
+  }, [
+    detachedParaAddress,
+    paraAccount.isConnected,
+    paraAccount.isLoading,
+    paraEvmAddress,
+    updateDetachedParaEvmAddress,
+  ]);
+  const lastConfirmedEvmAddress =
+    lastConfirmedEvmIdentityRef.current?.address?.toLowerCase();
   const gracefulEvmIdentity = resolveGracefulEvmIdentity({
     current: currentEvmIdentity,
     previous: lastConfirmedEvmIdentityRef.current,
@@ -965,7 +829,12 @@ export function AomiParaAdapterProvider({
     disconnectedAt: evmDisconnectedAtRef.current,
     now: Date.now(),
     graceMs: EVM_IDENTITY_GRACE_MS,
-    explicitDisconnect: explicitEvmDisconnectRef.current,
+    explicitDisconnect:
+      explicitEvmDisconnectRef.current ||
+      Boolean(
+        lastConfirmedEvmAddress &&
+        explicitlyDroppedEvmAddressesRef.current.has(lastConfirmedEvmAddress),
+      ),
   });
   evmDisconnectedAtRef.current = gracefulEvmIdentity.disconnectedAt;
 
@@ -1003,23 +872,34 @@ export function AomiParaAdapterProvider({
   const adapter = useMemo<AomiAuthAdapter>(() => {
     const address = gracefulEvmIdentity.identity.address;
     const effectiveChainId = gracefulEvmIdentity.identity.chainId;
+    const exposeParaSession =
+      paraAccount.isConnected && !paraSessionLocallyDetached;
     const isConnected = Boolean(
-      paraAccount.isConnected ||
-      wagmiConnected ||
-      address ||
-      solanaWallet.publicKey,
+      exposeParaSession || wagmiConnected || address || solanaWallet.publicKey,
     );
     const isBooting = paraAccount.isLoading && !isConnected;
 
-    const embeddedPrimary =
-      paraAccount.embedded.email ??
-      paraAccount.embedded.farcasterUsername ??
-      paraAccount.embedded.telegramUserId ??
-      undefined;
+    const embeddedPrimary = exposeParaSession
+      ? (paraAccount.embedded.email ??
+        paraAccount.embedded.farcasterUsername ??
+        paraAccount.embedded.telegramUserId ??
+        undefined)
+      : undefined;
     const walletProvider = "para" as const;
-    const authMethod = inferAuthMethod(paraAccount.embedded.authMethods);
-    const authValue = resolveParaAuthValue(paraAccount.embedded, authMethod);
-    const secondaryLabel = formatAuthMethod(authMethod) ?? "Para";
+    const paraAuthMethod = inferAuthMethod(paraAccount.embedded.authMethods);
+    const authMethod = embeddedPrimary
+      ? paraAuthMethod
+      : address
+        ? ("wagmi" as const)
+        : undefined;
+    const authValue = embeddedPrimary
+      ? resolveParaAuthValue(paraAccount.embedded, paraAuthMethod)
+      : undefined;
+    const secondaryLabel = embeddedPrimary
+      ? (formatAuthMethod(paraAuthMethod) ?? "Para")
+      : (gracefulEvmIdentity.identity.walletName ??
+        formatAuthMethod(authMethod) ??
+        "Para");
     const { sponsored, sponsorProvider, sponsorAccount } =
       resolveParaSponsorship();
 
@@ -1030,7 +910,9 @@ export function AomiParaAdapterProvider({
     const evmConnectionInputs: EvmConnectionInput[] = evmConnections.map(
       (conn) => ({
         id: conn.connectorId,
-        walletName: conn.connectorName,
+        // Prefer the sniffed provider brand: the "MetaMask" connector reports
+        // its own name even when Rabby (set as default wallet) answers it.
+        walletName: evmProviderBrands[conn.connectorId] ?? conn.connectorName,
         address: conn.address,
         chainId: conn.chainId,
       }),
@@ -1062,7 +944,8 @@ export function AomiParaAdapterProvider({
     // (openAccountUI). External wallets connected through Para (MetaMask,
     // Phantom, …) keep their own brand name and are managed in their own
     // extension, so they stay unmanaged here.
-    const canManageParaAccount = Boolean(paraModal) && isConnected;
+    const canManageParaAccount =
+      Boolean(paraModal) && exposeParaSession && isConnected;
     const accounts = canManageParaAccount
       ? builtAccounts.map((account) =>
           canonicalWalletKey(account.walletName ?? "") === "para"
@@ -1166,13 +1049,7 @@ export function AomiParaAdapterProvider({
     const shouldUseExternalSigner = Boolean(walletClient && !isParaWallet);
 
     const hasAnyDisconnectablePath = Boolean(
-      wagmiDisconnectAsync ||
-      solanaWallet.disconnect ||
-      // Para's own session — `useParaClient().logout()` would also count
-      // here, but Para's logout has cross-tab implications so we
-      // currently leave it to `openAccountUI` (the Para account modal
-      // has a Disconnect button) and only handle wagmi + Solana below.
-      false,
+      wagmiDisconnectAsync || solanaWallet.disconnect,
     );
 
     // Map the wallet-adapter's `wallets` array to our descriptor shape so
@@ -1213,7 +1090,8 @@ export function AomiParaAdapterProvider({
       // disconnect. The picker's per-family sections check
       // `identity.address` / `identity.svmAddress` independently.
       canConnect: Boolean(paraModal) || Boolean(solanaWalletDescriptors.length),
-      canOpenAccountUI: Boolean(paraModal) && identity.isConnected,
+      canOpenAccountUI:
+        Boolean(paraModal) && exposeParaSession && identity.isConnected,
       canDisconnect: hasAnyDisconnectablePath,
       accounts,
       selectAccount: async (id: string) => {
@@ -1232,10 +1110,17 @@ export function AomiParaAdapterProvider({
             if (connector) {
               accountSwitchInFlightRef.current = true;
               try {
+                walletDebug("active-evm:user-select", {
+                  address: connection.address,
+                  connector: connection.connectorName,
+                });
                 await switchAccountAsync({ connector });
                 // Remember the choice so it survives a refresh.
                 persistedActiveEvmAddressRef.current = connection.address;
                 writePersistedActiveEvmAddress(connection.address);
+                walletDebug("active-evm:persisted", {
+                  address: connection.address,
+                });
               } finally {
                 accountSwitchInFlightRef.current = false;
               }
@@ -1262,13 +1147,22 @@ export function AomiParaAdapterProvider({
           );
         });
         if (target && wagmiConnectAsync) {
+          // A deliberate connect lifts any earlier per-address sign-out.
+          explicitlyDroppedEvmAddressesRef.current.clear();
+          if (canonicalWalletKey(target.name ?? "") === "para") {
+            updateDetachedParaEvmAddress(null);
+          }
           await wagmiConnectAsync({ connector: target });
           return;
         }
+        updateDetachedParaEvmAddress(null);
+        suppressPromptingEvmReattach("para-evm-connect-fallback");
         paraModal?.openModal({ step: "AUTH_MAIN" });
       },
       socialLoginOptions,
       connectSocial: async () => {
+        updateDetachedParaEvmAddress(null);
+        suppressPromptingEvmReattach("para-social-login");
         paraModal?.openModal({ step: "AUTH_ALL_OPTIONS" });
       },
       solanaWallets: solanaWalletDescriptors,
@@ -1296,7 +1190,7 @@ export function AomiParaAdapterProvider({
                 return;
               }
               solanaWallet.select!(walletName as never);
-              setPendingSolanaConnect(true);
+              setPendingSolanaWallet(walletName);
             }
           : undefined,
       supportedChains,
@@ -1320,12 +1214,12 @@ export function AomiParaAdapterProvider({
           // wallet).
           try {
             const result = await connectPreferredSolanaWallet(solanaWallet);
-            if (result === "connected") {
-              setPendingSolanaConnect(false);
+            if (result.status === "connected") {
+              setPendingSolanaWallet(null);
               return;
             }
-            if (result === "selecting") {
-              setPendingSolanaConnect(true);
+            if (result.status === "selecting") {
+              setPendingSolanaWallet(result.walletName);
               return;
             }
           } catch (error) {
@@ -1341,6 +1235,10 @@ export function AomiParaAdapterProvider({
           // Already have a live EVM connection — don't reopen the Para modal.
           return;
         }
+        // A deliberate connect lifts any earlier per-address sign-out.
+        explicitlyDroppedEvmAddressesRef.current.clear();
+        updateDetachedParaEvmAddress(null);
+        suppressPromptingEvmReattach("para-auth-modal");
         paraModal?.openModal({ step: "AUTH_MAIN" });
       },
       disconnect: async (options) => {
@@ -1348,10 +1246,39 @@ export function AomiParaAdapterProvider({
         // wagmi-only disconnect leaves Para logged in and it re-attaches on the
         // next load.
         const logoutParaSession = async () => {
-          if (!paraLogout) return;
+          suppressPromptingEvmReattach("para-logout");
+          if (paraLogout) {
+            try {
+              walletDebug("para:logout", { via: "useLogout" });
+              await paraLogout();
+              walletDebug("para:logout", { result: "ok" });
+              return;
+            } catch (error) {
+              walletDebug("para:logout", { failed: String(error) });
+              console.warn("[aomi-auth-adapter] Para logout failed", error);
+              // fall through to the client-level logout below
+            }
+          }
+          // Fallback: the Para client exposes logout() directly; reach for it
+          // when the hook is unavailable or rejected, so a sign-out can't
+          // silently no-op and leave the session to re-attach on next load.
+          const clientLogout = (
+            paraSession as unknown as {
+              logout?: (args?: unknown) => Promise<unknown>;
+            } | null
+          )?.logout;
+          if (typeof clientLogout !== "function") {
+            walletDebug("para:logout", {
+              skip: paraLogout ? "hook-failed-no-client-fallback" : "no-path",
+            });
+            return;
+          }
           try {
-            await paraLogout();
+            walletDebug("para:logout", { via: "client" });
+            await clientLogout.call(paraSession);
+            walletDebug("para:logout", { result: "ok" });
           } catch (error) {
+            walletDebug("para:logout", { failed: String(error) });
             console.warn("[aomi-auth-adapter] Para logout failed", error);
           }
         };
@@ -1359,29 +1286,57 @@ export function AomiParaAdapterProvider({
         if (options?.accountId) {
           const target = accounts.find((a) => a.id === options.accountId);
           if (target?.family === "evm" && wagmiDisconnectAsync) {
-            explicitEvmDisconnectRef.current = true;
-            const isParaAccount =
-              canonicalWalletKey(target.walletName ?? "") === "para";
-            const sameAddressConnections = evmConnections.filter(
-              (conn) =>
-                conn.address.toLowerCase() === target.address.toLowerCase(),
-            );
-            const connectorIds = new Set([
-              target.id,
-              ...sameAddressConnections.map((conn) => conn.connectorId),
-            ]);
+            const disconnectPlan = planEvmAccountDisconnect({
+              target,
+              connections: evmConnections,
+            });
+            // Record the drop per-address. Only treat it as a family-wide
+            // explicit disconnect when nothing else remains. If another
+            // connector still exposes this address, keep the address alive so
+            // disconnecting Para does not also suppress the user's same-address
+            // MetaMask/Rabby.
+            if (disconnectPlan.shouldMarkDroppedAddress) {
+              explicitlyDroppedEvmAddressesRef.current.add(
+                disconnectPlan.targetAddress,
+              );
+            } else {
+              explicitlyDroppedEvmAddressesRef.current.delete(
+                disconnectPlan.targetAddress,
+              );
+            }
+            if (disconnectPlan.otherConnectionsRemain) {
+              evmReconnectAttemptedRef.current = false;
+              evmReattachAttemptedRef.current = false;
+            } else {
+              explicitEvmDisconnectRef.current = true;
+            }
             const connectors = wagmiConfig.connectors.filter((candidate) =>
-              connectorIds.has(candidate.uid),
+              disconnectPlan.connectorIds.has(candidate.uid),
             );
+            walletDebug("evm:account-sign-out", {
+              wallet: target.walletName ?? null,
+              address: disconnectPlan.targetAddress,
+              isParaAccount: disconnectPlan.isParaAccount,
+              disconnecting: connectors.map((c) => c.name),
+              othersRemain: disconnectPlan.otherConnectionsRemain,
+              sameAddressRemains: disconnectPlan.sameAddressConnectionsRemain,
+            });
 
             if (connectors.length === 0) {
-              try {
-                await wagmiDisconnectAsync();
-              } catch (error) {
-                console.warn(
-                  "[aomi-auth-adapter] EVM account disconnect failed",
-                  error,
-                );
+              if (disconnectPlan.otherConnectionsRemain) {
+                walletDebug("evm:account-sign-out", {
+                  skip: "global-disconnect-preserve-others",
+                  address: disconnectPlan.targetAddress,
+                });
+              } else {
+                try {
+                  await wagmiDisconnectAsync();
+                } catch (error) {
+                  console.warn(
+                    "[aomi-auth-adapter] EVM account disconnect failed",
+                    error,
+                  );
+                }
               }
             } else {
               for (const connector of connectors) {
@@ -1396,22 +1351,40 @@ export function AomiParaAdapterProvider({
               }
             }
 
+            if (
+              disconnectPlan.isParaAccount &&
+              disconnectPlan.otherConnectionsRemain
+            ) {
+              updateDetachedParaEvmAddress(disconnectPlan.targetAddress);
+              walletDebug("para:detach", {
+                address: disconnectPlan.targetAddress,
+                reason: "preserve-external-wallets",
+              });
+            }
+
             // Drop the persisted active-account hint if it pointed here, so it
             // doesn't try to restore a wallet the user just signed out of.
             if (
               persistedActiveEvmAddressRef.current?.toLowerCase() ===
-              target.address.toLowerCase()
+                disconnectPlan.targetAddress &&
+              !disconnectPlan.sameAddressConnectionsRemain
             ) {
               persistedActiveEvmAddressRef.current = null;
               writePersistedActiveEvmAddress(null);
+              walletDebug("active-evm:persist-cleared", {
+                reason: "account-sign-out",
+              });
             }
 
-            // Para's embedded/social session is separate from the wagmi
-            // connection — dropping the connector alone leaves Para logged in,
-            // so it silently re-attaches on the next load (the "sign out
-            // doesn't stick after refresh" bug). When the user signs out of
-            // the Para account itself, actually log out of Para.
-            if (isParaAccount) {
+            // Full Para logout tears down Para's shared external-wallet
+            // provider too. Only use it when no other wallet has to survive;
+            // otherwise the local Para detach above gives the UI the intended
+            // sign-out without ejecting MetaMask/Rabby.
+            if (
+              disconnectPlan.isParaAccount &&
+              !disconnectPlan.otherConnectionsRemain
+            ) {
+              updateDetachedParaEvmAddress(null);
               await logoutParaSession();
             }
             return;
@@ -1424,8 +1397,12 @@ export function AomiParaAdapterProvider({
         const disconnectEvmFamily = async () => {
           if (!wagmiDisconnectAsync) return;
           explicitEvmDisconnectRef.current = true;
+          updateDetachedParaEvmAddress(null);
           persistedActiveEvmAddressRef.current = null;
           writePersistedActiveEvmAddress(null);
+          walletDebug("active-evm:persist-cleared", {
+            reason: "family-disconnect",
+          });
 
           const connectorIds = new Set(
             evmConnections.map((connection) => connection.connectorId),
@@ -1500,12 +1477,12 @@ export function AomiParaAdapterProvider({
         if (requestedFamily === "solana" && !solanaWallet.publicKey) {
           try {
             const result = await connectPreferredSolanaWallet(solanaWallet);
-            if (result === "connected") {
-              setPendingSolanaConnect(false);
+            if (result.status === "connected") {
+              setPendingSolanaWallet(null);
               return;
             }
-            if (result === "selecting") {
-              setPendingSolanaConnect(true);
+            if (result.status === "selecting") {
+              setPendingSolanaWallet(result.walletName);
               return;
             }
           } catch (error) {
@@ -1516,6 +1493,7 @@ export function AomiParaAdapterProvider({
             return;
           }
         }
+        suppressPromptingEvmReattach("para-account-modal");
         paraModal?.openModal({ step: "ACCOUNT_MAIN" });
       },
       switchChain: switchChainAsync
@@ -1547,7 +1525,7 @@ export function AomiParaAdapterProvider({
           return;
         }
 
-        setPendingSolanaConnect(false);
+        setPendingSolanaWallet(null);
         if (selectedSolanaNetwork?.id === target.networkId) {
           return;
         }
@@ -1603,7 +1581,9 @@ export function AomiParaAdapterProvider({
             return { signature };
           }
         : undefined,
-      getAccountCredential: issueJwt ?? undefined,
+      getAccountCredential: exposeParaSession
+        ? (issueJwt ?? undefined)
+        : undefined,
       ...buildParaSolanaMethods(solanaWallet, resolvedAdapterSolanaConfig),
     };
   }, [
@@ -1613,6 +1593,7 @@ export function AomiParaAdapterProvider({
     connector,
     evmConnections,
     evmConnectors,
+    evmProviderBrands,
     gracefulEvmIdentity.identity.address,
     gracefulEvmIdentity.identity.chainId,
     gracefulEvmIdentity.identity.connectorId,
@@ -1627,6 +1608,7 @@ export function AomiParaAdapterProvider({
     paraAccount.external,
     paraAccount.isConnected,
     paraAccount.isLoading,
+    paraSessionLocallyDetached,
     paraModal,
     paraSession,
     sendCallsSyncAsync,
@@ -1637,10 +1619,12 @@ export function AomiParaAdapterProvider({
     selectedEvmChainId,
     selectedSolanaNetwork,
     solanaWallet,
+    suppressPromptingEvmReattach,
     supportedSolanaNetworks,
     supportedChains,
     switchAccountAsync,
     switchChainAsync,
+    updateDetachedParaEvmAddress,
     userAAMode,
     userDelegation7702,
     userSmartAccount4337,
@@ -1789,30 +1773,29 @@ function AomiParaProviderInner({
             paraModalConfig={paraModalConfig}
             externalWalletConfig={externalWalletConfig}
           >
+            {/* The adapter renders in BOTH wrapper states (the wrapper only
+                adds the Solana context when Para's client is ready) — it must
+                never unmount when the client blips during logout/re-init, or
+                all connection-recovery state is lost mid-session. The safe
+                Solana hooks already degrade when the context is absent. */}
             <ParaSolanaWrapper
               key={resolvedSolanaConfig.activeNetwork.id}
               enabled={solanaEnabled}
               config={solanaProviderConfig}
             >
-              {(solanaReady) =>
-                solanaReady ? (
-                  <FullTestnetWalletRouter
-                    enabled={routing.enabled}
-                    chains={routing.routedChains}
-                    routedChainIds={routing.routedChainIds}
-                  >
-                    <AomiParaAdapterProvider
-                      supportedChains={routing.routedChains}
-                      solanaConfig={resolvedSolanaConfig}
-                      oAuthMethods={oAuthMethods}
-                    >
-                      {children}
-                    </AomiParaAdapterProvider>
-                  </FullTestnetWalletRouter>
-                ) : (
-                  children
-                )
-              }
+              <FullTestnetWalletRouter
+                enabled={routing.enabled}
+                chains={routing.routedChains}
+                routedChainIds={routing.routedChainIds}
+              >
+                <AomiParaAdapterProvider
+                  supportedChains={routing.routedChains}
+                  solanaConfig={resolvedSolanaConfig}
+                  oAuthMethods={oAuthMethods}
+                >
+                  {children}
+                </AomiParaAdapterProvider>
+              </FullTestnetWalletRouter>
             </ParaSolanaWrapper>
           </ParaProvider>
         ) : (

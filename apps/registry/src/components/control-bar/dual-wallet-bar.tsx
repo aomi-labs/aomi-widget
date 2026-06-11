@@ -146,7 +146,11 @@ const DualWalletBarInner: FC<DualWalletBarProps> = ({
             </span>
           </span>
         ) : (
-          <span className="min-w-0 truncate">Connect wallet</span>
+          // h-7 matches AVATAR_SIZE so the button keeps the same height (and
+          // text colour) whether or not the avatar stack is rendered.
+          <span className="flex h-7 min-w-0 items-center">
+            <span className="truncate">Connect wallet</span>
+          </span>
         )}
         <ChevronDownIcon className="h-3 w-3 shrink-0 opacity-60" />
       </button>

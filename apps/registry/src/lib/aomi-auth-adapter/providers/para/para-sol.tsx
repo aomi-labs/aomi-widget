@@ -1,6 +1,6 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useRef, type ReactNode } from "react";
 import { useClient as useParaClient } from "@getpara/react-sdk";
 import {
   ParaSolanaProvider,
@@ -22,13 +22,14 @@ import type {
   WalletSolanaSignMessagePayload,
   WalletSolanaSignPayload,
 } from "@aomi-labs/react";
-import type { SolanaCluster, SolanaNetworkOption } from "../types";
+import type { SolanaCluster, SolanaNetworkOption } from "../../types";
 import {
   DEFAULT_SOLANA_CLUSTER,
   DEFAULT_SOLANA_RPC_HTTP_URLS,
   normalizeSolanaNetworkOptions,
   resolveSelectedSolanaNetwork,
-} from "../solana-networks";
+} from "../../solana-networks";
+import { walletDebug } from "../../wallet-debug";
 
 export type ParaSolanaOptions = {
   enabled?: boolean;
@@ -238,29 +239,36 @@ function pickPreferredSolanaWallet(wallet: SafeSolanaWalletState) {
     })[0];
 }
 
+export type SolanaConnectAttempt =
+  | { status: "connected" }
+  | { status: "unavailable" }
+  /** A wallet was selected; the caller must finish the connect once the
+   * adapter reports `walletName === walletName`. */
+  | { status: "selecting"; walletName: string };
+
 export async function connectPreferredSolanaWallet(
   wallet: SafeSolanaWalletState,
-): Promise<"connected" | "selecting" | "unavailable"> {
+): Promise<SolanaConnectAttempt> {
   if (wallet.publicKey || wallet.connected) {
-    return "connected";
+    return { status: "connected" };
   }
 
   if (!wallet.select || !wallet.connect) {
-    return "unavailable";
+    return { status: "unavailable" };
   }
 
   if (wallet.walletName) {
     await wallet.connect();
-    return "connected";
+    return { status: "connected" };
   }
 
   const selectedWallet = pickPreferredSolanaWallet(wallet);
   if (!selectedWallet) {
-    return "unavailable";
+    return { status: "unavailable" };
   }
 
   wallet.select(selectedWallet.adapter.name as SolanaWalletName);
-  return "selecting";
+  return { status: "selecting", walletName: selectedWallet.adapter.name };
 }
 
 export function getSolanaCapabilitySnapshot(wallet: SafeSolanaWalletState) {
@@ -383,7 +391,7 @@ export function ParaSolanaWrapper({
 }: {
   enabled: boolean;
   config: ParaSolanaProviderConfig;
-  children: (solanaReady: boolean) => ReactNode;
+  children: ReactNode;
 }) {
   let para: unknown;
   try {
@@ -391,14 +399,29 @@ export function ParaSolanaWrapper({
   } catch {
     para = null;
   }
-  if (!enabled || !para) {
-    return <>{children(false)}</>;
+  // Hold on to the last non-null client: Para nulls it transiently during
+  // logout/re-init, and switching to the providerless branch then would
+  // UNMOUNT everything below — including the auth adapter and all of its
+  // connection-recovery state (the "a while after a Para sign-out every
+  // wallet disconnects and never recovers" bug). Children must always
+  // render; only the Solana context comes and goes.
+  const lastParaRef = useRef(para);
+  if (para) lastParaRef.current = para;
+  const effectivePara = para ?? lastParaRef.current;
+  const ready = enabled && Boolean(effectivePara);
+  const lastReadyRef = useRef(ready);
+  if (lastReadyRef.current !== ready) {
+    lastReadyRef.current = ready;
+    walletDebug("para:solana-wrapper", { ready });
+  }
+  if (!ready) {
+    return <>{children}</>;
   }
   return (
     <ParaSolanaProvider
       config={config}
       internalConfig={{
-        para: para as never,
+        para: effectivePara as never,
         // Do NOT force full Para session auth on external Solana wallets.
         // `"ALL"` re-authenticates the shared Para session whenever a Solana
         // wallet (e.g. Phantom) attaches, which rebuilds Para's wagmi config
@@ -422,7 +445,7 @@ export function ParaSolanaWrapper({
         connectionOnly: true,
       }}
     >
-      {children(true)}
+      {children}
     </ParaSolanaProvider>
   );
 }

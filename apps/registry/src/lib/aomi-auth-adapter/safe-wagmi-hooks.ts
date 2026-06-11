@@ -1,5 +1,6 @@
 "use client";
 
+import { useMemo } from "react";
 import type { Chain } from "viem";
 import {
   useAccount,
@@ -245,15 +246,23 @@ export type WagmiConnectionShape = {
 export function useSafeConnections(): WagmiConnectionShape[] {
   try {
     const connections = useConnections();
-    return connections.flatMap((connection) =>
-      connection.accounts
-        .filter((address): address is `0x${string}` => address.startsWith("0x"))
-        .map((address) => ({
-          connectorId: connection.connector.uid,
-          connectorName: connection.connector.name,
-          address,
-          chainId: connection.chainId,
-        })),
+    // Memoized on the store snapshot so consumers (adapter memos, effects)
+    // see a stable identity when nothing actually changed.
+    return useMemo(
+      () =>
+        connections.flatMap((connection) =>
+          connection.accounts
+            .filter((address): address is `0x${string}` =>
+              address.startsWith("0x"),
+            )
+            .map((address) => ({
+              connectorId: connection.connector.uid,
+              connectorName: connection.connector.name,
+              address,
+              chainId: connection.chainId,
+            })),
+        ),
+      [connections],
     );
   } catch {
     return [];
