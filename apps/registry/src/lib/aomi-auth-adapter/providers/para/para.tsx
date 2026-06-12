@@ -77,7 +77,13 @@ const defaultNetworks = [
   monadTestnet,
 ] as const;
 
-const defaultExternalWallets: TExternalWallet[] = ["WALLETCONNECT"];
+const defaultExternalWallets: TExternalWallet[] = [
+  "WALLETCONNECT",
+  "METAMASK",
+  "COINBASE",
+  "RAINBOW",
+  "RABBY",
+];
 
 function AomiParaProviderInner({
   children,
@@ -130,6 +136,15 @@ function AomiParaProviderInner({
     }),
     [oAuthMethods],
   );
+  const evmRuntimeConfig = useMemo(
+    () =>
+      ({
+        chains: routing.routedChains,
+        transports,
+        ssr: true,
+      }) satisfies AomiParaEvmRuntimeConfig,
+    [routing.routedChains, transports],
+  );
   const paraExternalWalletConfig = useMemo(
     () => ({
       appDescription,
@@ -139,17 +154,20 @@ function AomiParaProviderInner({
           ? window.location.origin
           : "https://aomi.dev"),
       wallets: resolvedWallets,
+      walletConnect: walletConnectProjectId
+        ? { projectId: walletConnectProjectId }
+        : undefined,
+      evmConnector: {
+        config: evmRuntimeConfig,
+      },
     }),
-    [appDescription, appUrl, resolvedWallets],
-  );
-  const evmRuntimeConfig = useMemo(
-    () =>
-      ({
-        chains: routing.routedChains,
-        transports,
-        ssr: true,
-      }) satisfies AomiParaEvmRuntimeConfig,
-    [routing.routedChains, transports],
+    [
+      appDescription,
+      appUrl,
+      evmRuntimeConfig,
+      resolvedWallets,
+      walletConnectProjectId,
+    ],
   );
 
   const svmEnabled =
