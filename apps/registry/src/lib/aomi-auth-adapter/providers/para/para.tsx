@@ -4,7 +4,6 @@ import {
   useCallback,
   useEffect,
   useMemo,
-  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -32,7 +31,6 @@ import {
   polygon,
   sepolia,
 } from "wagmi/chains";
-import type { Connector } from "wagmi";
 import type { WalletEip712Payload, WalletTxPayload } from "@aomi-labs/react";
 import {
   ExtUserProvider,
@@ -60,32 +58,13 @@ import {
   useFullTestnet,
 } from "../../full-testnet-wallet-routing";
 import {
-  useSafeCapabilities,
-  useSafeConnect,
-  useSafeConnectors,
-  useSafeConnections,
-  useSafeDisconnect,
-  useSafeGetWalletClientFor,
-  useSafeReconnect,
-  useSafeSendCallsSync,
-  useSafeSendTransaction,
-  useSafeSignMessage,
-  useSafeSignTypedData,
-  useSafeSwitchAccount,
-  useSafeSwitchChain,
-  useSafeWagmiConfig,
-  useSafeWalletClient,
-} from "../../runtime/evm/safe-hooks";
+  useEvmWalletRuntime,
+  type EvmWalletRuntimeProviderHooks,
+} from "../../runtime/evm/wallet-runtime";
 import {
   canonicalWalletKey,
-  dedupeWalletOptions,
-  detectEvmProviderBrand,
-  isProviderInternalWalletLabel,
   solanaWalletAllowlist,
-  toEvmWalletOption,
   toSocialLoginOption,
-  useInstalledWalletFlags,
-  walletOptionIsDetected,
 } from "../../runtime/evm/brands";
 import { walletDebug } from "../../wallet-debug";
 import type {
@@ -107,14 +86,10 @@ import {
   DEFAULT_SOLANA_CLUSTER,
   normalizeSolanaNetworkOptions,
 } from "../../runtime/solana/networks";
-import { selectAccounts, selectEvmIdentity } from "../../registry/selectors";
-import { planEvmAccountDisconnect } from "../../runtime/evm/disconnect-plan";
 import {
   EVM_IDENTITY_GRACE_MS,
   REGISTRY_STORAGE_KEY,
 } from "../../registry/types";
-import { useWalletRegistry } from "../../registry/use-wallet-registry";
-import { useWagmiRegistrySource } from "../../runtime/evm/registry-source";
 import { useParaSessionSource } from "./sources/para-session-source";
 import { useSolanaRegistrySource } from "../../runtime/solana/registry-source";
 import {
@@ -255,26 +230,6 @@ function useSafeLogout(): (() => Promise<void>) | null {
   }
 }
 
-async function findConnectorByProviderBrand(
-  connectors: readonly Connector[],
-  expectedKey: string,
-  excludeUid?: string,
-): Promise<Connector | undefined> {
-  for (const connector of connectors) {
-    if (connector.uid === excludeUid || !connector.getProvider) continue;
-    try {
-      const provider = await connector.getProvider();
-      const brand = detectEvmProviderBrand(provider);
-      if (brand && canonicalWalletKey(brand) === expectedKey) {
-        return connector;
-      }
-    } catch {
-      // Keep trying other connectors; provider sniffing is best-effort.
-    }
-  }
-  return undefined;
-}
-
 export type AomiParaAdapterProviderProps = {
   children: ReactNode;
   supportedChains?: readonly Chain[];
@@ -293,21 +248,6 @@ export function AomiParaAdapterProvider({
   const issueJwt = useSafeIssueJwt();
   const paraLogout = useSafeLogout();
   const paraModal = useSafeParaModal();
-  const { walletClient } = useSafeWalletClient();
-  const { switchChainAsync, isPending } = useSafeSwitchChain();
-  const { disconnectAsync: wagmiDisconnectAsync } = useSafeDisconnect();
-  const { reconnectAsync: wagmiReconnectAsync } = useSafeReconnect();
-  const installedWalletFlags = useInstalledWalletFlags();
-  const evmConnections = useSafeConnections();
-  const evmConnectors = useSafeConnectors();
-  const { connectAsync: wagmiConnectAsync } = useSafeConnect();
-  const { switchAccountAsync } = useSafeSwitchAccount();
-  const { sendTransactionAsync } = useSafeSendTransaction();
-  const { sendCallsSyncAsync } = useSafeSendCallsSync();
-  const { signTypedDataAsync } = useSafeSignTypedData();
-  const { signMessageAsync } = useSafeSignMessage();
-  const getWalletClientFor = useSafeGetWalletClientFor();
-  const wagmiConfig = useSafeWagmiConfig();
   const solanaWallet = useSafeSolanaWallet();
   const logoutParaSession = useCallback(async () => {
     if (paraLogout) {
@@ -342,91 +282,6 @@ export function AomiParaAdapterProvider({
       console.warn("[aomi-auth-adapter] Para logout failed", error);
     }
   }, [paraLogout, paraSession]);
-  const registryExecutors = useMemo(
-    () => ({
-      async wagmiReconnect(stableIds: string[]) {
-        if (!wagmiReconnectAsync) return;
-        const targets: Connector[] = stableIds
-          .map((stableId) =>
-            evmConnectors.find((candidate) => candidate.id === stableId),
-          )
-          .filter((connector): connector is Connector => Boolean(connector));
-        if (targets.length === 0) {
-          walletDebug("registry:command-skip", {
-            kind: "wagmi/reconnect",
-            stableIds,
-            reason: "connector-missing",
-          });
-          return;
-        }
-        const result = await wagmiReconnectAsync({
-          connectors: targets,
-        } as never);
-        if (Array.isArray(result) && result.length === 0) {
-          walletDebug("evm:heal", {
-            action: "reconnect-empty",
-            stableIds,
-          });
-        }
-      },
-      async wagmiConnect(stableId: string) {
-        if (!wagmiConnectAsync) return;
-        const target = evmConnectors.find(
-          (candidate) => candidate.id === stableId,
-        );
-        if (!target) {
-          walletDebug("registry:command-skip", {
-            kind: "wagmi/connect",
-            stableId,
-            reason: "connector-missing",
-          });
-          return;
-        }
-        await wagmiConnectAsync({ connector: target });
-      },
-      async wagmiDisconnect(uid: string) {
-        if (!wagmiDisconnectAsync) return;
-        const target = wagmiConfig.connectors.find(
-          (candidate) => candidate.uid === uid,
-        );
-        if (!target) {
-          walletDebug("registry:command-skip", {
-            kind: "wagmi/disconnect",
-            uid,
-            reason: "connector-missing",
-          });
-          return;
-        }
-        await wagmiDisconnectAsync({ connector: target });
-      },
-      paraLogout: logoutParaSession,
-    }),
-    [
-      evmConnectors,
-      logoutParaSession,
-      wagmiConfig.connectors,
-      wagmiConnectAsync,
-      wagmiDisconnectAsync,
-      wagmiReconnectAsync,
-    ],
-  );
-  const { store: registryStore, state: registryState } = useWalletRegistry({
-    executors: registryExecutors,
-    storageKey: REGISTRY_STORAGE_KEY,
-  });
-  useWagmiRegistrySource(registryStore);
-  useParaSessionSource(registryStore, { paraAccount });
-  useSolanaRegistrySource(registryStore, { solanaWallet });
-  const startParaAuthFlow = useCallback(
-    (reason: string) => {
-      registryStore.dispatch({
-        type: "para/auth-flow-started",
-        reason,
-        now: Date.now(),
-      });
-    },
-    [registryStore],
-  );
   const {
     selectedEvmChainId,
     selectedSolanaNetwork,
@@ -449,79 +304,81 @@ export function AomiParaAdapterProvider({
     }),
     [solanaConfig],
   );
-  const supportedChains = useMemo(
-    () => configuredChains ?? wagmiConfig.chains,
-    [configuredChains, wagmiConfig.chains],
+  const providerHooks = useMemo<EvmWalletRuntimeProviderHooks>(
+    () => ({
+      providerLogout: logoutParaSession,
+      isProviderInternalConnector: (connector) =>
+        connector.id === "para" ||
+        canonicalWalletKey(connector.name ?? "") === "para",
+      onProviderReconnectRequested: (store) => {
+        store.dispatch({
+          type: "user/para-reconnect-requested",
+          now: Date.now(),
+        });
+      },
+      onConnectFallback: (store) => {
+        store.dispatch({
+          type: "para/auth-flow-started",
+          reason: "para-evm-connect-fallback",
+          now: Date.now(),
+        });
+        paraModal?.openModal({ step: "AUTH_MAIN" });
+      },
+      onAccountDisconnectPlanned: (disconnectPlan) => {
+        if (
+          disconnectPlan.isParaAccount &&
+          disconnectPlan.otherConnectionsRemain
+        ) {
+          walletDebug("para:detach", {
+            address: disconnectPlan.targetAddress,
+            reason: "preserve-external-wallets",
+          });
+        }
+      },
+    }),
+    [logoutParaSession, paraModal],
   );
-
-  const chainsById = useMemo<Record<number, Chain>>(
-    () => Object.fromEntries(supportedChains.map((chain) => [chain.id, chain])),
-    [supportedChains],
-  );
-  const activeEvmConnection = useMemo(() => {
-    const active = registryState.activeByFamily.evm;
-    if (!active) return undefined;
-    return registryState.connections.find((connection) => {
-      if (connection.family !== "evm") return false;
-      if (active.uid && connection.uid === active.uid) return true;
-      if (active.stableId && connection.stableId !== active.stableId) {
-        return false;
-      }
-      return connection.address.toLowerCase() === active.address.toLowerCase();
-    });
-  }, [registryState.activeByFamily.evm, registryState.connections]);
-  const activeConnector = useMemo(() => {
-    const active = registryState.activeByFamily.evm;
-    if (!active?.uid) return undefined;
-    return wagmiConfig.connectors.find(
-      (candidate) => candidate.uid === active.uid,
-    );
-  }, [registryState.activeByFamily.evm, wagmiConfig.connectors]);
-  const { capabilities } = useSafeCapabilities({
-    account: activeEvmConnection?.address as `0x${string}` | undefined,
-    connector: activeConnector,
-  });
-  const registryEvmConnected = registryState.connections.some(
-    (connection) => connection.family === "evm",
-  );
-
-  // Set while a site-initiated switch (selectNetwork/switchChain) is awaiting
-  // the wallet, so wallet-originated chain sync below doesn't treat the
-  // intermediate state as a new user preference.
-  const evmSwitchInFlightRef = useRef(false);
-  useEffect(() => {
-    const chainId = activeEvmConnection?.chainId;
-    if (
-      evmSwitchInFlightRef.current ||
-      !chainId ||
-      !chainsById[chainId] ||
-      chainId === selectedEvmChainId
-    ) {
-      return;
-    }
-    walletDebug("evm:chain-external-sync", {
-      chainId,
-      previous: selectedEvmChainId ?? null,
-    });
-    setSelectedEvmChainId(chainId);
-  }, [
-    chainsById,
-    activeEvmConnection?.chainId,
+  const evmRuntime = useEvmWalletRuntime({
+    configuredChains,
     selectedEvmChainId,
     setSelectedEvmChainId,
-  ]);
-
-  // Timeline of the connection set — shows whether the wanted external
-  // connection is restored at all after a refresh, and when it appears.
-  useEffect(() => {
-    walletDebug("evm:connections-changed", {
-      connections: evmConnections.map((conn) => ({
-        connector: conn.connectorName,
-        uid: conn.connectorId,
-        address: conn.address,
-      })),
-    });
-  }, [evmConnections]);
+    storageKey: REGISTRY_STORAGE_KEY,
+    providerHooks,
+  });
+  const { registryStore, registryState } = evmRuntime;
+  useParaSessionSource(registryStore, { paraAccount });
+  useSolanaRegistrySource(registryStore, { solanaWallet });
+  const startParaAuthFlow = useCallback(
+    (reason: string) => {
+      registryStore.dispatch({
+        type: "para/auth-flow-started",
+        reason,
+        now: Date.now(),
+      });
+    },
+    [registryStore],
+  );
+  const {
+    activeConnector,
+    canDisconnectEvm,
+    capabilities,
+    chainsById,
+    connectEvmWallet,
+    disconnectEvmAccount,
+    evmWalletOptions,
+    getWalletClientFor,
+    registryEvmConnected,
+    selectEvmAccount,
+    sendCallsSyncAsync,
+    sendTransactionAsync,
+    shouldUseExternalSigner,
+    signMessageAsync,
+    signTypedDataAsync,
+    supportedChains,
+    switchChainAsync,
+    switchEvmChain,
+    walletClient,
+  } = evmRuntime;
   const { user } = useUser();
   const userAAMode = UserState.aaMode(user);
   const userSmartAccount4337 = UserState.SmartAccount4337(user);
@@ -535,11 +392,7 @@ export function AomiParaAdapterProvider({
   );
 
   const registryEvmIdentity = useMemo(() => {
-    const identity = selectEvmIdentity(
-      registryState,
-      Date.now(),
-      selectedEvmChainId,
-    );
+    const identity = evmRuntime.selectEvmIdentity(Date.now());
     if (
       paraSessionLocallyDetached &&
       identity.address &&
@@ -550,10 +403,9 @@ export function AomiParaAdapterProvider({
     return identity;
   }, [
     evmIdentityGraceVersion,
+    evmRuntime,
     paraSessionLocallyDetached,
     registryDetachedParaAddresses,
-    registryState,
-    selectedEvmChainId,
   ]);
   const gracefulEvmIdentity = {
     identity: registryEvmIdentity,
@@ -615,9 +467,9 @@ export function AomiParaAdapterProvider({
       paraAccount.isConnected && !paraSessionLocallyDetached;
     const isConnected = Boolean(
       exposeParaSession ||
-        registryEvmConnected ||
-        address ||
-        solanaWallet.publicKey,
+      registryEvmConnected ||
+      address ||
+      solanaWallet.publicKey,
     );
     const isBooting = paraAccount.isLoading && !isConnected;
 
@@ -649,17 +501,15 @@ export function AomiParaAdapterProvider({
     const solanaTransport = detectSolanaTransport(solanaWallet.walletName);
     const solanaCapabilities = getSolanaCapabilitySnapshot(solanaWallet);
 
-    const builtAccounts = selectAccounts(
-      registryState,
-      Date.now(),
-      selectedEvmChainId,
-    ).filter((account) => {
-      if (!paraSessionLocallyDetached) return true;
-      if (account.family !== "evm") return true;
-      const address = account.address.toLowerCase();
-      if (registryDetachedParaAddresses.includes(address)) return false;
-      return canonicalWalletKey(account.walletName ?? "") !== "para";
-    });
+    const builtAccounts = evmRuntime
+      .selectAccounts(Date.now())
+      .filter((account) => {
+        if (!paraSessionLocallyDetached) return true;
+        if (account.family !== "evm") return true;
+        const address = account.address.toLowerCase();
+        if (registryDetachedParaAddresses.includes(address)) return false;
+        return canonicalWalletKey(account.walletName ?? "") !== "para";
+      });
     // Para's own embedded/social wallet is managed in the Para account modal
     // (openAccountUI). External wallets connected through Para (MetaMask,
     // Phantom, …) keep their own brand name and are managed in their own
@@ -764,15 +614,8 @@ export function AomiParaAdapterProvider({
                 solanaCluster: resolvedAdapterSolanaConfig.cluster,
               };
 
-    const activeConnectorIsPara =
-      activeConnector?.id === "para" ||
-      canonicalWalletKey(activeConnector?.name ?? "") === "para";
-    const shouldUseExternalSigner = Boolean(
-      activeConnector && !activeConnectorIsPara,
-    );
-
     const hasAnyDisconnectablePath = Boolean(
-      wagmiDisconnectAsync || solanaWallet.disconnect,
+      canDisconnectEvm || solanaWallet.disconnect,
     );
 
     // Map the wallet-adapter's `wallets` array to our descriptor shape so
@@ -789,15 +632,6 @@ export function AomiParaAdapterProvider({
         ready:
           entry.readyState === "Installed" || entry.readyState === "Loadable",
       }));
-    const evmWalletOptions = dedupeWalletOptions(
-      evmConnectors
-        .map((connector) => toEvmWalletOption(connector, installedWalletFlags))
-        .filter(
-          (option) =>
-            !isProviderInternalWalletLabel(option.label) &&
-            walletOptionIsDetected(option),
-        ),
-    );
     const socialLoginOptions = paraModal
       ? Array.from(oAuthMethods).map(toSocialLoginOption)
       : [];
@@ -821,7 +655,7 @@ export function AomiParaAdapterProvider({
     return {
       identity,
       isReady: !isBooting,
-      isSwitchingChain: isPending,
+      isSwitchingChain: evmRuntime.isSwitchingChain,
       // canConnect/canDisconnect are intentionally NOT gated on overall
       // `identity.isConnected`. With dual-family wallets (EVM + Solana
       // under one Para identity) the user can be connected on one family
@@ -839,136 +673,13 @@ export function AomiParaAdapterProvider({
           throw new Error(`Unknown account: ${id}`);
         }
         if (target.family === "evm") {
-          const connection = registryStore
-            .getSnapshot()
-            .connections.find(
-              (conn) => conn.family === "evm" && conn.uid === id,
-            );
-          if (!connection) return;
-          registryStore.dispatch({
-            type: "user/select-active",
-            family: "evm",
-            address: connection.address,
-            uid: connection.uid,
-            stableId: connection.stableId,
-            now: Date.now(),
-          });
-          if (connection.uid === "para-session" || !switchAccountAsync) return;
-          const connector = wagmiConfig.connectors.find(
-            (candidate) => candidate.uid === connection.uid,
-          );
-          if (!connector) {
-            console.warn(
-              `[aomi-auth-adapter] selectAccount: connector not found for ${id}`,
-            );
-            return;
-          }
-          try {
-            await switchAccountAsync({ connector });
-          } catch (error) {
-            walletDebug("active-evm:cosmetic-switch-failed", {
-              uid: connection.uid,
-              stableId: connection.stableId,
-              error: error instanceof Error ? error.message : String(error),
-            });
-          }
+          await selectEvmAccount(id);
           return;
         }
         // Solana is single-active; nothing to switch within the family.
       },
       evmWallets: evmWalletOptions,
-      connectEvmWallet: async (id: string) => {
-        const connectorOptions = evmConnectors.map((candidate) => ({
-          connector: candidate,
-          option: toEvmWalletOption(candidate, installedWalletFlags),
-        }));
-        const normalizedId = canonicalWalletKey(id);
-        let target =
-          connectorOptions.find(
-            ({ option, connector }) => option.id === id || connector.uid === id,
-          )?.connector ??
-          connectorOptions.find(({ connector }) => connector.id === id)
-            ?.connector ??
-          connectorOptions.find(({ option, connector }) => {
-            if (canonicalWalletKey(option.label) !== normalizedId) return false;
-            if (canonicalWalletKey(connector.name ?? "") === "para")
-              return false;
-            return true;
-          })?.connector;
-        if (target?.getProvider) {
-          try {
-            const provider = await target.getProvider();
-            const actualKey = canonicalWalletKey(
-              detectEvmProviderBrand(provider) ?? "",
-            );
-            if (actualKey && actualKey !== normalizedId) {
-              const replacement = await findConnectorByProviderBrand(
-                connectorOptions.map(({ connector }) => connector),
-                normalizedId,
-                target.uid,
-              );
-              if (replacement) {
-                walletDebug("evm:connect-brand-mismatch", {
-                  requested: id,
-                  selected: target.id,
-                  actual: actualKey,
-                  replacement: replacement.id,
-                });
-                target = replacement;
-              }
-            }
-          } catch (error) {
-            walletDebug("evm:connect-brand-sniff-failed", {
-              requested: id,
-              connector: target.id,
-              error: error instanceof Error ? error.message : String(error),
-            });
-          }
-        }
-        if (target && wagmiConnectAsync) {
-          walletDebug("evm:connect-target", {
-            requested: id,
-            connector: target.name,
-            uid: target.uid,
-            stableId: target.id,
-          });
-          if (canonicalWalletKey(target.name ?? "") === "para") {
-            registryStore.dispatch({
-              type: "user/para-reconnect-requested",
-              now: Date.now(),
-            });
-          }
-          const result = await wagmiConnectAsync({ connector: target });
-          const connectedAddress = (
-            result as { accounts?: readonly string[] } | undefined
-          )?.accounts?.find((account) => account.startsWith("0x"));
-          if (connectedAddress) {
-            registryStore.dispatch({
-              type: "user/connect-succeeded",
-              family: "evm",
-              address: connectedAddress,
-              uid: target.uid,
-              stableId: target.id,
-              now: Date.now(),
-            });
-            registryStore.dispatch({
-              type: "user/select-active",
-              family: "evm",
-              address: connectedAddress,
-              uid: target.uid,
-              stableId: target.id,
-              now: Date.now(),
-            });
-          }
-          return;
-        }
-        registryStore.dispatch({
-          type: "user/para-reconnect-requested",
-          now: Date.now(),
-        });
-        startParaAuthFlow("para-evm-connect-fallback");
-        paraModal?.openModal({ step: "AUTH_MAIN" });
-      },
+      connectEvmWallet,
       socialLoginOptions,
       connectSocial: async () => {
         registryStore.dispatch({
@@ -1055,36 +766,7 @@ export function AomiParaAdapterProvider({
         if (options?.accountId) {
           const target = accounts.find((a) => a.id === options.accountId);
           if (target?.family === "evm") {
-            const disconnectPlan = planEvmAccountDisconnect({
-              target,
-              connections: evmConnections,
-            });
-            walletDebug("evm:account-sign-out", {
-              wallet: target.walletName ?? null,
-              address: disconnectPlan.targetAddress,
-              isParaAccount: disconnectPlan.isParaAccount,
-              disconnecting: [...disconnectPlan.connectorIds],
-              othersRemain: disconnectPlan.otherConnectionsRemain,
-              sameAddressRemains: disconnectPlan.sameAddressConnectionsRemain,
-            });
-            registryStore.dispatch({
-              type: "user/disconnect-account",
-              address: disconnectPlan.targetAddress,
-              uids: [...disconnectPlan.connectorIds],
-              isParaAccount: disconnectPlan.isParaAccount,
-              othersRemain: disconnectPlan.otherConnectionsRemain,
-              markDroppedAddress: disconnectPlan.shouldMarkDroppedAddress,
-              now: Date.now(),
-            });
-            if (
-              disconnectPlan.isParaAccount &&
-              disconnectPlan.otherConnectionsRemain
-            ) {
-              walletDebug("para:detach", {
-                address: disconnectPlan.targetAddress,
-                reason: "preserve-external-wallets",
-              });
-            }
+            await disconnectEvmAccount(target);
             return;
           }
           // accountId was provided but is not a disconnectable EVM account —
@@ -1145,38 +827,10 @@ export function AomiParaAdapterProvider({
         startParaAuthFlow("para-account-modal");
         paraModal?.openModal({ step: "ACCOUNT_MAIN" });
       },
-      switchChain: switchChainAsync
-        ? async (nextChainId: number) => {
-            setSelectedEvmChainId(nextChainId);
-            evmSwitchInFlightRef.current = true;
-            try {
-              await switchChainAsync({
-                chainId: nextChainId,
-                connector: activeConnector,
-              });
-            } finally {
-              evmSwitchInFlightRef.current = false;
-            }
-          }
-        : undefined,
+      switchChain: switchChainAsync ? switchEvmChain : undefined,
       selectNetwork: async (target) => {
         if (target.family === "evm") {
-          setSelectedEvmChainId(target.chainId);
-          if (
-            switchChainAsync &&
-            activeConnector &&
-            activeEvmConnection?.chainId !== target.chainId
-          ) {
-            evmSwitchInFlightRef.current = true;
-            try {
-              await switchChainAsync({
-                chainId: target.chainId,
-                connector: activeConnector,
-              });
-            } finally {
-              evmSwitchInFlightRef.current = false;
-            }
-          }
+          await switchEvmChain(target.chainId);
           return;
         }
 
@@ -1269,22 +923,21 @@ export function AomiParaAdapterProvider({
       ...buildParaSolanaMethods(solanaWallet, resolvedAdapterSolanaConfig),
     };
   }, [
-    activeEvmConnection?.chainId,
     activeConnector,
+    canDisconnectEvm,
     capabilities,
     chainsById,
-    evmConnections,
-    evmConnectors,
+    connectEvmWallet,
+    disconnectEvmAccount,
+    evmRuntime,
+    evmWalletOptions,
     gracefulEvmIdentity.identity.address,
     gracefulEvmIdentity.identity.chainId,
-    gracefulEvmIdentity.identity.connectorId,
     gracefulEvmIdentity.identity.walletName,
-    installedWalletFlags,
-    isPending,
+    getWalletClientFor,
     issueJwt,
     oAuthMethods,
     paraAccount.embedded,
-    paraAccount.external,
     paraAccount.isConnected,
     paraAccount.isLoading,
     paraSessionLocallyDetached,
@@ -1298,23 +951,20 @@ export function AomiParaAdapterProvider({
     registryStore,
     registryState,
     registryEvmConnected,
-    selectedEvmChainId,
+    selectEvmAccount,
     selectedSolanaNetwork,
+    shouldUseExternalSigner,
     solanaWallet,
     startParaAuthFlow,
-    supportedSolanaNetworks,
+    setSelectedSolanaNetworkId,
     supportedChains,
-    switchAccountAsync,
+    supportedSolanaNetworks,
     switchChainAsync,
+    switchEvmChain,
     userAAMode,
     userDelegation7702,
     userSmartAccount4337,
-    wagmiConnectAsync,
-    wagmiConfig.connectors,
-    wagmiDisconnectAsync,
     walletClient,
-    setSelectedEvmChainId,
-    setSelectedSolanaNetworkId,
   ]);
 
   return (
