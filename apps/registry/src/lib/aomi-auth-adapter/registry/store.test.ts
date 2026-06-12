@@ -10,8 +10,8 @@ function executors(): CommandExecutors & {
   const calls: Array<[string, string?]> = [];
   return {
     calls,
-    async wagmiReconnect() {
-      calls.push(["wagmi/reconnect"]);
+    async wagmiReconnect(stableIds: string[]) {
+      calls.push(["wagmi/reconnect", stableIds.join(",")]);
     },
     async wagmiConnect(stableId: string) {
       calls.push(["wagmi/connect", stableId]);
@@ -114,7 +114,7 @@ describe("WalletRegistryStore", () => {
     store.dispatch({ type: "wagmi/settled", now: 5 });
     await Promise.resolve();
 
-    expect(fake.calls).toContainEqual(["wagmi/reconnect"]);
+    expect(fake.calls).toContainEqual(["wagmi/reconnect", "metaMaskSDK"]);
   });
 
   it("runs the second-pass popup connect after silent reconnect restores nothing", async () => {
@@ -152,7 +152,7 @@ describe("WalletRegistryStore", () => {
     store.dispatch({ type: "wagmi/settled", now: 5 });
     await Promise.resolve();
 
-    expect(fake.calls).toContainEqual(["wagmi/reconnect"]);
+    expect(fake.calls).toContainEqual(["wagmi/reconnect", "metaMaskSDK"]);
 
     await vi.advanceTimersByTimeAsync(SETTLE_QUIET_MS);
 
@@ -200,7 +200,7 @@ describe("WalletRegistryStore", () => {
     store.dispatch({ type: "wagmi/settled", now: 6 });
     await Promise.resolve();
 
-    expect(fake.calls).toContainEqual(["wagmi/reconnect"]);
+    expect(fake.calls).toContainEqual(["wagmi/reconnect", "rabby"]);
 
     await vi.advanceTimersByTimeAsync(SETTLE_QUIET_MS);
 

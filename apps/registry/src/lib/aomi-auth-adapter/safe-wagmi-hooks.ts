@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
-import type { Chain } from "viem";
+import type { Address, Chain } from "viem";
 import { getWalletClient } from "wagmi/actions";
 import {
   useAccount,
@@ -23,6 +23,7 @@ import {
 import type { Connector } from "wagmi";
 import type { executeWalletCalls } from "@aomi-labs/react";
 import { normalizeAtomicCapabilities } from "./wallet-execution";
+import { walletDebug } from "./wallet-debug";
 
 export type WagmiAccountShape = {
   address?: `0x${string}`;
@@ -76,7 +77,12 @@ export function useSafeGetWalletClientFor(): (args: {
       if (!connector) return null;
       try {
         return await getWalletClient(config, { connector, chainId } as never);
-      } catch {
+      } catch (error) {
+        walletDebug("aa:wallet-client-failed", {
+          connector: connector.id,
+          chainId,
+          error: error instanceof Error ? error.message : String(error),
+        });
         return null;
       }
     };
@@ -166,11 +172,21 @@ export function useSafeSignMessage(): {
   }
 }
 
-export function useSafeCapabilities(): {
+export function useSafeCapabilities(args?: {
+  account?: Address;
+  connector?: Connector;
+}): {
   capabilities?: Parameters<typeof executeWalletCalls>[0]["capabilities"];
 } {
   try {
-    const { data } = useCapabilities();
+    const { data } = useCapabilities(
+      args?.account && args.connector
+        ? ({
+            account: args.account,
+            connector: args.connector,
+          } as never)
+        : undefined,
+    );
     return {
       capabilities: normalizeAtomicCapabilities(
         data as Parameters<typeof executeWalletCalls>[0]["capabilities"],
@@ -193,6 +209,7 @@ export function useSafeSendCallsSync(): {
         calls,
         capabilities,
         chainId,
+        connector,
         forceAtomic,
         pollingInterval,
         status,
@@ -204,6 +221,7 @@ export function useSafeSendCallsSync(): {
           calls,
           capabilities,
           chainId,
+          connector: connector as Connector | undefined,
           forceAtomic,
           pollingInterval,
           status,
@@ -244,12 +262,13 @@ export function useSafeDisconnect(): {
 
 export function useSafeReconnect(): {
   reconnect?: ReturnType<typeof useReconnect>["reconnect"];
+  reconnectAsync?: ReturnType<typeof useReconnect>["reconnectAsync"];
 } {
   try {
-    const { reconnect } = useReconnect();
-    return { reconnect };
+    const { reconnect, reconnectAsync } = useReconnect();
+    return { reconnect, reconnectAsync };
   } catch {
-    return { reconnect: undefined };
+    return { reconnect: undefined, reconnectAsync: undefined };
   }
 }
 

@@ -225,6 +225,7 @@ export function toEvmWalletOption(
 
   return {
     id,
+    connectorId: connector.id,
     label,
     family: kind === "walletconnect" ? "multichain" : "evm",
     kind,
@@ -248,17 +249,32 @@ export function toEvmWalletOption(
 export function dedupeWalletOptions(
   options: readonly AomiWalletOption[],
 ): AomiWalletOption[] {
-  const seen = new Set<string>();
-  const result: AomiWalletOption[] = [];
+  const byKey = new Map<string, AomiWalletOption>();
 
   for (const option of options) {
     const key = canonicalWalletKey(option.label);
-    if (seen.has(key)) continue;
-    seen.add(key);
-    result.push(option);
+    const previous = byKey.get(key);
+    if (!previous || optionIsMoreProviderSpecific(option, previous)) {
+      byKey.set(key, option);
+    }
   }
 
-  return result;
+  return [...byKey.values()];
+}
+
+function optionIsMoreProviderSpecific(
+  candidate: AomiWalletOption,
+  current: AomiWalletOption,
+): boolean {
+  const candidateId = candidate.connectorId ?? candidate.id;
+  const currentId = current.connectorId ?? current.id;
+  const candidateLooksRdns = candidateId.includes(".");
+  const currentLooksRdns = currentId.includes(".");
+  if (candidateLooksRdns !== currentLooksRdns) return candidateLooksRdns;
+  if (candidate.status === "installed" && current.status !== "installed") {
+    return true;
+  }
+  return false;
 }
 
 export function walletOptionIsDetected(option: AomiWalletOption): boolean {

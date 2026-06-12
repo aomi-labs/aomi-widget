@@ -667,6 +667,7 @@ interface ExecutionResult {
 interface AtomicBatchArgs {
     calls: AACallPayload[];
     chainId?: number;
+    connector?: unknown;
     capabilities?: {
         atomic?: {
             required?: boolean;

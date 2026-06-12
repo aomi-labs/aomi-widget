@@ -343,6 +343,25 @@ describe("WalletRegistry reducer", () => {
     expect(selectEvmIdentity(state, 31, 8453).address).toBeUndefined();
   });
 
+  it("clears grace identity immediately on EVM family disconnect", () => {
+    let state = boot();
+    state = reduce(state, {
+      type: "wagmi/connections-changed",
+      connections: [evm("mm-1", "metaMaskSDK", "0xBBB", "MetaMask")],
+      now: 10,
+    });
+    state = reduce(state, { type: "wagmi/settled", now: 20 });
+
+    state = reduce(state, {
+      type: "user/disconnect-family",
+      family: "evm",
+      now: 30,
+    });
+
+    expect(state.evmGrace.last).toBeNull();
+    expect(selectEvmIdentity(state, 31, 8453).address).toBeUndefined();
+  });
+
   it("tracks and clears a pending Solana connect request", () => {
     let state = boot();
     state = reduce(state, {

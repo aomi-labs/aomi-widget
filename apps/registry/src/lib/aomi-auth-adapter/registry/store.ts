@@ -10,7 +10,7 @@ import type {
 import { AUTH_FLOW_RECONNECT_SETTLE_MS, SETTLE_QUIET_MS } from "./types";
 
 export type CommandExecutors = {
-  wagmiReconnect(): Promise<void>;
+  wagmiReconnect(stableIds: string[]): Promise<void>;
   wagmiConnect(stableId: string): Promise<void>;
   wagmiDisconnect(uid: string): Promise<void>;
   paraLogout(): Promise<void>;
@@ -21,6 +21,7 @@ export class WalletRegistryStore {
   private readonly subscribers = new Set<() => void>();
   private readonly executors: CommandExecutors;
   private readonly storageKey: string;
+  private settleTimer: number | null = null;
 
   constructor(opts: {
     executors: CommandExecutors;
@@ -59,6 +60,17 @@ export class WalletRegistryStore {
     for (const command of commands) {
       this.executeCommand(command);
     }
+
+    if (event.type.startsWith("wagmi/") && event.type !== "wagmi/settled") {
+      this.scheduleSettledPass(SETTLE_QUIET_MS);
+    }
+  }
+
+  dispose(): void {
+    if (this.settleTimer !== null && typeof window !== "undefined") {
+      window.clearTimeout(this.settleTimer);
+    }
+    this.settleTimer = null;
   }
 
   private executeCommand(command: RegistryCommand): void {
@@ -72,9 +84,9 @@ export class WalletRegistryStore {
       case "wagmi/reconnect":
         this.runAsync(command.kind, async () => {
           try {
-            await this.executors.wagmiReconnect();
+            await this.executors.wagmiReconnect(command.stableIds);
           } finally {
-            this.scheduleSettledPass();
+            this.scheduleSettledPass(this.reconnectSettleDelayMs());
           }
         });
         break;
@@ -118,14 +130,18 @@ export class WalletRegistryStore {
       : SETTLE_QUIET_MS;
   }
 
-  private scheduleSettledPass(): void {
+  private scheduleSettledPass(delayMs: number): void {
     const run = () => {
+      this.settleTimer = null;
       this.dispatch({ type: "wagmi/settled", now: Date.now() });
     };
     if (typeof window === "undefined") {
       queueMicrotask(run);
       return;
     }
-    window.setTimeout(run, this.reconnectSettleDelayMs());
+    if (this.settleTimer !== null) {
+      window.clearTimeout(this.settleTimer);
+    }
+    this.settleTimer = window.setTimeout(run, delayMs);
   }
 }

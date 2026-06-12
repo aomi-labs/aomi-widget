@@ -135,12 +135,14 @@ export function WalletPicker() {
   const adapter = useAomiAuthAdapter();
   const identity = adapter.identity;
   const [pending, setPending] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
   const [addOpen, setAddOpen] = useState(false);
   const canActivateWallet = useWalletActivationGuard();
 
   useEffect(() => {
     if (!open) {
       setPending(null);
+      setActionError(null);
       setAddOpen(false);
       return;
     }
@@ -163,10 +165,16 @@ export function WalletPicker() {
     async (key: string, fn: () => Promise<void> | void, guard = false) => {
       if (guard && !canActivateWallet()) return;
       setPending(key);
+      setActionError(null);
       try {
         await fn();
       } catch (err) {
         console.warn("[WalletPicker] action failed", key, err);
+        setActionError(
+          err instanceof Error && err.message
+            ? err.message
+            : "Wallet action failed",
+        );
       } finally {
         setPending(null);
       }
@@ -560,6 +568,14 @@ export function WalletPicker() {
         </div>
 
         <div className="flex flex-col gap-3 overflow-y-auto p-3.5">
+          {actionError ? (
+            <div
+              role="alert"
+              className="border-destructive/25 bg-destructive/10 text-destructive rounded-xl border px-3 py-2 text-xs leading-snug"
+            >
+              {actionError}
+            </div>
+          ) : null}
           {hasConnectedWallets ? (
             <>
               {connectedSection}

@@ -58,7 +58,7 @@ function AomiAuthAdapterSync({ adapter }: { adapter: AomiAuthAdapter }) {
         cluster: identity.solanaCluster ?? undefined,
         wallet_name: identity.solanaWalletName ?? null,
         transport: identity.solanaTransport ?? null,
-        capabilities: toSvmCapabilities(identity.solanaCapabilities) ?? null,
+        capabilities: toSvmCapabilities(identity.solanaCapabilities) ?? [],
       },
       walletProvider: identity.isConnected
         ? (identity.walletProvider ?? null)

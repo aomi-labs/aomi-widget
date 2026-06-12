@@ -144,6 +144,7 @@ export type AomiWalletOptionKind =
  */
 export type AomiWalletOption = {
   id: string;
+  connectorId?: string;
   label: string;
   family: AomiWalletOptionFamily;
   kind: AomiWalletOptionKind;

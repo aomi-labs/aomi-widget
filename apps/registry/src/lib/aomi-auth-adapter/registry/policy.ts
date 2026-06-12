@@ -62,12 +62,23 @@ function findActiveConnection(
   );
 }
 
+function connectionIsDropped(
+  state: WalletRegistryState,
+  connection: RegistryConnection,
+): boolean {
+  return (
+    connection.family === "evm" &&
+    state.intents.droppedAddresses.includes(connection.address.toLowerCase())
+  );
+}
+
 export function resolveActive(
   state: WalletRegistryState,
   family: WalletFamily,
 ): ActiveRef | undefined {
   const familyConnections = state.connections.filter(
-    (connection) => connection.family === family,
+    (connection) =>
+      connection.family === family && !connectionIsDropped(state, connection),
   );
   const current = state.activeByFamily[family];
 
@@ -158,7 +169,14 @@ export function planHeal(
 
   if (state.phase !== "stable") {
     return [
-      { kind: "wagmi/reconnect" },
+      {
+        kind: "wagmi/reconnect",
+        stableIds: [
+          ...new Set(
+            silentReconnectEligible.map((expected) => expected.stableId),
+          ),
+        ],
+      },
       {
         kind: "debug",
         event: "evm:heal",
@@ -180,7 +198,15 @@ export function planHeal(
   for (const expected of missing) {
     if (budget <= 0) break;
     if (!expectedIsHealEligible(state, expected, now)) continue;
-    commands.push({ kind: "wagmi/connect", stableId: expected.stableId });
+    if (
+      !commands.some(
+        (command) =>
+          command.kind === "wagmi/connect" &&
+          command.stableId === expected.stableId,
+      )
+    ) {
+      commands.push({ kind: "wagmi/connect", stableId: expected.stableId });
+    }
     budget -= 1;
   }
   if (commands.length > 0) {
@@ -214,7 +240,7 @@ export function planDisconnect(
     const commands: RegistryCommand[] = [];
     if (families.includes("evm")) {
       for (const connection of state.connections) {
-        if (connection.family === "evm") {
+        if (connection.family === "evm" && connection.uid !== "para-session") {
           commands.push({ kind: "wagmi/disconnect", uid: connection.uid });
         }
       }
