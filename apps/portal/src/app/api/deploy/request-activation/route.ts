@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
-import { appSlug, getDeploymentClient, readDeployEnv } from "@portal/lib/deploy";
+import { buildActivationRequest, buildActivationRequestDiscordBody } from "@aomi-labs/deploy";
+import { appSlug, readDeployEnv } from "@portal/lib/deploy";
 
 // "Publish your own app" — post an activation (access) request to ops via the
 // SDK. Ops invite the GitHub account + issue a per-app code out-of-band. No
@@ -19,15 +20,32 @@ export async function POST(req: Request) {
     }
 
     const env = readDeployEnv();
-    const client = getDeploymentClient(env);
     const app = appSlug(body.app) || appSlug(githubAccount);
 
-    const { payload, posted } = await client.requestActivation({
+    const input = {
       email,
       githubAccount,
       app,
-      actor: githubAccount,
+      platform: env.platform,
+      repo: "",
+    };
+    const payload = buildActivationRequest(input);
+    const discordBody = buildActivationRequestDiscordBody(input, {
+      opsMention: env.opsMention,
     });
+    let posted = false;
+    if (env.discordWebhook) {
+      const res = await fetch(env.discordWebhook, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(discordBody),
+      });
+      if (!res.ok) {
+        const text = await res.text().catch(() => "");
+        throw new Error(`Discord webhook returned ${res.status}: ${text.trim()}`);
+      }
+      posted = true;
+    }
 
     return NextResponse.json({ posted, app: payload.app });
   } catch (err) {

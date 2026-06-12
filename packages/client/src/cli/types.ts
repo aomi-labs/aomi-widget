@@ -3,10 +3,14 @@ import type { AAMode } from "../aa/types";
 export type CliExecutionMode = "aa" | "eoa";
 export type CliAAProvider = "alchemy" | "pimlico";
 export type CliAAMode = AAMode;
+export type CliAccountProvider = "para" | "privy";
 
 export type CliConfig = {
   baseUrl?: string;
   apiKey?: string;
+  accountAccessToken?: string;
+  accountProvider?: CliAccountProvider;
+  accountProviderToken?: string;
   app?: string;
   model?: string;
   freshSession?: boolean;

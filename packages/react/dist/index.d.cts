@@ -401,7 +401,7 @@ type ControlState = {
      *  `appDescriptors`. Kept as a separate field so existing
      *  `authorizedApps.includes(app)` consumers keep working. */
     authorizedApps: string[];
-    /** Full per-app descriptors from `/api/control/apps`, including each
+    /** Full per-app descriptors from `/api/session/apps`, including each
      *  app's declared secret slots. Used by the Secrets settings page to
      *  render slot inputs and by the chat shell to gate app load. */
     appDescriptors: AomiAppDescriptor[];

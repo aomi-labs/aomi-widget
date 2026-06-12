@@ -1,5 +1,5 @@
-import { AomiClient } from "../../client";
 import { CliSession } from "../cli-session";
+import { createCliClient } from "../client-factory";
 import { fatal } from "../errors";
 import { RESET, YELLOW, printDataFileLocation } from "../output";
 import {
@@ -26,8 +26,9 @@ type RemoteSessionStats = {
 
 async function fetchRemoteSessionStats(
   record: StoredSessionRecord,
+  config: CliConfig,
 ): Promise<RemoteSessionStats | null> {
-  const client = new AomiClient({
+  const client = createCliClient(config, {
     baseUrl: record.state.baseUrl,
     apiKey: record.state.apiKey,
   });
@@ -81,7 +82,7 @@ function printSessionSummary(
   printTransactionTable(pendingTxs, signedTxs);
 }
 
-export async function sessionsCommand(_config: CliConfig): Promise<void> {
+export async function sessionsCommand(config: CliConfig): Promise<void> {
   const sessions = listStoredSessions().sort((a, b) => b.updatedAt - a.updatedAt);
   if (sessions.length === 0) {
     console.log("No local sessions.");
@@ -92,7 +93,7 @@ export async function sessionsCommand(_config: CliConfig): Promise<void> {
   const activeSessionId = CliSession.load()?.sessionId;
 
   const statsResults = await Promise.all(
-    sessions.map((record) => fetchRemoteSessionStats(record)),
+    sessions.map((record) => fetchRemoteSessionStats(record, config)),
   );
 
   for (let i = 0; i < sessions.length; i++) {

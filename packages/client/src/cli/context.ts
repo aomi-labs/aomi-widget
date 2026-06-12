@@ -1,14 +1,12 @@
 import { AomiClient } from "../client";
 import type { AomiIngestSecretsResponse } from "../types";
 import type { ClientSession } from "../session";
+import { createCliClient } from "./client-factory";
 import type { CliConfig } from "./types";
 import type { CliSession } from "./cli-session";
 
 export function createControlClient(config: CliConfig): AomiClient {
-  return new AomiClient({
-    baseUrl: config.baseUrl ?? "https://api.aomi.dev",
-    apiKey: config.apiKey,
-  });
+  return createCliClient(config);
 }
 
 export async function ingestSecretsForSession(

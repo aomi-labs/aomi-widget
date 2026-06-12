@@ -3,6 +3,125 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { createAccountAccessTokenProvider } from "../src/account-session";
 import { AomiClient } from "../src/client";
 
+describe("AomiClient account profile", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("fetches the bound account profile with the session header and account bearer", async () => {
+    const profile = {
+      account: {
+        user_id: "user-1",
+        username: null,
+        tier: "free",
+        status: "active",
+        verified_email: "a@b.c",
+      },
+      wallets: [
+        {
+          wallet_id: "wallet-evm-1",
+          address: "0xabc",
+          chain_type: "ethereum",
+          wallet_provider: "privy",
+        },
+      ],
+    };
+    const response = {
+      ok: true,
+      status: 200,
+      statusText: "OK",
+      json: vi.fn(async () => profile),
+    } as unknown as Response;
+    const nativeFetch = vi.fn(async () => response);
+    const originalFetch = globalThis.fetch;
+    vi.stubGlobal("fetch", nativeFetch);
+
+    try {
+      const client = new AomiClient({
+        baseUrl: "http://unit.test",
+        getAccountAccessToken: async () => "bearer-1",
+      });
+
+      const result = await client.fetchAccountProfile("session-1");
+
+      expect(String(nativeFetch.mock.calls[0]?.[0])).toBe(
+        "http://unit.test/api/settings/account",
+      );
+      const headers = new Headers(
+        (nativeFetch.mock.calls[0]?.[1] as RequestInit).headers,
+      );
+      expect(headers.get("Authorization")).toBe("Bearer bearer-1");
+      expect(headers.get("X-Session-Id")).toBe("session-1");
+      expect(result?.account.user_id).toBe("user-1");
+      expect(result?.wallets?.[0]?.wallet_id).toBe("wallet-evm-1");
+    } finally {
+      vi.stubGlobal("fetch", originalFetch);
+    }
+  });
+
+  it("returns null when the session is not bound to an account (HTTP 400)", async () => {
+    const response = {
+      ok: false,
+      status: 400,
+      statusText: "Bad Request",
+      json: vi.fn(async () => ({})),
+    } as unknown as Response;
+    const nativeFetch = vi.fn(async () => response);
+    const originalFetch = globalThis.fetch;
+    vi.stubGlobal("fetch", nativeFetch);
+
+    try {
+      const client = new AomiClient({ baseUrl: "http://unit.test" });
+      expect(await client.fetchAccountProfile("session-1")).toBeNull();
+    } finally {
+      vi.stubGlobal("fetch", originalFetch);
+    }
+  });
+
+  it("sends wallet_family only for non-default beginPrivyAuth flows", async () => {
+    const response = {
+      ok: true,
+      status: 200,
+      statusText: "OK",
+      json: vi.fn(async () => ({
+        state_token: "state-1",
+        auth_url: "https://chat.example/auth/privy?state=state-1",
+        expires_at: 1_800_000_000,
+      })),
+    } as unknown as Response;
+    const nativeFetch = vi.fn(async () => response);
+    const originalFetch = globalThis.fetch;
+    vi.stubGlobal("fetch", nativeFetch);
+
+    try {
+      const client = new AomiClient({ baseUrl: "http://unit.test" });
+
+      await client.beginPrivyAuth("session-1", {
+        application: "byreal",
+        walletFamily: "evm",
+      });
+      await client.beginPrivyAuth("session-1", {
+        application: "byreal",
+        walletFamily: "solana",
+      });
+
+      expect(
+        JSON.parse((nativeFetch.mock.calls[0]?.[1] as RequestInit).body as string),
+      ).toEqual({
+        application: "byreal",
+      });
+      expect(
+        JSON.parse((nativeFetch.mock.calls[1]?.[1] as RequestInit).body as string),
+      ).toEqual({
+        application: "byreal",
+        wallet_family: "solana",
+      });
+    } finally {
+      vi.stubGlobal("fetch", originalFetch);
+    }
+  });
+});
+
 const encoder = new TextEncoder();
 
 const createMockSseConnection = (signal: AbortSignal) => {
@@ -267,6 +386,56 @@ describe("AomiClient transport selection", () => {
       expect(userState.pending.svm_sigs["1"].unsigned_tx).toBeUndefined();
       expect(userState.pending.svm_sigs["1"].unsignedTx).toBeUndefined();
       expect(userState.pending.svm_sigs["1"].pending_svm_sig_id).toBe(1);
+    } finally {
+      vi.stubGlobal("fetch", originalFetch);
+    }
+  });
+
+  it("retries fetchState without sync params when the backend rejects query sync", async () => {
+    const responses = [
+      {
+        ok: false,
+        status: 400,
+        statusText: "Bad Request",
+      },
+      {
+        ok: true,
+        status: 200,
+        statusText: "OK",
+        json: vi.fn(async () => ({ is_processing: false, messages: [] })),
+      },
+    ] as Response[];
+    const nativeFetch = vi.fn(async () => responses.shift() as Response);
+    const originalFetch = globalThis.fetch;
+    vi.stubGlobal("fetch", nativeFetch);
+
+    try {
+      const client = new AomiClient({ baseUrl: "http://unit.test" });
+
+      await expect(
+        client.fetchState(
+          "session-1",
+          {
+            connection: { is_connected: true, provider: "para" },
+            evm: {
+              address: "0xC764D92E312195114595cB645f31C38Fad9c14eE",
+              chain_id: 1,
+            },
+            ext: { client_type: "web_ui" },
+          },
+          "client-1",
+        ),
+      ).resolves.toEqual({ is_processing: false, messages: [] });
+
+      expect(nativeFetch).toHaveBeenCalledTimes(2);
+
+      const firstUrl = new URL(String(nativeFetch.mock.calls[0]?.[0]));
+      expect(firstUrl.searchParams.get("client_id")).toBe("client-1");
+      expect(firstUrl.searchParams.get("user_state")).toBeTruthy();
+
+      const secondUrl = new URL(String(nativeFetch.mock.calls[1]?.[0]));
+      expect(secondUrl.searchParams.get("client_id")).toBeNull();
+      expect(secondUrl.searchParams.get("user_state")).toBeNull();
     } finally {
       vi.stubGlobal("fetch", originalFetch);
     }

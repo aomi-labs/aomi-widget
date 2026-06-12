@@ -1,10 +1,25 @@
 import type { ArgsDef } from "citty";
 import { privateKeyToAccount } from "viem/accounts";
-import type { CliConfig, CliExecutionMode } from "../../types";
+import type {
+  CliAccountProvider,
+  CliConfig,
+  CliExecutionMode,
+} from "../../types";
 import { fatal } from "../../errors";
 import { parseChainId, normalizePrivateKey, parseAAProvider, parseAAMode } from "../../validation";
 
 type SvmCluster = NonNullable<CliConfig["svmCluster"]>;
+
+function parseAccountProvider(
+  raw: string | undefined,
+): CliAccountProvider | undefined {
+  if (!raw) return undefined;
+  const normalized = raw.trim().toLowerCase();
+  if (normalized === "para" || normalized === "privy") {
+    return normalized;
+  }
+  fatal(`Unknown --account-provider value "${raw}". Use "para" or "privy".`);
+}
 
 /**
  * Normalise the user-facing --cluster value to the CAIP-2 form the backend
@@ -42,6 +57,21 @@ export const globalArgs = {
   "api-key": {
     type: "string",
     description: "API key for non-default apps",
+  },
+  "account-bearer": {
+    type: "string",
+    description:
+      "Aomi account bearer for authenticated REST/SSE requests",
+  },
+  "account-provider": {
+    type: "string",
+    description:
+      'Upstream account provider for bearer exchange ("para" or "privy")',
+  },
+  "account-provider-token": {
+    type: "string",
+    description:
+      "Provider-issued token exchanged for an Aomi account bearer",
   },
   app: {
     type: "string",
@@ -134,6 +164,14 @@ export function buildCliConfig(args: Record<string, unknown>): CliConfig {
     str(args["public-key"]) ??
     process.env.AOMI_PUBLIC_KEY;
   const derivedPublicKey = derivePublicKeyFromPrivateKey(privateKey);
+  const accountAccessToken =
+    str(args["account-bearer"]) ?? process.env.AOMI_ACCOUNT_BEARER;
+  const accountProvider = parseAccountProvider(
+    str(args["account-provider"]) ?? process.env.AOMI_ACCOUNT_PROVIDER,
+  );
+  const accountProviderToken =
+    str(args["account-provider-token"]) ??
+    process.env.AOMI_ACCOUNT_PROVIDER_TOKEN;
 
   if (
     configuredPublicKey &&
@@ -153,6 +191,21 @@ export function buildCliConfig(args: Record<string, unknown>): CliConfig {
   if (execution === "eoa" && (aaProvider || aaMode)) {
     fatal("`--aa-provider` and `--aa-mode` cannot be used with `--eoa`.");
   }
+  if (accountAccessToken && (accountProvider || accountProviderToken)) {
+    fatal(
+      "Choose either `--account-bearer` or the `--account-provider` + `--account-provider-token` pair.",
+    );
+  }
+  if (accountProvider && !accountProviderToken) {
+    fatal(
+      "`--account-provider-token` is required when `--account-provider` is set.",
+    );
+  }
+  if (accountProviderToken && !accountProvider) {
+    fatal(
+      "`--account-provider` is required when `--account-provider-token` is set.",
+    );
+  }
 
   const solanaPrivateKey =
     str(args["solana-private-key"]) ?? process.env.SOLANA_PRIVATE_KEY;
@@ -168,6 +221,9 @@ export function buildCliConfig(args: Record<string, unknown>): CliConfig {
     apiKey:
       str(args["api-key"]) ??
       process.env.AOMI_API_KEY,
+    accountAccessToken,
+    accountProvider,
+    accountProviderToken,
     app:
       str(args.app) ??
       process.env.AOMI_APP,
