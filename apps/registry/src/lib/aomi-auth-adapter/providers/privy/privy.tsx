@@ -39,7 +39,11 @@ import type {
   WalletSolanaSignPayload,
   WalletTxPayload,
 } from "@aomi-labs/react";
-import { toAAWalletCalls, toViemSignTypedDataArgs } from "@aomi-labs/react";
+import {
+  ExtUserProvider,
+  toAAWalletCalls,
+  toViemSignTypedDataArgs,
+} from "@aomi-labs/react";
 import { AomiAuthAdapterProvider } from "../../context";
 import {
   AomiWalletNetworkPreferencesProvider,
@@ -794,7 +798,9 @@ export function AomiPrivyProvider({
       evmChains={networks}
       solanaNetworks={supportedSolanaNetworks}
     >
-      <AomiPrivyProviderInner {...rest} networks={networks} solana={solana} />
+      <ExtUserProvider>
+        <AomiPrivyProviderInner {...rest} networks={networks} solana={solana} />
+      </ExtUserProvider>
     </AomiWalletNetworkPreferencesProvider>
   );
 }

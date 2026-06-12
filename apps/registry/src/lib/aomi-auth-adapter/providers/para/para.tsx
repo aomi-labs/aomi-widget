@@ -32,6 +32,7 @@ import {
   polygon,
   sepolia,
 } from "wagmi/chains";
+import type { Connector } from "wagmi";
 import type { WalletEip712Payload, WalletTxPayload } from "@aomi-labs/react";
 import {
   ExtUserProvider,
@@ -78,6 +79,7 @@ import {
 import {
   canonicalWalletKey,
   dedupeWalletOptions,
+  detectEvmProviderBrand,
   isProviderInternalWalletLabel,
   solanaWalletAllowlist,
   toEvmWalletOption,
@@ -249,6 +251,26 @@ function useSafeLogout(): (() => Promise<void>) | null {
   }
 }
 
+async function findConnectorByProviderBrand(
+  connectors: readonly Connector[],
+  expectedKey: string,
+  excludeUid?: string,
+): Promise<Connector | undefined> {
+  for (const connector of connectors) {
+    if (connector.uid === excludeUid || !connector.getProvider) continue;
+    try {
+      const provider = await connector.getProvider();
+      const brand = detectEvmProviderBrand(provider);
+      if (brand && canonicalWalletKey(brand) === expectedKey) {
+        return connector;
+      }
+    } catch {
+      // Keep trying other connectors; provider sniffing is best-effort.
+    }
+  }
+  return undefined;
+}
+
 export type AomiParaAdapterProviderProps = {
   children: ReactNode;
   supportedChains?: readonly Chain[];
@@ -270,7 +292,7 @@ export function AomiParaAdapterProvider({
   const { walletClient } = useSafeWalletClient();
   const { switchChainAsync, isPending } = useSafeSwitchChain();
   const { disconnectAsync: wagmiDisconnectAsync } = useSafeDisconnect();
-  const { reconnect: wagmiReconnect } = useSafeReconnect();
+  const { reconnectAsync: wagmiReconnectAsync } = useSafeReconnect();
   const installedWalletFlags = useInstalledWalletFlags();
   const evmConnections = useSafeConnections();
   const evmConnectors = useSafeConnectors();
@@ -278,7 +300,6 @@ export function AomiParaAdapterProvider({
   const { switchAccountAsync } = useSafeSwitchAccount();
   const { sendTransactionAsync } = useSafeSendTransaction();
   const { sendCallsSyncAsync } = useSafeSendCallsSync();
-  const { capabilities } = useSafeCapabilities();
   const { signTypedDataAsync } = useSafeSignTypedData();
   const { signMessageAsync } = useSafeSignMessage();
   const getWalletClientFor = useSafeGetWalletClientFor();
@@ -319,8 +340,30 @@ export function AomiParaAdapterProvider({
   }, [paraLogout, paraSession]);
   const registryExecutors = useMemo(
     () => ({
-      async wagmiReconnect() {
-        await Promise.resolve(wagmiReconnect?.());
+      async wagmiReconnect(stableIds: string[]) {
+        if (!wagmiReconnectAsync) return;
+        const targets: Connector[] = stableIds
+          .map((stableId) =>
+            evmConnectors.find((candidate) => candidate.id === stableId),
+          )
+          .filter((connector): connector is Connector => Boolean(connector));
+        if (targets.length === 0) {
+          walletDebug("registry:command-skip", {
+            kind: "wagmi/reconnect",
+            stableIds,
+            reason: "connector-missing",
+          });
+          return;
+        }
+        const result = await wagmiReconnectAsync({
+          connectors: targets,
+        } as never);
+        if (Array.isArray(result) && result.length === 0) {
+          walletDebug("evm:heal", {
+            action: "reconnect-empty",
+            stableIds,
+          });
+        }
       },
       async wagmiConnect(stableId: string) {
         if (!wagmiConnectAsync) return;
@@ -360,7 +403,7 @@ export function AomiParaAdapterProvider({
       wagmiConfig.connectors,
       wagmiConnectAsync,
       wagmiDisconnectAsync,
-      wagmiReconnect,
+      wagmiReconnectAsync,
     ],
   );
   const { store: registryStore, state: registryState } = useWalletRegistry({
@@ -423,6 +466,17 @@ export function AomiParaAdapterProvider({
       return connection.address.toLowerCase() === active.address.toLowerCase();
     });
   }, [registryState.activeByFamily.evm, registryState.connections]);
+  const activeConnector = useMemo(() => {
+    const active = registryState.activeByFamily.evm;
+    if (!active?.uid) return undefined;
+    return wagmiConfig.connectors.find(
+      (candidate) => candidate.uid === active.uid,
+    );
+  }, [registryState.activeByFamily.evm, wagmiConfig.connectors]);
+  const { capabilities } = useSafeCapabilities({
+    account: activeEvmConnection?.address as `0x${string}` | undefined,
+    connector: activeConnector,
+  });
   const registryEvmConnected = registryState.connections.some(
     (connection) => connection.family === "evm",
   );
@@ -706,12 +760,6 @@ export function AomiParaAdapterProvider({
                 solanaCluster: resolvedAdapterSolanaConfig.cluster,
               };
 
-    const activeEvm = registryState.activeByFamily.evm;
-    const activeConnector = activeEvm?.uid
-      ? wagmiConfig.connectors.find(
-          (candidate) => candidate.uid === activeEvm.uid,
-        )
-      : undefined;
     const activeConnectorIsPara =
       activeConnector?.id === "para" ||
       canonicalWalletKey(activeConnector?.name ?? "") === "para";
@@ -787,38 +835,38 @@ export function AomiParaAdapterProvider({
           throw new Error(`Unknown account: ${id}`);
         }
         if (target.family === "evm") {
-          const connection = evmConnections.find(
-            (conn) => conn.connectorId === id,
-          );
-          const stableConnectorId =
-            registryState.connections.find((conn) => conn.uid === id)
-              ?.stableId ??
-            wagmiConfig.connectors.find((candidate) => candidate.uid === id)
-              ?.id ??
-            id;
-          if (connection && switchAccountAsync) {
-            const connector = wagmiConfig.connectors.find(
-              (c) => c.uid === connection.connectorId,
+          const connection = registryStore
+            .getSnapshot()
+            .connections.find(
+              (conn) => conn.family === "evm" && conn.uid === id,
             );
-            if (connector) {
-              walletDebug("active-evm:user-select", {
-                address: connection.address,
-                connector: connection.connectorName,
-              });
-              await switchAccountAsync({ connector });
-              registryStore.dispatch({
-                type: "user/select-active",
-                family: "evm",
-                address: connection.address,
-                uid: connection.connectorId,
-                stableId: stableConnectorId,
-                now: Date.now(),
-              });
-            } else {
-              console.warn(
-                `[aomi-auth-adapter] selectAccount: connector not found for ${id}`,
-              );
-            }
+          if (!connection) return;
+          registryStore.dispatch({
+            type: "user/select-active",
+            family: "evm",
+            address: connection.address,
+            uid: connection.uid,
+            stableId: connection.stableId,
+            now: Date.now(),
+          });
+          if (connection.uid === "para-session" || !switchAccountAsync) return;
+          const connector = wagmiConfig.connectors.find(
+            (candidate) => candidate.uid === connection.uid,
+          );
+          if (!connector) {
+            console.warn(
+              `[aomi-auth-adapter] selectAccount: connector not found for ${id}`,
+            );
+            return;
+          }
+          try {
+            await switchAccountAsync({ connector });
+          } catch (error) {
+            walletDebug("active-evm:cosmetic-switch-failed", {
+              uid: connection.uid,
+              stableId: connection.stableId,
+              error: error instanceof Error ? error.message : String(error),
+            });
           }
           return;
         }
@@ -831,7 +879,7 @@ export function AomiParaAdapterProvider({
           option: toEvmWalletOption(candidate, installedWalletFlags),
         }));
         const normalizedId = canonicalWalletKey(id);
-        const target =
+        let target =
           connectorOptions.find(
             ({ option, connector }) => option.id === id || connector.uid === id,
           )?.connector ??
@@ -843,6 +891,36 @@ export function AomiParaAdapterProvider({
               return false;
             return true;
           })?.connector;
+        if (target?.getProvider) {
+          try {
+            const provider = await target.getProvider();
+            const actualKey = canonicalWalletKey(
+              detectEvmProviderBrand(provider) ?? "",
+            );
+            if (actualKey && actualKey !== normalizedId) {
+              const replacement = await findConnectorByProviderBrand(
+                connectorOptions.map(({ connector }) => connector),
+                normalizedId,
+                target.uid,
+              );
+              if (replacement) {
+                walletDebug("evm:connect-brand-mismatch", {
+                  requested: id,
+                  selected: target.id,
+                  actual: actualKey,
+                  replacement: replacement.id,
+                });
+                target = replacement;
+              }
+            }
+          } catch (error) {
+            walletDebug("evm:connect-brand-sniff-failed", {
+              requested: id,
+              connector: target.id,
+              error: error instanceof Error ? error.message : String(error),
+            });
+          }
+        }
         if (target && wagmiConnectAsync) {
           walletDebug("evm:connect-target", {
             requested: id,
@@ -1119,7 +1197,7 @@ export function AomiParaAdapterProvider({
                       sendCallsSyncAsync({
                         ...args,
                         connector: activeConnector,
-                      } as never)
+                      })
                   : undefined,
                 sendTransactionAsync: async (args) =>
                   sendTransactionAsync({
@@ -1188,6 +1266,7 @@ export function AomiParaAdapterProvider({
     };
   }, [
     activeEvmConnection?.chainId,
+    activeConnector,
     capabilities,
     chainsById,
     evmConnections,

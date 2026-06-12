@@ -1,12 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import {
   useSafeConnectors,
   useSafeRawWagmiConnections,
   useSafeWagmiConfig,
 } from "../../../safe-wagmi-hooks";
-import { SETTLE_QUIET_MS } from "../../../registry/types";
 import type { WalletRegistryStore } from "../../../registry/store";
 import { useEvmProviderBrands } from "../../../wallet-brands";
 
@@ -40,17 +39,6 @@ export function useWagmiRegistrySource(store: WalletRegistryStore): void {
   const previousConfigKeyRef = useRef<string | null>(null);
   const previousConnectionsKeyRef = useRef<string | null>(null);
   const previousBrandsKeyRef = useRef<string | null>(null);
-  const settleTimerRef = useRef<number | null>(null);
-
-  const scheduleSettled = useCallback(() => {
-    if (settleTimerRef.current !== null) {
-      window.clearTimeout(settleTimerRef.current);
-    }
-    settleTimerRef.current = window.setTimeout(() => {
-      settleTimerRef.current = null;
-      store.dispatch({ type: "wagmi/settled", now: Date.now() });
-    }, SETTLE_QUIET_MS);
-  }, [store]);
 
   useEffect(() => {
     const mapped = connections.flatMap((connection) =>
@@ -88,14 +76,7 @@ export function useWagmiRegistrySource(store: WalletRegistryStore): void {
       connections: mapped,
       now: Date.now(),
     });
-    scheduleSettled();
-    return () => {
-      if (settleTimerRef.current !== null) {
-        window.clearTimeout(settleTimerRef.current);
-        settleTimerRef.current = null;
-      }
-    };
-  }, [brands, connections, scheduleSettled, store]);
+  }, [brands, connections, store]);
 
   useEffect(() => {
     const key = `${connectorKey}::${chainKey}`;
@@ -106,8 +87,7 @@ export function useWagmiRegistrySource(store: WalletRegistryStore): void {
     if (previousConfigKeyRef.current === key) return;
     previousConfigKeyRef.current = key;
     store.dispatch({ type: "wagmi/config-rebuilt", now: Date.now() });
-    scheduleSettled();
-  }, [chainKey, connectorKey, scheduleSettled, store]);
+  }, [chainKey, connectorKey, store]);
 
   useEffect(() => {
     const key = JSON.stringify(

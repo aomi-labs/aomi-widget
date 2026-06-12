@@ -151,4 +151,13 @@ describe("AomiAuthAdapterProvider user sync", () => {
       });
     });
   });
+
+  it("publishes empty SVM capabilities instead of null for EVM-only identity", async () => {
+    renderWithAdapter(connectedAdapter());
+
+    await waitFor(() => {
+      const state = JSON.parse(screen.getByTestId("user-state").textContent!);
+      expect(state.svm.capabilities).toEqual([]);
+    });
+  });
 });

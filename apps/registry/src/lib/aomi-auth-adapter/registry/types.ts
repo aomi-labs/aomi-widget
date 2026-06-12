@@ -114,7 +114,7 @@ export type RegistryEvent =
     };
 
 export type RegistryCommand =
-  | { kind: "wagmi/reconnect" }
+  | { kind: "wagmi/reconnect"; stableIds: string[] }
   | { kind: "wagmi/connect"; stableId: string }
   | { kind: "wagmi/disconnect"; uid: string }
   | { kind: "para/logout" }

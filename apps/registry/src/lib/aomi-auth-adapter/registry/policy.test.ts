@@ -67,7 +67,10 @@ describe("WalletRegistry policy", () => {
       100,
     );
 
-    expect(commands[0]).toEqual({ kind: "wagmi/reconnect" });
+    expect(commands[0]).toEqual({
+      kind: "wagmi/reconnect",
+      stableIds: ["metaMaskSDK"],
+    });
   });
 
   it("plans silent reconnect during suppressed auth-flow settling", () => {
@@ -84,7 +87,10 @@ describe("WalletRegistry policy", () => {
       100,
     );
 
-    expect(commands).toContainEqual({ kind: "wagmi/reconnect" });
+    expect(commands).toContainEqual({
+      kind: "wagmi/reconnect",
+      stableIds: ["rabby"],
+    });
     expect(commands).toContainEqual({
       kind: "debug",
       event: "evm:heal",
@@ -203,6 +209,7 @@ describe("WalletRegistry policy", () => {
     const current = state({
       connections: [
         conn({ uid: "para-1", stableId: "para", kind: "para" }),
+        conn({ uid: "para-session", stableId: "para", kind: "para" }),
         conn({ uid: "mm-1", stableId: "metaMaskSDK" }),
       ],
     });
@@ -217,6 +224,18 @@ describe("WalletRegistry policy", () => {
       { kind: "wagmi/disconnect", uid: "mm-1" },
       { kind: "para/logout" },
     ]);
+  });
+
+  it("does not resolve a dropped external wallet as active fallback", () => {
+    const active = resolveActive(
+      state({
+        connections: [conn({ address: "0xaaa" })],
+        intents: { droppedAddresses: ["0xaaa"] },
+      }),
+      "evm",
+    );
+
+    expect(active).toBeUndefined();
   });
 
   it("decrements reattach budget through the settled reducer path", () => {

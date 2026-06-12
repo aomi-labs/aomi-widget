@@ -624,6 +624,10 @@ export function reduce(
       let next: WalletRegistryState = {
         ...state,
         activeByFamily,
+        evmGrace:
+          event.family === "all" || event.family === "evm"
+            ? { last: null, disconnectedAt: null }
+            : state.evmGrace,
         connections:
           event.family === "all" || event.family === "evm"
             ? withoutSyntheticParaConnection(state.connections)

@@ -22,8 +22,9 @@ export function useWalletRegistry(opts: {
   const store = useMemo(
     () =>
       new WalletRegistryStore({
-        executors: {
-          wagmiReconnect: () => executorsRef.current.wagmiReconnect(),
+          executors: {
+          wagmiReconnect: (stableIds) =>
+            executorsRef.current.wagmiReconnect(stableIds),
           wagmiConnect: (stableId) =>
             executorsRef.current.wagmiConnect(stableId),
           wagmiDisconnect: (uid) =>
@@ -35,6 +36,7 @@ export function useWalletRegistry(opts: {
       }),
     [opts.storageKey],
   );
+  useEffect(() => () => store.dispose(), [store]);
   const state = useSyncExternalStore(
     (callback) => store.subscribe(callback),
     () => store.getSnapshot(),

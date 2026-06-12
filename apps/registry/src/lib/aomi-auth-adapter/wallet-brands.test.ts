@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { canonicalWalletKey, detectEvmProviderBrand } from "./wallet-brands";
+import {
+  canonicalWalletKey,
+  dedupeWalletOptions,
+  detectEvmProviderBrand,
+} from "./wallet-brands";
 
 describe("canonicalWalletKey", () => {
   it("collapses ids, labels and rdns onto one brand key", () => {
@@ -38,5 +42,31 @@ describe("detectEvmProviderBrand", () => {
     expect(detectEvmProviderBrand(null)).toBeUndefined();
     expect(detectEvmProviderBrand(undefined)).toBeUndefined();
     expect(detectEvmProviderBrand("not-an-object")).toBeUndefined();
+  });
+});
+
+describe("dedupeWalletOptions", () => {
+  it("prefers rdns-backed EIP-6963 options over branded duplicates", () => {
+    const options = dedupeWalletOptions([
+      {
+        id: "metaMaskSDK-uid",
+        connectorId: "metaMaskSDK",
+        label: "MetaMask",
+        family: "evm",
+        kind: "evm",
+        status: "installed",
+      },
+      {
+        id: "io.metamask-uid",
+        connectorId: "io.metamask",
+        label: "MetaMask",
+        family: "evm",
+        kind: "evm",
+        status: "installed",
+      },
+    ]);
+
+    expect(options).toHaveLength(1);
+    expect(options[0]?.id).toBe("io.metamask-uid");
   });
 });
