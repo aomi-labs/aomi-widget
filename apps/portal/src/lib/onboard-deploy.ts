@@ -95,7 +95,7 @@ export function readOnboardDeployEnv(): OnboardDeployEnv {
     .split(",")
     .map((path) => path.trim())
     .filter(Boolean);
-  const targetTags = (process.env.APP_DEPLOY_TARGET_TAGS || "staging")
+  const targetTags = (process.env.APP_DEPLOY_TARGET_TAGS || "")
     .split(",")
     .map((tag) => tag.trim())
     .filter(Boolean);

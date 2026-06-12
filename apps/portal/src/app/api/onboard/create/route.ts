@@ -1,6 +1,8 @@
 import { randomBytes } from "crypto";
 import { NextResponse } from "next/server";
 
+export const runtime = "nodejs";
+
 import {
   type BackendAppSourceResult,
   backendRequest,
