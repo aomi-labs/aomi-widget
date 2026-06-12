@@ -73,11 +73,11 @@
         },
         {
           "type": "registry:component",
-          "path": "lib/aomi-auth-adapter/network-preferences.tsx"
+          "path": "lib/aomi-auth-adapter/aa/owner.ts"
         },
         {
           "type": "registry:component",
-          "path": "lib/aomi-auth-adapter/solana-networks.ts"
+          "path": "lib/aomi-auth-adapter/network-preferences.tsx"
         },
         {
           "type": "registry:component",
@@ -85,11 +85,15 @@
         },
         {
           "type": "registry:component",
-          "path": "lib/aomi-auth-adapter/wallet-brands.ts"
+          "path": "lib/aomi-auth-adapter/wallet-debug.ts"
         },
         {
           "type": "registry:component",
-          "path": "lib/aomi-auth-adapter/wallet-debug.ts"
+          "path": "lib/aomi-auth-adapter/runtime/evm/brands.ts"
+        },
+        {
+          "type": "registry:component",
+          "path": "lib/aomi-auth-adapter/runtime/solana/networks.ts"
         },
         {
           "type": "registry:component",
@@ -245,7 +249,7 @@
         },
         {
           "type": "registry:component",
-          "path": "lib/aomi-auth-adapter/solana-networks.ts"
+          "path": "lib/aomi-auth-adapter/runtime/solana/networks.ts"
         },
         {
           "type": "registry:component",
@@ -255,6 +259,7 @@
       "dependencies": [
         "@aomi-labs/client",
         "@aomi-labs/react",
+        "@getpara/evm-wallet-connectors",
         "@getpara/react-sdk",
         "lucide-react",
         "wagmi"
@@ -445,6 +450,10 @@
         },
         {
           "type": "registry:component",
+          "path": "lib/aomi-auth-adapter/providers/para/para-evm-runtime.tsx"
+        },
+        {
+          "type": "registry:component",
           "path": "lib/aomi-auth-adapter/providers/para/para-sol.tsx"
         },
         {
@@ -453,11 +462,15 @@
         },
         {
           "type": "registry:component",
-          "path": "lib/aomi-auth-adapter/providers/para/use-wallet-registry.ts"
+          "path": "lib/aomi-auth-adapter/registry/use-wallet-registry.ts"
         },
         {
           "type": "registry:component",
-          "path": "lib/aomi-auth-adapter/providers/para/sources/wagmi-source.ts"
+          "path": "lib/aomi-auth-adapter/runtime/evm/registry-source.ts"
+        },
+        {
+          "type": "registry:component",
+          "path": "lib/aomi-auth-adapter/runtime/evm/provider.tsx"
         },
         {
           "type": "registry:component",
@@ -465,15 +478,15 @@
         },
         {
           "type": "registry:component",
-          "path": "lib/aomi-auth-adapter/providers/para/sources/solana-source.ts"
+          "path": "lib/aomi-auth-adapter/runtime/solana/registry-source.ts"
         },
         {
           "type": "registry:component",
-          "path": "lib/aomi-auth-adapter/providers/para/evm-disconnect-plan.ts"
+          "path": "lib/aomi-auth-adapter/runtime/evm/disconnect-plan.ts"
         },
         {
           "type": "registry:component",
-          "path": "lib/aomi-auth-adapter/providers/para/evm-identity-grace.ts"
+          "path": "lib/aomi-auth-adapter/runtime/evm/identity-grace.ts"
         },
         {
           "type": "registry:component",
@@ -485,11 +498,15 @@
         },
         {
           "type": "registry:component",
-          "path": "lib/aomi-auth-adapter/safe-wagmi-hooks.ts"
+          "path": "lib/aomi-auth-adapter/runtime/evm/safe-hooks.ts"
         },
         {
           "type": "registry:component",
-          "path": "lib/aomi-auth-adapter/solana-networks.ts"
+          "path": "lib/aomi-auth-adapter/runtime/evm/brands.ts"
+        },
+        {
+          "type": "registry:component",
+          "path": "lib/aomi-auth-adapter/runtime/solana/networks.ts"
         },
         {
           "type": "registry:component",
@@ -527,7 +544,7 @@
         },
         {
           "type": "registry:component",
-          "path": "lib/aomi-auth-adapter/safe-wagmi-hooks.ts"
+          "path": "lib/aomi-auth-adapter/runtime/evm/safe-hooks.ts"
         },
         {
           "type": "registry:component",
@@ -560,7 +577,7 @@
         },
         {
           "type": "registry:component",
-          "path": "lib/aomi-auth-adapter/safe-wagmi-hooks.ts"
+          "path": "lib/aomi-auth-adapter/runtime/evm/safe-hooks.ts"
         }
       ],
       "dependencies": [

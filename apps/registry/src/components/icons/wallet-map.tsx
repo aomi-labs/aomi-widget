@@ -1,5 +1,5 @@
 import type { FC, SVGProps } from "react";
-import { canonicalWalletKey } from "../../lib/aomi-auth-adapter/wallet-brands";
+import { canonicalWalletKey } from "../../lib/aomi-auth-adapter/runtime/evm/brands";
 import {
   BaseWalletIcon,
   CoinbaseWalletIcon,

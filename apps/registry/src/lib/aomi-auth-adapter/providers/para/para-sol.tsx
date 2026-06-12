@@ -28,7 +28,7 @@ import {
   DEFAULT_SOLANA_RPC_HTTP_URLS,
   normalizeSolanaNetworkOptions,
   resolveSelectedSolanaNetwork,
-} from "../../solana-networks";
+} from "../../runtime/solana/networks";
 import { walletDebug } from "../../wallet-debug";
 
 export type ParaSolanaOptions = {

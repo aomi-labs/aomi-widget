@@ -7,6 +7,7 @@ import {
   type AAMode,
   type AAProvider,
 } from "@aomi-labs/client";
+import { toClientAAOwner, type AomiAAOwnerInput } from "../../aa/owner";
 import type { AomiAuthIdentity } from "../../types";
 import {
   getPreferredRpcUrl,
@@ -14,7 +15,7 @@ import {
   type WalletExecutionCallList,
   type WalletProviderState,
 } from "../../wallet-execution";
-import type { useSafeWalletClient } from "../../safe-wagmi-hooks";
+import type { useSafeWalletClient } from "../../runtime/evm/safe-hooks";
 
 /**
  * Account-abstraction provider resolution for the Para adapter — which AA
@@ -141,18 +142,19 @@ export async function resolveParaAAProviderState({
   }
 
   const ownerBase = {
-    kind: "session" as const,
-    adapter: "para",
+    kind: "provider-session" as const,
+    provider: "para" as const,
     session: paraSession,
     address: address as Hex | undefined,
   };
-  const owner =
+  const ownerInput: AomiAAOwnerInput =
     shouldUseExternalSigner && walletClient
       ? {
           ...ownerBase,
           signer: walletClient,
         }
       : ownerBase;
+  const owner = toClientAAOwner(ownerInput);
 
   try {
     const state = await createAAProviderState({

@@ -10,7 +10,7 @@ import {
 } from "react";
 import type { Chain } from "viem";
 import type { AomiNetworkTarget, SolanaNetworkOption } from "./types";
-import { resolveSelectedSolanaNetwork } from "./solana-networks";
+import { resolveSelectedSolanaNetwork } from "./runtime/solana/networks";
 import { loadWalletPreferences, saveWalletPreferences } from "./persistence";
 
 type NetworkPreferencesContextValue = {

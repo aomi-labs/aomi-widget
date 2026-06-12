@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { resolveGracefulEvmIdentity } from "./evm-identity-grace";
+import { resolveGracefulEvmIdentity } from "./identity-grace";
 
 describe("resolveGracefulEvmIdentity", () => {
   it("preserves a connected EVM identity during a short network handoff", () => {

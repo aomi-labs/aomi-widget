@@ -35,7 +35,7 @@ import {
   useSafeSwitchChain,
   useSafeWagmiAccount,
   useSafeWagmiConfig,
-} from "../../safe-wagmi-hooks";
+} from "../../runtime/evm/safe-hooks";
 import type { AomiAuthAdapter, AomiAuthIdentity } from "../../types";
 import { ExtUserProvider, UserState, useUser } from "@aomi-labs/react";
 import {

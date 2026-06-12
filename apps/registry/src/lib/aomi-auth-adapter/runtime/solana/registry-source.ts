@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useSyncExternalStore } from "react";
-import type { WalletRegistryStore } from "../../../registry/store";
-import type { SafeSolanaWalletState } from "../para-sol";
+import type { WalletRegistryStore } from "../../registry/store";
+import type { SafeSolanaWalletState } from "../../providers/para/para-sol";
 
 const SOLANA_AUTOCONNECT_GRACE_MS = 400;
 

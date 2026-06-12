@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { Connector } from "wagmi";
-import type { AomiWalletOption } from "./types";
+import type { AomiWalletOption } from "../../types";
 
 /**
  * Wallet branding and detection shared by the auth adapters and the picker UI.
