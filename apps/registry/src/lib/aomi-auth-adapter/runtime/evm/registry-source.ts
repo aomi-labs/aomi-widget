@@ -49,8 +49,7 @@ export function useWagmiRegistrySource(store: WalletRegistryStore): void {
         address,
         addresses: [...connection.accounts],
         chainId: connection.chainId,
-        walletName:
-          brands[connection.connectorUid] ?? connection.connectorName,
+        walletName: brands[connection.connectorUid] ?? connection.connectorName,
       })),
     );
     const key = JSON.stringify(
@@ -59,7 +58,9 @@ export function useWagmiRegistrySource(store: WalletRegistryStore): void {
           uid: connection.uid,
           stableId: connection.stableId,
           address: connection.address.toLowerCase(),
-          addresses: connection.addresses.map((address) => address.toLowerCase()),
+          addresses: connection.addresses.map((address) =>
+            address.toLowerCase(),
+          ),
           chainId: connection.chainId ?? null,
           walletName: connection.walletName ?? null,
         }))
@@ -91,7 +92,9 @@ export function useWagmiRegistrySource(store: WalletRegistryStore): void {
 
   useEffect(() => {
     const key = JSON.stringify(
-      Object.entries(brands).sort(([left], [right]) => left.localeCompare(right)),
+      Object.entries(brands).sort(([left], [right]) =>
+        left.localeCompare(right),
+      ),
     );
     if (previousBrandsKeyRef.current === key) return;
     previousBrandsKeyRef.current = key;

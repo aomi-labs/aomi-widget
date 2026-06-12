@@ -13,7 +13,7 @@ export type CommandExecutors = {
   wagmiReconnect(stableIds: string[]): Promise<void>;
   wagmiConnect(stableId: string): Promise<void>;
   wagmiDisconnect(uid: string): Promise<void>;
-  paraLogout(): Promise<void>;
+  providerLogout(): Promise<void>;
 };
 
 export class WalletRegistryStore {
@@ -100,15 +100,18 @@ export class WalletRegistryStore {
           this.executors.wagmiDisconnect(command.uid),
         );
         break;
-      case "para/logout":
-        this.runAsync(command.kind, () => this.executors.paraLogout());
+      case "provider/logout":
+        this.runAsync(command.kind, () => this.executors.providerLogout());
         break;
       default:
         break;
     }
   }
 
-  private runAsync(kind: RegistryCommand["kind"], fn: () => Promise<void>): void {
+  private runAsync(
+    kind: RegistryCommand["kind"],
+    fn: () => Promise<void>,
+  ): void {
     void fn().catch((error: unknown) => {
       walletDebug("registry:command-error", {
         kind,
@@ -125,9 +128,7 @@ export class WalletRegistryStore {
         this.state.heal.suppressionReason === "para-auth-modal" ||
         this.state.heal.suppressionReason === "para-evm-connect-fallback" ||
         this.state.heal.suppressionReason === "para-account-modal");
-    return authFlowSuppressed
-      ? AUTH_FLOW_RECONNECT_SETTLE_MS
-      : SETTLE_QUIET_MS;
+    return authFlowSuppressed ? AUTH_FLOW_RECONNECT_SETTLE_MS : SETTLE_QUIET_MS;
   }
 
   private scheduleSettledPass(delayMs: number): void {

@@ -6,7 +6,7 @@ import { canonicalWalletKey } from "./brands";
 
 export type EvmAccountDisconnectPlan = {
   connectorIds: Set<string>;
-  isParaAccount: boolean;
+  isProviderOwnedAccount: boolean;
   otherConnectionsRemain: boolean;
   sameAddressConnectionsRemain: boolean;
   shouldMarkDroppedAddress: boolean;
@@ -21,7 +21,8 @@ export function planEvmAccountDisconnect({
   connections: readonly WagmiConnectionShape[];
 }): EvmAccountDisconnectPlan {
   const targetAddress = target.address.toLowerCase();
-  const isParaAccount = canonicalWalletKey(target.walletName ?? "") === "para";
+  const isProviderOwnedAccount =
+    canonicalWalletKey(target.walletName ?? "") === "para";
   const targetConnectorIds = new Set([
     target.id,
     ...(target.connectorIds ?? []),
@@ -32,7 +33,7 @@ export function planEvmAccountDisconnect({
     if (connection.address.toLowerCase() !== targetAddress) continue;
     if (!targetConnectorIds.has(connection.connectorId)) continue;
     if (
-      isParaAccount &&
+      isProviderOwnedAccount &&
       canonicalWalletKey(connection.connectorName) !== "para"
     ) {
       continue;
@@ -53,7 +54,7 @@ export function planEvmAccountDisconnect({
 
   return {
     connectorIds,
-    isParaAccount,
+    isProviderOwnedAccount,
     otherConnectionsRemain: remainingConnections.length > 0,
     sameAddressConnectionsRemain,
     shouldMarkDroppedAddress: !sameAddressConnectionsRemain,

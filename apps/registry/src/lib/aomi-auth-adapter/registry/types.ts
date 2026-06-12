@@ -41,10 +41,10 @@ export type WalletRegistryState = {
   activeByFamily: Partial<Record<WalletFamily, ActiveRef>>;
   intents: {
     droppedAddresses: string[];
-    paraDetached: boolean;
+    providerSessionDetached: boolean;
     explicitFamilyDisconnect: Partial<Record<WalletFamily, boolean>>;
     pendingSolanaWallet: string | null;
-    preferParaOnConnect: boolean;
+    preferProviderEmbeddedOnConnect: boolean;
   };
   heal: {
     expected: Array<{ stableId: string; address: string }>;
@@ -72,7 +72,7 @@ export type RegistryEvent =
       embeddedEvmAddress: string | null;
       now: number;
     }
-  | { type: "para/auth-flow-started"; reason: string; now: number }
+  | { type: "provider/auth-flow-started"; reason: string; now: number }
   | {
       type: "solana/changed";
       publicKey: string | null;
@@ -97,12 +97,12 @@ export type RegistryEvent =
       stableId: string;
       now: number;
     }
-  | { type: "user/para-reconnect-requested"; now: number }
+  | { type: "user/provider-reconnect-requested"; now: number }
   | {
       type: "user/disconnect-account";
       address: string;
       uids: string[];
-      isParaAccount: boolean;
+      isProviderOwnedAccount: boolean;
       othersRemain: boolean;
       markDroppedAddress?: boolean;
       now: number;
@@ -117,7 +117,7 @@ export type RegistryCommand =
   | { kind: "wagmi/reconnect"; stableIds: string[] }
   | { kind: "wagmi/connect"; stableId: string }
   | { kind: "wagmi/disconnect"; uid: string }
-  | { kind: "para/logout" }
+  | { kind: "provider/logout" }
   | { kind: "persist" }
   | { kind: "debug"; event: string; data?: Record<string, unknown> };
 
@@ -125,7 +125,7 @@ export type PersistedRegistryV1 = {
   version: 1;
   active: Partial<Record<WalletFamily, { address: string; stableId?: string }>>;
   droppedAddresses: string[];
-  paraDetached: boolean;
+  providerSessionDetached: boolean;
 };
 
 /** Future `GET /api/account/wallets` row; see WALLET-ARCHITECTURE.md §11.3. */

@@ -22,15 +22,15 @@ describe("canonicalWalletKey", () => {
 
 describe("detectEvmProviderBrand", () => {
   it("prefers specific brand flags over the compatibility isMetaMask flag", () => {
-    expect(
-      detectEvmProviderBrand({ isRabby: true, isMetaMask: true }),
-    ).toBe("Rabby");
-    expect(
-      detectEvmProviderBrand({ isPhantom: true, isMetaMask: true }),
-    ).toBe("Phantom");
-    expect(
-      detectEvmProviderBrand({ isRainbow: true, isMetaMask: true }),
-    ).toBe("Rainbow");
+    expect(detectEvmProviderBrand({ isRabby: true, isMetaMask: true })).toBe(
+      "Rabby",
+    );
+    expect(detectEvmProviderBrand({ isPhantom: true, isMetaMask: true })).toBe(
+      "Phantom",
+    );
+    expect(detectEvmProviderBrand({ isRainbow: true, isMetaMask: true })).toBe(
+      "Rainbow",
+    );
   });
 
   it("detects plain MetaMask", () => {

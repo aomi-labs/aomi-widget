@@ -41,7 +41,7 @@ import { walletDebug } from "../../wallet-debug";
 export type EvmWalletRuntimeProviderHooks = {
   /**
    * Provider-owned account/session logout. The registry command is still named
-   * `para/logout` for compatibility, but the runtime only sees a generic
+   * `provider/logout` for compatibility, but the runtime only sees a generic
    * callback here.
    */
   providerLogout?: () => Promise<void>;
@@ -224,7 +224,7 @@ export function useEvmWalletRuntime({
         }
         await wagmiDisconnectAsync({ connector: target });
       },
-      paraLogout: providerHooks.providerLogout ?? (async () => undefined),
+      providerLogout: providerHooks.providerLogout ?? (async () => undefined),
     }),
     [
       evmConnectors,
@@ -471,7 +471,7 @@ export function useEvmWalletRuntime({
       walletDebug("evm:account-sign-out", {
         wallet: target.walletName ?? null,
         address: disconnectPlan.targetAddress,
-        isParaAccount: disconnectPlan.isParaAccount,
+        isProviderOwnedAccount: disconnectPlan.isProviderOwnedAccount,
         disconnecting: [...disconnectPlan.connectorIds],
         othersRemain: disconnectPlan.otherConnectionsRemain,
         sameAddressRemains: disconnectPlan.sameAddressConnectionsRemain,
@@ -480,7 +480,7 @@ export function useEvmWalletRuntime({
         type: "user/disconnect-account",
         address: disconnectPlan.targetAddress,
         uids: [...disconnectPlan.connectorIds],
-        isParaAccount: disconnectPlan.isParaAccount,
+        isProviderOwnedAccount: disconnectPlan.isProviderOwnedAccount,
         othersRemain: disconnectPlan.otherConnectionsRemain,
         markDroppedAddress: disconnectPlan.shouldMarkDroppedAddress,
         now: Date.now(),

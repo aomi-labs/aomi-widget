@@ -43,7 +43,9 @@ describe("WalletRegistry policy", () => {
   it("keeps a live current active connection and refreshes its uid", () => {
     const active = resolveActive(
       state({
-        connections: [conn({ uid: "fresh", stableId: "rabby", address: "0xabc" })],
+        connections: [
+          conn({ uid: "fresh", stableId: "rabby", address: "0xabc" }),
+        ],
         activeByFamily: {
           evm: { family: "evm", address: "0xabc", stableId: "rabby" },
         },
@@ -137,9 +139,9 @@ describe("WalletRegistry policy", () => {
       100,
     );
 
-    expect(commands.filter((command) => command.kind === "wagmi/connect")).toEqual([
-      { kind: "wagmi/connect", stableId: "metaMaskSDK" },
-    ]);
+    expect(
+      commands.filter((command) => command.kind === "wagmi/connect"),
+    ).toEqual([{ kind: "wagmi/connect", stableId: "metaMaskSDK" }]);
   });
 
   it("does not heal dropped, Para, WalletConnect, or suppressed connections", () => {
@@ -222,7 +224,7 @@ describe("WalletRegistry policy", () => {
     expect(commands).toEqual([
       { kind: "wagmi/disconnect", uid: "para-1" },
       { kind: "wagmi/disconnect", uid: "mm-1" },
-      { kind: "para/logout" },
+      { kind: "provider/logout" },
     ]);
   });
 

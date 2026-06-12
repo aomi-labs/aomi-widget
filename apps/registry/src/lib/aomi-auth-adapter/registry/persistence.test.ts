@@ -1,10 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { createInitialState } from "./reducer";
-import {
-  loadPersisted,
-  savePersisted,
-  toPersisted,
-} from "./persistence";
+import { loadPersisted, savePersisted, toPersisted } from "./persistence";
 
 const KEY = "test.aomi.wallet.registry";
 const LEGACY_ACTIVE_EVM_ADDRESS_KEY = "aomi.wallet.active-evm-address";
@@ -45,7 +41,7 @@ describe("WalletRegistry persistence", () => {
       version: 1,
       active: { evm: { address: "0xabc" } },
       droppedAddresses: ["0xdef"],
-      paraDetached: true,
+      providerSessionDetached: true,
     });
     expect(localStorage.getItem(LEGACY_ACTIVE_EVM_ADDRESS_KEY)).toBe("0xABC");
   });
@@ -65,4 +61,3 @@ describe("WalletRegistry persistence", () => {
     expect(loadPersisted(KEY)).toBeNull();
   });
 });
-

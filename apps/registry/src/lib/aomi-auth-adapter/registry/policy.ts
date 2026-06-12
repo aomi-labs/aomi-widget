@@ -105,7 +105,9 @@ export function resolveActive(
     return undefined;
   }
 
-  return familyConnections[0] ? connectionToActive(familyConnections[0]) : undefined;
+  return familyConnections[0]
+    ? connectionToActive(familyConnections[0])
+    : undefined;
 }
 
 function isDropped(state: WalletRegistryState, address: string): boolean {
@@ -134,7 +136,10 @@ function expectedIsHealEligible(
   if (expected.stableId === "para" || expected.stableId === "walletConnect") {
     return false;
   }
-  if (state.heal.suppressedUntil === null || now >= state.heal.suppressedUntil) {
+  if (
+    state.heal.suppressedUntil === null ||
+    now >= state.heal.suppressedUntil
+  ) {
     return true;
   }
   return (
@@ -186,7 +191,7 @@ export function planHeal(
           missing: silentReconnectEligible.length,
           suppressed: Boolean(
             state.heal.suppressedUntil !== null &&
-              now < state.heal.suppressedUntil,
+            now < state.heal.suppressedUntil,
           ),
         },
       },
@@ -223,8 +228,9 @@ export function countPlannedHealConnects(
   state: WalletRegistryState,
   now: number,
 ): number {
-  return planHeal(state, now).filter((command) => command.kind === "wagmi/connect")
-    .length;
+  return planHeal(state, now).filter(
+    (command) => command.kind === "wagmi/connect",
+  ).length;
 }
 
 export function planDisconnect(
@@ -245,7 +251,7 @@ export function planDisconnect(
         }
       }
     }
-    if (event.family === "all") commands.push({ kind: "para/logout" });
+    if (event.family === "all") commands.push({ kind: "provider/logout" });
     return commands;
   }
 
@@ -253,8 +259,8 @@ export function planDisconnect(
     kind: "wagmi/disconnect",
     uid,
   }));
-  if (event.isParaAccount && !event.othersRemain) {
-    commands.push({ kind: "para/logout" });
+  if (event.isProviderOwnedAccount && !event.othersRemain) {
+    commands.push({ kind: "provider/logout" });
   }
   return commands;
 }
