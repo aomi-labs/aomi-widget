@@ -143,7 +143,7 @@ export function AomiParaAdapterProvider({
           reason: "para-more-wallets",
           now: Date.now(),
         });
-        paraModal?.openModal({ step: "AUTH_MAIN" });
+        paraModal?.openModal({ step: "AUTH_ALL_EXTERNAL_WALLETS" });
       },
       onAccountDisconnectPlanned: (disconnectPlan) => {
         if (
