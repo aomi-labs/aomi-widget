@@ -157,17 +157,8 @@ function AomiParaProviderInner({
       walletConnect: walletConnectProjectId
         ? { projectId: walletConnectProjectId }
         : undefined,
-      evmConnector: {
-        config: evmRuntimeConfig,
-      },
     }),
-    [
-      appDescription,
-      appUrl,
-      evmRuntimeConfig,
-      resolvedWallets,
-      walletConnectProjectId,
-    ],
+    [appDescription, appUrl, resolvedWallets, walletConnectProjectId],
   );
 
   const svmEnabled =
