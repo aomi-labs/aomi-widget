@@ -6,6 +6,7 @@ const withMDX = createMDX();
 
 // Absolute paths for webpack aliases
 const landingNodeModules = path.resolve(__dirname, "node_modules");
+const clientPkgSrc = path.resolve(__dirname, "../../packages/client/src");
 const reactPkgSrc = path.resolve(__dirname, "../../packages/react/src");
 const docsSrc = path.resolve(__dirname);
 const landingSrc = path.resolve(__dirname, "src");
@@ -31,6 +32,7 @@ const turbopackAliases: Record<string, string> = {
   // Docs-only interactive components (playground, API consoles) live under content/.
   "@/content": "./content",
   "@/hooks": "./src/hooks",
+  "@aomi-labs/client": "../../packages/client/src/index.ts",
   "@aomi-labs/react": "../../packages/react/src/index.ts",
   "@getpara/react-sdk": "./node_modules/@getpara/react-sdk",
   "@tanstack/react-query": "./node_modules/@tanstack/react-query",
@@ -60,6 +62,7 @@ const nextConfig: NextConfig = {
     ];
   },
   transpilePackages: [
+    "@aomi-labs/client",
     "@aomi-labs/react",
     "@aomi-labs/widget-lib",
     "@getpara/react-sdk",
@@ -88,6 +91,7 @@ const nextConfig: NextConfig = {
       "@/components": registryComponents,
       "@/content": contentDir,
       "@/hooks": path.join(landingSrc, "hooks"),
+      "@aomi-labs/client": path.join(clientPkgSrc, "index.ts"),
       "@aomi-labs/react": path.join(reactPkgSrc, "index.ts"),
       "@getpara/react-sdk": path.join(
         landingNodeModules,
