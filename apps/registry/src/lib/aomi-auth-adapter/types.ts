@@ -11,26 +11,29 @@ import type {
 export type AomiAuthStatus = "booting" | "disconnected" | "connected";
 export type WalletFamily = "evm" | "solana";
 export type WireWalletFamily = "evm" | "svm";
-export type SolanaCluster =
-  | "solana:mainnet"
-  | "solana:devnet"
-  | "solana:testnet";
+export type SvmCluster = "solana:mainnet" | "solana:devnet" | "solana:testnet";
 
-export type SolanaNetworkOption = {
+export type SolanaCluster = SvmCluster;
+
+export type SvmNetworkOption = {
   id: string;
   label: string;
-  cluster: SolanaCluster;
+  cluster: SvmCluster;
   rpcHttpUrl: string;
   rpcWsUrl?: string;
   isDefault?: boolean;
 };
 
-export type SolanaNetworkConfigInput = {
-  networks?: readonly SolanaNetworkOption[];
-  cluster?: SolanaCluster;
+export type SolanaNetworkOption = SvmNetworkOption;
+
+export type SvmNetworkConfigInput = {
+  networks?: readonly SvmNetworkOption[];
+  cluster?: SvmCluster;
   rpcHttpUrl?: string;
   rpcWsUrl?: string;
 };
+
+export type SolanaNetworkConfigInput = SvmNetworkConfigInput;
 
 export type AomiNetworkTarget =
   | { family: "evm"; chainId: number }
@@ -118,12 +121,14 @@ export type AomiAuthIdentity = {
  * actually detected in the browser; `ready` is true when it can be
  * activated (either Installed or auto-loadable like in-browser providers).
  */
-export type SolanaWalletDescriptor = {
+export type SvmWalletDescriptor = {
   name: string;
   ready: boolean;
   installed: boolean;
   iconUrl?: string;
 };
+
+export type SolanaWalletDescriptor = SvmWalletDescriptor;
 
 export type AomiWalletOptionStatus =
   | "installed"

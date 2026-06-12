@@ -365,47 +365,47 @@ describe("WalletRegistry reducer", () => {
     expect(selectEvmIdentity(state, 31, 8453).address).toBeUndefined();
   });
 
-  it("tracks and clears a pending Solana connect request", () => {
+  it("tracks and clears a pending SVM connect request", () => {
     let state = boot();
     state = reduce(state, {
-      type: "solana/connect-requested",
+      type: "svm/connect-requested",
       walletName: "Phantom",
       now: 10,
     });
-    expect(state.intents.pendingSolanaWallet).toBe("Phantom");
+    expect(state.intents.pendingSvmWallet).toBe("Phantom");
 
     state = reduce(state, {
-      type: "solana/changed",
+      type: "svm/changed",
       publicKey: "sol-pubkey",
       walletName: "Phantom",
       now: 20,
     });
 
-    expect(state.intents.pendingSolanaWallet).toBeNull();
+    expect(state.intents.pendingSvmWallet).toBeNull();
     expect(state.activeByFamily.solana).toMatchObject({
       address: "sol-pubkey",
       stableId: "Phantom",
     });
   });
 
-  it("ignores stale Solana connect-settled events for a newer request", () => {
+  it("ignores stale SVM connect-settled events for a newer request", () => {
     let state = boot();
     state = reduce(state, {
-      type: "solana/connect-requested",
+      type: "svm/connect-requested",
       walletName: "Phantom",
       now: 10,
     });
     state = reduce(state, {
-      type: "solana/connect-requested",
+      type: "svm/connect-requested",
       walletName: "Solflare",
       now: 11,
     });
     state = reduce(state, {
-      type: "solana/connect-settled",
+      type: "svm/connect-settled",
       walletName: "Phantom",
       now: 20,
     });
 
-    expect(state.intents.pendingSolanaWallet).toBe("Solflare");
+    expect(state.intents.pendingSvmWallet).toBe("Solflare");
   });
 });

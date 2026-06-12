@@ -11,10 +11,10 @@ import { AomiAuthAdapterProvider } from "../context";
 import type { AomiAccount, AomiAuthAdapter } from "../types";
 import { EVM_IDENTITY_GRACE_MS, REGISTRY_STORAGE_KEY } from "../registry/types";
 import {
-  buildSolanaWalletDescriptors,
-  connectPreferredSolanaWallet,
-} from "../runtime/solana/wallet-runtime";
-import { buildSolanaTransactionMethods } from "../runtime/solana/transactions";
+  buildSvmWalletDescriptors,
+  connectPreferredSvmWallet,
+} from "../runtime/svm/wallet-runtime";
+import { buildSvmTransactionMethods } from "../runtime/svm/transactions";
 import {
   executeAdapterTransaction,
   getPreferredRpcUrl,
@@ -31,6 +31,7 @@ export function AomiAdapterComposer({
   children,
   auth,
   evm,
+  svm: svmProp,
   solana,
   execution,
   account = DISABLED_ACCOUNT_RUNTIME,
@@ -40,6 +41,7 @@ export function AomiAdapterComposer({
   canManageAccount,
   supportedChains,
 }: AomiAdapterComposerProps) {
+  const svm = svmProp ?? solana;
   const { user } = useUser();
   const userAAMode = UserState.aaMode(user);
   const userSmartAccount4337 = UserState.SmartAccount4337(user);
@@ -97,10 +99,10 @@ export function AomiAdapterComposer({
     registryState.phase,
   ]);
 
-  const requestSolanaConnect = useCallback(
+  const requestSvmConnect = useCallback(
     (walletName: string) => {
       registryStore.dispatch({
-        type: "solana/connect-requested",
+        type: "svm/connect-requested",
         walletName,
         now: Date.now(),
       });
@@ -108,15 +110,15 @@ export function AomiAdapterComposer({
     [registryStore],
   );
 
-  const settlePendingSolanaConnect = useCallback(() => {
-    const walletName = registryState.intents.pendingSolanaWallet;
+  const settlePendingSvmConnect = useCallback(() => {
+    const walletName = registryState.intents.pendingSvmWallet;
     if (!walletName) return;
     registryStore.dispatch({
-      type: "solana/connect-settled",
+      type: "svm/connect-settled",
       walletName,
       now: Date.now(),
     });
-  }, [registryState.intents.pendingSolanaWallet, registryStore]);
+  }, [registryState.intents.pendingSvmWallet, registryStore]);
 
   const adapter = useMemo<AomiAuthAdapter>(() => {
     const address = gracefulEvmIdentity.identity.address;
@@ -126,11 +128,11 @@ export function AomiAdapterComposer({
       auth.status === "authenticated" ||
       registryEvmConnected ||
       address ||
-      solana?.wallet.publicKey,
+      svm?.wallet.publicKey,
     );
     const isBooting = auth.status === "booting" && !isConnected;
-    const solanaWalletDescriptors = solana
-      ? buildSolanaWalletDescriptors(solana.wallet)
+    const solanaWalletDescriptors = svm
+      ? buildSvmWalletDescriptors(svm.wallet)
       : [];
     const accounts = buildAdapterAccounts({
       accounts: evm.selectAccounts(Date.now()),
@@ -144,7 +146,7 @@ export function AomiAdapterComposer({
       auth,
     });
     const hasAnyDisconnectablePath = Boolean(
-      evm.canDisconnectEvm || solana?.wallet.disconnect,
+      evm.canDisconnectEvm || svm?.wallet.disconnect,
     );
     const identity = buildAdapterIdentity({
       auth,
@@ -152,7 +154,7 @@ export function AomiAdapterComposer({
       chainId: effectiveChainId ?? undefined,
       isBooting,
       isConnected,
-      solana,
+      svm,
       aa: {
         aaMode: userAAMode ?? "none",
         SmartAccount4337: userSmartAccount4337 ?? undefined,
@@ -165,8 +167,8 @@ export function AomiAdapterComposer({
       },
       walletName: gracefulEvmIdentity.identity.walletName,
     });
-    const solanaMethods = solana
-      ? buildSolanaTransactionMethods(solana.wallet, solana.config)
+    const solanaMethods = svm
+      ? buildSvmTransactionMethods(svm.wallet, svm.config)
       : {};
 
     return {
@@ -198,45 +200,41 @@ export function AomiAdapterComposer({
       },
       solanaWallets: solanaWalletDescriptors,
       connectSolanaWallet:
-        solana?.wallet.select && solana.wallet.connect
+        svm?.wallet.select && svm.wallet.connect
           ? async (walletName: string) => {
-              const target = solana.wallet.wallets.find(
+              const target = svm.wallet.wallets.find(
                 (entry) => entry.adapter.name === walletName,
               );
               if (!target) {
                 throw new Error(`Unknown Solana wallet: ${walletName}`);
               }
               if (
-                solana.wallet.walletName === walletName &&
-                solana.wallet.publicKey
+                svm.wallet.walletName === walletName &&
+                svm.wallet.publicKey
               ) {
                 return;
               }
-              solana.wallet.select!(walletName as never);
-              requestSolanaConnect(walletName);
+              svm.wallet.select!(walletName as never);
+              requestSvmConnect(walletName);
             }
           : undefined,
       supportedChains,
       supportedNetworks: {
         evm: supportedChains,
-        solana: solana?.supportedNetworks ?? [],
+        solana: svm?.supportedNetworks ?? [],
       },
-      solanaNetworkSwitchRequiresReconnect: Boolean(solana?.wallet.publicKey),
+      solanaNetworkSwitchRequiresReconnect: Boolean(svm?.wallet.publicKey),
       connect: async (options) => {
         const requestedFamily = options?.family ?? "evm";
-        if (
-          requestedFamily === "solana" &&
-          solana &&
-          !solana.wallet.publicKey
-        ) {
+        if (requestedFamily === "solana" && svm && !svm.wallet.publicKey) {
           try {
-            const result = await connectPreferredSolanaWallet(solana!.wallet);
+            const result = await connectPreferredSvmWallet(svm.wallet);
             if (result.status === "connected") {
-              settlePendingSolanaConnect();
+              settlePendingSvmConnect();
               return;
             }
             if (result.status === "selecting") {
-              requestSolanaConnect(result.walletName);
+              requestSvmConnect(result.walletName);
               return;
             }
           } catch (error) {
@@ -265,11 +263,11 @@ export function AomiAdapterComposer({
         auth.startFlow?.(wantsAll ? "provider-logout" : "family-disconnect");
         if (
           (wantsAll || requestedFamily === "solana") &&
-          solana?.wallet.publicKey &&
-          solana.wallet.disconnect
+          svm?.wallet.publicKey &&
+          svm.wallet.disconnect
         ) {
           try {
-            await solana.wallet.disconnect();
+            await svm.wallet.disconnect();
           } catch (error) {
             console.warn(
               "[aomi-auth-adapter] Solana wallet disconnect failed",
@@ -286,19 +284,15 @@ export function AomiAdapterComposer({
       },
       openAccountUI: async (options) => {
         const requestedFamily = options?.family ?? "evm";
-        if (
-          requestedFamily === "solana" &&
-          solana &&
-          !solana.wallet.publicKey
-        ) {
+        if (requestedFamily === "solana" && svm && !svm.wallet.publicKey) {
           try {
-            const result = await connectPreferredSolanaWallet(solana.wallet);
+            const result = await connectPreferredSvmWallet(svm.wallet);
             if (result.status === "connected") {
-              settlePendingSolanaConnect();
+              settlePendingSvmConnect();
               return;
             }
             if (result.status === "selecting") {
-              requestSolanaConnect(result.walletName);
+              requestSvmConnect(result.walletName);
             }
           } catch (error) {
             console.warn(
@@ -318,16 +312,16 @@ export function AomiAdapterComposer({
           await evm.switchEvmChain(target.chainId);
           return;
         }
-        if (!solana) return;
+        if (!svm) return;
 
-        settlePendingSolanaConnect();
-        if (solana.selectedNetwork?.id === target.networkId) {
+        settlePendingSvmConnect();
+        if (svm.selectedNetwork?.id === target.networkId) {
           return;
         }
-        if (solana.wallet.publicKey && solana.wallet.disconnect) {
-          await solana.wallet.disconnect();
+        if (svm.wallet.publicKey && svm.wallet.disconnect) {
+          await svm.wallet.disconnect();
         }
-        solana.setSelectedNetworkId(target.networkId);
+        svm.setSelectedNetworkId(target.networkId);
       },
       sendTransaction: execution.evm.sendTransactionAsync
         ? async (payload) => {
@@ -417,9 +411,9 @@ export function AomiAdapterComposer({
     gracefulEvmIdentity.identity.chainId,
     gracefulEvmIdentity.identity.walletName,
     registryStore,
-    requestSolanaConnect,
-    settlePendingSolanaConnect,
-    solana,
+    requestSvmConnect,
+    settlePendingSvmConnect,
+    svm,
     supportedChains,
     transformAccounts,
     userAAMode,

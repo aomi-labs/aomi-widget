@@ -1,20 +1,20 @@
 "use client";
 
 import type {
-  SolanaCluster,
-  SolanaNetworkConfigInput,
-  SolanaNetworkOption,
+  SvmCluster,
+  SvmNetworkConfigInput,
+  SvmNetworkOption,
 } from "../../types";
 
-export const DEFAULT_SOLANA_CLUSTER: SolanaCluster = "solana:mainnet";
+export const DEFAULT_SVM_CLUSTER: SvmCluster = "solana:mainnet";
 
-export const DEFAULT_SOLANA_RPC_HTTP_URLS: Record<SolanaCluster, string> = {
+export const DEFAULT_SVM_RPC_HTTP_URLS: Record<SvmCluster, string> = {
   "solana:mainnet": "https://api.mainnet-beta.solana.com",
   "solana:devnet": "https://api.devnet.solana.com",
   "solana:testnet": "https://api.testnet.solana.com",
 };
 
-export function getDefaultSolanaNetworkLabel(cluster: SolanaCluster): string {
+export function getDefaultSvmNetworkLabel(cluster: SvmCluster): string {
   switch (cluster) {
     case "solana:mainnet":
       return "Solana Mainnet";
@@ -26,45 +26,45 @@ export function getDefaultSolanaNetworkLabel(cluster: SolanaCluster): string {
   }
 }
 
-function buildLegacySolanaNetwork(
-  config?: SolanaNetworkConfigInput,
-): SolanaNetworkOption {
-  const cluster = config?.cluster ?? DEFAULT_SOLANA_CLUSTER;
+function buildLegacySvmNetwork(
+  config?: SvmNetworkConfigInput,
+): SvmNetworkOption {
+  const cluster = config?.cluster ?? DEFAULT_SVM_CLUSTER;
   return {
     id: cluster,
-    label: getDefaultSolanaNetworkLabel(cluster),
+    label: getDefaultSvmNetworkLabel(cluster),
     cluster,
-    rpcHttpUrl:
-      config?.rpcHttpUrl ?? DEFAULT_SOLANA_RPC_HTTP_URLS[cluster],
+    rpcHttpUrl: config?.rpcHttpUrl ?? DEFAULT_SVM_RPC_HTTP_URLS[cluster],
     rpcWsUrl: config?.rpcWsUrl,
     isDefault: true,
   };
 }
 
-export function normalizeSolanaNetworkOptions(
-  config?: SolanaNetworkConfigInput,
-): readonly SolanaNetworkOption[] {
+export function normalizeSvmNetworkOptions(
+  config?: SvmNetworkConfigInput,
+): readonly SvmNetworkOption[] {
   const rawNetworks = config?.networks;
   if (!rawNetworks || rawNetworks.length === 0) {
-    return [buildLegacySolanaNetwork(config)];
+    return [buildLegacySvmNetwork(config)];
   }
 
   return rawNetworks.map((network, index) => ({
     id: network.id,
-    label: network.label || getDefaultSolanaNetworkLabel(network.cluster),
+    label: network.label || getDefaultSvmNetworkLabel(network.cluster),
     cluster: network.cluster,
     rpcHttpUrl:
-      network.rpcHttpUrl ?? DEFAULT_SOLANA_RPC_HTTP_URLS[network.cluster],
+      network.rpcHttpUrl ?? DEFAULT_SVM_RPC_HTTP_URLS[network.cluster],
     rpcWsUrl: network.rpcWsUrl,
     isDefault:
-      network.isDefault ?? (index === 0 && !rawNetworks.some((item) => item.isDefault)),
+      network.isDefault ??
+      (index === 0 && !rawNetworks.some((item) => item.isDefault)),
   }));
 }
 
-export function resolveSelectedSolanaNetwork(
-  networks: readonly SolanaNetworkOption[],
+export function resolveSelectedSvmNetwork(
+  networks: readonly SvmNetworkOption[],
   selectedNetworkId?: string,
-): SolanaNetworkOption {
+): SvmNetworkOption {
   return (
     networks.find((network) => network.id === selectedNetworkId) ??
     networks.find((network) => network.isDefault) ??
@@ -72,14 +72,14 @@ export function resolveSelectedSolanaNetwork(
   );
 }
 
-export function buildDefaultSolanaNetworkOptions(options?: {
+export function buildDefaultSvmNetworkOptions(options?: {
   mainnetRpcHttpUrl?: string;
   mainnetRpcWsUrl?: string;
   devnetRpcHttpUrl?: string;
   devnetRpcWsUrl?: string;
   testnetRpcHttpUrl?: string;
   testnetRpcWsUrl?: string;
-}): readonly SolanaNetworkOption[] {
+}): readonly SvmNetworkOption[] {
   return [
     {
       id: "solana-mainnet",
@@ -87,7 +87,7 @@ export function buildDefaultSolanaNetworkOptions(options?: {
       cluster: "solana:mainnet",
       rpcHttpUrl:
         options?.mainnetRpcHttpUrl ??
-        DEFAULT_SOLANA_RPC_HTTP_URLS["solana:mainnet"],
+        DEFAULT_SVM_RPC_HTTP_URLS["solana:mainnet"],
       rpcWsUrl: options?.mainnetRpcWsUrl,
       isDefault: true,
     },
@@ -96,7 +96,7 @@ export function buildDefaultSolanaNetworkOptions(options?: {
       label: "Solana Devnet",
       cluster: "solana:devnet",
       rpcHttpUrl:
-        options?.devnetRpcHttpUrl ?? DEFAULT_SOLANA_RPC_HTTP_URLS["solana:devnet"],
+        options?.devnetRpcHttpUrl ?? DEFAULT_SVM_RPC_HTTP_URLS["solana:devnet"],
       rpcWsUrl: options?.devnetRpcWsUrl,
     },
     {
@@ -105,8 +105,15 @@ export function buildDefaultSolanaNetworkOptions(options?: {
       cluster: "solana:testnet",
       rpcHttpUrl:
         options?.testnetRpcHttpUrl ??
-        DEFAULT_SOLANA_RPC_HTTP_URLS["solana:testnet"],
+        DEFAULT_SVM_RPC_HTTP_URLS["solana:testnet"],
       rpcWsUrl: options?.testnetRpcWsUrl,
     },
   ];
 }
+
+export const DEFAULT_SOLANA_CLUSTER = DEFAULT_SVM_CLUSTER;
+export const DEFAULT_SOLANA_RPC_HTTP_URLS = DEFAULT_SVM_RPC_HTTP_URLS;
+export const getDefaultSolanaNetworkLabel = getDefaultSvmNetworkLabel;
+export const normalizeSolanaNetworkOptions = normalizeSvmNetworkOptions;
+export const resolveSelectedSolanaNetwork = resolveSelectedSvmNetwork;
+export const buildDefaultSolanaNetworkOptions = buildDefaultSvmNetworkOptions;

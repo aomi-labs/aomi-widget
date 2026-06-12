@@ -6,20 +6,11 @@ import {
   Transaction as SolanaTransaction,
   VersionedTransaction,
 } from "@solana/web3.js";
-import type {
-  AomiWalletOption,
-  SolanaWalletDescriptor,
-} from "../../types";
-import {
-  canonicalWalletKey,
-  solanaWalletAllowlist,
-} from "../evm/brands";
-import {
-  DEFAULT_SOLANA_CLUSTER,
-  DEFAULT_SOLANA_RPC_HTTP_URLS,
-} from "./networks";
+import type { AomiWalletOption, SvmWalletDescriptor } from "../../types";
+import { canonicalWalletKey, solanaWalletAllowlist } from "../evm/brands";
+import { DEFAULT_SVM_CLUSTER, DEFAULT_SVM_RPC_HTTP_URLS } from "./networks";
 
-export type SafeSolanaWalletState = {
+export type SafeSvmWalletState = {
   publicKey: string | undefined;
   connected: boolean;
   connecting: boolean;
@@ -54,8 +45,8 @@ export type SafeSolanaWalletState = {
     | undefined;
 };
 
-export const DEFAULT_SOLANA_ENDPOINT =
-  DEFAULT_SOLANA_RPC_HTTP_URLS[DEFAULT_SOLANA_CLUSTER];
+export const DEFAULT_SVM_ENDPOINT =
+  DEFAULT_SVM_RPC_HTTP_URLS[DEFAULT_SVM_CLUSTER];
 
 type SolanaWalletReadyState =
   | "Installed"
@@ -66,7 +57,7 @@ type SolanaWalletName = Parameters<
   ReturnType<typeof useSolanaWallet>["select"]
 >[0];
 
-export function useSafeSolanaWallet(): SafeSolanaWalletState {
+export function useSafeSvmWallet(): SafeSvmWalletState {
   try {
     const wallet = useSolanaWallet();
     return {
@@ -103,7 +94,7 @@ export function useSafeSolanaWallet(): SafeSolanaWalletState {
   }
 }
 
-export function detectSolanaTransport(
+export function detectSvmTransport(
   walletName: string | undefined,
 ): "extension" | "embedded" | "mwa" {
   const normalized = walletName?.toLowerCase() ?? "";
@@ -130,7 +121,7 @@ function walletPriority(name: string): number {
   return 10;
 }
 
-function pickPreferredSolanaWallet(wallet: SafeSolanaWalletState) {
+function pickPreferredSvmWallet(wallet: SafeSvmWalletState) {
   return [...wallet.wallets]
     .filter((candidate) => isUsableWalletReadyState(candidate.readyState))
     .sort((left, right) => {
@@ -146,7 +137,7 @@ function pickPreferredSolanaWallet(wallet: SafeSolanaWalletState) {
     })[0];
 }
 
-export type SolanaConnectAttempt =
+export type SvmConnectAttempt =
   | { status: "connected" }
   | { status: "unavailable" }
   | {
@@ -154,9 +145,9 @@ export type SolanaConnectAttempt =
       walletName: string;
     };
 
-export async function connectPreferredSolanaWallet(
-  wallet: SafeSolanaWalletState,
-): Promise<SolanaConnectAttempt> {
+export async function connectPreferredSvmWallet(
+  wallet: SafeSvmWalletState,
+): Promise<SvmConnectAttempt> {
   if (wallet.publicKey || wallet.connected) {
     return { status: "connected" };
   }
@@ -170,7 +161,7 @@ export async function connectPreferredSolanaWallet(
     return { status: "connected" };
   }
 
-  const selectedWallet = pickPreferredSolanaWallet(wallet);
+  const selectedWallet = pickPreferredSvmWallet(wallet);
   if (!selectedWallet) {
     return { status: "unavailable" };
   }
@@ -179,7 +170,7 @@ export async function connectPreferredSolanaWallet(
   return { status: "selecting", walletName: selectedWallet.adapter.name };
 }
 
-export function getSolanaCapabilitySnapshot(wallet: SafeSolanaWalletState) {
+export function getSvmCapabilitySnapshot(wallet: SafeSvmWalletState) {
   if (!wallet.publicKey) {
     return undefined;
   }
@@ -192,9 +183,9 @@ export function getSolanaCapabilitySnapshot(wallet: SafeSolanaWalletState) {
   };
 }
 
-export function buildSolanaWalletDescriptors(
-  wallet: SafeSolanaWalletState,
-): SolanaWalletDescriptor[] {
+export function buildSvmWalletDescriptors(
+  wallet: SafeSvmWalletState,
+): SvmWalletDescriptor[] {
   return wallet.wallets
     .filter((entry) =>
       solanaWalletAllowlist.has(canonicalWalletKey(entry.adapter.name)),
@@ -207,8 +198,8 @@ export function buildSolanaWalletDescriptors(
     }));
 }
 
-export function toSolanaWalletOption(
-  descriptor: SolanaWalletDescriptor,
+export function toSvmWalletOption(
+  descriptor: SvmWalletDescriptor,
 ): AomiWalletOption {
   return {
     id: descriptor.name,
@@ -224,3 +215,13 @@ export function toSolanaWalletOption(
     ready: descriptor.ready,
   };
 }
+
+export type SafeSolanaWalletState = SafeSvmWalletState;
+export type SolanaConnectAttempt = SvmConnectAttempt;
+export const DEFAULT_SOLANA_ENDPOINT = DEFAULT_SVM_ENDPOINT;
+export const useSafeSolanaWallet = useSafeSvmWallet;
+export const detectSolanaTransport = detectSvmTransport;
+export const connectPreferredSolanaWallet = connectPreferredSvmWallet;
+export const getSolanaCapabilitySnapshot = getSvmCapabilitySnapshot;
+export const buildSolanaWalletDescriptors = buildSvmWalletDescriptors;
+export const toSolanaWalletOption = toSvmWalletOption;

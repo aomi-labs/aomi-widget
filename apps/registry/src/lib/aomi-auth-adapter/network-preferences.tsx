@@ -10,7 +10,7 @@ import {
 } from "react";
 import type { Chain } from "viem";
 import type { AomiNetworkTarget, SolanaNetworkOption } from "./types";
-import { resolveSelectedSolanaNetwork } from "./runtime/solana/networks";
+import { resolveSelectedSvmNetwork } from "./runtime/svm/networks";
 import { loadWalletPreferences, saveWalletPreferences } from "./persistence";
 
 type NetworkPreferencesContextValue = {
@@ -54,7 +54,7 @@ export function AomiWalletNetworkPreferencesProvider({
     persisted.selectedSolanaNetworkId &&
     solanaNetworks.some((n) => n.id === persisted.selectedSolanaNetworkId)
       ? persisted.selectedSolanaNetworkId
-      : resolveSelectedSolanaNetwork(solanaNetworks)?.id,
+      : resolveSelectedSvmNetwork(solanaNetworks)?.id,
   );
 
   useEffect(() => {
@@ -63,7 +63,9 @@ export function AomiWalletNetworkPreferencesProvider({
       return;
     }
     setSelectedEvmChainId((current) =>
-      evmChains.some((chain) => chain.id === current) ? current : evmChains[0]?.id,
+      evmChains.some((chain) => chain.id === current)
+        ? current
+        : evmChains[0]?.id,
     );
   }, [evmChains]);
 
@@ -75,7 +77,7 @@ export function AomiWalletNetworkPreferencesProvider({
     setSelectedSolanaNetworkId((current) =>
       solanaNetworks.some((network) => network.id === current)
         ? current
-        : resolveSelectedSolanaNetwork(solanaNetworks)?.id,
+        : resolveSelectedSvmNetwork(solanaNetworks)?.id,
     );
   }, [evmChains.length, solanaNetworks]);
 
@@ -89,7 +91,7 @@ export function AomiWalletNetworkPreferencesProvider({
   const selectedSolanaNetwork = useMemo(
     () =>
       solanaNetworks.length
-        ? resolveSelectedSolanaNetwork(solanaNetworks, selectedSolanaNetworkId)
+        ? resolveSelectedSvmNetwork(solanaNetworks, selectedSolanaNetworkId)
         : undefined,
     [selectedSolanaNetworkId, solanaNetworks],
   );

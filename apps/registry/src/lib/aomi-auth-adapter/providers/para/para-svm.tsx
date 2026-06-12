@@ -12,31 +12,29 @@ import {
   type WalletList as SolanaWalletList,
 } from "@getpara/solana-wallet-connectors";
 import { Chain as SolanaMobileChain } from "@solana-mobile/mobile-wallet-adapter-protocol";
-import type { SolanaCluster, SolanaNetworkOption } from "../../types";
+import type { SvmCluster, SvmNetworkOption } from "../../types";
 import {
-  DEFAULT_SOLANA_CLUSTER,
-  normalizeSolanaNetworkOptions,
-  resolveSelectedSolanaNetwork,
-} from "../../runtime/solana/networks";
+  DEFAULT_SVM_CLUSTER,
+  normalizeSvmNetworkOptions,
+  resolveSelectedSvmNetwork,
+} from "../../runtime/svm/networks";
 import { walletDebug } from "../../wallet-debug";
 
 export {
-  connectPreferredSolanaWallet,
-  DEFAULT_SOLANA_ENDPOINT,
-  detectSolanaTransport,
-  getSolanaCapabilitySnapshot,
-  useSafeSolanaWallet,
-  type SafeSolanaWalletState,
-  type SolanaConnectAttempt,
-} from "../../runtime/solana/wallet-runtime";
-export {
-  buildSolanaTransactionMethods as buildParaSolanaMethods,
-} from "../../runtime/solana/transactions";
+  connectPreferredSvmWallet,
+  DEFAULT_SVM_ENDPOINT,
+  detectSvmTransport,
+  getSvmCapabilitySnapshot,
+  useSafeSvmWallet,
+  type SafeSvmWalletState,
+  type SvmConnectAttempt,
+} from "../../runtime/svm/wallet-runtime";
+export { buildSvmTransactionMethods as buildParaSolanaMethods } from "../../runtime/svm/transactions";
 
-export type ParaSolanaOptions = {
+export type ParaSvmOptions = {
   enabled?: boolean;
-  networks?: readonly SolanaNetworkOption[];
-  cluster?: SolanaCluster;
+  networks?: readonly SvmNetworkOption[];
+  cluster?: SvmCluster;
   rpcHttpUrl?: string;
   rpcWsUrl?: string;
   wallets?: SolanaWalletList;
@@ -44,11 +42,11 @@ export type ParaSolanaOptions = {
   preferDirectSend?: boolean;
 };
 
-export type ResolvedSolanaConfig = {
+export type ResolvedSvmConfig = {
   enabled: boolean;
-  networks: readonly SolanaNetworkOption[];
-  activeNetwork: SolanaNetworkOption;
-  cluster: SolanaCluster;
+  networks: readonly SvmNetworkOption[];
+  activeNetwork: SvmNetworkOption;
+  cluster: SvmCluster;
   rpcHttpUrl: string;
   rpcWsUrl?: string;
   wallets: SolanaWalletList;
@@ -56,22 +54,19 @@ export type ResolvedSolanaConfig = {
   preferDirectSend: boolean;
 };
 
-export const DEFAULT_SOLANA_WALLETS: SolanaWalletList = [
+export const DEFAULT_SVM_WALLETS: SolanaWalletList = [
   phantomWallet,
   solflareWallet,
   backpackWallet,
   glowWallet,
 ];
 
-export function resolveParaSolanaConfig(
-  solana?: ParaSolanaOptions,
+export function resolveParaSvmConfig(
+  solana?: ParaSvmOptions,
   selectedNetworkId?: string,
-): ResolvedSolanaConfig {
-  const networks = normalizeSolanaNetworkOptions(solana);
-  const activeNetwork = resolveSelectedSolanaNetwork(
-    networks,
-    selectedNetworkId,
-  );
+): ResolvedSvmConfig {
+  const networks = normalizeSvmNetworkOptions(solana);
+  const activeNetwork = resolveSelectedSvmNetwork(networks, selectedNetworkId);
   const cluster = activeNetwork.cluster;
   return {
     enabled: solana?.enabled ?? true,
@@ -80,13 +75,13 @@ export function resolveParaSolanaConfig(
     cluster,
     rpcHttpUrl: activeNetwork.rpcHttpUrl,
     rpcWsUrl: activeNetwork.rpcWsUrl,
-    wallets: solana?.wallets ?? DEFAULT_SOLANA_WALLETS,
+    wallets: solana?.wallets ?? DEFAULT_SVM_WALLETS,
     mobileChain: solana?.mobileChain ?? (cluster as SolanaMobileChain),
     preferDirectSend: solana?.preferDirectSend ?? true,
   };
 }
 
-export function ParaSolanaWrapper({
+export function ParaSvmWrapper({
   enabled,
   config,
   children,
@@ -132,3 +127,9 @@ export function ParaSolanaWrapper({
     </ParaSolanaProvider>
   );
 }
+
+export type ParaSolanaOptions = ParaSvmOptions;
+export type ResolvedSolanaConfig = ResolvedSvmConfig;
+export const DEFAULT_SOLANA_WALLETS = DEFAULT_SVM_WALLETS;
+export const resolveParaSolanaConfig = resolveParaSvmConfig;
+export const ParaSolanaWrapper = ParaSvmWrapper;
