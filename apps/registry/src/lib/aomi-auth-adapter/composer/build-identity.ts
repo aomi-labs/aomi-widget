@@ -7,7 +7,7 @@ import {
   formatAuthMethod,
 } from "../identity";
 import type { AomiAuthIdentity } from "../types";
-import type { AuthRuntime, SolanaWalletRuntime } from "./types";
+import type { AuthRuntime, SvmWalletRuntime } from "./types";
 
 export function buildAdapterIdentity({
   auth,
@@ -15,7 +15,7 @@ export function buildAdapterIdentity({
   chainId,
   isBooting,
   isConnected,
-  solana,
+  svm,
   aa,
   sponsorship,
   walletName,
@@ -25,7 +25,7 @@ export function buildAdapterIdentity({
   chainId?: number;
   isBooting: boolean;
   isConnected: boolean;
-  solana?: SolanaWalletRuntime;
+  svm?: SvmWalletRuntime;
   aa: Pick<AomiAuthIdentity, "aaMode" | "SmartAccount4337" | "Delegation7702">;
   sponsorship: Pick<
     AomiAuthIdentity,
@@ -33,13 +33,13 @@ export function buildAdapterIdentity({
   >;
   walletName?: string;
 }): AomiAuthIdentity {
-  const svmAddress = solana?.wallet.publicKey;
-  const solanaTransport = detectSolanaTransport(solana?.wallet.walletName);
-  const solanaCapabilities = getSolanaCapabilitySnapshot(solana?.wallet);
-  const baseSolana = {
+  const svmAddress = svm?.wallet.publicKey;
+  const solanaTransport = detectSvmTransport(svm?.wallet.walletName);
+  const solanaCapabilities = getSvmCapabilitySnapshot(svm?.wallet);
+  const baseSvm = {
     svmAddress,
-    solanaCluster: solana?.config.cluster,
-    solanaWalletName: solana?.wallet.walletName,
+    solanaCluster: svm?.config.cluster,
+    solanaWalletName: svm?.wallet.walletName,
     solanaTransport: svmAddress ? solanaTransport : undefined,
     solanaCapabilities,
   };
@@ -48,7 +48,7 @@ export function buildAdapterIdentity({
     return {
       ...AOMI_AUTH_BOOTING_IDENTITY,
       chainId,
-      ...baseSolana,
+      ...baseSvm,
     };
   }
 
@@ -69,7 +69,7 @@ export function buildAdapterIdentity({
       primaryLabel: auth.primaryLabel,
       secondaryLabel:
         formatAuthMethod(auth.authMethod) ?? formatProvider(auth.provider),
-      ...baseSolana,
+      ...baseSvm,
     };
   }
 
@@ -92,7 +92,7 @@ export function buildAdapterIdentity({
         walletName ??
         formatAuthMethod(auth.authMethod ?? "wagmi") ??
         formatProvider(auth.provider),
-      ...baseSolana,
+      ...baseSvm,
     };
   }
 
@@ -111,8 +111,8 @@ export function buildAdapterIdentity({
       authValue: auth.authValue,
       primaryLabel: formatAddress(svmAddress) ?? "Connected Solana wallet",
       secondaryLabel: "Solana",
-      solanaCluster: solana?.config.cluster,
-      solanaWalletName: solana?.wallet.walletName,
+      solanaCluster: svm?.config.cluster,
+      solanaWalletName: svm?.wallet.walletName,
       solanaTransport,
       solanaCapabilities,
     };
@@ -126,7 +126,7 @@ export function buildAdapterIdentity({
     authMethod: auth.authMethod,
     authProvider: auth.authMethod,
     authValue: auth.authValue,
-    solanaCluster: solana?.config.cluster,
+    solanaCluster: svm?.config.cluster,
   };
 }
 
@@ -135,7 +135,7 @@ function formatProvider(provider: AuthRuntime["provider"]): string {
   return provider[0].toUpperCase() + provider.slice(1);
 }
 
-function detectSolanaTransport(
+function detectSvmTransport(
   walletName: string | undefined,
 ): "extension" | "embedded" | "mwa" {
   const normalized = walletName?.toLowerCase() ?? "";
@@ -149,8 +149,8 @@ function detectSolanaTransport(
   return "extension";
 }
 
-function getSolanaCapabilitySnapshot(
-  wallet: SolanaWalletRuntime["wallet"] | undefined,
+function getSvmCapabilitySnapshot(
+  wallet: SvmWalletRuntime["wallet"] | undefined,
 ) {
   if (!wallet?.publicKey) {
     return undefined;

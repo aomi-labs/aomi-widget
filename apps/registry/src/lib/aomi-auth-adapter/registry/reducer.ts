@@ -19,7 +19,7 @@ export function createInitialState(): WalletRegistryState {
       droppedAddresses: [],
       providerSessionDetached: false,
       explicitFamilyDisconnect: {},
-      pendingSolanaWallet: null,
+      pendingSvmWallet: null,
       preferProviderEmbeddedOnConnect: false,
     },
     heal: {
@@ -357,7 +357,7 @@ export function reduce(
           providerSessionDetached:
             event.persisted?.providerSessionDetached ?? false,
           explicitFamilyDisconnect: {},
-          pendingSolanaWallet: null,
+          pendingSvmWallet: null,
           preferProviderEmbeddedOnConnect: false,
         },
       };
@@ -472,14 +472,14 @@ export function reduce(
         },
       };
 
-    case "solana/changed": {
+    case "svm/changed": {
       const connections = state.connections.filter(
         (connection) => connection.family !== "solana",
       );
       const pendingConnected =
         event.publicKey &&
-        state.intents.pendingSolanaWallet &&
-        event.walletName === state.intents.pendingSolanaWallet;
+        state.intents.pendingSvmWallet &&
+        event.walletName === state.intents.pendingSvmWallet;
       if (event.publicKey) {
         connections.push({
           key: `solana:${event.walletName ?? event.publicKey}`,
@@ -498,31 +498,31 @@ export function reduce(
           connections,
           intents: {
             ...state.intents,
-            pendingSolanaWallet: pendingConnected
+            pendingSvmWallet: pendingConnected
               ? null
-              : state.intents.pendingSolanaWallet,
+              : state.intents.pendingSvmWallet,
           },
         },
         ["solana"],
       );
     }
 
-    case "solana/connect-requested":
+    case "svm/connect-requested":
       return {
         ...state,
         intents: {
           ...state.intents,
-          pendingSolanaWallet: event.walletName,
+          pendingSvmWallet: event.walletName,
         },
       };
 
-    case "solana/connect-settled":
-      if (state.intents.pendingSolanaWallet !== event.walletName) return state;
+    case "svm/connect-settled":
+      if (state.intents.pendingSvmWallet !== event.walletName) return state;
       return {
         ...state,
         intents: {
           ...state.intents,
-          pendingSolanaWallet: null,
+          pendingSvmWallet: null,
         },
       };
 

@@ -43,7 +43,7 @@ export type WalletRegistryState = {
     droppedAddresses: string[];
     providerSessionDetached: boolean;
     explicitFamilyDisconnect: Partial<Record<WalletFamily, boolean>>;
-    pendingSolanaWallet: string | null;
+    pendingSvmWallet: string | null;
     preferProviderEmbeddedOnConnect: boolean;
   };
   heal: {
@@ -74,13 +74,13 @@ export type RegistryEvent =
     }
   | { type: "provider/auth-flow-started"; reason: string; now: number }
   | {
-      type: "solana/changed";
+      type: "svm/changed";
       publicKey: string | null;
       walletName: string | null;
       now: number;
     }
-  | { type: "solana/connect-requested"; walletName: string; now: number }
-  | { type: "solana/connect-settled"; walletName: string; now: number }
+  | { type: "svm/connect-requested"; walletName: string; now: number }
+  | { type: "svm/connect-settled"; walletName: string; now: number }
   | {
       type: "user/select-active";
       family: WalletFamily;

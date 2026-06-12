@@ -50,11 +50,11 @@ import {
   useAomiWalletNetworkPreferences,
 } from "../../network-preferences";
 import {
-  DEFAULT_SOLANA_CLUSTER,
-  DEFAULT_SOLANA_RPC_HTTP_URLS,
-  normalizeSolanaNetworkOptions,
-  resolveSelectedSolanaNetwork,
-} from "../../runtime/solana/networks";
+  DEFAULT_SVM_CLUSTER,
+  DEFAULT_SVM_RPC_HTTP_URLS,
+  normalizeSvmNetworkOptions,
+  resolveSelectedSvmNetwork,
+} from "../../runtime/svm/networks";
 import {
   AOMI_AUTH_BOOTING_IDENTITY,
   AOMI_AUTH_DISCONNECTED_IDENTITY,
@@ -78,8 +78,7 @@ import type {
   WalletFamily,
 } from "../../types";
 
-const DEFAULT_SOLANA_ENDPOINT =
-  DEFAULT_SOLANA_RPC_HTTP_URLS[DEFAULT_SOLANA_CLUSTER];
+const DEFAULT_SVM_ENDPOINT = DEFAULT_SVM_RPC_HTTP_URLS[DEFAULT_SVM_CLUSTER];
 
 const defaultNetworks = [
   mainnet,
@@ -92,7 +91,7 @@ const defaultNetworks = [
   lineaSepolia,
 ] as const;
 
-type ResolvedSolanaConfig = {
+type ResolvedSvmConfig = {
   networks: readonly SolanaNetworkOption[];
   activeNetwork: SolanaNetworkOption;
   cluster: SolanaCluster;
@@ -111,7 +110,7 @@ export type AomiPrivyProviderProps = {
   walletConnectProjectId?: string;
   solana?: {
     networks?: readonly SolanaNetworkOption[];
-    cluster?: ResolvedSolanaConfig["cluster"];
+    cluster?: ResolvedSvmConfig["cluster"];
     rpcHttpUrl?: string;
     rpcWsUrl?: string;
     preferDirectSend?: boolean;
@@ -119,9 +118,9 @@ export type AomiPrivyProviderProps = {
 };
 
 // ---------------------------------------------------------------------------
-// base64 / Solana tx helpers — same shape as para-sol.tsx, intentionally
+// base64 / Solana tx helpers — same shape as para-svm.tsx, intentionally
 // duplicated so the registry can ship `aomi-privy-provider` without pulling
-// in `para-sol.tsx`.
+// in `para-svm.tsx`.
 // ---------------------------------------------------------------------------
 
 function decodeBase64(value: string): Uint8Array {
@@ -157,7 +156,7 @@ function deserializeSolanaTransaction(
 // Safe Privy hook wrappers — Privy hooks throw when called outside
 // <PrivyProvider>. The no-appId fallback path renders the adapter without
 // mounting PrivyProvider, so each hook gets a try/catch that returns a
-// disconnected shape (mirrors `useSafeWagmi*` / `useSafeSolanaWallet`).
+// disconnected shape (mirrors `useSafeWagmi*` / `useSafeSvmWallet`).
 // ---------------------------------------------------------------------------
 
 type PrivyHook = ReturnType<typeof usePrivy>;
@@ -202,7 +201,7 @@ function useSafeSmartWallets(): SmartWalletsHook {
   }
 }
 
-function useSafeSolanaWallets(): SolanaWalletsHook {
+function useSafeSvmWallets(): SolanaWalletsHook {
   try {
     return useSolanaWallets();
   } catch {
@@ -230,7 +229,9 @@ const AOMI_AUTH_METHODS = new Set<AomiAuthMethod>([
   "wagmi",
 ]);
 
-function asAomiAuthMethod(value: string | undefined): AomiAuthMethod | undefined {
+function asAomiAuthMethod(
+  value: string | undefined,
+): AomiAuthMethod | undefined {
   return value && AOMI_AUTH_METHODS.has(value as AomiAuthMethod)
     ? (value as AomiAuthMethod)
     : undefined;
@@ -301,12 +302,12 @@ function AomiPrivyAdapterProvider({
   solanaConfig,
 }: {
   children: ReactNode;
-  solanaConfig: ResolvedSolanaConfig;
+  solanaConfig: ResolvedSvmConfig;
 }) {
   const privy = useSafePrivy();
   const { client: smartWalletClient, getClientForChain } =
     useSafeSmartWallets();
-  const { wallets: solanaWallets } = useSafeSolanaWallets();
+  const { wallets: solanaWallets } = useSafeSvmWallets();
   const [activeSolanaAddress, setActiveSolanaAddress] = useState<
     string | undefined
   >();
@@ -713,9 +714,9 @@ function AomiPrivyProviderInner({
     [networks],
   );
 
-  const resolvedSolanaConfig = useMemo<ResolvedSolanaConfig>(() => {
-    const supportedNetworks = normalizeSolanaNetworkOptions(solana);
-    const activeNetwork = resolveSelectedSolanaNetwork(
+  const resolvedSolanaConfig = useMemo<ResolvedSvmConfig>(() => {
+    const supportedNetworks = normalizeSvmNetworkOptions(solana);
+    const activeNetwork = resolveSelectedSvmNetwork(
       supportedNetworks,
       selectedSolanaNetworkId,
     );
@@ -789,7 +790,7 @@ export function AomiPrivyProvider({
   ...rest
 }: AomiPrivyProviderProps) {
   const supportedSolanaNetworks = useMemo(
-    () => normalizeSolanaNetworkOptions(solana),
+    () => normalizeSvmNetworkOptions(solana),
     [solana],
   );
 

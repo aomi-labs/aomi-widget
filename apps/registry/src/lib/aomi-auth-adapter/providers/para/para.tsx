@@ -34,12 +34,12 @@ import {
   AomiParaEvmRuntimeProvider,
   type AomiParaEvmRuntimeConfig,
 } from "./para-evm-runtime";
-import { normalizeSolanaNetworkOptions } from "../../runtime/solana/networks";
+import { normalizeSvmNetworkOptions } from "../../runtime/svm/networks";
 import {
-  ParaSolanaWrapper,
-  resolveParaSolanaConfig,
-  type ParaSolanaOptions,
-} from "./para-sol";
+  ParaSvmWrapper,
+  resolveParaSvmConfig,
+  type ParaSvmOptions,
+} from "./para-svm";
 import {
   AomiParaAdapterProvider,
   type AomiParaAdapterProviderProps,
@@ -59,7 +59,9 @@ export type AomiParaProviderProps = {
   walletConnectProjectId?: string;
   externalWallets?: TExternalWallet[];
   oAuthMethods?: TOAuthMethod[];
-  solana?: ParaSolanaOptions;
+  svm?: ParaSvmOptions;
+  /** @deprecated use `svm` */
+  solana?: ParaSvmOptions;
 };
 
 const defaultNetworks = [
@@ -91,8 +93,10 @@ function AomiParaProviderInner({
     process.env.NEXT_PUBLIC_PROJECT_ID,
   externalWallets = defaultExternalWallets,
   oAuthMethods = defaultOAuthMethods,
+  svm,
   solana,
 }: AomiParaProviderProps) {
+  const svmOptions = svm ?? solana;
   const [queryClient] = useState(() => new QueryClient());
   const routing = useFullTestnet(networks);
   const { selectedSolanaNetworkId } = useAomiWalletNetworkPreferences();
@@ -111,9 +115,9 @@ function AomiParaProviderInner({
     [apiKey, environment],
   );
   const paraConfig = useMemo(() => ({ appName }), [appName]);
-  const resolvedSolanaConfig = useMemo(
-    () => resolveParaSolanaConfig(solana, selectedSolanaNetworkId),
-    [selectedSolanaNetworkId, solana],
+  const resolvedSvmConfig = useMemo(
+    () => resolveParaSvmConfig(svmOptions, selectedSolanaNetworkId),
+    [selectedSolanaNetworkId, svmOptions],
   );
   const transports = useMemo(
     () => routing.transports as Record<number, Transport>,
@@ -148,14 +152,14 @@ function AomiParaProviderInner({
     [routing.routedChains, transports],
   );
 
-  const solanaEnabled =
-    resolvedSolanaConfig.enabled && resolvedSolanaConfig.wallets.length > 0;
+  const svmEnabled =
+    resolvedSvmConfig.enabled && resolvedSvmConfig.wallets.length > 0;
 
-  const solanaProviderConfig = useMemo(
+  const svmProviderConfig = useMemo(
     () => ({
-      wallets: resolvedSolanaConfig.wallets,
-      endpoint: resolvedSolanaConfig.rpcHttpUrl,
-      chain: resolvedSolanaConfig.mobileChain,
+      wallets: resolvedSvmConfig.wallets,
+      endpoint: resolvedSvmConfig.rpcHttpUrl,
+      chain: resolvedSvmConfig.mobileChain,
       appIdentity: {
         name: appName,
         uri: appUrl,
@@ -164,9 +168,9 @@ function AomiParaProviderInner({
     [
       appName,
       appUrl,
-      resolvedSolanaConfig.mobileChain,
-      resolvedSolanaConfig.rpcHttpUrl,
-      resolvedSolanaConfig.wallets,
+      resolvedSvmConfig.mobileChain,
+      resolvedSvmConfig.rpcHttpUrl,
+      resolvedSvmConfig.wallets,
     ],
   );
 
@@ -181,10 +185,10 @@ function AomiParaProviderInner({
             externalWalletConfig={paraExternalWalletConfig}
           >
             <AomiParaEvmRuntimeProvider config={evmRuntimeConfig}>
-              <ParaSolanaWrapper
-                key={resolvedSolanaConfig.activeNetwork.id}
-                enabled={solanaEnabled}
-                config={solanaProviderConfig}
+              <ParaSvmWrapper
+                key={resolvedSvmConfig.activeNetwork.id}
+                enabled={svmEnabled}
+                config={svmProviderConfig}
               >
                 <FullTestnetWalletRouter
                   enabled={routing.enabled}
@@ -193,13 +197,13 @@ function AomiParaProviderInner({
                 >
                   <AomiParaAdapterProvider
                     supportedChains={routing.routedChains}
-                    solanaConfig={resolvedSolanaConfig}
+                    svmConfig={resolvedSvmConfig}
                     oAuthMethods={oAuthMethods}
                   >
                     {children}
                   </AomiParaAdapterProvider>
                 </FullTestnetWalletRouter>
-              </ParaSolanaWrapper>
+              </ParaSvmWrapper>
             </AomiParaEvmRuntimeProvider>
           </ParaProvider>
         ) : (
@@ -210,7 +214,7 @@ function AomiParaProviderInner({
           >
             <AomiParaAdapterProvider
               supportedChains={routing.routedChains}
-              solanaConfig={resolvedSolanaConfig}
+              svmConfig={resolvedSvmConfig}
               oAuthMethods={oAuthMethods}
             >
               {children}
@@ -223,9 +227,10 @@ function AomiParaProviderInner({
 }
 
 export function AomiParaProvider(props: AomiParaProviderProps) {
+  const svmOptions = props.svm ?? props.solana;
   const supportedSolanaNetworks = useMemo(
-    () => normalizeSolanaNetworkOptions(props.solana),
-    [props.solana],
+    () => normalizeSvmNetworkOptions(svmOptions),
+    [svmOptions],
   );
 
   return (

@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
-  normalizeSolanaNetworkOptions,
-  resolveSelectedSolanaNetwork,
+  normalizeSvmNetworkOptions,
+  resolveSelectedSvmNetwork,
 } from "./networks";
 
-describe("solana network resolution", () => {
-  it("resolves the selected Solana network RPC endpoint", () => {
-    const networks = normalizeSolanaNetworkOptions({
+describe("SVM network resolution", () => {
+  it("resolves the selected SVM network RPC endpoint", () => {
+    const networks = normalizeSvmNetworkOptions({
       networks: [
         {
           id: "solana-devnet",
@@ -24,10 +24,7 @@ describe("solana network resolution", () => {
       ],
     });
 
-    const activeNetwork = resolveSelectedSolanaNetwork(
-      networks,
-      "solana-mainnet",
-    );
+    const activeNetwork = resolveSelectedSvmNetwork(networks, "solana-mainnet");
 
     expect(activeNetwork.cluster).toBe("solana:mainnet");
     expect(activeNetwork.rpcHttpUrl).toBe("https://mainnet.example");

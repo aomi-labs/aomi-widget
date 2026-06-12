@@ -129,15 +129,15 @@
         },
         {
           "type": "registry:component",
-          "path": "lib/aomi-auth-adapter/runtime/solana/networks.ts"
+          "path": "lib/aomi-auth-adapter/runtime/svm/networks.ts"
         },
         {
           "type": "registry:component",
-          "path": "lib/aomi-auth-adapter/runtime/solana/transactions.ts"
+          "path": "lib/aomi-auth-adapter/runtime/svm/transactions.ts"
         },
         {
           "type": "registry:component",
-          "path": "lib/aomi-auth-adapter/runtime/solana/wallet-runtime.ts"
+          "path": "lib/aomi-auth-adapter/runtime/svm/wallet-runtime.ts"
         },
         {
           "type": "registry:component",
@@ -293,7 +293,7 @@
         },
         {
           "type": "registry:component",
-          "path": "lib/aomi-auth-adapter/runtime/solana/networks.ts"
+          "path": "lib/aomi-auth-adapter/runtime/svm/networks.ts"
         },
         {
           "type": "registry:component",
@@ -303,7 +303,6 @@
       "dependencies": [
         "@aomi-labs/client",
         "@aomi-labs/react",
-        "@getpara/evm-wallet-connectors",
         "@getpara/react-sdk",
         "lucide-react",
         "wagmi"
@@ -510,7 +509,7 @@
         },
         {
           "type": "registry:component",
-          "path": "lib/aomi-auth-adapter/providers/para/para-sol.tsx"
+          "path": "lib/aomi-auth-adapter/providers/para/para-svm.tsx"
         },
         {
           "type": "registry:component",
@@ -538,7 +537,7 @@
         },
         {
           "type": "registry:component",
-          "path": "lib/aomi-auth-adapter/runtime/solana/registry-source.ts"
+          "path": "lib/aomi-auth-adapter/runtime/svm/registry-source.ts"
         },
         {
           "type": "registry:component",
@@ -566,7 +565,7 @@
         },
         {
           "type": "registry:component",
-          "path": "lib/aomi-auth-adapter/runtime/solana/networks.ts"
+          "path": "lib/aomi-auth-adapter/runtime/svm/networks.ts"
         },
         {
           "type": "registry:component",

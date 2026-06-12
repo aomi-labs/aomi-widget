@@ -9,12 +9,12 @@ import type {
   AomiAuthIdentity,
   AomiAuthMethod,
   AomiWalletOption,
-  SolanaNetworkOption,
+  SvmNetworkOption,
 } from "../types";
 import type { WalletRegistryStore } from "../registry/store";
 import type { WalletRegistryState } from "../registry/types";
 import type { EvmWalletRuntime } from "../runtime/evm/wallet-runtime";
-import type { SafeSolanaWalletState } from "../runtime/solana/wallet-runtime";
+import type { SafeSvmWalletState } from "../runtime/svm/wallet-runtime";
 import type { AccountRuntime } from "../account/types";
 import type {
   ResolveAAProviderState,
@@ -38,18 +38,20 @@ export type AuthRuntime = {
   getCredential?: () => Promise<AomiAccountCredential | null>;
 };
 
-export type SolanaWalletRuntime = {
-  wallet: SafeSolanaWalletState;
+export type SvmWalletRuntime = {
+  wallet: SafeSvmWalletState;
   config: {
     cluster: AomiAuthIdentity["solanaCluster"];
     rpcHttpUrl: string;
     rpcWsUrl?: string;
     preferDirectSend: boolean;
   };
-  supportedNetworks: readonly SolanaNetworkOption[];
-  selectedNetwork?: SolanaNetworkOption;
+  supportedNetworks: readonly SvmNetworkOption[];
+  selectedNetwork?: SvmNetworkOption;
   setSelectedNetworkId: (networkId: string) => void;
 };
+
+export type SolanaWalletRuntime = SvmWalletRuntime;
 
 export type EvmExecutionRuntime = {
   activeConnector?: Connector;
@@ -96,7 +98,9 @@ export type AomiAdapterComposerProps = {
   children: React.ReactNode;
   auth: AuthRuntime;
   evm: EvmWalletRuntime;
-  solana?: SolanaWalletRuntime;
+  svm?: SvmWalletRuntime;
+  /** @deprecated use `svm` */
+  solana?: SvmWalletRuntime;
   execution: ExecutionRuntime;
   account?: AccountRuntime;
   additionalEvmWalletOptions?: readonly AomiWalletOption[];

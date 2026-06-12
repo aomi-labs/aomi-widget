@@ -8,6 +8,6 @@ export * from "./network-preferences";
 export * from "./types";
 export * from "./use-wallet-activation-guard";
 export * from "./runtime/evm/brands";
-export * from "./runtime/solana/networks";
+export * from "./runtime/svm/networks";
 export * from "./wallet-debug";
 export * from "./wallet-family";

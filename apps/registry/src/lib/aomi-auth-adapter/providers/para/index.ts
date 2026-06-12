@@ -1,11 +1,8 @@
 "use client";
 
-export {
-  AomiParaProvider,
-  type AomiParaProviderProps,
-} from "./para";
+export { AomiParaProvider, type AomiParaProviderProps } from "./para";
 export {
   AomiParaAdapterProvider,
   type AomiParaAdapterProviderProps,
 } from "./ParaPluginProvider";
-export type { ParaSolanaOptions, ResolvedSolanaConfig } from "./para-sol";
+export type { ParaSvmOptions, ResolvedSvmConfig } from "./para-svm";

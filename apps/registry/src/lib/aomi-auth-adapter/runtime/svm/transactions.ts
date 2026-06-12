@@ -9,7 +9,7 @@ import type {
   WalletSolanaSignMessagePayload,
   WalletSolanaSignPayload,
 } from "@aomi-labs/react";
-import type { SafeSolanaWalletState } from "./wallet-runtime";
+import type { SafeSvmWalletState } from "./wallet-runtime";
 
 function decodeBase64(value: string): Uint8Array {
   if (typeof Buffer !== "undefined") {
@@ -40,8 +40,8 @@ function deserializeSolanaTransaction(
   }
 }
 
-export function buildSolanaTransactionMethods(
-  wallet: SafeSolanaWalletState,
+export function buildSvmTransactionMethods(
+  wallet: SafeSvmWalletState,
   config: {
     rpcHttpUrl: string;
     rpcWsUrl?: string;
@@ -85,7 +85,7 @@ export function buildSolanaTransactionMethods(
           if (!payload.message) {
             throw new Error("Missing message payload");
           }
-          console.debug("[solana-runtime] signSolanaMessage start", {
+          console.debug("[svm-runtime] signSolanaMessage start", {
             walletName: wallet.walletName,
             connected: wallet.connected,
             publicKey: wallet.publicKey,
@@ -95,7 +95,7 @@ export function buildSolanaTransactionMethods(
             hasSignMessage: Boolean(signMessage),
           });
           const signature = await signMessage(decodeBase64(payload.message));
-          console.debug("[solana-runtime] signSolanaMessage resolved", {
+          console.debug("[svm-runtime] signSolanaMessage resolved", {
             walletName: wallet.walletName,
             publicKey: wallet.publicKey,
             signatureLength: signature.length,
@@ -140,3 +140,5 @@ export function buildSolanaTransactionMethods(
     solanaRpcWsUrl: config.rpcWsUrl,
   };
 }
+
+export const buildSolanaTransactionMethods = buildSvmTransactionMethods;
