@@ -93,6 +93,10 @@
         },
         {
           "type": "registry:component",
+          "path": "lib/aomi-auth-adapter/runtime/evm/identity-grace.ts"
+        },
+        {
+          "type": "registry:component",
           "path": "lib/aomi-auth-adapter/runtime/solana/networks.ts"
         },
         {
@@ -471,6 +475,10 @@
         {
           "type": "registry:component",
           "path": "lib/aomi-auth-adapter/runtime/evm/provider.tsx"
+        },
+        {
+          "type": "registry:component",
+          "path": "lib/aomi-auth-adapter/runtime/evm/wallet-runtime.ts"
         },
         {
           "type": "registry:component",
