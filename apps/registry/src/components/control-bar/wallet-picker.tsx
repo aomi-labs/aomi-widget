@@ -369,7 +369,7 @@ export function WalletPicker() {
             : undefined
         }
         onDisconnect={
-          adapter.disconnect
+          adapter.disconnect && !account.manageable
             ? () =>
                 void runAction(
                   `disconnect:${account.id}`,

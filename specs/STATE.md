@@ -2,9 +2,170 @@
 
 ## Last Updated
 
-2026-06-10 - Round 2: active-wallet enforcement, Phantom autoConnect race, provider subfolders
+2026-06-12 - Wallet refactor review + follow-up fix plan (`WALLET-FOLLOWUP-FIXES.md`)
 
 ## Recent Changes
+
+### Wallet refactor review → WALLET-FOLLOWUP-FIXES.md (2026-06-12)
+
+Full review of the executed `WALLET-REFACTOR-PLAN.md` work plus the manual results in
+`docs/wallet-manual-test-results-2026-06-12.md`. No production code changed; all
+findings + executor instructions live in **`WALLET-FOLLOWUP-FIXES.md`** (repo root).
+Automated baseline green at review time (107 registry tests, 360 root, lint, both
+typechecks). Headline root causes, all code-verified:
+
+- **`/api/state` 400 (rows 19–22) = `svm.capabilities: null`** at `context.tsx:61`;
+  backend `Vec` + `#[serde(default)]` rejects explicit null (proven against the real
+  product-mono deserializer). `auth_method: "wagmi"` is innocent. Fix: `?? []` (F1).
+- **Para-auth wallet wipe with no recovery (rows 7–8) = settle timer killed** in
+  `sources/wagmi-source.ts` — connections-effect cleanup clears the shared timer, the
+  early-return never re-arms it → `wagmi/settled` never fires → `planHeal` never runs.
+  The two earlier "heal timing" hotfixes patched symptoms of this (F2, then F3/F12).
+- **Rabby → add MetaMask no-op (row 12)**: Para's branded MetaMask connector binds
+  Rabby's provider (default-wallet takeover); dedupe discards the real `io.metamask`
+  6963 connector; same-address connect collapses into the Rabby row (F5).
+- **Phantom EVM auto-connect (rows 2/5)**: no-arg wagmi `reconnect()` tries ALL
+  connectors (storage only sorts); heal executor + reconnectOnMount both trigger (F4).
+- **Review defects**: 5792 `connector` silently dropped by `useSafeSendCallsSync`
+  (CRITICAL, F6); capabilities not active-keyed (F7); `selectAccount` dispatch-last +
+  synthetic Para row unselectable (F8); align-to-preference effect deleted undocumented
+  (F9, needs decision); `resolveActive` ignores droppedAddresses (F10); family
+  disconnect grace zombie (F11); picker DO-NOT-TOUCH edit removed per-row Para sign-out
+  (F13, needs decision); + P3 cleanups.
+- **Process**: phases 0–9 were left entirely uncommitted (plan required per-phase
+  commits) — executor must commit the current tree first (fix doc §0).
+
+### Wallet registry refactor: phases 5, 6, 8, 9 + artifacts (2026-06-11)
+
+Branch `polish-multi-wallet`. Continued `WALLET-REFACTOR-PLAN.md` from Phase 5.
+
+- **Phase 5 heal/disconnect is reducer-driven now.** `useWalletRegistry` uses real
+  command executors instead of shadow logging: `wagmi/reconnect`, budgeted
+  `wagmi/connect` by stable connector id, surgical `wagmi/disconnect` by uid, and
+  Para logout via the existing hook/client fallback. The old Para-local heal ladder
+  (`evmReconnect*`, `evmReattach*`, suppression refs, explicit dropped-address refs,
+  active-evm legacy persistence writes) was removed from `para.tsx`. The store
+  destructively migrates the old active/detached localStorage keys into
+  `aomi.wallet.registry.v1`.
+- **Two-pass heal is pinned.** After a config rebuild settles, the first pass runs
+  silent reconnect; if nothing returns, the store schedules a second settled pass so
+  policy can spend the popup reattach budget. Tests cover reconnect -> connect, budget
+  decrement, suppression boundary (`now === suppressedUntil`), dropped-address heal
+  exclusion, and same-address Para sign-out preserving the surviving external wallet.
+- **Disconnect intent is centralized.** Per-row disconnect dispatches
+  `user/disconnect-account` with the existing `evm-disconnect-plan.ts` result; the
+  reducer now has an optional `markDroppedAddress` so signing out Para while a
+  same-address MetaMask/Rabby remains does not suppress the surviving account.
+  Family/all disconnect dispatches `user/disconnect-family`; Solana direct disconnect
+  remains in the adapter for Phase 6 compatibility.
+- **Phase 6 Solana connect machine moved to `sources/solana-source.ts`.** The transient
+  `pendingSolanaWallet` intent lives in the registry, with
+  `solana/connect-requested` and `solana/connect-settled` events. The source owns the
+  400 ms autoConnect grace, observes wallet-adapter `connecting`, calls manual
+  `connect()` once if needed, and avoids re-popping after an observed dismissed attempt.
+  `para.tsx` now only validates/selects a wallet and dispatches the request.
+- **Phase 8 stretch:** added `/privy` in the landing app, rendering the real widget
+  inside `LandingPrivyProvider` for manual Privy matrix runs.
+- **Phase 9 groundwork:** `AomiAccount` gained optional `linked`/`linkedVia` fields, and
+  `registry/types.ts` gained future `WalletLink`. `specs/DOMAIN.md` now records the
+  invariant that active wallet per family is owned by `WalletRegistry` and wallet
+  recovery decisions are reducer transitions. Mechanical grep confirms
+  `useSafeWagmiAccount` is no longer used inside `providers/para/`.
+- **Registry artifacts refreshed.** `apps/registry/src/registry.ts` now includes the
+  registry core/source files and wallet picker stack that were previously stale.
+  Ran `pnpm run build:registry`, synced `apps/registry/dist` into
+  `apps/landing/public/r`, and the pinned registry artifact test is green.
+- **Phase 7 caveat:** the registry file lists/artifacts were refreshed, but the large
+  `para.tsx` decomposition into <400-line modules was not performed in this pass to
+  avoid a high-risk mechanical move on top of behavior changes. This remains the main
+  incomplete item from the written execution plan.
+- **Automated verification run:** registry focused tests (27 registry tests), picker
+  tests, `pnpm --dir apps/registry exec tsc --noEmit`, `pnpm run build:registry`, and
+  `pnpm exec vitest run packages/client/test/registry-chain-artifacts.unit.test.ts`.
+  Manual matrix rows still require browser wallet extensions and are not claimed here.
+
+Follow-up from manual browser testing: opening the Para login modal with external wallets
+connected, then cancelling before login, could wipe all EVM connections because
+`para/auth-flow-started` suppressed popup reattach and the Phase 5 policy did not attempt
+silent recovery during ordinary `settling` transitions. Fixed `planHeal` so non-stable
+missing external wallets run silent `wagmi/reconnect` even while popup reattach is
+suppressed, while still refusing to heal deliberate family disconnects or dropped
+addresses. Debug `evm:heal` now reports `phase` and `suppressed` for this path.
+Second follow-up: allowing popup reattach during Para auth fixed the cancelled-login wipe,
+but it could reopen MetaMask/Rabby while a Google login was still in progress. The store
+now delays the post-`wagmi/reconnect` settled pass from `SETTLE_QUIET_MS` to
+`AUTH_FLOW_RECONNECT_SETTLE_MS` while Para auth suppression is active, so silent reconnect
+gets a chance to restore authorized wallets before the budgeted popup fallback is planned.
+
+### Wallet registry refactor: executable plan (2026-06-11)
+
+Branch `polish-multi-wallet`. New **`WALLET-REFACTOR-PLAN.md` at repo root** — the
+phase-by-phase execution plan implementing WALLET-ARCHITECTURE.md §12, written for an
+executor agent. No code changes. Structure:
+
+- **10 phases (0–9), each independently green + committable**: 0 manual test matrix
+  (16 rows, M1–M16) → 1 WalletRegistry pure core (types/reducer/policy/commands/
+  persistence/store + unit tests, unwired) → 2 sources mounted in **shadow mode**
+  (wagmi/para-session/solana sources dispatch real events, no-op executors,
+  `registry:shadow-diff` comparison logging) → 3 flip identity+accounts to registry
+  selectors (grace preserved as state+selector) → 4 **the behavior flip**: registry-owned
+  active per family + explicit `connector:` threading through every wagmi action
+  (sendTransaction/sendCalls/signTypedData/switchChain/getWalletClient for AA signer),
+  delete the enforcement war + legacy localStorage keys (destructive migration) →
+  5 heal ladder + disconnect intents as reducer policy (two-pass reconnect→connect,
+  budget 2, 5-min suppression; reuses evm-disconnect-plan verbatim) → 6 Solana connect
+  state machine into solana-source → 7 decompose para.tsx (<400-line modules, re-exports
+  keep import sites; fix stale registry.ts file lists; rebuild dist + sync
+  apps/landing/public/r + pinned-artifact test) → 8 optional Privy demo route →
+  9 linking groundwork types (`linked`/`linkedVia` on AomiAccount, `WalletLink`),
+  DOMAIN.md invariants ("never read wagmi current"), cleanup.
+- **Hard guardrails**: DO-NOT-TOUCH list (types.ts additive-only, runtime-tx-handler,
+  picker UI, packages/client, packages/react, context.tsx, backend payloads, privy/
+  base-account until Phase 8); 9-item functional-invariants checklist; 14 documented
+  gotchas (adapter must never unmount, ParaProvider prop stability, wagmi uid regenerates
+  per load → persist address+connector.id, grace stays expired, canConnect ungated,
+  manageable gating, Phantom-EVM 6963 fuzzy match, Rabby brand sniffing, double-path Para
+  logout, switch-in-flight guard, AA both owner shapes/4337-only external, jsdom stubs,
+  pure-reducer Date.now() discipline).
+- **Verified baselines recorded in the plan**: registry suite 67 tests green
+  (`cd apps/registry && pnpm exec vitest run`), registry tsc clean (the previously
+  flagged GITHUB error at para.tsx:231 no longer reproduces), exact build/artifact
+  commands (`pnpm run build:registry` + cp to `apps/landing/public/r/`).
+- Effort map: ~7–10 days core path; Phases 0–4 alone are a coherent smaller PR
+  (headline fixes: stable active wallet, enforcement deleted).
+
+### Wallet architecture document + replan (2026-06-11)
+
+Branch `polish-multi-wallet`. New **`WALLET-ARCHITECTURE.md` at repo root** — no code changes.
+Full-stack explainer + diagnosis + refactor plan for the wallet/auth mess, written after a
+deep sweep of the adapter lib, UI surfaces, AA/CLI flow, host wiring, and the Para/Privy
+official docs + shipped SDK source. Key findings recorded there:
+
+- **Root diagnosis**: Para is both identity provider AND wallet plumbing while we bypass its
+  account model (Para's own "NONE connection mode" — external wallets via
+  `externalWalletConfig` are local wagmi connections, NOT account-associated). Active wallet
+  = wagmi's mutable `current` pointer, which Para's SDK re-asserts via a shipped
+  `connecting_para_connectors` state machine (source-verified) — all rounds 1–5 machinery
+  (enforcement budgets, heal ladder, grace windows) fights that.
+- **Phantom-EVM stability explained**: it connects via wagmi's EIP-6963 injected connector
+  (PHANTOM isn't in our Para external list), bypassing Para's branded-connector lifecycle.
+- **Para AA constraint confirmed**: 7702 = embedded wallets only (EIP-191 prefix vs raw
+  ecrecover); external wallets = 4337 only.
+- **Para Account Linking** exists (getLinkedAccounts/linkAccount/verifyExternalWalletLink,
+  June 2025) but is thinly documented; Para JWT carries `wallets[]` + `connectedWallets[]`.
+  Privy's linked-accounts natively models the end-state (unlimited linked wallets,
+  identity tokens). `/api/account/sessions/exchange` already accepts both providers.
+- **Proposed target architecture** (doc §12): single owned WalletRegistry store (pure
+  reducer), wagmi/Para/wallet-adapter demoted to event sources, active-per-family declared
+  not derived, signing routed via wagmi's explicit `connector` param (verified in
+  @wagmi/core types) so the `current` pointer is never read → enforcement deleted.
+  One versioned localStorage key replaces active-evm-address + detached-para keys.
+- **8-step plan for next PR** (doc §13): test matrix → registry in shadow mode → flip
+  identity/accounts → flip signing + delete enforcement → reducerize heal/intent →
+  decompose para.tsx (<400-line modules) → Privy demo route → linking type groundwork.
+- **Open product decisions** (doc §14): linking strategy (Para linking vs Privy vs own
+  signature-challenge), offer-linking UX, possibly migrating MM/Rabby to plain 6963
+  connectors, SVM cluster-switch remount UX.
 
 ### Wallet round 5: adapter must never unmount + re-attach popup cap (2026-06-10)
 

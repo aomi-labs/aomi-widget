@@ -2,6 +2,7 @@
 
 import { useMemo } from "react";
 import type { Chain } from "viem";
+import { getWalletClient } from "wagmi/actions";
 import {
   useAccount,
   useCapabilities,
@@ -65,6 +66,25 @@ export function useSafeWalletClient(): {
   }
 }
 
+export function useSafeGetWalletClientFor(): (args: {
+  connector?: Connector;
+  chainId?: number;
+}) => Promise<ReturnType<typeof useWalletClient>["data"] | null> {
+  try {
+    const config = useConfig();
+    return async ({ connector, chainId }) => {
+      if (!connector) return null;
+      try {
+        return await getWalletClient(config, { connector, chainId } as never);
+      } catch {
+        return null;
+      }
+    };
+  } catch {
+    return async () => null;
+  }
+}
+
 export function useSafeWagmiConfig(): WagmiConfigShape {
   try {
     const config = useConfig();
@@ -78,7 +98,10 @@ export function useSafeWagmiConfig(): WagmiConfigShape {
 }
 
 export function useSafeSwitchChain(): {
-  switchChainAsync?: (args: { chainId: number }) => Promise<unknown>;
+  switchChainAsync?: (args: {
+    chainId: number;
+    connector?: Connector;
+  }) => Promise<unknown>;
   isPending: boolean;
 } {
   try {
@@ -98,6 +121,7 @@ export function useSafeSwitchChain(): {
 export function useSafeSendTransaction(): {
   sendTransactionAsync?: (args: {
     chainId?: number;
+    connector?: Connector;
     to: `0x${string}`;
     value?: bigint;
     data?: `0x${string}`;
@@ -107,6 +131,7 @@ export function useSafeSendTransaction(): {
     return useSendTransaction() as {
       sendTransactionAsync?: (args: {
         chainId?: number;
+        connector?: Connector;
         to: `0x${string}`;
         value?: bigint;
         data?: `0x${string}`;
@@ -242,6 +267,35 @@ export type WagmiConnectionShape = {
   address: `0x${string}`;
   chainId?: number;
 };
+
+export type RawWagmiConnectionShape = {
+  connectorId: string;
+  connectorUid: string;
+  connectorName: string;
+  accounts: readonly `0x${string}`[];
+  chainId?: number;
+};
+
+export function useSafeRawWagmiConnections(): RawWagmiConnectionShape[] {
+  try {
+    const connections = useConnections();
+    return useMemo(
+      () =>
+        connections.map((connection) => ({
+          connectorId: connection.connector.id,
+          connectorUid: connection.connector.uid,
+          connectorName: connection.connector.name,
+          accounts: connection.accounts.filter(
+            (address): address is `0x${string}` => address.startsWith("0x"),
+          ),
+          chainId: connection.chainId,
+        })),
+      [connections],
+    );
+  } catch {
+    return [];
+  }
+}
 
 export function useSafeConnections(): WagmiConnectionShape[] {
   try {

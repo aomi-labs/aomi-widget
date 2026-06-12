@@ -185,6 +185,8 @@ export type AomiAccount = {
    * The handler is the adapter's `openAccountUI({ family })`.
    */
   manageable?: boolean;
+  linked?: boolean;
+  linkedVia?: "para" | "privy" | "challenge";
 };
 
 export type AomiTxResult = {
