@@ -17,10 +17,10 @@ export function createInitialState(): WalletRegistryState {
     activeByFamily: {},
     intents: {
       droppedAddresses: [],
-      paraDetached: false,
+      providerSessionDetached: false,
       explicitFamilyDisconnect: {},
       pendingSolanaWallet: null,
-      preferParaOnConnect: false,
+      preferProviderEmbeddedOnConnect: false,
     },
     heal: {
       expected: [],
@@ -136,7 +136,11 @@ function withParaSessionConnection(
 ): WalletRegistryState {
   const connections = withoutSyntheticParaConnection(state.connections);
   const address = state.paraSession.embeddedEvmAddress;
-  if (!state.paraSession.up || !address || state.intents.paraDetached) {
+  if (
+    !state.paraSession.up ||
+    !address ||
+    state.intents.providerSessionDetached
+  ) {
     return { ...state, connections };
   }
   const hasLiveParaConnection = connections.some(
@@ -190,7 +194,7 @@ function liveConnectionForActive(
 function withPreferredParaActive(
   state: WalletRegistryState,
 ): WalletRegistryState {
-  if (!state.intents.preferParaOnConnect) return state;
+  if (!state.intents.preferProviderEmbeddedOnConnect) return state;
   const para = state.connections.find(
     (connection) =>
       connection.family === "evm" && connection.stableId === "para",
@@ -211,7 +215,7 @@ function withPreferredParaActive(
     },
     intents: {
       ...state.intents,
-      preferParaOnConnect: false,
+      preferProviderEmbeddedOnConnect: false,
     },
   };
 }
@@ -350,10 +354,11 @@ export function reduce(
             event.persisted?.droppedAddresses.map((item) =>
               item.toLowerCase(),
             ) ?? [],
-          paraDetached: event.persisted?.paraDetached ?? false,
+          providerSessionDetached:
+            event.persisted?.providerSessionDetached ?? false,
           explicitFamilyDisconnect: {},
           pendingSolanaWallet: null,
-          preferParaOnConnect: false,
+          preferProviderEmbeddedOnConnect: false,
         },
       };
     }
@@ -457,7 +462,7 @@ export function reduce(
       return withEvmGrace(state, next, event.now);
     }
 
-    case "para/auth-flow-started":
+    case "provider/auth-flow-started":
       return {
         ...state,
         heal: {
@@ -538,7 +543,7 @@ export function reduce(
         },
         intents: {
           ...state.intents,
-          preferParaOnConnect: false,
+          preferProviderEmbeddedOnConnect: false,
           explicitFamilyDisconnect: {
             ...state.intents.explicitFamilyDisconnect,
             [event.family]: false,
@@ -557,27 +562,29 @@ export function reduce(
                   (address) => address !== event.address.toLowerCase(),
                 )
               : state.intents.droppedAddresses,
-          paraDetached:
+          providerSessionDetached:
             event.family === "evm" && event.stableId === "para"
               ? false
-              : state.intents.paraDetached,
+              : state.intents.providerSessionDetached,
           explicitFamilyDisconnect: {
             ...state.intents.explicitFamilyDisconnect,
             [event.family]: false,
           },
-          preferParaOnConnect: false,
+          preferProviderEmbeddedOnConnect: false,
         },
       };
 
-    case "user/para-reconnect-requested":
-      return withPreferredParaActive(withParaSessionConnection({
-        ...state,
-        intents: {
-          ...state.intents,
-          paraDetached: false,
-          preferParaOnConnect: true,
-        },
-      }));
+    case "user/provider-reconnect-requested":
+      return withPreferredParaActive(
+        withParaSessionConnection({
+          ...state,
+          intents: {
+            ...state.intents,
+            providerSessionDetached: false,
+            preferProviderEmbeddedOnConnect: true,
+          },
+        }),
+      );
 
     case "user/disconnect-account": {
       const filtered = state.connections.filter(
@@ -594,13 +601,13 @@ export function reduce(
         intents: {
           ...state.intents,
           droppedAddresses:
-            event.markDroppedAddress ?? true
+            (event.markDroppedAddress ?? true)
               ? addDroppedAddress(state.intents.droppedAddresses, event.address)
               : [...state.intents.droppedAddresses],
-          paraDetached:
-            event.isParaAccount && event.othersRemain
+          providerSessionDetached:
+            event.isProviderOwnedAccount && event.othersRemain
               ? true
-              : state.intents.paraDetached,
+              : state.intents.providerSessionDetached,
         },
       };
       next = withParaSessionConnection(next);
@@ -635,10 +642,10 @@ export function reduce(
         intents: {
           ...state.intents,
           explicitFamilyDisconnect,
-          paraDetached:
+          providerSessionDetached:
             event.family === "all" || event.family === "evm"
               ? true
-              : state.intents.paraDetached,
+              : state.intents.providerSessionDetached,
         },
       };
       next = withParaSessionConnection(next);

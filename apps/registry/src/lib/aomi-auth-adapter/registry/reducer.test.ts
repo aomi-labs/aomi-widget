@@ -36,7 +36,7 @@ describe("WalletRegistry reducer", () => {
         version: 1,
         active: { evm: { address: "0xbbb", stableId: "rabby" } },
         droppedAddresses: [],
-        paraDetached: false,
+        providerSessionDetached: false,
       },
       now: 0,
     });
@@ -162,7 +162,7 @@ describe("WalletRegistry reducer", () => {
     });
 
     state = reduce(state, {
-      type: "user/para-reconnect-requested",
+      type: "user/provider-reconnect-requested",
       now: 30,
     });
     state = reduce(state, {
@@ -193,7 +193,7 @@ describe("WalletRegistry reducer", () => {
     });
     state = reduce(state, { type: "wagmi/settled", now: 20 });
     state = reduce(state, {
-      type: "user/para-reconnect-requested",
+      type: "user/provider-reconnect-requested",
       now: 30,
     });
     state = reduce(state, {
@@ -207,7 +207,7 @@ describe("WalletRegistry reducer", () => {
       address: "0xbbb",
       stableId: "rabby",
     });
-    expect(state.intents.preferParaOnConnect).toBe(true);
+    expect(state.intents.preferProviderEmbeddedOnConnect).toBe(true);
   });
 
   it("does not recreate the synthetic Para connection while locally detached", () => {
@@ -216,7 +216,7 @@ describe("WalletRegistry reducer", () => {
       ...state,
       intents: {
         ...state.intents,
-        paraDetached: true,
+        providerSessionDetached: true,
       },
     };
     state = reduce(state, {
@@ -267,7 +267,7 @@ describe("WalletRegistry reducer", () => {
       type: "user/disconnect-account",
       address: "0xBBB",
       uids: ["mm-1"],
-      isParaAccount: false,
+      isProviderOwnedAccount: false,
       othersRemain: false,
       now: 10,
     });
@@ -296,14 +296,17 @@ describe("WalletRegistry reducer", () => {
       ...state,
       intents: {
         ...state.intents,
-        paraDetached: true,
+        providerSessionDetached: true,
         droppedAddresses: ["0xpara"],
       },
     };
 
-    state = reduce(state, { type: "user/para-reconnect-requested", now: 20 });
+    state = reduce(state, {
+      type: "user/provider-reconnect-requested",
+      now: 20,
+    });
 
-    expect(state.intents.paraDetached).toBe(false);
+    expect(state.intents.providerSessionDetached).toBe(false);
     expect(state.intents.droppedAddresses).toEqual(["0xpara"]);
   });
 
@@ -313,13 +316,13 @@ describe("WalletRegistry reducer", () => {
       type: "user/disconnect-account",
       address: "0xAAA",
       uids: ["para-1"],
-      isParaAccount: true,
+      isProviderOwnedAccount: true,
       othersRemain: true,
       markDroppedAddress: false,
       now: 10,
     });
 
-    expect(state.intents.paraDetached).toBe(true);
+    expect(state.intents.providerSessionDetached).toBe(true);
     expect(state.intents.droppedAddresses).toEqual([]);
   });
 
@@ -335,7 +338,7 @@ describe("WalletRegistry reducer", () => {
       type: "user/disconnect-account",
       address: "0xBBB",
       uids: ["mm-1"],
-      isParaAccount: false,
+      isProviderOwnedAccount: false,
       othersRemain: false,
       now: 30,
     });

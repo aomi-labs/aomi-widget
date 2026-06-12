@@ -19,8 +19,8 @@ function executors(): CommandExecutors & {
     async wagmiDisconnect(uid: string) {
       calls.push(["wagmi/disconnect", uid]);
     },
-    async paraLogout() {
-      calls.push(["para/logout"]);
+    async providerLogout() {
+      calls.push(["provider/logout"]);
     },
   };
 }
@@ -72,7 +72,7 @@ describe("WalletRegistryStore", () => {
       type: "user/disconnect-account",
       address: "0xABC",
       uids: ["mm-1"],
-      isParaAccount: false,
+      isProviderOwnedAccount: false,
       othersRemain: false,
       now: 1,
     });
@@ -187,7 +187,7 @@ describe("WalletRegistryStore", () => {
     });
     store.dispatch({ type: "wagmi/settled", now: 2 });
     store.dispatch({
-      type: "para/auth-flow-started",
+      type: "provider/auth-flow-started",
       reason: "para-social-login",
       now: 3,
     });
@@ -229,7 +229,7 @@ describe("WalletRegistryStore", () => {
         type: "user/disconnect-account",
         address: "0xABC",
         uids: ["mm-1"],
-        isParaAccount: false,
+        isProviderOwnedAccount: false,
         othersRemain: false,
         now: 1,
       }),

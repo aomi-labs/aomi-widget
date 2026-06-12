@@ -1,10 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useSyncExternalStore } from "react";
-import {
-  WalletRegistryStore,
-  type CommandExecutors,
-} from "./store";
+import { WalletRegistryStore, type CommandExecutors } from "./store";
 import type { WalletRegistryState } from "./types";
 
 export function useWalletRegistry(opts: {
@@ -27,9 +24,8 @@ export function useWalletRegistry(opts: {
             executorsRef.current.wagmiReconnect(stableIds),
           wagmiConnect: (stableId) =>
             executorsRef.current.wagmiConnect(stableId),
-          wagmiDisconnect: (uid) =>
-            executorsRef.current.wagmiDisconnect(uid),
-          paraLogout: () => executorsRef.current.paraLogout(),
+          wagmiDisconnect: (uid) => executorsRef.current.wagmiDisconnect(uid),
+          providerLogout: () => executorsRef.current.providerLogout(),
         },
         storageKey: opts.storageKey,
         initialNow: Date.now(),

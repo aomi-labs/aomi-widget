@@ -89,6 +89,38 @@
         },
         {
           "type": "registry:component",
+          "path": "lib/aomi-auth-adapter/account/types.ts"
+        },
+        {
+          "type": "registry:component",
+          "path": "lib/aomi-auth-adapter/account/disabled-runtime.ts"
+        },
+        {
+          "type": "registry:component",
+          "path": "lib/aomi-auth-adapter/composer/AomiAdapterComposer.tsx"
+        },
+        {
+          "type": "registry:component",
+          "path": "lib/aomi-auth-adapter/composer/build-accounts.ts"
+        },
+        {
+          "type": "registry:component",
+          "path": "lib/aomi-auth-adapter/composer/build-identity.ts"
+        },
+        {
+          "type": "registry:component",
+          "path": "lib/aomi-auth-adapter/composer/build-methods.ts"
+        },
+        {
+          "type": "registry:component",
+          "path": "lib/aomi-auth-adapter/composer/merge-wallet-rows.ts"
+        },
+        {
+          "type": "registry:component",
+          "path": "lib/aomi-auth-adapter/composer/types.ts"
+        },
+        {
+          "type": "registry:component",
           "path": "lib/aomi-auth-adapter/runtime/evm/brands.ts"
         },
         {
@@ -98,6 +130,14 @@
         {
           "type": "registry:component",
           "path": "lib/aomi-auth-adapter/runtime/solana/networks.ts"
+        },
+        {
+          "type": "registry:component",
+          "path": "lib/aomi-auth-adapter/runtime/solana/transactions.ts"
+        },
+        {
+          "type": "registry:component",
+          "path": "lib/aomi-auth-adapter/runtime/solana/wallet-runtime.ts"
         },
         {
           "type": "registry:component",
@@ -451,6 +491,18 @@
         {
           "type": "registry:component",
           "path": "lib/aomi-auth-adapter/providers/para/para.tsx"
+        },
+        {
+          "type": "registry:component",
+          "path": "lib/aomi-auth-adapter/providers/para/ParaPluginProvider.tsx"
+        },
+        {
+          "type": "registry:component",
+          "path": "lib/aomi-auth-adapter/providers/para/para-auth.ts"
+        },
+        {
+          "type": "registry:component",
+          "path": "lib/aomi-auth-adapter/providers/para/para-embedded-wallet.ts"
         },
         {
           "type": "registry:component",

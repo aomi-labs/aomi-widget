@@ -129,13 +129,13 @@ export function AomiParaAdapterProvider({
         canonicalWalletKey(connector.name ?? "") === "para",
       onProviderReconnectRequested: (store) => {
         store.dispatch({
-          type: "user/para-reconnect-requested",
+          type: "user/provider-reconnect-requested",
           now: Date.now(),
         });
       },
       onConnectFallback: (store) => {
         store.dispatch({
-          type: "para/auth-flow-started",
+          type: "provider/auth-flow-started",
           reason: "para-evm-connect-fallback",
           now: Date.now(),
         });
@@ -143,7 +143,7 @@ export function AomiParaAdapterProvider({
       },
       onAccountDisconnectPlanned: (disconnectPlan) => {
         if (
-          disconnectPlan.isParaAccount &&
+          disconnectPlan.isProviderOwnedAccount &&
           disconnectPlan.otherConnectionsRemain
         ) {
           walletDebug("para:detach", {
@@ -168,18 +168,19 @@ export function AomiParaAdapterProvider({
   const startParaAuthFlow = useCallback(
     (reason: string) => {
       registryStore.dispatch({
-        type: "para/auth-flow-started",
+        type: "provider/auth-flow-started",
         reason,
         now: Date.now(),
       });
     },
     [registryStore],
   );
-  const registryDetachedParaAddresses = registryState.intents.paraDetached
+  const registryDetachedParaAddresses = registryState.intents
+    .providerSessionDetached
     ? registryState.intents.droppedAddresses
     : [];
   const paraSessionLocallyDetached = Boolean(
-    paraAccount.isConnected && registryState.intents.paraDetached,
+    paraAccount.isConnected && registryState.intents.providerSessionDetached,
   );
   const exposeParaSession = Boolean(
     paraAccount.isConnected && !paraSessionLocallyDetached,
@@ -211,7 +212,7 @@ export function AomiParaAdapterProvider({
       startFlow: startParaAuthFlow,
       login: async (reason: string, step = "AUTH_MAIN") => {
         registryStore.dispatch({
-          type: "user/para-reconnect-requested",
+          type: "user/provider-reconnect-requested",
           now: Date.now(),
         });
         startParaAuthFlow(reason);

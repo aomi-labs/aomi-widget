@@ -70,9 +70,9 @@ export function selectEvmIdentity(
     : {};
   const explicitDisconnect = Boolean(
     state.evmGrace.last?.address &&
-      state.intents.droppedAddresses.includes(
-        state.evmGrace.last.address.toLowerCase(),
-      ),
+    state.intents.droppedAddresses.includes(
+      state.evmGrace.last.address.toLowerCase(),
+    ),
   );
 
   return resolveGracefulEvmIdentity({
@@ -117,7 +117,13 @@ export function selectAccounts(
     activeEvmAddress: evmIdentity.address,
     activeEvmConnectionId: activeEvm?.uid ?? evmIdentity.connectorId,
     solanaConnections: solana
-      ? [{ id: solana.uid, publicKey: solana.address, walletName: solana.walletName }]
+      ? [
+          {
+            id: solana.uid,
+            publicKey: solana.address,
+            walletName: solana.walletName,
+          },
+        ]
       : [],
     activeSolanaAddress: solana?.address,
   });

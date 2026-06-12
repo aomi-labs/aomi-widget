@@ -367,9 +367,7 @@ export function useEvmProviderBrands(
 
   useEffect(() => {
     if (!membershipKey) {
-      setBrands((previous) =>
-        Object.keys(previous).length ? {} : previous,
-      );
+      setBrands((previous) => (Object.keys(previous).length ? {} : previous));
       return;
     }
 

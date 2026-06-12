@@ -11,14 +11,26 @@ export type LoadPersistedOptions = {
 
 function isPersistedRegistryV1(value: unknown): value is PersistedRegistryV1 {
   if (typeof value !== "object" || value === null) return false;
-  const candidate = value as Partial<PersistedRegistryV1>;
+  const candidate = value as Partial<PersistedRegistryV1> & {
+    paraDetached?: unknown;
+  };
   return (
     candidate.version === 1 &&
     typeof candidate.active === "object" &&
     candidate.active !== null &&
     Array.isArray(candidate.droppedAddresses) &&
-    typeof candidate.paraDetached === "boolean"
+    (typeof candidate.providerSessionDetached === "boolean" ||
+      typeof candidate.paraDetached === "boolean")
   );
+}
+
+function normalizePersisted(value: PersistedRegistryV1): PersistedRegistryV1 {
+  const legacy = value as PersistedRegistryV1 & { paraDetached?: boolean };
+  return {
+    ...value,
+    providerSessionDetached:
+      value.providerSessionDetached ?? legacy.paraDetached ?? false,
+  };
 }
 
 function readStorage(key: string): string | null {
@@ -61,7 +73,7 @@ function migrateLegacyKeys(
     droppedAddresses: legacyDetachedPara
       ? [legacyDetachedPara.toLowerCase()]
       : [],
-    paraDetached: !!legacyDetachedPara,
+    providerSessionDetached: !!legacyDetachedPara,
   };
 
   writeStorage(storageKey, JSON.stringify(migrated));
@@ -80,7 +92,7 @@ export function loadPersisted(
     const raw = readStorage(storageKey);
     if (!raw) return migrateLegacyKeys(storageKey, options);
     const parsed: unknown = JSON.parse(raw);
-    return isPersistedRegistryV1(parsed) ? parsed : null;
+    return isPersistedRegistryV1(parsed) ? normalizePersisted(parsed) : null;
   } catch {
     return null;
   }
@@ -110,7 +122,7 @@ export function toPersisted(state: WalletRegistryState): PersistedRegistryV1 {
     droppedAddresses: state.intents.droppedAddresses.map((item) =>
       item.toLowerCase(),
     ),
-    paraDetached: state.intents.paraDetached,
+    providerSessionDetached: state.intents.providerSessionDetached,
   };
 }
 
@@ -120,4 +132,3 @@ export function savePersisted(
 ): void {
   writeStorage(storageKey, JSON.stringify(toPersisted(state)));
 }
-

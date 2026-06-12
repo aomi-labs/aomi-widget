@@ -35,7 +35,7 @@ describe("planEvmAccountDisconnect", () => {
     });
 
     expect([...plan.connectorIds]).toEqual(["para"]);
-    expect(plan.isParaAccount).toBe(true);
+    expect(plan.isProviderOwnedAccount).toBe(true);
     expect(plan.otherConnectionsRemain).toBe(true);
     expect(plan.sameAddressConnectionsRemain).toBe(true);
     expect(plan.shouldMarkDroppedAddress).toBe(false);
@@ -70,7 +70,7 @@ describe("planEvmAccountDisconnect", () => {
     });
 
     expect([...plan.connectorIds]).toEqual(["para", "mm"]);
-    expect(plan.isParaAccount).toBe(false);
+    expect(plan.isProviderOwnedAccount).toBe(false);
     expect(plan.sameAddressConnectionsRemain).toBe(false);
     expect(plan.shouldMarkDroppedAddress).toBe(true);
   });
