@@ -75,13 +75,7 @@ const defaultNetworks = [
   monadTestnet,
 ] as const;
 
-const defaultExternalWallets: TExternalWallet[] = [
-  "WALLETCONNECT",
-  "METAMASK",
-  "COINBASE",
-  "RAINBOW",
-  "RABBY",
-];
+const defaultExternalWallets: TExternalWallet[] = ["WALLETCONNECT"];
 
 function AomiParaProviderInner({
   children,
@@ -140,35 +134,18 @@ function AomiParaProviderInner({
         (typeof window !== "undefined"
           ? window.location.origin
           : "https://aomi.dev"),
-      wallets: [] as TExternalWallet[],
+      wallets: resolvedWallets,
     }),
-    [appDescription, appUrl],
+    [appDescription, appUrl, resolvedWallets],
   );
   const evmRuntimeConfig = useMemo(
     () =>
       ({
-        appName,
-        appDescription,
-        appUrl:
-          appUrl ??
-          (typeof window !== "undefined"
-            ? window.location.origin
-            : "https://aomi.dev"),
-        wallets: resolvedWallets,
-        projectId: walletConnectProjectId ?? "",
         chains: routing.routedChains,
         transports,
         ssr: true,
       }) satisfies AomiParaEvmRuntimeConfig,
-    [
-      appName,
-      appDescription,
-      appUrl,
-      routing.routedChains,
-      resolvedWallets,
-      transports,
-      walletConnectProjectId,
-    ],
+    [routing.routedChains, transports],
   );
 
   const solanaEnabled =

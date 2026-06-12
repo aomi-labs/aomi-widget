@@ -136,7 +136,7 @@ export function AomiParaAdapterProvider({
       onConnectFallback: (store) => {
         store.dispatch({
           type: "provider/auth-flow-started",
-          reason: "para-evm-connect-fallback",
+          reason: "para-more-wallets",
           now: Date.now(),
         });
         paraModal?.openModal({ step: "AUTH_MAIN" });
@@ -253,6 +253,22 @@ export function AomiParaAdapterProvider({
       supportedSolanaNetworks,
     ],
   );
+  const providerEvmWalletOptions = useMemo(
+    () =>
+      paraModal
+        ? [
+            {
+              id: "walletConnect",
+              label: "More wallets",
+              family: "evm" as const,
+              kind: "walletconnect" as const,
+              status: "available" as const,
+              description: "Open Para for WalletConnect and more wallets",
+            },
+          ]
+        : [],
+    [paraModal],
+  );
   const transformEvmIdentity = useCallback(
     (identity: ReturnType<typeof evmRuntime.selectEvmIdentity>) => {
       if (
@@ -317,6 +333,7 @@ export function AomiParaAdapterProvider({
       evm={evmRuntime}
       solana={solanaRuntime}
       execution={executionRuntime}
+      additionalEvmWalletOptions={providerEvmWalletOptions}
       transformEvmIdentity={transformEvmIdentity}
       transformAccounts={transformAccounts}
       canManageAccount={canManageParaAccount}

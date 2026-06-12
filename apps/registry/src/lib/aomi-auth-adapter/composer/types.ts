@@ -99,6 +99,7 @@ export type AomiAdapterComposerProps = {
   solana?: SolanaWalletRuntime;
   execution: ExecutionRuntime;
   account?: AccountRuntime;
+  additionalEvmWalletOptions?: readonly AomiWalletOption[];
   transformEvmIdentity?: EvmIdentityTransform;
   transformAccounts?: AccountTransform;
   canManageAccount?: (account: AomiAccount) => boolean;

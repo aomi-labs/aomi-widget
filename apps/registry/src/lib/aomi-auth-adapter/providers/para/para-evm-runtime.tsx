@@ -1,20 +1,38 @@
 "use client";
 
 import { useMemo, type ReactNode } from "react";
-import { useClient, type TExternalWallet } from "@getpara/react-sdk";
-import {
-  createParaWagmiConfig,
-  type ParaEvmProviderConfig,
-} from "@getpara/evm-wallet-connectors";
 import type { Chain, Transport } from "viem";
+import { http } from "viem";
+import { createConfig, type Config } from "wagmi";
+import { injected } from "wagmi/connectors";
 import { AomiEvmRuntimeProvider } from "../../runtime/evm/provider";
 
-export type AomiParaEvmRuntimeConfig = ParaEvmProviderConfig<
-  readonly [Chain, ...Chain[]],
-  Record<number, Transport>
-> & {
-  wallets: TExternalWallet[];
+export type AomiParaEvmRuntimeConfig = {
+  chains: readonly [Chain, ...Chain[]];
+  transports?: Record<number, Transport>;
+  ssr?: boolean;
 };
+
+function createPlainWagmiConfig(config: AomiParaEvmRuntimeConfig): Config {
+  return createConfig({
+    chains: config.chains,
+    connectors: [
+      injected({
+        shimDisconnect: true,
+      }),
+    ],
+    transports:
+      config.transports ??
+      Object.fromEntries(
+        config.chains.map((chain) => [
+          chain.id,
+          http(chain.rpcUrls.default.http[0]),
+        ]),
+      ),
+    multiInjectedProviderDiscovery: true,
+    ssr: config.ssr ?? true,
+  });
+}
 
 export function AomiParaEvmRuntimeProvider({
   children,
@@ -23,15 +41,7 @@ export function AomiParaEvmRuntimeProvider({
   children: ReactNode;
   config: AomiParaEvmRuntimeConfig;
 }) {
-  const para = useClient();
-  const paraReady = Boolean(para && (para as { isSetup?: boolean }).isSetup);
-
-  const wagmiConfig = useMemo(() => {
-    if (!para || !paraReady) return null;
-    return createParaWagmiConfig(para, config);
-  }, [config, para, paraReady]);
-
-  if (!wagmiConfig) return null;
+  const wagmiConfig = useMemo(() => createPlainWagmiConfig(config), [config]);
 
   return (
     <AomiEvmRuntimeProvider config={wagmiConfig}>
