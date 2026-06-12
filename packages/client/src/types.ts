@@ -246,7 +246,7 @@ export interface AomiSecretSlot {
 }
 
 /**
- * GET /api/control/apps
+ * GET /api/session/apps
  * One entry per app the user can use. `secrets` is empty for apps that
  * declare no slots.
  */

@@ -1333,7 +1333,7 @@ var AomiClient = class {
    */
   async getApps(sessionId, options) {
     var _a;
-    const url = buildApiUrl(this.baseUrl, "/api/control/apps", {
+    const url = buildApiUrl(this.baseUrl, "/api/session/apps", {
       public_key: options == null ? void 0 : options.publicKey
     });
     const apiKey = (_a = options == null ? void 0 : options.apiKey) != null ? _a : this.apiKey;
@@ -1365,7 +1365,7 @@ var AomiClient = class {
    */
   async getModels(sessionId, options) {
     var _a;
-    const url = buildApiUrl(this.baseUrl, "/api/control/models");
+    const url = buildApiUrl(this.baseUrl, "/api/session/models");
     const apiKey = (_a = options == null ? void 0 : options.apiKey) != null ? _a : this.apiKey;
     const headers = new Headers(withSessionHeader(sessionId));
     if (apiKey) {
@@ -1394,7 +1394,7 @@ var AomiClient = class {
     }
     return postState(
       this.baseUrl,
-      "/api/control/model",
+      "/api/session/model",
       payload,
       sessionId,
       this.fetchImpl,
