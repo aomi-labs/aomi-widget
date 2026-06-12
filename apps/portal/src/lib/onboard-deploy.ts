@@ -11,6 +11,25 @@ type BackendRequestOptions = {
   body?: unknown;
 };
 
+export class BackendRequestError extends Error {
+  readonly status: number;
+  readonly path: string;
+  readonly body: string;
+
+  constructor(args: {
+    message: string;
+    status: number;
+    path: string;
+    body: string;
+  }) {
+    super(args.message);
+    this.name = "BackendRequestError";
+    this.status = args.status;
+    this.path = args.path;
+    this.body = args.body;
+  }
+}
+
 export type OnboardDeployEnv = {
   backendUrl: string;
   bearer: string;
@@ -105,7 +124,8 @@ export function readOnboardDeployEnv(): OnboardDeployEnv {
     adminSecret,
     activationToken,
     platform: resolveDeployPlatform(),
-    templateRepo: process.env.APP_DEPLOY_TEMPLATE_REPO || "aomi-labs/playground-example",
+    templateRepo:
+      process.env.APP_DEPLOY_TEMPLATE_REPO || "aomi-labs/playground-example",
     createdRepoPrivate: process.env.APP_DEPLOY_CREATED_REPO_PRIVATE === "true",
     sourceRef,
     aomiTomlPaths,
@@ -173,7 +193,12 @@ export async function backendRequest<T>(
       json && typeof json === "object" && "error" in json
         ? String((json as { error: unknown }).error)
         : `${opts.method ?? "GET"} ${path} failed (${res.status})`;
-    throw new Error(message);
+    throw new BackendRequestError({
+      message,
+      status: res.status,
+      path,
+      body: text,
+    });
   }
   return json as T;
 }
