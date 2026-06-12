@@ -187,7 +187,8 @@ export type AomiAccount = {
    */
   manageable?: boolean;
   linked?: boolean;
-  linkedVia?: "para" | "privy" | "challenge";
+  linkedVia?: "para" | "privy" | "challenge" | "import" | "observed";
+  capability?: "read" | "write";
 };
 
 export type AomiTxResult = {
@@ -204,10 +205,13 @@ export type AomiTxResult = {
   Delegation7702?: string;
 };
 
-export type AomiAccountCredential = {
-  provider: "para" | "privy";
-  providerToken: string;
-};
+export type AomiAccountCredential =
+  | {
+      provider: "para" | "privy";
+      providerToken: string;
+    }
+  | { kind: "token"; provider: "para" | "privy" | "custom"; token: string }
+  | { kind: "cookie" };
 
 export type AomiAuthAdapter = {
   identity: AomiAuthIdentity;

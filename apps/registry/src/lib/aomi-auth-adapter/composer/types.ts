@@ -15,6 +15,7 @@ import type { WalletRegistryStore } from "../registry/store";
 import type { WalletRegistryState } from "../registry/types";
 import type { EvmWalletRuntime } from "../runtime/evm/wallet-runtime";
 import type { SafeSolanaWalletState } from "../runtime/solana/wallet-runtime";
+import type { AccountRuntime } from "../account/types";
 import type {
   ResolveAAProviderState,
   WalletExecutionAdapterState,
@@ -97,6 +98,7 @@ export type AomiAdapterComposerProps = {
   evm: EvmWalletRuntime;
   solana?: SolanaWalletRuntime;
   execution: ExecutionRuntime;
+  account?: AccountRuntime;
   transformEvmIdentity?: EvmIdentityTransform;
   transformAccounts?: AccountTransform;
   canManageAccount?: (account: AomiAccount) => boolean;
