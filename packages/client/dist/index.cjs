@@ -180,6 +180,7 @@ function buildConnection(src, flat) {
   liftFlat(c, flat, "auth_method", ["auth_method", "authMethod"]);
   liftFlat(c, flat, "auth_value", ["auth_value", "authValue"]);
   liftFlat(c, flat, "auth_verified_at", ["auth_verified_at", "authVerifiedAt"]);
+  dropNullKeys(c, "is_connected");
   return Object.keys(c).length ? c : void 0;
 }
 function buildEvm(src, flat) {
@@ -228,6 +229,7 @@ function buildSvm(src, flat) {
   const s = __spreadValues({}, src != null ? src : {});
   renameKey(s, "walletName", "wallet_name");
   liftFlat(s, flat, "address", ["svm_address", "svmAddress"]);
+  dropNullKeys(s, "capabilities");
   return Object.keys(s).length ? s : void 0;
 }
 function buildPending(src, flat) {
@@ -260,6 +262,13 @@ function buildPending(src, flat) {
     snakeizeBucket(pick(src, "svm_sigs", "svmSigs", "solana_sigs", "solanaSigs"))
   );
   return Object.keys(p).length ? p : void 0;
+}
+function dropNullKeys(obj, ...keys) {
+  for (const key of keys) {
+    if (obj[key] === null || obj[key] === void 0) {
+      delete obj[key];
+    }
+  }
 }
 function deepMergePreserve(previous, incoming) {
   const out = __spreadValues({}, previous);
@@ -872,6 +881,11 @@ function withSessionHeader(sessionId, init) {
   headers.set(SESSION_ID_HEADER, sessionId);
   return headers;
 }
+async function fetchStateResponse(fetchImpl, url, sessionId) {
+  return fetchImpl(url, {
+    headers: withSessionHeader(sessionId)
+  });
+}
 function wrapFetchWithAccountBearer(fetchImpl, getAccountAccessToken) {
   if (!getAccountAccessToken) return fetchImpl;
   return async (input, init) => {
@@ -984,23 +998,43 @@ var AomiClient = class {
    * Fetch current session state (messages, processing status, title).
    */
   async fetchState(sessionId, userState, clientId) {
-    var _a, _b;
+    var _a, _b, _c;
     const normalizedUserState = stripBulkyPendingFields(
       UserState.normalize(userState)
     );
-    const url = buildApiUrl(this.baseUrl, "/api/state", {
+    const urlWithSyncParams = buildApiUrl(this.baseUrl, "/api/state", {
       user_state: normalizedUserState ? JSON.stringify(normalizedUserState) : void 0,
       client_id: clientId
     });
+    const bareUrl = buildApiUrl(this.baseUrl, "/api/state");
+    const shouldRetryWithoutSyncParams = Boolean(normalizedUserState) || Boolean(clientId);
     (_a = this.logger) == null ? void 0 : _a.debug("[aomi][client] GET /api/state start", {
       sessionId,
       clientId,
       hasUserState: Boolean(normalizedUserState)
     });
-    const response = await this.rawFetchImpl(url, {
-      headers: withSessionHeader(sessionId)
-    });
-    (_b = this.logger) == null ? void 0 : _b.debug("[aomi][client] GET /api/state response", {
+    let response = await fetchStateResponse(
+      this.rawFetchImpl,
+      urlWithSyncParams,
+      sessionId
+    );
+    if (!response.ok && shouldRetryWithoutSyncParams && (response.status === 400 || response.status === 414)) {
+      (_b = this.logger) == null ? void 0 : _b.debug(
+        "[aomi][client] GET /api/state retrying without sync params",
+        {
+          sessionId,
+          initialStatus: response.status,
+          hadClientId: Boolean(clientId),
+          hadUserState: Boolean(normalizedUserState)
+        }
+      );
+      response = await fetchStateResponse(
+        this.rawFetchImpl,
+        bareUrl,
+        sessionId
+      );
+    }
+    (_c = this.logger) == null ? void 0 : _c.debug("[aomi][client] GET /api/state response", {
       sessionId,
       status: response.status,
       ok: response.ok
@@ -1333,7 +1367,7 @@ var AomiClient = class {
    */
   async getApps(sessionId, options) {
     var _a;
-    const url = buildApiUrl(this.baseUrl, "/api/control/apps", {
+    const url = buildApiUrl(this.baseUrl, "/api/session/apps", {
       public_key: options == null ? void 0 : options.publicKey
     });
     const apiKey = (_a = options == null ? void 0 : options.apiKey) != null ? _a : this.apiKey;
@@ -1361,11 +1395,52 @@ var AomiClient = class {
     }).filter((item) => item !== null);
   }
   /**
+   * Fetch the account bound to the authenticated request (resolved from the
+   * account bearer). Returns `null` when the session is not bound to a real
+   * user — the backend answers `/api/settings/account` with HTTP 400 for
+   * anonymous sessions, which is the normal "no bearer / not logged in" case
+   * rather than an error.
+   */
+  async fetchAccountProfile(sessionId) {
+    const url = buildApiUrl(this.baseUrl, "/api/settings/account");
+    const response = await this.rawFetchImpl(url, {
+      headers: withSessionHeader(sessionId)
+    });
+    if (response.status === 400 || response.status === 401 || response.status === 403) {
+      return null;
+    }
+    if (!response.ok) {
+      throw new Error(
+        `Failed to fetch account profile: HTTP ${response.status}`
+      );
+    }
+    return await response.json();
+  }
+  /**
+   * Mint a Privy browser auth URL bound to the current backend session.
+   */
+  async beginPrivyAuth(sessionId, options) {
+    const url = buildApiUrl(this.baseUrl, "/api/auth/privy/begin");
+    const response = await this.rawFetchImpl(url, {
+      method: "POST",
+      headers: withSessionHeader(sessionId, {
+        "Content-Type": "application/json"
+      }),
+      body: JSON.stringify({
+        application: options == null ? void 0 : options.application
+      })
+    });
+    if (!response.ok) {
+      throw new Error(`Failed to begin Privy auth: HTTP ${response.status}`);
+    }
+    return await response.json();
+  }
+  /**
    * Get available models.
    */
   async getModels(sessionId, options) {
     var _a;
-    const url = buildApiUrl(this.baseUrl, "/api/control/models");
+    const url = buildApiUrl(this.baseUrl, "/api/session/models");
     const apiKey = (_a = options == null ? void 0 : options.apiKey) != null ? _a : this.apiKey;
     const headers = new Headers(withSessionHeader(sessionId));
     if (apiKey) {
@@ -1394,7 +1469,7 @@ var AomiClient = class {
     }
     return postState(
       this.baseUrl,
-      "/api/control/model",
+      "/api/session/model",
       payload,
       sessionId,
       this.fetchImpl,
