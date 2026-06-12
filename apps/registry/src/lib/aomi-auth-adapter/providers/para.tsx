@@ -637,7 +637,13 @@ export function AomiParaAdapterProvider({
             sponsored,
             sponsorProvider,
             sponsorAccount,
-            chainId: chainId ?? undefined,
+            // Fall back to the user's selected EVM network while wagmi hasn't
+            // resolved the connected chain yet. The network selector already
+            // shows `identity.chainId ?? selectedEvmChainId`; mirroring that
+            // here keeps the chain reported to the backend (via setUser) in
+            // sync with the UI, instead of leaving it undefined (which the
+            // backend silently treats as Ethereum mainnet).
+            chainId: chainId ?? (hasEvmAddress ? selectedEvmChainId : undefined),
             svmAddress,
             walletProvider,
             authMethod,
