@@ -34,6 +34,7 @@ export function AomiAdapterComposer({
   solana,
   execution,
   account = DISABLED_ACCOUNT_RUNTIME,
+  additionalEvmWalletOptions = [],
   transformEvmIdentity,
   transformAccounts,
   canManageAccount,
@@ -189,7 +190,7 @@ export function AomiAdapterComposer({
           await evm.selectEvmAccount(id);
         }
       },
-      evmWallets: evm.evmWalletOptions,
+      evmWallets: [...evm.evmWalletOptions, ...additionalEvmWalletOptions],
       connectEvmWallet: evm.connectEvmWallet,
       socialLoginOptions: buildSocialLoginOptions(auth.methods),
       connectSocial: async (id: string) => {
@@ -408,6 +409,7 @@ export function AomiAdapterComposer({
   }, [
     auth,
     account.wallets,
+    additionalEvmWalletOptions,
     canManageAccount,
     evm,
     execution,

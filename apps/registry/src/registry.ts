@@ -118,7 +118,6 @@ export const registry: RegistryComponent[] = [
     dependencies: [
       "@aomi-labs/client",
       "@aomi-labs/react",
-      "@getpara/evm-wallet-connectors",
       "@getpara/react-sdk",
       "lucide-react",
       "wagmi",
