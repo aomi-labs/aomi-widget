@@ -63,9 +63,9 @@ import {
 } from "../../runtime/evm/wallet-runtime";
 import {
   canonicalWalletKey,
-  solanaWalletAllowlist,
   toSocialLoginOption,
 } from "../../runtime/evm/brands";
+import { buildSolanaWalletDescriptors } from "../../runtime/solana/wallet-runtime";
 import { walletDebug } from "../../wallet-debug";
 import type {
   AomiAccountCredential,
@@ -618,20 +618,8 @@ export function AomiParaAdapterProvider({
       canDisconnectEvm || solanaWallet.disconnect,
     );
 
-    // Map the wallet-adapter's `wallets` array to our descriptor shape so
-    // the UI can render an explicit picker (Phantom, Solflare, …) instead
-    // of auto-picking. Wallets with `Installed` show up first; the rest
-    // are still listed so the user can click to trigger the install flow.
-    const solanaWalletDescriptors = solanaWallet.wallets
-      .filter((entry) =>
-        solanaWalletAllowlist.has(canonicalWalletKey(entry.adapter.name)),
-      )
-      .map((entry) => ({
-        name: entry.adapter.name,
-        installed: entry.readyState === "Installed",
-        ready:
-          entry.readyState === "Installed" || entry.readyState === "Loadable",
-      }));
+    const solanaWalletDescriptors =
+      buildSolanaWalletDescriptors(solanaWallet);
     const socialLoginOptions = paraModal
       ? Array.from(oAuthMethods).map(toSocialLoginOption)
       : [];
