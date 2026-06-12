@@ -85,6 +85,7 @@ export function DeployStep({
   const [error, setError] = useState<string | null>(null);
   const [showManifest, setShowManifest] = useState(false);
   const pollRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const statusFailuresRef = useRef(0);
 
   const tags = useMemo(
     () => progress.releaseTags ?? releaseTags(deployment),
@@ -123,6 +124,7 @@ export function DeployStep({
   const dryRun = useCallback(async () => {
     setPhase("dry_running");
     setError(null);
+    statusFailuresRef.current = 0;
     try {
       const result = await onboardDryRun({ path, installationId, repo, actor });
       applyDeployment(result);
@@ -136,6 +138,7 @@ export function DeployStep({
   const deploy = useCallback(async () => {
     setPhase("deploying");
     setError(null);
+    statusFailuresRef.current = 0;
     try {
       const result = await onboardDeploy({ path, installationId, repo, actor });
       applyDeployment(result);
@@ -164,13 +167,18 @@ export function DeployStep({
       try {
         const status = await onboardStatus(deploymentId);
         if (cancelled) return;
-        setDeployment(status.deployment);
-        onProgress({
+        statusFailuresRef.current = 0;
+        if (status.deployment) {
+          setDeployment(status.deployment);
+        }
+        const patch: Partial<PathProgress> = {
           deploymentId,
-          deployment: status.deployment,
-          releaseTags: status.releaseTags,
           live: false,
-        });
+        };
+        if (status.deployment) patch.deployment = status.deployment;
+        if (status.releaseTags.length > 0)
+          patch.releaseTags = status.releaseTags;
+        onProgress(patch);
         if (status.state === "ready") {
           setPhase("ready");
           return;
@@ -184,6 +192,12 @@ export function DeployStep({
         pollRef.current = setTimeout(tick, 5000);
       } catch (e) {
         if (cancelled) return;
+        statusFailuresRef.current += 1;
+        if (statusFailuresRef.current < 3) {
+          setPhase("building");
+          pollRef.current = setTimeout(tick, 5000);
+          return;
+        }
         setError(e instanceof Error ? e.message : String(e));
         setPhase("error");
       }
@@ -249,6 +263,7 @@ export function DeployStep({
 
   const reset = useCallback(() => {
     setError(null);
+    statusFailuresRef.current = 0;
     setPhase(deployment ? "dry_ready" : "idle");
   }, [deployment]);
 
@@ -445,7 +460,10 @@ function DeploymentSummary({
         />
         <SummaryTile
           label="Release"
-          value={apps.map((app) => app.name).filter(Boolean).join(", ")}
+          value={apps
+            .map((app) => app.name)
+            .filter(Boolean)
+            .join(", ")}
           detail={[
             target,
             fileCount > 0 ? `${fileCount} files` : null,

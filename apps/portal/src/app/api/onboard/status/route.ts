@@ -3,11 +3,24 @@ import { NextResponse } from "next/server";
 export const runtime = "nodejs";
 
 import {
+  BackendRequestError,
   type BackendDeploymentStatusResult,
   backendRequest,
   readOnboardDeployEnv,
   releaseTagsFromDeployment,
 } from "@portal/lib/onboard-deploy";
+
+function isPendingDeploymentStatusError(err: unknown): boolean {
+  if (!(err instanceof BackendRequestError)) return false;
+  if (err.status === 404) return true;
+  const message = err.message.toLowerCase();
+  return (
+    message.includes("deployment") &&
+    (message.includes("not found") ||
+      message.includes("missing") ||
+      message.includes("no deployment"))
+  );
+}
 
 export async function GET(req: Request) {
   const deploymentId = new URL(req.url).searchParams.get("deploymentId");
@@ -31,6 +44,13 @@ export async function GET(req: Request) {
       releaseTags: releaseTagsFromDeployment(result.deployment),
     });
   } catch (err) {
+    if (isPendingDeploymentStatusError(err)) {
+      return NextResponse.json({
+        state: "building",
+        releaseTags: [],
+        message: err instanceof Error ? err.message : String(err),
+      });
+    }
     return NextResponse.json(
       { error: err instanceof Error ? err.message : String(err) },
       { status: 502 },
