@@ -42,6 +42,82 @@ describe("makePrivyProvider", () => {
     ).rejects.toThrow("user_id does not match verified token subject");
   });
 
+  it("persists Solana wallet slots when the login page reports one", async () => {
+    const provider = makePrivyProvider({
+      appId: "privy-app",
+      verifyAccessToken: verifiedAlice,
+    });
+    const solAddress = "So11111111111111111111111111111111111111112";
+    const bodyWithWallets = {
+      ...body,
+      wallets: [
+        { id: body.wallet_id, address: body.wallet_address, chain_type: "ethereum" },
+        { id: "sol-wallet-id", address: solAddress, chain_type: "solana" },
+      ],
+    } as unknown as Record<string, string>;
+
+    const result = await provider.callback({
+      pending,
+      query: {},
+      body: bodyWithWallets,
+    });
+
+    expect(result.secrets).toMatchObject({
+      PRIVY_WALLET_ID: body.wallet_id,
+      PRIVY_WALLET_ADDRESS: body.wallet_address,
+      PRIVY_SOLANA_WALLET_ID: "sol-wallet-id",
+      PRIVY_SOLANA_WALLET_ADDRESS: solAddress,
+    });
+    expect(result.identityMetadata).toMatchObject({
+      solana_wallet_id: "sol-wallet-id",
+      solana_wallet_address: solAddress,
+    });
+  });
+
+  it("omits Solana slots when no solana wallet is reported", async () => {
+    const provider = makePrivyProvider({
+      appId: "privy-app",
+      verifyAccessToken: verifiedAlice,
+    });
+
+    const result = await provider.callback({ pending, query: {}, body });
+
+    expect(result.secrets).not.toHaveProperty("PRIVY_SOLANA_WALLET_ID");
+    expect(result.secrets).not.toHaveProperty("PRIVY_SOLANA_WALLET_ADDRESS");
+  });
+
+  it("rejects a malformed wallets array", async () => {
+    const provider = makePrivyProvider({
+      appId: "privy-app",
+      verifyAccessToken: verifiedAlice,
+    });
+    const bodyWithBadWallets = {
+      ...body,
+      wallets: [{ id: "", address: "x", chain_type: "solana" }],
+    } as unknown as Record<string, string>;
+
+    await expect(
+      provider.callback({ pending, query: {}, body: bodyWithBadWallets }),
+    ).rejects.toThrow("wallets[0]");
+  });
+
+  it("rejects a non-base58 solana address", async () => {
+    const provider = makePrivyProvider({
+      appId: "privy-app",
+      verifyAccessToken: verifiedAlice,
+    });
+    const bodyWithBadSol = {
+      ...body,
+      wallets: [
+        { id: "sol-wallet-id", address: "0xnotbase58!!", chain_type: "solana" },
+      ],
+    } as unknown as Record<string, string>;
+
+    await expect(
+      provider.callback({ pending, query: {}, body: bodyWithBadSol }),
+    ).rejects.toThrow("base58");
+  });
+
   it("persists the verified expiration and session ID", async () => {
     const provider = makePrivyProvider({
       appId: "privy-app",
