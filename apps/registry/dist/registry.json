@@ -69,11 +69,55 @@
         },
         {
           "type": "registry:component",
+          "path": "lib/aomi-auth-adapter/accounts.ts"
+        },
+        {
+          "type": "registry:component",
+          "path": "lib/aomi-auth-adapter/network-preferences.tsx"
+        },
+        {
+          "type": "registry:component",
+          "path": "lib/aomi-auth-adapter/solana-networks.ts"
+        },
+        {
+          "type": "registry:component",
+          "path": "lib/aomi-auth-adapter/wallet-family.ts"
+        },
+        {
+          "type": "registry:component",
           "path": "lib/aomi-auth-adapter/wallet-brands.ts"
         },
         {
           "type": "registry:component",
           "path": "lib/aomi-auth-adapter/wallet-debug.ts"
+        },
+        {
+          "type": "registry:component",
+          "path": "lib/aomi-auth-adapter/registry/types.ts"
+        },
+        {
+          "type": "registry:component",
+          "path": "lib/aomi-auth-adapter/registry/reducer.ts"
+        },
+        {
+          "type": "registry:component",
+          "path": "lib/aomi-auth-adapter/registry/policy.ts"
+        },
+        {
+          "type": "registry:component",
+          "path": "lib/aomi-auth-adapter/registry/commands.ts"
+        },
+        {
+          "type": "registry:component",
+          "path": "lib/aomi-auth-adapter/registry/persistence.ts"
+        },
+        {
+          "type": "registry:component",
+          "path": "lib/aomi-auth-adapter/registry/store.ts"
+        },
+        {
+          "type": "registry:component",
+          "path": "lib/aomi-auth-adapter/registry/selectors.ts"
         },
         {
           "type": "registry:component",
@@ -133,6 +177,22 @@
         },
         {
           "type": "registry:component",
+          "path": "components/control-bar/dual-wallet-bar.tsx"
+        },
+        {
+          "type": "registry:component",
+          "path": "components/control-bar/wallet-picker.tsx"
+        },
+        {
+          "type": "registry:component",
+          "path": "components/control-bar/wallet-picker-context.tsx"
+        },
+        {
+          "type": "registry:component",
+          "path": "components/control-bar/wallet-icon-slot.tsx"
+        },
+        {
+          "type": "registry:component",
           "path": "components/icons/index.ts"
         },
         {
@@ -153,6 +213,10 @@
         },
         {
           "type": "registry:component",
+          "path": "components/icons/wallet-map.tsx"
+        },
+        {
+          "type": "registry:component",
           "path": "components/icons/apps/index.tsx"
         },
         {
@@ -165,7 +229,23 @@
         },
         {
           "type": "registry:component",
+          "path": "components/icons/wallets/index.tsx"
+        },
+        {
+          "type": "registry:component",
           "path": "lib/aomi-auth-adapter.ts"
+        },
+        {
+          "type": "registry:component",
+          "path": "lib/aomi-auth-adapter/accounts.ts"
+        },
+        {
+          "type": "registry:component",
+          "path": "lib/aomi-auth-adapter/network-preferences.tsx"
+        },
+        {
+          "type": "registry:component",
+          "path": "lib/aomi-auth-adapter/solana-networks.ts"
         },
         {
           "type": "registry:component",
@@ -373,6 +453,22 @@
         },
         {
           "type": "registry:component",
+          "path": "lib/aomi-auth-adapter/providers/para/use-wallet-registry.ts"
+        },
+        {
+          "type": "registry:component",
+          "path": "lib/aomi-auth-adapter/providers/para/sources/wagmi-source.ts"
+        },
+        {
+          "type": "registry:component",
+          "path": "lib/aomi-auth-adapter/providers/para/sources/para-session-source.ts"
+        },
+        {
+          "type": "registry:component",
+          "path": "lib/aomi-auth-adapter/providers/para/sources/solana-source.ts"
+        },
+        {
+          "type": "registry:component",
           "path": "lib/aomi-auth-adapter/providers/para/evm-disconnect-plan.ts"
         },
         {
@@ -385,7 +481,15 @@
         },
         {
           "type": "registry:component",
+          "path": "lib/aomi-auth-adapter/network-preferences.tsx"
+        },
+        {
+          "type": "registry:component",
           "path": "lib/aomi-auth-adapter/safe-wagmi-hooks.ts"
+        },
+        {
+          "type": "registry:component",
+          "path": "lib/aomi-auth-adapter/solana-networks.ts"
         },
         {
           "type": "registry:component",

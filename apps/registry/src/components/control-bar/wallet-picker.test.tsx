@@ -520,6 +520,9 @@ describe("WalletPicker", () => {
     // Para is manageable -> a manage button; Phantom isn't -> none.
     expect(screen.getByRole("button", { name: "Manage Para" })).toBeTruthy();
     expect(
+      screen.queryByRole("button", { name: "Disconnect Ethereum wallet" }),
+    ).toBeNull();
+    expect(
       screen.queryByRole("button", { name: "Manage Phantom" }),
     ).toBeNull();
 

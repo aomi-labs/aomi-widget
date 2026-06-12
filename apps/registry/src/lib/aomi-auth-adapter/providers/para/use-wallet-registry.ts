@@ -1,0 +1,45 @@
+"use client";
+
+import { useEffect, useMemo, useRef, useSyncExternalStore } from "react";
+import {
+  WalletRegistryStore,
+  type CommandExecutors,
+} from "../../registry/store";
+import type { WalletRegistryState } from "../../registry/types";
+
+export function useWalletRegistry(opts: {
+  executors: CommandExecutors;
+  storageKey: string;
+}): {
+  store: WalletRegistryStore;
+  state: WalletRegistryState;
+} {
+  const executorsRef = useRef(opts.executors);
+  useEffect(() => {
+    executorsRef.current = opts.executors;
+  }, [opts.executors]);
+
+  const store = useMemo(
+    () =>
+      new WalletRegistryStore({
+        executors: {
+          wagmiReconnect: () => executorsRef.current.wagmiReconnect(),
+          wagmiConnect: (stableId) =>
+            executorsRef.current.wagmiConnect(stableId),
+          wagmiDisconnect: (uid) =>
+            executorsRef.current.wagmiDisconnect(uid),
+          paraLogout: () => executorsRef.current.paraLogout(),
+        },
+        storageKey: opts.storageKey,
+        initialNow: Date.now(),
+      }),
+    [opts.storageKey],
+  );
+  const state = useSyncExternalStore(
+    (callback) => store.subscribe(callback),
+    () => store.getSnapshot(),
+    () => store.getSnapshot(),
+  );
+
+  return { store, state };
+}
