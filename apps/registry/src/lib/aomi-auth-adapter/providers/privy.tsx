@@ -409,7 +409,11 @@ function AomiPrivyAdapterProvider({
             status: "connected",
             isConnected: true,
             address: smartAddress,
-            chainId: chainId ?? undefined,
+            // Fall back to the selected EVM network while wagmi hasn't resolved
+            // the connected chain, so the chain reported to the backend (via
+            // setUser) matches the network selector instead of defaulting to
+            // Ethereum mainnet server-side.
+            chainId: chainId ?? selectedEvmChainId,
             svmAddress,
             walletProvider: "privy",
             authProvider,
