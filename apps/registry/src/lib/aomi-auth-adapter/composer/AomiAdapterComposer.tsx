@@ -20,9 +20,11 @@ import {
   getPreferredRpcUrl,
 } from "../wallet-execution";
 import { walletDebug } from "../wallet-debug";
+import { DISABLED_ACCOUNT_RUNTIME } from "../account/disabled-runtime";
 import { buildAdapterAccounts } from "./build-accounts";
 import { buildAdapterIdentity } from "./build-identity";
 import { buildSocialLoginOptions } from "./build-methods";
+import { mergeWalletRows } from "./merge-wallet-rows";
 import type { AomiAdapterComposerProps } from "./types";
 
 export function AomiAdapterComposer({
@@ -31,6 +33,7 @@ export function AomiAdapterComposer({
   evm,
   solana,
   execution,
+  account = DISABLED_ACCOUNT_RUNTIME,
   transformEvmIdentity,
   transformAccounts,
   canManageAccount,
@@ -130,8 +133,14 @@ export function AomiAdapterComposer({
       : [];
     const accounts = buildAdapterAccounts({
       accounts: evm.selectAccounts(Date.now()),
+      accountWallets: account.wallets,
       transformAccounts,
       canManageAccount,
+    });
+    mergeWalletRows({
+      accounts,
+      storedWallets: account.wallets,
+      auth,
     });
     const hasAnyDisconnectablePath = Boolean(
       evm.canDisconnectEvm || solana?.wallet.disconnect,
@@ -398,6 +407,7 @@ export function AomiAdapterComposer({
     };
   }, [
     auth,
+    account.wallets,
     canManageAccount,
     evm,
     execution,
