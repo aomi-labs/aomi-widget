@@ -3,7 +3,7 @@ import {
   canonicalWalletKey,
   dedupeWalletOptions,
   detectEvmProviderBrand,
-} from "./wallet-brands";
+} from "./brands";
 
 describe("canonicalWalletKey", () => {
   it("collapses ids, labels and rdns onto one brand key", () => {

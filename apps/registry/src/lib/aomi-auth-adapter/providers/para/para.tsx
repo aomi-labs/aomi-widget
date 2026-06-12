@@ -75,7 +75,7 @@ import {
   useSafeSwitchChain,
   useSafeWagmiConfig,
   useSafeWalletClient,
-} from "../../safe-wagmi-hooks";
+} from "../../runtime/evm/safe-hooks";
 import {
   canonicalWalletKey,
   dedupeWalletOptions,
@@ -86,7 +86,7 @@ import {
   toSocialLoginOption,
   useInstalledWalletFlags,
   walletOptionIsDetected,
-} from "../../wallet-brands";
+} from "../../runtime/evm/brands";
 import { walletDebug } from "../../wallet-debug";
 import type {
   AomiAccountCredential,
@@ -100,19 +100,23 @@ import {
 } from "../../wallet-execution";
 import { resolveParaAAProviderState, resolveParaSponsorship } from "./para-aa";
 import {
+  AomiParaEvmRuntimeProvider,
+  type AomiParaEvmRuntimeConfig,
+} from "./para-evm-runtime";
+import {
   DEFAULT_SOLANA_CLUSTER,
   normalizeSolanaNetworkOptions,
-} from "../../solana-networks";
+} from "../../runtime/solana/networks";
 import { selectAccounts, selectEvmIdentity } from "../../registry/selectors";
-import { planEvmAccountDisconnect } from "./evm-disconnect-plan";
+import { planEvmAccountDisconnect } from "../../runtime/evm/disconnect-plan";
 import {
   EVM_IDENTITY_GRACE_MS,
   REGISTRY_STORAGE_KEY,
 } from "../../registry/types";
-import { useWalletRegistry } from "./use-wallet-registry";
-import { useWagmiRegistrySource } from "./sources/wagmi-source";
+import { useWalletRegistry } from "../../registry/use-wallet-registry";
+import { useWagmiRegistrySource } from "../../runtime/evm/registry-source";
 import { useParaSessionSource } from "./sources/para-session-source";
-import { useSolanaRegistrySource } from "./sources/solana-source";
+import { useSolanaRegistrySource } from "../../runtime/solana/registry-source";
 import {
   connectPreferredSolanaWallet,
   DEFAULT_SOLANA_ENDPOINT,
@@ -1373,7 +1377,7 @@ function AomiParaProviderInner({
     }),
     [oAuthMethods],
   );
-  const externalWalletConfig = useMemo(
+  const paraExternalWalletConfig = useMemo(
     () => ({
       appDescription,
       appUrl:
@@ -1381,19 +1385,28 @@ function AomiParaProviderInner({
         (typeof window !== "undefined"
           ? window.location.origin
           : "https://aomi.dev"),
-      wallets: resolvedWallets,
-      ...(walletConnectProjectId
-        ? { walletConnect: { projectId: walletConnectProjectId } }
-        : {}),
-      evmConnector: {
-        config: {
-          chains: routing.routedChains,
-          transports,
-          ssr: true,
-        },
-      },
+      wallets: [] as TExternalWallet[],
     }),
+    [appDescription, appUrl],
+  );
+  const evmRuntimeConfig = useMemo(
+    () =>
+      ({
+        appName,
+        appDescription,
+        appUrl:
+          appUrl ??
+          (typeof window !== "undefined"
+            ? window.location.origin
+            : "https://aomi.dev"),
+        wallets: resolvedWallets,
+        projectId: walletConnectProjectId ?? "",
+        chains: routing.routedChains,
+        transports,
+        ssr: true,
+      }) satisfies AomiParaEvmRuntimeConfig,
     [
+      appName,
       appDescription,
       appUrl,
       routing.routedChains,
@@ -1446,32 +1459,34 @@ function AomiParaProviderInner({
             paraClientConfig={paraClientConfig}
             config={paraConfig}
             paraModalConfig={paraModalConfig}
-            externalWalletConfig={externalWalletConfig}
+            externalWalletConfig={paraExternalWalletConfig}
           >
             {/* The adapter renders in BOTH wrapper states (the wrapper only
                 adds the Solana context when Para's client is ready) — it must
                 never unmount when the client blips during logout/re-init, or
                 all connection-recovery state is lost mid-session. The safe
                 Solana hooks already degrade when the context is absent. */}
-            <ParaSolanaWrapper
-              key={resolvedSolanaConfig.activeNetwork.id}
-              enabled={solanaEnabled}
-              config={solanaProviderConfig}
-            >
-              <FullTestnetWalletRouter
-                enabled={routing.enabled}
-                chains={routing.routedChains}
-                routedChainIds={routing.routedChainIds}
+            <AomiParaEvmRuntimeProvider config={evmRuntimeConfig}>
+              <ParaSolanaWrapper
+                key={resolvedSolanaConfig.activeNetwork.id}
+                enabled={solanaEnabled}
+                config={solanaProviderConfig}
               >
-                <AomiParaAdapterProvider
-                  supportedChains={routing.routedChains}
-                  solanaConfig={resolvedSolanaConfig}
-                  oAuthMethods={oAuthMethods}
+                <FullTestnetWalletRouter
+                  enabled={routing.enabled}
+                  chains={routing.routedChains}
+                  routedChainIds={routing.routedChainIds}
                 >
-                  {children}
-                </AomiParaAdapterProvider>
-              </FullTestnetWalletRouter>
-            </ParaSolanaWrapper>
+                  <AomiParaAdapterProvider
+                    supportedChains={routing.routedChains}
+                    solanaConfig={resolvedSolanaConfig}
+                    oAuthMethods={oAuthMethods}
+                  >
+                    {children}
+                  </AomiParaAdapterProvider>
+                </FullTestnetWalletRouter>
+              </ParaSolanaWrapper>
+            </AomiParaEvmRuntimeProvider>
           </ParaProvider>
         ) : (
           <FullTestnetWalletRouter

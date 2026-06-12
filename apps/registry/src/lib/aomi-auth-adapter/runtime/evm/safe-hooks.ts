@@ -22,8 +22,8 @@ import {
 } from "wagmi";
 import type { Connector } from "wagmi";
 import type { executeWalletCalls } from "@aomi-labs/react";
-import { normalizeAtomicCapabilities } from "./wallet-execution";
-import { walletDebug } from "./wallet-debug";
+import { normalizeAtomicCapabilities } from "../../wallet-execution";
+import { walletDebug } from "../../wallet-debug";
 
 export type WagmiAccountShape = {
   address?: `0x${string}`;

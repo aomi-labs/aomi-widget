@@ -1,6 +1,6 @@
 import { buildAccounts } from "../accounts";
 import type { AomiAccount, WalletFamily } from "../types";
-import { resolveGracefulEvmIdentity } from "../providers/para/evm-identity-grace";
+import { resolveGracefulEvmIdentity } from "../runtime/evm/identity-grace";
 import { EVM_IDENTITY_GRACE_MS } from "./types";
 import type {
   ActiveRef,

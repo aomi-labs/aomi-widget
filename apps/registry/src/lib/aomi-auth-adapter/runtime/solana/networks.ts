@@ -4,7 +4,7 @@ import type {
   SolanaCluster,
   SolanaNetworkConfigInput,
   SolanaNetworkOption,
-} from "./types";
+} from "../../types";
 
 export const DEFAULT_SOLANA_CLUSTER: SolanaCluster = "solana:mainnet";
 

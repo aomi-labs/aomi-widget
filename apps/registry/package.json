@@ -29,6 +29,7 @@
     "@aomi-labs/react": "workspace:*",
     "@assistant-ui/react": "^0.11.28",
     "@assistant-ui/react-markdown": "^0.11.1",
+    "@getpara/evm-wallet-connectors": "2.19.0",
     "@getpara/react-sdk": "2.19.0",
     "@getpara/solana-wallet-connectors": "2.19.0",
     "@privy-io/react-auth": "^2.0.0",

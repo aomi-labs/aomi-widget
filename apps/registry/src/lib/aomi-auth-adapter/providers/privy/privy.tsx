@@ -54,7 +54,7 @@ import {
   DEFAULT_SOLANA_RPC_HTTP_URLS,
   normalizeSolanaNetworkOptions,
   resolveSelectedSolanaNetwork,
-} from "../../solana-networks";
+} from "../../runtime/solana/networks";
 import {
   AOMI_AUTH_BOOTING_IDENTITY,
   AOMI_AUTH_DISCONNECTED_IDENTITY,
@@ -66,7 +66,7 @@ import {
   useSafeSwitchChain,
   useSafeWagmiAccount,
   useSafeWagmiConfig,
-} from "../../safe-wagmi-hooks";
+} from "../../runtime/evm/safe-hooks";
 import type {
   AomiAccountCredential,
   AomiAuthAdapter,

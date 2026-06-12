@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { planEvmAccountDisconnect } from "./evm-disconnect-plan";
+import { planEvmAccountDisconnect } from "./disconnect-plan";
 
 const connections = [
   {

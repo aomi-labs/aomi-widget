@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   normalizeSolanaNetworkOptions,
   resolveSelectedSolanaNetwork,
-} from "./solana-networks";
+} from "./networks";
 
 describe("solana network resolution", () => {
   it("resolves the selected Solana network RPC endpoint", () => {

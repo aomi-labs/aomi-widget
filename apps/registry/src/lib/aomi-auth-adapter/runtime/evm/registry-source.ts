@@ -5,9 +5,9 @@ import {
   useSafeConnectors,
   useSafeRawWagmiConnections,
   useSafeWagmiConfig,
-} from "../../../safe-wagmi-hooks";
-import type { WalletRegistryStore } from "../../../registry/store";
-import { useEvmProviderBrands } from "../../../wallet-brands";
+} from "./safe-hooks";
+import type { WalletRegistryStore } from "../../registry/store";
+import { useEvmProviderBrands } from "./brands";
 
 export function useWagmiRegistrySource(store: WalletRegistryStore): void {
   const connections = useSafeRawWagmiConnections();

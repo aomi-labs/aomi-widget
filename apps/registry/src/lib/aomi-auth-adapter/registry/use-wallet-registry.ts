@@ -4,8 +4,8 @@ import { useEffect, useMemo, useRef, useSyncExternalStore } from "react";
 import {
   WalletRegistryStore,
   type CommandExecutors,
-} from "../../registry/store";
-import type { WalletRegistryState } from "../../registry/types";
+} from "./store";
+import type { WalletRegistryState } from "./types";
 
 export function useWalletRegistry(opts: {
   executors: CommandExecutors;
@@ -22,7 +22,7 @@ export function useWalletRegistry(opts: {
   const store = useMemo(
     () =>
       new WalletRegistryStore({
-          executors: {
+        executors: {
           wagmiReconnect: (stableIds) =>
             executorsRef.current.wagmiReconnect(stableIds),
           wagmiConnect: (stableId) =>
