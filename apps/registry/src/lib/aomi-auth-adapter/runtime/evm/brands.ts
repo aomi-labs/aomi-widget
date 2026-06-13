@@ -279,7 +279,13 @@ function optionIsMoreProviderSpecific(
 
 export function walletOptionIsDetected(option: AomiWalletOption): boolean {
   if (option.status === "unavailable" || option.ready === false) return false;
-  if (option.kind === "evm") return option.status === "installed";
+  if (option.kind === "evm") {
+    const key = canonicalWalletKey(`${option.id} ${option.label}`);
+    if (key === "coinbase" || key === "basewallet" || key === "base") {
+      return option.status === "installed" || option.status === "available";
+    }
+    return option.status === "installed";
+  }
   return option.status === "installed" || option.status === "qr";
 }
 

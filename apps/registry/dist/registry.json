@@ -77,6 +77,38 @@
         },
         {
           "type": "registry:component",
+          "path": "lib/aomi-auth-adapter/catalog/evm-connector-catalog.ts"
+        },
+        {
+          "type": "registry:component",
+          "path": "lib/aomi-auth-adapter/catalog/svm-wallet-catalog.ts"
+        },
+        {
+          "type": "registry:component",
+          "path": "lib/aomi-auth-adapter/catalog/wallet-ids.ts"
+        },
+        {
+          "type": "registry:component",
+          "path": "lib/aomi-auth-adapter/config/AomiWalletKitProvider.tsx"
+        },
+        {
+          "type": "registry:component",
+          "path": "lib/aomi-auth-adapter/config/index.ts"
+        },
+        {
+          "type": "registry:component",
+          "path": "lib/aomi-auth-adapter/config/types.ts"
+        },
+        {
+          "type": "registry:component",
+          "path": "lib/aomi-auth-adapter/execution/aa-owner.ts"
+        },
+        {
+          "type": "registry:component",
+          "path": "lib/aomi-auth-adapter/execution/execute.ts"
+        },
+        {
+          "type": "registry:component",
           "path": "lib/aomi-auth-adapter/network-preferences.tsx"
         },
         {
@@ -173,8 +205,14 @@
         }
       ],
       "dependencies": [
+        "@aomi-labs/client",
         "@aomi-labs/react",
-        "viem"
+        "@getpara/react-sdk",
+        "@getpara/solana-wallet-connectors",
+        "@solana/wallet-adapter-react",
+        "@tanstack/react-query",
+        "viem",
+        "wagmi"
       ],
       "registryDependencies": []
     },
@@ -565,6 +603,14 @@
         },
         {
           "type": "registry:component",
+          "path": "lib/aomi-auth-adapter/catalog/evm-connector-catalog.ts"
+        },
+        {
+          "type": "registry:component",
+          "path": "lib/aomi-auth-adapter/catalog/wallet-ids.ts"
+        },
+        {
+          "type": "registry:component",
           "path": "lib/aomi-auth-adapter/runtime/svm/networks.ts"
         },
         {
@@ -603,6 +649,14 @@
         },
         {
           "type": "registry:component",
+          "path": "lib/aomi-auth-adapter/catalog/evm-connector-catalog.ts"
+        },
+        {
+          "type": "registry:component",
+          "path": "lib/aomi-auth-adapter/catalog/wallet-ids.ts"
+        },
+        {
+          "type": "registry:component",
           "path": "lib/aomi-auth-adapter/runtime/evm/safe-hooks.ts"
         },
         {
@@ -633,6 +687,14 @@
         {
           "type": "registry:component",
           "path": "lib/aomi-auth-adapter/providers/privy/privy.tsx"
+        },
+        {
+          "type": "registry:component",
+          "path": "lib/aomi-auth-adapter/catalog/evm-connector-catalog.ts"
+        },
+        {
+          "type": "registry:component",
+          "path": "lib/aomi-auth-adapter/catalog/wallet-ids.ts"
         },
         {
           "type": "registry:component",

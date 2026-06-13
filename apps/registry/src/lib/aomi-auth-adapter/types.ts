@@ -7,10 +7,12 @@ import type {
   WalletSolanaSignPayload,
   WalletTxPayload,
 } from "@aomi-labs/react";
+import type { WalletModalRow } from "./composer/merge-wallet-rows";
 
-export type AomiAuthStatus = "booting" | "disconnected" | "connected";
+export type AomiSessionStatus = "booting" | "disconnected" | "connected";
+/** @deprecated use AomiSessionStatus */
+export type AomiAuthStatus = AomiSessionStatus;
 export type WalletFamily = "evm" | "solana";
-export type WireWalletFamily = "evm" | "svm";
 export type SvmCluster = "solana:mainnet" | "solana:devnet" | "solana:testnet";
 
 export type SolanaCluster = SvmCluster;
@@ -41,6 +43,17 @@ export type AomiNetworkTarget =
 export type AomiWalletKind = "eoa" | "smart-account";
 export type AomiAAMode = "none" | "4337" | "7702";
 export type AomiSponsorProvider = "alchemy" | "coinbase" | "pimlico" | "self";
+export type SessionProvider = "para" | "privy" | "custom";
+export type EmbeddedProvider = "para" | "privy" | "aomi";
+export type AuthProviderId = SessionProvider | "none" | "baseAccount";
+export type WalletSource =
+  | "injected"
+  | "walletconnect"
+  | "coinbase"
+  | "baseAccount"
+  | "embedded"
+  | "stored";
+
 export type AomiWalletProvider = "para" | "privy" | "baseAccount";
 export type AomiAuthMethod =
   | "google"
@@ -53,10 +66,12 @@ export type AomiAuthMethod =
   | "telegram"
   | "email"
   | "phone"
-  | "wagmi";
+  | "wagmi"
+  | "passkey"
+  | "wallet";
 
-export type AomiAuthIdentity = {
-  status: AomiAuthStatus;
+export type AomiSessionIdentity = {
+  status: AomiSessionStatus;
   isConnected: boolean;
   /**
    * Connected EVM account address (0x...). When `walletKind === "smart-account"`
@@ -88,7 +103,19 @@ export type AomiAuthIdentity = {
    * Solana wallet under one identity.
    */
   svmAddress?: string;
-  /** Wallet platform backing this session. */
+  /**
+   * Provider that authenticated the current session. This intentionally does
+   * not reuse `authProvider`, which is a deprecated auth-method alias.
+   */
+  sessionProvider?: SessionProvider;
+  /** Provider backing the active embedded wallet, when one is in use. */
+  embeddedProvider?: EmbeddedProvider;
+  /** How the active wallet signs or connects. */
+  walletSource?: WalletSource;
+  /** Wallet platform backing this session.
+   * @deprecated use sessionProvider/embeddedProvider; kept for /api/state
+   * compatibility until the backend payload migrates.
+   */
   walletProvider?: AomiWalletProvider;
   /** Stable subject inside the wallet provider, when exposed. */
   walletProviderSubject?: string;
@@ -113,6 +140,9 @@ export type AomiAuthIdentity = {
     canSignAndSendTransaction?: boolean;
   };
 };
+
+/** @deprecated use AomiSessionIdentity */
+export type AomiAuthIdentity = AomiSessionIdentity;
 
 /**
  * One installable Solana wallet surface (e.g. Phantom, Solflare). Surfaced
@@ -218,8 +248,8 @@ export type AomiAccountCredential =
   | { kind: "token"; provider: "para" | "privy" | "custom"; token: string }
   | { kind: "cookie" };
 
-export type AomiAuthAdapter = {
-  identity: AomiAuthIdentity;
+export type AomiWalletKit = {
+  identity: AomiSessionIdentity;
   isReady: boolean;
   isSwitchingChain: boolean;
 
@@ -236,6 +266,8 @@ export type AomiAuthAdapter = {
 
   /** All wallet accounts known to the adapter, tagged by family. */
   accounts: readonly AomiAccount[];
+  /** Unified picker rows: live accounts, stored account-runtime rows, and options. */
+  walletModalRows?: readonly WalletModalRow[];
   /** Make `accounts[id]` the active account for its family. */
   selectAccount: (id: string) => Promise<void>;
 
@@ -333,3 +365,6 @@ export type AomiAuthAdapter = {
   solanaRpcHttpUrl?: string;
   solanaRpcWsUrl?: string;
 };
+
+/** @deprecated use AomiWalletKit */
+export type AomiAuthAdapter = AomiWalletKit;

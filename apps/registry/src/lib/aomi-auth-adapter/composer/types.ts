@@ -8,6 +8,7 @@ import type {
   AomiAccountCredential,
   AomiAuthIdentity,
   AomiAuthMethod,
+  AuthProviderId,
   AomiWalletOption,
   SvmNetworkOption,
 } from "../types";
@@ -24,7 +25,7 @@ import type {
 export type AuthRuntimeStatus = "booting" | "authenticated" | "unauthenticated";
 
 export type AuthRuntime = {
-  provider: NonNullable<AomiAuthIdentity["walletProvider"]>;
+  provider: AuthProviderId;
   status: AuthRuntimeStatus;
   subject?: string;
   primaryLabel?: string;
@@ -77,6 +78,7 @@ export type EvmExecutionRuntime = {
 
 export type ExecutionRuntime = {
   evm: EvmExecutionRuntime;
+  svm?: unknown;
   sponsorship: Pick<
     AomiAuthIdentity,
     "sponsored" | "sponsorProvider" | "sponsorAccount"

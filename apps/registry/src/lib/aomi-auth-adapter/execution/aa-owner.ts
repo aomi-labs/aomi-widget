@@ -11,15 +11,8 @@ export type AomiAAOwnerInput =
       signer?: unknown;
       address?: Hex;
     }
-  | {
-      kind: "external-wallet";
-      walletClient: unknown;
-      address: Hex;
-    }
-  | {
-      kind: "direct";
-      privateKey: `0x${string}`;
-    };
+  | { kind: "external-wallet"; walletClient: unknown; address: Hex }
+  | { kind: "direct"; privateKey: `0x${string}` };
 
 export function toClientAAOwner(owner: AomiAAOwnerInput): AAOwner {
   switch (owner.kind) {
@@ -31,16 +24,13 @@ export function toClientAAOwner(owner: AomiAAOwnerInput): AAOwner {
         signer: owner.signer,
         address: owner.address,
       };
-    case "direct":
-      return {
-        kind: "direct",
-        privateKey: owner.privateKey,
-      };
     case "external-wallet":
       return {
         kind: "external-wallet",
         signer: owner.walletClient,
         address: owner.address,
       };
+    case "direct":
+      return { kind: "direct", privateKey: owner.privateKey };
   }
 }

@@ -110,7 +110,11 @@ export async function resolveParaAAProviderState({
     };
   }
 
-  if (!paraSession) {
+  const canUseExternalWalletOwner = Boolean(
+    shouldUseExternalSigner && walletClient && address,
+  );
+
+  if (!paraSession && !canUseExternalWalletOwner) {
     return {
       providerState: { resolved: null, pending: false, error: null },
       resolvedMode,
@@ -141,19 +145,18 @@ export async function resolveParaAAProviderState({
     };
   }
 
-  const ownerBase = {
-    kind: "provider-session" as const,
-    provider: "para" as const,
-    session: paraSession,
-    address: address as Hex | undefined,
-  };
-  const ownerInput: AomiAAOwnerInput =
-    shouldUseExternalSigner && walletClient
-      ? {
-          ...ownerBase,
-          signer: walletClient,
-        }
-      : ownerBase;
+  const ownerInput: AomiAAOwnerInput = canUseExternalWalletOwner
+    ? {
+        kind: "external-wallet",
+        walletClient,
+        address: address as Hex,
+      }
+    : {
+        kind: "provider-session",
+        provider: "para",
+        session: paraSession,
+        address: address as Hex | undefined,
+      };
   const owner = toClientAAOwner(ownerInput);
 
   try {

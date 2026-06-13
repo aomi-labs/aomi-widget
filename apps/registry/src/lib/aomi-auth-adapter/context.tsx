@@ -3,9 +3,9 @@
 import { createContext, useContext, useEffect, type ReactNode } from "react";
 import { useUser } from "@aomi-labs/react";
 import { AOMI_AUTH_DISCONNECTED_IDENTITY } from "./identity";
-import type { AomiAuthAdapter } from "./types";
+import type { AomiWalletKit } from "./types";
 
-const DISCONNECTED_ADAPTER: AomiAuthAdapter = {
+const DISCONNECTED_ADAPTER: AomiWalletKit = {
   identity: AOMI_AUTH_DISCONNECTED_IDENTITY,
   isReady: true,
   isSwitchingChain: false,
@@ -25,10 +25,10 @@ const DISCONNECTED_ADAPTER: AomiAuthAdapter = {
 };
 
 const AomiAuthAdapterContext =
-  createContext<AomiAuthAdapter>(DISCONNECTED_ADAPTER);
+  createContext<AomiWalletKit>(DISCONNECTED_ADAPTER);
 
 function toSvmCapabilities(
-  capabilities: AomiAuthAdapter["identity"]["solanaCapabilities"],
+  capabilities: AomiWalletKit["identity"]["solanaCapabilities"],
 ): string[] | undefined {
   if (!capabilities) return undefined;
   return Object.entries(capabilities)
@@ -38,7 +38,7 @@ function toSvmCapabilities(
     );
 }
 
-function AomiAuthAdapterSync({ adapter }: { adapter: AomiAuthAdapter }) {
+function AomiAuthAdapterSync({ adapter }: { adapter: AomiWalletKit }) {
   const { setUser } = useUser();
   const identity = adapter.identity;
 
@@ -61,7 +61,7 @@ function AomiAuthAdapterSync({ adapter }: { adapter: AomiAuthAdapter }) {
         capabilities: toSvmCapabilities(identity.solanaCapabilities) ?? [],
       },
       walletProvider: identity.isConnected
-        ? (identity.walletProvider ?? null)
+        ? (identity.sessionProvider ?? identity.embeddedProvider ?? null)
         : null,
       walletProviderSubject: identity.isConnected
         ? (identity.walletProviderSubject ?? null)
@@ -95,6 +95,8 @@ function AomiAuthAdapterSync({ adapter }: { adapter: AomiAuthAdapter }) {
     identity.solanaTransport,
     identity.solanaWalletName,
     identity.svmAddress,
+    identity.embeddedProvider,
+    identity.sessionProvider,
     identity.walletProvider,
     identity.walletProviderSubject,
     setUser,
@@ -108,7 +110,7 @@ export function AomiAuthAdapterProvider({
   value,
 }: {
   children: ReactNode;
-  value: AomiAuthAdapter;
+  value: AomiWalletKit;
 }) {
   return (
     <AomiAuthAdapterContext.Provider value={value}>
@@ -118,6 +120,9 @@ export function AomiAuthAdapterProvider({
   );
 }
 
-export function useAomiAuthAdapter(): AomiAuthAdapter {
+export function useAomiAuthAdapter(): AomiWalletKit {
   return useContext(AomiAuthAdapterContext);
 }
+
+export const AomiWalletKitContextProvider = AomiAuthAdapterProvider;
+export const useAomiWalletKit = useAomiAuthAdapter;

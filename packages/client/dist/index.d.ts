@@ -1309,6 +1309,10 @@ type AAOwner = {
     session: unknown;
     signer?: unknown;
     address?: Hex;
+} | {
+    kind: "external-wallet";
+    signer: unknown;
+    address: Hex;
 };
 
 interface PimlicoResolveOptions {

@@ -2,6 +2,10 @@
 
 import type { ReactNode } from "react";
 import {
+  AomiWalletKitProvider,
+  type AomiWalletKitProviderInput,
+} from "../config";
+import {
   AomiBaseAccountProvider,
   type AomiBaseAccountProviderProps,
 } from "./base-account";
@@ -14,9 +18,14 @@ export type AomiWalletProviderProps =
       provider: "base-account";
       children: ReactNode;
     } & AomiBaseAccountProviderProps)
-  | ({ provider: "privy"; children: ReactNode } & AomiPrivyProviderProps);
+  | ({ provider: "privy"; children: ReactNode } & AomiPrivyProviderProps)
+  | AomiWalletKitProviderInput;
 
 export function AomiWalletProvider(props: AomiWalletProviderProps) {
+  if (!("provider" in props)) {
+    return <AomiWalletKitProvider {...props} />;
+  }
+
   if (props.provider === "base-account") {
     const { provider: _provider, ...rest } = props;
     return <AomiBaseAccountProvider {...rest} />;
@@ -31,9 +40,15 @@ export function AomiWalletProvider(props: AomiWalletProviderProps) {
   return <AomiParaProvider {...rest} />;
 }
 
-export { AomiBaseAccountProvider, AomiParaProvider, AomiPrivyProvider };
+export {
+  AomiBaseAccountProvider,
+  AomiParaProvider,
+  AomiPrivyProvider,
+  AomiWalletKitProvider,
+};
 export type {
   AomiBaseAccountProviderProps,
   AomiParaProviderProps,
   AomiPrivyProviderProps,
+  AomiWalletKitProviderInput,
 };

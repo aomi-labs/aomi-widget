@@ -2,34 +2,29 @@
 
 import { useMemo, type ReactNode } from "react";
 import type { Chain, Transport } from "viem";
-import { http } from "viem";
-import { createConfig, type Config } from "wagmi";
-import { injected } from "wagmi/connectors";
+import type { Config } from "wagmi";
+import type { WalletId } from "../../catalog/wallet-ids";
+import { createAomiEvmConfig } from "../../catalog/evm-connector-catalog";
 import { AomiEvmRuntimeProvider } from "../../runtime/evm/provider";
 
 export type AomiParaEvmRuntimeConfig = {
   chains: readonly [Chain, ...Chain[]];
   transports?: Record<number, Transport>;
   ssr?: boolean;
+  walletConnectProjectId?: string;
+  appName?: string;
+  appLogoUrl?: string | null;
+  wallets?: readonly WalletId[];
 };
 
 function createPlainWagmiConfig(config: AomiParaEvmRuntimeConfig): Config {
-  return createConfig({
+  return createAomiEvmConfig({
     chains: config.chains,
-    connectors: [
-      injected({
-        shimDisconnect: true,
-      }),
-    ],
-    transports:
-      config.transports ??
-      Object.fromEntries(
-        config.chains.map((chain) => [
-          chain.id,
-          http(chain.rpcUrls.default.http[0]),
-        ]),
-      ),
-    multiInjectedProviderDiscovery: true,
+    transports: config.transports,
+    walletConnectProjectId: config.walletConnectProjectId,
+    appName: config.appName,
+    appLogoUrl: config.appLogoUrl,
+    wallets: config.wallets,
     ssr: config.ssr ?? true,
   });
 }
