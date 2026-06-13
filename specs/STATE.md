@@ -2,9 +2,57 @@
 
 ## Last Updated
 
-2026-06-12 - Wallet provider plugin refactor plan finalized (`specs/WALLET-PROVIDER-PLUGIN-REFACTOR.md`)
+2026-06-13 - Wallet provider plugin refactor plan rewritten as the one-big-PR
+grand plan with exact structs/naming/folders (`specs/WALLET-PROVIDER-PLUGIN-REFACTOR.md`)
 
 ## Recent Changes
+
+### Wallet provider plugin refactor — grand plan rewrite (2026-06-13)
+
+Branch `polish-multi-wallet`. No code changes — full rewrite of
+**`specs/WALLET-PROVIDER-PLUGIN-REFACTOR.md`** into a single-PR "finalize
+everything" plan with exact structs, the `AomiWalletKit*` naming, target folder
+tree, and per-phase (P0–P8) execution detail. Decisions locked this session
+(13 total) after a deep read of the actual built code (composer, Para/Privy/Base
+plugins, EVM/SVM runtimes, registry core, account stub, `para-aa.ts`,
+`wallet-execution.ts`, `aa/owner.ts`):
+
+- **Naming:** wallet/account layer is `AomiWalletKit*` (NOT `AomiRuntime*` —
+  that collides with `@aomi-labs/react`'s chat widget `AomiRuntimeProvider`/
+  `useAomiRuntime`). `AomiAuthAdapter→AomiWalletKit`, `AomiAuthIdentity→
+  AomiSessionIdentity`, `socialLoginOptions/connectSocial→authMethods/
+  authenticate`, `evmWallets/solanaWallets→walletOptions`. All old names kept as
+  `@deprecated` aliases for 1–2 releases.
+- **Lost-wallets fix (P1):** Aomi-owned connector catalog (`catalog/`) supplying
+  injected EIP-6963 + WalletConnect + Coinbase + Base Account in ONE isolated
+  wagmi config, replacing the 3 duplicated per-provider configs. WC ships an
+  Aomi default projectId (host override). Installed wallets already arrive via
+  EIP-6963; the real gap was only WC + Coinbase. Para's modal becomes auth-only.
+- **One composer path (P2/P5):** Privy and Base stop hand-building adapters; Base
+  is fully replumbed to a `baseAccount()` catalog connector + execution policy
+  (no longer a provider mode).
+- **AA fix (P4):** additive `external-wallet` `AAOwner` variant in
+  `@aomi-labs/client` (CLI `direct` + Para `session` branches untouched);
+  wallets-only/Privy get real AA; the `if (!paraSession)` gate that starved
+  external-wallet 4337 is dropped from the generic path. 7702→4337 fallback for
+  external signers stays. Key finding: AA engine is Aomi's (Alchemy/Pimlico via
+  env); Para's only role is the embedded owner/signer (the "session" = signing
+  authority).
+- **Public API (P6):** capability-shaped `AomiWalletKitProvider` with
+  `auth`/`wallets:{evm,solana,embedded}`/`execution`/`account` + presets
+  (`para`/`privy`/`wallets-only`). Embedded nested under `wallets`, usually
+  implicit from the auth provider. Config = presets + override + BYO connectors.
+  **wallets-only is first-class.**
+- **Identity split (P0):** `walletProvider → authProvider/embeddedProvider/
+  walletSource`; types now, `/api/state` payload migration deferred with backend.
+- **Multi-provider future:** decision #1 revised — one canonical auth (Better
+  Auth), many linked providers/embedded wallets switchable, hosted SDKs
+  lazy-mounted one at a time. The `mergeWalletRows` stored→`authenticate` path
+  (currently computed-and-discarded) gets wired (P7) as the seam; stored wallet =
+  read-visible only, write approval separate/deferred.
+- **"Preview" dropped** — confirmed no such concept in code; it was "Privy."
+
+Pending: await go/no-go to execute P0–P8. No production code touched yet.
 
 ### Wallet provider plugin refactor plan rewrite (2026-06-12)
 
