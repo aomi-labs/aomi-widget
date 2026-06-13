@@ -34,6 +34,7 @@ import {
   AomiParaEvmRuntimeProvider,
   type AomiParaEvmRuntimeConfig,
 } from "./para-evm-runtime";
+import type { WalletId } from "../../catalog/wallet-ids";
 import { normalizeSvmNetworkOptions } from "../../runtime/svm/networks";
 import {
   ParaSvmWrapper,
@@ -84,6 +85,30 @@ const defaultExternalWallets: TExternalWallet[] = [
   "RAINBOW",
   "RABBY",
 ];
+
+function toWalletIds(wallets: readonly TExternalWallet[]): WalletId[] {
+  const ids: WalletId[] = [];
+  for (const wallet of wallets) {
+    const id = (() => {
+      switch (wallet) {
+        case "WALLETCONNECT":
+          return "walletconnect";
+        case "METAMASK":
+          return "metamask";
+        case "COINBASE":
+          return "coinbase";
+        case "RAINBOW":
+          return "rainbow";
+        case "RABBY":
+          return "rabby";
+        default:
+          return undefined;
+      }
+    })();
+    if (id) ids.push(id);
+  }
+  return ids;
+}
 
 function AomiParaProviderInner({
   children,
@@ -141,9 +166,18 @@ function AomiParaProviderInner({
       ({
         chains: routing.routedChains,
         transports,
+        walletConnectProjectId,
+        appName,
+        wallets: toWalletIds(resolvedWallets),
         ssr: true,
       }) satisfies AomiParaEvmRuntimeConfig,
-    [routing.routedChains, transports],
+    [
+      appName,
+      resolvedWallets,
+      routing.routedChains,
+      transports,
+      walletConnectProjectId,
+    ],
   );
   const paraExternalWalletConfig = useMemo(
     () => ({
@@ -153,12 +187,10 @@ function AomiParaProviderInner({
         (typeof window !== "undefined"
           ? window.location.origin
           : "https://aomi.dev"),
-      wallets: resolvedWallets,
-      walletConnect: walletConnectProjectId
-        ? { projectId: walletConnectProjectId }
-        : undefined,
+      wallets: [],
+      walletConnect: undefined,
     }),
-    [appDescription, appUrl, resolvedWallets, walletConnectProjectId],
+    [appDescription, appUrl],
   );
 
   const svmEnabled =

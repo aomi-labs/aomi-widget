@@ -257,22 +257,7 @@ export function AomiParaAdapterProvider({
       supportedSolanaNetworks,
     ],
   );
-  const providerEvmWalletOptions = useMemo(
-    () =>
-      paraModal
-        ? [
-            {
-              id: "walletConnect",
-              label: "More wallets",
-              family: "evm" as const,
-              kind: "walletconnect" as const,
-              status: "available" as const,
-              description: "Open Para for WalletConnect and more wallets",
-            },
-          ]
-        : [],
-    [paraModal],
-  );
+  const providerEvmWalletOptions = useMemo(() => [], []);
   const transformEvmIdentity = useCallback(
     (identity: ReturnType<typeof evmRuntime.selectEvmIdentity>) => {
       if (

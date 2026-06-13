@@ -24,7 +24,7 @@ import { DISABLED_ACCOUNT_RUNTIME } from "../account/disabled-runtime";
 import { buildAdapterAccounts } from "./build-accounts";
 import { buildAdapterIdentity } from "./build-identity";
 import { buildSocialLoginOptions } from "./build-methods";
-import { mergeWalletRows } from "./merge-wallet-rows";
+import { mergeWalletRows, type WalletModalRow } from "./merge-wallet-rows";
 import type { AomiAdapterComposerProps } from "./types";
 
 export function AomiAdapterComposer({
@@ -140,11 +140,28 @@ export function AomiAdapterComposer({
       transformAccounts,
       canManageAccount,
     });
-    mergeWalletRows({
-      accounts,
-      storedWallets: account.wallets,
-      auth,
-    });
+    const evmWalletOptions = [
+      ...evm.evmWalletOptions,
+      ...additionalEvmWalletOptions,
+    ];
+    const optionRows: WalletModalRow[] = evmWalletOptions.map((option) => ({
+      id: option.id,
+      family: option.family === "solana" ? "solana" : "evm",
+      label: option.label,
+      walletName: option.label,
+      source: "option",
+      status: option.status === "unavailable" ? "unavailable" : "available",
+      provider: option.connectorId,
+      actions: [{ kind: "connect", label: "Connect" }],
+    }));
+    const walletModalRows = [
+      ...mergeWalletRows({
+        accounts,
+        storedWallets: account.wallets,
+        auth,
+      }),
+      ...optionRows,
+    ];
     const hasAnyDisconnectablePath = Boolean(
       evm.canDisconnectEvm || svm?.wallet.disconnect,
     );
@@ -176,13 +193,16 @@ export function AomiAdapterComposer({
       isReady: !isBooting,
       isSwitchingChain: evm.isSwitchingChain,
       canConnect:
-        Boolean(auth.canOpenModal) || Boolean(solanaWalletDescriptors.length),
+        Boolean(auth.canOpenModal) ||
+        Boolean(solanaWalletDescriptors.length) ||
+        Boolean(evmWalletOptions.length),
       canOpenAccountUI:
         Boolean(auth.openAccountUI) &&
         auth.status === "authenticated" &&
         identity.isConnected,
       canDisconnect: hasAnyDisconnectablePath,
       accounts,
+      walletModalRows,
       selectAccount: async (id: string) => {
         const target = accounts.find((account) => account.id === id);
         if (!target) {
@@ -192,7 +212,7 @@ export function AomiAdapterComposer({
           await evm.selectEvmAccount(id);
         }
       },
-      evmWallets: [...evm.evmWalletOptions, ...additionalEvmWalletOptions],
+      evmWallets: evmWalletOptions,
       connectEvmWallet: evm.connectEvmWallet,
       socialLoginOptions: buildSocialLoginOptions(auth.methods),
       connectSocial: async (id: string) => {

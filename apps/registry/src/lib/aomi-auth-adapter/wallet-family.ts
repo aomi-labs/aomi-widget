@@ -1,13 +1,17 @@
 "use client";
 
-import type { WalletFamily, WireWalletFamily } from "./types";
+import type { WalletFamily } from "./types";
 
-export function toWireWalletFamily(family: WalletFamily): WireWalletFamily {
+type LegacyWireWalletFamily = "evm" | "svm";
+
+export function toWireWalletFamily(
+  family: WalletFamily,
+): LegacyWireWalletFamily {
   return family === "solana" ? "svm" : family;
 }
 
 export function fromWireWalletFamily(
-  family: WalletFamily | WireWalletFamily,
+  family: WalletFamily | LegacyWireWalletFamily,
 ): WalletFamily {
   return family === "svm" ? "solana" : family;
 }

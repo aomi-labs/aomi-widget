@@ -129,7 +129,10 @@ function dedupeWalletActions(actions: readonly WalletAction[]): WalletAction[] {
 function walletActionIsVisible(wallet: WalletAction): boolean {
   if (wallet.id === GENERIC_BROWSER_WALLET_ID) return true;
   if (wallet.ready === false || wallet.status === "unavailable") return false;
-  if (wallet.family === "evm" && wallet.status !== "installed") return false;
+  if (wallet.family === "evm" && wallet.status !== "installed") {
+    const key = canonicalWalletKey(`${wallet.id} ${wallet.label}`);
+    return key === "coinbase" || key === "basewallet" || key === "base";
+  }
   return true;
 }
 

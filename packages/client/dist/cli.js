@@ -5468,6 +5468,16 @@ function getSessionOwnerParams(owner) {
       return { kind: "unsupported_adapter", adapter: owner.adapter };
   }
 }
+function getExternalWalletOwnerParams(owner) {
+  return {
+    kind: "ready",
+    ownerParams: {
+      para: void 0,
+      signer: owner.signer,
+      address: owner.address
+    }
+  };
+}
 function getOwnerParams(owner) {
   if (!owner) {
     return { kind: "missing" };
@@ -5477,6 +5487,8 @@ function getOwnerParams(owner) {
       return getDirectOwnerParams(owner);
     case "session":
       return getSessionOwnerParams(owner);
+    case "external-wallet":
+      return getExternalWalletOwnerParams(owner);
   }
 }
 function getMissingOwnerState(resolved, provider) {
@@ -5495,6 +5507,16 @@ function getUnsupportedAdapterState(resolved, adapter) {
     account: null,
     pending: false,
     error: new Error(`Session adapter "${adapter}" is not implemented.`)
+  };
+}
+function getUnsupportedOwnerState(resolved, provider, ownerKind, message) {
+  return {
+    resolved,
+    account: null,
+    pending: false,
+    error: new Error(
+      message != null ? message : `${provider} AA does not support ${ownerKind} owners in this build.`
+    )
   };
 }
 var init_owner = __esm({
@@ -5621,6 +5643,14 @@ async function createAlchemyAAState(options) {
       };
     }
   }
+  if (owner.kind === "external-wallet") {
+    return getUnsupportedOwnerState(
+      execution,
+      "alchemy",
+      owner.kind,
+      "Alchemy AA external-wallet owners are not implemented yet. Use Pimlico for sessionless external-wallet 4337 execution."
+    );
+  }
   if (!apiKey) {
     return {
       resolved: execution,
@@ -5708,7 +5738,9 @@ async function createAlchemyWalletApisState(params) {
       const result = await alchemyClient.sendCalls(__spreadProps(__spreadValues({}, params.resolved.mode === "4337" ? { account: accountAddress } : {}), {
         calls
       }));
-      aaDebug(`${params.resolved.mode}:sendCalls:submitted`, { callId: result.id });
+      aaDebug(`${params.resolved.mode}:sendCalls:submitted`, {
+        callId: result.id
+      });
       const status = await alchemyClient.waitForCallsStatus({ id: result.id });
       const transactionHash = (_b = (_a3 = status.receipts) == null ? void 0 : _a3[0]) == null ? void 0 : _b.transactionHash;
       aaDebug(`${params.resolved.mode}:sendCalls:receipt`, {
@@ -5717,7 +5749,9 @@ async function createAlchemyWalletApisState(params) {
         receipts: (_d = (_c = status.receipts) == null ? void 0 : _c.length) != null ? _d : 0
       });
       if (!transactionHash) {
-        throw new Error("Alchemy Wallets API did not return a transaction hash.");
+        throw new Error(
+          "Alchemy Wallets API did not return a transaction hash."
+        );
       }
       return { transactionHash };
     } catch (error) {
@@ -5824,15 +5858,15 @@ async function createPimlicoAAState(options) {
   if (ownerParams.kind === "unsupported_adapter") {
     return getUnsupportedAdapterState(execution, ownerParams.adapter);
   }
-  const localSessionSigner = owner.kind === "session" ? resolvePimlicoSessionSigner(ownerParams.ownerParams) : null;
+  const permissionlessSigner = owner.kind === "session" || owner.kind === "external-wallet" ? resolvePimlicoSessionSigner(ownerParams.ownerParams) : null;
   try {
-    const signer = owner.kind === "direct" ? privateKeyToAccount5(owner.privateKey) : localSessionSigner;
+    const signer = owner.kind === "direct" ? privateKeyToAccount5(owner.privateKey) : permissionlessSigner;
     if (signer) {
       return await createPimlicoPermissionlessState({
         resolved: execution,
         chain,
         signer,
-        externalSigner: owner.kind === "session" && "signer" in ownerParams.ownerParams ? ownerParams.ownerParams.signer : void 0,
+        externalSigner: (owner.kind === "session" || owner.kind === "external-wallet") && "signer" in ownerParams.ownerParams ? ownerParams.ownerParams.signer : void 0,
         rpcUrl: options.rpcUrl,
         apiKey,
         mode: effectiveMode
@@ -5945,7 +5979,9 @@ function rejectExternalWallet7702(signer) {
 function adaptPimlicoSdkAccount(account, address3) {
   const lowered = account.provider.toLowerCase();
   if (lowered !== "alchemy" && lowered !== "pimlico") {
-    throw new Error(`Unsupported AA provider from Pimlico SDK: ${account.provider}`);
+    throw new Error(
+      `Unsupported AA provider from Pimlico SDK: ${account.provider}`
+    );
   }
   const provider = lowered;
   if (account.mode === "4337") {

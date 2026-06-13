@@ -1,6 +1,10 @@
 "use client";
 
-import type { AomiAuthIdentity, AomiAuthMethod, AomiWalletProvider } from "./types";
+import type {
+  AomiAuthIdentity,
+  AomiAuthMethod,
+  AomiWalletProvider,
+} from "./types";
 
 export const AOMI_AUTH_DISCONNECTED_IDENTITY: AomiAuthIdentity = {
   status: "disconnected",
@@ -74,6 +78,8 @@ export function formatAuthMethod(method?: AomiAuthMethod): string | undefined {
     telegram: "Telegram",
     email: "Email",
     phone: "Phone",
+    passkey: "Passkey",
+    wallet: "Wallet",
     wagmi: "External Wallet",
   };
   return labelMap[method];

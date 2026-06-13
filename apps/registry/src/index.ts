@@ -3,7 +3,10 @@
 export { AomiFrame } from "./components/aomi-frame";
 
 // Dual-wallet UI
-export { DualWalletBar, type DualWalletBarProps } from "./components/control-bar/dual-wallet-bar";
+export {
+  DualWalletBar,
+  type DualWalletBarProps,
+} from "./components/control-bar/dual-wallet-bar";
 
 // Notification UI
 export { NotificationToaster } from "./components/ui/notification";
@@ -35,10 +38,18 @@ export {
 } from "@aomi-labs/react";
 export { ExtUserProvider, useUser, UserState } from "@aomi-labs/react";
 export { monad, monadTestnet } from "@aomi-labs/client";
-export type { AomiAuthAdapter } from "./lib/aomi-auth-adapter";
+export type {
+  AomiAuthAdapter,
+  AomiWalletKit,
+  AomiSessionIdentity,
+  AomiSessionStatus,
+} from "./lib/aomi-auth-adapter";
 export {
   AomiAuthAdapterProvider,
+  AomiWalletKitContextProvider,
+  AomiWalletKitProvider,
   useAomiAuthAdapter,
+  useAomiWalletKit,
 } from "./lib/aomi-auth-adapter";
 export { AomiWalletProvider } from "./lib/aomi-auth-adapter/providers";
 export { AomiBaseAccountProvider } from "./lib/aomi-auth-adapter/providers/base-account";
