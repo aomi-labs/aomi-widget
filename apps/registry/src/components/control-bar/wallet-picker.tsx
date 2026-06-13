@@ -44,7 +44,7 @@ type WalletAction = AomiWalletOption & {
   connect: () => Promise<void>;
 };
 
-const MORE_WALLET_OPTIONS_ID = "more-wallet-options";
+const GENERIC_BROWSER_WALLET_ID = "generic-browser-wallet";
 
 function familyLabel(family: WalletFamily): string {
   return family === "solana" ? "Solana" : "Ethereum";
@@ -67,7 +67,7 @@ function statusRank(option: AomiWalletOption): number {
 function walletDisplayRank(option: AomiWalletOption): number {
   const id = option.id.toLowerCase();
   const label = option.label.toLowerCase();
-  if (id === MORE_WALLET_OPTIONS_ID) return 30;
+  if (id === GENERIC_BROWSER_WALLET_ID) return 30;
   if (id.includes("metamask") || label.includes("metamask")) return 0;
   if (id.includes("rabby") || label.includes("rabby")) return 1;
   if (id.includes("phantom") || label.includes("phantom")) return 2;
@@ -101,6 +101,17 @@ function walletFamilyAliasKey(
   return `${family}:${walletAliasKey(wallet)}`;
 }
 
+function isGenericBrowserWallet(
+  wallet: Pick<AomiWalletOption, "connectorId" | "id" | "label">,
+): boolean {
+  const label = normalizeWalletOptionId(wallet.label);
+  const id = normalizeWalletOptionId(wallet.id);
+  const connectorId = normalizeWalletOptionId(wallet.connectorId ?? "");
+  return (
+    label === "browserwallet" || id === "injected" || connectorId === "injected"
+  );
+}
+
 function dedupeWalletActions(actions: readonly WalletAction[]): WalletAction[] {
   const seen = new Set<string>();
   const result: WalletAction[] = [];
@@ -116,18 +127,18 @@ function dedupeWalletActions(actions: readonly WalletAction[]): WalletAction[] {
 }
 
 function walletActionIsVisible(wallet: WalletAction): boolean {
-  if (wallet.id === MORE_WALLET_OPTIONS_ID) return true;
+  if (wallet.id === GENERIC_BROWSER_WALLET_ID) return true;
   if (wallet.ready === false || wallet.status === "unavailable") return false;
   if (wallet.family === "evm" && wallet.status !== "installed") return false;
   return true;
 }
 
 /**
- * Actions that open their own surface (WalletConnect QR, the full Para list).
+ * Actions that open their own surface (WalletConnect QR, provider handoffs).
  * The picker should close immediately for these instead of flashing success.
  */
 function isExternalHandoff(wallet: WalletAction): boolean {
-  return wallet.id === MORE_WALLET_OPTIONS_ID || wallet.kind === "walletconnect";
+  return wallet.kind === "walletconnect";
 }
 
 export function WalletPicker() {
@@ -199,7 +210,7 @@ export function WalletPicker() {
   );
 
   const walletActions = useMemo<WalletAction[]>(() => {
-    const evmWallets =
+    const mappedEvmWallets =
       adapter.evmWallets?.map((wallet) => ({
         ...wallet,
         actionKey: `connect-evm:${wallet.id}`,
@@ -211,6 +222,10 @@ export function WalletPicker() {
           await adapter.connect({ family: "evm" });
         },
       })) ?? [];
+    const browserWallet = mappedEvmWallets.find(isGenericBrowserWallet);
+    const evmWallets = mappedEvmWallets.filter(
+      (wallet) => !isGenericBrowserWallet(wallet),
+    );
     const solanaWallets =
       adapter.solanaWallets?.map((wallet) => ({
         id: wallet.name,
@@ -235,23 +250,30 @@ export function WalletPicker() {
           await adapter.connect({ family: "solana" });
         },
       })) ?? [];
-    const moreWalletOptions: WalletAction[] = adapter.canConnect
+    const genericBrowserWallet: WalletAction[] = adapter.canConnect
       ? [
           {
-            id: MORE_WALLET_OPTIONS_ID,
-            label: "More wallet options",
-            family: "multichain",
-            kind: "walletconnect",
-            status: "available",
-            ready: true,
-            description: "Open the full wallet list",
-            actionKey: "connect-more-wallets",
+            id: GENERIC_BROWSER_WALLET_ID,
+            connectorId: browserWallet?.connectorId ?? "injected",
+            label: "Browser wallet",
+            family: "evm",
+            kind: "evm",
+            status: browserWallet?.status ?? "available",
+            ready: browserWallet?.ready ?? true,
+            installed: browserWallet?.installed,
+            iconUrl: browserWallet?.iconUrl,
+            description: "Connect an Ethereum wallet",
+            actionKey: "connect-browser-wallet",
             connect: async () => {
-              if (adapter.connectEvmWallet) {
-                await adapter.connectEvmWallet(MORE_WALLET_OPTIONS_ID);
+              if (browserWallet) {
+                await browserWallet.connect();
                 return;
               }
-              await adapter.connect();
+              if (adapter.connectEvmWallet) {
+                await adapter.connectEvmWallet("injected");
+                return;
+              }
+              await adapter.connect({ family: "evm" });
             },
           },
         ]
@@ -260,7 +282,7 @@ export function WalletPicker() {
     return dedupeWalletActions([
       ...evmWallets,
       ...solanaWallets,
-      ...moreWalletOptions,
+      ...genericBrowserWallet,
     ])
       .filter(walletActionIsVisible)
       .sort((a, b) => {
@@ -294,7 +316,7 @@ export function WalletPicker() {
     () =>
       walletActions.filter(
         (wallet) =>
-          wallet.id === MORE_WALLET_OPTIONS_ID ||
+          wallet.id === GENERIC_BROWSER_WALLET_ID ||
           !connectedFamilyBrandKeys.has(walletFamilyAliasKey(wallet)),
       ),
     [walletActions, connectedFamilyBrandKeys],
@@ -422,7 +444,7 @@ export function WalletPicker() {
           wallet.actionKey,
           async () => {
             await wallet.connect();
-            // WalletConnect / the full Para list open their own surface, so the
+            // WalletConnect/provider handoffs open their own surface, so the
             // picker steps aside. Direct connects stay open — the new wallet
             // simply appears in the connected list — and the add-list collapses.
             if (isExternalHandoff(wallet)) {
@@ -438,70 +460,72 @@ export function WalletPicker() {
   );
 
   // Connect options render as one flat list — EVM brands, then Solana brands,
-  // then the "Other wallets" full-list row — with no separators between
-  // families.
+  // then the generic browser-wallet row — with no separators between families.
   const renderGroupedActions = (actions: WalletAction[]) => {
     const ordered = [
-      ...actions.filter((a) => a.family === "evm"),
+      ...actions.filter(
+        (a) => a.family === "evm" && a.id !== GENERIC_BROWSER_WALLET_ID,
+      ),
       ...actions.filter((a) => a.family === "solana"),
       ...actions.filter((a) => a.family !== "evm" && a.family !== "solana"),
+      ...actions.filter((a) => a.id === GENERIC_BROWSER_WALLET_ID),
     ];
     return ordered.map(renderWalletActionRow);
   };
 
-  const addWalletSection = addableWalletActions.length
-    ? hasConnectedWallets
-      ? (
-          <section className="flex flex-col gap-1.5">
-            <button
-              type="button"
-              onClick={() => setAddOpen((value) => !value)}
-              aria-expanded={addOpen}
-              aria-label="Add another wallet"
-              className={cn(
-                "border-border/70 bg-card hover:border-primary/30 hover:bg-accent/40 flex items-center gap-3 rounded-2xl border px-3 py-2.5 text-left transition-colors",
-              )}
-            >
-              <span className="bg-muted/50 text-muted-foreground flex size-9 shrink-0 items-center justify-center rounded-xl">
-                <PlusIcon className="size-4" />
-              </span>
-              <span className="min-w-0 flex-1">
-                <span className="block truncate text-sm font-medium">
-                  Add another wallet
-                </span>
-                <span className="text-muted-foreground block truncate text-[11px]">
-                  Link an Ethereum or Solana wallet
-                </span>
-              </span>
-              <ChevronDownIcon
-                className={cn(
-                  "text-muted-foreground size-4 shrink-0 transition-transform duration-300 ease-out",
-                  addOpen && "rotate-180",
-                )}
-              />
-            </button>
-            <div
-              aria-hidden={!addOpen}
-              className={cn(
-                "grid transition-[grid-template-rows,opacity] duration-300 ease-out",
-                addOpen ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0",
-              )}
-            >
-              <div className="overflow-hidden">
-                <div className="flex flex-col gap-1.5 pt-1.5">
-                  {renderGroupedActions(addableWalletActions)}
-                </div>
-              </div>
+  const addWalletSection = addableWalletActions.length ? (
+    hasConnectedWallets ? (
+      <section className="flex flex-col gap-1.5">
+        <button
+          type="button"
+          onClick={() => setAddOpen((value) => !value)}
+          aria-expanded={addOpen}
+          aria-label="Add another wallet"
+          className={cn(
+            "border-border/70 bg-card hover:border-primary/30 hover:bg-accent/40 flex items-center gap-3 rounded-2xl border px-3 py-2.5 text-left transition-colors",
+          )}
+        >
+          <span className="bg-muted/50 text-muted-foreground flex size-9 shrink-0 items-center justify-center rounded-xl">
+            <PlusIcon className="size-4" />
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block truncate text-sm font-medium">
+              Add another wallet
+            </span>
+            <span className="text-muted-foreground block truncate text-[11px]">
+              Link an Ethereum or Solana wallet
+            </span>
+          </span>
+          <ChevronDownIcon
+            className={cn(
+              "text-muted-foreground size-4 shrink-0 transition-transform duration-300 ease-out",
+              addOpen && "rotate-180",
+            )}
+          />
+        </button>
+        <div
+          aria-hidden={!addOpen}
+          className={cn(
+            "grid transition-[grid-template-rows,opacity] duration-300 ease-out",
+            addOpen
+              ? "grid-rows-[1fr] opacity-100"
+              : "grid-rows-[0fr] opacity-0",
+          )}
+        >
+          <div className="overflow-hidden">
+            <div className="flex flex-col gap-1.5 pt-1.5">
+              {renderGroupedActions(addableWalletActions)}
             </div>
-          </section>
-        )
-      : (
-          <section className="flex flex-col gap-1.5">
-            <SectionLabel>Wallets</SectionLabel>
-            {renderGroupedActions(addableWalletActions)}
-          </section>
-        )
-    : null;
+          </div>
+        </div>
+      </section>
+    ) : (
+      <section className="flex flex-col gap-1.5">
+        <SectionLabel>Wallets</SectionLabel>
+        {renderGroupedActions(addableWalletActions)}
+      </section>
+    )
+  ) : null;
 
   if (!open) return null;
 
@@ -782,18 +806,14 @@ function WalletActionRow({
     wallet.status === "qr" ||
     wallet.status === "unavailable";
   const actionVerb = linkedMode ? "Link" : "Connect";
-  const isMore = wallet.id === MORE_WALLET_OPTIONS_ID;
   const description =
     wallet.description ??
     (wallet.family === "solana"
       ? `${actionVerb} a Solana wallet`
       : `${actionVerb} an Ethereum wallet`);
-  const visibleLabel = isMore ? "Other wallets" : wallet.label;
-  const visibleDescription = isMore
-    ? "Open the full wallet list"
-    : linkedMode
-      ? description.replace(/^Connect /, "Link ")
-      : description;
+  const visibleDescription = linkedMode
+    ? description.replace(/^Connect /, "Link ")
+    : description;
 
   return (
     <button
@@ -813,7 +833,7 @@ function WalletActionRow({
       />
       <span className="min-w-0 flex-1">
         <span className="block truncate text-sm font-medium">
-          {visibleLabel}
+          {wallet.label}
         </span>
         <span className="text-muted-foreground block truncate text-[11px]">
           {visibleDescription}
@@ -848,7 +868,9 @@ function SocialLoginRow({
   onClick: () => void;
 }) {
   const title = brandLabel ?? option.label;
-  const subtitle = brandLabel ? option.label : (option.description ?? "Use an Aomi account");
+  const subtitle = brandLabel
+    ? option.label
+    : (option.description ?? "Use an Aomi account");
   return (
     <button
       type="button"

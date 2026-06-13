@@ -206,7 +206,9 @@ describe("WalletPicker", () => {
     expect(
       screen.getByRole("button", { name: "Link WalletConnect" }),
     ).toBeTruthy();
-    expect(screen.getByText("Other wallets")).toBeTruthy();
+    expect(
+      screen.getByRole("button", { name: "Link Browser wallet" }),
+    ).toBeTruthy();
     // An already-connected brand (MetaMask) is not offered as an add option.
     expect(screen.queryByRole("button", { name: "Link MetaMask" })).toBeNull();
     expect(
@@ -522,9 +524,7 @@ describe("WalletPicker", () => {
     expect(
       screen.queryByRole("button", { name: "Disconnect Ethereum wallet" }),
     ).toBeNull();
-    expect(
-      screen.queryByRole("button", { name: "Manage Phantom" }),
-    ).toBeNull();
+    expect(screen.queryByRole("button", { name: "Manage Phantom" })).toBeNull();
 
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "Manage Para" }));

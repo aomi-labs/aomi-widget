@@ -2,9 +2,42 @@
 
 ## Last Updated
 
-2026-06-12 - Wallet refactor review + follow-up fix plan (`WALLET-FOLLOWUP-FIXES.md`)
+2026-06-12 - Wallet provider plugin refactor plan finalized (`specs/WALLET-PROVIDER-PLUGIN-REFACTOR.md`)
 
 ## Recent Changes
+
+### Wallet provider plugin refactor plan rewrite (2026-06-12)
+
+Branch `polish-multi-wallet`. No code changes — rewrote
+**`specs/WALLET-PROVIDER-PLUGIN-REFACTOR.md`** after a planning discussion grounded in
+`meeting-2026-06-10-wallet-auth-backend-frontend.md`. The plan is now the successor to
+WALLET-ARCHITECTURE.md §12–13 / WALLET-REFACTOR-PLAN.md. Headline changes:
+
+- **"Wallet Links Runtime" renamed to Account Runtime** and re-shaped around a canonical
+  Aomi user (`{ user, linkedAccounts, wallets }`): provider subjects (Para/Privy/Google)
+  are linked accounts *under* the user, not the root identity. `capability: "read"|"write"`
+  reserved on stored wallets (linking ≠ authorization, per the meeting's impersonation
+  discussion); `verifiedAt` optional; `linkedVia` gains `"observed"`.
+- **Session model written in**: provider session (browser credential source) vs Aomi
+  session (canonical; today `POST /api/account/sessions/exchange`, later same-origin
+  cookie via Next.js server functions + Better Auth). `AomiAccountCredential` gains a
+  `{ kind: "cookie" }` variant; no bearer-token assumption in the widget.
+- **11 locked decisions** recorded (auth singular per deployment with `methods[]`
+  multiplicity; `kind: "wallet"` method reserved for future SIWE, not built; approval
+  granularity deferred; stored external row → connect, stored embedded row →
+  `authenticate` action routing to `auth.login`; Para-branded connector supply kept this
+  PR; RainbowKit-style BYO connect UI compatible by construction, deferred; etc.).
+- **PR boundary**: this PR = Phases 1 (done) – 6: composer extraction, complete SVM
+  runtime extraction out of para-sol.tsx, Para plugin split, Account Runtime
+  **types + disabled stub only** (merge path tested with a mocked ready runtime, zero
+  network calls), naming sweep last + cuttable. Deferred list is explicit (real Account
+  Runtime, approvals, SIWE, Base Account replumb, 6963 migration, identity
+  `walletProvider` split).
+- Baseline verified at planning time: 110 registry tests green (18 files), F1 fix
+  (`?? []` at `context.tsx:61`) confirmed in code, `runtime/solana/` already holds
+  networks + registry-source.
+
+Pending: execute Phases 2–6 of the plan; manual browser matrix at the end (extensions).
 
 ### Wallet refactor review → WALLET-FOLLOWUP-FIXES.md (2026-06-12)
 
