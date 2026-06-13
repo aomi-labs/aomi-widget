@@ -4,55 +4,129 @@
 
 The wallet/auth layer should not be permanently shaped around Para. Para is a
 valuable provider, but Aomi core should work with no hosted auth, normal EVM
-wallets, Solana wallets, Base Account, Privy, Para, or a future custom auth
-provider. This document describes the target design and a migration plan from
+wallets, SVM wallets, Base Account, Privy, Para, or a future custom auth
+provider. This document describes the target design and the migration plan from
 the current branch state toward a provider-neutral composer.
 
-The goal is:
+The end state of **this PR** is "frontend-complete, backend-ready":
 
-- Aomi widget users can choose whether they want hosted auth.
+- Everything that works today keeps working: Para auth, MetaMask/Rabby/
+  WalletConnect, Phantom/Solflare, wallet switching, AA, network switching.
+- Persistence stays the localStorage registry key. "Remembering" wallets is
+  per-browser only — there is no DB yet.
+- A typed, stubbed **Account Runtime** seam exists so that when the backend
+  (Next.js server functions + Better Auth) lands, stored/linked wallets light
+  up in the same modal with zero composer changes.
 - Para, Privy, custom auth, and no-auth modes all plug into the same core.
-- Normal wallets like MetaMask, Rabby, WalletConnect, Phantom, and Solflare are
-  not conceptually owned by Para.
-- Base Account fits as an EVM connector and execution option, not a hosted-auth
-  provider.
+- Normal wallets are not conceptually owned by Para.
 - Account abstraction and sponsorship are execution capabilities, not Para-only
   concepts.
-- Later DB-linked wallets can be merged into the same modal as live wallets.
+
+## Relationship to Other Documents
+
+This plan supersedes the refactor sections of `WALLET-ARCHITECTURE.md` (§12–13)
+and continues where `WALLET-REFACTOR-PLAN.md` (registry extraction, executed)
+left off. `WALLET-FOLLOWUP-FIXES.md` items landed on this branch before this
+plan executes (baseline verified 2026-06-12: 110 registry tests green, F1 fix
+present in `context.tsx`). The backend identity model references
+`meeting-2026-06-10-wallet-auth-backend-frontend.md`.
+
+## Decisions (locked 2026-06-12)
+
+These were open questions; they are now decisions. Do not re-litigate during
+execution.
+
+1. **Auth is singular per deployment.** Exactly one `AuthRuntime` mounts at a
+   time (`para` | `privy` | `custom` | none). Multiplicity lives in
+   `methods[]` — one runtime exposes many sign-in methods (email, Google,
+   later wallet-sign-in). Two hosted-auth SDKs mounted simultaneously means
+   two modal stacks and two opinions about the wagmi config; there is no
+   product pull for it, and the Better Auth future inverts the hierarchy
+   anyway (Better Auth becomes *the* auth; Para/Privy demote to login
+   front-ends + embedded-wallet providers).
+2. **Canonical identity is minted by the backend, not by providers.** The
+   provider subject (Para subject, Privy user id) is a *linked account under*
+   the canonical Aomi user, never the root identity. Until Better Auth lands,
+   the widget keeps provider-subject identity and the existing
+   `POST /api/account/sessions/exchange` seam.
+3. **Aomi session transport will be same-origin cookie** (Next.js server
+   functions + Better Auth). The Account Runtime is specified as same-origin
+   fetch with `credentials: "include"`; no bearer-token assumption is baked
+   into the widget. `getCredential()` exists only for the provider-token
+   exchange step, which moves server-side later.
+4. **Users are keyed by email for now.** Wallet-only (challenge/SIWE) signup is
+   not built in this PR. We reserve `kind: "wallet"` in `AuthMethodOption` so
+   it can become a method of the Better-Auth-backed runtime later.
+5. **Approval granularity is deferred.** A wallet being in the DB must not
+   imply write authority (impersonation risk from the 2026-06-10 meeting).
+   Whether consent is per-wallet, per-session, or per-action is decided with
+   the backend work. This PR only reserves an optional `capability` field on
+   the stored wallet type so the row model never needs reshaping.
+6. **Stored-row click behaviors**: a stored external wallet that is not
+   connected in this browser → clicking attempts connect via the matching
+   connector. A stored embedded wallet whose provider is signed out →
+   clicking triggers `auth.login`. `WalletRowAction` gains
+   `{ kind: "authenticate" }`.
+7. **Connector supply stays Para-branded in Para mode for this PR.** The
+   runtime layer is already connector-source-agnostic (generic EIP-6963
+   detection, brand sniffing, dedupe; Privy mode builds its own plain wagmi
+   config), but in Para mode MetaMask/Rabby are still supplied by
+   `@getpara/evm-wallet-connectors`. Migrating them to plain 6963 connectors
+   would destabilize flows that just got stable — it is a named deferred
+   phase, not part of this PR.
+8. **Bring-your-own connect UI (RainbowKit etc.) is compatible by
+   construction** and costs us a spec note, not a build: any wagmi-based
+   connect modal writes connections into the same wagmi config the registry
+   sources observe. A config hook to replace the picker's connect-options
+   section is deferred work.
+9. **Low-level lane props are the real public API.** Named presets
+   (`mode="wallets-only"`) are future sugar that compiles down to lane config.
+10. **Embedded wallets render in the same wallets section** as external ones
+    (current behavior), carrying their provider on the row. Revisit with
+    design later if needed.
+11. There is no "preview wallet" concept (transcription artifact — it was
+    "Privy wallet"). Privy embedded wallets are covered by the embedded lane.
 
 ## Current State
 
-This branch has already extracted a generic EVM wallet runtime into:
+This branch already has:
 
 ```txt
-apps/registry/src/lib/aomi-auth-adapter/runtime/evm/wallet-runtime.ts
+apps/registry/src/lib/aomi-auth-adapter/
+  registry/            # WalletRegistry pure core: reducer, policy, commands,
+                       # store, selectors, persistence, use-wallet-registry
+  runtime/evm/         # generic EVM runtime: provider.tsx, wallet-runtime.ts,
+                       # brands.ts, disconnect-plan.ts, identity-grace.ts,
+                       # registry-source.ts, safe-hooks.ts
+  runtime/solana/      # partial: networks.ts, registry-source.ts
+  providers/para/      # para.tsx (~1.2k lines), para-sol.tsx, para-aa.ts,
+                       # para-evm-runtime.tsx, sources/para-session-source.ts
+  providers/privy/     # adapter-contract implementation, own wagmi config
+  providers/base-account/
 ```
 
-That runtime owns generic wagmi concerns:
+The EVM runtime owns generic wagmi concerns (connectors/connections, wallet
+option building, active account lookup/selection, brand-correct connect,
+disconnect planning, chain switching, capability/signing hooks, registry
+command execution). The registry owns active-wallet-per-family, heal, and
+disconnect intent as reducer transitions.
 
-- wagmi connectors and live connections
-- wallet option building
-- active EVM account lookup
-- active EVM account selection
-- brand-correct wallet connect
-- EVM account disconnect planning
-- chain switching
-- wagmi capability and signing hooks
-- registry command execution for wagmi reconnect/connect/disconnect
-
-The Para provider now composes that runtime instead of owning all wagmi details.
-However, `providers/para/para.tsx` is still large because it remains the top
-level adapter composer for:
+`providers/para/para.tsx` is still the top-level composer for:
 
 - Para auth/session/modal
-- EVM runtime
-- Solana runtime-ish methods
+- EVM runtime consumption
+- SVM wallet methods (via `para-sol.tsx`)
 - identity synthesis
 - transaction/signing adapter methods
 - Para AA owner/session resolution
 - final `AomiAuthAdapter` object construction
 
-So the branch is better, but not at the final architecture.
+Compatibility debt carried into this plan:
+
+- Registry command still says `para/logout`.
+- Disconnect plan still exposes `isParaAccount`.
+- Para file still composes identity, account rows, methods, SVM, and AA.
+- In Para mode, MetaMask/Rabby connectors are Para-branded (decision 7).
 
 ## Target Mental Model
 
@@ -64,16 +138,16 @@ flowchart TD
 
   Composer --> Auth["Auth runtime"]
   Composer --> EVM["EVM wallet runtime"]
-  Composer --> SVM["Solana wallet runtime"]
+  Composer --> SVM["SVM wallet runtime"]
   Composer --> Embedded["Embedded wallet runtime"]
   Composer --> Exec["Execution runtime"]
-  Composer --> Links["Stored wallet links runtime"]
+  Composer --> Account["Account runtime (backend identity)"]
 
   Auth --> Identity["Aomi identity"]
   EVM --> Accounts["Live wallet accounts"]
   SVM --> Accounts
   Embedded --> Accounts
-  Links --> Accounts
+  Account --> Accounts
 
   Identity --> Adapter["AomiAuthAdapter"]
   Accounts --> Adapter
@@ -81,8 +155,8 @@ flowchart TD
   Adapter --> Widget["Aomi widget UI/runtime"]
 ```
 
-Providers like Para and Privy can supply multiple lanes, but Aomi core should
-consume generic lane interfaces.
+Providers like Para and Privy can supply multiple lanes, but Aomi core consumes
+generic lane interfaces.
 
 ```mermaid
 flowchart LR
@@ -99,6 +173,35 @@ flowchart LR
   Base --> Exec["Execution policy"]
 
   Normal["Normal wallet mode"] --> EVM
+  Backend["Aomi backend (Better Auth, later)"] --> Account["Account runtime"]
+```
+
+## Session & Credential Model
+
+There are two sessions, and the plan keeps them distinct:
+
+1. **Provider session** — the Para/Privy/custom session living in the browser.
+   It is a *credential source*: `getCredential()` yields a provider token.
+2. **Aomi session** — the canonical user resolved by the Aomi backend.
+   - **Today**: the widget exchanges the provider token via
+     `createAccountAccessTokenProvider` →
+     `POST /api/account/sessions/exchange` (shipped; accepts both providers).
+   - **Later**: the host Next.js app runs Better Auth. The Aomi session is a
+     same-origin cookie; the exchange happens server-side; the Account Runtime
+     fetches same-origin with `credentials: "include"`. The Para/Privy modal
+     remains the browser-side login front end whose token the server exchanges
+     into a Better Auth session.
+
+The canonical user owns *linked accounts* (Para identity, Google, Privy, …)
+and *wallets* (external, embedded), per the meeting's data model
+(`users` / `linked_accounts` / `wallet_links` / `wallet_approvals`). Linking a
+wallet is **not** authorization to act with it — approvals are a separate,
+backend-owned concern (decision 5).
+
+```ts
+type AomiAccountCredential =
+  | { kind: "token"; provider: AuthProviderId; token: string }
+  | { kind: "cookie" }; // same-origin session; nothing to attach client-side
 ```
 
 ## Core Responsibilities
@@ -109,107 +212,85 @@ Aomi core should own:
 
 - final `AomiAuthAdapter` construction
 - identity merge
-- account row merge
+- account row merge (live + embedded + stored)
 - active wallet selection
 - wallet modal data model
-- connect/disconnect routing
+- connect/disconnect/authenticate routing
 - transaction/signature routing
 - UserState sync through `AomiAuthAdapterProvider`
-- backend wallet link merge when available
+- backend account merge when the Account Runtime is enabled
 - graceful behavior when optional lanes are absent
 
 Aomi core should not ask "is this Para?" except in provider plugin code.
 
 ### Auth Runtime
 
-Auth answers: who is the app/user subject?
+Auth answers: which provider session exists in this browser, and what
+credential can it yield? It is **not** the canonical identity (decision 2) and
+is not responsible for normal external wallet connections.
 
-It should not be responsible for normal external wallet connections.
-
-Examples:
-
-- Para social/email auth
-- Privy social/email auth
-- custom app auth
-- no hosted auth
+Examples: Para social/email auth, Privy social/email auth, custom app auth,
+no hosted auth.
 
 ### EVM Wallet Runtime
 
 EVM runtime answers: what EVM wallets are live and what can wagmi do?
 
-It should own:
+It owns: MetaMask/Rabby/WalletConnect/Base Account connectors, active EVM
+account, EVM connect/disconnect, chain switching, sign/send primitives, wagmi
+capability discovery. (Largely exists: `runtime/evm/`.)
 
-- MetaMask/Rabby/WalletConnect/Base Account connectors
-- active EVM account
-- EVM connect/disconnect
-- EVM chain switching
-- EVM sign/send primitives
-- wagmi capability discovery
+### SVM Wallet Runtime
 
-### Solana Runtime
+SVM runtime answers: what SVM wallets are live and what can they sign?
 
-Solana runtime answers: what SVM wallets are live and what can they sign?
-
-It should own:
-
-- Phantom/Solflare/Backpack/Glow options
-- active Solana wallet
-- Solana network selection
-- Solana transaction/message signing
-- Solana send/direct-send support
+It owns: Phantom/Solflare/Backpack/Glow options, active SVM wallet, SVM
+network selection, SVM transaction/message signing, send/direct-send support.
+(`runtime/solana/` exists for networks + registry source; wallet behavior
+still lives in `para-sol.tsx` — Phase 3 moves it.)
 
 ### Embedded Wallet Runtime
 
-Embedded wallet runtime answers: what wallets are managed by a hosted provider?
+Embedded wallet runtime answers: what wallets are managed by a hosted
+provider? (Para embedded EVM/SVM, Privy embedded, future Aomi-managed.)
 
-Examples:
-
-- Para embedded EVM/Solana wallet
-- Privy embedded wallet
-- future Aomi-managed embedded wallet
-
-Embedded wallets may depend on auth, but they should still be represented as
-wallet accounts, not as auth itself.
+Embedded wallets may depend on auth, but they are represented as wallet
+accounts, not as auth itself.
 
 ### Execution Runtime
 
-Execution answers: how do we execute a requested transaction?
+Execution answers: how do we execute a requested transaction? It combines EVM
+plain send, EIP-5792/sendCalls, 4337/7702 AA provider state,
+sponsorship/paymaster config, Base Account smart-account behavior, and SVM
+sign/send. Para-specific AA owner resolution belongs in the Para execution
+plugin; the composer only sees a generic AA runtime.
 
-It should combine:
+### Account Runtime
 
-- EVM plain wallet send
-- EVM EIP-5792/sendCalls behavior
-- 4337/7702 AA provider state
-- sponsorship/paymaster config
-- Base Account smart account behavior
-- Solana sign/send methods
+The Account Runtime answers: **what does the Aomi backend know about this
+user?** Canonical user, linked auth accounts, stored wallets, and (later)
+approval state. This is deliberately broader than "wallet links" — the backend
+resolves identity across providers, not just wallet rows.
 
-Para-specific AA owner resolution belongs in the Para execution plugin. The
-composer should only see a generic AA runtime.
+In this PR it ships as **types + a `disabled` stub**. The composer's merge
+path consumes it from day one but always receives empty data. When Better Auth
+lands, one runtime implementation against the Next.js server functions makes
+stored rows appear — no composer changes.
 
-### Wallet Links Runtime
-
-Wallet links answer: what wallets does the backend know belong to this user?
-
-This enables modal rows like:
-
-- active now
-- connected but inactive
-- saved in DB but not connected in this browser
-- linked via Para/Privy/challenge/import
+This enables modal rows like: active now; connected but inactive; saved in DB
+but not connected in this browser; embedded wallet known to the DB while its
+provider is signed out (clicking prompts auth).
 
 ## Proposed Public Configuration
 
-The top-level provider should make lanes explicit and optional.
-
 ```ts
 type AomiWalletProviderProps = {
-  auth?: AuthConfig | false;
+  auth?: AuthConfig | false;            // exactly one provider (decision 1)
   evm?: EvmRuntimeConfig | false;
-  solana?: SolanaRuntimeConfig | false;
+  svm?: SvmRuntimeConfig | false;
   embeddedWallet?: EmbeddedWalletConfig | false;
   execution?: ExecutionConfig;
-  walletLinks?: WalletLinksConfig | false;
+  account?: AccountConfig | false;      // backend identity; false until backend exists
   requirements?: AppWalletRequirements;
   children: React.ReactNode;
 };
@@ -222,7 +303,7 @@ Examples:
   auth={{ provider: "para" }}
   embeddedWallet={{ provider: "para" }}
   evm={{ connectors: ["metamask", "rabby", "walletconnect"] }}
-  solana={{ wallets: ["phantom", "solflare"] }}
+  svm={{ wallets: ["phantom", "solflare"] }}
   execution={{ aa: "optional", sponsorship: "optional" }}
 />
 ```
@@ -232,17 +313,8 @@ Examples:
   auth={false}
   embeddedWallet={false}
   evm={{ connectors: ["metamask", "rabby", "walletconnect"] }}
-  solana={false}
+  svm={false}
   execution={{ mode: "wallet" }}
-/>
-```
-
-```tsx
-<AomiWalletProvider
-  auth={false}
-  evm={{ connectors: ["baseAccount"] }}
-  solana={false}
-  execution={{ provider: "baseAccount", sponsorship: "optional" }}
 />
 ```
 
@@ -250,7 +322,7 @@ Examples:
 <AomiWalletProvider
   auth={{ provider: "custom", getSession, login, logout }}
   evm={{ connectors: ["metamask", "rabby"] }}
-  walletLinks={{ source: "aomi-backend" }}
+  account={{ source: "aomi-backend" }}
 />
 ```
 
@@ -262,9 +334,9 @@ Examples:
 type AuthProviderId = "none" | "para" | "privy" | "custom";
 
 type AuthRuntime = {
-  status: "booting" | "connected" | "disconnected";
+  status: "booting" | "authenticated" | "unauthenticated";
   provider: AuthProviderId;
-  subject?: string;
+  subject?: string; // provider-scoped subject — NOT the canonical Aomi user id
   claims?: AuthClaims;
   methods: AuthMethodOption[];
   login?: (methodId?: string) => Promise<void>;
@@ -284,18 +356,17 @@ type AuthMethodOption = {
   id: string;
   label: string;
   provider: AuthProviderId;
-  kind: "social" | "email" | "phone" | "passkey" | "custom";
+  kind: "social" | "email" | "phone" | "passkey" | "wallet" | "custom";
+  // "wallet" is reserved for future SIWE/challenge sign-in (decision 4);
+  // no implementation in this PR.
   iconUrl?: string;
 };
 ```
 
-Para maps to this by exposing subject, email/auth method, login modal, logout,
-account UI, and `issueJwt`.
-
-Privy maps to this by exposing Privy user id, linked account claims, login,
-logout, access token, and account UI if available.
-
-Custom auth maps to this from the host app's own session.
+Para maps to this via subject, email/auth method, login modal, logout, account
+UI, and `issueJwt`. Privy maps via Privy user id, linked account claims,
+login/logout, access token, account UI. Custom auth maps from the host app's
+session (with Better Auth this becomes the cookie-session runtime).
 
 ### Embedded Wallet Runtime
 
@@ -310,7 +381,7 @@ type EmbeddedWalletRuntime = {
 
 type EmbeddedWalletAccount = {
   id: string;
-  family: "evm" | "solana";
+  family: "evm" | "svm";
   address: string;
   walletKind: "eoa" | "smart-account";
   ownerSubject?: string;
@@ -340,7 +411,7 @@ type WalletRuntime<Family extends WalletFamily> = {
 
 type WalletAccount = {
   id: string;
-  family: "evm" | "solana";
+  family: "evm" | "svm";
   address: string;
   walletName?: string;
   chainId?: number;
@@ -354,22 +425,22 @@ type WalletAccount = {
 type WalletConnectOption = {
   id: string;
   label: string;
-  family: "evm" | "solana" | "multichain";
-  kind: "evm" | "solana" | "walletconnect" | "social" | "embedded";
+  family: "evm" | "svm" | "multichain";
+  kind: "evm" | "svm" | "walletconnect" | "social" | "embedded";
   status: "installed" | "available" | "qr" | "unavailable";
   iconUrl?: string;
 };
 ```
 
-The current `useEvmWalletRuntime` is a first step toward the EVM implementation.
-Solana should get an equivalent runtime instead of living inside Para.
+`runtime/evm/wallet-runtime.ts` is the EVM implementation. SVM gets the
+equivalent in `runtime/solana/` (Phase 3) instead of living inside Para.
 
 ### Execution Runtime
 
 ```ts
 type ExecutionRuntime = {
   evm?: EvmExecutionRuntime;
-  solana?: SolanaExecutionRuntime;
+  svm?: SvmExecutionRuntime;
 };
 
 type EvmExecutionRuntime = {
@@ -381,18 +452,18 @@ type EvmExecutionRuntime = {
   aa?: AARuntime;
 };
 
-type SolanaExecutionRuntime = {
+type SvmExecutionRuntime = {
   signTransaction: (
-    payload: WalletSolanaSignPayload,
+    payload: WalletSvmSignPayload,
   ) => Promise<{ signedTx: string }>;
   signMessage?: (
-    payload: WalletSolanaSignMessagePayload,
+    payload: WalletSvmSignMessagePayload,
   ) => Promise<{ signature: string }>;
   sendTransaction?: (
-    payload: WalletSolanaSignPayload,
+    payload: WalletSvmSignPayload,
   ) => Promise<{ signature: string; signedTx?: string }>;
   signAndSendTransaction?: (
-    payload: WalletSolanaSignPayload,
+    payload: WalletSvmSignPayload,
   ) => Promise<{ signature: string; signedTx?: string }>;
 };
 ```
@@ -413,43 +484,73 @@ type SponsorshipState = {
 };
 ```
 
-Para can resolve AA state using the Para session as owner. Base Account can
-resolve execution through Coinbase smart account behavior. Normal EOA wallets
-can omit `aa` unless a separate AA flow is configured.
+Para resolves AA state using the Para session as owner. Base Account resolves
+execution through Coinbase smart-account behavior. Normal EOA wallets omit
+`aa` unless a separate AA flow is configured.
 
-### Wallet Links Runtime
+### Account Runtime
 
 ```ts
-type WalletLinksRuntime = {
-  status: "loading" | "ready" | "disabled" | "error";
-  links: StoredWalletLink[];
+type AccountRuntime = {
+  status: "disabled" | "loading" | "ready" | "error";
+  user?: AomiUserRef;
+  linkedAccounts: LinkedAuthAccount[];
+  wallets: AccountWallet[];
   refresh: () => Promise<void>;
-  linkCurrentWallet?: (accountId: string) => Promise<void>;
+  linkWallet?: (accountId: string) => Promise<void>;
   unlinkWallet?: (walletId: string) => Promise<void>;
 };
 
-type StoredWalletLink = {
+type AomiUserRef = {
+  id: string; // canonical Aomi user id (Better Auth user), minted by backend
+  displayName?: string;
+  email?: string;
+};
+
+type LinkedAuthAccount = {
   id: string;
-  family: "evm" | "solana";
+  provider: string; // "para" | "privy" | "google" | ...
+  subject: string;  // provider-scoped subject
+  email?: string;
+  linkedAt?: number;
+};
+
+type AccountWallet = {
+  id: string;
+  family: "evm" | "svm";
   address: string;
-  linkedVia: "para" | "privy" | "challenge" | "import";
-  authSubject: string;
+  kind?: "external" | "embedded";
+  provider?: string; // managing provider for embedded wallets
+  linkedVia: "para" | "privy" | "challenge" | "import" | "observed";
   label?: string;
-  verifiedAt: number;
+  verifiedAt?: number; // absent for imported/observed wallets
+  capability?: "read" | "write"; // reserved — approval model TBD (decision 5)
 };
 ```
 
+Notes:
+
+- The provider subject points at the canonical user, never the reverse. The
+  Para subject is one `LinkedAuthAccount`, not the root.
+- Para's external wallets in NONE connection mode are local wagmi connections,
+  **not** Para-account-associated (verified in `WALLET-ARCHITECTURE.md`). So
+  wallet→user linking for external wallets goes through the Aomi backend
+  (`challenge` / `observed`), not Para's account-linking API. `linkedVia:
+  "para"` realistically covers embedded wallets only.
+- The runtime fetches same-origin with cookie credentials (decision 3). The
+  `disabled` stub returns `status: "disabled"` with empty arrays.
+
 ## Account Row Merge
 
-The composer should merge live wallets, embedded wallets, and stored links into
-a single modal model.
+The composer merges live wallets, embedded wallets, and stored account wallets
+into a single modal model.
 
 ```mermaid
 flowchart LR
   LiveEvm["Live EVM accounts"] --> Merge["mergeWalletRows"]
-  LiveSol["Live Solana accounts"] --> Merge
+  LiveSvm["Live SVM accounts"] --> Merge
   Embedded["Embedded accounts"] --> Merge
-  Stored["Stored DB links"] --> Merge
+  Stored["Account runtime wallets"] --> Merge
   Merge --> Rows["Wallet modal rows"]
 
   Rows --> Active["Active"]
@@ -458,24 +559,38 @@ flowchart LR
   Rows --> Available["Available connect option"]
 ```
 
-Suggested row shape:
+Merge rules:
+
+- Match stored rows to live rows by `(family, lowercased address)` — a stored
+  wallet that is also live renders as one row (live status wins; the row
+  carries `linked: true`).
+- A stored **external** wallet with no live connection → `status: "stored"`,
+  primary action `connect` (decision 6). Fallback UX when the extension is
+  absent (WalletConnect vs install hint) is decided at implementation time in
+  the Better Auth PR.
+- A stored **embedded** wallet whose provider is signed out →
+  `status: "stored"`, primary action `authenticate` → routes to `auth.login`
+  (decision 6).
 
 ```ts
 type WalletModalRow = {
   id: string;
-  family: "evm" | "solana";
+  family: "evm" | "svm";
   address?: string;
   label: string;
   walletName?: string;
   source: "live" | "embedded" | "stored" | "option";
   status: "active" | "connected" | "stored" | "available" | "unavailable";
   provider?: string;
+  linked?: boolean;               // known to the backend
+  capability?: "read" | "write";  // reserved (decision 5)
   actions: WalletRowAction[];
 };
 
 type WalletRowAction =
   | { kind: "select"; label: string }
   | { kind: "connect"; label: string }
+  | { kind: "authenticate"; label: string }
   | { kind: "disconnect"; label: string }
   | { kind: "manage"; label: string }
   | { kind: "link"; label: string }
@@ -484,9 +599,11 @@ type WalletRowAction =
 
 ## Desired Folder Structure
 
+Synced to the real tree; `(new)` marks what this plan creates.
+
 ```txt
 lib/aomi-auth-adapter/
-  composer/
+  composer/                          (new, Phase 2)
     AomiAdapterComposer.tsx
     build-identity.ts
     build-accounts.ts
@@ -495,266 +612,219 @@ lib/aomi-auth-adapter/
     types.ts
 
   runtime/
-    evm/
-      EvmRuntimeProvider.tsx
-      use-evm-wallet-runtime.ts
-      wallet-options.ts
-      registry-source.ts
+    evm/                             (exists)
+      provider.tsx
+      wallet-runtime.ts
+      brands.ts
       disconnect-plan.ts
+      identity-grace.ts
+      registry-source.ts
       safe-hooks.ts
     solana/
-      SolanaRuntimeProvider.tsx
-      use-solana-wallet-runtime.ts
-      transactions.ts
-      networks.ts
-      registry-source.ts
+      networks.ts                    (exists)
+      registry-source.ts             (exists)
+      wallet-runtime.ts              (new, Phase 3 — from para-sol.tsx)
+      transactions.ts                (new, Phase 3 — from para-sol.tsx)
 
-  registry/
-    reducer.ts
-    policy.ts
-    store.ts
-    selectors.ts
-    persistence.ts
+  registry/                          (exists)
+    reducer.ts  policy.ts  commands.ts  store.ts
+    selectors.ts  persistence.ts  types.ts  use-wallet-registry.ts
+
+  account/                           (new, Phase 5)
     types.ts
+    disabled-runtime.ts
 
   providers/
-    para/
-      ParaPluginProvider.tsx
-      para-auth.ts
-      para-embedded-wallet.ts
-      para-aa.ts
-      para-evm-config.ts
+    para/                            (exists; Phase 4 splits para.tsx)
+      ParaPluginProvider.tsx         (new — replaces most of para.tsx)
+      para-auth.ts                   (new)
+      para-embedded-wallet.ts        (new)
+      para-aa.ts                     (exists)
+      para-evm-runtime.tsx           (exists)
+      para-sol.tsx                   (shrinks in Phase 3)
+      sources/para-session-source.ts (exists)
       index.ts
-    privy/
-      PrivyPluginProvider.tsx
-      privy-auth.ts
-      privy-embedded-wallet.ts
-      privy-aa.ts
-      index.ts
-    base-account/
-      BaseAccountPluginProvider.tsx
-      base-account-connector.ts
-      base-account-execution.ts
-      index.ts
+    privy/                           (exists)
+    base-account/                    (exists)
 ```
 
 ## Provider Roles
 
 ### Para
 
-Para plugin should provide:
+Para plugin should provide: hosted auth, auth claims and subject, Para JWT
+credential, hosted account modal, embedded wallet account discovery, optional
+embedded wallet connect/create, AA owner/session resolver, optional Para EVM
+connector config.
 
-- hosted auth
-- auth claims and subject
-- Para JWT credential
-- hosted account modal
-- embedded wallet account discovery
-- optional embedded wallet connect/create
-- AA owner/session resolver
-- optional Para EVM connector config
-
-Para should not own:
-
-- normal EVM active wallet selection
-- generic EVM wallet options
-- generic EVM disconnect
-- generic chain switching
-- final adapter construction
-- Solana generic signing implementation
+Para should not own: normal EVM active wallet selection, generic EVM wallet
+options, generic EVM disconnect, generic chain switching, final adapter
+construction, SVM generic signing implementation.
 
 ### Privy
 
-Privy plugin should provide:
-
-- hosted auth
-- auth claims and subject
-- access token credential
-- embedded wallet accounts
-- optional smart wallet/AA capabilities
-- account UI if available
-
-Privy should plug into the same interfaces as Para.
+Privy plugin should provide: hosted auth, auth claims and subject, access
+token credential, embedded wallet accounts, optional smart wallet/AA
+capabilities, account UI if available. Privy plugs into the same interfaces as
+Para.
 
 ### Base Account
 
-Base Account should fit as:
+Base Account fits as: EVM connector config, smart-account wallet runtime
+through wagmi, execution/sponsorship policy. It is not an auth provider.
+(Replumb deferred — see Deferred Work.)
 
-- EVM connector config
-- smart account wallet runtime through wagmi
-- execution/sponsorship policy
+### Custom Auth / Better Auth (later)
 
-It is not primarily an auth provider.
+The `custom` auth provider is where the Better-Auth-backed host session slots
+in: cookie session, `getCredential` → `{ kind: "cookie" }`, Account Runtime
+enabled against the host's server functions. Para/Privy can still be the
+browser-side login UI whose token the server exchanges.
 
 ### No Hosted Auth
 
-No-auth mode should still support:
+No-auth mode supports: MetaMask/Rabby/WalletConnect EVM, Base Account if
+configured, SVM wallets if configured, plain wallet execution, and (later)
+challenge-based wallet linking.
 
-- MetaMask/Rabby/WalletConnect EVM
-- Base Account if configured
-- Solana wallets if configured
-- plain wallet execution
-- challenge-based wallet linking later
+## Migration Plan — This PR
 
-## Migration Plan
+Each phase is independently green and committed (per-phase commits are
+mandatory; see WALLET-FOLLOWUP-FIXES §0 for the precedent).
 
-### Phase 1: Stabilize Current Extraction
+### Phase 1: Stabilize Current Extraction — DONE
 
-Status: mostly complete in this branch.
-
-- Keep `runtime/evm/wallet-runtime.ts`.
-- Keep Para consuming the EVM runtime through provider hooks.
-- Keep tests passing.
-- Keep registry artifacts updated.
-- Document current compatibility debt.
-
-Compatibility debt:
-
-- Registry command still says `para/logout`.
-- Disconnect plan still exposes `isParaAccount`.
-- Para file still composes identity, account rows, methods, Solana, and AA.
+- `runtime/evm/` extracted; Para consumes it through provider hooks.
+- `runtime/solana/networks.ts` + `registry-source.ts` extracted.
+- Follow-up fixes landed; baseline verified 2026-06-12: 110 registry tests
+  green, lint clean.
+- Compatibility debt documented above.
 
 ### Phase 2: Extract Generic Composer
 
-Create:
-
-```txt
-lib/aomi-auth-adapter/composer/AomiAdapterComposer.tsx
-```
-
-Move out of Para:
+Create `composer/AomiAdapterComposer.tsx` and move out of Para:
 
 - identity synthesis
 - account merge
-- `connect` routing
-- `disconnect` routing
-- `selectNetwork` routing
+- `connect` / `disconnect` / `selectNetwork` routing
 - final `AomiAuthAdapter` object construction
-
-The composer consumes:
 
 ```ts
 type AomiAdapterComposerProps = {
   auth: AuthRuntime;
   evm?: EvmWalletRuntime;
-  solana?: SolanaWalletRuntime;
+  svm?: SvmWalletRuntime;
   embedded?: EmbeddedWalletRuntime;
   execution: ExecutionRuntime;
-  walletLinks?: WalletLinksRuntime;
+  account?: AccountRuntime;
   children: React.ReactNode;
 };
 ```
 
-### Phase 3: Extract Solana Runtime
+Risk notes (from prior rounds, do not relearn these): the adapter subtree must
+**never unmount** mid-session (cached-client wrapper pattern in
+`para-sol.tsx`); prop identity stability matters (memoize configs — Para
+rebuilds the wagmi config on identity changes); `context.tsx` / backend
+payloads are DO-NOT-TOUCH (identity shape changes ripple into `/api/state`).
+Keep `walletProvider` in `AomiAuthIdentity` as-is for this PR; the
+auth-provider vs signer-provider split is deferred with the backend work.
 
-Move Solana work out of Para:
+### Phase 3: Complete SVM Runtime Extraction
+
+Move generic SVM wallet behavior out of `para-sol.tsx` into
+`runtime/solana/wallet-runtime.ts` + `transactions.ts`:
 
 - `useSafeSolanaWallet`
-- wallet descriptors
-- `connectPreferredSolanaWallet`
-- Solana pending connect handling
-- Solana sign/send methods
-- base64 tx helpers
+- wallet descriptors / `connectPreferredSolanaWallet`
+- SVM pending-connect handling (registry `solana/connect-*` events stay)
+- SVM sign/send methods, base64 tx helpers
 
-Target:
-
-```txt
-runtime/solana/use-solana-wallet-runtime.ts
-runtime/solana/transactions.ts
-```
-
-Para can still provide a Para Solana provider wrapper, but generic Solana
-runtime owns the wallet behavior.
+Para keeps a thin Para SVM provider wrapper (`ParaSolanaWrapper` + Para Solana
+config resolution); generic runtime owns wallet behavior.
 
 ### Phase 4: Split Para Plugin
 
-Replace large `para.tsx` with smaller files:
+Replace large `para.tsx` with:
 
 ```txt
 providers/para/ParaPluginProvider.tsx
 providers/para/para-auth.ts
 providers/para/para-embedded-wallet.ts
-providers/para/para-aa.ts
-providers/para/para-evm-config.ts
 ```
 
-The Para component should mostly mount providers and pass plugin runtimes into
-the composer.
+(`para-aa.ts` and `para-evm-runtime.tsx` already exist.) The Para component
+mostly mounts providers and passes plugin runtimes into the composer.
+Re-exports keep existing import sites working; registry.ts file lists updated;
+dist rebuilt + `apps/landing/public/r` synced + pinned-artifact test green.
 
-### Phase 5: Make Base Account a Connector/Execution Plugin
+### Phase 5: Account Runtime Groundwork (types + stub only)
 
-Refactor Base Account so it contributes:
+- `account/types.ts` with the interfaces above.
+- `account/disabled-runtime.ts` returning `status: "disabled"`, empty arrays.
+- Composer merge path consumes it (always empty for now); `merge-wallet-rows`
+  implements the merge rules including `stored` status and `authenticate`
+  action, covered by unit tests with a **mocked** ready runtime.
+- No network calls, no UI change in production paths — enabling a mocked
+  runtime in tests/storybook-style harness renders stored rows correctly.
 
-- EVM connector runtime config
-- execution policy
-- sponsorship metadata
+### Phase 6: Provider-Neutral Naming Cleanup (cuttable)
 
-Avoid treating it as equivalent to Para/Privy hosted auth.
+Rename compatibility concepts after the composer exists, so tests rewrite
+around generic behavior:
 
-### Phase 6: Add Wallet Links Runtime
+- `para/logout` command → `provider/logout`
+- `paraDetached` → provider-scoped metadata
+- `preferParaOnConnect` → `preferProviderEmbeddedOnConnect`
+- `isParaAccount` → `isProviderOwnedAccount`
 
-Add backend-linked wallet rows keyed by auth subject/email/user id.
+This is the first phase to cut if the PR gets heavy.
 
-Flow:
+## Deferred Work (explicitly out of this PR)
 
-```mermaid
-sequenceDiagram
-  participant Auth
-  participant Links as WalletLinksRuntime
-  participant API as Aomi Backend
-  participant Modal
-
-  Auth->>Links: subject/credential available
-  Links->>API: GET /account/wallets
-  API-->>Links: stored wallet links
-  Links-->>Modal: saved wallet rows
-  Modal->>Links: link/unlink actions
-```
-
-### Phase 7: Provider-Neutral Naming Cleanup
-
-Rename compatibility concepts:
-
-- `para/logout` command to `provider/logout`
-- `paraDetached` to `embeddedDetached` or provider-scoped metadata
-- `preferParaOnConnect` to `preferProviderEmbeddedOnConnect`
-- `isParaAccount` to `isProviderOwnedAccount`
-
-This should be done after the composer exists so tests can be rewritten around
-generic behavior instead of Para-specific reducer events.
+- **Real Account Runtime** over Next.js server functions + Better Auth
+  (cookie session), link/unlink flows, multi-device stored rows, embedded
+  rows for signed-out providers with auth-prompt flow.
+- **Approvals / capability model** — granularity (per-wallet / per-session /
+  per-action) decided with the backend; picker capability badges.
+- **SIWE / wallet-method auth** (`kind: "wallet"` method).
+- **Base Account replumb** as connector + execution plugin.
+- **Plain-6963 connector migration** for MetaMask/Rabby in Para mode.
+- **Bring-your-own connect UI** config hook (RainbowKit/ConnectKit) replacing
+  the picker's connect-options section.
+- **Identity `walletProvider` split** into auth provider vs per-family signer
+  provider (touches backend payloads — sequence with backend work).
+- Named config presets (`mode="wallets-only"`).
 
 ## Testing Strategy
 
-Required test groups:
+### Gates this PR
 
-- registry reducer/policy/store
+- registry reducer/policy/store (existing suite stays green)
 - EVM runtime hook behavior with mocked wagmi
-- Solana runtime behavior with mocked wallet adapter
+- SVM runtime behavior with mocked wallet adapter
 - composer identity building
-- account row merging
+- account row merging — including stored rows + `authenticate` action from a
+  mocked ready Account Runtime, and the disabled stub producing zero changes
 - no-auth wallet-only mode
 - Para auth + external EVM mode
 - Para auth + embedded wallet mode
-- Privy auth equivalent mode
+
+### Gates later PRs
+
+- Privy auth equivalent mode (the `/privy` landing route exists for manual
+  runs; automated parity tests land with the Privy plugin work)
 - Base Account mode
-- DB-linked wallet rows
+- real DB-linked wallet rows, link/unlink, approvals
 
-Manual/browser flows:
+### Manual/browser flows for this PR (extensions required)
 
-- connect MetaMask without Para
-- connect Rabby without Para
-- connect WalletConnect without Para
-- connect Para social auth
-- connect Para embedded EVM
-- connect Para auth while active wallet is Rabby
-- disconnect only embedded account
-- disconnect all
-- connect Phantom/Solflare
-- switch EVM chain
-- switch Solana network
-- execute plain EVM tx
-- execute AA EVM tx
-- sign EIP-712
-- sign Solana message/tx
+- connect MetaMask without Para; connect Rabby without Para; WalletConnect
+  without Para
+- Para social auth; Para embedded EVM; Para auth while active wallet is Rabby
+- disconnect only embedded account; disconnect all
+- connect Phantom/Solflare; switch EVM chain; switch SVM network
+- execute plain EVM tx; execute AA EVM tx; sign EIP-712; sign SVM message/tx
+- cancel Para login with external wallets connected (regression: no wipe)
 
 ## Success Criteria
 
@@ -762,25 +832,32 @@ The refactor is done when:
 
 - `AomiParaProvider` is small and only Para-specific.
 - Normal EVM wallet mode works without Para mounted.
-- Normal Solana wallet mode works without Para mounted.
-- Base Account works as an EVM connector/execution option.
-- Para and Privy can both provide social sign-in rows through the same modal
-  interface.
-- Embedded wallets are represented as wallet accounts, not as auth itself.
+- Normal SVM wallet mode works without Para mounted.
 - The composer owns final `AomiAuthAdapter` assembly.
+- Embedded wallets are represented as wallet accounts, not as auth itself.
+- The Account Runtime types + disabled stub exist; a mocked ready runtime
+  renders stored rows with connect/authenticate actions in tests; the disabled
+  stub changes nothing.
 - Provider-specific code is isolated under `providers/<provider>/`.
-- Registry JSON installs include all imported files.
-- Existing current behavior is preserved.
+- Registry JSON installs include all imported files; dist + `public/r` synced;
+  pinned-artifact test green.
+- Existing behavior is preserved (manual matrix above passes).
 
-## Open Questions
+## Resolved Questions
 
-- Should `AomiWalletProvider` expose low-level runtime props, or only named
-  presets such as `mode="wallets-only"` and `authProvider="para"`?
-- Should embedded wallets be shown in the same "wallets" section or a separate
-  "account wallets" section?
-- Should Base Account appear as a wallet option, an execution mode, or both?
-- Should DB-linked wallets require hosted auth, or also support challenge-based
-  wallet-only accounts?
-- Should `walletProvider` in `AomiAuthIdentity` mean auth provider, active
-  signer provider, or execution provider? It may need to split into multiple
-  fields.
+Recorded in **Decisions** above. Previously open items now closed: lane props
+vs presets (9), embedded wallet placement (10), Base Account role (deferred,
+connector+execution), DB-linked wallets and hosted auth (email-keyed for now,
+wallet-method reserved), `walletProvider` split (deferred with backend).
+
+## Remaining Open Questions
+
+- Fallback UX when a stored wallet's extension is absent in this browser
+  (WalletConnect handoff vs install hint) — decide in the Better Auth PR.
+- Does Phase 6 (naming sweep) land in this PR or get cut? Default: attempt,
+  cut under time pressure.
+- Exact Better Auth schema mapping (`users` / `linked_accounts` /
+  `wallet_links` / `wallet_approvals`) — backend work; see meeting notes
+  2026-06-10.
+- Auth-prompt flow design for stored embedded rows (signed-out provider) —
+  needs design input; later PR.
