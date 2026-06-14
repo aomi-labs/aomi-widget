@@ -23,6 +23,7 @@ import type { Chain } from "viem";
 import { AomiWalletKitComposer } from "../composer/AomiWalletKitComposer";
 import type { AuthRuntime, ExecutionRuntime } from "../composer/types";
 import { resolveExternalWalletAAProviderState } from "../execution/aa-provider-state";
+import { buildEvmExecutionRuntime } from "../execution/execution-runtime";
 import {
   AomiWalletNetworkPreferencesProvider,
   useAomiWalletNetworkPreferences,
@@ -201,26 +202,14 @@ function WalletsOnlyWalletKitProvider({
   const executionRuntime = useMemo<ExecutionRuntime>(
     () => ({
       sponsorship: {},
-      evm: {
-        activeConnector: evmRuntime.activeConnector,
-        capabilities: evmRuntime.capabilities,
-        chainsById: evmRuntime.chainsById,
-        currentChainId: evmRuntime.activeEvmConnection?.chainId,
-        getWalletClientFor: evmRuntime.getWalletClientFor,
-        sendCallsSyncAsync: evmRuntime.sendCallsSyncAsync,
-        sendTransactionAsync: evmRuntime.sendTransactionAsync,
-        shouldUseExternalSigner: evmRuntime.shouldUseExternalSigner,
-        signMessageAsync: evmRuntime.signMessageAsync,
-        signTypedDataAsync: evmRuntime.signTypedDataAsync,
-        switchChainAsync: evmRuntime.switchChainAsync,
-        walletClient: evmRuntime.walletClient,
+      evm: buildEvmExecutionRuntime(evmRuntime, {
         resolveAAProviderState: async (params, context) =>
           resolveExternalWalletAAProviderState({
             ...params,
             walletClient: context.walletClient,
             address: context.address,
           }),
-      },
+      }),
       svm: buildSvmTransactionMethods(svmWallet, svmRuntimeConfig),
     }),
     [evmRuntime, svmRuntimeConfig, svmWallet],

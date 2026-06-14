@@ -105,6 +105,10 @@
         },
         {
           "type": "registry:component",
+          "path": "lib/wallet-kit/execution/execution-runtime.ts"
+        },
+        {
+          "type": "registry:component",
           "path": "lib/wallet-kit/wallet-execution.ts"
         },
         {

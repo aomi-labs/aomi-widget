@@ -7,6 +7,10 @@ import {
   formatAuthMethod,
 } from "../identity";
 import type { AomiSessionIdentity } from "../types";
+import {
+  detectSvmTransport,
+  getSvmCapabilitySnapshot,
+} from "../runtime/svm/wallet-runtime";
 import type { AuthRuntime, SvmWalletRuntime } from "./types";
 
 export function buildWalletKitIdentity({
@@ -148,33 +152,4 @@ function formatProvider(provider: AuthRuntime["provider"]): string {
   if (provider === "none") return "Wallet";
   if (provider === "baseAccount") return "Base Account";
   return provider[0].toUpperCase() + provider.slice(1);
-}
-
-function detectSvmTransport(
-  walletName: string | undefined,
-): "extension" | "embedded" | "mwa" {
-  const normalized = walletName?.toLowerCase() ?? "";
-  if (
-    normalized.includes("mobile wallet adapter") ||
-    normalized.includes("solana mobile") ||
-    normalized.includes("mwa")
-  ) {
-    return "mwa";
-  }
-  return "extension";
-}
-
-function getSvmCapabilitySnapshot(
-  wallet: SvmWalletRuntime["wallet"] | undefined,
-) {
-  if (!wallet?.publicKey) {
-    return undefined;
-  }
-  return {
-    canSignMessage: Boolean(wallet.signMessage),
-    canSignTransaction: Boolean(wallet.signTransaction),
-    canSignAllTransactions: Boolean(wallet.signAllTransactions),
-    canSendTransaction: Boolean(wallet.sendTransaction),
-    canSignAndSendTransaction: Boolean(wallet.sendTransaction),
-  };
 }

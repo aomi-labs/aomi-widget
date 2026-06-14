@@ -57,12 +57,12 @@ export function formatWalletProvider(
   provider?: AomiWalletProvider,
 ): string | undefined {
   if (!provider) return undefined;
-  const labelMap: Record<AomiWalletProvider, string> = {
+  const labelMap: Record<string, string> = {
     para: "Para",
     privy: "Privy",
     baseAccount: "Base Account",
   };
-  return labelMap[provider];
+  return labelMap[provider] ?? provider;
 }
 
 export function formatAuthMethod(method?: AomiLoginMethod): string | undefined {

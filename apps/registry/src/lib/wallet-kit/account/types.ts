@@ -24,7 +24,7 @@ export type AccountWallet = {
   address: string;
   kind?: "external" | "embedded";
   provider?: string;
-  linkedVia: "para" | "privy" | "challenge" | "import" | "observed";
+  linkedVia: "para" | "privy" | "challenge" | "import" | "observed" | (string & {});
   label?: string;
   verifiedAt?: number;
   capability?: "read" | "write";

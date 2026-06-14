@@ -41,8 +41,8 @@ export type AomiNetworkTarget =
 export type AomiWalletKind = "eoa" | "smart-account";
 export type AomiAAMode = "none" | "4337" | "7702";
 export type AomiSponsorProvider = "alchemy" | "coinbase" | "pimlico" | "self";
-export type SessionProvider = "para" | "privy" | "custom";
-export type EmbeddedProvider = "para" | "privy" | "aomi";
+export type SessionProvider = "para" | "privy" | "custom" | (string & {});
+export type EmbeddedProvider = "para" | "privy" | "aomi" | (string & {});
 export type AuthProviderId = SessionProvider | "none" | "baseAccount";
 export type WalletSource =
   | "injected"
@@ -52,7 +52,7 @@ export type WalletSource =
   | "embedded"
   | "stored";
 
-export type AomiWalletProvider = "para" | "privy" | "baseAccount";
+export type AomiWalletProvider = "para" | "privy" | "baseAccount" | (string & {});
 export type AomiLoginMethod =
   | "google"
   | "apple"
@@ -217,7 +217,7 @@ export type AomiAccount = {
    */
   manageable?: boolean;
   linked?: boolean;
-  linkedVia?: "para" | "privy" | "challenge" | "import" | "observed";
+  linkedVia?: "para" | "privy" | "challenge" | "import" | "observed" | (string & {});
   capability?: "read" | "write";
 };
 

@@ -170,8 +170,10 @@ export async function connectPreferredSvmWallet(
   return { status: "selecting", walletName: selectedWallet.adapter.name };
 }
 
-export function getSvmCapabilitySnapshot(wallet: SafeSvmWalletState) {
-  if (!wallet.publicKey) {
+export function getSvmCapabilitySnapshot(
+  wallet: SafeSvmWalletState | undefined,
+) {
+  if (!wallet?.publicKey) {
     return undefined;
   }
   return {
