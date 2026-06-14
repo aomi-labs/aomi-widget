@@ -3,6 +3,7 @@ import {
   canonicalWalletKey,
   dedupeWalletOptions,
   detectEvmProviderBrand,
+  registerWalletBrand,
 } from "./brands";
 
 describe("canonicalWalletKey", () => {
@@ -11,12 +12,16 @@ describe("canonicalWalletKey", () => {
     expect(canonicalWalletKey("io.metamask")).toBe("metamask");
     expect(canonicalWalletKey("Rabby Wallet")).toBe("rabby");
     expect(canonicalWalletKey("Coinbase Wallet")).toBe("coinbase");
-    expect(canonicalWalletKey("para-session Embedded Wallet")).toBe("para");
     expect(canonicalWalletKey("uid-123 Phantom")).toBe("phantom");
   });
 
   it("echoes the normalized input for unknown brands", () => {
     expect(canonicalWalletKey("Some New Wallet")).toBe("somenewwallet");
+  });
+
+  it("lets a provider register its own brand key", () => {
+    registerWalletBrand({ key: "para", matchers: ["para"] });
+    expect(canonicalWalletKey("para-session Embedded Wallet")).toBe("para");
   });
 });
 

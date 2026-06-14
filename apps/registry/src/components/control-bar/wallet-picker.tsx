@@ -391,15 +391,16 @@ export function WalletPicker() {
         account={account}
         detail={detail}
         providerHint={
-          account.linkedVia === "para"
-            ? "para"
-            : account.linkedVia === "privy"
-              ? "privy"
-              : account.manageable
-                ? (identity.embeddedProvider ??
-                  identity.sessionProvider ??
-                  identity.walletProvider)
-                : undefined
+          account.linkedVia &&
+          account.linkedVia !== "challenge" &&
+          account.linkedVia !== "import" &&
+          account.linkedVia !== "observed"
+            ? account.linkedVia
+            : account.manageable
+              ? (identity.embeddedProvider ??
+                identity.sessionProvider ??
+                identity.walletProvider)
+              : undefined
         }
         pending={pending}
         onSelect={

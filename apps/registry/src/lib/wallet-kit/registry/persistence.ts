@@ -1,6 +1,13 @@
 import type { PersistedRegistryV1, WalletRegistryState } from "./types";
 import { REGISTRY_STORAGE_KEY } from "./types";
 
+// Frozen legacy localStorage identifiers from pre-registry builds. The key
+// string and the `paraDetached` field (read below) name Para only for
+// historical reasons: they migrate real data written by older clients and must
+// run in every mode — including a wallets-only build opened by a user whose
+// previous Para session left a detached address. Moving them into
+// providers/para would skip that migration whenever Para isn't mounted, so they
+// stay core. Do not rename the string values; they must match what was written.
 const LEGACY_ACTIVE_EVM_ADDRESS_KEY = "aomi.wallet.active-evm-address";
 const LEGACY_DETACHED_PARA_EVM_ADDRESS_KEY =
   "aomi.wallet.detached-para-evm-address";
