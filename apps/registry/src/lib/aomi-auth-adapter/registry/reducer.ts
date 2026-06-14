@@ -1,14 +1,13 @@
 import { resolveActive, countPlannedHealConnects } from "./policy";
 import type {
   ActiveRef,
+  EmbeddedSessionState,
   PersistedRegistryV1,
   RegistryConnection,
   RegistryEvent,
   WalletRegistryState,
 } from "./types";
 import { POPUP_REATTACH_BUDGET, REATTACH_SUPPRESSION_MS } from "./types";
-
-const PARA_SESSION_UID = "para-session";
 
 export function createInitialState(): WalletRegistryState {
   return {
@@ -32,8 +31,12 @@ export function createInitialState(): WalletRegistryState {
       last: null,
       disconnectedAt: null,
     },
-    paraSession: {
+    embeddedSession: {
       up: false,
+      providerId: null,
+      uid: null,
+      stableId: null,
+      walletName: null,
       embeddedEvmAddress: null,
     },
   };
@@ -63,13 +66,14 @@ function activeFromPersisted(
 
 function classifyConnection(
   connection: Omit<RegistryConnection, "key" | "kind">,
+  embeddedSession: EmbeddedSessionState,
 ): RegistryConnection {
   const stableId = connection.stableId;
   const kind =
     connection.family === "solana"
       ? "solana"
-      : stableId === "para"
-        ? "para"
+      : stableId === embeddedSession.stableId
+        ? "embedded-session"
         : stableId === "walletConnect"
           ? "walletconnect"
           : "external-evm";
@@ -118,38 +122,65 @@ function currentActiveEvmConnection(
   });
 }
 
-function withoutSyntheticParaConnection(
-  connections: readonly RegistryConnection[],
-): RegistryConnection[] {
-  return connections.filter(
-    (connection) =>
-      !(
-        connection.family === "evm" &&
-        connection.uid === PARA_SESSION_UID &&
-        connection.stableId === "para"
-      ),
+function isSyntheticEmbeddedSessionConnection(
+  state: WalletRegistryState,
+  connection: RegistryConnection,
+): boolean {
+  return (
+    connection.kind === "embedded-session" &&
+    Boolean(state.embeddedSession.uid) &&
+    connection.uid === state.embeddedSession.uid
   );
 }
 
-function withParaSessionConnection(
+function withoutSyntheticEmbeddedSessionConnection(
+  state: WalletRegistryState,
+  connections: readonly RegistryConnection[],
+): RegistryConnection[] {
+  return connections.filter(
+    (connection) => !isSyntheticEmbeddedSessionConnection(state, connection),
+  );
+}
+
+function hasEmbeddedSessionIdentity(
+  session: EmbeddedSessionState,
+): session is EmbeddedSessionState & {
+  uid: string;
+  stableId: string;
+  walletName: string;
+  embeddedEvmAddress: string;
+} {
+  return Boolean(
+    session.up &&
+    session.uid &&
+    session.stableId &&
+    session.walletName &&
+    session.embeddedEvmAddress,
+  );
+}
+
+function withEmbeddedSessionConnection(
   state: WalletRegistryState,
 ): WalletRegistryState {
-  const connections = withoutSyntheticParaConnection(state.connections);
-  const address = state.paraSession.embeddedEvmAddress;
+  const connections = withoutSyntheticEmbeddedSessionConnection(
+    state,
+    state.connections,
+  );
+  const session = state.embeddedSession;
   if (
-    !state.paraSession.up ||
-    !address ||
+    !hasEmbeddedSessionIdentity(session) ||
     state.intents.providerSessionDetached
   ) {
     return { ...state, connections };
   }
-  const hasLiveParaConnection = connections.some(
+  const address = session.embeddedEvmAddress.toLowerCase();
+  const hasLiveEmbeddedConnection = connections.some(
     (connection) =>
       connection.family === "evm" &&
-      connection.stableId === "para" &&
+      connection.stableId === session.stableId &&
       connection.address.toLowerCase() === address.toLowerCase(),
   );
-  if (hasLiveParaConnection) {
+  if (hasLiveEmbeddedConnection) {
     return { ...state, connections };
   }
   return {
@@ -157,14 +188,14 @@ function withParaSessionConnection(
     connections: [
       ...connections,
       {
-        key: `evm:${PARA_SESSION_UID}`,
+        key: `evm:${session.uid}`,
         family: "evm",
-        uid: PARA_SESSION_UID,
-        stableId: "para",
-        kind: "para",
+        uid: session.uid,
+        stableId: session.stableId,
+        kind: "embedded-session",
         address,
         addresses: [address],
-        walletName: "Para",
+        walletName: session.walletName,
       },
     ],
   };
@@ -191,26 +222,26 @@ function liveConnectionForActive(
   });
 }
 
-function withPreferredParaActive(
+function withPreferredEmbeddedSessionActive(
   state: WalletRegistryState,
 ): WalletRegistryState {
   if (!state.intents.preferProviderEmbeddedOnConnect) return state;
-  const para = state.connections.find(
+  const embedded = state.connections.find(
     (connection) =>
-      connection.family === "evm" && connection.stableId === "para",
+      connection.family === "evm" && connection.kind === "embedded-session",
   );
-  if (!para) return state;
+  if (!embedded) return state;
   const currentLive = liveConnectionForActive(state, state.activeByFamily.evm);
-  if (currentLive && currentLive.stableId !== "para") return state;
+  if (currentLive && currentLive.kind !== "embedded-session") return state;
   return {
     ...state,
     activeByFamily: {
       ...state.activeByFamily,
       evm: {
         family: "evm",
-        address: para.address,
-        uid: para.uid,
-        stableId: para.stableId,
+        address: embedded.address,
+        uid: embedded.uid,
+        stableId: embedded.stableId,
       },
     },
     intents: {
@@ -235,6 +266,12 @@ function withEvmGrace(
           chainId: current.chainId,
           connectorId: current.uid,
           walletName: current.walletName,
+          walletSource:
+            current.kind === "embedded-session"
+              ? "embedded"
+              : current.kind === "walletconnect"
+                ? "walletconnect"
+                : undefined,
         },
         disconnectedAt: null,
       },
@@ -364,7 +401,9 @@ export function reduce(
     }
 
     case "wagmi/connections-changed": {
-      const connections = event.connections.map(classifyConnection);
+      const connections = event.connections.map((connection) =>
+        classifyConnection(connection, state.embeddedSession),
+      );
       const currentEvmConnections = state.connections.filter(
         (connection) => connection.family === "evm",
       );
@@ -380,13 +419,14 @@ export function reduce(
         phase: nextPhase,
         connections: [
           ...connections,
-          ...withoutSyntheticParaConnection(state.connections).filter(
-            (connection) => connection.family === "solana",
-          ),
+          ...withoutSyntheticEmbeddedSessionConnection(
+            state,
+            state.connections,
+          ).filter((connection) => connection.family === "solana"),
         ],
       };
-      next = withParaSessionConnection(next);
-      next = withPreferredParaActive(next);
+      next = withEmbeddedSessionConnection(next);
+      next = withPreferredEmbeddedSessionActive(next);
       if (state.phase === "stable") {
         next = {
           ...next,
@@ -447,17 +487,21 @@ export function reduce(
       return withEvmGrace(state, next, event.now);
     }
 
-    case "para/session-changed": {
+    case "provider/embedded-session-changed": {
       let next: WalletRegistryState = {
         ...state,
         phase: state.phase === "booting" ? "settling" : state.phase,
-        paraSession: {
+        embeddedSession: {
           up: event.up,
+          providerId: event.providerId,
+          uid: event.uid,
+          stableId: event.stableId,
+          walletName: event.walletName,
           embeddedEvmAddress: event.embeddedEvmAddress?.toLowerCase() ?? null,
         },
       };
-      next = withParaSessionConnection(next);
-      next = withPreferredParaActive(next);
+      next = withEmbeddedSessionConnection(next);
+      next = withPreferredEmbeddedSessionActive(next);
       next = withResolvedActive(next, ["evm"]);
       return withEvmGrace(state, next, event.now);
     }
@@ -563,7 +607,8 @@ export function reduce(
                 )
               : state.intents.droppedAddresses,
           providerSessionDetached:
-            event.family === "evm" && event.stableId === "para"
+            event.family === "evm" &&
+            event.stableId === state.embeddedSession.stableId
               ? false
               : state.intents.providerSessionDetached,
           explicitFamilyDisconnect: {
@@ -575,8 +620,8 @@ export function reduce(
       };
 
     case "user/provider-reconnect-requested":
-      return withPreferredParaActive(
-        withParaSessionConnection({
+      return withPreferredEmbeddedSessionActive(
+        withEmbeddedSessionConnection({
           ...state,
           intents: {
             ...state.intents,
@@ -596,7 +641,7 @@ export function reduce(
       }
       let next: WalletRegistryState = {
         ...state,
-        connections: withoutSyntheticParaConnection(filtered),
+        connections: withoutSyntheticEmbeddedSessionConnection(state, filtered),
         activeByFamily,
         intents: {
           ...state.intents,
@@ -610,7 +655,7 @@ export function reduce(
               : state.intents.providerSessionDetached,
         },
       };
-      next = withParaSessionConnection(next);
+      next = withEmbeddedSessionConnection(next);
       next = withResolvedActive(next, ["evm"]);
       return withEvmGrace(state, next, event.now);
     }
@@ -637,7 +682,10 @@ export function reduce(
             : state.evmGrace,
         connections:
           event.family === "all" || event.family === "evm"
-            ? withoutSyntheticParaConnection(state.connections)
+            ? withoutSyntheticEmbeddedSessionConnection(
+                state,
+                state.connections,
+              )
             : state.connections,
         intents: {
           ...state.intents,
@@ -648,7 +696,7 @@ export function reduce(
               : state.intents.providerSessionDetached,
         },
       };
-      next = withParaSessionConnection(next);
+      next = withEmbeddedSessionConnection(next);
       return next;
     }
 

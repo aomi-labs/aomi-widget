@@ -12,7 +12,6 @@ describe("canonicalWalletKey", () => {
     expect(canonicalWalletKey("Rabby Wallet")).toBe("rabby");
     expect(canonicalWalletKey("Coinbase Wallet")).toBe("coinbase");
     expect(canonicalWalletKey("uid-123 Phantom")).toBe("phantom");
-    expect(canonicalWalletKey("Para Solana")).toBe("para");
   });
 
   it("echoes the normalized input for unknown brands", () => {

@@ -23,12 +23,13 @@ const connections = [
 ];
 
 describe("planEvmAccountDisconnect", () => {
-  it("disconnects only Para when a same-address external wallet remains", () => {
+  it("disconnects only the managed provider connector when a same-address external wallet remains", () => {
     const plan = planEvmAccountDisconnect({
       target: {
         id: "para",
         address: "0xAAA",
         walletName: "Para",
+        manageable: true,
         connectorIds: ["para", "mm"],
       },
       connections,
@@ -41,12 +42,13 @@ describe("planEvmAccountDisconnect", () => {
     expect(plan.shouldMarkDroppedAddress).toBe(false);
   });
 
-  it("marks the Para address dropped when no same-address connector remains", () => {
+  it("marks the provider address dropped when no same-address connector remains", () => {
     const plan = planEvmAccountDisconnect({
       target: {
         id: "para",
         address: "0xAAA",
         walletName: "Para",
+        manageable: true,
         connectorIds: ["para"],
       },
       connections: [connections[0], connections[2]],

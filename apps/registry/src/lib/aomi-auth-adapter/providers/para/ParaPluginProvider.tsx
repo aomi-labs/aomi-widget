@@ -22,6 +22,7 @@ import {
 import { DEFAULT_SVM_CLUSTER } from "../../runtime/svm/networks";
 import { REGISTRY_STORAGE_KEY } from "../../registry/types";
 import { useSvmRegistrySource } from "../../runtime/svm/registry-source";
+import { buildSvmTransactionMethods } from "../../runtime/svm/transactions";
 import { walletDebug } from "../../wallet-debug";
 import type { AomiAccount } from "../../types";
 import { resolveParaAAProviderState, resolveParaSponsorship } from "./para-aa";
@@ -140,7 +141,7 @@ export function AomiParaAdapterProvider({
       onConnectFallback: (store) => {
         store.dispatch({
           type: "provider/auth-flow-started",
-          reason: "para-more-wallets",
+          reason: "provider-evm-connect-fallback",
           now: Date.now(),
         });
         paraModal?.openModal({ step: "AUTH_ALL_EXTERNAL_WALLETS" });
@@ -199,6 +200,10 @@ export function AomiParaAdapterProvider({
   const authRuntime = useMemo<AuthRuntime>(
     () => ({
       provider: "para",
+      sessionProvider: "para",
+      embeddedProvider: "para",
+      legacyWalletProvider: "para",
+      providerLabel: "Para",
       status: paraAccount.isLoading
         ? "booting"
         : exposeParaSession
@@ -312,8 +317,9 @@ export function AomiParaAdapterProvider({
             address: context.address,
           }),
       },
+      svm: buildSvmTransactionMethods(svmWallet, resolvedAdapterSvmConfig),
     }),
-    [evmRuntime, paraSession, sponsorship],
+    [evmRuntime, paraSession, resolvedAdapterSvmConfig, sponsorship, svmWallet],
   );
 
   return (

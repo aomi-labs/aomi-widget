@@ -105,6 +105,10 @@
         },
         {
           "type": "registry:component",
+          "path": "lib/aomi-auth-adapter/execution/aa-provider-state.ts"
+        },
+        {
+          "type": "registry:component",
           "path": "lib/aomi-auth-adapter/execution/execute.ts"
         },
         {

@@ -1,7 +1,55 @@
 import { webcrypto } from "node:crypto";
 import "@testing-library/jest-dom/vitest";
+import { vi } from "vitest";
 
-(globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+vi.mock("@getpara/solana-wallet-connectors", () => {
+  const wallet = (name: string) => ({
+    adapter: { name },
+    readyState: "Installed",
+  });
+  return {
+    backpackWallet: () => wallet("Backpack"),
+    glowWallet: () => wallet("Glow"),
+    phantomWallet: () => wallet("Phantom"),
+    solflareWallet: () => wallet("Solflare"),
+  };
+});
+
+vi.mock("@getpara/solana-wallet-connectors/connectors", () => {
+  const wallet = (name: string) => ({
+    adapter: { name },
+    readyState: "Installed",
+  });
+  return {
+    backpackWallet: () => wallet("Backpack"),
+    glowWallet: () => wallet("Glow"),
+    phantomWallet: () => wallet("Phantom"),
+    solflareWallet: () => wallet("Solflare"),
+  };
+});
+
+vi.mock("@getpara/react-sdk", async () => {
+  const React = await import("react");
+  return {
+    default: {},
+    Environment: { BETA: "BETA", PROD: "PROD" },
+    ParaProvider: ({ children }: { children: React.ReactNode }) =>
+      React.createElement(React.Fragment, null, children),
+    useAccount: () => {
+      throw new Error("Para SDK unavailable in tests");
+    },
+    useClient: () => null,
+    useIssueJwt: () => ({ issueJwtAsync: async () => null }),
+    useLogout: () => ({ logoutAsync: async () => undefined }),
+    useModal: () => ({ openModal: () => undefined }),
+  };
+});
+
+vi.mock("@getpara/react-sdk/styles.css", () => ({}));
+
+(
+  globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT?: boolean }
+).IS_REACT_ACT_ENVIRONMENT = true;
 
 // jsdom doesn't implement ResizeObserver, which cmdk (the Command/combobox
 // primitive behind the network + app + model selectors) instantiates on mount.

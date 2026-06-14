@@ -1,7 +1,7 @@
-import type { WalletFamily } from "../types";
+import type { WalletFamily, WalletSource } from "../types";
 
 /** Runtime id vs stable id: wagmi connector `uid` is regenerated every page load;
- * `connector.id` (e.g. "para", "io.metamask", "metaMaskSDK", "walletConnect") is stable
+ * `connector.id` (e.g. hosted SDK ids, "io.metamask", "metaMaskSDK", "walletConnect") is stable
  * across loads. Persist stable ids + addresses; resolve uids at runtime.
  */
 export type RegistryConnection = {
@@ -9,7 +9,7 @@ export type RegistryConnection = {
   family: WalletFamily;
   uid: string;
   stableId: string;
-  kind: "para" | "external-evm" | "walletconnect" | "solana";
+  kind: "embedded-session" | "external-evm" | "walletconnect" | "solana";
   address: string;
   addresses: string[];
   chainId?: number;
@@ -31,9 +31,26 @@ export type EvmGraceState = {
     chainId?: number;
     connectorId?: string;
     walletName?: string;
+    walletSource?: WalletSource;
   } | null;
   disconnectedAt: number | null;
 };
+
+export type EmbeddedSessionState = {
+  up: boolean;
+  providerId: string | null;
+  uid: string | null;
+  stableId: string | null;
+  walletName: string | null;
+  embeddedEvmAddress: string | null;
+};
+
+export type AuthFlowSuppressionReason =
+  | "provider-social-login"
+  | "provider-auth-modal"
+  | "provider-evm-connect-fallback"
+  | "provider-account-modal"
+  | (string & {});
 
 export type WalletRegistryState = {
   phase: RegistryPhase;
@@ -50,10 +67,10 @@ export type WalletRegistryState = {
     expected: Array<{ stableId: string; address: string }>;
     reattachBudget: number;
     suppressedUntil: number | null;
-    suppressionReason: string | null;
+    suppressionReason: AuthFlowSuppressionReason | null;
   };
   evmGrace: EvmGraceState;
-  paraSession: { up: boolean; embeddedEvmAddress: string | null };
+  embeddedSession: EmbeddedSessionState;
 };
 
 export type RegistryEvent =
@@ -67,12 +84,20 @@ export type RegistryEvent =
   | { type: "wagmi/brands-changed"; brands: Record<string, string> }
   | { type: "wagmi/settled"; now: number }
   | {
-      type: "para/session-changed";
+      type: "provider/embedded-session-changed";
       up: boolean;
+      providerId: string;
+      uid: string;
+      stableId: string;
+      walletName: string;
       embeddedEvmAddress: string | null;
       now: number;
     }
-  | { type: "provider/auth-flow-started"; reason: string; now: number }
+  | {
+      type: "provider/auth-flow-started";
+      reason: AuthFlowSuppressionReason;
+      now: number;
+    }
   | {
       type: "svm/changed";
       publicKey: string | null;

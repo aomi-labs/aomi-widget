@@ -1,5 +1,5 @@
 import { buildAccounts } from "../accounts";
-import type { AomiAccount, WalletFamily } from "../types";
+import type { AomiAccount, WalletFamily, WalletSource } from "../types";
 import { resolveGracefulEvmIdentity } from "../runtime/evm/identity-grace";
 import { EVM_IDENTITY_GRACE_MS } from "./types";
 import type {
@@ -58,6 +58,7 @@ export function selectEvmIdentity(
   chainId?: number;
   connectorId?: string;
   walletName?: string;
+  walletSource?: WalletSource;
 } {
   const activeConnection = findActiveConnection(state, "evm");
   const current = activeConnection
@@ -66,6 +67,12 @@ export function selectEvmIdentity(
         chainId: activeConnection.chainId,
         connectorId: activeConnection.uid,
         walletName: activeConnection.walletName,
+        walletSource:
+          activeConnection.kind === "embedded-session"
+            ? "embedded"
+            : activeConnection.kind === "walletconnect"
+              ? "walletconnect"
+              : undefined,
       }
     : {};
   const explicitDisconnect = Boolean(

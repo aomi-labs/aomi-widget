@@ -1,7 +1,6 @@
 "use client";
 
 import { useMemo, useState, type ReactNode } from "react";
-import { Environment } from "@getpara/react-sdk";
 import {
   ConnectionProvider,
   WalletProvider,
@@ -22,6 +21,7 @@ import {
 import type { Chain } from "viem";
 import { AomiAdapterComposer } from "../composer/AomiAdapterComposer";
 import type { AuthRuntime, ExecutionRuntime } from "../composer/types";
+import { resolveExternalWalletAAProviderState } from "../execution/aa-provider-state";
 import {
   AomiWalletNetworkPreferencesProvider,
   useAomiWalletNetworkPreferences,
@@ -33,6 +33,7 @@ import {
 import { AomiEvmRuntimeProvider } from "../runtime/evm/provider";
 import { useEvmWalletRuntime } from "../runtime/evm/wallet-runtime";
 import { useSvmRegistrySource } from "../runtime/svm/registry-source";
+import { buildSvmTransactionMethods } from "../runtime/svm/transactions";
 import { useSafeSvmWallet } from "../runtime/svm/wallet-runtime";
 import { REGISTRY_STORAGE_KEY } from "../registry/types";
 import { createAomiEvmConfig } from "../catalog/evm-connector-catalog";
@@ -62,9 +63,9 @@ const defaultNetworks = [
   monadTestnet,
 ] as const;
 
-function toParaEnvironment(value?: "PROD" | "BETA"): Environment | undefined {
+function toParaEnvironment(value?: "PROD" | "BETA") {
   if (!value) return undefined;
-  return value === "PROD" ? Environment.PROD : Environment.BETA;
+  return value;
 }
 
 function toParaOAuthMethods(
@@ -178,6 +179,15 @@ function WalletsOnlyAdapterProvider({
   });
   const svmWallet = useSafeSvmWallet();
   useSvmRegistrySource(evmRuntime.registryStore, { svmWallet });
+  const svmRuntimeConfig = useMemo(
+    () => ({
+      cluster: selectedSolanaNetwork?.cluster ?? "solana:mainnet",
+      rpcHttpUrl: selectedSolanaNetwork?.rpcHttpUrl ?? "",
+      rpcWsUrl: selectedSolanaNetwork?.rpcWsUrl,
+      preferDirectSend: true,
+    }),
+    [selectedSolanaNetwork],
+  );
   const authRuntime = useMemo<AuthRuntime>(
     () => ({
       provider: "none",
@@ -203,9 +213,16 @@ function WalletsOnlyAdapterProvider({
         signTypedDataAsync: evmRuntime.signTypedDataAsync,
         switchChainAsync: evmRuntime.switchChainAsync,
         walletClient: evmRuntime.walletClient,
+        resolveAAProviderState: async (params, context) =>
+          resolveExternalWalletAAProviderState({
+            ...params,
+            walletClient: context.walletClient,
+            address: context.address,
+          }),
       },
+      svm: buildSvmTransactionMethods(svmWallet, svmRuntimeConfig),
     }),
-    [evmRuntime],
+    [evmRuntime, svmRuntimeConfig, svmWallet],
   );
 
   return (
@@ -215,10 +232,7 @@ function WalletsOnlyAdapterProvider({
       svm={{
         wallet: svmWallet,
         config: {
-          cluster: selectedSolanaNetwork?.cluster ?? "solana:mainnet",
-          rpcHttpUrl: selectedSolanaNetwork?.rpcHttpUrl ?? "",
-          rpcWsUrl: selectedSolanaNetwork?.rpcWsUrl,
-          preferDirectSend: true,
+          ...svmRuntimeConfig,
         },
         supportedNetworks: supportedSolanaNetworks,
         selectedNetwork: selectedSolanaNetwork,

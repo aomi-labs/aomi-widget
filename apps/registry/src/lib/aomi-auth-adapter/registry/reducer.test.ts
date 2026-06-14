@@ -28,6 +28,19 @@ function evm(
   };
 }
 
+function embeddedSession(address: string, now: number) {
+  return {
+    type: "provider/embedded-session-changed" as const,
+    up: true,
+    providerId: "para",
+    uid: "para-session",
+    stableId: "para",
+    walletName: "Para",
+    embeddedEvmAddress: address,
+    now,
+  };
+}
+
 describe("WalletRegistry reducer", () => {
   it("keeps a persisted active wish through boot ordering and resolves it by stable id", () => {
     let state = reduce(createInitialState(), {
@@ -41,6 +54,9 @@ describe("WalletRegistry reducer", () => {
       now: 0,
     });
 
+    state = reduce(state, {
+      ...embeddedSession("0xAAA", 5),
+    });
     state = reduce(state, {
       type: "wagmi/connections-changed",
       connections: [evm("para-1", "para", "0xaaa", "Para")],
@@ -69,6 +85,9 @@ describe("WalletRegistry reducer", () => {
   it("chooses the first external wallet at stable when there is no persisted wish", () => {
     let state = boot();
     state = reduce(state, {
+      ...embeddedSession("0xAAA", 5),
+    });
+    state = reduce(state, {
       type: "wagmi/connections-changed",
       connections: [
         evm("para-1", "para", "0xaaa", "Para"),
@@ -87,6 +106,9 @@ describe("WalletRegistry reducer", () => {
   it("falls back to Para when it is the only EVM connection", () => {
     let state = boot();
     state = reduce(state, {
+      ...embeddedSession("0xAAA", 5),
+    });
+    state = reduce(state, {
       type: "wagmi/connections-changed",
       connections: [evm("para-1", "para", "0xaaa", "Para")],
       now: 10,
@@ -102,10 +124,7 @@ describe("WalletRegistry reducer", () => {
   it("creates an active Para connection from the Para session when wagmi has none", () => {
     let state = boot();
     state = reduce(state, {
-      type: "para/session-changed",
-      up: true,
-      embeddedEvmAddress: "0xAAA",
-      now: 10,
+      ...embeddedSession("0xAAA", 10),
     });
     state = reduce(state, { type: "wagmi/settled", now: 20 });
 
@@ -127,10 +146,7 @@ describe("WalletRegistry reducer", () => {
   it("keeps external active while representing a connected Para session", () => {
     let state = boot();
     state = reduce(state, {
-      type: "para/session-changed",
-      up: true,
-      embeddedEvmAddress: "0xAAA",
-      now: 10,
+      ...embeddedSession("0xAAA", 10),
     });
     state = reduce(state, {
       type: "wagmi/connections-changed",
@@ -171,10 +187,7 @@ describe("WalletRegistry reducer", () => {
       now: 40,
     });
     state = reduce(state, {
-      type: "para/session-changed",
-      up: true,
-      embeddedEvmAddress: "0xAAA",
-      now: 50,
+      ...embeddedSession("0xAAA", 50),
     });
 
     expect(state.activeByFamily.evm).toMatchObject({
@@ -197,10 +210,7 @@ describe("WalletRegistry reducer", () => {
       now: 30,
     });
     state = reduce(state, {
-      type: "para/session-changed",
-      up: true,
-      embeddedEvmAddress: "0xAAA",
-      now: 40,
+      ...embeddedSession("0xAAA", 40),
     });
 
     expect(state.activeByFamily.evm).toMatchObject({
@@ -220,10 +230,7 @@ describe("WalletRegistry reducer", () => {
       },
     };
     state = reduce(state, {
-      type: "para/session-changed",
-      up: true,
-      embeddedEvmAddress: "0xAAA",
-      now: 10,
+      ...embeddedSession("0xAAA", 10),
     });
 
     expect(state.connections).toEqual([]);

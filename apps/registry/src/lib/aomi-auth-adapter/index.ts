@@ -10,6 +10,7 @@ export {
 } from "./catalog/svm-wallet-catalog";
 export * from "./catalog/wallet-ids";
 export * from "./config";
+export * from "./execution/aa-provider-state";
 export * from "./execution/execute";
 export * from "./full-testnet-wallet-routing";
 export * from "./identity";

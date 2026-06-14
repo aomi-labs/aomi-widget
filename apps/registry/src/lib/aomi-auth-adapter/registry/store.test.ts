@@ -160,7 +160,7 @@ describe("WalletRegistryStore", () => {
     expect(store.getSnapshot().heal.reattachBudget).toBe(1);
   });
 
-  it("delays the second-pass popup connect while Para auth is active", async () => {
+  it("delays the second-pass popup connect while provider auth is active", async () => {
     vi.useFakeTimers();
     vi.setSystemTime(0);
     const fake = executors();
@@ -188,7 +188,7 @@ describe("WalletRegistryStore", () => {
     store.dispatch({ type: "wagmi/settled", now: 2 });
     store.dispatch({
       type: "provider/auth-flow-started",
-      reason: "para-social-login",
+      reason: "provider-social-login",
       now: 3,
     });
     store.dispatch({ type: "wagmi/config-rebuilt", now: 4 });

@@ -61,7 +61,10 @@ function AomiAuthAdapterSync({ adapter }: { adapter: AomiWalletKit }) {
         capabilities: toSvmCapabilities(identity.solanaCapabilities) ?? [],
       },
       walletProvider: identity.isConnected
-        ? (identity.sessionProvider ?? identity.embeddedProvider ?? null)
+        ? (identity.sessionProvider ??
+          identity.embeddedProvider ??
+          identity.walletProvider ??
+          null)
         : null,
       walletProviderSubject: identity.isConnected
         ? (identity.walletProviderSubject ?? null)

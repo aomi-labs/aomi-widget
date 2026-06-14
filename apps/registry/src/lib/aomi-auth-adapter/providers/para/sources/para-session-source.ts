@@ -23,9 +23,7 @@ export function useParaSessionSource(
     | { address?: string }
     | undefined;
   const embeddedEvmAddress =
-    opts.paraAccount.external.evm?.address ??
-    embeddedWallet?.address ??
-    null;
+    opts.paraAccount.external.evm?.address ?? embeddedWallet?.address ?? null;
   const snapshotKey = useMemo(
     () =>
       `${opts.paraAccount.isConnected ? "up" : "down"}:${
@@ -39,11 +37,14 @@ export function useParaSessionSource(
     if (previousKeyRef.current === snapshotKey) return;
     previousKeyRef.current = snapshotKey;
     store.dispatch({
-      type: "para/session-changed",
+      type: "provider/embedded-session-changed",
       up: opts.paraAccount.isConnected,
+      providerId: "para",
+      uid: "para-session",
+      stableId: "para",
+      walletName: "Para",
       embeddedEvmAddress,
       now: Date.now(),
     });
   }, [embeddedEvmAddress, opts.paraAccount.isConnected, snapshotKey, store]);
 }
-

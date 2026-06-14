@@ -35,7 +35,6 @@ export function canonicalWalletKey(value: string): string {
   if (normalized.includes("solflare")) return "solflare";
   if (normalized.includes("backpack")) return "backpack";
   if (normalized.includes("glow")) return "glow";
-  if (normalized.includes("para")) return "para";
   return normalized;
 }
 
@@ -46,7 +45,6 @@ const walletLabelOverrides: Record<string, string> = {
   coinbasewallet: "Coinbase Wallet",
   injected: "Browser wallet",
   metamask: "MetaMask",
-  para: "Para",
   rabby: "Rabby",
   rainbow: "Rainbow",
   walletconnect: "WalletConnect",
@@ -191,7 +189,7 @@ function connectorReady(connector: Connector): boolean | undefined {
 }
 
 export function isProviderInternalWalletLabel(label: string): boolean {
-  return canonicalWalletKey(label) === "para";
+  return false;
 }
 
 function knownWalletInstalled(
@@ -346,7 +344,7 @@ export type EvmConnectionBrandInput = {
 /**
  * Resolve the real brand for each live EVM connection by sniffing the
  * underlying provider. Returns `connectorId → brand label`; connections whose
- * provider exposes no brand flags (Para embedded, WalletConnect, …) are
+ * provider exposes no brand flags (embedded SDK wallets, WalletConnect, ...) are
  * absent — callers fall back to the connector name.
  *
  * Re-sniffs whenever the connection set changes, so flipping the wallet's

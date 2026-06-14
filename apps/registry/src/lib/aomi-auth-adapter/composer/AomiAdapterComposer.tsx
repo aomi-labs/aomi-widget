@@ -14,7 +14,6 @@ import {
   buildSvmWalletDescriptors,
   connectPreferredSvmWallet,
 } from "../runtime/svm/wallet-runtime";
-import { buildSvmTransactionMethods } from "../runtime/svm/transactions";
 import {
   executeAdapterTransaction,
   getPreferredRpcUrl,
@@ -183,11 +182,8 @@ export function AomiAdapterComposer({
         sponsorAccount: execution.sponsorship.sponsorAccount,
       },
       walletName: gracefulEvmIdentity.identity.walletName,
+      walletSource: gracefulEvmIdentity.identity.walletSource,
     });
-    const solanaMethods = svm
-      ? buildSvmTransactionMethods(svm.wallet, svm.config)
-      : {};
-
     return {
       identity,
       isReady: !isBooting,
@@ -343,82 +339,93 @@ export function AomiAdapterComposer({
         }
         svm.setSelectedNetworkId(target.networkId);
       },
-      sendTransaction: execution.evm.sendTransactionAsync
-        ? async (payload) => {
-            return executeAdapterTransaction({
-              payload,
-              state: {
-                currentChainId: effectiveChainId,
-                capabilities: execution.evm.capabilities,
-                sendCallsSyncAsync: execution.evm.sendCallsSyncAsync
-                  ? async (args) =>
-                      execution.evm.sendCallsSyncAsync!({
-                        ...args,
-                        connector: execution.evm.activeConnector,
+      sendTransaction: execution.evm.sendTransaction
+        ? async (payload) => execution.evm.sendTransaction!(payload)
+        : execution.evm.sendTransactionAsync
+          ? async (payload) => {
+              return executeAdapterTransaction({
+                payload,
+                state: {
+                  currentChainId: effectiveChainId,
+                  capabilities: execution.evm.capabilities,
+                  sendCallsSyncAsync: execution.evm.sendCallsSyncAsync
+                    ? async (args) =>
+                        execution.evm.sendCallsSyncAsync!({
+                          ...args,
+                          connector: execution.evm.activeConnector,
+                        })
+                    : undefined,
+                  sendTransactionAsync: async (args) =>
+                    execution.evm.sendTransactionAsync!({
+                      ...args,
+                      connector: execution.evm.activeConnector,
+                    }),
+                  switchChainAsync: execution.evm.switchChainAsync
+                    ? async ({ chainId }) =>
+                        execution.evm.switchChainAsync!({
+                          chainId,
+                          connector: execution.evm.activeConnector,
+                        })
+                    : undefined,
+                  chainsById: execution.evm.chainsById,
+                  getPreferredRpcUrl,
+                },
+                shouldUseExternalSigner: execution.evm.shouldUseExternalSigner,
+                resolveAAProviderState: execution.evm.resolveAAProviderState
+                  ? async (params) =>
+                      execution.evm.resolveAAProviderState!(params, {
+                        address,
+                        walletClient: execution.evm.shouldUseExternalSigner
+                          ? await execution.evm.getWalletClientFor({
+                              connector: execution.evm.activeConnector,
+                              chainId: params.callList[0]?.chainId,
+                            })
+                          : execution.evm.walletClient,
                       })
                   : undefined,
-                sendTransactionAsync: async (args) =>
-                  execution.evm.sendTransactionAsync!({
-                    ...args,
-                    connector: execution.evm.activeConnector,
-                  }),
-                switchChainAsync: execution.evm.switchChainAsync
-                  ? async ({ chainId }) =>
-                      execution.evm.switchChainAsync!({
-                        chainId,
-                        connector: execution.evm.activeConnector,
-                      })
-                  : undefined,
-                chainsById: execution.evm.chainsById,
-                getPreferredRpcUrl,
-              },
-              shouldUseExternalSigner: execution.evm.shouldUseExternalSigner,
-              resolveAAProviderState: execution.evm.resolveAAProviderState
-                ? async (params) =>
-                    execution.evm.resolveAAProviderState!(params, {
-                      address,
-                      walletClient: execution.evm.shouldUseExternalSigner
-                        ? await execution.evm.getWalletClientFor({
-                            connector: execution.evm.activeConnector,
-                            chainId: params.callList[0]?.chainId,
-                          })
-                        : execution.evm.walletClient,
-                    })
-                : undefined,
-              forceAA: true,
-              preferAAForSingleCall: true,
-            });
-          }
-        : undefined,
-      signTypedData: execution.evm.signTypedDataAsync
-        ? async (payload) => {
-            const signArgs = toViemSignTypedDataArgs(payload);
-            if (!signArgs) {
-              throw new Error("Missing typed_data payload");
+                forceAA: true,
+                preferAAForSingleCall: true,
+              });
             }
-            const signature = await execution.evm.signTypedDataAsync!({
-              ...(signArgs as Record<string, unknown>),
-              connector: execution.evm.activeConnector,
-            } as never);
-            return { signature };
-          }
-        : undefined,
-      signMessage: execution.evm.signMessageAsync
-        ? async (payload) => {
-            const messageArgs = toViemSignMessageArgs(payload);
-            if (!messageArgs) {
-              throw new Error("Missing non_typed_data payload");
+          : undefined,
+      signTypedData: execution.evm.signTypedData
+        ? async (payload) => execution.evm.signTypedData!(payload)
+        : execution.evm.signTypedDataAsync
+          ? async (payload) => {
+              const signArgs = toViemSignTypedDataArgs(payload);
+              if (!signArgs) {
+                throw new Error("Missing typed_data payload");
+              }
+              const signature = await execution.evm.signTypedDataAsync!({
+                ...(signArgs as Record<string, unknown>),
+                connector: execution.evm.activeConnector,
+              } as never);
+              return { signature };
             }
-            const signature = await execution.evm.signMessageAsync!({
-              ...(messageArgs as Record<string, unknown>),
-              connector: execution.evm.activeConnector,
-            } as never);
-            return { signature };
-          }
-        : undefined,
+          : undefined,
+      signMessage: execution.evm.signMessage
+        ? async (payload) => execution.evm.signMessage!(payload)
+        : execution.evm.signMessageAsync
+          ? async (payload) => {
+              const messageArgs = toViemSignMessageArgs(payload);
+              if (!messageArgs) {
+                throw new Error("Missing non_typed_data payload");
+              }
+              const signature = await execution.evm.signMessageAsync!({
+                ...(messageArgs as Record<string, unknown>),
+                connector: execution.evm.activeConnector,
+              } as never);
+              return { signature };
+            }
+          : undefined,
       getAccountCredential:
         auth.status === "authenticated" ? auth.getCredential : undefined,
-      ...solanaMethods,
+      signSolanaTransaction: execution.svm?.signSolanaTransaction,
+      signSolanaMessage: execution.svm?.signSolanaMessage,
+      sendSolanaTransaction: execution.svm?.sendSolanaTransaction,
+      signAndSendSolanaTransaction: execution.svm?.signAndSendSolanaTransaction,
+      solanaRpcHttpUrl: execution.svm?.solanaRpcHttpUrl,
+      solanaRpcWsUrl: execution.svm?.solanaRpcWsUrl,
     };
   }, [
     auth,

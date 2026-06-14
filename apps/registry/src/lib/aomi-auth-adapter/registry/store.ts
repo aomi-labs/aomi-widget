@@ -124,10 +124,10 @@ export class WalletRegistryStore {
     const authFlowSuppressed =
       this.state.heal.suppressedUntil !== null &&
       Date.now() < this.state.heal.suppressedUntil &&
-      (this.state.heal.suppressionReason === "para-social-login" ||
-        this.state.heal.suppressionReason === "para-auth-modal" ||
-        this.state.heal.suppressionReason === "para-evm-connect-fallback" ||
-        this.state.heal.suppressionReason === "para-account-modal");
+      (this.state.heal.suppressionReason === "provider-social-login" ||
+        this.state.heal.suppressionReason === "provider-auth-modal" ||
+        this.state.heal.suppressionReason === "provider-evm-connect-fallback" ||
+        this.state.heal.suppressionReason === "provider-account-modal");
     return authFlowSuppressed ? AUTH_FLOW_RECONNECT_SETTLE_MS : SETTLE_QUIET_MS;
   }
 

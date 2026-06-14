@@ -97,10 +97,10 @@ export function resolveActive(
     }
 
     if (state.phase === "stable") {
-      const para = familyConnections.find(
-        (connection) => connection.kind === "para",
+      const embeddedSession = familyConnections.find(
+        (connection) => connection.kind === "embedded-session",
       );
-      return para ? connectionToActive(para) : undefined;
+      return embeddedSession ? connectionToActive(embeddedSession) : undefined;
     }
     return undefined;
   }
@@ -133,7 +133,10 @@ function expectedIsHealEligible(
 ): boolean {
   if (state.intents.explicitFamilyDisconnect.evm) return false;
   if (isDropped(state, expected.address)) return false;
-  if (expected.stableId === "para" || expected.stableId === "walletConnect") {
+  if (
+    expected.stableId === state.embeddedSession.stableId ||
+    expected.stableId === "walletConnect"
+  ) {
     return false;
   }
   if (
@@ -143,10 +146,10 @@ function expectedIsHealEligible(
     return true;
   }
   return (
-    state.heal.suppressionReason === "para-social-login" ||
-    state.heal.suppressionReason === "para-auth-modal" ||
-    state.heal.suppressionReason === "para-evm-connect-fallback" ||
-    state.heal.suppressionReason === "para-account-modal"
+    state.heal.suppressionReason === "provider-social-login" ||
+    state.heal.suppressionReason === "provider-auth-modal" ||
+    state.heal.suppressionReason === "provider-evm-connect-fallback" ||
+    state.heal.suppressionReason === "provider-account-modal"
   );
 }
 
@@ -156,7 +159,10 @@ function expectedIsSilentReconnectEligible(
 ): boolean {
   if (state.intents.explicitFamilyDisconnect.evm) return false;
   if (isDropped(state, expected.address)) return false;
-  return expected.stableId !== "para" && expected.stableId !== "walletConnect";
+  return (
+    expected.stableId !== state.embeddedSession.stableId &&
+    expected.stableId !== "walletConnect"
+  );
 }
 
 export function planHeal(
@@ -246,7 +252,10 @@ export function planDisconnect(
     const commands: RegistryCommand[] = [];
     if (families.includes("evm")) {
       for (const connection of state.connections) {
-        if (connection.family === "evm" && connection.uid !== "para-session") {
+        if (
+          connection.family === "evm" &&
+          connection.uid !== state.embeddedSession.uid
+        ) {
           commands.push({ kind: "wagmi/disconnect", uid: connection.uid });
         }
       }

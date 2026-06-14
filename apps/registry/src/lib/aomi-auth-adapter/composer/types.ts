@@ -8,6 +8,7 @@ import type {
   AomiAccountCredential,
   AomiAuthIdentity,
   AomiAuthMethod,
+  AomiTxResult,
   AuthProviderId,
   AomiWalletOption,
   SvmNetworkOption,
@@ -16,6 +17,7 @@ import type { WalletRegistryStore } from "../registry/store";
 import type { WalletRegistryState } from "../registry/types";
 import type { EvmWalletRuntime } from "../runtime/evm/wallet-runtime";
 import type { SafeSvmWalletState } from "../runtime/svm/wallet-runtime";
+import type { buildSvmTransactionMethods } from "../runtime/svm/transactions";
 import type { AccountRuntime } from "../account/types";
 import type {
   ResolveAAProviderState,
@@ -31,6 +33,10 @@ export type AuthRuntime = {
   primaryLabel?: string;
   authMethod?: AomiAuthMethod;
   authValue?: string;
+  sessionProvider?: AomiAuthIdentity["sessionProvider"];
+  embeddedProvider?: AomiAuthIdentity["embeddedProvider"];
+  legacyWalletProvider?: AomiAuthIdentity["walletProvider"];
+  providerLabel?: string;
   methods: readonly AomiWalletOption[];
   canOpenModal: boolean;
   login?: (reason: string, step?: string) => Promise<void>;
@@ -55,6 +61,9 @@ export type SvmWalletRuntime = {
 export type SolanaWalletRuntime = SvmWalletRuntime;
 
 export type EvmExecutionRuntime = {
+  sendTransaction?: (p: WalletTxPayload) => Promise<AomiTxResult>;
+  signTypedData?: (p: WalletEip712Payload) => Promise<{ signature: string }>;
+  signMessage?: (p: WalletEip712Payload) => Promise<{ signature: string }>;
   activeConnector?: Connector;
   capabilities?: WalletExecutionAdapterState["capabilities"];
   chainsById: Record<number, Chain>;
@@ -76,9 +85,11 @@ export type EvmExecutionRuntime = {
   walletClient: EvmWalletRuntime["walletClient"];
 };
 
+export type SvmExecutionRuntime = ReturnType<typeof buildSvmTransactionMethods>;
+
 export type ExecutionRuntime = {
   evm: EvmExecutionRuntime;
-  svm?: unknown;
+  svm?: SvmExecutionRuntime;
   sponsorship: Pick<
     AomiAuthIdentity,
     "sponsored" | "sponsorProvider" | "sponsorAccount"
