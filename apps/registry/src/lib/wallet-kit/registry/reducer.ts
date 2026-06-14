@@ -398,12 +398,23 @@ function expectedIsLive(
   );
 }
 
+function expectedConnectorIsLive(
+  connections: readonly RegistryConnection[],
+  expected: { stableId: string },
+): boolean {
+  return connections.some(
+    (connection) =>
+      connection.family === "evm" && connection.stableId === expected.stableId,
+  );
+}
+
 function nextHealExpectedOnSettled(
   state: WalletRegistryState,
 ): WalletRegistryState["heal"]["expected"] {
-  if (state.phase === "rebuilding") return state.heal.expected;
   const missingExpected = state.heal.expected.filter(
-    (expected) => !expectedIsLive(state.connections, expected),
+    (expected) =>
+      !expectedIsLive(state.connections, expected) &&
+      !expectedConnectorIsLive(state.connections, expected),
   );
   return missingExpected.length > 0
     ? state.heal.expected

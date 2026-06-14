@@ -105,6 +105,24 @@ describe("WalletRegistry policy", () => {
     });
   });
 
+  it("does not reconnect a stale address when the same connector is still live", () => {
+    const commands = planHeal(
+      state({
+        phase: "settling",
+        connections: [
+          conn({ uid: "rb-1", stableId: "rabby", address: "0xbbb" }),
+        ],
+        heal: {
+          expected: [{ stableId: "rabby", address: "0xaaa" }],
+          reattachBudget: 2,
+        },
+      }),
+      100,
+    );
+
+    expect(commands).toEqual([]);
+  });
+
   it("does not silently heal a deliberate EVM family disconnect", () => {
     const commands = planHeal(
       state({

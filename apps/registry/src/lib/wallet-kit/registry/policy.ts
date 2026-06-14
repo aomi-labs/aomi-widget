@@ -126,6 +126,16 @@ function expectedIsLive(
   );
 }
 
+function expectedConnectorIsLive(
+  state: WalletRegistryState,
+  expected: { stableId: string },
+): boolean {
+  return state.connections.some(
+    (connection) =>
+      connection.family === "evm" && connection.stableId === expected.stableId,
+  );
+}
+
 function expectedIsHealEligible(
   state: WalletRegistryState,
   expected: { stableId: string; address: string },
@@ -170,7 +180,9 @@ export function planHeal(
   now: number,
 ): RegistryCommand[] {
   const missing = state.heal.expected.filter(
-    (expected) => !expectedIsLive(state, expected),
+    (expected) =>
+      !expectedIsLive(state, expected) &&
+      !expectedConnectorIsLive(state, expected),
   );
   if (missing.length === 0) return [];
   const silentReconnectEligible = missing.filter((expected) =>
