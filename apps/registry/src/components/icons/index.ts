@@ -6,4 +6,4 @@ export * from "./wallets";
 export { getVendorIcon } from "./vendor-map";
 export { getChainIcon } from "./chain-map";
 export { getAppIcon } from "./app-map";
-export { getWalletIcon } from "./wallet-map";
+export { getWalletIcon, getWalletIconBrand } from "./wallet-map";

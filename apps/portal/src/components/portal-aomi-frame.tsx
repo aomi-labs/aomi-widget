@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef } from "react";
 import Link from "next/link";
 import { Settings } from "lucide-react";
 import { createAccountAccessTokenProvider } from "@aomi-labs/client";
-import { AomiFrame, useAomiAuthAdapter } from "@aomi-labs/widget-lib";
+import { AomiFrame, useAomiWalletKit } from "@aomi-labs/widget-lib";
 import { type AomiClientOptions, useControl } from "@aomi-labs/react";
 import { RequiredSecretsGate } from "@portal/components/required-secrets-gate";
 import { x402Client } from "@x402/core/client";
@@ -29,7 +29,7 @@ function getRequestedAppFromSearch(search: string): string | null {
 }
 
 function usePortalClientOptions(): Omit<AomiClientOptions, "baseUrl"> | undefined {
-  const { getAccountCredential } = useAomiAuthAdapter();
+  const { getAccountCredential } = useAomiWalletKit();
   const wagmiConfig = useConfig();
   const walletClient = useWalletClient();
   const backendUrl = getBackendUrl();
@@ -48,7 +48,19 @@ function usePortalClientOptions(): Omit<AomiClientOptions, "baseUrl"> | undefine
         if (!credential) {
           throw new Error("Wallet provider is connected without an exchangeable credential");
         }
-        return credential;
+        if ("providerToken" in credential) {
+          return credential;
+        }
+        if (
+          credential.kind === "token" &&
+          (credential.provider === "para" || credential.provider === "privy")
+        ) {
+          return {
+            provider: credential.provider,
+            providerToken: credential.token,
+          };
+        }
+        throw new Error("Wallet provider credential cannot be exchanged");
       },
       fetch: nativeFetch,
     });

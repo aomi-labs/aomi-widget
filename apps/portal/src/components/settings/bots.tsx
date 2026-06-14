@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Button, Input, useAomiAuthAdapter } from "@aomi-labs/widget-lib";
+import { Button, Input, useAomiWalletKit } from "@aomi-labs/widget-lib";
 import { settingsApiFetch } from "@portal/lib/settings-api";
 import {
   settingsActionRowClass,
@@ -83,7 +83,7 @@ function normalizeAppOptions(apps: AppOption[]): string[] {
 }
 
 export function Bots() {
-  const { identity } = useAomiAuthAdapter();
+  const { identity } = useAomiWalletKit();
   const [bots, setBots] = useState<BotRegistration[]>([]);
   const [availableApps, setAvailableApps] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);

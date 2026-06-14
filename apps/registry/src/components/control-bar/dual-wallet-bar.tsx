@@ -3,7 +3,7 @@
 import { Fragment, useEffect, type FC } from "react";
 import { ChevronDownIcon } from "lucide-react";
 import { cn, getChainInfo } from "@aomi-labs/react";
-import { useAomiAuthAdapter, formatAddress } from "../../lib/aomi-auth-adapter";
+import { useAomiWalletKit, formatAddress } from "../../lib/wallet-kit";
 import { WalletIconSlot } from "./wallet-icon-slot";
 import { WalletPicker } from "./wallet-picker";
 import { WalletPickerProvider, useWalletPicker } from "./wallet-picker-context";
@@ -41,7 +41,7 @@ const DualWalletBarInner: FC<DualWalletBarProps> = ({
   className,
   onConnectionChange,
 }) => {
-  const adapter = useAomiAuthAdapter();
+  const adapter = useAomiWalletKit();
   const identity = adapter.identity;
   const { openPicker } = useWalletPicker();
 

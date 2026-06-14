@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { CheckCircle2, XCircle, Loader2, Circle } from "lucide-react";
-import { Button, Input, useAomiAuthAdapter } from "@aomi-labs/widget-lib";
+import { Button, Input, useAomiWalletKit } from "@aomi-labs/widget-lib";
 import {
   settingsBodyTextClass,
   settingsCardStackClass,
@@ -55,7 +55,7 @@ function toSlug(name: string): string {
 }
 
 export function DeploySettings() {
-  const adapter = useAomiAuthAdapter();
+  const adapter = useAomiWalletKit();
   const actor = adapter.identity.address ?? undefined;
 
   const [appName, setAppName] = useState("");

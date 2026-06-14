@@ -5,7 +5,7 @@ status: working
 area: auth
 review_after_days: 30
 sources_of_truth:
-  - apps/registry/src/lib/aomi-auth-adapter/providers/base-account.tsx
+  - apps/registry/src/lib/wallet-kit/providers/base-account.tsx
 ---
 
 # Base Account Auth
@@ -16,7 +16,7 @@ Explain the subsystem's purpose, boundaries, and the main responsibilities visib
 
 ## Source Map
 
-- [apps/registry/src/lib/aomi-auth-adapter/providers/base-account.tsx](../../../../apps/registry/src/lib/aomi-auth-adapter/providers/base-account.tsx)
+- [apps/registry/src/lib/wallet-kit/providers/base-account.tsx](../../../../apps/registry/src/lib/wallet-kit/providers/base-account.tsx)
 
 ## Key Flows
 

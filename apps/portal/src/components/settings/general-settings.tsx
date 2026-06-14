@@ -5,7 +5,7 @@ import { getChainInfo } from "@aomi-labs/react";
 import {
   Button,
   formatAuthMethod,
-  useAomiAuthAdapter,
+  useAomiWalletKit,
 } from "@aomi-labs/widget-lib";
 import { settingsApiFetch } from "@portal/lib/settings-api";
 import {
@@ -56,7 +56,7 @@ function formatNumber(n?: number): string {
 }
 
 export function GeneralSettings() {
-  const adapter = useAomiAuthAdapter();
+  const adapter = useAomiWalletKit();
   const identity = adapter.identity;
   const [account, setAccount] = useState<AccountOverview | null>(null);
   const [loading, setLoading] = useState(false);

@@ -9,9 +9,9 @@ import {
   within,
 } from "@testing-library/react";
 import { AomiRuntimeApiProvider, ExtUserProvider } from "@aomi-labs/react";
-import type { AomiAuthAdapter } from "@/lib/aomi-auth-adapter";
-import { AomiAuthAdapterProvider } from "@/lib/aomi-auth-adapter";
-import { AomiWalletNetworkPreferencesProvider } from "@/lib/aomi-auth-adapter/network-preferences";
+import type { AomiWalletKit } from "@/lib/wallet-kit";
+import { AomiWalletKitContextProvider } from "@/lib/wallet-kit";
+import { AomiWalletNetworkPreferencesProvider } from "@/lib/wallet-kit/network-preferences";
 import { WalletPickerProvider, useWalletPicker } from "./wallet-picker-context";
 import { WalletPicker } from "./wallet-picker";
 
@@ -36,8 +36,8 @@ const solanaNetworks = [
 ] as const;
 
 function makeAdapter(
-  overrides: Partial<AomiAuthAdapter> = {},
-): AomiAuthAdapter {
+  overrides: Partial<AomiWalletKit> = {},
+): AomiWalletKit {
   return {
     identity: {
       status: "connected",
@@ -129,7 +129,7 @@ function OpenAndRender() {
 }
 
 function renderPicker(
-  adapter: AomiAuthAdapter,
+  adapter: AomiWalletKit,
   hasBlockingWalletRequests = false,
 ) {
   const runtime = {
@@ -139,7 +139,7 @@ function renderPicker(
   return render(
     <ExtUserProvider>
       <AomiRuntimeApiProvider value={runtime as never}>
-        <AomiAuthAdapterProvider value={adapter}>
+        <AomiWalletKitContextProvider value={adapter}>
           <AomiWalletNetworkPreferencesProvider
             storageKey="test"
             evmChains={evmChains}
@@ -149,7 +149,7 @@ function renderPicker(
               <OpenAndRender />
             </WalletPickerProvider>
           </AomiWalletNetworkPreferencesProvider>
-        </AomiAuthAdapterProvider>
+        </AomiWalletKitContextProvider>
       </AomiRuntimeApiProvider>
     </ExtUserProvider>,
   );
@@ -531,6 +531,34 @@ describe("WalletPicker", () => {
     });
 
     expect(openAccountUI).toHaveBeenCalledWith({ family: "evm" });
+  });
+
+  it("uses the Para brand mark for manageable Para accounts with generic names", () => {
+    renderPicker(
+      makeAdapter({
+        identity: {
+          status: "connected",
+          isConnected: true,
+          walletProvider: "para",
+          sessionProvider: "para",
+        },
+        accounts: [
+          {
+            id: "embedded-session",
+            family: "evm",
+            address: "0xAAAAAAAA",
+            walletName: "Embedded wallet",
+            active: true,
+            manageable: true,
+          },
+        ],
+      }),
+    );
+
+    expect(screen.getByTitle("Embedded wallet")).toHaveAttribute(
+      "data-wallet-brand",
+      "para",
+    );
   });
 
   it("hides the social sign-in row when the Para account is connected", () => {

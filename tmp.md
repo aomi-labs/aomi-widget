@@ -52,11 +52,11 @@ Only `aa_mode`, `wallet_kind`, `smart_account_4337`, `delegation_7702` can chang
 
 | Source | Writes | Read by |
 |---|---|---|
-| Auth adapter providers ([para.tsx:506-521](apps/registry/src/lib/aomi-auth-adapter/providers/para.tsx:506), [base-account.tsx:188-209](apps/registry/src/lib/aomi-auth-adapter/providers/base-account.tsx:188)) | `AomiAuthIdentity` fields including `SmartAccount4337` / `Delegation7702` (from local `resolvedAA` state, captured in `sendTransaction` wrapper) | UI (connect button, etc.) |
-| `AomiAuthRuntimeUserSync` ([runtime-user-sync.tsx:21-49](apps/registry/src/lib/aomi-auth-adapter/runtime-user-sync.tsx:21)) | Pushes identity → UserState via `setUser` (camelCase normalized) | Backend (via `AomiClient.sendMessage`) |
+| Wallet kit providers ([para.tsx:506-521](apps/registry/src/lib/aomi-wallet-kit/providers/para.tsx:506), [base-account.tsx:188-209](apps/registry/src/lib/aomi-wallet-kit/providers/base-account.tsx:188)) | `AomiSessionIdentity` fields including `SmartAccount4337` / `Delegation7702` (from local `resolvedAA` state, captured in `sendTransaction` wrapper) | UI (connect button, etc.) |
+| `AomiWalletKitSync` ([runtime-user-sync.tsx:21-49](apps/registry/src/lib/aomi-wallet-kit/runtime-user-sync.tsx:21)) | Pushes identity → UserState via `setUser` (camelCase normalized) | Backend (via `AomiClient.sendMessage`) |
 | `session.ts:445-453` tx-complete handler | Writes UserState directly with same per-tx result | Backend |
 
-**Convergence:** both writers operate on the **same** `result.SmartAccount4337` / `result.Delegation7702` from `executeAdapterTransaction`, on the same render tick. The reducer in `setUser` ([user-context.tsx:76-108](packages/react/src/contexts/user-context.tsx:76)) merges by key — last-writer-wins per field, but values match either way.
+**Convergence:** both writers operate on the **same** `result.SmartAccount4337` / `result.Delegation7702` from `executeWalletKitTransaction`, on the same render tick. The reducer in `setUser` ([user-context.tsx:76-108](packages/react/src/contexts/user-context.tsx:76)) merges by key — last-writer-wins per field, but values match either way.
 
 **Reset on context change:** identity's `resolvedAA` is cleared by `useEffect(() => setResolvedAA(null), [address, chainId])` in each provider; UserState's `smart_account_4337` / `delegation_7702` are preserved by the reconciler **only when address matches** ([types.ts:303-317](packages/client/src/types.ts:303)).
 

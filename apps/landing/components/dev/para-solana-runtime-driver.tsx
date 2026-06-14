@@ -25,9 +25,9 @@ import {
 import { LandingParaProvider } from "../../app/components/landing-para-provider";
 import { RuntimeTxHandler } from "../../../registry/src/components/runtime-tx-handler";
 import {
-  useAomiAuthAdapter,
-  type AomiAuthAdapter,
-} from "../../../registry/src/lib/aomi-auth-adapter";
+  useAomiWalletKit,
+  type AomiWalletKit,
+} from "../../../registry/src/lib/wallet-kit";
 
 type DriverMode =
   | "sign"
@@ -127,7 +127,7 @@ function getRequestKindForMode(mode: DriverMode): Extract<
 }
 
 function identityToUserState(
-  adapter: AomiAuthAdapter,
+  adapter: AomiWalletKit,
 ): UserStateShape {
   const identity = adapter.identity;
 
@@ -178,7 +178,7 @@ function identityToUserState(
 
 function ParaSolanaRuntimeDriverInner() {
   const searchParams = useSearchParams();
-  const adapter = useAomiAuthAdapter();
+  const adapter = useAomiWalletKit();
   const connection = useMemo(
     () => new Connection(DRIVER_RPC_URL, "confirmed"),
     [],

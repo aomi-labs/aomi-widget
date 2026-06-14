@@ -151,12 +151,12 @@ code = [
     "packages/auth/**",
     "apps/portal/src/app/api/auth/**",
     "apps/portal/src/lib/aomi-auth/**",
-    "apps/registry/src/lib/aomi-auth-adapter/**",
+    "apps/registry/src/lib/aomi-wallet-kit/**",
     "packages/react/src/runtime/user-state-provider.tsx",
 ]
 docs = [
     "docs/topics/auth/facts/auth.md",
-    "docs/topics/auth/facts/auth-adapter.md",
+    "docs/topics/auth/facts/wallet-kit.md",
     "docs/topics/auth/facts/base-account.md",
 ]
 owners = ["frontend"]

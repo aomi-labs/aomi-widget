@@ -3,7 +3,7 @@
 import type { CSSProperties } from "react";
 import { WalletIcon } from "lucide-react";
 import { cn } from "@aomi-labs/react";
-import { getWalletIcon } from "../icons";
+import { getWalletIcon, getWalletIconBrand } from "../icons";
 
 /**
  * Single source of truth for how a wallet brand mark is drawn — used by both the
@@ -25,17 +25,20 @@ export function WalletIconSlot({
   iconUrl,
   id,
   label,
+  provider,
   size = DEFAULT_SLOT,
   className,
 }: {
   iconUrl?: string;
   id?: string;
   label: string;
+  provider?: string;
   size?: number;
   className?: string;
 }) {
-  const key = `${id ?? ""} ${label}`;
+  const key = `${provider ?? ""} ${id ?? ""} ${label}`;
   const BrandIcon = getWalletIcon(key);
+  const brand = getWalletIconBrand(key);
   const lowerKey = key.toLowerCase();
   const isPhantom = lowerKey.includes("phantom");
   const isPara = lowerKey.includes("para");
@@ -53,6 +56,7 @@ export function WalletIconSlot({
         style={slotStyle}
         aria-hidden="true"
         title={label}
+        data-wallet-brand={brand}
       >
         <BrandIcon style={{ width: mark, height: mark }} />
       </span>

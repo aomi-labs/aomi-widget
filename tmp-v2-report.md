@@ -22,7 +22,7 @@
 6. **Backend silently drops new fields** — `smart_account_4337`, `delegation_7702`, `wallet_kind`, `wallet_provider`, `auth_method`, `sponsored`, `sponsor_provider`, `sponsor_account`, `svm_address` are unknown to backend `UserState`. Fix: [product-mono#492](https://github.com/aomi-labs/product-mono/pull/492). Round-trip will work once deployed.
 7. **CLI Alchemy 4337 cannot represent "unsponsored"** — `sponsored` is hard-coded to `effectiveMode === "4337"` in [packages/client/src/aa/alchemy/create.ts:167](packages/client/src/aa/alchemy/create.ts:167). C3 is not distinct from C2 with the current code path. To fix: add a knob (env or flag) to skip `gasPolicyId` resolution.
 8. **CLI client UserState shape during AA sign missing `sponsored` / `sponsor_provider` / `sponsor_account`** — `resolveWallet` writes `aa_mode`, `smart_account_4337`, `delegation_7702` but not the sponsorship triplet. Wire trace in C2 confirmed: bundler call had `paymasterService.policyId: <id>` (so the CLI internally treats it as sponsored) but `user_state` never serialized `sponsored:true`. To fix: thread `execution.sponsored` + `sponsor_provider` / `sponsor_account` through wallet.ts → resolveWallet (mirror the AA-address path).
-9. **`apps/portal` same `ExtUserProvider` ancestor bug + Solana `WalletProvider` ancestor missing** — `AomiParaAdapterProvider` calls `useUser` AND `useSafeSolanaWallet`, neither of which has its provider in the portal tree. Crashes on load. Same fix shape as apps/base but plus a SolanaWalletProvider; deferred.
+9. **`apps/portal` same `ExtUserProvider` ancestor bug + Solana `WalletProvider` ancestor missing** — `AomiParaPluginProvider` calls `useUser` AND `useSafeSolanaWallet`, neither of which has its provider in the portal tree. Crashes on load. Same fix shape as apps/base but plus a SolanaWalletProvider; deferred.
 
 ## Cell-by-cell status (v2 table refresh)
 
@@ -63,7 +63,7 @@
 ## Morning addendum — self-contained stack works (2026-05-17)
 
 ### What changed
-- `EnsureExtUserProvider` shipped (linter-assisted) and is now wired inside `AomiBaseAccountProvider` + `AomiParaAdapterProvider`. Resolves bugs #5 and #9 above. Both `/apps/base` and `/apps/portal` boot cleanly without manual `ExtUserProvider` wrappers.
+- `EnsureExtUserProvider` shipped (linter-assisted) and is now wired inside `AomiBaseAccountProvider` + `AomiParaPluginProvider`. Resolves bugs #5 and #9 above. Both `/apps/base` and `/apps/portal` boot cleanly without manual `ExtUserProvider` wrappers.
 - Backend PR's first push broke CI: `aomi/bin/backend/src/endpoint/tests/chat.rs:450` was a hand-written `UserState { … }` literal that missed the new fields. Fixed by adding `..Default::default()`. Re-pushed; CI re-running.
 - Built the local backend (`product-mono/aomi/target/debug/backend`) from this branch and ran it on `localhost:8088`, pointed at the source `providers.toml`. This sidesteps the staging-deploy wait — the backend now in process has the new schema loaded.
 

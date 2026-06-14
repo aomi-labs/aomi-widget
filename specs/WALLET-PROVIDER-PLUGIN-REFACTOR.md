@@ -1,8 +1,7 @@
 # Wallet Provider Plugin Refactor Plan
 
 > Canonical plan as of **2026-06-13**. Supersedes the prior revision of this
-> file, `WALLET-ARCHITECTURE.md` §12–13, and `WALLET-REFACTOR-PLAN.md`.
-> Grounded in `meeting-2026-06-10-wallet-auth-backend-frontend.md`.
+> file and the earlier branch planning notes.
 
 ## Purpose
 
@@ -21,7 +20,7 @@ independently-green, individually-committed phases (P0–P8). The end state:
   EIP-6963 + WalletConnect + Coinbase in every mode, with Base Account available
   everywhere when explicitly requested. Para's modal becomes auth-only.
 - **One composition path**: Para, Privy, and Base all flow through
-  `AomiAdapterComposer`; no provider hand-builds the adapter.
+  `AomiWalletKitComposer`; no provider hand-builds the adapter.
 - **Wallets-only / no-auth is a first-class, shipped mode.**
 - **Account abstraction works without a hosted session** (external-wallet 4337).
 - Public surface is **capability-shaped** (`auth` / `wallets` / `execution` /
@@ -40,8 +39,8 @@ Do not re-litigate during execution.
 2. **Naming: the wallet/account layer is `AomiWalletKit*`.** `AomiRuntime*` is
    already taken by the chat widget (`@aomi-labs/react` exports
    `AomiRuntimeProvider` / `AomiRuntimeApi` / `useAomiRuntime`). Adapter type
-   `AomiAuthAdapter → AomiWalletKit`; entry `AomiWalletProvider →
-   AomiWalletKitProvider`; hook `useAomiAuthAdapter → useAomiWalletKit`.
+   `AomiWalletKit → AomiWalletKit`; entry `AomiWalletProvider →
+   AomiWalletKitProvider`; hook `useAomiWalletKit → useAomiWalletKit`.
 3. **Every renamed symbol keeps a `@deprecated` alias for 1–2 releases.**
    Consumers exist via npm (`@aomi-labs/widget-lib`, `@aomi-labs/react`
    0.3.x, `@aomi-labs/client` 0.1.x) and the shadcn-style registry; nothing
@@ -106,7 +105,7 @@ AomiWalletKitProvider  (capability config: auth · wallets · execution · accou
    │  (Para/Privy/none)   (Aomi)       (provider)  (provider)   (Aomi/backend)
    └──────────────────────┬───────────────────────┘
                           ▼
-       WalletRegistry ── AomiAdapterComposer   (one build path)
+       WalletRegistry ── AomiWalletKitComposer   (one build path)
                           ▼
                    AomiWalletKit (adapter)  ──►  Aomi widget UI + runtime
 ```
@@ -121,19 +120,19 @@ Every old name remains as a `@deprecated export` alias for 1–2 releases.
 
 | Today | Target | Notes |
 | --- | --- | --- |
-| `AomiAuthAdapter` | `AomiWalletKit` | the assembled runtime object |
-| `useAomiAuthAdapter` | `useAomiWalletKit` | context hook |
-| `AomiAuthAdapterProvider` | `AomiWalletKitContextProvider` | context wrapper |
+| `AomiWalletKit` | `AomiWalletKit` | the assembled runtime object |
+| `useAomiWalletKit` | `useAomiWalletKit` | context hook |
+| `AomiWalletKitProvider` | `AomiWalletKitContextProvider` | context wrapper |
 | `AomiWalletProvider` (union) | `AomiWalletKitProvider` | public entry, now capability-shaped |
-| `AomiAuthIdentity` | `AomiSessionIdentity` | current-session identity |
-| `AomiAuthStatus` | `AomiSessionStatus` | — |
+| `AomiSessionIdentity` | `AomiSessionIdentity` | current-session identity |
+| `AomiSessionStatus` | `AomiSessionStatus` | — |
 | `socialLoginOptions` / `connectSocial` | `authMethods` / `authenticate` | not all auth is "social" |
 | `evmWallets` / `solanaWallets` (+ `connectEvmWallet` / `connectSolanaWallet`) | `walletOptions` (family-tagged) / `connectWallet(optionId)` | one list, family is a field |
 | `AomiWalletProvider` type `"para"\|"privy"\|"base-account"` | split → `sessionProvider` / `embeddedProvider` / `walletSource` | see Identity Split |
 | `WalletFamily = "evm" \| "solana"` | public stays `"solana"`; **wire/internal use `"svm"`** | delete `WireWalletFamily` duality; drop `@deprecated solana` aliases |
 | `para/logout` command | `provider/logout` | already partly done |
 
-Optional, cuttable: rename the folder `lib/aomi-auth-adapter/ →
+Optional, cuttable: rename the folder `lib/wallet-kit/ →
 lib/aomi-wallet-kit/`. Default: keep the folder name for import-path /
 registry-artifact stability; rename only if P8 has slack.
 
@@ -345,7 +344,7 @@ export type EvmExecutionRuntime = {
   signMessage:  (p: WalletEip712Payload) => Promise<{ signature: string }>;
   resolveAAOwner?: AAOwnerResolver;       // provider-supplied; session-optional
   activeConnector?: Connector;
-  capabilities?: WalletExecutionAdapterState["capabilities"];
+  capabilities?: WalletExecutionKitState["capabilities"];
   chainsById: Record<number, Chain>;
   currentChainId?: number;
   walletClient: WalletClient | undefined;
@@ -397,7 +396,7 @@ export type WalletSource =
   | "embedded" | "stored";
 
 export type AomiSessionIdentity = {
-  // ...all existing AomiAuthIdentity fields...
+  // ...all existing AomiSessionIdentity fields...
   /**
    * Who logged the user in. Intentionally not named `authProvider`: on
    * origin/main, `authProvider` is a deprecated alias for `authMethod`.
@@ -410,10 +409,10 @@ export type AomiSessionIdentity = {
 };
 
 /** @deprecated use AomiSessionIdentity */
-export type AomiAuthIdentity = AomiSessionIdentity;
+export type AomiSessionIdentity = AomiSessionIdentity;
 ```
 
-`context.tsx`'s `AomiAuthAdapterSync` keeps writing `walletProvider` to
+`context.tsx`'s `AomiWalletKitSync` keeps writing `walletProvider` to
 `UserState` this PR (payload frozen — decision 9). When the backend migration
 lands, it switches to the migrated provider fields.
 
@@ -453,7 +452,7 @@ export type AAOwner =
   | { kind: "external-wallet"; signer: unknown; address: Hex };        // NEW
 ```
 
-`execution/aa-owner.ts` (new widget-local bridge) — convert lane owner inputs
+`aa/owner.ts` — convert lane owner inputs
 to `@aomi-labs/client` owners:
 
 ```ts
@@ -554,7 +553,7 @@ auth/embedded/AA only.
 ## Account Row Merge — Exact Structs
 
 `composer/merge-wallet-rows.ts` is introduced by this PR and consumed by the
-picker through `AomiAdapterComposer`:
+picker through `AomiWalletKitComposer`:
 
 ```ts
 export type WalletRowAction =
@@ -588,11 +587,11 @@ rows (incl. `authenticate`) appear with no UI change.
 
 ## Target Folder Structure
 
-Root folder kept (`lib/aomi-auth-adapter/`) for import-path + registry-artifact
+Root folder kept (`lib/wallet-kit/`) for import-path + registry-artifact
 stability. `(new)` is created by this plan.
 
 ```txt
-lib/aomi-auth-adapter/
+lib/wallet-kit/
   index.ts                         public exports + @deprecated aliases
   types.ts                         AomiWalletKit, AomiSessionIdentity, WalletAccount, ...
 
@@ -606,8 +605,8 @@ lib/aomi-auth-adapter/
     types.ts                       *Config structs (above)
 
   composer/                (new) one build path
-    AomiAdapterComposer.tsx
-    build-identity.ts  build-accounts.ts  build-methods.ts
+    AomiWalletKitComposer.tsx
+    build-identity.ts  build-accounts.ts
     merge-wallet-rows.ts  types.ts
 
   catalog/                 (new)   Aomi-owned connector catalog
@@ -623,7 +622,7 @@ lib/aomi-auth-adapter/
   execution/               (new)   execution lane (moved out of root)
     execution-runtime.ts           ExecutionRuntime assembly (evm + svm)
     aa-owner.ts                    AAOwnerResolver, AomiAAOwnerInput bridge
-    execute.ts                     executeAdapterTransaction (from wallet-execution.ts)
+    wallet-execution.ts            executeWalletKitTransaction
 
   registry/  (new)     reducer.ts policy.ts commands.ts store.ts
                        selectors.ts persistence.ts types.ts use-wallet-registry.ts
@@ -661,13 +660,13 @@ syncs `apps/registry/dist` → `apps/landing/public/r`, and keeps the pinned
   (`index.ts`, `types.ts`).
 - Add `sessionProvider`/`embeddedProvider`/`walletSource` to
   `AomiSessionIdentity` (optional); `walletProvider` becomes the deprecated
-  alias. Preserve the existing `authProvider?: AomiAuthMethod` compatibility
+  alias. Preserve the existing `authProvider?: AomiLoginMethod` compatibility
   field as-is until it can be removed in a later breaking release.
 - Preserve only compatibility that exists on `main` / published npm or registry
   surfaces. Do **not** carry branch-only names as aliases merely because this
   unfinished PR introduced them. In particular, keep
-  `AomiAuthAdapter`, `AomiAuthAdapterProvider`, `useAomiAuthAdapter`,
-  `AomiAuthIdentity`, `AomiAuthStatus`, existing provider components, existing
+  `AomiWalletKit`, `AomiWalletKitProvider`, `useAomiWalletKit`,
+  `AomiSessionIdentity`, `AomiSessionStatus`, existing provider components, existing
   `AomiWalletProvider({ provider: "para" | "privy" | "base-account" })`, and
   main-shipped adapter fields (`connect`, `disconnect`, `solanaWallets`,
   `connectSolanaWallet`, tx/signing methods, etc.).
@@ -694,13 +693,13 @@ syncs `apps/registry/dist` → `apps/landing/public/r`, and keeps the pinned
 ### P2 — One composer path (Privy)  ·  risk: med
 - `PrivyPluginProvider` builds `AuthRuntime` / `EvmWalletRuntime` (over the Aomi
   catalog) / `EmbeddedWalletRuntime` / `ExecutionRuntime` and passes them to
-  `AomiAdapterComposer`. Delete the hand-built adapter in `privy.tsx`.
+  `AomiWalletKitComposer`. Delete the hand-built adapter in `privy.tsx`.
 - Preserve Privy-specific behavior while moving to lanes: login method config,
   access-token credential, embedded Solana creation, `SmartWalletsProvider`,
   `walletConnectCloudProjectId`, supported/default chain config, and
   dashboard-configured smart-wallet/paymaster behavior.
 - **Verify:** `/privy` route manual matrix; Privy auth + embedded + external
-  wallet; tests for the Privy lanes. No `AomiAuthAdapter` literal outside
+  wallet; tests for the Privy lanes. No `AomiWalletKit` literal outside
   `composer/`.
 
 ### P3 — De-Para the core  ·  risk: med
@@ -714,8 +713,8 @@ syncs `apps/registry/dist` → `apps/landing/public/r`, and keeps the pinned
   no-wipe regression holds.
 
 ### P4 — Symmetric execution lane + AA owner fix  ·  risk: med
-- Move registry `wallet-execution.ts` → `execution/execute.ts` and create
-  widget-local `execution/aa-owner.ts` (re-exports preserve registry imports).
+- Keep registry `wallet-execution.ts` as the canonical execution module and
+  keep owner conversion in `aa/owner.ts`.
   In `packages/client/src/aa/owner.ts`, add the additive `external-wallet`
   `AAOwner` variant without moving the client file.
 - Add `SvmExecutionRuntime`; stop spreading `solanaMethods` into the adapter.
@@ -753,7 +752,7 @@ syncs `apps/registry/dist` → `apps/landing/public/r`, and keeps the pinned
   capability config compiles to the same lanes the provider components produced.
 
 ### P7 — Account merge wired  ·  risk: low
-- `AomiAdapterComposer` consumes `mergeWalletRows` output; the picker renders
+- `AomiWalletKitComposer` consumes `mergeWalletRows` output; the picker renders
   `WalletModalRow[]`. Stored array empty (disabled runtime) → identical UX.
 - Add a mocked-ready Account Runtime test proving stored/linked/`authenticate`
   rows render.
@@ -772,7 +771,7 @@ syncs `apps/registry/dist` → `apps/landing/public/r`, and keeps the pinned
   plus `@aomi-labs/react` runtime utilities and `@aomi-labs/client`) and the
   shadcn-style registry (`apps/registry/dist/*.json` →
   `apps/landing/public/r`).
-- Any new/moved file under `lib/aomi-auth-adapter/` must be added to the
+- Any new/moved file under `lib/wallet-kit/` must be added to the
   relevant registry item file list in `apps/registry/src/registry.ts`, dist
   rebuilt, and `public/r` synced, or installs ship broken.
 - Public npm exports in `apps/registry/src/index.ts` must expose both new
@@ -780,13 +779,13 @@ syncs `apps/registry/dist` → `apps/landing/public/r`, and keeps the pinned
   If docs introduce package subpath imports under `@aomi-labs/widget-lib`, add
   the matching `exports` entries to `apps/registry/package.json`; on
   `origin/main`, `./lib/*` subpaths are not exported.
-- Keep the `lib/aomi-auth-adapter.ts` facade/import path working for registry
-  installs even if internals move under `lib/aomi-auth-adapter/`.
+- Keep the `lib/wallet-kit.ts` facade/import path working for registry
+  installs even if internals move under `lib/wallet-kit/`.
 - Registry dependencies must include any new connector/runtime packages needed
   by catalog files (WalletConnect, Coinbase, Base Account, Solana wallet
   adapters) in the registry items that actually ship those files.
 - The pinned artifact test asserts specific registry file paths — update it when
-  registry paths move (e.g. `wallet-execution.ts` → `execution/execute.ts`).
+  registry paths move.
 - Update landing/docs content that currently tells hosts to mount Para/wagmi
   directly. New docs should lead with `AomiWalletKitProvider` presets and show
   provider-owned credentials as production overrides.
@@ -802,7 +801,7 @@ syncs `apps/registry/dist` → `apps/landing/public/r`, and keeps the pinned
 - **Two live embedded SDKs** as concurrent signers (lazy-mount covers the
   realistic switch flow).
 - **Host-owned `WagmiProvider` adoption** (RainbowKit/ConnectKit host apps).
-- **Folder rename** `aomi-auth-adapter → aomi-wallet-kit` (cosmetic).
+- **Folder rename** `aomi-wallet-kit → aomi-wallet-kit` (cosmetic).
 
 ## Testing Strategy
 
@@ -821,7 +820,7 @@ prior revision plus WalletConnect connect without any hosted auth.
   including wallets-only, with no hosted-provider modal.
 - Base Account is available when explicitly requested and absent from default
   `popular` wallet rows.
-- No `AomiAuthAdapter` (now `AomiWalletKit`) literal is constructed outside
+- No `AomiWalletKit` (now `AomiWalletKit`) literal is constructed outside
   `composer/`.
 - `grep -ri para` over `runtime/`, `composer/`, `registry/`, `catalog/`,
   `execution/` returns nothing.
