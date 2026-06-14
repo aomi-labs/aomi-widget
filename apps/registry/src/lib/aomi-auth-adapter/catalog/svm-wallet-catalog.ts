@@ -6,7 +6,7 @@ import {
   phantomWallet,
   solflareWallet,
   type WalletList as SolanaWalletList,
-} from "@getpara/solana-wallet-connectors";
+} from "@getpara/solana-wallet-connectors/connectors";
 import type { SvmNetworkOption } from "../types";
 import {
   normalizeSvmNetworkOptions,

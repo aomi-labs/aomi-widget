@@ -60,6 +60,7 @@ export const registry: RegistryComponent[] = [
       "lib/aomi-auth-adapter/config/index.ts",
       "lib/aomi-auth-adapter/config/types.ts",
       "lib/aomi-auth-adapter/execution/aa-owner.ts",
+      "lib/aomi-auth-adapter/execution/aa-provider-state.ts",
       "lib/aomi-auth-adapter/execution/execute.ts",
       "lib/aomi-auth-adapter/network-preferences.tsx",
       "lib/aomi-auth-adapter/wallet-family.ts",

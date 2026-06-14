@@ -46,14 +46,14 @@ export type EvmWalletRuntimeProviderHooks = {
    */
   providerLogout?: () => Promise<void>;
   /**
-   * Called before connecting a provider-owned embedded wallet option. Para uses
-   * this to re-attach its session without making generic wagmi code know about
-   * Para.
+   * Called before connecting a provider-owned embedded wallet option. Hosted
+   * providers use this to re-attach a session without making generic wagmi code
+   * know about a specific SDK.
    */
   onProviderReconnectRequested?: (store: WalletRegistryStore) => void;
   /**
    * Called when a requested EVM wallet option cannot be matched to a concrete
-   * wagmi connector. Para uses this to open its hosted auth modal.
+   * wagmi connector. Hosted providers use this to open their auth modal.
    */
   onConnectFallback?: (store: WalletRegistryStore) => void;
   /**
@@ -61,8 +61,9 @@ export type EvmWalletRuntimeProviderHooks = {
    */
   isProviderInternalConnector?: (connector: Connector) => boolean;
   /**
-   * Extra side effect after an EVM account disconnect plan runs. Para uses this
-   * only for debug/analytics around detached embedded accounts.
+   * Extra side effect after an EVM account disconnect plan runs. Hosted
+   * providers use this only for debug/analytics around detached embedded
+   * accounts.
    */
   onAccountDisconnectPlanned?: (
     plan: ReturnType<typeof planEvmAccountDisconnect>,

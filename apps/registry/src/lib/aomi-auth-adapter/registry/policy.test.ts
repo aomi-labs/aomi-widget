@@ -144,10 +144,18 @@ describe("WalletRegistry policy", () => {
     ).toEqual([{ kind: "wagmi/connect", stableId: "metaMaskSDK" }]);
   });
 
-  it("does not heal dropped, Para, WalletConnect, or suppressed connections", () => {
+  it("does not heal dropped, embedded-provider, WalletConnect, or suppressed connections", () => {
     const commands = planHeal(
       state({
         connections: [],
+        embeddedSession: {
+          up: true,
+          providerId: "para",
+          uid: "para-session",
+          stableId: "para",
+          walletName: "Para",
+          embeddedEvmAddress: "0xbbb",
+        },
         intents: { droppedAddresses: ["0xaaa"] },
         heal: {
           expected: [
@@ -168,7 +176,7 @@ describe("WalletRegistry policy", () => {
     );
   });
 
-  it("allows second-pass popup reconnect during Para auth suppression", () => {
+  it("allows second-pass popup reconnect during provider auth suppression", () => {
     const commands = planHeal(
       state({
         connections: [],
@@ -176,7 +184,7 @@ describe("WalletRegistry policy", () => {
           expected: [{ stableId: "rabby", address: "0xaaa" }],
           reattachBudget: 1,
           suppressedUntil: 1_000,
-          suppressionReason: "para-social-login",
+          suppressionReason: "provider-social-login",
         },
       }),
       100,
@@ -207,11 +215,27 @@ describe("WalletRegistry policy", () => {
     });
   });
 
-  it("emits disconnect commands and logs Para out for all-family disconnect", () => {
+  it("emits disconnect commands and logs the embedded provider out for all-family disconnect", () => {
     const current = state({
+      embeddedSession: {
+        up: true,
+        providerId: "para",
+        uid: "para-session",
+        stableId: "para",
+        walletName: "Para",
+        embeddedEvmAddress: "0xaaa",
+      },
       connections: [
-        conn({ uid: "para-1", stableId: "para", kind: "para" }),
-        conn({ uid: "para-session", stableId: "para", kind: "para" }),
+        conn({
+          uid: "para-1",
+          stableId: "para",
+          kind: "embedded-session",
+        }),
+        conn({
+          uid: "para-session",
+          stableId: "para",
+          kind: "embedded-session",
+        }),
         conn({ uid: "mm-1", stableId: "metaMaskSDK" }),
       ],
     });

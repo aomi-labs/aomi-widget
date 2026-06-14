@@ -19,6 +19,7 @@ export function buildAdapterIdentity({
   aa,
   sponsorship,
   walletName,
+  walletSource,
 }: {
   auth: AuthRuntime;
   address?: string;
@@ -32,6 +33,7 @@ export function buildAdapterIdentity({
     "sponsored" | "sponsorProvider" | "sponsorAccount"
   >;
   walletName?: string;
+  walletSource?: AomiAuthIdentity["walletSource"];
 }): AomiAuthIdentity {
   const svmAddress = svm?.wallet.publicKey;
   const solanaTransport = detectSvmTransport(svm?.wallet.walletName);
@@ -61,10 +63,10 @@ export function buildAdapterIdentity({
       ...aa,
       ...sponsorship,
       chainId,
-      sessionProvider: toSessionProvider(auth.provider),
-      embeddedProvider: toEmbeddedProvider(auth.provider),
+      sessionProvider: auth.sessionProvider,
+      embeddedProvider: auth.embeddedProvider,
       walletSource: address ? "embedded" : undefined,
-      walletProvider: toLegacyWalletProvider(auth.provider),
+      walletProvider: auth.legacyWalletProvider,
       walletProviderSubject: auth.subject,
       authMethod: auth.authMethod,
       authProvider: auth.authMethod,
@@ -85,13 +87,11 @@ export function buildAdapterIdentity({
       ...aa,
       ...sponsorship,
       chainId,
-      sessionProvider: toSessionProvider(auth.provider),
-      walletSource: walletName
-        ? detectWalletSource(walletName)
-        : auth.provider === "baseAccount"
-          ? "baseAccount"
-          : "injected",
-      walletProvider: toLegacyWalletProvider(auth.provider),
+      sessionProvider: auth.sessionProvider,
+      embeddedProvider: auth.embeddedProvider,
+      walletSource:
+        walletSource ?? (auth.embeddedProvider ? "embedded" : "injected"),
+      walletProvider: auth.legacyWalletProvider,
       walletProviderSubject: auth.subject,
       authMethod: auth.authMethod ?? "wagmi",
       authProvider: auth.authMethod ?? "wagmi",
@@ -113,9 +113,9 @@ export function buildAdapterIdentity({
       aaMode: undefined,
       chainId,
       svmAddress,
-      sessionProvider: toSessionProvider(auth.provider),
+      sessionProvider: auth.sessionProvider,
       walletSource: "injected",
-      walletProvider: toLegacyWalletProvider(auth.provider),
+      walletProvider: auth.legacyWalletProvider,
       walletProviderSubject: auth.subject,
       authMethod: auth.authMethod,
       authProvider: auth.authMethod,
@@ -132,45 +132,14 @@ export function buildAdapterIdentity({
   return {
     ...AOMI_AUTH_DISCONNECTED_IDENTITY,
     chainId,
-    sessionProvider: toSessionProvider(auth.provider),
-    walletProvider: toLegacyWalletProvider(auth.provider),
+    sessionProvider: auth.sessionProvider,
+    walletProvider: auth.legacyWalletProvider,
     walletProviderSubject: auth.subject,
     authMethod: auth.authMethod,
     authProvider: auth.authMethod,
     authValue: auth.authValue,
     solanaCluster: svm?.config.cluster,
   };
-}
-
-function toSessionProvider(provider: AuthRuntime["provider"]) {
-  return provider === "para" || provider === "privy" || provider === "custom"
-    ? provider
-    : undefined;
-}
-
-function toEmbeddedProvider(provider: AuthRuntime["provider"]) {
-  return provider === "para" || provider === "privy" ? provider : undefined;
-}
-
-function toLegacyWalletProvider(provider: AuthRuntime["provider"]) {
-  return provider === "para" ||
-    provider === "privy" ||
-    provider === "baseAccount"
-    ? provider
-    : undefined;
-}
-
-function detectWalletSource(
-  walletName: string,
-): "injected" | "walletconnect" | "coinbase" | "baseAccount" | "embedded" {
-  const normalized = walletName.toLowerCase();
-  if (normalized.includes("walletconnect")) return "walletconnect";
-  if (normalized.includes("coinbase")) return "coinbase";
-  if (normalized.includes("base")) return "baseAccount";
-  if (normalized.includes("para") || normalized.includes("privy")) {
-    return "embedded";
-  }
-  return "injected";
 }
 
 function formatProvider(provider: AuthRuntime["provider"]): string {

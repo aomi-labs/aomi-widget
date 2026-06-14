@@ -1,8 +1,11 @@
+import type { WalletSource } from "../../types";
+
 export type GracefulEvmIdentity = {
   address?: string;
   chainId?: number;
   connectorId?: string;
   walletName?: string;
+  walletSource?: WalletSource;
 };
 
 export type GracefulEvmIdentityResult = {
