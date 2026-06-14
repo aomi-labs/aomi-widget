@@ -6,7 +6,6 @@ import {
   WalletProvider,
 } from "@solana/wallet-adapter-react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { Environment } from "@getpara/react-sdk";
 import { ExtUserProvider } from "@aomi-labs/react";
 import { monad, monadTestnet } from "@aomi-labs/client";
 import {
@@ -40,13 +39,16 @@ import { useSafeSvmWallet } from "../runtime/svm/wallet-runtime";
 import { REGISTRY_STORAGE_KEY } from "../registry/types";
 import { createAomiEvmConfig } from "../catalog/evm-connector-catalog";
 import { resolveAomiSvmConfig } from "../catalog/svm-wallet-catalog";
-import { AomiParaProvider } from "../providers/para";
-import { AomiPrivyProvider } from "../providers/privy";
-import type { ParaSvmOptions } from "../providers/para/para-svm";
+import {
+  detectProviderSugar,
+  getWalletProvider,
+  registerWalletProvider,
+} from "../providers/plugin-registry";
+import { paraPlugin } from "../providers/para/para-plugin";
+import { privyPlugin } from "../providers/privy/privy-plugin";
 import type {
   AomiWalletKitProviderInput,
   AomiWalletKitProviderProps,
-  AuthMethodId,
   WalletsConfig,
 } from "./types";
 
@@ -65,99 +67,8 @@ const defaultNetworks = [
   monadTestnet,
 ] as const;
 
-function toParaEnvironment(value?: "PROD" | "BETA") {
-  if (!value) return undefined;
-  return value === "PROD" ? Environment.PROD : Environment.BETA;
-}
-
-function toParaOAuthMethods(
-  methods: readonly AuthMethodId[] | undefined,
-):
-  | Array<"GOOGLE" | "APPLE" | "DISCORD" | "TWITTER" | "FARCASTER" | "TELEGRAM">
-  | undefined {
-  if (!methods) return undefined;
-  const map = {
-    google: "GOOGLE",
-    apple: "APPLE",
-    discord: "DISCORD",
-    x: "TWITTER",
-    farcaster: "FARCASTER",
-    telegram: "TELEGRAM",
-  } as const;
-  return methods
-    .map((method) => map[method as keyof typeof map])
-    .filter((method): method is NonNullable<typeof method> => Boolean(method));
-}
-
-function isParaSugar(
-  props: AomiWalletKitProviderInput,
-): props is Extract<
-  AomiWalletKitProviderInput,
-  { auth: { provider: "para" } }
-> {
-  return (
-    props.auth !== false &&
-    props.auth?.provider === "para" &&
-    "apiKey" in props.auth
-  );
-}
-
-function isPrivySugar(
-  props: AomiWalletKitProviderInput,
-): props is Extract<
-  AomiWalletKitProviderInput,
-  { auth: { provider: "privy" } }
-> {
-  return (
-    props.auth !== false &&
-    props.auth?.provider === "privy" &&
-    "appId" in props.auth
-  );
-}
-
-function normalizeProps(
-  input: AomiWalletKitProviderInput,
-): AomiWalletKitProviderProps {
-  if (isParaSugar(input)) {
-    return {
-      children: input.children,
-      providers: {
-        para: {
-          apiKey: input.auth.apiKey,
-          environment: input.auth.environment,
-          appName: input.auth.appName,
-          appDescription: input.auth.appDescription,
-        },
-      },
-      auth: { provider: "para", methods: input.auth.methods },
-    };
-  }
-  if (isPrivySugar(input)) {
-    return {
-      children: input.children,
-      providers: {
-        privy: {
-          appId: input.auth.appId,
-          appName: input.auth.appName,
-        },
-      },
-      auth: { provider: "privy", methods: input.auth.methods },
-    };
-  }
-  return input;
-}
-
-function toProviderSvmOptions(
-  solana: WalletsConfig["solana"],
-): ParaSvmOptions | undefined {
-  if (solana === false) return { enabled: false };
-  if (!solana) return undefined;
-  return {
-    networks: solana.networks,
-    preferDirectSend: solana.preferDirectSend,
-    wallets: resolveAomiSvmConfig(solana).wallets,
-  };
-}
+registerWalletProvider(paraPlugin);
+registerWalletProvider(privyPlugin);
 
 function WalletsOnlyWalletKitProvider({
   children,
@@ -305,7 +216,8 @@ function AomiWalletsOnlyProvider({
 }
 
 export function AomiWalletKitProvider(input: AomiWalletKitProviderInput) {
-  const props = normalizeProps(input);
+  const props =
+    detectProviderSugar(input) ?? (input as AomiWalletKitProviderProps);
   const provider = props.auth
     ? props.auth.provider
     : props.preset === "para"
@@ -314,56 +226,9 @@ export function AomiWalletKitProvider(input: AomiWalletKitProviderInput) {
         ? "privy"
         : "none";
 
-  if (provider === "para") {
-    const para =
-      props.providers?.para === false ? undefined : props.providers?.para;
-    const auth =
-      props.auth !== false && props.auth?.provider === "para"
-        ? props.auth
-        : undefined;
-    const evmWallets =
-      props.wallets?.evm === false ? undefined : props.wallets?.evm;
-    return (
-      <AomiParaProvider
-        apiKey={para?.apiKey}
-        environment={toParaEnvironment(para?.environment)}
-        appName={para?.appName}
-        appDescription={para?.appDescription}
-        appUrl={para?.appUrl}
-        networks={evmWallets?.chains}
-        walletConnectProjectId={evmWallets?.walletConnectProjectId}
-        oAuthMethods={toParaOAuthMethods(auth?.methods)}
-        svm={toProviderSvmOptions(props.wallets?.solana)}
-      >
-        {props.children}
-      </AomiParaProvider>
-    );
-  }
-
-  if (provider === "privy") {
-    const privy =
-      props.providers?.privy === false ? undefined : props.providers?.privy;
-    const auth =
-      props.auth !== false && props.auth?.provider === "privy"
-        ? props.auth
-        : undefined;
-    const evmWallets =
-      props.wallets?.evm === false ? undefined : props.wallets?.evm;
-    return (
-      <AomiPrivyProvider
-        appId={privy?.appId}
-        appName={privy?.appName}
-        appLogoUrl={privy?.appLogoUrl}
-        networks={evmWallets?.chains}
-        walletConnectProjectId={evmWallets?.walletConnectProjectId}
-        loginMethods={auth?.methods as never}
-        solana={
-          props.wallets?.solana === false ? undefined : props.wallets?.solana
-        }
-      >
-        {props.children}
-      </AomiPrivyProvider>
-    );
+  const plugin = getWalletProvider(provider);
+  if (plugin) {
+    return <>{plugin.render(props)}</>;
   }
 
   return (
