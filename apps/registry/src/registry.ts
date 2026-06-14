@@ -59,6 +59,7 @@ export const registry: RegistryComponent[] = [
       "lib/wallet-kit/config/AomiWalletKitProvider.tsx",
       "lib/wallet-kit/config/index.ts",
       "lib/wallet-kit/config/types.ts",
+      "lib/wallet-kit/providers/plugin-registry.ts",
       "lib/wallet-kit/execution/aa-provider-state.ts",
       "lib/wallet-kit/execution/execution-runtime.ts",
       "lib/wallet-kit/wallet-execution.ts",
@@ -251,6 +252,7 @@ export const registry: RegistryComponent[] = [
     file: [
       "lib/wallet-kit/providers/para/index.ts",
       "lib/wallet-kit/providers/para/para-brand.ts",
+      "lib/wallet-kit/providers/para/para-plugin.tsx",
       "lib/wallet-kit/providers/para/para.tsx",
       "lib/wallet-kit/providers/para/ParaPluginProvider.tsx",
       "lib/wallet-kit/providers/para/para-auth.ts",
@@ -316,6 +318,7 @@ export const registry: RegistryComponent[] = [
     name: "aomi-privy-provider",
     file: [
       "lib/wallet-kit/providers/privy/index.ts",
+      "lib/wallet-kit/providers/privy/privy-plugin.tsx",
       "lib/wallet-kit/providers/privy/privy.tsx",
       "lib/wallet-kit/catalog/evm-connector-catalog.ts",
       "lib/wallet-kit/catalog/wallet-ids.ts",
