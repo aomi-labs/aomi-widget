@@ -165,7 +165,7 @@ export type PersistedRegistryV1 = {
 export type WalletLink = {
   address: string;
   family: WalletFamily;
-  linkedVia: "para" | "privy" | "challenge";
+  linkedVia: "para" | "privy" | "challenge" | (string & {});
   subject: string;
   verifiedAt: number;
 };

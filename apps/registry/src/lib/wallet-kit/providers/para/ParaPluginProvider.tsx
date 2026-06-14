@@ -24,6 +24,7 @@ import { REGISTRY_STORAGE_KEY } from "../../registry/types";
 import { useSvmRegistrySource } from "../../runtime/svm/registry-source";
 import { buildSvmTransactionMethods } from "../../runtime/svm/transactions";
 import { walletDebug } from "../../wallet-debug";
+import { buildEvmExecutionRuntime } from "../../execution/execution-runtime";
 import type { AomiAccount } from "../../types";
 import { resolveParaAAProviderState, resolveParaSponsorship } from "./para-aa";
 import {
@@ -296,19 +297,7 @@ export function AomiParaPluginProvider({
   const executionRuntime = useMemo<ExecutionRuntime>(
     () => ({
       sponsorship,
-      evm: {
-        activeConnector: evmRuntime.activeConnector,
-        capabilities: evmRuntime.capabilities,
-        chainsById: evmRuntime.chainsById,
-        currentChainId: evmRuntime.activeEvmConnection?.chainId,
-        getWalletClientFor: evmRuntime.getWalletClientFor,
-        sendCallsSyncAsync: evmRuntime.sendCallsSyncAsync,
-        sendTransactionAsync: evmRuntime.sendTransactionAsync,
-        shouldUseExternalSigner: evmRuntime.shouldUseExternalSigner,
-        signMessageAsync: evmRuntime.signMessageAsync,
-        signTypedDataAsync: evmRuntime.signTypedDataAsync,
-        switchChainAsync: evmRuntime.switchChainAsync,
-        walletClient: evmRuntime.walletClient,
+      evm: buildEvmExecutionRuntime(evmRuntime, {
         resolveAAProviderState: async (params, context) =>
           resolveParaAAProviderState({
             ...params,
@@ -316,7 +305,7 @@ export function AomiParaPluginProvider({
             walletClient: context.walletClient,
             address: context.address,
           }),
-      },
+      }),
       svm: buildSvmTransactionMethods(svmWallet, resolvedAdapterSvmConfig),
     }),
     [evmRuntime, paraSession, resolvedAdapterSvmConfig, sponsorship, svmWallet],

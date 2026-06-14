@@ -33,6 +33,7 @@ import {
 import { AomiWalletKitComposer } from "../../composer/AomiWalletKitComposer";
 import type { AuthRuntime, ExecutionRuntime } from "../../composer/types";
 import { resolveExternalWalletAAProviderState } from "../../execution/aa-provider-state";
+import { buildEvmExecutionRuntime } from "../../execution/execution-runtime";
 import { createAomiEvmConfig } from "../../catalog/evm-connector-catalog";
 import {
   AomiWalletNetworkPreferencesProvider,
@@ -461,19 +462,7 @@ function AomiPrivyPluginProvider({
   const executionRuntime = useMemo<ExecutionRuntime>(
     () => ({
       sponsorship: {},
-      evm: {
-        activeConnector: evmRuntime.activeConnector,
-        capabilities: evmRuntime.capabilities,
-        chainsById: evmRuntime.chainsById,
-        currentChainId: evmRuntime.activeEvmConnection?.chainId,
-        getWalletClientFor: evmRuntime.getWalletClientFor,
-        sendCallsSyncAsync: evmRuntime.sendCallsSyncAsync,
-        sendTransactionAsync: evmRuntime.sendTransactionAsync,
-        shouldUseExternalSigner: evmRuntime.shouldUseExternalSigner,
-        signMessageAsync: evmRuntime.signMessageAsync,
-        signTypedDataAsync: evmRuntime.signTypedDataAsync,
-        switchChainAsync: evmRuntime.switchChainAsync,
-        walletClient: evmRuntime.walletClient,
+      evm: buildEvmExecutionRuntime(evmRuntime, {
         resolveAAProviderState: async (params, context) =>
           resolveExternalWalletAAProviderState({
             ...params,
@@ -500,7 +489,7 @@ function AomiPrivyPluginProvider({
               return { signature };
             }
           : undefined,
-      },
+      }),
       svm: buildSvmTransactionMethods(svmWallet, svmRuntimeConfig),
     }),
     [

@@ -6,7 +6,7 @@ import type { Hex } from "viem";
 export type AomiAAOwnerInput =
   | {
       kind: "provider-session";
-      provider: "para" | "privy";
+      provider: "para" | "privy" | (string & {});
       session: unknown;
       signer?: unknown;
       address?: Hex;
