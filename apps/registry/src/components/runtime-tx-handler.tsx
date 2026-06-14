@@ -13,7 +13,7 @@ import {
   type WalletRequest,
   type WalletTxPayload,
 } from "@aomi-labs/react";
-import { useAomiAuthAdapter } from "../lib/aomi-auth-adapter";
+import { useAomiWalletKit } from "../lib/wallet-kit";
 
 function hasHydratedCalls(payload: WalletTxPayload): boolean {
   return Array.isArray(payload.calls) && payload.calls.length > 0;
@@ -59,7 +59,7 @@ function toSimulationTransactions(payload: WalletTxPayload): Array<{
 
 /**
  * Invisible bridge component that processes wallet transaction and EIP-712
- * signing requests from the AI backend through the active Aomi auth adapter.
+ * signing requests from the AI backend through the active Aomi wallet kit.
  *
  * Auto-mounted inside AomiFrame.Root.
  */
@@ -72,7 +72,7 @@ export function RuntimeTxHandler() {
     simulateBatchTransactions,
     showNotification,
   } = useAomiRuntime();
-  const adapter = useAomiAuthAdapter();
+  const adapter = useAomiWalletKit();
   const { chainId: currentChainId } = adapter.identity;
   const processingRef = useRef(false);
 

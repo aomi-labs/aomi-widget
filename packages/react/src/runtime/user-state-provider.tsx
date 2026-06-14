@@ -552,7 +552,7 @@ export function RuntimeUserStateProvider({
   //                    smart_account_4337, etc.) via its own resolveUserState,
   //                    it emits `user_state_updated`. We forward those changes
   //                    to React via setUser so consumers reading `useUser()`
-  //                    (e.g. auth-adapter providers) reflect the resolved AA
+  //                    (e.g. wallet-kit providers) reflect the resolved AA
   //                    context after a tx.
   useEffect(() => {
     const applyToSessions = (next: UserState) => {

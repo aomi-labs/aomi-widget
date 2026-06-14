@@ -2,9 +2,9 @@
 
 import { useEffect, type FC } from "react";
 import { cn, formatAddress, getChainInfo } from "@aomi-labs/react";
-import { useAomiAuthAdapter } from "../../lib/aomi-auth-adapter";
+import { useAomiWalletKit } from "../../lib/wallet-kit";
 import { DualWalletBar } from "./dual-wallet-bar";
-import { formatWalletProvider } from "../../lib/aomi-auth-adapter";
+import { formatWalletProvider } from "../../lib/wallet-kit";
 
 export type ConnectButtonProps = {
   className?: string;
@@ -18,7 +18,7 @@ const SingleConnectButton: FC<Omit<ConnectButtonProps, "families">> = ({
   connectLabel = "Connect Account",
   onConnectionChange,
 }) => {
-  const adapter = useAomiAuthAdapter();
+  const adapter = useAomiWalletKit();
   const identity = adapter.identity;
 
   useEffect(() => {

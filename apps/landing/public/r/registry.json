@@ -33,7 +33,7 @@
         "https://aomi.dev/r/aomi-theme.json",
         "https://aomi.dev/r/assistant-thread.json",
         "https://aomi.dev/r/assistant-threadlist-sidebar.json",
-        "https://aomi.dev/r/aomi-auth-adapter.json",
+        "https://aomi.dev/r/aomi-wallet-kit.json",
         "https://aomi.dev/r/control-bar.json",
         "https://aomi.dev/r/notification.json",
         "https://aomi.dev/r/runtime-tx-handler.json",
@@ -43,169 +43,161 @@
       ]
     },
     {
-      "name": "aomi-auth-adapter",
+      "name": "aomi-wallet-kit",
       "type": "registry:component",
-      "description": "Generic Aomi auth adapter context. Identity → UserState sync is mounted automatically by AomiAuthAdapterProvider.",
+      "description": "Generic Aomi wallet kit context. Identity → UserState sync is mounted automatically by AomiWalletKitContextProvider.",
       "files": [
         {
           "type": "registry:component",
-          "path": "lib/aomi-auth-adapter.ts"
+          "path": "lib/wallet-kit.ts"
         },
         {
           "type": "registry:component",
-          "path": "lib/aomi-auth-adapter/index.ts"
+          "path": "lib/wallet-kit/index.ts"
         },
         {
           "type": "registry:component",
-          "path": "lib/aomi-auth-adapter/context.tsx"
+          "path": "lib/wallet-kit/context.tsx"
         },
         {
           "type": "registry:component",
-          "path": "lib/aomi-auth-adapter/types.ts"
+          "path": "lib/wallet-kit/types.ts"
         },
         {
           "type": "registry:component",
-          "path": "lib/aomi-auth-adapter/identity.ts"
+          "path": "lib/wallet-kit/identity.ts"
         },
         {
           "type": "registry:component",
-          "path": "lib/aomi-auth-adapter/accounts.ts"
+          "path": "lib/wallet-kit/accounts.ts"
         },
         {
           "type": "registry:component",
-          "path": "lib/aomi-auth-adapter/aa/owner.ts"
+          "path": "lib/wallet-kit/aa/owner.ts"
         },
         {
           "type": "registry:component",
-          "path": "lib/aomi-auth-adapter/catalog/evm-connector-catalog.ts"
+          "path": "lib/wallet-kit/catalog/evm-connector-catalog.ts"
         },
         {
           "type": "registry:component",
-          "path": "lib/aomi-auth-adapter/catalog/svm-wallet-catalog.ts"
+          "path": "lib/wallet-kit/catalog/svm-wallet-catalog.ts"
         },
         {
           "type": "registry:component",
-          "path": "lib/aomi-auth-adapter/catalog/wallet-ids.ts"
+          "path": "lib/wallet-kit/catalog/wallet-ids.ts"
         },
         {
           "type": "registry:component",
-          "path": "lib/aomi-auth-adapter/config/AomiWalletKitProvider.tsx"
+          "path": "lib/wallet-kit/config/AomiWalletKitProvider.tsx"
         },
         {
           "type": "registry:component",
-          "path": "lib/aomi-auth-adapter/config/index.ts"
+          "path": "lib/wallet-kit/config/index.ts"
         },
         {
           "type": "registry:component",
-          "path": "lib/aomi-auth-adapter/config/types.ts"
+          "path": "lib/wallet-kit/config/types.ts"
         },
         {
           "type": "registry:component",
-          "path": "lib/aomi-auth-adapter/execution/aa-owner.ts"
+          "path": "lib/wallet-kit/execution/aa-provider-state.ts"
         },
         {
           "type": "registry:component",
-          "path": "lib/aomi-auth-adapter/execution/aa-provider-state.ts"
+          "path": "lib/wallet-kit/wallet-execution.ts"
         },
         {
           "type": "registry:component",
-          "path": "lib/aomi-auth-adapter/execution/execute.ts"
+          "path": "lib/wallet-kit/network-preferences.tsx"
         },
         {
           "type": "registry:component",
-          "path": "lib/aomi-auth-adapter/network-preferences.tsx"
+          "path": "lib/wallet-kit/wallet-family.ts"
         },
         {
           "type": "registry:component",
-          "path": "lib/aomi-auth-adapter/wallet-family.ts"
+          "path": "lib/wallet-kit/wallet-debug.ts"
         },
         {
           "type": "registry:component",
-          "path": "lib/aomi-auth-adapter/wallet-debug.ts"
+          "path": "lib/wallet-kit/account/types.ts"
         },
         {
           "type": "registry:component",
-          "path": "lib/aomi-auth-adapter/account/types.ts"
+          "path": "lib/wallet-kit/account/disabled-runtime.ts"
         },
         {
           "type": "registry:component",
-          "path": "lib/aomi-auth-adapter/account/disabled-runtime.ts"
+          "path": "lib/wallet-kit/composer/AomiWalletKitComposer.tsx"
         },
         {
           "type": "registry:component",
-          "path": "lib/aomi-auth-adapter/composer/AomiAdapterComposer.tsx"
+          "path": "lib/wallet-kit/composer/build-accounts.ts"
         },
         {
           "type": "registry:component",
-          "path": "lib/aomi-auth-adapter/composer/build-accounts.ts"
+          "path": "lib/wallet-kit/composer/build-identity.ts"
         },
         {
           "type": "registry:component",
-          "path": "lib/aomi-auth-adapter/composer/build-identity.ts"
+          "path": "lib/wallet-kit/composer/merge-wallet-rows.ts"
         },
         {
           "type": "registry:component",
-          "path": "lib/aomi-auth-adapter/composer/build-methods.ts"
+          "path": "lib/wallet-kit/composer/types.ts"
         },
         {
           "type": "registry:component",
-          "path": "lib/aomi-auth-adapter/composer/merge-wallet-rows.ts"
+          "path": "lib/wallet-kit/runtime/evm/brands.ts"
         },
         {
           "type": "registry:component",
-          "path": "lib/aomi-auth-adapter/composer/types.ts"
+          "path": "lib/wallet-kit/runtime/evm/identity-grace.ts"
         },
         {
           "type": "registry:component",
-          "path": "lib/aomi-auth-adapter/runtime/evm/brands.ts"
+          "path": "lib/wallet-kit/runtime/svm/networks.ts"
         },
         {
           "type": "registry:component",
-          "path": "lib/aomi-auth-adapter/runtime/evm/identity-grace.ts"
+          "path": "lib/wallet-kit/runtime/svm/transactions.ts"
         },
         {
           "type": "registry:component",
-          "path": "lib/aomi-auth-adapter/runtime/svm/networks.ts"
+          "path": "lib/wallet-kit/runtime/svm/wallet-runtime.ts"
         },
         {
           "type": "registry:component",
-          "path": "lib/aomi-auth-adapter/runtime/svm/transactions.ts"
+          "path": "lib/wallet-kit/registry/types.ts"
         },
         {
           "type": "registry:component",
-          "path": "lib/aomi-auth-adapter/runtime/svm/wallet-runtime.ts"
+          "path": "lib/wallet-kit/registry/reducer.ts"
         },
         {
           "type": "registry:component",
-          "path": "lib/aomi-auth-adapter/registry/types.ts"
+          "path": "lib/wallet-kit/registry/policy.ts"
         },
         {
           "type": "registry:component",
-          "path": "lib/aomi-auth-adapter/registry/reducer.ts"
+          "path": "lib/wallet-kit/registry/commands.ts"
         },
         {
           "type": "registry:component",
-          "path": "lib/aomi-auth-adapter/registry/policy.ts"
+          "path": "lib/wallet-kit/registry/persistence.ts"
         },
         {
           "type": "registry:component",
-          "path": "lib/aomi-auth-adapter/registry/commands.ts"
+          "path": "lib/wallet-kit/registry/store.ts"
         },
         {
           "type": "registry:component",
-          "path": "lib/aomi-auth-adapter/registry/persistence.ts"
+          "path": "lib/wallet-kit/registry/selectors.ts"
         },
         {
           "type": "registry:component",
-          "path": "lib/aomi-auth-adapter/registry/store.ts"
-        },
-        {
-          "type": "registry:component",
-          "path": "lib/aomi-auth-adapter/registry/selectors.ts"
-        },
-        {
-          "type": "registry:component",
-          "path": "lib/auth-identity.ts"
+          "path": "lib/wallet-identity.ts"
         }
       ],
       "dependencies": [
@@ -323,23 +315,23 @@
         },
         {
           "type": "registry:component",
-          "path": "lib/aomi-auth-adapter.ts"
+          "path": "lib/wallet-kit.ts"
         },
         {
           "type": "registry:component",
-          "path": "lib/aomi-auth-adapter/accounts.ts"
+          "path": "lib/wallet-kit/accounts.ts"
         },
         {
           "type": "registry:component",
-          "path": "lib/aomi-auth-adapter/network-preferences.tsx"
+          "path": "lib/wallet-kit/network-preferences.tsx"
         },
         {
           "type": "registry:component",
-          "path": "lib/aomi-auth-adapter/runtime/svm/networks.ts"
+          "path": "lib/wallet-kit/runtime/svm/networks.ts"
         },
         {
           "type": "registry:component",
-          "path": "lib/auth-identity.ts"
+          "path": "lib/wallet-identity.ts"
         }
       ],
       "dependencies": [
@@ -404,7 +396,7 @@
         "lucide-react"
       ],
       "registryDependencies": [
-        "https://aomi.dev/r/aomi-auth-adapter.json",
+        "https://aomi.dev/r/aomi-wallet-kit.json",
         "https://r.assistant-ui.com/tooltip-icon-button.json",
         "button",
         "dialog",
@@ -506,7 +498,7 @@
     {
       "name": "runtime-tx-handler",
       "type": "registry:component",
-      "description": "Executes wallet transaction and EIP-712 signing requests from the AI backend through the active auth adapter.",
+      "description": "Executes wallet transaction and EIP-712 signing requests from the AI backend through the active wallet kit.",
       "files": [
         {
           "type": "registry:component",
@@ -517,109 +509,109 @@
         "@aomi-labs/react"
       ],
       "registryDependencies": [
-        "https://aomi.dev/r/aomi-auth-adapter.json"
+        "https://aomi.dev/r/aomi-wallet-kit.json"
       ]
     },
     {
       "name": "aomi-para-provider",
       "type": "registry:component",
-      "description": "Para-backed Aomi auth adapter provider with the existing Aomi AA path.",
+      "description": "Para-backed Aomi wallet kit provider with the existing Aomi AA path.",
       "files": [
         {
           "type": "registry:component",
-          "path": "lib/aomi-auth-adapter/providers/para/index.ts"
+          "path": "lib/wallet-kit/providers/para/index.ts"
         },
         {
           "type": "registry:component",
-          "path": "lib/aomi-auth-adapter/providers/para/para.tsx"
+          "path": "lib/wallet-kit/providers/para/para.tsx"
         },
         {
           "type": "registry:component",
-          "path": "lib/aomi-auth-adapter/providers/para/ParaPluginProvider.tsx"
+          "path": "lib/wallet-kit/providers/para/ParaPluginProvider.tsx"
         },
         {
           "type": "registry:component",
-          "path": "lib/aomi-auth-adapter/providers/para/para-auth.ts"
+          "path": "lib/wallet-kit/providers/para/para-auth.ts"
         },
         {
           "type": "registry:component",
-          "path": "lib/aomi-auth-adapter/providers/para/para-embedded-wallet.ts"
+          "path": "lib/wallet-kit/providers/para/para-embedded-wallet.ts"
         },
         {
           "type": "registry:component",
-          "path": "lib/aomi-auth-adapter/providers/para/para-evm-runtime.tsx"
+          "path": "lib/wallet-kit/providers/para/para-evm-runtime.tsx"
         },
         {
           "type": "registry:component",
-          "path": "lib/aomi-auth-adapter/providers/para/para-svm.tsx"
+          "path": "lib/wallet-kit/providers/para/para-svm.tsx"
         },
         {
           "type": "registry:component",
-          "path": "lib/aomi-auth-adapter/providers/para/para-aa.ts"
+          "path": "lib/wallet-kit/providers/para/para-aa.ts"
         },
         {
           "type": "registry:component",
-          "path": "lib/aomi-auth-adapter/registry/use-wallet-registry.ts"
+          "path": "lib/wallet-kit/registry/use-wallet-registry.ts"
         },
         {
           "type": "registry:component",
-          "path": "lib/aomi-auth-adapter/runtime/evm/registry-source.ts"
+          "path": "lib/wallet-kit/runtime/evm/registry-source.ts"
         },
         {
           "type": "registry:component",
-          "path": "lib/aomi-auth-adapter/runtime/evm/provider.tsx"
+          "path": "lib/wallet-kit/runtime/evm/provider.tsx"
         },
         {
           "type": "registry:component",
-          "path": "lib/aomi-auth-adapter/runtime/evm/wallet-runtime.ts"
+          "path": "lib/wallet-kit/runtime/evm/wallet-runtime.ts"
         },
         {
           "type": "registry:component",
-          "path": "lib/aomi-auth-adapter/providers/para/sources/para-session-source.ts"
+          "path": "lib/wallet-kit/providers/para/sources/para-session-source.ts"
         },
         {
           "type": "registry:component",
-          "path": "lib/aomi-auth-adapter/runtime/svm/registry-source.ts"
+          "path": "lib/wallet-kit/runtime/svm/registry-source.ts"
         },
         {
           "type": "registry:component",
-          "path": "lib/aomi-auth-adapter/runtime/evm/disconnect-plan.ts"
+          "path": "lib/wallet-kit/runtime/evm/disconnect-plan.ts"
         },
         {
           "type": "registry:component",
-          "path": "lib/aomi-auth-adapter/runtime/evm/identity-grace.ts"
+          "path": "lib/wallet-kit/runtime/evm/identity-grace.ts"
         },
         {
           "type": "registry:component",
-          "path": "lib/aomi-auth-adapter/full-testnet-wallet-routing.tsx"
+          "path": "lib/wallet-kit/full-testnet-wallet-routing.tsx"
         },
         {
           "type": "registry:component",
-          "path": "lib/aomi-auth-adapter/network-preferences.tsx"
+          "path": "lib/wallet-kit/network-preferences.tsx"
         },
         {
           "type": "registry:component",
-          "path": "lib/aomi-auth-adapter/runtime/evm/safe-hooks.ts"
+          "path": "lib/wallet-kit/runtime/evm/safe-hooks.ts"
         },
         {
           "type": "registry:component",
-          "path": "lib/aomi-auth-adapter/runtime/evm/brands.ts"
+          "path": "lib/wallet-kit/runtime/evm/brands.ts"
         },
         {
           "type": "registry:component",
-          "path": "lib/aomi-auth-adapter/catalog/evm-connector-catalog.ts"
+          "path": "lib/wallet-kit/catalog/evm-connector-catalog.ts"
         },
         {
           "type": "registry:component",
-          "path": "lib/aomi-auth-adapter/catalog/wallet-ids.ts"
+          "path": "lib/wallet-kit/catalog/wallet-ids.ts"
         },
         {
           "type": "registry:component",
-          "path": "lib/aomi-auth-adapter/runtime/svm/networks.ts"
+          "path": "lib/wallet-kit/runtime/svm/networks.ts"
         },
         {
           "type": "registry:component",
-          "path": "lib/aomi-auth-adapter/wallet-execution.ts"
+          "path": "lib/wallet-kit/wallet-execution.ts"
         }
       ],
       "dependencies": [
@@ -635,37 +627,37 @@
         "wagmi"
       ],
       "registryDependencies": [
-        "https://aomi.dev/r/aomi-auth-adapter.json"
+        "https://aomi.dev/r/aomi-wallet-kit.json"
       ]
     },
     {
       "name": "aomi-base-account-provider",
       "type": "registry:component",
-      "description": "Base Account-backed Aomi auth adapter provider using wagmi native wallet execution.",
+      "description": "Base Account-backed Aomi wallet kit provider using wagmi native wallet execution.",
       "files": [
         {
           "type": "registry:component",
-          "path": "lib/aomi-auth-adapter/providers/base-account/index.ts"
+          "path": "lib/wallet-kit/providers/base-account/index.ts"
         },
         {
           "type": "registry:component",
-          "path": "lib/aomi-auth-adapter/providers/base-account/base-account.tsx"
+          "path": "lib/wallet-kit/providers/base-account/base-account.tsx"
         },
         {
           "type": "registry:component",
-          "path": "lib/aomi-auth-adapter/catalog/evm-connector-catalog.ts"
+          "path": "lib/wallet-kit/catalog/evm-connector-catalog.ts"
         },
         {
           "type": "registry:component",
-          "path": "lib/aomi-auth-adapter/catalog/wallet-ids.ts"
+          "path": "lib/wallet-kit/catalog/wallet-ids.ts"
         },
         {
           "type": "registry:component",
-          "path": "lib/aomi-auth-adapter/runtime/evm/safe-hooks.ts"
+          "path": "lib/wallet-kit/runtime/evm/safe-hooks.ts"
         },
         {
           "type": "registry:component",
-          "path": "lib/aomi-auth-adapter/wallet-execution.ts"
+          "path": "lib/wallet-kit/wallet-execution.ts"
         }
       ],
       "dependencies": [
@@ -676,33 +668,33 @@
         "wagmi"
       ],
       "registryDependencies": [
-        "https://aomi.dev/r/aomi-auth-adapter.json"
+        "https://aomi.dev/r/aomi-wallet-kit.json"
       ]
     },
     {
       "name": "aomi-privy-provider",
       "type": "registry:component",
-      "description": "Privy-backed Aomi auth adapter using Privy's hosted smart wallets (EVM 4337) and Privy's embedded Solana wallets. Bundler, paymaster, and AA implementation are configured in the integrator's Privy dashboard.",
+      "description": "Privy-backed Aomi wallet kit provider using Privy's hosted smart wallets (EVM 4337) and Privy's embedded Solana wallets. Bundler, paymaster, and AA implementation are configured in the integrator's Privy dashboard.",
       "files": [
         {
           "type": "registry:component",
-          "path": "lib/aomi-auth-adapter/providers/privy/index.ts"
+          "path": "lib/wallet-kit/providers/privy/index.ts"
         },
         {
           "type": "registry:component",
-          "path": "lib/aomi-auth-adapter/providers/privy/privy.tsx"
+          "path": "lib/wallet-kit/providers/privy/privy.tsx"
         },
         {
           "type": "registry:component",
-          "path": "lib/aomi-auth-adapter/catalog/evm-connector-catalog.ts"
+          "path": "lib/wallet-kit/catalog/evm-connector-catalog.ts"
         },
         {
           "type": "registry:component",
-          "path": "lib/aomi-auth-adapter/catalog/wallet-ids.ts"
+          "path": "lib/wallet-kit/catalog/wallet-ids.ts"
         },
         {
           "type": "registry:component",
-          "path": "lib/aomi-auth-adapter/runtime/evm/safe-hooks.ts"
+          "path": "lib/wallet-kit/runtime/evm/safe-hooks.ts"
         }
       ],
       "dependencies": [
@@ -715,7 +707,7 @@
         "wagmi"
       ],
       "registryDependencies": [
-        "https://aomi.dev/r/aomi-auth-adapter.json"
+        "https://aomi.dev/r/aomi-wallet-kit.json"
       ]
     },
     {

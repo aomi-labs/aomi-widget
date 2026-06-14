@@ -76,6 +76,6 @@ The callback stores only secret handles in approval metadata. It sorts the retur
 
 ## Related Topics
 
-- [auth/facts/auth-adapter.md](auth-adapter.md)
+- [auth/facts/wallet-kit.md](wallet-kit.md)
 - [auth/facts/base-account.md](base-account.md)
 - [client-runtime/facts/react-runtime.md](../../client-runtime/facts/react-runtime.md)

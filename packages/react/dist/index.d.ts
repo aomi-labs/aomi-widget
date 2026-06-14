@@ -337,12 +337,12 @@ declare function useUser(): {
  * Idempotent provider: if a parent already provided `UserContext`, render
  * children straight through. Otherwise mount a fresh store.
  *
- * The widget layers (`AomiFrame.Root` / `AomiRuntime`) and the auth-adapter
+ * The widget layers (`AomiFrame.Root` / `AomiRuntime`) and the wallet-kit
  * layers (`AomiParaProvider` / `AomiBaseAccountProvider`) both want to be
  * usable standalone. Each historically wrapped with `<ExtUserProvider>` —
  * but when they nest, the inner provider created a *second* store that
  * shadowed the outer. The chat composer would read from one store while
- * `AomiAuthAdapterSync` wrote to another, so wallet connects never
+ * `AomiWalletKitSync` wrote to another, so wallet connects never
  * propagated to the chat's `user_state`. Collapsing nested mounts to the
  * outermost store fixes that without forcing host apps to wire the
  * provider themselves.

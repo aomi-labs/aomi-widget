@@ -9,13 +9,13 @@ import {
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Chain } from "viem";
 import { ExtUserProvider } from "@aomi-labs/react";
-import type { AomiAuthAdapter } from "@/lib/aomi-auth-adapter";
-import { AomiAuthAdapterProvider } from "@/lib/aomi-auth-adapter";
-import type { SolanaNetworkOption } from "@/lib/aomi-auth-adapter/types";
+import type { AomiWalletKit } from "@/lib/wallet-kit";
+import { AomiWalletKitContextProvider } from "@/lib/wallet-kit";
+import type { SolanaNetworkOption } from "@/lib/wallet-kit/types";
 import {
   AomiWalletNetworkPreferencesProvider,
   useAomiWalletNetworkPreferences,
-} from "@/lib/aomi-auth-adapter/network-preferences";
+} from "@/lib/wallet-kit/network-preferences";
 import { NetworkSelect } from "./network-select";
 import { ConnectButton } from "./connect-button";
 
@@ -79,7 +79,7 @@ function createHarnessAdapter(options?: {
   evmChains?: readonly Chain[];
   solanaNetworks?: readonly SolanaNetworkOption[];
   onSelectNetwork?: (target: unknown) => void;
-}): AomiAuthAdapter {
+}): AomiWalletKit {
   const harnessEvmChains = options?.evmChains ?? evmChains;
   const harnessSolanaNetworks = options?.solanaNetworks ?? solanaNetworks;
   return {
@@ -118,13 +118,13 @@ function Harness({
   onConnect,
   onOpenAccountUI,
 }: {
-  adapter?: AomiAuthAdapter;
+  adapter?: AomiWalletKit;
   onConnect?: () => void;
   onOpenAccountUI?: () => void;
 }) {
   const preferences = useAomiWalletNetworkPreferences();
 
-  const value = useMemo<AomiAuthAdapter>(() => {
+  const value = useMemo<AomiWalletKit>(() => {
     const baseAdapter =
       adapter ??
       createHarnessAdapter({
@@ -150,10 +150,10 @@ function Harness({
   }, [adapter, onConnect, onOpenAccountUI, preferences]);
 
   return (
-    <AomiAuthAdapterProvider value={value}>
+    <AomiWalletKitContextProvider value={value}>
       <NetworkSelect />
       <ConnectButton />
-    </AomiAuthAdapterProvider>
+    </AomiWalletKitContextProvider>
   );
 }
 

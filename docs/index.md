@@ -29,7 +29,7 @@ sources_of_truth:
 
 ## Topic Set
 
-- auth: [topics/auth/facts/auth.md](topics/auth/facts/auth.md), [topics/auth/facts/auth-adapter.md](topics/auth/facts/auth-adapter.md), [topics/auth/facts/base-account.md](topics/auth/facts/base-account.md)
+- auth: [topics/auth/facts/auth.md](topics/auth/facts/auth.md), [topics/auth/facts/wallet-kit.md](topics/auth/facts/wallet-kit.md), [topics/auth/facts/base-account.md](topics/auth/facts/base-account.md)
 - apps: [topics/apps/facts/app-surfaces.md](topics/apps/facts/app-surfaces.md), [topics/apps/facts/widget-frame.md](topics/apps/facts/widget-frame.md)
 - client-runtime: [topics/client-runtime/facts/react-runtime.md](topics/client-runtime/facts/react-runtime.md), [topics/client-runtime/facts/transport-client.md](topics/client-runtime/facts/transport-client.md), [topics/client-runtime/facts/cli.md](topics/client-runtime/facts/cli.md)
 - development: [topics/development/facts/workspace.md](topics/development/facts/workspace.md)

@@ -167,10 +167,10 @@ Backend Server
 7. Namespaces auto-fetched when apiKey changes
 8. Model selection is backend-only (not stored in ControlState)
 9. Active wallet per family is owned by `WalletRegistry`
-   (`apps/registry/src/lib/aomi-auth-adapter/registry/store.ts`); wagmi's
+   (`apps/registry/src/lib/wallet-kit/registry/store.ts`); wagmi's
    current connection must not be used as the source of truth for wallet
    display or signing. Every wagmi action in the Para adapter passes an
    explicit `connector`.
 10. Wallet connection and recovery decisions are reducer transitions in
-   `apps/registry/src/lib/aomi-auth-adapter/registry/reducer.ts`; effects fire
+   `apps/registry/src/lib/wallet-kit/registry/reducer.ts`; effects fire
    only through `planCommands`.

@@ -28,15 +28,15 @@ import {
 } from "@/components/ui/popover";
 import { getChainIcon, SolanaIcon } from "@/components/icons";
 import {
-  useAomiAuthAdapter,
+  useAomiWalletKit,
   useWalletActivationGuard,
-} from "../../lib/aomi-auth-adapter";
-import { useOptionalAomiWalletNetworkPreferences } from "../../lib/aomi-auth-adapter/network-preferences";
+} from "../../lib/wallet-kit";
+import { useOptionalAomiWalletNetworkPreferences } from "../../lib/wallet-kit/network-preferences";
 import type {
   AomiNetworkTarget,
   SolanaNetworkOption,
   WalletFamily,
-} from "../../lib/aomi-auth-adapter/types";
+} from "../../lib/wallet-kit/types";
 
 export type NetworkSelectProps = {
   className?: string;
@@ -118,7 +118,7 @@ export const NetworkSelect: FC<NetworkSelectProps> = ({
   className,
   chains,
 }) => {
-  const adapter = useAomiAuthAdapter();
+  const adapter = useAomiWalletKit();
   // Optional: a standalone <AomiFrame /> (e.g. docs demo / SSR) may render
   // without a wallet provider mounting the network preferences context.
   const networkPreferences = useOptionalAomiWalletNetworkPreferences();

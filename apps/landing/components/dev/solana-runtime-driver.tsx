@@ -28,8 +28,8 @@ import {
 } from "@aomi-labs/react";
 import type { UserState as UserStateShape } from "@aomi-labs/client";
 import { RuntimeTxHandler } from "../../../registry/src/components/runtime-tx-handler";
-import { AomiAuthAdapterProvider } from "../../../registry/src/lib/aomi-auth-adapter/context";
-import type { AomiAuthAdapter } from "../../../registry/src/lib/aomi-auth-adapter/types";
+import { AomiWalletKitContextProvider } from "../../../registry/src/lib/wallet-kit/context";
+import type { AomiWalletKit } from "../../../registry/src/lib/wallet-kit/types";
 
 type DriverMode =
   | "sign"
@@ -297,8 +297,8 @@ export function SolanaRuntimeDriver() {
     [signer],
   );
 
-  const adapter = useMemo<AomiAuthAdapter>(() => {
-    const baseAdapter: AomiAuthAdapter = {
+  const adapter = useMemo<AomiWalletKit>(() => {
+    const baseAdapter: AomiWalletKit = {
       identity: {
         status: "connected",
         isConnected: true,
@@ -570,7 +570,7 @@ export function SolanaRuntimeDriver() {
   }, [lastError, lastResult, reportRunState, reportStatus, runId]);
 
   return (
-    <AomiAuthAdapterProvider value={adapter}>
+    <AomiWalletKitContextProvider value={adapter}>
       <AomiRuntimeApiProvider value={runtimeApi}>
         <RuntimeTxHandler />
 
@@ -713,6 +713,6 @@ export function SolanaRuntimeDriver() {
           </div>
         </main>
       </AomiRuntimeApiProvider>
-    </AomiAuthAdapterProvider>
+    </AomiWalletKitContextProvider>
   );
 }

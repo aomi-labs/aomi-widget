@@ -71,7 +71,7 @@ export type AACallPayload = Omit<AAWalletCall, "chainId">;
 
 /**
  * Smart account used for AA execution. `address` is the EOA signer — the same
- * value the user sees as their connected wallet address (`AomiAuthIdentity.address`).
+ * value the user sees as their connected wallet address (`AomiSessionIdentity.address`).
  *
  * Exactly one of the mode-discriminated address fields is meaningful:
  * - `mode === "4337"` ⟹ `SmartAccount4337` is the AA contract address;

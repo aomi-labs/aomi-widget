@@ -25,7 +25,7 @@ review_after_days: 7
 - `docs/index.md` via `docs-index`
 - `docs/topics/apps/facts/app-surfaces.md` via `topics`
 - `docs/topics/apps/facts/widget-frame.md` via `topics`
-- `docs/topics/auth/facts/auth-adapter.md` via `topics`
+- `docs/topics/auth/facts/wallet-kit.md` via `topics`
 - `docs/topics/auth/facts/auth.md` via `topics`
 - `docs/topics/auth/facts/base-account.md` via `topics`
 - `docs/topics/client-runtime/facts/cli.md` via `topics`

@@ -23,19 +23,19 @@ import {
 } from "lucide-react";
 import { cn, getChainInfo } from "@aomi-labs/react";
 import {
-  useAomiAuthAdapter,
+  useAomiWalletKit,
   canonicalWalletKey,
   formatAddress,
-  formatAuthProvider,
+  formatAuthMethod,
   formatWalletProvider,
   normalizeWalletOptionId,
   useWalletActivationGuard,
-} from "../../lib/aomi-auth-adapter";
+} from "../../lib/wallet-kit";
 import type {
   AomiAccount,
   AomiWalletOption,
   WalletFamily,
-} from "../../lib/aomi-auth-adapter/types";
+} from "../../lib/wallet-kit/types";
 import { WalletIconSlot } from "./wallet-icon-slot";
 import { useWalletPicker } from "./wallet-picker-context";
 
@@ -146,7 +146,7 @@ function isExternalHandoff(wallet: WalletAction): boolean {
 
 export function WalletPicker() {
   const { open, closePicker } = useWalletPicker();
-  const adapter = useAomiAuthAdapter();
+  const adapter = useAomiWalletKit();
   const identity = adapter.identity;
   const [pending, setPending] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -327,7 +327,7 @@ export function WalletPicker() {
 
   const socialLoginOptions = adapter.socialLoginOptions ?? [];
   const providerSubtitle =
-    identity.secondaryLabel ?? formatAuthProvider(identity.authProvider);
+    identity.secondaryLabel ?? formatAuthMethod(identity.authProvider);
   // Social sign-in goes through the account provider (Para), so the row reads
   // as the provider brand ("Para") with the method ("Email or Google") beneath.
   const providerBrandLabel = formatWalletProvider(identity.walletProvider);
@@ -390,6 +390,17 @@ export function WalletPicker() {
         family={account.family}
         account={account}
         detail={detail}
+        providerHint={
+          account.linkedVia === "para"
+            ? "para"
+            : account.linkedVia === "privy"
+              ? "privy"
+              : account.manageable
+                ? (identity.embeddedProvider ??
+                  identity.sessionProvider ??
+                  identity.walletProvider)
+                : undefined
+        }
         pending={pending}
         onSelect={
           account.family === "evm" && !account.active
@@ -693,6 +704,7 @@ function FamilyStatusRow({
   family,
   account,
   detail,
+  providerHint,
   pending,
   onSelect,
   onDisconnect,
@@ -701,6 +713,7 @@ function FamilyStatusRow({
   family: WalletFamily;
   account: AomiAccount;
   detail?: string;
+  providerHint?: string;
   pending: string | null;
   onSelect?: () => void;
   onDisconnect?: () => void;
@@ -716,7 +729,7 @@ function FamilyStatusRow({
 
   const inner = (
     <>
-      <WalletIconSlot id={account.id} label={name} />
+      <WalletIconSlot id={account.id} label={name} provider={providerHint} />
       <span className="min-w-0 flex-1">
         <span className="flex min-w-0 items-center gap-1.5">
           <span className="truncate text-sm font-medium">{name}</span>

@@ -8,7 +8,7 @@ function readRegistryFile(path: string): string {
   };
   return (
     payload.files?.find(
-      (file) => file.path === "lib/aomi-auth-adapter/providers/para/para.tsx",
+      (file) => file.path === "lib/wallet-kit/providers/para/para.tsx",
     )?.content ?? ""
   );
 }

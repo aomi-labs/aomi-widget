@@ -1,5 +1,5 @@
 import type { FC, SVGProps } from "react";
-import { canonicalWalletKey } from "../../lib/aomi-auth-adapter/runtime/evm/brands";
+import { canonicalWalletKey } from "../../lib/wallet-kit/runtime/evm/brands";
 import {
   BaseWalletIcon,
   CoinbaseWalletIcon,
@@ -34,4 +34,9 @@ export function getWalletIcon(
   walletIdOrLabel: string,
 ): FC<SVGProps<SVGSVGElement>> | undefined {
   return WALLET_ICONS[canonicalWalletKey(walletIdOrLabel)];
+}
+
+export function getWalletIconBrand(walletIdOrLabel: string): string | undefined {
+  const brand = canonicalWalletKey(walletIdOrLabel);
+  return WALLET_ICONS[brand] ? brand : undefined;
 }
