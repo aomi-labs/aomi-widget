@@ -2,10 +2,43 @@
 
 ## Last Updated
 
-2026-06-13 - Wallet provider plugin refactor plan rewritten as the one-big-PR
-grand plan with exact structs/naming/folders (`specs/WALLET-PROVIDER-PLUGIN-REFACTOR.md`)
+2026-06-14 - Wallet-kit cleanup sweep (Tiers 1–3): execution-runtime factory,
+SVM helper dedupe, open provider-id unions, brand registry (de-Para
+`brands.ts`), and a data-driven provider registry replacing the router if-chain.
 
 ## Recent Changes
+
+### Wallet-kit P3 cleanup sweep — Tiers 1–3 (2026-06-14)
+
+Branch `polish-multi-wallet`. Three committed, independently-green tiers from the
+architecture review. Each verified with `typecheck:landing`, the packages vitest
+suite (363) + the apps/registry wallet-kit suite (128, via
+`pnpm --filter @aomi-labs/widget-lib exec vitest run`), lint, and the pinned
+registry-artifact test; artifacts rebuilt + synced to `apps/landing/public/r`.
+
+- **Tier 1 (`62cfff62`):** new `execution/execution-runtime.ts`
+  (`buildEvmExecutionRuntime`) routes the Para/Privy/wallets-only EVM execution
+  lanes through one factory (removed ~15 duplicated lines each); deduped
+  `detectSvmTransport`/`getSvmCapabilitySnapshot` (composer imports them from
+  `runtime/svm`); widened provider-id + `linkedVia` unions to branded open
+  strings (`(string & {})`) so adding a provider is no longer a type edit.
+- **Tier 2 (`c6d82b15`):** `runtime/evm/brands.ts` gains a `registerWalletBrand`
+  registry and drops the hardcoded `"para"` branch — Para registers its brand
+  from `providers/para/para-brand.ts` (`PARA_BRAND_KEY`); `wallet-picker`
+  `linkedVia` switch generalized off `para`/`privy`. Legacy `detached-para`
+  persistence key + `paraDetached` field documented as frozen core migration
+  identifiers (moving them into providers/para would regress a wallets-only build
+  opened after a Para session).
+- **Tier 3 (`08d7d0db`):** `providers/plugin-registry.ts` +
+  `para-plugin.tsx`/`privy-plugin.tsx` descriptors replace the
+  `if (provider === "para"/"privy")` branches in
+  `config/AomiWalletKitProvider.tsx`, which also drops its direct
+  `@getpara/react-sdk` import. Eager registration only.
+
+Deferred (flagged to the user): lazy bundle-split of provider registration;
+hoisting `WalletRegistryStore` out of the EVM runtime (its executors are
+wagmi-specific, so the hoist only pays off for a Solana-only-without-EVM target,
+which does not exist today).
 
 ### Wallet provider plugin refactor — grand plan rewrite (2026-06-13)
 
