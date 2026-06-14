@@ -250,6 +250,7 @@ export const registry: RegistryComponent[] = [
     name: "aomi-para-provider",
     file: [
       "lib/wallet-kit/providers/para/index.ts",
+      "lib/wallet-kit/providers/para/para-brand.ts",
       "lib/wallet-kit/providers/para/para.tsx",
       "lib/wallet-kit/providers/para/ParaPluginProvider.tsx",
       "lib/wallet-kit/providers/para/para-auth.ts",

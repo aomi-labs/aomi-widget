@@ -27,6 +27,7 @@ import { walletDebug } from "../../wallet-debug";
 import { buildEvmExecutionRuntime } from "../../execution/execution-runtime";
 import type { AomiAccount } from "../../types";
 import { resolveParaAAProviderState, resolveParaSponsorship } from "./para-aa";
+import { PARA_BRAND_KEY } from "./para-brand";
 import {
   DEFAULT_SVM_ENDPOINT,
   useSafeSvmWallet,
@@ -131,8 +132,8 @@ export function AomiParaPluginProvider({
     () => ({
       providerLogout: logoutParaSession,
       isProviderInternalConnector: (connector) =>
-        connector.id === "para" ||
-        canonicalWalletKey(connector.name ?? "") === "para",
+        connector.id === PARA_BRAND_KEY ||
+        canonicalWalletKey(connector.name ?? "") === PARA_BRAND_KEY,
       onProviderReconnectRequested: (store) => {
         store.dispatch({
           type: "user/provider-reconnect-requested",
