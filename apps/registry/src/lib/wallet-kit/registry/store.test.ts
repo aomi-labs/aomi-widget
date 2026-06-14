@@ -117,6 +117,54 @@ describe("WalletRegistryStore", () => {
     expect(fake.calls).toContainEqual(["wagmi/reconnect", "metaMaskSDK"]);
   });
 
+  it("does not silently reconnect when a live wallet connector switches accounts", async () => {
+    const fake = executors();
+    const store = new WalletRegistryStore({
+      executors: fake,
+      storageKey: KEY,
+      initialNow: 0,
+    });
+
+    store.dispatch({
+      type: "wagmi/connections-changed",
+      connections: [
+        {
+          family: "evm",
+          uid: "rabby-1",
+          stableId: "rabby",
+          address: "0xaaa",
+          addresses: ["0xaaa"],
+          chainId: 8453,
+          walletName: "Rabby Wallet",
+        },
+      ],
+      now: 1,
+    });
+    store.dispatch({ type: "wagmi/settled", now: 2 });
+    store.dispatch({
+      type: "wagmi/connections-changed",
+      connections: [
+        {
+          family: "evm",
+          uid: "rabby-1",
+          stableId: "rabby",
+          address: "0xbbb",
+          addresses: ["0xbbb"],
+          chainId: 8453,
+          walletName: "Rabby Wallet",
+        },
+      ],
+      now: 3,
+    });
+    store.dispatch({ type: "wagmi/settled", now: 4 });
+    await Promise.resolve();
+
+    expect(fake.calls).not.toContainEqual(["wagmi/reconnect", "rabby"]);
+    expect(store.getSnapshot().heal.expected).toEqual([
+      { stableId: "rabby", address: "0xbbb" },
+    ]);
+  });
+
   it("runs the second-pass popup connect after silent reconnect restores nothing", async () => {
     vi.useFakeTimers();
     vi.setSystemTime(0);

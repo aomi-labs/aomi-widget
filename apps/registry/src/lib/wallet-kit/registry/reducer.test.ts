@@ -260,6 +260,53 @@ describe("WalletRegistry reducer", () => {
     });
   });
 
+  it("treats an in-wallet EVM account switch as the current live connection", () => {
+    let state = boot();
+    state = reduce(state, {
+      type: "wagmi/connections-changed",
+      connections: [evm("rb", "rabby", "0xAAA", "Rabby")],
+      now: 10,
+    });
+    state = reduce(state, { type: "wagmi/settled", now: 20 });
+
+    state = reduce(state, {
+      type: "wagmi/connections-changed",
+      connections: [evm("rb", "rabby", "0xBBB", "Rabby")],
+      now: 30,
+    });
+    state = reduce(state, { type: "wagmi/settled", now: 40 });
+
+    expect(state.activeByFamily.evm).toMatchObject({
+      address: "0xbbb",
+      uid: "rb",
+      stableId: "rabby",
+    });
+    expect(state.heal.expected).toEqual([
+      { stableId: "rabby", address: "0xbbb" },
+    ]);
+  });
+
+  it("refreshes heal expectations when an account switch overlaps a rebuild", () => {
+    let state = boot();
+    state = reduce(state, {
+      type: "wagmi/connections-changed",
+      connections: [evm("rb", "rabby", "0xAAA", "Rabby")],
+      now: 10,
+    });
+    state = reduce(state, { type: "wagmi/settled", now: 20 });
+    state = reduce(state, { type: "wagmi/config-rebuilt", now: 30 });
+    state = reduce(state, {
+      type: "wagmi/connections-changed",
+      connections: [evm("rb-new", "rabby", "0xBBB", "Rabby")],
+      now: 40,
+    });
+    state = reduce(state, { type: "wagmi/settled", now: 50 });
+
+    expect(state.heal.expected).toEqual([
+      { stableId: "rabby", address: "0xbbb" },
+    ]);
+  });
+
   it("makes Para active after an explicit Para connect when the old active wallet is absent", () => {
     let state = boot();
     state = reduce(state, {
