@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 export const runtime = "nodejs";
 
 import {
+  activationEnv,
   appNamesFromDeployment,
   type BackendDeployResult,
   backendRequest,
@@ -24,7 +25,7 @@ export async function POST(req: Request) {
         { status: 400 },
       );
     }
-    const env = readOnboardDeployEnv();
+    const env = await activationEnv(readOnboardDeployEnv());
     const appSourceId = await resolveAppSourceId({
       env,
       installationId: body.installationId,
