@@ -11,12 +11,12 @@ import {
   normalizeSvmNetworkOptions,
   resolveSelectedSvmNetwork,
 } from "../runtime/svm/networks";
-import type { SvmWalletPreset, WalletId } from "./wallet-ids";
+import type { SvmWalletId, SvmWalletPreset } from "./wallet-ids";
 import { SVM_PRESETS } from "./wallet-ids";
 
 export type SvmWalletsConfig = {
   preset?: SvmWalletPreset;
-  wallets?: readonly WalletId[];
+  wallets?: readonly SvmWalletId[];
   networks?: readonly SvmNetworkOption[];
   preferDirectSend?: boolean;
   enabled?: boolean;
@@ -28,6 +28,8 @@ const SVM_WALLET_FACTORIES = {
   backpack: backpackWallet,
   glow: glowWallet,
 } as const;
+
+export const SVM_WALLET_ALLOWLIST = new Set<string>(SVM_PRESETS.popular);
 
 type SolanaWalletList = Array<typeof phantomWallet>;
 

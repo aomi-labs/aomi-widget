@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
-  canonicalWalletKey,
   dedupeWalletOptions,
   detectEvmProviderBrand,
-  registerWalletBrand,
 } from "./brands";
+import {
+  canonicalWalletKey,
+  registerWalletBrand,
+} from "../../catalog/wallet-branding";
 
 describe("canonicalWalletKey", () => {
   it("collapses ids, labels and rdns onto one brand key", () => {

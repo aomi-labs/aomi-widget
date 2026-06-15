@@ -9,7 +9,6 @@ import type { WalletRegistryStore } from "../../registry/store";
 import { useWalletRegistry } from "../../registry/use-wallet-registry";
 import type { WalletRegistryState } from "../../registry/types";
 import {
-  canonicalWalletKey,
   dedupeWalletOptions,
   detectEvmProviderBrand,
   isProviderInternalWalletLabel,
@@ -17,6 +16,7 @@ import {
   useInstalledWalletFlags,
   walletOptionIsDetected,
 } from "./brands";
+import { canonicalWalletKey } from "../../catalog/wallet-branding";
 import { planEvmAccountDisconnect } from "./disconnect-plan";
 import { useWagmiRegistrySource } from "./registry-source";
 import {

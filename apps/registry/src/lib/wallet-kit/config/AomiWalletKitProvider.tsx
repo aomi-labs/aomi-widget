@@ -33,6 +33,7 @@ import {
 } from "../full-testnet-wallet-routing";
 import { AomiEvmRuntimeProvider } from "../runtime/evm/provider";
 import { useEvmWalletRuntime } from "../runtime/evm/wallet-runtime";
+import { useDisabledEvmWalletRuntime } from "../runtime/evm/disabled-runtime";
 import { useSvmRegistrySource } from "../runtime/svm/registry-source";
 import { buildSvmTransactionMethods } from "../runtime/svm/transactions";
 import { useSafeSvmWallet } from "../runtime/svm/wallet-runtime";
@@ -70,26 +71,22 @@ const defaultNetworks = [
 registerWalletProvider(paraPlugin);
 registerWalletProvider(privyPlugin);
 
-function WalletsOnlyWalletKitProvider({
+type ResolvedSvmWalletsConfig = ReturnType<typeof resolveAomiSvmConfig>;
+
+function WalletsOnlyComposerProvider({
   children,
+  evmRuntime,
   supportedChains,
 }: {
   children: ReactNode;
+  evmRuntime: ReturnType<typeof useEvmWalletRuntime>;
   supportedChains: readonly Chain[];
 }) {
   const {
-    selectedEvmChainId,
     selectedSolanaNetwork,
-    setSelectedEvmChainId,
     setSelectedSolanaNetworkId,
     supportedSolanaNetworks,
   } = useAomiWalletNetworkPreferences();
-  const evmRuntime = useEvmWalletRuntime({
-    configuredChains: supportedChains,
-    selectedEvmChainId,
-    setSelectedEvmChainId,
-    storageKey: REGISTRY_STORAGE_KEY,
-  });
   const svmWallet = useSafeSvmWallet();
   useSvmRegistrySource(evmRuntime.registryStore, { svmWallet });
   const svmRuntimeConfig = useMemo(
@@ -147,22 +144,75 @@ function WalletsOnlyWalletKitProvider({
   );
 }
 
-function AomiWalletsOnlyProvider({
+function EvmWalletsOnlyComposerProvider({
   children,
-  wallets,
+  supportedChains,
 }: {
   children: ReactNode;
-  wallets?: WalletsConfig;
+  supportedChains: readonly Chain[];
 }) {
-  const evmWallets = wallets?.evm === false ? undefined : wallets?.evm;
-  const svmWallets = wallets?.solana === false ? false : wallets?.solana;
+  const { selectedEvmChainId, setSelectedEvmChainId } =
+    useAomiWalletNetworkPreferences();
+  const evmRuntime = useEvmWalletRuntime({
+    configuredChains: supportedChains,
+    selectedEvmChainId,
+    setSelectedEvmChainId,
+    storageKey: REGISTRY_STORAGE_KEY,
+  });
+
+  return (
+    <WalletsOnlyComposerProvider
+      evmRuntime={evmRuntime}
+      supportedChains={supportedChains}
+    >
+      {children}
+    </WalletsOnlyComposerProvider>
+  );
+}
+
+function SvmOnlyComposerProvider({ children }: { children: ReactNode }) {
+  const evmRuntime = useDisabledEvmWalletRuntime({
+    storageKey: REGISTRY_STORAGE_KEY,
+  });
+
+  return (
+    <WalletsOnlyComposerProvider evmRuntime={evmRuntime} supportedChains={[]}>
+      {children}
+    </WalletsOnlyComposerProvider>
+  );
+}
+
+function MaybeSvmWalletProvider({
+  children,
+  resolvedSvm,
+}: {
+  children: ReactNode;
+  resolvedSvm: ResolvedSvmWalletsConfig;
+}) {
+  if (!resolvedSvm.enabled || !resolvedSvm.activeNetwork) {
+    return <>{children}</>;
+  }
+
+  return (
+    <ConnectionProvider endpoint={resolvedSvm.rpcHttpUrl}>
+      <WalletProvider wallets={resolvedSvm.wallets as never} autoConnect>
+        {children}
+      </WalletProvider>
+    </ConnectionProvider>
+  );
+}
+
+function AomiEvmWalletsOnlyProvider({
+  children,
+  evmWallets,
+  resolvedSvm,
+}: {
+  children: ReactNode;
+  evmWallets: Exclude<WalletsConfig["evm"], false | undefined> | undefined;
+  resolvedSvm: ResolvedSvmWalletsConfig;
+}) {
   const chains = evmWallets?.chains ?? defaultNetworks;
   const routing = useFullTestnet(chains);
-  const { selectedSolanaNetworkId } = useAomiWalletNetworkPreferences();
-  const resolvedSvm = useMemo(
-    () => resolveAomiSvmConfig(svmWallets, selectedSolanaNetworkId),
-    [selectedSolanaNetworkId, svmWallets],
-  );
   const wagmiConfig = useMemo(
     () =>
       createAomiEvmConfig({
@@ -183,35 +233,73 @@ function AomiWalletsOnlyProvider({
   return (
     <QueryClientProvider client={queryClient}>
       <AomiEvmRuntimeProvider config={wagmiConfig}>
-        {resolvedSvm.enabled && resolvedSvm.activeNetwork ? (
-          <ConnectionProvider endpoint={resolvedSvm.rpcHttpUrl}>
-            <WalletProvider wallets={resolvedSvm.wallets as never} autoConnect>
-              <FullTestnetWalletRouter
-                enabled={routing.enabled}
-                chains={routing.routedChains}
-                routedChainIds={routing.routedChainIds}
-              >
-                <WalletsOnlyWalletKitProvider
-                  supportedChains={routing.routedChains}
-                >
-                  {children}
-                </WalletsOnlyWalletKitProvider>
-              </FullTestnetWalletRouter>
-            </WalletProvider>
-          </ConnectionProvider>
-        ) : (
+        <MaybeSvmWalletProvider resolvedSvm={resolvedSvm}>
           <FullTestnetWalletRouter
             enabled={routing.enabled}
             chains={routing.routedChains}
             routedChainIds={routing.routedChainIds}
           >
-            <WalletsOnlyWalletKitProvider supportedChains={routing.routedChains}>
+            <EvmWalletsOnlyComposerProvider
+              supportedChains={routing.routedChains}
+            >
               {children}
-            </WalletsOnlyWalletKitProvider>
+            </EvmWalletsOnlyComposerProvider>
           </FullTestnetWalletRouter>
-        )}
+        </MaybeSvmWalletProvider>
       </AomiEvmRuntimeProvider>
     </QueryClientProvider>
+  );
+}
+
+function AomiSvmOnlyWalletsOnlyProvider({
+  children,
+  resolvedSvm,
+}: {
+  children: ReactNode;
+  resolvedSvm: ResolvedSvmWalletsConfig;
+}) {
+  const [queryClient] = useState(() => new QueryClient());
+
+  return (
+    <QueryClientProvider client={queryClient}>
+      <MaybeSvmWalletProvider resolvedSvm={resolvedSvm}>
+        <SvmOnlyComposerProvider>{children}</SvmOnlyComposerProvider>
+      </MaybeSvmWalletProvider>
+    </QueryClientProvider>
+  );
+}
+
+function AomiWalletsOnlyProvider({
+  children,
+  wallets,
+}: {
+  children: ReactNode;
+  wallets?: WalletsConfig;
+}) {
+  const evmWallets = wallets?.evm === false ? undefined : wallets?.evm;
+  const evmEnabled = wallets?.evm !== false;
+  const svmWallets = wallets?.solana === false ? false : wallets?.solana;
+  const { selectedSolanaNetworkId } = useAomiWalletNetworkPreferences();
+  const resolvedSvm = useMemo(
+    () => resolveAomiSvmConfig(svmWallets, selectedSolanaNetworkId),
+    [selectedSolanaNetworkId, svmWallets],
+  );
+
+  if (!evmEnabled) {
+    return (
+      <AomiSvmOnlyWalletsOnlyProvider resolvedSvm={resolvedSvm}>
+        {children}
+      </AomiSvmOnlyWalletsOnlyProvider>
+    );
+  }
+
+  return (
+    <AomiEvmWalletsOnlyProvider
+      evmWallets={evmWallets}
+      resolvedSvm={resolvedSvm}
+    >
+      {children}
+    </AomiEvmWalletsOnlyProvider>
   );
 }
 
@@ -235,7 +323,7 @@ export function AomiWalletKitProvider(input: AomiWalletKitProviderInput) {
     <AomiWalletNetworkPreferencesProvider
       evmChains={
         props.wallets?.evm === false
-          ? defaultNetworks
+          ? []
           : (props.wallets?.evm?.chains ?? defaultNetworks)
       }
       solanaNetworks={

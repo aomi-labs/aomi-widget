@@ -3,7 +3,7 @@
 import { useMemo, type ReactNode } from "react";
 import type { Chain, Transport } from "viem";
 import type { Config } from "wagmi";
-import type { WalletId } from "../../catalog/wallet-ids";
+import type { EvmWalletId } from "../../catalog/wallet-ids";
 import { createAomiEvmConfig } from "../../catalog/evm-connector-catalog";
 import { AomiEvmRuntimeProvider } from "../../runtime/evm/provider";
 
@@ -14,7 +14,7 @@ export type AomiParaEvmRuntimeConfig = {
   walletConnectProjectId?: string;
   appName?: string;
   appLogoUrl?: string | null;
-  wallets?: readonly WalletId[];
+  wallets?: readonly EvmWalletId[];
 };
 
 function createPlainWagmiConfig(config: AomiParaEvmRuntimeConfig): Config {

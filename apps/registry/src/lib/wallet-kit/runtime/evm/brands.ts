@@ -3,6 +3,15 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { Connector } from "wagmi";
 import type { AomiWalletOption } from "../../types";
+import {
+  canonicalWalletKey,
+  normalizeWalletOptionId,
+} from "../../catalog/wallet-branding";
+
+export {
+  canonicalWalletKey,
+  normalizeWalletOptionId,
+} from "../../catalog/wallet-branding";
 
 /**
  * Wallet branding and detection shared by wallet kit providers and the picker UI.
@@ -12,54 +21,6 @@ import type { AomiWalletOption } from "../../types";
  * option mapping, and the runtime sniffing of which brand actually answers
  * behind a connector (Rabby impersonating MetaMask, etc).
  */
-
-export function normalizeWalletOptionId(value: string): string {
-  return value.toLowerCase().replace(/[^a-z0-9]+/g, "");
-}
-
-export type WalletBrandDescriptor = {
-  key: string;
-  matchers: readonly string[];
-};
-
-const providerBrandRegistry: WalletBrandDescriptor[] = [];
-
-/**
- * Let a provider plugin contribute its own canonical brand key (e.g. Para)
- * without the generic resolver hardcoding the provider name. Provider brands
- * are matched before the built-in wallet brands.
- */
-export function registerWalletBrand(descriptor: WalletBrandDescriptor): void {
-  if (!providerBrandRegistry.some((entry) => entry.key === descriptor.key)) {
-    providerBrandRegistry.push(descriptor);
-  }
-}
-
-/**
- * Collapse ids/labels/rdns strings onto one canonical brand key so the same
- * wallet matches across connectors, accounts, icons and dedupe sets.
- */
-export function canonicalWalletKey(value: string): string {
-  const normalized = normalizeWalletOptionId(value);
-  for (const brand of providerBrandRegistry) {
-    if (brand.matchers.some((matcher) => normalized.includes(matcher))) {
-      return brand.key;
-    }
-  }
-  if (normalized.includes("metamask")) return "metamask";
-  if (normalized.includes("rabby")) return "rabby";
-  if (normalized.includes("coinbase")) return "coinbase";
-  if (normalized.includes("rainbow")) return "rainbow";
-  if (normalized.includes("walletconnect")) return "walletconnect";
-  if (normalized.includes("baseaccount") || normalized === "base") {
-    return "base";
-  }
-  if (normalized.includes("phantom")) return "phantom";
-  if (normalized.includes("solflare")) return "solflare";
-  if (normalized.includes("backpack")) return "backpack";
-  if (normalized.includes("glow")) return "glow";
-  return normalized;
-}
 
 const walletLabelOverrides: Record<string, string> = {
   base: "Base Account",
@@ -72,13 +33,6 @@ const walletLabelOverrides: Record<string, string> = {
   rainbow: "Rainbow",
   walletconnect: "WalletConnect",
 };
-
-export const solanaWalletAllowlist = new Set([
-  "phantom",
-  "solflare",
-  "backpack",
-  "glow",
-]);
 
 export type InstalledWalletFlags = {
   metamask: boolean;

@@ -1,5 +1,5 @@
 import type { FC, SVGProps } from "react";
-import { canonicalWalletKey } from "../../lib/wallet-kit/runtime/evm/brands";
+import { canonicalWalletKey } from "../../lib/wallet-kit/catalog/wallet-branding";
 import {
   BaseWalletIcon,
   CoinbaseWalletIcon,
@@ -36,7 +36,9 @@ export function getWalletIcon(
   return WALLET_ICONS[canonicalWalletKey(walletIdOrLabel)];
 }
 
-export function getWalletIconBrand(walletIdOrLabel: string): string | undefined {
+export function getWalletIconBrand(
+  walletIdOrLabel: string,
+): string | undefined {
   const brand = canonicalWalletKey(walletIdOrLabel);
   return WALLET_ICONS[brand] ? brand : undefined;
 }

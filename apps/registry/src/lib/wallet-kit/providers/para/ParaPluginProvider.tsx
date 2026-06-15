@@ -15,10 +15,8 @@ import {
   useEvmWalletRuntime,
   type EvmWalletRuntimeProviderHooks,
 } from "../../runtime/evm/wallet-runtime";
-import {
-  canonicalWalletKey,
-  toSocialLoginOption,
-} from "../../runtime/evm/brands";
+import { toSocialLoginOption } from "../../runtime/evm/brands";
+import { canonicalWalletKey } from "../../catalog/wallet-branding";
 import { DEFAULT_SVM_CLUSTER } from "../../runtime/svm/networks";
 import { REGISTRY_STORAGE_KEY } from "../../registry/types";
 import { useSvmRegistrySource } from "../../runtime/svm/registry-source";

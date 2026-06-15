@@ -9,9 +9,10 @@ import type {
   SvmNetworkOption,
 } from "../types";
 import type {
+  EvmWalletId,
   EvmWalletPreset,
+  SvmWalletId,
   SvmWalletPreset,
-  WalletId,
 } from "../catalog/wallet-ids";
 
 export type AuthMethodId =
@@ -66,7 +67,7 @@ export type AuthConfig =
 export type EvmWalletsConfig = {
   chains?: readonly [Chain, ...Chain[]];
   preset?: EvmWalletPreset;
-  wallets?: readonly WalletId[];
+  wallets?: readonly EvmWalletId[];
   connectors?: readonly CreateConnectorFn[];
   walletConnectProjectId?: string;
   coinbase?: boolean;
@@ -77,7 +78,7 @@ export type EvmWalletsConfig = {
 
 export type SvmWalletsConfig = {
   preset?: SvmWalletPreset;
-  wallets?: readonly WalletId[];
+  wallets?: readonly SvmWalletId[];
   networks?: readonly SvmNetworkOption[];
   preferDirectSend?: boolean;
 };

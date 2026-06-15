@@ -34,7 +34,7 @@ import {
   AomiParaEvmRuntimeProvider,
   type AomiParaEvmRuntimeConfig,
 } from "./para-evm-runtime";
-import type { WalletId } from "../../catalog/wallet-ids";
+import type { EvmWalletId } from "../../catalog/wallet-ids";
 import { normalizeSvmNetworkOptions } from "../../runtime/svm/networks";
 import {
   ParaSvmWrapper,
@@ -86,8 +86,8 @@ const defaultExternalWallets: TExternalWallet[] = [
   "RABBY",
 ];
 
-function toWalletIds(wallets: readonly TExternalWallet[]): WalletId[] {
-  const ids: WalletId[] = [];
+function toWalletIds(wallets: readonly TExternalWallet[]): EvmWalletId[] {
+  const ids: EvmWalletId[] = [];
   for (const wallet of wallets) {
     const id = (() => {
       switch (wallet) {
