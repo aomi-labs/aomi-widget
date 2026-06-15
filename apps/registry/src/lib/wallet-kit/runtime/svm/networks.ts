@@ -110,10 +110,3 @@ export function buildDefaultSvmNetworkOptions(options?: {
     },
   ];
 }
-
-export const DEFAULT_SOLANA_CLUSTER = DEFAULT_SVM_CLUSTER;
-export const DEFAULT_SOLANA_RPC_HTTP_URLS = DEFAULT_SVM_RPC_HTTP_URLS;
-export const getDefaultSolanaNetworkLabel = getDefaultSvmNetworkLabel;
-export const normalizeSolanaNetworkOptions = normalizeSvmNetworkOptions;
-export const resolveSelectedSolanaNetwork = resolveSelectedSvmNetwork;
-export const buildDefaultSolanaNetworkOptions = buildDefaultSvmNetworkOptions;

@@ -37,19 +37,24 @@ function normalizePersisted(value: PersistedRegistryV1): PersistedRegistryV1 {
     ...value,
     order: Array.isArray(value.order)
       ? value.order
-          .filter(
-            (item) =>
+          .filter((item) => {
+            const family = (item as { family?: unknown } | null)?.family;
+            return (
               item &&
-              (item.family === "evm" || item.family === "solana") &&
+              (family === "evm" || family === "svm" || family === "solana") &&
               typeof item.stableId === "string" &&
-              typeof item.address === "string",
-          )
-          .map((item) => ({
-            family: item.family,
-            stableId: item.stableId,
-            address:
-              item.family === "evm" ? item.address.toLowerCase() : item.address,
-          }))
+              typeof item.address === "string"
+            );
+          })
+          .map((item) => {
+            const family = item.family as "evm" | "svm" | "solana";
+            return {
+              family: family === "solana" ? "svm" : family,
+              stableId: item.stableId,
+              address:
+                family === "evm" ? item.address.toLowerCase() : item.address,
+            };
+          })
       : [],
     providerSessionDetached:
       value.providerSessionDetached ?? legacy.paraDetached ?? false,
@@ -134,11 +139,11 @@ export function toPersisted(state: WalletRegistryState): PersistedRegistryV1 {
             },
           }
         : {}),
-      ...(state.activeByFamily.solana
+      ...(state.activeByFamily.svm
         ? {
-            solana: {
-              address: state.activeByFamily.solana.address,
-              stableId: state.activeByFamily.solana.stableId,
+            svm: {
+              address: state.activeByFamily.svm.address,
+              stableId: state.activeByFamily.svm.stableId,
             },
           }
         : {}),

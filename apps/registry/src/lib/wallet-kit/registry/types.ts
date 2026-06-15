@@ -9,7 +9,7 @@ export type RegistryConnection = {
   family: WalletFamily;
   uid: string;
   stableId: string;
-  kind: "embedded-session" | "external-evm" | "walletconnect" | "solana";
+  kind: "embedded-session" | "external-evm" | "walletconnect" | "svm";
   address: string;
   addresses: string[];
   chainId?: number;
@@ -149,6 +149,8 @@ export type RegistryCommand =
   | { kind: "wagmi/reconnect"; stableIds: string[] }
   | { kind: "wagmi/connect"; stableId: string }
   | { kind: "wagmi/disconnect"; uid: string }
+  | { kind: "svm/connect"; walletName: string }
+  | { kind: "svm/disconnect" }
   | { kind: "provider/logout" }
   | { kind: "persist" }
   | { kind: "debug"; event: string; data?: Record<string, unknown> };

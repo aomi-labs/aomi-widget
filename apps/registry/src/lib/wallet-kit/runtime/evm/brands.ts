@@ -58,6 +58,22 @@ type InjectedProvider = {
   providers?: InjectedProvider[];
 };
 
+function readInjectedValue<T>(
+  source: unknown,
+  key: string,
+): T | undefined {
+  if (!source || typeof source !== "object") return undefined;
+  try {
+    return (source as Record<string, T | undefined>)[key];
+  } catch {
+    return undefined;
+  }
+}
+
+function readInjectedFlag(source: unknown, key: string): boolean {
+  return Boolean(readInjectedValue<unknown>(source, key));
+}
+
 function detectInstalledWalletFlags(): InstalledWalletFlags {
   if (typeof window === "undefined") return emptyInstalledWalletFlags;
 
@@ -66,23 +82,31 @@ function detectInstalledWalletFlags(): InstalledWalletFlags {
     rabby?: unknown;
     coinbaseWalletExtension?: unknown;
   };
-  const injected = hostWindow.ethereum as InjectedProvider | undefined;
-  const rabbyProvider = hostWindow.rabby as InjectedProvider | undefined;
+  const injected = readInjectedValue<InjectedProvider>(hostWindow, "ethereum");
+  const rabbyProvider = readInjectedValue<InjectedProvider>(hostWindow, "rabby");
+  const injectedProviders =
+    readInjectedValue<InjectedProvider[]>(injected, "providers") ?? [];
   const providers = [
     injected,
     rabbyProvider,
-    ...(injected?.providers ?? []),
+    ...injectedProviders,
   ].filter(Boolean);
 
   return {
-    metamask: providers.some((provider) => Boolean(provider?.isMetaMask)),
+    metamask: providers.some((provider) =>
+      readInjectedFlag(provider, "isMetaMask"),
+    ),
     rabby:
       Boolean(rabbyProvider) ||
-      providers.some((provider) => Boolean(provider?.isRabby)),
+      providers.some((provider) => readInjectedFlag(provider, "isRabby")),
     coinbase:
-      Boolean(hostWindow.coinbaseWalletExtension) ||
-      providers.some((provider) => Boolean(provider?.isCoinbaseWallet)),
-    rainbow: providers.some((provider) => Boolean(provider?.isRainbow)),
+      readInjectedFlag(hostWindow, "coinbaseWalletExtension") ||
+      providers.some((provider) =>
+        readInjectedFlag(provider, "isCoinbaseWallet"),
+      ),
+    rainbow: providers.some((provider) =>
+      readInjectedFlag(provider, "isRainbow"),
+    ),
   };
 }
 
@@ -303,13 +327,14 @@ export function toSocialLoginOption(method: string): AomiWalletOption {
  */
 export function detectEvmProviderBrand(provider: unknown): string | undefined {
   if (!provider || typeof provider !== "object") return undefined;
-  const flags = provider as InjectedProvider;
-  if (flags.isRabby) return "Rabby";
-  if (flags.isPhantom) return "Phantom";
-  if (flags.isBraveWallet) return "Brave Wallet";
-  if (flags.isRainbow) return "Rainbow";
-  if (flags.isCoinbaseWallet) return "Coinbase Wallet";
-  if (flags.isMetaMask) return "MetaMask";
+  if (readInjectedFlag(provider, "isRabby")) return "Rabby";
+  if (readInjectedFlag(provider, "isPhantom")) return "Phantom";
+  if (readInjectedFlag(provider, "isBraveWallet")) return "Brave Wallet";
+  if (readInjectedFlag(provider, "isRainbow")) return "Rainbow";
+  if (readInjectedFlag(provider, "isCoinbaseWallet")) {
+    return "Coinbase Wallet";
+  }
+  if (readInjectedFlag(provider, "isMetaMask")) return "MetaMask";
   return undefined;
 }
 

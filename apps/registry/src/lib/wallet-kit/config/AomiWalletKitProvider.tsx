@@ -1,6 +1,8 @@
 "use client";
 
 import { useMemo, useState, type ReactNode } from "react";
+import "../providers/para";
+import "../providers/privy";
 import {
   ConnectionProvider,
   WalletProvider,
@@ -35,9 +37,7 @@ import {
 import { AomiEvmRuntimeProvider } from "../runtime/evm/provider";
 import { useEvmWalletRuntime } from "../runtime/evm/wallet-runtime";
 import { useDisabledEvmWalletRuntime } from "../runtime/evm/disabled-runtime";
-import { useSvmRegistrySource } from "../runtime/svm/registry-source";
-import { buildSvmTransactionMethods } from "../runtime/svm/transactions";
-import { useSafeSvmWallet } from "../runtime/svm/wallet-runtime";
+import { useSvmWalletRuntime } from "../runtime/svm/wallet-runtime";
 import { REGISTRY_STORAGE_KEY } from "../registry/types";
 import { createAomiEvmConfig } from "../catalog/evm-connector-catalog";
 import { resolveAomiSvmConfig } from "../catalog/svm-wallet-catalog";
@@ -45,6 +45,7 @@ import { canonicalWalletKey } from "../catalog/wallet-branding";
 import {
   detectProviderSugar,
   getWalletProvider,
+  requireWalletProvider,
   type WalletProviderPlugin,
 } from "../providers/plugin-registry";
 import type {
@@ -77,7 +78,7 @@ const defaultNetworks = [
 
 type ResolvedSvmWalletsConfig = ReturnType<typeof resolveAomiSvmConfig>;
 
-function WalletsOnlyComposerProvider({
+function ExternalWalletComposerProvider({
   children,
   evmRuntime,
   execution,
@@ -93,17 +94,12 @@ function WalletsOnlyComposerProvider({
     setSelectedSolanaNetworkId,
     supportedSolanaNetworks,
   } = useAomiWalletNetworkPreferences();
-  const svmWallet = useSafeSvmWallet();
-  useSvmRegistrySource(evmRuntime.registryStore, { svmWallet });
-  const svmRuntimeConfig = useMemo(
-    () => ({
-      cluster: selectedSolanaNetwork?.cluster ?? "solana:mainnet",
-      rpcHttpUrl: selectedSolanaNetwork?.rpcHttpUrl ?? "",
-      rpcWsUrl: selectedSolanaNetwork?.rpcWsUrl,
-      preferDirectSend: true,
-    }),
-    [selectedSolanaNetwork],
-  );
+  const svmRuntime = useSvmWalletRuntime({
+    registryStore: evmRuntime.registryStore,
+    selectedNetwork: selectedSolanaNetwork,
+    supportedNetworks: supportedSolanaNetworks,
+    setSelectedNetworkId: setSelectedSolanaNetworkId,
+  });
   const authRuntime = useMemo<AuthRuntime>(
     () => ({
       provider: "none",
@@ -129,24 +125,16 @@ function WalletsOnlyComposerProvider({
             address: context.address,
           }),
       }),
-      svm: buildSvmTransactionMethods(svmWallet, svmRuntimeConfig),
+      svm: svmRuntime.execution,
     }),
-    [evmRuntime, execution, svmRuntimeConfig, svmWallet],
+    [evmRuntime, execution, svmRuntime.execution],
   );
 
   return (
     <AomiWalletKitComposer
       auth={authRuntime}
       evm={evmRuntime}
-      svm={{
-        wallet: svmWallet,
-        config: {
-          ...svmRuntimeConfig,
-        },
-        supportedNetworks: supportedSolanaNetworks,
-        selectedNetwork: selectedSolanaNetwork,
-        setSelectedNetworkId: setSelectedSolanaNetworkId,
-      }}
+      svm={svmRuntime}
       execution={executionRuntime}
       supportedChains={supportedChains}
     >
@@ -155,7 +143,7 @@ function WalletsOnlyComposerProvider({
   );
 }
 
-function EvmWalletsOnlyComposerProvider({
+function EvmExternalWalletComposerProvider({
   children,
   execution,
   supportedChains,
@@ -174,25 +162,32 @@ function EvmWalletsOnlyComposerProvider({
   });
 
   return (
-    <WalletsOnlyComposerProvider
+    <ExternalWalletComposerProvider
       evmRuntime={evmRuntime}
       execution={execution}
       supportedChains={supportedChains}
     >
       {children}
-    </WalletsOnlyComposerProvider>
+    </ExternalWalletComposerProvider>
   );
 }
 
-function SvmOnlyComposerProvider({ children }: { children: ReactNode }) {
+function SvmExternalWalletComposerProvider({
+  children,
+}: {
+  children: ReactNode;
+}) {
   const evmRuntime = useDisabledEvmWalletRuntime({
     storageKey: REGISTRY_STORAGE_KEY,
   });
 
   return (
-    <WalletsOnlyComposerProvider evmRuntime={evmRuntime} supportedChains={[]}>
+    <ExternalWalletComposerProvider
+      evmRuntime={evmRuntime}
+      supportedChains={[]}
+    >
       {children}
-    </WalletsOnlyComposerProvider>
+    </ExternalWalletComposerProvider>
   );
 }
 
@@ -224,7 +219,7 @@ function MaybeSvmWalletProvider({
   );
 }
 
-function AomiEvmWalletsOnlyProvider({
+function AomiEvmExternalWalletProvider({
   auth,
   authPlugin,
   children,
@@ -261,7 +256,11 @@ function AomiEvmWalletsOnlyProvider({
     [evmWallets, routing.routedChains, routing.transports],
   );
   const [queryClient] = useState(() => new QueryClient());
-  const shouldUseAuthPlugin = Boolean(authPlugin?.renderComposer);
+  const authPluginAvailable =
+    authPlugin?.isAvailable?.({ auth, providers }) ?? true;
+  const shouldUseAuthPlugin = Boolean(
+    authPlugin?.renderComposer && authPluginAvailable,
+  );
   const wrapWithAuthProvider =
     authPlugin?.wrap ??
     ((props: { children: ReactNode }) => <>{props.children}</>);
@@ -284,6 +283,7 @@ function AomiEvmWalletsOnlyProvider({
                     auth,
                     children,
                     execution,
+                    providers,
                     selectedSolanaNetwork: resolvedSvm.activeNetwork,
                     setSelectedSolanaNetworkId,
                     solanaRuntimeConfig:
@@ -299,12 +299,12 @@ function AomiEvmWalletsOnlyProvider({
                     supportedSolanaNetworks: resolvedSvm.networks,
                   })
                 ) : (
-                  <EvmWalletsOnlyComposerProvider
+                  <EvmExternalWalletComposerProvider
                     execution={execution}
                     supportedChains={routing.routedChains}
                   >
                     {children}
-                  </EvmWalletsOnlyComposerProvider>
+                  </EvmExternalWalletComposerProvider>
                 )}
               </FullTestnetWalletRouter>
             </MaybeSvmWalletProvider>
@@ -315,7 +315,7 @@ function AomiEvmWalletsOnlyProvider({
   );
 }
 
-function AomiSvmOnlyWalletsOnlyProvider({
+function AomiSvmExternalWalletProvider({
   children,
   resolvedSvm,
 }: {
@@ -327,13 +327,15 @@ function AomiSvmOnlyWalletsOnlyProvider({
   return (
     <QueryClientProvider client={queryClient}>
       <MaybeSvmWalletProvider resolvedSvm={resolvedSvm}>
-        <SvmOnlyComposerProvider>{children}</SvmOnlyComposerProvider>
+        <SvmExternalWalletComposerProvider>
+          {children}
+        </SvmExternalWalletComposerProvider>
       </MaybeSvmWalletProvider>
     </QueryClientProvider>
   );
 }
 
-function AomiWalletsOnlyProvider({
+function AomiExternalWalletProvider({
   auth,
   authPlugin,
   children,
@@ -360,14 +362,14 @@ function AomiWalletsOnlyProvider({
 
   if (!evmEnabled) {
     return (
-      <AomiSvmOnlyWalletsOnlyProvider resolvedSvm={resolvedSvm}>
+      <AomiSvmExternalWalletProvider resolvedSvm={resolvedSvm}>
         {children}
-      </AomiSvmOnlyWalletsOnlyProvider>
+      </AomiSvmExternalWalletProvider>
     );
   }
 
   return (
-    <AomiEvmWalletsOnlyProvider
+    <AomiEvmExternalWalletProvider
       auth={auth}
       authPlugin={authPlugin}
       evmWallets={evmWallets}
@@ -377,7 +379,7 @@ function AomiWalletsOnlyProvider({
       setSelectedSolanaNetworkId={setSelectedSolanaNetworkId}
     >
       {children}
-    </AomiEvmWalletsOnlyProvider>
+    </AomiEvmExternalWalletProvider>
   );
 }
 
@@ -385,8 +387,12 @@ export function AomiWalletKitProvider(input: AomiWalletKitProviderInput) {
   const props =
     detectProviderSugar(input) ?? (input as AomiWalletKitProviderProps);
   const authProvider =
-    props.auth !== false && props.auth?.provider ? props.auth.provider : undefined;
-  const authPlugin = authProvider ? getWalletProvider(authProvider) : undefined;
+    props.auth !== false && props.auth?.provider
+      ? props.auth.provider
+      : undefined;
+  const authPlugin = authProvider
+    ? requireWalletProvider(authProvider)
+    : undefined;
   const presetProvider =
     props.preset && props.preset !== "wallets-only" ? props.preset : undefined;
   const provider =
@@ -394,11 +400,8 @@ export function AomiWalletKitProvider(input: AomiWalletKitProviderInput) {
     (authProvider && authPlugin?.authMode !== "additive"
       ? authProvider
       : "none");
-
-  const plugin = getWalletProvider(provider);
-  if (plugin) {
-    return <>{plugin.render(props)}</>;
-  }
+  const plugin =
+    provider === "none" ? undefined : requireWalletProvider(provider);
 
   return (
     <AomiWalletNetworkPreferencesProvider
@@ -415,7 +418,7 @@ export function AomiWalletKitProvider(input: AomiWalletKitProviderInput) {
       storageKey="wallets-only"
     >
       <ExtUserProvider>
-        <AomiWalletsOnlyProvider
+        <AomiExternalWalletProvider
           auth={props.auth}
           authPlugin={authPlugin}
           execution={props.execution}
@@ -423,7 +426,7 @@ export function AomiWalletKitProvider(input: AomiWalletKitProviderInput) {
           wallets={props.wallets}
         >
           {props.children}
-        </AomiWalletsOnlyProvider>
+        </AomiExternalWalletProvider>
       </ExtUserProvider>
     </AomiWalletNetworkPreferencesProvider>
   );

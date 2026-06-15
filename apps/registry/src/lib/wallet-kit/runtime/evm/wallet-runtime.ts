@@ -264,6 +264,8 @@ export function useEvmWalletRuntime({
   const { capabilities } = useSafeCapabilities({
     account: activeEvmConnection?.address as `0x${string}` | undefined,
     connector: activeConnector,
+    stableId: activeEvmConnection?.stableId,
+    walletName: activeEvmConnection?.walletName,
   });
   const registryEvmConnected = registryState.connections.some(
     (connection) => connection.family === "evm",

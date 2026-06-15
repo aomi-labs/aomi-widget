@@ -8,8 +8,7 @@ import {
   isFullTestnet,
   monad,
   monadTestnet,
-  registerAomiParaWalletProvider,
-} from "../../../registry/src";
+} from "@aomi-labs/widget-lib";
 import {
   arbitrum,
   base,
@@ -30,8 +29,6 @@ const walletConnectProjectId =
 const paraApiKey = process.env.NEXT_PUBLIC_PARA_API_KEY;
 const paraEnvironment: "PROD" | "BETA" =
   process.env.NEXT_PUBLIC_PARA_ENVIRONMENT === "PROD" ? "PROD" : "BETA";
-
-registerAomiParaWalletProvider();
 
 const localhost = defineChain({
   id: 31337,

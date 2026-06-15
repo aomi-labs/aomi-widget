@@ -260,7 +260,7 @@ export function planDisconnect(
 ): RegistryCommand[] {
   if (event.type === "user/disconnect-family") {
     const families =
-      event.family === "all" ? (["evm", "solana"] as const) : [event.family];
+      event.family === "all" ? (["evm", "svm"] as const) : [event.family];
     const commands: RegistryCommand[] = [];
     if (families.includes("evm")) {
       for (const connection of state.connections) {
@@ -271,6 +271,9 @@ export function planDisconnect(
           commands.push({ kind: "wagmi/disconnect", uid: connection.uid });
         }
       }
+    }
+    if (families.includes("svm")) {
+      commands.push({ kind: "svm/disconnect" });
     }
     if (event.family === "all") commands.push({ kind: "provider/logout" });
     return commands;

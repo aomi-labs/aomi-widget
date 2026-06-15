@@ -13,6 +13,7 @@
     "./components/assistant-ui/*": "./src/components/assistant-ui/*.tsx",
     "./components/control-bar/*": "./src/components/control-bar/*.tsx",
     "./hooks/*": "./src/hooks/*.ts",
+    "./wallet-kit/internal": "./src/lib/wallet-kit/internal.ts",
     "./styles.css": "./src/themes/default.css",
     "./themes/*.css": "./src/themes/*.css"
   },

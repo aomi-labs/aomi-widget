@@ -44,6 +44,17 @@ describe("detectEvmProviderBrand", () => {
     expect(detectEvmProviderBrand({ isMetaMask: true })).toBe("MetaMask");
   });
 
+  it("ignores injected wallet flags that throw when read", () => {
+    const provider = {
+      isMetaMask: true,
+      get isRainbow() {
+        throw new Error("not found rainbowkit");
+      },
+    };
+
+    expect(detectEvmProviderBrand(provider)).toBe("MetaMask");
+  });
+
   it("returns undefined for unbranded or missing providers", () => {
     expect(detectEvmProviderBrand({})).toBeUndefined();
     expect(detectEvmProviderBrand(null)).toBeUndefined();

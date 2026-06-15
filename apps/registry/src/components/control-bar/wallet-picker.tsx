@@ -47,7 +47,7 @@ type WalletAction = AomiWalletOption & {
 const GENERIC_BROWSER_WALLET_ID = "generic-browser-wallet";
 
 function familyLabel(family: WalletFamily): string {
-  return family === "solana" ? "Solana" : "Ethereum";
+  return family === "svm" ? "Solana" : "Ethereum";
 }
 
 function walletStatusLabel(option: AomiWalletOption): string {
@@ -201,7 +201,7 @@ export function WalletPicker() {
     [adapter.accounts],
   );
   const solanaAccounts = useMemo(
-    () => adapter.accounts.filter((a) => a.family === "solana"),
+    () => adapter.accounts.filter((a) => a.family === "svm"),
     [adapter.accounts],
   );
   const connectedAccounts = useMemo(
@@ -233,7 +233,7 @@ export function WalletPicker() {
       adapter.solanaWallets?.map((wallet) => ({
         id: wallet.name,
         label: wallet.name,
-        family: "solana" as const,
+        family: "svm" as const,
         kind: "solana" as const,
         status: wallet.installed
           ? ("installed" as const)
@@ -250,7 +250,7 @@ export function WalletPicker() {
             await adapter.connectSolanaWallet(wallet.name);
             return;
           }
-          await adapter.connect({ family: "solana" });
+          await adapter.connect({ family: "svm" });
         },
       })) ?? [];
     const genericBrowserWallet: WalletAction[] = adapter.canConnect
@@ -422,7 +422,7 @@ export function WalletPicker() {
                     adapter.disconnect!({
                       ...(account.family === "evm"
                         ? { accountId: account.id }
-                        : { family: "solana" as const }),
+                        : { family: "svm" as const }),
                     }),
                   true,
                 )
@@ -481,8 +481,8 @@ export function WalletPicker() {
       ...actions.filter(
         (a) => a.family === "evm" && a.id !== GENERIC_BROWSER_WALLET_ID,
       ),
-      ...actions.filter((a) => a.family === "solana"),
-      ...actions.filter((a) => a.family !== "evm" && a.family !== "solana"),
+      ...actions.filter((a) => a.family === "svm"),
+      ...actions.filter((a) => a.family !== "evm" && a.family !== "svm"),
       ...actions.filter((a) => a.id === GENERIC_BROWSER_WALLET_ID),
     ];
     return ordered.map(renderWalletActionRow);
@@ -650,7 +650,7 @@ function SectionLabel({ children }: { children: string }) {
  * reads as intentional without a loud full-colour pill.
  */
 function FamilyTag({ family }: { family: WalletFamily }) {
-  const isSolana = family === "solana";
+  const isSolana = family === "svm";
   return (
     <span
       className="text-muted-foreground/70 inline-flex shrink-0 items-center gap-1 text-[10px] font-semibold uppercase tracking-wide"
@@ -825,7 +825,7 @@ function WalletActionRow({
   const actionVerb = linkedMode ? "Link" : "Connect";
   const description =
     wallet.description ??
-    (wallet.family === "solana"
+    (wallet.family === "svm"
       ? `${actionVerb} a Solana wallet`
       : `${actionVerb} an Ethereum wallet`);
   const visibleDescription = linkedMode

@@ -113,10 +113,10 @@ describe("WalletRegistry selectors", () => {
         evm({ uid: "mm", walletName: "MetaMask", address: "0xAAA" }),
         {
           key: "solana:Phantom",
-          family: "solana",
+          family: "svm",
           uid: "Phantom",
           stableId: "Phantom",
-          kind: "solana",
+          kind: "svm",
           address: "9xQpub",
           addresses: ["9xQpub"],
           walletName: "Phantom",
@@ -129,8 +129,8 @@ describe("WalletRegistry selectors", () => {
           uid: "mm",
           stableId: "metaMaskSDK",
         },
-        solana: {
-          family: "solana",
+        svm: {
+          family: "svm",
           address: "9xQpub",
           uid: "Phantom",
           stableId: "Phantom",
@@ -149,7 +149,7 @@ describe("WalletRegistry selectors", () => {
     });
     expect(accounts[0].connectorIds).toEqual(["rb", "mm"]);
     expect(accounts[1]).toMatchObject({
-      family: "solana",
+      family: "svm",
       id: "Phantom",
       address: "9xQpub",
       active: true,

@@ -62,7 +62,7 @@ function makeAdapter(overrides: Partial<AomiWalletKit> = {}): AomiWalletKit {
       },
       {
         id: "phantom",
-        family: "solana",
+        family: "svm",
         address: "9xQpubKey",
         walletName: "Phantom",
         active: true,
@@ -508,7 +508,7 @@ describe("WalletPicker", () => {
           },
           {
             id: "phantom",
-            family: "solana",
+            family: "svm",
             address: "9xQpubKey",
             walletName: "Phantom",
             active: true,

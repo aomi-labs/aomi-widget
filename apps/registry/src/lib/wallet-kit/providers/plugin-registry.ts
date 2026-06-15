@@ -18,23 +18,26 @@ import type { Chain } from "viem";
  * of branching on hardcoded provider names — adding a provider is a
  * `registerWalletProvider(...)` call, not a new `if` in the router.
  *
- * `render` returns the provider's element tree directly, so it is type-checked
- * inline against the provider component's real props (no generic registry, no
- * `any`).
  */
 export type WalletProviderPlugin = {
   id: string;
   authMode?: "additive" | "full";
-  render: (props: AomiWalletKitProviderProps) => ReactNode;
+  /** @deprecated plugins should use `wrap` + `renderComposer`. */
+  render?: (props: AomiWalletKitProviderProps) => ReactNode;
   wrap?: (props: {
     auth?: AuthConfig;
     children: ReactNode;
     providers?: ProvidersConfig;
   }) => ReactNode;
+  isAvailable?: (props: {
+    auth?: AuthConfig;
+    providers?: ProvidersConfig;
+  }) => boolean;
   renderComposer?: (props: {
     auth?: AuthConfig;
     children: ReactNode;
     execution?: ExecutionConfig;
+    providers?: ProvidersConfig;
     solanaRuntimeConfig?: {
       cluster: SvmNetworkOption["cluster"];
       rpcHttpUrl: string;
@@ -61,6 +64,16 @@ export function getWalletProvider(
   id: string,
 ): WalletProviderPlugin | undefined {
   return registry.get(id);
+}
+
+export function requireWalletProvider(id: string): WalletProviderPlugin {
+  const plugin = registry.get(id);
+  if (!plugin) {
+    throw new Error(
+      `[aomi-wallet-kit] Unknown wallet provider "${id}". Import @aomi-labs/widget-lib or the provider module before mounting AomiWalletKitProvider.`,
+    );
+  }
+  return plugin;
 }
 
 /**

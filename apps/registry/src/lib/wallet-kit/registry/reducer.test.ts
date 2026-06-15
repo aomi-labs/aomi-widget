@@ -533,7 +533,7 @@ describe("WalletRegistry reducer", () => {
     });
 
     expect(state.intents.pendingSvmWallet).toBeNull();
-    expect(state.activeByFamily.solana).toMatchObject({
+    expect(state.activeByFamily.svm).toMatchObject({
       address: "sol-pubkey",
       stableId: "Phantom",
     });

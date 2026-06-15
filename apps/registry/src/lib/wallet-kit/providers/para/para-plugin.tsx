@@ -17,7 +17,6 @@ import {
   registerWalletProvider,
   type WalletProviderPlugin,
 } from "../plugin-registry";
-import { AomiParaProvider } from "./para";
 import type { ParaSvmOptions } from "./para-svm";
 import { AomiParaPluginProvider } from "./ParaPluginProvider";
 import { defaultOAuthMethods } from "./para-auth";
@@ -155,33 +154,6 @@ export const paraPlugin: WalletProviderPlugin = {
       {children}
     </AomiParaPluginProvider>
   ),
-  render: (props) => {
-    const para =
-      props.providers?.para === false ? undefined : props.providers?.para;
-    const auth =
-      props.auth !== false && props.auth?.provider === "para"
-        ? props.auth
-        : undefined;
-    const evmWallets =
-      props.wallets?.evm === false ? undefined : props.wallets?.evm;
-    return (
-      <AomiParaProvider
-        apiKey={para?.apiKey}
-        environment={toParaEnvironment(para?.environment)}
-        appName={para?.appName}
-        appDescription={para?.appDescription}
-        appUrl={para?.appUrl}
-        execution={props.execution}
-        networks={evmWallets?.chains}
-        wallets={evmWallets}
-        walletConnectProjectId={evmWallets?.walletConnectProjectId}
-        oAuthMethods={toParaOAuthMethods(auth?.methods)}
-        svm={toProviderSvmOptions(props.wallets?.solana)}
-      >
-        {props.children}
-      </AomiParaProvider>
-    );
-  },
   detectSugar: (input) => {
     if (
       input.auth !== false &&
@@ -208,3 +180,5 @@ export const paraPlugin: WalletProviderPlugin = {
 export function registerAomiParaWalletProvider(): void {
   registerWalletProvider(paraPlugin);
 }
+
+registerAomiParaWalletProvider();

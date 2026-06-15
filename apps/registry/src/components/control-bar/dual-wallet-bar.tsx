@@ -50,7 +50,7 @@ const DualWalletBarInner: FC<DualWalletBarProps> = ({
     (account) => account.family === "evm" && account.active,
   );
   const activeSolanaAccount = adapter.accounts.find(
-    (account) => account.family === "solana" && account.active,
+    (account) => account.family === "svm" && account.active,
   );
   const connectedWallets = families
     .map((family): ConnectedWallet | null =>

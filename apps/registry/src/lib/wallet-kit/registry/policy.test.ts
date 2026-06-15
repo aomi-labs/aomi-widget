@@ -266,6 +266,7 @@ describe("WalletRegistry policy", () => {
     expect(commands).toEqual([
       { kind: "wagmi/disconnect", uid: "para-1" },
       { kind: "wagmi/disconnect", uid: "mm-1" },
+      { kind: "svm/disconnect" },
       { kind: "provider/logout" },
     ]);
   });

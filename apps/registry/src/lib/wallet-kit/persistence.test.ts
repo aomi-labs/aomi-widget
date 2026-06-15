@@ -8,12 +8,12 @@ afterEach(() => {
 describe("wallet preferences persistence", () => {
   it("round-trips preferences", () => {
     saveWalletPreferences("para", {
-      selectedFamily: "solana",
+      selectedFamily: "svm",
       selectedEvmChainId: 8453,
       selectedSolanaNetworkId: "solana-mainnet",
     });
     expect(loadWalletPreferences("para")).toEqual({
-      selectedFamily: "solana",
+      selectedFamily: "svm",
       selectedEvmChainId: 8453,
       selectedSolanaNetworkId: "solana-mainnet",
     });
@@ -33,14 +33,14 @@ describe("wallet preferences persistence", () => {
     expect(loadWalletPreferences("privy")).toEqual({});
   });
 
-  it("migrates svm wire-family preferences back to the solana UI value", () => {
+  it("keeps svm wire-family preferences in the internal vocabulary", () => {
     globalThis.localStorage.setItem(
       "aomi.wallet-preferences.para",
       JSON.stringify({ selectedFamily: "svm" }),
     );
-    expect(loadWalletPreferences("para")).toEqual({ selectedFamily: "solana" });
+    expect(loadWalletPreferences("para")).toEqual({ selectedFamily: "svm" });
     expect(globalThis.localStorage.getItem("aomi.wallet-preferences.para")).toBe(
-      JSON.stringify({ selectedFamily: "solana" }),
+      JSON.stringify({ selectedFamily: "svm" }),
     );
   });
 });

@@ -2,16 +2,15 @@
 
 import type { WalletFamily } from "./types";
 
-type LegacyWireWalletFamily = "evm" | "svm";
+type WireWalletFamily = "evm" | "svm";
+type LegacyWalletFamily = WalletFamily | "solana";
 
-export function toWireWalletFamily(
-  family: WalletFamily,
-): LegacyWireWalletFamily {
+export function toWireWalletFamily(family: LegacyWalletFamily): WireWalletFamily {
   return family === "solana" ? "svm" : family;
 }
 
 export function fromWireWalletFamily(
-  family: WalletFamily | LegacyWireWalletFamily,
+  family: LegacyWalletFamily | WireWalletFamily,
 ): WalletFamily {
-  return family === "svm" ? "solana" : family;
+  return family === "solana" ? "svm" : family;
 }

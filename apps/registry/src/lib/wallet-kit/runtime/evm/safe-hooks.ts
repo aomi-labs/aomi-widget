@@ -24,6 +24,7 @@ import type { Connector } from "wagmi";
 import type { executeWalletCalls } from "@aomi-labs/react";
 import { normalizeAtomicCapabilities } from "../../wallet-execution";
 import { walletDebug } from "../../wallet-debug";
+import { canonicalWalletKey } from "../../catalog/wallet-branding";
 
 export type WagmiAccountShape = {
   address?: `0x${string}`;
@@ -175,18 +176,21 @@ export function useSafeSignMessage(): {
 export function useSafeCapabilities(args?: {
   account?: Address;
   connector?: Connector;
+  stableId?: string;
+  walletName?: string;
 }): {
   capabilities?: Parameters<typeof executeWalletCalls>[0]["capabilities"];
 } {
   try {
-    const { data } = useCapabilities(
-      args?.account && args.connector
-        ? ({
-            account: args.account,
-            connector: args.connector,
-          } as never)
-        : undefined,
-    );
+    const enabled = shouldProbeWalletCapabilities(args);
+    const { data } = useCapabilities({
+      account: args?.account,
+      connector: args?.connector,
+      query: {
+        enabled,
+        retry: false,
+      },
+    } as never);
     return {
       capabilities: normalizeAtomicCapabilities(
         data as Parameters<typeof executeWalletCalls>[0]["capabilities"],
@@ -195,6 +199,30 @@ export function useSafeCapabilities(args?: {
   } catch {
     return { capabilities: undefined };
   }
+}
+
+export function shouldProbeWalletCapabilities(args?: {
+  account?: Address;
+  connector?: Pick<Connector, "id" | "name" | "type" | "uid">;
+  stableId?: string;
+  walletName?: string;
+}): boolean {
+  if (!args?.account || !args.connector) return false;
+
+  const key = canonicalWalletKey(
+    [
+      args.stableId,
+      args.walletName,
+      args.connector.id,
+      args.connector.name,
+      args.connector.type,
+      args.connector.uid,
+    ]
+      .filter(Boolean)
+      .join(" "),
+  );
+
+  return key !== "rabby";
 }
 
 export function useSafeSendCallsSync(): {

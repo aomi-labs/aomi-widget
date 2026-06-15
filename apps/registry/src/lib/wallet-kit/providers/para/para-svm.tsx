@@ -29,7 +29,6 @@ export {
   type SafeSvmWalletState,
   type SvmConnectAttempt,
 } from "../../runtime/svm/wallet-runtime";
-export { buildSvmTransactionMethods as buildParaSolanaMethods } from "../../runtime/svm/transactions";
 
 export type ParaSvmOptions = {
   enabled?: boolean;
@@ -127,9 +126,3 @@ export function ParaSvmWrapper({
     </ParaSolanaProvider>
   );
 }
-
-export type ParaSolanaOptions = ParaSvmOptions;
-export type ResolvedSolanaConfig = ResolvedSvmConfig;
-export const DEFAULT_SOLANA_WALLETS = DEFAULT_SVM_WALLETS;
-export const resolveParaSolanaConfig = resolveParaSvmConfig;
-export const ParaSolanaWrapper = ParaSvmWrapper;

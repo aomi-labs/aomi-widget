@@ -1,24 +1,65 @@
 "use client";
 
-export * from "./context";
-export * from "./aa/owner";
-export * from "./catalog/evm-connector-catalog";
-export * from "./catalog/wallet-branding";
+export {
+  AomiWalletKitContextProvider,
+  useAomiWalletKit,
+} from "./context";
+export {
+  AomiWalletKitProvider,
+  type AomiWalletKitProviderInput,
+  type AomiWalletKitProviderProps,
+} from "./config";
+export type {
+  AomiAccount,
+  AomiAccountCredential,
+  AomiLoginMethod,
+  AomiNetworkTarget,
+  AomiSessionIdentity,
+  AomiSessionStatus,
+  AomiTxResult,
+  AomiWalletKit,
+  AomiWalletOption,
+  PublicWalletFamily,
+  SvmCluster,
+  SvmNetworkOption,
+  SvmWalletDescriptor,
+  WalletFamily,
+} from "./types";
+export {
+  AOMI_SESSION_BOOTING_IDENTITY,
+  AOMI_SESSION_DISCONNECTED_IDENTITY,
+  formatAddress,
+  formatAuthMethod,
+  formatWalletProvider,
+  inferAuthMethod,
+} from "./identity";
+export {
+  AomiWalletNetworkPreferencesProvider,
+  useAomiWalletNetworkPreferences,
+  useOptionalAomiWalletNetworkPreferences,
+} from "./network-preferences";
+export {
+  canonicalWalletKey,
+  normalizeWalletOptionId,
+  registerWalletBrand,
+} from "./catalog/wallet-branding";
 export {
   resolveAomiSvmWalletIds,
   resolveAomiSvmConfig,
   SVM_PRESETS,
 } from "./catalog/svm-wallet-catalog";
-export * from "./catalog/wallet-ids";
-export * from "./config";
-export * from "./execution/aa-provider-state";
-export * from "./full-testnet-wallet-routing";
-export * from "./identity";
-export * from "./network-preferences";
-export * from "./types";
-export * from "./use-wallet-activation-guard";
-export * from "./runtime/evm/brands";
-export * from "./runtime/svm/networks";
-export * from "./wallet-debug";
-export * from "./wallet-execution";
-export * from "./wallet-family";
+export { EVM_PRESETS, SVM_PRESETS as SVM_WALLET_PRESETS } from "./catalog/wallet-ids";
+export type {
+  EvmWalletId,
+  EvmWalletPreset,
+  SvmWalletId,
+  SvmWalletPreset,
+  WalletId,
+} from "./catalog/wallet-ids";
+export {
+  FullTestnetWalletRouter,
+  isFullTestnet,
+  useFullTestnet,
+} from "./full-testnet-wallet-routing";
+export { useWalletActivationGuard } from "./use-wallet-activation-guard";
+export { toWireWalletFamily, fromWireWalletFamily } from "./wallet-family";

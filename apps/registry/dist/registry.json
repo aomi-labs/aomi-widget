@@ -57,6 +57,10 @@
         },
         {
           "type": "registry:component",
+          "path": "lib/wallet-kit/internal.ts"
+        },
+        {
+          "type": "registry:component",
           "path": "lib/wallet-kit/context.tsx"
         },
         {
@@ -114,6 +118,10 @@
         {
           "type": "registry:component",
           "path": "lib/wallet-kit/execution/execution-runtime.ts"
+        },
+        {
+          "type": "registry:component",
+          "path": "lib/wallet-kit/execution/wallet-execution.ts"
         },
         {
           "type": "registry:component",
@@ -543,10 +551,6 @@
         },
         {
           "type": "registry:component",
-          "path": "lib/wallet-kit/providers/para/para.tsx"
-        },
-        {
-          "type": "registry:component",
           "path": "lib/wallet-kit/providers/para/ParaPluginProvider.tsx"
         },
         {
@@ -560,10 +564,6 @@
         {
           "type": "registry:component",
           "path": "lib/wallet-kit/providers/para/para-svm.tsx"
-        },
-        {
-          "type": "registry:component",
-          "path": "lib/wallet-kit/providers/para/para-aa.ts"
         },
         {
           "type": "registry:component",
@@ -627,6 +627,10 @@
         },
         {
           "type": "registry:component",
+          "path": "lib/wallet-kit/execution/wallet-execution.ts"
+        },
+        {
+          "type": "registry:component",
           "path": "lib/wallet-kit/wallet-execution.ts"
         }
       ],
@@ -670,6 +674,10 @@
         {
           "type": "registry:component",
           "path": "lib/wallet-kit/runtime/evm/safe-hooks.ts"
+        },
+        {
+          "type": "registry:component",
+          "path": "lib/wallet-kit/execution/wallet-execution.ts"
         },
         {
           "type": "registry:component",
