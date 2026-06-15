@@ -29,6 +29,7 @@ type Phase =
   | "dry_ready"
   | "deploying"
   | "building"
+  | "releasing"
   | "ready"
   | "activating"
   | "verifying"
@@ -160,7 +161,7 @@ export function DeployStep({
   }, [actor, applyDeployment, installationId, onProgress, path, repo]);
 
   useEffect(() => {
-    if (!deploymentId || (phase !== "building" && phase !== "deploying"))
+    if (!deploymentId || (phase !== "building" && phase !== "deploying" && phase !== "releasing"))
       return;
     let cancelled = false;
     const tick = async () => {
@@ -181,6 +182,16 @@ export function DeployStep({
         onProgress(patch);
         if (status.state === "ready") {
           setPhase("ready");
+          return;
+        }
+        if (status.state === "releasing") {
+          setPhase("releasing");
+          pollRef.current = setTimeout(tick, 3000);
+          return;
+        }
+        if (status.state === "pending") {
+          setPhase("building");
+          pollRef.current = setTimeout(tick, 6000);
           return;
         }
         if (status.state === "failed") {
@@ -356,6 +367,7 @@ export function DeployStep({
           "dry_running",
           "deploying",
           "building",
+          "releasing",
           "activating",
           "verifying",
         ].includes(phase) && (
@@ -369,6 +381,8 @@ export function DeployStep({
         {phase === "deploying" &&
           "Creating or updating the platform deploy branch."}
         {phase === "building" && "Waiting for platform CI and release assets."}
+        {phase === "releasing" &&
+          "Release built — verifying assets."}
         {phase === "ready" && "Build is ready for activation."}
         {phase === "activating" &&
           "Promoting the built release into the live branch."}
@@ -569,6 +583,8 @@ function statusLabel(phase: Phase): string {
       return "Preview ready";
     case "building":
       return "CI pending";
+    case "releasing":
+      return "Verifying assets";
     case "ready":
       return "CI passed";
     case "activating":
