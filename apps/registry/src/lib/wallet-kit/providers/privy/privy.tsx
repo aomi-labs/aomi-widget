@@ -7,5 +7,4 @@ export {
 export {
   AomiPrivyPluginProvider,
   type AomiPrivyPluginProviderProps,
-  type PrivySvmRuntimeConfig,
 } from "./PrivyPluginProvider";

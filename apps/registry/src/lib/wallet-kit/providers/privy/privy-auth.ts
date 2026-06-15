@@ -6,6 +6,7 @@ import {
 } from "@privy-io/react-auth";
 import { useSolanaWallets } from "@privy-io/react-auth/solana";
 import { useSmartWallets } from "@privy-io/react-auth/smart-wallets";
+import type { Chain } from "viem";
 import type { AomiLoginMethod } from "../../types";
 import { toSocialLoginOption } from "../../runtime/evm/brands";
 
@@ -149,4 +150,39 @@ export function privyLoginMethodsToOptions(
     )
     .filter((method): method is AomiLoginMethod => Boolean(method))
     .map(toSocialLoginOption);
+}
+
+/**
+ * Single source of truth for the Privy client config shared by the standalone
+ * `AomiPrivyProvider` and the additive `PrivyAuthLayer`. The standalone provider
+ * passes the extra `defaultChain`/`supportedChains`/`walletConnectProjectId`
+ * fields; the additive layer omits them.
+ */
+export function buildPrivyClientConfig(opts: {
+  appLogoUrl?: string;
+  appName?: string;
+  loginMethods?: PrivyClientConfig["loginMethods"];
+  defaultChain?: Chain;
+  supportedChains?: readonly Chain[];
+  walletConnectProjectId?: string;
+}): PrivyClientConfig {
+  return {
+    appearance: {
+      walletList: ["detected_wallets", "metamask", "wallet_connect"],
+      logo: opts.appLogoUrl,
+    },
+    embeddedWallets: {
+      ethereum: { createOnLogin: "users-without-wallets" },
+      solana: { createOnLogin: "all-users" },
+    },
+    loginMethods: opts.loginMethods,
+    ...(opts.defaultChain ? { defaultChain: opts.defaultChain } : {}),
+    ...(opts.supportedChains
+      ? { supportedChains: opts.supportedChains as unknown as Chain[] }
+      : {}),
+    ...(opts.walletConnectProjectId
+      ? { walletConnectCloudProjectId: opts.walletConnectProjectId }
+      : {}),
+    ...(opts.appName ? { appName: opts.appName } : {}),
+  } as PrivyClientConfig;
 }

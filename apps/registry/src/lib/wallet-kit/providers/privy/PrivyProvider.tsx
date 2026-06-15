@@ -25,16 +25,11 @@ import {
   AomiWalletNetworkPreferencesProvider,
   useAomiWalletNetworkPreferences,
 } from "../../network-preferences";
-import {
-  normalizeSvmNetworkOptions,
-  resolveSelectedSvmNetwork,
-} from "../../catalog/svm-networks";
-import type { SvmNetworkOption } from "../../types";
+import { normalizeSvmNetworkOptions } from "../../catalog/svm-networks";
+import type { SvmCluster, SvmNetworkOption } from "../../types";
 import type { EvmWalletsConfig, ExecutionConfig } from "../../config/types";
-import {
-  AomiPrivyPluginProvider,
-  type PrivySvmRuntimeConfig,
-} from "./PrivyPluginProvider";
+import { AomiPrivyPluginProvider } from "./PrivyPluginProvider";
+import { buildPrivyClientConfig } from "./privy-auth";
 
 const defaultNetworks = [
   mainnet,
@@ -59,7 +54,7 @@ export type AomiPrivyProviderProps = {
   execution?: ExecutionConfig;
   solana?: {
     networks?: readonly SvmNetworkOption[];
-    cluster?: PrivySvmRuntimeConfig["cluster"];
+    cluster?: SvmCluster;
     rpcHttpUrl?: string;
     rpcWsUrl?: string;
     preferDirectSend?: boolean;
@@ -76,28 +71,11 @@ function AomiPrivyProviderInner({
   loginMethods,
   execution,
   walletConnectProjectId = process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID,
-  solana,
 }: AomiPrivyProviderProps) {
   const [queryClient] = useState(() => new QueryClient());
-  const { selectedEvmChainId, selectedSolanaNetworkId } =
-    useAomiWalletNetworkPreferences();
+  const { selectedEvmChainId } = useAomiWalletNetworkPreferences();
   const defaultEvmChain =
     networks.find((chain) => chain.id === selectedEvmChainId) ?? networks[0];
-  const resolvedSvmConfig = useMemo<PrivySvmRuntimeConfig>(() => {
-    const supportedNetworks = normalizeSvmNetworkOptions(solana);
-    const activeNetwork = resolveSelectedSvmNetwork(
-      supportedNetworks,
-      selectedSolanaNetworkId,
-    );
-    return {
-      networks: supportedNetworks,
-      activeNetwork,
-      cluster: activeNetwork.cluster,
-      rpcHttpUrl: activeNetwork.rpcHttpUrl,
-      rpcWsUrl: activeNetwork.rpcWsUrl,
-      preferDirectSend: solana?.preferDirectSend ?? true,
-    };
-  }, [selectedSolanaNetworkId, solana]);
   const wagmiConfig = useMemo(
     () =>
       createAomiEvmConfig({
@@ -119,7 +97,6 @@ function AomiPrivyProviderInner({
       <WagmiProvider config={wagmiConfig}>
         <SmartWalletsProvider>
           <AomiPrivyPluginProvider
-            solanaConfig={resolvedSvmConfig}
             supportedChains={networks}
             loginMethods={loginMethods}
             execution={execution}
@@ -136,25 +113,14 @@ function AomiPrivyProviderInner({
   return (
     <PrivyAuthProvider
       appId={appId}
-      config={
-        {
-          appearance: {
-            walletList: ["detected_wallets", "metamask", "wallet_connect"],
-            logo: appLogoUrl,
-          },
-          embeddedWallets: {
-            ethereum: { createOnLogin: "users-without-wallets" },
-            solana: { createOnLogin: "all-users" },
-          },
-          defaultChain: defaultEvmChain,
-          supportedChains: networks as unknown as Chain[],
-          loginMethods,
-          ...(walletConnectProjectId
-            ? { walletConnectCloudProjectId: walletConnectProjectId }
-            : {}),
-          appName,
-        } as PrivyClientConfig
-      }
+      config={buildPrivyClientConfig({
+        appLogoUrl,
+        appName,
+        loginMethods,
+        defaultChain: defaultEvmChain,
+        supportedChains: networks,
+        walletConnectProjectId,
+      })}
     >
       {adapter}
     </PrivyAuthProvider>
@@ -183,7 +149,6 @@ export function AomiPrivyProvider({
           {...rest}
           networks={networks}
           wallets={wallets}
-          solana={solana}
         />
       </ExtUserProvider>
     </AomiWalletNetworkPreferencesProvider>
