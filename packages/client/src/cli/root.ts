@@ -9,6 +9,7 @@ import { walletDef } from "./commands/defs/wallet";
 import { configDef } from "./commands/defs/config";
 import { secretDef } from "./commands/defs/secret";
 import { accountDef } from "./commands/defs/account";
+import { deployDef } from "./commands/defs/deploy";
 import { globalArgs } from "./commands/defs/shared";
 import packageJson from "../../package.json";
 
@@ -23,6 +24,7 @@ const SUBCOMMAND_NAMES = new Set([
   "config",
   "secret",
   "account",
+  "deploy",
 ]);
 
 export const root = defineCommand({
@@ -71,5 +73,6 @@ export const root = defineCommand({
     config: configDef,
     secret: secretDef,
     account: accountDef,
+    deploy: deployDef,
   },
 });
