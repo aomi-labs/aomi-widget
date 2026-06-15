@@ -1,842 +1,919 @@
-# Wallet Provider Plugin Refactor Plan
+# Wallet Kit — Clean Architecture & Finish-Line Migration
 
-> Canonical plan as of **2026-06-13**. Supersedes the prior revision of this
-> file and the earlier branch planning notes.
+> Single source of truth for finishing the wallet-kit refactor. Supersedes all
+> prior revisions of this document. Written to be executed **sequentially** by an
+> agent: every phase has a checklist, the files it touches, and the exact
+> verification commands that must pass before moving on. The final phase is a
+> whole-migration gate plus a manual landing matrix.
 
-## Purpose
+---
 
-The wallet/auth layer must not be permanently shaped around Para. Aomi core
-should own the wallet/account runtime; Para, Privy, Base Account, and a future
-custom/Better-Auth provider are **optional capability plugins**. A client must
-be able to run with Para, with Privy, with normal wallets and no hosted auth, or
-with their own connectors — without rewriting the integration.
+## 0. Where we are (re-baseline)
 
-This is **one big PR that finalizes the decoupling**, landed as a sequence of
-independently-green, individually-committed phases (P0–P8). The end state:
+The wallet kit lives in `apps/registry/src/lib/wallet-kit/`. An earlier pass
+(the "P3 cleanup sweep", tiers 1–3) already landed real structure, so **the
+target folder layout mostly exists**:
 
-- Everything that works today keeps working (Para auth, MetaMask/Rabby/
-  WalletConnect, Phantom/Solflare, switching, AA, network switching).
-- **Lost wallets are restored**: an Aomi-owned connector catalog supplies
-  EIP-6963 + WalletConnect + Coinbase in every mode, with Base Account available
-  everywhere when explicitly requested. Para's modal becomes auth-only.
-- **One composition path**: Para, Privy, and Base all flow through
-  `AomiWalletKitComposer`; no provider hand-builds the adapter.
-- **Wallets-only / no-auth is a first-class, shipped mode.**
-- **Account abstraction works without a hosted session** (external-wallet 4337).
-- Public surface is **capability-shaped** (`auth` / `wallets` / `execution` /
-  `account`) with presets; vendor config is sugar that compiles to lanes.
-- A typed, stub Account Runtime seam exists so the Better-Auth backend lights up
-  stored/linked wallet rows with zero composer changes. Persistence stays the
-  localStorage registry key until then.
+- `config/` capability-shaped public config (`AomiWalletKitProvider.tsx`, `types.ts`, `execution.ts`).
+- `composer/` one build path (`AomiWalletKitComposer.tsx`, `build-identity.ts`, `build-accounts.ts`, `merge-wallet-rows.ts`, `types.ts`).
+- `catalog/` Aomi-owned connector catalog (`evm-connector-catalog.ts`, `svm-wallet-catalog.ts`, `wallet-branding.ts`, `wallet-ids.ts`).
+- `runtime/evm/` + `runtime/svm/`, `registry/`, `execution/`, `account/`, `providers/{para,privy,base-account}/`, `providers/plugin-registry.ts`.
 
-## Locked Decisions (2026-06-13)
+What is **good and stays**: the `registry/` core (pure reducer + policy +
+`planCommands` + store; active-wallet-per-family as the single source of truth).
+This is the part that earned its complexity.
 
-Do not re-litigate during execution.
+What is **still wrong** (the four seams this plan closes):
 
-1. **One big PR**, sequenced as commit-sized phases P0–P8, each independently
-   green. (May be split into a stacked series only if review load demands it;
-   the phase boundaries are the split points.)
-2. **Naming: the wallet/account layer is `AomiWalletKit*`.** `AomiRuntime*` is
-   already taken by the chat widget (`@aomi-labs/react` exports
-   `AomiRuntimeProvider` / `AomiRuntimeApi` / `useAomiRuntime`). Adapter type
-   `AomiWalletKit → AomiWalletKit`; entry `AomiWalletProvider →
-   AomiWalletKitProvider`; hook `useAomiWalletKit → useAomiWalletKit`.
-3. **Every renamed symbol keeps a `@deprecated` alias for 1–2 releases.**
-   Consumers exist via npm (`@aomi-labs/widget-lib`, `@aomi-labs/react`
-   0.3.x, `@aomi-labs/client` 0.1.x) and the shadcn-style registry; nothing
-   breaks on merge.
-4. **Aomi owns one isolated wagmi config + connector catalog.** Hosts add
-   connectors via `wallets.evm.connectors` (data), never by mounting their own
-   `WagmiProvider`. Adopting a host `WagmiProvider` is deferred.
-5. **Easy presets use Aomi defaults; production hosts override.** WalletConnect
-   ships an Aomi default projectId. Para may ship an Aomi default project only
-   if we are comfortable that quickstart users belong to the Aomi Para app; docs
-   must recommend client-owned credentials for production branding, limits,
-   analytics, and account ownership. Exactly one `walletConnect()` connector
-   lives in the catalog; a host passes a projectId, not a WC connector.
-6. **Connect UI is Aomi-owned.** The picker renders installed (EIP-6963) +
-   WalletConnect + Coinbase rows; clicking WalletConnect opens WC's own QR
-   modal. No hosted-provider modal is needed for wallets.
-7. **Config is presets + override + BYO.** Public shape is
-   `wallets: { evm, solana, embedded }`. Embedded is usually omitted (inferred
-   from the selected session provider).
-8. **Base Account is fully replumbed but not default**: a `baseAccount()`
-   connector in the EVM catalog plus a Base execution policy, enabled only by an
-   explicit wallet list/preset override. It is no longer a top-level provider
-   mode and no longer hand-builds an adapter.
-9. **`walletProvider` splits into `sessionProvider` / `embeddedProvider` /
-   `walletSource`.** Types land now; the `/api/state` payload migration is
-   deferred with the backend. `walletProvider` stays a deprecated alias and maps
-   only to `sessionProvider ?? embeddedProvider ?? null`; never encode
-   `walletSource` into the legacy provider field. Do not reuse
-   `identity.authProvider`: on `origin/main` it already exists as a deprecated
-   alias for `authMethod`.
-10. **Account abstraction owner is provider-supplied and session-optional.** The
-    `@aomi-labs/client` `AAOwner` union gains an **additive** `external-wallet`
-    variant; the CLI's `direct` path and Para's `session` path are untouched.
-    Wallets-only/Privy get real AA. 7702→4337 fallback for external signers
-    stays.
-11. **Canonical auth is singular; linked providers are plural.** One Aomi
-    session (Better Auth, later). Multiple providers/embedded wallets link under
-    one canonical user and are switchable; hosted SDKs mount **lazily**, one
-    driving at a time. Two live embedded SDKs as concurrent signers is deferred.
-12. **A stored backend wallet is read-visible only.** Write authority is a
-    separate, backend-owned approval record (impersonation risk, 06-10 meeting).
-    We reserve `capability?: "read" | "write"`; we do not enforce.
-13. **"Preview" is dropped** — it was a mis-transcription of "Privy." Privy
-    embedded wallets cover it.
+1. **Two public entry points that disagree.** `config/AomiWalletKitProvider.tsx`
+   (capability config + plugin registry, the additive `wrap`+`renderComposer`
+   path) **and** `providers/index.tsx`'s `AomiWalletProvider` union (the
+   `provider="..."` branch → `render` path). The landing Para demo uses the
+   first; the Privy demo uses the second. `providers/para/para.tsx` (294 LOC) +
+   `paraPlugin.render` are a **dead second mount path** reachable only from a dev
+   driver. The capability provider also nests **8 provider components** with
+   misleading names (`WalletsOnlyComposerProvider` is used even when auth is
+   present; `EvmWalletsOnlyComposerProvider` wraps it).
+2. **EVM is a real runtime; SVM is call-site glue.** `runtime/evm/wallet-runtime.ts`
+   is a ~30-field hook (identity, accounts, connect/disconnect/switch, execution
+   primitives). `SvmWalletRuntime` is a 5-field object literal hand-assembled at
+   three call sites; SVM connect/disconnect/network/identity logic is smeared
+   across `AomiWalletKitComposer.tsx` (~120 lines) plus free functions, and SVM
+   connect is driven imperatively inside `runtime/svm/registry-source.ts`,
+   bypassing `planCommands`. **Full symmetry is in scope.**
+3. **Half-finished `svm`/`solana` rename.** Internal types are `Svm*`; the public
+   adapter and the registry say `solana`; ~17 `Solana* = Svm*` deprecated aliases
+   bridge the two, and the boundary runs through the middle of files. The
+   composer still takes both `svm` and a deprecated `solana` prop side by side.
+4. **Duplication, leaky surface, consumer foot-guns.** `providers/para/para-aa.ts`
+   (218 LOC) is ~95% a copy of `execution/aa-provider-state.ts` (with a drifted
+   Alchemy/Pimlico precedence). `index.ts` re-exports ~100 symbols via 13
+   `export *` (debug, wire helpers, execution engine, AA internals). The consumer
+   must call `registerAomiParaWalletProvider()` as a bare side effect or the
+   provider **silently degrades** to wallets-only. Landing imports the kit via
+   `../../../registry/src` relative paths and reaches into `providers/para` from
+   dev drivers.
 
-## Target Mental Model — Capability Lanes
+---
 
-Aomi core owns the registry, connector catalog, composer, and adapter. Providers
-supply lanes. Color/ownership:
+## 1. Target architecture
 
-- **Aomi-owned (always):** WalletRegistry, EVM/SVM connector catalog, wallet
-  runtimes, composer, `AomiWalletKit` adapter, picker UI, account merge.
-- **Plugin-supplied (optional):** auth (login/methods/credential), embedded
-  wallets, AA execution owner/policy, account UI.
+**Capability lanes.** Aomi core owns the registry, the connector catalog, the
+chain runtimes, the composer, the `AomiWalletKit` adapter, the picker UI, and the
+account merge. Providers supply optional lanes and nothing else: **auth**
+(login/methods/credential), **embedded wallets**, an **AA signer/owner**, and an
+optional **account UI**. Core consumes generic lane interfaces and never asks
+"is this Para?" outside `providers/<id>/`.
 
-```
-AomiWalletKitProvider  (capability config: auth · wallets · execution · account)
-        │
-        ▼
-   ┌────────────── capability lanes ──────────────┐
-   Auth      Wallet (EVM/SVM catalog)   Embedded   Execution   Account(stub)
-   │  (Para/Privy/none)   (Aomi)       (provider)  (provider)   (Aomi/backend)
-   └──────────────────────┬───────────────────────┘
-                          ▼
-       WalletRegistry ── AomiWalletKitComposer   (one build path)
-                          ▼
-                   AomiWalletKit (adapter)  ──►  Aomi widget UI + runtime
-```
+### Layer ownership
 
-A plugin may fill several lanes (Para → auth + embedded + AA owner). Aomi core
-consumes generic lane interfaces and never asks "is this Para?" outside
-`providers/<provider>/`.
-
-## Naming Map (old → new)
-
-Every old name remains as a `@deprecated export` alias for 1–2 releases.
-
-| Today | Target | Notes |
+| Layer | Owns | Must NOT contain |
 | --- | --- | --- |
-| `AomiWalletKit` | `AomiWalletKit` | the assembled runtime object |
-| `useAomiWalletKit` | `useAomiWalletKit` | context hook |
-| `AomiWalletKitProvider` | `AomiWalletKitContextProvider` | context wrapper |
-| `AomiWalletProvider` (union) | `AomiWalletKitProvider` | public entry, now capability-shaped |
-| `AomiSessionIdentity` | `AomiSessionIdentity` | current-session identity |
-| `AomiSessionStatus` | `AomiSessionStatus` | — |
-| `socialLoginOptions` / `connectSocial` | `authMethods` / `authenticate` | not all auth is "social" |
-| `evmWallets` / `solanaWallets` (+ `connectEvmWallet` / `connectSolanaWallet`) | `walletOptions` (family-tagged) / `connectWallet(optionId)` | one list, family is a field |
-| `AomiWalletProvider` type `"para"\|"privy"\|"base-account"` | split → `sessionProvider` / `embeddedProvider` / `walletSource` | see Identity Split |
-| `WalletFamily = "evm" \| "solana"` | public stays `"solana"`; **wire/internal use `"svm"`** | delete `WireWalletFamily` duality; drop `@deprecated solana` aliases |
-| `para/logout` command | `provider/logout` | already partly done |
-
-Optional, cuttable: rename the folder `lib/wallet-kit/ →
-lib/aomi-wallet-kit/`. Default: keep the folder name for import-path /
-registry-artifact stability; rename only if P8 has slack.
-
-## Public API — Exact Structs
-
-`config/types.ts` (new). Canonical config keeps provider SDK/bootstrap config
-separate from capability selection. Flat vendor config may remain as ergonomic
-sugar, but normalizes into this shape.
-
-```ts
-export type AuthProviderId = "para" | "privy" | "custom" | "none";
-
-export type AuthMethodId =
-  | "google" | "apple" | "x" | "discord" | "github"
-  | "farcaster" | "telegram" | "email" | "phone" | "passkey"
-  | "wallet"; // reserved for SIWE — NOT built this PR
-
-export type ProvidersConfig = {
-  para?: {
-    apiKey?: string;                      // omitted → Aomi default, if enabled
-    environment?: "PROD" | "BETA";
-    appName?: string;
-    appDescription?: string;
-    appUrl?: string;
-  } | false;
-  privy?: {
-    appId?: string;                       // omitted → Aomi default only if we choose to ship one
-    appName?: string;
-    appLogoUrl?: string;
-  } | false;
-};
-
-export type AuthConfig =
-  | { provider: "para"; methods?: readonly AuthMethodId[] }
-  | { provider: "privy"; methods?: readonly AuthMethodId[] }
-  | { provider: "custom"; getSession: () => Promise<AomiSession | null>;
-      login: () => Promise<void>; logout: () => Promise<void> }
-  | false; // wallets-only / no hosted auth
-
-export type WalletId =
-  // evm
-  | "metamask" | "rabby" | "coinbase" | "rainbow" | "walletconnect" | "baseAccount"
-  // svm
-  | "phantom" | "solflare" | "backpack" | "glow"
-  | (string & {}); // host custom
-
-export type EvmWalletPreset = "popular" | "evm-only" | "minimal";
-export type SvmWalletPreset = "popular" | "minimal";
-
-export type EvmWalletsConfig = {
-  chains?: readonly Chain[];
-  preset?: EvmWalletPreset;                       // sugar → wallets[]
-  wallets?: readonly WalletId[];                  // explicit allowlist + order
-  connectors?: readonly CreateConnectorFn[];      // BYO wagmi connectors
-  walletConnectProjectId?: string;                // overrides the Aomi default
-  coinbase?: boolean;                             // default true
-  appName?: string;                               // defaults from provider/top-level metadata or "Aomi"
-  appLogoUrl?: string;
-  transports?: Record<number, Transport>;
-};
-
-export type SvmWalletsConfig = {
-  preset?: SvmWalletPreset;
-  wallets?: readonly WalletId[];
-  networks?: readonly SvmNetworkOption[];
-  preferDirectSend?: boolean;
-};
-
-export type EmbeddedConfig = { provider: "para" | "privy" | "aomi" } | false;
-
-export type WalletsConfig = {
-  evm?: EvmWalletsConfig | false;
-  solana?: SvmWalletsConfig | false;
-  embedded?: EmbeddedConfig;   // usually omitted — inferred from the selected session provider
-};
-
-export type ExecutionConfig = {
-  aa?: "off" | "optional" | "required";
-  modes?: ReadonlyArray<"4337" | "7702">;
-  owner?: "auto" | "external-wallet" | "provider-session";
-  sponsorship?: SponsorshipConfig;
-};
-
-export type AccountConfig =
-  | { mode: "disabled" }
-  | { mode: "aomi-backend"; baseUrl?: string }; // same-origin cookie fetch (deferred wiring)
-
-export type AomiWalletKitProviderProps = {
-  preset?: "para" | "privy" | "wallets-only"; // expands to the fields below
-  providers?: ProvidersConfig;
-  auth?: AuthConfig;
-  wallets?: WalletsConfig;
-  execution?: ExecutionConfig;
-  account?: AccountConfig;
-  requirements?: AppWalletRequirements;
-  children: React.ReactNode;
-};
-
-export type AomiWalletKitProviderInput =
-  | AomiWalletKitProviderProps
-  | {
-      /** sugar only: normalized into providers.para + auth.provider */
-      auth: { provider: "para"; apiKey?: string; environment?: "PROD" | "BETA";
-              methods?: readonly AuthMethodId[]; appName?: string; appDescription?: string };
-      children: React.ReactNode;
-    }
-  | {
-      /** sugar only: normalized into providers.privy + auth.provider */
-      auth: { provider: "privy"; appId?: string; methods?: readonly AuthMethodId[]; appName?: string };
-      children: React.ReactNode;
-    };
-```
-
-Usage:
-
-```tsx
-// Para auth + Aomi-owned wallets + embedded (implicit)
-<AomiWalletKitProvider
-  providers={{ para: { apiKey, environment: "PROD", appName } }}
-  auth={{ provider: "para", methods: ["google", "email"] }}
-  wallets={{
-    evm: { preset: "popular", chains, walletConnectProjectId },
-    solana: { preset: "popular", networks },
-  }}
-  execution={{ aa: "optional", sponsorship }}
-/>
-
-// Wallets-only — first-class, no hosted auth
-<AomiWalletKitProvider preset="wallets-only" />
-// expands to: auth=false, wallets={ evm:{preset:"popular"}, solana:{preset:"popular"} },
-//             execution={ aa:"optional" }, account={ mode:"disabled" }
-
-// Easiest Para quickstart — uses Aomi defaults where configured
-<AomiWalletKitProvider preset="para" />
-
-// BYO connector + explicit allowlist
-<AomiWalletKitProvider
-  auth={false}
-  wallets={{ evm: { wallets: ["metamask", "walletconnect"], connectors: [myConnector] } }}
-/>
-```
-
-Ergonomic sugar is allowed for migration/quickstart, but is not the canonical
-mental model:
-
-```tsx
-<AomiWalletKitProvider auth={{ provider: "para", apiKey, methods: ["google"] }} />
-// normalizes to providers.para.apiKey + auth.provider/methods
-```
-
-## Core Lane Interfaces — Exact Structs
-
-`composer/types.ts` (target):
-
-```ts
-export type AuthRuntime = {
-  provider: AuthProviderId;
-  status: "booting" | "authenticated" | "unauthenticated";
-  subject?: string;             // provider subject — NOT the canonical Aomi user id
-  primaryLabel?: string;
-  authMethod?: AuthMethodId;
-  authValue?: string;
-  methods: readonly AuthMethodOption[];
-  canOpenModal: boolean;
-  login?: (reason: string, methodId?: string) => Promise<void>;
-  logout?: () => Promise<void>;
-  openAccountUI?: (reason: string, step?: string) => Promise<void>;
-  startFlow?: (reason: string) => void;
-  getCredential?: () => Promise<AomiAccountCredential | null>;
-};
-
-export type AuthMethodOption = {
-  id: string; label: string; provider: AuthProviderId;
-  kind: AuthMethodId; iconUrl?: string;
-};
-
-export type WalletRuntime<F extends WalletFamily> = {
-  family: F;
-  status: "ready" | "unavailable";
-  accounts: readonly WalletAccount[];
-  options: readonly WalletOption[];       // was evmWalletOptions / solana descriptors
-  activeAccount?: WalletAccount;
-  supportedNetworks: readonly NetworkOption[];
-  connect: (optionId?: string) => Promise<void>;
-  disconnect: (accountId?: string) => Promise<void>;
-  selectAccount: (accountId: string) => Promise<void>;
-  selectNetwork?: (networkId: string | number) => Promise<void>;
-  // EVM impl also exposes: registryStore, registryState, selectEvmIdentity,
-  // selectAccounts, getWalletClientFor, *Async signing primitives, etc.
-};
-
-export type EmbeddedWalletRuntime = {
-  provider: "para" | "privy" | "aomi";
-  status: "ready" | "unavailable";
-  accounts: readonly WalletAccount[];     // family-tagged, source: "embedded"
-  createOrConnect?: (family?: WalletFamily) => Promise<void>;
-  openWalletUI?: () => Promise<void>;
-};
-
-export type ExecutionRuntime = {
-  evm?: EvmExecutionRuntime;
-  svm?: SvmExecutionRuntime;              // NEW — symmetric with EVM
-  sponsorship: SponsorshipState;
-};
-
-export type EvmExecutionRuntime = {
-  sendTransaction: (p: WalletTxPayload) => Promise<AomiTxResult>;
-  signTypedData: (p: WalletEip712Payload) => Promise<{ signature: string }>;
-  signMessage:  (p: WalletEip712Payload) => Promise<{ signature: string }>;
-  resolveAAOwner?: AAOwnerResolver;       // provider-supplied; session-optional
-  activeConnector?: Connector;
-  capabilities?: WalletExecutionKitState["capabilities"];
-  chainsById: Record<number, Chain>;
-  currentChainId?: number;
-  walletClient: WalletClient | undefined;
-  getWalletClientFor: EvmWalletRuntime["getWalletClientFor"];
-  shouldUseExternalSigner: boolean;
-  sendCallsSyncAsync: EvmWalletRuntime["sendCallsSyncAsync"];
-  sendTransactionAsync: EvmWalletRuntime["sendTransactionAsync"];
-  switchChainAsync: EvmWalletRuntime["switchChainAsync"];
-  signMessageAsync: EvmWalletRuntime["signMessageAsync"];
-  signTypedDataAsync: EvmWalletRuntime["signTypedDataAsync"];
-};
-
-export type SvmExecutionRuntime = {
-  signTransaction: (p: WalletSolanaSignPayload) => Promise<{ signedTx: string }>;
-  signMessage?: (p: WalletSolanaSignMessagePayload) => Promise<{ signature: string }>;
-  sendTransaction?: (p: WalletSolanaSignPayload) => Promise<{ signature: string; signedTx?: string }>;
-  signAndSendTransaction?: (p: WalletSolanaSignPayload) => Promise<{ signature: string; signedTx?: string }>;
-};
-
-// The owner is resolved by the active provider; no hosted session is required
-// for an external-wallet owner.
-export type AAOwnerResolver = (ctx: {
-  requestedMode: "4337" | "7702";
-  shouldUseExternalSigner: boolean;
-  walletClient?: WalletClient;
-  address?: Hex;
-}) => Promise<AomiAAOwnerInput | null>;
-
-export type AccountRuntime = {
-  status: "disabled" | "loading" | "ready" | "error";
-  user?: AomiUserRef;
-  linkedAccounts: readonly LinkedAuthAccount[];
-  wallets: readonly AccountWallet[];
-  refresh: () => Promise<void>;
-  linkWallet?: (accountId: string) => Promise<void>;
-  unlinkWallet?: (walletId: string) => Promise<void>;
-};
-```
-
-## Identity Split — Exact Structs
-
-`types.ts` (target additions; existing fields unchanged):
-
-```ts
-export type SessionProvider = "para" | "privy" | "custom";
-export type EmbeddedProvider = "para" | "privy" | "aomi";
-export type WalletSource =
-  | "injected" | "walletconnect" | "coinbase" | "baseAccount"
-  | "embedded" | "stored";
-
-export type AomiSessionIdentity = {
-  // ...all existing AomiSessionIdentity fields...
-  /**
-   * Who logged the user in. Intentionally not named `authProvider`: on
-   * origin/main, `authProvider` is a deprecated alias for `authMethod`.
-   */
-  sessionProvider?: SessionProvider;
-  embeddedProvider?: EmbeddedProvider; // platform backing an embedded wallet
-  walletSource?: WalletSource;         // how the active wallet connects / signs
-  /** @deprecated use sessionProvider/embeddedProvider; kept until /api/state migration */
-  walletProvider?: AomiWalletProvider;
-};
-
-/** @deprecated use AomiSessionIdentity */
-export type AomiSessionIdentity = AomiSessionIdentity;
-```
-
-`context.tsx`'s `AomiWalletKitSync` keeps writing `walletProvider` to
-`UserState` this PR (payload frozen — decision 9). When the backend migration
-lands, it switches to the migrated provider fields.
-
-Compatibility rule until `/api/state` migrates:
-
-```ts
-legacyWalletProvider = sessionProvider ?? embeddedProvider ?? null;
-```
-
-Do **not** encode signer source into the legacy provider field. For example,
-Para auth + MetaMask signer remains legacy `connection.provider: "para"` even
-though the frontend identity knows `walletSource: "injected"`. Wallets-only
-MetaMask sends `connection.provider: null` plus `evm.address`.
-
-Backend migration note: when we coordinate backend work, expand
-`user_state.connection` additively instead of overloading `provider`:
-
-```ts
-connection: {
-  provider?: AomiWalletProvider | null; // deprecated legacy alias
-  auth_provider?: SessionProvider | null;
-  embedded_provider?: EmbeddedProvider | null;
-  wallet_source?: WalletSource | null;
-}
-```
-
-## Account-Abstraction Owner — Exact Change
-
-`packages/client/src/aa/owner.ts` — **additive only** (`AAOwner` is defined
-there on `origin/main` and re-exported from `aa/create.ts`):
-
-```ts
-export type AAOwner =
-  | { kind: "direct"; privateKey: `0x${string}` }                       // CLI — UNCHANGED
-  | { kind: "session"; adapter: string; session: unknown;              // Para embedded — UNCHANGED
-      signer?: unknown; address?: Hex }
-  | { kind: "external-wallet"; signer: unknown; address: Hex };        // NEW
-```
-
-`aa/owner.ts` — convert lane owner inputs
-to `@aomi-labs/client` owners:
-
-```ts
-export type AomiAAOwnerInput =
-  | { kind: "provider-session"; provider: "para" | "privy"; session: unknown;
-      signer?: unknown; address?: Hex }
-  | { kind: "external-wallet"; walletClient: unknown; address: Hex }   // now IMPLEMENTED
-  | { kind: "direct"; privateKey: `0x${string}` };
-
-export function toClientAAOwner(owner: AomiAAOwnerInput): AAOwner {
-  switch (owner.kind) {
-    case "provider-session":
-      return { kind: "session", adapter: owner.provider, session: owner.session,
-               signer: owner.signer, address: owner.address };
-    case "external-wallet":
-      return { kind: "external-wallet", signer: owner.walletClient, address: owner.address };
-    case "direct":
-      return { kind: "direct", privateKey: owner.privateKey };
-  }
-}
-```
-
-In `@aomi-labs/client`'s smart-account builder, add `kind:
-"external-wallet"` owner support (viem WalletClient → account/signer) without
-touching the `direct` (CLI) or `session` (Para) branches. The exact extraction
-may be provider-specific (Alchemy vs Pimlico); either implement both with tests
-or scope v1 to one provider and fail clearly for the other. Para's resolver
-keeps requiring a session for its embedded case; the generic/wallets-only
-resolver builds `external-wallet` owners and never gates on a hosted session.
-Keep the 7702→4337 fallback for external signers.
-
-## Connector Catalog — Exact Structs
-
-`catalog/evm-connector-catalog.ts` (new):
-
-```ts
-export const AOMI_DEFAULT_WC_PROJECT_ID =
-  process.env.NEXT_PUBLIC_AOMI_WC_PROJECT_ID ?? "<aomi-shared-default-projectid>";
-
-export const EVM_PRESETS: Record<EvmWalletPreset, readonly WalletId[]> = {
-  popular:    ["metamask", "rabby", "coinbase", "walletconnect"],
-  "evm-only": ["metamask", "rabby", "walletconnect"],
-  minimal:    ["metamask", "walletconnect"],
-};
-
-export function createAomiEvmConfig(input: ResolvedEvmWalletsConfig): Config {
-  const chains = normalizeEvmChains(input.chains);
-  const wanted = new Set(input.wallets ?? EVM_PRESETS[input.preset ?? "popular"]);
-  const wcProjectId = input.walletConnectProjectId ?? AOMI_DEFAULT_WC_PROJECT_ID;
-  const hostConnectors = input.connectors ?? [];
-
-  const connectors: CreateConnectorFn[] = [
-    injected({ shimDisconnect: true }),                       // EIP-6963: installed wallets
-    ...(wanted.has("walletconnect") && wcProjectId
-        ? [walletConnect({ projectId: wcProjectId, showQrModal: true })] : []),
-    ...(input.coinbase !== false && wanted.has("coinbase")
-        ? [coinbaseWallet({ appName: input.appName })] : []),
-    ...(wanted.has("baseAccount")
-        ? [baseAccount({ appName: input.appName, paymasterUrls: {} })] : []),
-    ...hostConnectors,                                        // host BYO
-  ];
-
-  return createConfig({
-    chains,
-    connectors,
-    transports: input.transports ?? defaultHttpTransports(chains),
-    multiInjectedProviderDiscovery: true,
-    ssr: true,
-  });
-}
-```
-
-Rules: exactly **one** `walletConnect()` connector (hosts pass a projectId, not
-a connector). If `input.connectors` includes a WalletConnect-like connector,
-the catalog warns and drops/ignores the duplicate so the picker never creates
-two QR paths. The existing `runtime/evm/brands.ts` dedupe collapses brand
-overlap (BYO MetaMask + EIP-6963 MetaMask → one row by `canonicalWalletKey`).
-WalletConnect rows are visible even though they are not installed extension
-rows (`kind: "walletconnect"` / `status: "qr"` or `"available"` are renderable
-connect actions). `catalog/svm-wallet-catalog.ts` does the analogous Aomi-owned
-Solana list (Phantom/Solflare/Backpack/Glow) so wallets-only Solana works
-without Para.
-
-Base Account is **not** part of `popular`; enable it explicitly:
-
-```tsx
-<AomiWalletKitProvider
-  wallets={{ evm: { wallets: ["metamask", "walletconnect", "baseAccount"] } }}
-/>
-```
-
-This `Config` replaces the duplicated provider-specific wagmi setup on
-`origin/main`: Para's `externalWalletConfig.evmConnector.config`, Privy's
-`createPrivyWagmiConfig`, and Base Account's `createBaseAccountConfig`. All
-providers mount the same catalog; Para additionally mounts its SDK for
-auth/embedded/AA only.
-
-## Account Row Merge — Exact Structs
-
-`composer/merge-wallet-rows.ts` is introduced by this PR and consumed by the
-picker through `AomiWalletKitComposer`:
-
-```ts
-export type WalletRowAction =
-  | { kind: "select"; label: string }
-  | { kind: "connect"; label: string }
-  | { kind: "authenticate"; label: string }  // stored embedded, signed-out provider → auth.login
-  | { kind: "disconnect"; label: string }
-  | { kind: "manage"; label: string }
-  | { kind: "link"; label: string }
-  | { kind: "unlink"; label: string };
-
-export type WalletModalRow = {
-  id: string;
-  family: WalletFamily;
-  address?: string;
-  label: string;
-  walletName?: string;
-  source: "live" | "embedded" | "stored" | "option";
-  status: "active" | "connected" | "stored" | "available" | "unavailable";
-  provider?: string;
-  linked?: boolean;                 // known to the backend
-  capability?: "read" | "write";    // reserved (decision 12)
-  actions: WalletRowAction[];
-};
-```
-
-The picker consumes `WalletModalRow[]` instead of assembling from
-`accounts` + `walletOptions` ad hoc. With the disabled Account Runtime the
-stored array is empty → identical UX; when the backend fills it, linked/stored
-rows (incl. `authenticate`) appear with no UI change.
-
-## Target Folder Structure
-
-Root folder kept (`lib/wallet-kit/`) for import-path + registry-artifact
-stability. `(new)` is created by this plan.
+| `config/` | Public `AomiWalletKitProvider`, presets, config normalization | Provider SDK calls, wagmi/adapter mounts |
+| `providers/<id>/` | Provider-specific auth, session, embedded wallet, AA signer, account UI | Execution orchestration, connector catalog, registry logic |
+| `composer/` | Merge the lane runtimes into one `AomiWalletKit` adapter | Signing/execution implementation, provider names |
+| `runtime/<family>/` | A symmetric `WalletRuntime<F>` hook per chain family | Provider names, the other family's logic |
+| `registry/` | Active-wallet-per-family state machine (reducer/policy/commands/store) | Provider names, `Date.now()` in the reducer, effects outside `planCommands` |
+| `execution/` | `executeWalletKitTransaction`, AA resolution, owner bridge | Provider names (Para supplies only a signer strategy) |
+| `catalog/` | Aomi-owned wagmi config + Solana wallet list + presets | Provider names beyond `baseAccount` connector |
+| `account/` | Account-runtime types + disabled stub (real runtime deferred) | — |
+
+### The two extensibility seams (the whole point)
+
+- **Add a provider** → drop a folder in `providers/<id>/`, implement the plugin
+  contract, self-register on import. **Zero edits** to core config types, the
+  composer, the runtimes, or the registry.
+- **Add an ecosystem (new VM)** → implement one `WalletRuntime<F>` hook and add
+  the family to the registry's family-keyed commands. The composer and registry
+  are already family-keyed, so a third VM does not fork them.
+
+### Architecture invariants (the end-state must satisfy ALL of these)
+
+These are the anti-bloat / no-overlap rules. They are re-checked verbatim in the
+final gate (Phase 8).
+
+- [ ] **One public entry component.** `AomiWalletKitProvider` is the only mount
+  path. `providers/index.tsx`'s union, if kept at all, is a ≤30-line `@deprecated`
+  compat shim that forwards into `AomiWalletKitProvider`.
+- [ ] **No dead second path.** `providers/para/para.tsx` and `paraPlugin.render`
+  are deleted; Para mounts only through the one plugin contract.
+- [ ] **Symmetric runtimes.** `useSvmWalletRuntime` exists and returns the same
+  `WalletRuntime<"svm">` shape as `useEvmWalletRuntime` returns `WalletRuntime<"evm">`.
+- [ ] **No family logic in the composer.** `grep -nE "publicKey|svm\.wallet\.(connect|disconnect|select)" composer/` returns nothing; the composer only merges runtimes.
+- [ ] **Effects only via `planCommands`.** SVM connect/disconnect are registry
+  commands (`svm/connect`, `svm/disconnect`); `runtime/svm/registry-source.ts` is
+  a pure observer like the EVM source.
+- [ ] **No provider names in core.** `grep -riE "\bpara\b|\bprivy\b" runtime/ composer/ registry/ catalog/ execution/` returns nothing.
+- [ ] **One AA resolver.** `execution/` has a single `resolveAAProviderState({ ownerStrategy })`. `providers/para/para-aa.ts` is deleted or reduced to a ≤40-line session-owner contribution.
+- [ ] **One execution path.** No "already-built vs `*Async` primitive" duality on
+  `EvmExecutionRuntime`; the composer calls `execution.<family>.send/sign`, full stop.
+- [ ] **One internal vocabulary.** Internal family discriminant is `"evm" | "svm"`
+  everywhere (types, registry, runtime, composer); `solana` survives only as
+  public adapter method names and the backend wire mapping. Zero `Solana* = Svm*`
+  alias exports.
+- [ ] **Curated barrel.** `index.ts` exports an explicit named list (~20 symbols);
+  no `export *` of `wallet-debug`, `wallet-execution`, `aa/*`, `execution/aa-provider-state`, or `catalog/evm-connector-catalog`. Internals live behind a `wallet-kit/internal` subpath.
+- [ ] **No registration foot-gun.** Plugins self-register on import; an
+  unregistered `auth.provider` **throws** with a clear message. The consumer never
+  calls `registerAomiParaWalletProvider()`.
+- [ ] **Clean consumer.** `apps/landing` imports the kit only from
+  `@aomi-labs/widget-lib`; no `../../../registry/src` paths and no `providers/para`
+  reach in app code. Dev drivers live outside the reference surface.
+- [ ] **File sanity.** `providers/para/` ≤ 8 files; no per-provider composer or
+  per-provider wagmi config; no `*Only*Provider` ladder in `config/`.
+
+---
+
+## 2. Target folder structure
+
+`(keep)` exists and stays · `(new)` created here · `(del)` deleted · `(merge)`
+folded into another file · `(rework)` substantially rewritten.
 
 ```txt
 lib/wallet-kit/
-  index.ts                         public exports + @deprecated aliases
-  types.ts                         AomiWalletKit, AomiSessionIdentity, WalletAccount, ...
+  index.ts                         (rework)  curated named exports only
+  internal.ts                      (new)     subpath barrel for advanced/internal use
+  types.ts                         (keep)    AomiWalletKit, AomiSessionIdentity, WalletAccount, WalletFamily="evm"|"svm"
+  wallet-family.ts                 (keep)    svm↔solana wire mapping (the ONLY translation point)
+  wallet-debug.ts                  (keep)    internal-only (no longer in index.ts)
 
-  config/                  (new)   capability config + presets (public surface)
-    AomiWalletKitProvider.tsx      public entry (replaces providers/index.tsx union)
-    presets.ts                     preset="para"|"privy"|"wallets-only" → lane config
-    auth-config.ts                 AuthConfig normalization
-    wallet-config.ts               Evm/SvmWalletsConfig normalization
-    execution-config.ts            ExecutionConfig normalization
-    account-config.ts              AccountConfig normalization
-    types.ts                       *Config structs (above)
+  config/
+    AomiWalletKitProvider.tsx      (rework)  single entry; the 8-provider ladder collapses to entry + one composer wrapper
+    presets.ts                     (new)     preset="para"|"privy"|"wallets-only" → lane config
+    types.ts                       (keep)    *Config structs (registry-driven provider slice)
+    execution.ts                   (keep)    ExecutionConfig normalization
 
-  composer/                (new) one build path
-    AomiWalletKitComposer.tsx
-    build-identity.ts  build-accounts.ts
-    merge-wallet-rows.ts  types.ts
+  composer/
+    AomiWalletKitComposer.tsx      (rework)  merges runtimes only; SVM glue + EVM exec reassembly removed
+    build-identity.ts              (keep)
+    build-accounts.ts              (keep)
+    merge-wallet-rows.ts           (keep)
+    types.ts                       (keep)    AuthRuntime, WalletRuntime<F>, ExecutionRuntime
 
-  catalog/                 (new)   Aomi-owned connector catalog
-    evm-connector-catalog.ts       createAomiEvmConfig(), EVM_PRESETS, WC default
-    svm-wallet-catalog.ts          Aomi-owned Solana wallet list + presets
-    wallet-ids.ts                  WalletId union + preset tables
+  catalog/
+    evm-connector-catalog.ts       (keep)    createAomiEvmConfig, EVM_PRESETS, WC default
+    svm-wallet-catalog.ts          (keep)    Aomi-owned Solana wallet list + presets
+    wallet-branding.ts             (keep)    canonicalWalletKey + brand registry
+    wallet-ids.ts                  (keep)
 
-  runtime/                 (new/extracted from current provider files)
-    evm/            provider.tsx wallet-runtime.ts brands.ts disconnect-plan.ts
-                     identity-grace.ts registry-source.ts safe-hooks.ts
-    svm/            networks.ts registry-source.ts wallet-runtime.ts transactions.ts
+  runtime/
+    evm/  provider.tsx wallet-runtime.ts brands.ts disconnect-plan.ts
+          identity-grace.ts registry-source.ts safe-hooks.ts disabled-runtime.ts   (keep)
+    svm/  wallet-runtime.ts        (rework)  becomes useSvmWalletRuntime → WalletRuntime<"svm">
+          registry-source.ts       (rework)  pure observer; connect/disconnect become registry commands
+          transactions.ts networks.ts                                              (keep)
 
-  execution/               (new)   execution lane (moved out of root)
-    execution-runtime.ts           ExecutionRuntime assembly (evm + svm)
-    aa-owner.ts                    AAOwnerResolver, AomiAAOwnerInput bridge
-    wallet-execution.ts            executeWalletKitTransaction
+  execution/
+    execution-runtime.ts           (keep)    buildEvmExecutionRuntime + buildSvmExecutionRuntime
+    aa-provider-state.ts           (rework)  single resolveAAProviderState({ ownerStrategy })
+    wallet-execution.ts            (move)    moved here from root; re-export shim left at old path for registry installs
 
-  registry/  (new)     reducer.ts policy.ts commands.ts store.ts
-                       selectors.ts persistence.ts types.ts use-wallet-registry.ts
+  aa/
+    owner.ts                       (keep)    Aomi owner-input → @aomi-labs/client AAOwner bridge
 
-  account/   (new)     types.ts disabled-runtime.ts
-             (later)   http-runtime.ts   (Better-Auth fetch; deferred)
+  registry/
+    reducer.ts policy.ts commands.ts store.ts                                       (keep, scar-cleanup)
+    selectors.ts persistence.ts types.ts use-wallet-registry.ts                     (keep)
+    connection-order.ts            (new)     extracted pure list-algebra from reducer.ts
+
+  account/
+    types.ts disabled-runtime.ts   (keep)
+    (later) http-runtime.ts        deferred  Better-Auth fetch
 
   providers/
-    para/          (new/extracted; shrinks current providers/para.tsx)
-                                  ParaPluginProvider.tsx para-auth.ts
-                   para-embedded-wallet.ts para-aa.ts para-svm.tsx
-                   sources/para-session-source.ts index.ts
-    privy/         (new/extracted; → composer)
-                                  PrivyPluginProvider.tsx privy-auth.ts
-                   privy-embedded.ts index.ts
-    base-account/  (new/extracted; → connector + execution)
-                                  base-account-connector.ts
-                   base-account-execution.ts index.ts
+    plugin-registry.ts             (keep)    WalletProviderPlugin contract + registry
+    index.tsx                      (rework)  ≤30-line @deprecated compat shim → AomiWalletKitProvider
+    para/
+      index.ts                     (rework)  self-registers paraPlugin on import
+      para-plugin.tsx              (rework)  wrap + renderComposer only (render path deleted)
+      ParaPluginProvider.tsx       (keep)    builds Auth/Execution runtimes
+      para-auth.ts                 (keep)
+      para-embedded-wallet.ts      (keep)
+      para-brand.ts                (keep)
+      para-svm.tsx                 (rework)  ParaSvmWrapper + config only; re-export aliases dropped
+      sources/para-session-source.ts (keep)
+      para.tsx                     (del)     dead second mount path
+      para-aa.ts                   (merge)   → execution/aa-provider-state.ts (session-owner contribution only)
+    privy/
+      index.ts                     (rework)  self-registers privyPlugin on import
+      privy-plugin.tsx             (keep)
+      privy.tsx                    (rework)  builds lane runtimes; no hand-built adapter
+    base-account/
+      index.ts base-account.tsx    (keep)    thin @deprecated shim over wallets={evm:{wallets:["baseAccount"]}}
 ```
 
-Re-exports keep existing registry import sites working when
-`wallet-execution.ts` moves under `execution/`. The client package's
-`packages/client/src/aa/owner.ts` remains the source of truth for
-`@aomi-labs/client` `AAOwner`.
+---
 
-## Migration Plan (P0–P8)
+## 3. Canonical structs (target)
 
-Per-phase commits are mandatory. Every phase that moves/adds files updates
-`apps/registry/src/registry.ts` file lists, runs `pnpm run build:registry`,
-syncs `apps/registry/dist` → `apps/landing/public/r`, and keeps the pinned
-`packages/client/test/registry-chain-artifacts.unit.test.ts` green.
+Internal family discriminant is **`WalletFamily = "evm" | "svm"`**. The public
+`AomiWalletKit` adapter keeps its existing `solana*` **method names** for API
+stability, and `wallet-family.ts` is the single place that maps `svm ↔ solana`
+for the backend wire. No other duality.
 
-### P0 — Vocabulary & types  ·  risk: low
-- Add `AomiWalletKit*` names + `@deprecated` aliases for every renamed symbol
-  (`index.ts`, `types.ts`).
-- Add `sessionProvider`/`embeddedProvider`/`walletSource` to
-  `AomiSessionIdentity` (optional); `walletProvider` becomes the deprecated
-  alias. Preserve the existing `authProvider?: AomiLoginMethod` compatibility
-  field as-is until it can be removed in a later breaking release.
-- Preserve only compatibility that exists on `main` / published npm or registry
-  surfaces. Do **not** carry branch-only names as aliases merely because this
-  unfinished PR introduced them. In particular, keep
-  `AomiWalletKit`, `AomiWalletKitProvider`, `useAomiWalletKit`,
-  `AomiSessionIdentity`, `AomiSessionStatus`, existing provider components, existing
-  `AomiWalletProvider({ provider: "para" | "privy" | "base-account" })`, and
-  main-shipped adapter fields (`connect`, `disconnect`, `solanaWallets`,
-  `connectSolanaWallet`, tx/signing methods, etc.).
-- Collapse `evm`/`solana` vs `evm`/`svm` to one internal vocabulary; remove
-  `WireWalletFamily` and `@deprecated solana` aliases internally (public family
-  string stays `"solana"`).
-- **Verify:** typecheck (registry + landing) + full suites green; zero behavior
-  change.
+### Public config (already shipped — keep)
 
-### P1 — Connector catalog → wallets restored  ·  risk: med
-- Create `catalog/` (`createAomiEvmConfig`, `EVM_PRESETS`,
-  `AOMI_DEFAULT_WC_PROJECT_ID`, SVM catalog). Add `walletConnect()` +
-  `coinbaseWallet()` to the config the EVM runtime observes (initially the
-  config Para mounts), threading `walletConnectProjectId`. Leave Base out of the
-  default `popular` preset; Base support lands explicitly in P5.
-- Replace the hardcoded Para "More wallets" option
-  (`ParaPluginProvider.tsx:260`) with catalog-driven options; clicking
-  WalletConnect opens WC's QR modal, not Para's modal.
-- Update picker visibility so WalletConnect rows render even when they are not
-  installed extension rows; add a duplicate-WC guard for host BYO connectors.
-- **Verify:** WalletConnect connects and surfaces as a real account in Para mode;
-  installed wallets still appear; manual matrix WC row. Registry suite green.
+`config/types.ts` stays capability-shaped:
+`{ preset?, providers?, auth?, wallets?: { evm, solana, embedded }, execution?, account? }`
+with `preset = "para" | "privy" | "wallets-only"`. The provider-named slices
+(`providers.para`, `auth.provider:"para"`, etc.) become **registry-driven**: each
+plugin contributes its config slice so adding a provider needs no edit here
+(Phase 5).
 
-### P2 — One composer path (Privy)  ·  risk: med
-- `PrivyPluginProvider` builds `AuthRuntime` / `EvmWalletRuntime` (over the Aomi
-  catalog) / `EmbeddedWalletRuntime` / `ExecutionRuntime` and passes them to
-  `AomiWalletKitComposer`. Delete the hand-built adapter in `privy.tsx`.
-- Preserve Privy-specific behavior while moving to lanes: login method config,
-  access-token credential, embedded Solana creation, `SmartWalletsProvider`,
-  `walletConnectCloudProjectId`, supported/default chain config, and
-  dashboard-configured smart-wallet/paymaster behavior.
-- **Verify:** `/privy` route manual matrix; Privy auth + embedded + external
-  wallet; tests for the Privy lanes. No `AomiWalletKit` literal outside
-  `composer/`.
+### Symmetric runtime (the target shape both families implement)
 
-### P3 — De-Para the core  ·  risk: med
-- Move `transformEvmIdentity` / `transformAccounts` / `canManageAccount` logic
-  out of the composer call into the Para plugin's own runtime construction.
-- Generalize registry internals: `PARA_SESSION_UID` →
-  provider-described embedded-session source; `para-*` suppression reasons →
-  a `providerReason` enum implemented by Para.
-- **Goal:** `grep -ri para runtime/ composer/ registry/` returns nothing.
-- **Verify:** registry reducer/policy/store suites green; Para cancel-login
-  no-wipe regression holds.
+```ts
+// composer/types.ts
+export type WalletRuntime<F extends WalletFamily> = {
+  family: F;
+  status: "ready" | "unavailable";
+  // identity + accounts come from the registry (selectEvmIdentity / selectSvmIdentity)
+  identity(now: number): ChainIdentity<F>;
+  accounts(now: number): readonly WalletAccount[];
+  activeAccount?: WalletAccount;
+  options: readonly WalletOption[];                 // connectable wallets for this family
+  supportedNetworks: readonly NetworkOption[];
+  selectedNetwork?: NetworkOption;
+  registryStore: WalletRegistryStore;               // shared store (EVM creates it; SVM is fed the same one)
+  connect: (optionId?: string) => Promise<void>;
+  disconnect: (accountId?: string) => Promise<void>;
+  selectAccount: (accountId: string) => Promise<void>;
+  selectNetwork: (networkId: string | number) => Promise<void>;
+  execution: ExecutionMethods<F>;                   // { send, sign, signMessage } — AA hidden inside send
+};
+```
 
-### P4 — Symmetric execution lane + AA owner fix  ·  risk: med
-- Keep registry `wallet-execution.ts` as the canonical execution module and
-  keep owner conversion in `aa/owner.ts`.
-  In `packages/client/src/aa/owner.ts`, add the additive `external-wallet`
-  `AAOwner` variant without moving the client file.
-- Add `SvmExecutionRuntime`; stop spreading `solanaMethods` into the adapter.
-- Implement the additive `external-wallet` `AAOwner` in `@aomi-labs/client`;
-  the generic resolver builds session-less external-wallet owners; drop the
-  `if (!paraSession)` gate from the generic path.
-- Be explicit per AA provider. Implement and test external-wallet owner support
-  for Alchemy and Pimlico, or scope v1 to one provider and fail clearly for the
-  other. Do not assume a single signer-extraction branch covers both provider
-  SDK paths.
-- **Verify:** new "external-wallet 4337, no session" unit test; existing client
-  AA + CLI + registry-artifact tests green (all `direct`/`session`); wallets-only
-  AA manual row.
+EVM additionally exposes its wagmi primitives behind `execution`; the composer
+never re-implements them. SVM implements the same surface; its essential chain
+differences (network switch = reconnect; two-step `select()`→`connect()`) live
+**inside** `useSvmWalletRuntime`, not in the composer.
 
-### P5 — Base Account replumb  ·  risk: med-high (own gate)
-- Express Base as a `baseAccount()` connector in the EVM catalog +
-  `base-account-execution.ts` policy. Delete the bespoke adapter in
-  `base-account.tsx`. Base is no longer a provider mode and is never included in
-  the default `popular` preset; it appears only when explicitly requested.
-- **Verify:** Base smart-account connect + sponsored tx still work via the
-  catalog/execution path; dedicated manual check (this touches a just-stabilized
-  flow).
+### Execution + AA
 
-### P6 — Public AomiWalletKit API  ·  risk: med
-- `config/AomiWalletKitProvider.tsx` + lane config factories + `presets.ts`
-  (`para`/`privy`/`wallets-only`). Ship **wallets-only** as a documented,
-  first-class mode.
-- Keep legacy wrappers as real compatibility shims over the new provider:
-  `AomiWalletProvider`, `AomiParaProvider`, `AomiPrivyProvider`,
-  `AomiBaseAccountProvider`, and the legacy context/hook names.
-- Presets use Aomi defaults for quickstart/demo (`preset="para"`,
-  `preset="wallets-only"`); docs call out production overrides for Para,
-  WalletConnect, RPCs, branding, rate limits, analytics, and ownership.
-- **Verify:** all three preset modes mount and pass their manual matrices;
-  capability config compiles to the same lanes the provider components produced.
+`ExecutionRuntime = { evm?: EvmExecutionRuntime; svm?: SvmExecutionRuntime; sponsorship }`.
+Both expose `{ send, sign, signMessage }` (SVM adds `signAndSendTransaction`).
+AA is Aomi's: `execution/wallet-execution.ts` orchestrates the 7702→4337 ladder;
+`execution/aa-provider-state.ts` exposes **one** `resolveAAProviderState({ ownerStrategy })`
+where `ownerStrategy ∈ { external-wallet, provider-session(session) }`; `aa/owner.ts`
+bridges to `@aomi-labs/client`'s `AAOwner`. Para contributes only the
+`provider-session` strategy.
 
-### P7 — Account merge wired  ·  risk: low
-- `AomiWalletKitComposer` consumes `mergeWalletRows` output; the picker renders
-  `WalletModalRow[]`. Stored array empty (disabled runtime) → identical UX.
-- Add a mocked-ready Account Runtime test proving stored/linked/`authenticate`
-  rows render.
-- **Verify:** picker tests green with mocked stored rows; disabled stub changes
-  nothing.
+### Plugin contract (self-registering)
 
-### P8 — Rename finalize + compat aliases  ·  risk: low (cuttable last)
-- Flip internal call sites to the new names; keep the `@deprecated` aliases.
-- Optional folder rename if slack remains.
-- **Verify:** full suites + both typechecks + lint; registry artifacts rebuilt +
-  synced; pinned-artifact test green.
+```ts
+// providers/plugin-registry.ts
+export type WalletProviderPlugin = {
+  id: AuthProviderId;                  // "para" | "privy" | ...
+  authMode?: "additive" | "full";
+  wrap?(ctx): ReactNode;               // mount the provider's auth context around the shared stack
+  renderComposer?(ctx): ReactNode;     // build Auth/Execution runtimes + render the composer
+  detectSugar?(input): props | null;   // normalize ergonomic shorthand
+  configSlice?(): ProviderConfigSlice; // registry-driven config contribution
+};
+// Each provider's index.ts calls registerWalletProvider(plugin) as an import side effect.
+// getWalletProvider(id) throws on an unknown id when auth.provider names it.
+```
 
-## Registry / Distribution Constraints
+`render` is removed from the contract (it was Para's dead path). All providers
+mount through the shared catalog stack + `wrap`/`renderComposer`.
 
-- Two channels: npm (`@aomi-labs/widget-lib` for wallet/provider exports,
-  plus `@aomi-labs/react` runtime utilities and `@aomi-labs/client`) and the
-  shadcn-style registry (`apps/registry/dist/*.json` →
-  `apps/landing/public/r`).
-- Any new/moved file under `lib/wallet-kit/` must be added to the
-  relevant registry item file list in `apps/registry/src/registry.ts`, dist
-  rebuilt, and `public/r` synced, or installs ship broken.
-- Public npm exports in `apps/registry/src/index.ts` must expose both new
-  `AomiWalletKit*` names and legacy aliases/wrappers that shipped from `main`.
-  If docs introduce package subpath imports under `@aomi-labs/widget-lib`, add
-  the matching `exports` entries to `apps/registry/package.json`; on
-  `origin/main`, `./lib/*` subpaths are not exported.
-- Keep the `lib/wallet-kit.ts` facade/import path working for registry
-  installs even if internals move under `lib/wallet-kit/`.
-- Registry dependencies must include any new connector/runtime packages needed
-  by catalog files (WalletConnect, Coinbase, Base Account, Solana wallet
-  adapters) in the registry items that actually ship those files.
-- The pinned artifact test asserts specific registry file paths — update it when
-  registry paths move.
-- Update landing/docs content that currently tells hosts to mount Para/wagmi
-  directly. New docs should lead with `AomiWalletKitProvider` presets and show
-  provider-owned credentials as production overrides.
+---
 
-## Deferred Work (out of this PR)
+## 4. Verification toolbox
 
-- **Real Account Runtime** over Better Auth (`account/http-runtime.ts`,
-  same-origin cookie fetch, `/api/account/*`, link/unlink, multi-device).
-- **`/api/state` payload migration** for `auth_provider`/`embedded_provider`
-  (sequence with backend; `walletProvider` stays the wire field until then).
-- **Approval / capability enforcement** (per-wallet/session/action granularity).
-- **SIWE / `kind: "wallet"` auth method.**
-- **Two live embedded SDKs** as concurrent signers (lazy-mount covers the
-  realistic switch flow).
-- **Host-owned `WagmiProvider` adoption** (RainbowKit/ConnectKit host apps).
-- **Folder rename** `aomi-wallet-kit → aomi-wallet-kit` (cosmetic).
+Phases reference these by id. Run from repo root.
 
-## Testing Strategy
+| id | command | asserts |
+| --- | --- | --- |
+| `V-TYPE` | `pnpm typecheck:landing` and `pnpm --dir apps/registry exec tsc --noEmit` | registry + landing typecheck clean |
+| `V-PKG` | `pnpm exec vitest run packages/` | packages suite (≈363) green |
+| `V-KIT` | `pnpm --filter @aomi-labs/widget-lib exec vitest run` | registry wallet-kit suite (≈128) green |
+| `V-LINT` | `pnpm lint` | lint clean |
+| `V-ART` | `pnpm exec vitest run packages/client/test/registry-chain-artifacts.unit.test.ts` | pinned registry artifact paths green |
+| `V-BUILD` | `pnpm run build:registry` then sync `apps/registry/dist` → `apps/landing/public/r` | registry artifacts rebuilt + synced |
 
-Gates this PR: registry reducer/policy/store suites; EVM/SVM runtime hooks with
-mocked wagmi/wallet-adapter; composer identity build; account row merge incl.
-mocked stored rows + `authenticate`; connector catalog (WC option present,
-single WC connector, duplicate host WC guard, dedupe); external-wallet 4337 AA
-(no session) per supported AA provider; wallets-only mode; Para/Privy/Base modes;
-legacy wrapper mounts from `main` public API; legacy `connection.provider`
-payload compatibility. Manual (extensions required): the full matrix in the
-prior revision plus WalletConnect connect without any hosted auth.
+**Standing rule for every phase that adds/moves/deletes a file under
+`lib/wallet-kit/`:** update the relevant item file list in
+`apps/registry/src/registry.ts`, run `V-BUILD`, then `V-ART`. A moved file needs a
+re-export shim at its old path if any registry item still lists it. Commit per
+phase.
 
-## Success Criteria
+---
 
-- WalletConnect + Coinbase + installed wallets connect in **every** mode,
-  including wallets-only, with no hosted-provider modal.
-- Base Account is available when explicitly requested and absent from default
-  `popular` wallet rows.
-- No `AomiWalletKit` (now `AomiWalletKit`) literal is constructed outside
-  `composer/`.
-- `grep -ri para` over `runtime/`, `composer/`, `registry/`, `catalog/`,
-  `execution/` returns nothing.
-- External-wallet 4337 works with no Para session; CLI `direct` AA unchanged.
-- Public API is capability-shaped; `preset="wallets-only"` ships.
-- `preset="para"` and `preset="wallets-only"` work with Aomi defaults, while
-  production overrides remain straightforward.
-- All renamed symbols resolve via `@deprecated` aliases; registry artifacts in
-  sync; pinned test green.
-- The existing manual matrix passes (no regressions in the stabilized Para
-  flows).
+## 5. Migration phases
 
-## Resolved / Open
+Each phase is independently green and committable. Tick the boxes as you go. Do
+not start a phase until the previous phase's verification passes.
 
-All prior open questions are closed in **Locked Decisions** above. The only
-remaining open items are backend-gated and explicitly deferred: the Better-Auth
-schema mapping (`users`/`linked_accounts`/`wallet_links`/`wallet_approvals`),
-approval granularity, and the auth-prompt UX for stored embedded rows of a
-signed-out provider.
+### Phase 1 — Finish the vocabulary (naming only, zero behavior change) · risk: low
+
+Goal: one internal vocabulary (`svm`), public edge keeps `solana`. No structural
+change — pure rename + alias deletion.
+
+- [ ] Set internal `WalletFamily = "evm" | "svm"` in `types.ts`; update registry
+  (`activeByFamily`, `RegistryConnection.kind/family`, `svm/changed` writing
+  `family:"svm"`), runtime, composer, selectors, persistence to the internal value.
+- [ ] Keep public `AomiWalletKit` adapter method names (`solanaWallets`,
+  `connectSolanaWallet`, `signSolanaTransaction`, …) and route backend-wire family
+  through `wallet-family.ts` (the only `svm↔solana` mapping).
+- [ ] Delete the `Solana* = Svm*` alias blocks in
+  `runtime/svm/{wallet-runtime,networks,transactions,registry-source}.ts` and the
+  deprecated `solana?` prop in `composer/types.ts` / `AomiWalletKitComposer.tsx`
+  (the `svmProp ?? solana` line). Remove `WireWalletFamily` duality if present.
+- [ ] Keep only aliases that exist on `main`/published npm; drop branch-only ones.
+- [ ] Verify: `V-TYPE`, `V-PKG`, `V-KIT`, `V-LINT`. Diff is rename-only.
+
+Done when: `grep -rn "Solana.*= .*Svm\|@deprecated.*solana" lib/wallet-kit/` is empty.
+
+### Phase 2 — Make SVM a real, symmetric runtime · risk: med-high (full symmetry)
+
+Goal: `useSvmWalletRuntime` returns `WalletRuntime<"svm">`; SVM connect/disconnect
+become registry commands; SVM identity flows through the registry.
+
+- [ ] Add `svm/connect` and `svm/disconnect` to `RegistryCommand` and
+  `CommandExecutors` (`registry/types.ts`, `registry/store.ts`); add a
+  `planSvmConnect`/`planSvmDisconnect` path in `policy.ts` mirroring EVM.
+- [ ] Add `selectSvmIdentity(now)` selector in `registry/selectors.ts` (mirror of
+  `selectEvmIdentity`), reading `activeByFamily.svm`.
+- [ ] Rewrite `runtime/svm/wallet-runtime.ts` into `useSvmWalletRuntime` that owns
+  the two-step select→connect, the 400 ms autoconnect grace (move
+  `SVM_AUTOCONNECT_GRACE_MS` next to the other timing constants), disconnect, and
+  network-switch-by-reconnect, and returns the `WalletRuntime<"svm">` shape.
+- [ ] Make `runtime/svm/registry-source.ts` a **pure observer** (dispatch
+  `svm/changed` only); the connect state machine moves into the runtime/commands.
+- [ ] Delete the SVM closures from `AomiWalletKitComposer.tsx`
+  (`connectSolanaWallet`, the `disconnect`/`selectNetwork` SVM branches, the
+  `svm.wallet.publicKey` identity reads). The composer reads SVM identity from
+  `selectSvmIdentity`.
+- [ ] Verify: `V-TYPE`, `V-PKG`, `V-KIT` (add/extend SVM runtime hook tests with
+  mocked wallet-adapter), `V-LINT`. Manual: Phantom connect + SVM network switch
+  still work (Phase 8 matrix rows S1–S3).
+
+Done when: the composer contains no `svm.wallet.*` calls and SVM identity comes
+from the registry; SVM connect fires through `planCommands`.
+
+### Phase 3 — Unify execution behind `runtime.execution` · risk: med
+
+Goal: one execution path per family; composer stops re-implementing EVM signing.
+
+- [ ] Move `wallet-execution.ts` under `execution/`; leave a re-export shim at the
+  old path for registry installs.
+- [ ] Move the inline `executeWalletKitTransaction` wiring out of
+  `AomiWalletKitComposer.tsx` (lines ~347–429) into `execution/execution-runtime.ts`
+  so `buildEvmExecutionRuntime` returns a populated `send/sign/signMessage`.
+- [ ] Delete the never-populated "already-built vs `*Async` primitive" optionality
+  on `EvmExecutionRuntime`; the composer calls `execution.evm.send(payload)` etc.
+- [ ] Add `buildSvmExecutionRuntime` symmetric `{ send, sign, signMessage,
+  signAndSendTransaction }`; the composer calls `execution.svm.*`.
+- [ ] Verify: `V-TYPE`, `V-PKG`, `V-KIT`, `V-LINT`. Manual: EVM send tx + sign
+  message/typed data unchanged (matrix E5–E7).
+
+Done when: `grep -n "executeWalletKitTransaction" composer/` is empty.
+
+### Phase 4 — De-duplicate AA into one resolver · risk: med
+
+Goal: single AA resolver; Para contributes only a signer strategy.
+
+- [ ] Implement `resolveAAProviderState({ ownerStrategy, walletClient, address, … })`
+  in `execution/aa-provider-state.ts` supporting `external-wallet` and
+  `provider-session(session)`; one Alchemy/Pimlico precedence (fix the drift).
+- [ ] Delete `providers/para/para-aa.ts`; Para passes
+  `ownerStrategy: provider-session(paraSession)` into the shared resolver (a
+  ≤40-line contribution in the Para plugin).
+- [ ] Confirm `aa/owner.ts` still bridges both owner strategies to
+  `@aomi-labs/client` `AAOwner`; add the `external-wallet` variant in
+  `packages/client/src/aa/owner.ts` if not already present.
+- [ ] Verify: `V-TYPE`, `V-PKG` (add "external-wallet 4337, no session" unit test),
+  `V-KIT`, `V-ART`, `V-LINT`. Manual: wallets-only AA tx (matrix E5) and Para AA tx.
+
+Done when: `grep -rin "para" execution/` is empty and only one AA resolver exists.
+
+### Phase 5 — Collapse to one public entry + self-registering plugins · risk: med
+
+Goal: one mount path; kill the dead Para path and the registration foot-gun.
+
+- [ ] Delete `providers/para/para.tsx` and `paraPlugin.render`; remove `render`
+  from the plugin contract.
+- [ ] Make `providers/<id>/index.ts` self-register on import; `getWalletProvider`
+  **throws** when `auth.provider` names an unregistered plugin (no silent
+  wallets-only fallback). Consumers no longer call `registerAomiParaWalletProvider()`.
+- [ ] Collapse the 8 nested providers in `config/AomiWalletKitProvider.tsx` to:
+  entry → shared catalog stack (wagmi + SVM + testnet router) → one composer
+  wrapper. Rename away `WalletsOnlyComposerProvider` / `EvmWalletsOnlyComposerProvider`.
+- [ ] Make `providers/index.tsx`'s `AomiWalletProvider` a ≤30-line `@deprecated`
+  shim forwarding into `AomiWalletKitProvider`. Move the SSR `mounted` gate into
+  the kit so consumers stop hand-rolling it.
+- [ ] Make config provider slices registry-driven (plugins contribute their
+  config) so `config/types.ts` no longer hardcodes provider unions for new
+  providers.
+- [ ] Verify: `V-TYPE`, `V-PKG`, `V-KIT`, `V-ART`, `V-LINT`. Manual: all three
+  presets mount (`para`, `privy`, `wallets-only`); forgetting nothing degrades
+  silently.
+
+Done when: one entry component; `para.tsx` gone; `grep -rn "registerAomiParaWalletProvider" apps/landing/app` is empty.
+
+### Phase 6 — Registry scar cleanup (on the good core) · risk: low
+
+Goal: consolidate the bug-fix scar tissue; structure unchanged.
+
+- [ ] Single `SUPPRESSION_BYPASS_REASONS` source; remove the 3 hand-synced copies
+  (`policy.ts`, `store.ts`, the type union).
+- [ ] Merge the two near-duplicate heal-eligibility predicates into one
+  parameterized function (`policy.ts`).
+- [ ] Compute the heal budget once; remove the reducer↔commands double-accounting
+  (`reducer.ts` `wagmi/settled` pre-spend + `commands.ts` reconstruction).
+- [ ] Extract connection-order list-algebra (`reducer.ts`) into
+  `registry/connection-order.ts`.
+- [ ] Verify: `V-PKG`, `V-KIT` (reducer/policy/store suites), `V-LINT`. Manual:
+  Para cancel-login no-wipe regression holds (matrix E8).
+
+Done when: reducer is ~150 lines lighter and no suppression-reason list is duplicated.
+
+### Phase 7 — Barrel hygiene + consumer DX + dev-driver relocation · risk: low
+
+Goal: the reference consumer looks like a real consumer.
+
+- [ ] Rewrite `index.ts` as ~20 explicit named exports; move `wallet-debug`,
+  `wallet-execution`, `aa/*`, `execution/aa-provider-state`, `catalog/evm-connector-catalog`
+  behind `wallet-kit/internal.ts` (a non-default subpath, added to
+  `apps/registry/package.json` `exports` only if a subpath is truly needed).
+- [ ] Ship a Solana-networks preset helper so consumers stop copy-pasting the
+  30-line array (currently duplicated across landing providers).
+- [ ] Switch `apps/landing` to import the kit only from `@aomi-labs/widget-lib`;
+  remove `../../../registry/src` paths and any `providers/para` reach in app code.
+- [ ] Relocate `apps/landing/app/dev/**` + `apps/landing/components/dev/**` out of
+  the reference surface (fenced `apps/landing-dev` or a clearly-marked folder);
+  delete the stale `NOTE.md` referencing the removed `LandingParaProvider` and the
+  stray screenshot in `app/`.
+- [ ] Verify: `V-TYPE`, `V-KIT`, `V-LINT`, `V-ART`, `V-BUILD`. Confirm landing
+  builds and the hero demo renders.
+
+Done when: `grep -rn "registry/src\|providers/para" apps/landing/app apps/landing/components` is empty (dev folder excluded) and `index.ts` has no `export *` of internals.
+
+### Phase 8 — Whole-migration gate + manual landing matrix · risk: gate
+
+Run the full suite, re-check every architecture invariant, rebuild artifacts,
+then drive the manual matrix on landing.
+
+Automated gate:
+
+- [ ] `V-TYPE` `V-PKG` `V-KIT` `V-LINT` `V-ART` all green.
+- [ ] `V-BUILD` run; `apps/registry/dist` synced to `apps/landing/public/r`; `V-ART` green after sync.
+
+Architecture invariant re-check (Section 1 — all must pass):
+
+- [ ] `grep -riE "\bpara\b|\bprivy\b" lib/wallet-kit/runtime lib/wallet-kit/composer lib/wallet-kit/registry lib/wallet-kit/catalog lib/wallet-kit/execution` → empty.
+- [ ] `grep -rn "executeWalletKitTransaction\|svm\.wallet\." lib/wallet-kit/composer` → empty.
+- [ ] No `Solana* = Svm*` alias exports; internal family is `"evm" | "svm"`.
+- [ ] One entry component; `para.tsx` and `paraPlugin.render` deleted; one AA resolver; `index.ts` curated.
+- [ ] `providers/para/` ≤ 8 files; no `*Only*Provider` ladder in `config/`.
+- [ ] Unregistered provider throws (write a quick test or assert manually).
+
+Manual landing matrix (extensions required — `pnpm --filter landing dev`):
+
+| id | scenario | expected |
+| --- | --- | --- |
+| E1 | Para Google login | connects, identity shows Para |
+| E2 | Para email login | connects |
+| E3 | Para + MetaMask, set MetaMask active, refresh | stays MetaMask (registry-owned active) |
+| E4 | WalletConnect connect in `wallets-only` (no hosted auth) | QR modal, connects as real account |
+| E5 | Send tx, external-wallet 4337, no Para session | succeeds via shared AA resolver |
+| E6 | Sign typed data + sign message (EVM) | succeed |
+| E7 | Coinbase / installed injected wallet connect | connects |
+| E8 | Open Para login with MetaMask connected, cancel | MetaMask survives (no wipe) |
+| S1 | Phantom (SVM) connect | connects via `useSvmWalletRuntime` |
+| S2 | SVM network switch (cluster) | reconnects to new cluster |
+| S3 | SVM sign tx / sign message | succeed |
+| D1 | Disconnect single family, then all | family-selective then full clear |
+| P1 | `/privy` route: auth + embedded + external wallet | all work through the one composer path |
+
+Done when: every box above is ticked and STATE.md records the completed migration.
+
+---
+
+## 6. Distribution & deferred
+
+**Distribution constraints.** Two channels: npm (`@aomi-labs/widget-lib`,
+`@aomi-labs/react`, `@aomi-labs/client`) and the shadcn-style registry
+(`apps/registry/dist/*.json` → `apps/landing/public/r`). Every new/moved file
+under `lib/wallet-kit/` updates `apps/registry/src/registry.ts`, rebuilds dist
+(`V-BUILD`), syncs `public/r`, and keeps `V-ART` green. Public npm exports in
+`apps/registry/src/index.ts` must expose the curated `AomiWalletKit*` surface plus
+the `main`-shipped legacy aliases. The legacy `detached-para` persistence key and
+`paraDetached` migration field stay as frozen core migration identifiers (moving
+them would regress a wallets-only build opened after a Para session) — they are
+the one tolerated provider-named token in `registry/persistence.ts`, documented as
+such.
+
+**Deferred (out of this migration):** real Account Runtime over Better Auth
+(`account/http-runtime.ts`); `/api/state` payload migration for
+`auth_provider`/`embedded_provider`; approval/capability enforcement; SIWE /
+`kind:"wallet"` auth; two concurrent live embedded SDKs; host-owned `WagmiProvider`
+adoption; optional `wallet-kit/ → aomi-wallet-kit/` folder rename.
+
+---
+
+## 7. Success criteria (one-line summary)
+
+The kit has **one** public entry, **symmetric** EVM/SVM runtimes, **one** internal
+family vocabulary, **one** AA resolver, **one** execution path, a **curated**
+barrel, **self-registering** plugins that throw on misconfig, **no** provider names
+in core, and a landing app that imports only `@aomi-labs/widget-lib` — with the
+registry core intact and every box in Phase 8 ticked.
+
+---
+
+## Appendix A — Target structs & worked examples
+
+Concrete end-state shapes so the result is reviewable before it is built. These
+are **target** definitions; where a struct is unchanged from today it is marked
+`(unchanged)`. Field names mirror the real current code so the diff stays small.
+
+### A.1 — Vocabulary & value types
+
+```ts
+// types.ts — internal vocabulary is evm|svm; "solana" survives only at the
+// public adapter edge + the backend wire (wallet-family.ts).
+export type WalletFamily = "evm" | "svm";
+
+// Per-family identity. EVM mirrors today's selectEvmIdentity return; SVM is the
+// new symmetric mirror produced by selectSvmIdentity.
+export type ChainIdentity<F extends WalletFamily> = F extends "evm"
+  ? { address?: string; chainId?: number; connectorId?: string;
+      walletName?: string; walletSource?: WalletSource }
+  : { address?: string; walletName?: string; cluster?: SvmCluster;
+      transport?: "extension" | "embedded" | "mwa";
+      capabilities?: SvmSigningCapabilities };
+
+// Per-family network option. EVM = viem Chain; SVM = SvmNetworkOption.
+export type NetworkOption<F extends WalletFamily> =
+  F extends "evm" ? Chain : SvmNetworkOption;
+
+export type WalletAccount = AomiAccount;   // (unchanged) { id, family, address, walletName?, active, manageable?, linked?, ... }
+export type WalletOption  = AomiWalletOption; // (unchanged) { id, connectorId?, label, family, kind, status, installed?, ready?, ... }
+```
+
+### A.2 — The symmetric runtime (the core of full symmetry)
+
+Both families implement the **same** `WalletRuntime<F>`. Identity and accounts
+come from the registry selectors; connect/disconnect go through `planCommands`;
+execution is fully built (AA hidden inside `send`). Family-specific plumbing
+(wagmi connectors, the SVM select→connect dance) lives **inside** the hook, never
+in the composer.
+
+```ts
+// composer/types.ts (target)
+export type WalletRuntime<F extends WalletFamily> = {
+  family: F;
+  status: "ready" | "unavailable";
+  registryStore: WalletRegistryStore;          // EVM creates it; SVM is fed the same store
+  identity: (now: number) => ChainIdentity<F>;  // from selectEvmIdentity / selectSvmIdentity
+  accounts: (now: number) => readonly WalletAccount[];
+  activeAccount?: WalletAccount;
+  options: readonly WalletOption[];             // connectable wallets for this family
+  supportedNetworks: readonly NetworkOption<F>[];
+  selectedNetwork?: NetworkOption<F>;
+  connect: (optionId?: string) => Promise<void>;
+  disconnect: (accountId?: string) => Promise<void>;
+  selectAccount: (accountId: string) => Promise<void>;
+  selectNetwork: (network: string | number) => Promise<void>;
+  execution: ExecutionMethods<F>;               // { send, sign, signMessage } — see A.3
+};
+
+export type EvmWalletRuntime = WalletRuntime<"evm">;
+export type SvmWalletRuntime = WalletRuntime<"svm">;
+```
+
+EVM today already exposes ~all of this under different names — the rename map:
+
+| today (`EvmWalletRuntime`) | target (`WalletRuntime<"evm">`) |
+| --- | --- |
+| `selectEvmIdentity(now)` | `identity(now)` |
+| `selectAccounts(now)` | `accounts(now)` |
+| `evmWalletOptions` | `options` |
+| `connectEvmWallet(id)` | `connect(id)` |
+| `disconnectEvmAccount(acc)` | `disconnect(acc.id)` |
+| `selectEvmAccount(id)` | `selectAccount(id)` |
+| `switchEvmChain(chainId)` | `selectNetwork(chainId)` |
+| `supportedChains` | `supportedNetworks` |
+| `walletClient`, `getWalletClientFor`, `*Async`, `capabilities`, `activeConnector`, `chainsById` | move behind `execution` (consumed by `buildEvmExecutionRuntime`, not the composer) |
+
+SVM today (`SafeSvmWalletState` — a raw wallet-adapter passthrough assembled in 3
+places) becomes a real hook that wraps that adapter:
+
+```ts
+// runtime/svm/wallet-runtime.ts (target)
+export function useSvmWalletRuntime(opts: {
+  registryStore: WalletRegistryStore;
+  selectedNetwork?: SvmNetworkOption;
+  supportedNetworks: readonly SvmNetworkOption[];
+  setSelectedNetworkId: (id: string) => void;
+}): WalletRuntime<"svm"> {
+  const adapter = useSafeSvmWallet();          // existing thin passthrough
+  useSvmRegistrySource(opts.registryStore, { adapter }); // now a PURE observer (dispatches svm/changed only)
+
+  const connect = useCallback(async (walletName?: string) => {
+    // the two-step select()->connect() + 400ms grace dance moves HERE,
+    // and fires a registry command instead of calling adapter.connect() inline:
+    opts.registryStore.dispatch({ type: "svm/connect-requested", walletName, now: Date.now() });
+  }, [opts.registryStore]);
+
+  const selectNetwork = useCallback(async (networkId: string) => {
+    // SVM switches cluster by reconnect (essential chain difference, kept internal)
+    if (adapter.publicKey && adapter.disconnect) await adapter.disconnect();
+    opts.setSelectedNetworkId(String(networkId));
+  }, [adapter, opts]);
+
+  return useMemo<WalletRuntime<"svm">>(() => ({
+    family: "svm",
+    status: adapter ? "ready" : "unavailable",
+    registryStore: opts.registryStore,
+    identity: (now) => selectSvmIdentity(opts.registryStore.getState(), now),
+    accounts: (now) => selectAccounts(opts.registryStore.getState(), now)
+                        .filter((a) => a.family === "svm"),
+    options: buildSvmWalletOptions(adapter),
+    supportedNetworks: opts.supportedNetworks,
+    selectedNetwork: opts.selectedNetwork,
+    connect,
+    disconnect: async () => { adapter.disconnect && (await adapter.disconnect());
+      opts.registryStore.dispatch({ type: "user/disconnect-family", family: "svm", now: Date.now() }); },
+    selectAccount: async () => {},               // single SVM account per wallet today
+    selectNetwork,
+    execution: buildSvmExecutionRuntime(adapter, opts.selectedNetwork),
+  }), [adapter, connect, selectNetwork, opts]);
+}
+```
+
+### A.3 — Execution + AA
+
+```ts
+// composer/types.ts (target) — symmetric per family
+export type ExecutionMethods<F extends WalletFamily> = F extends "evm"
+  ? {
+      send:        (p: WalletTxPayload) => Promise<AomiTxResult>;        // AA ladder hidden inside
+      sign:        (p: WalletEip712Payload) => Promise<{ signature: string }>;
+      signMessage: (p: WalletEip712Payload) => Promise<{ signature: string }>;
+    }
+  : {
+      send:                (p: WalletSolanaSignPayload) => Promise<{ signature: string; signedTx?: string }>;
+      sign:                (p: WalletSolanaSignPayload) => Promise<{ signedTx: string }>;
+      signMessage:         (p: WalletSolanaSignMessagePayload) => Promise<{ signature: string }>;
+      signAndSendTransaction?: (p: WalletSolanaSignPayload) => Promise<{ signature: string; signedTx?: string }>;
+    };
+
+export type ExecutionRuntime = {
+  evm?: ExecutionMethods<"evm">;
+  svm?: ExecutionMethods<"svm">;
+  sponsorship: SponsorshipState;     // (unchanged) sponsored / sponsorProvider / sponsorAccount
+};
+```
+
+One AA resolver replaces the `aa-provider-state.ts` ⊕ `para-aa.ts` duplication.
+The provider contributes only the **owner strategy**:
+
+```ts
+// execution/aa-provider-state.ts (target) — ONE function
+export type AAOwnerStrategy =
+  | { kind: "external-wallet" }                       // wallets-only / Privy / Base
+  | { kind: "provider-session"; session: unknown };   // Para supplies this
+
+export function resolveAAProviderState(args: {
+  ownerStrategy: AAOwnerStrategy;
+  requestedMode: "4337" | "7702";
+  walletClient?: WalletClient;
+  address?: Hex;
+  // ...env-driven Alchemy/Pimlico selection (ONE precedence — fix the drift)
+}): Promise<AAProviderState>;
+
+// providers/para/ParaPluginProvider.tsx — Para's ENTIRE AA contribution (~10 lines)
+const aaOwner: AAOwnerStrategy = paraSession
+  ? { kind: "provider-session", session: paraSession }
+  : { kind: "external-wallet" };
+// ...passed into buildEvmExecutionRuntime; everything else is shared.
+```
+
+### A.4 — Registry deltas (make SVM first-class)
+
+```ts
+// registry/types.ts (target) — two new commands
+export type RegistryCommand =
+  | { kind: "wagmi/reconnect"; stableIds: string[] }
+  | { kind: "wagmi/connect"; stableId: string }
+  | { kind: "wagmi/disconnect"; uid: string }
+  | { kind: "svm/connect"; walletName: string }     // NEW
+  | { kind: "svm/disconnect" }                       // NEW
+  | { kind: "provider/logout" }
+  | { kind: "persist" }
+  | { kind: "debug"; event: string; data?: Record<string, unknown> };
+
+// registry/store.ts (target) — executors gain SVM verbs
+export type CommandExecutors = {
+  wagmiReconnect: (stableIds: string[]) => Promise<void> | void;
+  wagmiConnect:   (stableId: string) => Promise<void> | void;
+  wagmiDisconnect:(uid: string) => Promise<void> | void;
+  svmConnect:     (walletName: string) => Promise<void> | void;   // NEW
+  svmDisconnect:  () => Promise<void> | void;                      // NEW
+  providerLogout: () => Promise<void> | void;
+};
+
+// registry/selectors.ts (target) — mirror of selectEvmIdentity
+export function selectSvmIdentity(
+  state: WalletRegistryState, now: number,
+): { address?: string; walletName?: string; cluster?: SvmCluster;
+     transport?: "extension" | "embedded" | "mwa"; capabilities?: SvmSigningCapabilities } {
+  const active = findActiveConnection(state, "svm");
+  return active
+    ? { address: active.address, walletName: active.walletName, /* ...transport/caps */ }
+    : {};
+}
+```
+
+`policy.ts` consumes the existing `svm/connect-requested` intent and emits a
+`svm/connect` command (today the SVM source calls `adapter.connect()` itself —
+that imperative call is deleted). `svm/registry-source.ts` becomes a pure observer
+that only dispatches `svm/changed`, exactly like `useWagmiRegistrySource`.
+
+### A.5 — Plugin contract (final) + Para example
+
+```ts
+// providers/plugin-registry.ts (target) — `render` removed; configSlice added
+export type WalletProviderPlugin = {
+  id: string;                                   // "para" | "privy" | ...
+  authMode?: "additive" | "full";
+  wrap?: (ctx: { auth?: AuthConfig; providers?: ProvidersConfig; children: ReactNode }) => ReactNode;
+  renderComposer?: (ctx: RenderComposerCtx) => ReactNode;
+  detectSugar?: (input: AomiWalletKitProviderInput) => AomiWalletKitProviderProps | null;
+  configSlice?: () => ProviderConfigSlice;      // registry-driven config contribution
+};
+
+export function requireWalletProvider(id: string): WalletProviderPlugin {
+  const plugin = registry.get(id);
+  if (!plugin) {
+    throw new Error(
+      `[aomi-wallet-kit] auth.provider "${id}" is not registered. ` +
+      `Add \`import "@aomi-labs/widget-lib/providers/${id}"\` (it self-registers), ` +
+      `or use a preset that bundles it.`,
+    );
+  }
+  return plugin;
+}
+```
+
+```tsx
+// providers/para/para-plugin.tsx (target) — wrap + renderComposer only; render block deleted
+export const paraPlugin: WalletProviderPlugin = {
+  id: "para",
+  authMode: "additive",
+  wrap: (props) => <ParaAuthLayer {...props} />,
+  renderComposer: (ctx) => <AomiParaPluginProvider {...ctx} />, // builds Auth + Execution(owner=session) runtimes
+  detectSugar: (input) => /* unchanged */ null,
+};
+
+// providers/para/index.ts (target) — SELF-REGISTERS on import; no exported register fn for consumers
+import { registerWalletProvider } from "../plugin-registry";
+import { paraPlugin } from "./para-plugin";
+registerWalletProvider(paraPlugin);
+export { /* public Para types only */ };
+```
+
+Consumers register a provider by **importing** it (discoverable, tree-shakeable):
+`import "@aomi-labs/widget-lib/providers/para"`. Presets pull the matching import
+internally. A forgotten provider now **throws** (via `requireWalletProvider`)
+instead of silently degrading.
+
+### A.6 — Single entry point: before → after
+
+```tsx
+// BEFORE — config/AomiWalletKitProvider.tsx: 8 nested components, names that lie
+AomiWalletKitProvider
+  └─ AomiWalletsOnlyProvider
+       └─ AomiEvmWalletsOnlyProvider            // mounts wagmi + SVM + testnet router
+            └─ MaybeSvmWalletProvider
+                 └─ FullTestnetWalletRouter
+                      └─ paraPlugin.wrap → ParaAuthLayer
+                           └─ paraPlugin.renderComposer → AomiParaPluginProvider
+                                └─ AomiWalletKitComposer
+// + a SECOND path: providers/index.tsx AomiWalletProvider union → AomiParaProvider (para.tsx, DEAD)
+
+// AFTER — one path, honest names
+AomiWalletKitProvider
+  └─ WalletKitStack            // wagmi catalog + SVM adapters + testnet router + SSR gate (kit-owned)
+       └─ <plugin.wrap>        // provider auth context (or pass-through for wallets-only)
+            └─ <plugin.renderComposer>  // builds auth + execution lanes
+                 └─ AomiWalletKitComposer
+// providers/index.tsx is a ≤30-line @deprecated shim → AomiWalletKitProvider
+```
+
+### A.7 — The composer: before → after (the headline win)
+
+```tsx
+// BEFORE — AomiWalletKitComposer.tsx: ~280-line useMemo that RE-IMPLEMENTS execution
+const adapter = useMemo<AomiWalletKit>(() => {
+  // ...reads svm.wallet.publicKey directly for identity
+  // ...hand-builds connectSolanaWallet via svm.wallet.select!/connect
+  // ...sendTransaction: re-assembles executeWalletKitTransaction({ state:{ sendCallsSyncAsync,
+  //     sendTransactionAsync, switchChainAsync, resolveAAProviderState, forceAA, aaModes... }})
+  // ...signTypedData / signMessage: re-derive viem args + inject activeConnector
+}, [/* 18 deps */]);
+
+// AFTER — pure merge of two symmetric runtimes; zero execution logic
+const adapter = useMemo<AomiWalletKit>(() => {
+  const evmId = evm.identity(now);
+  const svmId = svm?.identity(now);
+  return {
+    identity: buildWalletKitIdentity({ auth, evm: evmId, svm: svmId, execution }),
+    accounts: [...evm.accounts(now), ...(svm?.accounts(now) ?? [])],
+    walletModalRows: mergeWalletRows({ evm, svm, auth, account }),
+    connect:    (o) => (o?.family === "svm" ? svm! : evm).connect(),
+    disconnect: (o) => routeDisconnect(o, evm, svm, auth),
+    selectAccount: (id) => runtimeFor(id, evm, svm).selectAccount(id),
+    selectNetwork: (t)  => (t.family === "svm" ? svm! : evm).selectNetwork(networkOf(t)),
+    // public solana-named methods map straight onto the runtimes:
+    sendTransaction:  execution.evm?.send,
+    signTypedData:    execution.evm?.sign,
+    signMessage:      execution.evm?.signMessage,
+    signSolanaTransaction:     execution.svm?.sign,
+    signSolanaMessage:         execution.svm?.signMessage,
+    sendSolanaTransaction:     execution.svm?.send,
+    signAndSendSolanaTransaction: execution.svm?.signAndSendTransaction,
+    // ...canConnect/canDisconnect/supportedNetworks derived from the runtimes
+  };
+}, [auth, evm, svm, execution, account]);
+```
+
+### A.8 — Consumer (landing): before → after
+
+```tsx
+// BEFORE — apps/landing/app/components/landing-wallet-kit-provider.tsx
+import { AomiWalletKitProvider, registerAomiParaWalletProvider }
+  from "../../../registry/src";          // deep relative path into the package source
+registerAomiParaWalletProvider();         // bare side effect; forget it → silent wallets-only
+const [mounted, setMounted] = useState(false);   // hand-rolled SSR gate
+useEffect(() => setMounted(true), []);
+if (!mounted) return null;
+// ...30-line solanaNetworks array copy-pasted from the Privy provider
+
+// AFTER
+import { AomiWalletKitProvider, solanaPreset } from "@aomi-labs/widget-lib";
+import "@aomi-labs/widget-lib/providers/para";   // discoverable, self-registers, tree-shakeable
+// no mounted gate (kit owns SSR), no registration call, no copy-pasted network array
+<AomiWalletKitProvider
+  preset="wallets-only"
+  auth={{ provider: "para", methods: ["google", "email", "wallet"] }}
+  providers={{ para: { apiKey, environment, appName: "Aomi Labs" } }}
+  wallets={{ evm: { preset: "popular", chains, walletConnectProjectId },
+             solana: solanaPreset("mainnet", "devnet") }}
+  execution={{ aa: "optional", owner: "external-wallet" }}
+/>
+```
+
+### A.9 — Worked example: add a new auth provider (seam #1)
+
+Everything is contained in one folder; **no core edit**:
+
+```txt
+providers/dynamic/
+  index.ts              registerWalletProvider(dynamicPlugin)   // self-register on import
+  dynamic-plugin.tsx    { id:"dynamic", authMode, wrap, renderComposer, detectSugar }
+  dynamic-auth.ts       login/methods/credential (provider-specific)
+  dynamic-embedded.ts   embedded wallet → WalletAccount[] (source:"embedded")
+```
+
+```tsx
+export const dynamicPlugin: WalletProviderPlugin = {
+  id: "dynamic",
+  authMode: "additive",
+  wrap: ({ children, providers }) => <DynamicAuthContext {...providers?.dynamic}>{children}</DynamicAuthContext>,
+  renderComposer: (ctx) => (
+    <AomiWalletKitComposer
+      auth={buildDynamicAuthRuntime()}            // the lane it fills
+      evm={ctx.evm} svm={ctx.svm}                 // shared runtimes — unchanged
+      execution={buildEvmExecutionRuntime(ctx.evm, { aaOwner: { kind: "external-wallet" } })}
+      supportedChains={ctx.supportedChains}
+    >{ctx.children}</AomiWalletKitComposer>
+  ),
+};
+```
+
+Consumer: `import "@aomi-labs/widget-lib/providers/dynamic"` + `auth={{ provider:"dynamic" }}`.
+The registry, catalog, composer, runtimes, execution, and config types are untouched.
+
+### A.10 — Worked example: add a new ecosystem / VM (seam #2)
+
+Add `"tvm"` to `WalletFamily`, implement one runtime + family-keyed commands:
+
+```txt
+runtime/tvm/
+  wallet-runtime.ts     useTvmWalletRuntime(): WalletRuntime<"tvm">   // same shape as EVM/SVM
+  registry-source.ts    pure observer → dispatch tvm/changed
+  networks.ts transactions.ts
+catalog/tvm-wallet-catalog.ts
+```
+
+Registry additions mirror SVM exactly: `tvm/connect` / `tvm/disconnect` commands,
+`tvmConnect` / `tvmDisconnect` executors, `selectTvmIdentity` selector,
+`activeByFamily.tvm`. The composer already merges "all runtimes" generically
+(A.7), so it does not change; the picker renders the new family from
+`accounts`/`walletModalRows` with no special-casing. This is the payoff of
+symmetry: a third VM is additive, not a fork.
+

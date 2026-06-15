@@ -4,7 +4,6 @@ import { useMemo } from "react";
 import type { Address, Chain } from "viem";
 import { getWalletClient } from "wagmi/actions";
 import {
-  useAccount,
   useCapabilities,
   useConfig,
   useConnect,
@@ -22,40 +21,19 @@ import {
 } from "wagmi";
 import type { Connector } from "wagmi";
 import type { executeWalletCalls } from "@aomi-labs/react";
-import { normalizeAtomicCapabilities } from "../../wallet-execution";
+import { normalizeAtomicCapabilities } from "../../execution/wallet-execution";
 import { walletDebug } from "../../wallet-debug";
 import { canonicalWalletKey } from "../../catalog/wallet-branding";
-
-export type WagmiAccountShape = {
-  address?: `0x${string}`;
-  chainId?: number;
-  isConnected: boolean;
-  connector?: { id?: string; name?: string; type?: string; uid?: string };
-};
 
 export type WagmiConfigShape = {
   chains: readonly Chain[];
   connectors: readonly Connector[];
 };
 
-const DISCONNECTED_WAGMI_ACCOUNT: WagmiAccountShape = {
-  address: undefined,
-  chainId: undefined,
-  isConnected: false,
-};
-
 const DISCONNECTED_WAGMI_CONFIG: WagmiConfigShape = {
   chains: [],
   connectors: [],
 };
-
-export function useSafeWagmiAccount(): WagmiAccountShape {
-  try {
-    return useAccount() as WagmiAccountShape;
-  } catch {
-    return DISCONNECTED_WAGMI_ACCOUNT;
-  }
-}
 
 export function useSafeWalletClient(): {
   walletClient?: ReturnType<typeof useWalletClient>["data"];

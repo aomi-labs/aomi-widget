@@ -138,7 +138,10 @@ describe("WalletRegistry selectors", () => {
       },
     });
 
-    const accounts = selectAccounts(current, 100);
+    const accounts = [
+      ...selectAccounts(current, "evm", 100),
+      ...selectAccounts(current, "svm", 100),
+    ];
 
     expect(accounts).toHaveLength(2);
     expect(accounts[0]).toMatchObject({

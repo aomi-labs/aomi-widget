@@ -189,10 +189,6 @@ function connectorReady(connector: Connector): boolean | undefined {
   return (connector as Connector & { ready?: boolean }).ready;
 }
 
-export function isProviderInternalWalletLabel(label: string): boolean {
-  return false;
-}
-
 function knownWalletInstalled(
   key: string,
   flags: InstalledWalletFlags,

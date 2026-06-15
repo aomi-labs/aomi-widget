@@ -3,7 +3,7 @@
 import { Fragment, useEffect, type FC } from "react";
 import { ChevronDownIcon } from "lucide-react";
 import { cn, getChainInfo } from "@aomi-labs/react";
-import { useAomiWalletKit, formatAddress } from "../../lib/wallet-kit";
+import { useAomiWalletKit, formatWalletAddress } from "../../lib/wallet-kit";
 import { WalletIconSlot } from "./wallet-icon-slot";
 import { WalletPicker } from "./wallet-picker";
 import { WalletPickerProvider, useWalletPicker } from "./wallet-picker-context";
@@ -68,9 +68,13 @@ const DualWalletBarInner: FC<DualWalletBarProps> = ({
           ? {
               family,
               walletName:
-                activeSolanaAccount?.walletName ?? identity.solanaWalletName,
+                activeSolanaAccount?.walletName ??
+                identity.svmWalletName ??
+                identity.solanaWalletName,
               address: identity.svmAddress,
-              detail: solanaClusterLabel(identity.solanaCluster),
+              detail: solanaClusterLabel(
+                identity.svmCluster ?? identity.solanaCluster,
+              ),
             }
           : null,
     )
@@ -122,14 +126,14 @@ const DualWalletBarInner: FC<DualWalletBarProps> = ({
                   {singleWallet ? (
                     <>
                       <span className="@[15rem]:hidden">
-                        {formatAddress(wallet.address)}
+                        {formatWalletAddress(wallet.address)}
                       </span>
                       <span className="hidden @[15rem]:inline">
                         {longAddress(wallet.address)}
                       </span>
                     </>
                   ) : (
-                    <span>{formatAddress(wallet.address)}</span>
+                    <span>{formatWalletAddress(wallet.address)}</span>
                   )}
                   {wallet.detail ? (
                     <span

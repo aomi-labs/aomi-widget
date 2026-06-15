@@ -3,8 +3,9 @@
 import {
   AOMI_SESSION_BOOTING_IDENTITY,
   AOMI_SESSION_DISCONNECTED_IDENTITY,
-  formatAddress,
   formatAuthMethod,
+  formatWalletAddress,
+  formatWalletProvider,
 } from "../identity";
 import type { AomiSessionIdentity } from "../types";
 import type { AuthRuntime, SvmWalletRuntime } from "./types";
@@ -37,14 +38,18 @@ export function buildWalletKitIdentity({
 }): AomiSessionIdentity {
   const svmIdentity = svm?.identity(Date.now());
   const svmAddress = svmIdentity?.address;
-  const solanaTransport = svmIdentity?.transport;
-  const solanaCapabilities = svmIdentity?.capabilities;
+  const svmTransport = svmIdentity?.transport;
+  const svmCapabilities = svmIdentity?.capabilities;
   const baseSvm = {
     svmAddress,
+    svmCluster: svmIdentity?.cluster,
+    svmWalletName: svmIdentity?.walletName,
+    svmTransport: svmAddress ? svmTransport : undefined,
+    svmCapabilities,
     solanaCluster: svmIdentity?.cluster,
     solanaWalletName: svmIdentity?.walletName,
-    solanaTransport: svmAddress ? solanaTransport : undefined,
-    solanaCapabilities,
+    solanaTransport: svmAddress ? svmTransport : undefined,
+    solanaCapabilities: svmCapabilities,
   };
 
   if (isBooting) {
@@ -76,7 +81,8 @@ export function buildWalletKitIdentity({
       authValue: auth.authValue,
       primaryLabel: auth.primaryLabel,
       secondaryLabel:
-        formatAuthMethod(auth.authMethod) ?? formatProvider(auth.provider),
+        formatAuthMethod(auth.authMethod) ??
+        formatWalletProvider(auth.provider),
       ...baseSvm,
     };
   }
@@ -99,11 +105,11 @@ export function buildWalletKitIdentity({
       authMethod: auth.authMethod ?? "wagmi",
       authProvider: auth.authMethod ?? "wagmi",
       authValue: auth.authValue,
-      primaryLabel: formatAddress(address) ?? "Connected wallet",
+      primaryLabel: formatWalletAddress(address) ?? "Connected wallet",
       secondaryLabel:
         walletName ??
         formatAuthMethod(auth.authMethod ?? "wagmi") ??
-        formatProvider(auth.provider),
+        formatWalletProvider(auth.provider),
       ...baseSvm,
     };
   }
@@ -123,12 +129,16 @@ export function buildWalletKitIdentity({
       authMethod: auth.authMethod,
       authProvider: auth.authMethod,
       authValue: auth.authValue,
-      primaryLabel: formatAddress(svmAddress) ?? "Connected Solana wallet",
+      primaryLabel: formatWalletAddress(svmAddress) ?? "Connected Solana wallet",
       secondaryLabel: "Solana",
+      svmCluster: svmIdentity?.cluster,
+      svmWalletName: svmIdentity?.walletName,
+      svmTransport,
+      svmCapabilities,
       solanaCluster: svmIdentity?.cluster,
       solanaWalletName: svmIdentity?.walletName,
-      solanaTransport,
-      solanaCapabilities,
+      solanaTransport: svmTransport,
+      solanaCapabilities: svmCapabilities,
     };
   }
 
@@ -141,12 +151,7 @@ export function buildWalletKitIdentity({
     authMethod: auth.authMethod,
     authProvider: auth.authMethod,
     authValue: auth.authValue,
+    svmCluster: svmIdentity?.cluster,
     solanaCluster: svmIdentity?.cluster,
   };
-}
-
-function formatProvider(provider: AuthRuntime["provider"]): string {
-  if (provider === "none") return "Wallet";
-  if (provider === "baseAccount") return "Base Account";
-  return provider[0].toUpperCase() + provider.slice(1);
 }

@@ -7,7 +7,7 @@ import {
   registerWalletProvider,
   type WalletProviderPlugin,
 } from "../plugin-registry";
-import { AomiPrivyPluginProvider } from "./privy";
+import { AomiPrivyPluginProvider } from "./PrivyPluginProvider";
 import type { AuthConfig, ProvidersConfig } from "../../config/types";
 import type { SvmNetworkOption } from "../../types";
 

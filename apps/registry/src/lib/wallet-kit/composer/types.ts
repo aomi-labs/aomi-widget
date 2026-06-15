@@ -12,19 +12,21 @@ import type {
   AuthProviderId,
   AomiWalletOption,
   SvmNetworkOption,
+  WalletFamily,
   WalletSource,
 } from "../types";
 import type { EvmWalletRuntime } from "../runtime/evm/wallet-runtime";
 import type { SafeSvmWalletState } from "../runtime/svm/wallet-runtime";
 import type { buildSvmTransactionMethods } from "../runtime/svm/transactions";
 import type { AccountRuntime } from "../account/types";
+import type { EvmIdentity } from "../registry/selectors";
 import type {
   NativeWalletExecutionPolicy,
   ResolveAAProviderState,
   WalletKitAAProviderPreference,
   WalletKitAAPolicy,
   WalletExecutionKitState,
-} from "../wallet-execution";
+} from "../execution/wallet-execution";
 
 export type AuthRuntimeStatus = "booting" | "authenticated" | "unauthenticated";
 
@@ -47,26 +49,35 @@ export type AuthRuntime = {
   getCredential?: () => Promise<AomiAccountCredential | null>;
 };
 
-export type SvmWalletRuntime = {
+export type SvmIdentity = {
+  address?: string;
+  walletName?: string;
+  cluster?: AomiSessionIdentity["svmCluster"];
+  walletSource?: WalletSource;
+  transport?: AomiSessionIdentity["svmTransport"];
+  capabilities?: AomiSessionIdentity["svmCapabilities"];
+};
+
+export type WalletRuntimeIdentity<F extends WalletFamily> = F extends "evm"
+  ? EvmIdentity
+  : SvmIdentity;
+
+export type WalletRuntime<F extends WalletFamily> = {
   status: "ready" | "unavailable";
   registryStore: import("../registry/store").WalletRegistryStore;
-  identity: (now: number) => {
-    address?: string;
-    walletName?: string;
-    cluster?: AomiSessionIdentity["solanaCluster"];
-    walletSource?: WalletSource;
-    transport?: AomiSessionIdentity["solanaTransport"];
-    capabilities?: AomiSessionIdentity["solanaCapabilities"];
-  };
+  identity: (now: number) => WalletRuntimeIdentity<F>;
   accounts: (now: number) => AomiAccount[];
   activeAccount?: AomiAccount;
   options: readonly AomiWalletOption[];
-  supportedNetworks: readonly SvmNetworkOption[];
-  selectedNetwork?: SvmNetworkOption;
   connect: (optionId?: string) => Promise<void>;
   disconnect: (accountId?: string) => Promise<void>;
   selectAccount: (accountId: string) => Promise<void>;
   selectNetwork: (networkId: string | number) => Promise<void>;
+};
+
+export type SvmWalletRuntime = WalletRuntime<"svm"> & {
+  supportedNetworks: readonly SvmNetworkOption[];
+  selectedNetwork?: SvmNetworkOption;
   execution: SvmExecutionRuntime;
 };
 
@@ -104,7 +115,6 @@ export type SvmExecutionRuntime = ReturnType<typeof buildSvmTransactionMethods>;
 
 export type ExecutionRuntime = {
   evm: EvmExecutionRuntime;
-  svm?: SvmExecutionRuntime;
   sponsorship: Pick<
     AomiSessionIdentity,
     "sponsored" | "sponsorProvider" | "sponsorAccount"
@@ -113,9 +123,7 @@ export type ExecutionRuntime = {
 
 export type AccountTransform = (accounts: AomiAccount[]) => AomiAccount[];
 
-export type EvmIdentityTransform = (
-  identity: ReturnType<EvmWalletRuntime["selectEvmIdentity"]>,
-) => ReturnType<EvmWalletRuntime["selectEvmIdentity"]>;
+export type EvmIdentityTransform = (identity: EvmIdentity) => EvmIdentity;
 
 export type AomiWalletKitComposerProps = {
   children: React.ReactNode;

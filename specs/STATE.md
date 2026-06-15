@@ -2,11 +2,140 @@
 
 ## Last Updated
 
-2026-06-14 - Wallet-kit cleanup sweep (Tiers 1–3): execution-runtime factory,
-SVM helper dedupe, open provider-id unions, brand registry (de-Para
-`brands.ts`), and a data-driven provider registry replacing the router if-chain.
+2026-06-15 - Continued wallet-kit cleanup sweep pass from
+`specs/WALLET-KIT-CLEANUP.md`: C1, C3, C4, C5, C6, C7, and C9 are implemented;
+C2's code items are implemented; C8's composer/full-testnet items are implemented
+with the config-ladder collapse still partial. Automated gates are green. Manual
+wallet matrix remains pending.
 
 ## Recent Changes
+
+### Wallet-kit cleanup sweep execution (2026-06-15)
+
+Implemented a verified cleanup pass against `specs/WALLET-KIT-CLEANUP.md`:
+
+- **C1 account ownership:** `selectAccounts(state, family, now, chain?)` now builds
+  one family at a time; EVM/SVM runtimes call it with their own family; the composer
+  concatenates disjoint EVM + SVM rows; `dedupeAccounts` was removed.
+- **C2 partial:** dropped `ExecutionRuntime.svm`; the composer reads SVM signing/RPC
+  methods only from `svm.execution`, removing the six `??` fallbacks.
+- **C3 picker rows:** `WalletPicker` now consumes `adapter.walletModalRows` for
+  live, stored, option, Solana, generic browser-wallet, and social/auth rows, and maps
+  row actions back to the existing adapter handlers.
+- **C4 duplication consolidation:** added shared `walletKey`/`toRegistryFamily`
+  helpers, folded `composer/build-accounts.ts` into `accounts.ts`, merged provider
+  label formatting into `formatWalletProvider`, consolidated AA provider-state
+  resolution behind a single owner-strategy resolver, renamed the config-side native
+  execution policy resolver, and renamed the wallet-kit address formatter to
+  `formatWalletAddress`.
+- **C6 Privy symmetry:** split the Privy provider monolith into
+  `PrivyPluginProvider.tsx`, `PrivyProvider.tsx`, `privy-auth.ts`, `privy-svm.ts`,
+  and `privy-execution.ts`; `privy.tsx` is now a compatibility barrel; Para and
+  Privy plugins both expose `isAvailable`.
+- **C5 dead code/deps:** removed `useSafeWagmiAccount`,
+  `isProviderInternalWalletLabel`, public `EVM_PRESETS`/`SVM_WALLET_PRESETS` barrel
+  exports, internal SVM helper exports, the dead Para Solana wrapper/deps, the
+  branch-only `AomiBaseAccountProvider` surface/folder, and
+  `ParaPluginProvider.solanaConfig`.
+- **C7 layering:** moved identity grace into `registry/`, SVM network shaping into
+  `catalog/`, AA owner into `execution/`, folded root wallet preferences into
+  `network-preferences.tsx`, deleted `wallet-family.ts`, deleted the root
+  `wallet-execution.ts` shim, and deleted the unused `internal.ts` barrel/subpath.
+- **C8/C9 finish:** extracted adapter actions to
+  `composer/build-wallet-kit-actions.ts`, split full-testnet pure config into
+  `full-testnet-config.ts`, moved the auth-plugin composer ternary into
+  `WalletKitComposerOutlet`, added the shared `WalletRuntime<F>` surface, and moved
+  internal SVM identity fields to `svm*` while keeping deprecated `solana*` aliases.
+- Rebuilt registry artifacts and synced `apps/registry/dist` to `apps/landing/public/r`.
+
+Verification run:
+
+- `pnpm run typecheck`
+- `pnpm typecheck:landing`
+- `pnpm --filter @aomi-labs/widget-lib exec vitest run src/lib/wallet-kit src/components/control-bar/wallet-picker.test.tsx`
+- `pnpm exec vitest run packages/client/test/registry-chain-artifacts.unit.test.ts`
+- `pnpm exec vitest run packages/`
+- `pnpm run lint`
+- `pnpm run build:lib`
+- `pnpm run build:registry` + `rsync -a --delete apps/registry/dist/ apps/landing/public/r/`
+
+Still open in the cleanup doc: the remaining C8 config-ladder collapse item and all
+manual wallet-extension checks (E1/E3/E4/E5/E6/S1/S2/S3/S4/D1/P1).
+
+### Wallet-kit cleanup sweep spec (2026-06-15)
+
+Branch `polish-multi-wallet`. No code changes — second deep audit of the wallet-kit
+after most of the migration landed, plus a new **`specs/WALLET-KIT-CLEANUP.md`**:
+a 10-phase (C1–C10), checkbox-driven, verifiable cleanup backlog with a final gate +
+manual landing matrix. Scorecard: registry core / EVM execution factory / pure
+registry sources / SVM commands / catalog are clean; the remaining debt is a
+consistency finish. Findings:
+
+- **Root coupling (C1):** `registry/selectors.ts` `selectAccounts` is family-agnostic;
+  the EVM runtime returns both families unfiltered while SVM filters — so
+  `evm.selectAccounts() ⊇ svm.accounts()`, which caused the duplicate-Solana-row bug
+  the user's agent band-aided with `dedupeAccounts`. Fix: `selectAccounts(state, family, now)`.
+- **Symmetry (C2):** `EvmWalletRuntime`/`SvmWalletRuntime` are still two bespoke types
+  (no shared `WalletRuntime<F>`); SVM execution has two sources → 6 `??` in the composer;
+  SVM connect/disconnect control-flow still lives in the composer (double-disconnect).
+- **Picker (C3, decided=wire it):** `walletModalRows`/`mergeWalletRows` is produced but
+  the picker never reads it (builds rows ad hoc). Wire the picker, delete the assembly.
+- **Dup (C4):** `walletKey` (×5), `formatProvider`≈`formatWalletProvider`, two ~80%
+  AA resolvers, inline `solana→svm` mapping (×3), `formatAddress` ×2, name collisions.
+- **Dead code/deps (C5, decided=delete now):** `useSafeWagmiAccount`,
+  `isProviderInternalWalletLabel` stub, dead Para Solana wrapper in `para-svm.tsx`
+  (drops `@getpara/solana-wallet-connectors` + `@solana-mobile/...`), `AomiBaseAccountProvider`
+  + duplicate `base-account` branch + `ParaPluginProvider.solanaConfig`, `wallet-family.ts`
+  (`toWireWalletFamily` 0 callers), dead `internal.ts` barrel, zero-consumer presets.
+- **Provider symmetry (C6):** Privy is a 658-line monolith; split to mirror Para's
+  file layout + align the plugin `isAvailable` field.
+- **Layering (C7):** `registry/selectors.ts`→`runtime/evm/identity-grace` (real
+  violation; move down); fold `aa/` into `execution/`; collapse root `persistence.ts`
+  (dead `selectedFamily`) into `network-preferences`; delete root `wallet-execution.ts`
+  shim + move its test.
+- **Decomposition (C8):** config provider is STILL an 8-component ladder (the collapse
+  never happened); composer `adapter` useMemo ~220 lines → extract `build-wallet-kit-actions`.
+- **Naming (C9):** `AomiSessionIdentity` mixes `svm*`/`solana*`; `EvmIdentityTransform`
+  via `ReturnType<…>`.
+
+Decisions locked: wire the picker; one combined doc (incl. symmetry finish); delete the
+branch-only deprecated surface now. Pending: execute C1–C10.
+
+### Wallet-kit finish-line plan rewrite (2026-06-15)
+
+Branch `polish-multi-wallet`. No code changes — broad architecture review of the
+whole wallet-kit (4 parallel deep-dive audits: provider asymmetry, EVM/SVM runtime
+symmetry, consumer surface/exports, registry core) and a from-scratch rewrite of
+**`specs/WALLET-PROVIDER-PLUGIN-REFACTOR.md`**. Findings re-baselined against the
+actual half-migrated tree:
+
+- **The registry core is the good part** (pure reducer + policy + `planCommands` +
+  store; active-per-family). Keep it; only consolidate scar tissue (suppression-
+  reason list duplicated ×3, double-counted heal budget, extract connection-order).
+- **Four seams are the real mess:** (1) two public entry points that disagree
+  (`config/AomiWalletKitProvider` capability path vs `providers/index.tsx`
+  `AomiWalletProvider` union) + a dead second Para mount path (`para.tsx` +
+  `paraPlugin.render`, reachable only from a dev driver); (2) EVM is a real runtime
+  but SVM is call-site glue (no `useSvmWalletRuntime`; connect/disconnect/identity
+  smeared across the composer; SVM connect bypasses `planCommands`); (3) half-
+  finished `svm`/`solana` rename with ~17 `Solana*=Svm*` aliases running through
+  file interiors; (4) duplication + leaky surface (`para-aa.ts` ≈95% copy of
+  `execution/aa-provider-state.ts` with drifted Alchemy/Pimlico precedence; `index.ts`
+  re-exports ~100 internals via 13 `export *`; `registerAomiParaWalletProvider()`
+  side-effect foot-gun that silently degrades to wallets-only if forgotten; landing
+  imports via `../../../registry/src` + dev drivers reaching into `providers/para`).
+- **Plan shape:** P1 vocabulary (svm internal, solana public edge) → P2 symmetric
+  `useSvmWalletRuntime` + `svm/connect`·`svm/disconnect` registry commands +
+  `selectSvmIdentity` → P3 unify execution behind `runtime.execution.send/sign`
+  (move inline `executeWalletKitTransaction` out of composer) → P4 one
+  `resolveAAProviderState({ ownerStrategy })` → P5 single entry + self-registering
+  plugins that throw on misconfig + delete dead Para path → P6 registry scar
+  cleanup → P7 barrel hygiene + consumer DX + dev-driver relocation → P8 whole-
+  migration gate (automated + invariant re-check + manual landing matrix E1–E8/S1–S3/D1/P1).
+- Decision: **full EVM/SVM symmetry in scope this migration** (not deferred). User
+  approved rewriting the spec in place.
+
+Pending: await go/no-go to execute P1–P8. No production code touched yet.
 
 ### Wallet-kit P3 cleanup sweep — Tiers 1–3 (2026-06-14)
 

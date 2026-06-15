@@ -22,7 +22,7 @@ import {
 import type { Chain } from "viem";
 import { AomiWalletKitComposer } from "../composer/AomiWalletKitComposer";
 import type { AuthRuntime, ExecutionRuntime } from "../composer/types";
-import { resolveExternalWalletAAProviderState } from "../execution/aa-provider-state";
+import { resolveAAProviderState } from "../execution/aa-provider-state";
 import { buildEvmExecutionRuntime } from "../execution/execution-runtime";
 import {
   AomiWalletNetworkPreferencesProvider,
@@ -56,7 +56,7 @@ import type {
 } from "./types";
 import {
   resolveExecutionSponsorshipIdentity,
-  resolveNativeWalletExecutionPolicy,
+  resolveConfiguredNativeWalletExecutionPolicy,
 } from "./execution";
 
 export type { AomiWalletKitProviderInput, AomiWalletKitProviderProps };
@@ -117,17 +117,18 @@ function ExternalWalletComposerProvider({
         aaOwner: execution?.owner ?? "auto",
         aaPolicy: execution?.aa ?? "optional",
         aaProvider: execution?.provider ?? "auto",
-        nativeWalletExecution: resolveNativeWalletExecutionPolicy(execution),
+        nativeWalletExecution:
+          resolveConfiguredNativeWalletExecutionPolicy(execution),
         resolveAAProviderState: async (params, context) =>
-          resolveExternalWalletAAProviderState({
+          resolveAAProviderState({
             ...params,
+            ownerStrategy: { kind: "external-wallet" },
             walletClient: context.walletClient,
             address: context.address,
           }),
       }),
-      svm: svmRuntime.execution,
     }),
-    [evmRuntime, execution, svmRuntime.execution],
+    [evmRuntime, execution],
   );
 
   return (
@@ -219,6 +220,61 @@ function MaybeSvmWalletProvider({
   );
 }
 
+function WalletKitComposerOutlet({
+  auth,
+  authPlugin,
+  children,
+  execution,
+  providers,
+  resolvedSvm,
+  routing,
+  setSelectedSolanaNetworkId,
+}: {
+  auth?: AuthConfig;
+  authPlugin?: WalletProviderPlugin;
+  children: ReactNode;
+  execution?: ExecutionConfig;
+  providers?: ProvidersConfig;
+  resolvedSvm: ResolvedSvmWalletsConfig;
+  routing: ReturnType<typeof useFullTestnet<readonly [Chain, ...Chain[]]>>;
+  setSelectedSolanaNetworkId: (networkId: string) => void;
+}) {
+  if (authPlugin?.renderComposer) {
+    return (
+      <>
+        {authPlugin.renderComposer({
+          auth,
+          children,
+          execution,
+          providers,
+          selectedSolanaNetwork: resolvedSvm.activeNetwork,
+          setSelectedSolanaNetworkId,
+          solanaRuntimeConfig:
+            resolvedSvm.enabled && resolvedSvm.activeNetwork
+              ? {
+                  cluster: resolvedSvm.cluster,
+                  rpcHttpUrl: resolvedSvm.rpcHttpUrl,
+                  rpcWsUrl: resolvedSvm.rpcWsUrl,
+                  preferDirectSend: resolvedSvm.preferDirectSend,
+                }
+              : undefined,
+          supportedChains: routing.routedChains,
+          supportedSolanaNetworks: resolvedSvm.networks,
+        })}
+      </>
+    );
+  }
+
+  return (
+    <EvmExternalWalletComposerProvider
+      execution={execution}
+      supportedChains={routing.routedChains}
+    >
+      {children}
+    </EvmExternalWalletComposerProvider>
+  );
+}
+
 function AomiEvmExternalWalletProvider({
   auth,
   authPlugin,
@@ -278,34 +334,17 @@ function AomiEvmExternalWalletProvider({
                 chains={routing.routedChains}
                 routedChainIds={routing.routedChainIds}
               >
-                {shouldUseAuthPlugin && authPlugin?.renderComposer ? (
-                  authPlugin.renderComposer({
-                    auth,
-                    children,
-                    execution,
-                    providers,
-                    selectedSolanaNetwork: resolvedSvm.activeNetwork,
-                    setSelectedSolanaNetworkId,
-                    solanaRuntimeConfig:
-                      resolvedSvm.enabled && resolvedSvm.activeNetwork
-                        ? {
-                            cluster: resolvedSvm.cluster,
-                            rpcHttpUrl: resolvedSvm.rpcHttpUrl,
-                            rpcWsUrl: resolvedSvm.rpcWsUrl,
-                            preferDirectSend: resolvedSvm.preferDirectSend,
-                          }
-                        : undefined,
-                    supportedChains: routing.routedChains,
-                    supportedSolanaNetworks: resolvedSvm.networks,
-                  })
-                ) : (
-                  <EvmExternalWalletComposerProvider
-                    execution={execution}
-                    supportedChains={routing.routedChains}
-                  >
-                    {children}
-                  </EvmExternalWalletComposerProvider>
-                )}
+                <WalletKitComposerOutlet
+                  auth={auth}
+                  authPlugin={shouldUseAuthPlugin ? authPlugin : undefined}
+                  execution={execution}
+                  providers={providers}
+                  resolvedSvm={resolvedSvm}
+                  routing={routing}
+                  setSelectedSolanaNetworkId={setSelectedSolanaNetworkId}
+                >
+                  {children}
+                </WalletKitComposerOutlet>
               </FullTestnetWalletRouter>
             </MaybeSvmWalletProvider>
           </AomiEvmRuntimeProvider>

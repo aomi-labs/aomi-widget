@@ -1,7 +1,7 @@
 "use client";
 
 import type { ExecutionConfig } from "./types";
-import type { NativeWalletExecutionPolicy } from "../wallet-execution";
+import type { NativeWalletExecutionPolicy } from "../execution/wallet-execution";
 
 type EnabledSponsorship = Extract<
   NonNullable<ExecutionConfig["sponsorship"]>,
@@ -26,7 +26,7 @@ function resolveMaybeFunction<T>(
   return () => value;
 }
 
-export function resolveNativeWalletExecutionPolicy(
+export function resolveConfiguredNativeWalletExecutionPolicy(
   execution: ExecutionConfig | undefined,
 ): NativeWalletExecutionPolicy | undefined {
   const sponsorship = execution?.sponsorship;

@@ -1,4 +1,4 @@
-import type { WalletSource } from "../../types";
+import type { WalletSource } from "../types";
 
 export type GracefulEvmIdentity = {
   address?: string;

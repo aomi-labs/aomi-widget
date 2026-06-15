@@ -82,7 +82,7 @@ export function buildEvmExecutionRuntime(
               resolveAAProviderState: runtime.resolveAAProviderState
                 ? async (params) =>
                     runtime.resolveAAProviderState!(params, {
-                      address: evm.selectEvmIdentity(Date.now()).address,
+                      address: evm.identity(Date.now()).address,
                       walletClient: shouldUseExternalSignerForAA
                         ? await runtime.getWalletClientFor({
                             connector: runtime.activeConnector,

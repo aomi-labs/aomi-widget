@@ -25,23 +25,23 @@ import { cn, getChainInfo } from "@aomi-labs/react";
 import {
   useAomiWalletKit,
   canonicalWalletKey,
-  formatAddress,
+  formatWalletAddress,
   formatAuthMethod,
   formatWalletProvider,
   normalizeWalletOptionId,
   useWalletActivationGuard,
 } from "../../lib/wallet-kit";
-import type {
-  AomiAccount,
-  AomiWalletOption,
-  WalletFamily,
-} from "../../lib/wallet-kit/types";
+import type { AomiWalletKit, WalletFamily } from "../../lib/wallet-kit/types";
 import { WalletIconSlot } from "./wallet-icon-slot";
 import { useWalletPicker } from "./wallet-picker-context";
 
-type WalletAction = AomiWalletOption & {
+type WalletModalRow = NonNullable<AomiWalletKit["walletModalRows"]>[number];
+
+type WalletAction = WalletModalRow & {
   actionKey: string;
   connect: () => Promise<void>;
+  ready?: boolean;
+  description?: string;
 };
 
 const GENERIC_BROWSER_WALLET_ID = "generic-browser-wallet";
@@ -50,21 +50,17 @@ function familyLabel(family: WalletFamily): string {
   return family === "svm" ? "Solana" : "Ethereum";
 }
 
-function walletStatusLabel(option: AomiWalletOption): string {
-  if (option.status === "installed") return "Installed";
-  if (option.status === "qr") return "QR code";
+function walletStatusLabel(option: WalletAction): string {
   if (option.status === "unavailable") return "Not installed";
   return "Ready";
 }
 
-function statusRank(option: AomiWalletOption): number {
-  if (option.status === "installed") return 0;
+function statusRank(option: WalletAction): number {
   if (option.status === "available") return 1;
-  if (option.status === "qr") return 2;
   return 3;
 }
 
-function walletDisplayRank(option: AomiWalletOption): number {
+function walletDisplayRank(option: WalletAction): number {
   const id = option.id.toLowerCase();
   const label = option.label.toLowerCase();
   if (id === GENERIC_BROWSER_WALLET_ID) return 30;
@@ -79,7 +75,7 @@ function walletDisplayRank(option: AomiWalletOption): number {
 }
 
 function walletAliasKey(
-  wallet: Pick<AomiWalletOption, "id" | "label">,
+  wallet: Pick<WalletAction, "id" | "label">,
 ): string {
   const combined = `${wallet.id} ${wallet.label}`;
   const brandKey = canonicalWalletKey(combined);
@@ -95,18 +91,17 @@ function walletAliasKey(
  * an EVM option and once as a Solana option, so its Solana side stays reachable.
  */
 function walletFamilyAliasKey(
-  wallet: Pick<AomiWalletOption, "id" | "label" | "family">,
+  wallet: Pick<WalletAction, "id" | "label" | "family">,
 ): string {
-  const family = wallet.family === "multichain" ? "multichain" : wallet.family;
-  return `${family}:${walletAliasKey(wallet)}`;
+  return `${wallet.family}:${walletAliasKey(wallet)}`;
 }
 
 function isGenericBrowserWallet(
-  wallet: Pick<AomiWalletOption, "connectorId" | "id" | "label">,
+  wallet: Pick<WalletAction, "provider" | "id" | "label">,
 ): boolean {
   const label = normalizeWalletOptionId(wallet.label);
   const id = normalizeWalletOptionId(wallet.id);
-  const connectorId = normalizeWalletOptionId(wallet.connectorId ?? "");
+  const connectorId = normalizeWalletOptionId(wallet.provider ?? "");
   return (
     label === "browserwallet" || id === "injected" || connectorId === "injected"
   );
@@ -128,8 +123,8 @@ function dedupeWalletActions(actions: readonly WalletAction[]): WalletAction[] {
 
 function walletActionIsVisible(wallet: WalletAction): boolean {
   if (wallet.id === GENERIC_BROWSER_WALLET_ID) return true;
-  if (wallet.ready === false || wallet.status === "unavailable") return false;
-  if (wallet.family === "evm" && wallet.status !== "installed") {
+  if (wallet.status === "unavailable") return false;
+  if (wallet.family === "evm" && wallet.status !== "available") {
     const key = canonicalWalletKey(`${wallet.id} ${wallet.label}`);
     return key === "coinbase" || key === "basewallet" || key === "base";
   }
@@ -142,6 +137,10 @@ function walletActionIsVisible(wallet: WalletAction): boolean {
  */
 function isExternalHandoff(wallet: WalletAction): boolean {
   return wallet.kind === "walletconnect";
+}
+
+function toPublicFamily(family: WalletFamily): WalletFamily | "solana" {
+  return family === "svm" ? "solana" : family;
 }
 
 export function WalletPicker() {
@@ -196,74 +195,92 @@ export function WalletPicker() {
     [canActivateWallet],
   );
 
-  const evmAccounts = useMemo(
-    () => adapter.accounts.filter((a) => a.family === "evm"),
-    [adapter.accounts],
-  );
-  const solanaAccounts = useMemo(
-    () => adapter.accounts.filter((a) => a.family === "svm"),
-    [adapter.accounts],
-  );
+  const walletRows = adapter.walletModalRows ?? [];
   const connectedAccounts = useMemo(
-    () => (identity.isConnected ? [...evmAccounts, ...solanaAccounts] : []),
-    [evmAccounts, identity.isConnected, solanaAccounts],
+    () =>
+      identity.isConnected
+        ? walletRows.filter(
+            (row) =>
+              row.source === "live" &&
+              (row.status === "active" || row.status === "connected"),
+          )
+        : [],
+    [identity.isConnected, walletRows],
   );
   const canManageAccounts = Boolean(
     adapter.openAccountUI && adapter.canOpenAccountUI,
   );
 
   const walletActions = useMemo<WalletAction[]>(() => {
-    const mappedEvmWallets =
-      adapter.evmWallets?.map((wallet) => ({
-        ...wallet,
-        actionKey: `connect-evm:${wallet.id}`,
-        connect: async () => {
-          if (adapter.connectEvmWallet) {
-            await adapter.connectEvmWallet(wallet.id);
-            return;
-          }
-          await adapter.connect({ family: "evm" });
-        },
-      })) ?? [];
-    const browserWallet = mappedEvmWallets.find(isGenericBrowserWallet);
-    const evmWallets = mappedEvmWallets.filter(
+    const optionRows = walletRows
+      .filter(
+        (row) =>
+          (row.source === "option" || row.source === "stored") &&
+          row.actions.some(
+            (action) =>
+              action.kind === "connect" || action.kind === "authenticate",
+          ),
+      )
+      .map((row): WalletAction => {
+        const action = row.actions.find(
+          (candidate) =>
+            candidate.kind === "connect" || candidate.kind === "authenticate",
+        );
+        return {
+          ...row,
+          ready: row.status !== "unavailable",
+          description:
+            row.kind === "social"
+              ? "Fast account sign-in"
+              : row.family === "svm"
+                ? "Connect a Solana wallet"
+                : "Connect an Ethereum wallet",
+          actionKey: `${action?.kind ?? "connect"}:${row.family}:${row.id}`,
+          connect: async () => {
+            if (action?.kind === "authenticate") {
+              if (adapter.connectSocial && row.kind === "social") {
+                await adapter.connectSocial(row.id);
+                return;
+              }
+              await adapter.connect({ family: toPublicFamily(row.family) });
+              return;
+            }
+            if (row.source === "stored") {
+              await adapter.connect({ family: toPublicFamily(row.family) });
+              return;
+            }
+            if (row.family === "svm") {
+              if (adapter.connectSolanaWallet) {
+                await adapter.connectSolanaWallet(row.id);
+                return;
+              }
+              await adapter.connect({ family: "solana" });
+              return;
+            }
+            if (adapter.connectEvmWallet) {
+              await adapter.connectEvmWallet(row.id);
+              return;
+            }
+            await adapter.connect({ family: "evm" });
+          },
+        };
+      });
+    const browserWallet = optionRows.find(isGenericBrowserWallet);
+    const walletRowsWithoutBrowser = optionRows.filter(
       (wallet) => !isGenericBrowserWallet(wallet),
     );
-    const solanaWallets =
-      adapter.solanaWallets?.map((wallet) => ({
-        id: wallet.name,
-        label: wallet.name,
-        family: "svm" as const,
-        kind: "solana" as const,
-        status: wallet.installed
-          ? ("installed" as const)
-          : wallet.ready
-            ? ("available" as const)
-            : ("unavailable" as const),
-        installed: wallet.installed,
-        ready: wallet.ready,
-        iconUrl: wallet.iconUrl,
-        description: "Connect a Solana wallet",
-        actionKey: `connect-solana:${wallet.name}`,
-        connect: async () => {
-          if (adapter.connectSolanaWallet) {
-            await adapter.connectSolanaWallet(wallet.name);
-            return;
-          }
-          await adapter.connect({ family: "svm" });
-        },
-      })) ?? [];
     const genericBrowserWallet: WalletAction[] = adapter.canConnect
       ? [
           {
             id: GENERIC_BROWSER_WALLET_ID,
-            connectorId: browserWallet?.connectorId ?? "injected",
+            provider: browserWallet?.provider ?? "injected",
             label: "Browser wallet",
             family: "evm",
             kind: "evm",
+            source: "option",
             status: browserWallet?.status ?? "available",
+            actions: [{ kind: "connect", label: "Connect" }],
             ready: browserWallet?.ready ?? true,
-            installed: browserWallet?.installed,
             iconUrl: browserWallet?.iconUrl,
             description: "Connect an Ethereum wallet",
             actionKey: "connect-browser-wallet",
@@ -283,8 +300,7 @@ export function WalletPicker() {
       : [];
 
     return dedupeWalletActions([
-      ...evmWallets,
-      ...solanaWallets,
+      ...walletRowsWithoutBrowser,
       ...genericBrowserWallet,
     ])
       .filter(walletActionIsVisible)
@@ -298,8 +314,8 @@ export function WalletPicker() {
     adapter.canConnect,
     adapter.connectEvmWallet,
     adapter.connectSolanaWallet,
-    adapter.evmWallets,
-    adapter.solanaWallets,
+    adapter.connectSocial,
+    walletRows,
   ]);
 
   // Brands already connected, scoped by family. A connected EVM Phantom should
@@ -307,7 +323,7 @@ export function WalletPicker() {
   const connectedFamilyBrandKeys = useMemo(() => {
     const set = new Set<string>();
     for (const account of connectedAccounts) {
-      const name = account.walletName ?? "";
+      const name = account.walletName ?? account.label ?? "";
       set.add(
         walletFamilyAliasKey({ id: name, label: name, family: account.family }),
       );
@@ -319,13 +335,19 @@ export function WalletPicker() {
     () =>
       walletActions.filter(
         (wallet) =>
-          wallet.id === GENERIC_BROWSER_WALLET_ID ||
-          !connectedFamilyBrandKeys.has(walletFamilyAliasKey(wallet)),
+          wallet.kind !== "social" &&
+          !wallet.actions.some((action) => action.kind === "authenticate") &&
+          (wallet.id === GENERIC_BROWSER_WALLET_ID ||
+            !connectedFamilyBrandKeys.has(walletFamilyAliasKey(wallet))),
       ),
     [walletActions, connectedFamilyBrandKeys],
   );
 
-  const socialLoginOptions = adapter.socialLoginOptions ?? [];
+  const socialLoginOptions = walletActions.filter(
+    (action) =>
+      action.kind === "social" ||
+      action.actions.some((rowAction) => rowAction.kind === "authenticate"),
+  );
   const providerSubtitle =
     identity.secondaryLabel ?? formatAuthMethod(identity.authProvider);
   // Social sign-in goes through the account provider (Para), so the row reads
@@ -356,11 +378,7 @@ export function WalletPicker() {
           brandLabel={providerBrandLabel}
           onClick={() =>
             void runAction(`social:${option.id}`, async () => {
-              if (adapter.connectSocial) {
-                await adapter.connectSocial(option.id);
-              } else {
-                await adapter.connect();
-              }
+              await option.connect();
               closePicker();
             })
           }
@@ -369,14 +387,16 @@ export function WalletPicker() {
     </section>
   ) : null;
 
-  const renderConnectedRow = (account: AomiAccount) => {
-    const solanaCluster = identity.solanaCluster?.replace("solana:", "");
+  const renderConnectedRow = (account: WalletModalRow) => {
+    const svmCluster = (
+      identity.svmCluster ?? identity.solanaCluster
+    )?.replace("solana:", "");
     const chainDetail =
       account.family === "evm"
         ? (getChainInfo(account.chainId)?.name ??
           getChainInfo(identity.chainId)?.name)
-        : solanaCluster
-          ? solanaCluster.charAt(0).toUpperCase() + solanaCluster.slice(1)
+        : svmCluster
+          ? svmCluster.charAt(0).toUpperCase() + svmCluster.slice(1)
           : undefined;
     // The group header already states the family; only surface a chain/cluster
     // when it adds something (e.g. "Base", "mainnet") beyond that family name.
@@ -404,7 +424,7 @@ export function WalletPicker() {
         }
         pending={pending}
         onSelect={
-          account.family === "evm" && !account.active
+          account.family === "evm" && account.status !== "active"
             ? () =>
                 void runAction(
                   `select:${account.id}`,
@@ -422,7 +442,7 @@ export function WalletPicker() {
                     adapter.disconnect!({
                       ...(account.family === "evm"
                         ? { accountId: account.id }
-                        : { family: "svm" as const }),
+                        : { family: "solana" as const }),
                     }),
                   true,
                 )
@@ -432,7 +452,9 @@ export function WalletPicker() {
           account.manageable && canManageAccounts
             ? () =>
                 void runAction(`manage:${account.id}`, async () => {
-                  await adapter.openAccountUI?.({ family: account.family });
+                  await adapter.openAccountUI?.({
+                    family: toPublicFamily(account.family),
+                  });
                   closePicker();
                 })
             : undefined
@@ -712,7 +734,7 @@ function FamilyStatusRow({
   onManage,
 }: {
   family: WalletFamily;
-  account: AomiAccount;
+  account: WalletModalRow;
   detail?: string;
   providerHint?: string;
   pending: string | null;
@@ -727,6 +749,7 @@ function FamilyStatusRow({
   const name = account.walletName ?? familyLabel(family);
   const selectable = Boolean(onSelect);
   const isSelecting = pending === selectKey;
+  const active = account.status === "active";
 
   const inner = (
     <>
@@ -735,12 +758,12 @@ function FamilyStatusRow({
         <span className="flex min-w-0 items-center gap-1.5">
           <span className="truncate text-sm font-medium">{name}</span>
           <FamilyTag family={family} />
-          {account.active ? (
+          {active ? (
             <CheckIcon className="text-primary size-3.5 shrink-0" />
           ) : null}
         </span>
         <span className="text-muted-foreground block truncate text-[11px]">
-          {[account.label ?? formatAddress(account.address), detail]
+          {[account.label ?? formatWalletAddress(account.address ?? ""), detail]
             .filter(Boolean)
             .join(" · ")}
         </span>
@@ -752,7 +775,7 @@ function FamilyStatusRow({
     <div
       className={cn(
         "group flex items-center rounded-2xl border transition-colors duration-200",
-        account.active
+        active
           ? "border-primary/35 bg-primary/[0.05]"
           : "border-border/70 bg-card",
         selectable &&
@@ -818,10 +841,7 @@ function WalletActionRow({
   onClick: () => void;
 }) {
   const disabled = wallet.ready === false || pending !== null;
-  const showStatus =
-    wallet.status === "installed" ||
-    wallet.status === "qr" ||
-    wallet.status === "unavailable";
+  const showStatus = wallet.status === "unavailable";
   const actionVerb = linkedMode ? "Link" : "Connect";
   const description =
     wallet.description ??
@@ -876,7 +896,7 @@ function SocialLoginRow({
   brandLabel,
   onClick,
 }: {
-  option: AomiWalletOption;
+  option: WalletAction;
   pending: string | null;
   /** Account-provider brand (e.g. "Para") shown as the row title, with the
    * sign-in method ("Email or Google") beneath it. Falls back to the method

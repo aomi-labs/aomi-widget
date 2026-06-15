@@ -4,6 +4,7 @@ import type {
   AomiSessionIdentity,
   AomiLoginMethod,
   AomiWalletProvider,
+  AuthProviderId,
 } from "./types";
 
 export const AOMI_SESSION_DISCONNECTED_IDENTITY: AomiSessionIdentity = {
@@ -48,16 +49,17 @@ export const AOMI_SESSION_BOOTING_IDENTITY: AomiSessionIdentity = {
   authVerifiedAt: undefined,
 };
 
-export function formatAddress(address?: string): string | undefined {
+export function formatWalletAddress(address?: string): string | undefined {
   if (!address) return undefined;
   return `${address.slice(0, 5)}..${address.slice(-2)}`;
 }
 
 export function formatWalletProvider(
-  provider?: AomiWalletProvider,
+  provider?: AomiWalletProvider | AuthProviderId,
 ): string | undefined {
   if (!provider) return undefined;
   const labelMap: Record<string, string> = {
+    none: "Wallet",
     para: "Para",
     privy: "Privy",
     baseAccount: "Base Account",

@@ -1,5 +1,6 @@
 import type { PersistedRegistryV1, WalletRegistryState } from "./types";
 import { REGISTRY_STORAGE_KEY } from "./types";
+import { toRegistryFamily } from "../wallet-utils";
 
 // Frozen legacy localStorage identifiers from pre-registry builds. The key
 // string and the `paraDetached` field (read below) name Para only for
@@ -48,11 +49,14 @@ function normalizePersisted(value: PersistedRegistryV1): PersistedRegistryV1 {
           })
           .map((item) => {
             const family = item.family as "evm" | "svm" | "solana";
+            const registryFamily = toRegistryFamily(family);
             return {
-              family: family === "solana" ? "svm" : family,
+              family: registryFamily,
               stableId: item.stableId,
               address:
-                family === "evm" ? item.address.toLowerCase() : item.address,
+                registryFamily === "evm"
+                  ? item.address.toLowerCase()
+                  : item.address,
             };
           })
       : [],

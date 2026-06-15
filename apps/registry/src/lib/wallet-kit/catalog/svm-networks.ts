@@ -4,7 +4,7 @@ import type {
   SvmCluster,
   SvmNetworkConfigInput,
   SvmNetworkOption,
-} from "../../types";
+} from "../types";
 
 export const DEFAULT_SVM_CLUSTER: SvmCluster = "solana:mainnet";
 
