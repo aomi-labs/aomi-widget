@@ -180,7 +180,16 @@ export function BootstrapWizard({
         </div>
       )}
 
-      {step === "live" && <LivePanel repo={progress.repo} />}
+      {step === "live" && (
+        <LivePanel
+          repo={progress.repo}
+          chatUrl={
+            progress.apps?.[0]
+              ? `https://chat.aomi.dev?app=${encodeURIComponent(progress.apps[0])}`
+              : undefined
+          }
+        />
+      )}
     </div>
   );
 }

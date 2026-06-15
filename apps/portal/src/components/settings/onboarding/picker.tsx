@@ -9,6 +9,7 @@ type CardSpec = {
   title: string;
   blurb: string;
   grants: string;
+  recommended?: true;
 };
 
 const CARDS: CardSpec[] = [
@@ -19,6 +20,7 @@ const CARDS: CardSpec[] = [
     blurb:
       "We create the repo in your account and deploy it for you. Fastest path to a live agent.",
     grants: "broad — can create repositories",
+    recommended: true,
   },
   {
     path: "bootstrap",
@@ -60,6 +62,11 @@ export function Picker({
               <span className="text-foreground text-lg font-medium">
                 {card.title}
               </span>
+              {card.recommended && (
+                <span className="rounded-full border border-blue-500/40 px-2 py-0.5 text-[10px] font-medium text-blue-500">
+                  recommended
+                </span>
+              )}
             </div>
             <p className="text-muted-foreground min-h-[3.5rem] text-sm leading-5">
               {card.blurb}
