@@ -114,7 +114,7 @@ export function OneshotWizard({
                 disabled={installing}
                 className="h-10 rounded-full px-4 text-sm font-medium"
               >
-                {installing ? "Opening GitHub..." : "Install on GitHub"}
+                {installing ? "Waiting for GitHub..." : "Install on GitHub"}
                 <ExternalLink className="ml-1 h-4 w-4" />
               </Button>
               <Button
@@ -174,7 +174,16 @@ export function OneshotWizard({
         </div>
       )}
 
-      {step === "live" && <LivePanel repo={progress.repo} />}
+      {step === "live" && (
+        <LivePanel
+          repo={progress.repo}
+          chatUrl={
+            progress.apps?.[0]
+              ? `https://chat.aomi.dev?app=${encodeURIComponent(progress.apps[0])}`
+              : undefined
+          }
+        />
+      )}
     </div>
   );
 }

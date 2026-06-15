@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { CheckCircle2 } from "lucide-react";
 import { useAomiAuthAdapter } from "@aomi-labs/widget-lib";
 import {
   githubAppInstallUrl,
@@ -24,10 +25,26 @@ export function Onboarding() {
   const adapter = useAomiAuthAdapter();
   const actor = adapter.identity.address ?? undefined;
 
-  const [state, setState] = useState<OnboardingState>(() => loadOnboarding());
+  const [state, setState] = useState<OnboardingState>(() => {
+    const loaded = loadOnboarding();
+    if (typeof window !== "undefined") {
+      const url = new URL(window.location.href);
+      const urlDeployId = url.searchParams.get("deployment_id");
+      const urlDeployPath = url.searchParams.get("deploy_path");
+      if (urlDeployId) {
+        if (urlDeployPath === "oneshot" && !loaded.oneshot.deploymentId) {
+          loaded.oneshot.deploymentId = urlDeployId;
+        } else if (urlDeployPath === "bootstrap" && !loaded.bootstrap.deploymentId) {
+          loaded.bootstrap.deploymentId = urlDeployId;
+        }
+      }
+    }
+    return loaded;
+  });
   const [installingPath, setInstallingPath] =
     useState<OnboardingPath | null>(null);
   const [installError, setInstallError] = useState<string | null>(null);
+  const [installSuccess, setInstallSuccess] = useState(false);
 
   const update = useCallback((next: OnboardingState) => {
     setState(next);
@@ -52,6 +69,7 @@ export function Onboarding() {
         null,
       );
       update(next);
+      setInstallSuccess(true);
     }
 
     // Strip GitHub's params so a refresh doesn't re-trigger hydration.
@@ -66,6 +84,48 @@ export function Onboarding() {
     if (changed) window.history.replaceState({}, "", url.toString());
     // `update` is a stable useCallback ([] deps), so this still runs once.
   }, [update]);
+
+  // --- auto-dismiss the install-success banner after 6s ---------------------
+  useEffect(() => {
+    if (!installSuccess) return;
+    const id = setTimeout(() => setInstallSuccess(false), 6000);
+    return () => clearTimeout(id);
+  }, [installSuccess]);
+
+  // --- detect GitHub install completed in another tab -----------------------
+  useEffect(() => {
+    if (!installingPath) return;
+    const id = setInterval(() => {
+      const cur = loadOnboarding();
+      const progress = cur[installingPath];
+      if (progress.installationId && progress.installationStatus) {
+        setState(cur);
+        setInstallSuccess(true);
+        setInstallingPath(null);
+      }
+    }, 1000);
+    return () => clearInterval(id);
+  }, [installingPath]);
+
+  // --- sync deploymentId to URL params -------------------------------------
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const id = state.oneshot.deploymentId || state.bootstrap.deploymentId;
+    const path = state.path;
+    const url = new URL(window.location.href);
+    const currentId = url.searchParams.get("deployment_id");
+    if (id && path) {
+      if (id !== currentId) {
+        url.searchParams.set("deployment_id", id);
+        url.searchParams.set("deploy_path", path);
+        window.history.replaceState({}, "", url.toString());
+      }
+    } else if (currentId) {
+      url.searchParams.delete("deployment_id");
+      url.searchParams.delete("deploy_path");
+      window.history.replaceState({}, "", url.toString());
+    }
+  }, [state.oneshot.deploymentId, state.bootstrap.deploymentId, state.path]);
 
   // --- actions handed to the picker / wizards -------------------------------
   const choose = useCallback(
@@ -84,8 +144,9 @@ export function Onboarding() {
     [state, update],
   );
 
-  // Persist the pending-install path BEFORE leaving for github.com, so the
-  // backend callback redirect can resume the correct wizard path.
+  // Save progress before opening GitHub in a new tab. The redirect will
+  // land in the new tab and write the result to localStorage; the polling
+  // effect above picks it up in this tab.
   const makeBeginInstall = useCallback(
     (path: OnboardingPath, mode: "install" | "authorize" = "install") =>
       async () => {
@@ -96,13 +157,14 @@ export function Onboarding() {
         setInstallingPath(path);
         try {
           const repo = next[path].repo;
-          window.location.assign(
+          window.open(
             await githubAppInstallUrl({
               platform: resolveDeployPlatform(),
               repo,
               mode,
               app: path === "oneshot" ? 2 : undefined,
             }),
+            "_blank",
           );
         } catch (error) {
           setInstallingPath(null);
@@ -122,29 +184,44 @@ export function Onboarding() {
 
   if (state.path === "oneshot") {
     return (
-      <OneshotWizard
-        progress={state.oneshot}
-        actor={actor}
-        onBack={back}
-        beginInstall={makeBeginInstall("oneshot")}
-        beginAuthorize={makeBeginInstall("oneshot", "authorize")}
-        installing={installingPath === "oneshot"}
-        installError={installError}
-        patch={makePatch("oneshot")}
-      />
+      <>
+        {installSuccess && <InstallSuccessBanner />}
+        <OneshotWizard
+          progress={state.oneshot}
+          actor={actor}
+          onBack={back}
+          beginInstall={makeBeginInstall("oneshot")}
+          beginAuthorize={makeBeginInstall("oneshot", "authorize")}
+          installing={installingPath === "oneshot"}
+          installError={installError}
+          patch={makePatch("oneshot")}
+        />
+      </>
     );
   }
 
   return (
-    <BootstrapWizard
-      progress={state.bootstrap}
-      actor={actor}
-      onBack={back}
-      beginInstall={makeBeginInstall("bootstrap")}
-      beginAuthorize={makeBeginInstall("bootstrap", "authorize")}
-      installing={installingPath === "bootstrap"}
-      installError={installError}
-      patch={makePatch("bootstrap")}
-    />
+    <>
+      {installSuccess && <InstallSuccessBanner />}
+      <BootstrapWizard
+        progress={state.bootstrap}
+        actor={actor}
+        onBack={back}
+        beginInstall={makeBeginInstall("bootstrap")}
+        beginAuthorize={makeBeginInstall("bootstrap", "authorize")}
+        installing={installingPath === "bootstrap"}
+        installError={installError}
+        patch={makePatch("bootstrap")}
+      />
+    </>
+  );
+}
+
+function InstallSuccessBanner() {
+  return (
+    <div className="mb-4 rounded-2xl border border-green-500/40 bg-green-500/10 p-3 text-sm text-green-600">
+      <CheckCircle2 className="-mt-0.5 mr-1.5 inline-block h-4 w-4 align-middle" />
+      GitHub App installed successfully
+    </div>
   );
 }
