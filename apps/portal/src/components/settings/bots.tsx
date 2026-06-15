@@ -121,7 +121,7 @@ export function Bots() {
     try {
       await ensureBoundSession();
       const data = await settingsApiFetch<BotRegistrationsResponse>(
-        "/api/settings/bot-registrations",
+        "/api/settings/bots",
       );
       setBots(data.bot_registrations ?? []);
     } catch (err) {
@@ -178,7 +178,7 @@ export function Bots() {
     try {
       await ensureBoundSession();
       const data = await settingsApiFetch<CreateBotRegistrationResponse>(
-        "/api/settings/bot-registrations",
+        "/api/settings/bots",
         {
           method: "POST",
           body: JSON.stringify({

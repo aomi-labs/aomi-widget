@@ -125,6 +125,15 @@ interface PrivyCallbackBody {
   user_id: string;
   wallet_id: string;
   wallet_address: string;
+  /** Optional full embedded-wallet list (EVM + Solana). The login page
+   *  sends this alongside the legacy EVM-only top-level fields. */
+  wallets?: PrivyCallbackWallet[];
+}
+
+interface PrivyCallbackWallet {
+  id: string;
+  address: string;
+  chain_type: "ethereum" | "solana";
 }
 
 export function makePrivyProvider(config: PrivyProviderConfig): ProviderModule {
@@ -170,6 +179,15 @@ export function makePrivyProvider(config: PrivyProviderConfig): ProviderModule {
         );
       }
 
+      const solanaWallet = body.wallets?.find(
+        (wallet) => wallet.chain_type === "solana",
+      );
+      if (solanaWallet && !/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(solanaWallet.address)) {
+        throw new Error(
+          `privy callback: solana wallet address is not valid base58`,
+        );
+      }
+
       const labelAddr = `${body.wallet_address.slice(0, 6)}…${body.wallet_address.slice(-4)}`;
 
       return {
@@ -178,6 +196,15 @@ export function makePrivyProvider(config: PrivyProviderConfig): ProviderModule {
           PRIVY_USER_ID: body.user_id,
           PRIVY_WALLET_ID: body.wallet_id,
           PRIVY_WALLET_ADDRESS: body.wallet_address,
+          // Solana slots — required by the BE's PrivySigner SVM path
+          // (aomi/crates/tools/src/authorized_signer/privy.rs). Only set
+          // when the login page reported an embedded Solana wallet.
+          ...(solanaWallet
+            ? {
+                PRIVY_SOLANA_WALLET_ID: solanaWallet.id,
+                PRIVY_SOLANA_WALLET_ADDRESS: solanaWallet.address,
+              }
+            : {}),
         },
         displayLabel: `Privy — ${labelAddr}`,
         body: donePage(labelAddr),
@@ -196,6 +223,12 @@ export function makePrivyProvider(config: PrivyProviderConfig): ProviderModule {
           privy_session_id: verifiedToken.sessionId,
           wallet_address: body.wallet_address,
           wallet_id: body.wallet_id,
+          ...(solanaWallet
+            ? {
+                solana_wallet_address: solanaWallet.address,
+                solana_wallet_id: solanaWallet.id,
+              }
+            : {}),
         },
       };
     },
@@ -222,7 +255,38 @@ function parseCallbackBody(req: ProviderCallbackRequest): PrivyCallbackBody {
     user_id: src.user_id,
     wallet_id: src.wallet_id,
     wallet_address: src.wallet_address,
+    wallets: parseCallbackWallets(src.wallets),
   };
+}
+
+/** Parse the optional `wallets` array. Malformed entries throw rather than
+ *  being silently dropped — a half-linked Solana wallet would otherwise
+ *  surface much later as a BE signing failure. */
+function parseCallbackWallets(raw: unknown): PrivyCallbackWallet[] | undefined {
+  if (raw === undefined || raw === null) return undefined;
+  if (!Array.isArray(raw)) {
+    throw new Error("privy callback: 'wallets' must be an array");
+  }
+  return raw.map((entry, i) => {
+    const wallet = entry as Partial<PrivyCallbackWallet> | null;
+    if (
+      !wallet ||
+      typeof wallet.id !== "string" ||
+      !wallet.id ||
+      typeof wallet.address !== "string" ||
+      !wallet.address ||
+      (wallet.chain_type !== "ethereum" && wallet.chain_type !== "solana")
+    ) {
+      throw new Error(
+        `privy callback: wallets[${i}] must have id, address, and chain_type of 'ethereum' or 'solana'`,
+      );
+    }
+    return {
+      id: wallet.id,
+      address: wallet.address,
+      chain_type: wallet.chain_type,
+    };
+  });
 }
 
 function donePage(labelAddr: string): string {
