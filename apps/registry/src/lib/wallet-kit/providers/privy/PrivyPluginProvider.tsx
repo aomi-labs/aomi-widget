@@ -12,11 +12,7 @@ import { useAomiWalletNetworkPreferences } from "../../network-preferences";
 import { useEvmWalletRuntime } from "../../runtime/evm/wallet-runtime";
 import { useSvmWalletRuntime } from "../../runtime/svm/wallet-runtime";
 import { REGISTRY_STORAGE_KEY } from "../../registry/types";
-import type {
-  AomiAccountCredential,
-  SvmCluster,
-  SvmNetworkOption,
-} from "../../types";
+import type { AomiAccountCredential } from "../../types";
 import type { ExecutionConfig } from "../../config/types";
 import {
   inferPrivyAuthMethod,
@@ -30,18 +26,8 @@ import type { PrivyClientConfig } from "@privy-io/react-auth";
 import { buildPrivySvmWalletState } from "./privy-svm";
 import { sendPrivySmartWalletTransaction } from "./privy-execution";
 
-export type PrivySvmRuntimeConfig = {
-  networks: readonly SvmNetworkOption[];
-  activeNetwork: SvmNetworkOption;
-  cluster: SvmCluster;
-  rpcHttpUrl: string;
-  rpcWsUrl?: string;
-  preferDirectSend: boolean;
-};
-
 export type AomiPrivyPluginProviderProps = {
   children: ReactNode;
-  solanaConfig: PrivySvmRuntimeConfig;
   supportedChains: readonly Chain[];
   loginMethods?: PrivyClientConfig["loginMethods"];
   execution?: ExecutionConfig;
@@ -49,7 +35,6 @@ export type AomiPrivyPluginProviderProps = {
 
 export function AomiPrivyPluginProvider({
   children,
-  solanaConfig: _solanaConfig,
   supportedChains,
   loginMethods,
   execution,
