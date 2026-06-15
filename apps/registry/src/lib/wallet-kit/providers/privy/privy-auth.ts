@@ -7,8 +7,7 @@ import {
 import { useSolanaWallets } from "@privy-io/react-auth/solana";
 import { useSmartWallets } from "@privy-io/react-auth/smart-wallets";
 import type { Chain } from "viem";
-import type { AomiLoginMethod } from "../../types";
-import { toSocialLoginOption } from "../../runtime/evm/brands";
+import type { AomiLoginMethod, AomiWalletOption } from "../../types";
 
 export type PrivyHook = ReturnType<typeof usePrivy>;
 export type PrivyAccessTokenHook = PrivyHook & {
@@ -143,13 +142,29 @@ export function inferPrivyPrimaryLabel(user: PrivyUser): string | undefined {
 
 export function privyLoginMethodsToOptions(
   methods: PrivyClientConfig["loginMethods"] | undefined,
-) {
-  return (methods ?? [])
+): AomiWalletOption[] {
+  const enabledMethods = (methods ?? [])
     .map((method) =>
       asAomiLoginMethod(method === "twitter" ? "x" : String(method)),
     )
-    .filter((method): method is AomiLoginMethod => Boolean(method))
-    .map(toSocialLoginOption);
+    .filter((method): method is AomiLoginMethod => Boolean(method));
+
+  if (enabledMethods.length === 0) return [];
+
+  return [
+    {
+      id: "privy",
+      label:
+        enabledMethods.length === 1 && enabledMethods[0] === "google"
+          ? "Email or Google"
+          : "Email, wallet, or social",
+      family: "multichain",
+      kind: "social",
+      status: "available",
+      ready: true,
+      description: "Fast account sign-in",
+    },
+  ];
 }
 
 /**
@@ -172,7 +187,7 @@ export function buildPrivyClientConfig(opts: {
       logo: opts.appLogoUrl,
     },
     embeddedWallets: {
-      ethereum: { createOnLogin: "users-without-wallets" },
+      ethereum: { createOnLogin: "all-users" },
       solana: { createOnLogin: "all-users" },
     },
     loginMethods: opts.loginMethods,

@@ -129,11 +129,23 @@ function makeAdapter(overrides: Partial<AomiWalletKit> = {}): AomiWalletKit {
         status: account.active ? ("active" as const) : ("connected" as const),
         linkedVia: account.linkedVia,
         manageable: account.manageable,
-        actions: [
+        actions: account.actions?.map((action) => ({
+          kind: action.kind,
+          label:
+            action.label ??
+            (action.kind === "manage"
+              ? "Manage"
+              : action.kind === "signout"
+                ? "Sign out"
+                : "Disconnect"),
+        })) ?? [
           account.manageable
             ? ({ kind: "manage" as const, label: "Manage" } as const)
             : account.active
-              ? ({ kind: "disconnect" as const, label: "Disconnect" } as const)
+              ? ({
+                  kind: "disconnect" as const,
+                  label: "Disconnect",
+                } as const)
               : ({ kind: "select" as const, label: "Select" } as const),
         ],
       })),
@@ -160,7 +172,10 @@ function makeAdapter(overrides: Partial<AomiWalletKit> = {}): AomiWalletKit {
         iconUrl: wallet.iconUrl,
         kind: "solana" as const,
         source: "option" as const,
-        status: wallet.ready === false ? "unavailable" as const : "available" as const,
+        status:
+          wallet.ready === false
+            ? ("unavailable" as const)
+            : ("available" as const),
         actions: [{ kind: "connect" as const, label: "Connect" }],
       })),
       ...(adapter.socialLoginOptions ?? []).map((option) => ({
@@ -594,6 +609,46 @@ describe("WalletPicker", () => {
     expect(openAccountUI).toHaveBeenCalledWith({ family: "evm" });
   });
 
+  it("runs a provider-owned Para sign-out without disconnecting all wallets", async () => {
+    const disconnect = vi.fn(async () => undefined);
+    renderPicker(
+      makeAdapter({
+        disconnect,
+        accounts: [
+          {
+            id: "para",
+            family: "evm",
+            address: "0xAAAAAAAA",
+            walletName: "Para",
+            active: true,
+            manageable: true,
+            actions: [
+              { kind: "manage", label: "Manage" },
+              { kind: "signout", label: "Sign out" },
+            ],
+          },
+          {
+            id: "phantom",
+            family: "svm",
+            address: "9xQpubKey",
+            walletName: "Phantom",
+            active: true,
+          },
+        ],
+      }),
+    );
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Sign out" }));
+    });
+
+    expect(disconnect).toHaveBeenCalledWith({
+      accountId: "para",
+      providerSignOut: true,
+    });
+    expect(screen.getByRole("dialog")).toBeTruthy();
+  });
+
   it("uses the Para brand mark for manageable Para accounts with generic names", () => {
     renderPicker(
       makeAdapter({
@@ -640,6 +695,126 @@ describe("WalletPicker", () => {
     expect(screen.queryByText("Email or Google")).toBeNull();
     expect(screen.queryByText("Link additional accounts")).toBeNull();
     expect(screen.queryByText("Quick sign-in")).toBeNull();
+  });
+
+  it("hides the provider sign-in row when a Privy session is connected", () => {
+    const disconnect = vi.fn(async () => undefined);
+    renderPicker(
+      makeAdapter({
+        canOpenAccountUI: false,
+        openAccountUI: undefined,
+        disconnect,
+        identity: {
+          status: "connected",
+          isConnected: true,
+          walletProvider: "privy",
+          sessionProvider: "privy",
+          walletProviderSubject: "did:privy:user",
+          primaryLabel: "privy@example.com",
+        },
+        accounts: [
+          {
+            id: "privy-solana",
+            family: "svm",
+            address: "9xQpubKey",
+            walletName: "Privy Solana",
+            active: true,
+            linkedVia: "privy",
+            actions: [{ kind: "signout", label: "Sign out" }],
+          },
+        ],
+        socialLoginOptions: [
+          {
+            id: "privy",
+            label: "Email, wallet, or social",
+            family: "multichain",
+            kind: "social",
+            status: "available",
+            ready: true,
+          },
+        ],
+      }),
+    );
+
+    expect(screen.queryByText("Email, wallet, or social")).toBeNull();
+    expect(screen.queryByText("Quick sign-in")).toBeNull();
+    expect(
+      screen.queryByRole("button", { name: "Manage your account" }),
+    ).toBeNull();
+    expect(screen.getByRole("button", { name: "Sign out" })).toBeTruthy();
+  });
+
+  it("runs a provider-supplied account sign-out action", async () => {
+    const disconnect = vi.fn(async () => undefined);
+    renderPicker(
+      makeAdapter({
+        canOpenAccountUI: false,
+        openAccountUI: undefined,
+        disconnect,
+        identity: {
+          status: "connected",
+          isConnected: true,
+          walletProvider: "privy",
+          sessionProvider: "privy",
+          walletProviderSubject: "did:privy:user",
+          primaryLabel: "privy@example.com",
+        },
+        accounts: [
+          {
+            id: "privy-solana",
+            family: "svm",
+            address: "9xQpubKey",
+            walletName: "Privy Solana",
+            active: true,
+            linkedVia: "privy",
+            actions: [{ kind: "signout", label: "Sign out" }],
+          },
+        ],
+      }),
+    );
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Sign out" }));
+    });
+
+    expect(disconnect).toHaveBeenCalledWith({
+      accountId: "privy-solana",
+      providerSignOut: true,
+    });
+    expect(screen.getByRole("dialog")).toBeTruthy();
+  });
+
+  it("shows one Privy sign-in row beside external wallets before provider sign-in", () => {
+    renderPicker(
+      makeAdapter({
+        identity: {
+          status: "connected",
+          isConnected: true,
+          address: "0xAAAAAAAA",
+          chainId: 1,
+          walletProvider: "privy",
+          primaryLabel: "0xAAA..AA",
+        },
+        socialLoginOptions: [
+          {
+            id: "privy",
+            label: "Email, wallet, or social",
+            family: "multichain",
+            kind: "social",
+            status: "available",
+            ready: true,
+          },
+        ],
+      }),
+    );
+
+    const socialRow = screen.getByRole("button", {
+      name: "Email, wallet, or social",
+    });
+    expect(within(socialRow).getByText("Privy")).toBeTruthy();
+    expect(
+      within(socialRow).getByText("Email, wallet, or social"),
+    ).toBeTruthy();
   });
 
   it("shows the Para sign-in row when only external wallets are connected", () => {

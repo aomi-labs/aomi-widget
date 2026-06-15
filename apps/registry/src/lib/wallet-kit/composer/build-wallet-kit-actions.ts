@@ -84,14 +84,16 @@ export function buildWalletKitActions({
         if (target?.family === "svm") {
           await svm?.disconnect(target.id);
         }
+        if (target && options.providerSignOut) {
+          auth.startFlow?.("provider-logout");
+          await auth.logout?.();
+        }
         return;
       }
 
       const requestedFamily = options?.family ?? "all";
       const registryFamily =
-        requestedFamily === "all"
-          ? "all"
-          : toRegistryFamily(requestedFamily);
+        requestedFamily === "all" ? "all" : toRegistryFamily(requestedFamily);
       const wantsAll = requestedFamily === "all";
       auth.startFlow?.(wantsAll ? "provider-logout" : "family-disconnect");
       if (wantsAll) {

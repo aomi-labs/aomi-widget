@@ -55,7 +55,11 @@ export type WalletSource =
   | "embedded"
   | "stored";
 
-export type AomiWalletProvider = "para" | "privy" | "baseAccount" | (string & {});
+export type AomiWalletProvider =
+  | "para"
+  | "privy"
+  | "baseAccount"
+  | (string & {});
 export type AomiLoginMethod =
   | "google"
   | "apple"
@@ -188,6 +192,11 @@ export type AomiWalletOption = {
   description?: string;
 };
 
+export type AomiAccountAction =
+  | { kind: "manage"; label?: string }
+  | { kind: "disconnect"; label?: string }
+  | { kind: "signout"; label?: string };
+
 /**
  * One wallet account known to the adapter, tagged by family. The registry
  * may hold several per family (e.g. MetaMask + Para-embedded EVM), but only
@@ -219,8 +228,18 @@ export type AomiAccount = {
    * The handler is the adapter's `openAccountUI({ family })`.
    */
   manageable?: boolean;
+  /** Provider/runtime-owned actions the picker can render without provider
+   * branching. When omitted, the composer derives the default manage /
+   * disconnect / select action from account state. */
+  actions?: readonly AomiAccountAction[];
   linked?: boolean;
-  linkedVia?: "para" | "privy" | "challenge" | "import" | "observed" | (string & {});
+  linkedVia?:
+    | "para"
+    | "privy"
+    | "challenge"
+    | "import"
+    | "observed"
+    | (string & {});
   capability?: "read" | "write";
 };
 
@@ -316,6 +335,8 @@ export type AomiWalletKit = {
     family?: PublicWalletFamily | "all";
     /** Disconnect a single account by `AomiAccount.id` (EVM only). */
     accountId?: string;
+    /** Log out the provider that owns the account while preserving unrelated wallets. */
+    providerSignOut?: boolean;
   }) => Promise<void>;
 
   switchChain?: (chainId: number) => Promise<void>;

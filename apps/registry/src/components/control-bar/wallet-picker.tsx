@@ -74,9 +74,7 @@ function walletDisplayRank(option: WalletAction): number {
   return 20;
 }
 
-function walletAliasKey(
-  wallet: Pick<WalletAction, "id" | "label">,
-): string {
+function walletAliasKey(wallet: Pick<WalletAction, "id" | "label">): string {
   const combined = `${wallet.id} ${wallet.label}`;
   const brandKey = canonicalWalletKey(combined);
   // canonicalWalletKey echoes the normalized input when no brand matched —
@@ -350,16 +348,22 @@ export function WalletPicker() {
   );
   const providerSubtitle =
     identity.secondaryLabel ?? formatAuthMethod(identity.authProvider);
-  // Social sign-in goes through the account provider (Para), so the row reads
-  // as the provider brand ("Para") with the method ("Email or Google") beneath.
+  // Social sign-in goes through the account provider, so the row reads as that
+  // provider brand with the method beneath.
   const providerBrandLabel = formatWalletProvider(identity.walletProvider);
   const hasConnectedWallets = connectedAccounts.length > 0;
-  // The provider sign-in row (Para / "Email or Google") shows whenever Para is
-  // NOT connected — so it stays reachable to (re)connect even alongside other
-  // wallets — and hides once Para itself is connected.
-  const paraAccountConnected = connectedAccounts.some((a) => a.manageable);
-  const socialOptionsToShow = paraAccountConnected ? [] : socialLoginOptions;
-  const hasManageAccount = identity.isConnected;
+  // The provider sign-in row shows whenever the provider itself is not signed
+  // in, even alongside external wallets, and hides once that account exists.
+  const providerAccountConnected = Boolean(
+    identity.walletProviderSubject ||
+    connectedAccounts.some((account) => account.manageable),
+  );
+  const socialOptionsToShow = providerAccountConnected
+    ? []
+    : socialLoginOptions;
+  const hasManageAccount = Boolean(
+    identity.isConnected && adapter.openAccountUI && adapter.canOpenAccountUI,
+  );
   const pickerTitle = hasConnectedWallets
     ? "Manage wallets"
     : "Select a wallet";
@@ -388,9 +392,10 @@ export function WalletPicker() {
   ) : null;
 
   const renderConnectedRow = (account: WalletModalRow) => {
-    const svmCluster = (
-      identity.svmCluster ?? identity.solanaCluster
-    )?.replace("solana:", "");
+    const svmCluster = (identity.svmCluster ?? identity.solanaCluster)?.replace(
+      "solana:",
+      "",
+    );
     const chainDetail =
       account.family === "evm"
         ? (getChainInfo(account.chainId)?.name ??
@@ -404,6 +409,51 @@ export function WalletPicker() {
       chainDetail && chainDetail !== familyLabel(account.family)
         ? chainDetail
         : undefined;
+    const accountActions = account.actions.filter((action) => {
+      if (action.kind === "manage") return canManageAccounts;
+      if (action.kind === "disconnect" || action.kind === "signout") {
+        return Boolean(adapter.disconnect);
+      }
+      return false;
+    });
+    const runAccountAction = (action: WalletModalRow["actions"][number]) => {
+      const actionKey = `${action.kind}:${account.id}`;
+      if (action.kind === "manage") {
+        void runAction(actionKey, async () => {
+          await adapter.openAccountUI?.({
+            family: toPublicFamily(account.family),
+          });
+          closePicker();
+        });
+        return;
+      }
+      if (action.kind === "signout") {
+        void runAction(
+          actionKey,
+          async () => {
+            await adapter.disconnect?.({
+              accountId: account.id,
+              providerSignOut: true,
+            });
+          },
+          true,
+        );
+        return;
+      }
+      if (action.kind === "disconnect") {
+        void runAction(
+          actionKey,
+          () =>
+            adapter.disconnect!({
+              ...(account.family === "evm"
+                ? { accountId: account.id }
+                : { family: "solana" as const }),
+            }),
+          true,
+        );
+      }
+    };
+
     return (
       <FamilyStatusRow
         key={`${account.family}:${account.id}`}
@@ -433,32 +483,8 @@ export function WalletPicker() {
                 )
             : undefined
         }
-        onDisconnect={
-          adapter.disconnect && !account.manageable
-            ? () =>
-                void runAction(
-                  `disconnect:${account.id}`,
-                  () =>
-                    adapter.disconnect!({
-                      ...(account.family === "evm"
-                        ? { accountId: account.id }
-                        : { family: "solana" as const }),
-                    }),
-                  true,
-                )
-            : undefined
-        }
-        onManage={
-          account.manageable && canManageAccounts
-            ? () =>
-                void runAction(`manage:${account.id}`, async () => {
-                  await adapter.openAccountUI?.({
-                    family: toPublicFamily(account.family),
-                  });
-                  closePicker();
-                })
-            : undefined
-        }
+        actions={accountActions}
+        onAction={runAccountAction}
       />
     );
   };
@@ -730,8 +756,8 @@ function FamilyStatusRow({
   providerHint,
   pending,
   onSelect,
-  onDisconnect,
-  onManage,
+  actions,
+  onAction,
 }: {
   family: WalletFamily;
   account: WalletModalRow;
@@ -739,12 +765,9 @@ function FamilyStatusRow({
   providerHint?: string;
   pending: string | null;
   onSelect?: () => void;
-  onDisconnect?: () => void;
-  onManage?: () => void;
+  actions: ReadonlyArray<WalletModalRow["actions"][number]>;
+  onAction: (action: WalletModalRow["actions"][number]) => void;
 }) {
-  const disconnectKey =
-    family === "evm" ? `disconnect:${account.id}` : "disconnect:solana";
-  const manageKey = `manage:${account.id}`;
   const selectKey = `select:${account.id}`;
   const name = account.walletName ?? familyLabel(family);
   const selectable = Boolean(onSelect);
@@ -806,24 +829,22 @@ function FamilyStatusRow({
         </div>
       )}
       <div className="flex shrink-0 items-center gap-1 py-2.5 pl-1 pr-2.5">
-        {onManage ? (
+        {actions.map((action) => (
           <RowIconButton
-            icon={Settings2Icon}
-            ariaLabel={`Manage ${name}`}
+            key={action.kind}
+            icon={action.kind === "manage" ? Settings2Icon : LogOutIcon}
+            ariaLabel={
+              action.kind === "manage"
+                ? `Manage ${name}`
+                : action.kind === "signout"
+                  ? "Sign out"
+                  : `Disconnect ${familyLabel(family)} wallet`
+            }
             disabled={pending !== null}
-            loading={pending === manageKey}
-            onClick={onManage}
+            loading={pending === `${action.kind}:${account.id}`}
+            onClick={() => onAction(action)}
           />
-        ) : null}
-        {onDisconnect ? (
-          <RowIconButton
-            icon={LogOutIcon}
-            ariaLabel={`Disconnect ${familyLabel(family)} wallet`}
-            disabled={pending !== null}
-            loading={pending === disconnectKey}
-            onClick={onDisconnect}
-          />
-        ) : null}
+        ))}
       </div>
     </div>
   );
