@@ -1,8 +1,6 @@
 "use client";
 
 import { useMemo, useState, type ReactNode } from "react";
-import "../providers/para";
-import "../providers/privy";
 import {
   ConnectionProvider,
   WalletProvider,
@@ -44,10 +42,10 @@ import { resolveAomiSvmConfig } from "../catalog/svm-wallet-catalog";
 import { canonicalWalletKey } from "../catalog/wallet-branding";
 import {
   detectProviderSugar,
-  getWalletProvider,
   requireWalletProvider,
   type WalletProviderPlugin,
 } from "../providers/plugin-registry";
+import { registerDefaultWalletProviders } from "../providers/defaults";
 import type {
   AomiWalletKitProviderInput,
   AomiWalletKitProviderProps,
@@ -62,6 +60,8 @@ import {
 } from "./execution";
 
 export type { AomiWalletKitProviderInput, AomiWalletKitProviderProps };
+
+registerDefaultWalletProviders();
 
 const defaultNetworks = [
   mainnet,
@@ -400,8 +400,9 @@ export function AomiWalletKitProvider(input: AomiWalletKitProviderInput) {
     (authProvider && authPlugin?.authMode !== "additive"
       ? authProvider
       : "none");
-  const plugin =
-    provider === "none" ? undefined : requireWalletProvider(provider);
+  if (provider !== "none") {
+    requireWalletProvider(provider);
+  }
 
   return (
     <AomiWalletNetworkPreferencesProvider
