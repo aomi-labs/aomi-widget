@@ -1,19 +1,14 @@
 "use client";
 
 import { useEffect, useState, type ReactNode } from "react";
-import {
-  Environment,
-  type TExternalWallet,
-  type TOAuthMethod,
-} from "@getpara/react-sdk";
-import "@getpara/react-sdk/styles.css";
 import { defineChain, type Chain } from "viem";
 import { useAccount, useSwitchChain } from "wagmi";
 import {
-  AomiWalletProvider,
+  AomiWalletKitProvider,
   isFullTestnet,
   monad,
   monadTestnet,
+  registerAomiParaWalletProvider,
 } from "../../../registry/src";
 import {
   arbitrum,
@@ -29,13 +24,14 @@ import {
 const useAnvilForWallet = process.env.NEXT_PUBLIC_ANVIL_FOR_WALLET === "true";
 const LOCALHOST_CHAIN_ID = 31337;
 
-const paraApiKey = process.env.NEXT_PUBLIC_PARA_API_KEY;
 const walletConnectProjectId =
   process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID ||
   process.env.NEXT_PUBLIC_PROJECT_ID;
-const paraEnvironment =
-  (process.env.NEXT_PUBLIC_PARA_ENVIRONMENT as Environment | undefined) ??
-  Environment.BETA;
+const paraApiKey = process.env.NEXT_PUBLIC_PARA_API_KEY;
+const paraEnvironment: "PROD" | "BETA" =
+  process.env.NEXT_PUBLIC_PARA_ENVIRONMENT === "PROD" ? "PROD" : "BETA";
+
+registerAomiParaWalletProvider();
 
 const localhost = defineChain({
   id: 31337,
@@ -75,19 +71,18 @@ const networks = (
   useAnvilForWallet ? [localhost, ...defaultNetworks] : [...defaultNetworks]
 ) as readonly [Chain, ...Chain[]];
 
-const externalWallets: TExternalWallet[] = [
-  "WALLETCONNECT",
-  "METAMASK",
-  "COINBASE",
-  "RAINBOW",
-  "RABBY",
-];
+const evmWallets = [
+  "walletconnect",
+  "metamask",
+  "coinbase",
+  "rainbow",
+  "rabby",
+] as const;
 
-const adapterWallets = walletConnectProjectId
-  ? externalWallets
-  : externalWallets.filter((wallet) => wallet !== "WALLETCONNECT");
+const enabledEvmWallets = walletConnectProjectId
+  ? evmWallets
+  : evmWallets.filter((wallet) => wallet !== "walletconnect");
 
-const oAuthMethods: TOAuthMethod[] = ["GOOGLE"];
 const solanaNetworks = [
   {
     id: "solana-devnet",
@@ -173,8 +168,8 @@ function DevAnvilRpcHook({ children }: { children: ReactNode }) {
   return <>{children}</>;
 }
 
-export function LandingParaProvider({ children }: { children: ReactNode }) {
-  // The Para SDK + wagmi providers are browser-only: they read `window` and
+export function LandingWalletKitProvider({ children }: { children: ReactNode }) {
+  // The wallet providers are browser-only: they read `window` and
   // wagmi hooks throw under SSR/prerender (`useConfig must be used within
   // WagmiProvider`). Mount the wallet stack only after hydration so static
   // export / SSR never renders it. Server and first client render both produce
@@ -185,34 +180,43 @@ export function LandingParaProvider({ children }: { children: ReactNode }) {
     return null;
   }
 
-  const content = paraApiKey ? (
-    <DevAnvilRpcHook>{children}</DevAnvilRpcHook>
-  ) : (
-    children
-  );
-
   return (
-    <AomiWalletProvider
-      provider="para"
-      apiKey={paraApiKey}
-      environment={paraEnvironment}
-      appName="Aomi Labs"
-      appDescription="Interactive Aomi widget demo"
-      appUrl={
-        typeof window !== "undefined"
-          ? window.location.origin
-          : "https://aomi.dev"
-      }
-      walletConnectProjectId={walletConnectProjectId}
-      networks={networks}
-      externalWallets={adapterWallets}
-      oAuthMethods={oAuthMethods}
-      solana={{
-        networks: solanaNetworks,
-        preferDirectSend: true,
+    <AomiWalletKitProvider
+      preset="wallets-only"
+      auth={{ provider: "para", methods: ["google", "email", "wallet"] }}
+      providers={{
+        para: {
+          apiKey: paraApiKey,
+          environment: paraEnvironment,
+          appName: "Aomi Labs",
+          appDescription: "Interactive Aomi widget demo",
+          appUrl:
+            typeof window !== "undefined"
+              ? window.location.origin
+              : "https://aomi.dev",
+        },
+      }}
+      execution={{
+        aa: "optional",
+        provider: "auto",
+        modes: ["4337"],
+        owner: "external-wallet",
+      }}
+      wallets={{
+        evm: {
+          chains: networks,
+          wallets: enabledEvmWallets,
+          walletConnectProjectId,
+          appName: "Aomi Labs",
+        },
+        solana: {
+          networks: solanaNetworks,
+          preferDirectSend: true,
+        },
+        embedded: { provider: "para" },
       }}
     >
-      {content}
-    </AomiWalletProvider>
+      <DevAnvilRpcHook>{children}</DevAnvilRpcHook>
+    </AomiWalletKitProvider>
   );
 }

@@ -1,7 +1,8 @@
 "use client";
 
-import { AomiBaseAccountProvider, AomiFrame } from "@aomi-labs/widget-lib";
+import { AomiFrame, AomiWalletKitProvider } from "@aomi-labs/widget-lib";
 import { useMemo } from "react";
+import { base } from "wagmi/chains";
 
 type AomiAppProps = {
   paymasterServiceUrl?: string;
@@ -26,16 +27,26 @@ export function AomiApp({ paymasterServiceUrl, walletAppName }: AomiAppProps) {
 
   return (
     <main className="bg-background h-full w-full overflow-hidden">
-      <AomiBaseAccountProvider
-        appName={walletAppName}
-        sponsorship={
-          resolvedPaymasterServiceUrl
+      <AomiWalletKitProvider
+        preset="wallets-only"
+        execution={{
+          aa: "optional",
+          sponsorship: resolvedPaymasterServiceUrl
             ? {
                 mode: "optional",
                 paymasterServiceUrl: resolvedPaymasterServiceUrl,
               }
-            : undefined
-        }
+            : undefined,
+        }}
+        wallets={{
+          evm: {
+            chains: [base],
+            wallets: ["baseAccount"],
+            coinbase: false,
+            appName: walletAppName,
+          },
+          solana: false,
+        }}
       >
         <AomiFrame.Root
           width="100%"
@@ -52,7 +63,7 @@ export function AomiApp({ paymasterServiceUrl, walletAppName }: AomiAppProps) {
             }}
           />
         </AomiFrame.Root>
-      </AomiBaseAccountProvider>
+      </AomiWalletKitProvider>
     </main>
   );
 }

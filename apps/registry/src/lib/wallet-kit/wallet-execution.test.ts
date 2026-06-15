@@ -125,6 +125,64 @@ describe("executeWalletKitTransaction fallback behavior", () => {
     });
   });
 
+  it("skips AA resolution when execution policy turns AA off", async () => {
+    const sendTransactionAsync = vi.fn().mockResolvedValue("0x111");
+    const resolveAAProviderState = vi.fn();
+
+    const result = await executeWalletKitTransaction({
+      payload: { ...singleCallPayload(), aaPreference: "eip4337" },
+      state: {
+        currentChainId: 1,
+        sendCallsSyncAsync: vi.fn(),
+        sendTransactionAsync,
+        switchChainAsync: vi.fn(),
+        chainsById: { [mainnet.id]: mainnet },
+      },
+      aaPolicy: "off",
+      forceAA: false,
+      preferAAForSingleCall: false,
+      resolveAAProviderState,
+    });
+
+    expect(resolveAAProviderState).not.toHaveBeenCalled();
+    expect(sendTransactionAsync).toHaveBeenCalledTimes(1);
+    expect(result).toMatchObject({
+      txHash: "0x111",
+      aaRequestedMode: "none",
+      aaResolvedMode: "none",
+      executionKind: "eoa",
+    });
+  });
+
+  it("fails closed when execution policy requires AA and no mode can resolve", async () => {
+    const sendTransactionAsync = vi.fn();
+    const resolveAAProviderState = vi.fn().mockResolvedValue({
+      providerState: DISABLED_PROVIDER_STATE,
+      resolvedMode: "4337",
+      fallbackReason: "aa_provider_not_configured_fallback_eoa",
+    });
+
+    await expect(
+      executeWalletKitTransaction({
+        payload: { ...singleCallPayload(), aaPreference: "eip4337" },
+        state: {
+          currentChainId: 1,
+          sendCallsSyncAsync: vi.fn(),
+          sendTransactionAsync,
+          switchChainAsync: vi.fn(),
+          chainsById: { [mainnet.id]: mainnet },
+        },
+        aaPolicy: "required",
+        forceAA: true,
+        preferAAForSingleCall: true,
+        resolveAAProviderState,
+      }),
+    ).rejects.toThrow("aa_provider_not_configured_fallback_eoa");
+
+    expect(resolveAAProviderState).toHaveBeenCalledTimes(1);
+    expect(sendTransactionAsync).not.toHaveBeenCalled();
+  });
+
   it("keeps Base Account atomic batching optional unless sponsorship is required", async () => {
     const sendCallsSyncAsync = vi
       .fn()

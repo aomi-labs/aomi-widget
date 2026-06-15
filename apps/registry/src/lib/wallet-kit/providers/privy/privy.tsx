@@ -58,6 +58,7 @@ import type {
   SolanaCluster,
   SolanaNetworkOption,
 } from "../../types";
+import type { EvmWalletsConfig, ExecutionConfig } from "../../config/types";
 
 const defaultNetworks = [
   mainnet,
@@ -85,8 +86,10 @@ export type AomiPrivyProviderProps = {
   appName?: string;
   appLogoUrl?: string;
   networks?: readonly [Chain, ...Chain[]];
+  wallets?: EvmWalletsConfig;
   loginMethods?: PrivyClientConfig["loginMethods"];
   walletConnectProjectId?: string;
+  execution?: ExecutionConfig;
   solana?: {
     networks?: readonly SolanaNetworkOption[];
     cluster?: ResolvedSvmConfig["cluster"];
@@ -339,11 +342,13 @@ function AomiPrivyPluginProvider({
   solanaConfig,
   supportedChains,
   loginMethods,
+  execution,
 }: {
   children: ReactNode;
   solanaConfig: ResolvedSvmConfig;
   supportedChains: readonly Chain[];
   loginMethods?: PrivyClientConfig["loginMethods"];
+  execution?: ExecutionConfig;
 }) {
   const privy = useSafePrivy();
   const { client: smartWalletClient, getClientForChain } =
@@ -463,22 +468,29 @@ function AomiPrivyPluginProvider({
     () => ({
       sponsorship: {},
       evm: buildEvmExecutionRuntime(evmRuntime, {
+        aaModes: execution?.modes,
+        aaOwner: execution?.owner ?? "auto",
+        aaPolicy: execution?.aa ?? "optional",
+        aaProvider: execution?.provider ?? "auto",
         resolveAAProviderState: async (params, context) =>
           resolveExternalWalletAAProviderState({
             ...params,
             walletClient: context.walletClient,
             address: context.address,
           }),
-        sendTransaction: smartWalletClient
-          ? async (payload) =>
-              sendPrivySmartWalletTransaction({
-                payload,
-                smartWalletClient,
-                getClientForChain,
-                wagmiChainId: evmRuntime.activeEvmConnection?.chainId,
-                smartAddress,
-              })
-          : undefined,
+        sendTransaction:
+          execution?.aa === "off"
+            ? undefined
+            : smartWalletClient
+              ? async (payload) =>
+                  sendPrivySmartWalletTransaction({
+                    payload,
+                    smartWalletClient,
+                    getClientForChain,
+                    wagmiChainId: evmRuntime.activeEvmConnection?.chainId,
+                    smartAddress,
+                  })
+              : undefined,
         signTypedData: smartWalletClient
           ? async (payload: WalletEip712Payload) => {
               const args = toViemSignTypedDataArgs(payload);
@@ -494,6 +506,7 @@ function AomiPrivyPluginProvider({
     }),
     [
       evmRuntime,
+      execution,
       getClientForChain,
       smartAddress,
       smartWalletClient,
@@ -527,7 +540,9 @@ function AomiPrivyProviderInner({
   appName = "Aomi",
   appLogoUrl,
   networks = defaultNetworks,
+  wallets,
   loginMethods,
+  execution,
   walletConnectProjectId = process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID,
   solana,
 }: AomiPrivyProviderProps) {
@@ -555,11 +570,16 @@ function AomiPrivyProviderInner({
     () =>
       createAomiEvmConfig({
         chains: networks,
+        preset: wallets?.preset,
+        wallets: wallets?.wallets,
+        connectors: wallets?.connectors,
         walletConnectProjectId,
+        coinbase: wallets?.coinbase,
         appName,
         appLogoUrl,
+        transports: wallets?.transports,
       }),
-    [appLogoUrl, appName, networks, walletConnectProjectId],
+    [appLogoUrl, appName, networks, walletConnectProjectId, wallets],
   );
 
   const adapter = (
@@ -570,6 +590,7 @@ function AomiPrivyProviderInner({
             solanaConfig={resolvedSolanaConfig}
             supportedChains={networks}
             loginMethods={loginMethods}
+            execution={execution}
           >
             {children}
           </AomiPrivyPluginProvider>
@@ -610,6 +631,7 @@ function AomiPrivyProviderInner({
 
 export function AomiPrivyProvider({
   networks = defaultNetworks,
+  wallets,
   solana,
   ...rest
 }: AomiPrivyProviderProps) {
@@ -625,7 +647,12 @@ export function AomiPrivyProvider({
       storageKey="privy"
     >
       <ExtUserProvider>
-        <AomiPrivyProviderInner {...rest} networks={networks} solana={solana} />
+        <AomiPrivyProviderInner
+          {...rest}
+          networks={networks}
+          wallets={wallets}
+          solana={solana}
+        />
       </ExtUserProvider>
     </AomiWalletNetworkPreferencesProvider>
   );

@@ -15,6 +15,8 @@ import {
 import type { AomiTxResult } from "./types";
 
 export type RequestedAAMode = "none" | "4337" | "7702";
+export type WalletKitAAPolicy = "off" | "optional" | "required";
+export type WalletKitAAProviderPreference = "auto" | "alchemy" | "pimlico";
 export type WalletProviderState = Parameters<
   typeof executeWalletCalls
 >[0]["providerState"];
@@ -67,6 +69,7 @@ export type ResolveAAProviderState = (params: {
   requestedMode: Exclude<RequestedAAMode, "none">;
   shouldUseExternalSigner: boolean;
   sponsored?: boolean;
+  provider?: WalletKitAAProviderPreference;
 }) => Promise<{
   providerState: WalletProviderState;
   resolvedMode: RequestedAAMode;
@@ -123,22 +126,34 @@ export function normalizeAtomicCapabilities(
 function buildAaAttempts(
   aaRequestedMode: RequestedAAMode,
   shouldUseExternalSigner: boolean,
+  allowedModes?: readonly Exclude<RequestedAAMode, "none">[],
 ): Array<{
   requestedMode: Exclude<RequestedAAMode, "none">;
   sponsored?: boolean;
 }> {
+  const allowed = allowedModes?.length ? new Set(allowedModes) : null;
+  const filterAllowed = (
+    attempts: Array<{
+      requestedMode: Exclude<RequestedAAMode, "none">;
+      sponsored?: boolean;
+    }>,
+  ) =>
+    allowed
+      ? attempts.filter((attempt) => allowed.has(attempt.requestedMode))
+      : attempts;
+
   if (aaRequestedMode === "7702") {
     if (shouldUseExternalSigner) {
-      return [{ requestedMode: "4337", sponsored: true }];
+      return filterAllowed([{ requestedMode: "4337", sponsored: true }]);
     }
-    return [
+    return filterAllowed([
       { requestedMode: "7702" },
       { requestedMode: "4337", sponsored: true },
-    ];
+    ]);
   }
 
   if (aaRequestedMode === "4337") {
-    return [{ requestedMode: "4337", sponsored: true }];
+    return filterAllowed([{ requestedMode: "4337", sponsored: true }]);
   }
 
   return [];
@@ -192,6 +207,9 @@ export async function executeWalletKitTransaction({
   resolveAAProviderState,
   preferAAForSingleCall = false,
   forceAA = false,
+  aaPolicy = "optional",
+  aaModes,
+  aaProvider = "auto",
 }: {
   payload: WalletTxPayload;
   state: WalletExecutionKitState;
@@ -199,6 +217,9 @@ export async function executeWalletKitTransaction({
   resolveAAProviderState?: ResolveAAProviderState;
   preferAAForSingleCall?: boolean;
   forceAA?: boolean;
+  aaPolicy?: WalletKitAAPolicy;
+  aaModes?: readonly Exclude<RequestedAAMode, "none">[];
+  aaProvider?: WalletKitAAProviderPreference;
 }): Promise<AomiTxResult> {
   if (!payload.to && (!payload.calls || payload.calls.length === 0)) {
     throw new Error("pending_transaction_missing_call_data");
@@ -269,11 +290,15 @@ export async function executeWalletKitTransaction({
   let lastAAError: unknown;
   let sawUnresolvedAAProviderState = false;
   const aaStateResolver = resolveAAProviderState;
-  const aaAttempts = aaStateResolver
-    ? buildAaAttempts(aaRequestedMode, shouldUseExternalSigner)
-    : [];
+  const aaAttempts =
+    aaPolicy !== "off" && aaStateResolver
+      ? buildAaAttempts(aaRequestedMode, shouldUseExternalSigner, aaModes)
+      : [];
 
   if (aaAttempts.length === 0) {
+    if (aaPolicy === "required" && aaRequestedMode !== "none") {
+      throw new Error("aa_required_execution_failed");
+    }
     execution = await executeWithProviderState(DISABLED_PROVIDER_STATE);
   } else {
     if (!aaStateResolver) {
@@ -286,6 +311,7 @@ export async function executeWalletKitTransaction({
         requestedMode: attempt.requestedMode,
         shouldUseExternalSigner,
         sponsored: attempt.sponsored,
+        provider: aaProvider,
       });
 
       if (attemptState.fallbackReason && !finalFallbackReason) {
@@ -317,7 +343,7 @@ export async function executeWalletKitTransaction({
     }
 
     if (!execution) {
-      if (requiresSponsoredExecution) {
+      if (aaPolicy === "required" || requiresSponsoredExecution) {
         throw new Error(finalFallbackReason ?? "aa_required_execution_failed");
       }
       if (payload.aaStrict && lastAAError && !sawUnresolvedAAProviderState) {
