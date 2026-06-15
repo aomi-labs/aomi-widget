@@ -1427,7 +1427,8 @@ var AomiClient = class {
         "Content-Type": "application/json"
       }),
       body: JSON.stringify({
-        application: options == null ? void 0 : options.application
+        application: options == null ? void 0 : options.application,
+        wallet_family: (options == null ? void 0 : options.walletFamily) === "evm" ? void 0 : options == null ? void 0 : options.walletFamily
       })
     });
     if (!response.ok) {
