@@ -92,6 +92,21 @@ export function Onboarding() {
     return () => clearTimeout(id);
   }, [installSuccess]);
 
+  // --- detect GitHub install completed in another tab -----------------------
+  useEffect(() => {
+    if (!installingPath) return;
+    const id = setInterval(() => {
+      const cur = loadOnboarding();
+      const progress = cur[installingPath];
+      if (progress.installationId && progress.installationStatus) {
+        setState(cur);
+        setInstallSuccess(true);
+        setInstallingPath(null);
+      }
+    }, 1000);
+    return () => clearInterval(id);
+  }, [installingPath]);
+
   // --- sync deploymentId to URL params -------------------------------------
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -129,8 +144,9 @@ export function Onboarding() {
     [state, update],
   );
 
-  // Persist the pending-install path BEFORE leaving for github.com, so the
-  // backend callback redirect can resume the correct wizard path.
+  // Save progress before opening GitHub in a new tab. The redirect will
+  // land in the new tab and write the result to localStorage; the polling
+  // effect above picks it up in this tab.
   const makeBeginInstall = useCallback(
     (path: OnboardingPath, mode: "install" | "authorize" = "install") =>
       async () => {
@@ -141,13 +157,14 @@ export function Onboarding() {
         setInstallingPath(path);
         try {
           const repo = next[path].repo;
-          window.location.assign(
+          window.open(
             await githubAppInstallUrl({
               platform: resolveDeployPlatform(),
               repo,
               mode,
               app: path === "oneshot" ? 2 : undefined,
             }),
+            "_blank",
           );
         } catch (error) {
           setInstallingPath(null);
