@@ -10,6 +10,7 @@ export type WalletRowAction =
   | { kind: "connect"; label: string }
   | { kind: "authenticate"; label: string }
   | { kind: "disconnect"; label: string }
+  | { kind: "signout"; label: string }
   | { kind: "manage"; label: string }
   | { kind: "link"; label: string }
   | { kind: "unlink"; label: string };
@@ -50,6 +51,24 @@ export function mergeWalletRows({
         wallet.family === account.family &&
         wallet.address.toLowerCase() === account.address.toLowerCase(),
     );
+    const actions: WalletRowAction[] = account.actions?.length
+      ? account.actions.map((action) => ({
+          kind: action.kind,
+          label:
+            action.label ??
+            (action.kind === "manage"
+              ? "Manage"
+              : action.kind === "signout"
+                ? "Sign out"
+                : "Disconnect"),
+        }))
+      : [
+          account.manageable
+            ? { kind: "manage", label: "Manage" }
+            : account.active
+              ? { kind: "disconnect", label: "Disconnect" }
+              : { kind: "select", label: "Select" },
+        ];
     return {
       id: account.id,
       family: account.family,
@@ -64,13 +83,7 @@ export function mergeWalletRows({
       linkedVia: account.linkedVia ?? stored?.linkedVia,
       capability: account.capability ?? stored?.capability,
       manageable: account.manageable,
-      actions: [
-        account.manageable
-          ? { kind: "manage", label: "Manage" }
-          : account.active
-            ? { kind: "disconnect", label: "Disconnect" }
-            : { kind: "select", label: "Select" },
-      ],
+      actions,
     };
   });
 
@@ -105,7 +118,9 @@ export function mergeWalletRows({
     rows.push({
       id: option.id,
       family:
-        option.family === "multichain" ? "evm" : toRegistryFamily(option.family),
+        option.family === "multichain"
+          ? "evm"
+          : toRegistryFamily(option.family),
       label: option.label,
       walletName: option.label,
       iconUrl: option.iconUrl,

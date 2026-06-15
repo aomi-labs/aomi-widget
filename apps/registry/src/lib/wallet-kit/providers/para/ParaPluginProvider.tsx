@@ -247,12 +247,14 @@ export function AomiParaPluginProvider({
         startParaAuthFlow(reason);
         paraModal?.openModal({ step });
       },
+      logout: logoutParaSession,
       getCredential: exposeParaSession ? (issueJwt ?? undefined) : undefined,
     }),
     [
       embeddedPrimary,
       exposeParaSession,
       issueJwt,
+      logoutParaSession,
       oAuthMethods,
       paraAccount.embedded,
       paraAccount.isLoading,
@@ -285,14 +287,35 @@ export function AomiParaPluginProvider({
   );
   const transformAccounts = useCallback(
     (accounts: AomiAccount[]) =>
-      accounts.filter((account) => {
-        if (!paraSessionLocallyDetached) return true;
-        if (account.family !== "evm") return true;
-        const address = account.address.toLowerCase();
-        if (registryDetachedParaAddresses.includes(address)) return false;
-        return !isParaEmbeddedAccount(account);
-      }),
-    [paraSessionLocallyDetached, registryDetachedParaAddresses],
+      accounts
+        .filter((account) => {
+          if (!paraSessionLocallyDetached) return true;
+          if (account.family !== "evm") return true;
+          const address = account.address.toLowerCase();
+          if (registryDetachedParaAddresses.includes(address)) return false;
+          return !isParaEmbeddedAccount(account);
+        })
+        .map((account) => {
+          if (!exposeParaSession || !isParaEmbeddedAccount(account)) {
+            return account;
+          }
+          return {
+            ...account,
+            manageable: Boolean(paraModal),
+            actions: [
+              ...(paraModal
+                ? [{ kind: "manage" as const, label: "Manage" }]
+                : []),
+              { kind: "signout" as const, label: "Sign out" },
+            ],
+          };
+        }),
+    [
+      exposeParaSession,
+      paraModal,
+      paraSessionLocallyDetached,
+      registryDetachedParaAddresses,
+    ],
   );
   const canManageParaAccount = useCallback(
     (account: AomiAccount) =>
@@ -324,12 +347,7 @@ export function AomiParaPluginProvider({
           }),
       }),
     }),
-    [
-      evmRuntime,
-      execution,
-      paraSession,
-      sponsorship,
-    ],
+    [evmRuntime, execution, paraSession, sponsorship],
   );
 
   return (

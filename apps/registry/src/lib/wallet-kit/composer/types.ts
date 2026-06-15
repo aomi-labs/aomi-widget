@@ -44,6 +44,7 @@ export type AuthRuntime = {
   methods: readonly AomiWalletOption[];
   canOpenModal: boolean;
   login?: (reason: string, step?: string) => Promise<void>;
+  logout?: () => Promise<void>;
   openAccountUI?: (reason: string, step?: string) => Promise<void>;
   startFlow?: (reason: string) => void;
   getCredential?: () => Promise<AomiAccountCredential | null>;

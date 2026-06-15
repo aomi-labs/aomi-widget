@@ -1,6 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from "react";
 import type { Chain, Hex } from "viem";
 import type { WalletEip712Payload } from "@aomi-labs/react";
 import { toViemSignTypedDataArgs } from "@aomi-labs/react";
@@ -12,7 +18,7 @@ import { useAomiWalletNetworkPreferences } from "../../network-preferences";
 import { useEvmWalletRuntime } from "../../runtime/evm/wallet-runtime";
 import { useSvmWalletRuntime } from "../../runtime/svm/wallet-runtime";
 import { REGISTRY_STORAGE_KEY } from "../../registry/types";
-import type { AomiAccountCredential } from "../../types";
+import type { AomiAccount, AomiAccountCredential } from "../../types";
 import type { ExecutionConfig } from "../../config/types";
 import {
   inferPrivyAuthMethod,
@@ -120,9 +126,7 @@ export function AomiPrivyPluginProvider({
       login: async () => {
         await privy.login();
       },
-      openAccountUI: async () => {
-        await privy.login();
-      },
+      logout: privy.logout,
       getCredential: privy.getAccessToken
         ? async (): Promise<AomiAccountCredential | null> => {
             const token = (await privy.getAccessToken())?.trim();
@@ -137,9 +141,28 @@ export function AomiPrivyPluginProvider({
       privy.authenticated,
       privy.getAccessToken,
       privy.login,
+      privy.logout,
       privy.ready,
       privy.user?.id,
     ],
+  );
+
+  const transformPrivyAccounts = useCallback(
+    (accounts: AomiAccount[]) =>
+      accounts.map((account) => {
+        if (
+          !privy.authenticated ||
+          !account.walletName?.toLowerCase().startsWith("privy")
+        ) {
+          return account;
+        }
+        return {
+          ...account,
+          linkedVia: account.linkedVia ?? "privy",
+          actions: [{ kind: "signout" as const, label: "Sign out" }],
+        };
+      }),
+    [privy.authenticated],
   );
 
   const svmRuntime = useSvmWalletRuntime({
@@ -189,13 +212,7 @@ export function AomiPrivyPluginProvider({
           : undefined,
       }),
     }),
-    [
-      evmRuntime,
-      execution,
-      getClientForChain,
-      smartAddress,
-      smartWalletClient,
-    ],
+    [evmRuntime, execution, getClientForChain, smartAddress, smartWalletClient],
   );
 
   return (
@@ -204,6 +221,7 @@ export function AomiPrivyPluginProvider({
       evm={evmRuntime}
       svm={svmRuntime}
       execution={executionRuntime}
+      transformAccounts={transformPrivyAccounts}
       supportedChains={supportedChains}
     >
       {children}
