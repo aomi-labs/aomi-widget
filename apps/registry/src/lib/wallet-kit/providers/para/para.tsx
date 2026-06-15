@@ -26,14 +26,13 @@ import {
   AomiWalletNetworkPreferencesProvider,
   useAomiWalletNetworkPreferences,
 } from "../../network-preferences";
+import type { EvmWalletsConfig, ExecutionConfig } from "../../config/types";
 import {
   FullTestnetWalletRouter,
   useFullTestnet,
 } from "../../full-testnet-wallet-routing";
-import {
-  AomiParaEvmRuntimeProvider,
-  type AomiParaEvmRuntimeConfig,
-} from "./para-evm-runtime";
+import { createAomiEvmConfig } from "../../catalog/evm-connector-catalog";
+import { AomiEvmRuntimeProvider } from "../../runtime/evm/provider";
 import type { EvmWalletId } from "../../catalog/wallet-ids";
 import { normalizeSvmNetworkOptions } from "../../runtime/svm/networks";
 import {
@@ -57,9 +56,13 @@ export type AomiParaProviderProps = {
   apiKey?: string;
   environment?: Environment;
   networks?: readonly [Chain, ...Chain[]];
+  wallets?: EvmWalletsConfig;
+  /** @deprecated use `wallets.walletConnectProjectId` */
   walletConnectProjectId?: string;
+  /** @deprecated use `wallets.wallets` with generic Aomi EVM wallet ids */
   externalWallets?: TExternalWallet[];
   oAuthMethods?: TOAuthMethod[];
+  execution?: ExecutionConfig;
   svm?: ParaSvmOptions;
   /** @deprecated use `svm` */
   solana?: ParaSvmOptions;
@@ -78,15 +81,9 @@ const defaultNetworks = [
   monadTestnet,
 ] as const;
 
-const defaultExternalWallets: TExternalWallet[] = [
-  "WALLETCONNECT",
-  "METAMASK",
-  "COINBASE",
-  "RAINBOW",
-  "RABBY",
-];
-
-function toWalletIds(wallets: readonly TExternalWallet[]): EvmWalletId[] {
+function legacyParaExternalWalletsToEvmWalletIds(
+  wallets: readonly TExternalWallet[],
+): EvmWalletId[] {
   const ids: EvmWalletId[] = [];
   for (const wallet of wallets) {
     const id = (() => {
@@ -120,10 +117,12 @@ function AomiParaProviderInner({
     | Environment
     | undefined) ?? Environment.BETA,
   networks = defaultNetworks,
+  wallets,
   walletConnectProjectId = process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID ??
     process.env.NEXT_PUBLIC_PROJECT_ID,
-  externalWallets = defaultExternalWallets,
+  externalWallets,
   oAuthMethods = defaultOAuthMethods,
+  execution,
   svm,
   solana,
 }: AomiParaProviderProps) {
@@ -134,13 +133,15 @@ function AomiParaProviderInner({
   // Everything handed to <ParaProvider> must keep a stable identity across
   // re-renders. Para's SDK compares these props by reference and rebuilds
   // its wagmi config when they churn, which drops in-memory wallet state.
-  const resolvedWallets = useMemo(
+  const legacyWalletIds = useMemo(
     () =>
-      walletConnectProjectId
-        ? externalWallets
-        : externalWallets.filter((wallet) => wallet !== "WALLETCONNECT"),
-    [externalWallets, walletConnectProjectId],
+      externalWallets
+        ? legacyParaExternalWalletsToEvmWalletIds(externalWallets)
+        : undefined,
+    [externalWallets],
   );
+  const resolvedWalletConnectProjectId =
+    wallets?.walletConnectProjectId ?? walletConnectProjectId;
   const paraClientConfig = useMemo(
     () => (apiKey ? { apiKey, env: environment } : null),
     [apiKey, environment],
@@ -151,8 +152,9 @@ function AomiParaProviderInner({
     [selectedSolanaNetworkId, svmOptions],
   );
   const transports = useMemo(
-    () => routing.transports as Record<number, Transport>,
-    [routing.transports],
+    () =>
+      (wallets?.transports ?? routing.transports) as Record<number, Transport>,
+    [routing.transports, wallets?.transports],
   );
   const paraModalConfig = useMemo(
     () => ({
@@ -161,22 +163,26 @@ function AomiParaProviderInner({
     }),
     [oAuthMethods],
   );
-  const evmRuntimeConfig = useMemo(
+  const evmConfig = useMemo(
     () =>
-      ({
+      createAomiEvmConfig({
         chains: routing.routedChains,
         transports,
-        walletConnectProjectId,
-        appName,
-        wallets: toWalletIds(resolvedWallets),
+        walletConnectProjectId: resolvedWalletConnectProjectId,
+        appName: wallets?.appName ?? appName,
+        appLogoUrl: wallets?.appLogoUrl,
+        wallets: wallets?.wallets ?? legacyWalletIds,
         ssr: true,
-      }) satisfies AomiParaEvmRuntimeConfig,
+      }),
     [
       appName,
-      resolvedWallets,
+      legacyWalletIds,
+      resolvedWalletConnectProjectId,
       routing.routedChains,
       transports,
-      walletConnectProjectId,
+      wallets?.appLogoUrl,
+      wallets?.appName,
+      wallets?.wallets,
     ],
   );
   const paraExternalWalletConfig = useMemo(
@@ -225,7 +231,7 @@ function AomiParaProviderInner({
             paraModalConfig={paraModalConfig}
             externalWalletConfig={paraExternalWalletConfig}
           >
-            <AomiParaEvmRuntimeProvider config={evmRuntimeConfig}>
+            <AomiEvmRuntimeProvider config={evmConfig}>
               <ParaSvmWrapper
                 key={resolvedSvmConfig.activeNetwork.id}
                 enabled={svmEnabled}
@@ -237,6 +243,7 @@ function AomiParaProviderInner({
                   routedChainIds={routing.routedChainIds}
                 >
                   <AomiParaPluginProvider
+                    execution={execution}
                     supportedChains={routing.routedChains}
                     svmConfig={resolvedSvmConfig}
                     oAuthMethods={oAuthMethods}
@@ -245,7 +252,7 @@ function AomiParaProviderInner({
                   </AomiParaPluginProvider>
                 </FullTestnetWalletRouter>
               </ParaSvmWrapper>
-            </AomiParaEvmRuntimeProvider>
+            </AomiEvmRuntimeProvider>
           </ParaProvider>
         ) : (
           <FullTestnetWalletRouter
@@ -254,6 +261,7 @@ function AomiParaProviderInner({
             routedChainIds={routing.routedChainIds}
           >
             <AomiParaPluginProvider
+              execution={execution}
               supportedChains={routing.routedChains}
               svmConfig={resolvedSvmConfig}
               oAuthMethods={oAuthMethods}

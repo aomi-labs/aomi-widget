@@ -35,9 +35,7 @@ const solanaNetworks = [
   },
 ] as const;
 
-function makeAdapter(
-  overrides: Partial<AomiWalletKit> = {},
-): AomiWalletKit {
+function makeAdapter(overrides: Partial<AomiWalletKit> = {}): AomiWalletKit {
   return {
     identity: {
       status: "connected",
@@ -555,10 +553,9 @@ describe("WalletPicker", () => {
       }),
     );
 
-    expect(screen.getByTitle("Embedded wallet")).toHaveAttribute(
-      "data-wallet-brand",
-      "para",
-    );
+    expect(
+      screen.getByTitle("Embedded wallet").getAttribute("data-wallet-brand"),
+    ).toBe("para");
   });
 
   it("hides the social sign-in row when the Para account is connected", () => {

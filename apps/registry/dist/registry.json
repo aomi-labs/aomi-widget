@@ -93,6 +93,10 @@
         },
         {
           "type": "registry:component",
+          "path": "lib/wallet-kit/config/execution.ts"
+        },
+        {
+          "type": "registry:component",
           "path": "lib/wallet-kit/config/index.ts"
         },
         {
@@ -552,10 +556,6 @@
         {
           "type": "registry:component",
           "path": "lib/wallet-kit/providers/para/para-embedded-wallet.ts"
-        },
-        {
-          "type": "registry:component",
-          "path": "lib/wallet-kit/providers/para/para-evm-runtime.tsx"
         },
         {
           "type": "registry:component",

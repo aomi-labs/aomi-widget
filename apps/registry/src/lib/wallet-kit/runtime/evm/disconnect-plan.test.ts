@@ -28,7 +28,6 @@ describe("planEvmAccountDisconnect", () => {
       target: {
         id: "para",
         address: "0xAAA",
-        walletName: "Para",
         manageable: true,
         connectorIds: ["para", "mm"],
       },
@@ -47,7 +46,6 @@ describe("planEvmAccountDisconnect", () => {
       target: {
         id: "para",
         address: "0xAAA",
-        walletName: "Para",
         manageable: true,
         connectorIds: ["para"],
       },
@@ -65,7 +63,6 @@ describe("planEvmAccountDisconnect", () => {
       target: {
         id: "mm",
         address: "0xAAA",
-        walletName: "MetaMask",
         connectorIds: ["para", "mm"],
       },
       connections,

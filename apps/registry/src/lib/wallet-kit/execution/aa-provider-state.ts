@@ -9,6 +9,7 @@ import {
 import { toClientAAOwner, type AomiAAOwnerInput } from "../aa/owner";
 import {
   getPreferredRpcUrl,
+  type WalletKitAAProviderPreference,
   type RequestedAAMode,
   type WalletExecutionCallList,
   type WalletProviderState,
@@ -22,7 +23,13 @@ const PIMLICO_API_KEY = process.env.NEXT_PUBLIC_PIMLICO_API_KEY?.trim() ?? "";
 const AA_PROVIDER_OVERRIDE =
   process.env.NEXT_PUBLIC_AA_PROVIDER?.trim().toLowerCase();
 
-function resolveAAProvider(): AAProvider | null {
+function resolveAAProvider(
+  preference: WalletKitAAProviderPreference = "auto",
+): AAProvider | null {
+  if (preference === "alchemy" || preference === "pimlico") {
+    return preference;
+  }
+
   if (
     AA_PROVIDER_OVERRIDE === "alchemy" ||
     AA_PROVIDER_OVERRIDE === "pimlico"
@@ -43,6 +50,7 @@ export async function resolveExternalWalletAAProviderState({
   walletClient,
   address,
   sponsored,
+  provider: providerPreference = "auto",
 }: {
   callList: WalletExecutionCallList;
   chainsById: Record<number, Chain>;
@@ -51,6 +59,7 @@ export async function resolveExternalWalletAAProviderState({
   walletClient: EvmWalletRuntime["walletClient"];
   address: string | undefined;
   sponsored?: boolean;
+  provider?: WalletKitAAProviderPreference;
 }): Promise<{
   providerState: WalletProviderState;
   resolvedMode: RequestedAAMode;
@@ -63,7 +72,7 @@ export async function resolveExternalWalletAAProviderState({
     fallbackReason = "requested_7702_connected_wallet_fallback_4337";
   }
 
-  const provider = resolveAAProvider();
+  const provider = resolveAAProvider(providerPreference);
   if (!provider) {
     return {
       providerState: { resolved: null, pending: false, error: null },

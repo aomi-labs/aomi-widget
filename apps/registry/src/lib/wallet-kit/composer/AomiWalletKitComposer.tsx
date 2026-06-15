@@ -183,6 +183,12 @@ export function AomiWalletKitComposer({
       walletName: gracefulEvmIdentity.identity.walletName,
       walletSource: gracefulEvmIdentity.identity.walletSource,
     });
+    const shouldUseExternalSignerForAA =
+      execution.evm.aaOwner === "provider-session"
+        ? false
+        : execution.evm.aaOwner === "external-wallet"
+          ? true
+          : execution.evm.shouldUseExternalSigner;
     return {
       identity,
       isReady: !isBooting,
@@ -347,6 +353,7 @@ export function AomiWalletKitComposer({
                 state: {
                   currentChainId: effectiveChainId,
                   capabilities: execution.evm.capabilities,
+                  nativeWalletExecution: execution.evm.nativeWalletExecution,
                   sendCallsSyncAsync: execution.evm.sendCallsSyncAsync
                     ? async (args) =>
                         execution.evm.sendCallsSyncAsync!({
@@ -369,12 +376,12 @@ export function AomiWalletKitComposer({
                   chainsById: execution.evm.chainsById,
                   getPreferredRpcUrl,
                 },
-                shouldUseExternalSigner: execution.evm.shouldUseExternalSigner,
+                shouldUseExternalSigner: shouldUseExternalSignerForAA,
                 resolveAAProviderState: execution.evm.resolveAAProviderState
                   ? async (params) =>
                       execution.evm.resolveAAProviderState!(params, {
                         address,
-                        walletClient: execution.evm.shouldUseExternalSigner
+                        walletClient: shouldUseExternalSignerForAA
                           ? await execution.evm.getWalletClientFor({
                               connector: execution.evm.activeConnector,
                               chainId: params.callList[0]?.chainId,
@@ -382,8 +389,11 @@ export function AomiWalletKitComposer({
                           : execution.evm.walletClient,
                       })
                   : undefined,
-                forceAA: true,
-                preferAAForSingleCall: true,
+                forceAA: execution.evm.aaPolicy !== "off",
+                preferAAForSingleCall: execution.evm.aaPolicy !== "off",
+                aaPolicy: execution.evm.aaPolicy,
+                aaModes: execution.evm.aaModes,
+                aaProvider: execution.evm.aaProvider,
               });
             }
           : undefined,

@@ -2,9 +2,14 @@
 
 import type { ReactNode } from "react";
 import type {
+  AuthConfig,
   AomiWalletKitProviderInput,
   AomiWalletKitProviderProps,
+  ExecutionConfig,
+  ProvidersConfig,
 } from "../config/types";
+import type { SvmNetworkOption } from "../types";
+import type { Chain } from "viem";
 
 /**
  * A wallet provider plugin. Knows how to render itself from the normalized
@@ -19,7 +24,28 @@ import type {
  */
 export type WalletProviderPlugin = {
   id: string;
+  authMode?: "additive" | "full";
   render: (props: AomiWalletKitProviderProps) => ReactNode;
+  wrap?: (props: {
+    auth?: AuthConfig;
+    children: ReactNode;
+    providers?: ProvidersConfig;
+  }) => ReactNode;
+  renderComposer?: (props: {
+    auth?: AuthConfig;
+    children: ReactNode;
+    execution?: ExecutionConfig;
+    solanaRuntimeConfig?: {
+      cluster: SvmNetworkOption["cluster"];
+      rpcHttpUrl: string;
+      rpcWsUrl?: string;
+      preferDirectSend: boolean;
+    };
+    supportedChains: readonly Chain[];
+    supportedSolanaNetworks: readonly SvmNetworkOption[];
+    selectedSolanaNetwork?: SvmNetworkOption;
+    setSelectedSolanaNetworkId: (networkId: string) => void;
+  }) => ReactNode;
   detectSugar?: (
     input: AomiWalletKitProviderInput,
   ) => AomiWalletKitProviderProps | null;

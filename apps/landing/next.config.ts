@@ -34,6 +34,8 @@ const turbopackAliases: Record<string, string> = {
   "@/hooks": "./src/hooks",
   "@aomi-labs/client": "../../packages/client/src/index.ts",
   "@aomi-labs/react": "../../packages/react/src/index.ts",
+  "@assistant-ui/react": "./node_modules/@assistant-ui/react",
+  "@assistant-ui/react-markdown": "./node_modules/@assistant-ui/react-markdown",
   "@getpara/react-sdk": "./node_modules/@getpara/react-sdk",
   "@tanstack/react-query": "./node_modules/@tanstack/react-query",
   // Force a single Zustand version so Para's SDK packages share the same store
@@ -93,6 +95,14 @@ const nextConfig: NextConfig = {
       "@/hooks": path.join(landingSrc, "hooks"),
       "@aomi-labs/client": path.join(clientPkgSrc, "index.ts"),
       "@aomi-labs/react": path.join(reactPkgSrc, "index.ts"),
+      "@assistant-ui/react": path.join(
+        landingNodeModules,
+        "@assistant-ui/react",
+      ),
+      "@assistant-ui/react-markdown": path.join(
+        landingNodeModules,
+        "@assistant-ui/react-markdown",
+      ),
       "@getpara/react-sdk": path.join(
         landingNodeModules,
         "@getpara/react-sdk",

@@ -22,12 +22,13 @@ import {
   type WalletRequestKind,
   type WalletRequestResult,
 } from "@aomi-labs/react";
-import { LandingParaProvider } from "../../app/components/landing-para-provider";
 import { RuntimeTxHandler } from "../../../registry/src/components/runtime-tx-handler";
 import {
+  AomiWalletKitProvider,
   useAomiWalletKit,
   type AomiWalletKit,
 } from "../../../registry/src/lib/wallet-kit";
+import { registerAomiParaWalletProvider } from "../../../registry/src/lib/wallet-kit/providers/para";
 
 type DriverMode =
   | "sign"
@@ -49,6 +50,20 @@ const DRIVER_RPC_URL =
   process.env.NEXT_PUBLIC_SOLANA_RPC_URL?.trim() ||
   "https://api.devnet.solana.com";
 const PARA_API_KEY = process.env.NEXT_PUBLIC_PARA_API_KEY?.trim();
+const PARA_ENVIRONMENT =
+  process.env.NEXT_PUBLIC_PARA_ENVIRONMENT === "PROD" ? "PROD" : "BETA";
+const PARA_SOLANA_NETWORKS = [
+  {
+    id: "solana-devnet",
+    label: "Solana Devnet",
+    cluster: DRIVER_CLUSTER,
+    rpcHttpUrl: DRIVER_RPC_URL,
+    rpcWsUrl: process.env.NEXT_PUBLIC_SOLANA_RPC_WS_URL,
+    isDefault: true,
+  },
+] as const;
+
+registerAomiParaWalletProvider();
 
 function encodeBase64(bytes: Uint8Array): string {
   if (typeof Buffer !== "undefined") {
@@ -633,8 +648,27 @@ function ParaSolanaRuntimeDriverInner() {
 
 export function ParaSolanaRuntimeDriver() {
   return (
-    <LandingParaProvider>
+    <AomiWalletKitProvider
+      auth={{ provider: "para", methods: ["google", "wallet"] }}
+      providers={{
+        para: {
+          apiKey: PARA_API_KEY,
+          environment: PARA_ENVIRONMENT,
+          appName: "Aomi Labs",
+          appDescription: "Aomi Para Solana runtime driver",
+        },
+      }}
+      wallets={{
+        evm: false,
+        solana: {
+          networks: PARA_SOLANA_NETWORKS,
+          preferDirectSend: true,
+        },
+        embedded: { provider: "para" },
+      }}
+      execution={{ aa: "off" }}
+    >
       <ParaSolanaRuntimeDriverInner />
-    </LandingParaProvider>
+    </AomiWalletKitProvider>
   );
 }

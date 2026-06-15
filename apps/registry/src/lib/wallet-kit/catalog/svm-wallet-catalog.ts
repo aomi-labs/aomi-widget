@@ -1,11 +1,5 @@
 "use client";
 
-import {
-  backpackWallet,
-  glowWallet,
-  phantomWallet,
-  solflareWallet,
-} from "@getpara/solana-wallet-connectors/connectors";
 import type { SvmNetworkOption } from "../types";
 import {
   normalizeSvmNetworkOptions,
@@ -22,27 +16,12 @@ export type SvmWalletsConfig = {
   enabled?: boolean;
 };
 
-const SVM_WALLET_FACTORIES = {
-  phantom: phantomWallet,
-  solflare: solflareWallet,
-  backpack: backpackWallet,
-  glow: glowWallet,
-} as const;
-
 export const SVM_WALLET_ALLOWLIST = new Set<string>(SVM_PRESETS.popular);
 
-type SolanaWalletList = Array<typeof phantomWallet>;
-
-export function createAomiSvmWallets(
+export function resolveAomiSvmWalletIds(
   input: Pick<SvmWalletsConfig, "preset" | "wallets"> = {},
-): SolanaWalletList {
-  const wanted = input.wallets ?? SVM_PRESETS[input.preset ?? "popular"];
-  return wanted
-    .map(
-      (wallet) =>
-        SVM_WALLET_FACTORIES[wallet as keyof typeof SVM_WALLET_FACTORIES],
-    )
-    .filter((wallet): wallet is SolanaWalletList[number] => Boolean(wallet));
+): readonly SvmWalletId[] {
+  return input.wallets ?? SVM_PRESETS[input.preset ?? "popular"];
 }
 
 export function resolveAomiSvmConfig(
@@ -57,7 +36,7 @@ export function resolveAomiSvmConfig(
       cluster: undefined,
       rpcHttpUrl: undefined,
       rpcWsUrl: undefined,
-      wallets: [] as SolanaWalletList,
+      walletIds: [] as readonly SvmWalletId[],
       preferDirectSend: true,
     };
   }
@@ -71,7 +50,7 @@ export function resolveAomiSvmConfig(
     cluster: activeNetwork.cluster,
     rpcHttpUrl: activeNetwork.rpcHttpUrl,
     rpcWsUrl: activeNetwork.rpcWsUrl,
-    wallets: createAomiSvmWallets(input),
+    walletIds: resolveAomiSvmWalletIds(input),
     preferDirectSend: input?.preferDirectSend ?? true,
   };
 }

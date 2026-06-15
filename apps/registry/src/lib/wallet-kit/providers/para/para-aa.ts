@@ -11,6 +11,7 @@ import { toClientAAOwner, type AomiAAOwnerInput } from "../../aa/owner";
 import type { AomiSessionIdentity } from "../../types";
 import {
   getPreferredRpcUrl,
+  type WalletKitAAProviderPreference,
   type RequestedAAMode,
   type WalletExecutionCallList,
   type WalletProviderState,
@@ -30,7 +31,13 @@ const PIMLICO_API_KEY = process.env.NEXT_PUBLIC_PIMLICO_API_KEY?.trim() ?? "";
 const AA_PROVIDER_OVERRIDE =
   process.env.NEXT_PUBLIC_AA_PROVIDER?.trim().toLowerCase();
 
-function resolveAAProvider(): AAProvider | null {
+function resolveAAProvider(
+  preference: WalletKitAAProviderPreference = "auto",
+): AAProvider | null {
+  if (preference === "alchemy" || preference === "pimlico") {
+    return preference;
+  }
+
   if (
     AA_PROVIDER_OVERRIDE === "alchemy" ||
     AA_PROVIDER_OVERRIDE === "pimlico"
@@ -43,12 +50,14 @@ function resolveAAProvider(): AAProvider | null {
   return null;
 }
 
-export function resolveParaSponsorship(): {
+export function resolveParaSponsorship(
+  providerPreference: WalletKitAAProviderPreference = "auto",
+): {
   sponsored: boolean;
   sponsorProvider: AomiSessionIdentity["sponsorProvider"];
   sponsorAccount: AomiSessionIdentity["sponsorAccount"];
 } {
-  const aaProvider = resolveAAProvider();
+  const aaProvider = resolveAAProvider(providerPreference);
   if (aaProvider === "alchemy") {
     return {
       sponsored: Boolean(ALCHEMY_GAS_POLICY_ID),
@@ -79,6 +88,7 @@ export async function resolveParaAAProviderState({
   walletClient,
   address,
   sponsored,
+  provider: providerPreference = "auto",
 }: {
   callList: WalletExecutionCallList;
   chainsById: Record<number, Chain>;
@@ -88,6 +98,7 @@ export async function resolveParaAAProviderState({
   walletClient: ReturnType<typeof useSafeWalletClient>["walletClient"];
   address: string | undefined;
   sponsored?: boolean;
+  provider?: WalletKitAAProviderPreference;
 }): Promise<{
   providerState: WalletProviderState;
   resolvedMode: RequestedAAMode;
@@ -100,7 +111,7 @@ export async function resolveParaAAProviderState({
     fallbackReason = "requested_7702_connected_wallet_fallback_4337";
   }
 
-  const provider = resolveAAProvider();
+  const provider = resolveAAProvider(providerPreference);
   if (!provider) {
     return {
       providerState: { resolved: null, pending: false, error: null },

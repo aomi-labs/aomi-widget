@@ -5,6 +5,7 @@ import type { Chain } from "viem";
 import { base, baseSepolia } from "wagmi/chains";
 import type { SponsorshipPaymasterServiceContext } from "@aomi-labs/react";
 import { AomiWalletKitProvider } from "../../config/AomiWalletKitProvider";
+import type { ExecutionConfig } from "../../config/types";
 
 export type BaseAccountSponsorshipOptions =
   | {
@@ -41,6 +42,35 @@ export type AomiBaseAccountProviderProps = {
   sponsorship?: BaseAccountSponsorshipOptions;
 };
 
+type EnabledBaseAccountSponsorshipOptions = Extract<
+  BaseAccountSponsorshipOptions,
+  { mode: "optional" | "required" }
+>;
+
+function isEnabledSponsorship(
+  sponsorship: BaseAccountSponsorshipOptions | undefined,
+): sponsorship is EnabledBaseAccountSponsorshipOptions {
+  return sponsorship?.mode === "optional" || sponsorship?.mode === "required";
+}
+
+function toExecutionConfig(
+  sponsorship: BaseAccountSponsorshipOptions | undefined,
+): ExecutionConfig | undefined {
+  if (!isEnabledSponsorship(sponsorship)) {
+    return undefined;
+  }
+
+  return {
+    aa: "optional",
+    sponsorship: {
+      mode: sponsorship.mode,
+      paymasterServiceContext: sponsorship.paymasterServiceContext,
+      paymasterServiceUrl: sponsorship.paymasterServiceUrl,
+      sendCallsTimeoutMs: sponsorship.sendCallsTimeoutMs,
+    },
+  };
+}
+
 /**
  * @deprecated Use `AomiWalletKitProvider` with
  * `wallets={{ evm: { wallets: ["baseAccount"] } }}`. This shim exists for the
@@ -53,6 +83,7 @@ export function AomiBaseAccountProvider({
   appLogoUrl,
   chains,
   includeBaseSepolia = false,
+  sponsorship,
 }: AomiBaseAccountProviderProps) {
   const preferredChains =
     chains ??
@@ -61,6 +92,7 @@ export function AomiBaseAccountProvider({
   return (
     <AomiWalletKitProvider
       preset="wallets-only"
+      execution={toExecutionConfig(sponsorship)}
       wallets={{
         evm: {
           chains: preferredChains,

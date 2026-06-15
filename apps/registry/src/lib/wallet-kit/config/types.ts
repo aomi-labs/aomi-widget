@@ -3,6 +3,7 @@
 import type { ReactNode } from "react";
 import type { Chain, Transport } from "viem";
 import type { CreateConnectorFn } from "wagmi";
+import type { SponsorshipPaymasterServiceContext } from "@aomi-labs/react";
 import type {
   AuthProviderId,
   AomiAccountCredential,
@@ -93,8 +94,37 @@ export type WalletsConfig = {
 
 export type ExecutionConfig = {
   aa?: "off" | "optional" | "required";
+  provider?: "auto" | "alchemy" | "pimlico";
   modes?: ReadonlyArray<"4337" | "7702">;
   owner?: "auto" | "external-wallet" | "provider-session";
+  sponsorship?:
+    | { mode?: "disabled" }
+    | {
+        mode: "optional";
+        paymasterServiceContext?:
+          | SponsorshipPaymasterServiceContext
+          | ((
+              chainId: number,
+            ) => SponsorshipPaymasterServiceContext | undefined);
+        paymasterServiceUrl?:
+          | string
+          | ((chainId: number) => string | undefined);
+        sendCallsTimeoutMs?: number;
+        sendCallsVersion?: string;
+      }
+    | {
+        mode: "required";
+        paymasterServiceContext?:
+          | SponsorshipPaymasterServiceContext
+          | ((
+              chainId: number,
+            ) => SponsorshipPaymasterServiceContext | undefined);
+        paymasterServiceUrl?:
+          | string
+          | ((chainId: number) => string | undefined);
+        sendCallsTimeoutMs?: number;
+        sendCallsVersion?: string;
+      };
 };
 
 export type AccountConfig =

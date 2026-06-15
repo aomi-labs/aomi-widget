@@ -1,23 +1,36 @@
 "use client";
 
-import { Environment } from "@getpara/react-sdk";
-import type { AuthMethodId, WalletsConfig } from "../../config/types";
-import { resolveAomiSvmConfig } from "../../catalog/svm-wallet-catalog";
-import type { WalletProviderPlugin } from "../plugin-registry";
+import { useMemo, type ReactNode } from "react";
+import {
+  Environment,
+  ParaProvider,
+  type TOAuthMethod,
+} from "@getpara/react-sdk";
+import "@getpara/react-sdk/styles.css";
+import type {
+  AuthConfig,
+  AuthMethodId,
+  ProvidersConfig,
+  WalletsConfig,
+} from "../../config/types";
+import {
+  registerWalletProvider,
+  type WalletProviderPlugin,
+} from "../plugin-registry";
 import { AomiParaProvider } from "./para";
 import type { ParaSvmOptions } from "./para-svm";
+import { AomiParaPluginProvider } from "./ParaPluginProvider";
+import { defaultOAuthMethods } from "./para-auth";
 
 function toParaEnvironment(value?: "PROD" | "BETA") {
-  if (!value) return undefined;
+  if (!value) return Environment.BETA;
   return value === "PROD" ? Environment.PROD : Environment.BETA;
 }
 
 function toParaOAuthMethods(
   methods: readonly AuthMethodId[] | undefined,
-):
-  | Array<"GOOGLE" | "APPLE" | "DISCORD" | "TWITTER" | "FARCASTER" | "TELEGRAM">
-  | undefined {
-  if (!methods) return undefined;
+): TOAuthMethod[] {
+  if (!methods) return defaultOAuthMethods;
   const map = {
     google: "GOOGLE",
     apple: "APPLE",
@@ -25,10 +38,11 @@ function toParaOAuthMethods(
     x: "TWITTER",
     farcaster: "FARCASTER",
     telegram: "TELEGRAM",
-  } as const;
-  return methods
+  } as const satisfies Partial<Record<AuthMethodId, TOAuthMethod>>;
+  const resolved = methods
     .map((method) => map[method as keyof typeof map])
     .filter((method): method is NonNullable<typeof method> => Boolean(method));
+  return resolved.length ? resolved : defaultOAuthMethods;
 }
 
 function toProviderSvmOptions(
@@ -39,12 +53,108 @@ function toProviderSvmOptions(
   return {
     networks: solana.networks,
     preferDirectSend: solana.preferDirectSend,
-    wallets: resolveAomiSvmConfig(solana).wallets,
   };
+}
+
+function isParaAuth(auth: AuthConfig | undefined): boolean {
+  return auth !== false && auth?.provider === "para";
+}
+
+function ParaAuthLayer({
+  auth,
+  children,
+  providers,
+}: {
+  auth?: AuthConfig;
+  children: ReactNode;
+  providers?: ProvidersConfig;
+}) {
+  const enabled = isParaAuth(auth);
+  const para = providers?.para === false ? undefined : providers?.para;
+  const apiKey = para?.apiKey ?? process.env.NEXT_PUBLIC_PARA_API_KEY;
+  const paraClientConfig = useMemo(
+    () =>
+      apiKey
+        ? {
+            apiKey,
+            env: toParaEnvironment(para?.environment),
+          }
+        : null,
+    [apiKey, para?.environment],
+  );
+  const paraConfig = useMemo(
+    () => ({ appName: para?.appName ?? "Aomi" }),
+    [para?.appName],
+  );
+  const paraModalConfig = useMemo(
+    () => ({
+      disableEmailLogin: false,
+      oAuthMethods: toParaOAuthMethods(
+        enabled && auth !== false && auth?.provider === "para"
+          ? auth.methods
+          : undefined,
+      ),
+    }),
+    [auth, enabled],
+  );
+  const externalWalletConfig = useMemo(
+    () => ({
+      appDescription: para?.appDescription ?? "Aomi widget",
+      appUrl:
+        para?.appUrl ??
+        (typeof window !== "undefined"
+          ? window.location.origin
+          : "https://aomi.dev"),
+      wallets: [],
+      walletConnect: undefined,
+    }),
+    [para?.appDescription, para?.appUrl],
+  );
+
+  if (!enabled || !paraClientConfig) {
+    return <>{children}</>;
+  }
+
+  return (
+    <ParaProvider
+      paraClientConfig={paraClientConfig}
+      config={paraConfig}
+      paraModalConfig={paraModalConfig}
+      externalWalletConfig={externalWalletConfig}
+    >
+      {children}
+    </ParaProvider>
+  );
 }
 
 export const paraPlugin: WalletProviderPlugin = {
   id: "para",
+  authMode: "additive",
+  wrap: (props) => <ParaAuthLayer {...props} />,
+  renderComposer: ({
+    auth,
+    children,
+    execution,
+    selectedSolanaNetwork,
+    setSelectedSolanaNetworkId,
+    solanaRuntimeConfig,
+    supportedChains,
+    supportedSolanaNetworks,
+  }) => (
+    <AomiParaPluginProvider
+      execution={execution}
+      oAuthMethods={toParaOAuthMethods(
+        auth !== false && auth?.provider === "para" ? auth.methods : undefined,
+      )}
+      selectedSolanaNetwork={selectedSolanaNetwork}
+      setSelectedSolanaNetworkId={setSelectedSolanaNetworkId}
+      supportedChains={supportedChains}
+      supportedSolanaNetworks={supportedSolanaNetworks}
+      svmConfig={solanaRuntimeConfig}
+    >
+      {children}
+    </AomiParaPluginProvider>
+  ),
   render: (props) => {
     const para =
       props.providers?.para === false ? undefined : props.providers?.para;
@@ -61,7 +171,9 @@ export const paraPlugin: WalletProviderPlugin = {
         appName={para?.appName}
         appDescription={para?.appDescription}
         appUrl={para?.appUrl}
+        execution={props.execution}
         networks={evmWallets?.chains}
+        wallets={evmWallets}
         walletConnectProjectId={evmWallets?.walletConnectProjectId}
         oAuthMethods={toParaOAuthMethods(auth?.methods)}
         svm={toProviderSvmOptions(props.wallets?.solana)}
@@ -92,3 +204,7 @@ export const paraPlugin: WalletProviderPlugin = {
     return null;
   },
 };
+
+export function registerAomiParaWalletProvider(): void {
+  registerWalletProvider(paraPlugin);
+}

@@ -1,6 +1,9 @@
 "use client";
 
-import type { WalletProviderPlugin } from "../plugin-registry";
+import {
+  registerWalletProvider,
+  type WalletProviderPlugin,
+} from "../plugin-registry";
 import { AomiPrivyProvider } from "./privy";
 
 export const privyPlugin: WalletProviderPlugin = {
@@ -19,7 +22,9 @@ export const privyPlugin: WalletProviderPlugin = {
         appId={privy?.appId}
         appName={privy?.appName}
         appLogoUrl={privy?.appLogoUrl}
+        execution={props.execution}
         networks={evmWallets?.chains}
+        wallets={evmWallets}
         walletConnectProjectId={evmWallets?.walletConnectProjectId}
         loginMethods={auth?.methods as never}
         solana={
@@ -50,3 +55,7 @@ export const privyPlugin: WalletProviderPlugin = {
     return null;
   },
 };
+
+export function registerAomiPrivyWalletProvider(): void {
+  registerWalletProvider(privyPlugin);
+}
