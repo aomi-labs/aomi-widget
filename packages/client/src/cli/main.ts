@@ -14,6 +14,7 @@ const ROOT_SUBCOMMANDS = new Set([
   "config",
   "secret",
   "account",
+  "deploy",
 ]);
 
 function isPnpmExecWrapper(): boolean {
@@ -104,6 +105,9 @@ function printRootHelp(): void {
   console.log("  secret                       Secret management");
   console.log(
     "  account                      Account identity (login, whoami)",
+  );
+  console.log(
+    "  deploy                       Deploy your app (requires --activation-token)",
   );
   console.log("");
   console.log("Use aomi <command> --help for command-specific details.");
