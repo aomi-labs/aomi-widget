@@ -119,10 +119,14 @@ function asRecord(value: unknown): UnknownRecord | undefined {
   return value as UnknownRecord;
 }
 
-function pendingTxsFromUserState(userState: unknown): UnknownRecord | undefined {
+function pendingTxsFromUserState(
+  userState: unknown,
+): UnknownRecord | undefined {
   const normalized = UserState.normalize(userState as UserState);
   const pending = asRecord(normalized?.pending);
-  return asRecord(pending?.evm_txs) ?? asRecord(asRecord(userState)?.pending_txs);
+  return (
+    asRecord(pending?.evm_txs) ?? asRecord(asRecord(userState)?.pending_txs)
+  );
 }
 
 function getToolArgs(payload: unknown): UnknownRecord {
@@ -163,19 +167,30 @@ export function inferSolanaRequestKind(
 }
 
 export function parseChainId(value: unknown): number | undefined {
-  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "number") {
+    return Number.isSafeInteger(value) && value > 0 ? value : undefined;
+  }
   if (typeof value !== "string") return undefined;
 
   const trimmed = value.trim();
   if (!trimmed) return undefined;
 
-  if (trimmed.startsWith("0x")) {
-    const parsedHex = Number.parseInt(trimmed.slice(2), 16);
-    return Number.isFinite(parsedHex) ? parsedHex : undefined;
-  }
+  const parsed = trimmed.startsWith("0x")
+    ? parseCanonicalInteger(trimmed.slice(2), 16)
+    : parseCanonicalInteger(trimmed, 10);
+  return parsed !== undefined && parsed > 0 ? parsed : undefined;
+}
 
-  const parsed = Number.parseInt(trimmed, 10);
-  return Number.isFinite(parsed) ? parsed : undefined;
+function parseCanonicalInteger(
+  value: string,
+  radix: 10 | 16,
+): number | undefined {
+  if (value === "") return undefined;
+  const pattern = radix === 16 ? /^[0-9a-fA-F]+$/ : /^[0-9]+$/;
+  if (!pattern.test(value)) return undefined;
+
+  const parsed = Number.parseInt(value, radix);
+  return Number.isSafeInteger(parsed) ? parsed : undefined;
 }
 
 function parseTxIds(value: unknown): number[] {

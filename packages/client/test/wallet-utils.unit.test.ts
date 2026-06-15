@@ -51,6 +51,25 @@ describe("wallet payload normalization", () => {
     });
   });
 
+  it("rejects malformed and unsafe chain IDs", () => {
+    expect(
+      normalizeTxPayload({ tx_ids: [1], chain_id: "8453abc" })?.chainId,
+    ).toBeUndefined();
+    expect(
+      normalizeTxPayload({ tx_ids: [1], chain_id: "0x2105zz" })?.chainId,
+    ).toBeUndefined();
+    expect(
+      normalizeTxPayload({ tx_ids: [1], chain_id: "9007199254740993" })
+        ?.chainId,
+    ).toBeUndefined();
+    expect(normalizeTxPayload({ tx_ids: [1], chain_id: "8453" })?.chainId).toBe(
+      8453,
+    );
+    expect(
+      normalizeTxPayload({ tx_ids: [1], chain_id: "0x2105" })?.chainId,
+    ).toBe(8453);
+  });
+
   it("retains mixed wallet transaction payloads (raw call + tx_ids)", () => {
     expect(
       normalizeTxPayload({
