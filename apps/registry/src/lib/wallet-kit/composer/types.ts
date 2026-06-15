@@ -12,6 +12,7 @@ import type {
   AuthProviderId,
   AomiWalletOption,
   SvmNetworkOption,
+  WalletSource,
 } from "../types";
 import type { EvmWalletRuntime } from "../runtime/evm/wallet-runtime";
 import type { SafeSvmWalletState } from "../runtime/svm/wallet-runtime";
@@ -47,19 +48,27 @@ export type AuthRuntime = {
 };
 
 export type SvmWalletRuntime = {
-  wallet: SafeSvmWalletState;
-  config: {
-    cluster: AomiSessionIdentity["solanaCluster"];
-    rpcHttpUrl: string;
-    rpcWsUrl?: string;
-    preferDirectSend: boolean;
+  status: "ready" | "unavailable";
+  registryStore: import("../registry/store").WalletRegistryStore;
+  identity: (now: number) => {
+    address?: string;
+    walletName?: string;
+    cluster?: AomiSessionIdentity["solanaCluster"];
+    walletSource?: WalletSource;
+    transport?: AomiSessionIdentity["solanaTransport"];
+    capabilities?: AomiSessionIdentity["solanaCapabilities"];
   };
+  accounts: (now: number) => AomiAccount[];
+  activeAccount?: AomiAccount;
+  options: readonly AomiWalletOption[];
   supportedNetworks: readonly SvmNetworkOption[];
   selectedNetwork?: SvmNetworkOption;
-  setSelectedNetworkId: (networkId: string) => void;
+  connect: (optionId?: string) => Promise<void>;
+  disconnect: (accountId?: string) => Promise<void>;
+  selectAccount: (accountId: string) => Promise<void>;
+  selectNetwork: (networkId: string | number) => Promise<void>;
+  execution: SvmExecutionRuntime;
 };
-
-export type SolanaWalletRuntime = SvmWalletRuntime;
 
 export type EvmExecutionRuntime = {
   sendTransaction?: (p: WalletTxPayload) => Promise<AomiTxResult>;
@@ -113,8 +122,6 @@ export type AomiWalletKitComposerProps = {
   auth: AuthRuntime;
   evm: EvmWalletRuntime;
   svm?: SvmWalletRuntime;
-  /** @deprecated use `svm` */
-  solana?: SvmWalletRuntime;
   execution: ExecutionRuntime;
   account?: AccountRuntime;
   additionalEvmWalletOptions?: readonly AomiWalletOption[];

@@ -1,54 +1,32 @@
 "use client";
 
-import type { ReactNode } from "react";
-import {
-  AomiWalletKitProvider,
-  type AomiWalletKitProviderInput,
-} from "../config";
-import {
-  AomiBaseAccountProvider,
-  type AomiBaseAccountProviderProps,
-} from "./base-account";
-import { AomiParaProvider, type AomiParaProviderProps } from "./para";
-import { AomiPrivyProvider, type AomiPrivyProviderProps } from "./privy";
+import { AomiWalletKitProvider } from "../config";
+import type { AomiWalletKitProviderInput } from "../config";
 
 export type AomiWalletProviderProps =
-  | ({ provider: "para"; children: ReactNode } & AomiParaProviderProps)
-  | ({
-      provider: "base-account";
-      children: ReactNode;
-    } & AomiBaseAccountProviderProps)
-  | ({ provider: "privy"; children: ReactNode } & AomiPrivyProviderProps)
-  | AomiWalletKitProviderInput;
+  | AomiWalletKitProviderInput
+  | (AomiWalletKitProviderInput & {
+      /** @deprecated use AomiWalletKitProvider preset/auth config. */
+      provider?: "para" | "privy" | "base-account" | (string & {});
+    });
 
+/** @deprecated use AomiWalletKitProvider. */
 export function AomiWalletProvider(props: AomiWalletProviderProps) {
-  if (!("provider" in props)) {
-    return <AomiWalletKitProvider {...props} />;
+  const { provider, ...rest } = props as AomiWalletProviderProps & {
+    provider?: string;
+  };
+  if (!provider) return <AomiWalletKitProvider {...rest} />;
+  if (provider === "base-account") {
+    return (
+      <AomiWalletKitProvider
+        {...rest}
+        auth={false}
+        wallets={{ evm: { wallets: ["baseAccount"] }, solana: false }}
+      />
+    );
   }
-
-  if (props.provider === "base-account") {
-    const { provider: _provider, ...rest } = props;
-    return <AomiBaseAccountProvider {...rest} />;
-  }
-
-  if (props.provider === "privy") {
-    const { provider: _provider, ...rest } = props;
-    return <AomiPrivyProvider {...rest} />;
-  }
-
-  const { provider: _provider, ...rest } = props;
-  return <AomiParaProvider {...rest} />;
+  return <AomiWalletKitProvider {...rest} preset={provider as never} />;
 }
 
-export {
-  AomiBaseAccountProvider,
-  AomiParaProvider,
-  AomiPrivyProvider,
-  AomiWalletKitProvider,
-};
-export type {
-  AomiBaseAccountProviderProps,
-  AomiParaProviderProps,
-  AomiPrivyProviderProps,
-  AomiWalletKitProviderInput,
-};
+export { AomiWalletKitProvider };
+export type { AomiWalletKitProviderInput };

@@ -2,25 +2,24 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
-function readRegistryFile(path: string): string {
+function readRegistryArtifact(path: string): string {
   const payload = JSON.parse(readFileSync(resolve(path), "utf8")) as {
     files?: Array<{ path?: string; content?: string }>;
   };
-  return (
-    payload.files?.find(
-      (file) => file.path === "lib/wallet-kit/providers/para/para.tsx",
-    )?.content ?? ""
-  );
+  return payload.files?.map((file) => file.content ?? "").join("\n") ?? "";
 }
 
 describe("registry chain artifacts", () => {
   it("publishes Monad in the installable Para provider", () => {
-    const providerSource = readRegistryFile(
+    const kitSource = readRegistryArtifact(
+      "apps/landing/public/r/aomi-wallet-kit.json",
+    );
+    const providerSource = readRegistryArtifact(
       "apps/landing/public/r/aomi-para-provider.json",
     );
 
-    expect(providerSource).toContain("monad");
-    expect(providerSource).toContain("monadTestnet");
-    expect(providerSource).toContain("supportedChains={routing.routedChains}");
+    expect(kitSource).toContain("monad");
+    expect(kitSource).toContain("monadTestnet");
+    expect(providerSource).toContain("supportedChains={supportedChains}");
   });
 });

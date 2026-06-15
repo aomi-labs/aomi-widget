@@ -12,7 +12,7 @@ import {
   polygon,
   sepolia,
 } from "wagmi/chains";
-import { AomiWalletProvider } from "../../../registry/src";
+import { AomiWalletKitProvider } from "@aomi-labs/widget-lib";
 
 const privyAppId = process.env.NEXT_PUBLIC_PRIVY_APP_ID;
 const walletConnectProjectId =
@@ -64,19 +64,28 @@ const solanaNetworks = [
 
 export function LandingPrivyProvider({ children }: { children: ReactNode }) {
   return (
-    <AomiWalletProvider
-      provider="privy"
-      appId={privyAppId}
-      appName="Aomi Labs"
-      networks={networks}
-      loginMethods={["email", "google", "wallet"]}
-      walletConnectProjectId={walletConnectProjectId}
-      solana={{
-        networks: solanaNetworks,
-        preferDirectSend: true,
+    <AomiWalletKitProvider
+      preset="privy"
+      auth={{ provider: "privy", methods: ["email", "google", "wallet"] }}
+      providers={{
+        privy: {
+          appId: privyAppId,
+          appName: "Aomi Labs",
+        },
+      }}
+      wallets={{
+        evm: {
+          chains: networks,
+          walletConnectProjectId,
+          appName: "Aomi Labs",
+        },
+        solana: {
+          networks: solanaNetworks,
+          preferDirectSend: true,
+        },
       }}
     >
       {children}
-    </AomiWalletProvider>
+    </AomiWalletKitProvider>
   );
 }

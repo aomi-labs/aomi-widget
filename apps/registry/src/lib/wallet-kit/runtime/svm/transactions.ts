@@ -126,5 +126,3 @@ export function buildSvmTransactionMethods(
     solanaRpcWsUrl: config.rpcWsUrl,
   };
 }
-
-export const buildSolanaTransactionMethods = buildSvmTransactionMethods;

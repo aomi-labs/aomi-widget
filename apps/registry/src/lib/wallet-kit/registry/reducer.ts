@@ -155,11 +155,16 @@ function activeFromPersisted(
       stableId: persisted.active.evm.stableId,
     };
   }
-  if (persisted.active.solana?.address) {
-    active.solana = {
-      family: "solana",
-      address: persisted.active.solana.address,
-      stableId: persisted.active.solana.stableId,
+  const persistedSvm =
+    persisted.active.svm ??
+    (persisted.active as typeof persisted.active & {
+      solana?: { address: string; stableId?: string };
+    }).solana;
+  if (persistedSvm?.address) {
+    active.svm = {
+      family: "svm",
+      address: persistedSvm.address,
+      stableId: persistedSvm.stableId,
     };
   }
   return active;
@@ -171,8 +176,8 @@ function classifyConnection(
 ): RegistryConnection {
   const stableId = connection.stableId;
   const kind =
-    connection.family === "solana"
-      ? "solana"
+    connection.family === "svm"
+      ? "svm"
       : stableId === embeddedSession.stableId
         ? "embedded-session"
         : stableId === "walletConnect"
@@ -197,7 +202,7 @@ function classifyConnection(
 
 function withResolvedActive(
   state: WalletRegistryState,
-  families: ReadonlyArray<"evm" | "solana"> = ["evm", "solana"],
+  families: ReadonlyArray<"evm" | "svm"> = ["evm", "svm"],
 ): WalletRegistryState {
   const activeByFamily = { ...state.activeByFamily };
   for (const family of families) {
@@ -512,7 +517,7 @@ export function reduce(
           ...withoutSyntheticEmbeddedSessionConnection(
             state,
             state.connections,
-          ).filter((connection) => connection.family === "solana"),
+          ).filter((connection) => connection.family === "svm"),
         ],
       });
       next = withEmbeddedSessionConnection(next);
@@ -608,7 +613,7 @@ export function reduce(
 
     case "svm/changed": {
       const connections = state.connections.filter(
-        (connection) => connection.family !== "solana",
+        (connection) => connection.family !== "svm",
       );
       const pendingConnected =
         event.publicKey &&
@@ -617,10 +622,10 @@ export function reduce(
       if (event.publicKey) {
         connections.push({
           key: `solana:${event.walletName ?? event.publicKey}`,
-          family: "solana",
+          family: "svm",
           uid: event.walletName ?? event.publicKey,
           stableId: event.walletName ?? event.publicKey,
-          kind: "solana",
+          kind: "svm",
           address: event.publicKey,
           addresses: [event.publicKey],
           walletName: event.walletName ?? undefined,
@@ -641,8 +646,8 @@ export function reduce(
           ...next,
           activeByFamily: {
             ...next.activeByFamily,
-            solana: {
-              family: "solana",
+            svm: {
+              family: "svm",
               address: event.publicKey,
               uid: event.walletName ?? event.publicKey,
               stableId: event.walletName ?? event.publicKey,
@@ -650,7 +655,7 @@ export function reduce(
           },
         };
       }
-      return withResolvedActive(next, ["solana"]);
+      return withResolvedActive(next, ["svm"]);
     }
 
     case "svm/connect-requested":
@@ -783,9 +788,9 @@ export function reduce(
         delete activeByFamily.evm;
         explicitFamilyDisconnect.evm = true;
       }
-      if (event.family === "all" || event.family === "solana") {
-        delete activeByFamily.solana;
-        explicitFamilyDisconnect.solana = true;
+      if (event.family === "all" || event.family === "svm") {
+        delete activeByFamily.svm;
+        explicitFamilyDisconnect.svm = true;
       }
       let next: WalletRegistryState = withConnectionOrder({
         ...state,

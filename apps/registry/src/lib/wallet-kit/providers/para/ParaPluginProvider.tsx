@@ -20,14 +20,16 @@ import { toSocialLoginOption } from "../../runtime/evm/brands";
 import { canonicalWalletKey } from "../../catalog/wallet-branding";
 import { DEFAULT_SVM_CLUSTER } from "../../runtime/svm/networks";
 import { REGISTRY_STORAGE_KEY } from "../../registry/types";
-import { useSvmRegistrySource } from "../../runtime/svm/registry-source";
-import { buildSvmTransactionMethods } from "../../runtime/svm/transactions";
 import { walletDebug } from "../../wallet-debug";
 import { buildEvmExecutionRuntime } from "../../execution/execution-runtime";
 import type { AomiAccount, SvmNetworkOption } from "../../types";
-import { resolveParaAAProviderState, resolveParaSponsorship } from "./para-aa";
+import {
+  resolveAAProviderState,
+  resolveAASponsorship,
+} from "../../execution/aa-provider-state";
 import { PARA_BRAND_KEY } from "./para-brand";
 import { DEFAULT_SVM_ENDPOINT, useSafeSvmWallet } from "./para-svm";
+import { useSvmWalletRuntime } from "../../runtime/svm/wallet-runtime";
 import { useParaSessionSource } from "./sources/para-session-source";
 import { isParaEmbeddedAccount } from "./para-embedded-wallet";
 import {
@@ -42,7 +44,7 @@ import {
 
 type PluginSvmRuntimeConfig = Pick<
   {
-    cluster: SvmWalletRuntime["config"]["cluster"];
+    cluster: SvmNetworkOption["cluster"];
     rpcHttpUrl: string;
     rpcWsUrl?: string;
     preferDirectSend: boolean;
@@ -185,7 +187,6 @@ export function AomiParaPluginProvider({
   });
   const { registryStore, registryState } = evmRuntime;
   useParaSessionSource(registryStore, { paraAccount });
-  useSvmRegistrySource(registryStore, { svmWallet });
   const startParaAuthFlow = useCallback(
     (reason: string) => {
       registryStore.dispatch({
@@ -262,22 +263,13 @@ export function AomiParaPluginProvider({
       startParaAuthFlow,
     ],
   );
-  const svmRuntime = useMemo<SvmWalletRuntime>(
-    () => ({
-      wallet: svmWallet,
-      config: resolvedAdapterSvmConfig,
-      supportedNetworks: supportedSolanaNetworks,
-      selectedNetwork: selectedSolanaNetwork,
-      setSelectedNetworkId: setSelectedSolanaNetworkId,
-    }),
-    [
-      resolvedAdapterSvmConfig,
-      selectedSolanaNetwork,
-      setSelectedSolanaNetworkId,
-      svmWallet,
-      supportedSolanaNetworks,
-    ],
-  );
+  const svmRuntime = useSvmWalletRuntime({
+    registryStore,
+    selectedNetwork: selectedSolanaNetwork,
+    supportedNetworks: supportedSolanaNetworks,
+    setSelectedNetworkId: setSelectedSolanaNetworkId,
+    wallet: svmWallet,
+  });
   const providerEvmWalletOptions = useMemo(() => [], []);
   const transformEvmIdentity = useCallback(
     (identity: ReturnType<typeof evmRuntime.selectEvmIdentity>) => {
@@ -309,7 +301,7 @@ export function AomiParaPluginProvider({
     [exposeParaSession, paraModal],
   );
   const sponsorship = useMemo(
-    () => resolveParaSponsorship(execution?.provider ?? "auto"),
+    () => resolveAASponsorship(execution?.provider ?? "auto"),
     [execution?.provider],
   );
   const executionRuntime = useMemo<ExecutionRuntime>(
@@ -321,14 +313,18 @@ export function AomiParaPluginProvider({
         aaPolicy: execution?.aa ?? "optional",
         aaProvider: execution?.provider ?? "auto",
         resolveAAProviderState: async (params, context) =>
-          resolveParaAAProviderState({
+          resolveAAProviderState({
             ...params,
-            paraSession,
+            ownerStrategy: {
+              kind: "provider-session",
+              provider: "para",
+              session: paraSession,
+            },
             walletClient: context.walletClient,
             address: context.address,
           }),
       }),
-      svm: buildSvmTransactionMethods(svmWallet, resolvedAdapterSvmConfig),
+      svm: svmRuntime.execution,
     }),
     [
       evmRuntime,
@@ -336,7 +332,7 @@ export function AomiParaPluginProvider({
       paraSession,
       resolvedAdapterSvmConfig,
       sponsorship,
-      svmWallet,
+      svmRuntime.execution,
     ],
   );
 

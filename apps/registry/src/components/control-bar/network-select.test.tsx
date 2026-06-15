@@ -11,7 +11,7 @@ import type { Chain } from "viem";
 import { ExtUserProvider } from "@aomi-labs/react";
 import type { AomiWalletKit } from "@/lib/wallet-kit";
 import { AomiWalletKitContextProvider } from "@/lib/wallet-kit";
-import type { SolanaNetworkOption } from "@/lib/wallet-kit/types";
+import type { SvmNetworkOption } from "@/lib/wallet-kit/types";
 import {
   AomiWalletNetworkPreferencesProvider,
   useAomiWalletNetworkPreferences,
@@ -77,7 +77,7 @@ function createHarnessAdapter(options?: {
   chainId?: number;
   solanaReconnect?: boolean;
   evmChains?: readonly Chain[];
-  solanaNetworks?: readonly SolanaNetworkOption[];
+  solanaNetworks?: readonly SvmNetworkOption[];
   onSelectNetwork?: (target: unknown) => void;
 }): AomiWalletKit {
   const harnessEvmChains = options?.evmChains ?? evmChains;
@@ -185,7 +185,7 @@ describe("NetworkSelect", () => {
 
     await waitFor(() => {
       expect(selectNetwork).toHaveBeenCalledWith({
-        family: "solana",
+        family: "svm",
         networkId: "solana-mainnet",
       });
     });
@@ -225,7 +225,7 @@ describe("NetworkSelect", () => {
 
     await waitFor(() => {
       expect(selectNetwork).toHaveBeenCalledWith({
-        family: "solana",
+        family: "svm",
         networkId: "solana-mainnet",
       });
     });

@@ -7,10 +7,6 @@ import {
   formatAuthMethod,
 } from "../identity";
 import type { AomiSessionIdentity } from "../types";
-import {
-  detectSvmTransport,
-  getSvmCapabilitySnapshot,
-} from "../runtime/svm/wallet-runtime";
 import type { AuthRuntime, SvmWalletRuntime } from "./types";
 
 export function buildWalletKitIdentity({
@@ -39,13 +35,14 @@ export function buildWalletKitIdentity({
   walletName?: string;
   walletSource?: AomiSessionIdentity["walletSource"];
 }): AomiSessionIdentity {
-  const svmAddress = svm?.wallet.publicKey;
-  const solanaTransport = detectSvmTransport(svm?.wallet.walletName);
-  const solanaCapabilities = getSvmCapabilitySnapshot(svm?.wallet);
+  const svmIdentity = svm?.identity(Date.now());
+  const svmAddress = svmIdentity?.address;
+  const solanaTransport = svmIdentity?.transport;
+  const solanaCapabilities = svmIdentity?.capabilities;
   const baseSvm = {
     svmAddress,
-    solanaCluster: svm?.config.cluster,
-    solanaWalletName: svm?.wallet.walletName,
+    solanaCluster: svmIdentity?.cluster,
+    solanaWalletName: svmIdentity?.walletName,
     solanaTransport: svmAddress ? solanaTransport : undefined,
     solanaCapabilities,
   };
@@ -128,8 +125,8 @@ export function buildWalletKitIdentity({
       authValue: auth.authValue,
       primaryLabel: formatAddress(svmAddress) ?? "Connected Solana wallet",
       secondaryLabel: "Solana",
-      solanaCluster: svm?.config.cluster,
-      solanaWalletName: svm?.wallet.walletName,
+      solanaCluster: svmIdentity?.cluster,
+      solanaWalletName: svmIdentity?.walletName,
       solanaTransport,
       solanaCapabilities,
     };
@@ -144,7 +141,7 @@ export function buildWalletKitIdentity({
     authMethod: auth.authMethod,
     authProvider: auth.authMethod,
     authValue: auth.authValue,
-    solanaCluster: svm?.config.cluster,
+    solanaCluster: svmIdentity?.cluster,
   };
 }
 

@@ -13,13 +13,15 @@ export type CommandExecutors = {
   wagmiReconnect(stableIds: string[]): Promise<void>;
   wagmiConnect(stableId: string): Promise<void>;
   wagmiDisconnect(uid: string): Promise<void>;
+  svmConnect?(walletName: string): Promise<void>;
+  svmDisconnect?(): Promise<void>;
   providerLogout(): Promise<void>;
 };
 
 export class WalletRegistryStore {
   private state: WalletRegistryState;
   private readonly subscribers = new Set<() => void>();
-  private readonly executors: CommandExecutors;
+  private executors: CommandExecutors;
   private readonly storageKey: string;
   private settleTimer: number | null = null;
 
@@ -51,6 +53,10 @@ export class WalletRegistryStore {
     return () => {
       this.subscribers.delete(cb);
     };
+  }
+
+  updateExecutors(executors: Partial<CommandExecutors>): void {
+    this.executors = { ...this.executors, ...executors };
   }
 
   dispatch(event: RegistryEvent): void {
@@ -104,6 +110,18 @@ export class WalletRegistryStore {
         this.runAsync(command.kind, () =>
           this.executors.wagmiDisconnect(command.uid),
         );
+        break;
+      case "svm/connect":
+        if (this.executors.svmConnect) {
+          this.runAsync(command.kind, () =>
+            this.executors.svmConnect!(command.walletName),
+          );
+        }
+        break;
+      case "svm/disconnect":
+        if (this.executors.svmDisconnect) {
+          this.runAsync(command.kind, () => this.executors.svmDisconnect!());
+        }
         break;
       case "provider/logout":
         this.runAsync(command.kind, () => this.executors.providerLogout());

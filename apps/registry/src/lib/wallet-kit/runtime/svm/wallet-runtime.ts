@@ -1,15 +1,21 @@
 "use client";
 
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import { useWallet as useSolanaWallet } from "@solana/wallet-adapter-react";
 import {
   Connection as SolanaConnection,
   Transaction as SolanaTransaction,
   VersionedTransaction,
 } from "@solana/web3.js";
-import type { AomiWalletOption, SvmWalletDescriptor } from "../../types";
+import type { AomiWalletOption, SvmNetworkOption, SvmWalletDescriptor } from "../../types";
 import { SVM_WALLET_ALLOWLIST } from "../../catalog/svm-wallet-catalog";
 import { canonicalWalletKey } from "../../catalog/wallet-branding";
+import { selectAccounts, selectSvmIdentity } from "../../registry/selectors";
+import type { WalletRegistryStore } from "../../registry/store";
+import type { SvmWalletRuntime } from "../../composer/types";
 import { DEFAULT_SVM_CLUSTER, DEFAULT_SVM_RPC_HTTP_URLS } from "./networks";
+import { useSvmRegistrySource } from "./registry-source";
+import { buildSvmTransactionMethods } from "./transactions";
 
 export type SafeSvmWalletState = {
   publicKey: string | undefined;
@@ -48,6 +54,7 @@ export type SafeSvmWalletState = {
 
 export const DEFAULT_SVM_ENDPOINT =
   DEFAULT_SVM_RPC_HTTP_URLS[DEFAULT_SVM_CLUSTER];
+export const SVM_AUTOCONNECT_GRACE_MS = 400;
 
 type SolanaWalletReadyState =
   | "Installed"
@@ -207,7 +214,7 @@ export function toSvmWalletOption(
   return {
     id: descriptor.name,
     label: descriptor.name,
-    family: "solana",
+    family: "svm",
     kind: "solana",
     status: descriptor.ready
       ? descriptor.installed
@@ -219,12 +226,184 @@ export function toSvmWalletOption(
   };
 }
 
-export type SafeSolanaWalletState = SafeSvmWalletState;
-export type SolanaConnectAttempt = SvmConnectAttempt;
-export const DEFAULT_SOLANA_ENDPOINT = DEFAULT_SVM_ENDPOINT;
-export const useSafeSolanaWallet = useSafeSvmWallet;
-export const detectSolanaTransport = detectSvmTransport;
-export const connectPreferredSolanaWallet = connectPreferredSvmWallet;
-export const getSolanaCapabilitySnapshot = getSvmCapabilitySnapshot;
-export const buildSolanaWalletDescriptors = buildSvmWalletDescriptors;
-export const toSolanaWalletOption = toSvmWalletOption;
+function useLatestRef<T>(value: T) {
+  const ref = useRef(value);
+  useEffect(() => {
+    ref.current = value;
+  }, [value]);
+  return ref;
+}
+
+export function useSvmWalletRuntime({
+  registryStore,
+  selectedNetwork,
+  supportedNetworks,
+  setSelectedNetworkId,
+  wallet: walletOverride,
+}: {
+  registryStore: WalletRegistryStore;
+  selectedNetwork?: SvmNetworkOption;
+  supportedNetworks: readonly SvmNetworkOption[];
+  setSelectedNetworkId: (id: string) => void;
+  wallet?: SafeSvmWalletState;
+}): SvmWalletRuntime {
+  const safeWallet = useSafeSvmWallet();
+  const wallet = walletOverride ?? safeWallet;
+  const walletRef = useLatestRef(wallet);
+
+  useSvmRegistrySource(registryStore, { svmWallet: wallet });
+
+  const settleConnect = useCallback(
+    (walletName: string) => {
+      registryStore.dispatch({
+        type: "svm/connect-settled",
+        walletName,
+        now: Date.now(),
+      });
+    },
+    [registryStore],
+  );
+
+  const executeConnect = useCallback(
+    async (walletName: string) => {
+      const current = walletRef.current;
+      try {
+        if (current.publicKey && current.walletName === walletName) {
+          return;
+        }
+        if (current.walletName !== walletName) {
+          current.select?.(walletName as SolanaWalletName);
+        }
+        if (!current.connect) return;
+        await new Promise((resolve) =>
+          setTimeout(resolve, SVM_AUTOCONNECT_GRACE_MS),
+        );
+        await walletRef.current.connect?.();
+      } finally {
+        settleConnect(walletName);
+      }
+    },
+    [settleConnect, walletRef],
+  );
+
+  const executeDisconnect = useCallback(async () => {
+    const current = walletRef.current;
+    if (!current.publicKey || !current.disconnect) return;
+    await current.disconnect();
+  }, [walletRef]);
+
+  useEffect(() => {
+    registryStore.updateExecutors({
+      svmConnect: executeConnect,
+      svmDisconnect: executeDisconnect,
+    });
+  }, [executeConnect, executeDisconnect, registryStore]);
+
+  const connect = useCallback(
+    async (optionId?: string) => {
+      if (wallet.publicKey || wallet.connected) return;
+      const walletName = optionId ?? pickPreferredSvmWallet(wallet)?.adapter.name;
+      if (!walletName) return;
+      registryStore.dispatch({
+        type: "svm/connect-requested",
+        walletName,
+        now: Date.now(),
+      });
+    },
+    [registryStore, wallet],
+  );
+
+  const disconnect = useCallback(async () => {
+    registryStore.dispatch({
+      type: "user/disconnect-family",
+      family: "svm",
+      now: Date.now(),
+    });
+  }, [registryStore]);
+
+  const selectAccount = useCallback(
+    async (accountId: string) => {
+      const account = selectAccounts(registryStore.getSnapshot(), Date.now())
+        .find((candidate) => candidate.family === "svm" && candidate.id === accountId);
+      if (!account) return;
+      registryStore.dispatch({
+        type: "user/select-active",
+        family: "svm",
+        address: account.address,
+        uid: account.id,
+        stableId: account.id,
+        now: Date.now(),
+      });
+    },
+    [registryStore],
+  );
+
+  const selectNetwork = useCallback(
+    async (networkId: string | number) => {
+      const id = String(networkId);
+      if (selectedNetwork?.id === id) return;
+      if (wallet.publicKey && wallet.disconnect) {
+        await wallet.disconnect();
+      }
+      setSelectedNetworkId(id);
+    },
+    [selectedNetwork?.id, setSelectedNetworkId, wallet],
+  );
+
+  const config = useMemo(
+    () => ({
+      rpcHttpUrl:
+        selectedNetwork?.rpcHttpUrl ??
+        DEFAULT_SVM_RPC_HTTP_URLS[selectedNetwork?.cluster ?? DEFAULT_SVM_CLUSTER],
+      rpcWsUrl: selectedNetwork?.rpcWsUrl,
+      preferDirectSend: true,
+    }),
+    [selectedNetwork],
+  );
+  const execution = useMemo(
+    () => buildSvmTransactionMethods(wallet, config),
+    [config, wallet],
+  );
+  const options = useMemo(
+    () => buildSvmWalletDescriptors(wallet).map(toSvmWalletOption),
+    [wallet],
+  );
+  const accounts = useCallback(
+    (now: number) =>
+      selectAccounts(registryStore.getSnapshot(), now).filter(
+        (account) => account.family === "svm",
+      ),
+    [registryStore],
+  );
+  const identity = useCallback(
+    (now: number) => {
+      const registryIdentity = selectSvmIdentity(registryStore.getSnapshot(), now);
+      return {
+        ...registryIdentity,
+        cluster: selectedNetwork?.cluster ?? DEFAULT_SVM_CLUSTER,
+        walletSource: registryIdentity.address ? ("injected" as const) : undefined,
+        transport: registryIdentity.address
+          ? detectSvmTransport(registryIdentity.walletName)
+          : undefined,
+        capabilities: getSvmCapabilitySnapshot(wallet),
+      };
+    },
+    [registryStore, selectedNetwork?.cluster, wallet],
+  );
+
+  return {
+    status: wallet.select || wallet.connect || wallet.publicKey ? "ready" : "unavailable",
+    registryStore,
+    identity,
+    accounts,
+    activeAccount: accounts(Date.now()).find((account) => account.active),
+    options,
+    supportedNetworks,
+    selectedNetwork,
+    connect,
+    disconnect,
+    selectAccount,
+    selectNetwork,
+    execution,
+  };
+}

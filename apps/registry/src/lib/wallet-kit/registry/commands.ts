@@ -56,6 +56,10 @@ export function planCommands(
     commands.push(...planDisconnect(prev, event));
   }
 
+  if (event.type === "svm/connect-requested") {
+    commands.push({ kind: "svm/connect", walletName: event.walletName });
+  }
+
   if (event.type === "user/select-active") {
     commands.push({
       kind: "debug",

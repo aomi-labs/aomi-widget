@@ -46,17 +46,18 @@ import {
 } from "../../runtime/svm/networks";
 import { useEvmWalletRuntime } from "../../runtime/evm/wallet-runtime";
 import { toSocialLoginOption } from "../../runtime/evm/brands";
-import { useSvmRegistrySource } from "../../runtime/svm/registry-source";
-import { buildSvmTransactionMethods } from "../../runtime/svm/transactions";
-import type { SafeSvmWalletState } from "../../runtime/svm/wallet-runtime";
+import {
+  useSvmWalletRuntime,
+  type SafeSvmWalletState,
+} from "../../runtime/svm/wallet-runtime";
 import { REGISTRY_STORAGE_KEY } from "../../registry/types";
 import { formatAddress } from "../../identity";
 import type {
   AomiAccountCredential,
   AomiLoginMethod,
   AomiTxResult,
-  SolanaCluster,
-  SolanaNetworkOption,
+  SvmCluster,
+  SvmNetworkOption,
 } from "../../types";
 import type { EvmWalletsConfig, ExecutionConfig } from "../../config/types";
 
@@ -72,9 +73,9 @@ const defaultNetworks = [
 ] as const;
 
 type ResolvedSvmConfig = {
-  networks: readonly SolanaNetworkOption[];
-  activeNetwork: SolanaNetworkOption;
-  cluster: SolanaCluster;
+  networks: readonly SvmNetworkOption[];
+  activeNetwork: SvmNetworkOption;
+  cluster: SvmCluster;
   rpcHttpUrl: string;
   rpcWsUrl?: string;
   preferDirectSend: boolean;
@@ -91,7 +92,7 @@ export type AomiPrivyProviderProps = {
   walletConnectProjectId?: string;
   execution?: ExecutionConfig;
   solana?: {
-    networks?: readonly SolanaNetworkOption[];
+    networks?: readonly SvmNetworkOption[];
     cluster?: ResolvedSvmConfig["cluster"];
     rpcHttpUrl?: string;
     rpcWsUrl?: string;
@@ -337,7 +338,7 @@ async function sendPrivySmartWalletTransaction({
   };
 }
 
-function AomiPrivyPluginProvider({
+export function AomiPrivyPluginProvider({
   children,
   solanaConfig,
   supportedChains,
@@ -384,8 +385,6 @@ function AomiPrivyPluginProvider({
       }),
     [activeSolanaWallet, solanaWallets],
   );
-
-  useSvmRegistrySource(evmRuntime.registryStore, { svmWallet });
 
   useEffect(() => {
     if (
@@ -464,6 +463,13 @@ function AomiPrivyPluginProvider({
     }),
     [selectedSolanaNetwork, solanaConfig],
   );
+  const svmRuntime = useSvmWalletRuntime({
+    registryStore: evmRuntime.registryStore,
+    selectedNetwork: selectedSolanaNetwork,
+    supportedNetworks: supportedSolanaNetworks,
+    setSelectedNetworkId: setSelectedSolanaNetworkId,
+    wallet: svmWallet,
+  });
   const executionRuntime = useMemo<ExecutionRuntime>(
     () => ({
       sponsorship: {},
@@ -502,7 +508,7 @@ function AomiPrivyPluginProvider({
             }
           : undefined,
       }),
-      svm: buildSvmTransactionMethods(svmWallet, svmRuntimeConfig),
+      svm: svmRuntime.execution,
     }),
     [
       evmRuntime,
@@ -510,8 +516,7 @@ function AomiPrivyPluginProvider({
       getClientForChain,
       smartAddress,
       smartWalletClient,
-      svmRuntimeConfig,
-      svmWallet,
+      svmRuntime.execution,
     ],
   );
 
@@ -519,13 +524,7 @@ function AomiPrivyPluginProvider({
     <AomiWalletKitComposer
       auth={authRuntime}
       evm={evmRuntime}
-      svm={{
-        wallet: svmWallet,
-        config: svmRuntimeConfig,
-        supportedNetworks: supportedSolanaNetworks,
-        selectedNetwork: selectedSolanaNetwork,
-        setSelectedNetworkId: setSelectedSolanaNetworkId,
-      }}
+      svm={svmRuntime}
       execution={executionRuntime}
       supportedChains={supportedChains}
     >
@@ -551,7 +550,7 @@ function AomiPrivyProviderInner({
     useAomiWalletNetworkPreferences();
   const defaultEvmChain =
     networks.find((chain) => chain.id === selectedEvmChainId) ?? networks[0];
-  const resolvedSolanaConfig = useMemo<ResolvedSvmConfig>(() => {
+  const resolvedSvmConfig = useMemo<ResolvedSvmConfig>(() => {
     const supportedNetworks = normalizeSvmNetworkOptions(solana);
     const activeNetwork = resolveSelectedSvmNetwork(
       supportedNetworks,
@@ -587,7 +586,7 @@ function AomiPrivyProviderInner({
       <WagmiProvider config={wagmiConfig}>
         <SmartWalletsProvider>
           <AomiPrivyPluginProvider
-            solanaConfig={resolvedSolanaConfig}
+            solanaConfig={resolvedSvmConfig}
             supportedChains={networks}
             loginMethods={loginMethods}
             execution={execution}

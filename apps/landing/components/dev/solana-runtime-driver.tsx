@@ -317,7 +317,7 @@ export function SolanaRuntimeDriver() {
       accounts: [
         {
           id: "Local Dev Signer",
-          family: "solana",
+          family: "svm",
           address: signer.publicKey.toBase58(),
           walletName: "Local Dev Signer",
           active: true,

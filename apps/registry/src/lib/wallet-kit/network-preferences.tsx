@@ -9,7 +9,7 @@ import {
   type ReactNode,
 } from "react";
 import type { Chain } from "viem";
-import type { AomiNetworkTarget, SolanaNetworkOption } from "./types";
+import type { AomiNetworkTarget, SvmNetworkOption } from "./types";
 import { resolveSelectedSvmNetwork } from "./runtime/svm/networks";
 import { loadWalletPreferences, saveWalletPreferences } from "./persistence";
 
@@ -17,8 +17,8 @@ type NetworkPreferencesContextValue = {
   selectedEvmChainId?: number;
   selectedSolanaNetworkId?: string;
   supportedEvmChains: readonly Chain[];
-  supportedSolanaNetworks: readonly SolanaNetworkOption[];
-  selectedSolanaNetwork?: SolanaNetworkOption;
+  supportedSolanaNetworks: readonly SvmNetworkOption[];
+  selectedSolanaNetwork?: SvmNetworkOption;
   setSelectedEvmChainId: (chainId: number | undefined) => void;
   setSelectedSolanaNetworkId: (networkId: string | undefined) => void;
   selectTarget: (target: AomiNetworkTarget) => void;
@@ -35,7 +35,7 @@ export function AomiWalletNetworkPreferencesProvider({
 }: {
   children: ReactNode;
   evmChains: readonly Chain[];
-  solanaNetworks: readonly SolanaNetworkOption[];
+  solanaNetworks: readonly SvmNetworkOption[];
   storageKey?: string;
 }) {
   const [persisted] = useState(() => loadWalletPreferences(storageKey));

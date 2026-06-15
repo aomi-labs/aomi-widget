@@ -14,19 +14,19 @@ export function selectActiveEvm(
   return state.activeByFamily.evm;
 }
 
-export function selectSolana(
+export function selectSvm(
   state: WalletRegistryState,
 ): RegistryConnection | undefined {
-  const active = state.activeByFamily.solana;
+  const active = state.activeByFamily.svm;
   if (active) {
     return state.connections.find(
       (connection) =>
-        connection.family === "solana" &&
+        connection.family === "svm" &&
         connection.address === active.address &&
         (!active.uid || connection.uid === active.uid),
     );
   }
-  return state.connections.find((connection) => connection.family === "solana");
+  return state.connections.find((connection) => connection.family === "svm");
 }
 
 function findActiveConnection(
@@ -94,6 +94,22 @@ export function selectEvmIdentity(
   }).identity;
 }
 
+export function selectSvmIdentity(
+  state: WalletRegistryState,
+  _now: number,
+): {
+  address?: string;
+  walletName?: string;
+} {
+  const activeConnection = findActiveConnection(state, "svm") ?? selectSvm(state);
+  return activeConnection
+    ? {
+        address: activeConnection.address,
+        walletName: activeConnection.walletName,
+      }
+    : {};
+}
+
 export function selectAccounts(
   state: WalletRegistryState,
   now: number,
@@ -119,20 +135,20 @@ export function selectAccounts(
     });
   }
 
-  const solana = selectSolana(state);
+  const svm = selectSvm(state);
   return buildAccounts({
     evmConnections,
     activeEvmAddress: evmIdentity.address,
     activeEvmConnectionId: activeEvm?.uid ?? evmIdentity.connectorId,
-    solanaConnections: solana
+    solanaConnections: svm
       ? [
           {
-            id: solana.uid,
-            publicKey: solana.address,
-            walletName: solana.walletName,
+            id: svm.uid,
+            publicKey: svm.address,
+            walletName: svm.walletName,
           },
         ]
       : [],
-    activeSolanaAddress: solana?.address,
+    activeSolanaAddress: svm?.address,
   });
 }

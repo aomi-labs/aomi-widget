@@ -102,12 +102,12 @@ describe("buildAccounts", () => {
     });
     expect(accounts).toHaveLength(2);
     expect(accounts[0]).toMatchObject({
-      family: "solana",
+      family: "svm",
       address: "9xQpub",
       active: false,
     });
     expect(accounts[1]).toMatchObject({
-      family: "solana",
+      family: "svm",
       address: "AbCpub",
       active: true,
     });
@@ -122,7 +122,7 @@ describe("buildAccounts", () => {
       activeSolanaAddress: "9XQPUB",
     });
     expect(accounts[0]).toMatchObject({
-      family: "solana",
+      family: "svm",
       id: "9xQpub",
       active: false,
     });
@@ -138,7 +138,7 @@ describe("buildAccounts", () => {
       activeSolanaAddress: "9xQpub",
     });
     expect(accounts.filter((a) => a.family === "evm")).toHaveLength(1);
-    expect(accounts.filter((a) => a.family === "solana")).toHaveLength(1);
+    expect(accounts.filter((a) => a.family === "svm")).toHaveLength(1);
   });
 
   it("returns empty when nothing is connected", () => {

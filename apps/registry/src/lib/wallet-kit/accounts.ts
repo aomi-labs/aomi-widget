@@ -76,7 +76,7 @@ export function buildAccounts(input: {
     seenSolana.add(key);
     accounts.push({
       id: connection.id ?? connection.walletName ?? connection.publicKey,
-      family: "solana",
+      family: "svm",
       address: connection.publicKey,
       label: formatAddress(connection.publicKey),
       walletName: connection.walletName,

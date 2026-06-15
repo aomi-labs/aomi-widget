@@ -20,7 +20,7 @@ export function loadWalletPreferences(key: string): WalletPreferences {
     const parsed: unknown = JSON.parse(raw);
     if (typeof parsed !== "object" || parsed === null) return {};
     const stored = parsed as Omit<WalletPreferences, "selectedFamily"> & {
-      selectedFamily?: WalletFamily | "svm";
+      selectedFamily?: WalletFamily | "solana";
     };
     const preferences: WalletPreferences = {
       ...stored,
@@ -28,7 +28,7 @@ export function loadWalletPreferences(key: string): WalletPreferences {
         ? fromWireWalletFamily(stored.selectedFamily)
         : undefined,
     };
-    if (stored.selectedFamily === "svm") {
+    if (stored.selectedFamily === "solana") {
       saveWalletPreferences(key, preferences);
     }
     return preferences;

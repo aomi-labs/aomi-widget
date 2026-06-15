@@ -34,7 +34,7 @@ import {
 import { useOptionalAomiWalletNetworkPreferences } from "../../lib/wallet-kit/network-preferences";
 import type {
   AomiNetworkTarget,
-  SolanaNetworkOption,
+  SvmNetworkOption,
   WalletFamily,
 } from "../../lib/wallet-kit/types";
 
@@ -97,18 +97,18 @@ function writeShowTestnetsPref(value: boolean): void {
 }
 
 function familyLabel(family: WalletFamily): string {
-  return family === "solana" ? "SVM" : "EVM";
+  return family === "svm" ? "SVM" : "EVM";
 }
 
 function isTestnetChain(chain: Chain): boolean {
   return chain.testnet === true;
 }
 
-function isSolanaMainnet(network: SolanaNetworkOption): boolean {
+function isSolanaMainnet(network: SvmNetworkOption): boolean {
   return network.cluster === "solana:mainnet";
 }
 
-function formatSolanaBadge(network: SolanaNetworkOption): string {
+function formatSolanaBadge(network: SvmNetworkOption): string {
   if (network.cluster === "solana:mainnet") return "Mainnet";
   if (network.cluster === "solana:testnet") return "Testnet";
   return "Devnet";
@@ -182,9 +182,9 @@ export const NetworkSelect: FC<NetworkSelectProps> = ({
     }
     if (showSolana) {
       result.push({
-        family: "solana",
+        family: "svm",
         rows: solanaNetworks.map((network) => ({
-          family: "solana",
+          family: "svm",
           key: `solana:${network.id}`,
           title: network.label,
           Icon: SolanaIcon,
@@ -192,7 +192,7 @@ export const NetworkSelect: FC<NetworkSelectProps> = ({
           isTestnet: !isSolanaMainnet(network),
           isActive: activeSolanaNetwork?.id === network.id,
           searchValue: `${network.label} svm solana ${formatSolanaBadge(network)} ${network.id}`,
-          target: { family: "solana", networkId: network.id },
+          target: { family: "svm", networkId: network.id },
         })),
       });
     }
@@ -224,7 +224,7 @@ export const NetworkSelect: FC<NetworkSelectProps> = ({
     }
     if (showSolana) {
       chips.push({
-        family: "solana",
+        family: "svm",
         Icon: SolanaIcon,
         label: activeSolanaNetwork
           ? formatSolanaBadge(activeSolanaNetwork)
@@ -272,7 +272,7 @@ export const NetworkSelect: FC<NetworkSelectProps> = ({
 
   const handleTargetSelect = async (target: AomiNetworkTarget) => {
     if (
-      target.family === "solana" &&
+      (target.family === "svm" || target.family === "solana") &&
       adapter.solanaNetworkSwitchRequiresReconnect &&
       activeSolanaNetwork &&
       activeSolanaNetwork.id !== target.networkId

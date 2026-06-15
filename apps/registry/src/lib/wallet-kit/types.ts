@@ -10,10 +10,9 @@ import type {
 import type { WalletModalRow } from "./composer/merge-wallet-rows";
 
 export type AomiSessionStatus = "booting" | "disconnected" | "connected";
-export type WalletFamily = "evm" | "solana";
+export type WalletFamily = "evm" | "svm";
+export type PublicWalletFamily = WalletFamily | "solana";
 export type SvmCluster = "solana:mainnet" | "solana:devnet" | "solana:testnet";
-
-export type SolanaCluster = SvmCluster;
 
 export type SvmNetworkOption = {
   id: string;
@@ -24,8 +23,6 @@ export type SvmNetworkOption = {
   isDefault?: boolean;
 };
 
-export type SolanaNetworkOption = SvmNetworkOption;
-
 export type SvmNetworkConfigInput = {
   networks?: readonly SvmNetworkOption[];
   cluster?: SvmCluster;
@@ -33,11 +30,9 @@ export type SvmNetworkConfigInput = {
   rpcWsUrl?: string;
 };
 
-export type SolanaNetworkConfigInput = SvmNetworkConfigInput;
-
 export type AomiNetworkTarget =
   | { family: "evm"; chainId: number }
-  | { family: "solana"; networkId: string };
+  | { family: "svm" | "solana"; networkId: string };
 export type AomiWalletKind = "eoa" | "smart-account";
 export type AomiAAMode = "none" | "4337" | "7702";
 export type AomiSponsorProvider = "alchemy" | "coinbase" | "pimlico" | "self";
@@ -127,7 +122,7 @@ export type AomiSessionIdentity = {
   authVerifiedAt?: number;
   primaryLabel?: string;
   secondaryLabel?: string;
-  solanaCluster?: SolanaCluster;
+  solanaCluster?: SvmCluster;
   solanaWalletName?: string;
   solanaTransport?: "extension" | "embedded" | "mwa";
   solanaCapabilities?: {
@@ -152,8 +147,6 @@ export type SvmWalletDescriptor = {
   installed: boolean;
   iconUrl?: string;
 };
-
-export type SolanaWalletDescriptor = SvmWalletDescriptor;
 
 export type AomiWalletOptionStatus =
   | "installed"
@@ -255,7 +248,7 @@ export type AomiWalletKit = {
   supportedChains?: readonly Chain[];
   supportedNetworks?: {
     evm: readonly Chain[];
-    solana: readonly SolanaNetworkOption[];
+    solana: readonly SvmNetworkOption[];
   };
   solanaNetworkSwitchRequiresReconnect?: boolean;
 
@@ -272,7 +265,7 @@ export type AomiWalletKit = {
    * detected wallets. UIs use this to render an inline picker so users
    * pick their wallet explicitly rather than relying on auto-detection.
    */
-  solanaWallets?: readonly SolanaWalletDescriptor[];
+  solanaWallets?: readonly SvmWalletDescriptor[];
   /**
    * EVM wallet connectors the adapter can attach to. This keeps the picker
    * wallet-brand-first even when the actual connector plumbing comes from
@@ -297,8 +290,8 @@ export type AomiWalletKit = {
    */
   connectSolanaWallet?: (name: string) => Promise<void>;
 
-  connect: (options?: { family?: WalletFamily }) => Promise<void>;
-  openAccountUI?: (options?: { family?: WalletFamily }) => Promise<void>;
+  connect: (options?: { family?: PublicWalletFamily }) => Promise<void>;
+  openAccountUI?: (options?: { family?: PublicWalletFamily }) => Promise<void>;
   /**
    * Disconnect from the wallet. By default disconnects everything;
    * pass `{ family }` to disconnect a specific family while leaving the
@@ -310,7 +303,7 @@ export type AomiWalletKit = {
    * per-family sections only rely on a best-effort behavior here.
    */
   disconnect?: (options?: {
-    family?: WalletFamily | "all";
+    family?: PublicWalletFamily | "all";
     /** Disconnect a single account by `AomiAccount.id` (EVM only). */
     accountId?: string;
   }) => Promise<void>;
