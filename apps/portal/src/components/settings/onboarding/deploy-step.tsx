@@ -6,6 +6,7 @@ import {
   CheckCircle2,
   ChevronDown,
   ChevronRight,
+  Copy,
   ExternalLink,
   Loader2,
   Play,
@@ -29,6 +30,7 @@ type Phase =
   | "dry_ready"
   | "deploying"
   | "building"
+  | "releasing"
   | "ready"
   | "activating"
   | "verifying"
@@ -50,6 +52,14 @@ function appNames(deployment?: OnboardDeployPayload): string[] {
   return deploymentApps(deployment)
     .map((app) => app.name?.trim())
     .filter((name): name is string => Boolean(name));
+}
+
+const BACKOFF_BASE_MS = 3000;
+const MAX_BACKOFF_MS = 30000;
+
+function backoffDelay(failureCount: number): number {
+  const delay = BACKOFF_BASE_MS * Math.pow(2, failureCount);
+  return Math.min(delay, MAX_BACKOFF_MS);
 }
 
 function initialPhase(progress: PathProgress): Phase {
@@ -84,6 +94,8 @@ export function DeployStep({
   );
   const [error, setError] = useState<string | null>(null);
   const [showManifest, setShowManifest] = useState(false);
+  const [verifyAttempt, setVerifyAttempt] = useState(0);
+  const [copied, setCopied] = useState(false);
   const pollRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const statusFailuresRef = useRef(0);
 
@@ -140,6 +152,15 @@ export function DeployStep({
     setError(null);
     statusFailuresRef.current = 0;
     try {
+      if (!deployment) {
+        const dryResult = await onboardDryRun({
+          path,
+          installationId,
+          repo,
+          actor,
+        });
+        applyDeployment(dryResult);
+      }
       const result = await onboardDeploy({ path, installationId, repo, actor });
       applyDeployment(result);
       const id = result.deployment.id;
@@ -157,10 +178,10 @@ export function DeployStep({
       setError(e instanceof Error ? e.message : String(e));
       setPhase("error");
     }
-  }, [actor, applyDeployment, installationId, onProgress, path, repo]);
+  }, [actor, applyDeployment, deployment, installationId, onProgress, path, repo]);
 
   useEffect(() => {
-    if (!deploymentId || (phase !== "building" && phase !== "deploying"))
+    if (!deploymentId || (phase !== "building" && phase !== "deploying" && phase !== "releasing"))
       return;
     let cancelled = false;
     const tick = async () => {
@@ -183,6 +204,16 @@ export function DeployStep({
           setPhase("ready");
           return;
         }
+        if (status.state === "releasing") {
+          setPhase("releasing");
+          pollRef.current = setTimeout(tick, 3000);
+          return;
+        }
+        if (status.state === "pending") {
+          setPhase("building");
+          pollRef.current = setTimeout(tick, 6000);
+          return;
+        }
         if (status.state === "failed") {
           setError(status.message ?? "Deploy CI failed.");
           setPhase("error");
@@ -193,9 +224,10 @@ export function DeployStep({
       } catch (e) {
         if (cancelled) return;
         statusFailuresRef.current += 1;
-        if (statusFailuresRef.current < 3) {
+        if (statusFailuresRef.current < 8) {
           setPhase("building");
-          pollRef.current = setTimeout(tick, 5000);
+          const delay = backoffDelay(statusFailuresRef.current);
+          pollRef.current = setTimeout(tick, delay);
           return;
         }
         setError(e instanceof Error ? e.message : String(e));
@@ -213,6 +245,7 @@ export function DeployStep({
     async (nextApps = apps, nextTags = tags) => {
       setPhase("verifying");
       for (let attempt = 0; attempt < 30; attempt += 1) {
+        setVerifyAttempt(attempt + 1);
         try {
           const checks = await Promise.all(
             nextApps.map((name, index) =>
@@ -264,8 +297,11 @@ export function DeployStep({
   const reset = useCallback(() => {
     setError(null);
     statusFailuresRef.current = 0;
+    setVerifyAttempt(0);
+    setDeploymentId(undefined);
+    onProgress({ deploymentId: undefined, live: false });
     setPhase(deployment ? "dry_ready" : "idle");
-  }, [deployment]);
+  }, [deployment, onProgress]);
 
   if (phase === "error") {
     return (
@@ -317,17 +353,14 @@ export function DeployStep({
         </Button>
         <Button
           onClick={deploy}
-          disabled={
-            !deployment ||
-            [
-              "deploying",
-              "building",
-              "ready",
-              "activating",
-              "verifying",
-              "live",
-            ].includes(phase)
-          }
+          disabled={[
+            "deploying",
+            "building",
+            "ready",
+            "activating",
+            "verifying",
+            "live",
+          ].includes(phase)}
           className="h-9 rounded-full px-3 text-sm font-medium"
         >
           {phase === "deploying" ? (
@@ -349,6 +382,16 @@ export function DeployStep({
           )}
           Activate
         </Button>
+        {["building", "ready", "activating", "verifying"].includes(
+          phase,
+        ) && (
+          <Button
+            onClick={reset}
+            className="h-9 rounded-full px-3 text-sm font-medium"
+          >
+            <RotateCcw className="mr-1 h-3.5 w-3.5" /> Start Over
+          </Button>
+        )}
       </div>
 
       <div className="text-muted-foreground flex items-center gap-2 text-xs">
@@ -356,6 +399,7 @@ export function DeployStep({
           "dry_running",
           "deploying",
           "building",
+          "releasing",
           "activating",
           "verifying",
         ].includes(phase) && (
@@ -369,16 +413,35 @@ export function DeployStep({
         {phase === "deploying" &&
           "Creating or updating the platform deploy branch."}
         {phase === "building" && "Waiting for platform CI and release assets."}
+        {phase === "releasing" &&
+          "Release built — verifying assets."}
         {phase === "ready" && "Build is ready for activation."}
         {phase === "activating" &&
           "Promoting the built release into the live branch."}
-        {phase === "verifying" && "Waiting for the runtime to load the app."}
+        {phase === "verifying" &&
+          `Checking runtime... attempt ${verifyAttempt}/30`}
         {phase === "live" && "Runtime reports the app is loaded."}
       </div>
 
       {deploymentId && (
-        <div className="text-muted-foreground text-xs">
-          deployment <code className="text-foreground">{deploymentId}</code>
+        <div className="text-muted-foreground inline-flex items-center gap-1.5 text-xs">
+          deployment{" "}
+          <code className="text-foreground">{deploymentId}</code>
+          <button
+            type="button"
+            onClick={() => {
+              navigator.clipboard.writeText(deploymentId);
+              setCopied(true);
+              setTimeout(() => setCopied(false), 2000);
+            }}
+            className="hover:text-foreground inline-flex items-center gap-0.5"
+            title="Copy deployment ID"
+          >
+            <Copy className="h-3 w-3" />
+            {copied && (
+              <span className="text-green-500 text-[10px]">copied</span>
+            )}
+          </button>
         </div>
       )}
 
@@ -569,6 +632,8 @@ function statusLabel(phase: Phase): string {
       return "Preview ready";
     case "building":
       return "CI pending";
+    case "releasing":
+      return "Verifying assets";
     case "ready":
       return "CI passed";
     case "activating":

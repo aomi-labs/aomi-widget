@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 export const runtime = "nodejs";
 
 import {
+  activationEnv,
   BackendRequestError,
   type BackendDeploymentStatusResult,
   backendRequest,
@@ -32,7 +33,7 @@ export async function GET(req: Request) {
   }
 
   try {
-    const env = readOnboardDeployEnv();
+    const env = await activationEnv(readOnboardDeployEnv());
     const result = await backendRequest<BackendDeploymentStatusResult>(
       env,
       `/api/platforms/${encodeURIComponent(env.platform)}/deployments/${encodeURIComponent(
@@ -45,10 +46,12 @@ export async function GET(req: Request) {
     });
   } catch (err) {
     if (isPendingDeploymentStatusError(err)) {
+      const message = err instanceof Error ? err.message : String(err);
       return NextResponse.json({
-        state: "building",
+        state: "pending",
         releaseTags: [],
-        message: err instanceof Error ? err.message : String(err),
+        message,
+        retryIn: 3000,
       });
     }
     return NextResponse.json(
