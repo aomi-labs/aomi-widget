@@ -9,7 +9,7 @@ import {
   injected,
   walletConnect,
 } from "wagmi/connectors";
-import type { EvmWalletPreset, WalletId } from "./wallet-ids";
+import type { EvmWalletId, EvmWalletPreset } from "./wallet-ids";
 import { EVM_PRESETS } from "./wallet-ids";
 
 export const AOMI_DEFAULT_WC_PROJECT_ID =
@@ -20,7 +20,7 @@ export const AOMI_DEFAULT_WC_PROJECT_ID =
 export type ResolvedEvmWalletsConfig = {
   chains: readonly [Chain, ...Chain[]];
   preset?: EvmWalletPreset;
-  wallets?: readonly WalletId[];
+  wallets?: readonly EvmWalletId[];
   connectors?: readonly CreateConnectorFn[];
   walletConnectProjectId?: string;
   coinbase?: boolean;

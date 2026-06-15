@@ -3,6 +3,7 @@
 export * from "./context";
 export * from "./aa/owner";
 export * from "./catalog/evm-connector-catalog";
+export * from "./catalog/wallet-branding";
 export {
   createAomiSvmWallets,
   resolveAomiSvmConfig,

@@ -7,7 +7,8 @@ import {
   VersionedTransaction,
 } from "@solana/web3.js";
 import type { AomiWalletOption, SvmWalletDescriptor } from "../../types";
-import { canonicalWalletKey, solanaWalletAllowlist } from "../evm/brands";
+import { SVM_WALLET_ALLOWLIST } from "../../catalog/svm-wallet-catalog";
+import { canonicalWalletKey } from "../../catalog/wallet-branding";
 import { DEFAULT_SVM_CLUSTER, DEFAULT_SVM_RPC_HTTP_URLS } from "./networks";
 
 export type SafeSvmWalletState = {
@@ -190,7 +191,7 @@ export function buildSvmWalletDescriptors(
 ): SvmWalletDescriptor[] {
   return wallet.wallets
     .filter((entry) =>
-      solanaWalletAllowlist.has(canonicalWalletKey(entry.adapter.name)),
+      SVM_WALLET_ALLOWLIST.has(canonicalWalletKey(entry.adapter.name)),
     )
     .map((entry) => ({
       name: entry.adapter.name,
