@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ExternalLink, Check, RotateCcw } from "lucide-react";
+import { ExternalLink, Check, RotateCcw, ArrowLeft, AlertTriangle } from "lucide-react";
 import { Button, Input } from "@aomi-labs/widget-lib";
 import {
   bootstrapStep,
@@ -45,15 +45,50 @@ export function BootstrapWizard({
   const installStatus = installationStatusLabel(progress.installationStatus);
   const [repoInput, setRepoInput] = useState("");
   const [repoError, setRepoError] = useState<string | null>(null);
+  const [repoWarning, setRepoWarning] = useState<string | null>(null);
+  const [checking, setChecking] = useState(false);
 
-  const confirmRepo = () => {
+  const confirmRepo = async () => {
     const repo = normalizeRepo(repoInput);
     if (!repo) {
       setRepoError("Enter your repo as owner/name.");
       return;
     }
     setRepoError(null);
+    // Guard against pointing at a repo you already own. This flow is meant to
+    // deploy a FRESH repo created from the template — pasting an existing repo
+    // installs the app on it as-is, which risks touching real work. Warn first,
+    // then let the user proceed on a second confirm if it's intentional.
+    if (!repoWarning) {
+      setChecking(true);
+      let exists = false;
+      try {
+        const res = await fetch(`https://api.github.com/repos/${repo}`);
+        exists = res.ok;
+      } catch {
+        // offline / rate-limited: skip the check rather than block the user
+      }
+      setChecking(false);
+      if (exists) {
+        setRepoWarning(
+          `${repo} already exists. If it isn't a fresh repo from the template above, deploying will install on it as-is. Create a new one from the template to avoid touching existing code, or click Confirm again to use this repo anyway.`,
+        );
+        return;
+      }
+    }
+    setRepoWarning(null);
     patch({ repo });
+  };
+
+  // step back one stage by clearing the field that advanced it (no full reset)
+  const backToTemplate = () => {
+    patch({ repo: undefined, installationId: undefined, installationStatus: undefined });
+    setRepoInput("");
+    setRepoError(null);
+    setRepoWarning(null);
+  };
+  const backToInstall = () => {
+    patch({ installationId: undefined, installationStatus: undefined });
   };
 
   return (
@@ -105,7 +140,11 @@ export function BootstrapWizard({
               <div className="flex-1">
                 <Input
                   value={repoInput}
-                  onChange={(e) => setRepoInput(e.target.value)}
+                  onChange={(e) => {
+                    setRepoInput(e.target.value);
+                    setRepoError(null);
+                    setRepoWarning(null);
+                  }}
                   placeholder="your-account/my-agent"
                   onKeyDown={(e) => e.key === "Enter" && confirmRepo()}
                 />
@@ -114,13 +153,20 @@ export function BootstrapWizard({
                     {repoError}
                   </p>
                 )}
+                {repoWarning && (
+                  <p className="mt-1 flex items-start gap-1 pl-1 text-xs text-amber-500">
+                    <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                    <span>{repoWarning}</span>
+                  </p>
+                )}
               </div>
               <Button
                 onClick={confirmRepo}
-                disabled={!repoInput.trim()}
+                disabled={!repoInput.trim() || checking}
                 className="h-10 rounded-full px-4 text-sm font-medium"
               >
-                <Check className="mr-1 h-4 w-4" /> Confirm
+                <Check className="mr-1 h-4 w-4" />
+                {checking ? "Checking..." : repoWarning ? "Use anyway" : "Confirm"}
               </Button>
             </div>
           </div>
@@ -157,6 +203,14 @@ export function BootstrapWizard({
                 <RotateCcw className="mr-1 h-4 w-4 shrink-0" />
                 {installing ? "Opening GitHub..." : "Verify existing install"}
               </Button>
+              <button
+                type="button"
+                onClick={backToTemplate}
+                disabled={installing}
+                className="text-muted-foreground hover:text-foreground inline-flex h-10 items-center rounded-full px-3 text-sm disabled:opacity-50"
+              >
+                <ArrowLeft className="mr-1 h-4 w-4 shrink-0" /> Change repo
+              </button>
             </div>
           </div>
           <WizardError message={installError} />
@@ -165,8 +219,17 @@ export function BootstrapWizard({
 
       {step === "deploy" && progress.installationId && (
         <div className="border-input space-y-3 rounded-2xl border p-4">
-          <div className="text-foreground text-sm font-medium">
-            Step 3 — Deploy your app
+          <div className="flex items-center justify-between">
+            <div className="text-foreground text-sm font-medium">
+              Step 3 — Deploy your app
+            </div>
+            <button
+              type="button"
+              onClick={backToInstall}
+              className="text-muted-foreground hover:text-foreground inline-flex items-center text-xs"
+            >
+              <ArrowLeft className="mr-1 h-3.5 w-3.5 shrink-0" /> Back
+            </button>
           </div>
           <DeployStep
             path="bootstrap"
