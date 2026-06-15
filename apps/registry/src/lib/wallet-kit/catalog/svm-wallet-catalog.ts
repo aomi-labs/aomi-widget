@@ -4,7 +4,7 @@ import type { SvmNetworkOption } from "../types";
 import {
   normalizeSvmNetworkOptions,
   resolveSelectedSvmNetwork,
-} from "../runtime/svm/networks";
+} from "./svm-networks";
 import type { SvmWalletId, SvmWalletPreset } from "./wallet-ids";
 import { SVM_PRESETS } from "./wallet-ids";
 

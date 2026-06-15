@@ -36,7 +36,7 @@ const solanaNetworks = [
 ] as const;
 
 function makeAdapter(overrides: Partial<AomiWalletKit> = {}): AomiWalletKit {
-  return {
+  const adapter: AomiWalletKit = {
     identity: {
       status: "connected",
       isConnected: true,
@@ -116,6 +116,69 @@ function makeAdapter(overrides: Partial<AomiWalletKit> = {}): AomiWalletKit {
     supportedNetworks: { evm: evmChains, solana: solanaNetworks },
     ...overrides,
   };
+  if (!overrides.walletModalRows) {
+    adapter.walletModalRows = [
+      ...adapter.accounts.map((account) => ({
+        id: account.id,
+        family: account.family,
+        address: account.address,
+        chainId: account.chainId,
+        label: account.label ?? account.address,
+        walletName: account.walletName,
+        source: "live" as const,
+        status: account.active ? ("active" as const) : ("connected" as const),
+        linkedVia: account.linkedVia,
+        manageable: account.manageable,
+        actions: [
+          account.manageable
+            ? ({ kind: "manage" as const, label: "Manage" } as const)
+            : account.active
+              ? ({ kind: "disconnect" as const, label: "Disconnect" } as const)
+              : ({ kind: "select" as const, label: "Select" } as const),
+        ],
+      })),
+      ...(adapter.evmWallets ?? []).map((wallet) => ({
+        id: wallet.id,
+        family: wallet.family === "svm" ? ("svm" as const) : ("evm" as const),
+        label: wallet.label,
+        walletName: wallet.label,
+        iconUrl: wallet.iconUrl,
+        kind: wallet.kind,
+        source: "option" as const,
+        status:
+          wallet.status === "unavailable"
+            ? ("unavailable" as const)
+            : ("available" as const),
+        provider: wallet.connectorId,
+        actions: [{ kind: "connect" as const, label: "Connect" }],
+      })),
+      ...(adapter.solanaWallets ?? []).map((wallet) => ({
+        id: wallet.name,
+        family: "svm" as const,
+        label: wallet.name,
+        walletName: wallet.name,
+        iconUrl: wallet.iconUrl,
+        kind: "solana" as const,
+        source: "option" as const,
+        status: wallet.ready === false ? "unavailable" as const : "available" as const,
+        actions: [{ kind: "connect" as const, label: "Connect" }],
+      })),
+      ...(adapter.socialLoginOptions ?? []).map((option) => ({
+        id: option.id,
+        family: "evm" as const,
+        label: option.label,
+        walletName: option.label,
+        kind: "social" as const,
+        source: "option" as const,
+        status:
+          option.status === "unavailable"
+            ? ("unavailable" as const)
+            : ("available" as const),
+        actions: [{ kind: "authenticate" as const, label: "Sign in" }],
+      })),
+    ];
+  }
+  return adapter;
 }
 
 function OpenAndRender() {

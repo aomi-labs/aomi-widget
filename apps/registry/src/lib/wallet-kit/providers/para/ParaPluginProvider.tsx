@@ -18,7 +18,7 @@ import {
 } from "../../runtime/evm/wallet-runtime";
 import { toSocialLoginOption } from "../../runtime/evm/brands";
 import { canonicalWalletKey } from "../../catalog/wallet-branding";
-import { DEFAULT_SVM_CLUSTER } from "../../runtime/svm/networks";
+import { DEFAULT_SVM_CLUSTER } from "../../catalog/svm-networks";
 import { REGISTRY_STORAGE_KEY } from "../../registry/types";
 import { walletDebug } from "../../wallet-debug";
 import { buildEvmExecutionRuntime } from "../../execution/execution-runtime";
@@ -28,8 +28,11 @@ import {
   resolveAASponsorship,
 } from "../../execution/aa-provider-state";
 import { PARA_BRAND_KEY } from "./para-brand";
-import { DEFAULT_SVM_ENDPOINT, useSafeSvmWallet } from "./para-svm";
-import { useSvmWalletRuntime } from "../../runtime/svm/wallet-runtime";
+import {
+  DEFAULT_SVM_ENDPOINT,
+  useSafeSvmWallet,
+  useSvmWalletRuntime,
+} from "../../runtime/svm/wallet-runtime";
 import { useParaSessionSource } from "./sources/para-session-source";
 import { isParaEmbeddedAccount } from "./para-embedded-wallet";
 import {
@@ -56,8 +59,6 @@ export type AomiParaPluginProviderProps = {
   children: ReactNode;
   supportedChains?: readonly Chain[];
   svmConfig?: PluginSvmRuntimeConfig;
-  /** @deprecated use `svmConfig` */
-  solanaConfig?: PluginSvmRuntimeConfig;
   selectedSolanaNetwork?: SvmNetworkOption;
   setSelectedSolanaNetworkId?: (networkId: string) => void;
   supportedSolanaNetworks?: readonly SvmNetworkOption[];
@@ -68,15 +69,13 @@ export type AomiParaPluginProviderProps = {
 export function AomiParaPluginProvider({
   children,
   supportedChains: configuredChains,
-  svmConfig: svmConfigProp,
-  solanaConfig,
+  svmConfig,
   selectedSolanaNetwork: selectedSolanaNetworkProp,
   setSelectedSolanaNetworkId: setSelectedSolanaNetworkIdProp,
   supportedSolanaNetworks: supportedSolanaNetworksProp,
   oAuthMethods = defaultOAuthMethods,
   execution,
 }: AomiParaPluginProviderProps) {
-  const svmConfig = svmConfigProp ?? solanaConfig;
   const paraAccount = useSafeParaAccount();
   const paraSession = useSafeParaClient();
   const issueJwt = useSafeIssueJwt();
@@ -272,7 +271,7 @@ export function AomiParaPluginProvider({
   });
   const providerEvmWalletOptions = useMemo(() => [], []);
   const transformEvmIdentity = useCallback(
-    (identity: ReturnType<typeof evmRuntime.selectEvmIdentity>) => {
+    (identity: ReturnType<typeof evmRuntime.identity>) => {
       if (
         paraSessionLocallyDetached &&
         identity.address &&
@@ -324,15 +323,12 @@ export function AomiParaPluginProvider({
             address: context.address,
           }),
       }),
-      svm: svmRuntime.execution,
     }),
     [
       evmRuntime,
       execution,
       paraSession,
-      resolvedAdapterSvmConfig,
       sponsorship,
-      svmRuntime.execution,
     ],
   );
 

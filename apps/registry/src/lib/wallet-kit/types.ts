@@ -30,6 +30,14 @@ export type SvmNetworkConfigInput = {
   rpcWsUrl?: string;
 };
 
+export type SvmWalletCapabilities = {
+  canSignMessage?: boolean;
+  canSignTransaction?: boolean;
+  canSignAllTransactions?: boolean;
+  canSendTransaction?: boolean;
+  canSignAndSendTransaction?: boolean;
+};
+
 export type AomiNetworkTarget =
   | { family: "evm"; chainId: number }
   | { family: "svm" | "solana"; networkId: string };
@@ -122,16 +130,18 @@ export type AomiSessionIdentity = {
   authVerifiedAt?: number;
   primaryLabel?: string;
   secondaryLabel?: string;
+  svmCluster?: SvmCluster;
+  svmWalletName?: string;
+  svmTransport?: "extension" | "embedded" | "mwa";
+  svmCapabilities?: SvmWalletCapabilities;
+  /** @deprecated use svmCluster. */
   solanaCluster?: SvmCluster;
+  /** @deprecated use svmWalletName. */
   solanaWalletName?: string;
+  /** @deprecated use svmTransport. */
   solanaTransport?: "extension" | "embedded" | "mwa";
-  solanaCapabilities?: {
-    canSignMessage?: boolean;
-    canSignTransaction?: boolean;
-    canSignAllTransactions?: boolean;
-    canSendTransaction?: boolean;
-    canSignAndSendTransaction?: boolean;
-  };
+  /** @deprecated use svmCapabilities. */
+  solanaCapabilities?: SvmWalletCapabilities;
 };
 
 /**

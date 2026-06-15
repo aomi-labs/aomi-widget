@@ -1,8 +1,9 @@
 "use client";
 
-import type { AomiAccount } from "../types";
+import type { AomiAccount, AomiWalletOption } from "../types";
 import type { AccountWallet } from "../account/types";
 import type { AuthRuntime } from "./types";
+import { toRegistryFamily, walletKey } from "../wallet-utils";
 
 export type WalletRowAction =
   | { kind: "select"; label: string }
@@ -17,13 +18,18 @@ export type WalletModalRow = {
   id: string;
   family: AomiAccount["family"];
   address?: string;
+  chainId?: number;
   label: string;
   walletName?: string;
+  iconUrl?: string;
+  kind?: AomiWalletOption["kind"] | "social";
   source: "live" | "embedded" | "stored" | "option";
   status: "active" | "connected" | "stored" | "available" | "unavailable";
   provider?: string;
   linked?: boolean;
+  linkedVia?: AomiAccount["linkedVia"];
   capability?: "read" | "write";
+  manageable?: boolean;
   actions: WalletRowAction[];
 };
 
@@ -31,10 +37,12 @@ export function mergeWalletRows({
   accounts,
   storedWallets = [],
   auth,
+  options = [],
 }: {
   accounts: readonly AomiAccount[];
   storedWallets?: readonly AccountWallet[];
   auth?: Pick<AuthRuntime, "provider" | "status">;
+  options?: readonly AomiWalletOption[];
 }): WalletModalRow[] {
   const rows: WalletModalRow[] = accounts.map((account) => {
     const stored = storedWallets.find(
@@ -46,17 +54,22 @@ export function mergeWalletRows({
       id: account.id,
       family: account.family,
       address: account.address,
+      chainId: account.chainId,
       label: account.label ?? account.walletName ?? account.address,
       walletName: account.walletName,
       source: "live" as const,
       status: account.active ? ("active" as const) : ("connected" as const),
       provider: stored?.provider,
       linked: account.linked ?? Boolean(stored),
+      linkedVia: account.linkedVia ?? stored?.linkedVia,
       capability: account.capability ?? stored?.capability,
+      manageable: account.manageable,
       actions: [
-        account.active
-          ? { kind: "disconnect", label: "Disconnect" }
-          : { kind: "select", label: "Select" },
+        account.manageable
+          ? { kind: "manage", label: "Manage" }
+          : account.active
+            ? { kind: "disconnect", label: "Disconnect" }
+            : { kind: "select", label: "Select" },
       ],
     };
   });
@@ -88,9 +101,26 @@ export function mergeWalletRows({
     });
   }
 
-  return rows;
-}
+  for (const option of options) {
+    rows.push({
+      id: option.id,
+      family:
+        option.family === "multichain" ? "evm" : toRegistryFamily(option.family),
+      label: option.label,
+      walletName: option.label,
+      iconUrl: option.iconUrl,
+      kind: option.kind,
+      source: "option",
+      status: option.status === "unavailable" ? "unavailable" : "available",
+      provider: option.connectorId,
+      actions: [
+        {
+          kind: option.kind === "social" ? "authenticate" : "connect",
+          label: option.kind === "social" ? "Sign in" : "Connect",
+        },
+      ],
+    });
+  }
 
-function walletKey(family: AomiAccount["family"], address: string): string {
-  return `${family}:${address.toLowerCase()}`;
+  return rows;
 }

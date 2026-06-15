@@ -13,7 +13,10 @@ import { canonicalWalletKey } from "../../catalog/wallet-branding";
 import { selectAccounts, selectSvmIdentity } from "../../registry/selectors";
 import type { WalletRegistryStore } from "../../registry/store";
 import type { SvmWalletRuntime } from "../../composer/types";
-import { DEFAULT_SVM_CLUSTER, DEFAULT_SVM_RPC_HTTP_URLS } from "./networks";
+import {
+  DEFAULT_SVM_CLUSTER,
+  DEFAULT_SVM_RPC_HTTP_URLS,
+} from "../../catalog/svm-networks";
 import { useSvmRegistrySource } from "./registry-source";
 import { buildSvmTransactionMethods } from "./transactions";
 
@@ -54,7 +57,7 @@ export type SafeSvmWalletState = {
 
 export const DEFAULT_SVM_ENDPOINT =
   DEFAULT_SVM_RPC_HTTP_URLS[DEFAULT_SVM_CLUSTER];
-export const SVM_AUTOCONNECT_GRACE_MS = 400;
+const SVM_AUTOCONNECT_GRACE_MS = 400;
 
 type SolanaWalletReadyState =
   | "Installed"
@@ -193,7 +196,7 @@ export function getSvmCapabilitySnapshot(
   };
 }
 
-export function buildSvmWalletDescriptors(
+function buildSvmWalletDescriptors(
   wallet: SafeSvmWalletState,
 ): SvmWalletDescriptor[] {
   return wallet.wallets
@@ -208,7 +211,7 @@ export function buildSvmWalletDescriptors(
     }));
 }
 
-export function toSvmWalletOption(
+function toSvmWalletOption(
   descriptor: SvmWalletDescriptor,
 ): AomiWalletOption {
   return {
@@ -323,8 +326,11 @@ export function useSvmWalletRuntime({
 
   const selectAccount = useCallback(
     async (accountId: string) => {
-      const account = selectAccounts(registryStore.getSnapshot(), Date.now())
-        .find((candidate) => candidate.family === "svm" && candidate.id === accountId);
+      const account = selectAccounts(
+        registryStore.getSnapshot(),
+        "svm",
+        Date.now(),
+      ).find((candidate) => candidate.id === accountId);
       if (!account) return;
       registryStore.dispatch({
         type: "user/select-active",
@@ -369,10 +375,7 @@ export function useSvmWalletRuntime({
     [wallet],
   );
   const accounts = useCallback(
-    (now: number) =>
-      selectAccounts(registryStore.getSnapshot(), now).filter(
-        (account) => account.family === "svm",
-      ),
+    (now: number) => selectAccounts(registryStore.getSnapshot(), "svm", now),
     [registryStore],
   );
   const identity = useCallback(

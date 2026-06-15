@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   normalizeSvmNetworkOptions,
   resolveSelectedSvmNetwork,
-} from "./networks";
+} from "./svm-networks";
 
 describe("SVM network resolution", () => {
   it("resolves the selected SVM network RPC endpoint", () => {

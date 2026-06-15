@@ -28,7 +28,7 @@ const AomiWalletKitContext =
   createContext<AomiWalletKit>(DISCONNECTED_WALLET_KIT);
 
 function toSvmCapabilities(
-  capabilities: AomiWalletKit["identity"]["solanaCapabilities"],
+  capabilities: AomiWalletKit["identity"]["svmCapabilities"],
 ): string[] | undefined {
   if (!capabilities) return undefined;
   return Object.entries(capabilities)
@@ -55,10 +55,13 @@ function AomiWalletKitSync({ walletKit }: { walletKit: AomiWalletKit }) {
       isConnected: identity.isConnected,
       svm: {
         address: identity.svmAddress ?? null,
-        cluster: identity.solanaCluster ?? undefined,
-        wallet_name: identity.solanaWalletName ?? null,
-        transport: identity.solanaTransport ?? null,
-        capabilities: toSvmCapabilities(identity.solanaCapabilities) ?? [],
+        cluster: identity.svmCluster ?? identity.solanaCluster ?? undefined,
+        wallet_name: identity.svmWalletName ?? identity.solanaWalletName ?? null,
+        transport: identity.svmTransport ?? identity.solanaTransport ?? null,
+        capabilities:
+          toSvmCapabilities(
+            identity.svmCapabilities ?? identity.solanaCapabilities,
+          ) ?? [],
       },
       walletProvider: identity.isConnected
         ? (identity.sessionProvider ??
@@ -93,6 +96,10 @@ function AomiWalletKitSync({ walletKit }: { walletKit: AomiWalletKit }) {
     identity.sponsorAccount,
     identity.sponsorProvider,
     identity.sponsored,
+    identity.svmCapabilities,
+    identity.svmCluster,
+    identity.svmTransport,
+    identity.svmWalletName,
     identity.solanaCapabilities,
     identity.solanaCluster,
     identity.solanaTransport,

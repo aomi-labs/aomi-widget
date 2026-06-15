@@ -8,10 +8,10 @@ import { selectAccounts, selectEvmIdentity } from "../../registry/selectors";
 import type { WalletRegistryStore } from "../../registry/store";
 import { useWalletRegistry } from "../../registry/use-wallet-registry";
 import type { WalletRegistryState } from "../../registry/types";
+import type { WalletRuntime } from "../../composer/types";
 import {
   dedupeWalletOptions,
   detectEvmProviderBrand,
-  isProviderInternalWalletLabel,
   toEvmWalletOption,
   useInstalledWalletFlags,
   walletOptionIsDetected,
@@ -70,10 +70,9 @@ export type EvmWalletRuntimeProviderHooks = {
   ) => void;
 };
 
-export type EvmWalletRuntime = {
+export type EvmWalletRuntime = WalletRuntime<"evm"> & {
   registryStore: WalletRegistryStore;
   registryState: WalletRegistryState;
-  registryEvmConnected: boolean;
   activeEvmConnection?: WalletRegistryState["connections"][number];
   activeConnector?: Connector;
   capabilities?: ReturnType<typeof useSafeCapabilities>["capabilities"];
@@ -93,15 +92,7 @@ export type EvmWalletRuntime = {
   signMessageAsync: ReturnType<typeof useSafeSignMessage>["signMessageAsync"];
   switchChainAsync: ReturnType<typeof useSafeSwitchChain>["switchChainAsync"];
   isSwitchingChain: boolean;
-  canDisconnectEvm: boolean;
-  evmWalletOptions: AomiWalletOption[];
   shouldUseExternalSigner: boolean;
-  selectEvmIdentity: (now: number) => ReturnType<typeof selectEvmIdentity>;
-  selectAccounts: (now: number) => AomiAccount[];
-  selectEvmAccount: (id: string) => Promise<void>;
-  connectEvmWallet: (id: string) => Promise<void>;
-  disconnectEvmAccount: (account: AomiAccount) => Promise<void>;
-  switchEvmChain: (chainId: number) => Promise<void>;
 };
 
 async function findConnectorByProviderBrand(
@@ -267,9 +258,6 @@ export function useEvmWalletRuntime({
     stableId: activeEvmConnection?.stableId,
     walletName: activeEvmConnection?.walletName,
   });
-  const registryEvmConnected = registryState.connections.some(
-    (connection) => connection.family === "evm",
-  );
   const evmSwitchInFlightRef = useRef(false);
 
   useEffect(() => {
@@ -321,16 +309,13 @@ export function useEvmWalletRuntime({
             ) {
               return false;
             }
-            return (
-              !isProviderInternalWalletLabel(option.label) &&
-              walletOptionIsDetected(option)
-            );
+            return walletOptionIsDetected(option);
           }),
       ),
     [evmConnectors, installedWalletFlags, providerHooks],
   );
 
-  const selectEvmAccount = useCallback(
+  const selectAccount = useCallback(
     async (id: string) => {
       const connection = registryStore
         .getSnapshot()
@@ -369,8 +354,12 @@ export function useEvmWalletRuntime({
     [registryStore, switchAccountAsync, wagmiConfig.connectors],
   );
 
-  const connectEvmWallet = useCallback(
-    async (id: string) => {
+  const connect = useCallback(
+    async (id?: string) => {
+      if (!id) {
+        providerHooks.onConnectFallback?.(registryStore);
+        return;
+      }
       const connectorOptions = evmConnectors.map((candidate) => ({
         connector: candidate,
         option: toEvmWalletOption(candidate, installedWalletFlags),
@@ -457,7 +446,7 @@ export function useEvmWalletRuntime({
     ],
   );
 
-  const disconnectEvmAccount = useCallback(
+  const disconnectAccount = useCallback(
     async (target: AomiAccount) => {
       const disconnectPlan = planEvmAccountDisconnect({
         target,
@@ -485,8 +474,31 @@ export function useEvmWalletRuntime({
     [evmConnections, providerHooks, registryStore],
   );
 
-  const switchEvmChain = useCallback(
-    async (chainId: number) => {
+  const disconnect = useCallback(
+    async (accountId?: string) => {
+      if (accountId) {
+        const target = selectAccounts(
+          registryStore.getSnapshot(),
+          "evm",
+          Date.now(),
+          selectedEvmChainId,
+        ).find((account) => account.id === accountId);
+        if (target) await disconnectAccount(target);
+        return;
+      }
+      registryStore.dispatch({
+        type: "user/disconnect-family",
+        family: "evm",
+        now: Date.now(),
+      });
+    },
+    [disconnectAccount, registryStore, selectedEvmChainId],
+  );
+
+  const selectNetwork = useCallback(
+    async (networkId: string | number) => {
+      const chainId = Number(networkId);
+      if (!Number.isFinite(chainId)) return;
       setSelectedEvmChainId(chainId);
       if (
         switchChainAsync &&
@@ -513,7 +525,7 @@ export function useEvmWalletRuntime({
   );
 
   const selectRuntimeAccounts = useCallback(
-    (now: number) => selectAccounts(registryState, now, selectedEvmChainId),
+    (now: number) => selectAccounts(registryState, "evm", now, selectedEvmChainId),
     [registryState, selectedEvmChainId],
   );
   const selectRuntimeEvmIdentity = useCallback(
@@ -528,7 +540,7 @@ export function useEvmWalletRuntime({
   return {
     registryStore,
     registryState,
-    registryEvmConnected,
+    status: "ready",
     activeEvmConnection,
     activeConnector,
     capabilities,
@@ -542,16 +554,18 @@ export function useEvmWalletRuntime({
     signMessageAsync,
     switchChainAsync,
     isSwitchingChain: isPending,
-    canDisconnectEvm: Boolean(wagmiDisconnectAsync),
-    evmWalletOptions,
+    activeAccount: selectRuntimeAccounts(Date.now()).find(
+      (account) => account.active,
+    ),
+    options: evmWalletOptions,
     shouldUseExternalSigner: Boolean(
       activeConnector && !activeConnectorIsProviderInternal,
     ),
-    selectEvmIdentity: selectRuntimeEvmIdentity,
-    selectAccounts: selectRuntimeAccounts,
-    selectEvmAccount,
-    connectEvmWallet,
-    disconnectEvmAccount,
-    switchEvmChain,
+    identity: selectRuntimeEvmIdentity,
+    accounts: selectRuntimeAccounts,
+    selectAccount,
+    connect,
+    disconnect,
+    selectNetwork,
   };
 }

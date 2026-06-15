@@ -1,7 +1,9 @@
 "use client";
 
-import { formatAddress } from "./identity";
+import { formatWalletAddress } from "./identity";
 import type { AomiAccount } from "./types";
+import { walletKey } from "./wallet-utils";
+import type { AccountWallet } from "./account/types";
 
 export type EvmConnectionInput = {
   id: string;
@@ -31,7 +33,9 @@ export function buildAccounts(input: {
   activeSolanaAddress?: string;
 }): AomiAccount[] {
   const accounts: AomiAccount[] = [];
-  const active = input.activeEvmAddress?.toLowerCase();
+  const active = input.activeEvmAddress
+    ? walletKey("evm", input.activeEvmAddress)
+    : undefined;
   const activeConnId = input.activeEvmConnectionId;
 
   // Group EVM connections by lowercased address so one address yields one row,
@@ -39,7 +43,7 @@ export function buildAccounts(input: {
   // MetaMask via EIP-6963). Preserve first-seen order.
   const evmGroups = new Map<string, EvmConnectionInput[]>();
   for (const conn of input.evmConnections) {
-    const key = conn.address.toLowerCase();
+    const key = walletKey("evm", conn.address);
     const group = evmGroups.get(key);
     if (group) group.push(conn);
     else evmGroups.set(key, [conn]);
@@ -61,7 +65,7 @@ export function buildAccounts(input: {
       id: (activeConn ?? display).id,
       family: "evm",
       address: display.address,
-      label: formatAddress(display.address),
+      label: formatWalletAddress(display.address),
       walletName: display.walletName,
       chainId: display.chainId,
       connectorIds: conns.map((c) => c.id),
@@ -71,18 +75,57 @@ export function buildAccounts(input: {
 
   const seenSolana = new Set<string>();
   for (const connection of input.solanaConnections ?? []) {
-    const key = connection.publicKey.toLowerCase();
+    const key = walletKey("svm", connection.publicKey);
     if (seenSolana.has(key)) continue;
     seenSolana.add(key);
     accounts.push({
       id: connection.id ?? connection.walletName ?? connection.publicKey,
       family: "svm",
       address: connection.publicKey,
-      label: formatAddress(connection.publicKey),
+      label: formatWalletAddress(connection.publicKey),
       walletName: connection.walletName,
       active: connection.publicKey === input.activeSolanaAddress,
     });
   }
 
   return accounts;
+}
+
+export function buildWalletKitAccounts({
+  accounts,
+  accountWallets = [],
+  transformAccounts,
+  canManageAccount,
+}: {
+  accounts: AomiAccount[];
+  accountWallets?: readonly AccountWallet[];
+  transformAccounts?: (accounts: AomiAccount[]) => AomiAccount[];
+  canManageAccount?: (account: AomiAccount) => boolean;
+}): AomiAccount[] {
+  const linked = applyStoredWalletLinks(accounts, accountWallets);
+  const transformed = transformAccounts ? transformAccounts(linked) : linked;
+  if (!canManageAccount) return transformed;
+  return transformed.map((account) =>
+    canManageAccount(account) ? { ...account, manageable: true } : account,
+  );
+}
+
+function applyStoredWalletLinks(
+  accounts: AomiAccount[],
+  wallets: readonly AccountWallet[],
+): AomiAccount[] {
+  if (wallets.length === 0) return accounts;
+  const storedByKey = new Map(
+    wallets.map((wallet) => [walletKey(wallet.family, wallet.address), wallet]),
+  );
+  return accounts.map((account) => {
+    const stored = storedByKey.get(walletKey(account.family, account.address));
+    if (!stored) return account;
+    return {
+      ...account,
+      linked: true,
+      linkedVia: stored.linkedVia,
+      capability: stored.capability,
+    };
+  });
 }

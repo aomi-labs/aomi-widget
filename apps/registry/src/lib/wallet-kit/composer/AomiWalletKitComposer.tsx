@@ -1,15 +1,16 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { UserState, useUser } from "@aomi-labs/react";
 import { AomiWalletKitContextProvider } from "../context";
 import type { AomiAccount, AomiWalletKit } from "../types";
 import { EVM_IDENTITY_GRACE_MS, REGISTRY_STORAGE_KEY } from "../registry/types";
 import { walletDebug } from "../wallet-debug";
 import { DISABLED_ACCOUNT_RUNTIME } from "../account/disabled-runtime";
-import { buildWalletKitAccounts } from "./build-accounts";
+import { buildWalletKitAccounts } from "../accounts";
 import { buildWalletKitIdentity } from "./build-identity";
-import { mergeWalletRows, type WalletModalRow } from "./merge-wallet-rows";
+import { buildWalletKitActions } from "./build-wallet-kit-actions";
+import { mergeWalletRows } from "./merge-wallet-rows";
 import type { AomiWalletKitComposerProps } from "./types";
 
 export function AomiWalletKitComposer({
@@ -33,7 +34,7 @@ export function AomiWalletKitComposer({
   const { registryStore, registryState } = evm;
 
   const registryEvmIdentity = useMemo(() => {
-    const identity = evm.selectEvmIdentity(Date.now());
+    const identity = evm.identity(Date.now());
     return transformEvmIdentity ? transformEvmIdentity(identity) : identity;
   }, [evmIdentityGraceVersion, evm, transformEvmIdentity]);
 
@@ -86,7 +87,9 @@ export function AomiWalletKitComposer({
     const address = gracefulEvmIdentity.identity.address;
     const effectiveChainId = gracefulEvmIdentity.identity.chainId;
     const svmIdentity = svm?.identity(Date.now());
-    const registryEvmConnected = evm.registryEvmConnected;
+    const registryEvmConnected = registryState.connections.some(
+      (connection) => connection.family === "evm",
+    );
     const isConnected = Boolean(
       auth.status === "authenticated" ||
       registryEvmConnected ||
@@ -103,7 +106,7 @@ export function AomiWalletKitComposer({
       })) ?? [];
     const accounts = buildWalletKitAccounts({
       accounts: [
-        ...evm.selectAccounts(Date.now()),
+        ...evm.accounts(Date.now()),
         ...(svm?.accounts(Date.now()) ?? []),
       ],
       accountWallets: account.wallets,
@@ -111,29 +114,34 @@ export function AomiWalletKitComposer({
       canManageAccount,
     });
     const evmWalletOptions = [
-      ...evm.evmWalletOptions,
+      ...evm.options,
       ...additionalEvmWalletOptions,
     ];
-    const optionRows: WalletModalRow[] = evmWalletOptions.map((option) => ({
-      id: option.id,
-      family: option.family === "svm" ? "svm" : "evm",
-      label: option.label,
-      walletName: option.label,
-      source: "option",
-      status: option.status === "unavailable" ? "unavailable" : "available",
-      provider: option.connectorId,
-      actions: [{ kind: "connect", label: "Connect" }],
-    }));
-    const walletModalRows = [
-      ...mergeWalletRows({
-        accounts,
-        storedWallets: account.wallets,
-        auth,
-      }),
-      ...optionRows,
-    ];
+    const svmWalletOptions =
+      svm?.options.map((option) => ({
+        ...option,
+        family: "svm" as const,
+        kind: "solana" as const,
+      })) ?? [];
+    const walletModalRows = mergeWalletRows({
+      accounts,
+      storedWallets: account.wallets,
+      auth,
+      options: [...evmWalletOptions, ...svmWalletOptions, ...auth.methods],
+    });
+    const actions = buildWalletKitActions({
+      accounts,
+      auth,
+      evm,
+      svm,
+      execution,
+      registryStore,
+      evmAddress: address,
+      registryEvmConnected,
+      svmIdentity,
+    });
     const hasAnyDisconnectablePath = Boolean(
-      evm.canDisconnectEvm || svm?.status === "ready",
+      registryState.connections.length > 0 || svmIdentity?.address,
     );
     const identity = buildWalletKitIdentity({
       auth,
@@ -170,122 +178,36 @@ export function AomiWalletKitComposer({
       canDisconnect: hasAnyDisconnectablePath,
       accounts,
       walletModalRows,
-      selectAccount: async (id: string) => {
-        const target = accounts.find((account) => account.id === id);
-        if (!target) {
-          throw new Error(`Unknown account: ${id}`);
-        }
-        if (target.family === "evm") {
-          await evm.selectEvmAccount(id);
-          return;
-        }
-        if (target.family === "svm") await svm?.selectAccount(id);
-      },
+      selectAccount: actions.selectAccount,
       evmWallets: evmWalletOptions,
-      connectEvmWallet: evm.connectEvmWallet,
+      connectEvmWallet: actions.connectEvmWallet,
       socialLoginOptions: auth.methods,
-      connectSocial: async (id: string) => {
-        await auth.login?.(`social-login:${id}`, "AUTH_ALL_OPTIONS");
-      },
+      connectSocial: actions.connectSocial,
       solanaWallets: solanaWalletDescriptors,
-      connectSolanaWallet: svm
-        ? async (walletName: string) => {
-            await svm.connect(walletName);
-          }
-        : undefined,
+      connectSolanaWallet: actions.connectSolanaWallet,
       supportedChains,
       supportedNetworks: {
         evm: supportedChains,
         solana: svm?.supportedNetworks ?? [],
       },
       solanaNetworkSwitchRequiresReconnect: Boolean(svmIdentity?.address),
-      connect: async (options) => {
-        const requestedFamily =
-          options?.family === "solana" ? "svm" : (options?.family ?? "evm");
-        if (requestedFamily === "svm" && svm && !svmIdentity?.address) {
-          await svm.connect();
-          return;
-        }
-        if (requestedFamily === "evm" && (address || registryEvmConnected)) {
-          return;
-        }
-        await auth.login?.("auth-modal", "AUTH_MAIN");
-      },
-      disconnect: async (options) => {
-        if (options?.accountId) {
-          const target = accounts.find((a) => a.id === options.accountId);
-          if (target?.family === "evm") {
-            await evm.disconnectEvmAccount(target);
-          }
-          return;
-        }
-
-        const requestedFamily = options?.family ?? "all";
-        const registryFamily =
-          requestedFamily === "solana" ? "svm" : requestedFamily;
-        const wantsAll = requestedFamily === "all";
-        auth.startFlow?.(wantsAll ? "provider-logout" : "family-disconnect");
-        if (
-          (wantsAll || registryFamily === "svm") &&
-          svmIdentity?.address &&
-          svm
-        ) {
-          try {
-            await svm.disconnect();
-          } catch (error) {
-            console.warn(
-              "[aomi-wallet-kit] Solana wallet disconnect failed",
-              error,
-            );
-          }
-        }
-
-        registryStore.dispatch({
-          type: "user/disconnect-family",
-          family: registryFamily,
-          now: Date.now(),
-        });
-      },
-      openAccountUI: async (options) => {
-        const requestedFamily =
-          options?.family === "solana" ? "svm" : (options?.family ?? "evm");
-        if (requestedFamily === "svm" && svm && !svmIdentity?.address) {
-          await svm.connect();
-          return;
-        }
-        await auth.openAccountUI?.("account-modal", "ACCOUNT_MAIN");
-      },
-      switchChain: execution.evm.switchChainAsync
-        ? evm.switchEvmChain
-        : undefined,
-      selectNetwork: async (target) => {
-        if (target.family === "evm") {
-          await evm.switchEvmChain(target.chainId);
-          return;
-        }
-        if (!svm) return;
-        await svm.selectNetwork(target.networkId);
-      },
+      connect: actions.connect,
+      disconnect: actions.disconnect,
+      openAccountUI: actions.openAccountUI,
+      switchChain: actions.switchChain,
+      selectNetwork: actions.selectNetwork,
       sendTransaction: execution.evm.sendTransaction,
       signTypedData: execution.evm.signTypedData,
       signMessage: execution.evm.signMessage,
       getAccountCredential:
         auth.status === "authenticated" ? auth.getCredential : undefined,
-      signSolanaTransaction:
-        execution.svm?.signSolanaTransaction ??
-        svm?.execution.signSolanaTransaction,
-      signSolanaMessage:
-        execution.svm?.signSolanaMessage ?? svm?.execution.signSolanaMessage,
-      sendSolanaTransaction:
-        execution.svm?.sendSolanaTransaction ??
-        svm?.execution.sendSolanaTransaction,
+      signSolanaTransaction: svm?.execution.signSolanaTransaction,
+      signSolanaMessage: svm?.execution.signSolanaMessage,
+      sendSolanaTransaction: svm?.execution.sendSolanaTransaction,
       signAndSendSolanaTransaction:
-        execution.svm?.signAndSendSolanaTransaction ??
         svm?.execution.signAndSendSolanaTransaction,
-      solanaRpcHttpUrl:
-        execution.svm?.solanaRpcHttpUrl ?? svm?.execution.solanaRpcHttpUrl,
-      solanaRpcWsUrl:
-        execution.svm?.solanaRpcWsUrl ?? svm?.execution.solanaRpcWsUrl,
+      solanaRpcHttpUrl: svm?.execution.solanaRpcHttpUrl,
+      solanaRpcWsUrl: svm?.execution.solanaRpcWsUrl,
     };
   }, [
     auth,

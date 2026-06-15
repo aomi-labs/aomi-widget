@@ -1,6 +1,6 @@
 import { buildAccounts } from "../accounts";
 import type { AomiAccount, WalletFamily, WalletSource } from "../types";
-import { resolveGracefulEvmIdentity } from "../runtime/evm/identity-grace";
+import { resolveGracefulEvmIdentity } from "./identity-grace";
 import { EVM_IDENTITY_GRACE_MS } from "./types";
 import type {
   ActiveRef,
@@ -49,17 +49,19 @@ function findActiveConnection(
   });
 }
 
-export function selectEvmIdentity(
-  state: WalletRegistryState,
-  now: number,
-  selectedChainId?: number,
-): {
+export type EvmIdentity = {
   address?: string;
   chainId?: number;
   connectorId?: string;
   walletName?: string;
   walletSource?: WalletSource;
-} {
+};
+
+export function selectEvmIdentity(
+  state: WalletRegistryState,
+  now: number,
+  selectedChainId?: number,
+): EvmIdentity {
   const activeConnection = findActiveConnection(state, "evm");
   const walletSource: WalletSource | undefined =
     activeConnection?.kind === "embedded-session"
@@ -112,19 +114,24 @@ export function selectSvmIdentity(
 
 export function selectAccounts(
   state: WalletRegistryState,
+  family: WalletFamily,
   now: number,
   selectedChainId?: number,
 ): AomiAccount[] {
-  const activeEvm = state.activeByFamily.evm;
-  const evmIdentity = selectEvmIdentity(state, now, selectedChainId);
-  const evmConnections = state.connections
-    .filter((connection) => connection.family === "evm")
-    .map((connection) => ({
-      id: connection.uid,
-      walletName: connection.walletName ?? connection.stableId,
-      address: connection.address,
-      chainId: connection.chainId,
-    }));
+  const activeEvm = family === "evm" ? state.activeByFamily.evm : undefined;
+  const evmIdentity =
+    family === "evm" ? selectEvmIdentity(state, now, selectedChainId) : {};
+  const evmConnections =
+    family === "evm"
+      ? state.connections
+          .filter((connection) => connection.family === "evm")
+          .map((connection) => ({
+            id: connection.uid,
+            walletName: connection.walletName ?? connection.stableId,
+            address: connection.address,
+            chainId: connection.chainId,
+          }))
+      : [];
 
   if (evmIdentity.address && evmConnections.length === 0) {
     evmConnections.push({
@@ -135,7 +142,7 @@ export function selectAccounts(
     });
   }
 
-  const svm = selectSvm(state);
+  const svm = family === "svm" ? selectSvm(state) : undefined;
   return buildAccounts({
     evmConnections,
     activeEvmAddress: evmIdentity.address,

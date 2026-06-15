@@ -28,8 +28,8 @@ export type {
 export {
   AOMI_SESSION_BOOTING_IDENTITY,
   AOMI_SESSION_DISCONNECTED_IDENTITY,
-  formatAddress,
   formatAuthMethod,
+  formatWalletAddress,
   formatWalletProvider,
   inferAuthMethod,
 } from "./identity";
@@ -48,7 +48,6 @@ export {
   resolveAomiSvmConfig,
   SVM_PRESETS,
 } from "./catalog/svm-wallet-catalog";
-export { EVM_PRESETS, SVM_PRESETS as SVM_WALLET_PRESETS } from "./catalog/wallet-ids";
 export type {
   EvmWalletId,
   EvmWalletPreset,
@@ -62,4 +61,3 @@ export {
   useFullTestnet,
 } from "./full-testnet-wallet-routing";
 export { useWalletActivationGuard } from "./use-wallet-activation-guard";
-export { toWireWalletFamily, fromWireWalletFamily } from "./wallet-family";

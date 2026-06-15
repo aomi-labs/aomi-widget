@@ -10,8 +10,51 @@ import {
 } from "react";
 import type { Chain } from "viem";
 import type { AomiNetworkTarget, SvmNetworkOption } from "./types";
-import { resolveSelectedSvmNetwork } from "./runtime/svm/networks";
-import { loadWalletPreferences, saveWalletPreferences } from "./persistence";
+import { resolveSelectedSvmNetwork } from "./catalog/svm-networks";
+
+type WalletNetworkPreferences = {
+  selectedEvmChainId?: number;
+  selectedSolanaNetworkId?: string;
+};
+
+const STORAGE_PREFIX = "aomi.wallet-preferences";
+
+function storageKey(key: string): string {
+  return `${STORAGE_PREFIX}.${key}`;
+}
+
+function loadWalletNetworkPreferences(key: string): WalletNetworkPreferences {
+  try {
+    const raw = globalThis.localStorage?.getItem(storageKey(key));
+    if (!raw) return {};
+    const parsed: unknown = JSON.parse(raw);
+    if (typeof parsed !== "object" || parsed === null) return {};
+    const stored = parsed as WalletNetworkPreferences;
+    return {
+      selectedEvmChainId:
+        typeof stored.selectedEvmChainId === "number"
+          ? stored.selectedEvmChainId
+          : undefined,
+      selectedSolanaNetworkId:
+        typeof stored.selectedSolanaNetworkId === "string"
+          ? stored.selectedSolanaNetworkId
+          : undefined,
+    };
+  } catch {
+    return {};
+  }
+}
+
+function saveWalletNetworkPreferences(
+  key: string,
+  prefs: WalletNetworkPreferences,
+): void {
+  try {
+    globalThis.localStorage?.setItem(storageKey(key), JSON.stringify(prefs));
+  } catch {
+    // localStorage unavailable or over quota — preferences are best-effort.
+  }
+}
 
 type NetworkPreferencesContextValue = {
   selectedEvmChainId?: number;
@@ -38,7 +81,7 @@ export function AomiWalletNetworkPreferencesProvider({
   solanaNetworks: readonly SvmNetworkOption[];
   storageKey?: string;
 }) {
-  const [persisted] = useState(() => loadWalletPreferences(storageKey));
+  const [persisted] = useState(() => loadWalletNetworkPreferences(storageKey));
 
   const [selectedEvmChainId, setSelectedEvmChainId] = useState<
     number | undefined
@@ -82,7 +125,7 @@ export function AomiWalletNetworkPreferencesProvider({
   }, [evmChains.length, solanaNetworks]);
 
   useEffect(() => {
-    saveWalletPreferences(storageKey, {
+    saveWalletNetworkPreferences(storageKey, {
       selectedEvmChainId,
       selectedSolanaNetworkId,
     });

@@ -1,5 +1,4 @@
 import { describe, expect, it } from "vitest";
-import { buildWalletKitAccounts } from "./build-accounts";
 import { mergeWalletRows } from "./merge-wallet-rows";
 import type { AomiAccount } from "../types";
 import type { AccountWallet } from "../account/types";
@@ -15,9 +14,9 @@ const liveEvmAccount: AomiAccount = {
 
 describe("account wallet row merging", () => {
   it("marks live rows linked when the account runtime knows the wallet", () => {
-    const accounts = buildWalletKitAccounts({
+    const rows = mergeWalletRows({
       accounts: [liveEvmAccount],
-      accountWallets: [
+      storedWallets: [
         {
           id: "stored-1",
           family: "evm",
@@ -29,7 +28,7 @@ describe("account wallet row merging", () => {
       ],
     });
 
-    expect(accounts[0]).toMatchObject({
+    expect(rows[0]).toMatchObject({
       linked: true,
       linkedVia: "observed",
       capability: "read",

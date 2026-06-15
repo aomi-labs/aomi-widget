@@ -45,7 +45,6 @@ export {
   useAomiWalletKit,
 } from "./lib/wallet-kit";
 export { AomiWalletProvider } from "./lib/wallet-kit/providers";
-export { AomiBaseAccountProvider } from "./lib/wallet-kit/providers/base-account";
 export {
   AomiParaPluginProvider,
 } from "./lib/wallet-kit/providers/para";

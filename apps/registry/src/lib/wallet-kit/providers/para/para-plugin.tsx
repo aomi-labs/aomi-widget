@@ -17,9 +17,14 @@ import {
   registerWalletProvider,
   type WalletProviderPlugin,
 } from "../plugin-registry";
-import type { ParaSvmOptions } from "./para-svm";
 import { AomiParaPluginProvider } from "./ParaPluginProvider";
 import { defaultOAuthMethods } from "./para-auth";
+
+type ParaSvmOptions = {
+  enabled?: boolean;
+  networks?: Exclude<WalletsConfig["solana"], false | undefined>["networks"];
+  preferDirectSend?: boolean;
+};
 
 function toParaEnvironment(value?: "PROD" | "BETA") {
   if (!value) return Environment.BETA;
@@ -129,6 +134,13 @@ function ParaAuthLayer({
 export const paraPlugin: WalletProviderPlugin = {
   id: "para",
   authMode: "additive",
+  isAvailable: ({ auth, providers }) => {
+    const enabled = isParaAuth(auth);
+    const para = providers?.para === false ? undefined : providers?.para;
+    return Boolean(
+      enabled && (para?.apiKey ?? process.env.NEXT_PUBLIC_PARA_API_KEY),
+    );
+  },
   wrap: (props) => <ParaAuthLayer {...props} />,
   renderComposer: ({
     auth,
