@@ -192,7 +192,7 @@ export function BootstrapWizard({
                 disabled={installing}
                 className="h-10 max-w-full rounded-full px-4 text-sm font-medium"
               >
-                {installing ? "Opening GitHub..." : "Install on GitHub"}
+                {installing ? "Waiting for GitHub..." : "Install on GitHub"}
                 <ExternalLink className="ml-1 h-4 w-4 shrink-0" />
               </Button>
               <Button
@@ -201,7 +201,7 @@ export function BootstrapWizard({
                 className="h-10 max-w-full rounded-full px-4 text-sm font-medium"
               >
                 <RotateCcw className="mr-1 h-4 w-4 shrink-0" />
-                {installing ? "Opening GitHub..." : "Verify existing install"}
+                {installing ? "Waiting for GitHub..." : "Verify existing install"}
               </Button>
               <button
                 type="button"
