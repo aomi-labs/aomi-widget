@@ -7,7 +7,7 @@ import {
   registerWalletProvider,
   type WalletProviderPlugin,
 } from "../plugin-registry";
-import { AomiPrivyPluginProvider, AomiPrivyProvider } from "./privy";
+import { AomiPrivyPluginProvider } from "./privy";
 import type { AuthConfig, ProvidersConfig } from "../../config/types";
 import type { SvmNetworkOption } from "../../types";
 
@@ -103,34 +103,6 @@ export const privyPlugin: WalletProviderPlugin = {
       {children}
     </AomiPrivyPluginProvider>
   ),
-  /** @deprecated full provider render path retained for direct legacy imports. */
-  render: (props) => {
-    const privy =
-      props.providers?.privy === false ? undefined : props.providers?.privy;
-    const auth =
-      props.auth !== false && props.auth?.provider === "privy"
-        ? props.auth
-        : undefined;
-    const evmWallets =
-      props.wallets?.evm === false ? undefined : props.wallets?.evm;
-    return (
-      <AomiPrivyProvider
-        appId={privy?.appId}
-        appName={privy?.appName}
-        appLogoUrl={privy?.appLogoUrl}
-        execution={props.execution}
-        networks={evmWallets?.chains}
-        wallets={evmWallets}
-        walletConnectProjectId={evmWallets?.walletConnectProjectId}
-        loginMethods={auth?.methods as never}
-        solana={
-          props.wallets?.solana === false ? undefined : props.wallets?.solana
-        }
-      >
-        {props.children}
-      </AomiPrivyProvider>
-    );
-  },
   detectSugar: (input) => {
     if (
       input.auth !== false &&

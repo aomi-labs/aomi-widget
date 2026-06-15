@@ -22,8 +22,6 @@ import type { Chain } from "viem";
 export type WalletProviderPlugin = {
   id: string;
   authMode?: "additive" | "full";
-  /** @deprecated plugins should use `wrap` + `renderComposer`. */
-  render?: (props: AomiWalletKitProviderProps) => ReactNode;
   wrap?: (props: {
     auth?: AuthConfig;
     children: ReactNode;
