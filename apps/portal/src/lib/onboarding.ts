@@ -390,7 +390,7 @@ export async function onboardCreateRepo(input: {
 }
 
 export type OnboardStatus = {
-  state: "building" | "releasing" | "ready" | "failed";
+  state: "building" | "releasing" | "ready" | "failed" | "pending";
   deployment?: OnboardDeployPayload;
   releaseTags: string[];
   apps?: Array<{
