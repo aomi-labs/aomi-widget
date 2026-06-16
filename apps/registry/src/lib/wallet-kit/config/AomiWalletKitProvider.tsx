@@ -45,7 +45,6 @@ import {
   requireWalletProvider,
   type WalletProviderPlugin,
 } from "../providers/plugin-registry";
-import { registerDefaultWalletProviders } from "../providers/defaults";
 import type {
   AomiWalletKitProviderInput,
   AomiWalletKitProviderProps,
@@ -60,8 +59,6 @@ import {
 } from "./execution";
 
 export type { AomiWalletKitProviderInput, AomiWalletKitProviderProps };
-
-registerDefaultWalletProviders();
 
 const defaultNetworks = [
   mainnet,

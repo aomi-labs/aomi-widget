@@ -1,5 +1,6 @@
 "use client";
 
+import "@aomi-labs/widget-lib/providers/privy";
 import type { ReactNode } from "react";
 import type { Chain } from "viem";
 import {

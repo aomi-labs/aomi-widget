@@ -28,7 +28,7 @@ import {
   useAomiWalletKit,
   type AomiWalletKit,
 } from "../../../registry/src/lib/wallet-kit";
-import { registerAomiParaWalletProvider } from "../../../registry/src/lib/wallet-kit/providers/para";
+import { registerAomiParaWalletProvider } from "@aomi-labs/widget-lib/providers/para";
 
 type DriverMode =
   | "sign"

@@ -1,5 +1,6 @@
 "use client";
 
+import "@aomi-labs/widget-lib/providers/para";
 import { useEffect, useState, type ReactNode } from "react";
 import { defineChain, type Chain } from "viem";
 import { useAccount, useSwitchChain } from "wagmi";

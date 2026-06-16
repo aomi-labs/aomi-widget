@@ -46,13 +46,6 @@ export {
 } from "./lib/wallet-kit";
 export { AomiWalletProvider } from "./lib/wallet-kit/providers";
 export {
-  AomiParaPluginProvider,
-} from "./lib/wallet-kit/providers/para";
-export {
-  AomiPrivyProvider,
-} from "./lib/wallet-kit/providers/privy";
-export type { AomiParaPluginProviderProps } from "./lib/wallet-kit/providers/para";
-export {
   AOMI_SESSION_BOOTING_IDENTITY,
   AOMI_SESSION_DISCONNECTED_IDENTITY,
   formatAuthMethod,

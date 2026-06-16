@@ -68,7 +68,7 @@ export function requireWalletProvider(id: string): WalletProviderPlugin {
   const plugin = registry.get(id);
   if (!plugin) {
     throw new Error(
-      `[aomi-wallet-kit] Unknown wallet provider "${id}". Import @aomi-labs/widget-lib or the provider module before mounting AomiWalletKitProvider.`,
+      `[aomi-wallet-kit] Unknown wallet provider "${id}". Import "@aomi-labs/widget-lib/providers/${id}" before mounting AomiWalletKitProvider, or use preset="wallets-only".`,
     );
   }
   return plugin;
