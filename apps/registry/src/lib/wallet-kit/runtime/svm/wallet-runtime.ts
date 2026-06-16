@@ -55,6 +55,22 @@ export type SafeSvmWalletState = {
     | undefined;
 };
 
+const DISCONNECTED_SVM_WALLET: SafeSvmWalletState = {
+  publicKey: undefined,
+  connected: false,
+  connecting: false,
+  disconnecting: false,
+  walletName: undefined,
+  wallets: [],
+  select: undefined,
+  connect: undefined,
+  disconnect: undefined,
+  signTransaction: undefined,
+  signAllTransactions: undefined,
+  signMessage: undefined,
+  sendTransaction: undefined,
+};
+
 export const DEFAULT_SVM_ENDPOINT =
   DEFAULT_SVM_RPC_HTTP_URLS[DEFAULT_SVM_CLUSTER];
 const SVM_AUTOCONNECT_GRACE_MS = 400;
@@ -87,21 +103,7 @@ export function useSafeSvmWallet(): SafeSvmWalletState {
       sendTransaction: wallet.sendTransaction,
     };
   } catch {
-    return {
-      publicKey: undefined,
-      connected: false,
-      connecting: false,
-      disconnecting: false,
-      walletName: undefined,
-      wallets: [],
-      select: undefined,
-      connect: undefined,
-      disconnect: undefined,
-      signTransaction: undefined,
-      signAllTransactions: undefined,
-      signMessage: undefined,
-      sendTransaction: undefined,
-    };
+    return DISCONNECTED_SVM_WALLET;
   }
 }
 
@@ -250,8 +252,7 @@ export function useSvmWalletRuntime({
   setSelectedNetworkId: (id: string) => void;
   wallet?: SafeSvmWalletState;
 }): SvmWalletRuntime {
-  const safeWallet = useSafeSvmWallet();
-  const wallet = walletOverride ?? safeWallet;
+  const wallet = walletOverride ?? DISCONNECTED_SVM_WALLET;
   const walletRef = useLatestRef(wallet);
 
   useSvmRegistrySource(registryStore, { svmWallet: wallet });

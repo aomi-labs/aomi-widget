@@ -13,6 +13,29 @@ export type ConnectButtonProps = {
   families?: Array<"evm" | "solana">;
 };
 
+type WalletFamilyFilter = NonNullable<ConnectButtonProps["families"]>[number];
+
+function inferWalletFamilies(
+  adapter: ReturnType<typeof useAomiWalletKit>,
+): WalletFamilyFilter[] {
+  const families: WalletFamilyFilter[] = [];
+  if (
+    (adapter.supportedNetworks?.evm.length ?? 0) > 0 ||
+    (adapter.evmWallets?.length ?? 0) > 0 ||
+    adapter.identity.address
+  ) {
+    families.push("evm");
+  }
+  if (
+    (adapter.supportedNetworks?.solana.length ?? 0) > 0 ||
+    (adapter.solanaWallets?.length ?? 0) > 0 ||
+    adapter.identity.svmAddress
+  ) {
+    families.push("solana");
+  }
+  return families;
+}
+
 const SingleConnectButton: FC<Omit<ConnectButtonProps, "families">> = ({
   className,
   connectLabel = "Connect Account",
@@ -96,10 +119,18 @@ export const ConnectButton: FC<ConnectButtonProps> = ({
   connectLabel,
   onConnectionChange,
 }) => {
-  if (families && families.length > 0) {
+  const adapter = useAomiWalletKit();
+  const pickerFamilies =
+    families && families.length > 0 ? families : inferWalletFamilies(adapter);
+  const shouldUsePicker = Boolean(
+    pickerFamilies.length > 0 &&
+      (adapter.canConnect || adapter.walletModalRows?.length),
+  );
+
+  if (shouldUsePicker) {
     return (
       <DualWalletBar
-        families={families}
+        families={pickerFamilies}
         className={className}
         onConnectionChange={onConnectionChange}
       />
