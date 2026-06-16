@@ -61,7 +61,6 @@ export const registry: RegistryComponent[] = [
       "lib/wallet-kit/config/index.ts",
       "lib/wallet-kit/config/types.ts",
       "lib/wallet-kit/providers/plugin-registry.ts",
-      "lib/wallet-kit/providers/defaults.ts",
       "lib/wallet-kit/execution/aa-owner.ts",
       "lib/wallet-kit/execution/aa-provider-state.ts",
       "lib/wallet-kit/execution/execution-runtime.ts",
@@ -94,8 +93,9 @@ export const registry: RegistryComponent[] = [
     dependencies: [
       "@aomi-labs/client",
       "@aomi-labs/react",
-      "@getpara/react-sdk",
       "@solana/wallet-adapter-react",
+      "@solana/wallet-standard-wallet-adapter-react",
+      "@solana/web3.js",
       "@tanstack/react-query",
       "viem",
       "wagmi",
@@ -139,7 +139,6 @@ export const registry: RegistryComponent[] = [
     dependencies: [
       "@aomi-labs/client",
       "@aomi-labs/react",
-      "@getpara/react-sdk",
       "lucide-react",
       "wagmi",
     ],

@@ -13,6 +13,8 @@
     "./components/assistant-ui/*": "./src/components/assistant-ui/*.tsx",
     "./components/control-bar/*": "./src/components/control-bar/*.tsx",
     "./hooks/*": "./src/hooks/*.ts",
+    "./providers/para": "./src/lib/wallet-kit/providers/para/index.ts",
+    "./providers/privy": "./src/lib/wallet-kit/providers/privy/index.ts",
     "./styles.css": "./src/themes/default.css",
     "./themes/*.css": "./src/themes/*.css"
   },

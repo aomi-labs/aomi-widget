@@ -80,13 +80,7 @@ export function Assistant() {
 Wrap the frame in `AomiWalletKitProvider` to enable wallet connection and transaction requests. External wallets such as MetaMask, Rabby, Rainbow, Coinbase Wallet, and WalletConnect are configured through the generic EVM wallet catalog; Para/Privy are only needed when you want their auth session or embedded-wallet features.
 
 ```tsx
-import {
-  AomiFrame,
-  AomiWalletKitProvider,
-  registerAomiParaWalletProvider,
-} from "@aomi-labs/widget-lib";
-
-registerAomiParaWalletProvider();
+import { AomiFrame, AomiWalletKitProvider } from "@aomi-labs/widget-lib";
 
 export function Assistant() {
   return (
@@ -114,6 +108,7 @@ export function Assistant() {
 To add Para auth or embedded wallets, keep the same external-wallet config and add a Para auth provider:
 
 ```tsx
+import "@aomi-labs/widget-lib/providers/para";
 import { AomiFrame, AomiWalletKitProvider } from "@aomi-labs/widget-lib";
 
 export function Assistant() {

@@ -1,5 +1,6 @@
 "use client";
 
+import "@aomi-labs/widget-lib/providers/para";
 import {
   Environment,
   type TOAuthMethod,

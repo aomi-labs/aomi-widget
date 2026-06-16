@@ -153,7 +153,6 @@
   "dependencies": [
     "@aomi-labs/client",
     "@aomi-labs/react",
-    "@getpara/react-sdk",
     "lucide-react",
     "wagmi"
   ],
