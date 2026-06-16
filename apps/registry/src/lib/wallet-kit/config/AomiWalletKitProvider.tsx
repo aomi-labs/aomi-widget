@@ -35,7 +35,10 @@ import {
 import { AomiEvmRuntimeProvider } from "../runtime/evm/provider";
 import { useEvmWalletRuntime } from "../runtime/evm/wallet-runtime";
 import { useDisabledEvmWalletRuntime } from "../runtime/evm/disabled-runtime";
-import { useSvmWalletRuntime } from "../runtime/svm/wallet-runtime";
+import {
+  useSafeSvmWallet,
+  useSvmWalletRuntime,
+} from "../runtime/svm/wallet-runtime";
 import { REGISTRY_STORAGE_KEY } from "../registry/types";
 import { createAomiEvmConfig } from "../catalog/evm-connector-catalog";
 import { resolveAomiSvmConfig } from "../catalog/svm-wallet-catalog";
@@ -79,24 +82,15 @@ function ExternalWalletComposerProvider({
   children,
   evmRuntime,
   execution,
+  svmRuntime,
   supportedChains,
 }: {
   children: ReactNode;
   evmRuntime: ReturnType<typeof useEvmWalletRuntime>;
   execution?: ExecutionConfig;
+  svmRuntime?: ReturnType<typeof useSvmWalletRuntime>;
   supportedChains: readonly Chain[];
 }) {
-  const {
-    selectedSolanaNetwork,
-    setSelectedSolanaNetworkId,
-    supportedSolanaNetworks,
-  } = useAomiWalletNetworkPreferences();
-  const svmRuntime = useSvmWalletRuntime({
-    registryStore: evmRuntime.registryStore,
-    selectedNetwork: selectedSolanaNetwork,
-    supportedNetworks: supportedSolanaNetworks,
-    setSelectedNetworkId: setSelectedSolanaNetworkId,
-  });
   const authRuntime = useMemo<AuthRuntime>(
     () => ({
       provider: "none",
@@ -141,16 +135,62 @@ function ExternalWalletComposerProvider({
   );
 }
 
+function ExternalWalletComposerSvmProvider({
+  children,
+  evmRuntime,
+  execution,
+  selectedSolanaNetwork,
+  setSelectedSolanaNetworkId,
+  supportedChains,
+  supportedSolanaNetworks,
+}: {
+  children: ReactNode;
+  evmRuntime: ReturnType<typeof useEvmWalletRuntime>;
+  execution?: ExecutionConfig;
+  selectedSolanaNetwork?: ResolvedSvmWalletsConfig["activeNetwork"];
+  setSelectedSolanaNetworkId: (networkId: string) => void;
+  supportedChains: readonly Chain[];
+  supportedSolanaNetworks: ResolvedSvmWalletsConfig["networks"];
+}) {
+  const svmWallet = useSafeSvmWallet();
+  const svmRuntime = useSvmWalletRuntime({
+    registryStore: evmRuntime.registryStore,
+    selectedNetwork: selectedSolanaNetwork,
+    supportedNetworks: supportedSolanaNetworks,
+    setSelectedNetworkId: setSelectedSolanaNetworkId,
+    wallet: svmWallet,
+  });
+
+  return (
+    <ExternalWalletComposerProvider
+      evmRuntime={evmRuntime}
+      execution={execution}
+      svmRuntime={svmRuntime}
+      supportedChains={supportedChains}
+    >
+      {children}
+    </ExternalWalletComposerProvider>
+  );
+}
+
 function EvmExternalWalletComposerProvider({
   children,
   execution,
+  resolvedSvm,
   supportedChains,
 }: {
   children: ReactNode;
   execution?: ExecutionConfig;
+  resolvedSvm: ResolvedSvmWalletsConfig;
   supportedChains: readonly Chain[];
 }) {
-  const { selectedEvmChainId, setSelectedEvmChainId } =
+  const {
+    selectedEvmChainId,
+    selectedSolanaNetwork,
+    setSelectedEvmChainId,
+    setSelectedSolanaNetworkId,
+    supportedSolanaNetworks,
+  } =
     useAomiWalletNetworkPreferences();
   const evmRuntime = useEvmWalletRuntime({
     configuredChains: supportedChains,
@@ -158,6 +198,21 @@ function EvmExternalWalletComposerProvider({
     setSelectedEvmChainId,
     storageKey: REGISTRY_STORAGE_KEY,
   });
+
+  if (resolvedSvm.enabled && resolvedSvm.activeNetwork) {
+    return (
+      <ExternalWalletComposerSvmProvider
+        evmRuntime={evmRuntime}
+        execution={execution}
+        selectedSolanaNetwork={selectedSolanaNetwork}
+        setSelectedSolanaNetworkId={setSelectedSolanaNetworkId}
+        supportedChains={supportedChains}
+        supportedSolanaNetworks={supportedSolanaNetworks}
+      >
+        {children}
+      </ExternalWalletComposerSvmProvider>
+    );
+  }
 
   return (
     <ExternalWalletComposerProvider
@@ -172,12 +227,33 @@ function EvmExternalWalletComposerProvider({
 
 function SvmExternalWalletComposerProvider({
   children,
+  resolvedSvm,
 }: {
   children: ReactNode;
+  resolvedSvm: ResolvedSvmWalletsConfig;
 }) {
+  const {
+    selectedSolanaNetwork,
+    setSelectedSolanaNetworkId,
+    supportedSolanaNetworks,
+  } = useAomiWalletNetworkPreferences();
   const evmRuntime = useDisabledEvmWalletRuntime({
     storageKey: REGISTRY_STORAGE_KEY,
   });
+
+  if (resolvedSvm.enabled && resolvedSvm.activeNetwork) {
+    return (
+      <ExternalWalletComposerSvmProvider
+        evmRuntime={evmRuntime}
+        selectedSolanaNetwork={selectedSolanaNetwork}
+        setSelectedSolanaNetworkId={setSelectedSolanaNetworkId}
+        supportedChains={[]}
+        supportedSolanaNetworks={supportedSolanaNetworks}
+      >
+        {children}
+      </ExternalWalletComposerSvmProvider>
+    );
+  }
 
   return (
     <ExternalWalletComposerProvider
@@ -265,6 +341,7 @@ function WalletKitComposerOutlet({
   return (
     <EvmExternalWalletComposerProvider
       execution={execution}
+      resolvedSvm={resolvedSvm}
       supportedChains={routing.routedChains}
     >
       {children}
@@ -363,7 +440,7 @@ function AomiSvmExternalWalletProvider({
   return (
     <QueryClientProvider client={queryClient}>
       <MaybeSvmWalletProvider resolvedSvm={resolvedSvm}>
-        <SvmExternalWalletComposerProvider>
+        <SvmExternalWalletComposerProvider resolvedSvm={resolvedSvm}>
           {children}
         </SvmExternalWalletComposerProvider>
       </MaybeSvmWalletProvider>
