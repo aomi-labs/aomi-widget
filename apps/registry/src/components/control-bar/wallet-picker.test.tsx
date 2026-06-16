@@ -258,7 +258,8 @@ describe("WalletPicker", () => {
     expect(
       screen.getByRole("button", { name: "Manage your account" }),
     ).toBeTruthy();
-    expect(screen.getByText("Account")).toBeTruthy();
+    // "Account" labels both the header button and the slide-in panel title.
+    expect(screen.getAllByText("Account").length).toBeGreaterThan(0);
     expect(screen.queryByText(/^ETH$/)).toBeNull();
     expect(screen.queryByText(/^SOL$/)).toBeNull();
     // Each connected row carries a compact EVM/SVM family tag.
@@ -557,17 +558,60 @@ describe("WalletPicker", () => {
     ).toHaveLength(2);
   });
 
-  it("opens account management from the picker header", async () => {
+  it("slides to the account manager and can open the provider UI", async () => {
     const openAccountUI = vi.fn(async () => undefined);
     renderPicker(makeAdapter({ openAccountUI }));
 
+    // "Account" navigates to the in-app account panel rather than opening the
+    // provider modal directly.
     await act(async () => {
       fireEvent.click(
         screen.getByRole("button", { name: "Manage your account" }),
       );
     });
+    expect(openAccountUI).not.toHaveBeenCalled();
+    expect(
+      screen.getByRole("button", { name: "Back to wallets" }),
+    ).toBeTruthy();
 
+    // The provider shortcut inside the panel hands off to the native UI.
+    await act(async () => {
+      fireEvent.click(
+        screen.getByRole("button", { name: /open provider settings/i }),
+      );
+    });
     expect(openAccountUI).toHaveBeenCalled();
+  });
+
+  it("shows the account button for a wallet-only session without a provider UI", () => {
+    renderPicker(
+      makeAdapter({
+        canOpenAccountUI: false,
+        openAccountUI: undefined,
+        identity: {
+          status: "connected",
+          isConnected: true,
+          address: "0xAAAAAAAA",
+          chainId: 1,
+          primaryLabel: "0xAAA..AA",
+        },
+        accounts: [
+          {
+            id: "mm",
+            family: "evm",
+            address: "0xAAAAAAAA",
+            walletName: "MetaMask",
+            active: true,
+          },
+        ],
+      }),
+    );
+
+    // The account button is gated on having a connected wallet, not on the
+    // provider exposing a native account modal.
+    expect(
+      screen.getByRole("button", { name: "Manage your account" }),
+    ).toBeTruthy();
   });
 
   it("shows a per-row manage action only for manageable wallets", async () => {
@@ -738,9 +782,11 @@ describe("WalletPicker", () => {
 
     expect(screen.queryByText("Email, wallet, or social")).toBeNull();
     expect(screen.queryByText("Quick sign-in")).toBeNull();
+    // The account button shows for any connected wallet, including this Privy
+    // session (which exposes no native account modal).
     expect(
-      screen.queryByRole("button", { name: "Manage your account" }),
-    ).toBeNull();
+      screen.getByRole("button", { name: "Manage your account" }),
+    ).toBeTruthy();
     expect(screen.getByRole("button", { name: "Sign out" })).toBeTruthy();
   });
 

@@ -2,13 +2,47 @@
 
 ## Last Updated
 
-2026-06-15 - Continued wallet-kit cleanup sweep pass from
-`specs/WALLET-KIT-CLEANUP.md`: C1, C3, C4, C5, C6, C7, and C9 are implemented;
-C2's code items are implemented; C8's composer/full-testnet items are implemented
-with the config-ladder collapse still partial. Automated gates are green. Manual
-wallet matrix remains pending.
+2026-06-16 - Ungated the wallet-picker "Account" button and gave it an in-app
+slide-in account manager (stub). Typecheck + lint green; picker tests green
+except two pre-existing branch failures unrelated to this change.
 
 ## Recent Changes
+
+### Account manager slide-in + ungated Account button (2026-06-16)
+
+Branch `polish-multi-wallet`. `wallet-picker.tsx` + `wallet-picker.test.tsx`.
+First slice of the locked account-management UI design (see
+[[wallet-account-mgmt-ui-design]] / `specs/WALLET-ACCOUNT-MGMT-UI.md`) — the
+push-nav shell + an Account panel stub.
+
+- **Account button now shows for any connected wallet.** Was gated on
+  `identity.isConnected && openAccountUI && canOpenAccountUI` (Para/Privy only);
+  now gated on `hasConnectedWallets`, so wallets-only/external sessions get it too.
+- **Clicking "Account" slide-navigates instead of opening the provider modal.**
+  The picker body is now a double-width push-nav track (`w-[200%]`, two
+  `w-1/2` panels, `-translate-x-1/2` on `view === "account"`, 300ms ease-out).
+  Each panel has its own header; the inactive panel is `inert`. New `view`
+  state (`"wallets" | "account"`), reset on close and when all wallets drop.
+- **`AccountManagerPanel` stub**: back-chevron header, an identity card
+  (provider brand mark or `UserRound` + display name + provider/wallet-count
+  subtitle), three dashed "Soon" placeholder rows (Profile / Linked wallets /
+  Security), and — only when `openAccountUI`+`canOpenAccountUI` exist — an
+  "Open provider settings" row that hands off to the native provider modal
+  (so Para/Privy lose nothing). The per-row gear "manage" action is unchanged.
+- `ManageAccountButton` is now pure navigation (dropped its `canOpen` gate +
+  async spinner).
+- Tests: retargeted "opens account management from the picker header" →
+  "slides to the account manager and can open the provider UI"; added
+  "shows the account button for a wallet-only session without a provider UI";
+  loosened the duplicate-"Account" text assertion; flipped the Privy-session
+  test to expect the button present. New/changed picker tests pass.
+- **Pre-existing failures (NOT from this change, confirmed against pristine
+  HEAD):** `wallet-picker > uses the Para brand mark for manageable Para
+  accounts with generic names` (`getWalletIcon("…para…")` → null brand, likely
+  fallout from the recent icon-registry refresh) and `network-select >
+  connects without a family selection`.
+- Not yet eyeballed live (the connected state needs a real wallet extension):
+  confirm the slide reads cleanly and the stub panel looks right.
 
 ### Wallet-kit cleanup sweep execution (2026-06-15)
 

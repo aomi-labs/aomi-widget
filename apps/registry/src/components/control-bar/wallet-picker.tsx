@@ -11,12 +11,14 @@ import {
 import {
   CheckIcon,
   ChevronDownIcon,
+  ChevronLeftIcon,
   ChevronRightIcon,
   Loader2Icon,
   LogOutIcon,
   MailIcon,
   PlusIcon,
   Settings2Icon,
+  ShieldCheckIcon,
   UserRoundIcon,
   WalletIcon,
   XIcon,
@@ -148,6 +150,9 @@ export function WalletPicker() {
   const [pending, setPending] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [addOpen, setAddOpen] = useState(false);
+  // Which screen of the push-nav modal is showing. The account view slides in
+  // from the right over the wallet manager.
+  const [view, setView] = useState<"wallets" | "account">("wallets");
   const canActivateWallet = useWalletActivationGuard();
 
   useEffect(() => {
@@ -155,6 +160,7 @@ export function WalletPicker() {
       setPending(null);
       setActionError(null);
       setAddOpen(false);
+      setView("wallets");
       return;
     }
     const previousOverflow = document.body.style.overflow;
@@ -361,15 +367,26 @@ export function WalletPicker() {
   const socialOptionsToShow = providerAccountConnected
     ? []
     : socialLoginOptions;
-  const hasManageAccount = Boolean(
-    identity.isConnected && adapter.openAccountUI && adapter.canOpenAccountUI,
-  );
+  // The account button (and its slide-in panel) is available whenever any
+  // wallet is connected — not just for providers with a native account modal.
+  const accountView = hasConnectedWallets && view === "account";
+  const accountDisplayName =
+    identity.primaryLabel ??
+    identity.authValue ??
+    providerBrandLabel ??
+    "Your account";
   const pickerTitle = hasConnectedWallets
     ? "Manage wallets"
     : "Select a wallet";
   const pickerDescription = hasConnectedWallets
     ? "Switch wallets or link another one."
     : "Sign in quickly, or connect a wallet.";
+
+  // Pop back to the wallet manager if every wallet disconnects while the
+  // account panel is open.
+  useEffect(() => {
+    if (!hasConnectedWallets && view !== "wallets") setView("wallets");
+  }, [hasConnectedWallets, view]);
 
   const quickSignInSection = socialOptionsToShow.length ? (
     <section className="flex flex-col gap-1.5">
@@ -612,72 +629,101 @@ export function WalletPicker() {
           "animate-in zoom-in-95 fade-in-0 duration-200",
         )}
       >
-        <div className="border-border/70 bg-background/80 flex items-start gap-3 border-b px-4 pb-3 pt-4">
-          <span className="bg-muted/70 text-muted-foreground flex size-10 shrink-0 items-center justify-center rounded-2xl">
-            <WalletIcon className="size-5" />
-          </span>
-          <div className="min-w-0 flex-1">
-            <h2
-              id="aomi-wallet-picker-title"
-              className="text-foreground text-base font-semibold tracking-tight"
-            >
-              {pickerTitle}
-            </h2>
-            <p className="text-muted-foreground mt-0.5 text-xs leading-snug">
-              {pickerDescription}
-            </p>
-          </div>
-          <div className="flex h-8 shrink-0 items-center gap-1.5">
-            {hasManageAccount ? (
-              <ManageAccountButton
-                pending={pending}
-                canOpen={Boolean(
-                  adapter.openAccountUI && adapter.canOpenAccountUI,
-                )}
-                providerSubtitle={providerSubtitle}
-                onClick={() =>
-                  void runAction("manage:account", async () => {
-                    await adapter.openAccountUI?.();
-                    closePicker();
-                  })
-                }
-              />
-            ) : null}
-            <button
-              type="button"
-              onClick={closePicker}
-              aria-label="Close"
-              className="text-muted-foreground hover:bg-muted hover:text-foreground flex size-8 items-center justify-center rounded-full transition-colors"
-            >
-              <XIcon className="size-4" />
-            </button>
-          </div>
-        </div>
-
-        <div className="flex flex-col gap-3 overflow-y-auto p-3.5">
-          {actionError ? (
-            <div
-              role="alert"
-              className="border-destructive/25 bg-destructive/10 text-destructive rounded-xl border px-3 py-2 text-xs leading-snug"
-            >
-              {actionError}
-            </div>
-          ) : null}
-          {hasConnectedWallets ? (
-            <>
-              {connectedSection}
-              {(quickSignInSection || addWalletSection) && (
-                <div className="bg-border/70 h-px" aria-hidden="true" />
-              )}
-              {quickSignInSection}
-              {addWalletSection}
-            </>
-          ) : (
-            <>
-              {quickSignInSection}
-              {addWalletSection}
-            </>
+        {/*
+         * Push-nav track: the wallet manager and the account manager sit side by
+         * side in a double-width row; selecting "Account" slides the row left so
+         * the account panel takes the frame.
+         */}
+        <div
+          className={cn(
+            "flex min-h-0 w-[200%] flex-1 transition-transform duration-300 ease-out",
+            accountView ? "-translate-x-1/2" : "translate-x-0",
           )}
+        >
+          <section
+            inert={accountView ? true : undefined}
+            className="flex w-1/2 min-w-0 shrink-0 flex-col"
+          >
+            <div className="border-border/70 bg-background/80 flex items-start gap-3 border-b px-4 pb-3 pt-4">
+              <span className="bg-muted/70 text-muted-foreground flex size-10 shrink-0 items-center justify-center rounded-2xl">
+                <WalletIcon className="size-5" />
+              </span>
+              <div className="min-w-0 flex-1">
+                <h2
+                  id="aomi-wallet-picker-title"
+                  className="text-foreground text-base font-semibold tracking-tight"
+                >
+                  {pickerTitle}
+                </h2>
+                <p className="text-muted-foreground mt-0.5 text-xs leading-snug">
+                  {pickerDescription}
+                </p>
+              </div>
+              <div className="flex h-8 shrink-0 items-center gap-1.5">
+                {hasConnectedWallets ? (
+                  <ManageAccountButton
+                    pending={pending}
+                    providerSubtitle={providerSubtitle}
+                    onClick={() => setView("account")}
+                  />
+                ) : null}
+                <button
+                  type="button"
+                  onClick={closePicker}
+                  aria-label="Close"
+                  className="text-muted-foreground hover:bg-muted hover:text-foreground flex size-8 items-center justify-center rounded-full transition-colors"
+                >
+                  <XIcon className="size-4" />
+                </button>
+              </div>
+            </div>
+
+            <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-3.5">
+              {actionError ? (
+                <div
+                  role="alert"
+                  className="border-destructive/25 bg-destructive/10 text-destructive rounded-xl border px-3 py-2 text-xs leading-snug"
+                >
+                  {actionError}
+                </div>
+              ) : null}
+              {hasConnectedWallets ? (
+                <>
+                  {connectedSection}
+                  {(quickSignInSection || addWalletSection) && (
+                    <div className="bg-border/70 h-px" aria-hidden="true" />
+                  )}
+                  {quickSignInSection}
+                  {addWalletSection}
+                </>
+              ) : (
+                <>
+                  {quickSignInSection}
+                  {addWalletSection}
+                </>
+              )}
+            </div>
+          </section>
+
+          {hasConnectedWallets ? (
+            <AccountManagerPanel
+              inertPanel={!accountView}
+              pending={pending}
+              displayName={accountDisplayName}
+              subtitle={providerSubtitle}
+              brandLabel={providerBrandLabel}
+              connectedCount={connectedAccounts.length}
+              canManageProvider={canManageAccounts}
+              onBack={() => setView("wallets")}
+              onClose={closePicker}
+              onOpenProviderUI={() =>
+                void runAction("manage:account", async () => {
+                  await adapter.openAccountUI?.();
+                  closePicker();
+                })
+              }
+            />
+          ) : null}
         </div>
       </div>
     </div>
@@ -712,21 +758,17 @@ function FamilyTag({ family }: { family: WalletFamily }) {
 
 function ManageAccountButton({
   pending,
-  canOpen,
   providerSubtitle,
   onClick,
 }: {
   pending: string | null;
-  canOpen: boolean;
   providerSubtitle?: string | null;
   onClick: () => void;
 }) {
-  const disabled = pending !== null || !canOpen;
-
   return (
     <button
       type="button"
-      disabled={disabled}
+      disabled={pending !== null}
       onClick={onClick}
       aria-label="Manage your account"
       title={
@@ -739,13 +781,173 @@ function ManageAccountButton({
         "disabled:pointer-events-none disabled:opacity-70",
       )}
     >
-      {pending === "manage:account" ? (
-        <Loader2Icon className="size-3.5 shrink-0 animate-spin" />
-      ) : (
-        <UserRoundIcon className="size-3.5 shrink-0" />
-      )}
+      <UserRoundIcon className="size-3.5 shrink-0" />
       <span>Account</span>
     </button>
+  );
+}
+
+const ACCOUNT_STUB_ROWS: ReadonlyArray<{
+  label: string;
+  description: string;
+  icon: FC<SVGProps<SVGSVGElement>>;
+}> = [
+  {
+    label: "Profile",
+    description: "Display name, avatar, and contact",
+    icon: UserRoundIcon,
+  },
+  {
+    label: "Linked wallets",
+    description: "Review wallets linked to this account",
+    icon: WalletIcon,
+  },
+  {
+    label: "Security",
+    description: "Recovery options and active sessions",
+    icon: ShieldCheckIcon,
+  },
+];
+
+/**
+ * Slide-in account manager. Stub content for now — a real identity card plus
+ * placeholder settings rows — with an optional shortcut into the wallet
+ * provider's own account UI when one exists.
+ */
+function AccountManagerPanel({
+  inertPanel,
+  pending,
+  displayName,
+  subtitle,
+  brandLabel,
+  connectedCount,
+  canManageProvider,
+  onBack,
+  onClose,
+  onOpenProviderUI,
+}: {
+  inertPanel: boolean;
+  pending: string | null;
+  displayName: string;
+  subtitle?: string | null;
+  brandLabel?: string;
+  connectedCount: number;
+  canManageProvider: boolean;
+  onBack: () => void;
+  onClose: () => void;
+  onOpenProviderUI: () => void;
+}) {
+  const walletSummary = `${connectedCount} wallet${
+    connectedCount === 1 ? "" : "s"
+  } connected`;
+
+  return (
+    <section
+      inert={inertPanel ? true : undefined}
+      className="flex w-1/2 min-w-0 shrink-0 flex-col"
+    >
+      <div className="border-border/70 bg-background/80 flex items-center gap-2 border-b px-3 pb-3 pt-4">
+        <button
+          type="button"
+          onClick={onBack}
+          aria-label="Back to wallets"
+          className="text-muted-foreground hover:bg-muted hover:text-foreground flex size-8 shrink-0 items-center justify-center rounded-full transition-colors"
+        >
+          <ChevronLeftIcon className="size-4" />
+        </button>
+        <div className="min-w-0 flex-1">
+          <h2 className="text-foreground text-base font-semibold tracking-tight">
+            Account
+          </h2>
+          <p className="text-muted-foreground mt-0.5 text-xs leading-snug">
+            Manage your Aomi account and linked wallets.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Close"
+          className="text-muted-foreground hover:bg-muted hover:text-foreground flex size-8 shrink-0 items-center justify-center rounded-full transition-colors"
+        >
+          <XIcon className="size-4" />
+        </button>
+      </div>
+
+      <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-3.5">
+        <div className="border-border/70 bg-card flex items-center gap-3 rounded-2xl border px-3 py-3">
+          <span className="bg-primary/10 text-primary flex size-11 shrink-0 items-center justify-center overflow-hidden rounded-2xl">
+            {brandLabel ? (
+              <WalletIconSlot id={brandLabel} label={brandLabel} />
+            ) : (
+              <UserRoundIcon className="size-5" />
+            )}
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className="text-foreground truncate text-sm font-semibold">
+              {displayName}
+            </p>
+            <p className="text-muted-foreground truncate text-[11px]">
+              {subtitle ?? walletSummary}
+            </p>
+          </div>
+        </div>
+
+        <section className="flex flex-col gap-1.5">
+          <SectionLabel>Settings</SectionLabel>
+          {ACCOUNT_STUB_ROWS.map((row) => (
+            <div
+              key={row.label}
+              className="border-border/60 bg-card/60 flex items-center gap-3 rounded-2xl border border-dashed px-3 py-2.5"
+            >
+              <span className="bg-muted/50 text-muted-foreground flex size-9 shrink-0 items-center justify-center rounded-xl">
+                <row.icon className="size-4" />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="text-foreground block truncate text-sm font-medium">
+                  {row.label}
+                </span>
+                <span className="text-muted-foreground block truncate text-[11px]">
+                  {row.description}
+                </span>
+              </span>
+              <span className="bg-muted text-muted-foreground shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium">
+                Soon
+              </span>
+            </div>
+          ))}
+        </section>
+
+        {canManageProvider ? (
+          <button
+            type="button"
+            onClick={onOpenProviderUI}
+            disabled={pending !== null}
+            className="border-border/70 bg-card hover:border-primary/30 hover:bg-accent/40 flex items-center gap-3 rounded-2xl border px-3 py-2.5 text-left transition-colors disabled:pointer-events-none disabled:opacity-50"
+          >
+            <span className="bg-muted/50 text-muted-foreground flex size-9 shrink-0 items-center justify-center rounded-xl">
+              <Settings2Icon className="size-4" />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="text-foreground block truncate text-sm font-medium">
+                Open provider settings
+              </span>
+              <span className="text-muted-foreground block truncate text-[11px]">
+                Manage this account with its provider
+              </span>
+            </span>
+            {pending === "manage:account" ? (
+              <Loader2Icon className="size-4 shrink-0 animate-spin" />
+            ) : (
+              <ChevronRightIcon className="text-muted-foreground size-4 shrink-0" />
+            )}
+          </button>
+        ) : null}
+
+        <p className="text-muted-foreground/80 px-1 pt-1 text-center text-[11px] leading-snug">
+          Full account management is coming soon.
+        </p>
+      </div>
+    </section>
   );
 }
 
