@@ -272,8 +272,15 @@ interface AomiAccount {
     created_at?: number;
     updated_at?: number;
 }
+interface AomiAccountWallet {
+    wallet_id?: string | null;
+    address: string;
+    chain_type: string;
+    wallet_provider: string;
+}
 interface AomiAccountProfile {
     account: AomiAccount;
+    wallets?: AomiAccountWallet[];
     usage?: unknown;
 }
 interface AomiBeginAccountAuthResponse {
@@ -282,6 +289,7 @@ interface AomiBeginAccountAuthResponse {
     expires_at: number;
 }
 type AomiWalletFamily = "evm" | "svm";
+type AomiAuthWalletFamily = "evm" | "solana";
 /**
  * GET/POST /api/control/provider-keys
  * Lists or saves BYOK keys (one per LLM provider) for the bound client.
@@ -512,6 +520,7 @@ declare class AomiClient {
      */
     beginPrivyAuth(sessionId: string, options?: {
         application?: string;
+        walletFamily?: AomiAuthWalletFamily;
     }): Promise<AomiBeginAccountAuthResponse>;
     /**
      * Get available models.

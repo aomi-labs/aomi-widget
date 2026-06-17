@@ -2,9 +2,26 @@
 
 ## Last Updated
 
-2026-06-08 - Account token-exchange wiring review + e2e/test coverage
+2026-06-12 - Privy autonomous-signing e2e fixes (Solana slots + BE PEM normalization)
 
 ## Recent Changes
+
+### Privy autonomous signing: persist Solana wallet slots (2026-06-12)
+
+Root-caused two blockers for the byreal autonomous swap (`authorized_sign` via Privy delegated signing):
+
+1. **BE (product-mono, fixed there)**: `privy_rs::PrivateKey` only accepts SEC1 PEM, but `PRIVY_AUTHORIZATION_PRIVATE_KEY` in env was the dashboard `wallet-auth:<base64 PKCS#8>` format → "Invalid key format: provided PEM string is malformed", with no BE log. Added `normalize_authorization_key()` (accepts SEC1/PKCS#8 PEM, wallet-auth base64, `\n`-escaped) + info/error logs in `aomi/crates/tools/src/authorized_signer/privy.rs`. 13 tests pass.
+2. **FE (`packages/auth/src/providers/privy.ts`)**: the portal login page POSTs a `wallets[]` array (EVM + Solana), but the provider callback only persisted the 4 EVM slots. The BE `PrivySigner` SVM path hard-requires `PRIVY_SOLANA_WALLET_ID`/`PRIVY_SOLANA_WALLET_ADDRESS`. Callback now parses `wallets[]`, validates the base58 address, and persists the two Solana slots + identity metadata. 7 tests pass (`packages/auth/test/privy.test.ts`).
+
+To re-test e2e: restart portal, redo `aomi wallet login --solana` (vault must re-populate with the new slots), then chat swap should route through `authorized_sign` → BE-signed blob → byreal broadcast. Note `svm_sign_tx` is the *interactive* tool (FE/CLI signs); "pending wallet approval" in BE logs with no follow-up means the client never resolved the request — there is no timeout on either side.
+
+### CLI e2e smoke: Solana wallet connect + Byreal swap (2026-06-12)
+
+Manual test of local `packages/client` build (0.1.41) against backend :8080. All green:
+`aomi wallet set --solana` (base58 → derived address), `--app byreal` balances, swap quote (0.005 SOL→USDC), confirm → `tx-1` queued, `aomi tx sign tx-1` (solana_sign) → broadcast, signature finalized on mainnet, pools-by-TVL query.
+
+- **Known issue (backend agent, no code change)**: after queueing the wallet request, the agent's chat reply prematurely claimed "swap was successful" with placeholder signature `11111111...1111` before any signing happened. Misleading UX; likely the agent hallucinating around the queue-tx tool result.
+- Minor: local CLI banner/help still says `v0.1.40` though package.json is 0.1.41 (version string not bumped in dist or hardcoded).
 
 ### Account token-exchange runtime wiring + test coverage (2026-06-08)
 
