@@ -59,6 +59,16 @@ describe("account wallet row merging", () => {
     });
   });
 
+  it("keeps a disconnect action on inactive live wallet rows", () => {
+    const rows = mergeWalletRows({
+      accounts: [{ ...liveEvmAccount, active: false }],
+    });
+
+    expect(rows[0]?.actions).toEqual([
+      { kind: "disconnect", label: "Disconnect" },
+    ]);
+  });
+
   it("renders stored external wallets with connect action", () => {
     const storedWallet: AccountWallet = {
       id: "stored-external",

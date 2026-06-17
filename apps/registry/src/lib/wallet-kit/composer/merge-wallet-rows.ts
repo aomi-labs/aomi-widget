@@ -65,9 +65,7 @@ export function mergeWalletRows({
       : [
           account.manageable
             ? { kind: "manage", label: "Manage" }
-            : account.active
-              ? { kind: "disconnect", label: "Disconnect" }
-              : { kind: "select", label: "Select" },
+            : { kind: "disconnect", label: "Disconnect" },
         ];
     return {
       id: account.id,
