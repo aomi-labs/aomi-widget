@@ -99,13 +99,12 @@ builder.add_docs_tool(
 ).await?;
 ```
 
-#### `build(skip_mcp, system_events, sender_to_ui)`
+#### `build(system_events, sender_to_ui)`
 
 Finalize into a `ChatApp`:
 
 ```rust
 let app = builder.build(
-    false,                 // Connect to MCP server
     Some(&system_events), // Event queue
     Some(&sender_to_ui),  // UI channel
 ).await?;
@@ -122,7 +121,7 @@ classDiagram
         -document_store: Option~DocumentStore~
         +new() Result~ChatApp~
         +new_headless() Result~ChatApp~
-        +new_with_options(skip_docs, skip_mcp) Result~ChatApp~
+        +new_with_options(skip_docs) Result~ChatApp~
         +process_message(history, input, sender, events, interrupt)
         +agent() Arc~Agent~
         +document_store() Option~DocumentStore~
@@ -135,13 +134,12 @@ classDiagram
 // Full-featured app
 let app = ChatApp::new().await?;
 
-// For evaluation (no docs, no MCP, no tools)
+// For evaluation (no docs, no tools)
 let app = ChatApp::new_headless().await?;
 
 // Custom options
 let app = ChatApp::new_with_options(
     true,   // skip_docs
-    false,  // skip_mcp
 ).await?;
 
 // With UI integration

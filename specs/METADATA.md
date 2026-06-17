@@ -183,8 +183,8 @@ type ThreadControlState = {
 ```typescript
 type ControlState = {
   apiKey: string | null; // Persisted to localStorage
-  availableModels: string[]; // From GET /api/control/models
-  authorizedNamespaces: string[]; // From GET /api/control/apps
+  availableModels: string[]; // From GET /api/session/models
+  authorizedNamespaces: string[]; // From GET /api/session/apps
   defaultModel: string | null; // First available model
   defaultNamespace: string | null; // "default" or first namespace
 };
@@ -210,9 +210,9 @@ type ControlContextApi = {
 ## Backend API Endpoints
 
 ```
-GET  /api/control/models              # List available models
-GET  /api/control/apps          # List authorized namespaces
-POST /api/control/model?rig=X&namespace=Y  # Set model for session
+GET  /api/session/models              # List available models
+GET  /api/session/apps                # List authorized namespaces
+POST /api/session/model?rig=X&app=Y   # Set model for session
 GET  /api/state                       # Get thread state
 POST /api/chat?message=X&namespace=Y  # Send chat message
 ```

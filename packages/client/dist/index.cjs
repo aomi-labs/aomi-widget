@@ -801,7 +801,7 @@ function createSseSubscriber({
 
 // src/client.ts
 var SESSION_ID_HEADER = "X-Session-Id";
-var APP_KEY_HEADER = "AOMI-APP-KEY";
+var APP_KEY_HEADER = "Aomi-App-Key";
 function previewText(value, max = 80) {
   const singleLine = value.replace(/\s+/g, " ").trim();
   if (singleLine.length <= max) return singleLine;
@@ -915,10 +915,13 @@ function supportsTokenRefreshSubscription(provider) {
   return typeof (provider == null ? void 0 : provider.subscribe) === "function";
 }
 async function postState(baseUrl, path, payload, sessionId, fetchImpl, apiKey, logger) {
-  const url = `${baseUrl}${path}`;
-  const body = JSON.stringify(payload);
+  const query = {};
+  for (const [key, value] of Object.entries(payload)) {
+    if (value === void 0 || value === null) continue;
+    query[key] = typeof value === "string" ? value : String(value);
+  }
+  const url = buildApiUrl(baseUrl, path, query);
   const headers = new Headers(withSessionHeader(sessionId));
-  headers.set("Content-Type", "application/json");
   if (apiKey) {
     headers.set(APP_KEY_HEADER, apiKey);
   }
@@ -926,7 +929,7 @@ async function postState(baseUrl, path, payload, sessionId, fetchImpl, apiKey, l
     path,
     sessionId,
     hasApiKey: Boolean(apiKey),
-    bodyLength: body.length
+    queryKeys: Object.keys(query)
   });
   let pendingWarning;
   if (typeof setTimeout === "function") {
@@ -934,7 +937,7 @@ async function postState(baseUrl, path, payload, sessionId, fetchImpl, apiKey, l
       logger == null ? void 0 : logger.debug("[aomi][client] POST still pending", {
         path,
         sessionId,
-        bodyLength: body.length
+        queryKeys: Object.keys(query)
       });
     }, 5e3);
   }
@@ -942,8 +945,7 @@ async function postState(baseUrl, path, payload, sessionId, fetchImpl, apiKey, l
   try {
     response = await fetchImpl(url, {
       method: "POST",
-      headers,
-      body
+      headers
     });
   } finally {
     if (pendingWarning) {
@@ -1231,7 +1233,7 @@ var AomiClient = class {
   // ===========================================================================
   /**
    * @deprecated Account bootstrap is handled by session create/chat requests and
-   * the account-token exchange. `/api/settings/account` is now an authenticated
+   * the account-token exchange. `/api/account` is now an authenticated
    * profile endpoint, so this legacy helper intentionally does nothing.
    */
   async ensureAccount(_sessionId, _publicKey) {
@@ -1397,12 +1399,12 @@ var AomiClient = class {
   /**
    * Fetch the account bound to the authenticated request (resolved from the
    * account bearer). Returns `null` when the session is not bound to a real
-   * user — the backend answers `/api/settings/account` with HTTP 400 for
+   * user — the backend answers `/api/account` with HTTP 400 for
    * anonymous sessions, which is the normal "no bearer / not logged in" case
    * rather than an error.
    */
   async fetchAccountProfile(sessionId) {
-    const url = buildApiUrl(this.baseUrl, "/api/settings/account");
+    const url = buildApiUrl(this.baseUrl, "/api/account");
     const response = await this.rawFetchImpl(url, {
       headers: withSessionHeader(sessionId)
     });
@@ -1427,7 +1429,8 @@ var AomiClient = class {
         "Content-Type": "application/json"
       }),
       body: JSON.stringify({
-        application: options == null ? void 0 : options.application
+        application: options == null ? void 0 : options.application,
+        wallet_family: (options == null ? void 0 : options.walletFamily) === "evm" ? void 0 : options == null ? void 0 : options.walletFamily
       })
     });
     if (!response.ok) {
@@ -1477,11 +1480,11 @@ var AomiClient = class {
     );
   }
   /**
-   * List BYOK keys (one per LLM provider) bound to the current session's client.
+   * List BYOK keys (one per LLM provider) bound to the current account.
    */
   async listByokKeys(sessionId) {
     var _a;
-    const url = buildApiUrl(this.baseUrl, "/api/control/provider-keys");
+    const url = buildApiUrl(this.baseUrl, "/api/account/payment");
     const response = await this.fetchImpl(url, {
       headers: withSessionHeader(sessionId)
     });
@@ -1489,13 +1492,13 @@ var AomiClient = class {
       throw new Error(`Failed to get BYOK keys: HTTP ${response.status}`);
     }
     const data = await response.json();
-    return (_a = data.byok_keys) != null ? _a : [];
+    return (_a = data.byok) != null ? _a : [];
   }
   /**
-   * Save or replace a BYOK key for the client bound to this session.
+   * Save or replace a BYOK key for the current account.
    */
   async saveByokKey(sessionId, provider, byokKey, label) {
-    const url = joinApiPath(this.baseUrl, "/api/control/provider-keys");
+    const url = joinApiPath(this.baseUrl, "/api/account/payment/byok");
     const response = await this.fetchImpl(url, {
       method: "POST",
       headers: withSessionHeader(sessionId, {
@@ -1514,12 +1517,12 @@ var AomiClient = class {
     return data.key;
   }
   /**
-   * Delete a BYOK key for the client bound to this session.
+   * Delete a BYOK key for the current account.
    */
   async deleteByokKey(sessionId, provider) {
     const url = buildApiUrl(
       this.baseUrl,
-      `/api/control/provider-keys/${encodeURIComponent(provider)}`
+      `/api/account/payment/byok/${encodeURIComponent(provider)}`
     );
     const response = await this.fetchImpl(url, {
       method: "DELETE",
@@ -1608,7 +1611,7 @@ function createAccountAccessTokenProvider({
   const exchange = async () => {
     const credential = await getProviderCredential();
     const response = await fetchImpl(
-      `${baseUrl.replace(/\/+$/, "")}/api/account/sessions/exchange`,
+      `${baseUrl.replace(/\/+$/, "")}/api/account/exchange`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },

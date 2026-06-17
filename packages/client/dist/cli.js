@@ -1242,10 +1242,13 @@ function supportsTokenRefreshSubscription(provider) {
   return typeof (provider == null ? void 0 : provider.subscribe) === "function";
 }
 async function postState(baseUrl, path, payload, sessionId, fetchImpl, apiKey, logger) {
-  const url = `${baseUrl}${path}`;
-  const body = JSON.stringify(payload);
+  const query = {};
+  for (const [key, value] of Object.entries(payload)) {
+    if (value === void 0 || value === null) continue;
+    query[key] = typeof value === "string" ? value : String(value);
+  }
+  const url = buildApiUrl(baseUrl, path, query);
   const headers = new Headers(withSessionHeader(sessionId));
-  headers.set("Content-Type", "application/json");
   if (apiKey) {
     headers.set(APP_KEY_HEADER, apiKey);
   }
@@ -1253,7 +1256,7 @@ async function postState(baseUrl, path, payload, sessionId, fetchImpl, apiKey, l
     path,
     sessionId,
     hasApiKey: Boolean(apiKey),
-    bodyLength: body.length
+    queryKeys: Object.keys(query)
   });
   let pendingWarning;
   if (typeof setTimeout === "function") {
@@ -1261,7 +1264,7 @@ async function postState(baseUrl, path, payload, sessionId, fetchImpl, apiKey, l
       logger == null ? void 0 : logger.debug("[aomi][client] POST still pending", {
         path,
         sessionId,
-        bodyLength: body.length
+        queryKeys: Object.keys(query)
       });
     }, 5e3);
   }
@@ -1269,8 +1272,7 @@ async function postState(baseUrl, path, payload, sessionId, fetchImpl, apiKey, l
   try {
     response = await fetchImpl(url, {
       method: "POST",
-      headers,
-      body
+      headers
     });
   } finally {
     if (pendingWarning) {
@@ -1295,7 +1297,7 @@ var init_client = __esm({
     init_user_state2();
     init_sse();
     SESSION_ID_HEADER = "X-Session-Id";
-    APP_KEY_HEADER = "AOMI-APP-KEY";
+    APP_KEY_HEADER = "Aomi-App-Key";
     BULKY_PENDING_FIELDS = /* @__PURE__ */ new Set([
       "messageBase64",
       "message_base64",
@@ -1581,7 +1583,7 @@ var init_client = __esm({
       // ===========================================================================
       /**
        * @deprecated Account bootstrap is handled by session create/chat requests and
-       * the account-token exchange. `/api/settings/account` is now an authenticated
+       * the account-token exchange. `/api/account` is now an authenticated
        * profile endpoint, so this legacy helper intentionally does nothing.
        */
       async ensureAccount(_sessionId, _publicKey) {
@@ -1747,12 +1749,12 @@ var init_client = __esm({
       /**
        * Fetch the account bound to the authenticated request (resolved from the
        * account bearer). Returns `null` when the session is not bound to a real
-       * user — the backend answers `/api/settings/account` with HTTP 400 for
+       * user — the backend answers `/api/account` with HTTP 400 for
        * anonymous sessions, which is the normal "no bearer / not logged in" case
        * rather than an error.
        */
       async fetchAccountProfile(sessionId) {
-        const url = buildApiUrl(this.baseUrl, "/api/settings/account");
+        const url = buildApiUrl(this.baseUrl, "/api/account");
         const response = await this.rawFetchImpl(url, {
           headers: withSessionHeader(sessionId)
         });
@@ -1777,7 +1779,8 @@ var init_client = __esm({
             "Content-Type": "application/json"
           }),
           body: JSON.stringify({
-            application: options == null ? void 0 : options.application
+            application: options == null ? void 0 : options.application,
+            wallet_family: (options == null ? void 0 : options.walletFamily) === "evm" ? void 0 : options == null ? void 0 : options.walletFamily
           })
         });
         if (!response.ok) {
@@ -1827,11 +1830,11 @@ var init_client = __esm({
         );
       }
       /**
-       * List BYOK keys (one per LLM provider) bound to the current session's client.
+       * List BYOK keys (one per LLM provider) bound to the current account.
        */
       async listByokKeys(sessionId) {
         var _a3;
-        const url = buildApiUrl(this.baseUrl, "/api/control/provider-keys");
+        const url = buildApiUrl(this.baseUrl, "/api/account/payment");
         const response = await this.fetchImpl(url, {
           headers: withSessionHeader(sessionId)
         });
@@ -1839,13 +1842,13 @@ var init_client = __esm({
           throw new Error(`Failed to get BYOK keys: HTTP ${response.status}`);
         }
         const data = await response.json();
-        return (_a3 = data.byok_keys) != null ? _a3 : [];
+        return (_a3 = data.byok) != null ? _a3 : [];
       }
       /**
-       * Save or replace a BYOK key for the client bound to this session.
+       * Save or replace a BYOK key for the current account.
        */
       async saveByokKey(sessionId, provider, byokKey, label) {
-        const url = joinApiPath(this.baseUrl, "/api/control/provider-keys");
+        const url = joinApiPath(this.baseUrl, "/api/account/payment/byok");
         const response = await this.fetchImpl(url, {
           method: "POST",
           headers: withSessionHeader(sessionId, {
@@ -1864,12 +1867,12 @@ var init_client = __esm({
         return data.key;
       }
       /**
-       * Delete a BYOK key for the client bound to this session.
+       * Delete a BYOK key for the current account.
        */
       async deleteByokKey(sessionId, provider) {
         const url = buildApiUrl(
           this.baseUrl,
-          `/api/control/provider-keys/${encodeURIComponent(provider)}`
+          `/api/account/payment/byok/${encodeURIComponent(provider)}`
         );
         const response = await this.fetchImpl(url, {
           method: "DELETE",
@@ -3446,7 +3449,7 @@ function createAccountAccessTokenProvider({
   const exchange = async () => {
     const credential = await getProviderCredential();
     const response = await fetchImpl(
-      `${baseUrl.replace(/\/+$/, "")}/api/account/sessions/exchange`,
+      `${baseUrl.replace(/\/+$/, "")}/api/account/exchange`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -7782,8 +7785,8 @@ async function appsCommand(config) {
   for (const descriptor of apps) {
     const name = descriptor.name;
     const marker = currentApp === name ? "  (current)" : "";
-    const required = ((_e = descriptor.secrets) != null ? _e : []).filter((s) => s.required).map((s) => s.name);
-    const requiredSuffix = required.length > 0 ? `  [requires: ${required.join(", ")}]` : "";
+    const required2 = ((_e = descriptor.secrets) != null ? _e : []).filter((s) => s.required).map((s) => s.name);
+    const requiredSuffix = required2.length > 0 ? `  [requires: ${required2.join(", ")}]` : "";
     console.log(`${name}${marker}${requiredSuffix}`);
   }
 }
@@ -8112,6 +8115,116 @@ var init_preferences = __esm({
   }
 });
 
+// src/cli/commands/account.ts
+var account_exports = {};
+__export(account_exports, {
+  loginCommand: () => loginCommand,
+  whoamiCommand: () => whoamiCommand
+});
+async function loginCommand(config, options) {
+  const cli = CliSession.loadOrCreate(config);
+  cli.mergeConfig(config);
+  const session = cli.createClientSession(config);
+  try {
+    const begin = await session.client.beginPrivyAuth(cli.sessionId, {
+      application: cli.app,
+      walletFamily: options == null ? void 0 : options.walletFamily
+    });
+    console.log("Open this URL to authenticate with Privy:");
+    console.log(begin.auth_url);
+    console.log("After the browser flow completes, run `aomi wallet whoami`.");
+    printDataFileLocation();
+  } finally {
+    session.close();
+  }
+}
+async function whoamiCommand(config) {
+  var _a3, _b;
+  const cli = CliSession.load();
+  if (!cli) {
+    console.log("No active session");
+    printDataFileLocation();
+    return;
+  }
+  cli.mergeConfig(config);
+  const state = cli.toState();
+  const accountTokenProvider = createCliGetAccountAccessToken({
+    baseUrl: state.baseUrl,
+    apiKey: state.apiKey,
+    accountAccessToken: state.accountAccessToken,
+    accountProvider: state.accountProvider,
+    accountProviderToken: state.accountProviderToken,
+    app: state.app,
+    execution: config.execution,
+    secrets: {}
+  });
+  const hasCredential = Boolean(
+    (_a3 = state.accountAccessToken) != null ? _a3 : state.accountProvider && state.accountProviderToken
+  );
+  const session = cli.createClientSession(config);
+  try {
+    const profile = await session.client.fetchAccountProfile(cli.sessionId);
+    if (!profile) {
+      const resolvedAccessToken = await (accountTokenProvider == null ? void 0 : accountTokenProvider({
+        forceRefresh: true
+      }));
+      console.log("Not bound to an account (anonymous session).");
+      if (!hasCredential) {
+        console.log(
+          "No account credential configured. Pass --account-bearer, or --account-provider + --account-provider-token."
+        );
+      } else if (state.accountProvider && state.accountProviderToken && !resolvedAccessToken) {
+        console.log(
+          "Configured provider credential could not be exchanged for an Aomi account bearer."
+        );
+      } else {
+        console.log(
+          "An account credential was sent, but the backend did not bind or accept this session."
+        );
+      }
+      printDataFileLocation();
+      return;
+    }
+    const account = profile.account;
+    console.log(`Account:  ${account.user_id}`);
+    if (account.username) console.log(`Username: ${account.username}`);
+    if (account.verified_email) {
+      console.log(`Email:    ${account.verified_email}`);
+    }
+    if (account.tier) console.log(`Tier:     ${account.tier}`);
+    if (account.status) console.log(`Status:   ${account.status}`);
+    const wallets = (_b = profile.wallets) != null ? _b : [];
+    console.log(`Wallets:  ${wallets.length}`);
+    for (const wallet of wallets) {
+      const walletId = wallet.wallet_id ? ` (${wallet.wallet_id})` : "";
+      console.log(
+        `- ${formatWalletChainType(wallet.chain_type)} [${wallet.wallet_provider}]: ${wallet.address}${walletId}`
+      );
+    }
+    printDataFileLocation();
+  } finally {
+    session.close();
+  }
+}
+function formatWalletChainType(chainType) {
+  const normalized = chainType.trim().toLowerCase();
+  if (normalized === "ethereum" || normalized === "evm") {
+    return "Ethereum";
+  }
+  if (normalized === "solana" || normalized === "svm") {
+    return "Solana";
+  }
+  return chainType;
+}
+var init_account = __esm({
+  "src/cli/commands/account.ts"() {
+    "use strict";
+    init_cli_session();
+    init_client_factory();
+    init_output();
+  }
+});
+
 // src/cli/commands/secrets.ts
 var secrets_exports = {};
 __export(secrets_exports, {
@@ -8187,94 +8300,133 @@ var init_secrets = __esm({
   }
 });
 
-// src/cli/commands/account.ts
-var account_exports = {};
-__export(account_exports, {
-  loginCommand: () => loginCommand,
-  whoamiCommand: () => whoamiCommand
+// src/cli/commands/deploy.ts
+var deploy_exports = {};
+__export(deploy_exports, {
+  deployCommand: () => deployCommand
 });
-async function loginCommand(config) {
-  const cli = CliSession.loadOrCreate(config);
-  cli.mergeConfig(config);
-  const session = cli.createClientSession(config);
+import { execSync } from "child_process";
+function str2(value) {
+  return typeof value === "string" && value.trim() ? value.trim() : void 0;
+}
+function required(value, flag, env) {
+  if (value) return value;
+  fatal(`\`--${flag}\` is required. Pass it or set the ${env} env var.`);
+}
+function currentBranch() {
   try {
-    const begin = await session.client.beginPrivyAuth(cli.sessionId, {
-      application: cli.app
-    });
-    console.log("Open this URL to authenticate with Privy:");
-    console.log(begin.auth_url);
-    console.log("After the browser flow completes, run `aomi account whoami`.");
-    printDataFileLocation();
-  } finally {
-    session.close();
+    return execSync("git rev-parse --abbrev-ref HEAD", {
+      encoding: "utf-8"
+    }).trim();
+  } catch (e) {
+    fatal(
+      "Could not detect the current git branch. Pass `--branch` or run this command from a git repository."
+    );
   }
 }
-async function whoamiCommand(config) {
-  var _a3;
-  const cli = CliSession.load();
-  if (!cli) {
-    console.log("No active session");
-    printDataFileLocation();
+async function deployCommand(args) {
+  var _a3, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m;
+  const activationToken = required(
+    (_a3 = str2(args["activation-token"])) != null ? _a3 : process.env.AOMI_DEPLOY_TOKEN,
+    "activation-token",
+    "AOMI_DEPLOY_TOKEN"
+  );
+  const appSourceId = Number(
+    required(
+      (_b = str2(args["app-source-id"])) != null ? _b : process.env.AOMI_APP_SOURCE_ID,
+      "app-source-id",
+      "AOMI_APP_SOURCE_ID"
+    )
+  );
+  if (!Number.isSafeInteger(appSourceId) || appSourceId <= 0) {
+    fatal("`--app-source-id` must be a positive integer.");
+  }
+  const backendUrl = ((_d = (_c = str2(args["backend-url"])) != null ? _c : process.env.AOMI_BACKEND_URL) != null ? _d : "https://api.aomi.dev").replace(/\/+$/, "");
+  const platform = (_f = (_e = str2(args.platform)) != null ? _e : process.env.AOMI_DEPLOY_PLATFORM) != null ? _f : "community";
+  const branch = (_g = str2(args.branch)) != null ? _g : currentBranch();
+  const aomiTomlPaths = ((_h = str2(args["aomi-toml-paths"])) != null ? _h : "aomi.toml").split(",").map((p) => p.trim()).filter(Boolean);
+  const dryRun = args["dry-run"] === true;
+  console.log(` Deploying to ${backendUrl} (platform: ${platform})`);
+  console.log(`   app source id: ${appSourceId}`);
+  console.log(`   branch:        ${branch}`);
+  console.log(`   aomi.toml:     ${aomiTomlPaths.join(", ")}`);
+  if (dryRun) console.log("   dry run:      yes");
+  const url = `${backendUrl}/api/platforms/${encodeURIComponent(platform)}/deploy`;
+  const body = {
+    app_source_id: appSourceId,
+    source_ref: { kind: "branch", value: branch },
+    aomi_toml_paths: aomiTomlPaths,
+    dry_run: dryRun
+  };
+  let res;
+  try {
+    res = await fetch(url, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${activationToken}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(body)
+    });
+  } catch (err) {
+    fatal(
+      `Deploy request failed: ${err instanceof Error ? err.message : String(err)}`
+    );
+  }
+  const text = await res.text();
+  if (!res.ok) {
+    const message = (() => {
+      try {
+        const json = JSON.parse(text);
+        if (json && typeof json === "object" && json.error) return json.error;
+      } catch (e) {
+      }
+      return `${res.status} ${res.statusText}`;
+    })();
+    fatal(`Deploy failed (${res.status}): ${message}`);
+  }
+  let result;
+  try {
+    result = JSON.parse(text);
+  } catch (e) {
+    fatal("Backend returned invalid JSON.");
+  }
+  const deployment = result.deployment;
+  const platformInfo = deployment == null ? void 0 : deployment.platform;
+  const sourceInfo = deployment == null ? void 0 : deployment.source;
+  console.log();
+  if (dryRun) {
+    console.log(" Dry run complete. Review the manifest below:");
+    console.log(`   ${JSON.stringify(result, null, 2)}`);
     return;
   }
-  cli.mergeConfig(config);
-  const state = cli.toState();
-  const accountTokenProvider = createCliGetAccountAccessToken({
-    baseUrl: state.baseUrl,
-    apiKey: state.apiKey,
-    accountAccessToken: state.accountAccessToken,
-    accountProvider: state.accountProvider,
-    accountProviderToken: state.accountProviderToken,
-    app: state.app,
-    execution: config.execution,
-    secrets: {}
-  });
-  const hasCredential = Boolean(
-    (_a3 = state.accountAccessToken) != null ? _a3 : state.accountProvider && state.accountProviderToken
-  );
-  const session = cli.createClientSession(config);
-  try {
-    const profile = await session.client.fetchAccountProfile(cli.sessionId);
-    if (!profile) {
-      const resolvedAccessToken = await (accountTokenProvider == null ? void 0 : accountTokenProvider({
-        forceRefresh: true
-      }));
-      console.log("Not bound to an account (anonymous session).");
-      if (!hasCredential) {
-        console.log(
-          "No account credential configured. Pass --account-bearer, or --account-provider + --account-provider-token."
-        );
-      } else if (state.accountProvider && state.accountProviderToken && !resolvedAccessToken) {
-        console.log(
-          "Configured provider credential could not be exchanged for an Aomi account bearer."
-        );
-      } else {
-        console.log(
-          "An account credential was sent, but the backend did not bind or accept this session."
-        );
-      }
-      printDataFileLocation();
-      return;
+  console.log(` Deployment created: ${(_i = deployment == null ? void 0 : deployment.id) != null ? _i : "unknown"}`);
+  console.log(`   status:  ${(_j = deployment == null ? void 0 : deployment.status) != null ? _j : "unknown"}`);
+  if (sourceInfo == null ? void 0 : sourceInfo.repository_link) {
+    console.log(`   source:  ${sourceInfo.repository_link}`);
+  }
+  if (platformInfo == null ? void 0 : platformInfo.pr_url) {
+    console.log(`   PR:      ${platformInfo.pr_url}`);
+  }
+  if (platformInfo == null ? void 0 : platformInfo.ci_url) {
+    console.log(`   CI:      ${platformInfo.ci_url}`);
+  }
+  if (platformInfo == null ? void 0 : platformInfo.apps) {
+    const apps = platformInfo.apps;
+    for (const app of apps) {
+      const name = (_k = app.name) != null ? _k : "?";
+      const tag = (_m = (_l = app.release_tag) != null ? _l : app.releaseTag) != null ? _m : "";
+      console.log(`   app:     ${name}${tag ? ` (${tag})` : ""}`);
     }
-    const account = profile.account;
-    console.log(`Account:  ${account.user_id}`);
-    if (account.username) console.log(`Username: ${account.username}`);
-    if (account.verified_email) {
-      console.log(`Email:    ${account.verified_email}`);
-    }
-    if (account.tier) console.log(`Tier:     ${account.tier}`);
-    if (account.status) console.log(`Status:   ${account.status}`);
-    printDataFileLocation();
-  } finally {
-    session.close();
+  }
+  if (platformInfo == null ? void 0 : platformInfo.commit_hash) {
+    console.log(`   commit:  ${platformInfo.commit_hash}`);
   }
 }
-var init_account = __esm({
-  "src/cli/commands/account.ts"() {
+var init_deploy = __esm({
+  "src/cli/commands/deploy.ts"() {
     "use strict";
-    init_cli_session();
-    init_client_factory();
-    init_output();
+    init_errors();
   }
 });
 
@@ -8366,7 +8518,7 @@ __export(repl_exports, {
 });
 import { createInterface } from "readline/promises";
 import { stdin as input, stdout as output } from "process";
-function str2(value) {
+function str3(value) {
   return typeof value === "string" && value.trim() ? value : void 0;
 }
 function printReplHelp() {
@@ -8486,9 +8638,9 @@ async function runInteractiveCli(config, options) {
 }
 async function runRootCli(args) {
   let config = buildCliConfig(args);
-  const prompt = str2(args.prompt);
+  const prompt = str3(args.prompt);
   const showTool = args["show-tool"] === true;
-  const byokKey = str2(args["provider-key"]);
+  const byokKey = str3(args["provider-key"]);
   if (byokKey) {
     await saveByokKeyCommand(config, byokKey, { printLocation: false });
     config = __spreadProps(__spreadValues({}, config), { freshSession: false });
@@ -8515,7 +8667,7 @@ var init_repl = __esm({
 import { runMain } from "citty";
 
 // src/cli/root.ts
-import { defineCommand as defineCommand11 } from "citty";
+import { defineCommand as defineCommand12 } from "citty";
 
 // src/cli/commands/defs/chat.ts
 init_shared();
@@ -8811,6 +8963,7 @@ var chainDef = defineCommand6({
 });
 
 // src/cli/commands/defs/wallet.ts
+init_shared();
 import { defineCommand as defineCommand7 } from "citty";
 var walletSetDef = defineCommand7({
   meta: {
@@ -8861,11 +9014,50 @@ var walletCurrentDef = defineCommand7({
     currentWalletCommand2();
   }
 });
+var walletLoginDef = defineCommand7({
+  meta: {
+    name: "login",
+    description: "Mint a Privy browser auth URL for the active session. Defaults to EVM; pass --solana to require a Solana wallet."
+  },
+  args: __spreadProps(__spreadValues({}, globalArgs), {
+    evm: {
+      type: "boolean",
+      description: "Request the default EVM embedded-wallet flow explicitly"
+    },
+    solana: {
+      type: "boolean",
+      description: "Request a Solana embedded-wallet login flow"
+    }
+  }),
+  async run({ args }) {
+    if (args.evm === true && args.solana === true) {
+      const { fatal: fatal2 } = await Promise.resolve().then(() => (init_errors(), errors_exports));
+      fatal2("Choose only one of `--evm` or `--solana`.");
+    }
+    const { loginCommand: loginCommand2 } = await Promise.resolve().then(() => (init_account(), account_exports));
+    await loginCommand2(buildCliConfig(args), {
+      walletFamily: args.solana === true ? "solana" : "evm"
+    });
+  }
+});
+var walletWhoamiDef = defineCommand7({
+  meta: {
+    name: "whoami",
+    description: "Show the bound account and every linked wallet on the backend"
+  },
+  args: __spreadValues({}, globalArgs),
+  async run({ args }) {
+    const { whoamiCommand: whoamiCommand2 } = await Promise.resolve().then(() => (init_account(), account_exports));
+    await whoamiCommand2(buildCliConfig(args));
+  }
+});
 var walletDef = defineCommand7({
   meta: { name: "wallet", description: "Wallet configuration" },
   subCommands: {
     set: walletSetDef,
-    current: walletCurrentDef
+    current: walletCurrentDef,
+    login: walletLoginDef,
+    whoami: walletWhoamiDef
   }
 });
 
@@ -8965,18 +9157,33 @@ import { defineCommand as defineCommand10 } from "citty";
 var accountLoginDef = defineCommand10({
   meta: {
     name: "login",
-    description: "Mint a Privy browser auth URL for the active session"
+    description: "Alias for `aomi wallet login`. Defaults to EVM; pass --solana to require a Solana wallet."
   },
-  args: __spreadValues({}, globalArgs),
+  args: __spreadProps(__spreadValues({}, globalArgs), {
+    evm: {
+      type: "boolean",
+      description: "Request the default EVM embedded-wallet flow explicitly"
+    },
+    solana: {
+      type: "boolean",
+      description: "Request a Solana embedded-wallet login flow"
+    }
+  }),
   async run({ args }) {
+    if (args.evm === true && args.solana === true) {
+      const { fatal: fatal2 } = await Promise.resolve().then(() => (init_errors(), errors_exports));
+      fatal2("Choose only one of `--evm` or `--solana`.");
+    }
     const { loginCommand: loginCommand2 } = await Promise.resolve().then(() => (init_account(), account_exports));
-    await loginCommand2(buildCliConfig(args));
+    await loginCommand2(buildCliConfig(args), {
+      walletFamily: args.solana === true ? "solana" : "evm"
+    });
   }
 });
 var accountWhoamiDef = defineCommand10({
   meta: {
     name: "whoami",
-    description: "Show the account this session is bound to on the backend"
+    description: "Alias for `aomi wallet whoami`"
   },
   args: __spreadValues({}, globalArgs),
   async run({ args }) {
@@ -8992,13 +9199,53 @@ var accountDef = defineCommand10({
   }
 });
 
+// src/cli/commands/defs/deploy.ts
+init_shared();
+import { defineCommand as defineCommand11 } from "citty";
+var deployDef = defineCommand11({
+  meta: {
+    name: "deploy",
+    description: "Deploy your app to the Aomi platform via aomi-build"
+  },
+  args: __spreadProps(__spreadValues({}, globalArgs), {
+    "activation-token": {
+      type: "string",
+      description: "Platform activation token (required; or set AOMI_DEPLOY_TOKEN env)"
+    },
+    "app-source-id": {
+      type: "string",
+      description: "Backend app source ID (required; or set AOMI_APP_SOURCE_ID env)"
+    },
+    "dry-run": {
+      type: "boolean",
+      description: "Preview the deployment manifest without applying it"
+    },
+    branch: {
+      type: "string",
+      description: "Git branch to deploy (default: current branch via git rev-parse)"
+    },
+    "aomi-toml-paths": {
+      type: "string",
+      description: "Comma-separated paths to aomi.toml files (default: aomi.toml)"
+    },
+    platform: {
+      type: "string",
+      description: "Deploy platform (default: community; or set AOMI_DEPLOY_PLATFORM env)"
+    }
+  }),
+  async run({ args }) {
+    const { deployCommand: deployCommand2 } = await Promise.resolve().then(() => (init_deploy(), deploy_exports));
+    await deployCommand2(args);
+  }
+});
+
 // src/cli/root.ts
 init_shared();
 
 // package.json
 var package_default = {
   name: "@aomi-labs/client",
-  version: "0.1.40",
+  version: "0.1.41",
   description: "Platform-agnostic TypeScript client for the Aomi backend API",
   type: "module",
   main: "./dist/index.cjs",
@@ -9051,9 +9298,10 @@ var SUBCOMMAND_NAMES = /* @__PURE__ */ new Set([
   "wallet",
   "config",
   "secret",
-  "account"
+  "account",
+  "deploy"
 ]);
-var root = defineCommand11({
+var root = defineCommand12({
   meta: {
     name: "aomi",
     version: package_default.version,
@@ -9092,7 +9340,8 @@ var root = defineCommand11({
     wallet: walletDef,
     config: configDef,
     secret: secretDef,
-    account: accountDef
+    account: accountDef,
+    deploy: deployDef
   }
 });
 
@@ -9108,7 +9357,8 @@ var ROOT_SUBCOMMANDS = /* @__PURE__ */ new Set([
   "wallet",
   "config",
   "secret",
-  "account"
+  "account",
+  "deploy"
 ]);
 function isPnpmExecWrapper() {
   var _a3, _b;
@@ -9196,6 +9446,9 @@ function printRootHelp() {
   console.log("  secret                       Secret management");
   console.log(
     "  account                      Account identity (login, whoami)"
+  );
+  console.log(
+    "  deploy                       Deploy your app (requires --activation-token)"
   );
   console.log("");
   console.log("Use aomi <command> --help for command-specific details.");

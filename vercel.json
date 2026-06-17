@@ -29,10 +29,6 @@
       "destination": "https://aomilabs.mintlify.dev/robots.txt"
     },
     {
-      "source": "/docs/mcp",
-      "destination": "https://aomilabs.mintlify.dev/mcp"
-    },
-    {
       "source": "/docs/:path*",
       "destination": "https://aomilabs.mintlify.dev/docs/:path*"
     },
