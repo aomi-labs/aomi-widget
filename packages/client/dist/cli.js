@@ -1203,6 +1203,17 @@ function buildApiUrl(baseUrl, path, query) {
   const queryString = params.toString();
   return queryString ? `${url}?${queryString}` : url;
 }
+function normalizeQuery(query) {
+  if (!query) return void 0;
+  const normalized = {};
+  for (const [key, value] of Object.entries(query)) {
+    normalized[key] = value === null || value === void 0 ? void 0 : String(value);
+  }
+  return normalized;
+}
+function encodeJsonBody(body) {
+  return body === void 0 ? void 0 : JSON.stringify(body);
+}
 function withSessionHeader(sessionId, init) {
   const headers = new Headers(init);
   headers.set(SESSION_ID_HEADER, sessionId);
@@ -1346,6 +1357,48 @@ var init_client = __esm({
       // ===========================================================================
       // Chat & State
       // ===========================================================================
+      /**
+       * Low-level request escape hatch for the full backend route manifest.
+       * Prefer the typed helpers below for common chat/session/account flows.
+       */
+      async request(method, path, options) {
+        var _a3, _b;
+        const url = buildApiUrl(this.baseUrl, path, normalizeQuery(options == null ? void 0 : options.query));
+        const headers = new Headers(options == null ? void 0 : options.headers);
+        if (options == null ? void 0 : options.sessionId) {
+          headers.set(SESSION_ID_HEADER, options.sessionId);
+        }
+        const apiKey = (_a3 = options == null ? void 0 : options.apiKey) != null ? _a3 : this.apiKey;
+        if (apiKey) {
+          headers.set(APP_KEY_HEADER, apiKey);
+        }
+        if ((options == null ? void 0 : options.body) !== void 0 && !headers.has("Content-Type")) {
+          headers.set("Content-Type", "application/json");
+        }
+        const response = await ((options == null ? void 0 : options.raw) ? this.rawFetchImpl : this.fetchImpl)(
+          url,
+          {
+            method,
+            headers,
+            body: encodeJsonBody(options == null ? void 0 : options.body)
+          }
+        );
+        if (!response.ok) {
+          const body = await response.text().catch(() => "");
+          throw new Error(
+            `HTTP ${response.status}: ${response.statusText}${body ? `
+${body}` : ""}`
+          );
+        }
+        if (response.status === 204) {
+          return void 0;
+        }
+        const contentType = (_b = response.headers.get("content-type")) != null ? _b : "";
+        if (contentType.includes("application/json")) {
+          return await response.json();
+        }
+        return await response.text();
+      }
       /**
        * Fetch current session state (messages, processing status, title).
        */

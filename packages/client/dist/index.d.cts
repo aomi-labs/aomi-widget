@@ -161,6 +161,21 @@ type GetAccountAccessToken = (options?: {
     /** Re-exchange the upstream Para/Privy credential after an API 401. */
     forceRefresh?: boolean;
 }) => Promise<string | null | undefined>;
+type AomiRequestQueryValue = string | number | boolean | null | undefined;
+interface AomiRequestOptions {
+    /** Session id for session-scoped routes. */
+    sessionId?: string;
+    /** App key for app-key checked routes; defaults to the client's apiKey. */
+    apiKey?: string;
+    /** Query params appended to the request URL. */
+    query?: Record<string, AomiRequestQueryValue>;
+    /** JSON request payload. */
+    body?: unknown;
+    /** Extra request headers. */
+    headers?: HeadersInit;
+    /** Use the native fetch path instead of a custom payment-aware fetch wrapper. */
+    raw?: boolean;
+}
 interface AomiMessage {
     sender?: "user" | "agent" | "system" | string;
     content?: string;
@@ -394,6 +409,311 @@ declare function isAsyncCallback(event: AomiSystemEvent): event is {
     AsyncCallback: Record<string, unknown>;
 };
 
+type AomiHttpMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
+type AomiAuthClass = "public" | "session" | "account_token" | "self_guarded" | "app_key_checked";
+interface AomiEndpointSpec {
+    method: AomiHttpMethod;
+    path: string;
+    auth: AomiAuthClass;
+}
+declare const AOMI_BACKEND_ENDPOINTS: readonly [{
+    readonly method: "DELETE";
+    readonly path: "/api/account/app-keys/:key_hash";
+    readonly auth: "account_token";
+}, {
+    readonly method: "DELETE";
+    readonly path: "/api/account/approvals/:id";
+    readonly auth: "account_token";
+}, {
+    readonly method: "DELETE";
+    readonly path: "/api/account/bots/:id";
+    readonly auth: "account_token";
+}, {
+    readonly method: "DELETE";
+    readonly path: "/api/account/payment/byok/:provider";
+    readonly auth: "account_token";
+}, {
+    readonly method: "DELETE";
+    readonly path: "/api/account/payment/tempo";
+    readonly auth: "account_token";
+}, {
+    readonly method: "DELETE";
+    readonly path: "/api/platforms/:name/tokens/:id";
+    readonly auth: "self_guarded";
+}, {
+    readonly method: "DELETE";
+    readonly path: "/api/secrets";
+    readonly auth: "session";
+}, {
+    readonly method: "DELETE";
+    readonly path: "/api/secrets/:name";
+    readonly auth: "session";
+}, {
+    readonly method: "DELETE";
+    readonly path: "/api/sessions/:session_id";
+    readonly auth: "session";
+}, {
+    readonly method: "GET";
+    readonly path: "/api/account";
+    readonly auth: "account_token";
+}, {
+    readonly method: "GET";
+    readonly path: "/api/account/app-keys";
+    readonly auth: "account_token";
+}, {
+    readonly method: "GET";
+    readonly path: "/api/account/approvals";
+    readonly auth: "account_token";
+}, {
+    readonly method: "GET";
+    readonly path: "/api/account/bots";
+    readonly auth: "account_token";
+}, {
+    readonly method: "GET";
+    readonly path: "/api/account/payment";
+    readonly auth: "account_token";
+}, {
+    readonly method: "GET";
+    readonly path: "/api/account/usage";
+    readonly auth: "account_token";
+}, {
+    readonly method: "GET";
+    readonly path: "/api/admin/app-store";
+    readonly auth: "self_guarded";
+}, {
+    readonly method: "GET";
+    readonly path: "/api/admin/apps/public";
+    readonly auth: "self_guarded";
+}, {
+    readonly method: "GET";
+    readonly path: "/api/admin/skills";
+    readonly auth: "self_guarded";
+}, {
+    readonly method: "GET";
+    readonly path: "/api/admin/skills/:id";
+    readonly auth: "self_guarded";
+}, {
+    readonly method: "GET";
+    readonly path: "/api/events";
+    readonly auth: "session";
+}, {
+    readonly method: "GET";
+    readonly path: "/api/integrations/github-app/oauth/callback";
+    readonly auth: "public";
+}, {
+    readonly method: "GET";
+    readonly path: "/api/integrations/github-app/oauth/start";
+    readonly auth: "public";
+}, {
+    readonly method: "GET";
+    readonly path: "/api/openapi.json";
+    readonly auth: "public";
+}, {
+    readonly method: "GET";
+    readonly path: "/api/platforms";
+    readonly auth: "public";
+}, {
+    readonly method: "GET";
+    readonly path: "/api/platforms/:name/apps";
+    readonly auth: "self_guarded";
+}, {
+    readonly method: "GET";
+    readonly path: "/api/platforms/:name/apps/:app";
+    readonly auth: "self_guarded";
+}, {
+    readonly method: "GET";
+    readonly path: "/api/platforms/:name/deployments/:deployment/status";
+    readonly auth: "self_guarded";
+}, {
+    readonly method: "GET";
+    readonly path: "/api/platforms/:name/sources/resolve";
+    readonly auth: "self_guarded";
+}, {
+    readonly method: "GET";
+    readonly path: "/api/platforms/:name/tokens";
+    readonly auth: "self_guarded";
+}, {
+    readonly method: "GET";
+    readonly path: "/api/platforms/server-tags";
+    readonly auth: "public";
+}, {
+    readonly method: "GET";
+    readonly path: "/api/secrets";
+    readonly auth: "session";
+}, {
+    readonly method: "GET";
+    readonly path: "/api/session/apps";
+    readonly auth: "session";
+}, {
+    readonly method: "GET";
+    readonly path: "/api/session/models";
+    readonly auth: "session";
+}, {
+    readonly method: "GET";
+    readonly path: "/api/session/runtime/models";
+    readonly auth: "session";
+}, {
+    readonly method: "GET";
+    readonly path: "/api/skills";
+    readonly auth: "public";
+}, {
+    readonly method: "GET";
+    readonly path: "/api/sessions";
+    readonly auth: "session";
+}, {
+    readonly method: "GET";
+    readonly path: "/api/sessions/:session_id";
+    readonly auth: "session";
+}, {
+    readonly method: "GET";
+    readonly path: "/api/state";
+    readonly auth: "session";
+}, {
+    readonly method: "GET";
+    readonly path: "/api/updates";
+    readonly auth: "session";
+}, {
+    readonly method: "GET";
+    readonly path: "/health";
+    readonly auth: "public";
+}, {
+    readonly method: "PATCH";
+    readonly path: "/api/sessions/:session_id";
+    readonly auth: "session";
+}, {
+    readonly method: "POST";
+    readonly path: "/api/_internal/secrets";
+    readonly auth: "self_guarded";
+}, {
+    readonly method: "POST";
+    readonly path: "/api/account/app-keys";
+    readonly auth: "account_token";
+}, {
+    readonly method: "POST";
+    readonly path: "/api/account/approvals";
+    readonly auth: "account_token";
+}, {
+    readonly method: "POST";
+    readonly path: "/api/account/bots";
+    readonly auth: "account_token";
+}, {
+    readonly method: "POST";
+    readonly path: "/api/account/exchange";
+    readonly auth: "public";
+}, {
+    readonly method: "POST";
+    readonly path: "/api/account/payment/byok";
+    readonly auth: "account_token";
+}, {
+    readonly method: "POST";
+    readonly path: "/api/account/payment/tempo";
+    readonly auth: "account_token";
+}, {
+    readonly method: "POST";
+    readonly path: "/api/admin/apps/:app/reload";
+    readonly auth: "self_guarded";
+}, {
+    readonly method: "POST";
+    readonly path: "/api/admin/skills/batch";
+    readonly auth: "self_guarded";
+}, {
+    readonly method: "POST";
+    readonly path: "/api/admin/skills/rollback";
+    readonly auth: "self_guarded";
+}, {
+    readonly method: "POST";
+    readonly path: "/api/auth/privy/begin";
+    readonly auth: "session";
+}, {
+    readonly method: "POST";
+    readonly path: "/api/auth/privy/callback";
+    readonly auth: "public";
+}, {
+    readonly method: "POST";
+    readonly path: "/api/bots/telegram/:webhook_secret";
+    readonly auth: "public";
+}, {
+    readonly method: "POST";
+    readonly path: "/api/chat";
+    readonly auth: "app_key_checked";
+}, {
+    readonly method: "POST";
+    readonly path: "/api/integrations/github-app/platforms/:name/sources/create-from-template";
+    readonly auth: "public";
+}, {
+    readonly method: "POST";
+    readonly path: "/api/integrations/github-app/webhook";
+    readonly auth: "public";
+}, {
+    readonly method: "POST";
+    readonly path: "/api/interrupt";
+    readonly auth: "session";
+}, {
+    readonly method: "POST";
+    readonly path: "/api/platforms/:name/activate";
+    readonly auth: "self_guarded";
+}, {
+    readonly method: "POST";
+    readonly path: "/api/platforms/:name/apps/:app/deactivate";
+    readonly auth: "self_guarded";
+}, {
+    readonly method: "POST";
+    readonly path: "/api/platforms/:name/deactivate";
+    readonly auth: "self_guarded";
+}, {
+    readonly method: "POST";
+    readonly path: "/api/platforms/:name/deploy";
+    readonly auth: "self_guarded";
+}, {
+    readonly method: "POST";
+    readonly path: "/api/platforms/:name/sources/sync-installed";
+    readonly auth: "self_guarded";
+}, {
+    readonly method: "POST";
+    readonly path: "/api/platforms/:name/tokens";
+    readonly auth: "self_guarded";
+}, {
+    readonly method: "POST";
+    readonly path: "/api/platforms/:platform/apps/:app/activate";
+    readonly auth: "self_guarded";
+}, {
+    readonly method: "POST";
+    readonly path: "/api/platforms/:platform/apps/activate";
+    readonly auth: "self_guarded";
+}, {
+    readonly method: "POST";
+    readonly path: "/api/secrets";
+    readonly auth: "session";
+}, {
+    readonly method: "POST";
+    readonly path: "/api/session/model";
+    readonly auth: "session";
+}, {
+    readonly method: "POST";
+    readonly path: "/api/session/runtime/model";
+    readonly auth: "session";
+}, {
+    readonly method: "POST";
+    readonly path: "/api/sessions";
+    readonly auth: "session";
+}, {
+    readonly method: "POST";
+    readonly path: "/api/simulate";
+    readonly auth: "session";
+}, {
+    readonly method: "POST";
+    readonly path: "/api/system";
+    readonly auth: "session";
+}, {
+    readonly method: "PUT";
+    readonly path: "/api/admin/apps/public";
+    readonly auth: "self_guarded";
+}, {
+    readonly method: "PUT";
+    readonly path: "/api/admin/skills/:id";
+    readonly auth: "self_guarded";
+}];
+
 declare class AomiClient {
     private readonly baseUrl;
     private readonly apiKey?;
@@ -402,6 +722,11 @@ declare class AomiClient {
     private readonly logger?;
     private readonly sseSubscriber;
     constructor(options: AomiClientOptions);
+    /**
+     * Low-level request escape hatch for the full backend route manifest.
+     * Prefer the typed helpers below for common chat/session/account flows.
+     */
+    request<T = unknown>(method: AomiHttpMethod, path: string, options?: AomiRequestOptions): Promise<T>;
     /**
      * Fetch current session state (messages, processing status, title).
      */
@@ -1443,4 +1768,4 @@ interface CreateAAStateOptions {
  */
 declare function createAAProviderState(options: CreateAAStateOptions): Promise<AAState>;
 
-export { type AACallPayload, type AAChainConfig, type AAConfig, type AAMode, type AAOwner, type AAProvider, type AAResolvedConfig, type AASponsorship, type AAState, type AAWalletCall, ALCHEMY_CHAIN_SLUGS, type AccountAccessTokenProvider, type AccountAccessTokenProviderOptions, type AccountCredentialProvider, type AccountSessionExchangeResponse, type AlchemyHookParams, type AomiAppDescriptor, type AomiChatResponse, type AomiClearSecretsResponse, AomiClient, type AomiClientOptions, type AomiClientType, type AomiCreateThreadResponse, type AomiDeleteSecretResponse, type AomiIngestSecretsResponse, type AomiInterruptResponse, type AomiListSecretsResponse, type AomiMessage, type AomiSSEEvent, type AomiSSEEventType, type AomiSecretSlot, type AomiSimulateFee, type AomiSimulateResponse, type AomiStateResponse, type AomiSystemEvent, type AomiSystemResponse, type AomiThread, type AomiWalletFamily, type AtomicBatchArgs, CHAINS_BY_ID, CHAIN_NAMES, CLIENT_TYPE_TS_CLI, CLIENT_TYPE_WEB_UI, type ChainInfo, type CreateAAStateOptions, type CreateAlchemyAAProviderOptions, type CreatePimlicoAAProviderOptions, DEFAULT_AA_CONFIG, DISABLED_PROVIDER_STATE, type ExecuteWalletCallsParams, type ExecutionResult, type GetAccountAccessToken, type Logger, MAX_AUTO_FEE_WEI, type NativeWalletExecutionPolicy, type NativeWalletSponsorship, type NormalizedSimulatedFee, type NormalizedSolanaWalletRequest, type PimlicoHookParams, type PimlicoResolveOptions, type PimlicoResolvedConfig, SUPPORTED_CHAINS, SUPPORTED_CHAIN_IDS, type SendResult, ClientSession as Session, type SessionEventMap, type SessionOptions, type SmartAccount, type SponsorshipPaymasterServiceContext, TypedEventEmitter, type UnwrappedEvent, type UseAlchemyAAHook, type UsePimlicoAAHook, UserState, type UserStateAAMode, type UserStateAuthMethod, type UserStateSponsorProvider, type UserStateWalletKind, type UserStateWalletProvider, type ViemSignMessageArgs, type ViemSignTypedDataArgs, type WalletAtomicCapability, type WalletCapabilities, type WalletEip712Payload, type WalletRequest, type WalletRequestKind, type WalletRequestResult, type WalletSolanaSignMessagePayload, type WalletSolanaSignPayload, type WalletTxAaPreference, type WalletTxCallPayload, type WalletTxPayload, aaModeFromExecutionKind, adaptSmartAccount, appendFeeCallToPayload, buildAAExecutionPlan, buildFeeAAWalletCall, createAAProviderState, createAccountAccessTokenProvider, createAlchemyAAProvider, createPimlicoAAProvider, executeWalletCalls, getAAChainConfig, getWalletExecutorReady, hydrateTxPayloadFromUserState, isAlchemySponsorshipLimitError, isAsyncCallback, isInlineCall, isSystemError, isSystemNotice, monad, monadTestnet, normalizeEip712Payload, normalizeSimulatedFee, normalizeSolanaSignMessagePayload, normalizeSolanaSignPayload, normalizeSolanaWalletRequest, normalizeTxPayload, parseChainId, resolvePimlicoConfig, toAAWalletCall, toAAWalletCalls, toViemSignMessageArgs, toViemSignTypedDataArgs, unwrapSystemEvent };
+export { type AACallPayload, type AAChainConfig, type AAConfig, type AAMode, type AAOwner, type AAProvider, type AAResolvedConfig, type AASponsorship, type AAState, type AAWalletCall, ALCHEMY_CHAIN_SLUGS, AOMI_BACKEND_ENDPOINTS, type AccountAccessTokenProvider, type AccountAccessTokenProviderOptions, type AccountCredentialProvider, type AccountSessionExchangeResponse, type AlchemyHookParams, type AomiAppDescriptor, type AomiAuthClass, type AomiChatResponse, type AomiClearSecretsResponse, AomiClient, type AomiClientOptions, type AomiClientType, type AomiCreateThreadResponse, type AomiDeleteSecretResponse, type AomiEndpointSpec, type AomiHttpMethod, type AomiIngestSecretsResponse, type AomiInterruptResponse, type AomiListSecretsResponse, type AomiMessage, type AomiRequestOptions, type AomiRequestQueryValue, type AomiSSEEvent, type AomiSSEEventType, type AomiSecretSlot, type AomiSimulateFee, type AomiSimulateResponse, type AomiStateResponse, type AomiSystemEvent, type AomiSystemResponse, type AomiThread, type AomiWalletFamily, type AtomicBatchArgs, CHAINS_BY_ID, CHAIN_NAMES, CLIENT_TYPE_TS_CLI, CLIENT_TYPE_WEB_UI, type ChainInfo, type CreateAAStateOptions, type CreateAlchemyAAProviderOptions, type CreatePimlicoAAProviderOptions, DEFAULT_AA_CONFIG, DISABLED_PROVIDER_STATE, type ExecuteWalletCallsParams, type ExecutionResult, type GetAccountAccessToken, type Logger, MAX_AUTO_FEE_WEI, type NativeWalletExecutionPolicy, type NativeWalletSponsorship, type NormalizedSimulatedFee, type NormalizedSolanaWalletRequest, type PimlicoHookParams, type PimlicoResolveOptions, type PimlicoResolvedConfig, SUPPORTED_CHAINS, SUPPORTED_CHAIN_IDS, type SendResult, ClientSession as Session, type SessionEventMap, type SessionOptions, type SmartAccount, type SponsorshipPaymasterServiceContext, TypedEventEmitter, type UnwrappedEvent, type UseAlchemyAAHook, type UsePimlicoAAHook, UserState, type UserStateAAMode, type UserStateAuthMethod, type UserStateSponsorProvider, type UserStateWalletKind, type UserStateWalletProvider, type ViemSignMessageArgs, type ViemSignTypedDataArgs, type WalletAtomicCapability, type WalletCapabilities, type WalletEip712Payload, type WalletRequest, type WalletRequestKind, type WalletRequestResult, type WalletSolanaSignMessagePayload, type WalletSolanaSignPayload, type WalletTxAaPreference, type WalletTxCallPayload, type WalletTxPayload, aaModeFromExecutionKind, adaptSmartAccount, appendFeeCallToPayload, buildAAExecutionPlan, buildFeeAAWalletCall, createAAProviderState, createAccountAccessTokenProvider, createAlchemyAAProvider, createPimlicoAAProvider, executeWalletCalls, getAAChainConfig, getWalletExecutorReady, hydrateTxPayloadFromUserState, isAlchemySponsorshipLimitError, isAsyncCallback, isInlineCall, isSystemError, isSystemNotice, monad, monadTestnet, normalizeEip712Payload, normalizeSimulatedFee, normalizeSolanaSignMessagePayload, normalizeSolanaSignPayload, normalizeSolanaWalletRequest, normalizeTxPayload, parseChainId, resolvePimlicoConfig, toAAWalletCall, toAAWalletCalls, toViemSignMessageArgs, toViemSignTypedDataArgs, unwrapSystemEvent };
