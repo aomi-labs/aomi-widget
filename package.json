@@ -54,7 +54,7 @@
     "clean:next": "rm -rf .next apps/landing/.next apps/base/.next",
     "clean:all": "rm -rf .next apps/landing/.next apps/base/.next dist .turbo node_modules/.cache .eslintcache",
     "clean": "rm -rf .next apps/landing/.next apps/base/.next dist .turbo node_modules/.cache .eslintcache",
-    "vercel-build": "pnpm run build:lib && pnpm run build:registry && mkdir -p apps/landing/public/r && cp -r apps/registry/dist/. apps/landing/public/r/ && if [ \"$VERCEL\" = \"1\" ]; then mkdir -p public/assets public/videos public/research && cp -r apps/landing/public/assets/. public/assets/ && cp -r apps/landing/public/videos/. public/videos/ && cp -r apps/landing/public/research/. public/research/; fi && AOMI_ROOT_NEXT_OUTPUT=1 pnpm --filter landing build",
+    "vercel-build": "pnpm run build:lib && pnpm run build:registry && mkdir -p apps/landing/public/r && cp -r apps/registry/dist/. apps/landing/public/r/ && if [ \"$VERCEL\" = \"1\" ]; then mkdir -p public/assets public/videos public/research && cp -r apps/landing/public/assets/. public/assets/ && cp -r apps/landing/public/videos/. public/videos/ && cp -r apps/landing/public/research/. public/research/; fi && pnpm --filter landing build",
     "start": "next start",
     "lint": "eslint .",
     "lint:landing": "pnpm --filter landing lint",
