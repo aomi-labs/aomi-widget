@@ -2,11 +2,64 @@
 
 ## Last Updated
 
-2026-06-16 - Ungated the wallet-picker "Account" button and gave it an in-app
-slide-in account manager (stub). Typecheck + lint green; picker tests green
-except two pre-existing branch failures unrelated to this change.
+2026-06-17 - Full rewrite of `specs/WIDGET-AUTH-PLAN.md` after a 48-question
+decision sweep + an investigation pass on account merging. No production code.
 
 ## Recent Changes
+
+### Widget auth plan — full rewrite + 48 locked decisions + merge model (2026-06-17)
+
+Branch `polish-multi-wallet`. No code — extended the earlier review into a
+complete decision sweep (48 questions via the question tool) and a focused
+investigation of the one open risk (account clustering/merging), then **rewrote
+`specs/WIDGET-AUTH-PLAN.md` from scratch** in an agent-followable style (mermaid
+diagrams, ERD, structs, phase checklists). All decisions are in the plan's §16
+Decisions log + the [[widget-auth-plan-decisions]] memory. Headlines:
+
+- **Scope:** full `aomi_*` core schema (users/identities/wallets) **+**
+  `aomi_account_events`; drop proofs + challenges. Provider-token sessions IN v1.
+  Keep + expand the existing account UI.
+- **Identity:** separate `aomi_users.id` mirroring BetterAuth user; EVM identity
+  chain-independent for EOAs, chain-scoped for smart accounts; anonymous
+  wallet-only users; display name derived from address.
+- **Sessions/tokens:** BetterAuth + bearer plugin from day one; 7d rolling-daily;
+  portal injects the Rust bearer; Rust mints now / portal at Phase F.
+- **Merge model (the investigation result):** one signal-resolution ladder —
+  unclaimed auto-links; a signal owned by another account warns (yellow if it
+  survives, **red** if it's the last factor → move + absorb data + permanently
+  close). Merge only in the red case, survivor always the current account,
+  reactive only, email follows the same ladder. "Recovery" falls out of moving
+  your wallet; no separate merge engine. Threads follow the wallet (real re-key is
+  Phase F; v1 records the policy + an `aomi_account_events` row).
+- **Build boundary:** ~85-90% ships on portal + a fresh Supabase project with the
+  Rust backend untouched (the account layer is additive); §14 has the Phase F
+  handoff contract.
+- **Still open (data, not design):** the real `trustedOrigins` list; the Phase F
+  id-mapping final pick (leaning DB unification).
+
+Precursor PR (agreed, backend-free): the `walletKey` SVM case-sensitivity fix.
+
+### Widget auth plan review + locked decisions (2026-06-17)
+
+Branch `polish-multi-wallet`. No code — collaborative review of
+`specs/WIDGET-AUTH-PLAN.md` (BetterAuth + SIWE + Privy/Para → canonical
+`aomi_users` model). Verified the plan against the tree: `walletKey` SVM bug is
+real (`wallet-utils.ts:5`), `AccountRuntime` is the thin stub the plan describes
+(`account/types.ts`), and `apps/portal` is already a BFF proxy
+(`api/[...slug]/route.ts` forwards `authorization` + allowlists
+`/api/account/sessions/exchange`). Key find: `AomiAccountCredential`
+(`types.ts:260`) already has provider-token + `{ kind: "cookie" }` variants and
+`getAccountCredential` is documented to exchange for a short-lived Aomi bearer.
+
+Four decisions locked (now in plan §0.1): (1) trust boundary = thin token at the
+backend — portal mints an Aomi JWT (`sub = aomi_user_id`), Rust only verifies;
+(2) session transport pluggable — same-origin cookie now, bearer addable later;
+(3) BetterAuth = successor to the System A account-session exchange, MCP approvals
+(System B: `packages/auth`) untouched, reuse `makePrivyJwtVerifier`; (4)
+SIWE-first, Privy/Para link-only in Phase 1. First two PRs are pure: `walletKey`
+SVM fix + `AccountRuntime`/`AccountWallet` type widening (§8.3). Delivered four
+diagrams (system+trust-boundary, three identity layers, ER data model, System A
+vs B). See [[widget-auth-plan-decisions]].
 
 ### Account manager slide-in + ungated Account button (2026-06-16)
 

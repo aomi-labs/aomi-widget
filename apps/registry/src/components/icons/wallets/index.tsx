@@ -99,6 +99,40 @@ export function PhantomIcon(props: SVGProps<SVGSVGElement>) {
   );
 }
 
+const ParaWalletIconMarkup =
+  '<path d="M16.7506 0.114342H7.01716V13.267C7.01716 14.2305 6.24304 15.0128 5.28576 15.0128H0V23.8289H8.74337V18.4992C8.74337 17.5357 9.51749 16.7534 10.4748 16.7534H16.8854C21.4904 16.7534 25.2124 12.9517 25.1363 8.29101C25.0603 3.63032 21.2761 0.114342 16.7506 0.114342Z" fill="currentColor"/>';
+
+export function ParaWalletIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg
+      viewBox="-1 -1 27 26"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      xmlnsXlink="http://www.w3.org/1999/xlink"
+      aria-hidden="true"
+      dangerouslySetInnerHTML={{ __html: ParaWalletIconMarkup }}
+      {...props}
+    />
+  );
+}
+
+const PrivyWalletIconMarkup =
+  '<path d="M18.658 37.189C28.96 37.189 37.316 28.862 37.316 18.594C37.316 8.326 28.96 0 18.658 0C8.355 -0.001 0 8.326 0 18.594C0 28.861 8.355 37.188 18.658 37.188Z M18.658 48C25.699 48 31.408 46.803 31.408 45.333C31.408 43.865 25.703 42.667 18.658 42.667C11.612 42.667 5.907 43.865 5.907 45.333C5.907 46.803 11.612 48 18.658 48Z" fill="currentColor"/>';
+
+export function PrivyWalletIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg
+      viewBox="0 0 37.32 48"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      xmlnsXlink="http://www.w3.org/1999/xlink"
+      aria-hidden="true"
+      dangerouslySetInnerHTML={{ __html: PrivyWalletIconMarkup }}
+      {...props}
+    />
+  );
+}
+
 export function WalletConnectIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg

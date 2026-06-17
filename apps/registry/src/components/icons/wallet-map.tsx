@@ -4,14 +4,13 @@ import {
   BaseWalletIcon,
   CoinbaseWalletIcon,
   MetaMaskIcon,
+  ParaWalletIcon,
   PhantomIcon,
+  PrivyWalletIcon,
   RabbyIcon,
   RainbowIcon,
   WalletConnectIcon,
 } from "./wallets";
-// Reuse the brand mark already defined for the apps list so Para has a single
-// source of truth rather than a duplicate hand-drawn glyph.
-import { ParaIcon } from "./apps";
 
 // Keyed by `canonicalWalletKey` output so brand matching lives in one place.
 const WALLET_ICONS: Record<string, FC<SVGProps<SVGSVGElement>>> = {
@@ -19,8 +18,9 @@ const WALLET_ICONS: Record<string, FC<SVGProps<SVGSVGElement>>> = {
   basewallet: BaseWalletIcon,
   coinbase: CoinbaseWalletIcon,
   metamask: MetaMaskIcon,
-  para: ParaIcon,
+  para: ParaWalletIcon,
   phantom: PhantomIcon,
+  privy: PrivyWalletIcon,
   rabby: RabbyIcon,
   rainbow: RainbowIcon,
   walletconnect: WalletConnectIcon,
