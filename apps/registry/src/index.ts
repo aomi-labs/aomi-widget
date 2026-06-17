@@ -62,16 +62,6 @@ export {
   type BaseAccountSponsorshipOptions,
 } from "./lib/wallet-kit/providers/base-account";
 export {
-  AomiParaAdapterProvider,
-  AomiParaProvider,
-  type AomiParaAdapterProviderProps,
-  type AomiParaProviderProps,
-} from "./lib/wallet-kit/providers/para";
-export {
-  AomiPrivyProvider,
-  type AomiPrivyProviderProps,
-} from "./lib/wallet-kit/providers/privy";
-export {
   AOMI_SESSION_BOOTING_IDENTITY,
   AOMI_SESSION_DISCONNECTED_IDENTITY,
   formatAuthMethod,
