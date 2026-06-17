@@ -388,17 +388,15 @@ export class AomiClient {
     const app = options?.app ?? "default";
     const apiKey = options?.apiKey ?? this.apiKey;
     const normalizedUserState = UserState.normalize(options?.userState);
-
-    const payload: Record<string, unknown> = { message, app };
-    if (options?.publicKey) {
-      payload.public_key = options.publicKey;
-    }
-    if (normalizedUserState) {
-      payload.user_state = JSON.stringify(normalizedUserState);
-    }
-    if (options?.clientId) {
-      payload.client_id = options.clientId;
-    }
+    const url = buildApiUrl(this.baseUrl, "/api/chat", {
+      app,
+      message,
+      public_key: options?.publicKey,
+      user_state: normalizedUserState
+        ? JSON.stringify(normalizedUserState)
+        : undefined,
+      client_id: options?.clientId,
+    });
 
     this.logger?.debug("[aomi][client] POST /api/chat prepared", {
       sessionId,
@@ -409,15 +407,35 @@ export class AomiClient {
       messagePreview: previewText(message),
     });
 
-    return postState<AomiChatResponse>(
-      this.baseUrl,
-      "/api/chat",
-      payload,
+    const headers = new Headers(withSessionHeader(sessionId));
+    if (apiKey) {
+      headers.set(APP_KEY_HEADER, apiKey);
+    }
+
+    this.logger?.debug("[aomi][client] POST start", {
+      path: "/api/chat",
       sessionId,
-      this.fetchImpl,
-      apiKey,
-      this.logger,
-    );
+      hasApiKey: Boolean(apiKey),
+      url,
+    });
+
+    const response = await this.fetchImpl(url, {
+      method: "POST",
+      headers,
+    });
+
+    this.logger?.debug("[aomi][client] POST response", {
+      path: "/api/chat",
+      sessionId,
+      status: response.status,
+      ok: response.ok,
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+
+    return (await response.json()) as AomiChatResponse;
   }
 
   /**
@@ -913,27 +931,32 @@ export class AomiClient {
     created: boolean;
   }> {
     const apiKey = options?.apiKey ?? this.apiKey;
-    const payload: Record<string, unknown> = { rig };
-    if (options?.app) {
-      payload.app = options.app;
-    }
-    if (options?.clientId) {
-      payload.client_id = options.clientId;
+    const url = buildApiUrl(this.baseUrl, "/api/session/model", {
+      rig,
+      app: options?.app,
+      client_id: options?.clientId,
+    });
+
+    const headers = new Headers(withSessionHeader(sessionId));
+    if (apiKey) {
+      headers.set(APP_KEY_HEADER, apiKey);
     }
 
-    return postState<{
+    const response = await this.fetchImpl(url, {
+      method: "POST",
+      headers,
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to set model: HTTP ${response.status}`);
+    }
+
+    return (await response.json()) as {
       success: boolean;
       rig: string;
       baml: string;
       created: boolean;
-    }>(
-      this.baseUrl,
-      "/api/session/model",
-      payload,
-      sessionId,
-      this.fetchImpl,
-      apiKey,
-    );
+    };
   }
 
   /**
