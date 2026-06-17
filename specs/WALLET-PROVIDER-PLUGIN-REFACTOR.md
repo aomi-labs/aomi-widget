@@ -916,4 +916,3 @@ Registry additions mirror SVM exactly: `tvm/connect` / `tvm/disconnect` commands
 (A.7), so it does not change; the picker renders the new family from
 `accounts`/`walletModalRows` with no special-casing. This is the payoff of
 symmetry: a third VM is additive, not a fork.
-

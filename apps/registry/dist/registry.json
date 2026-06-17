@@ -85,6 +85,10 @@
         },
         {
           "type": "registry:component",
+          "path": "lib/wallet-kit/catalog/wallet-branding.ts"
+        },
+        {
+          "type": "registry:component",
           "path": "lib/wallet-kit/catalog/wallet-ids.ts"
         },
         {
@@ -173,7 +177,35 @@
         },
         {
           "type": "registry:component",
+          "path": "lib/wallet-kit/runtime/evm/disabled-runtime.ts"
+        },
+        {
+          "type": "registry:component",
+          "path": "lib/wallet-kit/runtime/evm/disconnect-plan.ts"
+        },
+        {
+          "type": "registry:component",
+          "path": "lib/wallet-kit/runtime/evm/provider.tsx"
+        },
+        {
+          "type": "registry:component",
+          "path": "lib/wallet-kit/runtime/evm/registry-source.ts"
+        },
+        {
+          "type": "registry:component",
+          "path": "lib/wallet-kit/runtime/evm/safe-hooks.ts"
+        },
+        {
+          "type": "registry:component",
+          "path": "lib/wallet-kit/runtime/evm/wallet-runtime.ts"
+        },
+        {
+          "type": "registry:component",
           "path": "lib/wallet-kit/registry/identity-grace.ts"
+        },
+        {
+          "type": "registry:component",
+          "path": "lib/wallet-kit/registry/use-wallet-registry.ts"
         },
         {
           "type": "registry:component",
@@ -182,6 +214,10 @@
         {
           "type": "registry:component",
           "path": "lib/wallet-kit/runtime/svm/transactions.ts"
+        },
+        {
+          "type": "registry:component",
+          "path": "lib/wallet-kit/runtime/svm/registry-source.ts"
         },
         {
           "type": "registry:component",
@@ -214,6 +250,10 @@
         {
           "type": "registry:component",
           "path": "lib/wallet-kit/registry/selectors.ts"
+        },
+        {
+          "type": "registry:component",
+          "path": "lib/wallet-kit/use-wallet-activation-guard.ts"
         },
         {
           "type": "registry:component",
@@ -361,6 +401,7 @@
         "wagmi"
       ],
       "registryDependencies": [
+        "https://aomi.dev/r/aomi-wallet-kit.json",
         "button",
         "popover",
         "command",

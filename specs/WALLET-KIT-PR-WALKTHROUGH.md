@@ -235,7 +235,6 @@ import { AomiWalletKitProvider } from "@aomi-labs/widget-lib";
   wallets={{
     evm:     { chains: networks, wallets: ["metamask","coinbase","rainbow","rabby","walletconnect"], walletConnectProjectId },
     solana:  { networks: solanaNetworks, preferDirectSend: true },
-    embedded:{ provider: "para" },
   }}
 >
   {children}
@@ -245,7 +244,7 @@ import { AomiWalletKitProvider } from "@aomi-labs/widget-lib";
 The config is **capabilities**, not provider internals
 ([`config/types.ts:139`](apps/registry/src/lib/wallet-kit/config/types.ts)):
 `auth` (who logs the user in), `wallets` (which EVM/SVM wallets + networks), `execution`
-(AA policy + owner), `providers` (provider-specific keys), `account` (backend mode).
+(AA policy + owner), `providers` (provider-specific keys).
 
 ### Before → after (consumer)
 

@@ -11,7 +11,6 @@ import type {
   AuthConfig,
   AuthMethodId,
   ProvidersConfig,
-  WalletsConfig,
 } from "../../config/types";
 import {
   registerWalletProvider,
@@ -19,12 +18,6 @@ import {
 } from "../plugin-registry";
 import { AomiParaPluginProvider } from "./ParaPluginProvider";
 import { defaultOAuthMethods } from "./para-auth";
-
-type ParaSvmOptions = {
-  enabled?: boolean;
-  networks?: Exclude<WalletsConfig["solana"], false | undefined>["networks"];
-  preferDirectSend?: boolean;
-};
 
 function toParaEnvironment(value?: "PROD" | "BETA") {
   if (!value) return Environment.BETA;
@@ -47,17 +40,6 @@ function toParaOAuthMethods(
     .map((method) => map[method as keyof typeof map])
     .filter((method): method is NonNullable<typeof method> => Boolean(method));
   return resolved.length ? resolved : defaultOAuthMethods;
-}
-
-function toProviderSvmOptions(
-  solana: WalletsConfig["solana"],
-): ParaSvmOptions | undefined {
-  if (solana === false) return { enabled: false };
-  if (!solana) return undefined;
-  return {
-    networks: solana.networks,
-    preferDirectSend: solana.preferDirectSend,
-  };
 }
 
 function isParaAuth(auth: AuthConfig | undefined): boolean {

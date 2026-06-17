@@ -265,6 +265,7 @@ export function AomiParaPluginProvider({
     ],
   );
   const svmRuntime = useSvmWalletRuntime({
+    preferDirectSend: resolvedAdapterSvmConfig.preferDirectSend,
     registryStore,
     selectedNetwork: selectedSolanaNetwork,
     supportedNetworks: supportedSolanaNetworks,

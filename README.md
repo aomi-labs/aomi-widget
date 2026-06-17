@@ -127,7 +127,6 @@ export function Assistant() {
           walletConnectProjectId:
             process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID,
         },
-        embedded: { provider: "para" },
       }}
     >
       <AomiFrame height="640px" width="100%" />

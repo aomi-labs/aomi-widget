@@ -63,7 +63,13 @@ export const privyPlugin: WalletProviderPlugin = {
     );
   },
   wrap: (props) => <PrivyAuthLayer {...props} />,
-  renderComposer: ({ auth, children, execution, supportedChains }) => (
+  renderComposer: ({
+    auth,
+    children,
+    execution,
+    solanaRuntimeConfig,
+    supportedChains,
+  }) => (
     <AomiPrivyPluginProvider
       supportedChains={supportedChains}
       loginMethods={
@@ -72,6 +78,7 @@ export const privyPlugin: WalletProviderPlugin = {
           : undefined
       }
       execution={execution}
+      preferDirectSend={solanaRuntimeConfig?.preferDirectSend}
     >
       {children}
     </AomiPrivyPluginProvider>

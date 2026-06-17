@@ -37,6 +37,7 @@ export type AomiPrivyPluginProviderProps = {
   supportedChains: readonly Chain[];
   loginMethods?: PrivyClientConfig["loginMethods"];
   execution?: ExecutionConfig;
+  preferDirectSend?: boolean;
 };
 
 export function AomiPrivyPluginProvider({
@@ -44,6 +45,7 @@ export function AomiPrivyPluginProvider({
   supportedChains,
   loginMethods,
   execution,
+  preferDirectSend = true,
 }: AomiPrivyPluginProviderProps) {
   const privy = useSafePrivy();
   const { client: smartWalletClient, getClientForChain } =
@@ -166,6 +168,7 @@ export function AomiPrivyPluginProvider({
   );
 
   const svmRuntime = useSvmWalletRuntime({
+    preferDirectSend,
     registryStore: evmRuntime.registryStore,
     selectedNetwork: selectedSolanaNetwork,
     supportedNetworks: supportedSolanaNetworks,

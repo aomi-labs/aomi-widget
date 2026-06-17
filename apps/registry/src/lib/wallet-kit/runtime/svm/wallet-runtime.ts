@@ -7,7 +7,11 @@ import {
   Transaction as SolanaTransaction,
   VersionedTransaction,
 } from "@solana/web3.js";
-import type { AomiWalletOption, SvmNetworkOption, SvmWalletDescriptor } from "../../types";
+import type {
+  AomiWalletOption,
+  SvmNetworkOption,
+  SvmWalletDescriptor,
+} from "../../types";
 import { SVM_WALLET_ALLOWLIST } from "../../catalog/svm-wallet-catalog";
 import { canonicalWalletKey } from "../../catalog/wallet-branding";
 import { selectAccounts, selectSvmIdentity } from "../../registry/selectors";
@@ -213,9 +217,7 @@ function buildSvmWalletDescriptors(
     }));
 }
 
-function toSvmWalletOption(
-  descriptor: SvmWalletDescriptor,
-): AomiWalletOption {
+function toSvmWalletOption(descriptor: SvmWalletDescriptor): AomiWalletOption {
   return {
     id: descriptor.name,
     label: descriptor.name,
@@ -240,12 +242,14 @@ function useLatestRef<T>(value: T) {
 }
 
 export function useSvmWalletRuntime({
+  preferDirectSend = true,
   registryStore,
   selectedNetwork,
   supportedNetworks,
   setSelectedNetworkId,
   wallet: walletOverride,
 }: {
+  preferDirectSend?: boolean;
   registryStore: WalletRegistryStore;
   selectedNetwork?: SvmNetworkOption;
   supportedNetworks: readonly SvmNetworkOption[];
@@ -306,7 +310,8 @@ export function useSvmWalletRuntime({
   const connect = useCallback(
     async (optionId?: string) => {
       if (wallet.publicKey || wallet.connected) return;
-      const walletName = optionId ?? pickPreferredSvmWallet(wallet)?.adapter.name;
+      const walletName =
+        optionId ?? pickPreferredSvmWallet(wallet)?.adapter.name;
       if (!walletName) return;
       registryStore.dispatch({
         type: "svm/connect-requested",
@@ -361,11 +366,13 @@ export function useSvmWalletRuntime({
     () => ({
       rpcHttpUrl:
         selectedNetwork?.rpcHttpUrl ??
-        DEFAULT_SVM_RPC_HTTP_URLS[selectedNetwork?.cluster ?? DEFAULT_SVM_CLUSTER],
+        DEFAULT_SVM_RPC_HTTP_URLS[
+          selectedNetwork?.cluster ?? DEFAULT_SVM_CLUSTER
+        ],
       rpcWsUrl: selectedNetwork?.rpcWsUrl,
-      preferDirectSend: true,
+      preferDirectSend,
     }),
-    [selectedNetwork],
+    [preferDirectSend, selectedNetwork],
   );
   const execution = useMemo(
     () => buildSvmTransactionMethods(wallet, config),
@@ -381,11 +388,16 @@ export function useSvmWalletRuntime({
   );
   const identity = useCallback(
     (now: number) => {
-      const registryIdentity = selectSvmIdentity(registryStore.getSnapshot(), now);
+      const registryIdentity = selectSvmIdentity(
+        registryStore.getSnapshot(),
+        now,
+      );
       return {
         ...registryIdentity,
         cluster: selectedNetwork?.cluster ?? DEFAULT_SVM_CLUSTER,
-        walletSource: registryIdentity.address ? ("injected" as const) : undefined,
+        walletSource: registryIdentity.address
+          ? ("injected" as const)
+          : undefined,
         transport: registryIdentity.address
           ? detectSvmTransport(registryIdentity.walletName)
           : undefined,
@@ -396,7 +408,10 @@ export function useSvmWalletRuntime({
   );
 
   return {
-    status: wallet.select || wallet.connect || wallet.publicKey ? "ready" : "unavailable",
+    status:
+      wallet.select || wallet.connect || wallet.publicKey
+        ? "ready"
+        : "unavailable",
     registryStore,
     identity,
     accounts,
