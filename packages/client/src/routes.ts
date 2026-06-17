@@ -3,7 +3,7 @@ export type AomiHttpMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 export type AomiAuthClass =
   | "public"
   | "session"
-  | "account_token"
+  | "canonical_user"
   | "self_guarded"
   | "app_key_checked";
 
@@ -17,23 +17,23 @@ export const AOMI_BACKEND_ENDPOINTS = [
   {
     method: "DELETE",
     path: "/api/account/app-keys/:key_hash",
-    auth: "account_token",
+    auth: "canonical_user",
   },
   {
     method: "DELETE",
     path: "/api/account/approvals/:id",
-    auth: "account_token",
+    auth: "canonical_user",
   },
-  { method: "DELETE", path: "/api/account/bots/:id", auth: "account_token" },
+  { method: "DELETE", path: "/api/account/bots/:id", auth: "canonical_user" },
   {
     method: "DELETE",
     path: "/api/account/payment/byok/:provider",
-    auth: "account_token",
+    auth: "canonical_user",
   },
   {
     method: "DELETE",
     path: "/api/account/payment/tempo",
-    auth: "account_token",
+    auth: "canonical_user",
   },
   {
     method: "DELETE",
@@ -43,12 +43,12 @@ export const AOMI_BACKEND_ENDPOINTS = [
   { method: "DELETE", path: "/api/secrets", auth: "session" },
   { method: "DELETE", path: "/api/secrets/:name", auth: "session" },
   { method: "DELETE", path: "/api/sessions/:session_id", auth: "session" },
-  { method: "GET", path: "/api/account", auth: "account_token" },
-  { method: "GET", path: "/api/account/app-keys", auth: "account_token" },
-  { method: "GET", path: "/api/account/approvals", auth: "account_token" },
-  { method: "GET", path: "/api/account/bots", auth: "account_token" },
-  { method: "GET", path: "/api/account/payment", auth: "account_token" },
-  { method: "GET", path: "/api/account/usage", auth: "account_token" },
+  { method: "GET", path: "/api/account", auth: "canonical_user" },
+  { method: "GET", path: "/api/account/app-keys", auth: "canonical_user" },
+  { method: "GET", path: "/api/account/approvals", auth: "canonical_user" },
+  { method: "GET", path: "/api/account/bots", auth: "canonical_user" },
+  { method: "GET", path: "/api/account/payment", auth: "canonical_user" },
+  { method: "GET", path: "/api/account/usage", auth: "canonical_user" },
   { method: "GET", path: "/api/admin/app-store", auth: "self_guarded" },
   { method: "GET", path: "/api/admin/apps/public", auth: "self_guarded" },
   { method: "GET", path: "/api/admin/skills", auth: "self_guarded" },
@@ -96,12 +96,12 @@ export const AOMI_BACKEND_ENDPOINTS = [
   { method: "GET", path: "/health", auth: "public" },
   { method: "PATCH", path: "/api/sessions/:session_id", auth: "session" },
   { method: "POST", path: "/api/_internal/secrets", auth: "self_guarded" },
-  { method: "POST", path: "/api/account/app-keys", auth: "account_token" },
-  { method: "POST", path: "/api/account/approvals", auth: "account_token" },
-  { method: "POST", path: "/api/account/bots", auth: "account_token" },
+  { method: "POST", path: "/api/account/app-keys", auth: "canonical_user" },
+  { method: "POST", path: "/api/account/approvals", auth: "canonical_user" },
+  { method: "POST", path: "/api/account/bots", auth: "canonical_user" },
   { method: "POST", path: "/api/account/exchange", auth: "public" },
-  { method: "POST", path: "/api/account/payment/byok", auth: "account_token" },
-  { method: "POST", path: "/api/account/payment/tempo", auth: "account_token" },
+  { method: "POST", path: "/api/account/payment/byok", auth: "canonical_user" },
+  { method: "POST", path: "/api/account/payment/tempo", auth: "canonical_user" },
   { method: "POST", path: "/api/admin/apps/:app/reload", auth: "self_guarded" },
   { method: "POST", path: "/api/admin/skills/batch", auth: "self_guarded" },
   { method: "POST", path: "/api/admin/skills/rollback", auth: "self_guarded" },
