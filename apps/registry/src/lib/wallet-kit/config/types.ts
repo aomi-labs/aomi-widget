@@ -57,12 +57,6 @@ export type AomiSession = {
 export type AuthConfig =
   | { provider: "para"; methods?: readonly AuthMethodId[] }
   | { provider: "privy"; methods?: readonly AuthMethodId[] }
-  | {
-      provider: "custom";
-      getSession: () => Promise<AomiSession | null>;
-      login: () => Promise<void>;
-      logout: () => Promise<void>;
-    }
   | false;
 
 export type EvmWalletsConfig = {
@@ -84,12 +78,9 @@ export type SvmWalletsConfig = {
   preferDirectSend?: boolean;
 };
 
-export type EmbeddedConfig = { provider: "para" | "privy" | "aomi" } | false;
-
 export type WalletsConfig = {
   evm?: EvmWalletsConfig | false;
   solana?: SvmWalletsConfig | false;
-  embedded?: EmbeddedConfig;
 };
 
 export type ExecutionConfig = {
@@ -127,23 +118,12 @@ export type ExecutionConfig = {
       };
 };
 
-export type AccountConfig =
-  | { mode: "disabled" }
-  | { mode: "aomi-backend"; baseUrl?: string };
-
-export type AppWalletRequirements = {
-  evm?: boolean;
-  solana?: boolean;
-};
-
 export type AomiWalletKitProviderProps = {
   preset?: "para" | "privy" | "wallets-only";
   providers?: ProvidersConfig;
   auth?: AuthConfig;
   wallets?: WalletsConfig;
   execution?: ExecutionConfig;
-  account?: AccountConfig;
-  requirements?: AppWalletRequirements;
   children: ReactNode;
 };
 

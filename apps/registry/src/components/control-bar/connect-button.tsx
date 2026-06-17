@@ -49,7 +49,11 @@ const SingleConnectButton: FC<Omit<ConnectButtonProps, "families">> = ({
   }, [identity.isConnected, onConnectionChange]);
 
   const handleClick = () => {
-    if (identity.isConnected && adapter.canOpenAccountUI && adapter.openAccountUI) {
+    if (
+      identity.isConnected &&
+      adapter.canOpenAccountUI &&
+      adapter.openAccountUI
+    ) {
       void adapter.openAccountUI();
       return;
     }
@@ -123,8 +127,7 @@ export const ConnectButton: FC<ConnectButtonProps> = ({
   const pickerFamilies =
     families && families.length > 0 ? families : inferWalletFamilies(adapter);
   const shouldUsePicker = Boolean(
-    pickerFamilies.length > 0 &&
-      (adapter.canConnect || adapter.walletModalRows?.length),
+    pickerFamilies.length > 0 && (adapter.walletModalRows?.length ?? 0) > 0,
   );
 
   if (shouldUsePicker) {

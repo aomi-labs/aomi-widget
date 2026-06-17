@@ -47,6 +47,7 @@ export function canonicalWalletKey(value: string): string {
   if (normalized.includes("baseaccount") || normalized === "base") {
     return "base";
   }
+  if (normalized.includes("para")) return "para";
   if (normalized.includes("phantom")) return "phantom";
   if (normalized.includes("solflare")) return "solflare";
   if (normalized.includes("backpack")) return "backpack";

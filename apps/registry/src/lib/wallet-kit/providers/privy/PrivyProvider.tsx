@@ -70,6 +70,7 @@ function AomiPrivyProviderInner({
   wallets,
   loginMethods,
   execution,
+  solana,
   walletConnectProjectId = process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID,
 }: AomiPrivyProviderProps) {
   const [queryClient] = useState(() => new QueryClient());
@@ -100,6 +101,7 @@ function AomiPrivyProviderInner({
             supportedChains={networks}
             loginMethods={loginMethods}
             execution={execution}
+            preferDirectSend={solana?.preferDirectSend}
           >
             {children}
           </AomiPrivyPluginProvider>
@@ -148,6 +150,7 @@ export function AomiPrivyProvider({
         <AomiPrivyProviderInner
           {...rest}
           networks={networks}
+          solana={solana}
           wallets={wallets}
         />
       </ExtUserProvider>
