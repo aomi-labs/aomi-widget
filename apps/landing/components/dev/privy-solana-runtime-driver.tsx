@@ -46,6 +46,7 @@ type DriverReportStatus = "idle" | "running" | "completed" | "failed";
 const DRIVER_SESSION_ID = "privy-solana-runtime-driver";
 const DRIVER_CLUSTER = "solana:devnet" as const;
 const DRIVER_RPC_URL =
+  process.env.NEXT_PUBLIC_SOLANA_DEVNET_RPC_URL?.trim() ||
   process.env.NEXT_PUBLIC_SOLANA_RPC_URL?.trim() ||
   "https://api.devnet.solana.com";
 const PRIVY_APP_ID = process.env.NEXT_PUBLIC_PRIVY_APP_ID?.trim();
