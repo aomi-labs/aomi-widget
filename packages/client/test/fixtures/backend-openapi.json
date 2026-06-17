@@ -1,0 +1,1071 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Aomi Backend",
+    "version": "0.1.0"
+  },
+  "paths": {
+    "/health": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "security": [],
+        "x-aomi-auth": "public"
+      }
+    },
+    "/api/openapi.json": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "security": [],
+        "x-aomi-auth": "public"
+      }
+    },
+    "/api/chat": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "sessionId": [],
+            "appKey": []
+          }
+        ],
+        "x-aomi-auth": "app_key_checked"
+      }
+    },
+    "/api/state": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "sessionId": []
+          }
+        ],
+        "x-aomi-auth": "session"
+      }
+    },
+    "/api/interrupt": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "sessionId": []
+          }
+        ],
+        "x-aomi-auth": "session"
+      }
+    },
+    "/api/simulate": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "sessionId": []
+          }
+        ],
+        "x-aomi-auth": "session"
+      }
+    },
+    "/api/_internal/secrets": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "selfGuarded": []
+          }
+        ],
+        "x-aomi-auth": "self_guarded"
+      }
+    },
+    "/api/auth/privy/begin": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "sessionId": []
+          }
+        ],
+        "x-aomi-auth": "session"
+      }
+    },
+    "/api/auth/privy/callback": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "security": [],
+        "x-aomi-auth": "public"
+      }
+    },
+    "/api/secrets": {
+      "delete": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "sessionId": []
+          }
+        ],
+        "x-aomi-auth": "session"
+      },
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "sessionId": []
+          }
+        ],
+        "x-aomi-auth": "session"
+      },
+      "post": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "sessionId": []
+          }
+        ],
+        "x-aomi-auth": "session"
+      }
+    },
+    "/api/secrets/{name}": {
+      "delete": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "sessionId": []
+          }
+        ],
+        "x-aomi-auth": "session"
+      }
+    },
+    "/api/sessions": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "sessionId": []
+          }
+        ],
+        "x-aomi-auth": "session"
+      },
+      "post": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "sessionId": []
+          }
+        ],
+        "x-aomi-auth": "session"
+      }
+    },
+    "/api/sessions/{session_id}": {
+      "delete": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "sessionId": []
+          }
+        ],
+        "x-aomi-auth": "session"
+      },
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "sessionId": []
+          }
+        ],
+        "x-aomi-auth": "session"
+      },
+      "patch": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "sessionId": []
+          }
+        ],
+        "x-aomi-auth": "session"
+      }
+    },
+    "/api/account/exchange": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "security": [],
+        "x-aomi-auth": "public"
+      }
+    },
+    "/api/account": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "accountBearer": []
+          }
+        ],
+        "x-aomi-auth": "canonical_user"
+      }
+    },
+    "/api/account/usage": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "accountBearer": []
+          }
+        ],
+        "x-aomi-auth": "canonical_user"
+      }
+    },
+    "/api/account/app-keys": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "accountBearer": []
+          }
+        ],
+        "x-aomi-auth": "canonical_user"
+      },
+      "post": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "accountBearer": []
+          }
+        ],
+        "x-aomi-auth": "canonical_user"
+      }
+    },
+    "/api/account/app-keys/{key_hash}": {
+      "delete": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "accountBearer": []
+          }
+        ],
+        "x-aomi-auth": "canonical_user"
+      }
+    },
+    "/api/account/bots": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "accountBearer": []
+          }
+        ],
+        "x-aomi-auth": "canonical_user"
+      },
+      "post": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "accountBearer": []
+          }
+        ],
+        "x-aomi-auth": "canonical_user"
+      }
+    },
+    "/api/account/bots/{id}": {
+      "delete": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "accountBearer": []
+          }
+        ],
+        "x-aomi-auth": "canonical_user"
+      }
+    },
+    "/api/account/approvals": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "accountBearer": []
+          }
+        ],
+        "x-aomi-auth": "canonical_user"
+      },
+      "post": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "accountBearer": []
+          }
+        ],
+        "x-aomi-auth": "canonical_user"
+      }
+    },
+    "/api/account/approvals/{id}": {
+      "delete": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "accountBearer": []
+          }
+        ],
+        "x-aomi-auth": "canonical_user"
+      }
+    },
+    "/api/account/payment": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "accountBearer": []
+          }
+        ],
+        "x-aomi-auth": "canonical_user"
+      }
+    },
+    "/api/account/payment/byok": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "accountBearer": []
+          }
+        ],
+        "x-aomi-auth": "canonical_user"
+      }
+    },
+    "/api/account/payment/byok/{provider}": {
+      "delete": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "accountBearer": []
+          }
+        ],
+        "x-aomi-auth": "canonical_user"
+      }
+    },
+    "/api/account/payment/tempo": {
+      "delete": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "accountBearer": []
+          }
+        ],
+        "x-aomi-auth": "canonical_user"
+      },
+      "post": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "accountBearer": []
+          }
+        ],
+        "x-aomi-auth": "canonical_user"
+      }
+    },
+    "/api/session/apps": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "sessionId": []
+          }
+        ],
+        "x-aomi-auth": "session"
+      }
+    },
+    "/api/session/runtime/models": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "sessionId": []
+          }
+        ],
+        "x-aomi-auth": "session"
+      }
+    },
+    "/api/session/runtime/model": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "sessionId": []
+          }
+        ],
+        "x-aomi-auth": "session"
+      }
+    },
+    "/api/session/models": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "sessionId": []
+          }
+        ],
+        "x-aomi-auth": "session"
+      }
+    },
+    "/api/session/model": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "sessionId": []
+          }
+        ],
+        "x-aomi-auth": "session"
+      }
+    },
+    "/api/platforms": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "security": [],
+        "x-aomi-auth": "public"
+      }
+    },
+    "/api/platforms/server-tags": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "security": [],
+        "x-aomi-auth": "public"
+      }
+    },
+    "/api/platforms/{platform}/apps/activate": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "selfGuarded": []
+          }
+        ],
+        "x-aomi-auth": "self_guarded"
+      }
+    },
+    "/api/platforms/{platform}/apps/{app}/activate": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "selfGuarded": []
+          }
+        ],
+        "x-aomi-auth": "self_guarded"
+      }
+    },
+    "/api/platforms/{name}/apps": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "selfGuarded": []
+          }
+        ],
+        "x-aomi-auth": "self_guarded"
+      }
+    },
+    "/api/platforms/{name}/apps/{app}": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "selfGuarded": []
+          }
+        ],
+        "x-aomi-auth": "self_guarded"
+      }
+    },
+    "/api/platforms/{name}/deploy": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "selfGuarded": []
+          }
+        ],
+        "x-aomi-auth": "self_guarded"
+      }
+    },
+    "/api/platforms/{name}/deployments/{deployment}/status": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "selfGuarded": []
+          }
+        ],
+        "x-aomi-auth": "self_guarded"
+      }
+    },
+    "/api/platforms/{name}/sources/sync-installed": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "selfGuarded": []
+          }
+        ],
+        "x-aomi-auth": "self_guarded"
+      }
+    },
+    "/api/platforms/{name}/sources/resolve": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "selfGuarded": []
+          }
+        ],
+        "x-aomi-auth": "self_guarded"
+      }
+    },
+    "/api/platforms/{name}/activate": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "selfGuarded": []
+          }
+        ],
+        "x-aomi-auth": "self_guarded"
+      }
+    },
+    "/api/platforms/{name}/deactivate": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "selfGuarded": []
+          }
+        ],
+        "x-aomi-auth": "self_guarded"
+      }
+    },
+    "/api/platforms/{name}/apps/{app}/deactivate": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "selfGuarded": []
+          }
+        ],
+        "x-aomi-auth": "self_guarded"
+      }
+    },
+    "/api/platforms/{name}/tokens": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "selfGuarded": []
+          }
+        ],
+        "x-aomi-auth": "self_guarded"
+      },
+      "post": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "selfGuarded": []
+          }
+        ],
+        "x-aomi-auth": "self_guarded"
+      }
+    },
+    "/api/platforms/{name}/tokens/{id}": {
+      "delete": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "selfGuarded": []
+          }
+        ],
+        "x-aomi-auth": "self_guarded"
+      }
+    },
+    "/api/integrations/github-app/webhook": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "security": [],
+        "x-aomi-auth": "public"
+      }
+    },
+    "/api/integrations/github-app/oauth/start": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "security": [],
+        "x-aomi-auth": "public"
+      }
+    },
+    "/api/integrations/github-app/oauth/callback": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "security": [],
+        "x-aomi-auth": "public"
+      }
+    },
+    "/api/integrations/github-app/platforms/{name}/sources/create-from-template": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "security": [],
+        "x-aomi-auth": "public"
+      }
+    },
+    "/api/bots/telegram/{webhook_secret}": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "security": [],
+        "x-aomi-auth": "public"
+      }
+    },
+    "/api/admin/app-store": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "selfGuarded": []
+          }
+        ],
+        "x-aomi-auth": "self_guarded"
+      }
+    },
+    "/api/admin/apps/{app}/reload": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "selfGuarded": []
+          }
+        ],
+        "x-aomi-auth": "self_guarded"
+      }
+    },
+    "/api/admin/apps/public": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "selfGuarded": []
+          }
+        ],
+        "x-aomi-auth": "self_guarded"
+      },
+      "put": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "selfGuarded": []
+          }
+        ],
+        "x-aomi-auth": "self_guarded"
+      }
+    },
+    "/api/admin/skills": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "selfGuarded": []
+          }
+        ],
+        "x-aomi-auth": "self_guarded"
+      }
+    },
+    "/api/admin/skills/batch": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "selfGuarded": []
+          }
+        ],
+        "x-aomi-auth": "self_guarded"
+      }
+    },
+    "/api/admin/skills/rollback": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "selfGuarded": []
+          }
+        ],
+        "x-aomi-auth": "self_guarded"
+      }
+    },
+    "/api/admin/skills/{id}": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "selfGuarded": []
+          }
+        ],
+        "x-aomi-auth": "self_guarded"
+      },
+      "put": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "selfGuarded": []
+          }
+        ],
+        "x-aomi-auth": "self_guarded"
+      }
+    },
+    "/api/updates": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "sessionId": []
+          }
+        ],
+        "x-aomi-auth": "session"
+      }
+    },
+    "/api/events": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "sessionId": []
+          }
+        ],
+        "x-aomi-auth": "session"
+      }
+    },
+    "/api/skills": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "security": [],
+        "x-aomi-auth": "public"
+      }
+    },
+    "/api/system": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "sessionId": []
+          }
+        ],
+        "x-aomi-auth": "session"
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "sessionId": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-Session-Id"
+      },
+      "accountBearer": {
+        "type": "http",
+        "scheme": "bearer"
+      },
+      "appKey": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "Aomi-App-Key"
+      },
+      "selfGuarded": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "Route-specific"
+      }
+    }
+  }
+}
