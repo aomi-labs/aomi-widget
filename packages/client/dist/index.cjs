@@ -1104,20 +1104,17 @@ ${body}` : ""}`
    * Send a chat message and return updated session state.
    */
   async sendMessage(sessionId, message, options) {
-    var _a, _b, _c;
+    var _a, _b, _c, _d, _e;
     const app = (_a = options == null ? void 0 : options.app) != null ? _a : "default";
     const apiKey = (_b = options == null ? void 0 : options.apiKey) != null ? _b : this.apiKey;
     const normalizedUserState = UserState.normalize(options == null ? void 0 : options.userState);
-    const payload = { message, app };
-    if (options == null ? void 0 : options.publicKey) {
-      payload.public_key = options.publicKey;
-    }
-    if (normalizedUserState) {
-      payload.user_state = JSON.stringify(normalizedUserState);
-    }
-    if (options == null ? void 0 : options.clientId) {
-      payload.client_id = options.clientId;
-    }
+    const url = buildApiUrl(this.baseUrl, "/api/chat", {
+      app,
+      message,
+      public_key: options == null ? void 0 : options.publicKey,
+      user_state: normalizedUserState ? JSON.stringify(normalizedUserState) : void 0,
+      client_id: options == null ? void 0 : options.clientId
+    });
     (_c = this.logger) == null ? void 0 : _c.debug("[aomi][client] POST /api/chat prepared", {
       sessionId,
       app,
@@ -1126,15 +1123,30 @@ ${body}` : ""}`
       hasUserState: Boolean(normalizedUserState),
       messagePreview: previewText(message)
     });
-    return postState(
-      this.baseUrl,
-      "/api/chat",
-      payload,
+    const headers = new Headers(withSessionHeader(sessionId));
+    if (apiKey) {
+      headers.set(APP_KEY_HEADER, apiKey);
+    }
+    (_d = this.logger) == null ? void 0 : _d.debug("[aomi][client] POST start", {
+      path: "/api/chat",
       sessionId,
-      this.fetchImpl,
-      apiKey,
-      this.logger
-    );
+      hasApiKey: Boolean(apiKey),
+      url
+    });
+    const response = await this.fetchImpl(url, {
+      method: "POST",
+      headers
+    });
+    (_e = this.logger) == null ? void 0 : _e.debug("[aomi][client] POST response", {
+      path: "/api/chat",
+      sessionId,
+      status: response.status,
+      ok: response.ok
+    });
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+    return await response.json();
   }
   /**
    * Send a system-level message (e.g. wallet state changes, context switches).
@@ -1517,21 +1529,23 @@ ${body}` : ""}`
   async setModel(sessionId, rig, options) {
     var _a;
     const apiKey = (_a = options == null ? void 0 : options.apiKey) != null ? _a : this.apiKey;
-    const payload = { rig };
-    if (options == null ? void 0 : options.app) {
-      payload.app = options.app;
+    const url = buildApiUrl(this.baseUrl, "/api/session/model", {
+      rig,
+      app: options == null ? void 0 : options.app,
+      client_id: options == null ? void 0 : options.clientId
+    });
+    const headers = new Headers(withSessionHeader(sessionId));
+    if (apiKey) {
+      headers.set(APP_KEY_HEADER, apiKey);
     }
-    if (options == null ? void 0 : options.clientId) {
-      payload.client_id = options.clientId;
+    const response = await this.fetchImpl(url, {
+      method: "POST",
+      headers
+    });
+    if (!response.ok) {
+      throw new Error(`Failed to set model: HTTP ${response.status}`);
     }
-    return postState(
-      this.baseUrl,
-      "/api/session/model",
-      payload,
-      sessionId,
-      this.fetchImpl,
-      apiKey
-    );
+    return await response.json();
   }
   /**
    * List BYOK keys (one per LLM provider) bound to the current account.
@@ -1743,23 +1757,23 @@ var AOMI_BACKEND_ENDPOINTS = [
   {
     method: "DELETE",
     path: "/api/account/app-keys/:key_hash",
-    auth: "account_token"
+    auth: "canonical_user"
   },
   {
     method: "DELETE",
     path: "/api/account/approvals/:id",
-    auth: "account_token"
+    auth: "canonical_user"
   },
-  { method: "DELETE", path: "/api/account/bots/:id", auth: "account_token" },
+  { method: "DELETE", path: "/api/account/bots/:id", auth: "canonical_user" },
   {
     method: "DELETE",
     path: "/api/account/payment/byok/:provider",
-    auth: "account_token"
+    auth: "canonical_user"
   },
   {
     method: "DELETE",
     path: "/api/account/payment/tempo",
-    auth: "account_token"
+    auth: "canonical_user"
   },
   {
     method: "DELETE",
@@ -1769,12 +1783,12 @@ var AOMI_BACKEND_ENDPOINTS = [
   { method: "DELETE", path: "/api/secrets", auth: "session" },
   { method: "DELETE", path: "/api/secrets/:name", auth: "session" },
   { method: "DELETE", path: "/api/sessions/:session_id", auth: "session" },
-  { method: "GET", path: "/api/account", auth: "account_token" },
-  { method: "GET", path: "/api/account/app-keys", auth: "account_token" },
-  { method: "GET", path: "/api/account/approvals", auth: "account_token" },
-  { method: "GET", path: "/api/account/bots", auth: "account_token" },
-  { method: "GET", path: "/api/account/payment", auth: "account_token" },
-  { method: "GET", path: "/api/account/usage", auth: "account_token" },
+  { method: "GET", path: "/api/account", auth: "canonical_user" },
+  { method: "GET", path: "/api/account/app-keys", auth: "canonical_user" },
+  { method: "GET", path: "/api/account/approvals", auth: "canonical_user" },
+  { method: "GET", path: "/api/account/bots", auth: "canonical_user" },
+  { method: "GET", path: "/api/account/payment", auth: "canonical_user" },
+  { method: "GET", path: "/api/account/usage", auth: "canonical_user" },
   { method: "GET", path: "/api/admin/app-store", auth: "self_guarded" },
   { method: "GET", path: "/api/admin/apps/public", auth: "self_guarded" },
   { method: "GET", path: "/api/admin/skills", auth: "self_guarded" },
@@ -1822,12 +1836,12 @@ var AOMI_BACKEND_ENDPOINTS = [
   { method: "GET", path: "/health", auth: "public" },
   { method: "PATCH", path: "/api/sessions/:session_id", auth: "session" },
   { method: "POST", path: "/api/_internal/secrets", auth: "self_guarded" },
-  { method: "POST", path: "/api/account/app-keys", auth: "account_token" },
-  { method: "POST", path: "/api/account/approvals", auth: "account_token" },
-  { method: "POST", path: "/api/account/bots", auth: "account_token" },
+  { method: "POST", path: "/api/account/app-keys", auth: "canonical_user" },
+  { method: "POST", path: "/api/account/approvals", auth: "canonical_user" },
+  { method: "POST", path: "/api/account/bots", auth: "canonical_user" },
   { method: "POST", path: "/api/account/exchange", auth: "public" },
-  { method: "POST", path: "/api/account/payment/byok", auth: "account_token" },
-  { method: "POST", path: "/api/account/payment/tempo", auth: "account_token" },
+  { method: "POST", path: "/api/account/payment/byok", auth: "canonical_user" },
+  { method: "POST", path: "/api/account/payment/tempo", auth: "canonical_user" },
   { method: "POST", path: "/api/admin/apps/:app/reload", auth: "self_guarded" },
   { method: "POST", path: "/api/admin/skills/batch", auth: "self_guarded" },
   { method: "POST", path: "/api/admin/skills/rollback", auth: "self_guarded" },

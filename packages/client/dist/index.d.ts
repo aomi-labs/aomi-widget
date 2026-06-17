@@ -410,7 +410,7 @@ declare function isAsyncCallback(event: AomiSystemEvent): event is {
 };
 
 type AomiHttpMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
-type AomiAuthClass = "public" | "session" | "account_token" | "self_guarded" | "app_key_checked";
+type AomiAuthClass = "public" | "session" | "canonical_user" | "self_guarded" | "app_key_checked";
 interface AomiEndpointSpec {
     method: AomiHttpMethod;
     path: string;
@@ -419,23 +419,23 @@ interface AomiEndpointSpec {
 declare const AOMI_BACKEND_ENDPOINTS: readonly [{
     readonly method: "DELETE";
     readonly path: "/api/account/app-keys/:key_hash";
-    readonly auth: "account_token";
+    readonly auth: "canonical_user";
 }, {
     readonly method: "DELETE";
     readonly path: "/api/account/approvals/:id";
-    readonly auth: "account_token";
+    readonly auth: "canonical_user";
 }, {
     readonly method: "DELETE";
     readonly path: "/api/account/bots/:id";
-    readonly auth: "account_token";
+    readonly auth: "canonical_user";
 }, {
     readonly method: "DELETE";
     readonly path: "/api/account/payment/byok/:provider";
-    readonly auth: "account_token";
+    readonly auth: "canonical_user";
 }, {
     readonly method: "DELETE";
     readonly path: "/api/account/payment/tempo";
-    readonly auth: "account_token";
+    readonly auth: "canonical_user";
 }, {
     readonly method: "DELETE";
     readonly path: "/api/platforms/:name/tokens/:id";
@@ -455,27 +455,27 @@ declare const AOMI_BACKEND_ENDPOINTS: readonly [{
 }, {
     readonly method: "GET";
     readonly path: "/api/account";
-    readonly auth: "account_token";
+    readonly auth: "canonical_user";
 }, {
     readonly method: "GET";
     readonly path: "/api/account/app-keys";
-    readonly auth: "account_token";
+    readonly auth: "canonical_user";
 }, {
     readonly method: "GET";
     readonly path: "/api/account/approvals";
-    readonly auth: "account_token";
+    readonly auth: "canonical_user";
 }, {
     readonly method: "GET";
     readonly path: "/api/account/bots";
-    readonly auth: "account_token";
+    readonly auth: "canonical_user";
 }, {
     readonly method: "GET";
     readonly path: "/api/account/payment";
-    readonly auth: "account_token";
+    readonly auth: "canonical_user";
 }, {
     readonly method: "GET";
     readonly path: "/api/account/usage";
-    readonly auth: "account_token";
+    readonly auth: "canonical_user";
 }, {
     readonly method: "GET";
     readonly path: "/api/admin/app-store";
@@ -587,15 +587,15 @@ declare const AOMI_BACKEND_ENDPOINTS: readonly [{
 }, {
     readonly method: "POST";
     readonly path: "/api/account/app-keys";
-    readonly auth: "account_token";
+    readonly auth: "canonical_user";
 }, {
     readonly method: "POST";
     readonly path: "/api/account/approvals";
-    readonly auth: "account_token";
+    readonly auth: "canonical_user";
 }, {
     readonly method: "POST";
     readonly path: "/api/account/bots";
-    readonly auth: "account_token";
+    readonly auth: "canonical_user";
 }, {
     readonly method: "POST";
     readonly path: "/api/account/exchange";
@@ -603,11 +603,11 @@ declare const AOMI_BACKEND_ENDPOINTS: readonly [{
 }, {
     readonly method: "POST";
     readonly path: "/api/account/payment/byok";
-    readonly auth: "account_token";
+    readonly auth: "canonical_user";
 }, {
     readonly method: "POST";
     readonly path: "/api/account/payment/tempo";
-    readonly auth: "account_token";
+    readonly auth: "canonical_user";
 }, {
     readonly method: "POST";
     readonly path: "/api/admin/apps/:app/reload";

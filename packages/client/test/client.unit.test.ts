@@ -266,6 +266,76 @@ describe("AomiClient account profile", () => {
       vi.stubGlobal("fetch", originalFetch);
     }
   });
+
+  it("sends chat messages as query params instead of a JSON body", async () => {
+    const response = {
+      ok: true,
+      status: 200,
+      statusText: "OK",
+      json: vi.fn(async () => ({ messages: [], is_processing: false })),
+    } as unknown as Response;
+    const nativeFetch = vi.fn(async () => response);
+    const originalFetch = globalThis.fetch;
+    vi.stubGlobal("fetch", nativeFetch);
+
+    try {
+      const client = new AomiClient({ baseUrl: "http://unit.test" });
+
+      await client.sendMessage("session-1", "swap 20 mon to usdc", {
+        app: "default",
+        publicKey: "0xabc",
+        clientId: "client-1",
+      });
+
+      const [url, init] = nativeFetch.mock.calls[0] ?? [];
+      expect(String(url)).toBe(
+        "http://unit.test/api/chat?app=default&message=swap+20+mon+to+usdc&public_key=0xabc&client_id=client-1",
+      );
+      expect((init as RequestInit | undefined)?.body).toBeUndefined();
+      expect(new Headers((init as RequestInit).headers).get("X-Session-Id")).toBe(
+        "session-1",
+      );
+    } finally {
+      vi.stubGlobal("fetch", originalFetch);
+    }
+  });
+
+  it("sends setModel as query params instead of a JSON body", async () => {
+    const response = {
+      ok: true,
+      status: 200,
+      statusText: "OK",
+      json: vi.fn(async () => ({
+        success: true,
+        rig: "gpt-5",
+        baml: "gpt-5-nano",
+        created: false,
+      })),
+    } as unknown as Response;
+    const nativeFetch = vi.fn(async () => response);
+    const originalFetch = globalThis.fetch;
+    vi.stubGlobal("fetch", nativeFetch);
+
+    try {
+      const client = new AomiClient({ baseUrl: "http://unit.test" });
+
+      await client.setModel("session-1", "gpt-5", {
+        app: "default",
+        clientId: "client-1",
+      });
+
+      const [url, init] = nativeFetch.mock.calls[0] ?? [];
+      expect(String(url)).toBe(
+        "http://unit.test/api/session/model?rig=gpt-5&app=default&client_id=client-1",
+      );
+      expect((init as RequestInit | undefined)?.body).toBeUndefined();
+      expect(new Headers((init as RequestInit).headers).get("X-Session-Id")).toBe(
+        "session-1",
+      );
+    } finally {
+      vi.stubGlobal("fetch", originalFetch);
+    }
+  });
 });
 
 const encoder = new TextEncoder();
