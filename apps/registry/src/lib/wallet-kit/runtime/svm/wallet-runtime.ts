@@ -30,6 +30,7 @@ export type SafeSvmWalletState = {
   connecting: boolean;
   disconnecting: boolean;
   walletName: string | undefined;
+  transport?: "extension" | "embedded" | "mwa";
   wallets: Array<{
     adapter: {
       name: string;
@@ -399,7 +400,7 @@ export function useSvmWalletRuntime({
           ? ("injected" as const)
           : undefined,
         transport: registryIdentity.address
-          ? detectSvmTransport(registryIdentity.walletName)
+          ? (wallet.transport ?? detectSvmTransport(registryIdentity.walletName))
           : undefined,
         capabilities: getSvmCapabilitySnapshot(wallet),
       };
