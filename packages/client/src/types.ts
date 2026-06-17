@@ -51,6 +51,28 @@ export type GetAccountAccessToken = (options?: {
   forceRefresh?: boolean;
 }) => Promise<string | null | undefined>;
 
+export type AomiRequestQueryValue =
+  | string
+  | number
+  | boolean
+  | null
+  | undefined;
+
+export interface AomiRequestOptions {
+  /** Session id for session-scoped routes. */
+  sessionId?: string;
+  /** App key for app-key checked routes; defaults to the client's apiKey. */
+  apiKey?: string;
+  /** Query params appended to the request URL. */
+  query?: Record<string, AomiRequestQueryValue>;
+  /** JSON request payload. */
+  body?: unknown;
+  /** Extra request headers. */
+  headers?: HeadersInit;
+  /** Use the native fetch path instead of a custom payment-aware fetch wrapper. */
+  raw?: boolean;
+}
+
 // =============================================================================
 // Base Types
 // =============================================================================

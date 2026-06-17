@@ -14,6 +14,7 @@ import type {
   AomiInterruptResponse,
   AomiListByokKeysResponse,
   AomiListSecretsResponse,
+  AomiRequestOptions,
   AomiByokKeyEntry,
   AomiSaveByokKeyResponse,
   AomiSSEEvent,
@@ -25,6 +26,7 @@ import type {
   GetAccountAccessToken,
   Logger,
 } from "./types";
+import type { AomiHttpMethod } from "./routes";
 import { UserState, type UserState as UserStateShape } from "./user-state";
 import { createSseSubscriber, type SseSubscriber } from "./sse";
 
@@ -129,6 +131,22 @@ function buildApiUrl(
 
   const queryString = params.toString();
   return queryString ? `${url}?${queryString}` : url;
+}
+
+function normalizeQuery(
+  query: AomiRequestOptions["query"],
+): Record<string, string | undefined> | undefined {
+  if (!query) return undefined;
+  const normalized: Record<string, string | undefined> = {};
+  for (const [key, value] of Object.entries(query)) {
+    normalized[key] =
+      value === null || value === undefined ? undefined : String(value);
+  }
+  return normalized;
+}
+
+function encodeJsonBody(body: unknown): BodyInit | undefined {
+  return body === undefined ? undefined : JSON.stringify(body);
 }
 
 function withSessionHeader(sessionId: string, init?: HeadersInit): HeadersInit {
@@ -305,6 +323,55 @@ export class AomiClient {
   // ===========================================================================
   // Chat & State
   // ===========================================================================
+
+  /**
+   * Low-level request escape hatch for the full backend route manifest.
+   * Prefer the typed helpers below for common chat/session/account flows.
+   */
+  async request<T = unknown>(
+    method: AomiHttpMethod,
+    path: string,
+    options?: AomiRequestOptions,
+  ): Promise<T> {
+    const url = buildApiUrl(this.baseUrl, path, normalizeQuery(options?.query));
+    const headers = new Headers(options?.headers);
+    if (options?.sessionId) {
+      headers.set(SESSION_ID_HEADER, options.sessionId);
+    }
+    const apiKey = options?.apiKey ?? this.apiKey;
+    if (apiKey) {
+      headers.set(APP_KEY_HEADER, apiKey);
+    }
+    if (options?.body !== undefined && !headers.has("Content-Type")) {
+      headers.set("Content-Type", "application/json");
+    }
+
+    const response = await (options?.raw ? this.rawFetchImpl : this.fetchImpl)(
+      url,
+      {
+        method,
+        headers,
+        body: encodeJsonBody(options?.body),
+      },
+    );
+
+    if (!response.ok) {
+      const body = await response.text().catch(() => "");
+      throw new Error(
+        `HTTP ${response.status}: ${response.statusText}${body ? `\n${body}` : ""}`,
+      );
+    }
+
+    if (response.status === 204) {
+      return undefined as T;
+    }
+
+    const contentType = response.headers.get("content-type") ?? "";
+    if (contentType.includes("application/json")) {
+      return (await response.json()) as T;
+    }
+    return (await response.text()) as T;
+  }
 
   /**
    * Fetch current session state (messages, processing status, title).

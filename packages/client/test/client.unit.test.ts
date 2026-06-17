@@ -2,6 +2,64 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { createAccountAccessTokenProvider } from "../src/account-session";
 import { AomiClient } from "../src/client";
+import { AOMI_BACKEND_ENDPOINTS } from "../src/routes";
+
+describe("AomiClient route manifest", () => {
+  it("tracks the current backend route surface without legacy control routes", () => {
+    const routeKeys = AOMI_BACKEND_ENDPOINTS.map(
+      (endpoint) => `${endpoint.method} ${endpoint.path} ${endpoint.auth}`,
+    );
+
+    expect(routeKeys).toHaveLength(74);
+    expect(new Set(routeKeys).size).toBe(routeKeys.length);
+    expect(routeKeys).toContain("GET /api/session/apps session");
+    expect(routeKeys).toContain(
+      "POST /api/platforms/:name/deploy self_guarded",
+    );
+    expect(routeKeys).toContain("POST /api/account/exchange public");
+    expect(routeKeys).not.toContain("GET /api/control/apps session");
+    expect(routeKeys.some((route) => route.includes("/api/control/"))).toBe(
+      false,
+    );
+  });
+
+  it("can call any manifest route through the low-level request API", async () => {
+    const response = {
+      ok: true,
+      status: 200,
+      statusText: "OK",
+      headers: new Headers({ "content-type": "application/json" }),
+      json: vi.fn(async () => ({ ok: true })),
+      text: vi.fn(async () => ""),
+    } as unknown as Response;
+    const fetchImpl = vi.fn(async () => response);
+    const client = new AomiClient({
+      baseUrl: "http://unit.test/",
+      apiKey: "app-key-1",
+      fetch: fetchImpl,
+    });
+
+    await expect(
+      client.request("POST", "/api/platforms/community/deploy", {
+        sessionId: "session-1",
+        query: { dry_run: true, empty: null },
+        body: { source: "github" },
+      }),
+    ).resolves.toEqual({ ok: true });
+
+    const [url, init] = fetchImpl.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe(
+      "http://unit.test/api/platforms/community/deploy?dry_run=true",
+    );
+    expect(init.method).toBe("POST");
+    expect(JSON.parse(init.body as string)).toEqual({ source: "github" });
+
+    const headers = new Headers(init.headers);
+    expect(headers.get("X-Session-Id")).toBe("session-1");
+    expect(headers.get("Aomi-App-Key")).toBe("app-key-1");
+    expect(headers.get("Content-Type")).toBe("application/json");
+  });
+});
 
 describe("AomiClient account profile", () => {
   afterEach(() => {

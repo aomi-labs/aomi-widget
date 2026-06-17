@@ -797,6 +797,17 @@ function buildApiUrl(baseUrl, path, query) {
   const queryString = params.toString();
   return queryString ? `${url}?${queryString}` : url;
 }
+function normalizeQuery(query) {
+  if (!query) return void 0;
+  const normalized = {};
+  for (const [key, value] of Object.entries(query)) {
+    normalized[key] = value === null || value === void 0 ? void 0 : String(value);
+  }
+  return normalized;
+}
+function encodeJsonBody(body) {
+  return body === void 0 ? void 0 : JSON.stringify(body);
+}
 function withSessionHeader(sessionId, init) {
   const headers = new Headers(init);
   headers.set(SESSION_ID_HEADER, sessionId);
@@ -917,6 +928,48 @@ var AomiClient = class {
   // ===========================================================================
   // Chat & State
   // ===========================================================================
+  /**
+   * Low-level request escape hatch for the full backend route manifest.
+   * Prefer the typed helpers below for common chat/session/account flows.
+   */
+  async request(method, path, options) {
+    var _a, _b;
+    const url = buildApiUrl(this.baseUrl, path, normalizeQuery(options == null ? void 0 : options.query));
+    const headers = new Headers(options == null ? void 0 : options.headers);
+    if (options == null ? void 0 : options.sessionId) {
+      headers.set(SESSION_ID_HEADER, options.sessionId);
+    }
+    const apiKey = (_a = options == null ? void 0 : options.apiKey) != null ? _a : this.apiKey;
+    if (apiKey) {
+      headers.set(APP_KEY_HEADER, apiKey);
+    }
+    if ((options == null ? void 0 : options.body) !== void 0 && !headers.has("Content-Type")) {
+      headers.set("Content-Type", "application/json");
+    }
+    const response = await ((options == null ? void 0 : options.raw) ? this.rawFetchImpl : this.fetchImpl)(
+      url,
+      {
+        method,
+        headers,
+        body: encodeJsonBody(options == null ? void 0 : options.body)
+      }
+    );
+    if (!response.ok) {
+      const body = await response.text().catch(() => "");
+      throw new Error(
+        `HTTP ${response.status}: ${response.statusText}${body ? `
+${body}` : ""}`
+      );
+    }
+    if (response.status === 204) {
+      return void 0;
+    }
+    const contentType = (_b = response.headers.get("content-type")) != null ? _b : "";
+    if (contentType.includes("application/json")) {
+      return await response.json();
+    }
+    return await response.text();
+  }
   /**
    * Fetch current session state (messages, processing status, title).
    */
@@ -1604,6 +1657,160 @@ function isSystemError(event) {
 function isAsyncCallback(event) {
   return "AsyncCallback" in event;
 }
+
+// src/routes.ts
+var AOMI_BACKEND_ENDPOINTS = [
+  {
+    method: "DELETE",
+    path: "/api/account/app-keys/:key_hash",
+    auth: "account_token"
+  },
+  {
+    method: "DELETE",
+    path: "/api/account/approvals/:id",
+    auth: "account_token"
+  },
+  { method: "DELETE", path: "/api/account/bots/:id", auth: "account_token" },
+  {
+    method: "DELETE",
+    path: "/api/account/payment/byok/:provider",
+    auth: "account_token"
+  },
+  {
+    method: "DELETE",
+    path: "/api/account/payment/tempo",
+    auth: "account_token"
+  },
+  {
+    method: "DELETE",
+    path: "/api/platforms/:name/tokens/:id",
+    auth: "self_guarded"
+  },
+  { method: "DELETE", path: "/api/secrets", auth: "session" },
+  { method: "DELETE", path: "/api/secrets/:name", auth: "session" },
+  { method: "DELETE", path: "/api/sessions/:session_id", auth: "session" },
+  { method: "GET", path: "/api/account", auth: "account_token" },
+  { method: "GET", path: "/api/account/app-keys", auth: "account_token" },
+  { method: "GET", path: "/api/account/approvals", auth: "account_token" },
+  { method: "GET", path: "/api/account/bots", auth: "account_token" },
+  { method: "GET", path: "/api/account/payment", auth: "account_token" },
+  { method: "GET", path: "/api/account/usage", auth: "account_token" },
+  { method: "GET", path: "/api/admin/app-store", auth: "self_guarded" },
+  { method: "GET", path: "/api/admin/apps/public", auth: "self_guarded" },
+  { method: "GET", path: "/api/admin/skills", auth: "self_guarded" },
+  { method: "GET", path: "/api/admin/skills/:id", auth: "self_guarded" },
+  { method: "GET", path: "/api/events", auth: "session" },
+  {
+    method: "GET",
+    path: "/api/integrations/github-app/oauth/callback",
+    auth: "public"
+  },
+  {
+    method: "GET",
+    path: "/api/integrations/github-app/oauth/start",
+    auth: "public"
+  },
+  { method: "GET", path: "/api/openapi.json", auth: "public" },
+  { method: "GET", path: "/api/platforms", auth: "public" },
+  { method: "GET", path: "/api/platforms/:name/apps", auth: "self_guarded" },
+  {
+    method: "GET",
+    path: "/api/platforms/:name/apps/:app",
+    auth: "self_guarded"
+  },
+  {
+    method: "GET",
+    path: "/api/platforms/:name/deployments/:deployment/status",
+    auth: "self_guarded"
+  },
+  {
+    method: "GET",
+    path: "/api/platforms/:name/sources/resolve",
+    auth: "self_guarded"
+  },
+  { method: "GET", path: "/api/platforms/:name/tokens", auth: "self_guarded" },
+  { method: "GET", path: "/api/platforms/server-tags", auth: "public" },
+  { method: "GET", path: "/api/secrets", auth: "session" },
+  { method: "GET", path: "/api/session/apps", auth: "session" },
+  { method: "GET", path: "/api/session/models", auth: "session" },
+  { method: "GET", path: "/api/session/runtime/models", auth: "session" },
+  { method: "GET", path: "/api/skills", auth: "public" },
+  { method: "GET", path: "/api/sessions", auth: "session" },
+  { method: "GET", path: "/api/sessions/:session_id", auth: "session" },
+  { method: "GET", path: "/api/state", auth: "session" },
+  { method: "GET", path: "/api/updates", auth: "session" },
+  { method: "GET", path: "/health", auth: "public" },
+  { method: "PATCH", path: "/api/sessions/:session_id", auth: "session" },
+  { method: "POST", path: "/api/_internal/secrets", auth: "self_guarded" },
+  { method: "POST", path: "/api/account/app-keys", auth: "account_token" },
+  { method: "POST", path: "/api/account/approvals", auth: "account_token" },
+  { method: "POST", path: "/api/account/bots", auth: "account_token" },
+  { method: "POST", path: "/api/account/exchange", auth: "public" },
+  { method: "POST", path: "/api/account/payment/byok", auth: "account_token" },
+  { method: "POST", path: "/api/account/payment/tempo", auth: "account_token" },
+  { method: "POST", path: "/api/admin/apps/:app/reload", auth: "self_guarded" },
+  { method: "POST", path: "/api/admin/skills/batch", auth: "self_guarded" },
+  { method: "POST", path: "/api/admin/skills/rollback", auth: "self_guarded" },
+  { method: "POST", path: "/api/auth/privy/begin", auth: "session" },
+  { method: "POST", path: "/api/auth/privy/callback", auth: "public" },
+  {
+    method: "POST",
+    path: "/api/bots/telegram/:webhook_secret",
+    auth: "public"
+  },
+  { method: "POST", path: "/api/chat", auth: "app_key_checked" },
+  {
+    method: "POST",
+    path: "/api/integrations/github-app/platforms/:name/sources/create-from-template",
+    auth: "public"
+  },
+  {
+    method: "POST",
+    path: "/api/integrations/github-app/webhook",
+    auth: "public"
+  },
+  { method: "POST", path: "/api/interrupt", auth: "session" },
+  {
+    method: "POST",
+    path: "/api/platforms/:name/activate",
+    auth: "self_guarded"
+  },
+  {
+    method: "POST",
+    path: "/api/platforms/:name/apps/:app/deactivate",
+    auth: "self_guarded"
+  },
+  {
+    method: "POST",
+    path: "/api/platforms/:name/deactivate",
+    auth: "self_guarded"
+  },
+  { method: "POST", path: "/api/platforms/:name/deploy", auth: "self_guarded" },
+  {
+    method: "POST",
+    path: "/api/platforms/:name/sources/sync-installed",
+    auth: "self_guarded"
+  },
+  { method: "POST", path: "/api/platforms/:name/tokens", auth: "self_guarded" },
+  {
+    method: "POST",
+    path: "/api/platforms/:platform/apps/:app/activate",
+    auth: "self_guarded"
+  },
+  {
+    method: "POST",
+    path: "/api/platforms/:platform/apps/activate",
+    auth: "self_guarded"
+  },
+  { method: "POST", path: "/api/secrets", auth: "session" },
+  { method: "POST", path: "/api/session/model", auth: "session" },
+  { method: "POST", path: "/api/session/runtime/model", auth: "session" },
+  { method: "POST", path: "/api/sessions", auth: "session" },
+  { method: "POST", path: "/api/simulate", auth: "session" },
+  { method: "POST", path: "/api/system", auth: "session" },
+  { method: "PUT", path: "/api/admin/apps/public", auth: "self_guarded" },
+  { method: "PUT", path: "/api/admin/skills/:id", auth: "self_guarded" }
+];
 
 // src/event.ts
 var TypedEventEmitter = class {
@@ -4545,6 +4752,7 @@ async function createAAProviderState(options) {
 }
 export {
   ALCHEMY_CHAIN_SLUGS,
+  AOMI_BACKEND_ENDPOINTS,
   AomiClient,
   CHAINS_BY_ID,
   CHAIN_NAMES,
