@@ -141,12 +141,10 @@ function makeAdapter(overrides: Partial<AomiWalletKit> = {}): AomiWalletKit {
         })) ?? [
           account.manageable
             ? ({ kind: "manage" as const, label: "Manage" } as const)
-            : account.active
-              ? ({
-                  kind: "disconnect" as const,
-                  label: "Disconnect",
-                } as const)
-              : ({ kind: "select" as const, label: "Select" } as const),
+            : ({
+                kind: "disconnect" as const,
+                label: "Disconnect",
+              } as const),
         ],
       })),
       ...(adapter.evmWallets ?? []).map((wallet) => ({
@@ -324,6 +322,9 @@ describe("WalletPicker", () => {
 
     expect(screen.getByText("Rabby Wallet")).toBeTruthy();
     expect(screen.getAllByText("MetaMask").length).toBeGreaterThan(0);
+    expect(screen.getAllByLabelText("Disconnect Ethereum wallet")).toHaveLength(
+      2,
+    );
     await act(async () => {
       fireEvent.click(screen.getByLabelText("Make MetaMask active"));
     });

@@ -136,7 +136,7 @@ export const AppSelect: FC<AppSelectProps> = ({
                       <div className="flex flex-col">
                         <span className="font-medium">Basic Apps</span>
                         <span className="text-muted-foreground text-xs">
-                          Use all available apps
+                          Use curated apps by Aomi
                         </span>
                       </div>
                     </div>

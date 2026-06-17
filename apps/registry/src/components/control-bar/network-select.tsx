@@ -126,9 +126,8 @@ export const NetworkSelect: FC<NetworkSelectProps> = ({
   const selectedSolanaNetwork = networkPreferences?.selectedSolanaNetwork;
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
-  const [showTestnets, setShowTestnets] = useState<boolean>(
-    readShowTestnetsPref,
-  );
+  const [showTestnets, setShowTestnets] =
+    useState<boolean>(readShowTestnetsPref);
   const [pendingTarget, setPendingTarget] = useState<AomiNetworkTarget | null>(
     null,
   );
@@ -140,16 +139,14 @@ export const NetworkSelect: FC<NetworkSelectProps> = ({
     chains ?? adapter.supportedNetworks?.evm ?? adapter.supportedChains ?? [];
   const solanaNetworks = adapter.supportedNetworks?.solana ?? [];
 
-  // Which families to surface follows what the user has actually connected,
-  // not just what the host supports — an EVM-only wallet shouldn't see Solana
-  // switching, and vice-versa. With nothing connected we fall back to showing
-  // every supported network so the picker doubles as a pre-connect preference.
+  // EVM networks only appear when they can affect the connected EVM wallet (or
+  // before connect), while Solana remains available as a read-only preference
+  // so users can inspect Solana data without attaching a Solana wallet first.
   const evmConnected = Boolean(identity.address);
   const solanaConnected = Boolean(identity.svmAddress);
   const anyConnected = evmConnected || solanaConnected;
   const showEvm = evmChains.length > 0 && (anyConnected ? evmConnected : true);
-  const showSolana =
-    solanaNetworks.length > 0 && (anyConnected ? solanaConnected : true);
+  const showSolana = solanaNetworks.length > 0;
 
   const activeEvmChainId = identity.chainId ?? selectedEvmChainId;
   const activeEvmChain = evmChains.find(
@@ -248,9 +245,7 @@ export const NetworkSelect: FC<NetworkSelectProps> = ({
   // The active network being a testnet forces them visible — never hide the
   // row the user is currently on. Search reveals testnets too, so a query can
   // jump straight to one ("sep" → Sepolia) even while the list is collapsed.
-  const activeIsTestnet = allRows.some(
-    (row) => row.isActive && row.isTestnet,
-  );
+  const activeIsTestnet = allRows.some((row) => row.isActive && row.isTestnet);
   const searching = query.trim().length > 0;
   const testnetsExpanded = showTestnets || activeIsTestnet || searching;
   const showSearch = mainnetCount > SEARCH_VISIBLE_THRESHOLD;
@@ -402,7 +397,9 @@ export const NetworkSelect: FC<NetworkSelectProps> = ({
               {sections.map((section) => (
                 <CommandGroup
                   key={section.family}
-                  heading={showGroupHeaders ? familyLabel(section.family) : undefined}
+                  heading={
+                    showGroupHeaders ? familyLabel(section.family) : undefined
+                  }
                   className="p-0"
                 >
                   {section.rows.map(renderRow)}
@@ -415,7 +412,9 @@ export const NetworkSelect: FC<NetworkSelectProps> = ({
                 onClick={toggleTestnets}
                 className="text-muted-foreground hover:bg-accent flex w-full items-center justify-between gap-2 border-t px-3 py-2 text-xs transition-colors"
               >
-                <span>{testnetsExpanded ? "Hide testnets" : "Show testnets"}</span>
+                <span>
+                  {testnetsExpanded ? "Hide testnets" : "Show testnets"}
+                </span>
                 <span className="flex items-center gap-1">
                   {!testnetsExpanded && <span>{testnetCount} hidden</span>}
                   <ChevronDownIcon

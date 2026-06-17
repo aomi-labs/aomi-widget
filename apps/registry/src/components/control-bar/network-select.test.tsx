@@ -231,7 +231,7 @@ describe("NetworkSelect", () => {
     });
   });
 
-  it("hides Solana networks when only an EVM wallet is connected", async () => {
+  it("shows Solana networks when only an EVM wallet is connected", async () => {
     render(
       <ExtUserProvider>
         <AomiWalletNetworkPreferencesProvider
@@ -252,7 +252,9 @@ describe("NetworkSelect", () => {
     fireEvent.click(screen.getByRole("combobox"));
     expect(screen.getByRole("option", { name: /Base/i })).toBeTruthy();
     expect(screen.getByRole("option", { name: /Ethereum/i })).toBeTruthy();
-    expect(screen.queryByRole("option", { name: /Solana/i })).toBeNull();
+    expect(
+      screen.getByRole("option", { name: /Solana Mainnet/i }),
+    ).toBeTruthy();
   });
 
   it("folds testnets behind a toggle and reveals them on demand", async () => {
@@ -309,9 +311,7 @@ describe("NetworkSelect", () => {
     // On a testnet -> its row must stay visible, and the toggle is suppressed
     // (you can't hide the network you're currently on).
     expect(screen.getByRole("option", { name: /Base Sepolia/i })).toBeTruthy();
-    expect(
-      screen.queryByRole("button", { name: /testnets/i }),
-    ).toBeNull();
+    expect(screen.queryByRole("button", { name: /testnets/i })).toBeNull();
   });
 
   it("connects without a family selection", async () => {
