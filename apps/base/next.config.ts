@@ -28,6 +28,7 @@ const nextConfig: NextConfig = {
       "@aomi-labs/client": "../../packages/client/src/index.ts",
       "@aomi-labs/react": "../../packages/react/src/index.ts",
       "@aomi-labs/widget-lib": "../../apps/registry/src/index.ts",
+      "@assistant-ui/react": "./node_modules/@assistant-ui/react",
       "@tanstack/react-query": "./node_modules/@tanstack/react-query",
       zustand: "./node_modules/zustand",
       viem: "./node_modules/viem",
@@ -43,6 +44,7 @@ const nextConfig: NextConfig = {
       "@aomi-labs/client": path.join(clientPkgSrc, "index.ts"),
       "@aomi-labs/react": path.join(reactPkgSrc, "index.ts"),
       "@aomi-labs/widget-lib": path.join(widgetSrc, "index.ts"),
+      "@assistant-ui/react": path.join(baseNodeModules, "@assistant-ui/react"),
       "@tanstack/react-query": path.join(
         baseNodeModules,
         "@tanstack/react-query",

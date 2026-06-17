@@ -158,7 +158,7 @@ export interface AomiCreateThreadResponse {
 }
 
 /**
- * GET /api/settings/account
+ * GET /api/account
  * The account bound to the authenticated request (resolved from the account
  * bearer). Returned only when the session is bound to a real user; an
  * anonymous session yields HTTP 400.
@@ -198,8 +198,8 @@ export type AomiWalletFamily = "evm" | "svm";
 export type AomiAuthWalletFamily = "evm" | "solana";
 
 /**
- * GET/POST /api/control/provider-keys
- * Lists or saves BYOK keys (one per LLM provider) for the bound client.
+ * GET/POST/DELETE /api/account/payment/byok
+ * Lists or saves BYOK keys (one per LLM provider) for the account.
  */
 export interface AomiByokKeyEntry {
   provider: string;
@@ -209,7 +209,7 @@ export interface AomiByokKeyEntry {
 }
 
 export interface AomiListByokKeysResponse {
-  byok_keys: AomiByokKeyEntry[];
+  byok: AomiByokKeyEntry[];
 }
 
 export interface AomiSaveByokKeyResponse {

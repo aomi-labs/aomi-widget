@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
 const HOP_BY_HOP_HEADERS = new Set([
-  "authorization",
   "connection",
   "content-length",
   "cookie",
@@ -13,6 +12,7 @@ const HOP_BY_HOP_HEADERS = new Set([
 
 const ALLOWED_REQUEST_HEADERS = new Set([
   "accept",
+  "authorization",
   "content-type",
   "aomi-app-key",
   "x-session-id",
@@ -35,18 +35,50 @@ const ALLOWED_ROUTES: Array<{
     methods: new Set(["GET", "PATCH", "DELETE"]),
   },
   { pattern: /^\/api\/events$/, methods: new Set(["GET"]) },
-  { pattern: /^\/api\/settings\/account$/, methods: new Set(["GET"]) },
-  { pattern: /^\/api\/control\/apps$/, methods: new Set(["GET"]) },
-  { pattern: /^\/api\/control\/models$/, methods: new Set(["GET"]) },
-  { pattern: /^\/api\/control\/model$/, methods: new Set(["POST"]) },
+  { pattern: /^\/api\/auth\/privy\/begin$/, methods: new Set(["POST"]) },
+  { pattern: /^\/api\/account$/, methods: new Set(["GET"]) },
+  { pattern: /^\/api\/account\/exchange$/, methods: new Set(["POST"]) },
+  { pattern: /^\/api\/account\/usage$/, methods: new Set(["GET"]) },
   {
-    pattern: /^\/api\/control\/provider-keys$/,
+    pattern: /^\/api\/account\/app-keys$/,
     methods: new Set(["GET", "POST"]),
   },
   {
-    pattern: /^\/api\/control\/provider-keys\/[^/]+$/,
+    pattern: /^\/api\/account\/app-keys\/[^/]+$/,
     methods: new Set(["DELETE"]),
   },
+  {
+    pattern: /^\/api\/account\/bots$/,
+    methods: new Set(["GET", "POST"]),
+  },
+  {
+    pattern: /^\/api\/account\/bots\/[^/]+$/,
+    methods: new Set(["DELETE"]),
+  },
+  {
+    pattern: /^\/api\/account\/approvals$/,
+    methods: new Set(["GET", "POST"]),
+  },
+  {
+    pattern: /^\/api\/account\/approvals\/[^/]+$/,
+    methods: new Set(["DELETE"]),
+  },
+  { pattern: /^\/api\/account\/payment$/, methods: new Set(["GET"]) },
+  {
+    pattern: /^\/api\/account\/payment\/byok$/,
+    methods: new Set(["POST"]),
+  },
+  {
+    pattern: /^\/api\/account\/payment\/byok\/[^/]+$/,
+    methods: new Set(["DELETE"]),
+  },
+  {
+    pattern: /^\/api\/account\/payment\/tempo$/,
+    methods: new Set(["POST", "DELETE"]),
+  },
+  { pattern: /^\/api\/session\/apps$/, methods: new Set(["GET"]) },
+  { pattern: /^\/api\/session\/models$/, methods: new Set(["GET"]) },
+  { pattern: /^\/api\/session\/model$/, methods: new Set(["POST"]) },
   { pattern: /^\/api\/simulate$/, methods: new Set(["POST"]) },
 ];
 

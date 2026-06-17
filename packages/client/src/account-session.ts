@@ -58,7 +58,7 @@ export function createAccountAccessTokenProvider({
   const exchange = async (): Promise<AccountSessionExchangeResponse> => {
     const credential = await getProviderCredential();
     const response = await fetchImpl(
-      `${baseUrl.replace(/\/+$/, "")}/api/account/sessions/exchange`,
+      `${baseUrl.replace(/\/+$/, "")}/api/account/exchange`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },

@@ -18,10 +18,7 @@
     "clean": "rm -rf .next node_modules"
   },
   "dependencies": {
-    "@aomi-labs/auth": "workspace:*",
     "@aomi-labs/client": "workspace:*",
-    "@aomi-labs/deploy": "workspace:*",
-    "@aomi-labs/mcp-core": "workspace:*",
     "@aomi-labs/react": "workspace:*",
     "@aomi-labs/widget-lib": "workspace:*",
     "@assistant-ui/react": "^0.11.58",
@@ -29,7 +26,6 @@
     "@getpara/evm-wallet-connectors": "^2.24.0",
     "@getpara/react-core": "^2.24.0",
     "@getpara/react-sdk": "^2.24.0",
-    "@modelcontextprotocol/sdk": "^1.29.0",
     "@privy-io/react-auth": "^3.27.1",
     "@solana-program/memo": "^0.8.0",
     "@solana/kit": ">=3.0.3",

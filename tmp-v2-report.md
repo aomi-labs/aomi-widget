@@ -56,7 +56,7 @@
 2. Add the `sponsored` / `sponsor_provider` / `sponsor_account` write to `resolveWallet` + `wallet.ts` (bug #8) and re-run C2 wire trace.
 3. Decide on the C3 unsponsored knob (bug #7).
 4. Fix the apps/portal `ExtUserProvider` + Solana `WalletProvider` wrapping (bug #9) so Para cells become exercisable.
-5. For Base/Para UI cells, switch from preview tools to either: (a) the Chrome extension MCP so wallet popups can be driven with real user-gestures, or (b) a Playwright-headful run, or (c) computer-use with explicit popup approval.
+5. For Base/Para UI cells, switch from preview tools to either: (a) a Playwright-headful run, or (b) computer-use with explicit popup approval.
 
 ---
 
@@ -84,4 +84,4 @@
 ### Remaining gaps
 - Live AA broadcast verification for C2/C3/C5 (Alchemy + Pimlico bundler routes to mainnet — won't target a local fork).
 - `sponsored`/`sponsor_provider`/`sponsor_account` not yet written by `resolveWallet` from execution result (bug #8 still open).
-- Connected/post-tx UserState shape for Base + Para cells (B1–B3, P1–P8) — needs Chrome extension MCP or Playwright-headful for popup handling.
+- Connected/post-tx UserState shape for Base + Para cells (B1–B3, P1–P8) — needs Playwright-headful for popup handling.

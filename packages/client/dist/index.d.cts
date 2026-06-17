@@ -256,7 +256,7 @@ interface AomiCreateThreadResponse {
     title?: string;
 }
 /**
- * GET /api/settings/account
+ * GET /api/account
  * The account bound to the authenticated request (resolved from the account
  * bearer). Returned only when the session is bound to a real user; an
  * anonymous session yields HTTP 400.
@@ -272,8 +272,15 @@ interface AomiAccount {
     created_at?: number;
     updated_at?: number;
 }
+interface AomiAccountWallet {
+    wallet_id?: string | null;
+    address: string;
+    chain_type: string;
+    wallet_provider: string;
+}
 interface AomiAccountProfile {
     account: AomiAccount;
+    wallets?: AomiAccountWallet[];
     usage?: unknown;
 }
 interface AomiBeginAccountAuthResponse {
@@ -282,9 +289,10 @@ interface AomiBeginAccountAuthResponse {
     expires_at: number;
 }
 type AomiWalletFamily = "evm" | "svm";
+type AomiAuthWalletFamily = "evm" | "solana";
 /**
- * GET/POST /api/control/provider-keys
- * Lists or saves BYOK keys (one per LLM provider) for the bound client.
+ * GET/POST/DELETE /api/account/payment/byok
+ * Lists or saves BYOK keys (one per LLM provider) for the account.
  */
 interface AomiByokKeyEntry {
     provider: string;
@@ -454,7 +462,7 @@ declare class AomiClient {
     subscribeSSE(sessionId: string, onUpdate: (event: AomiSSEEvent) => void, onError?: (error: unknown) => void): () => void;
     /**
      * @deprecated Account bootstrap is handled by session create/chat requests and
-     * the account-token exchange. `/api/settings/account` is now an authenticated
+     * the account-token exchange. `/api/account` is now an authenticated
      * profile endpoint, so this legacy helper intentionally does nothing.
      */
     ensureAccount(_sessionId: string, _publicKey: string): Promise<void>;
@@ -502,7 +510,7 @@ declare class AomiClient {
     /**
      * Fetch the account bound to the authenticated request (resolved from the
      * account bearer). Returns `null` when the session is not bound to a real
-     * user — the backend answers `/api/settings/account` with HTTP 400 for
+     * user — the backend answers `/api/account` with HTTP 400 for
      * anonymous sessions, which is the normal "no bearer / not logged in" case
      * rather than an error.
      */
@@ -512,6 +520,7 @@ declare class AomiClient {
      */
     beginPrivyAuth(sessionId: string, options?: {
         application?: string;
+        walletFamily?: AomiAuthWalletFamily;
     }): Promise<AomiBeginAccountAuthResponse>;
     /**
      * Get available models.
@@ -533,15 +542,15 @@ declare class AomiClient {
         created: boolean;
     }>;
     /**
-     * List BYOK keys (one per LLM provider) bound to the current session's client.
+     * List BYOK keys (one per LLM provider) bound to the current account.
      */
     listByokKeys(sessionId: string): Promise<AomiByokKeyEntry[]>;
     /**
-     * Save or replace a BYOK key for the client bound to this session.
+     * Save or replace a BYOK key for the current account.
      */
     saveByokKey(sessionId: string, provider: string, byokKey: string, label?: string): Promise<AomiByokKeyEntry>;
     /**
-     * Delete a BYOK key for the client bound to this session.
+     * Delete a BYOK key for the current account.
      */
     deleteByokKey(sessionId: string, provider: string): Promise<boolean>;
     /**

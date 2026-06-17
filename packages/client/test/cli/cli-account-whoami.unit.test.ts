@@ -129,7 +129,7 @@ describe("aomi account whoami", () => {
       "fetch",
       vi.fn(async (input: RequestInfo | URL) => {
         const url = String(input);
-        if (url.endsWith("/api/account/sessions/exchange")) {
+        if (url.endsWith("/api/account/exchange")) {
           return exchangeResponse;
         }
         return profileResponse;

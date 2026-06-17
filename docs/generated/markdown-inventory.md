@@ -40,8 +40,6 @@ review_after_days: 7
 - `specs/SHADCN-RELEASE.md` via `specs`
 - `specs/STATE.md` via `specs`
 - `specs/WALLET-ADAPTERS-ARCH.md` via `specs`
-- `specs/mcp-be-handoff.md` via `specs`
-- `specs/mcp-design.md` via `specs`
 - `specs/portal-widget-lib-unification.md` via `specs`
 
 ## Excluded Files
@@ -71,7 +69,6 @@ review_after_days: 7
 - `apps/landing/content/agents/skills/aomi-transact/references/troubleshooting.md` (not-included)
 - `apps/portal/README.md` (not-included)
 - `apps/registry/SHADCN-FETCH-GUIDE.md` (not-included)
-- `docs/test-mcp-claude.md` (not-included)
 - `docs/topics/index.md` (missing-rule)
 - `memory/2026-03-31.md` (not-included)
 - `memory/2026-04-01.md` (not-included)
