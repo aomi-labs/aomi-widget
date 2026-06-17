@@ -264,8 +264,13 @@ export function startConnect(
 export function markConnected(
   userId: string,
   params: {
-    address: string;
+    address?: string;
     chainId?: number | null;
+    svmAddress?: string;
+    svmCluster?: string | null;
+    walletProvider?: string;
+    primaryFamily?: "evm" | "svm" | "dual";
+    providerLabel?: string;
     source: WalletConnectionSource;
   },
 ): UserWalletState {
@@ -279,7 +284,15 @@ export function markConnected(
     ...prev,
     presence: "connected",
     address: params.address,
-    chainId: params.chainId ?? DEFAULT_CHAIN_ID,
+    chainId:
+      params.address
+        ? (params.chainId ?? DEFAULT_CHAIN_ID)
+        : (params.chainId ?? null),
+    svmAddress: params.svmAddress,
+    svmCluster: params.svmCluster ?? null,
+    walletProvider: params.walletProvider,
+    primaryFamily: params.primaryFamily,
+    providerLabel: params.providerLabel,
     source: params.source,
     activeOperation: undefined,
   });
@@ -306,6 +319,11 @@ export function disconnectWallet(
     presence: "disconnected",
     address: undefined,
     chainId: null,
+    svmAddress: undefined,
+    svmCluster: null,
+    walletProvider: undefined,
+    primaryFamily: undefined,
+    providerLabel: undefined,
     source: undefined,
   });
 
