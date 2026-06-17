@@ -48,6 +48,7 @@ var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: tru
 var index_exports = {};
 __export(index_exports, {
   ALCHEMY_CHAIN_SLUGS: () => ALCHEMY_CHAIN_SLUGS,
+  AOMI_BACKEND_ENDPOINTS: () => AOMI_BACKEND_ENDPOINTS,
   AomiClient: () => AomiClient,
   CHAINS_BY_ID: () => CHAINS_BY_ID,
   CHAIN_NAMES: () => CHAIN_NAMES,
@@ -801,7 +802,7 @@ function createSseSubscriber({
 
 // src/client.ts
 var SESSION_ID_HEADER = "X-Session-Id";
-var APP_KEY_HEADER = "AOMI-APP-KEY";
+var APP_KEY_HEADER = "Aomi-App-Key";
 function previewText(value, max = 80) {
   const singleLine = value.replace(/\s+/g, " ").trim();
   if (singleLine.length <= max) return singleLine;
@@ -876,6 +877,17 @@ function buildApiUrl(baseUrl, path, query) {
   const queryString = params.toString();
   return queryString ? `${url}?${queryString}` : url;
 }
+function normalizeQuery(query) {
+  if (!query) return void 0;
+  const normalized = {};
+  for (const [key, value] of Object.entries(query)) {
+    normalized[key] = value === null || value === void 0 ? void 0 : String(value);
+  }
+  return normalized;
+}
+function encodeJsonBody(body) {
+  return body === void 0 ? void 0 : JSON.stringify(body);
+}
 function withSessionHeader(sessionId, init) {
   const headers = new Headers(init);
   headers.set(SESSION_ID_HEADER, sessionId);
@@ -915,10 +927,13 @@ function supportsTokenRefreshSubscription(provider) {
   return typeof (provider == null ? void 0 : provider.subscribe) === "function";
 }
 async function postState(baseUrl, path, payload, sessionId, fetchImpl, apiKey, logger) {
-  const url = `${baseUrl}${path}`;
-  const body = JSON.stringify(payload);
+  const query = {};
+  for (const [key, value] of Object.entries(payload)) {
+    if (value === void 0 || value === null) continue;
+    query[key] = typeof value === "string" ? value : String(value);
+  }
+  const url = buildApiUrl(baseUrl, path, query);
   const headers = new Headers(withSessionHeader(sessionId));
-  headers.set("Content-Type", "application/json");
   if (apiKey) {
     headers.set(APP_KEY_HEADER, apiKey);
   }
@@ -926,7 +941,7 @@ async function postState(baseUrl, path, payload, sessionId, fetchImpl, apiKey, l
     path,
     sessionId,
     hasApiKey: Boolean(apiKey),
-    bodyLength: body.length
+    queryKeys: Object.keys(query)
   });
   let pendingWarning;
   if (typeof setTimeout === "function") {
@@ -934,7 +949,7 @@ async function postState(baseUrl, path, payload, sessionId, fetchImpl, apiKey, l
       logger == null ? void 0 : logger.debug("[aomi][client] POST still pending", {
         path,
         sessionId,
-        bodyLength: body.length
+        queryKeys: Object.keys(query)
       });
     }, 5e3);
   }
@@ -942,8 +957,7 @@ async function postState(baseUrl, path, payload, sessionId, fetchImpl, apiKey, l
   try {
     response = await fetchImpl(url, {
       method: "POST",
-      headers,
-      body
+      headers
     });
   } finally {
     if (pendingWarning) {
@@ -994,6 +1008,48 @@ var AomiClient = class {
   // ===========================================================================
   // Chat & State
   // ===========================================================================
+  /**
+   * Low-level request escape hatch for the full backend route manifest.
+   * Prefer the typed helpers below for common chat/session/account flows.
+   */
+  async request(method, path, options) {
+    var _a, _b;
+    const url = buildApiUrl(this.baseUrl, path, normalizeQuery(options == null ? void 0 : options.query));
+    const headers = new Headers(options == null ? void 0 : options.headers);
+    if (options == null ? void 0 : options.sessionId) {
+      headers.set(SESSION_ID_HEADER, options.sessionId);
+    }
+    const apiKey = (_a = options == null ? void 0 : options.apiKey) != null ? _a : this.apiKey;
+    if (apiKey) {
+      headers.set(APP_KEY_HEADER, apiKey);
+    }
+    if ((options == null ? void 0 : options.body) !== void 0 && !headers.has("Content-Type")) {
+      headers.set("Content-Type", "application/json");
+    }
+    const response = await ((options == null ? void 0 : options.raw) ? this.rawFetchImpl : this.fetchImpl)(
+      url,
+      {
+        method,
+        headers,
+        body: encodeJsonBody(options == null ? void 0 : options.body)
+      }
+    );
+    if (!response.ok) {
+      const body = await response.text().catch(() => "");
+      throw new Error(
+        `HTTP ${response.status}: ${response.statusText}${body ? `
+${body}` : ""}`
+      );
+    }
+    if (response.status === 204) {
+      return void 0;
+    }
+    const contentType = (_b = response.headers.get("content-type")) != null ? _b : "";
+    if (contentType.includes("application/json")) {
+      return await response.json();
+    }
+    return await response.text();
+  }
   /**
    * Fetch current session state (messages, processing status, title).
    */
@@ -1048,20 +1104,17 @@ var AomiClient = class {
    * Send a chat message and return updated session state.
    */
   async sendMessage(sessionId, message, options) {
-    var _a, _b, _c;
+    var _a, _b, _c, _d, _e;
     const app = (_a = options == null ? void 0 : options.app) != null ? _a : "default";
     const apiKey = (_b = options == null ? void 0 : options.apiKey) != null ? _b : this.apiKey;
     const normalizedUserState = UserState.normalize(options == null ? void 0 : options.userState);
-    const payload = { message, app };
-    if (options == null ? void 0 : options.publicKey) {
-      payload.public_key = options.publicKey;
-    }
-    if (normalizedUserState) {
-      payload.user_state = JSON.stringify(normalizedUserState);
-    }
-    if (options == null ? void 0 : options.clientId) {
-      payload.client_id = options.clientId;
-    }
+    const url = buildApiUrl(this.baseUrl, "/api/chat", {
+      app,
+      message,
+      public_key: options == null ? void 0 : options.publicKey,
+      user_state: normalizedUserState ? JSON.stringify(normalizedUserState) : void 0,
+      client_id: options == null ? void 0 : options.clientId
+    });
     (_c = this.logger) == null ? void 0 : _c.debug("[aomi][client] POST /api/chat prepared", {
       sessionId,
       app,
@@ -1070,15 +1123,30 @@ var AomiClient = class {
       hasUserState: Boolean(normalizedUserState),
       messagePreview: previewText(message)
     });
-    return postState(
-      this.baseUrl,
-      "/api/chat",
-      payload,
+    const headers = new Headers(withSessionHeader(sessionId));
+    if (apiKey) {
+      headers.set(APP_KEY_HEADER, apiKey);
+    }
+    (_d = this.logger) == null ? void 0 : _d.debug("[aomi][client] POST start", {
+      path: "/api/chat",
       sessionId,
-      this.fetchImpl,
-      apiKey,
-      this.logger
-    );
+      hasApiKey: Boolean(apiKey),
+      url
+    });
+    const response = await this.fetchImpl(url, {
+      method: "POST",
+      headers
+    });
+    (_e = this.logger) == null ? void 0 : _e.debug("[aomi][client] POST response", {
+      path: "/api/chat",
+      sessionId,
+      status: response.status,
+      ok: response.ok
+    });
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+    return await response.json();
   }
   /**
    * Send a system-level message (e.g. wallet state changes, context switches).
@@ -1231,7 +1299,7 @@ var AomiClient = class {
   // ===========================================================================
   /**
    * @deprecated Account bootstrap is handled by session create/chat requests and
-   * the account-token exchange. `/api/settings/account` is now an authenticated
+   * the account-token exchange. `/api/account` is now an authenticated
    * profile endpoint, so this legacy helper intentionally does nothing.
    */
   async ensureAccount(_sessionId, _publicKey) {
@@ -1397,12 +1465,12 @@ var AomiClient = class {
   /**
    * Fetch the account bound to the authenticated request (resolved from the
    * account bearer). Returns `null` when the session is not bound to a real
-   * user — the backend answers `/api/settings/account` with HTTP 400 for
+   * user — the backend answers `/api/account` with HTTP 400 for
    * anonymous sessions, which is the normal "no bearer / not logged in" case
    * rather than an error.
    */
   async fetchAccountProfile(sessionId) {
-    const url = buildApiUrl(this.baseUrl, "/api/settings/account");
+    const url = buildApiUrl(this.baseUrl, "/api/account");
     const response = await this.rawFetchImpl(url, {
       headers: withSessionHeader(sessionId)
     });
@@ -1461,28 +1529,30 @@ var AomiClient = class {
   async setModel(sessionId, rig, options) {
     var _a;
     const apiKey = (_a = options == null ? void 0 : options.apiKey) != null ? _a : this.apiKey;
-    const payload = { rig };
-    if (options == null ? void 0 : options.app) {
-      payload.app = options.app;
+    const url = buildApiUrl(this.baseUrl, "/api/session/model", {
+      rig,
+      app: options == null ? void 0 : options.app,
+      client_id: options == null ? void 0 : options.clientId
+    });
+    const headers = new Headers(withSessionHeader(sessionId));
+    if (apiKey) {
+      headers.set(APP_KEY_HEADER, apiKey);
     }
-    if (options == null ? void 0 : options.clientId) {
-      payload.client_id = options.clientId;
+    const response = await this.fetchImpl(url, {
+      method: "POST",
+      headers
+    });
+    if (!response.ok) {
+      throw new Error(`Failed to set model: HTTP ${response.status}`);
     }
-    return postState(
-      this.baseUrl,
-      "/api/session/model",
-      payload,
-      sessionId,
-      this.fetchImpl,
-      apiKey
-    );
+    return await response.json();
   }
   /**
-   * List BYOK keys (one per LLM provider) bound to the current session's client.
+   * List BYOK keys (one per LLM provider) bound to the current account.
    */
   async listByokKeys(sessionId) {
     var _a;
-    const url = buildApiUrl(this.baseUrl, "/api/control/provider-keys");
+    const url = buildApiUrl(this.baseUrl, "/api/account/payment");
     const response = await this.fetchImpl(url, {
       headers: withSessionHeader(sessionId)
     });
@@ -1490,13 +1560,13 @@ var AomiClient = class {
       throw new Error(`Failed to get BYOK keys: HTTP ${response.status}`);
     }
     const data = await response.json();
-    return (_a = data.byok_keys) != null ? _a : [];
+    return (_a = data.byok) != null ? _a : [];
   }
   /**
-   * Save or replace a BYOK key for the client bound to this session.
+   * Save or replace a BYOK key for the current account.
    */
   async saveByokKey(sessionId, provider, byokKey, label) {
-    const url = joinApiPath(this.baseUrl, "/api/control/provider-keys");
+    const url = joinApiPath(this.baseUrl, "/api/account/payment/byok");
     const response = await this.fetchImpl(url, {
       method: "POST",
       headers: withSessionHeader(sessionId, {
@@ -1515,12 +1585,12 @@ var AomiClient = class {
     return data.key;
   }
   /**
-   * Delete a BYOK key for the client bound to this session.
+   * Delete a BYOK key for the current account.
    */
   async deleteByokKey(sessionId, provider) {
     const url = buildApiUrl(
       this.baseUrl,
-      `/api/control/provider-keys/${encodeURIComponent(provider)}`
+      `/api/account/payment/byok/${encodeURIComponent(provider)}`
     );
     const response = await this.fetchImpl(url, {
       method: "DELETE",
@@ -1609,7 +1679,7 @@ function createAccountAccessTokenProvider({
   const exchange = async () => {
     const credential = await getProviderCredential();
     const response = await fetchImpl(
-      `${baseUrl.replace(/\/+$/, "")}/api/account/sessions/exchange`,
+      `${baseUrl.replace(/\/+$/, "")}/api/account/exchange`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -1681,6 +1751,160 @@ function isSystemError(event) {
 function isAsyncCallback(event) {
   return "AsyncCallback" in event;
 }
+
+// src/routes.ts
+var AOMI_BACKEND_ENDPOINTS = [
+  {
+    method: "DELETE",
+    path: "/api/account/app-keys/:key_hash",
+    auth: "canonical_user"
+  },
+  {
+    method: "DELETE",
+    path: "/api/account/approvals/:id",
+    auth: "canonical_user"
+  },
+  { method: "DELETE", path: "/api/account/bots/:id", auth: "canonical_user" },
+  {
+    method: "DELETE",
+    path: "/api/account/payment/byok/:provider",
+    auth: "canonical_user"
+  },
+  {
+    method: "DELETE",
+    path: "/api/account/payment/tempo",
+    auth: "canonical_user"
+  },
+  {
+    method: "DELETE",
+    path: "/api/platforms/:name/tokens/:id",
+    auth: "self_guarded"
+  },
+  { method: "DELETE", path: "/api/secrets", auth: "session" },
+  { method: "DELETE", path: "/api/secrets/:name", auth: "session" },
+  { method: "DELETE", path: "/api/sessions/:session_id", auth: "session" },
+  { method: "GET", path: "/api/account", auth: "canonical_user" },
+  { method: "GET", path: "/api/account/app-keys", auth: "canonical_user" },
+  { method: "GET", path: "/api/account/approvals", auth: "canonical_user" },
+  { method: "GET", path: "/api/account/bots", auth: "canonical_user" },
+  { method: "GET", path: "/api/account/payment", auth: "canonical_user" },
+  { method: "GET", path: "/api/account/usage", auth: "canonical_user" },
+  { method: "GET", path: "/api/admin/app-store", auth: "self_guarded" },
+  { method: "GET", path: "/api/admin/apps/public", auth: "self_guarded" },
+  { method: "GET", path: "/api/admin/skills", auth: "self_guarded" },
+  { method: "GET", path: "/api/admin/skills/:id", auth: "self_guarded" },
+  { method: "GET", path: "/api/events", auth: "session" },
+  {
+    method: "GET",
+    path: "/api/integrations/github-app/oauth/callback",
+    auth: "public"
+  },
+  {
+    method: "GET",
+    path: "/api/integrations/github-app/oauth/start",
+    auth: "public"
+  },
+  { method: "GET", path: "/api/openapi.json", auth: "public" },
+  { method: "GET", path: "/api/platforms", auth: "public" },
+  { method: "GET", path: "/api/platforms/:name/apps", auth: "self_guarded" },
+  {
+    method: "GET",
+    path: "/api/platforms/:name/apps/:app",
+    auth: "self_guarded"
+  },
+  {
+    method: "GET",
+    path: "/api/platforms/:name/deployments/:deployment/status",
+    auth: "self_guarded"
+  },
+  {
+    method: "GET",
+    path: "/api/platforms/:name/sources/resolve",
+    auth: "self_guarded"
+  },
+  { method: "GET", path: "/api/platforms/:name/tokens", auth: "self_guarded" },
+  { method: "GET", path: "/api/platforms/server-tags", auth: "public" },
+  { method: "GET", path: "/api/secrets", auth: "session" },
+  { method: "GET", path: "/api/session/apps", auth: "session" },
+  { method: "GET", path: "/api/session/models", auth: "session" },
+  { method: "GET", path: "/api/session/runtime/models", auth: "session" },
+  { method: "GET", path: "/api/skills", auth: "public" },
+  { method: "GET", path: "/api/sessions", auth: "session" },
+  { method: "GET", path: "/api/sessions/:session_id", auth: "session" },
+  { method: "GET", path: "/api/state", auth: "session" },
+  { method: "GET", path: "/api/updates", auth: "session" },
+  { method: "GET", path: "/health", auth: "public" },
+  { method: "PATCH", path: "/api/sessions/:session_id", auth: "session" },
+  { method: "POST", path: "/api/_internal/secrets", auth: "self_guarded" },
+  { method: "POST", path: "/api/account/app-keys", auth: "canonical_user" },
+  { method: "POST", path: "/api/account/approvals", auth: "canonical_user" },
+  { method: "POST", path: "/api/account/bots", auth: "canonical_user" },
+  { method: "POST", path: "/api/account/exchange", auth: "public" },
+  { method: "POST", path: "/api/account/payment/byok", auth: "canonical_user" },
+  { method: "POST", path: "/api/account/payment/tempo", auth: "canonical_user" },
+  { method: "POST", path: "/api/admin/apps/:app/reload", auth: "self_guarded" },
+  { method: "POST", path: "/api/admin/skills/batch", auth: "self_guarded" },
+  { method: "POST", path: "/api/admin/skills/rollback", auth: "self_guarded" },
+  { method: "POST", path: "/api/auth/privy/begin", auth: "session" },
+  { method: "POST", path: "/api/auth/privy/callback", auth: "public" },
+  {
+    method: "POST",
+    path: "/api/bots/telegram/:webhook_secret",
+    auth: "public"
+  },
+  { method: "POST", path: "/api/chat", auth: "app_key_checked" },
+  {
+    method: "POST",
+    path: "/api/integrations/github-app/platforms/:name/sources/create-from-template",
+    auth: "public"
+  },
+  {
+    method: "POST",
+    path: "/api/integrations/github-app/webhook",
+    auth: "public"
+  },
+  { method: "POST", path: "/api/interrupt", auth: "session" },
+  {
+    method: "POST",
+    path: "/api/platforms/:name/activate",
+    auth: "self_guarded"
+  },
+  {
+    method: "POST",
+    path: "/api/platforms/:name/apps/:app/deactivate",
+    auth: "self_guarded"
+  },
+  {
+    method: "POST",
+    path: "/api/platforms/:name/deactivate",
+    auth: "self_guarded"
+  },
+  { method: "POST", path: "/api/platforms/:name/deploy", auth: "self_guarded" },
+  {
+    method: "POST",
+    path: "/api/platforms/:name/sources/sync-installed",
+    auth: "self_guarded"
+  },
+  { method: "POST", path: "/api/platforms/:name/tokens", auth: "self_guarded" },
+  {
+    method: "POST",
+    path: "/api/platforms/:platform/apps/:app/activate",
+    auth: "self_guarded"
+  },
+  {
+    method: "POST",
+    path: "/api/platforms/:platform/apps/activate",
+    auth: "self_guarded"
+  },
+  { method: "POST", path: "/api/secrets", auth: "session" },
+  { method: "POST", path: "/api/session/model", auth: "session" },
+  { method: "POST", path: "/api/session/runtime/model", auth: "session" },
+  { method: "POST", path: "/api/sessions", auth: "session" },
+  { method: "POST", path: "/api/simulate", auth: "session" },
+  { method: "POST", path: "/api/system", auth: "session" },
+  { method: "PUT", path: "/api/admin/apps/public", auth: "self_guarded" },
+  { method: "PUT", path: "/api/admin/skills/:id", auth: "self_guarded" }
+];
 
 // src/event.ts
 var TypedEventEmitter = class {
@@ -4613,6 +4837,7 @@ async function createAAProviderState(options) {
 // Annotate the CommonJS export names for ESM import in node:
 0 && (module.exports = {
   ALCHEMY_CHAIN_SLUGS,
+  AOMI_BACKEND_ENDPOINTS,
   AomiClient,
   CHAINS_BY_ID,
   CHAIN_NAMES,

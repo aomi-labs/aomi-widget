@@ -381,8 +381,8 @@ The roadmap runs along two lines: harder tasks with deeper evaluation, and openi
 - Harder task splits: cross-chain and cross-protocol execution, and long-horizon intent that spans many dependent steps, built to separate frontier models where v0.1 saturates.
 - Wider model coverage at both ends of the range. A core goal of Aomi is a harness usable enough that even small, low-cost models can transact reliably through it, so we benchmark the low end as deliberately as the high end.
 - Deeper evaluation: more passes per spec for variance and confidence intervals, plus behavioral telemetry such as tool-call patterns, tool-call frequency, and tool calls per task.
-- Aomi as a remote runtime over MCP: the same tools, skills, and guards shown here, exposed as an MCP server, so any agent can read chain state, stage, simulate, and request signatures through the same interface we benchmark.
-- Self-serve benchmarking: with the harness reachable from your local Claude as a CLI and MCP server, anyone can run their own model or agent against the suite and score it on the same verifier.
+- Aomi as a remote runtime: the same tools, skills, and guards shown here, exposed through product-owned APIs so agents can read chain state, stage, simulate, and request signatures through the same interface we benchmark.
+- Self-serve benchmarking: with the harness reachable from local developer tooling, anyone can run their own model or agent against the suite and score it on the same verifier.
 
 The standard we hold ourselves to is the one credible execution benchmarks converge on: publish the task, the verifier, the harness, the artifacts, and the failure cases.
 

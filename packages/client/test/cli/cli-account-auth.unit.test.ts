@@ -56,7 +56,7 @@ describe("CLI account auth wiring", () => {
     } as unknown as Response;
     const nativeFetch = vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input);
-      if (url.endsWith("/api/account/sessions/exchange")) {
+      if (url.endsWith("/api/account/exchange")) {
         return exchangeResponse;
       }
       return stateResponse;
@@ -75,7 +75,7 @@ describe("CLI account auth wiring", () => {
       await client.fetchState("session-1");
 
       expect(String(nativeFetch.mock.calls[0]?.[0])).toBe(
-        "http://unit.test/api/account/sessions/exchange",
+        "http://unit.test/api/account/exchange",
       );
       expect(
         JSON.parse(String((nativeFetch.mock.calls[0]?.[1] as RequestInit).body)),

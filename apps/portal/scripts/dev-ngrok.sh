@@ -3,9 +3,8 @@
 # dev-ngrok.sh — run `next dev` for the portal behind an ngrok tunnel.
 # =============================================================================
 #
-# Required for the MCP/auth dev loop because:
-#   - Claude Desktop / Codex needs an HTTPS URL to reach the MCP endpoint.
-#   - OAuth providers (real ones, post-v1) require a public callback URL.
+# Required for the portal auth dev loop because:
+#   - OAuth providers require a public callback URL.
 #   - The auth flow embeds `AOMI_PORTAL_BASE_URL` in auth_url responses; we
 #     export the ngrok URL so the user can click through from anywhere.
 #
@@ -75,7 +74,6 @@ fi
 export AOMI_PORTAL_BASE_URL="$NGROK_URL"
 export AOMI_BE_URL="${AOMI_BE_URL:-http://localhost:8080}"
 export AOMI_AUTH_TOKEN="${AOMI_AUTH_TOKEN:-dev-aomi-auth-token}"
-export AOMI_DEV_USER_ID="${AOMI_DEV_USER_ID:-00000000-0000-0000-0000-000000000001}"
 
 pushd "$PROJECT_ROOT" >/dev/null
 pnpm run dev --port "$PORT" --hostname 0.0.0.0 &
@@ -95,20 +93,12 @@ cat <<EOF
 Portal ready.
   Local:    http://${HOST}:${PORT}
   Public:   ${NGROK_URL}
-  MCP URL:  ${NGROK_URL}/api/mcp/http
   ngrok UI: http://127.0.0.1:4040
 
 Env in use:
   AOMI_BE_URL=${AOMI_BE_URL}
   AOMI_AUTH_TOKEN=${AOMI_AUTH_TOKEN}
   AOMI_PORTAL_BASE_URL=${AOMI_PORTAL_BASE_URL}
-  AOMI_DEV_USER_ID=${AOMI_DEV_USER_ID}
-
-Quick sanity check:
-  curl -X POST ${NGROK_URL}/api/auth/begin \\
-    -H 'Content-Type: application/json' \\
-    -H "X-Aomi-Auth: ${AOMI_AUTH_TOKEN}" \\
-    -d '{"user_id":"${AOMI_DEV_USER_ID}","provider":"dummy"}'
 
 EOF
 

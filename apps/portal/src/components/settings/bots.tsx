@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Button, Input, useAomiAuthAdapter } from "@aomi-labs/widget-lib";
-import { settingsApiFetch } from "@portal/lib/settings-api";
+import { settingsApiFetch, useAccountApiFetch } from "@portal/lib/settings-api";
 import {
   settingsActionRowClass,
   settingsBodyTextClass,
@@ -84,6 +84,7 @@ function normalizeAppOptions(apps: AppOption[]): string[] {
 
 export function Bots() {
   const { identity } = useAomiAuthAdapter();
+  const accountApiFetch = useAccountApiFetch();
   const [bots, setBots] = useState<BotRegistration[]>([]);
   const [availableApps, setAvailableApps] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
@@ -99,17 +100,6 @@ export function Bots() {
     text: string;
   } | null>(null);
 
-  const ensureBoundSession = useCallback(async () => {
-    if (!identity.address) return;
-    await settingsApiFetch<{ session_id: string; title?: string | null }>(
-      "/api/sessions",
-      {
-        method: "POST",
-        body: JSON.stringify({ public_key: identity.address }),
-      },
-    );
-  }, [identity.address]);
-
   const loadBots = useCallback(async () => {
     if (!identity.address) {
       setBots([]);
@@ -119,17 +109,15 @@ export function Bots() {
     setLoading(true);
     setError(null);
     try {
-      await ensureBoundSession();
-      const data = await settingsApiFetch<BotRegistrationsResponse>(
-        "/api/settings/bots",
-      );
+      const data =
+        await accountApiFetch<BotRegistrationsResponse>("/api/account/bots");
       setBots(data.bot_registrations ?? []);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load bots");
     } finally {
       setLoading(false);
     }
-  }, [ensureBoundSession, identity.address]);
+  }, [accountApiFetch, identity.address]);
 
   const loadApps = useCallback(async () => {
     setLoadingApps(true);
@@ -176,9 +164,8 @@ export function Bots() {
     setCreating(true);
     setStatus(null);
     try {
-      await ensureBoundSession();
-      const data = await settingsApiFetch<CreateBotRegistrationResponse>(
-        "/api/settings/bots",
+      const data = await accountApiFetch<CreateBotRegistrationResponse>(
+        "/api/account/bots",
         {
           method: "POST",
           body: JSON.stringify({
@@ -207,7 +194,7 @@ export function Bots() {
     }
   }, [
     canCreate,
-    ensureBoundSession,
+    accountApiFetch,
     labelInput,
     selectedApp,
     threadMode,
@@ -258,9 +245,9 @@ export function Bots() {
           <h2 className={settingsCardTitleClass}>Register Telegram Bot</h2>
           <p className={settingsBodyTextClass}>
             Create the bot in BotFather, paste its token here, and we will
-            verify it with Telegram and activate the webhook automatically.
-            This account owns the bot configuration; people who message the bot
-            still use their own Aomi identity, wallets, and threads.
+            verify it with Telegram and activate the webhook automatically. This
+            account owns the bot configuration; people who message the bot still
+            use their own Aomi identity, wallets, and threads.
           </p>
         </div>
 
@@ -338,9 +325,8 @@ export function Bots() {
             </select>
             <p className={settingsBodyTextClass}>
               Single keeps the bot simple; multiple lets users switch threads
-              with session commands. For a true single-chat Telegram
-              experience, also disable threaded/topic mode for the bot in
-              BotFather.
+              with session commands. For a true single-chat Telegram experience,
+              also disable threaded/topic mode for the bot in BotFather.
             </p>
           </div>
         </div>
@@ -365,7 +351,7 @@ export function Bots() {
           The bot works without configuring commands, but this list makes the
           supported slash commands visible in Telegram.
         </p>
-        <pre className="text-foreground overflow-x-auto rounded-2xl border border-input bg-muted/30 p-4 font-mono text-xs leading-6">
+        <pre className="text-foreground border-input bg-muted/30 overflow-x-auto rounded-2xl border p-4 font-mono text-xs leading-6">
           {BOTFATHER_COMMANDS}
         </pre>
       </section>

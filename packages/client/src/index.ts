@@ -16,6 +16,8 @@ export type {
 // =============================================================================
 
 export type {
+  AomiRequestOptions,
+  AomiRequestQueryValue,
   AomiAppDescriptor,
   AomiClientOptions,
   GetAccountAccessToken,
@@ -63,6 +65,8 @@ export {
   isSystemError,
   isSystemNotice,
 } from "./types";
+export { AOMI_BACKEND_ENDPOINTS } from "./routes";
+export type { AomiAuthClass, AomiEndpointSpec, AomiHttpMethod } from "./routes";
 
 // =============================================================================
 // Session (high-level orchestrated client)

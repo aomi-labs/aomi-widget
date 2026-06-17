@@ -12,7 +12,7 @@
 //      a privy.io iframe — Alice's email codes and key material never touch
 //      this page's JS.
 //   3. Once authenticated, collect the EVM embedded wallet info + access
-//      token and POST to /api/auth/privy/callback with the state token.
+//      token and POST to the backend callback URL with the state token.
 //      That endpoint registers Aomi's signer and persists the approval.
 //   4. Show success (or error) — Alice closes the tab.
 //
@@ -480,7 +480,15 @@ async function postPrivyCallbackWithRefresh({
       };
     }
 
-    const res = await fetch(callbackUrl ?? "/api/auth/privy/callback", {
+    if (!callbackUrl) {
+      return {
+        ok: false,
+        status: 0,
+        detail: "Missing backend callback URL.",
+      };
+    }
+
+    const res = await fetch(callbackUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
