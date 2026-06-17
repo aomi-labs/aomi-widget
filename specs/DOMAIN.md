@@ -109,7 +109,7 @@ Backend → /api/state response → system_events[]
 ```
 ControlContextProvider mounts (or apiKey changes)
   → useEffect() → aomiClient.getNamespaces(sessionId, publicKey, apiKey)
-  → GET /api/control/apps → string[]
+  → GET /api/session/apps → string[]
   → setStateInternal({ authorizedNamespaces, namespace })
 ```
 
@@ -118,7 +118,7 @@ ControlContextProvider mounts (or apiKey changes)
 ```
 User selects model in ModelSelect
   → onModelSelect(model) → aomiClient.setModel(sessionId, rig, namespace)
-  → POST /api/control/model → { success, rig, baml, created }
+  → POST /api/session/model → { success, rig, baml, created }
 ```
 
 ## Backend Endpoints
@@ -134,11 +134,9 @@ User selects model in ModelSelect
 | `GET /api/sessions`                | List threads   | `ApiThread[]`             |
 | `PATCH /api/sessions/:id`          | Rename         | -                         |
 | `DELETE /api/sessions/:id`         | Delete         | 204                       |
-| `POST /api/sessions/:id/archive`   | Archive        | 200                       |
-| `POST /api/sessions/:id/unarchive` | Unarchive      | 200                       |
-| `GET /api/control/apps`      | Get namespaces | `string[]`                |
-| `GET /api/control/models`          | Get models     | `string[]`                |
-| `POST /api/control/model`          | Set model      | `{ success, rig, baml }`  |
+| `GET /api/session/apps`            | Get namespaces | `string[]`                |
+| `GET /api/session/models`          | Get models     | `string[]`                |
+| `POST /api/session/model`          | Set model      | `{ success, rig, baml }`  |
 
 **ApiStateResponse:** `{ messages?, system_events?, is_processing?, title?, session_exists? }`
 

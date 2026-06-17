@@ -27,7 +27,7 @@ Manual test of local `packages/client` build (0.1.41) against backend :8080. All
 
 Branch `codex/para-solana-support-wip` (PR #150). Merged `fix/pr150-runtime-wiring` (commit "Wire account token exchange into runtime") after review: builds, dist in sync, 26 runtime tests, portal typecheck clean.
 
-- **Reviewed & verified adaptation** of the FE↔backend contracts: `createAccountAccessTokenProvider` → `POST /api/account/sessions/exchange` (`{ provider, provider_token }` ↔ backend `ExchangeAccountSessionRequest`), and `app` on `sendSystemMessage` → `/api/system` (backend merges query + JSON body via `select_system_params`). Both correct.
+- **Reviewed & verified adaptation** of the FE↔backend contracts: `createAccountAccessTokenProvider` → `POST /api/account/exchange` (`{ provider, provider_token }` ↔ backend `ExchangeAccountSessionRequest`), and `app` on `sendSystemMessage` → `/api/system` query params.
 - **Removed dead `ThreadContextTest.tsx`** debug component (referenced removed `threads`/`threadMetadata`; failed `tsc --noEmit`, not caught by CI). Registry typecheck now clean.
 - **FE unit coverage**: `packages/client/test/account-session.unit.test.ts` — caching, forceRefresh, single in-flight coalescing, proactive timer refresh + subscriber notify, dispose teardown, snake_case mapping (7 tests).
 - **Live e2e**: `client.integration.test.ts` gained an LLM-free app-scoped system-message test (green vs local backend :8080 + local supabase).
@@ -70,9 +70,9 @@ Branch `codex/para-solana-support-wip`. Design/plan in `docs/superpowers/specs/2
   - `aomi` now starts an interactive REPL by default
   - `aomi --prompt "<message>"` sends a single prompt and exits
 - **Added REPL commands** matching the backend CLI shape: `/heap`, `/app`, `/model`, `/key`, and `:exit`
-- **Added provider-key support** to the TS CLI:
-  - new `src/cli/commands/provider-keys.ts`
-  - new `AomiClient` methods for `GET/POST/DELETE /api/control/provider-keys`
+- **Added BYOK support** to the TS CLI:
+  - new `src/cli/commands/byok.ts`
+  - new `AomiClient` methods for `GET /api/account/payment`, `POST /api/account/payment/byok`, and `DELETE /api/account/payment/byok/:provider`
 - **Kept noun-verb operator subcommands** (`tx`, `session`, `secret`, `model`, `app`, `chain`) for wallet/session workflows instead of removing them
 - **Added unit coverage** in `test/cli/cli-provider-keys.unit.test.ts` and `test/cli/cli-repl.unit.test.ts`
 

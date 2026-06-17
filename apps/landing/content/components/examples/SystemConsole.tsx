@@ -10,7 +10,7 @@ const SESSION_HEADER = {
 };
 
 const APP_KEY_HEADER = {
-  key: "AOMI-APP-KEY",
+  key: "Aomi-App-Key",
   placeholder: "your-app-key (optional)",
 };
 
@@ -82,7 +82,7 @@ const ENDPOINTS: EndpointDef[] = [
   {
     label: "Get Apps",
     method: "GET",
-    path: "/api/control/apps",
+    path: "/api/session/apps",
     description: "List available apps (agents) for the current context.",
     params: [
       { key: "public_key", placeholder: "0x…" },
@@ -92,14 +92,14 @@ const ENDPOINTS: EndpointDef[] = [
   {
     label: "Get Models",
     method: "GET",
-    path: "/api/control/models",
+    path: "/api/session/models",
     description: "List available LLM models.",
     headers: [SESSION_HEADER],
   },
   {
     label: "Set Model",
     method: "POST",
-    path: "/api/control/model",
+    path: "/api/session/model",
     description:
       "Set the model for a session. Returns { success, rig, baml, created }.",
     params: [

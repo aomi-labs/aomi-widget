@@ -16,6 +16,7 @@ const contentExamplesComponents = path.join(
   "components",
   "examples",
 );
+const useRootNextOutput = process.env.AOMI_ROOT_NEXT_OUTPUT === "1";
 
 // Turbopack resolveAlias needs package specifiers or relative paths, not absolute.
 // We point singleton packages to the landing app's copies so registry code
@@ -42,6 +43,7 @@ const turbopackAliases: Record<string, string> = {
 };
 
 const nextConfig: NextConfig = {
+  distDir: useRootNextOutput ? "../../.next" : undefined,
   reactStrictMode: false,
   experimental: {
     externalDir: true,

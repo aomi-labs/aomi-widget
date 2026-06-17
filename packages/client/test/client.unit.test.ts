@@ -2,6 +2,64 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { createAccountAccessTokenProvider } from "../src/account-session";
 import { AomiClient } from "../src/client";
+import { AOMI_BACKEND_ENDPOINTS } from "../src/routes";
+
+describe("AomiClient route manifest", () => {
+  it("tracks the current backend route surface without legacy control routes", () => {
+    const routeKeys = AOMI_BACKEND_ENDPOINTS.map(
+      (endpoint) => `${endpoint.method} ${endpoint.path} ${endpoint.auth}`,
+    );
+
+    expect(routeKeys).toHaveLength(74);
+    expect(new Set(routeKeys).size).toBe(routeKeys.length);
+    expect(routeKeys).toContain("GET /api/session/apps session");
+    expect(routeKeys).toContain(
+      "POST /api/platforms/:name/deploy self_guarded",
+    );
+    expect(routeKeys).toContain("POST /api/account/exchange public");
+    expect(routeKeys).not.toContain("GET /api/control/apps session");
+    expect(routeKeys.some((route) => route.includes("/api/control/"))).toBe(
+      false,
+    );
+  });
+
+  it("can call any manifest route through the low-level request API", async () => {
+    const response = {
+      ok: true,
+      status: 200,
+      statusText: "OK",
+      headers: new Headers({ "content-type": "application/json" }),
+      json: vi.fn(async () => ({ ok: true })),
+      text: vi.fn(async () => ""),
+    } as unknown as Response;
+    const fetchImpl = vi.fn(async () => response);
+    const client = new AomiClient({
+      baseUrl: "http://unit.test/",
+      apiKey: "app-key-1",
+      fetch: fetchImpl,
+    });
+
+    await expect(
+      client.request("POST", "/api/platforms/community/deploy", {
+        sessionId: "session-1",
+        query: { dry_run: true, empty: null },
+        body: { source: "github" },
+      }),
+    ).resolves.toEqual({ ok: true });
+
+    const [url, init] = fetchImpl.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe(
+      "http://unit.test/api/platforms/community/deploy?dry_run=true",
+    );
+    expect(init.method).toBe("POST");
+    expect(JSON.parse(init.body as string)).toEqual({ source: "github" });
+
+    const headers = new Headers(init.headers);
+    expect(headers.get("X-Session-Id")).toBe("session-1");
+    expect(headers.get("Aomi-App-Key")).toBe("app-key-1");
+    expect(headers.get("Content-Type")).toBe("application/json");
+  });
+});
 
 describe("AomiClient account profile", () => {
   afterEach(() => {
@@ -45,7 +103,7 @@ describe("AomiClient account profile", () => {
       const result = await client.fetchAccountProfile("session-1");
 
       expect(String(nativeFetch.mock.calls[0]?.[0])).toBe(
-        "http://unit.test/api/settings/account",
+        "http://unit.test/api/account",
       );
       const headers = new Headers(
         (nativeFetch.mock.calls[0]?.[1] as RequestInit).headers,
@@ -73,6 +131,90 @@ describe("AomiClient account profile", () => {
     try {
       const client = new AomiClient({ baseUrl: "http://unit.test" });
       expect(await client.fetchAccountProfile("session-1")).toBeNull();
+    } finally {
+      vi.stubGlobal("fetch", originalFetch);
+    }
+  });
+
+  it("uses account payment routes for BYOK setup", async () => {
+    const responses = [
+      {
+        ok: true,
+        status: 200,
+        statusText: "OK",
+        json: vi.fn(async () => ({
+          byok: [
+            {
+              provider: "anthropic",
+              key_prefix: "sk-ant-",
+              label: null,
+              is_active: true,
+            },
+          ],
+          streams: [],
+        })),
+      },
+      {
+        ok: true,
+        status: 200,
+        statusText: "OK",
+        json: vi.fn(async () => ({
+          key: {
+            provider: "openai",
+            key_prefix: "sk-open",
+            label: "work",
+            is_active: true,
+          },
+        })),
+      },
+      {
+        ok: true,
+        status: 200,
+        statusText: "OK",
+        json: vi.fn(async () => ({ deleted: true })),
+      },
+    ] as unknown as Response[];
+    const nativeFetch = vi.fn(async () => responses.shift() as Response);
+    const originalFetch = globalThis.fetch;
+    vi.stubGlobal("fetch", nativeFetch);
+
+    try {
+      const client = new AomiClient({
+        baseUrl: "http://unit.test",
+        getAccountAccessToken: async () => "bearer-1",
+      });
+
+      await expect(client.listByokKeys("session-1")).resolves.toHaveLength(1);
+      await expect(
+        client.saveByokKey("session-1", "openai", "sk-open-test", "work"),
+      ).resolves.toMatchObject({ provider: "openai" });
+      await expect(client.deleteByokKey("session-1", "openai")).resolves.toBe(
+        true,
+      );
+
+      expect(String(nativeFetch.mock.calls[0]?.[0])).toBe(
+        "http://unit.test/api/account/payment",
+      );
+      expect(String(nativeFetch.mock.calls[1]?.[0])).toBe(
+        "http://unit.test/api/account/payment/byok",
+      );
+      expect(String(nativeFetch.mock.calls[2]?.[0])).toBe(
+        "http://unit.test/api/account/payment/byok/openai",
+      );
+
+      const saveInit = nativeFetch.mock.calls[1]?.[1] as RequestInit;
+      expect(saveInit.method).toBe("POST");
+      expect(JSON.parse(saveInit.body as string)).toEqual({
+        provider: "openai",
+        byok_key: "sk-open-test",
+        label: "work",
+      });
+
+      for (const [, init] of nativeFetch.mock.calls) {
+        const headers = new Headers((init as RequestInit).headers);
+        expect(headers.get("Authorization")).toBe("Bearer bearer-1");
+        expect(headers.get("X-Session-Id")).toBe("session-1");
+      }
     } finally {
       vi.stubGlobal("fetch", originalFetch);
     }
@@ -106,12 +248,16 @@ describe("AomiClient account profile", () => {
       });
 
       expect(
-        JSON.parse((nativeFetch.mock.calls[0]?.[1] as RequestInit).body as string),
+        JSON.parse(
+          (nativeFetch.mock.calls[0]?.[1] as RequestInit).body as string,
+        ),
       ).toEqual({
         application: "byreal",
       });
       expect(
-        JSON.parse((nativeFetch.mock.calls[1]?.[1] as RequestInit).body as string),
+        JSON.parse(
+          (nativeFetch.mock.calls[1]?.[1] as RequestInit).body as string,
+        ),
       ).toEqual({
         application: "byreal",
         wallet_family: "solana",
@@ -762,7 +908,7 @@ describe("createAccountAccessTokenProvider", () => {
     await expect(getAccountAccessToken()).resolves.toBe("token-2");
     expect(fetch).toHaveBeenCalledTimes(2);
     expect(fetch).toHaveBeenLastCalledWith(
-      "http://unit.test/api/account/sessions/exchange",
+      "http://unit.test/api/account/exchange",
       expect.objectContaining({
         method: "POST",
         body: JSON.stringify({

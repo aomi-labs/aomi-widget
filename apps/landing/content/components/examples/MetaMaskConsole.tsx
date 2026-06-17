@@ -27,7 +27,7 @@ const METAMASK_ENDPOINTS: EndpointDef[] = [
         placeholder: "Session UUID",
         required: true,
       },
-      { key: "AOMI-APP-KEY", placeholder: "Optional app key" },
+      { key: "Aomi-App-Key", placeholder: "Optional app key" },
     ],
   },
   {
@@ -54,7 +54,7 @@ const METAMASK_ENDPOINTS: EndpointDef[] = [
         placeholder: "Session UUID",
         required: true,
       },
-      { key: "AOMI-APP-KEY", placeholder: "Optional app key" },
+      { key: "Aomi-App-Key", placeholder: "Optional app key" },
     ],
   },
   {
@@ -69,7 +69,7 @@ const METAMASK_ENDPOINTS: EndpointDef[] = [
         placeholder: "Session UUID",
         required: true,
       },
-      { key: "AOMI-APP-KEY", placeholder: "Optional app key" },
+      { key: "Aomi-App-Key", placeholder: "Optional app key" },
     ],
     bodyTemplate: JSON.stringify(
       {
@@ -94,7 +94,7 @@ const METAMASK_ENDPOINTS: EndpointDef[] = [
         placeholder: "Session UUID",
         required: true,
       },
-      { key: "AOMI-APP-KEY", placeholder: "Optional app key" },
+      { key: "Aomi-App-Key", placeholder: "Optional app key" },
     ],
     bodyTemplate: JSON.stringify(
       {
@@ -117,7 +117,7 @@ const METAMASK_ENDPOINTS: EndpointDef[] = [
         placeholder: "Session UUID",
         required: true,
       },
-      { key: "AOMI-APP-KEY", placeholder: "Optional app key" },
+      { key: "Aomi-App-Key", placeholder: "Optional app key" },
     ],
     bodyTemplate: JSON.stringify(
       {
@@ -152,7 +152,7 @@ const METAMASK_ENDPOINTS: EndpointDef[] = [
         placeholder: "Session UUID",
         required: true,
       },
-      { key: "AOMI-APP-KEY", placeholder: "Optional app key" },
+      { key: "Aomi-App-Key", placeholder: "Optional app key" },
     ],
   },
 ];
