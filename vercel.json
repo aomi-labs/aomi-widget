@@ -1,5 +1,4 @@
 {
-  "buildCommand": "AOMI_ROOT_NEXT_OUTPUT=1 pnpm run vercel-build",
   "rewrites": [
     {
       "source": "/_mintlify/:path*",
