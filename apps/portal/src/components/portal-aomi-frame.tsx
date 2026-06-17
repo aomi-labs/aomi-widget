@@ -28,15 +28,14 @@ function getRequestedAppFromSearch(search: string): string | null {
   return null;
 }
 
-function usePortalClientOptions(): Omit<AomiClientOptions, "baseUrl"> | undefined {
+function usePortalClientOptions():
+  | Omit<AomiClientOptions, "baseUrl">
+  | undefined {
   const { getAccountCredential } = useAomiWalletKit();
   const wagmiConfig = useConfig();
   const walletClient = useWalletClient();
   const backendUrl = getBackendUrl();
-  const nativeFetch = useMemo(
-    () => globalThis.fetch.bind(globalThis),
-    [],
-  );
+  const nativeFetch = useMemo(() => globalThis.fetch.bind(globalThis), []);
   const accountAccessTokenProvider = useMemo(() => {
     if (!getAccountCredential) {
       return undefined;
@@ -46,7 +45,9 @@ function usePortalClientOptions(): Omit<AomiClientOptions, "baseUrl"> | undefine
       getProviderCredential: async () => {
         const credential = await getAccountCredential();
         if (!credential) {
-          throw new Error("Wallet provider is connected without an exchangeable credential");
+          throw new Error(
+            "Wallet provider is connected without an exchangeable credential",
+          );
         }
         if ("providerToken" in credential) {
           return credential;
@@ -107,18 +108,26 @@ function usePortalClientOptions(): Omit<AomiClientOptions, "baseUrl"> | undefine
               ? input.toString()
               : input.url;
         const normalizeLocalhostUrl = (value: string) => {
-          try {
-            const parsed = new URL(value, window.location.href);
-            if (parsed.hostname === "localhost") {
-              parsed.hostname = "127.0.0.1";
-            }
-            return parsed.toString();
-          } catch {
+          const isAbsoluteUrl = /^[a-z][a-z\d+.-]*:/i.test(value);
+          if (!isAbsoluteUrl) {
             return value;
           }
+
+          try {
+            const parsed = new URL(value);
+            if (parsed.hostname === "localhost") {
+              parsed.hostname = "127.0.0.1";
+              return parsed.toString();
+            }
+          } catch {
+            // Fall through to the original input.
+          }
+
+          return value;
         };
         const url = normalizeLocalhostUrl(rawUrl);
-        const method = init?.method ?? (input instanceof Request ? input.method : "GET");
+        const method =
+          init?.method ?? (input instanceof Request ? input.method : "GET");
         const startedAt = Date.now();
         console.debug("[aomi][portal-fetch] start", {
           fetchName,
@@ -160,7 +169,15 @@ function usePortalClientOptions(): Omit<AomiClientOptions, "baseUrl"> | undefine
             method,
             url,
             durationMs: Date.now() - startedAt,
-            error,
+            error:
+              error instanceof Error
+                ? {
+                    name: error.name,
+                    message: error.message,
+                    stack: error.stack,
+                    cause: error.cause,
+                  }
+                : error,
           });
           throw error;
         }
@@ -184,8 +201,9 @@ function usePortalClientOptions(): Omit<AomiClientOptions, "baseUrl"> | undefine
     const isChatPost = (input: RequestInfo | URL, init?: RequestInit) => {
       const url = parseUrl(input);
       if (!url) return false;
-      const method = (init?.method ?? (input instanceof Request ? input.method : "GET"))
-        .toUpperCase();
+      const method = (
+        init?.method ?? (input instanceof Request ? input.method : "GET")
+      ).toUpperCase();
       return method === "POST" && url.pathname === "/api/chat";
     };
 
@@ -222,7 +240,9 @@ function usePortalClientOptions(): Omit<AomiClientOptions, "baseUrl"> | undefine
         return firstResponse;
       }
 
-      console.debug("[aomi][portal-fetch] retrying /api/chat with payment transport after 402");
+      console.debug(
+        "[aomi][portal-fetch] retrying /api/chat with payment transport after 402",
+      );
       return paymentFetch(input, init);
     };
 
@@ -278,7 +298,7 @@ export function PortalAomiFrame() {
         <AomiFrame.Header>
           <Link
             href="/settings"
-            className="inline-flex items-center justify-center rounded-full p-2 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+            className="text-muted-foreground hover:bg-accent hover:text-foreground inline-flex items-center justify-center rounded-full p-2 transition-colors"
             aria-label="Open settings"
           >
             <Settings className="size-4" />
