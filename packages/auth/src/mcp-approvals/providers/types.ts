@@ -104,7 +104,7 @@ export interface ProviderCallbackResponse {
 }
 
 export interface ProviderModule {
-  /** Stable identifier — also the URL slug under `/api/auth/{name}`. */
+  /** Stable identifier — also the URL slug under `/api/mcp-auth/{name}`. */
   name: string;
 
   start(req: ProviderStartRequest): Promise<ProviderStartResponse>;

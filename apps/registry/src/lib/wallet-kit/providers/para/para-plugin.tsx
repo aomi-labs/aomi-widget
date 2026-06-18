@@ -125,6 +125,7 @@ export const paraPlugin: WalletProviderPlugin = {
   },
   wrap: (props) => <ParaAuthLayer {...props} />,
   renderComposer: ({
+    account,
     auth,
     children,
     execution,
@@ -135,6 +136,7 @@ export const paraPlugin: WalletProviderPlugin = {
     supportedSolanaNetworks,
   }) => (
     <AomiParaPluginProvider
+      account={account}
       execution={execution}
       oAuthMethods={toParaOAuthMethods(
         auth !== false && auth?.provider === "para" ? auth.methods : undefined,

@@ -261,10 +261,10 @@ describe("WalletPicker", () => {
     expect(screen.queryByText(/^ETH$/)).toBeNull();
     expect(screen.queryByText(/^SOL$/)).toBeNull();
     // Each connected row carries a compact EVM/SVM family tag.
-    expect(screen.getByText("EVM")).toBeTruthy();
-    expect(screen.getByText("SVM")).toBeTruthy();
+    expect(screen.getAllByText("EVM").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("SVM").length).toBeGreaterThan(0);
     expect(screen.getAllByTitle("MetaMask").length).toBeGreaterThan(0);
-    expect(screen.getByTitle("Phantom")).toBeTruthy();
+    expect(screen.getAllByTitle("Phantom").length).toBeGreaterThan(0);
     expect(screen.getAllByText("MetaMask").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Phantom").length).toBeGreaterThan(0);
     expect(screen.getByText("Email or Google")).toBeTruthy();
@@ -320,7 +320,7 @@ describe("WalletPicker", () => {
       }),
     );
 
-    expect(screen.getByText("Rabby Wallet")).toBeTruthy();
+    expect(screen.getAllByText("Rabby Wallet").length).toBeGreaterThan(0);
     expect(screen.getAllByText("MetaMask").length).toBeGreaterThan(0);
     expect(screen.getAllByLabelText("Disconnect Ethereum wallet")).toHaveLength(
       2,
@@ -584,6 +584,105 @@ describe("WalletPicker", () => {
     expect(openAccountUI).toHaveBeenCalled();
   });
 
+  it("renders live account runtime data and runs linked wallet actions", async () => {
+    const updateLinkedWallet = vi.fn(async () => undefined);
+    const unlinkLinkedWallet = vi.fn(async () => undefined);
+    renderPicker(
+      makeAdapter({
+        accountStatus: "ready",
+        accountUser: {
+          id: "user-1",
+          displayName: "Ada Account",
+          email: "ada@example.com",
+        },
+        accountLinkedAccounts: [
+          {
+            id: "identity-1",
+            provider: "privy",
+            subject: "did:privy:ada",
+            email: "ada@example.com",
+            emailVerified: true,
+            displayLabel: "Privy",
+          },
+        ],
+        accountWallets: [
+          {
+            id: "wallet-1",
+            family: "evm",
+            address: "0xAAAAAAAA",
+            kind: "external",
+            provider: "siwe",
+            linkedVia: "siwe",
+            label: "Treasury",
+            capability: "write",
+          },
+        ],
+        updateLinkedWallet,
+        unlinkLinkedWallet,
+      }),
+    );
+
+    await act(async () => {
+      fireEvent.click(
+        screen.getByRole("button", { name: "Manage your account" }),
+      );
+    });
+
+    expect(screen.getByText("Verified account")).toBeTruthy();
+    expect(screen.getByText("Sign-in methods")).toBeTruthy();
+    expect(screen.getByText("Privy")).toBeTruthy();
+    expect(screen.getByText("Linked wallets")).toBeTruthy();
+    expect(screen.getAllByText("Treasury").length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/Write access/).length).toBeGreaterThan(0);
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Rename Treasury" }));
+    });
+    const input = screen.getByLabelText("Wallet label for Treasury");
+    fireEvent.change(input, { target: { value: "Ops wallet" } });
+    await act(async () => {
+      fireEvent.click(
+        screen.getByRole("button", { name: "Save label for Treasury" }),
+      );
+    });
+    expect(updateLinkedWallet).toHaveBeenCalledWith({
+      walletId: "wallet-1",
+      label: "Ops wallet",
+    });
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Unlink Treasury" }));
+    });
+    expect(unlinkLinkedWallet).toHaveBeenCalledWith("wallet-1");
+  });
+
+  it("renders account move and merge confirmations", async () => {
+    const confirm = vi.fn(async () => undefined);
+    const dismiss = vi.fn();
+    renderPicker(
+      makeAdapter({
+        accountConfirmation: {
+          severity: "red",
+          title: "Merge another account?",
+          message: "This wallet is the last login method on another account.",
+          confirmLabel: "Merge account",
+          otherAccountWillClose: true,
+          confirm,
+          dismiss,
+        },
+      }),
+    );
+
+    expect(screen.getByRole("alertdialog")).toBeTruthy();
+    expect(screen.getByText("Merge another account?")).toBeTruthy();
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Merge account" }));
+    });
+    expect(confirm).toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(dismiss).toHaveBeenCalled();
+  });
+
   it("shows the account button for a wallet-only session without a provider UI", () => {
     renderPicker(
       makeAdapter({
@@ -717,8 +816,10 @@ describe("WalletPicker", () => {
     );
 
     expect(
-      screen.getByTitle("Embedded wallet").getAttribute("data-wallet-brand"),
-    ).toBe("para");
+      screen
+        .getAllByTitle("Embedded wallet")
+        .some((node) => node.getAttribute("data-wallet-brand") === "para"),
+    ).toBe(true);
   });
 
   it("hides the social sign-in row when the Para account is connected", () => {

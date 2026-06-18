@@ -7,6 +7,14 @@ import type {
   WalletSolanaSignPayload,
   WalletTxPayload,
 } from "@aomi-labs/react";
+import type {
+  AccountConfirmation,
+  AccountRuntimeStatus,
+  AccountWallet,
+  AomiUserRef,
+  LinkedAuthAccount,
+  UpdateWalletInput,
+} from "./account/types";
 import type { WalletModalRow } from "./composer/merge-wallet-rows";
 
 export type AomiSessionStatus = "booting" | "disconnected" | "connected";
@@ -259,10 +267,22 @@ export type AomiTxResult = {
 
 export type AomiAccountCredential =
   | {
-      provider: "para" | "privy";
+      provider: "privy";
+      tokenKind?: "identity_token" | "access_token";
       providerToken: string;
     }
-  | { kind: "token"; provider: "para" | "privy" | "custom"; token: string }
+  | {
+      provider: "para";
+      tokenKind?: "session_jwt";
+      providerToken: string;
+      keyId?: string;
+    }
+  | {
+      kind: "token";
+      provider: "para" | "privy" | "custom";
+      token: string;
+      keyId?: string;
+    }
   | { kind: "cookie" };
 
 export type AomiWalletKit = {
@@ -285,6 +305,13 @@ export type AomiWalletKit = {
   accounts: readonly AomiAccount[];
   /** Unified picker rows: live accounts, stored account-runtime rows, and options. */
   walletModalRows?: readonly WalletModalRow[];
+  accountStatus?: AccountRuntimeStatus;
+  accountUser?: AomiUserRef;
+  accountLinkedAccounts?: readonly LinkedAuthAccount[];
+  accountWallets?: readonly AccountWallet[];
+  accountConfirmation?: AccountConfirmation;
+  updateLinkedWallet?: (input: UpdateWalletInput) => Promise<void>;
+  unlinkLinkedWallet?: (walletId: string) => Promise<void>;
   /** Make `accounts[id]` the active account for its family. */
   selectAccount: (id: string) => Promise<void>;
 

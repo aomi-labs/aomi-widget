@@ -3,7 +3,7 @@
 // =============================================================================
 //
 // `start` renders an inline Approve page (no third-party redirect). The
-// page POSTs back to /api/auth/dummy/callback with the state token; the
+// page POSTs back to /api/mcp-auth/dummy/callback with the state token; the
 // callback returns a synthesized DUMMY_TOKEN that the runtime stashes.
 //
 // This module exists so we can validate the whole begin → user click →
@@ -61,7 +61,7 @@ export const dummyProvider: ProviderModule = {
   name: "dummy",
 
   async start(req: ProviderStartRequest): Promise<ProviderStartResponse> {
-    const callbackUrl = `${req.baseUrl}/api/auth/dummy/callback`;
+    const callbackUrl = `${req.baseUrl}/api/mcp-auth/dummy/callback`;
     return {
       kind: "html",
       body: approvePage(req.pending.stateToken, callbackUrl),

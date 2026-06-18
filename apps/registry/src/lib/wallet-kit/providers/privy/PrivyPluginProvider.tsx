@@ -12,6 +12,8 @@ import type { WalletEip712Payload } from "@aomi-labs/react";
 import { toViemSignTypedDataArgs } from "@aomi-labs/react";
 import { AomiWalletKitComposer } from "../../composer/AomiWalletKitComposer";
 import type { AuthRuntime, ExecutionRuntime } from "../../composer/types";
+import { useAomiBackendAccountRuntime } from "../../account/aomi-backend-runtime";
+import { DISABLED_ACCOUNT_RUNTIME } from "../../account/disabled-runtime";
 import { resolveAAProviderState } from "../../execution/aa-provider-state";
 import { buildEvmExecutionRuntime } from "../../execution/execution-runtime";
 import { useAomiWalletNetworkPreferences } from "../../network-preferences";
@@ -19,7 +21,7 @@ import { useEvmWalletRuntime } from "../../runtime/evm/wallet-runtime";
 import { useSvmWalletRuntime } from "../../runtime/svm/wallet-runtime";
 import { REGISTRY_STORAGE_KEY } from "../../registry/types";
 import type { AomiAccount, AomiAccountCredential } from "../../types";
-import type { ExecutionConfig } from "../../config/types";
+import type { AccountConfig, ExecutionConfig } from "../../config/types";
 import {
   inferPrivyAuthMethod,
   inferPrivyPrimaryLabel,
@@ -37,6 +39,7 @@ export type AomiPrivyPluginProviderProps = {
   supportedChains: readonly Chain[];
   loginMethods?: PrivyClientConfig["loginMethods"];
   execution?: ExecutionConfig;
+  account?: AccountConfig;
   preferDirectSend?: boolean;
 };
 
@@ -45,6 +48,7 @@ export function AomiPrivyPluginProvider({
   supportedChains,
   loginMethods,
   execution,
+  account,
   preferDirectSend = true,
 }: AomiPrivyPluginProviderProps) {
   const privy = useSafePrivy();
@@ -129,12 +133,27 @@ export function AomiPrivyPluginProvider({
         await privy.login();
       },
       logout: privy.logout,
-      getCredential: privy.getAccessToken
-        ? async (): Promise<AomiAccountCredential | null> => {
-            const token = (await privy.getAccessToken())?.trim();
-            return token ? { provider: "privy", providerToken: token } : null;
-          }
-        : undefined,
+      getCredential:
+        (privy.getIdentityToken ?? privy.getAccessToken)
+          ? async (): Promise<AomiAccountCredential | null> => {
+              const identityToken = (await privy.getIdentityToken?.())?.trim();
+              if (identityToken) {
+                return {
+                  provider: "privy",
+                  tokenKind: "identity_token",
+                  providerToken: identityToken,
+                };
+              }
+              const accessToken = (await privy.getAccessToken?.())?.trim();
+              return accessToken
+                ? {
+                    provider: "privy",
+                    tokenKind: "access_token",
+                    providerToken: accessToken,
+                  }
+                : null;
+            }
+          : undefined,
     }),
     [
       authMethod,
@@ -142,6 +161,7 @@ export function AomiPrivyPluginProvider({
       primaryLabel,
       privy.authenticated,
       privy.getAccessToken,
+      privy.getIdentityToken,
       privy.login,
       privy.logout,
       privy.ready,
@@ -217,10 +237,29 @@ export function AomiPrivyPluginProvider({
     }),
     [evmRuntime, execution, getClientForChain, smartAddress, smartWalletClient],
   );
+  const accountRuntime = useAomiBackendAccountRuntime({
+    enabled: account !== false && account?.mode === "aomi-backend",
+    baseUrl:
+      account !== false && account?.mode === "aomi-backend"
+        ? account.baseUrl
+        : undefined,
+    auth: authRuntime,
+    evm: evmRuntime,
+    svm: svmRuntime,
+    signInPolicy:
+      account !== false && account?.mode === "aomi-backend"
+        ? (account.signInPolicy ?? "provider-token-allowed")
+        : "provider-token-allowed",
+  });
 
   return (
     <AomiWalletKitComposer
       auth={authRuntime}
+      account={
+        account !== false && account?.mode === "aomi-backend"
+          ? accountRuntime
+          : DISABLED_ACCOUNT_RUNTIME
+      }
       evm={evmRuntime}
       svm={svmRuntime}
       execution={executionRuntime}

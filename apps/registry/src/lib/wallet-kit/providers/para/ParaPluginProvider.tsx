@@ -4,12 +4,14 @@ import { useCallback, useMemo, type ReactNode } from "react";
 import type { Chain } from "viem";
 import type { TOAuthMethod } from "@getpara/react-sdk";
 import { AomiWalletKitComposer } from "../../composer/AomiWalletKitComposer";
+import { useAomiBackendAccountRuntime } from "../../account/aomi-backend-runtime";
+import { DISABLED_ACCOUNT_RUNTIME } from "../../account/disabled-runtime";
 import type {
   AuthRuntime,
   ExecutionRuntime,
   SvmWalletRuntime,
 } from "../../composer/types";
-import type { ExecutionConfig } from "../../config/types";
+import type { AccountConfig, ExecutionConfig } from "../../config/types";
 import { useAomiWalletNetworkPreferences } from "../../network-preferences";
 import { inferAuthMethod } from "../../identity";
 import {
@@ -64,6 +66,7 @@ export type AomiParaPluginProviderProps = {
   supportedSolanaNetworks?: readonly SvmNetworkOption[];
   oAuthMethods?: readonly TOAuthMethod[];
   execution?: ExecutionConfig;
+  account?: AccountConfig;
 };
 
 export function AomiParaPluginProvider({
@@ -75,6 +78,7 @@ export function AomiParaPluginProvider({
   supportedSolanaNetworks: supportedSolanaNetworksProp,
   oAuthMethods = defaultOAuthMethods,
   execution,
+  account,
 }: AomiParaPluginProviderProps) {
   const paraAccount = useSafeParaAccount();
   const paraSession = useSafeParaClient();
@@ -350,10 +354,29 @@ export function AomiParaPluginProvider({
     }),
     [evmRuntime, execution, paraSession, sponsorship],
   );
+  const accountRuntime = useAomiBackendAccountRuntime({
+    enabled: account !== false && account?.mode === "aomi-backend",
+    baseUrl:
+      account !== false && account?.mode === "aomi-backend"
+        ? account.baseUrl
+        : undefined,
+    auth: authRuntime,
+    evm: evmRuntime,
+    svm: svmRuntime,
+    signInPolicy:
+      account !== false && account?.mode === "aomi-backend"
+        ? (account.signInPolicy ?? "provider-token-allowed")
+        : "provider-token-allowed",
+  });
 
   return (
     <AomiWalletKitComposer
       auth={authRuntime}
+      account={
+        account !== false && account?.mode === "aomi-backend"
+          ? accountRuntime
+          : DISABLED_ACCOUNT_RUNTIME
+      }
       evm={evmRuntime}
       svm={svmRuntime}
       execution={executionRuntime}

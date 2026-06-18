@@ -1,74 +1,188 @@
-// =============================================================================
-// @aomi-labs/auth — types
-// =============================================================================
-//
-// Wire types shared between the programmatic API, route handlers, and any
-// caller (mcp-core or the Rust BE). The store / secret-store interfaces and
-// provider contract live alongside.
+export type AomiUserId = string;
+export type BetterAuthUserId = string;
+export type WalletFamily = "evm" | "svm";
+export type WalletKind = "external" | "embedded" | "smart_account";
+export type WalletCapability = "read" | "write";
+export type LinkedVia =
+  | "siwe"
+  | "siws"
+  | "privy"
+  | "para"
+  | "import"
+  | "observed"
+  | "migration";
+export type AuthIdentityProvider =
+  | "better_auth"
+  | "siwe"
+  | "privy"
+  | "para"
+  | "email"
+  | "google"
+  | "github"
+  | "x"
+  | "discord"
+  | "telegram"
+  | "farcaster";
 
-/** Stable identifier for an Aomi user. v1: arbitrary UUID; future: resolved
- * from plugin-level OAuth bearer. Treated as opaque by `auth`. */
-export type UserId = string;
+export type DbAomiUser = {
+  id: AomiUserId;
+  betterAuthUserId: BetterAuthUserId | null;
+  displayName: string | null;
+  primaryEmail: string | null;
+  primaryEmailVerified: boolean;
+  avatarUrl: string | null;
+  metadata: Record<string, unknown>;
+  deactivatedAt: Date | null;
+  mergedInto: AomiUserId | null;
+  createdAt: Date;
+  updatedAt: Date;
+};
 
-/** Opaque pointer into the secret store. The value behind it never appears
- *  in any DB column or log line. */
-export type SecretHandle = string;
-
-/** Which path kicked the auth flow off — pure audit, not behavior. */
-export type Initiator = "mcp" | "be";
-
-/** A row in `access_approval` (BE Postgres; portal mirrors in-memory).
- *  Identity-scoped via auth_identity, which carries `(application,
- *  wallet_provider)`. We carry both fields here so portal lookups can be
- *  done without a join. No secret material. */
-export interface AccessApproval {
+export type DbAomiAuthIdentity = {
   id: string;
-  userId: UserId;
-  /** Aomi-app the identity is scoped to. `null` = global identity
-   *  (`DbAuthIdentity.application` IS NULL). */
-  application: string | null;
-  /** Wallet-provider name behind the identity: `'privy' | 'para' |
-   *  'dummy' | ...`. Matches `DbAuthIdentity.wallet_provider`. */
-  walletProvider: string;
+  userId: AomiUserId;
+  provider: AuthIdentityProvider;
+  subject: string;
+  email: string | null;
+  emailVerified: boolean;
+  authMethod: string | null;
+  displayLabel: string | null;
+  providerMetadata: Record<string, unknown>;
+  linkedAt: Date;
+  lastSeenAt: Date;
+  revokedAt: Date | null;
+};
+
+export type DbAomiWallet = {
+  id: string;
+  userId: AomiUserId;
+  family: WalletFamily;
+  address: string;
+  normalizedAddress: string;
+  caip10: string | null;
+  chainScope: string | null;
+  kind: WalletKind;
+  provider: string | null;
+  providerWalletId: string | null;
+  linkedVia: LinkedVia;
+  label: string | null;
+  displayMetadata: Record<string, unknown>;
+  verifiedAt: Date;
+  lastSeenAt: Date;
+  revokedAt: Date | null;
+};
+
+export type AomiUserRef = {
+  id: string;
+  displayName?: string;
+  email?: string;
+  avatarUrl?: string;
+};
+
+export type LinkedAuthAccount = {
+  id: string;
+  provider: string;
+  subject: string;
+  email?: string;
+  emailVerified?: boolean;
   displayLabel?: string;
-  /** Opaque pointer the BE uses to find the secrets. v1 form:
-   *  `identity:<id>` — SecretVault resolves slots by identity id. */
-  secretHandle: SecretHandle;
-  grantedAt: number;
-  revokedAt?: number;
-}
+  linkedAt?: number;
+  lastSeenAt?: number;
+};
 
-/** A row in `pending_auths` (portal-memory only; BE has no table).
- *  The MCP/BE awaits on it. */
-export interface PendingAuth {
-  stateToken: string;
-  userId: UserId;
-  /** Aomi-app the upcoming approval will be scoped to. `null` = global. */
-  application: string | null;
-  /** Wallet provider this auth flow targets. */
-  walletProvider: string;
-  initiator: Initiator;
-  startedAt: number;
-  completedAt?: number;
-  resultApprovalId?: string;
-  error?: string;
-}
+export type AccountWallet = {
+  id: string;
+  family: WalletFamily;
+  address: string;
+  kind?: WalletKind;
+  provider?: string;
+  providerWalletId?: string;
+  chainScope?: string;
+  linkedVia: LinkedVia | (string & {});
+  label?: string;
+  verifiedAt?: number;
+  lastSeenAt?: number;
+  capability?: WalletCapability;
+};
 
-/** Result of `awaitAuth` (programmatic shape; HTTP wire uses snake_case). */
-export type AwaitResult =
-  | { status: "pending" }
-  | { status: "completed"; approvalId: string }
-  | { status: "failed"; error: string };
+export type AomiAccountResponse =
+  | {
+      user: AomiUserRef;
+      linkedAccounts: LinkedAuthAccount[];
+      wallets: AccountWallet[];
+      session: {
+        betterAuthUserId: string;
+        expiresAt?: number;
+        fresh?: boolean;
+      };
+    }
+  | {
+      user: null;
+      linkedAccounts: [];
+      wallets: [];
+      session: null;
+    };
 
-/** Result of `beginAuth`. */
-export interface BeginResult {
-  stateToken: string;
-  authUrl: string;
+export type AomiAccountCredential =
+  | {
+      provider: "privy";
+      tokenKind?: "identity_token" | "access_token";
+      providerToken: string;
+    }
+  | {
+      provider: "para";
+      tokenKind?: "session_jwt";
+      providerToken: string;
+      keyId?: string;
+    }
+  | { kind: "token"; provider: "privy" | "para"; token: string; keyId?: string }
+  | { kind: "cookie" };
+
+export type VerifiedPrivyToken = {
+  subject: string;
+  sessionId?: string;
+  audience: string;
+  issuer: "privy.io";
   expiresAt: number;
-}
+  email?: string;
+  emailVerified?: boolean;
+  linkedAccounts?: unknown[];
+  rawClaims: Record<string, unknown>;
+};
 
-/** Caller-supplied context. v1 just needs userId; future: bearer, scopes. */
-export interface AuthCtx {
-  userId: UserId;
-  initiator: Initiator;
-}
+export type VerifiedParaJwt = {
+  subject: string;
+  audience: string;
+  expiresAt: number;
+  email?: string;
+  emailVerified?: boolean;
+  wallets?: unknown[];
+  connectedWallets?: unknown[];
+  rawClaims: Record<string, unknown>;
+};
+
+export type SignalRef =
+  | {
+      type: "wallet";
+      family: WalletFamily;
+      normalizedAddress: string;
+      chainScope: string | null;
+    }
+  | {
+      type: "identity";
+      provider: AuthIdentityProvider;
+      subject: string;
+    }
+  | { type: "email"; email: string };
+
+export type SignalResolution =
+  | { status: "linked" }
+  | { status: "noop" }
+  | {
+      status: "needs_confirmation";
+      severity: "yellow" | "red";
+      otherUserId: AomiUserId;
+      otherAccountWillClose: boolean;
+    }
+  | { status: "moved" }
+  | { status: "merged" };

@@ -1,5 +1,5 @@
 // =============================================================================
-// /api/auth/{provider}/start — browser entrypoint.
+// /api/mcp-auth/{provider}/start — browser entrypoint.
 // =============================================================================
 //
 // Lifts the state token off the query string, loads the pending row to

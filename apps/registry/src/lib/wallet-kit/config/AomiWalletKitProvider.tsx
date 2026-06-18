@@ -22,6 +22,8 @@ import {
 import type { Chain } from "viem";
 import { AomiWalletKitComposer } from "../composer/AomiWalletKitComposer";
 import type { AuthRuntime, ExecutionRuntime } from "../composer/types";
+import { useAomiBackendAccountRuntime } from "../account/aomi-backend-runtime";
+import { DISABLED_ACCOUNT_RUNTIME } from "../account/disabled-runtime";
 import { resolveAAProviderState } from "../execution/aa-provider-state";
 import { buildEvmExecutionRuntime } from "../execution/execution-runtime";
 import {
@@ -49,6 +51,7 @@ import {
   type WalletProviderPlugin,
 } from "../providers/plugin-registry";
 import type {
+  AccountConfig,
   AomiWalletKitProviderInput,
   AomiWalletKitProviderProps,
   AuthConfig,
@@ -79,12 +82,14 @@ const defaultNetworks = [
 type ResolvedSvmWalletsConfig = ReturnType<typeof resolveAomiSvmConfig>;
 
 function ExternalWalletComposerProvider({
+  account,
   children,
   evmRuntime,
   execution,
   svmRuntime,
   supportedChains,
 }: {
+  account?: AccountConfig;
   children: ReactNode;
   evmRuntime: ReturnType<typeof useEvmWalletRuntime>;
   execution?: ExecutionConfig;
@@ -121,10 +126,17 @@ function ExternalWalletComposerProvider({
     }),
     [evmRuntime, execution],
   );
+  const accountRuntime = useResolvedAccountRuntime({
+    account,
+    auth: authRuntime,
+    evm: evmRuntime,
+    svm: svmRuntime,
+  });
 
   return (
     <AomiWalletKitComposer
       auth={authRuntime}
+      account={accountRuntime}
       evm={evmRuntime}
       svm={svmRuntime}
       execution={executionRuntime}
@@ -136,6 +148,7 @@ function ExternalWalletComposerProvider({
 }
 
 function ExternalWalletComposerSvmProvider({
+  account,
   children,
   evmRuntime,
   execution,
@@ -145,6 +158,7 @@ function ExternalWalletComposerSvmProvider({
   supportedSolanaNetworks,
   preferDirectSend,
 }: {
+  account?: AccountConfig;
   children: ReactNode;
   evmRuntime: ReturnType<typeof useEvmWalletRuntime>;
   execution?: ExecutionConfig;
@@ -166,6 +180,7 @@ function ExternalWalletComposerSvmProvider({
 
   return (
     <ExternalWalletComposerProvider
+      account={account}
       evmRuntime={evmRuntime}
       execution={execution}
       svmRuntime={svmRuntime}
@@ -177,11 +192,13 @@ function ExternalWalletComposerSvmProvider({
 }
 
 function EvmExternalWalletComposerProvider({
+  account,
   children,
   execution,
   resolvedSvm,
   supportedChains,
 }: {
+  account?: AccountConfig;
   children: ReactNode;
   execution?: ExecutionConfig;
   resolvedSvm: ResolvedSvmWalletsConfig;
@@ -204,6 +221,7 @@ function EvmExternalWalletComposerProvider({
   if (resolvedSvm.enabled && resolvedSvm.activeNetwork) {
     return (
       <ExternalWalletComposerSvmProvider
+        account={account}
         evmRuntime={evmRuntime}
         execution={execution}
         selectedSolanaNetwork={selectedSolanaNetwork}
@@ -219,6 +237,7 @@ function EvmExternalWalletComposerProvider({
 
   return (
     <ExternalWalletComposerProvider
+      account={account}
       evmRuntime={evmRuntime}
       execution={execution}
       supportedChains={supportedChains}
@@ -229,9 +248,11 @@ function EvmExternalWalletComposerProvider({
 }
 
 function SvmExternalWalletComposerProvider({
+  account,
   children,
   resolvedSvm,
 }: {
+  account?: AccountConfig;
   children: ReactNode;
   resolvedSvm: ResolvedSvmWalletsConfig;
 }) {
@@ -247,6 +268,7 @@ function SvmExternalWalletComposerProvider({
   if (resolvedSvm.enabled && resolvedSvm.activeNetwork) {
     return (
       <ExternalWalletComposerSvmProvider
+        account={account}
         evmRuntime={evmRuntime}
         selectedSolanaNetwork={selectedSolanaNetwork}
         setSelectedSolanaNetworkId={setSelectedSolanaNetworkId}
@@ -261,6 +283,7 @@ function SvmExternalWalletComposerProvider({
 
   return (
     <ExternalWalletComposerProvider
+      account={account}
       evmRuntime={evmRuntime}
       supportedChains={[]}
     >
@@ -298,6 +321,7 @@ function MaybeSvmWalletProvider({
 }
 
 function WalletKitComposerOutlet({
+  account,
   auth,
   authPlugin,
   children,
@@ -307,6 +331,7 @@ function WalletKitComposerOutlet({
   routing,
   setSelectedSolanaNetworkId,
 }: {
+  account?: AccountConfig;
   auth?: AuthConfig;
   authPlugin?: WalletProviderPlugin;
   children: ReactNode;
@@ -320,6 +345,7 @@ function WalletKitComposerOutlet({
     return (
       <>
         {authPlugin.renderComposer({
+          account,
           auth,
           children,
           execution,
@@ -344,6 +370,7 @@ function WalletKitComposerOutlet({
 
   return (
     <EvmExternalWalletComposerProvider
+      account={account}
       execution={execution}
       resolvedSvm={resolvedSvm}
       supportedChains={routing.routedChains}
@@ -354,6 +381,7 @@ function WalletKitComposerOutlet({
 }
 
 function AomiEvmExternalWalletProvider({
+  account,
   auth,
   authPlugin,
   children,
@@ -363,6 +391,7 @@ function AomiEvmExternalWalletProvider({
   resolvedSvm,
   setSelectedSolanaNetworkId,
 }: {
+  account?: AccountConfig;
   auth?: AuthConfig;
   authPlugin?: WalletProviderPlugin;
   children: ReactNode;
@@ -413,6 +442,7 @@ function AomiEvmExternalWalletProvider({
                 routedChainIds={routing.routedChainIds}
               >
                 <WalletKitComposerOutlet
+                  account={account}
                   auth={auth}
                   authPlugin={shouldUseAuthPlugin ? authPlugin : undefined}
                   execution={execution}
@@ -433,9 +463,11 @@ function AomiEvmExternalWalletProvider({
 }
 
 function AomiSvmExternalWalletProvider({
+  account,
   children,
   resolvedSvm,
 }: {
+  account?: AccountConfig;
   children: ReactNode;
   resolvedSvm: ResolvedSvmWalletsConfig;
 }) {
@@ -444,7 +476,10 @@ function AomiSvmExternalWalletProvider({
   return (
     <QueryClientProvider client={queryClient}>
       <MaybeSvmWalletProvider resolvedSvm={resolvedSvm}>
-        <SvmExternalWalletComposerProvider resolvedSvm={resolvedSvm}>
+        <SvmExternalWalletComposerProvider
+          account={account}
+          resolvedSvm={resolvedSvm}
+        >
           {children}
         </SvmExternalWalletComposerProvider>
       </MaybeSvmWalletProvider>
@@ -453,6 +488,7 @@ function AomiSvmExternalWalletProvider({
 }
 
 function AomiExternalWalletProvider({
+  account,
   auth,
   authPlugin,
   children,
@@ -460,6 +496,7 @@ function AomiExternalWalletProvider({
   providers,
   wallets,
 }: {
+  account?: AccountConfig;
   auth?: AuthConfig;
   authPlugin?: WalletProviderPlugin;
   children: ReactNode;
@@ -479,7 +516,7 @@ function AomiExternalWalletProvider({
 
   if (!evmEnabled) {
     return (
-      <AomiSvmExternalWalletProvider resolvedSvm={resolvedSvm}>
+      <AomiSvmExternalWalletProvider account={account} resolvedSvm={resolvedSvm}>
         {children}
       </AomiSvmExternalWalletProvider>
     );
@@ -487,6 +524,7 @@ function AomiExternalWalletProvider({
 
   return (
     <AomiEvmExternalWalletProvider
+      account={account}
       auth={auth}
       authPlugin={authPlugin}
       evmWallets={evmWallets}
@@ -539,6 +577,7 @@ export function AomiWalletKitProvider(input: AomiWalletKitProviderInput) {
     >
       <ExtUserProvider>
         <AomiExternalWalletProvider
+          account={props.account}
           auth={auth}
           authPlugin={authPlugin}
           execution={props.execution}
@@ -550,4 +589,30 @@ export function AomiWalletKitProvider(input: AomiWalletKitProviderInput) {
       </ExtUserProvider>
     </AomiWalletNetworkPreferencesProvider>
   );
+}
+
+function useResolvedAccountRuntime({
+  account,
+  auth,
+  evm,
+  svm,
+}: {
+  account?: AccountConfig;
+  auth: AuthRuntime;
+  evm: ReturnType<typeof useEvmWalletRuntime>;
+  svm?: ReturnType<typeof useSvmWalletRuntime>;
+}) {
+  const enabled = account !== false && account?.mode === "aomi-backend";
+  const runtime = useAomiBackendAccountRuntime({
+    enabled,
+    baseUrl: enabled ? account.baseUrl : undefined,
+    auth,
+    evm,
+    svm,
+    signInPolicy:
+      enabled && account.signInPolicy
+        ? account.signInPolicy
+        : "evm-siwe-first",
+  });
+  return enabled ? runtime : DISABLED_ACCOUNT_RUNTIME;
 }

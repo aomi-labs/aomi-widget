@@ -8,6 +8,7 @@ export type AomiUserRef = {
   id: string;
   displayName?: string;
   email?: string;
+  avatarUrl?: string;
 };
 
 export type LinkedAuthAccount = {
@@ -15,19 +16,55 @@ export type LinkedAuthAccount = {
   provider: string;
   subject: string;
   email?: string;
+  emailVerified?: boolean;
+  displayLabel?: string;
   linkedAt?: number;
+  lastSeenAt?: number;
 };
 
 export type AccountWallet = {
   id: string;
   family: WalletFamily;
   address: string;
-  kind?: "external" | "embedded";
+  kind?: "external" | "embedded" | "smart_account";
   provider?: string;
-  linkedVia: "para" | "privy" | "challenge" | "import" | "observed" | (string & {});
+  providerWalletId?: string;
+  chainScope?: string;
+  linkedVia:
+    | "siwe"
+    | "siws"
+    | "para"
+    | "privy"
+    | "challenge"
+    | "import"
+    | "observed"
+    | "migration"
+    | (string & {});
   label?: string;
   verifiedAt?: number;
+  lastSeenAt?: number;
   capability?: "read" | "write";
+};
+
+export type LinkWalletInput = {
+  family: WalletFamily;
+  address: string;
+  chainId?: number;
+};
+
+export type UpdateWalletInput = {
+  walletId: string;
+  label?: string | null;
+};
+
+export type AccountConfirmation = {
+  severity: "yellow" | "red";
+  title: string;
+  message: string;
+  confirmLabel: string;
+  otherAccountWillClose?: boolean;
+  confirm: () => Promise<void>;
+  dismiss: () => void;
 };
 
 export type AccountRuntime = {
@@ -35,7 +72,9 @@ export type AccountRuntime = {
   user?: AomiUserRef;
   linkedAccounts: LinkedAuthAccount[];
   wallets: AccountWallet[];
+  pendingConfirmation?: AccountConfirmation;
   refresh: () => Promise<void>;
-  linkWallet?: (accountId: string) => Promise<void>;
+  linkWallet?: (input: LinkWalletInput) => Promise<void>;
+  updateWallet?: (input: UpdateWalletInput) => Promise<void>;
   unlinkWallet?: (walletId: string) => Promise<void>;
 };

@@ -13,7 +13,7 @@ export interface AomiAuthEnv {
   devUserId: string;
   /** Aomi's Privy app ID. Public — surfaces in the /auth/privy/login page
    *  query so the React SDK can boot. If unset, the Privy provider isn't
-   *  registered and /api/auth/privy/* returns 404. */
+   *  registered and /api/mcp-auth/privy/* returns 404. */
   privyAppId?: string;
   /** Privy's SPKI JWT verification key. Server-only. Privy auth remains
    *  disabled when unset so browser-reported subjects are never trusted. */
@@ -29,7 +29,7 @@ export function readEnv(): AomiAuthEnv {
     process.env.NEXT_PUBLIC_BACKEND_URL ??
     "http://localhost:8080";
 
-  // Static shared secret between BE and portal for /api/auth/begin and
+  // Static shared secret between BE and portal for /api/mcp-auth/begin and
   // /api/_internal/secrets. Both sides read from env.
   const authToken = process.env.AOMI_AUTH_TOKEN ?? "dev-aomi-auth-token";
 

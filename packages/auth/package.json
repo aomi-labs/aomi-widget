@@ -7,15 +7,24 @@
   "types": "./src/index.ts",
   "exports": {
     ".": "./src/index.ts",
-    "./routes": "./src/routes/index.ts"
+    "./better-auth": "./src/better-auth/auth.ts",
+    "./better-auth/client": "./src/better-auth/auth-client.ts",
+    "./mcp-approvals": "./src/mcp-approvals/index.ts",
+    "./mcp-approvals/routes": "./src/mcp-approvals/routes/index.ts",
+    "./routes": "./src/mcp-approvals/routes/index.ts"
   },
   "scripts": {
     "type-check": "tsc --noEmit"
   },
   "dependencies": {
-    "jose": "^6.1.3"
+    "better-auth": "^1.6.19",
+    "jose": "^6.1.3",
+    "pg": "^8.21.0",
+    "viem": "^2.48.11",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@types/pg": "^8.20.0",
     "typescript": "^5.9.3"
   }
 }

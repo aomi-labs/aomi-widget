@@ -113,10 +113,7 @@ export function AomiWalletKitComposer({
       transformAccounts,
       canManageAccount,
     });
-    const evmWalletOptions = [
-      ...evm.options,
-      ...additionalEvmWalletOptions,
-    ];
+    const evmWalletOptions = [...evm.options, ...additionalEvmWalletOptions];
     const svmWalletOptions =
       svm?.options.map((option) => ({
         ...option,
@@ -178,6 +175,13 @@ export function AomiWalletKitComposer({
       canDisconnect: hasAnyDisconnectablePath,
       accounts,
       walletModalRows,
+      accountStatus: account.status,
+      accountUser: account.user,
+      accountLinkedAccounts: account.linkedAccounts,
+      accountWallets: account.wallets,
+      accountConfirmation: account.pendingConfirmation,
+      updateLinkedWallet: account.updateWallet,
+      unlinkLinkedWallet: account.unlinkWallet,
       selectAccount: actions.selectAccount,
       evmWallets: evmWalletOptions,
       connectEvmWallet: actions.connectEvmWallet,
@@ -204,14 +208,19 @@ export function AomiWalletKitComposer({
       signSolanaTransaction: svm?.execution.signSolanaTransaction,
       signSolanaMessage: svm?.execution.signSolanaMessage,
       sendSolanaTransaction: svm?.execution.sendSolanaTransaction,
-      signAndSendSolanaTransaction:
-        svm?.execution.signAndSendSolanaTransaction,
+      signAndSendSolanaTransaction: svm?.execution.signAndSendSolanaTransaction,
       solanaRpcHttpUrl: svm?.execution.solanaRpcHttpUrl,
       solanaRpcWsUrl: svm?.execution.solanaRpcWsUrl,
     };
   }, [
     auth,
     account.wallets,
+    account.linkedAccounts,
+    account.pendingConfirmation,
+    account.status,
+    account.unlinkWallet,
+    account.updateWallet,
+    account.user,
     additionalEvmWalletOptions,
     canManageAccount,
     evm,
