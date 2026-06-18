@@ -1,233 +1,93 @@
 "use client";
 
-import {
-  createContext,
-  useCallback,
-  useContext,
-  useRef,
-  useState,
-  useEffect,
-  type ReactNode,
-} from "react";
-import type { AomiAppDescriptor, AomiClient } from "@aomi-labs/client";
+// =============================================================================
+// ControlContextProvider — thin composition root
+// =============================================================================
+//
+// This file used to be 978 lines and seven concerns wedged into one component.
+// It's now a wiring layer: the four domain hooks in `../control/` each own
+// their slice of state + effects + actions, and this file assembles them into
+// the public ControlContextApi.
+//
+// If you need to change behavior, you almost certainly want one of:
+//   ../control/api-key.ts          — apiKey + persistence
+//   ../control/byok.ts             — BYOK keys + secret vault API
+//   ../control/auth-endpoints.ts   — apps + models fetch
+//   ../control/per-thread-control.ts — model/app selection + sync
+//
+// useControl() is preserved as the public hook for now. The new focused
+// hooks (useApiKey, useByok, useAuthEndpoints, usePerThreadControl) are
+// available as direct imports for consumers that only need one slice.
+//
+// Deleted in this pass:
+//   - onControlStateChange callbacks pub/sub (no external consumers)
+//   - setState legacy shim (deprecated since the May 2026 refactor)
+
+import { createContext, useCallback, useContext, useEffect, useRef, type ReactNode } from "react";
+import type { AomiClient } from "@aomi-labs/client";
 import type {
-  ModelSelectionMode,
-  ThreadMetadata,
   ThreadControlState,
+  ThreadMetadata,
 } from "../state/thread-store";
-import { initThreadControl } from "../state/thread-store";
-import { resolveAutoModel } from "../utils/model-selection";
 import {
   CLIENT_ID_STORAGE_KEY,
   getControlSessionId,
   getOrCreateClientId,
 } from "../utils/client-session";
 
-// =============================================================================
-// Types
-// =============================================================================
+import { useApiKey, type ApiKeyState, type ApiKeyActions } from "../control/api-key";
+import {
+  useByok,
+  type ByokState,
+  type ByokActions,
+  type StoredByokKey,
+} from "../control/byok";
+import {
+  useAuthEndpoints,
+  type AuthEndpointsState,
+  type AuthEndpointsActions,
+} from "../control/auth-endpoints";
+import {
+  usePerThreadControl,
+  type PerThreadControlActions,
+} from "../control/per-thread-control";
 
-/** A stored BYOK entry for an LLM provider */
-export type StoredByokKey = {
-  apiKey: string;
-  keyPrefix: string;
-  label?: string;
-};
-
-export type StoredModelPreference = {
-  mode: ModelSelectionMode;
-  model: string | null;
-};
-
-/** Global control state (shared across all threads) */
-export type ControlState = {
-  /** API key for authenticated requests */
-  apiKey: string | null;
-  /** Stable client identifier for this browser profile (associates sessions with secrets) */
-  clientId: string | null;
-  /** Available models fetched from backend */
-  availableModels: string[];
-  /** Authorized apps fetched from backend — names only, derived from
-   *  `appDescriptors`. Kept as a separate field so existing
-   *  `authorizedApps.includes(app)` consumers keep working. */
-  authorizedApps: string[];
-  /** Full per-app descriptors from `/api/session/apps`, including each
-   *  app's declared secret slots. Used by the Secrets settings page to
-   *  render slot inputs and by the chat shell to gate app load. */
-  appDescriptors: AomiAppDescriptor[];
-  /** Default model (first from availableModels) */
-  defaultModel: string | null;
-  /** Default app (from authorizedApps) */
-  defaultApp: string | null;
-  /** BYOK entries stored locally — keyed by LLM provider name */
-  byokKeys: Record<string, StoredByokKey>;
-};
-
-export type ControlContextApi = {
-  /** Global state (apiKey, clientId, available models/apps) */
-  state: ControlState;
-  /** Update global state (apiKey only) */
-  setApiKey: (apiKey: string | null) => void;
-  /** Ingest secrets into the backend vault, returns opaque handles. Pass
-   *  `app` to scope to the per-app store; omit for the flat client store
-   *  (BYOK / STREAM / legacy). */
-  ingestSecrets: (
-    secrets: Record<string, string>,
-    app?: string,
-  ) => Promise<Record<string, string>>;
-  /** Clear secrets from the backend vault. With `app`, clears only that
-   *  app's per-app slots; without, wipes the entire client (flat + app). */
-  clearSecrets: (app?: string) => Promise<void>;
-  /** Remove a single secret. With `app`, targets the per-app store under
-   *  that scope; without, targets the flat store. */
-  deleteSecret: (name: string, app?: string) => Promise<void>;
-  /** Return the names of slots filled per app for this client. Source of
-   *  truth for the Secrets settings page (no values are returned). */
-  listSecrets: () => Promise<Record<string, string[]>>;
-  /** Store a BYOK entry for an LLM provider in localStorage and ingest into backend vault */
-  setByok: (
-    provider: string,
-    apiKey: string,
-    label?: string,
-  ) => Promise<void>;
-  /** Remove a BYOK entry from localStorage and backend vault */
-  removeByok: (provider: string) => Promise<void>;
-  /** Get all stored BYOK entries (metadata only — keys are in state.byokKeys) */
-  getByokKeys: () => Record<string, StoredByokKey>;
-  /** Check if a BYOK entry is stored */
-  hasByok: (provider?: string) => boolean;
-  /** Fetch available models from backend */
-  getAvailableModels: () => Promise<string[]>;
-  /** Fetch authorized apps from backend */
-  getAuthorizedApps: () => Promise<string[]>;
-  /** Get current thread's control state */
-  getCurrentThreadControl: () => ThreadControlState;
-  /** Get the current thread's effective app after auth fallback */
-  getCurrentThreadApp: () => string;
-  /** Select a model for the current thread (updates metadata + calls backend) */
-  onModelSelect: (
-    model: string,
-    options?: { mode?: ModelSelectionMode },
-  ) => Promise<void>;
-  /** Select an app for the current thread (updates metadata only) */
-  onAppSelect: (app: string) => void;
-  /** Whether the current thread is processing (disables control switching) */
-  isProcessing: boolean;
-  /** Mark control state as synced (called after chat starts) */
-  markControlSynced: () => void;
-  /** Sync pending control state to the backend before sending */
-  syncCurrentThreadControl: () => Promise<void>;
-  /** Build initial control state for new local threads */
-  getPreferredThreadControl: () => ThreadControlState;
-  /** Get global control state */
-  getControlState: () => ControlState;
-  /** Subscribe to global state changes */
-  onControlStateChange: (callback: (state: ControlState) => void) => () => void;
-
-  // Legacy compatibility
-  /** @deprecated Use getCurrentThreadControl().app instead */
-  setState: (
-    updates: Partial<{ app: string | null; apiKey: string | null }>,
-  ) => void;
-};
+// Re-export domain types so existing consumers that pull them from this file
+// keep compiling.
+export type { StoredByokKey } from "../control/byok";
+export type { AuthEndpointsState as ControlAuthEndpointsState } from "../control/auth-endpoints";
 
 // =============================================================================
-// Constants
+// Public types
 // =============================================================================
 
-const API_KEY_STORAGE_KEY = "aomi_secret_key";
-const BYOK_KEYS_STORAGE_KEY = "aomi_byok_keys";
-const MODEL_SELECTION_STORAGE_KEY = "aomi_model_selection";
-const BYOK_SECRET_PREFIX = "PROVIDER_KEY:";
-
-function getDefaultApp(apps: string[]): string | null {
-  return apps.includes("default") ? "default" : (apps[0] ?? null);
-}
-
-function namesFromDescriptors(
-  apps: ReadonlyArray<{ name: string }>,
-): string[] {
-  return apps.map((a) => a.name);
-}
-
-function readStoredModelPreference(): StoredModelPreference {
-  try {
-    const raw = globalThis.localStorage?.getItem(MODEL_SELECTION_STORAGE_KEY);
-    if (!raw) return { mode: "auto", model: null };
-    const parsed = JSON.parse(raw) as Partial<StoredModelPreference>;
-    return {
-      mode: parsed.mode === "manual" ? "manual" : "auto",
-      model: typeof parsed.model === "string" ? parsed.model : null,
-    };
-  } catch {
-    return { mode: "auto", model: null };
-  }
-}
-
-function writeStoredModelPreference(preference: StoredModelPreference): void {
-  try {
-    globalThis.localStorage?.setItem(
-      MODEL_SELECTION_STORAGE_KEY,
-      JSON.stringify(preference),
-    );
-  } catch {
-    // localStorage not available
-  }
-}
-
-function resolvePreferredModelSelection(
-  preference: StoredModelPreference,
-  models: string[],
-  defaultModel: string | null,
-): StoredModelPreference {
-  if (
-    preference.mode === "manual" &&
-    preference.model &&
-    models.includes(preference.model)
-  ) {
-    return preference;
-  }
-
-  if (preference.mode === "auto") {
-    return {
-      mode: "auto",
-      model: resolveAutoModel(models) ?? defaultModel,
-    };
-  }
-
-  return {
-    mode: "auto",
-    model: defaultModel ?? resolveAutoModel(models),
+/**
+ * Aggregated control state. Mirrors the historical shape so callers reading
+ * `useControl().state` keep working. New code should prefer the focused
+ * hooks and read their narrower slices directly.
+ */
+export type ControlState = ApiKeyState &
+  ByokState &
+  AuthEndpointsState & {
+    clientId: string | null;
   };
-}
 
-function getFallbackModel(
-  models: string[],
-  defaultModel: string | null,
-): string | null {
-  return defaultModel ?? resolveAutoModel(models);
-}
-
-function resolveAuthorizedApp(
-  app: string | null | undefined,
-  authorizedApps: string[],
-  defaultApp: string | null,
-): string | null {
-  if (app && authorizedApps.includes(app)) {
-    return app;
-  }
-  return defaultApp;
-}
+export type ControlContextApi = ApiKeyActions &
+  ByokActions &
+  AuthEndpointsActions &
+  PerThreadControlActions & {
+    state: ControlState;
+    isProcessing: boolean;
+    /** Synchronous getter used by the runtime to read the latest state from a
+     *  callback that fires outside render. */
+    getControlState: () => ControlState;
+  };
 
 // =============================================================================
 // Context
 // =============================================================================
 
 const ControlContext = createContext<ControlContextApi | null>(null);
-
-// =============================================================================
-// Hook
-// =============================================================================
 
 export function useControl(): ControlContextApi {
   const ctx = useContext(ControlContext);
@@ -236,6 +96,12 @@ export function useControl(): ControlContextApi {
   }
   return ctx;
 }
+
+// Re-export the focused hooks so consumers can opt into the narrower surface.
+export { useApiKey } from "../control/api-key";
+export { useByok } from "../control/byok";
+export { useAuthEndpoints } from "../control/auth-endpoints";
+export { usePerThreadControl } from "../control/per-thread-control";
 
 // =============================================================================
 // Provider
@@ -246,12 +112,10 @@ export type ControlContextProviderProps = {
   aomiClient: AomiClient;
   sessionId: string;
   publicKey?: string;
-  /** Get metadata for a thread */
   getThreadMetadata: (threadId: string) => ThreadMetadata | undefined;
-  /** Update metadata for a thread */
   updateThreadMetadata: (
     threadId: string,
-    updates: Partial<ThreadMetadata>,
+    partial: Partial<ThreadMetadata>,
   ) => void;
 };
 
@@ -263,20 +127,10 @@ export function ControlContextProvider({
   getThreadMetadata,
   updateThreadMetadata,
 }: ControlContextProviderProps) {
-  const [state, setStateInternal] = useState<ControlState>(() => ({
-    apiKey: null,
-    clientId: getOrCreateClientId(),
-    availableModels: [],
-    authorizedApps: [],
-    appDescriptors: [],
-    defaultModel: null,
-    defaultApp: null,
-    byokKeys: {},
-  }));
-
-  const stateRef = useRef(state);
-  stateRef.current = state;
-
+  // ---------------------------------------------------------------------------
+  // Stable refs into the central plumbing (aomiClient, the props that change
+  // per render). Each focused hook reads from these via the args we pass it.
+  // ---------------------------------------------------------------------------
   const aomiClientRef = useRef(aomiClient);
   aomiClientRef.current = aomiClient;
 
@@ -292,687 +146,120 @@ export function ControlContextProvider({
   const updateThreadMetadataRef = useRef(updateThreadMetadata);
   updateThreadMetadataRef.current = updateThreadMetadata;
 
-  const callbacks = useRef<Set<(state: ControlState) => void>>(new Set());
-  const getCurrentControlSessionId = useCallback(
-    () => getControlSessionId(stateRef.current.clientId, sessionIdRef.current),
-    [],
-  );
-
-  // Compute isProcessing from current thread's control state
-  const currentThreadMetadata = getThreadMetadata(sessionId);
-  const isProcessing = currentThreadMetadata?.control?.isProcessing ?? false;
-
-  // Persist client id so settings page and chat runtime share one vault namespace.
+  // clientId is initialized once from localStorage and persisted on change.
+  // Treating it as a ref + persist effect keeps it stable across renders.
+  const clientIdRef = useRef<string | null>(null);
+  if (clientIdRef.current === null) {
+    clientIdRef.current = getOrCreateClientId();
+  }
   useEffect(() => {
     try {
-      if (state.clientId) {
-        globalThis.localStorage?.setItem(CLIENT_ID_STORAGE_KEY, state.clientId);
-      }
-    } catch {
-      // localStorage not available
-    }
-  }, [state.clientId]);
-
-  // Load API key from localStorage on mount
-  useEffect(() => {
-    try {
-      const storedApiKey =
-        globalThis.localStorage?.getItem(API_KEY_STORAGE_KEY) ?? null;
-      if (storedApiKey) {
-        setStateInternal((prev) => ({ ...prev, apiKey: storedApiKey }));
-      }
-    } catch {
-      // localStorage not available
-    }
-  }, []);
-
-  // Load BYOK keys from localStorage on mount
-  useEffect(() => {
-    try {
-      const raw = globalThis.localStorage?.getItem(BYOK_KEYS_STORAGE_KEY);
-      if (raw) {
-        const parsed = JSON.parse(raw) as Record<string, StoredByokKey>;
-        setStateInternal((prev) => ({ ...prev, byokKeys: parsed }));
-      }
-    } catch {
-      // localStorage not available or invalid JSON
-    }
-  }, []);
-
-  // Persist API key to localStorage
-  useEffect(() => {
-    try {
-      if (state.apiKey) {
-        globalThis.localStorage?.setItem(API_KEY_STORAGE_KEY, state.apiKey);
-      } else {
-        globalThis.localStorage?.removeItem(API_KEY_STORAGE_KEY);
-      }
-    } catch {
-      // localStorage not available
-    }
-  }, [state.apiKey]);
-
-  // Persist BYOK keys to localStorage
-  useEffect(() => {
-    try {
-      const keys = state.byokKeys;
-      if (Object.keys(keys).length > 0) {
+      if (clientIdRef.current) {
         globalThis.localStorage?.setItem(
-          BYOK_KEYS_STORAGE_KEY,
-          JSON.stringify(keys),
+          CLIENT_ID_STORAGE_KEY,
+          clientIdRef.current,
         );
-      } else {
-        globalThis.localStorage?.removeItem(BYOK_KEYS_STORAGE_KEY);
       }
     } catch {
       // localStorage not available
     }
-  }, [state.byokKeys]);
-
-  // Auto-ingest BYOK keys into backend vault when the client id or stored key set changes.
-  useEffect(() => {
-    if (!state.clientId) return;
-    const keys = stateRef.current.byokKeys;
-    if (Object.keys(keys).length === 0) return;
-
-    const secrets: Record<string, string> = {};
-    for (const [provider, entry] of Object.entries(keys)) {
-      secrets[`${BYOK_SECRET_PREFIX}${provider}`] = entry.apiKey;
-    }
-
-    void aomiClientRef.current
-      .ingestSecrets(getCurrentControlSessionId(), state.clientId, secrets)
-      .catch((err: unknown) => {
-        console.error("Failed to auto-ingest BYOK keys:", err);
-      });
-  }, [getCurrentControlSessionId, state.clientId, state.byokKeys]);
-
-  // Fetch apps whenever the auth context changes. App authorization is scoped
-  // to api-key state, so thread switches and wallet/network changes should
-  // not refetch it (refetching on publicKey change makes the app picker
-  // reset to default when the user switches between EVM and Solana wallets).
-  useEffect(() => {
-    const fetchApps = async () => {
-      try {
-        const descriptors = await aomiClientRef.current.getApps(
-          getCurrentControlSessionId(),
-          {
-            publicKey: publicKeyRef.current,
-            apiKey: stateRef.current.apiKey ?? undefined,
-          },
-        );
-        const names = namesFromDescriptors(descriptors);
-        const defaultApp = getDefaultApp(names);
-        setStateInternal((prev) => ({
-          ...prev,
-          authorizedApps: names,
-          appDescriptors: descriptors,
-          defaultApp,
-        }));
-      } catch (error) {
-        console.error("Failed to fetch apps:", error);
-        setStateInternal((prev) => ({
-          ...prev,
-          authorizedApps: ["default"],
-          appDescriptors: [{ name: "default" }],
-          defaultApp: "default",
-        }));
-      }
-    };
-    void fetchApps();
-  }, [getCurrentControlSessionId, state.apiKey]);
-
-  // Fetch models on mount
-  useEffect(() => {
-    const fetchModels = async () => {
-      try {
-        const models = await aomiClientRef.current.getModels(
-          getCurrentControlSessionId(),
-        );
-        setStateInternal((prev) => ({
-          ...prev,
-          availableModels: models,
-          defaultModel: resolveAutoModel(models),
-        }));
-      } catch (error) {
-        console.error("Failed to fetch models:", error);
-      }
-    };
-    void fetchModels();
-  }, [getCurrentControlSessionId]);
-
-  // ---------------------------------------------------------------------------
-  // API Key
-  // ---------------------------------------------------------------------------
-  const setApiKey = useCallback((apiKey: string | null) => {
-    setStateInternal((prev) => {
-      const next = { ...prev, apiKey: apiKey === "" ? null : apiKey };
-      callbacks.current.forEach((cb) => cb(next));
-      return next;
-    });
   }, []);
 
   // ---------------------------------------------------------------------------
-  // Secrets
+  // Domain hooks
   // ---------------------------------------------------------------------------
-  const ingestSecrets = useCallback(
-    async (
-      secrets: Record<string, string>,
-      app?: string,
-    ): Promise<Record<string, string>> => {
-      const clientId = stateRef.current.clientId;
-      if (!clientId) throw new Error("clientId not initialized");
-      const { handles } = await aomiClientRef.current.ingestSecrets(
-        getCurrentControlSessionId(),
-        clientId,
-        secrets,
-        app,
-      );
-      return handles;
-    },
-    [getCurrentControlSessionId],
-  );
+  const apiKey = useApiKey();
+  const apiKeyRef = useRef(apiKey.state.apiKey);
+  apiKeyRef.current = apiKey.state.apiKey;
 
-  const clearSecrets = useCallback(
-    async (app?: string): Promise<void> => {
-      const clientId = stateRef.current.clientId;
-      if (!clientId) return;
-      await aomiClientRef.current.clearSecrets?.(
-        getCurrentControlSessionId(),
-        clientId,
-        app,
-      );
-    },
-    [getCurrentControlSessionId],
-  );
-
-  const deleteSecret = useCallback(
-    async (name: string, app?: string): Promise<void> => {
-      const clientId = stateRef.current.clientId;
-      if (!clientId) return;
-      await aomiClientRef.current.deleteSecret(
-        getCurrentControlSessionId(),
-        clientId,
-        name,
-        app,
-      );
-    },
-    [getCurrentControlSessionId],
-  );
-
-  const listSecrets = useCallback(async (): Promise<Record<string, string[]>> => {
-    const { by_app } = await aomiClientRef.current.listSecrets(
-      getCurrentControlSessionId(),
-    );
-    return by_app;
-  }, [getCurrentControlSessionId]);
-
-  // ---------------------------------------------------------------------------
-  // BYOK (LLM provider keys)
-  // ---------------------------------------------------------------------------
-  const setByok = useCallback(
-    async (provider: string, apiKey: string, label?: string): Promise<void> => {
-      const trimmed = apiKey.trim();
-      if (!trimmed) return;
-
-      const entry: StoredByokKey = {
-        apiKey: trimmed,
-        keyPrefix: trimmed.slice(0, 7),
-        label,
-      };
-
-      setStateInternal((prev) => {
-        const next = {
-          ...prev,
-          byokKeys: { ...prev.byokKeys, [provider]: entry },
-        };
-        callbacks.current.forEach((cb) => cb(next));
-        return next;
-      });
-
-      // Ingest into backend vault
-      const clientId = stateRef.current.clientId;
-      if (clientId) {
-        try {
-          await aomiClientRef.current.ingestSecrets(
-            getCurrentControlSessionId(),
-            clientId,
-            {
-              [`${BYOK_SECRET_PREFIX}${provider}`]: trimmed,
-            },
-          );
-        } catch (err) {
-          console.error("Failed to ingest BYOK key:", err);
-        }
-      }
-    },
-    [getCurrentControlSessionId],
-  );
-
-  const removeByok = useCallback(
-    async (provider: string): Promise<void> => {
-      const clientId = stateRef.current.clientId;
-      if (clientId) {
-        await aomiClientRef.current.deleteSecret(
-          getCurrentControlSessionId(),
-          clientId,
-          `${BYOK_SECRET_PREFIX}${provider}`,
-        );
-      }
-
-      setStateInternal((prev) => {
-        const { [provider]: _, ...rest } = prev.byokKeys;
-        const next = { ...prev, byokKeys: rest };
-        callbacks.current.forEach((cb) => cb(next));
-        return next;
-      });
-    },
-    [getCurrentControlSessionId],
-  );
-
-  const getByokKeys = useCallback(
-    (): Record<string, StoredByokKey> => stateRef.current.byokKeys,
+  // Stable callback used by every backend call that needs to identify this
+  // (clientId, threadId) tuple. Empty deps — reads from refs.
+  const getCurrentControlSessionId = useCallback(
+    () => getControlSessionId(clientIdRef.current, sessionIdRef.current),
     [],
   );
 
-  const hasByok = useCallback((provider?: string): boolean => {
-    const keys = stateRef.current.byokKeys;
-    if (provider) return provider in keys;
-    return Object.keys(keys).length > 0;
-  }, []);
+  const byok = useByok({
+    aomiClientRef,
+    clientIdRef,
+    getControlSessionId: getCurrentControlSessionId,
+  });
 
-  // ---------------------------------------------------------------------------
-  // Fetch available options
-  // ---------------------------------------------------------------------------
-  const getAvailableModels = useCallback(async (): Promise<string[]> => {
-    try {
-      const models = await aomiClientRef.current.getModels(
-        getCurrentControlSessionId(),
-      );
-      setStateInternal((prev) => ({
-        ...prev,
-        availableModels: models,
-        defaultModel: resolveAutoModel(models),
-      }));
-      return models;
-    } catch (error) {
-      console.error("Failed to fetch models:", error);
-      return [];
-    }
-  }, [getCurrentControlSessionId]);
+  const authEndpoints = useAuthEndpoints({
+    aomiClientRef,
+    apiKeyRef,
+    publicKeyRef,
+    getControlSessionId: getCurrentControlSessionId,
+    apiKey: apiKey.state.apiKey,
+  });
 
-  const getAuthorizedApps = useCallback(async (): Promise<string[]> => {
-    try {
-      const descriptors = await aomiClientRef.current.getApps(
-        getCurrentControlSessionId(),
-        {
-          publicKey: publicKeyRef.current,
-          apiKey: stateRef.current.apiKey ?? undefined,
-        },
-      );
-      const names = namesFromDescriptors(descriptors);
-      const defaultApp = getDefaultApp(names);
-      setStateInternal((prev) => ({
-        ...prev,
-        authorizedApps: names,
-        appDescriptors: descriptors,
-        defaultApp,
-      }));
-      return names;
-    } catch (error) {
-      console.error("Failed to fetch apps:", error);
-      setStateInternal((prev) => ({
-        ...prev,
-        authorizedApps: ["default"],
-        appDescriptors: [{ name: "default" }],
-        defaultApp: "default",
-      }));
-      return ["default"];
-    }
-  }, [getCurrentControlSessionId]);
+  // Refs for the auth-endpoint state so per-thread-control callbacks can read
+  // the latest values without re-creating themselves on every fetch.
+  const availableModelsRef = useRef(authEndpoints.state.availableModels);
+  availableModelsRef.current = authEndpoints.state.availableModels;
+  const defaultModelRef = useRef(authEndpoints.state.defaultModel);
+  defaultModelRef.current = authEndpoints.state.defaultModel;
+  const authorizedAppsRef = useRef(authEndpoints.state.authorizedApps);
+  authorizedAppsRef.current = authEndpoints.state.authorizedApps;
+  const defaultAppRef = useRef(authEndpoints.state.defaultApp);
+  defaultAppRef.current = authEndpoints.state.defaultApp;
 
-  // ---------------------------------------------------------------------------
-  // Per-thread control state
-  // ---------------------------------------------------------------------------
-  const getCurrentThreadControl = useCallback((): ThreadControlState => {
-    const metadata = getThreadMetadataRef.current(sessionIdRef.current);
-    return metadata?.control ?? initThreadControl();
-  }, []);
-
-  const getPreferredThreadControl = useCallback((): ThreadControlState => {
-    const preference = readStoredModelPreference();
-    const selection = resolvePreferredModelSelection(
-      preference,
-      stateRef.current.availableModels,
-      stateRef.current.defaultModel,
-    );
-    return {
-      ...initThreadControl(),
-      model: selection.model,
-      modelMode: selection.mode,
-      controlDirty: selection.model !== null,
-    };
-  }, []);
-
-  const getCurrentThreadApp = useCallback((): string => {
-    const currentControl =
-      getThreadMetadataRef.current(sessionIdRef.current)?.control ??
-      initThreadControl();
-    return (
-      resolveAuthorizedApp(
-        currentControl.app,
-        stateRef.current.authorizedApps,
-        stateRef.current.defaultApp,
-      ) ?? "default"
-    );
-  }, []);
-
-  const onModelSelect = useCallback(
-    async (model: string, options?: { mode?: ModelSelectionMode }) => {
-      const threadId = sessionIdRef.current;
-      const currentControl =
-        getThreadMetadataRef.current(threadId)?.control ?? initThreadControl();
-      const isProcessing = currentControl.isProcessing;
-      const modelMode = options?.mode ?? "manual";
-
-      console.log("[control-context] onModelSelect called", {
-        model,
-        modelMode,
-        isProcessing,
-        threadId,
-      });
-
-      if (isProcessing) {
-        console.warn("[control-context] Cannot switch model while processing");
-        return;
-      }
-
-      const app =
-        resolveAuthorizedApp(
-          currentControl.app,
-          stateRef.current.authorizedApps,
-          stateRef.current.defaultApp,
-        ) ?? "default";
-
-      console.log("[control-context] onModelSelect updating metadata", {
-        threadId,
-        model,
-        app,
-        currentControl,
-      });
-
-      // Update thread metadata with new model and mark as dirty
-      updateThreadMetadataRef.current(threadId, {
-        control: {
-          ...currentControl,
-          model,
-          modelMode,
-          app,
-          controlDirty: true,
-        },
-      });
-
-      console.log("[control-context] onModelSelect calling backend setModel", {
-        threadId,
-        model,
-        app,
-        backendUrl: aomiClientRef.current,
-      });
-
-      try {
-        const result = await aomiClientRef.current.setModel(threadId, model, {
-          app,
-          apiKey: stateRef.current.apiKey ?? undefined,
-          clientId: stateRef.current.clientId ?? undefined,
-        });
-        console.log("[control-context] onModelSelect backend result", result);
-        writeStoredModelPreference({
-          mode: modelMode,
-          model: modelMode === "manual" ? model : null,
-        });
-        const latestControl =
-          getThreadMetadataRef.current(threadId)?.control ?? currentControl;
-        if (latestControl.model === model && latestControl.app === app) {
-          updateThreadMetadataRef.current(threadId, {
-            control: {
-              ...latestControl,
-              modelMode,
-              controlDirty: false,
-            },
-          });
-        }
-      } catch (err) {
-        console.error("[control-context] setModel failed:", err);
-        throw err;
-      }
-    },
-    [],
-  );
-
-  const onAppSelect = useCallback((app: string) => {
-    const threadId = sessionIdRef.current;
-    const currentControl =
-      getThreadMetadataRef.current(threadId)?.control ?? initThreadControl();
-    const isProcessing = currentControl.isProcessing;
-
-    console.log("[control-context] onAppSelect called", {
-      app,
-      isProcessing,
-      threadId,
-    });
-
-    if (isProcessing) {
-      console.warn("[control-context] Cannot switch app while processing");
-      return;
-    }
-
-    if (
-      stateRef.current.authorizedApps.length > 0 &&
-      !stateRef.current.authorizedApps.includes(app)
-    ) {
-      console.warn("[control-context] Cannot select unauthorized app", { app });
-      return;
-    }
-
-    console.log("[control-context] onAppSelect updating metadata", {
-      threadId,
-      app,
-      currentControl,
-    });
-
-    // Update thread metadata with new app and mark as dirty
-    updateThreadMetadataRef.current(threadId, {
-      control: {
-        ...currentControl,
-        app,
-        controlDirty: true,
-      },
-    });
-
-    console.log("[control-context] onAppSelect metadata updated");
-  }, []);
-
-  const markControlSynced = useCallback(() => {
-    const threadId = sessionIdRef.current;
-    const currentControl =
-      getThreadMetadataRef.current(threadId)?.control ?? initThreadControl();
-
-    if (currentControl.controlDirty) {
-      updateThreadMetadataRef.current(threadId, {
-        control: {
-          ...currentControl,
-          controlDirty: false,
-        },
-      });
-    }
-  }, []);
-
-  const syncCurrentThreadControl = useCallback(async () => {
-    const threadId = sessionIdRef.current;
-    const currentControl =
-      getThreadMetadataRef.current(threadId)?.control ?? initThreadControl();
-
-    if (
-      !currentControl.controlDirty ||
-      currentControl.isProcessing ||
-      !currentControl.model
-    ) {
-      return;
-    }
-
-    const app =
-      resolveAuthorizedApp(
-        currentControl.app,
-        stateRef.current.authorizedApps,
-        stateRef.current.defaultApp,
-      ) ?? "default";
-
-    await aomiClientRef.current.setModel(threadId, currentControl.model, {
-      app,
-      apiKey: stateRef.current.apiKey ?? undefined,
-      clientId: stateRef.current.clientId ?? undefined,
-    });
-
-    const latestControl =
-      getThreadMetadataRef.current(threadId)?.control ?? currentControl;
-    if (
-      latestControl.model === currentControl.model &&
-      latestControl.app === currentControl.app
-    ) {
-      updateThreadMetadataRef.current(threadId, {
-        control: {
-          ...latestControl,
-          app,
-          controlDirty: false,
-        },
-      });
-    }
-  }, []);
-
-  useEffect(() => {
-    const threadId = sessionIdRef.current;
-    const metadata = getThreadMetadataRef.current(threadId);
-    if (!metadata || metadata.control.isProcessing) return;
-
-    const currentControl = metadata.control;
-    let nextControl: ThreadControlState | null = null;
-
-    if (currentControl.model === null) {
-      const preferred = getPreferredThreadControl();
-      if (!preferred.model) return;
-      nextControl = {
-        ...currentControl,
-        model: preferred.model,
-        modelMode: preferred.modelMode,
-        controlDirty: true,
-      };
-    } else if (state.availableModels.length > 0) {
-      const currentMode = currentControl.modelMode ?? "manual";
-
-      if (currentMode === "auto") {
-        const autoModel = getFallbackModel(
-          state.availableModels,
-          state.defaultModel,
-        );
-        if (autoModel && currentControl.model !== autoModel) {
-          nextControl = {
-            ...currentControl,
-            model: autoModel,
-            modelMode: "auto",
-            controlDirty: true,
-          };
-        }
-      } else if (!state.availableModels.includes(currentControl.model)) {
-        const fallbackModel = getFallbackModel(
-          state.availableModels,
-          state.defaultModel,
-        );
-        if (fallbackModel) {
-          nextControl = {
-            ...currentControl,
-            model: fallbackModel,
-            modelMode: "auto",
-            controlDirty: true,
-          };
-        }
-      }
-    }
-
-    if (!nextControl) return;
-
-    updateThreadMetadataRef.current(threadId, {
-      control: nextControl,
-    });
-  }, [
-    getPreferredThreadControl,
+  const perThread = usePerThreadControl({
+    aomiClientRef,
+    sessionIdRef,
+    apiKeyRef,
+    clientIdRef,
+    getThreadMetadataRef,
+    updateThreadMetadataRef,
+    availableModels: authEndpoints.state.availableModels,
+    defaultModel: authEndpoints.state.defaultModel,
+    availableModelsRef,
+    defaultModelRef,
+    authorizedAppsRef,
+    defaultAppRef,
     sessionId,
-    state.availableModels,
-    state.defaultModel,
-  ]);
+  });
 
   // ---------------------------------------------------------------------------
-  // Global state access
+  // Aggregate state + stable getter
   // ---------------------------------------------------------------------------
-  const getControlState = useCallback(() => stateRef.current, []);
+  const aggregateState: ControlState = {
+    apiKey: apiKey.state.apiKey,
+    clientId: clientIdRef.current,
+    byokKeys: byok.state.byokKeys,
+    availableModels: authEndpoints.state.availableModels,
+    defaultModel: authEndpoints.state.defaultModel,
+    authorizedApps: authEndpoints.state.authorizedApps,
+    appDescriptors: authEndpoints.state.appDescriptors,
+    defaultApp: authEndpoints.state.defaultApp,
+  };
 
-  const onControlStateChange = useCallback(
-    (callback: (state: ControlState) => void) => {
-      callbacks.current.add(callback);
-      return () => {
-        callbacks.current.delete(callback);
-      };
-    },
+  const aggregateStateRef = useRef(aggregateState);
+  aggregateStateRef.current = aggregateState;
+
+  const getControlState = useCallback(
+    () => aggregateStateRef.current,
     [],
   );
 
   // ---------------------------------------------------------------------------
-  // Legacy compatibility
+  // Assemble the public api
   // ---------------------------------------------------------------------------
-  const setState = useCallback(
-    (updates: Partial<{ app: string | null; apiKey: string | null }>) => {
-      if ("apiKey" in updates) {
-        setApiKey(updates.apiKey ?? null);
-      }
-      if (
-        "app" in updates &&
-        updates.app !== undefined &&
-        updates.app !== null
-      ) {
-        onAppSelect(updates.app);
-      }
-    },
-    [setApiKey, onAppSelect],
-  );
+  const api: ControlContextApi = {
+    state: aggregateState,
+    isProcessing: perThread.isProcessing,
+    getControlState,
+    ...apiKey.actions,
+    ...byok.actions,
+    ...authEndpoints.actions,
+    ...perThread.actions,
+  };
 
   return (
-    <ControlContext.Provider
-      value={{
-        state,
-        setApiKey,
-        ingestSecrets,
-        clearSecrets,
-        deleteSecret,
-        listSecrets,
-        setByok,
-        removeByok,
-        getByokKeys,
-        hasByok,
-        getAvailableModels,
-        getAuthorizedApps,
-        getCurrentThreadControl,
-        getCurrentThreadApp,
-        onModelSelect,
-        onAppSelect,
-        isProcessing,
-        markControlSynced,
-        syncCurrentThreadControl,
-        getPreferredThreadControl,
-        getControlState,
-        onControlStateChange,
-        setState,
-      }}
-    >
-      {children}
-    </ControlContext.Provider>
+    <ControlContext.Provider value={api}>{children}</ControlContext.Provider>
   );
 }
+
+// Re-export ThreadControlState for backward compat with code that pulled it
+// from this file.
+export type { ThreadControlState };
