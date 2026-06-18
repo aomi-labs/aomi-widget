@@ -63,30 +63,27 @@ export function AomiParaProvider({
     ?.map((method) => oAuthMethodMap[method])
     .filter((method): method is AuthMethodId => Boolean(method));
 
-  return createElement(
-    AomiWalletKitProvider,
-    {
-      auth: { provider: "para", methods },
-      providers: {
-        para: {
-          apiKey,
-          appDescription,
-          appName,
-          appUrl,
-          environment,
-        },
+  return createElement(AomiWalletKitProvider, {
+    auth: { provider: "para", methods },
+    providers: {
+      para: {
+        apiKey,
+        appDescription,
+        appName,
+        appUrl,
+        environment,
       },
-      wallets: {
-        evm: {
-          appName,
-          chains: networks,
-          walletConnectProjectId,
-          wallets,
-        },
+    },
+    wallets: {
+      evm: {
+        appName,
+        chains: networks,
+        walletConnectProjectId,
+        wallets,
       },
     },
     children,
-  );
+  });
 }
 
 export type AomiParaAdapterProviderProps = AomiParaProviderProps;

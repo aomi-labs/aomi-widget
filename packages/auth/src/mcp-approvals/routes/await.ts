@@ -1,12 +1,12 @@
 // =============================================================================
-// /api/auth/await/{state} — long-poll endpoint.
+// /api/mcp-auth/await/{state} — long-poll endpoint.
 // =============================================================================
 //
 // Wraps awaitAuth() in a Web Request/Response. Used by both MCP (Path 1)
 // over HTTP and the BE (Path 2) over HTTP. Programmatic callers should
 // import awaitAuth directly (and get the camelCase TS shape).
 //
-// Wire shape (snake_case, matches /api/auth/begin):
+// Wire shape (snake_case, matches /api/mcp-auth/begin):
 //   { "status": "pending" }
 //   { "status": "completed", "approval_id": "..." }
 //   { "status": "failed", "error": "..." }

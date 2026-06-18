@@ -11,7 +11,7 @@
 //   { status: 'failed', error }
 //   { status: 'pending' }              — caller can re-issue to extend
 //
-// HTTP wire shape (via /api/auth/await/[state]) is snake_case — see
+// HTTP wire shape (via /api/mcp-auth/await/[state]) is snake_case — see
 // `routes/await.ts`. The TS-internal shape stays camelCase.
 
 import type { Store } from "../store";

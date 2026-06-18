@@ -1,5 +1,5 @@
 // =============================================================================
-// /api/auth/{provider}/callback — browser POST or GET (real OAuth).
+// /api/mcp-auth/{provider}/callback — browser POST or GET (real OAuth).
 // =============================================================================
 //
 // Resolves state → pending row → provider.callback(). Provider returns

@@ -49,7 +49,8 @@ export function mergeWalletRows({
     const stored = storedWallets.find(
       (wallet) =>
         wallet.family === account.family &&
-        wallet.address.toLowerCase() === account.address.toLowerCase(),
+        walletKey(wallet.family, wallet.address) ===
+          walletKey(account.family, account.address),
     );
     const actions: WalletRowAction[] = account.actions?.length
       ? account.actions.map((action) => ({

@@ -1,5 +1,5 @@
 // =============================================================================
-// /api/auth/begin — BE-facing handler (Path 2).
+// /api/mcp-auth/begin — BE-facing handler (Path 2).
 // =============================================================================
 //
 // Server-to-server entrypoint for the BE to kick off an OAuth flow without

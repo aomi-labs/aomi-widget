@@ -105,7 +105,7 @@ Env in use:
   AOMI_DEV_USER_ID=${AOMI_DEV_USER_ID}
 
 Quick sanity check:
-  curl -X POST ${NGROK_URL}/api/auth/begin \\
+  curl -X POST ${NGROK_URL}/api/mcp-auth/begin \\
     -H 'Content-Type: application/json' \\
     -H "X-Aomi-Auth: ${AOMI_AUTH_TOKEN}" \\
     -d '{"user_id":"${AOMI_DEV_USER_ID}","provider":"dummy"}'

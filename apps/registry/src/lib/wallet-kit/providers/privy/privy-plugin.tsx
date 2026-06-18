@@ -64,6 +64,7 @@ export const privyPlugin: WalletProviderPlugin = {
   },
   wrap: (props) => <PrivyAuthLayer {...props} />,
   renderComposer: ({
+    account,
     auth,
     children,
     execution,
@@ -78,6 +79,7 @@ export const privyPlugin: WalletProviderPlugin = {
           : undefined
       }
       execution={execution}
+      account={account}
       preferDirectSend={solanaRuntimeConfig?.preferDirectSend}
     >
       {children}

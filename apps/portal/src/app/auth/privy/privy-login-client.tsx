@@ -12,7 +12,7 @@
 //      a privy.io iframe — Alice's email codes and key material never touch
 //      this page's JS.
 //   3. Once authenticated, collect the EVM embedded wallet info + access
-//      token and POST to /api/auth/privy/callback with the state token.
+//      token and POST to /api/mcp-auth/privy/callback with the state token.
 //      That endpoint stashes the credentials into the BE secret vault and
 //      completes the pending_auths row.
 //   4. Show success (or error) — Alice closes the tab.
@@ -178,7 +178,7 @@ function PrivyConnectFlow({
     }
 
     try {
-      const res = await fetch("/api/auth/privy/callback", {
+      const res = await fetch("/api/mcp-auth/privy/callback", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

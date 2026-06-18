@@ -1,0 +1,437 @@
+import { pool } from "../db/pool";
+import {
+  buildAccountResponse,
+  closeMergedUser,
+  countLoginFactors,
+  createAomiUserForBetterAuth,
+  deleteBetterAuthSiweWallet,
+  findAomiUserByBetterAuthId,
+  findSignalOwner,
+  findWalletById,
+  listBetterAuthSiweWallets,
+  logAccountEvent,
+  revokeAuthIdentity,
+  revokeWallet,
+  runAomiAuthSchema,
+  touchAomiUser,
+  updateAomiUserProfile,
+  updateWalletLabel,
+  upsertAuthIdentity,
+  upsertEmailIdentity,
+  upsertWallet,
+  withTransaction,
+  moveSignal,
+} from "../db/queries";
+import type {
+  AomiAccountResponse,
+  AomiUserId,
+  AuthIdentityProvider,
+  DbAomiUser,
+  LinkedVia,
+  SignalRef,
+  SignalResolution,
+  WalletFamily,
+  WalletKind,
+} from "../types";
+import { normalizeWalletAddress } from "./wallet-normalization";
+
+export async function ensureAccountSchema(): Promise<void> {
+  await runAomiAuthSchema(pool);
+}
+
+export async function getOrCreateAomiUserForBetterAuthSession(input: {
+  betterAuthUserId: string;
+  email?: string | null;
+  emailVerified?: boolean;
+  name?: string | null;
+  avatarUrl?: string | null;
+}): Promise<DbAomiUser> {
+  await ensureAccountSchema();
+  return withTransaction(async (db) => {
+    const existing = await findAomiUserByBetterAuthId(
+      input.betterAuthUserId,
+      db,
+    );
+    if (existing) {
+      await touchAomiUser(existing.id, db);
+      await upsertAuthIdentity({
+        userId: existing.id,
+        provider: "better_auth",
+        subject: input.betterAuthUserId,
+        email: input.email,
+        emailVerified: input.emailVerified,
+        db,
+      });
+      if (input.email && input.emailVerified) {
+        await upsertEmailIdentity({
+          userId: existing.id,
+          email: input.email,
+          emailVerified: true,
+          db,
+        });
+      }
+      return existing;
+    }
+
+    const user = await createAomiUserForBetterAuth({ ...input, db });
+    await upsertAuthIdentity({
+      userId: user.id,
+      provider: "better_auth",
+      subject: input.betterAuthUserId,
+      email: input.email,
+      emailVerified: input.emailVerified,
+      db,
+    });
+    if (input.email && input.emailVerified) {
+      await upsertEmailIdentity({
+        userId: user.id,
+        email: input.email,
+        emailVerified: true,
+        db,
+      });
+    }
+    await logAccountEvent({
+      userId: user.id,
+      eventType: "user.created",
+      data: { betterAuthUserId: input.betterAuthUserId },
+      db,
+    });
+    return user;
+  });
+}
+
+export async function getAccountResponseForBetterAuthSession(input: {
+  betterAuthUserId: string;
+  email?: string | null;
+  emailVerified?: boolean;
+  name?: string | null;
+  avatarUrl?: string | null;
+  expiresAt?: Date | string | number | null;
+  fresh?: boolean;
+}): Promise<AomiAccountResponse> {
+  const user = await getOrCreateAomiUserForBetterAuthSession(input);
+  await syncSiweWalletsForUser({
+    aomiUserId: user.id,
+    betterAuthUserId: input.betterAuthUserId,
+  });
+  return buildAccountResponse({
+    user,
+    betterAuthUserId: input.betterAuthUserId,
+    sessionExpiresAt: input.expiresAt,
+    sessionFresh: input.fresh,
+  });
+}
+
+export async function syncSiweWalletsForUser(input: {
+  aomiUserId: AomiUserId;
+  betterAuthUserId: string;
+}): Promise<void> {
+  await ensureAccountSchema();
+  const wallets = await listBetterAuthSiweWallets(input.betterAuthUserId);
+  for (const wallet of wallets) {
+    await upsertVerifiedWallet({
+      userId: input.aomiUserId,
+      family: "evm",
+      address: wallet.address,
+      chainId: wallet.chainId,
+      chainScope: null,
+      kind: "external",
+      provider: "siwe",
+      linkedVia: "siwe",
+    });
+  }
+}
+
+export async function resolveSignal(input: {
+  currentUserId: AomiUserId;
+  signal: SignalRef;
+  confirmed?: boolean;
+}): Promise<SignalResolution> {
+  await ensureAccountSchema();
+  const ownerId = await findSignalOwner(input.signal);
+  if (!ownerId) return { status: "linked" };
+  if (ownerId === input.currentUserId) return { status: "noop" };
+
+  const loginFactors = await countLoginFactors(ownerId);
+  const lastFactor = loginFactors <= 1 && isLoginCapableSignal(input.signal);
+  if (!input.confirmed) {
+    return {
+      status: "needs_confirmation",
+      severity: lastFactor ? "red" : "yellow",
+      otherUserId: ownerId,
+      otherAccountWillClose: lastFactor,
+    };
+  }
+
+  return withTransaction(async (db) => {
+    await moveSignal({
+      signal: input.signal,
+      fromUserId: ownerId,
+      toUserId: input.currentUserId,
+      db,
+    });
+    await logAccountEvent({
+      userId: input.currentUserId,
+      actorUserId: input.currentUserId,
+      eventType: signalEventType(input.signal, "moved"),
+      data: { fromUserId: ownerId, signal: input.signal },
+      db,
+    });
+    if (!lastFactor) return { status: "moved" as const };
+
+    await closeMergedUser({
+      dyingUserId: ownerId,
+      survivorUserId: input.currentUserId,
+      db,
+    });
+    await logAccountEvent({
+      userId: input.currentUserId,
+      actorUserId: input.currentUserId,
+      eventType: "account.merged",
+      data: { dyingUserId: ownerId },
+      db,
+    });
+    await logAccountEvent({
+      userId: ownerId,
+      actorUserId: input.currentUserId,
+      eventType: "account.closed",
+      data: { mergedInto: input.currentUserId },
+      db,
+    });
+    return { status: "merged" as const };
+  });
+}
+
+export async function upsertVerifiedWallet(input: {
+  userId: AomiUserId;
+  family: WalletFamily;
+  address: string;
+  chainId?: number;
+  chainScope?: string | null;
+  kind: WalletKind;
+  provider?: string | null;
+  providerWalletId?: string | null;
+  linkedVia: LinkedVia;
+  label?: string | null;
+  confirmed?: boolean;
+}): Promise<SignalResolution> {
+  const signal = {
+    type: "wallet" as const,
+    family: input.family,
+    normalizedAddress: normalizeWalletAddress(input.family, input.address),
+    chainScope: input.chainScope ?? null,
+  };
+  const resolution = await resolveSignal({
+    currentUserId: input.userId,
+    signal,
+    confirmed: input.confirmed,
+  });
+  if (resolution.status === "needs_confirmation") return resolution;
+  const siweSubject = siweIdentitySubject(input);
+  const identityResolution = siweSubject
+    ? await resolveSignal({
+        currentUserId: input.userId,
+        signal: {
+          type: "identity",
+          provider: "siwe",
+          subject: siweSubject,
+        },
+        confirmed: input.confirmed,
+      })
+    : null;
+  if (identityResolution?.status === "needs_confirmation") {
+    return identityResolution;
+  }
+  await upsertWallet(input);
+  if (resolution.status !== "noop") {
+    await logAccountEvent({
+      userId: input.userId,
+      eventType: "wallet.linked",
+      data: {
+        family: input.family,
+        address: input.address,
+        linkedVia: input.linkedVia,
+      },
+    });
+  }
+  if (siweSubject) {
+    await upsertAuthIdentity({
+      userId: input.userId,
+      provider: "siwe",
+      subject: siweSubject,
+    });
+    if (identityResolution?.status !== "noop") {
+      await logAccountEvent({
+        userId: input.userId,
+        eventType: "identity.linked",
+        data: { provider: "siwe", subject: siweSubject },
+      });
+    }
+  }
+  if (resolution.status !== "noop") return resolution;
+  return identityResolution?.status && identityResolution.status !== "noop"
+    ? identityResolution
+    : { status: "noop" };
+}
+
+export async function linkProviderIdentity(input: {
+  userId: AomiUserId;
+  provider: AuthIdentityProvider;
+  subject: string;
+  email?: string | null;
+  emailVerified?: boolean;
+  authMethod?: string | null;
+  displayLabel?: string | null;
+  providerMetadata?: Record<string, unknown>;
+  confirmed?: boolean;
+}): Promise<SignalResolution> {
+  const identitySignal = {
+    type: "identity" as const,
+    provider: input.provider,
+    subject: input.subject,
+  };
+  const identityResolution = await resolveSignal({
+    currentUserId: input.userId,
+    signal: identitySignal,
+    confirmed: input.confirmed,
+  });
+  if (identityResolution.status === "needs_confirmation") {
+    return identityResolution;
+  }
+
+  if (input.email && input.emailVerified) {
+    const emailResolution = await resolveSignal({
+      currentUserId: input.userId,
+      signal: { type: "email", email: input.email },
+      confirmed: input.confirmed,
+    });
+    if (emailResolution.status === "needs_confirmation") {
+      return emailResolution;
+    }
+    await upsertEmailIdentity({
+      userId: input.userId,
+      email: input.email,
+      emailVerified: true,
+    });
+  }
+
+  await upsertAuthIdentity(input);
+  if (identityResolution.status !== "noop") {
+    await logAccountEvent({
+      userId: input.userId,
+      eventType: "identity.linked",
+      data: { provider: input.provider, subject: input.subject },
+    });
+  }
+  return identityResolution.status === "noop"
+    ? { status: "noop" }
+    : identityResolution;
+}
+
+export async function renameWallet(input: {
+  userId: AomiUserId;
+  walletId: string;
+  label: string | null;
+}): Promise<boolean> {
+  const label = sanitizeLabel(input.label);
+  const wallet = await updateWalletLabel({
+    userId: input.userId,
+    walletId: input.walletId,
+    label,
+  });
+  if (!wallet) return false;
+  await logAccountEvent({
+    userId: input.userId,
+    eventType: "wallet.label_updated",
+    data: { walletId: input.walletId, label },
+  });
+  return true;
+}
+
+export async function unlinkWallet(input: {
+  userId: AomiUserId;
+  walletId: string;
+  betterAuthUserId?: string | null;
+}): Promise<"revoked" | "not_found" | "last_factor"> {
+  const wallet = await findWalletById(input.walletId);
+  if (!wallet || wallet.userId !== input.userId) return "not_found";
+  const factorCount = await countLoginFactors(input.userId);
+  if (factorCount <= 1 && wallet.kind !== "embedded") return "last_factor";
+  const revoked = await revokeWallet(input);
+  if (!revoked) return "not_found";
+  const siweSubject = siweIdentitySubject(wallet);
+  if (siweSubject) {
+    await revokeAuthIdentity({
+      userId: input.userId,
+      provider: "siwe",
+      subject: siweSubject,
+    });
+    if (input.betterAuthUserId) {
+      await deleteBetterAuthSiweWallet({
+        betterAuthUserId: input.betterAuthUserId,
+        address: wallet.address,
+        chainId: Number(wallet.chainScope) || undefined,
+      });
+    }
+  }
+  await logAccountEvent({
+    userId: input.userId,
+    eventType: "wallet.revoked",
+    data: { walletId: input.walletId },
+  });
+  return "revoked";
+}
+
+export async function updateAccountProfile(input: {
+  userId: AomiUserId;
+  displayName?: string | null;
+  avatarUrl?: string | null;
+}): Promise<void> {
+  await updateAomiUserProfile({
+    userId: input.userId,
+    displayName:
+      input.displayName === undefined
+        ? undefined
+        : sanitizeDisplayName(input.displayName),
+    avatarUrl: input.avatarUrl ?? null,
+  });
+  await logAccountEvent({
+    userId: input.userId,
+    eventType: "account.profile_updated",
+    data: {
+      displayName: input.displayName === undefined ? undefined : "[updated]",
+      avatarUrl: input.avatarUrl ? "[updated]" : null,
+    },
+  });
+}
+
+function isLoginCapableSignal(signal: SignalRef): boolean {
+  return signal.type === "wallet" || signal.type === "identity";
+}
+
+function signalEventType(signal: SignalRef, suffix: string): string {
+  if (signal.type === "wallet") return `wallet.${suffix}`;
+  if (signal.type === "email") return `email.${suffix}`;
+  return `identity.${suffix}`;
+}
+
+function siweIdentitySubject(input: {
+  family: WalletFamily;
+  address: string;
+  linkedVia: LinkedVia;
+}): string | null {
+  if (input.family !== "evm" || input.linkedVia !== "siwe") return null;
+  return `eip155:*:${normalizeWalletAddress("evm", input.address)}`;
+}
+
+function sanitizeLabel(value: string | null): string | null {
+  if (value == null) return null;
+  const cleaned = value.replace(/[\u0000-\u001f\u007f]/g, "").trim();
+  return cleaned ? cleaned.slice(0, 80) : null;
+}
+
+function sanitizeDisplayName(value: string | null): string | null {
+  if (value == null) return null;
+  const cleaned = value.replace(/[\u0000-\u001f\u007f]/g, "").trim();
+  return cleaned ? cleaned.slice(0, 80) : null;
+}

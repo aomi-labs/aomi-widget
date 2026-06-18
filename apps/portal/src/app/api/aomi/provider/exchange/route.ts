@@ -1,0 +1,31 @@
+import { exchangeProviderForExistingSession } from "@aomi-labs/auth/service/provider-exchange";
+import type { AomiAccountCredential } from "@aomi-labs/auth";
+import { getBetterAuthSession, json } from "@portal/lib/aomi-account/session";
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
+export async function POST(req: Request): Promise<Response> {
+  const session = await getBetterAuthSession(req);
+  if (!session?.user?.id) {
+    return json(401, { error: "unauthenticated" });
+  }
+  const body = (await req.json().catch(() => null)) as
+    | (AomiAccountCredential & { confirm?: boolean })
+    | null;
+  if (!body) return json(400, { error: "invalid_json" });
+  try {
+    return Response.json(
+      await exchangeProviderForExistingSession({
+        betterAuthUserId: session.user.id,
+        credential: body,
+        confirm: body.confirm,
+      }),
+    );
+  } catch (error) {
+    return json(400, {
+      error:
+        error instanceof Error ? error.message : "provider_exchange_failed",
+    });
+  }
+}

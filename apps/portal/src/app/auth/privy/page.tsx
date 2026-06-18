@@ -2,8 +2,8 @@
 // /auth/privy — the Privy login landing page.
 // =============================================================================
 //
-// Where /api/auth/privy/start redirects to after Aomi BE (or MCP) calls
-// /api/auth/begin with provider=privy. URL shape:
+// Where /api/mcp-auth/privy/start redirects to after Aomi BE (or MCP) calls
+// /api/mcp-auth/begin with provider=privy. URL shape:
 //
 //   chat.aomi.dev/auth/privy?state=<token>&app_id=<aomi-privy-app-id>
 //

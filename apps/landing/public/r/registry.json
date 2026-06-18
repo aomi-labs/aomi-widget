@@ -153,6 +153,10 @@
         },
         {
           "type": "registry:component",
+          "path": "lib/wallet-kit/account/aomi-backend-runtime.ts"
+        },
+        {
+          "type": "registry:component",
           "path": "lib/wallet-kit/composer/AomiWalletKitComposer.tsx"
         },
         {

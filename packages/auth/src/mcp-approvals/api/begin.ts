@@ -51,7 +51,7 @@ export async function beginAuth(
   });
 
   const baseUrl = deps.baseUrl.replace(/\/$/, "");
-  const authUrl = `${baseUrl}/api/auth/${encodeURIComponent(
+  const authUrl = `${baseUrl}/api/mcp-auth/${encodeURIComponent(
     args.walletProvider,
   )}/start?state=${encodeURIComponent(stateToken)}`;
 

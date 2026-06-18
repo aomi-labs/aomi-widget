@@ -2,6 +2,7 @@
 
 import type { ReactNode } from "react";
 import type {
+  AccountConfig,
   AuthConfig,
   AomiWalletKitProviderInput,
   AomiWalletKitProviderProps,
@@ -32,6 +33,7 @@ export type WalletProviderPlugin = {
     providers?: ProvidersConfig;
   }) => boolean;
   renderComposer?: (props: {
+    account?: AccountConfig;
     auth?: AuthConfig;
     children: ReactNode;
     execution?: ExecutionConfig;

@@ -118,12 +118,22 @@ export type ExecutionConfig = {
       };
 };
 
+export type AccountConfig =
+  | false
+  | { mode: "disabled" }
+  | {
+      mode: "aomi-backend";
+      baseUrl?: string;
+      signInPolicy?: "evm-siwe-first" | "provider-token-allowed";
+    };
+
 export type AomiWalletKitProviderProps = {
   preset?: "para" | "privy" | "wallets-only";
   providers?: ProvidersConfig;
   auth?: AuthConfig;
   wallets?: WalletsConfig;
   execution?: ExecutionConfig;
+  account?: AccountConfig;
   children: ReactNode;
 };
 

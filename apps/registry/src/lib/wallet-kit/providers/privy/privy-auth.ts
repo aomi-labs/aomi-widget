@@ -1,9 +1,6 @@
 "use client";
 
-import {
-  usePrivy,
-  type PrivyClientConfig,
-} from "@privy-io/react-auth";
+import { usePrivy, type PrivyClientConfig } from "@privy-io/react-auth";
 import { useSolanaWallets } from "@privy-io/react-auth/solana";
 import { useSmartWallets } from "@privy-io/react-auth/smart-wallets";
 import type { Chain } from "viem";
@@ -12,6 +9,7 @@ import type { AomiLoginMethod, AomiWalletOption } from "../../types";
 export type PrivyHook = ReturnType<typeof usePrivy>;
 export type PrivyAccessTokenHook = PrivyHook & {
   getAccessToken?: () => Promise<string | null>;
+  getIdentityToken?: () => Promise<string | null>;
 };
 export type SmartWalletsHook = ReturnType<typeof useSmartWallets>;
 export type SolanaWalletsHook = ReturnType<typeof useSolanaWallets>;
@@ -25,6 +23,7 @@ const DISCONNECTED_PRIVY: PrivyAccessTokenHook = {
   login: async () => undefined,
   logout: async () => undefined,
   getAccessToken: async () => null,
+  getIdentityToken: async () => null,
 } as unknown as PrivyAccessTokenHook;
 
 const DISCONNECTED_SMART_WALLETS: SmartWalletsHook = {
