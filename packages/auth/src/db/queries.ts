@@ -457,6 +457,23 @@ export async function findAuthIdentityById(
   return result.rows[0] ? mapIdentity(result.rows[0]) : null;
 }
 
+export async function updateAuthIdentityLabel(input: {
+  userId: AomiUserId;
+  identityId: string;
+  displayLabel: string | null;
+  db?: Db;
+}): Promise<DbAomiAuthIdentity | null> {
+  const db = input.db ?? defaultPool;
+  const result = await db.query(
+    `update aomi_auth_identities
+     set display_label = $3, last_seen_at = now()
+     where id = $1 and user_id = $2 and revoked_at is null
+     returning *`,
+    [input.identityId, input.userId, input.displayLabel],
+  );
+  return result.rows[0] ? mapIdentity(result.rows[0]) : null;
+}
+
 export async function updateWalletLabel(input: {
   userId: AomiUserId;
   walletId: string;

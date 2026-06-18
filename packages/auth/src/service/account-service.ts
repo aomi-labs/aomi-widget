@@ -16,6 +16,7 @@ import {
   revokeWallet,
   runAomiAuthSchema,
   touchAomiUser,
+  updateAuthIdentityLabel,
   updateAomiUserProfile,
   updateWalletLabel,
   upsertAuthIdentity,
@@ -430,6 +431,35 @@ export async function unlinkAuthIdentity(input: {
     data: { identityId: input.identityId, provider: identity.provider },
   });
   return "revoked";
+}
+
+export async function renameAuthIdentity(input: {
+  userId: AomiUserId;
+  identityId: string;
+  displayLabel: string | null;
+}): Promise<"updated" | "not_found" | "protected"> {
+  const identity = await findAuthIdentityById(input.identityId);
+  if (!identity || identity.userId !== input.userId) return "not_found";
+  if (
+    identity.provider === "better_auth" ||
+    identity.provider === "siwe" ||
+    identity.provider === "email"
+  ) {
+    return "protected";
+  }
+  const label = sanitizeLabel(input.displayLabel);
+  const updated = await updateAuthIdentityLabel({
+    userId: input.userId,
+    identityId: input.identityId,
+    displayLabel: label,
+  });
+  if (!updated) return "not_found";
+  await logAccountEvent({
+    userId: input.userId,
+    eventType: "identity.label_updated",
+    data: { identityId: input.identityId, label },
+  });
+  return "updated";
 }
 
 export async function renameWallet(input: {
