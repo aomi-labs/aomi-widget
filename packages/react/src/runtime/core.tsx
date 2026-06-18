@@ -76,20 +76,20 @@ export function AomiRuntimeCore({
   // ---------------------------------------------------------------------------
   // Wallet handler (receives requests from orchestrator)
   // ---------------------------------------------------------------------------
-  const sessionManagerRef = useRef<
-    ReturnType<typeof useRuntimeOrchestrator>["sessionManager"] | null
+  const registryRef = useRef<
+    ReturnType<typeof useRuntimeOrchestrator>["registry"] | null
   >(null);
 
   const walletHandler = useWalletHandler({
     getSession: () =>
-      sessionManagerRef.current?.get(threadContext.currentThreadId),
+      registryRef.current?.sessionManager.get(threadContext.currentThreadId),
   });
 
   // ---------------------------------------------------------------------------
   // Orchestrator (manages ClientSession per thread)
   // ---------------------------------------------------------------------------
   const {
-    sessionManager,
+    registry,
     getSession,
     isRunning,
     setIsRunning,
@@ -113,14 +113,13 @@ export function AomiRuntimeCore({
       await syncCurrentThreadControl();
       const wasCreated = await ensureBackendThread(threadId);
       if (wasCreated) {
-        threadsMaterializedForSendRef.current.add(threadId);
+        registry.materializedForSend.add(threadId);
       }
     },
     onSendSuccess: (threadId) => {
-      const wasRemote = remoteThreadIdsRef.current.has(threadId);
-      remoteThreadIdsRef.current.add(threadId);
-      warmedThreadIdsRef.current.add(threadId);
-      threadsMaterializedForSendRef.current.delete(threadId);
+      const wasRemote = registry.remoteThreads.has(threadId);
+      registry.remoteThreads.add(threadId);
+      registry.materializedForSend.delete(threadId);
       if (!wasRemote && threadContextRef.current.currentThreadId === threadId) {
         void syncCurrentThreadControl().catch((error) => {
           console.error("Failed to sync thread controls:", error);
@@ -128,9 +127,8 @@ export function AomiRuntimeCore({
       }
     },
     onSendError: async (threadId, error) => {
-      const wasMaterializedForSend =
-        threadsMaterializedForSendRef.current.has(threadId);
-      threadsMaterializedForSendRef.current.delete(threadId);
+      const wasMaterializedForSend = registry.materializedForSend.has(threadId);
+      registry.materializedForSend.delete(threadId);
       const httpStatus = getHttpStatus(error);
 
       if (httpStatus === 402) {
@@ -150,8 +148,7 @@ export function AomiRuntimeCore({
 
       try {
         await aomiClientRef.current.deleteThread(threadId);
-        remoteThreadIdsRef.current.delete(threadId);
-        warmedThreadIdsRef.current.delete(threadId);
+        registry.remoteThreads.delete(threadId);
       } catch (deleteError) {
         console.error("Failed to delete quota-blocked thread:", deleteError);
       }
@@ -160,69 +157,40 @@ export function AomiRuntimeCore({
     onEvent: (event) => eventContext.dispatch(event),
   });
 
-  sessionManagerRef.current = sessionManager;
+  registryRef.current = registry;
 
   // ---------------------------------------------------------------------------
   // Refs for stable access
   // ---------------------------------------------------------------------------
   const threadContextRef = useRef(threadContext);
   threadContextRef.current = threadContext;
-  const remoteThreadIdsRef = useRef(new Set<string>());
-  const warmedThreadIdsRef = useRef(new Set<string>());
-  const warmPromisesRef = useRef(new Map<string, Promise<void>>());
-  const threadsMaterializedForSendRef = useRef(new Set<string>());
   const [isThreadLoading, setIsThreadLoading] = useState(false);
-
-  const warmThread = useCallback(async (threadId: string) => {
-    // Threads in remoteThreadIdsRef were just confirmed to exist on the
-    // backend via listThreads, so re-POSTing createThread is a wasted
-    // round-trip (idempotent no-op). Threads NOT in remoteThreadIdsRef
-    // are local-only and get created on first send via ensureBackendThread.
-    // Either way, warming is now pure bookkeeping.
-    if (!remoteThreadIdsRef.current.has(threadId)) return;
-    warmedThreadIdsRef.current.add(threadId);
-  }, []);
 
   // ---------------------------------------------------------------------------
   // Ensure backend thread exists (lazy creation on first message send)
   // ---------------------------------------------------------------------------
   const ensureBackendThread = useCallback(
     async (threadId: string) => {
-      if (remoteThreadIdsRef.current.has(threadId)) return false;
+      if (registry.remoteThreads.has(threadId)) return false;
 
       const userState = getUserState();
       const publicKey = UserState.isConnected(userState)
         ? getLegacySessionPublicKey(userState)
         : undefined;
       await aomiClientRef.current.createThread(threadId, publicKey);
-      remoteThreadIdsRef.current.add(threadId);
-      warmedThreadIdsRef.current.add(threadId);
+      registry.remoteThreads.add(threadId);
       return true;
     },
-    [aomiClientRef, getUserState],
-  );
-
-  const getRuntimeSession = useCallback(
-    (threadId: string) =>
-      sessionManagerRef.current?.get(threadId) ?? getSession(threadId),
-    [getSession],
+    [aomiClientRef, getUserState, registry],
   );
 
   const { isThreadListLoading } = useRuntimeUserStateEffects({
-    sessions: {
-      aomiClientRef,
-      sessionManager,
-      getSession: getRuntimeSession,
-      closeAllSessions,
-      ensureInitialState,
-      setIsThreadLoading,
-    },
-    remoteThreads: {
-      remoteThreadIdsRef,
-      warmPromisesRef,
-      warmedThreadIdsRef,
-      warmThread,
-    },
+    registry,
+    aomiClientRef,
+    getSession,
+    closeAllSessions,
+    ensureInitialState,
+    setIsThreadLoading,
   });
 
   // ---------------------------------------------------------------------------
@@ -232,7 +200,7 @@ export function AomiRuntimeCore({
     const threadId = threadContext.currentThreadId;
     closeIdleSessionsExcept(threadId);
 
-    if (!remoteThreadIdsRef.current.has(threadId)) {
+    if (!registry.remoteThreads.has(threadId)) {
       setIsThreadLoading(false);
       return;
     }
@@ -250,7 +218,6 @@ export function AomiRuntimeCore({
 
     void (async () => {
       try {
-        await warmThread(threadId);
         if (!cancelled) {
           await ensureInitialState(threadId);
         }
@@ -267,9 +234,9 @@ export function AomiRuntimeCore({
   }, [
     closeIdleSessionsExcept,
     ensureInitialState,
+    registry,
     threadContext,
     threadContext.currentThreadId,
-    warmThread,
   ]);
 
   // Sync isRunning to thread metadata for control context
@@ -294,8 +261,8 @@ export function AomiRuntimeCore({
   // Thread list adapter
   // ---------------------------------------------------------------------------
   const isRemoteThread = useCallback(
-    (threadId: string) => remoteThreadIdsRef.current.has(threadId),
-    [],
+    (threadId: string) => registry.remoteThreads.has(threadId),
+    [registry],
   );
 
   const threadListAdapter = useMemo(
@@ -491,7 +458,7 @@ export function AomiRuntimeCore({
   >(
     async (transactions, options) => {
       const session =
-        sessionManagerRef.current?.get(threadContext.currentThreadId) ??
+        registry.sessionManager.get(threadContext.currentThreadId) ??
         getSession(threadContext.currentThreadId);
       if (!session) {
         throw new Error("runtime_session_unavailable");
@@ -504,7 +471,7 @@ export function AomiRuntimeCore({
       );
       return response.result;
     },
-    [getSession, threadContext.currentThreadId],
+    [getSession, registry, threadContext.currentThreadId],
   );
 
   const aomiRuntimeApi: AomiRuntimeApi = useMemo(
@@ -578,7 +545,7 @@ export function AomiRuntimeCore({
   return (
     <AomiRuntimeApiProvider value={aomiRuntimeApi}>
       <RuntimeUserStateProvider
-        sessionManager={sessionManager}
+        registry={registry}
         getUserState={userContext.getUserState}
         setUser={userContext.setUser}
         onUserStateChange={userContext.onUserStateChange}
