@@ -375,10 +375,11 @@ export function DeployStep({
           // Enable once the release assets exist (tags populated from status),
           // even if the status flag never flips to "ready" — the build is done
           // and gating activation solely on a poll state can strand a good release.
-          disabled={
-            tags.length === 0 ||
-            !["building", "releasing", "ready"].includes(phase)
-          }
+disabled={
+  tags.length === 0 ||
+  tags.length !== apps.length ||
+  !["building", "releasing", "ready"].includes(phase)
+}
           className="h-9 rounded-full px-3 text-sm font-medium"
         >
           {phase === "activating" || phase === "verifying" ? (
@@ -418,10 +419,10 @@ export function DeployStep({
         {phase === "dry_ready" && "Dry run is ready. Review it, then deploy."}
         {phase === "deploying" &&
           "Creating or updating the platform deploy branch."}
-        {phase === "building" &&
-          (tags.length > 0
-            ? "Release assets are published — you can activate now even if status sync is still catching up."
-            : "Waiting for platform CI and release assets.")}
+{phase === "building" &&
+  (tags.length > 0 && tags.length === apps.length
+    ? "Release assets are published — you can activate now even if status sync is still catching up."
+    : "Waiting for platform CI and release assets.")}
         {phase === "releasing" &&
           "Release built — verifying assets."}
         {phase === "ready" && "Build is ready for activation."}
