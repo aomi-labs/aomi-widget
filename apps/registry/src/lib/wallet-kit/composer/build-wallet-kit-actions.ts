@@ -102,6 +102,7 @@ export function buildWalletKitActions({
           family: "all",
           now: Date.now(),
         });
+        await auth.logout?.();
         return;
       }
       if (registryFamily === "evm") {

@@ -57,6 +57,7 @@ export function useAomiBackendAccountRuntime(input: {
     AccountConfirmation | undefined
   >();
   const siweInFlight = useRef<string | null>(null);
+  const signedOutEvmKey = useRef<string | null>(null);
   const credentialInFlight = useRef<string | null>(null);
   const credentialExchanged = useRef<string | null>(null);
 
@@ -88,11 +89,20 @@ export function useAomiBackendAccountRuntime(input: {
   const activeEvmChainId = input.evm.activeEvmConnection?.chainId;
 
   useEffect(() => {
-    if (!input.enabled || status === "error" || account?.user) return;
+    if (
+      !input.enabled ||
+      status === "error" ||
+      account === null ||
+      account.user
+    ) {
+      return;
+    }
     if (!activeEvmAddress || !activeEvmChainId || !input.evm.signMessageAsync) {
+      signedOutEvmKey.current = null;
       return;
     }
     const key = `${activeEvmAddress}:${activeEvmChainId}`;
+    if (signedOutEvmKey.current === key) return;
     if (siweInFlight.current === key) return;
     siweInFlight.current = key;
     signInWithActiveEvmWallet({
@@ -112,7 +122,7 @@ export function useAomiBackendAccountRuntime(input: {
         siweInFlight.current = null;
       });
   }, [
-    account?.user,
+    account,
     activeEvmAddress,
     activeEvmChainId,
     baseUrl,
@@ -238,22 +248,55 @@ export function useAomiBackendAccountRuntime(input: {
     wallets,
     pendingConfirmation,
     refresh,
+    signOut: async () => {
+      if (activeEvmAddress && activeEvmChainId) {
+        signedOutEvmKey.current = `${activeEvmAddress}:${activeEvmChainId}`;
+      }
+      await fetchJson(`${baseUrl}/api/aomi/sign-out`, { method: "POST" });
+      setAccount({
+        user: null,
+        linkedAccounts: [],
+        wallets: [],
+        session: null,
+      });
+      setStatus("ready");
+      setPendingConfirmation(undefined);
+    },
     linkWallet: async (wallet) => {
-      if (wallet.family !== "evm" || !input.evm.signMessageAsync) {
+      if (
+        wallet.family !== "evm" ||
+        (!input.evm.signMessageForAccount && !input.evm.signMessageAsync)
+      ) {
         throw new Error("Wallet linking requires an active EVM signer");
       }
       const chainId = wallet.chainId ?? activeEvmChainId;
       if (!chainId) throw new Error("Wallet linking requires an EVM chain id");
+      const nonceResult = await fetchJson<{ nonce: string }>(
+        `${baseUrl}/api/aomi/wallets/link?address=${encodeURIComponent(
+          wallet.address,
+        )}&chainId=${encodeURIComponent(String(chainId))}`,
+        { method: "GET" },
+      );
       const message = buildWalletLinkMessage({
         address: wallet.address,
         chainId,
+        nonce: nonceResult.nonce,
       });
-      const signature = await (
-        input.evm.signMessageAsync as (args: {
-          message: string;
-        }) => Promise<`0x${string}`>
-      )({ message });
-      const body = { ...wallet, chainId, message, signature };
+      const signature =
+        wallet.accountId && input.evm.signMessageForAccount
+          ? await input.evm.signMessageForAccount({
+              accountId: wallet.accountId,
+              chainId,
+              message,
+            })
+          : await signMessageWithActiveEvm(input.evm.signMessageAsync, message);
+      const body = {
+        ...wallet,
+        chainId,
+        message,
+        signature,
+        nonce: nonceResult.nonce,
+      };
       const link = async (confirm = false) =>
         fetchJson<LinkWalletResponse>(`${baseUrl}/api/aomi/wallets/link`, {
           method: "POST",
@@ -327,6 +370,18 @@ function createAccountConfirmation(input: {
   };
 }
 
+async function signMessageWithActiveEvm(
+  signMessageAsync: EvmWalletRuntime["signMessageAsync"],
+  message: string,
+): Promise<`0x${string}`> {
+  if (!signMessageAsync) {
+    throw new Error("Wallet linking requires an active EVM signer");
+  }
+  return (await (
+    signMessageAsync as (args: { message: string }) => Promise<`0x${string}`>
+  )({ message })) as `0x${string}`;
+}
+
 async function signInWithActiveEvmWallet(input: {
   baseUrl: string;
   address: `0x${string}`;
@@ -384,6 +439,7 @@ Issued At: ${new Date().toISOString()}`;
 function buildWalletLinkMessage(input: {
   address: string;
   chainId: number;
+  nonce: string;
 }): string {
   return `${window.location.host} wants to link this wallet to your Aomi account:
 ${input.address}
@@ -393,6 +449,7 @@ Only sign this message if you want this wallet attached to the current Aomi acco
 URI: ${window.location.origin}
 Version: 1
 Chain ID: ${input.chainId}
+Nonce: ${input.nonce}
 Issued At: ${new Date().toISOString()}`;
 }
 

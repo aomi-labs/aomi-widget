@@ -1,13 +1,8 @@
 "use client";
 
 import "@aomi-labs/widget-lib/providers/para";
-import {
-  Environment,
-  type TOAuthMethod,
-  type TExternalWallet,
-} from "@getpara/react-sdk";
-import { type ReactNode, useEffect } from "react";
-import { useAccount, useSwitchChain } from "wagmi";
+import "@aomi-labs/widget-lib/providers/privy";
+import { type ReactNode } from "react";
 import {
   mainnet,
   arbitrum,
@@ -18,41 +13,15 @@ import {
   linea,
   lineaSepolia,
 } from "wagmi/chains";
-import { defineChain, type Chain } from "viem";
+import { type Chain } from "viem";
 import {
-  AomiWalletProvider,
-  isFullTestnet,
+  AomiWalletKitProvider,
   monad,
   monadTestnet,
 } from "@aomi-labs/widget-lib";
 
-// Enable localhost/Anvil network for E2E testing with `pnpm dev:localhost`
-const useLocalhost = process.env.NEXT_PUBLIC_USE_LOCALHOST === "true";
-const LOCALHOST_CHAIN_ID = 31337;
-
-// Custom localhost network for Anvil (local testing)
-const localhost = defineChain({
-  id: 31337,
-  name: "Localhost",
-  nativeCurrency: {
-    decimals: 18,
-    name: "Ether",
-    symbol: "ETH",
-  },
-  rpcUrls: {
-    default: {
-      http: ["http://127.0.0.1:8545"],
-    },
-  },
-  blockExplorers: {
-    default: {
-      name: "Local",
-      url: "http://127.0.0.1:8545",
-    },
-  },
-});
-
 const paraApiKey = process.env.NEXT_PUBLIC_PARA_API_KEY?.trim() ?? "";
+const privyAppId = process.env.NEXT_PUBLIC_PRIVY_APP_ID?.trim() ?? "";
 
 const walletConnectProjectId =
   process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID?.trim() ||
@@ -60,8 +29,7 @@ const walletConnectProjectId =
   "";
 
 const paraEnvironment =
-  (process.env.NEXT_PUBLIC_PARA_ENVIRONMENT as Environment | undefined) ??
-  Environment.BETA;
+  process.env.NEXT_PUBLIC_PARA_ENVIRONMENT === "PROD" ? "PROD" : "BETA";
 
 const defaultNetworks = [
   mainnet,
@@ -76,19 +44,8 @@ const defaultNetworks = [
   monadTestnet,
 ] as const;
 
-export const networks = (
-  useLocalhost ? [localhost, ...defaultNetworks] : [...defaultNetworks]
-) as readonly [Chain, ...Chain[]];
+export const networks = [...defaultNetworks] as readonly [Chain, ...Chain[]];
 
-const externalWallets: TExternalWallet[] = [
-  "WALLETCONNECT",
-  "METAMASK",
-  "COINBASE",
-  "RAINBOW",
-  "RABBY",
-];
-
-const oAuthMethods: TOAuthMethod[] = ["GOOGLE"];
 const solanaNetworks = [
   {
     id: "solana-devnet",
@@ -98,7 +55,8 @@ const solanaNetworks = [
       process.env.NEXT_PUBLIC_SOLANA_DEVNET_RPC_URL ??
       process.env.NEXT_PUBLIC_SOLANA_RPC_URL ??
       "https://api.devnet.solana.com",
-    rpcWsUrl: process.env.NEXT_PUBLIC_SOLANA_DEVNET_RPC_WS_URL ??
+    rpcWsUrl:
+      process.env.NEXT_PUBLIC_SOLANA_DEVNET_RPC_WS_URL ??
       process.env.NEXT_PUBLIC_SOLANA_RPC_WS_URL,
   },
   {
@@ -122,106 +80,67 @@ const solanaNetworks = [
   },
 ] as const;
 
-/**
- * Component that auto-switches to localhost network when in localhost mode.
- * Must be rendered inside ParaProvider.
- */
-function LocalhostNetworkEnforcer({ children }: { children: ReactNode }) {
-  const { isConnected, chainId, connector } = useAccount();
-  const { switchChain } = useSwitchChain();
-
-  useEffect(() => {
-    if (isFullTestnet()) return;
-    if (!useLocalhost) return;
-    if (!isConnected || chainId === LOCALHOST_CHAIN_ID) return;
-
-    const switchToLocalhost = async () => {
-      console.log(
-        `[LocalhostNetworkEnforcer] Switching from chain ${chainId} to localhost (${LOCALHOST_CHAIN_ID})`,
-      );
-
-      try {
-        const provider = await connector?.getProvider();
-        if (provider && typeof provider === "object" && "request" in provider) {
-          const ethProvider = provider as {
-            request: (args: {
-              method: string;
-              params: unknown[];
-            }) => Promise<unknown>;
-          };
-          try {
-            await ethProvider.request({
-              method: "wallet_addEthereumChain",
-              params: [
-                {
-                  chainId: `0x${LOCALHOST_CHAIN_ID.toString(16)}`,
-                  chainName: "Localhost",
-                  nativeCurrency: {
-                    name: "Ether",
-                    symbol: "ETH",
-                    decimals: 18,
-                  },
-                  rpcUrls: ["http://127.0.0.1:8545"],
-                },
-              ],
-            });
-          } catch (addError) {
-            console.log(
-              "[LocalhostNetworkEnforcer] Chain add result:",
-              addError,
-            );
-          }
-        }
-
-        switchChain({ chainId: LOCALHOST_CHAIN_ID });
-      } catch (error) {
-        console.error(
-          "[LocalhostNetworkEnforcer] Failed to switch network:",
-          error,
-        );
-      }
-    };
-
-    void switchToLocalhost();
-  }, [isConnected, chainId, connector, switchChain]);
-
-  return <>{children}</>;
-}
-
 type Props = {
   children: ReactNode;
   cookies?: string | null;
 };
 
 export function WalletProviders({ children }: Props) {
-  const content = paraApiKey ? (
-    <LocalhostNetworkEnforcer>{children}</LocalhostNetworkEnforcer>
-  ) : (
-    children
-  );
+  const evmWallets =
+    typeof window !== "undefined" && walletConnectProjectId
+      ? (["metamask", "rabby", "coinbase", "walletconnect"] as const)
+      : (["metamask", "rabby", "coinbase"] as const);
+  const auth =
+    privyAppId.length > 0
+      ? ({
+          provider: "privy",
+          methods: ["email", "wallet"],
+        } as const)
+      : paraApiKey.length > 0
+        ? ({
+            provider: "para",
+            methods: ["google"],
+          } as const)
+        : false;
 
   return (
-    <AomiWalletProvider
-      provider="para"
-      apiKey={paraApiKey}
-      environment={paraEnvironment}
-      appName="Aomi Labs"
-      appDescription="AI-powered blockchain operations assistant"
-      appUrl={
-        typeof window !== "undefined"
-          ? window.location.origin
-          : "https://aomi.dev"
-      }
-      walletConnectProjectId={walletConnectProjectId}
-      networks={networks}
-      externalWallets={externalWallets}
-      oAuthMethods={oAuthMethods}
-      solana={{
-        networks: solanaNetworks,
-        preferDirectSend: true,
+    <AomiWalletKitProvider
+      auth={auth}
+      account={{ mode: "aomi-backend", signInPolicy: "evm-siwe-first" }}
+      providers={{
+        privy: privyAppId
+          ? {
+              appId: privyAppId,
+              appName: "Aomi Labs",
+            }
+          : false,
+        para: paraApiKey
+          ? {
+              apiKey: paraApiKey,
+              environment: paraEnvironment,
+              appName: "Aomi Labs",
+              appDescription: "AI-powered blockchain operations assistant",
+              appUrl:
+                typeof window !== "undefined"
+                  ? window.location.origin
+                  : "https://aomi.dev",
+            }
+          : false,
+      }}
+      wallets={{
+        evm: {
+          chains: networks,
+          appName: "Aomi Labs",
+          wallets: evmWallets,
+          walletConnectProjectId,
+        },
+        solana: {
+          networks: solanaNetworks,
+          preferDirectSend: true,
+        },
       }}
     >
-      {content}
-    </AomiWalletProvider>
+      {children}
+    </AomiWalletKitProvider>
   );
 }

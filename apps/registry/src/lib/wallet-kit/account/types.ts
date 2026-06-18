@@ -47,6 +47,7 @@ export type AccountWallet = {
 };
 
 export type LinkWalletInput = {
+  accountId?: string;
   family: WalletFamily;
   address: string;
   chainId?: number;
@@ -74,6 +75,7 @@ export type AccountRuntime = {
   wallets: AccountWallet[];
   pendingConfirmation?: AccountConfirmation;
   refresh: () => Promise<void>;
+  signOut?: () => Promise<void>;
   linkWallet?: (input: LinkWalletInput) => Promise<void>;
   updateWallet?: (input: UpdateWalletInput) => Promise<void>;
   unlinkWallet?: (walletId: string) => Promise<void>;

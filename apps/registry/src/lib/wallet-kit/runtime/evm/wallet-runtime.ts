@@ -90,6 +90,11 @@ export type EvmWalletRuntime = WalletRuntime<"evm"> & {
     typeof useSafeSignTypedData
   >["signTypedDataAsync"];
   signMessageAsync: ReturnType<typeof useSafeSignMessage>["signMessageAsync"];
+  signMessageForAccount?: (args: {
+    accountId: string;
+    message: string;
+    chainId?: number;
+  }) => Promise<`0x${string}`>;
   switchChainAsync: ReturnType<typeof useSafeSwitchChain>["switchChainAsync"];
   isSwitchingChain: boolean;
   shouldUseExternalSigner: boolean;
@@ -354,6 +359,59 @@ export function useEvmWalletRuntime({
     [registryStore, switchAccountAsync, wagmiConfig.connectors],
   );
 
+  const signMessageForAccount = useCallback(
+    async ({
+      accountId,
+      message,
+    }: {
+      accountId: string;
+      message: string;
+      chainId?: number;
+    }): Promise<`0x${string}`> => {
+      const connection = registryStore
+        .getSnapshot()
+        .connections.find(
+          (conn) => conn.family === "evm" && conn.uid === accountId,
+        );
+      if (!connection) {
+        throw new Error(`Unknown EVM account: ${accountId}`);
+      }
+      const connector = wagmiConfig.connectors.find(
+        (candidate) => candidate.uid === connection.uid,
+      );
+      if (!connector) {
+        throw new Error("Wallet linking requires the target wallet connector");
+      }
+      const walletClient = (await getWalletClientFor({
+        connector,
+      })) as {
+        signMessage?: (args: unknown) => Promise<string>;
+      } | null;
+      if (walletClient?.signMessage) {
+        return (await walletClient.signMessage({
+          account: connection.address as `0x${string}`,
+          message,
+        } as never)) as `0x${string}`;
+      }
+      if (!signMessageAsync) {
+        throw new Error("Wallet linking requires an active EVM signer");
+      }
+      await selectAccount(accountId);
+      return (await signMessageAsync({
+        account: connection.address as `0x${string}`,
+        connector,
+        message,
+      } as never)) as `0x${string}`;
+    },
+    [
+      getWalletClientFor,
+      registryStore,
+      selectAccount,
+      signMessageAsync,
+      wagmiConfig.connectors,
+    ],
+  );
+
   const connect = useCallback(
     async (id?: string) => {
       if (!id) {
@@ -525,7 +583,8 @@ export function useEvmWalletRuntime({
   );
 
   const selectRuntimeAccounts = useCallback(
-    (now: number) => selectAccounts(registryState, "evm", now, selectedEvmChainId),
+    (now: number) =>
+      selectAccounts(registryState, "evm", now, selectedEvmChainId),
     [registryState, selectedEvmChainId],
   );
   const selectRuntimeEvmIdentity = useCallback(
@@ -552,6 +611,7 @@ export function useEvmWalletRuntime({
     sendCallsSyncAsync,
     signTypedDataAsync,
     signMessageAsync,
+    signMessageForAccount,
     switchChainAsync,
     isSwitchingChain: isPending,
     activeAccount: selectRuntimeAccounts(Date.now()).find(

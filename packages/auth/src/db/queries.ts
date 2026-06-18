@@ -55,11 +55,35 @@ export async function findAomiUserByBetterAuthId(
   betterAuthUserId: BetterAuthUserId,
   db: Db = defaultPool,
 ): Promise<DbAomiUser | null> {
-  const result = await db.query(
+  const direct = await db.query(
     `select * from aomi_users
      where better_auth_user_id = $1 and deactivated_at is null
      limit 1`,
     [betterAuthUserId],
+  );
+  if (direct.rows[0]) return mapUser(direct.rows[0]);
+  const identity = await db.query(
+    `select u.* from aomi_auth_identities i
+     join aomi_users u on u.id = i.user_id
+     where i.provider = 'better_auth'
+       and i.subject = $1
+       and i.revoked_at is null
+       and u.deactivated_at is null
+     limit 1`,
+    [betterAuthUserId],
+  );
+  return identity.rows[0] ? mapUser(identity.rows[0]) : null;
+}
+
+export async function findAomiUserById(
+  userId: AomiUserId,
+  db: Db = defaultPool,
+): Promise<DbAomiUser | null> {
+  const result = await db.query(
+    `select * from aomi_users
+     where id = $1 and deactivated_at is null
+     limit 1`,
+    [userId],
   );
   return result.rows[0] ? mapUser(result.rows[0]) : null;
 }

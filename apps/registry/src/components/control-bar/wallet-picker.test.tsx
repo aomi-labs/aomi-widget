@@ -6,6 +6,7 @@ import {
   fireEvent,
   render,
   screen,
+  waitFor,
   within,
 } from "@testing-library/react";
 import { AomiRuntimeApiProvider, ExtUserProvider } from "@aomi-labs/react";
@@ -534,6 +535,49 @@ describe("WalletPicker", () => {
     expect(screen.getByText("Manage wallets")).toBeTruthy();
   });
 
+  it("auto-links the first connected EVM wallet for an empty account", async () => {
+    const linkWallet = vi.fn(async () => undefined);
+    renderPicker(
+      makeAdapter({
+        accountUser: { id: "user-1", displayName: "Ada Account" },
+        accountWallets: [],
+        linkWallet,
+      }),
+    );
+
+    await waitFor(() => expect(linkWallet).toHaveBeenCalledTimes(1));
+    expect(linkWallet).toHaveBeenCalledWith({
+      accountId: "mm",
+      family: "evm",
+      address: "0xAAAAAAAA",
+      chainId: undefined,
+    });
+  });
+
+  it("does not auto-link additional connected wallets", async () => {
+    const linkWallet = vi.fn(async () => undefined);
+    renderPicker(
+      makeAdapter({
+        accountUser: { id: "user-1", displayName: "Ada Account" },
+        accountWallets: [
+          {
+            id: "wallet-1",
+            family: "evm",
+            address: "0xBBBBBBBB",
+            kind: "external",
+            linkedVia: "siwe",
+          },
+        ],
+        linkWallet,
+      }),
+    );
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(linkWallet).not.toHaveBeenCalled();
+  });
+
   it("keeps a dual-chain wallet connectable on both families", () => {
     renderPicker(
       makeAdapter({
@@ -629,9 +673,9 @@ describe("WalletPicker", () => {
     });
 
     expect(screen.getByText("Verified account")).toBeTruthy();
-    expect(screen.getByText("Sign-in methods")).toBeTruthy();
+    expect(screen.getByText("Connected now")).toBeTruthy();
+    expect(screen.getByText("Account access")).toBeTruthy();
     expect(screen.getByText("Privy")).toBeTruthy();
-    expect(screen.getByText("Linked wallets")).toBeTruthy();
     expect(screen.getAllByText("Treasury").length).toBeGreaterThan(0);
     expect(screen.getAllByText(/Write access/).length).toBeGreaterThan(0);
 
@@ -753,10 +797,12 @@ describe("WalletPicker", () => {
     expect(openAccountUI).toHaveBeenCalledWith({ family: "evm" });
   });
 
-  it("runs a provider-owned Para sign-out without disconnecting all wallets", async () => {
+  it("runs a full account sign-out even when a provider wallet is connected", async () => {
+    const signOutAccount = vi.fn(async () => undefined);
     const disconnect = vi.fn(async () => undefined);
     renderPicker(
       makeAdapter({
+        signOutAccount,
         disconnect,
         accounts: [
           {
@@ -783,13 +829,16 @@ describe("WalletPicker", () => {
     );
 
     await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: "Sign out" }));
+      fireEvent.click(
+        screen.getByRole("button", { name: "Manage your account" }),
+      );
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByText("End this account session"));
     });
 
-    expect(disconnect).toHaveBeenCalledWith({
-      accountId: "para",
-      providerSignOut: true,
-    });
+    expect(signOutAccount).toHaveBeenCalledTimes(1);
+    expect(disconnect).toHaveBeenCalledWith({ family: "all" });
     expect(screen.getByRole("dialog")).toBeTruthy();
   });
 
@@ -892,10 +941,12 @@ describe("WalletPicker", () => {
     expect(screen.getByRole("button", { name: "Sign out" })).toBeTruthy();
   });
 
-  it("runs a provider-supplied account sign-out action", async () => {
+  it("runs full account sign-out for provider-supplied sign-out rows", async () => {
+    const signOutAccount = vi.fn(async () => undefined);
     const disconnect = vi.fn(async () => undefined);
     renderPicker(
       makeAdapter({
+        signOutAccount,
         canOpenAccountUI: false,
         openAccountUI: undefined,
         disconnect,
@@ -922,13 +973,16 @@ describe("WalletPicker", () => {
     );
 
     await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: "Sign out" }));
+      fireEvent.click(
+        screen.getByRole("button", { name: "Manage your account" }),
+      );
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByText("End this account session"));
     });
 
-    expect(disconnect).toHaveBeenCalledWith({
-      accountId: "privy-solana",
-      providerSignOut: true,
-    });
+    expect(signOutAccount).toHaveBeenCalledTimes(1);
+    expect(disconnect).toHaveBeenCalledWith({ family: "all" });
     expect(screen.getByRole("dialog")).toBeTruthy();
   });
 

@@ -123,6 +123,7 @@ export function AomiWalletKitComposer({
     const walletModalRows = mergeWalletRows({
       accounts,
       storedWallets: account.wallets,
+      canLinkWallet: Boolean(account.user && account.linkWallet),
       auth,
       options: [...evmWalletOptions, ...svmWalletOptions, ...auth.methods],
     });
@@ -180,6 +181,8 @@ export function AomiWalletKitComposer({
       accountLinkedAccounts: account.linkedAccounts,
       accountWallets: account.wallets,
       accountConfirmation: account.pendingConfirmation,
+      signOutAccount: account.signOut,
+      linkWallet: account.linkWallet,
       updateLinkedWallet: account.updateWallet,
       unlinkLinkedWallet: account.unlinkWallet,
       selectAccount: actions.selectAccount,
@@ -218,6 +221,7 @@ export function AomiWalletKitComposer({
     account.linkedAccounts,
     account.pendingConfirmation,
     account.status,
+    account.linkWallet,
     account.unlinkWallet,
     account.updateWallet,
     account.user,
