@@ -633,6 +633,7 @@ describe("WalletPicker", () => {
   it("renders live account runtime data and runs linked wallet actions", async () => {
     const updateLinkedWallet = vi.fn(async () => undefined);
     const unlinkLinkedWallet = vi.fn(async () => undefined);
+    const updateLinkedAccount = vi.fn(async () => undefined);
     const unlinkLinkedAccount = vi.fn(async () => undefined);
     const updateAccount = vi.fn(async () => undefined);
     renderPicker(
@@ -667,6 +668,7 @@ describe("WalletPicker", () => {
           },
         ],
         updateAccount,
+        updateLinkedAccount,
         updateLinkedWallet,
         unlinkLinkedWallet,
         unlinkLinkedAccount,
@@ -697,6 +699,21 @@ describe("WalletPicker", () => {
       );
     });
     expect(updateAccount).toHaveBeenCalledWith({ displayName: "Ada Main" });
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Rename Privy" }));
+    });
+    const signInInput = screen.getByLabelText("Sign-in label for Privy");
+    fireEvent.change(signInInput, { target: { value: "Personal Privy" } });
+    await act(async () => {
+      fireEvent.click(
+        screen.getByRole("button", { name: "Save label for Privy" }),
+      );
+    });
+    expect(updateLinkedAccount).toHaveBeenCalledWith({
+      identityId: "identity-1",
+      displayLabel: "Personal Privy",
+    });
 
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "Unlink Privy" }));

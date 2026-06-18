@@ -342,6 +342,14 @@ export function useAomiBackendAccountRuntime(input: {
       });
       await refresh();
     },
+    updateAuthIdentity: async ({ identityId, displayLabel }) => {
+      await fetchJson(`${baseUrl}/api/aomi/identities/${identityId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ displayLabel }),
+      });
+      await refresh();
+    },
     unlinkWallet: async (walletId) => {
       await fetchJson(`${baseUrl}/api/aomi/wallets/${walletId}`, {
         method: "DELETE",

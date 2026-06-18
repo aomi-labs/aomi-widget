@@ -811,6 +811,14 @@ export function WalletPicker() {
                       )
                   : undefined
               }
+              onRenameLinkedAccount={
+                adapter.updateLinkedAccount
+                  ? (input) =>
+                      runAction(`identity:rename:${input.identityId}`, () =>
+                        adapter.updateLinkedAccount!(input),
+                      )
+                  : undefined
+              }
               onUnlinkWallet={
                 adapter.unlinkLinkedWallet
                   ? (walletId) =>
@@ -949,6 +957,7 @@ function AccountManagerPanel({
   onBack,
   onClose,
   onRenameAccount,
+  onRenameLinkedAccount,
   onRenameWallet,
   onUnlinkWallet,
   onUnlinkAccount,
@@ -972,6 +981,7 @@ function AccountManagerPanel({
   onBack: () => void;
   onClose: () => void;
   onRenameAccount?: NonNullable<AomiWalletKit["updateAccount"]>;
+  onRenameLinkedAccount?: NonNullable<AomiWalletKit["updateLinkedAccount"]>;
   onRenameWallet?: NonNullable<AomiWalletKit["updateLinkedWallet"]>;
   onUnlinkWallet?: NonNullable<AomiWalletKit["unlinkLinkedWallet"]>;
   onUnlinkAccount?: NonNullable<AomiWalletKit["unlinkLinkedAccount"]>;
@@ -979,7 +989,11 @@ function AccountManagerPanel({
   onOpenProviderUI: () => void;
 }) {
   const [editingWalletId, setEditingWalletId] = useState<string | null>(null);
+  const [editingLinkedAccountId, setEditingLinkedAccountId] = useState<
+    string | null
+  >(null);
   const [draftLabel, setDraftLabel] = useState("");
+  const [draftLinkedAccountLabel, setDraftLinkedAccountLabel] = useState("");
   const [editingAccountName, setEditingAccountName] = useState(false);
   const [draftAccountName, setDraftAccountName] = useState("");
   const walletSummary = `${connectedCount} wallet${
@@ -1008,6 +1022,15 @@ function AccountManagerPanel({
     setDraftLabel(wallet.label ?? "");
   };
 
+  const startRenamingLinkedAccount = (account: LinkedAccountRow) => {
+    setEditingLinkedAccountId(account.id);
+    setDraftLinkedAccountLabel(
+      account.displayLabel ??
+        formatWalletProvider(account.provider) ??
+        account.provider,
+    );
+  };
+
   const startRenamingAccount = () => {
     setEditingAccountName(true);
     setDraftAccountName(displayName);
@@ -1026,6 +1049,15 @@ function AccountManagerPanel({
       label: draftLabel.trim() || null,
     });
     setEditingWalletId(null);
+  };
+
+  const submitLinkedAccountRename = async (account: LinkedAccountRow) => {
+    if (!onRenameLinkedAccount) return;
+    await onRenameLinkedAccount({
+      identityId: account.id,
+      displayLabel: draftLinkedAccountLabel.trim() || null,
+    });
+    setEditingLinkedAccountId(null);
   };
 
   return (
@@ -1161,7 +1193,17 @@ function AccountManagerPanel({
               <LinkedAuthAccountRow
                 key={account.id}
                 account={account}
+                editing={editingLinkedAccountId === account.id}
+                draftLabel={draftLinkedAccountLabel}
                 pending={pending}
+                onDraftLabelChange={setDraftLinkedAccountLabel}
+                onStartRename={
+                  onRenameLinkedAccount
+                    ? () => startRenamingLinkedAccount(account)
+                    : undefined
+                }
+                onCancelRename={() => setEditingLinkedAccountId(null)}
+                onSubmitRename={() => void submitLinkedAccountRename(account)}
                 onUnlink={
                   onUnlinkAccount
                     ? () => void onUnlinkAccount(account.id)
@@ -1301,39 +1343,96 @@ function chainIdFromScope(chainScope?: string): number | undefined {
 
 function LinkedAuthAccountRow({
   account,
+  editing,
+  draftLabel,
   pending,
+  onDraftLabelChange,
+  onStartRename,
+  onCancelRename,
+  onSubmitRename,
   onUnlink,
 }: {
   account: LinkedAccountRow;
+  editing: boolean;
+  draftLabel: string;
   pending: string | null;
+  onDraftLabelChange: (value: string) => void;
+  onStartRename?: () => void;
+  onCancelRename: () => void;
+  onSubmitRename: () => void;
   onUnlink?: () => void;
 }) {
   const providerLabel =
     formatWalletProvider(account.provider) ?? account.provider;
+  const title = account.displayLabel ?? providerLabel;
   const subtitle = linkedAccountSubtitle(account);
-  const busy = pending === `identity:unlink:${account.id}`;
+  const busy =
+    pending === `identity:rename:${account.id}` ||
+    pending === `identity:unlink:${account.id}`;
   return (
     <div className="border-border/70 bg-card flex items-center gap-3 rounded-2xl border px-3 py-2.5">
       <WalletIconSlot id={account.provider} label={providerLabel} />
       <span className="min-w-0 flex-1">
-        <span className="text-foreground block truncate text-sm font-medium">
-          {account.displayLabel ?? providerLabel}
-        </span>
-        <span className="text-muted-foreground block truncate text-[11px]">
-          {subtitle}
-        </span>
+        {editing ? (
+          <input
+            value={draftLabel}
+            onChange={(event) => onDraftLabelChange(event.target.value)}
+            disabled={busy}
+            aria-label={`Sign-in label for ${title}`}
+            className="border-input bg-background text-foreground focus:border-primary h-8 w-full rounded-lg border px-2 text-sm outline-none"
+          />
+        ) : (
+          <>
+            <span className="text-foreground block truncate text-sm font-medium">
+              {title}
+            </span>
+            <span className="text-muted-foreground block truncate text-[11px]">
+              {subtitle}
+            </span>
+          </>
+        )}
       </span>
-      {onUnlink ? (
-        <RowIconButton
-          icon={Trash2Icon}
-          ariaLabel={`Unlink ${account.displayLabel ?? providerLabel}`}
-          disabled={busy}
-          loading={busy}
-          onClick={onUnlink}
-        />
-      ) : (
-        <CheckCircle2Icon className="text-primary size-4 shrink-0" />
-      )}
+      <div className="flex shrink-0 items-center gap-1">
+        {editing ? (
+          <>
+            <RowIconButton
+              icon={CheckIcon}
+              ariaLabel={`Save label for ${title}`}
+              disabled={busy}
+              loading={pending === `identity:rename:${account.id}`}
+              onClick={onSubmitRename}
+            />
+            <RowIconButton
+              icon={XIcon}
+              ariaLabel={`Cancel renaming ${title}`}
+              disabled={busy}
+              onClick={onCancelRename}
+            />
+          </>
+        ) : (
+          <>
+            {onStartRename ? (
+              <RowIconButton
+                icon={PencilIcon}
+                ariaLabel={`Rename ${title}`}
+                disabled={busy}
+                onClick={onStartRename}
+              />
+            ) : null}
+            {onUnlink ? (
+              <RowIconButton
+                icon={Trash2Icon}
+                ariaLabel={`Unlink ${title}`}
+                disabled={busy}
+                loading={pending === `identity:unlink:${account.id}`}
+                onClick={onUnlink}
+              />
+            ) : (
+              <CheckCircle2Icon className="text-primary size-4 shrink-0" />
+            )}
+          </>
+        )}
+      </div>
     </div>
   );
 }

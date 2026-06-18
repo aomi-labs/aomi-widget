@@ -59,6 +59,11 @@ export type UpdateWalletInput = {
   label?: string | null;
 };
 
+export type UpdateLinkedAccountInput = {
+  identityId: string;
+  displayLabel?: string | null;
+};
+
 export type UpdateAccountInput = {
   displayName?: string | null;
   avatarUrl?: string | null;
@@ -84,6 +89,7 @@ export type AccountRuntime = {
   signOut?: () => Promise<void>;
   updateAccount?: (input: UpdateAccountInput) => Promise<void>;
   linkWallet?: (input: LinkWalletInput) => Promise<void>;
+  updateAuthIdentity?: (input: UpdateLinkedAccountInput) => Promise<void>;
   updateWallet?: (input: UpdateWalletInput) => Promise<void>;
   unlinkWallet?: (walletId: string) => Promise<void>;
   unlinkAuthIdentity?: (identityId: string) => Promise<void>;
