@@ -99,15 +99,6 @@ function WidgetAuthE2EPanel() {
       accountWallets: walletKit.accountWallets,
       accounts: walletKit.accounts,
       walletModalRows: walletKit.walletModalRows,
-      confirmation: walletKit.accountConfirmation
-        ? {
-            title: walletKit.accountConfirmation.title,
-            severity: walletKit.accountConfirmation.severity,
-            otherAccountWillClose:
-              walletKit.accountConfirmation.otherAccountWillClose,
-            confirmLabel: walletKit.accountConfirmation.confirmLabel,
-          }
-        : null,
     }),
     [walletKit],
   );
@@ -295,35 +286,6 @@ function WidgetAuthE2EPanel() {
             BetterAuth Sign Out
           </button>
         </div>
-
-        {walletKit.accountConfirmation ? (
-          <div className="rounded border border-amber-400 bg-amber-50 p-3">
-            <div className="font-semibold">
-              {walletKit.accountConfirmation.title}
-            </div>
-            <p>{walletKit.accountConfirmation.message}</p>
-            <div className="mt-2 flex gap-2">
-              <button
-                className="rounded border border-amber-700 px-3 py-1"
-                disabled={!!pending}
-                onClick={() =>
-                  void run("confirm account action", async () => {
-                    await walletKit.accountConfirmation?.confirm();
-                  })
-                }
-              >
-                {walletKit.accountConfirmation.confirmLabel}
-              </button>
-              <button
-                className="rounded border px-3 py-1"
-                disabled={!!pending}
-                onClick={() => walletKit.accountConfirmation?.dismiss()}
-              >
-                Dismiss
-              </button>
-            </div>
-          </div>
-        ) : null}
 
         {walletIds.length ? (
           <div className="flex flex-wrap gap-2">

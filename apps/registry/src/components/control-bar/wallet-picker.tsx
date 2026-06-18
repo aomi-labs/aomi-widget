@@ -10,7 +10,6 @@ import {
   type SVGProps,
 } from "react";
 import {
-  AlertTriangleIcon,
   CheckIcon,
   CheckCircle2Icon,
   ChevronDownIcon,
@@ -846,18 +845,6 @@ export function WalletPicker() {
           ) : null}
         </div>
       </div>
-      {adapter.accountConfirmation ? (
-        <AccountConfirmationDialog
-          confirmation={adapter.accountConfirmation}
-          pending={pending}
-          onConfirm={() =>
-            void runAction(
-              "account:confirm",
-              adapter.accountConfirmation!.confirm,
-            )
-          }
-        />
-      ) : null}
     </div>
   );
 }
@@ -1615,85 +1602,6 @@ function LinkedWalletManagementRow({
             ) : null}
           </>
         )}
-      </div>
-    </div>
-  );
-}
-
-function AccountConfirmationDialog({
-  confirmation,
-  pending,
-  onConfirm,
-}: {
-  confirmation: NonNullable<AomiWalletKit["accountConfirmation"]>;
-  pending: string | null;
-  onConfirm: () => void;
-}) {
-  const destructive = confirmation.severity === "red";
-  return (
-    <div className="absolute inset-x-4 bottom-4 z-20 mx-auto max-w-[390px]">
-      <div
-        role="alertdialog"
-        aria-modal="true"
-        aria-labelledby="aomi-account-confirmation-title"
-        aria-describedby="aomi-account-confirmation-message"
-        className={cn(
-          "border-border bg-popover text-popover-foreground rounded-2xl border p-3 shadow-2xl",
-          destructive && "border-destructive/35",
-        )}
-      >
-        <div className="flex items-start gap-3">
-          <span
-            className={cn(
-              "flex size-9 shrink-0 items-center justify-center rounded-xl",
-              destructive
-                ? "bg-destructive/10 text-destructive"
-                : "bg-amber-500/10 text-amber-600 dark:text-amber-400",
-            )}
-          >
-            <AlertTriangleIcon className="size-4" />
-          </span>
-          <div className="min-w-0 flex-1">
-            <h3
-              id="aomi-account-confirmation-title"
-              className="text-foreground text-sm font-semibold"
-            >
-              {confirmation.title}
-            </h3>
-            <p
-              id="aomi-account-confirmation-message"
-              className="text-muted-foreground mt-1 text-xs leading-snug"
-            >
-              {confirmation.message}
-            </p>
-          </div>
-        </div>
-        <div className="mt-3 flex justify-end gap-2">
-          <button
-            type="button"
-            onClick={confirmation.dismiss}
-            disabled={pending !== null}
-            className="text-muted-foreground hover:bg-muted hover:text-foreground rounded-full px-3 py-1.5 text-xs font-medium transition-colors disabled:pointer-events-none disabled:opacity-50"
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            onClick={onConfirm}
-            disabled={pending !== null}
-            className={cn(
-              "text-primary-foreground inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-colors disabled:pointer-events-none disabled:opacity-50",
-              destructive
-                ? "bg-destructive hover:bg-destructive/90"
-                : "bg-primary hover:bg-primary/90",
-            )}
-          >
-            {pending === "account:confirm" ? (
-              <Loader2Icon className="size-3.5 animate-spin" />
-            ) : null}
-            {confirmation.confirmLabel}
-          </button>
-        </div>
       </div>
     </div>
   );

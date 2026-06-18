@@ -10,7 +10,6 @@ create table if not exists aomi_users (
   avatar_url text,
   metadata jsonb not null default '{}'::jsonb,
   deactivated_at timestamptz,
-  merged_into uuid references aomi_users(id),
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );

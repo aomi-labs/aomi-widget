@@ -43,7 +43,6 @@ export async function POST(req: Request): Promise<Response> {
     nonce?: string;
     message?: string;
     signature?: string;
-    confirm?: boolean;
   } | null;
   if (!body?.family || !body.address) {
     return json(400, { error: "family_and_address_required" });
@@ -91,10 +90,12 @@ export async function POST(req: Request): Promise<Response> {
     kind: "external",
     provider: "siwe",
     linkedVia: body.family === "evm" ? "siwe" : "siws",
-    confirmed: body.confirm,
   });
-  if (resolution.status === "needs_confirmation") {
-    return Response.json(resolution);
+  if (resolution.status === "conflict") {
+    return json(409, {
+      ...resolution,
+      error: "already_linked_to_another_account",
+    });
   }
   return Response.json({
     status: resolution.status === "noop" ? "linked" : resolution.status,

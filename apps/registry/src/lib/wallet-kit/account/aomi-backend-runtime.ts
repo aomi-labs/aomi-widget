@@ -3,11 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { AuthRuntime, SvmWalletRuntime } from "../composer/types";
 import type { EvmWalletRuntime } from "../runtime/evm/wallet-runtime";
-import type {
-  AccountConfirmation,
-  AccountRuntime,
-  AccountWallet,
-} from "./types";
+import type { AccountRuntime, AccountWallet } from "./types";
 
 export type AomiBackendAccountConfig = {
   mode: "aomi-backend";
@@ -22,22 +18,15 @@ type AccountResponse = {
   session: { betterAuthUserId: string; expiresAt?: number } | null;
 };
 
-type ConfirmationResponse = {
-  status: "needs_confirmation";
-  severity: "yellow" | "red";
-  otherAccountWillClose: boolean;
+type ProviderExchangeResponse = {
+  status: "linked" | "noop";
+  account?: AccountResponse;
 };
 
-type ProviderExchangeResponse =
-  | { status: "linked"; account?: AccountResponse }
-  | ConfirmationResponse;
-
-type LinkWalletResponse =
-  | {
-      status: "linked" | "moved" | "merged" | "noop";
-      account?: AccountResponse;
-    }
-  | ConfirmationResponse;
+type LinkWalletResponse = {
+  status: "linked" | "noop";
+  account?: AccountResponse;
+};
 
 export function useAomiBackendAccountRuntime(input: {
   enabled: boolean;
@@ -53,9 +42,6 @@ export function useAomiBackendAccountRuntime(input: {
     input.enabled ? "loading" : "disabled",
   );
   const [errorVersion, setErrorVersion] = useState(0);
-  const [pendingConfirmation, setPendingConfirmation] = useState<
-    AccountConfirmation | undefined
-  >();
   const siweInFlight = useRef<string | null>(null);
   const signedOutEvmKey = useRef<string | null>(null);
   const credentialInFlight = useRef<string | null>(null);
@@ -80,10 +66,6 @@ export function useAomiBackendAccountRuntime(input: {
   useEffect(() => {
     void refresh();
   }, [refresh]);
-
-  useEffect(() => {
-    if (!input.enabled) setPendingConfirmation(undefined);
-  }, [input.enabled]);
 
   const activeEvmAddress = input.evm.activeEvmConnection?.address;
   const activeEvmChainId = input.evm.activeEvmConnection?.chainId;
@@ -162,36 +144,16 @@ export function useAomiBackendAccountRuntime(input: {
         return;
       }
       credentialInFlight.current = attemptKey;
-      const exchangeCredential = async (confirm = false) =>
+      const exchangeCredential = async () =>
         fetchJson<ProviderExchangeResponse>(endpoint, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ ...credential, confirm }),
+          body: JSON.stringify(credential),
         });
       try {
         const result = await exchangeCredential();
-        if (isConfirmationResponse(result)) {
-          credentialExchanged.current = attemptKey;
-          setPendingConfirmation(
-            createAccountConfirmation({
-              response: result,
-              subject: "sign-in method",
-              onConfirm: async () => {
-                const confirmed = await exchangeCredential(true);
-                if (isConfirmationResponse(confirmed)) {
-                  throw new Error("Account confirmation was not accepted");
-                }
-                if (confirmed.account) setAccount(confirmed.account);
-                setPendingConfirmation(undefined);
-                await refresh();
-              },
-              onDismiss: () => setPendingConfirmation(undefined),
-            }),
-          );
-          return;
-        }
         credentialExchanged.current = attemptKey;
-        if ("account" in result && result.account) setAccount(result.account);
+        if (result.account) setAccount(result.account);
         await refresh();
       } finally {
         if (credentialInFlight.current === attemptKey) {
@@ -246,7 +208,6 @@ export function useAomiBackendAccountRuntime(input: {
     user: account?.user ?? undefined,
     linkedAccounts: account?.linkedAccounts ?? [],
     wallets,
-    pendingConfirmation,
     refresh,
     signOut: async () => {
       if (activeEvmAddress && activeEvmChainId) {
@@ -260,7 +221,6 @@ export function useAomiBackendAccountRuntime(input: {
         session: null,
       });
       setStatus("ready");
-      setPendingConfirmation(undefined);
     },
     updateAccount: async ({ displayName, avatarUrl }) => {
       await fetchJson(`${baseUrl}/api/aomi/account`, {
@@ -305,32 +265,13 @@ export function useAomiBackendAccountRuntime(input: {
         signature,
         nonce: nonceResult.nonce,
       };
-      const link = async (confirm = false) =>
+      const link = async () =>
         fetchJson<LinkWalletResponse>(`${baseUrl}/api/aomi/wallets/link`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ ...body, confirm }),
+          body: JSON.stringify(body),
         });
       const result = await link();
-      if (isConfirmationResponse(result)) {
-        setPendingConfirmation(
-          createAccountConfirmation({
-            response: result,
-            subject: "wallet",
-            onConfirm: async () => {
-              const confirmed = await link(true);
-              if (isConfirmationResponse(confirmed)) {
-                throw new Error("Wallet confirmation was not accepted");
-              }
-              if (confirmed.account) setAccount(confirmed.account);
-              setPendingConfirmation(undefined);
-              await refresh();
-            },
-            onDismiss: () => setPendingConfirmation(undefined),
-          }),
-        );
-        return;
-      }
       if (result.account) setAccount(result.account);
       await refresh();
     },
@@ -362,33 +303,6 @@ export function useAomiBackendAccountRuntime(input: {
       });
       await refresh();
     },
-  };
-}
-
-function isConfirmationResponse(
-  result: ProviderExchangeResponse | LinkWalletResponse,
-): result is ConfirmationResponse {
-  return result.status === "needs_confirmation";
-}
-
-function createAccountConfirmation(input: {
-  response: ConfirmationResponse;
-  subject: "wallet" | "sign-in method";
-  onConfirm: () => Promise<void>;
-  onDismiss: () => void;
-}): AccountConfirmation {
-  const destructive = input.response.severity === "red";
-  const subjectTitle = input.subject === "wallet" ? "wallet" : "sign-in method";
-  return {
-    severity: input.response.severity,
-    otherAccountWillClose: input.response.otherAccountWillClose,
-    title: destructive ? "Merge another account?" : `Move ${subjectTitle}?`,
-    message: destructive
-      ? `This ${subjectTitle} is the last login method on another Aomi account. Continuing will close that account and move it here.`
-      : `This ${subjectTitle} is already linked to another Aomi account. Continuing will move it to this account.`,
-    confirmLabel: destructive ? "Merge account" : "Move link",
-    confirm: input.onConfirm,
-    dismiss: input.onDismiss,
   };
 }
 
@@ -485,9 +399,24 @@ async function fetchJson<T>(url: string, init: RequestInit): Promise<T> {
     },
   });
   if (!response.ok) {
-    throw new Error(`Request failed: ${response.status}`);
+    const error = await response.json().catch(() => null);
+    const code =
+      error && typeof error === "object" && "error" in error
+        ? String(error.error)
+        : null;
+    throw new Error(formatAccountRequestError(response.status, code));
   }
   return (await response.json()) as T;
+}
+
+function formatAccountRequestError(
+  status: number,
+  code: string | null,
+): string {
+  if (status === 409 && code === "already_linked_to_another_account") {
+    return "This wallet or sign-in method is already linked to another Aomi account. Sign in to that account to unlink it first.";
+  }
+  return code ?? `Request failed: ${status}`;
 }
 
 function normalizeBaseUrl(baseUrl?: string): string {

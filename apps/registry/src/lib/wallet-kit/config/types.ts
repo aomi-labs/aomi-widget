@@ -134,7 +134,7 @@ export type AomiWalletKitProviderProps = {
   wallets?: WalletsConfig;
   execution?: ExecutionConfig;
   account?: AccountConfig;
-  children: ReactNode;
+  children?: ReactNode;
 };
 
 export type AomiWalletKitProviderInput =

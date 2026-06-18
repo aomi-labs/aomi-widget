@@ -8,7 +8,6 @@ import type {
   WalletTxPayload,
 } from "@aomi-labs/react";
 import type {
-  AccountConfirmation,
   AccountRuntimeStatus,
   AccountWallet,
   AomiUserRef,
@@ -312,7 +311,6 @@ export type AomiWalletKit = {
   accountUser?: AomiUserRef;
   accountLinkedAccounts?: readonly LinkedAuthAccount[];
   accountWallets?: readonly AccountWallet[];
-  accountConfirmation?: AccountConfirmation;
   signOutAccount?: () => Promise<void>;
   updateAccount?: (input: UpdateAccountInput) => Promise<void>;
   linkWallet?: (input: LinkWalletInput) => Promise<void>;

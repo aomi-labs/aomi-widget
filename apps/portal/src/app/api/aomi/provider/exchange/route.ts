@@ -10,18 +10,22 @@ export async function POST(req: Request): Promise<Response> {
   if (!session?.user?.id) {
     return json(401, { error: "unauthenticated" });
   }
-  const body = (await req.json().catch(() => null)) as
-    | (AomiAccountCredential & { confirm?: boolean })
-    | null;
+  const body = (await req
+    .json()
+    .catch(() => null)) as AomiAccountCredential | null;
   if (!body) return json(400, { error: "invalid_json" });
   try {
-    return Response.json(
-      await exchangeProviderForExistingSession({
-        betterAuthUserId: session.user.id,
-        credential: body,
-        confirm: body.confirm,
-      }),
-    );
+    const result = await exchangeProviderForExistingSession({
+      betterAuthUserId: session.user.id,
+      credential: body,
+    });
+    if (result.status === "conflict") {
+      return json(409, {
+        ...result,
+        error: "already_linked_to_another_account",
+      });
+    }
+    return Response.json(result);
   } catch (error) {
     return json(400, {
       error:

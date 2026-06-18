@@ -209,63 +209,6 @@ export async function countLoginFactors(
   return Number(result.rows[0]?.count ?? 0);
 }
 
-export async function moveSignal(input: {
-  signal: SignalRef;
-  fromUserId: AomiUserId;
-  toUserId: AomiUserId;
-  db: Db;
-}): Promise<void> {
-  if (input.signal.type === "wallet") {
-    await input.db.query(
-      `update aomi_wallets set user_id = $1, last_seen_at = now()
-       where user_id = $2 and family = $3 and normalized_address = $4
-         and coalesce(chain_scope, '*') = coalesce($5, '*')
-         and revoked_at is null`,
-      [
-        input.toUserId,
-        input.fromUserId,
-        input.signal.family,
-        input.signal.normalizedAddress,
-        input.signal.chainScope,
-      ],
-    );
-    return;
-  }
-  if (input.signal.type === "identity") {
-    await input.db.query(
-      `update aomi_auth_identities set user_id = $1, last_seen_at = now()
-       where user_id = $2 and provider = $3 and subject = $4
-         and revoked_at is null`,
-      [
-        input.toUserId,
-        input.fromUserId,
-        input.signal.provider,
-        input.signal.subject,
-      ],
-    );
-    return;
-  }
-  await input.db.query(
-    `update aomi_auth_identities set user_id = $1, last_seen_at = now()
-     where user_id = $2 and provider = 'email' and email = $3
-       and revoked_at is null`,
-    [input.toUserId, input.fromUserId, input.signal.email],
-  );
-}
-
-export async function closeMergedUser(input: {
-  dyingUserId: AomiUserId;
-  survivorUserId: AomiUserId;
-  db: Db;
-}): Promise<void> {
-  await input.db.query(
-    `update aomi_users
-     set deactivated_at = now(), merged_into = $1, updated_at = now()
-     where id = $2 and deactivated_at is null`,
-    [input.survivorUserId, input.dyingUserId],
-  );
-}
-
 export async function upsertAuthIdentity(input: {
   userId: AomiUserId;
   provider: AuthIdentityProvider;
@@ -284,13 +227,13 @@ export async function upsertAuthIdentity(input: {
      values ($1, $2, $3, $4, $5, $6, $7, $8::jsonb)
      on conflict (provider, subject) where revoked_at is null
      do update set
-       user_id = excluded.user_id,
        email = coalesce(excluded.email, aomi_auth_identities.email),
        email_verified = aomi_auth_identities.email_verified or excluded.email_verified,
        auth_method = coalesce(excluded.auth_method, aomi_auth_identities.auth_method),
        display_label = coalesce(excluded.display_label, aomi_auth_identities.display_label),
        provider_metadata = aomi_auth_identities.provider_metadata || excluded.provider_metadata,
        last_seen_at = now()
+     where aomi_auth_identities.user_id = excluded.user_id
      returning *`,
     [
       input.userId,
@@ -303,6 +246,9 @@ export async function upsertAuthIdentity(input: {
       JSON.stringify(input.providerMetadata ?? {}),
     ],
   );
+  if (!result.rows[0]) {
+    throw new Error("identity_already_linked_to_another_account");
+  }
   return mapIdentity(result.rows[0]);
 }
 
@@ -361,7 +307,6 @@ export async function upsertWallet(input: {
      values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
      on conflict (family, normalized_address, coalesce(chain_scope, '*')) where revoked_at is null
      do update set
-       user_id = excluded.user_id,
        address = excluded.address,
        caip10 = excluded.caip10,
        kind = excluded.kind,
@@ -370,6 +315,7 @@ export async function upsertWallet(input: {
        linked_via = excluded.linked_via,
        label = coalesce(aomi_wallets.label, excluded.label),
        last_seen_at = now()
+     where aomi_wallets.user_id = excluded.user_id
      returning *`,
     [
       input.userId,
@@ -385,6 +331,9 @@ export async function upsertWallet(input: {
       input.label ?? null,
     ],
   );
+  if (!result.rows[0]) {
+    throw new Error("wallet_already_linked_to_another_account");
+  }
   return mapWallet(result.rows[0]);
 }
 
@@ -645,7 +594,6 @@ function mapUser(row: Row): DbAomiUser {
     avatarUrl: nullableString(row.avatar_url),
     metadata: asRecord(row.metadata),
     deactivatedAt: nullableDate(row.deactivated_at),
-    mergedInto: nullableString(row.merged_into),
     createdAt: new Date(row.created_at as string | Date),
     updatedAt: new Date(row.updated_at as string | Date),
   };
