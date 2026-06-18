@@ -55,23 +55,32 @@ export function BootstrapWizard({
       return;
     }
     setRepoError(null);
-    // Guard against pointing at a repo you already own. This flow is meant to
-    // deploy a FRESH repo created from the template — pasting an existing repo
-    // installs the app on it as-is, which risks touching real work. Warn first,
-    // then let the user proceed on a second confirm if it's intentional.
+    // Guard against pointing at a repo you already own. In this flow you create
+    // the repo FROM the template first, so the repo always exists by the time you
+    // paste it — existence alone is not the signal. GitHub tells us whether a repo
+    // was generated from a template (`template_repository`), so only warn when the
+    // repo exists but did NOT come from an Aomi template (i.e. a pre-existing repo
+    // of your own). A fresh template repo is the happy path and passes silently.
     if (!repoWarning) {
       setChecking(true);
-      let exists = false;
+      let preExisting = false;
       try {
-        const res = await fetch(`https://api.github.com/repos/${repo}`);
-        exists = res.ok;
+        const res = await fetch(`https://api.github.com/repos/${repo}`, {
+          headers: { Accept: "application/vnd.github+json" },
+        });
+        if (res.ok) {
+          const data = await res.json();
+          const template = (data?.template_repository?.full_name ?? "").toLowerCase();
+          preExisting = !template.startsWith("aomi-labs/");
+        }
+        // 404 -> repo doesn't exist yet -> nothing to warn about
       } catch {
         // offline / rate-limited: skip the check rather than block the user
       }
       setChecking(false);
-      if (exists) {
+      if (preExisting) {
         setRepoWarning(
-          `${repo} already exists. If it isn't a fresh repo from the template above, deploying will install on it as-is. Create a new one from the template to avoid touching existing code, or click Confirm again to use this repo anyway.`,
+          `${repo} already exists and was not created from the Aomi template. Deploying will install on it as-is — create a fresh repo from the template above to avoid touching existing code, or click Confirm again to use this repo anyway.`,
         );
         return;
       }
