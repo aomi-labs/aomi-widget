@@ -93,7 +93,6 @@ function buildConnection(
   const c: UnknownRecord = { ...(src ?? {}) };
   renameKey(c, "isConnected", "is_connected");
   renameKey(c, "providerLabel", "provider_label");
-  renameKey(c, "primaryFamily", "primary_family");
   renameKey(c, "walletProviderSubject", "wallet_provider_subject");
   renameKey(c, "authMethod", "auth_method");
   renameKey(c, "authValue", "auth_value");

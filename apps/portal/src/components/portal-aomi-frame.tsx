@@ -1,11 +1,11 @@
 "use client";
 
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { Settings } from "lucide-react";
 import { createAccountAccessTokenProvider } from "@aomi-labs/client";
 import { AomiFrame, useAomiAuthAdapter } from "@aomi-labs/widget-lib";
-import { type AomiClientOptions, useControl } from "@aomi-labs/react";
+import { type AomiClientOptions, usePerThreadControl } from "@aomi-labs/react";
 import { RequiredSecretsGate } from "@portal/components/required-secrets-gate";
 import { x402Client } from "@x402/core/client";
 import { ExactEvmScheme } from "@x402/evm/exact/client";
@@ -37,14 +37,33 @@ function usePortalClientOptions(): Omit<AomiClientOptions, "baseUrl"> | undefine
     () => globalThis.fetch.bind(globalThis),
     [],
   );
+  // Hold a stable ref to the latest credential fn. The adapter recreates
+  // `getAccountCredential` on most renders (its memo depends on ~20 wallet
+  // values that mutate during normal interaction); without this, the token
+  // provider rebuilds per render and drops its bearer cache, firing
+  // `/api/account/exchange` on every thread click.
+  const credentialFnRef = useRef(getAccountCredential);
+  credentialFnRef.current = getAccountCredential;
+  const [credentialAvailable, setCredentialAvailable] = useState(
+    Boolean(getAccountCredential),
+  );
+  useEffect(() => {
+    const available = Boolean(getAccountCredential);
+    setCredentialAvailable((prev) => (prev === available ? prev : available));
+  }, [getAccountCredential]);
+
   const accountAccessTokenProvider = useMemo(() => {
-    if (!getAccountCredential) {
+    if (!credentialAvailable) {
       return undefined;
     }
     return createAccountAccessTokenProvider({
       baseUrl: backendUrl,
       getProviderCredential: async () => {
-        const credential = await getAccountCredential();
+        const fn = credentialFnRef.current;
+        if (!fn) {
+          throw new Error("Account credential provider not yet available");
+        }
+        const credential = await fn();
         if (!credential) {
           throw new Error("Wallet provider is connected without an exchangeable credential");
         }
@@ -52,7 +71,7 @@ function usePortalClientOptions(): Omit<AomiClientOptions, "baseUrl"> | undefine
       },
       fetch: nativeFetch,
     });
-  }, [backendUrl, getAccountCredential, nativeFetch]);
+  }, [backendUrl, credentialAvailable, nativeFetch]);
 
   useEffect(
     () => () => {
@@ -227,7 +246,7 @@ function usePortalClientOptions(): Omit<AomiClientOptions, "baseUrl"> | undefine
 }
 
 function AppSelectUrlBootstrap() {
-  const { onAppSelect } = useControl();
+  const { onAppSelect } = usePerThreadControl().actions;
   const hasAppliedRequestedAppRef = useRef(false);
 
   useEffect(() => {
