@@ -5,7 +5,7 @@ import Link from "next/link";
 import { Settings } from "lucide-react";
 import { createAccountAccessTokenProvider } from "@aomi-labs/client";
 import { AomiFrame, useAomiAuthAdapter } from "@aomi-labs/widget-lib";
-import { type AomiClientOptions, useControl } from "@aomi-labs/react";
+import { type AomiClientOptions, usePerThreadControl } from "@aomi-labs/react";
 import { RequiredSecretsGate } from "@portal/components/required-secrets-gate";
 import { x402Client } from "@x402/core/client";
 import { ExactEvmScheme } from "@x402/evm/exact/client";
@@ -246,7 +246,7 @@ function usePortalClientOptions(): Omit<AomiClientOptions, "baseUrl"> | undefine
 }
 
 function AppSelectUrlBootstrap() {
-  const { onAppSelect } = useControl();
+  const { onAppSelect } = usePerThreadControl().actions;
   const hasAppliedRequestedAppRef = useRef(false);
 
   useEffect(() => {

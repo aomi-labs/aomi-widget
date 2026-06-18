@@ -1,7 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useControl, type AomiAppDescriptor } from "@aomi-labs/react";
+import {
+  useApiKey,
+  useAuthEndpoints,
+  useByok,
+  type AomiAppDescriptor,
+} from "@aomi-labs/react";
 import { Button, Input } from "@aomi-labs/widget-lib";
 import {
   settingsActionRowClass,
@@ -67,12 +72,14 @@ function formatTs(ts: number): string {
 }
 
 export function Secrets() {
-  const { state, ingestSecrets, deleteSecret, clearSecrets, listSecrets } =
-    useControl();
+  const { state: authState } = useAuthEndpoints();
+  const { state: apiKeyState } = useApiKey();
+  const { ingestSecrets, deleteSecret, clearSecrets, listSecrets } =
+    useByok().actions;
 
   const appsWithSecrets = useMemo<AomiAppDescriptor[]>(
-    () => state.appDescriptors.filter((d) => (d.secrets ?? []).length > 0),
-    [state.appDescriptors],
+    () => authState.appDescriptors.filter((d) => (d.secrets ?? []).length > 0),
+    [authState.appDescriptors],
   );
 
   const [selectedApp, setSelectedApp] = useState<string | null>(null);
@@ -92,7 +99,7 @@ export function Secrets() {
 
   // Reconcile localStorage mirror against the backend's source of truth on mount.
   useEffect(() => {
-    if (!state.clientId) return;
+    if (!apiKeyState.clientId) return;
     void (async () => {
       try {
         const byApp = await listSecrets();
@@ -116,7 +123,7 @@ export function Secrets() {
         // Backend unreachable — fall back to whatever localStorage had.
       }
     })();
-  }, [listSecrets, state.clientId]);
+  }, [listSecrets, apiKeyState.clientId]);
 
   useEffect(() => {
     if (selectedApp && !appsWithSecrets.some((a) => a.name === selectedApp)) {
@@ -152,7 +159,7 @@ export function Secrets() {
   );
   const canSave =
     !saving &&
-    Boolean(state.clientId) &&
+    Boolean(apiKeyState.clientId) &&
     hasAnyValue &&
     requiredMissing.length === 0;
 
@@ -285,7 +292,7 @@ export function Secrets() {
           Stored in the backend vault scoped to this browser and the chosen app;
           tools receive them as opaque <code>$SECRET:NAME</code> handles.
         </p>
-        {!state.clientId && (
+        {!apiKeyState.clientId && (
           <p className={settingsBodyTextClass}>
             Waiting for client id to initialize…
           </p>

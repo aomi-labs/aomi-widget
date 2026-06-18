@@ -53,7 +53,9 @@ function namesFromDescriptors(
   return apps.map((a) => a.name);
 }
 
-export function useAuthEndpoints({
+/** Provider-internal: owns the apps/models state. Consumers should use the
+ *  `useAuthEndpoints` slice reader exported from contexts/control-context.tsx. */
+export function useAuthEndpointsImpl({
   aomiClientRef,
   apiKeyRef,
   publicKeyRef,
