@@ -22,7 +22,7 @@ export {
  * behind a connector (Rabby impersonating MetaMask, etc).
  */
 
-const walletLabelOverrides: Record<string, string> = {
+export const walletLabelOverrides: Record<string, string> = {
   base: "Base Account",
   baseaccount: "Base Account",
   coinbase: "Coinbase Wallet",
@@ -33,6 +33,17 @@ const walletLabelOverrides: Record<string, string> = {
   rainbow: "Rainbow",
   walletconnect: "WalletConnect",
 };
+
+/**
+ * Resolve a clean, human-readable brand name from any wallet identifier
+ * (connector name, label, or id). Falls back to the raw input when no
+ * canonical brand matches so callers always get a non-empty display string.
+ */
+export function brandDisplayName(walletNameOrId?: string | null): string {
+  if (!walletNameOrId) return "Wallet";
+  const key = canonicalWalletKey(walletNameOrId);
+  return walletLabelOverrides[key] ?? walletNameOrId;
+}
 
 export type InstalledWalletFlags = {
   metamask: boolean;
@@ -58,10 +69,7 @@ type InjectedProvider = {
   providers?: InjectedProvider[];
 };
 
-function readInjectedValue<T>(
-  source: unknown,
-  key: string,
-): T | undefined {
+function readInjectedValue<T>(source: unknown, key: string): T | undefined {
   if (!source || typeof source !== "object") return undefined;
   try {
     return (source as Record<string, T | undefined>)[key];
@@ -83,14 +91,15 @@ function detectInstalledWalletFlags(): InstalledWalletFlags {
     coinbaseWalletExtension?: unknown;
   };
   const injected = readInjectedValue<InjectedProvider>(hostWindow, "ethereum");
-  const rabbyProvider = readInjectedValue<InjectedProvider>(hostWindow, "rabby");
+  const rabbyProvider = readInjectedValue<InjectedProvider>(
+    hostWindow,
+    "rabby",
+  );
   const injectedProviders =
     readInjectedValue<InjectedProvider[]>(injected, "providers") ?? [];
-  const providers = [
-    injected,
-    rabbyProvider,
-    ...injectedProviders,
-  ].filter(Boolean);
+  const providers = [injected, rabbyProvider, ...injectedProviders].filter(
+    Boolean,
+  );
 
   return {
     metamask: providers.some((provider) =>

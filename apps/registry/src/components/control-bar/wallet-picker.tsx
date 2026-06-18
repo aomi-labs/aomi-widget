@@ -781,7 +781,6 @@ export function WalletPicker() {
               displayName={accountDisplayName}
               subtitle={providerSubtitle}
               brandLabel={providerBrandLabel}
-              status={adapter.accountStatus}
               user={adapter.accountUser}
               linkedAccounts={adapter.accountLinkedAccounts ?? []}
               wallets={adapter.accountWallets ?? []}
@@ -864,18 +863,21 @@ function SectionLabel({ children }: { children: string }) {
  */
 function ChainTag({
   family,
+  capability,
 }: {
   family: WalletFamily;
   chainId?: number;
   supportedEvmChains?: readonly SupportedEvmChain[];
+  capability?: "read" | "write";
 }) {
   const isSolana = family === "svm";
+  const dotColor = capability === "read" ? "bg-amber-500" : "bg-emerald-500";
   return (
     <span
       className="text-muted-foreground/70 inline-flex min-w-0 shrink-0 items-center gap-1 text-[10px] font-semibold uppercase tracking-wide"
       title={isSolana ? "Solana (SVM)" : "Ethereum-compatible wallet"}
     >
-      <span className="size-1.5 rounded-full bg-emerald-500" />
+      <span className={cn("size-1.5 rounded-full", dotColor)} />
       <span className="max-w-20 truncate">{isSolana ? "SVM" : "EVM"}</span>
     </span>
   );
@@ -930,7 +932,6 @@ function AccountManagerPanel({
   displayName,
   subtitle,
   brandLabel,
-  status,
   user,
   linkedAccounts,
   wallets,
@@ -954,7 +955,6 @@ function AccountManagerPanel({
   displayName: string;
   subtitle?: string | null;
   brandLabel?: string;
-  status?: AomiWalletKit["accountStatus"];
   user?: AomiWalletKit["accountUser"];
   linkedAccounts: readonly LinkedAccountRow[];
   wallets: readonly LinkedWalletRow[];
@@ -984,19 +984,11 @@ function AccountManagerPanel({
   const walletSummary = `${connectedCount} wallet${
     connectedCount === 1 ? "" : "s"
   } connected`;
-  const statusLabel =
-    status === "ready"
-      ? "Verified account"
-      : status === "loading"
-        ? "Syncing account"
-        : status === "error"
-          ? "Account sync error"
-          : "Local wallet session";
   const userEmail =
     user?.email && !isSyntheticAomiEmail(user.email) ? user.email : undefined;
   const headerTitle = formatAccountDisplayName(displayName);
   const primarySubtitle =
-    userEmail ?? (user ? statusLabel : (subtitle ?? walletSummary));
+    userEmail ?? (user ? walletSummary : (subtitle ?? walletSummary));
   const visibleLinkedAccounts = linkedAccounts.filter(isVisibleLinkedAccount);
   const hasAccountAccess =
     visibleLinkedAccounts.length > 0 || wallets.length > 0;
@@ -1064,10 +1056,10 @@ function AccountManagerPanel({
         </button>
         <div className="min-w-0 flex-1">
           <h2 className="text-foreground text-base font-semibold tracking-tight">
-            Account
+            Manage account
           </h2>
           <p className="text-muted-foreground mt-0.5 text-xs leading-snug">
-            {statusLabel}
+            Manage your linked wallets and sign-in methods.
           </p>
         </div>
         <button
@@ -1137,16 +1129,6 @@ function AccountManagerPanel({
               )}
             </div>
           ) : null}
-          <span
-            className={cn(
-              "shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium",
-              status === "ready"
-                ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
-                : "bg-muted text-muted-foreground",
-            )}
-          >
-            {status === "ready" ? "Verified" : "Local"}
-          </span>
         </div>
 
         <section className="flex flex-col gap-1.5">
@@ -1470,6 +1452,7 @@ function ConnectedWalletSummaryRow({
             family={account.family}
             chainId={account.chainId}
             supportedEvmChains={supportedEvmChains}
+            capability={capability}
           />
         </span>
         <span className="text-muted-foreground block truncate text-[11px]">
@@ -1477,7 +1460,6 @@ function ConnectedWalletSummaryRow({
             account.label ?? formatWalletAddress(account.address ?? ""),
             networkName,
             linkState,
-            capabilityLabel(capability),
           ]
             .filter(Boolean)
             .join(" · ")}
@@ -1512,9 +1494,7 @@ function LinkedWalletManagementRow({
   onSubmitRename: () => void;
   onUnlink?: () => void;
 }) {
-  const title =
-    wallet.label ??
-    `${familyLabel(wallet.family)} ${formatWalletAddress(wallet.address)}`;
+  const title = wallet.label ?? "Wallet";
   const busy =
     pending === `wallet:rename:${wallet.id}` ||
     pending === `wallet:unlink:${wallet.id}`;
@@ -1551,15 +1531,11 @@ function LinkedWalletManagementRow({
                 family={wallet.family}
                 chainId={wallet.chainId ?? chainIdFromScope(wallet.chainScope)}
                 supportedEvmChains={supportedEvmChains}
+                capability={live ? "write" : wallet.capability}
               />
             </span>
             <span className="text-muted-foreground block truncate text-[11px]">
-              {[
-                formatWalletAddress(wallet.address),
-                networkName,
-                linkedViaLabel(wallet.linkedVia),
-                live ? "Write access" : capabilityLabel(wallet.capability),
-              ]
+              {[formatWalletAddress(wallet.address), networkName]
                 .filter(Boolean)
                 .join(" · ")}
             </span>
@@ -1605,19 +1581,6 @@ function LinkedWalletManagementRow({
       </div>
     </div>
   );
-}
-
-function capabilityLabel(capability?: "read" | "write"): string | undefined {
-  if (capability === "write") return "Write access";
-  if (capability === "read") return "Read-only";
-  return undefined;
-}
-
-function linkedViaLabel(linkedVia?: string): string | undefined {
-  if (!linkedVia) return undefined;
-  if (linkedVia === "siwe") return "SIWE";
-  if (linkedVia === "siws") return "SIWS";
-  return formatWalletProvider(linkedVia);
 }
 
 function sameWalletAddress(
@@ -1668,6 +1631,7 @@ function FamilyStatusRow({
             family={family}
             chainId={account.chainId}
             supportedEvmChains={supportedEvmChains}
+            capability={account.capability}
           />
           {active ? (
             <CheckIcon className="text-primary size-3.5 shrink-0" />
