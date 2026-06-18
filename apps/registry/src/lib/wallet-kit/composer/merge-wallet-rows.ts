@@ -37,11 +37,13 @@ export type WalletModalRow = {
 export function mergeWalletRows({
   accounts,
   storedWallets = [],
+  canLinkWallet = false,
   auth,
   options = [],
 }: {
   accounts: readonly AomiAccount[];
   storedWallets?: readonly AccountWallet[];
+  canLinkWallet?: boolean;
   auth?: Pick<AuthRuntime, "provider" | "status">;
   options?: readonly AomiWalletOption[];
 }): WalletModalRow[] {
@@ -52,6 +54,7 @@ export function mergeWalletRows({
         walletKey(wallet.family, wallet.address) ===
           walletKey(account.family, account.address),
     );
+    const linked = account.linked ?? Boolean(stored);
     const actions: WalletRowAction[] = account.actions?.length
       ? account.actions.map((action) => ({
           kind: action.kind,
@@ -63,11 +66,7 @@ export function mergeWalletRows({
                 ? "Sign out"
                 : "Disconnect"),
         }))
-      : [
-          account.manageable
-            ? { kind: "manage", label: "Manage" }
-            : { kind: "disconnect", label: "Disconnect" },
-        ];
+      : defaultLiveWalletActions({ account, linked, canLinkWallet });
     return {
       id: account.id,
       family: account.family,
@@ -78,7 +77,7 @@ export function mergeWalletRows({
       source: "live" as const,
       status: account.active ? ("active" as const) : ("connected" as const),
       provider: stored?.provider,
-      linked: account.linked ?? Boolean(stored),
+      linked,
       linkedVia: account.linkedVia ?? stored?.linkedVia,
       capability: account.capability ?? stored?.capability,
       manageable: account.manageable,
@@ -137,4 +136,25 @@ export function mergeWalletRows({
   }
 
   return rows;
+}
+
+function defaultLiveWalletActions({
+  account,
+  linked,
+  canLinkWallet,
+}: {
+  account: AomiAccount;
+  linked: boolean;
+  canLinkWallet: boolean;
+}): WalletRowAction[] {
+  const actions: WalletRowAction[] = [];
+  if (canLinkWallet && !linked && account.family === "evm") {
+    actions.push({ kind: "link", label: "Verify" });
+  }
+  actions.push(
+    account.manageable
+      ? { kind: "manage", label: "Manage" }
+      : { kind: "disconnect", label: "Disconnect" },
+  );
+  return actions;
 }

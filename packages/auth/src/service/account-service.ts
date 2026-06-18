@@ -5,6 +5,7 @@ import {
   countLoginFactors,
   createAomiUserForBetterAuth,
   deleteBetterAuthSiweWallet,
+  findAomiUserById,
   findAomiUserByBetterAuthId,
   findSignalOwner,
   findWalletById,
@@ -45,6 +46,7 @@ export async function getOrCreateAomiUserForBetterAuthSession(input: {
   emailVerified?: boolean;
   name?: string | null;
   avatarUrl?: string | null;
+  accessSignals?: SignalRef[];
 }): Promise<DbAomiUser> {
   await ensureAccountSchema();
   return withTransaction(async (db) => {
@@ -73,6 +75,40 @@ export async function getOrCreateAomiUserForBetterAuthSession(input: {
       return existing;
     }
 
+    const signalOwner = await findFirstSignalOwner(
+      [
+        ...(input.accessSignals ?? []),
+        ...(await betterAuthSiweSignals(input.betterAuthUserId, db)),
+      ],
+      db,
+    );
+    if (signalOwner) {
+      await touchAomiUser(signalOwner.id, db);
+      await upsertAuthIdentity({
+        userId: signalOwner.id,
+        provider: "better_auth",
+        subject: input.betterAuthUserId,
+        email: input.email,
+        emailVerified: input.emailVerified,
+        db,
+      });
+      if (input.email && input.emailVerified) {
+        await upsertEmailIdentity({
+          userId: signalOwner.id,
+          email: input.email,
+          emailVerified: true,
+          db,
+        });
+      }
+      await logAccountEvent({
+        userId: signalOwner.id,
+        eventType: "session.attached",
+        data: { betterAuthUserId: input.betterAuthUserId },
+        db,
+      });
+      return signalOwner;
+    }
+
     const user = await createAomiUserForBetterAuth({ ...input, db });
     await upsertAuthIdentity({
       userId: user.id,
@@ -98,6 +134,36 @@ export async function getOrCreateAomiUserForBetterAuthSession(input: {
     });
     return user;
   });
+}
+
+async function findFirstSignalOwner(
+  signals: SignalRef[],
+  db: Parameters<typeof findSignalOwner>[1],
+): Promise<DbAomiUser | null> {
+  const seen = new Set<string>();
+  for (const signal of signals) {
+    const key = JSON.stringify(signal);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    const ownerId = await findSignalOwner(signal, db);
+    if (!ownerId) continue;
+    const owner = await findAomiUserById(ownerId, db);
+    if (owner) return owner;
+  }
+  return null;
+}
+
+async function betterAuthSiweSignals(
+  betterAuthUserId: string,
+  db: Parameters<typeof listBetterAuthSiweWallets>[1],
+): Promise<SignalRef[]> {
+  const wallets = await listBetterAuthSiweWallets(betterAuthUserId, db);
+  return wallets.map((wallet) => ({
+    type: "wallet" as const,
+    family: "evm" as const,
+    normalizedAddress: normalizeWalletAddress("evm", wallet.address),
+    chainScope: null,
+  }));
 }
 
 export async function getAccountResponseForBetterAuthSession(input: {

@@ -4,6 +4,7 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type FC,
   type SVGProps,
@@ -15,6 +16,7 @@ import {
   ChevronDownIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
+  LinkIcon,
   Loader2Icon,
   LogOutIcon,
   MailIcon,
@@ -158,6 +160,7 @@ export function WalletPicker() {
   const [pending, setPending] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [addOpen, setAddOpen] = useState(false);
+  const autoLinkAttempted = useRef(new Set<string>());
   // Which screen of the push-nav modal is showing. The account view slides in
   // from the right over the wallet manager.
   const [view, setView] = useState<"wallets" | "account">("wallets");
@@ -222,6 +225,43 @@ export function WalletPicker() {
   const canManageAccounts = Boolean(
     adapter.openAccountUI && adapter.canOpenAccountUI,
   );
+
+  useEffect(() => {
+    if (
+      !open ||
+      pending !== null ||
+      !adapter.accountUser ||
+      !adapter.linkWallet ||
+      (adapter.accountWallets?.length ?? 0) > 0
+    ) {
+      return;
+    }
+    const target = connectedAccounts.find(
+      (account) =>
+        account.family === "evm" && !account.linked && Boolean(account.address),
+    );
+    if (!target?.address) return;
+    const key = `${target.family}:${target.id}:${target.address.toLowerCase()}`;
+    if (autoLinkAttempted.current.has(key)) return;
+    autoLinkAttempted.current.add(key);
+    void runAction(`link:${target.id}`, () =>
+      adapter.linkWallet!({
+        accountId: target.id,
+        family: target.family,
+        address: target.address!,
+        chainId: target.chainId,
+      }),
+    );
+  }, [
+    adapter,
+    adapter.accountUser,
+    adapter.accountWallets,
+    adapter.linkWallet,
+    connectedAccounts,
+    open,
+    pending,
+    runAction,
+  ]);
 
   const walletActions = useMemo<WalletAction[]>(() => {
     const optionRows = walletRows
@@ -399,19 +439,9 @@ export function WalletPicker() {
   }, [hasConnectedWallets, view]);
 
   const signOutAccount = useCallback(async () => {
-    const providerOwnedAccount =
-      connectedAccounts.find((account) =>
-        account.actions.some((action) => action.kind === "signout"),
-      ) ?? connectedAccounts.find((account) => account.manageable);
-    if (providerOwnedAccount) {
-      await adapter.disconnect?.({
-        accountId: providerOwnedAccount.id,
-        providerSignOut: true,
-      });
-      return;
-    }
     await adapter.disconnect?.({ family: "all" });
-  }, [adapter, connectedAccounts]);
+    await adapter.signOutAccount?.();
+  }, [adapter]);
 
   const quickSignInSection = socialOptionsToShow.length ? (
     <section className="flex flex-col gap-1.5">
@@ -453,6 +483,9 @@ export function WalletPicker() {
         : undefined;
     const accountActions = account.actions.filter((action) => {
       if (action.kind === "manage") return canManageAccounts;
+      if (action.kind === "link") {
+        return Boolean(adapter.linkWallet && account.family === "evm");
+      }
       if (action.kind === "disconnect" || action.kind === "signout") {
         return Boolean(adapter.disconnect);
       }
@@ -467,6 +500,18 @@ export function WalletPicker() {
           });
           closePicker();
         });
+        return;
+      }
+      if (action.kind === "link") {
+        if (!account.address) return;
+        void runAction(actionKey, () =>
+          adapter.linkWallet!({
+            accountId: account.id,
+            family: account.family,
+            address: account.address!,
+            chainId: account.chainId,
+          }),
+        );
         return;
       }
       if (action.kind === "signout") {
@@ -744,7 +789,7 @@ export function WalletPicker() {
               connectedAccounts={connectedAccounts}
               connectedCount={connectedAccounts.length}
               canManageProvider={canManageAccounts}
-              canSignOut={Boolean(adapter.disconnect)}
+              canSignOut={Boolean(adapter.signOutAccount || adapter.disconnect)}
               onBack={() => setView("wallets")}
               onClose={closePicker}
               onRenameWallet={
@@ -903,8 +948,14 @@ function AccountManagerPanel({
         : status === "error"
           ? "Account sync error"
           : "Local wallet session";
+  const userEmail =
+    user?.email && !isSyntheticAomiEmail(user.email) ? user.email : undefined;
   const primarySubtitle =
-    user?.email ?? subtitle ?? (wallets.length ? statusLabel : walletSummary);
+    userEmail ?? subtitle ?? (wallets.length ? statusLabel : walletSummary);
+  const visibleLinkedAccounts = linkedAccounts.filter(isVisibleLinkedAccount);
+  const hasAccountAccess =
+    visibleLinkedAccounts.length > 0 || wallets.length > 0;
+  const headerBrandLabel = user ? undefined : brandLabel;
 
   const startRenaming = (wallet: LinkedWalletRow) => {
     setEditingWalletId(wallet.id);
@@ -955,8 +1006,8 @@ function AccountManagerPanel({
       <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-3.5">
         <div className="border-border/70 bg-card flex items-center gap-3 rounded-2xl border px-3 py-3">
           <span className="bg-primary/10 text-primary flex size-11 shrink-0 items-center justify-center overflow-hidden rounded-2xl">
-            {brandLabel ? (
-              <WalletIconSlot id={brandLabel} label={brandLabel} />
+            {headerBrandLabel ? (
+              <WalletIconSlot id={headerBrandLabel} label={headerBrandLabel} />
             ) : (
               <UserRoundIcon className="size-5" />
             )}
@@ -981,17 +1032,8 @@ function AccountManagerPanel({
           </span>
         </div>
 
-        {linkedAccounts.length ? (
-          <section className="flex flex-col gap-1.5">
-            <SectionLabel>Sign-in methods</SectionLabel>
-            {linkedAccounts.map((account) => (
-              <LinkedAuthAccountRow key={account.id} account={account} />
-            ))}
-          </section>
-        ) : null}
-
         <section className="flex flex-col gap-1.5">
-          <SectionLabel>Connected wallets</SectionLabel>
+          <SectionLabel>Connected now</SectionLabel>
           {connectedAccounts.map((account) => (
             <ConnectedWalletSummaryRow
               key={`${account.family}:${account.id}`}
@@ -1011,9 +1053,12 @@ function AccountManagerPanel({
           ))}
         </section>
 
-        {wallets.length ? (
+        {hasAccountAccess ? (
           <section className="flex flex-col gap-1.5">
-            <SectionLabel>Linked wallets</SectionLabel>
+            <SectionLabel>Account access</SectionLabel>
+            {visibleLinkedAccounts.map((account) => (
+              <LinkedAuthAccountRow key={account.id} account={account} />
+            ))}
             {wallets.map((wallet) => (
               <LinkedWalletManagementRow
                 key={wallet.id}
@@ -1044,17 +1089,17 @@ function AccountManagerPanel({
           </section>
         ) : (
           <section className="flex flex-col gap-1.5">
-            <SectionLabel>Linked wallets</SectionLabel>
+            <SectionLabel>Account access</SectionLabel>
             <div className="border-border/60 bg-card/60 flex items-center gap-3 rounded-2xl border border-dashed px-3 py-2.5">
               <span className="bg-muted/50 text-muted-foreground flex size-9 shrink-0 items-center justify-center rounded-xl">
                 <ShieldCheckIcon className="size-4" />
               </span>
               <span className="min-w-0 flex-1">
                 <span className="text-foreground block truncate text-sm font-medium">
-                  No verified wallet links
+                  No linked access yet
                 </span>
                 <span className="text-muted-foreground block truncate text-[11px]">
-                  Connected wallets can be linked after signature verification
+                  Verify a wallet or sign in with an account provider
                 </span>
               </span>
             </div>
@@ -1115,9 +1160,18 @@ function AccountManagerPanel({
   );
 }
 
+function isVisibleLinkedAccount(account: LinkedAccountRow): boolean {
+  return account.provider !== "better_auth" && account.provider !== "siwe";
+}
+
+function isSyntheticAomiEmail(email: string): boolean {
+  return /^0x[a-f0-9]{40}@aomi\.dev$/i.test(email);
+}
+
 function LinkedAuthAccountRow({ account }: { account: LinkedAccountRow }) {
   const providerLabel =
     formatWalletProvider(account.provider) ?? account.provider;
+  const subtitle = linkedAccountSubtitle(account);
   return (
     <div className="border-border/70 bg-card flex items-center gap-3 rounded-2xl border px-3 py-2.5">
       <WalletIconSlot id={account.provider} label={providerLabel} />
@@ -1126,14 +1180,24 @@ function LinkedAuthAccountRow({ account }: { account: LinkedAccountRow }) {
           {account.displayLabel ?? providerLabel}
         </span>
         <span className="text-muted-foreground block truncate text-[11px]">
-          {[account.email, account.emailVerified ? "Verified email" : null]
-            .filter(Boolean)
-            .join(" · ") || account.subject}
+          {subtitle}
         </span>
       </span>
       <CheckCircle2Icon className="text-primary size-4 shrink-0" />
     </div>
   );
+}
+
+function linkedAccountSubtitle(account: LinkedAccountRow): string {
+  if (account.email) {
+    return [account.email, account.emailVerified ? "Verified email" : null]
+      .filter(Boolean)
+      .join(" · ");
+  }
+  if (account.provider === "privy" || account.provider === "para") {
+    return "Provider sign-in";
+  }
+  return account.subject;
 }
 
 function ConnectedWalletSummaryRow({
@@ -1145,6 +1209,11 @@ function ConnectedWalletSummaryRow({
 }) {
   const name = account.walletName ?? familyLabel(account.family);
   const capability = account.capability ?? linkedWallet?.capability;
+  const linkState = account.linked
+    ? "Linked"
+    : account.family === "evm"
+      ? "Verify to link"
+      : "Connected only";
   return (
     <div className="border-border/70 bg-card flex items-center gap-3 rounded-2xl border px-3 py-2.5">
       <WalletIconSlot
@@ -1162,7 +1231,7 @@ function ConnectedWalletSummaryRow({
         <span className="text-muted-foreground block truncate text-[11px]">
           {[
             account.label ?? formatWalletAddress(account.address ?? ""),
-            account.linked ? "Linked" : "Not linked",
+            linkState,
             capabilityLabel(capability),
           ]
             .filter(Boolean)
@@ -1465,13 +1534,21 @@ function FamilyStatusRow({
         {actions.map((action) => (
           <RowIconButton
             key={action.kind}
-            icon={action.kind === "manage" ? Settings2Icon : LogOutIcon}
+            icon={
+              action.kind === "manage"
+                ? Settings2Icon
+                : action.kind === "link"
+                  ? LinkIcon
+                  : LogOutIcon
+            }
             ariaLabel={
               action.kind === "manage"
                 ? `Manage ${name}`
-                : action.kind === "signout"
-                  ? "Sign out"
-                  : `Disconnect ${familyLabel(family)} wallet`
+                : action.kind === "link"
+                  ? `Verify ${name}`
+                  : action.kind === "signout"
+                    ? "Sign out"
+                    : `Disconnect ${familyLabel(family)} wallet`
             }
             disabled={pending !== null}
             loading={pending === `${action.kind}:${account.id}`}

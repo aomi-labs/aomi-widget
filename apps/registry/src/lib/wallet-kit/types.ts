@@ -12,6 +12,7 @@ import type {
   AccountRuntimeStatus,
   AccountWallet,
   AomiUserRef,
+  LinkWalletInput,
   LinkedAuthAccount,
   UpdateWalletInput,
 } from "./account/types";
@@ -310,6 +311,8 @@ export type AomiWalletKit = {
   accountLinkedAccounts?: readonly LinkedAuthAccount[];
   accountWallets?: readonly AccountWallet[];
   accountConfirmation?: AccountConfirmation;
+  signOutAccount?: () => Promise<void>;
+  linkWallet?: (input: LinkWalletInput) => Promise<void>;
   updateLinkedWallet?: (input: UpdateWalletInput) => Promise<void>;
   unlinkLinkedWallet?: (walletId: string) => Promise<void>;
   /** Make `accounts[id]` the active account for its family. */

@@ -61,6 +61,13 @@ export function aomiProviderAuthPlugin(): BetterAuthPlugin {
             email: seed.email,
             emailVerified: seed.emailVerified,
             name: seed.name,
+            accessSignals: [
+              {
+                type: "identity",
+                provider: verified.provider,
+                subject: verified.token.subject,
+              },
+            ],
           });
           const resolution = await linkProviderIdentity({
             userId: aomiUser.id,

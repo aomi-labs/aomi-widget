@@ -54,6 +54,7 @@ export function useDisabledEvmWalletRuntime({
       sendCallsSyncAsync: undefined,
       signTypedDataAsync: undefined,
       signMessageAsync: undefined,
+      signMessageForAccount: undefined,
       switchChainAsync: undefined,
       isSwitchingChain: false,
       activeAccount: undefined,
