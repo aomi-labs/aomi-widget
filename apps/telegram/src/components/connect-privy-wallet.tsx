@@ -213,7 +213,6 @@ function ConnectPrivyContent() {
   const evmAddress = smartWalletClient?.account?.address;
   const svmAddress = solanaWallets[0]?.address;
   const providerLabel = requestedFamily === 'svm' ? 'Privy Solana' : 'Privy EVM';
-  const primaryFamily = requestedFamily;
   const desiredReady = requestedFamily === 'svm' ? Boolean(svmAddress) : Boolean(evmAddress);
 
   useEffect(() => {
@@ -229,7 +228,6 @@ function ConnectPrivyContent() {
       svmAddress: svmAddress ?? null,
       svmCluster: svmAddress ? defaultSolanaCluster : null,
       walletProvider: 'privy',
-      primaryFamily,
       providerLabel,
     };
 
@@ -245,7 +243,6 @@ function ConnectPrivyContent() {
         svmAddress: payload.svmAddress,
         svmCluster: payload.svmCluster,
         walletProvider: payload.walletProvider,
-        primaryFamily: payload.primaryFamily,
         providerLabel: payload.providerLabel,
         source: 'mini_app',
       }),
@@ -265,7 +262,6 @@ function ConnectPrivyContent() {
     chainId,
     desiredReady,
     evmAddress,
-    primaryFamily,
     providerLabel,
     requestedFamily,
     svmAddress,

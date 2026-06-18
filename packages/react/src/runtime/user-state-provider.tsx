@@ -119,7 +119,6 @@ function useWalletStateSync(
     (nextUser: ReturnType<typeof getUserState>) => ({
       connection: {
         is_connected: UserStateHelpers.isConnected(nextUser) ?? false,
-        primary_family: nextUser.connection?.primary_family,
         provider: UserStateHelpers.walletProvider(nextUser) ?? undefined,
         wallet_provider_subject:
           UserStateHelpers.walletProviderSubject(nextUser) ?? undefined,
