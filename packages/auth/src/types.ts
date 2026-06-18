@@ -98,6 +98,7 @@ export type AccountWallet = {
   provider?: string;
   providerWalletId?: string;
   chainScope?: string;
+  chainId?: number;
   linkedVia: LinkedVia | (string & {});
   label?: string;
   verifiedAt?: number;

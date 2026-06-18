@@ -1,6 +1,7 @@
 import { readAccountAuthEnv } from "../better-auth/env";
 import {
   buildAccountResponse,
+  findAomiUserById,
   findAomiUserByBetterAuthId,
 } from "../db/queries";
 import { verifyParaJwt } from "../providers/para";
@@ -106,11 +107,12 @@ export async function exchangeProviderForExistingSession(input: {
     confirmed: input.confirm,
   });
   if (resolution.status === "needs_confirmation") return resolution;
+  const updatedUser = await findAomiUserById(user.id);
 
   return {
     status: "linked",
     account: await buildAccountResponse({
-      user,
+      user: updatedUser ?? user,
       betterAuthUserId: input.betterAuthUserId,
     }),
   };

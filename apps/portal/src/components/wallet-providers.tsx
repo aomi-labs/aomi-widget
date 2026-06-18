@@ -106,7 +106,7 @@ export function WalletProviders({ children }: Props) {
   return (
     <AomiWalletKitProvider
       auth={auth}
-      account={{ mode: "aomi-backend", signInPolicy: "evm-siwe-first" }}
+      account={{ mode: "aomi-backend", signInPolicy: "provider-token-allowed" }}
       providers={{
         privy: privyAppId
           ? {

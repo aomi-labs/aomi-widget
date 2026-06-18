@@ -417,6 +417,8 @@ export async function listWalletsForUser(
 export async function updateAomiUserProfile(input: {
   userId: AomiUserId;
   displayName?: string | null;
+  primaryEmail?: string | null;
+  primaryEmailVerified?: boolean;
   avatarUrl?: string | null;
   db?: Db;
 }): Promise<DbAomiUser> {
@@ -424,13 +426,35 @@ export async function updateAomiUserProfile(input: {
   const result = await db.query(
     `update aomi_users
      set display_name = coalesce($2, display_name),
-         avatar_url = $3,
+         primary_email = coalesce($3, primary_email),
+         primary_email_verified = primary_email_verified or $4,
+         avatar_url = case when $5 then $6 else avatar_url end,
          updated_at = now()
      where id = $1 and deactivated_at is null
      returning *`,
-    [input.userId, input.displayName ?? null, input.avatarUrl ?? null],
+    [
+      input.userId,
+      input.displayName ?? null,
+      input.primaryEmail ?? null,
+      input.primaryEmailVerified ?? false,
+      input.avatarUrl !== undefined,
+      input.avatarUrl ?? null,
+    ],
   );
   return mapUser(result.rows[0]);
+}
+
+export async function findAuthIdentityById(
+  identityId: string,
+  db: Db = defaultPool,
+): Promise<DbAomiAuthIdentity | null> {
+  const result = await db.query(
+    `select * from aomi_auth_identities
+     where id = $1 and revoked_at is null
+     limit 1`,
+    [identityId],
+  );
+  return result.rows[0] ? mapIdentity(result.rows[0]) : null;
 }
 
 export async function updateWalletLabel(input: {
@@ -670,11 +694,19 @@ function toAccountWallet(wallet: DbAomiWallet): AccountWallet {
     provider: wallet.provider ?? undefined,
     providerWalletId: wallet.providerWalletId ?? undefined,
     chainScope: wallet.chainScope ?? undefined,
+    chainId: chainIdFromCaip10(wallet.caip10) ?? undefined,
     linkedVia: wallet.linkedVia,
     label: wallet.label ?? undefined,
     verifiedAt: wallet.verifiedAt.getTime(),
     lastSeenAt: wallet.lastSeenAt.getTime(),
   };
+}
+
+function chainIdFromCaip10(caip10Value: string | null): number | null {
+  const match = caip10Value?.match(/^eip155:(\d+):/);
+  if (!match) return null;
+  const chainId = Number(match[1]);
+  return Number.isInteger(chainId) && chainId > 0 ? chainId : null;
 }
 
 function nullableString(value: unknown): string | null {

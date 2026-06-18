@@ -10,7 +10,7 @@ import {
   getOrCreateAomiUserForBetterAuthSession,
   linkProviderIdentity,
 } from "../service/account-service";
-import { buildAccountResponse } from "../db/queries";
+import { buildAccountResponse, findAomiUserById } from "../db/queries";
 import type { AomiAccountCredential } from "../types";
 
 const bodySchema = z.object({
@@ -103,10 +103,11 @@ export function aomiProviderAuthPlugin(): BetterAuthPlugin {
             session,
             user: betterAuthUser,
           });
+          const updatedAomiUser = await findAomiUserById(aomiUser.id);
           return ctx.json({
             status: "linked",
             account: await buildAccountResponse({
-              user: aomiUser,
+              user: updatedAomiUser ?? aomiUser,
               betterAuthUserId: betterAuthUser.id,
               sessionExpiresAt: session.expiresAt,
             }),

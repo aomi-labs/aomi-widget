@@ -48,6 +48,7 @@ type LinkedAccountRow = NonNullable<
   AomiWalletKit["accountLinkedAccounts"]
 >[number];
 type LinkedWalletRow = NonNullable<AomiWalletKit["accountWallets"]>[number];
+type SupportedEvmChain = { id: number; name: string };
 
 type WalletAction = WalletModalRow & {
   actionKey: string;
@@ -412,6 +413,8 @@ export function WalletPicker() {
     identity.walletProviderSubject ||
     connectedAccounts.some((account) => account.manageable),
   );
+  const supportedEvmChains =
+    adapter.supportedNetworks?.evm ?? adapter.supportedChains ?? [];
   const socialOptionsToShow = providerAccountConnected
     ? []
     : socialLoginOptions;
@@ -420,7 +423,7 @@ export function WalletPicker() {
   const accountView = hasConnectedWallets && view === "account";
   const accountDisplayName =
     adapter.accountUser?.displayName ??
-    adapter.accountUser?.email ??
+    accountProfileEmail(adapter.accountUser) ??
     identity.primaryLabel ??
     identity.authValue ??
     providerBrandLabel ??
@@ -470,17 +473,12 @@ export function WalletPicker() {
     );
     const chainDetail =
       account.family === "evm"
-        ? (getChainInfo(account.chainId)?.name ??
-          getChainInfo(identity.chainId)?.name)
+        ? (networkNameForChain(account.chainId, supportedEvmChains) ??
+          networkNameForChain(identity.chainId, supportedEvmChains))
         : svmCluster
           ? svmCluster.charAt(0).toUpperCase() + svmCluster.slice(1)
           : undefined;
-    // The group header already states the family; only surface a chain/cluster
-    // when it adds something (e.g. "Base", "mainnet") beyond that family name.
-    const detail =
-      chainDetail && chainDetail !== familyLabel(account.family)
-        ? chainDetail
-        : undefined;
+    const detail = chainDetail;
     const accountActions = account.actions.filter((action) => {
       if (action.kind === "manage") return canManageAccounts;
       if (action.kind === "link") {
@@ -546,7 +544,8 @@ export function WalletPicker() {
         key={`${account.family}:${account.id}`}
         family={account.family}
         account={account}
-        detail={detail}
+        detail={detail ?? undefined}
+        supportedEvmChains={supportedEvmChains}
         providerHint={
           account.linkedVia &&
           account.linkedVia !== "challenge" &&
@@ -788,6 +787,7 @@ export function WalletPicker() {
               wallets={adapter.accountWallets ?? []}
               connectedAccounts={connectedAccounts}
               connectedCount={connectedAccounts.length}
+              supportedEvmChains={supportedEvmChains}
               canManageProvider={canManageAccounts}
               canSignOut={Boolean(adapter.signOutAccount || adapter.disconnect)}
               onBack={() => setView("wallets")}
@@ -800,11 +800,27 @@ export function WalletPicker() {
                       )
                   : undefined
               }
+              onRenameAccount={
+                adapter.updateAccount
+                  ? (input) =>
+                      runAction("account:rename", () =>
+                        adapter.updateAccount!(input),
+                      )
+                  : undefined
+              }
               onUnlinkWallet={
                 adapter.unlinkLinkedWallet
                   ? (walletId) =>
                       runAction(`wallet:unlink:${walletId}`, () =>
                         adapter.unlinkLinkedWallet!(walletId),
+                      )
+                  : undefined
+              }
+              onUnlinkAccount={
+                adapter.unlinkLinkedAccount
+                  ? (identityId) =>
+                      runAction(`identity:unlink:${identityId}`, () =>
+                        adapter.unlinkLinkedAccount!(identityId),
                       )
                   : undefined
               }
@@ -850,17 +866,35 @@ function SectionLabel({ children }: { children: string }) {
  * chip stays neutral; a small family-tinted dot carries the colour cue so it
  * reads as intentional without a loud full-colour pill.
  */
-function FamilyTag({ family }: { family: WalletFamily }) {
+function ChainTag({
+  family,
+}: {
+  family: WalletFamily;
+  chainId?: number;
+  supportedEvmChains?: readonly SupportedEvmChain[];
+}) {
   const isSolana = family === "svm";
   return (
     <span
-      className="text-muted-foreground/70 inline-flex shrink-0 items-center gap-1 text-[10px] font-semibold uppercase tracking-wide"
-      title={isSolana ? "Solana (SVM)" : "Ethereum (EVM)"}
+      className="text-muted-foreground/70 inline-flex min-w-0 shrink-0 items-center gap-1 text-[10px] font-semibold uppercase tracking-wide"
+      title={isSolana ? "Solana (SVM)" : "Ethereum-compatible wallet"}
     >
       <span className="size-1.5 rounded-full bg-emerald-500" />
-      {isSolana ? "SVM" : "EVM"}
+      <span className="max-w-20 truncate">{isSolana ? "SVM" : "EVM"}</span>
     </span>
   );
+}
+
+function networkNameForChain(
+  chainId: number | undefined,
+  supportedEvmChains?: readonly SupportedEvmChain[],
+): string | null {
+  if (!chainId) return null;
+  const configured = supportedEvmChains?.find((chain) => chain.id === chainId);
+  if (configured) return configured.name;
+  return supportedEvmChains && supportedEvmChains.length > 0
+    ? null
+    : (getChainInfo(chainId)?.name ?? null);
 }
 
 function ManageAccountButton({
@@ -906,12 +940,15 @@ function AccountManagerPanel({
   wallets,
   connectedAccounts,
   connectedCount,
+  supportedEvmChains,
   canManageProvider,
   canSignOut,
   onBack,
   onClose,
+  onRenameAccount,
   onRenameWallet,
   onUnlinkWallet,
+  onUnlinkAccount,
   onSignOut,
   onOpenProviderUI,
 }: {
@@ -926,17 +963,22 @@ function AccountManagerPanel({
   wallets: readonly LinkedWalletRow[];
   connectedAccounts: readonly WalletModalRow[];
   connectedCount: number;
+  supportedEvmChains: readonly SupportedEvmChain[];
   canManageProvider: boolean;
   canSignOut: boolean;
   onBack: () => void;
   onClose: () => void;
+  onRenameAccount?: NonNullable<AomiWalletKit["updateAccount"]>;
   onRenameWallet?: NonNullable<AomiWalletKit["updateLinkedWallet"]>;
   onUnlinkWallet?: NonNullable<AomiWalletKit["unlinkLinkedWallet"]>;
+  onUnlinkAccount?: NonNullable<AomiWalletKit["unlinkLinkedAccount"]>;
   onSignOut: () => void;
   onOpenProviderUI: () => void;
 }) {
   const [editingWalletId, setEditingWalletId] = useState<string | null>(null);
   const [draftLabel, setDraftLabel] = useState("");
+  const [editingAccountName, setEditingAccountName] = useState(false);
+  const [draftAccountName, setDraftAccountName] = useState("");
   const walletSummary = `${connectedCount} wallet${
     connectedCount === 1 ? "" : "s"
   } connected`;
@@ -950,8 +992,9 @@ function AccountManagerPanel({
           : "Local wallet session";
   const userEmail =
     user?.email && !isSyntheticAomiEmail(user.email) ? user.email : undefined;
+  const headerTitle = formatAccountDisplayName(displayName);
   const primarySubtitle =
-    userEmail ?? subtitle ?? (wallets.length ? statusLabel : walletSummary);
+    userEmail ?? (user ? statusLabel : (subtitle ?? walletSummary));
   const visibleLinkedAccounts = linkedAccounts.filter(isVisibleLinkedAccount);
   const hasAccountAccess =
     visibleLinkedAccounts.length > 0 || wallets.length > 0;
@@ -960,6 +1003,17 @@ function AccountManagerPanel({
   const startRenaming = (wallet: LinkedWalletRow) => {
     setEditingWalletId(wallet.id);
     setDraftLabel(wallet.label ?? "");
+  };
+
+  const startRenamingAccount = () => {
+    setEditingAccountName(true);
+    setDraftAccountName(displayName);
+  };
+
+  const submitAccountRename = async () => {
+    if (!onRenameAccount) return;
+    await onRenameAccount({ displayName: draftAccountName.trim() || null });
+    setEditingAccountName(false);
   };
 
   const submitRename = async (wallet: LinkedWalletRow) => {
@@ -1004,22 +1058,62 @@ function AccountManagerPanel({
       </div>
 
       <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-3.5">
-        <div className="border-border/70 bg-card flex items-center gap-3 rounded-2xl border px-3 py-3">
-          <span className="bg-primary/10 text-primary flex size-11 shrink-0 items-center justify-center overflow-hidden rounded-2xl">
+        <div className="border-border/70 bg-card flex items-center gap-3 rounded-xl border px-3 py-2.5">
+          <span className="bg-primary/10 text-primary flex size-9 shrink-0 items-center justify-center overflow-hidden rounded-xl">
             {headerBrandLabel ? (
               <WalletIconSlot id={headerBrandLabel} label={headerBrandLabel} />
             ) : (
-              <UserRoundIcon className="size-5" />
+              <UserRoundIcon className="size-4" />
             )}
           </span>
           <div className="min-w-0 flex-1">
-            <p className="text-foreground truncate text-sm font-semibold">
-              {displayName}
-            </p>
-            <p className="text-muted-foreground truncate text-[11px]">
-              {primarySubtitle}
-            </p>
+            {editingAccountName ? (
+              <input
+                value={draftAccountName}
+                onChange={(event) => setDraftAccountName(event.target.value)}
+                disabled={pending === "account:rename"}
+                aria-label="Account display name"
+                className="border-input bg-background text-foreground focus:border-primary h-8 w-full rounded-lg border px-2 text-sm outline-none"
+              />
+            ) : (
+              <>
+                <p className="text-foreground truncate text-sm font-semibold">
+                  {headerTitle}
+                </p>
+                <p className="text-muted-foreground truncate text-[11px]">
+                  {primarySubtitle}
+                </p>
+              </>
+            )}
           </div>
+          {onRenameAccount ? (
+            <div className="flex shrink-0 items-center gap-1">
+              {editingAccountName ? (
+                <>
+                  <RowIconButton
+                    icon={CheckIcon}
+                    ariaLabel="Save account display name"
+                    disabled={pending === "account:rename"}
+                    loading={pending === "account:rename"}
+                    onClick={submitAccountRename}
+                  />
+                  <RowIconButton
+                    icon={XIcon}
+                    ariaLabel="Cancel account display name edit"
+                    disabled={pending === "account:rename"}
+                    onClick={() => setEditingAccountName(false)}
+                  />
+                </>
+              ) : (
+                <RowIconButton
+                  icon={PencilIcon}
+                  ariaLabel="Rename account"
+                  disabled={pending !== null}
+                  onClick={startRenamingAccount}
+                />
+              )}
+            </div>
+          ) : null}
           <span
             className={cn(
               "shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium",
@@ -1038,6 +1132,7 @@ function AccountManagerPanel({
             <ConnectedWalletSummaryRow
               key={`${account.family}:${account.id}`}
               account={account}
+              supportedEvmChains={supportedEvmChains}
               linkedWallet={
                 account.linked
                   ? wallets.find((wallet) =>
@@ -1057,12 +1152,22 @@ function AccountManagerPanel({
           <section className="flex flex-col gap-1.5">
             <SectionLabel>Account access</SectionLabel>
             {visibleLinkedAccounts.map((account) => (
-              <LinkedAuthAccountRow key={account.id} account={account} />
+              <LinkedAuthAccountRow
+                key={account.id}
+                account={account}
+                pending={pending}
+                onUnlink={
+                  onUnlinkAccount
+                    ? () => void onUnlinkAccount(account.id)
+                    : undefined
+                }
+              />
             ))}
             {wallets.map((wallet) => (
               <LinkedWalletManagementRow
                 key={wallet.id}
                 wallet={wallet}
+                supportedEvmChains={supportedEvmChains}
                 live={connectedAccounts.some(
                   (account) =>
                     account.family === wallet.family &&
@@ -1164,14 +1269,43 @@ function isVisibleLinkedAccount(account: LinkedAccountRow): boolean {
   return account.provider !== "better_auth" && account.provider !== "siwe";
 }
 
+function accountProfileEmail(
+  user: AomiWalletKit["accountUser"],
+): string | undefined {
+  return user?.email && !isSyntheticAomiEmail(user.email)
+    ? user.email
+    : undefined;
+}
+
+function formatAccountDisplayName(value: string): string {
+  return /^0x[a-f0-9]{40}$/i.test(value)
+    ? (formatWalletAddress(value) ?? value)
+    : value;
+}
+
 function isSyntheticAomiEmail(email: string): boolean {
   return /^0x[a-f0-9]{40}@aomi\.dev$/i.test(email);
 }
 
-function LinkedAuthAccountRow({ account }: { account: LinkedAccountRow }) {
+function chainIdFromScope(chainScope?: string): number | undefined {
+  if (!chainScope) return undefined;
+  const chainId = Number(chainScope);
+  return Number.isInteger(chainId) && chainId > 0 ? chainId : undefined;
+}
+
+function LinkedAuthAccountRow({
+  account,
+  pending,
+  onUnlink,
+}: {
+  account: LinkedAccountRow;
+  pending: string | null;
+  onUnlink?: () => void;
+}) {
   const providerLabel =
     formatWalletProvider(account.provider) ?? account.provider;
   const subtitle = linkedAccountSubtitle(account);
+  const busy = pending === `identity:unlink:${account.id}`;
   return (
     <div className="border-border/70 bg-card flex items-center gap-3 rounded-2xl border px-3 py-2.5">
       <WalletIconSlot id={account.provider} label={providerLabel} />
@@ -1183,7 +1317,17 @@ function LinkedAuthAccountRow({ account }: { account: LinkedAccountRow }) {
           {subtitle}
         </span>
       </span>
-      <CheckCircle2Icon className="text-primary size-4 shrink-0" />
+      {onUnlink ? (
+        <RowIconButton
+          icon={Trash2Icon}
+          ariaLabel={`Unlink ${account.displayLabel ?? providerLabel}`}
+          disabled={busy}
+          loading={busy}
+          onClick={onUnlink}
+        />
+      ) : (
+        <CheckCircle2Icon className="text-primary size-4 shrink-0" />
+      )}
     </div>
   );
 }
@@ -1202,9 +1346,11 @@ function linkedAccountSubtitle(account: LinkedAccountRow): string {
 
 function ConnectedWalletSummaryRow({
   account,
+  supportedEvmChains,
   linkedWallet,
 }: {
   account: WalletModalRow;
+  supportedEvmChains: readonly SupportedEvmChain[];
   linkedWallet?: LinkedWalletRow;
 }) {
   const name = account.walletName ?? familyLabel(account.family);
@@ -1214,6 +1360,10 @@ function ConnectedWalletSummaryRow({
     : account.family === "evm"
       ? "Verify to link"
       : "Connected only";
+  const networkName =
+    account.family === "evm"
+      ? networkNameForChain(account.chainId, supportedEvmChains)
+      : undefined;
   return (
     <div className="border-border/70 bg-card flex items-center gap-3 rounded-2xl border px-3 py-2.5">
       <WalletIconSlot
@@ -1226,11 +1376,16 @@ function ConnectedWalletSummaryRow({
           <span className="text-foreground truncate text-sm font-medium">
             {name}
           </span>
-          <FamilyTag family={account.family} />
+          <ChainTag
+            family={account.family}
+            chainId={account.chainId}
+            supportedEvmChains={supportedEvmChains}
+          />
         </span>
         <span className="text-muted-foreground block truncate text-[11px]">
           {[
             account.label ?? formatWalletAddress(account.address ?? ""),
+            networkName,
             linkState,
             capabilityLabel(capability),
           ]
@@ -1244,6 +1399,7 @@ function ConnectedWalletSummaryRow({
 
 function LinkedWalletManagementRow({
   wallet,
+  supportedEvmChains,
   live,
   editing,
   draftLabel,
@@ -1255,6 +1411,7 @@ function LinkedWalletManagementRow({
   onUnlink,
 }: {
   wallet: LinkedWalletRow;
+  supportedEvmChains: readonly SupportedEvmChain[];
   live: boolean;
   editing: boolean;
   draftLabel: string;
@@ -1271,6 +1428,13 @@ function LinkedWalletManagementRow({
   const busy =
     pending === `wallet:rename:${wallet.id}` ||
     pending === `wallet:unlink:${wallet.id}`;
+  const networkName =
+    wallet.family === "evm"
+      ? networkNameForChain(
+          wallet.chainId ?? chainIdFromScope(wallet.chainScope),
+          supportedEvmChains,
+        )
+      : undefined;
 
   return (
     <div className="border-border/70 bg-card flex items-center gap-3 rounded-2xl border px-3 py-2.5">
@@ -1293,11 +1457,16 @@ function LinkedWalletManagementRow({
               <span className="text-foreground truncate text-sm font-medium">
                 {title}
               </span>
-              <FamilyTag family={wallet.family} />
+              <ChainTag
+                family={wallet.family}
+                chainId={wallet.chainId ?? chainIdFromScope(wallet.chainScope)}
+                supportedEvmChains={supportedEvmChains}
+              />
             </span>
             <span className="text-muted-foreground block truncate text-[11px]">
               {[
                 formatWalletAddress(wallet.address),
+                networkName,
                 linkedViaLabel(wallet.linkedVia),
                 live ? "Write access" : capabilityLabel(wallet.capability),
               ]
@@ -1455,6 +1624,7 @@ function FamilyStatusRow({
   family,
   account,
   detail,
+  supportedEvmChains,
   providerHint,
   pending,
   onSelect,
@@ -1464,6 +1634,7 @@ function FamilyStatusRow({
   family: WalletFamily;
   account: WalletModalRow;
   detail?: string;
+  supportedEvmChains: readonly SupportedEvmChain[];
   providerHint?: string;
   pending: string | null;
   onSelect?: () => void;
@@ -1482,7 +1653,11 @@ function FamilyStatusRow({
       <span className="min-w-0 flex-1">
         <span className="flex min-w-0 items-center gap-1.5">
           <span className="truncate text-sm font-medium">{name}</span>
-          <FamilyTag family={family} />
+          <ChainTag
+            family={family}
+            chainId={account.chainId}
+            supportedEvmChains={supportedEvmChains}
+          />
           {active ? (
             <CheckIcon className="text-primary size-3.5 shrink-0" />
           ) : null}
