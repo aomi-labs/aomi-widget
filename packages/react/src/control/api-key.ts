@@ -20,7 +20,9 @@ export type ApiKeyActions = {
   setApiKey: (apiKey: string | null) => void;
 };
 
-export function useApiKey(): {
+/** Provider-internal: owns the apiKey state. Consumers should use the
+ *  `useApiKey` slice reader exported from contexts/control-context.tsx. */
+export function useApiKeyImpl(): {
   state: ApiKeyState;
   actions: ApiKeyActions;
 } {

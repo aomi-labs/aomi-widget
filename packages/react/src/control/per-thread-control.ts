@@ -133,7 +133,9 @@ type UsePerThreadControlOptions = {
   sessionId: string;
 };
 
-export function usePerThreadControl({
+/** Provider-internal: owns per-thread control wiring. Consumers should use
+ *  the `usePerThreadControl` slice reader from contexts/control-context.tsx. */
+export function usePerThreadControlImpl({
   aomiClientRef,
   sessionIdRef,
   apiKeyRef,

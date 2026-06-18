@@ -35,20 +35,24 @@ import {
   getOrCreateClientId,
 } from "../utils/client-session";
 
-import { useApiKey, type ApiKeyState, type ApiKeyActions } from "../control/api-key";
 import {
-  useByok,
+  useApiKeyImpl,
+  type ApiKeyState,
+  type ApiKeyActions,
+} from "../control/api-key";
+import {
+  useByokImpl,
   type ByokState,
   type ByokActions,
   type StoredByokKey,
 } from "../control/byok";
 import {
-  useAuthEndpoints,
+  useAuthEndpointsImpl,
   type AuthEndpointsState,
   type AuthEndpointsActions,
 } from "../control/auth-endpoints";
 import {
-  usePerThreadControl,
+  usePerThreadControlImpl,
   type PerThreadControlActions,
 } from "../control/per-thread-control";
 
@@ -97,11 +101,81 @@ export function useControl(): ControlContextApi {
   return ctx;
 }
 
-// Re-export the focused hooks so consumers can opt into the narrower surface.
-export { useApiKey } from "../control/api-key";
-export { useByok } from "../control/byok";
-export { useAuthEndpoints } from "../control/auth-endpoints";
-export { usePerThreadControl } from "../control/per-thread-control";
+// ---------------------------------------------------------------------------
+// Focused slice readers
+//
+// Each returns just the slice it's named for. Composes with useControl() —
+// the underlying state is the same; these just narrow the surface area so
+// callers don't have access to (and don't trigger re-renders for) data they
+// don't read.
+// ---------------------------------------------------------------------------
+
+export function useApiKey(): {
+  state: ApiKeyState & { clientId: string | null };
+  actions: ApiKeyActions;
+} {
+  const ctx = useControl();
+  return {
+    state: { apiKey: ctx.state.apiKey, clientId: ctx.state.clientId },
+    actions: { setApiKey: ctx.setApiKey },
+  };
+}
+
+export function useByok(): { state: ByokState; actions: ByokActions } {
+  const ctx = useControl();
+  return {
+    state: { byokKeys: ctx.state.byokKeys },
+    actions: {
+      setByok: ctx.setByok,
+      removeByok: ctx.removeByok,
+      getByokKeys: ctx.getByokKeys,
+      hasByok: ctx.hasByok,
+      ingestSecrets: ctx.ingestSecrets,
+      clearSecrets: ctx.clearSecrets,
+      deleteSecret: ctx.deleteSecret,
+      listSecrets: ctx.listSecrets,
+    },
+  };
+}
+
+export function useAuthEndpoints(): {
+  state: AuthEndpointsState;
+  actions: AuthEndpointsActions;
+} {
+  const ctx = useControl();
+  return {
+    state: {
+      availableModels: ctx.state.availableModels,
+      defaultModel: ctx.state.defaultModel,
+      authorizedApps: ctx.state.authorizedApps,
+      appDescriptors: ctx.state.appDescriptors,
+      defaultApp: ctx.state.defaultApp,
+    },
+    actions: {
+      getAvailableModels: ctx.getAvailableModels,
+      getAuthorizedApps: ctx.getAuthorizedApps,
+    },
+  };
+}
+
+export function usePerThreadControl(): {
+  actions: PerThreadControlActions;
+  isProcessing: boolean;
+} {
+  const ctx = useControl();
+  return {
+    isProcessing: ctx.isProcessing,
+    actions: {
+      getCurrentThreadControl: ctx.getCurrentThreadControl,
+      getCurrentThreadApp: ctx.getCurrentThreadApp,
+      getPreferredThreadControl: ctx.getPreferredThreadControl,
+      onModelSelect: ctx.onModelSelect,
+      onAppSelect: ctx.onAppSelect,
+      markControlSynced: ctx.markControlSynced,
+      syncCurrentThreadControl: ctx.syncCurrentThreadControl,
+    },
+  };
+}
 
 // =============================================================================
 // Provider
@@ -168,7 +242,7 @@ export function ControlContextProvider({
   // ---------------------------------------------------------------------------
   // Domain hooks
   // ---------------------------------------------------------------------------
-  const apiKey = useApiKey();
+  const apiKey = useApiKeyImpl();
   const apiKeyRef = useRef(apiKey.state.apiKey);
   apiKeyRef.current = apiKey.state.apiKey;
 
@@ -179,13 +253,13 @@ export function ControlContextProvider({
     [],
   );
 
-  const byok = useByok({
+  const byok = useByokImpl({
     aomiClientRef,
     clientIdRef,
     getControlSessionId: getCurrentControlSessionId,
   });
 
-  const authEndpoints = useAuthEndpoints({
+  const authEndpoints = useAuthEndpointsImpl({
     aomiClientRef,
     apiKeyRef,
     publicKeyRef,
@@ -204,7 +278,7 @@ export function ControlContextProvider({
   const defaultAppRef = useRef(authEndpoints.state.defaultApp);
   defaultAppRef.current = authEndpoints.state.defaultApp;
 
-  const perThread = usePerThreadControl({
+  const perThread = usePerThreadControlImpl({
     aomiClientRef,
     sessionIdRef,
     apiKeyRef,

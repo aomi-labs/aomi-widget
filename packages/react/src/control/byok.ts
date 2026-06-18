@@ -63,7 +63,9 @@ type UseByokOptions = {
   getControlSessionId: () => string;
 };
 
-export function useByok({
+/** Provider-internal: owns the BYOK state. Consumers should use the
+ *  `useByok` slice reader exported from contexts/control-context.tsx. */
+export function useByokImpl({
   aomiClientRef,
   clientIdRef,
   getControlSessionId,

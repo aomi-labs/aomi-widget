@@ -2,7 +2,7 @@
 
 import { useState, type FC } from "react";
 import { ChevronDownIcon, CheckIcon } from "lucide-react";
-import { useControl, cn } from "@aomi-labs/react";
+import { useAuthEndpoints, usePerThreadControl, cn } from "@aomi-labs/react";
 import { Button } from "@/components/ui/button";
 import {
   Popover,
@@ -35,25 +35,24 @@ export const ModelSelect: FC<ModelSelectProps> = ({
   className,
   placeholder = "Select model",
 }) => {
+  const { state: authState } = useAuthEndpoints();
   const {
-    state,
-    getCurrentThreadControl,
-    onModelSelect,
+    actions: { getCurrentThreadControl, onModelSelect },
     isProcessing,
-  } = useControl();
+  } = usePerThreadControl();
   const [open, setOpen] = useState(false);
 
   const threadControl = getCurrentThreadControl();
   const rawSelected = threadControl.model;
   const modelMode =
     threadControl.modelMode ?? (rawSelected === null ? "auto" : "manual");
-  const models = state.availableModels;
+  const models = authState.availableModels;
 
   const autoBackendModel = resolveAutoModel(models);
   const isAuto = modelMode === "auto";
   const selectedModel = isAuto
     ? autoBackendModel
-    : (rawSelected ?? state.defaultModel ?? models[0]);
+    : (rawSelected ?? authState.defaultModel ?? models[0]);
 
   if (models.length === 0) {
     return (
