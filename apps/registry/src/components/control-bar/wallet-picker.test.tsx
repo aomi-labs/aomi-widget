@@ -256,10 +256,8 @@ describe("WalletPicker", () => {
         Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
     expect(
-      screen.getByRole("button", { name: "Manage your account" }),
-    ).toBeTruthy();
-    // "Account" labels both the header button and the slide-in panel title.
-    expect(screen.getAllByText("Account").length).toBeGreaterThan(0);
+      screen.queryByRole("button", { name: "Manage your account" }),
+    ).toBeNull();
     expect(screen.queryByText(/^ETH$/)).toBeNull();
     expect(screen.queryByText(/^SOL$/)).toBeNull();
     // EVM rows keep the family badge and put the network in the subtitle.
@@ -607,7 +605,12 @@ describe("WalletPicker", () => {
 
   it("slides to the account manager and can open the provider UI", async () => {
     const openAccountUI = vi.fn(async () => undefined);
-    renderPicker(makeAdapter({ openAccountUI }));
+    renderPicker(
+      makeAdapter({
+        accountUser: { id: "user-1", displayName: "Ada Account" },
+        openAccountUI,
+      }),
+    );
 
     // "Account" navigates to the in-app account panel rather than opening the
     // provider modal directly.
@@ -768,9 +771,10 @@ describe("WalletPicker", () => {
     expect(dismiss).toHaveBeenCalled();
   });
 
-  it("shows the account button for a wallet-only session without a provider UI", () => {
+  it("shows the account button for a loaded wallet-only account without a provider UI", () => {
     renderPicker(
       makeAdapter({
+        accountUser: { id: "user-1", displayName: "Wallet Account" },
         canOpenAccountUI: false,
         openAccountUI: undefined,
         identity: {
@@ -792,8 +796,8 @@ describe("WalletPicker", () => {
       }),
     );
 
-    // The account button is gated on having a connected wallet, not on the
-    // provider exposing a native account modal.
+    // The account button is gated on a loaded Aomi account, not on the provider
+    // exposing a native account modal.
     expect(
       screen.getByRole("button", { name: "Manage your account" }),
     ).toBeTruthy();
@@ -803,6 +807,7 @@ describe("WalletPicker", () => {
     const openAccountUI = vi.fn(async () => undefined);
     renderPicker(
       makeAdapter({
+        accountUser: { id: "user-1", displayName: "Ada Account" },
         openAccountUI,
         accounts: [
           {
@@ -843,6 +848,7 @@ describe("WalletPicker", () => {
     const disconnect = vi.fn(async () => undefined);
     renderPicker(
       makeAdapter({
+        accountUser: { id: "user-1", displayName: "Ada Account" },
         signOutAccount,
         disconnect,
         accounts: [
@@ -937,6 +943,7 @@ describe("WalletPicker", () => {
     const disconnect = vi.fn(async () => undefined);
     renderPicker(
       makeAdapter({
+        accountUser: { id: "user-1", displayName: "Privy Account" },
         canOpenAccountUI: false,
         openAccountUI: undefined,
         disconnect,
@@ -974,8 +981,8 @@ describe("WalletPicker", () => {
 
     expect(screen.queryByText("Email, wallet, or social")).toBeNull();
     expect(screen.queryByText("Quick sign-in")).toBeNull();
-    // The account button shows for any connected wallet, including this Privy
-    // session (which exposes no native account modal).
+    // The account button shows once the provider session has produced a loaded
+    // Aomi account, even without a native provider account modal.
     expect(
       screen.getByRole("button", { name: "Manage your account" }),
     ).toBeTruthy();
@@ -987,6 +994,7 @@ describe("WalletPicker", () => {
     const disconnect = vi.fn(async () => undefined);
     renderPicker(
       makeAdapter({
+        accountUser: { id: "user-1", displayName: "Privy Account" },
         signOutAccount,
         canOpenAccountUI: false,
         openAccountUI: undefined,
