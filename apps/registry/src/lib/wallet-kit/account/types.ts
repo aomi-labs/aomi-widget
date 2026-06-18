@@ -30,6 +30,7 @@ export type AccountWallet = {
   provider?: string;
   providerWalletId?: string;
   chainScope?: string;
+  chainId?: number;
   linkedVia:
     | "siwe"
     | "siws"
@@ -58,6 +59,11 @@ export type UpdateWalletInput = {
   label?: string | null;
 };
 
+export type UpdateAccountInput = {
+  displayName?: string | null;
+  avatarUrl?: string | null;
+};
+
 export type AccountConfirmation = {
   severity: "yellow" | "red";
   title: string;
@@ -76,7 +82,9 @@ export type AccountRuntime = {
   pendingConfirmation?: AccountConfirmation;
   refresh: () => Promise<void>;
   signOut?: () => Promise<void>;
+  updateAccount?: (input: UpdateAccountInput) => Promise<void>;
   linkWallet?: (input: LinkWalletInput) => Promise<void>;
   updateWallet?: (input: UpdateWalletInput) => Promise<void>;
   unlinkWallet?: (walletId: string) => Promise<void>;
+  unlinkAuthIdentity?: (identityId: string) => Promise<void>;
 };

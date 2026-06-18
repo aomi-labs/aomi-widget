@@ -148,7 +148,12 @@ export const NetworkSelect: FC<NetworkSelectProps> = ({
   const showEvm = evmChains.length > 0 && (anyConnected ? evmConnected : true);
   const showSolana = solanaNetworks.length > 0;
 
-  const activeEvmChainId = identity.chainId ?? selectedEvmChainId;
+  const liveEvmChainSupported =
+    identity.chainId !== undefined &&
+    evmChains.some((chain) => chain.id === identity.chainId);
+  const activeEvmChainId = liveEvmChainSupported
+    ? identity.chainId
+    : selectedEvmChainId;
   const activeEvmChain = evmChains.find(
     (chain) => chain.id === activeEvmChainId,
   );
@@ -213,10 +218,7 @@ export const NetworkSelect: FC<NetworkSelectProps> = ({
       chips.push({
         family: "evm",
         Icon: activeEvmChainId ? getChainIcon(activeEvmChainId) : undefined,
-        label:
-          activeEvmChain?.name ??
-          getChainInfo(activeEvmChainId)?.ticker ??
-          "EVM",
+        label: activeEvmChain?.name ?? "EVM",
       });
     }
     if (showSolana) {

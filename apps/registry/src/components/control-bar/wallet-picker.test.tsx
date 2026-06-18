@@ -59,6 +59,7 @@ function makeAdapter(overrides: Partial<AomiWalletKit> = {}): AomiWalletKit {
         family: "evm",
         address: "0xAAAAAAAA",
         walletName: "MetaMask",
+        chainId: 1,
         active: true,
       },
       {
@@ -261,8 +262,9 @@ describe("WalletPicker", () => {
     expect(screen.getAllByText("Account").length).toBeGreaterThan(0);
     expect(screen.queryByText(/^ETH$/)).toBeNull();
     expect(screen.queryByText(/^SOL$/)).toBeNull();
-    // Each connected row carries a compact EVM/SVM family tag.
+    // EVM rows keep the family badge and put the network in the subtitle.
     expect(screen.getAllByText("EVM").length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/Ethereum/).length).toBeGreaterThan(0);
     expect(screen.getAllByText("SVM").length).toBeGreaterThan(0);
     expect(screen.getAllByTitle("MetaMask").length).toBeGreaterThan(0);
     expect(screen.getAllByTitle("Phantom").length).toBeGreaterThan(0);
@@ -550,7 +552,7 @@ describe("WalletPicker", () => {
       accountId: "mm",
       family: "evm",
       address: "0xAAAAAAAA",
-      chainId: undefined,
+      chainId: 1,
     });
   });
 
@@ -631,6 +633,8 @@ describe("WalletPicker", () => {
   it("renders live account runtime data and runs linked wallet actions", async () => {
     const updateLinkedWallet = vi.fn(async () => undefined);
     const unlinkLinkedWallet = vi.fn(async () => undefined);
+    const unlinkLinkedAccount = vi.fn(async () => undefined);
+    const updateAccount = vi.fn(async () => undefined);
     renderPicker(
       makeAdapter({
         accountStatus: "ready",
@@ -656,13 +660,16 @@ describe("WalletPicker", () => {
             address: "0xAAAAAAAA",
             kind: "external",
             provider: "siwe",
+            chainId: 1,
             linkedVia: "siwe",
             label: "Treasury",
             capability: "write",
           },
         ],
+        updateAccount,
         updateLinkedWallet,
         unlinkLinkedWallet,
+        unlinkLinkedAccount,
       }),
     );
 
@@ -678,6 +685,23 @@ describe("WalletPicker", () => {
     expect(screen.getByText("Privy")).toBeTruthy();
     expect(screen.getAllByText("Treasury").length).toBeGreaterThan(0);
     expect(screen.getAllByText(/Write access/).length).toBeGreaterThan(0);
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Rename account" }));
+    });
+    const accountInput = screen.getByLabelText("Account display name");
+    fireEvent.change(accountInput, { target: { value: "Ada Main" } });
+    await act(async () => {
+      fireEvent.click(
+        screen.getByRole("button", { name: "Save account display name" }),
+      );
+    });
+    expect(updateAccount).toHaveBeenCalledWith({ displayName: "Ada Main" });
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Unlink Privy" }));
+    });
+    expect(unlinkLinkedAccount).toHaveBeenCalledWith("identity-1");
 
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "Rename Treasury" }));

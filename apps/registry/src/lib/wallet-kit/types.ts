@@ -14,6 +14,7 @@ import type {
   AomiUserRef,
   LinkWalletInput,
   LinkedAuthAccount,
+  UpdateAccountInput,
   UpdateWalletInput,
 } from "./account/types";
 import type { WalletModalRow } from "./composer/merge-wallet-rows";
@@ -312,9 +313,11 @@ export type AomiWalletKit = {
   accountWallets?: readonly AccountWallet[];
   accountConfirmation?: AccountConfirmation;
   signOutAccount?: () => Promise<void>;
+  updateAccount?: (input: UpdateAccountInput) => Promise<void>;
   linkWallet?: (input: LinkWalletInput) => Promise<void>;
   updateLinkedWallet?: (input: UpdateWalletInput) => Promise<void>;
   unlinkLinkedWallet?: (walletId: string) => Promise<void>;
+  unlinkLinkedAccount?: (identityId: string) => Promise<void>;
   /** Make `accounts[id]` the active account for its family. */
   selectAccount: (id: string) => Promise<void>;
 

@@ -5,6 +5,7 @@ import {
   countLoginFactors,
   createAomiUserForBetterAuth,
   deleteBetterAuthSiweWallet,
+  findAuthIdentityById,
   findAomiUserById,
   findAomiUserByBetterAuthId,
   findSignalOwner,
@@ -382,6 +383,14 @@ export async function linkProviderIdentity(input: {
   }
 
   await upsertAuthIdentity(input);
+  if (input.email && input.emailVerified) {
+    await updateAomiUserProfile({
+      userId: input.userId,
+      displayName: input.email,
+      primaryEmail: input.email,
+      primaryEmailVerified: true,
+    });
+  }
   if (identityResolution.status !== "noop") {
     await logAccountEvent({
       userId: input.userId,
@@ -392,6 +401,35 @@ export async function linkProviderIdentity(input: {
   return identityResolution.status === "noop"
     ? { status: "noop" }
     : identityResolution;
+}
+
+export async function unlinkAuthIdentity(input: {
+  userId: AomiUserId;
+  identityId: string;
+}): Promise<"revoked" | "not_found" | "last_factor" | "protected"> {
+  const identity = await findAuthIdentityById(input.identityId);
+  if (!identity || identity.userId !== input.userId) return "not_found";
+  if (
+    identity.provider === "better_auth" ||
+    identity.provider === "siwe" ||
+    identity.provider === "email"
+  ) {
+    return "protected";
+  }
+  const factorCount = await countLoginFactors(input.userId);
+  if (factorCount <= 1) return "last_factor";
+  const revoked = await revokeAuthIdentity({
+    userId: input.userId,
+    provider: identity.provider,
+    subject: identity.subject,
+  });
+  if (!revoked) return "not_found";
+  await logAccountEvent({
+    userId: input.userId,
+    eventType: "identity.revoked",
+    data: { identityId: input.identityId, provider: identity.provider },
+  });
+  return "revoked";
 }
 
 export async function renameWallet(input: {
@@ -459,7 +497,7 @@ export async function updateAccountProfile(input: {
       input.displayName === undefined
         ? undefined
         : sanitizeDisplayName(input.displayName),
-    avatarUrl: input.avatarUrl ?? null,
+    avatarUrl: input.avatarUrl,
   });
   await logAccountEvent({
     userId: input.userId,

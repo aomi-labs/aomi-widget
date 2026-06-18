@@ -262,6 +262,14 @@ export function useAomiBackendAccountRuntime(input: {
       setStatus("ready");
       setPendingConfirmation(undefined);
     },
+    updateAccount: async ({ displayName, avatarUrl }) => {
+      await fetchJson(`${baseUrl}/api/aomi/account`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ displayName, avatarUrl }),
+      });
+      await refresh();
+    },
     linkWallet: async (wallet) => {
       if (
         wallet.family !== "evm" ||
@@ -336,6 +344,12 @@ export function useAomiBackendAccountRuntime(input: {
     },
     unlinkWallet: async (walletId) => {
       await fetchJson(`${baseUrl}/api/aomi/wallets/${walletId}`, {
+        method: "DELETE",
+      });
+      await refresh();
+    },
+    unlinkAuthIdentity: async (identityId) => {
+      await fetchJson(`${baseUrl}/api/aomi/identities/${identityId}`, {
         method: "DELETE",
       });
       await refresh();
