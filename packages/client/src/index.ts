@@ -39,6 +39,7 @@ export type {
   AomiSystemEvent,
   AomiSystemResponse,
   AomiThread,
+  AomiHttpMethod,
   Logger,
 } from "./types";
 export type {
@@ -65,8 +66,6 @@ export {
   isSystemError,
   isSystemNotice,
 } from "./types";
-export { AOMI_BACKEND_ENDPOINTS } from "./routes";
-export type { AomiAuthClass, AomiEndpointSpec, AomiHttpMethod } from "./routes";
 
 // =============================================================================
 // Session (high-level orchestrated client)
