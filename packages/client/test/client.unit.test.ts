@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { createAccountAccessTokenProvider } from "../src/account-session";
 import { AomiClient } from "../src/client";
-import { AOMI_BACKEND_ENDPOINTS } from "../src/routes";
+import { AOMI_BACKEND_ENDPOINTS } from "./routes";
 
 describe("AomiClient route manifest", () => {
   it("tracks the current backend route surface without legacy control routes", () => {
@@ -292,9 +292,9 @@ describe("AomiClient account profile", () => {
         "http://unit.test/api/chat?app=default&message=swap+20+mon+to+usdc&public_key=0xabc&client_id=client-1",
       );
       expect((init as RequestInit | undefined)?.body).toBeUndefined();
-      expect(new Headers((init as RequestInit).headers).get("X-Session-Id")).toBe(
-        "session-1",
-      );
+      expect(
+        new Headers((init as RequestInit).headers).get("X-Session-Id"),
+      ).toBe("session-1");
     } finally {
       vi.stubGlobal("fetch", originalFetch);
     }
@@ -329,9 +329,9 @@ describe("AomiClient account profile", () => {
         "http://unit.test/api/session/model?rig=gpt-5&app=default&client_id=client-1",
       );
       expect((init as RequestInit | undefined)?.body).toBeUndefined();
-      expect(new Headers((init as RequestInit).headers).get("X-Session-Id")).toBe(
-        "session-1",
-      );
+      expect(
+        new Headers((init as RequestInit).headers).get("X-Session-Id"),
+      ).toBe("session-1");
     } finally {
       vi.stubGlobal("fetch", originalFetch);
     }
