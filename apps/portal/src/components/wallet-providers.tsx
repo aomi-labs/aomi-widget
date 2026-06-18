@@ -25,6 +25,10 @@ import {
   monad,
   monadTestnet,
 } from "@aomi-labs/widget-lib";
+import {
+  E2EWalletProvider,
+  type E2EWalletSeedClient,
+} from "./e2e-wallet-provider";
 
 // Enable localhost/Anvil network for E2E testing with `pnpm dev:localhost`
 const useLocalhost = process.env.NEXT_PUBLIC_USE_LOCALHOST === "true";
@@ -191,13 +195,21 @@ function LocalhostNetworkEnforcer({ children }: { children: ReactNode }) {
 
 type Props = {
   children: ReactNode;
-  cookies?: string | null;
+  e2eWallet?: E2EWalletSeedClient | null;
 };
 
-export function WalletProviders({ children }: Props) {
+export function WalletProviders({ children, e2eWallet }: Props) {
   const pathname = usePathname();
   if (pathname?.startsWith("/auth/privy")) {
     return <>{children}</>;
+  }
+
+  if (e2eWallet) {
+    return (
+      <E2EWalletProvider seed={e2eWallet} networks={networks}>
+        {children}
+      </E2EWalletProvider>
+    );
   }
 
   const content = paraApiKey ? (
