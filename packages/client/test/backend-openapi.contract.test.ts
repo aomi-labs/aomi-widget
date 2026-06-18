@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 
-import { AOMI_BACKEND_ENDPOINTS } from "../src/routes";
-import type { AomiAuthClass, AomiHttpMethod } from "../src/routes";
 import backendOpenApiFixture from "./fixtures/backend-openapi.json";
+import { AOMI_BACKEND_ENDPOINTS } from "./routes";
+import type { AomiAuthClass, AomiHttpMethod } from "./routes";
 
 type OpenApiOperation = {
   "x-aomi-auth"?: string;

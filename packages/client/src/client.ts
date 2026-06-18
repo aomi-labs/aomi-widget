@@ -25,8 +25,8 @@ import type {
   AomiThread,
   GetAccountAccessToken,
   Logger,
+  AomiHttpMethod,
 } from "./types";
-import type { AomiHttpMethod } from "./routes";
 import { UserState, type UserState as UserStateShape } from "./user-state";
 import { createSseSubscriber, type SseSubscriber } from "./sse";
 
