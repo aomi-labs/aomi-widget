@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useEffect, type FC } from "react";
+import { useState, type FC } from "react";
 import { ChevronDownIcon, CheckIcon } from "lucide-react";
-import { useControl, cn } from "@aomi-labs/react";
+import { useAuthEndpoints, usePerThreadControl, cn } from "@aomi-labs/react";
 import { Button } from "@/components/ui/button";
 import {
   Popover,
@@ -33,24 +33,18 @@ export const AppSelect: FC<AppSelectProps> = ({
   className,
   placeholder = "Select App",
 }) => {
+  const { state: authState } = useAuthEndpoints();
   const {
-    state,
-    getAuthorizedApps,
-    getCurrentThreadApp,
-    onAppSelect,
+    actions: { getCurrentThreadApp, onAppSelect },
     isProcessing,
-  } = useControl();
+  } = usePerThreadControl();
   const [open, setOpen] = useState(false);
-
-  useEffect(() => {
-    void getAuthorizedApps();
-  }, [getAuthorizedApps]);
 
   const selectedApp = getCurrentThreadApp();
   const selectedInfo = getAppInfo(selectedApp);
   const SelectedAppIcon = getAppIcon(selectedApp);
 
-  const apps = state.authorizedApps;
+  const apps = authState.authorizedApps;
 
   // Separate "default" (All Apps) from the rest for pinned treatment
   const hasAllApps = apps.includes(ALL_APPS_ID);

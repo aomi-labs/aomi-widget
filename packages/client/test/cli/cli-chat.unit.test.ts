@@ -88,7 +88,6 @@ describe("CLI chat wallet sync", () => {
     expect(resolveUserState).toHaveBeenCalledWith({
       connection: {
         is_connected: true,
-        primary_family: "evm",
       },
       evm: {
         aa: {
@@ -111,7 +110,6 @@ describe("CLI chat wallet sync", () => {
       payload: {
         connection: {
           is_connected: true,
-          primary_family: "evm",
         },
         evm: {
           aa: {

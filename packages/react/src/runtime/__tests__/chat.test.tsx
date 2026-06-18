@@ -278,7 +278,7 @@ describe("Chat API", () => {
 
       await act(async () => {
         api.setUser({
-          connection: { is_connected: true, primary_family: "svm" },
+          connection: { is_connected: true },
           svm: {
             address: "So1anaCaseSensitiveSigner",
             cluster: "solana:mainnet",

@@ -1,5 +1,4 @@
 export type WalletConnectionSource = "mini_app" | "server_wc";
-export type WalletPrimaryFamily = "evm" | "svm" | "dual";
 
 export interface TxCall {
   to: string;
@@ -88,7 +87,6 @@ export interface UserWalletState {
   svmAddress?: string;
   svmCluster?: string | null;
   walletProvider?: string;
-  primaryFamily?: WalletPrimaryFamily;
   providerLabel?: string;
   source?: WalletConnectionSource;
   activeOperation?: WalletOperation;

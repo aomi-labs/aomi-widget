@@ -154,10 +154,13 @@ export {
 // =============================================================================
 export {
   useControl,
+  useApiKey,
+  useByok,
+  useAuthEndpoints,
+  usePerThreadControl,
   ControlContextProvider,
   type ControlState,
   type ControlContextApi,
   type ControlContextProviderProps,
-  type StoredModelPreference,
   type StoredByokKey,
 } from "./contexts/control-context";
