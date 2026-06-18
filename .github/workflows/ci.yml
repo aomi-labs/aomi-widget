@@ -39,6 +39,11 @@ jobs:
       - name: Run library tests
         run: pnpm run test
 
+      - name: Check live backend OpenAPI contract
+        run: pnpm run test:openapi:live
+        env:
+          NEXT_PUBLIC_BACKEND_URL: ${{ vars.NEXT_PUBLIC_BACKEND_URL }}
+
       - name: Run registry tests
         run: pnpm --dir apps/registry exec vitest run
 
