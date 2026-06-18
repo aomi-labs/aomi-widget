@@ -711,7 +711,10 @@ export function WalletPicker() {
         >
           <section
             inert={accountView ? true : undefined}
-            className="flex w-1/2 min-w-0 shrink-0 flex-col"
+            className={cn(
+              "flex w-1/2 min-w-0 shrink-0 flex-col",
+              accountView && "h-0 overflow-hidden",
+            )}
           >
             <div className="border-border/70 bg-background/80 flex items-start gap-3 border-b px-4 pb-3 pt-4">
               <span className="bg-muted/70 text-muted-foreground flex size-10 shrink-0 items-center justify-center rounded-2xl">
@@ -1028,7 +1031,10 @@ function AccountManagerPanel({
   return (
     <section
       inert={inertPanel ? true : undefined}
-      className="flex w-1/2 min-w-0 shrink-0 flex-col"
+      className={cn(
+        "flex w-1/2 min-w-0 shrink-0 flex-col",
+        inertPanel && "h-0 overflow-hidden",
+      )}
     >
       <div className="border-border/70 bg-background/80 flex items-center gap-2 border-b px-3 pb-3 pt-4">
         <button
