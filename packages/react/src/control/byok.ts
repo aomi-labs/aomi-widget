@@ -123,7 +123,6 @@ export function useByokImpl({
       });
     // clientIdRef is a ref; reading inside the effect is fine, but we
     // intentionally do NOT depend on it (it's stable across renders).
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [aomiClientRef, byokKeys, getControlSessionId]);
 
   // ---------------------------------------------------------------------------

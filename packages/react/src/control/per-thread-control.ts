@@ -161,7 +161,6 @@ export function usePerThreadControlImpl({
   const getCurrentThreadControl = useCallback((): ThreadControlState => {
     const metadata = getThreadMetadataRef.current(sessionIdRef.current);
     return metadata?.control ?? initThreadControl();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const getPreferredThreadControl = useCallback((): ThreadControlState => {
@@ -177,7 +176,6 @@ export function usePerThreadControlImpl({
       modelMode: selection.mode,
       controlDirty: selection.model !== null,
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const getCurrentThreadApp = useCallback((): string => {
@@ -191,7 +189,6 @@ export function usePerThreadControlImpl({
         defaultAppRef.current,
       ) ?? "default"
     );
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const onModelSelect = useCallback(
@@ -249,7 +246,6 @@ export function usePerThreadControlImpl({
         console.error("[per-thread-control] setModel failed:", err);
         throw err;
       }
-      // eslint-disable-next-line react-hooks/exhaustive-deps
     },
     [],
   );
@@ -278,7 +274,6 @@ export function usePerThreadControlImpl({
         controlDirty: true,
       },
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const markControlSynced = useCallback(() => {
@@ -290,7 +285,6 @@ export function usePerThreadControlImpl({
         control: { ...currentControl, controlDirty: false },
       });
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const syncCurrentThreadControl = useCallback(async () => {
@@ -333,7 +327,6 @@ export function usePerThreadControlImpl({
         },
       });
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Auto-effect: fill in a missing model from stored preference, or
@@ -384,7 +377,6 @@ export function usePerThreadControlImpl({
 
     if (!nextControl) return;
     updateThreadMetadataRef.current(threadId, { control: nextControl });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [getPreferredThreadControl, sessionId, availableModels, defaultModel]);
 
   return {

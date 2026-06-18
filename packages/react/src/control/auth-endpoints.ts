@@ -96,7 +96,6 @@ export function useAuthEndpointsImpl({
     };
     void fetchApps();
     // apiKey is the only meaningful trigger; everything else is refs.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [aomiClientRef, getControlSessionId, apiKey]);
 
   // Fetch models on mount only.
