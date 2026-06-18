@@ -43,6 +43,7 @@ export async function POST(req: Request): Promise<Response> {
     nonce?: string;
     message?: string;
     signature?: string;
+    label?: string | null;
   } | null;
   if (!body?.family || !body.address) {
     return json(400, { error: "family_and_address_required" });
@@ -90,6 +91,7 @@ export async function POST(req: Request): Promise<Response> {
     kind: "external",
     provider: "siwe",
     linkedVia: body.family === "evm" ? "siwe" : "siws",
+    label: body.label ?? null,
   });
   if (resolution.status === "conflict") {
     return json(409, {

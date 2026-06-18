@@ -3,7 +3,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { AuthRuntime, SvmWalletRuntime } from "../composer/types";
 import type { EvmWalletRuntime } from "../runtime/evm/wallet-runtime";
+import { brandDisplayName } from "../runtime/evm/brands";
 import type { AccountRuntime, AccountWallet } from "./types";
+import type { WalletFamily } from "../types";
 
 export type AomiBackendAccountConfig = {
   mode: "aomi-backend";
@@ -258,9 +260,15 @@ export function useAomiBackendAccountRuntime(input: {
               message,
             })
           : await signMessageWithActiveEvm(input.evm.signMessageAsync, message);
+      const defaultLabel = buildDefaultWalletLabel({
+        walletName: input.evm.activeEvmConnection?.walletName,
+        existingWallets: account?.wallets ?? [],
+        family: wallet.family,
+      });
       const body = {
         ...wallet,
         chainId,
+        label: defaultLabel,
         message,
         signature,
         nonce: nonceResult.nonce,
@@ -304,6 +312,26 @@ export function useAomiBackendAccountRuntime(input: {
       await refresh();
     },
   };
+}
+
+/**
+ * Build a first-link default label like "Rabby 1" / "MetaMask 2" so the
+ * account-management row is never blank before the user renames it. Only used
+ * as the initial value — `upsertWallet` keeps an existing label via
+ * `coalesce(aomi_wallets.label, excluded.label)`, so user renames stick.
+ */
+function buildDefaultWalletLabel(input: {
+  walletName?: string | null;
+  existingWallets: readonly AccountWallet[];
+  family: WalletFamily;
+}): string {
+  const brand = brandDisplayName(input.walletName);
+  const sameBrand = input.existingWallets.filter(
+    (wallet) =>
+      wallet.family === input.family &&
+      wallet.label?.toLowerCase().startsWith(brand.toLowerCase()),
+  ).length;
+  return `${brand} ${sameBrand + 1}`;
 }
 
 async function signMessageWithActiveEvm(

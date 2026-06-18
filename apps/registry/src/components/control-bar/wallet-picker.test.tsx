@@ -684,12 +684,14 @@ describe("WalletPicker", () => {
       );
     });
 
-    expect(screen.getByText("Verified account")).toBeTruthy();
+    expect(screen.getByText("Manage account")).toBeTruthy();
     expect(screen.getByText("Connected now")).toBeTruthy();
     expect(screen.getByText("Account access")).toBeTruthy();
     expect(screen.getByText("Privy")).toBeTruthy();
     expect(screen.getAllByText("Treasury").length).toBeGreaterThan(0);
-    expect(screen.getAllByText(/Write access/).length).toBeGreaterThan(0);
+    // Capability is encoded by the ChainTag dot color (green = write),
+    // not by subtitle text.
+    expect(screen.getAllByText("EVM").length).toBeGreaterThan(0);
 
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "Rename account" }));
