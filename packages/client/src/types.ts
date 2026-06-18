@@ -57,6 +57,8 @@ export type AomiRequestQueryValue =
   | null
   | undefined;
 
+export type AomiHttpMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
+
 export interface AomiRequestOptions {
   /** Session id for session-scoped routes. */
   sessionId?: string;
