@@ -173,39 +173,15 @@ export function AomiRuntimeCore({
   const threadsMaterializedForSendRef = useRef(new Set<string>());
   const [isThreadLoading, setIsThreadLoading] = useState(false);
 
-  const warmThread = useCallback(
-    async (threadId: string) => {
-      if (
-        !remoteThreadIdsRef.current.has(threadId) ||
-        warmedThreadIdsRef.current.has(threadId)
-      ) {
-        return;
-      }
-
-      const existingPromise = warmPromisesRef.current.get(threadId);
-      if (existingPromise) {
-        return existingPromise;
-      }
-
-      const warmPromise = (async () => {
-        const userState = getUserState();
-        const publicKey = UserState.isConnected(userState)
-          ? getLegacySessionPublicKey(userState)
-          : undefined;
-        await aomiClientRef.current.createThread(threadId, publicKey);
-        warmedThreadIdsRef.current.add(threadId);
-      })();
-
-      warmPromisesRef.current.set(threadId, warmPromise);
-
-      try {
-        await warmPromise;
-      } finally {
-        warmPromisesRef.current.delete(threadId);
-      }
-    },
-    [aomiClientRef, getUserState],
-  );
+  const warmThread = useCallback(async (threadId: string) => {
+    // Threads in remoteThreadIdsRef were just confirmed to exist on the
+    // backend via listThreads, so re-POSTing createThread is a wasted
+    // round-trip (idempotent no-op). Threads NOT in remoteThreadIdsRef
+    // are local-only and get created on first send via ensureBackendThread.
+    // Either way, warming is now pure bookkeeping.
+    if (!remoteThreadIdsRef.current.has(threadId)) return;
+    warmedThreadIdsRef.current.add(threadId);
+  }, []);
 
   // ---------------------------------------------------------------------------
   // Ensure backend thread exists (lazy creation on first message send)
@@ -261,8 +237,16 @@ export function AomiRuntimeCore({
       return;
     }
 
+    // Render cached messages immediately on revisits; refresh in the background
+    // without a skeleton flash. Only show the skeleton when there's nothing
+    // local to render.
+    const hasCachedMessages =
+      threadContext.getThreadMessages(threadId).length > 0;
+
     let cancelled = false;
-    setIsThreadLoading(true);
+    if (!hasCachedMessages) {
+      setIsThreadLoading(true);
+    }
 
     void (async () => {
       try {
@@ -283,6 +267,7 @@ export function AomiRuntimeCore({
   }, [
     closeIdleSessionsExcept,
     ensureInitialState,
+    threadContext,
     threadContext.currentThreadId,
     warmThread,
   ]);
