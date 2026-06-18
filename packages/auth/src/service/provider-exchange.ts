@@ -20,9 +20,7 @@ import {
 
 export type ProviderExchangeResult =
   | { status: "linked"; account: AomiAccountResponse }
-  | (SignalResolution & {
-      status: "needs_confirmation" | "moved" | "merged" | "noop";
-    });
+  | (SignalResolution & { status: "conflict" | "noop" });
 
 export async function verifyProviderCredential(
   credential: AomiAccountCredential,
@@ -64,7 +62,6 @@ export async function verifyProviderCredential(
 export async function exchangeProviderForExistingSession(input: {
   betterAuthUserId: string;
   credential: AomiAccountCredential;
-  confirm?: boolean;
 }): Promise<ProviderExchangeResult> {
   const verified = await verifyProviderCredential(input.credential);
   if (verified.provider === "cookie") {
@@ -104,9 +101,8 @@ export async function exchangeProviderForExistingSession(input: {
           ? verified.token.connectedWallets
           : undefined,
     },
-    confirmed: input.confirm,
   });
-  if (resolution.status === "needs_confirmation") return resolution;
+  if (resolution.status === "conflict") return resolution;
   const updatedUser = await findAomiUserById(user.id);
 
   return {

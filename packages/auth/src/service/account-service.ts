@@ -1,7 +1,6 @@
 import { pool } from "../db/pool";
 import {
   buildAccountResponse,
-  closeMergedUser,
   countLoginFactors,
   createAomiUserForBetterAuth,
   deleteBetterAuthSiweWallet,
@@ -23,7 +22,6 @@ import {
   upsertEmailIdentity,
   upsertWallet,
   withTransaction,
-  moveSignal,
 } from "../db/queries";
 import type {
   AomiAccountResponse,
@@ -213,61 +211,23 @@ export async function syncSiweWalletsForUser(input: {
 export async function resolveSignal(input: {
   currentUserId: AomiUserId;
   signal: SignalRef;
-  confirmed?: boolean;
 }): Promise<SignalResolution> {
   await ensureAccountSchema();
   const ownerId = await findSignalOwner(input.signal);
   if (!ownerId) return { status: "linked" };
   if (ownerId === input.currentUserId) return { status: "noop" };
 
-  const loginFactors = await countLoginFactors(ownerId);
-  const lastFactor = loginFactors <= 1 && isLoginCapableSignal(input.signal);
-  if (!input.confirmed) {
-    return {
-      status: "needs_confirmation",
-      severity: lastFactor ? "red" : "yellow",
-      otherUserId: ownerId,
-      otherAccountWillClose: lastFactor,
-    };
-  }
-
-  return withTransaction(async (db) => {
-    await moveSignal({
-      signal: input.signal,
-      fromUserId: ownerId,
-      toUserId: input.currentUserId,
-      db,
-    });
-    await logAccountEvent({
-      userId: input.currentUserId,
-      actorUserId: input.currentUserId,
-      eventType: signalEventType(input.signal, "moved"),
-      data: { fromUserId: ownerId, signal: input.signal },
-      db,
-    });
-    if (!lastFactor) return { status: "moved" as const };
-
-    await closeMergedUser({
-      dyingUserId: ownerId,
-      survivorUserId: input.currentUserId,
-      db,
-    });
-    await logAccountEvent({
-      userId: input.currentUserId,
-      actorUserId: input.currentUserId,
-      eventType: "account.merged",
-      data: { dyingUserId: ownerId },
-      db,
-    });
-    await logAccountEvent({
-      userId: ownerId,
-      actorUserId: input.currentUserId,
-      eventType: "account.closed",
-      data: { mergedInto: input.currentUserId },
-      db,
-    });
-    return { status: "merged" as const };
+  await logAccountEvent({
+    userId: input.currentUserId,
+    actorUserId: input.currentUserId,
+    eventType: signalEventType(input.signal, "conflict"),
+    data: { signal: input.signal },
   });
+  return {
+    status: "conflict",
+    reason: "already_linked_to_another_account",
+    signalType: input.signal.type,
+  };
 }
 
 export async function upsertVerifiedWallet(input: {
@@ -281,7 +241,6 @@ export async function upsertVerifiedWallet(input: {
   providerWalletId?: string | null;
   linkedVia: LinkedVia;
   label?: string | null;
-  confirmed?: boolean;
 }): Promise<SignalResolution> {
   const signal = {
     type: "wallet" as const,
@@ -292,9 +251,8 @@ export async function upsertVerifiedWallet(input: {
   const resolution = await resolveSignal({
     currentUserId: input.userId,
     signal,
-    confirmed: input.confirmed,
   });
-  if (resolution.status === "needs_confirmation") return resolution;
+  if (resolution.status === "conflict") return resolution;
   const siweSubject = siweIdentitySubject(input);
   const identityResolution = siweSubject
     ? await resolveSignal({
@@ -304,10 +262,9 @@ export async function upsertVerifiedWallet(input: {
           provider: "siwe",
           subject: siweSubject,
         },
-        confirmed: input.confirmed,
       })
     : null;
-  if (identityResolution?.status === "needs_confirmation") {
+  if (identityResolution?.status === "conflict") {
     return identityResolution;
   }
   await upsertWallet(input);
@@ -351,7 +308,6 @@ export async function linkProviderIdentity(input: {
   authMethod?: string | null;
   displayLabel?: string | null;
   providerMetadata?: Record<string, unknown>;
-  confirmed?: boolean;
 }): Promise<SignalResolution> {
   const identitySignal = {
     type: "identity" as const,
@@ -361,9 +317,8 @@ export async function linkProviderIdentity(input: {
   const identityResolution = await resolveSignal({
     currentUserId: input.userId,
     signal: identitySignal,
-    confirmed: input.confirmed,
   });
-  if (identityResolution.status === "needs_confirmation") {
+  if (identityResolution.status === "conflict") {
     return identityResolution;
   }
 
@@ -371,9 +326,8 @@ export async function linkProviderIdentity(input: {
     const emailResolution = await resolveSignal({
       currentUserId: input.userId,
       signal: { type: "email", email: input.email },
-      confirmed: input.confirmed,
     });
-    if (emailResolution.status === "needs_confirmation") {
+    if (emailResolution.status === "conflict") {
       return emailResolution;
     }
     await upsertEmailIdentity({
@@ -537,10 +491,6 @@ export async function updateAccountProfile(input: {
       avatarUrl: input.avatarUrl ? "[updated]" : null,
     },
   });
-}
-
-function isLoginCapableSignal(signal: SignalRef): boolean {
-  return signal.type === "wallet" || signal.type === "identity";
 }
 
 function signalEventType(signal: SignalRef, suffix: string): string {

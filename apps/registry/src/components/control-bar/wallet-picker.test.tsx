@@ -744,33 +744,6 @@ describe("WalletPicker", () => {
     expect(unlinkLinkedWallet).toHaveBeenCalledWith("wallet-1");
   });
 
-  it("renders account move and merge confirmations", async () => {
-    const confirm = vi.fn(async () => undefined);
-    const dismiss = vi.fn();
-    renderPicker(
-      makeAdapter({
-        accountConfirmation: {
-          severity: "red",
-          title: "Merge another account?",
-          message: "This wallet is the last login method on another account.",
-          confirmLabel: "Merge account",
-          otherAccountWillClose: true,
-          confirm,
-          dismiss,
-        },
-      }),
-    );
-
-    expect(screen.getByRole("alertdialog")).toBeTruthy();
-    expect(screen.getByText("Merge another account?")).toBeTruthy();
-    await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: "Merge account" }));
-    });
-    expect(confirm).toHaveBeenCalled();
-    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
-    expect(dismiss).toHaveBeenCalled();
-  });
-
   it("shows the account button for a loaded wallet-only account without a provider UI", () => {
     renderPicker(
       makeAdapter({

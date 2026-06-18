@@ -20,7 +20,6 @@ const bodySchema = z.object({
     .optional(),
   providerToken: z.string().min(1),
   keyId: z.string().optional(),
-  confirm: z.boolean().optional(),
 });
 
 export function aomiProviderAuthPlugin(): BetterAuthPlugin {
@@ -35,9 +34,7 @@ export function aomiProviderAuthPlugin(): BetterAuthPlugin {
           requireRequest: true,
         },
         async (ctx) => {
-          const credential = ctx.body as AomiAccountCredential & {
-            confirm?: boolean;
-          };
+          const credential = ctx.body as AomiAccountCredential;
           const verified = await verifyProviderCredential(credential);
           if (verified.provider === "cookie") {
             return ctx.json({ status: "linked" });
@@ -75,7 +72,6 @@ export function aomiProviderAuthPlugin(): BetterAuthPlugin {
             subject: verified.token.subject,
             email: verified.token.email,
             emailVerified: verified.token.emailVerified,
-            confirmed: credential.confirm,
             providerMetadata: {
               expiresAt: verified.token.expiresAt,
               linkedAccounts:
@@ -92,8 +88,14 @@ export function aomiProviderAuthPlugin(): BetterAuthPlugin {
                   : undefined,
             },
           });
-          if (resolution.status === "needs_confirmation") {
-            return ctx.json(resolution);
+          if (resolution.status === "conflict") {
+            return ctx.json(
+              {
+                ...resolution,
+                error: "already_linked_to_another_account",
+              },
+              { status: 409 },
+            );
           }
 
           const session = await ctx.context.internalAdapter.createSession(

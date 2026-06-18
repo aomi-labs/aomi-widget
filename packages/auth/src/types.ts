@@ -33,7 +33,6 @@ export type DbAomiUser = {
   avatarUrl: string | null;
   metadata: Record<string, unknown>;
   deactivatedAt: Date | null;
-  mergedInto: AomiUserId | null;
   createdAt: Date;
   updatedAt: Date;
 };
@@ -180,10 +179,7 @@ export type SignalResolution =
   | { status: "linked" }
   | { status: "noop" }
   | {
-      status: "needs_confirmation";
-      severity: "yellow" | "red";
-      otherUserId: AomiUserId;
-      otherAccountWillClose: boolean;
-    }
-  | { status: "moved" }
-  | { status: "merged" };
+      status: "conflict";
+      reason: "already_linked_to_another_account";
+      signalType: SignalRef["type"];
+    };

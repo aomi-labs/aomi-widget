@@ -148,7 +148,7 @@ packages/auth/src/
     queries.ts              # typed query helpers
     migrations/
   service/
-    account-service.ts      # ensure user, resolveSignal (the ladder), link/move/merge
+    account-service.ts      # ensure user, resolveSignal (link/noop/conflict)
     wallet-normalization.ts # normalizeWalletAddress, walletKey, caip10
     provider-exchange.ts    # verify + link entrypoint
     siwe-mirror.ts          # mirror BetterAuth walletAddress -> aomi_wallets
@@ -197,7 +197,7 @@ What each side owns:
   cross-site), SIWE nonce/verify endpoints, and the BetterAuth
   user/session/account/walletAddress tables.
 - **Aomi account service owns:** the canonical `aomi_users.id`, linked provider
-  subjects, linked wallets, account settings, wallet labels, the move/merge policy,
+  subjects, linked wallets, account settings, wallet labels, the conflict policy,
   and the future id mapping Rust will trust.
 - **Rust backend** is a dashed/future box for this milestone. Do not route
   portal-only BetterAuth sessions through product-mono account routes until Phase F
@@ -333,53 +333,43 @@ flowchart TD
   Q{"Who owns this signal?"}
   U["Unclaimed → auto-link<br/>no prompt (green)"]
   M["Already yours → no-op / refresh"]
-  O{"Owned by another active account.<br/>Does that account have other login factors?"}
-  Y["Yellow warning → move it here.<br/>Other account survives, no data transfer."]
-  RD["Red warning → move it here, absorb its<br/>data into yours, permanently close it."]
+  C["Owned by another active account<br/>409 conflict"]
   S --> Q
   Q -->|nobody| U
   Q -->|you| M
-  Q -->|another user| O
-  O -->|yes| Y
-  O -->|"no — last factor"| RD
+  Q -->|another user| C
 ```
 
 Rules that fall out of this:
 
 1. **Auto-link only ever touches unclaimed signals** (the green branch). A signal
    owned by another account never moves silently.
-2. **Moves are gated behind a warning, not forbidden.** Yellow when the other
-   account survives; **red** when the signal is that account's last login-capable
-   factor, because moving it deactivates that account.
-3. **A merge only happens in the red case.** The survivor is _always_ the account
-   you are currently signed into — there is no "which one wins?" logic, and we
-   never merge two still-alive accounts. The dying account's data is absorbed, then
-   it is **permanently closed** (`merged_into` + `deactivated_at` set; not
-   reactivatable).
-4. **Safe by construction:** you can only move a signal you just proved control of
-   (you signed with the wallet, or the provider verified the email). It is
-   _reclaim_, not theft.
+2. **Signals owned by another active account are forbidden, not moved.** The user
+   must sign into the owning account and unlink the wallet/provider there, or close
+   that account through account-management tooling.
+3. **There is no merge engine.** We do not choose a survivor, absorb data, or
+   deactivate another account as part of link/sign-in.
+4. **Safe by construction:** proving control of a wallet/provider is enough to
+   create or refresh the owning account, but not enough to transfer it away from
+   another active account.
 5. **Reactive only.** No background/proactive clustering of accounts. We act on a
    collision at sign-in/link time, never by sweeping the graph.
-6. **Email follows the same ladder** — unclaimed email auto-links; a claimed email
-   warns and moves. No silent email merge anywhere.
-7. There is **no separate merge engine and no separate recovery flow.** "Recovery"
-   is just moving your wallet to wherever you are signed in.
+6. **Email follows the same rule** — unclaimed email auto-links; a claimed email
+   conflicts.
+7. There is **no separate merge or recovery flow** in account linking.
 
 Edge cases:
 
-- **An account with zero login-capable factors** (e.g. only an email left) is not a
-  valid active owner — it is treated as already deactivated, so moving its email
-  does not re-trigger a red merge.
-- **Concurrency:** the move/close is a single transaction guarded by the partial
-  unique index; a racing second move sees the new owner and re-evaluates.
+- **Concurrency:** uniqueness is guarded by partial unique indexes, and upserts only
+  refresh rows owned by the same user. A racing cross-account link returns a
+  conflict.
 - **Provider-attested wallets** (Privy/Para embedded wallets we did not SIWE-sign)
   are recorded as identities in v1, not imported as wallet rows — so they enter the
   ladder as `provider` signals, not `wallet` signals (§14.3/§14.4).
 
 ---
 
-## 7. How threads ride along (merge data transfer)
+## 7. How threads ride along
 
 **Reality check (verified against product-mono):** chat history is _already
 account-owned_ — `sessions` has a `user_id` column and product-mono explicitly
@@ -390,42 +380,19 @@ the backend needs already exists; the only missing piece is making the portal's
 `aomi_users.id` _be_ the `users.id` that `sessions.user_id` references (the Phase F
 id unification).
 
-So the rule is **history follows the account, not the wallet.** What a merge does
-to history is a single re-key of `sessions.user_id`.
-
-```mermaid
-flowchart LR
-  subgraph Before
-    A1["Account A<br/>sessions.user_id = A"]
-    B1["Account B (you)<br/>sessions.user_id = B"]
-  end
-  subgraph After
-    B2["Account B (you)<br/>A's + B's sessions"]
-    A2["Account A<br/>closed (merged_into = B)"]
-  end
-  A1 -->|reclaim A's last wallet (red case)| B2
-  B1 --> B2
-  A1 -.-> A2
-```
+So the rule is **history follows the account, not the wallet.** Since signals do
+not move across active accounts, there is no thread/data transfer during wallet or
+provider linking.
 
 **Two regimes — be honest about which is which:**
 
 - **v1 (ids not yet unified):** Privy/Para users already get account-owned sessions
   (`sessions.user_id`) via the existing exchange, so they get a unified per-account
   history today. SIWE/wallet-only users are Rust-anonymous (`sessions.user_id =
-null`), so their history is ephemeral until Phase F. A merge's data-absorption is
-  therefore a **policy we record** (`account.merged` / `account.closed` events) on
-  the portal graph; the Rust-side re-key waits for id unification.
+null`), so their history is ephemeral until Phase F.
 - **Phase F (ids unified):** once `aomi_users.id == users.id`, every signed-in user
-  (including SIWE-only) maps to a real `sessions.user_id`, and a red-case merge is
-  simply:
-
-```sql
-update sessions set user_id = :survivor where user_id = :dying_account;
-```
-
-driven off the `account.merged` event. No new table, no wallet-keyed backfill — the
-account-owned model is already there.
+  (including SIWE-only) maps to a real `sessions.user_id`. Linking still does not
+  move signals or re-key history between active accounts.
 
 ---
 
@@ -536,7 +503,6 @@ erDiagram
     citext primary_email
     text display_name
     timestamptz deactivated_at
-    uuid merged_into FK
   }
   aomi_auth_identities {
     uuid id PK
@@ -599,9 +565,7 @@ create table if not exists aomi_users (
   primary_email_verified boolean not null default false,
   avatar_url text,
   metadata jsonb not null default '{}'::jsonb,
-  -- merge / deactivation
   deactivated_at timestamptz,
-  merged_into uuid references aomi_users(id),
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -619,8 +583,7 @@ create index if not exists aomi_users_primary_email_idx
 | `primary_email_verified`  | Only ever set true from a verified provider/SIWE path.                                                                                                                                     |
 | `display_name`            | Defaults to a derived short address (`0x12…ab`) until renamed.                                                                                                                             |
 | `avatar_url` / `metadata` | Profile; user-editable; never proof.                                                                                                                                                       |
-| `deactivated_at`          | Set when a red-case merge closes this account.                                                                                                                                             |
-| `merged_into`             | Points at the survivor when this account was absorbed. Audit + permanently-closed marker. Never expose a `deactivated_at`/`merged_into` user as an active session.                         |
+| `deactivated_at`          | Reserved for explicit account closure. Never expose a deactivated user as an active session.                                                                                               |
 
 ### 9.3 `aomi_auth_identities` — every login method
 
@@ -746,12 +709,10 @@ create index if not exists aomi_account_events_user_idx
   on aomi_account_events (user_id, created_at desc);
 ```
 
-Event types: `user.created`, `identity.linked`, `identity.moved`,
-`identity.revoked`, `wallet.linked`, `wallet.moved`, `wallet.label_updated`,
-`wallet.revoked`, `account.merged`, `account.closed`, `provider_token.verified`,
-`session.created`. The `account.merged` / `account.closed` rows are the red-case
-trail Phase F reconciles thread re-keys against. We store the _action_, not the
-network identity (no raw IP/UA — §18).
+Event types: `user.created`, `identity.linked`, `identity.conflict`,
+`identity.revoked`, `wallet.linked`, `wallet.conflict`, `wallet.label_updated`,
+`wallet.revoked`, `provider_token.verified`, `session.created`. We store the
+_action_, not the network identity (no raw IP/UA — §18).
 
 ### 9.6 Temp Supabase → product-mono mapping (Phase F reference)
 
@@ -813,7 +774,6 @@ export type DbAomiUser = {
   avatarUrl: string | null;
   metadata: Record<string, unknown>;
   deactivatedAt: Date | null;
-  mergedInto: AomiUserId | null;
   createdAt: Date;
   updatedAt: Date;
 };
@@ -1216,21 +1176,19 @@ or `{ "provider": "para", "tokenKind": "session_jwt", "providerToken": "eyJ…",
 
 Linked response: `{ "status": "linked", "account": { …AomiAccountResponse… } }`.
 
-Collision (needs confirmation):
+Collision:
 
 ```json
 {
-  "status": "needs_confirmation",
-  "severity": "yellow",
-  "code": "SIGNAL_OWNED_ELSEWHERE",
-  "message": "This is linked to another account.",
-  "otherAccountWillClose": false
+  "status": "conflict",
+  "reason": "already_linked_to_another_account",
+  "signalType": "identity",
+  "error": "already_linked_to_another_account"
 }
 ```
 
-The client re-submits with `confirm: true` to execute the move; `severity: "red"`
-
-- `otherAccountWillClose: true` means the other account is closed on confirm.
+The client does not retry with confirmation. The user must sign into the owning
+account to unlink the provider first.
 
 ### 13.3 `POST /api/aomi/wallets/link`
 
@@ -1240,13 +1198,12 @@ The client re-submits with `confirm: true` to execute the move; `severity: "red"
   "address": "0xAbC…",
   "chainId": 1,
   "message": "example.com wants you to sign in…",
-  "signature": "0x…",
-  "confirm": false
+  "signature": "0x…"
 }
 ```
 
 Server verifies signature + session + nonce + domain + chain id, runs the ladder,
-returns `{ "status": "linked" | "needs_confirmation" | "moved" | "merged", … }`.
+returns `{ "status": "linked" | "noop", … }` or a `409` conflict.
 
 ### 13.4 `PATCH /api/aomi/wallets/:id`
 
@@ -1379,40 +1336,24 @@ type SignalRef =
 async function resolveSignal(input: {
   currentUserId: AomiUserId;
   signal: SignalRef;
-  confirmed?: boolean; // user accepted the warning
 }): Promise<
   | { status: "linked" }
   | { status: "noop" }
   | {
-      status: "needs_confirmation";
-      severity: "yellow" | "red";
-      otherUserId: AomiUserId;
+      status: "conflict";
+      reason: "already_linked_to_another_account";
+      signalType: SignalRef["type"];
     }
-  | { status: "moved" }
-  | { status: "merged" }
 > {
   // 1. ownerId = active owner of signal (via the partial unique index)
   // 2. ownerId is none      -> insert/link to currentUserId, log *.linked       -> "linked"
   // 3. ownerId === current   -> touch last_seen                                  -> "noop"
-  // 4. ownerId is another user:
-  //    a. n = count active LOGIN-CAPABLE factors of ownerId
-  //       (active aomi_wallets + active aomi_auth_identities; email excluded)
-  //    b. lastFactor = (n <= 1 && signal is itself login-capable)
-  //    c. if !confirmed -> "needs_confirmation" { severity: lastFactor ? "red" : "yellow", otherUserId: ownerId }
-  //    d. if confirmed, in ONE transaction:
-  //       - reassign signal.user_id = currentUserId; log *.moved
-  //       - if lastFactor:
-  //           - (Phase F) re-key ownerId's Rust sessions:
-  //             UPDATE sessions SET user_id = currentUserId WHERE user_id = ownerId
-  //           - set owner.deactivated_at = now(), owner.merged_into = currentUserId
-  //           - log account.merged + account.closed                              -> "merged"
-  //       - else                                                                  -> "moved"
+  // 4. ownerId is another    -> log *.conflict, return conflict, do not mutate
 }
 ```
 
-Hard rule: a signal can never move without `confirmed: true`. The only automatic
-path is step 2 (unclaimed → link). An owner with zero login-capable factors is not
-a valid active owner (treated as already deactivated).
+Hard rule: a signal never moves between active accounts. The only automatic path is
+step 2 (unclaimed → link).
 
 ### 14.4 Upsert verified wallet & link provider identity
 
@@ -1500,7 +1441,7 @@ actual chain id.
 User is signed in -> selects "Add another wallet" / connects a new wallet
   -> the NEW wallet signs the SIWE/link challenge (last wallet does NOT re-sign)
   -> POST /api/aomi/wallets/link  (BetterAuth SIWE link path)
-  -> resolveSignal: unclaimed -> link; claimed elsewhere -> yellow/red warning -> move/merge
+  -> resolveSignal: unclaimed -> link; self -> noop; claimed elsewhere -> conflict
 ```
 
 ### 15.3 Privy login / link
@@ -1622,7 +1563,7 @@ function useAomiBackendAccountRuntime(input: {
   // 2. auto-trigger SIWE when an EVM wallet connects and there is no session
   // 3. if getCredential() exists and a session exists, exchange the provider token
   // 4. if no session and policy allows, hit the Phase D provider-session endpoint
-  // 5. surface yellow/red confirmation prompts from resolveSignal
+  // 5. surface cross-account conflicts as action errors
   // 6. compute live read/write capability from the wallet runtime
   // 7. expose updateWallet/unlinkWallet
 }
@@ -1677,7 +1618,6 @@ v1 UI work:
 - Feed the real `account` runtime from the composer into `AomiWalletKit` (replacing
   `DISABLED_ACCOUNT_RUNTIME`); wire `account.user` / `account.linkedAccounts`, not
   just `account.wallets`.
-- Render the yellow/red **move/merge confirmation** dialogs from `resolveSignal`.
 - Rename (≤80), unlink (block last login-capable factor), full sign-out.
 - Distinguish connected-now vs linked; compute capability live.
 
@@ -1690,7 +1630,8 @@ statuses, icons/tooltips.
 
 - Server-side session validation on every `/api/aomi/*` route; never trust a
   client `userId`.
-- A signal never moves without explicit `confirmed: true` (no silent takeovers).
+- A signal never moves between active accounts; cross-account collisions return a
+  conflict.
 - Last login-capable factor unlink is blocked.
 - BetterAuth built-in rate limiting on nonce / verify / exchange / link / unlink.
 - No raw provider tokens in logs or Aomi tables — verify, extract, discard.
@@ -1699,8 +1640,7 @@ statuses, icons/tooltips.
   custom plugin endpoints; CSRF via BetterAuth's cookie handling.
 - No IP/UA storage in v1 — `aomi_account_events` logs the _action_, not the network
   identity.
-- Wallet/provider/email collisions are never auto-moved; merges only via the
-  confirmed red path.
+- Wallet/provider/email collisions are never auto-moved or merged.
 
 ---
 
@@ -1774,13 +1714,14 @@ flowchart LR
 - [x] Frontend: when no session and policy allows, call the plugin endpoint.
 - [ ] Manual QA: Privy-only and Para-only logins (no SIWE) create a session.
 
-### Phase E — Account UI + the ladder
+### Phase E — Account UI + conflict policy
 
 - [x] Port the locked account-management UI onto the live runtime.
-- [x] Move/merge **yellow + red confirmation** dialogs wired to `resolveSignal`.
+- [x] Cross-account wallet/provider/email collisions return conflict instead of
+      moving or merging accounts.
 - [x] Rename (≤80), unlink with last-login-capable-factor guard, full sign-out.
 - [x] Connected-vs-linked sections; live read/write capability.
-- [x] Write `aomi_account_events` on link/move/merge/close.
+- [x] Write `aomi_account_events` on link/revoke/conflict.
 
 ### Phase F — Backend ownership (handed to the Rust team)
 
@@ -1790,9 +1731,6 @@ flowchart LR
       product `users.id` is **TEXT holding a UUID**, not native `uuid`.
 - [ ] Portal mints the account bearer (§5.1) once ids line up; proxy injects it —
       this is what finally gives SIWE/wallet-only users a real Rust session.
-- [ ] Merge re-key: `UPDATE sessions SET user_id = survivor WHERE user_id = dying`,
-      driven off the `account.merged` / `account.closed` events (§7). Sessions are
-      already account-owned — no new `threads` table, no wallet-keyed backfill.
 
 ---
 
@@ -1801,24 +1739,24 @@ flowchart LR
 ~85–90% ships on the portal + your Supabase alone, because the account layer is
 additive and Rust is untouched in v1.
 
-| Buildable now (portal + your Supabase)               | Needs the backend team (Phase F)                           |
-| ---------------------------------------------------- | ---------------------------------------------------------- |
-| BetterAuth + SIWE sessions, resolve-or-create        | Rust trusting a portal-minted account bearer               |
-| `aomi_users / identities / wallets / events`         | re-key `sessions.user_id` on merge (already account-owned) |
-| The full signal ladder (link / move / merge / close) | Unified per-account thread list                            |
-| Privy/Para verify + provider-token sessions          | `aomi_users.id` ↔ product `users.id` unification           |
-| `GET /api/aomi/account` + account CRUD               | the `/api/account/exchange` alias (small)                  |
-| `AccountRuntime` wired → full account UI             |                                                            |
-| `walletKey` fix, bearer plugin, cross-site           |                                                            |
+| Buildable now (portal + your Supabase)              | Needs the backend team (Phase F)                 |
+| --------------------------------------------------- | ------------------------------------------------ |
+| BetterAuth + SIWE sessions, resolve-or-create       | Rust trusting a portal-minted account bearer     |
+| `aomi_users / identities / wallets / events`        | Unified per-account thread list                  |
+| The signal policy (link / noop / conflict / revoke) |                                                  |
+| Privy/Para verify + provider-token sessions         | `aomi_users.id` ↔ product `users.id` unification |
+| `GET /api/aomi/account` + account CRUD              | the `/api/account/exchange` alias (small)        |
+| `AccountRuntime` wired → full account UI            |                                                  |
+| `walletKey` fix, bearer plugin, cross-site          |                                                  |
 
 **Handoff contract to the backend team (Phase F):**
 
 1. **Mint:** the account bearer in §5.1, signed with `AOMI_ACCOUNT_TOKEN_SECRET`.
 2. **Map (lean):** unify the DBs so `sub` is a real product `users.id`. Alternatives
    if not: sync ids into product-mono, or add a Rust subject namespace + mapping.
-3. **History:** sessions are already account-owned (`sessions.user_id`); on a merge,
-   re-key `sessions.user_id` to the survivor, driven off the `account.merged` /
-   `account.closed` events. No new `threads` table.
+3. **History:** sessions are already account-owned (`sessions.user_id`); account
+   linking does not transfer history between active accounts. No new `threads`
+   table.
 
 > "Without backend" means without the **Rust** backend. The portal's Next.js routes
 >
@@ -1831,10 +1769,8 @@ additive and Rust is untouched in v1.
 ### 21.1 Unit
 
 - Wallet normalization: EVM lowercases; SVM exact; mixed-case SVM does not collide.
-- Ladder/linking policy: unclaimed → link; claimed-by-self → noop; claimed-elsewhere
-  with other factors → `needs_confirmation` yellow; claimed-elsewhere last factor →
-  `needs_confirmation` red; confirmed yellow → moved; confirmed red → merged +
-  `account.closed`; last-login-capable-factor unlink blocked.
+- Ladder/linking policy: unclaimed → link; claimed-by-self → noop;
+  claimed-elsewhere → `conflict`; last-login-capable-factor unlink blocked.
 - Provider verification: Privy wrong `aud` / expired / mismatched `sub` reject; Para
   unknown `kid` / wrong `aud` / expired reject.
 
@@ -1908,10 +1844,10 @@ wallet → unlink a non-last wallet → attempt to unlink the last login-capable
   logout (incl. provider SDK).
 - **Providers:** Privy identity token; Para JWKS; record identity only (no provider
   wallet import yet).
-- **Linking/collision:** the signal ladder (§6) — unclaimed auto-links; collisions
-  warn (yellow/red) and move on confirm; merge only in the red case, survivor always
-  the current account, dying account absorbed + permanently closed; reactive only;
-  email follows the same ladder; extra EVM wallets via BetterAuth's SIWE link.
+- **Linking/collision:** the signal policy (§6) — unclaimed auto-links; self is
+  noop/refresh; collisions return conflict and require unlinking or closing the
+  owning account first; email follows the same rule; extra EVM wallets via
+  BetterAuth's SIWE link.
 - **SVM:** out of v1 (model stays SVM-safe); `walletKey` fix shipped standalone;
   connected SVM wallet shown read-only.
 - **Wallets:** no persisted `capability` (computed live); UI separates
