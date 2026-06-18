@@ -418,9 +418,8 @@ export function WalletPicker() {
   const socialOptionsToShow = providerAccountConnected
     ? []
     : socialLoginOptions;
-  // The account button (and its slide-in panel) is available whenever any
-  // wallet is connected — not just for providers with a native account modal.
-  const accountView = hasConnectedWallets && view === "account";
+  const hasAccountManagement = Boolean(adapter.accountUser);
+  const accountView = hasAccountManagement && view === "account";
   const accountDisplayName =
     adapter.accountUser?.displayName ??
     accountProfileEmail(adapter.accountUser) ??
@@ -435,11 +434,10 @@ export function WalletPicker() {
     ? "Switch wallets or link another one."
     : "Sign in quickly, or connect a wallet.";
 
-  // Pop back to the wallet manager if every wallet disconnects while the
-  // account panel is open.
+  // Pop back to the wallet manager if the signed account becomes unavailable.
   useEffect(() => {
-    if (!hasConnectedWallets && view !== "wallets") setView("wallets");
-  }, [hasConnectedWallets, view]);
+    if (!hasAccountManagement && view !== "wallets") setView("wallets");
+  }, [hasAccountManagement, view]);
 
   const signOutAccount = useCallback(async () => {
     await adapter.disconnect?.({ family: "all" });
@@ -732,7 +730,7 @@ export function WalletPicker() {
                 </p>
               </div>
               <div className="flex h-8 shrink-0 items-center gap-1.5">
-                {hasConnectedWallets ? (
+                {hasAccountManagement ? (
                   <ManageAccountButton
                     pending={pending}
                     providerSubtitle={providerSubtitle}
@@ -777,7 +775,7 @@ export function WalletPicker() {
             </div>
           </section>
 
-          {hasConnectedWallets ? (
+          {hasAccountManagement ? (
             <AccountManagerPanel
               inertPanel={!accountView}
               pending={pending}

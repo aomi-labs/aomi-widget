@@ -1,13 +1,14 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { createAccountAccessTokenProvider } from "@aomi-labs/client";
 import { getChainInfo } from "@aomi-labs/react";
 import {
   Button,
   formatAuthMethod,
   useAomiWalletKit,
 } from "@aomi-labs/widget-lib";
-import { settingsApiFetch } from "@portal/lib/settings-api";
+import { getBackendUrl, settingsApiFetch } from "@portal/lib/settings-api";
 import {
   settingsBodyTextClass,
   settingsCardClass,
@@ -58,9 +59,43 @@ function formatNumber(n?: number): string {
 export function GeneralSettings() {
   const adapter = useAomiWalletKit();
   const identity = adapter.identity;
+  const { accountUser, getAccountCredential } = adapter;
   const [account, setAccount] = useState<AccountOverview | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const accountAccessTokenProvider = useMemo(() => {
+    if (!getAccountCredential) return undefined;
+    return createAccountAccessTokenProvider({
+      baseUrl: getBackendUrl(),
+      getProviderCredential: async () => {
+        const credential = await getAccountCredential();
+        if (!credential) {
+          throw new Error("No account credential is available");
+        }
+        if ("providerToken" in credential) {
+          return credential;
+        }
+        if (
+          credential.kind === "token" &&
+          (credential.provider === "para" || credential.provider === "privy")
+        ) {
+          return {
+            provider: credential.provider,
+            providerToken: credential.token,
+          };
+        }
+        throw new Error("Account credential cannot be exchanged");
+      },
+    });
+  }, [getAccountCredential]);
+
+  useEffect(
+    () => () => {
+      accountAccessTokenProvider?.dispose();
+    },
+    [accountAccessTokenProvider],
+  );
 
   const networkTicker = identity.chainId
     ? getChainInfo(identity.chainId)?.ticker
@@ -73,15 +108,23 @@ export function GeneralSettings() {
 
   useEffect(() => {
     const run = async () => {
-      if (!identity.address) {
+      if (!accountUser && !identity.address) {
         setAccount(null);
         return;
       }
       setLoading(true);
       setError(null);
       try {
+        const accessToken = await accountAccessTokenProvider?.();
+        const query = new URLSearchParams();
+        if (identity.address) query.set("public_key", identity.address);
         const data = await settingsApiFetch<AccountOverview>(
-          `/api/settings/account?public_key=${encodeURIComponent(identity.address)}`,
+          query.size > 0
+            ? `/api/settings/account?${query.toString()}`
+            : "/api/settings/account",
+          accessToken
+            ? { headers: { Authorization: `Bearer ${accessToken}` } }
+            : undefined,
         );
         setAccount(data);
       } catch (err) {
@@ -92,7 +135,7 @@ export function GeneralSettings() {
     };
 
     void run();
-  }, [identity.address]);
+  }, [accountAccessTokenProvider, accountUser, identity.address]);
 
   return (
     <div className={settingsPageClass}>
@@ -153,7 +196,7 @@ export function GeneralSettings() {
           )}
           {!loading && !error && !account && (
             <p className={settingsBodyTextClass}>
-              Connect your wallet to load account details.
+              Sign in or connect a wallet to load account details.
             </p>
           )}
           {!loading && !error && account && (
