@@ -134,14 +134,6 @@ function identityToUserState(
   return {
     connection: {
       is_connected: identity.isConnected,
-      primary_family:
-        identity.address && identity.svmAddress
-          ? "dual"
-          : identity.address
-            ? "evm"
-            : identity.svmAddress
-              ? "svm"
-              : null,
       provider: "para",
       provider_label: identity.secondaryLabel ?? undefined,
     },

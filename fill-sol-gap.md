@@ -18,8 +18,8 @@ CLI onto the builtin SVM app path instead of the old Para-specific path.
 ## Widget/CLI changes on this branch
 
 - `packages/client/src/cli/user-state.ts`
-  - `buildCliUserState()` now emits `connection.primary_family = "solana"` and
-    `solana.address` when the active app is `svm` / `solana`.
+  - `buildCliUserState()` now emits `solana.address` when the active app is
+    `svm` / `solana`, without declaring a global primary wallet family.
 - `packages/client/src/cli/cli-session.ts`
   - The initial `ClientSession` state now passes the active app into
     `buildCliUserState()`.

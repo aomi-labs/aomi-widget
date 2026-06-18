@@ -92,12 +92,6 @@ export function svmAddress(userState?: UserState | null): string | undefined {
   return typeof value === "string" && value.length > 0 ? value : undefined;
 }
 
-export function preferredPublicKey(
-  userState?: UserState | null,
-): string | undefined {
-  return address(userState) ?? svmAddress(userState);
-}
-
 export function chainId(userState?: UserState | null): number | undefined {
   return parseChainId(evmBlock(userState)?.chain_id);
 }

@@ -350,7 +350,7 @@ describe("Thread API", () => {
           address: undefined,
           chainId: undefined,
           isConnected: true,
-          connection: { is_connected: true, primary_family: "svm" },
+          connection: { is_connected: true },
           svm: {
             address: "So1anaCaseSensitiveSigner",
             cluster: "solana:mainnet",

@@ -9,7 +9,6 @@ export type {
   UserStateEvmAa,
   UserStateEvmSponsorship,
   UserStatePending,
-  UserStatePrimaryFamily,
   UserStateSponsorProvider,
   UserStateSvm,
   UserStateWalletKind,
