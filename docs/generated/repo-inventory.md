@@ -31,7 +31,6 @@ review_after_days: 7
 - `apps/telegram`
 - `packages/auth`
 - `packages/client`
-- `packages/mcp-core`
 - `packages/react`
 
 ## Area Maps

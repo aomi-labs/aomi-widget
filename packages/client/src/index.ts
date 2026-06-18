@@ -16,6 +16,8 @@ export type {
 // =============================================================================
 
 export type {
+  AomiRequestOptions,
+  AomiRequestQueryValue,
   AomiAppDescriptor,
   AomiClientOptions,
   GetAccountAccessToken,
@@ -37,6 +39,7 @@ export type {
   AomiSystemEvent,
   AomiSystemResponse,
   AomiThread,
+  AomiHttpMethod,
   Logger,
 } from "./types";
 export type {

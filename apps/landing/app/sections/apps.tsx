@@ -343,26 +343,7 @@ function isPublicApp(appId: string) {
 }
 
 async function getSupportedApps() {
-  try {
-    const response = await fetch("https://api.aomi.dev/api/control/apps", {
-      next: { revalidate: 3600 },
-    });
-
-    if (!response.ok) {
-      throw new Error(`Failed to load apps: ${response.status}`);
-    }
-
-    const data = (await response.json()) as unknown;
-    if (!Array.isArray(data)) {
-      throw new Error("Unexpected app payload.");
-    }
-
-    return data.filter(
-      (value): value is string => typeof value === "string" && value.length > 0,
-    );
-  } catch {
-    return FALLBACK_APP_IDS;
-  }
+  return FALLBACK_APP_IDS;
 }
 
 function sortApps(appIds: string[]) {

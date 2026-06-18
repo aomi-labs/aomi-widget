@@ -161,6 +161,22 @@ type GetAccountAccessToken = (options?: {
     /** Re-exchange the upstream Para/Privy credential after an API 401. */
     forceRefresh?: boolean;
 }) => Promise<string | null | undefined>;
+type AomiRequestQueryValue = string | number | boolean | null | undefined;
+type AomiHttpMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
+interface AomiRequestOptions {
+    /** Session id for session-scoped routes. */
+    sessionId?: string;
+    /** App key for app-key checked routes; defaults to the client's apiKey. */
+    apiKey?: string;
+    /** Query params appended to the request URL. */
+    query?: Record<string, AomiRequestQueryValue>;
+    /** JSON request payload. */
+    body?: unknown;
+    /** Extra request headers. */
+    headers?: HeadersInit;
+    /** Use the native fetch path instead of a custom payment-aware fetch wrapper. */
+    raw?: boolean;
+}
 interface AomiMessage {
     sender?: "user" | "agent" | "system" | string;
     content?: string;
@@ -256,7 +272,7 @@ interface AomiCreateThreadResponse {
     title?: string;
 }
 /**
- * GET /api/settings/account
+ * GET /api/account
  * The account bound to the authenticated request (resolved from the account
  * bearer). Returned only when the session is bound to a real user; an
  * anonymous session yields HTTP 400.
@@ -291,8 +307,8 @@ interface AomiBeginAccountAuthResponse {
 type AomiWalletFamily = "evm" | "svm";
 type AomiAuthWalletFamily = "evm" | "solana";
 /**
- * GET/POST /api/control/provider-keys
- * Lists or saves BYOK keys (one per LLM provider) for the bound client.
+ * GET/POST/DELETE /api/account/payment/byok
+ * Lists or saves BYOK keys (one per LLM provider) for the account.
  */
 interface AomiByokKeyEntry {
     provider: string;
@@ -403,6 +419,11 @@ declare class AomiClient {
     private readonly sseSubscriber;
     constructor(options: AomiClientOptions);
     /**
+     * Low-level request escape hatch for the full backend route manifest.
+     * Prefer the typed helpers below for common chat/session/account flows.
+     */
+    request<T = unknown>(method: AomiHttpMethod, path: string, options?: AomiRequestOptions): Promise<T>;
+    /**
      * Fetch current session state (messages, processing status, title).
      */
     fetchState(sessionId: string, userState?: UserState, clientId?: string): Promise<AomiStateResponse>;
@@ -462,7 +483,7 @@ declare class AomiClient {
     subscribeSSE(sessionId: string, onUpdate: (event: AomiSSEEvent) => void, onError?: (error: unknown) => void): () => void;
     /**
      * @deprecated Account bootstrap is handled by session create/chat requests and
-     * the account-token exchange. `/api/settings/account` is now an authenticated
+     * the account-token exchange. `/api/account` is now an authenticated
      * profile endpoint, so this legacy helper intentionally does nothing.
      */
     ensureAccount(_sessionId: string, _publicKey: string): Promise<void>;
@@ -510,7 +531,7 @@ declare class AomiClient {
     /**
      * Fetch the account bound to the authenticated request (resolved from the
      * account bearer). Returns `null` when the session is not bound to a real
-     * user — the backend answers `/api/settings/account` with HTTP 400 for
+     * user — the backend answers `/api/account` with HTTP 400 for
      * anonymous sessions, which is the normal "no bearer / not logged in" case
      * rather than an error.
      */
@@ -542,15 +563,15 @@ declare class AomiClient {
         created: boolean;
     }>;
     /**
-     * List BYOK keys (one per LLM provider) bound to the current session's client.
+     * List BYOK keys (one per LLM provider) bound to the current account.
      */
     listByokKeys(sessionId: string): Promise<AomiByokKeyEntry[]>;
     /**
-     * Save or replace a BYOK key for the client bound to this session.
+     * Save or replace a BYOK key for the current account.
      */
     saveByokKey(sessionId: string, provider: string, byokKey: string, label?: string): Promise<AomiByokKeyEntry>;
     /**
-     * Delete a BYOK key for the client bound to this session.
+     * Delete a BYOK key for the current account.
      */
     deleteByokKey(sessionId: string, provider: string): Promise<boolean>;
     /**
@@ -1443,4 +1464,4 @@ interface CreateAAStateOptions {
  */
 declare function createAAProviderState(options: CreateAAStateOptions): Promise<AAState>;
 
-export { type AACallPayload, type AAChainConfig, type AAConfig, type AAMode, type AAOwner, type AAProvider, type AAResolvedConfig, type AASponsorship, type AAState, type AAWalletCall, ALCHEMY_CHAIN_SLUGS, type AccountAccessTokenProvider, type AccountAccessTokenProviderOptions, type AccountCredentialProvider, type AccountSessionExchangeResponse, type AlchemyHookParams, type AomiAppDescriptor, type AomiChatResponse, type AomiClearSecretsResponse, AomiClient, type AomiClientOptions, type AomiClientType, type AomiCreateThreadResponse, type AomiDeleteSecretResponse, type AomiIngestSecretsResponse, type AomiInterruptResponse, type AomiListSecretsResponse, type AomiMessage, type AomiSSEEvent, type AomiSSEEventType, type AomiSecretSlot, type AomiSimulateFee, type AomiSimulateResponse, type AomiStateResponse, type AomiSystemEvent, type AomiSystemResponse, type AomiThread, type AomiWalletFamily, type AtomicBatchArgs, CHAINS_BY_ID, CHAIN_NAMES, CLIENT_TYPE_TS_CLI, CLIENT_TYPE_WEB_UI, type ChainInfo, type CreateAAStateOptions, type CreateAlchemyAAProviderOptions, type CreatePimlicoAAProviderOptions, DEFAULT_AA_CONFIG, DISABLED_PROVIDER_STATE, type ExecuteWalletCallsParams, type ExecutionResult, type GetAccountAccessToken, type Logger, MAX_AUTO_FEE_WEI, type NativeWalletExecutionPolicy, type NativeWalletSponsorship, type NormalizedSimulatedFee, type NormalizedSolanaWalletRequest, type PimlicoHookParams, type PimlicoResolveOptions, type PimlicoResolvedConfig, SUPPORTED_CHAINS, SUPPORTED_CHAIN_IDS, type SendResult, ClientSession as Session, type SessionEventMap, type SessionOptions, type SmartAccount, type SponsorshipPaymasterServiceContext, TypedEventEmitter, type UnwrappedEvent, type UseAlchemyAAHook, type UsePimlicoAAHook, UserState, type UserStateAAMode, type UserStateAuthMethod, type UserStateSponsorProvider, type UserStateWalletKind, type UserStateWalletProvider, type ViemSignMessageArgs, type ViemSignTypedDataArgs, type WalletAtomicCapability, type WalletCapabilities, type WalletEip712Payload, type WalletRequest, type WalletRequestKind, type WalletRequestResult, type WalletSolanaSignMessagePayload, type WalletSolanaSignPayload, type WalletTxAaPreference, type WalletTxCallPayload, type WalletTxPayload, aaModeFromExecutionKind, adaptSmartAccount, appendFeeCallToPayload, buildAAExecutionPlan, buildFeeAAWalletCall, createAAProviderState, createAccountAccessTokenProvider, createAlchemyAAProvider, createPimlicoAAProvider, executeWalletCalls, getAAChainConfig, getWalletExecutorReady, hydrateTxPayloadFromUserState, isAlchemySponsorshipLimitError, isAsyncCallback, isInlineCall, isSystemError, isSystemNotice, monad, monadTestnet, normalizeEip712Payload, normalizeSimulatedFee, normalizeSolanaSignMessagePayload, normalizeSolanaSignPayload, normalizeSolanaWalletRequest, normalizeTxPayload, parseChainId, resolvePimlicoConfig, toAAWalletCall, toAAWalletCalls, toViemSignMessageArgs, toViemSignTypedDataArgs, unwrapSystemEvent };
+export { type AACallPayload, type AAChainConfig, type AAConfig, type AAMode, type AAOwner, type AAProvider, type AAResolvedConfig, type AASponsorship, type AAState, type AAWalletCall, ALCHEMY_CHAIN_SLUGS, type AccountAccessTokenProvider, type AccountAccessTokenProviderOptions, type AccountCredentialProvider, type AccountSessionExchangeResponse, type AlchemyHookParams, type AomiAppDescriptor, type AomiChatResponse, type AomiClearSecretsResponse, AomiClient, type AomiClientOptions, type AomiClientType, type AomiCreateThreadResponse, type AomiDeleteSecretResponse, type AomiHttpMethod, type AomiIngestSecretsResponse, type AomiInterruptResponse, type AomiListSecretsResponse, type AomiMessage, type AomiRequestOptions, type AomiRequestQueryValue, type AomiSSEEvent, type AomiSSEEventType, type AomiSecretSlot, type AomiSimulateFee, type AomiSimulateResponse, type AomiStateResponse, type AomiSystemEvent, type AomiSystemResponse, type AomiThread, type AomiWalletFamily, type AtomicBatchArgs, CHAINS_BY_ID, CHAIN_NAMES, CLIENT_TYPE_TS_CLI, CLIENT_TYPE_WEB_UI, type ChainInfo, type CreateAAStateOptions, type CreateAlchemyAAProviderOptions, type CreatePimlicoAAProviderOptions, DEFAULT_AA_CONFIG, DISABLED_PROVIDER_STATE, type ExecuteWalletCallsParams, type ExecutionResult, type GetAccountAccessToken, type Logger, MAX_AUTO_FEE_WEI, type NativeWalletExecutionPolicy, type NativeWalletSponsorship, type NormalizedSimulatedFee, type NormalizedSolanaWalletRequest, type PimlicoHookParams, type PimlicoResolveOptions, type PimlicoResolvedConfig, SUPPORTED_CHAINS, SUPPORTED_CHAIN_IDS, type SendResult, ClientSession as Session, type SessionEventMap, type SessionOptions, type SmartAccount, type SponsorshipPaymasterServiceContext, TypedEventEmitter, type UnwrappedEvent, type UseAlchemyAAHook, type UsePimlicoAAHook, UserState, type UserStateAAMode, type UserStateAuthMethod, type UserStateSponsorProvider, type UserStateWalletKind, type UserStateWalletProvider, type ViemSignMessageArgs, type ViemSignTypedDataArgs, type WalletAtomicCapability, type WalletCapabilities, type WalletEip712Payload, type WalletRequest, type WalletRequestKind, type WalletRequestResult, type WalletSolanaSignMessagePayload, type WalletSolanaSignPayload, type WalletTxAaPreference, type WalletTxCallPayload, type WalletTxPayload, aaModeFromExecutionKind, adaptSmartAccount, appendFeeCallToPayload, buildAAExecutionPlan, buildFeeAAWalletCall, createAAProviderState, createAccountAccessTokenProvider, createAlchemyAAProvider, createPimlicoAAProvider, executeWalletCalls, getAAChainConfig, getWalletExecutorReady, hydrateTxPayloadFromUserState, isAlchemySponsorshipLimitError, isAsyncCallback, isInlineCall, isSystemError, isSystemNotice, monad, monadTestnet, normalizeEip712Payload, normalizeSimulatedFee, normalizeSolanaSignMessagePayload, normalizeSolanaSignPayload, normalizeSolanaWalletRequest, normalizeTxPayload, parseChainId, resolvePimlicoConfig, toAAWalletCall, toAAWalletCalls, toViemSignMessageArgs, toViemSignTypedDataArgs, unwrapSystemEvent };

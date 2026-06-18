@@ -18,7 +18,7 @@ Use `./scripts/repowiki list` to enumerate topics and `./scripts/repowiki look <
 
 ## Auth
 
-- [auth/facts/auth.md](auth/facts/auth.md): `@aomi-labs/auth`, portal auth routes, and credential handoff flow
+- [auth/facts/auth.md](auth/facts/auth.md): backend-owned Privy flow and portal auth wiring
 - [auth/facts/auth-adapter.md](auth/facts/auth-adapter.md): auth-provider bridge from host wallets into runtime `UserState`
 - [auth/facts/base-account.md](auth/facts/base-account.md): Base Account provider surface
 
@@ -26,6 +26,10 @@ Use `./scripts/repowiki list` to enumerate topics and `./scripts/repowiki look <
 
 - [apps/facts/app-surfaces.md](apps/facts/app-surfaces.md): landing, base, portal, and telegram app surfaces
 - [apps/facts/widget-frame.md](apps/facts/widget-frame.md): embeddable Aomi frame composition and UI surface
+
+## BFF
+
+- [bff/facts/endpoints.md](bff/facts/endpoints.md): portal BFF route table, callers, upstream targets, and code paths
 
 ## Client Runtime
 

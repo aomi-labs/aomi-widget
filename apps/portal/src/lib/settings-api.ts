@@ -1,5 +1,9 @@
 "use client";
 
+import { useCallback, useEffect, useMemo } from "react";
+import { createAccountAccessTokenProvider } from "@aomi-labs/client";
+import { useAomiAuthAdapter } from "@aomi-labs/widget-lib";
+
 const SETTINGS_SESSION_KEY = "aomi_settings_session_id";
 const SECRET_STORAGE_KEY = "aomi_secret_key";
 const DEFAULT_BACKEND_URL = "http://127.0.0.1:8080";
@@ -18,7 +22,10 @@ function normalizeBackendUrl(url: string): string {
 }
 
 function generateSessionId(): string {
-  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+  if (
+    typeof crypto !== "undefined" &&
+    typeof crypto.randomUUID === "function"
+  ) {
     return crypto.randomUUID();
   }
   return `settings-${Date.now()}-${Math.random().toString(16).slice(2)}`;
@@ -80,9 +87,10 @@ export async function settingsApiFetch<T>(
   const url = `${getBackendUrl()}${path}`;
   const headers = new Headers(requestInit.headers ?? {});
   headers.set("X-Session-Id", getSettingsSessionId());
-  const resolvedSecret = secret === undefined ? getSettingsSecret() : secret?.trim() || null;
+  const resolvedSecret =
+    secret === undefined ? getSettingsSecret() : secret?.trim() || null;
   if (resolvedSecret) {
-    headers.set("AOMI-APP-KEY", resolvedSecret);
+    headers.set("Aomi-App-Key", resolvedSecret);
   }
   if (!headers.has("Content-Type") && requestInit.body) {
     headers.set("Content-Type", "application/json");
@@ -100,4 +108,69 @@ export async function settingsApiFetch<T>(
   }
 
   return (await response.json()) as T;
+}
+
+export function useAccountApiFetch() {
+  const { getAccountCredential } = useAomiAuthAdapter();
+  const backendUrl = getBackendUrl();
+  const nativeFetch = useMemo(() => globalThis.fetch.bind(globalThis), []);
+  const accountAccessTokenProvider = useMemo(() => {
+    if (!getAccountCredential) {
+      return undefined;
+    }
+    return createAccountAccessTokenProvider({
+      baseUrl: backendUrl,
+      getProviderCredential: async () => {
+        const credential = await getAccountCredential();
+        if (!credential) {
+          throw new Error("Account credential is not available");
+        }
+        return credential;
+      },
+      fetch: nativeFetch,
+    });
+  }, [backendUrl, getAccountCredential, nativeFetch]);
+
+  useEffect(
+    () => () => {
+      accountAccessTokenProvider?.dispose();
+    },
+    [accountAccessTokenProvider],
+  );
+
+  return useCallback(
+    async <T>(path: string, options?: RequestInit): Promise<T> => {
+      if (!accountAccessTokenProvider) {
+        throw new Error("Connect your account to continue.");
+      }
+
+      const send = async (forceRefresh: boolean): Promise<Response> => {
+        const token = await accountAccessTokenProvider({ forceRefresh });
+        if (!token) {
+          throw new Error("Account token is not available.");
+        }
+        const headers = new Headers(options?.headers ?? {});
+        headers.set("Authorization", `Bearer ${token}`);
+        if (!headers.has("Content-Type") && options?.body) {
+          headers.set("Content-Type", "application/json");
+        }
+        return fetch(`${getBackendUrl()}${path}`, {
+          ...options,
+          headers,
+          cache: "no-store",
+        });
+      };
+
+      let response = await send(false);
+      if (response.status === 401) {
+        response = await send(true);
+      }
+      if (!response.ok) {
+        const text = await response.text();
+        throw new Error(text || `Request failed: ${response.status}`);
+      }
+      return (await response.json()) as T;
+    },
+    [accountAccessTokenProvider],
+  );
 }

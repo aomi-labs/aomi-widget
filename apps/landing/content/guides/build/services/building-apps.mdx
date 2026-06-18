@@ -17,7 +17,6 @@ Every AI assistant on the Aomi platform implements the **AomiApp** pattern. An A
 | **Preamble** | System prompt defining personality, rules, and domain knowledge |
 | **Model** | Which LLM powers the assistant |
 | **RAG docs** | Optional document store for knowledge retrieval |
-| **MCP servers** | Optional Model Context Protocol connections for external tool servers |
 
 ```mermaid
 flowchart TB
@@ -26,7 +25,6 @@ flowchart TB
         TOOLS[Tool Set<br/>API-backed functions]
         MODEL[Model Selection<br/>Claude / GPT / OpenRouter]
         RAG[RAG Store<br/>Domain documents]
-        MCP[MCP Servers<br/>External tool providers]
     end
 
     subgraph "Builder"
@@ -37,7 +35,6 @@ flowchart TB
     B --> TOOLS
     B --> MODEL
     B --> RAG
-    B --> MCP
 ```
 
 ## CoreAppBuilder
@@ -63,7 +60,7 @@ let app = CoreAppBuilder::new("You are a helpful trading assistant.")
     .add_tool(GetTokenPrice)?
     .add_tool(ExecuteTrade)?
     .add_tool(GetPortfolio)?
-    .build(skip_mcp, system_events, sender)
+    .build(system_events, sender)
     .await?;
 ```
 
@@ -206,7 +203,7 @@ Aomi supports multiple LLM providers. The model is configured via the `Selection
 | **OpenAI** | GPT-4o, GPT-4o Mini | Broad general knowledge |
 | **OpenRouter** | 100+ models | Access to Llama, Mistral, and others |
 
-Models can be switched at runtime via the `/api/control/model` endpoint without redeploying the app.
+Models can be switched at runtime via the `/api/session/model` endpoint without redeploying the app.
 
 ## RAG: Document Store
 
@@ -221,22 +218,6 @@ RAG is added via the builder:
 ```rust
 builder.add_docs_tool(sender, None).await?;
 ```
-
-## MCP: Model Context Protocol
-
-Aomi supports [Model Context Protocol](https://modelcontextprotocol.io/) for connecting to external tool servers. This allows the assistant to use tools hosted outside the Aomi platform.
-
-MCP servers are connected during the build phase:
-
-```rust
-let app = CoreAppBuilder::new(&preamble)
-    .await?
-    .add_tool(LocalTool)?
-    .build(false, system_events, sender) // false = don't skip MCP
-    .await?;
-```
-
-When `skip_mcp` is `false`, the builder connects to configured MCP servers and registers their tools alongside local tools.
 
 ## App Registration
 

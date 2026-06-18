@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { Input, useAomiAuthAdapter } from "@aomi-labs/widget-lib";
-import { settingsApiFetch } from "@portal/lib/settings-api";
+import { useAccountApiFetch } from "@portal/lib/settings-api";
 import { defaultUsageDateRange } from "@portal/lib/usage-range";
 import {
   settingsBodyTextClass,
@@ -51,6 +51,7 @@ function formatNumber(n?: number): string {
 
 export function AppsSettings() {
   const { identity } = useAomiAuthAdapter();
+  const accountApiFetch = useAccountApiFetch();
   const [overview, setOverview] = useState<AppOverview | null>(null);
   const [fromDate, setFromDate] = useState<string>(
     () => defaultUsageDateRange().fromDate,
@@ -76,12 +77,11 @@ export function AppsSettings() {
     setError(null);
     try {
       const query = new URLSearchParams({
-        public_key: identity.address,
         from_date: fromDate,
         to_date: toDate,
       });
-      const data = await settingsApiFetch<AppOverview>(
-        `/api/settings/apps/overview?${query.toString()}`,
+      const data = await accountApiFetch<AppOverview>(
+        `/api/account/usage?${query.toString()}`,
       );
       setOverview(data);
     } catch (err) {
@@ -91,7 +91,7 @@ export function AppsSettings() {
     } finally {
       setLoading(false);
     }
-  }, [fromDate, identity.address, toDate]);
+  }, [accountApiFetch, fromDate, identity.address, toDate]);
 
   useEffect(() => {
     void fetchOverview();
