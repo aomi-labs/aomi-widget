@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, type FC } from "react";
+import { useState, type FC } from "react";
 import { ChevronDownIcon, CheckIcon } from "lucide-react";
 import { useControl, cn } from "@aomi-labs/react";
 import { Button } from "@/components/ui/button";
@@ -35,16 +35,11 @@ export const AppSelect: FC<AppSelectProps> = ({
 }) => {
   const {
     state,
-    getAuthorizedApps,
     getCurrentThreadApp,
     onAppSelect,
     isProcessing,
   } = useControl();
   const [open, setOpen] = useState(false);
-
-  useEffect(() => {
-    void getAuthorizedApps();
-  }, [getAuthorizedApps]);
 
   const selectedApp = getCurrentThreadApp();
   const selectedInfo = getAppInfo(selectedApp);

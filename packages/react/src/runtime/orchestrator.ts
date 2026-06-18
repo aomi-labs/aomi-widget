@@ -358,16 +358,30 @@ export function useRuntimeOrchestrator(
 
       const cachedMessages =
         threadContextRef.current.getThreadMessages(threadId);
-      const existingSession = sessionManagerRef.current?.get(threadId);
-      if (
-        existingSession &&
-        (hydratedThreadIds.current.has(threadId) || cachedMessages.length > 0)
-      ) {
-        optionsRef.current.onPendingRequestsChange?.(
-          existingSession.getPendingRequests(),
-        );
-        if (threadContextRef.current.currentThreadId === threadId) {
-          setIsRunning(existingSession.getIsProcessing());
+      const hasCachedMessages = cachedMessages.length > 0;
+      const isHydrated = hydratedThreadIds.current.has(threadId);
+      if (hasCachedMessages || isHydrated) {
+        // Cache hit: render whatever's already in the thread context immediately.
+        const session = sessionManagerRef.current?.get(threadId);
+        if (session) {
+          // Session survived closeIdleSessionsExcept (only happens when it's
+          // still processing/polling/has pending requests). Keep using it;
+          // SSE is already attached.
+          optionsRef.current.onPendingRequestsChange?.(
+            session.getPendingRequests(),
+          );
+          if (threadContextRef.current.currentThreadId === threadId) {
+            setIsRunning(session.getIsProcessing());
+          }
+        } else {
+          // Session was torn down because the thread was idle. Don't recreate
+          // it just to render cached messages — that would reopen a fresh SSE
+          // connection (/api/updates) for no reason. The session lazily
+          // recreates inside sendMessage when the user actually does something.
+          if (threadContextRef.current.currentThreadId === threadId) {
+            setIsRunning(false);
+          }
+          optionsRef.current.onPendingRequestsChange?.([]);
         }
         return;
       }

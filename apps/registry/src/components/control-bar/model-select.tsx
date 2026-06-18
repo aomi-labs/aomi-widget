@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type FC } from "react";
+import { useState, type FC } from "react";
 import { ChevronDownIcon, CheckIcon } from "lucide-react";
 import { useControl, cn } from "@aomi-labs/react";
 import { Button } from "@/components/ui/button";
@@ -37,16 +37,11 @@ export const ModelSelect: FC<ModelSelectProps> = ({
 }) => {
   const {
     state,
-    getAvailableModels,
     getCurrentThreadControl,
     onModelSelect,
     isProcessing,
   } = useControl();
   const [open, setOpen] = useState(false);
-
-  useEffect(() => {
-    void getAvailableModels();
-  }, [getAvailableModels]);
 
   const threadControl = getCurrentThreadControl();
   const rawSelected = threadControl.model;

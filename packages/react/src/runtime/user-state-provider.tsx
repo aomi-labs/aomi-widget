@@ -304,11 +304,13 @@ function useRemoteThreadListSync(
             }
 
             try {
+              // Only warm the backend session here. Fetching state eagerly
+              // for every prefetched thread saturates the HTTP connection
+              // pool during page load, which delays the user's actual click
+              // by ~2s (the click's /api/state queues behind the prefetch
+              // storm). State loads lazily on first click; cached messages
+              // make revisits instant via the ensureInitialState cache hit.
               await warmThread(threadId);
-              if (cancelled || !remoteThreadIdsRef.current.has(threadId)) {
-                return;
-              }
-              await ensureInitialState(threadId);
             } catch (error) {
               console.debug("Failed to prefetch thread:", threadId, error);
             }
@@ -321,7 +323,7 @@ function useRemoteThreadListSync(
         cancelScheduledTask();
       };
     },
-    [ensureInitialState, remoteThreadIdsRef, threadContextRef, warmThread],
+    [remoteThreadIdsRef, threadContextRef, warmThread],
   );
 
   useEffect(() => {
