@@ -1,3 +1,4 @@
+import { readAccountAuthEnv } from "../better-auth/env";
 import { pool } from "../db/pool";
 import {
   buildAccountResponse,
@@ -10,6 +11,7 @@ import {
   findSignalOwner,
   findWalletById,
   listBetterAuthSiweWallets,
+  listWalletsForUser,
   logAccountEvent,
   revokeAuthIdentity,
   revokeWallet,
@@ -23,11 +25,17 @@ import {
   upsertWallet,
   withTransaction,
 } from "../db/queries";
+import {
+  listParaWalletsForUser,
+  listPrivyWalletsForUser,
+  type AttestedWallet,
+} from "../providers/wallets";
 import type {
   AomiAccountResponse,
   AomiUserId,
   AuthIdentityProvider,
   DbAomiUser,
+  DbAomiWallet,
   LinkedVia,
   SignalRef,
   SignalResolution,
@@ -356,6 +364,136 @@ export async function linkProviderIdentity(input: {
   return identityResolution.status === "noop"
     ? { status: "noop" }
     : identityResolution;
+}
+
+/** Sync embedded wallets a provider attests for the user into the
+ *  `aomi_wallets` graph. Server-side attestation replaces a SIWE/SIWS
+ *  signature for custodied embedded wallets (and is the only SVM ownership
+ *  proof available today).
+ *
+ *  On success: upserts every attested wallet as `kind='embedded'`,
+ *  `linked_via=provider`, and soft-revokes any previously-linked embedded
+ *  wallet from the same provider that the provider no longer attests
+ *  (reconciliation). Only touches `kind='embedded'` rows for this provider —
+ *  SIWE external wallets and the other provider's embedded wallets are
+ *  never touched.
+ *
+ *  On fetch failure: logs and returns without revoking anything, so a
+ *  transient provider API outage can't wipe a user's wallet graph. */
+export async function syncProviderWallets(input: {
+  userId: AomiUserId;
+  provider: "privy" | "para";
+  attested: AttestedWallet[];
+  db?: import("pg").Pool | import("pg").PoolClient;
+}): Promise<void> {
+  const keepKeys = new Set(
+    input.attested.map(
+      (w) => walletKeyString(w.family, w.address),
+    ),
+  );
+
+  // 1. Upsert every attested wallet. A cross-account collision on one
+  //    address must not abort the rest of the sync — log and continue.
+  for (const wallet of input.attested) {
+    try {
+      await upsertWallet({
+        userId: input.userId,
+        family: wallet.family,
+        address: wallet.address,
+        chainScope: wallet.chainScope,
+        kind: "embedded",
+        provider: wallet.provider,
+        providerWalletId: wallet.providerWalletId,
+        linkedVia: wallet.provider,
+        db: input.db,
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (message === "wallet_already_linked_to_another_account") {
+        await logAccountEvent({
+          userId: input.userId,
+          eventType: "wallet.link_conflict",
+          data: {
+            family: wallet.family,
+            address: wallet.address,
+            provider: wallet.provider,
+          },
+          db: input.db,
+        });
+        continue;
+      }
+      throw error;
+    }
+  }
+
+  // 2. Reconcile: soft-revoke embedded wallets from this provider that the
+  //    provider no longer attests.
+  const existing = await listWalletsForUser(input.userId, input.db);
+  for (const wallet of existing) {
+    if (wallet.kind !== "embedded") continue;
+    if (wallet.provider !== input.provider) continue;
+    if (keepKeys.has(walletKeyString(wallet.family, wallet.address))) continue;
+    const revoked = await revokeWallet({
+      userId: input.userId,
+      walletId: wallet.id,
+      db: input.db,
+    });
+    if (revoked) {
+      await logAccountEvent({
+        userId: input.userId,
+        eventType: "wallet.unlinked",
+        data: {
+          family: wallet.family,
+          address: wallet.address,
+          provider: wallet.provider,
+          reason: "provider_no_longer_attests",
+        },
+        db: input.db,
+      });
+    }
+  }
+}
+
+/** Fetch attested embedded wallets for a verified provider subject using the
+ *  server-side provider API. Returns `null` when the provider's REST
+ *  credentials aren't configured (graceful degradation: callers fall back to
+ *  identity-only behavior) or when the fetch fails (so the caller can skip
+ *  the sync without revoking live rows). */
+export async function fetchAttestedProviderWallets(input: {
+  provider: "privy" | "para";
+  /** Verified token subject: `did:privy:…` for Privy, Para user id for Para. */
+  subject: string;
+  email?: string | null;
+}): Promise<AttestedWallet[] | null> {
+  const env = readAccountAuthEnv();
+  try {
+    if (input.provider === "privy") {
+      if (!env.privyAppId || !env.privyAppSecret) return null;
+      return await listPrivyWalletsForUser({
+        appId: env.privyAppId,
+        appSecret: env.privyAppSecret,
+        userId: input.subject,
+      });
+    }
+    if (!env.paraApiKey) return null;
+    // The Para JWT `sub` is the stable Para user id; Para's REST list endpoint
+    // addresses it as a CUSTOM_ID user identifier.
+    return await listParaWalletsForUser({
+      apiKey: env.paraApiKey,
+      userIdentifier: input.subject,
+      userIdentifierType: "CUSTOM_ID",
+    });
+  } catch (error) {
+    console.warn(
+      `syncProviderWallets: failed to list ${input.provider} wallets for ${input.subject}`,
+      error,
+    );
+    return null;
+  }
+}
+
+function walletKeyString(family: WalletFamily, address: string): string {
+  return `${family}:${normalizeWalletAddress(family, address)}`;
 }
 
 export async function unlinkAuthIdentity(input: {

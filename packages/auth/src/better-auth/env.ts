@@ -6,10 +6,18 @@ export interface AccountAuthEnv {
   siweEmailDomain?: string;
   trustedOrigins: string[];
   privyAppId?: string;
+  /** Server-only Privy app secret. Used as the Basic-auth password for the
+   *  Privy REST API (`GET /v1/wallets`) to list wallets attested for a user.
+   *  Never expose client-side. */
+  privyAppSecret?: string;
   privyAccessTokenVerificationKey?: string;
   privyIdentityTokenVerificationKey?: string;
   paraAudience?: string;
   paraJwksUrl?: string;
+  /** Server-only Para REST API key (`X-API-Key`). Used to list wallets attested
+   *  for a user via `GET /v1/wallets`. Distinct from `paraAudience` (the public
+   *  app id used as the JWT `aud`). Never expose client-side. */
+  paraApiKey?: string;
 }
 
 export function readAccountAuthEnv(env = process.env): AccountAuthEnv {
@@ -28,11 +36,13 @@ export function readAccountAuthEnv(env = process.env): AccountAuthEnv {
     siweEmailDomain: env.AOMI_AUTH_EMAIL_DOMAIN,
     trustedOrigins: parseCsv(env.AOMI_TRUSTED_ORIGINS ?? betterAuthUrl),
     privyAppId: env.PRIVY_APP_ID ?? env.NEXT_PUBLIC_PRIVY_APP_ID,
+    privyAppSecret: env.PRIVY_APP_SECRET,
     privyAccessTokenVerificationKey: env.PRIVY_JWT_VERIFICATION_KEY,
     privyIdentityTokenVerificationKey:
       env.PRIVY_IDENTITY_JWT_VERIFICATION_KEY ?? env.PRIVY_JWT_VERIFICATION_KEY,
     paraAudience: env.PARA_API_KEY ?? env.NEXT_PUBLIC_PARA_API_KEY,
     paraJwksUrl: env.PARA_JWKS_URL,
+    paraApiKey: env.PARA_API_SECRET_KEY,
   };
 }
 

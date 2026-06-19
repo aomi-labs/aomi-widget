@@ -6,7 +6,7 @@ import {
   makePrivyJwtVerifier,
   makePrivyProvider,
   type VerifyPrivyAccessToken,
-} from "../src/providers/privy";
+} from "../src/mcp-approvals/providers/privy";
 import type { PendingAuth } from "../src/types";
 
 const pending: PendingAuth = {
