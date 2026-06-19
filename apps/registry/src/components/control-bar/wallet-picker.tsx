@@ -401,10 +401,18 @@ export function WalletPicker() {
     [walletActions, connectedFamilyBrandKeys],
   );
 
-  const socialLoginOptions = walletActions.filter(
-    (action) =>
-      action.kind === "social" ||
-      action.actions.some((rowAction) => rowAction.kind === "authenticate"),
+  const socialLoginOptions = useMemo(
+    () =>
+      walletActions.filter(
+        (action) =>
+          action.kind === "social" ||
+          action.actions.some((rowAction) => rowAction.kind === "authenticate"),
+      ),
+    [walletActions],
+  );
+  const providerSignInOptions = useMemo(
+    () => filterQuickSignInOptions(socialLoginOptions),
+    [socialLoginOptions],
   );
   const providerSubtitle =
     identity.secondaryLabel ?? formatAuthMethod(identity.authProvider);
@@ -422,7 +430,7 @@ export function WalletPicker() {
     adapter.supportedNetworks?.evm ?? adapter.supportedChains ?? [];
   const socialOptionsToShow = providerAccountConnected
     ? []
-    : socialLoginOptions;
+    : providerSignInOptions;
   const hasAccountManagement = Boolean(adapter.accountUser);
   const accountView = hasAccountManagement && view === "account";
   const accountDisplayName =
@@ -476,7 +484,7 @@ export function WalletPicker() {
         return Boolean(adapter.linkWallet && account.family === "evm");
       }
       if (action.kind === "disconnect" || action.kind === "signout") {
-        return Boolean(adapter.disconnect);
+        return Boolean(adapter.disconnect || adapter.signOutAccount);
       }
       return false;
     });
@@ -507,12 +515,7 @@ export function WalletPicker() {
     if (action.kind === "signout") {
       void runAction(
         actionKey,
-        async () => {
-          await adapter.disconnect?.({
-            accountId: account.id,
-            providerSignOut: true,
-          });
-        },
+        signOutAccount,
         true,
       );
       return;
@@ -536,11 +539,16 @@ export function WalletPicker() {
     const provider = isEmbeddedAccountProvider(representative.provider)
       ? representative.provider
       : null;
-    const grouped = group.length > 1;
     const title =
       provider !== null
         ? (formatWalletProvider(provider) ?? provider)
         : (representative.walletName ?? familyLabel(representative.family));
+    const providerWallets =
+      provider !== null
+        ? (adapter.accountWallets ?? []).filter(
+            (wallet) => wallet.provider === provider,
+          )
+        : [];
 
     const svmCluster = (identity.svmCluster ?? identity.solanaCluster)?.replace(
       "solana:",
@@ -555,13 +563,39 @@ export function WalletPicker() {
           ? svmCluster.charAt(0).toUpperCase() + svmCluster.slice(1)
           : undefined;
 
-    const legs: WalletLeg[] = group.map((account) => ({
-      family: account.family,
-      address: account.address,
-      chainId: account.chainId,
-      capability: account.capability,
-      linked: account.linked,
-    }));
+    const liveLegs: WalletLeg[] = group.map((account) => {
+      const linkedWallet = providerWallets.find((wallet) =>
+        sameWalletAddress(wallet.family, wallet.address, account.address),
+      );
+      return {
+        family: account.family,
+        address: account.address,
+        chainId:
+          account.chainId ??
+          linkedWallet?.chainId ??
+          chainIdFromScope(linkedWallet?.chainScope),
+        capability: account.capability ?? linkedWallet?.capability,
+        linked: account.linked ?? Boolean(linkedWallet),
+      };
+    });
+    const storedLegs: WalletLeg[] = providerWallets
+      .filter(
+        (wallet) =>
+          !liveLegs.some(
+            (leg) =>
+              leg.family === wallet.family &&
+              sameWalletAddress(wallet.family, leg.address, wallet.address),
+          ),
+      )
+      .map((wallet) => ({
+        family: wallet.family,
+        address: wallet.address,
+        chainId: wallet.chainId ?? chainIdFromScope(wallet.chainScope),
+        capability: wallet.capability,
+        linked: true,
+      }));
+    const legs = sortLegs([...liveLegs, ...storedLegs]);
+    const grouped = provider !== null ? legs.length > 1 : group.length > 1;
 
     // A single wallet keeps its original address/label + network/cluster detail;
     // a provider group shows both shortened addresses, dropping the per-leg
@@ -913,6 +947,39 @@ function SectionLabel({ children }: { children: string }) {
       {children}
     </span>
   );
+}
+
+function filterQuickSignInOptions(
+  options: readonly WalletAction[],
+): WalletAction[] {
+  const providerAuthOptions = new Set(
+    options
+      .filter((option) => option.kind === "social")
+      .map((option) => quickSignInProvider(option))
+      .filter((provider): provider is string => provider !== null),
+  );
+  const seenStoredProviders = new Set<string>();
+
+  return options.filter((option) => {
+    const provider = quickSignInProvider(option);
+    const storedProviderAuth =
+      option.source === "stored" &&
+      provider !== null &&
+      option.actions.some((action) => action.kind === "authenticate");
+
+    if (!storedProviderAuth) return true;
+    if (providerAuthOptions.has(provider)) return false;
+    if (seenStoredProviders.has(provider)) return false;
+    seenStoredProviders.add(provider);
+    return true;
+  });
+}
+
+function quickSignInProvider(option: WalletAction): string | null {
+  if (option.kind === "social") {
+    return isEmbeddedAccountProvider(option.id) ? option.id : null;
+  }
+  return isEmbeddedAccountProvider(option.provider) ? option.provider : null;
 }
 
 /**

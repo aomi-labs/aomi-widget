@@ -124,7 +124,6 @@ export type AccountConfig =
   | {
       mode: "aomi-backend";
       baseUrl?: string;
-      signInPolicy?: "evm-siwe-first" | "provider-token-allowed";
     };
 
 export type AomiWalletKitProviderProps = {

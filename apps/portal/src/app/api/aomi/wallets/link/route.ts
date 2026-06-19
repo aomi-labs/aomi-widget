@@ -6,8 +6,8 @@ import {
 import { upsertVerifiedWallet } from "@aomi-labs/auth/service/account-service";
 import type { WalletFamily } from "@aomi-labs/auth";
 import { readAccountAuthEnv } from "@aomi-labs/auth/better-auth/env";
+import { verifySiweMessage } from "@aomi-labs/auth/better-auth/siwe";
 import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
-import { verifyMessage } from "viem";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -72,11 +72,12 @@ export async function POST(req: Request): Promise<Response> {
     body.message.includes(`Chain ID: ${body.chainId}`) &&
     body.message.includes(`Nonce: ${body.nonce}`);
   const signatureOk = messageOk
-    ? await verifyMessage({
-        address: body.address as `0x${string}`,
+    ? await verifySiweMessage({
+        address: body.address,
         message: body.message,
-        signature: body.signature as `0x${string}`,
-      }).catch(() => false)
+        signature: body.signature,
+        chainId: body.chainId,
+      })
     : false;
   if (!signatureOk) {
     return json(401, { error: "invalid_wallet_signature" });

@@ -2,6 +2,7 @@ import { readAccountAuthEnv } from "../better-auth/env";
 import { pool } from "../db/pool";
 import {
   buildAccountResponse,
+  clearAomiBetterAuthUserIds,
   countLoginFactors,
   createAomiUserForBetterAuth,
   deleteBetterAuthSiweWallet,
@@ -583,13 +584,22 @@ export async function unlinkWallet(input: {
       provider: "siwe",
       subject: siweSubject,
     });
-    if (input.betterAuthUserId) {
-      await deleteBetterAuthSiweWallet({
-        betterAuthUserId: input.betterAuthUserId,
-        address: wallet.address,
-        chainId: Number(wallet.chainScope) || undefined,
+    const detached = await deleteBetterAuthSiweWallet({
+      address: wallet.address,
+      chainId: Number(wallet.chainScope) || undefined,
+      syntheticEmails: siweSyntheticEmails(wallet.address),
+    });
+    for (const betterAuthUserId of detached.betterAuthUserIds) {
+      await revokeAuthIdentity({
+        userId: input.userId,
+        provider: "better_auth",
+        subject: betterAuthUserId,
       });
     }
+    await clearAomiBetterAuthUserIds({
+      userId: input.userId,
+      betterAuthUserIds: detached.betterAuthUserIds,
+    });
   }
   await logAccountEvent({
     userId: input.userId,
@@ -635,6 +645,34 @@ function siweIdentitySubject(input: {
 }): string | null {
   if (input.family !== "evm" || input.linkedVia !== "siwe") return null;
   return `eip155:*:${normalizeWalletAddress("evm", input.address)}`;
+}
+
+function siweSyntheticEmails(address: string): string[] {
+  const env = readAccountAuthEnv();
+  const domains = new Set<string>(["aomi.dev"]);
+  if (env.siweEmailDomain) domains.add(env.siweEmailDomain);
+  try {
+    const url = new URL(env.betterAuthUrl);
+    domains.add(url.origin);
+    domains.add(url.host);
+  } catch {
+    // readAccountAuthEnv validates the fallback URL; this only guards tests.
+  }
+
+  const addresses = new Set([
+    address.trim(),
+    normalizeWalletAddress("evm", address),
+  ]);
+  const emails = new Set<string>();
+  for (const addr of addresses) {
+    if (!addr) continue;
+    for (const domain of domains) {
+      const cleanedDomain = domain.trim().replace(/^@/, "");
+      if (!cleanedDomain) continue;
+      emails.add(`${addr}@${cleanedDomain}`.toLowerCase());
+    }
+  }
+  return [...emails];
 }
 
 function sanitizeLabel(value: string | null): string | null {
