@@ -25,10 +25,12 @@ import type { AccountConfig, ExecutionConfig } from "../../config/types";
 import {
   inferPrivyAuthMethod,
   inferPrivyPrimaryLabel,
+  pickPrivyEmbeddedEvmWallet,
   privyLoginMethodsToOptions,
   useSafePrivy,
   useSafeSmartWallets,
   useSafeSvmWallets,
+  useSafeWallets,
 } from "./privy-auth";
 import type { PrivyClientConfig } from "@privy-io/react-auth";
 import { buildPrivySvmWalletState } from "./privy-svm";
@@ -55,6 +57,7 @@ export function AomiPrivyPluginProvider({
   const { client: smartWalletClient, getClientForChain } =
     useSafeSmartWallets();
   const { wallets: solanaWallets } = useSafeSvmWallets();
+  const { wallets: connectedWallets } = useSafeWallets();
   const [activeSolanaAddress, setActiveSolanaAddress] = useState<
     string | undefined
   >();
@@ -73,6 +76,17 @@ export function AomiPrivyPluginProvider({
     providerHooks: { providerLogout: privy.logout },
   });
   const smartAddress = smartWalletClient?.account?.address as Hex | undefined;
+  // Embedded EVM EOA from Privy's `useWallets()` — the non-imported,
+  // Privy-custodied wallet created on login. Surfaced as a synthetic EVM
+  // connection so it appears in "Connected now" with write capability,
+  // mirroring the Para session source. Falls back to the smart wallet
+  // address when a smart wallet is active so account-abstracted execution
+  // stays the primary surface when present.
+  const embeddedEvmWallet = pickPrivyEmbeddedEvmWallet(connectedWallets);
+  const embeddedEvmAddress = embeddedEvmWallet?.address as Hex | undefined;
+  const sessionEvmAddress = smartAddress ?? embeddedEvmAddress ?? null;
+  const sessionReady =
+    privy.authenticated && Boolean(embeddedEvmWallet || smartAddress);
   const activeSolanaWallet =
     solanaWallets.find((wallet) => wallet.address === activeSolanaAddress) ??
     solanaWallets[0];
@@ -99,15 +113,15 @@ export function AomiPrivyPluginProvider({
   useEffect(() => {
     evmRuntime.registryStore.dispatch({
       type: "provider/embedded-session-changed",
-      up: privy.authenticated && Boolean(smartAddress),
+      up: sessionReady,
       providerId: "privy",
       uid: "privy-smart-session",
       stableId: "privy",
       walletName: "Privy Smart Wallet",
-      embeddedEvmAddress: smartAddress ?? null,
+      embeddedEvmAddress: sessionEvmAddress,
       now: Date.now(),
     });
-  }, [evmRuntime.registryStore, privy.authenticated, smartAddress]);
+  }, [evmRuntime.registryStore, sessionEvmAddress, sessionReady]);
 
   const authMethod = inferPrivyAuthMethod(privy.user);
   const primaryLabel = inferPrivyPrimaryLabel(privy.user);
