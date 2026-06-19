@@ -3,10 +3,10 @@
 import "@aomi-labs/widget-lib/providers/privy";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { AomiWalletKitProvider, useAomiWalletKit } from "@aomi-labs/widget-lib";
+import { useAomiWalletKit } from "@aomi-labs/widget-lib";
 import { usePrivy } from "@privy-io/react-auth";
 import { privateKeyToAccount } from "viem/accounts";
-import { mainnet, sepolia } from "wagmi/chains";
+import { sepolia } from "wagmi/chains";
 
 type AccountSnapshot = unknown;
 
@@ -19,26 +19,8 @@ const testWalletTwo = privateKeyToAccount(
 const testChainId = sepolia.id;
 
 export function WidgetAuthE2EClient({ privyAppId }: { privyAppId: string }) {
-  return (
-    <AomiWalletKitProvider
-      auth={{ provider: "privy", methods: ["email", "wallet"] }}
-      account={{ mode: "aomi-backend", signInPolicy: "evm-siwe-first" }}
-      providers={{
-        privy: {
-          appId: privyAppId,
-          appName: "Aomi Widget Auth E2E",
-        },
-      }}
-      wallets={{
-        evm: {
-          chains: [sepolia, mainnet],
-          appName: "Aomi Widget Auth E2E",
-        },
-      }}
-    >
-      <WidgetAuthE2EPanel />
-    </AomiWalletKitProvider>
-  );
+  void privyAppId;
+  return <WidgetAuthE2EPanel />;
 }
 
 function WidgetAuthE2EPanel() {
@@ -166,9 +148,23 @@ function WidgetAuthE2EPanel() {
   }, [privy, pushLog]);
 
   const linkSecondTestWallet = useCallback(async () => {
+    const nonceResponse = await fetch(
+      `/api/aomi/wallets/link?address=${encodeURIComponent(
+        testWalletTwo.address,
+      )}&chainId=${encodeURIComponent(String(testChainId))}`,
+      {
+        method: "GET",
+        credentials: "include",
+      },
+    );
+    const { nonce } = await readJsonOrThrow<{ nonce: string }>(
+      nonceResponse,
+      "wallet link nonce",
+    );
     const message = buildWalletLinkMessage({
       address: testWalletTwo.address,
       chainId: testChainId,
+      nonce,
     });
     const signature = await testWalletTwo.signMessage({ message });
     const response = await fetch("/api/aomi/wallets/link", {
@@ -179,6 +175,7 @@ function WidgetAuthE2EPanel() {
         family: "evm",
         address: testWalletTwo.address,
         chainId: testChainId,
+        nonce,
         message,
         signature,
       }),
@@ -343,7 +340,11 @@ Nonce: ${input.nonce}
 Issued At: ${new Date().toISOString()}`;
 }
 
-function buildWalletLinkMessage(input: { address: string; chainId: number }) {
+function buildWalletLinkMessage(input: {
+  address: string;
+  chainId: number;
+  nonce: string;
+}) {
   return `${window.location.host} wants to link this wallet to your Aomi account:
 ${input.address}
 
@@ -352,6 +353,7 @@ Only sign this message if you want this wallet attached to the current Aomi acco
 URI: ${window.location.origin}
 Version: 1
 Chain ID: ${input.chainId}
+Nonce: ${input.nonce}
 Issued At: ${new Date().toISOString()}`;
 }
 

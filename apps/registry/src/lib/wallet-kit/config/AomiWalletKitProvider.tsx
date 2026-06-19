@@ -609,10 +609,6 @@ function useResolvedAccountRuntime({
     auth,
     evm,
     svm,
-    signInPolicy:
-      enabled && account.signInPolicy
-        ? account.signInPolicy
-        : "evm-siwe-first",
   });
   return enabled ? runtime : DISABLED_ACCOUNT_RUNTIME;
 }

@@ -274,6 +274,23 @@ export async function revokeAuthIdentity(input: {
   return (result.rowCount ?? 0) > 0;
 }
 
+export async function clearAomiBetterAuthUserIds(input: {
+  userId: AomiUserId;
+  betterAuthUserIds: readonly string[];
+  db?: Db;
+}): Promise<boolean> {
+  if (input.betterAuthUserIds.length === 0) return false;
+  const db = input.db ?? defaultPool;
+  const result = await db.query(
+    `update aomi_users
+     set better_auth_user_id = null, updated_at = now()
+     where id = $1
+       and better_auth_user_id = any($2::text[])`,
+    [input.userId, [...input.betterAuthUserIds]],
+  );
+  return (result.rowCount ?? 0) > 0;
+}
+
 export async function upsertWallet(input: {
   userId: AomiUserId;
   family: WalletFamily;
@@ -535,13 +552,16 @@ export async function listBetterAuthSiweWallets(
 }
 
 export async function deleteBetterAuthSiweWallet(input: {
-  betterAuthUserId: string;
   address: string;
   chainId?: number | null;
+  syntheticEmails?: readonly string[];
   db?: Db;
-}): Promise<boolean> {
+}): Promise<{ deleted: boolean; betterAuthUserIds: string[] }> {
   const db = input.db ?? defaultPool;
-  const candidates = [
+  const betterAuthUserIds = new Set<string>();
+  let deletedCount = 0;
+  let walletAddressUserLookup: { table: string; userId: string } | null = null;
+  const walletAddressCandidates = [
     {
       table: '"walletAddress"',
       userId: '"userId"',
@@ -553,21 +573,86 @@ export async function deleteBetterAuthSiweWallet(input: {
       chainId: "chain_id",
     },
   ];
-  for (const candidate of candidates) {
+  for (const candidate of walletAddressCandidates) {
     try {
       const result = await db.query(
         `delete from ${candidate.table}
-         where ${candidate.userId} = $1
-           and lower(address) = lower($2)
-           and ($3::int is null or ${candidate.chainId} = $3)`,
-        [input.betterAuthUserId, input.address, input.chainId ?? null],
+         where lower(address) = lower($1)
+           and ($2::int is null or ${candidate.chainId} = $2)
+         returning ${candidate.userId} as better_auth_user_id`,
+        [input.address, input.chainId ?? null],
       );
-      return (result.rowCount ?? 0) > 0;
+      deletedCount += result.rowCount ?? 0;
+      for (const row of result.rows) {
+        betterAuthUserIds.add(String(row.better_auth_user_id));
+      }
+      walletAddressUserLookup = candidate;
+      break;
     } catch (error) {
       if (!isMissingRelation(error)) throw error;
     }
   }
-  return false;
+
+  try {
+    const result = await db.query(
+      `delete from "account"
+       where "providerId" = 'siwe'
+         and lower(split_part("accountId", ':', 1)) = lower($1)
+         and ($2::int is null or split_part("accountId", ':', 2) = $2::text)
+       returning "userId" as better_auth_user_id`,
+      [input.address, input.chainId ?? null],
+    );
+    deletedCount += result.rowCount ?? 0;
+    for (const row of result.rows) {
+      betterAuthUserIds.add(String(row.better_auth_user_id));
+    }
+  } catch (error) {
+    if (!isMissingRelation(error)) throw error;
+  }
+
+  const ids = [...betterAuthUserIds];
+  const syntheticEmails = uniqueLower(input.syntheticEmails ?? []);
+  if (ids.length > 0 && syntheticEmails.length > 0) {
+    try {
+      const walletAddressEmpty = walletAddressUserLookup
+        ? `and not exists (
+             select 1 from ${walletAddressUserLookup.table} w
+             where w.${walletAddressUserLookup.userId} = u.id
+           )`
+        : "";
+      const deletableUsers = await db.query(
+        `select u.id
+         from "user" u
+         where u.id = any($1::text[])
+           and lower(u.email) = any($2::text[])
+           and not exists (
+             select 1 from "account" a where a."userId" = u.id
+           )
+           ${walletAddressEmpty}`,
+        [ids, syntheticEmails],
+      );
+      const deletableIds = deletableUsers.rows.map((row) => String(row.id));
+      if (deletableIds.length > 0) {
+        try {
+          await db.query(
+            `delete from "session" where "userId" = any($1::text[])`,
+            [deletableIds],
+          );
+        } catch (error) {
+          if (!isMissingRelation(error)) throw error;
+        }
+        const result = await db.query(
+          `delete from "user" where id = any($1::text[])`,
+          [deletableIds],
+        );
+        deletedCount += result.rowCount ?? 0;
+      }
+    } catch (error) {
+      if (!isMissingRelation(error)) throw error;
+    }
+  }
+
+  return { deleted: deletedCount > 0, betterAuthUserIds: ids };
 }
 
 function mapUser(row: Row): DbAomiUser {
@@ -658,6 +743,16 @@ function chainIdFromCaip10(caip10Value: string | null): number | null {
 
 function nullableString(value: unknown): string | null {
   return typeof value === "string" ? value : null;
+}
+
+function uniqueLower(values: readonly string[]): string[] {
+  return [
+    ...new Set(
+      values
+        .map((value) => value.trim().toLowerCase())
+        .filter((value) => value.length > 0),
+    ),
+  ];
 }
 
 function nullableDate(value: unknown): Date | null {

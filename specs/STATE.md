@@ -2,10 +2,64 @@
 
 ## Last Updated
 
-2026-06-19 - Consolidated per-provider EVM/SVM rows in the account manager
-(`wallet-picker.tsx`). UI only.
+2026-06-19 - Widget auth cleanup: policy-free sign-in, full sign-out, quick sign-in de-dupe, and SIWE unlink detachment.
 
 ## Recent Changes
+
+### Wallet auth bug fixes: quick sign-in de-dupe + SIWE unlink detachment (2026-06-19)
+
+- Quick sign-in now prefers the provider-level Privy/Para auth row and suppresses
+  stored embedded wallet authenticate rows for that same provider. This removes
+  the duplicate "Privy" row where one row showed the provider method and another
+  showed the stored SVM address.
+- Manage wallets now folds stored provider wallets into the connected provider
+  row for display, so a live Privy SVM connection plus stored Privy EVM wallet
+  renders as one `EVM/SVM` row. Actions still target only live wallet legs.
+- SIWE/link signature verification now tries EOA recovery first, then Viem
+  public-client verification for contract accounts (ERC-1271 / EIP-6492), fixing
+  Base Account signatures that previously returned `invalid_wallet_signature`.
+- The portal dev auth E2E page no longer nests its own wallet provider inside the
+  root `WalletProviders`, avoiding duplicate Privy provider instances.
+- SIWE wallet unlink now detaches BetterAuth state for that wallet address, not
+  just the Aomi `aomi_wallets` row: matching BetterAuth `walletAddress` and
+  `account(providerId='siwe')` rows are deleted, matching Aomi
+  `better_auth` identities are revoked, `aomi_users.better_auth_user_id` is
+  cleared if it pointed at the detached BetterAuth user, and SIWE-only synthetic
+  BetterAuth users/sessions are removed. This prevents an unlinked MetaMask/SIWE
+  wallet from logging back into the old account.
+- Regression coverage: `wallet-picker.test.tsx` asserts the duplicate Privy
+  quick-sign-in row is suppressed. SQL cleanup was validated against local
+  Postgres in a rollback-only transaction with fake SIWE rows.
+
+### Wallet-kit: removed the account `signInPolicy` gate (2026-06-19)
+
+Branch `codex/widget-auth-pre-rust`. Stripped the
+`signInPolicy` (`evm-siwe-first | provider-token-allowed`) concept from the
+account layer — any provider credential is now exchangeable in any order (create
+when there's no account, link when one exists); SIWE was already ungated.
+
+- `aomi-backend-runtime.ts`: dropped `signInPolicy` from
+  `AomiBackendAccountConfig` + the hook input + effect deps; the exchange
+  endpoint no longer branches on a policy (`account.user` → link via
+  `/api/aomi/provider/exchange`, else create via
+  `/api/auth/aomi/provider/exchange`).
+- Removed `signInPolicy` from `config/types.ts` `AccountConfig` and from all
+  three runtime call sites (`AomiWalletKitProvider`, `ParaPluginProvider`,
+  `PrivyPluginProvider`) and the portal dev-e2e route.
+- Follow-up fix: explicit sign-out now clears prior provider exchange locks and
+  suppresses only the exact stale provider credential observed during sign-out
+  until the SDK reports unauthenticated or changes identity. This keeps auth
+  policy-free while preventing an old Privy/Para SDK session from silently
+  recreating the just-signed-out account.
+- Follow-up fix: rejected/failed automatic SIWE no longer poisons account
+  `status` to `error`; it suppresses repeat prompts for that wallet and leaves
+  provider-token sign-in free to proceed.
+- Follow-up fix: provider-supplied `Sign out` rows in the wallet picker now call
+  the full account sign-out path (`disconnect({ family: "all" })` +
+  `account.signOut`) instead of only disconnecting the provider row.
+- Dev E2E harness fix: `linkSecondTestWallet` now fetches the link nonce, signs
+  a message containing it, and posts the nonce back to `/api/aomi/wallets/link`.
+
 
 ### Account manager: collapse Privy/Para EVM+SVM into one row (2026-06-19)
 
@@ -36,7 +90,7 @@ provider-backed sign-in no longer shows as two cards per family.
   EVM + SVM into one row; `FamilyStatusRow` was replaced by `ConnectedWalletRow`
   which takes `legs` + a deduped `ConnectedActionRef[]` (each action routed to its
   owning leg). Select targets the non-active EVM leg; a provider's two `signout`
-  actions collapse to one provider sign-out. External wallets (no provider) are
+  actions collapse to one full account sign-out. External wallets (no provider) are
   unchanged, one row each.
 - **FamilyChip:** one capability dot (not one per family) before the combined
   "EVM/SVM" — the legs are always connected together, so two dots read as noise.
@@ -126,8 +180,10 @@ backend — portal mints an Aomi JWT (`sub = aomi_user_id`), Rust only verifies;
 (2) session transport pluggable — same-origin cookie now, bearer addable later;
 (3) BetterAuth = successor to the System A account-session exchange, MCP approvals
 (System B: `packages/auth`) untouched, reuse `makePrivyJwtVerifier`; (4)
-SIWE-first, Privy/Para link-only in Phase 1. First two PRs are pure: `walletKey`
-SVM fix + `AccountRuntime`/`AccountWallet` type widening (§8.3). Delivered four
+the original SIWE-first Phase 1 decision is superseded by the 2026-06-19
+policy-free model where any verified wallet or provider can create/sign into an
+account. First two PRs are pure: `walletKey` SVM fix +
+`AccountRuntime`/`AccountWallet` type widening (§8.3). Delivered four
 diagrams (system+trust-boundary, three identity layers, ER data model, System A
 vs B). See [[widget-auth-plan-decisions]].
 

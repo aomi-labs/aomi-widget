@@ -363,10 +363,6 @@ export function AomiParaPluginProvider({
     auth: authRuntime,
     evm: evmRuntime,
     svm: svmRuntime,
-    signInPolicy:
-      account !== false && account?.mode === "aomi-backend"
-        ? (account.signInPolicy ?? "provider-token-allowed")
-        : "provider-token-allowed",
   });
 
   return (

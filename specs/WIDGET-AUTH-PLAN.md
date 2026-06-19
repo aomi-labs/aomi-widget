@@ -1168,11 +1168,15 @@ Request:
 
 or `{ "provider": "para", "tokenKind": "session_jwt", "providerToken": "eyJ…", "keyId": "…" }`.
 
-- **Phase C:** requires an existing BetterAuth session; verifies the token, runs the
-  ladder for the provider subject + its verified email, links the identity (records
-  identity only — no provider wallet import).
-- **Phase D:** can create/refresh a session from a verified token via the custom
-  plugin (§13.8).
+- With an existing BetterAuth session, verifies the token, runs the ladder for
+  the provider subject + its verified email, and links the identity to the
+  current Aomi user.
+- With no BetterAuth session, the custom BetterAuth plugin (§13.8) verifies the
+  token, resolves or creates the BetterAuth user and Aomi user, creates the
+  session cookie, and links the identity.
+
+There is no frontend sign-in policy gate: any verified provider token may create
+or refresh a session when no account is active, and may link when one is active.
 
 Linked response: `{ "status": "linked", "account": { …AomiAccountResponse… } }`.
 
@@ -1197,6 +1201,7 @@ account to unlink the provider first.
   "family": "evm",
   "address": "0xAbC…",
   "chainId": 1,
+  "nonce": "base64url.payload.hmac",
   "message": "example.com wants you to sign in…",
   "signature": "0x…"
 }
@@ -1216,6 +1221,15 @@ Soft-revoke (`revoked_at`, never hard delete). Rules: session user must own it; 
 not unlink the last login-capable factor**; embedded provider wallets are allowed to
 unlink silently (no asset-stranding block). Log `wallet.revoked`. Response
 `{ "status": "revoked" }`.
+
+For SIWE-linked EVM wallets, unlinking also detaches the BetterAuth SIWE binding
+for that address: remove matching BetterAuth `walletAddress` and `account`
+(`providerId='siwe'`) rows, revoke any matching Aomi
+`aomi_auth_identities(provider='better_auth')`, and clear
+`aomi_users.better_auth_user_id` when it points at that detached BetterAuth user.
+If the BetterAuth user is SIWE-only and has the synthetic wallet email, delete its
+sessions and user row too. Otherwise the same wallet can stay "tainted" and log
+back into the old Aomi account after unlink.
 
 ### 13.6 `PATCH /api/aomi/account`
 
@@ -1447,11 +1461,11 @@ User is signed in -> selects "Add another wallet" / connects a new wallet
 ### 15.3 Privy login / link
 
 ```text
-Phase C (existing session): Privy authenticated in wallet kit -> getCredential()
+Existing session: Privy authenticated in wallet kit -> getCredential()
   -> POST /api/aomi/provider/exchange { provider:"privy", tokenKind:"identity_token", providerToken }
   -> verifyPrivyToken -> linkProviderIdentity(subject=did:privy:…, email from identity token)
   -> resolveSignal runs for both the DID and the verified email -> AccountRuntime refresh
-Phase D (no session): same token hits the custom plugin -> verify -> find/create BetterAuth user
+No session: same token hits the custom plugin -> verify -> find/create BetterAuth user
   -> find/create aomi user -> create session -> link identity
 ```
 
@@ -1461,9 +1475,9 @@ client-provided Privy `user.id` unless it matches the verified token subject.
 ### 15.4 Para login / link
 
 ```text
-Phase C: Para authenticated -> issueJwt() -> POST /api/aomi/provider/exchange
+Existing session: Para authenticated -> issueJwt() -> POST /api/aomi/provider/exchange
   -> verifyParaJwt (JWKS) -> linkProviderIdentity(subject=Para user id, email if present)
-Phase D: Para token creates a session via the custom plugin
+No session: Para token creates a session via the custom plugin
 ```
 
 Validate `aud` against the Para API key/app id; validate `exp`/`iat`/`kid`/sig.
@@ -1534,7 +1548,6 @@ export type AccountConfig =
   | {
       mode: "aomi-backend";
       baseUrl?: string;
-      signInPolicy?: "evm-siwe-first" | "provider-token-allowed";
     };
 
 export type AomiWalletKitProviderProps = {
@@ -1557,21 +1570,25 @@ function useAomiBackendAccountRuntime(input: {
   auth: AuthRuntime;
   evm: EvmWalletRuntime;
   svm?: SvmWalletRuntime;
-  signInPolicy: "evm-siwe-first" | "provider-token-allowed";
 }): AccountRuntime {
   // 1. load GET /api/aomi/account
   // 2. auto-trigger SIWE when an EVM wallet connects and there is no session
-  // 3. if getCredential() exists and a session exists, exchange the provider token
-  // 4. if no session and policy allows, hit the Phase D provider-session endpoint
-  // 5. surface cross-account conflicts as action errors
-  // 6. compute live read/write capability from the wallet runtime
-  // 7. expose updateWallet/unlinkWallet
+  // 3. if getCredential() exists, exchange the provider token:
+  //    existing session -> link; no session -> create/refresh session
+  // 4. surface cross-account conflicts as action errors
+  // 5. compute live read/write capability from the wallet runtime
+  // 6. expose updateWallet/unlinkWallet
 }
 ```
 
 Guard against tight render loops: key the credential exchange on
 `provider + subject + token-hash` with an in-flight lock; do not auto-submit in a
-render loop.
+render loop. Explicit account sign-out clears prior exchange locks and suppresses
+only the exact stale provider credential observed at sign-out until the provider
+SDK reports unauthenticated or a different credential/subject appears. A rejected
+or failed automatic SIWE attempt is non-fatal: suppress repeat prompts for that
+same active wallet, keep `status="ready"`, and still allow provider-token
+session creation.
 
 ### 17.3 SIWE client action
 
@@ -1711,7 +1728,8 @@ flowchart LR
       internal-adapter / cookie-helper APIs.
 - [x] Implement `aomiProviderAuthPlugin` (§13.8): verify → find/create BetterAuth
       user → find/create aomi user → create session + cookie → link identity.
-- [x] Frontend: when no session and policy allows, call the plugin endpoint.
+- [x] Frontend: when no session exists, call the plugin endpoint for any
+      verified provider credential.
 - [ ] Manual QA: Privy-only and Para-only logins (no SIWE) create a session.
 
 ### Phase E — Account UI + conflict policy

@@ -901,6 +901,63 @@ describe("WalletPicker", () => {
     expect(screen.getAllByRole("button", { name: "Sign out" }).length).toBe(1);
   });
 
+  it("shows stored provider EVM and live SVM legs together in Manage wallets", () => {
+    renderPicker(
+      makeAdapter({
+        identity: {
+          status: "connected",
+          isConnected: true,
+          walletProvider: "privy",
+          sessionProvider: "privy",
+          walletProviderSubject: "did:privy:user",
+        },
+        accountUser: { id: "user-1", displayName: "Privy Account" },
+        walletModalRows: [
+          {
+            id: "privy-svm",
+            family: "svm",
+            address: "AG6eZ8E",
+            label: "AG6eZ..8E",
+            walletName: "Privy Solana",
+            source: "live",
+            status: "active",
+            provider: "privy",
+            linked: true,
+            linkedVia: "privy",
+            actions: [{ kind: "signout", label: "Sign out" }],
+          },
+        ],
+        accountWallets: [
+          {
+            id: "w-evm",
+            family: "evm",
+            address: "0xCC8000000000000000000000000000000000008f",
+            kind: "smart_account",
+            provider: "privy",
+            chainId: 1,
+            linkedVia: "privy",
+            capability: "write",
+          },
+          {
+            id: "w-svm",
+            family: "svm",
+            address: "AG6eZ8E",
+            kind: "embedded",
+            provider: "privy",
+            linkedVia: "privy",
+            capability: "write",
+          },
+        ],
+      }),
+    );
+
+    expect(screen.getByText("Manage wallets")).toBeTruthy();
+    expect(screen.getAllByText("Privy").length).toBeGreaterThan(0);
+    expect(screen.getByText("EVM/SVM")).toBeTruthy();
+    expect(screen.getByText("0xCC8..8f / AG6eZ..8E")).toBeTruthy();
+    expect(screen.queryByText("Privy Solana")).toBeNull();
+  });
+
   it("keeps a SIWE-verified external wallet's own brand, not 'siwe'", () => {
     renderPicker(
       makeAdapter({
@@ -1195,6 +1252,50 @@ describe("WalletPicker", () => {
     expect(screen.getByRole("dialog")).toBeTruthy();
   });
 
+  it("uses full account sign-out from a provider connected-row sign-out", async () => {
+    const signOutAccount = vi.fn(async () => undefined);
+    const disconnect = vi.fn(async () => undefined);
+    renderPicker(
+      makeAdapter({
+        accountUser: { id: "user-1", displayName: "Privy Account" },
+        signOutAccount,
+        canOpenAccountUI: false,
+        openAccountUI: undefined,
+        disconnect,
+        identity: {
+          status: "connected",
+          isConnected: true,
+          walletProvider: "privy",
+          sessionProvider: "privy",
+          walletProviderSubject: "did:privy:user",
+          primaryLabel: "privy@example.com",
+        },
+        accounts: [
+          {
+            id: "privy-solana",
+            family: "svm",
+            address: "9xQpubKey",
+            walletName: "Privy Solana",
+            active: true,
+            linkedVia: "privy",
+            actions: [{ kind: "signout", label: "Sign out" }],
+          },
+        ],
+      }),
+    );
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Sign out" }));
+    });
+
+    expect(signOutAccount).toHaveBeenCalledTimes(1);
+    expect(disconnect).toHaveBeenCalledWith({ family: "all" });
+    expect(disconnect).not.toHaveBeenCalledWith({
+      accountId: "privy-solana",
+      providerSignOut: true,
+    });
+  });
+
   it("shows one Privy sign-in row beside external wallets before provider sign-in", () => {
     renderPicker(
       makeAdapter({
@@ -1226,6 +1327,91 @@ describe("WalletPicker", () => {
     expect(
       within(socialRow).getByText("Email, wallet, or social"),
     ).toBeTruthy();
+  });
+
+  it("dedupes stored embedded wallets behind the provider quick sign-in row", () => {
+    renderPicker(
+      makeAdapter({
+        accountUser: { id: "user-1", displayName: "Linked account" },
+        accountLinkedAccounts: [
+          {
+            id: "identity-privy",
+            provider: "privy",
+            subject: "did:privy:user",
+            linkedAt: Date.now(),
+            lastSeenAt: Date.now(),
+          },
+        ],
+        accountWallets: [
+          {
+            id: "stored-privy-svm",
+            family: "svm",
+            address: "AG6eZtiXAhp8uzaXabn7eSZfaXBWrMYtvBH5dTzww18E",
+            kind: "embedded",
+            provider: "privy",
+            linkedVia: "privy",
+            verifiedAt: Date.now(),
+            lastSeenAt: Date.now(),
+          },
+        ],
+        identity: {
+          status: "connected",
+          isConnected: true,
+          address: "0xAAAAAAAA",
+          chainId: 1,
+          walletProvider: "privy",
+          primaryLabel: "0xAAA..AA",
+        },
+        walletModalRows: [
+          {
+            id: "rabby",
+            family: "evm",
+            address: "0xAAAAAAAA",
+            chainId: 1,
+            label: "Rabby",
+            walletName: "Rabby",
+            source: "live",
+            status: "active",
+            linked: true,
+            actions: [{ kind: "disconnect", label: "Disconnect" }],
+          },
+          {
+            id: "privy",
+            family: "evm",
+            label: "Email, wallet, or social",
+            walletName: "Privy",
+            kind: "social",
+            source: "option",
+            status: "available",
+            actions: [{ kind: "authenticate", label: "Sign in" }],
+          },
+          {
+            id: "stored-privy-svm",
+            family: "svm",
+            address: "AG6eZtiXAhp8uzaXabn7eSZfaXBWrMYtvBH5dTzww18E",
+            label: "AG6eZtiXAhp8uzaXabn7eSZfaXBWrMYtvBH5dTzww18E",
+            walletName: "Privy",
+            source: "stored",
+            status: "stored",
+            provider: "privy",
+            linked: true,
+            actions: [{ kind: "authenticate", label: "Sign in" }],
+          },
+        ],
+        socialLoginOptions: [],
+      }),
+    );
+
+    const socialRow = screen.getByRole("button", {
+      name: "Email, wallet, or social",
+    });
+    expect(within(socialRow).getByText("Privy")).toBeTruthy();
+    expect(
+      screen.getAllByRole("button", { name: "Email, wallet, or social" }),
+    ).toHaveLength(1);
+    expect(
+      screen.queryByText("AG6eZtiXAhp8uzaXabn7eSZfaXBWrMYtvBH5dTzww18E"),
+    ).toBeNull();
   });
 
   it("shows the Para sign-in row when only external wallets are connected", () => {

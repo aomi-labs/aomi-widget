@@ -10,7 +10,6 @@ import type { WalletFamily } from "../types";
 export type AomiBackendAccountConfig = {
   mode: "aomi-backend";
   baseUrl?: string;
-  signInPolicy?: "evm-siwe-first" | "provider-token-allowed";
 };
 
 type AccountResponse = {
@@ -36,7 +35,6 @@ export function useAomiBackendAccountRuntime(input: {
   auth: AuthRuntime;
   evm: EvmWalletRuntime;
   svm?: SvmWalletRuntime;
-  signInPolicy: "evm-siwe-first" | "provider-token-allowed";
 }): AccountRuntime {
   const baseUrl = normalizeBaseUrl(input.baseUrl);
   const [account, setAccount] = useState<AccountResponse | null>(null);
@@ -46,6 +44,7 @@ export function useAomiBackendAccountRuntime(input: {
   const [errorVersion, setErrorVersion] = useState(0);
   const siweInFlight = useRef<string | null>(null);
   const signedOutEvmKey = useRef<string | null>(null);
+  const signedOutCredentialKey = useRef<string | null>(null);
   const credentialInFlight = useRef<string | null>(null);
   const credentialExchanged = useRef<string | null>(null);
 
@@ -68,6 +67,14 @@ export function useAomiBackendAccountRuntime(input: {
   useEffect(() => {
     void refresh();
   }, [refresh]);
+
+  useEffect(() => {
+    if (input.auth.status !== "authenticated") {
+      signedOutCredentialKey.current = null;
+      credentialInFlight.current = null;
+      credentialExchanged.current = null;
+    }
+  }, [input.auth.status, input.auth.subject]);
 
   const activeEvmAddress = input.evm.activeEvmConnection?.address;
   const activeEvmChainId = input.evm.activeEvmConnection?.chainId;
@@ -99,7 +106,10 @@ export function useAomiBackendAccountRuntime(input: {
     })
       .then(refresh)
       .catch(() => {
-        setStatus("error");
+        // A rejected/failed auto-SIWE attempt must not block provider-token
+        // sign-in; suppress repeat prompts for this wallet and keep runtime live.
+        signedOutEvmKey.current = key;
+        setStatus("ready");
         setErrorVersion((version) => version + 1);
       })
       .finally(() => {
@@ -129,15 +139,16 @@ export function useAomiBackendAccountRuntime(input: {
     async function exchange() {
       const credential = await input.auth.getCredential?.();
       if (!credential || cancelled) return;
-      const key = JSON.stringify(credential).slice(0, 96);
-      const endpoint = account?.user
-        ? `${baseUrl}/api/aomi/provider/exchange`
-        : input.signInPolicy === "provider-token-allowed"
-          ? `${baseUrl}/api/auth/aomi/provider/exchange`
-          : null;
-      if (!endpoint) {
+      const key = credentialKey(credential);
+      const signedOutKey = authCredentialKey(input.auth, key);
+      if (!account?.user && signedOutCredentialKey.current === signedOutKey) {
         return;
       }
+      // Any provider credential is exchangeable, in any order: link to the
+      // current account if one exists, otherwise create one. No policy gate.
+      const endpoint = account?.user
+        ? `${baseUrl}/api/aomi/provider/exchange`
+        : `${baseUrl}/api/auth/aomi/provider/exchange`;
       const attemptKey = `${endpoint}:${account?.user?.id ?? "new"}:${key}`;
       if (
         credentialInFlight.current === attemptKey ||
@@ -170,15 +181,7 @@ export function useAomiBackendAccountRuntime(input: {
     return () => {
       cancelled = true;
     };
-  }, [
-    account?.user,
-    baseUrl,
-    input.auth,
-    input.enabled,
-    input.signInPolicy,
-    refresh,
-    status,
-  ]);
+  }, [account?.user, baseUrl, input.auth, input.enabled, refresh, status]);
 
   const liveWalletKeys = useMemo(() => {
     const keys = new Set<string>();
@@ -215,6 +218,17 @@ export function useAomiBackendAccountRuntime(input: {
       if (activeEvmAddress && activeEvmChainId) {
         signedOutEvmKey.current = `${activeEvmAddress}:${activeEvmChainId}`;
       }
+      if (input.auth.status === "authenticated" && input.auth.getCredential) {
+        const credential = await input.auth.getCredential().catch(() => null);
+        if (credential) {
+          signedOutCredentialKey.current = authCredentialKey(
+            input.auth,
+            credentialKey(credential),
+          );
+        }
+      }
+      credentialInFlight.current = null;
+      credentialExchanged.current = null;
       await fetchJson(`${baseUrl}/api/aomi/sign-out`, { method: "POST" });
       setAccount({
         user: null,
@@ -320,6 +334,17 @@ export function useAomiBackendAccountRuntime(input: {
       await refresh();
     },
   };
+}
+
+function credentialKey(credential: unknown): string {
+  return (JSON.stringify(credential) ?? "").slice(0, 96);
+}
+
+function authCredentialKey(
+  auth: Pick<AuthRuntime, "provider" | "subject">,
+  key: string,
+): string {
+  return `${auth.provider}:${auth.subject ?? "unknown"}:${key}`;
 }
 
 /**
