@@ -2,10 +2,80 @@
 
 ## Last Updated
 
-2026-06-17 - Full rewrite of `specs/WIDGET-AUTH-PLAN.md` after a 48-question
-decision sweep + an investigation pass on account merging. No production code.
+2026-06-19 - Consolidated per-provider EVM/SVM rows in the account manager
+(`wallet-picker.tsx`). UI only.
 
 ## Recent Changes
+
+### Account manager: collapse Privy/Para EVM+SVM into one row (2026-06-19)
+
+Branch `codex/widget-auth-pre-rust`. UI cleanup of the "Manage account" panel
+(`apps/registry/src/components/control-bar/wallet-picker.tsx`) so a
+provider-backed sign-in no longer shows as two cards per family.
+
+- **New pure helpers + `FamilyChip`** (module scope, easy to test): `WalletLeg`,
+  `sortLegs` (EVM before SVM), `joinLegAddresses`, `singleNetworkName`,
+  `buildConnectedEntries`, `buildAccountAccessEntries`, `connectedLinkState`.
+  `FamilyChip` renders one dot+label per family and the combined **"EVM/SVM"**
+  label when a row carries both (capability dot: amber = read, emerald =
+  write/connected).
+- **Connected now:** `buildConnectedEntries` groups the live `walletModalRows`
+  by `provider` — Privy/Para fold into one "Privy"/"Para" row whose subtitle is
+  `evmAddr / svmAddr · <network?> · <linkState>`. External wallets (no provider)
+  stay one row each. `ConnectedWalletSummaryRow` now takes a consolidated
+  `entry` instead of a single `WalletModalRow`.
+- **Account access:** `buildAccountAccessEntries` merges each provider auth
+  identity with the wallets sharing its `provider` into one canonical row
+  (sign-in + EVM/SVM addresses), instead of one session row + two wallet rows.
+  Provider-less identities (Google) and SIWE/observed external wallets stay
+  standalone. `LinkedAuthAccountRow` gained optional `wallets`/`supportedEvmChains`
+  and renders the `FamilyChip` + address subtitle when wallets are folded in;
+  rename/unlink still target the auth identity.
+- **Manage wallets (interactive switcher):** same provider grouping applied to
+  the front-panel "Connected" list. `groupConnectedByProvider` folds Privy/Para's
+  EVM + SVM into one row; `FamilyStatusRow` was replaced by `ConnectedWalletRow`
+  which takes `legs` + a deduped `ConnectedActionRef[]` (each action routed to its
+  owning leg). Select targets the non-active EVM leg; a provider's two `signout`
+  actions collapse to one provider sign-out. External wallets (no provider) are
+  unchanged, one row each.
+- **FamilyChip:** one capability dot (not one per family) before the combined
+  "EVM/SVM" — the legs are always connected together, so two dots read as noise.
+  Dot is amber only when every leg is read-only, else emerald.
+- **Regression fix (provider grouping):** the first grouping pass keyed/titled on
+  any non-empty `provider`, so a SIWE-verified MetaMask (`provider: "siwe"`)
+  rendered as a "siwe" row. Added `isEmbeddedAccountProvider` (privy/para/
+  baseAccount only) and gated `buildConnectedEntries`, `groupConnectedByProvider`,
+  and `buildAccountAccessEntries` on it — `siwe`/`siws`/`observed`/etc. are
+  verification methods, not wallet brands, so those rows keep their own name and
+  never group. Test: "keeps a SIWE-verified external wallet's own brand, not
+  'siwe'". Suite 31 green.
+- **Bug fix (default link label):** `linkWallet` in
+  `account/aomi-backend-runtime.ts` derived the first-link label from
+  `activeEvmConnection.walletName` — the *active* EVM signer — so linking
+  MetaMask while a Privy smart wallet was active produced "Privy Smart Wallet 1".
+  Extracted `resolveLinkedWalletName` (match the live EVM account by `accountId`,
+  then `address`; fall back to the active connection only when absent) and named
+  the label after the wallet actually being linked. Note: persisted labels keep
+  via `coalesce`, so already-mislabeled rows need a manual rename; the fix is
+  forward-looking. New `aomi-backend-runtime.test.ts` (6 tests) covers the
+  resolver + `buildDefaultWalletLabel`. Artifact: surgically patched only
+  `aomi-backend-runtime.ts` inside `aomi-wallet-kit.json` (left the file's
+  pre-existing `types.ts`/`brands.ts` drift untouched; `dist/aomi-wallet-kit.json`
+  is gitignored).
+- **Tests:** added "collapses a provider's EVM + SVM into one row in both
+  sections" (now asserts 3 consolidated chips: Manage wallets + Connected now +
+  Account access) and "collapses a provider's wallets into one row in Manage
+  wallets" to `wallet-picker.test.tsx`. Suite 30 green. Also green: wallet-kit +
+  control-bar suites (152), `apps/registry` tsc, lint, `build:lib`, pinned
+  registry-artifact test. Rebuilt registry + synced **only** `control-bar.json`
+  (the artifact embedding `wallet-picker.tsx`); reverted unrelated pre-existing
+  drift in the para/privy/wallet-kit provider JSONs.
+- **Pre-existing, NOT from this change:** `typecheck:landing` reports 3 errors
+  (`WalletsConfig.embedded` in `landing-wallet-kit-provider.tsx` +
+  `para-solana-runtime-driver.tsx`, and a generated `.next` `chat-ui-lab/page.js`
+  type) — confirmed present with this change stashed.
+- **Not eyeballed live:** the merged Privy/Para state needs a real provider
+  session, so it's verified via the component test rather than the browser.
 
 ### Widget auth plan — full rewrite + 48 locked decisions + merge model (2026-06-17)
 

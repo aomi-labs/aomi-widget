@@ -745,6 +745,192 @@ describe("WalletPicker", () => {
     expect(unlinkLinkedWallet).toHaveBeenCalledWith("wallet-1");
   });
 
+  it("collapses a provider's EVM + SVM into one row in both sections", async () => {
+    const updateLinkedAccount = vi.fn(async () => undefined);
+    renderPicker(
+      makeAdapter({
+        accountStatus: "ready",
+        accountUser: { id: "user-1", displayName: "privy user" },
+        identity: {
+          status: "connected",
+          isConnected: true,
+          walletProvider: "privy",
+          sessionProvider: "privy",
+          walletProviderSubject: "did:privy:user",
+        },
+        // Two live wallets minted by the same Privy sign-in (provider="privy").
+        walletModalRows: [
+          {
+            id: "privy-evm",
+            family: "evm",
+            address: "0xCC8000000000000000000000000000000000008f",
+            chainId: 1,
+            label: "0xCC8..8f",
+            walletName: "Privy Smart Wallet",
+            source: "live",
+            status: "active",
+            provider: "privy",
+            linked: true,
+            actions: [],
+          },
+          {
+            id: "privy-svm",
+            family: "svm",
+            address: "AG6eZ8E",
+            label: "AG6eZ..8E",
+            walletName: "Privy Solana",
+            source: "live",
+            status: "connected",
+            provider: "privy",
+            linked: true,
+            actions: [],
+          },
+        ],
+        accountLinkedAccounts: [
+          {
+            id: "identity-1",
+            provider: "privy",
+            subject: "did:privy:user",
+            displayLabel: "Privy",
+          },
+        ],
+        accountWallets: [
+          {
+            id: "w-evm",
+            family: "evm",
+            address: "0xCC8000000000000000000000000000000000008f",
+            kind: "smart_account",
+            provider: "privy",
+            chainId: 1,
+            linkedVia: "privy",
+            capability: "write",
+          },
+          {
+            id: "w-svm",
+            family: "svm",
+            address: "AG6eZ8E",
+            kind: "embedded",
+            provider: "privy",
+            linkedVia: "privy",
+            capability: "write",
+          },
+        ],
+        updateLinkedAccount,
+      }),
+    );
+
+    await act(async () => {
+      fireEvent.click(
+        screen.getByRole("button", { name: "Manage your account" }),
+      );
+    });
+
+    expect(screen.getByText("Connected now")).toBeTruthy();
+    expect(screen.getByText("Account access")).toBeTruthy();
+    // The combined chip is shown once per consolidated row — Manage wallets
+    // "Connected", the account panel "Connected now", and "Account access" —
+    // never two separate per-family cards.
+    expect(screen.getAllByText("EVM/SVM").length).toBe(3);
+    // Both addresses live on a single subtitle (EVM first, slash-separated).
+    expect(
+      screen.getAllByText(/0xCC8\.\.8f \/ AG6eZ\.\.8E/).length,
+    ).toBeGreaterThanOrEqual(2);
+    // The Manage wallets list also collapses into one "Privy" row, so the
+    // per-family wallet names are gone.
+    expect(screen.queryByText("Privy Smart Wallet")).toBeNull();
+    expect(screen.queryByText("Privy Solana")).toBeNull();
+    // The embedded wallets folded into the "Privy" sign-in, so there is no bare
+    // "Wallet" management row for them.
+    expect(screen.queryByText("Wallet")).toBeNull();
+    // The merged row still drives the auth-identity rename.
+    expect(screen.getByRole("button", { name: "Rename Privy" })).toBeTruthy();
+  });
+
+  it("collapses a provider's wallets into one row in Manage wallets", () => {
+    renderPicker(
+      makeAdapter({
+        identity: {
+          status: "connected",
+          isConnected: true,
+          walletProvider: "privy",
+          sessionProvider: "privy",
+          walletProviderSubject: "did:privy:user",
+        },
+        // No account runtime, so only the Manage wallets list renders.
+        accountUser: undefined,
+        walletModalRows: [
+          {
+            id: "privy-evm",
+            family: "evm",
+            address: "0xCC8000000000000000000000000000000000008f",
+            chainId: 1,
+            label: "0xCC8..8f",
+            walletName: "Privy Smart Wallet",
+            source: "live",
+            status: "active",
+            provider: "privy",
+            linked: true,
+            linkedVia: "privy",
+            actions: [{ kind: "signout", label: "Sign out" }],
+          },
+          {
+            id: "privy-svm",
+            family: "svm",
+            address: "AG6eZ8E",
+            label: "AG6eZ..8E",
+            walletName: "Privy Solana",
+            source: "live",
+            status: "active",
+            provider: "privy",
+            linked: true,
+            linkedVia: "privy",
+            actions: [{ kind: "signout", label: "Sign out" }],
+          },
+        ],
+      }),
+    );
+
+    expect(screen.getByText("Manage wallets")).toBeTruthy();
+    // One consolidated "Privy" row with the combined chip + both addresses.
+    expect(screen.getByText("Privy")).toBeTruthy();
+    expect(screen.getByText("EVM/SVM")).toBeTruthy();
+    expect(screen.getByText("0xCC8..8f / AG6eZ..8E")).toBeTruthy();
+    expect(screen.queryByText("Privy Smart Wallet")).toBeNull();
+    expect(screen.queryByText("Privy Solana")).toBeNull();
+    // The provider's two legs collapse to a single sign-out control.
+    expect(screen.getAllByRole("button", { name: "Sign out" }).length).toBe(1);
+  });
+
+  it("keeps a SIWE-verified external wallet's own brand, not 'siwe'", () => {
+    renderPicker(
+      makeAdapter({
+        accountUser: undefined,
+        walletModalRows: [
+          {
+            id: "mm-1",
+            family: "evm",
+            address: "0xDA6000000000000000000000000000000000000f0",
+            chainId: 1,
+            label: "0xDA6..f0",
+            walletName: "MetaMask",
+            source: "live",
+            status: "active",
+            // A SIWE verification stamps provider="siwe"; that is a method, not
+            // a wallet brand, so the row must NOT collapse/rebrand to "siwe".
+            provider: "siwe",
+            linked: true,
+            linkedVia: "siwe",
+            actions: [{ kind: "disconnect", label: "Disconnect" }],
+          },
+        ],
+      }),
+    );
+
+    expect(screen.getByText("MetaMask")).toBeTruthy();
+    expect(screen.queryByText("siwe")).toBeNull();
+    expect(screen.getByText("EVM")).toBeTruthy();
+  });
+
   it("shows the account button for a loaded wallet-only account without a provider UI", () => {
     renderPicker(
       makeAdapter({

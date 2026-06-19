@@ -260,8 +260,16 @@ export function useAomiBackendAccountRuntime(input: {
               message,
             })
           : await signMessageWithActiveEvm(input.evm.signMessageAsync, message);
+      // Name the label after the wallet actually being linked, not whichever
+      // wallet happens to be the active EVM signer — linking MetaMask while a
+      // Privy smart wallet is active must read "MetaMask N", not "Privy …".
       const defaultLabel = buildDefaultWalletLabel({
-        walletName: input.evm.activeEvmConnection?.walletName,
+        walletName: resolveLinkedWalletName({
+          accounts: input.evm.accounts(Date.now()),
+          accountId: wallet.accountId,
+          address: wallet.address,
+          fallbackWalletName: input.evm.activeEvmConnection?.walletName,
+        }),
         existingWallets: account?.wallets ?? [],
         family: wallet.family,
       });
@@ -315,12 +323,38 @@ export function useAomiBackendAccountRuntime(input: {
 }
 
 /**
+ * Resolve the brand name of the wallet being linked from the live EVM accounts,
+ * matching by stable account id first and address second. Falls back to the
+ * caller-supplied active-connection name only when the linked wallet isn't in
+ * the live set — so a default label is always brand-correct for the wallet the
+ * user actually picked, even when a different wallet is the active signer.
+ */
+export function resolveLinkedWalletName(input: {
+  accounts: ReadonlyArray<{
+    id: string;
+    address?: string;
+    walletName?: string;
+  }>;
+  accountId?: string;
+  address: string;
+  fallbackWalletName?: string;
+}): string | undefined {
+  const target = input.address.toLowerCase();
+  const match = input.accounts.find(
+    (candidate) =>
+      (input.accountId !== undefined && candidate.id === input.accountId) ||
+      candidate.address?.toLowerCase() === target,
+  );
+  return match?.walletName ?? input.fallbackWalletName;
+}
+
+/**
  * Build a first-link default label like "Rabby 1" / "MetaMask 2" so the
  * account-management row is never blank before the user renames it. Only used
  * as the initial value — `upsertWallet` keeps an existing label via
  * `coalesce(aomi_wallets.label, excluded.label)`, so user renames stick.
  */
-function buildDefaultWalletLabel(input: {
+export function buildDefaultWalletLabel(input: {
   walletName?: string | null;
   existingWallets: readonly AccountWallet[];
   family: WalletFamily;
