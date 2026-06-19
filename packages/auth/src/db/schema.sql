@@ -6,7 +6,6 @@ create table if not exists aomi_users (
   better_auth_user_id text unique,
   display_name text,
   primary_email citext,
-  primary_email_verified boolean not null default false,
   avatar_url text,
   metadata jsonb not null default '{}'::jsonb,
   deactivated_at timestamptz,
@@ -24,15 +23,13 @@ create table if not exists aomi_auth_identities (
   provider text not null,
   subject text not null,
   email citext,
-  email_verified boolean not null default false,
-  auth_method text,
   display_label text,
   provider_metadata jsonb not null default '{}'::jsonb,
   linked_at timestamptz not null default now(),
   last_seen_at timestamptz not null default now(),
   revoked_at timestamptz,
   constraint aomi_auth_identities_provider_check
-    check (provider in ('better_auth', 'siwe', 'privy', 'para', 'email', 'google', 'github', 'x', 'discord', 'telegram', 'farcaster'))
+    check (provider in ('better_auth', 'siwe', 'privy', 'para', 'email'))
 );
 
 create unique index if not exists aomi_auth_identities_active_unique

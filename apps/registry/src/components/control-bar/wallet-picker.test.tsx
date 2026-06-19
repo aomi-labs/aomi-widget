@@ -653,7 +653,6 @@ describe("WalletPicker", () => {
             provider: "privy",
             subject: "did:privy:ada",
             email: "ada@example.com",
-            emailVerified: true,
             displayLabel: "Privy",
           },
         ],
