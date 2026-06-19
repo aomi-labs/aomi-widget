@@ -48,6 +48,12 @@ type LinkedAccountRow = NonNullable<
 >[number];
 type LinkedWalletRow = NonNullable<AomiWalletKit["accountWallets"]>[number];
 type SupportedEvmChain = { id: number; name: string };
+/** A connected-row action paired with the specific wallet leg it acts on, so a
+ * consolidated provider row can route each button to the right family. */
+type ConnectedActionRef = {
+  action: WalletModalRow["actions"][number];
+  account: WalletModalRow;
+};
 
 type WalletAction = WalletModalRow & {
   actionKey: string;
@@ -463,20 +469,8 @@ export function WalletPicker() {
     </section>
   ) : null;
 
-  const renderConnectedRow = (account: WalletModalRow) => {
-    const svmCluster = (identity.svmCluster ?? identity.solanaCluster)?.replace(
-      "solana:",
-      "",
-    );
-    const chainDetail =
-      account.family === "evm"
-        ? (networkNameForChain(account.chainId, supportedEvmChains) ??
-          networkNameForChain(identity.chainId, supportedEvmChains))
-        : svmCluster
-          ? svmCluster.charAt(0).toUpperCase() + svmCluster.slice(1)
-          : undefined;
-    const detail = chainDetail;
-    const accountActions = account.actions.filter((action) => {
+  const filterRowActions = (account: WalletModalRow) =>
+    account.actions.filter((action) => {
       if (action.kind === "manage") return canManageAccounts;
       if (action.kind === "link") {
         return Boolean(adapter.linkWallet && account.family === "evm");
@@ -486,88 +480,153 @@ export function WalletPicker() {
       }
       return false;
     });
-    const runAccountAction = (action: WalletModalRow["actions"][number]) => {
-      const actionKey = `${action.kind}:${account.id}`;
-      if (action.kind === "manage") {
-        void runAction(actionKey, async () => {
-          await adapter.openAccountUI?.({
-            family: toPublicFamily(account.family),
-          });
-          closePicker();
+
+  const runConnectedAction = ({ action, account }: ConnectedActionRef) => {
+    const actionKey = `${action.kind}:${account.id}`;
+    if (action.kind === "manage") {
+      void runAction(actionKey, async () => {
+        await adapter.openAccountUI?.({
+          family: toPublicFamily(account.family),
         });
-        return;
-      }
-      if (action.kind === "link") {
-        if (!account.address) return;
-        void runAction(actionKey, () =>
-          adapter.linkWallet!({
+        closePicker();
+      });
+      return;
+    }
+    if (action.kind === "link") {
+      if (!account.address) return;
+      void runAction(actionKey, () =>
+        adapter.linkWallet!({
+          accountId: account.id,
+          family: account.family,
+          address: account.address!,
+          chainId: account.chainId,
+        }),
+      );
+      return;
+    }
+    if (action.kind === "signout") {
+      void runAction(
+        actionKey,
+        async () => {
+          await adapter.disconnect?.({
             accountId: account.id,
-            family: account.family,
-            address: account.address!,
-            chainId: account.chainId,
+            providerSignOut: true,
+          });
+        },
+        true,
+      );
+      return;
+    }
+    if (action.kind === "disconnect") {
+      void runAction(
+        actionKey,
+        () =>
+          adapter.disconnect!({
+            ...(account.family === "evm"
+              ? { accountId: account.id }
+              : { family: "solana" as const }),
           }),
-        );
-        return;
+        true,
+      );
+    }
+  };
+
+  const renderConnectedGroup = (group: WalletModalRow[]) => {
+    const representative = group[0];
+    const provider = isEmbeddedAccountProvider(representative.provider)
+      ? representative.provider
+      : null;
+    const grouped = group.length > 1;
+    const title =
+      provider !== null
+        ? (formatWalletProvider(provider) ?? provider)
+        : (representative.walletName ?? familyLabel(representative.family));
+
+    const svmCluster = (identity.svmCluster ?? identity.solanaCluster)?.replace(
+      "solana:",
+      "",
+    );
+    const detailFor = (account: WalletModalRow): string | undefined =>
+      account.family === "evm"
+        ? (networkNameForChain(account.chainId, supportedEvmChains) ??
+          networkNameForChain(identity.chainId, supportedEvmChains) ??
+          undefined)
+        : svmCluster
+          ? svmCluster.charAt(0).toUpperCase() + svmCluster.slice(1)
+          : undefined;
+
+    const legs: WalletLeg[] = group.map((account) => ({
+      family: account.family,
+      address: account.address,
+      chainId: account.chainId,
+      capability: account.capability,
+      linked: account.linked,
+    }));
+
+    // A single wallet keeps its original address/label + network/cluster detail;
+    // a provider group shows both shortened addresses, dropping the per-leg
+    // network so the line stays readable.
+    const addressText = grouped
+      ? joinLegAddresses(legs)
+      : (representative.label ??
+        formatWalletAddress(representative.address ?? "") ??
+        "");
+    const detail = grouped ? undefined : detailFor(representative);
+
+    const active = group.some((account) => account.status === "active");
+    const selectLeg = group.find(
+      (account) => account.family === "evm" && account.status !== "active",
+    );
+
+    const actions: ConnectedActionRef[] = [];
+    const seenKinds = new Set<string>();
+    for (const account of group) {
+      for (const action of filterRowActions(account)) {
+        if (seenKinds.has(action.kind)) continue;
+        seenKinds.add(action.kind);
+        actions.push({ action, account });
       }
-      if (action.kind === "signout") {
-        void runAction(
-          actionKey,
-          async () => {
-            await adapter.disconnect?.({
-              accountId: account.id,
-              providerSignOut: true,
-            });
-          },
-          true,
-        );
-        return;
-      }
-      if (action.kind === "disconnect") {
-        void runAction(
-          actionKey,
-          () =>
-            adapter.disconnect!({
-              ...(account.family === "evm"
-                ? { accountId: account.id }
-                : { family: "solana" as const }),
-            }),
-          true,
-        );
-      }
-    };
+    }
+
+    const providerHint =
+      representative.linkedVia &&
+      representative.linkedVia !== "challenge" &&
+      representative.linkedVia !== "import" &&
+      representative.linkedVia !== "observed"
+        ? representative.linkedVia
+        : provider !== null
+          ? provider
+          : representative.manageable
+            ? (identity.embeddedProvider ??
+              identity.sessionProvider ??
+              identity.walletProvider)
+            : undefined;
 
     return (
-      <FamilyStatusRow
-        key={`${account.family}:${account.id}`}
-        family={account.family}
-        account={account}
-        detail={detail ?? undefined}
-        supportedEvmChains={supportedEvmChains}
-        providerHint={
-          account.linkedVia &&
-          account.linkedVia !== "challenge" &&
-          account.linkedVia !== "import" &&
-          account.linkedVia !== "observed"
-            ? account.linkedVia
-            : account.manageable
-              ? (identity.embeddedProvider ??
-                identity.sessionProvider ??
-                identity.walletProvider)
-              : undefined
-        }
+      <ConnectedWalletRow
+        key={provider !== null ? `provider:${provider}` : `row:${representative.id}`}
+        title={title}
+        iconId={provider !== null ? provider : representative.id}
+        iconLabel={title}
+        iconProvider={providerHint}
+        legs={legs}
+        addressText={addressText}
+        detail={detail}
+        active={active}
+        selectKey={selectLeg ? `select:${selectLeg.id}` : undefined}
         pending={pending}
         onSelect={
-          account.family === "evm" && account.status !== "active"
+          selectLeg
             ? () =>
                 void runAction(
-                  `select:${account.id}`,
-                  () => adapter.selectAccount(account.id),
+                  `select:${selectLeg.id}`,
+                  () => adapter.selectAccount(selectLeg.id),
                   true,
                 )
             : undefined
         }
-        actions={accountActions}
-        onAction={runAccountAction}
+        actions={actions}
+        onAction={runConnectedAction}
       />
     );
   };
@@ -575,7 +634,7 @@ export function WalletPicker() {
   const connectedSection = hasConnectedWallets ? (
     <section className="flex flex-col gap-1.5">
       <SectionLabel>Connected</SectionLabel>
-      {connectedAccounts.map(renderConnectedRow)}
+      {groupConnectedByProvider(connectedAccounts).map(renderConnectedGroup)}
     </section>
   ) : null;
 
@@ -895,6 +954,262 @@ function networkNameForChain(
     : (getChainInfo(chainId)?.name ?? null);
 }
 
+/**
+ * One chain "leg" of a consolidated entry — a single family's address/state. A
+ * provider-backed account (Privy/Para) contributes one EVM and one SVM leg under
+ * the same row instead of showing as two separate cards.
+ */
+type WalletLeg = {
+  family: WalletFamily;
+  address?: string;
+  chainId?: number;
+  capability?: "read" | "write";
+  linked?: boolean;
+};
+
+const FAMILY_ORDER: Record<string, number> = { evm: 0, svm: 1 };
+
+function familyRank(family: WalletFamily): number {
+  return FAMILY_ORDER[family] ?? 2;
+}
+
+/** Sort legs deterministically (EVM before SVM) so addresses line up with the
+ * "EVM/SVM" chip ordering. */
+function sortLegs<T extends { family: WalletFamily }>(
+  legs: readonly T[],
+): T[] {
+  return [...legs].sort((a, b) => familyRank(a.family) - familyRank(b.family));
+}
+
+function familyShortLabel(family: WalletFamily): string {
+  return family === "svm" ? "SVM" : "EVM";
+}
+
+function joinLegAddresses(legs: readonly WalletLeg[]): string {
+  return sortLegs(legs)
+    .map((leg) => formatWalletAddress(leg.address))
+    .filter(Boolean)
+    .join(" / ");
+}
+
+/** A single network name only reads cleanly when there's one EVM leg; with two
+ * it's omitted to keep the address line short. */
+function singleNetworkName(
+  legs: readonly WalletLeg[],
+  supportedEvmChains: readonly SupportedEvmChain[],
+): string | null {
+  const names = legs
+    .map((leg) =>
+      leg.family === "evm"
+        ? networkNameForChain(leg.chainId, supportedEvmChains)
+        : null,
+    )
+    .filter((name): name is string => Boolean(name));
+  return names.length === 1 ? names[0] : null;
+}
+
+/**
+ * Only embedded account providers (Privy/Para/Base Account) mint the EVM+SVM
+ * wallets that should collapse into one provider-branded row. A `provider` like
+ * "siwe" is a verification *method*, not a wallet brand — those rows keep their
+ * own wallet name (MetaMask, …) and never group.
+ */
+const EMBEDDED_ACCOUNT_PROVIDERS: ReadonlySet<string> = new Set([
+  "privy",
+  "para",
+  "baseAccount",
+]);
+
+function isEmbeddedAccountProvider(provider?: string): provider is string {
+  return provider != null && EMBEDDED_ACCOUNT_PROVIDERS.has(provider);
+}
+
+type ConnectedEntry = {
+  key: string;
+  title: string;
+  iconId: string;
+  iconLabel: string;
+  iconProvider?: string;
+  legs: WalletLeg[];
+};
+
+/**
+ * Collapse the live connected rows into one entry per embedded account provider.
+ * A Privy/Para sign-in mints both an EVM and an SVM wallet — those share a
+ * provider, so they fold into a single "Privy"/"Para" row carrying both legs.
+ * External wallets (including SIWE-verified ones) keep their own brand and stay
+ * one row each.
+ */
+function buildConnectedEntries(
+  accounts: readonly WalletModalRow[],
+  wallets: readonly LinkedWalletRow[],
+): ConnectedEntry[] {
+  const byKey = new Map<string, ConnectedEntry>();
+  const order: string[] = [];
+  for (const account of accounts) {
+    const provider = isEmbeddedAccountProvider(account.provider)
+      ? account.provider
+      : null;
+    const groupKey =
+      provider !== null ? `provider:${provider}` : `row:${account.id}`;
+    const linkedWallet = account.linked
+      ? wallets.find((wallet) =>
+          sameWalletAddress(wallet.family, wallet.address, account.address),
+        )
+      : undefined;
+    const leg: WalletLeg = {
+      family: account.family,
+      address: account.address,
+      chainId: account.chainId,
+      capability: account.capability ?? linkedWallet?.capability,
+      linked: account.linked,
+    };
+    let entry = byKey.get(groupKey);
+    if (!entry) {
+      const title =
+        provider !== null
+          ? (formatWalletProvider(provider) ?? provider)
+          : (account.walletName ?? familyLabel(account.family));
+      entry = {
+        key: groupKey,
+        title,
+        iconId: provider !== null ? provider : account.id,
+        iconLabel: title,
+        iconProvider: account.provider,
+        legs: [],
+      };
+      byKey.set(groupKey, entry);
+      order.push(groupKey);
+    }
+    entry.legs.push(leg);
+  }
+  return order.map((key) => {
+    const entry = byKey.get(key)!;
+    return { ...entry, legs: sortLegs(entry.legs) };
+  });
+}
+
+function connectedLinkState(legs: readonly WalletLeg[]): string {
+  if (legs.length > 0 && legs.every((leg) => leg.linked)) return "Linked";
+  const anyEvmUnlinked = legs.some(
+    (leg) => leg.family === "evm" && !leg.linked,
+  );
+  return anyEvmUnlinked ? "Verify to link" : "Connected only";
+}
+
+/**
+ * Group the interactive "Connected" rows by provider, preserving order. A
+ * Privy/Para sign-in folds its EVM + SVM legs into one group (EVM first);
+ * external wallets have no provider and stay one group each.
+ */
+function groupConnectedByProvider(
+  accounts: readonly WalletModalRow[],
+): WalletModalRow[][] {
+  const byKey = new Map<string, WalletModalRow[]>();
+  const order: string[] = [];
+  for (const account of accounts) {
+    const key = isEmbeddedAccountProvider(account.provider)
+      ? `provider:${account.provider}`
+      : `row:${account.id}`;
+    let group = byKey.get(key);
+    if (!group) {
+      group = [];
+      byKey.set(key, group);
+      order.push(key);
+    }
+    group.push(account);
+  }
+  return order.map((key) => sortLegs(byKey.get(key)!));
+}
+
+/**
+ * Split the account-access rows into one canonical entry per provider sign-in
+ * plus whatever doesn't belong to a provider. A provider auth identity merges
+ * with the wallets that share its `provider`, so Privy/Para shows as a single
+ * row (sign-in + EVM/SVM addresses) instead of one session row plus two wallet
+ * rows. SIWE/observed external wallets and provider-less identities stay
+ * standalone.
+ */
+function buildAccountAccessEntries(
+  linkedAccounts: readonly LinkedAccountRow[],
+  wallets: readonly LinkedWalletRow[],
+): {
+  providerEntries: { account: LinkedAccountRow; wallets: LinkedWalletRow[] }[];
+  standaloneAccounts: LinkedAccountRow[];
+  standaloneWallets: LinkedWalletRow[];
+} {
+  const consumedWalletIds = new Set<string>();
+  const consumedAccountIds = new Set<string>();
+  const providerEntries: {
+    account: LinkedAccountRow;
+    wallets: LinkedWalletRow[];
+  }[] = [];
+
+  for (const account of linkedAccounts) {
+    if (!isEmbeddedAccountProvider(account.provider)) continue;
+    const matched = wallets.filter(
+      (wallet) =>
+        wallet.provider === account.provider &&
+        !consumedWalletIds.has(wallet.id),
+    );
+    if (matched.length === 0) continue;
+    matched.forEach((wallet) => consumedWalletIds.add(wallet.id));
+    consumedAccountIds.add(account.id);
+    providerEntries.push({ account, wallets: matched });
+  }
+
+  return {
+    providerEntries,
+    standaloneAccounts: linkedAccounts.filter(
+      (account) => !consumedAccountIds.has(account.id),
+    ),
+    standaloneWallets: wallets.filter(
+      (wallet) => !consumedWalletIds.has(wallet.id),
+    ),
+  };
+}
+
+/**
+ * Compact per-row family indicator. One family renders as "EVM"; a provider
+ * carrying both renders the combined "EVM/SVM". A single dot carries the
+ * capability cue (amber = read-only across the board, emerald = write/connected)
+ * — both legs are always connected together, so one dot reads cleaner than two.
+ */
+function FamilyChip({
+  legs,
+}: {
+  legs: ReadonlyArray<Pick<WalletLeg, "family" | "capability">>;
+}) {
+  const seen = new Set<string>();
+  const families = sortLegs(legs).filter((leg) => {
+    if (seen.has(leg.family)) return false;
+    seen.add(leg.family);
+    return true;
+  });
+  if (families.length === 0) return null;
+  const label = families.map((leg) => familyShortLabel(leg.family)).join("/");
+  const title = families
+    .map((leg) =>
+      leg.family === "svm" ? "Solana (SVM)" : "Ethereum-compatible wallet",
+    )
+    .join(" + ");
+  const allRead = families.every((leg) => leg.capability === "read");
+  return (
+    <span
+      className="text-muted-foreground/70 inline-flex min-w-0 shrink-0 items-center gap-1 text-[10px] font-semibold uppercase tracking-wide"
+      title={title}
+    >
+      <span
+        className={cn(
+          "size-1.5 rounded-full",
+          allRead ? "bg-amber-500" : "bg-emerald-500",
+        )}
+      />
+      <span className="max-w-24 truncate">{label}</span>
+    </span>
+  );
+}
+
 function ManageAccountButton({
   pending,
   providerSubtitle,
@@ -990,6 +1305,12 @@ function AccountManagerPanel({
   const primarySubtitle =
     userEmail ?? (user ? walletSummary : (subtitle ?? walletSummary));
   const visibleLinkedAccounts = linkedAccounts.filter(isVisibleLinkedAccount);
+  const connectedEntries = buildConnectedEntries(connectedAccounts, wallets);
+  const {
+    providerEntries: providerAccessEntries,
+    standaloneAccounts,
+    standaloneWallets,
+  } = buildAccountAccessEntries(visibleLinkedAccounts, wallets);
   const hasAccountAccess =
     visibleLinkedAccounts.length > 0 || wallets.length > 0;
   const headerBrandLabel = user ? undefined : brandLabel;
@@ -1133,22 +1454,11 @@ function AccountManagerPanel({
 
         <section className="flex flex-col gap-1.5">
           <SectionLabel>Connected now</SectionLabel>
-          {connectedAccounts.map((account) => (
+          {connectedEntries.map((entry) => (
             <ConnectedWalletSummaryRow
-              key={`${account.family}:${account.id}`}
-              account={account}
+              key={entry.key}
+              entry={entry}
               supportedEvmChains={supportedEvmChains}
-              linkedWallet={
-                account.linked
-                  ? wallets.find((wallet) =>
-                      sameWalletAddress(
-                        wallet.family,
-                        wallet.address,
-                        account.address,
-                      ),
-                    )
-                  : undefined
-              }
             />
           ))}
         </section>
@@ -1156,7 +1466,31 @@ function AccountManagerPanel({
         {hasAccountAccess ? (
           <section className="flex flex-col gap-1.5">
             <SectionLabel>Account access</SectionLabel>
-            {visibleLinkedAccounts.map((account) => (
+            {providerAccessEntries.map(({ account, wallets: providerWallets }) => (
+              <LinkedAuthAccountRow
+                key={account.id}
+                account={account}
+                wallets={providerWallets}
+                supportedEvmChains={supportedEvmChains}
+                editing={editingLinkedAccountId === account.id}
+                draftLabel={draftLinkedAccountLabel}
+                pending={pending}
+                onDraftLabelChange={setDraftLinkedAccountLabel}
+                onStartRename={
+                  onRenameLinkedAccount
+                    ? () => startRenamingLinkedAccount(account)
+                    : undefined
+                }
+                onCancelRename={() => setEditingLinkedAccountId(null)}
+                onSubmitRename={() => void submitLinkedAccountRename(account)}
+                onUnlink={
+                  onUnlinkAccount
+                    ? () => void onUnlinkAccount(account.id)
+                    : undefined
+                }
+              />
+            ))}
+            {standaloneAccounts.map((account) => (
               <LinkedAuthAccountRow
                 key={account.id}
                 account={account}
@@ -1178,7 +1512,7 @@ function AccountManagerPanel({
                 }
               />
             ))}
-            {wallets.map((wallet) => (
+            {standaloneWallets.map((wallet) => (
               <LinkedWalletManagementRow
                 key={wallet.id}
                 wallet={wallet}
@@ -1310,6 +1644,8 @@ function chainIdFromScope(chainScope?: string): number | undefined {
 
 function LinkedAuthAccountRow({
   account,
+  wallets = [],
+  supportedEvmChains = [],
   editing,
   draftLabel,
   pending,
@@ -1320,6 +1656,11 @@ function LinkedAuthAccountRow({
   onUnlink,
 }: {
   account: LinkedAccountRow;
+  /** Provider-owned wallets folded into this sign-in row (Privy/Para mint both
+   * an EVM and an SVM wallet under one identity). Empty for provider-less
+   * sign-ins (e.g. Google), which keep their email/subject subtitle. */
+  wallets?: readonly LinkedWalletRow[];
+  supportedEvmChains?: readonly SupportedEvmChain[];
   editing: boolean;
   draftLabel: string;
   pending: string | null;
@@ -1332,13 +1673,30 @@ function LinkedAuthAccountRow({
   const providerLabel =
     formatWalletProvider(account.provider) ?? account.provider;
   const title = account.displayLabel ?? providerLabel;
-  const subtitle = linkedAccountSubtitle(account);
+  const legs: WalletLeg[] = sortLegs(
+    wallets.map((wallet) => ({
+      family: wallet.family,
+      address: wallet.address,
+      chainId: wallet.chainId ?? chainIdFromScope(wallet.chainScope),
+      capability: wallet.capability,
+    })),
+  );
+  const addresses = joinLegAddresses(legs);
+  const networkName = singleNetworkName(legs, supportedEvmChains);
+  const subtitle =
+    legs.length > 0
+      ? [addresses, networkName].filter(Boolean).join(" · ")
+      : linkedAccountSubtitle(account);
   const busy =
     pending === `identity:rename:${account.id}` ||
     pending === `identity:unlink:${account.id}`;
   return (
     <div className="border-border/70 bg-card flex items-center gap-3 rounded-2xl border px-3 py-2.5">
-      <WalletIconSlot id={account.provider} label={providerLabel} />
+      <WalletIconSlot
+        id={account.provider}
+        label={providerLabel}
+        provider={account.provider}
+      />
       <span className="min-w-0 flex-1">
         {editing ? (
           <input
@@ -1350,8 +1708,11 @@ function LinkedAuthAccountRow({
           />
         ) : (
           <>
-            <span className="text-foreground block truncate text-sm font-medium">
-              {title}
+            <span className="flex min-w-0 items-center gap-1.5">
+              <span className="text-foreground truncate text-sm font-medium">
+                {title}
+              </span>
+              {legs.length > 0 ? <FamilyChip legs={legs} /> : null}
             </span>
             <span className="text-muted-foreground block truncate text-[11px]">
               {subtitle}
@@ -1415,52 +1776,31 @@ function linkedAccountSubtitle(account: LinkedAccountRow): string {
 }
 
 function ConnectedWalletSummaryRow({
-  account,
+  entry,
   supportedEvmChains,
-  linkedWallet,
 }: {
-  account: WalletModalRow;
+  entry: ConnectedEntry;
   supportedEvmChains: readonly SupportedEvmChain[];
-  linkedWallet?: LinkedWalletRow;
 }) {
-  const name = account.walletName ?? familyLabel(account.family);
-  const capability = account.capability ?? linkedWallet?.capability;
-  const linkState = account.linked
-    ? "Linked"
-    : account.family === "evm"
-      ? "Verify to link"
-      : "Connected only";
-  const networkName =
-    account.family === "evm"
-      ? networkNameForChain(account.chainId, supportedEvmChains)
-      : undefined;
+  const addresses = joinLegAddresses(entry.legs);
+  const networkName = singleNetworkName(entry.legs, supportedEvmChains);
+  const linkState = connectedLinkState(entry.legs);
   return (
     <div className="border-border/70 bg-card flex items-center gap-3 rounded-2xl border px-3 py-2.5">
       <WalletIconSlot
-        id={account.id}
-        label={name}
-        provider={account.provider}
+        id={entry.iconId}
+        label={entry.iconLabel}
+        provider={entry.iconProvider}
       />
       <span className="min-w-0 flex-1">
         <span className="flex min-w-0 items-center gap-1.5">
           <span className="text-foreground truncate text-sm font-medium">
-            {name}
+            {entry.title}
           </span>
-          <ChainTag
-            family={account.family}
-            chainId={account.chainId}
-            supportedEvmChains={supportedEvmChains}
-            capability={capability}
-          />
+          <FamilyChip legs={entry.legs} />
         </span>
         <span className="text-muted-foreground block truncate text-[11px]">
-          {[
-            account.label ?? formatWalletAddress(account.address ?? ""),
-            networkName,
-            linkState,
-          ]
-            .filter(Boolean)
-            .join(" · ")}
+          {[addresses, networkName, linkState].filter(Boolean).join(" · ")}
         </span>
       </span>
     </div>
@@ -1592,53 +1932,51 @@ function sameWalletAddress(
     : left === right;
 }
 
-function FamilyStatusRow({
-  family,
-  account,
+function ConnectedWalletRow({
+  title,
+  iconId,
+  iconLabel,
+  iconProvider,
+  legs,
+  addressText,
   detail,
-  supportedEvmChains,
-  providerHint,
+  active,
+  selectKey,
   pending,
   onSelect,
   actions,
   onAction,
 }: {
-  family: WalletFamily;
-  account: WalletModalRow;
+  title: string;
+  iconId: string;
+  iconLabel: string;
+  iconProvider?: string;
+  legs: readonly WalletLeg[];
+  addressText: string;
   detail?: string;
-  supportedEvmChains: readonly SupportedEvmChain[];
-  providerHint?: string;
+  active: boolean;
+  selectKey?: string;
   pending: string | null;
   onSelect?: () => void;
-  actions: ReadonlyArray<WalletModalRow["actions"][number]>;
-  onAction: (action: WalletModalRow["actions"][number]) => void;
+  actions: readonly ConnectedActionRef[];
+  onAction: (ref: ConnectedActionRef) => void;
 }) {
-  const selectKey = `select:${account.id}`;
-  const name = account.walletName ?? familyLabel(family);
   const selectable = Boolean(onSelect);
-  const isSelecting = pending === selectKey;
-  const active = account.status === "active";
+  const isSelecting = selectKey != null && pending === selectKey;
 
   const inner = (
     <>
-      <WalletIconSlot id={account.id} label={name} provider={providerHint} />
+      <WalletIconSlot id={iconId} label={iconLabel} provider={iconProvider} />
       <span className="min-w-0 flex-1">
         <span className="flex min-w-0 items-center gap-1.5">
-          <span className="truncate text-sm font-medium">{name}</span>
-          <ChainTag
-            family={family}
-            chainId={account.chainId}
-            supportedEvmChains={supportedEvmChains}
-            capability={account.capability}
-          />
+          <span className="truncate text-sm font-medium">{title}</span>
+          <FamilyChip legs={legs} />
           {active ? (
             <CheckIcon className="text-primary size-3.5 shrink-0" />
           ) : null}
         </span>
         <span className="text-muted-foreground block truncate text-[11px]">
-          {[account.label ?? formatWalletAddress(account.address ?? ""), detail]
-            .filter(Boolean)
-            .join(" · ")}
+          {[addressText, detail].filter(Boolean).join(" · ")}
         </span>
       </span>
     </>
@@ -1660,7 +1998,7 @@ function FamilyStatusRow({
           type="button"
           onClick={onSelect}
           disabled={pending !== null}
-          aria-label={`Make ${name} active`}
+          aria-label={`Make ${title} active`}
           className={cn(
             "flex min-w-0 flex-1 cursor-pointer items-center gap-3 rounded-2xl px-3 py-2.5 text-left outline-none",
             "disabled:cursor-default",
@@ -1679,9 +2017,9 @@ function FamilyStatusRow({
         </div>
       )}
       <div className="flex shrink-0 items-center gap-1 py-2.5 pl-1 pr-2.5">
-        {actions.map((action) => (
+        {actions.map(({ action, account }) => (
           <RowIconButton
-            key={action.kind}
+            key={`${action.kind}:${account.id}`}
             icon={
               action.kind === "manage"
                 ? Settings2Icon
@@ -1691,16 +2029,16 @@ function FamilyStatusRow({
             }
             ariaLabel={
               action.kind === "manage"
-                ? `Manage ${name}`
+                ? `Manage ${title}`
                 : action.kind === "link"
-                  ? `Verify ${name}`
+                  ? `Verify ${title}`
                   : action.kind === "signout"
                     ? "Sign out"
-                    : `Disconnect ${familyLabel(family)} wallet`
+                    : `Disconnect ${familyLabel(account.family)} wallet`
             }
             disabled={pending !== null}
             loading={pending === `${action.kind}:${account.id}`}
-            onClick={() => onAction(action)}
+            onClick={() => onAction({ action, account })}
           />
         ))}
       </div>
