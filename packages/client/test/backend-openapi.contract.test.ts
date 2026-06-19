@@ -34,10 +34,19 @@ describe("backend OpenAPI route contract", () => {
 
   it.runIf(process.env.AOMI_BACKEND_OPENAPI_URL)(
     "keeps the client route manifest aligned with a live backend OpenAPI document",
-    async () => {
-      const response = await fetchWithRetry(
-        process.env.AOMI_BACKEND_OPENAPI_URL!,
-      );
+    async (ctx) => {
+      const url = process.env.AOMI_BACKEND_OPENAPI_URL!;
+      const response = await fetchWithRetry(url);
+
+      // A reachable-but-broken backend (down, hanging, or 5xx) is an infra
+      // problem, not a contract drift — don't fail unrelated PRs over it. The
+      // checked-in fixture test above still hard-guards the route contract.
+      if (!response) {
+        ctx.skip(
+          `Live backend OpenAPI document unreachable at ${url} after ${LIVE_FETCH_ATTEMPTS} attempts; skipping live drift check.`,
+        );
+        return;
+      }
 
       expect(response.ok).toBe(true);
       expect(response.headers.get("content-type") ?? "").toContain(
@@ -49,7 +58,12 @@ describe("backend OpenAPI route contract", () => {
   );
 });
 
-async function fetchWithRetry(url: string): Promise<Response> {
+/**
+ * Fetch the live OpenAPI document, retrying transient failures (slow/hanging
+ * backend, network blips, 5xx during a deploy). Returns `null` when the backend
+ * stays unreachable after every attempt so the caller can skip rather than fail.
+ */
+async function fetchWithRetry(url: string): Promise<Response | null> {
   let lastError: unknown;
 
   for (let attempt = 1; attempt <= LIVE_FETCH_ATTEMPTS; attempt++) {
@@ -72,11 +86,12 @@ async function fetchWithRetry(url: string): Promise<Response> {
     }
   }
 
-  throw new Error(
-    `Failed to fetch live backend OpenAPI document at ${url} after ${LIVE_FETCH_ATTEMPTS} attempts: ${String(
+  console.warn(
+    `[backend-openapi.contract] Live backend OpenAPI document unreachable at ${url} after ${LIVE_FETCH_ATTEMPTS} attempts: ${String(
       lastError,
     )}`,
   );
+  return null;
 }
 
 function delay(ms: number): Promise<void> {
