@@ -1,6 +1,11 @@
 "use client";
 
-import { usePrivy, type PrivyClientConfig } from "@privy-io/react-auth";
+import {
+  usePrivy,
+  useWallets,
+  type ConnectedWallet,
+  type PrivyClientConfig,
+} from "@privy-io/react-auth";
 import { useSolanaWallets } from "@privy-io/react-auth/solana";
 import { useSmartWallets } from "@privy-io/react-auth/smart-wallets";
 import type { Chain } from "viem";
@@ -13,8 +18,10 @@ export type PrivyAccessTokenHook = PrivyHook & {
 };
 export type SmartWalletsHook = ReturnType<typeof useSmartWallets>;
 export type SolanaWalletsHook = ReturnType<typeof useSolanaWallets>;
+export type WalletsHook = ReturnType<typeof useWallets>;
 export type PrivyUser = PrivyHook["user"];
 export type PrivySolanaWallet = SolanaWalletsHook["wallets"][number];
+export type PrivyConnectedWallet = ConnectedWallet;
 
 const DISCONNECTED_PRIVY: PrivyAccessTokenHook = {
   ready: false,
@@ -35,6 +42,11 @@ const DISCONNECTED_SOLANA_WALLETS: SolanaWalletsHook = {
   wallets: [],
   ready: false,
 } as unknown as SolanaWalletsHook;
+
+const DISCONNECTED_WALLETS: WalletsHook = {
+  wallets: [],
+  ready: false,
+} as unknown as WalletsHook;
 
 const AOMI_LOGIN_METHODS = new Set<AomiLoginMethod>([
   "google",
@@ -74,6 +86,41 @@ export function useSafeSvmWallets(): SolanaWalletsHook {
   } catch {
     return DISCONNECTED_SOLANA_WALLETS;
   }
+}
+
+export function useSafeWallets(): WalletsHook {
+  try {
+    return useWallets();
+  } catch {
+    return DISCONNECTED_WALLETS;
+  }
+}
+
+/** Privy embedded EVM wallet client types. `privy` (v1) and `privy-v2` (v2)
+ *  are the values `ConnectedWallet.walletClientType` takes for embedded
+ *  wallets created within Privy's app (as documented on the `Wallet` type:
+ *  "If the value is `privy`, then this is a privy embedded wallet"). External
+ *  wallets (MetaMask, Rainbow, …) carry their own client type. */
+const PRIVY_EMBEDDED_CLIENT_TYPES = new Set(["privy", "privy-v2"]);
+
+/** Pick the Privy embedded EVM wallet from a `useWallets()` snapshot — the
+ *  non-imported, Privy-custodied EOA that the user created on login. Returns
+ *  the first match (a user has at most one embedded EVM wallet per Privy
+ *  app). External wallets and imported embedded wallets are skipped: external
+ *  wallets are surfaced through wagmi connectors, and imported wallets are
+ *  not custodied by this Privy app. Used to dispatch the embedded-session
+ *  signal so the registry injects a synthetic EVM connection (mirroring the
+ *  Para session source), giving the embedded EVM wallet "connected now" /
+ *  write capability. */
+export function pickPrivyEmbeddedEvmWallet(
+  wallets: readonly ConnectedWallet[],
+): ConnectedWallet | undefined {
+  return wallets.find(
+    (wallet) =>
+      wallet.type === "ethereum" &&
+      !wallet.imported &&
+      PRIVY_EMBEDDED_CLIENT_TYPES.has(wallet.walletClientType),
+  );
 }
 
 function asAomiLoginMethod(
