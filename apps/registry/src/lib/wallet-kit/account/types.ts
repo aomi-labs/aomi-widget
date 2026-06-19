@@ -16,7 +16,6 @@ export type LinkedAuthAccount = {
   provider: string;
   subject: string;
   email?: string;
-  emailVerified?: boolean;
   displayLabel?: string;
   linkedAt?: number;
   lastSeenAt?: number;

@@ -91,7 +91,6 @@ export async function findAomiUserById(
 export async function createAomiUserForBetterAuth(input: {
   betterAuthUserId: BetterAuthUserId;
   email?: string | null;
-  emailVerified?: boolean;
   name?: string | null;
   avatarUrl?: string | null;
   displayName?: string | null;
@@ -100,20 +99,18 @@ export async function createAomiUserForBetterAuth(input: {
   const db = input.db ?? defaultPool;
   const result = await db.query(
     `insert into aomi_users
-       (better_auth_user_id, primary_email, primary_email_verified, display_name, avatar_url)
-     values ($1, $2, $3, $4, $5)
+       (better_auth_user_id, primary_email, display_name, avatar_url)
+     values ($1, $2, $3, $4)
      on conflict (better_auth_user_id)
      do update set
        updated_at = now(),
        primary_email = coalesce(aomi_users.primary_email, excluded.primary_email),
-       primary_email_verified = aomi_users.primary_email_verified or excluded.primary_email_verified,
        display_name = coalesce(aomi_users.display_name, excluded.display_name),
        avatar_url = coalesce(aomi_users.avatar_url, excluded.avatar_url)
      returning *`,
     [
       input.betterAuthUserId,
       input.email ?? null,
-      input.emailVerified ?? false,
       input.displayName ?? input.name ?? deriveDisplayName(input.email),
       input.avatarUrl ?? null,
     ],
@@ -214,8 +211,6 @@ export async function upsertAuthIdentity(input: {
   provider: AuthIdentityProvider;
   subject: string;
   email?: string | null;
-  emailVerified?: boolean;
-  authMethod?: string | null;
   displayLabel?: string | null;
   providerMetadata?: Record<string, unknown>;
   db?: Db;
@@ -223,13 +218,11 @@ export async function upsertAuthIdentity(input: {
   const db = input.db ?? defaultPool;
   const result = await db.query(
     `insert into aomi_auth_identities
-       (user_id, provider, subject, email, email_verified, auth_method, display_label, provider_metadata)
-     values ($1, $2, $3, $4, $5, $6, $7, $8::jsonb)
+       (user_id, provider, subject, email, display_label, provider_metadata)
+     values ($1, $2, $3, $4, $5, $6::jsonb)
      on conflict (provider, subject) where revoked_at is null
      do update set
        email = coalesce(excluded.email, aomi_auth_identities.email),
-       email_verified = aomi_auth_identities.email_verified or excluded.email_verified,
-       auth_method = coalesce(excluded.auth_method, aomi_auth_identities.auth_method),
        display_label = coalesce(excluded.display_label, aomi_auth_identities.display_label),
        provider_metadata = aomi_auth_identities.provider_metadata || excluded.provider_metadata,
        last_seen_at = now()
@@ -240,8 +233,6 @@ export async function upsertAuthIdentity(input: {
       input.provider,
       input.subject,
       input.email ?? null,
-      input.emailVerified ?? false,
-      input.authMethod ?? null,
       input.displayLabel ?? null,
       JSON.stringify(input.providerMetadata ?? {}),
     ],
@@ -255,7 +246,6 @@ export async function upsertAuthIdentity(input: {
 export async function upsertEmailIdentity(input: {
   userId: AomiUserId;
   email: string;
-  emailVerified?: boolean;
   db?: Db;
 }): Promise<DbAomiAuthIdentity> {
   return upsertAuthIdentity({
@@ -263,7 +253,6 @@ export async function upsertEmailIdentity(input: {
     provider: "email",
     subject: input.email.toLowerCase(),
     email: input.email,
-    emailVerified: input.emailVerified,
     db: input.db,
   });
 }
@@ -367,7 +356,6 @@ export async function updateAomiUserProfile(input: {
   userId: AomiUserId;
   displayName?: string | null;
   primaryEmail?: string | null;
-  primaryEmailVerified?: boolean;
   avatarUrl?: string | null;
   db?: Db;
 }): Promise<DbAomiUser> {
@@ -376,8 +364,7 @@ export async function updateAomiUserProfile(input: {
     `update aomi_users
      set display_name = coalesce($2, display_name),
          primary_email = coalesce($3, primary_email),
-         primary_email_verified = primary_email_verified or $4,
-         avatar_url = case when $5 then $6 else avatar_url end,
+         avatar_url = case when $4 then $5 else avatar_url end,
          updated_at = now()
      where id = $1 and deactivated_at is null
      returning *`,
@@ -385,7 +372,6 @@ export async function updateAomiUserProfile(input: {
       input.userId,
       input.displayName ?? null,
       input.primaryEmail ?? null,
-      input.primaryEmailVerified ?? false,
       input.avatarUrl !== undefined,
       input.avatarUrl ?? null,
     ],
@@ -590,7 +576,6 @@ function mapUser(row: Row): DbAomiUser {
     betterAuthUserId: nullableString(row.better_auth_user_id),
     displayName: nullableString(row.display_name),
     primaryEmail: nullableString(row.primary_email),
-    primaryEmailVerified: Boolean(row.primary_email_verified),
     avatarUrl: nullableString(row.avatar_url),
     metadata: asRecord(row.metadata),
     deactivatedAt: nullableDate(row.deactivated_at),
@@ -606,8 +591,6 @@ function mapIdentity(row: Row): DbAomiAuthIdentity {
     provider: row.provider as AuthIdentityProvider,
     subject: String(row.subject),
     email: nullableString(row.email),
-    emailVerified: Boolean(row.email_verified),
-    authMethod: nullableString(row.auth_method),
     displayLabel: nullableString(row.display_label),
     providerMetadata: asRecord(row.provider_metadata),
     linkedAt: new Date(row.linked_at as string | Date),
@@ -643,7 +626,6 @@ function toLinkedAccount(identity: DbAomiAuthIdentity): LinkedAuthAccount {
     provider: identity.provider,
     subject: identity.subject,
     email: identity.email ?? undefined,
-    emailVerified: identity.emailVerified,
     displayLabel: identity.displayLabel ?? undefined,
     linkedAt: identity.linkedAt.getTime(),
     lastSeenAt: identity.lastSeenAt.getTime(),

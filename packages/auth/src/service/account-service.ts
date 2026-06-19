@@ -69,14 +69,12 @@ export async function getOrCreateAomiUserForBetterAuthSession(input: {
         provider: "better_auth",
         subject: input.betterAuthUserId,
         email: input.email,
-        emailVerified: input.emailVerified,
         db,
       });
       if (input.email && input.emailVerified) {
         await upsertEmailIdentity({
           userId: existing.id,
           email: input.email,
-          emailVerified: true,
           db,
         });
       }
@@ -97,14 +95,12 @@ export async function getOrCreateAomiUserForBetterAuthSession(input: {
         provider: "better_auth",
         subject: input.betterAuthUserId,
         email: input.email,
-        emailVerified: input.emailVerified,
         db,
       });
       if (input.email && input.emailVerified) {
         await upsertEmailIdentity({
           userId: signalOwner.id,
           email: input.email,
-          emailVerified: true,
           db,
         });
       }
@@ -123,14 +119,12 @@ export async function getOrCreateAomiUserForBetterAuthSession(input: {
       provider: "better_auth",
       subject: input.betterAuthUserId,
       email: input.email,
-      emailVerified: input.emailVerified,
       db,
     });
     if (input.email && input.emailVerified) {
       await upsertEmailIdentity({
         userId: user.id,
         email: input.email,
-        emailVerified: true,
         db,
       });
     }
@@ -313,7 +307,6 @@ export async function linkProviderIdentity(input: {
   subject: string;
   email?: string | null;
   emailVerified?: boolean;
-  authMethod?: string | null;
   displayLabel?: string | null;
   providerMetadata?: Record<string, unknown>;
 }): Promise<SignalResolution> {
@@ -341,7 +334,6 @@ export async function linkProviderIdentity(input: {
     await upsertEmailIdentity({
       userId: input.userId,
       email: input.email,
-      emailVerified: true,
     });
   }
 
@@ -351,7 +343,6 @@ export async function linkProviderIdentity(input: {
       userId: input.userId,
       displayName: input.email,
       primaryEmail: input.email,
-      primaryEmailVerified: true,
     });
   }
   if (identityResolution.status !== "noop") {

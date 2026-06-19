@@ -1406,9 +1406,7 @@ function LinkedAuthAccountRow({
 
 function linkedAccountSubtitle(account: LinkedAccountRow): string {
   if (account.email) {
-    return [account.email, account.emailVerified ? "Verified email" : null]
-      .filter(Boolean)
-      .join(" · ");
+    return account.email;
   }
   if (account.provider === "privy" || account.provider === "para") {
     return "Provider sign-in";

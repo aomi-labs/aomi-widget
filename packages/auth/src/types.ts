@@ -16,20 +16,13 @@ export type AuthIdentityProvider =
   | "siwe"
   | "privy"
   | "para"
-  | "email"
-  | "google"
-  | "github"
-  | "x"
-  | "discord"
-  | "telegram"
-  | "farcaster";
+  | "email";
 
 export type DbAomiUser = {
   id: AomiUserId;
   betterAuthUserId: BetterAuthUserId | null;
   displayName: string | null;
   primaryEmail: string | null;
-  primaryEmailVerified: boolean;
   avatarUrl: string | null;
   metadata: Record<string, unknown>;
   deactivatedAt: Date | null;
@@ -43,8 +36,6 @@ export type DbAomiAuthIdentity = {
   provider: AuthIdentityProvider;
   subject: string;
   email: string | null;
-  emailVerified: boolean;
-  authMethod: string | null;
   displayLabel: string | null;
   providerMetadata: Record<string, unknown>;
   linkedAt: Date;
@@ -83,7 +74,6 @@ export type LinkedAuthAccount = {
   provider: string;
   subject: string;
   email?: string;
-  emailVerified?: boolean;
   displayLabel?: string;
   linkedAt?: number;
   lastSeenAt?: number;
