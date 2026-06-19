@@ -111,14 +111,6 @@ function identityToUserState(adapter: AomiAuthAdapter): UserStateShape {
   return {
     connection: {
       is_connected: identity.isConnected,
-      primary_family:
-        identity.address && identity.svmAddress
-          ? "dual"
-          : identity.address
-            ? "evm"
-            : identity.svmAddress
-              ? "svm"
-              : null,
       provider: "privy",
       provider_label: identity.secondaryLabel ?? undefined,
     },

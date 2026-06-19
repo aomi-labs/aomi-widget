@@ -1,19 +1,22 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useControl, type AomiAppDescriptor } from "@aomi-labs/react";
+import {
+  useApiKey,
+  useAuthEndpoints,
+  useByok,
+  usePerThreadControl,
+  type AomiAppDescriptor,
+} from "@aomi-labs/react";
 import { Button, Input } from "@aomi-labs/widget-lib";
 
 const FALLBACK_APP = "default";
 
 export function RequiredSecretsGate() {
-  const {
-    state,
-    getCurrentThreadApp,
-    onAppSelect,
-    ingestSecrets,
-    listSecrets,
-  } = useControl();
+  const { state: authState } = useAuthEndpoints();
+  const { state: apiKeyState } = useApiKey();
+  const { ingestSecrets, listSecrets } = useByok().actions;
+  const { getCurrentThreadApp, onAppSelect } = usePerThreadControl().actions;
   const [savedNamesByApp, setSavedNamesByApp] = useState<Record<string, string[]>>(
     {},
   );
@@ -23,19 +26,19 @@ export function RequiredSecretsGate() {
 
   const currentApp = getCurrentThreadApp();
   const descriptor = useMemo<AomiAppDescriptor | undefined>(
-    () => state.appDescriptors.find((d) => d.name === currentApp),
-    [state.appDescriptors, currentApp],
+    () => authState.appDescriptors.find((d) => d.name === currentApp),
+    [authState.appDescriptors, currentApp],
   );
 
   const refreshSaved = useCallback(async () => {
-    if (!state.clientId) return;
+    if (!apiKeyState.clientId) return;
     try {
       const by_app = await listSecrets();
       setSavedNamesByApp(by_app);
     } catch {
       // backend unreachable; gate stays open until fixed
     }
-  }, [listSecrets, state.clientId]);
+  }, [listSecrets, apiKeyState.clientId]);
 
   useEffect(() => {
     void refreshSaved();
@@ -55,11 +58,11 @@ export function RequiredSecretsGate() {
 
   const fallbackName = useMemo(() => {
     if (currentApp === FALLBACK_APP) {
-      const next = state.authorizedApps.find((a) => a !== currentApp);
+      const next = authState.authorizedApps.find((a) => a !== currentApp);
       return next ?? null;
     }
-    return state.authorizedApps.includes(FALLBACK_APP) ? FALLBACK_APP : null;
-  }, [currentApp, state.authorizedApps]);
+    return authState.authorizedApps.includes(FALLBACK_APP) ? FALLBACK_APP : null;
+  }, [currentApp, authState.authorizedApps]);
 
   if (missingRequired.length === 0) {
     return null;
@@ -67,7 +70,7 @@ export function RequiredSecretsGate() {
 
   const canSave =
     !saving &&
-    Boolean(state.clientId) &&
+    Boolean(apiKeyState.clientId) &&
     missingRequired.every((s) => (slotValues[s.name] ?? "").trim().length > 0);
 
   const handleSaveAndContinue = async () => {

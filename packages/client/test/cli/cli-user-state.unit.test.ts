@@ -11,7 +11,6 @@ describe("CLI user state AA fields", () => {
     expect(buildCliUserState("0xabc", 8453)).toMatchObject({
       connection: {
         is_connected: true,
-        primary_family: "evm",
       },
       evm: {
         address: "0xabc",
@@ -29,7 +28,6 @@ describe("CLI user state AA fields", () => {
     ).toMatchObject({
       connection: {
         is_connected: true,
-        primary_family: "svm",
       },
       svm: {
         address: "6ihjJiFMrn8VM1HLX8EMqAt8Ym8JxZCqxBai2bYHviZG",

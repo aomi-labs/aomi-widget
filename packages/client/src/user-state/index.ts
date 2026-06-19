@@ -29,14 +29,11 @@ export type UserStateSponsorProvider =
   | "pimlico"
   | "self";
 
-export type UserStatePrimaryFamily = "evm" | "svm" | "dual";
-
 /** Session-level connection facts shared across chain families. */
 export interface UserStateConnection extends Record<string, unknown> {
   is_connected?: boolean | null;
   provider?: UserStateWalletProvider | null;
   provider_label?: string | null;
-  primary_family?: UserStatePrimaryFamily | null;
   wallet_provider_subject?: string | null;
   auth_method?: UserStateAuthMethod | null;
   auth_value?: string | null;
@@ -126,7 +123,6 @@ export namespace UserState {
   export const address = accessors.address;
   export const evmAddress = accessors.evmAddress;
   export const svmAddress = accessors.svmAddress;
-  export const preferredPublicKey = accessors.preferredPublicKey;
   export const chainId = accessors.chainId;
   export const ensName = accessors.ensName;
   export const aaMode = accessors.aaMode;
