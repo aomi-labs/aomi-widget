@@ -14,8 +14,10 @@ import type {
   VerifiedPrivyToken,
 } from "../types";
 import {
+  fetchAttestedProviderWallets,
   getOrCreateAomiUserForBetterAuthSession,
   linkProviderIdentity,
+  syncProviderWallets,
 } from "./account-service";
 
 export type ProviderExchangeResult =
@@ -103,6 +105,12 @@ export async function exchangeProviderForExistingSession(input: {
     },
   });
   if (resolution.status === "conflict") return resolution;
+  await syncAttestedWallets({
+    userId: user.id,
+    provider: verified.provider,
+    subject: verified.token.subject,
+    email: verified.token.email,
+  });
   const updatedUser = await findAomiUserById(user.id);
 
   return {
@@ -129,6 +137,29 @@ export function providerSessionUserSeed(
     ),
     name: verified.token.email ?? `${verified.provider} user`,
   };
+}
+
+/** Best-effort embedded-wallet sync after a successful provider identity
+ *  link. Fetches server-side attested wallets and reconciles them into the
+ *  `aomi_wallets` graph. No-op when REST creds are unconfigured or the fetch
+ *  fails — the identity link still stands. */
+async function syncAttestedWallets(input: {
+  userId: string;
+  provider: "privy" | "para";
+  subject: string;
+  email?: string | null;
+}): Promise<void> {
+  const attested = await fetchAttestedProviderWallets({
+    provider: input.provider,
+    subject: input.subject,
+    email: input.email,
+  });
+  if (!attested) return;
+  await syncProviderWallets({
+    userId: input.userId,
+    provider: input.provider,
+    attested,
+  });
 }
 
 function normalizeCredential(credential: AomiAccountCredential):

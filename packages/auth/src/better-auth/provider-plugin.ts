@@ -7,8 +7,10 @@ import {
   verifyProviderCredential,
 } from "../service/provider-exchange";
 import {
+  fetchAttestedProviderWallets,
   getOrCreateAomiUserForBetterAuthSession,
   linkProviderIdentity,
+  syncProviderWallets,
 } from "../service/account-service";
 import { buildAccountResponse, findAomiUserById } from "../db/queries";
 import type { AomiAccountCredential } from "../types";
@@ -98,6 +100,12 @@ export function aomiProviderAuthPlugin(): BetterAuthPlugin {
             );
           }
 
+          await syncAttestedWallets({
+            userId: aomiUser.id,
+            provider: verified.provider,
+            subject: verified.token.subject,
+            email: verified.token.email,
+          });
           const session = await ctx.context.internalAdapter.createSession(
             betterAuthUser.id,
           );
@@ -118,4 +126,27 @@ export function aomiProviderAuthPlugin(): BetterAuthPlugin {
       ),
     },
   };
+}
+
+/** Best-effort embedded-wallet sync after a successful provider identity
+ *  link (Phase D session-creating path). Fetches server-side attested
+ *  wallets and reconciles them into the `aomi_wallets` graph. No-op when REST
+ *  creds are unconfigured or the fetch fails. */
+async function syncAttestedWallets(input: {
+  userId: string;
+  provider: "privy" | "para";
+  subject: string;
+  email?: string | null;
+}): Promise<void> {
+  const attested = await fetchAttestedProviderWallets({
+    provider: input.provider,
+    subject: input.subject,
+    email: input.email,
+  });
+  if (!attested) return;
+  await syncProviderWallets({
+    userId: input.userId,
+    provider: input.provider,
+    attested,
+  });
 }
