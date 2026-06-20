@@ -22,8 +22,7 @@ import {
 import type { Chain } from "viem";
 import { AomiWalletKitComposer } from "../composer/AomiWalletKitComposer";
 import type { AuthRuntime, ExecutionRuntime } from "../composer/types";
-import { useAomiBackendAccountRuntime } from "../account/aomi-backend-runtime";
-import { DISABLED_ACCOUNT_RUNTIME } from "../account/disabled-runtime";
+import { useResolvedAccountRuntime } from "../account/use-resolved-account-runtime";
 import { resolveAAProviderState } from "../execution/aa-provider-state";
 import { buildEvmExecutionRuntime } from "../execution/execution-runtime";
 import {
@@ -516,7 +515,10 @@ function AomiExternalWalletProvider({
 
   if (!evmEnabled) {
     return (
-      <AomiSvmExternalWalletProvider account={account} resolvedSvm={resolvedSvm}>
+      <AomiSvmExternalWalletProvider
+        account={account}
+        resolvedSvm={resolvedSvm}
+      >
         {children}
       </AomiSvmExternalWalletProvider>
     );
@@ -589,26 +591,4 @@ export function AomiWalletKitProvider(input: AomiWalletKitProviderInput) {
       </ExtUserProvider>
     </AomiWalletNetworkPreferencesProvider>
   );
-}
-
-function useResolvedAccountRuntime({
-  account,
-  auth,
-  evm,
-  svm,
-}: {
-  account?: AccountConfig;
-  auth: AuthRuntime;
-  evm: ReturnType<typeof useEvmWalletRuntime>;
-  svm?: ReturnType<typeof useSvmWalletRuntime>;
-}) {
-  const enabled = account !== false && account?.mode === "aomi-backend";
-  const runtime = useAomiBackendAccountRuntime({
-    enabled,
-    baseUrl: enabled ? account.baseUrl : undefined,
-    auth,
-    evm,
-    svm,
-  });
-  return enabled ? runtime : DISABLED_ACCOUNT_RUNTIME;
 }

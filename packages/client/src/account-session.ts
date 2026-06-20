@@ -1,7 +1,7 @@
 import type { GetAccountAccessToken } from "./types";
 
 export type AccountCredentialProvider = () => Promise<{
-  provider: "para" | "privy";
+  provider: "para" | "privy" | (string & {});
   providerToken: string;
 }>;
 

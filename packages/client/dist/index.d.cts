@@ -523,7 +523,7 @@ declare class AomiClient {
 }
 
 type AccountCredentialProvider = () => Promise<{
-    provider: "para" | "privy";
+    provider: "para" | "privy" | (string & {});
     providerToken: string;
 }>;
 type AccountSessionExchangeResponse = {

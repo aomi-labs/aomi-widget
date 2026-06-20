@@ -281,7 +281,7 @@ export type AomiAccountCredential =
     }
   | {
       kind: "token";
-      provider: "para" | "privy" | "custom";
+      provider: "para" | "privy" | (string & {});
       token: string;
       keyId?: string;
     }

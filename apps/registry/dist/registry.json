@@ -153,7 +153,15 @@
         },
         {
           "type": "registry:component",
+          "path": "lib/wallet-kit/account/aomi-backend-client.ts"
+        },
+        {
+          "type": "registry:component",
           "path": "lib/wallet-kit/account/aomi-backend-runtime.ts"
+        },
+        {
+          "type": "registry:component",
+          "path": "lib/wallet-kit/account/use-resolved-account-runtime.ts"
         },
         {
           "type": "registry:component",
@@ -328,6 +336,10 @@
         {
           "type": "registry:component",
           "path": "components/control-bar/wallet-picker.tsx"
+        },
+        {
+          "type": "registry:component",
+          "path": "components/control-bar/wallet-account-model.ts"
         },
         {
           "type": "registry:component",

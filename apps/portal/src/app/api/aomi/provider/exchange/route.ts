@@ -1,4 +1,4 @@
-import { exchangeProviderForExistingSession } from "@aomi-labs/auth/service/provider-exchange";
+import { exchangeProviderForExistingSession } from "@aomi-labs/auth/account";
 import type { AomiAccountCredential } from "@aomi-labs/auth";
 import { getBetterAuthSession, json } from "@portal/lib/aomi-account/session";
 

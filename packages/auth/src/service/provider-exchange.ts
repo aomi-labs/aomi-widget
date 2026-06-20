@@ -1,72 +1,42 @@
-import { readAccountAuthEnv } from "../better-auth/env";
 import {
   buildAccountResponse,
   findAomiUserById,
   findAomiUserByBetterAuthId,
 } from "../db/queries";
-import { verifyParaJwt } from "../providers/para";
-import { verifyPrivyToken } from "../providers/privy";
 import type {
   AomiAccountCredential,
   AomiAccountResponse,
   SignalResolution,
-  VerifiedParaJwt,
-  VerifiedPrivyToken,
 } from "../types";
 import {
-  fetchAttestedProviderWallets,
+  createDefaultProviderCredentialVerifiers,
+  isVerifiedProviderTokenCredential,
+  verifyProviderCredential,
+  providerSessionUserSeed,
+} from "../providers/account-credentials";
+import {
   getOrCreateAomiUserForBetterAuthSession,
   linkProviderIdentity,
-  syncProviderWallets,
+  syncProviderAttestedWallets,
 } from "./account-service";
+
+export {
+  createDefaultProviderCredentialVerifiers,
+  isVerifiedProviderTokenCredential,
+  providerSessionUserSeed,
+  verifyProviderCredential,
+};
 
 export type ProviderExchangeResult =
   | { status: "linked"; account: AomiAccountResponse }
   | (SignalResolution & { status: "conflict" | "noop" });
-
-export async function verifyProviderCredential(
-  credential: AomiAccountCredential,
-): Promise<
-  | { provider: "privy"; token: VerifiedPrivyToken }
-  | { provider: "para"; token: VerifiedParaJwt }
-  | { provider: "cookie" }
-> {
-  const env = readAccountAuthEnv();
-  const parsed = normalizeCredential(credential);
-  if (parsed.provider === "cookie") return { provider: "cookie" };
-  if (parsed.provider === "privy") {
-    if (!env.privyAppId) throw new Error("Privy app id is not configured");
-    return {
-      provider: "privy",
-      token: await verifyPrivyToken({
-        token: parsed.providerToken,
-        tokenKind: parsed.tokenKind,
-        appId: env.privyAppId,
-        accessTokenVerificationKey: env.privyAccessTokenVerificationKey,
-        identityTokenVerificationKey: env.privyIdentityTokenVerificationKey,
-      }),
-    };
-  }
-  if (!env.paraAudience || !env.paraJwksUrl) {
-    throw new Error("Para JWKS verification is not configured");
-  }
-  return {
-    provider: "para",
-    token: await verifyParaJwt({
-      token: parsed.providerToken,
-      expectedAudience: env.paraAudience,
-      jwksUrl: env.paraJwksUrl,
-      keyId: parsed.keyId,
-    }),
-  };
-}
 
 export async function exchangeProviderForExistingSession(input: {
   betterAuthUserId: string;
   credential: AomiAccountCredential;
 }): Promise<ProviderExchangeResult> {
   const verified = await verifyProviderCredential(input.credential);
-  if (verified.provider === "cookie") {
+  if (!isVerifiedProviderTokenCredential(verified)) {
     const user = await findAomiUserByBetterAuthId(input.betterAuthUserId);
     if (!user) throw new Error("Aomi user not found for session");
     return {
@@ -90,24 +60,12 @@ export async function exchangeProviderForExistingSession(input: {
     subject: verified.token.subject,
     email: verified.token.email,
     emailVerified: verified.token.emailVerified,
-    providerMetadata: {
-      expiresAt: verified.token.expiresAt,
-      linkedAccounts:
-        verified.provider === "privy"
-          ? verified.token.linkedAccounts
-          : undefined,
-      wallets:
-        verified.provider === "para" ? verified.token.wallets : undefined,
-      connectedWallets:
-        verified.provider === "para"
-          ? verified.token.connectedWallets
-          : undefined,
-    },
+    providerMetadata: verified.token.providerMetadata,
   });
   if (resolution.status === "conflict") return resolution;
-  await syncAttestedWallets({
+  await syncProviderAttestedWallets({
     userId: user.id,
-    provider: verified.provider,
+    provider: verified.walletAttestationProvider,
     subject: verified.token.subject,
     email: verified.token.email,
   });
@@ -119,91 +77,5 @@ export async function exchangeProviderForExistingSession(input: {
       user: updatedUser ?? user,
       betterAuthUserId: input.betterAuthUserId,
     }),
-  };
-}
-
-export function providerSessionUserSeed(
-  verified:
-    | { provider: "privy"; token: VerifiedPrivyToken }
-    | { provider: "para"; token: VerifiedParaJwt },
-): { email: string; emailVerified: boolean; name: string } {
-  const email =
-    verified.token.email ??
-    `${verified.provider}-${verified.token.subject.replace(/[^a-zA-Z0-9_-]/g, "_")}@auth.aomi.local`;
-  return {
-    email,
-    emailVerified: Boolean(
-      verified.token.email && verified.token.emailVerified,
-    ),
-    name: verified.token.email ?? `${verified.provider} user`,
-  };
-}
-
-/** Best-effort embedded-wallet sync after a successful provider identity
- *  link. Fetches server-side attested wallets and reconciles them into the
- *  `aomi_wallets` graph. No-op when REST creds are unconfigured or the fetch
- *  fails — the identity link still stands. */
-async function syncAttestedWallets(input: {
-  userId: string;
-  provider: "privy" | "para";
-  subject: string;
-  email?: string | null;
-}): Promise<void> {
-  const attested = await fetchAttestedProviderWallets({
-    provider: input.provider,
-    subject: input.subject,
-    email: input.email,
-  });
-  if (!attested) return;
-  await syncProviderWallets({
-    userId: input.userId,
-    provider: input.provider,
-    attested,
-  });
-}
-
-function normalizeCredential(credential: AomiAccountCredential):
-  | {
-      provider: "privy";
-      tokenKind: "identity_token" | "access_token";
-      providerToken: string;
-    }
-  | {
-      provider: "para";
-      tokenKind: "session_jwt";
-      providerToken: string;
-      keyId?: string;
-    }
-  | { provider: "cookie" } {
-  if ("kind" in credential && credential.kind === "cookie") {
-    return { provider: "cookie" };
-  }
-  if ("kind" in credential && credential.kind === "token") {
-    if (credential.provider === "privy") {
-      return {
-        provider: "privy",
-        tokenKind: "identity_token",
-        providerToken: credential.token,
-      };
-    }
-    return {
-      provider: "para",
-      tokenKind: "session_jwt",
-      providerToken: credential.token,
-      keyId: credential.keyId,
-    };
-  }
-  if (credential.provider === "privy") {
-    return {
-      provider: "privy",
-      tokenKind: credential.tokenKind ?? "identity_token",
-      providerToken: credential.providerToken,
-    };
-  }
-  return {
-    provider: "para",
-    tokenKind: "session_jwt",
-    providerToken: credential.providerToken,
-    keyId: credential.keyId,
   };
 }

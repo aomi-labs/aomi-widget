@@ -124,6 +124,8 @@ export type AccountConfig =
   | {
       mode: "aomi-backend";
       baseUrl?: string;
+      authDomain?: string;
+      authUri?: string;
     };
 
 export type AomiWalletKitProviderProps = {

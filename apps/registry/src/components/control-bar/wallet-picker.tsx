@@ -41,12 +41,22 @@ import {
 import type { AomiWalletKit, WalletFamily } from "../../lib/wallet-kit/types";
 import { WalletIconSlot } from "./wallet-icon-slot";
 import { useWalletPicker } from "./wallet-picker-context";
+import {
+  buildAccountAccessEntries,
+  buildConnectedEntries,
+  connectedLinkState,
+  familyLabel,
+  groupConnectedByProvider,
+  providerBackedAccountProvider,
+  sameWalletAddress,
+  sortWalletLegs as sortLegs,
+  type ConnectedEntry,
+  type LinkedAccountRow,
+  type LinkedWalletRow,
+  type WalletLeg,
+  type WalletModalRow,
+} from "./wallet-account-model";
 
-type WalletModalRow = NonNullable<AomiWalletKit["walletModalRows"]>[number];
-type LinkedAccountRow = NonNullable<
-  AomiWalletKit["accountLinkedAccounts"]
->[number];
-type LinkedWalletRow = NonNullable<AomiWalletKit["accountWallets"]>[number];
 type SupportedEvmChain = { id: number; name: string };
 /** A connected-row action paired with the specific wallet leg it acts on, so a
  * consolidated provider row can route each button to the right family. */
@@ -63,10 +73,6 @@ type WalletAction = WalletModalRow & {
 };
 
 const GENERIC_BROWSER_WALLET_ID = "generic-browser-wallet";
-
-function familyLabel(family: WalletFamily): string {
-  return family === "svm" ? "Solana" : "Ethereum";
-}
 
 function walletStatusLabel(option: WalletAction): string {
   if (option.status === "unavailable") return "Not installed";
@@ -513,11 +519,7 @@ export function WalletPicker() {
       return;
     }
     if (action.kind === "signout") {
-      void runAction(
-        actionKey,
-        signOutAccount,
-        true,
-      );
+      void runAction(actionKey, signOutAccount, true);
       return;
     }
     if (action.kind === "disconnect") {
@@ -536,9 +538,7 @@ export function WalletPicker() {
 
   const renderConnectedGroup = (group: WalletModalRow[]) => {
     const representative = group[0];
-    const provider = isEmbeddedAccountProvider(representative.provider)
-      ? representative.provider
-      : null;
+    const provider = providerBackedAccountProvider(representative);
     const title =
       provider !== null
         ? (formatWalletProvider(provider) ?? provider)
@@ -546,7 +546,7 @@ export function WalletPicker() {
     const providerWallets =
       provider !== null
         ? (adapter.accountWallets ?? []).filter(
-            (wallet) => wallet.provider === provider,
+            (wallet) => providerBackedAccountProvider(wallet) === provider,
           )
         : [];
 
@@ -638,7 +638,11 @@ export function WalletPicker() {
 
     return (
       <ConnectedWalletRow
-        key={provider !== null ? `provider:${provider}` : `row:${representative.id}`}
+        key={
+          provider !== null
+            ? `provider:${provider}`
+            : `row:${representative.id}`
+        }
         title={title}
         iconId={provider !== null ? provider : representative.id}
         iconLabel={title}
@@ -977,9 +981,9 @@ function filterQuickSignInOptions(
 
 function quickSignInProvider(option: WalletAction): string | null {
   if (option.kind === "social") {
-    return isEmbeddedAccountProvider(option.id) ? option.id : null;
+    return option.provider ?? option.id;
   }
-  return isEmbeddedAccountProvider(option.provider) ? option.provider : null;
+  return option.provider ?? null;
 }
 
 /**
@@ -1021,33 +1025,6 @@ function networkNameForChain(
     : (getChainInfo(chainId)?.name ?? null);
 }
 
-/**
- * One chain "leg" of a consolidated entry — a single family's address/state. A
- * provider-backed account (Privy/Para) contributes one EVM and one SVM leg under
- * the same row instead of showing as two separate cards.
- */
-type WalletLeg = {
-  family: WalletFamily;
-  address?: string;
-  chainId?: number;
-  capability?: "read" | "write";
-  linked?: boolean;
-};
-
-const FAMILY_ORDER: Record<string, number> = { evm: 0, svm: 1 };
-
-function familyRank(family: WalletFamily): number {
-  return FAMILY_ORDER[family] ?? 2;
-}
-
-/** Sort legs deterministically (EVM before SVM) so addresses line up with the
- * "EVM/SVM" chip ordering. */
-function sortLegs<T extends { family: WalletFamily }>(
-  legs: readonly T[],
-): T[] {
-  return [...legs].sort((a, b) => familyRank(a.family) - familyRank(b.family));
-}
-
 function familyShortLabel(family: WalletFamily): string {
   return family === "svm" ? "SVM" : "EVM";
 }
@@ -1073,167 +1050,6 @@ function singleNetworkName(
     )
     .filter((name): name is string => Boolean(name));
   return names.length === 1 ? names[0] : null;
-}
-
-/**
- * Only embedded account providers (Privy/Para/Base Account) mint the EVM+SVM
- * wallets that should collapse into one provider-branded row. A `provider` like
- * "siwe" is a verification *method*, not a wallet brand — those rows keep their
- * own wallet name (MetaMask, …) and never group.
- */
-const EMBEDDED_ACCOUNT_PROVIDERS: ReadonlySet<string> = new Set([
-  "privy",
-  "para",
-  "baseAccount",
-]);
-
-function isEmbeddedAccountProvider(provider?: string): provider is string {
-  return provider != null && EMBEDDED_ACCOUNT_PROVIDERS.has(provider);
-}
-
-type ConnectedEntry = {
-  key: string;
-  title: string;
-  iconId: string;
-  iconLabel: string;
-  iconProvider?: string;
-  legs: WalletLeg[];
-};
-
-/**
- * Collapse the live connected rows into one entry per embedded account provider.
- * A Privy/Para sign-in mints both an EVM and an SVM wallet — those share a
- * provider, so they fold into a single "Privy"/"Para" row carrying both legs.
- * External wallets (including SIWE-verified ones) keep their own brand and stay
- * one row each.
- */
-function buildConnectedEntries(
-  accounts: readonly WalletModalRow[],
-  wallets: readonly LinkedWalletRow[],
-): ConnectedEntry[] {
-  const byKey = new Map<string, ConnectedEntry>();
-  const order: string[] = [];
-  for (const account of accounts) {
-    const provider = isEmbeddedAccountProvider(account.provider)
-      ? account.provider
-      : null;
-    const groupKey =
-      provider !== null ? `provider:${provider}` : `row:${account.id}`;
-    const linkedWallet = account.linked
-      ? wallets.find((wallet) =>
-          sameWalletAddress(wallet.family, wallet.address, account.address),
-        )
-      : undefined;
-    const leg: WalletLeg = {
-      family: account.family,
-      address: account.address,
-      chainId: account.chainId,
-      capability: account.capability ?? linkedWallet?.capability,
-      linked: account.linked,
-    };
-    let entry = byKey.get(groupKey);
-    if (!entry) {
-      const title =
-        provider !== null
-          ? (formatWalletProvider(provider) ?? provider)
-          : (account.walletName ?? familyLabel(account.family));
-      entry = {
-        key: groupKey,
-        title,
-        iconId: provider !== null ? provider : account.id,
-        iconLabel: title,
-        iconProvider: account.provider,
-        legs: [],
-      };
-      byKey.set(groupKey, entry);
-      order.push(groupKey);
-    }
-    entry.legs.push(leg);
-  }
-  return order.map((key) => {
-    const entry = byKey.get(key)!;
-    return { ...entry, legs: sortLegs(entry.legs) };
-  });
-}
-
-function connectedLinkState(legs: readonly WalletLeg[]): string {
-  if (legs.length > 0 && legs.every((leg) => leg.linked)) return "Linked";
-  const anyEvmUnlinked = legs.some(
-    (leg) => leg.family === "evm" && !leg.linked,
-  );
-  return anyEvmUnlinked ? "Verify to link" : "Connected only";
-}
-
-/**
- * Group the interactive "Connected" rows by provider, preserving order. A
- * Privy/Para sign-in folds its EVM + SVM legs into one group (EVM first);
- * external wallets have no provider and stay one group each.
- */
-function groupConnectedByProvider(
-  accounts: readonly WalletModalRow[],
-): WalletModalRow[][] {
-  const byKey = new Map<string, WalletModalRow[]>();
-  const order: string[] = [];
-  for (const account of accounts) {
-    const key = isEmbeddedAccountProvider(account.provider)
-      ? `provider:${account.provider}`
-      : `row:${account.id}`;
-    let group = byKey.get(key);
-    if (!group) {
-      group = [];
-      byKey.set(key, group);
-      order.push(key);
-    }
-    group.push(account);
-  }
-  return order.map((key) => sortLegs(byKey.get(key)!));
-}
-
-/**
- * Split the account-access rows into one canonical entry per provider sign-in
- * plus whatever doesn't belong to a provider. A provider auth identity merges
- * with the wallets that share its `provider`, so Privy/Para shows as a single
- * row (sign-in + EVM/SVM addresses) instead of one session row plus two wallet
- * rows. SIWE/observed external wallets and provider-less identities stay
- * standalone.
- */
-function buildAccountAccessEntries(
-  linkedAccounts: readonly LinkedAccountRow[],
-  wallets: readonly LinkedWalletRow[],
-): {
-  providerEntries: { account: LinkedAccountRow; wallets: LinkedWalletRow[] }[];
-  standaloneAccounts: LinkedAccountRow[];
-  standaloneWallets: LinkedWalletRow[];
-} {
-  const consumedWalletIds = new Set<string>();
-  const consumedAccountIds = new Set<string>();
-  const providerEntries: {
-    account: LinkedAccountRow;
-    wallets: LinkedWalletRow[];
-  }[] = [];
-
-  for (const account of linkedAccounts) {
-    if (!isEmbeddedAccountProvider(account.provider)) continue;
-    const matched = wallets.filter(
-      (wallet) =>
-        wallet.provider === account.provider &&
-        !consumedWalletIds.has(wallet.id),
-    );
-    if (matched.length === 0) continue;
-    matched.forEach((wallet) => consumedWalletIds.add(wallet.id));
-    consumedAccountIds.add(account.id);
-    providerEntries.push({ account, wallets: matched });
-  }
-
-  return {
-    providerEntries,
-    standaloneAccounts: linkedAccounts.filter(
-      (account) => !consumedAccountIds.has(account.id),
-    ),
-    standaloneWallets: wallets.filter(
-      (wallet) => !consumedWalletIds.has(wallet.id),
-    ),
-  };
 }
 
 /**
@@ -1533,30 +1349,32 @@ function AccountManagerPanel({
         {hasAccountAccess ? (
           <section className="flex flex-col gap-1.5">
             <SectionLabel>Account access</SectionLabel>
-            {providerAccessEntries.map(({ account, wallets: providerWallets }) => (
-              <LinkedAuthAccountRow
-                key={account.id}
-                account={account}
-                wallets={providerWallets}
-                supportedEvmChains={supportedEvmChains}
-                editing={editingLinkedAccountId === account.id}
-                draftLabel={draftLinkedAccountLabel}
-                pending={pending}
-                onDraftLabelChange={setDraftLinkedAccountLabel}
-                onStartRename={
-                  onRenameLinkedAccount
-                    ? () => startRenamingLinkedAccount(account)
-                    : undefined
-                }
-                onCancelRename={() => setEditingLinkedAccountId(null)}
-                onSubmitRename={() => void submitLinkedAccountRename(account)}
-                onUnlink={
-                  onUnlinkAccount
-                    ? () => void onUnlinkAccount(account.id)
-                    : undefined
-                }
-              />
-            ))}
+            {providerAccessEntries.map(
+              ({ account, wallets: providerWallets }) => (
+                <LinkedAuthAccountRow
+                  key={account.id}
+                  account={account}
+                  wallets={providerWallets}
+                  supportedEvmChains={supportedEvmChains}
+                  editing={editingLinkedAccountId === account.id}
+                  draftLabel={draftLinkedAccountLabel}
+                  pending={pending}
+                  onDraftLabelChange={setDraftLinkedAccountLabel}
+                  onStartRename={
+                    onRenameLinkedAccount
+                      ? () => startRenamingLinkedAccount(account)
+                      : undefined
+                  }
+                  onCancelRename={() => setEditingLinkedAccountId(null)}
+                  onSubmitRename={() => void submitLinkedAccountRename(account)}
+                  onUnlink={
+                    onUnlinkAccount
+                      ? () => void onUnlinkAccount(account.id)
+                      : undefined
+                  }
+                />
+              ),
+            )}
             {standaloneAccounts.map((account) => (
               <LinkedAuthAccountRow
                 key={account.id}
@@ -1986,17 +1804,6 @@ function LinkedWalletManagementRow({
       </div>
     </div>
   );
-}
-
-function sameWalletAddress(
-  family: WalletFamily,
-  left?: string,
-  right?: string,
-): boolean {
-  if (!left || !right) return false;
-  return family === "evm"
-    ? left.toLowerCase() === right.toLowerCase()
-    : left === right;
 }
 
 function ConnectedWalletRow({

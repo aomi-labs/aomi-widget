@@ -1,7 +1,7 @@
 import {
   renameAuthIdentity,
   unlinkAuthIdentity,
-} from "@aomi-labs/auth/service/account-service";
+} from "@aomi-labs/auth/account";
 import {
   accountResponseFromSession,
   json,

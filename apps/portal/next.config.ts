@@ -6,6 +6,7 @@ const appRoot = path.dirname(fileURLToPath(import.meta.url));
 const workspaceRoot = path.resolve(appRoot, "../..");
 const appNodeModules = path.join(appRoot, "node_modules");
 const portalSrc = path.join(appRoot, "src");
+const authSrc = path.join(workspaceRoot, "packages/auth/src");
 const widgetSrc = path.join(workspaceRoot, "apps/registry/src");
 
 const emptyModulePath = path.join(appRoot, "empty-module.js");
@@ -83,6 +84,13 @@ const nextConfig: NextConfig = {
     resolveAlias: {
       "@portal": "./src",
       ...widgetTurbopackAliases,
+      "@aomi-labs/auth/account": "../../packages/auth/src/account.ts",
+      "@aomi-labs/auth/better-auth":
+        "../../packages/auth/src/better-auth/index.ts",
+      "@aomi-labs/auth/mcp-approvals":
+        "../../packages/auth/src/mcp-approvals/index.ts",
+      "@aomi-labs/auth/routes":
+        "../../packages/auth/src/mcp-approvals/routes/index.ts",
       "@aomi-labs/auth": "../../packages/auth/src/index.ts",
       "@aomi-labs/mcp-core": "../../packages/mcp-core/src/index.ts",
       "@aomi-labs/client": "../../packages/client/src/index.ts",
@@ -106,10 +114,17 @@ const nextConfig: NextConfig = {
       ...(config.resolve.alias ?? {}),
       "@portal": portalSrc,
       ...widgetWebpackAliases,
-      "@aomi-labs/auth": path.join(
-        workspaceRoot,
-        "packages/auth/src/index.ts",
+      "@aomi-labs/auth/account": path.join(authSrc, "account.ts"),
+      "@aomi-labs/auth/better-auth": path.join(authSrc, "better-auth/index.ts"),
+      "@aomi-labs/auth/mcp-approvals": path.join(
+        authSrc,
+        "mcp-approvals/index.ts",
       ),
+      "@aomi-labs/auth/routes": path.join(
+        authSrc,
+        "mcp-approvals/routes/index.ts",
+      ),
+      "@aomi-labs/auth": path.join(authSrc, "index.ts"),
       "@aomi-labs/mcp-core": path.join(
         workspaceRoot,
         "packages/mcp-core/src/index.ts",
@@ -118,7 +133,10 @@ const nextConfig: NextConfig = {
         workspaceRoot,
         "packages/client/src/index.ts",
       ),
-      "@aomi-labs/react": path.join(workspaceRoot, "packages/react/src/index.ts"),
+      "@aomi-labs/react": path.join(
+        workspaceRoot,
+        "packages/react/src/index.ts",
+      ),
       "@assistant-ui/react": path.join(appNodeModules, "@assistant-ui/react"),
       "@noble/hashes/_assert": nobleHashesAssertCompatPath,
       "@tanstack/react-query": path.join(

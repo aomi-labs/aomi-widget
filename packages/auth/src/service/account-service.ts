@@ -26,11 +26,14 @@ import {
   upsertWallet,
   withTransaction,
 } from "../db/queries";
+import { createDefaultWalletAttesters } from "../providers/default-wallet-attesters";
 import {
-  listParaWalletsForUser,
-  listPrivyWalletsForUser,
+  fetchAttestedWallets,
   type AttestedWallet,
-} from "../providers/wallets";
+  type AttestedWalletProvider,
+  type WalletAttestationLogger,
+  type WalletAttesterRegistry,
+} from "../providers/wallet-attestation";
 import type {
   AomiAccountResponse,
   AomiUserId,
@@ -374,14 +377,12 @@ export async function linkProviderIdentity(input: {
  *  transient provider API outage can't wipe a user's wallet graph. */
 export async function syncProviderWallets(input: {
   userId: AomiUserId;
-  provider: "privy" | "para";
+  provider: AttestedWalletProvider;
   attested: AttestedWallet[];
   db?: import("pg").Pool | import("pg").PoolClient;
 }): Promise<void> {
   const keepKeys = new Set(
-    input.attested.map(
-      (w) => walletKeyString(w.family, w.address),
-    ),
+    input.attested.map((w) => walletKeyString(w.family, w.address)),
   );
 
   // 1. Upsert every attested wallet. A cross-account collision on one
@@ -394,9 +395,9 @@ export async function syncProviderWallets(input: {
         address: wallet.address,
         chainScope: wallet.chainScope,
         kind: "embedded",
-        provider: wallet.provider,
+        provider: input.provider,
         providerWalletId: wallet.providerWalletId,
-        linkedVia: wallet.provider,
+        linkedVia: input.provider,
         db: input.db,
       });
     } catch (error) {
@@ -452,36 +453,50 @@ export async function syncProviderWallets(input: {
  *  identity-only behavior) or when the fetch fails (so the caller can skip
  *  the sync without revoking live rows). */
 export async function fetchAttestedProviderWallets(input: {
-  provider: "privy" | "para";
+  provider: AttestedWalletProvider;
   /** Verified token subject: `did:privy:…` for Privy, Para user id for Para. */
   subject: string;
   email?: string | null;
+  attesters?: WalletAttesterRegistry;
+  logger?: WalletAttestationLogger;
 }): Promise<AttestedWallet[] | null> {
-  const env = readAccountAuthEnv();
-  try {
-    if (input.provider === "privy") {
-      if (!env.privyAppId || !env.privyAppSecret) return null;
-      return await listPrivyWalletsForUser({
-        appId: env.privyAppId,
-        appSecret: env.privyAppSecret,
-        userId: input.subject,
-      });
-    }
-    if (!env.paraApiKey) return null;
-    // The Para JWT `sub` is the stable Para user id; Para's REST list endpoint
-    // addresses it as a CUSTOM_ID user identifier.
-    return await listParaWalletsForUser({
-      apiKey: env.paraApiKey,
-      userIdentifier: input.subject,
-      userIdentifierType: "CUSTOM_ID",
-    });
-  } catch (error) {
-    console.warn(
-      `syncProviderWallets: failed to list ${input.provider} wallets for ${input.subject}`,
-      error,
-    );
-    return null;
-  }
+  return fetchAttestedWallets({
+    request: {
+      provider: input.provider,
+      subject: input.subject,
+      email: input.email,
+    },
+    attesters: input.attesters ?? createDefaultWalletAttesters(),
+    logger: input.logger ?? console,
+  });
+}
+
+/** Best-effort embedded-wallet sync after a successful provider identity link.
+ * No-ops when provider REST credentials are unconfigured or the provider fetch
+ * fails; existing wallet rows are only reconciled after a successful fetch. */
+export async function syncProviderAttestedWallets(input: {
+  userId: AomiUserId;
+  provider: AttestedWalletProvider;
+  subject: string;
+  email?: string | null;
+  db?: import("pg").Pool | import("pg").PoolClient;
+  attesters?: WalletAttesterRegistry;
+  logger?: WalletAttestationLogger;
+}): Promise<void> {
+  const attested = await fetchAttestedProviderWallets({
+    provider: input.provider,
+    subject: input.subject,
+    email: input.email,
+    attesters: input.attesters,
+    logger: input.logger,
+  });
+  if (!attested) return;
+  await syncProviderWallets({
+    userId: input.userId,
+    provider: input.provider,
+    attested,
+    db: input.db,
+  });
 }
 
 function walletKeyString(family: WalletFamily, address: string): string {

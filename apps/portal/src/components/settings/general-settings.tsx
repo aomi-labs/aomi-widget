@@ -76,10 +76,7 @@ export function GeneralSettings() {
         if ("providerToken" in credential) {
           return credential;
         }
-        if (
-          credential.kind === "token" &&
-          (credential.provider === "para" || credential.provider === "privy")
-        ) {
+        if (credential.kind === "token") {
           return {
             provider: credential.provider,
             providerToken: credential.token,
