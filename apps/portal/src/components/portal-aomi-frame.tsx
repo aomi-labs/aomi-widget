@@ -1,10 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import Link from "next/link";
 import { Settings } from "lucide-react";
-import { createAccountAccessTokenProvider } from "@aomi-labs/client";
-import { AomiFrame, useAomiAuthAdapter } from "@aomi-labs/widget-lib";
+import { AomiFrame } from "@aomi-labs/widget-lib";
 import { type AomiClientOptions, usePerThreadControl } from "@aomi-labs/react";
 import { RequiredSecretsGate } from "@portal/components/required-secrets-gate";
 import { x402Client } from "@x402/core/client";
@@ -28,57 +27,12 @@ function getRequestedAppFromSearch(search: string): string | null {
   return null;
 }
 
-function usePortalClientOptions(): Omit<AomiClientOptions, "baseUrl"> | undefined {
-  const { getAccountCredential } = useAomiAuthAdapter();
+function usePortalClientOptions():
+  | Omit<AomiClientOptions, "baseUrl">
+  | undefined {
   const wagmiConfig = useConfig();
   const walletClient = useWalletClient();
-  const backendUrl = getBackendUrl();
-  const nativeFetch = useMemo(
-    () => globalThis.fetch.bind(globalThis),
-    [],
-  );
-  // Hold a stable ref to the latest credential fn. The adapter recreates
-  // `getAccountCredential` on most renders (its memo depends on ~20 wallet
-  // values that mutate during normal interaction); without this, the token
-  // provider rebuilds per render and drops its bearer cache, firing
-  // `/api/account/exchange` on every thread click.
-  const credentialFnRef = useRef(getAccountCredential);
-  credentialFnRef.current = getAccountCredential;
-  const [credentialAvailable, setCredentialAvailable] = useState(
-    Boolean(getAccountCredential),
-  );
-  useEffect(() => {
-    const available = Boolean(getAccountCredential);
-    setCredentialAvailable((prev) => (prev === available ? prev : available));
-  }, [getAccountCredential]);
-
-  const accountAccessTokenProvider = useMemo(() => {
-    if (!credentialAvailable) {
-      return undefined;
-    }
-    return createAccountAccessTokenProvider({
-      baseUrl: backendUrl,
-      getProviderCredential: async () => {
-        const fn = credentialFnRef.current;
-        if (!fn) {
-          throw new Error("Account credential provider not yet available");
-        }
-        const credential = await fn();
-        if (!credential) {
-          throw new Error("Wallet provider is connected without an exchangeable credential");
-        }
-        return credential;
-      },
-      fetch: nativeFetch,
-    });
-  }, [backendUrl, credentialAvailable, nativeFetch]);
-
-  useEffect(
-    () => () => {
-      accountAccessTokenProvider?.dispose();
-    },
-    [accountAccessTokenProvider],
-  );
+  const nativeFetch = useMemo(() => globalThis.fetch.bind(globalThis), []);
 
   const mppClientOptions = useMemo(() => {
     if (!wagmiConfig) {
@@ -125,7 +79,8 @@ function usePortalClientOptions(): Omit<AomiClientOptions, "baseUrl"> | undefine
           }
         };
         const url = normalizeLocalhostUrl(rawUrl);
-        const method = init?.method ?? (input instanceof Request ? input.method : "GET");
+        const method =
+          init?.method ?? (input instanceof Request ? input.method : "GET");
         const startedAt = Date.now();
         console.debug("[aomi][portal-fetch] start", {
           fetchName,
@@ -191,8 +146,9 @@ function usePortalClientOptions(): Omit<AomiClientOptions, "baseUrl"> | undefine
     const isChatPost = (input: RequestInfo | URL, init?: RequestInit) => {
       const url = parseUrl(input);
       if (!url) return false;
-      const method = (init?.method ?? (input instanceof Request ? input.method : "GET"))
-        .toUpperCase();
+      const method = (
+        init?.method ?? (input instanceof Request ? input.method : "GET")
+      ).toUpperCase();
       return method === "POST" && url.pathname === "/api/chat";
     };
 
@@ -229,20 +185,16 @@ function usePortalClientOptions(): Omit<AomiClientOptions, "baseUrl"> | undefine
         return firstResponse;
       }
 
-      console.debug("[aomi][portal-fetch] retrying /api/chat with payment transport after 402");
+      console.debug(
+        "[aomi][portal-fetch] retrying /api/chat with payment transport after 402",
+      );
       return paymentFetch(input, init);
     };
 
     return {
       fetch: routedFetch,
-      getAccountAccessToken: accountAccessTokenProvider,
     };
-  }, [
-    accountAccessTokenProvider,
-    mppClientOptions,
-    nativeFetch,
-    walletClient?.data,
-  ]);
+  }, [mppClientOptions, nativeFetch, walletClient?.data]);
 }
 
 function AppSelectUrlBootstrap() {
@@ -285,7 +237,7 @@ export function PortalAomiFrame() {
         <AomiFrame.Header>
           <Link
             href="/settings"
-            className="inline-flex items-center justify-center rounded-full p-2 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+            className="text-muted-foreground hover:bg-accent hover:text-foreground inline-flex items-center justify-center rounded-full p-2 transition-colors"
             aria-label="Open settings"
           >
             <Settings className="size-4" />

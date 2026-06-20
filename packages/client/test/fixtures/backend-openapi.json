@@ -254,17 +254,6 @@
         "x-aomi-auth": "session"
       }
     },
-    "/api/account/exchange": {
-      "post": {
-        "responses": {
-          "200": {
-            "description": "OK"
-          }
-        },
-        "security": [],
-        "x-aomi-auth": "public"
-      }
-    },
     "/api/account": {
       "get": {
         "responses": {

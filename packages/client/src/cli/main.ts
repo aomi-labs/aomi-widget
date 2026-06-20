@@ -65,11 +65,11 @@ function printRootHelp(): void {
     "  --account-bearer <token>     Aomi account bearer for authenticated requests",
   );
   console.log(
-    "  --account-provider <name>    Upstream auth provider (para | privy)",
+    "  --account-provider <name>    Deprecated; provider exchange is disabled",
   );
   console.log("  --account-provider-token <t>");
   console.log(
-    "                               Provider token exchanged for an Aomi bearer",
+    "                               Deprecated; use --account-bearer",
   );
   console.log("  --app <name>                 Active app");
   console.log("  --model <rig>                Active model");

@@ -4,13 +4,13 @@ on:
   push:
     branches:
       - main
-      - master
-      - develop
+      - prod
   pull_request:
 
 jobs:
   build-and-lint:
     runs-on: ubuntu-latest
+    environment: ${{ github.ref == 'refs/heads/prod' && 'Production' || 'Preview' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4

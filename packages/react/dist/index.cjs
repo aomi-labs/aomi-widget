@@ -47,7 +47,7 @@ var __copyProps = (to, from, except, desc) => {
 };
 var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
 
-// src/index.ts
+// packages/react/src/index.ts
 var index_exports = {};
 __export(index_exports, {
   AomiClient: () => import_client9.AomiClient,
@@ -100,14 +100,14 @@ module.exports = __toCommonJS(index_exports);
 var import_client9 = require("@aomi-labs/client");
 var import_client10 = require("@aomi-labs/client");
 
-// src/runtime/aomi-runtime.tsx
+// packages/react/src/runtime/aomi-runtime.tsx
 var import_react16 = require("react");
 var import_client8 = require("@aomi-labs/client");
 
-// src/contexts/control-context.tsx
+// packages/react/src/contexts/control-context.tsx
 var import_react5 = require("react");
 
-// src/utils/client-session.ts
+// packages/react/src/utils/client-session.ts
 var CLIENT_ID_STORAGE_KEY = "aomi_client_id";
 var CONTROL_SESSION_PREFIX = "control:";
 function getOrCreateClientId() {
@@ -133,7 +133,7 @@ function getControlSessionId(clientId, fallbackSessionId) {
   return trimmedClientId ? `${CONTROL_SESSION_PREFIX}${trimmedClientId}` : fallbackSessionId;
 }
 
-// src/control/api-key.ts
+// packages/react/src/control/api-key.ts
 var import_react = require("react");
 var API_KEY_STORAGE_KEY = "aomi_secret_key";
 function useApiKeyImpl() {
@@ -166,7 +166,7 @@ function useApiKeyImpl() {
   };
 }
 
-// src/control/byok.ts
+// packages/react/src/control/byok.ts
 var import_react2 = require("react");
 var BYOK_KEYS_STORAGE_KEY = "aomi_byok_keys";
 var BYOK_SECRET_PREFIX = "PROVIDER_KEY:";
@@ -328,10 +328,10 @@ function useByokImpl({
   };
 }
 
-// src/control/auth-endpoints.ts
+// packages/react/src/control/auth-endpoints.ts
 var import_react3 = require("react");
 
-// src/utils/model-selection.ts
+// packages/react/src/utils/model-selection.ts
 var PREFERRED_DEFAULT_MODEL_PATTERNS = [
   /^claude.*opus.*4[.-]?8/i,
   /^claude.*4[.-]?8.*opus/i,
@@ -352,7 +352,7 @@ function resolveAutoModel(models) {
   return (_a = models[0]) != null ? _a : null;
 }
 
-// src/control/auth-endpoints.ts
+// packages/react/src/control/auth-endpoints.ts
 function getDefaultApp(apps) {
   var _a;
   return apps.includes("default") ? "default" : (_a = apps[0]) != null ? _a : null;
@@ -458,10 +458,10 @@ function useAuthEndpointsImpl({
   };
 }
 
-// src/control/per-thread-control.ts
+// packages/react/src/control/per-thread-control.ts
 var import_react4 = require("react");
 
-// src/utils/uuid.ts
+// packages/react/src/utils/uuid.ts
 function generateUUID() {
   if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
     return crypto.randomUUID();
@@ -473,7 +473,7 @@ function generateUUID() {
   });
 }
 
-// src/state/thread-store.ts
+// packages/react/src/state/thread-store.ts
 var shouldLogThreadUpdates = process.env.NODE_ENV !== "production";
 var logThreadMetadataChange = (source, threadId, prev, next) => {
   if (!shouldLogThreadUpdates) return;
@@ -658,7 +658,7 @@ var ThreadStore = class {
   }
 };
 
-// src/control/per-thread-control.ts
+// packages/react/src/control/per-thread-control.ts
 var MODEL_SELECTION_STORAGE_KEY = "aomi_model_selection";
 function readStoredModelPreference() {
   var _a;
@@ -915,7 +915,7 @@ function usePerThreadControlImpl({
   };
 }
 
-// src/contexts/control-context.tsx
+// packages/react/src/contexts/control-context.tsx
 var import_jsx_runtime = require("react/jsx-runtime");
 var ControlContext = (0, import_react5.createContext)(null);
 function useControl() {
@@ -1079,7 +1079,7 @@ function ControlContextProvider({
   return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ControlContext.Provider, { value: api, children });
 }
 
-// src/contexts/event-context.tsx
+// packages/react/src/contexts/event-context.tsx
 var import_react6 = require("react");
 var import_jsx_runtime2 = require("react/jsx-runtime");
 var EventContextState = (0, import_react6.createContext)(null);
@@ -1152,7 +1152,7 @@ function EventContextProvider({
   return /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(EventContextState.Provider, { value: contextValue, children });
 }
 
-// src/contexts/notification-context.tsx
+// packages/react/src/contexts/notification-context.tsx
 var import_react7 = require("react");
 var import_jsx_runtime3 = require("react/jsx-runtime");
 var NotificationContext = (0, import_react7.createContext)(null);
@@ -1208,7 +1208,7 @@ function NotificationContextProvider({
   return /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(NotificationContext.Provider, { value, children });
 }
 
-// src/contexts/thread-context.tsx
+// packages/react/src/contexts/thread-context.tsx
 var import_react8 = require("react");
 var import_jsx_runtime4 = require("react/jsx-runtime");
 var ThreadContextState = (0, import_react8.createContext)(null);
@@ -1252,7 +1252,7 @@ function useCurrentThreadMetadata() {
   );
 }
 
-// src/contexts/ext-user-context.tsx
+// packages/react/src/contexts/ext-user-context.tsx
 var import_react9 = require("react");
 var import_client = require("@aomi-labs/client");
 var import_client2 = require("@aomi-labs/client");
@@ -1426,16 +1426,16 @@ function ExtUserProviderImpl({ children }) {
   );
 }
 
-// src/runtime/core.tsx
+// packages/react/src/runtime/core.tsx
 var import_react14 = require("react");
 var import_react15 = require("@assistant-ui/react");
 var import_client7 = require("@aomi-labs/client");
 
-// src/runtime/orchestrator.ts
+// packages/react/src/runtime/orchestrator.ts
 var import_react10 = require("react");
 var import_client5 = require("@aomi-labs/client");
 
-// src/runtime/session-manager.ts
+// packages/react/src/runtime/session-manager.ts
 var import_client3 = require("@aomi-labs/client");
 var SessionManager = class {
   constructor(clientFactory) {
@@ -1492,7 +1492,7 @@ var SessionManager = class {
   }
 };
 
-// src/runtime/thread-registry.ts
+// packages/react/src/runtime/thread-registry.ts
 var ThreadRegistry = class {
   constructor(clientFactory) {
     /** Threads the backend already knows about (from /threads list or createThread). */
@@ -1593,7 +1593,7 @@ var ThreadRegistry = class {
   }
 };
 
-// src/runtime/utils.ts
+// packages/react/src/runtime/utils.ts
 var import_client4 = require("@aomi-labs/client");
 var import_clsx = require("clsx");
 var import_tailwind_merge = require("tailwind-merge");
@@ -1696,7 +1696,7 @@ var formatAddress = (addr) => addr ? `${addr.slice(0, 6)}...${addr.slice(-4)}` :
 var SUPPORTED_CHAINS = [...import_client4.SUPPORTED_CHAINS];
 var getChainInfo = (chainId) => chainId === void 0 ? void 0 : SUPPORTED_CHAINS.find((c) => c.id === chainId);
 
-// src/runtime/orchestrator.ts
+// packages/react/src/runtime/orchestrator.ts
 var toErrorMessage = (error) => error instanceof Error ? error.message : "Message failed to send";
 var getHttpStatus = (error) => {
   const status = error == null ? void 0 : error.status;
@@ -2090,7 +2090,7 @@ function useRuntimeOrchestrator(aomiClient, options) {
   };
 }
 
-// src/runtime/threadlist-adapter.ts
+// packages/react/src/runtime/threadlist-adapter.ts
 var sortByLastActiveDesc = ([, metaA], [, metaB]) => {
   const tsA = parseTimestamp(metaA.lastActiveAt);
   const tsB = parseTimestamp(metaB.lastActiveAt);
@@ -2249,7 +2249,7 @@ function buildThreadListAdapter({
   };
 }
 
-// src/interface.tsx
+// packages/react/src/interface.tsx
 var import_react11 = require("react");
 var AomiRuntimeContext = (0, import_react11.createContext)(null);
 var AomiRuntimeApiProvider = AomiRuntimeContext.Provider;
@@ -2266,7 +2266,7 @@ function useOptionalAomiRuntime() {
   return (0, import_react11.useContext)(AomiRuntimeContext);
 }
 
-// src/handlers/wallet-handler.ts
+// packages/react/src/handlers/wallet-handler.ts
 var import_react12 = require("react");
 function useWalletHandler({
   getSession
@@ -2371,7 +2371,7 @@ function useWalletHandler({
   };
 }
 
-// src/runtime/user-state-provider.tsx
+// packages/react/src/runtime/user-state-provider.tsx
 var import_react13 = require("react");
 var import_client6 = require("@aomi-labs/client");
 var import_jsx_runtime6 = require("react/jsx-runtime");
@@ -2399,38 +2399,37 @@ function useWalletStateSync(context, aomiClientRef, registry) {
   const { getCurrentThreadApp, getUserState, onUserStateChange, threadContextRef } = context;
   const walletSnapshot = (0, import_react13.useCallback)(
     (nextUser) => {
-      var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q, _r;
+      var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q;
       return {
         connection: {
           is_connected: (_a = import_client6.UserState.isConnected(nextUser)) != null ? _a : false,
-          primary_family: (_b = nextUser.connection) == null ? void 0 : _b.primary_family,
-          provider: (_c = import_client6.UserState.walletProvider(nextUser)) != null ? _c : void 0,
-          wallet_provider_subject: (_d = import_client6.UserState.walletProviderSubject(nextUser)) != null ? _d : void 0,
-          auth_method: (_e = import_client6.UserState.authMethod(nextUser)) != null ? _e : void 0,
-          auth_value: (_f = import_client6.UserState.authValue(nextUser)) != null ? _f : void 0,
-          auth_verified_at: (_g = import_client6.UserState.authVerifiedAt(nextUser)) != null ? _g : void 0
+          provider: (_b = import_client6.UserState.walletProvider(nextUser)) != null ? _b : void 0,
+          wallet_provider_subject: (_c = import_client6.UserState.walletProviderSubject(nextUser)) != null ? _c : void 0,
+          auth_method: (_d = import_client6.UserState.authMethod(nextUser)) != null ? _d : void 0,
+          auth_value: (_e = import_client6.UserState.authValue(nextUser)) != null ? _e : void 0,
+          auth_verified_at: (_f = import_client6.UserState.authVerifiedAt(nextUser)) != null ? _f : void 0
         },
         evm: {
           address: import_client6.UserState.address(nextUser),
           chain_id: import_client6.UserState.chainId(nextUser),
-          ens_name: typeof ((_h = nextUser.evm) == null ? void 0 : _h.ens_name) === "string" ? nextUser.evm.ens_name : void 0,
+          ens_name: typeof ((_g = nextUser.evm) == null ? void 0 : _g.ens_name) === "string" ? nextUser.evm.ens_name : void 0,
           aa: {
-            mode: (_i = import_client6.UserState.aaMode(nextUser)) != null ? _i : void 0,
-            smart_account: (_j = import_client6.UserState.SmartAccount4337(nextUser)) != null ? _j : void 0,
-            delegation_7702: (_k = import_client6.UserState.Delegation7702(nextUser)) != null ? _k : void 0
+            mode: (_h = import_client6.UserState.aaMode(nextUser)) != null ? _h : void 0,
+            smart_account: (_i = import_client6.UserState.SmartAccount4337(nextUser)) != null ? _i : void 0,
+            delegation_7702: (_j = import_client6.UserState.Delegation7702(nextUser)) != null ? _j : void 0
           },
           sponsorship: {
-            sponsored: (_l = import_client6.UserState.sponsored(nextUser)) != null ? _l : void 0,
-            sponsor_provider: (_m = import_client6.UserState.sponsorProvider(nextUser)) != null ? _m : void 0,
-            sponsor_account: (_n = import_client6.UserState.sponsorAccount(nextUser)) != null ? _n : void 0
+            sponsored: (_k = import_client6.UserState.sponsored(nextUser)) != null ? _k : void 0,
+            sponsor_provider: (_l = import_client6.UserState.sponsorProvider(nextUser)) != null ? _l : void 0,
+            sponsor_account: (_m = import_client6.UserState.sponsorAccount(nextUser)) != null ? _m : void 0
           }
         },
         svm: {
           address: import_client6.UserState.svmAddress(nextUser),
-          cluster: (_o = nextUser.svm) == null ? void 0 : _o.cluster,
-          wallet_name: (_p = nextUser.svm) == null ? void 0 : _p.wallet_name,
-          transport: (_q = nextUser.svm) == null ? void 0 : _q.transport,
-          capabilities: (_r = nextUser.svm) == null ? void 0 : _r.capabilities
+          cluster: (_n = nextUser.svm) == null ? void 0 : _n.cluster,
+          wallet_name: (_o = nextUser.svm) == null ? void 0 : _o.wallet_name,
+          transport: (_p = nextUser.svm) == null ? void 0 : _p.transport,
+          capabilities: (_q = nextUser.svm) == null ? void 0 : _q.capabilities
         }
       };
     },
@@ -2695,7 +2694,7 @@ function RuntimeUserStateProvider({
   return /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(import_jsx_runtime6.Fragment, { children });
 }
 
-// src/runtime/core.tsx
+// packages/react/src/runtime/core.tsx
 var import_jsx_runtime7 = require("react/jsx-runtime");
 function getLegacySessionPublicKey2(userState) {
   var _a;
@@ -3094,7 +3093,7 @@ function AomiRuntimeCore({
   ) });
 }
 
-// src/runtime/aomi-runtime.tsx
+// packages/react/src/runtime/aomi-runtime.tsx
 var import_jsx_runtime8 = require("react/jsx-runtime");
 function normalizeBackendUrl(url) {
   try {
@@ -3158,7 +3157,7 @@ function AomiRuntimeInner({
   );
 }
 
-// src/handlers/notification-handler.ts
+// packages/react/src/handlers/notification-handler.ts
 var import_react17 = require("react");
 var notificationIdCounter2 = 0;
 function generateNotificationId() {
