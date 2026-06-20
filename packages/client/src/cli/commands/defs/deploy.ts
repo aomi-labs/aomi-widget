@@ -27,6 +27,10 @@ export const deployDef = defineCommand({
       description:
         "Git branch to deploy (default: current branch via git rev-parse)",
     },
+    commit: {
+      type: "string",
+      description: "Deploy a specific commit SHA instead of a branch tip",
+    },
     "aomi-toml-paths": {
       type: "string",
       description:
