@@ -4,6 +4,23 @@ export class CliExit extends Error {
   }
 }
 
+export type DeployCliErrorCode =
+  | "AUTH_FAILED"
+  | "BACKEND_ERROR"
+  | "NOT_A_GIT_REPO"
+  | "VALIDATION_ERROR"
+  | "NETWORK_ERROR";
+
+export class DeployCliError extends Error {
+  readonly errorCode: DeployCliErrorCode;
+
+  constructor(errorCode: DeployCliErrorCode, message: string) {
+    super(message);
+    this.name = "DeployCliError";
+    this.errorCode = errorCode;
+  }
+}
+
 export function fatal(message: string): never {
   const RED = "\x1b[31m";
   const DIM = "\x1b[2m";
