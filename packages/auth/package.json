@@ -7,8 +7,11 @@
   "types": "./src/index.ts",
   "exports": {
     ".": "./src/index.ts",
-    "./better-auth": "./src/better-auth/auth.ts",
+    "./account": "./src/account.ts",
+    "./better-auth": "./src/better-auth/index.ts",
     "./better-auth/client": "./src/better-auth/auth-client.ts",
+    "./better-auth/env": "./src/better-auth/env.ts",
+    "./better-auth/siwe": "./src/better-auth/siwe.ts",
     "./mcp-approvals": "./src/mcp-approvals/index.ts",
     "./mcp-approvals/routes": "./src/mcp-approvals/routes/index.ts",
     "./routes": "./src/mcp-approvals/routes/index.ts"

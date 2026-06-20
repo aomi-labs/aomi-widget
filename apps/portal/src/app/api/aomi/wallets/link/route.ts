@@ -3,16 +3,17 @@ import {
   json,
   requireAomiSession,
 } from "@portal/lib/aomi-account/session";
-import { upsertVerifiedWallet } from "@aomi-labs/auth/service/account-service";
+import {
+  createWalletLinkNonce,
+  upsertVerifiedWallet,
+  verifyWalletLinkNonce,
+  verifyWalletLinkSignature,
+} from "@aomi-labs/auth/account";
 import type { WalletFamily } from "@aomi-labs/auth";
-import { readAccountAuthEnv } from "@aomi-labs/auth/better-auth/env";
-import { verifySiweMessage } from "@aomi-labs/auth/better-auth/siwe";
-import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
+import { readAccountAuthEnv } from "@aomi-labs/auth/better-auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-
-const LINK_NONCE_MAX_AGE_MS = 5 * 60 * 1000;
 
 export async function GET(req: Request): Promise<Response> {
   const current = await requireAomiSession(req);
@@ -24,12 +25,17 @@ export async function GET(req: Request): Promise<Response> {
   if (!address || !rawChainId || !Number.isInteger(chainId) || chainId <= 0) {
     return json(400, { error: "address_and_chain_id_required" });
   }
+  const env = readAccountAuthEnv();
   return Response.json({
-    nonce: createLinkNonce({
+    nonce: createWalletLinkNonce({
       userId: current.user.id,
       address,
       chainId,
+      domain: env.siweDomain,
+      secret: env.betterAuthSecret,
     }),
+    domain: env.siweDomain,
+    uri: env.betterAuthUrl,
   });
 }
 
@@ -54,31 +60,28 @@ export async function POST(req: Request): Promise<Response> {
   if (!body.message || !body.signature || !body.chainId) {
     return json(400, { error: "wallet_signature_required" });
   }
+  const env = readAccountAuthEnv();
   if (
     !body.nonce ||
-    !verifyLinkNonce({
+    !verifyWalletLinkNonce({
       nonce: body.nonce,
       userId: current.user.id,
       address: body.address,
       chainId: body.chainId,
+      domain: env.siweDomain,
+      secret: env.betterAuthSecret,
     })
   ) {
     return json(401, { error: "invalid_wallet_link_nonce" });
   }
-  const env = readAccountAuthEnv();
-  const messageOk =
-    body.message.includes(env.siweDomain) &&
-    body.message.toLowerCase().includes(body.address.toLowerCase()) &&
-    body.message.includes(`Chain ID: ${body.chainId}`) &&
-    body.message.includes(`Nonce: ${body.nonce}`);
-  const signatureOk = messageOk
-    ? await verifySiweMessage({
-        address: body.address,
-        message: body.message,
-        signature: body.signature,
-        chainId: body.chainId,
-      })
-    : false;
+  const signatureOk = await verifyWalletLinkSignature({
+    address: body.address,
+    message: body.message,
+    signature: body.signature,
+    chainId: body.chainId,
+    nonce: body.nonce,
+    domain: env.siweDomain,
+  });
   if (!signatureOk) {
     return json(401, { error: "invalid_wallet_signature" });
   }
@@ -104,91 +107,4 @@ export async function POST(req: Request): Promise<Response> {
     status: resolution.status === "noop" ? "linked" : resolution.status,
     account: await accountResponseFromSession(req),
   });
-}
-
-function createLinkNonce(input: {
-  userId: string;
-  address: string;
-  chainId: number;
-}): string {
-  const payload = {
-    userId: input.userId,
-    address: input.address.toLowerCase(),
-    chainId: input.chainId,
-    domain: readAccountAuthEnv().siweDomain,
-    issuedAt: Date.now(),
-    random: randomBytes(16).toString("base64url"),
-  };
-  const encoded = Buffer.from(JSON.stringify(payload)).toString("base64url");
-  return `${encoded}.${signLinkNoncePayload(encoded)}`;
-}
-
-function verifyLinkNonce(input: {
-  nonce: string;
-  userId: string;
-  address: string;
-  chainId: number;
-}): boolean {
-  const [encoded, signature] = input.nonce.split(".");
-  if (!encoded || !signature) return false;
-  const expected = signLinkNoncePayload(encoded);
-  if (!timingSafeEqualString(signature, expected)) return false;
-  const payload = parseLinkNoncePayload(encoded);
-  if (!payload) return false;
-  const ageMs = Date.now() - payload.issuedAt;
-  return (
-    payload.userId === input.userId &&
-    payload.address === input.address.toLowerCase() &&
-    payload.chainId === input.chainId &&
-    payload.domain === readAccountAuthEnv().siweDomain &&
-    ageMs >= 0 &&
-    ageMs <= LINK_NONCE_MAX_AGE_MS
-  );
-}
-
-function signLinkNoncePayload(encodedPayload: string): string {
-  return createHmac("sha256", readAccountAuthEnv().betterAuthSecret)
-    .update(encodedPayload)
-    .digest("base64url");
-}
-
-function parseLinkNoncePayload(encoded: string): {
-  userId: string;
-  address: string;
-  chainId: number;
-  domain: string;
-  issuedAt: number;
-} | null {
-  try {
-    const parsed = JSON.parse(
-      Buffer.from(encoded, "base64url").toString("utf8"),
-    ) as Record<string, unknown>;
-    if (
-      typeof parsed.userId !== "string" ||
-      typeof parsed.address !== "string" ||
-      typeof parsed.chainId !== "number" ||
-      typeof parsed.domain !== "string" ||
-      typeof parsed.issuedAt !== "number"
-    ) {
-      return null;
-    }
-    return {
-      userId: parsed.userId,
-      address: parsed.address,
-      chainId: parsed.chainId,
-      domain: parsed.domain,
-      issuedAt: parsed.issuedAt,
-    };
-  } catch {
-    return null;
-  }
-}
-
-function timingSafeEqualString(left: string, right: string): boolean {
-  const leftBuffer = Buffer.from(left);
-  const rightBuffer = Buffer.from(right);
-  return (
-    leftBuffer.length === rightBuffer.length &&
-    timingSafeEqual(leftBuffer, rightBuffer)
-  );
 }

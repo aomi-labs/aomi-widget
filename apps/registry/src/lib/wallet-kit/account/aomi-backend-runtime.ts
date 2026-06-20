@@ -6,38 +6,44 @@ import type { EvmWalletRuntime } from "../runtime/evm/wallet-runtime";
 import { brandDisplayName } from "../runtime/evm/brands";
 import type { AccountRuntime, AccountWallet } from "./types";
 import type { WalletFamily } from "../types";
+import {
+  createAomiBackendAccountClient,
+  type AomiBackendAccountResponse,
+  type AomiBackendNonceResponse,
+} from "./aomi-backend-client";
 
 export type AomiBackendAccountConfig = {
   mode: "aomi-backend";
   baseUrl?: string;
-};
-
-type AccountResponse = {
-  user: AccountRuntime["user"] | null;
-  linkedAccounts: AccountRuntime["linkedAccounts"];
-  wallets: AccountWallet[];
-  session: { betterAuthUserId: string; expiresAt?: number } | null;
-};
-
-type ProviderExchangeResponse = {
-  status: "linked" | "noop";
-  account?: AccountResponse;
-};
-
-type LinkWalletResponse = {
-  status: "linked" | "noop";
-  account?: AccountResponse;
+  authDomain?: string;
+  authUri?: string;
 };
 
 export function useAomiBackendAccountRuntime(input: {
   enabled: boolean;
   baseUrl?: string;
+  authDomain?: string;
+  authUri?: string;
   auth: AuthRuntime;
   evm: EvmWalletRuntime;
   svm?: SvmWalletRuntime;
 }): AccountRuntime {
-  const baseUrl = normalizeBaseUrl(input.baseUrl);
-  const [account, setAccount] = useState<AccountResponse | null>(null);
+  const accountClient = useMemo(
+    () => createAomiBackendAccountClient({ baseUrl: input.baseUrl }),
+    [input.baseUrl],
+  );
+  const authMessageConfig = useMemo(
+    () =>
+      resolveAuthMessageConfig({
+        baseUrl: input.baseUrl,
+        authDomain: input.authDomain,
+        authUri: input.authUri,
+      }),
+    [input.authDomain, input.authUri, input.baseUrl],
+  );
+  const [account, setAccount] = useState<AomiBackendAccountResponse | null>(
+    null,
+  );
   const [status, setStatus] = useState<AccountRuntime["status"]>(
     input.enabled ? "loading" : "disabled",
   );
@@ -52,17 +58,14 @@ export function useAomiBackendAccountRuntime(input: {
     if (!input.enabled) return;
     setStatus((current) => (current === "ready" ? current : "loading"));
     try {
-      const next = await fetchJson<AccountResponse>(
-        `${baseUrl}/api/aomi/account`,
-        { method: "GET" },
-      );
+      const next = await accountClient.getAccount();
       setAccount(next);
       setStatus("ready");
     } catch {
       setStatus("error");
       setErrorVersion((version) => version + 1);
     }
-  }, [baseUrl, input.enabled]);
+  }, [accountClient, input.enabled]);
 
   useEffect(() => {
     void refresh();
@@ -97,12 +100,13 @@ export function useAomiBackendAccountRuntime(input: {
     if (siweInFlight.current === key) return;
     siweInFlight.current = key;
     signInWithActiveEvmWallet({
-      baseUrl,
       address: activeEvmAddress as `0x${string}`,
+      accountClient,
       chainId: activeEvmChainId,
       signMessageAsync: input.evm.signMessageAsync as (args: {
         message: string;
       }) => Promise<`0x${string}`>,
+      messageConfig: authMessageConfig,
     })
       .then(refresh)
       .catch(() => {
@@ -119,7 +123,8 @@ export function useAomiBackendAccountRuntime(input: {
     account,
     activeEvmAddress,
     activeEvmChainId,
-    baseUrl,
+    accountClient,
+    authMessageConfig,
     input.enabled,
     input.evm.signMessageAsync,
     refresh,
@@ -146,10 +151,8 @@ export function useAomiBackendAccountRuntime(input: {
       }
       // Any provider credential is exchangeable, in any order: link to the
       // current account if one exists, otherwise create one. No policy gate.
-      const endpoint = account?.user
-        ? `${baseUrl}/api/aomi/provider/exchange`
-        : `${baseUrl}/api/auth/aomi/provider/exchange`;
-      const attemptKey = `${endpoint}:${account?.user?.id ?? "new"}:${key}`;
+      const hasAccount = Boolean(account?.user);
+      const attemptKey = `${hasAccount ? "link" : "session"}:${account?.user?.id ?? "new"}:${key}`;
       if (
         credentialInFlight.current === attemptKey ||
         credentialExchanged.current === attemptKey
@@ -157,14 +160,11 @@ export function useAomiBackendAccountRuntime(input: {
         return;
       }
       credentialInFlight.current = attemptKey;
-      const exchangeCredential = async () =>
-        fetchJson<ProviderExchangeResponse>(endpoint, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(credential),
-        });
       try {
-        const result = await exchangeCredential();
+        const result = await accountClient.exchangeProviderCredential(
+          credential,
+          { hasAccount },
+        );
         credentialExchanged.current = attemptKey;
         if (result.account) setAccount(result.account);
         await refresh();
@@ -181,7 +181,14 @@ export function useAomiBackendAccountRuntime(input: {
     return () => {
       cancelled = true;
     };
-  }, [account?.user, baseUrl, input.auth, input.enabled, refresh, status]);
+  }, [
+    account?.user,
+    accountClient,
+    input.auth,
+    input.enabled,
+    refresh,
+    status,
+  ]);
 
   const liveWalletKeys = useMemo(() => {
     const keys = new Set<string>();
@@ -229,7 +236,7 @@ export function useAomiBackendAccountRuntime(input: {
       }
       credentialInFlight.current = null;
       credentialExchanged.current = null;
-      await fetchJson(`${baseUrl}/api/aomi/sign-out`, { method: "POST" });
+      await accountClient.signOut();
       setAccount({
         user: null,
         linkedAccounts: [],
@@ -239,11 +246,7 @@ export function useAomiBackendAccountRuntime(input: {
       setStatus("ready");
     },
     updateAccount: async ({ displayName, avatarUrl }) => {
-      await fetchJson(`${baseUrl}/api/aomi/account`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ displayName, avatarUrl }),
-      });
+      await accountClient.updateAccount({ displayName, avatarUrl });
       await refresh();
     },
     linkWallet: async (wallet) => {
@@ -255,16 +258,15 @@ export function useAomiBackendAccountRuntime(input: {
       }
       const chainId = wallet.chainId ?? activeEvmChainId;
       if (!chainId) throw new Error("Wallet linking requires an EVM chain id");
-      const nonceResult = await fetchJson<{ nonce: string }>(
-        `${baseUrl}/api/aomi/wallets/link?address=${encodeURIComponent(
-          wallet.address,
-        )}&chainId=${encodeURIComponent(String(chainId))}`,
-        { method: "GET" },
-      );
+      const nonceResult = await accountClient.getWalletLinkNonce({
+        address: wallet.address,
+        chainId,
+      });
       const message = buildWalletLinkMessage({
         address: wallet.address,
         chainId,
         nonce: nonceResult.nonce,
+        ...messageConfigFromNonce(nonceResult, authMessageConfig),
       });
       const signature =
         wallet.accountId && input.evm.signMessageForAccount
@@ -295,42 +297,24 @@ export function useAomiBackendAccountRuntime(input: {
         signature,
         nonce: nonceResult.nonce,
       };
-      const link = async () =>
-        fetchJson<LinkWalletResponse>(`${baseUrl}/api/aomi/wallets/link`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(body),
-        });
-      const result = await link();
+      const result = await accountClient.linkWallet(body);
       if (result.account) setAccount(result.account);
       await refresh();
     },
     updateWallet: async ({ walletId, label }) => {
-      await fetchJson(`${baseUrl}/api/aomi/wallets/${walletId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ label }),
-      });
+      await accountClient.updateWallet(walletId, { label });
       await refresh();
     },
     updateAuthIdentity: async ({ identityId, displayLabel }) => {
-      await fetchJson(`${baseUrl}/api/aomi/identities/${identityId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ displayLabel }),
-      });
+      await accountClient.updateAuthIdentity(identityId, { displayLabel });
       await refresh();
     },
     unlinkWallet: async (walletId) => {
-      await fetchJson(`${baseUrl}/api/aomi/wallets/${walletId}`, {
-        method: "DELETE",
-      });
+      await accountClient.unlinkWallet(walletId);
       await refresh();
     },
     unlinkAuthIdentity: async (identityId) => {
-      await fetchJson(`${baseUrl}/api/aomi/identities/${identityId}`, {
-        method: "DELETE",
-      });
+      await accountClient.unlinkAuthIdentity(identityId);
       await refresh();
     },
   };
@@ -406,106 +390,115 @@ async function signMessageWithActiveEvm(
 }
 
 async function signInWithActiveEvmWallet(input: {
-  baseUrl: string;
+  accountClient: ReturnType<typeof createAomiBackendAccountClient>;
   address: `0x${string}`;
   chainId: number;
   signMessageAsync: (args: { message: string }) => Promise<`0x${string}`>;
+  messageConfig: AuthMessageConfig;
 }): Promise<void> {
-  const nonceResult = await fetchJson<{ nonce: string }>(
-    `${input.baseUrl}/api/auth/siwe/nonce`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        walletAddress: input.address,
-        chainId: input.chainId,
-      }),
-    },
-  );
+  const nonceResult = await input.accountClient.createSiweNonce({
+    walletAddress: input.address,
+    chainId: input.chainId,
+  });
   const message = buildSiweMessage({
     address: input.address,
     chainId: input.chainId,
     nonce: nonceResult.nonce,
+    ...messageConfigFromNonce(nonceResult, input.messageConfig),
   });
   const signature = await input.signMessageAsync({ message });
-  await fetchJson(`${input.baseUrl}/api/auth/siwe/verify`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      message,
-      signature,
-      walletAddress: input.address,
-      chainId: input.chainId,
-    }),
+  await input.accountClient.verifySiwe({
+    message,
+    signature,
+    walletAddress: input.address,
+    chainId: input.chainId,
   });
 }
 
-function buildSiweMessage(input: {
+export type AuthMessageConfig = {
+  domain: string;
+  uri: string;
+};
+
+export function resolveAuthMessageConfig(input: {
+  baseUrl?: string;
+  authDomain?: string;
+  authUri?: string;
+}): AuthMessageConfig {
+  const base = absoluteUrl(input.baseUrl);
+  const fallbackOrigin =
+    base?.origin ??
+    (typeof window !== "undefined" ? window.location.origin : "");
+  const fallbackDomain =
+    base?.host ?? (typeof window !== "undefined" ? window.location.host : "");
+  return {
+    domain: normalizeDomain(input.authDomain) ?? fallbackDomain,
+    uri: input.authUri?.replace(/\/+$/, "") || fallbackOrigin,
+  };
+}
+
+export function buildSiweMessage(input: {
   address: string;
   chainId: number;
   nonce: string;
+  domain: string;
+  uri: string;
 }): string {
-  const origin = window.location.origin;
-  const domain = window.location.host;
-  return `${domain} wants you to sign in with your Ethereum account:
+  return `${input.domain} wants you to sign in with your Ethereum account:
 ${input.address}
 
 Sign in to Aomi.
 
-URI: ${origin}
+URI: ${input.uri}
 Version: 1
 Chain ID: ${input.chainId}
 Nonce: ${input.nonce}
 Issued At: ${new Date().toISOString()}`;
 }
 
-function buildWalletLinkMessage(input: {
+export function buildWalletLinkMessage(input: {
   address: string;
   chainId: number;
   nonce: string;
+  domain: string;
+  uri: string;
 }): string {
-  return `${window.location.host} wants to link this wallet to your Aomi account:
+  return `${input.domain} wants to link this wallet to your Aomi account:
 ${input.address}
 
 Only sign this message if you want this wallet attached to the current Aomi account.
 
-URI: ${window.location.origin}
+URI: ${input.uri}
 Version: 1
 Chain ID: ${input.chainId}
 Nonce: ${input.nonce}
 Issued At: ${new Date().toISOString()}`;
 }
 
-async function fetchJson<T>(url: string, init: RequestInit): Promise<T> {
-  const response = await fetch(url, {
-    credentials: "include",
-    ...init,
-    headers: {
-      Accept: "application/json",
-      ...(init.headers ?? {}),
-    },
-  });
-  if (!response.ok) {
-    const error = await response.json().catch(() => null);
-    const code =
-      error && typeof error === "object" && "error" in error
-        ? String(error.error)
-        : null;
-    throw new Error(formatAccountRequestError(response.status, code));
-  }
-  return (await response.json()) as T;
+function messageConfigFromNonce(
+  nonce: AomiBackendNonceResponse,
+  fallback: AuthMessageConfig,
+): AuthMessageConfig {
+  return {
+    domain: normalizeDomain(nonce.domain) ?? fallback.domain,
+    uri: nonce.uri?.replace(/\/+$/, "") || fallback.uri,
+  };
 }
 
-function formatAccountRequestError(
-  status: number,
-  code: string | null,
-): string {
-  if (status === 409 && code === "already_linked_to_another_account") {
-    return "This wallet or sign-in method is already linked to another Aomi account. Sign in to that account to unlink it first.";
+function absoluteUrl(value: string | undefined): URL | null {
+  if (!value) return null;
+  try {
+    return new URL(value);
+  } catch {
+    return null;
   }
-  return code ?? `Request failed: ${status}`;
 }
 
-function normalizeBaseUrl(baseUrl?: string): string {
-  return baseUrl?.replace(/\/+$/, "") ?? "";
+function normalizeDomain(value: string | undefined): string | undefined {
+  if (!value) return undefined;
+  try {
+    return new URL(value).host;
+  } catch {
+    return value.replace(/^https?:\/\//, "").replace(/\/.*$/, "") || undefined;
+  }
 }

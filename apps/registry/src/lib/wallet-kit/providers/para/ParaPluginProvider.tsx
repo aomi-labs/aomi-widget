@@ -4,8 +4,7 @@ import { useCallback, useMemo, type ReactNode } from "react";
 import type { Chain } from "viem";
 import type { TOAuthMethod } from "@getpara/react-sdk";
 import { AomiWalletKitComposer } from "../../composer/AomiWalletKitComposer";
-import { useAomiBackendAccountRuntime } from "../../account/aomi-backend-runtime";
-import { DISABLED_ACCOUNT_RUNTIME } from "../../account/disabled-runtime";
+import { useResolvedAccountRuntime } from "../../account/use-resolved-account-runtime";
 import type {
   AuthRuntime,
   ExecutionRuntime,
@@ -354,12 +353,8 @@ export function AomiParaPluginProvider({
     }),
     [evmRuntime, execution, paraSession, sponsorship],
   );
-  const accountRuntime = useAomiBackendAccountRuntime({
-    enabled: account !== false && account?.mode === "aomi-backend",
-    baseUrl:
-      account !== false && account?.mode === "aomi-backend"
-        ? account.baseUrl
-        : undefined,
+  const accountRuntime = useResolvedAccountRuntime({
+    account,
     auth: authRuntime,
     evm: evmRuntime,
     svm: svmRuntime,
@@ -368,11 +363,7 @@ export function AomiParaPluginProvider({
   return (
     <AomiWalletKitComposer
       auth={authRuntime}
-      account={
-        account !== false && account?.mode === "aomi-backend"
-          ? accountRuntime
-          : DISABLED_ACCOUNT_RUNTIME
-      }
+      account={accountRuntime}
       evm={evmRuntime}
       svm={svmRuntime}
       execution={executionRuntime}

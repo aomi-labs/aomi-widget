@@ -1,10 +1,8 @@
 // @vitest-environment node
 
 import { afterEach, describe, expect, it, vi } from "vitest";
-import {
-  listParaWalletsForUser,
-  listPrivyWalletsForUser,
-} from "../src/providers/wallets";
+import { listParaWalletsForUser } from "../src/providers/para";
+import { listPrivyWalletsForUser } from "../src/providers/privy";
 
 const EVM = "0x1111111111111111111111111111111111111111";
 const EVM2 = "0x2222222222222222222222222222222222222222";
@@ -17,7 +15,9 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-function mockFetch(responses: Array<Response | (() => Response)>): typeof fetch {
+function mockFetch(
+  responses: Array<Response | (() => Response)>,
+): typeof fetch {
   const queue = [...responses];
   const fetchMock = vi.fn(async () => {
     const next = queue.shift();
@@ -158,8 +158,18 @@ describe("listPrivyWalletsForUser", () => {
     mockFetch([
       jsonResponse({
         data: [
-          { id: "w-cosmos", address: "cosmos1...", chain_type: "cosmos", owner_id: "did:privy:alice" },
-          { id: "w-bad", address: "0xnothex", chain_type: "ethereum", owner_id: "did:privy:alice" },
+          {
+            id: "w-cosmos",
+            address: "cosmos1...",
+            chain_type: "cosmos",
+            owner_id: "did:privy:alice",
+          },
+          {
+            id: "w-bad",
+            address: "0xnothex",
+            chain_type: "ethereum",
+            owner_id: "did:privy:alice",
+          },
         ],
         next_cursor: null,
       }),
@@ -194,12 +204,26 @@ describe("listPrivyWalletsForUser", () => {
       const cursor = u.searchParams.get("cursor");
       if (!cursor) {
         return jsonResponse({
-          data: [{ id: "w1", address: EVM, chain_type: "ethereum", owner_id: "did:privy:alice" }],
+          data: [
+            {
+              id: "w1",
+              address: EVM,
+              chain_type: "ethereum",
+              owner_id: "did:privy:alice",
+            },
+          ],
           next_cursor: "page2",
         });
       }
       return jsonResponse({
-        data: [{ id: "w2", address: EVM2, chain_type: "ethereum", owner_id: "did:privy:alice" }],
+        data: [
+          {
+            id: "w2",
+            address: EVM2,
+            chain_type: "ethereum",
+            owner_id: "did:privy:alice",
+          },
+        ],
         next_cursor: null,
       });
     });
@@ -234,8 +258,20 @@ describe("listParaWalletsForUser", () => {
     });
 
     expect(result).toEqual([
-      { provider: "para", providerWalletId: "p-embedded", family: "evm", address: EVM, chainScope: null },
-      { provider: "para", providerWalletId: "p-sol", family: "svm", address: SOL, chainScope: null },
+      {
+        provider: "para",
+        providerWalletId: "p-embedded",
+        family: "evm",
+        address: EVM,
+        chainScope: null,
+      },
+      {
+        provider: "para",
+        providerWalletId: "p-sol",
+        family: "svm",
+        address: SOL,
+        chainScope: null,
+      },
     ]);
   });
 
@@ -245,7 +281,11 @@ describe("listParaWalletsForUser", () => {
         wallets: [
           { id: "p-embedded", address: EVM, type: "EVM", scheme: "DKLS" },
           { id: "p-external", address: EVM2, type: "EVM", scheme: "EXTERNAL" },
-          { id: "p-unknown", address: "0x3333333333333333333333333333333333333333", type: "EVM" },
+          {
+            id: "p-unknown",
+            address: "0x3333333333333333333333333333333333333333",
+            type: "EVM",
+          },
         ],
         pagination: { hasMore: false },
       }),

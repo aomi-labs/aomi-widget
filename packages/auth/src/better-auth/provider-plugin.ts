@@ -3,23 +3,21 @@ import { setSessionCookie } from "better-auth/cookies";
 import type { BetterAuthPlugin } from "better-auth";
 import { z } from "zod";
 import {
+  isVerifiedProviderTokenCredential,
   providerSessionUserSeed,
   verifyProviderCredential,
-} from "../service/provider-exchange";
+} from "../providers/account-credentials";
 import {
-  fetchAttestedProviderWallets,
   getOrCreateAomiUserForBetterAuthSession,
   linkProviderIdentity,
-  syncProviderWallets,
+  syncProviderAttestedWallets,
 } from "../service/account-service";
 import { buildAccountResponse, findAomiUserById } from "../db/queries";
 import type { AomiAccountCredential } from "../types";
 
 const bodySchema = z.object({
-  provider: z.enum(["privy", "para"]),
-  tokenKind: z
-    .enum(["identity_token", "access_token", "session_jwt"])
-    .optional(),
+  provider: z.string().min(1),
+  tokenKind: z.string().min(1).optional(),
   providerToken: z.string().min(1),
   keyId: z.string().optional(),
 });
@@ -37,8 +35,21 @@ export function aomiProviderAuthPlugin(): BetterAuthPlugin {
         },
         async (ctx) => {
           const credential = ctx.body as AomiAccountCredential;
-          const verified = await verifyProviderCredential(credential);
-          if (verified.provider === "cookie") {
+          let verified: Awaited<ReturnType<typeof verifyProviderCredential>>;
+          try {
+            verified = await verifyProviderCredential(credential);
+          } catch (error) {
+            return ctx.json(
+              {
+                error:
+                  error instanceof Error
+                    ? error.message
+                    : "provider_exchange_failed",
+              },
+              { status: 400 },
+            );
+          }
+          if (!isVerifiedProviderTokenCredential(verified)) {
             return ctx.json({ status: "linked" });
           }
 
@@ -74,21 +85,7 @@ export function aomiProviderAuthPlugin(): BetterAuthPlugin {
             subject: verified.token.subject,
             email: verified.token.email,
             emailVerified: verified.token.emailVerified,
-            providerMetadata: {
-              expiresAt: verified.token.expiresAt,
-              linkedAccounts:
-                verified.provider === "privy"
-                  ? verified.token.linkedAccounts
-                  : undefined,
-              wallets:
-                verified.provider === "para"
-                  ? verified.token.wallets
-                  : undefined,
-              connectedWallets:
-                verified.provider === "para"
-                  ? verified.token.connectedWallets
-                  : undefined,
-            },
+            providerMetadata: verified.token.providerMetadata,
           });
           if (resolution.status === "conflict") {
             return ctx.json(
@@ -100,9 +97,9 @@ export function aomiProviderAuthPlugin(): BetterAuthPlugin {
             );
           }
 
-          await syncAttestedWallets({
+          await syncProviderAttestedWallets({
             userId: aomiUser.id,
-            provider: verified.provider,
+            provider: verified.walletAttestationProvider,
             subject: verified.token.subject,
             email: verified.token.email,
           });
@@ -126,27 +123,4 @@ export function aomiProviderAuthPlugin(): BetterAuthPlugin {
       ),
     },
   };
-}
-
-/** Best-effort embedded-wallet sync after a successful provider identity
- *  link (Phase D session-creating path). Fetches server-side attested
- *  wallets and reconciles them into the `aomi_wallets` graph. No-op when REST
- *  creds are unconfigured or the fetch fails. */
-async function syncAttestedWallets(input: {
-  userId: string;
-  provider: "privy" | "para";
-  subject: string;
-  email?: string | null;
-}): Promise<void> {
-  const attested = await fetchAttestedProviderWallets({
-    provider: input.provider,
-    subject: input.subject,
-    email: input.email,
-  });
-  if (!attested) return;
-  await syncProviderWallets({
-    userId: input.userId,
-    provider: input.provider,
-    attested,
-  });
 }

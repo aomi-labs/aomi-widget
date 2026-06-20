@@ -27,10 +27,11 @@ create table if not exists aomi_auth_identities (
   provider_metadata jsonb not null default '{}'::jsonb,
   linked_at timestamptz not null default now(),
   last_seen_at timestamptz not null default now(),
-  revoked_at timestamptz,
-  constraint aomi_auth_identities_provider_check
-    check (provider in ('better_auth', 'siwe', 'privy', 'para', 'email'))
+  revoked_at timestamptz
 );
+
+alter table if exists aomi_auth_identities
+  drop constraint if exists aomi_auth_identities_provider_check;
 
 create unique index if not exists aomi_auth_identities_active_unique
   on aomi_auth_identities (provider, subject)
@@ -58,9 +59,11 @@ create table if not exists aomi_wallets (
   last_seen_at timestamptz not null default now(),
   revoked_at timestamptz,
   constraint aomi_wallets_family_check check (family in ('evm', 'svm')),
-  constraint aomi_wallets_kind_check check (kind in ('external', 'embedded', 'smart_account')),
-  constraint aomi_wallets_linked_via_check check (linked_via in ('siwe', 'siws', 'privy', 'para', 'import', 'observed', 'migration'))
+  constraint aomi_wallets_kind_check check (kind in ('external', 'embedded', 'smart_account'))
 );
+
+alter table if exists aomi_wallets
+  drop constraint if exists aomi_wallets_linked_via_check;
 
 create unique index if not exists aomi_wallets_active_unique
   on aomi_wallets (family, normalized_address, coalesce(chain_scope, '*'))

@@ -2,7 +2,7 @@ import { auth } from "@aomi-labs/auth/better-auth";
 import {
   getAccountResponseForBetterAuthSession,
   getOrCreateAomiUserForBetterAuthSession,
-} from "@aomi-labs/auth/service/account-service";
+} from "@aomi-labs/auth/account";
 
 type BetterAuthSessionResult = {
   user?: {

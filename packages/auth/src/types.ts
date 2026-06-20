@@ -3,7 +3,7 @@ export type BetterAuthUserId = string;
 export type WalletFamily = "evm" | "svm";
 export type WalletKind = "external" | "embedded" | "smart_account";
 export type WalletCapability = "read" | "write";
-export type LinkedVia =
+export type KnownLinkedVia =
   | "siwe"
   | "siws"
   | "privy"
@@ -11,12 +11,14 @@ export type LinkedVia =
   | "import"
   | "observed"
   | "migration";
-export type AuthIdentityProvider =
+export type LinkedVia = KnownLinkedVia | (string & {});
+export type KnownAuthIdentityProvider =
   | "better_auth"
   | "siwe"
   | "privy"
   | "para"
   | "email";
+export type AuthIdentityProvider = KnownAuthIdentityProvider | (string & {});
 
 export type DbAomiUser = {
   id: AomiUserId;
@@ -113,6 +115,8 @@ export type AomiAccountResponse =
       session: null;
     };
 
+export type AccountCredentialProvider = "privy" | "para" | (string & {});
+
 export type AomiAccountCredential =
   | {
       provider: "privy";
@@ -125,7 +129,12 @@ export type AomiAccountCredential =
       providerToken: string;
       keyId?: string;
     }
-  | { kind: "token"; provider: "privy" | "para"; token: string; keyId?: string }
+  | {
+      kind: "token";
+      provider: AccountCredentialProvider;
+      token: string;
+      keyId?: string;
+    }
   | { kind: "cookie" };
 
 export type VerifiedPrivyToken = {

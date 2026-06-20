@@ -12,8 +12,7 @@ import type { WalletEip712Payload } from "@aomi-labs/react";
 import { toViemSignTypedDataArgs } from "@aomi-labs/react";
 import { AomiWalletKitComposer } from "../../composer/AomiWalletKitComposer";
 import type { AuthRuntime, ExecutionRuntime } from "../../composer/types";
-import { useAomiBackendAccountRuntime } from "../../account/aomi-backend-runtime";
-import { DISABLED_ACCOUNT_RUNTIME } from "../../account/disabled-runtime";
+import { useResolvedAccountRuntime } from "../../account/use-resolved-account-runtime";
 import { resolveAAProviderState } from "../../execution/aa-provider-state";
 import { buildEvmExecutionRuntime } from "../../execution/execution-runtime";
 import { useAomiWalletNetworkPreferences } from "../../network-preferences";
@@ -251,12 +250,8 @@ export function AomiPrivyPluginProvider({
     }),
     [evmRuntime, execution, getClientForChain, smartAddress, smartWalletClient],
   );
-  const accountRuntime = useAomiBackendAccountRuntime({
-    enabled: account !== false && account?.mode === "aomi-backend",
-    baseUrl:
-      account !== false && account?.mode === "aomi-backend"
-        ? account.baseUrl
-        : undefined,
+  const accountRuntime = useResolvedAccountRuntime({
+    account,
     auth: authRuntime,
     evm: evmRuntime,
     svm: svmRuntime,
@@ -265,11 +260,7 @@ export function AomiPrivyPluginProvider({
   return (
     <AomiWalletKitComposer
       auth={authRuntime}
-      account={
-        account !== false && account?.mode === "aomi-backend"
-          ? accountRuntime
-          : DISABLED_ACCOUNT_RUNTIME
-      }
+      account={accountRuntime}
       evm={evmRuntime}
       svm={svmRuntime}
       execution={executionRuntime}

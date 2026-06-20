@@ -27,6 +27,7 @@ export type WalletModalRow = {
   source: "live" | "embedded" | "stored" | "option";
   status: "active" | "connected" | "stored" | "available" | "unavailable";
   provider?: string;
+  walletKind?: AccountWallet["kind"];
   linked?: boolean;
   linkedVia?: AomiAccount["linkedVia"];
   capability?: "read" | "write";
@@ -77,6 +78,7 @@ export function mergeWalletRows({
       source: "live" as const,
       status: account.active ? ("active" as const) : ("connected" as const),
       provider: stored?.provider,
+      walletKind: stored?.kind,
       linked,
       linkedVia: account.linkedVia ?? stored?.linkedVia,
       capability: account.capability ?? stored?.capability,
@@ -102,6 +104,7 @@ export function mergeWalletRows({
       source: "stored",
       status: "stored",
       provider: wallet.provider,
+      walletKind: wallet.kind,
       linked: true,
       capability: wallet.capability,
       actions: [

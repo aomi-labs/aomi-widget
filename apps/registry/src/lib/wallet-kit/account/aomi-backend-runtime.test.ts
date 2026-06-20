@@ -1,13 +1,24 @@
 import { describe, expect, it } from "vitest";
 import {
+  buildSiweMessage,
+  buildWalletLinkMessage,
   buildDefaultWalletLabel,
+  resolveAuthMessageConfig,
   resolveLinkedWalletName,
 } from "./aomi-backend-runtime";
 
 describe("resolveLinkedWalletName", () => {
   const accounts = [
-    { id: "mm", address: "0xE9B0000000000000000000000000000000000018", walletName: "MetaMask" },
-    { id: "privy-evm", address: "0xCC8000000000000000000000000000000000008f", walletName: "Privy Smart Wallet" },
+    {
+      id: "mm",
+      address: "0xE9B0000000000000000000000000000000000018",
+      walletName: "MetaMask",
+    },
+    {
+      id: "privy-evm",
+      address: "0xCC8000000000000000000000000000000000008f",
+      walletName: "Privy Smart Wallet",
+    },
   ];
 
   it("names the linked wallet, not the active signer (the reported bug)", () => {
@@ -79,5 +90,52 @@ describe("buildDefaultWalletLabel", () => {
         family: "evm",
       }),
     ).toBe("Wallet 1");
+  });
+});
+
+describe("auth message config", () => {
+  it("uses the backend base URL as the SIWE domain when configured", () => {
+    expect(
+      resolveAuthMessageConfig({
+        baseUrl: "https://portal.aomi.dev/api",
+      }),
+    ).toEqual({
+      domain: "portal.aomi.dev",
+      uri: "https://portal.aomi.dev",
+    });
+  });
+
+  it("lets callers override the auth domain and URI", () => {
+    expect(
+      resolveAuthMessageConfig({
+        baseUrl: "https://proxy.example.com",
+        authDomain: "auth.example.com",
+        authUri: "https://auth.example.com/",
+      }),
+    ).toEqual({
+      domain: "auth.example.com",
+      uri: "https://auth.example.com",
+    });
+  });
+
+  it("builds SIWE and wallet-link messages with the auth domain", () => {
+    expect(
+      buildSiweMessage({
+        address: "0x1111111111111111111111111111111111111111",
+        chainId: 1,
+        nonce: "nonce",
+        domain: "portal.aomi.dev",
+        uri: "https://portal.aomi.dev",
+      }),
+    ).toContain("portal.aomi.dev wants you to sign in");
+    expect(
+      buildWalletLinkMessage({
+        address: "0x1111111111111111111111111111111111111111",
+        chainId: 1,
+        nonce: "nonce",
+        domain: "portal.aomi.dev",
+        uri: "https://portal.aomi.dev",
+      }),
+    ).toContain("URI: https://portal.aomi.dev");
   });
 });

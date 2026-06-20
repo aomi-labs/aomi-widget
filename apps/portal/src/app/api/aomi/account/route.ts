@@ -3,7 +3,7 @@ import {
   json,
   requireAomiSession,
 } from "@portal/lib/aomi-account/session";
-import { updateAccountProfile } from "@aomi-labs/auth/service/account-service";
+import { updateAccountProfile } from "@aomi-labs/auth/account";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

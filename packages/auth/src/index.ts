@@ -4,10 +4,6 @@
 
 export * from "./types";
 
-export { auth } from "./better-auth/auth";
-export { authClient } from "./better-auth/auth-client";
-export type { AccountAuthEnv } from "./better-auth/env";
-
 export { beginAuth } from "./mcp-approvals/api/begin";
 export type { BeginAuthDeps } from "./mcp-approvals/api/begin";
 
