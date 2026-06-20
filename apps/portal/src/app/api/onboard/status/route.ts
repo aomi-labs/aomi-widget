@@ -10,6 +10,8 @@ import {
   readOnboardDeployEnv,
   releaseTagsFromDeployment,
 } from "@portal/lib/onboard-deploy";
+import { checkRateLimit, getClientIp } from "@portal/lib/rate-limit";
+import { isValidDeploymentId } from "@portal/lib/validate-input";
 
 function isPendingDeploymentStatusError(err: unknown): boolean {
   if (!(err instanceof BackendRequestError)) return false;
@@ -24,10 +26,15 @@ function isPendingDeploymentStatusError(err: unknown): boolean {
 }
 
 export async function GET(req: Request) {
+  const ip = getClientIp(req);
+  if (!checkRateLimit(ip).allowed) {
+    return NextResponse.json({ error: "Too many requests" }, { status: 429 });
+  }
+
   const deploymentId = new URL(req.url).searchParams.get("deploymentId");
-  if (!deploymentId) {
+  if (!isValidDeploymentId(deploymentId)) {
     return NextResponse.json(
-      { error: "missing `deploymentId`" },
+      { error: "missing or invalid `deploymentId`" },
       { status: 400 },
     );
   }
@@ -54,9 +61,13 @@ export async function GET(req: Request) {
         retryIn: 3000,
       });
     }
+    const status =
+      err instanceof BackendRequestError && err.status >= 400 && err.status < 600
+        ? err.status
+        : 502;
     return NextResponse.json(
       { error: err instanceof Error ? err.message : String(err) },
-      { status: 502 },
+      { status },
     );
   }
 }
