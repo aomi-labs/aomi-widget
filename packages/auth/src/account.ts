@@ -7,6 +7,7 @@ export {
 
 export {
   ensureAccountSchema,
+  deactivateAomiAccount,
   fetchAttestedProviderWallets,
   getAccountResponseForBetterAuthSession,
   getOrCreateAomiUserForBetterAuthSession,
@@ -21,6 +22,7 @@ export {
   unlinkWallet,
   updateAccountProfile,
   upsertVerifiedWallet,
+  type DeactivateAomiAccountResult,
 } from "./service/account-service";
 
 export {

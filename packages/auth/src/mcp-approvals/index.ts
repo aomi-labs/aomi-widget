@@ -1,3 +1,8 @@
+/**
+ * @deprecated Legacy MCP approval-auth surface. Active account/provider auth
+ * lives under `@aomi-labs/auth/account`, `@aomi-labs/auth/better-auth`, and
+ * `@aomi-labs/auth/providers`.
+ */
 export * from "./types";
 export { beginAuth } from "./api/begin";
 export type { BeginAuthDeps } from "./api/begin";

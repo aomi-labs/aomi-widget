@@ -3,11 +3,8 @@
 # dev-ngrok.sh — run `next dev` for the portal behind an ngrok tunnel.
 # =============================================================================
 #
-# Required for the MCP/auth dev loop because:
+# Required for the MCP dev loop because:
 #   - Claude Desktop / Codex needs an HTTPS URL to reach the MCP endpoint.
-#   - OAuth providers (real ones, post-v1) require a public callback URL.
-#   - The auth flow embeds `AOMI_PORTAL_BASE_URL` in auth_url responses; we
-#     export the ngrok URL so the user can click through from anywhere.
 #
 # Usage:
 #   AOMI_AUTH_TOKEN=... AOMI_BE_URL=http://localhost:8080 ./scripts/dev-ngrok.sh
@@ -101,14 +98,7 @@ Portal ready.
 Env in use:
   AOMI_BE_URL=${AOMI_BE_URL}
   AOMI_AUTH_TOKEN=${AOMI_AUTH_TOKEN}
-  AOMI_PORTAL_BASE_URL=${AOMI_PORTAL_BASE_URL}
   AOMI_DEV_USER_ID=${AOMI_DEV_USER_ID}
-
-Quick sanity check:
-  curl -X POST ${NGROK_URL}/api/mcp-auth/begin \\
-    -H 'Content-Type: application/json' \\
-    -H "X-Aomi-Auth: ${AOMI_AUTH_TOKEN}" \\
-    -d '{"user_id":"${AOMI_DEV_USER_ID}","provider":"dummy"}'
 
 EOF
 

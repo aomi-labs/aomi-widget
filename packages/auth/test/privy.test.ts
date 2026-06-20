@@ -2,11 +2,11 @@
 
 import { exportSPKI, generateKeyPair, SignJWT } from "jose";
 import { describe, expect, it } from "vitest";
+import { makePrivyProvider } from "../src/mcp-approvals/providers/privy";
 import {
-  makePrivyJwtVerifier,
-  makePrivyProvider,
+  createPrivyAccessTokenVerifier,
   type VerifyPrivyAccessToken,
-} from "../src/mcp-approvals/providers/privy";
+} from "../src/providers/privy";
 import type { PendingAuth } from "../src/types";
 
 const pending: PendingAuth = {
@@ -58,11 +58,11 @@ describe("makePrivyProvider", () => {
   });
 });
 
-describe("makePrivyJwtVerifier", () => {
+describe("createPrivyAccessTokenVerifier", () => {
   it("verifies issuer, audience, signature, subject, session, and expiration", async () => {
     const { privateKey, publicKey } = await generateKeyPair("ES256");
     const jwtVerificationKey = await exportSPKI(publicKey);
-    const verify = makePrivyJwtVerifier({
+    const verify = createPrivyAccessTokenVerifier({
       appId: "privy-app",
       jwtVerificationKey,
     });

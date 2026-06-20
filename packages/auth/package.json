@@ -1,7 +1,7 @@
 {
   "name": "@aomi-labs/auth",
   "version": "0.0.1",
-  "description": "Aomi credential authority — OAuth providers, pending state, secret-store integration. Used by mcp-core and the Rust BE.",
+  "description": "Aomi account auth, provider verification, and deprecated legacy MCP approval helpers.",
   "type": "module",
   "main": "./src/index.ts",
   "types": "./src/index.ts",
@@ -12,9 +12,9 @@
     "./better-auth/client": "./src/better-auth/auth-client.ts",
     "./better-auth/env": "./src/better-auth/env.ts",
     "./better-auth/siwe": "./src/better-auth/siwe.ts",
+    "./providers": "./src/providers/index.ts",
     "./mcp-approvals": "./src/mcp-approvals/index.ts",
-    "./mcp-approvals/routes": "./src/mcp-approvals/routes/index.ts",
-    "./routes": "./src/mcp-approvals/routes/index.ts"
+    "./mcp-approvals/routes": "./src/mcp-approvals/routes/index.ts"
   },
   "scripts": {
     "type-check": "tsc --noEmit"

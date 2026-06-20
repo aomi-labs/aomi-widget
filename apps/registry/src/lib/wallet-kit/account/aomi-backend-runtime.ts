@@ -245,6 +245,30 @@ export function useAomiBackendAccountRuntime(input: {
       });
       setStatus("ready");
     },
+    deleteAccount: async () => {
+      if (activeEvmAddress && activeEvmChainId) {
+        signedOutEvmKey.current = `${activeEvmAddress}:${activeEvmChainId}`;
+      }
+      if (input.auth.status === "authenticated" && input.auth.getCredential) {
+        const credential = await input.auth.getCredential().catch(() => null);
+        if (credential) {
+          signedOutCredentialKey.current = authCredentialKey(
+            input.auth,
+            credentialKey(credential),
+          );
+        }
+      }
+      credentialInFlight.current = null;
+      credentialExchanged.current = null;
+      await accountClient.deleteAccount();
+      setAccount({
+        user: null,
+        linkedAccounts: [],
+        wallets: [],
+        session: null,
+      });
+      setStatus("ready");
+    },
     updateAccount: async ({ displayName, avatarUrl }) => {
       await accountClient.updateAccount({ displayName, avatarUrl });
       await refresh();

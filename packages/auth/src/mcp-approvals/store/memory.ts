@@ -2,9 +2,8 @@
 // In-memory Store — v1 backend until Postgres lands.
 // =============================================================================
 //
-// Two Maps, no migrations, no pool. Singleton instance is wired by the portal
-// in `apps/portal/src/lib/aomi-auth/auth-config.ts`. The SQL impl
-// (against BE's `access_approval` table) gets the same shape later.
+// Two Maps, no migrations, no pool. This remains for legacy tests and local
+// callers of the deprecated MCP approval-auth surface.
 
 import type { AccessApproval, PendingAuth, UserId } from "../types";
 import type { Store } from "./index";
@@ -46,7 +45,11 @@ export class MemoryStore implements Store {
   async insertApproval(approval: AccessApproval): Promise<void> {
     this.approvals.set(approval.id, { ...approval });
     this.approvalsByTriple.set(
-      approvalKey(approval.userId, approval.application, approval.walletProvider),
+      approvalKey(
+        approval.userId,
+        approval.application,
+        approval.walletProvider,
+      ),
       approval.id,
     );
   }

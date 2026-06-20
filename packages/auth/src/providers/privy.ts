@@ -1,8 +1,4 @@
 import { importSPKI, jwtVerify } from "jose";
-import {
-  makePrivyJwtVerifier,
-  type VerifiedPrivyAccessToken,
-} from "../mcp-approvals/providers/privy";
 import type { VerifiedPrivyToken, WalletFamily } from "../types";
 import { validWalletAddress, type AttestedWallet } from "./wallet-attestation";
 
@@ -21,6 +17,47 @@ type PrivyClaims = {
 
 const PRIVY_WALLETS_URL = "https://api.privy.io/v1/wallets";
 
+export interface VerifiedPrivyAccessToken {
+  userId: string;
+  sessionId: string;
+  expiration: number;
+}
+
+export interface PrivyAccessTokenVerifierConfig {
+  appId: string;
+  jwtVerificationKey: string;
+}
+
+export type VerifyPrivyAccessToken = (
+  accessToken: string,
+) => Promise<VerifiedPrivyAccessToken>;
+
+export function createPrivyAccessTokenVerifier(
+  config: PrivyAccessTokenVerifierConfig,
+): VerifyPrivyAccessToken {
+  const verificationKey = importSPKI(config.jwtVerificationKey, "ES256");
+
+  return async (accessToken: string): Promise<VerifiedPrivyAccessToken> => {
+    const { payload } = await jwtVerify(accessToken, await verificationKey, {
+      algorithms: ["ES256"],
+      audience: config.appId,
+      issuer: "privy.io",
+    });
+    if (
+      typeof payload.sub !== "string" ||
+      typeof payload.sid !== "string" ||
+      typeof payload.exp !== "number"
+    ) {
+      throw new Error("Privy access token is missing required claims");
+    }
+    return {
+      userId: payload.sub,
+      sessionId: payload.sid,
+      expiration: payload.exp,
+    };
+  };
+}
+
 export async function verifyPrivyToken(input: {
   token: string;
   tokenKind: "identity_token" | "access_token";
@@ -32,7 +69,7 @@ export async function verifyPrivyToken(input: {
     if (!input.accessTokenVerificationKey) {
       throw new Error("Privy access-token verification key is not configured");
     }
-    const verifier = makePrivyJwtVerifier({
+    const verifier = createPrivyAccessTokenVerifier({
       appId: input.appId,
       jwtVerificationKey: input.accessTokenVerificationKey,
     });

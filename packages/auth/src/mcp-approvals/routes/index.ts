@@ -1,3 +1,8 @@
+/**
+ * @deprecated Legacy portal route handlers for the old MCP approval-auth flow.
+ * Do not mount these in active apps; the portal MCP endpoint now uses account
+ * credentials and backend ports directly.
+ */
 export { makeStartHandler } from "./start";
 export type { StartHandlerDeps } from "./start";
 

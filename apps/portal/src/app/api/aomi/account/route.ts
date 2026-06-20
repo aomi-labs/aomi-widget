@@ -3,7 +3,11 @@ import {
   json,
   requireAomiSession,
 } from "@portal/lib/aomi-account/session";
-import { updateAccountProfile } from "@aomi-labs/auth/account";
+import {
+  deactivateAomiAccount,
+  updateAccountProfile,
+} from "@aomi-labs/auth/account";
+import { auth } from "@aomi-labs/auth/better-auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -26,4 +30,30 @@ export async function PATCH(req: Request): Promise<Response> {
     avatarUrl: body.avatarUrl,
   });
   return Response.json(await accountResponseFromSession(req));
+}
+
+export async function DELETE(req: Request): Promise<Response> {
+  const current = await requireAomiSession(req);
+  if (!current) return json(401, { error: "unauthenticated" });
+
+  const result = await deactivateAomiAccount({
+    userId: current.user.id,
+  });
+  if (result.status === "not_found") {
+    return json(404, { error: "account_not_found" });
+  }
+
+  const url = new URL(req.url);
+  url.pathname = "/api/auth/sign-out";
+  url.search = "";
+  const signOutResponse = await auth.handler(
+    new Request(url, {
+      method: "POST",
+      headers: req.headers,
+    }),
+  );
+
+  return Response.json(result, {
+    headers: signOutResponse.headers,
+  });
 }

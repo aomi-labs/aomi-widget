@@ -396,6 +396,23 @@ export async function updateAomiUserProfile(input: {
   return mapUser(result.rows[0]);
 }
 
+export async function deactivateAomiUser(input: {
+  userId: AomiUserId;
+  db?: Db;
+}): Promise<DbAomiUser | null> {
+  const db = input.db ?? defaultPool;
+  const result = await db.query(
+    `update aomi_users
+     set deactivated_at = now(),
+         better_auth_user_id = null,
+         updated_at = now()
+     where id = $1 and deactivated_at is null
+     returning *`,
+    [input.userId],
+  );
+  return result.rows[0] ? mapUser(result.rows[0]) : null;
+}
+
 export async function findAuthIdentityById(
   identityId: string,
   db: Db = defaultPool,
@@ -456,6 +473,34 @@ export async function revokeWallet(input: {
     [input.walletId, input.userId],
   );
   return (result.rowCount ?? 0) > 0;
+}
+
+export async function revokeAllAuthIdentitiesForUser(input: {
+  userId: AomiUserId;
+  db?: Db;
+}): Promise<number> {
+  const db = input.db ?? defaultPool;
+  const result = await db.query(
+    `update aomi_auth_identities
+     set revoked_at = now(), last_seen_at = now()
+     where user_id = $1 and revoked_at is null`,
+    [input.userId],
+  );
+  return result.rowCount ?? 0;
+}
+
+export async function revokeAllWalletsForUser(input: {
+  userId: AomiUserId;
+  db?: Db;
+}): Promise<number> {
+  const db = input.db ?? defaultPool;
+  const result = await db.query(
+    `update aomi_wallets
+     set revoked_at = now(), last_seen_at = now()
+     where user_id = $1 and revoked_at is null`,
+    [input.userId],
+  );
+  return result.rowCount ?? 0;
 }
 
 export async function findWalletById(

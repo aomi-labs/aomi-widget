@@ -75,6 +75,7 @@ export type AccountRuntime = {
   wallets: AccountWallet[];
   refresh: () => Promise<void>;
   signOut?: () => Promise<void>;
+  deleteAccount?: () => Promise<void>;
   updateAccount?: (input: UpdateAccountInput) => Promise<void>;
   linkWallet?: (input: LinkWalletInput) => Promise<void>;
   updateAuthIdentity?: (input: UpdateLinkedAccountInput) => Promise<void>;

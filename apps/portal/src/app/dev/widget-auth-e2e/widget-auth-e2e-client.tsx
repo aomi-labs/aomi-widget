@@ -282,6 +282,17 @@ function WidgetAuthE2EPanel() {
           >
             BetterAuth Sign Out
           </button>
+          <button
+            className="rounded border border-red-300 px-3 py-2 text-red-700"
+            disabled={!!pending}
+            onClick={() =>
+              void run("delete account", async () => {
+                await walletKit.deleteAccount?.();
+              })
+            }
+          >
+            Delete Account
+          </button>
         </div>
 
         {walletIds.length ? (
