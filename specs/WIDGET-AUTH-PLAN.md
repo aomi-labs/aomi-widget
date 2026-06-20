@@ -189,7 +189,8 @@ flowchart TD
 - **SIWE / wallet-only users are Rust-anonymous in v1** — no provider token to
   exchange, so `sessions.user_id = null` and history is ephemeral, exactly like
   today's non-provider users. They are still fully identified at the _portal_ (their
-  Aomi account). Everyone gets a portal-minted bearer at Phase F (§7 + Phase F).
+  Aomi account). Everyone gets a BetterAuth-signed backend JWT once Rust accepts
+  the JWKS contract (§5 + Phase F).
 
 What each side owns:
 
@@ -198,71 +199,72 @@ What each side owns:
   user/session/account/walletAddress tables.
 - **Aomi account service owns:** the canonical `aomi_users.id`, linked provider
   subjects, linked wallets, account settings, wallet labels, the conflict policy,
-  and the future id mapping Rust will trust.
+  and the `aomi_user_id` Rust will trust.
 - **Rust backend** is a dashed/future box for this milestone. Do not route
-  portal-only BetterAuth sessions through product-mono account routes until Phase F
-  has solved id sync or DB unification.
+  portal-only BetterAuth sessions through product-mono account routes until Rust
+  validates the BetterAuth JWT and maps or stores `aomi_user_id`.
 
 `apps/portal/src/app/api/[...slug]/route.ts` is already the BFF proxy: it forwards
 one flat header allowlist (`authorization`, `x-session-id`, `aomi-app-key`,
 `content-type`, `accept`) and allowlists `/api/account/sessions/exchange`. That
-proxy is the eventual injection point for a portal-minted Rust bearer (Phase F) —
-**not** a parallel `/api/aomi/*` island.
+proxy is the eventual place to inject a BetterAuth-signed backend JWT when Rust is
+ready — **not** a parallel `/api/aomi/*` island.
 
 ---
 
 ## 5. The token model
 
-There are **three different credentials**. People conflate them constantly.
+There are **four credentials during the migration window**. People conflate them
+constantly.
 
-| Credential                                           | Made by                       | Proves                                    | Lives                                                 | Stored?                            |
-| ---------------------------------------------------- | ----------------------------- | ----------------------------------------- | ----------------------------------------------------- | ---------------------------------- |
-| **Provider token** (Privy identity token / Para JWT) | Privy / Para                  | "Logged into Privy/Para"                  | Sent once to portal, verified, discarded              | Never raw — verified, then dropped |
-| **BetterAuth session**                               | BetterAuth (portal)           | "This browser is `aomi_users.X`"          | HTTP-only cookie (same-origin) or bearer (cross-site) | In BetterAuth's `session` table    |
-| **Account bearer** (`account_session`)               | Rust today; portal at Phase F | "Backend, trust the caller is `users.id`" | `Authorization: Bearer` to Rust                       | Not stored — short-lived           |
+| Credential                                           | Made by             | Proves                                           | Lives                                      | Stored?                            |
+| ---------------------------------------------------- | ------------------- | ------------------------------------------------ | ------------------------------------------ | ---------------------------------- |
+| **Provider token** (Privy identity token / Para JWT) | Privy / Para        | "Logged into Privy/Para"                         | Sent once to portal, verified, discarded   | Never raw — verified, then dropped |
+| **BetterAuth session**                               | BetterAuth (portal) | "This browser/device is BetterAuth user X"       | HTTP-only cookie or BetterAuth bearer      | BetterAuth `session` table         |
+| **Aomi backend JWT**                                 | BetterAuth (portal) | "Rust may trust this request as `aomi_users.id`" | `Authorization: Bearer` to Rust            | Not stored — short-lived           |
+| **Legacy Rust account bearer**                       | Rust                | "Rust may trust this request as product user X"  | Current Privy/Para provider-token exchange | Not stored — short-lived           |
 
-The BetterAuth session is **not a JWT** by default (DB session row + signed
-cookie). Only the provider tokens and the Rust account bearer are JWTs.
+The BetterAuth session is **not a JWT** by default: it is a DB session row plus a
+cookie/bearer transport. The Aomi backend JWT is separate and explicit: the client
+fetches `GET /api/auth/token`, BetterAuth signs a minimal JWT, and Rust validates
+that JWT with BetterAuth's JWKS endpoint.
 
-**Who actually holds an account bearer in v1:** only Privy/Para users, via the
-existing provider-token exchange (Rust mints it as today). A SIWE/wallet-only user
-has no provider token, so in v1 they make Rust calls as an anonymous session with no
-server-persisted history; they become first-class to Rust at Phase F, when the
-portal mints + injects the bearer for everyone (§7).
+**Current safety rule:** the TS client still uses the legacy provider-token
+exchange by default, because today's Rust backend expects the legacy account
+bearer. The BetterAuth JWT source exists behind an explicit opt-in until Rust
+validates BetterAuth JWKS tokens.
 
-### 5.1 Account bearer anatomy (already shipped in product-mono)
+### 5.1 Aomi backend JWT anatomy
 
 ```json
 {
-  "sub": "<product-mono users.id>",
-  "iss": "aomi-backend",
-  "aud": "aomi-api",
+  "iss": "https://portal.aomi.dev",
+  "aud": "aomi-backend",
+  "sub": "<better_auth user.id>",
+  "sid": "<better_auth session.id>",
+  "aomi_user_id": "<aomi_users.id>",
+  "scope": "aomi:api",
   "iat": 1781540000,
-  "exp": 1781540900,
-  "kind": "account_session"
+  "exp": 1781540900
 }
 ```
 
-Token rules (do not change without a coordinated backend change):
+Token rules:
 
-- Header algorithm is **HS256**; secret is `AOMI_ACCOUNT_TOKEN_SECRET` (≥32 bytes).
-- `exp − iat = 900` seconds (15 min).
-- Rust validates issuer (`aomi-backend`), audience (`aomi-api`), expiry, signature,
-  and `kind = "account_session"`.
-- `sub` must be a product-mono `users.id` for `CanonicalUser` routes, because
-  `authenticate_canonical_user` calls `DbUser::get(sub)`.
-- Claims `sid`, `auth_time`, `wallets_version` are **not read today**. Adding them
-  is harmless only if the Rust struct accepts them; they do nothing without a
-  backend change. Changing `iss`/`aud`/`kind`, omitting `kind`, or switching to
-  asymmetric signing **401s today**.
+- BetterAuth signs with asymmetric keys and exposes public keys at
+  `/api/auth/.well-known/jwks.json`.
+- Rust validates signature via JWKS, issuer, audience, `exp`, `nbf` if present,
+  and required `scope = "aomi:api"`.
+- `sub` is the BetterAuth user id. Rust should not treat it as a product-user id.
+- `aomi_user_id` is the durable Aomi account id and the backend ownership key.
+- `sid` is the BetterAuth session id and can be used for audit/revocation lookups.
+- The JWT must not contain emails, wallet lists, provider tokens, provider metadata,
+  API keys, or account graph snapshots.
 
-The shipped Rust pieces (paths under `product-mono/aomi/`):
-`bin/backend/src/auth/canonical_user.rs`,
-`auth/request/{router,authenticator,credentials}.rs`,
-`handler/account/session_exchange.rs`. `RouteAuthClass::CanonicalUser` serializes
-in OpenAPI as `account_token`. The current exchange route is
-`POST /api/account/exchange`, but the TS client/proxy still call
-`/api/account/sessions/exchange` — a real mismatch (alias it; §19 Phase F).
+The helper that defines this contract lives in
+`packages/auth/src/better-auth/backend-jwt.ts`. It uses BetterAuth's `jwt()`
+plugin, disables the automatic `set-auth-jwt` session header, and only issues the
+token through the explicit BetterAuth `/token` endpoint.
 
 ### 5.2 Sign-in flow and where tokens come from
 
@@ -281,9 +283,9 @@ sequenceDiagram
   P-->>FE: session cookie / bearer
   FE->>P: GET /api/aomi/account
   P-->>FE: AccountRuntime payload
-  Note over P,R: v1 — Privy/Para via existing exchange; SIWE users anonymous
+  Note over P,R: Today — Privy/Para can still use the legacy Rust exchange
   FE->>P: backend call
-  P->>R: proxy (forwards credential; portal-minted bearer = Phase F)
+  P->>R: proxy/direct request (BetterAuth JWT once Rust validates JWKS)
   R-->>FE: data
 ```
 
@@ -295,13 +297,13 @@ A wallet signature happens once, at sign-in. After that:
 | --------------------- | --------------------------------------- | ----------------------------------------- |
 | Wallet SIWE signature | one-time, at login                      | the user (rare)                           |
 | BetterAuth session    | 7 days, **rolling daily** (`updateAge`) | automatic on activity                     |
-| Account bearer        | 15 min                                  | portal re-mints silently from the session |
+| Aomi backend JWT      | 15 min default                          | fetched silently from BetterAuth session  |
 
-The bearer expiring every 15 minutes is **invisible** — the portal re-mints from
-the still-valid session. A wallet re-signature is only needed when (a) the session
-fully expires after long inactivity, (b) the user explicitly signs out, or
-(c) they **link a new wallet** — and there the _new_ wallet signs to prove control;
-the existing identity rides the session and the last wallet never re-signs.
+The backend JWT expiring is **invisible** — the client fetches a new one from the
+still-valid BetterAuth session. A wallet re-signature is only needed when (a) the
+session fully expires after long inactivity, (b) the user explicitly signs out, or
+(c) they **link a new wallet** — and there the _new_ wallet signs to prove control.
+The existing identity rides the session and the last wallet never re-signs.
 
 ---
 
@@ -982,8 +984,12 @@ PARA_JWKS_URL=...
 # Cross-site embeds
 AOMI_TRUSTED_ORIGINS=https://app.example.com,https://embed.example.com   # OPEN (§22)
 
-# Phase F only — product-mono canonical account bearer
-AOMI_ACCOUNT_TOKEN_SECRET=...
+# BetterAuth-signed backend JWT for Rust once JWKS validation lands
+AOMI_BACKEND_JWT_ISSUER=https://portal.aomi.dev
+AOMI_BACKEND_JWT_AUDIENCE=aomi-backend
+AOMI_BACKEND_JWT_EXPIRES_IN=15m
+AOMI_BACKEND_JWKS_PATH=/.well-known/jwks.json
+AOMI_BACKEND_JWT_SCOPE=aomi:api
 
 # Legacy/current product-mono Para exchange (until the portal path replaces it)
 PARA_VERIFY_URL=...
@@ -995,6 +1001,8 @@ Rules:
 - Only `NEXT_PUBLIC_*` values may reach the browser.
 - `DATABASE_URL`, the BetterAuth secret, Privy verification keys, and Para
   JWKS/secret config stay **server-only**.
+- Rust-facing JWT issuer, audience, JWKS path, expiry, and scope are not secrets,
+  but they are part of the backend contract and should be changed only with Rust.
 - Do not use Supabase anon/service keys for auth routes — a Postgres connection is
   enough. (Fresh project, so no `search_path` juggling needed; if the DB is ever
   shared, qualify the schema.)
@@ -1743,12 +1751,15 @@ flowchart LR
 
 ### Phase F — Backend ownership (handed to the Rust team)
 
-- [ ] Add the `/api/account/exchange` compatibility alias (path mismatch).
-- [ ] Pick the id-mapping approach — **lean: unify the databases** so
-      `aomi_users.id` and product `users.id` are the same (§20). Note the type gap:
-      product `users.id` is **TEXT holding a UUID**, not native `uuid`.
-- [ ] Portal mints the account bearer (§5.1) once ids line up; proxy injects it —
-      this is what finally gives SIWE/wallet-only users a real Rust session.
+- [ ] Rust validates BetterAuth-signed backend JWTs with the BetterAuth JWKS URL
+      (`/api/auth/.well-known/jwks.json`) and checks `iss`, `aud`, `exp`, and
+      `scope`.
+- [ ] Rust treats `aomi_user_id` as the account owner id. `sub` remains the
+      BetterAuth user id and is not a product-user id.
+- [ ] Decide whether Rust stores/uses native `aomi_users.id` directly or maps it
+      to an existing product `users.id`. Do not hide that mapping inside the JWT.
+- [ ] Flip the TS client's backend token source from legacy provider exchange to
+      BetterAuth `/api/auth/token` once Rust accepts the new token.
 
 ---
 
@@ -1757,24 +1768,26 @@ flowchart LR
 ~85–90% ships on the portal + your Supabase alone, because the account layer is
 additive and Rust is untouched in v1.
 
-| Buildable now (portal + your Supabase)              | Needs the backend team (Phase F)                 |
-| --------------------------------------------------- | ------------------------------------------------ |
-| BetterAuth + SIWE sessions, resolve-or-create       | Rust trusting a portal-minted account bearer     |
-| `aomi_users / identities / wallets / events`        | Unified per-account thread list                  |
-| The signal policy (link / noop / conflict / revoke) |                                                  |
-| Privy/Para verify + provider-token sessions         | `aomi_users.id` ↔ product `users.id` unification |
-| `GET /api/aomi/account` + account CRUD              | the `/api/account/exchange` alias (small)        |
-| `AccountRuntime` wired → full account UI            |                                                  |
-| `walletKey` fix, bearer plugin, cross-site          |                                                  |
+| Buildable now (portal + your Supabase)              | Needs the backend team (Phase F)                    |
+| --------------------------------------------------- | --------------------------------------------------- |
+| BetterAuth + SIWE sessions, resolve-or-create       | Rust JWT validation against BetterAuth JWKS         |
+| `aomi_users / identities / wallets / events`        | Backend reads or maps `aomi_user_id`                |
+| The signal policy (link / noop / conflict / revoke) | Unified per-account thread list                     |
+| Privy/Para verify + provider-token sessions         | Cutover away from legacy provider-token exchange    |
+| `GET /api/aomi/account` + account CRUD              |                                                     |
+| `AccountRuntime` wired → full account UI            |                                                     |
+| `walletKey` fix, bearer plugin, cross-site          |                                                     |
 
 **Handoff contract to the backend team (Phase F):**
 
-1. **Mint:** the account bearer in §5.1, signed with `AOMI_ACCOUNT_TOKEN_SECRET`.
-2. **Map (lean):** unify the DBs so `sub` is a real product `users.id`. Alternatives
-   if not: sync ids into product-mono, or add a Rust subject namespace + mapping.
-3. **History:** sessions are already account-owned (`sessions.user_id`); account
-   linking does not transfer history between active accounts. No new `threads`
-   table.
+1. **Validate:** accept `Authorization: Bearer <jwt>` signed by BetterAuth and
+   validate via the JWKS endpoint in §5.1.
+2. **Authorize:** require `aud = "aomi-backend"`, `scope = "aomi:api"`, valid
+   expiry, and the configured issuer.
+3. **Identify:** use `aomi_user_id` as the canonical account id. Keep `sub` only as
+   the BetterAuth subject for audit/debugging.
+4. **History:** account linking does not transfer history between active accounts.
+   Any product-user mapping must be explicit and auditable.
 
 > "Without backend" means without the **Rust** backend. The portal's Next.js routes
 >
@@ -1837,9 +1850,10 @@ wallet → unlink a non-last wallet → attempt to unlink the last login-capable
 - **`trustedOrigins` / embed-domain list** — the real host domains for cross-site
   embeds. Needed before cross-site ships; `env.ts` has a marked slot
   (`AOMI_TRUSTED_ORIGINS`).
-- **Phase F id-mapping final pick** — parked; leaning DB unification. Concrete snag
-  for the backend team: product `users.id` is **TEXT (UUID value)** while
-  `aomi_users.id` is native `uuid`, so the unify/sync needs a type alignment.
+- **Phase F id-mapping final pick** — parked. Rust can either store/use
+  `aomi_user_id` directly or map it to product `users.id`; if mapping to the old
+  product table, note the type gap (`users.id` is TEXT holding a UUID while
+  `aomi_users.id` is native `uuid`).
 
 ---
 
@@ -1853,10 +1867,10 @@ wallet → unlink a non-last wallet → attempt to unlink the last login-capable
   anonymous users allowed; display name derived from address.
 - **Sessions:** BetterAuth + bearer plugin from day one; 7-day rolling-daily
   session; code in `packages/auth`.
-- **Tokens:** bearer 15 min; in v1 only Privy/Para users get an account bearer (via
-  the existing exchange, Rust mints it) — SIWE/wallet-only users are Rust-anonymous
-  until Phase F, when the portal mints + injects the bearer for everyone; re-sign
-  only when linking a new wallet (new wallet signs).
+- **Tokens:** backend JWT 15 min; in v1 only Privy/Para users get the legacy Rust
+  account bearer via the existing exchange, so SIWE/wallet-only users are
+  Rust-anonymous until Rust accepts BetterAuth JWKS tokens. Re-sign only when
+  linking a new wallet (new wallet signs).
 - **Login/UX:** auto-trigger SIWE on connect; anonymous use is **ephemeral**
   (no claim); different-wallet connect → auto-link if unclaimed; sign-out is a full
   logout (incl. provider SDK).

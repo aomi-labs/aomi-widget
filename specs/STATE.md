@@ -176,7 +176,8 @@ real (`wallet-utils.ts:5`), `AccountRuntime` is the thin stub the plan describes
 `getAccountCredential` is documented to exchange for a short-lived Aomi bearer.
 
 Four decisions locked (now in plan §0.1): (1) trust boundary = thin token at the
-backend — portal mints an Aomi JWT (`sub = aomi_user_id`), Rust only verifies;
+backend — BetterAuth signs an Aomi backend JWT carrying `aomi_user_id`, Rust
+verifies it via JWKS;
 (2) session transport pluggable — same-origin cookie now, bearer addable later;
 (3) BetterAuth = successor to the System A account-session exchange, MCP approvals
 (System B: `packages/auth`) untouched, reuse `makePrivyJwtVerifier`; (4)

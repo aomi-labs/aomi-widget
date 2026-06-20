@@ -1427,9 +1427,11 @@ ${body}` : ""}`
 // src/account-session.ts
 var DEFAULT_REFRESH_BEFORE_EXPIRY_MS = 2 * 60 * 1e3;
 var FAILURE_COOLDOWN_MS = 30 * 1e3;
+var DEFAULT_BETTER_AUTH_TOKEN_PATH = "/api/auth/token";
 function createAccountAccessTokenProvider({
   baseUrl,
   getProviderCredential,
+  betterAuthToken,
   fetch: fetchImpl = fetch,
   now = Date.now,
   refreshBeforeExpiryMs = DEFAULT_REFRESH_BEFORE_EXPIRY_MS
@@ -1451,10 +1453,31 @@ function createAccountAccessTokenProvider({
       Math.max(refreshAt - now(), 1e3)
     );
   };
-  const exchange = async () => {
+  const fetchBetterAuthToken = async () => {
+    var _a, _b;
+    if (!(betterAuthToken == null ? void 0 : betterAuthToken.enabled)) return null;
+    const response = await fetchImpl(
+      joinUrl(
+        (_a = betterAuthToken.baseUrl) != null ? _a : baseUrl,
+        (_b = betterAuthToken.tokenPath) != null ? _b : DEFAULT_BETTER_AUTH_TOKEN_PATH
+      ),
+      {
+        method: "GET",
+        credentials: "include",
+        headers: { Accept: "application/json" }
+      }
+    );
+    if (!response.ok) return null;
+    const body = await response.json();
+    return normalizeBetterAuthTokenResponse(body);
+  };
+  const exchangeProviderCredential = async () => {
+    if (!getProviderCredential) {
+      throw new Error("No account credential source is configured");
+    }
     const credential = await getProviderCredential();
     const response = await fetchImpl(
-      `${baseUrl.replace(/\/+$/, "")}/api/account/sessions/exchange`,
+      joinUrl(baseUrl, "/api/account/sessions/exchange"),
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -1470,6 +1493,11 @@ function createAccountAccessTokenProvider({
       );
     }
     return await response.json();
+  };
+  const exchange = async () => {
+    const betterAuthJwt = await fetchBetterAuthToken();
+    if (betterAuthJwt) return betterAuthJwt;
+    return exchangeProviderCredential();
   };
   const getAccountAccessToken = async ({
     forceRefresh = false
@@ -1511,6 +1539,42 @@ function createAccountAccessTokenProvider({
     listeners.clear();
   };
   return getAccountAccessToken;
+}
+function joinUrl(baseUrl, path) {
+  return `${baseUrl.replace(/\/+$/, "")}/${path.replace(/^\/+/, "")}`;
+}
+function normalizeBetterAuthTokenResponse(response) {
+  if (!response.token) {
+    throw new Error("Better Auth token response is missing token");
+  }
+  const payload = decodeJwtPayload(response.token);
+  const expiresAt = Number(payload.exp);
+  if (!Number.isFinite(expiresAt) || expiresAt <= 0) {
+    throw new Error("Better Auth token is missing a valid exp claim");
+  }
+  const userId = typeof payload.aomi_user_id === "string" ? payload.aomi_user_id : typeof payload.sub === "string" ? payload.sub : "";
+  return {
+    access_token: response.token,
+    token_type: "Bearer",
+    expires_at: expiresAt,
+    user_id: userId
+  };
+}
+function decodeJwtPayload(token) {
+  const [, payload] = token.split(".");
+  if (!payload) throw new Error("Better Auth token is not a JWT");
+  return JSON.parse(decodeBase64Url(payload));
+}
+function decodeBase64Url(value) {
+  const normalized = value.replace(/-/g, "+").replace(/_/g, "/").padEnd(Math.ceil(value.length / 4) * 4, "=");
+  if (typeof globalThis.atob === "function") {
+    return globalThis.atob(normalized);
+  }
+  const BufferCtor = globalThis.Buffer;
+  if (BufferCtor) {
+    return BufferCtor.from(normalized, "base64").toString("utf8");
+  }
+  throw new Error("No base64 decoder is available");
 }
 
 // src/types.ts

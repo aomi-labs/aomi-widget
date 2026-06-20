@@ -5,11 +5,13 @@ status: authoritative
 area: auth
 review_after_days: 30
 sources_of_truth:
-  - packages/auth/src/index.ts
+  - packages/auth/src/account.ts
+  - packages/auth/src/better-auth/auth.ts
+  - packages/auth/src/better-auth/backend-jwt.ts
   - packages/auth/src/types.ts
-  - packages/auth/src/routes/begin.ts
-  - packages/auth/src/routes/callback.ts
-  - packages/auth/src/secret-store/be-vault.ts
+  - packages/auth/src/mcp-approvals/routes/begin.ts
+  - packages/auth/src/mcp-approvals/routes/callback.ts
+  - packages/auth/src/mcp-approvals/secret-store/be-vault.ts
   - apps/portal/src/lib/aomi-auth/local-secret-store.ts
 ---
 
@@ -17,26 +19,41 @@ sources_of_truth:
 
 ## Overview
 
-`@aomi-labs/auth` is the credential authority package used by the portal and MCP prototype. It owns pending auth state, provider routing, approval metadata, and the secret-store handoff that keeps raw credential material out of MCP-facing responses.
+`@aomi-labs/auth` contains two separate auth systems:
 
-The package is intentionally separate from the widget wallet adapter. Auth here is about granting Aomi access to external application credentials; the widget adapter is about reflecting the user's connected wallet identity into runtime `UserState`.
+- Account auth: Better Auth sessions, SIWE, provider-token sign-in/linking, the `aomi_*` account graph, wallet linking, and the Better Auth-signed backend JWT contract.
+- MCP approvals: pending OAuth-style provider approvals and the secret-store handoff that keeps raw credential material out of MCP-facing responses.
+
+Do not couple those systems. Account auth answers "who is this user?" MCP approvals answer "may this app use this external credential?"
 
 ## Source Map
 
-- [packages/auth/src/index.ts](../../../../packages/auth/src/index.ts)
+- [packages/auth/src/account.ts](../../../../packages/auth/src/account.ts)
+- [packages/auth/src/better-auth/auth.ts](../../../../packages/auth/src/better-auth/auth.ts)
+- [packages/auth/src/better-auth/backend-jwt.ts](../../../../packages/auth/src/better-auth/backend-jwt.ts)
 - [packages/auth/src/types.ts](../../../../packages/auth/src/types.ts)
-- [packages/auth/src/routes/begin.ts](../../../../packages/auth/src/routes/begin.ts)
-- [packages/auth/src/routes/callback.ts](../../../../packages/auth/src/routes/callback.ts)
-- [packages/auth/src/secret-store/be-vault.ts](../../../../packages/auth/src/secret-store/be-vault.ts)
+- [packages/auth/src/mcp-approvals/routes/begin.ts](../../../../packages/auth/src/mcp-approvals/routes/begin.ts)
+- [packages/auth/src/mcp-approvals/routes/callback.ts](../../../../packages/auth/src/mcp-approvals/routes/callback.ts)
+- [packages/auth/src/mcp-approvals/secret-store/be-vault.ts](../../../../packages/auth/src/mcp-approvals/secret-store/be-vault.ts)
 - [apps/portal/src/lib/aomi-auth/local-secret-store.ts](../../../../apps/portal/src/lib/aomi-auth/local-secret-store.ts)
 
 ## Key Flows
+
+### Account Sign-In
+
+Better Auth owns browser/device sessions. SIWE sign-in verifies an ERC-4361 message through the Better Auth SIWE plugin. Privy/Para token sign-in goes through the Aomi provider plugin, which verifies the provider token server-side, creates or finds a Better Auth user, links the provider identity in the `aomi_*` graph, syncs attested provider wallets, and sets the Better Auth session cookie.
+
+### Backend JWT
+
+The Better Auth JWT plugin exposes `GET /api/auth/token` and JWKS at `/api/auth/.well-known/jwks.json`. The custom payload is intentionally small: `sub` is the Better Auth user id, `sid` is the Better Auth session id, `aomi_user_id` is the durable Aomi account id, and `scope` is `aomi:api`.
+
+The TypeScript client keeps the legacy provider-token exchange as the default until Rust validates Better Auth JWTs through JWKS.
 
 ### Begin
 
 `beginAuth` resolves the requested provider from a `ProviderRegistry`, generates a state token, stores a `pending_auths` row, and returns the provider start URL. It does not contact the provider; it only reserves the state and tells the caller where the user should be sent.
 
-Portal exposes the BE-facing entrypoint through `POST /api/auth/begin`. That route requires `X-Aomi-Auth`, reads the configured provider registry, and returns snake_case wire fields: `state_token`, `auth_url`, and `expires_at`.
+Portal exposes the BE-facing MCP entrypoint through `POST /api/mcp-auth/begin`. That route requires `X-Aomi-Auth`, reads the configured provider registry, and returns snake_case wire fields: `state_token`, `auth_url`, and `expires_at`.
 
 ### Start And Callback
 
@@ -67,10 +84,12 @@ The callback stores only secret handles in approval metadata. It sorts the retur
 ## Operational Notes
 
 - Raw provider credentials must never be returned to MCP callers or persisted in approval rows.
+- Raw Privy/Para tokens must never be stored in Aomi account tables.
 - `stateToken` is the correlation key across begin, start, callback, and await.
-- Provider names are URL slugs under `/api/auth/{provider}` and keys in `ProviderRegistry`.
+- MCP provider names are URL slugs under `/api/mcp-auth/{provider}` and keys in `ProviderRegistry`.
 - Portal's singleton auth runtime is stored on `globalThis` so `next dev` hot reloads do not lose pending auth state.
 - `AOMI_AUTH_TOKEN` is the v1 shared secret between portal and the backend trusted secret ingest path.
+- `AOMI_BACKEND_JWT_ISSUER`, `AOMI_BACKEND_JWT_AUDIENCE`, `AOMI_BACKEND_JWKS_PATH`, and `AOMI_BACKEND_JWT_SCOPE` define the future Rust JWT validation contract.
 - `PRIVY_APP_ID` or `NEXT_PUBLIC_PRIVY_APP_ID` plus the server-only `PRIVY_JWT_VERIFICATION_KEY` control whether the Privy provider is registered.
 - Production persistence is still future work; the current store implementation is in-memory.
 
