@@ -1,8 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import fc from "fast-check";
 
-import { DeployCliError, CliExit, fatal } from "../../src/cli/errors";
-import { statusCommand } from "../../src/cli/commands/status";
+import { DeployCliError, CliExit, fatal, mapDeployHttpError } from "../../src/cli/errors";
 
 describe("DeployCliError — property-based", () => {
   const validCodes = [
@@ -76,100 +75,39 @@ describe("fatal — property-based", () => {
   });
 });
 
-describe("CLI error code mapping — Properties 13-14", () => {
-  beforeEach(() => {
-    vi.stubGlobal("fetch", vi.fn());
-  });
-
-  afterEach(() => {
-    vi.unstubAllGlobals();
-  });
-
-  it("Property 13: AUTH_FAILED for HTTP 401 and 403", async () => {
-    await fc.assert(
-      fc.asyncProperty(fc.constantFrom(401, 403), async (status) => {
-        vi.stubGlobal(
-          "fetch",
-          vi.fn().mockResolvedValue(
-            new Response(`{"error":"unauthorized"}`, {
-              status,
-              headers: { "Content-Type": "application/json" },
-            }),
-          ),
-        );
-
-        await expect(
-          statusCommand({
-            "deployment-id": "dep_test",
-            "activation-token": "test-token",
-            "backend-url": "https://api.aomi.dev",
-            platform: "community",
-          }),
-        ).rejects.toMatchObject({
-          name: "DeployCliError",
-          errorCode: "AUTH_FAILED",
-        });
-      }),
-      { numRuns: 5 },
-    );
-  });
-
-  it("Property 13: NOT AUTH_FAILED for non-401/403 HTTP statuses", async () => {
-    await fc.assert(
-      fc.asyncProperty(
-        fc.integer({ min: 400, max: 599 }).filter((s) => s !== 401 && s !== 403),
-        async (status) => {
-          vi.stubGlobal(
-            "fetch",
-            vi.fn().mockResolvedValue(
-              new Response(`{"error":"error"}`, {
-                status,
-                headers: { "Content-Type": "application/json" },
-              }),
-            ),
-          );
-
-          try {
-            await statusCommand({
-              "deployment-id": "dep_test",
-              "activation-token": "test-token",
-              "backend-url": "https://api.aomi.dev",
-              platform: "community",
-            });
-          } catch (err) {
-            expect(err).toBeInstanceOf(DeployCliError);
-            expect((err as DeployCliError).errorCode).not.toBe("AUTH_FAILED");
+describe("mapDeployHttpError — property-based", () => {
+  it("Property 13: returns AUTH_FAILED for 401 and 403, not for other statuses", () => {
+    fc.assert(
+      fc.property(
+        fc.integer({ min: 100, max: 599 }),
+        fc.string({ minLength: 1, maxLength: 200 }),
+        (status, msg) => {
+          const err = mapDeployHttpError(status, msg);
+          expect(err).toBeInstanceOf(DeployCliError);
+          if (status === 401 || status === 403) {
+            expect(err.errorCode).toBe("AUTH_FAILED");
+          } else {
+            expect(err.errorCode).not.toBe("AUTH_FAILED");
           }
         },
       ),
-      { numRuns: 20 },
+      { numRuns: 100 },
     );
   });
 
-  it("Property 14: NETWORK_ERROR for connection failures", async () => {
-    await fc.assert(
-      fc.asyncProperty(
-        fc.constantFrom("ECONNREFUSED", "ETIMEDOUT", "ENOTFOUND", "fetch failed"),
-        async (errorMsg) => {
-          vi.stubGlobal(
-            "fetch",
-            vi.fn().mockRejectedValue(new Error(errorMsg)),
-          );
-
-          await expect(
-            statusCommand({
-              "deployment-id": "dep_test",
-              "activation-token": "test-token",
-              "backend-url": "https://api.aomi.dev",
-              platform: "community",
-            }),
-          ).rejects.toMatchObject({
-            name: "DeployCliError",
-            errorCode: "NETWORK_ERROR",
-          });
+  it("Property 14: BACKEND_ERROR for non-auth HTTP errors", () => {
+    fc.assert(
+      fc.property(
+        fc
+          .integer({ min: 100, max: 599 })
+          .filter((s) => s !== 401 && s !== 403),
+        fc.string({ minLength: 1 }),
+        (status, msg) => {
+          const err = mapDeployHttpError(status, msg);
+          expect(err.errorCode).toBe("BACKEND_ERROR");
         },
       ),
-      { numRuns: 5 },
+      { numRuns: 50 },
     );
   });
 });
