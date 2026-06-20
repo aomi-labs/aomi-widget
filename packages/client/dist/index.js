@@ -87,7 +87,6 @@ function buildConnection(src, flat) {
   const c = __spreadValues({}, src != null ? src : {});
   renameKey(c, "isConnected", "is_connected");
   renameKey(c, "providerLabel", "provider_label");
-  renameKey(c, "primaryFamily", "primary_family");
   renameKey(c, "walletProviderSubject", "wallet_provider_subject");
   renameKey(c, "authMethod", "auth_method");
   renameKey(c, "authValue", "auth_value");
@@ -392,10 +391,6 @@ function svmAddress2(userState) {
   const value = (_a = svmBlock(userState)) == null ? void 0 : _a.address;
   return typeof value === "string" && value.length > 0 ? value : void 0;
 }
-function preferredPublicKey(userState) {
-  var _a;
-  return (_a = address2(userState)) != null ? _a : svmAddress2(userState);
-}
 function chainId2(userState) {
   var _a;
   return parseChainId2((_a = evmBlock(userState)) == null ? void 0 : _a.chain_id);
@@ -491,7 +486,6 @@ var UserState;
   UserState2.address = address2;
   UserState2.evmAddress = evmAddress;
   UserState2.svmAddress = svmAddress2;
-  UserState2.preferredPublicKey = preferredPublicKey;
   UserState2.chainId = chainId2;
   UserState2.ensName = ensName;
   UserState2.aaMode = aaMode;
@@ -1570,89 +1564,18 @@ ${body}` : ""}`
 };
 
 // src/account-session.ts
-var DEFAULT_REFRESH_BEFORE_EXPIRY_MS = 2 * 60 * 1e3;
-var FAILURE_COOLDOWN_MS = 30 * 1e3;
-function createAccountAccessTokenProvider({
-  baseUrl,
-  getProviderCredential,
-  fetch: fetchImpl = fetch,
-  now = Date.now,
-  refreshBeforeExpiryMs = DEFAULT_REFRESH_BEFORE_EXPIRY_MS
-}) {
-  let cached = null;
-  let pending = null;
-  let refreshTimer = null;
-  let failedAt = null;
+function createAccountAccessTokenProvider(_options) {
   const listeners = /* @__PURE__ */ new Set();
-  const scheduleRefresh = (session) => {
-    if (refreshTimer) clearTimeout(refreshTimer);
-    const refreshAt = session.expires_at * 1e3 - refreshBeforeExpiryMs;
-    refreshTimer = setTimeout(
-      () => {
-        void getAccountAccessToken({ forceRefresh: true }).catch(
-          () => void 0
-        );
-      },
-      Math.max(refreshAt - now(), 1e3)
-    );
-  };
-  const exchange = async () => {
-    const credential = await getProviderCredential();
-    const response = await fetchImpl(
-      `${baseUrl.replace(/\/+$/, "")}/api/account/exchange`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          provider: credential.provider,
-          provider_token: credential.providerToken
-        })
-      }
-    );
-    if (!response.ok) {
-      throw new Error(
-        `Failed to exchange account credential: HTTP ${response.status}`
-      );
-    }
-    return await response.json();
-  };
   const getAccountAccessToken = async ({
-    forceRefresh = false
+    forceRefresh: _forceRefresh = false
   } = {}) => {
-    var _a;
-    const refreshAt = cached ? cached.expires_at * 1e3 - refreshBeforeExpiryMs : 0;
-    if (!forceRefresh && cached && now() < refreshAt) {
-      return cached.access_token;
-    }
-    if (!forceRefresh && failedAt !== null && now() - failedAt < FAILURE_COOLDOWN_MS) {
-      return void 0;
-    }
-    if (!pending) {
-      pending = exchange().then((next) => {
-        failedAt = null;
-        const previous = cached;
-        cached = next;
-        scheduleRefresh(next);
-        if (previous && (previous.access_token !== next.access_token || previous.expires_at !== next.expires_at)) {
-          for (const listener of listeners) listener();
-        }
-        return next;
-      }).catch(() => {
-        failedAt = now();
-        return null;
-      }).finally(() => {
-        pending = null;
-      });
-    }
-    return (_a = await pending) == null ? void 0 : _a.access_token;
+    return void 0;
   };
   getAccountAccessToken.subscribe = (listener) => {
     listeners.add(listener);
     return () => listeners.delete(listener);
   };
   getAccountAccessToken.dispose = () => {
-    if (refreshTimer) clearTimeout(refreshTimer);
-    refreshTimer = null;
     listeners.clear();
   };
   return getAccountAccessToken;
@@ -2129,14 +2052,34 @@ function toViemSignMessageArgs(payload) {
 }
 
 // src/session/events.ts
+function aomiMessagesEqual(a, b) {
+  if (a === b) return true;
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) {
+    const x = a[i];
+    const y = b[i];
+    if (x.sender !== y.sender || x.content !== y.content || x.timestamp !== y.timestamp || x.is_streaming !== y.is_streaming) {
+      return false;
+    }
+    const xt = x.tool_result;
+    const yt = y.tool_result;
+    if (xt !== yt) {
+      if (!xt || !yt) return false;
+      if (xt[0] !== yt[0] || xt[1] !== yt[1]) return false;
+    }
+  }
+  return true;
+}
 function applySessionState(state, deps) {
   var _a;
   if (state.user_state) {
     deps.resolveUserState(state.user_state);
   }
   if (state.messages) {
-    deps.setMessages(state.messages);
-    deps.emit("messages", state.messages);
+    if (!aomiMessagesEqual(state.messages, deps.getMessages())) {
+      deps.setMessages(state.messages);
+      deps.emit("messages", state.messages);
+    }
   }
   if (state.title) {
     deps.setTitle(state.title);
@@ -3025,6 +2968,7 @@ var ClientSession = class extends TypedEventEmitter {
     applySessionState(state, {
       userState: () => this.userState,
       resolveUserState: (userState) => this.resolveUserState(userState),
+      getMessages: () => this._messages,
       setMessages: (messages) => {
         this._messages = messages;
       },

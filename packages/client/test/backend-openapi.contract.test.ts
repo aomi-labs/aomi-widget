@@ -16,6 +16,9 @@ type OpenApiDocument = {
 };
 
 const HTTP_METHODS = ["GET", "POST", "PUT", "PATCH", "DELETE"] as const;
+const LIVE_BACKEND_TRANSITIONAL_ROUTES = new Set([
+  "POST /api/account/exchange public",
+]);
 
 describe("backend OpenAPI route contract", () => {
   it("keeps the client route manifest aligned with the checked-in backend OpenAPI fixture", () => {
@@ -31,17 +34,24 @@ describe("backend OpenAPI route contract", () => {
       expect(response.headers.get("content-type") ?? "").toContain(
         "application/json",
       );
-      expectRouteContract((await response.json()) as OpenApiDocument);
+      expectRouteContract((await response.json()) as OpenApiDocument, {
+        allowedBackendOnlyRoutes: LIVE_BACKEND_TRANSITIONAL_ROUTES,
+      });
     },
   );
 });
 
-function expectRouteContract(openApi: OpenApiDocument) {
+function expectRouteContract(
+  openApi: OpenApiDocument,
+  options: { allowedBackendOnlyRoutes?: ReadonlySet<string> } = {},
+) {
   const backendRoutes = routeContractFromOpenApi(openApi);
   const clientRoutes = routeContractFromClientManifest();
+  const comparableBackendRoutes = backendRoutes.filter(
+    (route) => !options.allowedBackendOnlyRoutes?.has(route),
+  );
 
-  expect(clientRoutes).toEqual(backendRoutes);
-  expect(clientRoutes).toContain("POST /api/account/exchange public");
+  expect(clientRoutes).toEqual(comparableBackendRoutes);
   expect(clientRoutes).toContain("GET /api/account canonical_user");
   expect(clientRoutes).not.toContain("GET /api/account account_token");
   expect(clientRoutes.some((route) => route.includes(" account_token"))).toBe(
