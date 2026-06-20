@@ -5,6 +5,7 @@ import {
   createDefaultProviderCredentialVerifiers,
   verifyProviderCredential,
 } from "../src/providers/account-credentials";
+import { readAccountAuthEnv } from "../src/better-auth/env";
 import type { AccountAuthEnv } from "../src/better-auth/env";
 import type { AomiAccountCredential } from "../src/types";
 
@@ -91,5 +92,16 @@ describe("verifyProviderCredential", () => {
 
     expect(verifiers.privy).toEqual(expect.any(Function));
     expect(verifiers.para).toEqual(expect.any(Function));
+  });
+
+  it("prefers the explicit Para JWT audience over the public API key", () => {
+    const env = readAccountAuthEnv({
+      BETTER_AUTH_URL: "http://localhost:3001",
+      DATABASE_URL: "postgresql://postgres:postgres@localhost:5432/aomi_auth",
+      PARA_JWT_AUDIENCE: "para-audience-uuid",
+      NEXT_PUBLIC_PARA_API_KEY: "beta_public_api_key",
+    });
+
+    expect(env.paraAudience).toBe("para-audience-uuid");
   });
 });

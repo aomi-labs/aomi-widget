@@ -1,7 +1,6 @@
 "use client";
 
 import "@aomi-labs/widget-lib/providers/para";
-import "@aomi-labs/widget-lib/providers/privy";
 import { type ReactNode } from "react";
 import {
   mainnet,
@@ -21,7 +20,6 @@ import {
 } from "@aomi-labs/widget-lib";
 
 const paraApiKey = process.env.NEXT_PUBLIC_PARA_API_KEY?.trim() ?? "";
-const privyAppId = process.env.NEXT_PUBLIC_PRIVY_APP_ID?.trim() ?? "";
 
 const walletConnectProjectId =
   process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID?.trim() ||
@@ -91,29 +89,18 @@ export function WalletProviders({ children }: Props) {
       ? (["metamask", "rabby", "coinbase", "walletconnect"] as const)
       : (["metamask", "rabby", "coinbase"] as const);
   const auth =
-    privyAppId.length > 0
+    paraApiKey.length > 0
       ? ({
-          provider: "privy",
-          methods: ["email", "wallet"],
+          provider: "para",
+          methods: ["google"],
         } as const)
-      : paraApiKey.length > 0
-        ? ({
-            provider: "para",
-            methods: ["google"],
-          } as const)
-        : false;
+      : false;
 
   return (
     <AomiWalletKitProvider
       auth={auth}
       account={{ mode: "aomi-backend" }}
       providers={{
-        privy: privyAppId
-          ? {
-              appId: privyAppId,
-              appName: "Aomi Labs",
-            }
-          : false,
         para: paraApiKey
           ? {
               apiKey: paraApiKey,

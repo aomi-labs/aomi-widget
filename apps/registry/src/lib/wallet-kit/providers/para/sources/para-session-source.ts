@@ -6,30 +6,43 @@ import type { WalletRegistryStore } from "../../../registry/store";
 type ParaAccountSnapshot = {
   isConnected: boolean;
   embedded: {
-    wallets?: Array<{ address?: string }>;
+    wallets?: Array<{ address?: string; chainId?: number | string }>;
   };
   external: {
     evm?: {
       address?: string;
+      chainId?: number | string;
     };
   };
 };
+
+function normalizeChainId(value: number | string | undefined): number | null {
+  if (value === undefined) return null;
+  const chainId =
+    typeof value === "string" && /^0x/i.test(value)
+      ? Number.parseInt(value, 16)
+      : Number(value);
+  return Number.isInteger(chainId) && chainId > 0 ? chainId : null;
+}
 
 export function useParaSessionSource(
   store: WalletRegistryStore,
   opts: { paraAccount: ParaAccountSnapshot },
 ): void {
   const embeddedWallet = opts.paraAccount.embedded.wallets?.[0] as
-    | { address?: string }
+    | { address?: string; chainId?: number | string }
     | undefined;
   const embeddedEvmAddress =
     opts.paraAccount.external.evm?.address ?? embeddedWallet?.address ?? null;
+  const chainId =
+    normalizeChainId(opts.paraAccount.external.evm?.chainId) ??
+    normalizeChainId(embeddedWallet?.chainId);
   const snapshotKey = useMemo(
     () =>
       `${opts.paraAccount.isConnected ? "up" : "down"}:${
         embeddedEvmAddress?.toLowerCase() ?? ""
-      }`,
-    [embeddedEvmAddress, opts.paraAccount.isConnected],
+      }:${chainId ?? ""}`,
+    [chainId, embeddedEvmAddress, opts.paraAccount.isConnected],
   );
   const previousKeyRef = useRef<string | null>(null);
 
@@ -44,7 +57,14 @@ export function useParaSessionSource(
       stableId: "para",
       walletName: "Para",
       embeddedEvmAddress,
+      chainId,
       now: Date.now(),
     });
-  }, [embeddedEvmAddress, opts.paraAccount.isConnected, snapshotKey, store]);
+  }, [
+    chainId,
+    embeddedEvmAddress,
+    opts.paraAccount.isConnected,
+    snapshotKey,
+    store,
+  ]);
 }

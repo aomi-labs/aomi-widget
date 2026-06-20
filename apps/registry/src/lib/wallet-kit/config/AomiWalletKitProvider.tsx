@@ -413,9 +413,9 @@ function AomiEvmExternalWalletProvider({
         coinbase: evmWallets?.coinbase,
         appName: evmWallets?.appName,
         appLogoUrl: evmWallets?.appLogoUrl,
-        transports: evmWallets?.transports ?? routing.transports,
+        transports: evmWallets?.transports,
       }),
-    [evmWallets, routing.routedChains, routing.transports],
+    [evmWallets, routing.routedChains],
   );
   const [queryClient] = useState(() => new QueryClient());
   const authPluginAvailable =

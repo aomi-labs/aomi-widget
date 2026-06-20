@@ -524,7 +524,9 @@ declare class AomiClient {
 
 type AccountCredentialProvider = () => Promise<{
     provider: "para" | "privy" | (string & {});
+    tokenKind?: string;
     providerToken: string;
+    keyId?: string;
 }>;
 type AccountSessionExchangeResponse = {
     access_token: string;
@@ -545,6 +547,12 @@ type BetterAuthAccountTokenSourceOptions = {
     baseUrl?: string;
     /** Better Auth token endpoint under the auth origin. */
     tokenPath?: string;
+    /**
+     * When enabled, a missing Better Auth cookie can be created by exchanging the
+     * connected wallet provider credential. Disable this when another account
+     * runtime already owns provider exchange to avoid duplicate wallet prompts.
+     */
+    providerExchange?: boolean;
 };
 type AccountAccessTokenProviderOptions = {
     baseUrl: string;

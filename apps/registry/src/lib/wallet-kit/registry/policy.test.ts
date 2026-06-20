@@ -173,6 +173,7 @@ describe("WalletRegistry policy", () => {
           stableId: "para",
           walletName: "Para",
           embeddedEvmAddress: "0xbbb",
+          chainId: null,
         },
         intents: { droppedAddresses: ["0xaaa"] },
         heal: {
@@ -242,6 +243,7 @@ describe("WalletRegistry policy", () => {
         stableId: "para",
         walletName: "Para",
         embeddedEvmAddress: "0xaaa",
+        chainId: null,
       },
       connections: [
         conn({

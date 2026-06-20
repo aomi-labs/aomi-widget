@@ -69,7 +69,10 @@ function ParaAuthLayer({
     [apiKey, para?.environment],
   );
   const paraConfig = useMemo(
-    () => ({ appName: para?.appName ?? "Aomi" }),
+    () => ({
+      appName: para?.appName ?? "Aomi",
+      disableAutoSessionKeepAlive: true,
+    }),
     [para?.appName],
   );
   const paraModalConfig = useMemo(

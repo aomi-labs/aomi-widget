@@ -28,7 +28,7 @@ function evm(
   };
 }
 
-function embeddedSession(address: string, now: number) {
+function embeddedSession(address: string, now: number, chainId?: number) {
   return {
     type: "provider/embedded-session-changed" as const,
     up: true,
@@ -37,6 +37,7 @@ function embeddedSession(address: string, now: number) {
     stableId: "para",
     walletName: "Para",
     embeddedEvmAddress: address,
+    chainId,
     now,
   };
 }
@@ -124,7 +125,7 @@ describe("WalletRegistry reducer", () => {
   it("creates an active Para connection from the Para session when wagmi has none", () => {
     let state = boot();
     state = reduce(state, {
-      ...embeddedSession("0xAAA", 10),
+      ...embeddedSession("0xAAA", 10, 8453),
     });
     state = reduce(state, { type: "wagmi/settled", now: 20 });
 
@@ -134,6 +135,7 @@ describe("WalletRegistry reducer", () => {
         uid: "para-session",
         stableId: "para",
         address: "0xaaa",
+        chainId: 8453,
         walletName: "Para",
       }),
     );
@@ -189,9 +191,9 @@ describe("WalletRegistry reducer", () => {
       now: 10,
     });
 
-    expect(state.connections.map((connection) => connection.walletName)).toEqual(
-      ["Rabby", "MetaMask"],
-    );
+    expect(
+      state.connections.map((connection) => connection.walletName),
+    ).toEqual(["Rabby", "MetaMask"]);
   });
 
   it("does not reorder connected wallets when selecting a different active wallet", () => {
@@ -215,9 +217,9 @@ describe("WalletRegistry reducer", () => {
       now: 30,
     });
 
-    expect(state.connections.map((connection) => connection.walletName)).toEqual(
-      ["MetaMask", "Rabby"],
-    );
+    expect(
+      state.connections.map((connection) => connection.walletName),
+    ).toEqual(["MetaMask", "Rabby"]);
     expect(state.activeByFamily.evm).toMatchObject({
       address: "0xbbb",
       stableId: "rabby",
@@ -251,9 +253,9 @@ describe("WalletRegistry reducer", () => {
     });
     state = reduce(state, { type: "wagmi/settled", now: 40 });
 
-    expect(state.connections.map((connection) => connection.walletName)).toEqual(
-      ["MetaMask", "Rabby"],
-    );
+    expect(
+      state.connections.map((connection) => connection.walletName),
+    ).toEqual(["MetaMask", "Rabby"]);
     expect(state.activeByFamily.evm).toMatchObject({
       address: "0xbbb",
       stableId: "rabby",

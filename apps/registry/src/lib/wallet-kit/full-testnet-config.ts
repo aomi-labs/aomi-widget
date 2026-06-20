@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
-import { http, type Chain, type Transport } from "viem";
+import type { Chain } from "viem";
 
 const FULL_TESTNET_ENABLED =
   process.env.NEXT_PUBLIC_USE_FULL_TESTNET === "true";
@@ -56,9 +56,9 @@ export function isFullTestnet(): boolean {
   );
 }
 
-export function useFullTestnet<
-  T extends readonly [Chain, ...Chain[]],
->(chains: T) {
+export function useFullTestnet<T extends readonly [Chain, ...Chain[]]>(
+  chains: T,
+) {
   return useMemo(() => {
     const enabled = isFullTestnet();
     const routedChains = (enabled
@@ -93,12 +93,6 @@ export function useFullTestnet<
       routedChainIds: new Set(
         Object.keys(FULL_TESTNET_RPC_OVERRIDES).map(Number),
       ) as ReadonlySet<number>,
-      transports: Object.fromEntries(
-        routedChains.map((chain) => [
-          chain.id,
-          http(chain.rpcUrls.default.http[0]),
-        ]),
-      ) as Record<number, Transport>,
     };
   }, [chains]);
 }

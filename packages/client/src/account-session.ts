@@ -2,7 +2,9 @@ import type { GetAccountAccessToken } from "./types";
 
 export type AccountCredentialProvider = () => Promise<{
   provider: "para" | "privy" | (string & {});
+  tokenKind?: string;
   providerToken: string;
+  keyId?: string;
 }>;
 
 export type AccountSessionExchangeResponse = {
@@ -26,6 +28,12 @@ export type BetterAuthAccountTokenSourceOptions = {
   baseUrl?: string;
   /** Better Auth token endpoint under the auth origin. */
   tokenPath?: string;
+  /**
+   * When enabled, a missing Better Auth cookie can be created by exchanging the
+   * connected wallet provider credential. Disable this when another account
+   * runtime already owns provider exchange to avoid duplicate wallet prompts.
+   */
+  providerExchange?: boolean;
 };
 
 export type AccountAccessTokenProviderOptions = {
@@ -45,6 +53,8 @@ export type AccountAccessTokenProvider = GetAccountAccessToken & {
 const DEFAULT_REFRESH_BEFORE_EXPIRY_MS = 2 * 60 * 1000;
 const FAILURE_COOLDOWN_MS = 30 * 1000;
 const DEFAULT_BETTER_AUTH_TOKEN_PATH = "/api/auth/token";
+const DEFAULT_BETTER_AUTH_PROVIDER_EXCHANGE_PATH =
+  "/api/auth/aomi/provider/exchange";
 
 /** Cache and refresh the short-lived Aomi bearer used for backend requests. */
 export function createAccountAccessTokenProvider({
@@ -93,34 +103,68 @@ export function createAccountAccessTokenProvider({
       return normalizeBetterAuthTokenResponse(body);
     };
 
+  const exchangeBetterAuthProviderCredential =
+    async (): Promise<AccountSessionExchangeResponse | null> => {
+      if (
+        !betterAuthToken?.enabled ||
+        betterAuthToken.providerExchange === false ||
+        !getProviderCredential
+      ) {
+        return null;
+      }
+      const credential = await getProviderCredential();
+      const response = await fetchImpl(
+        joinUrl(
+          betterAuthToken.baseUrl ?? baseUrl,
+          DEFAULT_BETTER_AUTH_PROVIDER_EXCHANGE_PATH,
+        ),
+        {
+          method: "POST",
+          credentials: "include",
+          headers: {
+            Accept: "application/json",
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(credential),
+        },
+      );
+      if (!response.ok) return null;
+      return fetchBetterAuthToken();
+    };
+
   const exchangeProviderCredential =
     async (): Promise<AccountSessionExchangeResponse> => {
       if (!getProviderCredential) {
         throw new Error("No account credential source is configured");
       }
-    const credential = await getProviderCredential();
-    const response = await fetchImpl(
-      joinUrl(baseUrl, "/api/account/sessions/exchange"),
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          provider: credential.provider,
-          provider_token: credential.providerToken,
-        }),
-      },
-    );
-    if (!response.ok) {
-      throw new Error(
-        `Failed to exchange account credential: HTTP ${response.status}`,
+      const credential = await getProviderCredential();
+      const response = await fetchImpl(
+        joinUrl(baseUrl, "/api/account/sessions/exchange"),
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            provider: credential.provider,
+            provider_token: credential.providerToken,
+          }),
+        },
       );
-    }
-    return (await response.json()) as AccountSessionExchangeResponse;
-  };
+      if (!response.ok) {
+        throw new Error(
+          `Failed to exchange account credential: HTTP ${response.status}`,
+        );
+      }
+      return (await response.json()) as AccountSessionExchangeResponse;
+    };
 
   const exchange = async (): Promise<AccountSessionExchangeResponse> => {
     const betterAuthJwt = await fetchBetterAuthToken();
     if (betterAuthJwt) return betterAuthJwt;
+    const exchangedBetterAuthJwt = await exchangeBetterAuthProviderCredential();
+    if (exchangedBetterAuthJwt) return exchangedBetterAuthJwt;
+    if (betterAuthToken?.enabled) {
+      throw new Error("Failed to exchange Better Auth provider credential");
+    }
     return exchangeProviderCredential();
   };
 
@@ -138,11 +182,12 @@ export function createAccountAccessTokenProvider({
     // verification 403s on issueJwt) or the exchange fails, resolve to no token
     // so the caller's request proceeds unauthenticated instead of erroring.
     // A short cooldown prevents every backend poll from re-triggering a failing
-    // exchange; an explicit forceRefresh (the 401 retry path) bypasses it.
+    // exchange. Legacy backends may still force-refresh after a 401; Better
+    // Auth mode keeps the cooldown because its provider exchange is also local.
     if (
-      !forceRefresh &&
       failedAt !== null &&
-      now() - failedAt < FAILURE_COOLDOWN_MS
+      now() - failedAt < FAILURE_COOLDOWN_MS &&
+      (!forceRefresh || betterAuthToken?.enabled)
     ) {
       return undefined;
     }
@@ -229,7 +274,10 @@ function decodeBase64Url(value: string): string {
     return globalThis.atob(normalized);
   }
   type BufferLike = {
-    from(input: string, encoding: "base64"): {
+    from(
+      input: string,
+      encoding: "base64",
+    ): {
       toString(encoding: "utf8"): string;
     };
   };

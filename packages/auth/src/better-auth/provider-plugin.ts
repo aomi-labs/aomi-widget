@@ -1,4 +1,4 @@
-import { createAuthEndpoint } from "better-auth/api";
+import { APIError, createAuthEndpoint } from "better-auth/api";
 import { setSessionCookie } from "better-auth/cookies";
 import type { BetterAuthPlugin } from "better-auth";
 import { z } from "zod";
@@ -39,15 +39,12 @@ export function aomiProviderAuthPlugin(): BetterAuthPlugin {
           try {
             verified = await verifyProviderCredential(credential);
           } catch (error) {
-            return ctx.json(
-              {
-                error:
-                  error instanceof Error
-                    ? error.message
-                    : "provider_exchange_failed",
-              },
-              { status: 400 },
-            );
+            throw new APIError("BAD_REQUEST", {
+              message:
+                error instanceof Error
+                  ? error.message
+                  : "provider_exchange_failed",
+            });
           }
           if (!isVerifiedProviderTokenCredential(verified)) {
             return ctx.json({ status: "linked" });
@@ -88,13 +85,9 @@ export function aomiProviderAuthPlugin(): BetterAuthPlugin {
             providerMetadata: verified.token.providerMetadata,
           });
           if (resolution.status === "conflict") {
-            return ctx.json(
-              {
-                ...resolution,
-                error: "already_linked_to_another_account",
-              },
-              { status: 409 },
-            );
+            throw new APIError("CONFLICT", {
+              message: "already_linked_to_another_account",
+            });
           }
 
           await syncProviderAttestedWallets({

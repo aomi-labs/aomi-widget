@@ -57,7 +57,10 @@ export function buildWalletKitActions({
     },
     connectEvmWallet: evm.connect,
     connectSocial: async (id: string) => {
-      await auth.login?.(`social-login:${id}`, "AUTH_ALL_OPTIONS");
+      await auth.login?.(
+        `social-login:${id}`,
+        auth.provider === "para" ? "AUTH_MAIN" : "AUTH_ALL_OPTIONS",
+      );
     },
     connectSolanaWallet: svm
       ? async (walletName: string) => {

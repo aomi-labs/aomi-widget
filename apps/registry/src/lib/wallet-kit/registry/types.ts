@@ -49,6 +49,7 @@ export type EmbeddedSessionState = {
   stableId: string | null;
   walletName: string | null;
   embeddedEvmAddress: string | null;
+  chainId: number | null;
 };
 
 export type AuthFlowSuppressionReason =
@@ -98,6 +99,7 @@ export type RegistryEvent =
       stableId: string;
       walletName: string;
       embeddedEvmAddress: string | null;
+      chainId?: number | null;
       now: number;
     }
   | {

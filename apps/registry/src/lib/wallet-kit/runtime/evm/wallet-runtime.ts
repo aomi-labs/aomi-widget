@@ -68,6 +68,11 @@ export type EvmWalletRuntimeProviderHooks = {
   onAccountDisconnectPlanned?: (
     plan: ReturnType<typeof planEvmAccountDisconnect>,
   ) => void;
+  signMessageForProviderAccount?: (args: {
+    connection: WalletRegistryState["connections"][number];
+    message: string;
+    chainId?: number;
+  }) => Promise<`0x${string}` | null | undefined>;
 };
 
 export type EvmWalletRuntime = WalletRuntime<"evm"> & {
@@ -246,10 +251,13 @@ export function useEvmWalletRuntime({
     () => Object.fromEntries(supportedChains.map((chain) => [chain.id, chain])),
     [supportedChains],
   );
-  const activeEvmConnection = useMemo(
-    () => findActiveEvmConnection(registryState),
-    [registryState],
-  );
+  const activeEvmConnection = useMemo(() => {
+    const connection = findActiveEvmConnection(registryState);
+    if (!connection || connection.chainId || !selectedEvmChainId) {
+      return connection;
+    }
+    return { ...connection, chainId: selectedEvmChainId };
+  }, [registryState, selectedEvmChainId]);
   const activeConnector = useMemo(() => {
     const active = registryState.activeByFamily.evm;
     if (!active?.uid) return undefined;
@@ -362,6 +370,7 @@ export function useEvmWalletRuntime({
   const signMessageForAccount = useCallback(
     async ({
       accountId,
+      chainId,
       message,
     }: {
       accountId: string;
@@ -380,6 +389,15 @@ export function useEvmWalletRuntime({
         (candidate) => candidate.uid === connection.uid,
       );
       if (!connector) {
+        const providerSignature =
+          await providerHooks.signMessageForProviderAccount?.({
+            connection,
+            message,
+            chainId,
+          });
+        if (providerSignature) {
+          return providerSignature;
+        }
         throw new Error("Wallet linking requires the target wallet connector");
       }
       const walletClient = (await getWalletClientFor({
@@ -405,6 +423,7 @@ export function useEvmWalletRuntime({
     },
     [
       getWalletClientFor,
+      providerHooks,
       registryStore,
       selectAccount,
       signMessageAsync,

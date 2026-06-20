@@ -118,9 +118,15 @@ export function AomiPrivyPluginProvider({
       stableId: "privy",
       walletName: "Privy Smart Wallet",
       embeddedEvmAddress: sessionEvmAddress,
+      chainId: selectedEvmChainId,
       now: Date.now(),
     });
-  }, [evmRuntime.registryStore, sessionEvmAddress, sessionReady]);
+  }, [
+    evmRuntime.registryStore,
+    selectedEvmChainId,
+    sessionEvmAddress,
+    sessionReady,
+  ]);
 
   const authMethod = inferPrivyAuthMethod(privy.user);
   const primaryLabel = inferPrivyPrimaryLabel(privy.user);
