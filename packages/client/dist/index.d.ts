@@ -3,7 +3,6 @@ import { Hex, Chain, TransactionReceipt } from 'viem';
 
 declare function address(userState?: UserState | null): string | undefined;
 declare function svmAddress(userState?: UserState | null): string | undefined;
-declare function preferredPublicKey(userState?: UserState | null): string | undefined;
 declare function chainId(userState?: UserState | null): number | undefined;
 declare function ensName(userState?: UserState | null): string | undefined;
 declare function aaMode(userState?: UserState | null): UserStateAAMode | null | undefined;
@@ -33,13 +32,11 @@ type UserStateWalletKind = "eoa" | "smart-account";
 type UserStateWalletProvider = "para" | "privy" | "baseAccount";
 type UserStateAuthMethod = "google" | "apple" | "facebook" | "x" | "discord" | "github" | "farcaster" | "telegram" | "email" | "phone" | "wagmi";
 type UserStateSponsorProvider = "alchemy" | "coinbase" | "pimlico" | "self";
-type UserStatePrimaryFamily = "evm" | "svm" | "dual";
 /** Session-level connection facts shared across chain families. */
 interface UserStateConnection extends Record<string, unknown> {
     is_connected?: boolean | null;
     provider?: UserStateWalletProvider | null;
     provider_label?: string | null;
-    primary_family?: UserStatePrimaryFamily | null;
     wallet_provider_subject?: string | null;
     auth_method?: UserStateAuthMethod | null;
     auth_value?: string | null;
@@ -120,7 +117,6 @@ declare namespace UserState {
     const address: typeof address;
     const evmAddress: typeof address;
     const svmAddress: typeof svmAddress;
-    const preferredPublicKey: typeof preferredPublicKey;
     const chainId: typeof chainId;
     const ensName: typeof ensName;
     const aaMode: typeof aaMode;
@@ -613,8 +609,15 @@ type AccountAccessTokenProvider = GetAccountAccessToken & {
     subscribe: (listener: () => void) => () => void;
     dispose: () => void;
 };
-/** Cache and refresh the short-lived Aomi bearer minted from Para or Privy. */
-declare function createAccountAccessTokenProvider({ baseUrl, getProviderCredential, fetch: fetchImpl, now, refreshBeforeExpiryMs, }: AccountAccessTokenProviderOptions): AccountAccessTokenProvider;
+/**
+ * Legacy compatibility shim.
+ *
+ * The backend provider-token exchange route was removed. Until the portal BFF
+ * account bridge exists, provider credentials cannot be converted into Aomi
+ * account bearers from the browser or CLI. Static account bearer support still
+ * works through `getAccountAccessToken` callers that provide one directly.
+ */
+declare function createAccountAccessTokenProvider(_options: AccountAccessTokenProviderOptions): AccountAccessTokenProvider;
 
 type Listener<T = unknown> = (payload: T) => void;
 /**
