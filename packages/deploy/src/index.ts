@@ -37,7 +37,12 @@ export type {
   ActivationPromotion,
   ActivatedApp,
   StatusInput,
-  StatusResult,
+  DeploymentStatus,
+  DeploymentAppStatus,
+  ProgressModel,
+  DeploymentEventKind,
+  DeploymentProgressEvent,
+  WatchDeploymentOptions,
 } from "./types";
 
 export type {
