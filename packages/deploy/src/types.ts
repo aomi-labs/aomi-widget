@@ -141,9 +141,63 @@ export interface ActivatedApp {
 
 export interface StatusInput {
   platform: string;
+  /** Deployment ID to poll `/api/platforms/:platform/deployments/:id/status`. */
+  deploymentId?: string;
   /** Optional backend status path. Defaults to `/api/platforms/:platform/status`. */
   path?: string;
   actor?: string;
 }
 
+// NEW — replaces StatusResult = unknown
+export interface DeploymentStatus {
+  state: "building" | "releasing" | "ready" | "failed" | "pending";
+  deployment?: DeployPayload;
+  releaseTags: string[];
+  apps?: DeploymentAppStatus[];
+  ci?: { status?: string; url?: string; commitHash?: string };
+  message?: string;
+}
+
+export interface DeploymentAppStatus {
+  name: string;
+  releaseTag: string;
+  releaseReady: boolean;
+  message?: string | null;
+}
+
+/** Structured progress value emitted with every DeploymentProgressEvent. */
+export interface ProgressModel {
+  /** 0–total */
+  completed: number;
+  /** total steps (>0) */
+  total: number;
+  /** human-readable phase label, e.g. "Building CI (2/5)" */
+  label: string;
+}
+
+export type DeploymentEventKind =
+  | "progress"   // normal polling tick
+  | "terminal"   // ready or failed — polling will stop
+  | "error";     // polling stopped due to exhaustion/timeout/cancellation
+
+export interface DeploymentProgressEvent {
+  kind: DeploymentEventKind;
+  status: DeploymentStatus;
+  progress: ProgressModel;
+  /** Only set when kind === "error" */
+  error?: Error;
+}
+
+export interface WatchDeploymentOptions {
+  /** Polling interval for the first tick (ms). Default: 3000 */
+  baseDelayMs?: number;
+  /** Maximum polling interval after backoff (ms). Default: 30000 */
+  maxDelayMs?: number;
+  /** Maximum number of consecutive failures before emitting error event. Default: 8 */
+  maxRetries?: number;
+  /** AbortSignal to cancel the watch loop externally. */
+  signal?: AbortSignal;
+}
+
+/** @deprecated Use DeploymentStatus instead */
 export type StatusResult = unknown;
