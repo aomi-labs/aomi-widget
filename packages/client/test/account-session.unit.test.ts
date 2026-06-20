@@ -27,6 +27,19 @@ function okResponse(body: AccountSessionExchangeResponse) {
   } as unknown as Response;
 }
 
+function okJsonResponse(body: unknown) {
+  return {
+    ok: true,
+    status: 200,
+    json: async () => body,
+  } as unknown as Response;
+}
+
+function jwtWithPayload(payload: Record<string, unknown>): string {
+  const encoded = Buffer.from(JSON.stringify(payload)).toString("base64url");
+  return `header.${encoded}.signature`;
+}
+
 const BASE_URL = "https://api.aomi.dev";
 
 describe("createAccountAccessTokenProvider", () => {
@@ -68,6 +81,82 @@ describe("createAccountAccessTokenProvider", () => {
       provider: "privy",
       provider_token: "privy-jwt",
     });
+
+    provider.dispose();
+  });
+
+  it("can opt into Better Auth JWTs without fetching provider credentials", async () => {
+    const token = jwtWithPayload({
+      sub: "better-user-1",
+      aomi_user_id: "aomi-user-1",
+      exp: 4600,
+    });
+    const fetchImpl = vi.fn(async () => okJsonResponse({ token }));
+    const getProviderCredential = vi.fn(async () => ({
+      provider: "privy" as const,
+      providerToken: "privy-jwt",
+    }));
+
+    const provider = createAccountAccessTokenProvider({
+      baseUrl: BASE_URL,
+      betterAuthToken: {
+        enabled: true,
+        baseUrl: "https://portal.aomi.dev",
+      },
+      getProviderCredential,
+      fetch: fetchImpl as unknown as typeof fetch,
+      now,
+    });
+
+    await expect(provider()).resolves.toBe(token);
+    expect(getProviderCredential).not.toHaveBeenCalled();
+    expect(fetchImpl).toHaveBeenCalledWith(
+      "https://portal.aomi.dev/api/auth/token",
+      expect.objectContaining({
+        method: "GET",
+        credentials: "include",
+      }),
+    );
+
+    provider.dispose();
+  });
+
+  it("falls back to the current provider exchange when Better Auth has no session", async () => {
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 401,
+        json: async () => ({}),
+      } as Response)
+      .mockResolvedValueOnce(okResponse(exchangeResponse()));
+    const getProviderCredential = vi.fn(async () => ({
+      provider: "privy" as const,
+      providerToken: "privy-jwt",
+    }));
+
+    const provider = createAccountAccessTokenProvider({
+      baseUrl: BASE_URL,
+      betterAuthToken: {
+        enabled: true,
+        baseUrl: "https://portal.aomi.dev",
+      },
+      getProviderCredential,
+      fetch: fetchImpl as unknown as typeof fetch,
+      now,
+    });
+
+    await expect(provider()).resolves.toBe("token-A");
+    expect(fetchImpl).toHaveBeenNthCalledWith(
+      1,
+      "https://portal.aomi.dev/api/auth/token",
+      expect.any(Object),
+    );
+    expect(fetchImpl).toHaveBeenNthCalledWith(
+      2,
+      `${BASE_URL}/api/account/sessions/exchange`,
+      expect.objectContaining({ method: "POST" }),
+    );
 
     provider.dispose();
   });

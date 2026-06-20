@@ -2,6 +2,11 @@ export interface AccountAuthEnv {
   betterAuthSecret: string;
   betterAuthUrl: string;
   databaseUrl: string;
+  backendJwtIssuer: string;
+  backendJwtAudience: string;
+  backendJwtExpiresIn: string;
+  backendJwtJwksPath: string;
+  backendJwtScope: string;
   siweDomain: string;
   siweEmailDomain?: string;
   trustedOrigins: string[];
@@ -24,6 +29,7 @@ export function readAccountAuthEnv(env = process.env): AccountAuthEnv {
   const betterAuthUrl =
     env.BETTER_AUTH_URL ?? env.AOMI_PORTAL_BASE_URL ?? "http://localhost:3001";
   const url = new URL(betterAuthUrl);
+  const origin = url.origin;
   return {
     betterAuthSecret:
       env.BETTER_AUTH_SECRET ??
@@ -32,6 +38,12 @@ export function readAccountAuthEnv(env = process.env): AccountAuthEnv {
     databaseUrl:
       env.DATABASE_URL ??
       "postgresql://postgres:postgres@localhost:5432/aomi_auth",
+    backendJwtIssuer: env.AOMI_BACKEND_JWT_ISSUER ?? origin,
+    backendJwtAudience: env.AOMI_BACKEND_JWT_AUDIENCE ?? "aomi-backend",
+    backendJwtExpiresIn: env.AOMI_BACKEND_JWT_EXPIRES_IN ?? "15m",
+    backendJwtJwksPath:
+      env.AOMI_BACKEND_JWKS_PATH ?? "/.well-known/jwks.json",
+    backendJwtScope: env.AOMI_BACKEND_JWT_SCOPE ?? "aomi:api",
     siweDomain: env.AOMI_AUTH_DOMAIN ?? url.host,
     siweEmailDomain: env.AOMI_AUTH_EMAIL_DOMAIN,
     trustedOrigins: parseCsv(env.AOMI_TRUSTED_ORIGINS ?? betterAuthUrl),

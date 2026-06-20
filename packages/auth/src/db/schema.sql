@@ -1,6 +1,14 @@
 create extension if not exists pgcrypto;
 create extension if not exists citext;
 
+create table if not exists jwks (
+  id text primary key default gen_random_uuid()::text,
+  "publicKey" text not null,
+  "privateKey" text not null,
+  "createdAt" timestamptz not null default now(),
+  "expiresAt" timestamptz
+);
+
 create table if not exists aomi_users (
   id uuid primary key default gen_random_uuid(),
   better_auth_user_id text unique,

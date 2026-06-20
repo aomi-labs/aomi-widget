@@ -9,6 +9,8 @@ export type {
   AccountAccessTokenProvider,
   AccountCredentialProvider,
   AccountSessionExchangeResponse,
+  BetterAuthAccountTokenSourceOptions,
+  BetterAuthTokenResponse,
 } from "./account-session";
 
 // =============================================================================

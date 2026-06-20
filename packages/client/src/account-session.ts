@@ -12,9 +12,26 @@ export type AccountSessionExchangeResponse = {
   user_id: string;
 };
 
+export type BetterAuthTokenResponse = {
+  token: string;
+};
+
+export type BetterAuthAccountTokenSourceOptions = {
+  /**
+   * Off by default until the Rust backend validates Better Auth JWTs by JWKS.
+   * Current production backends still expect the legacy account-session bearer.
+   */
+  enabled?: boolean;
+  /** Portal/auth origin. Defaults to `baseUrl` when omitted. */
+  baseUrl?: string;
+  /** Better Auth token endpoint under the auth origin. */
+  tokenPath?: string;
+};
+
 export type AccountAccessTokenProviderOptions = {
   baseUrl: string;
-  getProviderCredential: AccountCredentialProvider;
+  getProviderCredential?: AccountCredentialProvider;
+  betterAuthToken?: BetterAuthAccountTokenSourceOptions;
   fetch?: typeof fetch;
   now?: () => number;
   refreshBeforeExpiryMs?: number;
@@ -27,11 +44,13 @@ export type AccountAccessTokenProvider = GetAccountAccessToken & {
 
 const DEFAULT_REFRESH_BEFORE_EXPIRY_MS = 2 * 60 * 1000;
 const FAILURE_COOLDOWN_MS = 30 * 1000;
+const DEFAULT_BETTER_AUTH_TOKEN_PATH = "/api/auth/token";
 
-/** Cache and refresh the short-lived Aomi bearer minted from Para or Privy. */
+/** Cache and refresh the short-lived Aomi bearer used for backend requests. */
 export function createAccountAccessTokenProvider({
   baseUrl,
   getProviderCredential,
+  betterAuthToken,
   fetch: fetchImpl = fetch,
   now = Date.now,
   refreshBeforeExpiryMs = DEFAULT_REFRESH_BEFORE_EXPIRY_MS,
@@ -55,10 +74,33 @@ export function createAccountAccessTokenProvider({
     );
   };
 
-  const exchange = async (): Promise<AccountSessionExchangeResponse> => {
+  const fetchBetterAuthToken =
+    async (): Promise<AccountSessionExchangeResponse | null> => {
+      if (!betterAuthToken?.enabled) return null;
+      const response = await fetchImpl(
+        joinUrl(
+          betterAuthToken.baseUrl ?? baseUrl,
+          betterAuthToken.tokenPath ?? DEFAULT_BETTER_AUTH_TOKEN_PATH,
+        ),
+        {
+          method: "GET",
+          credentials: "include",
+          headers: { Accept: "application/json" },
+        },
+      );
+      if (!response.ok) return null;
+      const body = (await response.json()) as BetterAuthTokenResponse;
+      return normalizeBetterAuthTokenResponse(body);
+    };
+
+  const exchangeProviderCredential =
+    async (): Promise<AccountSessionExchangeResponse> => {
+      if (!getProviderCredential) {
+        throw new Error("No account credential source is configured");
+      }
     const credential = await getProviderCredential();
     const response = await fetchImpl(
-      `${baseUrl.replace(/\/+$/, "")}/api/account/sessions/exchange`,
+      joinUrl(baseUrl, "/api/account/sessions/exchange"),
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -74,6 +116,12 @@ export function createAccountAccessTokenProvider({
       );
     }
     return (await response.json()) as AccountSessionExchangeResponse;
+  };
+
+  const exchange = async (): Promise<AccountSessionExchangeResponse> => {
+    const betterAuthJwt = await fetchBetterAuthToken();
+    if (betterAuthJwt) return betterAuthJwt;
+    return exchangeProviderCredential();
   };
 
   const getAccountAccessToken: AccountAccessTokenProvider = async ({
@@ -135,4 +183,60 @@ export function createAccountAccessTokenProvider({
     listeners.clear();
   };
   return getAccountAccessToken;
+}
+
+function joinUrl(baseUrl: string, path: string): string {
+  return `${baseUrl.replace(/\/+$/, "")}/${path.replace(/^\/+/, "")}`;
+}
+
+function normalizeBetterAuthTokenResponse(
+  response: BetterAuthTokenResponse,
+): AccountSessionExchangeResponse {
+  if (!response.token) {
+    throw new Error("Better Auth token response is missing token");
+  }
+  const payload = decodeJwtPayload(response.token);
+  const expiresAt = Number(payload.exp);
+  if (!Number.isFinite(expiresAt) || expiresAt <= 0) {
+    throw new Error("Better Auth token is missing a valid exp claim");
+  }
+  const userId =
+    typeof payload.aomi_user_id === "string"
+      ? payload.aomi_user_id
+      : typeof payload.sub === "string"
+        ? payload.sub
+        : "";
+  return {
+    access_token: response.token,
+    token_type: "Bearer",
+    expires_at: expiresAt,
+    user_id: userId,
+  };
+}
+
+function decodeJwtPayload(token: string): Record<string, unknown> {
+  const [, payload] = token.split(".");
+  if (!payload) throw new Error("Better Auth token is not a JWT");
+  return JSON.parse(decodeBase64Url(payload)) as Record<string, unknown>;
+}
+
+function decodeBase64Url(value: string): string {
+  const normalized = value
+    .replace(/-/g, "+")
+    .replace(/_/g, "/")
+    .padEnd(Math.ceil(value.length / 4) * 4, "=");
+  if (typeof globalThis.atob === "function") {
+    return globalThis.atob(normalized);
+  }
+  type BufferLike = {
+    from(input: string, encoding: "base64"): {
+      toString(encoding: "utf8"): string;
+    };
+  };
+  const BufferCtor = (globalThis as typeof globalThis & { Buffer?: BufferLike })
+    .Buffer;
+  if (BufferCtor) {
+    return BufferCtor.from(normalized, "base64").toString("utf8");
+  }
+  throw new Error("No base64 decoder is available");
 }
