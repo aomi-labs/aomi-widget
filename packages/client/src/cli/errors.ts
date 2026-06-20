@@ -1,3 +1,10 @@
+export function mapDeployHttpError(status: number, message: string): DeployCliError {
+  if (status === 401 || status === 403) {
+    return new DeployCliError("AUTH_FAILED", message);
+  }
+  return new DeployCliError("BACKEND_ERROR", message);
+}
+
 export class CliExit extends Error {
   constructor(public code: number) {
     super();
