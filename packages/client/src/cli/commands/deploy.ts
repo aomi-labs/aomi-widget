@@ -1,5 +1,6 @@
 import { execSync } from "child_process";
-import { fatal } from "../errors";
+import { DeployCliError } from "../errors";
+import { writeDeploymentState } from "../../lib/deployment-state";
 
 type DeployArgs = Record<string, unknown>;
 
@@ -9,7 +10,10 @@ function str(value: unknown): string | undefined {
 
 function required(value: string | undefined, flag: string, env: string): string {
   if (value) return value;
-  fatal(`\`--${flag}\` is required. Pass it or set the ${env} env var.`);
+  throw new DeployCliError(
+    "VALIDATION_ERROR",
+    `\`--${flag}\` is required. Pass it or set the ${env} env var.`,
+  );
 }
 
 function currentBranch(): string {
@@ -18,8 +22,9 @@ function currentBranch(): string {
       encoding: "utf-8",
     }).trim();
   } catch {
-    fatal(
-      "Could not detect the current git branch. Pass \`--branch\` or run this command from a git repository.",
+    throw new DeployCliError(
+      "NOT_A_GIT_REPO",
+      "Could not detect the current git branch. Pass `--branch` or run this command from a git repository.",
     );
   }
 }
@@ -38,7 +43,7 @@ export async function deployCommand(args: DeployArgs): Promise<void> {
     ),
   );
   if (!Number.isSafeInteger(appSourceId) || appSourceId <= 0) {
-    fatal("`--app-source-id` must be a positive integer.");
+    throw new DeployCliError("VALIDATION_ERROR", "`--app-source-id` must be a positive integer.");
   }
 
   const backendUrl = (
@@ -50,7 +55,21 @@ export async function deployCommand(args: DeployArgs): Promise<void> {
     str(args.platform) ??
     process.env.AOMI_DEPLOY_PLATFORM ??
     "community";
-  const branch = str(args.branch) ?? currentBranch();
+
+  const branch = str(args.branch);
+  const commit = str(args.commit);
+
+  if (branch && commit) {
+    throw new DeployCliError(
+      "VALIDATION_ERROR",
+      "--commit and --branch are mutually exclusive. Provide one or neither.",
+    );
+  }
+
+  const sourceRef = commit
+    ? { kind: "commit", value: commit }
+    : { kind: "branch", value: branch ?? currentBranch() };
+
   const aomiTomlPaths = (
     str(args["aomi-toml-paths"]) ?? "aomi.toml"
   )
@@ -61,14 +80,18 @@ export async function deployCommand(args: DeployArgs): Promise<void> {
 
   console.log(` Deploying to ${backendUrl} (platform: ${platform})`);
   console.log(`   app source id: ${appSourceId}`);
-  console.log(`   branch:        ${branch}`);
+  if (sourceRef.kind === "commit") {
+    console.log(`   commit:        ${sourceRef.value}`);
+  } else {
+    console.log(`   branch:        ${sourceRef.value}`);
+  }
   console.log(`   aomi.toml:     ${aomiTomlPaths.join(", ")}`);
   if (dryRun) console.log("   dry run:      yes");
 
   const url = `${backendUrl}/api/platforms/${encodeURIComponent(platform)}/deploy`;
   const body = {
     app_source_id: appSourceId,
-    source_ref: { kind: "branch", value: branch },
+    source_ref: sourceRef,
     aomi_toml_paths: aomiTomlPaths,
     dry_run: dryRun,
   };
@@ -84,7 +107,8 @@ export async function deployCommand(args: DeployArgs): Promise<void> {
       body: JSON.stringify(body),
     });
   } catch (err) {
-    fatal(
+    throw new DeployCliError(
+      "NETWORK_ERROR",
       `Deploy request failed: ${err instanceof Error ? err.message : String(err)}`,
     );
   }
@@ -94,18 +118,21 @@ export async function deployCommand(args: DeployArgs): Promise<void> {
     const message = (() => {
       try {
         const json = JSON.parse(text);
-        if (json && typeof json === "object" && json.error) return json.error;
+        if (json && typeof json === "object" && json.error) return json.error as string;
       } catch {}
       return `${res.status} ${res.statusText}`;
     })();
-    fatal(`Deploy failed (${res.status}): ${message}`);
+    if (res.status === 401 || res.status === 403) {
+      throw new DeployCliError("AUTH_FAILED", `Deploy failed (${res.status}): ${message}`);
+    }
+    throw new DeployCliError("BACKEND_ERROR", `Deploy failed (${res.status}): ${message}`);
   }
 
   let result: Record<string, unknown>;
   try {
     result = JSON.parse(text) as Record<string, unknown>;
   } catch {
-    fatal("Backend returned invalid JSON.");
+    throw new DeployCliError("BACKEND_ERROR", "Backend returned invalid JSON.");
   }
 
   const deployment = result.deployment as Record<string, unknown> | undefined;
@@ -130,16 +157,35 @@ export async function deployCommand(args: DeployArgs): Promise<void> {
   if (platformInfo?.ci_url) {
     console.log(`   CI:      ${platformInfo.ci_url}`);
   }
+
+  const releaseTags: string[] = [];
+  const apps: string[] = [];
+
   if (platformInfo?.apps) {
-    const apps = platformInfo.apps as Array<Record<string, unknown>>;
-    for (const app of apps) {
-      const name = app.name ?? "?";
-      const tag = app.release_tag ?? app.releaseTag ?? "";
+    const appsArr = platformInfo.apps as Array<Record<string, unknown>>;
+    for (const app of appsArr) {
+      const name = String(app.name ?? "?");
+      const tag = String(app.release_tag ?? app.releaseTag ?? "");
+      apps.push(name);
+      if (tag) releaseTags.push(tag);
       console.log(`   app:     ${name}${tag ? ` (${tag})` : ""}`);
     }
   }
 
   if (platformInfo?.commit_hash) {
     console.log(`   commit:  ${platformInfo.commit_hash}`);
+  }
+
+  // Persist deployment state for use by `aomi deploy status` and `aomi deploy activate`
+  const deploymentId = String(deployment?.id ?? "");
+  if (deploymentId) {
+    await writeDeploymentState({
+      deploymentId,
+      platform,
+      appSourceId,
+      releaseTags,
+      apps,
+      timestamp: new Date().toISOString(),
+    });
   }
 }
