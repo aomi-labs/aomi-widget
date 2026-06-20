@@ -72,7 +72,7 @@ export function selectEvmIdentity(
   const current = activeConnection
     ? {
         address: activeConnection.address,
-        chainId: activeConnection.chainId,
+        chainId: activeConnection.chainId ?? selectedChainId,
         connectorId: activeConnection.uid,
         walletName: activeConnection.walletName,
         walletSource,
@@ -129,7 +129,7 @@ export function selectAccounts(
             id: connection.uid,
             walletName: connection.walletName ?? connection.stableId,
             address: connection.address,
-            chainId: connection.chainId,
+            chainId: connection.chainId ?? selectedChainId,
           }))
       : [];
 

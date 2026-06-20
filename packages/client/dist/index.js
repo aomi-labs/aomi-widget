@@ -1428,6 +1428,7 @@ ${body}` : ""}`
 var DEFAULT_REFRESH_BEFORE_EXPIRY_MS = 2 * 60 * 1e3;
 var FAILURE_COOLDOWN_MS = 30 * 1e3;
 var DEFAULT_BETTER_AUTH_TOKEN_PATH = "/api/auth/token";
+var DEFAULT_BETTER_AUTH_PROVIDER_EXCHANGE_PATH = "/api/auth/aomi/provider/exchange";
 function createAccountAccessTokenProvider({
   baseUrl,
   getProviderCredential,
@@ -1471,6 +1472,30 @@ function createAccountAccessTokenProvider({
     const body = await response.json();
     return normalizeBetterAuthTokenResponse(body);
   };
+  const exchangeBetterAuthProviderCredential = async () => {
+    var _a;
+    if (!(betterAuthToken == null ? void 0 : betterAuthToken.enabled) || betterAuthToken.providerExchange === false || !getProviderCredential) {
+      return null;
+    }
+    const credential = await getProviderCredential();
+    const response = await fetchImpl(
+      joinUrl(
+        (_a = betterAuthToken.baseUrl) != null ? _a : baseUrl,
+        DEFAULT_BETTER_AUTH_PROVIDER_EXCHANGE_PATH
+      ),
+      {
+        method: "POST",
+        credentials: "include",
+        headers: {
+          Accept: "application/json",
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(credential)
+      }
+    );
+    if (!response.ok) return null;
+    return fetchBetterAuthToken();
+  };
   const exchangeProviderCredential = async () => {
     if (!getProviderCredential) {
       throw new Error("No account credential source is configured");
@@ -1497,6 +1522,11 @@ function createAccountAccessTokenProvider({
   const exchange = async () => {
     const betterAuthJwt = await fetchBetterAuthToken();
     if (betterAuthJwt) return betterAuthJwt;
+    const exchangedBetterAuthJwt = await exchangeBetterAuthProviderCredential();
+    if (exchangedBetterAuthJwt) return exchangedBetterAuthJwt;
+    if (betterAuthToken == null ? void 0 : betterAuthToken.enabled) {
+      throw new Error("Failed to exchange Better Auth provider credential");
+    }
     return exchangeProviderCredential();
   };
   const getAccountAccessToken = async ({
@@ -1507,7 +1537,7 @@ function createAccountAccessTokenProvider({
     if (!forceRefresh && cached && now() < refreshAt) {
       return cached.access_token;
     }
-    if (!forceRefresh && failedAt !== null && now() - failedAt < FAILURE_COOLDOWN_MS) {
+    if (failedAt !== null && now() - failedAt < FAILURE_COOLDOWN_MS && (!forceRefresh || (betterAuthToken == null ? void 0 : betterAuthToken.enabled))) {
       return void 0;
     }
     if (!pending) {

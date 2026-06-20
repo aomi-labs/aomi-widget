@@ -1,8 +1,8 @@
 "use client";
 
 /**
- * Structured debug trace for the wallet/auth lifecycle. Enabled by default in
- * dev builds; toggle anywhere with:
+ * Structured debug trace for the wallet/auth lifecycle. Disabled by default;
+ * toggle anywhere with:
  *
  *   localStorage.setItem("aomi.wallet.debug", "1")   // force on
  *   localStorage.setItem("aomi.wallet.debug", "0")   // force off
@@ -20,9 +20,9 @@ export function walletDebugEnabled(): boolean {
     if (flag === "1" || flag === "true") return true;
     if (flag === "0" || flag === "false") return false;
   } catch {
-    // fall through to the env default
+    // fall through to the default
   }
-  return process.env.NODE_ENV !== "production";
+  return false;
 }
 
 export function walletDebug(

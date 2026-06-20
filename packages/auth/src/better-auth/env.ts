@@ -41,8 +41,7 @@ export function readAccountAuthEnv(env = process.env): AccountAuthEnv {
     backendJwtIssuer: env.AOMI_BACKEND_JWT_ISSUER ?? origin,
     backendJwtAudience: env.AOMI_BACKEND_JWT_AUDIENCE ?? "aomi-backend",
     backendJwtExpiresIn: env.AOMI_BACKEND_JWT_EXPIRES_IN ?? "15m",
-    backendJwtJwksPath:
-      env.AOMI_BACKEND_JWKS_PATH ?? "/.well-known/jwks.json",
+    backendJwtJwksPath: env.AOMI_BACKEND_JWKS_PATH ?? "/.well-known/jwks.json",
     backendJwtScope: env.AOMI_BACKEND_JWT_SCOPE ?? "aomi:api",
     siweDomain: env.AOMI_AUTH_DOMAIN ?? url.host,
     siweEmailDomain: env.AOMI_AUTH_EMAIL_DOMAIN,
@@ -52,7 +51,11 @@ export function readAccountAuthEnv(env = process.env): AccountAuthEnv {
     privyAccessTokenVerificationKey: env.PRIVY_JWT_VERIFICATION_KEY,
     privyIdentityTokenVerificationKey:
       env.PRIVY_IDENTITY_JWT_VERIFICATION_KEY ?? env.PRIVY_JWT_VERIFICATION_KEY,
-    paraAudience: env.PARA_API_KEY ?? env.NEXT_PUBLIC_PARA_API_KEY,
+    paraAudience:
+      env.PARA_JWT_AUDIENCE ??
+      env.PARA_AUDIENCE ??
+      env.PARA_API_KEY ??
+      env.NEXT_PUBLIC_PARA_API_KEY,
     paraJwksUrl: env.PARA_JWKS_URL,
     paraApiKey: env.PARA_API_SECRET_KEY,
   };

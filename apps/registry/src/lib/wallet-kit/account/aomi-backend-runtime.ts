@@ -19,6 +19,8 @@ export type AomiBackendAccountConfig = {
   authUri?: string;
 };
 
+const CREDENTIAL_EXCHANGE_FAILURE_COOLDOWN_MS = 30_000;
+
 export function useAomiBackendAccountRuntime(input: {
   enabled: boolean;
   baseUrl?: string;
@@ -53,6 +55,10 @@ export function useAomiBackendAccountRuntime(input: {
   const signedOutCredentialKey = useRef<string | null>(null);
   const credentialInFlight = useRef<string | null>(null);
   const credentialExchanged = useRef<string | null>(null);
+  const credentialFailed = useRef<{
+    attemptKey: string;
+    failedAt: number;
+  } | null>(null);
 
   const refresh = useCallback(async () => {
     if (!input.enabled) return;
@@ -76,6 +82,7 @@ export function useAomiBackendAccountRuntime(input: {
       signedOutCredentialKey.current = null;
       credentialInFlight.current = null;
       credentialExchanged.current = null;
+      credentialFailed.current = null;
     }
   }, [input.auth.status, input.auth.subject]);
 
@@ -142,7 +149,7 @@ export function useAomiBackendAccountRuntime(input: {
     if (!input.auth.getCredential) return;
     let cancelled = false;
     async function exchange() {
-      const credential = await input.auth.getCredential?.();
+      const credential = await input.auth.getCredential?.().catch(() => null);
       if (!credential || cancelled) return;
       const key = credentialKey(credential);
       const signedOutKey = authCredentialKey(input.auth, key);
@@ -153,9 +160,13 @@ export function useAomiBackendAccountRuntime(input: {
       // current account if one exists, otherwise create one. No policy gate.
       const hasAccount = Boolean(account?.user);
       const attemptKey = `${hasAccount ? "link" : "session"}:${account?.user?.id ?? "new"}:${key}`;
+      const failedAttempt = credentialFailed.current;
       if (
         credentialInFlight.current === attemptKey ||
-        credentialExchanged.current === attemptKey
+        credentialExchanged.current === attemptKey ||
+        (failedAttempt?.attemptKey === attemptKey &&
+          Date.now() - failedAttempt.failedAt <
+            CREDENTIAL_EXCHANGE_FAILURE_COOLDOWN_MS)
       ) {
         return;
       }
@@ -168,16 +179,17 @@ export function useAomiBackendAccountRuntime(input: {
         credentialExchanged.current = attemptKey;
         if (result.account) setAccount(result.account);
         await refresh();
+      } catch {
+        credentialFailed.current = { attemptKey, failedAt: Date.now() };
+        setStatus("ready");
+        setErrorVersion((version) => version + 1);
       } finally {
         if (credentialInFlight.current === attemptKey) {
           credentialInFlight.current = null;
         }
       }
     }
-    void exchange().catch(() => {
-      setStatus("error");
-      setErrorVersion((version) => version + 1);
-    });
+    void exchange();
     return () => {
       cancelled = true;
     };
@@ -236,6 +248,7 @@ export function useAomiBackendAccountRuntime(input: {
       }
       credentialInFlight.current = null;
       credentialExchanged.current = null;
+      credentialFailed.current = null;
       await accountClient.signOut();
       setAccount({
         user: null,
@@ -260,6 +273,7 @@ export function useAomiBackendAccountRuntime(input: {
       }
       credentialInFlight.current = null;
       credentialExchanged.current = null;
+      credentialFailed.current = null;
       await accountClient.deleteAccount();
       setAccount({
         user: null,

@@ -172,13 +172,17 @@ async function fetchJson<T>(
   });
   if (!response.ok) {
     const error = await response.json().catch(() => null);
-    const code =
-      error && typeof error === "object" && "error" in error
-        ? String(error.error)
-        : null;
+    const code = extractErrorCode(error);
     throw new Error(formatAccountRequestError(response.status, code));
   }
   return (await response.json()) as T;
+}
+
+function extractErrorCode(error: unknown): string | null {
+  if (!error || typeof error !== "object") return null;
+  if ("error" in error && error.error) return String(error.error);
+  if ("message" in error && error.message) return String(error.message);
+  return null;
 }
 
 function formatAccountRequestError(

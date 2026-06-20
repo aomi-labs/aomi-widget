@@ -17,6 +17,8 @@ export const AOMI_DEFAULT_WC_PROJECT_ID =
   process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID ??
   process.env.NEXT_PUBLIC_PROJECT_ID;
 
+const evmConfigCache = new Map<string, Config>();
+
 export type ResolvedEvmWalletsConfig = {
   chains: readonly [Chain, ...Chain[]];
   preset?: EvmWalletPreset;
@@ -69,6 +71,11 @@ export function createAomiEvmConfig(input: ResolvedEvmWalletsConfig): Config {
     warnDuplicateWalletConnect();
     return false;
   });
+  const cacheKey = evmConfigCacheKey(input, wanted, wcProjectId);
+  if (cacheKey) {
+    const cached = evmConfigCache.get(cacheKey);
+    if (cached) return cached;
+  }
 
   const connectors: CreateConnectorFn[] = [
     injected({ shimDisconnect: true }),
@@ -95,13 +102,42 @@ export function createAomiEvmConfig(input: ResolvedEvmWalletsConfig): Config {
     ...hostConnectors,
   ];
 
-  return createConfig({
+  const config = createConfig({
     chains: input.chains,
     connectors,
     transports: input.transports ?? defaultHttpTransports(input.chains),
     multiInjectedProviderDiscovery: true,
     ssr: input.ssr ?? true,
   });
+  if (cacheKey) {
+    evmConfigCache.set(cacheKey, config);
+    if (evmConfigCache.size > 8) {
+      const firstKey = evmConfigCache.keys().next().value;
+      if (firstKey) evmConfigCache.delete(firstKey);
+    }
+  }
+  return config;
 }
 
 export { EVM_PRESETS };
+
+function evmConfigCacheKey(
+  input: ResolvedEvmWalletsConfig,
+  wanted: ReadonlySet<EvmWalletId>,
+  wcProjectId: string | undefined,
+): string | null {
+  if (input.connectors?.length || input.transports) return null;
+  return JSON.stringify({
+    chains: input.chains.map((chain) => [
+      chain.id,
+      chain.rpcUrls.default.http[0],
+    ]),
+    wallets: [...wanted].sort(),
+    walletConnectProjectId: wcProjectId ?? null,
+    coinbase: input.coinbase !== false,
+    appName: input.appName ?? null,
+    appLogoUrl: input.appLogoUrl ?? null,
+    ssr: input.ssr ?? true,
+    includeBaseAccount: input.includeBaseAccount ?? false,
+  });
+}

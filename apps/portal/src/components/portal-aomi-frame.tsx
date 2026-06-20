@@ -42,6 +42,11 @@ function usePortalClientOptions():
     }
     return createAccountAccessTokenProvider({
       baseUrl: backendUrl,
+      betterAuthToken: {
+        enabled: true,
+        baseUrl: "",
+        providerExchange: false,
+      },
       getProviderCredential: async () => {
         const credential = await getAccountCredential();
         if (!credential) {
@@ -93,7 +98,14 @@ function usePortalClientOptions():
   }, [wagmiConfig]);
 
   return useMemo(() => {
-    const withDebugLogging = (
+    const fetchDebugEnabled = (() => {
+      try {
+        return localStorage.getItem("aomi.portal.fetch.debug") === "1";
+      } catch {
+        return false;
+      }
+    })();
+    const withRequestUrlNormalization = (
       fetchName: string,
       fetchImpl: typeof fetch,
     ): typeof fetch => {
@@ -126,20 +138,24 @@ function usePortalClientOptions():
         const method =
           init?.method ?? (input instanceof Request ? input.method : "GET");
         const startedAt = Date.now();
-        console.debug("[aomi][portal-fetch] start", {
-          fetchName,
-          method,
-          url,
-        });
-
-        const pendingWarning = setTimeout(() => {
-          console.debug("[aomi][portal-fetch] still pending", {
+        if (fetchDebugEnabled) {
+          console.debug("[aomi][portal-fetch] start", {
             fetchName,
             method,
             url,
-            pendingMs: Date.now() - startedAt,
           });
-        }, 5000);
+        }
+
+        const pendingWarning = fetchDebugEnabled
+          ? setTimeout(() => {
+              console.debug("[aomi][portal-fetch] still pending", {
+                fetchName,
+                method,
+                url,
+                pendingMs: Date.now() - startedAt,
+              });
+            }, 5000)
+          : null;
 
         try {
           const normalizedInput =
@@ -149,33 +165,37 @@ function usePortalClientOptions():
                 ? new URL(url)
                 : new Request(url, input);
           const response = await fetchImpl(normalizedInput, init);
-          clearTimeout(pendingWarning);
-          console.debug("[aomi][portal-fetch] response", {
-            fetchName,
-            method,
-            url,
-            status: response.status,
-            ok: response.ok,
-            durationMs: Date.now() - startedAt,
-          });
+          if (pendingWarning) clearTimeout(pendingWarning);
+          if (fetchDebugEnabled) {
+            console.debug("[aomi][portal-fetch] response", {
+              fetchName,
+              method,
+              url,
+              status: response.status,
+              ok: response.ok,
+              durationMs: Date.now() - startedAt,
+            });
+          }
           return response;
         } catch (error) {
-          clearTimeout(pendingWarning);
-          console.error("[aomi][portal-fetch] failed", {
-            fetchName,
-            method,
-            url,
-            durationMs: Date.now() - startedAt,
-            error:
-              error instanceof Error
-                ? {
-                    name: error.name,
-                    message: error.message,
-                    stack: error.stack,
-                    cause: error.cause,
-                  }
-                : error,
-          });
+          if (pendingWarning) clearTimeout(pendingWarning);
+          if (fetchDebugEnabled) {
+            console.error("[aomi][portal-fetch] failed", {
+              fetchName,
+              method,
+              url,
+              durationMs: Date.now() - startedAt,
+              error:
+                error instanceof Error
+                  ? {
+                      name: error.name,
+                      message: error.message,
+                      stack: error.stack,
+                      cause: error.cause,
+                    }
+                  : error,
+            });
+          }
           throw error;
         }
       };
@@ -204,7 +224,7 @@ function usePortalClientOptions():
       return method === "POST" && url.pathname === "/api/chat";
     };
 
-    const rawFetch = withDebugLogging("native.fetch", nativeFetch);
+    const rawFetch = withRequestUrlNormalization("native.fetch", nativeFetch);
     const baseFetch = mppClientOptions?.fetch;
     const connectorClient = walletClient?.data;
     const paymentFetch = (() => {
@@ -212,7 +232,7 @@ function usePortalClientOptions():
         return null;
       }
       if (!connectorClient) {
-        return withDebugLogging("mppx.fetch", baseFetch);
+        return withRequestUrlNormalization("mppx.fetch", baseFetch);
       }
 
       const paymentClient = new x402Client();
@@ -221,7 +241,7 @@ function usePortalClientOptions():
         new ExactEvmScheme(connectorClient as never),
       );
 
-      return withDebugLogging(
+      return withRequestUrlNormalization(
         "wrapFetchWithPayment",
         wrapFetchWithPayment(baseFetch, paymentClient),
       );
@@ -237,9 +257,11 @@ function usePortalClientOptions():
         return firstResponse;
       }
 
-      console.debug(
-        "[aomi][portal-fetch] retrying /api/chat with payment transport after 402",
-      );
+      if (fetchDebugEnabled) {
+        console.debug(
+          "[aomi][portal-fetch] retrying /api/chat with payment transport after 402",
+        );
+      }
       return paymentFetch(input, init);
     };
 

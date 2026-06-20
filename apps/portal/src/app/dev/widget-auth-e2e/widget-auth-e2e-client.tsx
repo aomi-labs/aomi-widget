@@ -1,10 +1,9 @@
 "use client";
 
-import "@aomi-labs/widget-lib/providers/privy";
+import "@aomi-labs/widget-lib/providers/para";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAomiWalletKit } from "@aomi-labs/widget-lib";
-import { usePrivy } from "@privy-io/react-auth";
 import { privateKeyToAccount } from "viem/accounts";
 import { sepolia } from "wagmi/chains";
 
@@ -18,14 +17,12 @@ const testWalletTwo = privateKeyToAccount(
 );
 const testChainId = sepolia.id;
 
-export function WidgetAuthE2EClient({ privyAppId }: { privyAppId: string }) {
-  void privyAppId;
+export function WidgetAuthE2EClient() {
   return <WidgetAuthE2EPanel />;
 }
 
 function WidgetAuthE2EPanel() {
   const walletKit = useAomiWalletKit();
-  const privy = usePrivy();
   const [accountSnapshot, setAccountSnapshot] = useState<AccountSnapshot>(null);
   const [log, setLog] = useState<string[]>([]);
   const [pending, setPending] = useState<string | null>(null);
@@ -38,18 +35,20 @@ function WidgetAuthE2EPanel() {
   }, []);
 
   const refreshAccount = useCallback(async () => {
-    const response = await fetch("/api/aomi/account", {
-      credentials: "include",
-    });
-    setAccountSnapshot(await response.json());
+    try {
+      const response = await fetch("/api/aomi/account", {
+        credentials: "include",
+      });
+      setAccountSnapshot(await response.json());
+    } catch (error) {
+      setAccountSnapshot({
+        error: error instanceof Error ? error.message : "refresh failed",
+      });
+    }
   }, []);
 
   useEffect(() => {
     void refreshAccount();
-    const id = window.setInterval(() => {
-      void refreshAccount();
-    }, 1500);
-    return () => window.clearInterval(id);
   }, [refreshAccount]);
 
   const run = useCallback(
@@ -124,28 +123,36 @@ function WidgetAuthE2EPanel() {
     window.setTimeout(() => window.location.reload(), 250);
   }, []);
 
-  const exchangePrivyToken = useCallback(async () => {
-    const privyWithTokens = privy as typeof privy & {
-      getAccessToken?: () => Promise<string | null>;
-      getIdentityToken?: () => Promise<string | null>;
-    };
-    const identityToken = (await privyWithTokens.getIdentityToken?.())?.trim();
-    const accessToken = (await privyWithTokens.getAccessToken?.())?.trim();
-    const providerToken = identityToken ?? accessToken;
-    if (!providerToken) throw new Error("Privy did not return a token");
-    const response = await fetch("/api/aomi/provider/exchange", {
+  const exchangeProviderToken = useCallback(async () => {
+    const credential = await walletKit.getAccountCredential?.();
+    if (!credential) {
+      throw new Error("Para did not return a credential");
+    }
+    if ("kind" in credential && credential.kind === "cookie") {
+      throw new Error("Cookie credentials cannot be manually exchanged");
+    }
+    const providerToken =
+      "providerToken" in credential
+        ? credential.providerToken
+        : credential.token;
+    const tokenKind =
+      "providerToken" in credential ? credential.tokenKind : credential.kind;
+    const exchangePath = walletKit.accountUser
+      ? "/api/aomi/provider/exchange"
+      : "/api/auth/aomi/provider/exchange";
+    const response = await fetch(exchangePath, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       credentials: "include",
       body: JSON.stringify({
-        provider: "privy",
-        tokenKind: identityToken ? "identity_token" : "access_token",
+        provider: credential.provider,
+        tokenKind,
         providerToken,
       }),
     });
-    const body = await readJsonOrThrow(response, "Privy provider exchange");
-    pushLog(`privy exchange response: ${JSON.stringify(body)}`);
-  }, [privy, pushLog]);
+    const body = await readJsonOrThrow(response, "Para provider exchange");
+    pushLog(`provider exchange response: ${JSON.stringify(body)}`);
+  }, [pushLog, walletKit]);
 
   const linkSecondTestWallet = useCallback(async () => {
     const nonceResponse = await fetch(
@@ -193,7 +200,7 @@ function WidgetAuthE2EPanel() {
         <header>
           <h1 className="text-2xl font-semibold">Widget Auth E2E</h1>
           <p className="text-slate-600">
-            Privy + account-backend harness for local verification.
+            Para + account-backend harness for local verification.
           </p>
         </header>
 
@@ -202,12 +209,12 @@ function WidgetAuthE2EPanel() {
             className="rounded border px-3 py-2"
             disabled={!!pending}
             onClick={() =>
-              void run("privy email login", async () => {
-                await walletKit.connectSocial?.("privy");
+              void run("para google login", async () => {
+                await walletKit.connectSocial?.("google");
               })
             }
           >
-            Privy Email Login
+            Para Google Login
           </button>
           <button
             className="rounded border px-3 py-2"
@@ -218,7 +225,7 @@ function WidgetAuthE2EPanel() {
               })
             }
           >
-            Open Privy Account UI
+            Open Para Account UI
           </button>
           <button
             className="rounded border px-3 py-2"
@@ -250,9 +257,11 @@ function WidgetAuthE2EPanel() {
           <button
             className="rounded border px-3 py-2"
             disabled={!!pending}
-            onClick={() => void run("exchange privy token", exchangePrivyToken)}
+            onClick={() =>
+              void run("exchange provider token", exchangeProviderToken)
+            }
           >
-            Exchange Privy Token
+            Exchange Para Token
           </button>
           <button
             className="rounded border px-3 py-2"

@@ -68,6 +68,11 @@ export function GeneralSettings() {
     if (!getAccountCredential) return undefined;
     return createAccountAccessTokenProvider({
       baseUrl: getBackendUrl(),
+      betterAuthToken: {
+        enabled: true,
+        baseUrl: "",
+        providerExchange: false,
+      },
       getProviderCredential: async () => {
         const credential = await getAccountCredential();
         if (!credential) {

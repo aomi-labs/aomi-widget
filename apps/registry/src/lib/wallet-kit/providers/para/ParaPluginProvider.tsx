@@ -2,7 +2,7 @@
 
 import { useCallback, useMemo, type ReactNode } from "react";
 import type { Chain } from "viem";
-import type { TOAuthMethod } from "@getpara/react-sdk";
+import { getViemAccount, type TOAuthMethod } from "@getpara/react-sdk";
 import { AomiWalletKitComposer } from "../../composer/AomiWalletKitComposer";
 import { useResolvedAccountRuntime } from "../../account/use-resolved-account-runtime";
 import type {
@@ -177,8 +177,21 @@ export function AomiParaPluginProvider({
           });
         }
       },
+      signMessageForProviderAccount: async ({ connection, message }) => {
+        if (connection.stableId !== PARA_BRAND_KEY || !paraSession) {
+          return null;
+        }
+        const account = await getViemAccount({
+          para: paraSession,
+          address: connection.address as `0x${string}`,
+        });
+        if (!account) {
+          throw new Error("Para embedded wallet is not available for signing");
+        }
+        return account.signMessage({ message });
+      },
     }),
-    [logoutParaSession, paraModal],
+    [logoutParaSession, paraModal, paraSession],
   );
   const evmRuntime = useEvmWalletRuntime({
     configuredChains,

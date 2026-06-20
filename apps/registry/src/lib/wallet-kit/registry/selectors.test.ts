@@ -61,6 +61,43 @@ describe("WalletRegistry selectors", () => {
     });
   });
 
+  it("uses the selected EVM chain for active embedded sessions without a native chain", () => {
+    const current = state({
+      connections: [
+        evm({
+          key: "evm:para-session",
+          uid: "para-session",
+          stableId: "para",
+          kind: "embedded-session",
+          walletName: "Para",
+          chainId: undefined,
+        }),
+      ],
+      activeByFamily: {
+        evm: {
+          family: "evm",
+          address: "0xaaa",
+          uid: "para-session",
+          stableId: "para",
+        },
+      },
+    });
+
+    expect(selectEvmIdentity(current, 100, 8453)).toEqual({
+      address: "0xaaa",
+      chainId: 8453,
+      connectorId: "para-session",
+      walletName: "Para",
+      walletSource: "embedded",
+    });
+    expect(selectAccounts(current, "evm", 100, 8453)[0]).toMatchObject({
+      id: "para-session",
+      family: "evm",
+      chainId: 8453,
+      walletName: "Para",
+    });
+  });
+
   it("uses grace identity during a short handoff and preserves selected chain", () => {
     const current = state({
       evmGrace: {

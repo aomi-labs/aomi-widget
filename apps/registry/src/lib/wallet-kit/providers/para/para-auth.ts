@@ -19,7 +19,7 @@ export type ParaAccountShape = {
     farcasterUsername?: string;
     telegramUserId?: string;
     authMethods?: Set<unknown>;
-    wallets?: Array<{ address?: string }>;
+    wallets?: Array<{ address?: string; chainId?: number | string }>;
   };
   external: {
     evm?: {
@@ -37,6 +37,9 @@ export const DISCONNECTED_PARA_ACCOUNT: ParaAccountShape = {
 };
 
 export const defaultOAuthMethods: TOAuthMethod[] = ["GOOGLE"];
+const ISSUE_JWT_FAILURE_COOLDOWN_MS = 30_000;
+let issueJwtUnavailableUntil = 0;
+let issueJwtInFlight: Promise<AomiAccountCredential | null> | null = null;
 
 export function useSafeParaAccount(): ParaAccountShape {
   try {
@@ -70,18 +73,63 @@ export function useSafeIssueJwt():
   try {
     const { issueJwtAsync } = useIssueJwt();
     return async () => {
-      const result = await issueJwtAsync();
-      const token = result?.token?.trim();
-      return token
-        ? {
-            provider: "para",
-            providerToken: token,
+      const now = Date.now();
+      if (now < issueJwtUnavailableUntil) {
+        return null;
+      }
+      if (issueJwtInFlight) {
+        return issueJwtInFlight;
+      }
+      issueJwtInFlight = (async () => {
+        let result: { token?: string; keyId?: string } | null | undefined;
+        try {
+          result = await issueJwtAsync({});
+        } catch (error) {
+          if (isParaJwtUnavailableError(error)) {
+            issueJwtUnavailableUntil =
+              Date.now() + ISSUE_JWT_FAILURE_COOLDOWN_MS;
+            return null;
           }
-        : null;
+          throw error;
+        } finally {
+          issueJwtInFlight = null;
+        }
+        const token = result?.token?.trim();
+        return token
+          ? {
+              provider: "para",
+              tokenKind: "session_jwt",
+              providerToken: token,
+              keyId: result?.keyId,
+            }
+          : null;
+      })();
+      return issueJwtInFlight;
     };
   } catch {
     return null;
   }
+}
+
+function isParaJwtUnavailableError(error: unknown): boolean {
+  const candidate = error as
+    | {
+        name?: unknown;
+        message?: unknown;
+        status?: unknown;
+        response?: { status?: unknown };
+      }
+    | undefined;
+  const status = candidate?.status ?? candidate?.response?.status;
+  if (status === 401 || status === 403) return true;
+  const message = String(candidate?.message ?? "").toLowerCase();
+  return (
+    candidate?.name === "ParaApiError" ||
+    message.includes("unknown error") ||
+    message.includes("network error") ||
+    message.includes("failed to fetch") ||
+    message.includes("cors")
+  );
 }
 
 export function useSafeLogout(): (() => Promise<void>) | null {

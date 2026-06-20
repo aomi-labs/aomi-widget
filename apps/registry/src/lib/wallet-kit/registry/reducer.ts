@@ -40,6 +40,7 @@ export function createInitialState(): WalletRegistryState {
       stableId: null,
       walletName: null,
       embeddedEvmAddress: null,
+      chainId: null,
     },
   };
 }
@@ -301,6 +302,7 @@ function withEmbeddedSessionConnection(
         kind: "embedded-session",
         address,
         addresses: [address],
+        chainId: session.chainId ?? undefined,
         walletName: session.walletName,
       },
     ],
@@ -593,6 +595,7 @@ export function reduce(
           stableId: event.stableId,
           walletName: event.walletName,
           embeddedEvmAddress: event.embeddedEvmAddress?.toLowerCase() ?? null,
+          chainId: event.chainId ?? null,
         },
       };
       next = withEmbeddedSessionConnection(next);
