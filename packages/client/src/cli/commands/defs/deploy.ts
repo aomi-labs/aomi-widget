@@ -1,5 +1,7 @@
 import { defineCommand } from "citty";
 import { globalArgs } from "./shared";
+import { statusDef } from "./status";
+import { activateDef } from "./activate";
 
 export const deployDef = defineCommand({
   meta: {
@@ -45,5 +47,9 @@ export const deployDef = defineCommand({
   async run({ args }) {
     const { deployCommand } = await import("../deploy");
     await deployCommand(args);
+  },
+  subCommands: {
+    status: statusDef,
+    activate: activateDef,
   },
 });
