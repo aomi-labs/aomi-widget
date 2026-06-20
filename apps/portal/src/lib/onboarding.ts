@@ -124,21 +124,6 @@ function empty(): OnboardingState {
   return { path: null, oneshot: {}, bootstrap: {}, pendingInstall: null };
 }
 
-function stripMockProgress(progress: PathProgress): PathProgress {
-  if (
-    progress.applicationId !== "mock-app-1" &&
-    !progress.releaseTag?.startsWith("apps-playground-example-")
-  ) {
-    return progress;
-  }
-  const next: PathProgress = {};
-  if (progress.installationId) next.installationId = progress.installationId;
-  if (progress.installationStatus) {
-    next.installationStatus = progress.installationStatus;
-  }
-  if (progress.repo) next.repo = progress.repo;
-  return next;
-}
 
 export function loadOnboarding(): OnboardingState {
   if (typeof window === "undefined") return empty();
@@ -148,8 +133,8 @@ export function loadOnboarding(): OnboardingState {
     const parsed = JSON.parse(raw) as Partial<OnboardingState>;
     return {
       path: parsed.path ?? null,
-      oneshot: stripMockProgress(parsed.oneshot ?? {}),
-      bootstrap: stripMockProgress(parsed.bootstrap ?? {}),
+      oneshot: parsed.oneshot ?? {},
+      bootstrap: parsed.bootstrap ?? {},
       pendingInstall: parsed.pendingInstall ?? null,
     };
   } catch {
