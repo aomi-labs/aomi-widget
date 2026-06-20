@@ -243,7 +243,9 @@ function parseSvmCluster(raw) {
     case "solana:testnet":
       return "solana:testnet";
     default:
-      fatal(`Unknown --cluster value "${raw}". Use "mainnet-beta", "devnet", or "testnet".`);
+      fatal(
+        `Unknown --cluster value "${raw}". Use "mainnet-beta", "devnet", or "testnet".`
+      );
   }
 }
 function str(value) {
@@ -254,7 +256,9 @@ function derivePublicKeyFromPrivateKey(privateKey) {
   try {
     return privateKeyToAccount(privateKey).address;
   } catch (e) {
-    fatal("Invalid private key. Pass a 32-byte hex key via `--private-key` or `PRIVATE_KEY`.");
+    fatal(
+      "Invalid private key. Pass a 32-byte hex key via `--private-key` or `PRIVATE_KEY`."
+    );
   }
 }
 function resolveExecution(args) {
@@ -283,14 +287,14 @@ function buildCliConfig(args) {
   );
   const accountProviderToken = (_e = str(args["account-provider-token"])) != null ? _e : process.env.AOMI_ACCOUNT_PROVIDER_TOKEN;
   if (configuredPublicKey && derivedPublicKey && configuredPublicKey.toLowerCase() !== derivedPublicKey.toLowerCase()) {
-    fatal("`--public-key` does not match the address derived from `--private-key`.");
+    fatal(
+      "`--public-key` does not match the address derived from `--private-key`."
+    );
   }
   const aaProvider = parseAAProvider(
     (_f = str(args["aa-provider"])) != null ? _f : process.env.AOMI_AA_PROVIDER
   );
-  const aaMode2 = parseAAMode(
-    (_g = str(args["aa-mode"])) != null ? _g : process.env.AOMI_AA_MODE
-  );
+  const aaMode2 = parseAAMode((_g = str(args["aa-mode"])) != null ? _g : process.env.AOMI_AA_MODE);
   if (execution === "eoa" && (aaProvider || aaMode2)) {
     fatal("`--aa-provider` and `--aa-mode` cannot be used with `--eoa`.");
   }
@@ -339,7 +343,9 @@ function getPositionals(args) {
   if (!Array.isArray(positionals)) {
     return [];
   }
-  return positionals.filter((value) => typeof value === "string");
+  return positionals.filter(
+    (value) => typeof value === "string"
+  );
 }
 var globalArgs;
 var init_shared = __esm({
@@ -362,11 +368,11 @@ var init_shared = __esm({
       },
       "account-provider": {
         type: "string",
-        description: 'Upstream account provider for bearer exchange ("para" or "privy")'
+        description: 'Deprecated legacy provider exchange config ("para" or "privy")'
       },
       "account-provider-token": {
         type: "string",
-        description: "Provider-issued token exchanged for an Aomi account bearer"
+        description: "Deprecated legacy provider token; use --account-bearer"
       },
       app: {
         type: "string",
@@ -476,7 +482,6 @@ function buildConnection(src, flat) {
   const c = __spreadValues({}, src != null ? src : {});
   renameKey(c, "isConnected", "is_connected");
   renameKey(c, "providerLabel", "provider_label");
-  renameKey(c, "primaryFamily", "primary_family");
   renameKey(c, "walletProviderSubject", "wallet_provider_subject");
   renameKey(c, "authMethod", "auth_method");
   renameKey(c, "authValue", "auth_value");
@@ -774,10 +779,6 @@ function svmAddress2(userState) {
   const value = (_a3 = svmBlock(userState)) == null ? void 0 : _a3.address;
   return typeof value === "string" && value.length > 0 ? value : void 0;
 }
-function preferredPublicKey(userState) {
-  var _a3;
-  return (_a3 = address2(userState)) != null ? _a3 : svmAddress2(userState);
-}
 function chainId2(userState) {
   var _a3;
   return parseChainId3((_a3 = evmBlock(userState)) == null ? void 0 : _a3.chain_id);
@@ -898,7 +899,6 @@ var init_user_state = __esm({
       UserState2.address = address2;
       UserState2.evmAddress = evmAddress;
       UserState2.svmAddress = svmAddress2;
-      UserState2.preferredPublicKey = preferredPublicKey;
       UserState2.chainId = chainId2;
       UserState2.ensName = ensName;
       UserState2.aaMode = aaMode;
@@ -2496,14 +2496,34 @@ var init_wallet_utils = __esm({
 });
 
 // src/session/events.ts
+function aomiMessagesEqual(a, b) {
+  if (a === b) return true;
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) {
+    const x = a[i];
+    const y = b[i];
+    if (x.sender !== y.sender || x.content !== y.content || x.timestamp !== y.timestamp || x.is_streaming !== y.is_streaming) {
+      return false;
+    }
+    const xt = x.tool_result;
+    const yt = y.tool_result;
+    if (xt !== yt) {
+      if (!xt || !yt) return false;
+      if (xt[0] !== yt[0] || xt[1] !== yt[1]) return false;
+    }
+  }
+  return true;
+}
 function applySessionState(state, deps) {
   var _a3;
   if (state.user_state) {
     deps.resolveUserState(state.user_state);
   }
   if (state.messages) {
-    deps.setMessages(state.messages);
-    deps.emit("messages", state.messages);
+    if (!aomiMessagesEqual(state.messages, deps.getMessages())) {
+      deps.setMessages(state.messages);
+      deps.emit("messages", state.messages);
+    }
   }
   if (state.title) {
     deps.setTitle(state.title);
@@ -3431,6 +3451,7 @@ var init_session = __esm({
         applySessionState(state, {
           userState: () => this.userState,
           resolveUserState: (userState) => this.resolveUserState(userState),
+          getMessages: () => this._messages,
           setMessages: (messages) => {
             this._messages = messages;
           },
@@ -3488,101 +3509,6 @@ var init_session2 = __esm({
   }
 });
 
-// src/account-session.ts
-function createAccountAccessTokenProvider({
-  baseUrl,
-  getProviderCredential,
-  fetch: fetchImpl = fetch,
-  now = Date.now,
-  refreshBeforeExpiryMs = DEFAULT_REFRESH_BEFORE_EXPIRY_MS
-}) {
-  let cached = null;
-  let pending = null;
-  let refreshTimer = null;
-  let failedAt = null;
-  const listeners = /* @__PURE__ */ new Set();
-  const scheduleRefresh = (session) => {
-    if (refreshTimer) clearTimeout(refreshTimer);
-    const refreshAt = session.expires_at * 1e3 - refreshBeforeExpiryMs;
-    refreshTimer = setTimeout(
-      () => {
-        void getAccountAccessToken({ forceRefresh: true }).catch(
-          () => void 0
-        );
-      },
-      Math.max(refreshAt - now(), 1e3)
-    );
-  };
-  const exchange = async () => {
-    const credential = await getProviderCredential();
-    const response = await fetchImpl(
-      `${baseUrl.replace(/\/+$/, "")}/api/account/exchange`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          provider: credential.provider,
-          provider_token: credential.providerToken
-        })
-      }
-    );
-    if (!response.ok) {
-      throw new Error(
-        `Failed to exchange account credential: HTTP ${response.status}`
-      );
-    }
-    return await response.json();
-  };
-  const getAccountAccessToken = async ({
-    forceRefresh = false
-  } = {}) => {
-    var _a3;
-    const refreshAt = cached ? cached.expires_at * 1e3 - refreshBeforeExpiryMs : 0;
-    if (!forceRefresh && cached && now() < refreshAt) {
-      return cached.access_token;
-    }
-    if (!forceRefresh && failedAt !== null && now() - failedAt < FAILURE_COOLDOWN_MS) {
-      return void 0;
-    }
-    if (!pending) {
-      pending = exchange().then((next) => {
-        failedAt = null;
-        const previous = cached;
-        cached = next;
-        scheduleRefresh(next);
-        if (previous && (previous.access_token !== next.access_token || previous.expires_at !== next.expires_at)) {
-          for (const listener of listeners) listener();
-        }
-        return next;
-      }).catch(() => {
-        failedAt = now();
-        return null;
-      }).finally(() => {
-        pending = null;
-      });
-    }
-    return (_a3 = await pending) == null ? void 0 : _a3.access_token;
-  };
-  getAccountAccessToken.subscribe = (listener) => {
-    listeners.add(listener);
-    return () => listeners.delete(listener);
-  };
-  getAccountAccessToken.dispose = () => {
-    if (refreshTimer) clearTimeout(refreshTimer);
-    refreshTimer = null;
-    listeners.clear();
-  };
-  return getAccountAccessToken;
-}
-var DEFAULT_REFRESH_BEFORE_EXPIRY_MS, FAILURE_COOLDOWN_MS;
-var init_account_session = __esm({
-  "src/account-session.ts"() {
-    "use strict";
-    DEFAULT_REFRESH_BEFORE_EXPIRY_MS = 2 * 60 * 1e3;
-    FAILURE_COOLDOWN_MS = 30 * 1e3;
-  }
-});
-
 // src/cli/client-factory.ts
 function resolveCliBaseUrl(config) {
   var _a3;
@@ -3592,16 +3518,7 @@ function createCliGetAccountAccessToken(config) {
   if (config.accountAccessToken) {
     return async () => config.accountAccessToken;
   }
-  if (!config.accountProvider || !config.accountProviderToken) {
-    return void 0;
-  }
-  return createAccountAccessTokenProvider({
-    baseUrl: resolveCliBaseUrl(config),
-    getProviderCredential: async () => ({
-      provider: config.accountProvider,
-      providerToken: config.accountProviderToken
-    })
-  });
+  return void 0;
 }
 function createCliClient(config, overrides = {}) {
   var _a3, _b;
@@ -3619,7 +3536,6 @@ var DEFAULT_BACKEND_URL;
 var init_client_factory = __esm({
   "src/cli/client-factory.ts"() {
     "use strict";
-    init_account_session();
     init_client();
     DEFAULT_BACKEND_URL = "https://api.aomi.dev";
   }
@@ -3714,8 +3630,7 @@ function buildCliUserState(publicKey, chainId3, options) {
   );
   if (anyConnected) {
     userState.connection = {
-      is_connected: true,
-      primary_family: hasBoth ? "dual" : hasSvm ? "svm" : "evm"
+      is_connected: true
     };
   }
   return UserState.withExt(userState, "client_type", CLIENT_TYPE_TS_CLI);
@@ -3931,7 +3846,10 @@ function parseSessionFileLocalId(filename) {
   return Number.isNaN(localId) ? null : localId;
 }
 function toSessionFilePath(localId) {
-  return join(SESSIONS_DIR, `${SESSION_FILE_PREFIX}${localId}${SESSION_FILE_SUFFIX}`);
+  return join(
+    SESSIONS_DIR,
+    `${SESSION_FILE_PREFIX}${localId}${SESSION_FILE_SUFFIX}`
+  );
 }
 function toCliSessionState(stored) {
   return {
@@ -4144,7 +4062,9 @@ function deleteStoredSession(selector) {
   }
   const activeLocalId = readActiveLocalId();
   if (activeLocalId === target.localId) {
-    const remaining = readAllStoredSessions().sort((a, b) => b.updatedAt - a.updatedAt);
+    const remaining = readAllStoredSessions().sort(
+      (a, b) => b.updatedAt - a.updatedAt
+    );
     writeActiveLocalId((_b = (_a3 = remaining[0]) == null ? void 0 : _a3.localId) != null ? _b : null);
   }
   return toStoredSessionRecord(target);
@@ -4738,9 +4658,8 @@ Available: ${available}`);
             __spreadProps(__spreadValues({}, config), {
               baseUrl: this.state.baseUrl,
               apiKey: this.state.apiKey,
-              // Prefer an explicit or persisted provider exchange config over any
-              // stale bearer so switching auth modes does not get stuck on old
-              // session state.
+              // Provider-token exchange is disabled. Keep the persisted fields for
+              // compatibility, but do not let them create or replace a bearer.
               accountAccessToken: shouldUseProviderExchange ? void 0 : (_c = config.accountAccessToken) != null ? _c : this.state.accountAccessToken,
               accountProvider: effectiveAccountProvider,
               accountProviderToken: effectiveAccountProviderToken
@@ -8206,7 +8125,7 @@ async function loginCommand(config, options) {
   }
 }
 async function whoamiCommand(config) {
-  var _a3, _b;
+  var _a3;
   const cli = CliSession.load();
   if (!cli) {
     console.log("No active session");
@@ -8215,34 +8134,15 @@ async function whoamiCommand(config) {
   }
   cli.mergeConfig(config);
   const state = cli.toState();
-  const accountTokenProvider = createCliGetAccountAccessToken({
-    baseUrl: state.baseUrl,
-    apiKey: state.apiKey,
-    accountAccessToken: state.accountAccessToken,
-    accountProvider: state.accountProvider,
-    accountProviderToken: state.accountProviderToken,
-    app: state.app,
-    execution: config.execution,
-    secrets: {}
-  });
-  const hasCredential = Boolean(
-    (_a3 = state.accountAccessToken) != null ? _a3 : state.accountProvider && state.accountProviderToken
-  );
+  const hasCredential = Boolean(state.accountAccessToken);
   const session = cli.createClientSession(config);
   try {
     const profile = await session.client.fetchAccountProfile(cli.sessionId);
     if (!profile) {
-      const resolvedAccessToken = await (accountTokenProvider == null ? void 0 : accountTokenProvider({
-        forceRefresh: true
-      }));
       console.log("Not bound to an account (anonymous session).");
       if (!hasCredential) {
         console.log(
-          "No account credential configured. Pass --account-bearer, or --account-provider + --account-provider-token."
-        );
-      } else if (state.accountProvider && state.accountProviderToken && !resolvedAccessToken) {
-        console.log(
-          "Configured provider credential could not be exchanged for an Aomi account bearer."
+          "No account credential configured. Pass --account-bearer, or complete account auth through the portal."
         );
       } else {
         console.log(
@@ -8260,7 +8160,7 @@ async function whoamiCommand(config) {
     }
     if (account.tier) console.log(`Tier:     ${account.tier}`);
     if (account.status) console.log(`Status:   ${account.status}`);
-    const wallets = (_b = profile.wallets) != null ? _b : [];
+    const wallets = (_a3 = profile.wallets) != null ? _a3 : [];
     console.log(`Wallets:  ${wallets.length}`);
     for (const wallet of wallets) {
       const walletId = wallet.wallet_id ? ` (${wallet.wallet_id})` : "";
@@ -8287,7 +8187,6 @@ var init_account = __esm({
   "src/cli/commands/account.ts"() {
     "use strict";
     init_cli_session();
-    init_client_factory();
     init_output();
   }
 });
@@ -9312,7 +9211,7 @@ init_shared();
 // package.json
 var package_default = {
   name: "@aomi-labs/client",
-  version: "0.1.41",
+  version: "0.1.42",
   description: "Platform-agnostic TypeScript client for the Aomi backend API",
   type: "module",
   main: "./dist/index.cjs",
@@ -9473,11 +9372,11 @@ function printRootHelp() {
     "  --account-bearer <token>     Aomi account bearer for authenticated requests"
   );
   console.log(
-    "  --account-provider <name>    Upstream auth provider (para | privy)"
+    "  --account-provider <name>    Deprecated; provider exchange is disabled"
   );
   console.log("  --account-provider-token <t>");
   console.log(
-    "                               Provider token exchanged for an Aomi bearer"
+    "                               Deprecated; use --account-bearer"
   );
   console.log("  --app <name>                 Active app");
   console.log("  --model <rig>                Active model");

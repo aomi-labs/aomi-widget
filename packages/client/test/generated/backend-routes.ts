@@ -230,11 +230,6 @@ export const AOMI_BACKEND_ENDPOINTS = [
   },
   {
     method: "POST",
-    path: "/api/account/exchange",
-    auth: "public",
-  },
-  {
-    method: "POST",
     path: "/api/account/payment/byok",
     auth: "canonical_user",
   },

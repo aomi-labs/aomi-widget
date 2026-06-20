@@ -1,8 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo } from "react";
-import { createAccountAccessTokenProvider } from "@aomi-labs/client";
-import { useAomiAuthAdapter } from "@aomi-labs/widget-lib";
+import { useCallback } from "react";
 
 const SETTINGS_SESSION_KEY = "aomi_settings_session_id";
 const SECRET_STORAGE_KEY = "aomi_secret_key";
@@ -111,66 +109,12 @@ export async function settingsApiFetch<T>(
 }
 
 export function useAccountApiFetch() {
-  const { getAccountCredential } = useAomiAuthAdapter();
-  const backendUrl = getBackendUrl();
-  const nativeFetch = useMemo(() => globalThis.fetch.bind(globalThis), []);
-  const accountAccessTokenProvider = useMemo(() => {
-    if (!getAccountCredential) {
-      return undefined;
-    }
-    return createAccountAccessTokenProvider({
-      baseUrl: backendUrl,
-      getProviderCredential: async () => {
-        const credential = await getAccountCredential();
-        if (!credential) {
-          throw new Error("Account credential is not available");
-        }
-        return credential;
-      },
-      fetch: nativeFetch,
-    });
-  }, [backendUrl, getAccountCredential, nativeFetch]);
-
-  useEffect(
-    () => () => {
-      accountAccessTokenProvider?.dispose();
-    },
-    [accountAccessTokenProvider],
-  );
-
   return useCallback(
     async <T>(path: string, options?: RequestInit): Promise<T> => {
-      if (!accountAccessTokenProvider) {
-        throw new Error("Connect your account to continue.");
-      }
-
-      const send = async (forceRefresh: boolean): Promise<Response> => {
-        const token = await accountAccessTokenProvider({ forceRefresh });
-        if (!token) {
-          throw new Error("Account token is not available.");
-        }
-        const headers = new Headers(options?.headers ?? {});
-        headers.set("Authorization", `Bearer ${token}`);
-        if (!headers.has("Content-Type") && options?.body) {
-          headers.set("Content-Type", "application/json");
-        }
-        return fetch(`${getBackendUrl()}${path}`, {
-          ...options,
-          headers,
-          cache: "no-store",
-        });
-      };
-
-      let response = await send(false);
-      if (response.status === 401) {
-        response = await send(true);
-      }
-      if (!response.ok) {
-        const text = await response.text();
-        throw new Error(text || `Request failed: ${response.status}`);
-      }
-      return (await response.json()) as T;
+      void path;
+      void options;
+      throw new Error("Account settings require the portal account bridge.");
     },
-    [accountAccessTokenProvider],
+    [],
   );
 }

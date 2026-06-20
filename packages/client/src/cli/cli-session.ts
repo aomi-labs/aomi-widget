@@ -485,9 +485,8 @@ export class CliSession {
           ...config,
           baseUrl: this.state.baseUrl,
           apiKey: this.state.apiKey,
-          // Prefer an explicit or persisted provider exchange config over any
-          // stale bearer so switching auth modes does not get stuck on old
-          // session state.
+          // Provider-token exchange is disabled. Keep the persisted fields for
+          // compatibility, but do not let them create or replace a bearer.
           accountAccessToken: shouldUseProviderExchange
             ? undefined
             : (config.accountAccessToken ?? this.state.accountAccessToken),

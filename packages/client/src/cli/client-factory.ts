@@ -1,4 +1,3 @@
-import { createAccountAccessTokenProvider } from "../account-session";
 import { AomiClient } from "../client";
 import type { GetAccountAccessToken } from "../types";
 import type { CliConfig } from "./types";
@@ -10,9 +9,7 @@ type CliClientOverrides = {
   baseUrl?: string;
 };
 
-export function resolveCliBaseUrl(
-  config: Pick<CliConfig, "baseUrl">,
-): string {
+export function resolveCliBaseUrl(config: Pick<CliConfig, "baseUrl">): string {
   return config.baseUrl ?? DEFAULT_BACKEND_URL;
 }
 
@@ -23,17 +20,7 @@ export function createCliGetAccountAccessToken(
     return async () => config.accountAccessToken;
   }
 
-  if (!config.accountProvider || !config.accountProviderToken) {
-    return undefined;
-  }
-
-  return createAccountAccessTokenProvider({
-    baseUrl: resolveCliBaseUrl(config),
-    getProviderCredential: async () => ({
-      provider: config.accountProvider!,
-      providerToken: config.accountProviderToken!,
-    }),
-  });
+  return undefined;
 }
 
 export function createCliClient(

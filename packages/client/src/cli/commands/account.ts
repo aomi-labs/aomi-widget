@@ -1,5 +1,4 @@
 import { CliSession } from "../cli-session";
-import { createCliGetAccountAccessToken } from "../client-factory";
 import { printDataFileLocation } from "../output";
 import type { CliConfig } from "../types";
 
@@ -46,41 +45,17 @@ export async function whoamiCommand(config: CliConfig): Promise<void> {
   cli.mergeConfig(config);
 
   const state = cli.toState();
-  const accountTokenProvider = createCliGetAccountAccessToken({
-    baseUrl: state.baseUrl,
-    apiKey: state.apiKey,
-    accountAccessToken: state.accountAccessToken,
-    accountProvider: state.accountProvider,
-    accountProviderToken: state.accountProviderToken,
-    app: state.app,
-    execution: config.execution,
-    secrets: {},
-  });
-  const hasCredential = Boolean(
-    state.accountAccessToken ??
-    (state.accountProvider && state.accountProviderToken),
-  );
+  const hasCredential = Boolean(state.accountAccessToken);
 
   const session = cli.createClientSession(config);
   try {
     const profile = await session.client.fetchAccountProfile(cli.sessionId);
     if (!profile) {
-      const resolvedAccessToken = await accountTokenProvider?.({
-        forceRefresh: true,
-      });
       console.log("Not bound to an account (anonymous session).");
       if (!hasCredential) {
         console.log(
           "No account credential configured. Pass --account-bearer, or " +
-            "--account-provider + --account-provider-token.",
-        );
-      } else if (
-        state.accountProvider &&
-        state.accountProviderToken &&
-        !resolvedAccessToken
-      ) {
-        console.log(
-          "Configured provider credential could not be exchanged for an Aomi account bearer.",
+            "complete account auth through the portal.",
         );
       } else {
         console.log(

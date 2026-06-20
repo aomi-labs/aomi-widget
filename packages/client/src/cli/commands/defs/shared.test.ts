@@ -38,7 +38,9 @@ describe("buildCliConfig", () => {
   });
 
   it("fails when the provided public key mismatches the derived signer address", () => {
-    const stderr = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const stderr = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => undefined);
 
     expect(() =>
       buildCliConfig({
@@ -77,7 +79,7 @@ describe("buildCliConfig", () => {
     expect(config.accountProviderToken).toBeUndefined();
   });
 
-  it("reads account provider exchange config from environment", () => {
+  it("reads legacy account provider config from environment", () => {
     process.env.AOMI_ACCOUNT_PROVIDER = "privy";
     process.env.AOMI_ACCOUNT_PROVIDER_TOKEN = "privy-token";
 
@@ -89,7 +91,9 @@ describe("buildCliConfig", () => {
   });
 
   it("rejects partial account provider config", () => {
-    const stderr = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const stderr = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => undefined);
 
     expect(() =>
       buildCliConfig({
@@ -100,8 +104,10 @@ describe("buildCliConfig", () => {
     expect(stderr).toHaveBeenCalled();
   });
 
-  it("rejects mixing account bearer and provider exchange config", () => {
-    const stderr = vi.spyOn(console, "error").mockImplementation(() => undefined);
+  it("rejects mixing account bearer and legacy provider config", () => {
+    const stderr = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => undefined);
 
     expect(() =>
       buildCliConfig({
