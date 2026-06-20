@@ -463,6 +463,15 @@ export function WalletPicker() {
     await adapter.signOutAccount?.();
   }, [adapter]);
 
+  const deleteAccount = useCallback(async () => {
+    const confirmed = window.confirm(
+      "Delete this Aomi account? Linked wallets and sign-ins will be freed for a new account.",
+    );
+    if (!confirmed) return;
+    await adapter.disconnect?.({ family: "all" });
+    await adapter.deleteAccount?.();
+  }, [adapter]);
+
   const quickSignInSection = socialOptionsToShow.length ? (
     <section className="flex flex-col gap-1.5">
       <SectionLabel>Quick sign-in</SectionLabel>
@@ -886,6 +895,7 @@ export function WalletPicker() {
               supportedEvmChains={supportedEvmChains}
               canManageProvider={canManageAccounts}
               canSignOut={Boolean(adapter.signOutAccount || adapter.disconnect)}
+              canDeleteAccount={Boolean(adapter.deleteAccount)}
               onBack={() => setView("wallets")}
               onClose={closePicker}
               onRenameWallet={
@@ -930,6 +940,9 @@ export function WalletPicker() {
               }
               onSignOut={() =>
                 void runAction("account:signout", signOutAccount, true)
+              }
+              onDeleteAccount={() =>
+                void runAction("account:delete", deleteAccount, true)
               }
               onOpenProviderUI={() =>
                 void runAction("manage:account", async () => {
@@ -1138,6 +1151,7 @@ function AccountManagerPanel({
   supportedEvmChains,
   canManageProvider,
   canSignOut,
+  canDeleteAccount,
   onBack,
   onClose,
   onRenameAccount,
@@ -1146,6 +1160,7 @@ function AccountManagerPanel({
   onUnlinkWallet,
   onUnlinkAccount,
   onSignOut,
+  onDeleteAccount,
   onOpenProviderUI,
 }: {
   inertPanel: boolean;
@@ -1161,6 +1176,7 @@ function AccountManagerPanel({
   supportedEvmChains: readonly SupportedEvmChain[];
   canManageProvider: boolean;
   canSignOut: boolean;
+  canDeleteAccount: boolean;
   onBack: () => void;
   onClose: () => void;
   onRenameAccount?: NonNullable<AomiWalletKit["updateAccount"]>;
@@ -1169,6 +1185,7 @@ function AccountManagerPanel({
   onUnlinkWallet?: NonNullable<AomiWalletKit["unlinkLinkedWallet"]>;
   onUnlinkAccount?: NonNullable<AomiWalletKit["unlinkLinkedAccount"]>;
   onSignOut: () => void;
+  onDeleteAccount: () => void;
   onOpenProviderUI: () => void;
 }) {
   const [editingWalletId, setEditingWalletId] = useState<string | null>(null);
@@ -1490,6 +1507,30 @@ function AccountManagerPanel({
               </span>
             </span>
             {pending === "account:signout" ? (
+              <Loader2Icon className="size-4 shrink-0 animate-spin" />
+            ) : null}
+          </button>
+        ) : null}
+
+        {canDeleteAccount ? (
+          <button
+            type="button"
+            onClick={onDeleteAccount}
+            disabled={pending !== null}
+            className="border-destructive/40 bg-background text-destructive hover:bg-destructive/10 flex items-center gap-3 rounded-2xl border px-3 py-2.5 text-left transition-colors disabled:pointer-events-none disabled:opacity-50"
+          >
+            <span className="bg-destructive/10 flex size-9 shrink-0 items-center justify-center rounded-xl">
+              <Trash2Icon className="size-4" />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block truncate text-sm font-medium">
+                Delete account
+              </span>
+              <span className="block truncate text-[11px] opacity-80">
+                Free linked wallets and sign-ins
+              </span>
+            </span>
+            {pending === "account:delete" ? (
               <Loader2Icon className="size-4 shrink-0 animate-spin" />
             ) : null}
           </button>

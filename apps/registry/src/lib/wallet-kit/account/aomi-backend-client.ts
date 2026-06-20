@@ -18,6 +18,12 @@ export type AomiBackendLinkWalletResponse = {
   account?: AomiBackendAccountResponse;
 };
 
+export type AomiBackendDeleteAccountResponse = {
+  status: "deactivated";
+  revokedIdentities: number;
+  revokedWallets: number;
+};
+
 export type AomiBackendNonceResponse = {
   nonce: string;
   domain?: string;
@@ -76,6 +82,10 @@ export function createAomiBackendAccountClient(input: {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
+      }),
+    deleteAccount: () =>
+      request<AomiBackendDeleteAccountResponse>(endpoints.accountPath, {
+        method: "DELETE",
       }),
     signOut: () => request(endpoints.signOutPath, { method: "POST" }),
     exchangeProviderCredential: (

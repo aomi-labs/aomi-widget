@@ -1,6 +1,9 @@
 // =============================================================================
-// Privy provider — Aomi-owned Privy app login.
+// Privy provider — legacy MCP approval-auth Privy app login.
 // =============================================================================
+//
+// @deprecated This module belongs to the old MCP approval-auth flow. Active
+// Privy account/provider verification lives in `packages/auth/src/providers`.
 //
 // Variant A in the design: Alice authenticates with Privy through *Aomi's*
 // Privy app. Her embedded wallet lives under Aomi's app, so Aomi BE can sign
@@ -35,16 +38,20 @@
 //
 // What's deliberately NOT here (separate PRs):
 //
-//   * The /auth/privy/login Next.js page. That belongs to the portal app
-//     (apps/portal/...), not to this package. The page hosts the React SDK
-//     and POSTs to /api/mcp-auth/privy/callback with the fields above.
+//   * The portal login page. This package only provides legacy callback helpers
+//     for callers that still mount an MCP approval-auth route set.
 //
 //   * The authorization-key-as-owner upgrade that lets Aomi BE sign for
 //     Alice's wallet when she's offline. That's a Privy API call against
 //     the wallet (configures an Aomi-controlled P-256 key as an owner) and
 //     is a BE-side concern, not a provider concern.
 
-import { importSPKI, jwtVerify } from "jose";
+import {
+  createPrivyAccessTokenVerifier,
+  type PrivyAccessTokenVerifierConfig,
+  type VerifiedPrivyAccessToken,
+  type VerifyPrivyAccessToken,
+} from "../../providers/privy";
 import type {
   ProviderCallbackRequest,
   ProviderCallbackResponse,
@@ -53,15 +60,10 @@ import type {
   ProviderStartResponse,
 } from "./types";
 
-export interface VerifiedPrivyAccessToken {
-  userId: string;
-  sessionId: string;
-  expiration: number;
-}
-
-export type VerifyPrivyAccessToken = (
-  accessToken: string,
-) => Promise<VerifiedPrivyAccessToken>;
+export type {
+  VerifiedPrivyAccessToken,
+  VerifyPrivyAccessToken,
+} from "../../providers/privy";
 
 export interface PrivyProviderConfig {
   /** Aomi's Privy app ID. Surfaces in the `start` redirect so the portal
@@ -73,9 +75,8 @@ export interface PrivyProviderConfig {
    *  corresponding private key remains server-side. */
   signerId?: string;
 
-  /** Optional override of where the portal hosts the login page. Defaults
-   *  to `${baseUrl}/auth/privy`. Override in tests or if the portal moves
-   *  the page. */
+  /** Optional override of where a legacy caller hosts the login page. Defaults
+   *  to `${baseUrl}/auth/privy` for backward compatibility. */
   loginPagePath?: string;
 
   /** Verifies the browser-provided Privy access token on the server. The
@@ -83,47 +84,21 @@ export interface PrivyProviderConfig {
   verifyAccessToken: VerifyPrivyAccessToken;
 }
 
-export interface PrivyJwtVerifierConfig {
-  /** Aomi's Privy app ID. Checked against the JWT audience. */
-  appId: string;
+/** @deprecated Use `createPrivyAccessTokenVerifier` from
+ * `@aomi-labs/auth/providers`. */
+export type PrivyJwtVerifierConfig = PrivyAccessTokenVerifierConfig;
 
-  /** SPKI public key copied from the Privy dashboard. */
-  jwtVerificationKey: string;
-}
-
-/** Build a verifier for Privy's ES256 access tokens. Privy documents
- *  issuer `privy.io` and the app ID audience as required checks. */
+/** @deprecated Use `createPrivyAccessTokenVerifier` from
+ * `@aomi-labs/auth/providers`. */
 export function makePrivyJwtVerifier(
   config: PrivyJwtVerifierConfig,
 ): VerifyPrivyAccessToken {
-  const verificationKey = importSPKI(config.jwtVerificationKey, "ES256");
-
-  return async (accessToken: string): Promise<VerifiedPrivyAccessToken> => {
-    const { payload } = await jwtVerify(accessToken, await verificationKey, {
-      algorithms: ["ES256"],
-      audience: config.appId,
-      issuer: "privy.io",
-    });
-    if (
-      typeof payload.sub !== "string" ||
-      typeof payload.sid !== "string" ||
-      typeof payload.exp !== "number"
-    ) {
-      throw new Error(
-        "privy callback: access token is missing required claims",
-      );
-    }
-    return {
-      userId: payload.sub,
-      sessionId: payload.sid,
-      expiration: payload.exp,
-    };
-  };
+  return createPrivyAccessTokenVerifier(config);
 }
 
-/** Fields the portal-hosted login page POSTs to /api/mcp-auth/privy/callback
- *  after Alice completes login. Snake_case to match the rest of the auth
- *  HTTP surface (begin/await use snake_case wire fields). */
+/** Fields a legacy login page POSTs to /api/mcp-auth/privy/callback after
+ * Alice completes login. Snake_case to match the rest of the approval-auth HTTP
+ * surface (begin/await use snake_case wire fields). */
 interface PrivyCallbackBody {
   state: string;
   access_token: string;
@@ -132,6 +107,7 @@ interface PrivyCallbackBody {
   wallet_address: string;
 }
 
+/** @deprecated Use account/provider auth under `@aomi-labs/auth/providers`. */
 export function makePrivyProvider(config: PrivyProviderConfig): ProviderModule {
   const loginPath = config.loginPagePath ?? "/auth/privy";
 

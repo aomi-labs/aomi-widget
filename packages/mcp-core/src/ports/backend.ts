@@ -10,7 +10,7 @@
 // Concurrency: v1 does not lock per user; concurrent calls for the same
 // user race on the shared BE session. Acceptable until UX demands serial.
 
-import type { UserId } from "@aomi-labs/auth";
+type UserId = string;
 
 /** Subset of `PendingTx`/`PendingSolTx` exposed to Claude. Drops opaque
  *  backend-only fields (txId, eip712Id, payload). */

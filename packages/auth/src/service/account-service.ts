@@ -5,6 +5,7 @@ import {
   clearAomiBetterAuthUserIds,
   countLoginFactors,
   createAomiUserForBetterAuth,
+  deactivateAomiUser,
   deleteBetterAuthSiweWallet,
   findAuthIdentityById,
   findAomiUserById,
@@ -14,6 +15,8 @@ import {
   listBetterAuthSiweWallets,
   listWalletsForUser,
   logAccountEvent,
+  revokeAllAuthIdentitiesForUser,
+  revokeAllWalletsForUser,
   revokeAuthIdentity,
   revokeWallet,
   runAomiAuthSchema,
@@ -644,6 +647,55 @@ export async function updateAccountProfile(input: {
       displayName: input.displayName === undefined ? undefined : "[updated]",
       avatarUrl: input.avatarUrl ? "[updated]" : null,
     },
+  });
+}
+
+export type DeactivateAomiAccountResult =
+  | {
+      status: "deactivated";
+      revokedIdentities: number;
+      revokedWallets: number;
+    }
+  | { status: "not_found" };
+
+export async function deactivateAomiAccount(input: {
+  userId: AomiUserId;
+}): Promise<DeactivateAomiAccountResult> {
+  await ensureAccountSchema();
+  return withTransaction(async (db) => {
+    const user = await findAomiUserById(input.userId, db);
+    if (!user) return { status: "not_found" };
+
+    const revokedIdentities = await revokeAllAuthIdentitiesForUser({
+      userId: input.userId,
+      db,
+    });
+    const revokedWallets = await revokeAllWalletsForUser({
+      userId: input.userId,
+      db,
+    });
+    const deactivated = await deactivateAomiUser({
+      userId: input.userId,
+      db,
+    });
+    if (!deactivated) return { status: "not_found" };
+
+    await logAccountEvent({
+      userId: input.userId,
+      actorUserId: input.userId,
+      eventType: "account.deactivated",
+      data: {
+        revokedIdentities,
+        revokedWallets,
+        hadBetterAuthUserId: Boolean(user.betterAuthUserId),
+      },
+      db,
+    });
+    return {
+      status: "deactivated",
+      revokedIdentities,
+      revokedWallets,
+    };
   });
 }
 
