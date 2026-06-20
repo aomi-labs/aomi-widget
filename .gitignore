@@ -53,3 +53,4 @@ next-env.d.ts
 
 **/.specstory/*
 .env*.local
+.kiro/
