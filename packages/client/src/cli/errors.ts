@@ -1,13 +1,3 @@
-export class DeployCliError extends Error {
-  constructor(
-    public errorCode: string,
-    message: string,
-  ) {
-    super(message);
-    this.name = "DeployCliError";
-  }
-}
-
 export function mapDeployHttpError(status: number, message: string): DeployCliError {
   if (status === 401 || status === 403) {
     return new DeployCliError("AUTH_FAILED", message);
