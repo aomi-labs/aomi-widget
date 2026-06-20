@@ -40,6 +40,7 @@ jobs:
         run: pnpm run test
 
       - name: Check live backend OpenAPI contract
+        if: vars.NEXT_PUBLIC_BACKEND_URL != ''
         run: pnpm run test:openapi:live
         env:
           NEXT_PUBLIC_BACKEND_URL: ${{ vars.NEXT_PUBLIC_BACKEND_URL }}
