@@ -144,6 +144,18 @@ export function Onboarding() {
     [state, update],
   );
 
+  const makeOnReset = useCallback(
+    (path: OnboardingPath) => () => {
+      if (typeof window === "undefined") return;
+      const url = new URL(window.location.href);
+      url.searchParams.delete("deployment_id");
+      url.searchParams.delete("deploy_path");
+      window.history.replaceState({}, "", url.toString());
+      update(withProgress(state, path, { deploymentId: undefined, live: false }));
+    },
+    [state, update],
+  );
+
   // Save progress before opening GitHub in a new tab. The redirect will
   // land in the new tab and write the result to localStorage; the polling
   // effect above picks it up in this tab.
@@ -195,6 +207,7 @@ export function Onboarding() {
           installing={installingPath === "oneshot"}
           installError={installError}
           patch={makePatch("oneshot")}
+          onReset={makeOnReset("oneshot")}
         />
       </>
     );
@@ -212,6 +225,7 @@ export function Onboarding() {
         installing={installingPath === "bootstrap"}
         installError={installError}
         patch={makePatch("bootstrap")}
+        onReset={makeOnReset("bootstrap")}
       />
     </>
   );

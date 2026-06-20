@@ -36,6 +36,7 @@ export function OneshotWizard({
   installing,
   installError,
   patch,
+  onReset,
 }: {
   progress: PathProgress;
   actor?: string;
@@ -45,6 +46,7 @@ export function OneshotWizard({
   installing?: boolean;
   installError?: string | null;
   patch: (patch: Partial<PathProgress>) => void;
+  onReset?: () => void;
 }) {
   const step = oneshotStep(progress);
   const installStatus = installationStatusLabel(progress.installationStatus);
@@ -171,6 +173,7 @@ export function OneshotWizard({
             actor={actor}
             progress={progress}
             onProgress={patch}
+            onReset={onReset}
           />
         </div>
       )}
@@ -178,6 +181,7 @@ export function OneshotWizard({
       {step === "live" && (
         <LivePanel
           repo={progress.repo}
+          applicationId={progress.applicationId}
           chatUrl={progress.apps?.[0] ? chatAppUrl(progress.apps[0]) : undefined}
         />
       )}
