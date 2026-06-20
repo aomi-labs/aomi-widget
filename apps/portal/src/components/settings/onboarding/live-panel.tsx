@@ -8,9 +8,11 @@ import { TEMPLATE_REPO_URL } from "@portal/lib/onboarding";
 export function LivePanel({
   repo,
   chatUrl,
+  applicationId,
 }: {
   repo?: string;
   chatUrl?: string;
+  applicationId?: string;
 }) {
   const repoUrl = repo ? `https://github.com/${repo}` : TEMPLATE_REPO_URL;
   const dir = repo ? repo.split("/")[1] : "playground-example";

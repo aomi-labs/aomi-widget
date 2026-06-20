@@ -32,6 +32,7 @@ export function BootstrapWizard({
   installing,
   installError,
   patch,
+  onReset,
 }: {
   progress: PathProgress;
   actor?: string;
@@ -41,6 +42,7 @@ export function BootstrapWizard({
   installing?: boolean;
   installError?: string | null;
   patch: (patch: Partial<PathProgress>) => void;
+  onReset?: () => void;
 }) {
   const step = bootstrapStep(progress);
   const installStatus = installationStatusLabel(progress.installationStatus);
@@ -249,6 +251,7 @@ export function BootstrapWizard({
             progress={progress}
             onProgress={patch}
             onReconnectInstall={beginAuthorize}
+            onReset={onReset}
           />
         </div>
       )}
@@ -256,6 +259,7 @@ export function BootstrapWizard({
       {step === "live" && (
         <LivePanel
           repo={progress.repo}
+          applicationId={progress.applicationId}
           chatUrl={progress.apps?.[0] ? chatAppUrl(progress.apps[0]) : undefined}
         />
       )}
