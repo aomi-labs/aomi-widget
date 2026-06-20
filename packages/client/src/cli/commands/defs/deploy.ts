@@ -1,15 +1,17 @@
 import { defineCommand } from "citty";
-import { globalArgs } from "./shared";
 import { statusDef } from "./status";
 import { activateDef } from "./activate";
 
 export const deployDef = defineCommand({
   meta: {
     name: "deploy",
-    description: "Deploy your app to the Aomi platform via aomi-build",
+    description: "Deploy your app to the Aomi platform",
   },
   args: {
-    ...globalArgs,
+    "backend-url": {
+      type: "string",
+      description: "Backend URL (default: https://api.aomi.dev)",
+    },
     "activation-token": {
       type: "string",
       description:
