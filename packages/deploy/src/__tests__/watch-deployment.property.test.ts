@@ -44,6 +44,7 @@ async function runWatch(
   states: string[],
   signal?: AbortSignal,
 ): Promise<DeploymentProgressEvent[]> {
+  vi.useFakeTimers();
   const events: DeploymentProgressEvent[] = [];
   const fetchMock = mockStatusSequence(states);
   vi.stubGlobal("fetch", fetchMock);
@@ -60,10 +61,6 @@ async function runWatch(
 
 // Feature: deploy-flow-production-ready, Property 1: watchDeployment terminates on terminal state
 describe("Property 1 — terminates on terminal state", () => {
-  beforeEach(() => {
-    vi.useFakeTimers();
-  });
-
   it("always emits a terminal event last and stops polling after it", () => {
     fc.assert(
       fc.asyncProperty(
@@ -93,10 +90,6 @@ describe("Property 1 — terminates on terminal state", () => {
 
 // Feature: deploy-flow-production-ready, Property 2: Every emitted event carries valid ProgressModel
 describe("Property 2 — every event has a valid ProgressModel", () => {
-  beforeEach(() => {
-    vi.useFakeTimers();
-  });
-
   it("all progress events carry a valid ProgressModel", () => {
     fc.assert(
       fc.asyncProperty(
@@ -125,10 +118,6 @@ describe("Property 2 — every event has a valid ProgressModel", () => {
 
 // Feature: deploy-flow-production-ready, Property 3: ProgressModel.completed is monotonically non-decreasing
 describe("Property 3 — monotonically non-decreasing completed", () => {
-  beforeEach(() => {
-    vi.useFakeTimers();
-  });
-
   it("completed never decreases across successive events", () => {
     fc.assert(
       fc.asyncProperty(
