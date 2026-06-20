@@ -15,6 +15,7 @@ import {
   oneshotStep,
   type PathProgress,
 } from "@portal/lib/onboarding";
+import { chatAppUrl } from "@portal/lib/chat-url";
 import { Stepper } from "./stepper";
 import { DeployStep } from "./deploy-step";
 import { LivePanel } from "./live-panel";
@@ -177,11 +178,7 @@ export function OneshotWizard({
       {step === "live" && (
         <LivePanel
           repo={progress.repo}
-          chatUrl={
-            progress.apps?.[0]
-              ? `https://chat.aomi.dev?app=${encodeURIComponent(progress.apps[0])}`
-              : undefined
-          }
+          chatUrl={progress.apps?.[0] ? chatAppUrl(progress.apps[0]) : undefined}
         />
       )}
     </div>
