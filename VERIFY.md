@@ -171,7 +171,7 @@ After merging, the GitHub Actions `build-and-lint` check must:
 
 ```bash
 # Verify error response shape (replace with real values)
-curl -s https://staging-api.aomi.dev/api/platforms/community/deploy \
+curl -s https://api-staging.aomi.dev/api/platforms/community/deploy \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer <token>" \
   -d '{"app_source_id": 99999}' \

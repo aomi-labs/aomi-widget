@@ -3,7 +3,7 @@
 // =============================================================================
 
 export interface AomiConfig {
-  /** Backend base URL, e.g. "https://staging-api.aomi.dev". */
+  /** Backend base URL, e.g. "https://api-staging.aomi.dev". */
   backendUrl: string;
   /** Bearer token for platform/app activation. Server-side only. */
   activationToken: string;
