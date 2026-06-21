@@ -172,7 +172,7 @@ describe("DeploymentClient.activate", () => {
   afterEach(() => vi.unstubAllGlobals());
 
   it("POSTs one release-tags activation request and maps partial failures", async () => {
-    const result = await client().activate({
+    const promise = client().activate({
       platform: "community",
       target: {
         kind: "release_tags",
@@ -180,6 +180,12 @@ describe("DeploymentClient.activate", () => {
       },
       apps: ["demo", "broken"],
       targetTags: ["staging"],
+    });
+
+    await expect(promise).rejects.toThrow(DeployError);
+    await expect(promise).rejects.toMatchObject({
+      code: "ACTIVATION",
+      reason: [{ app: "broken", error: "release artifact not found" }],
     });
 
     const [url, init] = fetchMock.mock.calls[0];
@@ -193,17 +199,6 @@ describe("DeploymentClient.activate", () => {
       },
       apps: ["demo", "broken"],
       target_tags: ["staging"],
-    });
-    expect(result.ok).toBe(false);
-    expect(result.activation.target.platformRepo).toBe(
-      "aomi-labs/community-apps",
-    );
-    expect(result.activation.target.promoted).toEqual([]);
-    expect(result.activation.apps[1]).toMatchObject({
-      name: "broken",
-      isActive: false,
-      loaded: false,
-      error: "release artifact not found",
     });
   });
 

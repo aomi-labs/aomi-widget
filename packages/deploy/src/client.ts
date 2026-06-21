@@ -69,9 +69,13 @@ export class DeploymentClient {
     );
     const cameled = camelActivateResult(result);
     if (!cameled.ok) {
+      const partialErrors = cameled.activation.apps
+        .filter((a) => a.error)
+        .map((a) => ({ app: a.name, error: a.error }));
       throw new DeployError(
         "ACTIVATION",
         `activate rejected by backend (status ${cameled.activation.status})`,
+        partialErrors.length ? partialErrors : undefined,
       );
     }
     await this.audit({
