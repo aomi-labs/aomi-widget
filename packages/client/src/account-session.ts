@@ -1,4 +1,4 @@
-import type { GetAccountAccessToken } from "./types";
+import type { GetAccountBearer } from "./types";
 
 export type AccountCredentialProvider = () => Promise<{
   provider: "para" | "privy";
@@ -12,7 +12,7 @@ export type AccountSessionExchangeResponse = {
   user_id: string;
 };
 
-export type AccountAccessTokenProviderOptions = {
+export type AccountBearerProviderOptions = {
   baseUrl: string;
   getProviderCredential: AccountCredentialProvider;
   fetch?: typeof fetch;
@@ -20,36 +20,35 @@ export type AccountAccessTokenProviderOptions = {
   refreshBeforeExpiryMs?: number;
 };
 
-export type AccountAccessTokenProvider = GetAccountAccessToken & {
+export type AccountBearerProvider = GetAccountBearer & {
   subscribe: (listener: () => void) => () => void;
   dispose: () => void;
 };
 
 /**
- * Legacy compatibility shim.
+ * No-op compatibility shim.
  *
- * The backend provider-token exchange route was removed. Until the portal BFF
- * account bridge exists, provider credentials cannot be converted into Aomi
- * account bearers from the browser or CLI. Static account bearer support still
- * works through `getAccountAccessToken` callers that provide one directly.
+ * Account identity is minted in the **portal BFF** and verified by the backend
+ * (see the AccountBearer contract); the browser must not exchange a provider
+ * token for a bearer, and there is no backend `/api/account/sessions/exchange`
+ * route. This provider yields no token — a caller that supplies a static bearer
+ * directly still works through `getAccountBearer`.
  */
-export function createAccountAccessTokenProvider(
-  _options: AccountAccessTokenProviderOptions,
-): AccountAccessTokenProvider {
+export function createAccountBearerProvider(
+  _options: AccountBearerProviderOptions,
+): AccountBearerProvider {
   const listeners = new Set<() => void>();
 
-  const getAccountAccessToken: AccountAccessTokenProvider = async ({
+  const getAccountBearer: AccountBearerProvider = async ({
     forceRefresh: _forceRefresh = false,
-  } = {}) => {
-    return undefined;
-  };
+  } = {}) => undefined;
 
-  getAccountAccessToken.subscribe = (listener) => {
+  getAccountBearer.subscribe = (listener) => {
     listeners.add(listener);
     return () => listeners.delete(listener);
   };
-  getAccountAccessToken.dispose = () => {
+  getAccountBearer.dispose = () => {
     listeners.clear();
   };
-  return getAccountAccessToken;
+  return getAccountBearer;
 }

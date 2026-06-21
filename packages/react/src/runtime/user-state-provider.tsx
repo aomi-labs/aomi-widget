@@ -107,13 +107,20 @@ function getLegacySessionPublicKey(userState: UserState): string | undefined {
 function useWalletStateSync(
   context: Pick<
     RuntimeUserStateContext,
-    "getCurrentThreadApp" | "getUserState" | "onUserStateChange" | "threadContextRef"
+    | "getCurrentThreadApp"
+    | "getUserState"
+    | "onUserStateChange"
+    | "threadContextRef"
   >,
   aomiClientRef: MutableRefObject<AomiClient>,
   registry: ThreadRegistry,
 ) {
-  const { getCurrentThreadApp, getUserState, onUserStateChange, threadContextRef } =
-    context;
+  const {
+    getCurrentThreadApp,
+    getUserState,
+    onUserStateChange,
+    threadContextRef,
+  } = context;
 
   const walletSnapshot = useCallback(
     (nextUser: ReturnType<typeof getUserState>) => ({
@@ -278,9 +285,9 @@ function useRemoteThreadListSync(
       previousAddress !== normalizedUserAddress;
 
     if (!userAddress) {
-      // Solana-only or family-focused states do not have a legacy EVM
-      // `public_key`. Keep the active chat/session visible; SVM wallet
-      // context is carried through user_state and the wallet-context API.
+      // Solana-only or family-focused states may not expose an EVM address.
+      // Keep the active chat/session visible; wallet context is carried
+      // through user_state and the wallet-context API.
       if (isConnected) {
         lastConnectedAddressRef.current = undefined;
         setIsThreadListLoading(false);
@@ -328,10 +335,8 @@ function useRemoteThreadListSync(
           getControlState().clientId,
           currentContext.currentThreadId,
         );
-        const threadList = await aomiClientRef.current.listThreads(
-          controlSessionId,
-          userAddress,
-        );
+        const threadList =
+          await aomiClientRef.current.listThreads(controlSessionId);
         if (cancelled) return;
 
         const remoteThreadIds = new Set<string>();

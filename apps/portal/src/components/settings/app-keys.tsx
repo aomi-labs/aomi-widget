@@ -104,10 +104,7 @@ export function AppKeys() {
   const loadApps = useCallback(async () => {
     setLoadingApps(true);
     try {
-      const path = identity.address
-        ? `/api/session/apps?public_key=${encodeURIComponent(identity.address)}`
-        : "/api/session/apps";
-      const data = await settingsApiFetch<AppOption[]>(path);
+      const data = await settingsApiFetch<AppOption[]>("/api/session/apps");
       const normalized = normalizeAppOptions(data ?? []);
       setAvailableApps(normalized);
       setSelectedApps((previous) => {
@@ -126,7 +123,7 @@ export function AppKeys() {
     } finally {
       setLoadingApps(false);
     }
-  }, [identity.address]);
+  }, [settingsApiFetch]);
 
   useEffect(() => {
     void Promise.all([loadAppKeys(), loadApps()]);

@@ -1,10 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { createAccountAccessTokenProvider } from "../src/index";
+import { createAccountBearerProvider } from "../src/index";
 
 const BASE_URL = "https://api.aomi.dev";
 
-describe("createAccountAccessTokenProvider", () => {
+describe("createAccountBearerProvider", () => {
   it("does not call the removed backend provider-token exchange route", async () => {
     const fetchImpl = vi.fn();
     const getProviderCredential = vi.fn(async () => ({
@@ -12,7 +12,7 @@ describe("createAccountAccessTokenProvider", () => {
       providerToken: "privy-jwt",
     }));
 
-    const provider = createAccountAccessTokenProvider({
+    const provider = createAccountBearerProvider({
       baseUrl: BASE_URL,
       getProviderCredential,
       fetch: fetchImpl as unknown as typeof fetch,
@@ -27,7 +27,7 @@ describe("createAccountAccessTokenProvider", () => {
   });
 
   it("keeps subscribe/dispose compatibility for callers that still hold the shim", () => {
-    const provider = createAccountAccessTokenProvider({
+    const provider = createAccountBearerProvider({
       baseUrl: BASE_URL,
       getProviderCredential: async () => ({
         provider: "para" as const,

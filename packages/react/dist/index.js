@@ -51,13 +51,16 @@ import {
 
 // packages/react/src/runtime/aomi-runtime.tsx
 import { useMemo as useMemo3 } from "react";
-import {
-  AomiClient,
-  UserState as UserState4
-} from "@aomi-labs/client";
+import { AomiClient } from "@aomi-labs/client";
 
 // packages/react/src/contexts/control-context.tsx
-import { createContext, useCallback as useCallback5, useContext, useEffect as useEffect5, useRef } from "react";
+import {
+  createContext,
+  useCallback as useCallback5,
+  useContext,
+  useEffect as useEffect5,
+  useRef
+} from "react";
 
 // packages/react/src/utils/client-session.ts
 var CLIENT_ID_STORAGE_KEY = "aomi_client_id";
@@ -315,7 +318,6 @@ function namesFromDescriptors(apps) {
 function useAuthEndpointsImpl({
   aomiClientRef,
   apiKeyRef,
-  publicKeyRef,
   getControlSessionId: getControlSessionId2,
   apiKey
 }) {
@@ -331,7 +333,6 @@ function useAuthEndpointsImpl({
         const descriptors = await aomiClientRef.current.getApps(
           getControlSessionId2(),
           {
-            publicKey: publicKeyRef.current,
             apiKey: (_a = apiKeyRef.current) != null ? _a : void 0
           }
         );
@@ -381,7 +382,6 @@ function useAuthEndpointsImpl({
       const descriptors = await aomiClientRef.current.getApps(
         getControlSessionId2(),
         {
-          publicKey: publicKeyRef.current,
           apiKey: (_a = apiKeyRef.current) != null ? _a : void 0
         }
       );
@@ -397,7 +397,7 @@ function useAuthEndpointsImpl({
       setDefaultApp("default");
       return ["default"];
     }
-  }, [aomiClientRef, apiKeyRef, getControlSessionId2, publicKeyRef]);
+  }, [aomiClientRef, apiKeyRef, getControlSessionId2]);
   return {
     state: {
       availableModels,
@@ -935,7 +935,6 @@ function ControlContextProvider({
   children,
   aomiClient,
   sessionId,
-  publicKey,
   getThreadMetadata,
   updateThreadMetadata
 }) {
@@ -943,8 +942,6 @@ function ControlContextProvider({
   aomiClientRef.current = aomiClient;
   const sessionIdRef = useRef(sessionId);
   sessionIdRef.current = sessionId;
-  const publicKeyRef = useRef(publicKey);
-  publicKeyRef.current = publicKey;
   const getThreadMetadataRef = useRef(getThreadMetadata);
   getThreadMetadataRef.current = getThreadMetadata;
   const updateThreadMetadataRef = useRef(updateThreadMetadata);
@@ -980,7 +977,6 @@ function ControlContextProvider({
   const authEndpoints = useAuthEndpointsImpl({
     aomiClientRef,
     apiKeyRef,
-    publicKeyRef,
     getControlSessionId: getCurrentControlSessionId,
     apiKey: apiKey.state.apiKey
   });
@@ -1019,10 +1015,7 @@ function ControlContextProvider({
   };
   const aggregateStateRef = useRef(aggregateState);
   aggregateStateRef.current = aggregateState;
-  const getControlState = useCallback5(
-    () => aggregateStateRef.current,
-    []
-  );
+  const getControlState = useCallback5(() => aggregateStateRef.current, []);
   const api = __spreadValues(__spreadValues(__spreadValues(__spreadValues({
     state: aggregateState,
     isProcessing: perThread.isProcessing,
@@ -1407,7 +1400,6 @@ import {
   AssistantRuntimeProvider,
   useExternalStoreRuntime
 } from "@assistant-ui/react";
-import { UserState as UserState3 } from "@aomi-labs/client";
 
 // packages/react/src/runtime/orchestrator.ts
 import { useCallback as useCallback9, useEffect as useEffect6, useRef as useRef6, useState as useState6 } from "react";
@@ -1778,9 +1770,12 @@ function useRuntimeOrchestrator(aomiClient, options) {
     registryRef.current = new ThreadRegistry(() => aomiClientRef.current);
   }
   const registry = registryRef.current;
-  const closeSession = useCallback9((threadId) => {
-    registry.closeSession(threadId);
-  }, [registry]);
+  const closeSession = useCallback9(
+    (threadId) => {
+      registry.closeSession(threadId);
+    },
+    [registry]
+  );
   const closeIdleSessionsExcept = useCallback9(
     (activeThreadId) => registry.closeIdleSessionsExcept(activeThreadId),
     [registry]
@@ -1790,19 +1785,17 @@ function useRuntimeOrchestrator(aomiClient, options) {
   }, [registry]);
   const getSession = useCallback9(
     (threadId) => {
-      var _a, _b, _c, _d, _e;
+      var _a, _b, _c, _d;
       const manager = registry.sessionManager;
       const nextOptions = optionsRef.current;
       const nextApp = nextOptions.getApp();
-      const nextPublicKey = (_a = nextOptions.getPublicKey) == null ? void 0 : _a.call(nextOptions);
-      const nextApiKey = (_c = (_b = nextOptions.getApiKey) == null ? void 0 : _b.call(nextOptions)) != null ? _c : void 0;
-      const nextClientId = (_d = nextOptions.getClientId) == null ? void 0 : _d.call(nextOptions);
-      const nextUserState = (_e = nextOptions.getUserState) == null ? void 0 : _e.call(nextOptions);
+      const nextApiKey = (_b = (_a = nextOptions.getApiKey) == null ? void 0 : _a.call(nextOptions)) != null ? _b : void 0;
+      const nextClientId = (_c = nextOptions.getClientId) == null ? void 0 : _c.call(nextOptions);
+      const nextUserState = (_d = nextOptions.getUserState) == null ? void 0 : _d.call(nextOptions);
       const existing = manager.get(threadId);
       if (existing) {
         existing.syncRuntimeOptions({
           app: nextApp,
-          publicKey: nextPublicKey,
           apiKey: nextApiKey,
           clientId: nextClientId,
           userState: nextUserState
@@ -1814,14 +1807,15 @@ function useRuntimeOrchestrator(aomiClient, options) {
       }
       const session = manager.getOrCreate(threadId, {
         app: nextApp,
-        publicKey: nextPublicKey,
         apiKey: nextApiKey,
         clientId: nextClientId,
         clientType: CLIENT_TYPE_WEB_UI,
         syncPendingTxRequestsFromUserState: false,
         userState: nextUserState
       });
-      session.setSSEActive(threadContextRef.current.currentThreadId === threadId);
+      session.setSSEActive(
+        threadContextRef.current.currentThreadId === threadId
+      );
       const cleanups = [];
       cleanups.push(
         session.on("messages", (msgs) => {
@@ -2383,7 +2377,12 @@ function getLegacySessionPublicKey(userState) {
   return address;
 }
 function useWalletStateSync(context, aomiClientRef, registry) {
-  const { getCurrentThreadApp, getUserState, onUserStateChange, threadContextRef } = context;
+  const {
+    getCurrentThreadApp,
+    getUserState,
+    onUserStateChange,
+    threadContextRef
+  } = context;
   const walletSnapshot = useCallback11(
     (nextUser) => {
       var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q;
@@ -2542,10 +2541,7 @@ function useRemoteThreadListSync(context, options) {
           getControlState().clientId,
           currentContext.currentThreadId
         );
-        const threadList = await aomiClientRef.current.listThreads(
-          controlSessionId,
-          userAddress
-        );
+        const threadList = await aomiClientRef.current.listThreads(controlSessionId);
         if (cancelled) return;
         const remoteThreadIds = /* @__PURE__ */ new Set();
         const newMetadata = new Map(currentContext.allThreadsMetadata);
@@ -2683,17 +2679,6 @@ function RuntimeUserStateProvider({
 
 // packages/react/src/runtime/core.tsx
 import { jsx as jsx7 } from "react/jsx-runtime";
-function getLegacySessionPublicKey2(userState) {
-  var _a;
-  const address = UserState3.address(userState);
-  if (!(address == null ? void 0 : address.startsWith("0x"))) {
-    return void 0;
-  }
-  if (UserState3.chainId(userState) === void 0 && !((_a = userState == null ? void 0 : userState.evm) == null ? void 0 : _a.address)) {
-    return void 0;
-  }
-  return address;
-}
 var getHttpStatus2 = (error) => {
   const status = error == null ? void 0 : error.status;
   if (typeof status === "number") return status;
@@ -2735,7 +2720,6 @@ function AomiRuntimeCore({
     closeAllSessions,
     aomiClientRef
   } = useRuntimeOrchestrator(aomiClient, {
-    getPublicKey: () => UserState3.isConnected(getUserState()) ? getLegacySessionPublicKey2(getUserState()) : void 0,
     getUserState,
     getApp: getCurrentThreadApp,
     getApiKey: () => getControlState().apiKey,
@@ -2791,13 +2775,11 @@ function AomiRuntimeCore({
   const ensureBackendThread = useCallback12(
     async (threadId) => {
       if (registry.remoteThreads.has(threadId)) return false;
-      const userState = getUserState();
-      const publicKey = UserState3.isConnected(userState) ? getLegacySessionPublicKey2(userState) : void 0;
-      await aomiClientRef.current.createThread(threadId, publicKey);
+      await aomiClientRef.current.createThread(threadId);
       registry.remoteThreads.add(threadId);
       return true;
     },
-    [aomiClientRef, getUserState, registry]
+    [aomiClientRef, registry]
   );
   const { isThreadListLoading } = useRuntimeUserStateEffects({
     registry,
@@ -3093,10 +3075,6 @@ function normalizeBackendUrl(url) {
   }
   return url;
 }
-function legacySessionPublicKey(user) {
-  const address = UserState4.address(user);
-  return (address == null ? void 0 : address.startsWith("0x")) ? address : void 0;
-}
 function AomiRuntimeProvider({
   children,
   backendUrl = "http://127.0.0.1:8080",
@@ -3123,13 +3101,11 @@ function AomiRuntimeInner({
   aomiClient
 }) {
   const threadContext = useThreadContext();
-  const { user } = useUser();
   return /* @__PURE__ */ jsx8(
     ControlContextProvider,
     {
       aomiClient,
       sessionId: threadContext.currentThreadId,
-      publicKey: UserState4.isConnected(user) ? legacySessionPublicKey(user) : void 0,
       getThreadMetadata: threadContext.getThreadMetadata,
       updateThreadMetadata: threadContext.updateThreadMetadata,
       children: /* @__PURE__ */ jsx8(

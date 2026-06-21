@@ -74,7 +74,7 @@ describe("buildCliConfig", () => {
       "account-bearer": "bearer-123",
     });
 
-    expect(config.accountAccessToken).toBe("bearer-123");
+    expect(config.accountBearer).toBe("bearer-123");
     expect(config.accountProvider).toBeUndefined();
     expect(config.accountProviderToken).toBeUndefined();
   });
@@ -87,7 +87,7 @@ describe("buildCliConfig", () => {
 
     expect(config.accountProvider).toBe("privy");
     expect(config.accountProviderToken).toBe("privy-token");
-    expect(config.accountAccessToken).toBeUndefined();
+    expect(config.accountBearer).toBeUndefined();
   });
 
   it("rejects partial account provider config", () => {
