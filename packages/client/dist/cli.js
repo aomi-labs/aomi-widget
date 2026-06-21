@@ -43,8 +43,16 @@ var __export = (target, all) => {
 var errors_exports = {};
 __export(errors_exports, {
   CliExit: () => CliExit,
-  fatal: () => fatal
+  DeployCliError: () => DeployCliError,
+  fatal: () => fatal,
+  mapDeployHttpError: () => mapDeployHttpError
 });
+function mapDeployHttpError(status, message) {
+  if (status === 401 || status === 403) {
+    return new DeployCliError("AUTH_FAILED", message);
+  }
+  return new DeployCliError("BACKEND_ERROR", message);
+}
 function fatal(message) {
   const RED = "\x1B[31m";
   const DIM2 = "\x1B[2m";
@@ -61,7 +69,7 @@ function fatal(message) {
   }
   throw new CliExit(1);
 }
-var CliExit;
+var CliExit, DeployCliError;
 var init_errors = __esm({
   "src/cli/errors.ts"() {
     "use strict";
@@ -69,6 +77,13 @@ var init_errors = __esm({
       constructor(code) {
         super();
         this.code = code;
+      }
+    };
+    DeployCliError = class extends Error {
+      constructor(errorCode, message) {
+        super(message);
+        this.name = "DeployCliError";
+        this.errorCode = errorCode;
       }
     };
   }
@@ -8266,18 +8281,287 @@ var init_secrets = __esm({
   }
 });
 
+// src/lib/deployment-state.ts
+import { mkdir, readFile, writeFile } from "fs/promises";
+import { join as join2 } from "path";
+function statePath(cwd) {
+  return join2(cwd, DIR, FILE);
+}
+async function writeDeploymentState(state, cwd = process.cwd()) {
+  const dir = join2(cwd, DIR);
+  await mkdir(dir, { recursive: true });
+  await writeFile(statePath(cwd), JSON.stringify(state, null, 2), "utf-8");
+}
+async function readDeploymentState(cwd = process.cwd()) {
+  try {
+    const raw = await readFile(statePath(cwd), "utf-8");
+    return JSON.parse(raw);
+  } catch (e) {
+    return null;
+  }
+}
+var DIR, FILE;
+var init_deployment_state = __esm({
+  "src/lib/deployment-state.ts"() {
+    "use strict";
+    DIR = ".aomi";
+    FILE = "deployment.json";
+  }
+});
+
+// src/cli/commands/status.ts
+var status_exports = {};
+__export(status_exports, {
+  statusCommand: () => statusCommand2
+});
+function str2(value) {
+  return typeof value === "string" && value.trim() ? value.trim() : void 0;
+}
+function requireToken(args) {
+  var _a3;
+  const token = (_a3 = str2(args["activation-token"])) != null ? _a3 : process.env.AOMI_DEPLOY_TOKEN;
+  if (!token) {
+    throw new DeployCliError(
+      "VALIDATION_ERROR",
+      "`--activation-token` is required. Pass it or set the AOMI_DEPLOY_TOKEN env var."
+    );
+  }
+  return token;
+}
+function resolveBackendUrl(args) {
+  var _a3, _b;
+  return ((_b = (_a3 = str2(args["backend-url"])) != null ? _a3 : process.env.AOMI_BACKEND_URL) != null ? _b : "https://api.aomi.dev").replace(/\/+$/, "");
+}
+function resolvePlatform(args) {
+  var _a3, _b;
+  return (_b = (_a3 = str2(args.platform)) != null ? _a3 : process.env.AOMI_DEPLOY_PLATFORM) != null ? _b : "community";
+}
+async function fetchStatus(deploymentId, platform, activationToken, backendUrl) {
+  const url = `${backendUrl}/api/platforms/${encodeURIComponent(platform)}/deployments/${encodeURIComponent(deploymentId)}/status`;
+  let res;
+  try {
+    res = await fetch(url, {
+      headers: {
+        Authorization: `Bearer ${activationToken}`,
+        "Content-Type": "application/json"
+      }
+    });
+  } catch (err) {
+    throw new DeployCliError(
+      "NETWORK_ERROR",
+      `Status request failed: ${err instanceof Error ? err.message : String(err)}`
+    );
+  }
+  const text = await res.text();
+  if (!res.ok) {
+    const message = (() => {
+      try {
+        const json = JSON.parse(text);
+        if (json && typeof json === "object" && json.error) return json.error;
+      } catch (e) {
+      }
+      return `${res.status} ${res.statusText}`;
+    })();
+    if (res.status === 401 || res.status === 403) {
+      throw new DeployCliError("AUTH_FAILED", `Status request failed (${res.status}): ${message}`);
+    }
+    throw new DeployCliError("BACKEND_ERROR", `Status request failed (${res.status}): ${message}`);
+  }
+  try {
+    return JSON.parse(text);
+  } catch (e) {
+    throw new DeployCliError("BACKEND_ERROR", "Backend returned invalid JSON.");
+  }
+}
+function printStatus(status) {
+  var _a3, _b;
+  const CYAN2 = "\x1B[36m";
+  const DIM2 = "\x1B[2m";
+  const RESET2 = "\x1B[0m";
+  console.log(`${CYAN2}State:${RESET2} ${status.state}`);
+  if ((_a3 = status.ci) == null ? void 0 : _a3.url) {
+    console.log(`${DIM2}CI:${RESET2}    ${status.ci.url}`);
+  }
+  if (status.deployment) {
+    const platform = (_b = status.deployment) == null ? void 0 : _b.platform;
+    if (platform == null ? void 0 : platform.pr_url) {
+      console.log(`${DIM2}PR:${RESET2}    ${platform.pr_url}`);
+    }
+  }
+  if (status.apps && status.apps.length > 0) {
+    for (const app of status.apps) {
+      const tag = app.releaseTag ? ` (${app.releaseTag})` : "";
+      console.log(`${DIM2}App:${RESET2}   ${app.name}${tag}`);
+    }
+  } else if (status.releaseTags && status.releaseTags.length > 0) {
+    for (const tag of status.releaseTags) {
+      console.log(`${DIM2}Tag:${RESET2}   ${tag}`);
+    }
+  }
+  if (status.message) {
+    console.log(`${DIM2}Msg:${RESET2}   ${status.message}`);
+  }
+}
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+async function statusCommand2(args) {
+  var _a3, _b;
+  const deploymentId = (_b = str2(args["deployment-id"])) != null ? _b : (_a3 = await readDeploymentState()) == null ? void 0 : _a3.deploymentId;
+  if (!deploymentId) {
+    throw new DeployCliError(
+      "VALIDATION_ERROR",
+      "No deployment ID found. Pass --deployment-id or run `aomi deploy` first."
+    );
+  }
+  const activationToken = requireToken(args);
+  const backendUrl = resolveBackendUrl(args);
+  const platform = resolvePlatform(args);
+  const watch = args.watch === true;
+  if (!watch) {
+    const status = await fetchStatus(deploymentId, platform, activationToken, backendUrl);
+    printStatus(status);
+    return;
+  }
+  const MAX_FAILURES = 8;
+  const BASE_DELAY_MS = 3e3;
+  const MAX_DELAY_MS = 3e4;
+  let failures = 0;
+  while (true) {
+    try {
+      const status = await fetchStatus(deploymentId, platform, activationToken, backendUrl);
+      printStatus(status);
+      failures = 0;
+      if (status.state === "ready") {
+        process.exit(0);
+        return;
+      }
+      if (status.state === "failed") {
+        process.exit(1);
+        return;
+      }
+      await sleep(BASE_DELAY_MS);
+    } catch (err) {
+      failures++;
+      if (failures >= MAX_FAILURES) {
+        throw err;
+      }
+      const backoffMs = Math.min(BASE_DELAY_MS * Math.pow(2, failures), MAX_DELAY_MS);
+      await sleep(backoffMs);
+    }
+  }
+}
+var init_status = __esm({
+  "src/cli/commands/status.ts"() {
+    "use strict";
+    init_errors();
+    init_deployment_state();
+  }
+});
+
+// src/cli/commands/activate.ts
+var activate_exports = {};
+__export(activate_exports, {
+  activateCommand: () => activateCommand
+});
+function str3(value) {
+  return typeof value === "string" && value.trim() ? value.trim() : void 0;
+}
+function requireToken2(args) {
+  var _a3;
+  const token = (_a3 = str3(args["activation-token"])) != null ? _a3 : process.env.AOMI_DEPLOY_TOKEN;
+  if (!token) {
+    throw new DeployCliError(
+      "VALIDATION_ERROR",
+      "`--activation-token` is required. Pass it or set the AOMI_DEPLOY_TOKEN env var."
+    );
+  }
+  return token;
+}
+function resolveBackendUrl2(args) {
+  var _a3, _b;
+  return ((_b = (_a3 = str3(args["backend-url"])) != null ? _a3 : process.env.AOMI_BACKEND_URL) != null ? _b : "https://api.aomi.dev").replace(/\/+$/, "");
+}
+function resolvePlatform2(args) {
+  var _a3, _b;
+  return (_b = (_a3 = str3(args.platform)) != null ? _a3 : process.env.AOMI_DEPLOY_PLATFORM) != null ? _b : "community";
+}
+async function extractError(res) {
+  try {
+    const text = await res.text();
+    const json = JSON.parse(text);
+    if (json && typeof json === "object" && json.error) return json.error;
+    return text || `${res.status} ${res.statusText}`;
+  } catch (e) {
+    return `${res.status} ${res.statusText}`;
+  }
+}
+async function activateCommand(args) {
+  var _a3, _b;
+  const state = await readDeploymentState();
+  const deploymentId = (_a3 = str3(args["deployment-id"])) != null ? _a3 : state == null ? void 0 : state.deploymentId;
+  const releaseTagsRaw = str3(args["release-tags"]);
+  const releaseTags = releaseTagsRaw !== void 0 ? releaseTagsRaw.split(",").map((t) => t.trim()).filter(Boolean) : (_b = state == null ? void 0 : state.releaseTags) != null ? _b : [];
+  if (!deploymentId || releaseTags.length === 0) {
+    throw new DeployCliError(
+      "VALIDATION_ERROR",
+      "No deployment found. Run `aomi deploy` first, or pass --deployment-id and --release-tags."
+    );
+  }
+  const activationToken = requireToken2(args);
+  const backendUrl = resolveBackendUrl2(args);
+  const platform = resolvePlatform2(args);
+  const url = `${backendUrl}/api/platforms/${encodeURIComponent(platform)}/apps/activate`;
+  const body = { target: { kind: "release_tags", value: releaseTags } };
+  let res;
+  try {
+    res = await fetch(url, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${activationToken}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(body)
+    });
+  } catch (err) {
+    throw new DeployCliError(
+      "NETWORK_ERROR",
+      `Activation request failed: ${err instanceof Error ? err.message : String(err)}`
+    );
+  }
+  if (!res.ok) {
+    const msg = await extractError(res);
+    const code = res.status === 401 || res.status === 403 ? "AUTH_FAILED" : "BACKEND_ERROR";
+    throw new DeployCliError(code, `Activation failed (${res.status}): ${msg}`);
+  }
+  if (state) {
+    await writeDeploymentState(__spreadProps(__spreadValues({}, state), { timestamp: (/* @__PURE__ */ new Date()).toISOString() }));
+  }
+  console.log(" Activation succeeded.");
+}
+var init_activate = __esm({
+  "src/cli/commands/activate.ts"() {
+    "use strict";
+    init_errors();
+    init_deployment_state();
+  }
+});
+
 // src/cli/commands/deploy.ts
 var deploy_exports = {};
 __export(deploy_exports, {
   deployCommand: () => deployCommand
 });
 import { execSync } from "child_process";
-function str2(value) {
+function str4(value) {
   return typeof value === "string" && value.trim() ? value.trim() : void 0;
 }
 function required(value, flag, env) {
   if (value) return value;
-  fatal(`\`--${flag}\` is required. Pass it or set the ${env} env var.`);
+  throw new DeployCliError(
+    "VALIDATION_ERROR",
+    `\`--${flag}\` is required. Pass it or set the ${env} env var.`
+  );
 }
 function currentBranch() {
   try {
@@ -8285,7 +8569,8 @@ function currentBranch() {
       encoding: "utf-8"
     }).trim();
   } catch (e) {
-    fatal(
+    throw new DeployCliError(
+      "NOT_A_GIT_REPO",
       "Could not detect the current git branch. Pass `--branch` or run this command from a git repository."
     );
   }
@@ -8293,34 +8578,46 @@ function currentBranch() {
 async function deployCommand(args) {
   var _a3, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m;
   const activationToken = required(
-    (_a3 = str2(args["activation-token"])) != null ? _a3 : process.env.AOMI_DEPLOY_TOKEN,
+    (_a3 = str4(args["activation-token"])) != null ? _a3 : process.env.AOMI_DEPLOY_TOKEN,
     "activation-token",
     "AOMI_DEPLOY_TOKEN"
   );
   const appSourceId = Number(
     required(
-      (_b = str2(args["app-source-id"])) != null ? _b : process.env.AOMI_APP_SOURCE_ID,
+      (_b = str4(args["app-source-id"])) != null ? _b : process.env.AOMI_APP_SOURCE_ID,
       "app-source-id",
       "AOMI_APP_SOURCE_ID"
     )
   );
   if (!Number.isSafeInteger(appSourceId) || appSourceId <= 0) {
-    fatal("`--app-source-id` must be a positive integer.");
+    throw new DeployCliError("VALIDATION_ERROR", "`--app-source-id` must be a positive integer.");
   }
-  const backendUrl = ((_d = (_c = str2(args["backend-url"])) != null ? _c : process.env.AOMI_BACKEND_URL) != null ? _d : "https://api.aomi.dev").replace(/\/+$/, "");
-  const platform = (_f = (_e = str2(args.platform)) != null ? _e : process.env.AOMI_DEPLOY_PLATFORM) != null ? _f : "community";
-  const branch = (_g = str2(args.branch)) != null ? _g : currentBranch();
-  const aomiTomlPaths = ((_h = str2(args["aomi-toml-paths"])) != null ? _h : "aomi.toml").split(",").map((p) => p.trim()).filter(Boolean);
+  const backendUrl = ((_d = (_c = str4(args["backend-url"])) != null ? _c : process.env.AOMI_BACKEND_URL) != null ? _d : "https://api.aomi.dev").replace(/\/+$/, "");
+  const platform = (_f = (_e = str4(args.platform)) != null ? _e : process.env.AOMI_DEPLOY_PLATFORM) != null ? _f : "community";
+  const branch = str4(args.branch);
+  const commit = str4(args.commit);
+  if (branch && commit) {
+    throw new DeployCliError(
+      "VALIDATION_ERROR",
+      "--commit and --branch are mutually exclusive. Provide one or neither."
+    );
+  }
+  const sourceRef = commit ? { kind: "commit", value: commit } : { kind: "branch", value: branch != null ? branch : currentBranch() };
+  const aomiTomlPaths = ((_g = str4(args["aomi-toml-paths"])) != null ? _g : "aomi.toml").split(",").map((p) => p.trim()).filter(Boolean);
   const dryRun = args["dry-run"] === true;
   console.log(` Deploying to ${backendUrl} (platform: ${platform})`);
   console.log(`   app source id: ${appSourceId}`);
-  console.log(`   branch:        ${branch}`);
+  if (sourceRef.kind === "commit") {
+    console.log(`   commit:        ${sourceRef.value}`);
+  } else {
+    console.log(`   branch:        ${sourceRef.value}`);
+  }
   console.log(`   aomi.toml:     ${aomiTomlPaths.join(", ")}`);
   if (dryRun) console.log("   dry run:      yes");
   const url = `${backendUrl}/api/platforms/${encodeURIComponent(platform)}/deploy`;
   const body = {
     app_source_id: appSourceId,
-    source_ref: { kind: "branch", value: branch },
+    source_ref: sourceRef,
     aomi_toml_paths: aomiTomlPaths,
     dry_run: dryRun
   };
@@ -8335,7 +8632,8 @@ async function deployCommand(args) {
       body: JSON.stringify(body)
     });
   } catch (err) {
-    fatal(
+    throw new DeployCliError(
+      "NETWORK_ERROR",
       `Deploy request failed: ${err instanceof Error ? err.message : String(err)}`
     );
   }
@@ -8349,13 +8647,16 @@ async function deployCommand(args) {
       }
       return `${res.status} ${res.statusText}`;
     })();
-    fatal(`Deploy failed (${res.status}): ${message}`);
+    if (res.status === 401 || res.status === 403) {
+      throw new DeployCliError("AUTH_FAILED", `Deploy failed (${res.status}): ${message}`);
+    }
+    throw new DeployCliError("BACKEND_ERROR", `Deploy failed (${res.status}): ${message}`);
   }
   let result;
   try {
     result = JSON.parse(text);
   } catch (e) {
-    fatal("Backend returned invalid JSON.");
+    throw new DeployCliError("BACKEND_ERROR", "Backend returned invalid JSON.");
   }
   const deployment = result.deployment;
   const platformInfo = deployment == null ? void 0 : deployment.platform;
@@ -8366,8 +8667,8 @@ async function deployCommand(args) {
     console.log(`   ${JSON.stringify(result, null, 2)}`);
     return;
   }
-  console.log(` Deployment created: ${(_i = deployment == null ? void 0 : deployment.id) != null ? _i : "unknown"}`);
-  console.log(`   status:  ${(_j = deployment == null ? void 0 : deployment.status) != null ? _j : "unknown"}`);
+  console.log(` Deployment created: ${(_h = deployment == null ? void 0 : deployment.id) != null ? _h : "unknown"}`);
+  console.log(`   status:  ${(_i = deployment == null ? void 0 : deployment.status) != null ? _i : "unknown"}`);
   if (sourceInfo == null ? void 0 : sourceInfo.repository_link) {
     console.log(`   source:  ${sourceInfo.repository_link}`);
   }
@@ -8377,22 +8678,38 @@ async function deployCommand(args) {
   if (platformInfo == null ? void 0 : platformInfo.ci_url) {
     console.log(`   CI:      ${platformInfo.ci_url}`);
   }
+  const releaseTags = [];
+  const apps = [];
   if (platformInfo == null ? void 0 : platformInfo.apps) {
-    const apps = platformInfo.apps;
-    for (const app of apps) {
-      const name = (_k = app.name) != null ? _k : "?";
-      const tag = (_m = (_l = app.release_tag) != null ? _l : app.releaseTag) != null ? _m : "";
+    const appsArr = platformInfo.apps;
+    for (const app of appsArr) {
+      const name = String((_j = app.name) != null ? _j : "?");
+      const tag = String((_l = (_k = app.release_tag) != null ? _k : app.releaseTag) != null ? _l : "");
+      apps.push(name);
+      if (tag) releaseTags.push(tag);
       console.log(`   app:     ${name}${tag ? ` (${tag})` : ""}`);
     }
   }
   if (platformInfo == null ? void 0 : platformInfo.commit_hash) {
     console.log(`   commit:  ${platformInfo.commit_hash}`);
   }
+  const deploymentId = String((_m = deployment == null ? void 0 : deployment.id) != null ? _m : "");
+  if (deploymentId) {
+    await writeDeploymentState({
+      deploymentId,
+      platform,
+      appSourceId,
+      releaseTags,
+      apps,
+      timestamp: (/* @__PURE__ */ new Date()).toISOString()
+    });
+  }
 }
 var init_deploy = __esm({
   "src/cli/commands/deploy.ts"() {
     "use strict";
     init_errors();
+    init_deployment_state();
   }
 });
 
@@ -8484,7 +8801,7 @@ __export(repl_exports, {
 });
 import { createInterface } from "readline/promises";
 import { stdin as input, stdout as output } from "process";
-function str3(value) {
+function str5(value) {
   return typeof value === "string" && value.trim() ? value : void 0;
 }
 function printReplHelp() {
@@ -8604,9 +8921,9 @@ async function runInteractiveCli(config, options) {
 }
 async function runRootCli(args) {
   let config = buildCliConfig(args);
-  const prompt = str3(args.prompt);
+  const prompt = str5(args.prompt);
   const showTool = args["show-tool"] === true;
-  const byokKey = str3(args["provider-key"]);
+  const byokKey = str5(args["provider-key"]);
   if (byokKey) {
     await saveByokKeyCommand(config, byokKey, { printLocation: false });
     config = __spreadProps(__spreadValues({}, config), { freshSession: false });
@@ -8633,7 +8950,7 @@ var init_repl = __esm({
 import { runMain } from "citty";
 
 // src/cli/root.ts
-import { defineCommand as defineCommand12 } from "citty";
+import { defineCommand as defineCommand14 } from "citty";
 
 // src/cli/commands/defs/chat.ts
 init_shared();
@@ -8776,8 +9093,8 @@ var sessionStatusDef = defineCommand3({
   meta: { name: "status", description: "Show current session state" },
   args: __spreadValues({}, globalArgs),
   async run({ args }) {
-    const { statusCommand: statusCommand2 } = await Promise.resolve().then(() => (init_control(), control_exports));
-    await statusCommand2(buildCliConfig(args));
+    const { statusCommand: statusCommand3 } = await Promise.resolve().then(() => (init_control(), control_exports));
+    await statusCommand3(buildCliConfig(args));
   }
 });
 var sessionLogDef = defineCommand3({
@@ -9166,14 +9483,89 @@ var accountDef = defineCommand10({
 });
 
 // src/cli/commands/defs/deploy.ts
-init_shared();
+import { defineCommand as defineCommand13 } from "citty";
+
+// src/cli/commands/defs/status.ts
 import { defineCommand as defineCommand11 } from "citty";
-var deployDef = defineCommand11({
+var statusDef = defineCommand11({
+  meta: {
+    name: "status",
+    description: "Show current deployment status"
+  },
+  args: {
+    "deployment-id": {
+      type: "string",
+      description: "Deployment ID (reads .aomi/deployment.json if absent)"
+    },
+    watch: {
+      type: "boolean",
+      description: "Poll until a terminal state is reached"
+    },
+    "activation-token": {
+      type: "string",
+      description: "Platform activation token (or set AOMI_DEPLOY_TOKEN env)"
+    },
+    "backend-url": {
+      type: "string",
+      description: "Backend URL (default: https://api.aomi.dev)"
+    },
+    platform: {
+      type: "string",
+      description: "Deploy platform (default: community; or set AOMI_DEPLOY_PLATFORM env)"
+    }
+  },
+  async run({ args }) {
+    const { statusCommand: statusCommand3 } = await Promise.resolve().then(() => (init_status(), status_exports));
+    await statusCommand3(args);
+  }
+});
+
+// src/cli/commands/defs/activate.ts
+import { defineCommand as defineCommand12 } from "citty";
+var activateDef = defineCommand12({
+  meta: {
+    name: "activate",
+    description: "Activate a deployment by promoting release tags"
+  },
+  args: {
+    "deployment-id": {
+      type: "string",
+      description: "Deployment ID (reads .aomi/deployment.json if absent)"
+    },
+    "release-tags": {
+      type: "string",
+      description: "Comma-separated release tags to activate (reads .aomi/deployment.json if absent)"
+    },
+    "activation-token": {
+      type: "string",
+      description: "Platform activation token (or set AOMI_DEPLOY_TOKEN env)"
+    },
+    "backend-url": {
+      type: "string",
+      description: "Backend URL (default: https://api.aomi.dev)"
+    },
+    platform: {
+      type: "string",
+      description: "Deploy platform (default: community; or set AOMI_DEPLOY_PLATFORM env)"
+    }
+  },
+  async run({ args }) {
+    const { activateCommand: activateCommand2 } = await Promise.resolve().then(() => (init_activate(), activate_exports));
+    await activateCommand2(args);
+  }
+});
+
+// src/cli/commands/defs/deploy.ts
+var deployDef = defineCommand13({
   meta: {
     name: "deploy",
-    description: "Deploy your app to the Aomi platform via aomi-build"
+    description: "Deploy your app to the Aomi platform"
   },
-  args: __spreadProps(__spreadValues({}, globalArgs), {
+  args: {
+    "backend-url": {
+      type: "string",
+      description: "Backend URL (default: https://api.aomi.dev)"
+    },
     "activation-token": {
       type: "string",
       description: "Platform activation token (required; or set AOMI_DEPLOY_TOKEN env)"
@@ -9190,6 +9582,10 @@ var deployDef = defineCommand11({
       type: "string",
       description: "Git branch to deploy (default: current branch via git rev-parse)"
     },
+    commit: {
+      type: "string",
+      description: "Deploy a specific commit SHA instead of a branch tip"
+    },
     "aomi-toml-paths": {
       type: "string",
       description: "Comma-separated paths to aomi.toml files (default: aomi.toml)"
@@ -9198,10 +9594,14 @@ var deployDef = defineCommand11({
       type: "string",
       description: "Deploy platform (default: community; or set AOMI_DEPLOY_PLATFORM env)"
     }
-  }),
+  },
   async run({ args }) {
     const { deployCommand: deployCommand2 } = await Promise.resolve().then(() => (init_deploy(), deploy_exports));
     await deployCommand2(args);
+  },
+  subCommands: {
+    status: statusDef,
+    activate: activateDef
   }
 });
 
@@ -9241,6 +9641,9 @@ var package_default = {
     build: "tsup",
     "clean:dist": "rm -rf dist"
   },
+  devDependencies: {
+    "fast-check": "^4.8.0"
+  },
   dependencies: {
     "@alchemy/wallet-apis": "5.0.0-beta.22",
     "@getpara/aa-alchemy": "2.21.0",
@@ -9267,7 +9670,7 @@ var SUBCOMMAND_NAMES = /* @__PURE__ */ new Set([
   "account",
   "deploy"
 ]);
-var root = defineCommand12({
+var root = defineCommand14({
   meta: {
     name: "aomi",
     version: package_default.version,
@@ -9438,6 +9841,11 @@ async function runCli(argv = process.argv) {
     }
     const RED = "\x1B[31m";
     const RESET2 = "\x1B[0m";
+    if (err instanceof DeployCliError) {
+      console.error(`${RED}\u274C [${err.errorCode}] ${err.message}${RESET2}`);
+      process.exit(1);
+      return;
+    }
     const message = err instanceof Error ? err.message : String(err);
     console.error(`${RED}\u274C ${message}${RESET2}`);
     process.exit(1);
