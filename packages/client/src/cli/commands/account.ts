@@ -45,7 +45,7 @@ export async function whoamiCommand(config: CliConfig): Promise<void> {
   cli.mergeConfig(config);
 
   const state = cli.toState();
-  const hasCredential = Boolean(state.accountAccessToken);
+  const hasCredential = Boolean(state.accountBearer);
 
   const session = cli.createClientSession(config);
   try {
@@ -66,15 +66,15 @@ export async function whoamiCommand(config: CliConfig): Promise<void> {
       return;
     }
 
-    const account = profile.account;
-    console.log(`Account:  ${account.user_id}`);
-    if (account.username) console.log(`Username: ${account.username}`);
-    if (account.verified_email) {
-      console.log(`Email:    ${account.verified_email}`);
+    const user = profile.user;
+    console.log(`Account:  ${user.user_id}`);
+    if (user.username) console.log(`Username: ${user.username}`);
+    if (user.verified_email) {
+      console.log(`Email:    ${user.verified_email}`);
     }
-    if (account.tier) console.log(`Tier:     ${account.tier}`);
-    if (account.status) console.log(`Status:   ${account.status}`);
-    const wallets = profile.wallets ?? [];
+    if (user.tier) console.log(`Tier:     ${user.tier}`);
+    if (user.status) console.log(`Status:   ${user.status}`);
+    const wallets = profile.identity_wallets ?? [];
     console.log(`Wallets:  ${wallets.length}`);
     for (const wallet of wallets) {
       const walletId = wallet.wallet_id ? ` (${wallet.wallet_id})` : "";

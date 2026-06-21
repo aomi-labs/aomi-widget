@@ -121,8 +121,8 @@ describe("getClientIp — property-based", () => {
     fc.assert(
       fc.property(
         fc.ipV4().map((ip) => ip.replace(/^::ffff:/, "")),
-        fc.option(fc.ipV4().map((ip) => ip.replace(/^::ffff:/, "")), { weight: 1 }),
-        fc.option(fc.ipV4().map((ip) => ip.replace(/^::ffff:/, "")), { weight: 1 }),
+        fc.option(fc.ipV4().map((ip) => ip.replace(/^::ffff:/, ""))),
+        fc.option(fc.ipV4().map((ip) => ip.replace(/^::ffff:/, ""))),
         (first, second, third) => {
           const header = [first, second, third].filter(Boolean).join(", ");
           const req = new Request("http://localhost", {

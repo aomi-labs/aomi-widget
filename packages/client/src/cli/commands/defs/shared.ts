@@ -178,7 +178,7 @@ export function buildCliConfig(args: Record<string, unknown>): CliConfig {
   const configuredPublicKey =
     str(args["public-key"]) ?? process.env.AOMI_PUBLIC_KEY;
   const derivedPublicKey = derivePublicKeyFromPrivateKey(privateKey);
-  const accountAccessToken =
+  const accountBearer =
     str(args["account-bearer"]) ?? process.env.AOMI_ACCOUNT_BEARER;
   const accountProvider = parseAccountProvider(
     str(args["account-provider"]) ?? process.env.AOMI_ACCOUNT_PROVIDER,
@@ -205,7 +205,7 @@ export function buildCliConfig(args: Record<string, unknown>): CliConfig {
   if (execution === "eoa" && (aaProvider || aaMode)) {
     fatal("`--aa-provider` and `--aa-mode` cannot be used with `--eoa`.");
   }
-  if (accountAccessToken && (accountProvider || accountProviderToken)) {
+  if (accountBearer && (accountProvider || accountProviderToken)) {
     fatal(
       "Choose either `--account-bearer` or the `--account-provider` + `--account-provider-token` pair.",
     );
@@ -231,7 +231,7 @@ export function buildCliConfig(args: Record<string, unknown>): CliConfig {
   return {
     baseUrl: str(args["backend-url"]) ?? process.env.AOMI_BACKEND_URL,
     apiKey: str(args["api-key"]) ?? process.env.AOMI_API_KEY,
-    accountAccessToken,
+    accountBearer,
     accountProvider,
     accountProviderToken,
     app: str(args.app) ?? process.env.AOMI_APP,

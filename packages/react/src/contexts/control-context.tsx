@@ -23,12 +23,16 @@
 //   - onControlStateChange callbacks pub/sub (no external consumers)
 //   - setState legacy shim (deprecated since the May 2026 refactor)
 
-import { createContext, useCallback, useContext, useEffect, useRef, type ReactNode } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useRef,
+  type ReactNode,
+} from "react";
 import type { AomiClient } from "@aomi-labs/client";
-import type {
-  ThreadControlState,
-  ThreadMetadata,
-} from "../state/thread-store";
+import type { ThreadControlState, ThreadMetadata } from "../state/thread-store";
 import {
   CLIENT_ID_STORAGE_KEY,
   getControlSessionId,
@@ -185,7 +189,6 @@ export type ControlContextProviderProps = {
   children: ReactNode;
   aomiClient: AomiClient;
   sessionId: string;
-  publicKey?: string;
   getThreadMetadata: (threadId: string) => ThreadMetadata | undefined;
   updateThreadMetadata: (
     threadId: string,
@@ -197,7 +200,6 @@ export function ControlContextProvider({
   children,
   aomiClient,
   sessionId,
-  publicKey,
   getThreadMetadata,
   updateThreadMetadata,
 }: ControlContextProviderProps) {
@@ -210,9 +212,6 @@ export function ControlContextProvider({
 
   const sessionIdRef = useRef(sessionId);
   sessionIdRef.current = sessionId;
-
-  const publicKeyRef = useRef(publicKey);
-  publicKeyRef.current = publicKey;
 
   const getThreadMetadataRef = useRef(getThreadMetadata);
   getThreadMetadataRef.current = getThreadMetadata;
@@ -262,7 +261,6 @@ export function ControlContextProvider({
   const authEndpoints = useAuthEndpointsImpl({
     aomiClientRef,
     apiKeyRef,
-    publicKeyRef,
     getControlSessionId: getCurrentControlSessionId,
     apiKey: apiKey.state.apiKey,
   });
@@ -311,10 +309,7 @@ export function ControlContextProvider({
   const aggregateStateRef = useRef(aggregateState);
   aggregateStateRef.current = aggregateState;
 
-  const getControlState = useCallback(
-    () => aggregateStateRef.current,
-    [],
-  );
+  const getControlState = useCallback(() => aggregateStateRef.current, []);
 
   // ---------------------------------------------------------------------------
   // Assemble the public api

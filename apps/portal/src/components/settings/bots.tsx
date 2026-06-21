@@ -122,10 +122,7 @@ export function Bots() {
   const loadApps = useCallback(async () => {
     setLoadingApps(true);
     try {
-      const path = identity.address
-        ? `/api/session/apps?public_key=${encodeURIComponent(identity.address)}`
-        : "/api/session/apps";
-      const data = await settingsApiFetch<AppOption[]>(path);
+      const data = await settingsApiFetch<AppOption[]>("/api/session/apps");
       const normalized = normalizeAppOptions(data ?? []);
       setAvailableApps(normalized);
       setSelectedApp((previous) => {
@@ -143,7 +140,7 @@ export function Bots() {
     } finally {
       setLoadingApps(false);
     }
-  }, [identity.address]);
+  }, [settingsApiFetch]);
 
   useEffect(() => {
     void Promise.all([loadBots(), loadApps()]);

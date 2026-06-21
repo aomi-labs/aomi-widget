@@ -32,15 +32,15 @@ describe("aomi account whoami", () => {
     const { CliSession } = await import("../../src/cli/cli-session");
     const { whoamiCommand } = await import("../../src/cli/commands/account");
 
-    CliSession.loadOrCreate({ ...baseConfig, accountAccessToken: "bearer-1" });
+    CliSession.loadOrCreate({ ...baseConfig, accountBearer: "bearer-1" });
 
     const response = {
       ok: true,
       status: 200,
       statusText: "OK",
       json: vi.fn(async () => ({
-        account: { user_id: "user-1", verified_email: "a@b.c", tier: "free" },
-        wallets: [
+        user: { user_id: "user-1", verified_email: "a@b.c", tier: "free" },
+        identity_wallets: [
           {
             wallet_id: "wallet-evm-1",
             address: "0xabc",

@@ -19,21 +19,17 @@ import type {
 export type AomiClientConfig = {
   // New names (match AomiClient API)
   ensureAccount?: (sessionId: string, publicKey: string) => Promise<void>;
-  listThreads?: (sessionId: string, publicKey: string) => Promise<AomiThread[]>;
+  listThreads?: (sessionId: string) => Promise<AomiThread[]>;
   fetchState?: (
     sessionId: string,
     userState?: Record<string, unknown>,
   ) => Promise<AomiStateResponse>;
-  createThread?: (
-    threadId: string,
-    publicKey?: string,
-  ) => Promise<AomiCreateThreadResponse>;
+  createThread?: (threadId: string) => Promise<AomiCreateThreadResponse>;
   sendMessage?: (
     sessionId: string,
     message: string,
     options?: {
       app?: string;
-      publicKey?: string;
       apiKey?: string;
       userState?: Record<string, unknown>;
     },
@@ -53,7 +49,7 @@ export type AomiClientConfig = {
   // Control API
   getApps?: (
     sessionId: string,
-    options?: { publicKey?: string; apiKey?: string },
+    options?: { apiKey?: string },
   ) => Promise<string[]>;
   getModels?: (sessionId: string) => Promise<string[]>;
   setModel?: (
@@ -63,13 +59,12 @@ export type AomiClientConfig = {
   ) => Promise<{ rig: string; app?: string }>;
 
   // Legacy aliases (so existing tests keep working without changes)
-  fetchThreads?: (publicKey: string) => Promise<AomiThread[]>;
+  fetchThreads?: () => Promise<AomiThread[]>;
   postChatMessage?: (
     sessionId: string,
     message: string,
     options?: {
       app?: string;
-      publicKey?: string;
       apiKey?: string;
       userState?: Record<string, unknown>;
     },
@@ -133,26 +128,9 @@ vi.mock("@aomi-labs/client", async (importOriginal) => {
       userState?: Record<string, unknown> | null,
     ) => Record<string, unknown> | undefined;
     address: (userState?: Record<string, unknown> | null) => string | undefined;
-    chainId: (userState?: Record<string, unknown> | null) => number | undefined;
     isConnected: (
       userState?: Record<string, unknown> | null,
     ) => boolean | undefined;
-  };
-
-  const legacySessionPublicKey = (
-    userState?: Record<string, unknown>,
-  ): string | undefined => {
-    const address = UserState.address(userState);
-    if (!address?.startsWith("0x")) {
-      return undefined;
-    }
-    if (
-      UserState.chainId(userState) === undefined &&
-      !(userState?.evm as { address?: unknown } | undefined)?.address
-    ) {
-      return undefined;
-    }
-    return address;
   };
 
   // Mock class defined inside the factory
@@ -165,13 +143,13 @@ vi.mock("@aomi-labs/client", async (importOriginal) => {
       }
     });
 
-    listThreads = vi.fn(async (sessionId: string, publicKey: string) => {
+    listThreads = vi.fn(async (sessionId: string) => {
       const fn = mockState.config.listThreads;
       if (fn) {
-        return await fn(sessionId, publicKey);
+        return await fn(sessionId);
       }
       return mockState.config.fetchThreads
-        ? await mockState.config.fetchThreads(publicKey)
+        ? await mockState.config.fetchThreads()
         : [];
     });
 
@@ -183,9 +161,9 @@ vi.mock("@aomi-labs/client", async (importOriginal) => {
       },
     );
 
-    createThread = vi.fn(async (threadId: string, publicKey?: string) => {
+    createThread = vi.fn(async (threadId: string) => {
       return mockState.config.createThread
-        ? await mockState.config.createThread(threadId, publicKey)
+        ? await mockState.config.createThread(threadId)
         : { session_id: threadId };
     });
 
@@ -195,7 +173,6 @@ vi.mock("@aomi-labs/client", async (importOriginal) => {
         message: string,
         options?: {
           app?: string;
-          publicKey?: string;
           apiKey?: string;
           userState?: Record<string, unknown>;
         },
@@ -216,12 +193,12 @@ vi.mock("@aomi-labs/client", async (importOriginal) => {
           app?: string;
         },
       ) => {
-      const fn =
-        mockState.config.sendSystemMessage ??
-        mockState.config.postSystemMessage;
-      return fn
-        ? await fn(sessionId, message, options)
-        : { res: { sender: "system", content: message } };
+        const fn =
+          mockState.config.sendSystemMessage ??
+          mockState.config.postSystemMessage;
+        return fn
+          ? await fn(sessionId, message, options)
+          : { res: { sender: "system", content: message } };
       },
     );
 
@@ -256,10 +233,7 @@ vi.mock("@aomi-labs/client", async (importOriginal) => {
 
     // Control API
     getApps = vi.fn(
-      async (
-        sessionId: string,
-        options?: { publicKey?: string; apiKey?: string },
-      ) => {
+      async (sessionId: string, options?: { apiKey?: string }) => {
         return mockState.config.getApps
           ? await mockState.config.getApps(sessionId, options)
           : [];
@@ -318,7 +292,6 @@ vi.mock("@aomi-labs/client", async (importOriginal) => {
     private _isSSEActive = false;
 
     private _app?: string;
-    private _publicKey?: string;
     private _apiKey?: string;
     private _userState?: Record<string, unknown>;
     private _clientId?: string;
@@ -334,7 +307,6 @@ vi.mock("@aomi-labs/client", async (importOriginal) => {
       opts?: {
         sessionId?: string;
         app?: string;
-        publicKey?: string;
         apiKey?: string;
         clientId?: string;
         userState?: Record<string, unknown>;
@@ -355,7 +327,6 @@ vi.mock("@aomi-labs/client", async (importOriginal) => {
       }
       this.sessionId = opts?.sessionId ?? "mock-session";
       this._app = opts?.app;
-      this._publicKey = opts?.publicKey;
       this._apiKey = opts?.apiKey;
       this._clientId = opts?.clientId;
       this.resolveUserState(opts?.userState);
@@ -379,7 +350,6 @@ vi.mock("@aomi-labs/client", async (importOriginal) => {
     async sendAsync(message: string) {
       const response = await this.client.sendMessage(this.sessionId, message, {
         app: this._app,
-        publicKey: this._publicKey ?? legacySessionPublicKey(this._userState),
         apiKey: this._apiKey,
         userState: this._userState,
         clientId: this._clientId,
@@ -420,21 +390,15 @@ vi.mock("@aomi-labs/client", async (importOriginal) => {
       if (!normalized) return;
 
       this._userState = normalized;
-      this._publicKey =
-        UserState.isConnected(normalized) === false
-          ? undefined
-          : legacySessionPublicKey(normalized);
       this.syncWalletRequests();
     }
     syncRuntimeOptions(options: {
       app: string;
-      publicKey?: string;
       apiKey?: string;
       clientId?: string;
       userState?: Record<string, unknown>;
     }) {
       this._app = options.app;
-      this._publicKey = options.publicKey;
       this._apiKey = options.apiKey;
       this._clientId = options.clientId ?? this._clientId;
       if (options.userState) {

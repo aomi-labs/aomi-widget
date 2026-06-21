@@ -21,7 +21,7 @@ describe("CLI account auth wiring", () => {
     try {
       const client = createCliClient({
         baseUrl: "http://unit.test",
-        accountAccessToken: "bearer-123",
+        accountBearer: "bearer-123",
         secrets: {},
       });
 
