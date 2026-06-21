@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { SettingsSidebar, SettingsCategory } from "./settings-sidebar";
 import { GeneralSettings } from "./general-settings";
 import { AppsSettings } from "./apps-settings";
+import { ErrorBoundary } from "@portal/components/error-boundary";
 import { Onboarding } from "./onboarding/onboarding";
 import { AppKeys } from "./app-keys";
 import { Bots } from "./bots";
@@ -34,7 +35,9 @@ export function SettingsLayout() {
       case "deploy":
         return (
           <div className="min-w-0">
-            <Onboarding />
+            <ErrorBoundary>
+              <Onboarding />
+            </ErrorBoundary>
           </div>
         );
       case "app-keys":

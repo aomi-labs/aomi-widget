@@ -25,9 +25,10 @@ export default defineConfig({
       },
     },
     exclude: [
-      "src/lib/onboarding.test.ts",
       "src/lib/usage-range.test.ts",
     ],
+    // usage-range uses node:test (tsx --test), not vitest.
+    // onboarding.test.ts was migrated to vitest and runs as part of the suite.
     restoreMocks: true,
   },
 });
