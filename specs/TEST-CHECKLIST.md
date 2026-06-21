@@ -61,7 +61,7 @@ node packages/client/dist/cli.mjs <command>
 These need `AOMI_BACKEND_URL` pointing to a real backend:
 
 ```bash
-export AOMI_BACKEND_URL=https://staging-api.aomi.dev
+export AOMI_BACKEND_URL=https://api-staging.aomi.dev
 ```
 
 - [ ] `node packages/client/dist/cli.mjs deploy --commit --app-source-id <id>` — Returns a `deploymentId`
