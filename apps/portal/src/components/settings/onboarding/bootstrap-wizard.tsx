@@ -259,7 +259,6 @@ export function BootstrapWizard({
       {step === "live" && (
         <LivePanel
           repo={progress.repo}
-          applicationId={progress.applicationId}
           chatUrl={progress.apps?.[0] ? chatAppUrl(progress.apps[0]) : undefined}
         />
       )}

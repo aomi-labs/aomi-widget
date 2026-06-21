@@ -8,6 +8,7 @@ import type {
   DeploymentClientOptions,
   DeploymentProgressEvent,
   DeploymentStatus,
+  DeploymentAppStatus,
   ProgressModel,
   StatusInput,
   WatchDeploymentOptions,
@@ -41,6 +42,13 @@ export class DeploymentClient {
       body,
       "deploy",
     );
+    const cameled = camelDeployResult(result);
+    if (!cameled.ok) {
+      throw new DeployError(
+        "BACKEND",
+        `deploy rejected by backend (deployment ${cameled.deployment.id})`,
+      );
+    }
     await this.audit({
       action: "deploy",
       platform,
@@ -48,7 +56,7 @@ export class DeploymentClient {
       actor: input.actor,
       ts: Date.now(),
     });
-    return camelDeployResult(result);
+    return cameled;
   }
 
   async activate(input: ActivateInput): Promise<ActivateResult> {
@@ -59,6 +67,13 @@ export class DeploymentClient {
       body,
       "activation",
     );
+    const cameled = camelActivateResult(result);
+    if (!cameled.ok) {
+      throw new DeployError(
+        "ACTIVATION",
+        `activate rejected by backend (status ${cameled.activation.status})`,
+      );
+    }
     await this.audit({
       action: "activate",
       platform,
@@ -67,7 +82,7 @@ export class DeploymentClient {
       actor: input.actor,
       ts: Date.now(),
     });
-    return camelActivateResult(result);
+    return cameled;
   }
 
   async status(input: StatusInput): Promise<DeploymentStatus> {
@@ -75,14 +90,14 @@ export class DeploymentClient {
     const path = input.deploymentId
       ? `/api/platforms/${encodeURIComponent(platform)}/deployments/${encodeURIComponent(input.deploymentId)}/status`
       : (input.path ?? `/api/platforms/${encodeURIComponent(platform)}/status`);
-    const result = await this.get<DeploymentStatus>(path, "status");
+    const result = await this.get<Record<string, unknown>>(path, "status");
     await this.audit({
       action: "status",
       platform,
       actor: input.actor,
       ts: Date.now(),
     });
-    return result;
+    return camelStatusResult(result);
   }
 
   /**
@@ -431,4 +446,32 @@ function camelActivateResult(result: unknown): ActivateResult {
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function camelStatusResult(raw: Record<string, unknown>): DeploymentStatus {
+  const apps = (raw.apps ?? []) as Record<string, unknown>[];
+  return {
+    state: raw.state as DeploymentStatus["state"],
+    deployment: raw.deployment
+      ? camelDeployResult({ deployment: raw.deployment }).deployment
+      : undefined,
+    releaseTags: (raw.release_tags ?? raw.releaseTags ?? []) as string[],
+    apps: apps.length
+      ? apps.map((app: Record<string, unknown>) => ({
+          name: app.name as string,
+          releaseTag: (app.release_tag ?? app.releaseTag) as string,
+          releaseReady: Boolean(app.release_ready ?? app.releaseReady),
+          message: (app.message ?? null) as string | null,
+        }))
+      : undefined,
+    ci: raw.ci
+      ? {
+          status: (raw.ci as Record<string, unknown>).status as string | undefined,
+          url: (raw.ci as Record<string, unknown>).url as string | undefined,
+          commitHash: ((raw.ci as Record<string, unknown>).commit_hash ??
+            (raw.ci as Record<string, unknown>).commitHash) as string | undefined,
+        }
+      : undefined,
+    message: raw.message as string | undefined,
+  };
 }

@@ -198,6 +198,3 @@ export interface WatchDeploymentOptions {
   /** AbortSignal to cancel the watch loop externally. */
   signal?: AbortSignal;
 }
-
-/** @deprecated Use DeploymentStatus instead */
-export type StatusResult = unknown;
