@@ -55,7 +55,18 @@ export function Onboarding() {
   useEffect(() => {
     if (typeof window === "undefined") return;
     const redirect = readGithubRedirect(window.location.search);
-    if (!redirect) return;
+    if (!redirect) {
+      // No redirect params — user landed here without completing an install.
+      // Clear stale installing state (e.g. after bfcache restore via Back button)
+      // and orphaned pendingInstall from localStorage.
+      setInstallingPath(null);
+      setInstallError(null);
+      const cur = loadOnboarding();
+      if (cur.pendingInstall) {
+        update(withPendingInstall(cur, null));
+      }
+      return;
+    }
 
     const cur = loadOnboarding();
     const matched = cur.pendingInstall?.path ?? cur.path;

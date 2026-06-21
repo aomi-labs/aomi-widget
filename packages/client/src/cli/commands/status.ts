@@ -68,7 +68,7 @@ async function fetchStatus(
   } catch (err) {
     throw new DeployCliError(
       "NETWORK_ERROR",
-      `Status request failed: ${err instanceof Error ? err.message : String(err)}`,
+      "Cannot reach Aomi backend; check your connection",
     );
   }
 
@@ -82,9 +82,9 @@ async function fetchStatus(
       return `${res.status} ${res.statusText}`;
     })();
     if (res.status === 401 || res.status === 403) {
-      throw new DeployCliError("AUTH_FAILED", `Status request failed (${res.status}): ${message}`);
+      throw new DeployCliError("AUTH_FAILED", "Session expired; run `aomi account login`");
     }
-    throw new DeployCliError("BACKEND_ERROR", `Status request failed (${res.status}): ${message}`);
+    throw new DeployCliError("BACKEND_ERROR", message);
   }
 
   try {
@@ -160,10 +160,12 @@ export async function statusCommand(args: StatusArgs): Promise<void> {
   const BASE_DELAY_MS = 3_000;
   const MAX_DELAY_MS = 30_000;
   let failures = 0;
+  let lastCiUrl: string | undefined;
 
   while (true) {
     try {
       const status = await fetchStatus(deploymentId, platform, activationToken, backendUrl);
+      if (status.ci?.url) lastCiUrl = status.ci.url;
       printStatus(status);
       failures = 0;
 
@@ -180,7 +182,11 @@ export async function statusCommand(args: StatusArgs): Promise<void> {
     } catch (err) {
       failures++;
       if (failures >= MAX_FAILURES) {
-        throw err;
+        const ciSuffix = lastCiUrl ? `; check CI status at ${lastCiUrl}` : "";
+        throw new DeployCliError(
+          "BACKEND_ERROR",
+          `Deployment timed out after ${MAX_FAILURES} attempts${ciSuffix}`,
+        );
       }
       const backoffMs = Math.min(BASE_DELAY_MS * Math.pow(2, failures), MAX_DELAY_MS);
       await sleep(backoffMs);
