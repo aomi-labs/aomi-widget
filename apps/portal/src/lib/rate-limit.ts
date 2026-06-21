@@ -8,7 +8,9 @@
  */
 
 const WINDOW_MS = 60_000; // 60 seconds
-const MAX_REQUESTS = 10;
+// 60 req/min accommodates the full onboarding flow: dry-run + deploy +
+// ~20 status polls + activate + ~30 verify checks = ~53 requests.
+const MAX_REQUESTS = 60;
 
 interface WindowEntry {
   count: number;
