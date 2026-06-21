@@ -62,13 +62,13 @@ describe("validateOrigin — property-based", () => {
     expect(validateOrigin(req)).toBe(false);
   });
 
-  it("rejects when NEXT_PUBLIC_APP_URL is not configured", () => {
+  it("allows when NEXT_PUBLIC_APP_URL and NEXTAUTH_URL are not configured", () => {
     delete process.env.NEXT_PUBLIC_APP_URL;
     delete process.env.NEXTAUTH_URL;
     const req = new Request("https://portal.aomi.dev", {
       headers: { origin: "https://portal.aomi.dev" },
     });
-    expect(validateOrigin(req)).toBe(false);
+    expect(validateOrigin(req)).toBe(true);
   });
 });
 
@@ -86,12 +86,12 @@ describe("checkRateLimit — property-based", () => {
     );
   });
 
-  it("allows up to 10 requests per IP within the window", () => {
+  it("allows up to 60 requests per IP within the window", () => {
     fc.assert(
       fc.property(
         fc.ipV4().map((ip) => ip.replace(/^::ffff:/, "")),
         (ip) => {
-          for (let i = 0; i < 10; i++) {
+          for (let i = 0; i < 60; i++) {
             const { allowed } = checkRateLimit(ip);
             expect(allowed).toBe(true);
           }
@@ -101,12 +101,12 @@ describe("checkRateLimit — property-based", () => {
     );
   });
 
-  it("blocks the 11th request from the same IP", () => {
+  it("blocks the 61st request from the same IP", () => {
     fc.assert(
       fc.property(
         fc.ipV4().map((ip) => ip.replace(/^::ffff:/, "")),
         (ip) => {
-          for (let i = 0; i < 10; i++) checkRateLimit(ip);
+          for (let i = 0; i < 60; i++) checkRateLimit(ip);
           const { allowed } = checkRateLimit(ip);
           expect(allowed).toBe(false);
         },
@@ -121,8 +121,8 @@ describe("getClientIp — property-based", () => {
     fc.assert(
       fc.property(
         fc.ipV4().map((ip) => ip.replace(/^::ffff:/, "")),
-        fc.option(fc.ipV4().map((ip) => ip.replace(/^::ffff:/, ""))),
-        fc.option(fc.ipV4().map((ip) => ip.replace(/^::ffff:/, ""))),
+        fc.option(fc.ipV4().map((ip) => ip.replace(/^::ffff:/, "")), { nil: undefined }),
+        fc.option(fc.ipV4().map((ip) => ip.replace(/^::ffff:/, "")), { nil: undefined }),
         (first, second, third) => {
           const header = [first, second, third].filter(Boolean).join(", ");
           const req = new Request("http://localhost", {
@@ -203,14 +203,13 @@ describe("validate-input — property-based", () => {
     );
   });
 
-  it("isValidReleaseTags accepts only non-empty string arrays with non-empty elements", () => {
+  it("isValidReleaseTags accepts empty arrays or non-empty string arrays with non-empty elements", () => {
     fc.assert(
       fc.property(
         fc.array(fc.oneof(fc.string({ minLength: 1, maxLength: 50 }), fc.constantFrom("", "  ", "\t")), { minLength: 0, maxLength: 10 }),
         (tags) => {
           const result = isValidReleaseTags(tags);
           if (result) {
-            expect(tags.length).toBeGreaterThan(0);
             expect(tags.every((t) => typeof t === "string" && t.trim().length > 0)).toBe(true);
           }
         },

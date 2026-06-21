@@ -1,0 +1,64 @@
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { resolveChatUrl, chatAppUrl } from "./chat-url";
+
+beforeEach(() => {
+  delete process.env.NEXT_PUBLIC_CHAT_URL;
+});
+
+describe("resolveChatUrl", () => {
+  it("returns the env var value when set", () => {
+    process.env.NEXT_PUBLIC_CHAT_URL = "https://custom-chat.aomi.dev";
+    expect(resolveChatUrl()).toBe("https://custom-chat.aomi.dev");
+  });
+
+  it("falls back to chat.aomi.dev when env var is not set", () => {
+    expect(resolveChatUrl()).toBe("https://chat.aomi.dev");
+  });
+
+  it("falls back when env var is empty string", () => {
+    process.env.NEXT_PUBLIC_CHAT_URL = "";
+    expect(resolveChatUrl()).toBe("https://chat.aomi.dev");
+  });
+
+  it("trims whitespace from env var value", () => {
+    process.env.NEXT_PUBLIC_CHAT_URL = "  https://trimmed.aomi.dev  ";
+    expect(resolveChatUrl()).toBe("https://trimmed.aomi.dev");
+  });
+
+  it("returns the trimmed value when only whitespace", () => {
+    process.env.NEXT_PUBLIC_CHAT_URL = "   ";
+    expect(resolveChatUrl()).toBe("https://chat.aomi.dev");
+  });
+
+  it("preserves trailing slashes from env var", () => {
+    process.env.NEXT_PUBLIC_CHAT_URL = "https://custom.aomi.dev/";
+    expect(resolveChatUrl()).toBe("https://custom.aomi.dev/");
+  });
+});
+
+describe("chatAppUrl", () => {
+  it("constructs a deep-link URL for the given app name", () => {
+    expect(chatAppUrl("my-bot")).toBe("https://chat.aomi.dev?app=my-bot");
+  });
+
+  it("uses the custom chat URL when configured", () => {
+    process.env.NEXT_PUBLIC_CHAT_URL = "https://custom.aomi.dev";
+    expect(chatAppUrl("my-bot")).toBe("https://custom.aomi.dev?app=my-bot");
+  });
+
+  it("encodes special characters in app name", () => {
+    expect(chatAppUrl("my bot!")).toBe("https://chat.aomi.dev?app=my%20bot!");
+  });
+
+  it("encodes url-unsafe characters", () => {
+    expect(chatAppUrl("a&b/c")).toBe("https://chat.aomi.dev?app=a%26b%2Fc");
+  });
+
+  it("handles empty app name", () => {
+    expect(chatAppUrl("")).toBe("https://chat.aomi.dev?app=");
+  });
+
+  it("handles numeric app names", () => {
+    expect(chatAppUrl("123")).toBe("https://chat.aomi.dev?app=123");
+  });
+});

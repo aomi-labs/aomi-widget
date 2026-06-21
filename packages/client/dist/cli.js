@@ -8319,7 +8319,7 @@ async function fetchStatus(deploymentId, platform, activationToken, backendUrl) 
   } catch (err) {
     throw new DeployCliError(
       "NETWORK_ERROR",
-      `Status request failed: ${err instanceof Error ? err.message : String(err)}`
+      "Cannot reach Aomi backend; check your connection"
     );
   }
   const text = await res.text();
@@ -8333,9 +8333,9 @@ async function fetchStatus(deploymentId, platform, activationToken, backendUrl) 
       return `${res.status} ${res.statusText}`;
     })();
     if (res.status === 401 || res.status === 403) {
-      throw new DeployCliError("AUTH_FAILED", `Status request failed (${res.status}): ${message}`);
+      throw new DeployCliError("AUTH_FAILED", "Session expired; run `aomi account login`");
     }
-    throw new DeployCliError("BACKEND_ERROR", `Status request failed (${res.status}): ${message}`);
+    throw new DeployCliError("BACKEND_ERROR", message);
   }
   try {
     return JSON.parse(text);
@@ -8376,7 +8376,7 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 async function statusCommand2(args) {
-  var _a3, _b;
+  var _a3, _b, _c;
   const deploymentId = (_b = str2(args["deployment-id"])) != null ? _b : (_a3 = await readDeploymentState()) == null ? void 0 : _a3.deploymentId;
   if (!deploymentId) {
     throw new DeployCliError(
@@ -8397,9 +8397,11 @@ async function statusCommand2(args) {
   const BASE_DELAY_MS = 3e3;
   const MAX_DELAY_MS = 3e4;
   let failures = 0;
+  let lastCiUrl;
   while (true) {
     try {
       const status = await fetchStatus(deploymentId, platform, activationToken, backendUrl);
+      if ((_c = status.ci) == null ? void 0 : _c.url) lastCiUrl = status.ci.url;
       printStatus(status);
       failures = 0;
       if (status.state === "ready") {
@@ -8414,7 +8416,11 @@ async function statusCommand2(args) {
     } catch (err) {
       failures++;
       if (failures >= MAX_FAILURES) {
-        throw err;
+        const ciSuffix = lastCiUrl ? `; check CI status at ${lastCiUrl}` : "";
+        throw new DeployCliError(
+          "BACKEND_ERROR",
+          `Deployment timed out after ${MAX_FAILURES} attempts${ciSuffix}`
+        );
       }
       const backoffMs = Math.min(BASE_DELAY_MS * Math.pow(2, failures), MAX_DELAY_MS);
       await sleep(backoffMs);
@@ -8467,7 +8473,7 @@ async function extractError(res) {
   }
 }
 async function activateCommand(args) {
-  var _a3, _b;
+  var _a3, _b, _c;
   const state = await readDeploymentState();
   const deploymentId = (_a3 = str3(args["deployment-id"])) != null ? _a3 : state == null ? void 0 : state.deploymentId;
   const releaseTagsRaw = str3(args["release-tags"]);
@@ -8496,13 +8502,35 @@ async function activateCommand(args) {
   } catch (err) {
     throw new DeployCliError(
       "NETWORK_ERROR",
-      `Activation request failed: ${err instanceof Error ? err.message : String(err)}`
+      "Cannot reach Aomi backend; check your connection"
     );
   }
   if (!res.ok) {
     const msg = await extractError(res);
     const code = res.status === 401 || res.status === 403 ? "AUTH_FAILED" : "BACKEND_ERROR";
-    throw new DeployCliError(code, `Activation failed (${res.status}): ${msg}`);
+    if (code === "AUTH_FAILED") {
+      throw new DeployCliError(code, "Session expired; run `aomi account login`");
+    }
+    throw new DeployCliError(code, msg);
+  }
+  const resultText = await res.text();
+  const result = (() => {
+    try {
+      return JSON.parse(resultText);
+    } catch (e) {
+      return null;
+    }
+  })();
+  const activation = result == null ? void 0 : result.activation;
+  const apps = activation == null ? void 0 : activation.apps;
+  if (apps) {
+    const failures = apps.filter((a) => a.error);
+    if (failures.length > 0) {
+      console.log(" Activation completed with errors:");
+      for (const f of failures) {
+        console.log(`   ${(_c = f.name) != null ? _c : "?"}: ${f.error}`);
+      }
+    }
   }
   if (state) {
     await writeDeploymentState(__spreadProps(__spreadValues({}, state), { timestamp: (/* @__PURE__ */ new Date()).toISOString() }));
@@ -8541,7 +8569,24 @@ function currentBranch() {
   } catch (e) {
     throw new DeployCliError(
       "NOT_A_GIT_REPO",
-      "Could not detect the current git branch. Pass `--branch` or run this command from a git repository."
+      "Run this from inside a git repository"
+    );
+  }
+}
+function checkGitRemote() {
+  try {
+    const remote = execSync("git remote", { encoding: "utf-8" }).trim();
+    if (!remote) {
+      throw new DeployCliError(
+        "VALIDATION_ERROR",
+        "No git remote found; push your code first"
+      );
+    }
+  } catch (err) {
+    if (err instanceof DeployCliError) throw err;
+    throw new DeployCliError(
+      "VALIDATION_ERROR",
+      "No git remote found; push your code first"
     );
   }
 }
@@ -8573,6 +8618,9 @@ async function deployCommand(args) {
     );
   }
   const sourceRef = commit ? { kind: "commit", value: commit } : { kind: "branch", value: branch != null ? branch : currentBranch() };
+  if (!commit && !branch) {
+    checkGitRemote();
+  }
   const aomiTomlPaths = ((_g = str4(args["aomi-toml-paths"])) != null ? _g : "aomi.toml").split(",").map((p) => p.trim()).filter(Boolean);
   const dryRun = args["dry-run"] === true;
   console.log(` Deploying to ${backendUrl} (platform: ${platform})`);
@@ -8604,23 +8652,24 @@ async function deployCommand(args) {
   } catch (err) {
     throw new DeployCliError(
       "NETWORK_ERROR",
-      `Deploy request failed: ${err instanceof Error ? err.message : String(err)}`
+      "Cannot reach Aomi backend; check your connection"
     );
   }
   const text = await res.text();
   if (!res.ok) {
     const message = (() => {
+      var _a4, _b2;
       try {
         const json = JSON.parse(text);
-        if (json && typeof json === "object" && json.error) return json.error;
+        if (json && typeof json === "object") return (_b2 = (_a4 = json.error) != null ? _a4 : json.reason) != null ? _b2 : `${res.status} ${res.statusText}`;
       } catch (e) {
       }
       return `${res.status} ${res.statusText}`;
     })();
     if (res.status === 401 || res.status === 403) {
-      throw new DeployCliError("AUTH_FAILED", `Deploy failed (${res.status}): ${message}`);
+      throw new DeployCliError("AUTH_FAILED", "Session expired; run `aomi account login`");
     }
-    throw new DeployCliError("BACKEND_ERROR", `Deploy failed (${res.status}): ${message}`);
+    throw new DeployCliError("BACKEND_ERROR", message);
   }
   let result;
   try {
@@ -9453,7 +9502,6 @@ var accountDef = defineCommand10({
 });
 
 // src/cli/commands/defs/deploy.ts
-init_shared();
 import { defineCommand as defineCommand13 } from "citty";
 
 // src/cli/commands/defs/status.ts
@@ -9530,9 +9578,13 @@ var activateDef = defineCommand12({
 var deployDef = defineCommand13({
   meta: {
     name: "deploy",
-    description: "Deploy your app to the Aomi platform via aomi-build"
+    description: "Deploy your app to the Aomi platform"
   },
-  args: __spreadProps(__spreadValues({}, globalArgs), {
+  args: {
+    "backend-url": {
+      type: "string",
+      description: "Backend URL (default: https://api.aomi.dev)"
+    },
     "activation-token": {
       type: "string",
       description: "Platform activation token (required; or set AOMI_DEPLOY_TOKEN env)"
@@ -9561,7 +9613,7 @@ var deployDef = defineCommand13({
       type: "string",
       description: "Deploy platform (default: community; or set AOMI_DEPLOY_PLATFORM env)"
     }
-  }),
+  },
   async run({ args }) {
     const { deployCommand: deployCommand2 } = await Promise.resolve().then(() => (init_deploy(), deploy_exports));
     await deployCommand2(args);
@@ -9607,6 +9659,9 @@ var package_default = {
   scripts: {
     build: "tsup",
     "clean:dist": "rm -rf dist"
+  },
+  devDependencies: {
+    "fast-check": "^4.8.0"
   },
   dependencies: {
     "@alchemy/wallet-apis": "5.0.0-beta.22",

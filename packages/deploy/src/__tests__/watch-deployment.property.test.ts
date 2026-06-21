@@ -30,7 +30,7 @@ afterEach(() => {
 function mockStatusSequence(states: string[]) {
   let idx = 0;
   return vi.fn().mockImplementation(async () => {
-    const state = states[Math.min(idx, states.length - 1)];
+    const state = states[Math.min(idx, states.length - 1)] as DeploymentStatus["state"];
     idx++;
     return new Response(
       JSON.stringify({ state, releaseTags: [] } satisfies DeploymentStatus),

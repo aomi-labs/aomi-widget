@@ -89,8 +89,6 @@ export type PathProgress = {
   /** `owner/name` — created from the template (oneshot) or supplied by the
    *  user (bootstrap). */
   repo?: string;
-  /** Release tag emitted once a deploy has been kicked off. */
-  releaseTag?: string;
   /** Backend deployment id emitted by the deploy state machine. */
   deploymentId?: string;
   /** Latest backend deploy payload; this is what each .aomi/deployment.json contains. */

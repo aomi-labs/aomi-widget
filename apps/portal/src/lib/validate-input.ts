@@ -35,12 +35,12 @@ export function isValidDeploymentId(value: unknown): value is string {
 
 /**
  * Accepts a non-empty array of strings where every element is non-empty
- * after trimming.  Rejects arrays with whitespace-only elements.
+ * after trimming. Also accepts an empty array (no tags yet — backend handles
+ * the empty-tags case). Rejects arrays with whitespace-only elements.
  */
 export function isValidReleaseTags(value: unknown): value is string[] {
   return (
     Array.isArray(value) &&
-    value.length > 0 &&
     value.every((tag) => typeof tag === "string" && tag.trim().length > 0)
   );
 }

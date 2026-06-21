@@ -85,14 +85,34 @@ export async function activateCommand(args: ActivateArgs): Promise<void> {
   } catch (err) {
     throw new DeployCliError(
       "NETWORK_ERROR",
-      `Activation request failed: ${err instanceof Error ? err.message : String(err)}`,
+      "Cannot reach Aomi backend; check your connection",
     );
   }
 
   if (!res.ok) {
     const msg = await extractError(res);
     const code = res.status === 401 || res.status === 403 ? "AUTH_FAILED" : "BACKEND_ERROR";
-    throw new DeployCliError(code, `Activation failed (${res.status}): ${msg}`);
+    if (code === "AUTH_FAILED") {
+      throw new DeployCliError(code, "Session expired; run `aomi account login`");
+    }
+    throw new DeployCliError(code, msg);
+  }
+
+  // Check for partial activation failures in the response body
+  const resultText = await res.text();
+  const result = (() => {
+    try { return JSON.parse(resultText) as Record<string, unknown>; } catch { return null; }
+  })();
+  const activation = result?.activation as Record<string, unknown> | undefined;
+  const apps = activation?.apps as Array<Record<string, unknown>> | undefined;
+  if (apps) {
+    const failures = apps.filter((a) => a.error);
+    if (failures.length > 0) {
+      console.log(" Activation completed with errors:");
+      for (const f of failures) {
+        console.log(`   ${f.name ?? "?"}: ${f.error}`);
+      }
+    }
   }
 
   // Update timestamp in deployment.json on success
