@@ -208,10 +208,10 @@ Per-user isolation: the candidate branch + release tag both encode the
 
 | Knob | Local dev | Deployed (staging) |
 |------|-----------|--------------------|
-| FE `NEXT_PUBLIC_BACKEND_URL` (browser→BE + BFF→BE base) | `http://localhost:8080` | `https://staging-api.aomi.dev` |
+| FE `NEXT_PUBLIC_BACKEND_URL` (browser→BE + BFF→BE base) | `http://localhost:8080` | `https://api-staging.aomi.dev` |
 | BE `AOMI_PORTAL_URL` (callback redirect target, was `AOMI_FRONTEND_URL`) | `http://localhost:3000` | the deployed portal URL |
-| GitHub App **Webhook URL** | tunnel → `/api/integrations/github-app/webhook` | `https://staging-api.aomi.dev/api/integrations/github-app/webhook` |
-| GitHub App **Callback URL** | tunnel → `/api/integrations/github-app/oauth/callback` | `https://staging-api.aomi.dev/api/integrations/github-app/oauth/callback` |
+| GitHub App **Webhook URL** | tunnel → `/api/integrations/github-app/webhook` | `https://api-staging.aomi.dev/api/integrations/github-app/webhook` |
+| GitHub App **Callback URL** | tunnel → `/api/integrations/github-app/oauth/callback` | `https://api-staging.aomi.dev/api/integrations/github-app/oauth/callback` |
 | BE GitHub App secrets | `github_app.toml` / `GITHUB_APP_TOML` + `AOMI_GITHUB_APP_*` | same `AOMI_GITHUB_APP_*` as deployment secrets |
 | BFF activation token | `APP_DEPLOY_ACTIVATION_TOKEN` (portal env) | portal deployment secret |
 
