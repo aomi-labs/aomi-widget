@@ -25,7 +25,9 @@ export function Stepper({
             : i === currentIndex
               ? failed
                 ? "failed"
-                : "active"
+                : i === steps.length - 1
+                  ? "done"
+                  : "active"
               : "pending";
         return (
           <li key={step.key} className="flex flex-1 items-center last:flex-none">
