@@ -285,10 +285,23 @@ export function DeployStep({
           );
           if (
             checks.length > 0 &&
-            checks.every((check) => check.state === "live")
+            checks.every((check) => check.ok && check.state === "live")
           ) {
             onProgress({ live: true });
             setPhase("live");
+            return;
+          }
+          // Early exit if any app reports a terminal error
+          const terminal = checks.find(
+            (c) => c.ok === false || (c.app?.is_active === false && c.app?.loaded === false),
+          );
+          if (terminal) {
+            setError(
+              terminal.app?.name
+                ? `Runtime check failed for ${terminal.app.name}`
+                : "Runtime reported a terminal error during verification.",
+            );
+            setPhase("error");
             return;
           }
         } catch (e) {
