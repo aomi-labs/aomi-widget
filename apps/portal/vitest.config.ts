@@ -6,12 +6,20 @@ import { defineConfig } from "vitest/config";
 
 const currentDir = fileURLToPath(new URL(".", import.meta.url));
 const srcDir = resolve(currentDir, "src");
+const registryDir = resolve(currentDir, "../registry/src");
 
 export default defineConfig({
   plugins: [react()],
   resolve: {
     alias: {
       "@portal": srcDir,
+      "@/components": resolve(registryDir, "components"),
+      "@/hooks": resolve(registryDir, "hooks"),
+      "@/lib": resolve(registryDir, "lib"),
+      "@aomi-labs/widget-lib": registryDir,
+      "@aomi-labs/client": resolve(currentDir, "../../packages/client/src"),
+      "@aomi-labs/deploy": resolve(currentDir, "../../packages/deploy/src"),
+      "@aomi-labs/react": resolve(currentDir, "../../packages/react/src"),
       "server-only": resolve(currentDir, "__mocks__/server-only.ts"),
     },
   },
