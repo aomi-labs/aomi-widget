@@ -68,17 +68,13 @@ export function BootstrapWizard({
       setChecking(true);
       let preExisting = false;
       try {
-        const res = await fetch(`https://api.github.com/repos/${repo}`, {
-          headers: { Accept: "application/vnd.github+json" },
-        });
+        const res = await fetch(`/api/onboard/check-repo?repo=${encodeURIComponent(repo)}`);
         if (res.ok) {
-          const data = await res.json();
-          const template = (data?.template_repository?.full_name ?? "").toLowerCase();
-          preExisting = !template.startsWith("aomi-labs/");
+          const data = await res.json() as { exists: boolean; fromTemplate: boolean };
+          preExisting = data.exists && !data.fromTemplate;
         }
-        // 404 -> repo doesn't exist yet -> nothing to warn about
       } catch {
-        // offline / rate-limited: skip the check rather than block the user
+        // offline: skip the check rather than block the user
       }
       setChecking(false);
       if (preExisting) {

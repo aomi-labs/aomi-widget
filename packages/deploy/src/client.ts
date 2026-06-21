@@ -140,7 +140,31 @@ export class DeploymentClient {
         failures = 0;
         await sleep(this.backoffDelay(0, baseDelayMs, maxDelayMs));
       } catch (err) {
+        // Non-retryable HTTP error — bail immediately
+        if (err instanceof BackendError && err.status >= 400 && err.status < 500) {
+          onEvent({
+            kind: "error",
+            status: {
+              state: "failed",
+              releaseTags: [],
+              message: err.message,
+            },
+            progress: lastProgress,
+            error: err,
+          });
+          return;
+        }
         failures++;
+        onEvent({
+          kind: "warning",
+          status: {
+            state: "failed",
+            releaseTags: [],
+            message: `Polling attempt failed (${failures}/${maxRetries}): ${err instanceof Error ? err.message : String(err)}`,
+          },
+          progress: lastProgress,
+          error: err instanceof Error ? err : new Error(String(err)),
+        });
         await sleep(this.backoffDelay(failures, baseDelayMs, maxDelayMs));
       }
     }

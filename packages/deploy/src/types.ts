@@ -178,13 +178,14 @@ export interface ProgressModel {
 export type DeploymentEventKind =
   | "progress"   // normal polling tick
   | "terminal"   // ready or failed — polling will stop
-  | "error";     // polling stopped due to exhaustion/timeout/cancellation
+  | "warning"    // transient polling failure, will retry
+  | "error";     // polling stopped due to exhaustion/timeout/cancellation/non-retryable
 
 export interface DeploymentProgressEvent {
   kind: DeploymentEventKind;
   status: DeploymentStatus;
   progress: ProgressModel;
-  /** Only set when kind === "error" */
+  /** Only set when kind === "error" || kind === "warning" */
   error?: Error;
 }
 
