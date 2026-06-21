@@ -24,7 +24,25 @@ function currentBranch(): string {
   } catch {
     throw new DeployCliError(
       "NOT_A_GIT_REPO",
-      "Could not detect the current git branch. Pass `--branch` or run this command from a git repository.",
+      "Run this from inside a git repository",
+    );
+  }
+}
+
+function checkGitRemote(): void {
+  try {
+    const remote = execSync("git remote", { encoding: "utf-8" }).trim();
+    if (!remote) {
+      throw new DeployCliError(
+        "VALIDATION_ERROR",
+        "No git remote found; push your code first",
+      );
+    }
+  } catch (err) {
+    if (err instanceof DeployCliError) throw err;
+    throw new DeployCliError(
+      "VALIDATION_ERROR",
+      "No git remote found; push your code first",
     );
   }
 }
@@ -70,6 +88,10 @@ export async function deployCommand(args: DeployArgs): Promise<void> {
     ? { kind: "commit", value: commit }
     : { kind: "branch", value: branch ?? currentBranch() };
 
+  if (!commit && !branch) {
+    checkGitRemote();
+  }
+
   const aomiTomlPaths = (
     str(args["aomi-toml-paths"]) ?? "aomi.toml"
   )
@@ -109,7 +131,7 @@ export async function deployCommand(args: DeployArgs): Promise<void> {
   } catch (err) {
     throw new DeployCliError(
       "NETWORK_ERROR",
-      `Deploy request failed: ${err instanceof Error ? err.message : String(err)}`,
+      "Cannot reach Aomi backend; check your connection",
     );
   }
 
@@ -118,14 +140,14 @@ export async function deployCommand(args: DeployArgs): Promise<void> {
     const message = (() => {
       try {
         const json = JSON.parse(text);
-        if (json && typeof json === "object" && json.error) return json.error as string;
+        if (json && typeof json === "object") return json.error as string ?? json.reason as string ?? `${res.status} ${res.statusText}`;
       } catch {}
       return `${res.status} ${res.statusText}`;
     })();
     if (res.status === 401 || res.status === 403) {
-      throw new DeployCliError("AUTH_FAILED", `Deploy failed (${res.status}): ${message}`);
+      throw new DeployCliError("AUTH_FAILED", "Session expired; run `aomi account login`");
     }
-    throw new DeployCliError("BACKEND_ERROR", `Deploy failed (${res.status}): ${message}`);
+    throw new DeployCliError("BACKEND_ERROR", message);
   }
 
   let result: Record<string, unknown>;

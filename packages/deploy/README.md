@@ -1,19 +1,93 @@
 # @aomi-labs/deploy
 
-Server-side TypeScript client for the Aomi platform deploy API.
+Server-side TypeScript client for the Aomi platform deploy API — **intended for
+BFF / server use only** (holds the activation bearer token).
 
-It is intentionally a thin backend relay:
+## API
 
-- `deploy()` calls `POST /api/platforms/:platform/deploy` with `app_source_id`,
-  `source_ref`, `aomi_toml_paths`, and optional `dry_run`.
-- `activate()` calls `POST /api/platforms/:platform/apps/activate` with one
-  `release_tags` target. App names may be omitted because the backend derives
-  them from the tags.
-- The backend owns GitHub App source reads, platform repo writes, PR/CI checks,
-  release-tag derivation, and runtime activation.
+### `deploy()`
 
-Browser code must not import this package because it holds the activation
-bearer. Import it only from a server route handler or BFF.
+Calls `POST /api/platforms/:platform/deploy` with `app_source_id`, `source_ref`,
+`aomi_toml_paths`, and optional `dry_run`.
+
+### `activate()`
+
+Calls `POST /api/platforms/:platform/apps/activate` with one `release_tags`
+target. Returns an `ActivationResult` — check `result.ok` and inspect
+`result.activation.apps` for per-app errors on partial failure.
+
+### `deploymentStatus()`
+
+Calls `GET /api/platforms/:platform/deployments/:id`. The status endpoint now
+resolves CI against the **recorded built commit** (not the live branch HEAD),
+preventing deployments from being orphaned by snapshot merges.
+
+### `watchDeployment()`
+
+Polls `deploymentStatus` with **exponential backoff** (3s → 30s base, max
+~5 min total). Throws `DeployError` with `.reason` on timeout or terminal
+failure. Best for CLI and automated workflows.
+
+### Error handling
+
+All client methods throw `DeployError` on non-2xx responses:
+```ts
+try {
+  await dc.deploy({ ... });
+} catch (e) {
+  if (e instanceof DeployError) {
+    console.error(e.reason);      // human-readable reason from the backend
+    console.error(e.statusCode);  // HTTP status
+    console.error(e.body);        // raw response body
+  }
+}
+```
+
+For activation, check partial failure:
+```ts
+const result = await dc.activate({ ... });
+if (!result.ok) {
+  for (const app of result.activation?.apps ?? []) {
+    if (app.error) console.error(`${app.name}: ${app.error}`);
+  }
+}
+```
+
+## Types
+
+```ts
+interface DeployRequest {
+  platform: string;
+  appSourceId: number;
+  sourceRef: { kind: "branch" | "commit"; value: string };
+  aomiTomlPaths: string[];
+  dryRun?: boolean;
+}
+
+interface ActivateRequest {
+  platform: string;
+  target: { kind: "release_tags"; value: string[] };
+  apps: string[];
+  targetTags?: string[];
+  actor?: string;
+}
+
+class DeployError extends Error {
+  readonly reason: string;
+  readonly statusCode: number | undefined;
+  readonly body: unknown;
+}
+
+interface ActivationResult {
+  ok: boolean;
+  activation?: {
+    id: string;
+    apps: Array<{ name: string; loaded: boolean; error?: string }>;
+  };
+}
+```
+
+## Example
 
 ```ts
 import { DeploymentClient } from "@aomi-labs/deploy";
@@ -25,7 +99,7 @@ const dc = new DeploymentClient({
   },
 });
 
-const deploy = await dc.deploy({
+const { deployment } = await dc.deploy({
   platform: "community",
   appSourceId: 42,
   sourceRef: { kind: "branch", value: "main" },
@@ -37,9 +111,20 @@ await dc.activate({
   platform: "community",
   target: {
     kind: "release_tags",
-    value: deploy.deployment.platform.apps.map((app) => app.releaseTag),
+    value: deployment.platform.apps.map((app) => app.releaseTag),
   },
-  apps: deploy.deployment.platform.apps.map((app) => app.name),
+  apps: deployment.platform.apps.map((app) => app.name),
   targetTags: ["staging"],
 });
 ```
+
+## Tests
+
+```
+packages/deploy/test/
+  client.test.ts              — 9 tests (deploy, activate, status, errors)
+  activation-request.test.ts  — 8 tests (request construction)
+  watch-deployment.pbt.test.ts — 6 property-based tests (backoff, timeout)
+```
+
+Run: `npx vitest run packages/deploy/test/`
