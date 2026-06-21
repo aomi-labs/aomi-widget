@@ -265,7 +265,7 @@ Phase 7 — DX & docs
 - [x] `with_snapshot()` fix (`051d2be`) verified in product-mono `main` and deployed to staging
 - [x] All 4 product-mono CI workflows green on latest main (Unit Tests, Build & Deploy Backend, Build & Deploy Telegram, Repowiki)
 - [x] Backend deploy pipeline: all 9 jobs passed (Build + Deploy Staging + Verify Edge)
-- [x] `staging-api.aomi.dev/health` → HTTP 200
+- [x] `api-staging.aomi.dev/health` → HTTP 200
 - [x] `chat.aomi.dev` → HTTP 200
 
 ### ✅ Completed in this session (2026-06-21)
