@@ -6,13 +6,11 @@ import { handleDeploy } from "../route-factory";
 
 describe("handleDeploy — Property 9: BFF maps backend error status codes", () => {
   const savedAppUrl = process.env.NEXT_PUBLIC_APP_URL;
-  const savedBackendUrl = process.env.NEXT_PUBLIC_AOMI_API_URL;
   const savedPlatform = process.env.NEXT_PUBLIC_AOMI_PLATFORM;
   const savedToken = process.env.APP_DEPLOY_ACTIVATION_TOKEN;
 
   beforeEach(() => {
     process.env.NEXT_PUBLIC_APP_URL = "http://localhost:3000";
-    process.env.NEXT_PUBLIC_AOMI_API_URL = "https://staging-api.aomi.dev";
     process.env.NEXT_PUBLIC_AOMI_PLATFORM = "community";
     process.env.APP_DEPLOY_ACTIVATION_TOKEN = "test-token";
   });
@@ -23,7 +21,6 @@ describe("handleDeploy — Property 9: BFF maps backend error status codes", () 
       else delete process.env[key];
     };
     setOrDelete("NEXT_PUBLIC_APP_URL", savedAppUrl);
-    setOrDelete("NEXT_PUBLIC_AOMI_API_URL", savedBackendUrl);
     setOrDelete("NEXT_PUBLIC_AOMI_PLATFORM", savedPlatform);
     setOrDelete("APP_DEPLOY_ACTIVATION_TOKEN", savedToken);
     vi.restoreAllMocks();

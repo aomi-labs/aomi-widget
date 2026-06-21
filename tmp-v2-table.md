@@ -4,7 +4,7 @@ Goal: every (provider × auth × aa-mode × tx-shape) combo that maps to a
 distinct `UserState` shape, run through the actual client code, and assert
 the post-tx wire snapshot matches.
 
-Backend in scope: the staging API at https://staging-api.aomi.dev. Note
+Backend in scope: the staging API at https://api-staging.aomi.dev. Note
 that **the new fields (`smart_account_4337`, `delegation_7702`,
 `wallet_kind`, `wallet_provider`, `auth_method`, `sponsored`,
 `sponsor_provider`, `sponsor_account`, `svm_address`) are currently
