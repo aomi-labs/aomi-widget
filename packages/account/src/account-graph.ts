@@ -21,6 +21,16 @@ export type ResolveInput = {
   provider: string;
   /** Provider subject, e.g. `did:privy:…`. The credential key, never the `sub`. */
   subject: string;
+  /**
+   * TMP(account-graph): an EVM address the CALLER has already established trust
+   * in (the exchange route only sets this for an env allowlist of test wallets —
+   * it is NOT a raw browser value). When it matches an existing `wallet`-keyed
+   * identity, resolve to that account — this bridges returning wallet-first users
+   * (created via `wallet_bind`, keyed by address, with no provider identity yet)
+   * to their existing sessions. Remove when arixoneth's account graph links
+   * credentials properly. Never pass an unverified browser-supplied address here.
+   */
+  walletAddress?: string;
 };
 
 export type CanonicalUser = {
@@ -55,6 +65,15 @@ export async function resolveOrCreateCanonicalUser(
   const pool = getPool();
   const client = await pool.connect();
   try {
+    // TMP(account-graph): wallet-first restore. If the caller passed a trusted
+    // wallet address that matches an existing `wallet`-keyed identity, resolve to
+    // that account so returning wallet-first users keep their sessions. Remove
+    // when the account graph links credentials. See ResolveInput.walletAddress.
+    if (input.walletAddress) {
+      const byWallet = await findUserIdByWalletAddress(client, input.walletAddress);
+      if (byWallet) return { userId: byWallet, created: false };
+    }
+
     const existing = await findUserIdBySubject(client, provider, subject);
     if (existing) return { userId: existing, created: false };
 
@@ -116,6 +135,26 @@ async function findUserIdBySubject(
         and wallet_provider_subject = $2
       limit 1`,
     [provider, subject],
+  );
+  return (result.rows[0]?.user_id as string | undefined) ?? null;
+}
+
+/**
+ * TMP(account-graph): find a `wallet`-keyed account by EVM address. Used only by
+ * the trusted wallet-bridge above (caller establishes trust in `address`). The
+ * key mirrors how wallet-first users were created (`wallet_provider = 'wallet'`,
+ * `auth_value_normalized = lower(address)`). Remove with the rest of the bridge.
+ */
+async function findUserIdByWalletAddress(
+  client: { query: PoolClientQuery },
+  address: string,
+): Promise<string | null> {
+  const result = await client.query(
+    `select user_id from auth_identities
+      where wallet_provider = 'wallet'
+        and auth_value_normalized = $1
+      limit 1`,
+    [normalizeValue(address)],
   );
   return (result.rows[0]?.user_id as string | undefined) ?? null;
 }

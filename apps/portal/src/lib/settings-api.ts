@@ -102,9 +102,23 @@ export async function settingsApiFetch<T>(
 export function useAccountApiFetch() {
   return useCallback(
     async <T>(path: string, options?: RequestInit): Promise<T> => {
-      void path;
-      void options;
-      throw new Error("Account settings require the portal account bridge.");
+      // Same-origin `/api/account/*` through the portal proxy, which injects the
+      // AccountBearer from the `aomi_session` cookie (established by
+      // AomiSessionBridge). The browser carries no bearer itself.
+      const response = await fetch(`${getBackendUrl()}${path}`, {
+        ...options,
+        headers: {
+          "content-type": "application/json",
+          ...(options?.headers ?? {}),
+        },
+        credentials: "include",
+        cache: "no-store",
+      });
+      if (!response.ok) {
+        const text = await response.text();
+        throw new Error(text || `Request failed: ${response.status}`);
+      }
+      return (await response.json()) as T;
     },
     [],
   );
