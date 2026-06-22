@@ -1,6 +1,6 @@
 import "server-only";
 
-import { portalService } from "@portal/lib/aomi-account/topology";
+import { portalService } from "@aomi-labs/account";
 import { resolveDeployPlatform } from "@portal/lib/deploy-platform";
 
 // The portal authenticates to the backend as a **service** principal: it mints a

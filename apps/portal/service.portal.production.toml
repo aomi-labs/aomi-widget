@@ -1,6 +1,6 @@
 # AOMI service topology — PRODUCTION. The portal's committed view of the mesh.
 # Public keys MUST match the backend's `service.production.toml`. Private keys
-# live only in env: the portal sets PORTAL_ACCOUNT_BEARER_PRIVATE_KEY (aomi-bff);
+# live only in env: the portal sets PORTAL_SERVICE_PRIVATE_KEY (aomi-bff);
 # admin tooling holds the aomi-admin private key.
 # Select this file at runtime with PORTAL_SERVICE_TOPOLOGY=service.portal.production.toml.
 

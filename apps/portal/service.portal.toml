@@ -4,7 +4,7 @@
 # private half lives in that service's env, never here), the `issues` roles it
 # may mint, and the `audiences` it may sign for. The portal selects its own node
 # (`aomi-bff`) and mints `service.portal.toml`-authorized bearers with
-# PORTAL_ACCOUNT_BEARER_PRIVATE_KEY (env). Public keys here MUST match the
+# PORTAL_SERVICE_PRIVATE_KEY (env). Public keys here MUST match the
 # backend's `service.toml` (verifier view) — same mesh, two vantages
 # (docs/topics/account-authentication/facts/service-identity.md).
 #
