@@ -48,6 +48,18 @@ const nextConfig: NextConfig = {
   },
   output: process.env.VERCEL === "1" ? undefined : "standalone",
   outputFileTracingRoot: workspaceRoot,
+  // The service-topology TOML is read at runtime via a dynamic path, so
+  // @vercel/nft can't trace it automatically — include it explicitly for every
+  // route that mints/verifies a bearer. Per the Next docs, include-glob values
+  // resolve from the Next.js project root (apps/portal), NOT from
+  // outputFileTracingRoot.
+  outputFileTracingIncludes: {
+    "/*": [
+      "./service.portal.toml",
+      "./service.portal.staging.toml",
+      "./service.portal.production.toml",
+    ],
+  },
   experimental: {
     externalDir: true,
     webpackMemoryOptimizations: true,
