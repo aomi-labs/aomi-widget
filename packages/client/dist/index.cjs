@@ -67,7 +67,6 @@ __export(index_exports, {
   buildAAExecutionPlan: () => buildAAExecutionPlan,
   buildFeeAAWalletCall: () => buildFeeAAWalletCall,
   createAAProviderState: () => createAAProviderState,
-  createAccountBearerProvider: () => createAccountBearerProvider,
   createAlchemyAAProvider: () => createAlchemyAAProvider,
   createPimlicoAAProvider: () => createPimlicoAAProvider,
   executeWalletCalls: () => executeWalletCalls,
@@ -1636,22 +1635,6 @@ ${body}` : ""}`
     return await response.json();
   }
 };
-
-// src/account-session.ts
-function createAccountBearerProvider(_options) {
-  const listeners = /* @__PURE__ */ new Set();
-  const getAccountBearer = async ({
-    forceRefresh: _forceRefresh = false
-  } = {}) => void 0;
-  getAccountBearer.subscribe = (listener) => {
-    listeners.add(listener);
-    return () => listeners.delete(listener);
-  };
-  getAccountBearer.dispose = () => {
-    listeners.clear();
-  };
-  return getAccountBearer;
-}
 
 // src/types.ts
 function isInlineCall(event) {
@@ -4616,7 +4599,6 @@ async function createAAProviderState(options) {
   buildAAExecutionPlan,
   buildFeeAAWalletCall,
   createAAProviderState,
-  createAccountBearerProvider,
   createAlchemyAAProvider,
   createPimlicoAAProvider,
   executeWalletCalls,

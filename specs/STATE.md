@@ -2,9 +2,24 @@
 
 ## Last Updated
 
-2026-06-20 — Deploy flow shipped: CLI + SDK + BFF + Portal UI (11 PRs)
+2026-06-22 — Removed no-op `createAccountBearerProvider` (proxy-inject is canonical)
 
 ## Recent Changes
+
+### Remove no-op `createAccountBearerProvider` (2026-06-22)
+
+The browser holds no AccountBearer under the proxy-inject design (Option 2): the
+portal sets an httpOnly `aomi_session` cookie at login (`AomiSessionBridge` →
+`/api/account/sessions/exchange`) and the same-origin proxy injects the bearer
+from that cookie on every `/api/*` call. `createAccountBearerProvider` was a
+no-op that always yielded `undefined`, so its plumbing produced nothing.
+
+- Deleted `packages/client/src/account-session.ts` (function +
+  `AccountBearerProviderOptions`/`AccountBearerProvider`/`EmbeddedCredentialProvider`/`AccountSessionExchangeResponse` types) and its barrel exports in `packages/client/src/index.ts`.
+- Deleted `packages/client/test/account-session.unit.test.ts` (only exercised the no-op).
+- Stripped the dead `accountBearerProvider` memo + dispose effect and the `getAccountBearer` client option from `apps/portal/src/components/portal-aomi-frame.tsx`.
+- Note: `dist/` (`packages/client`) still needs a rebuild (`pnpm run build:lib`) to drop the stale export/types.
+
 
 ### Deploy flow: CLI, SDK, BFF security, Portal UI (2026-06-20)
 
