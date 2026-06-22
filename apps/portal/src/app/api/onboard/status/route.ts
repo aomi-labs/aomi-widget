@@ -40,7 +40,7 @@ export async function GET(req: Request) {
   }
 
   try {
-    const env = await activationEnv(readOnboardDeployEnv());
+    const env = await activationEnv(await readOnboardDeployEnv());
     const result = await backendRequest<BackendDeploymentStatusResult>(
       env,
       `/api/platforms/${encodeURIComponent(env.platform)}/deployments/${encodeURIComponent(
