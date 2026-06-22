@@ -45,6 +45,14 @@ export function getSettingsSessionId(): string {
 }
 
 export function getBackendUrl(): string {
+  // Same-origin BFF proxy (Option 2): the browser calls `/api/*` on the portal,
+  // which injects the AccountBearer from the session cookie and forwards
+  // upstream (apps/portal/src/app/api/[...slug]/route.ts). An empty base makes
+  // the client build same-origin relative URLs. Opt-in so existing deployments
+  // that hit the backend directly are unchanged.
+  if (process.env.NEXT_PUBLIC_AOMI_PROXY === "1") {
+    return "";
+  }
   return normalizeBackendUrl(
     process.env.NEXT_PUBLIC_BACKEND_URL ?? DEFAULT_BACKEND_URL,
   );
