@@ -1610,23 +1610,6 @@ ${body}` : ""}`
   }
 };
 
-// src/account-session.ts
-function createAccountBearerProvider(_options) {
-  const listeners = /* @__PURE__ */ new Set();
-  const getAccountBearer = async ({
-    forceRefresh: _forceRefresh = false
-  } = {}) => void 0;
-  getAccountBearer.subscribe = (listener) => {
-    listeners.add(listener);
-    return () => listeners.delete(listener);
-  };
-  getAccountBearer.dispose = () => {
-    listeners.clear();
-  };
-  return getAccountBearer;
-}
-var createAccountAccessTokenProvider = createAccountBearerProvider;
-
 // src/types.ts
 function isInlineCall(event) {
   return "InlineCall" in event;
@@ -4636,8 +4619,6 @@ export {
   buildAAExecutionPlan,
   buildFeeAAWalletCall,
   createAAProviderState,
-  createAccountAccessTokenProvider,
-  createAccountBearerProvider,
   createAlchemyAAProvider,
   createPimlicoAAProvider,
   executeWalletCalls,

@@ -3,8 +3,7 @@
 import { useEffect, useMemo, useRef } from "react";
 import Link from "next/link";
 import { Settings } from "lucide-react";
-import { createAccountBearerProvider } from "@aomi-labs/client";
-import { AomiFrame, useAomiAuthAdapter } from "@aomi-labs/widget-lib";
+import { AomiFrame } from "@aomi-labs/widget-lib";
 import { type AomiClientOptions, usePerThreadControl } from "@aomi-labs/react";
 import { RequiredSecretsGate } from "@portal/components/required-secrets-gate";
 import { x402Client } from "@x402/core/client";
@@ -31,35 +30,9 @@ function getRequestedAppFromSearch(search: string): string | null {
 function usePortalClientOptions():
   | Omit<AomiClientOptions, "baseUrl">
   | undefined {
-  const { getAccountCredential } = useAomiAuthAdapter();
   const wagmiConfig = useConfig();
   const walletClient = useWalletClient();
   const nativeFetch = useMemo(() => globalThis.fetch.bind(globalThis), []);
-  const accountBearerProvider = useMemo(() => {
-    if (!getAccountCredential) {
-      return undefined;
-    }
-    return createAccountBearerProvider({
-      baseUrl: "",
-      getProviderCredential: async () => {
-        const credential = await getAccountCredential();
-        if (!credential) {
-          throw new Error(
-            "Wallet provider is connected without an exchangeable credential",
-          );
-        }
-        return credential;
-      },
-      fetch: nativeFetch,
-    });
-  }, [getAccountCredential, nativeFetch]);
-
-  useEffect(
-    () => () => {
-      accountBearerProvider?.dispose();
-    },
-    [accountBearerProvider],
-  );
 
   const mppClientOptions = useMemo(() => {
     if (!wagmiConfig) {
@@ -220,14 +193,8 @@ function usePortalClientOptions():
 
     return {
       fetch: routedFetch,
-      getAccountBearer: accountBearerProvider,
     };
-  }, [
-    accountBearerProvider,
-    mppClientOptions,
-    nativeFetch,
-    walletClient?.data,
-  ]);
+  }, [mppClientOptions, nativeFetch, walletClient?.data]);
 }
 
 function AppSelectUrlBootstrap() {

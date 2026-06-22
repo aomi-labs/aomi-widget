@@ -64,7 +64,7 @@ import {
   useSafeWagmiConfig,
 } from "../safe-wagmi-hooks";
 import type {
-  AomiAccountCredential,
+  AomiEmbeddedCredential,
   AomiAuthAdapter,
   AomiAuthIdentity,
   AomiAuthMethod,
@@ -545,13 +545,13 @@ function AomiPrivyAdapterProvider({
       disconnect: async () => {
         await privy.logout();
       },
-      getAccountCredential: privy.getAccessToken
-        ? async (): Promise<AomiAccountCredential | null> => {
-            const token = (await privy.getAccessToken())?.trim();
-            return token
+      getEmbeddedCredential: privy.getAccessToken
+        ? async (): Promise<AomiEmbeddedCredential | null> => {
+            const jwt = (await privy.getAccessToken())?.trim();
+            return jwt
               ? {
                   provider: "privy",
-                  providerToken: token,
+                  providerJwt: jwt,
                 }
               : null;
           }
