@@ -396,10 +396,10 @@ describe("CLI session lifecycle", () => {
       app: "default",
       execution: "eoa" as const,
       secrets: {},
-      accountAccessToken: "bearer-1",
+      accountBearer: "bearer-1",
     });
 
-    expect(readState()?.accountAccessToken).toBe("bearer-1");
+    expect(readState()?.accountBearer).toBe("bearer-1");
   });
 
   it("persists legacy account provider credential fields on the active session", async () => {
@@ -429,7 +429,7 @@ describe("CLI session lifecycle", () => {
       app: "default",
       execution: "eoa" as const,
       secrets: {},
-      accountAccessToken: "bearer-1",
+      accountBearer: "bearer-1",
     });
 
     CliSession.loadOrCreate({
@@ -442,7 +442,7 @@ describe("CLI session lifecycle", () => {
     });
 
     const state = readState();
-    expect(state?.accountAccessToken).toBeUndefined();
+    expect(state?.accountBearer).toBeUndefined();
     expect(state?.accountProvider).toBe("privy");
     expect(state?.accountProviderToken).toBe("privy-provider-token");
   });
@@ -456,7 +456,7 @@ describe("CLI session lifecycle", () => {
       app: "default",
       execution: "eoa" as const,
       secrets: {},
-      accountAccessToken: "bearer-1",
+      accountBearer: "bearer-1",
     });
 
     // Later invocation: the bearer is NOT passed again on the command line.
@@ -494,7 +494,7 @@ describe("CLI session lifecycle", () => {
       app: "default",
       execution: "eoa" as const,
       secrets: {},
-      accountAccessToken: "legacy-bearer",
+      accountBearer: "legacy-bearer",
     });
 
     const cli = CliSession.load();

@@ -1,0 +1,30 @@
+import { readFileSync } from "node:fs";
+
+import { AomiService } from "@aomi-labs/service";
+
+// The issuer's runtime view of the AOMI service topology. It reads the committed
+// `service.portal.toml` mesh, selects its own node (`aomi-bff`), and injects its
+// private signing key from env (the one secret — never in the TOML). Both bearer
+// minting paths (user tokens, service-to-service) go through this.
+//
+// Server-only: `AomiService.fromTopology` calls `assertServerOnly()`, so this
+// throws if it is ever imported into a browser bundle — which is why the whole
+// `@aomi-labs/account` package must stay out of client/browser code.
+
+const SELF = "aomi-bff";
+const DEFAULT_TOPOLOGY_PATH = "service.portal.toml";
+
+let cached: AomiService | null = null;
+
+/** The portal as an `AomiService` (self = `aomi-bff`), loaded once and reused. */
+export function portalService(): AomiService {
+  if (cached) return cached;
+  const path = process.env.PORTAL_SERVICE_TOML?.trim() || DEFAULT_TOPOLOGY_PATH;
+  const toml = readFileSync(path, "utf8");
+  cached = AomiService.fromTopology({
+    toml,
+    selfName: SELF,
+    privateKeyPem: process.env.PORTAL_SERVICE_PRIVATE_KEY,
+  });
+  return cached;
+}

@@ -235,7 +235,6 @@ describe("User API", () => {
       await waitFor(() => {
         expect(listThreads).toHaveBeenCalledWith(
           expect.stringMatching(/^control:/),
-          "0x789",
         );
       });
 
@@ -286,11 +285,10 @@ describe("User API", () => {
       expect(ensureAccount).not.toHaveBeenCalled();
       expect(listThreads).toHaveBeenCalledWith(
         expect.stringMatching(/^control:/),
-        "0x789",
       );
     });
 
-    it("does not list remote threads through legacy public_key for Solana-only wallets", async () => {
+    it("does not list remote threads for Solana-only wallets without an account address", async () => {
       const ensureAccount = vi.fn(async () => undefined);
       const listThreads = vi.fn(async (): Promise<AomiThread[]> => []);
 

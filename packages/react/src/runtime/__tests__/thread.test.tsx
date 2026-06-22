@@ -271,7 +271,7 @@ describe("Thread API", () => {
       });
 
       await waitFor(() => {
-        expect(fetchThreads).toHaveBeenCalledWith("0x123");
+        expect(fetchThreads).toHaveBeenCalled();
       });
 
       await waitFor(() => {
@@ -531,7 +531,7 @@ describe("Thread API", () => {
       });
 
       await waitFor(() => {
-        expect(fetchThreads).toHaveBeenCalledWith("0xabc");
+        expect(fetchThreads).toHaveBeenCalled();
       });
 
       // createThread was NOT called for the listed thread — its session

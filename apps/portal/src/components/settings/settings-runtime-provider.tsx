@@ -5,15 +5,10 @@ import {
   AomiClient,
   ControlContextProvider,
   ThreadContextProvider,
-  UserState,
   ExtUserProvider,
   useThreadContext,
-  useUser,
 } from "@aomi-labs/react";
-import {
-  getBackendUrl,
-  getSettingsSessionId,
-} from "@portal/lib/settings-api";
+import { getBackendUrl, getSettingsSessionId } from "@portal/lib/settings-api";
 
 type SettingsRuntimeProviderProps = {
   children: ReactNode;
@@ -29,13 +24,11 @@ function SettingsRuntimeInner({
   sessionId: string;
 }) {
   const threadContext = useThreadContext();
-  const { user } = useUser();
 
   return (
     <ControlContextProvider
       aomiClient={aomiClient}
       sessionId={sessionId}
-      publicKey={UserState.address(user) ?? UserState.svmAddress(user)}
       getThreadMetadata={threadContext.getThreadMetadata}
       updateThreadMetadata={threadContext.updateThreadMetadata}
     >
@@ -56,10 +49,7 @@ export function SettingsRuntimeProvider({
   return (
     <ThreadContextProvider initialThreadId={sessionId}>
       <ExtUserProvider>
-        <SettingsRuntimeInner
-          aomiClient={aomiClient}
-          sessionId={sessionId}
-        >
+        <SettingsRuntimeInner aomiClient={aomiClient} sessionId={sessionId}>
           {children}
         </SettingsRuntimeInner>
       </ExtUserProvider>

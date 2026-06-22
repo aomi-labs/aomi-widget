@@ -812,8 +812,8 @@ async function fetchStateResponse(fetchImpl, url, sessionId) {
     headers: withSessionHeader(sessionId)
   });
 }
-function wrapFetchWithAccountBearer(fetchImpl, getAccountAccessToken) {
-  if (!getAccountAccessToken) return fetchImpl;
+function wrapFetchWithAccountBearer(fetchImpl, getAccountBearer) {
+  if (!getAccountBearer) return fetchImpl;
   return async (input, init) => {
     var _a;
     const baseHeaders = new Headers(
@@ -823,7 +823,7 @@ function wrapFetchWithAccountBearer(fetchImpl, getAccountAccessToken) {
       const headers = new Headers(baseHeaders);
       let accessToken;
       try {
-        accessToken = await getAccountAccessToken({ forceRefresh });
+        accessToken = await getAccountBearer({ forceRefresh });
       } catch (e) {
         accessToken = void 0;
       }
@@ -898,11 +898,11 @@ var AomiClient = class {
     const rawFetchImpl = typeof globalThis.fetch === "function" ? globalThis.fetch.bind(globalThis) : fetchImpl;
     this.fetchImpl = wrapFetchWithAccountBearer(
       fetchImpl,
-      options.getAccountAccessToken
+      options.getAccountBearer
     );
     this.rawFetchImpl = wrapFetchWithAccountBearer(
       rawFetchImpl,
-      options.getAccountAccessToken
+      options.getAccountBearer
     );
     this.logger = options.logger;
     this.sseSubscriber = createSseSubscriber({
@@ -913,8 +913,8 @@ var AomiClient = class {
       fetchImpl: this.rawFetchImpl,
       logger: this.logger
     });
-    if (supportsTokenRefreshSubscription(options.getAccountAccessToken)) {
-      options.getAccountAccessToken.subscribe(() => {
+    if (supportsTokenRefreshSubscription(options.getAccountBearer)) {
+      options.getAccountBearer.subscribe(() => {
         this.sseSubscriber.reconnect("account-token-refreshed");
       });
     }
@@ -1025,14 +1025,12 @@ ${body}` : ""}`
     const url = buildApiUrl(this.baseUrl, "/api/chat", {
       app,
       message,
-      public_key: options == null ? void 0 : options.publicKey,
       user_state: normalizedUserState ? JSON.stringify(normalizedUserState) : void 0,
       client_id: options == null ? void 0 : options.clientId
     });
     (_c = this.logger) == null ? void 0 : _c.debug("[aomi][client] POST /api/chat prepared", {
       sessionId,
       app,
-      publicKey: options == null ? void 0 : options.publicKey,
       clientId: options == null ? void 0 : options.clientId,
       hasUserState: Boolean(normalizedUserState),
       messagePreview: previewText(message)
@@ -1220,12 +1218,10 @@ ${body}` : ""}`
     return void 0;
   }
   /**
-   * List all threads for a wallet address.
+   * List all threads for the authenticated account.
    */
-  async listThreads(sessionId, publicKey) {
-    const url = buildApiUrl(this.baseUrl, "/api/sessions", {
-      public_key: publicKey
-    });
+  async listThreads(sessionId) {
+    const url = buildApiUrl(this.baseUrl, "/api/sessions");
     const response = await this.fetchImpl(url, {
       headers: withSessionHeader(sessionId)
     });
@@ -1253,16 +1249,11 @@ ${body}` : ""}`
   /**
    * Create a new thread. The client generates the session ID.
    */
-  async createThread(threadId, publicKey) {
-    const body = {};
-    if (publicKey) body.public_key = publicKey;
+  async createThread(threadId) {
     const url = buildApiUrl(this.baseUrl, "/api/sessions");
     const response = await this.fetchImpl(url, {
       method: "POST",
-      headers: withSessionHeader(threadId, {
-        "Content-Type": "application/json"
-      }),
-      body: JSON.stringify(body)
+      headers: withSessionHeader(threadId)
     });
     if (!response.ok) {
       throw new Error(`Failed to create thread: HTTP ${response.status}`);
@@ -1349,9 +1340,7 @@ ${body}` : ""}`
    */
   async getApps(sessionId, options) {
     var _a;
-    const url = buildApiUrl(this.baseUrl, "/api/session/apps", {
-      public_key: options == null ? void 0 : options.publicKey
-    });
+    const url = buildApiUrl(this.baseUrl, "/api/session/apps");
     const apiKey = (_a = options == null ? void 0 : options.apiKey) != null ? _a : this.apiKey;
     const headers = new Headers(withSessionHeader(sessionId));
     if (apiKey) {
@@ -1397,6 +1386,12 @@ ${body}` : ""}`
       );
     }
     return await response.json();
+  }
+  async createAccountApproval(request) {
+    return this.request("POST", "/api/account/approvals", {
+      body: request,
+      raw: true
+    });
   }
   /**
    * Mint a Privy browser auth URL bound to the current backend session.
@@ -1564,21 +1559,19 @@ ${body}` : ""}`
 };
 
 // src/account-session.ts
-function createAccountAccessTokenProvider(_options) {
+function createAccountBearerProvider(_options) {
   const listeners = /* @__PURE__ */ new Set();
-  const getAccountAccessToken = async ({
+  const getAccountBearer = async ({
     forceRefresh: _forceRefresh = false
-  } = {}) => {
-    return void 0;
-  };
-  getAccountAccessToken.subscribe = (listener) => {
+  } = {}) => void 0;
+  getAccountBearer.subscribe = (listener) => {
     listeners.add(listener);
     return () => listeners.delete(listener);
   };
-  getAccountAccessToken.dispose = () => {
+  getAccountBearer.dispose = () => {
     listeners.clear();
   };
-  return getAccountAccessToken;
+  return getAccountBearer;
 }
 
 // src/types.ts
@@ -2625,17 +2618,6 @@ var SessionWalletController = class {
 };
 
 // src/session/index.ts
-function legacySessionPublicKey(userState) {
-  var _a;
-  const address3 = UserState.address(userState);
-  if (!(address3 == null ? void 0 : address3.startsWith("0x"))) {
-    return void 0;
-  }
-  if (UserState.chainId(userState) === void 0 && !((_a = userState == null ? void 0 : userState.evm) == null ? void 0 : _a.address)) {
-    return void 0;
-  }
-  return address3;
-}
 var ClientSession = class extends TypedEventEmitter {
   constructor(clientOrOptions, sessionOptions) {
     var _a, _b, _c, _d, _e;
@@ -2651,7 +2633,6 @@ var ClientSession = class extends TypedEventEmitter {
     this.client = clientOrOptions instanceof AomiClient ? clientOrOptions : new AomiClient(clientOrOptions);
     this.sessionId = (_a = sessionOptions == null ? void 0 : sessionOptions.sessionId) != null ? _a : crypto.randomUUID();
     this.app = (_b = sessionOptions == null ? void 0 : sessionOptions.app) != null ? _b : "default";
-    this.publicKey = sessionOptions == null ? void 0 : sessionOptions.publicKey;
     this.apiKey = sessionOptions == null ? void 0 : sessionOptions.apiKey;
     const initialUserState = UserState.reconcile(
       void 0,
@@ -2689,7 +2670,6 @@ var ClientSession = class extends TypedEventEmitter {
     this.assertOpen();
     const response = await this.client.sendMessage(this.sessionId, message, {
       app: this.app,
-      publicKey: this.publicKey,
       apiKey: this.apiKey,
       userState: this.userState,
       clientId: this.clientId
@@ -2714,7 +2694,6 @@ var ClientSession = class extends TypedEventEmitter {
     this.assertOpen();
     const response = await this.client.sendMessage(this.sessionId, message, {
       app: this.app,
-      publicKey: this.publicKey,
       apiKey: this.apiKey,
       userState: this.userState,
       clientId: this.clientId
@@ -2830,7 +2809,6 @@ var ClientSession = class extends TypedEventEmitter {
   syncRuntimeOptions(options) {
     var _a;
     this.app = options.app;
-    this.publicKey = options.publicKey;
     this.apiKey = options.apiKey;
     this.clientId = (_a = options.clientId) != null ? _a : this.clientId;
     if (options.userState) {
@@ -2841,13 +2819,6 @@ var ClientSession = class extends TypedEventEmitter {
     const previousSerialized = stableUserStateString(this.userState);
     this.userState = UserState.reconcile(this.userState, userState);
     const nextSerialized = stableUserStateString(this.userState);
-    const publicKey = legacySessionPublicKey(this.userState);
-    const isConnected3 = UserState.isConnected(this.userState);
-    if (publicKey && isConnected3 !== false) {
-      this.publicKey = publicKey;
-    } else {
-      this.publicKey = void 0;
-    }
     this.walletController.sync();
     if (!(opts == null ? void 0 : opts.skipEmit) && this.userState && previousSerialized !== nextSerialized) {
       this.emit("user_state_updated", this.userState);
@@ -4575,7 +4546,7 @@ export {
   buildAAExecutionPlan,
   buildFeeAAWalletCall,
   createAAProviderState,
-  createAccountAccessTokenProvider,
+  createAccountBearerProvider,
   createAlchemyAAProvider,
   createPimlicoAAProvider,
   executeWalletCalls,

@@ -1,7 +1,4 @@
-import type {
-  AomiMessage,
-  AomiSSEEvent,
-} from "../types";
+import type { AomiMessage, AomiSSEEvent } from "../types";
 import type {
   AomiClientType,
   UserState as UserStateShape,
@@ -108,8 +105,6 @@ export type SessionOptions = {
   sessionId?: string;
   /** App for chat messages. Default: "default" */
   app?: string;
-  /** User public key (wallet address). */
-  publicKey?: string;
   /** API key override. */
   apiKey?: string;
   /** User state to send with requests (wallet connection info, etc). */
@@ -132,7 +127,6 @@ export type SessionOptions = {
 
 export type SessionRuntimeOptions = {
   app: string;
-  publicKey?: string;
   apiKey?: string;
   clientId?: string;
   userState?: UserStateShape;

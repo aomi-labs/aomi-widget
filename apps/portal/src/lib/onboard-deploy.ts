@@ -1,6 +1,20 @@
 import "server-only";
 
+import { portalService } from "@aomi-labs/account";
 import { resolveDeployPlatform } from "@portal/lib/deploy-platform";
+
+// The portal authenticates to the backend as a **service** principal: it mints a
+// short-lived `service`-role AccountBearer via its `AomiService` (the topology
+// lib — identity/kid/roles from `service.portal.toml`, key from env). It is NOT
+// an admin — admin is a human, and `/api/admin/*` is out of the portal's scope.
+async function mintServiceBearer(): Promise<string> {
+  const { accessToken } = await portalService().mint({
+    role: "service",
+    subject: "aomi-bff",
+    audience: "aomi-backend",
+  });
+  return accessToken;
+}
 
 type SourceRef =
   | { kind: "branch"; value: string }
@@ -33,7 +47,6 @@ export class BackendRequestError extends Error {
 export type OnboardDeployEnv = {
   backendUrl: string;
   bearer: string;
-  adminSecret?: string;
   activationToken?: string;
   platform: string;
   templateRepo: string;
@@ -117,20 +130,17 @@ export type BackendDeploymentStatusResult = {
   message?: string;
 };
 
-export function readOnboardDeployEnv(): OnboardDeployEnv {
+export async function readOnboardDeployEnv(): Promise<OnboardDeployEnv> {
   const backendUrl = (
     process.env.BACKEND_URL ||
     process.env.NEXT_PUBLIC_BACKEND_URL ||
     "http://127.0.0.1:8080"
   ).replace(/\/+$/, "");
-  const adminSecret = process.env.AOMI_ADMIN_SECRET;
   const activationToken = process.env.APP_DEPLOY_ACTIVATION_TOKEN;
-  const bearer = activationToken || adminSecret;
-  if (!bearer) {
-    throw new Error(
-      "onboarding deploy is not configured: set AOMI_ADMIN_SECRET or APP_DEPLOY_ACTIVATION_TOKEN",
-    );
-  }
+  // Use a pre-issued platform activation token if one is configured, otherwise
+  // the portal mints its own short-lived service bearer (its default identity
+  // to the backend).
+  const bearer = activationToken ?? (await mintServiceBearer());
   const sourceRef: SourceRef = process.env.APP_DEPLOY_SOURCE_COMMIT
     ? { kind: "commit", value: process.env.APP_DEPLOY_SOURCE_COMMIT }
     : { kind: "branch", value: process.env.APP_DEPLOY_SOURCE_BRANCH || "main" };
@@ -145,7 +155,6 @@ export function readOnboardDeployEnv(): OnboardDeployEnv {
   return {
     backendUrl,
     bearer,
-    adminSecret,
     activationToken,
     platform: resolveDeployPlatform(),
     templateRepo:
@@ -165,13 +174,10 @@ export async function activationEnv(
   if (cached) {
     return { ...env, bearer: cached };
   }
-  if (!env.adminSecret) {
-    throw new Error(
-      "activation requires APP_DEPLOY_ACTIVATION_TOKEN or AOMI_ADMIN_SECRET",
-    );
-  }
+  // Mint a scoped platform activation token using the portal's service bearer
+  // (already on `env.bearer`).
   const minted = await backendRequest<{ token?: string }>(
-    { ...env, bearer: env.adminSecret },
+    env,
     `/api/platforms/${encodeURIComponent(env.platform)}/tokens`,
     {
       method: "POST",

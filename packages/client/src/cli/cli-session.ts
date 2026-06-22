@@ -31,18 +31,18 @@ function applyAccountCredentialConfig(
   state: CliSessionState,
   config: Pick<
     Partial<CliConfig>,
-    "accountAccessToken" | "accountProvider" | "accountProviderToken"
+    "accountBearer" | "accountProvider" | "accountProviderToken"
   >,
 ): boolean {
   let changed = false;
-  const selectsBearer = config.accountAccessToken !== undefined;
+  const selectsBearer = config.accountBearer !== undefined;
   const selectsProviderExchange =
     config.accountProvider !== undefined ||
     config.accountProviderToken !== undefined;
 
   if (selectsBearer) {
-    if (state.accountAccessToken !== config.accountAccessToken) {
-      state.accountAccessToken = config.accountAccessToken;
+    if (state.accountBearer !== config.accountBearer) {
+      state.accountBearer = config.accountBearer;
       changed = true;
     }
     if (state.accountProvider !== undefined) {
@@ -60,8 +60,8 @@ function applyAccountCredentialConfig(
     return changed;
   }
 
-  if (state.accountAccessToken !== undefined) {
-    state.accountAccessToken = undefined;
+  if (state.accountBearer !== undefined) {
+    state.accountBearer = undefined;
     changed = true;
   }
   if (
@@ -133,7 +133,7 @@ export class CliSession {
       app: config.app ?? seed?.app,
       model: config.model ?? seed?.model,
       apiKey: config.apiKey ?? seed?.apiKey,
-      accountAccessToken: seed?.accountAccessToken,
+      accountBearer: seed?.accountBearer,
       accountProvider: seed?.accountProvider,
       accountProviderToken: seed?.accountProviderToken,
       publicKey: config.publicKey ?? seed?.publicKey,
@@ -468,11 +468,11 @@ export class CliSession {
   /** Build a ClientSession from the current state. */
   createClientSession(config: Partial<CliConfig> = {}): ClientSession {
     const effectiveAccountProvider =
-      config.accountAccessToken !== undefined
+      config.accountBearer !== undefined
         ? undefined
         : (config.accountProvider ?? this.state.accountProvider);
     const effectiveAccountProviderToken =
-      config.accountAccessToken !== undefined
+      config.accountBearer !== undefined
         ? undefined
         : (config.accountProviderToken ?? this.state.accountProviderToken);
     const shouldUseProviderExchange = Boolean(
@@ -487,11 +487,12 @@ export class CliSession {
           apiKey: this.state.apiKey,
           // Provider-token exchange is disabled. Keep the persisted fields for
           // compatibility, but do not let them create or replace a bearer.
-          accountAccessToken: shouldUseProviderExchange
+          accountBearer: shouldUseProviderExchange
             ? undefined
-            : (config.accountAccessToken ?? this.state.accountAccessToken),
+            : (config.accountBearer ?? this.state.accountBearer),
           accountProvider: effectiveAccountProvider,
           accountProviderToken: effectiveAccountProviderToken,
+          secrets: config.secrets ?? {},
         },
         {
           baseUrl: this.state.baseUrl,
@@ -503,7 +504,6 @@ export class CliSession {
         clientId: this.state.clientId,
         app: this.state.app,
         apiKey: this.state.apiKey,
-        publicKey: this.state.publicKey,
       },
     );
     session.resolveUserState(
