@@ -15,6 +15,7 @@ import {
   oneshotStep,
   type PathProgress,
 } from "@portal/lib/onboarding";
+import { chatAppUrl } from "@portal/lib/chat-url";
 import { Stepper } from "./stepper";
 import { DeployStep } from "./deploy-step";
 import { LivePanel } from "./live-panel";
@@ -35,6 +36,7 @@ export function OneshotWizard({
   installing,
   installError,
   patch,
+  onReset,
 }: {
   progress: PathProgress;
   actor?: string;
@@ -44,6 +46,7 @@ export function OneshotWizard({
   installing?: boolean;
   installError?: string | null;
   patch: (patch: Partial<PathProgress>) => void;
+  onReset?: () => void;
 }) {
   const step = oneshotStep(progress);
   const installStatus = installationStatusLabel(progress.installationStatus);
@@ -170,6 +173,7 @@ export function OneshotWizard({
             actor={actor}
             progress={progress}
             onProgress={patch}
+            onReset={onReset}
           />
         </div>
       )}
@@ -177,11 +181,7 @@ export function OneshotWizard({
       {step === "live" && (
         <LivePanel
           repo={progress.repo}
-          chatUrl={
-            progress.apps?.[0]
-              ? `https://chat.aomi.dev?app=${encodeURIComponent(progress.apps[0])}`
-              : undefined
-          }
+          chatUrl={progress.apps?.[0] ? chatAppUrl(progress.apps[0]) : undefined}
         />
       )}
     </div>

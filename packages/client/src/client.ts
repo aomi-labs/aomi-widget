@@ -1,9 +1,11 @@
 import type {
   AomiAccountProfile,
+  AomiAccessApproval,
   AomiAuthWalletFamily,
   AomiAppDescriptor,
   AomiBeginAccountAuthResponse,
   AomiClientOptions,
+  AomiCreateApprovalRequest,
   AomiMessage,
   AomiChatResponse,
   AomiClearSecretsResponse,
@@ -23,7 +25,7 @@ import type {
   AomiSystemEvent,
   AomiSystemResponse,
   AomiThread,
-  GetAccountAccessToken,
+  GetAccountBearer,
   Logger,
   AomiHttpMethod,
 } from "./types";
@@ -167,9 +169,9 @@ async function fetchStateResponse(
 
 function wrapFetchWithAccountBearer(
   fetchImpl: typeof fetch,
-  getAccountAccessToken?: GetAccountAccessToken,
+  getAccountBearer?: GetAccountBearer,
 ): typeof fetch {
-  if (!getAccountAccessToken) return fetchImpl;
+  if (!getAccountBearer) return fetchImpl;
 
   return async (input, init) => {
     const baseHeaders = new Headers(
@@ -181,7 +183,7 @@ function wrapFetchWithAccountBearer(
       // the request. A throwing/absent token just means no Authorization header.
       let accessToken: string | null | undefined;
       try {
-        accessToken = await getAccountAccessToken({ forceRefresh });
+        accessToken = await getAccountBearer({ forceRefresh });
       } catch {
         accessToken = undefined;
       }
@@ -198,8 +200,8 @@ function wrapFetchWithAccountBearer(
 }
 
 function supportsTokenRefreshSubscription(
-  provider: GetAccountAccessToken | undefined,
-): provider is GetAccountAccessToken & {
+  provider: GetAccountBearer | undefined,
+): provider is GetAccountBearer & {
   subscribe: (listener: () => void) => () => void;
 } {
   return (
@@ -296,11 +298,11 @@ export class AomiClient {
         : fetchImpl;
     this.fetchImpl = wrapFetchWithAccountBearer(
       fetchImpl,
-      options.getAccountAccessToken,
+      options.getAccountBearer,
     );
     this.rawFetchImpl = wrapFetchWithAccountBearer(
       rawFetchImpl,
-      options.getAccountAccessToken,
+      options.getAccountBearer,
     );
     this.logger = options.logger;
 
@@ -313,8 +315,8 @@ export class AomiClient {
       fetchImpl: this.rawFetchImpl,
       logger: this.logger,
     });
-    if (supportsTokenRefreshSubscription(options.getAccountAccessToken)) {
-      options.getAccountAccessToken.subscribe(() => {
+    if (supportsTokenRefreshSubscription(options.getAccountBearer)) {
+      options.getAccountBearer.subscribe(() => {
         this.sseSubscriber.reconnect("account-token-refreshed");
       });
     }
@@ -448,7 +450,6 @@ export class AomiClient {
     message: string,
     options?: {
       app?: string;
-      publicKey?: string;
       apiKey?: string;
       userState?: UserStateShape;
       clientId?: string;
@@ -460,7 +461,6 @@ export class AomiClient {
     const url = buildApiUrl(this.baseUrl, "/api/chat", {
       app,
       message,
-      public_key: options?.publicKey,
       user_state: normalizedUserState
         ? JSON.stringify(normalizedUserState)
         : undefined,
@@ -470,7 +470,6 @@ export class AomiClient {
     this.logger?.debug("[aomi][client] POST /api/chat prepared", {
       sessionId,
       app,
-      publicKey: options?.publicKey,
       clientId: options?.clientId,
       hasUserState: Boolean(normalizedUserState),
       messagePreview: previewText(message),
@@ -708,15 +707,10 @@ export class AomiClient {
   }
 
   /**
-   * List all threads for a wallet address.
+   * List all threads for the authenticated account.
    */
-  async listThreads(
-    sessionId: string,
-    publicKey: string,
-  ): Promise<AomiThread[]> {
-    const url = buildApiUrl(this.baseUrl, "/api/sessions", {
-      public_key: publicKey,
-    });
+  async listThreads(sessionId: string): Promise<AomiThread[]> {
+    const url = buildApiUrl(this.baseUrl, "/api/sessions");
     const response = await this.fetchImpl(url, {
       headers: withSessionHeader(sessionId),
     });
@@ -750,20 +744,11 @@ export class AomiClient {
   /**
    * Create a new thread. The client generates the session ID.
    */
-  async createThread(
-    threadId: string,
-    publicKey?: string,
-  ): Promise<AomiCreateThreadResponse> {
-    const body: Record<string, string> = {};
-    if (publicKey) body.public_key = publicKey;
-
+  async createThread(threadId: string): Promise<AomiCreateThreadResponse> {
     const url = buildApiUrl(this.baseUrl, "/api/sessions");
     const response = await this.fetchImpl(url, {
       method: "POST",
-      headers: withSessionHeader(threadId, {
-        "Content-Type": "application/json",
-      }),
-      body: JSON.stringify(body),
+      headers: withSessionHeader(threadId),
     });
 
     if (!response.ok) {
@@ -867,11 +852,9 @@ export class AomiClient {
    */
   async getApps(
     sessionId: string,
-    options?: { publicKey?: string; apiKey?: string },
+    options?: { apiKey?: string },
   ): Promise<AomiAppDescriptor[]> {
-    const url = buildApiUrl(this.baseUrl, "/api/session/apps", {
-      public_key: options?.publicKey,
-    });
+    const url = buildApiUrl(this.baseUrl, "/api/session/apps");
 
     const apiKey = options?.apiKey ?? this.apiKey;
     const headers = new Headers(withSessionHeader(sessionId));
@@ -932,6 +915,15 @@ export class AomiClient {
     }
 
     return (await response.json()) as AomiAccountProfile;
+  }
+
+  async createAccountApproval(
+    request: AomiCreateApprovalRequest,
+  ): Promise<AomiAccessApproval> {
+    return this.request<AomiAccessApproval>("POST", "/api/account/approvals", {
+      body: request,
+      raw: true,
+    });
   }
 
   /**

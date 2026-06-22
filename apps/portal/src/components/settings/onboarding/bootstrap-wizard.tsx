@@ -10,6 +10,7 @@ import {
   TEMPLATE_GENERATE_URL,
   type PathProgress,
 } from "@portal/lib/onboarding";
+import { chatAppUrl } from "@portal/lib/chat-url";
 import { Stepper } from "./stepper";
 import { DeployStep } from "./deploy-step";
 import { LivePanel } from "./live-panel";
@@ -31,6 +32,7 @@ export function BootstrapWizard({
   installing,
   installError,
   patch,
+  onReset,
 }: {
   progress: PathProgress;
   actor?: string;
@@ -40,6 +42,7 @@ export function BootstrapWizard({
   installing?: boolean;
   installError?: string | null;
   patch: (patch: Partial<PathProgress>) => void;
+  onReset?: () => void;
 }) {
   const step = bootstrapStep(progress);
   const installStatus = installationStatusLabel(progress.installationStatus);
@@ -65,17 +68,13 @@ export function BootstrapWizard({
       setChecking(true);
       let preExisting = false;
       try {
-        const res = await fetch(`https://api.github.com/repos/${repo}`, {
-          headers: { Accept: "application/vnd.github+json" },
-        });
+        const res = await fetch(`/api/onboard/check-repo?repo=${encodeURIComponent(repo)}`);
         if (res.ok) {
-          const data = await res.json();
-          const template = (data?.template_repository?.full_name ?? "").toLowerCase();
-          preExisting = !template.startsWith("aomi-labs/");
+          const data = await res.json() as { exists: boolean; fromTemplate: boolean };
+          preExisting = data.exists && !data.fromTemplate;
         }
-        // 404 -> repo doesn't exist yet -> nothing to warn about
       } catch {
-        // offline / rate-limited: skip the check rather than block the user
+        // offline: skip the check rather than block the user
       }
       setChecking(false);
       if (preExisting) {
@@ -248,6 +247,7 @@ export function BootstrapWizard({
             progress={progress}
             onProgress={patch}
             onReconnectInstall={beginAuthorize}
+            onReset={onReset}
           />
         </div>
       )}
@@ -255,11 +255,7 @@ export function BootstrapWizard({
       {step === "live" && (
         <LivePanel
           repo={progress.repo}
-          chatUrl={
-            progress.apps?.[0]
-              ? `https://chat.aomi.dev?app=${encodeURIComponent(progress.apps[0])}`
-              : undefined
-          }
+          chatUrl={progress.apps?.[0] ? chatAppUrl(progress.apps[0]) : undefined}
         />
       )}
     </div>

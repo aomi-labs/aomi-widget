@@ -36,7 +36,6 @@ describe("Control context", () => {
     });
 
     expect(getApps.mock.calls[0]?.[1]).toMatchObject({
-      publicKey: undefined,
       apiKey: undefined,
     });
 
@@ -53,7 +52,10 @@ describe("Control context", () => {
   });
 
   it("does not refetch authorized apps on thread changes", async () => {
-    const getApps = vi.fn(async () => [{ name: "default" }, { name: "special" }]);
+    const getApps = vi.fn(async () => [
+      { name: "default" },
+      { name: "special" },
+    ]);
     setAomiClientConfig({
       getApps,
       getModels: async () => [],
@@ -83,7 +85,10 @@ describe("Control context", () => {
         messages: [],
       }),
     );
-    const getApps = vi.fn(async () => [{ name: "default" }, { name: "special" }]);
+    const getApps = vi.fn(async () => [
+      { name: "default" },
+      { name: "special" },
+    ]);
 
     setAomiClientConfig({
       getApps,
@@ -125,7 +130,9 @@ describe("Control context", () => {
 
     expect(sendMessage.mock.calls[0]?.[2]).toMatchObject({
       app: "special",
-      publicKey: "0xabc",
+      userState: expect.objectContaining({
+        evm: expect.objectContaining({ address: "0xabc" }),
+      }),
     });
   });
 

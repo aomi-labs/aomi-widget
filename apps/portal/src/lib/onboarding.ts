@@ -89,8 +89,6 @@ export type PathProgress = {
   /** `owner/name` — created from the template (oneshot) or supplied by the
    *  user (bootstrap). */
   repo?: string;
-  /** Release tag emitted once a deploy has been kicked off. */
-  releaseTag?: string;
   /** Backend deployment id emitted by the deploy state machine. */
   deploymentId?: string;
   /** Latest backend deploy payload; this is what each .aomi/deployment.json contains. */
@@ -124,21 +122,6 @@ function empty(): OnboardingState {
   return { path: null, oneshot: {}, bootstrap: {}, pendingInstall: null };
 }
 
-function stripMockProgress(progress: PathProgress): PathProgress {
-  if (
-    progress.applicationId !== "mock-app-1" &&
-    !progress.releaseTag?.startsWith("apps-playground-example-")
-  ) {
-    return progress;
-  }
-  const next: PathProgress = {};
-  if (progress.installationId) next.installationId = progress.installationId;
-  if (progress.installationStatus) {
-    next.installationStatus = progress.installationStatus;
-  }
-  if (progress.repo) next.repo = progress.repo;
-  return next;
-}
 
 export function loadOnboarding(): OnboardingState {
   if (typeof window === "undefined") return empty();
@@ -148,8 +131,8 @@ export function loadOnboarding(): OnboardingState {
     const parsed = JSON.parse(raw) as Partial<OnboardingState>;
     return {
       path: parsed.path ?? null,
-      oneshot: stripMockProgress(parsed.oneshot ?? {}),
-      bootstrap: stripMockProgress(parsed.bootstrap ?? {}),
+      oneshot: parsed.oneshot ?? {},
+      bootstrap: parsed.bootstrap ?? {},
       pendingInstall: parsed.pendingInstall ?? null,
     };
   } catch {

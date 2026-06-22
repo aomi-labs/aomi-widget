@@ -48,6 +48,18 @@ const nextConfig: NextConfig = {
   },
   output: process.env.VERCEL === "1" ? undefined : "standalone",
   outputFileTracingRoot: workspaceRoot,
+  // The service-topology TOML is read at runtime via a dynamic path, so
+  // @vercel/nft can't trace it automatically — include it explicitly for every
+  // route that mints/verifies a bearer. Per the Next docs, include-glob values
+  // resolve from the Next.js project root (apps/portal), NOT from
+  // outputFileTracingRoot.
+  outputFileTracingIncludes: {
+    "/*": [
+      "./service.portal.toml",
+      "./service.portal.staging.toml",
+      "./service.portal.production.toml",
+    ],
+  },
   experimental: {
     externalDir: true,
     webpackMemoryOptimizations: true,
@@ -72,8 +84,10 @@ const nextConfig: NextConfig = {
     ignoreBuildErrors: true,
   },
   transpilePackages: [
+    "@aomi-labs/account",
     "@aomi-labs/client",
     "@aomi-labs/react",
+    "@aomi-labs/service",
     "@aomi-labs/widget-lib",
     "@getpara/react-sdk",
   ],
@@ -81,8 +95,10 @@ const nextConfig: NextConfig = {
     resolveAlias: {
       "@portal": "./src",
       ...widgetTurbopackAliases,
+      "@aomi-labs/account": "../../packages/account/src/index.ts",
       "@aomi-labs/client": "../../packages/client/src/index.ts",
       "@aomi-labs/react": "../../packages/react/src/index.ts",
+      "@aomi-labs/service": "../../packages/service/src/index.ts",
       "@assistant-ui/react": "./node_modules/@assistant-ui/react",
       "@noble/hashes/_assert": "./noble-hashes-assert-compat.js",
       "@tanstack/react-query": "./node_modules/@tanstack/react-query",
@@ -102,6 +118,10 @@ const nextConfig: NextConfig = {
       ...(config.resolve.alias ?? {}),
       "@portal": portalSrc,
       ...widgetWebpackAliases,
+      "@aomi-labs/account": path.join(
+        workspaceRoot,
+        "packages/account/src/index.ts",
+      ),
       "@aomi-labs/client": path.join(
         workspaceRoot,
         "packages/client/src/index.ts",
@@ -109,6 +129,10 @@ const nextConfig: NextConfig = {
       "@aomi-labs/react": path.join(
         workspaceRoot,
         "packages/react/src/index.ts",
+      ),
+      "@aomi-labs/service": path.join(
+        workspaceRoot,
+        "packages/service/src/index.ts",
       ),
       "@assistant-ui/react": path.join(appNodeModules, "@assistant-ui/react"),
       "@noble/hashes/_assert": nobleHashesAssertCompatPath,

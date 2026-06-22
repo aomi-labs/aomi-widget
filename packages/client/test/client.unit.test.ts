@@ -1,6 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { createAccountAccessTokenProvider } from "../src/account-session";
 import { AomiClient } from "../src/client";
 import { AOMI_BACKEND_ENDPOINTS } from "./routes";
 
@@ -10,13 +9,12 @@ describe("AomiClient route manifest", () => {
       (endpoint) => `${endpoint.method} ${endpoint.path} ${endpoint.auth}`,
     );
 
-    expect(routeKeys).toHaveLength(74);
+    expect(routeKeys).toHaveLength(73);
     expect(new Set(routeKeys).size).toBe(routeKeys.length);
     expect(routeKeys).toContain("GET /api/session/apps session");
     expect(routeKeys).toContain(
       "POST /api/platforms/:name/deploy self_guarded",
     );
-    expect(routeKeys).toContain("POST /api/account/exchange public");
     expect(routeKeys).not.toContain("GET /api/control/apps session");
     expect(routeKeys.some((route) => route.includes("/api/control/"))).toBe(
       false,
@@ -97,7 +95,7 @@ describe("AomiClient account profile", () => {
     try {
       const client = new AomiClient({
         baseUrl: "http://unit.test",
-        getAccountAccessToken: async () => "bearer-1",
+        getAccountBearer: async () => "bearer-1",
       });
 
       const result = await client.fetchAccountProfile("session-1");
@@ -181,7 +179,7 @@ describe("AomiClient account profile", () => {
     try {
       const client = new AomiClient({
         baseUrl: "http://unit.test",
-        getAccountAccessToken: async () => "bearer-1",
+        getAccountBearer: async () => "bearer-1",
       });
 
       await expect(client.listByokKeys("session-1")).resolves.toHaveLength(1);
@@ -283,13 +281,12 @@ describe("AomiClient account profile", () => {
 
       await client.sendMessage("session-1", "swap 20 mon to usdc", {
         app: "default",
-        publicKey: "0xabc",
         clientId: "client-1",
       });
 
       const [url, init] = nativeFetch.mock.calls[0] ?? [];
       expect(String(url)).toBe(
-        "http://unit.test/api/chat?app=default&message=swap+20+mon+to+usdc&public_key=0xabc&client_id=client-1",
+        "http://unit.test/api/chat?app=default&message=swap+20+mon+to+usdc&client_id=client-1",
       );
       expect((init as RequestInit | undefined)?.body).toBeUndefined();
       expect(
@@ -414,7 +411,7 @@ describe("AomiClient transport selection", () => {
       },
     ] as Response[];
     const nativeFetch = vi.fn(async () => responses.shift() as Response);
-    const getAccountAccessToken = vi.fn(
+    const getAccountBearer = vi.fn(
       async ({ forceRefresh = false } = {}) =>
         forceRefresh ? "fresh-token" : "stale-token",
     );
@@ -424,16 +421,16 @@ describe("AomiClient transport selection", () => {
     try {
       const client = new AomiClient({
         baseUrl: "http://unit.test",
-        getAccountAccessToken,
+        getAccountBearer,
       });
 
       await client.fetchState("session-1");
 
       expect(nativeFetch).toHaveBeenCalledTimes(2);
-      expect(getAccountAccessToken).toHaveBeenNthCalledWith(1, {
+      expect(getAccountBearer).toHaveBeenNthCalledWith(1, {
         forceRefresh: false,
       });
-      expect(getAccountAccessToken).toHaveBeenNthCalledWith(2, {
+      expect(getAccountBearer).toHaveBeenNthCalledWith(2, {
         forceRefresh: true,
       });
       expect(
@@ -452,7 +449,7 @@ describe("AomiClient transport selection", () => {
   });
 
   it("proceeds without a bearer when the token source throws", async () => {
-    // Defense-in-depth: a throwing getAccountAccessToken (e.g. an upstream
+    // Defense-in-depth: a throwing getAccountBearer (e.g. an upstream
     // wallet credential that 403s) must not break the request — the bearer is
     // additive, so we send the call without an Authorization header.
     const stateResponse = {
@@ -460,7 +457,7 @@ describe("AomiClient transport selection", () => {
       json: vi.fn(async () => ({ is_processing: false, messages: [] })),
     } as unknown as Response;
     const nativeFetch = vi.fn(async () => stateResponse);
-    const getAccountAccessToken = vi.fn(async () => {
+    const getAccountBearer = vi.fn(async () => {
       throw new Error(
         "ParaApiError: user must verify biometrics or external wallets",
       );
@@ -471,7 +468,7 @@ describe("AomiClient transport selection", () => {
     try {
       const client = new AomiClient({
         baseUrl: "http://unit.test",
-        getAccountAccessToken,
+        getAccountBearer,
       });
 
       await expect(client.fetchState("session-1")).resolves.toBeDefined();
@@ -542,7 +539,7 @@ describe("AomiClient transport selection", () => {
     try {
       const client = new AomiClient({
         baseUrl: "http://unit.test",
-        getAccountAccessToken: async () => "sse-token",
+        getAccountBearer: async () => "sse-token",
       });
       const unsubscribe = client.subscribeSSE("session-2", vi.fn());
 
@@ -831,7 +828,7 @@ describe("AomiClient transport selection", () => {
       return connection.response;
     });
     let refreshListener: (() => void) | undefined;
-    const getAccountAccessToken = Object.assign(async () => "account-token", {
+    const getAccountBearer = Object.assign(async () => "account-token", {
       subscribe(listener: () => void) {
         refreshListener = listener;
         return () => {
@@ -845,7 +842,7 @@ describe("AomiClient transport selection", () => {
     try {
       const client = new AomiClient({
         baseUrl: "http://unit.test",
-        getAccountAccessToken,
+        getAccountBearer,
       });
       const unsubscribe = client.subscribeSSE("session-1", vi.fn());
 
@@ -863,97 +860,6 @@ describe("AomiClient transport selection", () => {
       unsubscribe();
     } finally {
       vi.stubGlobal("fetch", originalFetch);
-    }
-  });
-});
-
-describe("createAccountAccessTokenProvider", () => {
-  it("caches exchange responses and refreshes two minutes before expiration", async () => {
-    let now = 1_000_000;
-    const fetch = vi
-      .fn<typeof globalThis.fetch>()
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({
-          access_token: "token-1",
-          token_type: "Bearer",
-          expires_at: now / 1000 + 15 * 60,
-          user_id: "user-1",
-        }),
-      } as Response)
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({
-          access_token: "token-2",
-          token_type: "Bearer",
-          expires_at: now / 1000 + 15 * 60,
-          user_id: "user-1",
-        }),
-      } as Response);
-    const getAccountAccessToken = createAccountAccessTokenProvider({
-      baseUrl: "http://unit.test/",
-      getProviderCredential: async () => ({
-        provider: "para",
-        providerToken: "provider-token",
-      }),
-      fetch,
-      now: () => now,
-    });
-
-    await expect(getAccountAccessToken()).resolves.toBe("token-1");
-    await expect(getAccountAccessToken()).resolves.toBe("token-1");
-    expect(fetch).toHaveBeenCalledTimes(1);
-
-    now += 13 * 60 * 1000;
-    await expect(getAccountAccessToken()).resolves.toBe("token-2");
-    expect(fetch).toHaveBeenCalledTimes(2);
-    expect(fetch).toHaveBeenLastCalledWith(
-      "http://unit.test/api/account/exchange",
-      expect.objectContaining({
-        method: "POST",
-        body: JSON.stringify({
-          provider: "para",
-          provider_token: "provider-token",
-        }),
-      }),
-    );
-    getAccountAccessToken.dispose();
-  });
-
-  it("proactively refreshes and notifies subscribers before expiration", async () => {
-    vi.useFakeTimers();
-    let now = 1_000_000;
-    const fetch = vi.fn(async () => ({
-      ok: true,
-      json: async () => ({
-        access_token: `token-${fetch.mock.calls.length}`,
-        token_type: "Bearer",
-        expires_at: now / 1000 + 15 * 60,
-        user_id: "user-1",
-      }),
-    })) as unknown as typeof globalThis.fetch;
-    const getAccountAccessToken = createAccountAccessTokenProvider({
-      baseUrl: "http://unit.test",
-      getProviderCredential: async () => ({
-        provider: "privy",
-        providerToken: "provider-token",
-      }),
-      fetch,
-      now: () => now,
-    });
-    const onRefresh = vi.fn();
-    getAccountAccessToken.subscribe(onRefresh);
-
-    try {
-      await expect(getAccountAccessToken()).resolves.toBe("token-1");
-      now += 13 * 60 * 1000;
-      await vi.advanceTimersByTimeAsync(13 * 60 * 1000);
-
-      expect(fetch).toHaveBeenCalledTimes(2);
-      expect(onRefresh).toHaveBeenCalledTimes(1);
-    } finally {
-      getAccountAccessToken.dispose();
-      vi.useRealTimers();
     }
   });
 });

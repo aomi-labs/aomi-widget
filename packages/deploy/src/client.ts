@@ -6,8 +6,12 @@ import type {
   DeployInput,
   DeployResult,
   DeploymentClientOptions,
+  DeploymentProgressEvent,
+  DeploymentStatus,
+  DeploymentAppStatus,
+  ProgressModel,
   StatusInput,
-  StatusResult,
+  WatchDeploymentOptions,
 } from "./types";
 
 /**
@@ -38,6 +42,13 @@ export class DeploymentClient {
       body,
       "deploy",
     );
+    const cameled = camelDeployResult(result);
+    if (!cameled.ok) {
+      throw new DeployError(
+        "BACKEND",
+        `deploy rejected by backend (deployment ${cameled.deployment.id})`,
+      );
+    }
     await this.audit({
       action: "deploy",
       platform,
@@ -45,7 +56,7 @@ export class DeploymentClient {
       actor: input.actor,
       ts: Date.now(),
     });
-    return camelDeployResult(result);
+    return cameled;
   }
 
   async activate(input: ActivateInput): Promise<ActivateResult> {
@@ -56,6 +67,17 @@ export class DeploymentClient {
       body,
       "activation",
     );
+    const cameled = camelActivateResult(result);
+    if (!cameled.ok) {
+      const partialErrors = cameled.activation.apps
+        .filter((a) => a.error)
+        .map((a) => ({ app: a.name, error: a.error }));
+      throw new DeployError(
+        "ACTIVATION",
+        `activate rejected by backend (status ${cameled.activation.status})`,
+        partialErrors.length ? partialErrors : undefined,
+      );
+    }
     await this.audit({
       action: "activate",
       platform,
@@ -64,26 +86,134 @@ export class DeploymentClient {
       actor: input.actor,
       ts: Date.now(),
     });
-    return camelActivateResult(result);
+    return cameled;
   }
 
-  async status(input: StatusInput): Promise<StatusResult> {
+  async status(input: StatusInput): Promise<DeploymentStatus> {
     const platform = cleanPlatform(input.platform);
-    const path =
-      input.path ?? `/api/platforms/${encodeURIComponent(platform)}/status`;
-    const result = await this.get<StatusResult>(path, "status");
+    const path = input.deploymentId
+      ? `/api/platforms/${encodeURIComponent(platform)}/deployments/${encodeURIComponent(input.deploymentId)}/status`
+      : (input.path ?? `/api/platforms/${encodeURIComponent(platform)}/status`);
+    const result = await this.get<Record<string, unknown>>(path, "status");
     await this.audit({
       action: "status",
       platform,
       actor: input.actor,
       ts: Date.now(),
     });
-    return result;
+    return camelStatusResult(result);
+  }
+
+  /**
+   * Poll GET /api/platforms/:platform/deployments/:id/status until a terminal
+   * state is reached or retries are exhausted. Calls onEvent for every tick.
+   */
+  async watchDeployment(
+    deploymentId: string,
+    platform: string,
+    onEvent: (event: DeploymentProgressEvent) => void,
+    options?: WatchDeploymentOptions,
+  ): Promise<void> {
+    const baseDelayMs = options?.baseDelayMs ?? 3000;
+    const maxDelayMs = options?.maxDelayMs ?? 30000;
+    const maxRetries = options?.maxRetries ?? 8;
+    const signal = options?.signal;
+
+    let failures = 0;
+    let lastCompleted = 0;
+    let lastProgress: ProgressModel = { completed: 0, total: 8, label: "Waiting for build" };
+
+    while (!signal?.aborted && failures < maxRetries) {
+      try {
+        const status = await this.status({ platform, deploymentId });
+        const mapped = this.buildProgressModel(status, lastCompleted);
+        const completed = Math.max(mapped.completed, lastCompleted);
+        const progress: ProgressModel = { ...mapped, completed };
+        lastCompleted = completed;
+        lastProgress = progress;
+
+        const isTerminal = status.state === "ready" || status.state === "failed";
+        onEvent({
+          kind: isTerminal ? "terminal" : "progress",
+          status,
+          progress,
+        });
+
+        if (isTerminal) return;
+
+        failures = 0;
+        await sleep(this.backoffDelay(0, baseDelayMs, maxDelayMs));
+      } catch (err) {
+        // Non-retryable HTTP error — bail immediately
+        if (err instanceof BackendError && err.status >= 400 && err.status < 500) {
+          onEvent({
+            kind: "error",
+            status: {
+              state: "failed",
+              releaseTags: [],
+              message: err.message,
+            },
+            progress: lastProgress,
+            error: err,
+          });
+          return;
+        }
+        failures++;
+        onEvent({
+          kind: "warning",
+          status: {
+            state: "failed",
+            releaseTags: [],
+            message: `Polling attempt failed (${failures}/${maxRetries}): ${err instanceof Error ? err.message : String(err)}`,
+          },
+          progress: lastProgress,
+          error: err instanceof Error ? err : new Error(String(err)),
+        });
+        await sleep(this.backoffDelay(failures, baseDelayMs, maxDelayMs));
+      }
+    }
+
+    // Loop exited without a terminal state — emit error event
+    const errorMsg = signal?.aborted
+      ? "Watch cancelled"
+      : `Polling stopped after ${maxRetries} consecutive failures`;
+    onEvent({
+      kind: "error",
+      status: {
+        state: "failed",
+        releaseTags: [],
+        message: errorMsg,
+      },
+      progress: lastProgress,
+      error: new Error(errorMsg),
+    });
   }
 
   endpoint(path: string): string {
     const cleanPath = path.startsWith("/") ? path : `/${path}`;
     return `${this.baseUrl}${cleanPath}`;
+  }
+
+  private buildProgressModel(status: DeploymentStatus, lastCompleted: number): ProgressModel {
+    const total = 8;
+    switch (status.state) {
+      case "pending":
+        return { completed: 1, total, label: "Waiting for build" };
+      case "building":
+        return { completed: 2, total, label: "Building CI" };
+      case "releasing":
+        return { completed: 5, total, label: "Verifying release assets" };
+      case "ready":
+        return { completed: 8, total, label: "Build ready" };
+      case "failed":
+        return { completed: lastCompleted, total, label: "Build failed" };
+      default:
+        return { completed: lastCompleted, total, label: "Waiting for build" };
+    }
+  }
+
+  private backoffDelay(failures: number, baseMs: number, maxMs: number): number {
+    return Math.min(baseMs * Math.pow(2, failures), maxMs);
   }
 
   private async get<Resp>(path: string, operation: string): Promise<Resp> {
@@ -339,5 +469,37 @@ function camelActivateResult(result: unknown): ActivateResult {
         error: app.error ?? null,
       })),
     },
+  };
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function camelStatusResult(raw: Record<string, unknown>): DeploymentStatus {
+  const apps = (raw.apps ?? []) as Record<string, unknown>[];
+  return {
+    state: raw.state as DeploymentStatus["state"],
+    deployment: raw.deployment
+      ? camelDeployResult({ deployment: raw.deployment }).deployment
+      : undefined,
+    releaseTags: (raw.release_tags ?? raw.releaseTags ?? []) as string[],
+    apps: apps.length
+      ? apps.map((app: Record<string, unknown>) => ({
+          name: app.name as string,
+          releaseTag: (app.release_tag ?? app.releaseTag) as string,
+          releaseReady: Boolean(app.release_ready ?? app.releaseReady),
+          message: (app.message ?? null) as string | null,
+        }))
+      : undefined,
+    ci: raw.ci
+      ? {
+          status: (raw.ci as Record<string, unknown>).status as string | undefined,
+          url: (raw.ci as Record<string, unknown>).url as string | undefined,
+          commitHash: ((raw.ci as Record<string, unknown>).commit_hash ??
+            (raw.ci as Record<string, unknown>).commitHash) as string | undefined,
+        }
+      : undefined,
+    message: raw.message as string | undefined,
   };
 }

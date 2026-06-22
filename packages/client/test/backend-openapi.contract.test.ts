@@ -41,7 +41,6 @@ function expectRouteContract(openApi: OpenApiDocument) {
   const clientRoutes = routeContractFromClientManifest();
 
   expect(clientRoutes).toEqual(backendRoutes);
-  expect(clientRoutes).toContain("POST /api/account/exchange public");
   expect(clientRoutes).toContain("GET /api/account canonical_user");
   expect(clientRoutes).not.toContain("GET /api/account account_token");
   expect(clientRoutes.some((route) => route.includes(" account_token"))).toBe(

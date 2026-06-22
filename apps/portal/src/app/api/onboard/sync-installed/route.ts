@@ -4,20 +4,37 @@ export const runtime = "nodejs";
 
 import {
   type BackendAppSourceResult,
+  BackendRequestError,
   backendRequest,
   readOnboardDeployEnv,
 } from "@portal/lib/onboard-deploy";
+import { checkRateLimit, getClientIp } from "@portal/lib/rate-limit";
+import { validateOrigin } from "@portal/lib/csrf";
+import { isValidRepo } from "@portal/lib/validate-input";
 
 export async function POST(req: Request) {
+  const ip = getClientIp(req);
+  if (!checkRateLimit(ip).allowed) {
+    return NextResponse.json({ error: "Too many requests" }, { status: 429 });
+  }
+  if (!validateOrigin(req)) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
   try {
     const body = (await req.json().catch(() => ({}))) as {
-      repo?: string;
+      repo?: unknown;
     };
-    const repo = body.repo?.trim();
-    if (!repo) {
-      return NextResponse.json({ error: "missing `repo`" }, { status: 400 });
+
+    if (!isValidRepo(body.repo)) {
+      return NextResponse.json(
+        { error: "missing or invalid `repo`" },
+        { status: 400 },
+      );
     }
-    const env = readOnboardDeployEnv();
+
+    const repo = body.repo;
+    const env = await readOnboardDeployEnv();
     const result = await backendRequest<BackendAppSourceResult>(
       env,
       `/api/platforms/${encodeURIComponent(env.platform)}/sources/sync-installed`,
@@ -46,11 +63,15 @@ export async function POST(req: Request) {
       return NextResponse.json(
         {
           error:
-            "the backend returned 404 for the GitHub install sync endpoint, so the portal could not ask GitHub for the live installation state. Restart or deploy the backend with POST /api/platforms/:platform/sources/sync-installed.",
+            "GitHub install not found. Make sure the GitHub App is installed on this repository.",
         },
-        { status: 502 },
+        { status: 404 },
       );
     }
-    return NextResponse.json({ error: message }, { status: 502 });
+    const status =
+      err instanceof BackendRequestError && err.status >= 400 && err.status < 600
+        ? err.status
+        : 502;
+    return NextResponse.json({ error: message }, { status });
   }
 }

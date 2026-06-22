@@ -8,7 +8,7 @@ export type CliAccountProvider = "para" | "privy";
 export type CliConfig = {
   baseUrl?: string;
   apiKey?: string;
-  accountAccessToken?: string;
+  accountBearer?: string;
   accountProvider?: CliAccountProvider;
   accountProviderToken?: string;
   app?: string;

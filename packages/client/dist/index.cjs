@@ -67,7 +67,7 @@ __export(index_exports, {
   buildAAExecutionPlan: () => buildAAExecutionPlan,
   buildFeeAAWalletCall: () => buildFeeAAWalletCall,
   createAAProviderState: () => createAAProviderState,
-  createAccountAccessTokenProvider: () => createAccountAccessTokenProvider,
+  createAccountBearerProvider: () => createAccountBearerProvider,
   createAlchemyAAProvider: () => createAlchemyAAProvider,
   createPimlicoAAProvider: () => createPimlicoAAProvider,
   executeWalletCalls: () => executeWalletCalls,
@@ -166,7 +166,6 @@ function buildConnection(src, flat) {
   const c = __spreadValues({}, src != null ? src : {});
   renameKey(c, "isConnected", "is_connected");
   renameKey(c, "providerLabel", "provider_label");
-  renameKey(c, "primaryFamily", "primary_family");
   renameKey(c, "walletProviderSubject", "wallet_provider_subject");
   renameKey(c, "authMethod", "auth_method");
   renameKey(c, "authValue", "auth_value");
@@ -471,10 +470,6 @@ function svmAddress2(userState) {
   const value = (_a = svmBlock(userState)) == null ? void 0 : _a.address;
   return typeof value === "string" && value.length > 0 ? value : void 0;
 }
-function preferredPublicKey(userState) {
-  var _a;
-  return (_a = address2(userState)) != null ? _a : svmAddress2(userState);
-}
 function chainId2(userState) {
   var _a;
   return parseChainId2((_a = evmBlock(userState)) == null ? void 0 : _a.chain_id);
@@ -570,7 +565,6 @@ var UserState;
   UserState2.address = address2;
   UserState2.evmAddress = evmAddress;
   UserState2.svmAddress = svmAddress2;
-  UserState2.preferredPublicKey = preferredPublicKey;
   UserState2.chainId = chainId2;
   UserState2.ensName = ensName;
   UserState2.aaMode = aaMode;
@@ -897,8 +891,8 @@ async function fetchStateResponse(fetchImpl, url, sessionId) {
     headers: withSessionHeader(sessionId)
   });
 }
-function wrapFetchWithAccountBearer(fetchImpl, getAccountAccessToken) {
-  if (!getAccountAccessToken) return fetchImpl;
+function wrapFetchWithAccountBearer(fetchImpl, getAccountBearer) {
+  if (!getAccountBearer) return fetchImpl;
   return async (input, init) => {
     var _a;
     const baseHeaders = new Headers(
@@ -908,7 +902,7 @@ function wrapFetchWithAccountBearer(fetchImpl, getAccountAccessToken) {
       const headers = new Headers(baseHeaders);
       let accessToken;
       try {
-        accessToken = await getAccountAccessToken({ forceRefresh });
+        accessToken = await getAccountBearer({ forceRefresh });
       } catch (e) {
         accessToken = void 0;
       }
@@ -983,11 +977,11 @@ var AomiClient = class {
     const rawFetchImpl = typeof globalThis.fetch === "function" ? globalThis.fetch.bind(globalThis) : fetchImpl;
     this.fetchImpl = wrapFetchWithAccountBearer(
       fetchImpl,
-      options.getAccountAccessToken
+      options.getAccountBearer
     );
     this.rawFetchImpl = wrapFetchWithAccountBearer(
       rawFetchImpl,
-      options.getAccountAccessToken
+      options.getAccountBearer
     );
     this.logger = options.logger;
     this.sseSubscriber = createSseSubscriber({
@@ -998,8 +992,8 @@ var AomiClient = class {
       fetchImpl: this.rawFetchImpl,
       logger: this.logger
     });
-    if (supportsTokenRefreshSubscription(options.getAccountAccessToken)) {
-      options.getAccountAccessToken.subscribe(() => {
+    if (supportsTokenRefreshSubscription(options.getAccountBearer)) {
+      options.getAccountBearer.subscribe(() => {
         this.sseSubscriber.reconnect("account-token-refreshed");
       });
     }
@@ -1110,14 +1104,12 @@ ${body}` : ""}`
     const url = buildApiUrl(this.baseUrl, "/api/chat", {
       app,
       message,
-      public_key: options == null ? void 0 : options.publicKey,
       user_state: normalizedUserState ? JSON.stringify(normalizedUserState) : void 0,
       client_id: options == null ? void 0 : options.clientId
     });
     (_c = this.logger) == null ? void 0 : _c.debug("[aomi][client] POST /api/chat prepared", {
       sessionId,
       app,
-      publicKey: options == null ? void 0 : options.publicKey,
       clientId: options == null ? void 0 : options.clientId,
       hasUserState: Boolean(normalizedUserState),
       messagePreview: previewText(message)
@@ -1305,12 +1297,10 @@ ${body}` : ""}`
     return void 0;
   }
   /**
-   * List all threads for a wallet address.
+   * List all threads for the authenticated account.
    */
-  async listThreads(sessionId, publicKey) {
-    const url = buildApiUrl(this.baseUrl, "/api/sessions", {
-      public_key: publicKey
-    });
+  async listThreads(sessionId) {
+    const url = buildApiUrl(this.baseUrl, "/api/sessions");
     const response = await this.fetchImpl(url, {
       headers: withSessionHeader(sessionId)
     });
@@ -1338,16 +1328,11 @@ ${body}` : ""}`
   /**
    * Create a new thread. The client generates the session ID.
    */
-  async createThread(threadId, publicKey) {
-    const body = {};
-    if (publicKey) body.public_key = publicKey;
+  async createThread(threadId) {
     const url = buildApiUrl(this.baseUrl, "/api/sessions");
     const response = await this.fetchImpl(url, {
       method: "POST",
-      headers: withSessionHeader(threadId, {
-        "Content-Type": "application/json"
-      }),
-      body: JSON.stringify(body)
+      headers: withSessionHeader(threadId)
     });
     if (!response.ok) {
       throw new Error(`Failed to create thread: HTTP ${response.status}`);
@@ -1434,9 +1419,7 @@ ${body}` : ""}`
    */
   async getApps(sessionId, options) {
     var _a;
-    const url = buildApiUrl(this.baseUrl, "/api/session/apps", {
-      public_key: options == null ? void 0 : options.publicKey
-    });
+    const url = buildApiUrl(this.baseUrl, "/api/session/apps");
     const apiKey = (_a = options == null ? void 0 : options.apiKey) != null ? _a : this.apiKey;
     const headers = new Headers(withSessionHeader(sessionId));
     if (apiKey) {
@@ -1482,6 +1465,12 @@ ${body}` : ""}`
       );
     }
     return await response.json();
+  }
+  async createAccountApproval(request) {
+    return this.request("POST", "/api/account/approvals", {
+      body: request,
+      raw: true
+    });
   }
   /**
    * Mint a Privy browser auth URL bound to the current backend session.
@@ -1649,92 +1638,19 @@ ${body}` : ""}`
 };
 
 // src/account-session.ts
-var DEFAULT_REFRESH_BEFORE_EXPIRY_MS = 2 * 60 * 1e3;
-var FAILURE_COOLDOWN_MS = 30 * 1e3;
-function createAccountAccessTokenProvider({
-  baseUrl,
-  getProviderCredential,
-  fetch: fetchImpl = fetch,
-  now = Date.now,
-  refreshBeforeExpiryMs = DEFAULT_REFRESH_BEFORE_EXPIRY_MS
-}) {
-  let cached = null;
-  let pending = null;
-  let refreshTimer = null;
-  let failedAt = null;
+function createAccountBearerProvider(_options) {
   const listeners = /* @__PURE__ */ new Set();
-  const scheduleRefresh = (session) => {
-    if (refreshTimer) clearTimeout(refreshTimer);
-    const refreshAt = session.expires_at * 1e3 - refreshBeforeExpiryMs;
-    refreshTimer = setTimeout(
-      () => {
-        void getAccountAccessToken({ forceRefresh: true }).catch(
-          () => void 0
-        );
-      },
-      Math.max(refreshAt - now(), 1e3)
-    );
-  };
-  const exchange = async () => {
-    const credential = await getProviderCredential();
-    const response = await fetchImpl(
-      `${baseUrl.replace(/\/+$/, "")}/api/account/exchange`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          provider: credential.provider,
-          provider_token: credential.providerToken
-        })
-      }
-    );
-    if (!response.ok) {
-      throw new Error(
-        `Failed to exchange account credential: HTTP ${response.status}`
-      );
-    }
-    return await response.json();
-  };
-  const getAccountAccessToken = async ({
-    forceRefresh = false
-  } = {}) => {
-    var _a;
-    const refreshAt = cached ? cached.expires_at * 1e3 - refreshBeforeExpiryMs : 0;
-    if (!forceRefresh && cached && now() < refreshAt) {
-      return cached.access_token;
-    }
-    if (!forceRefresh && failedAt !== null && now() - failedAt < FAILURE_COOLDOWN_MS) {
-      return void 0;
-    }
-    if (!pending) {
-      pending = exchange().then((next) => {
-        failedAt = null;
-        const previous = cached;
-        cached = next;
-        scheduleRefresh(next);
-        if (previous && (previous.access_token !== next.access_token || previous.expires_at !== next.expires_at)) {
-          for (const listener of listeners) listener();
-        }
-        return next;
-      }).catch(() => {
-        failedAt = now();
-        return null;
-      }).finally(() => {
-        pending = null;
-      });
-    }
-    return (_a = await pending) == null ? void 0 : _a.access_token;
-  };
-  getAccountAccessToken.subscribe = (listener) => {
+  const getAccountBearer = async ({
+    forceRefresh: _forceRefresh = false
+  } = {}) => void 0;
+  getAccountBearer.subscribe = (listener) => {
     listeners.add(listener);
     return () => listeners.delete(listener);
   };
-  getAccountAccessToken.dispose = () => {
-    if (refreshTimer) clearTimeout(refreshTimer);
-    refreshTimer = null;
+  getAccountBearer.dispose = () => {
     listeners.clear();
   };
-  return getAccountAccessToken;
+  return getAccountBearer;
 }
 
 // src/types.ts
@@ -2208,14 +2124,34 @@ function toViemSignMessageArgs(payload) {
 }
 
 // src/session/events.ts
+function aomiMessagesEqual(a, b) {
+  if (a === b) return true;
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) {
+    const x = a[i];
+    const y = b[i];
+    if (x.sender !== y.sender || x.content !== y.content || x.timestamp !== y.timestamp || x.is_streaming !== y.is_streaming) {
+      return false;
+    }
+    const xt = x.tool_result;
+    const yt = y.tool_result;
+    if (xt !== yt) {
+      if (!xt || !yt) return false;
+      if (xt[0] !== yt[0] || xt[1] !== yt[1]) return false;
+    }
+  }
+  return true;
+}
 function applySessionState(state, deps) {
   var _a;
   if (state.user_state) {
     deps.resolveUserState(state.user_state);
   }
   if (state.messages) {
-    deps.setMessages(state.messages);
-    deps.emit("messages", state.messages);
+    if (!aomiMessagesEqual(state.messages, deps.getMessages())) {
+      deps.setMessages(state.messages);
+      deps.emit("messages", state.messages);
+    }
   }
   if (state.title) {
     deps.setTitle(state.title);
@@ -2761,17 +2697,6 @@ var SessionWalletController = class {
 };
 
 // src/session/index.ts
-function legacySessionPublicKey(userState) {
-  var _a;
-  const address3 = UserState.address(userState);
-  if (!(address3 == null ? void 0 : address3.startsWith("0x"))) {
-    return void 0;
-  }
-  if (UserState.chainId(userState) === void 0 && !((_a = userState == null ? void 0 : userState.evm) == null ? void 0 : _a.address)) {
-    return void 0;
-  }
-  return address3;
-}
 var ClientSession = class extends TypedEventEmitter {
   constructor(clientOrOptions, sessionOptions) {
     var _a, _b, _c, _d, _e;
@@ -2787,7 +2712,6 @@ var ClientSession = class extends TypedEventEmitter {
     this.client = clientOrOptions instanceof AomiClient ? clientOrOptions : new AomiClient(clientOrOptions);
     this.sessionId = (_a = sessionOptions == null ? void 0 : sessionOptions.sessionId) != null ? _a : crypto.randomUUID();
     this.app = (_b = sessionOptions == null ? void 0 : sessionOptions.app) != null ? _b : "default";
-    this.publicKey = sessionOptions == null ? void 0 : sessionOptions.publicKey;
     this.apiKey = sessionOptions == null ? void 0 : sessionOptions.apiKey;
     const initialUserState = UserState.reconcile(
       void 0,
@@ -2825,7 +2749,6 @@ var ClientSession = class extends TypedEventEmitter {
     this.assertOpen();
     const response = await this.client.sendMessage(this.sessionId, message, {
       app: this.app,
-      publicKey: this.publicKey,
       apiKey: this.apiKey,
       userState: this.userState,
       clientId: this.clientId
@@ -2850,7 +2773,6 @@ var ClientSession = class extends TypedEventEmitter {
     this.assertOpen();
     const response = await this.client.sendMessage(this.sessionId, message, {
       app: this.app,
-      publicKey: this.publicKey,
       apiKey: this.apiKey,
       userState: this.userState,
       clientId: this.clientId
@@ -2966,7 +2888,6 @@ var ClientSession = class extends TypedEventEmitter {
   syncRuntimeOptions(options) {
     var _a;
     this.app = options.app;
-    this.publicKey = options.publicKey;
     this.apiKey = options.apiKey;
     this.clientId = (_a = options.clientId) != null ? _a : this.clientId;
     if (options.userState) {
@@ -2977,13 +2898,6 @@ var ClientSession = class extends TypedEventEmitter {
     const previousSerialized = stableUserStateString(this.userState);
     this.userState = UserState.reconcile(this.userState, userState);
     const nextSerialized = stableUserStateString(this.userState);
-    const publicKey = legacySessionPublicKey(this.userState);
-    const isConnected3 = UserState.isConnected(this.userState);
-    if (publicKey && isConnected3 !== false) {
-      this.publicKey = publicKey;
-    } else {
-      this.publicKey = void 0;
-    }
     this.walletController.sync();
     if (!(opts == null ? void 0 : opts.skipEmit) && this.userState && previousSerialized !== nextSerialized) {
       this.emit("user_state_updated", this.userState);
@@ -3104,6 +3018,7 @@ var ClientSession = class extends TypedEventEmitter {
     applySessionState(state, {
       userState: () => this.userState,
       resolveUserState: (userState) => this.resolveUserState(userState),
+      getMessages: () => this._messages,
       setMessages: (messages) => {
         this._messages = messages;
       },
@@ -4701,7 +4616,7 @@ async function createAAProviderState(options) {
   buildAAExecutionPlan,
   buildFeeAAWalletCall,
   createAAProviderState,
-  createAccountAccessTokenProvider,
+  createAccountBearerProvider,
   createAlchemyAAProvider,
   createPimlicoAAProvider,
   executeWalletCalls,

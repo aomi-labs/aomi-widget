@@ -396,13 +396,13 @@ describe("CLI session lifecycle", () => {
       app: "default",
       execution: "eoa" as const,
       secrets: {},
-      accountAccessToken: "bearer-1",
+      accountBearer: "bearer-1",
     });
 
-    expect(readState()?.accountAccessToken).toBe("bearer-1");
+    expect(readState()?.accountBearer).toBe("bearer-1");
   });
 
-  it("persists the account provider exchange credential on the active session", async () => {
+  it("persists legacy account provider credential fields on the active session", async () => {
     const { CliSession } = await import("../../src/cli/cli-session");
     const { readState } = await import("../../src/cli/state");
 
@@ -420,7 +420,7 @@ describe("CLI session lifecycle", () => {
     expect(state?.accountProviderToken).toBe("privy-provider-token");
   });
 
-  it("clears a persisted bearer when switching the active session to provider exchange auth", async () => {
+  it("clears a persisted bearer when switching the active session to legacy provider auth", async () => {
     const { CliSession } = await import("../../src/cli/cli-session");
     const { readState } = await import("../../src/cli/state");
 
@@ -429,7 +429,7 @@ describe("CLI session lifecycle", () => {
       app: "default",
       execution: "eoa" as const,
       secrets: {},
-      accountAccessToken: "bearer-1",
+      accountBearer: "bearer-1",
     });
 
     CliSession.loadOrCreate({
@@ -442,7 +442,7 @@ describe("CLI session lifecycle", () => {
     });
 
     const state = readState();
-    expect(state?.accountAccessToken).toBeUndefined();
+    expect(state?.accountBearer).toBeUndefined();
     expect(state?.accountProvider).toBe("privy");
     expect(state?.accountProviderToken).toBe("privy-provider-token");
   });
@@ -456,7 +456,7 @@ describe("CLI session lifecycle", () => {
       app: "default",
       execution: "eoa" as const,
       secrets: {},
-      accountAccessToken: "bearer-1",
+      accountBearer: "bearer-1",
     });
 
     // Later invocation: the bearer is NOT passed again on the command line.
@@ -486,7 +486,7 @@ describe("CLI session lifecycle", () => {
     }
   });
 
-  it("prefers a persisted provider exchange credential over a stale legacy bearer", async () => {
+  it("does not exchange provider credentials or replace a persisted bearer", async () => {
     const { CliSession } = await import("../../src/cli/cli-session");
 
     CliSession.loadOrCreate({
@@ -494,36 +494,19 @@ describe("CLI session lifecycle", () => {
       app: "default",
       execution: "eoa" as const,
       secrets: {},
-      accountAccessToken: "legacy-bearer",
+      accountBearer: "legacy-bearer",
     });
 
     const cli = CliSession.load();
     expect(cli).not.toBeNull();
 
-    const exchangeResponse = {
-      ok: true,
-      status: 200,
-      statusText: "OK",
-      json: vi.fn(async () => ({
-        access_token: "fresh-exchanged-bearer",
-        token_type: "Bearer",
-        expires_at: Math.floor(Date.now() / 1000) + 600,
-        user_id: "user-1",
-      })),
-    } as unknown as Response;
     const stateResponse = {
       ok: true,
       status: 200,
       statusText: "OK",
       json: vi.fn(async () => ({ is_processing: false, messages: [] })),
     } as unknown as Response;
-    const nativeFetch = vi.fn(async (input: RequestInfo | URL) => {
-      const url = String(input);
-      if (url.endsWith("/api/account/exchange")) {
-        return exchangeResponse;
-      }
-      return stateResponse;
-    });
+    const nativeFetch = vi.fn(async () => stateResponse);
     const originalFetch = globalThis.fetch;
     vi.stubGlobal("fetch", nativeFetch);
 
@@ -535,11 +518,9 @@ describe("CLI session lifecycle", () => {
       await session.client.fetchState(cli!.sessionId);
 
       const headers = new Headers(
-        (nativeFetch.mock.calls[1]?.[1] as RequestInit).headers,
+        (nativeFetch.mock.calls[0]?.[1] as RequestInit).headers,
       );
-      expect(headers.get("Authorization")).toBe(
-        "Bearer fresh-exchanged-bearer",
-      );
+      expect(headers.get("Authorization")).toBeNull();
     } finally {
       vi.stubGlobal("fetch", originalFetch);
     }
