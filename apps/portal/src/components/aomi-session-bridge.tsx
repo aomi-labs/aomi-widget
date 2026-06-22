@@ -17,7 +17,7 @@ import { useAomiAuthAdapter } from "@aomi-labs/widget-lib";
  * 401'd). Renders nothing.
  */
 export function AomiSessionBridge() {
-  const { identity, getAccountCredential } = useAomiAuthAdapter();
+  const { identity, getEmbeddedCredential: getEmbeddedCredential } = useAomiAuthAdapter();
   const { isConnected, address } = identity;
 
   // The account key we've already established a session for; reset on disconnect.
@@ -30,12 +30,12 @@ export function AomiSessionBridge() {
     }
     const key = address ?? "connected";
     if (establishedFor.current === key) return;
-    if (!getAccountCredential) return;
+    if (!getEmbeddedCredential) return;
 
     let cancelled = false;
     void (async () => {
       try {
-        const credential = await getAccountCredential();
+        const credential = await getEmbeddedCredential();
         if (!credential || cancelled) return;
         const response = await fetch("/api/account/sessions/exchange", {
           method: "POST",
@@ -43,7 +43,7 @@ export function AomiSessionBridge() {
           credentials: "include",
           body: JSON.stringify({
             provider: credential.provider,
-            provider_token: credential.providerToken,
+            provider_jwt: credential.providerJwt,
             // TMP(account-graph): the connected embedded wallet address. The
             // exchange only honors it for env-allowlisted test wallets, to bridge
             // returning wallet-first users to their existing sessions.
@@ -61,7 +61,7 @@ export function AomiSessionBridge() {
     return () => {
       cancelled = true;
     };
-  }, [isConnected, address, getAccountCredential]);
+  }, [isConnected, address, getEmbeddedCredential]);
 
   return null;
 }

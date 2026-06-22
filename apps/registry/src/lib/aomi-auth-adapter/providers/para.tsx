@@ -74,7 +74,7 @@ import {
 } from "../safe-wagmi-hooks";
 import { buildAccounts } from "../accounts";
 import type {
-  AomiAccountCredential,
+  AomiEmbeddedCredential,
   AomiAuthAdapter,
   AomiAuthIdentity,
   AomiAuthMethod,
@@ -218,17 +218,17 @@ function useSafeParaClient(): ParaWeb | null {
 }
 
 function useSafeIssueJwt():
-  | (() => Promise<AomiAccountCredential | null>)
+  | (() => Promise<AomiEmbeddedCredential | null>)
   | null {
   try {
     const { issueJwtAsync } = useIssueJwt();
     return async () => {
       const result = await issueJwtAsync();
-      const token = result?.token?.trim();
-      return token
+      const jwt = result?.token?.trim();
+      return jwt
         ? {
             provider: "para",
-            providerToken: token,
+            providerJwt: jwt,
           }
         : null;
     };
@@ -986,7 +986,7 @@ export function AomiParaAdapterProvider({
             return { signature };
           }
         : undefined,
-      getAccountCredential: issueJwt ?? undefined,
+      getEmbeddedCredential: issueJwt ?? undefined,
       ...buildParaSolanaMethods(solanaWallet, resolvedAdapterSolanaConfig),
     };
   }, [
