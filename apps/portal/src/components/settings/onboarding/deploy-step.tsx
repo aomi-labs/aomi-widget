@@ -62,6 +62,7 @@ function appNames(deployment?: OnboardDeployPayload): string[] {
 
 const BACKOFF_BASE_MS = 3000;
 const MAX_BACKOFF_MS = 30000;
+const DEPLOY_TIMEOUT_MS = 30 * 60 * 1000; // 30-minute hard limit
 
 function backoffDelay(failureCount: number): number {
   const delay = BACKOFF_BASE_MS * Math.pow(2, failureCount);
@@ -122,6 +123,7 @@ export function DeployStep({
   const [copied, setCopied] = useState(false);
   const pollRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const statusFailuresRef = useRef(0);
+  const startTimeRef = useRef<number | null>(null);
   const [progressModel, setProgressModel] = useState<ProgressModel | null>(null);
   const lastCompletedRef = useRef(0);
 
@@ -210,7 +212,13 @@ export function DeployStep({
     if (!deploymentId || (phase !== "building" && phase !== "deploying" && phase !== "releasing"))
       return;
     let cancelled = false;
+    if (startTimeRef.current === null) startTimeRef.current = Date.now();
     const tick = async () => {
+      if (Date.now() - (startTimeRef.current ?? 0) > DEPLOY_TIMEOUT_MS) {
+        setPhase("error");
+        setError("Deploy timed out after 30 minutes.");
+        return;
+      }
       try {
         const status = await onboardStatus(deploymentId);
         if (cancelled) return;
@@ -341,6 +349,7 @@ export function DeployStep({
   const reset = useCallback(() => {
     setError(null);
     statusFailuresRef.current = 0;
+    startTimeRef.current = null;
     lastCompletedRef.current = 0;
     setProgressModel(null);
     setVerifyAttempt(0);
