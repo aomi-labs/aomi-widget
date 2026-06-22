@@ -541,6 +541,71 @@ describe("WalletRegistry reducer", () => {
     });
   });
 
+  it("preserves Para embedded Solana when external Solana adapter changes", () => {
+    let state = boot();
+    state = reduce(state, {
+      type: "svm/changed",
+      publicKey: "para-sol",
+      uid: "para-solana-session",
+      stableId: "para",
+      kind: "embedded-session",
+      walletName: "Para Solana",
+      now: 10,
+    });
+    state = reduce(state, {
+      type: "svm/changed",
+      publicKey: null,
+      walletName: null,
+      now: 20,
+    });
+
+    expect(state.connections).toContainEqual(
+      expect.objectContaining({
+        family: "svm",
+        stableId: "para",
+        kind: "embedded-session",
+        address: "para-sol",
+      }),
+    );
+
+    state = reduce(state, {
+      type: "svm/changed",
+      publicKey: "phantom-sol",
+      walletName: "Phantom",
+      now: 30,
+    });
+
+    expect(state.connections).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ stableId: "para", address: "para-sol" }),
+        expect.objectContaining({
+          stableId: "Phantom",
+          address: "phantom-sol",
+        }),
+      ]),
+    );
+
+    state = reduce(state, {
+      type: "svm/changed",
+      publicKey: null,
+      uid: "para-solana-session",
+      stableId: "para",
+      kind: "embedded-session",
+      walletName: "Para Solana",
+      now: 40,
+    });
+
+    expect(state.connections).toContainEqual(
+      expect.objectContaining({ stableId: "Phantom", address: "phantom-sol" }),
+    );
+    expect(
+      state.connections.some(
+        (connection) =>
+          connection.family === "svm" && connection.stableId === "para",
+      ),
+    ).toBe(false);
+  });
+
   it("ignores stale SVM connect-settled events for a newer request", () => {
     let state = boot();
     state = reduce(state, {
