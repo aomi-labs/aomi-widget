@@ -26,13 +26,14 @@ export type AccountBearerProvider = GetAccountBearer & {
 };
 
 /**
- * No-op compatibility shim.
+ * No-op bearer provider — correct for the proxy-inject design (Option 2).
  *
- * Account identity is minted in the **portal BFF** and verified by the backend
- * (see the AccountBearer contract); the browser must not exchange a provider
- * token for a bearer, and there is no backend `/api/account/sessions/exchange`
- * route. This provider yields no token — a caller that supplies a static bearer
- * directly still works through `getAccountBearer`.
+ * The browser holds no AccountBearer. The portal establishes an httpOnly
+ * `aomi_session` cookie at login (the BFF `/api/account/sessions/exchange` route,
+ * triggered by the portal's AomiSessionBridge), and the same-origin proxy injects
+ * the bearer from that cookie on every `/api/*` call. So this provider yields no
+ * token by design — a caller that supplies a static bearer directly (e.g. the
+ * CLI) still works through `getAccountBearer`.
  */
 export function createAccountBearerProvider(
   _options: AccountBearerProviderOptions,
