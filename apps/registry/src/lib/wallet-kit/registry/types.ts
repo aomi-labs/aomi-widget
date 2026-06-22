@@ -110,6 +110,9 @@ export type RegistryEvent =
   | {
       type: "svm/changed";
       publicKey: string | null;
+      uid?: string;
+      stableId?: string;
+      kind?: Extract<RegistryConnection["kind"], "embedded-session" | "svm">;
       walletName: string | null;
       now: number;
     }

@@ -142,20 +142,20 @@ export function selectAccounts(
     });
   }
 
-  const svm = family === "svm" ? selectSvm(state) : undefined;
+  const activeSvm = family === "svm" ? selectSvm(state) : undefined;
+  const svmConnections =
+    family === "svm"
+      ? state.connections.filter((connection) => connection.family === "svm")
+      : [];
   return buildAccounts({
     evmConnections,
     activeEvmAddress: evmIdentity.address,
     activeEvmConnectionId: activeEvm?.uid ?? evmIdentity.connectorId,
-    solanaConnections: svm
-      ? [
-          {
-            id: svm.uid,
-            publicKey: svm.address,
-            walletName: svm.walletName,
-          },
-        ]
-      : [],
-    activeSolanaAddress: svm?.address,
+    solanaConnections: svmConnections.map((connection) => ({
+      id: connection.uid,
+      publicKey: connection.address,
+      walletName: connection.walletName,
+    })),
+    activeSolanaAddress: activeSvm?.address,
   });
 }

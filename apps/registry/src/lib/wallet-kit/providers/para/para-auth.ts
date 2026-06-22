@@ -19,12 +19,24 @@ export type ParaAccountShape = {
     farcasterUsername?: string;
     telegramUserId?: string;
     authMethods?: Set<unknown>;
-    wallets?: Array<{ address?: string; chainId?: number | string }>;
+    wallets?: Array<{
+      id?: string;
+      address?: string;
+      chainId?: number | string;
+      type?: string;
+      walletType?: string;
+      isExternal?: boolean;
+    }>;
   };
   external: {
     evm?: {
       address?: string;
       chainId?: number | string;
+    };
+    solana?: {
+      publicKey?: unknown;
+      address?: string;
+      name?: string;
     };
   };
 };

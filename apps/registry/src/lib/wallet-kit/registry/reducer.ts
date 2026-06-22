@@ -615,20 +615,26 @@ export function reduce(
       };
 
     case "svm/changed": {
+      const uid = event.uid ?? event.walletName ?? event.publicKey;
+      const stableId = event.stableId ?? uid;
       const connections = state.connections.filter(
-        (connection) => connection.family !== "svm",
+        (connection) =>
+          connection.family !== "svm" ||
+          (event.stableId
+            ? connection.stableId !== event.stableId
+            : connection.kind !== "svm"),
       );
       const pendingConnected =
         event.publicKey &&
         state.intents.pendingSvmWallet &&
         event.walletName === state.intents.pendingSvmWallet;
-      if (event.publicKey) {
+      if (event.publicKey && uid && stableId) {
         connections.push({
-          key: `solana:${event.walletName ?? event.publicKey}`,
+          key: `solana:${uid}`,
           family: "svm",
-          uid: event.walletName ?? event.publicKey,
-          stableId: event.walletName ?? event.publicKey,
-          kind: "svm",
+          uid,
+          stableId,
+          kind: event.kind ?? "svm",
           address: event.publicKey,
           addresses: [event.publicKey],
           walletName: event.walletName ?? undefined,
@@ -652,8 +658,8 @@ export function reduce(
             svm: {
               family: "svm",
               address: event.publicKey,
-              uid: event.walletName ?? event.publicKey,
-              stableId: event.walletName ?? event.publicKey,
+              uid: uid ?? event.publicKey,
+              stableId: stableId ?? event.publicKey,
             },
           },
         };

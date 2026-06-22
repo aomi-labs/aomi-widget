@@ -195,4 +195,58 @@ describe("WalletRegistry selectors", () => {
       active: true,
     });
   });
+
+  it("maps multiple Solana registry connections to account rows", () => {
+    const current = state({
+      connections: [
+        {
+          key: "solana:para-solana-session",
+          family: "svm",
+          uid: "para-solana-session",
+          stableId: "para",
+          kind: "embedded-session",
+          address: "ParaPubkey",
+          addresses: ["ParaPubkey"],
+          walletName: "Para Solana",
+        },
+        {
+          key: "solana:Phantom",
+          family: "svm",
+          uid: "Phantom",
+          stableId: "Phantom",
+          kind: "svm",
+          address: "PhantomPubkey",
+          addresses: ["PhantomPubkey"],
+          walletName: "Phantom",
+        },
+      ],
+      activeByFamily: {
+        svm: {
+          family: "svm",
+          address: "ParaPubkey",
+          uid: "para-solana-session",
+          stableId: "para",
+        },
+      },
+    });
+
+    const accounts = selectAccounts(current, "svm", 100);
+
+    expect(accounts).toEqual([
+      expect.objectContaining({
+        family: "svm",
+        id: "para-solana-session",
+        address: "ParaPubkey",
+        walletName: "Para Solana",
+        active: true,
+      }),
+      expect.objectContaining({
+        family: "svm",
+        id: "Phantom",
+        address: "PhantomPubkey",
+        walletName: "Phantom",
+        active: false,
+      }),
+    ]);
+  });
 });
