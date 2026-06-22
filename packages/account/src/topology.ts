@@ -19,7 +19,7 @@ let cached: AomiService | null = null;
 /** The portal as an `AomiService` (self = `aomi-bff`), loaded once and reused. */
 export function portalService(): AomiService {
   if (cached) return cached;
-  const path = process.env.PORTAL_SERVICE_TOPOLOGY?.trim() || DEFAULT_TOPOLOGY_PATH;
+  const path = process.env.PORTAL_SERVICE_TOML?.trim() || DEFAULT_TOPOLOGY_PATH;
   const toml = readFileSync(path, "utf8");
   cached = AomiService.fromTopology({
     toml,
