@@ -40,12 +40,12 @@ export type AomiClientOptions = {
   /** Default API key for non-default apps */
   apiKey?: string;
   /** Supplies a short-lived Aomi account bearer for REST and SSE requests. */
-  getAccountAccessToken?: GetAccountAccessToken;
+  getAccountBearer?: GetAccountBearer;
   /** Optional logger for debug output (default: silent) */
   logger?: Logger;
 };
 
-export type GetAccountAccessToken = (options?: {
+export type GetAccountBearer = (options?: {
   /** Re-exchange the upstream Para/Privy credential after an API 401. */
   forceRefresh?: boolean;
 }) => Promise<string | null | undefined>;
@@ -186,7 +186,7 @@ export interface AomiCreateThreadResponse {
  * bearer). Returned only when the session is bound to a real user; an
  * anonymous session yields HTTP 400.
  */
-export interface AomiAccount {
+export interface AomiUser {
   user_id: string;
   username?: string | null;
   apps?: string[];
@@ -198,17 +198,64 @@ export interface AomiAccount {
   updated_at?: number;
 }
 
-export interface AomiAccountWallet {
+export interface AomiAuthIdentity {
+  id: number;
+  application?: string | null;
+  wallet_provider: string;
+  auth_method: string;
+  auth_verified_at?: number | null;
+  is_primary: boolean;
+  created_at: number;
+}
+
+export interface AomiIdentityWallet {
   wallet_id?: string | null;
   address: string;
   chain_type: string;
   wallet_provider: string;
 }
 
+export interface AomiUsageStats {
+  period_utc_month?: string;
+  input_tokens: number;
+  output_tokens: number;
+  credit_used: number;
+  credit_paid: number;
+}
+
 export interface AomiAccountProfile {
-  account: AomiAccount;
-  wallets?: AomiAccountWallet[];
-  usage?: unknown;
+  user: AomiUser;
+  auth_identities?: AomiAuthIdentity[];
+  identity_wallets?: AomiIdentityWallet[];
+  usage?: AomiUsageStats;
+}
+
+export interface AomiCreateApprovalRequest {
+  auth_identity_id: number;
+  grant_kind: string;
+  secret_handle: string;
+  external_subject?: string | null;
+  display_label?: string | null;
+  scopes?: string[];
+  expires_at?: number | null;
+  metadata?: unknown;
+}
+
+export interface AomiAccessApproval {
+  id: number;
+  user_id: string;
+  auth_identity_id: number;
+  external_subject?: string | null;
+  display_label?: string | null;
+  grant_kind: string;
+  scopes: string[];
+  secret_handle: string;
+  expires_at?: number | null;
+  granted_at: number;
+  revoked_at?: number | null;
+  metadata: unknown;
+  created_at: number;
+  updated_at: number;
 }
 
 export interface AomiBeginAccountAuthResponse {

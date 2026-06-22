@@ -46,7 +46,7 @@ export async function POST(req: Request) {
     }
 
     const installationId = Number(body.installationId);
-    const env = readOnboardDeployEnv();
+    const env = await readOnboardDeployEnv();
     const result = await backendRequest<BackendAppSourceResult>(
       env,
       `/api/integrations/github-app/platforms/${encodeURIComponent(env.platform)}/sources/create-from-template`,

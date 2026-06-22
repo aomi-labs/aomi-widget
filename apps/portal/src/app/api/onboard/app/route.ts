@@ -25,7 +25,7 @@ export async function GET(req: Request) {
   }
 
   try {
-    const env = readOnboardDeployEnv();
+    const env = await readOnboardDeployEnv();
     const query = new URLSearchParams();
     if (releaseTag) query.set("release_tag", releaseTag);
     const suffix = query.toString() ? `?${query}` : "";

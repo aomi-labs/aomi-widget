@@ -3,7 +3,7 @@
 // =============================================================================
 //
 // Both endpoints share three traits:
-//   - Scoped to the auth context (apiKey + publicKey + clientId), NOT per-thread
+//   - Scoped to the auth context (apiKey + clientId), NOT per-thread
 //   - Cached in React state once fetched, refreshed only when auth changes
 //   - Used by per-thread-control to validate model/app selections
 //
@@ -36,7 +36,6 @@ export type AuthEndpointsActions = {
 type UseAuthEndpointsOptions = {
   aomiClientRef: MutableRefObject<AomiClient>;
   apiKeyRef: MutableRefObject<string | null>;
-  publicKeyRef: MutableRefObject<string | undefined>;
   /** Stable getter for the current control-session id (clientId + sessionId). */
   getControlSessionId: () => string;
   /** Trigger that should cause apps to refetch (e.g. apiKey changes). */
@@ -47,9 +46,7 @@ function getDefaultApp(apps: string[]): string | null {
   return apps.includes("default") ? "default" : (apps[0] ?? null);
 }
 
-function namesFromDescriptors(
-  apps: ReadonlyArray<{ name: string }>,
-): string[] {
+function namesFromDescriptors(apps: ReadonlyArray<{ name: string }>): string[] {
   return apps.map((a) => a.name);
 }
 
@@ -58,7 +55,6 @@ function namesFromDescriptors(
 export function useAuthEndpointsImpl({
   aomiClientRef,
   apiKeyRef,
-  publicKeyRef,
   getControlSessionId,
   apiKey,
 }: UseAuthEndpointsOptions): {
@@ -79,7 +75,6 @@ export function useAuthEndpointsImpl({
         const descriptors = await aomiClientRef.current.getApps(
           getControlSessionId(),
           {
-            publicKey: publicKeyRef.current,
             apiKey: apiKeyRef.current ?? undefined,
           },
         );
@@ -138,7 +133,6 @@ export function useAuthEndpointsImpl({
       const descriptors = await aomiClientRef.current.getApps(
         getControlSessionId(),
         {
-          publicKey: publicKeyRef.current,
           apiKey: apiKeyRef.current ?? undefined,
         },
       );
@@ -154,7 +148,7 @@ export function useAuthEndpointsImpl({
       setDefaultApp("default");
       return ["default"];
     }
-  }, [aomiClientRef, apiKeyRef, getControlSessionId, publicKeyRef]);
+  }, [aomiClientRef, apiKeyRef, getControlSessionId]);
 
   return {
     state: {

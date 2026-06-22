@@ -44,7 +44,7 @@ export async function POST(req: Request) {
         { status: 400 },
       );
     }
-    const env = await activationEnv(readOnboardDeployEnv());
+    const env = await activationEnv(await readOnboardDeployEnv());
     const result = await backendRequest<BackendActivationResult>(
       env,
       `/api/platforms/${encodeURIComponent(env.platform)}/apps/activate`,

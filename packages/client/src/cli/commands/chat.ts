@@ -288,7 +288,7 @@ export async function chatCommand(
         console.log(`   to:    ${payload.to}`);
         if (payload.value) console.log(`   value: ${payload.value}`);
         if (payload.chainId) console.log(`   chain: ${payload.chainId}`);
-      } else if (pending.kind === "eip712_sign") {
+      } else if ("kind" in pending && pending.kind === "eip712_sign") {
         const payload = pending.payload as WalletEip712Payload;
         if (payload.description) {
           console.log(`   desc:  ${payload.description}`);

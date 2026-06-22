@@ -41,7 +41,7 @@ export function handleDeploy(dryRun: boolean) {
     }
 
     try {
-      const env = await activationEnv(readOnboardDeployEnv());
+      const env = await activationEnv(await readOnboardDeployEnv());
       const appSourceId = await resolveAppSourceId({
         env,
         installationId: body.installationId as string,
