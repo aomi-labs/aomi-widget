@@ -1,6 +1,10 @@
-// @aomi-labs/deploy — server-side typed relay for the Aomi platform deploy API.
+// @aomi-labs/deploy — server-side typed relay for the Aomi platform deploy API,
+// plus the AOMI service topology (issuer-side AccountBearer mint/verify).
 
 export { DeploymentClient, assertServerOnly } from "./client";
+
+export { AomiService, parseTopology } from "./topology";
+export type { ServiceNode, Topology, AccountBearerClaims } from "./topology";
 
 export {
   buildActivationRequest,
