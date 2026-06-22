@@ -11,7 +11,10 @@ import { jwtVerify, SignJWT } from "jose";
  * Privy" (service-identity.md, "Identity root").
  *
  * The cookie is an HS256 JWT (`sub` = canonical user id) signed with
- * `AOMI_SESSION_SECRET`, httpOnly so the browser never reads it. The
+ * `PORTAL_ONLY_SESSION_SECRET` — a **symmetric** HMAC key. The portal both signs
+ * and verifies it, so for this cookie verify == forge: the secret must live ONLY
+ * on the portal and is never shared with the backend (which never sees this
+ * cookie — the proxy strips it). httpOnly so the browser never reads it. The
  * AccountBearer for the backend is *derived from this session* (see
  * `mintAccountBearer`), not carried by the browser — the proxy injects it
  * server-side from this cookie (Option 2). This is the in-repo precursor to
@@ -21,10 +24,10 @@ export const SESSION_COOKIE = "aomi_session";
 const SESSION_TTL_SECONDS = 7 * 24 * 60 * 60;
 
 function secret(): Uint8Array {
-  const value = process.env.AOMI_SESSION_SECRET?.trim();
+  const value = process.env.PORTAL_ONLY_SESSION_SECRET?.trim();
   if (!value || value.length < 16) {
     throw new Error(
-      "AOMI_SESSION_SECRET is not set (or too short) — the portal session cookie needs a signing secret",
+      "PORTAL_ONLY_SESSION_SECRET is not set (or too short) — the portal session cookie needs a signing secret",
     );
   }
   return new TextEncoder().encode(value);

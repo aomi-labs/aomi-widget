@@ -195,8 +195,9 @@ Portal wiring (consumers of the package):
   verify provider → `resolveOrCreateCanonicalUser` → set session cookie → mint.
   This becomes "verify a *linked credential*"; the session itself should come
   from Better-Auth login (see Identity root below).
-- Same-origin switch is opt-in: `getBackendUrl()` returns `""` when
-  `NEXT_PUBLIC_AOMI_PROXY=1` so the browser calls the portal proxy.
+- The browser always calls same-origin: `getBackendUrl()` returns `""`, so the
+  client builds relative `/api/*` URLs that hit the portal proxy. (Required for
+  proxy-inject anyway — the httpOnly session cookie is same-origin only.)
 
 Backend (product-mono, already merged on `reconstruct_authenticated`):
 verify-only via the `aomi-service` crate, find-only `DbUser::get`, role claim
