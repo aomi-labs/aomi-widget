@@ -47,12 +47,111 @@ function checkGitRemote(): void {
   }
 }
 
-export async function deployCommand(args: DeployArgs): Promise<void> {
-  const activationToken = required(
-    str(args["activation-token"]) ?? process.env.AOMI_DEPLOY_TOKEN,
-    "activation-token",
-    "AOMI_DEPLOY_TOKEN",
+interface DeviceAuthResult {
+  token: string;
+  githubLogin: string;
+}
+
+async function deviceAuthFlow(
+  backendUrl: string,
+  platform: string,
+): Promise<DeviceAuthResult> {
+  console.log("\n No activation token found. Starting browser-based GitHub auth...\n");
+
+  const beginRes = await fetch(`${backendUrl}/api/auth/cli/begin`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ platform }),
+  });
+
+  if (!beginRes.ok) {
+    const text = await beginRes.text().catch(() => "");
+    throw new DeployCliError(
+      "BACKEND_ERROR",
+      `Failed to start device auth: ${beginRes.status} ${text}`,
+    );
+  }
+
+  const { device_code, verification_uri } = await beginRes.json() as {
+    device_code: string;
+    verification_uri: string;
+  };
+
+  console.log(" → Open this URL in your browser to authenticate with GitHub:");
+  console.log(`   ${verification_uri}\n`);
+
+  // Try to open the browser automatically (firefox on macOS, xdg-open on Linux)
+  const { platform: os } = process;
+  const openCmd =
+    os === "darwin"
+      ? "open"
+      : os === "win32"
+        ? "start"
+        : "xdg-open";
+  try {
+    execSync(`${openCmd} "${verification_uri}"`, { stdio: "ignore" });
+    console.log(" (Browser opened automatically.)\n");
+  } catch {
+    // Browser open failed — the URL was already printed above.
+  }
+
+  console.log(" Waiting for authorization...");
+
+  const pollUrl = `${backendUrl}/api/auth/cli/status?device_code=${device_code}`;
+  const start = Date.now();
+  const timeoutMs = 600_000; // 10 minutes — matches backend session TTL
+
+  while (Date.now() - start < timeoutMs) {
+    await new Promise((r) => setTimeout(r, 2000));
+
+    const statusRes = await fetch(pollUrl);
+    if (!statusRes.ok) continue;
+
+    const body = await statusRes.json() as {
+      status: string;
+      activation_token?: string;
+      github_login?: string;
+    };
+
+    if (body.status === "complete" && body.activation_token) {
+      console.log(` Authenticated as @${body.github_login ?? "?"}\n`);
+      console.log(
+        " Tip: save your token to skip this step next time:\n" +
+        `   export AOMI_DEPLOY_TOKEN="${body.activation_token}"\n`,
+      );
+      return { token: body.activation_token, githubLogin: body.github_login ?? "" };
+    }
+
+    if (body.status === "expired") {
+      throw new DeployCliError(
+        "AUTH_FAILED",
+        "Authorization session expired. Run `aomi deploy` again to retry.",
+      );
+    }
+  }
+
+  throw new DeployCliError(
+    "AUTH_TIMEOUT",
+    "Authorization timed out after 10 minutes. Run `aomi deploy` again to retry.",
   );
+}
+
+export async function deployCommand(args: DeployArgs): Promise<void> {
+  const backendUrl = (
+    str(args["backend-url"]) ??
+    process.env.AOMI_BACKEND_URL ??
+    "https://api.aomi.dev"
+  ).replace(/\/+$/, "");
+  const platform =
+    str(args.platform) ??
+    process.env.AOMI_DEPLOY_PLATFORM ??
+    "community";
+
+  const activationToken =
+    str(args["activation-token"]) ??
+    process.env.AOMI_DEPLOY_TOKEN ??
+    (await deviceAuthFlow(backendUrl, platform)).token;
+
   const appSourceId = Number(
     required(
       str(args["app-source-id"]) ?? process.env.AOMI_APP_SOURCE_ID,
@@ -63,16 +162,6 @@ export async function deployCommand(args: DeployArgs): Promise<void> {
   if (!Number.isSafeInteger(appSourceId) || appSourceId <= 0) {
     throw new DeployCliError("VALIDATION_ERROR", "`--app-source-id` must be a positive integer.");
   }
-
-  const backendUrl = (
-    str(args["backend-url"]) ??
-    process.env.AOMI_BACKEND_URL ??
-    "https://api.aomi.dev"
-  ).replace(/\/+$/, "");
-  const platform =
-    str(args.platform) ??
-    process.env.AOMI_DEPLOY_PLATFORM ??
-    "community";
 
   const branch = str(args.branch);
   const commit = str(args.commit);
