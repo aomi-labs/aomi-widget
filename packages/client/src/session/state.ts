@@ -1,6 +1,10 @@
 import { UserState, type UserState as UserStateShape, type UserStateAAMode } from "../user-state";
 import { isSubsetMatch, sortJson } from "./json";
 
+type UserStateAlignmentOptions = {
+  app?: string;
+};
+
 export function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
@@ -81,6 +85,7 @@ export function resolveWalletState(
 export function warnIfUserStateMisaligned(
   expected: UserStateShape | undefined,
   actual: UserStateShape | null | undefined,
+  options?: UserStateAlignmentOptions,
 ): void {
   const expectedUserState = UserState.normalize(expected);
   const normalizedActualUserState = UserState.reconcile(expectedUserState, actual);
@@ -90,10 +95,59 @@ export function warnIfUserStateMisaligned(
   }
 
   if (!isSubsetMatch(expectedUserState, normalizedActualUserState)) {
+    if (
+      shouldIgnoreAppScopedSvmOverride(
+        expectedUserState,
+        normalizedActualUserState,
+        options,
+      )
+    ) {
+      return;
+    }
     const expectedJson = JSON.stringify(sortJson(expectedUserState));
     const actualJson = JSON.stringify(sortJson(normalizedActualUserState));
     console.warn(
       `[session] Backend user_state mismatch (non-fatal). expected subset=${expectedJson} actual=${actualJson}`,
     );
   }
+}
+
+function shouldIgnoreAppScopedSvmOverride(
+  expected: UserStateShape,
+  actual: UserStateShape,
+  options?: UserStateAlignmentOptions,
+): boolean {
+  if (options?.app?.trim().toLowerCase() !== "byreal") {
+    return false;
+  }
+  if (expected.ext?.client_type !== "ts_cli" || actual.ext?.client_type !== "ts_cli") {
+    return false;
+  }
+  if (
+    !expected.svm?.address ||
+    !actual.svm?.address ||
+    expected.svm.address === actual.svm.address
+  ) {
+    return false;
+  }
+  if (expected.svm.cluster !== actual.svm.cluster) {
+    return false;
+  }
+
+  const expectedWithoutSvmAddress = {
+    ...expected,
+    svm: {
+      ...expected.svm,
+      address: undefined,
+    },
+  };
+  const actualWithoutSvmAddress = {
+    ...actual,
+    svm: {
+      ...actual.svm,
+      address: undefined,
+    },
+  };
+
+  return isSubsetMatch(expectedWithoutSvmAddress, actualWithoutSvmAddress);
 }

@@ -217,6 +217,76 @@ describe("ClientSession ext helpers", () => {
     session.close();
   });
 
+  it("does not warn when byreal backend swaps local svm wallet for app-scoped privy wallet", async () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const { client, sendMessage } = createMockClient();
+    const session = new Session(client, {
+      sessionId: "session-unit-byreal-privy",
+      app: "byreal",
+      userState: {
+        connection: { is_connected: true, primary_family: "svm" },
+        svm: {
+          address: "4kbGbZtfkfkRVGunkbKX4M7dGPm9MghJZodjbnRZbmug",
+          cluster: "solana:mainnet",
+        },
+        ext: { client_type: "ts_cli" },
+      },
+    });
+
+    sendMessage.mockResolvedValueOnce({
+      is_processing: false,
+      messages: [],
+      user_state: {
+        connection: { is_connected: true, primary_family: "svm" },
+        svm: {
+          address: "B3M1JwTUNYUHhmKAKgxdzupqJwz5RsgGWUypVu2ebpQG",
+          cluster: "solana:mainnet",
+        },
+        ext: { client_type: "ts_cli" },
+      },
+    } satisfies AomiChatResponse);
+
+    await session.sendAsync("schedule swap");
+
+    expect(warnSpy).not.toHaveBeenCalled();
+    session.close();
+  });
+
+  it("still warns on byreal when mismatch is not limited to the svm address override", async () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const { client, sendMessage } = createMockClient();
+    const session = new Session(client, {
+      sessionId: "session-unit-byreal-mismatch",
+      app: "byreal",
+      userState: {
+        connection: { is_connected: true, primary_family: "svm" },
+        svm: {
+          address: "4kbGbZtfkfkRVGunkbKX4M7dGPm9MghJZodjbnRZbmug",
+          cluster: "solana:mainnet",
+        },
+        ext: { client_type: "ts_cli" },
+      },
+    });
+
+    sendMessage.mockResolvedValueOnce({
+      is_processing: false,
+      messages: [],
+      user_state: {
+        connection: { is_connected: false, primary_family: "svm" },
+        svm: {
+          address: "B3M1JwTUNYUHhmKAKgxdzupqJwz5RsgGWUypVu2ebpQG",
+          cluster: "solana:mainnet",
+        },
+        ext: { client_type: "ts_cli" },
+      },
+    } satisfies AomiChatResponse);
+
+    await session.sendAsync("schedule swap");
+
+    expect(warnSpy).toHaveBeenCalledTimes(1);
+    session.close();
+  });
+
   it("preserves chain_id across partial backend user_state snapshots", async () => {
     const { client, fetchState, sendMessage } = createMockClient();
     const session = new Session(client, {
