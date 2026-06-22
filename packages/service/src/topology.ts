@@ -17,7 +17,7 @@ import {
 } from "jose";
 import { parse as parseToml } from "toml";
 
-import { assertServerOnly } from "./client";
+import { assertServerOnly } from "./server-only";
 
 const ALG = "EdDSA";
 

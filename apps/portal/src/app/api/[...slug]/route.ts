@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { mintAccountBearer } from "@portal/lib/aomi-account/bearer";
+import { mintAccountBearer } from "@aomi-labs/account";
 import { getSessionUserId } from "@portal/lib/aomi-account/session";
 
 /**
@@ -41,6 +41,7 @@ const ALLOWED_ROUTES: Array<{
   pattern: RegExp;
   methods: ReadonlySet<string>;
 }> = [
+  { pattern: /^\/api\/account$/, methods: new Set(["GET"]) },
   { pattern: /^\/api\/state$/, methods: new Set(["GET"]) },
   { pattern: /^\/api\/chat$/, methods: new Set(["POST"]) },
   { pattern: /^\/api\/system$/, methods: new Set(["POST"]) },
