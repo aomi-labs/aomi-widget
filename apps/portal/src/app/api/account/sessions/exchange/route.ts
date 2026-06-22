@@ -16,6 +16,9 @@ type ExchangeBody = {
   token?: unknown;
   key_id?: unknown;
   keyId?: unknown;
+  // TMP(account-graph): the connected embedded wallet address, only honored when
+  // it's in the env allowlist (see tmpAllowlistedWalletAddress).
+  address?: unknown;
 };
 
 type VerifiedIdentity = {
@@ -35,9 +38,8 @@ const jwksCache = new Map<string, ReturnType<typeof createRemoteJWKSet>>();
 
 export async function POST(request: NextRequest) {
   try {
-    const verified = await verifyCredential(
-      (await request.json()) as ExchangeBody,
-    );
+    const body = (await request.json()) as ExchangeBody;
+    const verified = await verifyCredential(body);
 
     // Resolve-or-create OUR canonical user for this linked credential, then
     // establish OUR session. The provider subject (a DID) is only the
@@ -47,6 +49,10 @@ export async function POST(request: NextRequest) {
     const { userId } = await resolveOrCreateCanonicalUser({
       provider: verified.provider,
       subject: verified.subject,
+      // TMP(account-graph): bridge returning wallet-first users to their existing
+      // (wallet-keyed) account + sessions. Only honored for env-allowlisted test
+      // wallets, so it can't be used to claim an arbitrary account.
+      walletAddress: tmpAllowlistedWalletAddress(body.address),
     });
 
     // The AccountBearer is derived from the resolved user. Returned for the
@@ -160,6 +166,25 @@ function env(name: string): string | undefined {
 
 function stringValue(value: unknown): string | undefined {
   return typeof value === "string" && value.trim() ? value.trim() : undefined;
+}
+
+/**
+ * TMP(account-graph): return the (lowercased) wallet address only if it's in the
+ * `TMP_WALLET_BRIDGE_ADDRESSES` env allowlist. This lets known wallet-first test
+ * users (created via `wallet_bind`, no provider identity yet) restore their
+ * sessions by their EVM address, WITHOUT trusting an arbitrary browser-supplied
+ * address (which would let anyone claim any account by its public address). The
+ * env is set only on staging and is unset in prod. Remove this — and the
+ * `walletAddress` plumbing — when arixoneth's account graph links credentials.
+ */
+function tmpAllowlistedWalletAddress(value: unknown): string | undefined {
+  const address = stringValue(value)?.toLowerCase();
+  if (!address) return undefined;
+  const allow = (process.env.TMP_WALLET_BRIDGE_ADDRESSES ?? "")
+    .split(",")
+    .map((entry) => entry.trim().toLowerCase())
+    .filter(Boolean);
+  return allow.includes(address) ? address : undefined;
 }
 
 function cleanEmail(value: unknown): string | undefined {

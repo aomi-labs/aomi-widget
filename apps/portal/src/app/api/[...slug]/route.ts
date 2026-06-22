@@ -41,7 +41,15 @@ const ALLOWED_ROUTES: Array<{
   pattern: RegExp;
   methods: ReadonlySet<string>;
 }> = [
-  { pattern: /^\/api\/account$/, methods: new Set(["GET"]) },
+  // The whole account family — `/api/account` plus sub-routes the settings UI
+  // calls (`/payment`, `/payment/byok`, `/app-keys[/id]`, `/approvals`,
+  // `/bots[/id]`, `/usage`). The backend authorizes each by the injected user
+  // bearer, so the proxy only needs to forward them. (`/api/account/sessions/
+  // exchange` is a more-specific portal route and never reaches this catch-all.)
+  {
+    pattern: /^\/api\/account(\/.*)?$/,
+    methods: new Set(["GET", "POST", "PATCH", "PUT", "DELETE"]),
+  },
   { pattern: /^\/api\/state$/, methods: new Set(["GET"]) },
   { pattern: /^\/api\/chat$/, methods: new Set(["POST"]) },
   { pattern: /^\/api\/system$/, methods: new Set(["POST"]) },

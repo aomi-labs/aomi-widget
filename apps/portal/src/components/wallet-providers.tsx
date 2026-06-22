@@ -29,6 +29,7 @@ import {
   E2EWalletProvider,
   type E2EWalletSeedClient,
 } from "./e2e-wallet-provider";
+import { AomiSessionBridge } from "./aomi-session-bridge";
 
 // Enable localhost/Anvil network for E2E testing with `pnpm dev:localhost`
 const useLocalhost = process.env.NEXT_PUBLIC_USE_LOCALHOST === "true";
@@ -239,6 +240,7 @@ export function WalletProviders({ children, e2eWallet }: Props) {
         preferDirectSend: true,
       }}
     >
+      <AomiSessionBridge />
       {content}
     </AomiWalletProvider>
   );
