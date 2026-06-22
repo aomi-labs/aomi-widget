@@ -19,6 +19,7 @@
   },
   "dependencies": {
     "@aomi-labs/client": "workspace:*",
+    "@aomi-labs/deploy": "workspace:*",
     "@aomi-labs/react": "workspace:*",
     "@aomi-labs/widget-lib": "workspace:*",
     "@assistant-ui/react": "^0.11.58",

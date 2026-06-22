@@ -1,46 +1,19 @@
 import "server-only";
 
-import { importPKCS8, SignJWT } from "jose";
-
+import { portalService } from "@portal/lib/aomi-account/topology";
 import { resolveDeployPlatform } from "@portal/lib/deploy-platform";
 
-// The portal authenticates to the backend as a **service** principal: it mints
-// a short-lived `service`-role AccountBearer with its existing `aomi-bff`
-// signing key (same key as the user-token exchange route). It is NOT an admin —
-// admin is a human, and `/api/admin/*` is out of the portal's scope.
-const SERVICE_ISSUER = "aomi-bff";
-const BACKEND_AUDIENCE = "aomi-backend";
-const SERVICE_BEARER_TTL_SECONDS = 5 * 60;
-
-let cachedServiceKey: {
-  privateKey: Awaited<ReturnType<typeof importPKCS8>>;
-  kid: string;
-} | null = null;
-
-/** Mint a `service`-role AccountBearer signed by the portal's `aomi-bff` key. */
+// The portal authenticates to the backend as a **service** principal: it mints a
+// short-lived `service`-role AccountBearer via its `AomiService` (the topology
+// lib — identity/kid/roles from `service.portal.toml`, key from env). It is NOT
+// an admin — admin is a human, and `/api/admin/*` is out of the portal's scope.
 async function mintServiceBearer(): Promise<string> {
-  const pem = process.env.PORTAL_ACCOUNT_BEARER_PRIVATE_KEY?.replaceAll(
-    "\\n",
-    "\n",
-  ).trim();
-  const kid = process.env.PORTAL_ACCOUNT_BEARER_KID?.trim();
-  if (!pem || !kid) {
-    throw new Error(
-      "service bearer signing is not configured: set PORTAL_ACCOUNT_BEARER_PRIVATE_KEY + PORTAL_ACCOUNT_BEARER_KID",
-    );
-  }
-  if (!cachedServiceKey) {
-    cachedServiceKey = { privateKey: await importPKCS8(pem, "EdDSA"), kid };
-  }
-  const now = Math.floor(Date.now() / 1000);
-  return new SignJWT({ role: "service" })
-    .setProtectedHeader({ alg: "EdDSA", kid: cachedServiceKey.kid })
-    .setSubject(SERVICE_ISSUER)
-    .setIssuer(SERVICE_ISSUER)
-    .setAudience(BACKEND_AUDIENCE)
-    .setIssuedAt(now)
-    .setExpirationTime(now + SERVICE_BEARER_TTL_SECONDS)
-    .sign(cachedServiceKey.privateKey);
+  const { accessToken } = await portalService().mint({
+    role: "service",
+    subject: "aomi-bff",
+    audience: "aomi-backend",
+  });
+  return accessToken;
 }
 
 type SourceRef =
