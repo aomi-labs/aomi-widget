@@ -34,7 +34,7 @@ export async function POST(req: Request) {
     }
 
     const repo = body.repo;
-    const env = readOnboardDeployEnv();
+    const env = await readOnboardDeployEnv();
     const result = await backendRequest<BackendAppSourceResult>(
       env,
       `/api/platforms/${encodeURIComponent(env.platform)}/sources/sync-installed`,

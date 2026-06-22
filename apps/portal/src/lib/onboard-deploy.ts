@@ -1,6 +1,47 @@
 import "server-only";
 
+import { importPKCS8, SignJWT } from "jose";
+
 import { resolveDeployPlatform } from "@portal/lib/deploy-platform";
+
+// The portal authenticates to the backend as a **service** principal: it mints
+// a short-lived `service`-role AccountBearer with its existing `aomi-bff`
+// signing key (same key as the user-token exchange route). It is NOT an admin —
+// admin is a human, and `/api/admin/*` is out of the portal's scope.
+const SERVICE_ISSUER = "aomi-bff";
+const BACKEND_AUDIENCE = "aomi-backend";
+const SERVICE_BEARER_TTL_SECONDS = 5 * 60;
+
+let cachedServiceKey: {
+  privateKey: Awaited<ReturnType<typeof importPKCS8>>;
+  kid: string;
+} | null = null;
+
+/** Mint a `service`-role AccountBearer signed by the portal's `aomi-bff` key. */
+async function mintServiceBearer(): Promise<string> {
+  const pem = process.env.PORTAL_ACCOUNT_BEARER_PRIVATE_KEY?.replaceAll(
+    "\\n",
+    "\n",
+  ).trim();
+  const kid = process.env.PORTAL_ACCOUNT_BEARER_KID?.trim();
+  if (!pem || !kid) {
+    throw new Error(
+      "service bearer signing is not configured: set PORTAL_ACCOUNT_BEARER_PRIVATE_KEY + PORTAL_ACCOUNT_BEARER_KID",
+    );
+  }
+  if (!cachedServiceKey) {
+    cachedServiceKey = { privateKey: await importPKCS8(pem, "EdDSA"), kid };
+  }
+  const now = Math.floor(Date.now() / 1000);
+  return new SignJWT({ role: "service" })
+    .setProtectedHeader({ alg: "EdDSA", kid: cachedServiceKey.kid })
+    .setSubject(SERVICE_ISSUER)
+    .setIssuer(SERVICE_ISSUER)
+    .setAudience(BACKEND_AUDIENCE)
+    .setIssuedAt(now)
+    .setExpirationTime(now + SERVICE_BEARER_TTL_SECONDS)
+    .sign(cachedServiceKey.privateKey);
+}
 
 type SourceRef =
   | { kind: "branch"; value: string }
@@ -33,7 +74,6 @@ export class BackendRequestError extends Error {
 export type OnboardDeployEnv = {
   backendUrl: string;
   bearer: string;
-  adminSecret?: string;
   activationToken?: string;
   platform: string;
   templateRepo: string;
@@ -117,20 +157,17 @@ export type BackendDeploymentStatusResult = {
   message?: string;
 };
 
-export function readOnboardDeployEnv(): OnboardDeployEnv {
+export async function readOnboardDeployEnv(): Promise<OnboardDeployEnv> {
   const backendUrl = (
     process.env.BACKEND_URL ||
     process.env.NEXT_PUBLIC_BACKEND_URL ||
     "http://127.0.0.1:8080"
   ).replace(/\/+$/, "");
-  const adminSecret = process.env.AOMI_ADMIN_SECRET;
   const activationToken = process.env.APP_DEPLOY_ACTIVATION_TOKEN;
-  const bearer = activationToken || adminSecret;
-  if (!bearer) {
-    throw new Error(
-      "onboarding deploy is not configured: set AOMI_ADMIN_SECRET or APP_DEPLOY_ACTIVATION_TOKEN",
-    );
-  }
+  // Use a pre-issued platform activation token if one is configured, otherwise
+  // the portal mints its own short-lived service bearer (its default identity
+  // to the backend).
+  const bearer = activationToken ?? (await mintServiceBearer());
   const sourceRef: SourceRef = process.env.APP_DEPLOY_SOURCE_COMMIT
     ? { kind: "commit", value: process.env.APP_DEPLOY_SOURCE_COMMIT }
     : { kind: "branch", value: process.env.APP_DEPLOY_SOURCE_BRANCH || "main" };
@@ -145,7 +182,6 @@ export function readOnboardDeployEnv(): OnboardDeployEnv {
   return {
     backendUrl,
     bearer,
-    adminSecret,
     activationToken,
     platform: resolveDeployPlatform(),
     templateRepo:
@@ -165,13 +201,10 @@ export async function activationEnv(
   if (cached) {
     return { ...env, bearer: cached };
   }
-  if (!env.adminSecret) {
-    throw new Error(
-      "activation requires APP_DEPLOY_ACTIVATION_TOKEN or AOMI_ADMIN_SECRET",
-    );
-  }
+  // Mint a scoped platform activation token using the portal's service bearer
+  // (already on `env.bearer`).
   const minted = await backendRequest<{ token?: string }>(
-    { ...env, bearer: env.adminSecret },
+    env,
     `/api/platforms/${encodeURIComponent(env.platform)}/tokens`,
     {
       method: "POST",
