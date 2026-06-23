@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { mintAccountBearer } from "@aomi-labs/account";
 import { getSessionedCanonicalId } from "@portal/lib/aomi-account/session";
+import { configuredBackendUrl } from "@portal/lib/backend-url";
 
 /**
  * Same-origin proxy that fronts the Rust backend and **injects the
@@ -34,7 +35,7 @@ const ALLOWED_REQUEST_HEADERS = new Set([
 ]);
 
 // Backend routes this proxy is willing to forward. Portal-owned routes
-// (`/api/account/sessions/exchange`, `/api/onboard/*`, `/api/e2e/*`,
+// (`/api/account/sessions/exchange`, `/api/launch/*`, `/api/e2e/*`,
 // `/api/mcp/*`) are served by their own handlers — a more specific route always
 // wins over this catch-all, so they never reach here.
 const ALLOWED_ROUTES: Array<{
@@ -66,6 +67,10 @@ const ALLOWED_ROUTES: Array<{
   { pattern: /^\/api\/session\/apps$/, methods: new Set(["GET"]) },
   { pattern: /^\/api\/session\/models$/, methods: new Set(["GET"]) },
   { pattern: /^\/api\/session\/model$/, methods: new Set(["POST"]) },
+  {
+    pattern: /^\/api\/integrations\/github-app\/oauth\/start$/,
+    methods: new Set(["GET"]),
+  },
   { pattern: /^\/api\/control\/apps$/, methods: new Set(["GET"]) },
   { pattern: /^\/api\/control\/models$/, methods: new Set(["GET"]) },
   { pattern: /^\/api\/control\/model$/, methods: new Set(["POST"]) },
@@ -95,10 +100,7 @@ const ALLOWED_ROUTES: Array<{
 ];
 
 function resolveUpstreamBaseUrl(): string {
-  const configured =
-    process.env.AOMI_PROXY_BACKEND_URL ??
-    process.env.BACKEND_URL ??
-    process.env.NEXT_PUBLIC_BACKEND_URL;
+  const configured = process.env.AOMI_PROXY_BACKEND_URL;
   if (configured) {
     try {
       return new URL(configured).toString();
@@ -107,7 +109,7 @@ function resolveUpstreamBaseUrl(): string {
       // server-side proxy still needs an absolute upstream, so fall through.
     }
   }
-  return "https://api.aomi.dev";
+  return configuredBackendUrl();
 }
 
 const UPSTREAM_BASE_URL = resolveUpstreamBaseUrl();

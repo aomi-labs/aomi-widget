@@ -1,24 +1,20 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import {
-  oneshotStep,
+  GITHUB_REDIRECT_KEYS,
   bootstrapStep,
   installationStatusLabel,
+  loadLaunch,
   normalizeRepo,
+  oneshotStep,
   readGithubRedirect,
+  saveLaunch,
   withPath,
-  withProgress,
   withPendingInstall,
-  loadOnboarding,
-  saveOnboarding,
-  GITHUB_REDIRECT_KEYS,
-} from "./onboarding";
-
-// onboarding.ts imports @aomi-labs/widget-lib which has a volatile dependency
-// chain through the registry. The pure functions don't use it — mock it out.
-vi.mock("@aomi-labs/widget-lib", () => ({}));
+  withProgress,
+} from ".";
 
 describe("oneshotStep", () => {
-  it("advances install → create → build → live", () => {
+  it("advances install -> create -> build -> live", () => {
     expect(oneshotStep({})).toBe("install");
     expect(oneshotStep({ installationId: "1" })).toBe("create");
     expect(oneshotStep({ installationId: "1", repo: "a/b" })).toBe("build");
@@ -27,7 +23,7 @@ describe("oneshotStep", () => {
 });
 
 describe("bootstrapStep", () => {
-  it("advances template → install → deploy → live", () => {
+  it("advances template -> install -> deploy -> live", () => {
     expect(bootstrapStep({})).toBe("template");
     expect(bootstrapStep({ repo: "a/b" })).toBe("install");
     expect(bootstrapStep({ repo: "a/b", installationId: "1" })).toBe("deploy");
@@ -59,24 +55,24 @@ describe("normalizeRepo", () => {
 });
 
 describe("readGithubRedirect", () => {
-  it("parses installation_id + state + setup_action", () => {
+  it("parses GitHub and backend redirect params", () => {
     expect(readGithubRedirect("?foo=bar")).toBeNull();
     expect(readGithubRedirect("?installation_id=42&setup_action=install&state=tok")).toEqual({
       installationId: "42",
       setupAction: "install",
       state: "tok",
-      onboard: null,
+      launchStatus: null,
       repo: null,
     });
     expect(
       readGithubRedirect(
-        "?installation_id=42&onboard=bound&repo=phoebe-aomi%2Fmy-playground-2",
+        "?installation_id=42&launch=bound&repo=phoebe-aomi%2Fmy-playground-2",
       ),
     ).toEqual({
       installationId: "42",
       setupAction: null,
       state: null,
-      onboard: "bound",
+      launchStatus: "bound",
       repo: "phoebe-aomi/my-playground-2",
     });
   });
@@ -112,57 +108,24 @@ describe("load/save", () => {
     } as unknown as Window & typeof globalThis;
     globalThis.window = win;
 
-    expect(loadOnboarding()).toEqual({
+    expect(loadLaunch()).toEqual({
       path: null,
       oneshot: {},
       bootstrap: {},
       pendingInstall: null,
     });
 
-    const next = withProgress(loadOnboarding(), "bootstrap", { repo: "me/app" });
-    saveOnboarding(next);
-    expect(loadOnboarding().bootstrap.repo).toBe("me/app");
-
-    (globalThis as { window?: unknown }).window = undefined;
-  });
-
-  it("strips stale mock deploy progress", () => {
-    const store = new Map<string, string>();
-    store.set(
-      "aomi_onboard",
-      JSON.stringify({
-        path: "bootstrap",
-        oneshot: {},
-        bootstrap: {
-          repo: "me/app",
-          installationId: "123",
-          live: true,
-        },
-        pendingInstall: null,
-      }),
-    );
-    const win = {
-      localStorage: {
-        getItem: (k: string) => (store.has(k) ? store.get(k)! : null),
-        setItem: (k: string, v: string) => void store.set(k, v),
-        removeItem: (k: string) => void store.delete(k),
-      },
-    } as unknown as Window & typeof globalThis;
-    globalThis.window = win;
-
-    expect(loadOnboarding().bootstrap).toEqual({
-      repo: "me/app",
-      installationId: "123",
-      live: true,
-    });
+    const next = withProgress(loadLaunch(), "bootstrap", { repo: "me/app" });
+    saveLaunch(next);
+    expect(loadLaunch().bootstrap.repo).toBe("me/app");
 
     (globalThis as { window?: unknown }).window = undefined;
   });
 });
 
 describe("GITHUB_REDIRECT_KEYS", () => {
-  it("covers GitHub and backend redirect params", () => {
-    for (const k of ["installation_id", "setup_action", "state", "code", "onboard"]) {
+  it("covers GitHub and launch redirect params", () => {
+    for (const k of ["installation_id", "setup_action", "state", "code", "launch"]) {
       expect(GITHUB_REDIRECT_KEYS).toContain(k);
     }
   });
