@@ -145,6 +145,7 @@ export class CliSession {
       svmPrivateKey: config.solanaPrivateKey ?? seed?.svmPrivateKey,
       chainId: config.chain ?? seed?.chainId,
       secretHandles: seed?.secretHandles,
+      authorizedWalletRefsByApp: seed?.authorizedWalletRefsByApp,
     };
     applyAccountCredentialConfig(state, config);
     const cli = new CliSession(state);
@@ -203,6 +204,10 @@ export class CliSession {
   }
   get secretHandles(): Readonly<Record<string, string>> {
     return this.state.secretHandles ?? {};
+  }
+
+  authorizedWalletRef(app?: string): string | undefined {
+    return this.state.authorizedWalletRefsByApp?.[app ?? this.state.app ?? "default"];
   }
 
   // ---------------------------------------------------------------------------
@@ -319,6 +324,23 @@ export class CliSession {
 
   clearSecretHandles(): void {
     this.state.secretHandles = {};
+    this.save();
+  }
+
+  setAuthorizedWalletRef(app: string | undefined, walletRef: string): void {
+    const key = app ?? this.state.app ?? "default";
+    this.state.authorizedWalletRefsByApp = {
+      ...(this.state.authorizedWalletRefsByApp ?? {}),
+      [key]: walletRef,
+    };
+    this.save();
+  }
+
+  clearAuthorizedWalletRef(app: string | undefined): void {
+    const key = app ?? this.state.app ?? "default";
+    const refs = { ...(this.state.authorizedWalletRefsByApp ?? {}) };
+    delete refs[key];
+    this.state.authorizedWalletRefsByApp = refs;
     this.save();
   }
 

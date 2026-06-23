@@ -124,6 +124,7 @@ export type CliSessionState = {
   signedTxs?: SignedTx[];
   signedSolTxs?: SignedSolTx[];
   secretHandles?: Record<string, string>;
+  authorizedWalletRefsByApp?: Record<string, string>;
 };
 
 function getBackendPendingId(
@@ -225,6 +226,7 @@ function toCliSessionState(stored: StoredSessionState): CliSessionState {
     signedTxs: stored.signedTxs,
     signedSolTxs: stored.signedSolTxs,
     secretHandles: stored.secretHandles,
+    authorizedWalletRefsByApp: stored.authorizedWalletRefsByApp,
   };
 }
 
@@ -277,6 +279,7 @@ function readStoredSession(path: string): StoredSessionState | null {
       signedTxs: normalizeSignedTxs(parsed.signedTxs),
       signedSolTxs: parsed.signedSolTxs,
       secretHandles: parsed.secretHandles,
+      authorizedWalletRefsByApp: parsed.authorizedWalletRefsByApp,
       localId:
         typeof parsed.localId === "number" && parsed.localId > 0
           ? parsed.localId

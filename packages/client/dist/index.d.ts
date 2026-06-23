@@ -345,6 +345,40 @@ interface AomiBeginAccountAuthResponse {
 }
 type AomiWalletFamily = "evm" | "svm";
 type AomiAuthWalletFamily = "evm" | "solana";
+interface AomiAuthorizedWallet {
+    wallet_ref: string;
+    wallet_provider: string;
+    application?: string | null;
+    family: AomiWalletFamily;
+    address: string;
+    label?: string | null;
+    auth_identity_id: number;
+    approval_id: number;
+    expires_at?: number | null;
+}
+interface AomiListAuthorizationsResponse {
+    wallets: AomiAuthorizedWallet[];
+}
+interface AomiScheduledIntent {
+    id: string;
+    user_id: string;
+    session_id: string;
+    application: string;
+    intent: string;
+    trigger_at: number;
+    recurrence_seconds?: number | null;
+    last_attempted_at?: number | null;
+    requires_authorization: boolean;
+    authorized_wallet_ref?: string | null;
+    created_at: number;
+    updated_at: number;
+}
+interface AomiListScheduledIntentsResponse {
+    scheduled_intents: AomiScheduledIntent[];
+}
+interface AomiDeleteScheduledIntentResponse {
+    deleted: boolean;
+}
 /**
  * GET/POST/DELETE /api/account/payment/byok
  * Lists or saves BYOK keys (one per LLM provider) for the account.
@@ -474,6 +508,7 @@ declare class AomiClient {
         apiKey?: string;
         userState?: UserState;
         clientId?: string;
+        authorizedWalletRef?: string;
     }): Promise<AomiChatResponse>;
     /**
      * Send a system-level message (e.g. wallet state changes, context switches).
@@ -581,6 +616,17 @@ declare class AomiClient {
         application?: string;
         walletFamily?: AomiAuthWalletFamily;
     }): Promise<AomiBeginAccountAuthResponse>;
+    listAuthorizedWallets(sessionId: string, options?: {
+        app?: string;
+        provider?: string;
+    }): Promise<AomiListAuthorizationsResponse>;
+    listScheduledIntents(sessionId: string, options?: {
+        app?: string;
+        limit?: number;
+        offset?: number;
+    }): Promise<AomiListScheduledIntentsResponse>;
+    getScheduledIntent(sessionId: string, id: string): Promise<AomiScheduledIntent>;
+    cancelScheduledIntent(sessionId: string, id: string): Promise<AomiDeleteScheduledIntentResponse>;
     /**
      * Get available models.
      */
@@ -1144,12 +1190,16 @@ declare class ClientSession extends TypedEventEmitter<SessionEventMap> {
      * mid-processing, polling continues but the promise pauses until the
      * request is resolved or rejected via `resolve()` / `reject()`.
      */
-    send(message: string): Promise<SendResult>;
+    send(message: string, options?: {
+        authorizedWalletRef?: string;
+    }): Promise<SendResult>;
     /**
      * Send a message without waiting for completion.
      * Polling starts in the background; listen to events for updates.
      */
-    sendAsync(message: string): Promise<AomiChatResponse>;
+    sendAsync(message: string, options?: {
+        authorizedWalletRef?: string;
+    }): Promise<AomiChatResponse>;
     /**
      * Resolve a pending wallet request (transaction, EIP-712, or Solana
      * sign). The `result.kind` discriminator must match the originating

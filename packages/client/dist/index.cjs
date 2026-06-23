@@ -1105,12 +1105,14 @@ ${body}` : ""}`
       app,
       message,
       user_state: normalizedUserState ? JSON.stringify(normalizedUserState) : void 0,
-      client_id: options == null ? void 0 : options.clientId
+      client_id: options == null ? void 0 : options.clientId,
+      authorized_wallet_ref: options == null ? void 0 : options.authorizedWalletRef
     });
     (_c = this.logger) == null ? void 0 : _c.debug("[aomi][client] POST /api/chat prepared", {
       sessionId,
       app,
       clientId: options == null ? void 0 : options.clientId,
+      authorizedWalletRef: options == null ? void 0 : options.authorizedWalletRef,
       hasUserState: Boolean(normalizedUserState),
       messagePreview: previewText(message)
     });
@@ -1491,6 +1493,55 @@ ${body}` : ""}`
       throw new Error(`Failed to begin Privy auth: HTTP ${response.status}`);
     }
     return await response.json();
+  }
+  async listAuthorizedWallets(sessionId, options) {
+    return this.request(
+      "GET",
+      "/api/account/authorizations",
+      {
+        sessionId,
+        query: {
+          app: options == null ? void 0 : options.app,
+          provider: options == null ? void 0 : options.provider
+        },
+        raw: true
+      }
+    );
+  }
+  async listScheduledIntents(sessionId, options) {
+    return this.request(
+      "GET",
+      "/api/account/scheduled-intents",
+      {
+        sessionId,
+        query: {
+          app: options == null ? void 0 : options.app,
+          limit: options == null ? void 0 : options.limit,
+          offset: options == null ? void 0 : options.offset
+        },
+        raw: true
+      }
+    );
+  }
+  async getScheduledIntent(sessionId, id) {
+    return this.request(
+      "GET",
+      `/api/account/scheduled-intents/${encodeURIComponent(id)}`,
+      {
+        sessionId,
+        raw: true
+      }
+    );
+  }
+  async cancelScheduledIntent(sessionId, id) {
+    return this.request(
+      "DELETE",
+      `/api/account/scheduled-intents/${encodeURIComponent(id)}`,
+      {
+        sessionId,
+        raw: true
+      }
+    );
   }
   /**
    * Get available models.
@@ -2316,19 +2367,52 @@ function resolveWalletState(userState, address3, chainId3, aa) {
     })
   });
 }
-function warnIfUserStateMisaligned(expected, actual) {
+function warnIfUserStateMisaligned(expected, actual, options) {
   const expectedUserState = UserState.normalize(expected);
   const normalizedActualUserState = UserState.reconcile(expectedUserState, actual);
   if (!expectedUserState || !normalizedActualUserState) {
     return;
   }
   if (!isSubsetMatch(expectedUserState, normalizedActualUserState)) {
+    if (shouldIgnoreAppScopedSvmOverride(
+      expectedUserState,
+      normalizedActualUserState,
+      options
+    )) {
+      return;
+    }
     const expectedJson = JSON.stringify(sortJson(expectedUserState));
     const actualJson = JSON.stringify(sortJson(normalizedActualUserState));
     console.warn(
       `[session] Backend user_state mismatch (non-fatal). expected subset=${expectedJson} actual=${actualJson}`
     );
   }
+}
+function shouldIgnoreAppScopedSvmOverride(expected, actual, options) {
+  var _a, _b, _c, _d, _e;
+  if (((_a = options == null ? void 0 : options.app) == null ? void 0 : _a.trim().toLowerCase()) !== "byreal") {
+    return false;
+  }
+  if (((_b = expected.ext) == null ? void 0 : _b.client_type) !== "ts_cli" || ((_c = actual.ext) == null ? void 0 : _c.client_type) !== "ts_cli") {
+    return false;
+  }
+  if (!((_d = expected.svm) == null ? void 0 : _d.address) || !((_e = actual.svm) == null ? void 0 : _e.address) || expected.svm.address === actual.svm.address) {
+    return false;
+  }
+  if (expected.svm.cluster !== actual.svm.cluster) {
+    return false;
+  }
+  const expectedWithoutSvmAddress = __spreadProps(__spreadValues({}, expected), {
+    svm: __spreadProps(__spreadValues({}, expected.svm), {
+      address: void 0
+    })
+  });
+  const actualWithoutSvmAddress = __spreadProps(__spreadValues({}, actual), {
+    svm: __spreadProps(__spreadValues({}, actual.svm), {
+      address: void 0
+    })
+  });
+  return isSubsetMatch(expectedWithoutSvmAddress, actualWithoutSvmAddress);
 }
 
 // src/aa/policy.ts
@@ -2745,13 +2829,14 @@ var ClientSession = class extends TypedEventEmitter {
    * mid-processing, polling continues but the promise pauses until the
    * request is resolved or rejected via `resolve()` / `reject()`.
    */
-  async send(message) {
+  async send(message, options) {
     this.assertOpen();
     const response = await this.client.sendMessage(this.sessionId, message, {
       app: this.app,
       apiKey: this.apiKey,
       userState: this.userState,
-      clientId: this.clientId
+      clientId: this.clientId,
+      authorizedWalletRef: options == null ? void 0 : options.authorizedWalletRef
     });
     this.assertUserStateAligned(response.user_state);
     this.applyState(response);
@@ -2769,13 +2854,14 @@ var ClientSession = class extends TypedEventEmitter {
    * Send a message without waiting for completion.
    * Polling starts in the background; listen to events for updates.
    */
-  async sendAsync(message) {
+  async sendAsync(message, options) {
     this.assertOpen();
     const response = await this.client.sendMessage(this.sessionId, message, {
       app: this.app,
       apiKey: this.apiKey,
       userState: this.userState,
-      clientId: this.clientId
+      clientId: this.clientId,
+      authorizedWalletRef: options == null ? void 0 : options.authorizedWalletRef
     });
     this.assertUserStateAligned(response.user_state);
     this.applyState(response);
@@ -3062,7 +3148,9 @@ var ClientSession = class extends TypedEventEmitter {
     }
   }
   assertUserStateAligned(actualUserState) {
-    warnIfUserStateMisaligned(this.userState, actualUserState);
+    warnIfUserStateMisaligned(this.userState, actualUserState, {
+      app: this.app
+    });
   }
 };
 

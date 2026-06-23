@@ -15,12 +15,16 @@ import type {
   AomiIngestSecretsResponse,
   AomiInterruptResponse,
   AomiListByokKeysResponse,
+  AomiListAuthorizationsResponse,
+  AomiListScheduledIntentsResponse,
   AomiListSecretsResponse,
   AomiRequestOptions,
   AomiByokKeyEntry,
+  AomiDeleteScheduledIntentResponse,
   AomiSaveByokKeyResponse,
   AomiSSEEvent,
   AomiSimulateResponse,
+  AomiScheduledIntent,
   AomiStateResponse,
   AomiSystemEvent,
   AomiSystemResponse,
@@ -453,6 +457,7 @@ export class AomiClient {
       apiKey?: string;
       userState?: UserStateShape;
       clientId?: string;
+      authorizedWalletRef?: string;
     },
   ): Promise<AomiChatResponse> {
     const app = options?.app ?? "default";
@@ -465,12 +470,14 @@ export class AomiClient {
         ? JSON.stringify(normalizedUserState)
         : undefined,
       client_id: options?.clientId,
+      authorized_wallet_ref: options?.authorizedWalletRef,
     });
 
     this.logger?.debug("[aomi][client] POST /api/chat prepared", {
       sessionId,
       app,
       clientId: options?.clientId,
+      authorizedWalletRef: options?.authorizedWalletRef,
       hasUserState: Boolean(normalizedUserState),
       messagePreview: previewText(message),
     });
@@ -951,6 +958,71 @@ export class AomiClient {
     }
 
     return (await response.json()) as AomiBeginAccountAuthResponse;
+  }
+
+  async listAuthorizedWallets(
+    sessionId: string,
+    options?: { app?: string; provider?: string },
+  ): Promise<AomiListAuthorizationsResponse> {
+    return this.request<AomiListAuthorizationsResponse>(
+      "GET",
+      "/api/account/authorizations",
+      {
+        sessionId,
+        query: {
+          app: options?.app,
+          provider: options?.provider,
+        },
+        raw: true,
+      },
+    );
+  }
+
+  async listScheduledIntents(
+    sessionId: string,
+    options?: { app?: string; limit?: number; offset?: number },
+  ): Promise<AomiListScheduledIntentsResponse> {
+    return this.request<AomiListScheduledIntentsResponse>(
+      "GET",
+      "/api/account/scheduled-intents",
+      {
+        sessionId,
+        query: {
+          app: options?.app,
+          limit: options?.limit,
+          offset: options?.offset,
+        },
+        raw: true,
+      },
+    );
+  }
+
+  async getScheduledIntent(
+    sessionId: string,
+    id: string,
+  ): Promise<AomiScheduledIntent> {
+    return this.request<AomiScheduledIntent>(
+      "GET",
+      `/api/account/scheduled-intents/${encodeURIComponent(id)}`,
+      {
+        sessionId,
+        raw: true,
+      },
+    );
+  }
+
+  async cancelScheduledIntent(
+    sessionId: string,
+    id: string,
+  ): Promise<AomiDeleteScheduledIntentResponse> {
+    return this.request<AomiDeleteScheduledIntentResponse>(
+      "DELETE",
+      `/api/account/scheduled-intents/${encodeURIComponent(id)}`,
+      {
+        sessionId,
+        raw: true,
+      },
+    );
   }
 
   /**

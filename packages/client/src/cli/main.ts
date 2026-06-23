@@ -15,6 +15,7 @@ const ROOT_SUBCOMMANDS = new Set([
   "secret",
   "account",
   "deploy",
+  "schedule",
 ]);
 
 function isPnpmExecWrapper(): boolean {
@@ -109,6 +110,7 @@ function printRootHelp(): void {
   console.log(
     "  deploy                       Deploy your app (requires --activation-token)",
   );
+  console.log("  schedule                     Scheduled intent management");
   console.log("");
   console.log("Use aomi <command> --help for command-specific details.");
 }

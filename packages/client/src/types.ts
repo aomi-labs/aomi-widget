@@ -267,6 +267,45 @@ export interface AomiBeginAccountAuthResponse {
 export type AomiWalletFamily = "evm" | "svm";
 export type AomiAuthWalletFamily = "evm" | "solana";
 
+export interface AomiAuthorizedWallet {
+  wallet_ref: string;
+  wallet_provider: string;
+  application?: string | null;
+  family: AomiWalletFamily;
+  address: string;
+  label?: string | null;
+  auth_identity_id: number;
+  approval_id: number;
+  expires_at?: number | null;
+}
+
+export interface AomiListAuthorizationsResponse {
+  wallets: AomiAuthorizedWallet[];
+}
+
+export interface AomiScheduledIntent {
+  id: string;
+  user_id: string;
+  session_id: string;
+  application: string;
+  intent: string;
+  trigger_at: number;
+  recurrence_seconds?: number | null;
+  last_attempted_at?: number | null;
+  requires_authorization: boolean;
+  authorized_wallet_ref?: string | null;
+  created_at: number;
+  updated_at: number;
+}
+
+export interface AomiListScheduledIntentsResponse {
+  scheduled_intents: AomiScheduledIntent[];
+}
+
+export interface AomiDeleteScheduledIntentResponse {
+  deleted: boolean;
+}
+
 /**
  * GET/POST/DELETE /api/account/payment/byok
  * Lists or saves BYOK keys (one per LLM provider) for the account.

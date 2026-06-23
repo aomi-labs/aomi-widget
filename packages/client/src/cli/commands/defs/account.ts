@@ -42,10 +42,93 @@ const accountWhoamiDef = defineCommand({
   },
 });
 
+const accountAuthListDef = defineCommand({
+  meta: {
+    name: "list",
+    description: "List backend-authorized wallets for the current account/app",
+  },
+  args: {
+    ...globalArgs,
+    provider: {
+      type: "string",
+      description: 'Authorization provider (default: "privy")',
+    },
+  },
+  async run({ args }) {
+    const { listAuthorizationsCommand } = await import("../authorizations");
+    await listAuthorizationsCommand(buildCliConfig(args), {
+      provider: typeof args.provider === "string" ? args.provider : undefined,
+    });
+  },
+});
+
+const accountAuthCurrentDef = defineCommand({
+  meta: {
+    name: "current",
+    description: "Show the locally selected authorized wallet for this app",
+  },
+  args: { ...globalArgs },
+  async run({ args }) {
+    const { currentAuthorizationCommand } = await import("../authorizations");
+    await currentAuthorizationCommand(buildCliConfig(args));
+  },
+});
+
+const accountAuthUseDef = defineCommand({
+  meta: {
+    name: "use",
+    description: "Select an authorized wallet ref for future chat turns",
+  },
+  args: {
+    ...globalArgs,
+    provider: {
+      type: "string",
+      description: 'Authorization provider used for validation (default: "privy")',
+    },
+    wallet: {
+      type: "positional",
+      description: "Wallet ref from `aomi account auth list`",
+      required: true,
+    },
+  },
+  async run({ args }) {
+    const { useAuthorizationCommand } = await import("../authorizations");
+    await useAuthorizationCommand(buildCliConfig(args), String(args.wallet ?? ""), {
+      provider: typeof args.provider === "string" ? args.provider : undefined,
+    });
+  },
+});
+
+const accountAuthClearDef = defineCommand({
+  meta: {
+    name: "clear",
+    description: "Clear the locally selected authorized wallet for this app",
+  },
+  args: { ...globalArgs },
+  async run({ args }) {
+    const { clearAuthorizationCommand } = await import("../authorizations");
+    await clearAuthorizationCommand(buildCliConfig(args));
+  },
+});
+
+const accountAuthDef = defineCommand({
+  meta: {
+    name: "auth",
+    description: "Authorized wallet selection",
+  },
+  subCommands: {
+    list: accountAuthListDef,
+    current: accountAuthCurrentDef,
+    use: accountAuthUseDef,
+    clear: accountAuthClearDef,
+  },
+});
+
 export const accountDef = defineCommand({
   meta: { name: "account", description: "Account identity" },
   subCommands: {
     login: accountLoginDef,
     whoami: accountWhoamiDef,
+    auth: accountAuthDef,
   },
 });

@@ -131,6 +131,7 @@ export async function chatCommand(
   config: CliConfig,
   message: string,
   verbose: boolean,
+  options?: { authorizedWalletRef?: string },
 ): Promise<void> {
   if (!message) {
     fatal("Usage: aomi chat <message>");
@@ -148,6 +149,9 @@ export async function chatCommand(
     : null;
   const cli = CliSession.loadOrCreate(config);
   const session = cli.createClientSession(config);
+  const authorizedWalletRef =
+    options?.authorizedWalletRef?.trim() ||
+    cli.authorizedWalletRef(config.app);
 
   // Resolve Solana address after session is created/loaded so we pick up the
   // key persisted by `wallet set --solana` even for `--new-session` flows
@@ -205,7 +209,7 @@ export async function chatCommand(
       });
     }
 
-    await session.sendAsync(message);
+    await session.sendAsync(message, { authorizedWalletRef });
 
     const allMessages = session.getMessages();
     let seedIdx = allMessages.length;
