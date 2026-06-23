@@ -42,6 +42,19 @@ const AomiSessionContext = createContext<AomiSessionContextValue>({
   retry: () => {},
 });
 
+async function hasAccountSession(): Promise<boolean> {
+  try {
+    const response = await fetch("/api/account", {
+      method: "GET",
+      credentials: "include",
+      cache: "no-store",
+    });
+    return response.ok;
+  } catch {
+    return false;
+  }
+}
+
 export function useAomiSession(): AomiSessionContextValue {
   return useContext(AomiSessionContext);
 }
@@ -127,13 +140,22 @@ export function AomiSessionProvider({ children }: { children: ReactNode }) {
         if (response.ok) {
           establishedFor.current = key;
           setStatus("ready");
+        } else if (response.status >= 500 && await hasAccountSession()) {
+          establishedFor.current = key;
+          setStatus("ready");
         } else {
           setStatus("error");
         }
       } catch {
         // Network/parse failure — surface as error; retry() (or an auth-state
         // change) re-runs the exchange.
-        if (!cancelled) setStatus("error");
+        if (cancelled) return;
+        if (await hasAccountSession()) {
+          establishedFor.current = key;
+          setStatus("ready");
+        } else {
+          setStatus("error");
+        }
       }
     })();
 
