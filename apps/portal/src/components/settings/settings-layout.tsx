@@ -6,7 +6,7 @@ import { SettingsSidebar, SettingsCategory } from "./settings-sidebar";
 import { GeneralSettings } from "./general-settings";
 import { AppsSettings } from "./apps-settings";
 import { ErrorBoundary } from "@portal/components/error-boundary";
-import { Onboarding } from "./onboarding/onboarding";
+import { DeployDashboard } from "./onboarding/deploy-dashboard";
 import { AppKeys } from "./app-keys";
 import { Bots } from "./bots";
 import { Secrets } from "./secrets";
@@ -115,7 +115,7 @@ export function SettingsLayout() {
         return (
           <div className="min-w-0">
             <ErrorBoundary>
-              <Onboarding />
+              <DeployDashboard />
             </ErrorBoundary>
           </div>
         );

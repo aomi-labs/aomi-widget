@@ -57,6 +57,10 @@ export type {
   ListAppsInput,
   GetAppInput,
   PlatformApp,
+  ExchangeGitHubCodeInput,
+  GitHubIdentity,
+  ListUserSourcesInput,
+  UserSource,
 } from "./types";
 
 export type {
