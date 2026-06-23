@@ -10,8 +10,12 @@ import type {
   DeploymentProgressEvent,
   DeploymentStatus,
   DeploymentAppStatus,
+  ExchangeGitHubCodeInput,
   GetAppInput,
+  GitHubIdentity,
   ListAppsInput,
+  ListUserSourcesInput,
+  UserSource,
   ListTokensInput,
   MintTokenInput,
   MintedToken,
@@ -475,6 +479,55 @@ export class DeploymentClient {
     return camelPlatformApp(raw.app);
   }
 
+  // ──────────────────── Sign-in: identity + user sources ────────────────────
+
+  /**
+   * Exchange a GitHub OAuth `code` for the user's identity (login flow). The
+   * client secret stays backend-side; this is the portal's sign-in seam.
+   * `GET /api/integrations/github-app/oauth/exchange`.
+   */
+  async exchangeGitHubCode(input: ExchangeGitHubCodeInput): Promise<GitHubIdentity> {
+    const code = required(input.code, "code");
+    const params = new URLSearchParams({ code });
+    if (input.app) params.set("app", String(input.app));
+    const bearer = this.resolveBearer(input.bearer);
+    const raw = await this.get<{
+      github_user_id?: string;
+      github_login?: string;
+    }>(
+      `/api/integrations/github-app/oauth/exchange?${params.toString()}`,
+      "exchange_github_code",
+      bearer,
+    );
+    return {
+      githubUserId: String(raw.github_user_id ?? ""),
+      githubLogin: String(raw.github_login ?? ""),
+    };
+  }
+
+  /**
+   * Every source repo a GitHub user connected (merged across installations,
+   * platform-agnostic), each with the apps deployed from it. Backs the
+   * post-sign-in dashboard. `GET /api/integrations/github-app/user/sources`.
+   */
+  async listUserSources(input: ListUserSourcesInput): Promise<UserSource[]> {
+    const githubUserId = required(input.githubUserId, "githubUserId");
+    const bearer = this.resolveBearer(input.bearer);
+    const raw = await this.get<{ sources?: unknown[] }>(
+      `/api/integrations/github-app/user/sources?${new URLSearchParams({
+        github_user_id: githubUserId,
+      }).toString()}`,
+      "list_user_sources",
+      bearer,
+    );
+    await this.audit({
+      action: "list_user_sources",
+      actor: input.actor,
+      ts: Date.now(),
+    });
+    return (raw.sources ?? []).map(camelUserSource);
+  }
+
   endpoint(path: string): string {
     const cleanPath = path.startsWith("/") ? path : `/${path}`;
     return `${this.baseUrl}${cleanPath}`;
@@ -845,5 +898,13 @@ function camelPlatformApp(raw: unknown): PlatformApp {
     appReleaseTag: a.app_release_tag ?? null,
     targetTags: a.target_tags ?? [],
     loaded: Boolean(a.loaded),
+  };
+}
+
+function camelUserSource(raw: unknown): UserSource {
+  const s = (raw ?? {}) as Record<string, any>;
+  return {
+    ...camelAppSource(s),
+    apps: ((s.apps ?? []) as unknown[]).map(camelPlatformApp),
   };
 }
