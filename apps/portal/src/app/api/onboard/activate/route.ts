@@ -3,7 +3,6 @@ import { NextResponse } from "next/server";
 export const runtime = "nodejs";
 
 import {
-  activationEnv,
   type BackendActivationResult,
   BackendRequestError,
   backendRequest,
@@ -44,7 +43,7 @@ export async function POST(req: Request) {
         { status: 400 },
       );
     }
-    const env = await activationEnv(await readOnboardDeployEnv());
+    const env = await readOnboardDeployEnv();
     const result = await backendRequest<BackendActivationResult>(
       env,
       `/api/platforms/${encodeURIComponent(env.platform)}/apps/activate`,

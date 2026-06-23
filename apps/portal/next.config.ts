@@ -14,6 +14,16 @@ const nobleHashesAssertCompatPath = path.join(
   "noble-hashes-assert-compat.js",
 );
 
+function defaultBackendUrl() {
+  if (process.env.VERCEL_ENV === "preview") {
+    return "https://api-staging.aomi.dev";
+  }
+  if (process.env.VERCEL_ENV === "production") {
+    return "https://api.aomi.dev";
+  }
+  return "http://127.0.0.1:8080";
+}
+
 // Portal-local code should import from `@portal/*`.
 // These `@/components|hooks|lib` aliases exist only so registry source imported
 // through `@aomi-labs/widget-lib` can resolve its own internal paths.
@@ -38,7 +48,7 @@ const nextConfig: NextConfig = {
     NEXT_PUBLIC_BACKEND_URL:
       process.env.NEXT_PUBLIC_BACKEND_URL ||
       process.env.BACKEND_URL ||
-      "http://127.0.0.1:8080",
+      defaultBackendUrl(),
     NEXT_PUBLIC_ANVIL_URL:
       process.env.NEXT_PUBLIC_ANVIL_URL ||
       process.env.ANVIL_URL ||

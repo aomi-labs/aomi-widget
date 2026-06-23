@@ -3,7 +3,6 @@ import { NextResponse } from "next/server";
 export const runtime = "nodejs";
 
 import {
-  activationEnv,
   BackendRequestError,
   type BackendDeploymentStatusResult,
   backendRequest,
@@ -40,7 +39,7 @@ export async function GET(req: Request) {
   }
 
   try {
-    const env = await activationEnv(await readOnboardDeployEnv());
+    const env = await readOnboardDeployEnv();
     const result = await backendRequest<BackendDeploymentStatusResult>(
       env,
       `/api/platforms/${encodeURIComponent(env.platform)}/deployments/${encodeURIComponent(

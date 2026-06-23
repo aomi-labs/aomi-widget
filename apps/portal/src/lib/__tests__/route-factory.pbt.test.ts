@@ -1,40 +1,34 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import fc from "fast-check";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { BackendRequestError } from "../onboard-deploy";
 import { handleDeploy } from "../route-factory";
 
+vi.mock("@aomi-labs/account", () => ({
+  portalService: () => ({
+    mint: vi.fn(async () => ({
+      accessToken: "service-token",
+      expiresAt: Date.now() + 300_000,
+    })),
+  }),
+}));
+
 describe("handleDeploy — Property 9: BFF maps backend error status codes", () => {
-  const savedAppUrl = process.env.NEXT_PUBLIC_APP_URL;
-  const savedPlatform = process.env.NEXT_PUBLIC_AOMI_PLATFORM;
-  const savedToken = process.env.APP_DEPLOY_ACTIVATION_TOKEN;
-
-  beforeEach(() => {
-    process.env.NEXT_PUBLIC_APP_URL = "http://localhost:3000";
-    process.env.NEXT_PUBLIC_AOMI_PLATFORM = "community";
-    process.env.APP_DEPLOY_ACTIVATION_TOKEN = "test-token";
-  });
-
   afterEach(() => {
-    const setOrDelete = (key: string, val: string | undefined) => {
-      if (val) process.env[key] = val;
-      else delete process.env[key];
-    };
-    setOrDelete("NEXT_PUBLIC_APP_URL", savedAppUrl);
-    setOrDelete("NEXT_PUBLIC_AOMI_PLATFORM", savedPlatform);
-    setOrDelete("APP_DEPLOY_ACTIVATION_TOKEN", savedToken);
     vi.restoreAllMocks();
   });
 
   it("propagates BackendRequestError status codes (400-599)", async () => {
-    // Mock fetch to return a valid token response, then throw on the deploy call
     const fetchMock = vi
       .fn()
-      // First call: getPlatformToken succeeds
       .mockResolvedValueOnce(
         new Response(
-          JSON.stringify({ token: "minted-token", expires_in: 3600 }),
+          JSON.stringify({ source: { id: 123 } }),
           { status: 200, headers: { "Content-Type": "application/json" } },
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({ error: "deploy rejected" }),
+          { status: 409, headers: { "Content-Type": "application/json" } },
         ),
       );
 
@@ -55,23 +49,12 @@ describe("handleDeploy — Property 9: BFF maps backend error status codes", () 
     const res = await POST(req);
     const body = await res.json();
 
-    // The deploy route will hit a BackendRequestError with status 502
-    // because the second fetch (deploy call) won't be mocked
-    expect(res.status).toBeGreaterThanOrEqual(400);
-    expect(body).toHaveProperty("error");
+    expect(res.status).toBe(409);
+    expect(body).toEqual({ error: "deploy rejected" });
   });
 
   it("return 502 for non-BackendRequestError exceptions", async () => {
-    // Mock fetch to return valid token, then deploy throws something else
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValueOnce(
-        new Response(
-          JSON.stringify({ token: "minted-token", expires_in: 3600 }),
-          { status: 200, headers: { "Content-Type": "application/json" } },
-        ),
-      );
-
+    const fetchMock = vi.fn().mockRejectedValueOnce(new Error("network down"));
     vi.stubGlobal("fetch", fetchMock);
 
     const POST = handleDeploy(false);

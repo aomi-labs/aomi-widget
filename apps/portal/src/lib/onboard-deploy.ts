@@ -1,7 +1,14 @@
 import "server-only";
 
 import { portalService } from "@aomi-labs/account";
+import { configuredBackendUrl } from "@portal/lib/backend-url";
 import { resolveDeployPlatform } from "@portal/lib/deploy-platform";
+
+const ONBOARD_TEMPLATE_REPO = "aomi-labs/playground-example";
+const ONBOARD_CREATED_REPO_PRIVATE = false;
+const ONBOARD_SOURCE_REF: SourceRef = { kind: "branch", value: "main" };
+const ONBOARD_AOMI_TOML_PATHS = ["aomi.toml"];
+const ONBOARD_TARGET_TAGS: string[] = [];
 
 // The portal authenticates to the backend as a **service** principal: it mints a
 // short-lived `service`-role AccountBearer via its `AomiService` (the topology
@@ -47,7 +54,6 @@ export class BackendRequestError extends Error {
 export type OnboardDeployEnv = {
   backendUrl: string;
   bearer: string;
-  activationToken?: string;
   platform: string;
   templateRepo: string;
   createdRepoPrivate: boolean;
@@ -55,32 +61,6 @@ export type OnboardDeployEnv = {
   aomiTomlPaths: string[];
   targetTags: string[];
 };
-
-const TOKEN_TTL_MS = 5 * 60 * 1000; // 5 minutes
-
-class TokenCache {
-  private entry: { token: string; expiresAt: number } | null = null;
-
-  get(): string | null {
-    if (!this.entry) return null;
-    if (Date.now() > this.entry.expiresAt) {
-      this.entry = null;
-      return null;
-    }
-    return this.entry.token;
-  }
-
-  set(token: string): void {
-    this.entry = { token, expiresAt: Date.now() + TOKEN_TTL_MS };
-  }
-
-  invalidate(): void {
-    this.entry = null;
-  }
-}
-
-// Module-level singleton (one per server process, not per request — but TTL-gated)
-const tokenCache = new TokenCache();
 
 export type BackendDeployPayload = {
   id: string;
@@ -131,64 +111,17 @@ export type BackendDeploymentStatusResult = {
 };
 
 export async function readOnboardDeployEnv(): Promise<OnboardDeployEnv> {
-  const backendUrl = (
-    process.env.BACKEND_URL ||
-    process.env.NEXT_PUBLIC_BACKEND_URL ||
-    "http://127.0.0.1:8080"
-  ).replace(/\/+$/, "");
-  const activationToken = process.env.APP_DEPLOY_ACTIVATION_TOKEN;
-  // Use a pre-issued platform activation token if one is configured, otherwise
-  // the portal mints its own short-lived service bearer (its default identity
-  // to the backend).
-  const bearer = activationToken ?? (await mintServiceBearer());
-  const sourceRef: SourceRef = process.env.APP_DEPLOY_SOURCE_COMMIT
-    ? { kind: "commit", value: process.env.APP_DEPLOY_SOURCE_COMMIT }
-    : { kind: "branch", value: process.env.APP_DEPLOY_SOURCE_BRANCH || "main" };
-  const aomiTomlPaths = (process.env.APP_DEPLOY_AOMI_TOML_PATHS || "aomi.toml")
-    .split(",")
-    .map((path) => path.trim())
-    .filter(Boolean);
-  const targetTags = (process.env.APP_DEPLOY_TARGET_TAGS || "")
-    .split(",")
-    .map((tag) => tag.trim())
-    .filter(Boolean);
+  const bearer = await mintServiceBearer();
   return {
-    backendUrl,
+    backendUrl: configuredBackendUrl(),
     bearer,
-    activationToken,
     platform: resolveDeployPlatform(),
-    templateRepo:
-      process.env.APP_DEPLOY_TEMPLATE_REPO || "aomi-labs/playground-example",
-    createdRepoPrivate: process.env.APP_DEPLOY_CREATED_REPO_PRIVATE === "true",
-    sourceRef,
-    aomiTomlPaths,
-    targetTags,
+    templateRepo: ONBOARD_TEMPLATE_REPO,
+    createdRepoPrivate: ONBOARD_CREATED_REPO_PRIVATE,
+    sourceRef: ONBOARD_SOURCE_REF,
+    aomiTomlPaths: [...ONBOARD_AOMI_TOML_PATHS],
+    targetTags: [...ONBOARD_TARGET_TAGS],
   };
-}
-
-export async function activationEnv(
-  env: OnboardDeployEnv,
-): Promise<OnboardDeployEnv> {
-  if (env.activationToken) return env;
-  const cached = tokenCache.get();
-  if (cached) {
-    return { ...env, bearer: cached };
-  }
-  // Mint a scoped platform activation token using the portal's service bearer
-  // (already on `env.bearer`).
-  const minted = await backendRequest<{ token?: string }>(
-    env,
-    `/api/platforms/${encodeURIComponent(env.platform)}/tokens`,
-    {
-      method: "POST",
-      body: { scope: "platform" },
-    },
-  );
-  if (!minted.token) {
-    throw new Error("backend did not return a platform activation token");
-  }
-  tokenCache.set(minted.token);
-  return { ...env, bearer: minted.token };
 }
 
 export async function backendRequest<T>(
@@ -232,12 +165,6 @@ export async function backendRequest<T>(
     }
   }
   if (!res.ok) {
-    // A minted platform token can be rotated/expired backend-side; drop the
-    // cached one on an auth failure so the next activation re-mints instead of
-    // looping on a stale token for the lifetime of the server process.
-    if (res.status === 401 || res.status === 403) {
-      tokenCache.invalidate();
-    }
     const message =
       json && typeof json === "object" && "error" in json
         ? String((json as { error: unknown }).error)

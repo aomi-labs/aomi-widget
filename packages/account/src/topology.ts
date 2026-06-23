@@ -13,13 +13,38 @@ import { AomiService } from "@aomi-labs/service";
 
 const SELF = "aomi-bff";
 const DEFAULT_TOPOLOGY_PATH = "service.portal.toml";
+const STAGING_TOPOLOGY_PATH = "service.portal.staging.toml";
+const PRODUCTION_TOPOLOGY_PATH = "service.portal.production.toml";
 
 let cached: AomiService | null = null;
+
+function portalTopologyPath(): string {
+  const backendUrl = (
+    process.env.BACKEND_URL ??
+    process.env.NEXT_PUBLIC_BACKEND_URL ??
+    process.env.AOMI_PROXY_BACKEND_URL ??
+    ""
+  ).toLowerCase();
+
+  if (backendUrl.includes("api-staging.aomi.dev")) {
+    return STAGING_TOPOLOGY_PATH;
+  }
+  if (backendUrl.includes("api.aomi.dev")) {
+    return PRODUCTION_TOPOLOGY_PATH;
+  }
+  if (process.env.VERCEL_ENV === "production") {
+    return PRODUCTION_TOPOLOGY_PATH;
+  }
+  if (process.env.VERCEL_ENV === "preview") {
+    return STAGING_TOPOLOGY_PATH;
+  }
+  return DEFAULT_TOPOLOGY_PATH;
+}
 
 /** The portal as an `AomiService` (self = `aomi-bff`), loaded once and reused. */
 export function portalService(): AomiService {
   if (cached) return cached;
-  const path = process.env.PORTAL_SERVICE_TOML?.trim() || DEFAULT_TOPOLOGY_PATH;
+  const path = portalTopologyPath();
   const toml = readFileSync(path, "utf8");
   cached = AomiService.fromTopology({
     toml,
