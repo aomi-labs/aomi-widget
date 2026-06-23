@@ -32,7 +32,9 @@ export interface AuditEvent {
     | "resolve_source"
     | "scaffold"
     | "list_apps"
-    | "get_app";
+    | "get_app"
+    | "exchange_github_code"
+    | "list_user_sources";
   platform?: string;
   appSourceId?: number;
   apps?: string[];
@@ -346,4 +348,27 @@ export interface PlatformApp {
   appReleaseTag: string | null;
   targetTags: string[];
   loaded: boolean;
+}
+
+// ── GitHub identity + per-user sources (the sign-in dashboard) ────────────────
+
+export interface ExchangeGitHubCodeInput extends BearerOverride {
+  /** GitHub OAuth authorization code from the sign-in redirect. */
+  code: string;
+  /** Which configured GitHub App (1 = build, 2 = oneshot). */
+  app?: number;
+}
+
+export interface GitHubIdentity {
+  githubUserId: string;
+  githubLogin: string;
+}
+
+export interface ListUserSourcesInput extends BearerOverride {
+  githubUserId: string;
+}
+
+/** A source repo plus the applications deployed from it. */
+export interface UserSource extends AppSource {
+  apps: PlatformApp[];
 }
