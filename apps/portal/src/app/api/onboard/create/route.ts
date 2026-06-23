@@ -13,14 +13,15 @@ import { checkRateLimit, getClientIp } from "@portal/lib/rate-limit";
 import { validateOrigin } from "@portal/lib/csrf";
 import { isValidInstallationId } from "@portal/lib/validate-input";
 
+const CREATED_REPO_PREFIX = "my-playground";
+
 function defaultRepoName() {
-  const prefix = process.env.APP_DEPLOY_CREATED_REPO_PREFIX || "my-playground";
-  const normalized = prefix
+  const normalized = CREATED_REPO_PREFIX
     .trim()
     .toLowerCase()
     .replace(/[^a-z0-9._-]+/g, "-")
     .replace(/^-+|-+$/g, "");
-  return `${normalized || "my-playground"}-${randomBytes(4).toString("hex")}`;
+  return `${normalized}-${randomBytes(4).toString("hex")}`;
 }
 
 export async function POST(req: Request) {

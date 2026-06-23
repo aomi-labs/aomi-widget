@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import {
-  activationEnv,
   appNamesFromDeployment,
   type BackendDeployResult,
   BackendRequestError,
@@ -41,7 +40,7 @@ export function handleDeploy(dryRun: boolean) {
     }
 
     try {
-      const env = await activationEnv(await readOnboardDeployEnv());
+      const env = await readOnboardDeployEnv();
       const appSourceId = await resolveAppSourceId({
         env,
         installationId: body.installationId as string,
