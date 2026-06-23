@@ -1,16 +1,17 @@
 export type AomiHttpMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 
 export type AomiAuthClass =
-  | "public"
   | "session"
-  | "canonical_user"
-  | "self_guarded"
-  | "app_key_checked";
+  | "account"
+  | "app_gate"
+  | "service"
+  | "admin"
+  | "activation";
 
 export interface AomiEndpointSpec {
   method: AomiHttpMethod;
   path: string;
-  auth: AomiAuthClass;
+  auth: readonly AomiAuthClass[];
 }
 
 export { AOMI_BACKEND_ENDPOINTS } from "./generated/backend-routes";

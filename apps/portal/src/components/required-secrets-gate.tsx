@@ -29,9 +29,14 @@ export function RequiredSecretsGate() {
     () => authState.appDescriptors.find((d) => d.name === currentApp),
     [authState.appDescriptors, currentApp],
   );
+  const requiredSlots = useMemo(
+    () => (descriptor?.secrets ?? []).filter((s) => s.required),
+    [descriptor],
+  );
 
   const refreshSaved = useCallback(async () => {
     if (!apiKeyState.clientId) return;
+    if (requiredSlots.length === 0) return;
     try {
       const by_app = await listSecrets();
       setSavedNamesByApp(by_app);
@@ -49,10 +54,6 @@ export function RequiredSecretsGate() {
     setError(null);
   }, [currentApp]);
 
-  const requiredSlots = useMemo(
-    () => (descriptor?.secrets ?? []).filter((s) => s.required),
-    [descriptor],
-  );
   const filledNames = new Set(savedNamesByApp[currentApp] ?? []);
   const missingRequired = requiredSlots.filter((s) => !filledNames.has(s.name));
 
