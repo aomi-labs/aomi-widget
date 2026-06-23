@@ -6,16 +6,15 @@ import { AOMI_BACKEND_ENDPOINTS } from "./routes";
 describe("AomiClient route manifest", () => {
   it("tracks the current backend route surface without legacy control routes", () => {
     const routeKeys = AOMI_BACKEND_ENDPOINTS.map(
-      (endpoint) => `${endpoint.method} ${endpoint.path} ${endpoint.auth}`,
+      (endpoint) =>
+        `${endpoint.method} ${endpoint.path} [${endpoint.auth.join(", ")}]`,
     );
 
-    expect(routeKeys).toHaveLength(73);
+    expect(routeKeys).toHaveLength(74);
     expect(new Set(routeKeys).size).toBe(routeKeys.length);
-    expect(routeKeys).toContain("GET /api/session/apps session");
-    expect(routeKeys).toContain(
-      "POST /api/platforms/:name/deploy self_guarded",
-    );
-    expect(routeKeys).not.toContain("GET /api/control/apps session");
+    expect(routeKeys).toContain("GET /api/session/apps [session]");
+    expect(routeKeys).toContain("POST /api/platforms/:name/deploy [activation]");
+    expect(routeKeys).not.toContain("GET /api/control/apps [session]");
     expect(routeKeys.some((route) => route.includes("/api/control/"))).toBe(
       false,
     );
