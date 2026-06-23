@@ -223,9 +223,11 @@ export function WalletProviders({ children, e2eWallet }: Props) {
     );
   }
 
-  if (!paraApiKey) {
-    return <AomiSessionProvider>{children}</AomiSessionProvider>;
-  }
+  const content = paraApiKey ? (
+    <LocalhostNetworkEnforcer>{children}</LocalhostNetworkEnforcer>
+  ) : (
+    children
+  );
 
   return (
     <AomiWalletProvider
@@ -245,9 +247,7 @@ export function WalletProviders({ children, e2eWallet }: Props) {
       oAuthMethods={oAuthMethods}
       solana={paraSolanaConfig}
     >
-      <AomiSessionProvider>
-        <LocalhostNetworkEnforcer>{children}</LocalhostNetworkEnforcer>
-      </AomiSessionProvider>
+      <AomiSessionProvider>{content}</AomiSessionProvider>
     </AomiWalletProvider>
   );
 }
