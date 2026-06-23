@@ -96,6 +96,7 @@ const nextConfig: NextConfig = {
   transpilePackages: [
     "@aomi-labs/account",
     "@aomi-labs/client",
+    "@aomi-labs/deploy",
     "@aomi-labs/react",
     "@aomi-labs/service",
     "@aomi-labs/widget-lib",
@@ -107,6 +108,7 @@ const nextConfig: NextConfig = {
       ...widgetTurbopackAliases,
       "@aomi-labs/account": "../../packages/account/src/index.ts",
       "@aomi-labs/client": "../../packages/client/src/index.ts",
+      "@aomi-labs/deploy": "../../packages/deploy/src/index.ts",
       "@aomi-labs/react": "../../packages/react/src/index.ts",
       "@aomi-labs/service": "../../packages/service/src/index.ts",
       "@assistant-ui/react": "./node_modules/@assistant-ui/react",
@@ -135,6 +137,10 @@ const nextConfig: NextConfig = {
       "@aomi-labs/client": path.join(
         workspaceRoot,
         "packages/client/src/index.ts",
+      ),
+      "@aomi-labs/deploy": path.join(
+        workspaceRoot,
+        "packages/deploy/src/index.ts",
       ),
       "@aomi-labs/react": path.join(
         workspaceRoot,

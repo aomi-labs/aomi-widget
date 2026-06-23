@@ -3,10 +3,9 @@ import { NextResponse } from "next/server";
 export const runtime = "nodejs";
 
 import {
-  type BackendActivationResult,
-  BackendRequestError,
-  backendRequest,
-  readOnboardDeployEnv,
+  getDeploymentClient,
+  onboardConfig,
+  onboardErrorResponse,
 } from "@portal/lib/onboard-deploy";
 import { checkRateLimit, getClientIp } from "@portal/lib/rate-limit";
 import { validateOrigin } from "@portal/lib/csrf";
@@ -43,28 +42,18 @@ export async function POST(req: Request) {
         { status: 400 },
       );
     }
-    const env = await readOnboardDeployEnv();
-    const result = await backendRequest<BackendActivationResult>(
-      env,
-      `/api/platforms/${encodeURIComponent(env.platform)}/apps/activate`,
-      {
-        method: "POST",
-        body: {
-          target: { kind: "release_tags", value: releaseTags },
-          ...(apps.length ? { apps } : {}),
-          ...(env.targetTags.length ? { target_tags: env.targetTags } : {}),
-        },
-      },
-    );
+
+    const config = onboardConfig();
+    const client = await getDeploymentClient();
+    const result = await client.activate({
+      platform: config.platform,
+      target: { kind: "release_tags", value: releaseTags },
+      apps: apps.length ? apps : undefined,
+      targetTags: config.targetTags,
+      actor: typeof body.actor === "string" ? body.actor : undefined,
+    });
     return NextResponse.json(result);
   } catch (err) {
-    const status =
-      err instanceof BackendRequestError && err.status >= 400 && err.status < 600
-        ? err.status
-        : 502;
-    return NextResponse.json(
-      { error: err instanceof Error ? err.message : String(err) },
-      { status },
-    );
+    return onboardErrorResponse(err);
   }
 }

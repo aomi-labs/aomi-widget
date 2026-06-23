@@ -44,6 +44,19 @@ export type {
   DeploymentEventKind,
   DeploymentProgressEvent,
   WatchDeploymentOptions,
+  TokenScope,
+  MintTokenInput,
+  MintedToken,
+  TokenRecord,
+  ListTokensInput,
+  RevokeTokenInput,
+  AppSource,
+  SyncSourceInput,
+  ResolveSourceInput,
+  ScaffoldInput,
+  ListAppsInput,
+  GetAppInput,
+  PlatformApp,
 } from "./types";
 
 export type {

@@ -2,10 +2,11 @@ import { readFileSync } from "node:fs";
 
 import { AomiService } from "@aomi-labs/service";
 
-// The issuer's runtime view of the AOMI service topology. It reads the committed
-// `service.portal.toml` mesh, selects its own node (`aomi-bff`), and injects its
-// private signing key from env (the one secret — never in the TOML). Both bearer
-// minting paths (user tokens, service-to-service) go through this.
+// The issuer's runtime view of the AOMI service topology. It selects the
+// committed portal topology for the target backend, selects its own node
+// (`aomi-bff`), and injects its private signing key from env (the one secret —
+// never in the TOML). Both bearer minting paths (user tokens, service-to-service)
+// go through this.
 //
 // Server-only: `AomiService.fromTopology` calls `assertServerOnly()`, so this
 // throws if it is ever imported into a browser bundle — which is why the whole

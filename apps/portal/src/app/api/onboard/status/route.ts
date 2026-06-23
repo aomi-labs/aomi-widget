@@ -3,17 +3,17 @@ import { NextResponse } from "next/server";
 export const runtime = "nodejs";
 
 import {
-  BackendRequestError,
-  type BackendDeploymentStatusResult,
-  backendRequest,
-  readOnboardDeployEnv,
+  BackendError,
+  getDeploymentClient,
+  onboardConfig,
+  onboardErrorResponse,
   releaseTagsFromDeployment,
 } from "@portal/lib/onboard-deploy";
 import { checkRateLimit, getClientIp } from "@portal/lib/rate-limit";
 import { isValidDeploymentId } from "@portal/lib/validate-input";
 
 function isPendingDeploymentStatusError(err: unknown): boolean {
-  if (!(err instanceof BackendRequestError)) return false;
+  if (!(err instanceof BackendError)) return false;
   if (err.status === 404) return true;
   const message = err.message.toLowerCase();
   return (
@@ -39,13 +39,12 @@ export async function GET(req: Request) {
   }
 
   try {
-    const env = await readOnboardDeployEnv();
-    const result = await backendRequest<BackendDeploymentStatusResult>(
-      env,
-      `/api/platforms/${encodeURIComponent(env.platform)}/deployments/${encodeURIComponent(
-        deploymentId,
-      )}/status`,
-    );
+    const config = onboardConfig();
+    const client = await getDeploymentClient();
+    const result = await client.status({
+      platform: config.platform,
+      deploymentId,
+    });
     return NextResponse.json({
       ...result,
       releaseTags: releaseTagsFromDeployment(result.deployment),
@@ -60,13 +59,6 @@ export async function GET(req: Request) {
         retryIn: 3000,
       });
     }
-    const status =
-      err instanceof BackendRequestError && err.status >= 400 && err.status < 600
-        ? err.status
-        : 502;
-    return NextResponse.json(
-      { error: err instanceof Error ? err.message : String(err) },
-      { status },
-    );
+    return onboardErrorResponse(err);
   }
 }
