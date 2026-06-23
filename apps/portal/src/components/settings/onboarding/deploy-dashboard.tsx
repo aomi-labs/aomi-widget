@@ -14,11 +14,12 @@ import {
   fetchGitHubSession,
   fetchUserSources,
   signOutGitHub,
+  normalizeRepo,
   GITHUB_SIGNIN_URL,
   type GitHubSessionInfo,
+  type LaunchProgress,
   type UserSource,
-} from "@portal/lib/dashboard";
-import { normalizeRepo, type PathProgress } from "@portal/lib/onboarding";
+} from "@portal/features/launch";
 import { chatAppUrl } from "@portal/lib/chat-url";
 import { DeployStep } from "./deploy-step";
 import { Onboarding } from "./onboarding";
@@ -246,7 +247,7 @@ function SourceCard({ source }: { source: UserSource }) {
     `source ${source.id}`;
   const liveApp = source.apps.find((a) => a.isActive && a.loaded);
 
-  const [progress, setProgress] = useState<PathProgress>(() => ({
+  const [progress, setProgress] = useState<LaunchProgress>(() => ({
     installationId: String(source.installationId),
     repo,
     apps: source.apps.map((a) => a.name),
@@ -257,7 +258,7 @@ function SourceCard({ source }: { source: UserSource }) {
   }));
 
   const patch = useCallback(
-    (p: Partial<PathProgress>) => setProgress((cur) => ({ ...cur, ...p })),
+    (p: Partial<LaunchProgress>) => setProgress((cur) => ({ ...cur, ...p })),
     [],
   );
 

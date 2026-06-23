@@ -11,6 +11,7 @@ import {
 } from "./mappers";
 import { checkRateLimit, getClientIp } from "@portal/lib/rate-limit";
 import { validateOrigin } from "@portal/lib/csrf";
+import { getGitHubSession } from "@portal/lib/aomi-account/github-session";
 import {
   isValidDeploymentId,
   isValidInstallationId,
@@ -352,6 +353,32 @@ export async function syncInstalledLaunchRoute(req: Request) {
         { status: 404 },
       );
     }
+    return launchErrorResponse(err);
+  }
+}
+
+// GET /api/launch/sources — the signed-in user's source repos + their apps,
+// merged across installations. Scoped to the github_user_id in the session
+// cookie; a client can never request someone else's sources.
+export async function userSourcesRoute(req: Request) {
+  const blocked = checkRead(req);
+  if (blocked) return blocked;
+
+  const session = await getGitHubSession();
+  if (!session) {
+    return NextResponse.json(
+      { error: "not signed in with GitHub" },
+      { status: 401 },
+    );
+  }
+
+  try {
+    const client = await deploymentClient();
+    const sources = await client.listUserSources({
+      githubUserId: session.githubUserId,
+    });
+    return NextResponse.json({ sources, githubLogin: session.githubLogin });
+  } catch (err) {
     return launchErrorResponse(err);
   }
 }

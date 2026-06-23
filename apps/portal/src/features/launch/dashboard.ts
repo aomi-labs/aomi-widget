@@ -1,7 +1,5 @@
-"use client";
-
-// Client-side seam for the GitHub-signed-in deploy dashboard. Talks only to the
-// same-origin portal BFF (`/api/auth/github/*`, `/api/onboard/sources`); the
+// Client seam for the GitHub-signed-in deploy dashboard. Talks only to the
+// same-origin portal BFF (`/api/auth/github/*`, `/api/launch/sources`); the
 // GitHub session cookie + service bearer stay server-side.
 
 import type { UserSource } from "@aomi-labs/deploy";
@@ -36,7 +34,7 @@ export interface UserSourcesResult {
 }
 
 export async function fetchUserSources(): Promise<UserSourcesResult> {
-  const res = await fetch("/api/onboard/sources", { cache: "no-store" });
+  const res = await fetch("/api/launch/sources", { cache: "no-store" });
   const json = (await res.json().catch(() => ({}))) as
     | UserSourcesResult
     | { error?: string };

@@ -19,26 +19,34 @@ const PRODUCTION_TOPOLOGY_PATH = "service.portal.production.toml";
 
 let cached: AomiService | null = null;
 
-function portalTopologyPath(): string {
-  const backendUrl = (
-    process.env.BACKEND_URL ??
-    process.env.NEXT_PUBLIC_BACKEND_URL ??
-    process.env.AOMI_PROXY_BACKEND_URL ??
-    ""
-  ).toLowerCase();
+// Match on the exact host, not a substring: `api-staging.aomi.dev` is the only
+// staging endpoint, and `"...".includes("api.aomi.dev")` would wrongly route it
+// to production (signing staging requests with the production key).
+const STAGING_HOST = "api-staging.aomi.dev";
+const PRODUCTION_HOST = "api.aomi.dev";
 
-  if (backendUrl.includes("api-staging.aomi.dev")) {
-    return STAGING_TOPOLOGY_PATH;
+function hostOf(value: string): string {
+  const trimmed = value.trim().toLowerCase();
+  if (!trimmed) return "";
+  try {
+    return new URL(trimmed).hostname;
+  } catch {
+    return trimmed.replace(/^[a-z]+:\/\//, "").split("/")[0].split(":")[0];
   }
-  if (backendUrl.includes("api.aomi.dev")) {
-    return PRODUCTION_TOPOLOGY_PATH;
-  }
-  if (process.env.VERCEL_ENV === "production") {
-    return PRODUCTION_TOPOLOGY_PATH;
-  }
-  if (process.env.VERCEL_ENV === "preview") {
-    return STAGING_TOPOLOGY_PATH;
-  }
+}
+
+function portalTopologyPath(): string {
+  const host = hostOf(
+    process.env.BACKEND_URL ??
+      process.env.NEXT_PUBLIC_BACKEND_URL ??
+      process.env.AOMI_PROXY_BACKEND_URL ??
+      "",
+  );
+
+  if (host === STAGING_HOST) return STAGING_TOPOLOGY_PATH;
+  if (host === PRODUCTION_HOST) return PRODUCTION_TOPOLOGY_PATH;
+  if (process.env.VERCEL_ENV === "production") return PRODUCTION_TOPOLOGY_PATH;
+  if (process.env.VERCEL_ENV === "preview") return STAGING_TOPOLOGY_PATH;
   return DEFAULT_TOPOLOGY_PATH;
 }
 
