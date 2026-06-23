@@ -4,10 +4,9 @@ import { NextResponse } from "next/server";
 export const runtime = "nodejs";
 
 import {
-  type BackendAppSourceResult,
-  BackendRequestError,
-  backendRequest,
-  readOnboardDeployEnv,
+  getDeploymentClient,
+  onboardConfig,
+  onboardErrorResponse,
 } from "@portal/lib/onboard-deploy";
 import { checkRateLimit, getClientIp } from "@portal/lib/rate-limit";
 import { validateOrigin } from "@portal/lib/csrf";
@@ -46,23 +45,16 @@ export async function POST(req: Request) {
       );
     }
 
-    const installationId = Number(body.installationId);
-    const env = await readOnboardDeployEnv();
-    const result = await backendRequest<BackendAppSourceResult>(
-      env,
-      `/api/integrations/github-app/platforms/${encodeURIComponent(env.platform)}/sources/create-from-template`,
-      {
-        method: "POST",
-        body: {
-          installation_id: installationId,
-          template_repo: env.templateRepo,
-          repo_name: body.repoName?.trim() || defaultRepoName(),
-          private: env.createdRepoPrivate,
-        },
-      },
-    );
-    const source = result.source;
-    if (!source?.repository_link || !source.installation_id) {
+    const config = onboardConfig();
+    const client = await getDeploymentClient();
+    const source = await client.scaffold({
+      platform: config.platform,
+      installationId: Number(body.installationId),
+      templateRepo: config.templateRepo,
+      repoName: body.repoName?.trim() || defaultRepoName(),
+      private: config.createdRepoPrivate,
+    });
+    if (!source.repositoryLink || !source.installationId) {
       return NextResponse.json(
         { error: "backend did not return a created source repo" },
         { status: 502 },
@@ -70,19 +62,12 @@ export async function POST(req: Request) {
     }
     return NextResponse.json({
       ok: true,
-      repo: source.repository_link,
-      installationId: String(source.installation_id),
+      repo: source.repositoryLink,
+      installationId: String(source.installationId),
       appSourceId: source.id,
       source,
     });
   } catch (err) {
-    const status =
-      err instanceof BackendRequestError && err.status >= 400 && err.status < 600
-        ? err.status
-        : 502;
-    return NextResponse.json(
-      { error: err instanceof Error ? err.message : String(err) },
-      { status },
-    );
+    return onboardErrorResponse(err);
   }
 }

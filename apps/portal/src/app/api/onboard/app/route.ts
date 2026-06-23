@@ -3,10 +3,9 @@ import { NextResponse } from "next/server";
 export const runtime = "nodejs";
 
 import {
-  type BackendAppStatusResult,
-  BackendRequestError,
-  backendRequest,
-  readOnboardDeployEnv,
+  getDeploymentClient,
+  onboardConfig,
+  onboardErrorResponse,
 } from "@portal/lib/onboard-deploy";
 import { checkRateLimit, getClientIp } from "@portal/lib/rate-limit";
 
@@ -25,30 +24,26 @@ export async function GET(req: Request) {
   }
 
   try {
-    const env = await readOnboardDeployEnv();
-    const query = new URLSearchParams();
-    if (releaseTag) query.set("release_tag", releaseTag);
-    const suffix = query.toString() ? `?${query}` : "";
-    const result = await backendRequest<BackendAppStatusResult>(
-      env,
-      `/api/platforms/${encodeURIComponent(env.platform)}/apps/${encodeURIComponent(
-        name,
-      )}${suffix}`,
-    );
-    const app = result.app;
+    const config = onboardConfig();
+    const client = await getDeploymentClient();
+    const app = await client.getApp({
+      platform: config.platform,
+      app: name,
+      releaseTag: releaseTag || undefined,
+    });
+    const live = app.isActive && app.loaded;
     return NextResponse.json({
-      ok: Boolean(app?.is_active && app?.loaded),
-      state: app?.is_active && app?.loaded ? "live" : "pending",
-      app,
+      ok: Boolean(live),
+      state: live ? "live" : "pending",
+      // Keep the snake-cased wire shape the onboarding client reads.
+      app: {
+        name: app.name,
+        is_active: app.isActive,
+        loaded: app.loaded,
+        app_release_tag: app.appReleaseTag,
+      },
     });
   } catch (err) {
-    const status =
-      err instanceof BackendRequestError && err.status >= 400 && err.status < 600
-        ? err.status
-        : 502;
-    return NextResponse.json(
-      { error: err instanceof Error ? err.message : String(err) },
-      { status },
-    );
+    return onboardErrorResponse(err);
   }
 }
