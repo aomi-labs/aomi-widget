@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import fc from "fast-check";
 
 import { validateOrigin } from "../csrf";
@@ -11,18 +11,7 @@ import {
 } from "../validate-input";
 
 describe("validateOrigin — property-based", () => {
-  const savedAppUrl = process.env.NEXT_PUBLIC_APP_URL;
-
-  beforeEach(() => {
-    process.env.NEXT_PUBLIC_APP_URL = "https://portal.aomi.dev";
-  });
-
-  afterEach(() => {
-    if (savedAppUrl) process.env.NEXT_PUBLIC_APP_URL = savedAppUrl;
-    else delete process.env.NEXT_PUBLIC_APP_URL;
-  });
-
-  it("accepts requests matching the configured origin", () => {
+  it("accepts requests matching the request origin", () => {
     fc.assert(
       fc.property(
         fc.constantFrom(
@@ -31,7 +20,7 @@ describe("validateOrigin — property-based", () => {
           "https://portal.aomi.dev/some/path?q=1",
         ),
         (url) => {
-          const req = new Request(url, {
+          const req = new Request("https://portal.aomi.dev/api/onboard/deploy", {
             headers: { origin: url },
           });
           expect(validateOrigin(req)).toBe(true);
@@ -47,7 +36,7 @@ describe("validateOrigin — property-based", () => {
         fc.domain().filter((d) => d !== "portal.aomi.dev"),
         (domain) => {
           const url = `https://${domain}/`;
-          const req = new Request(url, {
+          const req = new Request("https://portal.aomi.dev/api/onboard/deploy", {
             headers: { origin: url },
           });
           expect(validateOrigin(req)).toBe(false);
@@ -60,15 +49,6 @@ describe("validateOrigin — property-based", () => {
   it("rejects requests with no origin header", () => {
     const req = new Request("https://portal.aomi.dev");
     expect(validateOrigin(req)).toBe(false);
-  });
-
-  it("allows when NEXT_PUBLIC_APP_URL and NEXTAUTH_URL are not configured", () => {
-    delete process.env.NEXT_PUBLIC_APP_URL;
-    delete process.env.NEXTAUTH_URL;
-    const req = new Request("https://portal.aomi.dev", {
-      headers: { origin: "https://portal.aomi.dev" },
-    });
-    expect(validateOrigin(req)).toBe(true);
   });
 });
 

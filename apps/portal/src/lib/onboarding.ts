@@ -291,7 +291,7 @@ export async function githubAppInstallUrl(args: {
 // --- backend seam -----------------------------------------------------------
 // These call the portal BFF routes under /api/onboard/*, which proxy the
 // backend platform endpoints (create-from-template, dry-run/deploy, status,
-// activate, app) using a server-only activation token. The wizards surface a
+// activate, app) using the portal's server-only service bearer. The wizards surface a
 // clear error state if a call fails.
 export type OnboardDeployInput = {
   path: OnboardingPath;
