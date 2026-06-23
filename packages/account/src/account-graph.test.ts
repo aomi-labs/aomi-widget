@@ -9,12 +9,16 @@ class FakeClient {
   released = false;
   constructor(
     private readonly opts: {
-      selectResponses: QueryResponse[]; // consumed in order, per SELECT
+      selectResponses: QueryResponse[]; // consumed in order, per subject SELECT
+      walletResponse?: QueryResponse; // the TMP wallet-bridge lookup
       identityInsertError?: { code: string };
     },
   ) {}
   async query(sql: string): Promise<QueryResponse> {
     this.calls.push(sql.trim().split("\n")[0].trim());
+    if (sql.includes("wallet_provider = 'wallet'")) {
+      return this.opts.walletResponse ?? { rows: [] };
+    }
     if (sql.includes("from auth_identities")) {
       return this.opts.selectResponses.shift() ?? { rows: [] };
     }
@@ -60,6 +64,27 @@ describe("resolveOrCreateCanonicalUser", () => {
     // No write path: never opened a transaction.
     expect(client.calls).not.toContain("begin");
     expect(client.released).toBe(true);
+  });
+
+  it("TMP wallet-bridge: a trusted walletAddress resolves to the wallet-keyed account", async () => {
+    const client = new FakeClient({
+      // No (provider, subject) row exists for this returning wallet-first user…
+      selectResponses: [{ rows: [] }],
+      // …but the wallet-keyed identity does (e.g. Alice → e624).
+      walletResponse: { rows: [{ user_id: "u-wallet-first" }] },
+    });
+    mockPoolWith(client);
+    const { resolveOrCreateCanonicalUser } = await loadModule();
+
+    const result = await resolveOrCreateCanonicalUser({
+      provider: "para",
+      subject: "para-sub-xyz",
+      walletAddress: "0x245677Fb496D156e9D6047791E2CFbd34F400825",
+    });
+
+    expect(result).toEqual({ userId: "u-wallet-first", created: false });
+    // Bridged before any subject lookup or write — no new account minted.
+    expect(client.calls).not.toContain("begin");
   });
 
   it("creates a new user + identity on first login", async () => {

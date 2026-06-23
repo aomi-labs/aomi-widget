@@ -45,7 +45,7 @@ The durable walkthrough for this workspace lives in [../docs/topics/frontend-e2e
 - `AomiRuntimeProvider` is mounted in `aomi-frame.tsx`.
 - `Thread` renders the assistant UI.
 - `WalletTxHandler` consumes `pendingWalletRequests`, switches chains when needed, then resolves or rejects requests back into the runtime.
-- Settings pages use `settingsApiFetch()`, which always sends `X-Session-Id` and conditionally sends `X-API-Key`.
+- Settings pages use `sessionScopedFetch()`, which always sends `X-Session-Id` and conditionally sends `X-API-Key`.
 
 ## Local E2E
 

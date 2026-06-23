@@ -179,9 +179,10 @@ export function useByokImpl({
   > => {
     const { by_app } = await aomiClientRef.current.listSecrets(
       getControlSessionId(),
+      clientIdRef.current ?? undefined,
     );
     return by_app;
-  }, [aomiClientRef, getControlSessionId]);
+  }, [aomiClientRef, clientIdRef, getControlSessionId]);
 
   // ---------------------------------------------------------------------------
   // BYOK API
