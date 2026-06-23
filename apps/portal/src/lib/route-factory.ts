@@ -1,11 +1,9 @@
 import { NextResponse } from "next/server";
 import {
   appNamesFromDeployment,
-  type BackendDeployResult,
-  BackendRequestError,
-  backendRequest,
-  deployRequestBody,
-  readOnboardDeployEnv,
+  getDeploymentClient,
+  onboardConfig,
+  onboardErrorResponse,
   releaseTagsFromDeployment,
   resolveAppSourceId,
 } from "@portal/lib/onboard-deploy";
@@ -40,36 +38,36 @@ export function handleDeploy(dryRun: boolean) {
     }
 
     try {
-      const env = await readOnboardDeployEnv();
+      const config = onboardConfig();
+      const client = await getDeploymentClient();
       const appSourceId = await resolveAppSourceId({
-        env,
+        client,
+        platform: config.platform,
         installationId: body.installationId as string,
         repo: body.repo as string | undefined,
       });
-      const result = await backendRequest<BackendDeployResult>(
-        env,
-        `/api/platforms/${encodeURIComponent(env.platform)}/deploy`,
-        { method: "POST", body: deployRequestBody(env, appSourceId, dryRun) },
-      );
+      const { deployment } = await client.deploy({
+        platform: config.platform,
+        appSourceId,
+        sourceRef: config.sourceRef,
+        aomiTomlPaths: config.aomiTomlPaths,
+        dryRun,
+        actor: typeof body.actor === "string" ? body.actor : undefined,
+      });
       return NextResponse.json(
         {
           ok: true,
-          repo: body.repo ?? result.deployment?.source?.repository_link,
-          deployment: result.deployment,
-          releaseTags: releaseTagsFromDeployment(result.deployment),
-          apps: appNamesFromDeployment(result.deployment),
+          repo:
+            (body.repo as string | undefined) ??
+            deployment.source.repositoryLink,
+          deployment,
+          releaseTags: releaseTagsFromDeployment(deployment),
+          apps: appNamesFromDeployment(deployment),
         },
         { status: dryRun ? 200 : 202 },
       );
     } catch (err) {
-      const status =
-        err instanceof BackendRequestError && err.status >= 400 && err.status < 600
-          ? err.status
-          : 502;
-      return NextResponse.json(
-        { error: err instanceof Error ? err.message : String(err) },
-        { status },
-      );
+      return onboardErrorResponse(err);
     }
   };
 }

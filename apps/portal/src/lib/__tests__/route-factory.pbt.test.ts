@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { handleDeploy } from "../route-factory";
@@ -16,7 +17,7 @@ describe("handleDeploy — Property 9: BFF maps backend error status codes", () 
     vi.restoreAllMocks();
   });
 
-  it("propagates BackendRequestError status codes (400-599)", async () => {
+  it("propagates BackendError status codes (400-599)", async () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(
@@ -53,7 +54,7 @@ describe("handleDeploy — Property 9: BFF maps backend error status codes", () 
     expect(body).toEqual({ error: "deploy rejected" });
   });
 
-  it("return 502 for non-BackendRequestError exceptions", async () => {
+  it("return 502 for non-BackendError exceptions", async () => {
     const fetchMock = vi.fn().mockRejectedValueOnce(new Error("network down"));
     vi.stubGlobal("fetch", fetchMock);
 

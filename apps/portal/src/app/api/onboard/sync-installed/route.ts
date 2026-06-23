@@ -3,10 +3,10 @@ import { NextResponse } from "next/server";
 export const runtime = "nodejs";
 
 import {
-  type BackendAppSourceResult,
-  BackendRequestError,
-  backendRequest,
-  readOnboardDeployEnv,
+  BackendError,
+  getDeploymentClient,
+  onboardConfig,
+  onboardErrorResponse,
 } from "@portal/lib/onboard-deploy";
 import { checkRateLimit, getClientIp } from "@portal/lib/rate-limit";
 import { validateOrigin } from "@portal/lib/csrf";
@@ -34,17 +34,10 @@ export async function POST(req: Request) {
     }
 
     const repo = body.repo;
-    const env = await readOnboardDeployEnv();
-    const result = await backendRequest<BackendAppSourceResult>(
-      env,
-      `/api/platforms/${encodeURIComponent(env.platform)}/sources/sync-installed`,
-      {
-        method: "POST",
-        body: { repo },
-      },
-    );
-    const source = result.source;
-    if (!source?.installation_id) {
+    const config = onboardConfig();
+    const client = await getDeploymentClient();
+    const source = await client.syncSource({ platform: config.platform, repo });
+    if (!source.installationId) {
       return NextResponse.json(
         { error: "backend did not return an installation id" },
         { status: 502 },
@@ -52,14 +45,13 @@ export async function POST(req: Request) {
     }
     return NextResponse.json({
       ok: true,
-      repo: source.repository_link ?? repo,
-      installationId: String(source.installation_id),
+      repo: source.repositoryLink ?? repo,
+      installationId: String(source.installationId),
       appSourceId: source.id,
       source,
     });
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    if (message.includes("/sources/sync-installed failed (404)")) {
+    if (err instanceof BackendError && err.status === 404) {
       return NextResponse.json(
         {
           error:
@@ -68,10 +60,6 @@ export async function POST(req: Request) {
         { status: 404 },
       );
     }
-    const status =
-      err instanceof BackendRequestError && err.status >= 400 && err.status < 600
-        ? err.status
-        : 502;
-    return NextResponse.json({ error: message }, { status });
+    return onboardErrorResponse(err);
   }
 }

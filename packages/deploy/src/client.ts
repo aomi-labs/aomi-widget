@@ -2,6 +2,7 @@ import { BackendError, BrowserEnvironmentError, DeployError } from "./errors";
 import type {
   ActivateInput,
   ActivateResult,
+  AppSource,
   AuditEvent,
   DeployInput,
   DeployResult,
@@ -9,10 +10,24 @@ import type {
   DeploymentProgressEvent,
   DeploymentStatus,
   DeploymentAppStatus,
+  GetAppInput,
+  ListAppsInput,
+  ListTokensInput,
+  MintTokenInput,
+  MintedToken,
+  PlatformApp,
   ProgressModel,
+  ResolveSourceInput,
+  RevokeTokenInput,
+  ScaffoldInput,
   StatusInput,
+  SyncSourceInput,
+  TokenRecord,
   WatchDeploymentOptions,
 } from "./types";
+
+/** Portal one-shot template repo; the default source for `scaffold()`. */
+const DEFAULT_TEMPLATE_REPO = "aomi-labs/playground-example";
 
 /**
  * Server-side client to the Aomi platform deploy backend. It is a typed HTTP
@@ -22,7 +37,10 @@ import type {
 export class DeploymentClient {
   private readonly opts: DeploymentClientOptions;
   private readonly baseUrl: string;
-  private readonly bearer: string;
+  /** Activation token for deploy/activate/status and bootstrap reads. */
+  private readonly activationToken?: string;
+  /** Privileged admin/service bearer for bootstrap writes (token minting). */
+  private readonly adminBearer?: string;
 
   constructor(opts: DeploymentClientOptions) {
     assertServerOnly();
@@ -31,7 +49,32 @@ export class DeploymentClient {
       /\/+$/,
       "",
     );
-    this.bearer = required(opts.aomi.activationToken, "aomi.activationToken");
+    this.activationToken = opts.aomi.activationToken?.trim() || undefined;
+    this.adminBearer = opts.aomi.adminBearer?.trim() || undefined;
+  }
+
+  /**
+   * Pick the bearer for a call: an explicit per-call override wins; otherwise
+   * privileged writes prefer the admin bearer, everything else the activation
+   * token. Throws a typed error (no network call) when neither is configured.
+   */
+  private resolveBearer(
+    override?: string,
+    opts?: { privileged?: boolean },
+  ): string {
+    const order = opts?.privileged
+      ? [override, this.adminBearer, this.activationToken]
+      : [override, this.activationToken, this.adminBearer];
+    const found = order.map((t) => t?.trim()).find(Boolean);
+    if (!found) {
+      throw new DeployError(
+        "INVALID_REQUEST",
+        opts?.privileged
+          ? "this operation needs a privileged admin/service bearer (aomi.adminBearer) or an activation token"
+          : "this operation needs an activation token (aomi.activationToken)",
+      );
+    }
+    return found;
   }
 
   async deploy(input: DeployInput): Promise<DeployResult> {
@@ -41,6 +84,7 @@ export class DeploymentClient {
       `/api/platforms/${encodeURIComponent(platform)}/deploy`,
       body,
       "deploy",
+      this.resolveBearer(),
     );
     const cameled = camelDeployResult(result);
     if (!cameled.ok) {
@@ -66,6 +110,7 @@ export class DeploymentClient {
       `/api/platforms/${encodeURIComponent(platform)}/apps/activate`,
       body,
       "activation",
+      this.resolveBearer(),
     );
     const cameled = camelActivateResult(result);
     if (!cameled.ok) {
@@ -94,7 +139,11 @@ export class DeploymentClient {
     const path = input.deploymentId
       ? `/api/platforms/${encodeURIComponent(platform)}/deployments/${encodeURIComponent(input.deploymentId)}/status`
       : (input.path ?? `/api/platforms/${encodeURIComponent(platform)}/status`);
-    const result = await this.get<Record<string, unknown>>(path, "status");
+    const result = await this.get<Record<string, unknown>>(
+      path,
+      "status",
+      this.resolveBearer(),
+    );
     await this.audit({
       action: "status",
       platform,
@@ -189,6 +238,243 @@ export class DeploymentClient {
     });
   }
 
+  // ───────────────────────── Bootstrap: tokens ──────────────────────────────
+
+  /**
+   * Mint a platform or app activation token.
+   * `POST /api/platforms/:platform/tokens`.
+   *
+   * The plaintext token is returned ONCE — store it now; the backend keeps only
+   * its hash. Minting the first platform token needs the privileged admin
+   * bearer (`aomi.adminBearer` or `input.bearer`); a platform token may then
+   * mint app-scoped tokens.
+   */
+  async mintToken(input: MintTokenInput): Promise<MintedToken> {
+    const platform = cleanPlatform(input.platform);
+    if (input.scope !== "platform" && input.scope !== "app") {
+      throw new DeployError(
+        "INVALID_REQUEST",
+        `scope must be "platform" or "app" (got ${JSON.stringify(input.scope)})`,
+      );
+    }
+    const body: Record<string, unknown> = { scope: input.scope };
+    if (input.scope === "app") {
+      const appId = Number(input.appId);
+      if (!Number.isSafeInteger(appId) || appId <= 0) {
+        throw new DeployError(
+          "INVALID_REQUEST",
+          'scope "app" requires a positive appId',
+        );
+      }
+      body.app_id = appId;
+    }
+    const bearer = this.resolveBearer(input.bearer, { privileged: true });
+    const raw = await this.post<Record<string, unknown>>(
+      `/api/platforms/${encodeURIComponent(platform)}/tokens`,
+      body,
+      "mint_token",
+      bearer,
+    );
+    await this.audit({
+      action: "mint_token",
+      platform,
+      scope: input.scope,
+      actor: input.actor,
+      ts: Date.now(),
+    });
+    return {
+      id: Number(raw.id),
+      token: String(raw.token),
+      scope: (raw.scope as string) ?? input.scope,
+    };
+  }
+
+  /** List a platform's activation tokens. `GET /api/platforms/:platform/tokens`. */
+  async listTokens(input: ListTokensInput): Promise<TokenRecord[]> {
+    const platform = cleanPlatform(input.platform);
+    const bearer = this.resolveBearer(input.bearer);
+    const raw = await this.get<unknown>(
+      `/api/platforms/${encodeURIComponent(platform)}/tokens`,
+      "list_tokens",
+      bearer,
+    );
+    await this.audit({
+      action: "list_tokens",
+      platform,
+      actor: input.actor,
+      ts: Date.now(),
+    });
+    return (Array.isArray(raw) ? raw : []).map(camelTokenRecord);
+  }
+
+  /** Revoke a token by id. `DELETE /api/platforms/:platform/tokens/:id`. */
+  async revokeToken(input: RevokeTokenInput): Promise<boolean> {
+    const platform = cleanPlatform(input.platform);
+    const id = Number(input.id);
+    if (!Number.isSafeInteger(id) || id <= 0) {
+      throw new DeployError(
+        "INVALID_REQUEST",
+        "revokeToken requires a positive id",
+      );
+    }
+    const bearer = this.resolveBearer(input.bearer, { privileged: true });
+    const raw = await this.del<unknown>(
+      `/api/platforms/${encodeURIComponent(platform)}/tokens/${id}`,
+      "revoke_token",
+      bearer,
+    );
+    await this.audit({
+      action: "revoke_token",
+      platform,
+      tokenId: id,
+      actor: input.actor,
+      ts: Date.now(),
+    });
+    return raw === true;
+  }
+
+  // ──────────────────────── Bootstrap: app sources ──────────────────────────
+
+  /**
+   * Resolve (sync) the GitHub App source row for a repo already installed on
+   * the Aomi GitHub App, returning its `id` — the `appSourceId` deploy needs.
+   * `POST /api/platforms/:platform/sources/sync-installed`.
+   */
+  async syncSource(input: SyncSourceInput): Promise<AppSource> {
+    const platform = cleanPlatform(input.platform);
+    const repo = required(input.repo, "repo");
+    const bearer = this.resolveBearer(input.bearer);
+    const raw = await this.post<{ ok?: boolean; source?: unknown }>(
+      `/api/platforms/${encodeURIComponent(platform)}/sources/sync-installed`,
+      { repo },
+      "sync_source",
+      bearer,
+    );
+    await this.audit({
+      action: "sync_source",
+      platform,
+      repo,
+      actor: input.actor,
+      ts: Date.now(),
+    });
+    return camelAppSource(raw.source);
+  }
+
+  /**
+   * Look up an existing source row by installation (+ optional repo) without
+   * syncing. `GET /api/platforms/:platform/sources/resolve`.
+   */
+  async resolveSource(input: ResolveSourceInput): Promise<AppSource> {
+    const platform = cleanPlatform(input.platform);
+    const installationId = Number(input.installationId);
+    if (!Number.isSafeInteger(installationId) || installationId <= 0) {
+      throw new DeployError(
+        "INVALID_REQUEST",
+        "resolveSource requires a positive installationId",
+      );
+    }
+    const params = new URLSearchParams({
+      installation_id: String(installationId),
+    });
+    const repo = input.repo?.trim();
+    if (repo) params.set("repo", repo);
+    const bearer = this.resolveBearer(input.bearer);
+    const raw = await this.get<{ ok?: boolean; source?: unknown }>(
+      `/api/platforms/${encodeURIComponent(platform)}/sources/resolve?${params.toString()}`,
+      "resolve_source",
+      bearer,
+    );
+    await this.audit({
+      action: "resolve_source",
+      platform,
+      repo,
+      actor: input.actor,
+      ts: Date.now(),
+    });
+    return camelAppSource(raw.source);
+  }
+
+  /**
+   * One-shot: create a new source repo from a template in the installation's
+   * account and return its source row. The portal "one-click" path.
+   * `POST /api/integrations/github-app/platforms/:platform/sources/create-from-template`.
+   */
+  async scaffold(input: ScaffoldInput): Promise<AppSource> {
+    const platform = cleanPlatform(input.platform);
+    const installationId = Number(input.installationId);
+    if (!Number.isSafeInteger(installationId) || installationId <= 0) {
+      throw new DeployError(
+        "INVALID_REQUEST",
+        "scaffold requires a positive installationId",
+      );
+    }
+    const repoName = required(input.repoName, "repoName");
+    const templateRepo = input.templateRepo?.trim() || DEFAULT_TEMPLATE_REPO;
+    const bearer = this.resolveBearer(input.bearer);
+    const raw = await this.post<{ ok?: boolean; source?: unknown }>(
+      `/api/integrations/github-app/platforms/${encodeURIComponent(platform)}/sources/create-from-template`,
+      {
+        installation_id: installationId,
+        template_repo: templateRepo,
+        repo_name: repoName,
+        private: Boolean(input.private),
+      },
+      "scaffold",
+      bearer,
+    );
+    await this.audit({
+      action: "scaffold",
+      platform,
+      repo: repoName,
+      actor: input.actor,
+      ts: Date.now(),
+    });
+    return camelAppSource(raw.source);
+  }
+
+  // ──────────────────────── Bootstrap: platform apps ────────────────────────
+
+  /** List loaded apps on a platform. `GET /api/platforms/:platform/apps`. */
+  async listApps(input: ListAppsInput): Promise<PlatformApp[]> {
+    const platform = cleanPlatform(input.platform);
+    const bearer = this.resolveBearer(input.bearer);
+    const raw = await this.get<{ apps?: unknown[] }>(
+      `/api/platforms/${encodeURIComponent(platform)}/apps`,
+      "list_apps",
+      bearer,
+    );
+    await this.audit({
+      action: "list_apps",
+      platform,
+      actor: input.actor,
+      ts: Date.now(),
+    });
+    return (raw.apps ?? []).map(camelPlatformApp);
+  }
+
+  /** Get one app on a platform. `GET /api/platforms/:platform/apps/:app`. */
+  async getApp(input: GetAppInput): Promise<PlatformApp> {
+    const platform = cleanPlatform(input.platform);
+    const app = required(input.app, "app");
+    const bearer = this.resolveBearer(input.bearer);
+    const releaseTag = input.releaseTag?.trim();
+    const query = releaseTag
+      ? `?${new URLSearchParams({ release_tag: releaseTag })}`
+      : "";
+    const raw = await this.get<{ app?: unknown }>(
+      `/api/platforms/${encodeURIComponent(platform)}/apps/${encodeURIComponent(app)}${query}`,
+      "get_app",
+      bearer,
+    );
+    await this.audit({
+      action: "get_app",
+      platform,
+      actor: input.actor,
+      ts: Date.now(),
+    });
+    return camelPlatformApp(raw.app);
+  }
+
   endpoint(path: string): string {
     const cleanPath = path.startsWith("/") ? path : `/${path}`;
     return `${this.baseUrl}${cleanPath}`;
@@ -216,14 +502,19 @@ export class DeploymentClient {
     return Math.min(baseMs * Math.pow(2, failures), maxMs);
   }
 
-  private async get<Resp>(path: string, operation: string): Promise<Resp> {
-    return this.request<Resp>(path, { method: "GET" }, operation);
+  private async get<Resp>(
+    path: string,
+    operation: string,
+    bearer: string,
+  ): Promise<Resp> {
+    return this.request<Resp>(path, { method: "GET" }, operation, bearer);
   }
 
   private async post<Resp>(
     path: string,
     body: unknown,
     operation: string,
+    bearer: string,
   ): Promise<Resp> {
     return this.request<Resp>(
       path,
@@ -233,13 +524,23 @@ export class DeploymentClient {
         body: JSON.stringify(body),
       },
       operation,
+      bearer,
     );
+  }
+
+  private async del<Resp>(
+    path: string,
+    operation: string,
+    bearer: string,
+  ): Promise<Resp> {
+    return this.request<Resp>(path, { method: "DELETE" }, operation, bearer);
   }
 
   private async request<Resp>(
     path: string,
     init: RequestInit,
     operation: string,
+    bearer: string,
   ): Promise<Resp> {
     const url = this.endpoint(path);
     let res: Response;
@@ -247,7 +548,7 @@ export class DeploymentClient {
       res = await fetch(url, {
         ...init,
         headers: {
-          Authorization: `Bearer ${this.bearer}`,
+          Authorization: `Bearer ${bearer}`,
           ...(init.headers ?? {}),
         },
       });
@@ -501,5 +802,48 @@ function camelStatusResult(raw: Record<string, unknown>): DeploymentStatus {
         }
       : undefined,
     message: raw.message as string | undefined,
+  };
+}
+
+function camelAppSource(raw: unknown): AppSource {
+  const s = (raw ?? {}) as Record<string, any>;
+  return {
+    id: Number(s.id),
+    installationId: Number(s.installation_id),
+    repositoryId: s.repository_id ?? null,
+    repositoryLink: s.repository_link ?? null,
+    githubAccount: s.github_account ?? null,
+    githubUserId: s.github_user_id ?? null,
+    boundPlatformId: s.bound_platform_id ?? null,
+  };
+}
+
+function camelTokenRecord(raw: unknown): TokenRecord {
+  const t = (raw ?? {}) as Record<string, any>;
+  return {
+    id: Number(t.id),
+    scope: t.scope ?? null,
+    appId: t.app_id ?? null,
+    tokenHashPrefix: t.token_hash_prefix ?? "",
+    createdAt: t.created_at ?? null,
+    lastUsedAt: t.last_used_at ?? null,
+    revokedAt: t.revoked_at ?? null,
+    appsUsage: t.apps_usage ?? null,
+    platformUsage: t.platform_usage ?? null,
+  };
+}
+
+function camelPlatformApp(raw: unknown): PlatformApp {
+  const a = (raw ?? {}) as Record<string, any>;
+  return {
+    id: Number(a.id),
+    name: a.name,
+    label: a.label ?? null,
+    isActive: Boolean(a.is_active),
+    isPublic: Boolean(a.is_public),
+    appSourceId: a.app_source_id ?? null,
+    appReleaseTag: a.app_release_tag ?? null,
+    targetTags: a.target_tags ?? [],
+    loaded: Boolean(a.loaded),
   };
 }
