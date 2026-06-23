@@ -35,7 +35,7 @@ const ALLOWED_REQUEST_HEADERS = new Set([
 ]);
 
 // Backend routes this proxy is willing to forward. Portal-owned routes
-// (`/api/account/sessions/exchange`, `/api/onboard/*`, `/api/e2e/*`,
+// (`/api/account/sessions/exchange`, `/api/launch/*`, `/api/e2e/*`,
 // `/api/mcp/*`) are served by their own handlers — a more specific route always
 // wins over this catch-all, so they never reach here.
 const ALLOWED_ROUTES: Array<{
