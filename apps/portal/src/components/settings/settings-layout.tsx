@@ -6,7 +6,7 @@ import { SettingsSidebar, SettingsCategory } from "./settings-sidebar";
 import { GeneralSettings } from "./general-settings";
 import { AppsSettings } from "./apps-settings";
 import { ErrorBoundary } from "@portal/components/error-boundary";
-import { Onboarding } from "./onboarding/onboarding";
+import { DeployDashboard } from "./onboarding/deploy-dashboard";
 import { AppKeys } from "./app-keys";
 import { Bots } from "./bots";
 import { Secrets } from "./secrets";
@@ -94,13 +94,17 @@ export function SettingsLayout() {
   const { status, retry } = useAomiSession();
   const adapter = useAomiAuthAdapter();
 
-  // Returning from a GitHub App install lands on /settings?installation_id=…
+  // Returning from GitHub flows lands on /settings with query params
   // (category is React state, not the URL), so open the Deploy tab where the
-  // onboarding flow can pick the redirect up.
+  // launch flow can pick the redirect/session up.
   useEffect(() => {
     if (typeof window === "undefined") return;
     const params = new URLSearchParams(window.location.search);
-    if (params.has("installation_id")) {
+    if (
+      params.has("installation_id") ||
+      params.get("launch") === "github" ||
+      params.has("github_error")
+    ) {
       setActiveCategory("deploy");
     }
   }, []);
@@ -115,7 +119,7 @@ export function SettingsLayout() {
         return (
           <div className="min-w-0">
             <ErrorBoundary>
-              <Onboarding />
+              <DeployDashboard />
             </ErrorBoundary>
           </div>
         );

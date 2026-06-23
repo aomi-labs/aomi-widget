@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { launchDeployRoute } from "./routes";
+import { launchDeployRoute, launchStatusRoute } from "./routes";
 
 vi.mock("@aomi-labs/account", () => ({
   portalService: () => ({
@@ -72,5 +72,31 @@ describe("launchDeployRoute", () => {
 
     const res = await POST(req);
     expect(res.status).toBe(502);
+  });
+});
+
+describe("launchStatusRoute", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("propagates backend 404 instead of masking deployment status as pending", async () => {
+    const fetchMock = vi.fn().mockResolvedValueOnce(
+      new Response(JSON.stringify({ error: "deployment not found" }), {
+        status: 404,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const res = await launchStatusRoute(
+      new Request(
+        "http://localhost:3000/api/launch/status?deploymentId=dep_141780080_r2849901c35_af4f107b0331",
+      ),
+    );
+    const body = await res.json();
+
+    expect(res.status).toBe(404);
+    expect(body).toEqual({ error: "deployment not found" });
   });
 });
