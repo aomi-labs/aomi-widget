@@ -30,5 +30,6 @@ The portal BFF routes live under `apps/portal/src/app/api`. They translate brows
 
 - `/api/onboard/*` is the current portal onboarding flow and uses `apps/portal/src/lib/onboard-deploy.ts` for backend authorization, activation-token minting, and request helpers.
 - `/api/mcp/token` is a BFF handoff endpoint, not an MCP proxy. The remote MCP server verifies the returned bearer locally with the same Aomi service trust config as the backend and uses `sub` as the canonical user id.
+- `/mcp/connect` is the browser handoff page for manual MCP client setup. It reuses the portal session bridge, calls `/api/mcp/token`, and provides copy actions for the Authorization header/config.
 - Onboarding backend calls use `Authorization: Bearer <APP_DEPLOY_ACTIVATION_TOKEN>` when present; otherwise `activationEnv` can mint and cache a platform activation token from `AOMI_ADMIN_SECRET`.
 - Backend-owned Privy auth uses the non-API page route `/auth/privy`; the browser callback posts to the backend callback URL returned by `POST /api/auth/privy/begin`.
