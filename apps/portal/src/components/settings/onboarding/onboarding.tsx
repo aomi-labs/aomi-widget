@@ -56,9 +56,6 @@ export function Onboarding() {
     if (typeof window === "undefined") return;
     const redirect = readGithubRedirect(window.location.search);
     if (!redirect) {
-      // No redirect params — user landed here without completing an install.
-      // Clear stale installing state (e.g. after bfcache restore via Back button)
-      // and orphaned pendingInstall from localStorage.
       setInstallingPath(null);
       setInstallError(null);
       const cur = loadOnboarding();
@@ -83,7 +80,6 @@ export function Onboarding() {
       setInstallSuccess(true);
     }
 
-    // Strip GitHub's params so a refresh doesn't re-trigger hydration.
     const url = new URL(window.location.href);
     let changed = false;
     for (const key of GITHUB_REDIRECT_KEYS) {
@@ -93,7 +89,6 @@ export function Onboarding() {
       }
     }
     if (changed) window.history.replaceState({}, "", url.toString());
-    // `update` is a stable useCallback ([] deps), so this still runs once.
   }, [update]);
 
   // --- auto-dismiss the install-success banner after 6s ---------------------
@@ -152,10 +147,6 @@ export function Onboarding() {
     [state, update],
   );
 
-  // Redirect the current tab to GitHub for install. The backend callback
-  // redirects back to /settings?installation_id=...&onboard=bound so the
-  // hydration effect below reads the result directly from URL params — no
-  // fragile cross-tab polling needed.
   const makeBeginInstall = useCallback(
     (path: OnboardingPath, mode: "install" | "authorize" = "install") =>
       async () => {
