@@ -33,8 +33,8 @@ function secret(): Uint8Array {
   return new TextEncoder().encode(value);
 }
 
-/** Sign a session token binding the browser to a canonical user id. */
-export async function issueSessionToken(canonicalUserId: string): Promise<string> {
+/** Sign a session cookie binding the browser to a canonical user id. */
+export async function issueSessionCookie(canonicalUserId: string): Promise<string> {
   const now = Math.floor(Date.now() / 1000);
   return new SignJWT({})
     .setProtectedHeader({ alg: "HS256" })
@@ -44,8 +44,8 @@ export async function issueSessionToken(canonicalUserId: string): Promise<string
     .sign(secret());
 }
 
-/** Verify a session token and return its canonical user id, or null. */
-export async function readSessionToken(
+/** Verify a session cookie and return its canonical user id, or null. */
+export async function readSessionCookie(
   token: string | undefined,
 ): Promise<string | null> {
   if (!token) return null;
@@ -62,7 +62,7 @@ export async function setSessionCookie(
   response: NextResponse,
   canonicalUserId: string,
 ): Promise<void> {
-  const token = await issueSessionToken(canonicalUserId);
+  const token = await issueSessionCookie(canonicalUserId);
   response.cookies.set(SESSION_COOKIE, token, {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
@@ -73,8 +73,8 @@ export async function setSessionCookie(
 }
 
 /** Read the canonical user id bound to the request's session cookie, or null. */
-export async function getSessionUserId(request: NextRequest): Promise<string | null> {
-  return readSessionToken(request.cookies.get(SESSION_COOKIE)?.value);
+export async function getSessionedCanonicalId(request: NextRequest): Promise<string | null> {
+  return readSessionCookie(request.cookies.get(SESSION_COOKIE)?.value);
 }
 
 /** Clear the session cookie (sign-out). */

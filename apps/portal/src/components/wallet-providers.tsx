@@ -29,7 +29,7 @@ import {
   E2EWalletProvider,
   type E2EWalletSeedClient,
 } from "./e2e-wallet-provider";
-import { AomiSessionBridge } from "./aomi-session-bridge";
+import { AomiSessionProvider } from "./aomi-session-bridge";
 
 // Enable localhost/Anvil network for E2E testing with `pnpm dev:localhost`
 const useLocalhost = process.env.NEXT_PUBLIC_USE_LOCALHOST === "true";
@@ -127,6 +127,16 @@ const solanaNetworks = [
     rpcWsUrl: process.env.NEXT_PUBLIC_SOLANA_TESTNET_RPC_WS_URL,
   },
 ] as const;
+
+// Stable reference for the Para `solana` prop. An inline object literal here is
+// a new reference every render, which busts para's `resolvedSolanaConfig` memo
+// (keyed on `solana`) and re-renders the whole Para subtree in a loop
+// ("Maximum update depth exceeded"). Its contents are fully static, so hoist it
+// to module scope like `networks` / `solanaNetworks` above.
+const paraSolanaConfig = {
+  networks: solanaNetworks,
+  preferDirectSend: true,
+};
 
 /**
  * Component that auto-switches to localhost network when in localhost mode.
@@ -235,13 +245,9 @@ export function WalletProviders({ children, e2eWallet }: Props) {
       networks={networks}
       externalWallets={externalWallets}
       oAuthMethods={oAuthMethods}
-      solana={{
-        networks: solanaNetworks,
-        preferDirectSend: true,
-      }}
+      solana={paraSolanaConfig}
     >
-      <AomiSessionBridge />
-      {content}
+      <AomiSessionProvider>{content}</AomiSessionProvider>
     </AomiWalletProvider>
   );
 }

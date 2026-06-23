@@ -16,7 +16,7 @@
 // which is the single seam pending the backend's opaque app-identity contract.
 // =============================================================================
 
-import { settingsApiFetch } from "@portal/lib/settings-api";
+import { sessionScopedFetch } from "@portal/lib/settings-api";
 
 export type OnboardingPath = "oneshot" | "bootstrap";
 
@@ -279,7 +279,7 @@ export async function githubAppInstallUrl(args: {
   if (args.mode === "authorize") params.set("mode", "authorize");
   if (args.app && args.app !== 1) params.set("app", String(args.app));
   const query = params.toString();
-  const result = await settingsApiFetch<GithubAppOAuthStartResponse>(
+  const result = await sessionScopedFetch<GithubAppOAuthStartResponse>(
     `/api/integrations/github-app/oauth/start${query ? `?${query}` : ""}`,
   );
   if (!result.install_url) {

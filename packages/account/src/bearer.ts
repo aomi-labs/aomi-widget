@@ -15,6 +15,7 @@ export const AUDIENCE = "aomi-backend";
 export const ACCOUNT_BEARER_TTL_SECONDS = 15 * 60;
 
 export type MintedBearer = {
+  /** The signed EdDSA JWT — used as the `Authorization: Bearer` AccountBearer. */
   accessToken: string;
   /** Expiry, unix seconds — matches the `exp` claim. */
   expiresAt: number;

@@ -1053,9 +1053,16 @@ function AomiParaProviderInner({
   const [queryClient] = useState(() => new QueryClient());
   const routing = useFullTestnet(networks);
   const { selectedSolanaNetworkId } = useAomiWalletNetworkPreferences();
-  const resolvedWallets = walletConnectProjectId
-    ? externalWallets
-    : externalWallets.filter((wallet) => wallet !== "WALLETCONNECT");
+  // Stable reference: an unmemoized `.filter()` returns a new array every render,
+  // which busts the `externalWalletConfig` memo below and makes Para re-init
+  // wagmi/WalletConnect each render (setState-in-render → "Maximum update depth").
+  const resolvedWallets = useMemo(
+    () =>
+      walletConnectProjectId
+        ? externalWallets
+        : externalWallets.filter((wallet) => wallet !== "WALLETCONNECT"),
+    [externalWallets, walletConnectProjectId],
+  );
   const resolvedSolanaConfig = useMemo(
     () => resolveParaSolanaConfig(solana, selectedSolanaNetworkId),
     [selectedSolanaNetworkId, solana],
@@ -1101,6 +1108,18 @@ function AomiParaProviderInner({
     ],
   );
 
+  // Stable references for the `ParaProvider` config props. Inline object literals
+  // ({ apiKey, env } / { appName }) are new every render, making Para re-create
+  // its Para client + wagmi config each render — the source of the post-login
+  // "Maximum update depth exceeded" (ExternalWalletProvider setState-in-render).
+  // `apiKey` is narrowed to a string at the `{apiKey ? …}` render guard below,
+  // where this config is consumed; the memo runs earlier so we assert it here.
+  const paraClientConfig = useMemo(
+    () => ({ apiKey: apiKey as string, env: environment }),
+    [apiKey, environment],
+  );
+  const paraAppConfig = useMemo(() => ({ appName }), [appName]);
+
   // Solana branch: opt out via `solana.enabled = false` or an empty
   // `solana.wallets` list. When opted out, `useSolanaWallet` inside the
   // adapter throws (no <WalletProvider> mounted) and the safe wrapper
@@ -1141,11 +1160,8 @@ function AomiParaProviderInner({
       <QueryClientProvider client={queryClient}>
         {apiKey ? (
           <ParaProvider
-            paraClientConfig={{
-              apiKey,
-              env: environment,
-            }}
-            config={{ appName }}
+            paraClientConfig={paraClientConfig}
+            config={paraAppConfig}
             paraModalConfig={paraModalConfig}
             externalWalletConfig={externalWalletConfig}
           >
