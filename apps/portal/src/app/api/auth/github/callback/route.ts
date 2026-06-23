@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 
 export const runtime = "nodejs";
 
-import { getDeploymentClient } from "@portal/lib/onboard-deploy";
+import { deploymentClient } from "@portal/server/bff/backend";
 import { setGitHubSessionCookie } from "@portal/lib/aomi-account/github-session";
 
 const OAUTH_STATE_COOKIE = "aomi_github_oauth_state";
@@ -28,7 +28,7 @@ export async function GET(req: Request) {
   }
 
   try {
-    const client = await getDeploymentClient();
+    const client = await deploymentClient();
     const identity = await client.exchangeGitHubCode({
       code,
       app: LOGIN_APP_INDEX,
