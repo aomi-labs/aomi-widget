@@ -13,6 +13,7 @@ export class CliExit extends Error {
 
 export type DeployCliErrorCode =
   | "AUTH_FAILED"
+  | "AUTH_TIMEOUT"
   | "BACKEND_ERROR"
   | "NOT_A_GIT_REPO"
   | "VALIDATION_ERROR"
