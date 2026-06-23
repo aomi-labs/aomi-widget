@@ -72,7 +72,7 @@ sequenceDiagram
   AG->>DB: find or create, stable UUID
   AG-->>U: set session cookie
   U->>PX: GET api sessions, cookie only no bearer
-  PX->>PX: getSessionUserId then mint sub equals UUID
+  PX->>PX: getSessionedCanonicalId then mint sub equals UUID
   PX->>BE: forward with Authorization Bearer
   BE->>DB: DbUser get by sub
   BE-->>U: this user's sessions and history
@@ -189,7 +189,7 @@ Portal wiring (consumers of the package):
 - `apps/portal/src/lib/aomi-account/session.ts` — a **stand-in** HS256 cookie
   (`aomi_session`, httpOnly) carrying the canonical UUID. **This is your lane:**
   replace it with the Better-Auth session. The only contract the proxy needs is
-  `getSessionUserId(req) → canonical UUID` — keep that shape and the proxy is
+  `getSessionedCanonicalId(req) → canonical UUID` — keep that shape and the proxy is
   unchanged.
 - `apps/portal/src/app/api/account/sessions/exchange/route.ts` — current login:
   verify provider → `resolveOrCreateCanonicalUser` → set session cookie → mint.
@@ -241,7 +241,7 @@ in `packages/client`.
    tables with UUID stability), and mint with the canonical UUID in `sub`. Keep
    the 4 unit tests green.
 3. Replace `session.ts` with the Better-Auth session; expose
-   `getSessionUserId(req) → canonical UUID`. The proxy is then unchanged.
+   `getSessionedCanonicalId(req) → canonical UUID`. The proxy is then unchanged.
 4. Merge the two `[...slug]` proxies into one (inject-from-session + your
    allowlist).
 5. Reframe `exchange` as credential-linking; the session bearer comes from the
