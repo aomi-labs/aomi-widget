@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { mintAccountBearer } from "@aomi-labs/account";
-import { getSessionUserId } from "@portal/lib/aomi-account/session";
+import { getSessionedCanonicalId } from "@portal/lib/aomi-account/session";
 
 /**
  * Same-origin proxy that fronts the Rust backend and **injects the
@@ -145,11 +145,11 @@ function copyRequestHeaders(req: NextRequest): Headers {
  * degrades to anonymous + a warning rather than failing every API call.
  */
 async function injectBearer(req: NextRequest, headers: Headers): Promise<void> {
-  const userId = await getSessionUserId(req);
-  if (!userId) return;
+  const canonicalId = await getSessionedCanonicalId(req);
+  if (!canonicalId) return;
   try {
-    const { accessToken } = await mintAccountBearer(userId);
-    headers.set("authorization", `Bearer ${accessToken}`);
+    const { accessToken: accountBearer } = await mintAccountBearer(canonicalId);
+    headers.set("authorization", `Bearer ${accountBearer}`);
   } catch (error) {
     console.warn("Aomi proxy: could not mint AccountBearer; forwarding anonymous", {
       message: error instanceof Error ? error.message : String(error),

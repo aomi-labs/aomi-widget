@@ -1629,8 +1629,8 @@ ${body}` : ""}`
        * backend never returns raw values; the settings page uses this as the
        * source of truth instead of trusting localStorage.
        */
-      async listSecrets(sessionId) {
-        const url = joinApiPath(this.baseUrl, "/api/secrets");
+      async listSecrets(sessionId, clientId) {
+        const url = clientId && clientId.trim().length > 0 ? buildApiUrl(this.baseUrl, "/api/secrets", { client_id: clientId }) : joinApiPath(this.baseUrl, "/api/secrets");
         const response = await this.fetchImpl(url, {
           method: "GET",
           headers: withSessionHeader(sessionId)

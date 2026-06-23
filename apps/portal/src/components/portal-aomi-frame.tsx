@@ -69,11 +69,11 @@ function usePortalClientOptions():
               : input.url;
         const normalizeLocalhostUrl = (value: string) => {
           try {
-            const parsed = new URL(value, window.location.href);
-            if (parsed.hostname === "localhost") {
-              parsed.hostname = "127.0.0.1";
-            }
-            return parsed.toString();
+            // Keep requests same-origin as the page. Rewriting the host (e.g.
+            // localhost → 127.0.0.1) drops the httpOnly `aomi_session` cookie,
+            // which is host-scoped to wherever the user logged in — so the proxy
+            // can't inject the AccountBearer and session routes 401.
+            return new URL(value, window.location.href).toString();
           } catch {
             return value;
           }

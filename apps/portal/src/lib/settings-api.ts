@@ -1,7 +1,5 @@
 "use client";
 
-import { useCallback } from "react";
-
 const SETTINGS_SESSION_KEY = "aomi_settings_session_id";
 const SECRET_STORAGE_KEY = "aomi_secret_key";
 
@@ -55,20 +53,7 @@ export function getSettingsSecret(): string | null {
   return trimmed.length > 0 ? trimmed : null;
 }
 
-export function setSettingsSecret(secret: string | null): void {
-  if (typeof window === "undefined") {
-    return;
-  }
-
-  const value = secret?.trim();
-  if (value) {
-    window.localStorage.setItem(SECRET_STORAGE_KEY, value);
-  } else {
-    window.localStorage.removeItem(SECRET_STORAGE_KEY);
-  }
-}
-
-export async function settingsApiFetch<T>(
+export async function sessionScopedFetch<T>(
   path: string,
   options?: RequestInit & { secret?: string | null },
 ): Promise<T> {
@@ -99,27 +84,25 @@ export async function settingsApiFetch<T>(
   return (await response.json()) as T;
 }
 
-export function useAccountApiFetch() {
-  return useCallback(
-    async <T>(path: string, options?: RequestInit): Promise<T> => {
-      // Same-origin `/api/account/*` through the portal proxy, which injects the
-      // AccountBearer from the `aomi_session` cookie (established by
-      // AomiSessionBridge). The browser carries no bearer itself.
-      const response = await fetch(`${getBackendUrl()}${path}`, {
-        ...options,
-        headers: {
-          "content-type": "application/json",
-          ...(options?.headers ?? {}),
-        },
-        credentials: "include",
-        cache: "no-store",
-      });
-      if (!response.ok) {
-        const text = await response.text();
-        throw new Error(text || `Request failed: ${response.status}`);
-      }
-      return (await response.json()) as T;
+export async function accountScopedFetch<T>(
+  path: string,
+  options?: RequestInit,
+): Promise<T> {
+  // Same-origin `/api/account/*` through the portal proxy, which injects the
+  // AccountBearer from the `aomi_session` cookie (established by
+  // AomiSessionBridge). The browser carries no bearer itself.
+  const response = await fetch(`${getBackendUrl()}${path}`, {
+    ...options,
+    headers: {
+      "content-type": "application/json",
+      ...(options?.headers ?? {}),
     },
-    [],
-  );
+    credentials: "include",
+    cache: "no-store",
+  });
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(text || `Request failed: ${response.status}`);
+  }
+  return (await response.json()) as T;
 }

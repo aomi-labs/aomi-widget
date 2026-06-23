@@ -26,7 +26,7 @@ the browser never holds GitHub tokens or the platform activation token.
 
 Two distinct call patterns:
 
-- **Browser → BE directly** (`settingsApiFetch`, CORS, `NEXT_PUBLIC_BACKEND_URL`):
+- **Browser → BE directly** (`sessionScopedFetch`, CORS, `NEXT_PUBLIC_BACKEND_URL`):
   only `oauth/start`. Plus GitHub → BE (webhook, callback redirect).
 - **Browser → BFF → BE**: the whole **deploy** phase. The BFF (`/api/onboard/*`)
   injects the activation token and translates to the BE's `/api/platforms/:platform/*`.
@@ -101,7 +101,7 @@ sequenceDiagram
     Note over U: paste "owner/my-agent" → Confirm
 
     Note over U,BE: 2 — Install + OAuth — browser ↔ BE directly (no BFF)
-    U->>BE: GET /api/integrations/github-app/oauth/start?repo&mode (settingsApiFetch, CORS)
+    U->>BE: GET /api/integrations/github-app/oauth/start?repo&mode (sessionScopedFetch, CORS)
     BE-->>U: { install_url } (signed state)
     U->>GH: redirect → install_url; install aomi-build + authorize
     GH->>BE: POST /api/integrations/github-app/webhook (server→server)
@@ -162,7 +162,7 @@ sequenceDiagram
     participant RT as Chat Runtime
 
     Note over U,BE: 1 — Install + OAuth (broad) — browser ↔ BE directly
-    U->>BE: GET /api/integrations/github-app/oauth/start?mode (settingsApiFetch)
+    U->>BE: GET /api/integrations/github-app/oauth/start?mode (sessionScopedFetch)
     BE-->>U: { install_url }
     U->>GH: install aomi-build-oneshot (all repos, Administration: write) + authorize
     GH->>BE: POST /webhook → upsert app_source
