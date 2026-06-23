@@ -62,18 +62,6 @@ async function resolveAppSourceId(args: {
   return source.id;
 }
 
-function isPendingDeploymentStatusError(err: unknown): boolean {
-  if (!(err instanceof BackendError)) return false;
-  if (err.status === 404) return true;
-  const message = err.message.toLowerCase();
-  return (
-    message.includes("deployment") &&
-    (message.includes("not found") ||
-      message.includes("missing") ||
-      message.includes("no deployment"))
-  );
-}
-
 export function launchDeployRoute(dryRun: boolean) {
   return async function POST(req: Request): Promise<NextResponse> {
     const blocked = checkWrite(req);
@@ -192,15 +180,6 @@ export async function launchStatusRoute(req: Request) {
       releaseTags: releaseTagsFromDeployment(result.deployment),
     });
   } catch (err) {
-    if (isPendingDeploymentStatusError(err)) {
-      const message = err instanceof Error ? err.message : String(err);
-      return NextResponse.json({
-        state: "pending",
-        releaseTags: [],
-        message,
-        retryIn: 3000,
-      });
-    }
     return launchErrorResponse(err);
   }
 }
