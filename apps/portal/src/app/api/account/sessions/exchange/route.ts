@@ -1,7 +1,10 @@
 import { createRemoteJWKSet, importSPKI, jwtVerify } from "jose";
 import { NextRequest, NextResponse } from "next/server";
 
-import { mintAccountBearer, resolveOrCreateCanonicalUser } from "@aomi-labs/account";
+import {
+  mintAccountBearer,
+  resolveOrCreateCanonicalUser,
+} from "@aomi-labs/account";
 import { setSessionCookie } from "@portal/lib/aomi-account/session";
 
 // Account graph reads/writes + bearer signing need Node (pg, EdDSA), not Edge.
@@ -16,6 +19,7 @@ type ExchangeBody = {
   jwt?: unknown;
   key_id?: unknown;
   keyId?: unknown;
+  application?: unknown;
   // TMP(account-graph): the connected embedded wallet address, used to bridge
   // returning wallet-first users to their existing account (see the
   // resolveOrCreateCanonicalUser call below).
@@ -50,6 +54,7 @@ export async function POST(request: NextRequest) {
     const { userId } = await resolveOrCreateCanonicalUser({
       provider: verified.provider,
       subject: verified.subject,
+      application: stringValue(body.application),
       // TMP(account-graph): bridge returning wallet-first users to their existing
       // (wallet-keyed) account + sessions, keyed by the connected address. Trusted
       // as supplied for this week's stopgap; the account-graph refactor will add
@@ -80,9 +85,7 @@ export async function POST(request: NextRequest) {
 
 async function verifyCredential(body: ExchangeBody): Promise<VerifiedEmbeded> {
   const provider = stringValue(body.provider)?.toLowerCase();
-  const jwt = stringValue(
-    body.provider_jwt ?? body.providerJwt ?? body.jwt,
-  );
+  const jwt = stringValue(body.provider_jwt ?? body.providerJwt ?? body.jwt);
   if ((provider !== "privy" && provider !== "para") || !jwt) {
     throw new HttpError(400, "Missing provider credential");
   }
@@ -140,10 +143,7 @@ async function verifyPara(
   return verifiedIdentity("para", payload);
 }
 
-function verifiedIdentity(
-  provider: Provider,
-  claims: Claims,
-): VerifiedEmbeded {
+function verifiedIdentity(provider: Provider, claims: Claims): VerifiedEmbeded {
   return {
     provider,
     subject: claims.sub!,

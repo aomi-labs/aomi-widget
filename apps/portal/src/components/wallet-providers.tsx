@@ -21,6 +21,7 @@ import {
 import { defineChain, type Chain } from "viem";
 import {
   AomiWalletProvider,
+  ExtUserProvider,
   isFullTestnet,
   monad,
   monadTestnet,
@@ -58,6 +59,7 @@ const localhost = defineChain({
 });
 
 const paraApiKey = process.env.NEXT_PUBLIC_PARA_API_KEY?.trim() ?? "";
+const privyAppId = process.env.NEXT_PUBLIC_PRIVY_APP_ID?.trim() ?? "";
 
 const walletConnectProjectId =
   process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID?.trim() ||
@@ -228,6 +230,24 @@ export function WalletProviders({ children, e2eWallet }: Props) {
   ) : (
     children
   );
+
+  if (!paraApiKey && privyAppId) {
+    return (
+      <ExtUserProvider>
+        <AomiWalletProvider
+          provider="privy"
+          appId={privyAppId}
+          appName="Aomi Labs"
+          walletConnectProjectId={walletConnectProjectId}
+          networks={networks}
+          loginMethods={["email", "sms", "wallet"]}
+          solana={paraSolanaConfig}
+        >
+          <AomiSessionProvider>{children}</AomiSessionProvider>
+        </AomiWalletProvider>
+      </ExtUserProvider>
+    );
+  }
 
   return (
     <AomiWalletProvider

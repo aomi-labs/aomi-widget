@@ -22,7 +22,10 @@ class FakeClient {
     if (sql.includes("from auth_identities")) {
       return this.opts.selectResponses.shift() ?? { rows: [] };
     }
-    if (sql.includes("insert into auth_identities") && this.opts.identityInsertError) {
+    if (
+      sql.includes("insert into auth_identities") &&
+      this.opts.identityInsertError
+    ) {
       throw this.opts.identityInsertError;
     }
     return { rows: [] };
@@ -66,6 +69,26 @@ describe("resolveOrCreateCanonicalUser", () => {
     expect(client.released).toBe(true);
   });
 
+  it("returns an existing app-scoped identity when an application is provided", async () => {
+    const client = new FakeClient({
+      selectResponses: [{ rows: [{ user_id: "u-app-existing" }] }],
+    });
+    mockPoolWith(client);
+    const { resolveOrCreateCanonicalUser } = await loadModule();
+
+    const result = await resolveOrCreateCanonicalUser({
+      provider: "privy",
+      subject: "did:privy:alice",
+      application: "default",
+    });
+
+    expect(result).toEqual({ userId: "u-app-existing", created: false });
+    expect(client.calls.some((call) => call.includes("select user_id"))).toBe(
+      true,
+    );
+    expect(client.calls).not.toContain("begin");
+  });
+
   it("TMP wallet-bridge: a trusted walletAddress resolves to the wallet-keyed account", async () => {
     const client = new FakeClient({
       // No (provider, subject) row exists for this returning wallet-first user…
@@ -104,7 +127,9 @@ describe("resolveOrCreateCanonicalUser", () => {
     );
     expect(result.userId).not.toBe("did:privy:new");
     expect(client.calls).toContain("begin");
-    expect(client.calls.some((c) => c.startsWith("insert into users"))).toBe(true);
+    expect(client.calls.some((c) => c.startsWith("insert into users"))).toBe(
+      true,
+    );
     expect(client.calls).toContain("commit");
   });
 

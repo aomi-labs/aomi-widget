@@ -21,6 +21,8 @@ export type ResolveInput = {
   provider: string;
   /** Provider subject, e.g. `did:privy:…`. The credential key, never the `sub`. */
   subject: string;
+  /** Optional app scope for credentials that are already app-scoped. */
+  application?: string;
   /**
    * TMP(account-graph): an EVM address from the verified-login exchange. When it
    * matches an existing `wallet`-keyed identity, resolve to that account — this
@@ -57,8 +59,11 @@ export async function resolveOrCreateCanonicalUser(
 ): Promise<CanonicalUser> {
   const provider = input.provider.trim();
   const subject = input.subject.trim();
+  const application = input.application?.trim() || null;
   if (!provider || !subject) {
-    throw new Error("resolveOrCreateCanonicalUser requires provider and subject");
+    throw new Error(
+      "resolveOrCreateCanonicalUser requires provider and subject",
+    );
   }
 
   const pool = getPool();
@@ -85,7 +90,12 @@ export async function resolveOrCreateCanonicalUser(
       if (walletUserId) return { userId: walletUserId, created: false };
     }
 
-    const existing = await findUserIdBySubject(client, provider, subject);
+    const existing = await findUserIdBySubject(
+      client,
+      provider,
+      subject,
+      application,
+    );
     if (existing) return { userId: existing, created: false };
 
     const userId = randomUUID();
@@ -103,12 +113,13 @@ export async function resolveOrCreateCanonicalUser(
       );
       await client.query(
         `insert into auth_identities
-           (user_id, application, wallet_provider, wallet_provider_subject,
+         (user_id, application, wallet_provider, wallet_provider_subject,
             auth_method, auth_value, auth_value_normalized,
             auth_verified_at, is_primary, metadata, created_at, updated_at)
-         values ($1, null, $2, $3, $2, $3, $4, $5, true, $6, $5, $5)`,
+         values ($1, $2, $3, $4, $3, $4, $5, $6, true, $7, $6, $6)`,
         [
           userId,
+          application,
           provider,
           subject,
           normalizeValue(subject),
@@ -122,7 +133,12 @@ export async function resolveOrCreateCanonicalUser(
       await client.query("rollback").catch(() => {});
       // A concurrent first login won the race; re-read the canonical winner.
       if (isUniqueViolation(error)) {
-        const winner = await findUserIdBySubject(client, provider, subject);
+        const winner = await findUserIdBySubject(
+          client,
+          provider,
+          subject,
+          application,
+        );
         if (winner) return { userId: winner, created: false };
       }
       throw error;
@@ -136,16 +152,18 @@ async function findUserIdBySubject(
   client: { query: PoolClientQuery },
   provider: string,
   subject: string,
+  application: string | null,
 ): Promise<string | null> {
-  // Global (unscoped) identities only: `application is null`, matching the
-  // backend's `insert_for_identity` (`application = None`).
+  // Prefer the requested app scope when present, but fall back to the global
+  // identity row so account sessions remain stable across older login paths.
   const result = await client.query(
     `select user_id from auth_identities
-      where application is null
-        and wallet_provider = $1
+      where wallet_provider = $1
         and wallet_provider_subject = $2
+        and (application is null or application = $3)
+      order by case when application = $3 then 0 else 1 end
       limit 1`,
-    [provider, subject],
+    [provider, subject, application],
   );
   return (result.rows[0]?.user_id as string | undefined) ?? null;
 }

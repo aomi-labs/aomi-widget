@@ -16,4 +16,5 @@ export {
   ACCOUNT_BEARER_TTL_SECONDS,
   type MintedBearer,
 } from "./bearer";
+export { getPool } from "./db";
 export { portalService } from "./topology";
