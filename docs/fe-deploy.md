@@ -2,11 +2,11 @@
 
 How the **Deploy** tab takes a developer from "nothing" to "my agent is live in
 chat", for both onboarding paths. Backend is owned end-to-end via a GitHub App;
-the browser never holds GitHub tokens or the platform activation token.
+the browser never holds GitHub tokens or service credentials.
 
 > **Latest changes (2026-06, PRs #243–#245 + post-merge fixes):**
 > - GitHub install redirects in the **same tab** (was: new tab + fragile localStorage polling) — eliminates popup-blocker + race-condition bugs
-> - BFF hardened: CSRF fail-open when `NEXT_PUBLIC_APP_URL` unset, rate limit raised 10→60 req/min, empty `releaseTags` validated
+> - BFF hardened: CSRF validates against the incoming request origin, rate limit raised 10→60 req/min, empty `releaseTags` validated
 > - Backend `with_snapshot()` fix: deployment status checks CI against the recorded built commit, not the live branch HEAD — prevents pending deployments from being orphaned by snapshot merges
 > - 4 new BFF unit-test files (csrf, rate-limit, validate-input, chat-url), 6 new component test files covering all wizard states
 > - Portal typecheck fixed: test files excluded from `tsconfig.json` (`vitest` handles its own type checking)
@@ -21,7 +21,7 @@ the browser never holds GitHub tokens or the platform activation token.
 | Layer | What runs | Holds |
 |-------|-----------|-------|
 | **Browser (FE client)** | React onboarding wizard | nothing secret |
-| **Portal BFF** | Next.js route handlers `app/api/onboard/*` (server-side) | the **activation token**; resolves `app_source.id` |
+| **Portal BFF** | Next.js route handlers `app/api/onboard/*` (server-side) | the `aomi-bff` service signing key; resolves `app_source.id` |
 | **Backend (BE)** | Rust service `/api/platforms/*`, `/api/integrations/*` | GitHub App keys, DB |
 
 Two distinct call patterns:
@@ -29,7 +29,7 @@ Two distinct call patterns:
 - **Browser → BE directly** (`sessionScopedFetch`, CORS, `NEXT_PUBLIC_BACKEND_URL`):
   only `oauth/start`. Plus GitHub → BE (webhook, callback redirect).
 - **Browser → BFF → BE**: the whole **deploy** phase. The BFF (`/api/onboard/*`)
-  injects the activation token and translates to the BE's `/api/platforms/:platform/*`.
+  signs a short-lived `service` bearer and translates to the BE's `/api/platforms/:platform/*`.
 
 ## Two paths (the picker)
 
@@ -115,7 +115,7 @@ sequenceDiagram
     U->>BFF: POST /api/onboard/deploy { installationId, repo }
     BFF->>BE: GET /api/platforms/community/sources/resolve?installation_id&repo
     BE-->>BFF: { source.id }
-    BFF->>BE: POST /api/platforms/community/deploy { appSourceId } (+ activation token)
+    BFF->>BE: POST /api/platforms/community/deploy { appSourceId } (+ service bearer)
     BE->>GH: push app to community-apps as aomi-build[bot]<br/>branch owner/my-agent/{installation}/{commit}
     GH->>CA: build-candidate.yml fires (actor = aomi-build[bot])
     CA->>CA: compile cdylib · publish release apps-{installation}-{app}-{commit} + .so
@@ -176,7 +176,7 @@ sequenceDiagram
     GH-->>BE: repo created
     BE-->>BFF: { repo }
     U->>BFF: POST /api/onboard/deploy
-    BFF->>BE: resolve → POST /api/platforms/community/deploy (+ activation token)
+    BFF->>BE: resolve → POST /api/platforms/community/deploy (+ service bearer)
     BE->>GH: push to community-apps as aomi-build-oneshot[bot]
     GH->>CA: build-candidate.yml fires
     CA->>CA: compile cdylib · publish release + .so
@@ -208,12 +208,12 @@ Per-user isolation: the candidate branch + release tag both encode the
 
 | Knob | Local dev | Deployed (staging) |
 |------|-----------|--------------------|
-| FE `NEXT_PUBLIC_BACKEND_URL` (browser→BE + BFF→BE base) | `http://localhost:8080` | `https://api-staging.aomi.dev` |
+| Backend URL | local defaults to `http://127.0.0.1:8080` | Vercel production defaults to `https://api.aomi.dev`; previews default to `https://api-staging.aomi.dev` |
 | BE `AOMI_PORTAL_URL` (callback redirect target, was `AOMI_FRONTEND_URL`) | `http://localhost:3000` | the deployed portal URL |
 | GitHub App **Webhook URL** | tunnel → `/api/integrations/github-app/webhook` | `https://api-staging.aomi.dev/api/integrations/github-app/webhook` |
 | GitHub App **Callback URL** | tunnel → `/api/integrations/github-app/oauth/callback` | `https://api-staging.aomi.dev/api/integrations/github-app/oauth/callback` |
 | BE GitHub App secrets | `github_app.toml` / `GITHUB_APP_TOML` + `AOMI_GITHUB_APP_*` | same `AOMI_GITHUB_APP_*` as deployment secrets |
-| BFF activation token | `APP_DEPLOY_ACTIVATION_TOKEN` (portal env) | portal deployment secret |
+| BFF service signer | `PORTAL_SERVICE_PRIVATE_KEY` | portal deployment secret; committed topology is auto-selected |
 
 > Only the **webhook** strictly needs a public tunnel (server-to-server); the
 > callback is a browser redirect. Pointing at staging requires the App's

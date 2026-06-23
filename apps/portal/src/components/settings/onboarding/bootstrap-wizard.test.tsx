@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { BootstrapWizard } from "./bootstrap-wizard";
-import type { PathProgress } from "@portal/lib/onboarding";
+import type { LaunchProgress } from "@portal/features/launch";
 
 const noop = () => {};
 
@@ -30,8 +30,8 @@ vi.mock("@portal/lib/chat-url", () => ({
   chatAppUrl: (name: string) => `https://chat.aomi.dev?app=${name}`,
 }));
 
-vi.mock("@portal/lib/onboarding", () => ({
-  bootstrapStep: (p: PathProgress) => {
+vi.mock("@portal/features/launch", () => ({
+  bootstrapStep: (p: LaunchProgress) => {
     if (p.live) return "live";
     if (p.deploymentId || p.deployment) return "deploy";
     if (p.installationId) return "install";
@@ -44,7 +44,7 @@ vi.mock("@portal/lib/onboarding", () => ({
   TEMPLATE_REPO_URL: "https://github.com/aomi-labs/playground-example",
 }));
 
-function baseProgress(): PathProgress {
+function baseProgress(): LaunchProgress {
   return {
     path: null,
     oneshot: {},

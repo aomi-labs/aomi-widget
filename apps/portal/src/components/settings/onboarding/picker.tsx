@@ -1,10 +1,10 @@
 "use client";
 
 import { Zap, Wrench, ArrowRight } from "lucide-react";
-import type { OnboardingPath } from "@portal/lib/onboarding";
+import type { LaunchPath } from "@portal/features/launch";
 
 type CardSpec = {
-  path: OnboardingPath;
+  path: LaunchPath;
   icon: typeof Zap;
   title: string;
   blurb: string;
@@ -35,7 +35,7 @@ const CARDS: CardSpec[] = [
 export function Picker({
   onChoose,
 }: {
-  onChoose: (path: OnboardingPath) => void;
+  onChoose: (path: LaunchPath) => void;
 }) {
   return (
     <div className="space-y-6">
