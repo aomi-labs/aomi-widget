@@ -1,6 +1,5 @@
-import { createAccountAccessTokenProvider } from "../account-session";
 import { AomiClient } from "../client";
-import type { GetAccountAccessToken } from "../types";
+import type { GetAccountBearer } from "../types";
 import type { CliConfig } from "./types";
 
 const DEFAULT_BACKEND_URL = "https://api.aomi.dev";
@@ -10,30 +9,18 @@ type CliClientOverrides = {
   baseUrl?: string;
 };
 
-export function resolveCliBaseUrl(
-  config: Pick<CliConfig, "baseUrl">,
-): string {
+export function resolveCliBaseUrl(config: Pick<CliConfig, "baseUrl">): string {
   return config.baseUrl ?? DEFAULT_BACKEND_URL;
 }
 
-export function createCliGetAccountAccessToken(
+export function createCliGetAccountBearer(
   config: CliConfig,
-): GetAccountAccessToken | undefined {
-  if (config.accountAccessToken) {
-    return async () => config.accountAccessToken;
+): GetAccountBearer | undefined {
+  if (config.accountBearer) {
+    return async () => config.accountBearer;
   }
 
-  if (!config.accountProvider || !config.accountProviderToken) {
-    return undefined;
-  }
-
-  return createAccountAccessTokenProvider({
-    baseUrl: resolveCliBaseUrl(config),
-    getProviderCredential: async () => ({
-      provider: config.accountProvider!,
-      providerToken: config.accountProviderToken!,
-    }),
-  });
+  return undefined;
 }
 
 export function createCliClient(
@@ -49,6 +36,6 @@ export function createCliClient(
   return new AomiClient({
     baseUrl: resolveCliBaseUrl(mergedConfig),
     apiKey: mergedConfig.apiKey,
-    getAccountAccessToken: createCliGetAccountAccessToken(mergedConfig),
+    getAccountBearer: createCliGetAccountBearer(mergedConfig),
   });
 }

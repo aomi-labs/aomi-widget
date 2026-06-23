@@ -279,7 +279,6 @@ export function SolanaRuntimeDriver() {
     () => ({
       connection: {
         is_connected: true,
-        primary_family: "svm",
         provider_label: "Local Solana Driver",
       },
       solana: {

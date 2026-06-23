@@ -389,7 +389,7 @@ describe("ClientSession ext helpers", () => {
     const session = new Session(client, {
       sessionId: "session-unit-svm-sigs",
       userState: {
-        connection: { is_connected: true, primary_family: "solana" },
+        connection: { is_connected: true },
         solana: {
           address: "4kbGbZtfkfkRVGunkbKX4M7dGPm9MghJZodjbnRZbmug",
           cluster: "solana:mainnet",
@@ -404,7 +404,7 @@ describe("ClientSession ext helpers", () => {
       is_processing: true,
       messages: [],
       user_state: {
-        connection: { is_connected: true, primary_family: "solana" },
+        connection: { is_connected: true },
         solana: {
           address: "4kbGbZtfkfkRVGunkbKX4M7dGPm9MghJZodjbnRZbmug",
           cluster: "solana:mainnet",
@@ -1302,7 +1302,7 @@ describe("ClientSession ext helpers", () => {
         messages: [],
         system_events: [],
         user_state: {
-          connection: { is_connected: true, primary_family: "solana" },
+          connection: { is_connected: true },
         },
       } satisfies AomiStateResponse);
       await session.fetchCurrentState();
@@ -1317,7 +1317,7 @@ describe("ClientSession ext helpers", () => {
       messages: [],
       system_events: [],
       user_state: {
-        connection: { is_connected: true, primary_family: "solana" },
+        connection: { is_connected: true },
       },
     } satisfies AomiStateResponse);
     await session.fetchCurrentState();
@@ -2078,7 +2078,6 @@ describe("ClientSession ext helpers", () => {
       userState: {
         connection: {
           is_connected: true,
-          primary_family: "solana",
         },
         solana: {
           address: "So1aBcExampleSigner",
@@ -2093,7 +2092,6 @@ describe("ClientSession ext helpers", () => {
       user_state: {
         connection: {
           is_connected: true,
-          primary_family: "solana",
         },
         solana: {
           address: "So1aBcExampleSigner",
@@ -2139,7 +2137,6 @@ describe("ClientSession ext helpers", () => {
       userState: {
         connection: {
           is_connected: true,
-          primary_family: "evm",
         },
         evm: {
           address: "0xabc",
@@ -2154,7 +2151,6 @@ describe("ClientSession ext helpers", () => {
       user_state: {
         connection: {
           is_connected: true,
-          primary_family: "evm",
         },
         evm: {
           address: "0xabc",

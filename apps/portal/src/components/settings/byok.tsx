@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useMemo, useState } from "react";
-import { useControl } from "@aomi-labs/react";
+import { useByok } from "@aomi-labs/react";
 import { Button, Input } from "@aomi-labs/widget-lib";
 import {
   settingsActionRowClass,
@@ -26,7 +26,8 @@ const PROVIDERS = [
 ] as const;
 
 export function Byok() {
-  const { state, setByok, removeByok } = useControl();
+  const { state, actions } = useByok();
+  const { setByok, removeByok } = actions;
   const [selectedProvider, setSelectedProvider] =
     useState<(typeof PROVIDERS)[number]["id"]>("openai");
   const [byokInput, setByokInput] = useState("");

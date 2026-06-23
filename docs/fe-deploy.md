@@ -4,6 +4,18 @@ How the **Deploy** tab takes a developer from "nothing" to "my agent is live in
 chat", for both onboarding paths. Backend is owned end-to-end via a GitHub App;
 the browser never holds GitHub tokens or the platform activation token.
 
+> **Latest changes (2026-06, PRs #243–#245 + post-merge fixes):**
+> - GitHub install redirects in the **same tab** (was: new tab + fragile localStorage polling) — eliminates popup-blocker + race-condition bugs
+> - BFF hardened: CSRF fail-open when `NEXT_PUBLIC_APP_URL` unset, rate limit raised 10→60 req/min, empty `releaseTags` validated
+> - Backend `with_snapshot()` fix: deployment status checks CI against the recorded built commit, not the live branch HEAD — prevents pending deployments from being orphaned by snapshot merges
+> - 4 new BFF unit-test files (csrf, rate-limit, validate-input, chat-url), 6 new component test files covering all wizard states
+> - Portal typecheck fixed: test files excluded from `tsconfig.json` (`vitest` handles its own type checking)
+> - Portal vitest aliases: added `@/` and `@aomi-labs/*` to vitest config — unblocks real widget-lib imports in tests
+> - Portal bfcache fix: stale "Waiting for GitHub..." state cleared when user returns without redirect params
+> - Redirect URL mismatch fixed: `NEXT_PUBLIC_BACKEND_URL` → `https://api.aomi.dev` (production), staging backend `AOMI_PORTAL_URL` → `https://chat.aomi.dev`
+> - CLI error messages: all 7 GOAL spec error types unified across deploy/status/activate commands
+> - All 132 portal tests + 375 package tests = 507 tests passing
+
 ## Three layers
 
 | Layer | What runs | Holds |
@@ -14,7 +26,7 @@ the browser never holds GitHub tokens or the platform activation token.
 
 Two distinct call patterns:
 
-- **Browser → BE directly** (`settingsApiFetch`, CORS, `NEXT_PUBLIC_BACKEND_URL`):
+- **Browser → BE directly** (`sessionScopedFetch`, CORS, `NEXT_PUBLIC_BACKEND_URL`):
   only `oauth/start`. Plus GitHub → BE (webhook, callback redirect).
 - **Browser → BFF → BE**: the whole **deploy** phase. The BFF (`/api/onboard/*`)
   injects the activation token and translates to the BE's `/api/platforms/:platform/*`.
@@ -89,7 +101,7 @@ sequenceDiagram
     Note over U: paste "owner/my-agent" → Confirm
 
     Note over U,BE: 2 — Install + OAuth — browser ↔ BE directly (no BFF)
-    U->>BE: GET /api/integrations/github-app/oauth/start?repo&mode (settingsApiFetch, CORS)
+    U->>BE: GET /api/integrations/github-app/oauth/start?repo&mode (sessionScopedFetch, CORS)
     BE-->>U: { install_url } (signed state)
     U->>GH: redirect → install_url; install aomi-build + authorize
     GH->>BE: POST /api/integrations/github-app/webhook (server→server)
@@ -150,7 +162,7 @@ sequenceDiagram
     participant RT as Chat Runtime
 
     Note over U,BE: 1 — Install + OAuth (broad) — browser ↔ BE directly
-    U->>BE: GET /api/integrations/github-app/oauth/start?mode (settingsApiFetch)
+    U->>BE: GET /api/integrations/github-app/oauth/start?mode (sessionScopedFetch)
     BE-->>U: { install_url }
     U->>GH: install aomi-build-oneshot (all repos, Administration: write) + authorize
     GH->>BE: POST /webhook → upsert app_source
@@ -196,10 +208,10 @@ Per-user isolation: the candidate branch + release tag both encode the
 
 | Knob | Local dev | Deployed (staging) |
 |------|-----------|--------------------|
-| FE `NEXT_PUBLIC_BACKEND_URL` (browser→BE + BFF→BE base) | `http://localhost:8080` | `https://staging-api.aomi.dev` |
-| BE `AOMI_FRONTEND_URL` (callback redirect target) | `http://localhost:3000` | the deployed portal URL |
-| GitHub App **Webhook URL** | tunnel → `/api/integrations/github-app/webhook` | `https://staging-api.aomi.dev/api/integrations/github-app/webhook` |
-| GitHub App **Callback URL** | tunnel → `/api/integrations/github-app/oauth/callback` | `https://staging-api.aomi.dev/api/integrations/github-app/oauth/callback` |
+| FE `NEXT_PUBLIC_BACKEND_URL` (browser→BE + BFF→BE base) | `http://localhost:8080` | `https://api-staging.aomi.dev` |
+| BE `AOMI_PORTAL_URL` (callback redirect target, was `AOMI_FRONTEND_URL`) | `http://localhost:3000` | the deployed portal URL |
+| GitHub App **Webhook URL** | tunnel → `/api/integrations/github-app/webhook` | `https://api-staging.aomi.dev/api/integrations/github-app/webhook` |
+| GitHub App **Callback URL** | tunnel → `/api/integrations/github-app/oauth/callback` | `https://api-staging.aomi.dev/api/integrations/github-app/oauth/callback` |
 | BE GitHub App secrets | `github_app.toml` / `GITHUB_APP_TOML` + `AOMI_GITHUB_APP_*` | same `AOMI_GITHUB_APP_*` as deployment secrets |
 | BFF activation token | `APP_DEPLOY_ACTIVATION_TOKEN` (portal env) | portal deployment secret |
 

@@ -4,19 +4,28 @@ export const runtime = "nodejs";
 
 import {
   type BackendAppStatusResult,
+  BackendRequestError,
   backendRequest,
   readOnboardDeployEnv,
 } from "@portal/lib/onboard-deploy";
+import { checkRateLimit, getClientIp } from "@portal/lib/rate-limit";
 
 export async function GET(req: Request) {
+  const ip = getClientIp(req);
+  if (!checkRateLimit(ip).allowed) {
+    return NextResponse.json({ error: "Too many requests" }, { status: 429 });
+  }
+
   const params = new URL(req.url).searchParams;
   const name = params.get("name")?.trim();
   const releaseTag = params.get("releaseTag")?.trim();
+
   if (!name) {
     return NextResponse.json({ error: "missing `name`" }, { status: 400 });
   }
+
   try {
-    const env = readOnboardDeployEnv();
+    const env = await readOnboardDeployEnv();
     const query = new URLSearchParams();
     if (releaseTag) query.set("release_tag", releaseTag);
     const suffix = query.toString() ? `?${query}` : "";
@@ -33,9 +42,13 @@ export async function GET(req: Request) {
       app,
     });
   } catch (err) {
+    const status =
+      err instanceof BackendRequestError && err.status >= 400 && err.status < 600
+        ? err.status
+        : 502;
     return NextResponse.json(
       { error: err instanceof Error ? err.message : String(err) },
-      { status: 502 },
+      { status },
     );
   }
 }

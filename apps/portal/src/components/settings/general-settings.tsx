@@ -7,7 +7,7 @@ import {
   formatAuthMethod,
   useAomiAuthAdapter,
 } from "@aomi-labs/widget-lib";
-import { useAccountApiFetch } from "@portal/lib/settings-api";
+import { accountScopedFetch } from "@portal/lib/settings-api";
 import {
   settingsBodyTextClass,
   settingsCardClass,
@@ -19,7 +19,7 @@ import {
   settingsTitleClass,
 } from "./settings-styles";
 
-type AccountProfile = {
+type CanonicalUser = {
   user_id: string;
   public_key: string;
   username?: string | null;
@@ -32,7 +32,7 @@ type AccountProfile = {
   last_seen_at?: number | null;
 };
 
-type AccountUsage = {
+type UsageStats = {
   period_utc_month: string;
   input_tokens: number;
   output_tokens: number;
@@ -40,9 +40,28 @@ type AccountUsage = {
   credit_paid: number;
 };
 
-type AccountOverview = {
-  account: AccountProfile;
-  usage: AccountUsage;
+type AuthIdentity = {
+  id: number;
+  application?: string | null;
+  wallet_provider: string;
+  auth_method: string;
+  auth_verified_at?: number | null;
+  is_primary: boolean;
+  created_at: number;
+};
+
+type IdentityWallet = {
+  wallet_id?: string | null;
+  address: string;
+  chain_type: string;
+  wallet_provider: string;
+};
+
+type AccountProfile = {
+  user: CanonicalUser;
+  auth_identities?: AuthIdentity[];
+  identity_wallets?: IdentityWallet[];
+  usage: UsageStats;
 };
 
 function formatTs(ts?: number | null): string {
@@ -57,9 +76,8 @@ function formatNumber(n?: number): string {
 
 export function GeneralSettings() {
   const adapter = useAomiAuthAdapter();
-  const accountApiFetch = useAccountApiFetch();
   const identity = adapter.identity;
-  const [account, setAccount] = useState<AccountOverview | null>(null);
+  const [account, setAccount] = useState<AccountProfile | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -81,7 +99,7 @@ export function GeneralSettings() {
       setLoading(true);
       setError(null);
       try {
-        const data = await accountApiFetch<AccountOverview>("/api/account");
+        const data = await accountScopedFetch<AccountProfile>("/api/account");
         setAccount(data);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to load account");
@@ -91,7 +109,7 @@ export function GeneralSettings() {
     };
 
     void run();
-  }, [accountApiFetch, identity.address]);
+  }, [identity.address]);
 
   return (
     <div className={settingsPageClass}>
@@ -158,16 +176,14 @@ export function GeneralSettings() {
           {!loading && !error && account && (
             <>
               <p className={settingsBodyTextClass}>
-                User ID: {account.account.user_id}
+                User ID: {account.user.user_id}
+              </p>
+              <p className={settingsBodyTextClass}>Tier: {account.user.tier}</p>
+              <p className={settingsBodyTextClass}>
+                Verified email: {account.user.verified_email ?? "-"}
               </p>
               <p className={settingsBodyTextClass}>
-                Tier: {account.account.tier}
-              </p>
-              <p className={settingsBodyTextClass}>
-                Verified email: {account.account.verified_email ?? "-"}
-              </p>
-              <p className={settingsBodyTextClass}>
-                Status: {account.account.status}
+                Status: {account.user.status}
               </p>
               <p className={settingsBodyTextClass}>
                 Month: {account.usage.period_utc_month}
@@ -181,10 +197,10 @@ export function GeneralSettings() {
                 {formatNumber(account.usage.output_tokens)}
               </p>
               <p className={settingsBodyTextClass}>
-                Created at: {formatTs(account.account.created_at)}
+                Created at: {formatTs(account.user.created_at)}
               </p>
               <p className={settingsBodyTextClass}>
-                Last seen: {formatTs(account.account.last_seen_at)}
+                Last seen: {formatTs(account.user.last_seen_at)}
               </p>
             </>
           )}

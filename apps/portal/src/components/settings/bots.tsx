@@ -1,8 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Button, Input, useAomiAuthAdapter } from "@aomi-labs/widget-lib";
-import { settingsApiFetch, useAccountApiFetch } from "@portal/lib/settings-api";
+import { Button, Input } from "@aomi-labs/widget-lib";
+import { accountScopedFetch } from "@portal/lib/settings-api";
 import {
   settingsActionRowClass,
   settingsBodyTextClass,
@@ -83,8 +83,6 @@ function normalizeAppOptions(apps: AppOption[]): string[] {
 }
 
 export function Bots() {
-  const { identity } = useAomiAuthAdapter();
-  const accountApiFetch = useAccountApiFetch();
   const [bots, setBots] = useState<BotRegistration[]>([]);
   const [availableApps, setAvailableApps] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
@@ -101,31 +99,23 @@ export function Bots() {
   } | null>(null);
 
   const loadBots = useCallback(async () => {
-    if (!identity.address) {
-      setBots([]);
-      return;
-    }
-
     setLoading(true);
     setError(null);
     try {
       const data =
-        await accountApiFetch<BotRegistrationsResponse>("/api/account/bots");
+        await accountScopedFetch<BotRegistrationsResponse>("/api/account/bots");
       setBots(data.bot_registrations ?? []);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load bots");
     } finally {
       setLoading(false);
     }
-  }, [accountApiFetch, identity.address]);
+  }, []);
 
   const loadApps = useCallback(async () => {
     setLoadingApps(true);
     try {
-      const path = identity.address
-        ? `/api/session/apps?public_key=${encodeURIComponent(identity.address)}`
-        : "/api/session/apps";
-      const data = await settingsApiFetch<AppOption[]>(path);
+      const data = await accountScopedFetch<AppOption[]>("/api/account/apps");
       const normalized = normalizeAppOptions(data ?? []);
       setAvailableApps(normalized);
       setSelectedApp((previous) => {
@@ -143,7 +133,7 @@ export function Bots() {
     } finally {
       setLoadingApps(false);
     }
-  }, [identity.address]);
+  }, []);
 
   useEffect(() => {
     void Promise.all([loadBots(), loadApps()]);
@@ -151,11 +141,8 @@ export function Bots() {
 
   const canCreate = useMemo(
     () =>
-      Boolean(identity.address) &&
-      selectedApp.length > 0 &&
-      tokenInput.trim().length > 0 &&
-      !creating,
-    [creating, identity.address, selectedApp, tokenInput],
+      selectedApp.length > 0 && tokenInput.trim().length > 0 && !creating,
+    [creating, selectedApp, tokenInput],
   );
 
   const handleCreate = useCallback(async () => {
@@ -164,7 +151,7 @@ export function Bots() {
     setCreating(true);
     setStatus(null);
     try {
-      const data = await accountApiFetch<CreateBotRegistrationResponse>(
+      const data = await accountScopedFetch<CreateBotRegistrationResponse>(
         "/api/account/bots",
         {
           method: "POST",
@@ -192,14 +179,7 @@ export function Bots() {
     } finally {
       setCreating(false);
     }
-  }, [
-    canCreate,
-    accountApiFetch,
-    labelInput,
-    selectedApp,
-    threadMode,
-    tokenInput,
-  ]);
+  }, [canCreate, labelInput, selectedApp, threadMode, tokenInput]);
 
   return (
     <div className={settingsPageClass}>
@@ -222,14 +202,6 @@ export function Bots() {
         >
           {status.text}
         </div>
-      )}
-
-      {!identity.address && (
-        <section className={settingsCardStackClass}>
-          <p className={settingsBodyTextClass}>
-            Connect your account to view registered bots.
-          </p>
-        </section>
       )}
 
       {error && (
@@ -263,7 +235,7 @@ export function Bots() {
               onChange={(event) => setLabelInput(event.target.value)}
               placeholder="Trading assistant"
               className={settingsInputClass}
-              disabled={!identity.address || creating}
+              disabled={creating}
             />
           </div>
           <div className="min-w-0 space-y-4">
@@ -277,7 +249,7 @@ export function Bots() {
               onChange={(event) => setTokenInput(event.target.value)}
               placeholder="Paste Telegram BotFather token"
               className={settingsInputClass}
-              disabled={!identity.address || creating}
+              disabled={creating}
             />
           </div>
         </div>
@@ -292,7 +264,7 @@ export function Bots() {
               value={selectedApp}
               onChange={(event) => setSelectedApp(event.target.value)}
               className={`${settingsInputClass} w-full`}
-              disabled={!identity.address || creating || loadingApps}
+              disabled={creating || loadingApps}
             >
               {availableApps.map((app) => (
                 <option key={app} value={app}>
@@ -318,7 +290,7 @@ export function Bots() {
               value={threadMode}
               onChange={(event) => setThreadMode(event.target.value)}
               className={`${settingsInputClass} w-full`}
-              disabled={!identity.address || creating}
+              disabled={creating}
             >
               <option value="single">Single thread</option>
               <option value="multi">Multiple threads</option>
@@ -388,9 +360,7 @@ export function Bots() {
                     className="text-muted-foreground px-3 py-4 text-center"
                     colSpan={7}
                   >
-                    {identity.address
-                      ? "No bots registered yet."
-                      : "Connect your account to load bots."}
+                    No bots registered yet.
                   </td>
                 </tr>
               )}

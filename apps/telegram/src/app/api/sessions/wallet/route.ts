@@ -20,7 +20,6 @@ function toResponseShape(state: ReturnType<typeof getWalletState>) {
     svmAddress: state.svmAddress,
     svmCluster: state.svmCluster,
     walletProvider: state.walletProvider,
-    primaryFamily: state.primaryFamily,
     providerLabel: state.providerLabel,
     source: state.source,
     label: state.label,
@@ -58,10 +57,6 @@ export async function POST(req: NextRequest) {
   const svmAddress = typeof body?.svmAddress === 'string' ? body.svmAddress : '';
   const svmCluster = typeof body?.svmCluster === 'string' ? body.svmCluster : null;
   const walletProvider = typeof body?.walletProvider === 'string' ? body.walletProvider : undefined;
-  const primaryFamily =
-    body?.primaryFamily === 'evm' || body?.primaryFamily === 'svm' || body?.primaryFamily === 'dual'
-      ? body.primaryFamily
-      : undefined;
   const providerLabel = typeof body?.providerLabel === 'string' ? body.providerLabel : undefined;
   const source = (body?.source as WalletConnectionSource | undefined) ?? 'mini_app';
 
@@ -79,7 +74,6 @@ export async function POST(req: NextRequest) {
     svmAddress: svmAddress || undefined,
     svmCluster,
     walletProvider,
-    primaryFamily,
     providerLabel,
     source,
   });

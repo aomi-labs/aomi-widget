@@ -5,9 +5,13 @@ export const runtime = "nodejs";
 
 import {
   type BackendAppSourceResult,
+  BackendRequestError,
   backendRequest,
   readOnboardDeployEnv,
 } from "@portal/lib/onboard-deploy";
+import { checkRateLimit, getClientIp } from "@portal/lib/rate-limit";
+import { validateOrigin } from "@portal/lib/csrf";
+import { isValidInstallationId } from "@portal/lib/validate-input";
 
 function defaultRepoName() {
   const prefix = process.env.APP_DEPLOY_CREATED_REPO_PREFIX || "my-playground";
@@ -20,20 +24,29 @@ function defaultRepoName() {
 }
 
 export async function POST(req: Request) {
+  const ip = getClientIp(req);
+  if (!checkRateLimit(ip).allowed) {
+    return NextResponse.json({ error: "Too many requests" }, { status: 429 });
+  }
+  if (!validateOrigin(req)) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
   try {
     const body = (await req.json().catch(() => ({}))) as {
-      installationId?: string;
+      installationId?: unknown;
       repoName?: string;
     };
-    const installationId = Number(body.installationId);
-    if (!Number.isSafeInteger(installationId) || installationId <= 0) {
+
+    if (!isValidInstallationId(body.installationId)) {
       return NextResponse.json(
-        { error: "missing `installationId`" },
+        { error: "missing or invalid `installationId`" },
         { status: 400 },
       );
     }
 
-    const env = readOnboardDeployEnv();
+    const installationId = Number(body.installationId);
+    const env = await readOnboardDeployEnv();
     const result = await backendRequest<BackendAppSourceResult>(
       env,
       `/api/integrations/github-app/platforms/${encodeURIComponent(env.platform)}/sources/create-from-template`,
@@ -62,9 +75,13 @@ export async function POST(req: Request) {
       source,
     });
   } catch (err) {
+    const status =
+      err instanceof BackendRequestError && err.status >= 400 && err.status < 600
+        ? err.status
+        : 502;
     return NextResponse.json(
       { error: err instanceof Error ? err.message : String(err) },
-      { status: 502 },
+      { status },
     );
   }
 }

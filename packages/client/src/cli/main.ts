@@ -1,6 +1,6 @@
 import { runMain } from "citty";
 import { root } from "./root";
-import { CliExit } from "./errors";
+import { CliExit, DeployCliError } from "./errors";
 import packageJson from "../../package.json";
 
 const ROOT_SUBCOMMANDS = new Set([
@@ -65,11 +65,11 @@ function printRootHelp(): void {
     "  --account-bearer <token>     Aomi account bearer for authenticated requests",
   );
   console.log(
-    "  --account-provider <name>    Upstream auth provider (para | privy)",
+    "  --account-provider <name>    Deprecated; provider exchange is disabled",
   );
   console.log("  --account-provider-token <t>");
   console.log(
-    "                               Provider token exchanged for an Aomi bearer",
+    "                               Deprecated; use --account-bearer",
   );
   console.log("  --app <name>                 Active app");
   console.log("  --model <rig>                Active model");
@@ -134,6 +134,11 @@ export async function runCli(argv: string[] = process.argv): Promise<void> {
     }
     const RED = "\x1b[31m";
     const RESET = "\x1b[0m";
+    if (err instanceof DeployCliError) {
+      console.error(`${RED}❌ [${err.errorCode}] ${err.message}${RESET}`);
+      process.exit(1);
+      return;
+    }
     const message = err instanceof Error ? err.message : String(err);
     console.error(`${RED}❌ ${message}${RESET}`);
     process.exit(1);

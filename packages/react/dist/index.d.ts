@@ -26,14 +26,61 @@ declare class SessionManager {
     closeAll(): void;
 }
 
+declare class ThreadRegistry {
+    /** Threads the backend already knows about (from /threads list or createThread). */
+    readonly remoteThreads: Set<string>;
+    /** Threads whose initial state has been fetched at least once this session. */
+    readonly hydratedThreads: Set<string>;
+    /** Threads where the backend record was created specifically to receive a send. */
+    readonly materializedForSend: Set<string>;
+    /** Active in-flight initial-state fetches, keyed by thread id (for dedup). */
+    readonly initialStatePromises: Map<string, Promise<void>>;
+    /** Currently-pending fetches (subset of above, kept separately for diagnostics). */
+    readonly pendingFetches: Set<string>;
+    private readonly listenerCleanups;
+    readonly sessionManager: SessionManager;
+    constructor(clientFactory: () => AomiClient);
+    setListenerCleanup(threadId: string, cleanup: () => void): void;
+    private runAndDropListeners;
+    /**
+     * Close a single thread's session and drop its session-scoped bookkeeping.
+     * Keeps `remoteThreads` and `materializedForSend` (structural facts about the
+     * thread itself, unaffected by whether a Session instance is alive).
+     */
+    closeSession(threadId: string): void;
+    /**
+     * Forget every record for a thread (delete-thread flow). Closes the session
+     * and also wipes structural facts. After this the registry behaves as though
+     * the thread never existed.
+     */
+    forget(threadId: string): void;
+    /**
+     * Close every session that isn't the active one AND isn't busy (processing,
+     * polling, or holding pending wallet requests). Returns ids closed so callers
+     * can react if they need to.
+     */
+    closeIdleSessionsExcept(activeThreadId: string): string[];
+    /**
+     * Close every session and drop all session-scoped state. Used on unmount.
+     * Structural facts (remoteThreads, materializedForSend) are preserved so a
+     * remount can reuse what the user already had.
+     */
+    closeAllSessions(): void;
+    /**
+     * Wipe everything. Used when the user disconnects every wallet — we no
+     * longer have a stable identity to bind threads to.
+     */
+    reset(): void;
+}
+
 type RuntimeUserStateProviderProps = {
     children: ReactNode;
-    sessionManager: SessionManager;
+    registry: ThreadRegistry;
     getUserState: () => UserState;
     setUser: (data: Partial<UserState>) => void;
     onUserStateChange: (callback: (user: UserState) => void) => () => void;
 };
-declare function RuntimeUserStateProvider({ children, sessionManager, getUserState, setUser, onUserStateChange, }: RuntimeUserStateProviderProps): react_jsx_runtime.JSX.Element;
+declare function RuntimeUserStateProvider({ children, registry, getUserState, setUser, onUserStateChange, }: RuntimeUserStateProviderProps): react_jsx_runtime.JSX.Element;
 
 type ThreadContext = {
     currentThreadId: string;
@@ -379,108 +426,101 @@ declare const getChainInfo: (chainId: number | undefined) => ChainInfo | undefin
  */
 declare function resolveAutoModel(models: string[]): string | null;
 
-/** A stored BYOK entry for an LLM provider */
+type ApiKeyState = {
+    apiKey: string | null;
+};
+type ApiKeyActions = {
+    setApiKey: (apiKey: string | null) => void;
+};
+
 type StoredByokKey = {
     apiKey: string;
     keyPrefix: string;
     label?: string;
 };
-type StoredModelPreference = {
-    mode: ModelSelectionMode;
-    model: string | null;
-};
-/** Global control state (shared across all threads) */
-type ControlState = {
-    /** API key for authenticated requests */
-    apiKey: string | null;
-    /** Stable client identifier for this browser profile (associates sessions with secrets) */
-    clientId: string | null;
-    /** Available models fetched from backend */
-    availableModels: string[];
-    /** Authorized apps fetched from backend — names only, derived from
-     *  `appDescriptors`. Kept as a separate field so existing
-     *  `authorizedApps.includes(app)` consumers keep working. */
-    authorizedApps: string[];
-    /** Full per-app descriptors from `/api/session/apps`, including each
-     *  app's declared secret slots. Used by the Secrets settings page to
-     *  render slot inputs and by the chat shell to gate app load. */
-    appDescriptors: AomiAppDescriptor[];
-    /** Default model (first from availableModels) */
-    defaultModel: string | null;
-    /** Default app (from authorizedApps) */
-    defaultApp: string | null;
-    /** BYOK entries stored locally — keyed by LLM provider name */
+type ByokState = {
     byokKeys: Record<string, StoredByokKey>;
 };
-type ControlContextApi = {
-    /** Global state (apiKey, clientId, available models/apps) */
-    state: ControlState;
-    /** Update global state (apiKey only) */
-    setApiKey: (apiKey: string | null) => void;
-    /** Ingest secrets into the backend vault, returns opaque handles. Pass
-     *  `app` to scope to the per-app store; omit for the flat client store
-     *  (BYOK / STREAM / legacy). */
+type SecretsActions = {
     ingestSecrets: (secrets: Record<string, string>, app?: string) => Promise<Record<string, string>>;
-    /** Clear secrets from the backend vault. With `app`, clears only that
-     *  app's per-app slots; without, wipes the entire client (flat + app). */
     clearSecrets: (app?: string) => Promise<void>;
-    /** Remove a single secret. With `app`, targets the per-app store under
-     *  that scope; without, targets the flat store. */
     deleteSecret: (name: string, app?: string) => Promise<void>;
-    /** Return the names of slots filled per app for this client. Source of
-     *  truth for the Secrets settings page (no values are returned). */
     listSecrets: () => Promise<Record<string, string[]>>;
-    /** Store a BYOK entry for an LLM provider in localStorage and ingest into backend vault */
+};
+type ByokActions = SecretsActions & {
     setByok: (provider: string, apiKey: string, label?: string) => Promise<void>;
-    /** Remove a BYOK entry from localStorage and backend vault */
     removeByok: (provider: string) => Promise<void>;
-    /** Get all stored BYOK entries (metadata only — keys are in state.byokKeys) */
     getByokKeys: () => Record<string, StoredByokKey>;
-    /** Check if a BYOK entry is stored */
     hasByok: (provider?: string) => boolean;
-    /** Fetch available models from backend */
+};
+
+type AuthEndpointsState = {
+    availableModels: string[];
+    defaultModel: string | null;
+    authorizedApps: string[];
+    appDescriptors: AomiAppDescriptor[];
+    defaultApp: string | null;
+};
+type AuthEndpointsActions = {
+    /** Force a refresh of the models list. */
     getAvailableModels: () => Promise<string[]>;
-    /** Fetch authorized apps from backend */
+    /** Force a refresh of the authorized apps list. */
     getAuthorizedApps: () => Promise<string[]>;
-    /** Get current thread's control state */
+};
+
+type PerThreadControlActions = {
     getCurrentThreadControl: () => ThreadControlState;
-    /** Get the current thread's effective app after auth fallback */
     getCurrentThreadApp: () => string;
-    /** Select a model for the current thread (updates metadata + calls backend) */
+    getPreferredThreadControl: () => ThreadControlState;
     onModelSelect: (model: string, options?: {
         mode?: ModelSelectionMode;
     }) => Promise<void>;
-    /** Select an app for the current thread (updates metadata only) */
     onAppSelect: (app: string) => void;
-    /** Whether the current thread is processing (disables control switching) */
-    isProcessing: boolean;
-    /** Mark control state as synced (called after chat starts) */
     markControlSynced: () => void;
-    /** Sync pending control state to the backend before sending */
     syncCurrentThreadControl: () => Promise<void>;
-    /** Build initial control state for new local threads */
-    getPreferredThreadControl: () => ThreadControlState;
-    /** Get global control state */
+};
+
+/**
+ * Aggregated control state. Mirrors the historical shape so callers reading
+ * `useControl().state` keep working. New code should prefer the focused
+ * hooks and read their narrower slices directly.
+ */
+type ControlState = ApiKeyState & ByokState & AuthEndpointsState & {
+    clientId: string | null;
+};
+type ControlContextApi = ApiKeyActions & ByokActions & AuthEndpointsActions & PerThreadControlActions & {
+    state: ControlState;
+    isProcessing: boolean;
+    /** Synchronous getter used by the runtime to read the latest state from a
+     *  callback that fires outside render. */
     getControlState: () => ControlState;
-    /** Subscribe to global state changes */
-    onControlStateChange: (callback: (state: ControlState) => void) => () => void;
-    /** @deprecated Use getCurrentThreadControl().app instead */
-    setState: (updates: Partial<{
-        app: string | null;
-        apiKey: string | null;
-    }>) => void;
 };
 declare function useControl(): ControlContextApi;
+declare function useApiKey(): {
+    state: ApiKeyState & {
+        clientId: string | null;
+    };
+    actions: ApiKeyActions;
+};
+declare function useByok(): {
+    state: ByokState;
+    actions: ByokActions;
+};
+declare function useAuthEndpoints(): {
+    state: AuthEndpointsState;
+    actions: AuthEndpointsActions;
+};
+declare function usePerThreadControl(): {
+    actions: PerThreadControlActions;
+    isProcessing: boolean;
+};
 type ControlContextProviderProps = {
     children: ReactNode;
     aomiClient: AomiClient;
     sessionId: string;
-    publicKey?: string;
-    /** Get metadata for a thread */
     getThreadMetadata: (threadId: string) => ThreadMetadata | undefined;
-    /** Update metadata for a thread */
-    updateThreadMetadata: (threadId: string, updates: Partial<ThreadMetadata>) => void;
+    updateThreadMetadata: (threadId: string, partial: Partial<ThreadMetadata>) => void;
 };
-declare function ControlContextProvider({ children, aomiClient, sessionId, publicKey, getThreadMetadata, updateThreadMetadata, }: ControlContextProviderProps): react_jsx_runtime.JSX.Element;
+declare function ControlContextProvider({ children, aomiClient, sessionId, getThreadMetadata, updateThreadMetadata, }: ControlContextProviderProps): react_jsx_runtime.JSX.Element;
 
-export { type AomiRuntimeApi, AomiRuntimeApiProvider, AomiRuntimeProvider, type AomiRuntimeProviderProps, type ControlContextApi, ControlContextProvider, type ControlContextProviderProps, type ControlState, type EventContext, EventContextProvider, type EventContextProviderProps, type EventSubscriber, ExtUserProvider, type InboundEvent, type ModelSelectionMode, type Notification$1 as Notification, type NotificationApi, NotificationContextProvider, type NotificationContextProviderProps, type NotificationContextApi as NotificationContextValue, type NotificationHandlerConfig, type NotificationType, RuntimeUserStateProvider, type SSEStatus, SUPPORTED_CHAINS, type NotificationData as ShowNotificationParams, type StoredByokKey, type StoredModelPreference, type ThreadContext, ThreadContextProvider, type ThreadControlState, type ThreadMetadata, type UserConfig, type WalletHandlerApi, type WalletHandlerConfig, type WalletRequestStatus, cn, formatAddress, getChainInfo, getNetworkName, initThreadControl, resolveAutoModel, useAomiRuntime, useControl, useCurrentThreadMessages, useCurrentThreadMetadata, useEventContext, useNotification, useNotificationHandler, useOptionalAomiRuntime, useThreadContext, useUser, useWalletHandler };
+export { type AomiRuntimeApi, AomiRuntimeApiProvider, AomiRuntimeProvider, type AomiRuntimeProviderProps, type ControlContextApi, ControlContextProvider, type ControlContextProviderProps, type ControlState, type EventContext, EventContextProvider, type EventContextProviderProps, type EventSubscriber, ExtUserProvider, type InboundEvent, type ModelSelectionMode, type Notification$1 as Notification, type NotificationApi, NotificationContextProvider, type NotificationContextProviderProps, type NotificationContextApi as NotificationContextValue, type NotificationHandlerConfig, type NotificationType, RuntimeUserStateProvider, type SSEStatus, SUPPORTED_CHAINS, type NotificationData as ShowNotificationParams, type StoredByokKey, type ThreadContext, ThreadContextProvider, type ThreadControlState, type ThreadMetadata, type UserConfig, type WalletHandlerApi, type WalletHandlerConfig, type WalletRequestStatus, cn, formatAddress, getChainInfo, getNetworkName, initThreadControl, resolveAutoModel, useAomiRuntime, useApiKey, useAuthEndpoints, useByok, useControl, useCurrentThreadMessages, useCurrentThreadMetadata, useEventContext, useNotification, useNotificationHandler, useOptionalAomiRuntime, usePerThreadControl, useThreadContext, useUser, useWalletHandler };

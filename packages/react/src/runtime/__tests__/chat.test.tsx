@@ -80,7 +80,7 @@ describe("Chat API", () => {
           },
         },
       });
-      expect(createThread).toHaveBeenCalledWith(api.currentThreadId, undefined);
+      expect(createThread).toHaveBeenCalledWith(api.currentThreadId);
       expect(postChatMessage).toHaveBeenCalled();
 
       await act(async () => {
@@ -174,7 +174,7 @@ describe("Chat API", () => {
           text: "You're out of funds, please set up a payment method.",
         },
       ]);
-      expect(createThread).toHaveBeenCalledWith(api.currentThreadId, undefined);
+      expect(createThread).toHaveBeenCalledWith(api.currentThreadId);
       expect(setModel).toHaveBeenCalledWith(
         api.currentThreadId,
         "auto-model",
@@ -255,13 +255,13 @@ describe("Chat API", () => {
       });
 
       expect(ensureAccount).not.toHaveBeenCalled();
-      expect(createThread).toHaveBeenCalledWith(api.currentThreadId, "0xabc");
+      expect(createThread).toHaveBeenCalledWith(api.currentThreadId);
       expect(createThread.mock.invocationCallOrder[0]).toBeLessThan(
         postChatMessage.mock.invocationCallOrder[0],
       );
     });
 
-    it("sends a Solana-only chat without legacy public_key bootstrap", async () => {
+    it("sends a Solana-only chat through user_state", async () => {
       const ensureAccount = vi.fn(async () => undefined);
       const createThread = vi.fn(async (threadId: string) => ({
         session_id: threadId,
@@ -278,7 +278,7 @@ describe("Chat API", () => {
 
       await act(async () => {
         api.setUser({
-          connection: { is_connected: true, primary_family: "svm" },
+          connection: { is_connected: true },
           svm: {
             address: "So1anaCaseSensitiveSigner",
             cluster: "solana:mainnet",
@@ -291,12 +291,11 @@ describe("Chat API", () => {
       });
 
       expect(ensureAccount).not.toHaveBeenCalled();
-      expect(createThread).toHaveBeenCalledWith(api.currentThreadId, undefined);
+      expect(createThread).toHaveBeenCalledWith(api.currentThreadId);
       expect(postChatMessage).toHaveBeenCalledWith(
         api.currentThreadId,
         "Use my Solana wallet",
         expect.objectContaining({
-          publicKey: undefined,
           userState: expect.objectContaining({
             svm: expect.objectContaining({
               address: "So1anaCaseSensitiveSigner",
@@ -445,14 +444,12 @@ describe("Chat API", () => {
         string,
         (
           | {
-              publicKey?: string;
               userState?: Record<string, unknown>;
             }
           | undefined
         ),
       ];
 
-      expect(call[2]?.publicKey).toBeUndefined();
       expect(call[2]?.userState).toMatchObject({
         connection: { is_connected: false },
       });

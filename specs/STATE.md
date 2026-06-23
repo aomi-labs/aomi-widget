@@ -2,9 +2,56 @@
 
 ## Last Updated
 
-2026-06-12 - Privy autonomous-signing e2e fixes (Solana slots + BE PEM normalization)
+2026-06-22 — Removed no-op `createAccountBearerProvider` (proxy-inject is canonical)
 
 ## Recent Changes
+
+### Remove no-op `createAccountBearerProvider` (2026-06-22)
+
+The browser holds no AccountBearer under the proxy-inject design (Option 2): the
+portal sets an httpOnly `aomi_session` cookie at login (`AomiSessionBridge` →
+`/api/account/sessions/exchange`) and the same-origin proxy injects the bearer
+from that cookie on every `/api/*` call. `createAccountBearerProvider` was a
+no-op that always yielded `undefined`, so its plumbing produced nothing.
+
+- Deleted `packages/client/src/account-session.ts` (function +
+  `AccountBearerProviderOptions`/`AccountBearerProvider`/`EmbeddedCredentialProvider`/`AccountSessionExchangeResponse` types) and its barrel exports in `packages/client/src/index.ts`.
+- Deleted `packages/client/test/account-session.unit.test.ts` (only exercised the no-op).
+- Stripped the dead `accountBearerProvider` memo + dispose effect and the `getAccountBearer` client option from `apps/portal/src/components/portal-aomi-frame.tsx`.
+- Note: `dist/` (`packages/client`) still needs a rebuild (`pnpm run build:lib`) to drop the stale export/types.
+
+
+### Deploy flow: CLI, SDK, BFF security, Portal UI (2026-06-20)
+
+Shipped 11 PRs enabling a full deploy app flow. End-to-end: `aomi deploy --commit` →
+BFF → platform backend → GitHub Pages, surfaced in the Portal onboarding wizard.
+
+**CLI (new — `packages/client/src/cli/commands/`):**
+- `aomi deploy --commit` — validates git state, uploads source, returns app ID (#234)
+- `aomi status` — polls deployment/release progress with live terminal output (#239)
+- `aomi activate` — promotes a built release to live (#239)
+- `DeployCliError` in `errors.ts` with typed codes: `AUTH_FAILED`, `BACKEND_ERROR`, `NOT_A_GIT_REPO`, `VALIDATION_ERROR`, `NETWORK_ERROR` (#234, #242)
+- Property-based tests for deploy error handling using `fast-check` (#242)
+
+**SDK (`packages/deploy/src/`):**
+- Typed deployment status and watch types (#232)
+- `watchDeployment()` with exponential backoff, property-based tests (#235)
+
+**BFF (`apps/portal/src/app/api/onboard/`):**
+- Security utilities: CSRF protection, rate limiting, input validation (#233)
+- `TokenCache` with configurable TTL, 30s fetch timeout, 401/403 auto-invalidation (#236)
+- `handleDeploy()` factory unifying dry-run/deploy routes (#237)
+- Route hardening across all onboard endpoints (#238)
+- Property-based tests for route factory and security (#242)
+
+**Portal UI (`apps/portal/src/components/settings/onboarding/`):**
+- Progress bar in deploy step, `applicationId` wiring through wizard (#240)
+- `chatAppUrl()` helper, configurable chat URL, dead mock code removed (#241)
+
+**CI:**
+- OpenAPI check made conditional (`if: vars.NEXT_PUBLIC_BACKEND_URL != ''`) — cherry-picked to all 11 branches
+
+379 tests pass. All branches deleted after merge.
 
 ### Privy autonomous signing: persist Solana wallet slots (2026-06-12)
 

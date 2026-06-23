@@ -46,7 +46,6 @@ export const registry: RegistryComponent[] = [
   {
     name: "aomi-auth-adapter",
     file: [
-      "lib/aomi-auth-adapter.ts",
       "lib/aomi-auth-adapter/index.ts",
       "lib/aomi-auth-adapter/context.tsx",
       "lib/aomi-auth-adapter/types.ts",
@@ -78,7 +77,6 @@ export const registry: RegistryComponent[] = [
       "components/icons/apps/index.tsx",
       "components/icons/vendors/index.tsx",
       "components/icons/chains/index.tsx",
-      "lib/aomi-auth-adapter.ts",
       "lib/auth-identity.ts",
     ],
     dependencies: [

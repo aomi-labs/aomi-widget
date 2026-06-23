@@ -4,7 +4,10 @@ import { CheckCircle2, ExternalLink } from "lucide-react";
 import { TEMPLATE_REPO_URL } from "@portal/lib/onboarding";
 
 /** Shared success state. `repo` is owner/name when known; falls back to the
- *  template so the clone story still renders during early wiring. */
+ *  template so the clone story still renders during early wiring.
+ *
+ *  NOTE: `applicationId` is omitted here because the backend hasn't shipped the
+ *  opaque app-identity contract yet. When it does, add the prop and display it. */
 export function LivePanel({
   repo,
   chatUrl,

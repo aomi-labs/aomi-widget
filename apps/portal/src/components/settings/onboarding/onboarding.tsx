@@ -55,7 +55,15 @@ export function Onboarding() {
   useEffect(() => {
     if (typeof window === "undefined") return;
     const redirect = readGithubRedirect(window.location.search);
-    if (!redirect) return;
+    if (!redirect) {
+      setInstallingPath(null);
+      setInstallError(null);
+      const cur = loadOnboarding();
+      if (cur.pendingInstall) {
+        update(withPendingInstall(cur, null));
+      }
+      return;
+    }
 
     const cur = loadOnboarding();
     const matched = cur.pendingInstall?.path ?? cur.path;
@@ -72,7 +80,6 @@ export function Onboarding() {
       setInstallSuccess(true);
     }
 
-    // Strip GitHub's params so a refresh doesn't re-trigger hydration.
     const url = new URL(window.location.href);
     let changed = false;
     for (const key of GITHUB_REDIRECT_KEYS) {
@@ -82,7 +89,6 @@ export function Onboarding() {
       }
     }
     if (changed) window.history.replaceState({}, "", url.toString());
-    // `update` is a stable useCallback ([] deps), so this still runs once.
   }, [update]);
 
   // --- auto-dismiss the install-success banner after 6s ---------------------
@@ -91,21 +97,6 @@ export function Onboarding() {
     const id = setTimeout(() => setInstallSuccess(false), 6000);
     return () => clearTimeout(id);
   }, [installSuccess]);
-
-  // --- detect GitHub install completed in another tab -----------------------
-  useEffect(() => {
-    if (!installingPath) return;
-    const id = setInterval(() => {
-      const cur = loadOnboarding();
-      const progress = cur[installingPath];
-      if (progress.installationId && progress.installationStatus) {
-        setState(cur);
-        setInstallSuccess(true);
-        setInstallingPath(null);
-      }
-    }, 1000);
-    return () => clearInterval(id);
-  }, [installingPath]);
 
   // --- sync deploymentId to URL params -------------------------------------
   useEffect(() => {
@@ -144,9 +135,18 @@ export function Onboarding() {
     [state, update],
   );
 
-  // Save progress before opening GitHub in a new tab. The redirect will
-  // land in the new tab and write the result to localStorage; the polling
-  // effect above picks it up in this tab.
+  const makeOnReset = useCallback(
+    (path: OnboardingPath) => () => {
+      if (typeof window === "undefined") return;
+      const url = new URL(window.location.href);
+      url.searchParams.delete("deployment_id");
+      url.searchParams.delete("deploy_path");
+      window.history.replaceState({}, "", url.toString());
+      update(withProgress(state, path, { deploymentId: undefined, live: false }));
+    },
+    [state, update],
+  );
+
   const makeBeginInstall = useCallback(
     (path: OnboardingPath, mode: "install" | "authorize" = "install") =>
       async () => {
@@ -157,15 +157,12 @@ export function Onboarding() {
         setInstallingPath(path);
         try {
           const repo = next[path].repo;
-          window.open(
-            await githubAppInstallUrl({
-              platform: resolveDeployPlatform(),
-              repo,
-              mode,
-              app: path === "oneshot" ? 2 : undefined,
-            }),
-            "_blank",
-          );
+          window.location.href = await githubAppInstallUrl({
+            platform: resolveDeployPlatform(),
+            repo,
+            mode,
+            app: path === "oneshot" ? 2 : undefined,
+          });
         } catch (error) {
           setInstallingPath(null);
           setInstallError(
@@ -195,6 +192,7 @@ export function Onboarding() {
           installing={installingPath === "oneshot"}
           installError={installError}
           patch={makePatch("oneshot")}
+          onReset={makeOnReset("oneshot")}
         />
       </>
     );
@@ -212,6 +210,7 @@ export function Onboarding() {
         installing={installingPath === "bootstrap"}
         installError={installError}
         patch={makePatch("bootstrap")}
+        onReset={makeOnReset("bootstrap")}
       />
     </>
   );

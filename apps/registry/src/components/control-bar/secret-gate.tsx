@@ -1,7 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useControl } from "@aomi-labs/react";
+import {
+  useApiKey,
+  useAuthEndpoints,
+  useByok,
+  usePerThreadControl,
+} from "@aomi-labs/react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
@@ -16,18 +21,15 @@ import { Input } from "@/components/ui/input";
  * remain interactable).
  */
 export function SecretGate() {
-  const {
-    state,
-    getCurrentThreadApp,
-    ingestSecrets,
-    listSecrets,
-    onAppSelect,
-  } = useControl();
+  const { state: authState } = useAuthEndpoints();
+  const { state: apiKeyState } = useApiKey();
+  const { ingestSecrets, listSecrets } = useByok().actions;
+  const { getCurrentThreadApp, onAppSelect } = usePerThreadControl().actions;
 
   const currentApp = getCurrentThreadApp();
   const descriptor = useMemo(
-    () => state.appDescriptors.find((d) => d.name === currentApp),
-    [state.appDescriptors, currentApp],
+    () => authState.appDescriptors.find((d) => d.name === currentApp),
+    [authState.appDescriptors, currentApp],
   );
   const requiredSlots = useMemo(
     () => (descriptor?.secrets ?? []).filter((s) => s.required),
@@ -44,7 +46,7 @@ export function SecretGate() {
   // client id changes. Until we have a response, we render nothing — the
   // grey overlay only flashes when we know required slots are missing.
   useEffect(() => {
-    if (!state.clientId || requiredSlots.length === 0) {
+    if (!apiKeyState.clientId || requiredSlots.length === 0) {
       setFilled(new Set());
       setKnownEmpty(requiredSlots.length === 0);
       return;
@@ -65,7 +67,7 @@ export function SecretGate() {
     return () => {
       cancelled = true;
     };
-  }, [state.clientId, currentApp, requiredSlots.length, listSecrets]);
+  }, [apiKeyState.clientId, currentApp, requiredSlots.length, listSecrets]);
 
   const missing = useMemo(
     () => requiredSlots.filter((s) => !filled.has(s.name)),
@@ -105,13 +107,13 @@ export function SecretGate() {
   // app conventionally has none; any other already-satisfied app is also
   // acceptable. Falls back to "default" even if descriptor lookup fails.
   const handleSwitchAway = useCallback(() => {
-    const candidate = state.appDescriptors.find(
+    const candidate = authState.appDescriptors.find(
       (d) =>
         d.name !== currentApp &&
         (d.secrets ?? []).every((s) => !s.required),
     );
     onAppSelect(candidate?.name ?? "default");
-  }, [currentApp, onAppSelect, state.appDescriptors]);
+  }, [currentApp, onAppSelect, authState.appDescriptors]);
 
   if (!knownEmpty || missing.length === 0) return null;
 

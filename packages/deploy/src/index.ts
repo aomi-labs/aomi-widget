@@ -1,4 +1,5 @@
 // @aomi-labs/deploy — server-side typed relay for the Aomi platform deploy API.
+// (Service-identity/topology lives in @aomi-labs/service.)
 
 export { DeploymentClient, assertServerOnly } from "./client";
 
@@ -8,7 +9,7 @@ export {
   ACTIVATION_REQUEST_KIND,
   ACTIVATION_REQUEST_SOURCE,
   ACTIVATION_REQUEST_EMBED_COLOR,
-} from "./activation-request";
+ } from "./activation-request";
 
 export {
   DeployError,
@@ -37,11 +38,16 @@ export type {
   ActivationPromotion,
   ActivatedApp,
   StatusInput,
-  StatusResult,
+  DeploymentStatus,
+  DeploymentAppStatus,
+  ProgressModel,
+  DeploymentEventKind,
+  DeploymentProgressEvent,
+  WatchDeploymentOptions,
 } from "./types";
 
 export type {
   ActivationRequestInput,
   ActivationRequestPayload,
-  DiscordWebhookBody,
+   DiscordWebhookBody,
 } from "./activation-request";

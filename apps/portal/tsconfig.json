@@ -25,12 +25,16 @@
       "@/components/*": ["../registry/src/components/*"],
       "@/hooks/*": ["../registry/src/hooks/*"],
       "@/lib/*": ["../registry/src/lib/*"],
+      "@aomi-labs/account": ["../../packages/account/src/index.ts"],
+      "@aomi-labs/account/*": ["../../packages/account/src/*"],
       "@aomi-labs/client": ["../../packages/client/src/index.ts"],
       "@aomi-labs/client/*": ["../../packages/client/src/*"],
       "@aomi-labs/deploy": ["../../packages/deploy/src/index.ts"],
       "@aomi-labs/deploy/*": ["../../packages/deploy/src/*"],
       "@aomi-labs/react": ["../../packages/react/src/index.ts"],
       "@aomi-labs/react/*": ["../../packages/react/src/*"],
+      "@aomi-labs/service": ["../../packages/service/src/index.ts"],
+      "@aomi-labs/service/*": ["../../packages/service/src/*"],
       "@getpara/react-sdk": ["./node_modules/@getpara/react-sdk"],
       "@tanstack/react-query": ["./node_modules/@tanstack/react-query"],
       "react": ["./node_modules/@types/react/index.d.ts"],
@@ -50,5 +54,5 @@
     ".next/types/**/*.ts",
     ".next/dev/types/**/*.ts"
   ],
-  "exclude": ["node_modules"]
+  "exclude": ["node_modules", "**/*.test.ts", "**/*.test.tsx"]
 }

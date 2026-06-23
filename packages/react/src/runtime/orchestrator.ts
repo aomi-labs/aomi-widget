@@ -10,11 +10,10 @@ import {
   useThreadContext,
   type ThreadContext,
 } from "../contexts/thread-context";
-import { SessionManager } from "./session-manager";
+import { ThreadRegistry } from "./thread-registry";
 import { toInboundMessage } from "./utils";
 
 type OrchestratorOptions = {
-  getPublicKey?: () => string | undefined;
   getUserState?: () => UserState;
   getApp: () => string;
   getApiKey?: () => string | null;
@@ -175,69 +174,35 @@ export function useRuntimeOrchestrator(
 
   const [isRunning, setIsRunning] = useState(false);
 
-  const sessionManagerRef = useRef<SessionManager | null>(null);
-  if (!sessionManagerRef.current) {
-    sessionManagerRef.current = new SessionManager(() => aomiClientRef.current);
+  const registryRef = useRef<ThreadRegistry | null>(null);
+  if (!registryRef.current) {
+    registryRef.current = new ThreadRegistry(() => aomiClientRef.current);
   }
-
-  const pendingFetches = useRef<Set<string>>(new Set());
-  const initialStatePromises = useRef<Map<string, Promise<void>>>(new Map());
-  const hydratedThreadIds = useRef<Set<string>>(new Set());
-  // Track event listener cleanup per thread
-  const listenerCleanups = useRef<Map<string, () => void>>(new Map());
-
-  const cleanupSessionListeners = useCallback((threadId: string) => {
-    listenerCleanups.current.get(threadId)?.();
-    listenerCleanups.current.delete(threadId);
-  }, []);
+  const registry = registryRef.current;
 
   const closeSession = useCallback(
     (threadId: string) => {
-      cleanupSessionListeners(threadId);
-      pendingFetches.current.delete(threadId);
-      initialStatePromises.current.delete(threadId);
-      hydratedThreadIds.current.delete(threadId);
-      sessionManagerRef.current?.close(threadId);
+      registry.closeSession(threadId);
     },
-    [cleanupSessionListeners],
+    [registry],
   );
 
   const closeIdleSessionsExcept = useCallback(
-    (activeThreadId: string) => {
-      const closedThreadIds =
-        sessionManagerRef.current?.closeIdleExcept(
-          activeThreadId,
-          cleanupSessionListeners,
-        ) ?? [];
-
-      for (const threadId of closedThreadIds) {
-        pendingFetches.current.delete(threadId);
-        initialStatePromises.current.delete(threadId);
-        hydratedThreadIds.current.delete(threadId);
-      }
-
-      return closedThreadIds;
-    },
-    [cleanupSessionListeners],
+    (activeThreadId: string) =>
+      registry.closeIdleSessionsExcept(activeThreadId),
+    [registry],
   );
 
   const closeAllSessions = useCallback(() => {
-    pendingFetches.current.clear();
-    initialStatePromises.current.clear();
-    hydratedThreadIds.current.clear();
-    for (const threadId of Array.from(listenerCleanups.current.keys())) {
-      cleanupSessionListeners(threadId);
-    }
-    sessionManagerRef.current?.closeAll();
-  }, [cleanupSessionListeners]);
+    registry.closeAllSessions();
+  }, [registry]);
 
   /** Get or create a ClientSession for a thread, wiring up event listeners. */
   const getSession = useCallback(
     (threadId: string): ClientSession => {
-      const manager = sessionManagerRef.current!;
+      const manager = registry.sessionManager;
       const nextOptions = optionsRef.current;
       const nextApp = nextOptions.getApp();
-      const nextPublicKey = nextOptions.getPublicKey?.();
       const nextApiKey = nextOptions.getApiKey?.() ?? undefined;
       const nextClientId = nextOptions.getClientId?.();
       const nextUserState = nextOptions.getUserState?.();
@@ -245,7 +210,6 @@ export function useRuntimeOrchestrator(
       if (existing) {
         existing.syncRuntimeOptions({
           app: nextApp,
-          publicKey: nextPublicKey,
           apiKey: nextApiKey,
           clientId: nextClientId,
           userState: nextUserState,
@@ -258,14 +222,15 @@ export function useRuntimeOrchestrator(
 
       const session = manager.getOrCreate(threadId, {
         app: nextApp,
-        publicKey: nextPublicKey,
         apiKey: nextApiKey,
         clientId: nextClientId,
         clientType: CLIENT_TYPE_WEB_UI,
         syncPendingTxRequestsFromUserState: false,
         userState: nextUserState,
       });
-      session.setSSEActive(threadContextRef.current.currentThreadId === threadId);
+      session.setSSEActive(
+        threadContextRef.current.currentThreadId === threadId,
+      );
 
       // Wire ClientSession events → React state
       const cleanups: Array<() => void> = [];
@@ -339,46 +304,60 @@ export function useRuntimeOrchestrator(
       cleanups.push(forwardEvent("async_callback"));
       cleanups.push(forwardEvent("user_state_request"));
 
-      listenerCleanups.current.set(threadId, () => {
+      registry.setListenerCleanup(threadId, () => {
         for (const cleanup of cleanups) cleanup();
       });
 
       return session;
     },
-    // Stable deps — option getters are refs
-    [],
+    // Stable deps — registry instance is stable for the lifetime of the hook
+    [registry],
   );
 
   const ensureInitialState = useCallback(
     async (threadId: string) => {
-      const existingPromise = initialStatePromises.current.get(threadId);
+      const existingPromise = registry.initialStatePromises.get(threadId);
       if (existingPromise) {
         return existingPromise;
       }
 
       const cachedMessages =
         threadContextRef.current.getThreadMessages(threadId);
-      const existingSession = sessionManagerRef.current?.get(threadId);
-      if (
-        existingSession &&
-        (hydratedThreadIds.current.has(threadId) || cachedMessages.length > 0)
-      ) {
-        optionsRef.current.onPendingRequestsChange?.(
-          existingSession.getPendingRequests(),
-        );
-        if (threadContextRef.current.currentThreadId === threadId) {
-          setIsRunning(existingSession.getIsProcessing());
+      const hasCachedMessages = cachedMessages.length > 0;
+      const isHydrated = registry.hydratedThreads.has(threadId);
+      if (hasCachedMessages || isHydrated) {
+        // Cache hit: render whatever's already in the thread context immediately.
+        const session = registry.sessionManager.get(threadId);
+        if (session) {
+          // Session survived closeIdleSessionsExcept (only happens when it's
+          // still processing/polling/has pending requests). Keep using it;
+          // SSE is already attached.
+          optionsRef.current.onPendingRequestsChange?.(
+            session.getPendingRequests(),
+          );
+          if (threadContextRef.current.currentThreadId === threadId) {
+            setIsRunning(session.getIsProcessing());
+          }
+        } else {
+          // Session was torn down because the thread was idle. Don't recreate
+          // it just to render cached messages — that would reopen a fresh SSE
+          // connection (/api/updates) for no reason. The session lazily
+          // recreates inside sendMessage when the user actually does something.
+          if (threadContextRef.current.currentThreadId === threadId) {
+            setIsRunning(false);
+          }
+          optionsRef.current.onPendingRequestsChange?.([]);
         }
         return;
       }
 
       const fetchPromise = (async () => {
-        pendingFetches.current.add(threadId);
+        registry.pendingFetches.add(threadId);
 
         try {
           const session = getSession(threadId);
           await session.fetchCurrentState();
-          hydratedThreadIds.current.add(threadId);
+          registry.hydratedThreads.add(threadId);
           optionsRef.current.onPendingRequestsChange?.(
             session.getPendingRequests(),
           );
@@ -392,12 +371,12 @@ export function useRuntimeOrchestrator(
             setIsRunning(false);
           }
         } finally {
-          pendingFetches.current.delete(threadId);
-          initialStatePromises.current.delete(threadId);
+          registry.pendingFetches.delete(threadId);
+          registry.initialStatePromises.delete(threadId);
         }
       })();
 
-      initialStatePromises.current.set(threadId, fetchPromise);
+      registry.initialStatePromises.set(threadId, fetchPromise);
       return fetchPromise;
     },
     [getSession],
@@ -499,19 +478,22 @@ export function useRuntimeOrchestrator(
   );
 
   /** Cancel the current generation on the given thread. */
-  const cancelGeneration = useCallback(async (threadId: string) => {
-    const session = sessionManagerRef.current?.get(threadId);
-    if (session) {
-      await session.interrupt();
-    }
-  }, []);
+  const cancelGeneration = useCallback(
+    async (threadId: string) => {
+      const session = registry.sessionManager.get(threadId);
+      if (session) {
+        await session.interrupt();
+      }
+    },
+    [registry],
+  );
 
   // Keep SSE active only for the current thread.
   useEffect(() => {
-    sessionManagerRef.current?.forEach((session, threadId) => {
+    registry.sessionManager.forEach((session, threadId) => {
       session.setSSEActive(threadId === threadContext.currentThreadId);
     });
-  }, [threadContext.currentThreadId]);
+  }, [registry, threadContext.currentThreadId]);
 
   // Cleanup on unmount
   useEffect(() => {
@@ -521,7 +503,8 @@ export function useRuntimeOrchestrator(
   }, [closeAllSessions]);
 
   return {
-    sessionManager: sessionManagerRef.current!,
+    registry,
+    sessionManager: registry.sessionManager,
     getSession,
     isRunning,
     setIsRunning,

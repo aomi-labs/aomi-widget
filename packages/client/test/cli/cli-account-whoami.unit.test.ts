@@ -32,15 +32,15 @@ describe("aomi account whoami", () => {
     const { CliSession } = await import("../../src/cli/cli-session");
     const { whoamiCommand } = await import("../../src/cli/commands/account");
 
-    CliSession.loadOrCreate({ ...baseConfig, accountAccessToken: "bearer-1" });
+    CliSession.loadOrCreate({ ...baseConfig, accountBearer: "bearer-1" });
 
     const response = {
       ok: true,
       status: 200,
       statusText: "OK",
       json: vi.fn(async () => ({
-        account: { user_id: "user-1", verified_email: "a@b.c", tier: "free" },
-        wallets: [
+        user: { user_id: "user-1", verified_email: "a@b.c", tier: "free" },
+        identity_wallets: [
           {
             wallet_id: "wallet-evm-1",
             address: "0xabc",
@@ -71,7 +71,9 @@ describe("aomi account whoami", () => {
       expect.stringContaining("Ethereum [privy]: 0xabc"),
     );
     expect(logSpy).toHaveBeenCalledWith(
-      expect.stringContaining("Solana [privy]: So11111111111111111111111111111111111111112"),
+      expect.stringContaining(
+        "Solana [privy]: So11111111111111111111111111111111111111112",
+      ),
     );
   });
 
@@ -103,7 +105,7 @@ describe("aomi account whoami", () => {
     );
   });
 
-  it("reports provider exchange failures separately from anonymous sessions", async () => {
+  it("treats legacy provider exchange config as unavailable account auth", async () => {
     const { CliSession } = await import("../../src/cli/cli-session");
     const { whoamiCommand } = await import("../../src/cli/commands/account");
 
@@ -113,12 +115,6 @@ describe("aomi account whoami", () => {
       accountProviderToken: "bad-provider-token",
     });
 
-    const exchangeResponse = {
-      ok: false,
-      status: 401,
-      statusText: "Unauthorized",
-      json: vi.fn(async () => ({})),
-    } as unknown as Response;
     const profileResponse = {
       ok: false,
       status: 400,
@@ -127,20 +123,14 @@ describe("aomi account whoami", () => {
     } as unknown as Response;
     vi.stubGlobal(
       "fetch",
-      vi.fn(async (input: RequestInfo | URL) => {
-        const url = String(input);
-        if (url.endsWith("/api/account/exchange")) {
-          return exchangeResponse;
-        }
-        return profileResponse;
-      }),
+      vi.fn(async () => profileResponse),
     );
     const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
 
     await whoamiCommand(baseConfig);
 
     expect(logSpy).toHaveBeenCalledWith(
-      expect.stringContaining("could not be exchanged"),
+      expect.stringContaining("--account-bearer"),
     );
   });
 });

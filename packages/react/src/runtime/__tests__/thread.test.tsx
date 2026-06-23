@@ -271,7 +271,7 @@ describe("Thread API", () => {
       });
 
       await waitFor(() => {
-        expect(fetchThreads).toHaveBeenCalledWith("0x123");
+        expect(fetchThreads).toHaveBeenCalled();
       });
 
       await waitFor(() => {
@@ -350,7 +350,7 @@ describe("Thread API", () => {
           address: undefined,
           chainId: undefined,
           isConnected: true,
-          connection: { is_connected: true, primary_family: "svm" },
+          connection: { is_connected: true },
           svm: {
             address: "So1anaCaseSensitiveSigner",
             cluster: "solana:mainnet",
@@ -438,7 +438,12 @@ describe("Thread API", () => {
       });
     });
 
-    it("prefetches the top five listed threads in the background", async () => {
+    it("does not eagerly createThread or fetchState for listed-but-unvisited threads", async () => {
+      // Replaces the older "warms top 5 in background" test. The prior
+      // prefetch path called createThread (a wasted round-trip for threads
+      // the backend already knew about) and was later neutered to a no-op
+      // before being deleted entirely. Threads should only incur backend
+      // work the first time the user actually clicks one.
       const threadIds = Array.from(
         { length: 7 },
         (_, index) => `thread-${index + 1}`,
@@ -453,22 +458,11 @@ describe("Thread API", () => {
       const createThread = vi.fn(async (threadId: string) => ({
         session_id: threadId,
       }));
-      const resolveFetches = new Map<string, () => void>();
       const fetchState = vi.fn(
-        (sessionId: string): Promise<AomiStateResponse> =>
-          new Promise((resolve) => {
-            resolveFetches.set(sessionId, () =>
-              resolve({
-                is_processing: false,
-                messages: [
-                  {
-                    sender: "agent",
-                    content: `Prefetched ${sessionId}`,
-                  },
-                ],
-              }),
-            );
-          }),
+        async (): Promise<AomiStateResponse> => ({
+          is_processing: false,
+          messages: [],
+        }),
       );
       setAomiClientConfig({ fetchThreads, createThread, fetchState });
 
@@ -482,59 +476,34 @@ describe("Thread API", () => {
       await waitFor(() => {
         expect(getApi().getThreadMetadata("thread-1")?.title).toBe("Thread 1");
       });
-      expect(getApi().getMessages("thread-1")).toEqual([]);
 
-      await waitFor(() => {
-        expect(fetchState).toHaveBeenCalledTimes(5);
-      });
-
-      expect(fetchState.mock.calls.map(([threadId]) => threadId)).toEqual(
-        threadIds.slice(0, 5),
+      // No prefetch: createThread is not called for any listed-but-unvisited
+      // thread, and fetchState is only called for the current (initial) thread.
+      expect(
+        createThread.mock.calls.some(([threadId]) => threadIds.includes(threadId)),
+      ).toBe(false);
+      const prefetchedStateCalls = fetchState.mock.calls.filter(([sessionId]) =>
+        threadIds.includes(sessionId),
       );
-      expect(createThread.mock.calls.map(([threadId]) => threadId)).toEqual(
-        threadIds.slice(0, 5),
-      );
-      expect(resolveFetches.has("thread-6")).toBe(false);
-      expect(resolveFetches.has("thread-7")).toBe(false);
-
-      await act(async () => {
-        for (const threadId of threadIds.slice(0, 5)) {
-          resolveFetches.get(threadId)?.();
-        }
-        await flushPromises();
-      });
-
-      await waitFor(() => {
-        expect(getApi().getMessages("thread-1")).toEqual([
-          expect.objectContaining({
-            role: "assistant",
-            content: [
-              expect.objectContaining({
-                type: "text",
-                text: "Prefetched thread-1",
-              }),
-            ],
-          }),
-        ]);
-      });
+      expect(prefetchedStateCalls).toEqual([]);
     });
 
-    it("warms a listed thread before fetching its messages", async () => {
-      let warmed = false;
+    it("fetches state lazily on the first switch to a listed thread", async () => {
+      // Replaces the older "warms before fetching messages" test. There is
+      // no warm step anymore — switching to a backend-known thread goes
+      // straight to ensureInitialState, which fetches via the existing
+      // session id without an extra createThread round-trip.
       const fetchThreads = vi.fn(
         async (): Promise<AomiThread[]> => [
           { session_id: "thread-1", title: "Loaded Thread" },
         ],
       );
-      const createThread = vi.fn(async (threadId: string) => {
-        if (threadId === "thread-1") {
-          warmed = true;
-        }
-        return { session_id: threadId };
-      });
+      const createThread = vi.fn(async (threadId: string) => ({
+        session_id: threadId,
+      }));
       const fetchState = vi.fn(
         async (sessionId: string): Promise<AomiStateResponse> => {
-          if (sessionId === "thread-1" && warmed) {
+          if (sessionId === "thread-1") {
             return {
               is_processing: false,
               messages: [
@@ -562,16 +531,18 @@ describe("Thread API", () => {
       });
 
       await waitFor(() => {
-        expect(fetchThreads).toHaveBeenCalledWith("0xabc");
+        expect(fetchThreads).toHaveBeenCalled();
       });
+
+      // createThread was NOT called for the listed thread — its session
+      // already exists on the backend.
+      expect(
+        createThread.mock.calls.some(([threadId]) => threadId === "thread-1"),
+      ).toBe(false);
 
       await act(async () => {
         getApi().selectThread("thread-1");
         await flushPromises();
-      });
-
-      await waitFor(() => {
-        expect(createThread).toHaveBeenCalledWith("thread-1", "0xabc");
       });
 
       await waitFor(() => {
@@ -588,6 +559,7 @@ describe("Thread API", () => {
           }),
         ]);
       });
+      expect(fetchState).toHaveBeenCalledWith("thread-1", expect.anything());
     });
   });
 

@@ -37,6 +37,12 @@ type Phase =
   | "live"
   | "error";
 
+type ProgressModel = {
+  completed: number;
+  total: number;
+  label: string;
+};
+
 function deploymentApps(deployment?: OnboardDeployPayload) {
   return deployment?.platform?.apps ?? [];
 }
@@ -56,10 +62,27 @@ function appNames(deployment?: OnboardDeployPayload): string[] {
 
 const BACKOFF_BASE_MS = 3000;
 const MAX_BACKOFF_MS = 30000;
+const DEPLOY_TIMEOUT_MS = 30 * 60 * 1000; // 30-minute hard limit
 
 function backoffDelay(failureCount: number): number {
   const delay = BACKOFF_BASE_MS * Math.pow(2, failureCount);
   return Math.min(delay, MAX_BACKOFF_MS);
+}
+
+function buildProgressModel(state: string, lastCompleted: number): ProgressModel {
+  const stateToSteps: Record<string, { completed: number; total: number; label: string }> = {
+    pending: { completed: 1, total: 8, label: "Waiting for build" },
+    building: { completed: 2, total: 8, label: "Building CI" },
+    releasing: { completed: 5, total: 8, label: "Verifying release assets" },
+    ready: { completed: 8, total: 8, label: "Build ready" },
+    failed: { completed: lastCompleted, total: 8, label: "Build failed" },
+  };
+  const mapped = stateToSteps[state] ?? { completed: lastCompleted, total: 8, label: "In progress" };
+  return {
+    completed: Math.max(mapped.completed, lastCompleted),
+    total: mapped.total,
+    label: mapped.label,
+  };
 }
 
 function initialPhase(progress: PathProgress): Phase {
@@ -76,6 +99,7 @@ export function DeployStep({
   progress,
   onProgress,
   onReconnectInstall,
+  onReset,
 }: {
   path: OnboardingPath;
   installationId: string;
@@ -84,6 +108,7 @@ export function DeployStep({
   progress: PathProgress;
   onProgress: (patch: Partial<PathProgress>) => void;
   onReconnectInstall?: () => void;
+  onReset?: () => void;
 }) {
   const [phase, setPhase] = useState<Phase>(() => initialPhase(progress));
   const [deployment, setDeployment] = useState<
@@ -98,6 +123,9 @@ export function DeployStep({
   const [copied, setCopied] = useState(false);
   const pollRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const statusFailuresRef = useRef(0);
+  const startTimeRef = useRef<number | null>(null);
+  const [progressModel, setProgressModel] = useState<ProgressModel | null>(null);
+  const lastCompletedRef = useRef(0);
 
   const tags = useMemo(
     () => progress.releaseTags ?? releaseTags(deployment),
@@ -184,7 +212,13 @@ export function DeployStep({
     if (!deploymentId || (phase !== "building" && phase !== "deploying" && phase !== "releasing"))
       return;
     let cancelled = false;
+    if (startTimeRef.current === null) startTimeRef.current = Date.now();
     const tick = async () => {
+      if (Date.now() - (startTimeRef.current ?? 0) > DEPLOY_TIMEOUT_MS) {
+        setPhase("error");
+        setError("Deploy timed out after 30 minutes.");
+        return;
+      }
       try {
         const status = await onboardStatus(deploymentId);
         if (cancelled) return;
@@ -192,6 +226,11 @@ export function DeployStep({
         if (status.deployment) {
           setDeployment(status.deployment);
         }
+        // Update progress model with monotonic clamping
+        const model = buildProgressModel(status.state, lastCompletedRef.current);
+        lastCompletedRef.current = model.completed;
+        setProgressModel(model);
+
         const patch: Partial<PathProgress> = {
           deploymentId,
           live: false,
@@ -254,10 +293,23 @@ export function DeployStep({
           );
           if (
             checks.length > 0 &&
-            checks.every((check) => check.state === "live")
+            checks.every((check) => check.ok && check.state === "live")
           ) {
             onProgress({ live: true });
             setPhase("live");
+            return;
+          }
+          // Early exit if any app reports a terminal error
+          const terminal = checks.find(
+            (c) => c.ok === false || (c.app?.is_active === false && c.app?.loaded === false),
+          );
+          if (terminal) {
+            setError(
+              terminal.app?.name
+                ? `Runtime check failed for ${terminal.app.name}`
+                : "Runtime reported a terminal error during verification.",
+            );
+            setPhase("error");
             return;
           }
         } catch (e) {
@@ -297,11 +349,15 @@ export function DeployStep({
   const reset = useCallback(() => {
     setError(null);
     statusFailuresRef.current = 0;
+    startTimeRef.current = null;
+    lastCompletedRef.current = 0;
+    setProgressModel(null);
     setVerifyAttempt(0);
     setDeploymentId(undefined);
     onProgress({ deploymentId: undefined, live: false });
     setPhase(deployment ? "dry_ready" : "idle");
-  }, [deployment, onProgress]);
+    onReset?.();
+  }, [deployment, onProgress, onReset]);
 
   if (phase === "error") {
     return (
@@ -422,6 +478,10 @@ export function DeployStep({
           `Checking runtime... attempt ${verifyAttempt}/30`}
         {phase === "live" && "Runtime reports the app is loaded."}
       </div>
+
+      {progressModel !== null && ["building", "releasing"].includes(phase) && (
+        <ProgressBar model={progressModel} />
+      )}
 
       {deploymentId && (
         <div className="text-muted-foreground inline-flex items-center gap-1.5 text-xs">
@@ -622,6 +682,24 @@ function SummaryTile({
       {detail && (
         <div className="text-muted-foreground truncate text-xs">{detail}</div>
       )}
+    </div>
+  );
+}
+
+function ProgressBar({ model }: { model: ProgressModel }) {
+  const pct = Math.round((model.completed / model.total) * 100);
+  return (
+    <div className="space-y-1">
+      <div className="text-muted-foreground flex justify-between text-xs">
+        <span>{model.label}</span>
+        <span>{pct}%</span>
+      </div>
+      <div className="bg-muted h-1.5 w-full overflow-hidden rounded-full">
+        <div
+          className="h-full rounded-full bg-blue-500 transition-all duration-500"
+          style={{ width: `${pct}%` }}
+        />
+      </div>
     </div>
   );
 }

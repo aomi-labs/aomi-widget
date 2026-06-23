@@ -269,7 +269,6 @@ export function markConnected(
     svmAddress?: string;
     svmCluster?: string | null;
     walletProvider?: string;
-    primaryFamily?: "evm" | "svm" | "dual";
     providerLabel?: string;
     source: WalletConnectionSource;
   },
@@ -291,7 +290,6 @@ export function markConnected(
     svmAddress: params.svmAddress,
     svmCluster: params.svmCluster ?? null,
     walletProvider: params.walletProvider,
-    primaryFamily: params.primaryFamily,
     providerLabel: params.providerLabel,
     source: params.source,
     activeOperation: undefined,
@@ -322,7 +320,6 @@ export function disconnectWallet(
     svmAddress: undefined,
     svmCluster: null,
     walletProvider: undefined,
-    primaryFamily: undefined,
     providerLabel: undefined,
     source: undefined,
   });

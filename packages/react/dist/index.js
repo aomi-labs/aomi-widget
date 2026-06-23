@@ -31,7 +31,7 @@ var __objRest = (source, exclude) => {
   return target;
 };
 
-// packages/react/src/index.ts
+// src/index.ts
 import { AomiClient as AomiClient2 } from "@aomi-labs/client";
 import {
   toViemSignTypedDataArgs,
@@ -49,24 +49,373 @@ import {
   toViemSignMessageArgs
 } from "@aomi-labs/client";
 
-// packages/react/src/runtime/aomi-runtime.tsx
+// src/runtime/aomi-runtime.tsx
 import { useMemo as useMemo3 } from "react";
-import {
-  AomiClient,
-  UserState as UserState4
-} from "@aomi-labs/client";
+import { AomiClient } from "@aomi-labs/client";
 
-// packages/react/src/contexts/control-context.tsx
+// src/contexts/control-context.tsx
 import {
   createContext,
-  useCallback,
+  useCallback as useCallback5,
   useContext,
-  useRef,
-  useState,
-  useEffect
+  useEffect as useEffect5,
+  useRef
 } from "react";
 
-// packages/react/src/utils/uuid.ts
+// src/utils/client-session.ts
+var CLIENT_ID_STORAGE_KEY = "aomi_client_id";
+var CONTROL_SESSION_PREFIX = "control:";
+function getOrCreateClientId() {
+  var _a, _b, _c, _d, _e;
+  try {
+    const storedClientId = (_a = globalThis.localStorage) == null ? void 0 : _a.getItem(
+      CLIENT_ID_STORAGE_KEY
+    );
+    if (storedClientId && storedClientId.trim().length > 0) {
+      return storedClientId;
+    }
+  } catch (e) {
+  }
+  const clientId = (_d = (_c = (_b = globalThis.crypto) == null ? void 0 : _b.randomUUID) == null ? void 0 : _c.call(_b)) != null ? _d : `client-${Date.now()}`;
+  try {
+    (_e = globalThis.localStorage) == null ? void 0 : _e.setItem(CLIENT_ID_STORAGE_KEY, clientId);
+  } catch (e) {
+  }
+  return clientId;
+}
+function getControlSessionId(clientId, fallbackSessionId) {
+  const trimmedClientId = clientId == null ? void 0 : clientId.trim();
+  return trimmedClientId ? `${CONTROL_SESSION_PREFIX}${trimmedClientId}` : fallbackSessionId;
+}
+
+// src/control/api-key.ts
+import { useCallback, useEffect, useState } from "react";
+var API_KEY_STORAGE_KEY = "aomi_secret_key";
+function useApiKeyImpl() {
+  const [apiKey, setApiKeyInternal] = useState(null);
+  useEffect(() => {
+    var _a;
+    try {
+      const stored = (_a = globalThis.localStorage) == null ? void 0 : _a.getItem(API_KEY_STORAGE_KEY);
+      if (stored) setApiKeyInternal(stored);
+    } catch (e) {
+    }
+  }, []);
+  useEffect(() => {
+    var _a, _b;
+    try {
+      if (apiKey) {
+        (_a = globalThis.localStorage) == null ? void 0 : _a.setItem(API_KEY_STORAGE_KEY, apiKey);
+      } else {
+        (_b = globalThis.localStorage) == null ? void 0 : _b.removeItem(API_KEY_STORAGE_KEY);
+      }
+    } catch (e) {
+    }
+  }, [apiKey]);
+  const setApiKey = useCallback((next) => {
+    setApiKeyInternal(next === "" ? null : next);
+  }, []);
+  return {
+    state: { apiKey },
+    actions: { setApiKey }
+  };
+}
+
+// src/control/byok.ts
+import { useCallback as useCallback2, useEffect as useEffect2, useState as useState2 } from "react";
+var BYOK_KEYS_STORAGE_KEY = "aomi_byok_keys";
+var BYOK_SECRET_PREFIX = "PROVIDER_KEY:";
+function useByokImpl({
+  aomiClientRef,
+  clientIdRef,
+  getControlSessionId: getControlSessionId2
+}) {
+  const [byokKeys, setByokKeys] = useState2({});
+  useEffect2(() => {
+    var _a;
+    try {
+      const raw = (_a = globalThis.localStorage) == null ? void 0 : _a.getItem(BYOK_KEYS_STORAGE_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        setByokKeys(parsed);
+      }
+    } catch (e) {
+    }
+  }, []);
+  useEffect2(() => {
+    var _a, _b;
+    try {
+      if (Object.keys(byokKeys).length > 0) {
+        (_a = globalThis.localStorage) == null ? void 0 : _a.setItem(
+          BYOK_KEYS_STORAGE_KEY,
+          JSON.stringify(byokKeys)
+        );
+      } else {
+        (_b = globalThis.localStorage) == null ? void 0 : _b.removeItem(BYOK_KEYS_STORAGE_KEY);
+      }
+    } catch (e) {
+    }
+  }, [byokKeys]);
+  useEffect2(() => {
+    const clientId = clientIdRef.current;
+    if (!clientId) return;
+    if (Object.keys(byokKeys).length === 0) return;
+    const secrets = {};
+    for (const [provider, entry] of Object.entries(byokKeys)) {
+      secrets[`${BYOK_SECRET_PREFIX}${provider}`] = entry.apiKey;
+    }
+    void aomiClientRef.current.ingestSecrets(getControlSessionId2(), clientId, secrets).catch((err) => {
+      console.error("Failed to auto-ingest BYOK keys:", err);
+    });
+  }, [aomiClientRef, byokKeys, getControlSessionId2]);
+  const ingestSecrets = useCallback2(
+    async (secrets, app) => {
+      const clientId = clientIdRef.current;
+      if (!clientId) throw new Error("clientId not initialized");
+      const { handles } = await aomiClientRef.current.ingestSecrets(
+        getControlSessionId2(),
+        clientId,
+        secrets,
+        app
+      );
+      return handles;
+    },
+    [aomiClientRef, clientIdRef, getControlSessionId2]
+  );
+  const clearSecrets = useCallback2(
+    async (app) => {
+      var _a, _b;
+      const clientId = clientIdRef.current;
+      if (!clientId) return;
+      await ((_b = (_a = aomiClientRef.current).clearSecrets) == null ? void 0 : _b.call(
+        _a,
+        getControlSessionId2(),
+        clientId,
+        app
+      ));
+    },
+    [aomiClientRef, clientIdRef, getControlSessionId2]
+  );
+  const deleteSecret = useCallback2(
+    async (name, app) => {
+      const clientId = clientIdRef.current;
+      if (!clientId) return;
+      await aomiClientRef.current.deleteSecret(
+        getControlSessionId2(),
+        clientId,
+        name,
+        app
+      );
+    },
+    [aomiClientRef, clientIdRef, getControlSessionId2]
+  );
+  const listSecrets = useCallback2(async () => {
+    var _a;
+    const { by_app } = await aomiClientRef.current.listSecrets(
+      getControlSessionId2(),
+      (_a = clientIdRef.current) != null ? _a : void 0
+    );
+    return by_app;
+  }, [aomiClientRef, clientIdRef, getControlSessionId2]);
+  const setByok = useCallback2(
+    async (provider, apiKey, label) => {
+      const trimmed = apiKey.trim();
+      if (!trimmed) return;
+      const entry = {
+        apiKey: trimmed,
+        keyPrefix: trimmed.slice(0, 7),
+        label
+      };
+      setByokKeys((prev) => __spreadProps(__spreadValues({}, prev), { [provider]: entry }));
+      const clientId = clientIdRef.current;
+      if (clientId) {
+        try {
+          await aomiClientRef.current.ingestSecrets(
+            getControlSessionId2(),
+            clientId,
+            { [`${BYOK_SECRET_PREFIX}${provider}`]: trimmed }
+          );
+        } catch (err) {
+          console.error("Failed to ingest BYOK key:", err);
+        }
+      }
+    },
+    [aomiClientRef, clientIdRef, getControlSessionId2]
+  );
+  const removeByok = useCallback2(
+    async (provider) => {
+      const clientId = clientIdRef.current;
+      if (clientId) {
+        await aomiClientRef.current.deleteSecret(
+          getControlSessionId2(),
+          clientId,
+          `${BYOK_SECRET_PREFIX}${provider}`
+        );
+      }
+      setByokKeys((prev) => {
+        const _a = prev, { [provider]: _ } = _a, rest = __objRest(_a, [__restKey(provider)]);
+        return rest;
+      });
+    },
+    [aomiClientRef, clientIdRef, getControlSessionId2]
+  );
+  const getByokKeys = useCallback2(
+    () => byokKeys,
+    [byokKeys]
+  );
+  const hasByok = useCallback2(
+    (provider) => {
+      if (provider) return provider in byokKeys;
+      return Object.keys(byokKeys).length > 0;
+    },
+    [byokKeys]
+  );
+  return {
+    state: { byokKeys },
+    actions: {
+      setByok,
+      removeByok,
+      getByokKeys,
+      hasByok,
+      ingestSecrets,
+      clearSecrets,
+      deleteSecret,
+      listSecrets
+    }
+  };
+}
+
+// src/control/auth-endpoints.ts
+import { useCallback as useCallback3, useEffect as useEffect3, useState as useState3 } from "react";
+
+// src/utils/model-selection.ts
+var PREFERRED_DEFAULT_MODEL_PATTERNS = [
+  /^claude.*opus.*4[.-]?8/i,
+  /^claude.*4[.-]?8.*opus/i,
+  /^claude.*opus.*4[.-]?6/i,
+  /^claude.*4[.-]?6.*opus/i,
+  /^claude-4\.5-haiku/i,
+  /^claude.*haiku/i,
+  /^gpt-4o-mini/i,
+  /^gemini.*flash/i
+];
+function resolveAutoModel(models) {
+  var _a;
+  if (models.length === 0) return null;
+  for (const pattern of PREFERRED_DEFAULT_MODEL_PATTERNS) {
+    const match = models.find((model) => pattern.test(model));
+    if (match) return match;
+  }
+  return (_a = models[0]) != null ? _a : null;
+}
+
+// src/control/auth-endpoints.ts
+function getDefaultApp(apps) {
+  var _a;
+  return apps.includes("default") ? "default" : (_a = apps[0]) != null ? _a : null;
+}
+function namesFromDescriptors(apps) {
+  return apps.map((a) => a.name);
+}
+function useAuthEndpointsImpl({
+  aomiClientRef,
+  apiKeyRef,
+  getControlSessionId: getControlSessionId2,
+  apiKey
+}) {
+  const [availableModels, setAvailableModels] = useState3([]);
+  const [defaultModel, setDefaultModel] = useState3(null);
+  const [authorizedApps, setAuthorizedApps] = useState3([]);
+  const [appDescriptors, setAppDescriptors] = useState3([]);
+  const [defaultApp, setDefaultApp] = useState3(null);
+  useEffect3(() => {
+    const fetchApps = async () => {
+      var _a;
+      try {
+        const descriptors = await aomiClientRef.current.getApps(
+          getControlSessionId2(),
+          {
+            apiKey: (_a = apiKeyRef.current) != null ? _a : void 0
+          }
+        );
+        const names = namesFromDescriptors(descriptors);
+        setAuthorizedApps(names);
+        setAppDescriptors(descriptors);
+        setDefaultApp(getDefaultApp(names));
+      } catch (error) {
+        console.error("Failed to fetch apps:", error);
+        setAuthorizedApps(["default"]);
+        setAppDescriptors([{ name: "default" }]);
+        setDefaultApp("default");
+      }
+    };
+    void fetchApps();
+  }, [aomiClientRef, getControlSessionId2, apiKey]);
+  useEffect3(() => {
+    const fetchModels = async () => {
+      try {
+        const models = await aomiClientRef.current.getModels(
+          getControlSessionId2()
+        );
+        setAvailableModels(models);
+        setDefaultModel(resolveAutoModel(models));
+      } catch (error) {
+        console.error("Failed to fetch models:", error);
+      }
+    };
+    void fetchModels();
+  }, [aomiClientRef, getControlSessionId2]);
+  const getAvailableModels = useCallback3(async () => {
+    try {
+      const models = await aomiClientRef.current.getModels(
+        getControlSessionId2()
+      );
+      setAvailableModels(models);
+      setDefaultModel(resolveAutoModel(models));
+      return models;
+    } catch (error) {
+      console.error("Failed to fetch models:", error);
+      return [];
+    }
+  }, [aomiClientRef, getControlSessionId2]);
+  const getAuthorizedApps = useCallback3(async () => {
+    var _a;
+    try {
+      const descriptors = await aomiClientRef.current.getApps(
+        getControlSessionId2(),
+        {
+          apiKey: (_a = apiKeyRef.current) != null ? _a : void 0
+        }
+      );
+      const names = namesFromDescriptors(descriptors);
+      setAuthorizedApps(names);
+      setAppDescriptors(descriptors);
+      setDefaultApp(getDefaultApp(names));
+      return names;
+    } catch (error) {
+      console.error("Failed to fetch apps:", error);
+      setAuthorizedApps(["default"]);
+      setAppDescriptors([{ name: "default" }]);
+      setDefaultApp("default");
+      return ["default"];
+    }
+  }, [aomiClientRef, apiKeyRef, getControlSessionId2]);
+  return {
+    state: {
+      availableModels,
+      defaultModel,
+      authorizedApps,
+      appDescriptors,
+      defaultApp
+    },
+    actions: { getAvailableModels, getAuthorizedApps }
+  };
+}
+
+// src/control/per-thread-control.ts
+import { useCallback as useCallback4, useEffect as useEffect4 } from "react";
+
+// src/utils/uuid.ts
 function generateUUID() {
   if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
     return crypto.randomUUID();
@@ -78,7 +427,7 @@ function generateUUID() {
   });
 }
 
-// packages/react/src/state/thread-store.ts
+// src/state/thread-store.ts
 var shouldLogThreadUpdates = process.env.NODE_ENV !== "production";
 var logThreadMetadataChange = (source, threadId, prev, next) => {
   if (!shouldLogThreadUpdates) return;
@@ -263,66 +612,8 @@ var ThreadStore = class {
   }
 };
 
-// packages/react/src/utils/model-selection.ts
-var PREFERRED_DEFAULT_MODEL_PATTERNS = [
-  /^claude.*opus.*4[.-]?8/i,
-  /^claude.*4[.-]?8.*opus/i,
-  /^claude.*opus.*4[.-]?6/i,
-  /^claude.*4[.-]?6.*opus/i,
-  /^claude-4\.5-haiku/i,
-  /^claude.*haiku/i,
-  /^gpt-4o-mini/i,
-  /^gemini.*flash/i
-];
-function resolveAutoModel(models) {
-  var _a;
-  if (models.length === 0) return null;
-  for (const pattern of PREFERRED_DEFAULT_MODEL_PATTERNS) {
-    const match = models.find((model) => pattern.test(model));
-    if (match) return match;
-  }
-  return (_a = models[0]) != null ? _a : null;
-}
-
-// packages/react/src/utils/client-session.ts
-var CLIENT_ID_STORAGE_KEY = "aomi_client_id";
-var CONTROL_SESSION_PREFIX = "control:";
-function getOrCreateClientId() {
-  var _a, _b, _c, _d, _e;
-  try {
-    const storedClientId = (_a = globalThis.localStorage) == null ? void 0 : _a.getItem(
-      CLIENT_ID_STORAGE_KEY
-    );
-    if (storedClientId && storedClientId.trim().length > 0) {
-      return storedClientId;
-    }
-  } catch (e) {
-  }
-  const clientId = (_d = (_c = (_b = globalThis.crypto) == null ? void 0 : _b.randomUUID) == null ? void 0 : _c.call(_b)) != null ? _d : `client-${Date.now()}`;
-  try {
-    (_e = globalThis.localStorage) == null ? void 0 : _e.setItem(CLIENT_ID_STORAGE_KEY, clientId);
-  } catch (e) {
-  }
-  return clientId;
-}
-function getControlSessionId(clientId, fallbackSessionId) {
-  const trimmedClientId = clientId == null ? void 0 : clientId.trim();
-  return trimmedClientId ? `${CONTROL_SESSION_PREFIX}${trimmedClientId}` : fallbackSessionId;
-}
-
-// packages/react/src/contexts/control-context.tsx
-import { jsx } from "react/jsx-runtime";
-var API_KEY_STORAGE_KEY = "aomi_secret_key";
-var BYOK_KEYS_STORAGE_KEY = "aomi_byok_keys";
+// src/control/per-thread-control.ts
 var MODEL_SELECTION_STORAGE_KEY = "aomi_model_selection";
-var BYOK_SECRET_PREFIX = "PROVIDER_KEY:";
-function getDefaultApp(apps) {
-  var _a;
-  return apps.includes("default") ? "default" : (_a = apps[0]) != null ? _a : null;
-}
-function namesFromDescriptors(apps) {
-  return apps.map((a) => a.name);
-}
 function readStoredModelPreference() {
   var _a;
   try {
@@ -367,339 +658,38 @@ function getFallbackModel(models, defaultModel) {
   return defaultModel != null ? defaultModel : resolveAutoModel(models);
 }
 function resolveAuthorizedApp(app, authorizedApps, defaultApp) {
-  if (app && authorizedApps.includes(app)) {
-    return app;
-  }
+  if (app && authorizedApps.includes(app)) return app;
   return defaultApp;
 }
-var ControlContext = createContext(null);
-function useControl() {
-  const ctx = useContext(ControlContext);
-  if (!ctx) {
-    throw new Error("useControl must be used within ControlContextProvider");
-  }
-  return ctx;
-}
-function ControlContextProvider({
-  children,
-  aomiClient,
-  sessionId,
-  publicKey,
-  getThreadMetadata,
-  updateThreadMetadata
+function usePerThreadControlImpl({
+  aomiClientRef,
+  sessionIdRef,
+  apiKeyRef,
+  clientIdRef,
+  getThreadMetadataRef,
+  updateThreadMetadataRef,
+  availableModels,
+  defaultModel,
+  availableModelsRef,
+  defaultModelRef,
+  authorizedAppsRef,
+  defaultAppRef,
+  sessionId
 }) {
   var _a, _b;
-  const [state, setStateInternal] = useState(() => ({
-    apiKey: null,
-    clientId: getOrCreateClientId(),
-    availableModels: [],
-    authorizedApps: [],
-    appDescriptors: [],
-    defaultModel: null,
-    defaultApp: null,
-    byokKeys: {}
-  }));
-  const stateRef = useRef(state);
-  stateRef.current = state;
-  const aomiClientRef = useRef(aomiClient);
-  aomiClientRef.current = aomiClient;
-  const sessionIdRef = useRef(sessionId);
-  sessionIdRef.current = sessionId;
-  const publicKeyRef = useRef(publicKey);
-  publicKeyRef.current = publicKey;
-  const getThreadMetadataRef = useRef(getThreadMetadata);
-  getThreadMetadataRef.current = getThreadMetadata;
-  const updateThreadMetadataRef = useRef(updateThreadMetadata);
-  updateThreadMetadataRef.current = updateThreadMetadata;
-  const callbacks = useRef(/* @__PURE__ */ new Set());
-  const getCurrentControlSessionId = useCallback(
-    () => getControlSessionId(stateRef.current.clientId, sessionIdRef.current),
-    []
-  );
-  const currentThreadMetadata = getThreadMetadata(sessionId);
-  const isProcessing = (_b = (_a = currentThreadMetadata == null ? void 0 : currentThreadMetadata.control) == null ? void 0 : _a.isProcessing) != null ? _b : false;
-  useEffect(() => {
-    var _a2;
-    try {
-      if (state.clientId) {
-        (_a2 = globalThis.localStorage) == null ? void 0 : _a2.setItem(CLIENT_ID_STORAGE_KEY, state.clientId);
-      }
-    } catch (e) {
-    }
-  }, [state.clientId]);
-  useEffect(() => {
-    var _a2, _b2;
-    try {
-      const storedApiKey = (_b2 = (_a2 = globalThis.localStorage) == null ? void 0 : _a2.getItem(API_KEY_STORAGE_KEY)) != null ? _b2 : null;
-      if (storedApiKey) {
-        setStateInternal((prev) => __spreadProps(__spreadValues({}, prev), { apiKey: storedApiKey }));
-      }
-    } catch (e) {
-    }
-  }, []);
-  useEffect(() => {
-    var _a2;
-    try {
-      const raw = (_a2 = globalThis.localStorage) == null ? void 0 : _a2.getItem(BYOK_KEYS_STORAGE_KEY);
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        setStateInternal((prev) => __spreadProps(__spreadValues({}, prev), { byokKeys: parsed }));
-      }
-    } catch (e) {
-    }
-  }, []);
-  useEffect(() => {
-    var _a2, _b2;
-    try {
-      if (state.apiKey) {
-        (_a2 = globalThis.localStorage) == null ? void 0 : _a2.setItem(API_KEY_STORAGE_KEY, state.apiKey);
-      } else {
-        (_b2 = globalThis.localStorage) == null ? void 0 : _b2.removeItem(API_KEY_STORAGE_KEY);
-      }
-    } catch (e) {
-    }
-  }, [state.apiKey]);
-  useEffect(() => {
-    var _a2, _b2;
-    try {
-      const keys = state.byokKeys;
-      if (Object.keys(keys).length > 0) {
-        (_a2 = globalThis.localStorage) == null ? void 0 : _a2.setItem(
-          BYOK_KEYS_STORAGE_KEY,
-          JSON.stringify(keys)
-        );
-      } else {
-        (_b2 = globalThis.localStorage) == null ? void 0 : _b2.removeItem(BYOK_KEYS_STORAGE_KEY);
-      }
-    } catch (e) {
-    }
-  }, [state.byokKeys]);
-  useEffect(() => {
-    if (!state.clientId) return;
-    const keys = stateRef.current.byokKeys;
-    if (Object.keys(keys).length === 0) return;
-    const secrets = {};
-    for (const [provider, entry] of Object.entries(keys)) {
-      secrets[`${BYOK_SECRET_PREFIX}${provider}`] = entry.apiKey;
-    }
-    void aomiClientRef.current.ingestSecrets(getCurrentControlSessionId(), state.clientId, secrets).catch((err) => {
-      console.error("Failed to auto-ingest BYOK keys:", err);
-    });
-  }, [getCurrentControlSessionId, state.clientId, state.byokKeys]);
-  useEffect(() => {
-    const fetchApps = async () => {
-      var _a2;
-      try {
-        const descriptors = await aomiClientRef.current.getApps(
-          getCurrentControlSessionId(),
-          {
-            publicKey: publicKeyRef.current,
-            apiKey: (_a2 = stateRef.current.apiKey) != null ? _a2 : void 0
-          }
-        );
-        const names = namesFromDescriptors(descriptors);
-        const defaultApp = getDefaultApp(names);
-        setStateInternal((prev) => __spreadProps(__spreadValues({}, prev), {
-          authorizedApps: names,
-          appDescriptors: descriptors,
-          defaultApp
-        }));
-      } catch (error) {
-        console.error("Failed to fetch apps:", error);
-        setStateInternal((prev) => __spreadProps(__spreadValues({}, prev), {
-          authorizedApps: ["default"],
-          appDescriptors: [{ name: "default" }],
-          defaultApp: "default"
-        }));
-      }
-    };
-    void fetchApps();
-  }, [getCurrentControlSessionId, state.apiKey]);
-  useEffect(() => {
-    const fetchModels = async () => {
-      try {
-        const models = await aomiClientRef.current.getModels(
-          getCurrentControlSessionId()
-        );
-        setStateInternal((prev) => __spreadProps(__spreadValues({}, prev), {
-          availableModels: models,
-          defaultModel: resolveAutoModel(models)
-        }));
-      } catch (error) {
-        console.error("Failed to fetch models:", error);
-      }
-    };
-    void fetchModels();
-  }, [getCurrentControlSessionId]);
-  const setApiKey = useCallback((apiKey) => {
-    setStateInternal((prev) => {
-      const next = __spreadProps(__spreadValues({}, prev), { apiKey: apiKey === "" ? null : apiKey });
-      callbacks.current.forEach((cb) => cb(next));
-      return next;
-    });
-  }, []);
-  const ingestSecrets = useCallback(
-    async (secrets, app) => {
-      const clientId = stateRef.current.clientId;
-      if (!clientId) throw new Error("clientId not initialized");
-      const { handles } = await aomiClientRef.current.ingestSecrets(
-        getCurrentControlSessionId(),
-        clientId,
-        secrets,
-        app
-      );
-      return handles;
-    },
-    [getCurrentControlSessionId]
-  );
-  const clearSecrets = useCallback(
-    async (app) => {
-      var _a2, _b2;
-      const clientId = stateRef.current.clientId;
-      if (!clientId) return;
-      await ((_b2 = (_a2 = aomiClientRef.current).clearSecrets) == null ? void 0 : _b2.call(
-        _a2,
-        getCurrentControlSessionId(),
-        clientId,
-        app
-      ));
-    },
-    [getCurrentControlSessionId]
-  );
-  const deleteSecret = useCallback(
-    async (name, app) => {
-      const clientId = stateRef.current.clientId;
-      if (!clientId) return;
-      await aomiClientRef.current.deleteSecret(
-        getCurrentControlSessionId(),
-        clientId,
-        name,
-        app
-      );
-    },
-    [getCurrentControlSessionId]
-  );
-  const listSecrets = useCallback(async () => {
-    const { by_app } = await aomiClientRef.current.listSecrets(
-      getCurrentControlSessionId()
-    );
-    return by_app;
-  }, [getCurrentControlSessionId]);
-  const setByok = useCallback(
-    async (provider, apiKey, label) => {
-      const trimmed = apiKey.trim();
-      if (!trimmed) return;
-      const entry = {
-        apiKey: trimmed,
-        keyPrefix: trimmed.slice(0, 7),
-        label
-      };
-      setStateInternal((prev) => {
-        const next = __spreadProps(__spreadValues({}, prev), {
-          byokKeys: __spreadProps(__spreadValues({}, prev.byokKeys), { [provider]: entry })
-        });
-        callbacks.current.forEach((cb) => cb(next));
-        return next;
-      });
-      const clientId = stateRef.current.clientId;
-      if (clientId) {
-        try {
-          await aomiClientRef.current.ingestSecrets(
-            getCurrentControlSessionId(),
-            clientId,
-            {
-              [`${BYOK_SECRET_PREFIX}${provider}`]: trimmed
-            }
-          );
-        } catch (err) {
-          console.error("Failed to ingest BYOK key:", err);
-        }
-      }
-    },
-    [getCurrentControlSessionId]
-  );
-  const removeByok = useCallback(
-    async (provider) => {
-      const clientId = stateRef.current.clientId;
-      if (clientId) {
-        await aomiClientRef.current.deleteSecret(
-          getCurrentControlSessionId(),
-          clientId,
-          `${BYOK_SECRET_PREFIX}${provider}`
-        );
-      }
-      setStateInternal((prev) => {
-        const _a2 = prev.byokKeys, { [provider]: _ } = _a2, rest = __objRest(_a2, [__restKey(provider)]);
-        const next = __spreadProps(__spreadValues({}, prev), { byokKeys: rest });
-        callbacks.current.forEach((cb) => cb(next));
-        return next;
-      });
-    },
-    [getCurrentControlSessionId]
-  );
-  const getByokKeys = useCallback(
-    () => stateRef.current.byokKeys,
-    []
-  );
-  const hasByok = useCallback((provider) => {
-    const keys = stateRef.current.byokKeys;
-    if (provider) return provider in keys;
-    return Object.keys(keys).length > 0;
-  }, []);
-  const getAvailableModels = useCallback(async () => {
-    try {
-      const models = await aomiClientRef.current.getModels(
-        getCurrentControlSessionId()
-      );
-      setStateInternal((prev) => __spreadProps(__spreadValues({}, prev), {
-        availableModels: models,
-        defaultModel: resolveAutoModel(models)
-      }));
-      return models;
-    } catch (error) {
-      console.error("Failed to fetch models:", error);
-      return [];
-    }
-  }, [getCurrentControlSessionId]);
-  const getAuthorizedApps = useCallback(async () => {
-    var _a2;
-    try {
-      const descriptors = await aomiClientRef.current.getApps(
-        getCurrentControlSessionId(),
-        {
-          publicKey: publicKeyRef.current,
-          apiKey: (_a2 = stateRef.current.apiKey) != null ? _a2 : void 0
-        }
-      );
-      const names = namesFromDescriptors(descriptors);
-      const defaultApp = getDefaultApp(names);
-      setStateInternal((prev) => __spreadProps(__spreadValues({}, prev), {
-        authorizedApps: names,
-        appDescriptors: descriptors,
-        defaultApp
-      }));
-      return names;
-    } catch (error) {
-      console.error("Failed to fetch apps:", error);
-      setStateInternal((prev) => __spreadProps(__spreadValues({}, prev), {
-        authorizedApps: ["default"],
-        appDescriptors: [{ name: "default" }],
-        defaultApp: "default"
-      }));
-      return ["default"];
-    }
-  }, [getCurrentControlSessionId]);
-  const getCurrentThreadControl = useCallback(() => {
+  const currentMeta = getThreadMetadataRef.current(sessionId);
+  const isProcessing = (_b = (_a = currentMeta == null ? void 0 : currentMeta.control) == null ? void 0 : _a.isProcessing) != null ? _b : false;
+  const getCurrentThreadControl = useCallback4(() => {
     var _a2;
     const metadata = getThreadMetadataRef.current(sessionIdRef.current);
     return (_a2 = metadata == null ? void 0 : metadata.control) != null ? _a2 : initThreadControl();
   }, []);
-  const getPreferredThreadControl = useCallback(() => {
+  const getPreferredThreadControl = useCallback4(() => {
     const preference = readStoredModelPreference();
     const selection = resolvePreferredModelSelection(
       preference,
-      stateRef.current.availableModels,
-      stateRef.current.defaultModel
+      availableModelsRef.current,
+      defaultModelRef.current
     );
     return __spreadProps(__spreadValues({}, initThreadControl()), {
       model: selection.model,
@@ -707,43 +697,32 @@ function ControlContextProvider({
       controlDirty: selection.model !== null
     });
   }, []);
-  const getCurrentThreadApp = useCallback(() => {
+  const getCurrentThreadApp = useCallback4(() => {
     var _a2, _b2, _c;
     const currentControl = (_b2 = (_a2 = getThreadMetadataRef.current(sessionIdRef.current)) == null ? void 0 : _a2.control) != null ? _b2 : initThreadControl();
     return (_c = resolveAuthorizedApp(
       currentControl.app,
-      stateRef.current.authorizedApps,
-      stateRef.current.defaultApp
+      authorizedAppsRef.current,
+      defaultAppRef.current
     )) != null ? _c : "default";
   }, []);
-  const onModelSelect = useCallback(
+  const onModelSelect = useCallback4(
     async (model, options) => {
       var _a2, _b2, _c, _d, _e, _f, _g, _h;
       const threadId = sessionIdRef.current;
       const currentControl = (_b2 = (_a2 = getThreadMetadataRef.current(threadId)) == null ? void 0 : _a2.control) != null ? _b2 : initThreadControl();
-      const isProcessing2 = currentControl.isProcessing;
-      const modelMode = (_c = options == null ? void 0 : options.mode) != null ? _c : "manual";
-      console.log("[control-context] onModelSelect called", {
-        model,
-        modelMode,
-        isProcessing: isProcessing2,
-        threadId
-      });
-      if (isProcessing2) {
-        console.warn("[control-context] Cannot switch model while processing");
+      if (currentControl.isProcessing) {
+        console.warn(
+          "[per-thread-control] Cannot switch model while processing"
+        );
         return;
       }
+      const modelMode = (_c = options == null ? void 0 : options.mode) != null ? _c : "manual";
       const app = (_d = resolveAuthorizedApp(
         currentControl.app,
-        stateRef.current.authorizedApps,
-        stateRef.current.defaultApp
+        authorizedAppsRef.current,
+        defaultAppRef.current
       )) != null ? _d : "default";
-      console.log("[control-context] onModelSelect updating metadata", {
-        threadId,
-        model,
-        app,
-        currentControl
-      });
       updateThreadMetadataRef.current(threadId, {
         control: __spreadProps(__spreadValues({}, currentControl), {
           model,
@@ -752,19 +731,12 @@ function ControlContextProvider({
           controlDirty: true
         })
       });
-      console.log("[control-context] onModelSelect calling backend setModel", {
-        threadId,
-        model,
-        app,
-        backendUrl: aomiClientRef.current
-      });
       try {
-        const result = await aomiClientRef.current.setModel(threadId, model, {
+        await aomiClientRef.current.setModel(threadId, model, {
           app,
-          apiKey: (_e = stateRef.current.apiKey) != null ? _e : void 0,
-          clientId: (_f = stateRef.current.clientId) != null ? _f : void 0
+          apiKey: (_e = apiKeyRef.current) != null ? _e : void 0,
+          clientId: (_f = clientIdRef.current) != null ? _f : void 0
         });
-        console.log("[control-context] onModelSelect backend result", result);
         writeStoredModelPreference({
           mode: modelMode,
           model: modelMode === "manual" ? model : null
@@ -779,56 +751,44 @@ function ControlContextProvider({
           });
         }
       } catch (err) {
-        console.error("[control-context] setModel failed:", err);
+        console.error("[per-thread-control] setModel failed:", err);
         throw err;
       }
     },
     []
   );
-  const onAppSelect = useCallback((app) => {
+  const onAppSelect = useCallback4((app) => {
     var _a2, _b2;
     const threadId = sessionIdRef.current;
     const currentControl = (_b2 = (_a2 = getThreadMetadataRef.current(threadId)) == null ? void 0 : _a2.control) != null ? _b2 : initThreadControl();
-    const isProcessing2 = currentControl.isProcessing;
-    console.log("[control-context] onAppSelect called", {
-      app,
-      isProcessing: isProcessing2,
-      threadId
-    });
-    if (isProcessing2) {
-      console.warn("[control-context] Cannot switch app while processing");
+    if (currentControl.isProcessing) {
+      console.warn("[per-thread-control] Cannot switch app while processing");
       return;
     }
-    if (stateRef.current.authorizedApps.length > 0 && !stateRef.current.authorizedApps.includes(app)) {
-      console.warn("[control-context] Cannot select unauthorized app", { app });
+    if (authorizedAppsRef.current.length > 0 && !authorizedAppsRef.current.includes(app)) {
+      console.warn("[per-thread-control] Cannot select unauthorized app", {
+        app
+      });
       return;
     }
-    console.log("[control-context] onAppSelect updating metadata", {
-      threadId,
-      app,
-      currentControl
-    });
     updateThreadMetadataRef.current(threadId, {
       control: __spreadProps(__spreadValues({}, currentControl), {
         app,
         controlDirty: true
       })
     });
-    console.log("[control-context] onAppSelect metadata updated");
   }, []);
-  const markControlSynced = useCallback(() => {
+  const markControlSynced = useCallback4(() => {
     var _a2, _b2;
     const threadId = sessionIdRef.current;
     const currentControl = (_b2 = (_a2 = getThreadMetadataRef.current(threadId)) == null ? void 0 : _a2.control) != null ? _b2 : initThreadControl();
     if (currentControl.controlDirty) {
       updateThreadMetadataRef.current(threadId, {
-        control: __spreadProps(__spreadValues({}, currentControl), {
-          controlDirty: false
-        })
+        control: __spreadProps(__spreadValues({}, currentControl), { controlDirty: false })
       });
     }
   }, []);
-  const syncCurrentThreadControl = useCallback(async () => {
+  const syncCurrentThreadControl = useCallback4(async () => {
     var _a2, _b2, _c, _d, _e, _f, _g;
     const threadId = sessionIdRef.current;
     const currentControl = (_b2 = (_a2 = getThreadMetadataRef.current(threadId)) == null ? void 0 : _a2.control) != null ? _b2 : initThreadControl();
@@ -837,13 +797,13 @@ function ControlContextProvider({
     }
     const app = (_c = resolveAuthorizedApp(
       currentControl.app,
-      stateRef.current.authorizedApps,
-      stateRef.current.defaultApp
+      authorizedAppsRef.current,
+      defaultAppRef.current
     )) != null ? _c : "default";
     await aomiClientRef.current.setModel(threadId, currentControl.model, {
       app,
-      apiKey: (_d = stateRef.current.apiKey) != null ? _d : void 0,
-      clientId: (_e = stateRef.current.clientId) != null ? _e : void 0
+      apiKey: (_d = apiKeyRef.current) != null ? _d : void 0,
+      clientId: (_e = clientIdRef.current) != null ? _e : void 0
     });
     const latestControl = (_g = (_f = getThreadMetadataRef.current(threadId)) == null ? void 0 : _f.control) != null ? _g : currentControl;
     if (latestControl.model === currentControl.model && latestControl.app === currentControl.app) {
@@ -855,7 +815,7 @@ function ControlContextProvider({
       });
     }
   }, []);
-  useEffect(() => {
+  useEffect4(() => {
     var _a2;
     const threadId = sessionIdRef.current;
     const metadata = getThreadMetadataRef.current(threadId);
@@ -870,13 +830,10 @@ function ControlContextProvider({
         modelMode: preferred.modelMode,
         controlDirty: true
       });
-    } else if (state.availableModels.length > 0) {
+    } else if (availableModels.length > 0) {
       const currentMode = (_a2 = currentControl.modelMode) != null ? _a2 : "manual";
       if (currentMode === "auto") {
-        const autoModel = getFallbackModel(
-          state.availableModels,
-          state.defaultModel
-        );
+        const autoModel = getFallbackModel(availableModels, defaultModel);
         if (autoModel && currentControl.model !== autoModel) {
           nextControl = __spreadProps(__spreadValues({}, currentControl), {
             model: autoModel,
@@ -884,11 +841,8 @@ function ControlContextProvider({
             controlDirty: true
           });
         }
-      } else if (!state.availableModels.includes(currentControl.model)) {
-        const fallbackModel = getFallbackModel(
-          state.availableModels,
-          state.defaultModel
-        );
+      } else if (!availableModels.includes(currentControl.model)) {
+        const fallbackModel = getFallbackModel(availableModels, defaultModel);
         if (fallbackModel) {
           nextControl = __spreadProps(__spreadValues({}, currentControl), {
             model: fallbackModel,
@@ -899,74 +853,183 @@ function ControlContextProvider({
       }
     }
     if (!nextControl) return;
-    updateThreadMetadataRef.current(threadId, {
-      control: nextControl
-    });
-  }, [
-    getPreferredThreadControl,
-    sessionId,
-    state.availableModels,
-    state.defaultModel
-  ]);
-  const getControlState = useCallback(() => stateRef.current, []);
-  const onControlStateChange = useCallback(
-    (callback) => {
-      callbacks.current.add(callback);
-      return () => {
-        callbacks.current.delete(callback);
-      };
+    updateThreadMetadataRef.current(threadId, { control: nextControl });
+  }, [getPreferredThreadControl, sessionId, availableModels, defaultModel]);
+  return {
+    actions: {
+      getCurrentThreadControl,
+      getCurrentThreadApp,
+      getPreferredThreadControl,
+      onModelSelect,
+      onAppSelect,
+      markControlSynced,
+      syncCurrentThreadControl
     },
-    []
-  );
-  const setState = useCallback(
-    (updates) => {
-      var _a2;
-      if ("apiKey" in updates) {
-        setApiKey((_a2 = updates.apiKey) != null ? _a2 : null);
-      }
-      if ("app" in updates && updates.app !== void 0 && updates.app !== null) {
-        onAppSelect(updates.app);
-      }
-    },
-    [setApiKey, onAppSelect]
-  );
-  return /* @__PURE__ */ jsx(
-    ControlContext.Provider,
-    {
-      value: {
-        state,
-        setApiKey,
-        ingestSecrets,
-        clearSecrets,
-        deleteSecret,
-        listSecrets,
-        setByok,
-        removeByok,
-        getByokKeys,
-        hasByok,
-        getAvailableModels,
-        getAuthorizedApps,
-        getCurrentThreadControl,
-        getCurrentThreadApp,
-        onModelSelect,
-        onAppSelect,
-        isProcessing,
-        markControlSynced,
-        syncCurrentThreadControl,
-        getPreferredThreadControl,
-        getControlState,
-        onControlStateChange,
-        setState
-      },
-      children
-    }
-  );
+    isProcessing
+  };
 }
 
-// packages/react/src/contexts/event-context.tsx
+// src/contexts/control-context.tsx
+import { jsx } from "react/jsx-runtime";
+var ControlContext = createContext(null);
+function useControl() {
+  const ctx = useContext(ControlContext);
+  if (!ctx) {
+    throw new Error("useControl must be used within ControlContextProvider");
+  }
+  return ctx;
+}
+function useApiKey() {
+  const ctx = useControl();
+  return {
+    state: { apiKey: ctx.state.apiKey, clientId: ctx.state.clientId },
+    actions: { setApiKey: ctx.setApiKey }
+  };
+}
+function useByok() {
+  const ctx = useControl();
+  return {
+    state: { byokKeys: ctx.state.byokKeys },
+    actions: {
+      setByok: ctx.setByok,
+      removeByok: ctx.removeByok,
+      getByokKeys: ctx.getByokKeys,
+      hasByok: ctx.hasByok,
+      ingestSecrets: ctx.ingestSecrets,
+      clearSecrets: ctx.clearSecrets,
+      deleteSecret: ctx.deleteSecret,
+      listSecrets: ctx.listSecrets
+    }
+  };
+}
+function useAuthEndpoints() {
+  const ctx = useControl();
+  return {
+    state: {
+      availableModels: ctx.state.availableModels,
+      defaultModel: ctx.state.defaultModel,
+      authorizedApps: ctx.state.authorizedApps,
+      appDescriptors: ctx.state.appDescriptors,
+      defaultApp: ctx.state.defaultApp
+    },
+    actions: {
+      getAvailableModels: ctx.getAvailableModels,
+      getAuthorizedApps: ctx.getAuthorizedApps
+    }
+  };
+}
+function usePerThreadControl() {
+  const ctx = useControl();
+  return {
+    isProcessing: ctx.isProcessing,
+    actions: {
+      getCurrentThreadControl: ctx.getCurrentThreadControl,
+      getCurrentThreadApp: ctx.getCurrentThreadApp,
+      getPreferredThreadControl: ctx.getPreferredThreadControl,
+      onModelSelect: ctx.onModelSelect,
+      onAppSelect: ctx.onAppSelect,
+      markControlSynced: ctx.markControlSynced,
+      syncCurrentThreadControl: ctx.syncCurrentThreadControl
+    }
+  };
+}
+function ControlContextProvider({
+  children,
+  aomiClient,
+  sessionId,
+  getThreadMetadata,
+  updateThreadMetadata
+}) {
+  const aomiClientRef = useRef(aomiClient);
+  aomiClientRef.current = aomiClient;
+  const sessionIdRef = useRef(sessionId);
+  sessionIdRef.current = sessionId;
+  const getThreadMetadataRef = useRef(getThreadMetadata);
+  getThreadMetadataRef.current = getThreadMetadata;
+  const updateThreadMetadataRef = useRef(updateThreadMetadata);
+  updateThreadMetadataRef.current = updateThreadMetadata;
+  const clientIdRef = useRef(null);
+  if (clientIdRef.current === null) {
+    clientIdRef.current = getOrCreateClientId();
+  }
+  useEffect5(() => {
+    var _a;
+    try {
+      if (clientIdRef.current) {
+        (_a = globalThis.localStorage) == null ? void 0 : _a.setItem(
+          CLIENT_ID_STORAGE_KEY,
+          clientIdRef.current
+        );
+      }
+    } catch (e) {
+    }
+  }, []);
+  const apiKey = useApiKeyImpl();
+  const apiKeyRef = useRef(apiKey.state.apiKey);
+  apiKeyRef.current = apiKey.state.apiKey;
+  const getCurrentControlSessionId = useCallback5(
+    () => getControlSessionId(clientIdRef.current, sessionIdRef.current),
+    []
+  );
+  const byok = useByokImpl({
+    aomiClientRef,
+    clientIdRef,
+    getControlSessionId: getCurrentControlSessionId
+  });
+  const authEndpoints = useAuthEndpointsImpl({
+    aomiClientRef,
+    apiKeyRef,
+    getControlSessionId: getCurrentControlSessionId,
+    apiKey: apiKey.state.apiKey
+  });
+  const availableModelsRef = useRef(authEndpoints.state.availableModels);
+  availableModelsRef.current = authEndpoints.state.availableModels;
+  const defaultModelRef = useRef(authEndpoints.state.defaultModel);
+  defaultModelRef.current = authEndpoints.state.defaultModel;
+  const authorizedAppsRef = useRef(authEndpoints.state.authorizedApps);
+  authorizedAppsRef.current = authEndpoints.state.authorizedApps;
+  const defaultAppRef = useRef(authEndpoints.state.defaultApp);
+  defaultAppRef.current = authEndpoints.state.defaultApp;
+  const perThread = usePerThreadControlImpl({
+    aomiClientRef,
+    sessionIdRef,
+    apiKeyRef,
+    clientIdRef,
+    getThreadMetadataRef,
+    updateThreadMetadataRef,
+    availableModels: authEndpoints.state.availableModels,
+    defaultModel: authEndpoints.state.defaultModel,
+    availableModelsRef,
+    defaultModelRef,
+    authorizedAppsRef,
+    defaultAppRef,
+    sessionId
+  });
+  const aggregateState = {
+    apiKey: apiKey.state.apiKey,
+    clientId: clientIdRef.current,
+    byokKeys: byok.state.byokKeys,
+    availableModels: authEndpoints.state.availableModels,
+    defaultModel: authEndpoints.state.defaultModel,
+    authorizedApps: authEndpoints.state.authorizedApps,
+    appDescriptors: authEndpoints.state.appDescriptors,
+    defaultApp: authEndpoints.state.defaultApp
+  };
+  const aggregateStateRef = useRef(aggregateState);
+  aggregateStateRef.current = aggregateState;
+  const getControlState = useCallback5(() => aggregateStateRef.current, []);
+  const api = __spreadValues(__spreadValues(__spreadValues(__spreadValues({
+    state: aggregateState,
+    isProcessing: perThread.isProcessing,
+    getControlState
+  }, apiKey.actions), byok.actions), authEndpoints.actions), perThread.actions);
+  return /* @__PURE__ */ jsx(ControlContext.Provider, { value: api, children });
+}
+
+// src/contexts/event-context.tsx
 import {
   createContext as createContext2,
-  useCallback as useCallback2,
+  useCallback as useCallback6,
   useContext as useContext2,
   useRef as useRef2
 } from "react";
@@ -988,7 +1051,7 @@ function EventContextProvider({
 }) {
   const { getCurrentThreadApp } = useControl();
   const subscribersRef = useRef2(/* @__PURE__ */ new Map());
-  const subscribe = useCallback2(
+  const subscribe = useCallback6(
     (type, callback) => {
       const subs = subscribersRef.current;
       if (!subs.has(type)) {
@@ -1002,7 +1065,7 @@ function EventContextProvider({
     },
     []
   );
-  const dispatchEvent = useCallback2((event) => {
+  const dispatchEvent = useCallback6((event) => {
     const subs = subscribersRef.current;
     const typeSubs = subs.get(event.type);
     if (typeSubs) {
@@ -1013,7 +1076,7 @@ function EventContextProvider({
       for (const cb of wildcardSubs) cb(event);
     }
   }, []);
-  const sendOutbound = useCallback2(
+  const sendOutbound = useCallback6(
     async (event) => {
       try {
         const message = JSON.stringify({
@@ -1041,13 +1104,13 @@ function EventContextProvider({
   return /* @__PURE__ */ jsx2(EventContextState.Provider, { value: contextValue, children });
 }
 
-// packages/react/src/contexts/notification-context.tsx
+// src/contexts/notification-context.tsx
 import {
   createContext as createContext3,
-  useCallback as useCallback3,
+  useCallback as useCallback7,
   useContext as useContext3,
   useRef as useRef3,
-  useState as useState2
+  useState as useState4
 } from "react";
 import { jsx as jsx3 } from "react/jsx-runtime";
 var NotificationContext = createContext3(null);
@@ -1067,9 +1130,9 @@ function generateId() {
 function NotificationContextProvider({
   children
 }) {
-  const [notifications, setNotifications] = useState2([]);
+  const [notifications, setNotifications] = useState4([]);
   const paymentRequiredIdRef = useRef3(null);
-  const showNotification = useCallback3((params) => {
+  const showNotification = useCallback7((params) => {
     if (params.kind === "payment_required" && paymentRequiredIdRef.current) {
       return paymentRequiredIdRef.current;
     }
@@ -1084,13 +1147,13 @@ function NotificationContextProvider({
     setNotifications((prev) => [notification, ...prev]);
     return id;
   }, []);
-  const dismissNotification = useCallback3((id) => {
+  const dismissNotification = useCallback7((id) => {
     if (paymentRequiredIdRef.current === id) {
       paymentRequiredIdRef.current = null;
     }
     setNotifications((prev) => prev.filter((n) => n.id !== id));
   }, []);
-  const clearAll = useCallback3(() => {
+  const clearAll = useCallback7(() => {
     paymentRequiredIdRef.current = null;
     setNotifications([]);
   }, []);
@@ -1103,7 +1166,7 @@ function NotificationContextProvider({
   return /* @__PURE__ */ jsx3(NotificationContext.Provider, { value, children });
 }
 
-// packages/react/src/contexts/thread-context.tsx
+// src/contexts/thread-context.tsx
 import {
   createContext as createContext4,
   useContext as useContext4,
@@ -1153,13 +1216,13 @@ function useCurrentThreadMetadata() {
   );
 }
 
-// packages/react/src/contexts/ext-user-context.tsx
+// src/contexts/ext-user-context.tsx
 import {
   createContext as createContext5,
-  useCallback as useCallback4,
+  useCallback as useCallback8,
   useContext as useContext5,
   useRef as useRef5,
-  useState as useState3
+  useState as useState5
 } from "react";
 import { UserState } from "@aomi-labs/client";
 import { UserState as UserState2 } from "@aomi-labs/client";
@@ -1235,7 +1298,7 @@ function ExtUserProvider({ children }) {
   return /* @__PURE__ */ jsx5(ExtUserProviderImpl, { children });
 }
 function ExtUserProviderImpl({ children }) {
-  const [user, setUserState] = useState3({
+  const [user, setUserState] = useState5({
     connection: { is_connected: false }
   });
   const userRef = useRef5(user);
@@ -1243,14 +1306,14 @@ function ExtUserProviderImpl({ children }) {
   const StateChangeCallbacks = useRef5(
     /* @__PURE__ */ new Set()
   );
-  const notifyStateChange = useCallback4((next) => {
+  const notifyStateChange = useCallback8((next) => {
     queueMicrotask(() => {
       StateChangeCallbacks.current.forEach((callback) => {
         callback(next);
       });
     });
   }, []);
-  const setUser = useCallback4(
+  const setUser = useCallback8(
     (data) => {
       setUserState((prev) => {
         var _a, _b, _c;
@@ -1279,7 +1342,7 @@ function ExtUserProviderImpl({ children }) {
     },
     [notifyStateChange]
   );
-  const addExtValue = useCallback4(
+  const addExtValue = useCallback8(
     (key, value) => {
       setUserState((prev) => {
         const next = UserState.withExt(prev, key, value);
@@ -1289,7 +1352,7 @@ function ExtUserProviderImpl({ children }) {
     },
     [notifyStateChange]
   );
-  const removeExtValue = useCallback4(
+  const removeExtValue = useCallback8(
     (key) => {
       setUserState((prev) => {
         const ext = prev.ext;
@@ -1307,8 +1370,8 @@ function ExtUserProviderImpl({ children }) {
     },
     [notifyStateChange]
   );
-  const getUserState = useCallback4(() => userRef.current, []);
-  const onUserStateChange = useCallback4(
+  const getUserState = useCallback8(() => userRef.current, []);
+  const onUserStateChange = useCallback8(
     (callback) => {
       StateChangeCallbacks.current.add(callback);
       return () => {
@@ -1333,19 +1396,18 @@ function ExtUserProviderImpl({ children }) {
   );
 }
 
-// packages/react/src/runtime/core.tsx
-import { useCallback as useCallback8, useEffect as useEffect4, useMemo as useMemo2, useRef as useRef9, useState as useState7 } from "react";
+// src/runtime/core.tsx
+import { useCallback as useCallback12, useEffect as useEffect8, useMemo as useMemo2, useRef as useRef9, useState as useState9 } from "react";
 import {
   AssistantRuntimeProvider,
   useExternalStoreRuntime
 } from "@assistant-ui/react";
-import { UserState as UserState3 } from "@aomi-labs/client";
 
-// packages/react/src/runtime/orchestrator.ts
-import { useCallback as useCallback5, useEffect as useEffect2, useRef as useRef6, useState as useState4 } from "react";
+// src/runtime/orchestrator.ts
+import { useCallback as useCallback9, useEffect as useEffect6, useRef as useRef6, useState as useState6 } from "react";
 import { CLIENT_TYPE_WEB_UI } from "@aomi-labs/client";
 
-// packages/react/src/runtime/session-manager.ts
+// src/runtime/session-manager.ts
 import {
   Session as ClientSession
 } from "@aomi-labs/client";
@@ -1404,7 +1466,108 @@ var SessionManager = class {
   }
 };
 
-// packages/react/src/runtime/utils.ts
+// src/runtime/thread-registry.ts
+var ThreadRegistry = class {
+  constructor(clientFactory) {
+    /** Threads the backend already knows about (from /threads list or createThread). */
+    this.remoteThreads = /* @__PURE__ */ new Set();
+    /** Threads whose initial state has been fetched at least once this session. */
+    this.hydratedThreads = /* @__PURE__ */ new Set();
+    /** Threads where the backend record was created specifically to receive a send. */
+    this.materializedForSend = /* @__PURE__ */ new Set();
+    /** Active in-flight initial-state fetches, keyed by thread id (for dedup). */
+    this.initialStatePromises = /* @__PURE__ */ new Map();
+    /** Currently-pending fetches (subset of above, kept separately for diagnostics). */
+    this.pendingFetches = /* @__PURE__ */ new Set();
+    this.listenerCleanups = /* @__PURE__ */ new Map();
+    this.sessionManager = new SessionManager(clientFactory);
+  }
+  // ===========================================================================
+  // Listener cleanup wiring (used by orchestrator when binding session events)
+  // ===========================================================================
+  setListenerCleanup(threadId, cleanup) {
+    var _a;
+    (_a = this.listenerCleanups.get(threadId)) == null ? void 0 : _a();
+    this.listenerCleanups.set(threadId, cleanup);
+  }
+  runAndDropListeners(threadId) {
+    var _a;
+    (_a = this.listenerCleanups.get(threadId)) == null ? void 0 : _a();
+    this.listenerCleanups.delete(threadId);
+  }
+  // ===========================================================================
+  // Per-thread teardown
+  // ===========================================================================
+  /**
+   * Close a single thread's session and drop its session-scoped bookkeeping.
+   * Keeps `remoteThreads` and `materializedForSend` (structural facts about the
+   * thread itself, unaffected by whether a Session instance is alive).
+   */
+  closeSession(threadId) {
+    this.runAndDropListeners(threadId);
+    this.hydratedThreads.delete(threadId);
+    this.initialStatePromises.delete(threadId);
+    this.pendingFetches.delete(threadId);
+    this.sessionManager.close(threadId);
+  }
+  /**
+   * Forget every record for a thread (delete-thread flow). Closes the session
+   * and also wipes structural facts. After this the registry behaves as though
+   * the thread never existed.
+   */
+  forget(threadId) {
+    this.closeSession(threadId);
+    this.remoteThreads.delete(threadId);
+    this.materializedForSend.delete(threadId);
+  }
+  // ===========================================================================
+  // Multi-thread sweeps
+  // ===========================================================================
+  /**
+   * Close every session that isn't the active one AND isn't busy (processing,
+   * polling, or holding pending wallet requests). Returns ids closed so callers
+   * can react if they need to.
+   */
+  closeIdleSessionsExcept(activeThreadId) {
+    const closed = this.sessionManager.closeIdleExcept(
+      activeThreadId,
+      (id) => this.runAndDropListeners(id)
+    );
+    for (const id of closed) {
+      this.hydratedThreads.delete(id);
+      this.initialStatePromises.delete(id);
+      this.pendingFetches.delete(id);
+    }
+    return closed;
+  }
+  /**
+   * Close every session and drop all session-scoped state. Used on unmount.
+   * Structural facts (remoteThreads, materializedForSend) are preserved so a
+   * remount can reuse what the user already had.
+   */
+  closeAllSessions() {
+    this.hydratedThreads.clear();
+    this.initialStatePromises.clear();
+    this.pendingFetches.clear();
+    for (const cleanup of this.listenerCleanups.values()) cleanup();
+    this.listenerCleanups.clear();
+    this.sessionManager.closeAll();
+  }
+  // ===========================================================================
+  // Full reset
+  // ===========================================================================
+  /**
+   * Wipe everything. Used when the user disconnects every wallet — we no
+   * longer have a stable identity to bind threads to.
+   */
+  reset() {
+    this.remoteThreads.clear();
+    this.materializedForSend.clear();
+    this.closeAllSessions();
+  }
+};
+
+// src/runtime/utils.ts
 import {
   SUPPORTED_CHAINS as CLIENT_SUPPORTED_CHAINS
 } from "@aomi-labs/client";
@@ -1509,7 +1672,7 @@ var formatAddress = (addr) => addr ? `${addr.slice(0, 6)}...${addr.slice(-4)}` :
 var SUPPORTED_CHAINS = [...CLIENT_SUPPORTED_CHAINS];
 var getChainInfo = (chainId) => chainId === void 0 ? void 0 : SUPPORTED_CHAINS.find((c) => c.id === chainId);
 
-// packages/react/src/runtime/orchestrator.ts
+// src/runtime/orchestrator.ts
 var toErrorMessage = (error) => error instanceof Error ? error.message : "Message failed to send";
 var getHttpStatus = (error) => {
   const status = error == null ? void 0 : error.status;
@@ -1603,72 +1766,38 @@ function useRuntimeOrchestrator(aomiClient, options) {
   aomiClientRef.current = aomiClient;
   const optionsRef = useRef6(options);
   optionsRef.current = options;
-  const [isRunning, setIsRunning] = useState4(false);
-  const sessionManagerRef = useRef6(null);
-  if (!sessionManagerRef.current) {
-    sessionManagerRef.current = new SessionManager(() => aomiClientRef.current);
+  const [isRunning, setIsRunning] = useState6(false);
+  const registryRef = useRef6(null);
+  if (!registryRef.current) {
+    registryRef.current = new ThreadRegistry(() => aomiClientRef.current);
   }
-  const pendingFetches = useRef6(/* @__PURE__ */ new Set());
-  const initialStatePromises = useRef6(/* @__PURE__ */ new Map());
-  const hydratedThreadIds = useRef6(/* @__PURE__ */ new Set());
-  const listenerCleanups = useRef6(/* @__PURE__ */ new Map());
-  const cleanupSessionListeners = useCallback5((threadId) => {
-    var _a;
-    (_a = listenerCleanups.current.get(threadId)) == null ? void 0 : _a();
-    listenerCleanups.current.delete(threadId);
-  }, []);
-  const closeSession = useCallback5(
+  const registry = registryRef.current;
+  const closeSession = useCallback9(
     (threadId) => {
-      var _a;
-      cleanupSessionListeners(threadId);
-      pendingFetches.current.delete(threadId);
-      initialStatePromises.current.delete(threadId);
-      hydratedThreadIds.current.delete(threadId);
-      (_a = sessionManagerRef.current) == null ? void 0 : _a.close(threadId);
+      registry.closeSession(threadId);
     },
-    [cleanupSessionListeners]
+    [registry]
   );
-  const closeIdleSessionsExcept = useCallback5(
-    (activeThreadId) => {
-      var _a, _b;
-      const closedThreadIds = (_b = (_a = sessionManagerRef.current) == null ? void 0 : _a.closeIdleExcept(
-        activeThreadId,
-        cleanupSessionListeners
-      )) != null ? _b : [];
-      for (const threadId of closedThreadIds) {
-        pendingFetches.current.delete(threadId);
-        initialStatePromises.current.delete(threadId);
-        hydratedThreadIds.current.delete(threadId);
-      }
-      return closedThreadIds;
-    },
-    [cleanupSessionListeners]
+  const closeIdleSessionsExcept = useCallback9(
+    (activeThreadId) => registry.closeIdleSessionsExcept(activeThreadId),
+    [registry]
   );
-  const closeAllSessions = useCallback5(() => {
-    var _a;
-    pendingFetches.current.clear();
-    initialStatePromises.current.clear();
-    hydratedThreadIds.current.clear();
-    for (const threadId of Array.from(listenerCleanups.current.keys())) {
-      cleanupSessionListeners(threadId);
-    }
-    (_a = sessionManagerRef.current) == null ? void 0 : _a.closeAll();
-  }, [cleanupSessionListeners]);
-  const getSession = useCallback5(
+  const closeAllSessions = useCallback9(() => {
+    registry.closeAllSessions();
+  }, [registry]);
+  const getSession = useCallback9(
     (threadId) => {
-      var _a, _b, _c, _d, _e;
-      const manager = sessionManagerRef.current;
+      var _a, _b, _c, _d;
+      const manager = registry.sessionManager;
       const nextOptions = optionsRef.current;
       const nextApp = nextOptions.getApp();
-      const nextPublicKey = (_a = nextOptions.getPublicKey) == null ? void 0 : _a.call(nextOptions);
-      const nextApiKey = (_c = (_b = nextOptions.getApiKey) == null ? void 0 : _b.call(nextOptions)) != null ? _c : void 0;
-      const nextClientId = (_d = nextOptions.getClientId) == null ? void 0 : _d.call(nextOptions);
-      const nextUserState = (_e = nextOptions.getUserState) == null ? void 0 : _e.call(nextOptions);
+      const nextApiKey = (_b = (_a = nextOptions.getApiKey) == null ? void 0 : _a.call(nextOptions)) != null ? _b : void 0;
+      const nextClientId = (_c = nextOptions.getClientId) == null ? void 0 : _c.call(nextOptions);
+      const nextUserState = (_d = nextOptions.getUserState) == null ? void 0 : _d.call(nextOptions);
       const existing = manager.get(threadId);
       if (existing) {
         existing.syncRuntimeOptions({
           app: nextApp,
-          publicKey: nextPublicKey,
           apiKey: nextApiKey,
           clientId: nextClientId,
           userState: nextUserState
@@ -1680,14 +1809,15 @@ function useRuntimeOrchestrator(aomiClient, options) {
       }
       const session = manager.getOrCreate(threadId, {
         app: nextApp,
-        publicKey: nextPublicKey,
         apiKey: nextApiKey,
         clientId: nextClientId,
         clientType: CLIENT_TYPE_WEB_UI,
         syncPendingTxRequestsFromUserState: false,
         userState: nextUserState
       });
-      session.setSSEActive(threadContextRef.current.currentThreadId === threadId);
+      session.setSSEActive(
+        threadContextRef.current.currentThreadId === threadId
+      );
       const cleanups = [];
       cleanups.push(
         session.on("messages", (msgs) => {
@@ -1748,40 +1878,49 @@ function useRuntimeOrchestrator(aomiClient, options) {
       cleanups.push(forwardEvent("system_error"));
       cleanups.push(forwardEvent("async_callback"));
       cleanups.push(forwardEvent("user_state_request"));
-      listenerCleanups.current.set(threadId, () => {
+      registry.setListenerCleanup(threadId, () => {
         for (const cleanup of cleanups) cleanup();
       });
       return session;
     },
-    // Stable deps — option getters are refs
-    []
+    // Stable deps — registry instance is stable for the lifetime of the hook
+    [registry]
   );
-  const ensureInitialState = useCallback5(
+  const ensureInitialState = useCallback9(
     async (threadId) => {
-      var _a, _b, _c;
-      const existingPromise = initialStatePromises.current.get(threadId);
+      var _a, _b, _c, _d;
+      const existingPromise = registry.initialStatePromises.get(threadId);
       if (existingPromise) {
         return existingPromise;
       }
       const cachedMessages = threadContextRef.current.getThreadMessages(threadId);
-      const existingSession = (_a = sessionManagerRef.current) == null ? void 0 : _a.get(threadId);
-      if (existingSession && (hydratedThreadIds.current.has(threadId) || cachedMessages.length > 0)) {
-        (_c = (_b = optionsRef.current).onPendingRequestsChange) == null ? void 0 : _c.call(
-          _b,
-          existingSession.getPendingRequests()
-        );
-        if (threadContextRef.current.currentThreadId === threadId) {
-          setIsRunning(existingSession.getIsProcessing());
+      const hasCachedMessages = cachedMessages.length > 0;
+      const isHydrated = registry.hydratedThreads.has(threadId);
+      if (hasCachedMessages || isHydrated) {
+        const session = registry.sessionManager.get(threadId);
+        if (session) {
+          (_b = (_a = optionsRef.current).onPendingRequestsChange) == null ? void 0 : _b.call(
+            _a,
+            session.getPendingRequests()
+          );
+          if (threadContextRef.current.currentThreadId === threadId) {
+            setIsRunning(session.getIsProcessing());
+          }
+        } else {
+          if (threadContextRef.current.currentThreadId === threadId) {
+            setIsRunning(false);
+          }
+          (_d = (_c = optionsRef.current).onPendingRequestsChange) == null ? void 0 : _d.call(_c, []);
         }
         return;
       }
       const fetchPromise = (async () => {
         var _a2, _b2;
-        pendingFetches.current.add(threadId);
+        registry.pendingFetches.add(threadId);
         try {
           const session = getSession(threadId);
           await session.fetchCurrentState();
-          hydratedThreadIds.current.add(threadId);
+          registry.hydratedThreads.add(threadId);
           (_b2 = (_a2 = optionsRef.current).onPendingRequestsChange) == null ? void 0 : _b2.call(
             _a2,
             session.getPendingRequests()
@@ -1795,16 +1934,16 @@ function useRuntimeOrchestrator(aomiClient, options) {
             setIsRunning(false);
           }
         } finally {
-          pendingFetches.current.delete(threadId);
-          initialStatePromises.current.delete(threadId);
+          registry.pendingFetches.delete(threadId);
+          registry.initialStatePromises.delete(threadId);
         }
       })();
-      initialStatePromises.current.set(threadId, fetchPromise);
+      registry.initialStatePromises.set(threadId, fetchPromise);
       return fetchPromise;
     },
     [getSession]
   );
-  const sendMessage = useCallback5(
+  const sendMessage = useCallback9(
     async (text, threadId) => {
       var _a, _b, _c, _d, _e, _f, _g, _h;
       console.debug("[aomi][runtime] sendMessage start", {
@@ -1894,26 +2033,28 @@ function useRuntimeOrchestrator(aomiClient, options) {
     },
     [getSession]
   );
-  const cancelGeneration = useCallback5(async (threadId) => {
-    var _a;
-    const session = (_a = sessionManagerRef.current) == null ? void 0 : _a.get(threadId);
-    if (session) {
-      await session.interrupt();
-    }
-  }, []);
-  useEffect2(() => {
-    var _a;
-    (_a = sessionManagerRef.current) == null ? void 0 : _a.forEach((session, threadId) => {
+  const cancelGeneration = useCallback9(
+    async (threadId) => {
+      const session = registry.sessionManager.get(threadId);
+      if (session) {
+        await session.interrupt();
+      }
+    },
+    [registry]
+  );
+  useEffect6(() => {
+    registry.sessionManager.forEach((session, threadId) => {
       session.setSSEActive(threadId === threadContext.currentThreadId);
     });
-  }, [threadContext.currentThreadId]);
-  useEffect2(() => {
+  }, [registry, threadContext.currentThreadId]);
+  useEffect6(() => {
     return () => {
       closeAllSessions();
     };
   }, [closeAllSessions]);
   return {
-    sessionManager: sessionManagerRef.current,
+    registry,
+    sessionManager: registry.sessionManager,
     getSession,
     isRunning,
     setIsRunning,
@@ -1927,7 +2068,7 @@ function useRuntimeOrchestrator(aomiClient, options) {
   };
 }
 
-// packages/react/src/runtime/threadlist-adapter.ts
+// src/runtime/threadlist-adapter.ts
 var sortByLastActiveDesc = ([, metaA], [, metaB]) => {
   const tsA = parseTimestamp(metaA.lastActiveAt);
   const tsB = parseTimestamp(metaB.lastActiveAt);
@@ -2086,7 +2227,7 @@ function buildThreadListAdapter({
   };
 }
 
-// packages/react/src/interface.tsx
+// src/interface.tsx
 import { createContext as createContext6, useContext as useContext6 } from "react";
 var AomiRuntimeContext = createContext6(null);
 var AomiRuntimeApiProvider = AomiRuntimeContext.Provider;
@@ -2103,17 +2244,17 @@ function useOptionalAomiRuntime() {
   return useContext6(AomiRuntimeContext);
 }
 
-// packages/react/src/handlers/wallet-handler.ts
-import { useCallback as useCallback6, useRef as useRef7, useState as useState5 } from "react";
+// src/handlers/wallet-handler.ts
+import { useCallback as useCallback10, useRef as useRef7, useState as useState7 } from "react";
 function useWalletHandler({
   getSession
 }) {
-  const [pendingRequests, setPendingRequests] = useState5([]);
-  const [hasBlockingWalletRequests, setHasBlockingWalletRequests] = useState5(false);
+  const [pendingRequests, setPendingRequests] = useState7([]);
+  const [hasBlockingWalletRequests, setHasBlockingWalletRequests] = useState7(false);
   const requestsRef = useRef7(pendingRequests);
   const inFlightRequestSetRef = useRef7(/* @__PURE__ */ new Set());
   const suppressedRequestSetRef = useRef7(/* @__PURE__ */ new Set());
-  const syncVisibleRequests = useCallback6(() => {
+  const syncVisibleRequests = useCallback10(() => {
     setPendingRequests(
       requestsRef.current.filter(
         (request) => !suppressedRequestSetRef.current.has(request.id)
@@ -2123,7 +2264,7 @@ function useWalletHandler({
       requestsRef.current.length > 0 || inFlightRequestSetRef.current.size > 0
     );
   }, []);
-  const setRequests = useCallback6(
+  const setRequests = useCallback10(
     (requests) => {
       const incomingIds = new Set(requests.map((request) => request.id));
       for (const id of suppressedRequestSetRef.current) {
@@ -2139,7 +2280,7 @@ function useWalletHandler({
     },
     [syncVisibleRequests]
   );
-  const startRequest = useCallback6(
+  const startRequest = useCallback10(
     (id) => {
       if (!requestsRef.current.some((request) => request.id === id)) {
         return;
@@ -2150,7 +2291,7 @@ function useWalletHandler({
     },
     [syncVisibleRequests]
   );
-  const resolveRequest = useCallback6(
+  const resolveRequest = useCallback10(
     async (id, result) => {
       const session = getSession();
       if (!session) {
@@ -2174,7 +2315,7 @@ function useWalletHandler({
     },
     [getSession, startRequest, syncVisibleRequests]
   );
-  const rejectRequest = useCallback6(
+  const rejectRequest = useCallback10(
     async (id, error) => {
       const session = getSession();
       if (!session) {
@@ -2208,31 +2349,15 @@ function useWalletHandler({
   };
 }
 
-// packages/react/src/runtime/user-state-provider.tsx
+// src/runtime/user-state-provider.tsx
 import {
-  useCallback as useCallback7,
-  useEffect as useEffect3,
+  useCallback as useCallback11,
+  useEffect as useEffect7,
   useRef as useRef8,
-  useState as useState6
+  useState as useState8
 } from "react";
 import { UserState as UserStateHelpers } from "@aomi-labs/client";
 import { Fragment as Fragment2, jsx as jsx6 } from "react/jsx-runtime";
-var THREAD_PREFETCH_LIMIT = 5;
-var PREFETCH_IDLE_TIMEOUT_MS = 1500;
-function scheduleBackgroundTask(task) {
-  const runtimeGlobal = globalThis;
-  if (typeof runtimeGlobal.requestIdleCallback === "function") {
-    const idleId = runtimeGlobal.requestIdleCallback(task, {
-      timeout: PREFETCH_IDLE_TIMEOUT_MS
-    });
-    return () => {
-      var _a;
-      return (_a = runtimeGlobal.cancelIdleCallback) == null ? void 0 : _a.call(runtimeGlobal, idleId);
-    };
-  }
-  const timeoutId = runtimeGlobal.setTimeout(task, 0);
-  return () => runtimeGlobal.clearTimeout(timeoutId);
-}
 function stableStateString2(state) {
   return JSON.stringify(state != null ? state : {});
 }
@@ -2253,51 +2378,53 @@ function getLegacySessionPublicKey(userState) {
   }
   return address;
 }
-function useWalletStateSync(context, sessions, remoteThreads) {
-  const { getCurrentThreadApp, getUserState, onUserStateChange, threadContextRef } = context;
-  const { aomiClientRef } = sessions;
-  const { remoteThreadIdsRef } = remoteThreads;
-  const walletSnapshot = useCallback7(
+function useWalletStateSync(context, aomiClientRef, registry) {
+  const {
+    getCurrentThreadApp,
+    getUserState,
+    onUserStateChange,
+    threadContextRef
+  } = context;
+  const walletSnapshot = useCallback11(
     (nextUser) => {
-      var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q, _r;
+      var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q;
       return {
         connection: {
           is_connected: (_a = UserStateHelpers.isConnected(nextUser)) != null ? _a : false,
-          primary_family: (_b = nextUser.connection) == null ? void 0 : _b.primary_family,
-          provider: (_c = UserStateHelpers.walletProvider(nextUser)) != null ? _c : void 0,
-          wallet_provider_subject: (_d = UserStateHelpers.walletProviderSubject(nextUser)) != null ? _d : void 0,
-          auth_method: (_e = UserStateHelpers.authMethod(nextUser)) != null ? _e : void 0,
-          auth_value: (_f = UserStateHelpers.authValue(nextUser)) != null ? _f : void 0,
-          auth_verified_at: (_g = UserStateHelpers.authVerifiedAt(nextUser)) != null ? _g : void 0
+          provider: (_b = UserStateHelpers.walletProvider(nextUser)) != null ? _b : void 0,
+          wallet_provider_subject: (_c = UserStateHelpers.walletProviderSubject(nextUser)) != null ? _c : void 0,
+          auth_method: (_d = UserStateHelpers.authMethod(nextUser)) != null ? _d : void 0,
+          auth_value: (_e = UserStateHelpers.authValue(nextUser)) != null ? _e : void 0,
+          auth_verified_at: (_f = UserStateHelpers.authVerifiedAt(nextUser)) != null ? _f : void 0
         },
         evm: {
           address: UserStateHelpers.address(nextUser),
           chain_id: UserStateHelpers.chainId(nextUser),
-          ens_name: typeof ((_h = nextUser.evm) == null ? void 0 : _h.ens_name) === "string" ? nextUser.evm.ens_name : void 0,
+          ens_name: typeof ((_g = nextUser.evm) == null ? void 0 : _g.ens_name) === "string" ? nextUser.evm.ens_name : void 0,
           aa: {
-            mode: (_i = UserStateHelpers.aaMode(nextUser)) != null ? _i : void 0,
-            smart_account: (_j = UserStateHelpers.SmartAccount4337(nextUser)) != null ? _j : void 0,
-            delegation_7702: (_k = UserStateHelpers.Delegation7702(nextUser)) != null ? _k : void 0
+            mode: (_h = UserStateHelpers.aaMode(nextUser)) != null ? _h : void 0,
+            smart_account: (_i = UserStateHelpers.SmartAccount4337(nextUser)) != null ? _i : void 0,
+            delegation_7702: (_j = UserStateHelpers.Delegation7702(nextUser)) != null ? _j : void 0
           },
           sponsorship: {
-            sponsored: (_l = UserStateHelpers.sponsored(nextUser)) != null ? _l : void 0,
-            sponsor_provider: (_m = UserStateHelpers.sponsorProvider(nextUser)) != null ? _m : void 0,
-            sponsor_account: (_n = UserStateHelpers.sponsorAccount(nextUser)) != null ? _n : void 0
+            sponsored: (_k = UserStateHelpers.sponsored(nextUser)) != null ? _k : void 0,
+            sponsor_provider: (_l = UserStateHelpers.sponsorProvider(nextUser)) != null ? _l : void 0,
+            sponsor_account: (_m = UserStateHelpers.sponsorAccount(nextUser)) != null ? _m : void 0
           }
         },
         svm: {
           address: UserStateHelpers.svmAddress(nextUser),
-          cluster: (_o = nextUser.svm) == null ? void 0 : _o.cluster,
-          wallet_name: (_p = nextUser.svm) == null ? void 0 : _p.wallet_name,
-          transport: (_q = nextUser.svm) == null ? void 0 : _q.transport,
-          capabilities: (_r = nextUser.svm) == null ? void 0 : _r.capabilities
+          cluster: (_n = nextUser.svm) == null ? void 0 : _n.cluster,
+          wallet_name: (_o = nextUser.svm) == null ? void 0 : _o.wallet_name,
+          transport: (_p = nextUser.svm) == null ? void 0 : _p.transport,
+          capabilities: (_q = nextUser.svm) == null ? void 0 : _q.capabilities
         }
       };
     },
     [getUserState]
   );
   const lastWalletStateRef = useRef8(walletSnapshot(getUserState()));
-  useEffect3(() => {
+  useEffect7(() => {
     lastWalletStateRef.current = walletSnapshot(getUserState());
     const unsubscribe = onUserStateChange(async (newUser) => {
       var _a, _b;
@@ -2313,7 +2440,7 @@ function useWalletStateSync(context, sessions, remoteThreads) {
         return;
       }
       const sessionId = threadContextRef.current.currentThreadId;
-      if (!remoteThreadIdsRef.current.has(sessionId)) {
+      if (!registry.remoteThreads.has(sessionId)) {
         return;
       }
       const message = JSON.stringify({
@@ -2330,16 +2457,15 @@ function useWalletStateSync(context, sessions, remoteThreads) {
     getCurrentThreadApp,
     getUserState,
     onUserStateChange,
-    remoteThreadIdsRef,
+    registry,
     threadContextRef,
     walletSnapshot
   ]);
 }
-function useUserStateRequestResponder(context, sessions) {
+function useUserStateRequestResponder(context, getSession) {
   const eventContext = useEventContext();
   const { getUserState, threadContextRef } = context;
-  const { getSession } = sessions;
-  useEffect3(() => {
+  useEffect7(() => {
     const unsubscribe = eventContext.subscribe("user_state_request", () => {
       var _a, _b;
       const sessionId = threadContextRef.current.currentThreadId;
@@ -2354,62 +2480,25 @@ function useUserStateRequestResponder(context, sessions) {
     return unsubscribe;
   }, [eventContext, getSession, getUserState, threadContextRef]);
 }
-function useRemoteThreadListSync(context, sessions, remoteThreads) {
-  const [isThreadListLoading, setIsThreadListLoading] = useState6(true);
+function useRemoteThreadListSync(context, options) {
+  const [isThreadListLoading, setIsThreadListLoading] = useState8(true);
   const prefetchCancelRef = useRef8(null);
   const lastConnectedAddressRef = useRef8(void 0);
-  const { getControlState, threadContextRef, user } = context;
+  const { getControlState, getUserState, threadContextRef, user } = context;
   const {
+    registry,
     aomiClientRef,
     closeAllSessions,
     ensureInitialState,
-    sessionManager,
     setIsThreadLoading
-  } = sessions;
-  const {
-    remoteThreadIdsRef,
-    warmPromisesRef,
-    warmedThreadIdsRef,
-    warmThread
-  } = remoteThreads;
+  } = options;
   const connectedAddress = UserStateHelpers.isConnected(user) ? getLegacySessionPublicKey(user) : void 0;
-  const scheduleThreadPrefetch = useCallback7(
-    (threadIds) => {
-      var _a;
-      (_a = prefetchCancelRef.current) == null ? void 0 : _a.call(prefetchCancelRef);
-      const prefetchThreadIds = Array.from(new Set(threadIds)).filter((threadId) => remoteThreadIdsRef.current.has(threadId)).slice(0, THREAD_PREFETCH_LIMIT);
-      if (prefetchThreadIds.length === 0) {
-        prefetchCancelRef.current = null;
-        return;
-      }
-      let cancelled = false;
-      const cancelScheduledTask = scheduleBackgroundTask(() => {
-        void Promise.all(
-          prefetchThreadIds.map(async (threadId) => {
-            if (cancelled || !remoteThreadIdsRef.current.has(threadId)) return;
-            if (threadContextRef.current.getThreadMessages(threadId).length > 0) {
-              return;
-            }
-            try {
-              await warmThread(threadId);
-              if (cancelled || !remoteThreadIdsRef.current.has(threadId)) {
-                return;
-              }
-              await ensureInitialState(threadId);
-            } catch (error) {
-              console.debug("Failed to prefetch thread:", threadId, error);
-            }
-          })
-        );
-      });
-      prefetchCancelRef.current = () => {
-        cancelled = true;
-        cancelScheduledTask();
-      };
-    },
-    [ensureInitialState, remoteThreadIdsRef, threadContextRef, warmThread]
-  );
-  useEffect3(() => {
+  const scheduleThreadPrefetch = useCallback11((_threadIds) => {
+    var _a;
+    (_a = prefetchCancelRef.current) == null ? void 0 : _a.call(prefetchCancelRef);
+    prefetchCancelRef.current = null;
+  }, []);
+  useEffect7(() => {
     var _a, _b;
     const userAddress = connectedAddress;
     const normalizedUserAddress = normalizeWalletId(userAddress);
@@ -2428,12 +2517,9 @@ function useRemoteThreadListSync(context, sessions, remoteThreads) {
       (_a = prefetchCancelRef.current) == null ? void 0 : _a.call(prefetchCancelRef);
       prefetchCancelRef.current = null;
       if (wasPreviouslyConnected) {
-        const hadRemoteThreads = remoteThreadIdsRef.current.size > 0;
-        const hadSessions = sessionManager.size > 0;
-        remoteThreadIdsRef.current.clear();
-        warmedThreadIdsRef.current.clear();
-        warmPromisesRef.current.clear();
-        closeAllSessions();
+        const hadRemoteThreads = registry.remoteThreads.size > 0;
+        const hadSessions = registry.sessionManager.size > 0;
+        registry.reset();
         if (hadRemoteThreads || hadSessions) {
           threadContextRef.current.resetToDefault();
         }
@@ -2444,25 +2530,20 @@ function useRemoteThreadListSync(context, sessions, remoteThreads) {
     if (walletChanged) {
       (_b = prefetchCancelRef.current) == null ? void 0 : _b.call(prefetchCancelRef);
       prefetchCancelRef.current = null;
-      remoteThreadIdsRef.current.clear();
-      warmedThreadIdsRef.current.clear();
-      warmPromisesRef.current.clear();
+      registry.reset();
     }
     let cancelled = false;
     setIsThreadListLoading(true);
     const fetchThreadList = async () => {
       var _a2, _b2, _c;
       try {
-        const remoteThreadIdsAtFetchStart = new Set(remoteThreadIdsRef.current);
+        const remoteThreadIdsAtFetchStart = new Set(registry.remoteThreads);
         const currentContext = threadContextRef.current;
         const controlSessionId = getControlSessionId(
           getControlState().clientId,
           currentContext.currentThreadId
         );
-        const threadList = await aomiClientRef.current.listThreads(
-          controlSessionId,
-          userAddress
-        );
+        const threadList = await aomiClientRef.current.listThreads(controlSessionId);
         if (cancelled) return;
         const remoteThreadIds = /* @__PURE__ */ new Set();
         const newMetadata = new Map(currentContext.allThreadsMetadata);
@@ -2488,17 +2569,13 @@ function useRemoteThreadListSync(context, sessions, remoteThreads) {
             }
           }
         }
-        for (const threadId of remoteThreadIdsRef.current) {
+        for (const threadId of registry.remoteThreads) {
           if (!remoteThreadIdsAtFetchStart.has(threadId)) {
             remoteThreadIds.add(threadId);
           }
         }
-        remoteThreadIdsRef.current = remoteThreadIds;
-        warmedThreadIdsRef.current = new Set(
-          Array.from(warmedThreadIdsRef.current).filter(
-            (threadId) => remoteThreadIds.has(threadId)
-          )
-        );
+        registry.remoteThreads.clear();
+        for (const id of remoteThreadIds) registry.remoteThreads.add(id);
         currentContext.setThreadMetadata(newMetadata);
         if (maxChatNum > baseThreadCount) {
           currentContext.setThreadCnt(maxChatNum);
@@ -2508,7 +2585,6 @@ function useRemoteThreadListSync(context, sessions, remoteThreads) {
         if (remoteThreadIds.has(activeThreadId)) {
           setIsThreadLoading(true);
           try {
-            await warmThread(activeThreadId);
             if (!cancelled) {
               await ensureInitialState(activeThreadId);
             }
@@ -2535,32 +2611,18 @@ function useRemoteThreadListSync(context, sessions, remoteThreads) {
     };
   }, [
     aomiClientRef,
-    closeAllSessions,
     ensureInitialState,
     getControlState,
-    remoteThreadIdsRef,
+    registry,
     scheduleThreadPrefetch,
-    sessionManager,
     setIsThreadLoading,
     threadContextRef,
-    connectedAddress,
-    warmPromisesRef,
-    warmedThreadIdsRef,
-    warmThread
+    connectedAddress
   ]);
   return { isThreadListLoading };
 }
-function useRuntimeUserStateEffects({
-  sessions: {
-    aomiClientRef,
-    sessionManager,
-    getSession,
-    closeAllSessions,
-    ensureInitialState,
-    setIsThreadLoading
-  },
-  remoteThreads
-}) {
+function useRuntimeUserStateEffects(options) {
+  const { registry, aomiClientRef, getSession } = options;
   const threadContext = useThreadContext();
   const { user, getUserState, onUserStateChange } = useUser();
   const { getControlState, getCurrentThreadApp } = useControl();
@@ -2574,39 +2636,31 @@ function useRuntimeUserStateEffects({
     threadContextRef,
     user
   };
-  const sessions = {
-    aomiClientRef,
-    sessionManager,
-    getSession,
-    closeAllSessions,
-    ensureInitialState,
-    setIsThreadLoading
-  };
-  useWalletStateSync(context, sessions, remoteThreads);
-  useUserStateRequestResponder(context, sessions);
-  return useRemoteThreadListSync(context, sessions, remoteThreads);
+  useWalletStateSync(context, aomiClientRef, registry);
+  useUserStateRequestResponder(context, getSession);
+  return useRemoteThreadListSync(context, options);
 }
 function RuntimeUserStateProvider({
   children,
-  sessionManager,
+  registry,
   getUserState,
   setUser,
   onUserStateChange
 }) {
   const lastSerializedStateRef = useRef8("");
-  useEffect3(() => {
+  useEffect7(() => {
     const applyToSessions = (next) => {
       const serialized = stableStateString2(next);
       if (serialized === lastSerializedStateRef.current) {
         return;
       }
       lastSerializedStateRef.current = serialized;
-      sessionManager.forEach((session) => {
+      registry.sessionManager.forEach((session) => {
         session.resolveUserState(next, { skipEmit: true });
       });
     };
     const sessionListeners = [];
-    sessionManager.forEach((session) => {
+    registry.sessionManager.forEach((session) => {
       const handler = (next) => {
         setUser(next);
       };
@@ -2621,23 +2675,12 @@ function RuntimeUserStateProvider({
       unsubscribe();
       sessionListeners.forEach((off) => off());
     };
-  }, [getUserState, onUserStateChange, sessionManager, setUser]);
+  }, [getUserState, onUserStateChange, registry, setUser]);
   return /* @__PURE__ */ jsx6(Fragment2, { children });
 }
 
-// packages/react/src/runtime/core.tsx
+// src/runtime/core.tsx
 import { jsx as jsx7 } from "react/jsx-runtime";
-function getLegacySessionPublicKey2(userState) {
-  var _a;
-  const address = UserState3.address(userState);
-  if (!(address == null ? void 0 : address.startsWith("0x"))) {
-    return void 0;
-  }
-  if (UserState3.chainId(userState) === void 0 && !((_a = userState == null ? void 0 : userState.evm) == null ? void 0 : _a.address)) {
-    return void 0;
-  }
-  return address;
-}
 var getHttpStatus2 = (error) => {
   const status = error == null ? void 0 : error.status;
   if (typeof status === "number") return status;
@@ -2659,15 +2702,15 @@ function AomiRuntimeCore({
     getPreferredThreadControl,
     syncCurrentThreadControl
   } = useControl();
-  const sessionManagerRef = useRef9(null);
+  const registryRef = useRef9(null);
   const walletHandler = useWalletHandler({
     getSession: () => {
       var _a;
-      return (_a = sessionManagerRef.current) == null ? void 0 : _a.get(threadContext.currentThreadId);
+      return (_a = registryRef.current) == null ? void 0 : _a.sessionManager.get(threadContext.currentThreadId);
     }
   });
   const {
-    sessionManager,
+    registry,
     getSession,
     isRunning,
     setIsRunning,
@@ -2679,7 +2722,6 @@ function AomiRuntimeCore({
     closeAllSessions,
     aomiClientRef
   } = useRuntimeOrchestrator(aomiClient, {
-    getPublicKey: () => UserState3.isConnected(getUserState()) ? getLegacySessionPublicKey2(getUserState()) : void 0,
     getUserState,
     getApp: getCurrentThreadApp,
     getApiKey: () => getControlState().apiKey,
@@ -2691,14 +2733,13 @@ function AomiRuntimeCore({
       await syncCurrentThreadControl();
       const wasCreated = await ensureBackendThread(threadId);
       if (wasCreated) {
-        threadsMaterializedForSendRef.current.add(threadId);
+        registry.materializedForSend.add(threadId);
       }
     },
     onSendSuccess: (threadId) => {
-      const wasRemote = remoteThreadIdsRef.current.has(threadId);
-      remoteThreadIdsRef.current.add(threadId);
-      warmedThreadIdsRef.current.add(threadId);
-      threadsMaterializedForSendRef.current.delete(threadId);
+      const wasRemote = registry.remoteThreads.has(threadId);
+      registry.remoteThreads.add(threadId);
+      registry.materializedForSend.delete(threadId);
       if (!wasRemote && threadContextRef.current.currentThreadId === threadId) {
         void syncCurrentThreadControl().catch((error) => {
           console.error("Failed to sync thread controls:", error);
@@ -2706,8 +2747,8 @@ function AomiRuntimeCore({
       }
     },
     onSendError: async (threadId, error) => {
-      const wasMaterializedForSend = threadsMaterializedForSendRef.current.has(threadId);
-      threadsMaterializedForSendRef.current.delete(threadId);
+      const wasMaterializedForSend = registry.materializedForSend.has(threadId);
+      registry.materializedForSend.delete(threadId);
       const httpStatus = getHttpStatus2(error);
       if (httpStatus === 402) {
         notificationContext.showNotification({
@@ -2721,8 +2762,7 @@ function AomiRuntimeCore({
       }
       try {
         await aomiClientRef.current.deleteThread(threadId);
-        remoteThreadIdsRef.current.delete(threadId);
-        warmedThreadIdsRef.current.delete(threadId);
+        registry.remoteThreads.delete(threadId);
       } catch (deleteError) {
         console.error("Failed to delete quota-blocked thread:", deleteError);
       }
@@ -2730,85 +2770,41 @@ function AomiRuntimeCore({
     onPendingRequestsChange: walletHandler.setRequests,
     onEvent: (event) => eventContext.dispatch(event)
   });
-  sessionManagerRef.current = sessionManager;
+  registryRef.current = registry;
   const threadContextRef = useRef9(threadContext);
   threadContextRef.current = threadContext;
-  const remoteThreadIdsRef = useRef9(/* @__PURE__ */ new Set());
-  const warmedThreadIdsRef = useRef9(/* @__PURE__ */ new Set());
-  const warmPromisesRef = useRef9(/* @__PURE__ */ new Map());
-  const threadsMaterializedForSendRef = useRef9(/* @__PURE__ */ new Set());
-  const [isThreadLoading, setIsThreadLoading] = useState7(false);
-  const warmThread = useCallback8(
+  const [isThreadLoading, setIsThreadLoading] = useState9(false);
+  const ensureBackendThread = useCallback12(
     async (threadId) => {
-      if (!remoteThreadIdsRef.current.has(threadId) || warmedThreadIdsRef.current.has(threadId)) {
-        return;
-      }
-      const existingPromise = warmPromisesRef.current.get(threadId);
-      if (existingPromise) {
-        return existingPromise;
-      }
-      const warmPromise = (async () => {
-        const userState = getUserState();
-        const publicKey = UserState3.isConnected(userState) ? getLegacySessionPublicKey2(userState) : void 0;
-        await aomiClientRef.current.createThread(threadId, publicKey);
-        warmedThreadIdsRef.current.add(threadId);
-      })();
-      warmPromisesRef.current.set(threadId, warmPromise);
-      try {
-        await warmPromise;
-      } finally {
-        warmPromisesRef.current.delete(threadId);
-      }
-    },
-    [aomiClientRef, getUserState]
-  );
-  const ensureBackendThread = useCallback8(
-    async (threadId) => {
-      if (remoteThreadIdsRef.current.has(threadId)) return false;
-      const userState = getUserState();
-      const publicKey = UserState3.isConnected(userState) ? getLegacySessionPublicKey2(userState) : void 0;
-      await aomiClientRef.current.createThread(threadId, publicKey);
-      remoteThreadIdsRef.current.add(threadId);
-      warmedThreadIdsRef.current.add(threadId);
+      if (registry.remoteThreads.has(threadId)) return false;
+      await aomiClientRef.current.createThread(threadId);
+      registry.remoteThreads.add(threadId);
       return true;
     },
-    [aomiClientRef, getUserState]
-  );
-  const getRuntimeSession = useCallback8(
-    (threadId) => {
-      var _a, _b;
-      return (_b = (_a = sessionManagerRef.current) == null ? void 0 : _a.get(threadId)) != null ? _b : getSession(threadId);
-    },
-    [getSession]
+    [aomiClientRef, registry]
   );
   const { isThreadListLoading } = useRuntimeUserStateEffects({
-    sessions: {
-      aomiClientRef,
-      sessionManager,
-      getSession: getRuntimeSession,
-      closeAllSessions,
-      ensureInitialState,
-      setIsThreadLoading
-    },
-    remoteThreads: {
-      remoteThreadIdsRef,
-      warmPromisesRef,
-      warmedThreadIdsRef,
-      warmThread
-    }
+    registry,
+    aomiClientRef,
+    getSession,
+    closeAllSessions,
+    ensureInitialState,
+    setIsThreadLoading
   });
-  useEffect4(() => {
+  useEffect8(() => {
     const threadId = threadContext.currentThreadId;
     closeIdleSessionsExcept(threadId);
-    if (!remoteThreadIdsRef.current.has(threadId)) {
+    if (!registry.remoteThreads.has(threadId)) {
       setIsThreadLoading(false);
       return;
     }
+    const hasCachedMessages = threadContext.getThreadMessages(threadId).length > 0;
     let cancelled = false;
-    setIsThreadLoading(true);
+    if (!hasCachedMessages) {
+      setIsThreadLoading(true);
+    }
     void (async () => {
       try {
-        await warmThread(threadId);
         if (!cancelled) {
           await ensureInitialState(threadId);
         }
@@ -2824,10 +2820,11 @@ function AomiRuntimeCore({
   }, [
     closeIdleSessionsExcept,
     ensureInitialState,
-    threadContext.currentThreadId,
-    warmThread
+    registry,
+    threadContext,
+    threadContext.currentThreadId
   ]);
-  useEffect4(() => {
+  useEffect8(() => {
     const threadId = threadContext.currentThreadId;
     const currentMeta = threadContext.getThreadMetadata(threadId);
     if (currentMeta && currentMeta.control.isProcessing !== isRunning) {
@@ -2841,9 +2838,9 @@ function AomiRuntimeCore({
   const currentMessages = threadContext.getThreadMessages(
     threadContext.currentThreadId
   );
-  const isRemoteThread = useCallback8(
-    (threadId) => remoteThreadIdsRef.current.has(threadId),
-    []
+  const isRemoteThread = useCallback12(
+    (threadId) => registry.remoteThreads.has(threadId),
+    [registry]
   );
   const threadListAdapter = useMemo2(
     () => buildThreadListAdapter({
@@ -2866,7 +2863,7 @@ function AomiRuntimeCore({
       currentMessages
     ]
   );
-  useEffect4(() => {
+  useEffect8(() => {
     const showToolNotification = (eventType) => (event) => {
       const payload = event.payload;
       const toolName = typeof (payload == null ? void 0 : payload.tool_name) === "string" ? payload.tool_name : void 0;
@@ -2894,7 +2891,7 @@ function AomiRuntimeCore({
       unsubscribeComplete();
     };
   }, [eventContext, notificationContext]);
-  useEffect4(() => {
+  useEffect8(() => {
     const unsubscribe = eventContext.subscribe("system_notice", (_event) => {
     });
     return unsubscribe;
@@ -2922,52 +2919,52 @@ function AomiRuntimeCore({
     convertMessage: (msg) => msg,
     adapters: { threadList: threadListAdapter }
   });
-  useEffect4(() => {
+  useEffect8(() => {
     return () => {
       closeAllSessions();
     };
   }, [closeAllSessions]);
   const userContext = useUser();
-  const sendMessage = useCallback8(
+  const sendMessage = useCallback12(
     async (text) => {
       await orchestratorSendMessage(text, threadContext.currentThreadId);
     },
     [orchestratorSendMessage, threadContext.currentThreadId]
   );
-  const cancelGeneration = useCallback8(() => {
+  const cancelGeneration = useCallback12(() => {
     void orchestratorCancel(threadContext.currentThreadId);
   }, [orchestratorCancel, threadContext.currentThreadId]);
-  const getMessages = useCallback8(
+  const getMessages = useCallback12(
     (threadId) => {
       const id = threadId != null ? threadId : threadContext.currentThreadId;
       return threadContext.getThreadMessages(id);
     },
     [threadContext]
   );
-  const createThread = useCallback8(async () => {
+  const createThread = useCallback12(async () => {
     await threadListAdapter.onSwitchToNewThread();
     return threadContextRef.current.currentThreadId;
   }, [threadListAdapter]);
-  const deleteThread = useCallback8(
+  const deleteThread = useCallback12(
     async (threadId) => {
       closeSession(threadId);
       await threadListAdapter.onDelete(threadId);
     },
     [closeSession, threadListAdapter]
   );
-  const renameThread = useCallback8(
+  const renameThread = useCallback12(
     async (threadId, title) => {
       await threadListAdapter.onRename(threadId, title);
     },
     [threadListAdapter]
   );
-  const archiveThread = useCallback8(
+  const archiveThread = useCallback12(
     async (threadId) => {
       await threadListAdapter.onArchive(threadId);
     },
     [threadListAdapter]
   );
-  const selectThread = useCallback8(
+  const selectThread = useCallback12(
     (threadId) => {
       if (threadContext.allThreadsMetadata.has(threadId)) {
         threadListAdapter.onSwitchToThread(threadId);
@@ -2977,10 +2974,10 @@ function AomiRuntimeCore({
     },
     [threadContext.allThreadsMetadata, threadListAdapter]
   );
-  const simulateBatchTransactions = useCallback8(
+  const simulateBatchTransactions = useCallback12(
     async (transactions, options) => {
-      var _a, _b;
-      const session = (_b = (_a = sessionManagerRef.current) == null ? void 0 : _a.get(threadContext.currentThreadId)) != null ? _b : getSession(threadContext.currentThreadId);
+      var _a;
+      const session = (_a = registry.sessionManager.get(threadContext.currentThreadId)) != null ? _a : getSession(threadContext.currentThreadId);
       if (!session) {
         throw new Error("runtime_session_unavailable");
       }
@@ -2991,7 +2988,7 @@ function AomiRuntimeCore({
       );
       return response.result;
     },
-    [getSession, threadContext.currentThreadId]
+    [getSession, registry, threadContext.currentThreadId]
   );
   const aomiRuntimeApi = useMemo2(
     () => ({
@@ -3058,7 +3055,7 @@ function AomiRuntimeCore({
   return /* @__PURE__ */ jsx7(AomiRuntimeApiProvider, { value: aomiRuntimeApi, children: /* @__PURE__ */ jsx7(
     RuntimeUserStateProvider,
     {
-      sessionManager,
+      registry,
       getUserState: userContext.getUserState,
       setUser: userContext.setUser,
       onUserStateChange: userContext.onUserStateChange,
@@ -3067,7 +3064,7 @@ function AomiRuntimeCore({
   ) });
 }
 
-// packages/react/src/runtime/aomi-runtime.tsx
+// src/runtime/aomi-runtime.tsx
 import { jsx as jsx8 } from "react/jsx-runtime";
 function normalizeBackendUrl(url) {
   try {
@@ -3079,10 +3076,6 @@ function normalizeBackendUrl(url) {
   } catch (e) {
   }
   return url;
-}
-function legacySessionPublicKey(user) {
-  const address = UserState4.address(user);
-  return (address == null ? void 0 : address.startsWith("0x")) ? address : void 0;
 }
 function AomiRuntimeProvider({
   children,
@@ -3110,13 +3103,11 @@ function AomiRuntimeInner({
   aomiClient
 }) {
   const threadContext = useThreadContext();
-  const { user } = useUser();
   return /* @__PURE__ */ jsx8(
     ControlContextProvider,
     {
       aomiClient,
       sessionId: threadContext.currentThreadId,
-      publicKey: UserState4.isConnected(user) ? legacySessionPublicKey(user) : void 0,
       getThreadMetadata: threadContext.getThreadMetadata,
       updateThreadMetadata: threadContext.updateThreadMetadata,
       children: /* @__PURE__ */ jsx8(
@@ -3131,8 +3122,8 @@ function AomiRuntimeInner({
   );
 }
 
-// packages/react/src/handlers/notification-handler.ts
-import { useCallback as useCallback9, useEffect as useEffect5, useState as useState8 } from "react";
+// src/handlers/notification-handler.ts
+import { useCallback as useCallback13, useEffect as useEffect9, useState as useState10 } from "react";
 var notificationIdCounter2 = 0;
 function generateNotificationId() {
   return `notif-${Date.now()}-${++notificationIdCounter2}`;
@@ -3141,8 +3132,8 @@ function useNotificationHandler({
   onNotification
 } = {}) {
   const { subscribe } = useEventContext();
-  const [notifications, setNotifications] = useState8([]);
-  useEffect5(() => {
+  const [notifications, setNotifications] = useState10([]);
+  useEffect9(() => {
     const unsubscribe = subscribe("notification", (event) => {
       var _a, _b;
       const payload = event.payload;
@@ -3161,7 +3152,7 @@ function useNotificationHandler({
     return unsubscribe;
   }, [subscribe, onNotification]);
   const unhandledCount = notifications.filter((n) => !n.handled).length;
-  const markHandled = useCallback9((id) => {
+  const markHandled = useCallback13((id) => {
     setNotifications(
       (prev) => prev.map((n) => n.id === id ? __spreadProps(__spreadValues({}, n), { handled: true }) : n)
     );
@@ -3204,6 +3195,9 @@ export {
   toViemSignMessageArgs,
   toViemSignTypedDataArgs,
   useAomiRuntime,
+  useApiKey,
+  useAuthEndpoints,
+  useByok,
   useControl,
   useCurrentThreadMessages,
   useCurrentThreadMetadata,
@@ -3211,6 +3205,7 @@ export {
   useNotification,
   useNotificationHandler,
   useOptionalAomiRuntime,
+  usePerThreadControl,
   useThreadContext,
   useUser,
   useWalletHandler
