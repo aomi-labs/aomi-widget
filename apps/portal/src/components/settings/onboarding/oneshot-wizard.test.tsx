@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { OneshotWizard } from "./oneshot-wizard";
-import type { PathProgress } from "@portal/lib/onboarding";
+import type { LaunchProgress } from "@portal/features/launch";
 
 const noop = () => {};
 
@@ -27,8 +27,8 @@ vi.mock("@portal/lib/chat-url", () => ({
   chatAppUrl: (name: string) => `https://chat.aomi.dev?app=${name}`,
 }));
 
-vi.mock("@portal/lib/onboarding", () => ({
-  oneshotStep: (p: PathProgress) => {
+vi.mock("@portal/features/launch", () => ({
+  oneshotStep: (p: LaunchProgress) => {
     if (p.live) return "live";
     if (p.deploymentId || p.deployment) return "build";
     if (p.repo) return "create";
@@ -36,11 +36,11 @@ vi.mock("@portal/lib/onboarding", () => ({
     return "install";
   },
   installationStatusLabel: () => null,
-  onboardCreateRepo: vi.fn(),
+  launchCreateRepo: vi.fn(),
   TEMPLATE_REPO_URL: "https://github.com/aomi-labs/playground-example",
 }));
 
-function baseProgress(): PathProgress {
+function baseProgress(): LaunchProgress {
   return {
     path: null,
     oneshot: {},

@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { handleDeploy } from "../route-factory";
+import { launchDeployRoute } from "./routes";
 
 vi.mock("@aomi-labs/account", () => ({
   portalService: () => ({
@@ -12,7 +12,7 @@ vi.mock("@aomi-labs/account", () => ({
   }),
 }));
 
-describe("handleDeploy — Property 9: BFF maps backend error status codes", () => {
+describe("launchDeployRoute", () => {
   afterEach(() => {
     vi.restoreAllMocks();
   });
@@ -21,22 +21,22 @@ describe("handleDeploy — Property 9: BFF maps backend error status codes", () 
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(
-        new Response(
-          JSON.stringify({ source: { id: 123 } }),
-          { status: 200, headers: { "Content-Type": "application/json" } },
-        ),
+        new Response(JSON.stringify({ source: { id: 123 } }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }),
       )
       .mockResolvedValueOnce(
-        new Response(
-          JSON.stringify({ error: "deploy rejected" }),
-          { status: 409, headers: { "Content-Type": "application/json" } },
-        ),
+        new Response(JSON.stringify({ error: "deploy rejected" }), {
+          status: 409,
+          headers: { "Content-Type": "application/json" },
+        }),
       );
 
     vi.stubGlobal("fetch", fetchMock);
 
-    const POST = handleDeploy(false);
-    const req = new Request("http://localhost:3000/api/onboard/deploy", {
+    const POST = launchDeployRoute(false);
+    const req = new Request("http://localhost:3000/api/launch/deploy", {
       method: "POST",
       headers: {
         origin: "http://localhost:3000",
@@ -54,12 +54,12 @@ describe("handleDeploy — Property 9: BFF maps backend error status codes", () 
     expect(body).toEqual({ error: "deploy rejected" });
   });
 
-  it("return 502 for non-BackendError exceptions", async () => {
+  it("returns 502 for non-BackendError exceptions", async () => {
     const fetchMock = vi.fn().mockRejectedValueOnce(new Error("network down"));
     vi.stubGlobal("fetch", fetchMock);
 
-    const POST = handleDeploy(false);
-    const req = new Request("http://localhost:3000/api/onboard/deploy", {
+    const POST = launchDeployRoute(false);
+    const req = new Request("http://localhost:3000/api/launch/deploy", {
       method: "POST",
       headers: {
         origin: "http://localhost:3000",

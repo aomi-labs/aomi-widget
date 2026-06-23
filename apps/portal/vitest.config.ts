@@ -38,7 +38,7 @@ export default defineConfig({
       "src/lib/usage-range.test.ts",
     ],
     // usage-range uses node:test (tsx --test), not vitest.
-    // onboarding.test.ts was migrated to vitest and runs as part of the suite.
+    // launch feature tests run as part of the suite.
     restoreMocks: true,
   },
 });

@@ -8,8 +8,8 @@ import {
   installationStatusLabel,
   normalizeRepo,
   TEMPLATE_GENERATE_URL,
-  type PathProgress,
-} from "@portal/lib/onboarding";
+  type LaunchProgress,
+} from "@portal/features/launch";
 import { chatAppUrl } from "@portal/lib/chat-url";
 import { Stepper } from "./stepper";
 import { DeployStep } from "./deploy-step";
@@ -34,14 +34,14 @@ export function BootstrapWizard({
   patch,
   onReset,
 }: {
-  progress: PathProgress;
+  progress: LaunchProgress;
   actor?: string;
   onBack: () => void;
   beginInstall: () => void;
   beginAuthorize: () => void;
   installing?: boolean;
   installError?: string | null;
-  patch: (patch: Partial<PathProgress>) => void;
+  patch: (patch: Partial<LaunchProgress>) => void;
   onReset?: () => void;
 }) {
   const step = bootstrapStep(progress);
@@ -68,7 +68,7 @@ export function BootstrapWizard({
       setChecking(true);
       let preExisting = false;
       try {
-        const res = await fetch(`/api/onboard/check-repo?repo=${encodeURIComponent(repo)}`);
+        const res = await fetch(`/api/launch/check-repo?repo=${encodeURIComponent(repo)}`);
         if (res.ok) {
           const data = await res.json() as { exists: boolean; fromTemplate: boolean };
           preExisting = data.exists && !data.fromTemplate;
