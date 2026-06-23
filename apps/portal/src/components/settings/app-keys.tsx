@@ -1,8 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Button, Input, useAomiAuthAdapter } from "@aomi-labs/widget-lib";
-import { settingsApiFetch, useAccountApiFetch } from "@portal/lib/settings-api";
+import { Button, Input } from "@aomi-labs/widget-lib";
+import { accountScopedFetch } from "@portal/lib/settings-api";
 import {
   settingsActionRowClass,
   settingsBodyTextClass,
@@ -60,8 +60,6 @@ function formatTs(ts?: number | null): string {
 }
 
 export function AppKeys() {
-  const { identity } = useAomiAuthAdapter();
-  const accountApiFetch = useAccountApiFetch();
   const [appKeys, setAppKeys] = useState<OwnedAppKey[]>([]);
   const [availableApps, setAvailableApps] = useState<string[]>([]);
   const [loadingKeys, setLoadingKeys] = useState(false);
@@ -78,15 +76,10 @@ export function AppKeys() {
   const [createdAppKey, setCreatedAppKey] = useState<string | null>(null);
 
   const loadAppKeys = useCallback(async () => {
-    if (!identity.address) {
-      setAppKeys([]);
-      return;
-    }
-
     setLoadingKeys(true);
     setStatus(null);
     try {
-      const data = await accountApiFetch<AppKeysResponse>(
+      const data = await accountScopedFetch<AppKeysResponse>(
         "/api/account/app-keys",
       );
       setAppKeys(data.app_keys ?? []);
@@ -99,12 +92,12 @@ export function AppKeys() {
     } finally {
       setLoadingKeys(false);
     }
-  }, [accountApiFetch, identity.address]);
+  }, []);
 
   const loadApps = useCallback(async () => {
     setLoadingApps(true);
     try {
-      const data = await settingsApiFetch<AppOption[]>("/api/session/apps");
+      const data = await accountScopedFetch<AppOption[]>("/api/account/apps");
       const normalized = normalizeAppOptions(data ?? []);
       setAvailableApps(normalized);
       setSelectedApps((previous) => {
@@ -123,15 +116,15 @@ export function AppKeys() {
     } finally {
       setLoadingApps(false);
     }
-  }, [settingsApiFetch]);
+  }, []);
 
   useEffect(() => {
     void Promise.all([loadAppKeys(), loadApps()]);
   }, [loadAppKeys, loadApps]);
 
   const canCreate = useMemo(
-    () => Boolean(identity.address) && !creating && selectedApps.length > 0,
-    [creating, identity.address, selectedApps.length],
+    () => !creating && selectedApps.length > 0,
+    [creating, selectedApps.length],
   );
 
   const toggleApp = useCallback((app: string) => {
@@ -154,7 +147,7 @@ export function AppKeys() {
         label: labelInput.trim() || undefined,
         app_key: manualKeyInput.trim() || undefined,
       };
-      const data = await accountApiFetch<CreateAppKeyResponse>(
+      const data = await accountScopedFetch<CreateAppKeyResponse>(
         "/api/account/app-keys",
         {
           method: "POST",
@@ -175,14 +168,7 @@ export function AppKeys() {
     } finally {
       setCreating(false);
     }
-  }, [
-    canCreate,
-    accountApiFetch,
-    labelInput,
-    loadAppKeys,
-    manualKeyInput,
-    selectedApps,
-  ]);
+  }, [canCreate, labelInput, loadAppKeys, manualKeyInput, selectedApps]);
 
   const handleRemove = useCallback(
     async (key: OwnedAppKey) => {
@@ -194,7 +180,7 @@ export function AppKeys() {
       setDeletingHash(key.key_hash);
       setStatus(null);
       try {
-        await accountApiFetch<{ revoked: boolean }>(
+        await accountScopedFetch<{ revoked: boolean }>(
           `/api/account/app-keys/${encodeURIComponent(key.key_hash)}`,
           { method: "DELETE" },
         );
@@ -210,7 +196,7 @@ export function AppKeys() {
         setDeletingHash(null);
       }
     },
-    [accountApiFetch, deletingHash, loadAppKeys],
+    [deletingHash, loadAppKeys],
   );
 
   return (

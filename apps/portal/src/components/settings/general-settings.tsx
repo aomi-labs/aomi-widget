@@ -7,7 +7,7 @@ import {
   formatAuthMethod,
   useAomiAuthAdapter,
 } from "@aomi-labs/widget-lib";
-import { useAccountApiFetch } from "@portal/lib/settings-api";
+import { accountScopedFetch } from "@portal/lib/settings-api";
 import {
   settingsBodyTextClass,
   settingsCardClass,
@@ -76,7 +76,6 @@ function formatNumber(n?: number): string {
 
 export function GeneralSettings() {
   const adapter = useAomiAuthAdapter();
-  const accountApiFetch = useAccountApiFetch();
   const identity = adapter.identity;
   const [account, setAccount] = useState<AccountProfile | null>(null);
   const [loading, setLoading] = useState(false);
@@ -100,7 +99,7 @@ export function GeneralSettings() {
       setLoading(true);
       setError(null);
       try {
-        const data = await accountApiFetch<AccountProfile>("/api/account");
+        const data = await accountScopedFetch<AccountProfile>("/api/account");
         setAccount(data);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to load account");
@@ -110,7 +109,7 @@ export function GeneralSettings() {
     };
 
     void run();
-  }, [accountApiFetch, identity.address]);
+  }, [identity.address]);
 
   return (
     <div className={settingsPageClass}>

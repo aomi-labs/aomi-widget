@@ -157,9 +157,9 @@ export type AomiTxResult = {
   Delegation7702?: string;
 };
 
-export type AomiAccountCredential = {
+export type AomiEmbeddedCredential = {
   provider: "para" | "privy";
-  providerToken: string;
+  providerJwt: string;
 };
 
 export type AomiAuthAdapter = {
@@ -256,7 +256,7 @@ export type AomiAuthAdapter = {
    * Return an upstream wallet-provider credential that the portal can exchange
    * for a short-lived Aomi bearer.
    */
-  getAccountCredential?: () => Promise<AomiAccountCredential | null>;
+  getEmbeddedCredential?: () => Promise<AomiEmbeddedCredential | null>;
   solanaRpcHttpUrl?: string;
   solanaRpcWsUrl?: string;
 };

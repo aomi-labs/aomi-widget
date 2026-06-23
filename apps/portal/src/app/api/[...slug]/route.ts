@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { mintAccountBearer } from "@aomi-labs/account";
-import { getSessionUserId } from "@portal/lib/aomi-account/session";
+import { getSessionedCanonicalId } from "@portal/lib/aomi-account/session";
 
 /**
  * Same-origin proxy that fronts the Rust backend and **injects the
@@ -41,7 +41,15 @@ const ALLOWED_ROUTES: Array<{
   pattern: RegExp;
   methods: ReadonlySet<string>;
 }> = [
-  { pattern: /^\/api\/account$/, methods: new Set(["GET"]) },
+  // The whole account family — `/api/account` plus sub-routes the settings UI
+  // calls (`/payment`, `/payment/byok`, `/app-keys[/id]`, `/approvals`,
+  // `/bots[/id]`, `/usage`). The backend authorizes each by the injected user
+  // bearer, so the proxy only needs to forward them. (`/api/account/sessions/
+  // exchange` is a more-specific portal route and never reaches this catch-all.)
+  {
+    pattern: /^\/api\/account(\/.*)?$/,
+    methods: new Set(["GET", "POST", "PATCH", "PUT", "DELETE"]),
+  },
   { pattern: /^\/api\/state$/, methods: new Set(["GET"]) },
   { pattern: /^\/api\/chat$/, methods: new Set(["POST"]) },
   { pattern: /^\/api\/system$/, methods: new Set(["POST"]) },
@@ -137,11 +145,11 @@ function copyRequestHeaders(req: NextRequest): Headers {
  * degrades to anonymous + a warning rather than failing every API call.
  */
 async function injectBearer(req: NextRequest, headers: Headers): Promise<void> {
-  const userId = await getSessionUserId(req);
-  if (!userId) return;
+  const canonicalId = await getSessionedCanonicalId(req);
+  if (!canonicalId) return;
   try {
-    const { accessToken } = await mintAccountBearer(userId);
-    headers.set("authorization", `Bearer ${accessToken}`);
+    const { accessToken: accountBearer } = await mintAccountBearer(canonicalId);
+    headers.set("authorization", `Bearer ${accountBearer}`);
   } catch (error) {
     console.warn("Aomi proxy: could not mint AccountBearer; forwarding anonymous", {
       message: error instanceof Error ? error.message : String(error),

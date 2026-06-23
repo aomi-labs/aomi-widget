@@ -179,7 +179,7 @@ export function E2EWalletProvider({ children, seed, networks }: Props) {
       signMessage: async (payload) => ({
         signature: fakeSignature(payload),
       }),
-      getAccountCredential: async () => null,
+      getEmbeddedCredential: async () => null,
     };
   }, [networks, seed.address, seed.chainId]);
 

@@ -662,8 +662,17 @@ export class AomiClient {
    * backend never returns raw values; the settings page uses this as the
    * source of truth instead of trusting localStorage.
    */
-  async listSecrets(sessionId: string): Promise<AomiListSecretsResponse> {
-    const url = joinApiPath(this.baseUrl, "/api/secrets");
+  async listSecrets(
+    sessionId: string,
+    clientId?: string,
+  ): Promise<AomiListSecretsResponse> {
+    // Pass the client_id explicitly so the read resolves the vault by the key
+    // the caller already holds, not via the in-memory session→client_id binding
+    // (which is lost on a backend restart, leaving cold reads empty).
+    const url =
+      clientId && clientId.trim().length > 0
+        ? buildApiUrl(this.baseUrl, "/api/secrets", { client_id: clientId })
+        : joinApiPath(this.baseUrl, "/api/secrets");
     const response = await this.fetchImpl(url, {
       method: "GET",
       headers: withSessionHeader(sessionId),
