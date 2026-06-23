@@ -1,17 +1,17 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { DeployStep } from "./deploy-step";
-import type { OnboardingPath, OnboardDeployPayload } from "@portal/lib/onboarding";
-import type { PathProgress } from "@portal/lib/onboarding";
+import type { LaunchPath, LaunchDeployPayload } from "@portal/features/launch";
+import type { LaunchProgress } from "@portal/features/launch";
 
 const noop = () => {};
 
-vi.mock("@portal/lib/onboarding", () => ({
-  onboardDryRun: vi.fn(),
-  onboardDeploy: vi.fn(),
-  onboardStatus: vi.fn(),
-  onboardActivate: vi.fn(),
-  onboardAppStatus: vi.fn(),
+vi.mock("@portal/features/launch", () => ({
+  launchDryRun: vi.fn(),
+  launchDeploy: vi.fn(),
+  launchStatus: vi.fn(),
+  launchActivate: vi.fn(),
+  launchAppStatus: vi.fn(),
 }));
 
 vi.mock("@aomi-labs/widget-lib", () => ({
@@ -32,7 +32,7 @@ vi.mock("@aomi-labs/widget-lib", () => ({
   ),
 }));
 
-function baseProgress(): PathProgress {
+function baseProgress(): LaunchProgress {
   return {
     path: null,
     oneshot: {},
@@ -43,7 +43,7 @@ function baseProgress(): PathProgress {
 
 describe("DeployStep", () => {
   const defaultProps = {
-    path: "oneshot" as OnboardingPath,
+    path: "oneshot" as LaunchPath,
     installationId: "12345",
     progress: baseProgress(),
     onProgress: noop,
@@ -83,7 +83,7 @@ describe("DeployStep", () => {
           ci_status: null, ci_url: null,
           apps: [],
         },
-      } as unknown as OnboardDeployPayload,
+      } as unknown as LaunchDeployPayload,
     };
     render(<DeployStep {...defaultProps} progress={progress} />);
     expect(screen.getByText("Deploy")).toBeDisabled();
