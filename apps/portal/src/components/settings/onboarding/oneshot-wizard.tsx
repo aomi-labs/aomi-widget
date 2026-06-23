@@ -11,10 +11,10 @@ import {
 import { Button } from "@aomi-labs/widget-lib";
 import {
   installationStatusLabel,
-  onboardCreateRepo,
+  launchCreateRepo,
   oneshotStep,
-  type PathProgress,
-} from "@portal/lib/onboarding";
+  type LaunchProgress,
+} from "@portal/features/launch";
 import { chatAppUrl } from "@portal/lib/chat-url";
 import { Stepper } from "./stepper";
 import { DeployStep } from "./deploy-step";
@@ -38,14 +38,14 @@ export function OneshotWizard({
   patch,
   onReset,
 }: {
-  progress: PathProgress;
+  progress: LaunchProgress;
   actor?: string;
   onBack: () => void;
   beginInstall: () => void;
   beginAuthorize: () => void;
   installing?: boolean;
   installError?: string | null;
-  patch: (patch: Partial<PathProgress>) => void;
+  patch: (patch: Partial<LaunchProgress>) => void;
   onReset?: () => void;
 }) {
   const step = oneshotStep(progress);
@@ -58,7 +58,7 @@ export function OneshotWizard({
     setCreating(true);
     setCreateError(null);
     try {
-      const result = await onboardCreateRepo({
+      const result = await launchCreateRepo({
         installationId: progress.installationId,
       });
       patch({

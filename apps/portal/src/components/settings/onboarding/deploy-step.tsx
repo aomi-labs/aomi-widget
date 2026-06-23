@@ -14,15 +14,15 @@ import {
 } from "lucide-react";
 import { Button } from "@aomi-labs/widget-lib";
 import {
-  onboardActivate,
-  onboardAppStatus,
-  onboardDeploy,
-  onboardDryRun,
-  onboardStatus,
-  type OnboardDeployPayload,
-  type OnboardingPath,
-  type PathProgress,
-} from "@portal/lib/onboarding";
+  launchActivate,
+  launchAppStatus,
+  launchDeploy,
+  launchDryRun,
+  launchStatus,
+  type LaunchDeployPayload,
+  type LaunchPath,
+  type LaunchProgress,
+} from "@portal/features/launch";
 
 type Phase =
   | "idle"
@@ -43,18 +43,18 @@ type ProgressModel = {
   label: string;
 };
 
-function deploymentApps(deployment?: OnboardDeployPayload) {
+function deploymentApps(deployment?: LaunchDeployPayload) {
   return deployment?.platform?.apps ?? [];
 }
 
-function releaseTags(deployment?: OnboardDeployPayload): string[] {
+function releaseTags(deployment?: LaunchDeployPayload): string[] {
   return deploymentApps(deployment)
     .map((app) => app.release_tag ?? app.releaseTag)
     .map((tag) => tag?.trim())
     .filter((tag): tag is string => Boolean(tag));
 }
 
-function appNames(deployment?: OnboardDeployPayload): string[] {
+function appNames(deployment?: LaunchDeployPayload): string[] {
   return deploymentApps(deployment)
     .map((app) => app.name?.trim())
     .filter((name): name is string => Boolean(name));
@@ -85,7 +85,7 @@ function buildProgressModel(state: string, lastCompleted: number): ProgressModel
   };
 }
 
-function initialPhase(progress: PathProgress): Phase {
+function initialPhase(progress: LaunchProgress): Phase {
   if (progress.live) return "live";
   if (!progress.deploymentId) return progress.deployment ? "dry_ready" : "idle";
   return "building";
@@ -101,18 +101,18 @@ export function DeployStep({
   onReconnectInstall,
   onReset,
 }: {
-  path: OnboardingPath;
+  path: LaunchPath;
   installationId: string;
   repo?: string;
   actor?: string;
-  progress: PathProgress;
-  onProgress: (patch: Partial<PathProgress>) => void;
+  progress: LaunchProgress;
+  onProgress: (patch: Partial<LaunchProgress>) => void;
   onReconnectInstall?: () => void;
   onReset?: () => void;
 }) {
   const [phase, setPhase] = useState<Phase>(() => initialPhase(progress));
   const [deployment, setDeployment] = useState<
-    OnboardDeployPayload | undefined
+    LaunchDeployPayload | undefined
   >(progress.deployment);
   const [deploymentId, setDeploymentId] = useState<string | undefined>(
     progress.deploymentId,
@@ -143,7 +143,7 @@ export function DeployStep({
   const applyDeployment = useCallback(
     (next: {
       repo?: string;
-      deployment: OnboardDeployPayload;
+      deployment: LaunchDeployPayload;
       releaseTags?: string[];
       apps?: string[];
     }) => {
@@ -166,7 +166,7 @@ export function DeployStep({
     setError(null);
     statusFailuresRef.current = 0;
     try {
-      const result = await onboardDryRun({ path, installationId, repo, actor });
+      const result = await launchDryRun({ path, installationId, repo, actor });
       applyDeployment(result);
       setPhase("dry_ready");
     } catch (e) {
@@ -181,7 +181,7 @@ export function DeployStep({
     statusFailuresRef.current = 0;
     try {
       if (!deployment) {
-        const dryResult = await onboardDryRun({
+        const dryResult = await launchDryRun({
           path,
           installationId,
           repo,
@@ -189,7 +189,7 @@ export function DeployStep({
         });
         applyDeployment(dryResult);
       }
-      const result = await onboardDeploy({ path, installationId, repo, actor });
+      const result = await launchDeploy({ path, installationId, repo, actor });
       applyDeployment(result);
       const id = result.deployment.id;
       setDeploymentId(id);
@@ -220,7 +220,7 @@ export function DeployStep({
         return;
       }
       try {
-        const status = await onboardStatus(deploymentId);
+        const status = await launchStatus(deploymentId);
         if (cancelled) return;
         statusFailuresRef.current = 0;
         if (status.deployment) {
@@ -231,7 +231,7 @@ export function DeployStep({
         lastCompletedRef.current = model.completed;
         setProgressModel(model);
 
-        const patch: Partial<PathProgress> = {
+        const patch: Partial<LaunchProgress> = {
           deploymentId,
           live: false,
         };
@@ -288,7 +288,7 @@ export function DeployStep({
         try {
           const checks = await Promise.all(
             nextApps.map((name, index) =>
-              onboardAppStatus({ name, releaseTag: nextTags[index] }),
+              launchAppStatus({ name, releaseTag: nextTags[index] }),
             ),
           );
           if (
@@ -333,7 +333,7 @@ export function DeployStep({
     setPhase("activating");
     setError(null);
     try {
-      const result = await onboardActivate({ releaseTags: tags, apps, actor });
+      const result = await launchActivate({ releaseTags: tags, apps, actor });
       const activatedApps = result.activation?.apps ?? [];
       if (!result.ok || activatedApps.some((app) => !app.loaded || app.error)) {
         const failed = activatedApps.find((app) => app.error);
@@ -527,7 +527,7 @@ function DeploymentSummary({
   manifestJson,
   onToggleManifest,
 }: {
-  deployment: OnboardDeployPayload;
+  deployment: LaunchDeployPayload;
   tags: string[];
   phase: Phase;
   showManifest: boolean;
