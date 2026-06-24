@@ -17,7 +17,7 @@ import {
   launchActivate,
   launchAppStatus,
   launchDeploy,
-  launchDryRun,
+  launchPreflight,
   launchStatus,
   type LaunchDeployPayload,
   type LaunchProgress,
@@ -25,8 +25,8 @@ import {
 
 type Phase =
   | "idle"
-  | "dry_running"
-  | "dry_ready"
+  | "preflight_running"
+  | "preflight_ready"
   | "deploying"
   | "building"
   | "releasing"
@@ -96,7 +96,7 @@ function buildProgressModel(
 
 function initialPhase(progress: LaunchProgress): Phase {
   if (progress.live) return "live";
-  if (!progress.deploymentId) return progress.deployment ? "dry_ready" : "idle";
+  if (!progress.deploymentId) return progress.deployment ? "preflight_ready" : "idle";
   return "building";
 }
 
@@ -176,19 +176,19 @@ export function DeployStep({
     [onProgress, repo],
   );
 
-  const dryRun = useCallback(async () => {
-    setPhase("dry_running");
+  const preflight = useCallback(async () => {
+    setPhase("preflight_running");
     setError(null);
     statusFailuresRef.current = 0;
     try {
-      const result = await launchDryRun({
+      const result = await launchPreflight({
         installationId,
         repo,
         appSourceId: progress.appSourceId,
         actor,
       });
       applyDeployment(result);
-      setPhase("dry_ready");
+      setPhase("preflight_ready");
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
       setPhase("error");
@@ -201,17 +201,17 @@ export function DeployStep({
     statusFailuresRef.current = 0;
     try {
       // Deploy commits against a stable source row id. The first deploy after
-      // an install has none yet, so a dry run mints it (and primes the
+      // an install has none yet, so a preflight mints it (and primes the
       // preview); afterwards we go straight through by id.
       let appSourceId = progress.appSourceId;
       if (!appSourceId) {
-        const dryResult = await launchDryRun({ installationId, repo, actor });
-        applyDeployment(dryResult);
-        appSourceId = dryResult.appSourceId;
+        const preflightResult = await launchPreflight({ installationId, repo, actor });
+        applyDeployment(preflightResult);
+        appSourceId = preflightResult.appSourceId;
       }
       if (!appSourceId) {
         throw new Error(
-          "Could not resolve a source to deploy. Run a dry run first.",
+          "Could not resolve a source to deploy. Run a preflight first.",
         );
       }
       const result = await launchDeploy({ appSourceId, actor });
@@ -398,7 +398,7 @@ export function DeployStep({
     setVerifyAttempt(0);
     setDeploymentId(undefined);
     onProgress({ deploymentId: undefined, live: false });
-    setPhase(deployment ? "dry_ready" : "idle");
+    setPhase(deployment ? "preflight_ready" : "idle");
     onReset?.();
   }, [deployment, onProgress, onReset]);
 
@@ -449,16 +449,16 @@ export function DeployStep({
     <div className="space-y-4 text-sm">
       <div className="flex flex-wrap items-center gap-2">
         <Button
-          onClick={dryRun}
-          disabled={phase !== "idle" && phase !== "dry_ready"}
+          onClick={preflight}
+          disabled={phase !== "idle" && phase !== "preflight_ready"}
           className="h-9 rounded-full px-3 text-sm font-medium"
         >
-          {phase === "dry_running" ? (
+          {phase === "preflight_running" ? (
             <Loader2 className="mr-1 h-4 w-4 animate-spin" />
           ) : (
             <Play className="mr-1 h-4 w-4" />
           )}
-          Dry run
+          Preflight
         </Button>
         <Button
           onClick={deploy}
@@ -503,7 +503,7 @@ export function DeployStep({
 
       <div className="text-muted-foreground flex items-center gap-2 text-xs">
         {[
-          "dry_running",
+          "preflight_running",
           "deploying",
           "building",
           "releasing",
@@ -513,10 +513,10 @@ export function DeployStep({
           <Loader2 className="h-4 w-4 animate-spin text-blue-500" />
         )}
         {phase === "idle" &&
-          "Run a dry run to preview the deployment manifest."}
-        {phase === "dry_running" &&
+          "Run a preflight to preview the deployment manifest."}
+        {phase === "preflight_running" &&
           "Resolving source and rendering deployment.json."}
-        {phase === "dry_ready" && "Dry run is ready. Review it, then deploy."}
+        {phase === "preflight_ready" && "Preflight is ready. Review it, then deploy."}
         {phase === "deploying" &&
           "Creating or updating the platform deploy branch."}
         {phase === "building" && "Waiting for platform CI and release assets."}
@@ -755,7 +755,7 @@ function ProgressBar({ model }: { model: ProgressModel }) {
 
 function statusLabel(phase: Phase): string {
   switch (phase) {
-    case "dry_ready":
+    case "preflight_ready":
       return "Preview ready";
     case "building":
       return "CI pending";

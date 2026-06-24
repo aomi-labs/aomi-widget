@@ -133,7 +133,7 @@ export function sourceLifecycle(source: UserSource): SourceLifecycle {
     kind: "empty",
     statusLabel: "Not deployed",
     statusTone: "muted",
-    message: "Run a dry run to preview the deployment manifest.",
+    message: "Run a preflight to preview the deployment manifest.",
   };
 }
 

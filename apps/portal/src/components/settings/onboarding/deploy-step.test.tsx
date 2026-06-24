@@ -7,7 +7,7 @@ import type { LaunchProgress } from "@portal/features/launch";
 const noop = () => {};
 
 vi.mock("@portal/features/launch", () => ({
-  launchDryRun: vi.fn(),
+  launchPreflight: vi.fn(),
   launchDeploy: vi.fn(),
   launchStatus: vi.fn(),
   launchActivate: vi.fn(),
@@ -54,9 +54,9 @@ describe("DeployStep", () => {
     onProgress: noop,
   };
 
-  it("renders idle state with dry run and deploy buttons", () => {
+  it("renders idle state with preflight and deploy buttons", () => {
     render(<DeployStep {...defaultProps} />);
-    expect(screen.getByText("Dry run")).toBeInTheDocument();
+    expect(screen.getByText("Preflight")).toBeInTheDocument();
     expect(screen.getByText("Deploy")).toBeInTheDocument();
     expect(screen.getByText("Activate")).toBeInTheDocument();
   });
@@ -112,7 +112,7 @@ describe("DeployStep", () => {
 
   it("shows the idle phase hint text", () => {
     render(<DeployStep {...defaultProps} />);
-    expect(screen.getByText(/Run a dry run/)).toBeInTheDocument();
+    expect(screen.getByText(/Run a preflight/)).toBeInTheDocument();
   });
 
   it("shows error state with retry button", () => {
@@ -122,6 +122,6 @@ describe("DeployStep", () => {
     );
 
     // just verify the component renders without crashing
-    expect(screen.getByText("Dry run")).toBeInTheDocument();
+    expect(screen.getByText("Preflight")).toBeInTheDocument();
   });
 });

@@ -8,7 +8,7 @@ BFF / server use only** (holds the activation bearer token).
 ### `deploy()`
 
 Calls `POST /api/platforms/:platform/deploy` with `app_source_id`, `source_ref`,
-`aomi_toml_paths`, and optional `dry_run`.
+`aomi_toml_paths`, and optional `preflight`.
 
 ### `activate()`
 
@@ -126,7 +126,7 @@ interface DeployRequest {
   appSourceId: number;
   sourceRef: { kind: "branch" | "commit"; value: string };
   aomiTomlPaths: string[];
-  dryRun?: boolean;
+  preflight?: boolean;
 }
 
 interface ActivateRequest {
@@ -169,7 +169,7 @@ const { deployment } = await dc.deploy({
   appSourceId: 42,
   sourceRef: { kind: "branch", value: "main" },
   aomiTomlPaths: ["aomi.toml"],
-  dryRun: true,
+  preflight: true,
 });
 
 await dc.activate({

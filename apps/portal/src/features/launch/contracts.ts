@@ -52,11 +52,11 @@ export type LaunchProgress = {
 };
 
 /**
- * Dry-run / preview input. This is the one place a repo may stand in for a
- * source row: the dry run materializes the backend source and returns its
+ * Preflight / preview input. This is the one place a repo may stand in for a
+ * source row: the preflight materializes the backend source and returns its
  * `appSourceId`.
  */
-export type LaunchDryRunInput = {
+export type LaunchPreflightInput = {
   appSourceId?: number;
   /** GitHub App installation that owns the source repo. Wizard context only. */
   installationId?: string;
