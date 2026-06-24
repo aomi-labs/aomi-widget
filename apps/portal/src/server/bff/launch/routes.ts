@@ -46,21 +46,8 @@ function defaultRepoName() {
   return `${normalized}-${randomBytes(4).toString("hex")}`;
 }
 
-async function resolveAppSourceId(args: {
-  client: Awaited<ReturnType<typeof deploymentClient>>;
-  platform: string;
-  installationId: string;
-  repo?: string;
-}): Promise<number> {
-  const source = await args.client.resolveSource({
-    platform: args.platform,
-    installationId: Number(args.installationId),
-    repo: args.repo,
-  });
-  if (!Number.isSafeInteger(source.id) || source.id <= 0) {
-    throw new Error("backend did not return a valid app source id");
-  }
-  return source.id;
+function isValidAppSourceId(value: unknown): value is number {
+  return typeof value === "number" && Number.isSafeInteger(value) && value > 0;
 }
 
 export function launchDeployRoute(dryRun: boolean) {
@@ -69,28 +56,19 @@ export function launchDeployRoute(dryRun: boolean) {
     if (blocked) return blocked;
 
     const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
-    if (!isValidInstallationId(body.installationId)) {
+    if (!isValidAppSourceId(body.appSourceId)) {
       return NextResponse.json(
-        { error: "invalid `installationId`" },
+        { error: "missing or invalid `appSourceId`" },
         { status: 400 },
       );
-    }
-    if (body.repo !== undefined && !isValidRepo(body.repo)) {
-      return NextResponse.json({ error: "invalid `repo`" }, { status: 400 });
     }
 
     try {
       const config = launchConfig();
       const client = await deploymentClient();
-      const appSourceId = await resolveAppSourceId({
-        client,
-        platform: config.platform,
-        installationId: body.installationId as string,
-        repo: body.repo as string | undefined,
-      });
       const { deployment } = await client.deploy({
         platform: config.platform,
-        appSourceId,
+        appSourceId: body.appSourceId,
         sourceRef: config.sourceRef,
         aomiTomlPaths: config.aomiTomlPaths,
         dryRun,
@@ -99,9 +77,7 @@ export function launchDeployRoute(dryRun: boolean) {
       return NextResponse.json(
         {
           ok: true,
-          repo:
-            (body.repo as string | undefined) ??
-            deployment.source.repositoryLink,
+          repo: deployment.source.repositoryLink,
           deployment,
           releaseTags: releaseTagsFromDeployment(deployment),
           apps: appNamesFromDeployment(deployment),

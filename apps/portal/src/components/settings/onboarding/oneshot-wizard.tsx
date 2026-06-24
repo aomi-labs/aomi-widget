@@ -64,6 +64,7 @@ export function OneshotWizard({
       patch({
         installationId: result.installationId,
         repo: result.repo,
+        appSourceId: result.appSourceId,
       });
     } catch (err) {
       setCreateError(err instanceof Error ? err.message : String(err));
@@ -161,14 +162,13 @@ export function OneshotWizard({
         </div>
       )}
 
-      {step === "build" && progress.installationId && (
+      {step === "build" && progress.appSourceId && (
         <div className="border-input space-y-3 rounded-2xl border p-4">
           <div className="text-foreground text-sm font-medium">
             Step 3 — Build and activate
           </div>
           <DeployStep
-            path="oneshot"
-            installationId={progress.installationId}
+            appSourceId={progress.appSourceId}
             repo={progress.repo}
             actor={actor}
             progress={progress}
