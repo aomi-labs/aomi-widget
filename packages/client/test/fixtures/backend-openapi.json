@@ -27,6 +27,23 @@
         "x-aomi-auth": []
       }
     },
+    "/metrics": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "serviceBearer": []
+          }
+        ],
+        "x-aomi-auth": [
+          "service"
+        ]
+      }
+    },
     "/api/chat": {
       "post": {
         "responses": {
@@ -956,6 +973,51 @@
         },
         "security": [],
         "x-aomi-auth": []
+      }
+    },
+    "/api/integrations/github-app/oauth/result": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "security": [],
+        "x-aomi-auth": []
+      }
+    },
+    "/api/integrations/github-app/oauth/exchange": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "serviceBearer": []
+          }
+        ],
+        "x-aomi-auth": [
+          "service"
+        ]
+      }
+    },
+    "/api/integrations/github-app/user/sources": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "serviceBearer": []
+          }
+        ],
+        "x-aomi-auth": [
+          "service"
+        ]
       }
     },
     "/api/integrations/github-app/platforms/{name}/sources/create-from-template": {

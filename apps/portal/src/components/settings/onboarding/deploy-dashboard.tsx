@@ -250,6 +250,7 @@ function SourceCard({ source }: { source: UserSource }) {
   const [progress, setProgress] = useState<LaunchProgress>(() => ({
     installationId: String(source.installationId),
     repo,
+    appSourceId: source.id,
     apps: source.apps.map((a) => a.name),
     releaseTags: source.apps
       .map((a) => a.appReleaseTag ?? "")
@@ -286,8 +287,7 @@ function SourceCard({ source }: { source: UserSource }) {
       </div>
 
       <DeployStep
-        path="bootstrap"
-        installationId={String(source.installationId)}
+        appSourceId={source.id}
         repo={repo}
         progress={progress}
         onProgress={patch}
@@ -305,7 +305,7 @@ function ChatEmbed({ appName }: { appName: string }) {
         Chat with your agent
       </div>
       <iframe
-        src={chatAppUrl(appName)}
+        src={chatAppUrl(appName, { locked: true })}
         title={`Chat with ${appName}`}
         className="border-input bg-background h-[600px] w-full rounded-xl border"
       />
