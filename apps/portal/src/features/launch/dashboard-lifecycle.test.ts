@@ -42,9 +42,10 @@ describe("sourceLifecycle", () => {
 
     expect(lifecycle.kind).toBe("live");
     expect(lifecycle.chatApp).toBe("bot");
+    expect(lifecycle.chatApplicationId).toBe(10);
   });
 
-  it("does not call active-but-unloaded apps live", () => {
+  it("treats active source apps as live even when runtime loaded is false", () => {
     const lifecycle = sourceLifecycle(
       source({
         apps: [
@@ -63,12 +64,59 @@ describe("sourceLifecycle", () => {
       }),
     );
 
-    expect(lifecycle.kind).toBe("activation_pending");
+    expect(lifecycle.kind).toBe("live");
     expect(lifecycle.releaseTags).toEqual(["apps-123-bot-abc"]);
-    expect(lifecycle.chatApp).toBeUndefined();
+    expect(lifecycle.chatApp).toBe("bot");
+    expect(lifecycle.chatApplicationId).toBe(10);
   });
 
   it("uses latest deployment state for build-ready cards and links", () => {
+    const lifecycle = sourceLifecycle(
+      source({
+        apps: [
+          {
+            id: 10,
+            name: "bot",
+            label: "bot",
+            isActive: true,
+            isPublic: true,
+            appSourceId: 1,
+            appReleaseTag: "apps-123-bot-old",
+            targetTags: [],
+            loaded: true,
+          },
+        ],
+        latestDeployment: {
+          deploymentId: "dep_1",
+          state: "ready",
+          deployBranch: "alice/bot/123/abc",
+          platformRepo: "aomi-labs/community-apps",
+          commitHash: "abc123",
+          ciStatus: "passed",
+          ciUrl: "https://github.com/aomi-labs/community-apps/actions/runs/1",
+          releaseTags: ["apps-123-bot-abc"],
+          apps: [
+            {
+              name: "bot",
+              releaseTag: "apps-123-bot-abc",
+              applicationId: 10,
+              isActive: false,
+              loaded: false,
+            },
+          ],
+        },
+      }),
+    );
+
+    expect(lifecycle.kind).toBe("build_ready");
+    expect(lifecycle.chatApp).toBeUndefined();
+    expect(lifecycle.branchUrl).toBe(
+      "https://github.com/aomi-labs/community-apps/tree/alice%2Fbot%2F123%2Fabc",
+    );
+    expect(lifecycle.ciUrl).toContain("/actions/runs/1");
+  });
+
+  it("uses the latest deployment active application entry for live chat", () => {
     const lifecycle = sourceLifecycle(
       source({
         latestDeployment: {
@@ -80,16 +128,64 @@ describe("sourceLifecycle", () => {
           ciStatus: "passed",
           ciUrl: "https://github.com/aomi-labs/community-apps/actions/runs/1",
           releaseTags: ["apps-123-bot-abc"],
-          apps: [{ name: "bot", releaseTag: "apps-123-bot-abc" }],
+          apps: [
+            {
+              name: "bot",
+              releaseTag: "apps-123-bot-abc",
+              applicationId: 42,
+              isActive: true,
+              loaded: false,
+            },
+          ],
         },
       }),
     );
 
-    expect(lifecycle.kind).toBe("build_ready");
-    expect(lifecycle.branchUrl).toBe(
-      "https://github.com/aomi-labs/community-apps/tree/alice%2Fbot%2F123%2Fabc",
+    expect(lifecycle.kind).toBe("live");
+    expect(lifecycle.chatApp).toBe("bot");
+    expect(lifecycle.chatApplicationId).toBe(42);
+  });
+
+  it("does not downgrade an active latest deployment to runtime pending", () => {
+    const lifecycle = sourceLifecycle(
+      source({
+        apps: [
+          {
+            id: 10,
+            name: "bot",
+            label: "bot",
+            isActive: true,
+            isPublic: true,
+            appSourceId: 1,
+            appReleaseTag: "apps-123-bot-old",
+            targetTags: [],
+            loaded: true,
+          },
+        ],
+        latestDeployment: {
+          deploymentId: "dep_1",
+          state: "ready",
+          deployBranch: "alice/bot/123/abc",
+          platformRepo: "aomi-labs/community-apps",
+          commitHash: "abc123",
+          ciStatus: "passed",
+          ciUrl: "https://github.com/aomi-labs/community-apps/actions/runs/1",
+          releaseTags: ["apps-123-bot-abc"],
+          apps: [
+            {
+              name: "bot",
+              releaseTag: "apps-123-bot-abc",
+              applicationId: 42,
+              isActive: true,
+              loaded: false,
+            },
+          ],
+        },
+      }),
     );
-    expect(lifecycle.ciUrl).toContain("/actions/runs/1");
+
+    expect(lifecycle.kind).toBe("live");
+    expect(lifecycle.chatApplicationId).toBe(42);
   });
 
   it("derives deployment ids from app release tags", () => {

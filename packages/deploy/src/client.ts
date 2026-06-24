@@ -21,6 +21,7 @@ import type {
   MintedToken,
   PlatformApp,
   ProgressModel,
+  ResolveSourceInput,
   RevokeTokenInput,
   ScaffoldInput,
   StatusInput,
@@ -364,6 +365,40 @@ export class DeploymentClient {
     );
     await this.audit({
       action: "sync_source",
+      platform,
+      repo,
+      actor: input.actor,
+      ts: Date.now(),
+    });
+    return camelAppSource(raw.source);
+  }
+
+  /**
+   * Look up an existing source row by installation (+ optional repo) without
+   * syncing. `GET /api/platforms/:platform/sources/resolve`.
+   */
+  async resolveSource(input: ResolveSourceInput): Promise<AppSource> {
+    const platform = cleanPlatform(input.platform);
+    const installationId = Number(input.installationId);
+    if (!Number.isSafeInteger(installationId) || installationId <= 0) {
+      throw new DeployError(
+        "INVALID_REQUEST",
+        "resolveSource requires a positive installationId",
+      );
+    }
+    const params = new URLSearchParams({
+      installation_id: String(installationId),
+    });
+    const repo = input.repo?.trim();
+    if (repo) params.set("repo", repo);
+    const bearer = this.resolveBearer(input.bearer);
+    const raw = await this.get<{ ok?: boolean; source?: unknown }>(
+      `/api/platforms/${encodeURIComponent(platform)}/sources/resolve?${params.toString()}`,
+      "resolve_source",
+      bearer,
+    );
+    await this.audit({
+      action: "resolve_source",
       platform,
       repo,
       actor: input.actor,
@@ -798,6 +833,7 @@ function camelActivateResult(result: unknown): ActivateResult {
         ),
       },
       apps: (activation.apps ?? []).map((app: Record<string, any>) => ({
+        applicationId: app.application_id ?? app.applicationId ?? null,
         name: app.name,
         path: app.path ?? null,
         releaseTag: app.release_tag ?? null,
@@ -911,6 +947,11 @@ function camelUserSourceLatestDeployment(
       name: app.name,
       releaseTag: app.release_tag ?? app.releaseTag ?? null,
       target: app.target ?? null,
+      applicationId: app.application_id ?? app.applicationId ?? null,
+      appSourceId: app.app_source_id ?? app.appSourceId ?? null,
+      appReleaseTag: app.app_release_tag ?? app.appReleaseTag ?? null,
+      isActive: Boolean(app.is_active ?? app.isActive),
+      loaded: Boolean(app.loaded),
     })),
   };
 }

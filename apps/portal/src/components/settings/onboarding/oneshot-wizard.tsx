@@ -170,13 +170,13 @@ export function OneshotWizard({
         </div>
       )}
 
-      {step === "build" && progress.appSourceId && (
+      {step === "build" && progress.installationId && progress.repo && (
         <div className="border-input space-y-3 rounded-2xl border p-4">
           <div className="text-foreground text-sm font-medium">
             Step 3 — Build and activate
           </div>
           <DeployStep
-            appSourceId={progress.appSourceId}
+            installationId={progress.installationId}
             repo={progress.repo}
             actor={actor}
             progress={progress}
