@@ -51,13 +51,23 @@ export type LaunchProgress = {
   live?: boolean;
 };
 
-export type LaunchDeployInput = {
-  /** Backend source row id. When present, deploy can skip source syncing. */
+/**
+ * Dry-run / preview input. This is the one place a repo may stand in for a
+ * source row: the dry run materializes the backend source and returns its
+ * `appSourceId`.
+ */
+export type LaunchDryRunInput = {
   appSourceId?: number;
-  /** GitHub App installation that owns the source repo. Kept for wizard context. */
+  /** GitHub App installation that owns the source repo. Wizard context only. */
   installationId?: string;
-  /** `owner/name` repo used to sync the backend source when appSourceId is absent. */
+  /** `owner/name` repo used to mint the backend source when appSourceId is absent. */
   repo?: string;
+  actor?: string;
+};
+
+/** Commit a deploy against a stable, already-resolved source row. */
+export type LaunchDeployInput = {
+  appSourceId: number;
   actor?: string;
 };
 
