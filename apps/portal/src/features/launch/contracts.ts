@@ -41,8 +41,7 @@ export type LaunchProgress = {
   installationId?: string;
   installationStatus?: string;
   repo?: string;
-  /** Cached source row id from create/sync/dashboard responses. Deploy still
-   *  re-resolves by installation/repo in the BFF before calling the backend. */
+  /** Cached source row id from create/sync/dashboard responses. */
   appSourceId?: number;
   deploymentId?: string;
   deployment?: LaunchDeployPayload;
@@ -53,10 +52,11 @@ export type LaunchProgress = {
 };
 
 export type LaunchDeployInput = {
-  /** GitHub App installation that owns the source repo. The BFF resolves this
-   *  to backend `app_source_id` before deploying. */
-  installationId: string;
-  /** Optional `owner/name` disambiguator when an installation has more than one repo. */
+  /** Backend source row id. When present, deploy can skip source syncing. */
+  appSourceId?: number;
+  /** GitHub App installation that owns the source repo. Kept for wizard context. */
+  installationId?: string;
+  /** `owner/name` repo used to sync the backend source when appSourceId is absent. */
   repo?: string;
   actor?: string;
 };
