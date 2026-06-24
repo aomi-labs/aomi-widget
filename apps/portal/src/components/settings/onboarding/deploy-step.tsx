@@ -200,23 +200,21 @@ export function DeployStep({
     setError(null);
     statusFailuresRef.current = 0;
     try {
+      // Deploy commits against a stable source row id. The first deploy after
+      // an install has none yet, so a dry run mints it (and primes the
+      // preview); afterwards we go straight through by id.
       let appSourceId = progress.appSourceId;
-      if (!deployment) {
-        const dryResult = await launchDryRun({
-          installationId,
-          repo,
-          appSourceId,
-          actor,
-        });
+      if (!appSourceId) {
+        const dryResult = await launchDryRun({ installationId, repo, actor });
         applyDeployment(dryResult);
-        appSourceId = dryResult.appSourceId ?? appSourceId;
+        appSourceId = dryResult.appSourceId;
       }
-      const result = await launchDeploy({
-        installationId,
-        repo,
-        appSourceId,
-        actor,
-      });
+      if (!appSourceId) {
+        throw new Error(
+          "Could not resolve a source to deploy. Run a dry run first.",
+        );
+      }
+      const result = await launchDeploy({ appSourceId, actor });
       applyDeployment(result);
       const id = result.deployment.id;
       setDeploymentId(id);
@@ -239,7 +237,6 @@ export function DeployStep({
   }, [
     actor,
     applyDeployment,
-    deployment,
     installationId,
     onProgress,
     progress.appSourceId,

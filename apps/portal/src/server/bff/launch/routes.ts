@@ -46,52 +46,6 @@ function isValidAppSourceId(value: unknown): value is number {
   return typeof value === "number" && Number.isSafeInteger(value) && value > 0;
 }
 
-type ResolvedAppSource = {
-  appSourceId: number;
-  installationId?: string;
-  repo?: string;
-};
-
-function sourceIdentity(source: {
-  id: number;
-  installationId?: number | null;
-  repositoryLink?: string | null;
-}): ResolvedAppSource {
-  if (!isValidAppSourceId(source.id)) {
-    throw new Error("backend did not return a valid app source id");
-  }
-  return {
-    appSourceId: source.id,
-    installationId:
-      typeof source.installationId === "number" &&
-      Number.isSafeInteger(source.installationId) &&
-      source.installationId > 0
-        ? String(source.installationId)
-        : undefined,
-    repo: source.repositoryLink?.trim() || undefined,
-  };
-}
-
-async function resolveAppSource(args: {
-  client: Awaited<ReturnType<typeof deploymentClient>>;
-  platform: string;
-  appSourceId?: unknown;
-  repo?: string;
-}): Promise<ResolvedAppSource> {
-  if (isValidAppSourceId(args.appSourceId)) {
-    return { appSourceId: args.appSourceId, repo: args.repo };
-  }
-  if (!args.repo) {
-    throw new Error("missing appSourceId or repo");
-  }
-  return sourceIdentity(
-    await args.client.syncSource({
-      platform: args.platform,
-      repo: args.repo,
-    }),
-  );
-}
-
 export function launchDeployRoute(dryRun: boolean) {
   return async function POST(req: Request): Promise<NextResponse> {
     const blocked = checkWrite(req);
@@ -113,25 +67,42 @@ export function launchDeployRoute(dryRun: boolean) {
     if (body.repo !== undefined && !isValidRepo(body.repo)) {
       return NextResponse.json({ error: "invalid `repo`" }, { status: 400 });
     }
-    if (!isValidAppSourceId(body.appSourceId) && !isValidRepo(body.repo)) {
-      return NextResponse.json(
-        { error: "missing `appSourceId` or `repo`" },
-        { status: 400 },
-      );
-    }
 
     try {
       const config = launchConfig();
       const client = await deploymentClient();
-      const source = await resolveAppSource({
-        client,
-        platform: config.platform,
-        appSourceId: body.appSourceId,
-        repo: body.repo as string | undefined,
-      });
+
+      // A deploy always commits against a stable source row id. Resolving (or
+      // minting) that row from a repo is a separate concern: it happens here
+      // only for a dry run — the preview that materializes the row — or via the
+      // dedicated /sync-installed route. The committing deploy never silently
+      // creates or re-resolves a source by repo.
+      let appSourceId: number;
+      if (isValidAppSourceId(body.appSourceId)) {
+        appSourceId = body.appSourceId;
+      } else if (dryRun && isValidRepo(body.repo)) {
+        const synced = await client.syncSource({
+          platform: config.platform,
+          repo: body.repo as string,
+        });
+        if (!isValidAppSourceId(synced.id)) {
+          throw new Error("backend did not return a valid app source id");
+        }
+        appSourceId = synced.id;
+      } else {
+        return NextResponse.json(
+          {
+            error: dryRun
+              ? "missing `appSourceId` or `repo`"
+              : "missing `appSourceId`",
+          },
+          { status: 400 },
+        );
+      }
+
       const { deployment } = await client.deploy({
         platform: config.platform,
-        appSourceId: source.appSourceId,
+        appSourceId,
         sourceRef: config.sourceRef,
         aomiTomlPaths: config.aomiTomlPaths,
         dryRun,
@@ -141,15 +112,12 @@ export function launchDeployRoute(dryRun: boolean) {
         {
           ok: true,
           repo:
-            source.repo ??
-            (body.repo as string | undefined) ??
-            deployment.source.repositoryLink,
-          installationId:
-            source.installationId ??
-            (deployment.source.installationId
-              ? String(deployment.source.installationId)
-              : undefined),
-          appSourceId: source.appSourceId,
+            deployment.source.repositoryLink ??
+            (body.repo as string | undefined),
+          installationId: deployment.source.installationId
+            ? String(deployment.source.installationId)
+            : undefined,
+          appSourceId,
           deployment,
           releaseTags: releaseTagsFromDeployment(deployment),
           apps: appNamesFromDeployment(deployment),

@@ -38,24 +38,12 @@ describe("launchDeployRoute", () => {
   });
 
   it("propagates BackendError status codes (400-599)", async () => {
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValueOnce(
-        Response.json({
-          ok: true,
-          source: {
-            id: 123,
-            installation_id: 555,
-            repository_link: "alice/bot",
-          },
-        }),
-      )
-      .mockResolvedValueOnce(
-        new Response(JSON.stringify({ error: "deploy rejected" }), {
-          status: 409,
-          headers: { "Content-Type": "application/json" },
-        }),
-      );
+    const fetchMock = vi.fn().mockResolvedValueOnce(
+      new Response(JSON.stringify({ error: "deploy rejected" }), {
+        status: 409,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
 
     vi.stubGlobal("fetch", fetchMock);
 
@@ -66,18 +54,18 @@ describe("launchDeployRoute", () => {
         origin: "http://localhost:3000",
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ installationId: "555", repo: "alice/bot" }),
+      body: JSON.stringify({ appSourceId: 123 }),
     });
 
     const res = await POST(req);
     const body = await res.json();
 
-    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(res.status).toBe(409);
     expect(body).toEqual({ error: "deploy rejected" });
   });
 
-  it("syncs source id by repo before deploying when appSourceId is absent", async () => {
+  it("dry run mints the source row by repo, then previews by app source id", async () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(
@@ -102,8 +90,8 @@ describe("launchDeployRoute", () => {
       );
     vi.stubGlobal("fetch", fetchMock);
 
-    const POST = launchDeployRoute(false);
-    const req = new Request("http://localhost:3000/api/launch/deploy", {
+    const POST = launchDeployRoute(true);
+    const req = new Request("http://localhost:3000/api/launch/dry-run", {
       method: "POST",
       headers: {
         origin: "http://localhost:3000",
@@ -115,7 +103,7 @@ describe("launchDeployRoute", () => {
     const res = await POST(req);
     const body = await res.json();
 
-    expect(res.status).toBe(202);
+    expect(res.status).toBe(200);
     expect(body.repo).toBe("alice/bot");
     expect(fetchMock).toHaveBeenNthCalledWith(
       1,
@@ -133,6 +121,25 @@ describe("launchDeployRoute", () => {
         body: expect.stringContaining('"app_source_id":123'),
       }),
     );
+  });
+
+  it("real deploy rejects a repo-only request without an app source id", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    const POST = launchDeployRoute(false);
+    const req = new Request("http://localhost:3000/api/launch/deploy", {
+      method: "POST",
+      headers: {
+        origin: "http://localhost:3000",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ installationId: "555", repo: "alice/bot" }),
+    });
+
+    const res = await POST(req);
+    expect(res.status).toBe(400);
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it("deploys directly by appSourceId when the source identity is already known", async () => {
@@ -232,7 +239,7 @@ describe("launchDeployRoute", () => {
         origin: "http://localhost:3000",
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ installationId: "555", repo: "alice/bot" }),
+      body: JSON.stringify({ appSourceId: 123 }),
     });
 
     const res = await POST(req);
