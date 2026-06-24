@@ -173,7 +173,11 @@ export class DeploymentClient {
 
     let failures = 0;
     let lastCompleted = 0;
-    let lastProgress: ProgressModel = { completed: 0, total: 8, label: "Waiting for build" };
+    let lastProgress: ProgressModel = {
+      completed: 0,
+      total: 8,
+      label: "Waiting for build",
+    };
 
     while (!signal?.aborted && failures < maxRetries) {
       try {
@@ -184,7 +188,8 @@ export class DeploymentClient {
         lastCompleted = completed;
         lastProgress = progress;
 
-        const isTerminal = status.state === "ready" || status.state === "failed";
+        const isTerminal =
+          status.state === "ready" || status.state === "failed";
         onEvent({
           kind: isTerminal ? "terminal" : "progress",
           status,
@@ -197,7 +202,11 @@ export class DeploymentClient {
         await sleep(this.backoffDelay(0, baseDelayMs, maxDelayMs));
       } catch (err) {
         // Non-retryable HTTP error — bail immediately
-        if (err instanceof BackendError && err.status >= 400 && err.status < 500) {
+        if (
+          err instanceof BackendError &&
+          err.status >= 400 &&
+          err.status < 500
+        ) {
           onEvent({
             kind: "error",
             status: {
@@ -451,7 +460,9 @@ export class DeploymentClient {
    * client secret stays backend-side; this is the portal's sign-in seam.
    * `GET /api/integrations/github-app/oauth/exchange`.
    */
-  async exchangeGitHubCode(input: ExchangeGitHubCodeInput): Promise<GitHubIdentity> {
+  async exchangeGitHubCode(
+    input: ExchangeGitHubCodeInput,
+  ): Promise<GitHubIdentity> {
     const code = required(input.code, "code");
     const params = new URLSearchParams({ code });
     if (input.app) params.set("app", String(input.app));
@@ -498,7 +509,10 @@ export class DeploymentClient {
     return `${this.baseUrl}${cleanPath}`;
   }
 
-  private buildProgressModel(status: DeploymentStatus, lastCompleted: number): ProgressModel {
+  private buildProgressModel(
+    status: DeploymentStatus,
+    lastCompleted: number,
+  ): ProgressModel {
     const total = 8;
     switch (status.state) {
       case "pending":
@@ -516,7 +530,11 @@ export class DeploymentClient {
     }
   }
 
-  private backoffDelay(failures: number, baseMs: number, maxMs: number): number {
+  private backoffDelay(
+    failures: number,
+    baseMs: number,
+    maxMs: number,
+  ): number {
     return Math.min(baseMs * Math.pow(2, failures), maxMs);
   }
 
@@ -813,10 +831,14 @@ function camelStatusResult(raw: Record<string, unknown>): DeploymentStatus {
       : undefined,
     ci: raw.ci
       ? {
-          status: (raw.ci as Record<string, unknown>).status as string | undefined,
+          status: (raw.ci as Record<string, unknown>).status as
+            | string
+            | undefined,
           url: (raw.ci as Record<string, unknown>).url as string | undefined,
           commitHash: ((raw.ci as Record<string, unknown>).commit_hash ??
-            (raw.ci as Record<string, unknown>).commitHash) as string | undefined,
+            (raw.ci as Record<string, unknown>).commitHash) as
+            | string
+            | undefined,
         }
       : undefined,
     message: raw.message as string | undefined,
@@ -866,10 +888,40 @@ function camelPlatformApp(raw: unknown): PlatformApp {
   };
 }
 
+function camelUserSourceLatestDeployment(
+  raw: unknown,
+): UserSource["latestDeployment"] {
+  if (!raw || typeof raw !== "object") return null;
+  const d = raw as Record<string, any>;
+  const apps = (d.apps ?? []) as Record<string, any>[];
+  return {
+    deploymentId: d.deployment_id ?? d.deploymentId ?? d.id ?? null,
+    state: d.state ?? d.status ?? null,
+    deployBranch:
+      d.deploy_branch ?? d.deployBranch ?? d.platform_branch ?? null,
+    platformRepo: d.platform_repo ?? d.platformRepo ?? d.repository ?? null,
+    commitHash: d.commit_hash ?? d.commitHash ?? null,
+    ciStatus: d.ci_status ?? d.ciStatus ?? d.ci?.status ?? null,
+    ciUrl: d.ci_url ?? d.ciUrl ?? d.ci?.url ?? null,
+    ciRunId: d.ci_run_id ?? d.ciRunId ?? null,
+    releaseTags: (d.release_tags ?? d.releaseTags ?? []) as string[],
+    artifactTarget: d.artifact_target ?? d.artifactTarget ?? null,
+    buildTarget: d.build_target ?? d.buildTarget ?? d.target ?? null,
+    apps: apps.map((app) => ({
+      name: app.name,
+      releaseTag: app.release_tag ?? app.releaseTag ?? null,
+      target: app.target ?? null,
+    })),
+  };
+}
+
 function camelUserSource(raw: unknown): UserSource {
   const s = (raw ?? {}) as Record<string, any>;
   return {
     ...camelAppSource(s),
     apps: ((s.apps ?? []) as unknown[]).map(camelPlatformApp),
+    latestDeployment: camelUserSourceLatestDeployment(
+      s.latest_deployment ?? s.latestDeployment,
+    ),
   };
 }

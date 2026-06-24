@@ -31,22 +31,26 @@ export function OneshotWizard({
   progress,
   actor,
   onBack,
+  showBack = true,
   beginInstall,
   beginAuthorize,
   installing,
   installError,
   patch,
   onReset,
+  onRestartInBootstrap,
 }: {
   progress: LaunchProgress;
   actor?: string;
   onBack: () => void;
+  showBack?: boolean;
   beginInstall: () => void;
   beginAuthorize: () => void;
   installing?: boolean;
   installError?: string | null;
   patch: (patch: Partial<LaunchProgress>) => void;
   onReset?: () => void;
+  onRestartInBootstrap?: () => void;
 }) {
   const step = oneshotStep(progress);
   const installStatus = installationStatusLabel(progress.installationStatus);
@@ -79,6 +83,9 @@ export function OneshotWizard({
         title="One-click"
         subtitle="We create the repo and deploy it for you."
         onBack={onBack}
+        showBack={showBack}
+        actionLabel="Restart in Fork & Customize"
+        onAction={onRestartInBootstrap}
       />
 
       <Stepper steps={STEPS} current={step} />
@@ -142,8 +149,9 @@ export function OneshotWizard({
               Step 2 — Create your repo
             </div>
             <p className="text-muted-foreground text-sm leading-5">
-              Creates a GitHub repo from <code>aomi-labs/playground-example</code>{" "}
-              in the account where you installed <code>aomi-build-oneshot</code>.
+              Creates a GitHub repo from{" "}
+              <code>aomi-labs/playground-example</code> in the account where you
+              installed <code>aomi-build-oneshot</code>.
             </p>
             <Button
               onClick={createRepo}
@@ -181,7 +189,11 @@ export function OneshotWizard({
       {step === "live" && (
         <LivePanel
           repo={progress.repo}
-          chatUrl={progress.apps?.[0] ? chatAppUrl(progress.apps[0]) : undefined}
+          chatUrl={
+            progress.apps?.[0]
+              ? chatAppUrl(progress.apps[0], { locked: true })
+              : undefined
+          }
         />
       )}
     </div>
@@ -202,23 +214,42 @@ function WizardHeader({
   title,
   subtitle,
   onBack,
+  showBack = true,
+  actionLabel,
+  onAction,
 }: {
   title: string;
   subtitle: string;
   onBack: () => void;
+  showBack?: boolean;
+  actionLabel?: string;
+  onAction?: () => void;
 }) {
   return (
     <header className="space-y-2">
-      <button
-        type="button"
-        onClick={onBack}
-        className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1 text-sm"
-      >
-        <ArrowLeft className="h-4 w-4" /> Back
-      </button>
-      <h1 className="text-foreground text-2xl font-semibold tracking-tight">
-        {title}
-      </h1>
+      {showBack && (
+        <button
+          type="button"
+          onClick={onBack}
+          className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1 text-sm"
+        >
+          <ArrowLeft className="h-4 w-4" /> Back
+        </button>
+      )}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h1 className="text-foreground text-2xl font-semibold tracking-tight">
+          {title}
+        </h1>
+        {actionLabel && onAction && (
+          <Button
+            onClick={onAction}
+            className="h-9 max-w-full rounded-full px-3 text-sm font-medium"
+          >
+            <RotateCcw className="mr-1 h-4 w-4 shrink-0" />
+            {actionLabel}
+          </Button>
+        )}
+      </div>
       <p className="text-muted-foreground text-sm">{subtitle}</p>
     </header>
   );

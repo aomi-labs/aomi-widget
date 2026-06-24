@@ -205,10 +205,10 @@ export interface ProgressModel {
 }
 
 export type DeploymentEventKind =
-  | "progress"   // normal polling tick
-  | "terminal"   // ready or failed — polling will stop
-  | "warning"    // transient polling failure, will retry
-  | "error";     // polling stopped due to exhaustion/timeout/cancellation/non-retryable
+  | "progress" // normal polling tick
+  | "terminal" // ready or failed — polling will stop
+  | "warning" // transient polling failure, will retry
+  | "error"; // polling stopped due to exhaustion/timeout/cancellation/non-retryable
 
 export interface DeploymentProgressEvent {
   kind: DeploymentEventKind;
@@ -306,7 +306,6 @@ export interface SyncSourceInput extends BearerOverride {
   repo: string;
 }
 
-
 export interface ScaffoldInput extends BearerOverride {
   platform: string;
   installationId: number;
@@ -361,7 +360,29 @@ export interface ListUserSourcesInput extends BearerOverride {
   githubUserId: string;
 }
 
+export interface UserSourceDeploymentApp {
+  name: string;
+  releaseTag: string | null;
+  target?: string | null;
+}
+
+export interface UserSourceLatestDeployment {
+  deploymentId: string | null;
+  state: string | null;
+  deployBranch: string | null;
+  platformRepo: string | null;
+  commitHash: string | null;
+  ciStatus: string | null;
+  ciUrl: string | null;
+  ciRunId?: string | number | null;
+  releaseTags: string[];
+  artifactTarget?: string | null;
+  buildTarget?: string | null;
+  apps: UserSourceDeploymentApp[];
+}
+
 /** A source repo plus the applications deployed from it. */
 export interface UserSource extends AppSource {
   apps: PlatformApp[];
+  latestDeployment?: UserSourceLatestDeployment | null;
 }

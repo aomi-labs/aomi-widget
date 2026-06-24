@@ -1,23 +1,39 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   AlertTriangle,
+  CheckCircle2,
+  Clock3,
+  ExternalLink,
   Github,
   Loader2,
   LogOut,
+  Play,
   Plus,
   RefreshCw,
+  RotateCcw,
+  XCircle,
 } from "lucide-react";
 import { Button } from "@aomi-labs/widget-lib";
 import {
   fetchGitHubSession,
   fetchUserSources,
+  hasSourceForLaunchUrlContext,
+  deploymentIdFromReleaseTag,
+  lifecycleFromLaunchStatus,
+  launchActivate,
+  launchAppStatus,
+  launchRedeploy,
+  launchStatus,
   signOutGitHub,
-  normalizeRepo,
+  readLaunchUrlContext,
+  sourceLifecycle,
   GITHUB_SIGNIN_URL,
   type GitHubSessionInfo,
+  type LaunchUrlContext,
   type LaunchProgress,
+  type SourceLifecycle,
   type UserSource,
 } from "@portal/features/launch";
 import { chatAppUrl } from "@portal/lib/chat-url";
@@ -129,6 +145,11 @@ function SignedInDashboard({
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [showInstall, setShowInstall] = useState(false);
+  const [urlContext] = useState<LaunchUrlContext | null>(() =>
+    typeof window === "undefined"
+      ? null
+      : readLaunchUrlContext(window.location.search),
+  );
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -155,6 +176,24 @@ function SignedInDashboard({
     <DashboardHeader login={login} onSignOut={onSignOut} onRefresh={load} />
   );
 
+  if (
+    sources !== null &&
+    urlContext &&
+    !hasSourceForLaunchUrlContext(sources, urlContext)
+  ) {
+    return (
+      <div className="space-y-6">
+        {header}
+        <LaunchContextMismatch
+          context={urlContext}
+          login={login}
+          onRefresh={load}
+          onSignOut={onSignOut}
+        />
+      </div>
+    );
+  }
+
   // Page 2: nothing connected yet (or the user asked to add another) → the
   // existing install/template/deploy wizard.
   if (showInstall || (sources !== null && sources.length === 0)) {
@@ -170,7 +209,7 @@ function SignedInDashboard({
             ← Back to your repositories
           </button>
         )}
-        <Onboarding />
+        <Onboarding hideWizardBack knownSources={sources ?? []} />
       </div>
     );
   }
@@ -238,24 +277,105 @@ function DashboardHeader({
   );
 }
 
+function LaunchContextMismatch({
+  context,
+  login,
+  onRefresh,
+  onSignOut,
+}: {
+  context: LaunchUrlContext;
+  login: string | null;
+  onRefresh: () => void;
+  onSignOut: () => void;
+}) {
+  return (
+    <div className="space-y-4 rounded-2xl border border-amber-500/40 bg-amber-500/10 p-4">
+      <div className="flex items-start gap-2">
+        <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
+        <div className="space-y-2">
+          <h2 className="text-foreground text-sm font-medium">
+            This deploy link does not match the signed-in GitHub account.
+          </h2>
+          <p className="text-muted-foreground text-sm leading-5">
+            You are signed in as{" "}
+            <span className="text-foreground font-medium">
+              {login ? `@${login}` : "another GitHub account"}
+            </span>
+            , but this URL points at
+            {context.repo ? (
+              <>
+                {" "}
+                <code className="text-foreground">{context.repo}</code>
+              </>
+            ) : (
+              " a different repository"
+            )}
+            {context.installationId ? (
+              <>
+                {" "}
+                on installation{" "}
+                <code className="text-foreground">
+                  {context.installationId}
+                </code>
+              </>
+            ) : null}
+            . Switch GitHub accounts or ask for a link that belongs to the
+            current account.
+          </p>
+        </div>
+      </div>
+      <div className="flex flex-wrap gap-2">
+        <Button
+          onClick={onSignOut}
+          className="h-9 rounded-full px-3 text-sm font-medium"
+        >
+          <LogOut className="mr-1 h-4 w-4" /> Sign out
+        </Button>
+        <Button
+          onClick={onRefresh}
+          className="h-9 rounded-full px-3 text-sm font-medium"
+        >
+          <RefreshCw className="mr-1 h-4 w-4" /> Refresh
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 // ── Page 3 card + Page 4 chat ────────────────────────────────────────────────
 
 function SourceCard({ source }: { source: UserSource }) {
-  const repo =
-    normalizeRepo(source.repositoryLink ?? "") ??
-    source.repositoryLink ??
-    `source ${source.id}`;
-  const liveApp = source.apps.find((a) => a.isActive && a.loaded);
+  const [localLiveApp, setLocalLiveApp] = useState<string | null>(null);
+  const lifecycle = useMemo(() => sourceLifecycle(source), [source]);
+  const [statusLifecycle, setStatusLifecycle] =
+    useState<SourceLifecycle | null>(null);
+  const liveLifecycle: SourceLifecycle | null = localLiveApp
+    ? {
+        ...(statusLifecycle ?? lifecycle),
+        kind: "live",
+        statusLabel: "Live",
+        statusTone: "good",
+        message: "Runtime reports the app is loaded.",
+        chatApp: localLiveApp,
+      }
+    : (statusLifecycle ?? lifecycle).kind === "live"
+      ? (statusLifecycle ?? lifecycle)
+      : null;
+  const visibleLifecycle = liveLifecycle ?? statusLifecycle ?? lifecycle;
+  const derivedDeploymentId =
+    lifecycle.deploymentId ??
+    deploymentIdFromReleaseTag(lifecycle.releaseTags[0]);
+  const chatApp = shouldShowChatForLifecycle(visibleLifecycle)
+    ? (visibleLifecycle.chatApp ?? visibleLifecycle.appNames[0])
+    : undefined;
 
   const [progress, setProgress] = useState<LaunchProgress>(() => ({
     installationId: String(source.installationId),
-    repo,
+    repo: lifecycle.repo,
     appSourceId: source.id,
-    apps: source.apps.map((a) => a.name),
-    releaseTags: source.apps
-      .map((a) => a.appReleaseTag ?? "")
-      .filter((tag): tag is string => Boolean(tag)),
-    live: Boolean(liveApp),
+    apps: lifecycle.appNames,
+    releaseTags: lifecycle.releaseTags,
+    live: visibleLifecycle.kind === "live",
   }));
 
   const patch = useCallback(
@@ -263,37 +383,427 @@ function SourceCard({ source }: { source: UserSource }) {
     [],
   );
 
-  const chatApp = progress.live
-    ? (progress.apps?.[0] ?? liveApp?.name)
-    : undefined;
+  useEffect(() => {
+    if (!derivedDeploymentId || localLiveApp) return;
+    const pollKind = statusLifecycle?.kind ?? lifecycle.kind;
+    if (
+      pollKind !== "activation_pending" &&
+      pollKind !== "building" &&
+      pollKind !== "build_ready"
+    )
+      return;
+
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const poll = async () => {
+      try {
+        const status = await launchStatus(derivedDeploymentId);
+        if (cancelled) return;
+        const next = lifecycleFromLaunchStatus(lifecycle, status);
+        setStatusLifecycle(next);
+        if (next.kind === "building") {
+          timer = setTimeout(poll, 5000);
+        }
+      } catch (e) {
+        if (cancelled) return;
+        setStatusLifecycle({
+          ...lifecycle,
+          kind: "failed",
+          statusLabel: "Status unavailable",
+          statusTone: "bad",
+          message: e instanceof Error ? e.message : String(e),
+          failureReport: e instanceof Error ? e.message : String(e),
+        });
+      }
+    };
+    poll();
+    return () => {
+      cancelled = true;
+      if (timer) clearTimeout(timer);
+    };
+  }, [derivedDeploymentId, lifecycle, localLiveApp, statusLifecycle?.kind]);
 
   return (
-    <div className="border-input space-y-4 rounded-2xl border p-4">
+    <div className="border-input space-y-4 rounded-2xl border p-4 md:p-5">
       <div className="flex items-center justify-between gap-2">
         <div className="min-w-0">
           <div className="text-foreground truncate text-sm font-medium">
-            {repo}
+            {visibleLifecycle.repo}
           </div>
           <div className="text-muted-foreground text-xs">
             installation {source.installationId}
             {source.apps.length ? ` · ${source.apps.length} app(s)` : ""}
           </div>
         </div>
-        {liveApp && (
-          <span className="rounded-full bg-green-500/10 px-2 py-0.5 text-xs text-green-600">
-            live
-          </span>
-        )}
+        <LifecycleBadge lifecycle={visibleLifecycle} />
       </div>
 
-      <DeployStep
-        appSourceId={source.id}
-        repo={repo}
-        progress={progress}
-        onProgress={patch}
-      />
+      {visibleLifecycle.kind === "empty" ? (
+        <DeployStep
+          appSourceId={source.id}
+          repo={visibleLifecycle.repo}
+          progress={progress}
+          onProgress={patch}
+        />
+      ) : (
+        <LifecyclePanel
+          appSourceId={source.id}
+          lifecycle={visibleLifecycle}
+          onLifecycleChange={setStatusLifecycle}
+          onLive={setLocalLiveApp}
+        />
+      )}
 
       {chatApp && <ChatEmbed appName={chatApp} />}
+    </div>
+  );
+}
+
+function LifecycleBadge({ lifecycle }: { lifecycle: SourceLifecycle }) {
+  const toneClass =
+    lifecycle.statusTone === "good"
+      ? "bg-green-500/10 text-green-500"
+      : lifecycle.statusTone === "bad"
+        ? "bg-red-500/10 text-red-500"
+        : lifecycle.statusTone === "warning"
+          ? "bg-amber-500/10 text-amber-500"
+          : "bg-muted text-muted-foreground";
+  const Icon =
+    lifecycle.statusTone === "good"
+      ? CheckCircle2
+      : lifecycle.statusTone === "bad"
+        ? XCircle
+        : Clock3;
+  return (
+    <span
+      className={`${toneClass} inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium`}
+    >
+      <Icon className="h-3.5 w-3.5" />
+      {lifecycle.statusLabel}
+    </span>
+  );
+}
+
+function shouldShowChatForLifecycle(lifecycle: SourceLifecycle): boolean {
+  return Boolean(
+    lifecycle.chatApp ||
+    lifecycle.deploymentId ||
+    lifecycle.releaseTags.length > 0,
+  );
+}
+
+function LifecyclePanel({
+  appSourceId,
+  lifecycle,
+  onLifecycleChange,
+  onLive,
+}: {
+  appSourceId: number;
+  lifecycle: SourceLifecycle;
+  onLifecycleChange: (lifecycle: SourceLifecycle) => void;
+  onLive: (appName: string) => void;
+}) {
+  const [action, setAction] = useState<
+    "idle" | "activating" | "verifying" | "redeploying" | "redeploy_done"
+  >("idle");
+  const [error, setError] = useState<string | null>(null);
+  const canActivate =
+    lifecycle.kind === "build_ready" || lifecycle.kind === "activation_pending";
+  const canRedeploy =
+    lifecycle.kind === "live" ||
+    lifecycle.kind === "build_ready" ||
+    lifecycle.kind === "activation_pending" ||
+    lifecycle.kind === "failed";
+
+  const activate = useCallback(async () => {
+    if (lifecycle.releaseTags.length === 0 || lifecycle.appNames.length === 0) {
+      setError("No release tag is available to activate.");
+      return;
+    }
+    setError(null);
+    setAction("activating");
+    try {
+      const result = await launchActivate({
+        releaseTags: lifecycle.releaseTags,
+        apps: lifecycle.appNames,
+      });
+      const failed = result.activation?.apps?.find(
+        (app) => !app.loaded || app.error,
+      );
+      if (!result.ok || failed) {
+        throw new Error(failed?.error ?? "Activation did not load every app.");
+      }
+      setAction("verifying");
+      for (let attempt = 0; attempt < 30; attempt += 1) {
+        const checks = await Promise.all(
+          lifecycle.appNames.map((name, index) =>
+            launchAppStatus({
+              name,
+              releaseTag: lifecycle.releaseTags[index],
+            }),
+          ),
+        );
+        const live = checks.every(
+          (check) => check.ok && check.state === "live",
+        );
+        if (live) {
+          onLive(lifecycle.appNames[0]);
+          setAction("idle");
+          return;
+        }
+        await new Promise((resolve) => setTimeout(resolve, 3000));
+      }
+      throw new Error(
+        "Activation finished, but the runtime did not report the app as loaded.",
+      );
+    } catch (e) {
+      const message = e instanceof Error ? e.message : String(e);
+      if (isTargetCiPending(message)) {
+        onLifecycleChange({
+          ...lifecycle,
+          kind: "building",
+          statusLabel: "Releasing",
+          statusTone: "muted",
+          message: "Aomi CI is still finishing for this release.",
+          progressLabel: "Waiting for Aomi CI",
+          progressPercent: Math.max(lifecycle.progressPercent ?? 0, 85),
+          failureReport: undefined,
+        });
+        setError(null);
+      } else {
+        setError(message);
+      }
+      setAction("idle");
+    }
+  }, [lifecycle, onLifecycleChange, onLive]);
+
+  const redeploy = useCallback(async () => {
+    setError(null);
+    setAction("redeploying");
+    try {
+      await launchRedeploy({ appSourceId });
+      setAction("redeploy_done");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+      setAction("idle");
+    }
+  }, [appSourceId]);
+
+  return (
+    <div className="space-y-4 text-sm">
+      <div className="text-muted-foreground flex items-center gap-2 text-xs">
+        {lifecycle.kind === "building" && (
+          <Loader2 className="h-4 w-4 animate-spin text-blue-500" />
+        )}
+        {lifecycle.message}
+      </div>
+
+      <LifecycleDetails lifecycle={lifecycle} />
+
+      {lifecycle.progressPercent !== undefined && (
+        <LifecycleProgress lifecycle={lifecycle} />
+      )}
+
+      {lifecycle.failureReport && (
+        <div className="rounded-lg border border-red-500/40 bg-red-500/10 p-3 text-xs leading-5 text-red-500">
+          {lifecycle.failureReport}
+        </div>
+      )}
+
+      <div className="flex flex-wrap items-center gap-2">
+        {canActivate && (
+          <Button
+            onClick={activate}
+            disabled={action === "activating" || action === "verifying"}
+            className="h-9 rounded-full px-3 text-sm font-medium"
+          >
+            {action === "activating" || action === "verifying" ? (
+              <Loader2 className="mr-1 h-4 w-4 animate-spin" />
+            ) : (
+              <CheckCircle2 className="mr-1 h-4 w-4" />
+            )}
+            {lifecycle.kind === "activation_pending"
+              ? "Retry activate"
+              : "Activate"}
+          </Button>
+        )}
+        {canRedeploy && (
+          <Button
+            onClick={redeploy}
+            disabled={action === "redeploying"}
+            className="h-9 rounded-full px-3 text-sm font-medium"
+          >
+            {action === "redeploying" ? (
+              <Loader2 className="mr-1 h-4 w-4 animate-spin" />
+            ) : (
+              <RotateCcw className="mr-1 h-4 w-4" />
+            )}
+            Redeploy
+          </Button>
+        )}
+        {lifecycle.kind === "building" && (
+          <Button
+            disabled
+            className="h-9 rounded-full px-3 text-sm font-medium"
+          >
+            <Play className="mr-1 h-4 w-4" />
+            Deploying
+          </Button>
+        )}
+        <LifecycleLinks lifecycle={lifecycle} />
+      </div>
+
+      {action === "verifying" && (
+        <div className="text-muted-foreground inline-flex items-center gap-2 text-xs">
+          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          Checking runtime load state…
+        </div>
+      )}
+
+      {action === "redeploy_done" && (
+        <div className="rounded-lg border border-green-500/30 bg-green-500/10 p-3 text-xs text-green-600">
+          CI rerun requested. Open CI to watch the new attempt.
+        </div>
+      )}
+
+      {error && (
+        <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-xs text-amber-600">
+          {error}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function LifecycleProgress({ lifecycle }: { lifecycle: SourceLifecycle }) {
+  const pct = Math.max(0, Math.min(100, lifecycle.progressPercent ?? 0));
+  const barClass =
+    lifecycle.kind === "failed"
+      ? "bg-red-500"
+      : lifecycle.kind === "build_ready"
+        ? "bg-green-500"
+        : "bg-blue-500";
+  return (
+    <div className="space-y-1">
+      <div className="text-muted-foreground flex justify-between text-xs">
+        <span>{lifecycle.progressLabel ?? lifecycle.statusLabel}</span>
+        <span>{pct}%</span>
+      </div>
+      <div className="bg-muted h-1.5 w-full overflow-hidden rounded-full">
+        <div
+          className={`${barClass} h-full rounded-full transition-all duration-500`}
+          style={{ width: `${pct}%` }}
+        />
+      </div>
+    </div>
+  );
+}
+
+function isTargetCiPending(message: string): boolean {
+  return (
+    message.includes("target CI is pending") ||
+    message.includes("activate after Aomi CI passes")
+  );
+}
+
+function LifecycleDetails({ lifecycle }: { lifecycle: SourceLifecycle }) {
+  const hasDetails =
+    lifecycle.deploymentId ||
+    lifecycle.ciStatus ||
+    lifecycle.releaseTags.length > 0 ||
+    lifecycle.commitHash ||
+    lifecycle.buildTarget;
+  if (!hasDetails) return null;
+
+  return (
+    <div className="border-input bg-muted/20 grid gap-3 rounded-xl border p-3 sm:grid-cols-3">
+      <SummaryTile
+        label="Deployment"
+        value={lifecycle.deploymentId ?? "Current source"}
+        detail={lifecycle.commitHash?.slice(0, 12)}
+      />
+      <SummaryTile
+        label="Build"
+        value={lifecycle.ciStatus ?? lifecycle.statusLabel}
+        detail={lifecycle.deployBranch ?? lifecycle.platformRepo ?? undefined}
+        tone={
+          lifecycle.ciStatus === "passed"
+            ? "good"
+            : lifecycle.ciStatus === "failed"
+              ? "bad"
+              : "muted"
+        }
+      />
+      <SummaryTile
+        label="Release"
+        value={lifecycle.appNames.join(", ") || "App"}
+        detail={[
+          lifecycle.buildTarget,
+          lifecycle.releaseTags.length > 1
+            ? `${lifecycle.releaseTags.length} tags`
+            : lifecycle.releaseTags[0],
+        ]
+          .filter(Boolean)
+          .join(" · ")}
+      />
+    </div>
+  );
+}
+
+function LifecycleLinks({ lifecycle }: { lifecycle: SourceLifecycle }) {
+  if (!lifecycle.branchUrl && !lifecycle.ciUrl) return null;
+  return (
+    <div className="flex flex-wrap gap-3 text-xs">
+      {lifecycle.branchUrl && (
+        <a
+          href={lifecycle.branchUrl}
+          target="_blank"
+          rel="noreferrer"
+          className="text-foreground inline-flex items-center gap-1 underline"
+        >
+          Open branch <ExternalLink className="h-3.5 w-3.5" />
+        </a>
+      )}
+      {lifecycle.ciUrl && (
+        <a
+          href={lifecycle.ciUrl}
+          target="_blank"
+          rel="noreferrer"
+          className="text-foreground inline-flex items-center gap-1 underline"
+        >
+          Open CI <ExternalLink className="h-3.5 w-3.5" />
+        </a>
+      )}
+    </div>
+  );
+}
+
+function SummaryTile({
+  label,
+  value,
+  detail,
+  tone = "muted",
+}: {
+  label: string;
+  value?: string | null;
+  detail?: string;
+  tone?: "good" | "bad" | "muted";
+}) {
+  const toneClass =
+    tone === "good"
+      ? "text-green-500"
+      : tone === "bad"
+        ? "text-red-500"
+        : "text-foreground";
+  return (
+    <div className="min-w-0">
+      <div className="text-muted-foreground text-[11px] uppercase">{label}</div>
+      <div className={`${toneClass} truncate text-sm font-medium`}>
+        {value || "Pending"}
+      </div>
+      {detail && (
+        <div className="text-muted-foreground truncate text-xs">{detail}</div>
+      )}
     </div>
   );
 }

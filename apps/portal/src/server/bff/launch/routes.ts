@@ -5,10 +5,7 @@ import { NextResponse } from "next/server";
 import { deploymentClient } from "@portal/server/bff/backend";
 import { BackendError, launchErrorResponse } from "./errors";
 import { launchConfig } from "./config";
-import {
-  appNamesFromDeployment,
-  releaseTagsFromDeployment,
-} from "./mappers";
+import { appNamesFromDeployment, releaseTagsFromDeployment } from "./mappers";
 import { checkRateLimit, getClientIp } from "@portal/lib/rate-limit";
 import { validateOrigin } from "@portal/lib/csrf";
 import { getGitHubSession } from "@portal/lib/aomi-account/github-session";
@@ -38,8 +35,7 @@ function checkWrite(req: Request): NextResponse | null {
 }
 
 function defaultRepoName() {
-  const normalized = CREATED_REPO_PREFIX
-    .trim()
+  const normalized = CREATED_REPO_PREFIX.trim()
     .toLowerCase()
     .replace(/[^a-z0-9._-]+/g, "-")
     .replace(/^-+|-+$/g, "");
@@ -55,7 +51,10 @@ export function launchDeployRoute(dryRun: boolean) {
     const blocked = checkWrite(req);
     if (blocked) return blocked;
 
-    const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
+    const body = (await req.json().catch(() => ({}))) as Record<
+      string,
+      unknown
+    >;
     if (!isValidAppSourceId(body.appSourceId)) {
       return NextResponse.json(
         { error: "missing or invalid `appSourceId`" },
@@ -152,13 +151,122 @@ export async function launchStatusRoute(req: Request) {
       platform: config.platform,
       deploymentId,
     });
+    const enriched = await enrichPendingCiStatus(result);
     return NextResponse.json({
-      ...result,
-      releaseTags: releaseTagsFromDeployment(result.deployment),
+      ...enriched,
+      releaseTags: releaseTagsFromDeployment(enriched.deployment),
     });
   } catch (err) {
     return launchErrorResponse(err);
   }
+}
+
+type LaunchStatusPayload = Awaited<
+  ReturnType<Awaited<ReturnType<typeof deploymentClient>>["status"]>
+>;
+
+function branchFromActionsQuery(url: string | null | undefined): string | null {
+  if (!url) return null;
+  try {
+    const parsed = new URL(url);
+    const query = parsed.searchParams.get("query") ?? "";
+    const match = query.match(/(?:^|\s)branch:([^\s]+)/);
+    return match?.[1] ?? null;
+  } catch {
+    return null;
+  }
+}
+
+async function enrichPendingCiStatus(
+  status: LaunchStatusPayload,
+): Promise<LaunchStatusPayload> {
+  const platform = status.deployment?.platform;
+  const ciStatus = status.ci?.status ?? platform?.ciStatus;
+  const ciUrl = status.ci?.url ?? platform?.ciUrl;
+  const repo = platform?.repository;
+  const branch = branchFromActionsQuery(ciUrl);
+  const targetCommit = platform?.commitHash ?? status.ci?.commitHash;
+  if (ciStatus !== "pending" || !repo || !branch || !isValidRepo(repo)) {
+    return status;
+  }
+
+  const token = process.env.GITHUB_TOKEN?.trim();
+  const headers: Record<string, string> = {
+    Accept: "application/vnd.github+json",
+    "User-Agent": "aomi-portal",
+    "X-GitHub-Api-Version": "2022-11-28",
+  };
+  if (token) headers.Authorization = `Bearer ${token}`;
+
+  const params = new URLSearchParams({
+    branch,
+    event: "push",
+    per_page: "10",
+  });
+  const res = await fetch(
+    `https://api.github.com/repos/${repo}/actions/runs?${params}`,
+    { headers },
+  );
+  if (!res.ok) return status;
+  const body = (await res.json().catch(() => ({}))) as {
+    workflow_runs?: Array<Record<string, unknown>>;
+  };
+  const runs = (body.workflow_runs ?? []).filter(
+    (candidate) => candidate.head_branch === branch,
+  );
+  const run =
+    (targetCommit
+      ? runs.find((candidate) => candidate.head_sha === targetCommit)
+      : undefined) ?? runs[0];
+  if (!run || run.status !== "completed") return status;
+
+  const conclusion = String(run.conclusion ?? "unknown");
+  const runSha = String(run.head_sha ?? "");
+  const runUrl = String(run.html_url ?? ciUrl ?? "");
+  const title = String(run.display_title ?? run.name ?? "GitHub Actions run");
+  if (targetCommit && runSha && runSha !== targetCommit) {
+    return {
+      ...status,
+      state: "failed",
+      ci: {
+        ...status.ci,
+        status: "stale",
+        url: runUrl,
+        commitHash: runSha,
+      },
+      message: `${title} completed with conclusion "${conclusion}" on stale commit ${runSha.slice(
+        0,
+        12,
+      )}; deployment commit ${targetCommit.slice(
+        0,
+        12,
+      )} has no matching Aomi CI run. ${runUrl}`,
+    };
+  }
+
+  if (conclusion === "success") {
+    return {
+      ...status,
+      ci: {
+        ...status.ci,
+        status: "passed",
+        url: runUrl,
+        commitHash: runSha || status.ci?.commitHash || undefined,
+      },
+    };
+  }
+
+  return {
+    ...status,
+    state: "failed",
+    ci: {
+      ...status.ci,
+      status: conclusion === "skipped" ? "skipped" : "failed",
+      url: runUrl,
+      commitHash: String(run.head_sha ?? "") || status.ci?.commitHash,
+    },
+    message: `${title} completed with conclusion "${conclusion}" on ${branch}. ${runUrl}`,
+  };
 }
 
 export async function activateLaunchRoute(req: Request) {
@@ -257,7 +365,9 @@ export async function checkLaunchRepoRoute(req: Request) {
     const token = process.env.GITHUB_TOKEN;
     if (token) headers.Authorization = `Bearer ${token}`;
 
-    const res = await fetch(`https://api.github.com/repos/${repo}`, { headers });
+    const res = await fetch(`https://api.github.com/repos/${repo}`, {
+      headers,
+    });
     const body = await res.json().catch(() => ({}));
     if (!res.ok) {
       if (res.status === 404) {
@@ -329,6 +439,107 @@ export async function syncInstalledLaunchRoute(req: Request) {
         { status: 404 },
       );
     }
+    return launchErrorResponse(err);
+  }
+}
+
+function ciRunIdFromUrl(url: string | null | undefined): string | null {
+  if (!url) return null;
+  const match = url.match(/\/actions\/runs\/(\d+)(?:\/|$)/);
+  return match?.[1] ?? null;
+}
+
+export async function redeployLaunchRoute(req: Request) {
+  const blocked = checkWrite(req);
+  if (blocked) return blocked;
+
+  const session = await getGitHubSession();
+  if (!session) {
+    return NextResponse.json(
+      { error: "not signed in with GitHub" },
+      { status: 401 },
+    );
+  }
+
+  const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
+  if (!isValidAppSourceId(body.appSourceId)) {
+    return NextResponse.json(
+      { error: "missing or invalid `appSourceId`" },
+      { status: 400 },
+    );
+  }
+
+  try {
+    const client = await deploymentClient();
+    const sources = await client.listUserSources({
+      githubUserId: session.githubUserId,
+    });
+    const source = sources.find(
+      (candidate) => candidate.id === body.appSourceId,
+    );
+    const latest = source?.latestDeployment;
+    const platformRepo = latest?.platformRepo;
+    const ciRunId =
+      latest?.ciRunId === null || latest?.ciRunId === undefined
+        ? ciRunIdFromUrl(latest?.ciUrl)
+        : String(latest.ciRunId);
+
+    if (!source) {
+      return NextResponse.json(
+        { error: "source does not belong to the signed-in GitHub account" },
+        { status: 404 },
+      );
+    }
+    if (!platformRepo || !isValidRepo(platformRepo) || !ciRunId) {
+      return NextResponse.json(
+        {
+          error:
+            "No backend-owned CI run is available for this source yet; refusing to reuse Deploy because GitHub can skip tree-identical pushes.",
+        },
+        { status: 409 },
+      );
+    }
+
+    const token = process.env.GITHUB_TOKEN?.trim();
+    if (!token) {
+      return NextResponse.json(
+        { error: "GitHub rerun token is not configured" },
+        { status: 503 },
+      );
+    }
+
+    const res = await fetch(
+      `https://api.github.com/repos/${platformRepo}/actions/runs/${ciRunId}/rerun`,
+      {
+        method: "POST",
+        headers: {
+          Accept: "application/vnd.github+json",
+          Authorization: `Bearer ${token}`,
+          "User-Agent": "aomi-portal",
+          "X-GitHub-Api-Version": "2022-11-28",
+        },
+      },
+    );
+    if (!res.ok) {
+      const text = await res.text().catch(() => "");
+      return NextResponse.json(
+        {
+          error: `GitHub CI rerun failed (${res.status})${text ? `: ${text}` : ""}`,
+        },
+        { status: 502 },
+      );
+    }
+
+    return NextResponse.json({
+      ok: true,
+      appSourceId: body.appSourceId,
+      platformRepo,
+      ciRunId,
+      ciUrl:
+        latest?.ciUrl ??
+        `https://github.com/${platformRepo}/actions/runs/${ciRunId}`,
+    });
+  } catch (err) {
     return launchErrorResponse(err);
   }
 }
