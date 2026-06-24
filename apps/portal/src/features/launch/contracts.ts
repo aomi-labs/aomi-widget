@@ -41,8 +41,8 @@ export type LaunchProgress = {
   installationId?: string;
   installationStatus?: string;
   repo?: string;
-  /** Resolved source row id from create/sync — lets deploy skip re-resolving
-   *  by (installation, repo), which races webhook sync for fresh repos. */
+  /** Cached source row id from create/sync/dashboard responses. Deploy still
+   *  re-resolves by installation/repo in the BFF before calling the backend. */
   appSourceId?: number;
   deploymentId?: string;
   deployment?: LaunchDeployPayload;
@@ -53,9 +53,11 @@ export type LaunchProgress = {
 };
 
 export type LaunchDeployInput = {
-  /** The connected source row to deploy. Resolved up front by create
-   *  (one-shot), sync-installed (bootstrap), or the dashboard listing. */
-  appSourceId: number;
+  /** GitHub App installation that owns the source repo. The BFF resolves this
+   *  to backend `app_source_id` before deploying. */
+  installationId: string;
+  /** Optional `owner/name` disambiguator when an installation has more than one repo. */
+  repo?: string;
   actor?: string;
 };
 
@@ -83,7 +85,12 @@ export type LaunchStatus = {
     release_ready: boolean;
     message?: string | null;
   }>;
-  ci?: { status?: string; url?: string; commit_hash?: string };
+  ci?: {
+    status?: string;
+    url?: string;
+    commit_hash?: string;
+    commitHash?: string;
+  };
   message?: string;
 };
 
@@ -92,6 +99,8 @@ export type LaunchActivateResult = {
   activation?: {
     status?: string;
     apps?: Array<{
+      application_id?: number | null;
+      applicationId?: number | null;
       name: string;
       release_tag?: string | null;
       is_active: boolean;
@@ -105,6 +114,7 @@ export type LaunchAppStatus = {
   ok: boolean;
   state: "pending" | "live";
   app?: {
+    id?: number;
     name: string;
     app_release_tag?: string | null;
     is_active: boolean;
@@ -117,4 +127,12 @@ export type LaunchSyncInstalledResult = {
   repo: string;
   installationId: string;
   appSourceId?: number;
+};
+
+export type LaunchRedeployResult = {
+  ok: boolean;
+  appSourceId: number;
+  platformRepo: string;
+  ciRunId: string;
+  ciUrl: string;
 };

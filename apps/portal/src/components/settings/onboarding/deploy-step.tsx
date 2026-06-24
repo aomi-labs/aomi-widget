@@ -68,15 +68,25 @@ function backoffDelay(failureCount: number): number {
   return Math.min(delay, MAX_BACKOFF_MS);
 }
 
-function buildProgressModel(state: string, lastCompleted: number): ProgressModel {
-  const stateToSteps: Record<string, { completed: number; total: number; label: string }> = {
+function buildProgressModel(
+  state: string,
+  lastCompleted: number,
+): ProgressModel {
+  const stateToSteps: Record<
+    string,
+    { completed: number; total: number; label: string }
+  > = {
     pending: { completed: 1, total: 8, label: "Waiting for build" },
     building: { completed: 2, total: 8, label: "Building CI" },
     releasing: { completed: 5, total: 8, label: "Verifying release assets" },
     ready: { completed: 8, total: 8, label: "Build ready" },
     failed: { completed: lastCompleted, total: 8, label: "Build failed" },
   };
-  const mapped = stateToSteps[state] ?? { completed: lastCompleted, total: 8, label: "In progress" };
+  const mapped = stateToSteps[state] ?? {
+    completed: lastCompleted,
+    total: 8,
+    label: "In progress",
+  };
   return {
     completed: Math.max(mapped.completed, lastCompleted),
     total: mapped.total,
@@ -91,7 +101,7 @@ function initialPhase(progress: LaunchProgress): Phase {
 }
 
 export function DeployStep({
-  appSourceId,
+  installationId,
   repo,
   actor,
   progress,
@@ -99,8 +109,8 @@ export function DeployStep({
   onReconnectInstall,
   onReset,
 }: {
-  /** The connected source row to deploy. Resolved before this step renders. */
-  appSourceId: number;
+  /** GitHub App installation for the source repo. The BFF resolves appSourceId. */
+  installationId: string;
   repo?: string;
   actor?: string;
   progress: LaunchProgress;
@@ -109,9 +119,9 @@ export function DeployStep({
   onReset?: () => void;
 }) {
   const [phase, setPhase] = useState<Phase>(() => initialPhase(progress));
-  const [deployment, setDeployment] = useState<
-    LaunchDeployPayload | undefined
-  >(progress.deployment);
+  const [deployment, setDeployment] = useState<LaunchDeployPayload | undefined>(
+    progress.deployment,
+  );
   const [deploymentId, setDeploymentId] = useState<string | undefined>(
     progress.deploymentId,
   );
@@ -122,7 +132,9 @@ export function DeployStep({
   const pollRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const statusFailuresRef = useRef(0);
   const startTimeRef = useRef<number | null>(null);
-  const [progressModel, setProgressModel] = useState<ProgressModel | null>(null);
+  const [progressModel, setProgressModel] = useState<ProgressModel | null>(
+    null,
+  );
   const lastCompletedRef = useRef(0);
 
   const tags = useMemo(
@@ -164,14 +176,14 @@ export function DeployStep({
     setError(null);
     statusFailuresRef.current = 0;
     try {
-      const result = await launchDryRun({ appSourceId, actor });
+      const result = await launchDryRun({ installationId, repo, actor });
       applyDeployment(result);
       setPhase("dry_ready");
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
       setPhase("error");
     }
-  }, [actor, applyDeployment, appSourceId]);
+  }, [actor, applyDeployment, installationId, repo]);
 
   const deploy = useCallback(async () => {
     setPhase("deploying");
@@ -179,10 +191,10 @@ export function DeployStep({
     statusFailuresRef.current = 0;
     try {
       if (!deployment) {
-        const dryResult = await launchDryRun({ appSourceId, actor });
+        const dryResult = await launchDryRun({ installationId, repo, actor });
         applyDeployment(dryResult);
       }
-      const result = await launchDeploy({ appSourceId, actor });
+      const result = await launchDeploy({ installationId, repo, actor });
       applyDeployment(result);
       const id = result.deployment.id;
       setDeploymentId(id);
@@ -199,10 +211,13 @@ export function DeployStep({
       setError(e instanceof Error ? e.message : String(e));
       setPhase("error");
     }
-  }, [actor, appSourceId, applyDeployment, deployment, onProgress, repo]);
+  }, [actor, applyDeployment, deployment, installationId, onProgress, repo]);
 
   useEffect(() => {
-    if (!deploymentId || (phase !== "building" && phase !== "deploying" && phase !== "releasing"))
+    if (
+      !deploymentId ||
+      (phase !== "building" && phase !== "deploying" && phase !== "releasing")
+    )
       return;
     let cancelled = false;
     if (startTimeRef.current === null) startTimeRef.current = Date.now();
@@ -220,7 +235,10 @@ export function DeployStep({
           setDeployment(status.deployment);
         }
         // Update progress model with monotonic clamping
-        const model = buildProgressModel(status.state, lastCompletedRef.current);
+        const model = buildProgressModel(
+          status.state,
+          lastCompletedRef.current,
+        );
         lastCompletedRef.current = model.completed;
         setProgressModel(model);
 
@@ -294,7 +312,9 @@ export function DeployStep({
           }
           // Early exit if any app reports a terminal error
           const terminal = checks.find(
-            (c) => c.ok === false || (c.app?.is_active === false && c.app?.loaded === false),
+            (c) =>
+              c.ok === false ||
+              (c.app?.is_active === false && c.app?.loaded === false),
           );
           if (terminal) {
             setError(
@@ -381,6 +401,16 @@ export function DeployStep({
             </Button>
           )}
         </div>
+        {deployment && (
+          <DeploymentSummary
+            deployment={deployment}
+            tags={tags}
+            phase={phase}
+            showManifest={showManifest}
+            manifestJson={manifestJson}
+            onToggleManifest={() => setShowManifest((value) => !value)}
+          />
+        )}
       </div>
     );
   }
@@ -431,9 +461,7 @@ export function DeployStep({
           )}
           Activate
         </Button>
-        {["building", "ready", "activating", "verifying"].includes(
-          phase,
-        ) && (
+        {["building", "ready", "activating", "verifying"].includes(phase) && (
           <Button
             onClick={reset}
             className="h-9 rounded-full px-3 text-sm font-medium"
@@ -462,8 +490,7 @@ export function DeployStep({
         {phase === "deploying" &&
           "Creating or updating the platform deploy branch."}
         {phase === "building" && "Waiting for platform CI and release assets."}
-        {phase === "releasing" &&
-          "Release built — verifying assets."}
+        {phase === "releasing" && "Release built — verifying assets."}
         {phase === "ready" && "Build is ready for activation."}
         {phase === "activating" &&
           "Promoting the built release into the live branch."}
@@ -478,8 +505,7 @@ export function DeployStep({
 
       {deploymentId && (
         <div className="text-muted-foreground inline-flex items-center gap-1.5 text-xs">
-          deployment{" "}
-          <code className="text-foreground">{deploymentId}</code>
+          deployment <code className="text-foreground">{deploymentId}</code>
           <button
             type="button"
             onClick={() => {
@@ -492,7 +518,7 @@ export function DeployStep({
           >
             <Copy className="h-3 w-3" />
             {copied && (
-              <span className="text-green-500 text-[10px]">copied</span>
+              <span className="text-[10px] text-green-500">copied</span>
             )}
           </button>
         </div>

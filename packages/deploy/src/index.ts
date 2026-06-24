@@ -9,7 +9,7 @@ export {
   ACTIVATION_REQUEST_KIND,
   ACTIVATION_REQUEST_SOURCE,
   ACTIVATION_REQUEST_EMBED_COLOR,
- } from "./activation-request";
+} from "./activation-request";
 
 export {
   DeployError,
@@ -52,6 +52,7 @@ export type {
   RevokeTokenInput,
   AppSource,
   SyncSourceInput,
+  ResolveSourceInput,
   ScaffoldInput,
   ListAppsInput,
   GetAppInput,
@@ -65,5 +66,5 @@ export type {
 export type {
   ActivationRequestInput,
   ActivationRequestPayload,
-   DiscordWebhookBody,
+  DiscordWebhookBody,
 } from "./activation-request";
