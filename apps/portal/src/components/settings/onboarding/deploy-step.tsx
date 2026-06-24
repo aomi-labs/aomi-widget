@@ -20,7 +20,6 @@ import {
   launchDryRun,
   launchStatus,
   type LaunchDeployPayload,
-  type LaunchPath,
   type LaunchProgress,
 } from "@portal/features/launch";
 
@@ -92,8 +91,7 @@ function initialPhase(progress: LaunchProgress): Phase {
 }
 
 export function DeployStep({
-  path,
-  installationId,
+  appSourceId,
   repo,
   actor,
   progress,
@@ -101,8 +99,8 @@ export function DeployStep({
   onReconnectInstall,
   onReset,
 }: {
-  path: LaunchPath;
-  installationId: string;
+  /** The connected source row to deploy. Resolved before this step renders. */
+  appSourceId: number;
   repo?: string;
   actor?: string;
   progress: LaunchProgress;
@@ -166,14 +164,14 @@ export function DeployStep({
     setError(null);
     statusFailuresRef.current = 0;
     try {
-      const result = await launchDryRun({ path, installationId, repo, actor });
+      const result = await launchDryRun({ appSourceId, actor });
       applyDeployment(result);
       setPhase("dry_ready");
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
       setPhase("error");
     }
-  }, [actor, applyDeployment, installationId, path, repo]);
+  }, [actor, applyDeployment, appSourceId]);
 
   const deploy = useCallback(async () => {
     setPhase("deploying");
@@ -181,15 +179,10 @@ export function DeployStep({
     statusFailuresRef.current = 0;
     try {
       if (!deployment) {
-        const dryResult = await launchDryRun({
-          path,
-          installationId,
-          repo,
-          actor,
-        });
+        const dryResult = await launchDryRun({ appSourceId, actor });
         applyDeployment(dryResult);
       }
-      const result = await launchDeploy({ path, installationId, repo, actor });
+      const result = await launchDeploy({ appSourceId, actor });
       applyDeployment(result);
       const id = result.deployment.id;
       setDeploymentId(id);
@@ -206,7 +199,7 @@ export function DeployStep({
       setError(e instanceof Error ? e.message : String(e));
       setPhase("error");
     }
-  }, [actor, applyDeployment, deployment, installationId, onProgress, path, repo]);
+  }, [actor, appSourceId, applyDeployment, deployment, onProgress, repo]);
 
   useEffect(() => {
     if (!deploymentId || (phase !== "building" && phase !== "deploying" && phase !== "releasing"))

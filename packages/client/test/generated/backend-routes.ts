@@ -115,8 +115,23 @@ export const AOMI_BACKEND_ENDPOINTS = [
   },
   {
     method: "GET",
+    path: "/api/integrations/github-app/oauth/exchange",
+    auth: ["service"],
+  },
+  {
+    method: "GET",
+    path: "/api/integrations/github-app/oauth/result",
+    auth: [],
+  },
+  {
+    method: "GET",
     path: "/api/integrations/github-app/oauth/start",
     auth: [],
+  },
+  {
+    method: "GET",
+    path: "/api/integrations/github-app/user/sources",
+    auth: ["service"],
   },
   {
     method: "GET",
@@ -207,6 +222,11 @@ export const AOMI_BACKEND_ENDPOINTS = [
     method: "GET",
     path: "/health",
     auth: [],
+  },
+  {
+    method: "GET",
+    path: "/metrics",
+    auth: ["service"],
   },
   {
     method: "PATCH",

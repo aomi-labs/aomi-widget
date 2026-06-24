@@ -1,10 +1,14 @@
 "use client";
 
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { Settings } from "lucide-react";
 import { AomiFrame } from "@aomi-labs/widget-lib";
-import { type AomiClientOptions, usePerThreadControl } from "@aomi-labs/react";
+import {
+  type AomiClientOptions,
+  useAomiRuntime,
+  usePerThreadControl,
+} from "@aomi-labs/react";
 import { RequiredSecretsGate } from "@portal/components/required-secrets-gate";
 import { x402Client } from "@x402/core/client";
 import { ExactEvmScheme } from "@x402/evm/exact/client";
@@ -14,22 +18,49 @@ import { useConfig, useWalletClient } from "wagmi";
 import { getConnectorClient } from "wagmi/actions";
 import { getBackendUrl } from "@portal/lib/settings-api";
 
-function getRequestedAppFromSearch(search: string): string | null {
+type RequestedAppConfig = {
+  app: string | null;
+  locked: boolean;
+};
+
+function getRequestedAppConfig(search: string): RequestedAppConfig {
   const params = new URLSearchParams(search);
+  let app: string | null = null;
 
   for (const key of ["aomi_app", "app"] as const) {
     const value = params.get(key)?.trim();
     if (value) {
-      return value;
+      app = value;
+      break;
     }
   }
 
-  return null;
+  return {
+    app,
+    locked:
+      params.get("lock_app") === "1" ||
+      params.get("lock_app") === "true" ||
+      params.get("app_locked") === "1" ||
+      params.get("app_locked") === "true",
+  };
 }
 
-function usePortalClientOptions():
-  | Omit<AomiClientOptions, "baseUrl">
-  | undefined {
+function useRequestedAppConfig(): RequestedAppConfig {
+  const [config, setConfig] = useState<RequestedAppConfig>({
+    app: null,
+    locked: false,
+  });
+
+  useEffect(() => {
+    setConfig(getRequestedAppConfig(window.location.search));
+  }, []);
+
+  return config;
+}
+
+function usePortalClientOptions(
+  lockedApp: string | null,
+): Omit<AomiClientOptions, "baseUrl"> | undefined {
   const wagmiConfig = useConfig();
   const walletClient = useWalletClient();
   const nativeFetch = useMemo(() => globalThis.fetch.bind(globalThis), []);
@@ -143,6 +174,24 @@ function usePortalClientOptions():
       }
     };
 
+    const withLockedChatApp = (input: RequestInfo | URL): RequestInfo | URL => {
+      if (!lockedApp) {
+        return input;
+      }
+      const url = parseUrl(input);
+      if (!url || url.pathname !== "/api/chat") {
+        return input;
+      }
+      url.searchParams.set("app", lockedApp);
+      if (typeof input === "string") {
+        return url.toString();
+      }
+      if (input instanceof URL) {
+        return url;
+      }
+      return new Request(url, input);
+    };
+
     const isChatPost = (input: RequestInfo | URL, init?: RequestInit) => {
       const url = parseUrl(input);
       if (!url) return false;
@@ -176,11 +225,12 @@ function usePortalClientOptions():
     })();
 
     const routedFetch: typeof fetch = async (input, init) => {
-      if (!isChatPost(input, init)) {
-        return rawFetch(input, init);
+      const routedInput = withLockedChatApp(input);
+      if (!isChatPost(routedInput, init)) {
+        return rawFetch(routedInput, init);
       }
 
-      const firstResponse = await rawFetch(input, init);
+      const firstResponse = await rawFetch(routedInput, init);
       if (firstResponse.status !== 402 || !paymentFetch) {
         return firstResponse;
       }
@@ -188,38 +238,93 @@ function usePortalClientOptions():
       console.debug(
         "[aomi][portal-fetch] retrying /api/chat with payment transport after 402",
       );
-      return paymentFetch(input, init);
+      return paymentFetch(withLockedChatApp(input), init);
     };
 
     return {
       fetch: routedFetch,
     };
-  }, [mppClientOptions, nativeFetch, walletClient?.data]);
+  }, [lockedApp, mppClientOptions, nativeFetch, walletClient?.data]);
 }
 
-function AppSelectUrlBootstrap() {
+function AppSelectUrlBootstrap({
+  requestedApp,
+  locked,
+}: {
+  requestedApp: string | null;
+  locked: boolean;
+}) {
+  const { createThread, currentThreadId } = useAomiRuntime();
   const { onAppSelect } = usePerThreadControl().actions;
   const hasAppliedRequestedAppRef = useRef(false);
+  const hasStartedLockedThreadRef = useRef<string | null>(null);
+  const isDisposedRef = useRef(false);
+  const [lockedThreadId, setLockedThreadId] = useState<string | null>(null);
+
+  useEffect(() => {
+    return () => {
+      isDisposedRef.current = true;
+    };
+  }, []);
 
   useEffect(() => {
     if (hasAppliedRequestedAppRef.current) {
       return;
     }
 
-    const requestedApp = getRequestedAppFromSearch(window.location.search);
     if (!requestedApp) {
+      return;
+    }
+
+    if (!locked) {
+      onAppSelect(requestedApp);
+      hasAppliedRequestedAppRef.current = true;
+      return;
+    }
+
+    if (hasStartedLockedThreadRef.current === requestedApp) {
+      return;
+    }
+    hasStartedLockedThreadRef.current = requestedApp;
+    void createThread()
+      .then((threadId) => {
+        if (
+          !isDisposedRef.current &&
+          hasStartedLockedThreadRef.current === requestedApp
+        ) {
+          setLockedThreadId(threadId);
+        }
+      })
+      .catch((error) => {
+        console.error("[aomi][portal-frame] failed to create locked thread", {
+          app: requestedApp,
+          error,
+        });
+      });
+  }, [createThread, locked, onAppSelect, requestedApp]);
+
+  useEffect(() => {
+    if (
+      hasAppliedRequestedAppRef.current ||
+      !locked ||
+      !requestedApp ||
+      !lockedThreadId ||
+      currentThreadId !== lockedThreadId
+    ) {
       return;
     }
 
     onAppSelect(requestedApp);
     hasAppliedRequestedAppRef.current = true;
-  }, [onAppSelect]);
+  }, [currentThreadId, locked, lockedThreadId, onAppSelect, requestedApp]);
 
   return null;
 }
 
 export function PortalAomiFrame() {
-  const clientOptions = usePortalClientOptions();
+  const requestedApp = useRequestedAppConfig();
+  const lockedApp = requestedApp.locked ? requestedApp.app : null;
+  const clientOptions = usePortalClientOptions(lockedApp);
   const backendUrl = getBackendUrl();
 
   return (
@@ -233,7 +338,10 @@ export function PortalAomiFrame() {
         className="rounded-none border-0 shadow-none"
         clientOptions={clientOptions}
       >
-        <AppSelectUrlBootstrap />
+        <AppSelectUrlBootstrap
+          requestedApp={requestedApp.app}
+          locked={Boolean(lockedApp)}
+        />
         <AomiFrame.Header>
           <Link
             href="/settings"
@@ -247,6 +355,7 @@ export function PortalAomiFrame() {
           withControl
           controlBarProps={{
             hideApiKey: true,
+            hideApp: Boolean(lockedApp),
           }}
         />
         <RequiredSecretsGate />

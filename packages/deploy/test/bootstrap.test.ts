@@ -192,20 +192,6 @@ describe("DeploymentClient bootstrap — sources", () => {
     });
   });
 
-  it("resolves a source via query params", async () => {
-    jsonOnce(fetchMock, sourceBody);
-    await client({ activationToken: "plat-tok" }).resolveSource({
-      platform: "playground",
-      installationId: 555,
-      repo: "alice/alice-bot",
-    });
-    const [url, init] = fetchMock.mock.calls[0];
-    expect((init as RequestInit).method).toBe("GET");
-    expect(url).toBe(
-      "https://staging-api.example.com/api/platforms/playground/sources/resolve?installation_id=555&repo=alice%2Falice-bot",
-    );
-  });
-
   it("scaffolds from the default template and maps the source", async () => {
     jsonOnce(fetchMock, sourceBody);
     const src = await client({ activationToken: "plat-tok" }).scaffold({

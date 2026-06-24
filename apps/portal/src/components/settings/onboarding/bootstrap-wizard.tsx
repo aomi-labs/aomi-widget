@@ -1,11 +1,19 @@
 "use client";
 
-import { useState } from "react";
-import { ExternalLink, Check, RotateCcw, ArrowLeft, AlertTriangle } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
+import {
+  ExternalLink,
+  Check,
+  Loader2,
+  RotateCcw,
+  ArrowLeft,
+  AlertTriangle,
+} from "lucide-react";
 import { Button, Input } from "@aomi-labs/widget-lib";
 import {
   bootstrapStep,
   installationStatusLabel,
+  launchSyncInstalled,
   normalizeRepo,
   TEMPLATE_GENERATE_URL,
   type LaunchProgress,
@@ -239,13 +247,10 @@ export function BootstrapWizard({
               <ArrowLeft className="mr-1 h-3.5 w-3.5 shrink-0" /> Back
             </button>
           </div>
-          <DeployStep
-            path="bootstrap"
-            installationId={progress.installationId}
-            repo={progress.repo}
-            actor={actor}
+          <BootstrapDeployStep
             progress={progress}
-            onProgress={patch}
+            patch={patch}
+            actor={actor}
             onReconnectInstall={beginAuthorize}
             onReset={onReset}
           />
@@ -258,6 +263,105 @@ export function BootstrapWizard({
           chatUrl={progress.apps?.[0] ? chatAppUrl(progress.apps[0]) : undefined}
         />
       )}
+    </div>
+  );
+}
+
+/**
+ * Bootstrap reaches deploy with a connected repo but no source id yet. Resolve
+ * it from the installed repo (`sync-installed`) once, then hand a stable
+ * `appSourceId` to `DeployStep` — deploy is source-id-driven end to end.
+ */
+function BootstrapDeployStep({
+  progress,
+  patch,
+  actor,
+  onReconnectInstall,
+  onReset,
+}: {
+  progress: LaunchProgress;
+  patch: (patch: Partial<LaunchProgress>) => void;
+  actor?: string;
+  onReconnectInstall?: () => void;
+  onReset?: () => void;
+}) {
+  const [resolving, setResolving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const repo = progress.repo;
+  const appSourceId = progress.appSourceId;
+
+  const resolveSource = useCallback(async () => {
+    if (!repo) return;
+    setResolving(true);
+    setError(null);
+    try {
+      const result = await launchSyncInstalled({ repo });
+      if (!result.appSourceId) {
+        throw new Error("backend did not return a source id for this repo");
+      }
+      patch({ appSourceId: result.appSourceId, repo: result.repo });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setResolving(false);
+    }
+  }, [repo, patch]);
+
+  useEffect(() => {
+    if (!appSourceId && !resolving && !error) {
+      void resolveSource();
+    }
+  }, [appSourceId, resolving, error, resolveSource]);
+
+  if (appSourceId) {
+    return (
+      <DeployStep
+        appSourceId={appSourceId}
+        repo={progress.repo}
+        actor={actor}
+        progress={progress}
+        onProgress={patch}
+        onReconnectInstall={onReconnectInstall}
+        onReset={onReset}
+      />
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="space-y-3 rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-sm">
+        <div className="text-foreground flex items-start gap-2">
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
+          <div>
+            <div className="font-medium">Couldn’t connect your repository</div>
+            <div className="text-muted-foreground mt-0.5 break-words text-xs">
+              {error}
+            </div>
+          </div>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Button
+            onClick={resolveSource}
+            className="h-8 rounded-full px-3 text-xs font-medium"
+          >
+            <RotateCcw className="mr-1 h-3.5 w-3.5" /> Retry
+          </Button>
+          {onReconnectInstall && (
+            <Button
+              onClick={onReconnectInstall}
+              className="h-8 rounded-full px-3 text-xs font-medium"
+            >
+              <RotateCcw className="mr-1 h-3.5 w-3.5" /> Verify existing install
+            </Button>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="text-muted-foreground flex items-center gap-2 text-sm">
+      <Loader2 className="h-4 w-4 animate-spin" /> Connecting your repository…
     </div>
   );
 }
