@@ -46,6 +46,23 @@ function isValidAppSourceId(value: unknown): value is number {
   return typeof value === "number" && Number.isSafeInteger(value) && value > 0;
 }
 
+async function resolveAppSourceId(args: {
+  client: Awaited<ReturnType<typeof deploymentClient>>;
+  platform: string;
+  installationId: string;
+  repo?: string;
+}): Promise<number> {
+  const source = await args.client.resolveSource({
+    platform: args.platform,
+    installationId: Number(args.installationId),
+    repo: args.repo,
+  });
+  if (!Number.isSafeInteger(source.id) || source.id <= 0) {
+    throw new Error("backend did not return a valid app source id");
+  }
+  return source.id;
+}
+
 export function launchDeployRoute(dryRun: boolean) {
   return async function POST(req: Request): Promise<NextResponse> {
     const blocked = checkWrite(req);
@@ -55,19 +72,28 @@ export function launchDeployRoute(dryRun: boolean) {
       string,
       unknown
     >;
-    if (!isValidAppSourceId(body.appSourceId)) {
+    if (!isValidInstallationId(body.installationId)) {
       return NextResponse.json(
-        { error: "missing or invalid `appSourceId`" },
+        { error: "missing or invalid `installationId`" },
         { status: 400 },
       );
+    }
+    if (body.repo !== undefined && !isValidRepo(body.repo)) {
+      return NextResponse.json({ error: "invalid `repo`" }, { status: 400 });
     }
 
     try {
       const config = launchConfig();
       const client = await deploymentClient();
+      const appSourceId = await resolveAppSourceId({
+        client,
+        platform: config.platform,
+        installationId: body.installationId,
+        repo: body.repo as string | undefined,
+      });
       const { deployment } = await client.deploy({
         platform: config.platform,
-        appSourceId: body.appSourceId,
+        appSourceId,
         sourceRef: config.sourceRef,
         aomiTomlPaths: config.aomiTomlPaths,
         dryRun,
@@ -76,7 +102,9 @@ export function launchDeployRoute(dryRun: boolean) {
       return NextResponse.json(
         {
           ok: true,
-          repo: deployment.source.repositoryLink,
+          repo:
+            (body.repo as string | undefined) ??
+            deployment.source.repositoryLink,
           deployment,
           releaseTags: releaseTagsFromDeployment(deployment),
           apps: appNamesFromDeployment(deployment),
@@ -334,6 +362,7 @@ export async function launchAppRoute(req: Request) {
       ok: Boolean(live),
       state: live ? "live" : "pending",
       app: {
+        id: app.id,
         name: app.name,
         is_active: app.isActive,
         loaded: app.loaded,

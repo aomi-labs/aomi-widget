@@ -101,7 +101,7 @@ function initialPhase(progress: LaunchProgress): Phase {
 }
 
 export function DeployStep({
-  appSourceId,
+  installationId,
   repo,
   actor,
   progress,
@@ -109,8 +109,8 @@ export function DeployStep({
   onReconnectInstall,
   onReset,
 }: {
-  /** The connected source row to deploy. Resolved before this step renders. */
-  appSourceId: number;
+  /** GitHub App installation for the source repo. The BFF resolves appSourceId. */
+  installationId: string;
   repo?: string;
   actor?: string;
   progress: LaunchProgress;
@@ -176,14 +176,14 @@ export function DeployStep({
     setError(null);
     statusFailuresRef.current = 0;
     try {
-      const result = await launchDryRun({ appSourceId, actor });
+      const result = await launchDryRun({ installationId, repo, actor });
       applyDeployment(result);
       setPhase("dry_ready");
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
       setPhase("error");
     }
-  }, [actor, applyDeployment, appSourceId]);
+  }, [actor, applyDeployment, installationId, repo]);
 
   const deploy = useCallback(async () => {
     setPhase("deploying");
@@ -191,10 +191,10 @@ export function DeployStep({
     statusFailuresRef.current = 0;
     try {
       if (!deployment) {
-        const dryResult = await launchDryRun({ appSourceId, actor });
+        const dryResult = await launchDryRun({ installationId, repo, actor });
         applyDeployment(dryResult);
       }
-      const result = await launchDeploy({ appSourceId, actor });
+      const result = await launchDeploy({ installationId, repo, actor });
       applyDeployment(result);
       const id = result.deployment.id;
       setDeploymentId(id);
@@ -211,7 +211,7 @@ export function DeployStep({
       setError(e instanceof Error ? e.message : String(e));
       setPhase("error");
     }
-  }, [actor, appSourceId, applyDeployment, deployment, onProgress, repo]);
+  }, [actor, applyDeployment, deployment, installationId, onProgress, repo]);
 
   useEffect(() => {
     if (

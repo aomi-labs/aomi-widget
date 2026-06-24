@@ -1018,19 +1018,22 @@ ${body}` : ""}`
    * Send a chat message and return updated session state.
    */
   async sendMessage(sessionId, message, options) {
-    var _a, _b, _c, _d, _e;
+    var _a, _b, _c, _d, _e, _f;
     const app = (_a = options == null ? void 0 : options.app) != null ? _a : "default";
     const apiKey = (_b = options == null ? void 0 : options.apiKey) != null ? _b : this.apiKey;
     const normalizedUserState = UserState.normalize(options == null ? void 0 : options.userState);
+    const applicationId = (_c = options == null ? void 0 : options.applicationId) == null ? void 0 : _c.toString().trim();
     const url = buildApiUrl(this.baseUrl, "/api/chat", {
       app,
+      application_id: applicationId || void 0,
       message,
       user_state: normalizedUserState ? JSON.stringify(normalizedUserState) : void 0,
       client_id: options == null ? void 0 : options.clientId
     });
-    (_c = this.logger) == null ? void 0 : _c.debug("[aomi][client] POST /api/chat prepared", {
+    (_d = this.logger) == null ? void 0 : _d.debug("[aomi][client] POST /api/chat prepared", {
       sessionId,
       app,
+      applicationId,
       clientId: options == null ? void 0 : options.clientId,
       hasUserState: Boolean(normalizedUserState),
       messagePreview: previewText(message)
@@ -1039,7 +1042,7 @@ ${body}` : ""}`
     if (apiKey) {
       headers.set(APP_KEY_HEADER, apiKey);
     }
-    (_d = this.logger) == null ? void 0 : _d.debug("[aomi][client] POST start", {
+    (_e = this.logger) == null ? void 0 : _e.debug("[aomi][client] POST start", {
       path: "/api/chat",
       sessionId,
       hasApiKey: Boolean(apiKey),
@@ -1049,7 +1052,7 @@ ${body}` : ""}`
       method: "POST",
       headers
     });
-    (_e = this.logger) == null ? void 0 : _e.debug("[aomi][client] POST response", {
+    (_f = this.logger) == null ? void 0 : _f.debug("[aomi][client] POST response", {
       path: "/api/chat",
       sessionId,
       status: response.status,
@@ -1071,9 +1074,13 @@ ${body}` : ""}`
     if (options == null ? void 0 : options.app) {
       payload.app = options.app;
     }
+    if (options == null ? void 0 : options.applicationId) {
+      payload.application_id = options.applicationId;
+    }
     (_a = this.logger) == null ? void 0 : _a.debug("[aomi][client] POST /api/system prepared", {
       sessionId,
       app: options == null ? void 0 : options.app,
+      applicationId: options == null ? void 0 : options.applicationId,
       messagePreview: previewText(message)
     });
     return postState(
@@ -1436,11 +1443,13 @@ ${body}` : ""}`
    * Set the model for a session.
    */
   async setModel(sessionId, rig, options) {
-    var _a;
+    var _a, _b;
     const apiKey = (_a = options == null ? void 0 : options.apiKey) != null ? _a : this.apiKey;
+    const applicationId = (_b = options == null ? void 0 : options.applicationId) == null ? void 0 : _b.toString().trim();
     const url = buildApiUrl(this.baseUrl, "/api/session/model", {
       rig,
       app: options == null ? void 0 : options.app,
+      application_id: applicationId || void 0,
       client_id: options == null ? void 0 : options.clientId
     });
     const headers = new Headers(withSessionHeader(sessionId));

@@ -4,7 +4,6 @@ import { normalizeRepo } from "./state";
 
 export type SourceLifecycleKind =
   | "live"
-  | "activation_pending"
   | "build_ready"
   | "building"
   | "failed"
@@ -19,6 +18,7 @@ export type SourceLifecycle = {
   appNames: string[];
   releaseTags: string[];
   chatApp?: string;
+  chatApplicationId?: number;
   deploymentId?: string;
   ciStatus?: string | null;
   ciUrl?: string | null;
@@ -45,8 +45,7 @@ export function sourceLifecycle(source: UserSource): SourceLifecycle {
   const latest = source.latestDeployment ?? null;
   const appNames = namesFromSource(source);
   const releaseTags = tagsFromSource(source);
-  const liveApp = source.apps.find((app) => app.isActive && app.loaded);
-  const activeUnloaded = source.apps.find((app) => app.isActive && !app.loaded);
+  const liveApp = liveAppFromSource(source);
   const ciStatus = clean(latest?.ciStatus);
   const state = clean(latest?.state)?.toLowerCase() ?? null;
   const deploymentId = clean(latest?.deploymentId) ?? undefined;
@@ -73,8 +72,9 @@ export function sourceLifecycle(source: UserSource): SourceLifecycle {
       kind: "live",
       statusLabel: "Live",
       statusTone: "good",
-      message: "Runtime reports the app is loaded.",
+      message: "The latest deployment is active.",
       chatApp: liveApp.name,
+      chatApplicationId: liveApp.applicationId,
     };
   }
 
@@ -99,17 +99,6 @@ export function sourceLifecycle(source: UserSource): SourceLifecycle {
         state === "skipped" || ciStatus === "skipped"
           ? "CI did not run for the latest deployment attempt."
           : "The latest deployment did not produce a usable release.",
-    };
-  }
-
-  if (activeUnloaded) {
-    return {
-      ...base,
-      kind: "activation_pending",
-      statusLabel: "Runtime pending",
-      statusTone: "warning",
-      message:
-        "The release is marked active, but the runtime has not loaded it yet.",
     };
   }
 
@@ -246,6 +235,25 @@ function clean(value: string | number | null | undefined): string | null {
   if (value === null || value === undefined) return null;
   const text = String(value).trim();
   return text ? text : null;
+}
+
+function liveAppFromSource(
+  source: UserSource,
+): { name: string; applicationId?: number } | null {
+  const latest = source.latestDeployment;
+  const latestLive = latest?.apps.find(
+    (app) => app.applicationId && app.isActive,
+  );
+  if (latestLive) {
+    return {
+      name: latestLive.name,
+      applicationId: latestLive.applicationId ?? undefined,
+    };
+  }
+  if (latest) return null;
+
+  const live = source.apps.find((app) => app.isActive);
+  return live ? { name: live.name, applicationId: live.id } : null;
 }
 
 function namesFromSource(source: UserSource): string[] {
