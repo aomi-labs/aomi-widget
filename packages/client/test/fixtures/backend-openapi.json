@@ -825,23 +825,6 @@
         ]
       }
     },
-    "/api/platforms/{name}/sources/resolve": {
-      "get": {
-        "responses": {
-          "200": {
-            "description": "OK"
-          }
-        },
-        "security": [
-          {
-            "platformBearer": []
-          }
-        ],
-        "x-aomi-auth": [
-          "activation"
-        ]
-      }
-    },
     "/api/platforms/{name}/activate": {
       "post": {
         "responses": {
