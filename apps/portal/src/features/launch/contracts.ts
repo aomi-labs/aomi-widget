@@ -83,7 +83,12 @@ export type LaunchStatus = {
     release_ready: boolean;
     message?: string | null;
   }>;
-  ci?: { status?: string; url?: string; commit_hash?: string };
+  ci?: {
+    status?: string;
+    url?: string;
+    commit_hash?: string;
+    commitHash?: string;
+  };
   message?: string;
 };
 
@@ -117,4 +122,12 @@ export type LaunchSyncInstalledResult = {
   repo: string;
   installationId: string;
   appSourceId?: number;
+};
+
+export type LaunchRedeployResult = {
+  ok: boolean;
+  appSourceId: number;
+  platformRepo: string;
+  ciRunId: string;
+  ciUrl: string;
 };

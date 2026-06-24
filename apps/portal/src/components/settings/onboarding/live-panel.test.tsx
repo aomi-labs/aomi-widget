@@ -45,7 +45,12 @@ describe("LivePanel", () => {
   });
 
   it("shows chat link when chatUrl is provided", () => {
-    render(<LivePanel repo="user/my-agent" chatUrl="https://chat.aomi.dev?app=my-agent" />);
+    render(
+      <LivePanel
+        repo="user/my-agent"
+        chatUrl="https://chat.aomi.dev?app=my-agent"
+      />,
+    );
     const link = screen.getByText("Open in chat");
     expect(link).toBeInTheDocument();
     expect(link.closest("a")).toHaveAttribute(
@@ -54,13 +59,24 @@ describe("LivePanel", () => {
     );
   });
 
+  it("renders the chat frame when chatUrl is provided", () => {
+    render(
+      <LivePanel
+        repo="user/my-agent"
+        chatUrl="https://chat.aomi.dev?app=my-agent&lock_app=1"
+      />,
+    );
+    const frame = screen.getByTitle("Chat with user/my-agent");
+    expect(frame).toHaveAttribute(
+      "src",
+      "https://chat.aomi.dev?app=my-agent&lock_app=1",
+    );
+  });
+
   it("uses template repo URL fallback for clone", () => {
     render(<LivePanel />);
     const link = screen.getByText("Open repo");
-    expect(link.closest("a")).toHaveAttribute(
-      "href",
-      TEMPLATE_URL,
-    );
+    expect(link.closest("a")).toHaveAttribute("href", TEMPLATE_URL);
   });
 
   it("renders the aomi-build command snippet", () => {
