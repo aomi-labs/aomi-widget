@@ -77,7 +77,7 @@ describe("launchDeployRoute", () => {
     expect(body).toEqual({ error: "deploy rejected" });
   });
 
-  it("resolves source id before deploying", async () => {
+  it("syncs source id by repo before deploying when appSourceId is absent", async () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(
@@ -119,8 +119,11 @@ describe("launchDeployRoute", () => {
     expect(body.repo).toBe("alice/bot");
     expect(fetchMock).toHaveBeenNthCalledWith(
       1,
-      "http://127.0.0.1:8080/api/platforms/community/sources/resolve?installation_id=555&repo=alice%2Fbot",
-      expect.objectContaining({ method: "GET" }),
+      "http://127.0.0.1:8080/api/platforms/community/sources/sync-installed",
+      expect.objectContaining({
+        method: "POST",
+        body: expect.stringContaining('"repo":"alice/bot"'),
+      }),
     );
     expect(fetchMock).toHaveBeenNthCalledWith(
       2,
@@ -132,7 +135,55 @@ describe("launchDeployRoute", () => {
     );
   });
 
-  it("rejects a missing installationId before calling the backend", async () => {
+  it("deploys directly by appSourceId when the source identity is already known", async () => {
+    const fetchMock = vi.fn().mockResolvedValueOnce(
+      Response.json({
+        ok: true,
+        deployment: {
+          id: "dep_999_rabc1234_deadbeef",
+          source: {
+            installation_id: 999,
+            repository_link: "alice/bot",
+          },
+          platform: { apps: [] },
+        },
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const POST = launchDeployRoute(false);
+    const req = new Request("http://localhost:3000/api/launch/deploy", {
+      method: "POST",
+      headers: {
+        origin: "http://localhost:3000",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        appSourceId: 777,
+        installationId: "555",
+        repo: "alice/bot",
+      }),
+    });
+
+    const res = await POST(req);
+    const body = await res.json();
+
+    expect(res.status).toBe(202);
+    expect(body).toMatchObject({
+      repo: "alice/bot",
+      appSourceId: 777,
+    });
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      "http://127.0.0.1:8080/api/platforms/community/deploy",
+      expect.objectContaining({
+        method: "POST",
+        body: expect.stringContaining('"app_source_id":777'),
+      }),
+    );
+  });
+
+  it("rejects a request without appSourceId or repo before calling the backend", async () => {
     const fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);
 
@@ -143,7 +194,7 @@ describe("launchDeployRoute", () => {
         origin: "http://localhost:3000",
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ repo: "alice/bot" }),
+      body: JSON.stringify({ installationId: "555" }),
     });
 
     const res = await POST(req);

@@ -378,7 +378,7 @@ function BootstrapDeployStep({
   const appSourceId = progress.appSourceId;
   const installationId = progress.installationId;
 
-  const resolveSource = useCallback(async () => {
+  const syncSourceIdentity = useCallback(async () => {
     if (!repo) return;
     setResolving(true);
     setError(null);
@@ -397,9 +397,9 @@ function BootstrapDeployStep({
 
   useEffect(() => {
     if (!appSourceId && !resolving && !error) {
-      void resolveSource();
+      void syncSourceIdentity();
     }
-  }, [appSourceId, resolving, error, resolveSource]);
+  }, [appSourceId, resolving, error, syncSourceIdentity]);
 
   if (appSourceId && installationId) {
     return (
@@ -429,7 +429,7 @@ function BootstrapDeployStep({
         </div>
         <div className="flex flex-wrap gap-2">
           <Button
-            onClick={resolveSource}
+            onClick={syncSourceIdentity}
             className="h-8 rounded-full px-3 text-xs font-medium"
           >
             <RotateCcw className="mr-1 h-3.5 w-3.5" /> Retry
