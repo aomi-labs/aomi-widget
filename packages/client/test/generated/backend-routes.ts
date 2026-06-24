@@ -160,11 +160,6 @@ export const AOMI_BACKEND_ENDPOINTS = [
   },
   {
     method: "GET",
-    path: "/api/platforms/:name/sources/resolve",
-    auth: ["activation"],
-  },
-  {
-    method: "GET",
     path: "/api/platforms/:name/tokens",
     auth: ["activation"],
   },
