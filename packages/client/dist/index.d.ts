@@ -471,6 +471,7 @@ declare class AomiClient {
      */
     sendMessage(sessionId: string, message: string, options?: {
         app?: string;
+        applicationId?: number | string | null;
         apiKey?: string;
         userState?: UserState;
         clientId?: string;
@@ -482,6 +483,7 @@ declare class AomiClient {
      */
     sendSystemMessage(sessionId: string, message: string, options?: {
         app?: string;
+        applicationId?: number | string | null;
     }): Promise<AomiSystemResponse>;
     /**
      * Interrupt the AI's current response.
@@ -592,6 +594,7 @@ declare class AomiClient {
      */
     setModel(sessionId: string, rig: string, options?: {
         app?: string;
+        applicationId?: number | string | null;
         apiKey?: string;
         clientId?: string;
     }): Promise<{

@@ -20,6 +20,7 @@ import { getBackendUrl } from "@portal/lib/settings-api";
 
 type RequestedAppConfig = {
   app: string | null;
+  applicationId: string | null;
   locked: boolean;
 };
 
@@ -37,6 +38,10 @@ function getRequestedAppConfig(search: string): RequestedAppConfig {
 
   return {
     app,
+    applicationId:
+      params.get("application_id")?.trim() ||
+      params.get("applicationId")?.trim() ||
+      null,
     locked:
       params.get("lock_app") === "1" ||
       params.get("lock_app") === "true" ||
@@ -48,6 +53,7 @@ function getRequestedAppConfig(search: string): RequestedAppConfig {
 function useRequestedAppConfig(): RequestedAppConfig {
   const [config, setConfig] = useState<RequestedAppConfig>({
     app: null,
+    applicationId: null,
     locked: false,
   });
 
@@ -60,6 +66,7 @@ function useRequestedAppConfig(): RequestedAppConfig {
 
 function usePortalClientOptions(
   lockedApp: string | null,
+  lockedApplicationId: string | null,
 ): Omit<AomiClientOptions, "baseUrl"> | undefined {
   const wagmiConfig = useConfig();
   const walletClient = useWalletClient();
@@ -174,15 +181,25 @@ function usePortalClientOptions(
       }
     };
 
-    const withLockedChatApp = (input: RequestInfo | URL): RequestInfo | URL => {
+    const withLockedAppScope = (
+      input: RequestInfo | URL,
+    ): RequestInfo | URL => {
       if (!lockedApp) {
         return input;
       }
       const url = parseUrl(input);
-      if (!url || url.pathname !== "/api/chat") {
+      if (
+        !url ||
+        !["/api/chat", "/api/system", "/api/session/model"].includes(
+          url.pathname,
+        )
+      ) {
         return input;
       }
       url.searchParams.set("app", lockedApp);
+      if (lockedApplicationId) {
+        url.searchParams.set("application_id", lockedApplicationId);
+      }
       if (typeof input === "string") {
         return url.toString();
       }
@@ -225,7 +242,7 @@ function usePortalClientOptions(
     })();
 
     const routedFetch: typeof fetch = async (input, init) => {
-      const routedInput = withLockedChatApp(input);
+      const routedInput = withLockedAppScope(input);
       if (!isChatPost(routedInput, init)) {
         return rawFetch(routedInput, init);
       }
@@ -238,13 +255,19 @@ function usePortalClientOptions(
       console.debug(
         "[aomi][portal-fetch] retrying /api/chat with payment transport after 402",
       );
-      return paymentFetch(withLockedChatApp(input), init);
+      return paymentFetch(withLockedAppScope(input), init);
     };
 
     return {
       fetch: routedFetch,
     };
-  }, [lockedApp, mppClientOptions, nativeFetch, walletClient?.data]);
+  }, [
+    lockedApp,
+    lockedApplicationId,
+    mppClientOptions,
+    nativeFetch,
+    walletClient?.data,
+  ]);
 }
 
 function AppSelectUrlBootstrap({
@@ -324,7 +347,8 @@ function AppSelectUrlBootstrap({
 export function PortalAomiFrame() {
   const requestedApp = useRequestedAppConfig();
   const lockedApp = requestedApp.locked ? requestedApp.app : null;
-  const clientOptions = usePortalClientOptions(lockedApp);
+  const lockedApplicationId = lockedApp ? requestedApp.applicationId : null;
+  const clientOptions = usePortalClientOptions(lockedApp, lockedApplicationId);
   const backendUrl = getBackendUrl();
 
   return (

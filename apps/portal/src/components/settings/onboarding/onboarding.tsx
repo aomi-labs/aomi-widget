@@ -15,13 +15,20 @@ import {
   type LaunchState,
   type LaunchPath,
   type LaunchProgress,
+  type UserSource,
 } from "@portal/features/launch";
 import { resolveDeployPlatform } from "@portal/lib/deploy-platform";
 import { Picker } from "./picker";
 import { OneshotWizard } from "./oneshot-wizard";
 import { BootstrapWizard } from "./bootstrap-wizard";
 
-export function Onboarding() {
+export function Onboarding({
+  hideWizardBack = false,
+  knownSources = [],
+}: {
+  hideWizardBack?: boolean;
+  knownSources?: UserSource[];
+}) {
   const adapter = useAomiAuthAdapter();
   const actor = adapter.identity.address ?? undefined;
 
@@ -34,15 +41,17 @@ export function Onboarding() {
       if (urlDeployId) {
         if (urlDeployPath === "oneshot" && !loaded.oneshot.deploymentId) {
           loaded.oneshot.deploymentId = urlDeployId;
-        } else if (urlDeployPath === "bootstrap" && !loaded.bootstrap.deploymentId) {
+        } else if (
+          urlDeployPath === "bootstrap" &&
+          !loaded.bootstrap.deploymentId
+        ) {
           loaded.bootstrap.deploymentId = urlDeployId;
         }
       }
     }
     return loaded;
   });
-  const [installingPath, setInstallingPath] =
-    useState<LaunchPath | null>(null);
+  const [installingPath, setInstallingPath] = useState<LaunchPath | null>(null);
   const [installError, setInstallError] = useState<string | null>(null);
   const [installSuccess, setInstallSuccess] = useState(false);
 
@@ -129,6 +138,28 @@ export function Onboarding() {
     [state, update],
   );
 
+  const restartIn = useCallback(
+    (path: LaunchPath) => {
+      if (typeof window !== "undefined") {
+        const url = new URL(window.location.href);
+        url.searchParams.delete("deployment_id");
+        url.searchParams.delete("deploy_path");
+        window.history.replaceState({}, "", url.toString());
+      }
+
+      const next: LaunchState =
+        path === "oneshot"
+          ? { ...state, path, pendingInstall: null, oneshot: {} }
+          : { ...state, path, pendingInstall: null, bootstrap: {} };
+
+      setInstallingPath(null);
+      setInstallError(null);
+      setInstallSuccess(false);
+      update(next);
+    },
+    [state, update],
+  );
+
   const makePatch = useCallback(
     (path: LaunchPath) => (patch: Partial<LaunchProgress>) =>
       update(withProgress(state, path, patch)),
@@ -142,7 +173,9 @@ export function Onboarding() {
       url.searchParams.delete("deployment_id");
       url.searchParams.delete("deploy_path");
       window.history.replaceState({}, "", url.toString());
-      update(withProgress(state, path, { deploymentId: undefined, live: false }));
+      update(
+        withProgress(state, path, { deploymentId: undefined, live: false }),
+      );
     },
     [state, update],
   );
@@ -187,12 +220,14 @@ export function Onboarding() {
           progress={state.oneshot}
           actor={actor}
           onBack={back}
+          showBack={!hideWizardBack}
           beginInstall={makeBeginInstall("oneshot")}
           beginAuthorize={makeBeginInstall("oneshot", "authorize")}
           installing={installingPath === "oneshot"}
           installError={installError}
           patch={makePatch("oneshot")}
           onReset={makeOnReset("oneshot")}
+          onRestartInBootstrap={() => restartIn("bootstrap")}
         />
       </>
     );
@@ -205,12 +240,15 @@ export function Onboarding() {
         progress={state.bootstrap}
         actor={actor}
         onBack={back}
+        showBack={!hideWizardBack}
+        knownSources={knownSources}
         beginInstall={makeBeginInstall("bootstrap")}
         beginAuthorize={makeBeginInstall("bootstrap", "authorize")}
         installing={installingPath === "bootstrap"}
         installError={installError}
         patch={makePatch("bootstrap")}
         onReset={makeOnReset("bootstrap")}
+        onRestartInOneshot={() => restartIn("oneshot")}
       />
     </>
   );
