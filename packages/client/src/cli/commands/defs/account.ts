@@ -4,29 +4,12 @@ import { globalArgs, buildCliConfig } from "./shared";
 const accountLoginDef = defineCommand({
   meta: {
     name: "login",
-    description:
-      "Alias for `aomi wallet login`. Defaults to EVM; pass --solana to require a Solana wallet.",
+    description: "Authenticate the CLI through the BetterAuth/BFF device flow.",
   },
-  args: {
-    ...globalArgs,
-    evm: {
-      type: "boolean",
-      description: "Request the default EVM embedded-wallet flow explicitly",
-    },
-    solana: {
-      type: "boolean",
-      description: "Request a Solana embedded-wallet login flow",
-    },
-  },
+  args: { ...globalArgs },
   async run({ args }) {
-    if (args.evm === true && args.solana === true) {
-      const { fatal } = await import("../../errors");
-      fatal("Choose only one of `--evm` or `--solana`.");
-    }
     const { loginCommand } = await import("../account");
-    await loginCommand(buildCliConfig(args), {
-      walletFamily: args.solana === true ? "solana" : "evm",
-    });
+    await loginCommand(buildCliConfig(args));
   },
 });
 

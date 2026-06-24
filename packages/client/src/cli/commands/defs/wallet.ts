@@ -80,8 +80,8 @@ const walletLoginDef = defineCommand({
       const { fatal } = await import("../../errors");
       fatal("Choose only one of `--evm` or `--solana`.");
     }
-    const { loginCommand } = await import("../account");
-    await loginCommand(buildCliConfig(args), {
+    const { walletLoginCommand } = await import("../account");
+    await walletLoginCommand(buildCliConfig(args), {
       walletFamily: args.solana === true ? "solana" : "evm",
     });
   },

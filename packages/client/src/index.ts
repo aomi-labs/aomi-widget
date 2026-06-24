@@ -3,8 +3,13 @@
 // =============================================================================
 
 export { AomiClient } from "./client";
-export { createAccountBearerProvider } from "./account-session";
+export {
+  createAccountAccessTokenProvider,
+  createAccountBearerProvider,
+} from "./account-session";
 export type {
+  AccountAccessTokenProviderOptions,
+  AccountAccessTokenProvider,
   AccountBearerProviderOptions,
   AccountBearerProvider,
   AccountCredentialProvider,
@@ -27,6 +32,7 @@ export type {
   AomiIdentityWallet,
   AomiUsageStats,
   AomiUser,
+  GetAccountAccessToken,
   GetAccountBearer,
   AomiMessage,
   AomiWalletFamily,

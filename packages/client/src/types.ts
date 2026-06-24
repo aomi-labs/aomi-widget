@@ -41,6 +41,8 @@ export type AomiClientOptions = {
   apiKey?: string;
   /** Supplies a short-lived Aomi account bearer for REST and SSE requests. */
   getAccountBearer?: GetAccountBearer;
+  /** @deprecated Use getAccountBearer. */
+  getAccountAccessToken?: GetAccountAccessToken;
   /** Optional logger for debug output (default: silent) */
   logger?: Logger;
 };
@@ -49,6 +51,8 @@ export type GetAccountBearer = (options?: {
   /** Re-exchange the upstream Para/Privy credential after an API 401. */
   forceRefresh?: boolean;
 }) => Promise<string | null | undefined>;
+
+export type GetAccountAccessToken = GetAccountBearer;
 
 export type AomiRequestQueryValue =
   | string

@@ -29,6 +29,7 @@ import type {
   AomiSystemEvent,
   AomiSystemResponse,
   AomiThread,
+  GetAccountAccessToken,
   GetAccountBearer,
   Logger,
   AomiHttpMethod,
@@ -300,13 +301,15 @@ export class AomiClient {
       typeof globalThis.fetch === "function"
         ? globalThis.fetch.bind(globalThis)
         : fetchImpl;
+    const accountBearerProvider =
+      options.getAccountBearer ?? options.getAccountAccessToken;
     this.fetchImpl = wrapFetchWithAccountBearer(
       fetchImpl,
-      options.getAccountBearer,
+      accountBearerProvider,
     );
     this.rawFetchImpl = wrapFetchWithAccountBearer(
       rawFetchImpl,
-      options.getAccountBearer,
+      accountBearerProvider,
     );
     this.logger = options.logger;
 
@@ -319,8 +322,8 @@ export class AomiClient {
       fetchImpl: this.rawFetchImpl,
       logger: this.logger,
     });
-    if (supportsTokenRefreshSubscription(options.getAccountBearer)) {
-      options.getAccountBearer.subscribe(() => {
+    if (supportsTokenRefreshSubscription(accountBearerProvider)) {
+      accountBearerProvider.subscribe(() => {
         this.sseSubscriber.reconnect("account-token-refreshed");
       });
     }

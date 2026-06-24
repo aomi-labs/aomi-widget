@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { resolveRequestAccountBearer } from "../../../lib/bff/request-bearer";
 
 const HOP_BY_HOP_HEADERS = new Set([
   "connection",
@@ -12,7 +13,6 @@ const HOP_BY_HOP_HEADERS = new Set([
 
 const ALLOWED_REQUEST_HEADERS = new Set([
   "accept",
-  "authorization",
   "content-type",
   "aomi-app-key",
   "x-session-id",
@@ -37,8 +37,16 @@ const ALLOWED_ROUTES: Array<{
   { pattern: /^\/api\/events$/, methods: new Set(["GET"]) },
   { pattern: /^\/api\/auth\/privy\/begin$/, methods: new Set(["POST"]) },
   { pattern: /^\/api\/account$/, methods: new Set(["GET"]) },
-  { pattern: /^\/api\/account\/exchange$/, methods: new Set(["POST"]) },
   { pattern: /^\/api\/account\/usage$/, methods: new Set(["GET"]) },
+  { pattern: /^\/api\/account\/authorizations$/, methods: new Set(["GET"]) },
+  {
+    pattern: /^\/api\/account\/scheduled-intents$/,
+    methods: new Set(["GET"]),
+  },
+  {
+    pattern: /^\/api\/account\/scheduled-intents\/[^/]+$/,
+    methods: new Set(["GET", "DELETE"]),
+  },
   {
     pattern: /^\/api\/account\/app-keys$/,
     methods: new Set(["GET", "POST"]),
@@ -99,6 +107,10 @@ function isAllowedProxyRequest(pathname: string, method: string): boolean {
   );
 }
 
+function isAccountProtectedRoute(pathname: string): boolean {
+  return /^\/api\/account(?:\/|$)/.test(pathname);
+}
+
 function copyRequestHeaders(req: NextRequest): Headers {
   const headers = new Headers();
   req.headers.forEach((value, key) => {
@@ -146,9 +158,17 @@ async function handle(
   }
 
   try {
+    const headers = copyRequestHeaders(req);
+    const accountBearer = await resolveRequestAccountBearer(req.headers);
+    if (accountBearer) {
+      headers.set("Authorization", `Bearer ${accountBearer}`);
+    } else if (isAccountProtectedRoute(upstreamUrl.pathname)) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const upstream = await fetch(upstreamUrl, {
       method: req.method,
-      headers: copyRequestHeaders(req),
+      headers,
       body:
         req.method === "GET" || req.method === "HEAD"
           ? undefined

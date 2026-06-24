@@ -344,6 +344,13 @@ export class CliSession {
     this.save();
   }
 
+  setAccountAccessToken(token: string): void {
+    this.state.accountAccessToken = token;
+    this.state.accountProvider = undefined;
+    this.state.accountProviderToken = undefined;
+    this.save();
+  }
+
   /** Ensure clientId exists, generate if absent. Returns the clientId. */
   ensureClientId(): string {
     if (!this.state.clientId) {

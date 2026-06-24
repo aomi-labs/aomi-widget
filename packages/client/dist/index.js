@@ -891,18 +891,19 @@ async function postState(baseUrl, path, payload, sessionId, fetchImpl, apiKey, l
 }
 var AomiClient = class {
   constructor(options) {
-    var _a;
+    var _a, _b;
     this.baseUrl = options.baseUrl.replace(/\/+$/, "");
     this.apiKey = options.apiKey;
     const fetchImpl = (_a = options.fetch) != null ? _a : globalThis.fetch.bind(globalThis);
     const rawFetchImpl = typeof globalThis.fetch === "function" ? globalThis.fetch.bind(globalThis) : fetchImpl;
+    const accountBearerProvider = (_b = options.getAccountBearer) != null ? _b : options.getAccountAccessToken;
     this.fetchImpl = wrapFetchWithAccountBearer(
       fetchImpl,
-      options.getAccountBearer
+      accountBearerProvider
     );
     this.rawFetchImpl = wrapFetchWithAccountBearer(
       rawFetchImpl,
-      options.getAccountBearer
+      accountBearerProvider
     );
     this.logger = options.logger;
     this.sseSubscriber = createSseSubscriber({
@@ -913,8 +914,8 @@ var AomiClient = class {
       fetchImpl: this.rawFetchImpl,
       logger: this.logger
     });
-    if (supportsTokenRefreshSubscription(options.getAccountBearer)) {
-      options.getAccountBearer.subscribe(() => {
+    if (supportsTokenRefreshSubscription(accountBearerProvider)) {
+      accountBearerProvider.subscribe(() => {
         this.sseSubscriber.reconnect("account-token-refreshed");
       });
     }
@@ -1624,6 +1625,7 @@ function createAccountBearerProvider(_options) {
   };
   return getAccountBearer;
 }
+var createAccountAccessTokenProvider = createAccountBearerProvider;
 
 // src/types.ts
 function isInlineCall(event) {
@@ -4634,6 +4636,7 @@ export {
   buildAAExecutionPlan,
   buildFeeAAWalletCall,
   createAAProviderState,
+  createAccountAccessTokenProvider,
   createAccountBearerProvider,
   createAlchemyAAProvider,
   createPimlicoAAProvider,

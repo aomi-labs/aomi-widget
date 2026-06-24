@@ -52,3 +52,7 @@ export function createAccountBearerProvider(
   };
   return getAccountBearer;
 }
+
+export type AccountAccessTokenProviderOptions = AccountBearerProviderOptions;
+export type AccountAccessTokenProvider = AccountBearerProvider;
+export const createAccountAccessTokenProvider = createAccountBearerProvider;

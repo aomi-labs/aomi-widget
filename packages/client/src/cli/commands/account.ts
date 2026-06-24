@@ -8,7 +8,7 @@ type LoginWalletFamily = "evm" | "solana";
  * Mint a backend-owned Privy auth URL for the active session and print it so
  * the user can complete browser login out of band.
  */
-export async function loginCommand(
+export async function walletLoginCommand(
   config: CliConfig,
   options?: { walletFamily?: LoginWalletFamily },
 ): Promise<void> {
@@ -28,6 +28,101 @@ export async function loginCommand(
   } finally {
     session.close();
   }
+}
+
+type DeviceStartResponse = {
+  device_code: string;
+  user_code: string;
+  verification_uri: string;
+  expires_at: number;
+  interval: number;
+};
+
+type DevicePollResponse =
+  | {
+      status: "ok";
+      credential: string;
+      expires_at: number;
+      user_id: string;
+    }
+  | {
+      status: "authorization_pending";
+      interval?: number;
+    }
+  | {
+      status: "expired_token" | "access_denied";
+    };
+
+function joinUrl(baseUrl: string, path: string): string {
+  return `${baseUrl.replace(/\/+$/, "")}${path}`;
+}
+
+async function postJson<T>(url: string, body: unknown): Promise<T> {
+  const response = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  const payload = (await response.json().catch(() => ({}))) as T & {
+    error?: string;
+  };
+  if (!response.ok) {
+    throw new Error(
+      payload.error
+        ? `HTTP ${response.status}: ${payload.error}`
+        : `HTTP ${response.status}`,
+    );
+  }
+  return payload;
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+export async function loginCommand(config: CliConfig): Promise<void> {
+  const cli = CliSession.loadOrCreate(config);
+  cli.mergeConfig(config);
+  const baseUrl = cli.baseUrl;
+
+  const started = await postJson<DeviceStartResponse>(
+    joinUrl(baseUrl, "/api/cli/device/start"),
+    {},
+  );
+
+  console.log("Open this URL to authenticate your Aomi CLI:");
+  console.log(started.verification_uri);
+  console.log(`Code: ${started.user_code}`);
+
+  let intervalMs = Math.max(started.interval, 1) * 1000;
+  while (Math.floor(Date.now() / 1000) < started.expires_at) {
+    await sleep(intervalMs);
+    const response = await fetch(joinUrl(baseUrl, "/api/cli/device/poll"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ device_code: started.device_code }),
+    });
+    const payload = (await response.json().catch(() => ({}))) as DevicePollResponse;
+
+    if (response.status === 428 && payload.status === "authorization_pending") {
+      intervalMs = Math.max(payload.interval ?? started.interval, 1) * 1000;
+      continue;
+    }
+    if (!response.ok) {
+      throw new Error(`Device login failed: ${payload.status ?? response.status}`);
+    }
+    if (payload.status === "ok") {
+      cli.setAccountAccessToken(payload.credential);
+      console.log(`Account: ${payload.user_id}`);
+      console.log(
+        `CLI credential expires at ${new Date(payload.expires_at * 1000).toISOString()}.`,
+      );
+      printDataFileLocation();
+      return;
+    }
+  }
+
+  throw new Error("Device login expired before approval.");
 }
 
 /**
