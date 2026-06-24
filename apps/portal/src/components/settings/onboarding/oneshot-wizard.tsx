@@ -11,10 +11,10 @@ import {
 import { Button } from "@aomi-labs/widget-lib";
 import {
   installationStatusLabel,
-  onboardCreateRepo,
+  launchCreateRepo,
   oneshotStep,
-  type PathProgress,
-} from "@portal/lib/onboarding";
+  type LaunchProgress,
+} from "@portal/features/launch";
 import { chatAppUrl } from "@portal/lib/chat-url";
 import { Stepper } from "./stepper";
 import { DeployStep } from "./deploy-step";
@@ -31,22 +31,26 @@ export function OneshotWizard({
   progress,
   actor,
   onBack,
+  showBack = true,
   beginInstall,
   beginAuthorize,
   installing,
   installError,
   patch,
   onReset,
+  onRestartInBootstrap,
 }: {
-  progress: PathProgress;
+  progress: LaunchProgress;
   actor?: string;
   onBack: () => void;
+  showBack?: boolean;
   beginInstall: () => void;
   beginAuthorize: () => void;
   installing?: boolean;
   installError?: string | null;
-  patch: (patch: Partial<PathProgress>) => void;
+  patch: (patch: Partial<LaunchProgress>) => void;
   onReset?: () => void;
+  onRestartInBootstrap?: () => void;
 }) {
   const step = oneshotStep(progress);
   const installStatus = installationStatusLabel(progress.installationStatus);
@@ -58,12 +62,13 @@ export function OneshotWizard({
     setCreating(true);
     setCreateError(null);
     try {
-      const result = await onboardCreateRepo({
+      const result = await launchCreateRepo({
         installationId: progress.installationId,
       });
       patch({
         installationId: result.installationId,
         repo: result.repo,
+        appSourceId: result.appSourceId,
       });
     } catch (err) {
       setCreateError(err instanceof Error ? err.message : String(err));
@@ -78,6 +83,9 @@ export function OneshotWizard({
         title="One-click"
         subtitle="We create the repo and deploy it for you."
         onBack={onBack}
+        showBack={showBack}
+        actionLabel="Restart in Fork & Customize"
+        onAction={onRestartInBootstrap}
       />
 
       <Stepper steps={STEPS} current={step} />
@@ -141,8 +149,9 @@ export function OneshotWizard({
               Step 2 — Create your repo
             </div>
             <p className="text-muted-foreground text-sm leading-5">
-              Creates a GitHub repo from <code>aomi-labs/playground-example</code>{" "}
-              in the account where you installed <code>aomi-build-oneshot</code>.
+              Creates a GitHub repo from{" "}
+              <code>aomi-labs/playground-example</code> in the account where you
+              installed <code>aomi-build-oneshot</code>.
             </p>
             <Button
               onClick={createRepo}
@@ -161,13 +170,12 @@ export function OneshotWizard({
         </div>
       )}
 
-      {step === "build" && progress.installationId && (
+      {step === "build" && progress.installationId && progress.repo && (
         <div className="border-input space-y-3 rounded-2xl border p-4">
           <div className="text-foreground text-sm font-medium">
             Step 3 — Build and activate
           </div>
           <DeployStep
-            path="oneshot"
             installationId={progress.installationId}
             repo={progress.repo}
             actor={actor}
@@ -181,7 +189,11 @@ export function OneshotWizard({
       {step === "live" && (
         <LivePanel
           repo={progress.repo}
-          chatUrl={progress.apps?.[0] ? chatAppUrl(progress.apps[0]) : undefined}
+          chatUrl={
+            progress.apps?.[0]
+              ? chatAppUrl(progress.apps[0], { locked: true })
+              : undefined
+          }
         />
       )}
     </div>
@@ -202,23 +214,42 @@ function WizardHeader({
   title,
   subtitle,
   onBack,
+  showBack = true,
+  actionLabel,
+  onAction,
 }: {
   title: string;
   subtitle: string;
   onBack: () => void;
+  showBack?: boolean;
+  actionLabel?: string;
+  onAction?: () => void;
 }) {
   return (
     <header className="space-y-2">
-      <button
-        type="button"
-        onClick={onBack}
-        className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1 text-sm"
-      >
-        <ArrowLeft className="h-4 w-4" /> Back
-      </button>
-      <h1 className="text-foreground text-2xl font-semibold tracking-tight">
-        {title}
-      </h1>
+      {showBack && (
+        <button
+          type="button"
+          onClick={onBack}
+          className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1 text-sm"
+        >
+          <ArrowLeft className="h-4 w-4" /> Back
+        </button>
+      )}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h1 className="text-foreground text-2xl font-semibold tracking-tight">
+          {title}
+        </h1>
+        {actionLabel && onAction && (
+          <Button
+            onClick={onAction}
+            className="h-9 max-w-full rounded-full px-3 text-sm font-medium"
+          >
+            <RotateCcw className="mr-1 h-4 w-4 shrink-0" />
+            {actionLabel}
+          </Button>
+        )}
+      </div>
       <p className="text-muted-foreground text-sm">{subtitle}</p>
     </header>
   );

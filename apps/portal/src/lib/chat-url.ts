@@ -10,7 +10,14 @@ export function resolveChatUrl(): string {
  * Returns the deep-link URL for a specific app in the chat UI.
  * @param appName - The app identifier to open in chat.
  */
-export function chatAppUrl(appName: string): string {
+export function chatAppUrl(
+  appName: string,
+  options: { locked?: boolean; applicationId?: number | string | null } = {},
+): string {
   const base = resolveChatUrl();
-  return `${base}?app=${encodeURIComponent(appName)}`;
+  const params = new URLSearchParams({ app: appName });
+  const applicationId = options.applicationId?.toString().trim();
+  if (applicationId) params.set("application_id", applicationId);
+  if (options.locked) params.set("lock_app", "1");
+  return `${base}?${params.toString()}`;
 }

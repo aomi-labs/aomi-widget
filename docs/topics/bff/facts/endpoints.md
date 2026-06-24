@@ -26,6 +26,8 @@ The portal BFF routes live under `apps/portal/src/app/api`. They translate brows
 | `GET /api/onboard/app`                | Portal onboarding live-app status polling                   | Rust backend `GET /api/platforms/:platform/apps/:name` with optional `release_tag`                                             | Checks whether a platform app is active and loaded for the requested release.                                       | `apps/portal/src/app/api/onboard/app/route.ts`            |
 ## Operational Notes
 
-- `/api/onboard/*` is the current portal onboarding flow and uses `apps/portal/src/lib/onboard-deploy.ts` for backend authorization, activation-token minting, and request helpers.
-- Onboarding backend calls use `Authorization: Bearer <APP_DEPLOY_ACTIVATION_TOKEN>` when present; otherwise `activationEnv` can mint and cache a platform activation token from `AOMI_ADMIN_SECRET`.
+- `/api/onboard/*` is the current portal onboarding flow and uses `apps/portal/src/lib/onboard-deploy.ts` for backend authorization and request helpers.
+- Onboarding backend calls use the portal's service identity: `aomi-bff` mints a short-lived `service` bearer with `PORTAL_SERVICE_PRIVATE_KEY`. The committed service-topology TOML is selected automatically from the backend target / Vercel environment.
+- The portal onboarding BFF does not use `AOMI_ADMIN_SECRET` or `APP_DEPLOY_ACTIVATION_TOKEN`. Activation tokens remain the CLI/update-path credential, not the browser onboarding credential.
+- Onboarding product choices are code constants: platform `community`, template repo `aomi-labs/playground-example`, source branch `main`, manifest path `aomi.toml`, public created repos, and no activation `target_tags`.
 - Backend-owned Privy auth uses the non-API page route `/auth/privy`; the browser callback posts to the backend callback URL returned by `POST /api/auth/privy/begin`.

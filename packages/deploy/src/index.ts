@@ -9,7 +9,7 @@ export {
   ACTIVATION_REQUEST_KIND,
   ACTIVATION_REQUEST_SOURCE,
   ACTIVATION_REQUEST_EMBED_COLOR,
- } from "./activation-request";
+} from "./activation-request";
 
 export {
   DeployError,
@@ -44,10 +44,27 @@ export type {
   DeploymentEventKind,
   DeploymentProgressEvent,
   WatchDeploymentOptions,
+  TokenScope,
+  MintTokenInput,
+  MintedToken,
+  TokenRecord,
+  ListTokensInput,
+  RevokeTokenInput,
+  AppSource,
+  SyncSourceInput,
+  ResolveSourceInput,
+  ScaffoldInput,
+  ListAppsInput,
+  GetAppInput,
+  PlatformApp,
+  ExchangeGitHubCodeInput,
+  GitHubIdentity,
+  ListUserSourcesInput,
+  UserSource,
 } from "./types";
 
 export type {
   ActivationRequestInput,
   ActivationRequestPayload,
-   DiscordWebhookBody,
+  DiscordWebhookBody,
 } from "./activation-request";

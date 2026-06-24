@@ -17,9 +17,11 @@ export default defineConfig({
       "@/hooks": resolve(registryDir, "hooks"),
       "@/lib": resolve(registryDir, "lib"),
       "@aomi-labs/widget-lib": registryDir,
+      "@aomi-labs/account": resolve(currentDir, "../../packages/account/src"),
       "@aomi-labs/client": resolve(currentDir, "../../packages/client/src"),
       "@aomi-labs/deploy": resolve(currentDir, "../../packages/deploy/src"),
       "@aomi-labs/react": resolve(currentDir, "../../packages/react/src"),
+      "@aomi-labs/service": resolve(currentDir, "../../packages/service/src"),
       "server-only": resolve(currentDir, "__mocks__/server-only.ts"),
     },
   },
@@ -36,7 +38,7 @@ export default defineConfig({
       "src/lib/usage-range.test.ts",
     ],
     // usage-range uses node:test (tsx --test), not vitest.
-    // onboarding.test.ts was migrated to vitest and runs as part of the suite.
+    // launch feature tests run as part of the suite.
     restoreMocks: true,
   },
 });

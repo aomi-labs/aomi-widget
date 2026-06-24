@@ -1,17 +1,17 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { DeployStep } from "./deploy-step";
-import type { OnboardingPath, OnboardDeployPayload } from "@portal/lib/onboarding";
-import type { PathProgress } from "@portal/lib/onboarding";
+import type { LaunchDeployPayload } from "@portal/features/launch";
+import type { LaunchProgress } from "@portal/features/launch";
 
 const noop = () => {};
 
-vi.mock("@portal/lib/onboarding", () => ({
-  onboardDryRun: vi.fn(),
-  onboardDeploy: vi.fn(),
-  onboardStatus: vi.fn(),
-  onboardActivate: vi.fn(),
-  onboardAppStatus: vi.fn(),
+vi.mock("@portal/features/launch", () => ({
+  launchDryRun: vi.fn(),
+  launchDeploy: vi.fn(),
+  launchStatus: vi.fn(),
+  launchActivate: vi.fn(),
+  launchAppStatus: vi.fn(),
 }));
 
 vi.mock("@aomi-labs/widget-lib", () => ({
@@ -26,13 +26,18 @@ vi.mock("@aomi-labs/widget-lib", () => ({
     disabled?: boolean;
     className?: string;
   }) => (
-    <button onClick={onClick} disabled={disabled} className={className} type="button">
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      className={className}
+      type="button"
+    >
       {children}
     </button>
   ),
 }));
 
-function baseProgress(): PathProgress {
+function baseProgress(): LaunchProgress {
   return {
     path: null,
     oneshot: {},
@@ -43,8 +48,8 @@ function baseProgress(): PathProgress {
 
 describe("DeployStep", () => {
   const defaultProps = {
-    path: "oneshot" as OnboardingPath,
     installationId: "12345",
+    repo: "alice/bot",
     progress: baseProgress(),
     onProgress: noop,
   };
@@ -73,17 +78,28 @@ describe("DeployStep", () => {
       deployment: {
         id: "dep_1",
         status: "building",
-        source: { installation_id: 12345, repository_id: 1, repository_link: "a/b", owner_repo_name: "a/b", ref: { kind: "branch", value: "main" }, commit_hash: "abc123", aomi_toml_paths: ["aomi.toml"] },
+        source: {
+          installation_id: 12345,
+          repository_id: 1,
+          repository_link: "a/b",
+          owner_repo_name: "a/b",
+          ref: { kind: "branch", value: "main" },
+          commit_hash: "abc123",
+          aomi_toml_paths: ["aomi.toml"],
+        },
         platform: {
           platform: "community",
           repository: "a/b",
           deploy_branch: "main",
           source_branch: "a/b/12345/abc123",
-          commit_hash: null, pr_number: null, pr_url: null,
-          ci_status: null, ci_url: null,
+          commit_hash: null,
+          pr_number: null,
+          pr_url: null,
+          ci_status: null,
+          ci_url: null,
           apps: [],
         },
-      } as unknown as OnboardDeployPayload,
+      } as unknown as LaunchDeployPayload,
     };
     render(<DeployStep {...defaultProps} progress={progress} />);
     expect(screen.getByText("Deploy")).toBeDisabled();
@@ -101,12 +117,8 @@ describe("DeployStep", () => {
 
   it("shows error state with retry button", () => {
     const progress = { ...baseProgress(), deployment: undefined };
-    const { rerender } = render(
-      <DeployStep
-        {...defaultProps}
-        progress={progress}
-        onProgress={noop}
-      />,
+    render(
+      <DeployStep {...defaultProps} progress={progress} onProgress={noop} />,
     );
 
     // just verify the component renders without crashing

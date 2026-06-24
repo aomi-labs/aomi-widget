@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { BootstrapWizard } from "./bootstrap-wizard";
-import type { PathProgress } from "@portal/lib/onboarding";
+import type { LaunchProgress } from "@portal/features/launch";
 
 const noop = () => {};
 
@@ -17,7 +17,12 @@ vi.mock("@aomi-labs/widget-lib", () => ({
     disabled?: boolean;
     className?: string;
   }) => (
-    <button onClick={onClick} disabled={disabled} className={className} type="button">
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      className={className}
+      type="button"
+    >
       {children}
     </button>
   ),
@@ -27,11 +32,12 @@ vi.mock("@aomi-labs/widget-lib", () => ({
 }));
 
 vi.mock("@portal/lib/chat-url", () => ({
-  chatAppUrl: (name: string) => `https://chat.aomi.dev?app=${name}`,
+  chatAppUrl: (name: string, options?: { locked?: boolean }) =>
+    `https://chat.aomi.dev?app=${name}${options?.locked ? "&lock_app=1" : ""}`,
 }));
 
-vi.mock("@portal/lib/onboarding", () => ({
-  bootstrapStep: (p: PathProgress) => {
+vi.mock("@portal/features/launch", () => ({
+  bootstrapStep: (p: LaunchProgress) => {
     if (p.live) return "live";
     if (p.deploymentId || p.deployment) return "deploy";
     if (p.installationId) return "install";
@@ -39,12 +45,17 @@ vi.mock("@portal/lib/onboarding", () => ({
     return "template";
   },
   installationStatusLabel: () => null,
-  normalizeRepo: (v: string) => (v ? "user/repo" : null),
-  TEMPLATE_GENERATE_URL: "https://github.com/aomi-labs/playground-example/generate",
+  normalizeRepo: (v: string) =>
+    v
+      ?.trim()
+      .replace(/^https:\/\/github.com\//, "")
+      .replace(/\.git$/, "") || null,
+  TEMPLATE_GENERATE_URL:
+    "https://github.com/aomi-labs/playground-example/generate",
   TEMPLATE_REPO_URL: "https://github.com/aomi-labs/playground-example",
 }));
 
-function baseProgress(): PathProgress {
+function baseProgress(): LaunchProgress {
   return {
     path: null,
     oneshot: {},
@@ -67,7 +78,9 @@ describe("BootstrapWizard", () => {
 
   it("shows template step by default", () => {
     render(<BootstrapWizard {...defaultProps} />);
-    expect(screen.getByText(/Create your repo from the template/)).toBeInTheDocument();
+    expect(
+      screen.getByText(/Create your repo from the template/),
+    ).toBeInTheDocument();
   });
 
   it("shows the use template link", () => {
@@ -89,15 +102,14 @@ describe("BootstrapWizard", () => {
       />,
     );
     expect(screen.getByText(/Your agent is live/)).toBeInTheDocument();
+    expect(screen.getByTitle("Chat with your agent")).toHaveAttribute(
+      "src",
+      "https://chat.aomi.dev?app=my-agent&lock_app=1",
+    );
   });
 
   it("shows error when installError is set", () => {
-    render(
-      <BootstrapWizard
-        {...defaultProps}
-        installError="Auth failed"
-      />,
-    );
+    render(<BootstrapWizard {...defaultProps} installError="Auth failed" />);
     expect(screen.getByText("Auth failed")).toBeInTheDocument();
   });
 
@@ -117,5 +129,72 @@ describe("BootstrapWizard", () => {
   it("shows confirm button", () => {
     render(<BootstrapWizard {...defaultProps} />);
     expect(screen.getByText("Confirm")).toBeInTheDocument();
+  });
+
+  it("offers restart into one-shot when provided", () => {
+    const onRestartInOneshot = vi.fn();
+
+    render(
+      <BootstrapWizard
+        {...defaultProps}
+        onRestartInOneshot={onRestartInOneshot}
+      />,
+    );
+
+    fireEvent.click(screen.getByText("Restart in One-Shot"));
+    expect(onRestartInOneshot).toHaveBeenCalledOnce();
+  });
+
+  it("uses a known installed source for a selected repo", async () => {
+    const patch = vi.fn();
+
+    render(
+      <BootstrapWizard
+        {...defaultProps}
+        progress={{
+          ...baseProgress(),
+          repo: "phoebe-aomi/playground-example-1",
+        }}
+        knownSources={[
+          {
+            id: 814,
+            installationId: 141780080,
+            repositoryId: null,
+            repositoryLink: "phoebe-aomi/playground-example-1",
+            githubAccount: null,
+            githubUserId: null,
+            boundPlatformId: null,
+            apps: [
+              {
+                id: 1,
+                name: "playground-example",
+                label: null,
+                isActive: true,
+                isPublic: false,
+                appSourceId: 814,
+                appReleaseTag: "apps-141780080-r2849901c35",
+                targetTags: [],
+                loaded: true,
+              },
+            ],
+          },
+        ]}
+        patch={patch}
+      />,
+    );
+
+    await waitFor(() =>
+      expect(patch).toHaveBeenCalledWith(
+        expect.objectContaining({
+          repo: "phoebe-aomi/playground-example-1",
+          installationId: "141780080",
+          installationStatus: "bound",
+          appSourceId: 814,
+          apps: ["playground-example"],
+          releaseTags: ["apps-141780080-r2849901c35"],
+          live: true,
+        }),
+      ),
+    );
   });
 });

@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { OneshotWizard } from "./oneshot-wizard";
-import type { PathProgress } from "@portal/lib/onboarding";
+import type { LaunchProgress } from "@portal/features/launch";
 
 const noop = () => {};
 
@@ -17,18 +17,24 @@ vi.mock("@aomi-labs/widget-lib", () => ({
     disabled?: boolean;
     className?: string;
   }) => (
-    <button onClick={onClick} disabled={disabled} className={className} type="button">
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      className={className}
+      type="button"
+    >
       {children}
     </button>
   ),
 }));
 
 vi.mock("@portal/lib/chat-url", () => ({
-  chatAppUrl: (name: string) => `https://chat.aomi.dev?app=${name}`,
+  chatAppUrl: (name: string, options?: { locked?: boolean }) =>
+    `https://chat.aomi.dev?app=${name}${options?.locked ? "&lock_app=1" : ""}`,
 }));
 
-vi.mock("@portal/lib/onboarding", () => ({
-  oneshotStep: (p: PathProgress) => {
+vi.mock("@portal/features/launch", () => ({
+  oneshotStep: (p: LaunchProgress) => {
     if (p.live) return "live";
     if (p.deploymentId || p.deployment) return "build";
     if (p.repo) return "create";
@@ -36,11 +42,11 @@ vi.mock("@portal/lib/onboarding", () => ({
     return "install";
   },
   installationStatusLabel: () => null,
-  onboardCreateRepo: vi.fn(),
+  launchCreateRepo: vi.fn(),
   TEMPLATE_REPO_URL: "https://github.com/aomi-labs/playground-example",
 }));
 
-function baseProgress(): PathProgress {
+function baseProgress(): LaunchProgress {
   return {
     path: null,
     oneshot: {},
@@ -80,25 +86,21 @@ describe("OneshotWizard", () => {
       />,
     );
     expect(screen.getByText(/Your agent is live/)).toBeInTheDocument();
+    expect(screen.getByTitle("Chat with your agent")).toHaveAttribute(
+      "src",
+      "https://chat.aomi.dev?app=my-agent&lock_app=1",
+    );
   });
 
   it("shows error when installError is set", () => {
     render(
-      <OneshotWizard
-        {...defaultProps}
-        installError="Installation failed"
-      />,
+      <OneshotWizard {...defaultProps} installError="Installation failed" />,
     );
     expect(screen.getByText("Installation failed")).toBeInTheDocument();
   });
 
   it("disables install button while installing", () => {
-    render(
-      <OneshotWizard
-        {...defaultProps}
-        installing
-      />,
-    );
+    render(<OneshotWizard {...defaultProps} installing />);
     expect(screen.getByText("Waiting for GitHub...")).toBeInTheDocument();
     expect(screen.getByText("Waiting for GitHub...")).toBeDisabled();
   });
@@ -119,5 +121,19 @@ describe("OneshotWizard", () => {
   it("shows the wizard title", () => {
     render(<OneshotWizard {...defaultProps} />);
     expect(screen.getByText("One-click")).toBeInTheDocument();
+  });
+
+  it("offers restart into fork and customize when provided", () => {
+    const onRestartInBootstrap = vi.fn();
+
+    render(
+      <OneshotWizard
+        {...defaultProps}
+        onRestartInBootstrap={onRestartInBootstrap}
+      />,
+    );
+
+    fireEvent.click(screen.getByText("Restart in Fork & Customize"));
+    expect(onRestartInBootstrap).toHaveBeenCalledOnce();
   });
 });

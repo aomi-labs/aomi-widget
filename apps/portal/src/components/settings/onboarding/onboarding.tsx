@@ -5,28 +5,35 @@ import { CheckCircle2 } from "lucide-react";
 import { useAomiAuthAdapter } from "@aomi-labs/widget-lib";
 import {
   githubAppInstallUrl,
-  loadOnboarding,
-  saveOnboarding,
+  loadLaunch,
+  saveLaunch,
   readGithubRedirect,
   withPath,
   withProgress,
   withPendingInstall,
   GITHUB_REDIRECT_KEYS,
-  type OnboardingState,
-  type OnboardingPath,
-  type PathProgress,
-} from "@portal/lib/onboarding";
+  type LaunchState,
+  type LaunchPath,
+  type LaunchProgress,
+  type UserSource,
+} from "@portal/features/launch";
 import { resolveDeployPlatform } from "@portal/lib/deploy-platform";
 import { Picker } from "./picker";
 import { OneshotWizard } from "./oneshot-wizard";
 import { BootstrapWizard } from "./bootstrap-wizard";
 
-export function Onboarding() {
+export function Onboarding({
+  hideWizardBack = false,
+  knownSources = [],
+}: {
+  hideWizardBack?: boolean;
+  knownSources?: UserSource[];
+}) {
   const adapter = useAomiAuthAdapter();
   const actor = adapter.identity.address ?? undefined;
 
-  const [state, setState] = useState<OnboardingState>(() => {
-    const loaded = loadOnboarding();
+  const [state, setState] = useState<LaunchState>(() => {
+    const loaded = loadLaunch();
     if (typeof window !== "undefined") {
       const url = new URL(window.location.href);
       const urlDeployId = url.searchParams.get("deployment_id");
@@ -34,21 +41,23 @@ export function Onboarding() {
       if (urlDeployId) {
         if (urlDeployPath === "oneshot" && !loaded.oneshot.deploymentId) {
           loaded.oneshot.deploymentId = urlDeployId;
-        } else if (urlDeployPath === "bootstrap" && !loaded.bootstrap.deploymentId) {
+        } else if (
+          urlDeployPath === "bootstrap" &&
+          !loaded.bootstrap.deploymentId
+        ) {
           loaded.bootstrap.deploymentId = urlDeployId;
         }
       }
     }
     return loaded;
   });
-  const [installingPath, setInstallingPath] =
-    useState<OnboardingPath | null>(null);
+  const [installingPath, setInstallingPath] = useState<LaunchPath | null>(null);
   const [installError, setInstallError] = useState<string | null>(null);
   const [installSuccess, setInstallSuccess] = useState(false);
 
-  const update = useCallback((next: OnboardingState) => {
+  const update = useCallback((next: LaunchState) => {
     setState(next);
-    saveOnboarding(next);
+    saveLaunch(next);
   }, []);
 
   // --- hydrate the GitHub install redirect (runs once) ----------------------
@@ -58,21 +67,21 @@ export function Onboarding() {
     if (!redirect) {
       setInstallingPath(null);
       setInstallError(null);
-      const cur = loadOnboarding();
+      const cur = loadLaunch();
       if (cur.pendingInstall) {
         update(withPendingInstall(cur, null));
       }
       return;
     }
 
-    const cur = loadOnboarding();
+    const cur = loadLaunch();
     const matched = cur.pendingInstall?.path ?? cur.path;
     if (matched) {
       const next = withPendingInstall(
         withProgress(withPath(cur, matched), matched, {
           ...(redirect.repo ? { repo: redirect.repo } : {}),
           installationId: redirect.installationId,
-          installationStatus: redirect.onboard ?? undefined,
+          installationStatus: redirect.launchStatus ?? undefined,
         }),
         null,
       );
@@ -120,7 +129,7 @@ export function Onboarding() {
 
   // --- actions handed to the picker / wizards -------------------------------
   const choose = useCallback(
-    (path: OnboardingPath) => update(withPath(state, path)),
+    (path: LaunchPath) => update(withPath(state, path)),
     [state, update],
   );
 
@@ -129,29 +138,53 @@ export function Onboarding() {
     [state, update],
   );
 
+  const restartIn = useCallback(
+    (path: LaunchPath) => {
+      if (typeof window !== "undefined") {
+        const url = new URL(window.location.href);
+        url.searchParams.delete("deployment_id");
+        url.searchParams.delete("deploy_path");
+        window.history.replaceState({}, "", url.toString());
+      }
+
+      const next: LaunchState =
+        path === "oneshot"
+          ? { ...state, path, pendingInstall: null, oneshot: {} }
+          : { ...state, path, pendingInstall: null, bootstrap: {} };
+
+      setInstallingPath(null);
+      setInstallError(null);
+      setInstallSuccess(false);
+      update(next);
+    },
+    [state, update],
+  );
+
   const makePatch = useCallback(
-    (path: OnboardingPath) => (patch: Partial<PathProgress>) =>
+    (path: LaunchPath) => (patch: Partial<LaunchProgress>) =>
       update(withProgress(state, path, patch)),
     [state, update],
   );
 
   const makeOnReset = useCallback(
-    (path: OnboardingPath) => () => {
+    (path: LaunchPath) => () => {
       if (typeof window === "undefined") return;
       const url = new URL(window.location.href);
       url.searchParams.delete("deployment_id");
       url.searchParams.delete("deploy_path");
       window.history.replaceState({}, "", url.toString());
-      update(withProgress(state, path, { deploymentId: undefined, live: false }));
+      update(
+        withProgress(state, path, { deploymentId: undefined, live: false }),
+      );
     },
     [state, update],
   );
 
   const makeBeginInstall = useCallback(
-    (path: OnboardingPath, mode: "install" | "authorize" = "install") =>
+    (path: LaunchPath, mode: "install" | "authorize" = "install") =>
       async () => {
         const next = withPendingInstall(withPath(state, path), { path });
-        saveOnboarding(next);
+        saveLaunch(next);
         setState(next);
         setInstallError(null);
         setInstallingPath(path);
@@ -187,12 +220,14 @@ export function Onboarding() {
           progress={state.oneshot}
           actor={actor}
           onBack={back}
+          showBack={!hideWizardBack}
           beginInstall={makeBeginInstall("oneshot")}
           beginAuthorize={makeBeginInstall("oneshot", "authorize")}
           installing={installingPath === "oneshot"}
           installError={installError}
           patch={makePatch("oneshot")}
           onReset={makeOnReset("oneshot")}
+          onRestartInBootstrap={() => restartIn("bootstrap")}
         />
       </>
     );
@@ -205,12 +240,15 @@ export function Onboarding() {
         progress={state.bootstrap}
         actor={actor}
         onBack={back}
+        showBack={!hideWizardBack}
+        knownSources={knownSources}
         beginInstall={makeBeginInstall("bootstrap")}
         beginAuthorize={makeBeginInstall("bootstrap", "authorize")}
         installing={installingPath === "bootstrap"}
         installError={installError}
         patch={makePatch("bootstrap")}
         onReset={makeOnReset("bootstrap")}
+        onRestartInOneshot={() => restartIn("oneshot")}
       />
     </>
   );

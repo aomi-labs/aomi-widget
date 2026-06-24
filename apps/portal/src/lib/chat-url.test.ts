@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach } from "vitest";
 import { resolveChatUrl, chatAppUrl } from "./chat-url";
 
 beforeEach(() => {
@@ -47,7 +47,7 @@ describe("chatAppUrl", () => {
   });
 
   it("encodes special characters in app name", () => {
-    expect(chatAppUrl("my bot!")).toBe("https://chat.aomi.dev?app=my%20bot!");
+    expect(chatAppUrl("my bot!")).toBe("https://chat.aomi.dev?app=my+bot%21");
   });
 
   it("encodes url-unsafe characters", () => {
@@ -60,5 +60,17 @@ describe("chatAppUrl", () => {
 
   it("handles numeric app names", () => {
     expect(chatAppUrl("123")).toBe("https://chat.aomi.dev?app=123");
+  });
+
+  it("can lock the frame to the requested app", () => {
+    expect(chatAppUrl("my-bot", { locked: true })).toBe(
+      "https://chat.aomi.dev?app=my-bot&lock_app=1",
+    );
+  });
+
+  it("can target a specific application row", () => {
+    expect(chatAppUrl("my-bot", { locked: true, applicationId: 42 })).toBe(
+      "https://chat.aomi.dev?app=my-bot&application_id=42&lock_app=1",
+    );
   });
 });
