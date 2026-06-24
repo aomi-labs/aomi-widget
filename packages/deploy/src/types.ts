@@ -29,7 +29,6 @@ export interface AuditEvent {
     | "list_tokens"
     | "revoke_token"
     | "sync_source"
-    | "resolve_source"
     | "scaffold"
     | "list_apps"
     | "get_app"
@@ -306,13 +305,6 @@ export interface SyncSourceInput extends BearerOverride {
   platform: string;
   /** `owner/name` of a repo already installed on the Aomi GitHub App. */
   repo: string;
-}
-
-export interface ResolveSourceInput extends BearerOverride {
-  platform: string;
-  installationId: number;
-  /** Optional `owner/name` filter within the installation. */
-  repo?: string;
 }
 
 export interface ScaffoldInput extends BearerOverride {
