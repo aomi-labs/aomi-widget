@@ -7,7 +7,7 @@ import {
   type LaunchCreateRepoResult,
   type LaunchDeployInput,
   type LaunchDeployResult,
-  type LaunchDryRunInput,
+  type LaunchPreflightInput,
   type LaunchRedeployResult,
   type LaunchStatus,
   type LaunchSyncInstalledResult,
@@ -65,10 +65,10 @@ function postJson<T>(path: string, label: string, input: unknown): Promise<T> {
   });
 }
 
-export function launchDryRun(
-  input: LaunchDryRunInput,
+export function launchPreflight(
+  input: LaunchPreflightInput,
 ): Promise<LaunchDeployResult> {
-  return postJson("/api/launch/dry-run", "launch dry run", input);
+  return postJson("/api/launch/preflight", "launch preflight", input);
 }
 
 export function launchDeploy(
