@@ -41,6 +41,9 @@ export type LaunchProgress = {
   installationId?: string;
   installationStatus?: string;
   repo?: string;
+  /** Resolved source row id from create/sync — lets deploy skip re-resolving
+   *  by (installation, repo), which races webhook sync for fresh repos. */
+  appSourceId?: number;
   deploymentId?: string;
   deployment?: LaunchDeployPayload;
   releaseTags?: string[];
@@ -50,9 +53,9 @@ export type LaunchProgress = {
 };
 
 export type LaunchDeployInput = {
-  path: LaunchPath;
-  installationId: string;
-  repo?: string;
+  /** The connected source row to deploy. Resolved up front by create
+   *  (one-shot), sync-installed (bootstrap), or the dashboard listing. */
+  appSourceId: number;
   actor?: string;
 };
 
