@@ -27,6 +27,8 @@ import {
   launchStatus,
   signOutGitHub,
   readLaunchUrlContext,
+  loadLaunch,
+  isResumingInstall,
   sourceLifecycle,
   GITHUB_SIGNIN_URL,
   type GitHubSessionInfo,
@@ -149,6 +151,16 @@ function SignedInDashboard({
       ? null
       : readLaunchUrlContext(window.location.search),
   );
+  // A multi-step launch (template → install → deploy) outlives the
+  // "nothing connected" gate: the install round-trip is a full-page nav, so by
+  // the time we return a source already exists. Capture once at mount whether
+  // we're mid-flow so the wizard stays mounted and can advance to Deploy,
+  // instead of being yanked to the source list.
+  const [resumingWizard] = useState<boolean>(() =>
+    typeof window === "undefined"
+      ? false
+      : isResumingInstall(loadLaunch(), window.location.search),
+  );
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -193,9 +205,10 @@ function SignedInDashboard({
     );
   }
 
-  // Page 2: nothing connected yet (or the user asked to add another) → the
-  // existing install/template/deploy wizard.
-  if (showInstall || (sources !== null && sources.length === 0)) {
+  // Page 2: nothing connected yet, the user asked to add another, or a launch
+  // is mid-flow returning from the install round-trip → the existing
+  // install/template/deploy wizard.
+  if (showInstall || resumingWizard || (sources !== null && sources.length === 0)) {
     return (
       <div className="space-y-6">
         {header}
