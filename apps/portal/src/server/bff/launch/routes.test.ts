@@ -65,7 +65,7 @@ describe("launchDeployRoute", () => {
     expect(body).toEqual({ error: "deploy rejected" });
   });
 
-  it("dry run mints the source row by repo, then previews by app source id", async () => {
+  it("preflight mints the source row by repo, then previews by app source id", async () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(
@@ -91,7 +91,7 @@ describe("launchDeployRoute", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     const POST = launchDeployRoute(true);
-    const req = new Request("http://localhost:3000/api/launch/dry-run", {
+    const req = new Request("http://localhost:3000/api/launch/preflight", {
       method: "POST",
       headers: {
         origin: "http://localhost:3000",

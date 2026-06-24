@@ -46,7 +46,7 @@ function isValidAppSourceId(value: unknown): value is number {
   return typeof value === "number" && Number.isSafeInteger(value) && value > 0;
 }
 
-export function launchDeployRoute(dryRun: boolean) {
+export function launchDeployRoute(preflight: boolean) {
   return async function POST(req: Request): Promise<NextResponse> {
     const blocked = checkWrite(req);
     if (blocked) return blocked;
@@ -74,13 +74,13 @@ export function launchDeployRoute(dryRun: boolean) {
 
       // A deploy always commits against a stable source row id. Resolving (or
       // minting) that row from a repo is a separate concern: it happens here
-      // only for a dry run — the preview that materializes the row — or via the
+      // only for a preflight — the preview that materializes the row — or via the
       // dedicated /sync-installed route. The committing deploy never silently
       // creates or re-resolves a source by repo.
       let appSourceId: number;
       if (isValidAppSourceId(body.appSourceId)) {
         appSourceId = body.appSourceId;
-      } else if (dryRun && isValidRepo(body.repo)) {
+      } else if (preflight && isValidRepo(body.repo)) {
         const synced = await client.syncSource({
           platform: config.platform,
           repo: body.repo as string,
@@ -92,7 +92,7 @@ export function launchDeployRoute(dryRun: boolean) {
       } else {
         return NextResponse.json(
           {
-            error: dryRun
+            error: preflight
               ? "missing `appSourceId` or `repo`"
               : "missing `appSourceId`",
           },
@@ -105,7 +105,7 @@ export function launchDeployRoute(dryRun: boolean) {
         appSourceId,
         sourceRef: config.sourceRef,
         aomiTomlPaths: config.aomiTomlPaths,
-        dryRun,
+        preflight,
         actor: typeof body.actor === "string" ? body.actor : undefined,
       });
       return NextResponse.json(
@@ -122,7 +122,7 @@ export function launchDeployRoute(dryRun: boolean) {
           releaseTags: releaseTagsFromDeployment(deployment),
           apps: appNamesFromDeployment(deployment),
         },
-        { status: dryRun ? 200 : 202 },
+        { status: preflight ? 200 : 202 },
       );
     } catch (err) {
       return launchErrorResponse(err);

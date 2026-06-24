@@ -28,7 +28,7 @@ describe("DeploymentClient.deploy", () => {
         ok: true,
         deployment: {
           id: "dep_123_abc1234",
-          status: "dry_run",
+          status: "preflight",
           source: {
             installation_id: 123,
             repository_id: 987,
@@ -73,7 +73,7 @@ describe("DeploymentClient.deploy", () => {
       appSourceId: 42,
       sourceRef: { kind: "branch", value: "main" },
       aomiTomlPaths: ["aomi.toml"],
-      dryRun: true,
+      preflight: true,
       actor: "alice",
     });
 
@@ -90,7 +90,7 @@ describe("DeploymentClient.deploy", () => {
       app_source_id: 42,
       source_ref: { kind: "branch", value: "main" },
       aomi_toml_paths: ["aomi.toml"],
-      dry_run: true,
+      preflight: true,
     });
 
     expect(result.deployment.source.installationId).toBe(123);

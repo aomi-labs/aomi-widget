@@ -8,7 +8,7 @@
  */
 
 const WINDOW_MS = 60_000; // 60 seconds
-// 60 req/min accommodates the full onboarding flow: dry-run + deploy +
+// 60 req/min accommodates the full onboarding flow: preflight + deploy +
 // ~20 status polls + activate + ~30 verify checks = ~53 requests.
 const MAX_REQUESTS = 60;
 
