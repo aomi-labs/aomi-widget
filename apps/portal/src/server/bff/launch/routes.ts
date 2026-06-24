@@ -46,21 +46,57 @@ function isValidAppSourceId(value: unknown): value is number {
   return typeof value === "number" && Number.isSafeInteger(value) && value > 0;
 }
 
-async function resolveAppSourceId(args: {
+type ResolvedAppSource = {
+  appSourceId: number;
+  installationId?: string;
+  repo?: string;
+};
+
+function sourceIdentity(source: {
+  id: number;
+  installationId?: number | null;
+  repositoryLink?: string | null;
+}): ResolvedAppSource {
+  if (!isValidAppSourceId(source.id)) {
+    throw new Error("backend did not return a valid app source id");
+  }
+  return {
+    appSourceId: source.id,
+    installationId:
+      typeof source.installationId === "number" &&
+      Number.isSafeInteger(source.installationId) &&
+      source.installationId > 0
+        ? String(source.installationId)
+        : undefined,
+    repo: source.repositoryLink?.trim() || undefined,
+  };
+}
+
+async function resolveAppSource(args: {
   client: Awaited<ReturnType<typeof deploymentClient>>;
   platform: string;
   installationId: string;
   repo?: string;
-}): Promise<number> {
-  const source = await args.client.resolveSource({
-    platform: args.platform,
-    installationId: Number(args.installationId),
-    repo: args.repo,
-  });
-  if (!Number.isSafeInteger(source.id) || source.id <= 0) {
-    throw new Error("backend did not return a valid app source id");
+}): Promise<ResolvedAppSource> {
+  try {
+    return sourceIdentity(
+      await args.client.resolveSource({
+        platform: args.platform,
+        installationId: Number(args.installationId),
+        repo: args.repo,
+      }),
+    );
+  } catch (err) {
+    if (!(err instanceof BackendError) || err.status !== 404 || !args.repo) {
+      throw err;
+    }
+    return sourceIdentity(
+      await args.client.syncSource({
+        platform: args.platform,
+        repo: args.repo,
+      }),
+    );
   }
-  return source.id;
 }
 
 export function launchDeployRoute(dryRun: boolean) {
@@ -85,7 +121,7 @@ export function launchDeployRoute(dryRun: boolean) {
     try {
       const config = launchConfig();
       const client = await deploymentClient();
-      const appSourceId = await resolveAppSourceId({
+      const source = await resolveAppSource({
         client,
         platform: config.platform,
         installationId: body.installationId,
@@ -93,7 +129,7 @@ export function launchDeployRoute(dryRun: boolean) {
       });
       const { deployment } = await client.deploy({
         platform: config.platform,
-        appSourceId,
+        appSourceId: source.appSourceId,
         sourceRef: config.sourceRef,
         aomiTomlPaths: config.aomiTomlPaths,
         dryRun,
@@ -103,8 +139,15 @@ export function launchDeployRoute(dryRun: boolean) {
         {
           ok: true,
           repo:
+            source.repo ??
             (body.repo as string | undefined) ??
             deployment.source.repositoryLink,
+          installationId:
+            source.installationId ??
+            (deployment.source.installationId
+              ? String(deployment.source.installationId)
+              : undefined),
+          appSourceId: source.appSourceId,
           deployment,
           releaseTags: releaseTagsFromDeployment(deployment),
           apps: appNamesFromDeployment(deployment),
