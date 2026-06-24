@@ -153,6 +153,8 @@ export function DeployStep({
   const applyDeployment = useCallback(
     (next: {
       repo?: string;
+      installationId?: string;
+      appSourceId?: number;
       deployment: LaunchDeployPayload;
       releaseTags?: string[];
       apps?: string[];
@@ -161,12 +163,15 @@ export function DeployStep({
       const nextApps = next.apps ?? appNames(next.deployment);
       setDeployment(next.deployment);
       setShowManifest(false);
-      onProgress({
+      const patch: Partial<LaunchProgress> = {
         repo: next.repo ?? repo,
         deployment: next.deployment,
         releaseTags: nextTags,
         apps: nextApps,
-      });
+      };
+      if (next.installationId) patch.installationId = next.installationId;
+      if (next.appSourceId) patch.appSourceId = next.appSourceId;
+      onProgress(patch);
     },
     [onProgress, repo],
   );
@@ -198,14 +203,17 @@ export function DeployStep({
       applyDeployment(result);
       const id = result.deployment.id;
       setDeploymentId(id);
-      onProgress({
+      const patch: Partial<LaunchProgress> = {
         repo: result.repo ?? repo,
         deploymentId: id,
         deployment: result.deployment,
         releaseTags: result.releaseTags,
         apps: result.apps,
         live: false,
-      });
+      };
+      if (result.installationId) patch.installationId = result.installationId;
+      if (result.appSourceId) patch.appSourceId = result.appSourceId;
+      onProgress(patch);
       setPhase("building");
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));

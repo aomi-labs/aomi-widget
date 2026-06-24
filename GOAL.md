@@ -6,6 +6,10 @@ Make the Aomi deploy flow (portal onboarding + CLI + backend) production-ready:
 every error path handled, every state tested, every UI state accounted for,
 no rough edges.
 
+Current session note: copied deploy pages can carry a stale GitHub installation
+id. The portal BFF should recover from `resolve_source` 404 by syncing the
+installed source from the repo, then persist the refreshed app source identity.
+
 ---
 
 ## 1. Immediate PR Management

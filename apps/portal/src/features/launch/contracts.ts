@@ -63,6 +63,8 @@ export type LaunchDeployInput = {
 
 export type LaunchDeployResult = {
   repo: string;
+  installationId?: string;
+  appSourceId?: number;
   deployment: LaunchDeployPayload;
   releaseTags: string[];
   apps: string[];
