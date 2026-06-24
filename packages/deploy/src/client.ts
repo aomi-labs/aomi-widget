@@ -650,7 +650,7 @@ function deployRequest(input: DeployInput): Record<string, unknown> {
     app_source_id: appSourceId,
     source_ref: sourceRef(input.sourceRef),
     aomi_toml_paths: aomiTomlPaths,
-    ...(input.dryRun ? { dry_run: true } : {}),
+    ...(input.preflight ? { preflight: true } : {}),
   };
 }
 

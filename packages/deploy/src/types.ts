@@ -65,11 +65,11 @@ export interface DeployInput {
   sourceRef: SourceRef;
   aomiTomlPaths: string[];
   /** Resolve + validate only; open no PR, write nothing. */
-  dryRun?: boolean;
+  preflight?: boolean;
   actor?: string;
 }
 
-export type DeployStatus = "dry_run" | "pr_created" | "pr_updated";
+export type DeployStatus = "preflight" | "pr_created" | "pr_updated";
 export type CiStatus = "pending" | "running" | "passed" | "failed";
 
 export interface DeployResult {

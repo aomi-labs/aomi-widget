@@ -43,7 +43,7 @@ const deploy = await dc.deploy({
   appSourceId,
   sourceRef,
   aomiTomlPaths,
-  dryRun: process.env.AOMI_ACTIVATE !== "1",
+  preflight: process.env.AOMI_ACTIVATE !== "1",
 });
 
 console.log(JSON.stringify(deploy, null, 2));
