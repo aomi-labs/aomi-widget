@@ -3,6 +3,7 @@ import {
   GITHUB_REDIRECT_KEYS,
   bootstrapStep,
   installationStatusLabel,
+  isResumingInstall,
   loadLaunch,
   normalizeRepo,
   oneshotStep,
@@ -11,7 +12,16 @@ import {
   withPath,
   withPendingInstall,
   withProgress,
+  type LaunchState,
 } from ".";
+
+const launchState = (over: Partial<LaunchState> = {}): LaunchState => ({
+  path: null,
+  oneshot: {},
+  bootstrap: {},
+  pendingInstall: null,
+  ...over,
+});
 
 describe("oneshotStep", () => {
   it("advances install -> create -> build -> live", () => {
@@ -120,6 +130,36 @@ describe("load/save", () => {
     expect(loadLaunch().bootstrap.repo).toBe("me/app");
 
     (globalThis as { window?: unknown }).window = undefined;
+  });
+});
+
+describe("isResumingInstall", () => {
+  it("stays in the wizard while returning from the install round-trip", () => {
+    // Saved pendingInstall before the full-page nav to GitHub.
+    expect(
+      isResumingInstall(
+        launchState({ path: "bootstrap", pendingInstall: { path: "bootstrap" } }),
+        "",
+      ),
+    ).toBe(true);
+
+    // Backend callback redirect on the URL, even if pendingInstall was cleared.
+    expect(
+      isResumingInstall(
+        launchState({ path: "bootstrap" }),
+        "?installation_id=141779906&launch=bound&repo=ceciliaz030%2Flocal-4",
+      ),
+    ).toBe(true);
+  });
+
+  it("does not resume without an active launch or a pending install", () => {
+    // No active path → never resume, even with a redirect on the URL.
+    expect(
+      isResumingInstall(launchState(), "?installation_id=42&launch=bound"),
+    ).toBe(false);
+
+    // Active path but nothing pending and no redirect → fall through to list.
+    expect(isResumingInstall(launchState({ path: "bootstrap" }), "")).toBe(false);
   });
 });
 
