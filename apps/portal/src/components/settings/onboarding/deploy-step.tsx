@@ -109,7 +109,7 @@ export function DeployStep({
   onReconnectInstall,
   onReset,
 }: {
-  /** GitHub App installation for the source repo. The BFF resolves appSourceId. */
+  /** GitHub App installation for wizard context; deploy uses appSourceId or repo. */
   installationId: string;
   repo?: string;
   actor?: string;
@@ -181,25 +181,42 @@ export function DeployStep({
     setError(null);
     statusFailuresRef.current = 0;
     try {
-      const result = await launchDryRun({ installationId, repo, actor });
+      const result = await launchDryRun({
+        installationId,
+        repo,
+        appSourceId: progress.appSourceId,
+        actor,
+      });
       applyDeployment(result);
       setPhase("dry_ready");
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
       setPhase("error");
     }
-  }, [actor, applyDeployment, installationId, repo]);
+  }, [actor, applyDeployment, installationId, progress.appSourceId, repo]);
 
   const deploy = useCallback(async () => {
     setPhase("deploying");
     setError(null);
     statusFailuresRef.current = 0;
     try {
+      let appSourceId = progress.appSourceId;
       if (!deployment) {
-        const dryResult = await launchDryRun({ installationId, repo, actor });
+        const dryResult = await launchDryRun({
+          installationId,
+          repo,
+          appSourceId,
+          actor,
+        });
         applyDeployment(dryResult);
+        appSourceId = dryResult.appSourceId ?? appSourceId;
       }
-      const result = await launchDeploy({ installationId, repo, actor });
+      const result = await launchDeploy({
+        installationId,
+        repo,
+        appSourceId,
+        actor,
+      });
       applyDeployment(result);
       const id = result.deployment.id;
       setDeploymentId(id);
@@ -219,7 +236,15 @@ export function DeployStep({
       setError(e instanceof Error ? e.message : String(e));
       setPhase("error");
     }
-  }, [actor, applyDeployment, deployment, installationId, onProgress, repo]);
+  }, [
+    actor,
+    applyDeployment,
+    deployment,
+    installationId,
+    onProgress,
+    progress.appSourceId,
+    repo,
+  ]);
 
   useEffect(() => {
     if (

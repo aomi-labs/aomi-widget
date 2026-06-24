@@ -75,28 +75,21 @@ function sourceIdentity(source: {
 async function resolveAppSource(args: {
   client: Awaited<ReturnType<typeof deploymentClient>>;
   platform: string;
-  installationId: string;
+  appSourceId?: unknown;
   repo?: string;
 }): Promise<ResolvedAppSource> {
-  try {
-    return sourceIdentity(
-      await args.client.resolveSource({
-        platform: args.platform,
-        installationId: Number(args.installationId),
-        repo: args.repo,
-      }),
-    );
-  } catch (err) {
-    if (!(err instanceof BackendError) || err.status !== 404 || !args.repo) {
-      throw err;
-    }
-    return sourceIdentity(
-      await args.client.syncSource({
-        platform: args.platform,
-        repo: args.repo,
-      }),
-    );
+  if (isValidAppSourceId(args.appSourceId)) {
+    return { appSourceId: args.appSourceId, repo: args.repo };
   }
+  if (!args.repo) {
+    throw new Error("missing appSourceId or repo");
+  }
+  return sourceIdentity(
+    await args.client.syncSource({
+      platform: args.platform,
+      repo: args.repo,
+    }),
+  );
 }
 
 export function launchDeployRoute(dryRun: boolean) {
@@ -108,14 +101,23 @@ export function launchDeployRoute(dryRun: boolean) {
       string,
       unknown
     >;
-    if (!isValidInstallationId(body.installationId)) {
+    if (
+      body.appSourceId !== undefined &&
+      !isValidAppSourceId(body.appSourceId)
+    ) {
       return NextResponse.json(
-        { error: "missing or invalid `installationId`" },
+        { error: "invalid `appSourceId`" },
         { status: 400 },
       );
     }
     if (body.repo !== undefined && !isValidRepo(body.repo)) {
       return NextResponse.json({ error: "invalid `repo`" }, { status: 400 });
+    }
+    if (!isValidAppSourceId(body.appSourceId) && !isValidRepo(body.repo)) {
+      return NextResponse.json(
+        { error: "missing `appSourceId` or `repo`" },
+        { status: 400 },
+      );
     }
 
     try {
@@ -124,7 +126,7 @@ export function launchDeployRoute(dryRun: boolean) {
       const source = await resolveAppSource({
         client,
         platform: config.platform,
-        installationId: body.installationId,
+        appSourceId: body.appSourceId,
         repo: body.repo as string | undefined,
       });
       const { deployment } = await client.deploy({
