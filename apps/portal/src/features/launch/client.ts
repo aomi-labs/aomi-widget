@@ -7,6 +7,7 @@ import {
   type LaunchCreateRepoResult,
   type LaunchDeployInput,
   type LaunchDeployResult,
+  type LaunchRedeployResult,
   type LaunchStatus,
   type LaunchSyncInstalledResult,
 } from "./contracts";
@@ -72,6 +73,27 @@ export function launchDeploy(
   input: LaunchDeployInput,
 ): Promise<LaunchDeployResult> {
   return postLaunchDeploy("/api/launch/deploy", input);
+}
+
+export async function launchRedeploy(input: {
+  appSourceId: number;
+}): Promise<LaunchRedeployResult> {
+  const res = await fetch("/api/launch/redeploy", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  const json = (await res.json().catch(() => ({}))) as
+    | LaunchRedeployResult
+    | { error?: string };
+  if (!res.ok) {
+    const msg =
+      "error" in json && json.error
+        ? json.error
+        : `launch redeploy failed (${res.status})`;
+    throw new Error(msg);
+  }
+  return json as LaunchRedeployResult;
 }
 
 export async function launchCreateRepo(input: {
