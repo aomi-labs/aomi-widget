@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach } from "vitest";
 import { resolveChatUrl, chatAppUrl } from "./chat-url";
 
 beforeEach(() => {
@@ -60,5 +60,11 @@ describe("chatAppUrl", () => {
 
   it("handles numeric app names", () => {
     expect(chatAppUrl("123")).toBe("https://chat.aomi.dev?app=123");
+  });
+
+  it("can lock the frame to the requested app", () => {
+    expect(chatAppUrl("my-bot", { locked: true })).toBe(
+      "https://chat.aomi.dev?app=my-bot&lock_app=1",
+    );
   });
 });
