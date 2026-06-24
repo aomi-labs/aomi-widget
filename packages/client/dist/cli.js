@@ -1461,20 +1461,23 @@ ${body}` : ""}`
        * Send a chat message and return updated session state.
        */
       async sendMessage(sessionId, message, options) {
-        var _a3, _b, _c, _d, _e;
+        var _a3, _b, _c, _d, _e, _f;
         const app = (_a3 = options == null ? void 0 : options.app) != null ? _a3 : "default";
         const apiKey = (_b = options == null ? void 0 : options.apiKey) != null ? _b : this.apiKey;
         const normalizedUserState = UserState.normalize(options == null ? void 0 : options.userState);
+        const applicationId = (_c = options == null ? void 0 : options.applicationId) == null ? void 0 : _c.toString().trim();
         const url = buildApiUrl(this.baseUrl, "/api/chat", {
           app,
+          application_id: applicationId || void 0,
           message,
           user_state: normalizedUserState ? JSON.stringify(normalizedUserState) : void 0,
           client_id: options == null ? void 0 : options.clientId,
           authorized_wallet_ref: options == null ? void 0 : options.authorizedWalletRef
         });
-        (_c = this.logger) == null ? void 0 : _c.debug("[aomi][client] POST /api/chat prepared", {
+        (_d = this.logger) == null ? void 0 : _d.debug("[aomi][client] POST /api/chat prepared", {
           sessionId,
           app,
+          applicationId,
           clientId: options == null ? void 0 : options.clientId,
           authorizedWalletRef: options == null ? void 0 : options.authorizedWalletRef,
           hasUserState: Boolean(normalizedUserState),
@@ -1484,7 +1487,7 @@ ${body}` : ""}`
         if (apiKey) {
           headers.set(APP_KEY_HEADER, apiKey);
         }
-        (_d = this.logger) == null ? void 0 : _d.debug("[aomi][client] POST start", {
+        (_e = this.logger) == null ? void 0 : _e.debug("[aomi][client] POST start", {
           path: "/api/chat",
           sessionId,
           hasApiKey: Boolean(apiKey),
@@ -1494,7 +1497,7 @@ ${body}` : ""}`
           method: "POST",
           headers
         });
-        (_e = this.logger) == null ? void 0 : _e.debug("[aomi][client] POST response", {
+        (_f = this.logger) == null ? void 0 : _f.debug("[aomi][client] POST response", {
           path: "/api/chat",
           sessionId,
           status: response.status,
@@ -1516,9 +1519,13 @@ ${body}` : ""}`
         if (options == null ? void 0 : options.app) {
           payload.app = options.app;
         }
+        if (options == null ? void 0 : options.applicationId) {
+          payload.application_id = options.applicationId;
+        }
         (_a3 = this.logger) == null ? void 0 : _a3.debug("[aomi][client] POST /api/system prepared", {
           sessionId,
           app: options == null ? void 0 : options.app,
+          applicationId: options == null ? void 0 : options.applicationId,
           messagePreview: previewText(message)
         });
         return postState(
@@ -1930,11 +1937,13 @@ ${body}` : ""}`
        * Set the model for a session.
        */
       async setModel(sessionId, rig, options) {
-        var _a3;
+        var _a3, _b;
         const apiKey = (_a3 = options == null ? void 0 : options.apiKey) != null ? _a3 : this.apiKey;
+        const applicationId = (_b = options == null ? void 0 : options.applicationId) == null ? void 0 : _b.toString().trim();
         const url = buildApiUrl(this.baseUrl, "/api/session/model", {
           rig,
           app: options == null ? void 0 : options.app,
+          application_id: applicationId || void 0,
           client_id: options == null ? void 0 : options.clientId
         });
         const headers = new Headers(withSessionHeader(sessionId));
@@ -8869,16 +8878,71 @@ function checkGitRemote() {
     );
   }
 }
-async function deployCommand(args) {
-  var _a3, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m;
-  const activationToken = required(
-    (_a3 = str4(args["activation-token"])) != null ? _a3 : process.env.AOMI_DEPLOY_TOKEN,
-    "activation-token",
-    "AOMI_DEPLOY_TOKEN"
+async function deviceAuthFlow(backendUrl, platform) {
+  var _a3, _b;
+  console.log("\n No activation token found. Starting browser-based GitHub auth...\n");
+  const beginRes = await fetch(`${backendUrl}/api/auth/cli/begin`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ platform })
+  });
+  if (!beginRes.ok) {
+    const text = await beginRes.text().catch(() => "");
+    throw new DeployCliError(
+      "BACKEND_ERROR",
+      `Failed to start device auth: ${beginRes.status} ${text}`
+    );
+  }
+  const { device_code, verification_uri } = await beginRes.json();
+  console.log(" \u2192 Open this URL in your browser to authenticate with GitHub:");
+  console.log(`   ${verification_uri}
+`);
+  const { platform: os } = process;
+  const openCmd = os === "darwin" ? "open" : os === "win32" ? "start" : "xdg-open";
+  try {
+    execSync(`${openCmd} "${verification_uri}"`, { stdio: "ignore" });
+    console.log(" (Browser opened automatically.)\n");
+  } catch (e) {
+  }
+  console.log(" Waiting for authorization...");
+  const pollUrl = `${backendUrl}/api/auth/cli/status?device_code=${device_code}`;
+  const start = Date.now();
+  const timeoutMs = 6e5;
+  while (Date.now() - start < timeoutMs) {
+    await new Promise((r) => setTimeout(r, 2e3));
+    const statusRes = await fetch(pollUrl);
+    if (!statusRes.ok) continue;
+    const body = await statusRes.json();
+    if (body.status === "complete" && body.activation_token) {
+      console.log(` Authenticated as @${(_a3 = body.github_login) != null ? _a3 : "?"}
+`);
+      console.log(
+        ` Tip: save your token to skip this step next time:
+   export AOMI_DEPLOY_TOKEN="${body.activation_token}"
+`
+      );
+      return { token: body.activation_token, githubLogin: (_b = body.github_login) != null ? _b : "" };
+    }
+    if (body.status === "expired") {
+      throw new DeployCliError(
+        "AUTH_FAILED",
+        "Authorization session expired. Run `aomi deploy` again to retry."
+      );
+    }
+  }
+  throw new DeployCliError(
+    "AUTH_TIMEOUT",
+    "Authorization timed out after 10 minutes. Run `aomi deploy` again to retry."
   );
+}
+async function deployCommand(args) {
+  var _a3, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n;
+  const backendUrl = ((_b = (_a3 = str4(args["backend-url"])) != null ? _a3 : process.env.AOMI_BACKEND_URL) != null ? _b : "https://api.aomi.dev").replace(/\/+$/, "");
+  const platform = (_d = (_c = str4(args.platform)) != null ? _c : process.env.AOMI_DEPLOY_PLATFORM) != null ? _d : "community";
+  const activationToken = (_f = (_e = str4(args["activation-token"])) != null ? _e : process.env.AOMI_DEPLOY_TOKEN) != null ? _f : (await deviceAuthFlow(backendUrl, platform)).token;
   const appSourceId = Number(
     required(
-      (_b = str4(args["app-source-id"])) != null ? _b : process.env.AOMI_APP_SOURCE_ID,
+      (_g = str4(args["app-source-id"])) != null ? _g : process.env.AOMI_APP_SOURCE_ID,
       "app-source-id",
       "AOMI_APP_SOURCE_ID"
     )
@@ -8886,8 +8950,6 @@ async function deployCommand(args) {
   if (!Number.isSafeInteger(appSourceId) || appSourceId <= 0) {
     throw new DeployCliError("VALIDATION_ERROR", "`--app-source-id` must be a positive integer.");
   }
-  const backendUrl = ((_d = (_c = str4(args["backend-url"])) != null ? _c : process.env.AOMI_BACKEND_URL) != null ? _d : "https://api.aomi.dev").replace(/\/+$/, "");
-  const platform = (_f = (_e = str4(args.platform)) != null ? _e : process.env.AOMI_DEPLOY_PLATFORM) != null ? _f : "community";
   const branch = str4(args.branch);
   const commit = str4(args.commit);
   if (branch && commit) {
@@ -8900,7 +8962,7 @@ async function deployCommand(args) {
   if (!commit && !branch) {
     checkGitRemote();
   }
-  const aomiTomlPaths = ((_g = str4(args["aomi-toml-paths"])) != null ? _g : "aomi.toml").split(",").map((p) => p.trim()).filter(Boolean);
+  const aomiTomlPaths = ((_h = str4(args["aomi-toml-paths"])) != null ? _h : "aomi.toml").split(",").map((p) => p.trim()).filter(Boolean);
   const dryRun = args["dry-run"] === true;
   console.log(` Deploying to ${backendUrl} (platform: ${platform})`);
   console.log(`   app source id: ${appSourceId}`);
@@ -8965,8 +9027,8 @@ async function deployCommand(args) {
     console.log(`   ${JSON.stringify(result, null, 2)}`);
     return;
   }
-  console.log(` Deployment created: ${(_h = deployment == null ? void 0 : deployment.id) != null ? _h : "unknown"}`);
-  console.log(`   status:  ${(_i = deployment == null ? void 0 : deployment.status) != null ? _i : "unknown"}`);
+  console.log(` Deployment created: ${(_i = deployment == null ? void 0 : deployment.id) != null ? _i : "unknown"}`);
+  console.log(`   status:  ${(_j = deployment == null ? void 0 : deployment.status) != null ? _j : "unknown"}`);
   if (sourceInfo == null ? void 0 : sourceInfo.repository_link) {
     console.log(`   source:  ${sourceInfo.repository_link}`);
   }
@@ -8981,8 +9043,8 @@ async function deployCommand(args) {
   if (platformInfo == null ? void 0 : platformInfo.apps) {
     const appsArr = platformInfo.apps;
     for (const app of appsArr) {
-      const name = String((_j = app.name) != null ? _j : "?");
-      const tag = String((_l = (_k = app.release_tag) != null ? _k : app.releaseTag) != null ? _l : "");
+      const name = String((_k = app.name) != null ? _k : "?");
+      const tag = String((_m = (_l = app.release_tag) != null ? _l : app.releaseTag) != null ? _m : "");
       apps.push(name);
       if (tag) releaseTags.push(tag);
       console.log(`   app:     ${name}${tag ? ` (${tag})` : ""}`);
@@ -8991,7 +9053,7 @@ async function deployCommand(args) {
   if (platformInfo == null ? void 0 : platformInfo.commit_hash) {
     console.log(`   commit:  ${platformInfo.commit_hash}`);
   }
-  const deploymentId = String((_m = deployment == null ? void 0 : deployment.id) != null ? _m : "");
+  const deploymentId = String((_n = deployment == null ? void 0 : deployment.id) != null ? _n : "");
   if (deploymentId) {
     await writeDeploymentState({
       deploymentId,

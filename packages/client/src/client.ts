@@ -457,6 +457,7 @@ export class AomiClient {
     message: string,
     options?: {
       app?: string;
+      applicationId?: number | string | null;
       apiKey?: string;
       userState?: UserStateShape;
       clientId?: string;
@@ -466,8 +467,10 @@ export class AomiClient {
     const app = options?.app ?? "default";
     const apiKey = options?.apiKey ?? this.apiKey;
     const normalizedUserState = UserState.normalize(options?.userState);
+    const applicationId = options?.applicationId?.toString().trim();
     const url = buildApiUrl(this.baseUrl, "/api/chat", {
       app,
+      application_id: applicationId || undefined,
       message,
       user_state: normalizedUserState
         ? JSON.stringify(normalizedUserState)
@@ -479,6 +482,7 @@ export class AomiClient {
     this.logger?.debug("[aomi][client] POST /api/chat prepared", {
       sessionId,
       app,
+      applicationId,
       clientId: options?.clientId,
       authorizedWalletRef: options?.authorizedWalletRef,
       hasUserState: Boolean(normalizedUserState),
@@ -524,15 +528,19 @@ export class AomiClient {
   async sendSystemMessage(
     sessionId: string,
     message: string,
-    options?: { app?: string },
+    options?: { app?: string; applicationId?: number | string | null },
   ): Promise<AomiSystemResponse> {
     const payload: Record<string, unknown> = { message };
     if (options?.app) {
       payload.app = options.app;
     }
+    if (options?.applicationId) {
+      payload.application_id = options.applicationId;
+    }
     this.logger?.debug("[aomi][client] POST /api/system prepared", {
       sessionId,
       app: options?.app,
+      applicationId: options?.applicationId,
       messagePreview: previewText(message),
     });
     return postState<AomiSystemResponse>(
@@ -1068,7 +1076,12 @@ export class AomiClient {
   async setModel(
     sessionId: string,
     rig: string,
-    options?: { app?: string; apiKey?: string; clientId?: string },
+    options?: {
+      app?: string;
+      applicationId?: number | string | null;
+      apiKey?: string;
+      clientId?: string;
+    },
   ): Promise<{
     success: boolean;
     rig: string;
@@ -1076,9 +1089,11 @@ export class AomiClient {
     created: boolean;
   }> {
     const apiKey = options?.apiKey ?? this.apiKey;
+    const applicationId = options?.applicationId?.toString().trim();
     const url = buildApiUrl(this.baseUrl, "/api/session/model", {
       rig,
       app: options?.app,
+      application_id: applicationId || undefined,
       client_id: options?.clientId,
     });
 

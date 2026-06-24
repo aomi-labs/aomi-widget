@@ -12,9 +12,12 @@ export function resolveChatUrl(): string {
  */
 export function chatAppUrl(
   appName: string,
-  options: { locked?: boolean } = {},
+  options: { locked?: boolean; applicationId?: number | string | null } = {},
 ): string {
   const base = resolveChatUrl();
-  const query = `app=${encodeURIComponent(appName)}`;
-  return options.locked ? `${base}?${query}&lock_app=1` : `${base}?${query}`;
+  const params = new URLSearchParams({ app: appName });
+  const applicationId = options.applicationId?.toString().trim();
+  if (applicationId) params.set("application_id", applicationId);
+  if (options.locked) params.set("lock_app", "1");
+  return `${base}?${params.toString()}`;
 }

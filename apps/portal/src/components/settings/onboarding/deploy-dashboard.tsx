@@ -23,7 +23,6 @@ import {
   deploymentIdFromReleaseTag,
   lifecycleFromLaunchStatus,
   launchActivate,
-  launchAppStatus,
   launchRedeploy,
   launchStatus,
   signOutGitHub,
@@ -345,7 +344,10 @@ function LaunchContextMismatch({
 // ── Page 3 card + Page 4 chat ────────────────────────────────────────────────
 
 function SourceCard({ source }: { source: UserSource }) {
-  const [localLiveApp, setLocalLiveApp] = useState<string | null>(null);
+  const [localLiveApp, setLocalLiveApp] = useState<{
+    name: string;
+    applicationId?: number;
+  } | null>(null);
   const lifecycle = useMemo(() => sourceLifecycle(source), [source]);
   const [statusLifecycle, setStatusLifecycle] =
     useState<SourceLifecycle | null>(null);
@@ -355,8 +357,9 @@ function SourceCard({ source }: { source: UserSource }) {
         kind: "live",
         statusLabel: "Live",
         statusTone: "good",
-        message: "Runtime reports the app is loaded.",
-        chatApp: localLiveApp,
+        message: "The latest deployment is active.",
+        chatApp: localLiveApp.name,
+        chatApplicationId: localLiveApp.applicationId,
       }
     : (statusLifecycle ?? lifecycle).kind === "live"
       ? (statusLifecycle ?? lifecycle)
@@ -366,7 +369,7 @@ function SourceCard({ source }: { source: UserSource }) {
     lifecycle.deploymentId ??
     deploymentIdFromReleaseTag(lifecycle.releaseTags[0]);
   const chatApp = shouldShowChatForLifecycle(visibleLifecycle)
-    ? (visibleLifecycle.chatApp ?? visibleLifecycle.appNames[0])
+    ? visibleLifecycle.chatApp
     : undefined;
 
   const [progress, setProgress] = useState<LaunchProgress>(() => ({
@@ -386,12 +389,7 @@ function SourceCard({ source }: { source: UserSource }) {
   useEffect(() => {
     if (!derivedDeploymentId || localLiveApp) return;
     const pollKind = statusLifecycle?.kind ?? lifecycle.kind;
-    if (
-      pollKind !== "activation_pending" &&
-      pollKind !== "building" &&
-      pollKind !== "build_ready"
-    )
-      return;
+    if (pollKind !== "building" && pollKind !== "build_ready") return;
 
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout> | null = null;
@@ -440,7 +438,7 @@ function SourceCard({ source }: { source: UserSource }) {
 
       {visibleLifecycle.kind === "empty" ? (
         <DeployStep
-          appSourceId={source.id}
+          installationId={String(source.installationId)}
           repo={visibleLifecycle.repo}
           progress={progress}
           onProgress={patch}
@@ -454,7 +452,12 @@ function SourceCard({ source }: { source: UserSource }) {
         />
       )}
 
-      {chatApp && <ChatEmbed appName={chatApp} />}
+      {chatApp && (
+        <ChatEmbed
+          appName={chatApp}
+          applicationId={visibleLifecycle.chatApplicationId}
+        />
+      )}
     </div>
   );
 }
@@ -485,11 +488,7 @@ function LifecycleBadge({ lifecycle }: { lifecycle: SourceLifecycle }) {
 }
 
 function shouldShowChatForLifecycle(lifecycle: SourceLifecycle): boolean {
-  return Boolean(
-    lifecycle.chatApp ||
-    lifecycle.deploymentId ||
-    lifecycle.releaseTags.length > 0,
-  );
+  return lifecycle.kind === "live" && Boolean(lifecycle.chatApp);
 }
 
 function LifecyclePanel({
@@ -501,18 +500,16 @@ function LifecyclePanel({
   appSourceId: number;
   lifecycle: SourceLifecycle;
   onLifecycleChange: (lifecycle: SourceLifecycle) => void;
-  onLive: (appName: string) => void;
+  onLive: (app: { name: string; applicationId?: number }) => void;
 }) {
   const [action, setAction] = useState<
-    "idle" | "activating" | "verifying" | "redeploying" | "redeploy_done"
+    "idle" | "activating" | "redeploying" | "redeploy_done"
   >("idle");
   const [error, setError] = useState<string | null>(null);
-  const canActivate =
-    lifecycle.kind === "build_ready" || lifecycle.kind === "activation_pending";
+  const canActivate = lifecycle.kind === "build_ready";
   const canRedeploy =
     lifecycle.kind === "live" ||
     lifecycle.kind === "build_ready" ||
-    lifecycle.kind === "activation_pending" ||
     lifecycle.kind === "failed";
 
   const activate = useCallback(async () => {
@@ -527,35 +524,22 @@ function LifecyclePanel({
         releaseTags: lifecycle.releaseTags,
         apps: lifecycle.appNames,
       });
-      const failed = result.activation?.apps?.find(
-        (app) => !app.loaded || app.error,
-      );
+      const failed = result.activation?.apps?.find((app) => app.error);
       if (!result.ok || failed) {
-        throw new Error(failed?.error ?? "Activation did not load every app.");
+        throw new Error(failed?.error ?? "Activation failed.");
       }
-      setAction("verifying");
-      for (let attempt = 0; attempt < 30; attempt += 1) {
-        const checks = await Promise.all(
-          lifecycle.appNames.map((name, index) =>
-            launchAppStatus({
-              name,
-              releaseTag: lifecycle.releaseTags[index],
-            }),
-          ),
-        );
-        const live = checks.every(
-          (check) => check.ok && check.state === "live",
-        );
-        if (live) {
-          onLive(lifecycle.appNames[0]);
-          setAction("idle");
-          return;
-        }
-        await new Promise((resolve) => setTimeout(resolve, 3000));
-      }
-      throw new Error(
-        "Activation finished, but the runtime did not report the app as loaded.",
+      const activated = result.activation?.apps?.find(
+        (app) => app.application_id ?? app.applicationId,
       );
+      if (!activated) {
+        throw new Error("Activation did not return an application id.");
+      }
+      onLive({
+        name: activated.name,
+        applicationId:
+          activated.application_id ?? activated.applicationId ?? undefined,
+      });
+      setAction("idle");
     } catch (e) {
       const message = e instanceof Error ? e.message : String(e);
       if (isTargetCiPending(message)) {
@@ -614,17 +598,15 @@ function LifecyclePanel({
         {canActivate && (
           <Button
             onClick={activate}
-            disabled={action === "activating" || action === "verifying"}
+            disabled={action === "activating"}
             className="h-9 rounded-full px-3 text-sm font-medium"
           >
-            {action === "activating" || action === "verifying" ? (
+            {action === "activating" ? (
               <Loader2 className="mr-1 h-4 w-4 animate-spin" />
             ) : (
               <CheckCircle2 className="mr-1 h-4 w-4" />
             )}
-            {lifecycle.kind === "activation_pending"
-              ? "Retry activate"
-              : "Activate"}
+            Activate
           </Button>
         )}
         {canRedeploy && (
@@ -652,13 +634,6 @@ function LifecyclePanel({
         )}
         <LifecycleLinks lifecycle={lifecycle} />
       </div>
-
-      {action === "verifying" && (
-        <div className="text-muted-foreground inline-flex items-center gap-2 text-xs">
-          <Loader2 className="h-3.5 w-3.5 animate-spin" />
-          Checking runtime load state…
-        </div>
-      )}
 
       {action === "redeploy_done" && (
         <div className="rounded-lg border border-green-500/30 bg-green-500/10 p-3 text-xs text-green-600">
@@ -808,14 +783,20 @@ function SummaryTile({
   );
 }
 
-function ChatEmbed({ appName }: { appName: string }) {
+function ChatEmbed({
+  appName,
+  applicationId,
+}: {
+  appName: string;
+  applicationId?: number;
+}) {
   return (
     <div className="space-y-2">
       <div className="text-foreground text-sm font-medium">
         Chat with your agent
       </div>
       <iframe
-        src={chatAppUrl(appName, { locked: true })}
+        src={chatAppUrl(appName, { locked: true, applicationId })}
         title={`Chat with ${appName}`}
         className="border-input bg-background h-[600px] w-full rounded-xl border"
       />

@@ -29,6 +29,7 @@ export interface AuditEvent {
     | "list_tokens"
     | "revoke_token"
     | "sync_source"
+    | "resolve_source"
     | "scaffold"
     | "list_apps"
     | "get_app"
@@ -160,6 +161,7 @@ export interface ActivationPromotion {
 }
 
 export interface ActivatedApp {
+  applicationId?: number | null;
   name: string;
   path?: string | null;
   releaseTag?: string | null;
@@ -306,6 +308,13 @@ export interface SyncSourceInput extends BearerOverride {
   repo: string;
 }
 
+export interface ResolveSourceInput extends BearerOverride {
+  platform: string;
+  installationId: number;
+  /** Optional `owner/name` filter within the installation. */
+  repo?: string;
+}
+
 export interface ScaffoldInput extends BearerOverride {
   platform: string;
   installationId: number;
@@ -364,6 +373,11 @@ export interface UserSourceDeploymentApp {
   name: string;
   releaseTag: string | null;
   target?: string | null;
+  applicationId?: number | null;
+  appSourceId?: number | null;
+  appReleaseTag?: string | null;
+  isActive?: boolean;
+  loaded?: boolean;
 }
 
 export interface UserSourceLatestDeployment {

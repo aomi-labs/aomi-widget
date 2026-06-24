@@ -355,9 +355,9 @@ export function BootstrapWizard({
 }
 
 /**
- * Bootstrap reaches deploy with a connected repo but no source id yet. Resolve
- * it from the installed repo (`sync-installed`) once, then hand a stable
- * `appSourceId` to `DeployStep` — deploy is source-id-driven end to end.
+ * Bootstrap reaches deploy with a connected repo that may not have been synced
+ * yet. Sync it once for freshness, then let `DeployStep` call the BFF with
+ * installation/repo identity; the BFF resolves the backend source id.
  */
 function BootstrapDeployStep({
   progress,
@@ -376,6 +376,7 @@ function BootstrapDeployStep({
   const [error, setError] = useState<string | null>(null);
   const repo = progress.repo;
   const appSourceId = progress.appSourceId;
+  const installationId = progress.installationId;
 
   const resolveSource = useCallback(async () => {
     if (!repo) return;
@@ -400,10 +401,10 @@ function BootstrapDeployStep({
     }
   }, [appSourceId, resolving, error, resolveSource]);
 
-  if (appSourceId) {
+  if (appSourceId && installationId) {
     return (
       <DeployStep
-        appSourceId={appSourceId}
+        installationId={installationId}
         repo={progress.repo}
         actor={actor}
         progress={progress}
