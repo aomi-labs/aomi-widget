@@ -141,6 +141,7 @@ export function DeployStep({
     () => progress.releaseTags ?? releaseTags(deployment),
     [deployment, progress.releaseTags],
   );
+  const appSourceId = progress.appSourceId;
   const apps = useMemo(
     () => progress.apps ?? appNames(deployment),
     [deployment, progress.apps],
@@ -176,14 +177,19 @@ export function DeployStep({
     setError(null);
     statusFailuresRef.current = 0;
     try {
-      const result = await launchDryRun({ installationId, repo, actor });
+      const result = await launchDryRun({
+        appSourceId,
+        installationId,
+        repo,
+        actor,
+      });
       applyDeployment(result);
       setPhase("dry_ready");
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
       setPhase("error");
     }
-  }, [actor, applyDeployment, installationId, repo]);
+  }, [actor, appSourceId, applyDeployment, installationId, repo]);
 
   const deploy = useCallback(async () => {
     setPhase("deploying");
@@ -191,10 +197,20 @@ export function DeployStep({
     statusFailuresRef.current = 0;
     try {
       if (!deployment) {
-        const dryResult = await launchDryRun({ installationId, repo, actor });
+        const dryResult = await launchDryRun({
+          appSourceId,
+          installationId,
+          repo,
+          actor,
+        });
         applyDeployment(dryResult);
       }
-      const result = await launchDeploy({ installationId, repo, actor });
+      const result = await launchDeploy({
+        appSourceId,
+        installationId,
+        repo,
+        actor,
+      });
       applyDeployment(result);
       const id = result.deployment.id;
       setDeploymentId(id);
@@ -211,7 +227,15 @@ export function DeployStep({
       setError(e instanceof Error ? e.message : String(e));
       setPhase("error");
     }
-  }, [actor, applyDeployment, deployment, installationId, onProgress, repo]);
+  }, [
+    actor,
+    appSourceId,
+    applyDeployment,
+    deployment,
+    installationId,
+    onProgress,
+    repo,
+  ]);
 
   useEffect(() => {
     if (

@@ -53,8 +53,9 @@ export type LaunchProgress = {
 };
 
 export type LaunchDeployInput = {
-  /** GitHub App installation that owns the source repo. The BFF resolves this
-   *  to backend `app_source_id` before deploying. */
+  /** Existing backend source row id. Preferred when the dashboard already has it. */
+  appSourceId?: number;
+  /** GitHub App installation that owns the source repo. Kept for wizard state. */
   installationId: string;
   /** Optional `owner/name` disambiguator when an installation has more than one repo. */
   repo?: string;

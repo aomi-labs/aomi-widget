@@ -77,7 +77,50 @@ describe("launchDeployRoute", () => {
     expect(body).toEqual({ error: "deploy rejected" });
   });
 
-  it("resolves source id before deploying", async () => {
+  it("uses the source id directly before deploying", async () => {
+    const fetchMock = vi.fn().mockResolvedValueOnce(
+      Response.json({
+        ok: true,
+        deployment: {
+          id: "dep_555_rabc1234_deadbeef",
+          source: { repository_link: "alice/bot" },
+          platform: { apps: [] },
+        },
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const POST = launchDeployRoute(false);
+    const req = new Request("http://localhost:3000/api/launch/deploy", {
+      method: "POST",
+      headers: {
+        origin: "http://localhost:3000",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        appSourceId: 123,
+        installationId: "555",
+        repo: "alice/bot",
+      }),
+    });
+
+    const res = await POST(req);
+    const body = await res.json();
+
+    expect(res.status).toBe(202);
+    expect(body.repo).toBe("alice/bot");
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      "http://127.0.0.1:8080/api/platforms/community/deploy",
+      expect.objectContaining({
+        method: "POST",
+        body: expect.stringContaining('"app_source_id":123'),
+      }),
+    );
+  });
+
+  it("syncs installed source id before deploying when the id is absent", async () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(
@@ -119,8 +162,8 @@ describe("launchDeployRoute", () => {
     expect(body.repo).toBe("alice/bot");
     expect(fetchMock).toHaveBeenNthCalledWith(
       1,
-      "http://127.0.0.1:8080/api/platforms/community/sources/resolve?installation_id=555&repo=alice%2Fbot",
-      expect.objectContaining({ method: "GET" }),
+      "http://127.0.0.1:8080/api/platforms/community/sources/sync-installed",
+      expect.objectContaining({ method: "POST" }),
     );
     expect(fetchMock).toHaveBeenNthCalledWith(
       2,

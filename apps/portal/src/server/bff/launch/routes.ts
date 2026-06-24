@@ -49,12 +49,19 @@ function isValidAppSourceId(value: unknown): value is number {
 async function resolveAppSourceId(args: {
   client: Awaited<ReturnType<typeof deploymentClient>>;
   platform: string;
-  installationId: string;
+  appSourceId?: unknown;
   repo?: string;
 }): Promise<number> {
-  const source = await args.client.resolveSource({
+  if (isValidAppSourceId(args.appSourceId)) {
+    return args.appSourceId;
+  }
+
+  if (!isValidRepo(args.repo)) {
+    throw new Error("missing source id and repo for deployment");
+  }
+
+  const source = await args.client.syncSource({
     platform: args.platform,
-    installationId: Number(args.installationId),
     repo: args.repo,
   });
   if (!Number.isSafeInteger(source.id) || source.id <= 0) {
@@ -72,9 +79,12 @@ export function launchDeployRoute(dryRun: boolean) {
       string,
       unknown
     >;
-    if (!isValidInstallationId(body.installationId)) {
+    if (
+      !isValidAppSourceId(body.appSourceId) &&
+      !isValidInstallationId(body.installationId)
+    ) {
       return NextResponse.json(
-        { error: "missing or invalid `installationId`" },
+        { error: "missing or invalid source identity" },
         { status: 400 },
       );
     }
@@ -88,7 +98,7 @@ export function launchDeployRoute(dryRun: boolean) {
       const appSourceId = await resolveAppSourceId({
         client,
         platform: config.platform,
-        installationId: body.installationId,
+        appSourceId: body.appSourceId,
         repo: body.repo as string | undefined,
       });
       const { deployment } = await client.deploy({
