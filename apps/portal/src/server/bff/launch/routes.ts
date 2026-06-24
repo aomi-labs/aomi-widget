@@ -46,21 +46,50 @@ function isValidAppSourceId(value: unknown): value is number {
   return typeof value === "number" && Number.isSafeInteger(value) && value > 0;
 }
 
-async function resolveAppSourceId(args: {
-  client: Awaited<ReturnType<typeof deploymentClient>>;
-  platform: string;
-  installationId: string;
+type ResolvedAppSource = {
+  appSourceId: number;
+  installationId?: string;
   repo?: string;
-}): Promise<number> {
-  const source = await args.client.resolveSource({
-    platform: args.platform,
-    installationId: Number(args.installationId),
-    repo: args.repo,
-  });
-  if (!Number.isSafeInteger(source.id) || source.id <= 0) {
+};
+
+function sourceIdentity(source: {
+  id: number;
+  installationId?: number | null;
+  repositoryLink?: string | null;
+}): ResolvedAppSource {
+  if (!isValidAppSourceId(source.id)) {
     throw new Error("backend did not return a valid app source id");
   }
-  return source.id;
+  return {
+    appSourceId: source.id,
+    installationId:
+      typeof source.installationId === "number" &&
+      Number.isSafeInteger(source.installationId) &&
+      source.installationId > 0
+        ? String(source.installationId)
+        : undefined,
+    repo: source.repositoryLink?.trim() || undefined,
+  };
+}
+
+async function resolveAppSource(args: {
+  client: Awaited<ReturnType<typeof deploymentClient>>;
+  platform: string;
+  appSourceId?: unknown;
+  repo?: string;
+}): Promise<ResolvedAppSource> {
+  if (isValidAppSourceId(args.appSourceId)) {
+    return { appSourceId: args.appSourceId, repo: args.repo };
+  }
+  if (!args.repo) {
+    throw new Error("missing appSourceId or repo");
+  }
+  return sourceIdentity(
+    await args.client.syncSource({
+      platform: args.platform,
+      repo: args.repo,
+    }),
+  );
 }
 
 export function launchDeployRoute(dryRun: boolean) {
@@ -72,28 +101,37 @@ export function launchDeployRoute(dryRun: boolean) {
       string,
       unknown
     >;
-    if (!isValidInstallationId(body.installationId)) {
+    if (
+      body.appSourceId !== undefined &&
+      !isValidAppSourceId(body.appSourceId)
+    ) {
       return NextResponse.json(
-        { error: "missing or invalid `installationId`" },
+        { error: "invalid `appSourceId`" },
         { status: 400 },
       );
     }
     if (body.repo !== undefined && !isValidRepo(body.repo)) {
       return NextResponse.json({ error: "invalid `repo`" }, { status: 400 });
     }
+    if (!isValidAppSourceId(body.appSourceId) && !isValidRepo(body.repo)) {
+      return NextResponse.json(
+        { error: "missing `appSourceId` or `repo`" },
+        { status: 400 },
+      );
+    }
 
     try {
       const config = launchConfig();
       const client = await deploymentClient();
-      const appSourceId = await resolveAppSourceId({
+      const source = await resolveAppSource({
         client,
         platform: config.platform,
-        installationId: body.installationId,
+        appSourceId: body.appSourceId,
         repo: body.repo as string | undefined,
       });
       const { deployment } = await client.deploy({
         platform: config.platform,
-        appSourceId,
+        appSourceId: source.appSourceId,
         sourceRef: config.sourceRef,
         aomiTomlPaths: config.aomiTomlPaths,
         dryRun,
@@ -103,8 +141,15 @@ export function launchDeployRoute(dryRun: boolean) {
         {
           ok: true,
           repo:
+            source.repo ??
             (body.repo as string | undefined) ??
             deployment.source.repositoryLink,
+          installationId:
+            source.installationId ??
+            (deployment.source.installationId
+              ? String(deployment.source.installationId)
+              : undefined),
+          appSourceId: source.appSourceId,
           deployment,
           releaseTags: releaseTagsFromDeployment(deployment),
           apps: appNamesFromDeployment(deployment),
