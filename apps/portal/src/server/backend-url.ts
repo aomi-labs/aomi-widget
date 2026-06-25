@@ -1,3 +1,5 @@
+import "server-only";
+
 export function defaultBackendUrl(): string {
   if (process.env.VERCEL_ENV === "preview") {
     return "https://api-staging.aomi.dev";

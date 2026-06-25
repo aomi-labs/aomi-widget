@@ -4,7 +4,7 @@ import { NextResponse } from "next/server";
 export const runtime = "nodejs";
 
 import { deploymentClient } from "@portal/server/bff/backend";
-import { setGitHubSessionCookie } from "@portal/lib/aomi-account/github-session";
+import { setGitHubSessionCookie } from "@portal/server/aomi-account/github-session";
 
 const OAUTH_STATE_COOKIE = "aomi_github_oauth_state";
 // The login client id is the build App client id; backend exchange must use the
@@ -18,7 +18,7 @@ function deploySettingsUrl(req: Request): URL {
   return settings;
 }
 
-// GET /api/auth/github/callback?code=...&state=... — finish "Sign in with
+// GET /api/bff/auth/github/callback?code=...&state=... — finish "Sign in with
 // GitHub": verify CSRF state, exchange the code for the GitHub identity
 // (backend-side), mint the portal GitHub session cookie, return to /settings.
 export async function GET(req: Request) {

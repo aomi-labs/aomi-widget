@@ -5,7 +5,7 @@ import {
   executeE2EWalletTransaction,
   isE2EExecutorEnabled,
   verifyE2EWalletCookie,
-} from "@portal/lib/e2e-wallet";
+} from "@portal/server/e2e-wallet";
 
 export const runtime = "nodejs";
 

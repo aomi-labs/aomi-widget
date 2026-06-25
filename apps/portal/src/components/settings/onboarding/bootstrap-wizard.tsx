@@ -19,6 +19,7 @@ import {
   type LaunchProgress,
   type UserSource,
 } from "@portal/features/launch";
+import { API_PATHS } from "@portal/lib/api-paths";
 import { chatAppUrl } from "@portal/lib/chat-url";
 import { Stepper } from "./stepper";
 import { DeployStep } from "./deploy-step";
@@ -130,9 +131,7 @@ export function BootstrapWizard({
       setChecking(true);
       let preExisting = false;
       try {
-        const res = await fetch(
-          `/api/launch/check-repo?repo=${encodeURIComponent(repo)}`,
-        );
+        const res = await fetch(API_PATHS.bff.launch.checkRepo(repo));
         if (res.ok) {
           const data = (await res.json()) as {
             exists: boolean;

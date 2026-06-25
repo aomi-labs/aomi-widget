@@ -12,7 +12,7 @@ vi.mock("next/headers", () => ({
 describe("GitHub callback route", () => {
   it("redirects callback failures back to settings with the launch marker", async () => {
     const res = await GET(
-      new Request("http://localhost:3000/api/auth/github/callback?code=x&state=y"),
+      new Request("http://localhost:3000/api/bff/auth/github/callback?code=x&state=y"),
     );
     expect(res.status).toBe(307);
     const location = new URL(res.headers.get("location") ?? "");
