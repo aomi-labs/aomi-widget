@@ -11,6 +11,7 @@ import {
 import type { WalletEip712Payload, WalletTxPayload } from "@aomi-labs/react";
 import { http, type Chain } from "viem";
 import { createConfig, WagmiProvider } from "wagmi";
+import { API_PATHS } from "@portal/lib/api-paths";
 
 export type E2EWalletSeedClient = {
   address: `0x${string}`;
@@ -67,7 +68,7 @@ function fakeSignature(payload: WalletEip712Payload): `0x${string}` {
 async function executeRealE2ETransaction(
   payload: WalletTxPayload,
 ): Promise<E2EExecutionSuccess> {
-  const response = await fetch("/api/e2e/execute", {
+  const response = await fetch(API_PATHS.bff.e2e.execute, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
