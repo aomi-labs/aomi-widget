@@ -5,13 +5,13 @@ function request(opts: { origin?: string; referer?: string; url?: string } = {})
   const headers = new Headers();
   if (opts.origin) headers.set("origin", opts.origin);
   if (opts.referer) headers.set("referer", opts.referer);
-  return new Request(opts.url ?? "http://localhost/api/launch/deploy", { headers });
+  return new Request(opts.url ?? "http://localhost/api/bff/launch/deploy", { headers });
 }
 
 describe("validateOrigin", () => {
   it("allows requests from the request origin", () => {
     const req = request({
-      url: "https://portal.aomi.dev/api/launch/deploy",
+      url: "https://portal.aomi.dev/api/bff/launch/deploy",
       origin: "https://portal.aomi.dev",
     });
     expect(validateOrigin(req)).toBe(true);
@@ -19,7 +19,7 @@ describe("validateOrigin", () => {
 
   it("rejects requests from a different origin", () => {
     const req = request({
-      url: "https://portal.aomi.dev/api/launch/deploy",
+      url: "https://portal.aomi.dev/api/bff/launch/deploy",
       origin: "https://evil.com",
     });
     expect(validateOrigin(req)).toBe(false);
@@ -31,7 +31,7 @@ describe("validateOrigin", () => {
 
   it("falls back to referer header when origin is missing", () => {
     const req = request({
-      url: "https://portal.aomi.dev/api/launch/deploy",
+      url: "https://portal.aomi.dev/api/bff/launch/deploy",
       referer: "https://portal.aomi.dev/some-page",
     });
     expect(validateOrigin(req)).toBe(true);
@@ -39,7 +39,7 @@ describe("validateOrigin", () => {
 
   it("compares only the origin (not the full URL)", () => {
     const req = request({
-      url: "https://portal.aomi.dev/api/launch/deploy",
+      url: "https://portal.aomi.dev/api/bff/launch/deploy",
       origin: "https://portal.aomi.dev/some/deep/path",
     });
     expect(validateOrigin(req)).toBe(true);
@@ -47,7 +47,7 @@ describe("validateOrigin", () => {
 
   it("rejects referer from a different host", () => {
     const req = request({
-      url: "https://portal.aomi.dev/api/launch/deploy",
+      url: "https://portal.aomi.dev/api/bff/launch/deploy",
       referer: "https://evil.com/phish",
     });
     expect(validateOrigin(req)).toBe(false);
@@ -55,7 +55,7 @@ describe("validateOrigin", () => {
 
   it("rejects malformed origin URLs", () => {
     const req = request({
-      url: "https://portal.aomi.dev/api/launch/deploy",
+      url: "https://portal.aomi.dev/api/bff/launch/deploy",
       origin: "not-a-url",
     });
     expect(validateOrigin(req)).toBe(false);
@@ -63,7 +63,7 @@ describe("validateOrigin", () => {
 
   it("handles port-specific origins correctly", () => {
     const req = request({
-      url: "http://localhost:3000/api/launch/deploy",
+      url: "http://localhost:3000/api/bff/launch/deploy",
       origin: "http://localhost:3000",
     });
     expect(validateOrigin(req)).toBe(true);
@@ -71,7 +71,7 @@ describe("validateOrigin", () => {
 
   it("rejects same host but different port", () => {
     const req = request({
-      url: "http://localhost:3000/api/launch/deploy",
+      url: "http://localhost:3000/api/bff/launch/deploy",
       origin: "http://localhost:4000",
     });
     expect(validateOrigin(req)).toBe(false);

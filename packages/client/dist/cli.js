@@ -8684,7 +8684,7 @@ async function deployCommand(args) {
     checkGitRemote();
   }
   const aomiTomlPaths = ((_h = str4(args["aomi-toml-paths"])) != null ? _h : "aomi.toml").split(",").map((p) => p.trim()).filter(Boolean);
-  const dryRun = args["dry-run"] === true;
+  const preflight = args["preflight"] === true;
   console.log(` Deploying to ${backendUrl} (platform: ${platform})`);
   console.log(`   app source id: ${appSourceId}`);
   if (sourceRef.kind === "commit") {
@@ -8693,13 +8693,13 @@ async function deployCommand(args) {
     console.log(`   branch:        ${sourceRef.value}`);
   }
   console.log(`   aomi.toml:     ${aomiTomlPaths.join(", ")}`);
-  if (dryRun) console.log("   dry run:      yes");
+  if (preflight) console.log("   preflight:      yes");
   const url = `${backendUrl}/api/platforms/${encodeURIComponent(platform)}/deploy`;
   const body = {
     app_source_id: appSourceId,
     source_ref: sourceRef,
     aomi_toml_paths: aomiTomlPaths,
-    dry_run: dryRun
+    preflight
   };
   let res;
   try {
@@ -8743,8 +8743,8 @@ async function deployCommand(args) {
   const platformInfo = deployment == null ? void 0 : deployment.platform;
   const sourceInfo = deployment == null ? void 0 : deployment.source;
   console.log();
-  if (dryRun) {
-    console.log(" Dry run complete. Review the manifest below:");
+  if (preflight) {
+    console.log(" Preflight complete. Review the manifest below:");
     console.log(`   ${JSON.stringify(result, null, 2)}`);
     return;
   }
@@ -9655,7 +9655,7 @@ var deployDef = defineCommand13({
       type: "string",
       description: "Backend app source ID (required; or set AOMI_APP_SOURCE_ID env)"
     },
-    "dry-run": {
+    "preflight": {
       type: "boolean",
       description: "Preview the deployment manifest without applying it"
     },
