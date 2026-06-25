@@ -187,7 +187,7 @@ export async function deployCommand(args: DeployArgs): Promise<void> {
     .split(",")
     .map((p) => p.trim())
     .filter(Boolean);
-  const dryRun = args["dry-run"] === true;
+  const preflight = args["preflight"] === true;
 
   console.log(` Deploying to ${backendUrl} (platform: ${platform})`);
   console.log(`   app source id: ${appSourceId}`);
@@ -197,14 +197,14 @@ export async function deployCommand(args: DeployArgs): Promise<void> {
     console.log(`   branch:        ${sourceRef.value}`);
   }
   console.log(`   aomi.toml:     ${aomiTomlPaths.join(", ")}`);
-  if (dryRun) console.log("   dry run:      yes");
+  if (preflight) console.log("   preflight:      yes");
 
   const url = `${backendUrl}/api/platforms/${encodeURIComponent(platform)}/deploy`;
   const body = {
     app_source_id: appSourceId,
     source_ref: sourceRef,
     aomi_toml_paths: aomiTomlPaths,
-    dry_run: dryRun,
+    preflight: preflight,
   };
 
   let res: Response;
@@ -251,8 +251,8 @@ export async function deployCommand(args: DeployArgs): Promise<void> {
   const sourceInfo = deployment?.source as Record<string, unknown> | undefined;
 
   console.log();
-  if (dryRun) {
-    console.log(" Dry run complete. Review the manifest below:");
+  if (preflight) {
+    console.log(" Preflight complete. Review the manifest below:");
     console.log(`   ${JSON.stringify(result, null, 2)}`);
     return;
   }

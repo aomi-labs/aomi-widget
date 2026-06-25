@@ -1,4 +1,4 @@
-import { PortalAomiFrame } from "@portal/components/portal-aomi-frame";
+import { PortalAomiFrame } from "@portal/components/shell/portal-aomi-frame";
 
 export default function Home() {
   return <PortalAomiFrame />;

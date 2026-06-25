@@ -39,14 +39,14 @@ describe("AomiClient route manifest", () => {
     await expect(
       client.request("POST", "/api/platforms/community/deploy", {
         sessionId: "session-1",
-        query: { dry_run: true, empty: null },
+        query: { preflight: true, empty: null },
         body: { source: "github" },
       }),
     ).resolves.toEqual({ ok: true });
 
     const [url, init] = fetchImpl.mock.calls[0] as [string, RequestInit];
     expect(url).toBe(
-      "http://unit.test/api/platforms/community/deploy?dry_run=true",
+      "http://unit.test/api/platforms/community/deploy?preflight=true",
     );
     expect(init.method).toBe("POST");
     expect(JSON.parse(init.body as string)).toEqual({ source: "github" });
