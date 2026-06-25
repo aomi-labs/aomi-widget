@@ -1,3 +1,5 @@
+import "server-only";
+
 import type { NextRequest, NextResponse } from "next/server";
 import { jwtVerify, SignJWT } from "jose";
 

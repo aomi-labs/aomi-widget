@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 
 export const runtime = "nodejs";
 
-import { setGitHubSessionCookie } from "@portal/lib/aomi-account/github-session";
+import { setGitHubSessionCookie } from "@portal/server/aomi-account/github-session";
 
 type GitHubUserResponse = {
   id?: unknown;
@@ -40,7 +40,7 @@ async function resolveGitHubUserId(login: string): Promise<string> {
   return String(body.id);
 }
 
-// GET /api/auth/github/dev-session?login=octocat[&id=...]
+// GET /api/bff/auth/github/dev-session?login=octocat[&id=...]
 //
 // Local development helper only. It mints the same signed httpOnly
 // `aomi_github` cookie as the real OAuth callback so copied-link/account

@@ -1,3 +1,5 @@
+import "server-only";
+
 import { createHmac, timingSafeEqual } from "crypto";
 import type { WalletTxPayload } from "@aomi-labs/react";
 import {

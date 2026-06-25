@@ -1,5 +1,7 @@
 import { randomUUID } from "node:crypto";
 
+import { assertServerOnly } from "@aomi-labs/service";
+
 import { getPool } from "./db";
 
 /**
@@ -55,6 +57,8 @@ function normalizeValue(value: string): string {
 export async function resolveOrCreateCanonicalUser(
   input: ResolveInput,
 ): Promise<CanonicalUser> {
+  // Holds a `pg` pool against the backend's DB — never reach this from a browser.
+  assertServerOnly();
   const provider = input.provider.trim();
   const subject = input.subject.trim();
   if (!provider || !subject) {

@@ -2,7 +2,7 @@ import { createRemoteJWKSet, importSPKI, jwtVerify } from "jose";
 import { NextRequest, NextResponse } from "next/server";
 
 import { mintAccountBearer, resolveOrCreateCanonicalUser } from "@aomi-labs/account";
-import { setSessionCookie } from "@portal/lib/aomi-account/session";
+import { setSessionCookie } from "@portal/server/aomi-account/session";
 
 // Account graph reads/writes + bearer signing need Node (pg, EdDSA), not Edge.
 export const runtime = "nodejs";

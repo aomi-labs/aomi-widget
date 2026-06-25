@@ -7,7 +7,7 @@ import {
   parseE2EChainId,
   parseE2ETtlSeconds,
   validateE2EWalletToken,
-} from "@portal/lib/e2e-wallet";
+} from "@portal/server/e2e-wallet";
 
 function redirectTarget(request: NextRequest): URL {
   const requested = request.nextUrl.searchParams.get("redirect") ?? "/";

@@ -9,7 +9,7 @@ import { WalletProviders } from "@portal/components/wallet-providers";
 import {
   E2E_WALLET_COOKIE,
   verifyE2EWalletCookie,
-} from "@portal/lib/e2e-wallet";
+} from "@portal/server/e2e-wallet";
 
 const geistSans = Geist({
   subsets: ["latin"],

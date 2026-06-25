@@ -10,6 +10,7 @@ import {
   type ReactNode,
 } from "react";
 import { useAomiAuthAdapter } from "@aomi-labs/widget-lib";
+import { API_PATHS } from "@portal/lib/api-paths";
 
 /**
  * Lifecycle of the portal's `aomi_session` cookie (Option 2, proxy-inject):
@@ -122,7 +123,7 @@ export function AomiSessionProvider({ children }: { children: ReactNode }) {
           setStatus("error");
           return;
         }
-        const response = await fetch("/api/account/sessions/exchange", {
+        const response = await fetch(API_PATHS.bff.auth.exchange, {
           method: "POST",
           headers: { "content-type": "application/json" },
           credentials: "include",

@@ -14,7 +14,7 @@ import { jwtVerify, SignJWT } from "jose";
  * HS256 JWT signed with `PORTAL_ONLY_SESSION_SECRET` — the same portal-only
  * symmetric secret. The portal both signs and verifies; the backend never sees
  * this cookie. httpOnly so the browser can't read it; the client learns "am I
- * signed in" only through `/api/auth/github/session`.
+ * signed in" only through `/api/bff/auth/github/status`.
  */
 export const GITHUB_SESSION_COOKIE = "aomi_github";
 const TTL_SECONDS = 7 * 24 * 60 * 60;

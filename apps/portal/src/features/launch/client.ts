@@ -1,5 +1,6 @@
 "use client";
 
+import { API_PATHS } from "@portal/lib/api-paths";
 import { sessionScopedFetch } from "@portal/lib/settings-api";
 import {
   type LaunchActivateResult,
@@ -68,33 +69,30 @@ function postJson<T>(path: string, label: string, input: unknown): Promise<T> {
 export function launchPreflight(
   input: LaunchPreflightInput,
 ): Promise<LaunchDeployResult> {
-  return postJson("/api/launch/preflight", "launch preflight", input);
+  return postJson(API_PATHS.bff.launch.preflight, "launch preflight", input);
 }
 
 export function launchDeploy(
   input: LaunchDeployInput,
 ): Promise<LaunchDeployResult> {
-  return postJson("/api/launch/deploy", "launch deploy", input);
+  return postJson(API_PATHS.bff.launch.deploy, "launch deploy", input);
 }
 
 export function launchRedeploy(input: {
   appSourceId: number;
 }): Promise<LaunchRedeployResult> {
-  return postJson("/api/launch/redeploy", "launch redeploy", input);
+  return postJson(API_PATHS.bff.launch.redeploy, "launch redeploy", input);
 }
 
 export function launchCreateRepo(input: {
   installationId: string;
   repoName?: string;
 }): Promise<LaunchCreateRepoResult> {
-  return postJson("/api/launch/create", "launch repo creation", input);
+  return postJson(API_PATHS.bff.launch.create, "launch repo creation", input);
 }
 
 export function launchStatus(deploymentId: string): Promise<LaunchStatus> {
-  return launchFetch(
-    `/api/launch/status?deploymentId=${encodeURIComponent(deploymentId)}`,
-    "launch status",
-  );
+  return launchFetch(API_PATHS.bff.launch.status(deploymentId), "launch status");
 }
 
 export function launchActivate(input: {
@@ -102,23 +100,24 @@ export function launchActivate(input: {
   apps?: string[];
   actor?: string;
 }): Promise<LaunchActivateResult> {
-  return postJson("/api/launch/activate", "launch activation", input);
+  return postJson(API_PATHS.bff.launch.activate, "launch activation", input);
 }
 
 export function launchAppStatus(input: {
   name: string;
   releaseTag?: string;
 }): Promise<LaunchAppStatus> {
-  const params = new URLSearchParams({ name: input.name });
-  if (input.releaseTag) params.set("releaseTag", input.releaseTag);
-  return launchFetch(`/api/launch/app?${params}`, "launch app status");
+  return launchFetch(
+    API_PATHS.bff.launch.app(input.name, input.releaseTag),
+    "launch app status",
+  );
 }
 
 export function launchSyncInstalled(input: {
   repo: string;
 }): Promise<LaunchSyncInstalledResult> {
   return postJson(
-    "/api/launch/sync-installed",
+    API_PATHS.bff.launch.syncInstalled,
     "launch installed app sync",
     input,
   );

@@ -1,6 +1,8 @@
 import { randomBytes } from "crypto";
 import { NextResponse } from "next/server";
 
+import { API_PATHS } from "@portal/lib/api-paths";
+
 export const runtime = "nodejs";
 
 const OAUTH_STATE_COOKIE = "aomi_github_oauth_state";
@@ -15,7 +17,7 @@ function githubOAuthClientId(req: Request): string {
   return STAGING_CLIENT_ID;
 }
 
-// GET /api/auth/github/login — kick off "Sign in with GitHub".
+// GET /api/bff/auth/github/login — kick off "Sign in with GitHub".
 // Redirects to GitHub's user-authorization page; the callback below mints the
 // portal GitHub session. The client id is public; only the matching client
 // secret lives backend-side in the GitHub App config used by oauth/exchange.
@@ -25,7 +27,10 @@ export async function GET(req: Request) {
 
   const authorize = new URL("https://github.com/login/oauth/authorize");
   authorize.searchParams.set("client_id", githubOAuthClientId(req));
-  authorize.searchParams.set("redirect_uri", `${origin}/api/auth/github/callback`);
+  authorize.searchParams.set(
+    "redirect_uri",
+    `${origin}${API_PATHS.bff.auth.github.callback}`,
+  );
   authorize.searchParams.set("state", state);
 
   const res = NextResponse.redirect(authorize.toString());
