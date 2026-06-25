@@ -42,7 +42,7 @@ export async function githubAppInstallUrl(args: {
 }
 
 async function postLaunchDeploy(
-  path: "/api/launch/dry-run" | "/api/launch/deploy",
+  path: "/api/bff/launch/preflight" | "/api/bff/launch/deploy",
   input: LaunchDeployInput,
 ): Promise<LaunchDeployResult> {
   const res = await fetch(path, {
@@ -66,19 +66,19 @@ async function postLaunchDeploy(
 export function launchDryRun(
   input: LaunchDeployInput,
 ): Promise<LaunchDeployResult> {
-  return postLaunchDeploy("/api/launch/dry-run", input);
+  return postLaunchDeploy("/api/bff/launch/preflight", input);
 }
 
 export function launchDeploy(
   input: LaunchDeployInput,
 ): Promise<LaunchDeployResult> {
-  return postLaunchDeploy("/api/launch/deploy", input);
+  return postLaunchDeploy("/api/bff/launch/deploy", input);
 }
 
 export async function launchRedeploy(input: {
   appSourceId: number;
 }): Promise<LaunchRedeployResult> {
-  const res = await fetch("/api/launch/redeploy", {
+  const res = await fetch("/api/bff/launch/redeploy", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(input),
@@ -100,7 +100,7 @@ export async function launchCreateRepo(input: {
   installationId: string;
   repoName?: string;
 }): Promise<LaunchCreateRepoResult> {
-  const res = await fetch("/api/launch/create", {
+  const res = await fetch("/api/bff/launch/create", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(input),
@@ -122,7 +122,7 @@ export async function launchStatus(
   deploymentId: string,
 ): Promise<LaunchStatus> {
   const res = await fetch(
-    `/api/launch/status?deploymentId=${encodeURIComponent(deploymentId)}`,
+    `/api/bff/launch/status?deploymentId=${encodeURIComponent(deploymentId)}`,
   );
   const json = (await res.json().catch(() => ({}))) as
     | LaunchStatus
@@ -142,7 +142,7 @@ export async function launchActivate(input: {
   apps?: string[];
   actor?: string;
 }): Promise<LaunchActivateResult> {
-  const res = await fetch("/api/launch/activate", {
+  const res = await fetch("/api/bff/launch/activate", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(input),
@@ -166,7 +166,7 @@ export async function launchAppStatus(input: {
 }): Promise<LaunchAppStatus> {
   const params = new URLSearchParams({ name: input.name });
   if (input.releaseTag) params.set("releaseTag", input.releaseTag);
-  const res = await fetch(`/api/launch/app?${params}`);
+  const res = await fetch(`/api/bff/launch/app?${params}`);
   const json = (await res.json().catch(() => ({}))) as
     | LaunchAppStatus
     | { error?: string };
@@ -183,7 +183,7 @@ export async function launchAppStatus(input: {
 export async function launchSyncInstalled(input: {
   repo: string;
 }): Promise<LaunchSyncInstalledResult> {
-  const res = await fetch("/api/launch/sync-installed", {
+  const res = await fetch("/api/bff/launch/sync-installed", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(input),

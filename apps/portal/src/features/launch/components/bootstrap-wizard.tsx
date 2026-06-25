@@ -131,7 +131,7 @@ export function BootstrapWizard({
       let preExisting = false;
       try {
         const res = await fetch(
-          `/api/launch/check-repo?repo=${encodeURIComponent(repo)}`,
+          `/api/bff/launch/check-repo?repo=${encodeURIComponent(repo)}`,
         );
         if (res.ok) {
           const data = (await res.json()) as {

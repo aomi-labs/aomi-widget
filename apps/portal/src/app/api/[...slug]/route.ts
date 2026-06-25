@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { mintAccountBearer } from "@aomi-labs/account";
-import { getSessionedCanonicalId } from "@portal/lib/aomi-account/session";
-import { configuredBackendUrl } from "@portal/lib/backend-url";
+import { getSessionedCanonicalId } from "@portal/server/aomi-account/session";
+import { configuredBackendUrl } from "@portal/server/backend-url";
 
 /**
  * Same-origin proxy that fronts the Rust backend and **injects the
@@ -35,7 +35,7 @@ const ALLOWED_REQUEST_HEADERS = new Set([
 ]);
 
 // Backend routes this proxy is willing to forward. Portal-owned routes
-// (`/api/account/sessions/exchange`, `/api/launch/*`, `/api/e2e/*`,
+// (`/api/bff/auth/exchange`, `/api/bff/launch/*`, `/api/e2e/*`,
 // `/api/mcp/*`) are served by their own handlers — a more specific route always
 // wins over this catch-all, so they never reach here.
 const ALLOWED_ROUTES: Array<{

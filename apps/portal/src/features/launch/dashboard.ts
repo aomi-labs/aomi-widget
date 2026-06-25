@@ -1,5 +1,5 @@
 // Client seam for the GitHub-signed-in deploy dashboard. Talks only to the
-// same-origin portal BFF (`/api/auth/github/*`, `/api/launch/sources`); the
+// same-origin portal BFF (`/api/bff/auth/github/*`, `/api/bff/launch/sources`); the
 // GitHub session cookie + service bearer stay server-side.
 
 import type { UserSource } from "@aomi-labs/deploy";
@@ -12,11 +12,11 @@ export interface GitHubSessionInfo {
 }
 
 /** Where the "Sign in with GitHub" button points. */
-export const GITHUB_SIGNIN_URL = "/api/auth/github/login";
+export const GITHUB_SIGNIN_URL = "/api/bff/auth/github/login";
 
 export async function fetchGitHubSession(): Promise<GitHubSessionInfo> {
   try {
-    const res = await fetch("/api/auth/github/session", { cache: "no-store" });
+    const res = await fetch("/api/bff/auth/github/status", { cache: "no-store" });
     if (!res.ok) return { signedIn: false, githubLogin: null };
     return (await res.json()) as GitHubSessionInfo;
   } catch {
@@ -25,7 +25,7 @@ export async function fetchGitHubSession(): Promise<GitHubSessionInfo> {
 }
 
 export async function signOutGitHub(): Promise<void> {
-  await fetch("/api/auth/github/signout", { method: "POST" });
+  await fetch("/api/bff/auth/github/signout", { method: "POST" });
 }
 
 export interface UserSourcesResult {
@@ -34,7 +34,7 @@ export interface UserSourcesResult {
 }
 
 export async function fetchUserSources(): Promise<UserSourcesResult> {
-  const res = await fetch("/api/launch/sources", { cache: "no-store" });
+  const res = await fetch("/api/bff/launch/sources", { cache: "no-store" });
   const json = (await res.json().catch(() => ({}))) as
     | UserSourcesResult
     | { error?: string };

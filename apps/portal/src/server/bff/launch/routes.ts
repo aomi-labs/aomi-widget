@@ -8,7 +8,7 @@ import { launchConfig } from "./config";
 import { appNamesFromDeployment, releaseTagsFromDeployment } from "./mappers";
 import { checkRateLimit, getClientIp } from "@portal/lib/rate-limit";
 import { validateOrigin } from "@portal/lib/csrf";
-import { getGitHubSession } from "@portal/lib/aomi-account/github-session";
+import { getGitHubSession } from "@portal/server/aomi-account/github-session";
 import {
   isValidDeploymentId,
   isValidInstallationId,
@@ -573,7 +573,7 @@ export async function redeployLaunchRoute(req: Request) {
   }
 }
 
-// GET /api/launch/sources — the signed-in user's source repos + their apps,
+// GET /api/bff/launch/sources — the signed-in user's source repos + their apps,
 // merged across installations. Scoped to the github_user_id in the session
 // cookie; a client can never request someone else's sources.
 export async function userSourcesRoute(req: Request) {
