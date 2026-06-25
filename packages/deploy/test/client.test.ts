@@ -255,7 +255,7 @@ describe("DeploymentClient.activate", () => {
                 name: "demo",
                 release_tag: "apps-123-demo-abc1234def56",
                 source_branch: "alice/demo/123/abc1234def56",
-                platform_commit_hash: "ff00aa",
+                activated_commit_hash: "ff00aa",
                 live_commit_hash: "ff00bb",
                 ci_status: "passed",
                 ci_url:
