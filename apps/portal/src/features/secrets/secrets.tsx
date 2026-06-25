@@ -22,7 +22,7 @@ import {
   settingsSubTitleClass,
   settingsTableCardClass,
   settingsTitleClass,
-} from "./settings-styles";
+} from "@portal/lib/settings-styles";
 
 type StoredEntry = {
   valuePrefix: string;

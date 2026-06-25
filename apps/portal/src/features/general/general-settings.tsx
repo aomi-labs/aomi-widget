@@ -17,7 +17,7 @@ import {
   settingsPrimaryButtonClass,
   settingsSubTitleClass,
   settingsTitleClass,
-} from "./settings-styles";
+} from "@portal/lib/settings-styles";
 
 type CanonicalUser = {
   user_id: string;
