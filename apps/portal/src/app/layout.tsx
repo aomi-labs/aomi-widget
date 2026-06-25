@@ -2,10 +2,10 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { cookies } from "next/headers";
 import "./globals.css";
-import { CookieConsent } from "@portal/components/cookie-consent";
-import { GoogleAnalytics } from "@portal/components/google-analytics";
-import { SettingsProvider } from "@portal/components/settings-provider";
-import { WalletProviders } from "@portal/components/wallet-providers";
+import { CookieConsent } from "@portal/components/analytics/cookie-consent";
+import { GoogleAnalytics } from "@portal/components/analytics/google-analytics";
+import { SettingsInitializer } from "@portal/components/providers/settings-initializer";
+import { WalletProviders } from "@portal/components/providers/wallet-providers";
 import {
   E2E_WALLET_COOKIE,
   verifyE2EWalletCookie,
@@ -57,9 +57,9 @@ export default async function RootLayout({
               : null
           }
         >
-          <SettingsProvider>
+          <SettingsInitializer>
             <div className="relative h-screen w-full overflow-hidden">{children}</div>
-          </SettingsProvider>
+          </SettingsInitializer>
         </WalletProviders>
         <CookieConsent />
       </body>

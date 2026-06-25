@@ -3,7 +3,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
-import { blogs } from "@portal/components/content";
+import { blogs } from "@portal/app/blog/content";
 
 interface BlogPageProps {
   params: Promise<{ slug: string }>;

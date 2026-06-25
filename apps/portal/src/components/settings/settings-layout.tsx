@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { Button, useAomiAuthAdapter } from "@aomi-labs/widget-lib";
 import { SettingsSidebar, SettingsCategory } from "./settings-sidebar";
-import { ErrorBoundary } from "@portal/components/error-boundary";
+import { ErrorBoundary } from "@portal/components/shell/error-boundary";
 import { GeneralSettings } from "@portal/features/general";
 import { AppsSettings } from "@portal/features/apps";
 import { DeployDashboard } from "@portal/features/launch/components";
@@ -14,7 +14,7 @@ import { Byok } from "@portal/features/byok";
 import {
   useAomiSession,
   type AomiSessionStatus,
-} from "@portal/components/aomi-session-bridge";
+} from "@portal/components/providers/aomi-session-bridge";
 import {
   settingsBodyTextClass,
   settingsCardStackClass,
