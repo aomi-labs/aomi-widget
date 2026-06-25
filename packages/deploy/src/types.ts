@@ -64,7 +64,7 @@ export interface DeployInput {
   appSourceId: number;
   sourceRef: SourceRef;
   aomiTomlPaths: string[];
-  /** Resolve + validate only; open no PR, write nothing. */
+  /** Preview the deployment plan; may materialize backend source metadata but opens no PR. */
   preflight?: boolean;
   actor?: string;
 }
@@ -152,7 +152,7 @@ export interface ActivationPromotion {
   name: string;
   releaseTag: string;
   sourceBranch: string;
-  platformCommitHash: string;
+  platformCommitHash: string | null;
   liveCommitHash?: string | null;
   ciStatus: CiStatus | string;
   ciUrl: string | null;

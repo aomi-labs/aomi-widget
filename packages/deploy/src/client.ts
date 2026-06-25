@@ -789,7 +789,10 @@ function camelActivateResult(result: unknown): ActivateResult {
             name: promotion.name,
             releaseTag: promotion.release_tag,
             sourceBranch: promotion.source_branch,
-            platformCommitHash: promotion.platform_commit_hash,
+            platformCommitHash:
+              promotion.platform_commit_hash ??
+              promotion.activated_commit_hash ??
+              null,
             liveCommitHash: promotion.live_commit_hash ?? null,
             ciStatus: promotion.ci_status,
             ciUrl: promotion.ci_url ?? null,

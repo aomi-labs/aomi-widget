@@ -1,7 +1,7 @@
 import Link from "next/link";
 import Image from "next/image";
 
-import { blogs } from "@portal/components/content";
+import { blogs } from "@portal/app/blog/content";
 
 const formatDate = (isoDate?: string) => {
   if (!isoDate) return null;

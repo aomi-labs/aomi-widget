@@ -3,24 +3,24 @@
 import { useEffect, useState } from "react";
 import { Button, useAomiAuthAdapter } from "@aomi-labs/widget-lib";
 import { SettingsSidebar, SettingsCategory } from "./settings-sidebar";
-import { GeneralSettings } from "./general-settings";
-import { AppsSettings } from "./apps-settings";
-import { ErrorBoundary } from "@portal/components/error-boundary";
-import { DeployDashboard } from "./onboarding/deploy-dashboard";
-import { AppKeys } from "./app-keys";
-import { Bots } from "./bots";
-import { Secrets } from "./secrets";
-import { Byok } from "./byok";
+import { ErrorBoundary } from "@portal/components/shell/error-boundary";
+import { GeneralSettings } from "@portal/features/general";
+import { AppsSettings } from "@portal/features/apps";
+import { DeployDashboard } from "@portal/features/launch/components";
+import { AppKeys } from "@portal/features/app-keys";
+import { Bots } from "@portal/features/bots";
+import { Secrets } from "@portal/features/secrets";
+import { Byok } from "@portal/features/byok";
 import {
   useAomiSession,
   type AomiSessionStatus,
-} from "@portal/components/aomi-session-bridge";
+} from "@portal/components/providers/aomi-session-bridge";
 import {
   settingsBodyTextClass,
   settingsCardStackClass,
   settingsPrimaryButtonClass,
   settingsTitleClass,
-} from "./settings-styles";
+} from "@portal/lib/settings-styles";
 
 // Tabs whose data is account-bearer scoped (`/api/account/*`). They're gated on
 // an established session so they never fire before the `aomi_session` cookie
