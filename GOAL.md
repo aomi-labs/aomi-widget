@@ -6,9 +6,18 @@ Make the Aomi deploy flow (portal onboarding + CLI + backend) production-ready:
 every error path handled, every state tested, every UI state accounted for,
 no rough edges.
 
-Current session note: copied deploy pages can carry a stale GitHub installation
-id. The portal BFF should deploy by cached app source id when available, or
-sync the installed repo to recover the source identity before deploy.
+Current session note: deploy preview is the canonical `preflight` operation
+across backend, portal BFF, `packages/deploy`, and Rust `aomi-build`; the
+preview can touch backend source metadata but must not open a platform PR.
+Live staging E2E covered token mint → source sync → preflight → deploy → CI
+ready → activate for `CeciliaZ030/playground-example-1`, release
+`apps-141779906-r2bf7fd9ccb-playground-example-6fe687c7d6e4`. It exposed SDK
+activation drift: the request timeout was too short and the activation response
+must accept backend `activated_commit_hash` when `platform_commit_hash` is
+absent.
+`aomi-build status` now checks the platform app endpoint with the activation
+token, so the developer status step reports the live loaded app instead of the
+removed aggregate control route's 404.
 
 ---
 

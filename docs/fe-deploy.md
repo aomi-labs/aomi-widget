@@ -22,14 +22,14 @@ the browser never holds GitHub tokens or service credentials.
 | Layer                   | What runs                                                | Holds                                                        |
 | ----------------------- | -------------------------------------------------------- | ------------------------------------------------------------ |
 | **Browser (FE client)** | React onboarding wizard                                  | nothing secret                                               |
-| **Portal BFF**          | Next.js route handlers `app/api/onboard/*` (server-side) | the `aomi-bff` service signing key; resolves `app_source.id` |
+| **Portal BFF**          | Next.js route handlers `app/api/launch/*` (server-side) | the `aomi-bff` service signing key; resolves `app_source.id` |
 | **Backend (BE)**        | Rust service `/api/platforms/*`, `/api/integrations/*`   | GitHub App keys, DB                                          |
 
 Two distinct call patterns:
 
 - **Browser → BE directly** (`sessionScopedFetch`, CORS, `NEXT_PUBLIC_BACKEND_URL`):
   only `oauth/start`. Plus GitHub → BE (webhook, callback redirect).
-- **Browser → BFF → BE**: the whole **deploy** phase. The BFF (`/api/onboard/*`)
+- **Browser → BFF → BE**: the whole **deploy** phase. The BFF (`/api/launch/*`)
   signs a short-lived `service` bearer and translates to the BE's `/api/platforms/:platform/*`.
 
 ## Two paths (the picker)
@@ -70,16 +70,17 @@ stateDiagram-v2
 | `POST /api/platforms/:platform/sources/{create-from-template,sync-installed}` | create repo from template / resolve+upsert an existing install to get `app_source.id`                                                                                        |
 | `POST /api/platforms/:platform/{deploy,activate}`                             | push candidate / activate a built release                                                                                                                                    |
 
-**Portal BFF** — `aomi-widget/apps/portal/src/app/api/onboard/*` (each proxies the BE)
+**Portal BFF** — `aomi-widget/apps/portal/src/app/api/launch/*` (each proxies the BE)
 
-| BFF route                            | → Backend                        |
-| ------------------------------------ | -------------------------------- |
-| `POST /api/onboard/{dry-run,deploy}` | `resolve` then `POST …/deploy`   |
-| `POST /api/onboard/create`           | `…/sources/create-from-template` |
-| `GET  /api/onboard/status`           | deployment status                |
-| `POST /api/onboard/activate`         | `…/activate`                     |
-| `GET  /api/onboard/app`              | app load status                  |
-| `POST /api/onboard/sync-installed`   | `…/sources/sync-installed`       |
+| BFF route                         | → Backend                        |
+| --------------------------------- | -------------------------------- |
+| `POST /api/launch/preflight`      | optional sync, then preflight deploy |
+| `POST /api/launch/deploy`         | deploy by `appSourceId`          |
+| `POST /api/launch/create`         | `…/sources/create-from-template` |
+| `GET  /api/launch/status`         | deployment status                |
+| `POST /api/launch/activate`       | `…/activate`                     |
+| `GET  /api/launch/app`            | app load status                  |
+| `POST /api/launch/sync-installed` | `…/sources/sync-installed`       |
 
 ---
 
@@ -89,7 +90,7 @@ stateDiagram-v2
 sequenceDiagram
     autonumber
     actor U as User · browser (FE client)
-    participant BFF as Portal BFF (Next /api/onboard/*)
+    participant BFF as Portal BFF (Next /api/launch/*)
     participant BE as Backend (/api/platforms, /api/integrations)
     participant GH as GitHub (aomi-build App)
     participant CA as community-apps CI
@@ -112,25 +113,28 @@ sequenceDiagram
     BE-->>U: 303 → {AOMI_FRONTEND_URL}/settings?installation_id&onboard=bound
 
     Note over U,RT: 3 — Deploy — browser → BFF → BE
-    U->>BFF: POST /api/onboard/deploy { appSourceId? , repo }
+    U->>BFF: POST /api/launch/preflight { appSourceId? , repo }
     BFF->>BE: POST /api/platforms/community/sources/sync-installed { repo } when appSourceId is absent
     BE-->>BFF: { source.id }
+    BFF->>BE: POST /api/platforms/community/deploy { appSourceId, preflight: true } (+ service bearer)
+    BFF-->>U: 200 { deployment, appSourceId, releaseTags, apps }
+    U->>BFF: POST /api/launch/deploy { appSourceId }
     BFF->>BE: POST /api/platforms/community/deploy { appSourceId } (+ service bearer)
     BE->>GH: push app to community-apps as aomi-build[bot]<br/>branch owner/my-agent/{installation}/{commit}
     GH->>CA: build-candidate.yml fires (actor = aomi-build[bot])
     CA->>CA: compile cdylib · publish release apps-{installation}-{app}-{commit} + .so
     BFF-->>U: 202 { deployment, releaseTags, apps }
     loop poll until ready
-        U->>BFF: GET /api/onboard/status?deploymentId
+        U->>BFF: GET /api/launch/status?deploymentId
         BFF->>BE: deployment status
         BE-->>BFF: state = building → ready
         BFF-->>U: building → ready
     end
-    U->>BFF: POST /api/onboard/activate { releaseTags }
+    U->>BFF: POST /api/launch/activate { releaseTags }
     BFF->>BE: POST /api/platforms/community/activate
     BE->>RT: load release into runtime under Source(installation)
     loop verify live
-        U->>BFF: GET /api/onboard/app
+        U->>BFF: GET /api/launch/app
         BFF->>BE: app status
         BE-->>BFF: state = live
         BFF-->>U: live
@@ -140,7 +144,7 @@ sequenceDiagram
 
 **Recovery — "Verify existing install":** if the OAuth redirect is lost (e.g. a
 dead tunnel) but the App is already installed, the FE calls `oauth/start` with
-`mode=authorize`; on return the BFF route `POST /api/onboard/sync-installed`
+`mode=authorize`; on return the BFF route `POST /api/launch/sync-installed`
 → BE `…/sources/sync-installed` resolves the install via the App and upserts
 `app_source`, so the wizard advances without a fresh install.
 
@@ -155,7 +159,7 @@ never touches "Use this template".
 sequenceDiagram
     autonumber
     actor U as User · browser (FE client)
-    participant BFF as Portal BFF (Next /api/onboard/*)
+    participant BFF as Portal BFF (Next /api/launch/*)
     participant BE as Backend (/api/platforms, /api/integrations)
     participant GH as GitHub (aomi-build-oneshot App)
     participant CA as community-apps CI
@@ -170,13 +174,13 @@ sequenceDiagram
     BE-->>U: 303 → /settings?installation_id&onboard=bound
 
     Note over U,RT: 2 — Create + Deploy — browser → BFF → BE
-    U->>BFF: POST /api/onboard/create { installationId }
+    U->>BFF: POST /api/launch/create { installationId }
     BFF->>BE: POST /api/platforms/community/sources/create-from-template
     BE->>GH: create owner/playground-example from aomi-labs/playground-example
     GH-->>BE: repo created
     BE-->>BFF: { repo }
-    U->>BFF: POST /api/onboard/deploy
-    BFF->>BE: resolve → POST /api/platforms/community/deploy (+ service bearer)
+    U->>BFF: POST /api/launch/preflight then /api/launch/deploy
+    BFF->>BE: POST /api/platforms/community/deploy (+ service bearer)
     BE->>GH: push to community-apps as aomi-build-oneshot[bot]
     GH->>CA: build-candidate.yml fires
     CA->>CA: compile cdylib · publish release + .so
