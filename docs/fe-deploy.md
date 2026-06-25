@@ -19,11 +19,11 @@ the browser never holds GitHub tokens or service credentials.
 
 ## Three layers
 
-| Layer                   | What runs                                                | Holds                                                        |
-| ----------------------- | -------------------------------------------------------- | ------------------------------------------------------------ |
-| **Browser (FE client)** | React onboarding wizard                                  | nothing secret                                               |
+| Layer                   | What runs                                               | Holds                                                        |
+| ----------------------- | ------------------------------------------------------- | ------------------------------------------------------------ |
+| **Browser (FE client)** | React onboarding wizard                                 | nothing secret                                               |
 | **Portal BFF**          | Next.js route handlers `app/api/launch/*` (server-side) | the `aomi-bff` service signing key; resolves `app_source.id` |
-| **Backend (BE)**        | Rust service `/api/platforms/*`, `/api/integrations/*`   | GitHub App keys, DB                                          |
+| **Backend (BE)**        | Rust service `/api/platforms/*`, `/api/integrations/*`  | GitHub App keys, DB                                          |
 
 Two distinct call patterns:
 
@@ -46,7 +46,7 @@ stateDiagram-v2
     [*] --> Template
     Template --> Install: user forks (bootstrap) — or skipped (oneshot)
     Install --> Upload: install app + OAuth (BE binds app_source)
-    Upload --> Deploy: BE pushes candidate, community-apps CI builds green
+    Upload --> Deploy: BE pushes candidate, platform CI builds green
     Deploy --> Live: BE activates release into runtime under Source(installation)
     Live --> [*]
 
@@ -72,15 +72,15 @@ stateDiagram-v2
 
 **Portal BFF** — `aomi-widget/apps/portal/src/app/api/launch/*` (each proxies the BE)
 
-| BFF route                         | → Backend                        |
-| --------------------------------- | -------------------------------- |
+| BFF route                         | → Backend                            |
+| --------------------------------- | ------------------------------------ |
 | `POST /api/launch/preflight`      | optional sync, then preflight deploy |
-| `POST /api/launch/deploy`         | deploy by `appSourceId`          |
-| `POST /api/launch/create`         | `…/sources/create-from-template` |
-| `GET  /api/launch/status`         | deployment status                |
-| `POST /api/launch/activate`       | `…/activate`                     |
-| `GET  /api/launch/app`            | app load status                  |
-| `POST /api/launch/sync-installed` | `…/sources/sync-installed`       |
+| `POST /api/launch/deploy`         | deploy by `appSourceId`              |
+| `POST /api/launch/create`         | `…/sources/create-from-template`     |
+| `GET  /api/launch/status`         | deployment status                    |
+| `POST /api/launch/activate`       | `…/activate`                         |
+| `GET  /api/launch/app`            | app load status                      |
+| `POST /api/launch/sync-installed` | `…/sources/sync-installed`           |
 
 ---
 
@@ -93,7 +93,7 @@ sequenceDiagram
     participant BFF as Portal BFF (Next /api/launch/*)
     participant BE as Backend (/api/platforms, /api/integrations)
     participant GH as GitHub (aomi-build App)
-    participant CA as community-apps CI
+    participant CA as Platform CI
     participant RT as Chat Runtime
 
     Note over U,GH: 1 — Template
@@ -114,13 +114,13 @@ sequenceDiagram
 
     Note over U,RT: 3 — Deploy — browser → BFF → BE
     U->>BFF: POST /api/launch/preflight { appSourceId? , repo }
-    BFF->>BE: POST /api/platforms/community/sources/sync-installed { repo } when appSourceId is absent
+    BFF->>BE: POST /api/platforms/:platform/sources/sync-installed { repo } when appSourceId is absent
     BE-->>BFF: { source.id }
-    BFF->>BE: POST /api/platforms/community/deploy { appSourceId, preflight: true } (+ service bearer)
+    BFF->>BE: POST /api/platforms/:platform/deploy { appSourceId, preflight: true } (+ service bearer)
     BFF-->>U: 200 { deployment, appSourceId, releaseTags, apps }
     U->>BFF: POST /api/launch/deploy { appSourceId }
-    BFF->>BE: POST /api/platforms/community/deploy { appSourceId } (+ service bearer)
-    BE->>GH: push app to community-apps as aomi-build[bot]<br/>branch owner/my-agent/{installation}/{commit}
+    BFF->>BE: POST /api/platforms/:platform/deploy { appSourceId } (+ service bearer)
+    BE->>GH: push app to platform repo as aomi-build[bot]<br/>branch owner/my-agent/{installation}/{commit}
     GH->>CA: build-candidate.yml fires (actor = aomi-build[bot])
     CA->>CA: compile cdylib · publish release apps-{installation}-{app}-{commit} + .so
     BFF-->>U: 202 { deployment, releaseTags, apps }
@@ -131,7 +131,7 @@ sequenceDiagram
         BFF-->>U: building → ready
     end
     U->>BFF: POST /api/launch/activate { releaseTags }
-    BFF->>BE: POST /api/platforms/community/activate
+    BFF->>BE: POST /api/platforms/:platform/activate
     BE->>RT: load release into runtime under Source(installation)
     loop verify live
         U->>BFF: GET /api/launch/app
@@ -162,7 +162,7 @@ sequenceDiagram
     participant BFF as Portal BFF (Next /api/launch/*)
     participant BE as Backend (/api/platforms, /api/integrations)
     participant GH as GitHub (aomi-build-oneshot App)
-    participant CA as community-apps CI
+    participant CA as Platform CI
     participant RT as Chat Runtime
 
     Note over U,BE: 1 — Install + OAuth (broad) — browser ↔ BE directly
@@ -175,13 +175,13 @@ sequenceDiagram
 
     Note over U,RT: 2 — Create + Deploy — browser → BFF → BE
     U->>BFF: POST /api/launch/create { installationId }
-    BFF->>BE: POST /api/platforms/community/sources/create-from-template
+    BFF->>BE: POST /api/platforms/:platform/sources/create-from-template
     BE->>GH: create owner/playground-example from aomi-labs/playground-example
     GH-->>BE: repo created
     BE-->>BFF: { repo }
     U->>BFF: POST /api/launch/preflight then /api/launch/deploy
-    BFF->>BE: POST /api/platforms/community/deploy (+ service bearer)
-    BE->>GH: push to community-apps as aomi-build-oneshot[bot]
+    BFF->>BE: POST /api/platforms/:platform/deploy (+ service bearer)
+    BE->>GH: push to platform repo as aomi-build-oneshot[bot]
     GH->>CA: build-candidate.yml fires
     CA->>CA: compile cdylib · publish release + .so
     loop poll → activate → verify (same as bootstrap)
@@ -199,10 +199,10 @@ sequenceDiagram
 ## Why the split: CI sits between "promoted" and "activated"
 
 `Live` on the UI = the backend **activated** a release into the runtime. Between
-the BE pushing the source and that activation, **`community-apps` GitHub Actions
-(`build-candidate.yml`, gated to `aomi-build[bot]` pushes)** compiles the
-`cdylib` and publishes the release. The BE can't activate until that release
-exists — exactly the `building` poll state.
+the BE pushing the source and that activation, the platform repo's GitHub Actions
+(`build-candidate.yml`, gated to `aomi-build[bot]` pushes) compiles the `cdylib`
+and publishes the release. The BE can't activate until that release exists —
+exactly the `building` poll state.
 
 Per-user isolation: the candidate branch + release tag both encode the
 `installation_id`, so the runtime loads each developer's app under its own
@@ -210,14 +210,15 @@ Per-user isolation: the candidate branch + release tag both encode the
 
 ## Configuration
 
-| Knob                                                                     | Local dev                                                   | Deployed (staging)                                                                                       |
-| ------------------------------------------------------------------------ | ----------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
-| Backend URL                                                              | local defaults to `http://127.0.0.1:8080`                   | Vercel production defaults to `https://api.aomi.dev`; previews default to `https://api-staging.aomi.dev` |
-| BE `AOMI_PORTAL_URL` (callback redirect target, was `AOMI_FRONTEND_URL`) | `http://localhost:3000`                                     | the deployed portal URL                                                                                  |
-| GitHub App **Webhook URL**                                               | tunnel → `/api/integrations/github-app/webhook`             | `https://api-staging.aomi.dev/api/integrations/github-app/webhook`                                       |
-| GitHub App **Callback URL**                                              | tunnel → `/api/integrations/github-app/oauth/callback`      | `https://api-staging.aomi.dev/api/integrations/github-app/oauth/callback`                                |
-| BE GitHub App secrets                                                    | `github_app.toml` / `GITHUB_APP_TOML` + `AOMI_GITHUB_APP_*` | same `AOMI_GITHUB_APP_*` as deployment secrets                                                           |
-| BFF service signer                                                       | `PORTAL_SERVICE_PRIVATE_KEY`                                | portal deployment secret; committed topology is auto-selected                                            |
+| Knob                                                                     | Local dev                                                   | Deployed (staging)                                                                                                                 |
+| ------------------------------------------------------------------------ | ----------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| Backend URL                                                              | local defaults to `http://127.0.0.1:8080`                   | Vercel production defaults to `https://api.aomi.dev`; previews default to `https://api-staging.aomi.dev`                           |
+| BE `AOMI_PORTAL_URL` (callback redirect target, was `AOMI_FRONTEND_URL`) | `http://localhost:3000`                                     | the deployed portal URL                                                                                                            |
+| GitHub App **Webhook URL**                                               | tunnel → `/api/integrations/github-app/webhook`             | `https://api-staging.aomi.dev/api/integrations/github-app/webhook`                                                                 |
+| GitHub App **Callback URL**                                              | tunnel → `/api/integrations/github-app/oauth/callback`      | `https://api-staging.aomi.dev/api/integrations/github-app/oauth/callback`                                                          |
+| BE GitHub App secrets                                                    | `github_app.toml` / `GITHUB_APP_TOML` + `AOMI_GITHUB_APP_*` | same `AOMI_GITHUB_APP_*` as deployment secrets                                                                                     |
+| BFF service signer                                                       | `PORTAL_SERVICE_PRIVATE_KEY`                                | portal deployment secret; committed topology is auto-selected                                                                      |
+| Portal deploy platform                                                   | `NEXT_PUBLIC_DEPLOY_PLATFORM`, defaults to `community`      | set explicitly for white-labeled partner portals, e.g. `somm.finance`; all `/api/launch/*` calls pass this platform to the backend |
 
 > Only the **webhook** strictly needs a public tunnel (server-to-server); the
 > callback is a browser redirect. Pointing at staging requires the App's

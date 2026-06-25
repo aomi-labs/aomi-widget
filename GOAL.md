@@ -18,6 +18,9 @@ absent.
 `aomi-build status` now checks the platform app endpoint with the activation
 token, so the developer status step reports the live loaded app instead of the
 removed aggregate control route's 404.
+Portal onboarding keeps the public `community` platform default through the
+single `resolveDeployPlatform()` seam; white-labeled partner portals, such as
+`somm.finance`, must use an explicit `NEXT_PUBLIC_DEPLOY_PLATFORM` override.
 
 ---
 
