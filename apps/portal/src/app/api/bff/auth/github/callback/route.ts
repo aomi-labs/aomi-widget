@@ -4,7 +4,7 @@ import { NextResponse } from "next/server";
 export const runtime = "nodejs";
 
 import { deploymentClient } from "@portal/server/bff/backend";
-import { setGitHubSessionCookie } from "@portal/server/aomi-account/github-session";
+import { setGitHubSessionCookie } from "@portal/server/cookies/github";
 
 const OAUTH_STATE_COOKIE = "aomi_github_oauth_state";
 // The login client id is the build App client id; backend exchange must use the

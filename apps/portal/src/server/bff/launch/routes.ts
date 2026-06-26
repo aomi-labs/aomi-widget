@@ -4,11 +4,11 @@ import { randomBytes } from "crypto";
 import { NextResponse } from "next/server";
 import { deploymentClient } from "@portal/server/bff/backend";
 import { BackendError, launchErrorResponse } from "./errors";
-import { launchConfig } from "./config";
+import { launchConfig, launchDeploySourceRef } from "./config";
 import { appNamesFromDeployment, releaseTagsFromDeployment } from "./mappers";
 import { checkRateLimit, getClientIp } from "@portal/lib/rate-limit";
 import { validateOrigin } from "@portal/lib/csrf";
-import { getGitHubSession } from "@portal/server/aomi-account/github-session";
+import { getGitHubSession } from "@portal/server/cookies/github";
 import {
   isValidDeploymentId,
   isValidInstallationId,
@@ -103,7 +103,7 @@ export function launchDeployRoute(preflight: boolean) {
       const { deployment } = await client.deploy({
         platform: config.platform,
         appSourceId,
-        sourceRef: config.sourceRef,
+        sourceRef: launchDeploySourceRef(),
         aomiTomlPaths: config.aomiTomlPaths,
         preflight,
         actor: typeof body.actor === "string" ? body.actor : undefined,

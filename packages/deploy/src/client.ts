@@ -680,14 +680,15 @@ function activateRequest(input: ActivateInput): Record<string, unknown> {
   };
 }
 
-function sourceRef(ref: DeployInput["sourceRef"]): Record<string, string> {
-  if (ref.kind !== "branch" && ref.kind !== "commit") {
+function sourceRef(ref: DeployInput["sourceRef"]): string {
+  const clean = required(ref, "sourceRef");
+  if (!/^[0-9a-f]{7,40}$/i.test(clean)) {
     throw new DeployError(
       "INVALID_REQUEST",
-      "sourceRef.kind must be branch or commit",
+      "sourceRef must be a git commit SHA (7-40 hex chars)",
     );
   }
-  return { kind: ref.kind, value: required(ref.value, "sourceRef.value") };
+  return clean.toLowerCase();
 }
 
 function releaseTagsTarget(
@@ -765,6 +766,11 @@ function camelDeployResult(result: unknown): DeployResult {
           aomiTomlPath: app.aomi_toml_path,
           releaseTag: app.release_tag,
           target: app.target ?? null,
+          files: (app.files ?? []).map((file: Record<string, any>) => ({
+            path: file.path,
+            sha256: file.sha256,
+            bytes: Number(file.bytes ?? 0),
+          })),
         })),
       },
     },
@@ -817,6 +823,9 @@ function camelActivateResult(result: unknown): ActivateResult {
         sourceBranch: app.source_branch ?? null,
         liveCommitHash: app.live_commit_hash ?? null,
         activationStatus: app.activation_status ?? null,
+        activationPr: app.activation_pr ?? app.activationPr ?? null,
+        activationPrCloseError:
+          app.activation_pr_close_error ?? app.activationPrCloseError ?? null,
       })),
     },
   };
@@ -839,7 +848,9 @@ function camelStatusResult(raw: Record<string, unknown>): DeploymentStatus {
           name: app.name as string,
           releaseTag: (app.release_tag ?? app.releaseTag) as string,
           releaseReady: Boolean(app.release_ready ?? app.releaseReady),
-          releaseAssets: (app.release_assets ?? app.releaseAssets ?? []) as string[],
+          releaseAssets: (app.release_assets ??
+            app.releaseAssets ??
+            []) as string[],
           releaseAssetDigests: (app.release_asset_digests ??
             app.releaseAssetDigests ??
             {}) as Record<string, string>,

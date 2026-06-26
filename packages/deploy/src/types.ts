@@ -54,9 +54,8 @@ export interface DeploymentClientOptions {
   onAudit?: (event: AuditEvent) => void | Promise<void>;
 }
 
-export type SourceRef =
-  | { kind: "branch"; value: string }
-  | { kind: "commit"; value: string };
+/** Immutable git commit SHA accepted by the platform deploy backend. */
+export type SourceRef = string;
 
 export interface DeployInput {
   platform: string;
@@ -117,6 +116,13 @@ export interface AppRecord {
   aomiTomlPath: string;
   releaseTag: string;
   target?: string | null;
+  files: AppFileRecord[];
+}
+
+export interface AppFileRecord {
+  path: string;
+  sha256: string;
+  bytes: number;
 }
 
 export interface ReleaseTags {
@@ -176,6 +182,8 @@ export interface ActivatedApp {
   sourceBranch?: string | null;
   liveCommitHash?: string | null;
   activationStatus?: "promoted" | "unchanged" | string | null;
+  activationPr?: unknown | null;
+  activationPrCloseError?: string | null;
 }
 
 export interface StatusInput {
