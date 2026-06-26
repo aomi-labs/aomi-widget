@@ -14,6 +14,7 @@ import {
   isValidInstallationId,
   isValidReleaseTags,
   isValidRepo,
+  isValidSourceRef,
 } from "@portal/lib/validate-input";
 
 const CREATED_REPO_PREFIX = "my-playground";
@@ -67,6 +68,12 @@ export function launchDeployRoute(preflight: boolean) {
     if (body.repo !== undefined && !isValidRepo(body.repo)) {
       return NextResponse.json({ error: "invalid `repo`" }, { status: 400 });
     }
+    if (body.sourceRef !== undefined && !isValidSourceRef(body.sourceRef)) {
+      return NextResponse.json(
+        { error: "invalid `sourceRef`" },
+        { status: 400 },
+      );
+    }
 
     try {
       const config = launchConfig();
@@ -103,7 +110,10 @@ export function launchDeployRoute(preflight: boolean) {
       const { deployment } = await client.deploy({
         platform: config.platform,
         appSourceId,
-        sourceRef: launchDeploySourceRef(),
+        sourceRef:
+          typeof body.sourceRef === "string"
+            ? body.sourceRef
+            : launchDeploySourceRef(),
         sourceBranch: config.sourceBranch,
         aomiTomlPaths: config.aomiTomlPaths,
         preflight,

@@ -6,7 +6,6 @@ import { resolveDeployPlatform } from "@portal/lib/deploy-platform";
 const TEMPLATE_REPO = "aomi-labs/playground-example";
 const CREATED_REPO_PRIVATE = false;
 const DEFAULT_AOMI_TOML_PATHS = ["aomi.toml"];
-const DEFAULT_SOURCE_BRANCH = "main";
 const SOURCE_REF_ENV = "APP_DEPLOY_SOURCE_REF";
 const SOURCE_COMMIT_ENV = "APP_DEPLOY_SOURCE_COMMIT";
 
@@ -14,7 +13,7 @@ export type LaunchConfig = {
   platform: string;
   templateRepo: string;
   createdRepoPrivate: boolean;
-  sourceBranch: string;
+  sourceBranch?: string;
   aomiTomlPaths: string[];
   targetTags: string[];
 };
@@ -36,7 +35,7 @@ export function launchConfig(): LaunchConfig {
     platform: envValue("APP_DEPLOY_PLATFORM") ?? resolveDeployPlatform(),
     templateRepo: TEMPLATE_REPO,
     createdRepoPrivate: CREATED_REPO_PRIVATE,
-    sourceBranch: envValue("APP_DEPLOY_SOURCE_BRANCH") ?? DEFAULT_SOURCE_BRANCH,
+    sourceBranch: envValue("APP_DEPLOY_SOURCE_BRANCH"),
     aomiTomlPaths: commaList(
       envValue("APP_DEPLOY_AOMI_TOML_PATHS"),
       DEFAULT_AOMI_TOML_PATHS,

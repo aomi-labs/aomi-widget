@@ -43,6 +43,8 @@ export type LaunchPreflightInput = {
 /** Commit a deploy against a stable, already-resolved source row. */
 export type LaunchDeployInput = {
   appSourceId: number;
+  /** Resolved immutable SHA from preflight; pins deploy to the previewed source. */
+  sourceRef?: string;
   actor?: string;
 };
 

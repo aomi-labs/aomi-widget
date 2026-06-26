@@ -206,6 +206,7 @@ export function DeployStep({
       // an install has none yet, so a preflight mints it (and primes the
       // preview); afterwards we go straight through by id.
       let appSourceId = progress.appSourceId;
+      let sourceRef = deployment?.source.ref;
       if (!appSourceId) {
         const preflightResult = await launchPreflight({
           installationId,
@@ -214,13 +215,14 @@ export function DeployStep({
         });
         applyDeployment(preflightResult);
         appSourceId = preflightResult.appSourceId;
+        sourceRef = preflightResult.deployment.source.ref;
       }
       if (!appSourceId) {
         throw new Error(
           "Could not resolve a source to deploy. Run a preflight first.",
         );
       }
-      const result = await launchDeploy({ appSourceId, actor });
+      const result = await launchDeploy({ appSourceId, sourceRef, actor });
       applyDeployment(result);
       const id = result.deployment.id;
       setDeploymentId(id);
@@ -247,6 +249,7 @@ export function DeployStep({
     onProgress,
     progress.appSourceId,
     repo,
+    deployment,
   ]);
 
   useEffect(() => {

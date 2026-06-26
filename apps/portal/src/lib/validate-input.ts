@@ -34,6 +34,13 @@ export function isValidDeploymentId(value: unknown): value is string {
 }
 
 /**
+ * Accepts immutable git commit SHA prefixes/full SHAs used by deploy source refs.
+ */
+export function isValidSourceRef(value: unknown): value is string {
+  return typeof value === "string" && /^[0-9a-f]{7,40}$/i.test(value.trim());
+}
+
+/**
  * Accepts a non-empty array of strings where every element is non-empty
  * after trimming. Also accepts an empty array (no tags yet — backend handles
  * the empty-tags case). Rejects arrays with whitespace-only elements.

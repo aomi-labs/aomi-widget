@@ -231,7 +231,50 @@ describe("launchDeployRoute", () => {
       "http://127.0.0.1:8080/api/platforms/community/deploy",
       expect.objectContaining({
         method: "POST",
-        body: expect.stringContaining('"source_branch":"main"'),
+        body: expect.not.stringContaining("source_branch"),
+      }),
+    );
+  });
+
+  it("forwards a preflight-pinned sourceRef on committing deploy", async () => {
+    vi.unstubAllEnvs();
+    const fetchMock = vi.fn().mockResolvedValueOnce(
+      Response.json({
+        ok: true,
+        deployment: {
+          id: "dep_999_rabc1234_deadbeef",
+          source: {
+            installation_id: 999,
+            repository_link: "alice/bot",
+            ref: "abc1234def5678",
+          },
+          platform: { apps: [] },
+        },
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const POST = launchDeployRoute(false);
+    const req = new Request("http://localhost:3000/api/bff/launch/deploy", {
+      method: "POST",
+      headers: {
+        origin: "http://localhost:3000",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        appSourceId: 777,
+        sourceRef: "ABC1234DEF5678",
+      }),
+    });
+
+    const res = await POST(req);
+
+    expect(res.status).toBe(202);
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://127.0.0.1:8080/api/platforms/community/deploy",
+      expect.objectContaining({
+        method: "POST",
+        body: expect.stringContaining('"source_ref":"abc1234def5678"'),
       }),
     );
   });

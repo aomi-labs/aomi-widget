@@ -10,7 +10,7 @@ describe("launchConfig", () => {
   it("uses community launch defaults", () => {
     const config = launchConfig();
     expect(config.platform).toBe("community");
-    expect(config.sourceBranch).toBe("main");
+    expect(config.sourceBranch).toBeUndefined();
     expect(config.aomiTomlPaths).toEqual(["aomi.toml"]);
     expect(config.targetTags).toEqual([]);
   });

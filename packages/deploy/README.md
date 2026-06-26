@@ -12,8 +12,8 @@ Calls `POST /api/platforms/:platform/deploy` with `app_source_id`,
 `preflight`.
 
 When supplied, `sourceRef` must be the immutable git commit SHA to deploy. Omit
-it to let the backend resolve `sourceBranch` (defaulted by callers such as the
-portal BFF) using the GitHub App installation token.
+it to let the backend resolve `sourceBranch`, or the repo default branch when no
+branch is supplied, using the GitHub App installation token.
 
 ### `activate()`
 
