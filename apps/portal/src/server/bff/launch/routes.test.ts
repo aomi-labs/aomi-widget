@@ -264,22 +264,13 @@ describe("redeployLaunchRoute", () => {
       .fn()
       .mockResolvedValueOnce(
         Response.json({
-          sources: [
-            {
-              id: 99,
-              installation_id: 555,
-              repository_link: "alice/bot",
-              github_user_id: "42",
-              apps: [],
-              latest_deployment: {
-                deployment_id: "dep_1",
-                platform_repo: "aomi-labs/community-apps",
-                ci_run_id: "123456",
-                ci_url:
-                  "https://github.com/aomi-labs/community-apps/actions/runs/123456",
-              },
-            },
-          ],
+          latest_deployment: {
+            deployment_id: "dep_1",
+            platform_repo: "aomi-labs/community-apps",
+            ci_run_id: "123456",
+            ci_url:
+              "https://github.com/aomi-labs/community-apps/actions/runs/123456",
+          },
         }),
       )
       .mockResolvedValueOnce(new Response(null, { status: 201 }));
@@ -299,6 +290,9 @@ describe("redeployLaunchRoute", () => {
       "https://api.github.com/repos/aomi-labs/community-apps/actions/runs/123456/rerun",
       expect.objectContaining({ method: "POST" }),
     );
+    expect(String(fetchMock.mock.calls[0][0])).toContain(
+      "/api/integrations/github-app/user/sources/99/latest-deployment?github_user_id=42&platform=community",
+    );
   });
 
   it("refuses redeploy when backend source state has no CI run to rerun", async () => {
@@ -308,15 +302,7 @@ describe("redeployLaunchRoute", () => {
     });
     const fetchMock = vi.fn().mockResolvedValueOnce(
       Response.json({
-        sources: [
-          {
-            id: 99,
-            installation_id: 555,
-            repository_link: "alice/bot",
-            github_user_id: "42",
-            apps: [],
-          },
-        ],
+        latest_deployment: null,
       }),
     );
     vi.stubGlobal("fetch", fetchMock);
@@ -326,6 +312,32 @@ describe("redeployLaunchRoute", () => {
 
     expect(res.status).toBe(409);
     expect(body.error).toContain("No backend-owned CI run");
+    expect(fetchMock).toHaveBeenCalledOnce();
+  });
+
+  it("503s redeploy when the GitHub rerun token is missing", async () => {
+    getGitHubSession.mockResolvedValueOnce({
+      githubUserId: "42",
+      githubLogin: "alice",
+    });
+    const fetchMock = vi.fn().mockResolvedValueOnce(
+      Response.json({
+        latest_deployment: {
+          deployment_id: "dep_1",
+          platform_repo: "aomi-labs/community-apps",
+          ci_run_id: "123456",
+          ci_url:
+            "https://github.com/aomi-labs/community-apps/actions/runs/123456",
+        },
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const res = await redeployLaunchRoute(writeReq({ appSourceId: 99 }));
+    const body = await res.json();
+
+    expect(res.status).toBe(503);
+    expect(body.error).toContain("GitHub rerun token is not configured");
     expect(fetchMock).toHaveBeenCalledOnce();
   });
 });

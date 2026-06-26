@@ -33,7 +33,8 @@ export interface AuditEvent {
     | "list_apps"
     | "get_app"
     | "exchange_github_code"
-    | "list_user_sources";
+    | "list_user_sources"
+    | "get_user_source_latest_deployment";
   platform?: string;
   appSourceId?: number;
   apps?: string[];
@@ -299,6 +300,10 @@ export interface AppSource {
   githubAccount: string | null;
   githubUserId: number | null;
   boundPlatformId: number | null;
+  boundPlatformName?: string | null;
+  createdBy?: string | null;
+  templateRepo?: string | null;
+  launchSourceKind?: string | null;
 }
 
 export interface SyncSourceInput extends BearerOverride {
@@ -359,6 +364,13 @@ export interface GitHubIdentity {
 
 export interface ListUserSourcesInput extends BearerOverride {
   githubUserId: string;
+  platform?: string;
+}
+
+export interface GetUserSourceLatestDeploymentInput extends BearerOverride {
+  githubUserId: string;
+  platform: string;
+  appSourceId: number;
 }
 
 export interface UserSourceDeploymentApp {

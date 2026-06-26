@@ -12,10 +12,12 @@ import type {
   DeploymentAppStatus,
   ExchangeGitHubCodeInput,
   GetAppInput,
+  GetUserSourceLatestDeploymentInput,
   GitHubIdentity,
   ListAppsInput,
   ListUserSourcesInput,
   UserSource,
+  UserSourceLatestDeployment,
   ListTokensInput,
   MintTokenInput,
   MintedToken,
@@ -482,26 +484,54 @@ export class DeploymentClient {
   }
 
   /**
-   * Every source repo a GitHub user connected (merged across installations,
-   * platform-agnostic), each with the apps deployed from it. Backs the
-   * post-sign-in dashboard. `GET /api/integrations/github-app/user/sources`.
+   * Source repos a GitHub user connected. Passing `platform` asks the backend
+   * to return only launch-relevant sources for that platform.
    */
   async listUserSources(input: ListUserSourcesInput): Promise<UserSource[]> {
     const githubUserId = required(input.githubUserId, "githubUserId");
     const bearer = this.resolveBearer(input.bearer);
+    const params = new URLSearchParams({ github_user_id: githubUserId });
+    if (input.platform?.trim()) params.set("platform", input.platform.trim());
     const raw = await this.get<{ sources?: unknown[] }>(
-      `/api/integrations/github-app/user/sources?${new URLSearchParams({
-        github_user_id: githubUserId,
-      }).toString()}`,
+      `/api/integrations/github-app/user/sources?${params.toString()}`,
       "list_user_sources",
       bearer,
     );
     await this.audit({
       action: "list_user_sources",
+      platform: input.platform,
       actor: input.actor,
       ts: Date.now(),
     });
     return (raw.sources ?? []).map(camelUserSource);
+  }
+
+  async getUserSourceLatestDeployment(
+    input: GetUserSourceLatestDeploymentInput,
+  ): Promise<UserSourceLatestDeployment | null> {
+    const githubUserId = required(input.githubUserId, "githubUserId");
+    const platform = cleanPlatform(input.platform);
+    const appSourceId = required(String(input.appSourceId), "appSourceId");
+    const bearer = this.resolveBearer(input.bearer);
+    const params = new URLSearchParams({
+      github_user_id: githubUserId,
+      platform,
+    });
+    const raw = await this.get<{ latest_deployment?: unknown }>(
+      `/api/integrations/github-app/user/sources/${encodeURIComponent(
+        appSourceId,
+      )}/latest-deployment?${params.toString()}`,
+      "get_user_source_latest_deployment",
+      bearer,
+    );
+    await this.audit({
+      action: "get_user_source_latest_deployment",
+      platform,
+      appSourceId: input.appSourceId,
+      actor: input.actor,
+      ts: Date.now(),
+    });
+    return camelUserSourceLatestDeployment(raw.latest_deployment) ?? null;
   }
 
   endpoint(path: string): string {
@@ -856,6 +886,10 @@ function camelAppSource(raw: unknown): AppSource {
     githubAccount: s.github_account ?? null,
     githubUserId: s.github_user_id ?? null,
     boundPlatformId: s.bound_platform_id ?? null,
+    boundPlatformName: s.bound_platform_name ?? null,
+    createdBy: s.created_by ?? s.createdBy ?? null,
+    templateRepo: s.template_repo ?? s.templateRepo ?? null,
+    launchSourceKind: s.launch_source_kind ?? s.launchSourceKind ?? null,
   };
 }
 
