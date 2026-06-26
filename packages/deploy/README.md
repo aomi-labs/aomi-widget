@@ -5,13 +5,24 @@ BFF / server use only** (holds the activation bearer token).
 
 ## API
 
+### `preflight()`
+
+Calls `POST /api/platforms/:platform/deploy` with `app_source_id`, `source_ref`,
+optional `aomi_toml_paths`, and `preflight: true`. Returns the deployment
+record without opening or updating the platform PR. Use this to render
+`deployment.json` before the user applies.
+
 ### `deploy()`
 
 Calls `POST /api/platforms/:platform/deploy` with `app_source_id`, `source_ref`,
-`aomi_toml_paths`, and optional `preflight`.
+and optional `aomi_toml_paths`. This is the apply step: it writes the platform
+deployment branch/PR when needed and starts the CI path.
 
 `sourceRef` must be the immutable git commit SHA to deploy. Resolve branches or
-tags before calling the client; the backend no longer accepts mutable refs.
+tags before calling the client; the backend does not accept mutable refs.
+
+`aomiTomlPaths` may be omitted to let the backend discover every `aomi.toml` in
+the source commit.
 
 ### `activate()`
 
@@ -129,9 +140,10 @@ interface DeployRequest {
   appSourceId: number;
   /** Immutable git commit SHA. Branch names are rejected by the backend. */
   sourceRef: string;
-  aomiTomlPaths: string[];
-  preflight?: boolean;
+  aomiTomlPaths?: string[];
 }
+
+type PreflightRequest = DeployRequest;
 
 interface ActivateRequest {
   platform: string;
@@ -181,12 +193,17 @@ const dc = new DeploymentClient({
   },
 });
 
+const preview = await dc.preflight({
+  platform: "community",
+  appSourceId: 42,
+  sourceRef: process.env.AOMI_SOURCE_REF!,
+});
+console.log(JSON.stringify(preview.deployment, null, 2));
+
 const { deployment } = await dc.deploy({
   platform: "community",
   appSourceId: 42,
   sourceRef: process.env.AOMI_SOURCE_REF!,
-  aomiTomlPaths: ["aomi.toml"],
-  preflight: true,
 });
 
 await dc.activate({

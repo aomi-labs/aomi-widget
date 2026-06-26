@@ -8564,7 +8564,7 @@ var deploy_exports = {};
 __export(deploy_exports, {
   deployCommand: () => deployCommand
 });
-import { execSync } from "child_process";
+import { execFileSync, execSync } from "child_process";
 function str4(value) {
   return typeof value === "string" && value.trim() ? value.trim() : void 0;
 }
@@ -8584,6 +8584,22 @@ function currentBranch() {
     throw new DeployCliError(
       "NOT_A_GIT_REPO",
       "Run this from inside a git repository"
+    );
+  }
+}
+function resolveGitCommit(ref) {
+  try {
+    const commit = execFileSync("git", ["rev-parse", "--verify", `${ref}^{commit}`], {
+      encoding: "utf-8"
+    }).trim();
+    if (!/^[0-9a-f]{7,40}$/i.test(commit)) {
+      throw new Error(`unexpected git commit hash: ${commit}`);
+    }
+    return commit.toLowerCase();
+  } catch (e) {
+    throw new DeployCliError(
+      "VALIDATION_ERROR",
+      `Could not resolve \`${ref}\` to a git commit SHA.`
     );
   }
 }
@@ -8662,7 +8678,7 @@ async function deviceAuthFlow(backendUrl, platform) {
   );
 }
 async function deployCommand(args) {
-  var _a3, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n;
+  var _a3, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o;
   const backendUrl = ((_b = (_a3 = str4(args["backend-url"])) != null ? _a3 : process.env.AOMI_BACKEND_URL) != null ? _b : "https://api.aomi.dev").replace(/\/+$/, "");
   const platform = (_d = (_c = str4(args.platform)) != null ? _c : process.env.AOMI_DEPLOY_PLATFORM) != null ? _d : "community";
   const activationToken = (_f = (_e = str4(args["activation-token"])) != null ? _e : process.env.AOMI_DEPLOY_TOKEN) != null ? _f : (await deviceAuthFlow(backendUrl, platform)).token;
@@ -8684,20 +8700,20 @@ async function deployCommand(args) {
       "--commit and --branch are mutually exclusive. Provide one or neither."
     );
   }
-  const sourceRef = commit ? { kind: "commit", value: commit } : { kind: "branch", value: branch != null ? branch : currentBranch() };
+  const selectedRef = (_h = commit != null ? commit : branch) != null ? _h : currentBranch();
+  const sourceRef = resolveGitCommit(selectedRef);
   if (!commit && !branch) {
     checkGitRemote();
   }
-  const aomiTomlPaths = ((_h = str4(args["aomi-toml-paths"])) != null ? _h : "aomi.toml").split(",").map((p) => p.trim()).filter(Boolean);
+  const aomiTomlPaths = ((_i = str4(args["aomi-toml-paths"])) != null ? _i : "").split(",").map((p) => p.trim()).filter(Boolean);
   const preflight = args["preflight"] === true;
   console.log(` Deploying to ${backendUrl} (platform: ${platform})`);
   console.log(`   app source id: ${appSourceId}`);
-  if (sourceRef.kind === "commit") {
-    console.log(`   commit:        ${sourceRef.value}`);
-  } else {
-    console.log(`   branch:        ${sourceRef.value}`);
-  }
-  console.log(`   aomi.toml:     ${aomiTomlPaths.join(", ")}`);
+  if (branch) console.log(`   branch:        ${branch}`);
+  console.log(`   commit:        ${sourceRef}`);
+  console.log(
+    `   aomi.toml:     ${aomiTomlPaths.length ? aomiTomlPaths.join(", ") : "discover"}`
+  );
   if (preflight) console.log("   preflight:      yes");
   const url = `${backendUrl}/api/platforms/${encodeURIComponent(platform)}/deploy`;
   const body = {
@@ -8753,8 +8769,8 @@ async function deployCommand(args) {
     console.log(`   ${JSON.stringify(result, null, 2)}`);
     return;
   }
-  console.log(` Deployment created: ${(_i = deployment == null ? void 0 : deployment.id) != null ? _i : "unknown"}`);
-  console.log(`   status:  ${(_j = deployment == null ? void 0 : deployment.status) != null ? _j : "unknown"}`);
+  console.log(` Deployment created: ${(_j = deployment == null ? void 0 : deployment.id) != null ? _j : "unknown"}`);
+  console.log(`   status:  ${(_k = deployment == null ? void 0 : deployment.status) != null ? _k : "unknown"}`);
   if (sourceInfo == null ? void 0 : sourceInfo.repository_link) {
     console.log(`   source:  ${sourceInfo.repository_link}`);
   }
@@ -8769,8 +8785,8 @@ async function deployCommand(args) {
   if (platformInfo == null ? void 0 : platformInfo.apps) {
     const appsArr = platformInfo.apps;
     for (const app of appsArr) {
-      const name = String((_k = app.name) != null ? _k : "?");
-      const tag = String((_m = (_l = app.release_tag) != null ? _l : app.releaseTag) != null ? _m : "");
+      const name = String((_l = app.name) != null ? _l : "?");
+      const tag = String((_n = (_m = app.release_tag) != null ? _m : app.releaseTag) != null ? _n : "");
       apps.push(name);
       if (tag) releaseTags.push(tag);
       console.log(`   app:     ${name}${tag ? ` (${tag})` : ""}`);
@@ -8779,7 +8795,7 @@ async function deployCommand(args) {
   if (platformInfo == null ? void 0 : platformInfo.commit_hash) {
     console.log(`   commit:  ${platformInfo.commit_hash}`);
   }
-  const deploymentId = String((_n = deployment == null ? void 0 : deployment.id) != null ? _n : "");
+  const deploymentId = String((_o = deployment == null ? void 0 : deployment.id) != null ? _o : "");
   if (deploymentId) {
     await writeDeploymentState({
       deploymentId,
@@ -9674,7 +9690,7 @@ var deployDef = defineCommand13({
     },
     "aomi-toml-paths": {
       type: "string",
-      description: "Comma-separated paths to aomi.toml files (default: aomi.toml)"
+      description: "Comma-separated paths to aomi.toml files (default: discover)"
     },
     platform: {
       type: "string",

@@ -13,6 +13,7 @@ import {
   installationStatusLabel,
   launchCreateRepo,
   oneshotStep,
+  TEMPLATE_REPO,
   type LaunchProgress,
 } from "@portal/features/launch";
 import { chatAppUrl } from "@portal/lib/chat-url";
@@ -69,6 +70,7 @@ export function OneshotWizard({
         installationId: result.installationId,
         repo: result.repo,
         appSourceId: result.appSourceId,
+        sourceRef: result.sourceRef,
       });
     } catch (err) {
       setCreateError(err instanceof Error ? err.message : String(err));
@@ -149,9 +151,8 @@ export function OneshotWizard({
               Step 2 — Create your repo
             </div>
             <p className="text-muted-foreground text-sm leading-5">
-              Creates a GitHub repo from{" "}
-              <code>aomi-labs/playground-example</code> in the account where you
-              installed <code>aomi-build-oneshot</code>.
+              Creates a GitHub repo from <code>{TEMPLATE_REPO}</code> in the
+              account where you installed <code>aomi-build-oneshot</code>.
             </p>
             <Button
               onClick={createRepo}

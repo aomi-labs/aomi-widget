@@ -12,6 +12,8 @@ function source(patch: Partial<UserSource>): UserSource {
     installationId: 123,
     repositoryId: 456,
     repositoryLink: "https://github.com/alice/bot",
+    sourceRef: null,
+    commitHash: null,
     githubAccount: "alice",
     githubUserId: "42",
     boundPlatformId: 1,

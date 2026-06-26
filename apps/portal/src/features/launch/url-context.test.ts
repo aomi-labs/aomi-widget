@@ -14,6 +14,8 @@ function source(
     installationId,
     repositoryId: null,
     repositoryLink,
+    sourceRef: null,
+    commitHash: null,
     githubAccount: null,
     githubUserId: null,
     boundPlatformId: null,
