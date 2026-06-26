@@ -80,7 +80,12 @@ export function Onboarding({
       const next = withPendingInstall(
         withProgress(withPath(cur, matched), matched, {
           ...(redirect.repo ? { repo: redirect.repo } : {}),
-          installationId: redirect.installationId,
+          ...(redirect.installationId
+            ? { installationId: redirect.installationId }
+            : {}),
+          ...(redirect.installationIds.length
+            ? { installationIds: redirect.installationIds }
+            : {}),
           installationStatus: redirect.launchStatus ?? undefined,
         }),
         null,
@@ -190,21 +195,12 @@ export function Onboarding({
         setInstallingPath(path);
         try {
           const repo = next[path].repo;
-          const installUrl = await githubAppInstallUrl({
+          window.location.href = await githubAppInstallUrl({
             platform: resolveDeployPlatform(),
             repo,
             mode,
             app: path === "oneshot" ? 2 : undefined,
           });
-          if (mode === "authorize" && !repo) {
-            const opened = window.open(
-              installUrl,
-              "_blank",
-              "noopener,noreferrer",
-            );
-            if (opened) return;
-          }
-          window.location.href = installUrl;
         } catch (error) {
           setInstallingPath(null);
           setInstallError(

@@ -56,6 +56,13 @@ export function OneshotWizard({
   const installStatus = installationStatusLabel(progress.installationStatus);
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
+  const chooseInstallation = (installationId: string) => {
+    patch({
+      installationId,
+      installationIds: undefined,
+      installationStatus: "bound",
+    });
+  };
 
   const createRepo = async () => {
     if (!progress.installationId) return;
@@ -117,11 +124,30 @@ export function OneshotWizard({
             <p className="text-muted-foreground text-sm leading-5">
               Installs <code>aomi-build-oneshot</code>. It can create a repo in
               your account from our template and open deploy pull requests.
-              You&apos;ll return here automatically after consent. If it is
-              already installed, GitHub may open its configuration in another
-              tab; keep this page open and return here after saving or closing
-              GitHub.
+              You&apos;ll return here automatically after consent.
             </p>
+            {progress.installationIds?.length ? (
+              <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3">
+                <div className="text-foreground text-sm font-medium">
+                  Choose an existing installation
+                </div>
+                <p className="text-muted-foreground mt-1 text-xs">
+                  Your GitHub account can access multiple installations. Pick
+                  the one where Aomi should create the template repo.
+                </p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {progress.installationIds.map((installationId) => (
+                    <Button
+                      key={installationId}
+                      onClick={() => chooseInstallation(installationId)}
+                      className="h-9 rounded-full px-3 text-xs font-medium"
+                    >
+                      installation {installationId}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+            ) : null}
             <div className="flex flex-wrap gap-2">
               <Button
                 onClick={beginInstall}

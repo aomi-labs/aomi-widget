@@ -19,7 +19,7 @@ describe("githubAppInstallUrl", () => {
     });
   });
 
-  it("uses install/configure flow for already-installed checks without a repo", async () => {
+  it("uses OAuth authorize for already-installed checks without a repo", async () => {
     await githubAppInstallUrl({
       platform: "community",
       mode: "authorize",
@@ -27,7 +27,7 @@ describe("githubAppInstallUrl", () => {
     });
 
     expect(sessionScopedFetchMock).toHaveBeenCalledWith(
-      "/api/integrations/github-app/oauth/start?platform=community&app=2",
+      "/api/integrations/github-app/oauth/start?platform=community&mode=authorize&app=2",
     );
   });
 

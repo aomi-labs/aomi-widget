@@ -78,6 +78,29 @@ describe("OneshotWizard", () => {
     expect(screen.getByText("Already installed?")).toBeInTheDocument();
   });
 
+  it("lets the user choose among existing installations", () => {
+    const patch = vi.fn();
+    render(
+      <OneshotWizard
+        {...defaultProps}
+        progress={{
+          ...baseProgress(),
+          installationIds: ["142512642", "141779906"],
+          installationStatus: "choose_installation",
+        }}
+        patch={patch}
+      />,
+    );
+
+    fireEvent.click(screen.getByText("installation 142512642"));
+
+    expect(patch).toHaveBeenCalledWith({
+      installationId: "142512642",
+      installationIds: undefined,
+      installationStatus: "bound",
+    });
+  });
+
   it("shows live panel when live", () => {
     render(
       <OneshotWizard

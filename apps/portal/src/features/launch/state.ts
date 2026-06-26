@@ -76,7 +76,8 @@ export function withPendingInstall(
 }
 
 export type GithubRedirect = {
-  installationId: string;
+  installationId: string | null;
+  installationIds: string[];
   setupAction: string | null;
   state: string | null;
   launchStatus: string | null;
@@ -108,9 +109,14 @@ export function normalizeRepo(input: string): string | null {
 export function readGithubRedirect(search: string): GithubRedirect | null {
   const params = new URLSearchParams(search);
   const installationId = params.get("installation_id");
-  if (!installationId) return null;
+  const installationIds = (params.get("installation_ids") ?? "")
+    .split(",")
+    .map((value) => value.trim())
+    .filter((value) => /^\d+$/.test(value));
+  if (!installationId && installationIds.length === 0) return null;
   return {
     installationId,
+    installationIds,
     setupAction: params.get("setup_action"),
     state: params.get("state"),
     launchStatus: params.get("launch"),
@@ -136,6 +142,7 @@ export function isResumingInstall(state: LaunchState, search: string): boolean {
 
 export const GITHUB_REDIRECT_KEYS = [
   "installation_id",
+  "installation_ids",
   "setup_action",
   "state",
   "code",
@@ -181,6 +188,8 @@ export function installationStatusLabel(status?: string): string | null {
       return "installed, syncing repositories";
     case "awaiting_install":
       return "installation requested";
+    case "choose_installation":
+      return "choose an installation";
     default:
       return null;
   }

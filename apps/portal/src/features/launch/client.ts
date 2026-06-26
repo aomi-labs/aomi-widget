@@ -31,10 +31,7 @@ export async function githubAppInstallUrl(args: {
   if (platform) params.set("platform", platform);
   const repo = args.repo ? normalizeRepo(args.repo) : null;
   if (repo) params.set("repo", repo);
-  // OAuth-only authorize cannot disambiguate users with multiple GitHub App
-  // installations unless a repo is present. Without a repo, use the app
-  // install/configure flow so GitHub redirects back with installation_id.
-  if (args.mode === "authorize" && repo) params.set("mode", "authorize");
+  if (args.mode === "authorize") params.set("mode", "authorize");
   if (args.app && args.app !== 1) params.set("app", String(args.app));
   const query = params.toString();
   const result = await sessionScopedFetch<GithubAppOAuthStartResponse>(
@@ -95,7 +92,10 @@ export function launchCreateRepo(input: {
 }
 
 export function launchStatus(deploymentId: string): Promise<LaunchStatus> {
-  return launchFetch(API_PATHS.bff.launch.status(deploymentId), "launch status");
+  return launchFetch(
+    API_PATHS.bff.launch.status(deploymentId),
+    "launch status",
+  );
 }
 
 export function launchActivate(input: {

@@ -28,7 +28,9 @@ describe("oneshotStep", () => {
     expect(oneshotStep({})).toBe("install");
     expect(oneshotStep({ installationId: "1" })).toBe("create");
     expect(oneshotStep({ installationId: "1", repo: "a/b" })).toBe("build");
-    expect(oneshotStep({ installationId: "1", repo: "a/b", live: true })).toBe("live");
+    expect(oneshotStep({ installationId: "1", repo: "a/b", live: true })).toBe(
+      "live",
+    );
   });
 });
 
@@ -37,14 +39,18 @@ describe("bootstrapStep", () => {
     expect(bootstrapStep({})).toBe("template");
     expect(bootstrapStep({ repo: "a/b" })).toBe("install");
     expect(bootstrapStep({ repo: "a/b", installationId: "1" })).toBe("deploy");
-    expect(bootstrapStep({ repo: "a/b", installationId: "1", live: true })).toBe("live");
+    expect(
+      bootstrapStep({ repo: "a/b", installationId: "1", live: true }),
+    ).toBe("live");
   });
 });
 
 describe("installationStatusLabel", () => {
   it("describes backend callback statuses", () => {
     expect(installationStatusLabel("bound")).toBe("installation done");
-    expect(installationStatusLabel("awaiting_webhook")).toBe("installed, syncing repositories");
+    expect(installationStatusLabel("awaiting_webhook")).toBe(
+      "installed, syncing repositories",
+    );
     expect(installationStatusLabel("unknown")).toBeNull();
   });
 });
@@ -53,11 +59,25 @@ describe("normalizeRepo", () => {
   it("accepts owner/name, URLs, .git, trailing slash", () => {
     expect(normalizeRepo("you/my-agent")).toBe("you/my-agent");
     expect(normalizeRepo("  you/my-agent  ")).toBe("you/my-agent");
-    expect(normalizeRepo("https://github.com/you/my-agent")).toBe("you/my-agent");
-    expect(normalizeRepo("https://github.com/you/my-agent.git")).toBe("you/my-agent");
-    expect(normalizeRepo("https://github.com/phoebe-aomi/my-playground-2")).toBe("phoebe-aomi/my-playground-2");
-    expect(normalizeRepo("https://github.com/phoebe-aomi/my-playground-2?tab=readme")).toBe("phoebe-aomi/my-playground-2");
-    expect(normalizeRepo("https://github.com/phoebe-aomi/my-playground-2/tree/main/src")).toBe("phoebe-aomi/my-playground-2");
+    expect(normalizeRepo("https://github.com/you/my-agent")).toBe(
+      "you/my-agent",
+    );
+    expect(normalizeRepo("https://github.com/you/my-agent.git")).toBe(
+      "you/my-agent",
+    );
+    expect(
+      normalizeRepo("https://github.com/phoebe-aomi/my-playground-2"),
+    ).toBe("phoebe-aomi/my-playground-2");
+    expect(
+      normalizeRepo(
+        "https://github.com/phoebe-aomi/my-playground-2?tab=readme",
+      ),
+    ).toBe("phoebe-aomi/my-playground-2");
+    expect(
+      normalizeRepo(
+        "https://github.com/phoebe-aomi/my-playground-2/tree/main/src",
+      ),
+    ).toBe("phoebe-aomi/my-playground-2");
     expect(normalizeRepo("you/my-agent/")).toBe("you/my-agent");
     expect(normalizeRepo("not-a-repo")).toBeNull();
     expect(normalizeRepo("")).toBeNull();
@@ -67,8 +87,11 @@ describe("normalizeRepo", () => {
 describe("readGithubRedirect", () => {
   it("parses GitHub and backend redirect params", () => {
     expect(readGithubRedirect("?foo=bar")).toBeNull();
-    expect(readGithubRedirect("?installation_id=42&setup_action=install&state=tok")).toEqual({
+    expect(
+      readGithubRedirect("?installation_id=42&setup_action=install&state=tok"),
+    ).toEqual({
       installationId: "42",
+      installationIds: [],
       setupAction: "install",
       state: "tok",
       launchStatus: null,
@@ -80,17 +103,33 @@ describe("readGithubRedirect", () => {
       ),
     ).toEqual({
       installationId: "42",
+      installationIds: [],
       setupAction: null,
       state: null,
       launchStatus: "bound",
       repo: "phoebe-aomi/my-playground-2",
+    });
+    expect(
+      readGithubRedirect("?installation_ids=12,34&launch=choose_installation"),
+    ).toEqual({
+      installationId: null,
+      installationIds: ["12", "34"],
+      setupAction: null,
+      state: null,
+      launchStatus: "choose_installation",
+      repo: null,
     });
   });
 });
 
 describe("state transitions", () => {
   it("are immutable and correct", () => {
-    const base = { path: null, oneshot: {}, bootstrap: {}, pendingInstall: null };
+    const base = {
+      path: null,
+      oneshot: {},
+      bootstrap: {},
+      pendingInstall: null,
+    };
 
     const a = withPath(base, "oneshot");
     expect(a.path).toBe("oneshot");
@@ -138,7 +177,10 @@ describe("isResumingInstall", () => {
     // Saved pendingInstall before the full-page nav to GitHub.
     expect(
       isResumingInstall(
-        launchState({ path: "bootstrap", pendingInstall: { path: "bootstrap" } }),
+        launchState({
+          path: "bootstrap",
+          pendingInstall: { path: "bootstrap" },
+        }),
         "",
       ),
     ).toBe(true);
@@ -159,13 +201,22 @@ describe("isResumingInstall", () => {
     ).toBe(false);
 
     // Active path but nothing pending and no redirect → fall through to list.
-    expect(isResumingInstall(launchState({ path: "bootstrap" }), "")).toBe(false);
+    expect(isResumingInstall(launchState({ path: "bootstrap" }), "")).toBe(
+      false,
+    );
   });
 });
 
 describe("GITHUB_REDIRECT_KEYS", () => {
   it("covers GitHub and launch redirect params", () => {
-    for (const k of ["installation_id", "setup_action", "state", "code", "launch"]) {
+    for (const k of [
+      "installation_id",
+      "installation_ids",
+      "setup_action",
+      "state",
+      "code",
+      "launch",
+    ]) {
       expect(GITHUB_REDIRECT_KEYS).toContain(k);
     }
   });

@@ -14,6 +14,7 @@ export type LaunchDeployPayload = DeployPayload;
 
 export type LaunchProgress = {
   installationId?: string;
+  installationIds?: string[];
   installationStatus?: string;
   repo?: string;
   /** Cached source row id from create/sync/dashboard responses. */
