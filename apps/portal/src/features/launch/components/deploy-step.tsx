@@ -48,7 +48,7 @@ function deploymentApps(deployment?: LaunchDeployPayload) {
 
 function releaseTags(deployment?: LaunchDeployPayload): string[] {
   return deploymentApps(deployment)
-    .map((app) => app.release_tag ?? app.releaseTag)
+    .map((app) => app.releaseTag)
     .map((tag) => tag?.trim())
     .filter((tag): tag is string => Boolean(tag));
 }
@@ -97,7 +97,8 @@ function buildProgressModel(
 
 function initialPhase(progress: LaunchProgress): Phase {
   if (progress.live) return "live";
-  if (!progress.deploymentId) return progress.deployment ? "preflight_ready" : "idle";
+  if (!progress.deploymentId)
+    return progress.deployment ? "preflight_ready" : "idle";
   return "building";
 }
 
@@ -206,7 +207,11 @@ export function DeployStep({
       // preview); afterwards we go straight through by id.
       let appSourceId = progress.appSourceId;
       if (!appSourceId) {
-        const preflightResult = await launchPreflight({ installationId, repo, actor });
+        const preflightResult = await launchPreflight({
+          installationId,
+          repo,
+          actor,
+        });
         applyDeployment(preflightResult);
         appSourceId = preflightResult.appSourceId;
       }
@@ -522,7 +527,8 @@ export function DeployStep({
           "Run a preflight to preview the deployment manifest."}
         {phase === "preflight_running" &&
           "Resolving source and rendering deployment.json."}
-        {phase === "preflight_ready" && "Preflight is ready. Review it, then deploy."}
+        {phase === "preflight_ready" &&
+          "Preflight is ready. Review it, then deploy."}
         {phase === "deploying" &&
           "Creating or updating the platform deploy branch."}
         {phase === "building" && "Waiting for platform CI and release assets."}
@@ -591,23 +597,15 @@ function DeploymentSummary({
 }) {
   const platform = deployment.platform;
   const apps = deploymentApps(deployment);
-  const source = deployment.source as
-    | {
-        repository_link?: string;
-        owner_repo_name?: string;
-        commit_hash?: string;
-        ref?: { kind?: string; value?: string };
-      }
-    | undefined;
-  const ciStatus = platform?.ci_status ?? platform?.ciStatus;
-  const ciUrl = platform?.ci_url ?? platform?.ciUrl;
-  const prNumber = platform?.pr_number ?? platform?.prNumber;
-  const prUrl = platform?.pr_url ?? platform?.prUrl;
-  const sourceBranch = platform?.source_branch ?? platform?.sourceBranch;
+  const source = deployment.source;
+  const ciStatus = platform?.ciStatus;
+  const ciUrl = platform?.ciUrl;
+  const prNumber = platform?.prNumber;
+  const prUrl = platform?.prUrl;
+  const sourceBranch = platform?.sourceBranch;
   const target = apps[0]?.target;
   const fileCount = apps.reduce((sum, app) => {
-    const files = "files" in app && Array.isArray(app.files) ? app.files : [];
-    return sum + files.length;
+    return sum + (app.files?.length ?? 0);
   }, 0);
 
   return (
@@ -615,11 +613,11 @@ function DeploymentSummary({
       <div className="grid gap-3 sm:grid-cols-3">
         <SummaryTile
           label="Source"
-          value={source?.owner_repo_name ?? source?.repository_link ?? "Repo"}
+          value={source?.ownerRepoName ?? source?.repositoryLink ?? "Repo"}
           detail={
-            source?.commit_hash
-              ? `${source.commit_hash.slice(0, 12)} from ${
-                  source.ref?.value ?? "source"
+            source?.commitHash
+              ? `${source.commitHash.slice(0, 12)} from ${
+                  source.ref ?? "source"
                 }`
               : undefined
           }

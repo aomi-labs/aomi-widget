@@ -1,45 +1,16 @@
+import type {
+  ActivateResult,
+  DeployPayload,
+  DeploymentStatus,
+} from "@aomi-labs/deploy";
+
 export type LaunchPath = "oneshot" | "bootstrap";
 
 export const TEMPLATE_REPO = "aomi-labs/playground-example";
 export const TEMPLATE_REPO_URL = `https://github.com/${TEMPLATE_REPO}`;
 export const TEMPLATE_GENERATE_URL = `${TEMPLATE_REPO_URL}/generate`;
 
-export type LaunchDeployPayload = {
-  id: string;
-  status?: string;
-  source?: Record<string, unknown>;
-  platform?: {
-    platform?: string;
-    repository?: string;
-    deploy_branch?: string;
-    deployBranch?: string;
-    source_branch?: string;
-    sourceBranch?: string;
-    commit_hash?: string | null;
-    commitHash?: string | null;
-    pr_number?: number | null;
-    prNumber?: number | null;
-    pr_url?: string | null;
-    prUrl?: string | null;
-    ci_status?: string | null;
-    ciStatus?: string | null;
-    ci_url?: string | null;
-    ciUrl?: string | null;
-    apps?: Array<{
-      name: string;
-      path?: string;
-      aomi_toml_path?: string;
-      aomiTomlPath?: string;
-      release_tag?: string;
-      releaseTag?: string;
-      target?: string;
-      release_assets?: string[];
-      releaseAssets?: string[];
-      release_asset_digests?: Record<string, string>;
-      releaseAssetDigests?: Record<string, string>;
-    }>;
-  };
-};
+export type LaunchDeployPayload = DeployPayload;
 
 export type LaunchProgress = {
   installationId?: string;
@@ -91,45 +62,9 @@ export type LaunchCreateRepoResult = {
   appSourceId?: number;
 };
 
-export type LaunchStatus = {
-  state: "no_ci" | "building" | "releasing" | "ready" | "failed" | "pending";
-  deployment?: LaunchDeployPayload;
-  releaseTags: string[];
-  apps?: Array<{
-    name: string;
-    release_tag: string;
-    release_ready: boolean;
-    release_assets?: string[];
-    release_asset_digests?: Record<string, string>;
-    message?: string | null;
-  }>;
-  ci?: {
-    status?: string;
-    url?: string;
-    commit_hash?: string;
-    commitHash?: string;
-  };
-  message?: string;
-};
+export type LaunchStatus = DeploymentStatus;
 
-export type LaunchActivateResult = {
-  ok: boolean;
-  activation?: {
-    status?: string;
-    apps?: Array<{
-      application_id?: number | null;
-      applicationId?: number | null;
-      name: string;
-      release_tag?: string | null;
-      is_active: boolean;
-      loaded: boolean;
-      error?: string | null;
-      source_branch?: string | null;
-      live_commit_hash?: string | null;
-      activation_status?: string | null;
-    }>;
-  };
-};
+export type LaunchActivateResult = ActivateResult;
 
 export type LaunchAppStatus = {
   ok: boolean;
