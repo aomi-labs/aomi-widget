@@ -118,6 +118,23 @@ describe("DeploymentClient.deploy", () => {
     ]);
   });
 
+  it("omits source_ref when the backend should resolve the source branch", async () => {
+    await client().deploy({
+      platform: "community",
+      appSourceId: 42,
+      sourceBranch: "main",
+      aomiTomlPaths: ["aomi.toml"],
+    });
+
+    expect(fetchMock).toHaveBeenCalledOnce();
+    const [, init] = fetchMock.mock.calls[0];
+    expect(JSON.parse((init as RequestInit).body as string)).toEqual({
+      app_source_id: 42,
+      source_branch: "main",
+      aomi_toml_paths: ["aomi.toml"],
+    });
+  });
+
   it("rejects invalid deploy input before calling the backend", async () => {
     await expect(
       client().deploy({

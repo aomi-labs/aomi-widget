@@ -7,11 +7,13 @@ BFF / server use only** (holds the activation bearer token).
 
 ### `deploy()`
 
-Calls `POST /api/platforms/:platform/deploy` with `app_source_id`, `source_ref`,
-`aomi_toml_paths`, and optional `preflight`.
+Calls `POST /api/platforms/:platform/deploy` with `app_source_id`,
+`aomi_toml_paths`, optional `source_ref`, optional `source_branch`, and optional
+`preflight`.
 
-`sourceRef` must be the immutable git commit SHA to deploy. Resolve branches or
-tags before calling the client; the backend no longer accepts mutable refs.
+When supplied, `sourceRef` must be the immutable git commit SHA to deploy. Omit
+it to let the backend resolve `sourceBranch` (defaulted by callers such as the
+portal BFF) using the GitHub App installation token.
 
 ### `activate()`
 

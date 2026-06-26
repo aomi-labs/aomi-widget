@@ -104,6 +104,7 @@ export function launchDeployRoute(preflight: boolean) {
         platform: config.platform,
         appSourceId,
         sourceRef: launchDeploySourceRef(),
+        sourceBranch: config.sourceBranch,
         aomiTomlPaths: config.aomiTomlPaths,
         preflight,
         actor: typeof body.actor === "string" ? body.actor : undefined,

@@ -195,9 +195,21 @@ describe("launchDeployRoute", () => {
     );
   });
 
-  it("rejects deploy requests when no immutable source commit is configured", async () => {
+  it("lets the backend resolve a source commit when no immutable source commit is configured", async () => {
     vi.unstubAllEnvs();
-    const fetchMock = vi.fn();
+    const fetchMock = vi.fn().mockResolvedValueOnce(
+      Response.json({
+        ok: true,
+        deployment: {
+          id: "dep_999_rabc1234_deadbeef",
+          source: {
+            installation_id: 999,
+            repository_link: "alice/bot",
+          },
+          platform: { apps: [] },
+        },
+      }),
+    );
     vi.stubGlobal("fetch", fetchMock);
 
     const POST = launchDeployRoute(false);
@@ -213,9 +225,15 @@ describe("launchDeployRoute", () => {
     const res = await POST(req);
     const body = await res.json();
 
-    expect(res.status).toBe(400);
-    expect(body.error).toContain("APP_DEPLOY_SOURCE_REF");
-    expect(fetchMock).not.toHaveBeenCalled();
+    expect(res.status).toBe(202);
+    expect(body.appSourceId).toBe(777);
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://127.0.0.1:8080/api/platforms/community/deploy",
+      expect.objectContaining({
+        method: "POST",
+        body: expect.stringContaining('"source_branch":"main"'),
+      }),
+    );
   });
 
   it("rejects a request without appSourceId or repo before calling the backend", async () => {

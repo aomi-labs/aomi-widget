@@ -1,11 +1,12 @@
 import "server-only";
 
-import { DeployError, type SourceRef } from "@aomi-labs/deploy";
+import type { SourceRef } from "@aomi-labs/deploy";
 import { resolveDeployPlatform } from "@portal/lib/deploy-platform";
 
 const TEMPLATE_REPO = "aomi-labs/playground-example";
 const CREATED_REPO_PRIVATE = false;
 const DEFAULT_AOMI_TOML_PATHS = ["aomi.toml"];
+const DEFAULT_SOURCE_BRANCH = "main";
 const SOURCE_REF_ENV = "APP_DEPLOY_SOURCE_REF";
 const SOURCE_COMMIT_ENV = "APP_DEPLOY_SOURCE_COMMIT";
 
@@ -13,6 +14,7 @@ export type LaunchConfig = {
   platform: string;
   templateRepo: string;
   createdRepoPrivate: boolean;
+  sourceBranch: string;
   aomiTomlPaths: string[];
   targetTags: string[];
 };
@@ -34,6 +36,7 @@ export function launchConfig(): LaunchConfig {
     platform: envValue("APP_DEPLOY_PLATFORM") ?? resolveDeployPlatform(),
     templateRepo: TEMPLATE_REPO,
     createdRepoPrivate: CREATED_REPO_PRIVATE,
+    sourceBranch: envValue("APP_DEPLOY_SOURCE_BRANCH") ?? DEFAULT_SOURCE_BRANCH,
     aomiTomlPaths: commaList(
       envValue("APP_DEPLOY_AOMI_TOML_PATHS"),
       DEFAULT_AOMI_TOML_PATHS,
@@ -42,15 +45,6 @@ export function launchConfig(): LaunchConfig {
   };
 }
 
-export function launchDeploySourceRef(): SourceRef {
-  const value =
-    process.env[SOURCE_REF_ENV]?.trim() ||
-    process.env[SOURCE_COMMIT_ENV]?.trim();
-  if (!value) {
-    throw new DeployError(
-      "INVALID_REQUEST",
-      `${SOURCE_REF_ENV} or ${SOURCE_COMMIT_ENV} must be set to an immutable source commit SHA`,
-    );
-  }
-  return value;
+export function launchDeploySourceRef(): SourceRef | undefined {
+  return envValue(SOURCE_REF_ENV) ?? envValue(SOURCE_COMMIT_ENV);
 }

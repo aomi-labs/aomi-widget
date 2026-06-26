@@ -680,9 +680,12 @@ function deployRequest(input: DeployInput): Record<string, unknown> {
     );
   }
   const aomiTomlPaths = cleanStringList(input.aomiTomlPaths, "aomiTomlPaths");
+  const resolvedSourceRef = optionalSourceRef(input.sourceRef);
+  const sourceBranch = optionalString(input.sourceBranch);
   return {
     app_source_id: appSourceId,
-    source_ref: sourceRef(input.sourceRef),
+    ...(resolvedSourceRef ? { source_ref: resolvedSourceRef } : {}),
+    ...(sourceBranch ? { source_branch: sourceBranch } : {}),
     aomi_toml_paths: aomiTomlPaths,
     ...(input.preflight ? { preflight: true } : {}),
   };
@@ -721,6 +724,13 @@ function sourceRef(ref: DeployInput["sourceRef"]): string {
   return clean.toLowerCase();
 }
 
+function optionalSourceRef(ref: DeployInput["sourceRef"]): string | undefined {
+  if (ref == null || String(ref).trim() === "") {
+    return undefined;
+  }
+  return sourceRef(ref);
+}
+
 function releaseTagsTarget(
   ref: ActivateInput["target"],
 ): Record<string, unknown> {
@@ -738,6 +748,10 @@ function releaseTagsTarget(
 
 function cleanPlatform(value: string): string {
   return required(value, "platform");
+}
+
+function optionalString(value: string | undefined | null): string | undefined {
+  return value?.trim() || undefined;
 }
 
 function required(value: string | undefined | null, field: string): string {

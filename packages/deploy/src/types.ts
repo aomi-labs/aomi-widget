@@ -62,7 +62,10 @@ export interface DeployInput {
   platform: string;
   /** Connected GitHub App source row selected for this deploy. */
   appSourceId: number;
-  sourceRef: SourceRef;
+  /** Optional immutable source commit override; omit to let the backend resolve sourceBranch. */
+  sourceRef?: SourceRef;
+  /** Source repository branch to resolve when sourceRef is omitted. */
+  sourceBranch?: string;
   aomiTomlPaths: string[];
   /** Preview the deployment plan; may materialize backend source metadata but opens no PR. */
   preflight?: boolean;

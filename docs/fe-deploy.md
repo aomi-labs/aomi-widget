@@ -8,7 +8,7 @@ the browser never holds GitHub tokens or service credentials.
 >
 > - Portal BFF source dashboard now calls backend `user/sources` with the configured launch platform; backend hides unrelated repos from broad GitHub App installations.
 > - The deploy preview route is `preflight`, not `dry-run`.
-> - Launch config is server-env-driven: `APP_DEPLOY_PLATFORM`, `APP_DEPLOY_AOMI_TOML_PATHS`, and optional `APP_DEPLOY_TARGET_TAGS`. The deploy source ref is an immutable commit SHA from `APP_DEPLOY_SOURCE_REF` (or `APP_DEPLOY_SOURCE_COMMIT`).
+> - Launch config is server-env-driven: `APP_DEPLOY_PLATFORM`, `APP_DEPLOY_SOURCE_BRANCH` (default `main`), `APP_DEPLOY_AOMI_TOML_PATHS`, and optional `APP_DEPLOY_TARGET_TAGS`. `APP_DEPLOY_SOURCE_REF` / `APP_DEPLOY_SOURCE_COMMIT` are optional immutable commit pins; otherwise the backend resolves the configured source branch with the GitHub App installation token.
 > - Chat links are controlled by `NEXT_PUBLIC_CHAT_URL`.
 > - Redeploy hydrates one target source's latest deployment metadata, then reruns an existing backend-owned GitHub Actions run. It requires portal `GITHUB_TOKEN` and refuses when no `ciRunId` is available.
 > - GitHub install redirects in the **same tab** (was: new tab + fragile localStorage polling) — eliminates popup-blocker + race-condition bugs
