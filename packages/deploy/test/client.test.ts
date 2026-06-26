@@ -34,7 +34,7 @@ describe("DeploymentClient.deploy", () => {
             repository_id: 987,
             repository_link: "https://github.com/alice/demo.git",
             owner_repo_name: "alice/demo",
-            ref: { kind: "branch", value: "main" },
+            ref: "abc1234def5678",
             commit_hash: "abc1234def5678",
             aomi_toml_paths: ["aomi.toml"],
           },
@@ -55,6 +55,13 @@ describe("DeploymentClient.deploy", () => {
                 aomi_toml_path: "aomi.toml",
                 release_tag: "apps-123-demo-abc1234def56",
                 target: "x86_64-unknown-linux-gnu",
+                files: [
+                  {
+                    path: "apps/123/demo/aomi.toml",
+                    sha256: "00aa",
+                    bytes: 512,
+                  },
+                ],
               },
             ],
           },
@@ -71,7 +78,7 @@ describe("DeploymentClient.deploy", () => {
     const result = await client((event) => audits.push(event)).deploy({
       platform: "community",
       appSourceId: 42,
-      sourceRef: { kind: "branch", value: "main" },
+      sourceRef: "ABC1234DEF5678",
       aomiTomlPaths: ["aomi.toml"],
       preflight: true,
       actor: "alice",
@@ -88,16 +95,18 @@ describe("DeploymentClient.deploy", () => {
     });
     expect(JSON.parse((init as RequestInit).body as string)).toEqual({
       app_source_id: 42,
-      source_ref: { kind: "branch", value: "main" },
+      source_ref: "abc1234def5678",
       aomi_toml_paths: ["aomi.toml"],
       preflight: true,
     });
 
     expect(result.deployment.source.installationId).toBe(123);
+    expect(result.deployment.source.ref).toBe("abc1234def5678");
     expect(result.deployment.platform.apps[0]).toMatchObject({
       aomiTomlPath: "aomi.toml",
       releaseTag: "apps-123-demo-abc1234def56",
       target: "x86_64-unknown-linux-gnu",
+      files: [{ path: "apps/123/demo/aomi.toml", sha256: "00aa", bytes: 512 }],
     });
     expect(audits).toEqual([
       expect.objectContaining({
@@ -114,10 +123,22 @@ describe("DeploymentClient.deploy", () => {
       client().deploy({
         platform: "community",
         appSourceId: 0,
-        sourceRef: { kind: "commit", value: "abc1234" },
+        sourceRef: "abc1234",
         aomiTomlPaths: ["aomi.toml"],
       }),
     ).rejects.toBeInstanceOf(DeployError);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects branch-like source refs before calling the backend", async () => {
+    await expect(
+      client().deploy({
+        platform: "community",
+        appSourceId: 42,
+        sourceRef: "main",
+        aomiTomlPaths: ["aomi.toml"],
+      }),
+    ).rejects.toThrow(/git commit SHA/);
     expect(fetchMock).not.toHaveBeenCalled();
   });
 });
@@ -255,7 +276,7 @@ describe("DeploymentClient.activate", () => {
                 name: "demo",
                 release_tag: "apps-123-demo-abc1234def56",
                 source_branch: "alice/demo/123/abc1234def56",
-                platform_commit_hash: "ff00aa",
+                activated_commit_hash: "ff00aa",
                 live_commit_hash: "ff00bb",
                 ci_status: "passed",
                 ci_url:
@@ -275,6 +296,10 @@ describe("DeploymentClient.activate", () => {
               release_tag: "apps-123-demo-abc1234def56",
               is_active: true,
               loaded: true,
+              activation_pr: {
+                html_url: "https://github.com/aomi-labs/community-apps/pull/10",
+              },
+              activation_pr_close_error: null,
             },
           ],
         },
@@ -308,6 +333,12 @@ describe("DeploymentClient.activate", () => {
         "manifest.json",
         "aomi-release.json",
       ],
+    });
+    expect(result.activation.apps[0]).toMatchObject({
+      activationPr: {
+        html_url: "https://github.com/aomi-labs/community-apps/pull/10",
+      },
+      activationPrCloseError: null,
     });
   });
 

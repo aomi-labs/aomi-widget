@@ -23,6 +23,7 @@ export default defineConfig({
       "@aomi-labs/react": resolve(currentDir, "../../packages/react/src"),
       "@aomi-labs/service": resolve(currentDir, "../../packages/service/src"),
       "server-only": resolve(currentDir, "__mocks__/server-only.ts"),
+      "client-only": resolve(currentDir, "__mocks__/client-only.ts"),
     },
   },
   test: {
@@ -31,7 +32,7 @@ export default defineConfig({
     include: ["src/**/*.{test,spec}.{ts,tsx}"],
     server: {
       deps: {
-        inline: ["server-only"],
+        inline: ["server-only", "client-only"],
       },
     },
     exclude: [

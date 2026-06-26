@@ -13,12 +13,12 @@ vi.mock("@aomi-labs/account", () => ({
 }));
 
 const getGitHubSession = vi.fn();
-vi.mock("@portal/lib/aomi-account/github-session", () => ({
+vi.mock("@portal/server/cookies/github", () => ({
   getGitHubSession: () => getGitHubSession(),
 }));
 
 function req() {
-  return new Request("http://localhost:3000/api/launch/sources");
+  return new Request("http://localhost:3000/api/bff/launch/sources");
 }
 
 describe("userSourcesRoute", () => {

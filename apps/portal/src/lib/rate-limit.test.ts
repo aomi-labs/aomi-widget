@@ -13,7 +13,7 @@ function request(opts: { forwarded?: string; realIp?: string } = {}): Request {
   const headers = new Headers();
   if (opts.forwarded) headers.set("x-forwarded-for", opts.forwarded);
   if (opts.realIp) headers.set("x-real-ip", opts.realIp);
-  return new Request("http://localhost/api/launch/deploy", { headers });
+  return new Request("http://localhost/api/bff/launch/deploy", { headers });
 }
 
 describe("checkRateLimit", () => {

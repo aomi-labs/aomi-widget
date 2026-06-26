@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
 import type { UserSource } from "@aomi-labs/deploy";
 import {
+  deploymentLifecycleFromSource,
+  deploymentLifecycleFromStatus,
   deploymentIdFromReleaseTag,
-  lifecycleFromLaunchStatus,
-  sourceLifecycle,
-} from "./dashboard-lifecycle";
+} from "@aomi-labs/deploy/lifecycle";
 
 function source(patch: Partial<UserSource>): UserSource {
   return {
@@ -20,9 +20,9 @@ function source(patch: Partial<UserSource>): UserSource {
   };
 }
 
-describe("sourceLifecycle", () => {
+describe("deploymentLifecycleFromSource", () => {
   it("treats active and loaded as live chat state", () => {
-    const lifecycle = sourceLifecycle(
+    const lifecycle = deploymentLifecycleFromSource(
       source({
         apps: [
           {
@@ -46,7 +46,7 @@ describe("sourceLifecycle", () => {
   });
 
   it("treats active source apps as live even when runtime loaded is false", () => {
-    const lifecycle = sourceLifecycle(
+    const lifecycle = deploymentLifecycleFromSource(
       source({
         apps: [
           {
@@ -71,7 +71,7 @@ describe("sourceLifecycle", () => {
   });
 
   it("uses latest deployment state for build-ready cards and links", () => {
-    const lifecycle = sourceLifecycle(
+    const lifecycle = deploymentLifecycleFromSource(
       source({
         apps: [
           {
@@ -117,7 +117,7 @@ describe("sourceLifecycle", () => {
   });
 
   it("uses the latest deployment active application entry for live chat", () => {
-    const lifecycle = sourceLifecycle(
+    const lifecycle = deploymentLifecycleFromSource(
       source({
         latestDeployment: {
           deploymentId: "dep_1",
@@ -147,7 +147,7 @@ describe("sourceLifecycle", () => {
   });
 
   it("does not downgrade an active latest deployment to runtime pending", () => {
-    const lifecycle = sourceLifecycle(
+    const lifecycle = deploymentLifecycleFromSource(
       source({
         apps: [
           {
@@ -197,8 +197,10 @@ describe("sourceLifecycle", () => {
   });
 
   it("turns skipped CI status into a failed lifecycle with links", () => {
-    const current = sourceLifecycle(source({ repositoryLink: "alice/bot" }));
-    const lifecycle = lifecycleFromLaunchStatus(current, {
+    const current = deploymentLifecycleFromSource(
+      source({ repositoryLink: "alice/bot" }),
+    );
+    const lifecycle = deploymentLifecycleFromStatus(current, {
       state: "failed",
       deployment: {
         id: "dep_1",
@@ -232,8 +234,10 @@ describe("sourceLifecycle", () => {
   });
 
   it("keeps backend-building status in progress even when GitHub CI has passed", () => {
-    const current = sourceLifecycle(source({ repositoryLink: "alice/bot" }));
-    const lifecycle = lifecycleFromLaunchStatus(current, {
+    const current = deploymentLifecycleFromSource(
+      source({ repositoryLink: "alice/bot" }),
+    );
+    const lifecycle = deploymentLifecycleFromStatus(current, {
       state: "building",
       deployment: {
         id: "dep_1",
@@ -256,8 +260,10 @@ describe("sourceLifecycle", () => {
   });
 
   it("turns stale CI status into a failed lifecycle", () => {
-    const current = sourceLifecycle(source({ repositoryLink: "alice/bot" }));
-    const lifecycle = lifecycleFromLaunchStatus(current, {
+    const current = deploymentLifecycleFromSource(
+      source({ repositoryLink: "alice/bot" }),
+    );
+    const lifecycle = deploymentLifecycleFromStatus(current, {
       state: "failed",
       deployment: {
         id: "dep_1",

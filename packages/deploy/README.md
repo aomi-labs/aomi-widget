@@ -10,6 +10,9 @@ BFF / server use only** (holds the activation bearer token).
 Calls `POST /api/platforms/:platform/deploy` with `app_source_id`, `source_ref`,
 `aomi_toml_paths`, and optional `preflight`.
 
+`sourceRef` must be the immutable git commit SHA to deploy. Resolve branches or
+tags before calling the client; the backend no longer accepts mutable refs.
+
 ### `activate()`
 
 Calls `POST /api/platforms/:platform/apps/activate` with one `release_tags`
@@ -86,7 +89,7 @@ const { id } = await client.syncSource({
 await client.deploy({
   platform: "playground",
   appSourceId: id,
-  sourceRef: { kind: "branch", value: "main" },
+  sourceRef: process.env.AOMI_SOURCE_REF!,
   aomiTomlPaths: ["aomi.toml"],
 });
 ```
@@ -124,7 +127,8 @@ if (!result.ok) {
 interface DeployRequest {
   platform: string;
   appSourceId: number;
-  sourceRef: { kind: "branch" | "commit"; value: string };
+  /** Immutable git commit SHA. Branch names are rejected by the backend. */
+  sourceRef: string;
   aomiTomlPaths: string[];
   preflight?: boolean;
 }
@@ -152,6 +156,19 @@ interface ActivationResult {
 }
 ```
 
+## Browser-safe lifecycle helpers
+
+The root package entry is for BFF/server code. Portal UI that only needs to
+project deploy records into dashboard state should import the pure helper
+subpath instead:
+
+```ts
+import {
+  deploymentLifecycleFromSource,
+  deploymentLifecycleFromStatus,
+} from "@aomi-labs/deploy/lifecycle";
+```
+
 ## Example
 
 ```ts
@@ -167,7 +184,7 @@ const dc = new DeploymentClient({
 const { deployment } = await dc.deploy({
   platform: "community",
   appSourceId: 42,
-  sourceRef: { kind: "branch", value: "main" },
+  sourceRef: process.env.AOMI_SOURCE_REF!,
   aomiTomlPaths: ["aomi.toml"],
   preflight: true,
 });
