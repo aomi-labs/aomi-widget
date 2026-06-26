@@ -512,26 +512,19 @@ export async function redeployLaunchRoute(req: Request) {
   }
 
   try {
+    const config = launchConfig();
     const client = await deploymentClient();
-    const sources = await client.listUserSources({
+    const latest = await client.getUserSourceLatestDeployment({
       githubUserId: session.githubUserId,
+      platform: config.platform,
+      appSourceId: body.appSourceId,
     });
-    const source = sources.find(
-      (candidate) => candidate.id === body.appSourceId,
-    );
-    const latest = source?.latestDeployment;
     const platformRepo = latest?.platformRepo;
     const ciRunId =
       latest?.ciRunId === null || latest?.ciRunId === undefined
         ? ciRunIdFromUrl(latest?.ciUrl)
         : String(latest.ciRunId);
 
-    if (!source) {
-      return NextResponse.json(
-        { error: "source does not belong to the signed-in GitHub account" },
-        { status: 404 },
-      );
-    }
     if (!platformRepo || !isValidRepo(platformRepo) || !ciRunId) {
       return NextResponse.json(
         {
@@ -602,9 +595,11 @@ export async function userSourcesRoute(req: Request) {
   }
 
   try {
+    const config = launchConfig();
     const client = await deploymentClient();
     const sources = await client.listUserSources({
       githubUserId: session.githubUserId,
+      platform: config.platform,
     });
     return NextResponse.json({ sources, githubLogin: session.githubLogin });
   } catch (err) {
