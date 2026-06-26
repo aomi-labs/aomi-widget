@@ -1003,6 +1003,23 @@
         ]
       }
     },
+    "/api/integrations/github-app/user/sources/{id}/latest-deployment": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "serviceBearer": []
+          }
+        ],
+        "x-aomi-auth": [
+          "service"
+        ]
+      }
+    },
     "/api/integrations/github-app/platforms/{name}/sources/create-from-template": {
       "post": {
         "responses": {

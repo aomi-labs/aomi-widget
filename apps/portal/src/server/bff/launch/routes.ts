@@ -4,7 +4,7 @@ import { randomBytes } from "crypto";
 import { NextResponse } from "next/server";
 import { deploymentClient } from "@portal/server/bff/backend";
 import { BackendError, launchErrorResponse } from "./errors";
-import { launchConfig, launchDeploySourceRef } from "./config";
+import { launchConfig } from "./config";
 import { appNamesFromDeployment, releaseTagsFromDeployment } from "./mappers";
 import { checkRateLimit, getClientIp } from "@portal/lib/rate-limit";
 import { validateOrigin } from "@portal/lib/csrf";
@@ -46,6 +46,19 @@ function isValidAppSourceId(value: unknown): value is number {
   return typeof value === "number" && Number.isSafeInteger(value) && value > 0;
 }
 
+function sourceRef(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const clean = value.trim().toLowerCase();
+  return /^[0-9a-f]{7,40}$/.test(clean) ? clean : null;
+}
+
+function sourceRefFromSource(source: {
+  sourceRef?: string | null;
+  commitHash?: string | null;
+}): string | null {
+  return sourceRef(source.sourceRef) ?? sourceRef(source.commitHash);
+}
+
 export function launchDeployRoute(preflight: boolean) {
   return async function POST(req: Request): Promise<NextResponse> {
     const blocked = checkWrite(req);
@@ -72,12 +85,10 @@ export function launchDeployRoute(preflight: boolean) {
       const config = launchConfig();
       const client = await deploymentClient();
 
-      // A deploy always commits against a stable source row id. Resolving (or
-      // minting) that row from a repo is a separate concern: it happens here
-      // only for a preflight — the preview that materializes the row — or via the
-      // dedicated /sync-installed route. The committing deploy never silently
-      // creates or re-resolves a source by repo.
+      // Deploy uses a stable source row plus an immutable source commit. When
+      // the portal only has a repo, sync-installed resolves both from GitHub.
       let appSourceId: number;
+      let deploySourceRef = sourceRef(body.sourceRef);
       if (isValidAppSourceId(body.appSourceId)) {
         appSourceId = body.appSourceId;
       } else if (preflight && isValidRepo(body.repo)) {
@@ -89,6 +100,7 @@ export function launchDeployRoute(preflight: boolean) {
           throw new Error("backend did not return a valid app source id");
         }
         appSourceId = synced.id;
+        deploySourceRef = sourceRefFromSource(synced);
       } else {
         return NextResponse.json(
           {
@@ -100,14 +112,39 @@ export function launchDeployRoute(preflight: boolean) {
         );
       }
 
-      const { deployment } = await client.deploy({
+      if (!deploySourceRef && isValidRepo(body.repo)) {
+        const synced = await client.syncSource({
+          platform: config.platform,
+          repo: body.repo as string,
+        });
+        if (synced.id !== appSourceId) {
+          return NextResponse.json(
+            { error: "repo does not match `appSourceId`" },
+            { status: 409 },
+          );
+        }
+        deploySourceRef = sourceRefFromSource(synced);
+      }
+      if (!deploySourceRef) {
+        return NextResponse.json(
+          {
+            error:
+              "missing source commit for deploy; sync the source repo and retry",
+          },
+          { status: 400 },
+        );
+      }
+
+      const deployInput = {
         platform: config.platform,
         appSourceId,
-        sourceRef: launchDeploySourceRef(),
-        aomiTomlPaths: config.aomiTomlPaths,
-        preflight,
+        sourceRef: deploySourceRef,
+        aomiTomlPaths: [],
         actor: typeof body.actor === "string" ? body.actor : undefined,
-      });
+      };
+      const { deployment } = preflight
+        ? await client.preflight(deployInput)
+        : await client.deploy(deployInput);
       return NextResponse.json(
         {
           ok: true,
@@ -118,6 +155,7 @@ export function launchDeployRoute(preflight: boolean) {
             ? String(deployment.source.installationId)
             : undefined,
           appSourceId,
+          sourceRef: deploySourceRef,
           deployment,
           releaseTags: releaseTagsFromDeployment(deployment),
           apps: appNamesFromDeployment(deployment),
@@ -166,6 +204,7 @@ export async function createLaunchRepoRoute(req: Request) {
       repo: source.repositoryLink,
       installationId: String(source.installationId),
       appSourceId: source.id,
+      sourceRef: source.sourceRef ?? source.commitHash ?? undefined,
       source,
     });
   } catch (err) {
@@ -469,6 +508,7 @@ export async function syncInstalledLaunchRoute(req: Request) {
       repo: source.repositoryLink ?? repo,
       installationId: String(source.installationId),
       appSourceId: source.id,
+      sourceRef: source.sourceRef ?? source.commitHash ?? undefined,
       source,
     });
   } catch (err) {

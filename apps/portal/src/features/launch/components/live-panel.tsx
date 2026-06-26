@@ -1,7 +1,7 @@
 "use client";
 
 import { CheckCircle2, ExternalLink } from "lucide-react";
-import { TEMPLATE_REPO_URL } from "@portal/features/launch";
+import { TEMPLATE_REPO, TEMPLATE_REPO_URL } from "@portal/features/launch";
 
 /** Shared success state. `repo` is owner/name when known; falls back to the
  *  template so the clone story still renders during early wiring.
@@ -16,7 +16,7 @@ export function LivePanel({
   chatUrl?: string;
 }) {
   const repoUrl = repo ? `https://github.com/${repo}` : TEMPLATE_REPO_URL;
-  const dir = repo ? repo.split("/")[1] : "playground-example";
+  const dir = repo ? repo.split("/")[1] : TEMPLATE_REPO.split("/")[1];
   const chatTitle = repo ? `Chat with ${repo}` : "Chat with your agent";
 
   return (

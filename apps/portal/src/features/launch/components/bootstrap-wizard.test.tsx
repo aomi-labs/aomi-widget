@@ -52,6 +52,7 @@ vi.mock("@portal/features/launch", () => ({
       .replace(/\.git$/, "") || null,
   TEMPLATE_GENERATE_URL:
     "https://github.com/aomi-labs/playground-example/generate",
+  TEMPLATE_REPO: "aomi-labs/playground-example",
   TEMPLATE_REPO_URL: "https://github.com/aomi-labs/playground-example",
 }));
 
@@ -161,6 +162,8 @@ describe("BootstrapWizard", () => {
             installationId: 141780080,
             repositoryId: null,
             repositoryLink: "phoebe-aomi/playground-example-1",
+            sourceRef: "abc1234def5678",
+            commitHash: "abc1234def5678",
             githubAccount: null,
             githubUserId: null,
             boundPlatformId: null,

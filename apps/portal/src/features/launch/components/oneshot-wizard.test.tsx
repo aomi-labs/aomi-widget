@@ -43,6 +43,7 @@ vi.mock("@portal/features/launch", () => ({
   },
   installationStatusLabel: () => null,
   launchCreateRepo: vi.fn(),
+  TEMPLATE_REPO: "aomi-labs/playground-example",
   TEMPLATE_REPO_URL: "https://github.com/aomi-labs/playground-example",
 }));
 

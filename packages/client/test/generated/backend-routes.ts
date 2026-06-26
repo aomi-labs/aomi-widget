@@ -135,6 +135,11 @@ export const AOMI_BACKEND_ENDPOINTS = [
   },
   {
     method: "GET",
+    path: "/api/integrations/github-app/user/sources/:id/latest-deployment",
+    auth: ["service"],
+  },
+  {
+    method: "GET",
     path: "/api/openapi.json",
     auth: [],
   },

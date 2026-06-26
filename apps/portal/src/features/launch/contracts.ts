@@ -6,7 +6,9 @@ import type {
 
 export type LaunchPath = "oneshot" | "bootstrap";
 
-export const TEMPLATE_REPO = "aomi-labs/playground-example";
+export const TEMPLATE_REPO =
+  process.env.NEXT_PUBLIC_APP_DEPLOY_TEMPLATE_REPO?.trim() ||
+  "aomi-labs/playground-example";
 export const TEMPLATE_REPO_URL = `https://github.com/${TEMPLATE_REPO}`;
 export const TEMPLATE_GENERATE_URL = `${TEMPLATE_REPO_URL}/generate`;
 
@@ -18,6 +20,8 @@ export type LaunchProgress = {
   repo?: string;
   /** Cached source row id from create/sync/dashboard responses. */
   appSourceId?: number;
+  /** Immutable source commit returned by source sync/create. */
+  sourceRef?: string;
   deploymentId?: string;
   deployment?: LaunchDeployPayload;
   releaseTags?: string[];
@@ -33,6 +37,7 @@ export type LaunchProgress = {
  */
 export type LaunchPreflightInput = {
   appSourceId?: number;
+  sourceRef?: string;
   /** GitHub App installation that owns the source repo. Wizard context only. */
   installationId?: string;
   /** `owner/name` repo used to mint the backend source when appSourceId is absent. */
@@ -43,6 +48,8 @@ export type LaunchPreflightInput = {
 /** Commit a deploy against a stable, already-resolved source row. */
 export type LaunchDeployInput = {
   appSourceId: number;
+  sourceRef?: string;
+  repo?: string;
   actor?: string;
 };
 
@@ -50,6 +57,7 @@ export type LaunchDeployResult = {
   repo: string;
   installationId?: string;
   appSourceId?: number;
+  sourceRef?: string;
   deployment: LaunchDeployPayload;
   releaseTags: string[];
   apps: string[];
@@ -60,6 +68,7 @@ export type LaunchCreateRepoResult = {
   repo: string;
   installationId: string;
   appSourceId?: number;
+  sourceRef?: string;
 };
 
 export type LaunchStatus = DeploymentStatus;
@@ -83,6 +92,7 @@ export type LaunchSyncInstalledResult = {
   repo: string;
   installationId: string;
   appSourceId?: number;
+  sourceRef?: string;
 };
 
 export type LaunchRedeployResult = {

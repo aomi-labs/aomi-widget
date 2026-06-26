@@ -22,6 +22,7 @@ export interface AomiConfig {
 export interface AuditEvent {
   action:
     | "request"
+    | "preflight"
     | "deploy"
     | "activate"
     | "status"
@@ -63,11 +64,12 @@ export interface DeployInput {
   /** Connected GitHub App source row selected for this deploy. */
   appSourceId: number;
   sourceRef: SourceRef;
-  aomiTomlPaths: string[];
-  /** Preview the deployment plan; may materialize backend source metadata but opens no PR. */
-  preflight?: boolean;
+  /** Optional explicit manifests. Empty/omitted lets the backend discover every aomi.toml. */
+  aomiTomlPaths?: string[];
   actor?: string;
 }
+
+export interface PreflightInput extends DeployInput {}
 
 export type DeployStatus =
   | "preflight"
@@ -316,6 +318,8 @@ export interface AppSource {
   installationId: number;
   repositoryId: number | null;
   repositoryLink: string | null;
+  sourceRef: SourceRef | null;
+  commitHash: string | null;
   githubAccount: string | null;
   githubUserId: number | null;
   boundPlatformId: number | null;
@@ -336,8 +340,8 @@ export interface ScaffoldInput extends BearerOverride {
   installationId: number;
   /** New repo name created in the installation's account from the template. */
   repoName: string;
-  /** Template `owner/repo`. Defaults to the portal one-shot template. */
-  templateRepo?: string;
+  /** Template `owner/repo` to copy for the one-shot flow. */
+  templateRepo: string;
   /** Create the new repo private. Defaults to false. */
   private?: boolean;
 }

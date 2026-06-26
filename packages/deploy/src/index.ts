@@ -25,6 +25,7 @@ export type {
   DeploymentClientOptions,
   SourceRef,
   DeployInput,
+  PreflightInput,
   DeployStatus,
   CiStatus,
   DeployResult,

@@ -38,7 +38,7 @@ export const deployDef = defineCommand({
     "aomi-toml-paths": {
       type: "string",
       description:
-        "Comma-separated paths to aomi.toml files (default: aomi.toml)",
+        "Comma-separated paths to aomi.toml files (default: discover)",
     },
     platform: {
       type: "string",

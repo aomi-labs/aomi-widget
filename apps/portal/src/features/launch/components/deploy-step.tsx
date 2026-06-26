@@ -157,6 +157,7 @@ export function DeployStep({
       repo?: string;
       installationId?: string;
       appSourceId?: number;
+      sourceRef?: string;
       deployment: LaunchDeployPayload;
       releaseTags?: string[];
       apps?: string[];
@@ -170,6 +171,7 @@ export function DeployStep({
         deployment: next.deployment,
         releaseTags: nextTags,
         apps: nextApps,
+        sourceRef: next.sourceRef ?? next.deployment.source?.ref,
       };
       if (next.installationId) patch.installationId = next.installationId;
       if (next.appSourceId) patch.appSourceId = next.appSourceId;
@@ -187,6 +189,7 @@ export function DeployStep({
         installationId,
         repo,
         appSourceId: progress.appSourceId,
+        sourceRef: progress.sourceRef,
         actor,
       });
       applyDeployment(result);
@@ -195,7 +198,14 @@ export function DeployStep({
       setError(e instanceof Error ? e.message : String(e));
       setPhase("error");
     }
-  }, [actor, applyDeployment, installationId, progress.appSourceId, repo]);
+  }, [
+    actor,
+    applyDeployment,
+    installationId,
+    progress.appSourceId,
+    progress.sourceRef,
+    repo,
+  ]);
 
   const deploy = useCallback(async () => {
     setPhase("deploying");
@@ -206,21 +216,26 @@ export function DeployStep({
       // an install has none yet, so a preflight mints it (and primes the
       // preview); afterwards we go straight through by id.
       let appSourceId = progress.appSourceId;
-      if (!appSourceId) {
+      let sourceRef = progress.sourceRef ?? deployment?.source?.ref;
+      if (!appSourceId || !sourceRef) {
         const preflightResult = await launchPreflight({
           installationId,
           repo,
+          appSourceId,
+          sourceRef,
           actor,
         });
         applyDeployment(preflightResult);
         appSourceId = preflightResult.appSourceId;
+        sourceRef =
+          preflightResult.sourceRef ?? preflightResult.deployment.source?.ref;
       }
       if (!appSourceId) {
         throw new Error(
           "Could not resolve a source to deploy. Run a preflight first.",
         );
       }
-      const result = await launchDeploy({ appSourceId, actor });
+      const result = await launchDeploy({ appSourceId, sourceRef, repo, actor });
       applyDeployment(result);
       const id = result.deployment.id;
       setDeploymentId(id);
@@ -228,6 +243,7 @@ export function DeployStep({
         repo: result.repo ?? repo,
         deploymentId: id,
         deployment: result.deployment,
+        sourceRef: result.sourceRef ?? result.deployment.source?.ref,
         releaseTags: result.releaseTags,
         apps: result.apps,
         live: false,
@@ -246,7 +262,9 @@ export function DeployStep({
     installationId,
     onProgress,
     progress.appSourceId,
+    progress.sourceRef,
     repo,
+    deployment?.source?.ref,
   ]);
 
   useEffect(() => {
