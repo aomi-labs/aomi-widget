@@ -190,12 +190,21 @@ export function Onboarding({
         setInstallingPath(path);
         try {
           const repo = next[path].repo;
-          window.location.href = await githubAppInstallUrl({
+          const installUrl = await githubAppInstallUrl({
             platform: resolveDeployPlatform(),
             repo,
             mode,
             app: path === "oneshot" ? 2 : undefined,
           });
+          if (mode === "authorize" && !repo) {
+            const opened = window.open(
+              installUrl,
+              "_blank",
+              "noopener,noreferrer",
+            );
+            if (opened) return;
+          }
+          window.location.href = installUrl;
         } catch (error) {
           setInstallingPath(null);
           setInstallError(

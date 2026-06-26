@@ -117,7 +117,10 @@ export function OneshotWizard({
             <p className="text-muted-foreground text-sm leading-5">
               Installs <code>aomi-build-oneshot</code>. It can create a repo in
               your account from our template and open deploy pull requests.
-              You&apos;ll return here automatically after consent.
+              You&apos;ll return here automatically after consent. If it is
+              already installed, GitHub may open its configuration in another
+              tab; keep this page open and return here after saving or closing
+              GitHub.
             </p>
             <div className="flex flex-wrap gap-2">
               <Button
