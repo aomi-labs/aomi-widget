@@ -357,6 +357,7 @@ export function PortalAomiFrame() {
         width="100%"
         height="100%"
         backendUrl={backendUrl}
+        applicationId={lockedApplicationId}
         walletPosition="footer"
         walletFamilies={["evm", "solana"]}
         className="rounded-none border-0 shadow-none"
