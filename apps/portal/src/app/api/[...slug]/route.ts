@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { mintAccountBearer } from "@aomi-labs/account";
-import { getSessionedCanonicalId } from "@portal/lib/aomi-account/session";
-import { configuredBackendUrl } from "@portal/lib/backend-url";
+import { getSessionedCanonicalId } from "@portal/server/cookies/session";
+import { configuredBackendUrl } from "@portal/server/backend-url";
 
 /**
  * Same-origin proxy that fronts the Rust backend and **injects the
@@ -34,10 +34,12 @@ const ALLOWED_REQUEST_HEADERS = new Set([
   "x-session-id",
 ]);
 
-// Backend routes this proxy is willing to forward. Portal-owned routes
-// (`/api/account/sessions/exchange`, `/api/launch/*`, `/api/e2e/*`,
-// `/api/mcp/*`) are served by their own handlers — a more specific route always
-// wins over this catch-all, so they never reach here.
+// Backend routes this proxy is willing to forward. Boundary rule: everything
+// under `/api/bff/*` is portal-owned and served by its own handler (a more
+// specific route always wins over this catch-all); every other `/api/*` path is
+// forwarded to the Rust backend here. No portal route is nested inside a
+// proxied namespace anymore, so the `/api/account/*` family below forwards
+// cleanly.
 const ALLOWED_ROUTES: Array<{
   pattern: RegExp;
   methods: ReadonlySet<string>;
@@ -45,8 +47,8 @@ const ALLOWED_ROUTES: Array<{
   // The whole account family — `/api/account` plus sub-routes the settings UI
   // calls (`/payment`, `/payment/byok`, `/app-keys[/id]`, `/approvals`,
   // `/bots[/id]`, `/usage`). The backend authorizes each by the injected user
-  // bearer, so the proxy only needs to forward them. (`/api/account/sessions/
-  // exchange` is a more-specific portal route and never reaches this catch-all.)
+  // bearer, so the proxy only needs to forward them. (The wallet→session
+  // exchange is a portal route at `/api/bff/auth/exchange`, not here.)
   {
     pattern: /^\/api\/account(\/.*)?$/,
     methods: new Set(["GET", "POST", "PATCH", "PUT", "DELETE"]),

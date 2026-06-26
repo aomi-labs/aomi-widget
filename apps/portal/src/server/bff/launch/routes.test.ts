@@ -1,5 +1,5 @@
 // @vitest-environment node
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   launchDeployRoute,
@@ -17,12 +17,12 @@ vi.mock("@aomi-labs/account", () => ({
 }));
 
 const getGitHubSession = vi.fn();
-vi.mock("@portal/lib/aomi-account/github-session", () => ({
+vi.mock("@portal/server/cookies/github", () => ({
   getGitHubSession: () => getGitHubSession(),
 }));
 
 function writeReq(body: unknown) {
-  return new Request("http://localhost:3000/api/launch/redeploy", {
+  return new Request("http://localhost:3000/api/bff/launch/redeploy", {
     method: "POST",
     headers: {
       origin: "http://localhost:3000",
@@ -33,7 +33,12 @@ function writeReq(body: unknown) {
 }
 
 describe("launchDeployRoute", () => {
+  beforeEach(() => {
+    vi.stubEnv("APP_DEPLOY_SOURCE_REF", "abc1234def5678");
+  });
+
   afterEach(() => {
+    vi.unstubAllEnvs();
     vi.restoreAllMocks();
   });
 
@@ -48,7 +53,7 @@ describe("launchDeployRoute", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     const POST = launchDeployRoute(false);
-    const req = new Request("http://localhost:3000/api/launch/deploy", {
+    const req = new Request("http://localhost:3000/api/bff/launch/deploy", {
       method: "POST",
       headers: {
         origin: "http://localhost:3000",
@@ -91,7 +96,7 @@ describe("launchDeployRoute", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     const POST = launchDeployRoute(true);
-    const req = new Request("http://localhost:3000/api/launch/preflight", {
+    const req = new Request("http://localhost:3000/api/bff/launch/preflight", {
       method: "POST",
       headers: {
         origin: "http://localhost:3000",
@@ -128,7 +133,7 @@ describe("launchDeployRoute", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     const POST = launchDeployRoute(false);
-    const req = new Request("http://localhost:3000/api/launch/deploy", {
+    const req = new Request("http://localhost:3000/api/bff/launch/deploy", {
       method: "POST",
       headers: {
         origin: "http://localhost:3000",
@@ -159,7 +164,7 @@ describe("launchDeployRoute", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     const POST = launchDeployRoute(false);
-    const req = new Request("http://localhost:3000/api/launch/deploy", {
+    const req = new Request("http://localhost:3000/api/bff/launch/deploy", {
       method: "POST",
       headers: {
         origin: "http://localhost:3000",
@@ -190,12 +195,35 @@ describe("launchDeployRoute", () => {
     );
   });
 
+  it("rejects deploy requests when no immutable source commit is configured", async () => {
+    vi.unstubAllEnvs();
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    const POST = launchDeployRoute(false);
+    const req = new Request("http://localhost:3000/api/bff/launch/deploy", {
+      method: "POST",
+      headers: {
+        origin: "http://localhost:3000",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ appSourceId: 777 }),
+    });
+
+    const res = await POST(req);
+    const body = await res.json();
+
+    expect(res.status).toBe(400);
+    expect(body.error).toContain("APP_DEPLOY_SOURCE_REF");
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it("rejects a request without appSourceId or repo before calling the backend", async () => {
     const fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);
 
     const POST = launchDeployRoute(false);
-    const req = new Request("http://localhost:3000/api/launch/deploy", {
+    const req = new Request("http://localhost:3000/api/bff/launch/deploy", {
       method: "POST",
       headers: {
         origin: "http://localhost:3000",
@@ -214,7 +242,7 @@ describe("launchDeployRoute", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     const POST = launchDeployRoute(false);
-    const req = new Request("http://localhost:3000/api/launch/deploy", {
+    const req = new Request("http://localhost:3000/api/bff/launch/deploy", {
       method: "POST",
       headers: {
         origin: "http://localhost:3000",
@@ -233,7 +261,7 @@ describe("launchDeployRoute", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     const POST = launchDeployRoute(false);
-    const req = new Request("http://localhost:3000/api/launch/deploy", {
+    const req = new Request("http://localhost:3000/api/bff/launch/deploy", {
       method: "POST",
       headers: {
         origin: "http://localhost:3000",
@@ -343,7 +371,12 @@ describe("redeployLaunchRoute", () => {
 });
 
 describe("launchStatusRoute", () => {
+  beforeEach(() => {
+    vi.stubEnv("APP_DEPLOY_SOURCE_REF", "abc1234def5678");
+  });
+
   afterEach(() => {
+    vi.unstubAllEnvs();
     vi.restoreAllMocks();
   });
 
@@ -358,7 +391,7 @@ describe("launchStatusRoute", () => {
 
     const res = await launchStatusRoute(
       new Request(
-        "http://localhost:3000/api/launch/status?deploymentId=dep_141780080_r2849901c35_af4f107b0331",
+        "http://localhost:3000/api/bff/launch/status?deploymentId=dep_141780080_r2849901c35_af4f107b0331",
       ),
     );
     const body = await res.json();
@@ -418,7 +451,7 @@ describe("launchStatusRoute", () => {
 
     const res = await launchStatusRoute(
       new Request(
-        "http://localhost:3000/api/launch/status?deploymentId=dep_141780080_r2849901c35_af4f107b0331",
+        "http://localhost:3000/api/bff/launch/status?deploymentId=dep_141780080_r2849901c35_af4f107b0331",
       ),
     );
     const body = await res.json();
@@ -483,7 +516,7 @@ describe("launchStatusRoute", () => {
 
     const res = await launchStatusRoute(
       new Request(
-        "http://localhost:3000/api/launch/status?deploymentId=dep_141780080_r0fd515d1d4_8819f32c4399",
+        "http://localhost:3000/api/bff/launch/status?deploymentId=dep_141780080_r0fd515d1d4_8819f32c4399",
       ),
     );
     const body = await res.json();
