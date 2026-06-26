@@ -1,11 +1,12 @@
 import "server-only";
 
-import { resolveDeployPlatform } from "@portal/lib/deploy-platform";
+import { DEFAULT_DEPLOY_PLATFORM } from "@portal/lib/deploy-platform";
 
 const DEFAULT_TEMPLATE_REPO = "aomi-labs/playground-example";
 
 export type LaunchConfig = {
   platform: string;
+  platforms: string[];
   templateRepo: string;
   createdRepoPrivate: boolean;
   targetTags: string[];
@@ -28,9 +29,43 @@ function envList(name: string): string[] {
     .filter(Boolean);
 }
 
+function dedupe(values: string[]): string[] {
+  return Array.from(new Set(values));
+}
+
+function envJsonOrCommaList(name: string): string[] {
+  const raw = process.env[name]?.trim();
+  if (!raw) return [];
+
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    if (Array.isArray(parsed)) {
+      return dedupe(
+        parsed
+          .map((value) => (typeof value === "string" ? value.trim() : ""))
+          .filter(Boolean),
+      );
+    }
+  } catch {
+    // Fall through to comma-separated parsing for Vercel/plain .env ergonomics.
+  }
+
+  return dedupe(
+    raw
+      .split(",")
+      .map((value) => value.trim())
+      .filter(Boolean),
+  );
+}
+
 export function launchConfig(): LaunchConfig {
+  const platforms = envJsonOrCommaList("APP_DEPLOY_PLATFORMS");
+  const resolvedPlatforms =
+    platforms.length > 0 ? platforms : [DEFAULT_DEPLOY_PLATFORM];
+
   return {
-    platform: process.env.APP_DEPLOY_PLATFORM?.trim() || resolveDeployPlatform(),
+    platform: resolvedPlatforms[0],
+    platforms: resolvedPlatforms,
     templateRepo:
       process.env.APP_DEPLOY_TEMPLATE_REPO?.trim() ||
       envString("NEXT_PUBLIC_APP_DEPLOY_TEMPLATE_REPO", DEFAULT_TEMPLATE_REPO),
