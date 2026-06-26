@@ -1,8 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { mintAccountBearer } from "@aomi-labs/account";
+import type { AomiAppDescriptor } from "@aomi-labs/client";
 import { getSessionedCanonicalId } from "@portal/server/cookies/session";
 import { configuredBackendUrl } from "@portal/server/backend-url";
+import { deploymentClient } from "@portal/server/bff/backend";
+import { launchConfig } from "@portal/server/bff/launch/config";
 
 /**
  * Same-origin proxy that fronts the Rust backend and **injects the
@@ -155,9 +158,12 @@ async function injectBearer(req: NextRequest, headers: Headers): Promise<void> {
     const { accessToken: accountBearer } = await mintAccountBearer(canonicalId);
     headers.set("authorization", `Bearer ${accountBearer}`);
   } catch (error) {
-    console.warn("Aomi proxy: could not mint AccountBearer; forwarding anonymous", {
-      message: error instanceof Error ? error.message : String(error),
-    });
+    console.warn(
+      "Aomi proxy: could not mint AccountBearer; forwarding anonymous",
+      {
+        message: error instanceof Error ? error.message : String(error),
+      },
+    );
   }
 }
 
@@ -174,6 +180,56 @@ function copyResponseHeaders(upstream: Response): Headers {
   return headers;
 }
 
+function normalizeAppDescriptors(data: unknown): AomiAppDescriptor[] {
+  if (!Array.isArray(data)) return [];
+  return data
+    .map((item) => {
+      if (typeof item === "string" && item.trim().length > 0) {
+        return { name: item.trim() };
+      }
+      if (item && typeof item === "object" && "name" in item) {
+        const descriptor = item as AomiAppDescriptor;
+        if (descriptor.name?.trim()) {
+          return { ...descriptor, name: descriptor.name.trim() };
+        }
+      }
+      return null;
+    })
+    .filter((item): item is AomiAppDescriptor => item !== null);
+}
+
+async function mergePlatformApps(
+  descriptors: AomiAppDescriptor[],
+): Promise<AomiAppDescriptor[]> {
+  try {
+    const config = launchConfig();
+    const client = await deploymentClient();
+    const platformApps = await client.listApps({ platform: config.platform });
+    const merged = new Map(
+      descriptors.map((descriptor) => [descriptor.name, descriptor]),
+    );
+
+    for (const app of platformApps) {
+      if (!app.name || !app.isPublic || !app.isActive || !app.loaded) {
+        continue;
+      }
+      if (!merged.has(app.name)) {
+        merged.set(app.name, { name: app.name });
+      }
+    }
+
+    return Array.from(merged.values());
+  } catch (error) {
+    console.warn(
+      "Aomi proxy: could not merge platform apps into session apps",
+      {
+        message: error instanceof Error ? error.message : String(error),
+      },
+    );
+    return descriptors;
+  }
+}
+
 async function handle(
   req: NextRequest,
   context: { params: Promise<{ slug?: string[] }> },
@@ -182,7 +238,10 @@ async function handle(
   const upstreamUrl = buildUpstreamUrl(req, slug);
 
   if (!isAllowedProxyRequest(upstreamUrl.pathname, req.method)) {
-    return NextResponse.json({ error: "Unsupported API route" }, { status: 404 });
+    return NextResponse.json(
+      { error: "Unsupported API route" },
+      { status: 404 },
+    );
   }
 
   const headers = copyRequestHeaders(req);
@@ -198,6 +257,18 @@ async function handle(
           : await req.text(),
       redirect: "manual",
     });
+    if (
+      req.method === "GET" &&
+      upstream.ok &&
+      upstreamUrl.pathname === "/api/session/apps"
+    ) {
+      const descriptors = normalizeAppDescriptors(await upstream.json());
+      const merged = await mergePlatformApps(descriptors);
+      return NextResponse.json(merged, {
+        status: upstream.status,
+        headers: copyResponseHeaders(upstream),
+      });
+    }
     return new NextResponse(upstream.body, {
       status: upstream.status,
       statusText: upstream.statusText,
@@ -207,7 +278,10 @@ async function handle(
     console.error("Aomi upstream request failed", {
       message: error instanceof Error ? error.message : String(error),
     });
-    return NextResponse.json({ error: "Upstream request failed" }, { status: 502 });
+    return NextResponse.json(
+      { error: "Upstream request failed" },
+      { status: 502 },
+    );
   }
 }
 
