@@ -1,5 +1,5 @@
 // @vitest-environment node
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   launchDeployRoute,
@@ -17,7 +17,7 @@ vi.mock("@aomi-labs/account", () => ({
 }));
 
 const getGitHubSession = vi.fn();
-vi.mock("@portal/server/aomi-account/github-session", () => ({
+vi.mock("@portal/server/cookies/github", () => ({
   getGitHubSession: () => getGitHubSession(),
 }));
 
@@ -33,7 +33,12 @@ function writeReq(body: unknown) {
 }
 
 describe("launchDeployRoute", () => {
+  beforeEach(() => {
+    vi.stubEnv("APP_DEPLOY_SOURCE_REF", "abc1234def5678");
+  });
+
   afterEach(() => {
+    vi.unstubAllEnvs();
     vi.restoreAllMocks();
   });
 
@@ -190,6 +195,29 @@ describe("launchDeployRoute", () => {
     );
   });
 
+  it("rejects deploy requests when no immutable source commit is configured", async () => {
+    vi.unstubAllEnvs();
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    const POST = launchDeployRoute(false);
+    const req = new Request("http://localhost:3000/api/bff/launch/deploy", {
+      method: "POST",
+      headers: {
+        origin: "http://localhost:3000",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ appSourceId: 777 }),
+    });
+
+    const res = await POST(req);
+    const body = await res.json();
+
+    expect(res.status).toBe(400);
+    expect(body.error).toContain("APP_DEPLOY_SOURCE_REF");
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it("rejects a request without appSourceId or repo before calling the backend", async () => {
     const fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);
@@ -331,7 +359,12 @@ describe("redeployLaunchRoute", () => {
 });
 
 describe("launchStatusRoute", () => {
+  beforeEach(() => {
+    vi.stubEnv("APP_DEPLOY_SOURCE_REF", "abc1234def5678");
+  });
+
   afterEach(() => {
+    vi.unstubAllEnvs();
     vi.restoreAllMocks();
   });
 
