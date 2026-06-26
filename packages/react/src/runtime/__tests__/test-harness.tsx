@@ -30,6 +30,7 @@ export type AomiClientConfig = {
     message: string,
     options?: {
       app?: string;
+      applicationId?: number | string | null;
       apiKey?: string;
       userState?: Record<string, unknown>;
     },
@@ -39,6 +40,7 @@ export type AomiClientConfig = {
     message: string,
     options?: {
       app?: string;
+      applicationId?: number | string | null;
     },
   ) => Promise<{ res?: unknown }>;
   interrupt?: (sessionId: string) => Promise<AomiInterruptResponse>;
@@ -55,7 +57,11 @@ export type AomiClientConfig = {
   setModel?: (
     sessionId: string,
     rig: string,
-    options?: { app?: string; apiKey?: string },
+    options?: {
+      app?: string;
+      applicationId?: number | string | null;
+      apiKey?: string;
+    },
   ) => Promise<{ rig: string; app?: string }>;
 
   // Legacy aliases (so existing tests keep working without changes)
@@ -65,6 +71,7 @@ export type AomiClientConfig = {
     message: string,
     options?: {
       app?: string;
+      applicationId?: number | string | null;
       apiKey?: string;
       userState?: Record<string, unknown>;
     },
@@ -74,6 +81,7 @@ export type AomiClientConfig = {
     message: string,
     options?: {
       app?: string;
+      applicationId?: number | string | null;
     },
   ) => Promise<{ res?: unknown }>;
   postInterrupt?: (sessionId: string) => Promise<AomiInterruptResponse>;
@@ -173,6 +181,7 @@ vi.mock("@aomi-labs/client", async (importOriginal) => {
         message: string,
         options?: {
           app?: string;
+          applicationId?: number | string | null;
           apiKey?: string;
           userState?: Record<string, unknown>;
         },
@@ -191,6 +200,7 @@ vi.mock("@aomi-labs/client", async (importOriginal) => {
         message: string,
         options?: {
           app?: string;
+          applicationId?: number | string | null;
         },
       ) => {
         const fn =
@@ -250,7 +260,11 @@ vi.mock("@aomi-labs/client", async (importOriginal) => {
       async (
         sessionId: string,
         rig: string,
-        options?: { app?: string; apiKey?: string },
+        options?: {
+          app?: string;
+          applicationId?: number | string | null;
+          apiKey?: string;
+        },
       ) => {
         return mockState.config.setModel
           ? await mockState.config.setModel(sessionId, rig, options)
@@ -292,6 +306,7 @@ vi.mock("@aomi-labs/client", async (importOriginal) => {
     private _isSSEActive = false;
 
     private _app?: string;
+    private _applicationId?: number | string | null;
     private _apiKey?: string;
     private _userState?: Record<string, unknown>;
     private _clientId?: string;
@@ -307,6 +322,7 @@ vi.mock("@aomi-labs/client", async (importOriginal) => {
       opts?: {
         sessionId?: string;
         app?: string;
+        applicationId?: number | string | null;
         apiKey?: string;
         clientId?: string;
         userState?: Record<string, unknown>;
@@ -327,6 +343,7 @@ vi.mock("@aomi-labs/client", async (importOriginal) => {
       }
       this.sessionId = opts?.sessionId ?? "mock-session";
       this._app = opts?.app;
+      this._applicationId = opts?.applicationId;
       this._apiKey = opts?.apiKey;
       this._clientId = opts?.clientId;
       this.resolveUserState(opts?.userState);
@@ -350,6 +367,7 @@ vi.mock("@aomi-labs/client", async (importOriginal) => {
     async sendAsync(message: string) {
       const response = await this.client.sendMessage(this.sessionId, message, {
         app: this._app,
+        applicationId: this._applicationId,
         apiKey: this._apiKey,
         userState: this._userState,
         clientId: this._clientId,
@@ -394,11 +412,13 @@ vi.mock("@aomi-labs/client", async (importOriginal) => {
     }
     syncRuntimeOptions(options: {
       app: string;
+      applicationId?: number | string | null;
       apiKey?: string;
       clientId?: string;
       userState?: Record<string, unknown>;
     }) {
       this._app = options.app;
+      this._applicationId = options.applicationId;
       this._apiKey = options.apiKey;
       this._clientId = options.clientId ?? this._clientId;
       if (options.userState) {
@@ -613,6 +633,7 @@ RuntimeHarness.displayName = "RuntimeHarness";
 
 export type RenderRuntimeOptions = {
   backendUrl?: string;
+  applicationId?: number | string | null;
 };
 
 export type RenderRuntimeResult = {
@@ -627,11 +648,12 @@ export type RenderRuntimeResult = {
 
 export const renderRuntime = ({
   backendUrl = "http://test-backend",
+  applicationId,
 }: RenderRuntimeOptions = {}): RenderRuntimeResult => {
   const ref = React.createRef<RuntimeHarnessHandle>();
 
   const { unmount, rerender } = render(
-    <AomiRuntimeProvider backendUrl={backendUrl}>
+    <AomiRuntimeProvider backendUrl={backendUrl} applicationId={applicationId}>
       <RuntimeHarness ref={ref} />
     </AomiRuntimeProvider>,
   );

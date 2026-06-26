@@ -189,6 +189,10 @@ describe("DeploymentClient bootstrap — sources", () => {
       githubAccount: "alice",
       githubUserId: 222,
       boundPlatformId: 3,
+      boundPlatformName: null,
+      createdBy: null,
+      templateRepo: null,
+      launchSourceKind: null,
     });
   });
 
