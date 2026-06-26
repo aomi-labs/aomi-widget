@@ -30,6 +30,7 @@ import {
 export type AomiRuntimeCoreProps = {
   children: ReactNode;
   aomiClient: AomiClient;
+  applicationId?: number | string | null;
 };
 
 const getHttpStatus = (error: unknown): number | undefined => {
@@ -48,6 +49,7 @@ const getHttpStatus = (error: unknown): number | undefined => {
 export function AomiRuntimeCore({
   children,
   aomiClient,
+  applicationId,
 }: Readonly<AomiRuntimeCoreProps>) {
   const threadContext = useThreadContext();
   const eventContext = useEventContext();
@@ -90,6 +92,7 @@ export function AomiRuntimeCore({
   } = useRuntimeOrchestrator(aomiClient, {
     getUserState,
     getApp: getCurrentThreadApp,
+    getApplicationId: () => applicationId,
     getApiKey: () => getControlState().apiKey,
     getClientId: () => getControlState().clientId ?? undefined,
     prepareThreadForSend: async (threadId) => {

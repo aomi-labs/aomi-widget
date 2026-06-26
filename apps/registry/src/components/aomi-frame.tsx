@@ -61,6 +61,8 @@ type RootProps = {
   showSidebar?: boolean;
   /** Backend URL for the Aomi runtime */
   backendUrl?: string;
+  /** Optional concrete application row to route runtime calls to. */
+  applicationId?: number | string | null;
   /** Optional runtime client overrides. */
   clientOptions?: Omit<AomiClientOptions, "baseUrl">;
 };
@@ -104,6 +106,7 @@ const Root: FC<RootProps> = ({
   walletFamilies,
   showSidebar = true,
   backendUrl,
+  applicationId,
   clientOptions,
 }) => {
   const resolvedBackendUrl =
@@ -115,6 +118,7 @@ const Root: FC<RootProps> = ({
   return (
     <AomiRuntimeProvider
       backendUrl={resolvedBackendUrl}
+      applicationId={applicationId}
       clientOptions={clientOptions}
     >
       <SidebarProvider className="min-h-0! h-full">
