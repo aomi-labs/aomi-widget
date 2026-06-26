@@ -400,6 +400,7 @@ function SourceCard({ source }: { source: UserSource }) {
     installationId: String(source.installationId),
     repo: lifecycle.repo,
     appSourceId: source.id,
+    sourceRef: source.sourceRef ?? source.commitHash ?? undefined,
     apps: lifecycle.appNames,
     releaseTags: lifecycle.releaseTags,
     live: visibleLifecycle.kind === "live",

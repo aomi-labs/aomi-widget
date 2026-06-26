@@ -33,10 +33,6 @@ function writeReq(body: unknown) {
 }
 
 describe("launchDeployRoute", () => {
-  beforeEach(() => {
-    vi.stubEnv("APP_DEPLOY_SOURCE_REF", "abc1234def5678");
-  });
-
   afterEach(() => {
     vi.unstubAllEnvs();
     vi.restoreAllMocks();
@@ -59,7 +55,10 @@ describe("launchDeployRoute", () => {
         origin: "http://localhost:3000",
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ appSourceId: 123 }),
+      body: JSON.stringify({
+        appSourceId: 123,
+        sourceRef: "abc1234def5678",
+      }),
     });
 
     const res = await POST(req);
@@ -80,6 +79,7 @@ describe("launchDeployRoute", () => {
             id: 123,
             installation_id: 555,
             repository_link: "alice/bot",
+            source_ref: "abc1234def5678",
           },
         }),
       )
@@ -123,7 +123,7 @@ describe("launchDeployRoute", () => {
       "http://127.0.0.1:8080/api/platforms/community/deploy",
       expect.objectContaining({
         method: "POST",
-        body: expect.stringContaining('"app_source_id":123'),
+        body: expect.stringContaining('"source_ref":"abc1234def5678"'),
       }),
     );
   });
@@ -172,6 +172,7 @@ describe("launchDeployRoute", () => {
       },
       body: JSON.stringify({
         appSourceId: 777,
+        sourceRef: "abc1234def5678",
         installationId: "555",
         repo: "alice/bot",
       }),
@@ -190,12 +191,12 @@ describe("launchDeployRoute", () => {
       "http://127.0.0.1:8080/api/platforms/community/deploy",
       expect.objectContaining({
         method: "POST",
-        body: expect.stringContaining('"app_source_id":777'),
+        body: expect.stringContaining('"source_ref":"abc1234def5678"'),
       }),
     );
   });
 
-  it("rejects deploy requests when no immutable source commit is configured", async () => {
+  it("rejects deploy requests when no source commit is supplied or resolved", async () => {
     vi.unstubAllEnvs();
     const fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);
@@ -214,7 +215,7 @@ describe("launchDeployRoute", () => {
     const body = await res.json();
 
     expect(res.status).toBe(400);
-    expect(body.error).toContain("APP_DEPLOY_SOURCE_REF");
+    expect(body.error).toContain("missing source commit");
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
@@ -267,7 +268,10 @@ describe("launchDeployRoute", () => {
         origin: "http://localhost:3000",
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ appSourceId: 123 }),
+      body: JSON.stringify({
+        appSourceId: 123,
+        sourceRef: "abc1234def5678",
+      }),
     });
 
     const res = await POST(req);
@@ -371,10 +375,6 @@ describe("redeployLaunchRoute", () => {
 });
 
 describe("launchStatusRoute", () => {
-  beforeEach(() => {
-    vi.stubEnv("APP_DEPLOY_SOURCE_REF", "abc1234def5678");
-  });
-
   afterEach(() => {
     vi.unstubAllEnvs();
     vi.restoreAllMocks();

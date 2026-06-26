@@ -10,7 +10,7 @@ describe("AomiClient route manifest", () => {
         `${endpoint.method} ${endpoint.path} [${endpoint.auth.join(", ")}]`,
     );
 
-    expect(routeKeys).toHaveLength(77);
+    expect(routeKeys).toHaveLength(78);
     expect(new Set(routeKeys).size).toBe(routeKeys.length);
     expect(routeKeys).toContain("GET /api/session/apps [session]");
     expect(routeKeys).toContain("POST /api/platforms/:name/deploy [activation]");
