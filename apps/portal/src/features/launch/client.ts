@@ -31,7 +31,10 @@ export async function githubAppInstallUrl(args: {
   if (platform) params.set("platform", platform);
   const repo = args.repo ? normalizeRepo(args.repo) : null;
   if (repo) params.set("repo", repo);
-  if (args.mode === "authorize") params.set("mode", "authorize");
+  // OAuth-only authorize cannot disambiguate users with multiple GitHub App
+  // installations unless a repo is present. Without a repo, use the app
+  // install/configure flow so GitHub redirects back with installation_id.
+  if (args.mode === "authorize" && repo) params.set("mode", "authorize");
   if (args.app && args.app !== 1) params.set("app", String(args.app));
   const query = params.toString();
   const result = await sessionScopedFetch<GithubAppOAuthStartResponse>(
