@@ -21,6 +21,7 @@ import { AomiRuntimeCore } from "./core";
 export type AomiRuntimeProviderProps = {
   children: ReactNode;
   backendUrl?: string;
+  applicationId?: number | string | null;
   clientOptions?: Omit<AomiClientOptions, "baseUrl">;
 };
 
@@ -44,6 +45,7 @@ function normalizeBackendUrl(url: string): string {
 export function AomiRuntimeProvider({
   children,
   backendUrl = "http://127.0.0.1:8080",
+  applicationId,
   clientOptions,
 }: Readonly<AomiRuntimeProviderProps>) {
   const resolvedClientOptions = useMemo(
@@ -69,7 +71,10 @@ export function AomiRuntimeProvider({
     <ThreadContextProvider>
       <NotificationContextProvider>
         <ExtUserProvider>
-          <AomiRuntimeInner aomiClient={aomiClient}>
+          <AomiRuntimeInner
+            aomiClient={aomiClient}
+            applicationId={applicationId}
+          >
             {children}
           </AomiRuntimeInner>
         </ExtUserProvider>
@@ -85,11 +90,13 @@ export function AomiRuntimeProvider({
 type AomiRuntimeInnerProps = {
   children: ReactNode;
   aomiClient: AomiClient;
+  applicationId?: number | string | null;
 };
 
 function AomiRuntimeInner({
   children,
   aomiClient,
+  applicationId,
 }: Readonly<AomiRuntimeInnerProps>) {
   const threadContext = useThreadContext();
 
@@ -104,7 +111,12 @@ function AomiRuntimeInner({
         aomiClient={aomiClient}
         sessionId={threadContext.currentThreadId}
       >
-        <AomiRuntimeCore aomiClient={aomiClient}>{children}</AomiRuntimeCore>
+        <AomiRuntimeCore
+          aomiClient={aomiClient}
+          applicationId={applicationId}
+        >
+          {children}
+        </AomiRuntimeCore>
       </EventContextProvider>
     </ControlContextProvider>
   );

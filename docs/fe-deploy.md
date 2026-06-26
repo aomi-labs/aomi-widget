@@ -4,8 +4,13 @@ How the **Deploy** tab takes a developer from "nothing" to "my agent is live in
 chat", for both onboarding paths. Backend is owned end-to-end via a GitHub App;
 the browser never holds GitHub tokens or service credentials.
 
-> **Latest changes (2026-06, PRs #243–#245 + post-merge fixes):**
+> **Latest changes (2026-06-25 launch cleanup):**
 >
+> - Portal BFF source dashboard now calls backend `user/sources` with the configured launch platform; backend hides unrelated repos from broad GitHub App installations.
+> - The deploy preview route is `preflight`, not `dry-run`.
+> - Launch config is server-env-driven: `APP_DEPLOY_PLATFORM`, `APP_DEPLOY_AOMI_TOML_PATHS`, and optional `APP_DEPLOY_TARGET_TAGS`. The deploy source ref is an immutable commit SHA from `APP_DEPLOY_SOURCE_REF` (or `APP_DEPLOY_SOURCE_COMMIT`).
+> - Chat links are controlled by `NEXT_PUBLIC_CHAT_URL`.
+> - Redeploy hydrates one target source's latest deployment metadata, then reruns an existing backend-owned GitHub Actions run. It requires portal `GITHUB_TOKEN` and refuses when no `ciRunId` is available.
 > - GitHub install redirects in the **same tab** (was: new tab + fragile localStorage polling) — eliminates popup-blocker + race-condition bugs
 > - BFF hardened: CSRF validates against the incoming request origin, rate limit raised 10→60 req/min, empty `releaseTags` validated
 > - Backend `with_snapshot()` fix: deployment status checks CI against the recorded built commit, not the live branch HEAD — prevents pending deployments from being orphaned by snapshot merges
@@ -72,15 +77,17 @@ stateDiagram-v2
 
 **Portal BFF** — `aomi-widget/apps/portal/src/app/api/launch/*` (each proxies the BE)
 
-| BFF route                         | → Backend                            |
-| --------------------------------- | ------------------------------------ |
-| `POST /api/launch/preflight`      | optional sync, then preflight deploy |
-| `POST /api/launch/deploy`         | deploy by `appSourceId`              |
-| `POST /api/launch/create`         | `…/sources/create-from-template`     |
-| `GET  /api/launch/status`         | deployment status                    |
-| `POST /api/launch/activate`       | `…/activate`                         |
-| `GET  /api/launch/app`            | app load status                      |
-| `POST /api/launch/sync-installed` | `…/sources/sync-installed`           |
+| BFF route                         | → Backend                                                                                   |
+| --------------------------------- | ------------------------------------------------------------------------------------------- |
+| `GET  /api/launch/sources`        | `GET /api/integrations/github-app/user/sources?github_user_id&platform`                     |
+| `POST /api/launch/preflight`      | `POST …/sources/sync-installed` when needed, then `POST …/deploy` with `preflight: true`     |
+| `POST /api/launch/deploy`         | `POST …/deploy` with explicit `app_source_id`                                               |
+| `POST /api/launch/create`         | `…/sources/create-from-template`                                                            |
+| `POST /api/launch/sync-installed` | `…/sources/sync-installed` for exactly the pasted `owner/repo`                              |
+| `GET  /api/launch/status`         | deployment status                                                                           |
+| `POST /api/launch/activate`       | `…/activate`                                                                                |
+| `GET  /api/launch/app`            | app load status                                                                             |
+| `POST /api/launch/redeploy`       | backend single-source latest-deployment lookup, then GitHub `actions/runs/{ciRunId}/rerun` |
 
 ---
 

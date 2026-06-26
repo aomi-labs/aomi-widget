@@ -5,8 +5,7 @@ import { resolveDeployPlatform } from "@portal/lib/deploy-platform";
 
 const TEMPLATE_REPO = "aomi-labs/playground-example";
 const CREATED_REPO_PRIVATE = false;
-const AOMI_TOML_PATHS = ["aomi.toml"];
-const TARGET_TAGS: string[] = [];
+const DEFAULT_AOMI_TOML_PATHS = ["aomi.toml"];
 const SOURCE_REF_ENV = "APP_DEPLOY_SOURCE_REF";
 const SOURCE_COMMIT_ENV = "APP_DEPLOY_SOURCE_COMMIT";
 
@@ -18,13 +17,28 @@ export type LaunchConfig = {
   targetTags: string[];
 };
 
+function envValue(name: string): string | undefined {
+  return process.env[name]?.trim() || undefined;
+}
+
+function commaList(value: string | undefined, fallback: string[] = []): string[] {
+  const parsed = (value ?? "")
+    .split(",")
+    .map((part) => part.trim())
+    .filter(Boolean);
+  return parsed.length > 0 ? parsed : fallback;
+}
+
 export function launchConfig(): LaunchConfig {
   return {
-    platform: resolveDeployPlatform(),
+    platform: envValue("APP_DEPLOY_PLATFORM") ?? resolveDeployPlatform(),
     templateRepo: TEMPLATE_REPO,
     createdRepoPrivate: CREATED_REPO_PRIVATE,
-    aomiTomlPaths: [...AOMI_TOML_PATHS],
-    targetTags: [...TARGET_TAGS],
+    aomiTomlPaths: commaList(
+      envValue("APP_DEPLOY_AOMI_TOML_PATHS"),
+      DEFAULT_AOMI_TOML_PATHS,
+    ),
+    targetTags: commaList(envValue("APP_DEPLOY_TARGET_TAGS")),
   };
 }
 

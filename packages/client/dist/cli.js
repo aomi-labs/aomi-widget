@@ -3134,6 +3134,7 @@ var init_session = __esm({
         this.client = clientOrOptions instanceof AomiClient ? clientOrOptions : new AomiClient(clientOrOptions);
         this.sessionId = (_a3 = sessionOptions == null ? void 0 : sessionOptions.sessionId) != null ? _a3 : crypto.randomUUID();
         this.app = (_b = sessionOptions == null ? void 0 : sessionOptions.app) != null ? _b : "default";
+        this.applicationId = sessionOptions == null ? void 0 : sessionOptions.applicationId;
         this.apiKey = sessionOptions == null ? void 0 : sessionOptions.apiKey;
         const initialUserState = UserState.reconcile(
           void 0,
@@ -3171,6 +3172,7 @@ var init_session = __esm({
         this.assertOpen();
         const response = await this.client.sendMessage(this.sessionId, message, {
           app: this.app,
+          applicationId: this.applicationId,
           apiKey: this.apiKey,
           userState: this.userState,
           clientId: this.clientId
@@ -3195,6 +3197,7 @@ var init_session = __esm({
         this.assertOpen();
         const response = await this.client.sendMessage(this.sessionId, message, {
           app: this.app,
+          applicationId: this.applicationId,
           apiKey: this.apiKey,
           userState: this.userState,
           clientId: this.clientId
@@ -3310,6 +3313,7 @@ var init_session = __esm({
       syncRuntimeOptions(options) {
         var _a3;
         this.app = options.app;
+        this.applicationId = options.applicationId;
         this.apiKey = options.apiKey;
         this.clientId = (_a3 = options.clientId) != null ? _a3 : this.clientId;
         if (options.userState) {
@@ -3468,7 +3472,8 @@ var init_session = __esm({
       async sendSystemEvent(type, payload) {
         const message = JSON.stringify({ type, payload });
         await this.client.sendSystemMessage(this.sessionId, message, {
-          app: this.app
+          app: this.app,
+          applicationId: this.applicationId
         });
       }
       resolvePending() {
