@@ -21,7 +21,7 @@ const backendUrl = requiredEnv("AOMI_BACKEND_URL");
 const activationToken = requiredEnv("AOMI_APP_ACTIVATION_TOKEN");
 const platform = requiredEnv("AOMI_PLATFORM");
 const appSourceId = Number.parseInt(requiredEnv("AOMI_APP_SOURCE_ID"), 10);
-const aomiTomlPaths = (process.env.AOMI_TOML_PATHS ?? "aomi.toml")
+const aomiTomlPaths = (process.env.AOMI_TOML_PATHS ?? "")
   .split(",")
   .map((path) => path.trim())
   .filter(Boolean);
@@ -43,13 +43,17 @@ const dc = new DeploymentClient({
   onAudit: (event) => console.log("audit", JSON.stringify(event)),
 });
 
-const deploy = await dc.deploy({
+const deployInput = {
   platform,
   appSourceId,
   sourceRef,
   aomiTomlPaths,
-  preflight: process.env.AOMI_ACTIVATE !== "1",
-});
+};
+
+const deploy =
+  process.env.AOMI_ACTIVATE === "1"
+    ? await dc.deploy(deployInput)
+    : await dc.preflight(deployInput);
 
 console.log(JSON.stringify(deploy, null, 2));
 

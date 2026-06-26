@@ -19,7 +19,7 @@ function client(onAudit?: (event: AuditEvent) => void) {
   });
 }
 
-describe("DeploymentClient.deploy", () => {
+describe("DeploymentClient deploy/preflight", () => {
   let fetchMock: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
@@ -73,14 +73,13 @@ describe("DeploymentClient.deploy", () => {
 
   afterEach(() => vi.unstubAllGlobals());
 
-  it("POSTs the repo-scoped deploy request and maps the response to camelCase", async () => {
+  it("POSTs a preflight request and maps the deployment.json response to camelCase", async () => {
     const audits: AuditEvent[] = [];
-    const result = await client((event) => audits.push(event)).deploy({
+    const result = await client((event) => audits.push(event)).preflight({
       platform: "community",
       appSourceId: 42,
       sourceRef: "ABC1234DEF5678",
       aomiTomlPaths: ["aomi.toml"],
-      preflight: true,
       actor: "alice",
     });
 
@@ -110,12 +109,28 @@ describe("DeploymentClient.deploy", () => {
     });
     expect(audits).toEqual([
       expect.objectContaining({
-        action: "deploy",
+        action: "preflight",
         platform: "community",
         appSourceId: 42,
         actor: "alice",
       }),
     ]);
+  });
+
+  it("POSTs an apply deploy request without the preflight flag", async () => {
+    const result = await client().deploy({
+      platform: "community",
+      appSourceId: 42,
+      sourceRef: "abc1234def5678",
+    });
+
+    expect(result.deployment.id).toBe("dep_123_abc1234");
+    const [, init] = fetchMock.mock.calls[0];
+    expect(JSON.parse((init as RequestInit).body as string)).toEqual({
+      app_source_id: 42,
+      source_ref: "abc1234def5678",
+      aomi_toml_paths: [],
+    });
   });
 
   it("rejects invalid deploy input before calling the backend", async () => {

@@ -81,6 +81,7 @@ export function BootstrapWizard({
       installationId: String(source.installationId),
       installationStatus: "bound",
       appSourceId: source.id,
+      sourceRef: source.sourceRef ?? source.commitHash ?? undefined,
       apps: source.apps.map((app) => app.name).filter(Boolean),
       releaseTags: source.apps
         .map((app) => app.appReleaseTag ?? "")
@@ -386,7 +387,11 @@ function BootstrapDeployStep({
       if (!result.appSourceId) {
         throw new Error("backend did not return a source id for this repo");
       }
-      patch({ appSourceId: result.appSourceId, repo: result.repo });
+      patch({
+        appSourceId: result.appSourceId,
+        repo: result.repo,
+        sourceRef: result.sourceRef,
+      });
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {

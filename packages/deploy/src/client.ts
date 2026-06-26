@@ -22,6 +22,7 @@ import type {
   MintTokenInput,
   MintedToken,
   PlatformApp,
+  PreflightInput,
   ProgressModel,
   RevokeTokenInput,
   ScaffoldInput,
@@ -30,9 +31,6 @@ import type {
   TokenRecord,
   WatchDeploymentOptions,
 } from "./types";
-
-/** Portal one-shot template repo; the default source for `scaffold()`. */
-const DEFAULT_TEMPLATE_REPO = "aomi-labs/playground-example";
 
 /**
  * Server-side client to the Aomi platform deploy backend. It is a typed HTTP
@@ -82,9 +80,35 @@ export class DeploymentClient {
     return found;
   }
 
+  async preflight(input: PreflightInput): Promise<DeployResult> {
+    const platform = cleanPlatform(input.platform);
+    const body = deployRequest(input, true);
+    const result = await this.post<DeployResult>(
+      `/api/platforms/${encodeURIComponent(platform)}/deploy`,
+      body,
+      "preflight",
+      this.resolveBearer(),
+    );
+    const cameled = camelDeployResult(result);
+    if (!cameled.ok) {
+      throw new DeployError(
+        "BACKEND",
+        `preflight rejected by backend (deployment ${cameled.deployment.id})`,
+      );
+    }
+    await this.audit({
+      action: "preflight",
+      platform,
+      appSourceId: input.appSourceId,
+      actor: input.actor,
+      ts: Date.now(),
+    });
+    return cameled;
+  }
+
   async deploy(input: DeployInput): Promise<DeployResult> {
     const platform = cleanPlatform(input.platform);
-    const body = deployRequest(input);
+    const body = deployRequest(input, false);
     const result = await this.post<DeployResult>(
       `/api/platforms/${encodeURIComponent(platform)}/deploy`,
       body,
@@ -391,7 +415,7 @@ export class DeploymentClient {
       );
     }
     const repoName = required(input.repoName, "repoName");
-    const templateRepo = input.templateRepo?.trim() || DEFAULT_TEMPLATE_REPO;
+    const templateRepo = required(input.templateRepo, "templateRepo");
     const bearer = this.resolveBearer(input.bearer);
     const raw = await this.post<{ ok?: boolean; source?: unknown }>(
       `/api/integrations/github-app/platforms/${encodeURIComponent(platform)}/sources/create-from-template`,
@@ -671,7 +695,10 @@ export function assertServerOnly(): void {
   }
 }
 
-function deployRequest(input: DeployInput): Record<string, unknown> {
+function deployRequest(
+  input: DeployInput | PreflightInput,
+  preflight: boolean,
+): Record<string, unknown> {
   const appSourceId = Number(input.appSourceId);
   if (!Number.isSafeInteger(appSourceId) || appSourceId <= 0) {
     throw new DeployError(
@@ -679,12 +706,16 @@ function deployRequest(input: DeployInput): Record<string, unknown> {
       "deploy requires a positive appSourceId",
     );
   }
-  const aomiTomlPaths = cleanStringList(input.aomiTomlPaths, "aomiTomlPaths");
+  const aomiTomlPaths = cleanStringList(
+    input.aomiTomlPaths ?? [],
+    "aomiTomlPaths",
+    true,
+  );
   return {
     app_source_id: appSourceId,
     source_ref: sourceRef(input.sourceRef),
     aomi_toml_paths: aomiTomlPaths,
-    ...(input.preflight ? { preflight: true } : {}),
+    ...(preflight ? { preflight: true } : {}),
   };
 }
 
@@ -910,6 +941,8 @@ function camelAppSource(raw: unknown): AppSource {
     installationId: Number(s.installation_id),
     repositoryId: s.repository_id ?? null,
     repositoryLink: s.repository_link ?? null,
+    sourceRef: s.source_ref ?? null,
+    commitHash: s.commit_hash ?? s.source_ref ?? null,
     githubAccount: s.github_account ?? null,
     githubUserId: s.github_user_id ?? null,
     boundPlatformId: s.bound_platform_id ?? null,
