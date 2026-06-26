@@ -20,8 +20,6 @@ import {
   fetchGitHubSession,
   fetchUserSources,
   hasSourceForLaunchUrlContext,
-  deploymentIdFromReleaseTag,
-  lifecycleFromLaunchStatus,
   launchActivate,
   launchRedeploy,
   launchStatus,
@@ -29,14 +27,20 @@ import {
   readLaunchUrlContext,
   loadLaunch,
   isResumingInstall,
-  sourceLifecycle,
   GITHUB_SIGNIN_URL,
   type GitHubSessionInfo,
   type LaunchUrlContext,
   type LaunchProgress,
-  type SourceLifecycle,
-  type UserSource,
 } from "@portal/features/launch";
+import type { UserSource } from "@aomi-labs/deploy";
+import {
+  deploymentLifecycleFromSource,
+  deploymentLifecycleFromStatus,
+  deploymentIdFromReleaseTag,
+  failedActivationApp,
+  firstActivatedApp,
+  type DeploymentLifecycle,
+} from "@aomi-labs/deploy/lifecycle";
 import { chatAppUrl } from "@portal/lib/chat-url";
 import { DeployStep } from "./deploy-step";
 import { Onboarding } from "./onboarding";
@@ -208,7 +212,11 @@ function SignedInDashboard({
   // Page 2: nothing connected yet, the user asked to add another, or a launch
   // is mid-flow returning from the install round-trip → the existing
   // install/template/deploy wizard.
-  if (showInstall || resumingWizard || (sources !== null && sources.length === 0)) {
+  if (
+    showInstall ||
+    resumingWizard ||
+    (sources !== null && sources.length === 0)
+  ) {
     return (
       <div className="space-y-6">
         {header}
@@ -361,10 +369,13 @@ function SourceCard({ source }: { source: UserSource }) {
     name: string;
     applicationId?: number;
   } | null>(null);
-  const lifecycle = useMemo(() => sourceLifecycle(source), [source]);
+  const lifecycle = useMemo(
+    () => deploymentLifecycleFromSource(source),
+    [source],
+  );
   const [statusLifecycle, setStatusLifecycle] =
-    useState<SourceLifecycle | null>(null);
-  const liveLifecycle: SourceLifecycle | null = localLiveApp
+    useState<DeploymentLifecycle | null>(null);
+  const liveLifecycle: DeploymentLifecycle | null = localLiveApp
     ? {
         ...(statusLifecycle ?? lifecycle),
         kind: "live",
@@ -410,7 +421,7 @@ function SourceCard({ source }: { source: UserSource }) {
       try {
         const status = await launchStatus(derivedDeploymentId);
         if (cancelled) return;
-        const next = lifecycleFromLaunchStatus(lifecycle, status);
+        const next = deploymentLifecycleFromStatus(lifecycle, status);
         setStatusLifecycle(next);
         if (next.kind === "building") {
           timer = setTimeout(poll, 5000);
@@ -475,7 +486,7 @@ function SourceCard({ source }: { source: UserSource }) {
   );
 }
 
-function LifecycleBadge({ lifecycle }: { lifecycle: SourceLifecycle }) {
+function LifecycleBadge({ lifecycle }: { lifecycle: DeploymentLifecycle }) {
   const toneClass =
     lifecycle.statusTone === "good"
       ? "bg-green-500/10 text-green-500"
@@ -500,7 +511,7 @@ function LifecycleBadge({ lifecycle }: { lifecycle: SourceLifecycle }) {
   );
 }
 
-function shouldShowChatForLifecycle(lifecycle: SourceLifecycle): boolean {
+function shouldShowChatForLifecycle(lifecycle: DeploymentLifecycle): boolean {
   return lifecycle.kind === "live" && Boolean(lifecycle.chatApp);
 }
 
@@ -511,8 +522,8 @@ function LifecyclePanel({
   onLive,
 }: {
   appSourceId: number;
-  lifecycle: SourceLifecycle;
-  onLifecycleChange: (lifecycle: SourceLifecycle) => void;
+  lifecycle: DeploymentLifecycle;
+  onLifecycleChange: (lifecycle: DeploymentLifecycle) => void;
   onLive: (app: { name: string; applicationId?: number }) => void;
 }) {
   const [action, setAction] = useState<
@@ -537,20 +548,17 @@ function LifecyclePanel({
         releaseTags: lifecycle.releaseTags,
         apps: lifecycle.appNames,
       });
-      const failed = result.activation?.apps?.find((app) => app.error);
+      const failed = failedActivationApp(result);
       if (!result.ok || failed) {
         throw new Error(failed?.error ?? "Activation failed.");
       }
-      const activated = result.activation?.apps?.find(
-        (app) => app.application_id ?? app.applicationId,
-      );
+      const activated = firstActivatedApp(result);
       if (!activated) {
         throw new Error("Activation did not return an application id.");
       }
       onLive({
         name: activated.name,
-        applicationId:
-          activated.application_id ?? activated.applicationId ?? undefined,
+        applicationId: activated.applicationId ?? undefined,
       });
       setAction("idle");
     } catch (e) {
@@ -663,7 +671,7 @@ function LifecyclePanel({
   );
 }
 
-function LifecycleProgress({ lifecycle }: { lifecycle: SourceLifecycle }) {
+function LifecycleProgress({ lifecycle }: { lifecycle: DeploymentLifecycle }) {
   const pct = Math.max(0, Math.min(100, lifecycle.progressPercent ?? 0));
   const barClass =
     lifecycle.kind === "failed"
@@ -694,7 +702,7 @@ function isTargetCiPending(message: string): boolean {
   );
 }
 
-function LifecycleDetails({ lifecycle }: { lifecycle: SourceLifecycle }) {
+function LifecycleDetails({ lifecycle }: { lifecycle: DeploymentLifecycle }) {
   const hasDetails =
     lifecycle.deploymentId ||
     lifecycle.ciStatus ||
@@ -738,7 +746,7 @@ function LifecycleDetails({ lifecycle }: { lifecycle: SourceLifecycle }) {
   );
 }
 
-function LifecycleLinks({ lifecycle }: { lifecycle: SourceLifecycle }) {
+function LifecycleLinks({ lifecycle }: { lifecycle: DeploymentLifecycle }) {
   if (!lifecycle.branchUrl && !lifecycle.ciUrl) return null;
   return (
     <div className="flex flex-wrap gap-3 text-xs">

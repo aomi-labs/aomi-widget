@@ -54,9 +54,8 @@ export interface DeploymentClientOptions {
   onAudit?: (event: AuditEvent) => void | Promise<void>;
 }
 
-export type SourceRef =
-  | { kind: "branch"; value: string }
-  | { kind: "commit"; value: string };
+/** Immutable git commit SHA accepted by the platform deploy backend. */
+export type SourceRef = string;
 
 export interface DeployInput {
   platform: string;
@@ -69,8 +68,12 @@ export interface DeployInput {
   actor?: string;
 }
 
-export type DeployStatus = "preflight" | "pr_created" | "pr_updated";
-export type CiStatus = "pending" | "running" | "passed" | "failed";
+export type DeployStatus =
+  | "preflight"
+  | "pr_created"
+  | "pr_updated"
+  | "unchanged";
+export type CiStatus = "no_ci" | "pending" | "running" | "passed" | "failed";
 
 export interface DeployResult {
   ok: boolean;
@@ -113,6 +116,13 @@ export interface AppRecord {
   aomiTomlPath: string;
   releaseTag: string;
   target?: string | null;
+  files: AppFileRecord[];
+}
+
+export interface AppFileRecord {
+  path: string;
+  sha256: string;
+  bytes: number;
 }
 
 export interface ReleaseTags {
@@ -154,9 +164,11 @@ export interface ActivationPromotion {
   sourceBranch: string;
   platformCommitHash: string | null;
   liveCommitHash?: string | null;
+  activationStatus?: "promoted" | "unchanged" | string | null;
   ciStatus: CiStatus | string;
   ciUrl: string | null;
   releaseAssets: string[];
+  releaseAssetDigests?: Record<string, string>;
 }
 
 export interface ActivatedApp {
@@ -167,6 +179,11 @@ export interface ActivatedApp {
   isActive: boolean;
   loaded: boolean;
   error?: string | null;
+  sourceBranch?: string | null;
+  liveCommitHash?: string | null;
+  activationStatus?: "promoted" | "unchanged" | string | null;
+  activationPr?: unknown | null;
+  activationPrCloseError?: string | null;
 }
 
 export interface StatusInput {
@@ -180,7 +197,7 @@ export interface StatusInput {
 
 // NEW — replaces StatusResult = unknown
 export interface DeploymentStatus {
-  state: "building" | "releasing" | "ready" | "failed" | "pending";
+  state: "no_ci" | "building" | "releasing" | "ready" | "failed" | "pending";
   deployment?: DeployPayload;
   releaseTags: string[];
   apps?: DeploymentAppStatus[];
@@ -192,6 +209,8 @@ export interface DeploymentAppStatus {
   name: string;
   releaseTag: string;
   releaseReady: boolean;
+  releaseAssets?: string[];
+  releaseAssetDigests?: Record<string, string>;
   message?: string | null;
 }
 

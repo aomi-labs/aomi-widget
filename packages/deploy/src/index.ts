@@ -32,6 +32,7 @@ export type {
   Source,
   Platform,
   AppRecord,
+  AppFileRecord,
   ReleaseTags,
   ActivateInput,
   ActivateResult,

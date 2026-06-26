@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { mintAccountBearer } from "@aomi-labs/account";
-import { getSessionedCanonicalId } from "@portal/server/aomi-account/session";
+import { getSessionedCanonicalId } from "@portal/server/cookies/session";
 import { configuredBackendUrl } from "@portal/server/backend-url";
 
 /**

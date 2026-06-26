@@ -1,16 +1,19 @@
-import type { UserSource } from "@aomi-labs/deploy";
-import type { LaunchStatus } from "./contracts";
-import { normalizeRepo } from "./state";
+import type {
+  ActivateResult,
+  ActivatedApp,
+  DeploymentStatus,
+  UserSource,
+} from "./types";
 
-export type SourceLifecycleKind =
+export type DeploymentLifecycleKind =
   | "live"
   | "build_ready"
   | "building"
   | "failed"
   | "empty";
 
-export type SourceLifecycle = {
-  kind: SourceLifecycleKind;
+export type DeploymentLifecycle = {
+  kind: DeploymentLifecycleKind;
   repo: string;
   statusLabel: string;
   statusTone: "good" | "warning" | "bad" | "muted";
@@ -32,7 +35,7 @@ export type SourceLifecycle = {
   failureReport?: string;
 };
 
-export function sourceRepoLabel(source: UserSource): string {
+export function sourceRepositoryLabel(source: UserSource): string {
   return (
     normalizeRepo(source.repositoryLink ?? "") ??
     source.repositoryLink ??
@@ -40,8 +43,10 @@ export function sourceRepoLabel(source: UserSource): string {
   );
 }
 
-export function sourceLifecycle(source: UserSource): SourceLifecycle {
-  const repo = sourceRepoLabel(source);
+export function deploymentLifecycleFromSource(
+  source: UserSource,
+): DeploymentLifecycle {
+  const repo = sourceRepositoryLabel(source);
   const latest = source.latestDeployment ?? null;
   const appNames = namesFromSource(source);
   const releaseTags = tagsFromSource(source);
@@ -80,7 +85,9 @@ export function sourceLifecycle(source: UserSource): SourceLifecycle {
 
   if (
     state === "failed" ||
+    state === "no_ci" ||
     state === "skipped" ||
+    ciStatus === "no_ci" ||
     ciStatus === "failed" ||
     ciStatus === "skipped" ||
     ciStatus === "stale"
@@ -89,16 +96,20 @@ export function sourceLifecycle(source: UserSource): SourceLifecycle {
       ...base,
       kind: "failed",
       statusLabel:
-        state === "skipped" || ciStatus === "skipped"
-          ? "CI skipped"
-          : ciStatus === "stale"
-            ? "CI stale"
-            : "Build failed",
+        state === "no_ci" || ciStatus === "no_ci"
+          ? "No CI"
+          : state === "skipped" || ciStatus === "skipped"
+            ? "CI skipped"
+            : ciStatus === "stale"
+              ? "CI stale"
+              : "Build failed",
       statusTone: "bad",
       message:
-        state === "skipped" || ciStatus === "skipped"
-          ? "CI did not run for the latest deployment attempt."
-          : "The latest deployment did not produce a usable release.",
+        state === "no_ci" || ciStatus === "no_ci"
+          ? "No CI ran for the latest deployment commit."
+          : state === "skipped" || ciStatus === "skipped"
+            ? "CI did not run for the latest deployment attempt."
+            : "The latest deployment did not produce a usable release.",
     };
   }
 
@@ -147,29 +158,25 @@ export function deploymentIdFromReleaseTag(
   return `dep_${match[1]}_${match[2]}_${match[3]}`;
 }
 
-export function lifecycleFromLaunchStatus(
-  current: SourceLifecycle,
-  status: LaunchStatus,
-): SourceLifecycle {
+export function deploymentLifecycleFromStatus(
+  current: DeploymentLifecycle,
+  status: DeploymentStatus,
+): DeploymentLifecycle {
   const deployment = status.deployment;
   const platform = deployment?.platform;
   const apps = platform?.apps ?? [];
   const ciStatus =
-    clean(status.ci?.status) ??
-    clean(platform?.ci_status ?? platform?.ciStatus) ??
-    null;
+    clean(status.ci?.status) ?? clean(platform?.ciStatus) ?? null;
   const state = status.state;
   const platformRepo =
     clean(platform?.repository) ?? current.platformRepo ?? null;
   const deployBranch =
-    clean(platform?.source_branch ?? platform?.sourceBranch) ??
-    current.deployBranch ??
-    null;
+    clean(platform?.sourceBranch) ?? current.deployBranch ?? null;
   const releaseTags =
     status.releaseTags.length > 0
       ? status.releaseTags
       : apps
-          .map((app) => app.release_tag ?? app.releaseTag)
+          .map((app) => app.releaseTag)
           .map((tag) => tag?.trim())
           .filter((tag): tag is string => Boolean(tag));
   const appNames =
@@ -179,6 +186,8 @@ export function lifecycleFromLaunchStatus(
   const progress = progressFor(state, ciStatus);
   const failed =
     state === "failed" ||
+    state === "no_ci" ||
+    ciStatus === "no_ci" ||
     ciStatus === "failed" ||
     ciStatus === "skipped" ||
     ciStatus === "stale";
@@ -188,11 +197,13 @@ export function lifecycleFromLaunchStatus(
     ...current,
     kind: failed ? "failed" : ready ? "build_ready" : "building",
     statusLabel: failed
-      ? ciStatus === "skipped"
-        ? "CI skipped"
-        : ciStatus === "stale"
-          ? "CI stale"
-          : "Build failed"
+      ? state === "no_ci" || ciStatus === "no_ci"
+        ? "No CI"
+        : ciStatus === "skipped"
+          ? "CI skipped"
+          : ciStatus === "stale"
+            ? "CI stale"
+            : "Build failed"
       : ready
         ? "Build ready"
         : state === "releasing" || ciStatus === "passed"
@@ -201,7 +212,9 @@ export function lifecycleFromLaunchStatus(
     statusTone: failed ? "bad" : ready ? "warning" : "muted",
     message: failed
       ? (status.message ??
-        "The latest deployment did not produce a usable release.")
+        (state === "no_ci" || ciStatus === "no_ci"
+          ? "No CI ran for the latest deployment commit."
+          : "The latest deployment did not produce a usable release."))
       : ready
         ? "Build passed and can be activated."
         : ciStatus === "passed"
@@ -211,16 +224,13 @@ export function lifecycleFromLaunchStatus(
     releaseTags,
     deploymentId: deployment?.id ?? current.deploymentId,
     ciStatus,
-    ciUrl:
-      clean(status.ci?.url) ??
-      clean(platform?.ci_url ?? platform?.ciUrl) ??
-      current.ciUrl,
+    ciUrl: clean(status.ci?.url) ?? clean(platform?.ciUrl) ?? current.ciUrl,
     branchUrl: branchUrl(platformRepo, deployBranch) ?? current.branchUrl,
     deployBranch,
     platformRepo,
     commitHash:
-      clean(status.ci?.commitHash ?? status.ci?.commit_hash) ??
-      clean(platform?.commit_hash ?? platform?.commitHash) ??
+      clean(status.ci?.commitHash) ??
+      clean(platform?.commitHash) ??
       current.commitHash,
     buildTarget:
       apps.map((app) => app.target?.trim()).find(Boolean) ??
@@ -229,6 +239,18 @@ export function lifecycleFromLaunchStatus(
     progressPercent: progress.percent,
     failureReport: failed ? status.message : undefined,
   };
+}
+
+export function failedActivationApp(
+  result: ActivateResult,
+): ActivatedApp | undefined {
+  return result.activation.apps.find((app) => app.error);
+}
+
+export function firstActivatedApp(
+  result: ActivateResult,
+): ActivatedApp | undefined {
+  return result.activation.apps.find((app) => app.applicationId);
 }
 
 function clean(value: string | number | null | undefined): string | null {
@@ -291,6 +313,28 @@ function branchUrl(
   return `https://github.com/${repo}/tree/${encodeURIComponent(deployBranch)}`;
 }
 
+function normalizeRepo(input: string): string | null {
+  const trimmed = input.trim();
+  if (!trimmed) return null;
+
+  let candidate = trimmed;
+  try {
+    const url = new URL(trimmed);
+    const host = url.hostname.toLowerCase();
+    if (host !== "github.com" && host !== "www.github.com") return null;
+    const [owner, repo] = url.pathname
+      .split("/")
+      .map((part) => part.trim())
+      .filter(Boolean);
+    candidate = owner && repo ? `${owner}/${repo}` : "";
+  } catch {
+    candidate = trimmed.replace(/^github\.com\//i, "");
+  }
+
+  const match = candidate.match(/^([\w.-]+)\/([\w.-]+?)(?:\.git)?\/?$/);
+  return match ? `${match[1]}/${match[2]}` : null;
+}
+
 function progressFor(
   state: string,
   ciStatus: string | null,
@@ -305,17 +349,21 @@ function progressFor(
   }
   if (
     state === "failed" ||
+    state === "no_ci" ||
+    ciStatus === "no_ci" ||
     ciStatus === "failed" ||
     ciStatus === "skipped" ||
     ciStatus === "stale"
   ) {
     return {
       label:
-        ciStatus === "skipped"
-          ? "CI skipped"
-          : ciStatus === "stale"
-            ? "CI stale"
-            : "Build failed",
+        state === "no_ci" || ciStatus === "no_ci"
+          ? "No CI"
+          : ciStatus === "skipped"
+            ? "CI skipped"
+            : ciStatus === "stale"
+              ? "CI stale"
+              : "Build failed",
       percent: 100,
     };
   }
