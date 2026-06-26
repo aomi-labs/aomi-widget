@@ -189,7 +189,9 @@ export class DeploymentClient {
         lastProgress = progress;
 
         const isTerminal =
-          status.state === "ready" || status.state === "failed";
+          status.state === "ready" ||
+          status.state === "failed" ||
+          status.state === "no_ci";
         onEvent({
           kind: isTerminal ? "terminal" : "progress",
           status,
@@ -523,6 +525,8 @@ export class DeploymentClient {
         return { completed: 5, total, label: "Verifying release assets" };
       case "ready":
         return { completed: 8, total, label: "Build ready" };
+      case "no_ci":
+        return { completed: lastCompleted, total, label: "No CI" };
       case "failed":
         return { completed: lastCompleted, total, label: "Build failed" };
       default:
@@ -794,9 +798,11 @@ function camelActivateResult(result: unknown): ActivateResult {
               promotion.activated_commit_hash ??
               null,
             liveCommitHash: promotion.live_commit_hash ?? null,
+            activationStatus: promotion.activation_status ?? null,
             ciStatus: promotion.ci_status,
             ciUrl: promotion.ci_url ?? null,
             releaseAssets: promotion.release_assets ?? [],
+            releaseAssetDigests: promotion.release_asset_digests ?? {},
           }),
         ),
       },
@@ -808,6 +814,9 @@ function camelActivateResult(result: unknown): ActivateResult {
         isActive: Boolean(app.is_active),
         loaded: Boolean(app.loaded),
         error: app.error ?? null,
+        sourceBranch: app.source_branch ?? null,
+        liveCommitHash: app.live_commit_hash ?? null,
+        activationStatus: app.activation_status ?? null,
       })),
     },
   };
@@ -830,6 +839,10 @@ function camelStatusResult(raw: Record<string, unknown>): DeploymentStatus {
           name: app.name as string,
           releaseTag: (app.release_tag ?? app.releaseTag) as string,
           releaseReady: Boolean(app.release_ready ?? app.releaseReady),
+          releaseAssets: (app.release_assets ?? app.releaseAssets ?? []) as string[],
+          releaseAssetDigests: (app.release_asset_digests ??
+            app.releaseAssetDigests ??
+            {}) as Record<string, string>,
           message: (app.message ?? null) as string | null,
         }))
       : undefined,

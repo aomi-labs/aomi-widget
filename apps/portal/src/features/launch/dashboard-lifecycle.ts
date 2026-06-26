@@ -80,7 +80,9 @@ export function sourceLifecycle(source: UserSource): SourceLifecycle {
 
   if (
     state === "failed" ||
+    state === "no_ci" ||
     state === "skipped" ||
+    ciStatus === "no_ci" ||
     ciStatus === "failed" ||
     ciStatus === "skipped" ||
     ciStatus === "stale"
@@ -89,14 +91,18 @@ export function sourceLifecycle(source: UserSource): SourceLifecycle {
       ...base,
       kind: "failed",
       statusLabel:
-        state === "skipped" || ciStatus === "skipped"
+        state === "no_ci" || ciStatus === "no_ci"
+          ? "No CI"
+          : state === "skipped" || ciStatus === "skipped"
           ? "CI skipped"
           : ciStatus === "stale"
             ? "CI stale"
             : "Build failed",
       statusTone: "bad",
       message:
-        state === "skipped" || ciStatus === "skipped"
+        state === "no_ci" || ciStatus === "no_ci"
+          ? "No CI ran for the latest deployment commit."
+          : state === "skipped" || ciStatus === "skipped"
           ? "CI did not run for the latest deployment attempt."
           : "The latest deployment did not produce a usable release.",
     };
@@ -179,6 +185,8 @@ export function lifecycleFromLaunchStatus(
   const progress = progressFor(state, ciStatus);
   const failed =
     state === "failed" ||
+    state === "no_ci" ||
+    ciStatus === "no_ci" ||
     ciStatus === "failed" ||
     ciStatus === "skipped" ||
     ciStatus === "stale";
@@ -188,7 +196,9 @@ export function lifecycleFromLaunchStatus(
     ...current,
     kind: failed ? "failed" : ready ? "build_ready" : "building",
     statusLabel: failed
-      ? ciStatus === "skipped"
+      ? state === "no_ci" || ciStatus === "no_ci"
+        ? "No CI"
+        : ciStatus === "skipped"
         ? "CI skipped"
         : ciStatus === "stale"
           ? "CI stale"
@@ -201,7 +211,9 @@ export function lifecycleFromLaunchStatus(
     statusTone: failed ? "bad" : ready ? "warning" : "muted",
     message: failed
       ? (status.message ??
-        "The latest deployment did not produce a usable release.")
+        (state === "no_ci" || ciStatus === "no_ci"
+          ? "No CI ran for the latest deployment commit."
+          : "The latest deployment did not produce a usable release."))
       : ready
         ? "Build passed and can be activated."
         : ciStatus === "passed"
@@ -305,13 +317,17 @@ function progressFor(
   }
   if (
     state === "failed" ||
+    state === "no_ci" ||
+    ciStatus === "no_ci" ||
     ciStatus === "failed" ||
     ciStatus === "skipped" ||
     ciStatus === "stale"
   ) {
     return {
       label:
-        ciStatus === "skipped"
+        state === "no_ci" || ciStatus === "no_ci"
+          ? "No CI"
+          : ciStatus === "skipped"
           ? "CI skipped"
           : ciStatus === "stale"
             ? "CI stale"

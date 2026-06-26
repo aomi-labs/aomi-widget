@@ -80,6 +80,7 @@ function buildProgressModel(
     building: { completed: 2, total: 8, label: "Building CI" },
     releasing: { completed: 5, total: 8, label: "Verifying release assets" },
     ready: { completed: 8, total: 8, label: "Build ready" },
+    no_ci: { completed: lastCompleted, total: 8, label: "No CI" },
     failed: { completed: lastCompleted, total: 8, label: "Build failed" },
   };
   const mapped = stateToSteps[state] ?? {
@@ -294,8 +295,13 @@ export function DeployStep({
           pollRef.current = setTimeout(tick, 6000);
           return;
         }
-        if (status.state === "failed") {
-          setError(status.message ?? "Deploy CI failed.");
+        if (status.state === "failed" || status.state === "no_ci") {
+          setError(
+            status.message ??
+              (status.state === "no_ci"
+                ? "No CI ran for this deployment."
+                : "Deploy CI failed."),
+          );
           setPhase("error");
           return;
         }

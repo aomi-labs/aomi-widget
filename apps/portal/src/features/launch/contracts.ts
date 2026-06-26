@@ -33,6 +33,10 @@ export type LaunchDeployPayload = {
       release_tag?: string;
       releaseTag?: string;
       target?: string;
+      release_assets?: string[];
+      releaseAssets?: string[];
+      release_asset_digests?: Record<string, string>;
+      releaseAssetDigests?: Record<string, string>;
     }>;
   };
 };
@@ -88,13 +92,15 @@ export type LaunchCreateRepoResult = {
 };
 
 export type LaunchStatus = {
-  state: "building" | "releasing" | "ready" | "failed" | "pending";
+  state: "no_ci" | "building" | "releasing" | "ready" | "failed" | "pending";
   deployment?: LaunchDeployPayload;
   releaseTags: string[];
   apps?: Array<{
     name: string;
     release_tag: string;
     release_ready: boolean;
+    release_assets?: string[];
+    release_asset_digests?: Record<string, string>;
     message?: string | null;
   }>;
   ci?: {
@@ -118,6 +124,9 @@ export type LaunchActivateResult = {
       is_active: boolean;
       loaded: boolean;
       error?: string | null;
+      source_branch?: string | null;
+      live_commit_hash?: string | null;
+      activation_status?: string | null;
     }>;
   };
 };
