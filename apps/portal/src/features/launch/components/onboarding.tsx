@@ -17,7 +17,6 @@ import {
   type LaunchProgress,
   type UserSource,
 } from "@portal/features/launch";
-import { resolveDeployPlatform } from "@portal/lib/deploy-platform";
 import { Picker } from "./picker";
 import { OneshotWizard } from "./oneshot-wizard";
 import { BootstrapWizard } from "./bootstrap-wizard";
@@ -191,7 +190,6 @@ export function Onboarding({
         try {
           const repo = next[path].repo;
           window.location.href = await githubAppInstallUrl({
-            platform: resolveDeployPlatform(),
             repo,
             mode,
             app: path === "oneshot" ? 2 : undefined,
