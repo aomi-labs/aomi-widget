@@ -29,7 +29,7 @@ describe("Control context", () => {
       getModels: async () => [],
     });
 
-    const { api } = renderRuntime({ appCatalogPlatform: "somm.finance" });
+    const { api } = renderRuntime({ appPlatform: "somm.finance" });
 
     await waitFor(() => {
       expect(getApps).toHaveBeenCalledTimes(1);

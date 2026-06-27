@@ -638,7 +638,7 @@ RuntimeHarness.displayName = "RuntimeHarness";
 export type RenderRuntimeOptions = {
   backendUrl?: string;
   applicationId?: number | string | null;
-  appCatalogPlatform?: string | null;
+  appPlatform?: string | null;
 };
 
 export type RenderRuntimeResult = {
@@ -654,7 +654,7 @@ export type RenderRuntimeResult = {
 export const renderRuntime = ({
   backendUrl = "http://test-backend",
   applicationId,
-  appCatalogPlatform,
+  appPlatform,
 }: RenderRuntimeOptions = {}): RenderRuntimeResult => {
   const ref = React.createRef<RuntimeHarnessHandle>();
 
@@ -662,7 +662,7 @@ export const renderRuntime = ({
     <AomiRuntimeProvider
       backendUrl={backendUrl}
       applicationId={applicationId}
-      appCatalogPlatform={appCatalogPlatform}
+      appPlatform={appPlatform}
     >
       <RuntimeHarness ref={ref} />
     </AomiRuntimeProvider>,

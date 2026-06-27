@@ -34,6 +34,8 @@ export {
   parseChainId,
   aaModeFromExecutionKind,
   toViemSignMessageArgs,
+  normalizeAppDescriptor,
+  appIdentityKey,
 } from "@aomi-labs/client";
 
 // =============================================================================

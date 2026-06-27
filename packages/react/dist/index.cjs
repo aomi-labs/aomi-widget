@@ -64,6 +64,7 @@ __export(index_exports, {
   ThreadContextProvider: () => ThreadContextProvider,
   UserState: () => import_client2.UserState,
   aaModeFromExecutionKind: () => import_client9.aaModeFromExecutionKind,
+  appIdentityKey: () => import_client9.appIdentityKey,
   appendFeeCallToPayload: () => import_client9.appendFeeCallToPayload,
   buildFeeAAWalletCall: () => import_client9.buildFeeAAWalletCall,
   cn: () => cn,
@@ -73,6 +74,7 @@ __export(index_exports, {
   getNetworkName: () => getNetworkName,
   hydrateTxPayloadFromUserState: () => import_client9.hydrateTxPayloadFromUserState,
   initThreadControl: () => initThreadControl,
+  normalizeAppDescriptor: () => import_client9.normalizeAppDescriptor,
   normalizeSimulatedFee: () => import_client9.normalizeSimulatedFee,
   parseChainId: () => import_client9.parseChainId,
   resolveAutoModel: () => resolveAutoModel,
@@ -367,7 +369,7 @@ function useAuthEndpointsImpl({
   apiKeyRef,
   getControlSessionId: getControlSessionId2,
   apiKey,
-  appCatalogPlatform
+  appPlatform
 }) {
   const [availableModels, setAvailableModels] = (0, import_react3.useState)([]);
   const [defaultModel, setDefaultModel] = (0, import_react3.useState)(null);
@@ -382,7 +384,7 @@ function useAuthEndpointsImpl({
           getControlSessionId2(),
           {
             apiKey: (_a = apiKeyRef.current) != null ? _a : void 0,
-            platform: appCatalogPlatform
+            platform: appPlatform
           }
         );
         const names = namesFromDescriptors(descriptors);
@@ -397,7 +399,7 @@ function useAuthEndpointsImpl({
       }
     };
     void fetchApps();
-  }, [aomiClientRef, getControlSessionId2, apiKey, appCatalogPlatform]);
+  }, [aomiClientRef, getControlSessionId2, apiKey, appPlatform]);
   (0, import_react3.useEffect)(() => {
     const fetchModels = async () => {
       try {
@@ -432,7 +434,7 @@ function useAuthEndpointsImpl({
         getControlSessionId2(),
         {
           apiKey: (_a = apiKeyRef.current) != null ? _a : void 0,
-          platform: appCatalogPlatform
+          platform: appPlatform
         }
       );
       const names = namesFromDescriptors(descriptors);
@@ -447,7 +449,7 @@ function useAuthEndpointsImpl({
       setDefaultApp("default");
       return ["default"];
     }
-  }, [aomiClientRef, apiKeyRef, getControlSessionId2, appCatalogPlatform]);
+  }, [aomiClientRef, apiKeyRef, getControlSessionId2, appPlatform]);
   return {
     state: {
       availableModels,
@@ -1071,7 +1073,7 @@ function ControlContextProvider({
   sessionId,
   getThreadMetadata,
   updateThreadMetadata,
-  appCatalogPlatform
+  appPlatform
 }) {
   const aomiClientRef = (0, import_react5.useRef)(aomiClient);
   aomiClientRef.current = aomiClient;
@@ -1114,7 +1116,7 @@ function ControlContextProvider({
     apiKeyRef,
     getControlSessionId: getCurrentControlSessionId,
     apiKey: apiKey.state.apiKey,
-    appCatalogPlatform
+    appPlatform
   });
   const availableModelsRef = (0, import_react5.useRef)(authEndpoints.state.availableModels);
   availableModelsRef.current = authEndpoints.state.availableModels;
@@ -3192,7 +3194,7 @@ function AomiRuntimeProvider({
   children,
   backendUrl = "http://127.0.0.1:8080",
   applicationId,
-  appCatalogPlatform,
+  appPlatform,
   clientOptions
 }) {
   const resolvedClientOptions = (0, import_react16.useMemo)(
@@ -3214,7 +3216,7 @@ function AomiRuntimeProvider({
     {
       aomiClient,
       applicationId,
-      appCatalogPlatform,
+      appPlatform,
       children
     }
   ) }) }) });
@@ -3223,7 +3225,7 @@ function AomiRuntimeInner({
   children,
   aomiClient,
   applicationId,
-  appCatalogPlatform
+  appPlatform
 }) {
   const threadContext = useThreadContext();
   return /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(
@@ -3233,7 +3235,7 @@ function AomiRuntimeInner({
       sessionId: threadContext.currentThreadId,
       getThreadMetadata: threadContext.getThreadMetadata,
       updateThreadMetadata: threadContext.updateThreadMetadata,
-      appCatalogPlatform,
+      appPlatform,
       children: /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(
         EventContextProvider,
         {
@@ -3303,6 +3305,7 @@ function useNotificationHandler({
   ThreadContextProvider,
   UserState,
   aaModeFromExecutionKind,
+  appIdentityKey,
   appendFeeCallToPayload,
   buildFeeAAWalletCall,
   cn,
@@ -3312,6 +3315,7 @@ function useNotificationHandler({
   getNetworkName,
   hydrateTxPayloadFromUserState,
   initThreadControl,
+  normalizeAppDescriptor,
   normalizeSimulatedFee,
   parseChainId,
   resolveAutoModel,

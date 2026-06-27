@@ -31,6 +31,7 @@ import type {
 } from "./types";
 import { UserState, type UserState as UserStateShape } from "./user-state";
 import { createSseSubscriber, type SseSubscriber } from "./sse";
+import { normalizeAppDescriptor } from "./app-descriptor";
 
 // =============================================================================
 // Internal helpers
@@ -43,63 +44,6 @@ function previewText(value: string, max = 80): string {
   const singleLine = value.replace(/\s+/g, " ").trim();
   if (singleLine.length <= max) return singleLine;
   return `${singleLine.slice(0, max - 1)}…`;
-}
-
-function normalizeAppDescriptor(item: unknown): AomiAppDescriptor | null {
-  if (typeof item === "string") {
-    const name = item.trim();
-    return name ? { name } : null;
-  }
-  if (!item || typeof item !== "object") return null;
-
-  const raw = item as Record<string, unknown>;
-  const name = typeof raw.name === "string" ? raw.name.trim() : "";
-  if (!name) return null;
-
-  const descriptor: AomiAppDescriptor = {
-    ...raw,
-    name,
-  } as AomiAppDescriptor;
-  const applicationId = raw.applicationId ?? raw.application_id ?? raw.id;
-  if (typeof applicationId === "number" || typeof applicationId === "string") {
-    descriptor.applicationId = applicationId;
-  }
-  if (typeof raw.platform === "string") descriptor.platform = raw.platform;
-  if (typeof raw.label === "string") descriptor.label = raw.label;
-  if (typeof raw.appReleaseTag === "string") {
-    descriptor.appReleaseTag = raw.appReleaseTag;
-  } else if (typeof raw.app_release_tag === "string") {
-    descriptor.appReleaseTag = raw.app_release_tag;
-  }
-  if (typeof raw.isActive === "boolean") {
-    descriptor.isActive = raw.isActive;
-  } else if (typeof raw.is_active === "boolean") {
-    descriptor.isActive = raw.is_active;
-  }
-  if (typeof raw.isPublic === "boolean") {
-    descriptor.isPublic = raw.isPublic;
-  } else if (typeof raw.is_public === "boolean") {
-    descriptor.isPublic = raw.is_public;
-  }
-  if (typeof raw.artifactReady === "boolean") {
-    descriptor.artifactReady = raw.artifactReady;
-  } else if (typeof raw.artifact_ready === "boolean") {
-    descriptor.artifactReady = raw.artifact_ready;
-  }
-  descriptor.secrets = Array.isArray(raw.secrets) ? raw.secrets : [];
-  // Drop the snake_case originals carried over by the spread so the descriptor
-  // exposes a single camelCase identity (no `application_id`/`applicationId`
-  // twins downstream).
-  for (const key of [
-    "application_id",
-    "app_release_tag",
-    "is_active",
-    "is_public",
-    "artifact_ready",
-  ]) {
-    delete (descriptor as unknown as Record<string, unknown>)[key];
-  }
-  return descriptor;
 }
 
 // Fields the server originated and stores authoritatively. The client only
