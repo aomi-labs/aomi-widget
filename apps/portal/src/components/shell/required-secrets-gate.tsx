@@ -167,7 +167,7 @@ export function RequiredSecretsGate() {
               disabled={saving}
               className="rounded-full"
             >
-              Switch to {fallbackName}
+              Switch to {fallbackDescriptor.label ?? fallbackDescriptor.name}
             </Button>
           )}
           <Button

@@ -103,7 +103,7 @@ export const AppSelect: FC<AppSelectProps> = ({
   const selectedInfo = getAppInfo(selectedApp);
   const SelectedAppIcon = getAppIcon(selectedApp);
 
-  const appDescriptors =
+  const appDescriptors: AomiAppDescriptor[] =
     authState.appDescriptors.length > 0
       ? authState.appDescriptors
       : authState.authorizedApps.map((name) => ({ name }));

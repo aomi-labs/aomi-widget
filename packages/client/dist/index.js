@@ -757,6 +757,14 @@ function normalizeAppDescriptor(item) {
     descriptor.isPublic = raw.is_public;
   }
   descriptor.secrets = Array.isArray(raw.secrets) ? raw.secrets : [];
+  for (const key of [
+    "application_id",
+    "app_release_tag",
+    "is_active",
+    "is_public"
+  ]) {
+    delete descriptor[key];
+  }
   return descriptor;
 }
 var BULKY_PENDING_FIELDS = /* @__PURE__ */ new Set([
