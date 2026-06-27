@@ -90,8 +90,20 @@ describe("portal API proxy", () => {
     expect(body).toEqual([
       { name: "default" },
       { name: "limitless" },
-      { name: "somm-agent" },
-      { name: "community-agent" },
+      {
+        name: "somm-agent",
+        applicationId: 1,
+        platform: "somm.finance",
+        isActive: true,
+        isPublic: true,
+      },
+      {
+        name: "community-agent",
+        applicationId: 4,
+        platform: "community",
+        isActive: true,
+        isPublic: true,
+      },
     ]);
     expect(listApps).toHaveBeenNthCalledWith(1, { platform: "somm.finance" });
     expect(listApps).toHaveBeenNthCalledWith(2, { platform: "community" });
@@ -132,7 +144,16 @@ describe("portal API proxy", () => {
     const res = await GET(...sessionAppsRequest());
     const body = await res.json();
 
-    expect(body).toEqual([{ name: "default" }, { name: "community-agent" }]);
+    expect(body).toEqual([
+      { name: "default" },
+      {
+        name: "community-agent",
+        applicationId: 4,
+        platform: "community",
+        isActive: true,
+        isPublic: true,
+      },
+    ]);
   });
 
   it("adds the primary launch platform to GitHub install redirects", async () => {

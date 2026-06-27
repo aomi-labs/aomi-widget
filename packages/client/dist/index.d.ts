@@ -410,6 +410,12 @@ interface AomiSecretSlot {
  */
 interface AomiAppDescriptor {
     name: string;
+    applicationId?: number | string | null;
+    platform?: string | null;
+    label?: string | null;
+    appReleaseTag?: string | null;
+    isActive?: boolean | null;
+    isPublic?: boolean | null;
     secrets?: AomiSecretSlot[];
 }
 type AomiSSEEventType = "title_changed" | "tool_update" | "tool_complete" | "system_notice";

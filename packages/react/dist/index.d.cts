@@ -9,9 +9,10 @@ import { ClassValue } from 'clsx';
 type AomiRuntimeProviderProps = {
     children: ReactNode;
     backendUrl?: string;
+    applicationId?: number | string | null;
     clientOptions?: Omit<AomiClientOptions, "baseUrl">;
 };
-declare function AomiRuntimeProvider({ children, backendUrl, clientOptions, }: Readonly<AomiRuntimeProviderProps>): react_jsx_runtime.JSX.Element;
+declare function AomiRuntimeProvider({ children, backendUrl, applicationId, clientOptions, }: Readonly<AomiRuntimeProviderProps>): react_jsx_runtime.JSX.Element;
 
 declare class SessionManager {
     private readonly clientFactory;
@@ -117,6 +118,8 @@ type ThreadControlState = {
     modelMode?: ModelSelectionMode;
     /** Selected app for this thread */
     app: string | null;
+    /** Concrete backend application row for hosted/platform apps */
+    applicationId: number | string | null;
     /** Whether control state has changed but chat hasn't started yet */
     controlDirty: boolean;
     /** Whether this thread is currently processing (assistant generating) */
@@ -468,14 +471,19 @@ type AuthEndpointsActions = {
     getAuthorizedApps: () => Promise<string[]>;
 };
 
+type ApplicationId = number | string | null;
+type AppSelectionOptions = {
+    applicationId?: ApplicationId;
+};
 type PerThreadControlActions = {
     getCurrentThreadControl: () => ThreadControlState;
     getCurrentThreadApp: () => string;
+    getCurrentThreadApplicationId: () => ApplicationId;
     getPreferredThreadControl: () => ThreadControlState;
     onModelSelect: (model: string, options?: {
         mode?: ModelSelectionMode;
     }) => Promise<void>;
-    onAppSelect: (app: string) => void;
+    onAppSelect: (app: string, options?: AppSelectionOptions) => void;
     markControlSynced: () => void;
     syncCurrentThreadControl: () => Promise<void>;
 };

@@ -272,9 +272,11 @@ function usePortalClientOptions(
 
 function AppSelectUrlBootstrap({
   requestedApp,
+  requestedApplicationId,
   locked,
 }: {
   requestedApp: string | null;
+  requestedApplicationId: string | null;
   locked: boolean;
 }) {
   const { createThread, currentThreadId } = useAomiRuntime();
@@ -300,7 +302,7 @@ function AppSelectUrlBootstrap({
     }
 
     if (!locked) {
-      onAppSelect(requestedApp);
+      onAppSelect(requestedApp, { applicationId: requestedApplicationId });
       hasAppliedRequestedAppRef.current = true;
       return;
     }
@@ -324,7 +326,7 @@ function AppSelectUrlBootstrap({
           error,
         });
       });
-  }, [createThread, locked, onAppSelect, requestedApp]);
+  }, [createThread, locked, onAppSelect, requestedApp, requestedApplicationId]);
 
   useEffect(() => {
     if (
@@ -337,9 +339,16 @@ function AppSelectUrlBootstrap({
       return;
     }
 
-    onAppSelect(requestedApp);
+    onAppSelect(requestedApp, { applicationId: requestedApplicationId });
     hasAppliedRequestedAppRef.current = true;
-  }, [currentThreadId, locked, lockedThreadId, onAppSelect, requestedApp]);
+  }, [
+    currentThreadId,
+    locked,
+    lockedThreadId,
+    onAppSelect,
+    requestedApp,
+    requestedApplicationId,
+  ]);
 
   return null;
 }
@@ -365,6 +374,7 @@ export function PortalAomiFrame() {
       >
         <AppSelectUrlBootstrap
           requestedApp={requestedApp.app}
+          requestedApplicationId={requestedApp.applicationId}
           locked={Boolean(lockedApp)}
         />
         <AomiFrame.Header>

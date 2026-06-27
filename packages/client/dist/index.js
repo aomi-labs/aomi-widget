@@ -722,6 +722,43 @@ function previewText(value, max = 80) {
   if (singleLine.length <= max) return singleLine;
   return `${singleLine.slice(0, max - 1)}\u2026`;
 }
+function normalizeAppDescriptor(item) {
+  var _a, _b;
+  if (typeof item === "string") {
+    const name2 = item.trim();
+    return name2 ? { name: name2 } : null;
+  }
+  if (!item || typeof item !== "object") return null;
+  const raw = item;
+  const name = typeof raw.name === "string" ? raw.name.trim() : "";
+  if (!name) return null;
+  const descriptor = __spreadProps(__spreadValues({}, raw), {
+    name
+  });
+  const applicationId = (_b = (_a = raw.applicationId) != null ? _a : raw.application_id) != null ? _b : raw.id;
+  if (typeof applicationId === "number" || typeof applicationId === "string") {
+    descriptor.applicationId = applicationId;
+  }
+  if (typeof raw.platform === "string") descriptor.platform = raw.platform;
+  if (typeof raw.label === "string") descriptor.label = raw.label;
+  if (typeof raw.appReleaseTag === "string") {
+    descriptor.appReleaseTag = raw.appReleaseTag;
+  } else if (typeof raw.app_release_tag === "string") {
+    descriptor.appReleaseTag = raw.app_release_tag;
+  }
+  if (typeof raw.isActive === "boolean") {
+    descriptor.isActive = raw.isActive;
+  } else if (typeof raw.is_active === "boolean") {
+    descriptor.isActive = raw.is_active;
+  }
+  if (typeof raw.isPublic === "boolean") {
+    descriptor.isPublic = raw.isPublic;
+  } else if (typeof raw.is_public === "boolean") {
+    descriptor.isPublic = raw.is_public;
+  }
+  descriptor.secrets = Array.isArray(raw.secrets) ? raw.secrets : [];
+  return descriptor;
+}
 var BULKY_PENDING_FIELDS = /* @__PURE__ */ new Set([
   "messageBase64",
   "message_base64",
@@ -1359,18 +1396,7 @@ ${body}` : ""}`
     }
     const data = await response.json();
     if (!Array.isArray(data)) return [];
-    return data.map((item) => {
-      if (typeof item === "string") {
-        return { name: item };
-      }
-      if (item && typeof item === "object" && "name" in item) {
-        const name = item.name;
-        if (typeof name === "string" && name.trim().length > 0) {
-          return item;
-        }
-      }
-      return null;
-    }).filter((item) => item !== null);
+    return data.map((item) => normalizeAppDescriptor(item)).filter((item) => item !== null);
   }
   /**
    * Fetch the account bound to the authenticated request (resolved from the

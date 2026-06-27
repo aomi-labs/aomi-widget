@@ -45,6 +45,46 @@ function previewText(value: string, max = 80): string {
   return `${singleLine.slice(0, max - 1)}…`;
 }
 
+function normalizeAppDescriptor(item: unknown): AomiAppDescriptor | null {
+  if (typeof item === "string") {
+    const name = item.trim();
+    return name ? { name } : null;
+  }
+  if (!item || typeof item !== "object") return null;
+
+  const raw = item as Record<string, unknown>;
+  const name = typeof raw.name === "string" ? raw.name.trim() : "";
+  if (!name) return null;
+
+  const descriptor: AomiAppDescriptor = {
+    ...raw,
+    name,
+  } as AomiAppDescriptor;
+  const applicationId = raw.applicationId ?? raw.application_id ?? raw.id;
+  if (typeof applicationId === "number" || typeof applicationId === "string") {
+    descriptor.applicationId = applicationId;
+  }
+  if (typeof raw.platform === "string") descriptor.platform = raw.platform;
+  if (typeof raw.label === "string") descriptor.label = raw.label;
+  if (typeof raw.appReleaseTag === "string") {
+    descriptor.appReleaseTag = raw.appReleaseTag;
+  } else if (typeof raw.app_release_tag === "string") {
+    descriptor.appReleaseTag = raw.app_release_tag;
+  }
+  if (typeof raw.isActive === "boolean") {
+    descriptor.isActive = raw.isActive;
+  } else if (typeof raw.is_active === "boolean") {
+    descriptor.isActive = raw.is_active;
+  }
+  if (typeof raw.isPublic === "boolean") {
+    descriptor.isPublic = raw.isPublic;
+  } else if (typeof raw.is_public === "boolean") {
+    descriptor.isPublic = raw.is_public;
+  }
+  descriptor.secrets = Array.isArray(raw.secrets) ? raw.secrets : [];
+  return descriptor;
+}
+
 // Fields the server originated and stores authoritatively. The client only
 // echoes pending state back to identify which entries it knows about; the
 // payload bodies (raw tx bytes, signing messages, etc.) should not travel
@@ -888,18 +928,7 @@ export class AomiClient {
     const data = (await response.json()) as unknown;
     if (!Array.isArray(data)) return [];
     return data
-      .map((item) => {
-        if (typeof item === "string") {
-          return { name: item };
-        }
-        if (item && typeof item === "object" && "name" in item) {
-          const name = (item as { name?: unknown }).name;
-          if (typeof name === "string" && name.trim().length > 0) {
-            return item as AomiAppDescriptor;
-          }
-        }
-        return null;
-      })
+      .map((item) => normalizeAppDescriptor(item))
       .filter((item): item is AomiAppDescriptor => item !== null);
   }
 

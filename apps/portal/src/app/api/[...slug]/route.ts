@@ -189,21 +189,55 @@ function copyResponseHeaders(upstream: Response): Headers {
   return headers;
 }
 
+function normalizeAppDescriptor(item: unknown): AomiAppDescriptor | null {
+  if (typeof item === "string" && item.trim().length > 0) {
+    return { name: item.trim() };
+  }
+  if (!item || typeof item !== "object" || !("name" in item)) {
+    return null;
+  }
+  const raw = item as Record<string, unknown>;
+  const name = typeof raw.name === "string" ? raw.name.trim() : "";
+  if (!name) return null;
+  const descriptor: AomiAppDescriptor = {
+    ...raw,
+    name,
+  } as AomiAppDescriptor;
+  const applicationId = raw.applicationId ?? raw.application_id ?? raw.id;
+  if (typeof applicationId === "number" || typeof applicationId === "string") {
+    descriptor.applicationId = applicationId;
+  }
+  if (typeof raw.platform === "string") descriptor.platform = raw.platform;
+  if (typeof raw.appReleaseTag === "string") {
+    descriptor.appReleaseTag = raw.appReleaseTag;
+  } else if (typeof raw.app_release_tag === "string") {
+    descriptor.appReleaseTag = raw.app_release_tag;
+  }
+  if (typeof raw.isActive === "boolean") {
+    descriptor.isActive = raw.isActive;
+  } else if (typeof raw.is_active === "boolean") {
+    descriptor.isActive = raw.is_active;
+  }
+  if (typeof raw.isPublic === "boolean") {
+    descriptor.isPublic = raw.isPublic;
+  } else if (typeof raw.is_public === "boolean") {
+    descriptor.isPublic = raw.is_public;
+  }
+  return descriptor;
+}
+
+function appIdentityKey(app: AomiAppDescriptor): string {
+  const applicationId = app.applicationId?.toString().trim();
+  if (applicationId) return `application:${applicationId}`;
+  const platform = app.platform?.trim();
+  if (platform) return `platform:${platform}:${app.name}`;
+  return `name:${app.name}`;
+}
+
 function normalizeAppDescriptors(data: unknown): AomiAppDescriptor[] {
   if (!Array.isArray(data)) return [];
   return data
-    .map((item) => {
-      if (typeof item === "string" && item.trim().length > 0) {
-        return { name: item.trim() };
-      }
-      if (item && typeof item === "object" && "name" in item) {
-        const descriptor = item as AomiAppDescriptor;
-        if (descriptor.name?.trim()) {
-          return { ...descriptor, name: descriptor.name.trim() };
-        }
-      }
-      return null;
-    })
+    .map((item) => normalizeAppDescriptor(item))
     .filter((item): item is AomiAppDescriptor => item !== null);
 }
 
@@ -214,7 +248,7 @@ async function mergePlatformApps(
     const config = launchConfig();
     const client = await deploymentClient();
     const merged = new Map(
-      descriptors.map((descriptor) => [descriptor.name, descriptor]),
+      descriptors.map((descriptor) => [appIdentityKey(descriptor), descriptor]),
     );
     const appLists = await Promise.allSettled(
       config.platforms.map((platform) => client.listApps({ platform })),
@@ -237,8 +271,18 @@ async function mergePlatformApps(
         if (!app.name || !app.isPublic || !app.isActive || !app.loaded) {
           continue;
         }
-        if (!merged.has(app.name)) {
-          merged.set(app.name, { name: app.name });
+        const descriptor: AomiAppDescriptor = {
+          name: app.name,
+          applicationId: app.id,
+          platform: app.platform ?? config.platforms[index] ?? null,
+          label: app.label,
+          appReleaseTag: app.appReleaseTag,
+          isActive: app.isActive,
+          isPublic: app.isPublic,
+        };
+        const key = appIdentityKey(descriptor);
+        if (!merged.has(key)) {
+          merged.set(key, descriptor);
         }
       }
     }

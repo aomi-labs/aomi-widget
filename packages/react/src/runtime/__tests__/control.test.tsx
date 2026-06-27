@@ -54,7 +54,7 @@ describe("Control context", () => {
   it("does not refetch authorized apps on thread changes", async () => {
     const getApps = vi.fn(async () => [
       { name: "default" },
-      { name: "special" },
+      { name: "special", applicationId: 2936606, platform: "somm.finance" },
     ]);
     setAomiClientConfig({
       getApps,
@@ -103,10 +103,11 @@ describe("Control context", () => {
     });
 
     act(() => {
-      getControl().onAppSelect("special");
+      getControl().onAppSelect("special", { applicationId: 2936606 });
     });
 
     expect(getControl().getCurrentThreadApp()).toBe("special");
+    expect(getControl().getCurrentThreadApplicationId()).toBe(2936606);
 
     await act(async () => {
       api.setUser({
@@ -130,6 +131,7 @@ describe("Control context", () => {
 
     expect(sendMessage.mock.calls[0]?.[2]).toMatchObject({
       app: "special",
+      applicationId: 2936606,
       userState: expect.objectContaining({
         evm: expect.objectContaining({ address: "0xabc" }),
       }),
@@ -145,7 +147,10 @@ describe("Control context", () => {
     );
 
     setAomiClientConfig({
-      getApps: async () => [{ name: "default" }, { name: "special" }],
+      getApps: async () => [
+        { name: "default" },
+        { name: "special", applicationId: 2936606, platform: "somm.finance" },
+      ],
       getModels: async () => [],
       sendMessage,
     });
@@ -161,7 +166,7 @@ describe("Control context", () => {
     });
 
     act(() => {
-      getControl().onAppSelect("special");
+      getControl().onAppSelect("special", { applicationId: 2936606 });
     });
 
     await act(async () => {
@@ -177,6 +182,7 @@ describe("Control context", () => {
     });
     expect(sendMessage.mock.calls[1]?.[2]).toMatchObject({
       app: "special",
+      applicationId: 2936606,
     });
   });
 });
