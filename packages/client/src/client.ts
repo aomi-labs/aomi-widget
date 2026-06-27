@@ -81,6 +81,11 @@ function normalizeAppDescriptor(item: unknown): AomiAppDescriptor | null {
   } else if (typeof raw.is_public === "boolean") {
     descriptor.isPublic = raw.is_public;
   }
+  if (typeof raw.artifactReady === "boolean") {
+    descriptor.artifactReady = raw.artifactReady;
+  } else if (typeof raw.artifact_ready === "boolean") {
+    descriptor.artifactReady = raw.artifact_ready;
+  }
   descriptor.secrets = Array.isArray(raw.secrets) ? raw.secrets : [];
   // Drop the snake_case originals carried over by the spread so the descriptor
   // exposes a single camelCase identity (no `application_id`/`applicationId`
@@ -90,6 +95,7 @@ function normalizeAppDescriptor(item: unknown): AomiAppDescriptor | null {
     "app_release_tag",
     "is_active",
     "is_public",
+    "artifact_ready",
   ]) {
     delete (descriptor as unknown as Record<string, unknown>)[key];
   }
@@ -920,9 +926,12 @@ export class AomiClient {
    */
   async getApps(
     sessionId: string,
-    options?: { apiKey?: string },
+    options?: { apiKey?: string; platform?: string | null },
   ): Promise<AomiAppDescriptor[]> {
-    const url = buildApiUrl(this.baseUrl, "/api/session/apps");
+    const platform = options?.platform?.trim();
+    const url = buildApiUrl(this.baseUrl, "/api/session/apps", {
+      platform: platform || undefined,
+    });
 
     const apiKey = options?.apiKey ?? this.apiKey;
     const headers = new Headers(withSessionHeader(sessionId));

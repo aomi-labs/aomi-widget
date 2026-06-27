@@ -366,7 +366,8 @@ function useAuthEndpointsImpl({
   aomiClientRef,
   apiKeyRef,
   getControlSessionId: getControlSessionId2,
-  apiKey
+  apiKey,
+  appCatalogPlatform
 }) {
   const [availableModels, setAvailableModels] = (0, import_react3.useState)([]);
   const [defaultModel, setDefaultModel] = (0, import_react3.useState)(null);
@@ -380,7 +381,8 @@ function useAuthEndpointsImpl({
         const descriptors = await aomiClientRef.current.getApps(
           getControlSessionId2(),
           {
-            apiKey: (_a = apiKeyRef.current) != null ? _a : void 0
+            apiKey: (_a = apiKeyRef.current) != null ? _a : void 0,
+            platform: appCatalogPlatform
           }
         );
         const names = namesFromDescriptors(descriptors);
@@ -395,7 +397,7 @@ function useAuthEndpointsImpl({
       }
     };
     void fetchApps();
-  }, [aomiClientRef, getControlSessionId2, apiKey]);
+  }, [aomiClientRef, getControlSessionId2, apiKey, appCatalogPlatform]);
   (0, import_react3.useEffect)(() => {
     const fetchModels = async () => {
       try {
@@ -429,7 +431,8 @@ function useAuthEndpointsImpl({
       const descriptors = await aomiClientRef.current.getApps(
         getControlSessionId2(),
         {
-          apiKey: (_a = apiKeyRef.current) != null ? _a : void 0
+          apiKey: (_a = apiKeyRef.current) != null ? _a : void 0,
+          platform: appCatalogPlatform
         }
       );
       const names = namesFromDescriptors(descriptors);
@@ -444,7 +447,7 @@ function useAuthEndpointsImpl({
       setDefaultApp("default");
       return ["default"];
     }
-  }, [aomiClientRef, apiKeyRef, getControlSessionId2]);
+  }, [aomiClientRef, apiKeyRef, getControlSessionId2, appCatalogPlatform]);
   return {
     state: {
       availableModels,
@@ -724,25 +727,25 @@ function findAuthorizedDescriptor(app, applicationId, descriptors) {
       (descriptor) => descriptor.name === app && sameApplicationId(descriptor.applicationId, scopedId)
     )) != null ? _a : null;
   }
-  return (_b = descriptors.find((descriptor) => descriptor.name === app)) != null ? _b : null;
+  return (_b = descriptors.find(
+    (descriptor) => descriptor.name === app && normalizeApplicationId(descriptor.applicationId) === null
+  )) != null ? _b : null;
 }
 function resolveAuthorizedApp(app, applicationId, authorizedApps, appDescriptors, defaultApp) {
-  var _a, _b;
+  var _a;
   if (app) {
     const scopedId = normalizeApplicationId(applicationId);
     const exact = findAuthorizedDescriptor(app, applicationId, appDescriptors);
     if (exact) return exact;
-    const nameMatch = (_a = appDescriptors.find((descriptor) => descriptor.name === app)) != null ? _a : null;
-    if (nameMatch) {
-      return scopedId === null ? nameMatch : __spreadProps(__spreadValues({}, nameMatch), { name: app, applicationId: scopedId });
-    }
-    const hasAuthData = appDescriptors.length > 0 || authorizedApps.length > 0;
-    if (authorizedApps.includes(app) || !hasAuthData) {
-      return { name: app, applicationId: scopedId };
+    const nameRequiresApplicationId = appDescriptors.some(
+      (descriptor) => descriptor.name === app && normalizeApplicationId(descriptor.applicationId) !== null
+    );
+    if (scopedId === null && !nameRequiresApplicationId && authorizedApps.includes(app)) {
+      return { name: app, applicationId: null };
     }
   }
   if (!defaultApp) return null;
-  return (_b = findAuthorizedDescriptor(defaultApp, null, appDescriptors)) != null ? _b : {
+  return (_a = findAuthorizedDescriptor(defaultApp, null, appDescriptors)) != null ? _a : {
     name: defaultApp
   };
 }
@@ -1067,7 +1070,8 @@ function ControlContextProvider({
   aomiClient,
   sessionId,
   getThreadMetadata,
-  updateThreadMetadata
+  updateThreadMetadata,
+  appCatalogPlatform
 }) {
   const aomiClientRef = (0, import_react5.useRef)(aomiClient);
   aomiClientRef.current = aomiClient;
@@ -1109,7 +1113,8 @@ function ControlContextProvider({
     aomiClientRef,
     apiKeyRef,
     getControlSessionId: getCurrentControlSessionId,
-    apiKey: apiKey.state.apiKey
+    apiKey: apiKey.state.apiKey,
+    appCatalogPlatform
   });
   const availableModelsRef = (0, import_react5.useRef)(authEndpoints.state.availableModels);
   availableModelsRef.current = authEndpoints.state.availableModels;
@@ -3187,6 +3192,7 @@ function AomiRuntimeProvider({
   children,
   backendUrl = "http://127.0.0.1:8080",
   applicationId,
+  appCatalogPlatform,
   clientOptions
 }) {
   const resolvedClientOptions = (0, import_react16.useMemo)(
@@ -3208,6 +3214,7 @@ function AomiRuntimeProvider({
     {
       aomiClient,
       applicationId,
+      appCatalogPlatform,
       children
     }
   ) }) }) });
@@ -3215,7 +3222,8 @@ function AomiRuntimeProvider({
 function AomiRuntimeInner({
   children,
   aomiClient,
-  applicationId
+  applicationId,
+  appCatalogPlatform
 }) {
   const threadContext = useThreadContext();
   return /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(
@@ -3225,19 +3233,13 @@ function AomiRuntimeInner({
       sessionId: threadContext.currentThreadId,
       getThreadMetadata: threadContext.getThreadMetadata,
       updateThreadMetadata: threadContext.updateThreadMetadata,
+      appCatalogPlatform,
       children: /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(
         EventContextProvider,
         {
           aomiClient,
           sessionId: threadContext.currentThreadId,
-          children: /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(
-            AomiRuntimeCore,
-            {
-              aomiClient,
-              applicationId,
-              children
-            }
-          )
+          children: /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(AomiRuntimeCore, { aomiClient, applicationId, children })
         }
       )
     }

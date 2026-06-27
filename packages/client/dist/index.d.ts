@@ -416,6 +416,7 @@ interface AomiAppDescriptor {
     appReleaseTag?: string | null;
     isActive?: boolean | null;
     isPublic?: boolean | null;
+    artifactReady?: boolean | null;
     secrets?: AomiSecretSlot[];
 }
 type AomiSSEEventType = "title_changed" | "tool_update" | "tool_complete" | "system_notice";
@@ -572,6 +573,7 @@ declare class AomiClient {
      */
     getApps(sessionId: string, options?: {
         apiKey?: string;
+        platform?: string | null;
     }): Promise<AomiAppDescriptor[]>;
     /**
      * Fetch the account bound to the authenticated request (resolved from the

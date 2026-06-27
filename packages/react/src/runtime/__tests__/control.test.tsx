@@ -29,7 +29,7 @@ describe("Control context", () => {
       getModels: async () => [],
     });
 
-    const { api } = renderRuntime();
+    const { api } = renderRuntime({ appCatalogPlatform: "somm.finance" });
 
     await waitFor(() => {
       expect(getApps).toHaveBeenCalledTimes(1);
@@ -37,6 +37,7 @@ describe("Control context", () => {
 
     expect(getApps.mock.calls[0]?.[1]).toMatchObject({
       apiKey: undefined,
+      platform: "somm.finance",
     });
 
     await act(async () => {
@@ -87,7 +88,7 @@ describe("Control context", () => {
     );
     const getApps = vi.fn(async () => [
       { name: "default" },
-      { name: "special" },
+      { name: "special", applicationId: 2936606, platform: "somm.finance" },
     ]);
 
     setAomiClientConfig({
@@ -136,6 +137,29 @@ describe("Control context", () => {
         evm: expect.objectContaining({ address: "0xabc" }),
       }),
     });
+  });
+
+  it("does not select a hosted app by bare name when an application id is required", async () => {
+    setAomiClientConfig({
+      getApps: async () => [
+        { name: "default" },
+        { name: "special", applicationId: 2936606, platform: "somm.finance" },
+      ],
+      getModels: async () => [],
+    });
+
+    const { getControl } = renderRuntime();
+
+    await waitFor(() => {
+      expect(getControl().state.authorizedApps).toEqual(["default", "special"]);
+    });
+
+    act(() => {
+      getControl().onAppSelect("special");
+    });
+
+    expect(getControl().getCurrentThreadApp()).toBe("default");
+    expect(getControl().getCurrentThreadApplicationId()).toBeNull();
   });
 
   it("resends with the updated app on an existing thread session", async () => {

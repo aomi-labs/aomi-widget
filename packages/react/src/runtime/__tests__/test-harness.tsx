@@ -5,6 +5,7 @@ import { render } from "@testing-library/react";
 import type {
   AomiThread,
   AomiCreateThreadResponse,
+  AomiAppDescriptor,
   AomiStateResponse,
   AomiChatResponse,
   AomiInterruptResponse,
@@ -51,8 +52,8 @@ export type AomiClientConfig = {
   // Control API
   getApps?: (
     sessionId: string,
-    options?: { apiKey?: string },
-  ) => Promise<string[]>;
+    options?: { apiKey?: string; platform?: string | null },
+  ) => Promise<AomiAppDescriptor[]>;
   getModels?: (sessionId: string) => Promise<string[]>;
   setModel?: (
     sessionId: string,
@@ -243,7 +244,10 @@ vi.mock("@aomi-labs/client", async (importOriginal) => {
 
     // Control API
     getApps = vi.fn(
-      async (sessionId: string, options?: { apiKey?: string }) => {
+      async (
+        sessionId: string,
+        options?: { apiKey?: string; platform?: string | null },
+      ) => {
         return mockState.config.getApps
           ? await mockState.config.getApps(sessionId, options)
           : [];
@@ -634,6 +638,7 @@ RuntimeHarness.displayName = "RuntimeHarness";
 export type RenderRuntimeOptions = {
   backendUrl?: string;
   applicationId?: number | string | null;
+  appCatalogPlatform?: string | null;
 };
 
 export type RenderRuntimeResult = {
@@ -649,11 +654,16 @@ export type RenderRuntimeResult = {
 export const renderRuntime = ({
   backendUrl = "http://test-backend",
   applicationId,
+  appCatalogPlatform,
 }: RenderRuntimeOptions = {}): RenderRuntimeResult => {
   const ref = React.createRef<RuntimeHarnessHandle>();
 
   const { unmount, rerender } = render(
-    <AomiRuntimeProvider backendUrl={backendUrl} applicationId={applicationId}>
+    <AomiRuntimeProvider
+      backendUrl={backendUrl}
+      applicationId={applicationId}
+      appCatalogPlatform={appCatalogPlatform}
+    >
       <RuntimeHarness ref={ref} />
     </AomiRuntimeProvider>,
   );

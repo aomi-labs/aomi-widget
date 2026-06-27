@@ -49,10 +49,6 @@
       "files": [
         {
           "type": "registry:component",
-          "path": "lib/aomi-auth-adapter.ts"
-        },
-        {
-          "type": "registry:component",
           "path": "lib/aomi-auth-adapter/index.ts"
         },
         {
@@ -154,10 +150,6 @@
         {
           "type": "registry:component",
           "path": "components/icons/chains/index.tsx"
-        },
-        {
-          "type": "registry:component",
-          "path": "lib/aomi-auth-adapter.ts"
         },
         {
           "type": "registry:component",

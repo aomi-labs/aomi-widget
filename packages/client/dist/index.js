@@ -756,12 +756,18 @@ function normalizeAppDescriptor(item) {
   } else if (typeof raw.is_public === "boolean") {
     descriptor.isPublic = raw.is_public;
   }
+  if (typeof raw.artifactReady === "boolean") {
+    descriptor.artifactReady = raw.artifactReady;
+  } else if (typeof raw.artifact_ready === "boolean") {
+    descriptor.artifactReady = raw.artifact_ready;
+  }
   descriptor.secrets = Array.isArray(raw.secrets) ? raw.secrets : [];
   for (const key of [
     "application_id",
     "app_release_tag",
     "is_active",
-    "is_public"
+    "is_public",
+    "artifact_ready"
   ]) {
     delete descriptor[key];
   }
@@ -1391,9 +1397,12 @@ ${body}` : ""}`
    * the chat shell uses it to gate app load when required slots are unfilled.
    */
   async getApps(sessionId, options) {
-    var _a;
-    const url = buildApiUrl(this.baseUrl, "/api/session/apps");
-    const apiKey = (_a = options == null ? void 0 : options.apiKey) != null ? _a : this.apiKey;
+    var _a, _b;
+    const platform = (_a = options == null ? void 0 : options.platform) == null ? void 0 : _a.trim();
+    const url = buildApiUrl(this.baseUrl, "/api/session/apps", {
+      platform: platform || void 0
+    });
+    const apiKey = (_b = options == null ? void 0 : options.apiKey) != null ? _b : this.apiKey;
     const headers = new Headers(withSessionHeader(sessionId));
     if (apiKey) {
       headers.set(APP_KEY_HEADER, apiKey);

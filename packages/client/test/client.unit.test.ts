@@ -13,7 +13,9 @@ describe("AomiClient route manifest", () => {
     expect(routeKeys).toHaveLength(78);
     expect(new Set(routeKeys).size).toBe(routeKeys.length);
     expect(routeKeys).toContain("GET /api/session/apps [session]");
-    expect(routeKeys).toContain("POST /api/platforms/:name/deploy [activation]");
+    expect(routeKeys).toContain(
+      "POST /api/platforms/:name/deploy [activation]",
+    );
     expect(routeKeys).not.toContain("GET /api/control/apps [session]");
     expect(routeKeys.some((route) => route.includes("/api/control/"))).toBe(
       false,
@@ -334,6 +336,54 @@ describe("AomiClient account profile", () => {
   });
 });
 
+describe("AomiClient app catalog", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("passes platform and normalizes artifact readiness", async () => {
+    const response = {
+      ok: true,
+      status: 200,
+      statusText: "OK",
+      json: vi.fn(async () => [
+        {
+          name: "somm-agent",
+          application_id: 42,
+          platform: "somm.finance",
+          artifact_ready: true,
+        },
+      ]),
+    } as unknown as Response;
+    const nativeFetch = vi.fn(async () => response);
+    const originalFetch = globalThis.fetch;
+    vi.stubGlobal("fetch", nativeFetch);
+
+    try {
+      const client = new AomiClient({ baseUrl: "http://unit.test" });
+
+      const apps = await client.getApps("session-1", {
+        platform: "somm.finance",
+      });
+
+      expect(String(nativeFetch.mock.calls[0]?.[0])).toBe(
+        "http://unit.test/api/session/apps?platform=somm.finance",
+      );
+      expect(apps).toEqual([
+        {
+          name: "somm-agent",
+          applicationId: 42,
+          platform: "somm.finance",
+          artifactReady: true,
+          secrets: [],
+        },
+      ]);
+    } finally {
+      vi.stubGlobal("fetch", originalFetch);
+    }
+  });
+});
+
 const encoder = new TextEncoder();
 
 const createMockSseConnection = (signal: AbortSignal) => {
@@ -410,9 +460,8 @@ describe("AomiClient transport selection", () => {
       },
     ] as Response[];
     const nativeFetch = vi.fn(async () => responses.shift() as Response);
-    const getAccountBearer = vi.fn(
-      async ({ forceRefresh = false } = {}) =>
-        forceRefresh ? "fresh-token" : "stale-token",
+    const getAccountBearer = vi.fn(async ({ forceRefresh = false } = {}) =>
+      forceRefresh ? "fresh-token" : "stale-token",
     );
     const originalFetch = globalThis.fetch;
     vi.stubGlobal("fetch", nativeFetch);
