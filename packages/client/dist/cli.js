@@ -1150,12 +1150,7 @@ var init_sse = __esm({
   }
 });
 
-// src/client.ts
-function previewText(value, max = 80) {
-  const singleLine = value.replace(/\s+/g, " ").trim();
-  if (singleLine.length <= max) return singleLine;
-  return `${singleLine.slice(0, max - 1)}\u2026`;
-}
+// src/app-descriptor.ts
 function normalizeAppDescriptor(item) {
   var _a3, _b;
   if (typeof item === "string") {
@@ -1197,6 +1192,7 @@ function normalizeAppDescriptor(item) {
   }
   descriptor.secrets = Array.isArray(raw.secrets) ? raw.secrets : [];
   for (const key of [
+    "id",
     "application_id",
     "app_release_tag",
     "is_active",
@@ -1206,6 +1202,18 @@ function normalizeAppDescriptor(item) {
     delete descriptor[key];
   }
   return descriptor;
+}
+var init_app_descriptor = __esm({
+  "src/app-descriptor.ts"() {
+    "use strict";
+  }
+});
+
+// src/client.ts
+function previewText(value, max = 80) {
+  const singleLine = value.replace(/\s+/g, " ").trim();
+  if (singleLine.length <= max) return singleLine;
+  return `${singleLine.slice(0, max - 1)}\u2026`;
 }
 function pruneBucket(bucket) {
   if (!bucket) return void 0;
@@ -1365,6 +1373,7 @@ var init_client = __esm({
     "use strict";
     init_user_state();
     init_sse();
+    init_app_descriptor();
     SESSION_ID_HEADER = "X-Session-Id";
     APP_KEY_HEADER = "Aomi-App-Key";
     BULKY_PENDING_FIELDS = /* @__PURE__ */ new Set([

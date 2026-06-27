@@ -195,7 +195,7 @@ export type ControlContextProviderProps = {
     threadId: string,
     partial: Partial<ThreadMetadata>,
   ) => void;
-  appCatalogPlatform?: string | null;
+  appPlatform?: string | null;
 };
 
 export function ControlContextProvider({
@@ -204,7 +204,7 @@ export function ControlContextProvider({
   sessionId,
   getThreadMetadata,
   updateThreadMetadata,
-  appCatalogPlatform,
+  appPlatform,
 }: ControlContextProviderProps) {
   // ---------------------------------------------------------------------------
   // Stable refs into the central plumbing (aomiClient, the props that change
@@ -266,7 +266,7 @@ export function ControlContextProvider({
     apiKeyRef,
     getControlSessionId: getCurrentControlSessionId,
     apiKey: apiKey.state.apiKey,
-    appCatalogPlatform,
+    appPlatform,
   });
 
   // Refs for the auth-endpoint state so per-thread-control callbacks can read

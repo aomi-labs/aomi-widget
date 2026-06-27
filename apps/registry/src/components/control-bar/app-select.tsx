@@ -6,6 +6,7 @@ import {
   useAuthEndpoints,
   usePerThreadControl,
   cn,
+  appIdentityKey,
   type AomiAppDescriptor,
 } from "@aomi-labs/react";
 import { Button } from "@/components/ui/button";
@@ -39,14 +40,6 @@ type AppSelectEntry = {
   descriptor: AomiAppDescriptor;
   info: AppInfo;
 };
-
-function appIdentityKey(descriptor: AomiAppDescriptor): string {
-  const applicationId = descriptor.applicationId?.toString().trim();
-  if (applicationId) return `application:${applicationId}`;
-  const platform = descriptor.platform?.trim();
-  if (platform) return `platform:${platform}:${descriptor.name}`;
-  return `name:${descriptor.name}`;
-}
 
 function isSelected(
   descriptor: AomiAppDescriptor,

@@ -714,14 +714,7 @@ function createSseSubscriber({
   return { subscribe, reconnect };
 }
 
-// src/client.ts
-var SESSION_ID_HEADER = "X-Session-Id";
-var APP_KEY_HEADER = "Aomi-App-Key";
-function previewText(value, max = 80) {
-  const singleLine = value.replace(/\s+/g, " ").trim();
-  if (singleLine.length <= max) return singleLine;
-  return `${singleLine.slice(0, max - 1)}\u2026`;
-}
+// src/app-descriptor.ts
 function normalizeAppDescriptor(item) {
   var _a, _b;
   if (typeof item === "string") {
@@ -763,6 +756,7 @@ function normalizeAppDescriptor(item) {
   }
   descriptor.secrets = Array.isArray(raw.secrets) ? raw.secrets : [];
   for (const key of [
+    "id",
     "application_id",
     "app_release_tag",
     "is_active",
@@ -772,6 +766,23 @@ function normalizeAppDescriptor(item) {
     delete descriptor[key];
   }
   return descriptor;
+}
+function appIdentityKey(descriptor) {
+  var _a, _b;
+  const applicationId = (_a = descriptor.applicationId) == null ? void 0 : _a.toString().trim();
+  if (applicationId) return `application:${applicationId}`;
+  const platform = (_b = descriptor.platform) == null ? void 0 : _b.trim();
+  if (platform) return `platform:${platform}:${descriptor.name}`;
+  return `name:${descriptor.name}`;
+}
+
+// src/client.ts
+var SESSION_ID_HEADER = "X-Session-Id";
+var APP_KEY_HEADER = "Aomi-App-Key";
+function previewText(value, max = 80) {
+  const singleLine = value.replace(/\s+/g, " ").trim();
+  if (singleLine.length <= max) return singleLine;
+  return `${singleLine.slice(0, max - 1)}\u2026`;
 }
 var BULKY_PENDING_FIELDS = /* @__PURE__ */ new Set([
   "messageBase64",
@@ -4583,6 +4594,7 @@ export {
   UserState,
   aaModeFromExecutionKind,
   adaptSmartAccount,
+  appIdentityKey,
   appendFeeCallToPayload,
   buildAAExecutionPlan,
   buildFeeAAWalletCall,
@@ -4600,6 +4612,7 @@ export {
   isSystemNotice,
   monad,
   monadTestnet,
+  normalizeAppDescriptor,
   normalizeEip712Payload,
   normalizeSimulatedFee,
   normalizeSolanaSignMessagePayload,

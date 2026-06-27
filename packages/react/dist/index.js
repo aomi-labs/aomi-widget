@@ -46,7 +46,9 @@ import {
   DISABLED_PROVIDER_STATE,
   parseChainId,
   aaModeFromExecutionKind,
-  toViemSignMessageArgs
+  toViemSignMessageArgs,
+  normalizeAppDescriptor,
+  appIdentityKey
 } from "@aomi-labs/client";
 
 // src/runtime/aomi-runtime.tsx
@@ -322,7 +324,7 @@ function useAuthEndpointsImpl({
   apiKeyRef,
   getControlSessionId: getControlSessionId2,
   apiKey,
-  appCatalogPlatform
+  appPlatform
 }) {
   const [availableModels, setAvailableModels] = useState3([]);
   const [defaultModel, setDefaultModel] = useState3(null);
@@ -337,7 +339,7 @@ function useAuthEndpointsImpl({
           getControlSessionId2(),
           {
             apiKey: (_a = apiKeyRef.current) != null ? _a : void 0,
-            platform: appCatalogPlatform
+            platform: appPlatform
           }
         );
         const names = namesFromDescriptors(descriptors);
@@ -352,7 +354,7 @@ function useAuthEndpointsImpl({
       }
     };
     void fetchApps();
-  }, [aomiClientRef, getControlSessionId2, apiKey, appCatalogPlatform]);
+  }, [aomiClientRef, getControlSessionId2, apiKey, appPlatform]);
   useEffect3(() => {
     const fetchModels = async () => {
       try {
@@ -387,7 +389,7 @@ function useAuthEndpointsImpl({
         getControlSessionId2(),
         {
           apiKey: (_a = apiKeyRef.current) != null ? _a : void 0,
-          platform: appCatalogPlatform
+          platform: appPlatform
         }
       );
       const names = namesFromDescriptors(descriptors);
@@ -402,7 +404,7 @@ function useAuthEndpointsImpl({
       setDefaultApp("default");
       return ["default"];
     }
-  }, [aomiClientRef, apiKeyRef, getControlSessionId2, appCatalogPlatform]);
+  }, [aomiClientRef, apiKeyRef, getControlSessionId2, appPlatform]);
   return {
     state: {
       availableModels,
@@ -1026,7 +1028,7 @@ function ControlContextProvider({
   sessionId,
   getThreadMetadata,
   updateThreadMetadata,
-  appCatalogPlatform
+  appPlatform
 }) {
   const aomiClientRef = useRef(aomiClient);
   aomiClientRef.current = aomiClient;
@@ -1069,7 +1071,7 @@ function ControlContextProvider({
     apiKeyRef,
     getControlSessionId: getCurrentControlSessionId,
     apiKey: apiKey.state.apiKey,
-    appCatalogPlatform
+    appPlatform
   });
   const availableModelsRef = useRef(authEndpoints.state.availableModels);
   availableModelsRef.current = authEndpoints.state.availableModels;
@@ -3182,7 +3184,7 @@ function AomiRuntimeProvider({
   children,
   backendUrl = "http://127.0.0.1:8080",
   applicationId,
-  appCatalogPlatform,
+  appPlatform,
   clientOptions
 }) {
   const resolvedClientOptions = useMemo3(
@@ -3204,7 +3206,7 @@ function AomiRuntimeProvider({
     {
       aomiClient,
       applicationId,
-      appCatalogPlatform,
+      appPlatform,
       children
     }
   ) }) }) });
@@ -3213,7 +3215,7 @@ function AomiRuntimeInner({
   children,
   aomiClient,
   applicationId,
-  appCatalogPlatform
+  appPlatform
 }) {
   const threadContext = useThreadContext();
   return /* @__PURE__ */ jsx8(
@@ -3223,7 +3225,7 @@ function AomiRuntimeInner({
       sessionId: threadContext.currentThreadId,
       getThreadMetadata: threadContext.getThreadMetadata,
       updateThreadMetadata: threadContext.updateThreadMetadata,
-      appCatalogPlatform,
+      appPlatform,
       children: /* @__PURE__ */ jsx8(
         EventContextProvider,
         {
@@ -3292,6 +3294,7 @@ export {
   ThreadContextProvider,
   UserState2 as UserState,
   aaModeFromExecutionKind,
+  appIdentityKey,
   appendFeeCallToPayload,
   buildFeeAAWalletCall,
   cn,
@@ -3301,6 +3304,7 @@ export {
   getNetworkName,
   hydrateTxPayloadFromUserState,
   initThreadControl,
+  normalizeAppDescriptor,
   normalizeSimulatedFee,
   parseChainId,
   resolveAutoModel,

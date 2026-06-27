@@ -22,7 +22,7 @@ export type AomiRuntimeProviderProps = {
   children: ReactNode;
   backendUrl?: string;
   applicationId?: number | string | null;
-  appCatalogPlatform?: string | null;
+  appPlatform?: string | null;
   clientOptions?: Omit<AomiClientOptions, "baseUrl">;
 };
 
@@ -47,7 +47,7 @@ export function AomiRuntimeProvider({
   children,
   backendUrl = "http://127.0.0.1:8080",
   applicationId,
-  appCatalogPlatform,
+  appPlatform,
   clientOptions,
 }: Readonly<AomiRuntimeProviderProps>) {
   const resolvedClientOptions = useMemo(
@@ -76,7 +76,7 @@ export function AomiRuntimeProvider({
           <AomiRuntimeInner
             aomiClient={aomiClient}
             applicationId={applicationId}
-            appCatalogPlatform={appCatalogPlatform}
+            appPlatform={appPlatform}
           >
             {children}
           </AomiRuntimeInner>
@@ -94,14 +94,14 @@ type AomiRuntimeInnerProps = {
   children: ReactNode;
   aomiClient: AomiClient;
   applicationId?: number | string | null;
-  appCatalogPlatform?: string | null;
+  appPlatform?: string | null;
 };
 
 function AomiRuntimeInner({
   children,
   aomiClient,
   applicationId,
-  appCatalogPlatform,
+  appPlatform,
 }: Readonly<AomiRuntimeInnerProps>) {
   const threadContext = useThreadContext();
 
@@ -111,7 +111,7 @@ function AomiRuntimeInner({
       sessionId={threadContext.currentThreadId}
       getThreadMetadata={threadContext.getThreadMetadata}
       updateThreadMetadata={threadContext.updateThreadMetadata}
-      appCatalogPlatform={appCatalogPlatform}
+      appPlatform={appPlatform}
     >
       <EventContextProvider
         aomiClient={aomiClient}
