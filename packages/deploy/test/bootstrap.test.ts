@@ -258,6 +258,7 @@ describe("DeploymentClient bootstrap — apps", () => {
       isPublic: true,
       appSourceId: 99,
       appReleaseTag: "apps-555-r1-my-bot-abc1234",
+      artifactReady: false,
       targetTags: ["staging"],
       loaded: true,
     });
