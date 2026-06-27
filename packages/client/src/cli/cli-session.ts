@@ -145,7 +145,7 @@ export class CliSession {
       svmPrivateKey: config.solanaPrivateKey ?? seed?.svmPrivateKey,
       chainId: config.chain ?? seed?.chainId,
       secretHandles: seed?.secretHandles,
-      authorizedWalletRefsByApp: seed?.authorizedWalletRefsByApp,
+      operatingWalletRef: seed?.operatingWalletRef,
     };
     applyAccountCredentialConfig(state, config);
     const cli = new CliSession(state);
@@ -206,8 +206,9 @@ export class CliSession {
     return this.state.secretHandles ?? {};
   }
 
-  authorizedWalletRef(app?: string): string | undefined {
-    return this.state.authorizedWalletRefsByApp?.[app ?? this.state.app ?? "default"];
+  /** Account-scoped selected authorized (delegated) wallet ref, if any. */
+  operatingWalletRef(): string | undefined {
+    return this.state.operatingWalletRef;
   }
 
   // ---------------------------------------------------------------------------
@@ -327,20 +328,13 @@ export class CliSession {
     this.save();
   }
 
-  setAuthorizedWalletRef(app: string | undefined, walletRef: string): void {
-    const key = app ?? this.state.app ?? "default";
-    this.state.authorizedWalletRefsByApp = {
-      ...(this.state.authorizedWalletRefsByApp ?? {}),
-      [key]: walletRef,
-    };
+  setOperatingWalletRef(walletRef: string): void {
+    this.state.operatingWalletRef = walletRef;
     this.save();
   }
 
-  clearAuthorizedWalletRef(app: string | undefined): void {
-    const key = app ?? this.state.app ?? "default";
-    const refs = { ...(this.state.authorizedWalletRefsByApp ?? {}) };
-    delete refs[key];
-    this.state.authorizedWalletRefsByApp = refs;
+  clearOperatingWalletRef(): void {
+    this.state.operatingWalletRef = undefined;
     this.save();
   }
 

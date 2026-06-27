@@ -150,8 +150,7 @@ export async function chatCommand(
   const cli = CliSession.loadOrCreate(config);
   const session = cli.createClientSession(config);
   const authorizedWalletRef =
-    options?.authorizedWalletRef?.trim() ||
-    cli.authorizedWalletRef(config.app);
+    options?.authorizedWalletRef?.trim() || cli.operatingWalletRef();
 
   // Resolve Solana address after session is created/loaded so we pick up the
   // key persisted by `wallet set --solana` even for `--new-session` flows

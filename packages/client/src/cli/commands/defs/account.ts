@@ -28,7 +28,7 @@ const accountWhoamiDef = defineCommand({
 const accountAuthListDef = defineCommand({
   meta: {
     name: "list",
-    description: "List backend-authorized wallets for the current account/app",
+    description: "List backend-authorized wallets for the current account",
   },
   args: {
     ...globalArgs,
@@ -48,7 +48,7 @@ const accountAuthListDef = defineCommand({
 const accountAuthCurrentDef = defineCommand({
   meta: {
     name: "current",
-    description: "Show the locally selected authorized wallet for this app",
+    description: "Show the locally selected authorized wallet for this account",
   },
   args: { ...globalArgs },
   async run({ args }) {
@@ -85,7 +85,7 @@ const accountAuthUseDef = defineCommand({
 const accountAuthClearDef = defineCommand({
   meta: {
     name: "clear",
-    description: "Clear the locally selected authorized wallet for this app",
+    description: "Clear the locally selected authorized wallet for this account",
   },
   args: { ...globalArgs },
   async run({ args }) {

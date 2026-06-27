@@ -271,10 +271,14 @@ export interface AomiBeginAccountAuthResponse {
 export type AomiWalletFamily = "evm" | "svm";
 export type AomiAuthWalletFamily = "evm" | "solana";
 
+/**
+ * An account-scoped authorized (delegated) wallet. `wallet_ref` is the opaque
+ * account-scoped selector `provider:family:approval_id` (see the
+ * account-scoped-wallet-selection wire contract) — no `application` segment.
+ */
 export interface AomiAuthorizedWallet {
   wallet_ref: string;
   wallet_provider: string;
-  application?: string | null;
   family: AomiWalletFamily;
   address: string;
   label?: string | null;
@@ -287,26 +291,30 @@ export interface AomiListAuthorizationsResponse {
   wallets: AomiAuthorizedWallet[];
 }
 
-export interface AomiScheduledIntent {
+export interface AomiScheduledThread {
   id: string;
   user_id: string;
-  session_id: string;
+  root_thread_id: string;
   application: string;
   intent: string;
   trigger_at: number;
   recurrence_seconds?: number | null;
   last_attempted_at?: number | null;
+  /**
+   * Derived: an intent that fires offline can only use a delegated signer. The
+   * operating wallet itself is recovered from the forked child thread's
+   * persisted context, not carried on the intent (see the wire contract).
+   */
   requires_authorization: boolean;
-  authorized_wallet_ref?: string | null;
   created_at: number;
   updated_at: number;
 }
 
-export interface AomiListScheduledIntentsResponse {
-  scheduled_intents: AomiScheduledIntent[];
+export interface AomiListScheduledThreadsResponse {
+  scheduled_threads: AomiScheduledThread[];
 }
 
-export interface AomiDeleteScheduledIntentResponse {
+export interface AomiDeleteScheduledThreadResponse {
   deleted: boolean;
 }
 

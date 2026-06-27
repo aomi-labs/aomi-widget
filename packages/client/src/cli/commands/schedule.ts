@@ -1,4 +1,4 @@
-import type { AomiScheduledIntent } from "../../types";
+import type { AomiScheduledThread } from "../../types";
 import { CliSession } from "../cli-session";
 import { fatal } from "../errors";
 import { printDataFileLocation } from "../output";
@@ -13,12 +13,9 @@ function formatTimestamp(seconds: number | null | undefined): string {
   return new Date(seconds * 1000).toISOString();
 }
 
-function printIntent(intent: AomiScheduledIntent): void {
+function printIntent(intent: AomiScheduledThread): void {
   console.log(`${intent.id} | ${intent.application} | ${formatTimestamp(intent.trigger_at)}`);
   console.log(`  authorized: ${intent.requires_authorization ? "yes" : "no"}`);
-  if (intent.authorized_wallet_ref) {
-    console.log(`  authorized wallet: ${intent.authorized_wallet_ref}`);
-  }
   if (intent.recurrence_seconds) {
     console.log(`  recurrence: ${intent.recurrence_seconds}s`);
   }
@@ -37,13 +34,13 @@ export async function listSchedulesCommand(
   const app = effectiveApp(config, cli);
   const session = cli.createClientSession(config);
   try {
-    const response = await session.client.listScheduledIntents(cli.sessionId, {
+    const response = await session.client.listScheduledThreads(cli.sessionId, {
       app,
       limit: options?.limit,
       offset: options?.offset,
     });
-    console.log(`Scheduled intents for app "${app}": ${response.scheduled_intents.length}`);
-    for (const intent of response.scheduled_intents) {
+    console.log(`Scheduled intents for app "${app}": ${response.scheduled_threads.length}`);
+    for (const intent of response.scheduled_threads) {
       printIntent(intent);
     }
     printDataFileLocation();
@@ -63,9 +60,9 @@ export async function showScheduleCommand(
   cli.mergeConfig(config);
   const session = cli.createClientSession(config);
   try {
-    const intent = await session.client.getScheduledIntent(cli.sessionId, scheduleId);
+    const intent = await session.client.getScheduledThread(cli.sessionId, scheduleId);
     printIntent(intent);
-    console.log(`  session: ${intent.session_id}`);
+    console.log(`  root thread: ${intent.root_thread_id}`);
     console.log(`  created: ${formatTimestamp(intent.created_at)}`);
     console.log(`  updated: ${formatTimestamp(intent.updated_at)}`);
     printDataFileLocation();
@@ -85,7 +82,7 @@ export async function cancelScheduleCommand(
   cli.mergeConfig(config);
   const session = cli.createClientSession(config);
   try {
-    const response = await session.client.cancelScheduledIntent(
+    const response = await session.client.cancelScheduledThread(
       cli.sessionId,
       scheduleId,
     );

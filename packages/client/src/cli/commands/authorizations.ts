@@ -4,22 +4,17 @@ import { fatal } from "../errors";
 import { printDataFileLocation } from "../output";
 import type { CliConfig } from "../types";
 
-function effectiveApp(config: CliConfig, cli: CliSession): string {
-  return config.app ?? cli.app ?? "default";
-}
-
 function formatExpiry(expiresAt: number | null | undefined): string {
   if (!expiresAt) return "no expiry";
   return new Date(expiresAt * 1000).toISOString();
 }
 
 function formatWallet(wallet: AomiAuthorizedWallet): string {
-  const app = wallet.application ?? "global";
   const label = wallet.label ? ` ${wallet.label}` : "";
   return [
     wallet.wallet_ref,
     `${wallet.family.toUpperCase()} ${wallet.address}`,
-    `${wallet.wallet_provider}/${app}${label}`,
+    `${wallet.wallet_provider}${label}`,
     `expires ${formatExpiry(wallet.expires_at)}`,
   ].join(" | ");
 }
@@ -31,9 +26,7 @@ async function fetchWallets(
 ): Promise<AomiAuthorizedWallet[]> {
   const session = cli.createClientSession(config);
   try {
-    const app = effectiveApp(config, cli);
     const response = await session.client.listAuthorizedWallets(cli.sessionId, {
-      app,
       provider: options?.provider,
     });
     return response.wallets;
@@ -48,10 +41,9 @@ export async function listAuthorizationsCommand(
 ): Promise<void> {
   const cli = CliSession.loadOrCreate(config);
   cli.mergeConfig(config);
-  const app = effectiveApp(config, cli);
   const wallets = await fetchWallets(config, cli, options);
 
-  console.log(`Authorized wallets for app "${app}": ${wallets.length}`);
+  console.log(`Authorized wallets: ${wallets.length}`);
   for (const wallet of wallets) {
     console.log(`- ${formatWallet(wallet)}`);
   }
@@ -63,14 +55,13 @@ export async function currentAuthorizationCommand(
 ): Promise<void> {
   const cli = CliSession.loadOrCreate(config);
   cli.mergeConfig(config);
-  const app = effectiveApp(config, cli);
-  const walletRef = cli.authorizedWalletRef(app);
+  const walletRef = cli.operatingWalletRef();
   if (!walletRef) {
-    console.log(`No authorized wallet selected for app "${app}".`);
+    console.log("No authorized wallet selected.");
     printDataFileLocation();
     return;
   }
-  console.log(`Authorized wallet for app "${app}": ${walletRef}`);
+  console.log(`Authorized wallet: ${walletRef}`);
   printDataFileLocation();
 }
 
@@ -84,18 +75,17 @@ export async function useAuthorizationCommand(
 
   const cli = CliSession.loadOrCreate(config);
   cli.mergeConfig(config);
-  const app = effectiveApp(config, cli);
   const wallets = await fetchWallets(config, cli, options);
   const wallet = wallets.find((candidate) => candidate.wallet_ref === ref);
   if (!wallet) {
     fatal(
-      `Authorized wallet "${ref}" was not found for app "${app}". Run ` +
+      `Authorized wallet "${ref}" was not found for this account. Run ` +
         "`aomi account auth list` to see available refs.",
     );
   }
 
-  cli.setAuthorizedWalletRef(app, ref);
-  console.log(`Selected authorized wallet for app "${app}":`);
+  cli.setOperatingWalletRef(ref);
+  console.log("Selected authorized wallet:");
   console.log(formatWallet(wallet));
   printDataFileLocation();
 }
@@ -105,8 +95,7 @@ export async function clearAuthorizationCommand(
 ): Promise<void> {
   const cli = CliSession.loadOrCreate(config);
   cli.mergeConfig(config);
-  const app = effectiveApp(config, cli);
-  cli.clearAuthorizedWalletRef(app);
-  console.log(`Cleared authorized wallet selection for app "${app}".`);
+  cli.clearOperatingWalletRef();
+  console.log("Cleared authorized wallet selection.");
   printDataFileLocation();
 }

@@ -91,6 +91,13 @@
     ],
     "tailwindStylesheet": "app/globals.css"
   },
+  "pnpm": {
+    "overrides": {
+      "@getpara/react-core": "2.27.0",
+      "@getpara/react-common": "2.27.0",
+      "@getpara/react-components": "2.27.0"
+    }
+  },
   "peerDependencies": {
     "@assistant-ui/react": "^0.11.0",
     "@assistant-ui/react-markdown": "^0.11.0",

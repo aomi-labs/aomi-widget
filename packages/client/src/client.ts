@@ -16,15 +16,15 @@ import type {
   AomiInterruptResponse,
   AomiListByokKeysResponse,
   AomiListAuthorizationsResponse,
-  AomiListScheduledIntentsResponse,
+  AomiListScheduledThreadsResponse,
   AomiListSecretsResponse,
   AomiRequestOptions,
   AomiByokKeyEntry,
-  AomiDeleteScheduledIntentResponse,
+  AomiDeleteScheduledThreadResponse,
   AomiSaveByokKeyResponse,
   AomiSSEEvent,
   AomiSimulateResponse,
-  AomiScheduledIntent,
+  AomiScheduledThread,
   AomiStateResponse,
   AomiSystemEvent,
   AomiSystemResponse,
@@ -980,9 +980,13 @@ export class AomiClient {
     return (await response.json()) as AomiBeginAccountAuthResponse;
   }
 
+  /**
+   * List the account's authorized (delegated) wallets. Account-scoped — no
+   * `app` filter (see the account-scoped-wallet-selection wire contract).
+   */
   async listAuthorizedWallets(
     sessionId: string,
-    options?: { app?: string; provider?: string },
+    options?: { provider?: string },
   ): Promise<AomiListAuthorizationsResponse> {
     return this.request<AomiListAuthorizationsResponse>(
       "GET",
@@ -990,7 +994,6 @@ export class AomiClient {
       {
         sessionId,
         query: {
-          app: options?.app,
           provider: options?.provider,
         },
         raw: true,
@@ -998,11 +1001,11 @@ export class AomiClient {
     );
   }
 
-  async listScheduledIntents(
+  async listScheduledThreads(
     sessionId: string,
     options?: { app?: string; limit?: number; offset?: number },
-  ): Promise<AomiListScheduledIntentsResponse> {
-    return this.request<AomiListScheduledIntentsResponse>(
+  ): Promise<AomiListScheduledThreadsResponse> {
+    return this.request<AomiListScheduledThreadsResponse>(
       "GET",
       "/api/account/scheduled-intents",
       {
@@ -1017,11 +1020,11 @@ export class AomiClient {
     );
   }
 
-  async getScheduledIntent(
+  async getScheduledThread(
     sessionId: string,
     id: string,
-  ): Promise<AomiScheduledIntent> {
-    return this.request<AomiScheduledIntent>(
+  ): Promise<AomiScheduledThread> {
+    return this.request<AomiScheduledThread>(
       "GET",
       `/api/account/scheduled-intents/${encodeURIComponent(id)}`,
       {
@@ -1031,11 +1034,11 @@ export class AomiClient {
     );
   }
 
-  async cancelScheduledIntent(
+  async cancelScheduledThread(
     sessionId: string,
     id: string,
-  ): Promise<AomiDeleteScheduledIntentResponse> {
-    return this.request<AomiDeleteScheduledIntentResponse>(
+  ): Promise<AomiDeleteScheduledThreadResponse> {
+    return this.request<AomiDeleteScheduledThreadResponse>(
       "DELETE",
       `/api/account/scheduled-intents/${encodeURIComponent(id)}`,
       {
