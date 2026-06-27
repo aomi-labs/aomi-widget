@@ -363,6 +363,7 @@ export interface PlatformApp {
   id: number;
   name: string;
   label: string | null;
+  platform: string | null;
   isActive: boolean;
   isPublic: boolean;
   appSourceId: number | null;

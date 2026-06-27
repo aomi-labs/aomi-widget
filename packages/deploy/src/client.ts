@@ -974,6 +974,7 @@ function camelPlatformApp(raw: unknown): PlatformApp {
     id: Number(a.id),
     name: a.name,
     label: a.label ?? null,
+    platform: a.platform ?? null,
     isActive: Boolean(a.is_active),
     isPublic: Boolean(a.is_public),
     appSourceId: a.app_source_id ?? null,

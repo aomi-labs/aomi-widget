@@ -172,6 +172,7 @@ export function usePerThreadControl(): {
     actions: {
       getCurrentThreadControl: ctx.getCurrentThreadControl,
       getCurrentThreadApp: ctx.getCurrentThreadApp,
+      getCurrentThreadApplicationId: ctx.getCurrentThreadApplicationId,
       getPreferredThreadControl: ctx.getPreferredThreadControl,
       onModelSelect: ctx.onModelSelect,
       onAppSelect: ctx.onAppSelect,
@@ -273,6 +274,8 @@ export function ControlContextProvider({
   defaultModelRef.current = authEndpoints.state.defaultModel;
   const authorizedAppsRef = useRef(authEndpoints.state.authorizedApps);
   authorizedAppsRef.current = authEndpoints.state.authorizedApps;
+  const appDescriptorsRef = useRef(authEndpoints.state.appDescriptors);
+  appDescriptorsRef.current = authEndpoints.state.appDescriptors;
   const defaultAppRef = useRef(authEndpoints.state.defaultApp);
   defaultAppRef.current = authEndpoints.state.defaultApp;
 
@@ -288,6 +291,7 @@ export function ControlContextProvider({
     availableModelsRef,
     defaultModelRef,
     authorizedAppsRef,
+    appDescriptorsRef,
     defaultAppRef,
     sessionId,
   });

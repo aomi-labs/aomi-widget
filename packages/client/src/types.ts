@@ -360,6 +360,12 @@ export interface AomiSecretSlot {
  */
 export interface AomiAppDescriptor {
   name: string;
+  applicationId?: number | string | null;
+  platform?: string | null;
+  label?: string | null;
+  appReleaseTag?: string | null;
+  isActive?: boolean | null;
+  isPublic?: boolean | null;
   secrets?: AomiSecretSlot[];
 }
 
