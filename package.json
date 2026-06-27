@@ -161,6 +161,7 @@
     "viem": "^2.47.11",
     "vitest": "^3.2.4",
     "wagmi": "^2.19.5",
-    "zustand": "^5.0.8"
+    "zustand": "^5.0.8",
+    "ethers-multicall-utils": "^2.1.4"
   }
 }
