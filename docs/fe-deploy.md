@@ -8,7 +8,7 @@ the browser never holds GitHub tokens or service credentials.
 >
 > - Portal BFF source dashboard now calls backend `user/sources` with the configured launch platform; backend hides unrelated repos from broad GitHub App installations.
 > - The deploy preview route is `preflight`, not `dry-run`.
-> - Launch config is server-env-driven: `APP_DEPLOY_PLATFORM`, `APP_DEPLOY_AOMI_TOML_PATHS`, and optional `APP_DEPLOY_TARGET_TAGS`. The deploy source ref is an immutable commit SHA from `APP_DEPLOY_SOURCE_REF` (or `APP_DEPLOY_SOURCE_COMMIT`).
+> - Launch config is server-env-driven: `APP_DEPLOY_PLATFORMS` (JSON array or comma-separated list), `APP_DEPLOY_AOMI_TOML_PATHS`, and optional `APP_DEPLOY_TARGET_TAGS`. The first platform is the primary deploy target; app pickers can merge all configured platforms. The deploy source ref is an immutable commit SHA from `APP_DEPLOY_SOURCE_REF` (or `APP_DEPLOY_SOURCE_COMMIT`).
 > - Chat links are controlled by `NEXT_PUBLIC_CHAT_URL`.
 > - Redeploy hydrates one target source's latest deployment metadata, then reruns an existing backend-owned GitHub Actions run. It requires portal `GITHUB_TOKEN` and refuses when no `ciRunId` is available.
 > - GitHub install redirects in the **same tab** (was: new tab + fragile localStorage polling) — eliminates popup-blocker + race-condition bugs
@@ -77,16 +77,16 @@ stateDiagram-v2
 
 **Portal BFF** — `aomi-widget/apps/portal/src/app/api/launch/*` (each proxies the BE)
 
-| BFF route                         | → Backend                                                                                   |
-| --------------------------------- | ------------------------------------------------------------------------------------------- |
-| `GET  /api/launch/sources`        | `GET /api/integrations/github-app/user/sources?github_user_id&platform`                     |
-| `POST /api/launch/preflight`      | `POST …/sources/sync-installed` when needed, then `POST …/deploy` with `preflight: true`     |
-| `POST /api/launch/deploy`         | `POST …/deploy` with explicit `app_source_id`                                               |
-| `POST /api/launch/create`         | `…/sources/create-from-template`                                                            |
-| `POST /api/launch/sync-installed` | `…/sources/sync-installed` for exactly the pasted `owner/repo`                              |
-| `GET  /api/launch/status`         | deployment status                                                                           |
-| `POST /api/launch/activate`       | `…/activate`                                                                                |
-| `GET  /api/launch/app`            | app load status                                                                             |
+| BFF route                         | → Backend                                                                                  |
+| --------------------------------- | ------------------------------------------------------------------------------------------ |
+| `GET  /api/launch/sources`        | `GET /api/integrations/github-app/user/sources?github_user_id&platform`                    |
+| `POST /api/launch/preflight`      | `POST …/sources/sync-installed` when needed, then `POST …/deploy` with `preflight: true`   |
+| `POST /api/launch/deploy`         | `POST …/deploy` with explicit `app_source_id`                                              |
+| `POST /api/launch/create`         | `…/sources/create-from-template`                                                           |
+| `POST /api/launch/sync-installed` | `…/sources/sync-installed` for exactly the pasted `owner/repo`                             |
+| `GET  /api/launch/status`         | deployment status                                                                          |
+| `POST /api/launch/activate`       | `…/activate`                                                                               |
+| `GET  /api/launch/app`            | app load status                                                                            |
 | `POST /api/launch/redeploy`       | backend single-source latest-deployment lookup, then GitHub `actions/runs/{ciRunId}/rerun` |
 
 ---
@@ -217,15 +217,15 @@ Per-user isolation: the candidate branch + release tag both encode the
 
 ## Configuration
 
-| Knob                                                                     | Local dev                                                   | Deployed (staging)                                                                                                                 |
-| ------------------------------------------------------------------------ | ----------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
-| Backend URL                                                              | local defaults to `http://127.0.0.1:8080`                   | Vercel production defaults to `https://api.aomi.dev`; previews default to `https://api-staging.aomi.dev`                           |
-| BE `AOMI_PORTAL_URL` (callback redirect target, was `AOMI_FRONTEND_URL`) | `http://localhost:3000`                                     | the deployed portal URL                                                                                                            |
-| GitHub App **Webhook URL**                                               | tunnel → `/api/integrations/github-app/webhook`             | `https://api-staging.aomi.dev/api/integrations/github-app/webhook`                                                                 |
-| GitHub App **Callback URL**                                              | tunnel → `/api/integrations/github-app/oauth/callback`      | `https://api-staging.aomi.dev/api/integrations/github-app/oauth/callback`                                                          |
-| BE GitHub App secrets                                                    | `github_app.toml` / `GITHUB_APP_TOML` + `AOMI_GITHUB_APP_*` | same `AOMI_GITHUB_APP_*` as deployment secrets                                                                                     |
-| BFF service signer                                                       | `PORTAL_SERVICE_PRIVATE_KEY`                                | portal deployment secret; committed topology is auto-selected                                                                      |
-| Portal deploy platform                                                   | `NEXT_PUBLIC_DEPLOY_PLATFORM`, defaults to `community`      | set explicitly for white-labeled partner portals, e.g. `somm.finance`; all `/api/launch/*` calls pass this platform to the backend |
+| Knob                                                                     | Local dev                                                   | Deployed (staging)                                                                                                              |
+| ------------------------------------------------------------------------ | ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| Backend URL                                                              | local defaults to `http://127.0.0.1:8080`                   | Vercel production defaults to `https://api.aomi.dev`; previews default to `https://api-staging.aomi.dev`                        |
+| BE `AOMI_PORTAL_URL` (callback redirect target, was `AOMI_FRONTEND_URL`) | `http://localhost:3000`                                     | the deployed portal URL                                                                                                         |
+| GitHub App **Webhook URL**                                               | tunnel → `/api/integrations/github-app/webhook`             | `https://api-staging.aomi.dev/api/integrations/github-app/webhook`                                                              |
+| GitHub App **Callback URL**                                              | tunnel → `/api/integrations/github-app/oauth/callback`      | `https://api-staging.aomi.dev/api/integrations/github-app/oauth/callback`                                                       |
+| BE GitHub App secrets                                                    | `github_app.toml` / `GITHUB_APP_TOML` + `AOMI_GITHUB_APP_*` | same `AOMI_GITHUB_APP_*` as deployment secrets                                                                                  |
+| BFF service signer                                                       | `PORTAL_SERVICE_PRIVATE_KEY`                                | portal deployment secret; committed topology is auto-selected                                                                   |
+| Portal deploy platforms                                                  | `APP_DEPLOY_PLATFORMS`, defaults to `community`             | set explicitly for white-labeled partner portals, e.g. `["somm.finance"]`; the first platform is used for `/api/launch/*` calls |
 
 > Only the **webhook** strictly needs a public tunnel (server-to-server); the
 > callback is a browser redirect. Pointing at staging requires the App's

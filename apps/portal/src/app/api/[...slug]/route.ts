@@ -125,6 +125,15 @@ function buildUpstreamUrl(req: NextRequest, slug: string[] | undefined): URL {
   return target;
 }
 
+function applyPortalDefaults(upstreamUrl: URL): void {
+  if (
+    upstreamUrl.pathname === "/api/integrations/github-app/oauth/start" &&
+    !upstreamUrl.searchParams.get("platform")
+  ) {
+    upstreamUrl.searchParams.set("platform", launchConfig().platform);
+  }
+}
+
 function isAllowedProxyRequest(pathname: string, method: string): boolean {
   return ALLOWED_ROUTES.some(
     (route) => route.pattern.test(pathname) && route.methods.has(method),
@@ -204,17 +213,33 @@ async function mergePlatformApps(
   try {
     const config = launchConfig();
     const client = await deploymentClient();
-    const platformApps = await client.listApps({ platform: config.platform });
     const merged = new Map(
       descriptors.map((descriptor) => [descriptor.name, descriptor]),
     );
+    const appLists = await Promise.allSettled(
+      config.platforms.map((platform) => client.listApps({ platform })),
+    );
 
-    for (const app of platformApps) {
-      if (!app.name || !app.isPublic || !app.isActive || !app.loaded) {
+    for (const [index, result] of appLists.entries()) {
+      if (result.status !== "fulfilled" || !Array.isArray(result.value)) {
+        if (result.status === "rejected") {
+          console.warn("Aomi proxy: could not list platform apps", {
+            platform: config.platforms[index],
+            message:
+              result.reason instanceof Error
+                ? result.reason.message
+                : String(result.reason),
+          });
+        }
         continue;
       }
-      if (!merged.has(app.name)) {
-        merged.set(app.name, { name: app.name });
+      for (const app of result.value) {
+        if (!app.name || !app.isPublic || !app.isActive || !app.loaded) {
+          continue;
+        }
+        if (!merged.has(app.name)) {
+          merged.set(app.name, { name: app.name });
+        }
       }
     }
 
@@ -236,6 +261,7 @@ async function handle(
 ): Promise<NextResponse> {
   const { slug } = await context.params;
   const upstreamUrl = buildUpstreamUrl(req, slug);
+  applyPortalDefaults(upstreamUrl);
 
   if (!isAllowedProxyRequest(upstreamUrl.pathname, req.method)) {
     return NextResponse.json(
