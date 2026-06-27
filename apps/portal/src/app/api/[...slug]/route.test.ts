@@ -43,7 +43,7 @@ describe("portal API proxy", () => {
     listApps.mockReset();
   });
 
-  it("forwards the backend session app catalog with the launch platform", async () => {
+  it("forwards the backend session app catalog with the launch platforms", async () => {
     const fetchMock = vi.fn(async () =>
       Response.json([
         { name: "default" },
@@ -62,7 +62,7 @@ describe("portal API proxy", () => {
     expect(fetchMock).toHaveBeenCalledWith(
       expect.objectContaining({
         pathname: "/api/session/apps",
-        search: "?platform=somm.finance",
+        search: "?platform=somm.finance&platform=community",
       }),
       expect.any(Object),
     );

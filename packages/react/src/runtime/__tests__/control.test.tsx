@@ -29,7 +29,7 @@ describe("Control context", () => {
       getModels: async () => [],
     });
 
-    const { api } = renderRuntime({ appPlatform: "somm.finance" });
+    const { api } = renderRuntime({ appPlatforms: ["somm.finance", "community"] });
 
     await waitFor(() => {
       expect(getApps).toHaveBeenCalledTimes(1);
@@ -37,7 +37,7 @@ describe("Control context", () => {
 
     expect(getApps.mock.calls[0]?.[1]).toMatchObject({
       apiKey: undefined,
-      platform: "somm.finance",
+      platforms: ["somm.finance", "community"],
     });
 
     await act(async () => {

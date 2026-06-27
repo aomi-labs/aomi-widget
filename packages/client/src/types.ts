@@ -54,8 +54,11 @@ export type AomiRequestQueryValue =
   | string
   | number
   | boolean
+  | readonly (string | number | boolean)[]
   | null
   | undefined;
+
+export type AomiPlatformFilter = string | readonly string[] | null | undefined;
 
 export type AomiHttpMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 

@@ -11,6 +11,7 @@ export { AomiClient } from "./client";
 export type {
   AomiRequestOptions,
   AomiRequestQueryValue,
+  AomiPlatformFilter,
   AomiAppDescriptor,
   AomiAccessApproval,
   AomiAccountProfile,

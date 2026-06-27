@@ -128,7 +128,9 @@ function applyPortalDefaults(upstreamUrl: URL): void {
     upstreamUrl.pathname === "/api/session/apps" &&
     !upstreamUrl.searchParams.get("platform")
   ) {
-    upstreamUrl.searchParams.set("platform", launchConfig().platform);
+    for (const platform of launchConfig().platforms) {
+      upstreamUrl.searchParams.append("platform", platform);
+    }
   }
   if (
     upstreamUrl.pathname === "/api/integrations/github-app/oauth/start" &&

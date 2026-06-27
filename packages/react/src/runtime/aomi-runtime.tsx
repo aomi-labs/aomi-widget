@@ -3,7 +3,11 @@
 import { useMemo } from "react";
 import type { ReactNode } from "react";
 
-import { AomiClient, type AomiClientOptions } from "@aomi-labs/client";
+import {
+  AomiClient,
+  type AomiClientOptions,
+  type AomiPlatformFilter,
+} from "@aomi-labs/client";
 import { ControlContextProvider } from "../contexts/control-context";
 import { EventContextProvider } from "../contexts/event-context";
 import { NotificationContextProvider } from "../contexts/notification-context";
@@ -22,7 +26,7 @@ export type AomiRuntimeProviderProps = {
   children: ReactNode;
   backendUrl?: string;
   applicationId?: number | string | null;
-  appPlatform?: string | null;
+  appPlatforms?: AomiPlatformFilter;
   clientOptions?: Omit<AomiClientOptions, "baseUrl">;
 };
 
@@ -47,7 +51,7 @@ export function AomiRuntimeProvider({
   children,
   backendUrl = "http://127.0.0.1:8080",
   applicationId,
-  appPlatform,
+  appPlatforms,
   clientOptions,
 }: Readonly<AomiRuntimeProviderProps>) {
   const resolvedClientOptions = useMemo(
@@ -76,7 +80,7 @@ export function AomiRuntimeProvider({
           <AomiRuntimeInner
             aomiClient={aomiClient}
             applicationId={applicationId}
-            appPlatform={appPlatform}
+            appPlatforms={appPlatforms}
           >
             {children}
           </AomiRuntimeInner>
@@ -94,14 +98,14 @@ type AomiRuntimeInnerProps = {
   children: ReactNode;
   aomiClient: AomiClient;
   applicationId?: number | string | null;
-  appPlatform?: string | null;
+  appPlatforms?: AomiPlatformFilter;
 };
 
 function AomiRuntimeInner({
   children,
   aomiClient,
   applicationId,
-  appPlatform,
+  appPlatforms,
 }: Readonly<AomiRuntimeInnerProps>) {
   const threadContext = useThreadContext();
 
@@ -111,7 +115,7 @@ function AomiRuntimeInner({
       sessionId={threadContext.currentThreadId}
       getThreadMetadata={threadContext.getThreadMetadata}
       updateThreadMetadata={threadContext.updateThreadMetadata}
-      appPlatform={appPlatform}
+      appPlatforms={appPlatforms}
     >
       <EventContextProvider
         aomiClient={aomiClient}

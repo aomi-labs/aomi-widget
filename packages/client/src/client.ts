@@ -28,6 +28,7 @@ import type {
   GetAccountBearer,
   Logger,
   AomiHttpMethod,
+  AomiPlatformFilter,
 } from "./types";
 import { UserState, type UserState as UserStateShape } from "./user-state";
 import { createSseSubscriber, type SseSubscriber } from "./sse";
@@ -118,10 +119,12 @@ function joinApiPath(baseUrl: string, path: string): string {
   return `${normalizedBase}${normalizedPath}` || normalizedPath;
 }
 
+type ApiQueryValue = string | readonly string[] | undefined;
+
 function buildApiUrl(
   baseUrl: string,
   path: string,
-  query?: Record<string, string | undefined>,
+  query?: Record<string, ApiQueryValue>,
 ): string {
   const url = joinApiPath(baseUrl, path);
   if (!query) return url;
@@ -129,7 +132,13 @@ function buildApiUrl(
   const params = new URLSearchParams();
   for (const [key, value] of Object.entries(query)) {
     if (value === undefined) continue;
-    params.set(key, value);
+    if (typeof value === "string") {
+      params.set(key, value);
+    } else {
+      for (const item of value) {
+        params.append(key, item);
+      }
+    }
   }
 
   const queryString = params.toString();
@@ -138,14 +147,35 @@ function buildApiUrl(
 
 function normalizeQuery(
   query: AomiRequestOptions["query"],
-): Record<string, string | undefined> | undefined {
+): Record<string, ApiQueryValue> | undefined {
   if (!query) return undefined;
-  const normalized: Record<string, string | undefined> = {};
+  const normalized: Record<string, ApiQueryValue> = {};
   for (const [key, value] of Object.entries(query)) {
+    if (Array.isArray(value)) {
+      normalized[key] = value.map((item) => String(item));
+      continue;
+    }
     normalized[key] =
       value === null || value === undefined ? undefined : String(value);
   }
   return normalized;
+}
+
+function normalizePlatformFilter(platforms: AomiPlatformFilter): string[] {
+  const rawValues = Array.isArray(platforms)
+    ? platforms
+    : platforms === null || platforms === undefined
+      ? []
+      : [platforms];
+
+  return Array.from(
+    new Set(
+      rawValues
+        .flatMap((value) => value.split(","))
+        .map((value) => value.trim())
+        .filter(Boolean),
+    ),
+  );
 }
 
 function encodeJsonBody(body: unknown): BodyInit | undefined {
@@ -870,11 +900,11 @@ export class AomiClient {
    */
   async getApps(
     sessionId: string,
-    options?: { apiKey?: string; platform?: string | null },
+    options?: { apiKey?: string; platforms?: AomiPlatformFilter },
   ): Promise<AomiAppDescriptor[]> {
-    const platform = options?.platform?.trim();
+    const platforms = normalizePlatformFilter(options?.platforms);
     const url = buildApiUrl(this.baseUrl, "/api/session/apps", {
-      platform: platform || undefined,
+      platform: platforms.length > 0 ? platforms : undefined,
     });
 
     const apiKey = options?.apiKey ?? this.apiKey;
