@@ -145,7 +145,7 @@ export interface ActivateInput {
 export interface ActivateResult {
   ok: boolean;
   activation: {
-    status: "activated" | "partial_failed" | string;
+    status: "activating" | "partial_failed" | string;
     platform: string;
     target: {
       kind: string;
@@ -180,6 +180,7 @@ export interface ActivatedApp {
   path?: string | null;
   releaseTag?: string | null;
   isActive: boolean;
+  artifactReady?: boolean | null;
   loaded: boolean;
   error?: string | null;
   sourceBranch?: string | null;
@@ -370,6 +371,7 @@ export interface PlatformApp {
   appReleaseTag: string | null;
   targetTags: string[];
   loaded: boolean;
+  artifactReady?: boolean | null;
 }
 
 // ── GitHub identity + per-user sources (the sign-in dashboard) ────────────────
@@ -405,6 +407,7 @@ export interface UserSourceDeploymentApp {
   appSourceId?: number | null;
   appReleaseTag?: string | null;
   isActive?: boolean;
+  artifactReady?: boolean | null;
   loaded?: boolean;
 }
 

@@ -63,6 +63,8 @@ type RootProps = {
   backendUrl?: string;
   /** Optional concrete application row to route runtime calls to. */
   applicationId?: number | string | null;
+  /** Optional backend platform filter for the session app catalog. */
+  appCatalogPlatform?: string | null;
   /** Optional runtime client overrides. */
   clientOptions?: Omit<AomiClientOptions, "baseUrl">;
 };
@@ -107,6 +109,7 @@ const Root: FC<RootProps> = ({
   showSidebar = true,
   backendUrl,
   applicationId,
+  appCatalogPlatform,
   clientOptions,
 }) => {
   const resolvedBackendUrl =
@@ -119,6 +122,7 @@ const Root: FC<RootProps> = ({
     <AomiRuntimeProvider
       backendUrl={resolvedBackendUrl}
       applicationId={applicationId}
+      appCatalogPlatform={appCatalogPlatform}
       clientOptions={clientOptions}
     >
       <SidebarProvider className="min-h-0! h-full">

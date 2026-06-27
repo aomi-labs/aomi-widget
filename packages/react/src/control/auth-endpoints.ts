@@ -40,6 +40,8 @@ type UseAuthEndpointsOptions = {
   getControlSessionId: () => string;
   /** Trigger that should cause apps to refetch (e.g. apiKey changes). */
   apiKey: string | null;
+  /** Optional backend platform filter for the app catalog. */
+  appCatalogPlatform?: string | null;
 };
 
 function getDefaultApp(apps: string[]): string | null {
@@ -57,6 +59,7 @@ export function useAuthEndpointsImpl({
   apiKeyRef,
   getControlSessionId,
   apiKey,
+  appCatalogPlatform,
 }: UseAuthEndpointsOptions): {
   state: AuthEndpointsState;
   actions: AuthEndpointsActions;
@@ -76,6 +79,7 @@ export function useAuthEndpointsImpl({
           getControlSessionId(),
           {
             apiKey: apiKeyRef.current ?? undefined,
+            platform: appCatalogPlatform,
           },
         );
         const names = namesFromDescriptors(descriptors);
@@ -91,7 +95,7 @@ export function useAuthEndpointsImpl({
     };
     void fetchApps();
     // apiKey is the only meaningful trigger; everything else is refs.
-  }, [aomiClientRef, getControlSessionId, apiKey]);
+  }, [aomiClientRef, getControlSessionId, apiKey, appCatalogPlatform]);
 
   // Fetch models on mount only.
   useEffect(() => {
@@ -134,6 +138,7 @@ export function useAuthEndpointsImpl({
         getControlSessionId(),
         {
           apiKey: apiKeyRef.current ?? undefined,
+          platform: appCatalogPlatform,
         },
       );
       const names = namesFromDescriptors(descriptors);
@@ -148,7 +153,7 @@ export function useAuthEndpointsImpl({
       setDefaultApp("default");
       return ["default"];
     }
-  }, [aomiClientRef, apiKeyRef, getControlSessionId]);
+  }, [aomiClientRef, apiKeyRef, getControlSessionId, appCatalogPlatform]);
 
   return {
     state: {

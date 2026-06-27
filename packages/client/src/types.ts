@@ -366,6 +366,7 @@ export interface AomiAppDescriptor {
   appReleaseTag?: string | null;
   isActive?: boolean | null;
   isPublic?: boolean | null;
+  artifactReady?: boolean | null;
   secrets?: AomiSecretSlot[];
 }
 

@@ -1,10 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { mintAccountBearer } from "@aomi-labs/account";
-import type { AomiAppDescriptor } from "@aomi-labs/client";
 import { getSessionedCanonicalId } from "@portal/server/cookies/session";
 import { configuredBackendUrl } from "@portal/server/backend-url";
-import { deploymentClient } from "@portal/server/bff/backend";
 import { launchConfig } from "@portal/server/bff/launch/config";
 
 /**
@@ -127,6 +125,12 @@ function buildUpstreamUrl(req: NextRequest, slug: string[] | undefined): URL {
 
 function applyPortalDefaults(upstreamUrl: URL): void {
   if (
+    upstreamUrl.pathname === "/api/session/apps" &&
+    !upstreamUrl.searchParams.get("platform")
+  ) {
+    upstreamUrl.searchParams.set("platform", launchConfig().platform);
+  }
+  if (
     upstreamUrl.pathname === "/api/integrations/github-app/oauth/start" &&
     !upstreamUrl.searchParams.get("platform")
   ) {
@@ -189,127 +193,6 @@ function copyResponseHeaders(upstream: Response): Headers {
   return headers;
 }
 
-function normalizeAppDescriptor(item: unknown): AomiAppDescriptor | null {
-  if (typeof item === "string" && item.trim().length > 0) {
-    return { name: item.trim() };
-  }
-  if (!item || typeof item !== "object" || !("name" in item)) {
-    return null;
-  }
-  const raw = item as Record<string, unknown>;
-  const name = typeof raw.name === "string" ? raw.name.trim() : "";
-  if (!name) return null;
-  const descriptor: AomiAppDescriptor = {
-    ...raw,
-    name,
-  } as AomiAppDescriptor;
-  const applicationId = raw.applicationId ?? raw.application_id ?? raw.id;
-  if (typeof applicationId === "number" || typeof applicationId === "string") {
-    descriptor.applicationId = applicationId;
-  }
-  if (typeof raw.platform === "string") descriptor.platform = raw.platform;
-  if (typeof raw.appReleaseTag === "string") {
-    descriptor.appReleaseTag = raw.appReleaseTag;
-  } else if (typeof raw.app_release_tag === "string") {
-    descriptor.appReleaseTag = raw.app_release_tag;
-  }
-  if (typeof raw.isActive === "boolean") {
-    descriptor.isActive = raw.isActive;
-  } else if (typeof raw.is_active === "boolean") {
-    descriptor.isActive = raw.is_active;
-  }
-  if (typeof raw.isPublic === "boolean") {
-    descriptor.isPublic = raw.isPublic;
-  } else if (typeof raw.is_public === "boolean") {
-    descriptor.isPublic = raw.is_public;
-  }
-  // Drop the snake_case originals carried over by the spread so the descriptor
-  // exposes a single camelCase identity (no `application_id`/`applicationId`
-  // twins downstream).
-  for (const key of [
-    "application_id",
-    "app_release_tag",
-    "is_active",
-    "is_public",
-  ]) {
-    delete (descriptor as unknown as Record<string, unknown>)[key];
-  }
-  return descriptor;
-}
-
-function appIdentityKey(app: AomiAppDescriptor): string {
-  const applicationId = app.applicationId?.toString().trim();
-  if (applicationId) return `application:${applicationId}`;
-  const platform = app.platform?.trim();
-  if (platform) return `platform:${platform}:${app.name}`;
-  return `name:${app.name}`;
-}
-
-function normalizeAppDescriptors(data: unknown): AomiAppDescriptor[] {
-  if (!Array.isArray(data)) return [];
-  return data
-    .map((item) => normalizeAppDescriptor(item))
-    .filter((item): item is AomiAppDescriptor => item !== null);
-}
-
-async function mergePlatformApps(
-  descriptors: AomiAppDescriptor[],
-): Promise<AomiAppDescriptor[]> {
-  try {
-    const config = launchConfig();
-    const client = await deploymentClient();
-    const merged = new Map(
-      descriptors.map((descriptor) => [appIdentityKey(descriptor), descriptor]),
-    );
-    const appLists = await Promise.allSettled(
-      config.platforms.map((platform) => client.listApps({ platform })),
-    );
-
-    for (const [index, result] of appLists.entries()) {
-      if (result.status !== "fulfilled" || !Array.isArray(result.value)) {
-        if (result.status === "rejected") {
-          console.warn("Aomi proxy: could not list platform apps", {
-            platform: config.platforms[index],
-            message:
-              result.reason instanceof Error
-                ? result.reason.message
-                : String(result.reason),
-          });
-        }
-        continue;
-      }
-      for (const app of result.value) {
-        if (!app.name || !app.isPublic || !app.isActive || !app.loaded) {
-          continue;
-        }
-        const descriptor: AomiAppDescriptor = {
-          name: app.name,
-          applicationId: app.id,
-          platform: app.platform ?? config.platforms[index] ?? null,
-          label: app.label,
-          appReleaseTag: app.appReleaseTag,
-          isActive: app.isActive,
-          isPublic: app.isPublic,
-        };
-        const key = appIdentityKey(descriptor);
-        if (!merged.has(key)) {
-          merged.set(key, descriptor);
-        }
-      }
-    }
-
-    return Array.from(merged.values());
-  } catch (error) {
-    console.warn(
-      "Aomi proxy: could not merge platform apps into session apps",
-      {
-        message: error instanceof Error ? error.message : String(error),
-      },
-    );
-    return descriptors;
-  }
-}
-
 async function handle(
   req: NextRequest,
   context: { params: Promise<{ slug?: string[] }> },
@@ -338,18 +221,6 @@ async function handle(
           : await req.text(),
       redirect: "manual",
     });
-    if (
-      req.method === "GET" &&
-      upstream.ok &&
-      upstreamUrl.pathname === "/api/session/apps"
-    ) {
-      const descriptors = normalizeAppDescriptors(await upstream.json());
-      const merged = await mergePlatformApps(descriptors);
-      return NextResponse.json(merged, {
-        status: upstream.status,
-        headers: copyResponseHeaders(upstream),
-      });
-    }
     return new NextResponse(upstream.body, {
       status: upstream.status,
       statusText: upstream.statusText,

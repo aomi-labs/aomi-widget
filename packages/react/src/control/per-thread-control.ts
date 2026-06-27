@@ -126,7 +126,13 @@ function findAuthorizedDescriptor(
       ) ?? null
     );
   }
-  return descriptors.find((descriptor) => descriptor.name === app) ?? null;
+  return (
+    descriptors.find(
+      (descriptor) =>
+        descriptor.name === app &&
+        normalizeApplicationId(descriptor.applicationId) === null,
+    ) ?? null
+  );
 }
 
 function resolveAuthorizedApp(
@@ -138,24 +144,19 @@ function resolveAuthorizedApp(
 ): AomiAppDescriptor | null {
   if (app) {
     const scopedId = normalizeApplicationId(applicationId);
-    // Exact (name + applicationId) descriptor wins.
     const exact = findAuthorizedDescriptor(app, applicationId, appDescriptors);
     if (exact) return exact;
-    // The exact scoped variant may be momentarily absent (descriptors still
-    // loading or mid-refresh). Don't silently revert a previously-valid
-    // selection to default — carry the requested identity through when the
-    // app is otherwise known, or when no authorization data has loaded yet.
-    const nameMatch =
-      appDescriptors.find((descriptor) => descriptor.name === app) ?? null;
-    if (nameMatch) {
-      return scopedId === null
-        ? nameMatch
-        : { ...nameMatch, name: app, applicationId: scopedId };
-    }
-    const hasAuthData =
-      appDescriptors.length > 0 || authorizedApps.length > 0;
-    if (authorizedApps.includes(app) || !hasAuthData) {
-      return { name: app, applicationId: scopedId };
+    const nameRequiresApplicationId = appDescriptors.some(
+      (descriptor) =>
+        descriptor.name === app &&
+        normalizeApplicationId(descriptor.applicationId) !== null,
+    );
+    if (
+      scopedId === null &&
+      !nameRequiresApplicationId &&
+      authorizedApps.includes(app)
+    ) {
+      return { name: app, applicationId: null };
     }
   }
   if (!defaultApp) return null;
