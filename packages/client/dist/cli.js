@@ -1264,7 +1264,13 @@ function buildApiUrl(baseUrl, path, query) {
   const params = new URLSearchParams();
   for (const [key, value] of Object.entries(query)) {
     if (value === void 0) continue;
-    params.set(key, value);
+    if (typeof value === "string") {
+      params.set(key, value);
+    } else {
+      for (const item of value) {
+        params.append(key, item);
+      }
+    }
   }
   const queryString = params.toString();
   return queryString ? `${url}?${queryString}` : url;
@@ -1273,9 +1279,21 @@ function normalizeQuery(query) {
   if (!query) return void 0;
   const normalized = {};
   for (const [key, value] of Object.entries(query)) {
+    if (Array.isArray(value)) {
+      normalized[key] = value.map((item) => String(item));
+      continue;
+    }
     normalized[key] = value === null || value === void 0 ? void 0 : String(value);
   }
   return normalized;
+}
+function normalizePlatformFilter(platforms) {
+  const rawValues = Array.isArray(platforms) ? platforms : platforms === null || platforms === void 0 ? [] : [platforms];
+  return Array.from(
+    new Set(
+      rawValues.flatMap((value) => value.split(",")).map((value) => value.trim()).filter(Boolean)
+    )
+  );
 }
 function encodeJsonBody(body) {
   return body === void 0 ? void 0 : JSON.stringify(body);
@@ -1848,12 +1866,12 @@ ${body}` : ""}`
        * the chat shell uses it to gate app load when required slots are unfilled.
        */
       async getApps(sessionId, options) {
-        var _a3, _b;
-        const platform = (_a3 = options == null ? void 0 : options.platform) == null ? void 0 : _a3.trim();
+        var _a3;
+        const platforms = normalizePlatformFilter(options == null ? void 0 : options.platforms);
         const url = buildApiUrl(this.baseUrl, "/api/session/apps", {
-          platform: platform || void 0
+          platform: platforms.length > 0 ? platforms : void 0
         });
-        const apiKey = (_b = options == null ? void 0 : options.apiKey) != null ? _b : this.apiKey;
+        const apiKey = (_a3 = options == null ? void 0 : options.apiKey) != null ? _a3 : this.apiKey;
         const headers = new Headers(withSessionHeader(sessionId));
         if (apiKey) {
           headers.set(APP_KEY_HEADER, apiKey);

@@ -359,8 +359,6 @@ export function PortalAomiFrame() {
   const lockedApplicationId = lockedApp ? requestedApp.applicationId : null;
   const clientOptions = usePortalClientOptions(lockedApp, lockedApplicationId);
   const backendUrl = getBackendUrl();
-  const appPlatform =
-    process.env.NEXT_PUBLIC_APP_DEPLOY_PLATFORM?.trim() || null;
 
   return (
     <main className="bg-background relative h-full w-full overflow-hidden">
@@ -369,7 +367,6 @@ export function PortalAomiFrame() {
         height="100%"
         backendUrl={backendUrl}
         applicationId={lockedApplicationId}
-        appPlatform={appPlatform}
         walletPosition="footer"
         walletFamilies={["evm", "solana"]}
         className="rounded-none border-0 shadow-none"

@@ -369,8 +369,9 @@ function useAuthEndpointsImpl({
   apiKeyRef,
   getControlSessionId: getControlSessionId2,
   apiKey,
-  appPlatform
+  appPlatforms
 }) {
+  const appPlatformsKey = Array.isArray(appPlatforms) ? appPlatforms.join("\0") : appPlatforms != null ? appPlatforms : "";
   const [availableModels, setAvailableModels] = (0, import_react3.useState)([]);
   const [defaultModel, setDefaultModel] = (0, import_react3.useState)(null);
   const [authorizedApps, setAuthorizedApps] = (0, import_react3.useState)([]);
@@ -384,7 +385,7 @@ function useAuthEndpointsImpl({
           getControlSessionId2(),
           {
             apiKey: (_a = apiKeyRef.current) != null ? _a : void 0,
-            platform: appPlatform
+            platforms: appPlatforms
           }
         );
         const names = namesFromDescriptors(descriptors);
@@ -399,7 +400,7 @@ function useAuthEndpointsImpl({
       }
     };
     void fetchApps();
-  }, [aomiClientRef, getControlSessionId2, apiKey, appPlatform]);
+  }, [aomiClientRef, getControlSessionId2, apiKey, appPlatformsKey]);
   (0, import_react3.useEffect)(() => {
     const fetchModels = async () => {
       try {
@@ -434,7 +435,7 @@ function useAuthEndpointsImpl({
         getControlSessionId2(),
         {
           apiKey: (_a = apiKeyRef.current) != null ? _a : void 0,
-          platform: appPlatform
+          platforms: appPlatforms
         }
       );
       const names = namesFromDescriptors(descriptors);
@@ -449,7 +450,7 @@ function useAuthEndpointsImpl({
       setDefaultApp("default");
       return ["default"];
     }
-  }, [aomiClientRef, apiKeyRef, getControlSessionId2, appPlatform]);
+  }, [aomiClientRef, apiKeyRef, getControlSessionId2, appPlatformsKey]);
   return {
     state: {
       availableModels,
@@ -1073,7 +1074,7 @@ function ControlContextProvider({
   sessionId,
   getThreadMetadata,
   updateThreadMetadata,
-  appPlatform
+  appPlatforms
 }) {
   const aomiClientRef = (0, import_react5.useRef)(aomiClient);
   aomiClientRef.current = aomiClient;
@@ -1116,7 +1117,7 @@ function ControlContextProvider({
     apiKeyRef,
     getControlSessionId: getCurrentControlSessionId,
     apiKey: apiKey.state.apiKey,
-    appPlatform
+    appPlatforms
   });
   const availableModelsRef = (0, import_react5.useRef)(authEndpoints.state.availableModels);
   availableModelsRef.current = authEndpoints.state.availableModels;
@@ -3194,7 +3195,7 @@ function AomiRuntimeProvider({
   children,
   backendUrl = "http://127.0.0.1:8080",
   applicationId,
-  appPlatform,
+  appPlatforms,
   clientOptions
 }) {
   const resolvedClientOptions = (0, import_react16.useMemo)(
@@ -3216,7 +3217,7 @@ function AomiRuntimeProvider({
     {
       aomiClient,
       applicationId,
-      appPlatform,
+      appPlatforms,
       children
     }
   ) }) }) });
@@ -3225,7 +3226,7 @@ function AomiRuntimeInner({
   children,
   aomiClient,
   applicationId,
-  appPlatform
+  appPlatforms
 }) {
   const threadContext = useThreadContext();
   return /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(
@@ -3235,7 +3236,7 @@ function AomiRuntimeInner({
       sessionId: threadContext.currentThreadId,
       getThreadMetadata: threadContext.getThreadMetadata,
       updateThreadMetadata: threadContext.updateThreadMetadata,
-      appPlatform,
+      appPlatforms,
       children: /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(
         EventContextProvider,
         {

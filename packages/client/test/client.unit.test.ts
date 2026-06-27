@@ -341,7 +341,7 @@ describe("AomiClient app catalog", () => {
     vi.restoreAllMocks();
   });
 
-  it("passes platform and normalizes artifact readiness", async () => {
+  it("passes platform filters and normalizes artifact readiness", async () => {
     const response = {
       ok: true,
       status: 200,
@@ -363,11 +363,11 @@ describe("AomiClient app catalog", () => {
       const client = new AomiClient({ baseUrl: "http://unit.test" });
 
       const apps = await client.getApps("session-1", {
-        platform: "somm.finance",
+        platforms: ["somm.finance", "community"],
       });
 
       expect(String(nativeFetch.mock.calls[0]?.[0])).toBe(
-        "http://unit.test/api/session/apps?platform=somm.finance",
+        "http://unit.test/api/session/apps?platform=somm.finance&platform=community",
       );
       expect(apps).toEqual([
         {

@@ -37,4 +37,23 @@ describe("launchConfig", () => {
     expect(config.platform).toBe("somm.finance");
     expect(config.platforms).toEqual(["somm.finance", "community"]);
   });
+
+  it("falls back to public platform envs during deployment bootstrap", () => {
+    vi.stubEnv(
+      "NEXT_PUBLIC_APP_DEPLOY_PLATFORMS",
+      '["somm.finance", "community"]',
+    );
+
+    const config = launchConfig();
+    expect(config.platform).toBe("somm.finance");
+    expect(config.platforms).toEqual(["somm.finance", "community"]);
+  });
+
+  it("accepts a single platform env as a one-item platform list", () => {
+    vi.stubEnv("NEXT_PUBLIC_APP_DEPLOY_PLATFORM", "somm.finance");
+
+    const config = launchConfig();
+    expect(config.platform).toBe("somm.finance");
+    expect(config.platforms).toEqual(["somm.finance"]);
+  });
 });

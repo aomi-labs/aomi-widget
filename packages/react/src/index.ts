@@ -5,6 +5,7 @@ export { AomiClient } from "@aomi-labs/client";
 export type { AomiClientOptions } from "@aomi-labs/client";
 export type {
   AomiAppDescriptor,
+  AomiPlatformFilter,
   AomiMessage,
   AomiChatResponse,
   AomiCreateThreadResponse,
