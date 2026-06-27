@@ -20,13 +20,13 @@ no-op that always yielded `undefined`, so its plumbing produced nothing.
 - Stripped the dead `accountBearerProvider` memo + dispose effect and the `getAccountBearer` client option from `apps/portal/src/components/portal-aomi-frame.tsx`.
 - Note: `dist/` (`packages/client`) still needs a rebuild (`pnpm run build:lib`) to drop the stale export/types.
 
-
 ### Deploy flow: CLI, SDK, BFF security, Portal UI (2026-06-20)
 
 Shipped 11 PRs enabling a full deploy app flow. End-to-end: `aomi deploy --commit` →
 BFF → platform backend → GitHub Pages, surfaced in the Portal onboarding wizard.
 
 **CLI (new — `packages/client/src/cli/commands/`):**
+
 - `aomi deploy --commit` — validates git state, uploads source, returns app ID (#234)
 - `aomi status` — polls deployment/release progress with live terminal output (#239)
 - `aomi activate` — promotes a built release to live (#239)
@@ -34,10 +34,12 @@ BFF → platform backend → GitHub Pages, surfaced in the Portal onboarding wiz
 - Property-based tests for deploy error handling using `fast-check` (#242)
 
 **SDK (`packages/deploy/src/`):**
+
 - Typed deployment status and watch types (#232)
 - `watchDeployment()` with exponential backoff, property-based tests (#235)
 
 **BFF (`apps/portal/src/app/api/onboard/`):**
+
 - Security utilities: CSRF protection, rate limiting, input validation (#233)
 - `TokenCache` with configurable TTL, 30s fetch timeout, 401/403 auto-invalidation (#236)
 - `handleDeploy()` factory unifying dry-run/deploy routes (#237)
@@ -45,10 +47,12 @@ BFF → platform backend → GitHub Pages, surfaced in the Portal onboarding wiz
 - Property-based tests for route factory and security (#242)
 
 **Portal UI (`apps/portal/src/components/settings/onboarding/`):**
+
 - Progress bar in deploy step, `applicationId` wiring through wizard (#240)
 - `chatAppUrl()` helper, configurable chat URL, dead mock code removed (#241)
 
 **CI:**
+
 - OpenAPI check made conditional (`if: vars.NEXT_PUBLIC_BACKEND_URL != ''`) — cherry-picked to all 11 branches
 
 379 tests pass. All branches deleted after merge.
@@ -60,7 +64,7 @@ Root-caused two blockers for the byreal autonomous swap (`authorized_sign` via P
 1. **BE (product-mono, fixed there)**: `privy_rs::PrivateKey` only accepts SEC1 PEM, but `PRIVY_AUTHORIZATION_PRIVATE_KEY` in env was the dashboard `wallet-auth:<base64 PKCS#8>` format → "Invalid key format: provided PEM string is malformed", with no BE log. Added `normalize_authorization_key()` (accepts SEC1/PKCS#8 PEM, wallet-auth base64, `\n`-escaped) + info/error logs in `aomi/crates/tools/src/authorized_signer/privy.rs`. 13 tests pass.
 2. **FE (`packages/auth/src/providers/privy.ts`)**: the portal login page POSTs a `wallets[]` array (EVM + Solana), but the provider callback only persisted the 4 EVM slots. The BE `PrivySigner` SVM path hard-requires `PRIVY_SOLANA_WALLET_ID`/`PRIVY_SOLANA_WALLET_ADDRESS`. Callback now parses `wallets[]`, validates the base58 address, and persists the two Solana slots + identity metadata. 7 tests pass (`packages/auth/test/privy.test.ts`).
 
-To re-test e2e: restart portal, redo `aomi wallet login --solana` (vault must re-populate with the new slots), then chat swap should route through `authorized_sign` → BE-signed blob → byreal broadcast. Note `svm_sign_tx` is the *interactive* tool (FE/CLI signs); "pending wallet approval" in BE logs with no follow-up means the client never resolved the request — there is no timeout on either side.
+To re-test e2e: restart portal, redo `aomi wallet login --solana` (vault must re-populate with the new slots), then chat swap should route through `authorized_sign` → BE-signed blob → byreal broadcast. Note `svm_sign_tx` is the _interactive_ tool (FE/CLI signs); "pending wallet approval" in BE logs with no follow-up means the client never resolved the request — there is no timeout on either side.
 
 ### CLI e2e smoke: Solana wallet connect + Byreal swap (2026-06-12)
 
@@ -80,8 +84,6 @@ Branch `codex/para-solana-support-wip` (PR #150). Merged `fix/pr150-runtime-wiri
 - **Live e2e**: `client.integration.test.ts` gained an LLM-free app-scoped system-message test (green vs local backend :8080 + local supabase).
 - **Backend DB e2e** (product-mono, branch `test/account-exchange-db-e2e`): `entities.rs` test mirroring the exchange's Privy identity resolution + provider scoping (green vs local supabase :54322).
 - **Known gap (flagged, no code)**: backend `ScheduledIntentDueEvent` (`scheduled_intent_due`, declared System→UI) from product-mono #564 has no FE handler — falls through as a raw system message. Product decision needed.
-
-
 
 ### Multi-wallet per-family connection + hybrid picker (2026-05-29)
 
@@ -143,12 +145,13 @@ Branch `codex/para-solana-support-wip`. Design/plan in `docs/superpowers/specs/2
 - All 155 tests pass, build clean, lint clean
 
 #### New execution model
-| Env vars | Flag | Result |
-|---|---|---|
-| (none) | (none) | **AA proxy** (zero-config, via backend) |
-| `ALCHEMY_API_KEY` | (none) | AA BYOK (Alchemy direct) |
-| `PIMLICO_API_KEY` | `--aa-provider pimlico` | AA BYOK (Pimlico direct) |
-| any | `--eoa` | EOA |
+
+| Env vars          | Flag                    | Result                                  |
+| ----------------- | ----------------------- | --------------------------------------- |
+| (none)            | (none)                  | **AA proxy** (zero-config, via backend) |
+| `ALCHEMY_API_KEY` | (none)                  | AA BYOK (Alchemy direct)                |
+| `PIMLICO_API_KEY` | `--aa-provider pimlico` | AA BYOK (Pimlico direct)                |
+| any               | `--eoa`                 | EOA                                     |
 
 ### Phase 5: Cleanup legacy code (2026-04-12)
 
@@ -187,13 +190,14 @@ Branch `codex/para-solana-support-wip`. Design/plan in `docs/superpowers/specs/2
 - All 189 tests pass, build clean
 
 #### Execution model
-| AA configured? | Flag | Result |
-|---|---|---|
-| Yes | (none) | **AA automatically** (7702 → 4337 fallback) |
-| Yes | `--aa` | AA required, same fallback |
-| Yes | `--eoa` | EOA, skip AA |
-| No | (none) | EOA |
-| No | `--aa` | Error: "configure AA first" |
+
+| AA configured? | Flag    | Result                                      |
+| -------------- | ------- | ------------------------------------------- |
+| Yes            | (none)  | **AA automatically** (7702 → 4337 fallback) |
+| Yes            | `--aa`  | AA required, same fallback                  |
+| Yes            | `--eoa` | EOA, skip AA                                |
+| No             | (none)  | EOA                                         |
+| No             | `--aa`  | Error: "configure AA first"                 |
 
 ### Spec: AA-ARCH.md refresh (2026-04-11)
 
@@ -215,6 +219,7 @@ Branch `codex/para-solana-support-wip`. Design/plan in `docs/superpowers/specs/2
 - **Deleted `createRuntime`** from `args.ts`
 
 #### Command surface
+
 ```
 aomi chat <message>                 Send a message
 aomi tx list                        List transactions
@@ -294,7 +299,7 @@ aomi aa status|set|test|reset
 - **Sub-task B: Updated routing and nav files**
   - Changed default redirect in `app/docs/[[...slug]]/page.tsx` from `/docs/getting-started/overview` to `/docs/build/overview`
   - Updated all 16 legacy redirects to point to new `/docs/build/` and `/docs/use-aomi/` paths
-  - Added 19 new redirects for restructured paths (getting-started/*, core-concepts/*, integration/*, telegram/*)
+  - Added 19 new redirects for restructured paths (getting-started/_, core-concepts/_, integration/_, telegram/_)
   - Updated both `navLinks` and `navTabs` in `layout-config.tsx` to `/docs/build/overview`
 - **Sub-task C: Updated internal links across all documentation pages**
   - Updated links in 8 persistent `.mdx` files: namespaces, api-reference, sessions, widget/configuration, reference/runtime, headless/runtime-provider, headless/install, widget/aomi-frame
@@ -388,6 +393,7 @@ aomi aa status|set|test|reset
 - **Modified**: `PlaygroundConfigurator.tsx` — tabbed config (Layout|Theme) + tabbed code output (JSX|CSS)
 
 #### Radius unification refactor
+
 - **`default.css`** — extended `@theme inline` with `--radius-2xl`, `--radius-3xl`, `--radius-4xl` tokens (calc offsets from `--radius`)
 - **`theme-utils.ts`** — `themeToStyleObject` now sets all 7 radius tokens (`sm` through `4xl`) as inline style overrides
 - **`thread-list.tsx`** — "New Chat" button and thread list items changed from `rounded-full` → `rounded-3xl`

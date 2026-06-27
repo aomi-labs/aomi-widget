@@ -18,7 +18,8 @@ export function Resources() {
             <details className="group mx-5 p-5">
               <summary className="flex w-full cursor-pointer list-none items-center justify-between text-left">
                 <span className="font-geist text-sm font-normal tracking-tight text-white md:text-base">
-                  What&apos;s the difference between LangChain and purpose-built blockchain AI infrastructure?
+                  What&apos;s the difference between LangChain and purpose-built
+                  blockchain AI infrastructure?
                 </span>
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
@@ -38,9 +39,12 @@ export function Resources() {
               </summary>
               <div className="mx-5 mt-3">
                 <p className="font-geist text-sm leading-relaxed text-white/70">
-                  LangChain is a general-purpose AI framework that requires you to build blockchain integrations manually. 
-                  Aomi is purpose-built for crypto: native multi-chain support, real-time transaction simulation, 
-                  wallet integration, and a Rust backend optimized for financial operations. You skip months of custom development.
+                  LangChain is a general-purpose AI framework that requires you
+                  to build blockchain integrations manually. Aomi is
+                  purpose-built for crypto: native multi-chain support,
+                  real-time transaction simulation, wallet integration, and a
+                  Rust backend optimized for financial operations. You skip
+                  months of custom development.
                 </p>
               </div>
             </details>
@@ -48,7 +52,8 @@ export function Resources() {
             <details className="group mx-5 p-5">
               <summary className="flex w-full cursor-pointer list-none items-center justify-between text-left">
                 <span className="font-geist text-sm font-normal tracking-tight text-white md:text-base">
-                  How do you prevent AI hallucinations from causing bad transactions?
+                  How do you prevent AI hallucinations from causing bad
+                  transactions?
                 </span>
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
@@ -68,9 +73,11 @@ export function Resources() {
               </summary>
               <div className="mx-5 mt-3">
                 <p className="font-geist text-sm leading-relaxed text-white/70">
-                  Every AI-generated action is simulated in real-time before execution. You see exact token changes, 
-                  gas costs, and contract calls before signing anything. Our simulation-first approach catches errors 
-                  before they reach your wallet—AI suggests, you verify, then you decide.
+                  Every AI-generated action is simulated in real-time before
+                  execution. You see exact token changes, gas costs, and
+                  contract calls before signing anything. Our simulation-first
+                  approach catches errors before they reach your wallet—AI
+                  suggests, you verify, then you decide.
                 </p>
               </div>
             </details>
@@ -78,7 +85,8 @@ export function Resources() {
             <details className="group mx-5 p-5">
               <summary className="flex w-full cursor-pointer list-none items-center justify-between text-left">
                 <span className="font-geist text-sm font-normal tracking-tight text-white md:text-base">
-                  What infrastructure do I need to add AI features to a crypto product?
+                  What infrastructure do I need to add AI features to a crypto
+                  product?
                 </span>
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
@@ -98,10 +106,12 @@ export function Resources() {
               </summary>
               <div className="mx-5 mt-3">
                 <p className="font-geist text-sm leading-relaxed text-white/70">
-                  You need four components: an LLM orchestration layer, blockchain execution tools, transaction simulation 
-                  for safety, and frontend components. Aomi provides all of these as integrated blockchain AI infrastructure—a 
-                  single platform that connects AI reasoning to multi-chain execution, with built-in simulation and React 
-                  components for embedding.
+                  You need four components: an LLM orchestration layer,
+                  blockchain execution tools, transaction simulation for safety,
+                  and frontend components. Aomi provides all of these as
+                  integrated blockchain AI infrastructure—a single platform that
+                  connects AI reasoning to multi-chain execution, with built-in
+                  simulation and React components for embedding.
                 </p>
               </div>
             </details>
@@ -109,7 +119,8 @@ export function Resources() {
             <details className="group mx-5 p-5">
               <summary className="flex w-full cursor-pointer list-none items-center justify-between text-left">
                 <span className="font-geist text-sm font-normal tracking-tight text-white md:text-base">
-                  How do wallets and DeFi apps integrate AI without building from scratch?
+                  How do wallets and DeFi apps integrate AI without building
+                  from scratch?
                 </span>
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
@@ -129,9 +140,11 @@ export function Resources() {
               </summary>
               <div className="mx-5 mt-3">
                 <p className="font-geist text-sm leading-relaxed text-white/70">
-                  They use Aomi&apos;s SDK. Install our React component library, configure your API key, and embed the AI 
-                  widget in your app. Aomi handles the backend—LLM orchestration, chain connections, transaction simulation, 
-                  and scaling. Most teams go from zero to production in under a week.
+                  They use Aomi&apos;s SDK. Install our React component library,
+                  configure your API key, and embed the AI widget in your app.
+                  Aomi handles the backend—LLM orchestration, chain connections,
+                  transaction simulation, and scaling. Most teams go from zero
+                  to production in under a week.
                 </p>
               </div>
             </details>
@@ -144,7 +157,8 @@ export function Resources() {
           Ready to ship AI features?
         </h2>
         <p className="font-geist mb-8 max-w-lg font-light text-stone-100">
-          Start building with Aomi&apos;s blockchain AI infrastructure. Free to try.
+          Start building with Aomi&apos;s blockchain AI infrastructure. Free to
+          try.
         </p>
         <div className="flex items-center gap-x-4 gap-y-4">
           <a

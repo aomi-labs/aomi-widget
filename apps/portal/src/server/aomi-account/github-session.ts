@@ -34,7 +34,9 @@ function secret(): Uint8Array {
   return new TextEncoder().encode(value);
 }
 
-export async function issueGitHubSession(session: GitHubSession): Promise<string> {
+export async function issueGitHubSession(
+  session: GitHubSession,
+): Promise<string> {
   const now = Math.floor(Date.now() / 1000);
   return new SignJWT({ login: session.githubLogin })
     .setProtectedHeader({ alg: "HS256" })

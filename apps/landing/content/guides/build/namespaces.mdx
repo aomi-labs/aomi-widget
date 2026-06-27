@@ -11,12 +11,12 @@ Every Aomi-powered assistant runs inside an **App**. This page explains how Apps
 
 An App is a self-contained AI assistant environment. It encapsulates:
 
-| Component | Description | Example |
-| --- | --- | --- |
-| **Tools** | The API-backed functions the assistant can call | `GetTokenPrice`, `ExecuteTrade` |
-| **Preamble** | The system prompt defining personality and rules | "You are the MyCoinDex assistant..." |
-| **Model config** | Default LLM and available alternatives | Claude Sonnet, GPT-4o |
-| **RAG docs** | Optional document store for domain knowledge | MyCoinDex FAQ, API docs |
+| Component        | Description                                      | Example                              |
+| ---------------- | ------------------------------------------------ | ------------------------------------ |
+| **Tools**        | The API-backed functions the assistant can call  | `GetTokenPrice`, `ExecuteTrade`      |
+| **Preamble**     | The system prompt defining personality and rules | "You are the MyCoinDex assistant..." |
+| **Model config** | Default LLM and available alternatives           | Claude Sonnet, GPT-4o                |
+| **RAG docs**     | Optional document store for domain knowledge     | MyCoinDex FAQ, API docs              |
 
 Each App maps to an **AomiApp** -- the backend construct that bundles these components:
 
@@ -45,11 +45,11 @@ API keys are issued by Aomi and scoped to one or more Apps.
 
 ### Key Properties
 
-| Property | Description |
-| --- | --- |
-| **Scoped** | Each key authorizes access to specific Apps |
-| **Stored securely** | Keys are hashed and stored in the database |
-| **Revocable** | Keys can be deactivated without affecting the App |
+| Property            | Description                                       |
+| ------------------- | ------------------------------------------------- |
+| **Scoped**          | Each key authorizes access to specific Apps       |
+| **Stored securely** | Keys are hashed and stored in the database        |
+| **Revocable**       | Keys can be deactivated without affecting the App |
 
 ### How Keys Are Used
 
@@ -117,12 +117,12 @@ Sessions represent conversation threads. They are identified by a UUID sent in t
 
 ### Session Properties
 
-| Property | Description |
-| --- | --- |
-| **ID** | Client-generated UUID |
-| **Messages** | Full conversation history |
-| **Wallet binding** | Optional association with a wallet address (public key) |
-| **Processing status** | Idle, processing, or interrupted |
+| Property              | Description                                             |
+| --------------------- | ------------------------------------------------------- |
+| **ID**                | Client-generated UUID                                   |
+| **Messages**          | Full conversation history                               |
+| **Wallet binding**    | Optional association with a wallet address (public key) |
+| **Processing status** | Idle, processing, or interrupted                        |
 
 ### Session Lifecycle
 
@@ -158,11 +158,11 @@ The default App has general-purpose tools but no custom configuration. For produ
 
 ## Headers Reference
 
-| Header | Required | Description |
-| --- | --- | --- |
-| `X-API-Key` | For non-default Apps | Your Aomi API key |
-| `X-Session-Id` | Yes | UUID identifying the conversation session |
-| `Content-Type` | For POST requests | `application/json` |
+| Header         | Required             | Description                               |
+| -------------- | -------------------- | ----------------------------------------- |
+| `X-API-Key`    | For non-default Apps | Your Aomi API key                         |
+| `X-Session-Id` | Yes                  | UUID identifying the conversation session |
+| `Content-Type` | For POST requests    | `application/json`                        |
 
 ## Next Steps
 

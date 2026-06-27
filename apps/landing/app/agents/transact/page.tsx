@@ -38,10 +38,10 @@ export default function AgentsTransactPage() {
         and simulates them on a multi-chain fork before signing — malformed
         calldata, failed approvals, and unexpected reverts are caught before
         they ever reach the user&apos;s wallet. You sign locally; the bundle
-        settles atomically via account abstraction — the execution layer of
-        the blockchain harness for agentic AI.
+        settles atomically via account abstraction — the execution layer of the
+        blockchain harness for agentic AI.
       </p>
-      <div className="space-y-3 font-geist text-sm leading-6 text-muted-foreground">
+      <div className="font-geist space-y-3 text-sm leading-6 text-muted-foreground">
         <p>
           Install the CLI with <code>npm install -g @aomi-labs/client</code>.
         </p>

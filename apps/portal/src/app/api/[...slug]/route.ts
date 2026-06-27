@@ -153,9 +153,12 @@ async function injectBearer(req: NextRequest, headers: Headers): Promise<void> {
     const { accessToken: accountBearer } = await mintAccountBearer(canonicalId);
     headers.set("authorization", `Bearer ${accountBearer}`);
   } catch (error) {
-    console.warn("Aomi proxy: could not mint AccountBearer; forwarding anonymous", {
-      message: error instanceof Error ? error.message : String(error),
-    });
+    console.warn(
+      "Aomi proxy: could not mint AccountBearer; forwarding anonymous",
+      {
+        message: error instanceof Error ? error.message : String(error),
+      },
+    );
   }
 }
 
@@ -180,7 +183,10 @@ async function handle(
   const upstreamUrl = buildUpstreamUrl(req, slug);
 
   if (!isAllowedProxyRequest(upstreamUrl.pathname, req.method)) {
-    return NextResponse.json({ error: "Unsupported API route" }, { status: 404 });
+    return NextResponse.json(
+      { error: "Unsupported API route" },
+      { status: 404 },
+    );
   }
 
   const headers = copyRequestHeaders(req);
@@ -205,7 +211,10 @@ async function handle(
     console.error("Aomi upstream request failed", {
       message: error instanceof Error ? error.message : String(error),
     });
-    return NextResponse.json({ error: "Upstream request failed" }, { status: 502 });
+    return NextResponse.json(
+      { error: "Upstream request failed" },
+      { status: 502 },
+    );
   }
 }
 

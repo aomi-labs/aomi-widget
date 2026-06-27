@@ -37,9 +37,7 @@
     "total_turns": 1,
     "total_tool_calls": 8,
     "total_responses": 15,
-    "activated_skills": [
-      "kelp"
-    ],
+    "activated_skills": ["kelp"],
     "failed_assertions": [],
     "budget_summary": {
       "total": 1,
@@ -182,10 +180,7 @@
         "tool": "activate_skills",
         "topic": "activate_skills",
         "arguments": {
-          "skill_ids": [
-            "kelp",
-            "common_erc20"
-          ]
+          "skill_ids": ["kelp", "common_erc20"]
         },
         "result_preview": "{\n  \"activated\": [\n    \"kelp\"\n  ],\n  \"rejected\": [\n    [\n      \"common_erc20\",\n      \"invalid\"\n    ]\n  ],\n  \"applied_scope\": \"current_serve_cycle\"\n}"
       },
@@ -218,10 +213,7 @@
         "topic": "Simulate Kelp depositETH 0.1 ETH for Alice",
         "arguments": {
           "function_signature": "depositETH(uint256,string)",
-          "arguments": [
-            "0",
-            ""
-          ],
+          "arguments": ["0", ""],
           "to": "0x036676389e48133B63a802f8635AD39E752D375D",
           "value": "100000000000000000",
           "topic": "Simulate Kelp depositETH 0.1 ETH for Alice"
@@ -237,10 +229,7 @@
           "description": "Restake 0.1 ETH into Kelp LRTDepositPool to receive rsETH",
           "data": {
             "signature": "depositETH(uint256,string)",
-            "args": [
-              "0",
-              ""
-            ],
+            "args": ["0", ""],
             "raw": ""
           },
           "value": "100000000000000000",
@@ -259,10 +248,7 @@
           "description": "Restake 0.1 ETH into Kelp LRTDepositPool to receive rsETH",
           "data": {
             "signature": "depositETH(uint256,string)",
-            "args": [
-              "0",
-              ""
-            ],
+            "args": ["0", ""],
             "raw": ""
           },
           "value": "100000000000000000",
@@ -295,9 +281,7 @@
         "tool": "commit_txs",
         "topic": "Commit Kelp depositETH 0.1 ETH for Alice",
         "arguments": {
-          "tx_ids": [
-            1
-          ],
+          "tx_ids": [1],
           "topic": "Commit Kelp depositETH 0.1 ETH for Alice"
         },
         "result_preview": "{\n  \"status\": \"pending_approval\",\n  \"tx_ids\": [\n    1\n  ],\n  \"timestamp\": \"2026-05-30T23:09:50.886060+00:00\"\n}"
@@ -311,12 +295,8 @@
     },
     "skills": {
       "mode": "restricted",
-      "allowed": [
-        "kelp"
-      ],
-      "activated_skills": [
-        "kelp"
-      ],
+      "allowed": ["kelp"],
+      "activated_skills": ["kelp"],
       "bundle_path": "../output/eval/model-bench-public-skills-gpt55-opus48-sonnet46-20260530/specs/deposit_eth_kelp/claude-sonnet-4.6/pass-001/spec-skills/deposit_eth_kelp-skills.json",
       "bundle_revision": "fnv1a64:24da19ae93ec9d7a"
     },

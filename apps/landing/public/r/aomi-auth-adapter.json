@@ -35,9 +35,6 @@
       "content": "export * from \"./aomi-auth-adapter/identity\";\nexport type {\n  AomiAuthIdentity,\n  AomiAuthStatus,\n} from \"./aomi-auth-adapter/types\";\n"
     }
   ],
-  "dependencies": [
-    "@aomi-labs/react",
-    "viem"
-  ],
+  "dependencies": ["@aomi-labs/react", "viem"],
   "registryDependencies": []
 }

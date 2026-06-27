@@ -87,8 +87,14 @@ export function printKeyValueTable(
     truncateCell(value, MAX_TABLE_VALUE_WIDTH),
   );
 
-  const keyWidth = Math.max("field".length, ...labels.map((label) => label.length));
-  const valueWidth = Math.max("value".length, ...values.map((value) => value.length));
+  const keyWidth = Math.max(
+    "field".length,
+    ...labels.map((label) => label.length),
+  );
+  const valueWidth = Math.max(
+    "value".length,
+    ...values.map((value) => value.length),
+  );
   const border = `+${"-".repeat(keyWidth + 2)}+${"-".repeat(valueWidth + 2)}+`;
 
   console.log(`${color}${border}${RESET}`);
@@ -139,7 +145,10 @@ export function printTransactionTable(
   const jsonCells = visibleRows.map((row) =>
     truncateCell(JSON.stringify(row.metadata), MAX_TX_JSON_WIDTH),
   );
-  const jsonWidth = Math.max("metadata_json".length, ...jsonCells.map((v) => v.length));
+  const jsonWidth = Math.max(
+    "metadata_json".length,
+    ...jsonCells.map((v) => v.length),
+  );
   const border = `+${"-".repeat(statusWidth + 2)}+${"-".repeat(jsonWidth + 2)}+`;
 
   console.log(`${color}${border}${RESET}`);

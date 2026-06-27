@@ -20,9 +20,7 @@
     "total_turns": 1,
     "total_tool_calls": 2,
     "total_responses": 4,
-    "activated_skills": [
-      "oneinch"
-    ],
+    "activated_skills": ["oneinch"],
     "failed_assertions": [],
     "budget_summary": {
       "total": 1,
@@ -88,10 +86,7 @@
         "tool": "activate_skills",
         "topic": "activate_skills",
         "arguments": {
-          "skill_ids": [
-            "oneinch",
-            "common_erc20"
-          ]
+          "skill_ids": ["oneinch", "common_erc20"]
         },
         "result_preview": "{\n  \"activated\": [\n    \"oneinch\"\n  ],\n  \"rejected\": [\n    [\n      \"common_erc20\",\n      \"invalid\"\n    ]\n  ],\n  \"applied_scope\": \"current_serve_cycle\"\n}"
       },
@@ -113,12 +108,8 @@
     },
     "skills": {
       "mode": "restricted",
-      "allowed": [
-        "oneinch"
-      ],
-      "activated_skills": [
-        "oneinch"
-      ],
+      "allowed": ["oneinch"],
+      "activated_skills": ["oneinch"],
       "bundle_path": "../output/eval/model-bench-public-skills-gpt55-opus48-sonnet46-20260530/specs/oneinch_requires_api_calldata/claude-sonnet-4.6/pass-002/spec-skills/oneinch_requires_api_calldata-skills.json",
       "bundle_revision": "fnv1a64:d3d910a168b23b54"
     },

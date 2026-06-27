@@ -51,7 +51,18 @@ export default defineConfig({
     remarkPlugins: [remarkMermaid],
     rehypeCodeOptions: {
       lazy: true,
-      langs: ["ts", "js", "html", "tsx", "mdx", "bash", "json", "rust", "toml", "css"],
+      langs: [
+        "ts",
+        "js",
+        "html",
+        "tsx",
+        "mdx",
+        "bash",
+        "json",
+        "rust",
+        "toml",
+        "css",
+      ],
       themes: {
         light: "catppuccin-latte",
         dark: "catppuccin-mocha",

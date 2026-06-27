@@ -22,7 +22,7 @@ export const deployDef = defineCommand({
       description:
         "Backend app source ID (required; or set AOMI_APP_SOURCE_ID env)",
     },
-    "preflight": {
+    preflight: {
       type: "boolean",
       description: "Preview the deployment manifest without applying it",
     },

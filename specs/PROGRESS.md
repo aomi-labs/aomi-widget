@@ -43,22 +43,22 @@ Introduction                        ← Audience routing + key concept links
 
 ## Recently Completed Work
 
-| Task | Description | Key Changes |
-| ---- | ----------- | ----------- |
-| Root meta.json restructure | Full navigation rebuild | `content/guides/meta.json` - new sections, new page order, added Introduction + Key Concepts |
-| use-aomi/meta.json rename | "Use Aomi" → "Transact with Aomi" + Web Chat/Telegram subcategory separators | `content/guides/use-aomi/meta.json` |
-| build/meta.json restructure | Getting Started, Integration Guide, UI + Services subcategories | `content/guides/build/meta.json` |
-| reference/meta.json slim | Replaced with Simulation, Account Abstraction, Runtime only | `content/guides/reference/meta.json` |
-| advanced/meta.json update | Now contains Evals, SDK, CLI | `content/guides/advanced/meta.json` |
-| introduction.mdx | New top-level page: audience routing + key concept links | `content/guides/introduction.mdx` |
-| namespace.mdx | Standalone concept page explaining namespaces for users and builders | `content/guides/namespace.mdx` |
-| non-custodial-wallet.mdx | Standalone concept page: non-custodial signing + simulation guardrail | `content/guides/non-custodial-wallet.mdx` |
-| getting-started.mdx | Install/setup quickstart ported from quickstart.mdx | `content/guides/build/getting-started.mdx` |
-| integration-guide.mdx | Platform pipeline doc renamed from how-it-works, + Examples links (Polymarket, DeFi, X) | `content/guides/build/integration-guide.mdx` |
-| simulation.mdx | New reference page extracted from execution.mdx, focused on Anvil + pre-signing simulation | `content/guides/reference/simulation.mdx` |
-| account-abstraction.mdx | Empty placeholder for upcoming AA content | `content/guides/reference/account-abstraction.mdx` |
-| sdk.mdx (advanced) | Moved from reference/sdk.mdx → advanced/sdk.mdx | `content/guides/advanced/sdk.mdx` |
-| cli.mdx (advanced) | Moved from reference/cli.mdx → advanced/cli.mdx | `content/guides/advanced/cli.mdx` |
+| Task                        | Description                                                                                | Key Changes                                                                                  |
+| --------------------------- | ------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------- |
+| Root meta.json restructure  | Full navigation rebuild                                                                    | `content/guides/meta.json` - new sections, new page order, added Introduction + Key Concepts |
+| use-aomi/meta.json rename   | "Use Aomi" → "Transact with Aomi" + Web Chat/Telegram subcategory separators               | `content/guides/use-aomi/meta.json`                                                          |
+| build/meta.json restructure | Getting Started, Integration Guide, UI + Services subcategories                            | `content/guides/build/meta.json`                                                             |
+| reference/meta.json slim    | Replaced with Simulation, Account Abstraction, Runtime only                                | `content/guides/reference/meta.json`                                                         |
+| advanced/meta.json update   | Now contains Evals, SDK, CLI                                                               | `content/guides/advanced/meta.json`                                                          |
+| introduction.mdx            | New top-level page: audience routing + key concept links                                   | `content/guides/introduction.mdx`                                                            |
+| namespace.mdx               | Standalone concept page explaining namespaces for users and builders                       | `content/guides/namespace.mdx`                                                               |
+| non-custodial-wallet.mdx    | Standalone concept page: non-custodial signing + simulation guardrail                      | `content/guides/non-custodial-wallet.mdx`                                                    |
+| getting-started.mdx         | Install/setup quickstart ported from quickstart.mdx                                        | `content/guides/build/getting-started.mdx`                                                   |
+| integration-guide.mdx       | Platform pipeline doc renamed from how-it-works, + Examples links (Polymarket, DeFi, X)    | `content/guides/build/integration-guide.mdx`                                                 |
+| simulation.mdx              | New reference page extracted from execution.mdx, focused on Anvil + pre-signing simulation | `content/guides/reference/simulation.mdx`                                                    |
+| account-abstraction.mdx     | Empty placeholder for upcoming AA content                                                  | `content/guides/reference/account-abstraction.mdx`                                           |
+| sdk.mdx (advanced)          | Moved from reference/sdk.mdx → advanced/sdk.mdx                                            | `content/guides/advanced/sdk.mdx`                                                            |
+| cli.mdx (advanced)          | Moved from reference/cli.mdx → advanced/cli.mdx                                            | `content/guides/advanced/cli.mdx`                                                            |
 
 ## Files Modified This Sprint
 

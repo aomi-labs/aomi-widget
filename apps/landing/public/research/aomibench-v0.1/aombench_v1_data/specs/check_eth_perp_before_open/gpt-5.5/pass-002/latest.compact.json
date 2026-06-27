@@ -20,9 +20,7 @@
     "total_turns": 1,
     "total_tool_calls": 6,
     "total_responses": 10,
-    "activated_skills": [
-      "avantis"
-    ],
+    "activated_skills": ["avantis"],
     "failed_assertions": [],
     "budget_summary": {
       "total": 1,
@@ -130,9 +128,7 @@
         "tool": "activate_skills",
         "topic": "activate_skills",
         "arguments": {
-          "skill_ids": [
-            "avantis"
-          ]
+          "skill_ids": ["avantis"]
         },
         "result_preview": "{\n  \"activated\": [\n    \"avantis\"\n  ],\n  \"rejected\": [],\n  \"applied_scope\": \"current_serve_cycle\"\n}"
       },
@@ -150,9 +146,7 @@
         "tool": "encode_and_call",
         "topic": "Read Alice USDC balance on Base",
         "arguments": {
-          "arguments": [
-            "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
-          ],
+          "arguments": ["0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"],
           "function_signature": "balanceOf(address)",
           "to": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
           "topic": "Read Alice USDC balance on Base",
@@ -181,12 +175,7 @@
         "tool": "encode_and_call",
         "topic": "Read Avantis keeper fee for opening 10 USDC ETH market trade",
         "arguments": {
-          "arguments": [
-            "0",
-            "10000000",
-            "0",
-            "false"
-          ],
+          "arguments": ["0", "10000000", "0", "false"],
           "function_signature": "getGasFees(uint256,uint256,int256,bool)",
           "to": "0x5db3772136e5557EFE028Db05EE95C84D76faEC4",
           "topic": "Read Avantis keeper fee for opening 10 USDC ETH market trade",
@@ -199,9 +188,7 @@
         "tool": "encode_and_call",
         "topic": "Confirm Avantis ETH pair feed exists",
         "arguments": {
-          "arguments": [
-            "0"
-          ],
+          "arguments": ["0"],
           "function_signature": "getLazerFeedId(uint256)",
           "to": "0x5db3772136e5557EFE028Db05EE95C84D76faEC4",
           "topic": "Confirm Avantis ETH pair feed exists",
@@ -218,12 +205,8 @@
     },
     "skills": {
       "mode": "restricted",
-      "allowed": [
-        "avantis"
-      ],
-      "activated_skills": [
-        "avantis"
-      ],
+      "allowed": ["avantis"],
+      "activated_skills": ["avantis"],
       "bundle_path": "../output/eval/model-bench-public-skills-gpt55-opus48-sonnet46-20260530/specs/check_eth_perp_before_open/gpt-5.5/pass-002/spec-skills/check_eth_perp_before_open-skills.json",
       "bundle_revision": "fnv1a64:32dc8058e89c0769"
     },

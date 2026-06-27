@@ -167,9 +167,7 @@
         "tool": "commit_txs",
         "topic": "Commit 0.01 ETH transfer to 0x2000...0002",
         "arguments": {
-          "tx_ids": [
-            1
-          ],
+          "tx_ids": [1],
           "topic": "Commit 0.01 ETH transfer to 0x2000...0002"
         },
         "result_preview": "{\n  \"status\": \"pending_approval\",\n  \"tx_ids\": [\n    1\n  ],\n  \"timestamp\": \"2026-05-31T18:35:42.460483+00:00\"\n}"

@@ -51,7 +51,11 @@ describe("DeploymentClient bootstrap — tokens", () => {
     expect(JSON.parse((init as RequestInit).body as string)).toEqual({
       scope: "platform",
     });
-    expect(result).toEqual({ id: 12, token: "plaintext-once", scope: "platform" });
+    expect(result).toEqual({
+      id: 12,
+      token: "plaintext-once",
+      scope: "platform",
+    });
     expect(audits).toEqual([
       expect.objectContaining({
         action: "mint_token",

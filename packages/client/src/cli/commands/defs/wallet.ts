@@ -11,7 +11,8 @@ const walletSetDef = defineCommand({
   args: {
     privateKey: {
       type: "positional",
-      description: "Hex EVM private key (default) or Solana base58 key when --solana is set",
+      description:
+        "Hex EVM private key (default) or Solana base58 key when --solana is set",
       required: false,
     },
     evm: {
@@ -90,7 +91,8 @@ const walletLoginDef = defineCommand({
 const walletWhoamiDef = defineCommand({
   meta: {
     name: "whoami",
-    description: "Show the bound account and every linked wallet on the backend",
+    description:
+      "Show the bound account and every linked wallet on the backend",
   },
   args: { ...globalArgs },
   async run({ args }) {

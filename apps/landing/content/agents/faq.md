@@ -10,7 +10,7 @@ Markdown mirror of the FAQ section on aomi.dev. Four questions covering the two 
 
 ## OpenClaw, Claude Code, or Cursor can already trade on-chain. How is Aomi different?
 
-Your personal agent can absolutely send transactions on its own. A bare-metal OpenClaw asked to swap on Uniswap will pull the ABI, read on-chain state, write a script, run via bash, and hope the calldata is right — a dozen tool calls and tens of thousands of tokens per operation, with no safety floor. Aomi compresses that loop into one call: "Swap 100 USDC for ETH on Uniswap" becomes a single CLI invocation returning a resolved, simulated, signable transaction. We don't replace your agent — Aomi is the tool it reaches for when the task crosses on-chain. Think of us as Claude Code for EVM: same *gather context → build → validate* shape, native to chain, with simulation as the security floor.
+Your personal agent can absolutely send transactions on its own. A bare-metal OpenClaw asked to swap on Uniswap will pull the ABI, read on-chain state, write a script, run via bash, and hope the calldata is right — a dozen tool calls and tens of thousands of tokens per operation, with no safety floor. Aomi compresses that loop into one call: "Swap 100 USDC for ETH on Uniswap" becomes a single CLI invocation returning a resolved, simulated, signable transaction. We don't replace your agent — Aomi is the tool it reaches for when the task crosses on-chain. Think of us as Claude Code for EVM: same _gather context → build → validate_ shape, native to chain, with simulation as the security floor.
 
 ## Why build on Aomi instead of OpenAI SDK, Claude Code SDK, or LangChain?
 

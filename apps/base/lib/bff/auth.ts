@@ -9,4 +9,3 @@ export const auth = betterAuth({
     enabled: process.env.AOMI_BETTER_AUTH_EMAIL_PASSWORD === "1",
   },
 });
-

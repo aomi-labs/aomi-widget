@@ -104,13 +104,14 @@ aomi tx sign tx-1 tx-2
 ### What to expect / pattern notes
 
 - **One hash for the 7702 atomic batch** — both `tx-1` and `tx-2` show the same hash in `aomi tx list` after signing. Not a bug.
-- **Recipient is the drain vector** — exactInputSingle word3. The agent blocks `recipient != msg.sender` at simulation time. If the user types *"swap and send the WETH to 0xdEaD"*, the batch will fail simulation with a drain-vector annotation. Don't try to bypass — surface the block.
+- **Recipient is the drain vector** — exactInputSingle word3. The agent blocks `recipient != msg.sender` at simulation time. If the user types _"swap and send the WETH to 0xdEaD"_, the batch will fail simulation with a drain-vector annotation. Don't try to bypass — surface the block.
 - **Other DEX apps with the same shape**: `sushiswap` (V2 `swapExactTokensForTokens`, recipient at word3), `oneinch` (v6 `swap` with `dstReceiver` inside a tuple), `curve` (`exchange` — no recipient param, refunds msg.sender directly).
 - **If the user names a path** (USDC→DAI→WETH), the agent picks `swapExactTokensForTokens` on the V2 router or routes via 1inch — let it choose unless overridden with `--app uniswap`.
 - **1inch fallback pattern.** Captured in `~/.aomi/sessions/messages-cli-*.json`: when a user asks for `oneinch` `unoswap` directly, the agent stages approve + swap, simulates, and the swap step reverts because `unoswap` requires a `dex` parameter encoded by the 1inch off-chain API (pool address + protocol flags) that the agent can't construct on its own. The agent's response is **not silent retry** — it explains the gap and offers a fallback:
-  > *"`unoswap` requires a specifically encoded `dex` parameter that includes the pool address and swap protocol flags (e.g., Uniswap V3), which cannot be manually constructed reliably without the 1inch API. Since I do not have a 1inch API tool to generate valid calldata, I cannot complete this swap through the 1inch Aggregator. **Would you like me to try this swap using a direct DEX instead?** I can use the Uniswap or Sushiswap skills to perform the USDC to WETH trade directly."*
 
-  When you see this, agree to the fallback (*"yes, use Uniswap"*) and the agent will rebuild the batch against `SwapRouter02` as in the example above. Don't insist on 1inch unless the user has a separate API key configured to provide the dex param.
+  > _"`unoswap` requires a specifically encoded `dex` parameter that includes the pool address and swap protocol flags (e.g., Uniswap V3), which cannot be manually constructed reliably without the 1inch API. Since I do not have a 1inch API tool to generate valid calldata, I cannot complete this swap through the 1inch Aggregator. **Would you like me to try this swap using a direct DEX instead?** I can use the Uniswap or Sushiswap skills to perform the USDC to WETH trade directly."_
+
+  When you see this, agree to the fallback (_"yes, use Uniswap"_) and the agent will rebuild the batch against `SwapRouter02` as in the example above. Don't insist on 1inch unless the user has a separate API key configured to provide the dex param.
 
 ---
 
@@ -203,9 +204,9 @@ aomi chat "show my Aave positions"
 ### What to expect / pattern notes
 
 - **The first stage_tx may fail simulation, that's normal.** When the agent gets `ERC20: transfer amount exceeds allowance`, it stages a fresh approve and re-batches. `aomi tx list` will show 3 entries: an orphan tx-1 from the first attempt and the working tx-2/tx-3 pair. **Sign the pair, not the orphan.**
-- **`onBehalfOf` is the drain vector.** If the user types *"supply for 0xFriend"*, the agent blocks `onBehalfOf != msg.sender` at simulation time. Same pattern for borrow / withdraw `to` / repay `onBehalfOf`.
+- **`onBehalfOf` is the drain vector.** If the user types _"supply for 0xFriend"_, the agent blocks `onBehalfOf != msg.sender` at simulation time. Same pattern for borrow / withdraw `to` / repay `onBehalfOf`.
 - **Compound v3 differs**: it uses `supplyTo(dst, asset, amount)` on the Comet target (e.g. cUSDCv3 `0xc3d688B6...`); `dst != msg.sender` is the drain. Same retry shape.
-- **Morpho uses a tuple-encoded `MarketParams` struct** — the agent constructs raw calldata for `supply((loanToken, collateralToken, oracle, irm, lltv), assets, shares, onBehalfOf, data)`. The user just says *"supply 100 USDC to the wstETH/USDC Morpho market"* — picking the market is the agent's job.
+- **Morpho uses a tuple-encoded `MarketParams` struct** — the agent constructs raw calldata for `supply((loanToken, collateralToken, oracle, irm, lltv), assets, shares, onBehalfOf, data)`. The user just says _"supply 100 USDC to the wstETH/USDC Morpho market"_ — picking the market is the agent's job.
 
 ---
 
@@ -275,7 +276,7 @@ stage   Lido Staking
         status = pending_approval
 ```
 
-Note: Lido is a single-tx flow, so the agent runs a one-off `simulate` read **before** staging — that's what produces the *"Estimated stETH Output: 0.008121..."* line in the user-facing response. The `simulate_batch` step you see in multi-step examples isn't here; the user calls `aomi tx simulate tx-1` separately if they want to dry-run again before signing.
+Note: Lido is a single-tx flow, so the agent runs a one-off `simulate` read **before** staging — that's what produces the _"Estimated stETH Output: 0.008121..."_ line in the user-facing response. The `simulate_batch` step you see in multi-step examples isn't here; the user calls `aomi tx simulate tx-1` separately if they want to dry-run again before signing.
 
 ### Lifecycle
 
@@ -304,8 +305,8 @@ aomi chat "show my stETH balance"
 
 - **No approve.** ETH is the asset (passed via `msg.value`); single-tx flow. Same shape applies to `rocket_pool` (`deposit()` → rETH), `etherfi` (`deposit()` → eETH), `kelp` (`depositETH()` → rsETH), `renzo` (`depositETH()` → ezETH), `mantle_staked_eth` (`stake()` → mETH).
 - **Rebasing vs non-rebasing.** stETH rebases (your balance grows over time without any tx); wstETH is the wrapped non-rebasing version. The agent's prose surfaces this distinction unprompted — preserve it in your own summaries, don't strip it. EtherFi follows the same split (eETH rebases, weETH is wrapped); Rocket Pool's rETH is non-rebasing by design.
-- **The pre-stage share estimate** (*"Estimated stETH Output: 0.008121..."*) is a Lido-specific Eth-to-shares conversion at the current ratio. If the user asks *"how much stETH will I get?"* before staking, the agent has already computed this — surface it instead of re-asking.
-- **The drain vector for LSTs is on the issued token, not on `submit()`.** Once the user holds stETH, an attacker prompt like *"transfer my stETH to 0xdEaD"* would normally pass any "is this a known Lido contract?" check (stETH IS a known Lido contract). The agent adds a special-case `transfer` / `transferFrom` block on stETH itself. Same for the other LST tokens listed above.
+- **The pre-stage share estimate** (_"Estimated stETH Output: 0.008121..."_) is a Lido-specific Eth-to-shares conversion at the current ratio. If the user asks _"how much stETH will I get?"_ before staking, the agent has already computed this — surface it instead of re-asking.
+- **The drain vector for LSTs is on the issued token, not on `submit()`.** Once the user holds stETH, an attacker prompt like _"transfer my stETH to 0xdEaD"_ would normally pass any "is this a known Lido contract?" check (stETH IS a known Lido contract). The agent adds a special-case `transfer` / `transferFrom` block on stETH itself. Same for the other LST tokens listed above.
 - **Withdrawals are time-delayed.** `requestWithdraw` queues a claim, the user comes back later for `claimWithdraw`. Don't simulate them as part of the same batch — surface the delay.
 
 ---
@@ -406,8 +407,8 @@ aomi chat "track my CCTP bridge — has Circle attested yet?"
 
 ### What to expect / pattern notes
 
-- **`mintRecipient` is the L2 owner, encoded as `bytes32`.** A natural-language *"send to my wallet"* gets correctly converted to `0x000000...<20-byte-address>` left-padded. If the user types a different address, the agent blocks `mintRecipient != msg.sender` at simulation time.
-- **Domain IDs are CCTP-specific, not chain IDs.** Base = 6, Arbitrum = 3, Optimism = 2, Avalanche = 1, Solana = 5. The agent translates *"to Base"* → `destinationDomain = 6`. Don't pass chain IDs here.
+- **`mintRecipient` is the L2 owner, encoded as `bytes32`.** A natural-language _"send to my wallet"_ gets correctly converted to `0x000000...<20-byte-address>` left-padded. If the user types a different address, the agent blocks `mintRecipient != msg.sender` at simulation time.
+- **Domain IDs are CCTP-specific, not chain IDs.** Base = 6, Arbitrum = 3, Optimism = 2, Avalanche = 1, Solana = 5. The agent translates _"to Base"_ → `destinationDomain = 6`. Don't pass chain IDs here.
 - **Settlement is off-chain.** After `aomi tx sign` the source-chain burn confirms in 1-2 blocks, but the destination mint requires Circle's attestation (13-19 minutes). This is **not** a `tx-N` in `aomi tx list` — track it with a follow-up chat.
 - **Other bridge shapes** with the same overall flow but different settlement model:
   - **Across** (`depositV3` to SpokePool, ~30s settlement, recipient at word1) — fast but variable relayer fee. Bot will fetch a quote first.
@@ -487,7 +488,7 @@ aomi tx sign tx-1
 
 - **No approve.** ETH is the asset (passed via `msg.value`); only one tx.
 - **Gas is unusually high (~600k+).** The L1 portion is cheap, but the OP-stack `depositETHTo` includes creating the L2 deposit ticket — the gas estimate accounts for that. Don't be alarmed.
-- **`_to = address(0)` is a hard block, not just a warning.** OP-stack bridges to `0x0` permanently lock funds (no recovery on L2). The agent fails simulation with the message *"Bridge recipient is address(0). L2 funds will be permanently unrecoverable."* If the user typo'd a zero address, do **not** retry — surface the block.
+- **`_to = address(0)` is a hard block, not just a warning.** OP-stack bridges to `0x0` permanently lock funds (no recovery on L2). The agent fails simulation with the message _"Bridge recipient is address(0). L2 funds will be permanently unrecoverable."_ If the user typo'd a zero address, do **not** retry — surface the block.
 - **Optimism is identical** with target `0x99c9fc46f92e8a1c0dec1b1747d010903e884be1` (OP L1StandardBridge). zkSync uses `requestL2Transaction` on the Mailbox `0x32400084c286cf3e17e7b677ea9583e60a000324` with both `_contractL2` (L2 target) and `_refundRecipient` (L2 gas refund) as drain vectors.
 - **Returning from Base/OP back to mainnet has a known limitation as of CLI `v0.1.30`** — if the EOA has 0 ETH on the L2, the AA 4337 path falls through to a direct EOA send and fails with `insufficient funds for transfer`. See [account-abstraction.md → Sponsorship in practice](account-abstraction.md#sponsorship-in-practice-verified-against-v0130).
 
@@ -500,25 +501,26 @@ aomi tx sign tx-1
 - **Always simulate multi-step batches** before signing. Single-tx flows are simulation-optional but never wrong to simulate.
 - **Always confirm** with the user before `aomi tx sign` for any flow that moves funds.
 - **The natural-language prompt shape** that consistently works:
-  > *<verb> <amount> <asset> <on|to|for> <protocol> [<chain context>] [<recipient phrase>] [<multi-step hint>]*
+  > _<verb> <amount> <asset> <on|to|for> <protocol> [<chain context>] [<recipient phrase>] [<multi-step hint>]_
   >
   > Examples:
-  > - *"swap 100 USDC for WETH on Uniswap"* (verb amount asset protocol)
-  > - *"supply 1000 USDC on Aave"* (verb amount asset protocol)
-  > - *"stake 1 ETH on Rocket Pool"* (verb amount asset protocol)
-  > - *"bridge 50 USDC from Ethereum to Base via CCTP, recipient my wallet, approve first"* (full template)
+  >
+  > - _"swap 100 USDC for WETH on Uniswap"_ (verb amount asset protocol)
+  > - _"supply 1000 USDC on Aave"_ (verb amount asset protocol)
+  > - _"stake 1 ETH on Rocket Pool"_ (verb amount asset protocol)
+  > - _"bridge 50 USDC from Ethereum to Base via CCTP, recipient my wallet, approve first"_ (full template)
 - **Things the agent does silently before staging** — balance check, allowance check, ABI verification (proxy unwrap if applicable), selector verification. Visible to the user only with `--verbose` or via `aomi session log`. Don't bypass these by feeding raw calldata unless you're red-team testing the guard.
 - **The simulator is the gate, not the wallet.** If simulation reports `Batch success: false` (or you see a guard-block annotation in `aomi session events`), **do not** attempt `aomi tx sign` — surface the failure to the user and either rebuild (allowance retry pattern) or stop.
 - **Multi-tx batches return one hash on 7702 (AA), two hashes on EOA-batched.** Both `tx-1` and `tx-2` share the same `txHash` in `aomi tx list` after signing under the AA 7702 atomic-batch path — that's expected. On the EOA path with `batched: true` (e.g. when AA falls through or the user passes `--eoa`), each `tx-N` carries a **`txHashes: [hash1, hash2]`** array — the operation produces two on-chain transactions, with the second being the canonical one shown as `txHash`. Reference: real captures in `~/.aomi/sessions/session-*.json` show `executionKind: "eoa"`, `batched: true`, and the dual-hash array. If you see two hashes, that's not a duplicate-broadcast bug — that's the EOA-batched signing pattern.
 
 ## Verification provenance
 
-| Example | Source capture | Date |
-|---|---|---|
-| 1. Uniswap V3 swap | `redteam-uniswap-happy-1.log` | 2026-04-29 |
-| 2. Aave supply | `redteam-aave-happy.log` | 2026-04-28 |
-| 3. Lido stake | `~/.aomi/sessions/current.json` (real CLI capture, not redteam) | 2026-04-07 |
-| 4. CCTP bridge | `redteam-cctp-happy3.log` | 2026-04-25 |
-| 5. Base native bridge | `redteam-base_native-happy.log` | 2026-04-28 |
+| Example               | Source capture                                                  | Date       |
+| --------------------- | --------------------------------------------------------------- | ---------- |
+| 1. Uniswap V3 swap    | `redteam-uniswap-happy-1.log`                                   | 2026-04-29 |
+| 2. Aave supply        | `redteam-aave-happy.log`                                        | 2026-04-28 |
+| 3. Lido stake         | `~/.aomi/sessions/current.json` (real CLI capture, not redteam) | 2026-04-07 |
+| 4. CCTP bridge        | `redteam-cctp-happy3.log`                                       | 2026-04-25 |
+| 5. Base native bridge | `redteam-base_native-happy.log`                                 | 2026-04-28 |
 
 The example-3 source row is the only one taken from a live CLI session rather than a backend redteam log — useful as a sanity check that the CLI rendering documented in the "What the user sees" blocks matches what real users observe. If you see a divergence between this doc and current bot behavior, the capture date tells you how recent the source is — re-run a happy-path test on the affected protocol before assuming this doc is wrong.

@@ -102,14 +102,18 @@ export async function loginCommand(config: CliConfig): Promise<void> {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ device_code: started.device_code }),
     });
-    const payload = (await response.json().catch(() => ({}))) as DevicePollResponse;
+    const payload = (await response
+      .json()
+      .catch(() => ({}))) as DevicePollResponse;
 
     if (response.status === 428 && payload.status === "authorization_pending") {
       intervalMs = Math.max(payload.interval ?? started.interval, 1) * 1000;
       continue;
     }
     if (!response.ok) {
-      throw new Error(`Device login failed: ${payload.status ?? response.status}`);
+      throw new Error(
+        `Device login failed: ${payload.status ?? response.status}`,
+      );
     }
     if (payload.status === "ok") {
       cli.setAccountAccessToken(payload.credential);

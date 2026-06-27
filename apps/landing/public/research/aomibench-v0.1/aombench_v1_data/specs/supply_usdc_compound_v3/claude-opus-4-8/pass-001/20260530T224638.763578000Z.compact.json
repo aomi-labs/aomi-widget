@@ -20,9 +20,7 @@
     "total_turns": 1,
     "total_tool_calls": 8,
     "total_responses": 12,
-    "activated_skills": [
-      "compound"
-    ],
+    "activated_skills": ["compound"],
     "failed_assertions": [],
     "budget_summary": {
       "total": 1,
@@ -144,10 +142,7 @@
         "tool": "activate_skills",
         "topic": "activate_skills",
         "arguments": {
-          "skill_ids": [
-            "compound",
-            "common_erc20"
-          ]
+          "skill_ids": ["compound", "common_erc20"]
         },
         "result_preview": "{\n  \"activated\": [\n    \"compound\"\n  ],\n  \"rejected\": [\n    [\n      \"common_erc20\",\n      \"invalid\"\n    ]\n  ],\n  \"applied_scope\": \"current_serve_cycle\"\n}"
       },
@@ -166,9 +161,7 @@
         "topic": "Check Alice USDC balance",
         "arguments": {
           "function_signature": "balanceOf(address)",
-          "arguments": [
-            "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
-          ],
+          "arguments": ["0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"],
           "to": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
           "value": "0",
           "topic": "Check Alice USDC balance"
@@ -200,10 +193,7 @@
           "description": "Approve cUSDCv3 (0xc3d688B6...) to spend 100 USDC",
           "data": {
             "signature": "approve(address,uint256)",
-            "args": [
-              "0xc3d688B66703497DAA19211EEdff47f25384cdc3",
-              "100000000"
-            ],
+            "args": ["0xc3d688B66703497DAA19211EEdff47f25384cdc3", "100000000"],
             "raw": ""
           },
           "value": "0",
@@ -222,10 +212,7 @@
           "description": "Supply 100 USDC to Compound V3 cUSDCv3 market",
           "data": {
             "signature": "supply(address,uint256)",
-            "args": [
-              "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
-              "100000000"
-            ],
+            "args": ["0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48", "100000000"],
             "raw": ""
           },
           "value": "0",
@@ -264,10 +251,7 @@
         "tool": "commit_txs",
         "topic": "Commit USDC approve + supply to cUSDCv3",
         "arguments": {
-          "tx_ids": [
-            1,
-            2
-          ],
+          "tx_ids": [1, 2],
           "topic": "Commit USDC approve + supply to cUSDCv3"
         },
         "result_preview": "{\n  \"status\": \"pending_approval\",\n  \"tx_ids\": [\n    1,\n    2\n  ],\n  \"timestamp\": \"2026-05-30T22:46:33.075216+00:00\"\n}"
@@ -281,12 +265,8 @@
     },
     "skills": {
       "mode": "restricted",
-      "allowed": [
-        "compound"
-      ],
-      "activated_skills": [
-        "compound"
-      ],
+      "allowed": ["compound"],
+      "activated_skills": ["compound"],
       "bundle_path": "../output/eval/model-bench-public-skills-gpt55-opus48-sonnet46-20260530/specs/supply_usdc_compound_v3/claude-opus-4.8/pass-001/spec-skills/supply_usdc_compound_v3-skills.json",
       "bundle_revision": "fnv1a64:570f86ce89cae15a"
     },

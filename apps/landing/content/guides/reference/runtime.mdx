@@ -11,7 +11,11 @@ The Aomi Runtime is the hosted execution environment that powers all Aomi Apps. 
 
 The runtime is designed around stateless dispatch and application-defined execution. No request carries server-side session state — every call is routed purely by its credentials and app. The application layer owns the definition of what an Aomi App is: which tools it has, how it behaves, and what model it runs on. The runtime underneath is a shared execution environment that treats each app as an opaque unit — it schedules tool calls, manages memory, and forwards LLM completions without needing to understand the domain logic above it. This separation means the same runtime can host a DeFi trading agent and a GameFi assistant side by side with zero coupling between them.
 
-<img src="/assets/images/runtime-architecture.png" alt="Runtime Architecture" style={{maxWidth: "70%"}} />
+<img
+  src="/assets/images/runtime-architecture.png"
+  alt="Runtime Architecture"
+  style={{ maxWidth: "70%" }}
+/>
 
 ### Session Manager
 
@@ -91,13 +95,13 @@ Multi-step tools (like transaction simulation) stream intermediate progress upda
 
 ## Performance
 
-| Aspect | Approach |
-| --- | --- |
-| **Concurrency** | All sessions share a single async runtime with per-session isolation |
-| **Memory** | Active sessions held in memory; inactive sessions evicted to database |
-| **History** | Loaded on-demand during session recovery; not held for inactive sessions |
-| **Backpressure** | Bounded channels between all components prevent memory exhaustion |
-| **Timeouts** | External calls (LLM, tools, APIs) have configurable timeouts |
+| Aspect           | Approach                                                                 |
+| ---------------- | ------------------------------------------------------------------------ |
+| **Concurrency**  | All sessions share a single async runtime with per-session isolation     |
+| **Memory**       | Active sessions held in memory; inactive sessions evicted to database    |
+| **History**      | Loaded on-demand during session recovery; not held for inactive sessions |
+| **Backpressure** | Bounded channels between all components prevent memory exhaustion        |
+| **Timeouts**     | External calls (LLM, tools, APIs) have configurable timeouts             |
 
 ## Further Reading
 

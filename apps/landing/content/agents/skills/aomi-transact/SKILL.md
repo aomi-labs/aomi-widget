@@ -8,7 +8,6 @@ description: >
   credential values may pass to the CLI only when the user has explicitly
   supplied them for a specific setup step they asked for.
 compatibility: "Requires @aomi-labs/client v0.1.30 or newer. Two invocation paths: (1) install globally — `npm install -g @aomi-labs/client` — and run as `aomi <command>`; (2) run on demand without installing — `npx @aomi-labs/client <command>`. Both accept the same flags and env vars; run `aomi --help` (or `npx @aomi-labs/client --help`) for the full list."
-
 license: MIT
 allowed-tools: Bash(aomi:*), Bash(npx:*)
 metadata:
@@ -406,20 +405,20 @@ For execution-model details, mode fallback rules, provider/mode flags, sponsorsh
 
 All config can be passed as flags. Flags override environment variables.
 
-| Flag            | Default                | Purpose                                                   |
-| --------------- | ---------------------- | --------------------------------------------------------- |
-| `--backend-url` | `https://api.aomi.dev` | Backend URL                                               |
+| Flag            | Default                | Purpose                                                                             |
+| --------------- | ---------------------- | ----------------------------------------------------------------------------------- |
+| `--backend-url` | `https://api.aomi.dev` | Backend URL                                                                         |
 | `--api-key`     | none                   | API key for non-default apps (user-supplied; do not pass on the skill's initiative) |
-| `--app`         | `default`              | Backend app                                               |
-| `--model`       | backend default        | Session model                                             |
-| `--new-session` | off                    | Create a fresh active session for this command            |
-| `--public-key`  | none                   | Wallet address for chat/session context                   |
-| `--rpc-url`     | chain RPC default      | RPC override for signing                                  |
-| `--chain`       | none                   | Active wallet chain (inherits session chain if unset)     |
-| `--eoa`         | off                    | Force plain EOA, skip AA even if configured (sign-only)   |
-| `--aa`          | off                    | Force AA, error if provider not configured (sign-only)    |
-| `--aa-provider` | auto-detect            | AA provider override: `alchemy` \| `pimlico` (sign-only)  |
-| `--aa-mode`     | chain default          | AA mode override: `4337` \| `7702` (sign-only)            |
+| `--app`         | `default`              | Backend app                                                                         |
+| `--model`       | backend default        | Session model                                                                       |
+| `--new-session` | off                    | Create a fresh active session for this command                                      |
+| `--public-key`  | none                   | Wallet address for chat/session context                                             |
+| `--rpc-url`     | chain RPC default      | RPC override for signing                                                            |
+| `--chain`       | none                   | Active wallet chain (inherits session chain if unset)                               |
+| `--eoa`         | off                    | Force plain EOA, skip AA even if configured (sign-only)                             |
+| `--aa`          | off                    | Force AA, error if provider not configured (sign-only)                              |
+| `--aa-provider` | auto-detect            | AA provider override: `alchemy` \| `pimlico` (sign-only)                            |
+| `--aa-mode`     | chain default          | AA mode override: `4337` \| `7702` (sign-only)                                      |
 
 The aomi CLI also resolves credentials on its own from the user's environment. The skill treats this as opaque — it does not read those values, echo them, set them, or ask the user to paste them into chat. If the CLI reports a missing credential, ask the user to configure it themselves and re-run.
 

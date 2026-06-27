@@ -40,7 +40,9 @@ async function readUserCode(req: NextRequest): Promise<string | undefined> {
   const contentType = req.headers.get("content-type") ?? "";
   if (contentType.includes("application/json")) {
     const body = (await req.json()) as { user_code?: unknown };
-    return typeof body.user_code === "string" ? body.user_code.trim() : undefined;
+    return typeof body.user_code === "string"
+      ? body.user_code.trim()
+      : undefined;
   }
 
   const form = await req.formData();
@@ -55,7 +57,10 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
 export async function POST(req: NextRequest): Promise<NextResponse> {
   const userCode = await readUserCode(req);
   if (!userCode) {
-    return NextResponse.json({ error: "user_code is required" }, { status: 400 });
+    return NextResponse.json(
+      { error: "user_code is required" },
+      { status: 400 },
+    );
   }
 
   const session = await resolveBetterAuthSession(req.headers);

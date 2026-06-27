@@ -120,10 +120,7 @@
           "description": "Transfer 25 USDC from Alice to 0x7099...79C8",
           "data": {
             "signature": "transfer(address,uint256)",
-            "args": [
-              "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
-              "25000000"
-            ],
+            "args": ["0x70997970C51812dc3A010C7d01b50e0d17dc79C8", "25000000"],
             "raw": ""
           },
           "value": "0",
@@ -157,9 +154,7 @@
         "topic": "Commit USDC transfer",
         "arguments": {
           "topic": "Commit USDC transfer",
-          "tx_ids": [
-            1
-          ]
+          "tx_ids": [1]
         },
         "result_preview": "{\n  \"status\": \"pending_approval\",\n  \"tx_ids\": [\n    1\n  ],\n  \"timestamp\": \"2026-05-31T18:50:02.681470+00:00\"\n}"
       }

@@ -20,9 +20,7 @@
     "total_turns": 1,
     "total_tool_calls": 8,
     "total_responses": 10,
-    "activated_skills": [
-      "zksync_era_native"
-    ],
+    "activated_skills": ["zksync_era_native"],
     "failed_assertions": [],
     "budget_summary": {
       "total": 1,
@@ -130,9 +128,7 @@
         "tool": "activate_skills",
         "topic": "activate_skills",
         "arguments": {
-          "skill_ids": [
-            "zksync_era_native"
-          ]
+          "skill_ids": ["zksync_era_native"]
         },
         "result_preview": "{\n  \"activated\": [\n    \"zksync_era_native\"\n  ],\n  \"rejected\": [],\n  \"applied_scope\": \"current_serve_cycle\"\n}"
       },
@@ -151,11 +147,7 @@
         "topic": "Quote zkSync L2 gas cost for 10M gas / 800 pubdata",
         "arguments": {
           "function_signature": "l2TransactionBaseCost(uint256,uint256,uint256)",
-          "arguments": [
-            "1105996507",
-            "10000000",
-            "800"
-          ],
+          "arguments": ["1105996507", "10000000", "800"],
           "to": "0xd7f9f54194c633f36ccd5f3da84ad4a1c38cb2cb",
           "value": "0",
           "topic": "Quote zkSync L2 gas cost for 10M gas / 800 pubdata"
@@ -167,11 +159,7 @@
         "tool": "encode_and_call",
         "topic": "Quote zkSync L2 gas cost via Mailbox",
         "arguments": {
-          "arguments": [
-            "1105996507",
-            "10000000",
-            "800"
-          ],
+          "arguments": ["1105996507", "10000000", "800"],
           "function_signature": "l2TransactionBaseCost(uint256,uint256,uint256)",
           "to": "0x32400084c286cf3e17e7b677ea9583e60a000324",
           "topic": "Quote zkSync L2 gas cost via Mailbox",
@@ -268,12 +256,8 @@
     },
     "skills": {
       "mode": "restricted",
-      "allowed": [
-        "zksync_era_native"
-      ],
-      "activated_skills": [
-        "zksync_era_native"
-      ],
+      "allowed": ["zksync_era_native"],
+      "activated_skills": ["zksync_era_native"],
       "bundle_path": "../output/eval/model-bench-public-skills-opus47-opus46-haiku45-20260531/specs/bridge_eth_to_zksync_native_review_first/claude-opus-4.7/pass-001/spec-skills/bridge_eth_to_zksync_native_review_first-skills.json",
       "bundle_revision": "fnv1a64:9e219cd0bbaa1b22"
     },

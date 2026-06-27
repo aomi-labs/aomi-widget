@@ -16,8 +16,12 @@ describe("Picker", () => {
 
   it("renders grant descriptions", () => {
     render(<Picker onChoose={() => {}} />);
-    expect(screen.getByText(/broad — can create repositories/)).toBeInTheDocument();
-    expect(screen.getByText(/narrow — one repo, pull requests & checks/)).toBeInTheDocument();
+    expect(
+      screen.getByText(/broad — can create repositories/),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/narrow — one repo, pull requests & checks/),
+    ).toBeInTheDocument();
   });
 
   it("renders choose buttons", () => {

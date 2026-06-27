@@ -224,7 +224,8 @@ async function signSolanaPending(params: {
 }): Promise<void> {
   const { cli, session, config, pendingTx } = params;
   const secret =
-    cli.resolvedSvmPrivateKey(config.solanaPrivateKey) ?? process.env.SOLANA_PRIVATE_KEY;
+    cli.resolvedSvmPrivateKey(config.solanaPrivateKey) ??
+    process.env.SOLANA_PRIVATE_KEY;
   if (!secret) {
     fatal(
       [
@@ -745,7 +746,11 @@ export async function signCommand(
       // (happens when the local state sync ran before the backend stored
       // the sig, or before bug fixes for camelCase wire format), fetch the
       // current state from the backend and reconstruct.
-      if (!signArgs && pendingTx.kind === "eip712_sign" && pendingTx.eip712Id !== undefined) {
+      if (
+        !signArgs &&
+        pendingTx.kind === "eip712_sign" &&
+        pendingTx.eip712Id !== undefined
+      ) {
         try {
           const session = cli.createClientSession(config);
           const apiState = await session.client.fetchState(
@@ -755,10 +760,30 @@ export async function signCommand(
           );
           session.close();
           const evmSigs =
-            (apiState.user_state as { pending?: { evmSigs?: Record<string, unknown>; evm_sigs?: Record<string, unknown> } })?.pending?.evmSigs ??
-            (apiState.user_state as { pending?: { evm_sigs?: Record<string, unknown> } })?.pending?.evm_sigs ??
+            (
+              apiState.user_state as {
+                pending?: {
+                  evmSigs?: Record<string, unknown>;
+                  evm_sigs?: Record<string, unknown>;
+                };
+              }
+            )?.pending?.evmSigs ??
+            (
+              apiState.user_state as {
+                pending?: { evm_sigs?: Record<string, unknown> };
+              }
+            )?.pending?.evm_sigs ??
             {};
-          const sig = (evmSigs as Record<string, { typedData?: unknown; typed_data?: unknown; description?: string }>)[String(pendingTx.eip712Id)];
+          const sig = (
+            evmSigs as Record<
+              string,
+              {
+                typedData?: unknown;
+                typed_data?: unknown;
+                description?: string;
+              }
+            >
+          )[String(pendingTx.eip712Id)];
           const typed = sig?.typedData ?? sig?.typed_data;
           if (typed) {
             signArgs = toViemSignTypedDataArgs({
@@ -768,7 +793,9 @@ export async function signCommand(
             });
           }
         } catch (err) {
-          console.warn(`[aomi tx sign] failed to fetch typed_data from backend: ${err}`);
+          console.warn(
+            `[aomi tx sign] failed to fetch typed_data from backend: ${err}`,
+          );
         }
       }
 

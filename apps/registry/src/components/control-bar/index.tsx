@@ -65,9 +65,6 @@ export const ControlBar: FC<ControlBarProps> = ({
 export { ModelSelect, type ModelSelectProps } from "./model-select";
 export { AppSelect, type AppSelectProps } from "./app-select";
 export { ApiKeyInput, type ApiKeyInputProps } from "./api-key-input";
-export {
-  ConnectButton,
-  type ConnectButtonProps,
-} from "./connect-button";
+export { ConnectButton, type ConnectButtonProps } from "./connect-button";
 export { NetworkSelect, type NetworkSelectProps } from "./network-select";
 export { SecretInput, type SecretInputProps } from "./secret-input";

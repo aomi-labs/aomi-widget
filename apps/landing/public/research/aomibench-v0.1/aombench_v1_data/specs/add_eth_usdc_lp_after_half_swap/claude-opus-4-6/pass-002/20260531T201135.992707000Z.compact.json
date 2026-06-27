@@ -20,9 +20,7 @@
     "total_turns": 1,
     "total_tool_calls": 16,
     "total_responses": 28,
-    "activated_skills": [
-      "aerodrome"
-    ],
+    "activated_skills": ["aerodrome"],
     "failed_assertions": [],
     "budget_summary": {
       "total": 1,
@@ -256,10 +254,7 @@
         "tool": "activate_skills",
         "topic": "activate_skills",
         "arguments": {
-          "skill_ids": [
-            "aerodrome",
-            "common_erc20"
-          ]
+          "skill_ids": ["aerodrome", "common_erc20"]
         },
         "result_preview": "{\n  \"activated\": [\n    \"aerodrome\"\n  ],\n  \"rejected\": [\n    [\n      \"common_erc20\",\n      \"invalid\"\n    ]\n  ],\n  \"applied_scope\": \"current_serve_cycle\"\n}"
       },
@@ -375,10 +370,7 @@
           "description": "Approve Aerodrome Router to spend 995.685719 USDC for LP deposit",
           "data": {
             "signature": "approve(address,uint256)",
-            "args": [
-              "0xcF77a3Ba9A5CA399B7c97c74d54e5b1Beb874E43",
-              "995685719"
-            ],
+            "args": ["0xcF77a3Ba9A5CA399B7c97c74d54e5b1Beb874E43", "995685719"],
             "raw": ""
           },
           "value": "0",
@@ -509,10 +501,7 @@
         "arguments": {
           "value": "0",
           "data": {
-            "args": [
-              "0xcF77a3Ba9A5CA399B7c97c74d54e5b1Beb874E43",
-              "995668823"
-            ],
+            "args": ["0xcF77a3Ba9A5CA399B7c97c74d54e5b1Beb874E43", "995668823"],
             "raw": "",
             "signature": "approve(address,uint256)"
           },
@@ -586,11 +575,7 @@
         "tool": "commit_txs",
         "topic": "Commit swap + approve + add liquidity batch",
         "arguments": {
-          "tx_ids": [
-            1,
-            5,
-            6
-          ],
+          "tx_ids": [1, 5, 6],
           "topic": "Commit swap + approve + add liquidity batch"
         },
         "result_preview": "{\n  \"status\": \"pending_approval\",\n  \"tx_ids\": [\n    1,\n    5,\n    6\n  ],\n  \"timestamp\": \"2026-05-31T20:11:28.747298+00:00\"\n}"
@@ -604,12 +589,8 @@
     },
     "skills": {
       "mode": "restricted",
-      "allowed": [
-        "aerodrome"
-      ],
-      "activated_skills": [
-        "aerodrome"
-      ],
+      "allowed": ["aerodrome"],
+      "activated_skills": ["aerodrome"],
       "bundle_path": "../output/eval/model-bench-public-skills-expansion-20260531/specs/add_eth_usdc_lp_after_half_swap/claude-opus-4.6/pass-002/spec-skills/add_eth_usdc_lp_after_half_swap-skills.json",
       "bundle_revision": "fnv1a64:c0406359c2059af7"
     },

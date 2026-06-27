@@ -27,9 +27,7 @@
     "total_turns": 1,
     "total_tool_calls": 28,
     "total_responses": 54,
-    "activated_skills": [
-      "aave"
-    ],
+    "activated_skills": ["aave"],
     "failed_assertions": [
       {
         "label": "Alice borrows about 100 USDC from Aave V3",
@@ -364,10 +362,7 @@
         "tool": "activate_skills",
         "topic": "activate_skills",
         "arguments": {
-          "skill_ids": [
-            "aave",
-            "common_erc20"
-          ]
+          "skill_ids": ["aave", "common_erc20"]
         },
         "result_preview": "{\n  \"activated\": [\n    \"aave\"\n  ],\n  \"rejected\": [\n    [\n      \"common_erc20\",\n      \"invalid\"\n    ]\n  ],\n  \"applied_scope\": \"current_serve_cycle\"\n}"
       },
@@ -419,9 +414,7 @@
         "arguments": {
           "topic": "Check Alice's Aave account data",
           "function_signature": "getUserAccountData(address)",
-          "arguments": [
-            "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
-          ],
+          "arguments": ["0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"],
           "to": "0x87870Bca3F3fD6335C3F4ce8392D69350B4fA4E2",
           "value": "0"
         },
@@ -460,10 +453,7 @@
           "to": "0xD322A49006FC828F9B5B37Ab215F99B4E5caB19C",
           "value": "1000000000000000000",
           "data": {
-            "args": [
-              "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
-              "0"
-            ],
+            "args": ["0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266", "0"],
             "signature": "depositETH(address,uint16)"
           },
           "kind": "aave_deposit"
@@ -749,10 +739,7 @@
         "arguments": {
           "gas_limit": "100000",
           "data": {
-            "args": [
-              "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
-              "true"
-            ],
+            "args": ["0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2", "true"],
             "signature": "setUserUseReserveAsCollateral(address,bool)"
           },
           "kind": "aave_collateral",
@@ -788,9 +775,7 @@
         "arguments": {
           "function_signature": "getUserAccountData(address)",
           "topic": "Check current Aave account data after supply",
-          "arguments": [
-            "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
-          ],
+          "arguments": ["0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"],
           "to": "0x87870Bca3F3fD6335C3F4ce8392D69350B4fA4E2",
           "value": "0"
         },
@@ -813,9 +798,7 @@
         "arguments": {
           "function_signature": "getUserAccountData(address)",
           "topic": "Check Aave account data after sync",
-          "arguments": [
-            "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
-          ],
+          "arguments": ["0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"],
           "to": "0x87870Bca3F3fD6335C3F4ce8392D69350B4fA4E2",
           "value": "0"
         },
@@ -868,13 +851,7 @@
         "tool": "commit_txs",
         "topic": "Commit full workflow: wrap, approve, supply, enable collateral, borrow",
         "arguments": {
-          "tx_ids": [
-            3,
-            4,
-            5,
-            7,
-            6
-          ],
+          "tx_ids": [3, 4, 5, 7, 6],
           "topic": "Commit full workflow: wrap, approve, supply, enable collateral, borrow"
         },
         "result_preview": "{\n  \"status\": \"pending_approval\",\n  \"tx_ids\": [\n    3,\n    4,\n    5,\n    7,\n    6\n  ],\n  \"timestamp\": \"2026-05-31T19:28:34.970320+00:00\"\n}"
@@ -888,12 +865,8 @@
     },
     "skills": {
       "mode": "restricted",
-      "allowed": [
-        "aave"
-      ],
-      "activated_skills": [
-        "aave"
-      ],
+      "allowed": ["aave"],
+      "activated_skills": ["aave"],
       "bundle_path": "../output/eval/model-bench-public-skills-expansion-20260531/specs/supply_eth_then_borrow_usdc_aave_v3/minimax-m2.5/pass-001/spec-skills/supply_eth_then_borrow_usdc_aave_v3-skills.json",
       "bundle_revision": "fnv1a64:30836aa43718b8be"
     },

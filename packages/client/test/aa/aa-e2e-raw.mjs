@@ -40,14 +40,16 @@ const API_KEY = process.env.ALCHEMY_API_KEY;
 const GAS_POLICY_ID = process.env.ALCHEMY_GAS_POLICY_ID;
 const MODE = (process.env.MODE ?? "7702").toLowerCase();
 const ACCOUNT_ID = process.env.ACCOUNT_ID;
-const CALL_TO =
-  (process.env.CALL_TO ??
-    "0xc02aaA39b223FE8D0A0E5C4F27eAD9083C756Cc2").toLowerCase();
+const CALL_TO = (
+  process.env.CALL_TO ?? "0xc02aaA39b223FE8D0A0E5C4F27eAD9083C756Cc2"
+).toLowerCase();
 const CALL_DATA = (process.env.CALL_DATA ?? "0x18160ddd").toLowerCase();
 const CALL_VALUE_WEI = BigInt(process.env.CALL_VALUE_WEI ?? "0");
 
 if (!PRIVATE_KEY || !API_KEY || !GAS_POLICY_ID) {
-  console.error("Required: PRIVATE_KEY, ALCHEMY_API_KEY, ALCHEMY_GAS_POLICY_ID");
+  console.error(
+    "Required: PRIVATE_KEY, ALCHEMY_API_KEY, ALCHEMY_GAS_POLICY_ID",
+  );
   process.exit(1);
 }
 
@@ -84,8 +86,12 @@ async function runMode(mode) {
   }
 
   const senderAddress = account?.address ?? signer.address;
-  const senderBalanceBefore = await publicClient.getBalance({ address: senderAddress });
-  const recipientBalanceBefore = await publicClient.getBalance({ address: CALL_TO });
+  const senderBalanceBefore = await publicClient.getBalance({
+    address: senderAddress,
+  });
+  const recipientBalanceBefore = await publicClient.getBalance({
+    address: CALL_TO,
+  });
 
   console.log("");
   console.log(`mode: ${mode}`);
@@ -115,8 +121,12 @@ async function runMode(mode) {
     process.exit(1);
   }
 
-  const senderBalanceAfter = await publicClient.getBalance({ address: senderAddress });
-  const recipientBalanceAfter = await publicClient.getBalance({ address: CALL_TO });
+  const senderBalanceAfter = await publicClient.getBalance({
+    address: senderAddress,
+  });
+  const recipientBalanceAfter = await publicClient.getBalance({
+    address: CALL_TO,
+  });
 
   console.log(`tx hash: ${receipt.transactionHash}`);
   console.log(`block: ${receipt.blockNumber}`);

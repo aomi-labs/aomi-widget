@@ -20,9 +20,7 @@
     "total_turns": 1,
     "total_tool_calls": 11,
     "total_responses": 17,
-    "activated_skills": [
-      "uniswap"
-    ],
+    "activated_skills": ["uniswap"],
     "failed_assertions": [],
     "budget_summary": {
       "total": 1,
@@ -179,10 +177,7 @@
         "tool": "activate_skills",
         "topic": "activate_skills",
         "arguments": {
-          "skill_ids": [
-            "uniswap",
-            "common_erc20"
-          ]
+          "skill_ids": ["uniswap", "common_erc20"]
         },
         "result_preview": "{\n  \"activated\": [\n    \"uniswap\"\n  ],\n  \"rejected\": [\n    [\n      \"common_erc20\",\n      \"invalid\"\n    ]\n  ],\n  \"applied_scope\": \"current_serve_cycle\"\n}"
       },
@@ -231,9 +226,7 @@
         "topic": "Alice USDC balance",
         "arguments": {
           "function_signature": "balanceOf(address)",
-          "arguments": [
-            "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
-          ],
+          "arguments": ["0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"],
           "to": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
           "value": "0",
           "topic": "Alice USDC balance"
@@ -363,11 +356,7 @@
         "tool": "commit_txs",
         "topic": "Add ETH/USDC liquidity on Uniswap V2 — swap, approve, addLiquidityETH",
         "arguments": {
-          "tx_ids": [
-            1,
-            2,
-            3
-          ],
+          "tx_ids": [1, 2, 3],
           "topic": "Add ETH/USDC liquidity on Uniswap V2 — swap, approve, addLiquidityETH"
         },
         "result_preview": "{\n  \"status\": \"pending_approval\",\n  \"tx_ids\": [\n    1,\n    2,\n    3\n  ],\n  \"timestamp\": \"2026-05-31T21:31:05.591188+00:00\"\n}"
@@ -381,12 +370,8 @@
     },
     "skills": {
       "mode": "restricted",
-      "allowed": [
-        "uniswap"
-      ],
-      "activated_skills": [
-        "uniswap"
-      ],
+      "allowed": ["uniswap"],
+      "activated_skills": ["uniswap"],
       "bundle_path": "../output/eval/model-bench-public-skills-expansion-20260531/specs/add_eth_usdc_v2_lp_after_half_swap/claude-sonnet-4.6/pass-002/spec-skills/add_eth_usdc_v2_lp_after_half_swap-skills.json",
       "bundle_revision": "fnv1a64:b60b7265d48b4779"
     },

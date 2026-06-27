@@ -20,9 +20,7 @@
     "total_turns": 1,
     "total_tool_calls": 7,
     "total_responses": 9,
-    "activated_skills": [
-      "avantis"
-    ],
+    "activated_skills": ["avantis"],
     "failed_assertions": [],
     "budget_summary": {
       "total": 1,
@@ -123,9 +121,7 @@
         "tool": "activate_skills",
         "topic": "activate_skills",
         "arguments": {
-          "skill_ids": [
-            "avantis"
-          ]
+          "skill_ids": ["avantis"]
         },
         "result_preview": "{\n  \"activated\": [\n    \"avantis\"\n  ],\n  \"rejected\": [],\n  \"applied_scope\": \"current_serve_cycle\"\n}"
       },
@@ -159,9 +155,7 @@
         "topic": "Inspect pair 0 metadata",
         "arguments": {
           "function_signature": "pairData(uint256)",
-          "arguments": [
-            "0"
-          ],
+          "arguments": ["0"],
           "to": "0x5db3772136e5557EFE028Db05EE95C84D76faEC4",
           "value": "0",
           "topic": "Inspect pair 0 metadata"
@@ -174,12 +168,7 @@
         "topic": "Read keeper gas fee for ETH market",
         "arguments": {
           "function_signature": "getGasFees(uint256,uint256,int256,bool)",
-          "arguments": [
-            "0",
-            "10000000",
-            "0",
-            "false"
-          ],
+          "arguments": ["0", "10000000", "0", "false"],
           "to": "0x5db3772136e5557EFE028Db05EE95C84D76faEC4",
           "value": "0",
           "topic": "Read keeper gas fee for ETH market"
@@ -192,9 +181,7 @@
         "topic": "Check Alice USDC balance on Base",
         "arguments": {
           "function_signature": "balanceOf(address)",
-          "arguments": [
-            "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
-          ],
+          "arguments": ["0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"],
           "to": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
           "value": "0",
           "topic": "Check Alice USDC balance on Base"
@@ -226,12 +213,8 @@
     },
     "skills": {
       "mode": "restricted",
-      "allowed": [
-        "avantis"
-      ],
-      "activated_skills": [
-        "avantis"
-      ],
+      "allowed": ["avantis"],
+      "activated_skills": ["avantis"],
       "bundle_path": "../output/eval/model-bench-public-skills-opus47-opus46-haiku45-20260531/specs/check_eth_perp_before_open/claude-opus-4.7/pass-001/spec-skills/check_eth_perp_before_open-skills.json",
       "bundle_revision": "fnv1a64:32dc8058e89c0769"
     },

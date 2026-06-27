@@ -59,7 +59,9 @@ export default async function PrivyAuthPage({
     return (
       <main className="bg-background text-foreground flex min-h-screen items-center justify-center px-6">
         <div className="border-input bg-background w-full max-w-md rounded-3xl border p-8">
-          <h1 className="mb-2 text-lg font-semibold">Privy signer unavailable</h1>
+          <h1 className="mb-2 text-lg font-semibold">
+            Privy signer unavailable
+          </h1>
           <p className="text-muted-foreground text-sm">
             This portal is missing `PRIVY_SIGNER_ID`, so it can&apos;t request
             server-side access for your wallet.
@@ -112,7 +114,9 @@ function isLocalhost(hostname: string): boolean {
   );
 }
 
-function normalizeWalletFamily(value?: string): "ethereum" | "solana" | undefined {
+function normalizeWalletFamily(
+  value?: string,
+): "ethereum" | "solana" | undefined {
   const normalized = value?.trim().toLowerCase();
   if (!normalized) return undefined;
   if (normalized === "solana" || normalized === "svm") {

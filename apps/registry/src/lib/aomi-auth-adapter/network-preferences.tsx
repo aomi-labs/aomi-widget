@@ -63,7 +63,9 @@ export function AomiWalletNetworkPreferencesProvider({
       return;
     }
     setSelectedEvmChainId((current) =>
-      evmChains.some((chain) => chain.id === current) ? current : evmChains[0]?.id,
+      evmChains.some((chain) => chain.id === current)
+        ? current
+        : evmChains[0]?.id,
     );
   }, [evmChains]);
 

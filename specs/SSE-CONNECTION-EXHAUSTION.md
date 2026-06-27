@@ -46,6 +46,7 @@ it. Incognito / a fresh browser profile starts with an empty pool, so the chat
 POST gets a socket immediately → "works."
 
 ### Ruled out during investigation
+
 - **Session reconstruction** — repro happens on a brand-new session ("Created
   new session"); the slow rehydrate path never runs.
 - **Backend session lock** — `/api/updates` uses a global broadcast channel
@@ -67,6 +68,7 @@ of pool exhaustion. The backend even documents the intent:
 ## Proposed fixes
 
 ### A. Single shared SSE (recommended, durable)
+
 Hold **one** `/api/updates` connection for the whole client. Centralize the
 subscription in `AomiClient` (or the orchestrator) instead of per-`ClientSession`,
 and fan events out to the right thread by `session_id`. Removes the per-thread
@@ -78,11 +80,13 @@ session id), `packages/react/src/runtime/orchestrator.ts` (dispatch events to
 the matching thread).
 
 ### B. Aggressively close idle SSE (smaller, partial)
+
 Keep per-session SSE but tear down idle/background threads' connections even when
 they're polling, and cap the number of concurrently open sessions. Lighter
 change, but several genuinely-active threads can still approach the limit.
 
 ### C. HTTP/2 in dev (secondary / masking)
+
 Serving the backend over HTTP/2 removes the 6-connection cap via multiplexing.
 Awkward for plain-HTTP local dev and only masks the underlying redundancy.
 
@@ -90,6 +94,7 @@ Awkward for plain-HTTP local dev and only masks the underlying redundancy.
 tweak, not a real fix.
 
 ## Quick repro / confirmation
+
 1. Normal browser profile with several threads visited → `POST /api/chat`
    Stalls for minutes; no backend ingress log.
 2. Incognito / different browser → works immediately.

@@ -2,10 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AomiClient } from "../src/client";
 
 describe("AomiClient.simulateBatch", () => {
-  const fetchMock = vi.fn<
-    Parameters<typeof fetch>,
-    ReturnType<typeof fetch>
-  >();
+  const fetchMock = vi.fn<Parameters<typeof fetch>, ReturnType<typeof fetch>>();
 
   beforeEach(() => {
     fetchMock.mockReset();

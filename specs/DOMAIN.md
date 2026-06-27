@@ -123,20 +123,20 @@ User selects model in ModelSelect
 
 ## Backend Endpoints
 
-| Endpoint                           | Purpose        | Response                  |
-| ---------------------------------- | -------------- | ------------------------- |
-| `POST /api/chat`                   | Send message   | `ApiChatResponse`         |
-| `GET /api/state`                   | Poll session   | `ApiStateResponse`        |
-| `POST /api/interrupt`              | Cancel         | `ApiInterruptResponse`    |
-| `POST /api/system`                 | System message | `ApiSystemResponse`       |
-| `GET /api/updates`                 | SSE stream     | `ApiSSEEvent`             |
-| `POST /api/sessions`               | Create thread  | `ApiCreateThreadResponse` |
-| `GET /api/sessions`                | List threads   | `ApiThread[]`             |
-| `PATCH /api/sessions/:id`          | Rename         | -                         |
-| `DELETE /api/sessions/:id`         | Delete         | 204                       |
-| `GET /api/session/apps`            | Get namespaces | `string[]`                |
-| `GET /api/session/models`          | Get models     | `string[]`                |
-| `POST /api/session/model`          | Set model      | `{ success, rig, baml }`  |
+| Endpoint                   | Purpose        | Response                  |
+| -------------------------- | -------------- | ------------------------- |
+| `POST /api/chat`           | Send message   | `ApiChatResponse`         |
+| `GET /api/state`           | Poll session   | `ApiStateResponse`        |
+| `POST /api/interrupt`      | Cancel         | `ApiInterruptResponse`    |
+| `POST /api/system`         | System message | `ApiSystemResponse`       |
+| `GET /api/updates`         | SSE stream     | `ApiSSEEvent`             |
+| `POST /api/sessions`       | Create thread  | `ApiCreateThreadResponse` |
+| `GET /api/sessions`        | List threads   | `ApiThread[]`             |
+| `PATCH /api/sessions/:id`  | Rename         | -                         |
+| `DELETE /api/sessions/:id` | Delete         | 204                       |
+| `GET /api/session/apps`    | Get namespaces | `string[]`                |
+| `GET /api/session/models`  | Get models     | `string[]`                |
+| `POST /api/session/model`  | Set model      | `{ success, rig, baml }`  |
 
 **ApiStateResponse:** `{ messages?, system_events?, is_processing?, title?, session_exists? }`
 

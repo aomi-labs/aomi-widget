@@ -42,7 +42,9 @@ export function stripMdxImports(src: string): string {
 
 // Read a docs page (by slug array) as agent-friendly markdown:
 // raw MDX with imports stripped, plus a `source:` line injected into frontmatter.
-export async function readDocAsMarkdown(slug: string[]): Promise<string | null> {
+export async function readDocAsMarkdown(
+  slug: string[],
+): Promise<string | null> {
   const page = source.getPage(slug);
   if (!page) return null;
   const data = page.data as typeof page.data & {

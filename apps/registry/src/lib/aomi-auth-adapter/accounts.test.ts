@@ -12,8 +12,16 @@ describe("buildAccounts", () => {
       solanaConnections: [],
     });
     expect(accounts).toHaveLength(2);
-    expect(accounts[0]).toMatchObject({ family: "evm", walletName: "MetaMask", active: false });
-    expect(accounts[1]).toMatchObject({ family: "evm", walletName: "Rabby", active: true });
+    expect(accounts[0]).toMatchObject({
+      family: "evm",
+      walletName: "MetaMask",
+      active: false,
+    });
+    expect(accounts[1]).toMatchObject({
+      family: "evm",
+      walletName: "Rabby",
+      active: true,
+    });
   });
 
   it("adds connected Solana wallets and marks the selected address active", () => {
@@ -27,8 +35,16 @@ describe("buildAccounts", () => {
       activeSolanaAddress: "AbCpub",
     });
     expect(accounts).toHaveLength(2);
-    expect(accounts[0]).toMatchObject({ family: "solana", address: "9xQpub", active: false });
-    expect(accounts[1]).toMatchObject({ family: "solana", address: "AbCpub", active: true });
+    expect(accounts[0]).toMatchObject({
+      family: "solana",
+      address: "9xQpub",
+      active: false,
+    });
+    expect(accounts[1]).toMatchObject({
+      family: "solana",
+      address: "AbCpub",
+      active: true,
+    });
     expect(accounts[0].id).toBe("Phantom");
   });
 
@@ -39,12 +55,18 @@ describe("buildAccounts", () => {
       solanaConnections: [{ publicKey: "9xQpub" }],
       activeSolanaAddress: "9XQPUB",
     });
-    expect(accounts[0]).toMatchObject({ family: "solana", id: "9xQpub", active: false });
+    expect(accounts[0]).toMatchObject({
+      family: "solana",
+      id: "9xQpub",
+      active: false,
+    });
   });
 
   it("returns both families for a dual connection", () => {
     const accounts = buildAccounts({
-      evmConnections: [{ id: "mm", walletName: "MetaMask", address: "0xAAA", chainId: 1 }],
+      evmConnections: [
+        { id: "mm", walletName: "MetaMask", address: "0xAAA", chainId: 1 },
+      ],
       activeEvmAddress: "0xAAA",
       solanaConnections: [{ publicKey: "9xQpub", walletName: "Phantom" }],
       activeSolanaAddress: "9xQpub",
@@ -54,6 +76,8 @@ describe("buildAccounts", () => {
   });
 
   it("returns empty when nothing is connected", () => {
-    expect(buildAccounts({ evmConnections: [], activeEvmAddress: undefined })).toEqual([]);
+    expect(
+      buildAccounts({ evmConnections: [], activeEvmAddress: undefined }),
+    ).toEqual([]);
   });
 });

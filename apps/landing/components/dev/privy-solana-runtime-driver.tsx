@@ -1,12 +1,6 @@
 "use client";
 
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import {
   Connection,
@@ -91,7 +85,9 @@ async function buildUnsignedSolanaTransaction(
   return encodeBase64(serialized);
 }
 
-function getRequestKindForMode(mode: DriverMode): Extract<
+function getRequestKindForMode(
+  mode: DriverMode,
+): Extract<
   WalletRequestKind,
   "solana_sign" | "solana_send" | "solana_sign_and_send"
 > {
@@ -264,8 +260,7 @@ function PrivySolanaRuntimeDriverInner() {
       }
 
       if (!adapter.identity.svmAddress) {
-        const message =
-          "Connect a Solana wallet through Privy before running";
+        const message = "Connect a Solana wallet through Privy before running";
         setReportStatus("failed");
         setLastError(message);
         appendLog("err", message);
@@ -321,8 +316,7 @@ function PrivySolanaRuntimeDriverInner() {
           } as WalletRequest,
         ]);
       } catch (error) {
-        const message =
-          error instanceof Error ? error.message : String(error);
+        const message = error instanceof Error ? error.message : String(error);
         setReportStatus("failed");
         setLastError(message);
         appendLog("err", message);
@@ -531,7 +525,7 @@ function PrivySolanaRuntimeDriverInner() {
 
           <section className="grid gap-4 md:grid-cols-2">
             <div className="rounded-2xl border border-stone-800 bg-stone-900/60 p-4">
-              <h2 className="mb-3 text-sm uppercase tracking-wide text-stone-400">
+              <h2 className="mb-3 text-sm tracking-wide text-stone-400 uppercase">
                 Identity
               </h2>
               <pre className="overflow-x-auto text-xs text-stone-200">
@@ -540,7 +534,7 @@ function PrivySolanaRuntimeDriverInner() {
             </div>
 
             <div className="rounded-2xl border border-stone-800 bg-stone-900/60 p-4">
-              <h2 className="mb-3 text-sm uppercase tracking-wide text-stone-400">
+              <h2 className="mb-3 text-sm tracking-wide text-stone-400 uppercase">
                 Last Result
               </h2>
               <pre className="overflow-x-auto text-xs text-stone-200">
@@ -550,7 +544,7 @@ function PrivySolanaRuntimeDriverInner() {
           </section>
 
           <section className="rounded-2xl border border-stone-800 bg-stone-900/60 p-4">
-            <h2 className="mb-3 text-sm uppercase tracking-wide text-stone-400">
+            <h2 className="mb-3 text-sm tracking-wide text-stone-400 uppercase">
               Log
             </h2>
             {logs.length === 0 ? (

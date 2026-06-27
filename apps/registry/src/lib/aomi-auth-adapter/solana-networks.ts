@@ -34,8 +34,7 @@ function buildLegacySolanaNetwork(
     id: cluster,
     label: getDefaultSolanaNetworkLabel(cluster),
     cluster,
-    rpcHttpUrl:
-      config?.rpcHttpUrl ?? DEFAULT_SOLANA_RPC_HTTP_URLS[cluster],
+    rpcHttpUrl: config?.rpcHttpUrl ?? DEFAULT_SOLANA_RPC_HTTP_URLS[cluster],
     rpcWsUrl: config?.rpcWsUrl,
     isDefault: true,
   };
@@ -57,7 +56,8 @@ export function normalizeSolanaNetworkOptions(
       network.rpcHttpUrl ?? DEFAULT_SOLANA_RPC_HTTP_URLS[network.cluster],
     rpcWsUrl: network.rpcWsUrl,
     isDefault:
-      network.isDefault ?? (index === 0 && !rawNetworks.some((item) => item.isDefault)),
+      network.isDefault ??
+      (index === 0 && !rawNetworks.some((item) => item.isDefault)),
   }));
 }
 
@@ -96,7 +96,8 @@ export function buildDefaultSolanaNetworkOptions(options?: {
       label: "Solana Devnet",
       cluster: "solana:devnet",
       rpcHttpUrl:
-        options?.devnetRpcHttpUrl ?? DEFAULT_SOLANA_RPC_HTTP_URLS["solana:devnet"],
+        options?.devnetRpcHttpUrl ??
+        DEFAULT_SOLANA_RPC_HTTP_URLS["solana:devnet"],
       rpcWsUrl: options?.devnetRpcWsUrl,
     },
     {

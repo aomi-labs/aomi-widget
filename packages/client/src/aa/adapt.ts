@@ -1,10 +1,6 @@
 import type { Hex, TransactionReceipt } from "viem";
 
-import type {
-  AAMode,
-  AACallPayload,
-  SmartAccount,
-} from "./types";
+import type { AAMode, AACallPayload, SmartAccount } from "./types";
 
 // ---------------------------------------------------------------------------
 // Smart Account Shape (from @getpara/aa-* SDKs)
@@ -106,8 +102,7 @@ export function adaptSmartAccount(
  * Detects Alchemy gas sponsorship quota errors.
  */
 export function isAlchemySponsorshipLimitError(error: unknown): boolean {
-  const message =
-    error instanceof Error ? error.message : String(error ?? "");
+  const message = error instanceof Error ? error.message : String(error ?? "");
   const normalized = message.toLowerCase();
   return (
     normalized.includes("gas sponsorship limit") ||

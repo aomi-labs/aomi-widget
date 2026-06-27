@@ -24,7 +24,11 @@ function pick(record: UnknownRecord | undefined, ...keys: string[]): unknown {
   return undefined;
 }
 
-function assignDefined(target: UnknownRecord, key: string, value: unknown): void {
+function assignDefined(
+  target: UnknownRecord,
+  key: string,
+  value: unknown,
+): void {
   if (value !== undefined) {
     target[key] = value;
   }
@@ -205,7 +209,9 @@ function buildPending(
   assignDefined(
     p,
     "svm_sigs",
-    snakeizeBucket(pick(src, "svm_sigs", "svmSigs", "solana_sigs", "solanaSigs")),
+    snakeizeBucket(
+      pick(src, "svm_sigs", "svmSigs", "solana_sigs", "solanaSigs"),
+    ),
   );
   return Object.keys(p).length ? p : undefined;
 }
@@ -352,7 +358,8 @@ export function reconcileUserState(
   const prevEvm = asObject(prev.evm);
   const incEvm = asObject(inc.evm);
   const sameEvm =
-    !!address(prev) && (!address(inc) || sameAddress(address(prev), address(inc)));
+    !!address(prev) &&
+    (!address(inc) || sameAddress(address(prev), address(inc)));
   if (connectedNotBroken && prevEvm && (sameEvm || !incEvm)) {
     out.evm = incEvm ? deepMergePreserve(prevEvm, incEvm) : prevEvm;
   }

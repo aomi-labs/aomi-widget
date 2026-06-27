@@ -46,11 +46,7 @@ export function PaymentRequiredGate() {
     setSaving(true);
     setError(null);
     try {
-      await setByok(
-        selectedProvider,
-        apiKey.trim(),
-        label.trim() || undefined,
-      );
+      await setByok(selectedProvider, apiKey.trim(), label.trim() || undefined);
       setApiKey("");
       setLabel("");
       handleDismiss();

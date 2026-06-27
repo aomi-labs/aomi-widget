@@ -142,12 +142,14 @@ describe("watchDeployment — property-based", () => {
     ];
 
     let callCount = 0;
-    const fetchMock = vi.fn().mockResolvedValue(
-      new Response(
-        JSON.stringify(states[0]),
-        { status: 200, headers: { "Content-Type": "application/json" } },
-      ),
-    );
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(
+        new Response(JSON.stringify(states[0]), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }),
+      );
     // Override per-call via mockImplementation
     fetchMock.mockImplementation(async () => {
       const s = states[Math.min(callCount, states.length - 1)];

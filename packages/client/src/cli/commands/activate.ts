@@ -1,5 +1,8 @@
 import { DeployCliError } from "../errors";
-import { readDeploymentState, writeDeploymentState } from "../../lib/deployment-state";
+import {
+  readDeploymentState,
+  writeDeploymentState,
+} from "../../lib/deployment-state";
 
 type ActivateArgs = Record<string, unknown>;
 
@@ -27,18 +30,15 @@ function resolveBackendUrl(args: ActivateArgs): string {
 }
 
 function resolvePlatform(args: ActivateArgs): string {
-  return (
-    str(args.platform) ??
-    process.env.AOMI_DEPLOY_PLATFORM ??
-    "community"
-  );
+  return str(args.platform) ?? process.env.AOMI_DEPLOY_PLATFORM ?? "community";
 }
 
 async function extractError(res: Response): Promise<string> {
   try {
     const text = await res.text();
     const json = JSON.parse(text);
-    if (json && typeof json === "object" && json.error) return json.error as string;
+    if (json && typeof json === "object" && json.error)
+      return json.error as string;
     return text || `${res.status} ${res.statusText}`;
   } catch {
     return `${res.status} ${res.statusText}`;
@@ -91,9 +91,15 @@ export async function activateCommand(args: ActivateArgs): Promise<void> {
 
   if (!res.ok) {
     const msg = await extractError(res);
-    const code = res.status === 401 || res.status === 403 ? "AUTH_FAILED" : "BACKEND_ERROR";
+    const code =
+      res.status === 401 || res.status === 403
+        ? "AUTH_FAILED"
+        : "BACKEND_ERROR";
     if (code === "AUTH_FAILED") {
-      throw new DeployCliError(code, "Session expired; run `aomi account login`");
+      throw new DeployCliError(
+        code,
+        "Session expired; run `aomi account login`",
+      );
     }
     throw new DeployCliError(code, msg);
   }
@@ -101,7 +107,11 @@ export async function activateCommand(args: ActivateArgs): Promise<void> {
   // Check for partial activation failures in the response body
   const resultText = await res.text();
   const result = (() => {
-    try { return JSON.parse(resultText) as Record<string, unknown>; } catch { return null; }
+    try {
+      return JSON.parse(resultText) as Record<string, unknown>;
+    } catch {
+      return null;
+    }
   })();
   const activation = result?.activation as Record<string, unknown> | undefined;
   const apps = activation?.apps as Array<Record<string, unknown>> | undefined;
@@ -117,7 +127,10 @@ export async function activateCommand(args: ActivateArgs): Promise<void> {
 
   // Update timestamp in deployment.json on success
   if (state) {
-    await writeDeploymentState({ ...state, timestamp: new Date().toISOString() });
+    await writeDeploymentState({
+      ...state,
+      timestamp: new Date().toISOString(),
+    });
   }
 
   console.log(" Activation succeeded.");

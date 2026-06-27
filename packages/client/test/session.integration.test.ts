@@ -17,11 +17,14 @@ import type { AomiMessage, SendResult, SessionEventMap } from "../src/index";
 
 const BACKEND_URL = process.env.AOMI_BASE_URL ?? "https://api.aomi.dev";
 const TEST_TIMEOUT = 30_000; // 30s — AI responses can be slow
-const describeLive = process.env.AOMI_LIVE_TESTS === "1" ? describe : describe.skip;
+const describeLive =
+  process.env.AOMI_LIVE_TESTS === "1" ? describe : describe.skip;
 
 const sessions: Session[] = [];
 
-function createSession(opts?: Partial<Parameters<typeof Session.prototype.constructor>[1]>): Session {
+function createSession(
+  opts?: Partial<Parameters<typeof Session.prototype.constructor>[1]>,
+): Session {
   const session = new Session(
     { baseUrl: BACKEND_URL },
     { app: "default", ...opts },
@@ -84,7 +87,9 @@ describeLive("Session.send() (live backend)", () => {
       expect(result1.messages.length).toBeGreaterThanOrEqual(2);
 
       // Turn 2 — references context from turn 1
-      const result2 = await session.send("What number did I ask you to remember?");
+      const result2 = await session.send(
+        "What number did I ask you to remember?",
+      );
       expect(result2.messages.length).toBeGreaterThanOrEqual(4);
 
       // The agent's second response should mention "42"

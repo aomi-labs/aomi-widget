@@ -69,7 +69,9 @@ function runCommand(command, commandArgs, options = {}) {
         resolve();
         return;
       }
-      reject(new Error(`${command} ${commandArgs.join(" ")} exited with ${code}`));
+      reject(
+        new Error(`${command} ${commandArgs.join(" ")} exited with ${code}`),
+      );
     });
   });
 }
@@ -129,9 +131,7 @@ function openUrl(url) {
         ? "cmd"
         : "xdg-open";
   const launcherArgs =
-    process.platform === "win32"
-      ? ["/c", "start", "", url]
-      : [url];
+    process.platform === "win32" ? ["/c", "start", "", url] : [url];
 
   try {
     const child = spawn(launcher, launcherArgs, {

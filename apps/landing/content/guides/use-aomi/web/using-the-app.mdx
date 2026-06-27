@@ -11,7 +11,7 @@ The Web App is **embedded directly in the product's website** — no installatio
 
 When the agent needs to fetch data or take an action, it calls a **tool** — a direct connection to one of the product's APIs. Tool calls are **visible inline** as they happen:
 
-- An indicator appears showing what's in progress (e.g., *Fetching token price...* or *Checking swap routes...*)
+- An indicator appears showing what's in progress (e.g., _Fetching token price..._ or _Checking swap routes..._)
 - The result displays inline once the tool returns
 - The agent continues its response using that data
 
@@ -38,25 +38,37 @@ A single request can trigger **multiple sequential tool calls**. Asking "What's 
     </div>
   </div>
 
-  <div className="rounded-lg border bg-card p-4">
-    <div className="flex items-center gap-2 mb-3">
-      <div className="size-4 rounded-full bg-green-500 flex items-center justify-center">
-        <svg className="size-2.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-        </svg>
-      </div>
-      <span className="font-medium">Used tool: <strong>Fetch Lido stETH implementation contract ABI</strong></span>
+<div className="rounded-lg border bg-card p-4">
+  <div className="mb-3 flex items-center gap-2">
+    <div className="flex size-4 items-center justify-center rounded-full bg-green-500">
+      <svg
+        className="size-2.5 text-white"
+        fill="none"
+        stroke="currentColor"
+        viewBox="0 0 24 24"
+      >
+        <path
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeWidth={3}
+          d="M5 13l4 4L19 7"
+        />
+      </svg>
     </div>
-    <div className="bg-muted rounded p-3 text-sm">
-      <p className="font-semibold mb-1">Result:</p>
-      <pre className="text-xs overflow-x-auto">{`{
+    <span className="font-medium">
+      Used tool: <strong>Fetch Lido stETH implementation contract ABI</strong>
+    </span>
+  </div>
+  <div className="rounded bg-muted p-3 text-sm">
+    <p className="mb-1 font-semibold">Result:</p>
+    <pre className="overflow-x-auto text-xs">{`{
   "address": "0x17144556fd3424edc8fc8a4c940b2d04936d17eb",
   "chain": "ethereum",
   "chain_id": 1,
   "abi": [{ "name": "resume", "type": "function", ... }]
 }`}</pre>
-    </div>
   </div>
+</div>
 
   <div className="rounded-lg border bg-card p-4">
     <div className="flex items-center gap-2 mb-3">
@@ -78,8 +90,8 @@ A single request can trigger **multiple sequential tool calls**. Asking "What's 
 2. Lido Staked Ether (stETH) Staking Rewards: Earn ~2.33%
    URL: https://www.stakingrewards.com/asset/staked-ether
    The current reward rate for staking stETH is 2.33%...`}</pre>
-    </div>
-  </div>
+   </div>
+     </div>
 </div>
 
 ## The Control Bar
@@ -87,30 +99,70 @@ A single request can trigger **multiple sequential tool calls**. Asking "What's 
 The control bar at the top of the chat exposes **configuration options**. What's available depends on how the product operator has deployed the Web App.
 
 <div className="my-6 rounded-lg border bg-card p-4">
-  <div className="flex items-center gap-4 flex-wrap">
-    <div className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-muted text-sm">
+  <div className="flex flex-wrap items-center gap-4">
+    <div className="flex items-center gap-2 rounded-md bg-muted px-3 py-1.5 text-sm">
       <span>Model:</span>
       <span className="font-medium">Claude Sonnet</span>
-      <svg className="size-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+      <svg
+        className="size-4"
+        fill="none"
+        stroke="currentColor"
+        viewBox="0 0 24 24"
+      >
+        <path
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeWidth={2}
+          d="M19 9l-7 7-7-7"
+        />
       </svg>
     </div>
-    <div className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-muted text-sm">
+    <div className="flex items-center gap-2 rounded-md bg-muted px-3 py-1.5 text-sm">
       <span>App:</span>
       <span className="font-medium">DeFi Trading</span>
-      <svg className="size-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+      <svg
+        className="size-4"
+        fill="none"
+        stroke="currentColor"
+        viewBox="0 0 24 24"
+      >
+        <path
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeWidth={2}
+          d="M19 9l-7 7-7-7"
+        />
       </svg>
     </div>
-    <div className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-muted text-sm">
-      <svg className="size-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
+    <div className="flex items-center gap-2 rounded-md bg-muted px-3 py-1.5 text-sm">
+      <svg
+        className="size-4"
+        fill="none"
+        stroke="currentColor"
+        viewBox="0 0 24 24"
+      >
+        <path
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeWidth={2}
+          d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"
+        />
       </svg>
       <span className="font-medium">API Key</span>
     </div>
-    <div className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-primary text-primary-foreground text-sm">
-      <svg className="size-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
+    <div className="flex items-center gap-2 rounded-md bg-primary px-3 py-1.5 text-sm text-primary-foreground">
+      <svg
+        className="size-4"
+        fill="none"
+        stroke="currentColor"
+        viewBox="0 0 24 24"
+      >
+        <path
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeWidth={2}
+          d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z"
+        />
       </svg>
       <span className="font-medium">0x7a2...f3b1</span>
     </div>

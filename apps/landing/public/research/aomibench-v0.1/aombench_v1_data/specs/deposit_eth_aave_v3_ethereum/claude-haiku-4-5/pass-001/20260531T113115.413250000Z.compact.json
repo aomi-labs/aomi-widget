@@ -20,9 +20,7 @@
     "total_turns": 1,
     "total_tool_calls": 7,
     "total_responses": 13,
-    "activated_skills": [
-      "aave"
-    ],
+    "activated_skills": ["aave"],
     "failed_assertions": [],
     "budget_summary": {
       "total": 1,
@@ -151,9 +149,7 @@
         "tool": "activate_skills",
         "topic": "activate_skills",
         "arguments": {
-          "skill_ids": [
-            "aave"
-          ]
+          "skill_ids": ["aave"]
         },
         "result_preview": "{\n  \"activated\": [\n    \"aave\"\n  ],\n  \"rejected\": [],\n  \"applied_scope\": \"current_serve_cycle\"\n}"
       },
@@ -243,9 +239,7 @@
         "tool": "commit_txs",
         "topic": "Commit 1 ETH Aave V3 deposit",
         "arguments": {
-          "tx_ids": [
-            1
-          ],
+          "tx_ids": [1],
           "topic": "Commit 1 ETH Aave V3 deposit"
         },
         "result_preview": "{\n  \"status\": \"pending_approval\",\n  \"tx_ids\": [\n    1\n  ],\n  \"timestamp\": \"2026-05-31T11:31:11.448585+00:00\"\n}"
@@ -259,12 +253,8 @@
     },
     "skills": {
       "mode": "restricted",
-      "allowed": [
-        "aave"
-      ],
-      "activated_skills": [
-        "aave"
-      ],
+      "allowed": ["aave"],
+      "activated_skills": ["aave"],
       "bundle_path": "../output/eval/model-bench-public-skills-opus47-opus46-haiku45-20260531/specs/deposit_eth_aave_v3_ethereum/claude-haiku-4.5/pass-001/spec-skills/deposit_eth_aave_v3_ethereum-skills.json",
       "bundle_revision": "fnv1a64:30836aa43718b8be"
     },

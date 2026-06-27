@@ -67,9 +67,7 @@
     "total_turns": 1,
     "total_tool_calls": 14,
     "total_responses": 27,
-    "activated_skills": [
-      "aerodrome"
-    ],
+    "activated_skills": ["aerodrome"],
     "failed_assertions": [],
     "budget_summary": {
       "total": 1,
@@ -296,10 +294,7 @@
         "tool": "activate_skills",
         "topic": "activate_skills",
         "arguments": {
-          "skill_ids": [
-            "aerodrome",
-            "common_erc20"
-          ]
+          "skill_ids": ["aerodrome", "common_erc20"]
         },
         "result_preview": "{\n  \"activated\": [\n    \"aerodrome\"\n  ],\n  \"rejected\": [\n    [\n      \"common_erc20\",\n      \"invalid\"\n    ]\n  ],\n  \"applied_scope\": \"current_serve_cycle\"\n}"
       },
@@ -412,9 +407,7 @@
               "0x4200000000000000000000000000000000000006",
               "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"
             ],
-            [
-              "false"
-            ],
+            ["false"],
             "0x420DD381b31aEf6683db6B902084cB0FFECe40Da"
           ],
           "to": "0xcF77a3Ba9A5CA399B7c97c74d54e5b1Beb874E43",
@@ -560,9 +553,7 @@
         "topic": "Commit ETH→USDC swap on Aerodrome",
         "arguments": {
           "topic": "Commit ETH→USDC swap on Aerodrome",
-          "tx_ids": [
-            1
-          ]
+          "tx_ids": [1]
         },
         "result_preview": "{\n  \"status\": \"pending_approval\",\n  \"tx_ids\": [\n    1\n  ],\n  \"timestamp\": \"2026-05-31T08:51:29.805336+00:00\"\n}"
       }
@@ -575,12 +566,8 @@
     },
     "skills": {
       "mode": "restricted",
-      "allowed": [
-        "aerodrome"
-      ],
-      "activated_skills": [
-        "aerodrome"
-      ],
+      "allowed": ["aerodrome"],
+      "activated_skills": ["aerodrome"],
       "bundle_path": "../output/eval/model-bench-public-skills-minimax-m25-kiro-20260531/specs/swap_base_eth_for_usdc_aerodrome/minimax-m2.5/pass-002/spec-skills/swap_base_eth_for_usdc_aerodrome-skills.json",
       "bundle_revision": "fnv1a64:c0406359c2059af7"
     },

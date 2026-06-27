@@ -3,7 +3,13 @@ import { getAppInfo, groupAppsByCategory } from "./app-metadata";
 
 describe("app-metadata", () => {
   it("handles non-string app ids without throwing", () => {
-    const apps = ["default", undefined, null, 123, "binance"] as unknown as string[];
+    const apps = [
+      "default",
+      undefined,
+      null,
+      123,
+      "binance",
+    ] as unknown as string[];
 
     expect(() => groupAppsByCategory(apps)).not.toThrow();
 

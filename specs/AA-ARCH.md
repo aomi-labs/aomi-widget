@@ -137,13 +137,13 @@ type AAConfig = {
 
 `DEFAULT_AA_CONFIG` currently enables AA on five chains:
 
-| Chain | ID | defaultMode | supportedModes | allowBatching | sponsorship |
-| --- | --- | --- | --- | --- | --- |
-| Ethereum | `1` | `7702` | `4337`, `7702` | `true` | `optional` |
-| Polygon | `137` | `4337` | `4337`, `7702` | `true` | `optional` |
-| Arbitrum One | `42161` | `4337` | `4337`, `7702` | `true` | `optional` |
-| Optimism | `10` | `4337` | `4337`, `7702` | `true` | `optional` |
-| Base | `8453` | `4337` | `4337`, `7702` | `true` | `optional` |
+| Chain        | ID      | defaultMode | supportedModes | allowBatching | sponsorship |
+| ------------ | ------- | ----------- | -------------- | ------------- | ----------- |
+| Ethereum     | `1`     | `7702`      | `4337`, `7702` | `true`        | `optional`  |
+| Polygon      | `137`   | `4337`      | `4337`, `7702` | `true`        | `optional`  |
+| Arbitrum One | `42161` | `4337`      | `4337`, `7702` | `true`        | `optional`  |
+| Optimism     | `10`    | `4337`      | `4337`, `7702` | `true`        | `optional`  |
+| Base         | `8453`  | `4337`      | `4337`, `7702` | `true`        | `optional`  |
 
 Two important details:
 
@@ -646,12 +646,12 @@ alias described by older docs.
 
 `resolveCliExecutionDecision()` currently uses this order:
 
-| Condition | Result |
-| --- | --- |
-| `config.execution === "eoa"` | plain EOA |
-| `PIMLICO_API_KEY` is set and `config.aaProvider === "pimlico"` | Pimlico BYOK |
-| `ALCHEMY_API_KEY` is set | Alchemy BYOK |
-| otherwise | Alchemy proxy |
+| Condition                                                      | Result        |
+| -------------------------------------------------------------- | ------------- |
+| `config.execution === "eoa"`                                   | plain EOA     |
+| `PIMLICO_API_KEY` is set and `config.aaProvider === "pimlico"` | Pimlico BYOK  |
+| `ALCHEMY_API_KEY` is set                                       | Alchemy BYOK  |
+| otherwise                                                      | Alchemy proxy |
 
 So the zero-config default is now:
 
@@ -728,7 +728,9 @@ and passes that as `proxyBaseUrl`.
 CLI AA always uses a direct owner:
 
 ```ts
-owner: { kind: "direct", privateKey }
+owner: {
+  kind: ("direct", privateKey);
+}
 ```
 
 ### `signCommand()` flow

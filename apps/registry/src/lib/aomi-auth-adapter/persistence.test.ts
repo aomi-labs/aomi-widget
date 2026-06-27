@@ -24,7 +24,10 @@ describe("wallet preferences persistence", () => {
   });
 
   it("returns {} on malformed JSON", () => {
-    globalThis.localStorage.setItem("aomi.wallet-preferences.para", "{not json");
+    globalThis.localStorage.setItem(
+      "aomi.wallet-preferences.para",
+      "{not json",
+    );
     expect(loadWalletPreferences("para")).toEqual({});
   });
 
@@ -39,8 +42,8 @@ describe("wallet preferences persistence", () => {
       JSON.stringify({ selectedFamily: "svm" }),
     );
     expect(loadWalletPreferences("para")).toEqual({ selectedFamily: "solana" });
-    expect(globalThis.localStorage.getItem("aomi.wallet-preferences.para")).toBe(
-      JSON.stringify({ selectedFamily: "solana" }),
-    );
+    expect(
+      globalThis.localStorage.getItem("aomi.wallet-preferences.para"),
+    ).toBe(JSON.stringify({ selectedFamily: "solana" }));
   });
 });

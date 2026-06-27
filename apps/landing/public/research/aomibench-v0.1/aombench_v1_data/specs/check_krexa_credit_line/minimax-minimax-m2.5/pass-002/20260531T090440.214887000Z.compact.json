@@ -27,9 +27,7 @@
     "total_turns": 1,
     "total_tool_calls": 10,
     "total_responses": 14,
-    "activated_skills": [
-      "krexa"
-    ],
+    "activated_skills": ["krexa"],
     "failed_assertions": [],
     "budget_summary": {
       "total": 1,
@@ -179,9 +177,7 @@
         "tool": "activate_skills",
         "topic": "activate_skills",
         "arguments": {
-          "skill_ids": [
-            "krexa"
-          ]
+          "skill_ids": ["krexa"]
         },
         "result_preview": "{\n  \"activated\": [\n    \"krexa\"\n  ],\n  \"rejected\": [],\n  \"applied_scope\": \"current_serve_cycle\"\n}"
       },
@@ -226,9 +222,7 @@
         "tool": "encode_and_call",
         "topic": "Get Alice's credit level",
         "arguments": {
-          "arguments": [
-            "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
-          ],
+          "arguments": ["0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"],
           "value": "0",
           "topic": "Get Alice's credit level",
           "to": "0xd0CB44B07e922d3bc276061bCB9eF41e103Cc872",
@@ -244,9 +238,7 @@
           "topic": "Get Alice's MockUSDC balance",
           "to": "0x460b023a87f7Dbe0114357Ab45830F1A41e9C103",
           "function_signature": "balanceOf(address)",
-          "arguments": [
-            "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
-          ],
+          "arguments": ["0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"],
           "value": "0"
         },
         "result_preview": "{\n  \"success\": true,\n  \"result\": \"0x0000000000000000000000000000000000000000000000000000000000000000\",\n  \"revert_reason\": null,\n  \"tx\": {\n    \"from\": \"0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266\",\n    \"to\": \"0x460b023a87f7Dbe0114357Ab45830F1A41e9C103\",\n    \"value_wei\": \"0\",\n    \"value_eth\": \"0\",\n    \"input\": \"0x70a08231000000000000000000000000f39fd6e51aad88f6f4ce6ab8827279cfffb92266\",\n    \"chain_id\": 10143\n  },\n  \"result_decoded\": {\n    \"kind\": \"single_abi_word\",\n    \"raw_hex\": \"0x0000000000000000000000000000000000000000000000000000000000000000\",\n    \"decoded\": {\n      \"type\": \"uint256\",\n      \"decoded\": \"0\",\n      \"as_bool\": false,\n      \"as_address\": \"0x0000000000000000000000000000000000000000\"\n    }\n  }\n}"
@@ -256,9 +248,7 @@
         "tool": "encode_and_call",
         "topic": "Check if Alice has active credit line",
         "arguments": {
-          "arguments": [
-            "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
-          ],
+          "arguments": ["0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"],
           "value": "0",
           "topic": "Check if Alice has active credit line",
           "to": "0xd0CB44B07e922d3bc276061bCB9eF41e103Cc872",
@@ -274,9 +264,7 @@
           "topic": "Get Alice's agent data from registry",
           "to": "0xd0CB44B07e922d3bc276061bCB9eF41e103Cc872",
           "function_signature": "getAgent(address)",
-          "arguments": [
-            "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
-          ],
+          "arguments": ["0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"],
           "value": "0"
         },
         "result_preview": "{\n  \"success\": true,\n  \"result\": \"0x0000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000280000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000...000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000\",\n    \"byte_len\": 704\n  }\n}"
@@ -289,9 +277,7 @@
           "topic": "Check if Alice's credit is valid",
           "to": "0xd0CB44B07e922d3bc276061bCB9eF41e103Cc872",
           "function_signature": "isCreditValid(address)",
-          "arguments": [
-            "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
-          ],
+          "arguments": ["0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"],
           "value": "0"
         },
         "result_preview": "{\n  \"success\": true,\n  \"result\": \"0x0000000000000000000000000000000000000000000000000000000000000000\",\n  \"revert_reason\": null,\n  \"tx\": {\n    \"from\": \"0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266\",\n    \"to\": \"0xd0CB44B07e922d3bc276061bCB9eF41e103Cc872\",\n    \"value_wei\": \"0\",\n    \"value_eth\": \"0\",\n    \"input\": \"0xfc8cd71f000000000000000000000000f39fd6e51aad88f6f4ce6ab8827279cfffb92266\",\n    \"chain_id\": 10143\n  },\n  \"result_decoded\": {\n    \"kind\": \"single_abi_word\",\n    \"raw_hex\": \"0x0000000000000000000000000000000000000000000000000000000000000000\",\n    \"decoded\": {\n      \"type\": \"uint256\",\n      \"decoded\": \"0\",\n      \"as_bool\": false,\n      \"as_address\": \"0x0000000000000000000000000000000000000000\"\n    }\n  }\n}"
@@ -301,9 +287,7 @@
         "tool": "encode_and_call",
         "topic": "Get Alice's KYA tier",
         "arguments": {
-          "arguments": [
-            "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
-          ],
+          "arguments": ["0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"],
           "value": "0",
           "topic": "Get Alice's KYA tier",
           "to": "0xd0CB44B07e922d3bc276061bCB9eF41e103Cc872",
@@ -320,12 +304,8 @@
     },
     "skills": {
       "mode": "restricted",
-      "allowed": [
-        "krexa"
-      ],
-      "activated_skills": [
-        "krexa"
-      ],
+      "allowed": ["krexa"],
+      "activated_skills": ["krexa"],
       "bundle_path": "../output/eval/model-bench-public-skills-minimax-m25-kiro-20260531/specs/check_krexa_credit_line/minimax-m2.5/pass-002/spec-skills/check_krexa_credit_line-skills.json",
       "bundle_revision": "fnv1a64:d92ab920ef77d5a2"
     },

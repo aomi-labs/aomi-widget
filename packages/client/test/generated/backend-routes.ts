@@ -36,17 +36,17 @@ export const AOMI_BACKEND_ENDPOINTS = [
   {
     method: "DELETE",
     path: "/api/secrets",
-    auth: ["account","session"],
+    auth: ["account", "session"],
   },
   {
     method: "DELETE",
     path: "/api/secrets/:name",
-    auth: ["account","session"],
+    auth: ["account", "session"],
   },
   {
     method: "DELETE",
     path: "/api/sessions/:session_id",
-    auth: ["account","session"],
+    auth: ["account", "session"],
   },
   {
     method: "GET",
@@ -171,7 +171,7 @@ export const AOMI_BACKEND_ENDPOINTS = [
   {
     method: "GET",
     path: "/api/secrets",
-    auth: ["account","session"],
+    auth: ["account", "session"],
   },
   {
     method: "GET",
@@ -191,12 +191,12 @@ export const AOMI_BACKEND_ENDPOINTS = [
   {
     method: "GET",
     path: "/api/sessions",
-    auth: ["account","session"],
+    auth: ["account", "session"],
   },
   {
     method: "GET",
     path: "/api/sessions/:session_id",
-    auth: ["account","session"],
+    auth: ["account", "session"],
   },
   {
     method: "GET",
@@ -226,7 +226,7 @@ export const AOMI_BACKEND_ENDPOINTS = [
   {
     method: "PATCH",
     path: "/api/sessions/:session_id",
-    auth: ["account","session"],
+    auth: ["account", "session"],
   },
   {
     method: "POST",
@@ -291,7 +291,7 @@ export const AOMI_BACKEND_ENDPOINTS = [
   {
     method: "POST",
     path: "/api/chat",
-    auth: ["session","app_gate"],
+    auth: ["session", "app_gate"],
   },
   {
     method: "POST",
@@ -351,7 +351,7 @@ export const AOMI_BACKEND_ENDPOINTS = [
   {
     method: "POST",
     path: "/api/secrets",
-    auth: ["account","session"],
+    auth: ["account", "session"],
   },
   {
     method: "POST",
@@ -376,7 +376,7 @@ export const AOMI_BACKEND_ENDPOINTS = [
   {
     method: "POST",
     path: "/api/system",
-    auth: ["account","session"],
+    auth: ["account", "session"],
   },
   {
     method: "PUT",

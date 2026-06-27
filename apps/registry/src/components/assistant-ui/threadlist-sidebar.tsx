@@ -47,7 +47,7 @@ export function ThreadListSidebar({
     <Sidebar
       collapsible="offcanvas"
       variant="inset"
-      className="relative bg-sidebar border-r border-border/30"
+      className="bg-sidebar border-border/30 relative border-r"
       {...props}
     >
       <SidebarHeader className="aomi-sidebar-header">
@@ -60,7 +60,9 @@ export function ThreadListSidebar({
           >
             <AomiLogo className="aomi-sidebar-header-icon size-6" />
           </Link>
-          {walletPosition === "header" && <ConnectButton families={walletFamilies} />}
+          {walletPosition === "header" && (
+            <ConnectButton families={walletFamilies} />
+          )}
         </div>
       </SidebarHeader>
       <SidebarContent className="aomi-sidebar-content">

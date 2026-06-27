@@ -34,4 +34,3 @@ export async function resolveRequestAccountBearer(
   );
   return mintAccountBearer(user.userId);
 }
-

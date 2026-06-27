@@ -20,9 +20,7 @@
     "total_turns": 1,
     "total_tool_calls": 6,
     "total_responses": 12,
-    "activated_skills": [
-      "renzo"
-    ],
+    "activated_skills": ["renzo"],
     "failed_assertions": [
       {
         "label": "Alice receives ezETH from Renzo",
@@ -158,10 +156,7 @@
         "tool": "activate_skills",
         "topic": "activate_skills",
         "arguments": {
-          "skill_ids": [
-            "renzo",
-            "common_erc20"
-          ]
+          "skill_ids": ["renzo", "common_erc20"]
         },
         "result_preview": "{\n  \"activated\": [\n    \"renzo\"\n  ],\n  \"rejected\": [\n    [\n      \"common_erc20\",\n      \"invalid\"\n    ]\n  ],\n  \"applied_scope\": \"current_serve_cycle\"\n}"
       },
@@ -187,9 +182,7 @@
           "topic": "Simulate Renzo ETH deposit",
           "to": "0x74a09653A083691711cF8215a6ab074BB4e99ef5",
           "function_signature": "depositETH(uint256)",
-          "arguments": [
-            "0"
-          ],
+          "arguments": ["0"],
           "value": "100000000000000000"
         },
         "result_preview": "{\n  \"success\": true,\n  \"result\": \"0x\",\n  \"revert_reason\": null,\n  \"tx\": {\n    \"from\": \"0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266\",\n    \"to\": \"0x74a09653A083691711cF8215a6ab074BB4e99ef5\",\n    \"value_wei\": \"100000000000000000\",\n    \"value_eth\": \"0.1\",\n    \"input\": \"0x5358fbda0000000000000000000000000000000000000000000000000000000000000000\",\n    \"chain_id\": 1\n  },\n  \"result_decoded\": {\n    \"kind\": \"raw_bytes\",\n    \"raw_hex\": \"0x\",\n    \"byte_len\": 0\n  }\n}"
@@ -201,9 +194,7 @@
         "arguments": {
           "topic": "Stage Renzo ETH deposit",
           "data": {
-            "args": [
-              "0"
-            ],
+            "args": ["0"],
             "raw": "",
             "signature": "depositETH(uint256)"
           },
@@ -238,9 +229,7 @@
         "tool": "commit_txs",
         "topic": "Commit Renzo deposit",
         "arguments": {
-          "tx_ids": [
-            1
-          ],
+          "tx_ids": [1],
           "topic": "Commit Renzo deposit"
         },
         "result_preview": "{\n  \"status\": \"pending_approval\",\n  \"tx_ids\": [\n    1\n  ],\n  \"timestamp\": \"2026-05-31T09:12:20.742343+00:00\"\n}"
@@ -254,12 +243,8 @@
     },
     "skills": {
       "mode": "restricted",
-      "allowed": [
-        "renzo"
-      ],
-      "activated_skills": [
-        "renzo"
-      ],
+      "allowed": ["renzo"],
+      "activated_skills": ["renzo"],
       "bundle_path": "../output/eval/model-bench-public-skills-minimax-m25-kiro-20260531/specs/deposit_eth_renzo/minimax-m2.5/pass-001/spec-skills/deposit_eth_renzo-skills.json",
       "bundle_revision": "fnv1a64:6771891cbd887290"
     },

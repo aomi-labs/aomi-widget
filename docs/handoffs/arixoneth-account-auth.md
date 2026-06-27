@@ -7,7 +7,7 @@ Status: 2026-06-22 · from: account-auth (canonical-id) work on `reconstruct_aut
 We've shipped a working, stripped-down version of the BFF→backend account-auth
 your branch is building. **Good news: our model is the same as yours — same
 architecture, same split, same canonical-id concept.** The only differences are
-three small, mechanical gaps (named GAP-1/2/3 below), and each is a *bridge*, not
+three small, mechanical gaps (named GAP-1/2/3 below), and each is a _bridge_, not
 a redesign. **Plug your Better-Auth work into the seams we left in
 `@aomi-labs/account` (server-only) rather than forking a parallel stack** — the
 backend is already deployed against this contract, so diverging means rewriting
@@ -19,25 +19,25 @@ this doc is the delta + migration notes for your branch.
 
 ## Same model — where we already agree
 
-Both designs are the *same architecture*. Strip away naming and both say: **the
+Both designs are the _same architecture_. Strip away naming and both say: **the
 BFF owns identity and mints; the backend only verifies; the provider (Privy/Para)
 is a linked credential, not the identity; and a stable canonical UUID is the
 account.** Your Better-Auth stack and our `@aomi-labs/account` are two
 implementations of one contract.
 
-| concept | ours | yours | status |
-|---|---|---|---|
-| who owns identity / session | our session (cookie) | Better-Auth session | ✅ same principle |
-| where the bearer is minted | BFF (`@aomi-labs/account`) | BFF (Better Auth) | ✅ same |
-| backend's job | verify-only, find-only | verify-only | ✅ same |
-| provider (Privy/Para) | linked credential → wallet state | linked provider | ✅ same |
-| canonical user | UUID, stable per person | UUID, stable per person | ✅ same concept |
-| signing algorithm | EdDSA + `kid` | EdDSA + `kid` | ✅ same |
-| **which claim holds the canonical id** | `sub` | `aomi_user_id` (with `sub` = BA id) | ⚠️ **GAP-1** |
-| **how the verify key is distributed** | static mesh toml | JWKS endpoint | ⚠️ **GAP-2** |
-| **which tables hold the account graph** | `users` / `auth_identities` | `aomi_users` / `aomi_auth_identities` | ⚠️ **GAP-3** |
+| concept                                 | ours                             | yours                                 | status            |
+| --------------------------------------- | -------------------------------- | ------------------------------------- | ----------------- |
+| who owns identity / session             | our session (cookie)             | Better-Auth session                   | ✅ same principle |
+| where the bearer is minted              | BFF (`@aomi-labs/account`)       | BFF (Better Auth)                     | ✅ same           |
+| backend's job                           | verify-only, find-only           | verify-only                           | ✅ same           |
+| provider (Privy/Para)                   | linked credential → wallet state | linked provider                       | ✅ same           |
+| canonical user                          | UUID, stable per person          | UUID, stable per person               | ✅ same concept   |
+| signing algorithm                       | EdDSA + `kid`                    | EdDSA + `kid`                         | ✅ same           |
+| **which claim holds the canonical id**  | `sub`                            | `aomi_user_id` (with `sub` = BA id)   | ⚠️ **GAP-1**      |
+| **how the verify key is distributed**   | static mesh toml                 | JWKS endpoint                         | ⚠️ **GAP-2**      |
+| **which tables hold the account graph** | `users` / `auth_identities`      | `aomi_users` / `aomi_auth_identities` | ⚠️ **GAP-3**      |
 
-The shared pipeline — both implementations fill the *same boxes*:
+The shared pipeline — both implementations fill the _same boxes_:
 
 ```mermaid
 flowchart LR
@@ -91,10 +91,10 @@ The Rust backend keys session ownership + history on `sub` and looks it up
 the canonical id in a separate `aomi_user_id` claim — inverted from ours, so the
 backend would 401 every request (no `users` row has id = a Better-Auth user id).
 
-- **Why it matters:** a 1-line mismatch silently breaks *all* authenticated
+- **Why it matters:** a 1-line mismatch silently breaks _all_ authenticated
   requests in every env.
 - **Bridge:** put the **canonical UUID in `sub`**. Keep `aomi_user_id` / `sid` /
-  `scope` as *extra* claims if you like — just not as the identity slot.
+  `scope` as _extra_ claims if you like — just not as the identity slot.
 
 ```mermaid
 flowchart TB
@@ -149,7 +149,7 @@ The backend reads `users` (id = canonical UUID) and
   read, `DbUser::get(sub)` finds nothing → 401, even with a perfect token.
 - **Bridge:** converge onto the existing tables, **or** ship a migration that
   **preserves canonical UUIDs** — the Alice invariant: a returning user must
-  resolve to her *existing* `users.id`, or her sessions/history detach.
+  resolve to her _existing_ `users.id`, or her sessions/history detach.
 
 ```mermaid
 flowchart LR
@@ -170,12 +170,12 @@ flowchart LR
 
 Server-only issuer package — **`@aomi-labs/account`** (`packages/account/src/`):
 
-| file | what it does | your move |
-|---|---|---|
+| file               | what it does                                                                                                                                                                                         | your move                                                                                                                   |
+| ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
 | `account-graph.ts` | `resolveOrCreateCanonicalUser({provider, subject}) → {userId, created}` — TS port of the Rust `DbUser::insert_for_identity` against the existing `users`/`auth_identities`. Race-safe. 4 unit tests. | **Replace the body** with your Better-Auth account graph — keep the signature + the stable-UUID contract. This is the seam. |
-| `bearer.ts` | `mintAccountBearer(userId, role?) → {accessToken, expiresAt}` — `sub` = UUID, EdDSA, via the topology signer. | Converge your JWT minting here; keep the claim set (`sub`/`iss`/`aud`/`role`/`iat`/`exp`). |
-| `topology.ts` | `portalService()` = `AomiService.fromTopology(service.portal.toml)`; signing key from env `PORTAL_SERVICE_PRIVATE_KEY`. | The mint mechanism. (Topology/`AomiService` is owned elsewhere — coordinate before changing it.) |
-| `db.ts` | `pg` pool from `DATABASE_URL` (same DB the backend reads). | Reuse, or swap for Better-Auth's pool — but write the tables the backend reads. |
+| `bearer.ts`        | `mintAccountBearer(userId, role?) → {accessToken, expiresAt}` — `sub` = UUID, EdDSA, via the topology signer.                                                                                        | Converge your JWT minting here; keep the claim set (`sub`/`iss`/`aud`/`role`/`iat`/`exp`).                                  |
+| `topology.ts`      | `portalService()` = `AomiService.fromTopology(service.portal.toml)`; signing key from env `PORTAL_SERVICE_PRIVATE_KEY`.                                                                              | The mint mechanism. (Topology/`AomiService` is owned elsewhere — coordinate before changing it.)                            |
+| `db.ts`            | `pg` pool from `DATABASE_URL` (same DB the backend reads).                                                                                                                                           | Reuse, or swap for Better-Auth's pool — but write the tables the backend reads.                                             |
 
 Portal wiring (consumers of the package):
 
@@ -193,7 +193,7 @@ Portal wiring (consumers of the package):
   unchanged.
 - `apps/portal/src/app/api/account/sessions/exchange/route.ts` — current login:
   verify provider → `resolveOrCreateCanonicalUser` → set session cookie → mint.
-  This becomes "verify a *linked credential*"; the session itself should come
+  This becomes "verify a _linked credential_"; the session itself should come
   from Better-Auth login (see Identity root below).
 - The browser always calls same-origin: `getBackendUrl()` returns `""`, so the
   client builds relative `/api/*` URLs that hit the portal proxy. (Required for
@@ -208,11 +208,11 @@ the whole point of the split.
 ## Identity root (the mental model to preserve)
 
 Identity is **ours** (our session, our cookie, our canonical UUID). Privy/Para
-are **linked credentials**, not the identity — "Alice is our user; she *also*
+are **linked credentials**, not the identity — "Alice is our user; she _also_
 signs into Privy through us to attach a wallet state." So:
 
 - `sub` derives from **our session**, never from a provider token.
-- Provider verification is a *link-credential* flow; its output is wallet state
+- Provider verification is a _link-credential_ flow; its output is wallet state
   (`user_state`), **not** the bearer.
 - A provider being down/swapped/unlinked never changes the canonical user.
 

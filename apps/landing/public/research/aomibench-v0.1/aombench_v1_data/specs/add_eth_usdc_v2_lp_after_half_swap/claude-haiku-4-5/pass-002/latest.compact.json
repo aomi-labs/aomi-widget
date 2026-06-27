@@ -20,9 +20,7 @@
     "total_turns": 1,
     "total_tool_calls": 21,
     "total_responses": 37,
-    "activated_skills": [
-      "uniswap"
-    ],
+    "activated_skills": ["uniswap"],
     "failed_assertions": [],
     "budget_summary": {
       "total": 1,
@@ -328,10 +326,7 @@
         "tool": "activate_skills",
         "topic": "activate_skills",
         "arguments": {
-          "skill_ids": [
-            "uniswap",
-            "common_erc20"
-          ]
+          "skill_ids": ["uniswap", "common_erc20"]
         },
         "result_preview": "{\n  \"activated\": [\n    \"uniswap\"\n  ],\n  \"rejected\": [\n    [\n      \"common_erc20\",\n      \"invalid\"\n    ]\n  ],\n  \"applied_scope\": \"current_serve_cycle\"\n}"
       },
@@ -753,11 +748,7 @@
         "tool": "commit_txs",
         "topic": "Commit Uniswap V2 liquidity workflow: swap ETH to USDC, approve, add liquidity",
         "arguments": {
-          "tx_ids": [
-            4,
-            5,
-            8
-          ],
+          "tx_ids": [4, 5, 8],
           "topic": "Commit Uniswap V2 liquidity workflow: swap ETH to USDC, approve, add liquidity"
         },
         "result_preview": "{\n  \"status\": \"pending_approval\",\n  \"tx_ids\": [\n    4,\n    5,\n    8\n  ],\n  \"timestamp\": \"2026-05-31T21:41:47.503292+00:00\"\n}"
@@ -771,12 +762,8 @@
     },
     "skills": {
       "mode": "restricted",
-      "allowed": [
-        "uniswap"
-      ],
-      "activated_skills": [
-        "uniswap"
-      ],
+      "allowed": ["uniswap"],
+      "activated_skills": ["uniswap"],
       "bundle_path": "../output/eval/model-bench-public-skills-expansion-20260531/specs/add_eth_usdc_v2_lp_after_half_swap/claude-haiku-4.5/pass-002/spec-skills/add_eth_usdc_v2_lp_after_half_swap-skills.json",
       "bundle_revision": "fnv1a64:b60b7265d48b4779"
     },

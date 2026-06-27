@@ -37,7 +37,5 @@
     "viem",
     "wagmi"
   ],
-  "registryDependencies": [
-    "https://aomi.dev/r/aomi-auth-adapter.json"
-  ]
+  "registryDependencies": ["https://aomi.dev/r/aomi-auth-adapter.json"]
 }

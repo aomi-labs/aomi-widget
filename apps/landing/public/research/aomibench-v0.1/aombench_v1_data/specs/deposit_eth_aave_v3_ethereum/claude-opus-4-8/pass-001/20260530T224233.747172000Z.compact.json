@@ -20,9 +20,7 @@
     "total_turns": 1,
     "total_tool_calls": 7,
     "total_responses": 11,
-    "activated_skills": [
-      "aave"
-    ],
+    "activated_skills": ["aave"],
     "failed_assertions": [],
     "budget_summary": {
       "total": 1,
@@ -137,10 +135,7 @@
         "tool": "activate_skills",
         "topic": "activate_skills",
         "arguments": {
-          "skill_ids": [
-            "aave",
-            "common_erc20"
-          ]
+          "skill_ids": ["aave", "common_erc20"]
         },
         "result_preview": "{\n  \"activated\": [\n    \"aave\"\n  ],\n  \"rejected\": [\n    [\n      \"common_erc20\",\n      \"invalid\"\n    ]\n  ],\n  \"applied_scope\": \"current_serve_cycle\"\n}"
       },
@@ -230,9 +225,7 @@
         "tool": "commit_txs",
         "topic": "Commit ETH deposit into Aave V3",
         "arguments": {
-          "tx_ids": [
-            1
-          ],
+          "tx_ids": [1],
           "topic": "Commit ETH deposit into Aave V3"
         },
         "result_preview": "{\n  \"status\": \"pending_approval\",\n  \"tx_ids\": [\n    1\n  ],\n  \"timestamp\": \"2026-05-30T22:42:27.247280+00:00\"\n}"
@@ -246,12 +239,8 @@
     },
     "skills": {
       "mode": "restricted",
-      "allowed": [
-        "aave"
-      ],
-      "activated_skills": [
-        "aave"
-      ],
+      "allowed": ["aave"],
+      "activated_skills": ["aave"],
       "bundle_path": "../output/eval/model-bench-public-skills-gpt55-opus48-sonnet46-20260530/specs/deposit_eth_aave_v3_ethereum/claude-opus-4.8/pass-001/spec-skills/deposit_eth_aave_v3_ethereum-skills.json",
       "bundle_revision": "fnv1a64:30836aa43718b8be"
     },

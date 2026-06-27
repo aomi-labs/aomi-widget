@@ -226,7 +226,9 @@ const AOMI_AUTH_METHODS = new Set<AomiAuthMethod>([
   "wagmi",
 ]);
 
-function asAomiAuthMethod(value: string | undefined): AomiAuthMethod | undefined {
+function asAomiAuthMethod(
+  value: string | undefined,
+): AomiAuthMethod | undefined {
   return value && AOMI_AUTH_METHODS.has(value as AomiAuthMethod)
     ? (value as AomiAuthMethod)
     : undefined;

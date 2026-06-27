@@ -34,12 +34,12 @@ export default function AgentsBuildPage() {
       <p className="font-geist text-base leading-7 text-muted-foreground">
         Turn your platform into an agentic application. Bring your APIs -
         OpenAPI, REST, SDK - Aomi converts them into intent-shaped tools,
-        deployed as an Aomi App hosted on our runtime, with built-in
-        scalability and on-chain harness.
+        deployed as an Aomi App hosted on our runtime, with built-in scalability
+        and on-chain harness.
       </p>
 
       <section className="space-y-3">
-        <p className="font-geist text-sm leading-6 italic text-muted-foreground">
+        <p className="font-geist text-sm leading-6 text-muted-foreground italic">
           Tell your agent
         </p>
         <blockquote className="border-l-2 border-stone-300 pl-4">
@@ -102,12 +102,14 @@ export default function AgentsBuildPage() {
         </div>
       </section>
 
-      <section className="space-y-3 font-geist text-sm leading-6 text-muted-foreground">
+      <section className="font-geist space-y-3 text-sm leading-6 text-muted-foreground">
         <p>
           Install skills with <code>npx skills add aomi-labs/skills</code>.
         </p>
         <p>Use the canonical build workflow from the Aomi skills repo.</p>
-        <p>Reach for the markdown mirror when you need raw agent-readable text.</p>
+        <p>
+          Reach for the markdown mirror when you need raw agent-readable text.
+        </p>
       </section>
 
       <p className="font-geist text-sm">

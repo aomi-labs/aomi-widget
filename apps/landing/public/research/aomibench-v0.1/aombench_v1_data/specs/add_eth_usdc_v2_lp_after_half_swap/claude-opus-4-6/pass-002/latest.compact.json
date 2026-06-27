@@ -20,9 +20,7 @@
     "total_turns": 1,
     "total_tool_calls": 14,
     "total_responses": 23,
-    "activated_skills": [
-      "uniswap"
-    ],
+    "activated_skills": ["uniswap"],
     "failed_assertions": [],
     "budget_summary": {
       "total": 1,
@@ -221,10 +219,7 @@
         "tool": "activate_skills",
         "topic": "activate_skills",
         "arguments": {
-          "skill_ids": [
-            "uniswap",
-            "common_erc20"
-          ]
+          "skill_ids": ["uniswap", "common_erc20"]
         },
         "result_preview": "{\n  \"activated\": [\n    \"uniswap\"\n  ],\n  \"rejected\": [\n    [\n      \"common_erc20\",\n      \"invalid\"\n    ]\n  ],\n  \"applied_scope\": \"current_serve_cycle\"\n}"
       },
@@ -381,10 +376,7 @@
           "description": "Approve Uniswap V2 Router to spend 998308536 USDC for adding liquidity",
           "data": {
             "signature": "approve(address,uint256)",
-            "args": [
-              "0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D",
-              "998308536"
-            ],
+            "args": ["0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D", "998308536"],
             "raw": ""
           },
           "value": "0",
@@ -455,11 +447,7 @@
         "tool": "commit_txs",
         "topic": "Commit V2 swap + approve + addLiquidityETH batch",
         "arguments": {
-          "tx_ids": [
-            1,
-            2,
-            3
-          ],
+          "tx_ids": [1, 2, 3],
           "topic": "Commit V2 swap + approve + addLiquidityETH batch"
         },
         "result_preview": "{\n  \"status\": \"pending_approval\",\n  \"tx_ids\": [\n    1,\n    2,\n    3\n  ],\n  \"timestamp\": \"2026-05-31T21:37:01.309070+00:00\"\n}"
@@ -473,12 +461,8 @@
     },
     "skills": {
       "mode": "restricted",
-      "allowed": [
-        "uniswap"
-      ],
-      "activated_skills": [
-        "uniswap"
-      ],
+      "allowed": ["uniswap"],
+      "activated_skills": ["uniswap"],
       "bundle_path": "../output/eval/model-bench-public-skills-expansion-20260531/specs/add_eth_usdc_v2_lp_after_half_swap/claude-opus-4.6/pass-002/spec-skills/add_eth_usdc_v2_lp_after_half_swap-skills.json",
       "bundle_revision": "fnv1a64:b60b7265d48b4779"
     },

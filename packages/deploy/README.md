@@ -33,14 +33,14 @@ failure. Best for CLI and automated workflows.
 The steps **before** deploy — the twin of the Rust `aomi-build` bootstrap
 commands. Each maps 1:1 onto a `/api/platforms/*` route.
 
-| Method | Route | Purpose |
-|---|---|---|
-| `mintToken()` | `POST /:p/tokens` | mint a `platform` or `app` activation token (plaintext returned once) |
-| `listTokens()` / `revokeToken()` | `GET` / `DELETE /:p/tokens[/:id]` | token lifecycle |
-| `syncSource()` | `POST /:p/sources/sync-installed` | resolve an installed repo → `appSourceId` for deploy |
-| `resolveSource()` | `GET /:p/sources/resolve` | look up an existing source without syncing |
-| `scaffold()` | `POST /api/integrations/github-app/platforms/:p/sources/create-from-template` | one-shot: create a repo from a template → source |
-| `listApps()` / `getApp()` | `GET /:p/apps[/:app]` | inventory loaded apps (find `app_id` for app-scoped tokens) |
+| Method                           | Route                                                                         | Purpose                                                               |
+| -------------------------------- | ----------------------------------------------------------------------------- | --------------------------------------------------------------------- |
+| `mintToken()`                    | `POST /:p/tokens`                                                             | mint a `platform` or `app` activation token (plaintext returned once) |
+| `listTokens()` / `revokeToken()` | `GET` / `DELETE /:p/tokens[/:id]`                                             | token lifecycle                                                       |
+| `syncSource()`                   | `POST /:p/sources/sync-installed`                                             | resolve an installed repo → `appSourceId` for deploy                  |
+| `resolveSource()`                | `GET /:p/sources/resolve`                                                     | look up an existing source without syncing                            |
+| `scaffold()`                     | `POST /api/integrations/github-app/platforms/:p/sources/create-from-template` | one-shot: create a repo from a template → source                      |
+| `listApps()` / `getApp()`        | `GET /:p/apps[/:app]`                                                         | inventory loaded apps (find `app_id` for app-scoped tokens)           |
 
 ### Credential model
 
@@ -71,13 +71,19 @@ const { accessToken: adminBearer } = await svc.mint({
 const dc = new DeploymentClient({
   aomi: { backendUrl: process.env.AOMI_BACKEND_URL!, adminBearer },
 });
-const { token } = await dc.mintToken({ platform: "playground", scope: "platform" });
+const { token } = await dc.mintToken({
+  platform: "playground",
+  scope: "platform",
+});
 
 // 3. Resolve the source, then deploy with the minted token.
 const client = new DeploymentClient({
   aomi: { backendUrl: process.env.AOMI_BACKEND_URL!, activationToken: token },
 });
-const { id } = await client.syncSource({ platform: "playground", repo: "alice/alice-bot" });
+const { id } = await client.syncSource({
+  platform: "playground",
+  repo: "alice/alice-bot",
+});
 await client.deploy({
   platform: "playground",
   appSourceId: id,
@@ -89,6 +95,7 @@ await client.deploy({
 ### Error handling
 
 All client methods throw `DeployError` on non-2xx responses:
+
 ```ts
 try {
   await dc.deploy({ ... });
@@ -102,6 +109,7 @@ try {
 ```
 
 For activation, check partial failure:
+
 ```ts
 const result = await dc.activate({ ... });
 if (!result.ok) {

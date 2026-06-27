@@ -32,12 +32,6 @@
     "instruction_md": "## Common ERC20: Token Registry\nUse this skill for shared ERC20 token addresses and standard ERC20 methods on EVM chains.\n- WETH: 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2 (chain 1)\n- USDC: 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48 (chain 1)\n- USDT: 0xdAC17F958D2ee523a2206206994597C13D831ec7 (chain 1)\n- DAI: 0x6B175474E89094C44Da98b954EedeAC495271d0F (chain 1)\n- WBTC: 0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599 (chain 1)\n- LINK: 0x514910771AF9Ca656af840dff83E8264EcF986CA (chain 1)\n- AAVE: 0x7Fc66500c84A76Ad7e9c93437bFc5Ac33E2DDaE9 (chain 1)\n- USDC: 0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85 (chain 10)\n- USDC: 0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359 (chain 137)\n- USDC: 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913 (chain 8453)\n- USDC: 0xaf88d065e77c8cC2239327C5EDb3A432268e5831 (chain 42161)\n\n## Common ERC20: Standard API\nERC20 [erc20]:\n- balanceOf(address) → uint256\n- allowance(address,address) → uint256\n- approve(address,uint256) → bool\n- transfer(address,uint256) → bool\n- decimals() → uint8\n\n## Common ERC20: Procedure\n1. Call `get_time_and_onchain_context`.\n2. For native balance, call `get_account_info`.\n3. For ERC20s, use the standard API here: `balanceOf`, `allowance`, `approve`, `transfer`, `decimals`.\n4. Hand off to the active protocol skill once the token address and ERC20 method are known.\n## Common ERC20: Critical Rules\n- This skill owns shared token addresses and the generic ERC20 API.\n- Protocol-native, share, reward, and vault tokens belong to the relevant protocol skill, not this one.\n- If another protocol skill is active, let that skill own protocol contracts, simulation, and execution flow.\n- Use registry addresses when listed; otherwise resolve the token with `get_contract`.",
     "tool_hooks": [],
     "tools_namespace": "evm-core",
-    "chain_ids": [
-      1,
-      10,
-      137,
-      8453,
-      42161
-    ]
+    "chain_ids": [1, 10, 137, 8453, 42161]
   }
 ]

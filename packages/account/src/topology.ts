@@ -31,7 +31,10 @@ function hostOf(value: string): string {
   try {
     return new URL(trimmed).hostname;
   } catch {
-    return trimmed.replace(/^[a-z]+:\/\//, "").split("/")[0].split(":")[0];
+    return trimmed
+      .replace(/^[a-z]+:\/\//, "")
+      .split("/")[0]
+      .split(":")[0];
   }
 }
 

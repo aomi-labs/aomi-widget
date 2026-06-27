@@ -47,11 +47,7 @@ export const SecretInput: FC<SecretInputProps> = ({
 
   const hasSecrets = savedNames.length > 0;
 
-  const updateEntry = (
-    index: number,
-    field: "name" | "value",
-    val: string,
-  ) => {
+  const updateEntry = (index: number, field: "name" | "value", val: string) => {
     setEntries((prev) => {
       const next = [...prev];
       next[index] = { ...next[index], [field]: val };
@@ -67,9 +63,7 @@ export const SecretInput: FC<SecretInputProps> = ({
     setEntries((prev) => prev.filter((_, i) => i !== index));
   };
 
-  const validEntries = entries.filter(
-    (e) => e.name.trim() && e.value.trim(),
-  );
+  const validEntries = entries.filter((e) => e.name.trim() && e.value.trim());
 
   const handleSave = async () => {
     if (validEntries.length === 0) return;
@@ -80,9 +74,7 @@ export const SecretInput: FC<SecretInputProps> = ({
         secrets[entry.name.trim()] = entry.value.trim();
       }
       await ingestSecrets(secrets);
-      setSavedNames((prev) => [
-        ...new Set([...prev, ...Object.keys(secrets)]),
-      ]);
+      setSavedNames((prev) => [...new Set([...prev, ...Object.keys(secrets)])]);
       setEntries([{ name: "", value: "" }]);
       setOpen(false);
     } catch (error) {
@@ -136,9 +128,7 @@ export const SecretInput: FC<SecretInputProps> = ({
           {entries.map((entry, index) => (
             <div key={index} className="flex items-end gap-2">
               <div className="grid flex-1 gap-1">
-                {index === 0 && (
-                  <Label className="text-xs">Name</Label>
-                )}
+                {index === 0 && <Label className="text-xs">Name</Label>}
                 <Input
                   type="text"
                   placeholder="MY_API_KEY"

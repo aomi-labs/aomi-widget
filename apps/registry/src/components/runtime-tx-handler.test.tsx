@@ -64,7 +64,9 @@ describe("RuntimeTxHandler", () => {
   });
 
   it("dispatches solana_sign requests through signSolanaTransaction", async () => {
-    authState.signSolanaTransaction.mockResolvedValue({ signedTx: "SIGNED_TX" });
+    authState.signSolanaTransaction.mockResolvedValue({
+      signedTx: "SIGNED_TX",
+    });
     runtimeState.pendingWalletRequests = [
       {
         id: "solana_sign-7",

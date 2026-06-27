@@ -109,8 +109,7 @@ export function SecretGate() {
   const handleSwitchAway = useCallback(() => {
     const candidate = authState.appDescriptors.find(
       (d) =>
-        d.name !== currentApp &&
-        (d.secrets ?? []).every((s) => !s.required),
+        d.name !== currentApp && (d.secrets ?? []).every((s) => !s.required),
     );
     onAppSelect(candidate?.name ?? "default");
   }, [currentApp, onAppSelect, authState.appDescriptors]);
@@ -169,9 +168,7 @@ export function SecretGate() {
           ))}
         </div>
 
-        {error && (
-          <p className="text-destructive mt-3 text-sm">{error}</p>
-        )}
+        {error && <p className="text-destructive mt-3 text-sm">{error}</p>}
 
         <div className="mt-5 flex items-center justify-between gap-3">
           <button

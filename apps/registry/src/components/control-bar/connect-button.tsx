@@ -26,7 +26,11 @@ const SingleConnectButton: FC<Omit<ConnectButtonProps, "families">> = ({
   }, [identity.isConnected, onConnectionChange]);
 
   const handleClick = () => {
-    if (identity.isConnected && adapter.canOpenAccountUI && adapter.openAccountUI) {
+    if (
+      identity.isConnected &&
+      adapter.canOpenAccountUI &&
+      adapter.openAccountUI
+    ) {
       void adapter.openAccountUI();
       return;
     }

@@ -58,7 +58,9 @@ export async function resolveOrCreateCanonicalUser(
   const provider = input.provider.trim();
   const subject = input.subject.trim();
   if (!provider || !subject) {
-    throw new Error("resolveOrCreateCanonicalUser requires provider and subject");
+    throw new Error(
+      "resolveOrCreateCanonicalUser requires provider and subject",
+    );
   }
 
   const pool = getPool();

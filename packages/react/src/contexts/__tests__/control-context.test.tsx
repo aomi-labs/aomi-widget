@@ -151,9 +151,7 @@ describe("ControlContextProvider", () => {
     });
 
     await waitFor(() => {
-      expect(getControl().state.byokKeys.openai?.apiKey).toBe(
-        "sk-openai-123",
-      );
+      expect(getControl().state.byokKeys.openai?.apiKey).toBe("sk-openai-123");
     });
 
     await act(async () => {

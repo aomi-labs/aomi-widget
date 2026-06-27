@@ -10,13 +10,13 @@ Read this when:
 
 The CLI uses **auto-detect** by default and always signs via AA unless `--eoa` is passed:
 
-| User-side provider configured? | Flag | Result |
-|---|---|---|
-| Pimlico configured | `--aa-provider pimlico` | Pimlico BYOK (user-side credential) |
-| Alchemy configured | (none) | Alchemy BYOK (user-side credential) |
-| Nothing configured | (none) | **Alchemy proxy via the aomi backend — zero-config AA** |
-| Any | `--aa-provider`/`--aa-mode` | AA with explicit settings |
-| Any | `--eoa` | Direct EOA, skip AA |
+| User-side provider configured? | Flag                        | Result                                                  |
+| ------------------------------ | --------------------------- | ------------------------------------------------------- |
+| Pimlico configured             | `--aa-provider pimlico`     | Pimlico BYOK (user-side credential)                     |
+| Alchemy configured             | (none)                      | Alchemy BYOK (user-side credential)                     |
+| Nothing configured             | (none)                      | **Alchemy proxy via the aomi backend — zero-config AA** |
+| Any                            | `--aa-provider`/`--aa-mode` | AA with explicit settings                               |
+| Any                            | `--eoa`                     | Direct EOA, skip AA                                     |
 
 There is **no silent EOA fallback**. If AA is selected and both AA modes fail, the CLI returns a hard error suggesting `--eoa`. The zero-config proxy path means the user does not need any provider credential of their own for AA to work.
 
@@ -36,10 +36,10 @@ Priority chain for AA resolution: **flag > user-side credential > backend zero-c
 
 ## AA Providers
 
-| Provider | Flag                    | Notes                            |
-| -------- | ----------------------- | -------------------------------- |
+| Provider | Flag                    | Notes                                                |
+| -------- | ----------------------- | ---------------------------------------------------- |
 | Alchemy  | `--aa-provider alchemy` | 4337 (sponsored via gas policy), 7702 (EOA pays gas) |
-| Pimlico  | `--aa-provider pimlico` | 4337 (sponsored via dashboard policy) |
+| Pimlico  | `--aa-provider pimlico` | 4337 (sponsored via dashboard policy)                |
 
 Provider selection rules:
 
@@ -51,10 +51,10 @@ The skill never configures provider credentials itself. If `aomi tx sign` report
 
 ## AA Modes
 
-| Mode   | Flag             | Meaning                          | Gas |
-| ------ | ---------------- | -------------------------------- | --- |
-| `4337` | `--aa-mode 4337` | Bundler + paymaster UserOperation via smart account. Gas sponsored by paymaster. | Paymaster pays |
-| `7702` | `--aa-mode 7702` | Native EIP-7702 type-4 transaction with delegation. EOA signs authorization + sends tx to self. | EOA pays |
+| Mode   | Flag             | Meaning                                                                                         | Gas            |
+| ------ | ---------------- | ----------------------------------------------------------------------------------------------- | -------------- |
+| `4337` | `--aa-mode 4337` | Bundler + paymaster UserOperation via smart account. Gas sponsored by paymaster.                | Paymaster pays |
+| `7702` | `--aa-mode 7702` | Native EIP-7702 type-4 transaction with delegation. EOA signs authorization + sends tx to self. | EOA pays       |
 
 **7702 requires the signing EOA to have native gas tokens** (ETH, MATIC, etc.). There is no paymaster/sponsorship for 7702. Use 4337 for gasless execution.
 
@@ -92,14 +92,14 @@ When the CLI emits a viem `insufficient funds for transfer` error followed by `U
 
 ## Supported Chains
 
-| Chain         | ID       | AA available? |
-| ------------- | -------- | ------------- |
-| Ethereum      | 1        | Yes (4337, 7702; default 7702) |
-| Polygon       | 137      | Yes (4337, 7702; default 4337) |
-| Arbitrum One  | 42161    | Yes (4337, 7702; default 4337) |
-| Base          | 8453     | Yes (4337, 7702; default 4337) |
-| Optimism      | 10       | Yes (4337, 7702; default 4337) |
-| Sepolia       | 11155111 | No AA defaults — use `--eoa` |
+| Chain         | ID       | AA available?                            |
+| ------------- | -------- | ---------------------------------------- |
+| Ethereum      | 1        | Yes (4337, 7702; default 7702)           |
+| Polygon       | 137      | Yes (4337, 7702; default 4337)           |
+| Arbitrum One  | 42161    | Yes (4337, 7702; default 4337)           |
+| Base          | 8453     | Yes (4337, 7702; default 4337)           |
+| Optimism      | 10       | Yes (4337, 7702; default 4337)           |
+| Sepolia       | 11155111 | No AA defaults — use `--eoa`             |
 | Anvil (local) | 31337    | No AA defaults — local fork; use `--eoa` |
 
 For Sepolia and Anvil, `aomi tx sign` without `--eoa` may fail. Pass `--eoa` explicitly when signing on these chains.

@@ -21,7 +21,8 @@ import type {
 
 const BACKEND_URL = process.env.AOMI_BASE_URL ?? "https://api.aomi.dev";
 const TEST_TIMEOUT = 30_000; // 30s — AI responses can be slow
-const describeLive = process.env.AOMI_LIVE_TESTS === "1" ? describe : describe.skip;
+const describeLive =
+  process.env.AOMI_LIVE_TESTS === "1" ? describe : describe.skip;
 
 let client: AomiClient;
 
@@ -62,7 +63,10 @@ describeLive("Chat scenarios (live backend)", () => {
     async () => {
       const sessionId = freshSessionId();
 
-      const response = await client.sendMessage(sessionId, "Say hello in exactly 3 words.");
+      const response = await client.sendMessage(
+        sessionId,
+        "Say hello in exactly 3 words.",
+      );
 
       expect(response).toBeDefined();
       expect(response.messages).toBeDefined();
@@ -98,7 +102,10 @@ describeLive("Chat scenarios (live backend)", () => {
       expect(state1.messages?.length).toBeGreaterThanOrEqual(2);
 
       // Turn 2 — references context from turn 1
-      await client.sendMessage(sessionId, "What number did I ask you to remember?");
+      await client.sendMessage(
+        sessionId,
+        "What number did I ask you to remember?",
+      );
       const state2 = await pollUntilDone(sessionId);
 
       // Should have 4+ messages (2 user + 2 agent)
@@ -174,9 +181,7 @@ describeLive("Chat scenarios (live backend)", () => {
       expect(state).toBeDefined();
       expect(state.is_processing).toBe(false);
       // Messages can be empty array or null
-      expect(
-        !state.messages || state.messages.length === 0,
-      ).toBe(true);
+      expect(!state.messages || state.messages.length === 0).toBe(true);
     },
     TEST_TIMEOUT,
   );
@@ -193,7 +198,10 @@ describeLive("Chat scenarios (live backend)", () => {
       // Send a system message
       const sysResponse = await client.sendSystemMessage(
         sessionId,
-        JSON.stringify({ type: "wallet:state_changed", payload: { address: "0x1234", isConnected: true } }),
+        JSON.stringify({
+          type: "wallet:state_changed",
+          payload: { address: "0x1234", isConnected: true },
+        }),
       );
       expect(sysResponse).toBeDefined();
 

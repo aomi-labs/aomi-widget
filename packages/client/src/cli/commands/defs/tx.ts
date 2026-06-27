@@ -11,7 +11,10 @@ const txListDef = defineCommand({
 });
 
 const txSimulateDef = defineCommand({
-  meta: { name: "simulate", description: "Simulate a batch of pending transactions" },
+  meta: {
+    name: "simulate",
+    description: "Simulate a batch of pending transactions",
+  },
   args: {
     ...globalArgs,
     txIds: {
@@ -37,7 +40,8 @@ const txSignDef = defineCommand({
     },
     aa: {
       type: "boolean",
-      description: "Force AA execution, error if provider not configured (default: auto-detect)",
+      description:
+        "Force AA execution, error if provider not configured (default: auto-detect)",
     },
     "aa-provider": {
       type: "string",

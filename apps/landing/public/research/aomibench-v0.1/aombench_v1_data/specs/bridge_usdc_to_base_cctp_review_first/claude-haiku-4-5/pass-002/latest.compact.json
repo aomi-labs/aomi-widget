@@ -20,9 +20,7 @@
     "total_turns": 1,
     "total_tool_calls": 8,
     "total_responses": 14,
-    "activated_skills": [
-      "cctp"
-    ],
+    "activated_skills": ["cctp"],
     "failed_assertions": [],
     "budget_summary": {
       "total": 1,
@@ -158,9 +156,7 @@
         "tool": "activate_skills",
         "topic": "activate_skills",
         "arguments": {
-          "skill_ids": [
-            "cctp"
-          ]
+          "skill_ids": ["cctp"]
         },
         "result_preview": "{\n  \"activated\": [\n    \"cctp\"\n  ],\n  \"rejected\": [],\n  \"applied_scope\": \"current_serve_cycle\"\n}"
       },
@@ -230,10 +226,7 @@
           "description": "Approve 25 USDC to CCTP messenger",
           "data": {
             "signature": "approve(address,uint256)",
-            "args": [
-              "0x28b5a0e9c621a5badaa536219b3a228c8168cf5d",
-              "25000000"
-            ],
+            "args": ["0x28b5a0e9c621a5badaa536219b3a228c8168cf5d", "25000000"],
             "raw": ""
           },
           "value": "0",
@@ -303,12 +296,8 @@
     },
     "skills": {
       "mode": "restricted",
-      "allowed": [
-        "cctp"
-      ],
-      "activated_skills": [
-        "cctp"
-      ],
+      "allowed": ["cctp"],
+      "activated_skills": ["cctp"],
       "bundle_path": "../output/eval/model-bench-public-skills-opus47-opus46-haiku45-20260531/specs/bridge_usdc_to_base_cctp_review_first/claude-haiku-4.5/pass-002/spec-skills/bridge_usdc_to_base_cctp_review_first-skills.json",
       "bundle_revision": "fnv1a64:d91d4c63b90bc381"
     },

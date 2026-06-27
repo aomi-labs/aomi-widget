@@ -30,8 +30,9 @@ function fakeClient(): AomiClient {
   // the network at all. Real instance + stubbed subscribe satisfies the
   // type guard without leaking any HTTP from these tests.
   const client = new AomiClient({ baseUrl: "http://test.invalid" });
-  (client as unknown as { subscribeSSE: AomiClient["subscribeSSE"] }).subscribeSSE =
-    () => () => {};
+  (
+    client as unknown as { subscribeSSE: AomiClient["subscribeSSE"] }
+  ).subscribeSSE = () => () => {};
   return client;
 }
 

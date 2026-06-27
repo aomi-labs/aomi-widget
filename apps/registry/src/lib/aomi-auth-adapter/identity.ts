@@ -1,6 +1,10 @@
 "use client";
 
-import type { AomiAuthIdentity, AomiAuthMethod, AomiWalletProvider } from "./types";
+import type {
+  AomiAuthIdentity,
+  AomiAuthMethod,
+  AomiWalletProvider,
+} from "./types";
 
 export const AOMI_AUTH_DISCONNECTED_IDENTITY: AomiAuthIdentity = {
   status: "disconnected",

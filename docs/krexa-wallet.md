@@ -1,92 +1,92 @@
 # Krexa Integration: Bring Your Own Privy Wallet
 
-  Krexa's users connect their wallet at the Krexa app level (Privy). The AomiFrame inside needs to reuse   
-  that same wallet session rather than showing its own connect flow.                                       
-                                                                                                           
-  1. Component Tree                                                                                        
-                                                                                                           
-  import {                                                                                                 
-    AomiFrame,
-    AomiAuthAdapterProvider,
-    ExtUserProvider,
-  } from "@aomi-labs/widget-lib";
-  import "@aomi-labs/widget-lib/styles.css";
+Krexa's users connect their wallet at the Krexa app level (Privy). The AomiFrame inside needs to reuse  
+ that same wallet session rather than showing its own connect flow.
 
-  function KrexaAgentPage() {
-    return (
-      // ExtUserProvider must wrap both Krexa's Privy context and AomiFrame
-      // so wallet state flows into the chat session. It's idempotent — safe
-      // to nest if AomiFrame mounts one internally.
-      <ExtUserProvider>
-        {/* Krexa's PrivyProvider is already above in the app layout */}
-        <KrexaPrivyAdapter>
-          <AomiFrame.Root
-            walletPosition={null}         // hide wallet from sidebar
-            backendUrl="https://..."
-          >
-            <AomiFrame.Header
-              withControl
-              controlBarProps={{
+1. Component Tree  
+
+
+import {  
+ AomiFrame,
+AomiAuthAdapterProvider,
+ExtUserProvider,
+} from "@aomi-labs/widget-lib";
+import "@aomi-labs/widget-lib/styles.css";
+
+function KrexaAgentPage() {
+return (
+// ExtUserProvider must wrap both Krexa's Privy context and AomiFrame
+// so wallet state flows into the chat session. It's idempotent — safe
+// to nest if AomiFrame mounts one internally.
+<ExtUserProvider>
+{/_ Krexa's PrivyProvider is already above in the app layout _/}
+<KrexaPrivyAdapter>
+<AomiFrame.Root
+walletPosition={null} // hide wallet from sidebar
+backendUrl="https://..." >
+<AomiFrame.Header
+withControl
+controlBarProps={{
                 hideWallet: true,          // hide built-in "Connect Account"
                 hideNetwork: false,
-              }}
-            >
-              {/* Optional: put Krexa's own wallet button here */}
-              <KrexaConnectWalletButton />
-            </AomiFrame.Header>
-            <AomiFrame.Composer />
-          </AomiFrame.Root>
-        </KrexaPrivyAdapter>
-      </ExtUserProvider>
-    );
-  }
+              }} >
+{/_ Optional: put Krexa's own wallet button here _/}
+<KrexaConnectWalletButton />
+</AomiFrame.Header>
+<AomiFrame.Composer />
+</AomiFrame.Root>
+</KrexaPrivyAdapter>
+</ExtUserProvider>
+);
+}
 
-  Key props:
-  - walletPosition={null} — removes wallet button from the sidebar footer (the "Connect Account" you see
+Key props:
+
+- walletPosition={null} — removes wallet button from the sidebar footer (the "Connect Account" you see
   bottom-left)
-  - controlBarProps={{ hideWallet: true }} — removes wallet from the control bar
-  - <AomiFrame.Header> children — anything passed here renders to the right of the control bar, so Krexa's
+- controlBarProps={{ hideWallet: true }} — removes wallet from the control bar
+- <AomiFrame.Header> children — anything passed here renders to the right of the control bar, so Krexa's
   own button goes there if they want one inside the frame
 
-  2. The Adapter Bridge (KrexaPrivyAdapter)
+2. The Adapter Bridge (KrexaPrivyAdapter)
 
-  This component reads from Krexa's existing Privy/wagmi hooks and maps them into the AomiAuthAdapter
-  interface that RuntimeTxHandler consumes.
+This component reads from Krexa's existing Privy/wagmi hooks and maps them into the AomiAuthAdapter
+interface that RuntimeTxHandler consumes.
 
-  "use client";
+"use client";
 
-  import { useMemo, type ReactNode } from "react";
-  import {
-    AomiAuthAdapterProvider,
-    AOMI_AUTH_DISCONNECTED_IDENTITY,
-    AOMI_AUTH_BOOTING_IDENTITY,
-  } from "@aomi-labs/widget-lib";
-  import type {
-    AomiAuthAdapter,
-    AomiAuthIdentity,
-  } from "@aomi-labs/widget-lib";
-  import {
-    toViemSignTypedDataArgs,
-    type WalletTxPayload,
-    type WalletEip712Payload,
-  } from "@aomi-labs/react";
+import { useMemo, type ReactNode } from "react";
+import {
+AomiAuthAdapterProvider,
+AOMI_AUTH_DISCONNECTED_IDENTITY,
+AOMI_AUTH_BOOTING_IDENTITY,
+} from "@aomi-labs/widget-lib";
+import type {
+AomiAuthAdapter,
+AomiAuthIdentity,
+} from "@aomi-labs/widget-lib";
+import {
+toViemSignTypedDataArgs,
+type WalletTxPayload,
+type WalletEip712Payload,
+} from "@aomi-labs/react";
 
-  // Krexa's own Privy hooks (already mounted above in their app)
-  import { usePrivy, useWallets } from "@privy-io/react-auth";
-  import {
-    useAccount,
-    useSendTransaction,
-    useSignTypedData,
-    useSwitchChain,
-  } from "wagmi";
+// Krexa's own Privy hooks (already mounted above in their app)
+import { usePrivy, useWallets } from "@privy-io/react-auth";
+import {
+useAccount,
+useSendTransaction,
+useSignTypedData,
+useSwitchChain,
+} from "wagmi";
 
-  export function KrexaPrivyAdapter({ children }: { children: ReactNode }) {
-    const { ready, authenticated, login, logout } = usePrivy();
-    const { wallets } = useWallets();
-    const { address, chainId, isConnected } = useAccount();
-    const { sendTransactionAsync } = useSendTransaction();
-    const { signTypedDataAsync } = useSignTypedData();
-    const { switchChainAsync } = useSwitchChain();
+export function KrexaPrivyAdapter({ children }: { children: ReactNode }) {
+const { ready, authenticated, login, logout } = usePrivy();
+const { wallets } = useWallets();
+const { address, chainId, isConnected } = useAccount();
+const { sendTransactionAsync } = useSendTransaction();
+const { signTypedDataAsync } = useSignTypedData();
+const { switchChainAsync } = useSwitchChain();
 
     const adapter = useMemo<AomiAuthAdapter>(() => {
       const isBooting = !ready;
@@ -161,43 +161,44 @@
         {children}
       </AomiAuthAdapterProvider>
     );
-  }
 
-  3. What This Gets Them
+}
 
-  Once mounted, the data flow becomes:
+3. What This Gets Them
 
-  Krexa Privy login → wagmi hooks → KrexaPrivyAdapter (builds AomiAuthAdapter)
-    → AomiAuthAdapterProvider (context)
-      → AomiAuthAdapterSync (auto-syncs identity → setUser → user_state)
-        → RuntimeTxHandler reads pendingWalletRequests + calls adapter.sendTransaction
-          → wagmi sendTransactionAsync (Krexa's Privy signer)
-            → session.resolve(id, result) → backend
+Once mounted, the data flow becomes:
 
-  - User connects once at the Krexa level — the agent sees the wallet immediately
-  - AI-initiated transactions pop Privy's signing modal (same wallet, same session)
-  - user_state.wallet_provider = "privy" is sent to the backend on every chat message
+Krexa Privy login → wagmi hooks → KrexaPrivyAdapter (builds AomiAuthAdapter)
+→ AomiAuthAdapterProvider (context)
+→ AomiAuthAdapterSync (auto-syncs identity → setUser → user_state)
+→ RuntimeTxHandler reads pendingWalletRequests + calls adapter.sendTransaction
+→ wagmi sendTransactionAsync (Krexa's Privy signer)
+→ session.resolve(id, result) → backend
 
-  4. Batch / AA Support (Optional)
+- User connects once at the Krexa level — the agent sees the wallet immediately
+- AI-initiated transactions pop Privy's signing modal (same wallet, same session)
+- user_state.wallet_provider = "privy" is sent to the backend on every chat message
 
-  The simple adapter above does single-call EOA sends. If Krexa wants batch transactions or AA (4337), they
-   should use the shared execution engine instead of raw sendTransactionAsync:
+4. Batch / AA Support (Optional)
 
-  import { executeAdapterTransaction } from "@aomi-labs/widget-lib";
-  // ...inside the adapter useMemo:
-  sendTransaction: async (payload: WalletTxPayload) => {
-    return executeAdapterTransaction({
-      payload,
-      state: {
-        currentChainId: chainId,
-        capabilities,             // from useCapabilities()
-        sendCallsSyncAsync,       // from useSendCallsSync() if supported
-        sendTransactionAsync,
-        switchChainAsync,
-        chainsById,               // Record<number, Chain>
-      },
-    });
-  },
+The simple adapter above does single-call EOA sends. If Krexa wants batch transactions or AA (4337), they
+should use the shared execution engine instead of raw sendTransactionAsync:
 
-  This gives them the full fallback chain: 7702 → 4337 → EOA, batch wallet_sendCalls, and fee injection
-  from RuntimeTxHandler's simulation step — all using Krexa's Privy signer.
+import { executeAdapterTransaction } from "@aomi-labs/widget-lib";
+// ...inside the adapter useMemo:
+sendTransaction: async (payload: WalletTxPayload) => {
+return executeAdapterTransaction({
+payload,
+state: {
+currentChainId: chainId,
+capabilities, // from useCapabilities()
+sendCallsSyncAsync, // from useSendCallsSync() if supported
+sendTransactionAsync,
+switchChainAsync,
+chainsById, // Record<number, Chain>
+},
+});
+},
+
+This gives them the full fallback chain: 7702 → 4337 → EOA, batch wallet_sendCalls, and fee injection
+from RuntimeTxHandler's simulation step — all using Krexa's Privy signer.

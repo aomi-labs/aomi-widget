@@ -43,9 +43,7 @@
     "total_turns": 1,
     "total_tool_calls": 9,
     "total_responses": 17,
-    "activated_skills": [
-      "lido"
-    ],
+    "activated_skills": ["lido"],
     "failed_assertions": [],
     "budget_summary": {
       "total": 1,
@@ -202,9 +200,7 @@
         "tool": "activate_skills",
         "topic": "activate_skills",
         "arguments": {
-          "skill_ids": [
-            "lido"
-          ]
+          "skill_ids": ["lido"]
         },
         "result_preview": "{\n  \"activated\": [\n    \"lido\"\n  ],\n  \"rejected\": [],\n  \"applied_scope\": \"current_serve_cycle\"\n}"
       },
@@ -237,9 +233,7 @@
         "topic": "Simulate Lido stETH submit 0.1 ETH",
         "arguments": {
           "function_signature": "submit(address)",
-          "arguments": [
-            "0x0000000000000000000000000000000000000000"
-          ],
+          "arguments": ["0x0000000000000000000000000000000000000000"],
           "to": "0xae7ab96520DE3A18E5e111B5EaAb095312D7fE84",
           "value": "100000000000000000",
           "topic": "Simulate Lido stETH submit 0.1 ETH"
@@ -255,9 +249,7 @@
           "description": "Stake 0.1 ETH with Lido, receive stETH",
           "data": {
             "signature": "submit(address)",
-            "args": [
-              "0x0000000000000000000000000000000000000000"
-            ],
+            "args": ["0x0000000000000000000000000000000000000000"],
             "raw": ""
           },
           "value": "100000000000000000",
@@ -276,9 +268,7 @@
           "description": "Stake 0.1 ETH with Lido, receive stETH",
           "data": {
             "signature": "submit(address)",
-            "args": [
-              "0x0000000000000000000000000000000000000000"
-            ],
+            "args": ["0x0000000000000000000000000000000000000000"],
             "raw": ""
           },
           "value": "100000000000000000",
@@ -297,9 +287,7 @@
           "description": "Stake 0.1 ETH with Lido, receive stETH",
           "data": {
             "signature": "submit(address)",
-            "args": [
-              "0x0000000000000000000000000000000000000000"
-            ],
+            "args": ["0x0000000000000000000000000000000000000000"],
             "raw": ""
           },
           "value": "100000000000000000",
@@ -332,9 +320,7 @@
         "tool": "commit_txs",
         "topic": "Stake 0.1 ETH with Lido for Alice",
         "arguments": {
-          "tx_ids": [
-            1
-          ],
+          "tx_ids": [1],
           "topic": "Stake 0.1 ETH with Lido for Alice"
         },
         "result_preview": "{\n  \"status\": \"pending_approval\",\n  \"tx_ids\": [\n    1\n  ],\n  \"timestamp\": \"2026-05-30T23:14:17.959471+00:00\"\n}"
@@ -348,12 +334,8 @@
     },
     "skills": {
       "mode": "restricted",
-      "allowed": [
-        "lido"
-      ],
-      "activated_skills": [
-        "lido"
-      ],
+      "allowed": ["lido"],
+      "activated_skills": ["lido"],
       "bundle_path": "../output/eval/model-bench-public-skills-gpt55-opus48-sonnet46-20260530/specs/stake_eth_lido/claude-sonnet-4.6/pass-002/spec-skills/stake_eth_lido-skills.json",
       "bundle_revision": "fnv1a64:3dc3c3eb3312b7e4"
     },

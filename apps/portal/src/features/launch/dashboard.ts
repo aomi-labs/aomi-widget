@@ -16,7 +16,9 @@ export const GITHUB_SIGNIN_URL = "/api/bff/auth/github/login";
 
 export async function fetchGitHubSession(): Promise<GitHubSessionInfo> {
   try {
-    const res = await fetch("/api/bff/auth/github/status", { cache: "no-store" });
+    const res = await fetch("/api/bff/auth/github/status", {
+      cache: "no-store",
+    });
     if (!res.ok) return { signedIn: false, githubLogin: null };
     return (await res.json()) as GitHubSessionInfo;
   } catch {

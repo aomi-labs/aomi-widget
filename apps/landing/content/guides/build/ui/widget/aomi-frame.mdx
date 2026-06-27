@@ -23,14 +23,14 @@ export default function ChatPage() {
 
 ## Props
 
-| Prop | Type | Default | Description |
-| --- | --- | --- | --- |
-| `width` | `CSSProperties["width"]` | `"100%"` | Container width |
-| `height` | `CSSProperties["height"]` | `"80vh"` | Container height |
-| `className` | `string` | -- | Additional CSS classes |
-| `style` | `CSSProperties` | -- | Inline styles |
-| `walletPosition` | `"header" \| "footer" \| null` | `"footer"` | Wallet button placement in sidebar |
-| `backendUrl` | `string` | `env` or `localhost:8080` | Backend API URL |
+| Prop             | Type                           | Default                   | Description                        |
+| ---------------- | ------------------------------ | ------------------------- | ---------------------------------- |
+| `width`          | `CSSProperties["width"]`       | `"100%"`                  | Container width                    |
+| `height`         | `CSSProperties["height"]`      | `"80vh"`                  | Container height                   |
+| `className`      | `string`                       | --                        | Additional CSS classes             |
+| `style`          | `CSSProperties`                | --                        | Inline styles                      |
+| `walletPosition` | `"header" \| "footer" \| null` | `"footer"`                | Wallet button placement in sidebar |
+| `backendUrl`     | `string`                       | `env` or `localhost:8080` | Backend API URL                    |
 
 The `backendUrl` resolves in this order: the prop value, `NEXT_PUBLIC_BACKEND_URL` environment variable, then `http://localhost:8080`.
 
@@ -94,32 +94,29 @@ The header bar with sidebar trigger, thread title breadcrumb, and optional contr
 </AomiFrame.Header>
 ```
 
-| Prop | Type | Default | Description |
-| --- | --- | --- | --- |
-| `withControl` | `boolean` | `false` | Show the control bar in the header |
-| `controlBarProps` | `ControlBarProps` | -- | Props passed to the ControlBar |
-| `className` | `string` | -- | Additional CSS classes |
-| `children` | `ReactNode` | -- | Extra content appended to the header |
+| Prop              | Type              | Default | Description                          |
+| ----------------- | ----------------- | ------- | ------------------------------------ |
+| `withControl`     | `boolean`         | `false` | Show the control bar in the header   |
+| `controlBarProps` | `ControlBarProps` | --      | Props passed to the ControlBar       |
+| `className`       | `string`          | --      | Additional CSS classes               |
+| `children`        | `ReactNode`       | --      | Extra content appended to the header |
 
 ### AomiFrame.Composer
 
 The main content area containing the message list and input composer.
 
 ```tsx
-<AomiFrame.Composer
-  withControl={false}
-  controlBarProps={{ hideModel: true }}
->
+<AomiFrame.Composer withControl={false} controlBarProps={{ hideModel: true }}>
   {/* Additional content below messages */}
 </AomiFrame.Composer>
 ```
 
-| Prop | Type | Default | Description |
-| --- | --- | --- | --- |
-| `withControl` | `boolean` | `false` | Show inline controls in the composer area |
-| `controlBarProps` | `ControlBarProps` | -- | Props passed to the inline ControlBar |
-| `className` | `string` | -- | Additional CSS classes |
-| `children` | `ReactNode` | -- | Extra content below the thread |
+| Prop              | Type              | Default | Description                               |
+| ----------------- | ----------------- | ------- | ----------------------------------------- |
+| `withControl`     | `boolean`         | `false` | Show inline controls in the composer area |
+| `controlBarProps` | `ControlBarProps` | --      | Props passed to the inline ControlBar     |
+| `className`       | `string`          | --      | Additional CSS classes                    |
+| `children`        | `ReactNode`       | --      | Extra content below the thread            |
 
 ## ControlBar Integration
 
@@ -129,11 +126,11 @@ The ControlBar provides model selection, app switching, API key input, wallet co
 <AomiFrame.Header
   withControl={true}
   controlBarProps={{
-    hideModel: false,      // Show model selector
-    hideApp: false,         // Show app/agent selector
-    hideApiKey: true,       // Hide API key input
-    hideWallet: true,       // Hide wallet connect
-    hideNetwork: false,     // Show network selector
+    hideModel: false, // Show model selector
+    hideApp: false, // Show app/agent selector
+    hideApiKey: true, // Hide API key input
+    hideWallet: true, // Hide wallet connect
+    hideNetwork: false, // Show network selector
   }}
 />
 ```

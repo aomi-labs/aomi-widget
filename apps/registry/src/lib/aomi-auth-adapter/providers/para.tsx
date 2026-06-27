@@ -643,7 +643,8 @@ export function AomiParaAdapterProvider({
             // here keeps the chain reported to the backend (via setUser) in
             // sync with the UI, instead of leaving it undefined (which the
             // backend silently treats as Ethereum mainnet).
-            chainId: chainId ?? (hasEvmAddress ? selectedEvmChainId : undefined),
+            chainId:
+              chainId ?? (hasEvmAddress ? selectedEvmChainId : undefined),
             svmAddress,
             walletProvider,
             authMethod,

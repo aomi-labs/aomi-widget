@@ -51,10 +51,7 @@ export class TypedEventEmitter<
     return unsub;
   }
 
-  emit<K extends keyof EventMap & string>(
-    type: K,
-    payload: EventMap[K],
-  ): void {
+  emit<K extends keyof EventMap & string>(type: K, payload: EventMap[K]): void {
     const typeSet = this.listeners.get(type);
     if (typeSet) {
       for (const handler of typeSet) {

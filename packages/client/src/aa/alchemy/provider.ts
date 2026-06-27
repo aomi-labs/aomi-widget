@@ -8,11 +8,12 @@ import type {
   SmartAccount,
   AAWalletCall,
 } from "../types";
-import { DEFAULT_AA_CONFIG, getAAChainConfig, buildAAExecutionPlan } from "../types";
 import {
-  resolveAlchemyApiKey,
-  resolveAlchemyGasPolicyId,
-} from "./defaults";
+  DEFAULT_AA_CONFIG,
+  getAAChainConfig,
+  buildAAExecutionPlan,
+} from "../types";
+import { resolveAlchemyApiKey, resolveAlchemyGasPolicyId } from "./defaults";
 
 export interface AlchemyHookParams {
   enabled: boolean;
@@ -55,8 +56,21 @@ function resolveForHook(params: {
   chainsById: Record<number, Chain>;
   chainSlugById: Record<number, string>;
   getPreferredRpcUrl: (chain: Chain) => string;
-}): (AAResolvedConfig & { apiKey: string; chain: Chain; rpcUrl: string; gasPolicyId?: string }) | null {
-  const { calls, localPrivateKey, accountAbstractionConfig, chainsById, getPreferredRpcUrl } = params;
+}):
+  | (AAResolvedConfig & {
+      apiKey: string;
+      chain: Chain;
+      rpcUrl: string;
+      gasPolicyId?: string;
+    })
+  | null {
+  const {
+    calls,
+    localPrivateKey,
+    accountAbstractionConfig,
+    chainsById,
+    getPreferredRpcUrl,
+  } = params;
 
   if (!calls || localPrivateKey) return null;
 

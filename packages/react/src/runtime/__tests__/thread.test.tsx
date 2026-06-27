@@ -480,7 +480,9 @@ describe("Thread API", () => {
       // No prefetch: createThread is not called for any listed-but-unvisited
       // thread, and fetchState is only called for the current (initial) thread.
       expect(
-        createThread.mock.calls.some(([threadId]) => threadIds.includes(threadId)),
+        createThread.mock.calls.some(([threadId]) =>
+          threadIds.includes(threadId),
+        ),
       ).toBe(false);
       const prefetchedStateCalls = fetchState.mock.calls.filter(([sessionId]) =>
         threadIds.includes(sessionId),

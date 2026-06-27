@@ -137,7 +137,7 @@ export function buildCliUserState(
   }
   const anyConnected = Boolean(
     (hasEvm && publicKey !== undefined) ||
-      (hasSvm && (svmAddress ?? publicKey) !== undefined),
+    (hasSvm && (svmAddress ?? publicKey) !== undefined),
   );
   if (anyConnected) {
     userState.connection = {
@@ -162,9 +162,7 @@ export function pendingTxsFromBackendUserState(
 
   const pending = asRecord(normalizedUserState.pending) ?? {};
   const pendingTxs =
-    asRecord(pending.evmTxs) ??
-    asRecord(pending.evm_txs) ??
-    {};
+    asRecord(pending.evmTxs) ?? asRecord(pending.evm_txs) ?? {};
   for (const [rawId, rawValue] of Object.entries(pendingTxs)) {
     const pendingId = parsePendingId(rawId);
     const tx = asRecord(rawValue);
@@ -203,9 +201,7 @@ export function pendingTxsFromBackendUserState(
   }
 
   const pendingEip712s =
-    asRecord(pending.evmSigs) ??
-    asRecord(pending.evm_sigs) ??
-    {};
+    asRecord(pending.evmSigs) ?? asRecord(pending.evm_sigs) ?? {};
   for (const [rawId, rawValue] of Object.entries(pendingEip712s)) {
     const pendingId = parsePendingId(rawId);
     const request = asRecord(rawValue);
@@ -332,8 +328,14 @@ export function pendingSolTxsFromBackendUserState(
   const pendingSolanaSigs =
     asRecord(normalizedUserState.pending?.solanaSigs) ??
     asRecord(normalizedUserState.pending?.solana_sigs) ??
-    asRecord((normalizedUserState.pending as Record<string, unknown> | undefined)?.svmSigs) ??
-    asRecord((normalizedUserState.pending as Record<string, unknown> | undefined)?.svm_sigs) ??
+    asRecord(
+      (normalizedUserState.pending as Record<string, unknown> | undefined)
+        ?.svmSigs,
+    ) ??
+    asRecord(
+      (normalizedUserState.pending as Record<string, unknown> | undefined)
+        ?.svm_sigs,
+    ) ??
     {};
   for (const [rawId, rawValue] of Object.entries(pendingSolanaSigs)) {
     const pendingId = parsePendingId(rawId);

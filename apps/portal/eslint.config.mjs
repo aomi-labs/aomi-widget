@@ -33,7 +33,11 @@ const eslintConfig = [
               allowTypeImports: true,
             },
             {
-              group: ["@aomi-labs/account", "@aomi-labs/service", "@aomi-labs/deploy"],
+              group: [
+                "@aomi-labs/account",
+                "@aomi-labs/service",
+                "@aomi-labs/deploy",
+              ],
               message:
                 "Node-only packages must not be imported from client/shared code.",
               allowTypeImports: true,

@@ -2,7 +2,9 @@ import type { PgClient } from "./db";
 import { getPool, withTransaction } from "./db";
 import { nowSeconds, randomToken, sha256 } from "./crypto";
 
-const DEVICE_TTL_SECONDS = Number(process.env.AOMI_CLI_DEVICE_TTL_SECONDS ?? "600");
+const DEVICE_TTL_SECONDS = Number(
+  process.env.AOMI_CLI_DEVICE_TTL_SECONDS ?? "600",
+);
 const CLI_SESSION_TTL_SECONDS = Number(
   process.env.AOMI_CLI_SESSION_TTL_SECONDS ?? String(30 * 24 * 60 * 60),
 );
@@ -18,7 +20,9 @@ export type DeviceStartResponse = {
   interval: number;
 };
 
-export async function startDeviceSession(origin: string): Promise<DeviceStartResponse> {
+export async function startDeviceSession(
+  origin: string,
+): Promise<DeviceStartResponse> {
   const deviceCode = randomToken(32);
   const userCode = randomToken(5).slice(0, 8).toUpperCase();
   const now = nowSeconds();
@@ -36,7 +40,13 @@ export async function startDeviceSession(origin: string): Promise<DeviceStartRes
       )
       VALUES ($1, $2, 'pending', $3, $4, $5, $5)
     `,
-    [sha256(deviceCode), sha256(userCode), expiresAt, DEVICE_INTERVAL_SECONDS, now],
+    [
+      sha256(deviceCode),
+      sha256(userCode),
+      expiresAt,
+      DEVICE_INTERVAL_SECONDS,
+      now,
+    ],
   );
 
   const verificationBase =
@@ -134,7 +144,11 @@ export async function pollDeviceSession(
       };
     }
 
-    const credential = await createCliCredential(client, row.user_id, userAgent);
+    const credential = await createCliCredential(
+      client,
+      row.user_id,
+      userAgent,
+    );
     await client.query(
       `
         UPDATE bff_cli_device_sessions
@@ -171,4 +185,3 @@ export async function resolveCliCredential(
   );
   return rows[0]?.user_id;
 }
-

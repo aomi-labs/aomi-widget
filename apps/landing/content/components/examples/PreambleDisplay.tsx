@@ -24,10 +24,12 @@ export function PreambleDisplay({
       </p>
 
       <div className="mt-6 rounded-2xl border border-fd-border bg-fd-card px-6 py-5">
-        <div className="docs-prose prose dark:prose-invert max-w-none">
+        <div className="docs-prose dark:prose-invert prose max-w-none">
           <Markdown
             remarkPlugins={[remarkGfm]}
-            components={mdxComponents as unknown as Record<string, React.ComponentType>}
+            components={
+              mdxComponents as unknown as Record<string, React.ComponentType>
+            }
           >
             {content}
           </Markdown>

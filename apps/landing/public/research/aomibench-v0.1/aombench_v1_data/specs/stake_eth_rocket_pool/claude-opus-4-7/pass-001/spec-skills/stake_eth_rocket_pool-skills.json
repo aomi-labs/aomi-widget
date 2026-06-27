@@ -3,13 +3,7 @@
     "id": "rocket_pool",
     "name": "rocket_pool",
     "description": "Use when users want to stake ETH with Rocket Pool to receive rETH, or burn rETH to redeem ETH, on Ethereum.",
-    "tags": [
-      "stake",
-      "rocket-pool",
-      "reth",
-      "liquid-staking",
-      "eth"
-    ],
+    "tags": ["stake", "rocket-pool", "reth", "liquid-staking", "eth"],
     "tool_names": [
       "get_time_and_onchain_context",
       "brave_search",
@@ -31,21 +25,15 @@
       {
         "tool": "simulate_batch",
         "pre_call": [],
-        "post_call": [
-          "rocket-pool-known-addrs"
-        ]
+        "post_call": ["rocket-pool-known-addrs"]
       },
       {
         "tool": "stage_tx",
         "pre_call": [],
-        "post_call": [
-          "rocket-pool-known-addrs"
-        ]
+        "post_call": ["rocket-pool-known-addrs"]
       }
     ],
     "tools_namespace": "evm-core",
-    "chain_ids": [
-      1
-    ]
+    "chain_ids": [1]
   }
 ]

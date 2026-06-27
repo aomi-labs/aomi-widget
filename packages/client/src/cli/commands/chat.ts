@@ -46,7 +46,9 @@ function extractMentionedTxIds(content: string | undefined): string[] {
  * Derive the Solana public key from a keypair secret string if provided.
  * Returns undefined on any parse failure (non-fatal — just omits svm.address).
  */
-function deriveSvmAddress(solanaPrivateKey: string | undefined): string | undefined {
+function deriveSvmAddress(
+  solanaPrivateKey: string | undefined,
+): string | undefined {
   if (!solanaPrivateKey) return undefined;
   try {
     return parseSolanaKeypairSecret(solanaPrivateKey).publicKey.toBase58();
@@ -92,7 +94,13 @@ export async function syncWalletStateForChat(
   session: {
     resolveUserState: (userState: ReturnType<typeof buildCliUserState>) => void;
     syncUserState: () => Promise<unknown>;
-    client: { sendSystemMessage: (sessionId: string, message: string, options?: { app?: string }) => Promise<unknown> };
+    client: {
+      sendSystemMessage: (
+        sessionId: string,
+        message: string,
+        options?: { app?: string },
+      ) => Promise<unknown>;
+    };
   },
 ): Promise<void> {
   if (

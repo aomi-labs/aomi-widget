@@ -21,11 +21,13 @@ Expect: **0 failures, 0 type errors.**
 Open `https://chat.aomi.dev/settings`
 
 ### 1a. Picker screen
+
 - [ ] Both cards render: "One-click" and "Fork & customize"
 - [ ] One-click has a "(recommended)" badge
 - [ ] Clicking "Install on GitHub" redirects to GitHub App install page
 
 ### 1b. Install + create
+
 - [ ] After install, browser redirects back to `/settings?installation_id=...&onboard=bound`
 - [ ] Green banner appears: "GitHub App installed successfully"
 - [ ] Auto-dismisses after ~6 seconds
@@ -33,6 +35,7 @@ Open `https://chat.aomi.dev/settings`
 - [ ] Repo name (`owner/name`) appears in the UI
 
 ### 1c. Deploy
+
 - [ ] Dry-run completes: shows deployment manifest
 - [ ] Deploy button triggers `POST /api/onboard/deploy`
 - [ ] Progress bar appears during build
@@ -41,6 +44,7 @@ Open `https://chat.aomi.dev/settings`
 - [ ] Deployment ID is copyable (clipboard button)
 
 ### 1d. Activate + verify
+
 - [ ] Activate button enabled when status is `ready`
 - [ ] Verification spinner shows counter (e.g. "Checking runtime... attempt 3/30")
 - [ ] On success: LivePanel shows green card with checkmark
@@ -48,6 +52,7 @@ Open `https://chat.aomi.dev/settings`
 - [ ] "Open repo" link points to `https://github.com/owner/repo`
 
 ### 1e. Error recovery
+
 - [ ] Start Over button visible during all non-error phases
 - [ ] Backend 4xx/5xx shows error message (not generic spinner)
 - [ ] Network failure shows "check your connection" message
@@ -58,6 +63,7 @@ Open `https://chat.aomi.dev/settings`
 ## 2. Portal UI — Fork & Customize (manual)
 
 ### 2a. Template
+
 - [ ] "Use this template" button opens GitHub template page in new tab
 - [ ] Pasting `owner/name` URL is accepted
 - [ ] Pasting `https://github.com/owner/name` is accepted
@@ -65,6 +71,7 @@ Open `https://chat.aomi.dev/settings`
 - [ ] Empty/full-name validation shows error
 
 ### 2b. Install + deploy
+
 - [ ] "Install on GitHub" opens scoped install for single repo
 - [ ] "Already installed?" re-auth flow works
 - [ ] Deploy phase is identical to one-click flow
@@ -159,6 +166,7 @@ npx vitest run packages/client/test/cli/
 ## 7. Full CI Pipeline
 
 After merging, the GitHub Actions `build-and-lint` check must:
+
 - [ ] `pnpm vitest run` — 0 failed across 45+ test files
 - [ ] Portal typecheck — 0 errors
 - [ ] Deploy SDK typecheck — 0 errors

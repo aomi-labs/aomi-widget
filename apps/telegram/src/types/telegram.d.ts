@@ -15,7 +15,10 @@ declare global {
         ready: () => void;
         close: () => void;
         expand: () => void;
-        openLink?: (url: string, options?: { try_instant_view?: boolean }) => void;
+        openLink?: (
+          url: string,
+          options?: { try_instant_view?: boolean },
+        ) => void;
         sendData: (data: string) => void;
         MainButton: {
           text: string;
@@ -24,7 +27,7 @@ declare global {
           onClick: (cb: () => void) => void;
         };
         HapticFeedback: {
-          notificationOccurred: (type: 'error' | 'success' | 'warning') => void;
+          notificationOccurred: (type: "error" | "success" | "warning") => void;
         };
       };
     };

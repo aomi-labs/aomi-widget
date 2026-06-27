@@ -28,18 +28,9 @@
         "detail": "sequence broke before expected tool 'commit_txs'",
         "observed": {
           "kind": "tool_assertion",
-          "expected_tools": [
-            "stage_tx",
-            "simulate_batch",
-            "commit_txs"
-          ],
-          "observed_tools": [
-            "stage_tx",
-            "simulate_batch"
-          ],
-          "missing_tools": [
-            "commit_txs"
-          ],
+          "expected_tools": ["stage_tx", "simulate_batch", "commit_txs"],
+          "observed_tools": ["stage_tx", "simulate_batch"],
+          "missing_tools": ["commit_txs"],
           "order": "sequential",
           "turn": null,
           "param_predicates": [

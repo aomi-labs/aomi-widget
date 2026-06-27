@@ -13,11 +13,13 @@ review_after_days: 7
 - Excluded markdown files: 43
 
 ## Reasons
+
 - `indexed`: 25
 - `missing-rule`: 1
 - `not-included`: 42
 
 ## Indexed Files
+
 - `AGENTS.md` via `root-guidance`
 - `README.md` via `root-readme`
 - `docs/generated/markdown-inventory.md` via `generated`
@@ -43,6 +45,7 @@ review_after_days: 7
 - `specs/portal-widget-lib-unification.md` via `specs`
 
 ## Excluded Files
+
 - `.claude/commands/cleanup-md.md` (not-included)
 - `.claude/commands/read-specs.md` (not-included)
 - `.claude/commands/sync-today.md` (not-included)

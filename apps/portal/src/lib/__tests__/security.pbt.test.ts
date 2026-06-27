@@ -20,9 +20,12 @@ describe("validateOrigin — property-based", () => {
           "https://portal.aomi.dev/some/path?q=1",
         ),
         (url) => {
-          const req = new Request("https://portal.aomi.dev/api/bff/launch/deploy", {
-            headers: { origin: url },
-          });
+          const req = new Request(
+            "https://portal.aomi.dev/api/bff/launch/deploy",
+            {
+              headers: { origin: url },
+            },
+          );
           expect(validateOrigin(req)).toBe(true);
         },
       ),
@@ -36,9 +39,12 @@ describe("validateOrigin — property-based", () => {
         fc.domain().filter((d) => d !== "portal.aomi.dev"),
         (domain) => {
           const url = `https://${domain}/`;
-          const req = new Request("https://portal.aomi.dev/api/bff/launch/deploy", {
-            headers: { origin: url },
-          });
+          const req = new Request(
+            "https://portal.aomi.dev/api/bff/launch/deploy",
+            {
+              headers: { origin: url },
+            },
+          );
           expect(validateOrigin(req)).toBe(false);
         },
       ),
@@ -101,8 +107,14 @@ describe("getClientIp — property-based", () => {
     fc.assert(
       fc.property(
         fc.ipV4().map((ip) => ip.replace(/^::ffff:/, "")),
-        fc.option(fc.ipV4().map((ip) => ip.replace(/^::ffff:/, "")), { nil: undefined }),
-        fc.option(fc.ipV4().map((ip) => ip.replace(/^::ffff:/, "")), { nil: undefined }),
+        fc.option(
+          fc.ipV4().map((ip) => ip.replace(/^::ffff:/, "")),
+          { nil: undefined },
+        ),
+        fc.option(
+          fc.ipV4().map((ip) => ip.replace(/^::ffff:/, "")),
+          { nil: undefined },
+        ),
         (first, second, third) => {
           const header = [first, second, third].filter(Boolean).join(", ");
           const req = new Request("http://localhost", {
@@ -159,26 +171,20 @@ describe("validate-input — property-based", () => {
 
   it("isValidDeploymentId rejects empty and whitespace-only strings", () => {
     fc.assert(
-      fc.property(
-        fc.constantFrom("", "  ", "\t", "\n", "   "),
-        (s) => {
-          expect(isValidDeploymentId(s)).toBe(false);
-        },
-      ),
+      fc.property(fc.constantFrom("", "  ", "\t", "\n", "   "), (s) => {
+        expect(isValidDeploymentId(s)).toBe(false);
+      }),
       { numRuns: 10 },
     );
   });
 
   it("isValidDeploymentId accepts non-empty strings", () => {
     fc.assert(
-      fc.property(
-        fc.string({ minLength: 1, maxLength: 100 }),
-        (s) => {
-          if (s.trim().length > 0) {
-            expect(isValidDeploymentId(s)).toBe(true);
-          }
-        },
-      ),
+      fc.property(fc.string({ minLength: 1, maxLength: 100 }), (s) => {
+        if (s.trim().length > 0) {
+          expect(isValidDeploymentId(s)).toBe(true);
+        }
+      }),
       { numRuns: 100 },
     );
   });
@@ -186,11 +192,19 @@ describe("validate-input — property-based", () => {
   it("isValidReleaseTags accepts empty arrays or non-empty string arrays with non-empty elements", () => {
     fc.assert(
       fc.property(
-        fc.array(fc.oneof(fc.string({ minLength: 1, maxLength: 50 }), fc.constantFrom("", "  ", "\t")), { minLength: 0, maxLength: 10 }),
+        fc.array(
+          fc.oneof(
+            fc.string({ minLength: 1, maxLength: 50 }),
+            fc.constantFrom("", "  ", "\t"),
+          ),
+          { minLength: 0, maxLength: 10 },
+        ),
         (tags) => {
           const result = isValidReleaseTags(tags);
           if (result) {
-            expect(tags.every((t) => typeof t === "string" && t.trim().length > 0)).toBe(true);
+            expect(
+              tags.every((t) => typeof t === "string" && t.trim().length > 0),
+            ).toBe(true);
           }
         },
       ),

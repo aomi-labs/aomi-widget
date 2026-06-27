@@ -1,7 +1,10 @@
 import { createRemoteJWKSet, importSPKI, jwtVerify } from "jose";
 import { NextRequest, NextResponse } from "next/server";
 
-import { mintAccountBearer, resolveOrCreateCanonicalUser } from "@aomi-labs/account";
+import {
+  mintAccountBearer,
+  resolveOrCreateCanonicalUser,
+} from "@aomi-labs/account";
 import { setSessionCookie } from "@portal/server/aomi-account/session";
 
 // Account graph reads/writes + bearer signing need Node (pg, EdDSA), not Edge.
@@ -80,9 +83,7 @@ export async function POST(request: NextRequest) {
 
 async function verifyCredential(body: ExchangeBody): Promise<VerifiedEmbeded> {
   const provider = stringValue(body.provider)?.toLowerCase();
-  const jwt = stringValue(
-    body.provider_jwt ?? body.providerJwt ?? body.jwt,
-  );
+  const jwt = stringValue(body.provider_jwt ?? body.providerJwt ?? body.jwt);
   if ((provider !== "privy" && provider !== "para") || !jwt) {
     throw new HttpError(400, "Missing provider credential");
   }
@@ -140,10 +141,7 @@ async function verifyPara(
   return verifiedIdentity("para", payload);
 }
 
-function verifiedIdentity(
-  provider: Provider,
-  claims: Claims,
-): VerifiedEmbeded {
+function verifiedIdentity(provider: Provider, claims: Claims): VerifiedEmbeded {
   return {
     provider,
     subject: claims.sub!,

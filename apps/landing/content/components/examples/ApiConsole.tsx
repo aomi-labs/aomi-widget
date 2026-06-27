@@ -1,12 +1,6 @@
 "use client";
 
-import {
-  useState,
-  useCallback,
-  useRef,
-  type FC,
-  type ReactNode,
-} from "react";
+import { useState, useCallback, useRef, type FC, type ReactNode } from "react";
 import { CopyButton } from "@/content/components/playground/CopyButton";
 
 // =============================================================================
@@ -249,16 +243,14 @@ export function ApiConsole({
           <div className="space-y-3 p-4">
             {(ep.params ?? []).length > 0 && (
               <fieldset className="space-y-2">
-                <legend className="text-[10px] font-semibold uppercase tracking-wider text-fd-muted-foreground">
+                <legend className="text-[10px] font-semibold tracking-wider text-fd-muted-foreground uppercase">
                   Parameters
                 </legend>
                 {ep.params!.map((p) => (
                   <label key={p.key} className="flex items-center gap-2">
                     <span className="w-28 shrink-0 text-right font-mono text-[11px] text-fd-muted-foreground">
                       {p.key}
-                      {p.required && (
-                        <span className="text-red-500">*</span>
-                      )}
+                      {p.required && <span className="text-red-500">*</span>}
                     </span>
                     <input
                       type="text"
@@ -279,16 +271,14 @@ export function ApiConsole({
 
             {(ep.headers ?? []).length > 0 && (
               <fieldset className="space-y-2">
-                <legend className="text-[10px] font-semibold uppercase tracking-wider text-fd-muted-foreground">
+                <legend className="text-[10px] font-semibold tracking-wider text-fd-muted-foreground uppercase">
                   Headers
                 </legend>
                 {ep.headers!.map((h) => (
                   <label key={h.key} className="flex items-center gap-2">
                     <span className="w-28 shrink-0 text-right font-mono text-[11px] text-fd-muted-foreground">
                       {h.key}
-                      {h.required && (
-                        <span className="text-red-500">*</span>
-                      )}
+                      {h.required && <span className="text-red-500">*</span>}
                     </span>
                     <input
                       type="text"
@@ -311,7 +301,7 @@ export function ApiConsole({
           {/* Right: body editor */}
           <div className="p-4">
             <div className="flex items-center justify-between">
-              <span className="text-[10px] font-semibold uppercase tracking-wider text-fd-muted-foreground">
+              <span className="text-[10px] font-semibold tracking-wider text-fd-muted-foreground uppercase">
                 Body
               </span>
               {ep.bodyTemplate && (

@@ -194,7 +194,11 @@ export async function resolveBetterAuthCanonicalUser(
     if (existing) return { userId: existing };
 
     const candidateUserIds = new Set<string>();
-    await addPrivyCandidates(client, candidateUserIds, legacy.privySubjects ?? []);
+    await addPrivyCandidates(
+      client,
+      candidateUserIds,
+      legacy.privySubjects ?? [],
+    );
     await addWalletCandidates(client, candidateUserIds, legacy.wallets ?? []);
     await addVerifiedEmailCandidates(
       client,
@@ -216,4 +220,3 @@ export async function resolveBetterAuthCanonicalUser(
     return { userId: mappedUserId };
   });
 }
-

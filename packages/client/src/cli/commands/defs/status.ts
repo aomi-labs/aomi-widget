@@ -24,7 +24,8 @@ export const statusDef = defineCommand({
     },
     platform: {
       type: "string",
-      description: "Deploy platform (default: community; or set AOMI_DEPLOY_PLATFORM env)",
+      description:
+        "Deploy platform (default: community; or set AOMI_DEPLOY_PLATFORM env)",
     },
   },
   async run({ args }) {

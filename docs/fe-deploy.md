@@ -5,6 +5,7 @@ chat", for both onboarding paths. Backend is owned end-to-end via a GitHub App;
 the browser never holds GitHub tokens or service credentials.
 
 > **Latest changes (2026-06, PRs #243–#245 + post-merge fixes):**
+>
 > - GitHub install redirects in the **same tab** (was: new tab + fragile localStorage polling) — eliminates popup-blocker + race-condition bugs
 > - BFF hardened: CSRF validates against the incoming request origin, rate limit raised 10→60 req/min, empty `releaseTags` validated
 > - Backend `with_snapshot()` fix: deployment status checks CI against the recorded built commit, not the live branch HEAD — prevents pending deployments from being orphaned by snapshot merges
@@ -18,11 +19,11 @@ the browser never holds GitHub tokens or service credentials.
 
 ## Three layers
 
-| Layer | What runs | Holds |
-|-------|-----------|-------|
-| **Browser (FE client)** | React onboarding wizard | nothing secret |
-| **Portal BFF** | Next.js route handlers `app/api/onboard/*` (server-side) | the `aomi-bff` service signing key; resolves `app_source.id` |
-| **Backend (BE)** | Rust service `/api/platforms/*`, `/api/integrations/*` | GitHub App keys, DB |
+| Layer                   | What runs                                                | Holds                                                        |
+| ----------------------- | -------------------------------------------------------- | ------------------------------------------------------------ |
+| **Browser (FE client)** | React onboarding wizard                                  | nothing secret                                               |
+| **Portal BFF**          | Next.js route handlers `app/api/onboard/*` (server-side) | the `aomi-bff` service signing key; resolves `app_source.id` |
+| **Backend (BE)**        | Rust service `/api/platforms/*`, `/api/integrations/*`   | GitHub App keys, DB                                          |
 
 Two distinct call patterns:
 
@@ -33,10 +34,10 @@ Two distinct call patterns:
 
 ## Two paths (the picker)
 
-| Path | GitHub App | Consent | Who creates the repo |
-|------|-----------|---------|----------------------|
-| **One-click** (`oneshot`) | `aomi-build-oneshot` (broad: `Administration: write`, all repos) | broad | **the backend** creates it from the template |
-| **Fork & customize** (`bootstrap`) | `aomi-build` (narrow: Contents / PRs / Checks, one repo) | narrow | **the user** ("Use this template") |
+| Path                               | GitHub App                                                       | Consent | Who creates the repo                         |
+| ---------------------------------- | ---------------------------------------------------------------- | ------- | -------------------------------------------- |
+| **One-click** (`oneshot`)          | `aomi-build-oneshot` (broad: `Administration: write`, all repos) | broad   | **the backend** creates it from the template |
+| **Fork & customize** (`bootstrap`) | `aomi-build` (narrow: Contents / PRs / Checks, one repo)         | narrow  | **the user** ("Use this template")           |
 
 ## State machine
 
@@ -61,25 +62,25 @@ stateDiagram-v2
 
 **Backend (BE)** — `product-mono/aomi/bin/backend/src/endpoint/…`
 
-| Endpoint | Purpose |
-|----------|---------|
-| `GET /api/integrations/github-app/oauth/start?platform&repo&mode` | mint signed `state`, return GitHub `install_url`. `mode=authorize` re-verifies an existing install. |
-| `GET /api/integrations/github-app/oauth/callback` | validate `state`, exchange `code`, confirm the install is visible to the user, bind `app_source`, then **303 → `$AOMI_FRONTEND_URL/settings?installation_id&onboard=bound`** |
-| `POST /api/integrations/github-app/webhook` | (HMAC) installation events → **upsert `app_source`** |
-| `GET /api/platforms/:platform/sources/resolve?installation_id&repo` | `(installation, repo) → app_source.id` |
-| `POST /api/platforms/:platform/sources/{create-from-template,sync-installed}` | create repo from template / resolve+upsert an existing install |
-| `POST /api/platforms/:platform/{deploy,activate}` | push candidate / activate a built release |
+| Endpoint                                                                      | Purpose                                                                                                                                                                      |
+| ----------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /api/integrations/github-app/oauth/start?platform&repo&mode`             | mint signed `state`, return GitHub `install_url`. `mode=authorize` re-verifies an existing install.                                                                          |
+| `GET /api/integrations/github-app/oauth/callback`                             | validate `state`, exchange `code`, confirm the install is visible to the user, bind `app_source`, then **303 → `$AOMI_FRONTEND_URL/settings?installation_id&onboard=bound`** |
+| `POST /api/integrations/github-app/webhook`                                   | (HMAC) installation events → **upsert `app_source`**                                                                                                                         |
+| `GET /api/platforms/:platform/sources/resolve?installation_id&repo`           | `(installation, repo) → app_source.id`                                                                                                                                       |
+| `POST /api/platforms/:platform/sources/{create-from-template,sync-installed}` | create repo from template / resolve+upsert an existing install                                                                                                               |
+| `POST /api/platforms/:platform/{deploy,activate}`                             | push candidate / activate a built release                                                                                                                                    |
 
 **Portal BFF** — `aomi-widget/apps/portal/src/app/api/onboard/*` (each proxies the BE)
 
-| BFF route | → Backend |
-|-----------|-----------|
-| `POST /api/onboard/{dry-run,deploy}` | `resolve` then `POST …/deploy` |
-| `POST /api/onboard/create` | `…/sources/create-from-template` |
-| `GET  /api/onboard/status` | deployment status |
-| `POST /api/onboard/activate` | `…/activate` |
-| `GET  /api/onboard/app` | app load status |
-| `POST /api/onboard/sync-installed` | `…/sources/sync-installed` |
+| BFF route                            | → Backend                        |
+| ------------------------------------ | -------------------------------- |
+| `POST /api/onboard/{dry-run,deploy}` | `resolve` then `POST …/deploy`   |
+| `POST /api/onboard/create`           | `…/sources/create-from-template` |
+| `GET  /api/onboard/status`           | deployment status                |
+| `POST /api/onboard/activate`         | `…/activate`                     |
+| `GET  /api/onboard/app`              | app load status                  |
+| `POST /api/onboard/sync-installed`   | `…/sources/sync-installed`       |
 
 ---
 
@@ -206,14 +207,14 @@ Per-user isolation: the candidate branch + release tag both encode the
 
 ## Configuration
 
-| Knob | Local dev | Deployed (staging) |
-|------|-----------|--------------------|
-| Backend URL | local defaults to `http://127.0.0.1:8080` | Vercel production defaults to `https://api.aomi.dev`; previews default to `https://api-staging.aomi.dev` |
-| BE `AOMI_PORTAL_URL` (callback redirect target, was `AOMI_FRONTEND_URL`) | `http://localhost:3000` | the deployed portal URL |
-| GitHub App **Webhook URL** | tunnel → `/api/integrations/github-app/webhook` | `https://api-staging.aomi.dev/api/integrations/github-app/webhook` |
-| GitHub App **Callback URL** | tunnel → `/api/integrations/github-app/oauth/callback` | `https://api-staging.aomi.dev/api/integrations/github-app/oauth/callback` |
-| BE GitHub App secrets | `github_app.toml` / `GITHUB_APP_TOML` + `AOMI_GITHUB_APP_*` | same `AOMI_GITHUB_APP_*` as deployment secrets |
-| BFF service signer | `PORTAL_SERVICE_PRIVATE_KEY` | portal deployment secret; committed topology is auto-selected |
+| Knob                                                                     | Local dev                                                   | Deployed (staging)                                                                                       |
+| ------------------------------------------------------------------------ | ----------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| Backend URL                                                              | local defaults to `http://127.0.0.1:8080`                   | Vercel production defaults to `https://api.aomi.dev`; previews default to `https://api-staging.aomi.dev` |
+| BE `AOMI_PORTAL_URL` (callback redirect target, was `AOMI_FRONTEND_URL`) | `http://localhost:3000`                                     | the deployed portal URL                                                                                  |
+| GitHub App **Webhook URL**                                               | tunnel → `/api/integrations/github-app/webhook`             | `https://api-staging.aomi.dev/api/integrations/github-app/webhook`                                       |
+| GitHub App **Callback URL**                                              | tunnel → `/api/integrations/github-app/oauth/callback`      | `https://api-staging.aomi.dev/api/integrations/github-app/oauth/callback`                                |
+| BE GitHub App secrets                                                    | `github_app.toml` / `GITHUB_APP_TOML` + `AOMI_GITHUB_APP_*` | same `AOMI_GITHUB_APP_*` as deployment secrets                                                           |
+| BFF service signer                                                       | `PORTAL_SERVICE_PRIVATE_KEY`                                | portal deployment secret; committed topology is auto-selected                                            |
 
 > Only the **webhook** strictly needs a public tunnel (server-to-server); the
 > callback is a browser redirect. Pointing at staging requires the App's

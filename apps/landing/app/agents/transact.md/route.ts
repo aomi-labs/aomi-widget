@@ -5,8 +5,14 @@ export const dynamic = "force-static";
 
 const SKILL_DIR = ["content", "agents", "skills", "aomi-transact"];
 const FILES = [
-  { rel: "SKILL.md", heading: "## Operating procedure — the aomi-transact skill" },
-  { rel: "references/account-abstraction.md", heading: "## Account abstraction (signing internals)" },
+  {
+    rel: "SKILL.md",
+    heading: "## Operating procedure — the aomi-transact skill",
+  },
+  {
+    rel: "references/account-abstraction.md",
+    heading: "## Account abstraction (signing internals)",
+  },
   { rel: "references/apps.md", heading: "## Apps catalog and per-app usage" },
   { rel: "references/examples.md", heading: "## End-to-end example flows" },
   { rel: "references/session.md", heading: "## Sessions and local storage" },
@@ -86,10 +92,11 @@ export async function GET() {
   for (const { rel, heading } of FILES) {
     const file = path.join(process.cwd(), ...SKILL_DIR, rel);
     const body = await fs.readFile(file, "utf-8");
-    const stripped = stripFrontmatter(body)
-      .replace(/^#\s.+\n+/, "");
+    const stripped = stripFrontmatter(body).replace(/^#\s.+\n+/, "");
     parts.push(`${heading}\n\n`);
-    parts.push(`<!-- source: github.com/aomi-labs/skills:aomi-transact/${rel} -->\n\n`);
+    parts.push(
+      `<!-- source: github.com/aomi-labs/skills:aomi-transact/${rel} -->\n\n`,
+    );
     parts.push(stripped);
     parts.push("\n");
   }
@@ -99,7 +106,8 @@ export async function GET() {
   return new Response(parts.join(""), {
     headers: {
       "content-type": "text/markdown; charset=utf-8",
-      "cache-control": "public, max-age=0, s-maxage=3600, stale-while-revalidate=86400",
+      "cache-control":
+        "public, max-age=0, s-maxage=3600, stale-while-revalidate=86400",
     },
   });
 }

@@ -45,7 +45,7 @@ export function MessageList() {
   const messages = getMessages(currentThreadId);
 
   return (
-    <div className="flex-1 overflow-y-auto p-4 space-y-4">
+    <div className="flex-1 space-y-4 overflow-y-auto p-4">
       {messages.map((msg, i) => (
         <div
           key={i}
@@ -59,9 +59,7 @@ export function MessageList() {
             }`}
           >
             {msg.content.map((block, j) => (
-              <span key={j}>
-                {block.type === "text" ? block.text : null}
-              </span>
+              <span key={j}>{block.type === "text" ? block.text : null}</span>
             ))}
           </div>
         </div>
@@ -69,7 +67,7 @@ export function MessageList() {
 
       {isRunning && (
         <div className="flex justify-start">
-          <div className="bg-gray-100 rounded-lg px-4 py-2 text-gray-500">
+          <div className="rounded-lg bg-gray-100 px-4 py-2 text-gray-500">
             Thinking...
           </div>
         </div>
@@ -104,7 +102,7 @@ export function ChatInput() {
   };
 
   return (
-    <form onSubmit={handleSubmit} className="border-t p-4 flex gap-2">
+    <form onSubmit={handleSubmit} className="flex gap-2 border-t p-4">
       <input
         type="text"
         value={input}
@@ -157,8 +155,8 @@ export function ThreadSwitcher() {
   const threads = Array.from(threadMetadata.entries());
 
   return (
-    <div className="w-64 border-r h-full flex flex-col">
-      <div className="p-3 border-b">
+    <div className="flex h-full w-64 flex-col border-r">
+      <div className="border-b p-3">
         <button
           onClick={() => createThread()}
           className="w-full rounded-lg bg-gray-100 px-3 py-2 text-sm hover:bg-gray-200"
@@ -172,7 +170,7 @@ export function ThreadSwitcher() {
           <div
             key={id}
             onClick={() => selectThread(id)}
-            className={`flex items-center justify-between px-3 py-2 cursor-pointer text-sm ${
+            className={`flex cursor-pointer items-center justify-between px-3 py-2 text-sm ${
               id === currentThreadId
                 ? "bg-blue-50 text-blue-700"
                 : "hover:bg-gray-50"
@@ -184,7 +182,7 @@ export function ThreadSwitcher() {
                 e.stopPropagation();
                 deleteThread(id);
               }}
-              className="text-gray-400 hover:text-red-500 text-xs"
+              className="text-xs text-gray-400 hover:text-red-500"
             >
               x
             </button>

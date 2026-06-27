@@ -1,36 +1,36 @@
-'use client';
+"use client";
 
-import { useEffect, useRef, useState } from 'react';
-import { useCapabilities, useSendCallsSync, useSendTransaction } from 'wagmi';
-import { useChainId, useSwitchChain } from 'wagmi';
-import { useModal } from '@getpara/react-sdk';
-import { Providers, initWalletProviders } from './providers';
-import { restore } from '@/lib/session-bridge';
-import { getTelegramUserId, readyTelegramWebApp } from '@/lib/telegram-webapp';
+import { useEffect, useRef, useState } from "react";
+import { useCapabilities, useSendCallsSync, useSendTransaction } from "wagmi";
+import { useChainId, useSwitchChain } from "wagmi";
+import { useModal } from "@getpara/react-sdk";
+import { Providers, initWalletProviders } from "./providers";
+import { restore } from "@/lib/session-bridge";
+import { getTelegramUserId, readyTelegramWebApp } from "@/lib/telegram-webapp";
 import {
   useSigningFlow,
   terminalMessageFromTxStatus,
   type SigningFlowConfig,
-} from '@/hooks/use-signing-flow';
-import { useTxExecutor } from '@/hooks/use-tx-executor';
-import type { TxCall } from '@/lib/wallet-state/types';
+} from "@/hooks/use-signing-flow";
+import { useTxExecutor } from "@/hooks/use-tx-executor";
+import type { TxCall } from "@/lib/wallet-state/types";
 
 function describeRuntimeError(error: unknown): string {
   if (error instanceof Error && error.message) return error.message;
-  if (typeof error === 'string') return error;
+  if (typeof error === "string") return error;
   try {
     return JSON.stringify(error);
   } catch {
-    return String(error ?? 'unknown error');
+    return String(error ?? "unknown error");
   }
 }
 
 const TX_CONFIG: SigningFlowConfig<TxCall[]> = {
-  apiEndpoint: '/api/operation/tx',
-  idParamName: 'tx_id',
-  idResponseKey: 'txId',
-  dataResponseKey: 'calls',
-  resultKey: 'tx_hash',
+  apiEndpoint: "/api/operation/tx",
+  idParamName: "tx_id",
+  idResponseKey: "txId",
+  dataResponseKey: "calls",
+  resultKey: "tx_hash",
   terminalMessageFromStatus: terminalMessageFromTxStatus,
   checkLocalPrivateKey: true,
   // Handle both 'calls' array and single 'tx' object from API
@@ -41,10 +41,14 @@ const TX_CONFIG: SigningFlowConfig<TxCall[]> = {
   },
 };
 
-function pendingTxCallbackFields(calls: TxCall[]): Record<string, number | number[]> {
+function pendingTxCallbackFields(
+  calls: TxCall[],
+): Record<string, number | number[]> {
   const pendingTxIds = calls
     .map((call) => call.pending_tx_id)
-    .filter((id): id is number => typeof id === 'number' && Number.isFinite(id));
+    .filter(
+      (id): id is number => typeof id === "number" && Number.isFinite(id),
+    );
   if (pendingTxIds.length === 0) {
     return {};
   }
@@ -53,11 +57,13 @@ function pendingTxCallbackFields(calls: TxCall[]): Record<string, number | numbe
   };
 }
 
-function aaResolvedModeFromExecutionKind(kind: string | undefined): '4337' | '7702' | 'none' | undefined {
+function aaResolvedModeFromExecutionKind(
+  kind: string | undefined,
+): "4337" | "7702" | "none" | undefined {
   if (!kind) return undefined;
-  if (kind.endsWith('_4337')) return '4337';
-  if (kind.endsWith('_7702')) return '7702';
-  if (kind === 'eoa') return 'none';
+  if (kind.endsWith("_4337")) return "4337";
+  if (kind.endsWith("_7702")) return "7702";
+  if (kind === "eoa") return "none";
   return undefined;
 }
 
@@ -85,7 +91,9 @@ function SignContent({ restoreDone }: { restoreDone: boolean }) {
   const { executorReady, providerState, execute } = useTxExecutor({
     calls,
     currentChainId,
-    capabilities: capabilitiesQuery.data as Record<string, { atomic?: { status?: string } }> | undefined,
+    capabilities: capabilitiesQuery.data as
+      | Record<string, { atomic?: { status?: string } }>
+      | undefined,
     localPrivateKey,
     sendCallsSyncAsync,
     sendTransactionAsync,
@@ -123,15 +131,15 @@ function SignContent({ restoreDone }: { restoreDone: boolean }) {
     function onError(event: ErrorEvent) {
       const message = event.error
         ? describeRuntimeError(event.error)
-        : event.message || 'Unknown runtime error';
+        : event.message || "Unknown runtime error";
       setRuntimeError(message);
     }
 
-    window.addEventListener('unhandledrejection', onUnhandledRejection);
-    window.addEventListener('error', onError);
+    window.addEventListener("unhandledrejection", onUnhandledRejection);
+    window.addEventListener("error", onError);
     return () => {
-      window.removeEventListener('unhandledrejection', onUnhandledRejection);
-      window.removeEventListener('error', onError);
+      window.removeEventListener("unhandledrejection", onUnhandledRejection);
+      window.removeEventListener("error", onError);
     };
   }, []);
 
@@ -140,12 +148,14 @@ function SignContent({ restoreDone }: { restoreDone: boolean }) {
       await handlers.reportAwaitingWallet(bundleId);
       const result = await execute(callList);
       const aaRequestedMode =
-        providerState.AA?.mode === '4337' || providerState.AA?.mode === '7702'
+        providerState.AA?.mode === "4337" || providerState.AA?.mode === "7702"
           ? providerState.AA.mode
-          : 'none';
-      const aaResolvedMode = aaResolvedModeFromExecutionKind(result.executionKind) ?? aaRequestedMode;
+          : "none";
+      const aaResolvedMode =
+        aaResolvedModeFromExecutionKind(result.executionKind) ??
+        aaRequestedMode;
       const aaFallbackReason =
-        aaRequestedMode !== 'none' && aaResolvedMode !== aaRequestedMode
+        aaRequestedMode !== "none" && aaResolvedMode !== aaRequestedMode
           ? `requested_${aaRequestedMode}_fallback_${aaResolvedMode}`
           : undefined;
       await handlers.reportSuccess(bundleId, result.txHash, {
@@ -166,10 +176,11 @@ function SignContent({ restoreDone }: { restoreDone: boolean }) {
         ? `${providerState.AA.provider.toLowerCase()}_${providerState.AA.mode}`
         : undefined;
       const aaRequestedMode =
-        providerState.AA?.mode === '4337' || providerState.AA?.mode === '7702'
+        providerState.AA?.mode === "4337" || providerState.AA?.mode === "7702"
           ? providerState.AA.mode
-          : 'none';
-      const aaResolvedMode = aaResolvedModeFromExecutionKind(executionKind) ?? aaRequestedMode;
+          : "none";
+      const aaResolvedMode =
+        aaResolvedModeFromExecutionKind(executionKind) ?? aaRequestedMode;
       await handlers.reportFailure(bundleId, err, {
         ...pendingTxCallbackFields(callList),
         aa_requested_mode: aaRequestedMode,
@@ -179,19 +190,21 @@ function SignContent({ restoreDone }: { restoreDone: boolean }) {
         call_count: callList.length,
         batched: callList.length > 1,
         sponsored: providerState.plan
-          ? providerState.plan.sponsorship !== 'disabled'
+          ? providerState.plan.sponsorship !== "disabled"
           : undefined,
         smart_account_4337: providerState.AA?.SmartAccount4337,
         delegation_7702:
-          providerState.AA?.mode === '7702' ? providerState.AA.Delegation7702 : undefined,
+          providerState.AA?.mode === "7702"
+            ? providerState.AA.Delegation7702
+            : undefined,
       });
     }
   }
 
   return (
-    <main className="min-h-screen bg-black flex items-center justify-center text-white text-sm">
-      {status === 'loading' && (
-        <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-white" />
+    <main className="flex min-h-screen items-center justify-center bg-black text-sm text-white">
+      {status === "loading" && (
+        <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-t-2 border-white" />
       )}
       {runtimeError && (
         <div className="max-w-md px-6 text-center">
@@ -199,12 +212,12 @@ function SignContent({ restoreDone }: { restoreDone: boolean }) {
           <p className="mt-3 break-all text-sm text-white/70">{runtimeError}</p>
         </div>
       )}
-      {!runtimeError && status === 'needs_connect' && (
+      {!runtimeError && status === "needs_connect" && (
         <div className="max-w-sm px-6 text-center">
           <p className="text-base font-medium">Wallet connection required</p>
           <p className="mt-3 text-sm text-white/65">
-            The signing page did not restore an active wallet connection. Reconnect
-            your wallet to continue this transaction.
+            The signing page did not restore an active wallet connection.
+            Reconnect your wallet to continue this transaction.
           </p>
           <button
             type="button"
@@ -215,9 +228,9 @@ function SignContent({ restoreDone }: { restoreDone: boolean }) {
           </button>
         </div>
       )}
-      {!runtimeError && status !== 'loading' && status !== 'needs_connect' && (
+      {!runtimeError && status !== "loading" && status !== "needs_connect" && (
         <p className="max-w-[92vw] break-all px-4 text-center">
-          {terminalMessage ?? 'Approve in your wallet...'}
+          {terminalMessage ?? "Approve in your wallet..."}
         </p>
       )}
     </main>
@@ -235,7 +248,9 @@ export default function SignTransaction() {
 
     readyTelegramWebApp();
     // Don't expand — keep compact so wallet modal fills the viewport
-    const queryUserId = new URLSearchParams(window.location.search).get('user_id');
+    const queryUserId = new URLSearchParams(window.location.search).get(
+      "user_id",
+    );
     const userId = getTelegramUserId() ?? queryUserId;
     const init = userId ? restore(userId) : Promise.resolve(false);
     init.then(() => {
@@ -247,8 +262,8 @@ export default function SignTransaction() {
 
   if (!ready) {
     return (
-      <main className="min-h-screen bg-black flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-white" />
+      <main className="flex min-h-screen items-center justify-center bg-black">
+        <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-t-2 border-white" />
       </main>
     );
   }

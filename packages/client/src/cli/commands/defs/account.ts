@@ -66,7 +66,8 @@ const accountAuthUseDef = defineCommand({
     ...globalArgs,
     provider: {
       type: "string",
-      description: 'Authorization provider used for validation (default: "privy")',
+      description:
+        'Authorization provider used for validation (default: "privy")',
     },
     wallet: {
       type: "positional",
@@ -76,16 +77,21 @@ const accountAuthUseDef = defineCommand({
   },
   async run({ args }) {
     const { useAuthorizationCommand } = await import("../authorizations");
-    await useAuthorizationCommand(buildCliConfig(args), String(args.wallet ?? ""), {
-      provider: typeof args.provider === "string" ? args.provider : undefined,
-    });
+    await useAuthorizationCommand(
+      buildCliConfig(args),
+      String(args.wallet ?? ""),
+      {
+        provider: typeof args.provider === "string" ? args.provider : undefined,
+      },
+    );
   },
 });
 
 const accountAuthClearDef = defineCommand({
   meta: {
     name: "clear",
-    description: "Clear the locally selected authorized wallet for this account",
+    description:
+      "Clear the locally selected authorized wallet for this account",
   },
   args: { ...globalArgs },
   async run({ args }) {

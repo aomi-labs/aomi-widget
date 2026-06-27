@@ -11,7 +11,7 @@ Identity is the account (`users.id`). In the pink→blue→yellow model:
 - **yellow** = chain/family, derived: `evm` | `svm`
 
 The leak this contract removes is the `application` segment that today rides
-the `wallet_ref` and filters the authorization lookup. `app` is the *only*
+the `wallet_ref` and filters the authorization lookup. `app` is the _only_
 part of these identifiers that is not one of the three axes.
 
 ---
@@ -23,7 +23,7 @@ provider:family:approval_id        e.g.  privy:svm:42   privy:evm:9
 ```
 
 - `provider` — pink. The provider that signs (`auth_identities.wallet_provider`).
-- `family` — yellow. `evm` | `svm`. Disambiguates *which derived address* of a
+- `family` — yellow. `evm` | `svm`. Disambiguates _which derived address_ of a
   grant is meant: one approval can yield both an EVM and an SVM candidate.
 - `approval_id` — the `access_approvals` row (the account-scoped delegation grant
   holding the signing handle, e.g. privy's 0xQuorumKey).
@@ -46,10 +46,10 @@ render/group without a round-trip.
 
 ## Clause 3 — operating wallet: address rides UserState, delegation rides the ref
 
-| Wallet kind | Operating **address** (blue→yellow) | **Signing** selection (blue→pink) |
-|---|---|---|
-| connected / sync (metamask, para) | `UserState.evm.address` / `svm.address` + `connection.provider` | none — `authorized_mode=false`, client signs |
-| authorized / async (privy-delegated) | same — address in `UserState` | `authorized_wallet_ref` (Clause 1) → `authorized_mode=true`; BE resolves grant→signing key and auto-signs |
+| Wallet kind                          | Operating **address** (blue→yellow)                             | **Signing** selection (blue→pink)                                                                         |
+| ------------------------------------ | --------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| connected / sync (metamask, para)    | `UserState.evm.address` / `svm.address` + `connection.provider` | none — `authorized_mode=false`, client signs                                                              |
+| authorized / async (privy-delegated) | same — address in `UserState`                                   | `authorized_wallet_ref` (Clause 1) → `authorized_mode=true`; BE resolves grant→signing key and auto-signs |
 
 `authorized_wallet_ref` is **not** removed — it is narrowed to "which delegation
 signs". It is no longer a per-app identity hint: once selected, the BE persists
@@ -72,6 +72,7 @@ account-scoped `operatingWalletRef`.
 ## Encoding map
 
 **CLI (`aomi-widget`, this repo)** — `packages/client`:
+
 - `types.ts` — `AomiAuthorizedWallet` drop `application`; `AomiScheduledIntent`
   drop `authorized_wallet_ref`.
 - `client.ts` — `listAuthorizedWallets` drop `app`.
@@ -84,6 +85,7 @@ account-scoped `operatingWalletRef`.
 - `cli/commands/defs/account.ts` — help text loses "for this app".
 
 **BE (`product-mono`)** — paired, coordinate before editing #667's module:
+
 - `aomi/crates/tools/src/authorization/types.rs` — `wallet_ref()` drops
   `application_key`; `AuthorizedWalletCandidate` drops `application`.
 - `authorization/repository.rs` + `resolver.rs` — stop filtering identities by

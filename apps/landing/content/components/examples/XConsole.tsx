@@ -252,10 +252,7 @@ You are an AI assistant specialized in X (formerly Twitter) data analysis. You h
 export function XConsole() {
   return (
     <div className="space-y-2">
-      <ApiDrawer
-        defaultBaseUrl="https://api.x.com"
-        endpoints={X_ENDPOINTS}
-      />
+      <ApiDrawer defaultBaseUrl="https://api.x.com" endpoints={X_ENDPOINTS} />
       <PreambleDisplay content={X_PREAMBLE} />
     </div>
   );

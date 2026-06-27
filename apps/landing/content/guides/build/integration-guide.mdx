@@ -96,13 +96,13 @@ flowchart LR
 
 MyCoinDex exposes standard HTTP endpoints. Aomi does not modify them — your APIs stay exactly as they are. The only requirement is that they are reachable over HTTP.
 
-| Endpoint | Method | Description |
-| --- | --- | --- |
-| `/prices/{symbol}` | GET | Current token price |
-| `/trades` | POST | Execute a trade |
-| `/portfolio/{userId}` | GET | User portfolio and P&L |
-| `/markets` | GET | Available trading pairs |
-| `/orderbook/{pair}` | GET | Order book depth |
+| Endpoint              | Method | Description             |
+| --------------------- | ------ | ----------------------- |
+| `/prices/{symbol}`    | GET    | Current token price     |
+| `/trades`             | POST   | Execute a trade         |
+| `/portfolio/{userId}` | GET    | User portfolio and P&L  |
+| `/markets`            | GET    | Available trading pairs |
+| `/orderbook/{pair}`   | GET    | Order book depth        |
 
 Your backend owns all user state. The Aomi App is stateless — it retains conversation history but nothing about your users, balances, or sessions. That's why `GET /portfolio/user123` passes a user ID explicitly. Your APIs continue to handle authentication, authorization, and business logic as they normally would.
 
@@ -131,11 +131,11 @@ Never provide financial advice or price predictions.
 
 **Model Selection** — Different models have different strengths. Claude excels at nuanced reasoning, GPT-4o is strong at structured output, and smaller models like Haiku or GPT-4o Mini are faster and cheaper for simpler interactions. Models can be changed at runtime — no redeployment needed.
 
-| Provider | Models |
-| --- | --- |
-| Anthropic | Claude Sonnet, Claude Haiku |
-| OpenAI | GPT-4o, GPT-4o Mini |
-| OpenRouter | Access to 100+ models |
+| Provider   | Models                      |
+| ---------- | --------------------------- |
+| Anthropic  | Claude Sonnet, Claude Haiku |
+| OpenAI     | GPT-4o, GPT-4o Mini         |
+| OpenRouter | Access to 100+ models       |
 
 **RAG Document Store** — If you have documentation, FAQs, or knowledge base articles, we can set up RAG ingestion as part of the integration. The AI searches these documents when answering questions that go beyond what the tools can provide.
 
@@ -157,11 +157,11 @@ Each app is fully isolated. MyCoinDex's tools, preamble, and configuration do no
 
 You are responsible for your own product surface. Aomi provides the SDK, component library, and Telegram bot framework — use any combination to integrate the deployed Aomi App into your frontend. We provide assistance throughout the integration process.
 
-| Path | Install | Best For |
-| --- | --- | --- |
-| Widget (shadcn) | `npx shadcn add https://aomi.dev/r/aomi-frame.json` | Quick integration, standard chat UI |
-| Headless Library | `npm install @aomi-labs/react` | Custom designs, maximum control |
-| Telegram Bot | Managed by Aomi | Reaching users without frontend deployment |
+| Path             | Install                                             | Best For                                   |
+| ---------------- | --------------------------------------------------- | ------------------------------------------ |
+| Widget (shadcn)  | `npx shadcn add https://aomi.dev/r/aomi-frame.json` | Quick integration, standard chat UI        |
+| Headless Library | `npm install @aomi-labs/react`                      | Custom designs, maximum control            |
+| Telegram Bot     | Managed by Aomi                                     | Reaching users without frontend deployment |
 
 ## Next Steps
 

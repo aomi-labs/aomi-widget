@@ -20,9 +20,7 @@
     "total_turns": 1,
     "total_tool_calls": 7,
     "total_responses": 8,
-    "activated_skills": [
-      "avantis"
-    ],
+    "activated_skills": ["avantis"],
     "failed_assertions": [],
     "budget_summary": {
       "total": 1,
@@ -116,10 +114,7 @@
         "tool": "activate_skills",
         "topic": "activate_skills",
         "arguments": {
-          "skill_ids": [
-            "avantis",
-            "common_erc20"
-          ]
+          "skill_ids": ["avantis", "common_erc20"]
         },
         "result_preview": "{\n  \"activated\": [\n    \"avantis\"\n  ],\n  \"rejected\": [\n    [\n      \"common_erc20\",\n      \"invalid\"\n    ]\n  ],\n  \"applied_scope\": \"current_serve_cycle\"\n}"
       },
@@ -138,9 +133,7 @@
         "topic": "Alice USDC balance on Base",
         "arguments": {
           "function_signature": "balanceOf(address)",
-          "arguments": [
-            "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
-          ],
+          "arguments": ["0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"],
           "to": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
           "value": "0",
           "topic": "Alice USDC balance on Base"
@@ -184,9 +177,7 @@
         "topic": "Confirm pairIndex 0 is ETH/USD",
         "arguments": {
           "function_signature": "pairData(uint256)",
-          "arguments": [
-            "0"
-          ],
+          "arguments": ["0"],
           "to": "0x5db3772136e5557EFE028Db05EE95C84D76faEC4",
           "value": "0",
           "topic": "Confirm pairIndex 0 is ETH/USD"
@@ -199,12 +190,7 @@
         "topic": "Keeper gas fee for ETH/USD open",
         "arguments": {
           "function_signature": "getGasFees(uint256,uint256,int256,bool)",
-          "arguments": [
-            "0",
-            "10000000",
-            "0",
-            "false"
-          ],
+          "arguments": ["0", "10000000", "0", "false"],
           "to": "0x5db3772136e5557EFE028Db05EE95C84D76faEC4",
           "value": "0",
           "topic": "Keeper gas fee for ETH/USD open"
@@ -220,12 +206,8 @@
     },
     "skills": {
       "mode": "restricted",
-      "allowed": [
-        "avantis"
-      ],
-      "activated_skills": [
-        "avantis"
-      ],
+      "allowed": ["avantis"],
+      "activated_skills": ["avantis"],
       "bundle_path": "../output/eval/model-bench-public-skills-opus47-opus46-haiku45-20260531/specs/check_eth_perp_before_open/claude-opus-4.7/pass-002/spec-skills/check_eth_perp_before_open-skills.json",
       "bundle_revision": "fnv1a64:32dc8058e89c0769"
     },

@@ -72,12 +72,12 @@ Four units, each with one job:
 1. **`network-preferences.tsx`** (exists) — gains **persistence**
    (`localStorage`) for `selectedFamily`, `selectedEvmChainId`,
    `selectedSolanaNetworkId`, and a new `activeAccountId` per family. Source
-   of truth for *selection/view* state.
+   of truth for _selection/view_ state.
 2. **`providers/para.tsx`** (exists) — builds the `accounts` registry from
    its sources (wagmi `useConnections()` for EVM, `useSafeSolanaWallet` for
    Solana), implements `selectAccount` / per-account `disconnect`, and
    applies the SOL→EVM and connect-guard fixes. Source of truth for
-   *connections*.
+   _connections_.
 3. **`wallet-picker.tsx` + `wallet-picker-context.tsx`** (ported, adapted) —
    the polished modal shell. Top: provider rows (Para live; Base/Privy
    disabled placeholders). Below: two **family sections** (EVM / Solana)
@@ -117,7 +117,7 @@ disconnect?: (options?: {
 
 Semantics:
 
-- `identity.address` / `svmAddress` become *derived* = the `active` account
+- `identity.address` / `svmAddress` become _derived_ = the `active` account
   of each family. Nothing downstream changes.
 - **EVM:** `accounts` from wagmi `useConnections()`; `selectAccount` →
   `switchAccount({ connector })`; per-account `disconnect` →
@@ -201,5 +201,7 @@ Following existing patterns (`network-select.test.tsx`,
 - N simultaneous live connections (Solana adapter can't; backend can't
   report).
 - Provider switching beyond Para (Base/Privy remain disabled placeholders).
+
 ```
 
+```

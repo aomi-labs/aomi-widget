@@ -23,11 +23,16 @@ export const chatDef = defineCommand({
   },
   async run({ args }) {
     const { chatCommand } = await import("../chat");
-    await chatCommand(buildCliConfig(args), args.message ?? "", args.verbose === true, {
-      authorizedWalletRef:
-        typeof args["authorized-wallet"] === "string"
-          ? args["authorized-wallet"]
-          : undefined,
-    });
+    await chatCommand(
+      buildCliConfig(args),
+      args.message ?? "",
+      args.verbose === true,
+      {
+        authorizedWalletRef:
+          typeof args["authorized-wallet"] === "string"
+            ? args["authorized-wallet"]
+            : undefined,
+      },
+    );
   },
 });

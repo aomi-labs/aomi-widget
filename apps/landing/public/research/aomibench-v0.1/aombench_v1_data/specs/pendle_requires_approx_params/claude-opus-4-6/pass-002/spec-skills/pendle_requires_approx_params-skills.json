@@ -3,14 +3,7 @@
     "id": "pendle",
     "name": "pendle",
     "description": "Use when users want to trade yield via Pendle — buy/sell PT (principal tokens) or YT (yield tokens), add liquidity to Pendle markets, or redeem accrued interest and rewards on Ethereum.",
-    "tags": [
-      "yield",
-      "pendle",
-      "pt",
-      "yt",
-      "fixed-yield",
-      "defi"
-    ],
+    "tags": ["yield", "pendle", "pt", "yt", "fixed-yield", "defi"],
     "tool_names": [
       "get_time_and_onchain_context",
       "brave_search",
@@ -32,21 +25,15 @@
       {
         "tool": "simulate_batch",
         "pre_call": [],
-        "post_call": [
-          "pendle-known-addrs"
-        ]
+        "post_call": ["pendle-known-addrs"]
       },
       {
         "tool": "stage_tx",
         "pre_call": [],
-        "post_call": [
-          "pendle-known-addrs"
-        ]
+        "post_call": ["pendle-known-addrs"]
       }
     ],
     "tools_namespace": "evm-core",
-    "chain_ids": [
-      1
-    ]
+    "chain_ids": [1]
   }
 ]

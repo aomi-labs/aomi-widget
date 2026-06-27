@@ -68,7 +68,9 @@ async function copySourceContents(source, destination) {
       force: true,
       filter: (candidate) => {
         // Exclude any local-only directory encountered anywhere in the tree.
-        return !candidate.split(path.sep).some((segment) => shouldSkipEntry(segment));
+        return !candidate
+          .split(path.sep)
+          .some((segment) => shouldSkipEntry(segment));
       },
     });
   }
@@ -77,19 +79,27 @@ async function copySourceContents(source, destination) {
 async function main() {
   const source = path.resolve(
     ROOT,
-    parseArg("--source", process.env.AOMI_SKILLS_SOURCE ?? "packages/client/skills"),
+    parseArg(
+      "--source",
+      process.env.AOMI_SKILLS_SOURCE ?? "packages/client/skills",
+    ),
   );
   const destinationArg = parseArg("--dest", process.env.AOMI_SKILLS_DEST);
 
   if (!destinationArg) {
-    throw new Error("Destination path is required via --dest or AOMI_SKILLS_DEST.");
+    throw new Error(
+      "Destination path is required via --dest or AOMI_SKILLS_DEST.",
+    );
   }
 
   const destination = path.resolve(ROOT, destinationArg);
 
   await requirePath(source, "Skills source");
   await mkdir(destination, { recursive: true });
-  await requirePath(path.join(destination, ".git"), "Skills destination git metadata");
+  await requirePath(
+    path.join(destination, ".git"),
+    "Skills destination git metadata",
+  );
 
   await clearDestination(destination);
   await copySourceContents(source, destination);

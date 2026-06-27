@@ -34,7 +34,11 @@ async function fetchRemoteSessionStats(
   });
 
   try {
-    const apiState = await client.fetchState(record.sessionId, undefined, record.state.clientId);
+    const apiState = await client.fetchState(
+      record.sessionId,
+      undefined,
+      record.state.clientId,
+    );
     const messages = apiState.messages ?? [];
     return {
       topic: apiState.title ?? "Untitled Session",
@@ -83,7 +87,9 @@ function printSessionSummary(
 }
 
 export async function sessionsCommand(config: CliConfig): Promise<void> {
-  const sessions = listStoredSessions().sort((a, b) => b.updatedAt - a.updatedAt);
+  const sessions = listStoredSessions().sort(
+    (a, b) => b.updatedAt - a.updatedAt,
+  );
   if (sessions.length === 0) {
     console.log("No local sessions.");
     printDataFileLocation();
@@ -121,7 +127,9 @@ export function resumeSessionCommand(selector: string): void {
   if (!resumed) {
     fatal(`No local session found for selector "${selector}".`);
   }
-  console.log(`Active session set to ${resumed.sessionId} (session-${resumed.localId}).`);
+  console.log(
+    `Active session set to ${resumed.sessionId} (session-${resumed.localId}).`,
+  );
   printDataFileLocation();
 }
 
@@ -130,7 +138,9 @@ export function deleteSessionCommand(selector: string): void {
   if (!deleted) {
     fatal(`No local session found for selector "${selector}".`);
   }
-  console.log(`Deleted local session ${deleted.sessionId} (session-${deleted.localId}).`);
+  console.log(
+    `Deleted local session ${deleted.sessionId} (session-${deleted.localId}).`,
+  );
   const active = CliSession.load();
   if (active) {
     console.log(`Active session: ${active.sessionId}`);

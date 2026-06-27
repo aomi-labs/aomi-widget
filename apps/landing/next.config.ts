@@ -9,7 +9,10 @@ const landingNodeModules = path.resolve(__dirname, "node_modules");
 const reactPkgSrc = path.resolve(__dirname, "../../packages/react/src");
 const docsSrc = path.resolve(__dirname);
 const landingSrc = path.resolve(__dirname, "src");
-const registryComponents = path.resolve(__dirname, "../registry/src/components");
+const registryComponents = path.resolve(
+  __dirname,
+  "../registry/src/components",
+);
 const contentDir = path.resolve(__dirname, "content");
 const contentExamplesComponents = path.join(
   contentDir,
@@ -51,11 +54,12 @@ const nextConfig: NextConfig = {
   async headers() {
     return [
       {
-        source: '/embed-playground',
+        source: "/embed-playground",
         headers: [
           {
-            key: 'Content-Security-Policy',
-            value: "frame-ancestors 'self' https://aomilabs.mintlify.app https://*.mintlify.app",
+            key: "Content-Security-Policy",
+            value:
+              "frame-ancestors 'self' https://aomilabs.mintlify.app https://*.mintlify.app",
           },
         ],
       },
@@ -91,10 +95,7 @@ const nextConfig: NextConfig = {
       "@/content": contentDir,
       "@/hooks": path.join(landingSrc, "hooks"),
       "@aomi-labs/react": path.join(reactPkgSrc, "index.ts"),
-      "@getpara/react-sdk": path.join(
-        landingNodeModules,
-        "@getpara/react-sdk",
-      ),
+      "@getpara/react-sdk": path.join(landingNodeModules, "@getpara/react-sdk"),
       "@tanstack/react-query": path.join(
         landingNodeModules,
         "@tanstack/react-query",

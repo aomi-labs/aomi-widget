@@ -27,9 +27,7 @@
     "total_turns": 1,
     "total_tool_calls": 38,
     "total_responses": 55,
-    "activated_skills": [
-      "uniswap"
-    ],
+    "activated_skills": ["uniswap"],
     "failed_assertions": [
       {
         "label": "Alice spends about 1 ETH total on swap plus LP",
@@ -383,10 +381,7 @@
         "tool": "activate_skills",
         "topic": "activate_skills",
         "arguments": {
-          "skill_ids": [
-            "uniswap",
-            "common_erc20"
-          ]
+          "skill_ids": ["uniswap", "common_erc20"]
         },
         "result_preview": "{\n  \"activated\": [\n    \"uniswap\"\n  ],\n  \"rejected\": [\n    [\n      \"common_erc20\",\n      \"invalid\"\n    ]\n  ],\n  \"applied_scope\": \"current_serve_cycle\"\n}"
       },
@@ -532,9 +527,7 @@
         "tool": "encode_and_call",
         "topic": "Check current USDC balance",
         "arguments": {
-          "arguments": [
-            "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
-          ],
+          "arguments": ["0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"],
           "function_signature": "balanceOf(address)",
           "to": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
           "topic": "Check current USDC balance",
@@ -1140,11 +1133,7 @@
         "tool": "commit_txs",
         "topic": "Add 1 ETH liquidity to Uniswap V2 ETH/USDC pool",
         "arguments": {
-          "tx_ids": [
-            10,
-            11,
-            12
-          ],
+          "tx_ids": [10, 11, 12],
           "topic": "Add 1 ETH liquidity to Uniswap V2 ETH/USDC pool"
         },
         "result_preview": "{\n  \"status\": \"pending_approval\",\n  \"tx_ids\": [\n    10,\n    11,\n    12\n  ],\n  \"timestamp\": \"2026-05-31T21:39:48.655369+00:00\"\n}"
@@ -1158,12 +1147,8 @@
     },
     "skills": {
       "mode": "restricted",
-      "allowed": [
-        "uniswap"
-      ],
-      "activated_skills": [
-        "uniswap"
-      ],
+      "allowed": ["uniswap"],
+      "activated_skills": ["uniswap"],
       "bundle_path": "../output/eval/model-bench-public-skills-expansion-20260531/specs/add_eth_usdc_v2_lp_after_half_swap/claude-haiku-4.5/pass-001/spec-skills/add_eth_usdc_v2_lp_after_half_swap-skills.json",
       "bundle_revision": "fnv1a64:b60b7265d48b4779"
     },

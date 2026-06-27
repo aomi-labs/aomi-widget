@@ -67,7 +67,10 @@ describe("normalizeUserState null pruning", () => {
 
   it("preserves an empty capabilities array (valid wire value)", () => {
     const normalized = UserState.normalize({
-      svm: { address: "So11111111111111111111111111111111111111112", capabilities: [] },
+      svm: {
+        address: "So11111111111111111111111111111111111111112",
+        capabilities: [],
+      },
     });
     expect(normalized?.svm?.capabilities).toEqual([]);
   });

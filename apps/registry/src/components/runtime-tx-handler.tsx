@@ -213,7 +213,10 @@ export function RuntimeTxHandler() {
           await maybeSwitchSolanaCluster(req.payload.cluster);
 
           const result = await adapter.signSolanaTransaction(req.payload);
-          await resolveWalletRequest(req.id, { kind: "solana_sign", ...result });
+          await resolveWalletRequest(req.id, {
+            kind: "solana_sign",
+            ...result,
+          });
           return;
         }
 
@@ -253,10 +256,7 @@ export function RuntimeTxHandler() {
           return;
         }
 
-        if (
-          req.kind === "solana_send" ||
-          req.kind === "solana_sign_and_send"
-        ) {
+        if (req.kind === "solana_send" || req.kind === "solana_sign_and_send") {
           if (!req.payload.unsignedTx) {
             await rejectWalletRequest(req.id, "Missing unsigned_tx payload");
             return;

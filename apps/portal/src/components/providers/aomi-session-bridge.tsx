@@ -141,7 +141,7 @@ export function AomiSessionProvider({ children }: { children: ReactNode }) {
         if (response.ok) {
           establishedFor.current = key;
           setStatus("ready");
-        } else if (response.status >= 500 && await hasAccountSession()) {
+        } else if (response.status >= 500 && (await hasAccountSession())) {
           establishedFor.current = key;
           setStatus("ready");
         } else {

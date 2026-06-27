@@ -33,10 +33,14 @@ const {
   requestAccountMock: vi.fn(),
   sendCallsMock: vi.fn(),
   waitForCallsStatusMock: vi.fn(),
-  signAuthorizationMock: vi.fn().mockResolvedValue({ r: "0x1", s: "0x2", v: 27n }),
+  signAuthorizationMock: vi
+    .fn()
+    .mockResolvedValue({ r: "0x1", s: "0x2", v: 27n }),
   sendTransactionMock: vi.fn().mockResolvedValue("0xmock7702hash"),
   estimateGasMock: vi.fn().mockResolvedValue(50000n),
-  waitForTransactionReceiptMock: vi.fn().mockResolvedValue({ status: "success", gasUsed: 47000n }),
+  waitForTransactionReceiptMock: vi
+    .fn()
+    .mockResolvedValue({ status: "success", gasUsed: 47000n }),
 }));
 
 vi.mock("@getpara/aa-alchemy", () => ({
@@ -106,7 +110,11 @@ const CALL_LIST = [
   { to: "0x1111111111111111111111111111111111111111", value: "1", chainId: 1 },
 ] as const;
 const POLYGON_CALLS = [
-  { to: "0x1111111111111111111111111111111111111111", value: "1", chainId: 137 },
+  {
+    to: "0x1111111111111111111111111111111111111111",
+    value: "1",
+    chainId: 137,
+  },
 ] as const;
 
 const ORIGINAL_ENV = { ...process.env };
@@ -493,6 +501,8 @@ describe("createAAProviderState owner modes", () => {
     expect(createAlchemySmartAccountMock).not.toHaveBeenCalled();
     expect(state.account).toBeNull();
     expect(state.error).toBeInstanceOf(Error);
-    expect(state.error!.message).toBe('Session adapter "privy" is not implemented.');
+    expect(state.error!.message).toBe(
+      'Session adapter "privy" is not implemented.',
+    );
   });
 });

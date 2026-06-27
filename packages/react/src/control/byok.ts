@@ -46,11 +46,7 @@ export type SecretsActions = {
 };
 
 export type ByokActions = SecretsActions & {
-  setByok: (
-    provider: string,
-    apiKey: string,
-    label?: string,
-  ) => Promise<void>;
+  setByok: (provider: string, apiKey: string, label?: string) => Promise<void>;
   removeByok: (provider: string) => Promise<void>;
   getByokKeys: () => Record<string, StoredByokKey>;
   hasByok: (provider?: string) => boolean;
@@ -189,11 +185,7 @@ export function useByokImpl({
   // ---------------------------------------------------------------------------
 
   const setByok = useCallback(
-    async (
-      provider: string,
-      apiKey: string,
-      label?: string,
-    ): Promise<void> => {
+    async (provider: string, apiKey: string, label?: string): Promise<void> => {
       const trimmed = apiKey.trim();
       if (!trimmed) return;
 
@@ -239,10 +231,7 @@ export function useByokImpl({
     [aomiClientRef, clientIdRef, getControlSessionId],
   );
 
-  const getByokKeys = useCallback(
-    () => byokKeys,
-    [byokKeys],
-  );
+  const getByokKeys = useCallback(() => byokKeys, [byokKeys]);
 
   const hasByok = useCallback(
     (provider?: string): boolean => {

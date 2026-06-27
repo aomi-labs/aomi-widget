@@ -119,10 +119,14 @@ function asRecord(value: unknown): UnknownRecord | undefined {
   return value as UnknownRecord;
 }
 
-function pendingTxsFromUserState(userState: unknown): UnknownRecord | undefined {
+function pendingTxsFromUserState(
+  userState: unknown,
+): UnknownRecord | undefined {
   const normalized = UserState.normalize(userState as UserState);
   const pending = asRecord(normalized?.pending);
-  return asRecord(pending?.evm_txs) ?? asRecord(asRecord(userState)?.pending_txs);
+  return (
+    asRecord(pending?.evm_txs) ?? asRecord(asRecord(userState)?.pending_txs)
+  );
 }
 
 function getToolArgs(payload: unknown): UnknownRecord {

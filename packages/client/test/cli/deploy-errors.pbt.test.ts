@@ -1,7 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import fc from "fast-check";
 
-import { DeployCliError, CliExit, fatal, mapDeployHttpError } from "../../src/cli/errors";
+import {
+  DeployCliError,
+  CliExit,
+  fatal,
+  mapDeployHttpError,
+} from "../../src/cli/errors";
 
 describe("DeployCliError — property-based", () => {
   const validCodes = [
@@ -59,17 +64,14 @@ describe("CliExit — property-based", () => {
 describe("fatal — property-based", () => {
   it("throws a CliExit with code 1", () => {
     fc.assert(
-      fc.property(
-        fc.string({ minLength: 1, maxLength: 500 }),
-        (message) => {
-          expect(() => fatal(message)).toThrow(CliExit);
-          try {
-            fatal(message);
-          } catch (err) {
-            expect((err as CliExit).code).toBe(1);
-          }
-        },
-      ),
+      fc.property(fc.string({ minLength: 1, maxLength: 500 }), (message) => {
+        expect(() => fatal(message)).toThrow(CliExit);
+        try {
+          fatal(message);
+        } catch (err) {
+          expect((err as CliExit).code).toBe(1);
+        }
+      }),
       { numRuns: 20 },
     );
   });

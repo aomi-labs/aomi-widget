@@ -11,16 +11,41 @@ afterEach(() => {
 });
 
 const evmChains = [
-  { id: 1, name: "Ethereum", nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 }, rpcUrls: { default: { http: ["https://eth.example"] } } },
-  { id: 8453, name: "Base", nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 }, rpcUrls: { default: { http: ["https://base.example"] } } },
+  {
+    id: 1,
+    name: "Ethereum",
+    nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
+    rpcUrls: { default: { http: ["https://eth.example"] } },
+  },
+  {
+    id: 8453,
+    name: "Base",
+    nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
+    rpcUrls: { default: { http: ["https://base.example"] } },
+  },
 ] as const;
 
 const solanaNetworks = [
-  { id: "solana-mainnet", label: "Mainnet", cluster: "solana:mainnet", rpcHttpUrl: "https://m.example", isDefault: true },
-  { id: "solana-devnet", label: "Devnet", cluster: "solana:devnet", rpcHttpUrl: "https://d.example" },
+  {
+    id: "solana-mainnet",
+    label: "Mainnet",
+    cluster: "solana:mainnet",
+    rpcHttpUrl: "https://m.example",
+    isDefault: true,
+  },
+  {
+    id: "solana-devnet",
+    label: "Devnet",
+    cluster: "solana:devnet",
+    rpcHttpUrl: "https://d.example",
+  },
 ] as const;
 
-function Harness({ onReady }: { onReady: (v: ReturnType<typeof useAomiWalletNetworkPreferences>) => void }) {
+function Harness({
+  onReady,
+}: {
+  onReady: (v: ReturnType<typeof useAomiWalletNetworkPreferences>) => void;
+}) {
   const value = useAomiWalletNetworkPreferences();
   onReady(value);
   return null;
@@ -30,7 +55,11 @@ describe("network preferences persistence", () => {
   it("persists chain + cluster selections and restores them on remount", () => {
     let api!: ReturnType<typeof useAomiWalletNetworkPreferences>;
     const { unmount } = render(
-      <AomiWalletNetworkPreferencesProvider storageKey="test" evmChains={evmChains} solanaNetworks={solanaNetworks}>
+      <AomiWalletNetworkPreferencesProvider
+        storageKey="test"
+        evmChains={evmChains}
+        solanaNetworks={solanaNetworks}
+      >
         <Harness onReady={(v) => (api = v)} />
       </AomiWalletNetworkPreferencesProvider>,
     );
@@ -42,7 +71,11 @@ describe("network preferences persistence", () => {
 
     let restored!: ReturnType<typeof useAomiWalletNetworkPreferences>;
     render(
-      <AomiWalletNetworkPreferencesProvider storageKey="test" evmChains={evmChains} solanaNetworks={solanaNetworks}>
+      <AomiWalletNetworkPreferencesProvider
+        storageKey="test"
+        evmChains={evmChains}
+        solanaNetworks={solanaNetworks}
+      >
         <Harness onReady={(v) => (restored = v)} />
       </AomiWalletNetworkPreferencesProvider>,
     );

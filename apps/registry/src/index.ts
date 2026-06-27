@@ -3,7 +3,10 @@
 export { AomiFrame } from "./components/aomi-frame";
 
 // Dual-wallet UI
-export { DualWalletBar, type DualWalletBarProps } from "./components/control-bar/dual-wallet-bar";
+export {
+  DualWalletBar,
+  type DualWalletBarProps,
+} from "./components/control-bar/dual-wallet-bar";
 
 // Notification UI
 export { NotificationToaster } from "./components/ui/notification";

@@ -1,10 +1,7 @@
 import { act, renderHook } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
-import {
-  useWalletHandler,
-  type WalletRequest,
-} from "./wallet-handler";
+import { useWalletHandler, type WalletRequest } from "./wallet-handler";
 
 function createDeferred<T>() {
   let resolve!: (value: T | PromiseLike<T>) => void;

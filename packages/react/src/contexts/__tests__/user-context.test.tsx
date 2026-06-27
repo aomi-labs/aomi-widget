@@ -100,7 +100,9 @@ describe("ExtUserProvider.setUser", () => {
     });
 
     const u = ref.current!.user;
-    expect(UserState.address(u)).toBe("0x4444444444444444444444444444444444444444");
+    expect(UserState.address(u)).toBe(
+      "0x4444444444444444444444444444444444444444",
+    );
     // Identity-static fields persist across the in-place switch.
     expect(UserState.walletProvider(u)).toBe("para");
     expect(UserState.chainId(u)).toBe(8453);

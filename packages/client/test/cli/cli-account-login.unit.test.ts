@@ -53,7 +53,9 @@ describe("aomi account login", () => {
         "http://unit.test/api/auth/privy/begin",
       );
       expect(
-        JSON.parse((nativeFetch.mock.calls[0]?.[1] as RequestInit).body as string),
+        JSON.parse(
+          (nativeFetch.mock.calls[0]?.[1] as RequestInit).body as string,
+        ),
       ).toEqual({
         application: "byreal",
       });
@@ -81,7 +83,8 @@ describe("aomi account login", () => {
       statusText: "OK",
       json: vi.fn(async () => ({
         state_token: "state-1",
-        auth_url: "https://chat.example/auth/privy?state=state-1&wallet_family=solana",
+        auth_url:
+          "https://chat.example/auth/privy?state=state-1&wallet_family=solana",
         expires_at: 1_800_000_000,
       })),
     } as unknown as Response;
@@ -93,7 +96,9 @@ describe("aomi account login", () => {
       await loginCommand(baseConfig, { walletFamily: "solana" });
 
       expect(
-        JSON.parse((nativeFetch.mock.calls[0]?.[1] as RequestInit).body as string),
+        JSON.parse(
+          (nativeFetch.mock.calls[0]?.[1] as RequestInit).body as string,
+        ),
       ).toEqual({
         application: "byreal",
         wallet_family: "solana",

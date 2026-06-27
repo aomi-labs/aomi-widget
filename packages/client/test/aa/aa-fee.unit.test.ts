@@ -25,7 +25,11 @@ describe("aa fee helpers", () => {
       aaPreference: "none",
     };
 
-    const next = appendFeeCallToPayload(payload, makeFee("1000000000000000"), 1);
+    const next = appendFeeCallToPayload(
+      payload,
+      makeFee("1000000000000000"),
+      1,
+    );
 
     expect(next.aaPreference).toBe("eip7702");
     expect(next.aaStrict).toBe(true);

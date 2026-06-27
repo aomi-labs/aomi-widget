@@ -3,15 +3,7 @@
     "id": "uniswap",
     "name": "uniswap",
     "description": "Use when users want to swap tokens on Uniswap V3 or V2 on Ethereum.",
-    "tags": [
-      "swap",
-      "uniswap",
-      "v3",
-      "v2",
-      "amm",
-      "dex",
-      "token"
-    ],
+    "tags": ["swap", "uniswap", "v3", "v2", "amm", "dex", "token"],
     "tool_names": [
       "get_time_and_onchain_context",
       "brave_search",
@@ -24,9 +16,7 @@
       "commit_eip712",
       "commit_txs"
     ],
-    "injected_tools": [
-      "encode_and_simulate_multicall"
-    ],
+    "injected_tools": ["encode_and_simulate_multicall"],
     "source": "aomi_builtin",
     "est_tokens": 1230,
     "activation_tokens": 1235,
@@ -35,28 +25,20 @@
       {
         "tool": "simulate_batch",
         "pre_call": [],
-        "post_call": [
-          "uniswap-known-addrs"
-        ]
+        "post_call": ["uniswap-known-addrs"]
       },
       {
         "tool": "encode_and_simulate_multicall",
         "pre_call": [],
-        "post_call": [
-          "uniswap-known-addrs"
-        ]
+        "post_call": ["uniswap-known-addrs"]
       },
       {
         "tool": "stage_tx",
         "pre_call": [],
-        "post_call": [
-          "uniswap-known-addrs"
-        ]
+        "post_call": ["uniswap-known-addrs"]
       }
     ],
     "tools_namespace": "evm-core",
-    "chain_ids": [
-      1
-    ]
+    "chain_ids": [1]
   }
 ]

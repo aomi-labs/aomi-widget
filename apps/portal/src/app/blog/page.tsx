@@ -23,15 +23,16 @@ export default function BlogIndexPage() {
     <main className="min-h-screen bg-white text-gray-900">
       <section className="mx-auto flex w-full max-w-5xl flex-col gap-16 px-6 pb-24 pt-24 md:px-10">
         <header className="flex flex-col gap-4 text-left">
-          <span className="text-xs uppercase tracking-[0.35em] text-gray-500 font-bauhaus">
+          <span className="font-bauhaus text-xs uppercase tracking-[0.35em] text-gray-500">
             Journal
           </span>
-          <h1 className="text-4xl font-semibold font-pixelify text-gray-900">
+          <h1 className="font-pixelify text-4xl font-semibold text-gray-900">
             Field notes from the Aomi stack
           </h1>
-          <p className="max-w-2xl text-sm font-light font-bauhaus text-gray-700 text-justify">
-            Deep dives on agentic software, intent pipelines, and the infrastructure we build to keep
-            autonomous systems safe on public blockchains.
+          <p className="font-bauhaus max-w-2xl text-justify text-sm font-light text-gray-700">
+            Deep dives on agentic software, intent pipelines, and the
+            infrastructure we build to keep autonomous systems safe on public
+            blockchains.
           </p>
         </header>
 
@@ -58,7 +59,7 @@ export default function BlogIndexPage() {
 
                 <div className="flex flex-col justify-between gap-6">
                   <div className="flex flex-col gap-3 text-left md:text-left">
-                    <div className="flex items-center gap-3 text-xs uppercase tracking-[0.35em] text-gray-500 font-bauhaus">
+                    <div className="font-bauhaus flex items-center gap-3 text-xs uppercase tracking-[0.35em] text-gray-500">
                       <span>{blog.eyebrow || "Dispatch"}</span>
                       {publishedLabel && (
                         <span className="text-[11px] tracking-[0.25em] text-gray-400">
@@ -66,16 +67,18 @@ export default function BlogIndexPage() {
                         </span>
                       )}
                     </div>
-                    <h2 className="text-2xl font-semibold text-gray-900 font-pixelify">
-                      <Link href={`/blog/${blog.slug}`} className="transition hover:text-gray-600">
+                    <h2 className="font-pixelify text-2xl font-semibold text-gray-900">
+                      <Link
+                        href={`/blog/${blog.slug}`}
+                        className="transition hover:text-gray-600"
+                      >
                         {blog.title}
                       </Link>
                     </h2>
-                    <p className="text-sm font-light leading-relaxed text-gray-700 text-justify font-bauhaus">
+                    <p className="font-bauhaus text-justify text-sm font-light leading-relaxed text-gray-700">
                       {blog.description}
                     </p>
                   </div>
-
                 </div>
               </article>
             );

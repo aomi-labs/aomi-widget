@@ -37,9 +37,7 @@
     "total_turns": 1,
     "total_tool_calls": 12,
     "total_responses": 22,
-    "activated_skills": [
-      "cctp"
-    ],
+    "activated_skills": ["cctp"],
     "failed_assertions": [],
     "budget_summary": {
       "total": 1,
@@ -240,9 +238,7 @@
         "tool": "activate_skills",
         "topic": "activate_skills",
         "arguments": {
-          "skill_ids": [
-            "cctp"
-          ]
+          "skill_ids": ["cctp"]
         },
         "result_preview": "{\n  \"activated\": [\n    \"cctp\"\n  ],\n  \"rejected\": [],\n  \"applied_scope\": \"current_serve_cycle\"\n}"
       },
@@ -269,9 +265,7 @@
         "tool": "activate_skills",
         "topic": "activate_skills",
         "arguments": {
-          "skill_ids": [
-            "common_erc20"
-          ]
+          "skill_ids": ["common_erc20"]
         },
         "result_preview": "{\n  \"activated\": [],\n  \"rejected\": [],\n  \"applied_scope\": \"current_serve_cycle\",\n  \"error\": {\n    \"code\": \"activation_window_closed\",\n    \"message\": \"activate_skills is only valid in the first pass of this request\"\n  }\n}"
       },
@@ -281,9 +275,7 @@
         "topic": "Check Alice's USDC balance on Ethereum",
         "arguments": {
           "function_signature": "balanceOf(address)",
-          "arguments": [
-            "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
-          ],
+          "arguments": ["0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"],
           "to": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
           "value": "0",
           "topic": "Check Alice's USDC balance on Ethereum"
@@ -363,10 +355,7 @@
         "topic": "Stage USDC approval for CCTP",
         "arguments": {
           "data": {
-            "args": [
-              "0x28b5a0e9c621a5badaa536219b3a228c8168cf5d",
-              "25000000"
-            ],
+            "args": ["0x28b5a0e9c621a5badaa536219b3a228c8168cf5d", "25000000"],
             "raw": "",
             "signature": "approve(address,uint256)"
           },
@@ -439,12 +428,8 @@
     },
     "skills": {
       "mode": "restricted",
-      "allowed": [
-        "cctp"
-      ],
-      "activated_skills": [
-        "cctp"
-      ],
+      "allowed": ["cctp"],
+      "activated_skills": ["cctp"],
       "bundle_path": "../output/eval/model-bench-public-skills-minimax-m25-kiro-20260531/specs/bridge_usdc_to_base_cctp_review_first/minimax-m2.5/pass-001/spec-skills/bridge_usdc_to_base_cctp_review_first-skills.json",
       "bundle_revision": "fnv1a64:d91d4c63b90bc381"
     },

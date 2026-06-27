@@ -161,11 +161,8 @@ function BaseAccountAdapterInner({
   const { signTypedDataAsync } = useSafeSignTypedData();
   const { signMessageAsync } = useSafeSignMessage();
   const wagmiConfig = useSafeWagmiConfig();
-  const {
-    selectedEvmChainId,
-    setSelectedEvmChainId,
-    supportedSolanaNetworks,
-  } = useAomiWalletNetworkPreferences();
+  const { selectedEvmChainId, setSelectedEvmChainId, supportedSolanaNetworks } =
+    useAomiWalletNetworkPreferences();
 
   const chainsById = useMemo<Record<number, Chain>>(
     () =>

@@ -22,7 +22,10 @@ class FakeClient {
     if (sql.includes("from auth_identities")) {
       return this.opts.selectResponses.shift() ?? { rows: [] };
     }
-    if (sql.includes("insert into auth_identities") && this.opts.identityInsertError) {
+    if (
+      sql.includes("insert into auth_identities") &&
+      this.opts.identityInsertError
+    ) {
       throw this.opts.identityInsertError;
     }
     return { rows: [] };
@@ -104,7 +107,9 @@ describe("resolveOrCreateCanonicalUser", () => {
     );
     expect(result.userId).not.toBe("did:privy:new");
     expect(client.calls).toContain("begin");
-    expect(client.calls.some((c) => c.startsWith("insert into users"))).toBe(true);
+    expect(client.calls.some((c) => c.startsWith("insert into users"))).toBe(
+      true,
+    );
     expect(client.calls).toContain("commit");
   });
 

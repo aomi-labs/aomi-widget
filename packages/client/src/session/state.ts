@@ -1,4 +1,8 @@
-import { UserState, type UserState as UserStateShape, type UserStateAAMode } from "../user-state";
+import {
+  UserState,
+  type UserState as UserStateShape,
+  type UserStateAAMode,
+} from "../user-state";
 import { isSubsetMatch, sortJson } from "./json";
 
 type UserStateAlignmentOptions = {
@@ -59,9 +63,9 @@ export function resolveWalletState(
 
   if (aa?.smartAccount4337 !== undefined || aa?.delegation7702 !== undefined) {
     aaBlock.smart_account =
-      resolvedAAMode === "4337" ? aa?.smartAccount4337 ?? null : null;
+      resolvedAAMode === "4337" ? (aa?.smartAccount4337 ?? null) : null;
     aaBlock.delegation_7702 =
-      resolvedAAMode === "7702" ? aa?.delegation7702 ?? null : null;
+      resolvedAAMode === "7702" ? (aa?.delegation7702 ?? null) : null;
   }
 
   const prevEvm = isRecord(userState?.evm) ? userState?.evm : {};
@@ -88,7 +92,10 @@ export function warnIfUserStateMisaligned(
   options?: UserStateAlignmentOptions,
 ): void {
   const expectedUserState = UserState.normalize(expected);
-  const normalizedActualUserState = UserState.reconcile(expectedUserState, actual);
+  const normalizedActualUserState = UserState.reconcile(
+    expectedUserState,
+    actual,
+  );
 
   if (!expectedUserState || !normalizedActualUserState) {
     return;
@@ -120,7 +127,10 @@ function shouldIgnoreAppScopedSvmOverride(
   if (options?.app?.trim().toLowerCase() !== "byreal") {
     return false;
   }
-  if (expected.ext?.client_type !== "ts_cli" || actual.ext?.client_type !== "ts_cli") {
+  if (
+    expected.ext?.client_type !== "ts_cli" ||
+    actual.ext?.client_type !== "ts_cli"
+  ) {
     return false;
   }
   if (

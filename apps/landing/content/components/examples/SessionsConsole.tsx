@@ -34,21 +34,15 @@ const ENDPOINTS: EndpointDef[] = [
     label: "Create Session",
     method: "POST",
     path: "/api/sessions",
-    description:
-      "Create a new chat session. Returns { session_id, title }.",
+    description: "Create a new chat session. Returns { session_id, title }.",
     headers: [SESSION_HEADER],
-    bodyTemplate: JSON.stringify(
-      { public_key: "0x..." },
-      null,
-      2,
-    ),
+    bodyTemplate: JSON.stringify({ public_key: "0x..." }, null, 2),
   },
   {
     label: "Get Session",
     method: "GET",
     path: "/api/sessions/:sessionId",
-    description:
-      "Fetch a single session by ID. Returns an ApiThread object.",
+    description: "Fetch a single session by ID. Returns an ApiThread object.",
     params: [
       {
         key: "sessionId",

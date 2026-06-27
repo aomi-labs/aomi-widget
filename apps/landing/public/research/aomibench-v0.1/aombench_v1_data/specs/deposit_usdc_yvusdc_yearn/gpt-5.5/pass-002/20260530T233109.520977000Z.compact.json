@@ -20,9 +20,7 @@
     "total_turns": 2,
     "total_tool_calls": 9,
     "total_responses": 14,
-    "activated_skills": [
-      "yearn"
-    ],
+    "activated_skills": ["yearn"],
     "failed_assertions": [],
     "budget_summary": {
       "total": 1,
@@ -165,9 +163,7 @@
         "tool": "activate_skills",
         "topic": "activate_skills",
         "arguments": {
-          "skill_ids": [
-            "yearn"
-          ]
+          "skill_ids": ["yearn"]
         },
         "result_preview": "{\n  \"activated\": [\n    \"yearn\"\n  ],\n  \"rejected\": [],\n  \"applied_scope\": \"current_serve_cycle\"\n}"
       },
@@ -185,9 +181,7 @@
         "tool": "encode_and_call",
         "topic": "Check Alice USDC balance",
         "arguments": {
-          "arguments": [
-            "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
-          ],
+          "arguments": ["0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"],
           "function_signature": "balanceOf(address)",
           "to": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
           "topic": "Check Alice USDC balance",
@@ -216,9 +210,7 @@
         "tool": "encode_and_call",
         "topic": "Check yvUSDC max deposit",
         "arguments": {
-          "arguments": [
-            "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
-          ],
+          "arguments": ["0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"],
           "function_signature": "maxDeposit(address)",
           "to": "0xBe53A109B494E5c9f97b9Cd39Fe969BE68BF6204",
           "topic": "Check yvUSDC max deposit",
@@ -233,10 +225,7 @@
         "arguments": {
           "value": "0",
           "data": {
-            "args": [
-              "0xBe53A109B494E5c9f97b9Cd39Fe969BE68BF6204",
-              "100000000"
-            ],
+            "args": ["0xBe53A109B494E5c9f97b9Cd39Fe969BE68BF6204", "100000000"],
             "raw": "",
             "signature": "approve(address,uint256)"
           },
@@ -255,10 +244,7 @@
         "arguments": {
           "value": "0",
           "data": {
-            "args": [
-              "100000000",
-              "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
-            ],
+            "args": ["100000000", "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"],
             "raw": "",
             "signature": "deposit(uint256,address)"
           },
@@ -300,10 +286,7 @@
         "topic": "Request wallet approval for Yearn yvUSDC deposit",
         "arguments": {
           "topic": "Request wallet approval for Yearn yvUSDC deposit",
-          "tx_ids": [
-            1,
-            2
-          ]
+          "tx_ids": [1, 2]
         },
         "result_preview": "{\n  \"status\": \"pending_approval\",\n  \"tx_ids\": [\n    1,\n    2\n  ],\n  \"timestamp\": \"2026-05-30T23:31:01.915766+00:00\"\n}"
       }
@@ -316,12 +299,8 @@
     },
     "skills": {
       "mode": "restricted",
-      "allowed": [
-        "yearn"
-      ],
-      "activated_skills": [
-        "yearn"
-      ],
+      "allowed": ["yearn"],
+      "activated_skills": ["yearn"],
       "bundle_path": "../output/eval/model-bench-public-skills-gpt55-opus48-sonnet46-20260530/specs/deposit_usdc_yvusdc_yearn/gpt-5.5/pass-002/spec-skills/deposit_usdc_yvusdc_yearn-skills.json",
       "bundle_revision": "fnv1a64:2b01e8645ddcbc68"
     },

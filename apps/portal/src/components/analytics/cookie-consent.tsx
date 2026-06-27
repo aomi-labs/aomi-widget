@@ -13,11 +13,12 @@ export function CookieConsent() {
 
   return (
     <div className="fixed bottom-0 left-0 right-0 z-50 p-4 sm:p-6">
-      <div className="mx-auto max-w-2xl rounded-lg border border-border bg-background/95 p-4 shadow-lg backdrop-blur-sm sm:p-6">
+      <div className="border-border bg-background/95 mx-auto max-w-2xl rounded-lg border p-4 shadow-lg backdrop-blur-sm sm:p-6">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex-1">
-            <p className="text-sm text-muted-foreground">
-              We use cookies to understand how you use our site and improve your experience.{" "}
+            <p className="text-muted-foreground text-sm">
+              We use cookies to understand how you use our site and improve your
+              experience.{" "}
               <Link
                 href="/privacy"
                 className="text-foreground underline underline-offset-2 hover:no-underline"

@@ -41,10 +41,11 @@ export function getToolNameFromEvent(event: AomiSSEEvent): string {
   );
 }
 
-export function getToolResultFromEvent(event: AomiSSEEvent): string | undefined {
+export function getToolResultFromEvent(
+  event: AomiSSEEvent,
+): string | undefined {
   return (
-    (event.result as string | undefined) ??
-    (event.output as string | undefined)
+    (event.result as string | undefined) ?? (event.output as string | undefined)
   );
 }
 

@@ -75,9 +75,9 @@ export function generateThemeCSS(
 
   const indent = "  ";
   const formatBlock = (colors: ThemeColors) =>
-    THEME_COLOR_KEYS
-      .map((key) => `${indent}--${key}: ${formatOklch(colors[key])};`)
-      .join("\n");
+    THEME_COLOR_KEYS.map(
+      (key) => `${indent}--${key}: ${formatOklch(colors[key])};`,
+    ).join("\n");
 
   return `/* Custom Theme: ${preset.label} */
 /* Drop this into your globals.css (after importing @aomi-labs/widget-lib/styles.css) */

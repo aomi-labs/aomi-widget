@@ -55,7 +55,9 @@ export function useSettings() {
     const root = document.documentElement;
     const applyTheme = () => {
       if (settings.colorMode === "auto") {
-        const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+        const prefersDark = window.matchMedia(
+          "(prefers-color-scheme: dark)",
+        ).matches;
         root.classList.toggle("dark", prefersDark);
       } else {
         root.classList.toggle("dark", settings.colorMode === "dark");
@@ -90,7 +92,7 @@ export function useSettings() {
       const newSettings = { ...settings, [key]: value };
       persistSettings(newSettings);
     },
-    [settings, persistSettings]
+    [settings, persistSettings],
   );
 
   // Update multiple settings at once
@@ -99,7 +101,7 @@ export function useSettings() {
       const newSettings = { ...settings, ...updates };
       persistSettings(newSettings);
     },
-    [settings, persistSettings]
+    [settings, persistSettings],
   );
 
   // Reset to default settings

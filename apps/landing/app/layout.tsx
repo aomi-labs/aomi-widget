@@ -39,7 +39,8 @@ export const metadata: Metadata = {
 };
 
 // TODO: Replace with actual GA Measurement ID from Shy
-const GA_MEASUREMENT_ID = process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID || "G-XXXXXXXXXX";
+const GA_MEASUREMENT_ID =
+  process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID || "G-XXXXXXXXXX";
 
 export default function RootLayout({
   children,

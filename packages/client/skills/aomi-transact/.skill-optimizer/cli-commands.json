@@ -2,14 +2,40 @@
   {
     "command": "chat",
     "description": "Send a message to the agent and print the response",
-    "args": [{ "name": "message", "required": true, "description": "The message text" }],
+    "args": [
+      { "name": "message", "required": true, "description": "The message text" }
+    ],
     "options": [
-      { "name": "--model", "takesValue": true, "description": "Set the session model before sending the message" },
-      { "name": "--verbose", "takesValue": false, "description": "Stream agent responses, tool calls, and events live" },
-      { "name": "--new-session", "takesValue": false, "description": "Create a fresh active session for this command" },
-      { "name": "--app", "takesValue": true, "description": "App name (default: 'default')" },
-      { "name": "--chain", "takesValue": true, "description": "Active chain id for chat/session context" },
-      { "name": "--public-key", "takesValue": true, "description": "Wallet address so the agent knows your wallet" }
+      {
+        "name": "--model",
+        "takesValue": true,
+        "description": "Set the session model before sending the message"
+      },
+      {
+        "name": "--verbose",
+        "takesValue": false,
+        "description": "Stream agent responses, tool calls, and events live"
+      },
+      {
+        "name": "--new-session",
+        "takesValue": false,
+        "description": "Create a fresh active session for this command"
+      },
+      {
+        "name": "--app",
+        "takesValue": true,
+        "description": "App name (default: 'default')"
+      },
+      {
+        "name": "--chain",
+        "takesValue": true,
+        "description": "Active chain id for chat/session context"
+      },
+      {
+        "name": "--public-key",
+        "takesValue": true,
+        "description": "Wallet address so the agent knows your wallet"
+      }
     ]
   },
   {
@@ -30,7 +56,9 @@
   {
     "command": "model set",
     "description": "Set the active model for the current session",
-    "args": [{ "name": "rig", "required": true, "description": "Model identifier" }],
+    "args": [
+      { "name": "rig", "required": true, "description": "Model identifier" }
+    ],
     "options": []
   },
   {
@@ -51,13 +79,25 @@
   {
     "command": "session resume",
     "description": "Resume a local session",
-    "args": [{ "name": "id", "required": true, "description": "session-id or session-N" }],
+    "args": [
+      {
+        "name": "id",
+        "required": true,
+        "description": "session-id or session-N"
+      }
+    ],
     "options": []
   },
   {
     "command": "session delete",
     "description": "Delete a local session file",
-    "args": [{ "name": "id", "required": true, "description": "session-id or session-N" }],
+    "args": [
+      {
+        "name": "id",
+        "required": true,
+        "description": "session-id or session-N"
+      }
+    ],
     "options": []
   },
   {
@@ -73,21 +113,63 @@
   {
     "command": "simulate",
     "description": "Batch-simulate pending transactions atomically (e.g. approve then swap)",
-    "args": [{ "name": "tx-id", "required": true, "variadic": true, "description": "One or more pending tx ids" }],
+    "args": [
+      {
+        "name": "tx-id",
+        "required": true,
+        "variadic": true,
+        "description": "One or more pending tx ids"
+      }
+    ],
     "options": []
   },
   {
     "command": "sign",
     "description": "Sign and submit a pending transaction",
-    "args": [{ "name": "tx-id", "required": true, "variadic": true, "description": "One or more pending tx ids" }],
+    "args": [
+      {
+        "name": "tx-id",
+        "required": true,
+        "variadic": true,
+        "description": "One or more pending tx ids"
+      }
+    ],
     "options": [
-      { "name": "--eoa", "takesValue": false, "description": "Force EOA signing path" },
-      { "name": "--aa", "takesValue": false, "description": "Force AA signing path" },
-      { "name": "--aa-provider", "takesValue": true, "description": "AA provider name (AA only)" },
-      { "name": "--aa-mode", "takesValue": true, "description": "AA mode (AA only)" },
-      { "name": "--rpc-url", "takesValue": true, "description": "Override RPC URL for this signing call" },
-      { "name": "--private-key", "takesValue": true, "description": "Hex private key (must start with 0x)" },
-      { "name": "--public-key", "takesValue": true, "description": "Wallet address; must match the signer" }
+      {
+        "name": "--eoa",
+        "takesValue": false,
+        "description": "Force EOA signing path"
+      },
+      {
+        "name": "--aa",
+        "takesValue": false,
+        "description": "Force AA signing path"
+      },
+      {
+        "name": "--aa-provider",
+        "takesValue": true,
+        "description": "AA provider name (AA only)"
+      },
+      {
+        "name": "--aa-mode",
+        "takesValue": true,
+        "description": "AA mode (AA only)"
+      },
+      {
+        "name": "--rpc-url",
+        "takesValue": true,
+        "description": "Override RPC URL for this signing call"
+      },
+      {
+        "name": "--private-key",
+        "takesValue": true,
+        "description": "Hex private key (must start with 0x)"
+      },
+      {
+        "name": "--public-key",
+        "takesValue": true,
+        "description": "Wallet address; must match the signer"
+      }
     ]
   },
   {
@@ -98,7 +180,13 @@
   {
     "command": "secret add",
     "description": "Add a secret to the active session (NAME=value)",
-    "args": [{ "name": "kv", "required": true, "description": "KEY=value pair, e.g. ALCHEMY_API_KEY=..." }],
+    "args": [
+      {
+        "name": "kv",
+        "required": true,
+        "description": "KEY=value pair, e.g. ALCHEMY_API_KEY=..."
+      }
+    ],
     "options": []
   },
   {

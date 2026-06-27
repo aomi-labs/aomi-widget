@@ -197,9 +197,7 @@
         "tool": "encode_and_call",
         "topic": "Check Alice USDC balance",
         "arguments": {
-          "arguments": [
-            "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
-          ],
+          "arguments": ["0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"],
           "function_signature": "balanceOf(address)",
           "to": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
           "topic": "Check Alice USDC balance",
@@ -243,10 +241,7 @@
         "arguments": {
           "value": "0",
           "data": {
-            "args": [
-              "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
-              "25000000"
-            ],
+            "args": ["0x70997970C51812dc3A010C7d01b50e0d17dc79C8", "25000000"],
             "raw": "",
             "signature": "transfer(address,uint256)"
           },
@@ -282,9 +277,7 @@
         "topic": "Request wallet approval for 25 USDC transfer",
         "arguments": {
           "topic": "Request wallet approval for 25 USDC transfer",
-          "tx_ids": [
-            1
-          ]
+          "tx_ids": [1]
         },
         "result_preview": "{\n  \"status\": \"pending_approval\",\n  \"tx_ids\": [\n    1\n  ],\n  \"timestamp\": \"2026-05-31T18:46:21.222237+00:00\"\n}"
       }

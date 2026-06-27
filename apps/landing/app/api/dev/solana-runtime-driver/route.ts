@@ -68,10 +68,7 @@ export async function POST(request: NextRequest) {
   };
 
   if (!body.runId) {
-    return NextResponse.json(
-      { error: "runId is required" },
-      { status: 400 },
-    );
+    return NextResponse.json({ error: "runId is required" }, { status: 400 });
   }
 
   const store = getReportStore();
@@ -83,10 +80,7 @@ export async function POST(request: NextRequest) {
     signer: body.signer ?? previous?.signer,
     rpcUrl: body.rpcUrl ?? previous?.rpcUrl,
     result: body.result ?? previous?.result,
-    error:
-      body.error !== undefined
-        ? body.error
-        : previous?.error,
+    error: body.error !== undefined ? body.error : previous?.error,
     logs: body.logs ?? previous?.logs,
     updatedAt: new Date().toISOString(),
   };

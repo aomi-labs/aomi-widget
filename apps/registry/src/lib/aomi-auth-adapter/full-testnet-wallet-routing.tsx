@@ -57,9 +57,9 @@ export function isFullTestnet(): boolean {
   );
 }
 
-export function useFullTestnet<
-  T extends readonly [Chain, ...Chain[]],
->(chains: T) {
+export function useFullTestnet<T extends readonly [Chain, ...Chain[]]>(
+  chains: T,
+) {
   return useMemo(() => {
     const enabled = isFullTestnet();
     const routedChains = (enabled

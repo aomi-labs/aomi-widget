@@ -11,4 +11,3 @@ export function sha256(input: string): string {
 export function nowSeconds(): number {
   return Math.floor(Date.now() / 1000);
 }
-

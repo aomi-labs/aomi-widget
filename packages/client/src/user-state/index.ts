@@ -1,8 +1,5 @@
 import * as accessors from "./accessors";
-import {
-  normalizeUserState,
-  reconcileUserState,
-} from "./normalize";
+import { normalizeUserState, reconcileUserState } from "./normalize";
 
 /**
  * Client-side user state synced with the backend.

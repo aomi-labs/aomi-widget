@@ -43,9 +43,7 @@
     "total_turns": 1,
     "total_tool_calls": 13,
     "total_responses": 26,
-    "activated_skills": [
-      "aave"
-    ],
+    "activated_skills": ["aave"],
     "failed_assertions": [
       {
         "label": "Alice deposits about 1 ETH to Aave V3",
@@ -312,10 +310,7 @@
         "tool": "activate_skills",
         "topic": "activate_skills",
         "arguments": {
-          "skill_ids": [
-            "aave",
-            "common_erc20"
-          ]
+          "skill_ids": ["aave", "common_erc20"]
         },
         "result_preview": "{\n  \"activated\": [\n    \"aave\"\n  ],\n  \"rejected\": [\n    [\n      \"common_erc20\",\n      \"invalid\"\n    ]\n  ],\n  \"applied_scope\": \"current_serve_cycle\"\n}"
       },
@@ -402,9 +397,7 @@
         "topic": "Check Alice's Aave account data",
         "arguments": {
           "function_signature": "getUserAccountData(address)",
-          "arguments": [
-            "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
-          ],
+          "arguments": ["0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"],
           "to": "0x87870Bca3F3fD6335C3F4ce8392D69350B4fA4E2",
           "topic": "Check Alice's Aave account data",
           "value": "0"
@@ -417,10 +410,7 @@
         "topic": "Stage ETH deposit to Aave",
         "arguments": {
           "data": {
-            "args": [
-              "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
-              "0"
-            ],
+            "args": ["0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266", "0"],
             "signature": "depositETH(address,address,uint16)"
           },
           "description": "Deposit 1 ETH as collateral into Aave V3",
@@ -531,10 +521,7 @@
         "tool": "commit_txs",
         "topic": "Commit deposit + borrow transactions",
         "arguments": {
-          "tx_ids": [
-            1,
-            2
-          ],
+          "tx_ids": [1, 2],
           "topic": "Commit deposit + borrow transactions"
         },
         "result_preview": "{\n  \"status\": \"pending_approval\",\n  \"tx_ids\": [\n    1,\n    2\n  ],\n  \"timestamp\": \"2026-05-31T19:33:23.114119+00:00\"\n}"
@@ -548,12 +535,8 @@
     },
     "skills": {
       "mode": "restricted",
-      "allowed": [
-        "aave"
-      ],
-      "activated_skills": [
-        "aave"
-      ],
+      "allowed": ["aave"],
+      "activated_skills": ["aave"],
       "bundle_path": "../output/eval/model-bench-public-skills-expansion-20260531/specs/supply_eth_then_borrow_usdc_aave_v3/minimax-m2.5/pass-002/spec-skills/supply_eth_then_borrow_usdc_aave_v3-skills.json",
       "bundle_revision": "fnv1a64:30836aa43718b8be"
     },

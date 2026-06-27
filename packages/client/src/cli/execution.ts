@@ -24,7 +24,8 @@ const ERC20_SELECTORS = new Set([
 
 function callsContainTokenOperations(calls: AAWalletCall[]): boolean {
   return calls.some(
-    (call) => call.data && ERC20_SELECTORS.has(call.data.slice(0, 10).toLowerCase()),
+    (call) =>
+      call.data && ERC20_SELECTORS.has(call.data.slice(0, 10).toLowerCase()),
   );
 }
 
@@ -64,11 +65,18 @@ export type CliExecutionDecision =
  * Resolve the AA mode for a given chain from DEFAULT_AA_CONFIG.
  * All chains default to 7702; falls back to 4337 only when explicitly requested.
  */
-function resolveMode(chain: Chain, callList: AAWalletCall[], explicitMode?: CliAAMode): CliAAMode {
+function resolveMode(
+  chain: Chain,
+  callList: AAWalletCall[],
+  explicitMode?: CliAAMode,
+): CliAAMode {
   const chainConfig = getAAChainConfig(DEFAULT_AA_CONFIG, callList, {
     [chain.id]: chain,
   });
-  const mode = explicitMode ?? (chainConfig?.defaultMode as CliAAMode | undefined) ?? "7702";
+  const mode =
+    explicitMode ??
+    (chainConfig?.defaultMode as CliAAMode | undefined) ??
+    "7702";
   warnIfTokenOpsIn4337(mode, callList);
   return mode;
 }
@@ -162,9 +170,8 @@ export async function createCliProviderState(params: {
   }
 
   const chainSlug = ALCHEMY_CHAIN_SLUGS[chain.id];
-  const proxyBaseUrl = decision.proxy && chainSlug
-    ? `${baseUrl}/aa/v1/${chainSlug}`
-    : undefined;
+  const proxyBaseUrl =
+    decision.proxy && chainSlug ? `${baseUrl}/aa/v1/${chainSlug}` : undefined;
   const resolvedRpcUrl =
     rpcUrl ||
     chain.rpcUrls.default.http[0] ||

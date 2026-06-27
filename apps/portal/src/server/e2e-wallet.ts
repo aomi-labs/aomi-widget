@@ -67,8 +67,7 @@ function signingSecret(): string | null {
 
 export function isE2EWalletEnabled(): boolean {
   return (
-    process.env.AOMI_ENABLE_E2E_WALLET === "true" &&
-    signingSecret() !== null
+    process.env.AOMI_ENABLE_E2E_WALLET === "true" && signingSecret() !== null
   );
 }
 
@@ -93,9 +92,7 @@ export function validateE2EWalletToken(token: string | null): boolean {
   if (!secret || !token) return false;
   const expected = Buffer.from(secret);
   const actual = Buffer.from(token);
-  return (
-    expected.length === actual.length && timingSafeEqual(expected, actual)
-  );
+  return expected.length === actual.length && timingSafeEqual(expected, actual);
 }
 
 export function parseE2EAddress(value: string | null): `0x${string}` | null {
@@ -185,7 +182,9 @@ function parseWei(value: unknown): bigint | null {
 }
 
 function maxNativeWei(): bigint {
-  return parseWei(process.env.AOMI_E2E_MAX_NATIVE_WEI) ?? DEFAULT_MAX_NATIVE_WEI;
+  return (
+    parseWei(process.env.AOMI_E2E_MAX_NATIVE_WEI) ?? DEFAULT_MAX_NATIVE_WEI
+  );
 }
 
 function rpcUrlForChain(chainId: number): string | null {
@@ -209,11 +208,7 @@ function callFromPayload(payload: WalletTxPayload): {
 } | null {
   const calls = Array.isArray(payload.calls) ? payload.calls : [];
   const rawCall =
-    calls.length === 1
-      ? calls[0]
-      : calls.length === 0
-        ? payload
-        : null;
+    calls.length === 1 ? calls[0] : calls.length === 0 ? payload : null;
   if (!rawCall) return null;
 
   const to = typeof rawCall.to === "string" ? rawCall.to.trim() : "";
@@ -293,7 +288,10 @@ export async function executeE2EWalletTransaction({
     return reject("policy_rejected", "Only self-transfers are allowed");
   }
   if (call.data !== "0x") {
-    return reject("policy_rejected", "Calldata is not allowed for self-transfer");
+    return reject(
+      "policy_rejected",
+      "Calldata is not allowed for self-transfer",
+    );
   }
   if (call.value <= BigInt(0)) {
     return reject("policy_rejected", "Self-transfer value must be positive");

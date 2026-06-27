@@ -47,6 +47,9 @@ yarn-error.log*
 apps/landing/public/r/dist
 apps/registry/dist
 
+# package build output (bundles)
+packages/*/dist
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts

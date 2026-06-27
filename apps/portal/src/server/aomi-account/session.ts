@@ -36,7 +36,9 @@ function secret(): Uint8Array {
 }
 
 /** Sign a session cookie binding the browser to a canonical user id. */
-export async function issueSessionCookie(canonicalUserId: string): Promise<string> {
+export async function issueSessionCookie(
+  canonicalUserId: string,
+): Promise<string> {
   const now = Math.floor(Date.now() / 1000);
   return new SignJWT({})
     .setProtectedHeader({ alg: "HS256" })
@@ -75,7 +77,9 @@ export async function setSessionCookie(
 }
 
 /** Read the canonical user id bound to the request's session cookie, or null. */
-export async function getSessionedCanonicalId(request: NextRequest): Promise<string | null> {
+export async function getSessionedCanonicalId(
+  request: NextRequest,
+): Promise<string | null> {
   return readSessionCookie(request.cookies.get(SESSION_COOKIE)?.value);
 }
 

@@ -8,7 +8,11 @@ function str(value: unknown): string | undefined {
   return typeof value === "string" && value.trim() ? value.trim() : undefined;
 }
 
-function required(value: string | undefined, flag: string, env: string): string {
+function required(
+  value: string | undefined,
+  flag: string,
+  env: string,
+): string {
   if (value) return value;
   throw new DeployCliError(
     "VALIDATION_ERROR",
@@ -56,7 +60,9 @@ async function deviceAuthFlow(
   backendUrl: string,
   platform: string,
 ): Promise<DeviceAuthResult> {
-  console.log("\n No activation token found. Starting browser-based GitHub auth...\n");
+  console.log(
+    "\n No activation token found. Starting browser-based GitHub auth...\n",
+  );
 
   const beginRes = await fetch(`${backendUrl}/api/auth/cli/begin`, {
     method: "POST",
@@ -72,7 +78,7 @@ async function deviceAuthFlow(
     );
   }
 
-  const { device_code, verification_uri } = await beginRes.json() as {
+  const { device_code, verification_uri } = (await beginRes.json()) as {
     device_code: string;
     verification_uri: string;
   };
@@ -83,11 +89,7 @@ async function deviceAuthFlow(
   // Try to open the browser automatically (firefox on macOS, xdg-open on Linux)
   const { platform: os } = process;
   const openCmd =
-    os === "darwin"
-      ? "open"
-      : os === "win32"
-        ? "start"
-        : "xdg-open";
+    os === "darwin" ? "open" : os === "win32" ? "start" : "xdg-open";
   try {
     execSync(`${openCmd} "${verification_uri}"`, { stdio: "ignore" });
     console.log(" (Browser opened automatically.)\n");
@@ -107,7 +109,7 @@ async function deviceAuthFlow(
     const statusRes = await fetch(pollUrl);
     if (!statusRes.ok) continue;
 
-    const body = await statusRes.json() as {
+    const body = (await statusRes.json()) as {
       status: string;
       activation_token?: string;
       github_login?: string;
@@ -117,9 +119,12 @@ async function deviceAuthFlow(
       console.log(` Authenticated as @${body.github_login ?? "?"}\n`);
       console.log(
         " Tip: save your token to skip this step next time:\n" +
-        `   export AOMI_DEPLOY_TOKEN="${body.activation_token}"\n`,
+          `   export AOMI_DEPLOY_TOKEN="${body.activation_token}"\n`,
       );
-      return { token: body.activation_token, githubLogin: body.github_login ?? "" };
+      return {
+        token: body.activation_token,
+        githubLogin: body.github_login ?? "",
+      };
     }
 
     if (body.status === "expired") {
@@ -143,9 +148,7 @@ export async function deployCommand(args: DeployArgs): Promise<void> {
     "https://api.aomi.dev"
   ).replace(/\/+$/, "");
   const platform =
-    str(args.platform) ??
-    process.env.AOMI_DEPLOY_PLATFORM ??
-    "community";
+    str(args.platform) ?? process.env.AOMI_DEPLOY_PLATFORM ?? "community";
 
   const activationToken =
     str(args["activation-token"]) ??
@@ -160,7 +163,10 @@ export async function deployCommand(args: DeployArgs): Promise<void> {
     ),
   );
   if (!Number.isSafeInteger(appSourceId) || appSourceId <= 0) {
-    throw new DeployCliError("VALIDATION_ERROR", "`--app-source-id` must be a positive integer.");
+    throw new DeployCliError(
+      "VALIDATION_ERROR",
+      "`--app-source-id` must be a positive integer.",
+    );
   }
 
   const branch = str(args.branch);
@@ -181,9 +187,7 @@ export async function deployCommand(args: DeployArgs): Promise<void> {
     checkGitRemote();
   }
 
-  const aomiTomlPaths = (
-    str(args["aomi-toml-paths"]) ?? "aomi.toml"
-  )
+  const aomiTomlPaths = (str(args["aomi-toml-paths"]) ?? "aomi.toml")
     .split(",")
     .map((p) => p.trim())
     .filter(Boolean);
@@ -229,12 +233,20 @@ export async function deployCommand(args: DeployArgs): Promise<void> {
     const message = (() => {
       try {
         const json = JSON.parse(text);
-        if (json && typeof json === "object") return json.error as string ?? json.reason as string ?? `${res.status} ${res.statusText}`;
+        if (json && typeof json === "object")
+          return (
+            (json.error as string) ??
+            (json.reason as string) ??
+            `${res.status} ${res.statusText}`
+          );
       } catch {}
       return `${res.status} ${res.statusText}`;
     })();
     if (res.status === 401 || res.status === 403) {
-      throw new DeployCliError("AUTH_FAILED", "Session expired; run `aomi account login`");
+      throw new DeployCliError(
+        "AUTH_FAILED",
+        "Session expired; run `aomi account login`",
+      );
     }
     throw new DeployCliError("BACKEND_ERROR", message);
   }
@@ -247,7 +259,9 @@ export async function deployCommand(args: DeployArgs): Promise<void> {
   }
 
   const deployment = result.deployment as Record<string, unknown> | undefined;
-  const platformInfo = deployment?.platform as Record<string, unknown> | undefined;
+  const platformInfo = deployment?.platform as
+    | Record<string, unknown>
+    | undefined;
   const sourceInfo = deployment?.source as Record<string, unknown> | undefined;
 
   console.log();

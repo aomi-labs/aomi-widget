@@ -20,9 +20,7 @@
     "total_turns": 1,
     "total_tool_calls": 7,
     "total_responses": 10,
-    "activated_skills": [
-      "kelp"
-    ],
+    "activated_skills": ["kelp"],
     "failed_assertions": [],
     "budget_summary": {
       "total": 1,
@@ -130,9 +128,7 @@
         "tool": "activate_skills",
         "topic": "activate_skills",
         "arguments": {
-          "skill_ids": [
-            "kelp"
-          ]
+          "skill_ids": ["kelp"]
         },
         "result_preview": "{\n  \"activated\": [\n    \"kelp\"\n  ],\n  \"rejected\": [],\n  \"applied_scope\": \"current_serve_cycle\"\n}"
       },
@@ -165,10 +161,7 @@
         "topic": "Preview Kelp depositETH 0.1 ETH",
         "arguments": {
           "function_signature": "depositETH(uint256,string)",
-          "arguments": [
-            "0",
-            ""
-          ],
+          "arguments": ["0", ""],
           "to": "0x036676389e48133B63a802f8635AD39E752D375D",
           "value": "100000000000000000",
           "topic": "Preview Kelp depositETH 0.1 ETH"
@@ -184,10 +177,7 @@
           "description": "Restake 0.1 ETH into Kelp via depositETH (mints rsETH)",
           "data": {
             "signature": "depositETH(uint256,string)",
-            "args": [
-              "0",
-              ""
-            ],
+            "args": ["0", ""],
             "raw": ""
           },
           "value": "100000000000000000",
@@ -220,9 +210,7 @@
         "tool": "commit_txs",
         "topic": "Commit Kelp restake of 0.1 ETH",
         "arguments": {
-          "tx_ids": [
-            1
-          ],
+          "tx_ids": [1],
           "topic": "Commit Kelp restake of 0.1 ETH"
         },
         "result_preview": "{\n  \"status\": \"pending_approval\",\n  \"tx_ids\": [\n    1\n  ],\n  \"timestamp\": \"2026-05-30T23:08:16.061402+00:00\"\n}"
@@ -236,12 +224,8 @@
     },
     "skills": {
       "mode": "restricted",
-      "allowed": [
-        "kelp"
-      ],
-      "activated_skills": [
-        "kelp"
-      ],
+      "allowed": ["kelp"],
+      "activated_skills": ["kelp"],
       "bundle_path": "../output/eval/model-bench-public-skills-gpt55-opus48-sonnet46-20260530/specs/deposit_eth_kelp/claude-opus-4.8/pass-001/spec-skills/deposit_eth_kelp-skills.json",
       "bundle_revision": "fnv1a64:24da19ae93ec9d7a"
     },
