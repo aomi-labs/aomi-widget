@@ -82,6 +82,17 @@ function normalizeAppDescriptor(item: unknown): AomiAppDescriptor | null {
     descriptor.isPublic = raw.is_public;
   }
   descriptor.secrets = Array.isArray(raw.secrets) ? raw.secrets : [];
+  // Drop the snake_case originals carried over by the spread so the descriptor
+  // exposes a single camelCase identity (no `application_id`/`applicationId`
+  // twins downstream).
+  for (const key of [
+    "application_id",
+    "app_release_tag",
+    "is_active",
+    "is_public",
+  ]) {
+    delete (descriptor as unknown as Record<string, unknown>)[key];
+  }
   return descriptor;
 }
 

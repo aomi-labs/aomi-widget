@@ -137,17 +137,25 @@ function resolveAuthorizedApp(
   defaultApp: string | null,
 ): AomiAppDescriptor | null {
   if (app) {
-    const descriptor = findAuthorizedDescriptor(
-      app,
-      applicationId,
-      appDescriptors,
-    );
-    if (descriptor) return descriptor;
-    if (authorizedApps.includes(app)) {
-      return {
-        name: app,
-        applicationId: normalizeApplicationId(applicationId),
-      };
+    const scopedId = normalizeApplicationId(applicationId);
+    // Exact (name + applicationId) descriptor wins.
+    const exact = findAuthorizedDescriptor(app, applicationId, appDescriptors);
+    if (exact) return exact;
+    // The exact scoped variant may be momentarily absent (descriptors still
+    // loading or mid-refresh). Don't silently revert a previously-valid
+    // selection to default — carry the requested identity through when the
+    // app is otherwise known, or when no authorization data has loaded yet.
+    const nameMatch =
+      appDescriptors.find((descriptor) => descriptor.name === app) ?? null;
+    if (nameMatch) {
+      return scopedId === null
+        ? nameMatch
+        : { ...nameMatch, name: app, applicationId: scopedId };
+    }
+    const hasAuthData =
+      appDescriptors.length > 0 || authorizedApps.length > 0;
+    if (authorizedApps.includes(app) || !hasAuthData) {
+      return { name: app, applicationId: scopedId };
     }
   }
   if (!defaultApp) return null;
@@ -357,7 +365,10 @@ export function usePerThreadControlImpl({
         appDescriptorsRef.current,
         null,
       );
-      if (authorizedAppsRef.current.length > 0 && !descriptor) {
+      const hasAuthData =
+        authorizedAppsRef.current.length > 0 ||
+        appDescriptorsRef.current.length > 0;
+      if (hasAuthData && !descriptor) {
         console.warn("[per-thread-control] Cannot select unauthorized app", {
           app,
         });

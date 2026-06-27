@@ -682,23 +682,22 @@ function findAuthorizedDescriptor(app, applicationId, descriptors) {
   return (_b = descriptors.find((descriptor) => descriptor.name === app)) != null ? _b : null;
 }
 function resolveAuthorizedApp(app, applicationId, authorizedApps, appDescriptors, defaultApp) {
-  var _a;
+  var _a, _b;
   if (app) {
-    const descriptor = findAuthorizedDescriptor(
-      app,
-      applicationId,
-      appDescriptors
-    );
-    if (descriptor) return descriptor;
-    if (authorizedApps.includes(app)) {
-      return {
-        name: app,
-        applicationId: normalizeApplicationId(applicationId)
-      };
+    const scopedId = normalizeApplicationId(applicationId);
+    const exact = findAuthorizedDescriptor(app, applicationId, appDescriptors);
+    if (exact) return exact;
+    const nameMatch = (_a = appDescriptors.find((descriptor) => descriptor.name === app)) != null ? _a : null;
+    if (nameMatch) {
+      return scopedId === null ? nameMatch : __spreadProps(__spreadValues({}, nameMatch), { name: app, applicationId: scopedId });
+    }
+    const hasAuthData = appDescriptors.length > 0 || authorizedApps.length > 0;
+    if (authorizedApps.includes(app) || !hasAuthData) {
+      return { name: app, applicationId: scopedId };
     }
   }
   if (!defaultApp) return null;
-  return (_a = findAuthorizedDescriptor(defaultApp, null, appDescriptors)) != null ? _a : {
+  return (_b = findAuthorizedDescriptor(defaultApp, null, appDescriptors)) != null ? _b : {
     name: defaultApp
   };
 }
@@ -835,7 +834,8 @@ function usePerThreadControlImpl({
         appDescriptorsRef.current,
         null
       );
-      if (authorizedAppsRef.current.length > 0 && !descriptor) {
+      const hasAuthData = authorizedAppsRef.current.length > 0 || appDescriptorsRef.current.length > 0;
+      if (hasAuthData && !descriptor) {
         console.warn("[per-thread-control] Cannot select unauthorized app", {
           app
         });
