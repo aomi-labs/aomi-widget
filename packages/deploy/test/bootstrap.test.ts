@@ -253,6 +253,7 @@ describe("DeploymentClient bootstrap — apps", () => {
       id: 5,
       name: "my-bot",
       label: "My Bot",
+      platform: null,
       isActive: true,
       isPublic: true,
       appSourceId: 99,
