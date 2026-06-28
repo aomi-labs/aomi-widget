@@ -36,6 +36,8 @@ export type ThreadControlState = {
   modelMode?: ModelSelectionMode;
   /** Selected app for this thread */
   app: string | null;
+  /** Concrete backend application row for hosted/platform apps */
+  applicationId: number | string | null;
   /** Whether control state has changed but chat hasn't started yet */
   controlDirty: boolean;
   /** Whether this thread is currently processing (assistant generating) */
@@ -56,6 +58,7 @@ export function initThreadControl(): ThreadControlState {
     model: null,
     modelMode: "auto",
     app: null,
+    applicationId: null,
     controlDirty: false,
     isProcessing: false,
   };
