@@ -2,9 +2,41 @@
 
 ## Last Updated
 
-2026-06-27 — Unified the BFF bearer/auth seam across all clients (`@aomi-labs/account`)
+2026-06-28 — CLI converted to the BFF session + `/token` refresh model (BetterAuth-compatible)
 
 ## Recent Changes
+
+### CLI auth: SIWE session + `/token` bearer refresh (2026-06-28)
+
+Made the `aomi` CLI work under the proxy-mint model and shaped it as a drop-in to
+arixon's BetterAuth. Before: the CLI talked to the raw backend with a static,
+hand-pasted `--account-bearer` that died in 15 min and could not refresh (the
+refresh-on-401 plumbing was dead). Now it holds a **BFF session** and mints
+short-lived AccountBearers on demand — the same two-token loop arixon's `bearer()`
++ `jwt()` plugins serve (verified by reading `codex/widget-auth-pre-rust`: his
+`auth.ts` enables `bearer()` for headless clients and `jwt()` exposes
+`GET /api/auth/token`).
+
+- **New BFF route** `createBearerTokenRoute` (`packages/account/src/token.ts`),
+  mounted in portal + base + landing at `app/api/bff/auth/token/route.ts`. Reads the
+  session from `Authorization: Bearer <aomi_session>` (cookie fallback) → returns
+  `mintAccountBearer` → `{ access_token, token_type, expires_at }`. The bearer-header
+  read pre-matches arixon's `bearer()` plugin so migration is a URL swap.
+- **SIWE login now creates a canonical user** via `resolveOrCreateByWallet` (inserts
+  `users` + `auth_identities`, keyed `wallet_provider='wallet'`, `application=null` so the
+  wallet user is global — same UUID across BFFs). The SIWE nonce/verify routes are now
+  mounted on **portal + base + landing** (parity) so the CLI can log in against any BFF
+  origin, not just base.
+- **CLI** (`packages/client/src/cli/account-auth.ts`): `siweLogin` (non-interactive
+  SIWE with the device `--private-key` → stores `aomi_session`) +
+  `createSessionGetAccountBearer` (fetches `/api/bff/auth/token`, caches, refreshes on
+  401/expiry). `aomi login` now does SIWE (Privy-URL print kept as fallback for
+  Solana/no-key); `accountSession` persisted in CLI state; `--account-bearer` kept as
+  CI escape hatch. Open decision: the CLI's default `baseUrl` still points at the raw
+  backend — it must point at a BFF for login; flipping the default is left to the owner.
+- Tests: `token.test.ts` (4) + `account-auth.test.ts` (5) green; account-graph 9/9
+  regression; account + client typecheck clean; client bundle builds.
+- Full design + his↔ours mapping: `docs/handoffs/bff-betterauth-integration.md` §3.
 
 ### base SIWE shaped as a BetterAuth drop-in (2026-06-27)
 

@@ -134,6 +134,7 @@ export class CliSession {
       model: config.model ?? seed?.model,
       apiKey: config.apiKey ?? seed?.apiKey,
       accountBearer: seed?.accountBearer,
+      accountSession: config.accountSession ?? seed?.accountSession,
       accountProvider: seed?.accountProvider,
       accountProviderToken: seed?.accountProviderToken,
       publicKey: config.publicKey ?? seed?.publicKey,
@@ -179,6 +180,9 @@ export class CliSession {
   }
   get privateKey(): string | undefined {
     return this.state.privateKey;
+  }
+  get accountSession(): string | undefined {
+    return this.state.accountSession;
   }
   get svmPublicKey(): string | undefined {
     return this.state.svmPublicKey;
@@ -282,6 +286,14 @@ export class CliSession {
 
   setPrivateKey(key: string): void {
     this.state.privateKey = key;
+    this.save();
+  }
+
+  /** Persist the BFF session token established by `aomi login` (SIWE). Clears
+   * any static `accountBearer` so the session becomes the single credential. */
+  setAccountSession(sessionToken: string): void {
+    this.state.accountSession = sessionToken;
+    this.state.accountBearer = undefined;
     this.save();
   }
 
@@ -490,6 +502,9 @@ export class CliSession {
           accountBearer: shouldUseProviderExchange
             ? undefined
             : (config.accountBearer ?? this.state.accountBearer),
+          // SIWE-established BFF session: the CLI mints short-lived bearers from
+          // it. Preferred over a static accountBearer when both are present.
+          accountSession: config.accountSession ?? this.state.accountSession,
           accountProvider: effectiveAccountProvider,
           accountProviderToken: effectiveAccountProviderToken,
           secrets: config.secrets ?? {},

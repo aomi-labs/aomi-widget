@@ -1,5 +1,6 @@
 import { AomiClient } from "../client";
 import type { GetAccountBearer } from "../types";
+import { createSessionGetAccountBearer } from "./account-auth";
 import type { CliConfig } from "./types";
 
 const DEFAULT_BACKEND_URL = "https://api.aomi.dev";
@@ -16,8 +17,20 @@ export function resolveCliBaseUrl(config: Pick<CliConfig, "baseUrl">): string {
 export function createCliGetAccountBearer(
   config: CliConfig,
 ): GetAccountBearer | undefined {
+  // A static `--account-bearer` is the explicit escape hatch (CI / power users)
+  // and wins when set.
   if (config.accountBearer) {
-    return async () => config.accountBearer;
+    const bearer = config.accountBearer;
+    return async () => bearer;
+  }
+
+  // The normal path: hold the SIWE-established BFF session and mint short-lived
+  // AccountBearers from `/api/bff/auth/token`, refreshing on 401/expiry.
+  if (config.accountSession) {
+    return createSessionGetAccountBearer({
+      baseUrl: resolveCliBaseUrl(config),
+      sessionToken: config.accountSession,
+    });
   }
 
   return undefined;

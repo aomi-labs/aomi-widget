@@ -1,12 +1,23 @@
+import { siweLogin } from "../account-auth";
 import { CliSession } from "../cli-session";
+import { fatal } from "../errors";
 import { printDataFileLocation } from "../output";
 import type { CliConfig } from "../types";
 
 type LoginWalletFamily = "evm" | "solana";
 
 /**
- * Mint a backend-owned Privy auth URL for the active session and print it so
- * the user can complete browser login out of band.
+ * Authenticate the CLI against the BFF.
+ *
+ * Primary path — **non-interactive SIWE** with the CLI's EVM key: prove wallet
+ * ownership, receive OUR `aomi_session`, and persist it. The CLI then mints
+ * short-lived AccountBearers from `/api/bff/auth/token` on demand (see
+ * `createSessionGetAccountBearer`). This is the headless analog of the browser
+ * login and a drop-in to arixon's BetterAuth SIWE plugin — see
+ * docs/handoffs/bff-betterauth-integration.md §3.
+ *
+ * Fallback — when no EVM key is configured (e.g. a Solana-only session), print a
+ * backend-minted Privy auth URL to complete in a browser (legacy behavior).
  */
 export async function loginCommand(
   config: CliConfig,
@@ -15,6 +26,34 @@ export async function loginCommand(
   const cli = CliSession.loadOrCreate(config);
   cli.mergeConfig(config);
 
+  const privateKey = config.privateKey ?? cli.privateKey;
+  const wantsSolana = options?.walletFamily === "solana";
+
+  // SIWE is the primary path whenever we hold an EVM key and aren't explicitly
+  // asking for a Solana embedded-wallet flow.
+  if (privateKey && !wantsSolana) {
+    try {
+      const { sessionToken, address } = await siweLogin({
+        baseUrl: cli.baseUrl,
+        privateKey,
+        chainId: cli.chainId,
+      });
+      cli.setAccountSession(sessionToken);
+      console.log(`Signed in as ${address}`);
+      console.log(`Session established at ${cli.baseUrl}.`);
+      console.log("Run `aomi wallet whoami` to confirm the bound account.");
+      printDataFileLocation();
+      return;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      fatal(
+        `SIWE login failed: ${message}\n` +
+          "Ensure --base-url points at an Aomi BFF (it serves /api/bff/auth/siwe), not the raw backend.",
+      );
+    }
+  }
+
+  // Fallback: legacy backend-minted Privy URL (no local EVM key / Solana flow).
   const session = cli.createClientSession(config);
   try {
     const begin = await session.client.beginPrivyAuth(cli.sessionId, {
@@ -45,7 +84,7 @@ export async function whoamiCommand(config: CliConfig): Promise<void> {
   cli.mergeConfig(config);
 
   const state = cli.toState();
-  const hasCredential = Boolean(state.accountBearer);
+  const hasCredential = Boolean(state.accountBearer || state.accountSession);
 
   const session = cli.createClientSession(config);
   try {
@@ -54,8 +93,8 @@ export async function whoamiCommand(config: CliConfig): Promise<void> {
       console.log("Not bound to an account (anonymous session).");
       if (!hasCredential) {
         console.log(
-          "No account credential configured. Pass --account-bearer, or " +
-            "complete account auth through the portal.",
+          "No account credential configured. Run `aomi login` (SIWE with your " +
+            "wallet key) or pass --account-bearer.",
         );
       } else {
         console.log(

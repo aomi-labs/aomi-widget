@@ -7,7 +7,9 @@ This is the **integration centerpiece**. It consolidates:
 1. **The seam contract** — every point where your BetterAuth stack drops into our
    deployed BFF, with exact signatures and a drop-in status per seam.
 2. **A his ↔ ours data-type comparison** — claim-for-claim, type-for-type.
-3. **A recommended merge plan** — direction, what wins where, and the one gate.
+3. **The CLI / headless-client path** — how `@aomi-labs/client` authenticates under
+   your model, and what we build now so it's a drop-in.
+4. **A recommended merge plan** — direction, what wins where, and the one gate.
 
 Companion docs:
 - [arixoneth-account-auth.md](./arixoneth-account-auth.md) — the contract + GAP-1/2/3 (read first).
@@ -41,8 +43,9 @@ Each seam is classified:
 | **SIWE exchange flow** | `createSiweNonceRoute()` + `createSiweExchangeRoute()` (cookie nonce → verify → session) | BetterAuth SIWE plugin (nonce + session) | 🔴 reframe | Delete our two routes; BetterAuth owns nonce + session. `verifySiweMessage` survives. |
 | **Account read** | `/api/account` → proxied to backend | `/api/aomi/account` → local (`accountResponseFromSession`) | 🔴 reframe | Different owner (backend vs BetterAuth). Reconcile path + payload at merge. |
 | **Session cookie** | `aomi_session` (HS256, `sub`=canonical UUID, httpOnly, 7d) | BetterAuth session (DB-backed + its cookie) | 🟡 replace-body | Replace `session.ts`; keep `getSessionedCanonicalId` (above). |
+| **CLI / headless auth** | `--account-bearer` static paste; `aomi login` prints a backend Privy URL (legacy, dead-ends); talks to the **raw backend**, bypassing the BFF | `bearer()` + `jwt()` plugins: SIWE login → session bearer → `GET /api/auth/token` for the backend JWT | 🔴 today → 🟢 once aligned | Today's CLI is the one client outside the seam. Target = SIWE session + `/token` refresh (see §3). The for-now build is shaped as a literal-swap migration onto your plugins. |
 
-**Scorecard:** 3 literal swaps (proxy-via-seam, provider-verify, SIWE-verify) · 4 replace-body (session, account-graph-provider, bearer, cookie) · 4 reframe (wallet account-graph, provider-exchange flow, SIWE-exchange flow, account read).
+**Scorecard:** 3 literal swaps (proxy-via-seam, provider-verify, SIWE-verify) · 4 replace-body (session, account-graph-provider, bearer, cookie) · 4 reframe (wallet account-graph, provider-exchange flow, SIWE-exchange flow, account read) · 1 orphan to fold in (CLI/headless — see §3).
 
 ---
 
@@ -117,7 +120,93 @@ Each seam is classified:
 
 ---
 
-## 3. Integration plan (recommended)
+## 3. CLI / headless clients (`@aomi-labs/client`)
+
+### Resolved: your stack already supports headless clients — no wrapper needed
+
+`auth.ts` enables two plugins that, together, give a native CLI everything it needs
+without a browser, a cookie jar, or a bespoke endpoint:
+
+- **`bearer()`** — BetterAuth's official non-browser mechanism. On sign-in the session
+  token comes back in a `set-auth-token` response header; subsequent requests carry it
+  as `Authorization: Bearer <session-token>` **instead of a cookie**. (`nextCookies()`
+  is the browser path; `bearer()` is the CLI path — both are on.)
+- **`jwt()`** (`disableSettingJwtHeader: true`) — exposes `GET /api/auth/token`, which
+  mints the **backend JWT** (`backend-jwt.ts`: EdDSA, `aud=aomi-backend`, 15m,
+  `aomi_user_id` claim). A client with a valid session bearer fetches its 15-min
+  backend token from here.
+- **SIWE** (`POST /api/auth/siwe/{nonce,verify}`, `anonymous: true`) — plain HTTP. A CLI
+  signs the nonce with its device key (`--private-key`) and drives the whole flow
+  non-interactively — **strictly more capable than the FE**, which needs a human click.
+
+**The CLI auth loop under your model:**
+1. `aomi login` → non-interactive SIWE with the device key → store the **session bearer** (7-day).
+2. `getAccountBearer({forceRefresh})` → `GET /api/auth/token` (with the session bearer) → **backend JWT** (15-min), cached; re-fetched on 401/expiry.
+3. Session expires (7d) → re-run SIWE non-interactively (the CLI holds the key).
+
+This maps **exactly** onto the CLI's existing `wrapFetchWithAccountBearer`
+refresh-on-401 plumbing (today dead because the CLI returns a static token): the
+session bearer is the long-lived refresh credential, the backend JWT is the access
+token, `/token` is the refresh endpoint.
+
+**One confirmation to get from you:** that `bearer()`/`jwt()` aren't gated to browser
+origins only — this is standard BetterAuth plugin behavior, but you enabled (didn't
+customize) them, so a one-line "yes, headless is allowed" closes it.
+
+### What we built now so it's a drop-in to the above — **implemented**
+
+Our deployed BFF doesn't have BetterAuth yet, but the CLI now runs against our seams
+shaped so migration is a URL swap, not a rewrite. Landed on `bff-unification`:
+
+1. ✅ **`GET /api/bff/auth/token`** — the analog of your `jwt()` `/api/auth/token`.
+   Reads the session and returns `mintAccountBearer(userId)` →
+   `{ access_token, token_type, expires_at }`. Reads the session from
+   `Authorization: Bearer <aomi_session>` **first**, cookie as fallback — so the CLI
+   uses your `bearer()`-plugin header shape from day one and migration is a pure URL
+   swap. `packages/account/src/token.ts` (`createBearerTokenRoute`), mounted in portal +
+   base + landing at `app/api/bff/auth/token/route.ts`.
+2. ✅ **`aomi login` → non-interactive SIWE** against `createSiweNonceRoute` +
+   `createSiweExchangeRoute`, signing with the CLI's EVM key (`--private-key`). Stores the
+   returned `aomi_session` value. Falls back to the legacy Privy-URL print only when no
+   EVM key is configured. `packages/client/src/cli/account-auth.ts` (`siweLogin`),
+   `cli/commands/account.ts`. **The SIWE verify route creates a real canonical user** —
+   `resolveOrCreateByWallet(address)` inserts `users` + `auth_identities` (the
+   backend-read tables) keyed `wallet_provider='wallet'`, `application=null` (so the
+   wallet user is **global**, the same UUID across every BFF), and `sub` on the minted
+   bearer is that UUID. The SIWE nonce/verify routes are now mounted on **portal + base +
+   landing** (parity) so the CLI can log in against any BFF origin. Maps onto arixon's
+   `getOrCreateAomiUserForBetterAuthSession` + `syncSiweWalletsForUser` — the GAP-3 /
+   Alice-invariant note in §1 (wallet vs `better_auth` keying) applies here too.
+3. ✅ **`getAccountBearer({forceRefresh})` is now live** — `createSessionGetAccountBearer`
+   fetches `/api/bff/auth/token` with the stored session, caches `{token, expires_at}`,
+   and refetches on `forceRefresh` (the existing 401 retry) or near expiry. Wired in
+   `cli/client-factory.ts`; the session token persists in CLI state (`accountSession`).
+4. ⚠️ **CLI `baseUrl`** must point at a BFF origin (it serves `/api/bff/auth/siwe` +
+   `/token`), not the raw backend. The hardcoded default is still `api.aomi.dev` — flipping
+   it is a deploy-facing decision left to the owner; today the CLI passes `--base-url`.
+   `--account-bearer` remains the CI/power-user escape hatch and wins when set.
+
+**Migration delta:** when your branch lands, repoint the two SIWE URLs and `/token`; the
+session token changes issuer (our HS256 `aomi_session` → your `bearer()` session) but the
+header shape and the whole refresh loop are unchanged. Tests:
+`packages/account/src/token.test.ts`, `packages/client/src/cli/account-auth.test.ts`.
+
+**Migration map (for-now → yours):**
+
+| For-now (ours) | Yours | Migration |
+|---|---|---|
+| `aomi login` → SIWE `/api/bff/auth/siwe/{nonce,verify}` → store `aomi_session` | SIWE `/api/auth/siwe/{nonce,verify}` → store session bearer | repoint URLs; session-token format changes; the loop is identical |
+| `getAccountBearer` → `GET /api/bff/auth/token`, `Authorization: Bearer <aomi_session>` | `GET /api/auth/token`, `Authorization: Bearer <session>` | **URL swap only** (header shape pre-matched) |
+| refresh-on-401 refetches `/token` | same | identical |
+
+The only non-mechanical delta is that our session token is our HS256 `aomi_session`
+and yours is a BetterAuth session bearer — same header, different issuer. Everything
+else is a literal swap. That's why the CLI row is 🔴 today but 🟢 the moment your
+plugins land.
+
+---
+
+## 4. Integration plan (recommended)
 
 **Don't cherry-pick your stack into ours** (your surface is ~5–10× larger —
 `packages/auth` + `wallet-kit` + attestation + mcp-approvals). **Don't blind
