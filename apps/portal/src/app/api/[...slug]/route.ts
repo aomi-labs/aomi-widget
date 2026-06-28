@@ -128,7 +128,7 @@ function applyPortalDefaults(upstreamUrl: URL): void {
     upstreamUrl.pathname === "/api/session/apps" &&
     !upstreamUrl.searchParams.get("platform")
   ) {
-    for (const platform of launchConfig().platforms) {
+    for (const platform of launchConfig().catalogPlatforms) {
       upstreamUrl.searchParams.append("platform", platform);
     }
   }
