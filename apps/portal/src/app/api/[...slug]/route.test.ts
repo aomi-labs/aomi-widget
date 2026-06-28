@@ -6,13 +6,20 @@ import { GET } from "./route";
 
 const listApps = vi.fn();
 
-vi.mock("@aomi-labs/account", () => ({
-  mintAccountBearer: vi.fn(),
-}));
-
-vi.mock("@portal/server/cookies/session", () => ({
-  getSessionedCanonicalId: vi.fn(async () => null),
-}));
+// Keep the real `createBackendProxy` / `getSessionedCanonicalId` (the proxy now
+// lives in `@aomi-labs/account`); only stub the mint. With no `aomi_session`
+// cookie on the test requests, the real `getSessionedCanonicalId` returns null,
+// so the proxy forwards anonymous and `mintAccountBearer` is never called.
+vi.mock("@aomi-labs/account", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@aomi-labs/account")>();
+  return {
+    ...actual,
+    mintAccountBearer: vi.fn(async () => ({
+      accessToken: "test-bearer",
+      expiresAt: 0,
+    })),
+  };
+});
 
 vi.mock("@portal/server/backend-url", () => ({
   configuredBackendUrl: () => "https://api-staging.aomi.dev",
