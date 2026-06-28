@@ -3508,6 +3508,18 @@ function resolveCliBaseUrl(config) {
   var _a3;
   return (_a3 = config.baseUrl) != null ? _a3 : DEFAULT_BACKEND_URL;
 }
+function isRawBackendBaseUrl(baseUrl) {
+  let parsed;
+  try {
+    parsed = new URL(baseUrl);
+  } catch (e) {
+    return false;
+  }
+  if (parsed.hostname === "api.aomi.dev" || parsed.hostname === "api-staging.aomi.dev") {
+    return true;
+  }
+  return RAW_BACKEND_HOSTS.has(parsed.hostname) && (parsed.port === "8080" || parsed.port === "");
+}
 function createCliGetAccountBearer(config) {
   if (config.accountBearer) {
     const bearer = config.accountBearer;
@@ -3531,12 +3543,19 @@ function createCliClient(config, overrides = {}) {
     getAccountBearer: createCliGetAccountBearer(mergedConfig)
   });
 }
-var DEFAULT_BACKEND_URL;
+var DEFAULT_BACKEND_URL, RAW_BACKEND_HOSTS;
 var init_client_factory = __esm({
   "src/cli/client-factory.ts"() {
     "use strict";
     init_client();
     DEFAULT_BACKEND_URL = "https://api.aomi.dev";
+    RAW_BACKEND_HOSTS = /* @__PURE__ */ new Set([
+      "api.aomi.dev",
+      "api-staging.aomi.dev",
+      "127.0.0.1",
+      "localhost",
+      "::1"
+    ]);
   }
 });
 
@@ -8203,7 +8222,7 @@ async function loginCommand(config, options) {
   cli.mergeConfig(config);
   const privateKey = (_a3 = config.privateKey) != null ? _a3 : cli.privateKey;
   const wantsSolana = (options == null ? void 0 : options.walletFamily) === "solana";
-  if (privateKey && !wantsSolana) {
+  if (privateKey && !wantsSolana && !isRawBackendBaseUrl(cli.baseUrl)) {
     try {
       const { sessionCookie, address: address3 } = await siweLogin({
         baseUrl: cli.baseUrl,
@@ -8302,6 +8321,7 @@ var init_account = __esm({
     "use strict";
     init_account_auth();
     init_cli_session();
+    init_client_factory();
     init_errors();
     init_output();
   }

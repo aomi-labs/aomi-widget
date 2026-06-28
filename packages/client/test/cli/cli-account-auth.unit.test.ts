@@ -1,6 +1,9 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { createCliClient } from "../../src/cli/client-factory";
+import {
+  createCliClient,
+  isRawBackendBaseUrl,
+} from "../../src/cli/client-factory";
 
 describe("CLI account auth wiring", () => {
   afterEach(() => {
@@ -65,5 +68,14 @@ describe("CLI account auth wiring", () => {
     } finally {
       vi.stubGlobal("fetch", originalFetch);
     }
+  });
+
+  it("detects product-mono backend URLs that do not serve BFF SIWE routes", () => {
+    expect(isRawBackendBaseUrl("https://api.aomi.dev")).toBe(true);
+    expect(isRawBackendBaseUrl("https://api-staging.aomi.dev")).toBe(true);
+    expect(isRawBackendBaseUrl("http://127.0.0.1:8080")).toBe(true);
+    expect(isRawBackendBaseUrl("http://localhost:8080")).toBe(true);
+    expect(isRawBackendBaseUrl("https://base.aomi.dev")).toBe(false);
+    expect(isRawBackendBaseUrl("http://127.0.0.1:3000")).toBe(false);
   });
 });

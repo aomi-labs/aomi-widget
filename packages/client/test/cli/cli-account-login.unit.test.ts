@@ -11,6 +11,8 @@ const baseConfig = {
   execution: "eoa" as const,
   secrets: {},
 };
+const TEST_PRIVATE_KEY =
+  "0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d";
 
 describe("aomi account login", () => {
   let stateDir: string;
@@ -53,7 +55,9 @@ describe("aomi account login", () => {
         "http://unit.test/api/auth/privy/begin",
       );
       expect(
-        JSON.parse((nativeFetch.mock.calls[0]?.[1] as RequestInit).body as string),
+        JSON.parse(
+          (nativeFetch.mock.calls[0]?.[1] as RequestInit).body as string,
+        ),
       ).toEqual({
         application: "byreal",
       });
@@ -81,7 +85,8 @@ describe("aomi account login", () => {
       statusText: "OK",
       json: vi.fn(async () => ({
         state_token: "state-1",
-        auth_url: "https://chat.example/auth/privy?state=state-1&wallet_family=solana",
+        auth_url:
+          "https://chat.example/auth/privy?state=state-1&wallet_family=solana",
         expires_at: 1_800_000_000,
       })),
     } as unknown as Response;
@@ -93,11 +98,46 @@ describe("aomi account login", () => {
       await loginCommand(baseConfig, { walletFamily: "solana" });
 
       expect(
-        JSON.parse((nativeFetch.mock.calls[0]?.[1] as RequestInit).body as string),
+        JSON.parse(
+          (nativeFetch.mock.calls[0]?.[1] as RequestInit).body as string,
+        ),
       ).toEqual({
         application: "byreal",
         wallet_family: "solana",
       });
+    } finally {
+      vi.stubGlobal("fetch", originalFetch);
+    }
+  });
+
+  it("uses legacy backend auth instead of SIWE for the default raw backend URL", async () => {
+    const { loginCommand } = await import("../../src/cli/commands/account");
+
+    const response = {
+      ok: true,
+      status: 200,
+      statusText: "OK",
+      json: vi.fn(async () => ({
+        state_token: "state-1",
+        auth_url: "https://chat.example/auth/privy?state=state-1",
+        expires_at: 1_800_000_000,
+      })),
+    } as unknown as Response;
+    const nativeFetch = vi.fn(async () => response);
+    const originalFetch = globalThis.fetch;
+    vi.stubGlobal("fetch", nativeFetch);
+
+    try {
+      await loginCommand({
+        ...baseConfig,
+        baseUrl: "https://api.aomi.dev",
+        privateKey: TEST_PRIVATE_KEY,
+      });
+
+      expect(String(nativeFetch.mock.calls[0]?.[0])).toBe(
+        "https://api.aomi.dev/api/auth/privy/begin",
+      );
+      expect(nativeFetch).toHaveBeenCalledTimes(1);
     } finally {
       vi.stubGlobal("fetch", originalFetch);
     }
