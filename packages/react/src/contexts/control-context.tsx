@@ -31,7 +31,7 @@ import {
   useRef,
   type ReactNode,
 } from "react";
-import type { AomiClient } from "@aomi-labs/client";
+import type { AomiClient, AomiPlatformFilter } from "@aomi-labs/client";
 import type { ThreadControlState, ThreadMetadata } from "../state/thread-store";
 import {
   CLIENT_ID_STORAGE_KEY,
@@ -172,6 +172,7 @@ export function usePerThreadControl(): {
     actions: {
       getCurrentThreadControl: ctx.getCurrentThreadControl,
       getCurrentThreadApp: ctx.getCurrentThreadApp,
+      getCurrentThreadApplicationId: ctx.getCurrentThreadApplicationId,
       getPreferredThreadControl: ctx.getPreferredThreadControl,
       onModelSelect: ctx.onModelSelect,
       onAppSelect: ctx.onAppSelect,
@@ -194,6 +195,7 @@ export type ControlContextProviderProps = {
     threadId: string,
     partial: Partial<ThreadMetadata>,
   ) => void;
+  appPlatforms?: AomiPlatformFilter;
 };
 
 export function ControlContextProvider({
@@ -202,6 +204,7 @@ export function ControlContextProvider({
   sessionId,
   getThreadMetadata,
   updateThreadMetadata,
+  appPlatforms,
 }: ControlContextProviderProps) {
   // ---------------------------------------------------------------------------
   // Stable refs into the central plumbing (aomiClient, the props that change
@@ -263,6 +266,7 @@ export function ControlContextProvider({
     apiKeyRef,
     getControlSessionId: getCurrentControlSessionId,
     apiKey: apiKey.state.apiKey,
+    appPlatforms,
   });
 
   // Refs for the auth-endpoint state so per-thread-control callbacks can read
@@ -273,6 +277,8 @@ export function ControlContextProvider({
   defaultModelRef.current = authEndpoints.state.defaultModel;
   const authorizedAppsRef = useRef(authEndpoints.state.authorizedApps);
   authorizedAppsRef.current = authEndpoints.state.authorizedApps;
+  const appDescriptorsRef = useRef(authEndpoints.state.appDescriptors);
+  appDescriptorsRef.current = authEndpoints.state.appDescriptors;
   const defaultAppRef = useRef(authEndpoints.state.defaultApp);
   defaultAppRef.current = authEndpoints.state.defaultApp;
 
@@ -288,6 +294,7 @@ export function ControlContextProvider({
     availableModelsRef,
     defaultModelRef,
     authorizedAppsRef,
+    appDescriptorsRef,
     defaultAppRef,
     sessionId,
   });

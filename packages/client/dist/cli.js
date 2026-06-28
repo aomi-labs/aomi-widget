@@ -1150,6 +1150,65 @@ var init_sse = __esm({
   }
 });
 
+// src/app-descriptor.ts
+function normalizeAppDescriptor(item) {
+  var _a3, _b;
+  if (typeof item === "string") {
+    const name2 = item.trim();
+    return name2 ? { name: name2 } : null;
+  }
+  if (!item || typeof item !== "object") return null;
+  const raw = item;
+  const name = typeof raw.name === "string" ? raw.name.trim() : "";
+  if (!name) return null;
+  const descriptor = __spreadProps(__spreadValues({}, raw), {
+    name
+  });
+  const applicationId = (_b = (_a3 = raw.applicationId) != null ? _a3 : raw.application_id) != null ? _b : raw.id;
+  if (typeof applicationId === "number" || typeof applicationId === "string") {
+    descriptor.applicationId = applicationId;
+  }
+  if (typeof raw.platform === "string") descriptor.platform = raw.platform;
+  if (typeof raw.label === "string") descriptor.label = raw.label;
+  if (typeof raw.appReleaseTag === "string") {
+    descriptor.appReleaseTag = raw.appReleaseTag;
+  } else if (typeof raw.app_release_tag === "string") {
+    descriptor.appReleaseTag = raw.app_release_tag;
+  }
+  if (typeof raw.isActive === "boolean") {
+    descriptor.isActive = raw.isActive;
+  } else if (typeof raw.is_active === "boolean") {
+    descriptor.isActive = raw.is_active;
+  }
+  if (typeof raw.isPublic === "boolean") {
+    descriptor.isPublic = raw.isPublic;
+  } else if (typeof raw.is_public === "boolean") {
+    descriptor.isPublic = raw.is_public;
+  }
+  if (typeof raw.artifactReady === "boolean") {
+    descriptor.artifactReady = raw.artifactReady;
+  } else if (typeof raw.artifact_ready === "boolean") {
+    descriptor.artifactReady = raw.artifact_ready;
+  }
+  descriptor.secrets = Array.isArray(raw.secrets) ? raw.secrets : [];
+  for (const key of [
+    "id",
+    "application_id",
+    "app_release_tag",
+    "is_active",
+    "is_public",
+    "artifact_ready"
+  ]) {
+    delete descriptor[key];
+  }
+  return descriptor;
+}
+var init_app_descriptor = __esm({
+  "src/app-descriptor.ts"() {
+    "use strict";
+  }
+});
+
 // src/client.ts
 function previewText(value, max = 80) {
   const singleLine = value.replace(/\s+/g, " ").trim();
@@ -1205,7 +1264,13 @@ function buildApiUrl(baseUrl, path, query) {
   const params = new URLSearchParams();
   for (const [key, value] of Object.entries(query)) {
     if (value === void 0) continue;
-    params.set(key, value);
+    if (typeof value === "string") {
+      params.set(key, value);
+    } else {
+      for (const item of value) {
+        params.append(key, item);
+      }
+    }
   }
   const queryString = params.toString();
   return queryString ? `${url}?${queryString}` : url;
@@ -1214,9 +1279,21 @@ function normalizeQuery(query) {
   if (!query) return void 0;
   const normalized = {};
   for (const [key, value] of Object.entries(query)) {
+    if (Array.isArray(value)) {
+      normalized[key] = value.map((item) => String(item));
+      continue;
+    }
     normalized[key] = value === null || value === void 0 ? void 0 : String(value);
   }
   return normalized;
+}
+function normalizePlatformFilter(platforms) {
+  const rawValues = Array.isArray(platforms) ? platforms : platforms === null || platforms === void 0 ? [] : [platforms];
+  return Array.from(
+    new Set(
+      rawValues.flatMap((value) => value.split(",")).map((value) => value.trim()).filter(Boolean)
+    )
+  );
 }
 function encodeJsonBody(body) {
   return body === void 0 ? void 0 : JSON.stringify(body);
@@ -1314,6 +1391,7 @@ var init_client = __esm({
     "use strict";
     init_user_state();
     init_sse();
+    init_app_descriptor();
     SESSION_ID_HEADER = "X-Session-Id";
     APP_KEY_HEADER = "Aomi-App-Key";
     BULKY_PENDING_FIELDS = /* @__PURE__ */ new Set([
@@ -1789,7 +1867,10 @@ ${body}` : ""}`
        */
       async getApps(sessionId, options) {
         var _a3;
-        const url = buildApiUrl(this.baseUrl, "/api/session/apps");
+        const platforms = normalizePlatformFilter(options == null ? void 0 : options.platforms);
+        const url = buildApiUrl(this.baseUrl, "/api/session/apps", {
+          platform: platforms.length > 0 ? platforms : void 0
+        });
         const apiKey = (_a3 = options == null ? void 0 : options.apiKey) != null ? _a3 : this.apiKey;
         const headers = new Headers(withSessionHeader(sessionId));
         if (apiKey) {
@@ -1801,18 +1882,7 @@ ${body}` : ""}`
         }
         const data = await response.json();
         if (!Array.isArray(data)) return [];
-        return data.map((item) => {
-          if (typeof item === "string") {
-            return { name: item };
-          }
-          if (item && typeof item === "object" && "name" in item) {
-            const name = item.name;
-            if (typeof name === "string" && name.trim().length > 0) {
-              return item;
-            }
-          }
-          return null;
-        }).filter((item) => item !== null);
+        return data.map((item) => normalizeAppDescriptor(item)).filter((item) => item !== null);
       }
       /**
        * Fetch the account bound to the authenticated request (resolved from the

@@ -54,8 +54,11 @@ export type AomiRequestQueryValue =
   | string
   | number
   | boolean
+  | readonly (string | number | boolean)[]
   | null
   | undefined;
+
+export type AomiPlatformFilter = string | readonly string[] | null | undefined;
 
 export type AomiHttpMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 
@@ -360,6 +363,13 @@ export interface AomiSecretSlot {
  */
 export interface AomiAppDescriptor {
   name: string;
+  applicationId?: number | string | null;
+  platform?: string | null;
+  label?: string | null;
+  appReleaseTag?: string | null;
+  isActive?: boolean | null;
+  isPublic?: boolean | null;
+  artifactReady?: boolean | null;
   secrets?: AomiSecretSlot[];
 }
 

@@ -43,96 +43,53 @@ describe("portal API proxy", () => {
     listApps.mockReset();
   });
 
-  it("adds public active loaded platform apps to the session app catalog", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async () =>
-        Response.json([{ name: "default" }, { name: "limitless" }]),
-      ),
+  it("forwards the backend session app catalog with the launch platforms", async () => {
+    const fetchMock = vi.fn(async () =>
+      Response.json([
+        { name: "default" },
+        { name: "somm-agent", application_id: 1, platform: "somm.finance" },
+      ]),
     );
-    listApps
-      .mockResolvedValueOnce([
-        {
-          id: 1,
-          name: "somm-agent",
-          isPublic: true,
-          isActive: true,
-          loaded: true,
-        },
-        {
-          id: 2,
-          name: "private-agent",
-          isPublic: false,
-          isActive: true,
-          loaded: true,
-        },
-        {
-          id: 3,
-          name: "not-loaded-agent",
-          isPublic: true,
-          isActive: true,
-          loaded: false,
-        },
-      ])
-      .mockResolvedValueOnce([
-        {
-          id: 4,
-          name: "community-agent",
-          isPublic: true,
-          isActive: true,
-          loaded: true,
-        },
-      ]);
+    vi.stubGlobal("fetch", fetchMock);
 
     const res = await GET(...sessionAppsRequest());
     const body = await res.json();
 
     expect(body).toEqual([
       { name: "default" },
-      { name: "limitless" },
-      { name: "somm-agent" },
-      { name: "community-agent" },
+      { name: "somm-agent", application_id: 1, platform: "somm.finance" },
     ]);
-    expect(listApps).toHaveBeenNthCalledWith(1, { platform: "somm.finance" });
-    expect(listApps).toHaveBeenNthCalledWith(2, { platform: "community" });
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        pathname: "/api/session/apps",
+        search: "?platform=somm.finance&platform=community",
+      }),
+      expect.any(Object),
+    );
+    expect(listApps).not.toHaveBeenCalled();
   });
 
-  it("preserves the runtime app catalog when the platform app list fails", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async () => Response.json([{ name: "default" }])),
+  it("preserves an explicit session app platform filter", async () => {
+    const fetchMock = vi.fn(async () => Response.json([{ name: "default" }]));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await GET(
+      new NextRequest(
+        "https://chat-staging.aomi.dev/api/session/apps?platform=community",
+      ),
+      {
+        params: Promise.resolve({ slug: ["session", "apps"] }),
+      },
     );
-    listApps
-      .mockRejectedValueOnce(new Error("somm unavailable"))
-      .mockRejectedValueOnce(new Error("community unavailable"));
 
-    const res = await GET(...sessionAppsRequest());
-    const body = await res.json();
-
-    expect(body).toEqual([{ name: "default" }]);
-  });
-
-  it("keeps apps from reachable platforms when one platform fails", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async () => Response.json([{ name: "default" }])),
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        pathname: "/api/session/apps",
+        search: "?platform=community",
+      }),
+      expect.any(Object),
     );
-    listApps
-      .mockRejectedValueOnce(new Error("somm unavailable"))
-      .mockResolvedValueOnce([
-        {
-          id: 4,
-          name: "community-agent",
-          isPublic: true,
-          isActive: true,
-          loaded: true,
-        },
-      ]);
-
-    const res = await GET(...sessionAppsRequest());
-    const body = await res.json();
-
-    expect(body).toEqual([{ name: "default" }, { name: "community-agent" }]);
+    expect(listApps).not.toHaveBeenCalled();
   });
 
   it("adds the primary launch platform to GitHub install redirects", async () => {

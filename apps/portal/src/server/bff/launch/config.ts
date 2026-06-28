@@ -58,10 +58,22 @@ function envJsonOrCommaList(name: string): string[] {
   );
 }
 
+function deployPlatforms(): string[] {
+  for (const name of [
+    "APP_DEPLOY_PLATFORMS",
+    "NEXT_PUBLIC_APP_DEPLOY_PLATFORMS",
+    "APP_DEPLOY_PLATFORM",
+    "NEXT_PUBLIC_APP_DEPLOY_PLATFORM",
+  ]) {
+    const platforms = envJsonOrCommaList(name);
+    if (platforms.length > 0) return platforms;
+  }
+
+  return [DEFAULT_DEPLOY_PLATFORM];
+}
+
 export function launchConfig(): LaunchConfig {
-  const platforms = envJsonOrCommaList("APP_DEPLOY_PLATFORMS");
-  const resolvedPlatforms =
-    platforms.length > 0 ? platforms : [DEFAULT_DEPLOY_PLATFORM];
+  const resolvedPlatforms = deployPlatforms();
 
   return {
     platform: resolvedPlatforms[0],
