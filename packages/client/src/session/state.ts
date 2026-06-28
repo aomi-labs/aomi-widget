@@ -68,17 +68,22 @@ export function resolveWalletState(
       resolvedAAMode === "7702" ? (aa?.delegation7702 ?? null) : null;
   }
 
-  const prevEvm = isRecord(userState?.evm) ? userState?.evm : {};
+  // `evm` is the per-chain array; resolving the connected wallet updates the
+  // primary (first) entry. Preserve any prior detail on it.
+  const prevEvmArray = Array.isArray(userState?.evm) ? userState.evm : [];
+  const prevEvm = isRecord(prevEvmArray[0]) ? prevEvmArray[0] : {};
   const prevConn = isRecord(userState?.connection) ? userState?.connection : {};
 
   return {
     ...(userState ?? {}),
-    evm: {
-      ...prevEvm,
-      address,
-      chain_id: chainId ?? 1,
-      aa: aaBlock,
-    },
+    evm: [
+      {
+        ...prevEvm,
+        address,
+        chain_id: chainId ?? 1,
+        aa: aaBlock,
+      },
+    ],
     connection: {
       ...prevConn,
       is_connected: true,

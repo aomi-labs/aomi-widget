@@ -43,16 +43,27 @@ Dropped vs prior (`provider:app:family:approval_id`): the `app` segment.
 as opaque; `provider`/`family` are kept in the string only so the CLI can
 render/group without a round-trip.
 
-## Clause 2 — `GET /api/account/authorizations`
+## Clause 2 — `GET /api/account/wallets` (list blue)
 
-- **Request:** drop `?app=`. Keep `?provider=` (default `privy`).
-- **Response:** `{ wallets: AuthorizedWallet[] }`, account-scoped, where
-  `AuthorizedWallet` **drops `application`**:
+**Superseded `/api/account/authorizations` (2026-06-28).** Blue has one home, so
+listing it has one endpoint: the unified `GET /api/account/wallets` returns every
+operable wallet — self-custody (`signing: "client"`) and delegated
+(`signing: "delegated"`) — across the account. The old delegated-only
+`/authorizations` is exactly the `signing === "delegated"` subset of this list and
+was removed.
+
+- **Request:** no query params (account-scoped).
+- **Response:** `{ wallets: AccountWallet[] }`, where `AccountWallet` is:
 
   ```
-  wallet_ref, wallet_provider, family, address, label,
-  auth_identity_id, approval_id, expires_at
+  address, chain_type ("evm" | "svm"), wallet_provider, signing, is_primary,
+  // delegated-only grant annotation (omitted for client wallets):
+  wallet_ref, label, expires_at, approval_id, auth_identity_id
   ```
+
+  `wallet_ref` keeps the Clause-1 format. Canonical source is `identity_wallets`;
+  active grants annotate the delegated rows and backfill any grant whose address
+  predates the `identity_wallets` unify.
 
 ## Clause 3 — operating wallet: address rides UserState, delegation rides the ref
 
@@ -98,12 +109,13 @@ use/current/clear` are gone; authorized wallets are surfaced read-only via
 
 **BE (`product-mono`, dbthread line)** — done:
 
-- `authorization/types.rs` — `wallet_ref(provider, family, approval_id)`, no app;
-  `AuthorizedWalletCandidate` dropped `application`.
-- `authorization/repository.rs` + `resolver.rs` — account-scoped lookup;
-  `WalletResolver::resolve(user_id, snapshot)` picks the account's authorization
-  (no per-turn pin, no app).
-- `endpoint/account/authorizations.rs` — `?provider=` only.
+- `aomi-sign` crate (`resolve.rs`) — `wallet_ref(provider, family, approval_id)`,
+  no app; `WalletCandidate` carries no `application`. `Grant::list` is the single
+  account-scoped walk; `Grant::for_address` is the address-keyed signer pick
+  (blue→pink), `Grant::candidates` drives the list-blue view. (Supersedes the old
+  `authorization/{types,repository,resolver}.rs` + `WalletResolver`.)
+- `endpoint/account/wallets.rs` — `GET /api/account/wallets`, unified list blue
+  (Clause 2). `endpoint/account/authorizations.rs` removed.
 - `endpoint/thread/chat.rs` — no `authorized_wallet_ref` request param.
 - scheduling folded onto `threads` (DbThread); `scheduled_intents` table dropped;
   wire is `scheduled_threads` / `root_thread_id`, path `/scheduled-intents` kept.

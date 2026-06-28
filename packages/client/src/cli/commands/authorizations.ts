@@ -1,4 +1,4 @@
-import type { AomiAuthorizedWallet } from "../../types";
+import type { AomiAccountWallet } from "../../types";
 import { CliSession } from "../cli-session";
 import { printDataFileLocation } from "../output";
 import type { CliConfig } from "../types";
@@ -8,21 +8,24 @@ function formatExpiry(expiresAt: number | null | undefined): string {
   return new Date(expiresAt * 1000).toISOString();
 }
 
-function formatWallet(wallet: AomiAuthorizedWallet): string {
+function formatWallet(wallet: AomiAccountWallet): string {
   const label = wallet.label ? ` ${wallet.label}` : "";
+  const ref =
+    wallet.wallet_ref ?? `${wallet.wallet_provider ?? "?"}:${wallet.chain_type}`;
   return [
-    wallet.wallet_ref,
-    `${wallet.family.toUpperCase()} ${wallet.address}`,
-    `${wallet.wallet_provider}${label}`,
+    ref,
+    `${wallet.chain_type.toUpperCase()} ${wallet.address}`,
+    `${wallet.wallet_provider ?? ""}${label}`.trim(),
     `expires ${formatExpiry(wallet.expires_at)}`,
   ].join(" | ");
 }
 
 /**
  * List the account's authorized (delegated) wallets — the wallets the backend
- * can sign with on the account's behalf. Read-only: the backend resolves which
- * one operates from the account's grants (blue→pink), so there is no client
- * selection to make.
+ * can sign with on the account's behalf. Sourced from the unified
+ * `/api/account/wallets` (the `signing === "delegated"` subset). Read-only: the
+ * backend resolves which one operates from the operating address (blue→pink),
+ * so there is no client selection to make.
  */
 export async function listAuthorizationsCommand(
   config: CliConfig,
@@ -33,11 +36,14 @@ export async function listAuthorizationsCommand(
 
   const session = cli.createClientSession(config);
   try {
-    const response = await session.client.listAuthorizedWallets(cli.sessionId, {
-      provider: options?.provider,
-    });
-    console.log(`Authorized wallets: ${response.wallets.length}`);
-    for (const wallet of response.wallets) {
+    const response = await session.client.listWallets(cli.sessionId);
+    const delegated = response.wallets.filter(
+      (wallet) =>
+        wallet.signing === "delegated" &&
+        (!options?.provider || wallet.wallet_provider === options.provider),
+    );
+    console.log(`Authorized wallets: ${delegated.length}`);
+    for (const wallet of delegated) {
       console.log(`- ${formatWallet(wallet)}`);
     }
     printDataFileLocation();

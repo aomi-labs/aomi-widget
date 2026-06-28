@@ -271,24 +271,33 @@ export interface AomiBeginAccountAuthResponse {
 export type AomiWalletFamily = "evm" | "svm";
 export type AomiAuthWalletFamily = "evm" | "solana";
 
+/** How a wallet signs: the backend (`delegated`, blue→pink) or the user (`client`). */
+export type AomiWalletSigning = "delegated" | "client";
+
 /**
- * An account-scoped authorized (delegated) wallet. `wallet_ref` is the opaque
- * account-scoped selector `provider:family:approval_id` (see the
- * account-scoped-wallet-selection wire contract) — no `application` segment.
+ * One operable wallet (blue) on the account — the unified view from
+ * `GET /api/account/wallets` spanning self-custody (`signing: "client"`) and
+ * delegated (`signing: "delegated"`) wallets. For delegated wallets the grant
+ * annotation is filled in: `wallet_ref` is the opaque account-scoped selector
+ * `provider:family:approval_id` (see the account-scoped-wallet-selection wire
+ * contract — no `application` segment), alongside `label` / `expires_at` /
+ * `approval_id`. `chain_type` is the family (`"evm" | "svm"`).
  */
-export interface AomiAuthorizedWallet {
-  wallet_ref: string;
-  wallet_provider: string;
-  family: AomiWalletFamily;
+export interface AomiAccountWallet {
   address: string;
+  chain_type: AomiWalletFamily;
+  wallet_provider?: string | null;
+  signing: AomiWalletSigning;
+  is_primary: boolean;
+  wallet_ref?: string | null;
   label?: string | null;
-  auth_identity_id: number;
-  approval_id: number;
   expires_at?: number | null;
+  approval_id?: number;
+  auth_identity_id?: number;
 }
 
-export interface AomiListAuthorizationsResponse {
-  wallets: AomiAuthorizedWallet[];
+export interface AomiListWalletsResponse {
+  wallets: AomiAccountWallet[];
 }
 
 export interface AomiScheduledThread {

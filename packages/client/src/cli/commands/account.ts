@@ -1,8 +1,40 @@
 import { CliSession } from "../cli-session";
 import { printDataFileLocation } from "../output";
 import type { CliConfig } from "../types";
+import type { AomiListWalletsResponse } from "../../types";
 
 type LoginWalletFamily = "evm" | "solana";
+
+/**
+ * The CLI's blue→yellow step: after auth, fetch the account's operable wallets
+ * and persist the primary's address(es) as the operating wallet, so the
+ * backend-signed (delegated) address reaches `UserState` without the CLI
+ * holding a key. Best-effort and gap-filling — it never clobbers a local
+ * self-custody key, and a `/wallets` hiccup is non-fatal.
+ */
+async function hydratePrimaryWallets(
+  cli: CliSession,
+  client: { listWallets(sessionId: string): Promise<AomiListWalletsResponse> },
+  sessionId: string,
+): Promise<void> {
+  if (cli.publicKey && cli.svmPublicKey) {
+    return;
+  }
+  let wallets: AomiListWalletsResponse["wallets"];
+  try {
+    ({ wallets } = await client.listWallets(sessionId));
+  } catch {
+    return;
+  }
+  const pick = (family: "evm" | "svm") =>
+    wallets.find(
+      (wallet) => wallet.chain_type === family && wallet.is_primary,
+    ) ?? wallets.find((wallet) => wallet.chain_type === family);
+  cli.hydrateOperatingWallet({
+    evm: pick("evm")?.address,
+    svm: pick("svm")?.address,
+  });
+}
 
 /**
  * Mint a backend-owned Privy auth URL for the active session and print it so
@@ -121,6 +153,12 @@ export async function loginCommand(config: CliConfig): Promise<void> {
       console.log(
         `CLI credential expires at ${new Date(payload.expires_at * 1000).toISOString()}.`,
       );
+      const session = cli.createClientSession(config);
+      try {
+        await hydratePrimaryWallets(cli, session.client, cli.sessionId);
+      } finally {
+        session.close();
+      }
       printDataFileLocation();
       return;
     }
@@ -181,6 +219,10 @@ export async function whoamiCommand(config: CliConfig): Promise<void> {
         `- ${formatWalletChainType(wallet.chain_type)} [${wallet.wallet_provider}]: ${wallet.address}${walletId}`,
       );
     }
+    // Browser-based wallet login (`wallet login`) completes out of band, so
+    // `whoami` is where the CLI first sees the connected wallet — hydrate the
+    // operating address here too (no-op once a wallet is already set).
+    await hydratePrimaryWallets(cli, session.client, cli.sessionId);
     printDataFileLocation();
   } finally {
     session.close();

@@ -309,6 +309,28 @@ export class CliSession {
     this.save();
   }
 
+  /**
+   * Persist the operating address(es) for a backend-signed (delegated) wallet —
+   * the CLI's blue→yellow step. No private key is stored: signing routes
+   * through the backend (blue→pink, keyed on this address), so the address
+   * alone must reach `UserState`. Only fills empty slots, so a local
+   * self-custody key is never clobbered.
+   */
+  hydrateOperatingWallet(operating: { evm?: string; svm?: string }): void {
+    let changed = false;
+    if (operating.evm && !this.state.publicKey) {
+      this.state.publicKey = operating.evm;
+      changed = true;
+    }
+    if (operating.svm && !this.state.svmPublicKey) {
+      this.state.svmPublicKey = operating.svm;
+      changed = true;
+    }
+    if (changed) {
+      this.save();
+    }
+  }
+
   addSecretHandles(handles: Record<string, string>): void {
     this.state.secretHandles = {
       ...(this.state.secretHandles ?? {}),

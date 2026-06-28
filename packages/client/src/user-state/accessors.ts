@@ -18,7 +18,11 @@ function asObject(value: unknown): UnknownRecord | undefined {
 }
 
 function evmBlock(userState?: UserState | null): UnknownRecord | undefined {
-  return asObject(normalizeUserState(userState)?.evm);
+  // `evm` is an array of per-chain wallets; the primary (first) is the default
+  // operating wallet these accessors read. `normalize` tolerates the legacy
+  // single-object shape too.
+  const evm = normalizeUserState(userState)?.evm;
+  return Array.isArray(evm) ? asObject(evm[0]) : asObject(evm);
 }
 function svmBlock(userState?: UserState | null): UnknownRecord | undefined {
   return asObject(normalizeUserState(userState)?.svm);

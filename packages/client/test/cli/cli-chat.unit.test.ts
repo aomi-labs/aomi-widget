@@ -87,13 +87,15 @@ describe("CLI chat wallet sync", () => {
       connection: {
         is_connected: true,
       },
-      evm: {
-        aa: {
-          mode: "none",
+      evm: [
+        {
+          aa: {
+            mode: "none",
+          },
+          address: "0xnew",
+          chain_id: 8453,
         },
-        address: "0xnew",
-        chain_id: 8453,
-      },
+      ],
       ext: { client_type: "ts_cli" },
     });
     expect(syncUserState).toHaveBeenCalledTimes(1);
@@ -109,13 +111,15 @@ describe("CLI chat wallet sync", () => {
         connection: {
           is_connected: true,
         },
-        evm: {
-          aa: {
-            mode: "none",
+        evm: [
+          {
+            aa: {
+              mode: "none",
+            },
+            address: "0xnew",
+            chain_id: 8453,
           },
-          address: "0xnew",
-          chain_id: 8453,
-        },
+        ],
         ext: { client_type: "ts_cli" },
       },
     });

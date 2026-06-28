@@ -12,10 +12,12 @@ describe("CLI user state AA fields", () => {
       connection: {
         is_connected: true,
       },
-      evm: {
-        address: "0xabc",
-        chain_id: 8453,
-      },
+      evm: [
+        {
+          address: "0xabc",
+          chain_id: 8453,
+        },
+      ],
       ext: { client_type: "ts_cli" },
     });
   });

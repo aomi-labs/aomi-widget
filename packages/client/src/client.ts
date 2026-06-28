@@ -15,7 +15,7 @@ import type {
   AomiIngestSecretsResponse,
   AomiInterruptResponse,
   AomiListByokKeysResponse,
-  AomiListAuthorizationsResponse,
+  AomiListWalletsResponse,
   AomiListScheduledThreadsResponse,
   AomiListSecretsResponse,
   AomiRequestOptions,
@@ -978,21 +978,17 @@ export class AomiClient {
   }
 
   /**
-   * List the account's authorized (delegated) wallets. Account-scoped — no
-   * `app` filter (see the account-scoped-wallet-selection wire contract).
+   * List every operable wallet on the account — the unified "blue" view across
+   * self-custody and delegated wallets (see the account-scoped-wallet-selection
+   * wire contract). Account-scoped; supersedes the old `/authorizations`
+   * endpoint, which is now the `signing === "delegated"` subset of this list.
    */
-  async listAuthorizedWallets(
-    sessionId: string,
-    options?: { provider?: string },
-  ): Promise<AomiListAuthorizationsResponse> {
-    return this.request<AomiListAuthorizationsResponse>(
+  async listWallets(sessionId: string): Promise<AomiListWalletsResponse> {
+    return this.request<AomiListWalletsResponse>(
       "GET",
-      "/api/account/authorizations",
+      "/api/account/wallets",
       {
         sessionId,
-        query: {
-          provider: options?.provider,
-        },
         raw: true,
       },
     );

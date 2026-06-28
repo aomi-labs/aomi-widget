@@ -119,7 +119,9 @@ export function buildCliUserState(
   }
 
   if (Object.keys(evm).length > 0) {
-    userState.evm = evm;
+    // `evm` is the canonical per-chain array; the CLI connects a single wallet,
+    // so it's a one-element array (its `chain_id`, when set, pins the chain).
+    userState.evm = [evm];
   }
 
   if (hasSvm) {

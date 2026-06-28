@@ -164,6 +164,67 @@ function buildEvm(
   return Object.keys(e).length ? e : undefined;
 }
 
+/**
+ * Normalize `evm` to its canonical array shape. Accepts the array form (one
+ * entry per chain) or the legacy single-object/flat form (folded into a
+ * one-element array). Each element runs through [`buildEvm`]; flat top-level
+ * fields are only lifted for the legacy single-object path.
+ */
+function buildEvmArray(srcEvm: unknown, flat: UnknownRecord): UnknownRecord[] {
+  if (Array.isArray(srcEvm)) {
+    return srcEvm
+      .map((element) => buildEvm(asObject(element), {}))
+      .filter((element): element is UnknownRecord => element !== undefined);
+  }
+  const single = buildEvm(asObject(srcEvm), flat);
+  return single ? [single] : [];
+}
+
+/**
+ * Merge key for an EVM wallet. Keyed by address (case-insensitive) so a
+ * chain-agnostic entry and a later chain-refined entry for the SAME address
+ * collapse into one (the chain_id refines the wallet, it doesn't fork it).
+ * Distinct addresses stay distinct entries (the multi-chain-different-address
+ * case). Address-less entries fall back to chain id.
+ */
+function evmMergeKey(wallet: UnknownRecord): string {
+  const addr = wallet.address;
+  if (typeof addr === "string" && addr.length > 0) {
+    return `addr:${addr.toLowerCase()}`;
+  }
+  const cid = parseChainId(wallet.chain_id);
+  return cid === undefined ? "__default__" : `chain:${cid}`;
+}
+
+/** Merge two EVM wallet arrays by wallet, preserving prior per-wallet detail. */
+function mergeEvmArrays(
+  previous: UnknownRecord[],
+  incoming: UnknownRecord[],
+): UnknownRecord[] {
+  const prevByKey = new Map<string, UnknownRecord>();
+  for (const wallet of previous) prevByKey.set(evmMergeKey(wallet), wallet);
+
+  const out: UnknownRecord[] = [];
+  const seen = new Set<string>();
+  for (const wallet of incoming) {
+    const key = evmMergeKey(wallet);
+    seen.add(key);
+    const prior = prevByKey.get(key);
+    out.push(prior ? deepMergePreserve(prior, wallet) : wallet);
+  }
+  for (const [key, wallet] of prevByKey) {
+    if (!seen.has(key)) out.push(wallet);
+  }
+  return out;
+}
+
+/** The primary (first) EVM wallet — the default operating wallet. */
+function primaryEvm(state: UserState | undefined): UnknownRecord | undefined {
+  const evm = state?.evm;
+  if (Array.isArray(evm)) return asObject(evm[0]);
+  return asObject(evm);
+}
+
 function buildSvm(
   src: UnknownRecord | undefined,
   flat: UnknownRecord,
@@ -266,7 +327,7 @@ function parseChainId(value: unknown): number | undefined {
 }
 
 function address(state: UserState | undefined): string | undefined {
-  const value = asObject(state?.evm)?.address;
+  const value = primaryEvm(state)?.address;
   return typeof value === "string" && value.length > 0 ? value : undefined;
 }
 
@@ -276,7 +337,7 @@ function svmAddress(state: UserState | undefined): string | undefined {
 }
 
 function chainId(state: UserState | undefined): number | undefined {
-  return parseChainId(asObject(state?.evm)?.chain_id);
+  return parseChainId(primaryEvm(state)?.chain_id);
 }
 
 function isConnected(state: UserState | undefined): boolean | undefined {
@@ -301,8 +362,8 @@ export function normalizeUserState(
   const out: UserState = {};
   const connection = buildConnection(asObject(pick(src, "connection")), src);
   if (connection) out.connection = connection;
-  const evm = buildEvm(asObject(pick(src, "evm")), src);
-  if (evm) out.evm = evm;
+  const evm = buildEvmArray(pick(src, "evm"), src);
+  if (evm.length) out.evm = evm;
   const svm = buildSvm(asObject(pick(src, "svm", "solana")), src);
   if (svm) out.svm = svm;
   const pending = buildPending(asObject(pick(src, "pending")), src);
@@ -355,13 +416,13 @@ export function reconcileUserState(
     out.connection = incConn ? deepMergePreserve(prevConn, incConn) : prevConn;
   }
 
-  const prevEvm = asObject(prev.evm);
-  const incEvm = asObject(inc.evm);
+  const prevEvm = Array.isArray(prev.evm) ? prev.evm : [];
+  const incEvm = Array.isArray(inc.evm) ? inc.evm : [];
   const sameEvm =
     !!address(prev) &&
     (!address(inc) || sameAddress(address(prev), address(inc)));
-  if (connectedNotBroken && prevEvm && (sameEvm || !incEvm)) {
-    out.evm = incEvm ? deepMergePreserve(prevEvm, incEvm) : prevEvm;
+  if (connectedNotBroken && prevEvm.length && (sameEvm || !incEvm.length)) {
+    out.evm = incEvm.length ? mergeEvmArrays(prevEvm, incEvm) : prevEvm;
   }
 
   const prevSvm = asObject(prev.svm);

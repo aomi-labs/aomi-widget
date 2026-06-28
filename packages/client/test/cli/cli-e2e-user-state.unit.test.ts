@@ -57,12 +57,12 @@ describe("CLI UserState — Table A connect-time", () => {
     const state = session.getUserState();
 
     expect(state).toEqual({
-      evm: { address: EOA, chain_id: CHAIN_ID },
+      evm: [{ address: EOA, chain_id: CHAIN_ID }],
       connection: { is_connected: true },
       ext: { client_type: "ts_cli" },
     });
     // Per Table A: no AA block at all (walletKind derives to eoa).
-    expect(state?.evm).not.toHaveProperty("aa");
+    expect(state?.evm?.[0]).not.toHaveProperty("aa");
     expect(UserState.walletKind(state)).toBe("eoa");
 
     session.close();
@@ -78,17 +78,19 @@ describe("CLI UserState — Table A connect-time", () => {
     const state = session.getUserState();
 
     expect(state).toMatchObject({
-      evm: {
-        address: EOA,
-        chain_id: CHAIN_ID,
-        aa: { mode: "4337", smart_account: SMART_ACCOUNT_4337 },
-      },
+      evm: [
+        {
+          address: EOA,
+          chain_id: CHAIN_ID,
+          aa: { mode: "4337", smart_account: SMART_ACCOUNT_4337 },
+        },
+      ],
       connection: { is_connected: true },
       ext: { client_type: "ts_cli" },
     });
     // EOA address ≠ smart account ⟹ derived walletKind is eoa.
     expect(UserState.walletKind(state)).toBe("eoa");
-    expect(state?.evm?.aa).not.toHaveProperty("delegation_7702");
+    expect(state?.evm?.[0]?.aa).not.toHaveProperty("delegation_7702");
 
     session.close();
   });
@@ -100,17 +102,19 @@ describe("CLI UserState — Table A connect-time", () => {
     const state = session.getUserState();
 
     expect(state).toMatchObject({
-      evm: {
-        address: EOA,
-        chain_id: CHAIN_ID,
-        aa: { mode: "7702" },
-      },
+      evm: [
+        {
+          address: EOA,
+          chain_id: CHAIN_ID,
+          aa: { mode: "7702" },
+        },
+      ],
       connection: { is_connected: true },
       ext: { client_type: "ts_cli" },
     });
     expect(UserState.walletKind(state)).toBe("eoa");
-    expect(state?.evm?.aa).not.toHaveProperty("smart_account");
-    expect(state?.evm?.aa).not.toHaveProperty("delegation_7702");
+    expect(state?.evm?.[0]?.aa).not.toHaveProperty("smart_account");
+    expect(state?.evm?.[0]?.aa).not.toHaveProperty("delegation_7702");
 
     session.close();
   });
@@ -146,15 +150,17 @@ describe("CLI UserState — Table B post-tx writes", () => {
 
     const state = session.getUserState();
     expect(state).toMatchObject({
-      evm: {
-        address: EOA,
-        chain_id: CHAIN_ID,
-        aa: {
-          mode: "4337",
-          smart_account: SMART_ACCOUNT_4337,
-          delegation_7702: null,
+      evm: [
+        {
+          address: EOA,
+          chain_id: CHAIN_ID,
+          aa: {
+            mode: "4337",
+            smart_account: SMART_ACCOUNT_4337,
+            delegation_7702: null,
+          },
         },
-      },
+      ],
       connection: { is_connected: true },
       ext: { client_type: "ts_cli" },
     });
@@ -177,15 +183,17 @@ describe("CLI UserState — Table B post-tx writes", () => {
     });
 
     expect(session.getUserState()).toMatchObject({
-      evm: {
-        address: EOA,
-        chain_id: CHAIN_ID,
-        aa: {
-          mode: "7702",
-          smart_account: null,
-          delegation_7702: DELEGATION_7702,
+      evm: [
+        {
+          address: EOA,
+          chain_id: CHAIN_ID,
+          aa: {
+            mode: "7702",
+            smart_account: null,
+            delegation_7702: DELEGATION_7702,
+          },
         },
-      },
+      ],
       connection: { is_connected: true },
       ext: { client_type: "ts_cli" },
     });
@@ -206,13 +214,15 @@ describe("CLI UserState — Table B post-tx writes", () => {
       delegation7702: DELEGATION_7702,
     });
     expect(session.getUserState()).toMatchObject({
-      evm: {
-        aa: {
-          mode: "7702",
-          delegation_7702: DELEGATION_7702,
-          smart_account: null,
+      evm: [
+        {
+          aa: {
+            mode: "7702",
+            delegation_7702: DELEGATION_7702,
+            smart_account: null,
+          },
         },
-      },
+      ],
     });
 
     // Then a 4337 tx — Table B says writes are mode-exclusive on each call.
@@ -223,13 +233,15 @@ describe("CLI UserState — Table B post-tx writes", () => {
       delegation7702: null,
     });
     expect(session.getUserState()).toMatchObject({
-      evm: {
-        aa: {
-          mode: "4337",
-          smart_account: SMART_ACCOUNT_4337,
-          delegation_7702: null,
+      evm: [
+        {
+          aa: {
+            mode: "4337",
+            smart_account: SMART_ACCOUNT_4337,
+            delegation_7702: null,
+          },
         },
-      },
+      ],
     });
 
     session.close();
@@ -262,12 +274,14 @@ describe("CLI UserState — Table B post-tx writes", () => {
     // connection-prep call. The reconciler preserves it under
     // same-address conditions.
     expect(session.getUserState()).toMatchObject({
-      evm: {
-        aa: {
-          smart_account: SMART_ACCOUNT_4337,
-          delegation_7702: null,
+      evm: [
+        {
+          aa: {
+            smart_account: SMART_ACCOUNT_4337,
+            delegation_7702: null,
+          },
         },
-      },
+      ],
     });
 
     session.close();
