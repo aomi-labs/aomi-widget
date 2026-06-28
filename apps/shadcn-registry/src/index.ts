@@ -66,3 +66,7 @@ export {
   useAomiSession,
   type AomiSessionStatus,
 } from "./lib/aomi-session/session-provider";
+export {
+  AomiWalletSiweSessionProvider,
+  useWalletSiweSession,
+} from "./lib/aomi-session/siwe";

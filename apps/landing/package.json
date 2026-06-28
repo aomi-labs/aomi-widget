@@ -22,6 +22,7 @@
     "tailwindStylesheet": "app/globals.css"
   },
   "dependencies": {
+    "@aomi-labs/account": "workspace:*",
     "@aomi-labs/react": "workspace:*",
     "@aomi-labs/widget-lib": "workspace:*",
     "@assistant-ui/react": "^0.11.28",

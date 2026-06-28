@@ -8,6 +8,7 @@
 
 export {
   resolveOrCreateCanonicalUser,
+  resolveOrCreateByWallet,
   type ResolveInput,
   type CanonicalUser,
 } from "./account-graph";
@@ -36,3 +37,8 @@ export {
   type ExchangeConfig,
   type Provider,
 } from "./exchange";
+export {
+  createSiweNonceRoute,
+  createSiweExchangeRoute,
+  type SiweConfig,
+} from "./siwe";

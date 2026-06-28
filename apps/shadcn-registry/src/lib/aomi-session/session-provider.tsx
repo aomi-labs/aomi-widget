@@ -131,11 +131,6 @@ export function AomiSessionProvider({ children }: { children: ReactNode }) {
           body: JSON.stringify({
             provider: credential.provider,
             provider_jwt: credential.providerJwt,
-            // TMP(account-graph): the connected embedded wallet address. The
-            // exchange bridges returning wallet-first users to their existing
-            // sessions by this address (stopgap; superseded by the account-graph
-            // refactor).
-            address,
           }),
         });
         if (cancelled) return;

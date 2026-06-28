@@ -29,7 +29,9 @@
       "@aomi-labs/react": ["../../packages/react/src/index.ts"],
       "@aomi-labs/react/*": ["../../packages/react/src/*"],
       "@aomi-labs/client": ["../../packages/client/src/index.ts"],
-      "@aomi-labs/client/*": ["../../packages/client/src/*"]
+      "@aomi-labs/client/*": ["../../packages/client/src/*"],
+      "@aomi-labs/account": ["../../packages/account/src/index.ts"],
+      "@aomi-labs/account/*": ["../../packages/account/src/*"]
     }
   },
   "include": [
