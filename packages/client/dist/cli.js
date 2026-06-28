@@ -371,7 +371,7 @@ var init_shared = __esm({
     globalArgs = {
       "backend-url": {
         type: "string",
-        description: "Backend URL (default: https://api.aomi.dev)"
+        description: "Aomi API/BFF URL (default: https://chat.aomi.dev)"
       },
       "api-key": {
         type: "string",
@@ -3506,19 +3506,7 @@ var init_session2 = __esm({
 // src/cli/client-factory.ts
 function resolveCliBaseUrl(config) {
   var _a3;
-  return (_a3 = config.baseUrl) != null ? _a3 : DEFAULT_BACKEND_URL;
-}
-function isRawBackendBaseUrl(baseUrl) {
-  let parsed;
-  try {
-    parsed = new URL(baseUrl);
-  } catch (e) {
-    return false;
-  }
-  if (parsed.hostname === "api.aomi.dev" || parsed.hostname === "api-staging.aomi.dev") {
-    return true;
-  }
-  return RAW_BACKEND_HOSTS.has(parsed.hostname) && (parsed.port === "8080" || parsed.port === "");
+  return (_a3 = config.baseUrl) != null ? _a3 : DEFAULT_CLI_BASE_URL;
 }
 function createCliGetAccountBearer(config) {
   if (config.accountBearer) {
@@ -3543,19 +3531,12 @@ function createCliClient(config, overrides = {}) {
     getAccountBearer: createCliGetAccountBearer(mergedConfig)
   });
 }
-var DEFAULT_BACKEND_URL, RAW_BACKEND_HOSTS;
+var DEFAULT_CLI_BASE_URL;
 var init_client_factory = __esm({
   "src/cli/client-factory.ts"() {
     "use strict";
     init_client();
-    DEFAULT_BACKEND_URL = "https://api.aomi.dev";
-    RAW_BACKEND_HOSTS = /* @__PURE__ */ new Set([
-      "api.aomi.dev",
-      "api-staging.aomi.dev",
-      "127.0.0.1",
-      "localhost",
-      "::1"
-    ]);
+    DEFAULT_CLI_BASE_URL = "https://chat.aomi.dev";
   }
 });
 
@@ -4371,7 +4352,7 @@ var init_cli_session = __esm({
         const state = {
           sessionId: crypto.randomUUID(),
           clientId: crypto.randomUUID(),
-          baseUrl: (_b = (_a3 = config.baseUrl) != null ? _a3 : seed == null ? void 0 : seed.baseUrl) != null ? _b : "https://api.aomi.dev",
+          baseUrl: (_b = (_a3 = config.baseUrl) != null ? _a3 : seed == null ? void 0 : seed.baseUrl) != null ? _b : DEFAULT_CLI_BASE_URL,
           app: (_c = config.app) != null ? _c : seed == null ? void 0 : seed.app,
           model: (_d = config.model) != null ? _d : seed == null ? void 0 : seed.model,
           apiKey: (_e = config.apiKey) != null ? _e : seed == null ? void 0 : seed.apiKey,
@@ -8077,7 +8058,7 @@ function loadOrCreateForSettings() {
   const existing = CliSession.load();
   if (existing) return existing;
   return CliSession.loadOrCreate({
-    baseUrl: "https://api.aomi.dev",
+    baseUrl: DEFAULT_CLI_BASE_URL,
     app: "default",
     secrets: {}
   });
@@ -8133,6 +8114,7 @@ var init_preferences = __esm({
   "src/cli/commands/preferences.ts"() {
     "use strict";
     init_cli_session();
+    init_client_factory();
     init_output();
     init_validation();
     init_errors();
@@ -8222,39 +8204,33 @@ async function loginCommand(config, options) {
   cli.mergeConfig(config);
   const privateKey = (_a3 = config.privateKey) != null ? _a3 : cli.privateKey;
   const wantsSolana = (options == null ? void 0 : options.walletFamily) === "solana";
-  if (privateKey && !wantsSolana && !isRawBackendBaseUrl(cli.baseUrl)) {
-    try {
-      const { sessionCookie, address: address3 } = await siweLogin({
-        baseUrl: cli.baseUrl,
-        privateKey,
-        chainId: cli.chainId
-      });
-      cli.setSessionCookie(sessionCookie);
-      console.log(`Signed in as ${address3}`);
-      console.log(`Session established at ${cli.baseUrl}.`);
-      console.log("Run `aomi wallet whoami` to confirm the bound account.");
-      printDataFileLocation();
-      return;
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      fatal(
-        `SIWE login failed: ${message}
-Ensure --base-url points at an Aomi BFF (it serves /api/bff/auth/siwe), not the raw backend.`
-      );
-    }
+  if (wantsSolana) {
+    fatal(
+      "Solana account login is not supported by the SIWE BFF flow yet.\nUse an EVM key with --private-key / PRIVATE_KEY."
+    );
   }
-  const session = cli.createClientSession(config);
+  if (!privateKey) {
+    fatal(
+      "EVM account login requires a private key.\nPass --private-key or set PRIVATE_KEY, and point --backend-url at an Aomi BFF."
+    );
+  }
   try {
-    const begin = await session.client.beginPrivyAuth(cli.sessionId, {
-      application: cli.app,
-      walletFamily: options == null ? void 0 : options.walletFamily
+    const { sessionCookie, address: address3 } = await siweLogin({
+      baseUrl: cli.baseUrl,
+      privateKey,
+      chainId: cli.chainId
     });
-    console.log("Open this URL to authenticate with Privy:");
-    console.log(begin.auth_url);
-    console.log("After the browser flow completes, run `aomi wallet whoami`.");
+    cli.setSessionCookie(sessionCookie);
+    console.log(`Signed in as ${address3}`);
+    console.log(`Session established at ${cli.baseUrl}.`);
+    console.log("Run `aomi wallet whoami` to confirm the bound account.");
     printDataFileLocation();
-  } finally {
-    session.close();
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    fatal(
+      `SIWE login failed: ${message}
+Ensure --backend-url points at an Aomi BFF (it serves /api/bff/auth/siwe), not the raw backend.`
+    );
   }
 }
 async function whoamiCommand(config) {
@@ -8321,7 +8297,6 @@ var init_account = __esm({
     "use strict";
     init_account_auth();
     init_cli_session();
-    init_client_factory();
     init_errors();
     init_output();
   }
