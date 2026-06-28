@@ -15,7 +15,7 @@ vi.mock("@aomi-labs/account", async (importOriginal) => {
   return {
     ...actual,
     mintAccountBearer: vi.fn(async () => ({
-      accessToken: "test-bearer",
+      bearer: "test-bearer",
       expiresAt: 0,
     })),
   };

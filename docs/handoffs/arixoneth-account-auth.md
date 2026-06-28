@@ -181,7 +181,7 @@ Server-only issuer package — **`@aomi-labs/account`** (`packages/account/src/`
 | file | what it does | your move |
 |---|---|---|
 | `account-graph.ts` | `resolveOrCreateCanonicalUser({provider, subject}) → {userId, created}` — TS port of the Rust `DbUser::insert_for_identity` against the existing `users`/`auth_identities`. Race-safe. 4 unit tests. | **Replace the body** with your Better-Auth account graph — keep the signature + the stable-UUID contract. This is the seam. |
-| `bearer.ts` | `mintAccountBearer(userId, role?) → {accessToken, expiresAt}` — `sub` = UUID, EdDSA, via the topology signer. | Converge your JWT minting here; keep the claim set (`sub`/`iss`/`aud`/`role`/`iat`/`exp`). |
+| `bearer.ts` | `mintAccountBearer(userId, role?) → {bearer, expiresAt}` — `sub` = UUID, EdDSA, via the topology signer. (`@aomi-labs/service`'s generic signer returns `accessToken`; `bearer.ts` re-labels it `bearer` — the account domain names this credential a bearer.) | Converge your JWT minting here; keep the claim set (`sub`/`iss`/`aud`/`role`/`iat`/`exp`). |
 | `topology.ts` | `portalService()` = `AomiService.fromTopology(service.portal.toml)`; signing key from env `PORTAL_SERVICE_PRIVATE_KEY`. | The mint mechanism. (Topology/`AomiService` is owned elsewhere — coordinate before changing it.) |
 | `db.ts` | `pg` pool from `DATABASE_URL` (same DB the backend reads). | Reuse, or swap for Better-Auth's pool — but write the tables the backend reads. |
 

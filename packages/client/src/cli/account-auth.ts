@@ -33,7 +33,7 @@ export async function siweLogin(input: {
   privateKey: string;
   chainId?: number;
   fetchImpl?: typeof fetch;
-}): Promise<{ sessionToken: string; address: string }> {
+}): Promise<{ sessionCookie: string; address: string }> {
   const fetchImpl = input.fetchImpl ?? fetch;
   const account = privateKeyToAccount(input.privateKey as `0x${string}`);
   const base = input.baseUrl.replace(/\/+$/, "");
@@ -77,11 +77,11 @@ export async function siweLogin(input: {
       `SIWE verify failed: HTTP ${verifyRes.status}${detail ? ` — ${detail}` : ""}`,
     );
   }
-  const sessionToken = extractSetCookie(verifyRes, SESSION_COOKIE);
-  if (!sessionToken) {
+  const sessionCookie = extractSetCookie(verifyRes, SESSION_COOKIE);
+  if (!sessionCookie) {
     throw new Error("SIWE verify succeeded but no aomi_session cookie was set");
   }
-  return { sessionToken, address: account.address };
+  return { sessionCookie, address: account.address };
 }
 
 /**
@@ -97,12 +97,12 @@ export async function siweLogin(input: {
  */
 export function createSessionGetAccountBearer(input: {
   baseUrl: string;
-  sessionToken: string;
+  sessionCookie: string;
   fetchImpl?: typeof fetch;
 }): GetAccountBearer {
   const fetchImpl = input.fetchImpl ?? fetch;
   const base = input.baseUrl.replace(/\/+$/, "");
-  let cached: { token: string; expiresAt: number } | undefined;
+  let cached: { bearer: string; expiresAt: number } | undefined;
 
   return async (options) => {
     const now = Math.floor(Date.now() / 1000);
@@ -111,30 +111,30 @@ export function createSessionGetAccountBearer(input: {
       cached &&
       cached.expiresAt - BEARER_EXPIRY_SKEW_SECONDS > now
     ) {
-      return cached.token;
+      return cached.bearer;
     }
 
     const res = await fetchImpl(`${base}/api/bff/auth/token`, {
-      headers: { Authorization: `Bearer ${input.sessionToken}` },
+      headers: { Authorization: `Bearer ${input.sessionCookie}` },
     });
     if (!res.ok) {
       cached = undefined;
       return undefined;
     }
     const data = (await res.json()) as {
-      access_token?: string;
+      bearer?: string;
       expires_at?: number;
     };
-    if (!data.access_token) {
+    if (!data.bearer) {
       cached = undefined;
       return undefined;
     }
     cached = {
-      token: data.access_token,
+      bearer: data.bearer,
       // Fall back to a conservative 14-min life if the BFF omits expiry.
       expiresAt: data.expires_at ?? now + 14 * 60,
     };
-    return cached.token;
+    return cached.bearer;
   };
 }
 

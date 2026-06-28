@@ -33,12 +33,12 @@ export async function loginCommand(
   // asking for a Solana embedded-wallet flow.
   if (privateKey && !wantsSolana) {
     try {
-      const { sessionToken, address } = await siweLogin({
+      const { sessionCookie, address } = await siweLogin({
         baseUrl: cli.baseUrl,
         privateKey,
         chainId: cli.chainId,
       });
-      cli.setAccountSession(sessionToken);
+      cli.setSessionCookie(sessionCookie);
       console.log(`Signed in as ${address}`);
       console.log(`Session established at ${cli.baseUrl}.`);
       console.log("Run `aomi wallet whoami` to confirm the bound account.");
@@ -84,7 +84,7 @@ export async function whoamiCommand(config: CliConfig): Promise<void> {
   cli.mergeConfig(config);
 
   const state = cli.toState();
-  const hasCredential = Boolean(state.accountBearer || state.accountSession);
+  const hasCredential = Boolean(state.accountBearer || state.sessionCookie);
 
   const session = cli.createClientSession(config);
   try {

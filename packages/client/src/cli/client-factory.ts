@@ -26,10 +26,10 @@ export function createCliGetAccountBearer(
 
   // The normal path: hold the SIWE-established BFF session and mint short-lived
   // AccountBearers from `/api/bff/auth/token`, refreshing on 401/expiry.
-  if (config.accountSession) {
+  if (config.sessionCookie) {
     return createSessionGetAccountBearer({
       baseUrl: resolveCliBaseUrl(config),
-      sessionToken: config.accountSession,
+      sessionCookie: config.sessionCookie,
     });
   }
 
