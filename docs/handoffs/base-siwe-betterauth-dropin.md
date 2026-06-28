@@ -13,6 +13,26 @@ a delete-and-point, not a rewrite. This doc is the per-seam mapping.
 
 This complements [arixoneth-account-auth.md](./arixoneth-account-auth.md) (the
 GAP-1/2/3 contract) — base SIWE inherits all three gaps; the notes below say how.
+For the full seam contract, his↔ours data-type tables, and the merge plan, see
+[bff-betterauth-integration.md](./bff-betterauth-integration.md) — this doc is the
+SIWE + provider-verify drill-down it links to.
+
+## Provider exchange (Privy/Para) — verification sub-seam is a drop-in
+
+The provider-exchange *flow* is not a drop-in (ours creates the session from the
+provider JWT; yours links a provider to an existing BetterAuth session — the
+"scaffold → reframe" from the main handoff). But its **verification sub-seam** is
+now shaped to match yours so the verifiers swap cleanly:
+
+| Ours (`packages/account/src/providers.ts`) | Yours (`@aomi-labs/auth/providers`) | Migration |
+|---|---|---|
+| `verifyProviderCredential(credential: ProviderTokenCredential) → { provider, token }` | `verifyProviderCredential(credential, options?)` | Same name + `ProviderTokenCredential` input + `VerifiedProviderToken` (`subject`/`expiresAt`/`email`/`emailVerified`/`providerMetadata`). Yours returns the extra `walletAttestationProvider`; the exchange only reads `token.subject`, so yours drops in. |
+| `verifyPrivyToken({ token, appId, verificationKey })` | `verifyPrivyToken({ token, tokenKind, appId, ...Key })` | Same return shape; yours adds access/identity token-kind handling. |
+| `verifyParaJwt({ token, expectedAudience?, keyId? })` | `verifyParaJwt({ token, expectedAudience, jwksUrl, keyId? })` | Same return shape; ours derives the JWKS URL from env (PROD/BETA fallback), yours takes it explicitly. |
+
+`exchange.ts` consumes only `verifyProviderCredential(...).token.subject`, so when
+your `@aomi-labs/auth/providers` lands the import swaps with no route change. The
+exchange *flow* (create-vs-link) is still reframed at merge.
 
 ## Seam-by-seam drop-in map
 

@@ -9,7 +9,10 @@ const landingNodeModules = path.resolve(__dirname, "node_modules");
 const reactPkgSrc = path.resolve(__dirname, "../../packages/react/src");
 const docsSrc = path.resolve(__dirname);
 const landingSrc = path.resolve(__dirname, "src");
-const registryComponents = path.resolve(__dirname, "../shadcn-registry/src/components");
+const registryComponents = path.resolve(
+  __dirname,
+  "../shadcn-registry/src/components",
+);
 const contentDir = path.resolve(__dirname, "content");
 const contentExamplesComponents = path.join(
   contentDir,
@@ -33,10 +36,13 @@ const turbopackAliases: Record<string, string> = {
   "@/content": "./content",
   "@/hooks": "./src/hooks",
   "@aomi-labs/react": "../../packages/react/src/index.ts",
+  "@assistant-ui/react": "./node_modules/@assistant-ui/react",
+  "@assistant-ui/react-markdown": "./node_modules/@assistant-ui/react-markdown",
   "@getpara/react-sdk": "./node_modules/@getpara/react-sdk",
   "@tanstack/react-query": "./node_modules/@tanstack/react-query",
-  // Force a single Zustand version so Para's SDK packages share the same store
-  // implementation when registry code is compiled through externalDir.
+  // Force single physical package instances when registry/runtime code is
+  // compiled through externalDir. These packages expose React contexts or
+  // shared stores that break if pnpm resolves a second copy.
   zustand: "./node_modules/zustand",
   viem: "./node_modules/viem",
   wagmi: "./node_modules/wagmi",
@@ -51,11 +57,12 @@ const nextConfig: NextConfig = {
   async headers() {
     return [
       {
-        source: '/embed-playground',
+        source: "/embed-playground",
         headers: [
           {
-            key: 'Content-Security-Policy',
-            value: "frame-ancestors 'self' https://aomilabs.mintlify.app https://*.mintlify.app",
+            key: "Content-Security-Policy",
+            value:
+              "frame-ancestors 'self' https://aomilabs.mintlify.app https://*.mintlify.app",
           },
         ],
       },
@@ -91,10 +98,15 @@ const nextConfig: NextConfig = {
       "@/content": contentDir,
       "@/hooks": path.join(landingSrc, "hooks"),
       "@aomi-labs/react": path.join(reactPkgSrc, "index.ts"),
-      "@getpara/react-sdk": path.join(
+      "@assistant-ui/react": path.join(
         landingNodeModules,
-        "@getpara/react-sdk",
+        "@assistant-ui/react",
       ),
+      "@assistant-ui/react-markdown": path.join(
+        landingNodeModules,
+        "@assistant-ui/react-markdown",
+      ),
+      "@getpara/react-sdk": path.join(landingNodeModules, "@getpara/react-sdk"),
       "@tanstack/react-query": path.join(
         landingNodeModules,
         "@tanstack/react-query",

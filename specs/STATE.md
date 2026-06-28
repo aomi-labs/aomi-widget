@@ -20,6 +20,21 @@ exactly (EOA → smart-account EIP-1271/6492), split field-validation
 mapping + the GAP-3 UUID-preservation note: `docs/handoffs/base-siwe-betterauth-dropin.md`.
 Account typecheck + base typecheck clean; account-graph tests 9/9.
 
+Also extracted Privy/Para credential verification out of `exchange.ts` into
+`packages/account/src/providers.ts`, shaped to mirror his `@aomi-labs/auth/providers`
+(`verifyProviderCredential` / `ProviderTokenCredential` / `VerifiedProviderToken`),
+so his verifiers drop in for the exchange's verification sub-seam (the exchange
+*flow* itself still gets reframed under BetterAuth — session-first link). Portal
+175/175 + account-graph 9/9 green; account + portal typecheck clean.
+
+Handoffs for the BetterAuth integration (`docs/handoffs/`):
+`bff-betterauth-integration.md` is the centerpiece — the full seam contract (which
+points drop in literally vs replace-body vs reframe), his↔ours data-type tables
+(bearer claims, session, account graph, provider credential, SIWE, exchange), and
+the recommended merge plan (his branch as base, our contract wins the seams, the
+GAP-1/2/3 checklist, and the one backend-verify gate). `arixoneth-account-auth.md`
+is the contract + gaps; `base-siwe-betterauth-dropin.md` is the SIWE/provider detail.
+
 ### BFF unification: one shared bearer/proxy/session seam (2026-06-27)
 
 Extracted the per-app BFF plumbing (previously triplicated and divergent across
