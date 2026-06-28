@@ -5,6 +5,9 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { GET } from "./route";
 
 const listApps = vi.fn();
+const launchConfigMock = vi.hoisted(() => ({
+  catalogPlatforms: [] as string[],
+}));
 
 vi.mock("@aomi-labs/account", () => ({
   mintAccountBearer: vi.fn(),
@@ -26,6 +29,7 @@ vi.mock("@portal/server/bff/launch/config", () => ({
   launchConfig: () => ({
     platform: "somm.finance",
     platforms: ["somm.finance", "community"],
+    catalogPlatforms: launchConfigMock.catalogPlatforms,
   }),
 }));
 
@@ -40,10 +44,11 @@ describe("portal API proxy", () => {
   afterEach(() => {
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
+    launchConfigMock.catalogPlatforms = [];
     listApps.mockReset();
   });
 
-  it("forwards the backend session app catalog with the launch platforms", async () => {
+  it("forwards the backend session app catalog without a default platform filter", async () => {
     const fetchMock = vi.fn(async () =>
       Response.json([
         { name: "default" },
@@ -59,6 +64,23 @@ describe("portal API proxy", () => {
       { name: "default" },
       { name: "somm-agent", application_id: 1, platform: "somm.finance" },
     ]);
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        pathname: "/api/session/apps",
+        search: "",
+      }),
+      expect.any(Object),
+    );
+    expect(listApps).not.toHaveBeenCalled();
+  });
+
+  it("adds explicit catalog platform filters to session app catalog calls", async () => {
+    launchConfigMock.catalogPlatforms = ["somm.finance", "community"];
+    const fetchMock = vi.fn(async () => Response.json([{ name: "default" }]));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await GET(...sessionAppsRequest());
+
     expect(fetchMock).toHaveBeenCalledWith(
       expect.objectContaining({
         pathname: "/api/session/apps",
