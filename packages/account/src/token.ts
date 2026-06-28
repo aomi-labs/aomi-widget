@@ -28,15 +28,14 @@ import { readSessionCookie, SESSION_COOKIE } from "./session";
  */
 export function createBearerTokenRoute() {
   return async function GET(request: NextRequest): Promise<NextResponse> {
-    const userId = await readSessionCookie(readSessionToken(request));
+    const userId = await readSessionCookie(extractSessionCookie(request));
     if (!userId) {
       return NextResponse.json({ error: "No active session" }, { status: 401 });
     }
     try {
-      const { accessToken, expiresAt } = await mintAccountBearer(userId);
+      const { bearer, expiresAt } = await mintAccountBearer(userId);
       return NextResponse.json({
-        access_token: accessToken,
-        token_type: "Bearer",
+        bearer,
         expires_at: expiresAt,
       });
     } catch (error) {
@@ -48,12 +47,12 @@ export function createBearerTokenRoute() {
 }
 
 /**
- * The session token from `Authorization: Bearer <aomi_session>` (preferred — the
- * header arixon's bearer() plugin uses) or the `aomi_session` cookie (browser /
- * same-origin fallback). Either way it is the HS256 session JWT, not the backend
- * bearer this route returns.
+ * The session cookie value from `Authorization: Bearer <aomi_session>` (preferred
+ * — the header arixon's bearer() plugin uses) or the `aomi_session` cookie itself
+ * (browser / same-origin fallback). Either way it is the HS256 session cookie,
+ * not the backend bearer this route returns.
  */
-function readSessionToken(request: NextRequest): string | undefined {
+function extractSessionCookie(request: NextRequest): string | undefined {
   const authorization = request.headers.get("authorization");
   if (authorization) {
     const match = /^Bearer\s+(.+)$/i.exec(authorization.trim());

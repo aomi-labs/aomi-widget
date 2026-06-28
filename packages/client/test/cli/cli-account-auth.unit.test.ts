@@ -50,8 +50,8 @@ describe("CLI account auth wiring", () => {
     try {
       const client = createCliClient({
         baseUrl: "http://unit.test",
-        accountProvider: "privy",
-        accountProviderToken: "privy-provider-token",
+        embeddedProvider: "privy",
+        embeddedProviderToken: "privy-provider-token",
         secrets: {},
       });
 

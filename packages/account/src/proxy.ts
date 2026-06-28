@@ -133,8 +133,8 @@ async function injectBearer(req: NextRequest, headers: Headers): Promise<void> {
   const canonicalId = await getSessionedCanonicalId(req);
   if (!canonicalId) return;
   try {
-    const { accessToken: accountBearer } = await mintAccountBearer(canonicalId);
-    headers.set("authorization", `Bearer ${accountBearer}`);
+    const { bearer } = await mintAccountBearer(canonicalId);
+    headers.set("authorization", `Bearer ${bearer}`);
   } catch (error) {
     console.warn(
       "Aomi proxy: could not mint AccountBearer; forwarding anonymous",

@@ -48,7 +48,7 @@ describe("siweLogin", () => {
       fetchImpl: fetchImpl as unknown as typeof fetch,
     });
 
-    expect(result.sessionToken).toBe("SESSION_JWT");
+    expect(result.sessionCookie).toBe("SESSION_JWT");
     expect(result.address).toMatch(/^0x[0-9a-fA-F]{40}$/);
 
     // nonce GET then verify POST, both against the BFF origin.
@@ -83,12 +83,12 @@ describe("createSessionGetAccountBearer", () => {
   it("fetches a bearer from /api/bff/auth/token with the session as a bearer", async () => {
     const fetchImpl = vi.fn().mockResolvedValue(
       fakeResponse({
-        json: { access_token: "BEARER", expires_at: 9_999_999_999 },
+        json: { bearer: "BEARER", expires_at: 9_999_999_999 },
       }),
     );
     const getBearer = createSessionGetAccountBearer({
       baseUrl: "https://bff.aomi.dev",
-      sessionToken: "SESSION_JWT",
+      sessionCookie: "SESSION_JWT",
       fetchImpl: fetchImpl as unknown as typeof fetch,
     });
 
@@ -101,12 +101,12 @@ describe("createSessionGetAccountBearer", () => {
   it("caches until near expiry and re-fetches on forceRefresh", async () => {
     const fetchImpl = vi.fn().mockResolvedValue(
       fakeResponse({
-        json: { access_token: "BEARER", expires_at: 9_999_999_999 },
+        json: { bearer: "BEARER", expires_at: 9_999_999_999 },
       }),
     );
     const getBearer = createSessionGetAccountBearer({
       baseUrl: "https://bff.aomi.dev",
-      sessionToken: "SESSION_JWT",
+      sessionCookie: "SESSION_JWT",
       fetchImpl: fetchImpl as unknown as typeof fetch,
     });
 
@@ -124,7 +124,7 @@ describe("createSessionGetAccountBearer", () => {
       .mockResolvedValue(fakeResponse({ ok: false, status: 401 }));
     const getBearer = createSessionGetAccountBearer({
       baseUrl: "https://bff.aomi.dev",
-      sessionToken: "EXPIRED",
+      sessionCookie: "EXPIRED",
       fetchImpl: fetchImpl as unknown as typeof fetch,
     });
 

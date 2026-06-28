@@ -45,7 +45,7 @@ describe("createBearerTokenRoute", () => {
 
   it("mints a bearer from the `Authorization: Bearer <session>` header", async () => {
     readSessionMock.mockResolvedValue("user-123");
-    mintMock.mockResolvedValue({ accessToken: "BEARER", expiresAt: 1_000 });
+    mintMock.mockResolvedValue({ bearer: "BEARER", expiresAt: 1_000 });
     const GET = createBearerTokenRoute();
 
     const response = await GET(
@@ -57,15 +57,14 @@ describe("createBearerTokenRoute", () => {
     expect(mintMock).toHaveBeenCalledWith("user-123");
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({
-      access_token: "BEARER",
-      token_type: "Bearer",
+      bearer: "BEARER",
       expires_at: 1_000,
     });
   });
 
   it("falls back to the aomi_session cookie when no auth header is set", async () => {
     readSessionMock.mockResolvedValue("user-456");
-    mintMock.mockResolvedValue({ accessToken: "BEARER2", expiresAt: 2_000 });
+    mintMock.mockResolvedValue({ bearer: "BEARER2", expiresAt: 2_000 });
     const GET = createBearerTokenRoute();
 
     const response = await GET(fakeRequest({ cookie: "cookie-jwt" }));

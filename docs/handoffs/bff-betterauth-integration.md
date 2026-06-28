@@ -36,7 +36,7 @@ Each seam is classified:
 | **Session resolve** | `getSessionedCanonicalId(req) → string \| null` (reads `aomi_session`) | `getBetterAuthSession(req) → { user, session } \| null` | 🟡 replace-body | Re-implement `getSessionedCanonicalId` to read the BetterAuth session and return the **canonical UUID**. Proxy then unchanged. |
 | **Account graph (provider)** | `resolveOrCreateCanonicalUser({provider, subject}) → {userId, created}` | `getOrCreateAomiUserForBetterAuthSession({betterAuthUserId, ...}) → DbAomiUser` | 🟡 replace-body | Keep our signature + the stable-UUID contract; swap the body to your graph. **GAP-3**: write the tables the backend reads (or migrate, preserving UUIDs). |
 | **Account graph (wallet)** | `resolveOrCreateByWallet(address) → {userId, created}` (keyed `wallet_provider='wallet'`) | BetterAuth SIWE login → `getOrCreateAomiUserForBetterAuthSession` + `syncSiweWalletsForUser` (keyed `provider='better_auth'`) | 🔴 reframe | Different identity key for the same wallet. Migration must map the existing wallet row to the BetterAuth user **preserving the canonical UUID**. |
-| **Bearer mint** | `mintAccountBearer(userId, role?) → {accessToken, expiresAt}` — `sub`=canonical UUID, EdDSA, mesh key | BetterAuth JWT plugin (`createAomiBackendJwtOptions`) — `sub`=BetterAuth id, `aomi_user_id`=canonical, JWKS | 🟡 replace-body | **GAP-1**: put canonical UUID in `sub`. **GAP-2**: register your key+`kid` as `aomi-bff` in the mesh tomls. Keep claim set `sub/iss/aud/role/iat/exp`. |
+| **Bearer mint** | `mintAccountBearer(userId, role?) → {bearer, expiresAt}` — `sub`=canonical UUID, EdDSA, mesh key | BetterAuth JWT plugin (`createAomiBackendJwtOptions`) — `sub`=BetterAuth id, `aomi_user_id`=canonical, JWKS | 🟡 replace-body | **GAP-1**: put canonical UUID in `sub`. **GAP-2**: register your key+`kid` as `aomi-bff` in the mesh tomls. Keep claim set `sub/iss/aud/role/iat/exp`. |
 | **Provider-credential verify** | `verifyProviderCredential(cred) → {provider, token}`; `verifyPrivyToken`, `verifyParaJwt` (`packages/account/src/providers.ts`) | `verifyProviderCredential(cred, opts?)`; `verifyPrivyToken`, `verifyParaJwt` (`@aomi-labs/auth/providers`) | 🟢 literal swap | Same `ProviderTokenCredential` in, `VerifiedProviderToken` out. Exchange reads only `token.subject`. |
 | **SIWE verify** | `verifySiweMessage({message, signature, address, chainId?}) → boolean` (`packages/account/src/siwe.ts`) | `verifySiweMessage({message, signature, address, chainId?}) → boolean` (`@aomi-labs/auth/better-auth/siwe`) | 🟢 literal swap | Identical signature + EOA→EIP-1271/6492 behavior. Copied to match. |
 | **Provider exchange flow** | `createAuthExchangeRoute()` at `/api/bff/auth/exchange` — verify → resolve-or-**create** session → mint | `/api/aomi/provider/exchange` — `exchangeProviderForExistingSession({betterAuthUserId, credential})` — **link** to existing session | 🔴 reframe | Provider-first (ours) vs session-first link (yours). The verify sub-seam above swaps; the flow is rewritten. |
@@ -51,6 +51,15 @@ Each seam is classified:
 
 ## 2. Data types — his ↔ ours
 
+> **Naming convention (ours).** Three credentials, three words — kept disjoint on
+> purpose so the code is unambiguous: the backend JWT is always a **bearer**
+> (`MintedBearer.bearer`, `/token` returns `{ bearer, expires_at }`, CLI field
+> `accountBearer`); the BFF session is always a **cookie** (`aomi_session`, CLI
+> field `sessionCookie`, `setSessionCookie`); the embedded-wallet (Privy/Para)
+> input is the only thing called a **token** (`embeddedProviderToken`). The
+> generic signer `@aomi-labs/service` still returns `accountBearer` as `accessToken`
+> — re-labelled `bearer` at the `bearer.ts` boundary.
+
 ### 2a. AccountBearer (the backend JWT)
 
 | Field | Ours (`@aomi-labs/service` / `account`) | Yours (`@aomi-labs/auth` JWT plugin) | Aligned? |
@@ -63,7 +72,7 @@ Each seam is classified:
 | `role` | `"user"` (authorized in mesh) | — (uses `scope`) | ⚠️ keep `role` |
 | extra | — | `sid`, `scope` (`"aomi:api"`) | ✅ fine as extra claims |
 | TTL | 15 min (`ACCOUNT_BEARER_TTL_SECONDS`) | `"15m"` | ✅ |
-| return type | `MintedBearer = { accessToken, expiresAt }` | `AomiBackendJwtCustomClaims = { sid, aomi_user_id, scope }` | — |
+| return type | `MintedBearer = { bearer, expiresAt }` | `AomiBackendJwtCustomClaims = { sid, aomi_user_id, scope }` | — |
 | verify claims | `AccountBearerClaims = { sub, iss, aud, role, iat, exp }` | `AOMI_BACKEND_JWT_ALLOWED_CLAIMS = [iss, aud, sub, iat, exp, nbf, jti, sid, aomi_user_id, scope]` | reconcile |
 
 ### 2b. Session
@@ -74,6 +83,7 @@ Each seam is classified:
 | payload | `{ sub: canonicalUUID }` | `{ user: { id, email?, emailVerified?, name?, image? }, session: { id } }` |
 | read seam | `getSessionedCanonicalId(req) → string \| null` | `getBetterAuthSession(req)` / `requireAomiSession(req)` |
 | signing | `AOMI_SESSION_SECRET` (HMAC) | `BETTER_AUTH_SECRET` |
+| headless hold | CLI stores the cookie value as `sessionCookie`, replays it as `Authorization: Bearer <aomi_session>` | `bearer()` plugin session token |
 
 ### 2c. Account graph (canonical user + identity)
 
@@ -160,7 +170,7 @@ shaped so migration is a URL swap, not a rewrite. Landed on `bff-unification`:
 
 1. ✅ **`GET /api/bff/auth/token`** — the analog of your `jwt()` `/api/auth/token`.
    Reads the session and returns `mintAccountBearer(userId)` →
-   `{ access_token, token_type, expires_at }`. Reads the session from
+   `{ bearer, expires_at }`. Reads the session from
    `Authorization: Bearer <aomi_session>` **first**, cookie as fallback — so the CLI
    uses your `bearer()`-plugin header shape from day one and migration is a pure URL
    swap. `packages/account/src/token.ts` (`createBearerTokenRoute`), mounted in portal +
@@ -178,29 +188,29 @@ shaped so migration is a URL swap, not a rewrite. Landed on `bff-unification`:
    `getOrCreateAomiUserForBetterAuthSession` + `syncSiweWalletsForUser` — the GAP-3 /
    Alice-invariant note in §1 (wallet vs `better_auth` keying) applies here too.
 3. ✅ **`getAccountBearer({forceRefresh})` is now live** — `createSessionGetAccountBearer`
-   fetches `/api/bff/auth/token` with the stored session, caches `{token, expires_at}`,
+   fetches `/api/bff/auth/token` with the stored session cookie, caches `{bearer, expires_at}`,
    and refetches on `forceRefresh` (the existing 401 retry) or near expiry. Wired in
-   `cli/client-factory.ts`; the session token persists in CLI state (`accountSession`).
+   `cli/client-factory.ts`; the session cookie persists in CLI state (`sessionCookie`).
 4. ⚠️ **CLI `baseUrl`** must point at a BFF origin (it serves `/api/bff/auth/siwe` +
    `/token`), not the raw backend. The hardcoded default is still `api.aomi.dev` — flipping
    it is a deploy-facing decision left to the owner; today the CLI passes `--base-url`.
    `--account-bearer` remains the CI/power-user escape hatch and wins when set.
 
 **Migration delta:** when your branch lands, repoint the two SIWE URLs and `/token`; the
-session token changes issuer (our HS256 `aomi_session` → your `bearer()` session) but the
-header shape and the whole refresh loop are unchanged. Tests:
+session credential changes issuer (our HS256 `aomi_session` cookie → your `bearer()`
+session token) but the header shape and the whole refresh loop are unchanged. Tests:
 `packages/account/src/token.test.ts`, `packages/client/src/cli/account-auth.test.ts`.
 
 **Migration map (for-now → yours):**
 
 | For-now (ours) | Yours | Migration |
 |---|---|---|
-| `aomi login` → SIWE `/api/bff/auth/siwe/{nonce,verify}` → store `aomi_session` | SIWE `/api/auth/siwe/{nonce,verify}` → store session bearer | repoint URLs; session-token format changes; the loop is identical |
-| `getAccountBearer` → `GET /api/bff/auth/token`, `Authorization: Bearer <aomi_session>` | `GET /api/auth/token`, `Authorization: Bearer <session>` | **URL swap only** (header shape pre-matched) |
+| `aomi login` → SIWE `/api/bff/auth/siwe/{nonce,verify}` → store `aomi_session` cookie | SIWE `/api/auth/siwe/{nonce,verify}` → store session bearer | repoint URLs; stored-credential format changes; the loop is identical |
+| `getAccountBearer` → `GET /api/bff/auth/token` (`{ bearer, expires_at }`), `Authorization: Bearer <aomi_session>` | `GET /api/auth/token`, `Authorization: Bearer <session>` | **URL swap only** (header shape pre-matched) |
 | refresh-on-401 refetches `/token` | same | identical |
 
-The only non-mechanical delta is that our session token is our HS256 `aomi_session`
-and yours is a BetterAuth session bearer — same header, different issuer. Everything
+The only non-mechanical delta is that our session credential is our HS256 `aomi_session`
+cookie and yours is a BetterAuth session bearer — same header, different issuer. Everything
 else is a literal swap. That's why the CLI row is 🔴 today but 🟢 the moment your
 plugins land.
 

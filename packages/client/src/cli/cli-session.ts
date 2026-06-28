@@ -31,26 +31,26 @@ function applyAccountCredentialConfig(
   state: CliSessionState,
   config: Pick<
     Partial<CliConfig>,
-    "accountBearer" | "accountProvider" | "accountProviderToken"
+    "accountBearer" | "embeddedProvider" | "embeddedProviderToken"
   >,
 ): boolean {
   let changed = false;
   const selectsBearer = config.accountBearer !== undefined;
   const selectsProviderExchange =
-    config.accountProvider !== undefined ||
-    config.accountProviderToken !== undefined;
+    config.embeddedProvider !== undefined ||
+    config.embeddedProviderToken !== undefined;
 
   if (selectsBearer) {
     if (state.accountBearer !== config.accountBearer) {
       state.accountBearer = config.accountBearer;
       changed = true;
     }
-    if (state.accountProvider !== undefined) {
-      state.accountProvider = undefined;
+    if (state.embeddedProvider !== undefined) {
+      state.embeddedProvider = undefined;
       changed = true;
     }
-    if (state.accountProviderToken !== undefined) {
-      state.accountProviderToken = undefined;
+    if (state.embeddedProviderToken !== undefined) {
+      state.embeddedProviderToken = undefined;
       changed = true;
     }
     return changed;
@@ -65,17 +65,17 @@ function applyAccountCredentialConfig(
     changed = true;
   }
   if (
-    config.accountProvider !== undefined &&
-    state.accountProvider !== config.accountProvider
+    config.embeddedProvider !== undefined &&
+    state.embeddedProvider !== config.embeddedProvider
   ) {
-    state.accountProvider = config.accountProvider;
+    state.embeddedProvider = config.embeddedProvider;
     changed = true;
   }
   if (
-    config.accountProviderToken !== undefined &&
-    state.accountProviderToken !== config.accountProviderToken
+    config.embeddedProviderToken !== undefined &&
+    state.embeddedProviderToken !== config.embeddedProviderToken
   ) {
-    state.accountProviderToken = config.accountProviderToken;
+    state.embeddedProviderToken = config.embeddedProviderToken;
     changed = true;
   }
   return changed;
@@ -134,9 +134,9 @@ export class CliSession {
       model: config.model ?? seed?.model,
       apiKey: config.apiKey ?? seed?.apiKey,
       accountBearer: seed?.accountBearer,
-      accountSession: config.accountSession ?? seed?.accountSession,
-      accountProvider: seed?.accountProvider,
-      accountProviderToken: seed?.accountProviderToken,
+      sessionCookie: config.sessionCookie ?? seed?.sessionCookie,
+      embeddedProvider: seed?.embeddedProvider,
+      embeddedProviderToken: seed?.embeddedProviderToken,
       publicKey: config.publicKey ?? seed?.publicKey,
       privateKey: config.privateKey ?? seed?.privateKey,
       svmPublicKey: svmPublicKey ?? seed?.svmPublicKey,
@@ -181,8 +181,8 @@ export class CliSession {
   get privateKey(): string | undefined {
     return this.state.privateKey;
   }
-  get accountSession(): string | undefined {
-    return this.state.accountSession;
+  get sessionCookie(): string | undefined {
+    return this.state.sessionCookie;
   }
   get svmPublicKey(): string | undefined {
     return this.state.svmPublicKey;
@@ -291,8 +291,8 @@ export class CliSession {
 
   /** Persist the BFF session token established by `aomi login` (SIWE). Clears
    * any static `accountBearer` so the session becomes the single credential. */
-  setAccountSession(sessionToken: string): void {
-    this.state.accountSession = sessionToken;
+  setSessionCookie(sessionCookie: string): void {
+    this.state.sessionCookie = sessionCookie;
     this.state.accountBearer = undefined;
     this.save();
   }
@@ -479,16 +479,16 @@ export class CliSession {
 
   /** Build a ClientSession from the current state. */
   createClientSession(config: Partial<CliConfig> = {}): ClientSession {
-    const effectiveAccountProvider =
+    const resolvedEmbeddedProvider =
       config.accountBearer !== undefined
         ? undefined
-        : (config.accountProvider ?? this.state.accountProvider);
-    const effectiveAccountProviderToken =
+        : (config.embeddedProvider ?? this.state.embeddedProvider);
+    const resolvedEmbeddedProviderToken =
       config.accountBearer !== undefined
         ? undefined
-        : (config.accountProviderToken ?? this.state.accountProviderToken);
+        : (config.embeddedProviderToken ?? this.state.embeddedProviderToken);
     const shouldUseProviderExchange = Boolean(
-      effectiveAccountProvider && effectiveAccountProviderToken,
+      resolvedEmbeddedProvider && resolvedEmbeddedProviderToken,
     );
 
     const session = new ClientSession(
@@ -504,9 +504,9 @@ export class CliSession {
             : (config.accountBearer ?? this.state.accountBearer),
           // SIWE-established BFF session: the CLI mints short-lived bearers from
           // it. Preferred over a static accountBearer when both are present.
-          accountSession: config.accountSession ?? this.state.accountSession,
-          accountProvider: effectiveAccountProvider,
-          accountProviderToken: effectiveAccountProviderToken,
+          sessionCookie: config.sessionCookie ?? this.state.sessionCookie,
+          embeddedProvider: resolvedEmbeddedProvider,
+          embeddedProviderToken: resolvedEmbeddedProviderToken,
           secrets: config.secrets ?? {},
         },
         {

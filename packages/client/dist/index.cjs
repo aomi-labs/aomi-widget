@@ -899,14 +899,14 @@ function wrapFetchWithAccountBearer(fetchImpl, getAccountBearer) {
     );
     const fetchWithBearer = async (forceRefresh) => {
       const headers = new Headers(baseHeaders);
-      let accessToken;
+      let bearer;
       try {
-        accessToken = await getAccountBearer({ forceRefresh });
+        bearer = await getAccountBearer({ forceRefresh });
       } catch (e) {
-        accessToken = void 0;
+        bearer = void 0;
       }
-      if (accessToken) {
-        headers.set("Authorization", `Bearer ${accessToken}`);
+      if (bearer) {
+        headers.set("Authorization", `Bearer ${bearer}`);
       }
       return fetchImpl(input, __spreadProps(__spreadValues({}, init), { headers }));
     };

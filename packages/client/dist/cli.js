@@ -235,13 +235,13 @@ var init_validation = __esm({
 
 // src/cli/commands/defs/shared.ts
 import { privateKeyToAccount } from "viem/accounts";
-function parseAccountProvider(raw) {
+function parseEmbeddedProvider(raw) {
   if (!raw) return void 0;
   const normalized = raw.trim().toLowerCase();
   if (normalized === "para" || normalized === "privy") {
     return normalized;
   }
-  fatal(`Unknown --account-provider value "${raw}". Use "para" or "privy".`);
+  fatal(`Unknown --embedded-provider value "${raw}". Use "para" or "privy".`);
 }
 function parseSvmCluster(raw) {
   if (!raw) return void 0;
@@ -297,10 +297,10 @@ function buildCliConfig(args) {
   const configuredPublicKey = (_b = str(args["public-key"])) != null ? _b : process.env.AOMI_PUBLIC_KEY;
   const derivedPublicKey = derivePublicKeyFromPrivateKey(privateKey);
   const accountBearer = (_c = str(args["account-bearer"])) != null ? _c : process.env.AOMI_ACCOUNT_BEARER;
-  const accountProvider = parseAccountProvider(
-    (_d = str(args["account-provider"])) != null ? _d : process.env.AOMI_ACCOUNT_PROVIDER
+  const embeddedProvider = parseEmbeddedProvider(
+    (_d = str(args["embedded-provider"])) != null ? _d : process.env.AOMI_EMBEDDED_PROVIDER
   );
-  const accountProviderToken = (_e = str(args["account-provider-token"])) != null ? _e : process.env.AOMI_ACCOUNT_PROVIDER_TOKEN;
+  const embeddedProviderToken = (_e = str(args["embedded-provider-token"])) != null ? _e : process.env.AOMI_EMBEDDED_PROVIDER_TOKEN;
   if (configuredPublicKey && derivedPublicKey && configuredPublicKey.toLowerCase() !== derivedPublicKey.toLowerCase()) {
     fatal(
       "`--public-key` does not match the address derived from `--private-key`."
@@ -313,19 +313,19 @@ function buildCliConfig(args) {
   if (execution === "eoa" && (aaProvider || aaMode2)) {
     fatal("`--aa-provider` and `--aa-mode` cannot be used with `--eoa`.");
   }
-  if (accountBearer && (accountProvider || accountProviderToken)) {
+  if (accountBearer && (embeddedProvider || embeddedProviderToken)) {
     fatal(
-      "Choose either `--account-bearer` or the `--account-provider` + `--account-provider-token` pair."
+      "Choose either `--account-bearer` or the `--embedded-provider` + `--embedded-provider-token` pair."
     );
   }
-  if (accountProvider && !accountProviderToken) {
+  if (embeddedProvider && !embeddedProviderToken) {
     fatal(
-      "`--account-provider-token` is required when `--account-provider` is set."
+      "`--embedded-provider-token` is required when `--embedded-provider` is set."
     );
   }
-  if (accountProviderToken && !accountProvider) {
+  if (embeddedProviderToken && !embeddedProvider) {
     fatal(
-      "`--account-provider` is required when `--account-provider-token` is set."
+      "`--embedded-provider` is required when `--embedded-provider-token` is set."
     );
   }
   const solanaPrivateKey = (_h = str(args["solana-private-key"])) != null ? _h : process.env.SOLANA_PRIVATE_KEY;
@@ -336,8 +336,8 @@ function buildCliConfig(args) {
     baseUrl: (_j = str(args["backend-url"])) != null ? _j : process.env.AOMI_BACKEND_URL,
     apiKey: (_k = str(args["api-key"])) != null ? _k : process.env.AOMI_API_KEY,
     accountBearer,
-    accountProvider,
-    accountProviderToken,
+    embeddedProvider,
+    embeddedProviderToken,
     app: (_l = str(args.app)) != null ? _l : process.env.AOMI_APP,
     model: (_m = str(args.model)) != null ? _m : process.env.AOMI_MODEL,
     freshSession: args["new-session"] === true,
@@ -381,11 +381,11 @@ var init_shared = __esm({
         type: "string",
         description: "Aomi account bearer for authenticated REST/SSE requests"
       },
-      "account-provider": {
+      "embedded-provider": {
         type: "string",
         description: 'Deprecated legacy provider exchange config ("para" or "privy")'
       },
-      "account-provider-token": {
+      "embedded-provider-token": {
         type: "string",
         description: "Deprecated legacy provider token; use --account-bearer"
       },
@@ -1240,14 +1240,14 @@ function wrapFetchWithAccountBearer(fetchImpl, getAccountBearer) {
     );
     const fetchWithBearer = async (forceRefresh) => {
       const headers = new Headers(baseHeaders);
-      let accessToken;
+      let bearer;
       try {
-        accessToken = await getAccountBearer({ forceRefresh });
+        bearer = await getAccountBearer({ forceRefresh });
       } catch (e) {
-        accessToken = void 0;
+        bearer = void 0;
       }
-      if (accessToken) {
-        headers.set("Authorization", `Bearer ${accessToken}`);
+      if (bearer) {
+        headers.set("Authorization", `Bearer ${bearer}`);
       }
       return fetchImpl(input2, __spreadProps(__spreadValues({}, init), { headers }));
     };
@@ -3543,11 +3543,11 @@ async function siweLogin(input2) {
       `SIWE verify failed: HTTP ${verifyRes.status}${detail ? ` \u2014 ${detail}` : ""}`
     );
   }
-  const sessionToken = extractSetCookie(verifyRes, SESSION_COOKIE);
-  if (!sessionToken) {
+  const sessionCookie = extractSetCookie(verifyRes, SESSION_COOKIE);
+  if (!sessionCookie) {
     throw new Error("SIWE verify succeeded but no aomi_session cookie was set");
   }
-  return { sessionToken, address: account.address };
+  return { sessionCookie, address: account.address };
 }
 function createSessionGetAccountBearer(input2) {
   var _a3;
@@ -3558,26 +3558,26 @@ function createSessionGetAccountBearer(input2) {
     var _a4;
     const now = Math.floor(Date.now() / 1e3);
     if (!(options == null ? void 0 : options.forceRefresh) && cached && cached.expiresAt - BEARER_EXPIRY_SKEW_SECONDS > now) {
-      return cached.token;
+      return cached.bearer;
     }
     const res = await fetchImpl(`${base2}/api/bff/auth/token`, {
-      headers: { Authorization: `Bearer ${input2.sessionToken}` }
+      headers: { Authorization: `Bearer ${input2.sessionCookie}` }
     });
     if (!res.ok) {
       cached = void 0;
       return void 0;
     }
     const data = await res.json();
-    if (!data.access_token) {
+    if (!data.bearer) {
       cached = void 0;
       return void 0;
     }
     cached = {
-      token: data.access_token,
+      bearer: data.bearer,
       // Fall back to a conservative 14-min life if the BFF omits expiry.
       expiresAt: (_a4 = data.expires_at) != null ? _a4 : now + 14 * 60
     };
-    return cached.token;
+    return cached.bearer;
   };
 }
 function extractSetCookie(response, name) {
@@ -3615,10 +3615,10 @@ function createCliGetAccountBearer(config) {
     const bearer = config.accountBearer;
     return async () => bearer;
   }
-  if (config.accountSession) {
+  if (config.sessionCookie) {
     return createSessionGetAccountBearer({
       baseUrl: resolveCliBaseUrl(config),
-      sessionToken: config.accountSession
+      sessionCookie: config.sessionCookie
     });
   }
   return void 0;
@@ -3965,9 +3965,9 @@ function toCliSessionState(stored) {
     modelSynced: stored.modelSynced,
     apiKey: stored.apiKey,
     accountBearer: stored.accountBearer,
-    accountSession: stored.accountSession,
-    accountProvider: stored.accountProvider,
-    accountProviderToken: stored.accountProviderToken,
+    sessionCookie: stored.sessionCookie,
+    embeddedProvider: stored.embeddedProvider,
+    embeddedProviderToken: stored.embeddedProviderToken,
     publicKey: stored.publicKey,
     privateKey: stored.privateKey,
     svmPublicKey: stored.svmPublicKey,
@@ -4009,9 +4009,9 @@ function readStoredSession(path) {
       model: parsed.model,
       apiKey: parsed.apiKey,
       accountBearer: parsed.accountBearer,
-      accountSession: parsed.accountSession,
-      accountProvider: parsed.accountProvider,
-      accountProviderToken: parsed.accountProviderToken,
+      sessionCookie: parsed.sessionCookie,
+      embeddedProvider: parsed.embeddedProvider,
+      embeddedProviderToken: parsed.embeddedProviderToken,
       publicKey: parsed.publicKey,
       privateKey: parsed.privateKey,
       svmPublicKey: parsed.svmPublicKey,
@@ -4374,18 +4374,18 @@ var init_solana_signer = __esm({
 function applyAccountCredentialConfig(state, config) {
   let changed = false;
   const selectsBearer = config.accountBearer !== void 0;
-  const selectsProviderExchange = config.accountProvider !== void 0 || config.accountProviderToken !== void 0;
+  const selectsProviderExchange = config.embeddedProvider !== void 0 || config.embeddedProviderToken !== void 0;
   if (selectsBearer) {
     if (state.accountBearer !== config.accountBearer) {
       state.accountBearer = config.accountBearer;
       changed = true;
     }
-    if (state.accountProvider !== void 0) {
-      state.accountProvider = void 0;
+    if (state.embeddedProvider !== void 0) {
+      state.embeddedProvider = void 0;
       changed = true;
     }
-    if (state.accountProviderToken !== void 0) {
-      state.accountProviderToken = void 0;
+    if (state.embeddedProviderToken !== void 0) {
+      state.embeddedProviderToken = void 0;
       changed = true;
     }
     return changed;
@@ -4397,12 +4397,12 @@ function applyAccountCredentialConfig(state, config) {
     state.accountBearer = void 0;
     changed = true;
   }
-  if (config.accountProvider !== void 0 && state.accountProvider !== config.accountProvider) {
-    state.accountProvider = config.accountProvider;
+  if (config.embeddedProvider !== void 0 && state.embeddedProvider !== config.embeddedProvider) {
+    state.embeddedProvider = config.embeddedProvider;
     changed = true;
   }
-  if (config.accountProviderToken !== void 0 && state.accountProviderToken !== config.accountProviderToken) {
-    state.accountProviderToken = config.accountProviderToken;
+  if (config.embeddedProviderToken !== void 0 && state.embeddedProviderToken !== config.embeddedProviderToken) {
+    state.embeddedProviderToken = config.embeddedProviderToken;
     changed = true;
   }
   return changed;
@@ -4462,9 +4462,9 @@ var init_cli_session = __esm({
           model: (_d = config.model) != null ? _d : seed == null ? void 0 : seed.model,
           apiKey: (_e = config.apiKey) != null ? _e : seed == null ? void 0 : seed.apiKey,
           accountBearer: seed == null ? void 0 : seed.accountBearer,
-          accountSession: (_f = config.accountSession) != null ? _f : seed == null ? void 0 : seed.accountSession,
-          accountProvider: seed == null ? void 0 : seed.accountProvider,
-          accountProviderToken: seed == null ? void 0 : seed.accountProviderToken,
+          sessionCookie: (_f = config.sessionCookie) != null ? _f : seed == null ? void 0 : seed.sessionCookie,
+          embeddedProvider: seed == null ? void 0 : seed.embeddedProvider,
+          embeddedProviderToken: seed == null ? void 0 : seed.embeddedProviderToken,
           publicKey: (_g = config.publicKey) != null ? _g : seed == null ? void 0 : seed.publicKey,
           privateKey: (_h = config.privateKey) != null ? _h : seed == null ? void 0 : seed.privateKey,
           svmPublicKey: svmPublicKey != null ? svmPublicKey : seed == null ? void 0 : seed.svmPublicKey,
@@ -4507,8 +4507,8 @@ var init_cli_session = __esm({
       get privateKey() {
         return this.state.privateKey;
       }
-      get accountSession() {
-        return this.state.accountSession;
+      get sessionCookie() {
+        return this.state.sessionCookie;
       }
       get svmPublicKey() {
         return this.state.svmPublicKey;
@@ -4608,8 +4608,8 @@ var init_cli_session = __esm({
       }
       /** Persist the BFF session token established by `aomi login` (SIWE). Clears
        * any static `accountBearer` so the session becomes the single credential. */
-      setAccountSession(sessionToken) {
-        this.state.accountSession = sessionToken;
+      setSessionCookie(sessionCookie) {
+        this.state.sessionCookie = sessionCookie;
         this.state.accountBearer = void 0;
         this.save();
       }
@@ -4767,10 +4767,10 @@ Available: ${available}`);
       /** Build a ClientSession from the current state. */
       createClientSession(config = {}) {
         var _a3, _b, _c, _d, _e, _f, _g;
-        const effectiveAccountProvider = config.accountBearer !== void 0 ? void 0 : (_a3 = config.accountProvider) != null ? _a3 : this.state.accountProvider;
-        const effectiveAccountProviderToken = config.accountBearer !== void 0 ? void 0 : (_b = config.accountProviderToken) != null ? _b : this.state.accountProviderToken;
+        const resolvedEmbeddedProvider = config.accountBearer !== void 0 ? void 0 : (_a3 = config.embeddedProvider) != null ? _a3 : this.state.embeddedProvider;
+        const resolvedEmbeddedProviderToken = config.accountBearer !== void 0 ? void 0 : (_b = config.embeddedProviderToken) != null ? _b : this.state.embeddedProviderToken;
         const shouldUseProviderExchange = Boolean(
-          effectiveAccountProvider && effectiveAccountProviderToken
+          resolvedEmbeddedProvider && resolvedEmbeddedProviderToken
         );
         const session = new ClientSession(
           createCliClient(
@@ -4782,9 +4782,9 @@ Available: ${available}`);
               accountBearer: shouldUseProviderExchange ? void 0 : (_c = config.accountBearer) != null ? _c : this.state.accountBearer,
               // SIWE-established BFF session: the CLI mints short-lived bearers from
               // it. Preferred over a static accountBearer when both are present.
-              accountSession: (_d = config.accountSession) != null ? _d : this.state.accountSession,
-              accountProvider: effectiveAccountProvider,
-              accountProviderToken: effectiveAccountProviderToken,
+              sessionCookie: (_d = config.sessionCookie) != null ? _d : this.state.sessionCookie,
+              embeddedProvider: resolvedEmbeddedProvider,
+              embeddedProviderToken: resolvedEmbeddedProviderToken,
               secrets: (_e = config.secrets) != null ? _e : {}
             }),
             {
@@ -8240,12 +8240,12 @@ async function loginCommand(config, options) {
   const wantsSolana = (options == null ? void 0 : options.walletFamily) === "solana";
   if (privateKey && !wantsSolana) {
     try {
-      const { sessionToken, address: address3 } = await siweLogin({
+      const { sessionCookie, address: address3 } = await siweLogin({
         baseUrl: cli.baseUrl,
         privateKey,
         chainId: cli.chainId
       });
-      cli.setAccountSession(sessionToken);
+      cli.setSessionCookie(sessionCookie);
       console.log(`Signed in as ${address3}`);
       console.log(`Session established at ${cli.baseUrl}.`);
       console.log("Run `aomi wallet whoami` to confirm the bound account.");
@@ -8283,7 +8283,7 @@ async function whoamiCommand(config) {
   }
   cli.mergeConfig(config);
   const state = cli.toState();
-  const hasCredential = Boolean(state.accountBearer || state.accountSession);
+  const hasCredential = Boolean(state.accountBearer || state.sessionCookie);
   const session = cli.createClientSession(config);
   try {
     const profile = await session.client.fetchAccountProfile(cli.sessionId);
@@ -10029,9 +10029,9 @@ function printRootHelp() {
     "  --account-bearer <token>     Aomi account bearer for authenticated requests"
   );
   console.log(
-    "  --account-provider <name>    Deprecated; provider exchange is disabled"
+    "  --embedded-provider <name>    Deprecated; provider exchange is disabled"
   );
-  console.log("  --account-provider-token <t>");
+  console.log("  --embedded-provider-token <t>");
   console.log(
     "                               Deprecated; use --account-bearer"
   );

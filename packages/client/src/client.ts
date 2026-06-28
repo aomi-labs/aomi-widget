@@ -179,16 +179,16 @@ function wrapFetchWithAccountBearer(
     );
     const fetchWithBearer = async (forceRefresh: boolean) => {
       const headers = new Headers(baseHeaders);
-      // The account bearer is additive — never let a failing token source break
-      // the request. A throwing/absent token just means no Authorization header.
-      let accessToken: string | null | undefined;
+      // The account bearer is additive — never let a failing source break the
+      // request. A throwing/absent bearer just means no Authorization header.
+      let bearer: string | null | undefined;
       try {
-        accessToken = await getAccountBearer({ forceRefresh });
+        bearer = await getAccountBearer({ forceRefresh });
       } catch {
-        accessToken = undefined;
+        bearer = undefined;
       }
-      if (accessToken) {
-        headers.set("Authorization", `Bearer ${accessToken}`);
+      if (bearer) {
+        headers.set("Authorization", `Bearer ${bearer}`);
       }
       return fetchImpl(input, { ...init, headers });
     };
