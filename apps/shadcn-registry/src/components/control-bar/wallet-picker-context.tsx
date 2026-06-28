@@ -11,7 +11,7 @@ import {
   type SVGProps,
 } from "react";
 import { ParaIcon } from "@/components/icons";
-import type { AomiAuthAdapter } from "../../lib/aomi-auth-adapter";
+import type { AomiAuthAdapter } from "../../lib/auth-adapter";
 
 export type WalletPickerProvider = {
   id: string;

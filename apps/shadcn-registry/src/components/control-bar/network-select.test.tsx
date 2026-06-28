@@ -8,12 +8,12 @@ import {
 } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ExtUserProvider } from "@aomi-labs/react";
-import type { AomiAuthAdapter } from "@/lib/aomi-auth-adapter";
-import { AomiAuthAdapterProvider } from "@/lib/aomi-auth-adapter";
+import type { AomiAuthAdapter } from "@/lib/auth-adapter";
+import { AomiAuthAdapterProvider } from "@/lib/auth-adapter";
 import {
   AomiWalletNetworkPreferencesProvider,
   useAomiWalletNetworkPreferences,
-} from "@/lib/aomi-auth-adapter/network-preferences";
+} from "@/lib/auth-adapter/network-preferences";
 import { NetworkSelect } from "./network-select";
 import { ConnectButton } from "./connect-button";
 

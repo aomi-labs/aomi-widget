@@ -12,8 +12,8 @@ import {
 import { getAddress } from "viem";
 import { createSiweMessage } from "viem/siwe";
 
-import { useAomiAuthAdapter } from "../aomi-auth-adapter";
-import type { AomiSessionStatus } from "./session-provider";
+import { useAomiAuthAdapter } from "../auth-adapter";
+import type { AomiSessionStatus } from "./jwt";
 
 /**
  * SIWE (Sign-In With Ethereum) session bridge for wallets that have no embedded

@@ -9,7 +9,7 @@ const landingNodeModules = path.resolve(__dirname, "node_modules");
 const reactPkgSrc = path.resolve(__dirname, "../../packages/react/src");
 const docsSrc = path.resolve(__dirname);
 const landingSrc = path.resolve(__dirname, "src");
-const registryComponents = path.resolve(__dirname, "../registry/src/components");
+const registryComponents = path.resolve(__dirname, "../shadcn-registry/src/components");
 const contentDir = path.resolve(__dirname, "content");
 const contentExamplesComponents = path.join(
   contentDir,
@@ -28,7 +28,7 @@ const turbopackAliases: Record<string, string> = {
   // Docs-only examples (API consoles, etc.) — must be listed before `@/components`.
   "@/components/examples": "./content/components/examples",
   // Widget + shadcn UI live in the registry package (docs MDX imports @/components/...).
-  "@/components": "../registry/src/components",
+  "@/components": "../shadcn-registry/src/components",
   // Docs-only interactive components (playground, API consoles) live under content/.
   "@/content": "./content",
   "@/hooks": "./src/hooks",

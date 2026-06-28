@@ -15,7 +15,7 @@ import {
   isFullTestnet,
   monad,
   monadTestnet,
-} from "../../../registry/src";
+} from "../../../shadcn-registry/src";
 import {
   arbitrum,
   base,

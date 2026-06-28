@@ -12,7 +12,7 @@ import {
   polygon,
   sepolia,
 } from "wagmi/chains";
-import { AomiSessionProvider, AomiWalletProvider } from "../../../registry/src";
+import { AomiSessionProvider, AomiWalletProvider } from "../../../shadcn-registry/src";
 
 const privyAppId = process.env.NEXT_PUBLIC_PRIVY_APP_ID;
 const walletConnectProjectId =

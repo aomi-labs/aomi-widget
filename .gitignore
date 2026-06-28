@@ -45,7 +45,7 @@ yarn-error.log*
 
 # generated registry build output
 apps/landing/public/r/dist
-apps/registry/dist
+apps/shadcn-registry/dist
 
 # typescript
 *.tsbuildinfo

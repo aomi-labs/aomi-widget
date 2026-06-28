@@ -23,11 +23,11 @@ import {
   formatAddress,
   formatAuthProvider,
   useWalletActivationGuard,
-} from "../../lib/aomi-auth-adapter";
+} from "../../lib/auth-adapter";
 import type {
   AomiAccount,
   WalletFamily,
-} from "../../lib/aomi-auth-adapter/types";
+} from "../../lib/auth-adapter/types";
 import {
   useWalletPicker,
   type WalletPickerProvider as WalletPickerProviderEntry,

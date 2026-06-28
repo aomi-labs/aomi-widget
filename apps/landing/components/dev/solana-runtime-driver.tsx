@@ -27,9 +27,9 @@ import {
   type WalletSolanaSignPayload,
 } from "@aomi-labs/react";
 import type { UserState as UserStateShape } from "@aomi-labs/client";
-import { RuntimeTxHandler } from "../../../registry/src/components/runtime-tx-handler";
-import { AomiAuthAdapterProvider } from "../../../registry/src/lib/aomi-auth-adapter/context";
-import type { AomiAuthAdapter } from "../../../registry/src/lib/aomi-auth-adapter/types";
+import { RuntimeTxHandler } from "../../../shadcn-registry/src/components/runtime-tx-handler";
+import { AomiAuthAdapterProvider } from "../../../shadcn-registry/src/lib/auth-adapter/context";
+import type { AomiAuthAdapter } from "../../../shadcn-registry/src/lib/auth-adapter/types";
 
 type DriverMode =
   | "sign"

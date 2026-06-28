@@ -46,7 +46,7 @@ jobs:
           NEXT_PUBLIC_BACKEND_URL: ${{ vars.NEXT_PUBLIC_BACKEND_URL }}
 
       - name: Run registry tests
-        run: pnpm --dir apps/registry exec vitest run
+        run: pnpm --dir apps/shadcn-registry exec vitest run
 
       - name: Build registry
         run: pnpm run build:registry
