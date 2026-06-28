@@ -104,6 +104,10 @@ export type CliSessionState = {
   /** Aomi account bearer for authenticated requests. Persisted so a bearer
    * supplied once (via `--account-bearer`) survives across CLI invocations. */
   accountBearer?: string;
+  /** BFF session token (`aomi_session`) established by `aomi login` (SIWE).
+   * Persisted so the session survives across invocations; the CLI mints
+   * short-lived AccountBearers from it via the BFF's `/api/bff/auth/token`. */
+  accountSession?: string;
   /** Deprecated legacy provider-exchange config. */
   accountProvider?: CliAccountProvider;
   /** Deprecated legacy provider-exchange config. */
@@ -211,6 +215,7 @@ function toCliSessionState(stored: StoredSessionState): CliSessionState {
     modelSynced: stored.modelSynced,
     apiKey: stored.apiKey,
     accountBearer: stored.accountBearer,
+    accountSession: stored.accountSession,
     accountProvider: stored.accountProvider,
     accountProviderToken: stored.accountProviderToken,
     publicKey: stored.publicKey,
@@ -263,6 +268,7 @@ function readStoredSession(path: string): StoredSessionState | null {
       model: parsed.model,
       apiKey: parsed.apiKey,
       accountBearer: parsed.accountBearer,
+      accountSession: parsed.accountSession,
       accountProvider: parsed.accountProvider,
       accountProviderToken: parsed.accountProviderToken,
       publicKey: parsed.publicKey,

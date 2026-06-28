@@ -37,6 +37,7 @@ export {
   type ExchangeConfig,
   type Provider,
 } from "./exchange";
+export { createBearerTokenRoute } from "./token";
 export {
   verifyProviderCredential,
   verifyPrivyToken,

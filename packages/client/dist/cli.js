@@ -3503,6 +3503,108 @@ var init_session2 = __esm({
   }
 });
 
+// src/cli/account-auth.ts
+import { privateKeyToAccount as privateKeyToAccount2 } from "viem/accounts";
+import { createSiweMessage } from "viem/siwe";
+async function siweLogin(input2) {
+  var _a3, _b;
+  const fetchImpl = (_a3 = input2.fetchImpl) != null ? _a3 : fetch;
+  const account = privateKeyToAccount2(input2.privateKey);
+  const base2 = input2.baseUrl.replace(/\/+$/, "");
+  const origin = new URL(base2);
+  const chainId3 = (_b = input2.chainId) != null ? _b : DEFAULT_SIWE_CHAIN_ID;
+  const nonceRes = await fetchImpl(`${base2}/api/bff/auth/siwe/nonce`);
+  if (!nonceRes.ok) {
+    throw new Error(`SIWE nonce request failed: HTTP ${nonceRes.status}`);
+  }
+  const { nonce } = await nonceRes.json();
+  if (!nonce) throw new Error("SIWE nonce response missing nonce");
+  const message = createSiweMessage({
+    address: account.address,
+    chainId: chainId3,
+    domain: origin.host,
+    uri: origin.origin,
+    nonce,
+    version: "1",
+    statement: "Sign in to Aomi."
+  });
+  const signature = await account.signMessage({ message });
+  const verifyRes = await fetchImpl(`${base2}/api/bff/auth/siwe/verify`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Cookie: `${NONCE_COOKIE}=${nonce}`
+    },
+    body: JSON.stringify({ message, signature })
+  });
+  if (!verifyRes.ok) {
+    const detail = await verifyRes.text().catch(() => "");
+    throw new Error(
+      `SIWE verify failed: HTTP ${verifyRes.status}${detail ? ` \u2014 ${detail}` : ""}`
+    );
+  }
+  const sessionToken = extractSetCookie(verifyRes, SESSION_COOKIE);
+  if (!sessionToken) {
+    throw new Error("SIWE verify succeeded but no aomi_session cookie was set");
+  }
+  return { sessionToken, address: account.address };
+}
+function createSessionGetAccountBearer(input2) {
+  var _a3;
+  const fetchImpl = (_a3 = input2.fetchImpl) != null ? _a3 : fetch;
+  const base2 = input2.baseUrl.replace(/\/+$/, "");
+  let cached;
+  return async (options) => {
+    var _a4;
+    const now = Math.floor(Date.now() / 1e3);
+    if (!(options == null ? void 0 : options.forceRefresh) && cached && cached.expiresAt - BEARER_EXPIRY_SKEW_SECONDS > now) {
+      return cached.token;
+    }
+    const res = await fetchImpl(`${base2}/api/bff/auth/token`, {
+      headers: { Authorization: `Bearer ${input2.sessionToken}` }
+    });
+    if (!res.ok) {
+      cached = void 0;
+      return void 0;
+    }
+    const data = await res.json();
+    if (!data.access_token) {
+      cached = void 0;
+      return void 0;
+    }
+    cached = {
+      token: data.access_token,
+      // Fall back to a conservative 14-min life if the BFF omits expiry.
+      expiresAt: (_a4 = data.expires_at) != null ? _a4 : now + 14 * 60
+    };
+    return cached.token;
+  };
+}
+function extractSetCookie(response, name) {
+  var _a3;
+  const headers = response.headers;
+  const cookies = headers.getSetCookie ? headers.getSetCookie() : ((_a3 = response.headers.get("set-cookie")) != null ? _a3 : "").split(/,(?=[^;]+=)/);
+  const prefix = `${name}=`;
+  for (const cookie of cookies) {
+    const trimmed = cookie.trim();
+    if (trimmed.startsWith(prefix)) {
+      const value = trimmed.slice(prefix.length).split(";", 1)[0];
+      return value ? decodeURIComponent(value) : void 0;
+    }
+  }
+  return void 0;
+}
+var SESSION_COOKIE, NONCE_COOKIE, DEFAULT_SIWE_CHAIN_ID, BEARER_EXPIRY_SKEW_SECONDS;
+var init_account_auth = __esm({
+  "src/cli/account-auth.ts"() {
+    "use strict";
+    SESSION_COOKIE = "aomi_session";
+    NONCE_COOKIE = "aomi_siwe_nonce";
+    DEFAULT_SIWE_CHAIN_ID = 8453;
+    BEARER_EXPIRY_SKEW_SECONDS = 30;
+  }
+});
+
 // src/cli/client-factory.ts
 function resolveCliBaseUrl(config) {
   var _a3;
@@ -3510,7 +3612,14 @@ function resolveCliBaseUrl(config) {
 }
 function createCliGetAccountBearer(config) {
   if (config.accountBearer) {
-    return async () => config.accountBearer;
+    const bearer = config.accountBearer;
+    return async () => bearer;
+  }
+  if (config.accountSession) {
+    return createSessionGetAccountBearer({
+      baseUrl: resolveCliBaseUrl(config),
+      sessionToken: config.accountSession
+    });
   }
   return void 0;
 }
@@ -3531,6 +3640,7 @@ var init_client_factory = __esm({
   "src/cli/client-factory.ts"() {
     "use strict";
     init_client();
+    init_account_auth();
     DEFAULT_BACKEND_URL = "https://api.aomi.dev";
   }
 });
@@ -3855,6 +3965,7 @@ function toCliSessionState(stored) {
     modelSynced: stored.modelSynced,
     apiKey: stored.apiKey,
     accountBearer: stored.accountBearer,
+    accountSession: stored.accountSession,
     accountProvider: stored.accountProvider,
     accountProviderToken: stored.accountProviderToken,
     publicKey: stored.publicKey,
@@ -3898,6 +4009,7 @@ function readStoredSession(path) {
       model: parsed.model,
       apiKey: parsed.apiKey,
       accountBearer: parsed.accountBearer,
+      accountSession: parsed.accountSession,
       accountProvider: parsed.accountProvider,
       accountProviderToken: parsed.accountProviderToken,
       publicKey: parsed.publicKey,
@@ -4332,7 +4444,7 @@ var init_cli_session = __esm({
       }
       /** Create a fresh session and persist it. */
       static create(config, seed) {
-        var _a3, _b, _c, _d, _e, _f, _g, _h, _i;
+        var _a3, _b, _c, _d, _e, _f, _g, _h, _i, _j;
         let svmPublicKey;
         if (config.solanaPrivateKey) {
           try {
@@ -4350,16 +4462,17 @@ var init_cli_session = __esm({
           model: (_d = config.model) != null ? _d : seed == null ? void 0 : seed.model,
           apiKey: (_e = config.apiKey) != null ? _e : seed == null ? void 0 : seed.apiKey,
           accountBearer: seed == null ? void 0 : seed.accountBearer,
+          accountSession: (_f = config.accountSession) != null ? _f : seed == null ? void 0 : seed.accountSession,
           accountProvider: seed == null ? void 0 : seed.accountProvider,
           accountProviderToken: seed == null ? void 0 : seed.accountProviderToken,
-          publicKey: (_f = config.publicKey) != null ? _f : seed == null ? void 0 : seed.publicKey,
-          privateKey: (_g = config.privateKey) != null ? _g : seed == null ? void 0 : seed.privateKey,
+          publicKey: (_g = config.publicKey) != null ? _g : seed == null ? void 0 : seed.publicKey,
+          privateKey: (_h = config.privateKey) != null ? _h : seed == null ? void 0 : seed.privateKey,
           svmPublicKey: svmPublicKey != null ? svmPublicKey : seed == null ? void 0 : seed.svmPublicKey,
           // Carry forward the persisted Solana private key so `wallet set --solana`
           // survives `--new-session` — signing key is a user preference, not a
           // per-session artifact.
-          svmPrivateKey: (_h = config.solanaPrivateKey) != null ? _h : seed == null ? void 0 : seed.svmPrivateKey,
-          chainId: (_i = config.chain) != null ? _i : seed == null ? void 0 : seed.chainId,
+          svmPrivateKey: (_i = config.solanaPrivateKey) != null ? _i : seed == null ? void 0 : seed.svmPrivateKey,
+          chainId: (_j = config.chain) != null ? _j : seed == null ? void 0 : seed.chainId,
           secretHandles: seed == null ? void 0 : seed.secretHandles
         };
         applyAccountCredentialConfig(state, config);
@@ -4393,6 +4506,9 @@ var init_cli_session = __esm({
       }
       get privateKey() {
         return this.state.privateKey;
+      }
+      get accountSession() {
+        return this.state.accountSession;
       }
       get svmPublicKey() {
         return this.state.svmPublicKey;
@@ -4488,6 +4604,13 @@ var init_cli_session = __esm({
       }
       setPrivateKey(key) {
         this.state.privateKey = key;
+        this.save();
+      }
+      /** Persist the BFF session token established by `aomi login` (SIWE). Clears
+       * any static `accountBearer` so the session becomes the single credential. */
+      setAccountSession(sessionToken) {
+        this.state.accountSession = sessionToken;
+        this.state.accountBearer = void 0;
         this.save();
       }
       setWallet(privateKey, publicKey) {
@@ -4643,7 +4766,7 @@ Available: ${available}`);
       // ---------------------------------------------------------------------------
       /** Build a ClientSession from the current state. */
       createClientSession(config = {}) {
-        var _a3, _b, _c, _d, _e, _f;
+        var _a3, _b, _c, _d, _e, _f, _g;
         const effectiveAccountProvider = config.accountBearer !== void 0 ? void 0 : (_a3 = config.accountProvider) != null ? _a3 : this.state.accountProvider;
         const effectiveAccountProviderToken = config.accountBearer !== void 0 ? void 0 : (_b = config.accountProviderToken) != null ? _b : this.state.accountProviderToken;
         const shouldUseProviderExchange = Boolean(
@@ -4657,9 +4780,12 @@ Available: ${available}`);
               // Provider-token exchange is disabled. Keep the persisted fields for
               // compatibility, but do not let them create or replace a bearer.
               accountBearer: shouldUseProviderExchange ? void 0 : (_c = config.accountBearer) != null ? _c : this.state.accountBearer,
+              // SIWE-established BFF session: the CLI mints short-lived bearers from
+              // it. Preferred over a static accountBearer when both are present.
+              accountSession: (_d = config.accountSession) != null ? _d : this.state.accountSession,
               accountProvider: effectiveAccountProvider,
               accountProviderToken: effectiveAccountProviderToken,
-              secrets: (_d = config.secrets) != null ? _d : {}
+              secrets: (_e = config.secrets) != null ? _e : {}
             }),
             {
               baseUrl: this.state.baseUrl,
@@ -4676,8 +4802,8 @@ Available: ${available}`);
         session.resolveUserState(
           buildCliUserState(this.state.publicKey, this.state.chainId, {
             app: this.state.app,
-            aaMode: (_e = this.state.aaMode) != null ? _e : null,
-            smartAccount: (_f = this.state.smartAccount) != null ? _f : null,
+            aaMode: (_f = this.state.aaMode) != null ? _f : null,
+            smartAccount: (_g = this.state.smartAccount) != null ? _g : null,
             svmAddress: this.state.svmPublicKey
           })
         );
@@ -5203,7 +5329,7 @@ var init_types2 = __esm({
 
 // src/aa/execute.ts
 import { createPublicClient, createWalletClient, http } from "viem";
-import { privateKeyToAccount as privateKeyToAccount2 } from "viem/accounts";
+import { privateKeyToAccount as privateKeyToAccount3 } from "viem/accounts";
 function normalizeRpcCallData(data) {
   return data === "0x" ? void 0 : data;
 }
@@ -5382,7 +5508,7 @@ async function executeViaEoa({
       if (!rpcUrl) {
         throw new Error(`No RPC for chain ${call.chainId}`);
       }
-      const account = privateKeyToAccount2(localPrivateKey);
+      const account = privateKeyToAccount3(localPrivateKey);
       const walletClient = createWalletClient({
         account,
         chain,
@@ -5745,13 +5871,13 @@ var init_adapt = __esm({
 });
 
 // src/aa/owner.ts
-import { privateKeyToAccount as privateKeyToAccount3 } from "viem/accounts";
+import { privateKeyToAccount as privateKeyToAccount4 } from "viem/accounts";
 function getDirectOwnerParams(owner) {
   return {
     kind: "ready",
     ownerParams: {
       para: void 0,
-      signer: privateKeyToAccount3(owner.privateKey)
+      signer: privateKeyToAccount4(owner.privateKey)
     }
   };
 }
@@ -5816,7 +5942,7 @@ var init_owner = __esm({
 });
 
 // src/aa/alchemy/create.ts
-import { privateKeyToAccount as privateKeyToAccount4 } from "viem/accounts";
+import { privateKeyToAccount as privateKeyToAccount5 } from "viem/accounts";
 function extractExistingAccountAddress(error) {
   var _a3;
   const message = error instanceof Error ? error.message : String(error);
@@ -5965,7 +6091,7 @@ async function createAlchemyAAState(options) {
 async function createAlchemyWalletApisState(params) {
   const { createSmartWalletClient, alchemyWalletTransport } = await import("@alchemy/wallet-apis");
   const transport = params.proxyBaseUrl ? alchemyWalletTransport({ url: params.proxyBaseUrl }) : alchemyWalletTransport({ apiKey: params.apiKey });
-  const signer = privateKeyToAccount4(params.privateKey);
+  const signer = privateKeyToAccount5(params.privateKey);
   const alchemyClient = createSmartWalletClient(__spreadValues({
     transport,
     chain: params.chain,
@@ -6098,7 +6224,7 @@ var init_provider2 = __esm({
 });
 
 // src/aa/pimlico/create.ts
-import { privateKeyToAccount as privateKeyToAccount5 } from "viem/accounts";
+import { privateKeyToAccount as privateKeyToAccount6 } from "viem/accounts";
 function pimDebug(message, fields) {
   if (!AA_DEBUG_ENABLED2) return;
   if (fields) {
@@ -6138,7 +6264,7 @@ async function createPimlicoAAState(options) {
   }
   const localSessionSigner = owner.kind === "session" ? resolvePimlicoSessionSigner(ownerParams.ownerParams) : null;
   try {
-    const signer = owner.kind === "direct" ? privateKeyToAccount5(owner.privateKey) : localSessionSigner;
+    const signer = owner.kind === "direct" ? privateKeyToAccount6(owner.privateKey) : localSessionSigner;
     if (signer) {
       return await createPimlicoPermissionlessState({
         resolved: execution,
@@ -6684,7 +6810,7 @@ __export(wallet_exports, {
   txCommand: () => txCommand
 });
 import { createWalletClient as createWalletClient2, http as http2 } from "viem";
-import { privateKeyToAccount as privateKeyToAccount6 } from "viem/accounts";
+import { privateKeyToAccount as privateKeyToAccount7 } from "viem/accounts";
 import * as viemChains from "viem/chains";
 async function txCommand(config) {
   const cli = CliSession.load();
@@ -6968,7 +7094,7 @@ Available: ${available}`
         ].join("\n")
       );
     }
-    const account = privateKeyToAccount6(privateKey);
+    const account = privateKeyToAccount7(privateKey);
     if (cli.publicKey && account.address.toLowerCase() !== cli.publicKey.toLowerCase()) {
       console.log(
         `\u26A0\uFE0F  Signer ${account.address} differs from session public key ${cli.publicKey}`
@@ -8032,7 +8158,7 @@ __export(preferences_exports, {
   setSvmWalletCommand: () => setSvmWalletCommand,
   setWalletCommand: () => setWalletCommand
 });
-import { privateKeyToAccount as privateKeyToAccount7 } from "viem/accounts";
+import { privateKeyToAccount as privateKeyToAccount8 } from "viem/accounts";
 function loadOrCreateForSettings() {
   const existing = CliSession.load();
   if (existing) return existing;
@@ -8047,7 +8173,7 @@ function setWalletCommand(privateKeyInput) {
   if (!privateKey) {
     fatal("Usage: aomi wallet set <private-key>  (EVM hex key)");
   }
-  const account = privateKeyToAccount7(privateKey);
+  const account = privateKeyToAccount8(privateKey);
   const cli = loadOrCreateForSettings();
   cli.setWallet(privateKey, account.address);
   console.log(`EVM wallet set to ${account.address}`);
@@ -8107,8 +8233,32 @@ __export(account_exports, {
   whoamiCommand: () => whoamiCommand
 });
 async function loginCommand(config, options) {
+  var _a3;
   const cli = CliSession.loadOrCreate(config);
   cli.mergeConfig(config);
+  const privateKey = (_a3 = config.privateKey) != null ? _a3 : cli.privateKey;
+  const wantsSolana = (options == null ? void 0 : options.walletFamily) === "solana";
+  if (privateKey && !wantsSolana) {
+    try {
+      const { sessionToken, address: address3 } = await siweLogin({
+        baseUrl: cli.baseUrl,
+        privateKey,
+        chainId: cli.chainId
+      });
+      cli.setAccountSession(sessionToken);
+      console.log(`Signed in as ${address3}`);
+      console.log(`Session established at ${cli.baseUrl}.`);
+      console.log("Run `aomi wallet whoami` to confirm the bound account.");
+      printDataFileLocation();
+      return;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      fatal(
+        `SIWE login failed: ${message}
+Ensure --base-url points at an Aomi BFF (it serves /api/bff/auth/siwe), not the raw backend.`
+      );
+    }
+  }
   const session = cli.createClientSession(config);
   try {
     const begin = await session.client.beginPrivyAuth(cli.sessionId, {
@@ -8133,7 +8283,7 @@ async function whoamiCommand(config) {
   }
   cli.mergeConfig(config);
   const state = cli.toState();
-  const hasCredential = Boolean(state.accountBearer);
+  const hasCredential = Boolean(state.accountBearer || state.accountSession);
   const session = cli.createClientSession(config);
   try {
     const profile = await session.client.fetchAccountProfile(cli.sessionId);
@@ -8141,7 +8291,7 @@ async function whoamiCommand(config) {
       console.log("Not bound to an account (anonymous session).");
       if (!hasCredential) {
         console.log(
-          "No account credential configured. Pass --account-bearer, or complete account auth through the portal."
+          "No account credential configured. Run `aomi login` (SIWE with your wallet key) or pass --account-bearer."
         );
       } else {
         console.log(
@@ -8185,7 +8335,9 @@ function formatWalletChainType(chainType) {
 var init_account = __esm({
   "src/cli/commands/account.ts"() {
     "use strict";
+    init_account_auth();
     init_cli_session();
+    init_errors();
     init_output();
   }
 });
