@@ -13,7 +13,7 @@ import { setSessionCookie } from "./session";
  * The shared **auth exchange** route every Aomi BFF mounts at
  * `/api/bff/auth/exchange`. It swaps a verified embedded-wallet provider JWT
  * (Privy/Para) for OUR session: resolve-or-create the canonical user, establish
- * the `aomi_session` cookie, and return a freshly minted AccountBearer.
+ * the `aomi_session` cookie, and return only session metadata.
  *
  * The provider subject (a DID) is only the credential *key* — `sub` on our
  * AccountBearer is the canonical UUID the find-only backend resolves. A returning
@@ -34,9 +34,6 @@ type ExchangeBody = {
   jwt?: unknown;
   key_id?: unknown;
   keyId?: unknown;
-  // TMP(account-graph): the connected embedded wallet address, used to bridge
-  // returning wallet-first users to their existing account.
-  address?: unknown;
 };
 
 type VerifiedEmbeded = {
@@ -82,18 +79,15 @@ export function createAuthExchangeRoute(config: ExchangeConfig = {}) {
       const { userId } = await resolveOrCreateCanonicalUser({
         provider: verified.provider,
         subject: verified.subject,
-        // TMP(account-graph): bridge returning wallet-first users to their
-        // existing (wallet-keyed) account + sessions, keyed by the connected
-        // address. Trusted as supplied for this week's stopgap.
-        walletAddress: stringValue(body.address),
       });
 
-      const { accessToken, expiresAt } = await mintAccountBearer(userId);
+      // Validate that this BFF can mint the backend bearer before reporting the
+      // session ready. The token itself stays server-side; the proxy mints and
+      // injects one for each backend request.
+      await mintAccountBearer(userId);
 
       const response = NextResponse.json({
-        access_token: accessToken,
-        token_type: "Bearer",
-        expires_at: expiresAt,
+        ok: true,
         user_id: userId,
       });
       await setSessionCookie(response, userId);

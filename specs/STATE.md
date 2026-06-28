@@ -2,9 +2,63 @@
 
 ## Last Updated
 
-2026-06-22 — Removed no-op `createAccountBearerProvider` (proxy-inject is canonical)
+2026-06-27 — Unified the BFF bearer/auth seam across all clients (`@aomi-labs/account`)
 
 ## Recent Changes
+
+### BFF unification: one shared bearer/proxy/session seam (2026-06-27)
+
+Extracted the per-app BFF plumbing (previously triplicated and divergent across
+portal/base/landing) into `@aomi-labs/account` (server-only) so every Next app
+mounts it as a thin config — change the auth model once, all clients inherit it.
+
+**`@aomi-labs/account` (new server-only modules):**
+- `session.ts` — moved from `apps/portal/src/server/cookies/session.ts`. HS256
+  `aomi_session` cookie helpers. Secret now `AOMI_SESSION_SECRET` (falls back to
+  `PORTAL_ONLY_SESSION_SECRET`). Portal's old file is a re-export shim.
+- `proxy.ts` — `createBackendProxy(config)` → Next `{GET,POST,PUT,PATCH,DELETE}`.
+  Single auth model: strips inbound `authorization`/`cookie`, mints the bearer
+  from `aomi_session`, injects `Authorization`, SSE-aware, degrades to anonymous
+  on mint failure. Config: `allowedRoutes`, `applyDefaults`, `transformResponse`,
+  `upstreamBaseUrl`.
+- `exchange.ts` — `createAuthExchangeRoute(config)`: Privy/Para JWT → canonical
+  user → session cookie (provider verification moved in from portal). The bearer
+  stays server-side and is minted by the proxy from the session cookie.
+- `siwe.ts` — `createSiweNonceRoute()` + `createSiweExchangeRoute()`: wallet-
+  ownership login for base's Base smart account (no provider JWT). Verifies SIWE
+  signatures on-chain (EIP-1271/6492 via viem) and mints the session from the
+  proven address without returning a bearer to the browser. Added deps: `jose`,
+  `viem`; peer `next`.
+- `account-graph.ts` — added `resolveOrCreateByWallet(address)` (mirrors
+  `insert_for_identity` for a `wallet`-keyed identity).
+
+**Shared client (`@aomi-labs/widget-lib`):**
+- `AomiSessionProvider` / `useAomiSession` — moved from portal's
+  `aomi-session-bridge.tsx` (now a re-export shim). Provider-JWT login bridge.
+- `AomiWalletSiweSessionProvider` — new SIWE login bridge (nonce → `signMessage`
+  → verify) for base.
+
+**Apps (now thin configs):**
+- portal — `[...slug]` + exchange routes delegate to the factories; behavior
+  preserved (all 175 portal tests pass; the existing proxy test was rewired to
+  use the real `createBackendProxy`).
+- landing — replaced the blind passthrough proxy (which leaked the session
+  cookie upstream) with `createBackendProxy` + a real allowlist; added exchange
+  route; mounted `AomiSessionProvider` in the Privy/Para providers.
+- base — replaced its hand-rolled proxy with `createBackendProxy`; added SIWE
+  `nonce`/`verify` routes; mounted `AomiWalletSiweSessionProvider`; dropped the
+  old browser-held-bearer routes (`/api/account/exchange`, `/api/auth/privy/begin`).
+
+**Verification:** all apps + lib typecheck clean; base + landing `next build`
+clean (no server-only leak into client bundles); base/landing/changed-files lint
+clean. New env (base + landing): `PORTAL_SERVICE_PRIVATE_KEY`,
+`AOMI_SESSION_SECRET`, provider verify keys, optional `BASE_RPC_URL`.
+
+**Not done this round:** telegram (no backend proxy today). CLI/React transport
+needed no change — already compatible with the same-origin proxy contract.
+
+**Pre-existing (not mine):** `apps/portal/src/features/launch/components/deploy-step.tsx:210`
+has a `react-hooks/preserve-manual-memoization` lint error on the branch.
 
 ### Remove no-op `createAccountBearerProvider` (2026-06-22)
 
