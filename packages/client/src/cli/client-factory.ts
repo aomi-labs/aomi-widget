@@ -1,9 +1,8 @@
 import { AomiClient } from "../client";
 import type { GetAccountBearer } from "../types";
-import { createSessionGetAccountBearer } from "./account-auth";
 import type { CliConfig } from "./types";
 
-const DEFAULT_BACKEND_URL = "https://api.aomi.dev";
+export const DEFAULT_CLI_BASE_URL = "https://chat.aomi.dev";
 
 type CliClientOverrides = {
   apiKey?: string;
@@ -11,7 +10,7 @@ type CliClientOverrides = {
 };
 
 export function resolveCliBaseUrl(config: Pick<CliConfig, "baseUrl">): string {
-  return config.baseUrl ?? DEFAULT_BACKEND_URL;
+  return config.baseUrl ?? DEFAULT_CLI_BASE_URL;
 }
 
 export function createCliGetAccountBearer(
@@ -24,13 +23,14 @@ export function createCliGetAccountBearer(
     return async () => bearer;
   }
 
-  // The normal path: hold the SIWE-established BFF session and mint short-lived
-  // AccountBearers from `/api/bff/auth/token`, refreshing on 401/expiry.
+  // The normal path: present the SIWE-established BFF session as the credential.
+  // The CLI points at a BFF, so it sends the session as `Authorization: Bearer
+  // <aomi_session>` (matching arixon's `bearer()` plugin) and the proxy mints the
+  // short-lived backend bearer from it per request — no client-side `/token`
+  // round-trip or refresh needed (the proxy re-mints on every call).
   if (config.sessionCookie) {
-    return createSessionGetAccountBearer({
-      baseUrl: resolveCliBaseUrl(config),
-      sessionCookie: config.sessionCookie,
-    });
+    const sessionCookie = config.sessionCookie;
+    return async () => sessionCookie;
   }
 
   return undefined;

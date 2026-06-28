@@ -1,8 +1,6 @@
 import { privateKeyToAccount } from "viem/accounts";
 import { createSiweMessage } from "viem/siwe";
 
-import type { GetAccountBearer } from "../types";
-
 // The BFF cookies the CLI speaks to. `aomi_session` is the long-lived session we
 // store; `aomi_siwe_nonce` is the single-use nonce the verify route expects back.
 const SESSION_COOKIE = "aomi_session";
@@ -12,9 +10,6 @@ const NONCE_COOKIE = "aomi_siwe_nonce";
 // chain whose BFF mounts the SIWE routes today. EOA recovery ignores it; it only
 // shapes the EIP-4361 message.
 const DEFAULT_SIWE_CHAIN_ID = 8453;
-
-// Re-mint slightly early so an in-flight backend request never races expiry.
-const BEARER_EXPIRY_SKEW_SECONDS = 30;
 
 /**
  * Non-interactive **SIWE login** against a BFF: prove ownership of the CLI's EVM
@@ -82,60 +77,6 @@ export async function siweLogin(input: {
     throw new Error("SIWE verify succeeded but no aomi_session cookie was set");
   }
   return { sessionCookie, address: account.address };
-}
-
-/**
- * A {@link GetAccountBearer} backed by a stored BFF session: fetch a short-lived
- * AccountBearer from `/api/bff/auth/token`, cache it until just before expiry,
- * and re-fetch on `forceRefresh` (the 401 path) or when the cache is stale. The
- * session rides as `Authorization: Bearer` — the header shape arixon's `bearer()`
- * plugin uses — so migrating onto BetterAuth is a URL swap only.
- *
- * Returns `undefined` (not a throw) when no bearer can be obtained, so the
- * client degrades to anonymous rather than failing the request. A persistent
- * 401 here means the session itself expired — the user re-runs `aomi login`.
- */
-export function createSessionGetAccountBearer(input: {
-  baseUrl: string;
-  sessionCookie: string;
-  fetchImpl?: typeof fetch;
-}): GetAccountBearer {
-  const fetchImpl = input.fetchImpl ?? fetch;
-  const base = input.baseUrl.replace(/\/+$/, "");
-  let cached: { bearer: string; expiresAt: number } | undefined;
-
-  return async (options) => {
-    const now = Math.floor(Date.now() / 1000);
-    if (
-      !options?.forceRefresh &&
-      cached &&
-      cached.expiresAt - BEARER_EXPIRY_SKEW_SECONDS > now
-    ) {
-      return cached.bearer;
-    }
-
-    const res = await fetchImpl(`${base}/api/bff/auth/token`, {
-      headers: { Authorization: `Bearer ${input.sessionCookie}` },
-    });
-    if (!res.ok) {
-      cached = undefined;
-      return undefined;
-    }
-    const data = (await res.json()) as {
-      bearer?: string;
-      expires_at?: number;
-    };
-    if (!data.bearer) {
-      cached = undefined;
-      return undefined;
-    }
-    cached = {
-      bearer: data.bearer,
-      // Fall back to a conservative 14-min life if the BFF omits expiry.
-      expiresAt: data.expires_at ?? now + 14 * 60,
-    };
-    return cached.bearer;
-  };
 }
 
 /** Pull a named cookie value out of a response's `Set-Cookie` header(s). */

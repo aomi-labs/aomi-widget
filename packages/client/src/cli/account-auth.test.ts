@@ -1,9 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import {
-  createSessionGetAccountBearer,
-  siweLogin,
-} from "./account-auth";
+import { siweLogin } from "./account-auth";
 
 // A funded hardhat test key — only used to sign an in-process SIWE message.
 const TEST_PRIVATE_KEY =
@@ -76,58 +73,5 @@ describe("siweLogin", () => {
         fetchImpl: fetchImpl as unknown as typeof fetch,
       }),
     ).rejects.toThrow(/no aomi_session cookie/);
-  });
-});
-
-describe("createSessionGetAccountBearer", () => {
-  it("fetches a bearer from /api/bff/auth/token with the session as a bearer", async () => {
-    const fetchImpl = vi.fn().mockResolvedValue(
-      fakeResponse({
-        json: { bearer: "BEARER", expires_at: 9_999_999_999 },
-      }),
-    );
-    const getBearer = createSessionGetAccountBearer({
-      baseUrl: "https://bff.aomi.dev",
-      sessionCookie: "SESSION_JWT",
-      fetchImpl: fetchImpl as unknown as typeof fetch,
-    });
-
-    await expect(getBearer()).resolves.toBe("BEARER");
-    const [url, init] = fetchImpl.mock.calls[0];
-    expect(url).toBe("https://bff.aomi.dev/api/bff/auth/token");
-    expect(init.headers.Authorization).toBe("Bearer SESSION_JWT");
-  });
-
-  it("caches until near expiry and re-fetches on forceRefresh", async () => {
-    const fetchImpl = vi.fn().mockResolvedValue(
-      fakeResponse({
-        json: { bearer: "BEARER", expires_at: 9_999_999_999 },
-      }),
-    );
-    const getBearer = createSessionGetAccountBearer({
-      baseUrl: "https://bff.aomi.dev",
-      sessionCookie: "SESSION_JWT",
-      fetchImpl: fetchImpl as unknown as typeof fetch,
-    });
-
-    await getBearer();
-    await getBearer(); // cached — no second fetch
-    expect(fetchImpl).toHaveBeenCalledTimes(1);
-
-    await getBearer({ forceRefresh: true }); // 401-retry path
-    expect(fetchImpl).toHaveBeenCalledTimes(2);
-  });
-
-  it("returns undefined (degrades to anonymous) when the session is rejected", async () => {
-    const fetchImpl = vi
-      .fn()
-      .mockResolvedValue(fakeResponse({ ok: false, status: 401 }));
-    const getBearer = createSessionGetAccountBearer({
-      baseUrl: "https://bff.aomi.dev",
-      sessionCookie: "EXPIRED",
-      fetchImpl: fetchImpl as unknown as typeof fetch,
-    });
-
-    await expect(getBearer()).resolves.toBeUndefined();
   });
 });

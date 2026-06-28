@@ -10,7 +10,7 @@
 
 import { ClientSession } from "../session";
 import type { CliConfig } from "./types";
-import { createCliClient } from "./client-factory";
+import { DEFAULT_CLI_BASE_URL, createCliClient } from "./client-factory";
 import {
   readState,
   hasSameBackendPendingId,
@@ -129,7 +129,7 @@ export class CliSession {
     const state: CliSessionState = {
       sessionId: crypto.randomUUID(),
       clientId: crypto.randomUUID(),
-      baseUrl: config.baseUrl ?? seed?.baseUrl ?? "https://api.aomi.dev",
+      baseUrl: config.baseUrl ?? seed?.baseUrl ?? DEFAULT_CLI_BASE_URL,
       app: config.app ?? seed?.app,
       model: config.model ?? seed?.model,
       apiKey: config.apiKey ?? seed?.apiKey,

@@ -1,10 +1,17 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { createCliClient } from "../../src/cli/client-factory";
+import {
+  createCliClient,
+  resolveCliBaseUrl,
+} from "../../src/cli/client-factory";
 
 describe("CLI account auth wiring", () => {
   afterEach(() => {
     vi.restoreAllMocks();
+  });
+
+  it("defaults account client traffic to the hosted BFF", () => {
+    expect(resolveCliBaseUrl({})).toBe("https://chat.aomi.dev");
   });
 
   it("attaches a static account bearer when configured", async () => {

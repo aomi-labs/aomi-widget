@@ -27,6 +27,16 @@ short-lived AccountBearers on demand — the same two-token loop arixon's `beare
   wallet user is global — same UUID across BFFs). The SIWE nonce/verify routes are now
   mounted on **portal + base + landing** (parity) so the CLI can log in against any BFF
   origin, not just base.
+- **e2e validated (2026-06-28)** against a local portal BFF → staging backend
+  (`api-staging.aomi.dev`): `aomi account login` (SIWE) created the canonical user in the
+  staging DB; `aomi wallet whoami` + `aomi chat` returned `/api/account` and `/api/chat`
+  **200** through the proxy as that user (only the LLM call 402'd on backend OpenRouter
+  credits). The e2e exposed + fixed a design bug: the CLI first fetched a backend bearer
+  from `/token` and sent **that** to the proxy, which strips client `Authorization` and
+  re-mints from the cookie → 401. Fix: `getSessionedCanonicalId` now reads the session from
+  `Authorization: Bearer <aomi_session>` first (then cookie), so the **proxy** mints from
+  the session the CLI presents; `getAccountBearer` returns the session directly (no `/token`
+  round-trip). `/token` remains the direct-to-backend analog of arixon's `/api/auth/token`.
 - **CLI** (`packages/client/src/cli/account-auth.ts`): `siweLogin` (non-interactive
   SIWE with the device `--private-key` → stores `aomi_session`) +
   `createSessionGetAccountBearer` (fetches `/api/bff/auth/token`, caches, refreshes on

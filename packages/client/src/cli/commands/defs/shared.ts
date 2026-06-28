@@ -59,7 +59,7 @@ function parseSvmCluster(raw: string | undefined): SvmCluster | undefined {
 export const globalArgs = {
   "backend-url": {
     type: "string",
-    description: "Backend URL (default: https://api.aomi.dev)",
+    description: "Aomi API/BFF URL (default: https://chat.aomi.dev)",
   },
   "api-key": {
     type: "string",
