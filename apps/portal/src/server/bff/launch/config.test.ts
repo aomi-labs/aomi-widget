@@ -11,6 +11,7 @@ describe("launchConfig", () => {
     const config = launchConfig();
     expect(config.platform).toBe("community");
     expect(config.platforms).toEqual(["community"]);
+    expect(config.catalogPlatforms).toEqual([]);
     expect(config.templateRepo).toBe("aomi-labs/playground-example");
     expect(config.createdRepoPrivate).toBe(false);
     expect(config.targetTags).toEqual([]);
@@ -25,6 +26,7 @@ describe("launchConfig", () => {
     const config = launchConfig();
     expect(config.platform).toBe("partners");
     expect(config.platforms).toEqual(["partners", "somm.finance"]);
+    expect(config.catalogPlatforms).toEqual([]);
     expect(config.templateRepo).toBe("acme/template");
     expect(config.createdRepoPrivate).toBe(true);
     expect(config.targetTags).toEqual(["staging", "launch"]);
@@ -36,6 +38,7 @@ describe("launchConfig", () => {
     const config = launchConfig();
     expect(config.platform).toBe("somm.finance");
     expect(config.platforms).toEqual(["somm.finance", "community"]);
+    expect(config.catalogPlatforms).toEqual([]);
   });
 
   it("falls back to public platform envs during deployment bootstrap", () => {
@@ -47,6 +50,7 @@ describe("launchConfig", () => {
     const config = launchConfig();
     expect(config.platform).toBe("somm.finance");
     expect(config.platforms).toEqual(["somm.finance", "community"]);
+    expect(config.catalogPlatforms).toEqual([]);
   });
 
   it("accepts a single platform env as a one-item platform list", () => {
@@ -55,5 +59,25 @@ describe("launchConfig", () => {
     const config = launchConfig();
     expect(config.platform).toBe("somm.finance");
     expect(config.platforms).toEqual(["somm.finance"]);
+    expect(config.catalogPlatforms).toEqual([]);
+  });
+
+  it("uses explicit catalog platforms without changing deploy platforms", () => {
+    vi.stubEnv("APP_DEPLOY_PLATFORMS", "community,somm.finance");
+    vi.stubEnv("APP_CATALOG_PLATFORMS", "official, somm.finance, official");
+
+    const config = launchConfig();
+    expect(config.platform).toBe("community");
+    expect(config.platforms).toEqual(["community", "somm.finance"]);
+    expect(config.catalogPlatforms).toEqual(["official", "somm.finance"]);
+  });
+
+  it("falls back to public catalog platform envs", () => {
+    vi.stubEnv("NEXT_PUBLIC_APP_CATALOG_PLATFORMS", '["somm.finance"]');
+
+    const config = launchConfig();
+    expect(config.platform).toBe("community");
+    expect(config.platforms).toEqual(["community"]);
+    expect(config.catalogPlatforms).toEqual(["somm.finance"]);
   });
 });

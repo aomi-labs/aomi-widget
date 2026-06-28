@@ -269,7 +269,7 @@ export function DeployStep({
     progress.appSourceId,
     progress.sourceRef,
     repo,
-    deployment?.source?.ref,
+    deployment,
   ]);
 
   useEffect(() => {
