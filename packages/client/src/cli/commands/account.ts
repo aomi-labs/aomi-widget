@@ -1,5 +1,6 @@
 import { siweLogin } from "../account-auth";
 import { CliSession } from "../cli-session";
+import { isRawBackendBaseUrl } from "../client-factory";
 import { fatal } from "../errors";
 import { printDataFileLocation } from "../output";
 import type { CliConfig } from "../types";
@@ -29,9 +30,10 @@ export async function loginCommand(
   const privateKey = config.privateKey ?? cli.privateKey;
   const wantsSolana = options?.walletFamily === "solana";
 
-  // SIWE is the primary path whenever we hold an EVM key and aren't explicitly
-  // asking for a Solana embedded-wallet flow.
-  if (privateKey && !wantsSolana) {
+  // SIWE is the primary path when the CLI is pointed at a frontend BFF. Raw
+  // product-mono backend URLs do not serve /api/bff/auth/siwe/*, so they keep
+  // the legacy backend-minted Privy URL flow.
+  if (privateKey && !wantsSolana && !isRawBackendBaseUrl(cli.baseUrl)) {
     try {
       const { sessionCookie, address } = await siweLogin({
         baseUrl: cli.baseUrl,
