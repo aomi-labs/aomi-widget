@@ -1,57 +1,23 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 
-import { mintAccountBearer } from "@aomi-labs/account";
+import { createBackendProxy, type AllowedRoute } from "@aomi-labs/account";
 import type { AomiAppDescriptor } from "@aomi-labs/client";
-import { getSessionedCanonicalId } from "@portal/server/cookies/session";
 import { configuredBackendUrl } from "@portal/server/backend-url";
 import { deploymentClient } from "@portal/server/bff/backend";
 import { launchConfig } from "@portal/server/bff/launch/config";
 
 /**
- * Same-origin proxy that fronts the Rust backend and **injects the
- * AccountBearer server-side** from our session cookie (Option 2). The browser
- * holds no bearer: it calls `/api/*` same-origin, this route reads `aomi_session`,
- * mints `sub` = canonical user id, and forwards with `Authorization` set. See
- * docs/topics/account-authentication/facts/service-identity.md ("Transport").
- *
- * Structure mirrors the WIP `codex/widget-auth-pre-rust` proxy so the eventual
- * merge is a reconcile, not a rewrite — the one deliberate divergence is that we
- * *mint* the bearer here rather than forward a browser-supplied one.
+ * Portal's same-origin backend proxy. The transport machinery (header filtering,
+ * bearer minting from the `aomi_session` cookie, SSE, forwarding) lives in
+ * `@aomi-labs/account`'s `createBackendProxy`, shared with base + landing. Portal
+ * supplies only its own policy: the route allowlist, the GitHub-install platform
+ * default, and the platform-app merge on `/api/session/apps`.
  */
-const HOP_BY_HOP_HEADERS = new Set([
-  "connection",
-  "content-length",
-  "cookie",
-  "host",
-  "origin",
-  "referer",
-  "transfer-encoding",
-]);
 
-// The browser never supplies `authorization` — we mint and inject it from the
-// session below. Anything in the incoming `authorization` header is ignored.
-const ALLOWED_REQUEST_HEADERS = new Set([
-  "accept",
-  "content-type",
-  "aomi-app-key",
-  "x-session-id",
-]);
-
-// Backend routes this proxy is willing to forward. Boundary rule: everything
-// under `/api/bff/*` is portal-owned and served by its own handler (a more
-// specific route always wins over this catch-all); every other `/api/*` path is
-// forwarded to the Rust backend here. No portal route is nested inside a
-// proxied namespace anymore, so the `/api/account/*` family below forwards
-// cleanly.
-const ALLOWED_ROUTES: Array<{
-  pattern: RegExp;
-  methods: ReadonlySet<string>;
-}> = [
-  // The whole account family — `/api/account` plus sub-routes the settings UI
-  // calls (`/payment`, `/payment/byok`, `/app-keys[/id]`, `/approvals`,
-  // `/bots[/id]`, `/usage`). The backend authorizes each by the injected user
-  // bearer, so the proxy only needs to forward them. (The wallet→session
-  // exchange is a portal route at `/api/bff/auth/exchange`, not here.)
+// Backend routes this proxy is willing to forward. Everything under `/api/bff/*`
+// is portal-owned and served by its own handler (a more specific route wins over
+// this catch-all); every other `/api/*` path is forwarded to the Rust backend.
+const ALLOWED_ROUTES: AllowedRoute[] = [
   {
     pattern: /^\/api\/account(\/.*)?$/,
     methods: new Set(["GET", "POST", "PATCH", "PUT", "DELETE"]),
@@ -104,27 +70,6 @@ const ALLOWED_ROUTES: Array<{
   { pattern: /^\/api\/simulate$/, methods: new Set(["POST"]) },
 ];
 
-function resolveUpstreamBaseUrl(): string {
-  const configured = process.env.AOMI_PROXY_BACKEND_URL;
-  if (configured) {
-    try {
-      return new URL(configured).toString();
-    } catch {
-      // NEXT_PUBLIC_BACKEND_URL may be "/" for same-origin browser calls; the
-      // server-side proxy still needs an absolute upstream, so fall through.
-    }
-  }
-  return configuredBackendUrl();
-}
-
-const UPSTREAM_BASE_URL = resolveUpstreamBaseUrl();
-
-function buildUpstreamUrl(req: NextRequest, slug: string[] | undefined): URL {
-  const target = new URL(`/api/${(slug ?? []).join("/")}`, UPSTREAM_BASE_URL);
-  target.search = req.nextUrl.search;
-  return target;
-}
-
 function applyPortalDefaults(upstreamUrl: URL): void {
   if (
     upstreamUrl.pathname === "/api/integrations/github-app/oauth/start" &&
@@ -132,61 +77,6 @@ function applyPortalDefaults(upstreamUrl: URL): void {
   ) {
     upstreamUrl.searchParams.set("platform", launchConfig().platform);
   }
-}
-
-function isAllowedProxyRequest(pathname: string, method: string): boolean {
-  return ALLOWED_ROUTES.some(
-    (route) => route.pattern.test(pathname) && route.methods.has(method),
-  );
-}
-
-function copyRequestHeaders(req: NextRequest): Headers {
-  const headers = new Headers();
-  req.headers.forEach((value, key) => {
-    const lowerKey = key.toLowerCase();
-    if (
-      ALLOWED_REQUEST_HEADERS.has(lowerKey) &&
-      !HOP_BY_HOP_HEADERS.has(lowerKey)
-    ) {
-      headers.set(key, value);
-    }
-  });
-  return headers;
-}
-
-/**
- * Inject `Authorization: Bearer <AccountBearer>` minted from the session, when
- * the request carries a valid `aomi_session` cookie. No session → forward
- * unauthenticated (the backend treats it as anonymous). A misconfigured signer
- * degrades to anonymous + a warning rather than failing every API call.
- */
-async function injectBearer(req: NextRequest, headers: Headers): Promise<void> {
-  const canonicalId = await getSessionedCanonicalId(req);
-  if (!canonicalId) return;
-  try {
-    const { accessToken: accountBearer } = await mintAccountBearer(canonicalId);
-    headers.set("authorization", `Bearer ${accountBearer}`);
-  } catch (error) {
-    console.warn(
-      "Aomi proxy: could not mint AccountBearer; forwarding anonymous",
-      {
-        message: error instanceof Error ? error.message : String(error),
-      },
-    );
-  }
-}
-
-function copyResponseHeaders(upstream: Response): Headers {
-  const headers = new Headers();
-  const contentType = upstream.headers.get("content-type");
-  const cacheControl = upstream.headers.get("cache-control");
-  if (contentType) headers.set("content-type", contentType);
-  if (contentType?.includes("text/event-stream")) {
-    headers.set("cache-control", "no-cache, no-transform");
-  } else if (cacheControl) {
-    headers.set("cache-control", cacheControl);
-  }
-  return headers;
 }
 
 function normalizeAppDescriptors(data: unknown): AomiAppDescriptor[] {
@@ -245,44 +135,21 @@ async function mergePlatformApps(
 
     return Array.from(merged.values());
   } catch (error) {
-    console.warn(
-      "Aomi proxy: could not merge platform apps into session apps",
-      {
-        message: error instanceof Error ? error.message : String(error),
-      },
-    );
+    console.warn("Aomi proxy: could not merge platform apps into session apps", {
+      message: error instanceof Error ? error.message : String(error),
+    });
     return descriptors;
   }
 }
 
-async function handle(
-  req: NextRequest,
-  context: { params: Promise<{ slug?: string[] }> },
-): Promise<NextResponse> {
-  const { slug } = await context.params;
-  const upstreamUrl = buildUpstreamUrl(req, slug);
-  applyPortalDefaults(upstreamUrl);
-
-  if (!isAllowedProxyRequest(upstreamUrl.pathname, req.method)) {
-    return NextResponse.json(
-      { error: "Unsupported API route" },
-      { status: 404 },
-    );
-  }
-
-  const headers = copyRequestHeaders(req);
-  await injectBearer(req, headers);
-
-  try {
-    const upstream = await fetch(upstreamUrl, {
-      method: req.method,
-      headers,
-      body:
-        req.method === "GET" || req.method === "HEAD"
-          ? undefined
-          : await req.text(),
-      redirect: "manual",
-    });
+export const { GET, POST, PUT, PATCH, DELETE } = createBackendProxy({
+  allowedRoutes: ALLOWED_ROUTES,
+  // Keep portal's existing upstream resolution (AOMI_PROXY_BACKEND_URL wins, then
+  // BACKEND_URL/NEXT_PUBLIC_BACKEND_URL); pass it explicitly so portal's deploy
+  // behavior is unchanged.
+  upstreamBaseUrl: process.env.AOMI_PROXY_BACKEND_URL || configuredBackendUrl(),
+  applyDefaults: applyPortalDefaults,
+  async transformResponse({ req, upstreamUrl, upstream, copyResponseHeaders }) {
     if (
       req.method === "GET" &&
       upstream.ok &&
@@ -295,27 +162,9 @@ async function handle(
         headers: copyResponseHeaders(upstream),
       });
     }
-    return new NextResponse(upstream.body, {
-      status: upstream.status,
-      statusText: upstream.statusText,
-      headers: copyResponseHeaders(upstream),
-    });
-  } catch (error) {
-    console.error("Aomi upstream request failed", {
-      message: error instanceof Error ? error.message : String(error),
-    });
-    return NextResponse.json(
-      { error: "Upstream request failed" },
-      { status: 502 },
-    );
-  }
-}
+    return null;
+  },
+});
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
-
-export const GET = handle;
-export const POST = handle;
-export const PUT = handle;
-export const PATCH = handle;
-export const DELETE = handle;

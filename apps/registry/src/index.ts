@@ -61,3 +61,8 @@ export {
   isFullTestnet,
   useFullTestnet,
 } from "./lib/aomi-auth-adapter";
+export {
+  AomiSessionProvider,
+  useAomiSession,
+  type AomiSessionStatus,
+} from "./lib/aomi-session/session-provider";
