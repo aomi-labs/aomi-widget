@@ -79,10 +79,23 @@ export async function setSessionCookie(
   });
 }
 
-/** Read the canonical user id bound to the request's session cookie, or null. */
+/**
+ * Read the canonical user id bound to the request's session, or null. The
+ * session is taken from `Authorization: Bearer <aomi_session>` **first** — the
+ * header a headless client (the `aomi` CLI) presents, matching arixon's
+ * `bearer()` plugin — then the `aomi_session` cookie (browsers). Either carrier
+ * is the HS256 session JWT; a forged or non-session bearer (e.g. an EdDSA backend
+ * bearer) simply fails `readSessionCookie` and is ignored.
+ */
 export async function getSessionedCanonicalId(
   request: NextRequest,
 ): Promise<string | null> {
+  const authorization = request.headers.get("authorization");
+  if (authorization) {
+    const match = /^Bearer\s+(.+)$/i.exec(authorization.trim());
+    const fromHeader = await readSessionCookie(match?.[1]?.trim());
+    if (fromHeader) return fromHeader;
+  }
   return readSessionCookie(request.cookies.get(SESSION_COOKIE)?.value);
 }
 

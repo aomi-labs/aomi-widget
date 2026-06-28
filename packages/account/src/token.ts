@@ -1,25 +1,21 @@
 import { type NextRequest, NextResponse } from "next/server";
 
 import { mintAccountBearer } from "./bearer";
-import { readSessionCookie, SESSION_COOKIE } from "./session";
+import { getSessionedCanonicalId } from "./session";
 
 /**
  * The shared **token** route every Aomi BFF mounts at `/api/bff/auth/token`.
- * Reads the BFF session and returns a freshly minted AccountBearer for the
- * canonical user it carries.
+ * Reads the BFF session (via `getSessionedCanonicalId` — `Authorization: Bearer
+ * <aomi_session>` first, cookie fallback) and returns a freshly minted
+ * AccountBearer for the canonical user it carries.
  *
- * This is the seam a **headless** client (the `aomi` CLI) uses. A browser never
- * needs it — the same-origin proxy mints and injects the bearer inline — but the
- * CLI can't be same-origin, so it holds the long-lived session and pulls a
- * short-lived backend bearer from here, refreshing on 401/expiry. That is the
- * exact loop arixon's BetterAuth `jwt()` plugin serves at `GET /api/auth/token`,
- * so this route is shaped as its drop-in: same role, same response.
- *
- * The session is read from `Authorization: Bearer <aomi_session>` first — the
- * header shape arixon's `bearer()` plugin uses — then the `aomi_session` cookie
- * as a fallback. Pre-matching the header means the CLI migrates onto BetterAuth
- * by swapping the URL only (`/api/bff/auth/token` → `/api/auth/token`). See
- * docs/handoffs/bff-betterauth-integration.md §3.
+ * This is the **direct-to-backend** seam: a client that wants to talk to the Rust
+ * backend itself (not through this BFF's proxy) pulls a short-lived backend bearer
+ * from here. The `aomi` CLI does **not** need it for normal use — it points at the
+ * BFF and lets the proxy mint inline from the session it presents — but the
+ * endpoint exists as the drop-in analog of arixon's BetterAuth `jwt()` plugin at
+ * `GET /api/auth/token` (same role, same response), so the migration is a URL
+ * swap. See docs/handoffs/bff-betterauth-integration.md §3.
  *
  * ```ts
  * export const GET = createBearerTokenRoute();
@@ -28,7 +24,7 @@ import { readSessionCookie, SESSION_COOKIE } from "./session";
  */
 export function createBearerTokenRoute() {
   return async function GET(request: NextRequest): Promise<NextResponse> {
-    const userId = await readSessionCookie(extractSessionCookie(request));
+    const userId = await getSessionedCanonicalId(request);
     if (!userId) {
       return NextResponse.json({ error: "No active session" }, { status: 401 });
     }
@@ -44,19 +40,4 @@ export function createBearerTokenRoute() {
       return NextResponse.json({ error: message }, { status: 500 });
     }
   };
-}
-
-/**
- * The session cookie value from `Authorization: Bearer <aomi_session>` (preferred
- * — the header arixon's bearer() plugin uses) or the `aomi_session` cookie itself
- * (browser / same-origin fallback). Either way it is the HS256 session cookie,
- * not the backend bearer this route returns.
- */
-function extractSessionCookie(request: NextRequest): string | undefined {
-  const authorization = request.headers.get("authorization");
-  if (authorization) {
-    const match = /^Bearer\s+(.+)$/i.exec(authorization.trim());
-    if (match) return match[1].trim();
-  }
-  return request.cookies.get(SESSION_COOKIE)?.value;
 }
