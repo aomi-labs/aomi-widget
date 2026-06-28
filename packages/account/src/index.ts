@@ -38,6 +38,17 @@ export {
   type Provider,
 } from "./exchange";
 export {
+  verifyProviderCredential,
+  verifyPrivyToken,
+  verifyParaJwt,
+  ProviderCredentialError,
+  type AccountCredentialProvider,
+  type ProviderTokenCredential,
+  type VerifiedProviderToken,
+  type VerifiedProviderTokenCredential,
+  type ProviderCredentialVerifier,
+} from "./providers";
+export {
   createSiweNonceRoute,
   createSiweExchangeRoute,
   verifySiweMessage,

@@ -4,6 +4,7 @@
 **/node_modules
 .pnpm-store/
 /.pnp
+.playwright-cli/
 .pnp.*
 .yarn/*
 !.yarn/patches
