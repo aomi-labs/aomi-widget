@@ -6,7 +6,7 @@ import { defineConfig } from "vitest/config";
 
 const currentDir = fileURLToPath(new URL(".", import.meta.url));
 const srcDir = resolve(currentDir, "src");
-const registryDir = resolve(currentDir, "../registry/src");
+const registryDir = resolve(currentDir, "../shadcn-registry/src");
 
 export default defineConfig({
   plugins: [react()],

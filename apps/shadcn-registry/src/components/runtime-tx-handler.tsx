@@ -13,7 +13,7 @@ import {
   type WalletRequest,
   type WalletTxPayload,
 } from "@aomi-labs/react";
-import { useAomiAuthAdapter } from "../lib/aomi-auth-adapter";
+import { useAomiAuthAdapter } from "../lib/auth-adapter";
 
 function hasHydratedCalls(payload: WalletTxPayload): boolean {
   return Array.isArray(payload.calls) && payload.calls.length > 0;

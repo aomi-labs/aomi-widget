@@ -6,6 +6,20 @@
 
 ## Recent Changes
 
+### base SIWE shaped as a BetterAuth drop-in (2026-06-27)
+
+Checked our BFF account model against arixon's `codex/widget-auth-pre-rust`
+(BetterAuth, `@aomi-labs/auth`). Most of our work already matches the seams in
+`docs/handoffs/arixoneth-account-auth.md` (sub=canonical UUID, proxy
+inject-from-session, `getSessionedCanonicalId` contract). The one new divergence —
+base SIWE — was reshaped to be a drop-in for his BetterAuth SIWE: extracted
+`verifySiweMessage({message,signature,address,chainId?})` in
+`packages/account/src/siwe.ts` to mirror `@aomi-labs/auth/better-auth/siwe`
+exactly (EOA → smart-account EIP-1271/6492), split field-validation
+(`validateSiweMessage`) from signature-verification like his. Full per-seam
+mapping + the GAP-3 UUID-preservation note: `docs/handoffs/base-siwe-betterauth-dropin.md`.
+Account typecheck + base typecheck clean; account-graph tests 9/9.
+
 ### BFF unification: one shared bearer/proxy/session seam (2026-06-27)
 
 Extracted the per-app BFF plumbing (previously triplicated and divergent across

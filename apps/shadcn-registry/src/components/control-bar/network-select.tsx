@@ -22,13 +22,13 @@ import { getChainIcon } from "@/components/icons";
 import {
   useAomiAuthAdapter,
   useWalletActivationGuard,
-} from "../../lib/aomi-auth-adapter";
-import { useOptionalAomiWalletNetworkPreferences } from "../../lib/aomi-auth-adapter/network-preferences";
+} from "../../lib/auth-adapter";
+import { useOptionalAomiWalletNetworkPreferences } from "../../lib/auth-adapter/network-preferences";
 import type {
   AomiNetworkTarget,
   SolanaNetworkOption,
   WalletFamily,
-} from "../../lib/aomi-auth-adapter/types";
+} from "../../lib/auth-adapter/types";
 
 export type NetworkSelectProps = {
   className?: string;

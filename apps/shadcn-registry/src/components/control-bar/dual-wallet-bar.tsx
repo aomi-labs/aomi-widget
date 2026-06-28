@@ -3,8 +3,8 @@
 import { useEffect, type FC } from "react";
 import { ChevronDownIcon } from "lucide-react";
 import { cn, getChainInfo } from "@aomi-labs/react";
-import { useAomiAuthAdapter } from "../../lib/aomi-auth-adapter";
-import { formatAddress } from "../../lib/aomi-auth-adapter/identity";
+import { useAomiAuthAdapter } from "../../lib/auth-adapter";
+import { formatAddress } from "../../lib/auth-adapter/identity";
 import { WalletPicker } from "./wallet-picker";
 import {
   WalletPickerProvider,

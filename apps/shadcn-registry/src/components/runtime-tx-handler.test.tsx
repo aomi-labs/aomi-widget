@@ -40,7 +40,7 @@ vi.mock("@aomi-labs/react", () => ({
   useAomiRuntime: () => runtimeState,
 }));
 
-vi.mock("../lib/aomi-auth-adapter", () => ({
+vi.mock("../lib/auth-adapter", () => ({
   useAomiAuthAdapter: () => authState,
 }));
 

@@ -1,7 +1,16 @@
 import { type NextRequest, NextResponse } from "next/server";
-import { createPublicClient, http, type PublicClient } from "viem";
+import {
+  createPublicClient,
+  http,
+  verifyMessage as verifyEoaMessage,
+  type PublicClient,
+} from "viem";
 import { base, baseSepolia } from "viem/chains";
-import { generateSiweNonce, parseSiweMessage } from "viem/siwe";
+import {
+  generateSiweNonce,
+  parseSiweMessage,
+  validateSiweMessage,
+} from "viem/siwe";
 
 import { resolveOrCreateByWallet } from "./account-graph";
 import { mintAccountBearer } from "./bearer";
@@ -18,6 +27,14 @@ import { setSessionCookie } from "./session";
  * Two routes, mounted by base:
  * - `GET  /api/bff/auth/siwe/nonce`  → `createSiweNonceRoute()`
  * - `POST /api/bff/auth/siwe/verify` → `createSiweExchangeRoute()`
+ *
+ * DROP-IN NOTE (arixon's BetterAuth, `codex/widget-auth-pre-rust`): this is the
+ * pre-BetterAuth bridge. `verifySiweMessage` below intentionally mirrors the
+ * signature + behavior of `@aomi-labs/auth/better-auth/siwe` so that, when
+ * BetterAuth's SIWE plugin lands, his verifier replaces this one with no
+ * call-site change. Nonce/domain validation is kept separate from signature
+ * verification (his split: the BetterAuth plugin owns nonce/domain). See
+ * docs/handoffs/base-siwe-betterauth-dropin.md for the full mapping.
  */
 const NONCE_COOKIE = "aomi_siwe_nonce";
 const NONCE_TTL_SECONDS = 5 * 60;
@@ -41,6 +58,45 @@ function publicClientForChain(chainId: number): PublicClient | null {
   if (!chain) return null;
   const rpcUrl = process.env[RPC_ENV_BY_CHAIN[chainId]]?.trim() || undefined;
   return createPublicClient({ chain, transport: http(rpcUrl) }) as PublicClient;
+}
+
+/**
+ * Pure SIWE **signature** verification — EOA (ECDSA recover) first, then
+ * smart-account on-chain (EIP-1271 / ERC-6492). Same signature + behavior as
+ * arixon's `verifySiweMessage` in `@aomi-labs/auth/better-auth/siwe`, so that
+ * verifier is a drop-in replacement for this one at merge. Deliberately does NOT
+ * check nonce/domain/expiry — the caller does that (his split).
+ */
+export async function verifySiweMessage(input: {
+  message: string;
+  signature: string;
+  address: string;
+  chainId?: number | null;
+}): Promise<boolean> {
+  try {
+    const eoaOk = await verifyEoaMessage({
+      address: input.address as `0x${string}`,
+      message: input.message,
+      signature: input.signature as `0x${string}`,
+    });
+    if (eoaOk) return true;
+  } catch {
+    // Fall through to public-client verification for smart accounts.
+  }
+
+  const chainId = input.chainId ?? null;
+  if (chainId == null) return false;
+  const client = publicClientForChain(chainId);
+  if (!client) return false;
+  try {
+    return await client.verifyMessage({
+      address: input.address as `0x${string}`,
+      message: input.message,
+      signature: input.signature as `0x${string}`,
+    });
+  } catch {
+    return false;
+  }
 }
 
 function nonceCookie(value: string, maxAge: number) {
@@ -133,24 +189,26 @@ export function createSiweExchangeRoute(config: SiweConfig = {}) {
         );
       }
 
-      const client = publicClientForChain(chainId);
-      if (!client) {
+      // Field validation (nonce / domain / expiry) — the caller's job in
+      // arixon's split. Binds the message to the nonce we issued and this
+      // request's host. The BetterAuth SIWE plugin owns this step post-merge.
+      const fieldsOk = validateSiweMessage({
+        message: parsed,
+        nonce: expectedNonce,
+        domain: request.headers.get("host") ?? undefined,
+      });
+      if (!fieldsOk) {
         return clearNonce(
           NextResponse.json(
-            { error: `Unsupported chain ${chainId}` },
+            { error: "Invalid SIWE message fields" },
             { status: 400 },
           ),
         );
       }
 
-      // Verify on-chain (EIP-1271 / ERC-6492 for smart accounts), binding the
-      // message to the nonce we issued and this request's host (domain).
-      const valid = await client.verifySiweMessage({
-        message,
-        signature: signature as `0x${string}`,
-        nonce: expectedNonce,
-        domain: request.headers.get("host") ?? undefined,
-      });
+      // Signature verification — his-shaped `verifySiweMessage` (the drop-in
+      // seam): EOA, then smart-account on-chain (EIP-1271 / ERC-6492).
+      const valid = await verifySiweMessage({ message, signature, address, chainId });
       if (!valid) {
         return clearNonce(
           NextResponse.json(

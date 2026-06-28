@@ -35,38 +35,38 @@ export {
 } from "@aomi-labs/react";
 export { ExtUserProvider, useUser, UserState } from "@aomi-labs/react";
 export { monad, monadTestnet } from "@aomi-labs/client";
-export type { AomiAuthAdapter } from "./lib/aomi-auth-adapter";
+export type { AomiAuthAdapter } from "./lib/auth-adapter";
 export {
   AomiAuthAdapterProvider,
   useAomiAuthAdapter,
-} from "./lib/aomi-auth-adapter";
-export { AomiWalletProvider } from "./lib/aomi-auth-adapter/providers";
-export { AomiBaseAccountProvider } from "./lib/aomi-auth-adapter/providers/base-account";
+} from "./lib/auth-adapter";
+export { AomiWalletProvider } from "./lib/auth-adapter/providers";
+export { AomiBaseAccountProvider } from "./lib/auth-adapter/providers/base-account";
 export {
   AomiParaAdapterProvider,
   AomiParaProvider,
-} from "./lib/aomi-auth-adapter/providers/para";
-export { AomiPrivyProvider } from "./lib/aomi-auth-adapter/providers/privy";
-export type { AomiParaAdapterProviderProps } from "./lib/aomi-auth-adapter/providers/para";
-export type { AomiAuthIdentity, AomiAuthStatus } from "./lib/aomi-auth-adapter";
+} from "./lib/auth-adapter/providers/para";
+export { AomiPrivyProvider } from "./lib/auth-adapter/providers/privy";
+export type { AomiParaAdapterProviderProps } from "./lib/auth-adapter/providers/para";
+export type { AomiAuthIdentity, AomiAuthStatus } from "./lib/auth-adapter";
 export {
   AOMI_AUTH_BOOTING_IDENTITY,
   AOMI_AUTH_DISCONNECTED_IDENTITY,
   formatAuthMethod,
   formatWalletProvider,
   inferAuthMethod,
-} from "./lib/aomi-auth-adapter";
+} from "./lib/auth-adapter";
 export {
   FullTestnetWalletRouter,
   isFullTestnet,
   useFullTestnet,
-} from "./lib/aomi-auth-adapter";
+} from "./lib/auth-adapter";
 export {
   AomiSessionProvider,
   useAomiSession,
   type AomiSessionStatus,
-} from "./lib/aomi-session/session-provider";
+} from "./lib/session/jwt";
 export {
   AomiWalletSiweSessionProvider,
   useWalletSiweSession,
-} from "./lib/aomi-session/siwe";
+} from "./lib/session/siwe";

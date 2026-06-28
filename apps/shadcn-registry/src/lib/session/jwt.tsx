@@ -10,7 +10,7 @@ import {
   type ReactNode,
 } from "react";
 
-import { useAomiAuthAdapter } from "../aomi-auth-adapter";
+import { useAomiAuthAdapter } from "../auth-adapter";
 
 /**
  * Shared client lifecycle for the BFF's `aomi_session` cookie (Option 2,

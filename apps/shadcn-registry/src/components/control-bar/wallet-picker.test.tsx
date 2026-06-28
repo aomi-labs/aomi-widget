@@ -8,9 +8,9 @@ import {
   screen,
 } from "@testing-library/react";
 import { AomiRuntimeApiProvider, ExtUserProvider } from "@aomi-labs/react";
-import type { AomiAuthAdapter } from "@/lib/aomi-auth-adapter";
-import { AomiAuthAdapterProvider } from "@/lib/aomi-auth-adapter";
-import { AomiWalletNetworkPreferencesProvider } from "@/lib/aomi-auth-adapter/network-preferences";
+import type { AomiAuthAdapter } from "@/lib/auth-adapter";
+import { AomiAuthAdapterProvider } from "@/lib/auth-adapter";
+import { AomiWalletNetworkPreferencesProvider } from "@/lib/auth-adapter/network-preferences";
 import { WalletPickerProvider, useWalletPicker } from "./wallet-picker-context";
 import { WalletPicker } from "./wallet-picker";
 

@@ -40,5 +40,6 @@ export {
 export {
   createSiweNonceRoute,
   createSiweExchangeRoute,
+  verifySiweMessage,
   type SiweConfig,
 } from "./siwe";

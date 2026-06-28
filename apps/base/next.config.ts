@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 const appRoot = path.dirname(fileURLToPath(import.meta.url));
 const workspaceRoot = path.resolve(appRoot, "../..");
 const baseNodeModules = path.join(appRoot, "node_modules");
-const widgetSrc = path.join(workspaceRoot, "apps/registry/src");
+const widgetSrc = path.join(workspaceRoot, "apps/shadcn-registry/src");
 const reactPkgSrc = path.join(workspaceRoot, "packages/react/src");
 const clientPkgSrc = path.join(workspaceRoot, "packages/client/src");
 
@@ -22,12 +22,12 @@ const nextConfig: NextConfig = {
   ],
   turbopack: {
     resolveAlias: {
-      "@/components": "../../apps/registry/src/components",
-      "@/hooks": "../../apps/registry/src/hooks",
-      "@/lib": "../../apps/registry/src/lib",
+      "@/components": "../../apps/shadcn-registry/src/components",
+      "@/hooks": "../../apps/shadcn-registry/src/hooks",
+      "@/lib": "../../apps/shadcn-registry/src/lib",
       "@aomi-labs/client": "../../packages/client/src/index.ts",
       "@aomi-labs/react": "../../packages/react/src/index.ts",
-      "@aomi-labs/widget-lib": "../../apps/registry/src/index.ts",
+      "@aomi-labs/widget-lib": "../../apps/shadcn-registry/src/index.ts",
       "@assistant-ui/react": "./node_modules/@assistant-ui/react",
       "@tanstack/react-query": "./node_modules/@tanstack/react-query",
       zustand: "./node_modules/zustand",
