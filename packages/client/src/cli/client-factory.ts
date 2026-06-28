@@ -2,14 +2,7 @@ import { AomiClient } from "../client";
 import type { GetAccountBearer } from "../types";
 import type { CliConfig } from "./types";
 
-const DEFAULT_BACKEND_URL = "https://api.aomi.dev";
-const RAW_BACKEND_HOSTS = new Set([
-  "api.aomi.dev",
-  "api-staging.aomi.dev",
-  "127.0.0.1",
-  "localhost",
-  "::1",
-]);
+export const DEFAULT_CLI_BASE_URL = "https://chat.aomi.dev";
 
 type CliClientOverrides = {
   apiKey?: string;
@@ -17,28 +10,7 @@ type CliClientOverrides = {
 };
 
 export function resolveCliBaseUrl(config: Pick<CliConfig, "baseUrl">): string {
-  return config.baseUrl ?? DEFAULT_BACKEND_URL;
-}
-
-export function isRawBackendBaseUrl(baseUrl: string): boolean {
-  let parsed: URL;
-  try {
-    parsed = new URL(baseUrl);
-  } catch {
-    return false;
-  }
-
-  if (
-    parsed.hostname === "api.aomi.dev" ||
-    parsed.hostname === "api-staging.aomi.dev"
-  ) {
-    return true;
-  }
-
-  return (
-    RAW_BACKEND_HOSTS.has(parsed.hostname) &&
-    (parsed.port === "8080" || parsed.port === "")
-  );
+  return config.baseUrl ?? DEFAULT_CLI_BASE_URL;
 }
 
 export function createCliGetAccountBearer(

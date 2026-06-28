@@ -30,114 +30,107 @@ describe("aomi account login", () => {
     vi.restoreAllMocks();
   });
 
-  it("prints a backend-minted Privy auth URL bound to the active session", async () => {
+  it("establishes an account session through BFF SIWE", async () => {
     const { loginCommand } = await import("../../src/cli/commands/account");
 
-    const response = {
-      ok: true,
-      status: 200,
-      statusText: "OK",
-      json: vi.fn(async () => ({
-        state_token: "state-1",
-        auth_url: "https://chat.example/auth/privy?state=state-1",
-        expires_at: 1_800_000_000,
-      })),
-    } as unknown as Response;
-    const nativeFetch = vi.fn(async () => response);
+    const nativeFetch = vi.fn(async (url: string | URL | Request) => {
+      const target = String(url);
+      if (target.endsWith("/api/bff/auth/siwe/nonce")) {
+        return {
+          ok: true,
+          status: 200,
+          json: vi.fn(async () => ({ nonce: "abc123def456" })),
+        } as unknown as Response;
+      }
+      if (target.endsWith("/api/bff/auth/siwe/verify")) {
+        return {
+          ok: true,
+          status: 200,
+          headers: {
+            get: (name: string) =>
+              name.toLowerCase() === "set-cookie"
+                ? "aomi_session=session-123; Path=/; HttpOnly"
+                : null,
+          },
+        } as unknown as Response;
+      }
+      throw new Error(`unexpected fetch: ${target}`);
+    });
     const originalFetch = globalThis.fetch;
     vi.stubGlobal("fetch", nativeFetch);
     const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
 
     try {
-      await loginCommand(baseConfig);
-
-      expect(String(nativeFetch.mock.calls[0]?.[0])).toBe(
-        "http://unit.test/api/auth/privy/begin",
-      );
-      expect(
-        JSON.parse(
-          (nativeFetch.mock.calls[0]?.[1] as RequestInit).body as string,
-        ),
-      ).toEqual({
-        application: "byreal",
-      });
-      const headers = new Headers(
-        (nativeFetch.mock.calls[0]?.[1] as RequestInit).headers,
-      );
-      expect(headers.get("X-Session-Id")).toBeTruthy();
-      expect(logSpy).toHaveBeenCalledWith(
-        expect.stringContaining("https://chat.example/auth/privy"),
-      );
-      expect(logSpy).toHaveBeenCalledWith(
-        expect.stringContaining("aomi wallet whoami"),
-      );
-    } finally {
-      vi.stubGlobal("fetch", originalFetch);
-    }
-  });
-
-  it("can request a solana-first Privy auth flow", async () => {
-    const { loginCommand } = await import("../../src/cli/commands/account");
-
-    const response = {
-      ok: true,
-      status: 200,
-      statusText: "OK",
-      json: vi.fn(async () => ({
-        state_token: "state-1",
-        auth_url:
-          "https://chat.example/auth/privy?state=state-1&wallet_family=solana",
-        expires_at: 1_800_000_000,
-      })),
-    } as unknown as Response;
-    const nativeFetch = vi.fn(async () => response);
-    const originalFetch = globalThis.fetch;
-    vi.stubGlobal("fetch", nativeFetch);
-
-    try {
-      await loginCommand(baseConfig, { walletFamily: "solana" });
-
-      expect(
-        JSON.parse(
-          (nativeFetch.mock.calls[0]?.[1] as RequestInit).body as string,
-        ),
-      ).toEqual({
-        application: "byreal",
-        wallet_family: "solana",
-      });
-    } finally {
-      vi.stubGlobal("fetch", originalFetch);
-    }
-  });
-
-  it("uses legacy backend auth instead of SIWE for the default raw backend URL", async () => {
-    const { loginCommand } = await import("../../src/cli/commands/account");
-
-    const response = {
-      ok: true,
-      status: 200,
-      statusText: "OK",
-      json: vi.fn(async () => ({
-        state_token: "state-1",
-        auth_url: "https://chat.example/auth/privy?state=state-1",
-        expires_at: 1_800_000_000,
-      })),
-    } as unknown as Response;
-    const nativeFetch = vi.fn(async () => response);
-    const originalFetch = globalThis.fetch;
-    vi.stubGlobal("fetch", nativeFetch);
-
-    try {
       await loginCommand({
         ...baseConfig,
-        baseUrl: "https://api.aomi.dev",
+        baseUrl: "https://chat.aomi.dev",
         privateKey: TEST_PRIVATE_KEY,
       });
 
-      expect(String(nativeFetch.mock.calls[0]?.[0])).toBe(
-        "https://api.aomi.dev/api/auth/privy/begin",
+      expect(nativeFetch).toHaveBeenNthCalledWith(
+        1,
+        "https://chat.aomi.dev/api/bff/auth/siwe/nonce",
       );
-      expect(nativeFetch).toHaveBeenCalledTimes(1);
+      expect(String(nativeFetch.mock.calls[1]?.[0])).toBe(
+        "https://chat.aomi.dev/api/bff/auth/siwe/verify",
+      );
+      const verifyInit = nativeFetch.mock.calls[1]?.[1] as RequestInit;
+      expect(new Headers(verifyInit.headers).get("Cookie")).toBe(
+        "aomi_siwe_nonce=abc123def456",
+      );
+      expect(JSON.parse(verifyInit.body as string)).toMatchObject({
+        signature: expect.stringMatching(/^0x/),
+      });
+      expect(logSpy).toHaveBeenCalledWith(
+        expect.stringContaining("Signed in as 0x"),
+      );
+      expect(logSpy).toHaveBeenCalledWith(
+        "Session established at https://chat.aomi.dev.",
+      );
+    } finally {
+      vi.stubGlobal("fetch", originalFetch);
+    }
+  });
+
+  it("requires an EVM private key", async () => {
+    const { loginCommand } = await import("../../src/cli/commands/account");
+
+    const nativeFetch = vi.fn();
+    const originalFetch = globalThis.fetch;
+    vi.stubGlobal("fetch", nativeFetch);
+    vi.spyOn(console, "error").mockImplementation(() => {});
+
+    try {
+      await expect(loginCommand(baseConfig)).rejects.toMatchObject({
+        code: 1,
+      });
+      expect(nativeFetch).not.toHaveBeenCalled();
+    } finally {
+      vi.stubGlobal("fetch", originalFetch);
+    }
+  });
+
+  it("does not route Solana login through backend Privy auth", async () => {
+    const { loginCommand } = await import("../../src/cli/commands/account");
+
+    const nativeFetch = vi.fn();
+    const originalFetch = globalThis.fetch;
+    vi.stubGlobal("fetch", nativeFetch);
+    vi.spyOn(console, "error").mockImplementation(() => {});
+
+    try {
+      await expect(
+        loginCommand(
+          {
+            ...baseConfig,
+            privateKey: TEST_PRIVATE_KEY,
+          },
+          { walletFamily: "solana" },
+        ),
+      ).rejects.toMatchObject({
+        code: 1,
+      });
+      expect(nativeFetch).not.toHaveBeenCalled();
     } finally {
       vi.stubGlobal("fetch", originalFetch);
     }
