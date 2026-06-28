@@ -118,6 +118,22 @@ export function readGithubRedirect(search: string): GithubRedirect | null {
   };
 }
 
+/**
+ * Is a launch mid-flow, returning from the GitHub install round-trip?
+ *
+ * A template → install → deploy launch is a full-page navigation away to GitHub
+ * and back, so by the time we return a matching source already exists. Callers
+ * (the deploy dashboard) gate the wizard on "nothing connected yet", which would
+ * otherwise yank the user out of the stepper to the source list at exactly the
+ * install → deploy hand-off. This stays true only while the install redirect is
+ * being consumed: an active `path` plus either a saved `pendingInstall` or the
+ * `installation_id` redirect still on the URL.
+ */
+export function isResumingInstall(state: LaunchState, search: string): boolean {
+  if (!state.path) return false;
+  return Boolean(state.pendingInstall) || readGithubRedirect(search) !== null;
+}
+
 export const GITHUB_REDIRECT_KEYS = [
   "installation_id",
   "setup_action",

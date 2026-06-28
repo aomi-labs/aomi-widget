@@ -37,12 +37,7 @@ export class BrowserEnvironmentError extends DeployError {
 export class BackendError extends DeployError {
   readonly status: number;
   readonly body?: string;
-  constructor(
-    operation: string,
-    status: number,
-    message: string,
-    body?: string,
-  ) {
+  constructor(operation: string, status: number, message: string, body?: string) {
     super(operation === "activation" ? "ACTIVATION" : "BACKEND", message, body);
     this.name = operation === "activation" ? "ActivationError" : "BackendError";
     this.status = status;

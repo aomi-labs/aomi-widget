@@ -47,27 +47,19 @@
       "files": [
         {
           "type": "registry:component",
-          "path": "lib/aomi-auth-adapter.ts"
+          "path": "lib/auth-adapter/index.ts"
         },
         {
           "type": "registry:component",
-          "path": "lib/aomi-auth-adapter/index.ts"
+          "path": "lib/auth-adapter/context.tsx"
         },
         {
           "type": "registry:component",
-          "path": "lib/aomi-auth-adapter/context.tsx"
+          "path": "lib/auth-adapter/types.ts"
         },
         {
           "type": "registry:component",
-          "path": "lib/aomi-auth-adapter/types.ts"
-        },
-        {
-          "type": "registry:component",
-          "path": "lib/aomi-auth-adapter/identity.ts"
-        },
-        {
-          "type": "registry:component",
-          "path": "lib/auth-identity.ts"
+          "path": "lib/auth-adapter/identity.ts"
         }
       ],
       "dependencies": ["@aomi-labs/react", "viem"],
@@ -149,14 +141,6 @@
         {
           "type": "registry:component",
           "path": "components/icons/chains/index.tsx"
-        },
-        {
-          "type": "registry:component",
-          "path": "lib/aomi-auth-adapter.ts"
-        },
-        {
-          "type": "registry:component",
-          "path": "lib/auth-identity.ts"
         }
       ],
       "dependencies": [
@@ -319,19 +303,19 @@
       "files": [
         {
           "type": "registry:component",
-          "path": "lib/aomi-auth-adapter/providers/para.tsx"
+          "path": "lib/auth-adapter/providers/para.tsx"
         },
         {
           "type": "registry:component",
-          "path": "lib/aomi-auth-adapter/full-testnet-wallet-routing.tsx"
+          "path": "lib/auth-adapter/full-testnet-wallet-routing.tsx"
         },
         {
           "type": "registry:component",
-          "path": "lib/aomi-auth-adapter/safe-wagmi-hooks.ts"
+          "path": "lib/auth-adapter/safe-wagmi-hooks.ts"
         },
         {
           "type": "registry:component",
-          "path": "lib/aomi-auth-adapter/wallet-execution.ts"
+          "path": "lib/auth-adapter/wallet-execution.ts"
         }
       ],
       "dependencies": [
@@ -355,15 +339,15 @@
       "files": [
         {
           "type": "registry:component",
-          "path": "lib/aomi-auth-adapter/providers/base-account.tsx"
+          "path": "lib/auth-adapter/providers/base-account.tsx"
         },
         {
           "type": "registry:component",
-          "path": "lib/aomi-auth-adapter/safe-wagmi-hooks.ts"
+          "path": "lib/auth-adapter/safe-wagmi-hooks.ts"
         },
         {
           "type": "registry:component",
-          "path": "lib/aomi-auth-adapter/wallet-execution.ts"
+          "path": "lib/auth-adapter/wallet-execution.ts"
         }
       ],
       "dependencies": [
@@ -382,11 +366,11 @@
       "files": [
         {
           "type": "registry:component",
-          "path": "lib/aomi-auth-adapter/providers/privy.tsx"
+          "path": "lib/auth-adapter/providers/privy.tsx"
         },
         {
           "type": "registry:component",
-          "path": "lib/aomi-auth-adapter/safe-wagmi-hooks.ts"
+          "path": "lib/auth-adapter/safe-wagmi-hooks.ts"
         }
       ],
       "dependencies": [

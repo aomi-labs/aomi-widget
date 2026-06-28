@@ -8,7 +8,7 @@ import { launchConfig } from "./config";
 import { appNamesFromDeployment, releaseTagsFromDeployment } from "./mappers";
 import { checkRateLimit, getClientIp } from "@portal/lib/rate-limit";
 import { validateOrigin } from "@portal/lib/csrf";
-import { getGitHubSession } from "@portal/server/aomi-account/github-session";
+import { getGitHubSession } from "@portal/server/cookies/github";
 import {
   isValidDeploymentId,
   isValidInstallationId,
@@ -46,24 +46,20 @@ function isValidAppSourceId(value: unknown): value is number {
   return typeof value === "number" && Number.isSafeInteger(value) && value > 0;
 }
 
-async function resolveAppSourceId(args: {
-  client: Awaited<ReturnType<typeof deploymentClient>>;
-  platform: string;
-  installationId: string;
-  repo?: string;
-}): Promise<number> {
-  const source = await args.client.resolveSource({
-    platform: args.platform,
-    installationId: Number(args.installationId),
-    repo: args.repo,
-  });
-  if (!Number.isSafeInteger(source.id) || source.id <= 0) {
-    throw new Error("backend did not return a valid app source id");
-  }
-  return source.id;
+function sourceRef(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const clean = value.trim().toLowerCase();
+  return /^[0-9a-f]{7,40}$/.test(clean) ? clean : null;
 }
 
-export function launchDeployRoute(dryRun: boolean) {
+function sourceRefFromSource(source: {
+  sourceRef?: string | null;
+  commitHash?: string | null;
+}): string | null {
+  return sourceRef(source.sourceRef) ?? sourceRef(source.commitHash);
+}
+
+export function launchDeployRoute(preflight: boolean) {
   return async function POST(req: Request): Promise<NextResponse> {
     const blocked = checkWrite(req);
     if (blocked) return blocked;
@@ -72,9 +68,12 @@ export function launchDeployRoute(dryRun: boolean) {
       string,
       unknown
     >;
-    if (!isValidInstallationId(body.installationId)) {
+    if (
+      body.appSourceId !== undefined &&
+      !isValidAppSourceId(body.appSourceId)
+    ) {
       return NextResponse.json(
-        { error: "missing or invalid `installationId`" },
+        { error: "invalid `appSourceId`" },
         { status: 400 },
       );
     }
@@ -85,31 +84,83 @@ export function launchDeployRoute(dryRun: boolean) {
     try {
       const config = launchConfig();
       const client = await deploymentClient();
-      const appSourceId = await resolveAppSourceId({
-        client,
-        platform: config.platform,
-        installationId: body.installationId,
-        repo: body.repo as string | undefined,
-      });
-      const { deployment } = await client.deploy({
+
+      // Deploy uses a stable source row plus an immutable source commit. When
+      // the portal only has a repo, sync-installed resolves both from GitHub.
+      let appSourceId: number;
+      let deploySourceRef = sourceRef(body.sourceRef);
+      if (isValidAppSourceId(body.appSourceId)) {
+        appSourceId = body.appSourceId;
+      } else if (preflight && isValidRepo(body.repo)) {
+        const synced = await client.syncSource({
+          platform: config.platform,
+          repo: body.repo as string,
+        });
+        if (!isValidAppSourceId(synced.id)) {
+          throw new Error("backend did not return a valid app source id");
+        }
+        appSourceId = synced.id;
+        deploySourceRef = sourceRefFromSource(synced);
+      } else {
+        return NextResponse.json(
+          {
+            error: preflight
+              ? "missing `appSourceId` or `repo`"
+              : "missing `appSourceId`",
+          },
+          { status: 400 },
+        );
+      }
+
+      if (!deploySourceRef && isValidRepo(body.repo)) {
+        const synced = await client.syncSource({
+          platform: config.platform,
+          repo: body.repo as string,
+        });
+        if (synced.id !== appSourceId) {
+          return NextResponse.json(
+            { error: "repo does not match `appSourceId`" },
+            { status: 409 },
+          );
+        }
+        deploySourceRef = sourceRefFromSource(synced);
+      }
+      if (!deploySourceRef) {
+        return NextResponse.json(
+          {
+            error:
+              "missing source commit for deploy; sync the source repo and retry",
+          },
+          { status: 400 },
+        );
+      }
+
+      const deployInput = {
         platform: config.platform,
         appSourceId,
-        sourceRef: config.sourceRef,
-        aomiTomlPaths: config.aomiTomlPaths,
-        dryRun,
+        sourceRef: deploySourceRef,
+        aomiTomlPaths: [],
         actor: typeof body.actor === "string" ? body.actor : undefined,
-      });
+      };
+      const { deployment } = preflight
+        ? await client.preflight(deployInput)
+        : await client.deploy(deployInput);
       return NextResponse.json(
         {
           ok: true,
           repo:
-            (body.repo as string | undefined) ??
-            deployment.source.repositoryLink,
+            deployment.source.repositoryLink ??
+            (body.repo as string | undefined),
+          installationId: deployment.source.installationId
+            ? String(deployment.source.installationId)
+            : undefined,
+          appSourceId,
+          sourceRef: deploySourceRef,
           deployment,
           releaseTags: releaseTagsFromDeployment(deployment),
           apps: appNamesFromDeployment(deployment),
         },
-        { status: dryRun ? 200 : 202 },
+        { status: preflight ? 200 : 202 },
       );
     } catch (err) {
       return launchErrorResponse(err);
@@ -153,6 +204,7 @@ export async function createLaunchRepoRoute(req: Request) {
       repo: source.repositoryLink,
       installationId: String(source.installationId),
       appSourceId: source.id,
+      sourceRef: source.sourceRef ?? source.commitHash ?? undefined,
       source,
     });
   } catch (err) {
@@ -456,6 +508,7 @@ export async function syncInstalledLaunchRoute(req: Request) {
       repo: source.repositoryLink ?? repo,
       installationId: String(source.installationId),
       appSourceId: source.id,
+      sourceRef: source.sourceRef ?? source.commitHash ?? undefined,
       source,
     });
   } catch (err) {
@@ -499,26 +552,19 @@ export async function redeployLaunchRoute(req: Request) {
   }
 
   try {
+    const config = launchConfig();
     const client = await deploymentClient();
-    const sources = await client.listUserSources({
+    const latest = await client.getUserSourceLatestDeployment({
       githubUserId: session.githubUserId,
+      platform: config.platform,
+      appSourceId: body.appSourceId,
     });
-    const source = sources.find(
-      (candidate) => candidate.id === body.appSourceId,
-    );
-    const latest = source?.latestDeployment;
     const platformRepo = latest?.platformRepo;
     const ciRunId =
       latest?.ciRunId === null || latest?.ciRunId === undefined
         ? ciRunIdFromUrl(latest?.ciUrl)
         : String(latest.ciRunId);
 
-    if (!source) {
-      return NextResponse.json(
-        { error: "source does not belong to the signed-in GitHub account" },
-        { status: 404 },
-      );
-    }
     if (!platformRepo || !isValidRepo(platformRepo) || !ciRunId) {
       return NextResponse.json(
         {
@@ -589,9 +635,11 @@ export async function userSourcesRoute(req: Request) {
   }
 
   try {
+    const config = launchConfig();
     const client = await deploymentClient();
     const sources = await client.listUserSources({
       githubUserId: session.githubUserId,
+      platform: config.platform,
     });
     return NextResponse.json({ sources, githubLogin: session.githubLogin });
   } catch (err) {

@@ -7,7 +7,7 @@ import type { LaunchProgress } from "@portal/features/launch";
 const noop = () => {};
 
 vi.mock("@portal/features/launch", () => ({
-  launchDryRun: vi.fn(),
+  launchPreflight: vi.fn(),
   launchDeploy: vi.fn(),
   launchStatus: vi.fn(),
   launchActivate: vi.fn(),
@@ -54,9 +54,9 @@ describe("DeployStep", () => {
     onProgress: noop,
   };
 
-  it("renders idle state with dry run and deploy buttons", () => {
+  it("renders idle state with preflight and deploy buttons", () => {
     render(<DeployStep {...defaultProps} />);
-    expect(screen.getByText("Dry run")).toBeInTheDocument();
+    expect(screen.getByText("Preflight")).toBeInTheDocument();
     expect(screen.getByText("Deploy")).toBeInTheDocument();
     expect(screen.getByText("Activate")).toBeInTheDocument();
   });
@@ -79,27 +79,27 @@ describe("DeployStep", () => {
         id: "dep_1",
         status: "building",
         source: {
-          installation_id: 12345,
-          repository_id: 1,
-          repository_link: "a/b",
-          owner_repo_name: "a/b",
-          ref: { kind: "branch", value: "main" },
-          commit_hash: "abc123",
-          aomi_toml_paths: ["aomi.toml"],
+          installationId: 12345,
+          repositoryId: 1,
+          repositoryLink: "a/b",
+          ownerRepoName: "a/b",
+          ref: "abc123",
+          commitHash: "abc123",
+          aomiTomlPaths: ["aomi.toml"],
         },
         platform: {
           platform: "community",
           repository: "a/b",
-          deploy_branch: "main",
-          source_branch: "a/b/12345/abc123",
-          commit_hash: null,
-          pr_number: null,
-          pr_url: null,
-          ci_status: null,
-          ci_url: null,
+          deployBranch: "main",
+          sourceBranch: "a/b/12345/abc123",
+          commitHash: null,
+          prNumber: null,
+          prUrl: null,
+          ciStatus: null,
+          ciUrl: null,
           apps: [],
         },
-      } as unknown as LaunchDeployPayload,
+      } satisfies LaunchDeployPayload,
     };
     render(<DeployStep {...defaultProps} progress={progress} />);
     expect(screen.getByText("Deploy")).toBeDisabled();
@@ -112,7 +112,7 @@ describe("DeployStep", () => {
 
   it("shows the idle phase hint text", () => {
     render(<DeployStep {...defaultProps} />);
-    expect(screen.getByText(/Run a dry run/)).toBeInTheDocument();
+    expect(screen.getByText(/Run a preflight/)).toBeInTheDocument();
   });
 
   it("shows error state with retry button", () => {
@@ -122,6 +122,6 @@ describe("DeployStep", () => {
     );
 
     // just verify the component renders without crashing
-    expect(screen.getByText("Dry run")).toBeInTheDocument();
+    expect(screen.getByText("Preflight")).toBeInTheDocument();
   });
 });

@@ -32,7 +32,11 @@ const CARDS: CardSpec[] = [
   },
 ];
 
-export function Picker({ onChoose }: { onChoose: (path: LaunchPath) => void }) {
+export function Picker({
+  onChoose,
+}: {
+  onChoose: (path: LaunchPath) => void;
+}) {
   return (
     <div className="space-y-6">
       <header className="space-y-2">

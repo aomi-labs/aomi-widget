@@ -46,6 +46,7 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
   readonly sessionId: string;
 
   private app: string;
+  private applicationId?: number | string | null;
   private apiKey?: string;
   private userState?: UserStateShape;
   private clientId: string;
@@ -78,6 +79,7 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
 
     this.sessionId = sessionOptions?.sessionId ?? crypto.randomUUID();
     this.app = sessionOptions?.app ?? "default";
+    this.applicationId = sessionOptions?.applicationId;
     this.apiKey = sessionOptions?.apiKey;
     const initialUserState = UserState.reconcile(
       undefined,
@@ -122,6 +124,7 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
 
     const response = await this.client.sendMessage(this.sessionId, message, {
       app: this.app,
+      applicationId: this.applicationId,
       apiKey: this.apiKey,
       userState: this.userState,
       clientId: this.clientId,
@@ -152,6 +155,7 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
 
     const response = await this.client.sendMessage(this.sessionId, message, {
       app: this.app,
+      applicationId: this.applicationId,
       apiKey: this.apiKey,
       userState: this.userState,
       clientId: this.clientId,
@@ -282,6 +286,7 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
 
   syncRuntimeOptions(options: SessionRuntimeOptions): void {
     this.app = options.app;
+    this.applicationId = options.applicationId;
     this.apiKey = options.apiKey;
     this.clientId = options.clientId ?? this.clientId;
 
@@ -495,6 +500,7 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
     const message = JSON.stringify({ type, payload });
     await this.client.sendSystemMessage(this.sessionId, message, {
       app: this.app,
+      applicationId: this.applicationId,
     });
   }
 

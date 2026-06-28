@@ -12,16 +12,18 @@ import type {
   DeploymentAppStatus,
   ExchangeGitHubCodeInput,
   GetAppInput,
+  GetUserSourceLatestDeploymentInput,
   GitHubIdentity,
   ListAppsInput,
   ListUserSourcesInput,
   UserSource,
+  UserSourceLatestDeployment,
   ListTokensInput,
   MintTokenInput,
   MintedToken,
   PlatformApp,
+  PreflightInput,
   ProgressModel,
-  ResolveSourceInput,
   RevokeTokenInput,
   ScaffoldInput,
   StatusInput,
@@ -29,9 +31,6 @@ import type {
   TokenRecord,
   WatchDeploymentOptions,
 } from "./types";
-
-/** Portal one-shot template repo; the default source for `scaffold()`. */
-const DEFAULT_TEMPLATE_REPO = "aomi-labs/playground-example";
 
 /**
  * Server-side client to the Aomi platform deploy backend. It is a typed HTTP
@@ -81,9 +80,35 @@ export class DeploymentClient {
     return found;
   }
 
+  async preflight(input: PreflightInput): Promise<DeployResult> {
+    const platform = cleanPlatform(input.platform);
+    const body = deployRequest(input, true);
+    const result = await this.post<DeployResult>(
+      `/api/platforms/${encodeURIComponent(platform)}/deploy`,
+      body,
+      "preflight",
+      this.resolveBearer(),
+    );
+    const cameled = camelDeployResult(result);
+    if (!cameled.ok) {
+      throw new DeployError(
+        "BACKEND",
+        `preflight rejected by backend (deployment ${cameled.deployment.id})`,
+      );
+    }
+    await this.audit({
+      action: "preflight",
+      platform,
+      appSourceId: input.appSourceId,
+      actor: input.actor,
+      ts: Date.now(),
+    });
+    return cameled;
+  }
+
   async deploy(input: DeployInput): Promise<DeployResult> {
     const platform = cleanPlatform(input.platform);
-    const body = deployRequest(input);
+    const body = deployRequest(input, false);
     const result = await this.post<DeployResult>(
       `/api/platforms/${encodeURIComponent(platform)}/deploy`,
       body,
@@ -190,7 +215,9 @@ export class DeploymentClient {
         lastProgress = progress;
 
         const isTerminal =
-          status.state === "ready" || status.state === "failed";
+          status.state === "ready" ||
+          status.state === "failed" ||
+          status.state === "no_ci";
         onEvent({
           kind: isTerminal ? "terminal" : "progress",
           status,
@@ -374,40 +401,6 @@ export class DeploymentClient {
   }
 
   /**
-   * Look up an existing source row by installation (+ optional repo) without
-   * syncing. `GET /api/platforms/:platform/sources/resolve`.
-   */
-  async resolveSource(input: ResolveSourceInput): Promise<AppSource> {
-    const platform = cleanPlatform(input.platform);
-    const installationId = Number(input.installationId);
-    if (!Number.isSafeInteger(installationId) || installationId <= 0) {
-      throw new DeployError(
-        "INVALID_REQUEST",
-        "resolveSource requires a positive installationId",
-      );
-    }
-    const params = new URLSearchParams({
-      installation_id: String(installationId),
-    });
-    const repo = input.repo?.trim();
-    if (repo) params.set("repo", repo);
-    const bearer = this.resolveBearer(input.bearer);
-    const raw = await this.get<{ ok?: boolean; source?: unknown }>(
-      `/api/platforms/${encodeURIComponent(platform)}/sources/resolve?${params.toString()}`,
-      "resolve_source",
-      bearer,
-    );
-    await this.audit({
-      action: "resolve_source",
-      platform,
-      repo,
-      actor: input.actor,
-      ts: Date.now(),
-    });
-    return camelAppSource(raw.source);
-  }
-
-  /**
    * One-shot: create a new source repo from a template in the installation's
    * account and return its source row. The portal "one-click" path.
    * `POST /api/integrations/github-app/platforms/:platform/sources/create-from-template`.
@@ -422,7 +415,7 @@ export class DeploymentClient {
       );
     }
     const repoName = required(input.repoName, "repoName");
-    const templateRepo = input.templateRepo?.trim() || DEFAULT_TEMPLATE_REPO;
+    const templateRepo = required(input.templateRepo, "templateRepo");
     const bearer = this.resolveBearer(input.bearer);
     const raw = await this.post<{ ok?: boolean; source?: unknown }>(
       `/api/integrations/github-app/platforms/${encodeURIComponent(platform)}/sources/create-from-template`,
@@ -517,26 +510,54 @@ export class DeploymentClient {
   }
 
   /**
-   * Every source repo a GitHub user connected (merged across installations,
-   * platform-agnostic), each with the apps deployed from it. Backs the
-   * post-sign-in dashboard. `GET /api/integrations/github-app/user/sources`.
+   * Source repos a GitHub user connected. Passing `platform` asks the backend
+   * to return only launch-relevant sources for that platform.
    */
   async listUserSources(input: ListUserSourcesInput): Promise<UserSource[]> {
     const githubUserId = required(input.githubUserId, "githubUserId");
     const bearer = this.resolveBearer(input.bearer);
+    const params = new URLSearchParams({ github_user_id: githubUserId });
+    if (input.platform?.trim()) params.set("platform", input.platform.trim());
     const raw = await this.get<{ sources?: unknown[] }>(
-      `/api/integrations/github-app/user/sources?${new URLSearchParams({
-        github_user_id: githubUserId,
-      }).toString()}`,
+      `/api/integrations/github-app/user/sources?${params.toString()}`,
       "list_user_sources",
       bearer,
     );
     await this.audit({
       action: "list_user_sources",
+      platform: input.platform,
       actor: input.actor,
       ts: Date.now(),
     });
     return (raw.sources ?? []).map(camelUserSource);
+  }
+
+  async getUserSourceLatestDeployment(
+    input: GetUserSourceLatestDeploymentInput,
+  ): Promise<UserSourceLatestDeployment | null> {
+    const githubUserId = required(input.githubUserId, "githubUserId");
+    const platform = cleanPlatform(input.platform);
+    const appSourceId = required(String(input.appSourceId), "appSourceId");
+    const bearer = this.resolveBearer(input.bearer);
+    const params = new URLSearchParams({
+      github_user_id: githubUserId,
+      platform,
+    });
+    const raw = await this.get<{ latest_deployment?: unknown }>(
+      `/api/integrations/github-app/user/sources/${encodeURIComponent(
+        appSourceId,
+      )}/latest-deployment?${params.toString()}`,
+      "get_user_source_latest_deployment",
+      bearer,
+    );
+    await this.audit({
+      action: "get_user_source_latest_deployment",
+      platform,
+      appSourceId: input.appSourceId,
+      actor: input.actor,
+      ts: Date.now(),
+    });
+    return camelUserSourceLatestDeployment(raw.latest_deployment) ?? null;
   }
 
   endpoint(path: string): string {
@@ -558,6 +579,8 @@ export class DeploymentClient {
         return { completed: 5, total, label: "Verifying release assets" };
       case "ready":
         return { completed: 8, total, label: "Build ready" };
+      case "no_ci":
+        return { completed: lastCompleted, total, label: "No CI" };
       case "failed":
         return { completed: lastCompleted, total, label: "Build failed" };
       default:
@@ -672,7 +695,10 @@ export function assertServerOnly(): void {
   }
 }
 
-function deployRequest(input: DeployInput): Record<string, unknown> {
+function deployRequest(
+  input: DeployInput | PreflightInput,
+  preflight: boolean,
+): Record<string, unknown> {
   const appSourceId = Number(input.appSourceId);
   if (!Number.isSafeInteger(appSourceId) || appSourceId <= 0) {
     throw new DeployError(
@@ -680,12 +706,16 @@ function deployRequest(input: DeployInput): Record<string, unknown> {
       "deploy requires a positive appSourceId",
     );
   }
-  const aomiTomlPaths = cleanStringList(input.aomiTomlPaths, "aomiTomlPaths");
+  const aomiTomlPaths = cleanStringList(
+    input.aomiTomlPaths ?? [],
+    "aomiTomlPaths",
+    true,
+  );
   return {
     app_source_id: appSourceId,
     source_ref: sourceRef(input.sourceRef),
     aomi_toml_paths: aomiTomlPaths,
-    ...(input.dryRun ? { dry_run: true } : {}),
+    ...(preflight ? { preflight: true } : {}),
   };
 }
 
@@ -711,14 +741,15 @@ function activateRequest(input: ActivateInput): Record<string, unknown> {
   };
 }
 
-function sourceRef(ref: DeployInput["sourceRef"]): Record<string, string> {
-  if (ref.kind !== "branch" && ref.kind !== "commit") {
+function sourceRef(ref: DeployInput["sourceRef"]): string {
+  const clean = required(ref, "sourceRef");
+  if (!/^[0-9a-f]{7,40}$/i.test(clean)) {
     throw new DeployError(
       "INVALID_REQUEST",
-      "sourceRef.kind must be branch or commit",
+      "sourceRef must be a git commit SHA (7-40 hex chars)",
     );
   }
-  return { kind: ref.kind, value: required(ref.value, "sourceRef.value") };
+  return clean.toLowerCase();
 }
 
 function releaseTagsTarget(
@@ -796,6 +827,11 @@ function camelDeployResult(result: unknown): DeployResult {
           aomiTomlPath: app.aomi_toml_path,
           releaseTag: app.release_tag,
           target: app.target ?? null,
+          files: (app.files ?? []).map((file: Record<string, any>) => ({
+            path: file.path,
+            sha256: file.sha256,
+            bytes: Number(file.bytes ?? 0),
+          })),
         })),
       },
     },
@@ -824,11 +860,16 @@ function camelActivateResult(result: unknown): ActivateResult {
             name: promotion.name,
             releaseTag: promotion.release_tag,
             sourceBranch: promotion.source_branch,
-            platformCommitHash: promotion.platform_commit_hash,
+            platformCommitHash:
+              promotion.platform_commit_hash ??
+              promotion.activated_commit_hash ??
+              null,
             liveCommitHash: promotion.live_commit_hash ?? null,
+            activationStatus: promotion.activation_status ?? null,
             ciStatus: promotion.ci_status,
             ciUrl: promotion.ci_url ?? null,
             releaseAssets: promotion.release_assets ?? [],
+            releaseAssetDigests: promotion.release_asset_digests ?? {},
           }),
         ),
       },
@@ -840,6 +881,12 @@ function camelActivateResult(result: unknown): ActivateResult {
         isActive: Boolean(app.is_active),
         loaded: Boolean(app.loaded),
         error: app.error ?? null,
+        sourceBranch: app.source_branch ?? null,
+        liveCommitHash: app.live_commit_hash ?? null,
+        activationStatus: app.activation_status ?? null,
+        activationPr: app.activation_pr ?? app.activationPr ?? null,
+        activationPrCloseError:
+          app.activation_pr_close_error ?? app.activationPrCloseError ?? null,
       })),
     },
   };
@@ -862,6 +909,12 @@ function camelStatusResult(raw: Record<string, unknown>): DeploymentStatus {
           name: app.name as string,
           releaseTag: (app.release_tag ?? app.releaseTag) as string,
           releaseReady: Boolean(app.release_ready ?? app.releaseReady),
+          releaseAssets: (app.release_assets ??
+            app.releaseAssets ??
+            []) as string[],
+          releaseAssetDigests: (app.release_asset_digests ??
+            app.releaseAssetDigests ??
+            {}) as Record<string, string>,
           message: (app.message ?? null) as string | null,
         }))
       : undefined,
@@ -888,9 +941,15 @@ function camelAppSource(raw: unknown): AppSource {
     installationId: Number(s.installation_id),
     repositoryId: s.repository_id ?? null,
     repositoryLink: s.repository_link ?? null,
+    sourceRef: s.source_ref ?? null,
+    commitHash: s.commit_hash ?? s.source_ref ?? null,
     githubAccount: s.github_account ?? null,
     githubUserId: s.github_user_id ?? null,
     boundPlatformId: s.bound_platform_id ?? null,
+    boundPlatformName: s.bound_platform_name ?? null,
+    createdBy: s.created_by ?? s.createdBy ?? null,
+    templateRepo: s.template_repo ?? s.templateRepo ?? null,
+    launchSourceKind: s.launch_source_kind ?? s.launchSourceKind ?? null,
   };
 }
 

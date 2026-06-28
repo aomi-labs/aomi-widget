@@ -30,10 +30,7 @@ export function Stepper({
                   : "active"
               : "pending";
         return (
-          <li
-            key={step.key}
-            className="flex flex-1 items-center last:flex-none"
-          >
+          <li key={step.key} className="flex flex-1 items-center last:flex-none">
             <div className="flex flex-col items-center gap-1">
               <Dot status={status} />
               <span

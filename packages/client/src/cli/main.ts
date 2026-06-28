@@ -66,9 +66,9 @@ function printRootHelp(): void {
     "  --account-bearer <token>     Aomi account bearer for authenticated requests",
   );
   console.log(
-    "  --account-provider <name>    Deprecated; provider exchange is disabled",
+    "  --embedded-provider <name>    Deprecated; provider exchange is disabled",
   );
-  console.log("  --account-provider-token <t>");
+  console.log("  --embedded-provider-token <t>");
   console.log(
     "                               Deprecated; use --account-bearer",
   );

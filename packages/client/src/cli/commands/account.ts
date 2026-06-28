@@ -1,4 +1,6 @@
+import { siweLogin } from "../account-auth";
 import { CliSession } from "../cli-session";
+import { fatal } from "../errors";
 import { printDataFileLocation } from "../output";
 import type { CliConfig } from "../types";
 import type { AomiListWalletsResponse } from "../../types";
@@ -37,8 +39,17 @@ async function hydratePrimaryWallets(
 }
 
 /**
- * Mint a backend-owned Privy auth URL for the active session and print it so
- * the user can complete browser login out of band.
+ * Authenticate the CLI against the BFF.
+ *
+ * Primary path — **non-interactive SIWE** with the CLI's EVM key: prove wallet
+ * ownership, receive OUR `aomi_session`, and persist it. The CLI then mints
+ * short-lived AccountBearers from `/api/bff/auth/token` on demand (see
+ * `createSessionGetAccountBearer`). This is the headless analog of the browser
+ * login and a drop-in to arixon's BetterAuth SIWE plugin — see
+ * docs/handoffs/bff-betterauth-integration.md §3.
+ *
+ * Fallback — when no EVM key is configured (e.g. a Solana-only session), print a
+ * backend-minted Privy auth URL to complete in a browser (legacy behavior).
  */
 export async function walletLoginCommand(
   config: CliConfig,
@@ -47,6 +58,42 @@ export async function walletLoginCommand(
   const cli = CliSession.loadOrCreate(config);
   cli.mergeConfig(config);
 
+  const privateKey = config.privateKey ?? cli.privateKey;
+  const wantsSolana = options?.walletFamily === "solana";
+
+  // SIWE is the primary path whenever we hold an EVM key and aren't explicitly
+  // asking for a Solana embedded-wallet flow.
+  if (privateKey && !wantsSolana) {
+    try {
+      const { sessionCookie, address } = await siweLogin({
+        baseUrl: cli.baseUrl,
+        privateKey,
+        chainId: cli.chainId,
+      });
+      cli.setSessionCookie(sessionCookie);
+      console.log(`Signed in as ${address}`);
+      console.log(`Session established at ${cli.baseUrl}.`);
+      // Hydrate the operating wallet from the account's wallets now that the
+      // session is established (best-effort; `whoami` also backfills it).
+      const session = cli.createClientSession(config);
+      try {
+        await hydratePrimaryWallets(cli, session.client, cli.sessionId);
+      } finally {
+        session.close();
+      }
+      console.log("Run `aomi wallet whoami` to confirm the bound account.");
+      printDataFileLocation();
+      return;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      fatal(
+        `SIWE login failed: ${message}\n` +
+          "Ensure --base-url points at an Aomi BFF (it serves /api/bff/auth/siwe), not the raw backend.",
+      );
+    }
+  }
+
+  // Fallback: legacy backend-minted Privy URL (no local EVM key / Solana flow).
   const session = cli.createClientSession(config);
   try {
     const begin = await session.client.beginPrivyAuth(cli.sessionId, {
@@ -60,111 +107,6 @@ export async function walletLoginCommand(
   } finally {
     session.close();
   }
-}
-
-type DeviceStartResponse = {
-  device_code: string;
-  user_code: string;
-  verification_uri: string;
-  expires_at: number;
-  interval: number;
-};
-
-type DevicePollResponse =
-  | {
-      status: "ok";
-      credential: string;
-      expires_at: number;
-      user_id: string;
-    }
-  | {
-      status: "authorization_pending";
-      interval?: number;
-    }
-  | {
-      status: "expired_token" | "access_denied";
-    };
-
-function joinUrl(baseUrl: string, path: string): string {
-  return `${baseUrl.replace(/\/+$/, "")}${path}`;
-}
-
-async function postJson<T>(url: string, body: unknown): Promise<T> {
-  const response = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
-  const payload = (await response.json().catch(() => ({}))) as T & {
-    error?: string;
-  };
-  if (!response.ok) {
-    throw new Error(
-      payload.error
-        ? `HTTP ${response.status}: ${payload.error}`
-        : `HTTP ${response.status}`,
-    );
-  }
-  return payload;
-}
-
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-export async function loginCommand(config: CliConfig): Promise<void> {
-  const cli = CliSession.loadOrCreate(config);
-  cli.mergeConfig(config);
-  const baseUrl = cli.baseUrl;
-
-  const started = await postJson<DeviceStartResponse>(
-    joinUrl(baseUrl, "/api/cli/device/start"),
-    {},
-  );
-
-  console.log("Open this URL to authenticate your Aomi CLI:");
-  console.log(started.verification_uri);
-  console.log(`Code: ${started.user_code}`);
-
-  let intervalMs = Math.max(started.interval, 1) * 1000;
-  while (Math.floor(Date.now() / 1000) < started.expires_at) {
-    await sleep(intervalMs);
-    const response = await fetch(joinUrl(baseUrl, "/api/cli/device/poll"), {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ device_code: started.device_code }),
-    });
-    const payload = (await response
-      .json()
-      .catch(() => ({}))) as DevicePollResponse;
-
-    if (response.status === 428 && payload.status === "authorization_pending") {
-      intervalMs = Math.max(payload.interval ?? started.interval, 1) * 1000;
-      continue;
-    }
-    if (!response.ok) {
-      throw new Error(
-        `Device login failed: ${payload.status ?? response.status}`,
-      );
-    }
-    if (payload.status === "ok") {
-      cli.setAccountBearer(payload.credential);
-      console.log(`Account: ${payload.user_id}`);
-      console.log(
-        `CLI credential expires at ${new Date(payload.expires_at * 1000).toISOString()}.`,
-      );
-      const session = cli.createClientSession(config);
-      try {
-        await hydratePrimaryWallets(cli, session.client, cli.sessionId);
-      } finally {
-        session.close();
-      }
-      printDataFileLocation();
-      return;
-    }
-  }
-
-  throw new Error("Device login expired before approval.");
 }
 
 /**
@@ -182,7 +124,7 @@ export async function whoamiCommand(config: CliConfig): Promise<void> {
   cli.mergeConfig(config);
 
   const state = cli.toState();
-  const hasCredential = Boolean(state.accountBearer);
+  const hasCredential = Boolean(state.accountBearer || state.sessionCookie);
 
   const session = cli.createClientSession(config);
   try {
@@ -191,8 +133,8 @@ export async function whoamiCommand(config: CliConfig): Promise<void> {
       console.log("Not bound to an account (anonymous session).");
       if (!hasCredential) {
         console.log(
-          "No account credential configured. Pass --account-bearer, or " +
-            "complete account auth through the portal.",
+          "No account credential configured. Run `aomi login` (SIWE with your " +
+            "wallet key) or pass --account-bearer.",
         );
       } else {
         console.log(

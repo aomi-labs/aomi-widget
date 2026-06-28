@@ -72,10 +72,7 @@ export interface DiscordWebhookBody {
 function requireField(value: string, name: string): string {
   const v = value?.trim();
   if (!v) {
-    throw new DeployError(
-      "ACTIVATION_REQUEST",
-      `\`${name}\` must not be empty`,
-    );
+    throw new DeployError("ACTIVATION_REQUEST", `\`${name}\` must not be empty`);
   }
   return v;
 }
@@ -84,15 +81,10 @@ function requireField(value: string, name: string): string {
  * Build the canonical activation-request payload. Validates inputs and normalizes
  * whitespace. `requestedAt` defaults to the current time in RFC3339.
  */
-export function buildActivationRequest(
-  input: ActivationRequestInput,
-): ActivationRequestPayload {
+export function buildActivationRequest(input: ActivationRequestInput): ActivationRequestPayload {
   const email = requireField(input.email, "email");
   if (!email.includes("@")) {
-    throw new DeployError(
-      "ACTIVATION_REQUEST",
-      `\`email\` must be a valid email address (got ${JSON.stringify(input.email)})`,
-    );
+    throw new DeployError("ACTIVATION_REQUEST", `\`email\` must be a valid email address (got ${JSON.stringify(input.email)})`);
   }
   return {
     kind: ACTIVATION_REQUEST_KIND,
@@ -101,8 +93,7 @@ export function buildActivationRequest(
     app: requireField(input.app, "app"),
     platform: requireField(input.platform, "platform"),
     repo: requireField(input.repo, "repo"),
-    requested_at:
-      input.requestedAt ?? new Date().toISOString().replace(/\.\d{3}Z$/, "Z"),
+    requested_at: input.requestedAt ?? new Date().toISOString().replace(/\.\d{3}Z$/, "Z"),
     source: ACTIVATION_REQUEST_SOURCE,
   };
 }

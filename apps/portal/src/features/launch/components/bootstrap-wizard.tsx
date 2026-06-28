@@ -19,6 +19,7 @@ import {
   type LaunchProgress,
   type UserSource,
 } from "@portal/features/launch";
+import { API_PATHS } from "@portal/lib/api-paths";
 import { chatAppUrl } from "@portal/lib/chat-url";
 import { Stepper } from "./stepper";
 import { DeployStep } from "./deploy-step";
@@ -80,6 +81,7 @@ export function BootstrapWizard({
       installationId: String(source.installationId),
       installationStatus: "bound",
       appSourceId: source.id,
+      sourceRef: source.sourceRef ?? source.commitHash ?? undefined,
       apps: source.apps.map((app) => app.name).filter(Boolean),
       releaseTags: source.apps
         .map((app) => app.appReleaseTag ?? "")
@@ -130,9 +132,7 @@ export function BootstrapWizard({
       setChecking(true);
       let preExisting = false;
       try {
-        const res = await fetch(
-          `/api/bff/launch/check-repo?repo=${encodeURIComponent(repo)}`,
-        );
+        const res = await fetch(API_PATHS.bff.launch.checkRepo(repo));
         if (res.ok) {
           const data = (await res.json()) as {
             exists: boolean;
@@ -378,7 +378,7 @@ function BootstrapDeployStep({
   const appSourceId = progress.appSourceId;
   const installationId = progress.installationId;
 
-  const resolveSource = useCallback(async () => {
+  const syncSourceIdentity = useCallback(async () => {
     if (!repo) return;
     setResolving(true);
     setError(null);
@@ -387,7 +387,11 @@ function BootstrapDeployStep({
       if (!result.appSourceId) {
         throw new Error("backend did not return a source id for this repo");
       }
-      patch({ appSourceId: result.appSourceId, repo: result.repo });
+      patch({
+        appSourceId: result.appSourceId,
+        repo: result.repo,
+        sourceRef: result.sourceRef,
+      });
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -397,9 +401,9 @@ function BootstrapDeployStep({
 
   useEffect(() => {
     if (!appSourceId && !resolving && !error) {
-      void resolveSource();
+      void syncSourceIdentity();
     }
-  }, [appSourceId, resolving, error, resolveSource]);
+  }, [appSourceId, resolving, error, syncSourceIdentity]);
 
   if (appSourceId && installationId) {
     return (
@@ -429,7 +433,7 @@ function BootstrapDeployStep({
         </div>
         <div className="flex flex-wrap gap-2">
           <Button
-            onClick={resolveSource}
+            onClick={syncSourceIdentity}
             className="h-8 rounded-full px-3 text-xs font-medium"
           >
             <RotateCcw className="mr-1 h-3.5 w-3.5" /> Retry

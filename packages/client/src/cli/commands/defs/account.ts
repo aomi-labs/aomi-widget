@@ -4,12 +4,12 @@ import { globalArgs, buildCliConfig } from "./shared";
 const accountLoginDef = defineCommand({
   meta: {
     name: "login",
-    description: "Authenticate the CLI through the BetterAuth/BFF device flow.",
+    description: "Alias for `aomi wallet login` (SIWE with your wallet key).",
   },
   args: { ...globalArgs },
   async run({ args }) {
-    const { loginCommand } = await import("../account");
-    await loginCommand(buildCliConfig(args));
+    const { walletLoginCommand } = await import("../account");
+    await walletLoginCommand(buildCliConfig(args));
   },
 });
 

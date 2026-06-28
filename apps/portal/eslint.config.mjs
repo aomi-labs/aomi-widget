@@ -35,9 +35,16 @@ const eslintConfig = [
             {
               group: [
                 "@aomi-labs/account",
+                "@aomi-labs/account/*",
                 "@aomi-labs/service",
-                "@aomi-labs/deploy",
+                "@aomi-labs/service/*",
               ],
+              message:
+                "Node-only packages must not be imported from client/shared code.",
+              allowTypeImports: true,
+            },
+            {
+              regex: "^@aomi-labs/deploy$|^@aomi-labs/deploy/(?!lifecycle$).+",
               message:
                 "Node-only packages must not be imported from client/shared code.",
               allowTypeImports: true,

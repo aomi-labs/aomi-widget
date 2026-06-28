@@ -3,14 +3,18 @@ import type { AAMode } from "../aa/types";
 export type CliExecutionMode = "aa" | "eoa";
 export type CliAAProvider = "alchemy" | "pimlico";
 export type CliAAMode = AAMode;
-export type CliAccountProvider = "para" | "privy";
+export type CliEmbeddedProvider = "para" | "privy";
 
 export type CliConfig = {
   baseUrl?: string;
   apiKey?: string;
   accountBearer?: string;
-  accountProvider?: CliAccountProvider;
-  accountProviderToken?: string;
+  /** BFF session token (`aomi_session`) from `aomi login`. The CLI holds this
+   * long-lived session and fetches short-lived AccountBearers from the BFF's
+   * `/api/bff/auth/token`. Preferred over a static `accountBearer`. */
+  sessionCookie?: string;
+  embeddedProvider?: CliEmbeddedProvider;
+  embeddedProviderToken?: string;
   app?: string;
   model?: string;
   freshSession?: boolean;

@@ -4,8 +4,13 @@ How the **Deploy** tab takes a developer from "nothing" to "my agent is live in
 chat", for both onboarding paths. Backend is owned end-to-end via a GitHub App;
 the browser never holds GitHub tokens or service credentials.
 
-> **Latest changes (2026-06, PRs #243–#245 + post-merge fixes):**
+> **Latest changes (2026-06-25 launch cleanup):**
 >
+> - Portal BFF source dashboard now calls backend `user/sources` with the configured launch platform; backend hides unrelated repos from broad GitHub App installations.
+> - The deploy preview route is `preflight`, not `dry-run`.
+> - Launch config is server-env-driven: `APP_DEPLOY_PLATFORMS` (JSON array or comma-separated list), `APP_DEPLOY_AOMI_TOML_PATHS`, and optional `APP_DEPLOY_TARGET_TAGS`. The first platform is the primary deploy target; app pickers can merge all configured platforms. The deploy source ref is an immutable commit SHA from `APP_DEPLOY_SOURCE_REF` (or `APP_DEPLOY_SOURCE_COMMIT`).
+> - Chat links are controlled by `NEXT_PUBLIC_CHAT_URL`.
+> - Redeploy hydrates one target source's latest deployment metadata, then reruns an existing backend-owned GitHub Actions run. It requires portal `GITHUB_TOKEN` and refuses when no `ciRunId` is available.
 > - GitHub install redirects in the **same tab** (was: new tab + fragile localStorage polling) — eliminates popup-blocker + race-condition bugs
 > - BFF hardened: CSRF validates against the incoming request origin, rate limit raised 10→60 req/min, empty `releaseTags` validated
 > - Backend `with_snapshot()` fix: deployment status checks CI against the recorded built commit, not the live branch HEAD — prevents pending deployments from being orphaned by snapshot merges
@@ -19,17 +24,17 @@ the browser never holds GitHub tokens or service credentials.
 
 ## Three layers
 
-| Layer                   | What runs                                                | Holds                                                        |
-| ----------------------- | -------------------------------------------------------- | ------------------------------------------------------------ |
-| **Browser (FE client)** | React onboarding wizard                                  | nothing secret                                               |
-| **Portal BFF**          | Next.js route handlers `app/api/onboard/*` (server-side) | the `aomi-bff` service signing key; resolves `app_source.id` |
-| **Backend (BE)**        | Rust service `/api/platforms/*`, `/api/integrations/*`   | GitHub App keys, DB                                          |
+| Layer                   | What runs                                               | Holds                                                        |
+| ----------------------- | ------------------------------------------------------- | ------------------------------------------------------------ |
+| **Browser (FE client)** | React onboarding wizard                                 | nothing secret                                               |
+| **Portal BFF**          | Next.js route handlers `app/api/launch/*` (server-side) | the `aomi-bff` service signing key; resolves `app_source.id` |
+| **Backend (BE)**        | Rust service `/api/platforms/*`, `/api/integrations/*`  | GitHub App keys, DB                                          |
 
 Two distinct call patterns:
 
 - **Browser → BE directly** (`sessionScopedFetch`, CORS, `NEXT_PUBLIC_BACKEND_URL`):
   only `oauth/start`. Plus GitHub → BE (webhook, callback redirect).
-- **Browser → BFF → BE**: the whole **deploy** phase. The BFF (`/api/onboard/*`)
+- **Browser → BFF → BE**: the whole **deploy** phase. The BFF (`/api/launch/*`)
   signs a short-lived `service` bearer and translates to the BE's `/api/platforms/:platform/*`.
 
 ## Two paths (the picker)
@@ -46,7 +51,7 @@ stateDiagram-v2
     [*] --> Template
     Template --> Install: user forks (bootstrap) — or skipped (oneshot)
     Install --> Upload: install app + OAuth (BE binds app_source)
-    Upload --> Deploy: BE pushes candidate, community-apps CI builds green
+    Upload --> Deploy: BE pushes candidate, platform CI builds green
     Deploy --> Live: BE activates release into runtime under Source(installation)
     Live --> [*]
 
@@ -67,20 +72,22 @@ stateDiagram-v2
 | `GET /api/integrations/github-app/oauth/start?platform&repo&mode`             | mint signed `state`, return GitHub `install_url`. `mode=authorize` re-verifies an existing install.                                                                          |
 | `GET /api/integrations/github-app/oauth/callback`                             | validate `state`, exchange `code`, confirm the install is visible to the user, bind `app_source`, then **303 → `$AOMI_FRONTEND_URL/settings?installation_id&onboard=bound`** |
 | `POST /api/integrations/github-app/webhook`                                   | (HMAC) installation events → **upsert `app_source`**                                                                                                                         |
-| `GET /api/platforms/:platform/sources/resolve?installation_id&repo`           | `(installation, repo) → app_source.id`                                                                                                                                       |
-| `POST /api/platforms/:platform/sources/{create-from-template,sync-installed}` | create repo from template / resolve+upsert an existing install                                                                                                               |
+| `POST /api/platforms/:platform/sources/{create-from-template,sync-installed}` | create repo from template / resolve+upsert an existing install to get `app_source.id`                                                                                        |
 | `POST /api/platforms/:platform/{deploy,activate}`                             | push candidate / activate a built release                                                                                                                                    |
 
-**Portal BFF** — `aomi-widget/apps/portal/src/app/api/onboard/*` (each proxies the BE)
+**Portal BFF** — `aomi-widget/apps/portal/src/app/api/launch/*` (each proxies the BE)
 
-| BFF route                            | → Backend                        |
-| ------------------------------------ | -------------------------------- |
-| `POST /api/onboard/{dry-run,deploy}` | `resolve` then `POST …/deploy`   |
-| `POST /api/onboard/create`           | `…/sources/create-from-template` |
-| `GET  /api/onboard/status`           | deployment status                |
-| `POST /api/onboard/activate`         | `…/activate`                     |
-| `GET  /api/onboard/app`              | app load status                  |
-| `POST /api/onboard/sync-installed`   | `…/sources/sync-installed`       |
+| BFF route                         | → Backend                                                                                  |
+| --------------------------------- | ------------------------------------------------------------------------------------------ |
+| `GET  /api/launch/sources`        | `GET /api/integrations/github-app/user/sources?github_user_id&platform`                    |
+| `POST /api/launch/preflight`      | `POST …/sources/sync-installed` when needed, then `POST …/deploy` with `preflight: true`   |
+| `POST /api/launch/deploy`         | `POST …/deploy` with explicit `app_source_id`                                              |
+| `POST /api/launch/create`         | `…/sources/create-from-template`                                                           |
+| `POST /api/launch/sync-installed` | `…/sources/sync-installed` for exactly the pasted `owner/repo`                             |
+| `GET  /api/launch/status`         | deployment status                                                                          |
+| `POST /api/launch/activate`       | `…/activate`                                                                               |
+| `GET  /api/launch/app`            | app load status                                                                            |
+| `POST /api/launch/redeploy`       | backend single-source latest-deployment lookup, then GitHub `actions/runs/{ciRunId}/rerun` |
 
 ---
 
@@ -90,10 +97,10 @@ stateDiagram-v2
 sequenceDiagram
     autonumber
     actor U as User · browser (FE client)
-    participant BFF as Portal BFF (Next /api/onboard/*)
+    participant BFF as Portal BFF (Next /api/launch/*)
     participant BE as Backend (/api/platforms, /api/integrations)
     participant GH as GitHub (aomi-build App)
-    participant CA as community-apps CI
+    participant CA as Platform CI
     participant RT as Chat Runtime
 
     Note over U,GH: 1 — Template
@@ -113,25 +120,28 @@ sequenceDiagram
     BE-->>U: 303 → {AOMI_FRONTEND_URL}/settings?installation_id&onboard=bound
 
     Note over U,RT: 3 — Deploy — browser → BFF → BE
-    U->>BFF: POST /api/onboard/deploy { installationId, repo }
-    BFF->>BE: GET /api/platforms/community/sources/resolve?installation_id&repo
+    U->>BFF: POST /api/launch/preflight { appSourceId? , repo }
+    BFF->>BE: POST /api/platforms/:platform/sources/sync-installed { repo } when appSourceId is absent
     BE-->>BFF: { source.id }
-    BFF->>BE: POST /api/platforms/community/deploy { appSourceId } (+ service bearer)
-    BE->>GH: push app to community-apps as aomi-build[bot]<br/>branch owner/my-agent/{installation}/{commit}
+    BFF->>BE: POST /api/platforms/:platform/deploy { appSourceId, preflight: true } (+ service bearer)
+    BFF-->>U: 200 { deployment, appSourceId, releaseTags, apps }
+    U->>BFF: POST /api/launch/deploy { appSourceId }
+    BFF->>BE: POST /api/platforms/:platform/deploy { appSourceId } (+ service bearer)
+    BE->>GH: push app to platform repo as aomi-build[bot]<br/>branch owner/my-agent/{installation}/{commit}
     GH->>CA: build-candidate.yml fires (actor = aomi-build[bot])
     CA->>CA: compile cdylib · publish release apps-{installation}-{app}-{commit} + .so
     BFF-->>U: 202 { deployment, releaseTags, apps }
     loop poll until ready
-        U->>BFF: GET /api/onboard/status?deploymentId
+        U->>BFF: GET /api/launch/status?deploymentId
         BFF->>BE: deployment status
         BE-->>BFF: state = building → ready
         BFF-->>U: building → ready
     end
-    U->>BFF: POST /api/onboard/activate { releaseTags }
-    BFF->>BE: POST /api/platforms/community/activate
+    U->>BFF: POST /api/launch/activate { releaseTags }
+    BFF->>BE: POST /api/platforms/:platform/activate
     BE->>RT: load release into runtime under Source(installation)
     loop verify live
-        U->>BFF: GET /api/onboard/app
+        U->>BFF: GET /api/launch/app
         BFF->>BE: app status
         BE-->>BFF: state = live
         BFF-->>U: live
@@ -141,7 +151,7 @@ sequenceDiagram
 
 **Recovery — "Verify existing install":** if the OAuth redirect is lost (e.g. a
 dead tunnel) but the App is already installed, the FE calls `oauth/start` with
-`mode=authorize`; on return the BFF route `POST /api/onboard/sync-installed`
+`mode=authorize`; on return the BFF route `POST /api/launch/sync-installed`
 → BE `…/sources/sync-installed` resolves the install via the App and upserts
 `app_source`, so the wizard advances without a fresh install.
 
@@ -156,10 +166,10 @@ never touches "Use this template".
 sequenceDiagram
     autonumber
     actor U as User · browser (FE client)
-    participant BFF as Portal BFF (Next /api/onboard/*)
+    participant BFF as Portal BFF (Next /api/launch/*)
     participant BE as Backend (/api/platforms, /api/integrations)
     participant GH as GitHub (aomi-build-oneshot App)
-    participant CA as community-apps CI
+    participant CA as Platform CI
     participant RT as Chat Runtime
 
     Note over U,BE: 1 — Install + OAuth (broad) — browser ↔ BE directly
@@ -171,14 +181,14 @@ sequenceDiagram
     BE-->>U: 303 → /settings?installation_id&onboard=bound
 
     Note over U,RT: 2 — Create + Deploy — browser → BFF → BE
-    U->>BFF: POST /api/onboard/create { installationId }
-    BFF->>BE: POST /api/platforms/community/sources/create-from-template
+    U->>BFF: POST /api/launch/create { installationId }
+    BFF->>BE: POST /api/platforms/:platform/sources/create-from-template
     BE->>GH: create owner/playground-example from aomi-labs/playground-example
     GH-->>BE: repo created
     BE-->>BFF: { repo }
-    U->>BFF: POST /api/onboard/deploy
-    BFF->>BE: resolve → POST /api/platforms/community/deploy (+ service bearer)
-    BE->>GH: push to community-apps as aomi-build-oneshot[bot]
+    U->>BFF: POST /api/launch/preflight then /api/launch/deploy
+    BFF->>BE: POST /api/platforms/:platform/deploy (+ service bearer)
+    BE->>GH: push to platform repo as aomi-build-oneshot[bot]
     GH->>CA: build-candidate.yml fires
     CA->>CA: compile cdylib · publish release + .so
     loop poll → activate → verify (same as bootstrap)
@@ -196,10 +206,10 @@ sequenceDiagram
 ## Why the split: CI sits between "promoted" and "activated"
 
 `Live` on the UI = the backend **activated** a release into the runtime. Between
-the BE pushing the source and that activation, **`community-apps` GitHub Actions
-(`build-candidate.yml`, gated to `aomi-build[bot]` pushes)** compiles the
-`cdylib` and publishes the release. The BE can't activate until that release
-exists — exactly the `building` poll state.
+the BE pushing the source and that activation, the platform repo's GitHub Actions
+(`build-candidate.yml`, gated to `aomi-build[bot]` pushes) compiles the `cdylib`
+and publishes the release. The BE can't activate until that release exists —
+exactly the `building` poll state.
 
 Per-user isolation: the candidate branch + release tag both encode the
 `installation_id`, so the runtime loads each developer's app under its own
@@ -207,14 +217,15 @@ Per-user isolation: the candidate branch + release tag both encode the
 
 ## Configuration
 
-| Knob                                                                     | Local dev                                                   | Deployed (staging)                                                                                       |
-| ------------------------------------------------------------------------ | ----------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
-| Backend URL                                                              | local defaults to `http://127.0.0.1:8080`                   | Vercel production defaults to `https://api.aomi.dev`; previews default to `https://api-staging.aomi.dev` |
-| BE `AOMI_PORTAL_URL` (callback redirect target, was `AOMI_FRONTEND_URL`) | `http://localhost:3000`                                     | the deployed portal URL                                                                                  |
-| GitHub App **Webhook URL**                                               | tunnel → `/api/integrations/github-app/webhook`             | `https://api-staging.aomi.dev/api/integrations/github-app/webhook`                                       |
-| GitHub App **Callback URL**                                              | tunnel → `/api/integrations/github-app/oauth/callback`      | `https://api-staging.aomi.dev/api/integrations/github-app/oauth/callback`                                |
-| BE GitHub App secrets                                                    | `github_app.toml` / `GITHUB_APP_TOML` + `AOMI_GITHUB_APP_*` | same `AOMI_GITHUB_APP_*` as deployment secrets                                                           |
-| BFF service signer                                                       | `PORTAL_SERVICE_PRIVATE_KEY`                                | portal deployment secret; committed topology is auto-selected                                            |
+| Knob                                                                     | Local dev                                                   | Deployed (staging)                                                                                                              |
+| ------------------------------------------------------------------------ | ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| Backend URL                                                              | local defaults to `http://127.0.0.1:8080`                   | Vercel production defaults to `https://api.aomi.dev`; previews default to `https://api-staging.aomi.dev`                        |
+| BE `AOMI_PORTAL_URL` (callback redirect target, was `AOMI_FRONTEND_URL`) | `http://localhost:3000`                                     | the deployed portal URL                                                                                                         |
+| GitHub App **Webhook URL**                                               | tunnel → `/api/integrations/github-app/webhook`             | `https://api-staging.aomi.dev/api/integrations/github-app/webhook`                                                              |
+| GitHub App **Callback URL**                                              | tunnel → `/api/integrations/github-app/oauth/callback`      | `https://api-staging.aomi.dev/api/integrations/github-app/oauth/callback`                                                       |
+| BE GitHub App secrets                                                    | `github_app.toml` / `GITHUB_APP_TOML` + `AOMI_GITHUB_APP_*` | same `AOMI_GITHUB_APP_*` as deployment secrets                                                                                  |
+| BFF service signer                                                       | `PORTAL_SERVICE_PRIVATE_KEY`                                | portal deployment secret; committed topology is auto-selected                                                                   |
+| Portal deploy platforms                                                  | `APP_DEPLOY_PLATFORMS`, defaults to `community`             | set explicitly for white-labeled partner portals, e.g. `["somm.finance"]`; the first platform is used for `/api/launch/*` calls |
 
 > Only the **webhook** strictly needs a public tunnel (server-to-server); the
 > callback is a browser redirect. Pointing at staging requires the App's

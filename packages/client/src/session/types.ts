@@ -105,6 +105,8 @@ export type SessionOptions = {
   sessionId?: string;
   /** App for chat messages. Default: "default" */
   app?: string;
+  /** Optional concrete application row to route chat/model calls to. */
+  applicationId?: number | string | null;
   /** API key override. */
   apiKey?: string;
   /** User state to send with requests (wallet connection info, etc). */
@@ -127,6 +129,7 @@ export type SessionOptions = {
 
 export type SessionRuntimeOptions = {
   app: string;
+  applicationId?: number | string | null;
   apiKey?: string;
   clientId?: string;
   userState?: UserStateShape;

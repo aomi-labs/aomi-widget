@@ -13,7 +13,7 @@ vi.mock("@aomi-labs/account", () => ({
 }));
 
 const getGitHubSession = vi.fn();
-vi.mock("@portal/server/aomi-account/github-session", () => ({
+vi.mock("@portal/server/cookies/github", () => ({
   getGitHubSession: () => getGitHubSession(),
 }));
 
@@ -74,7 +74,7 @@ describe("userSourcesRoute", () => {
     // The backend call is scoped to the session's github_user_id.
     const [url] = fetchMock.mock.calls[0];
     expect(String(url)).toContain(
-      "/api/integrations/github-app/user/sources?github_user_id=42",
+      "/api/integrations/github-app/user/sources?github_user_id=42&platform=community",
     );
   });
 });
