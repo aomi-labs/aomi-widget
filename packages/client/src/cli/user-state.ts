@@ -72,7 +72,6 @@ export function buildCliUserState(
   publicKey?: string,
   chainId?: number,
   options?: {
-    app?: string;
     aaMode?: UserStateAAMode | null;
     smartAccount?: string | null;
     /** Solana public key (base58). When present, sets svm.address. */
@@ -81,7 +80,6 @@ export function buildCliUserState(
     svmCluster?: "solana:mainnet" | "solana:devnet" | "solana:testnet";
   },
 ): UserState {
-  const app = options?.app?.trim().toLowerCase();
   const evm: UserStateEvm = {};
   const publicKeyIsSolana =
     publicKey !== undefined && !publicKey.trim().startsWith("0x");
@@ -90,17 +88,14 @@ export function buildCliUserState(
   const svmAddress =
     options?.svmAddress ?? (publicKeyIsSolana ? publicKey : undefined);
   const hasBoth = publicKeyIsEvm && svmAddress !== undefined;
-  const isSolanaApp =
+  // Chain family (yellow) is derived from the address (blue), never from the
+  // app: an `0x` key is EVM, a base58 key / `svmAddress` is Solana.
+  const isSolana =
     !hasBoth &&
     !publicKeyIsEvm &&
-    (app === "sol" ||
-      app === "solana" ||
-      app === "svm" ||
-      app === "byreal" ||
-      publicKeyIsSolana ||
-      svmAddress !== undefined);
-  const hasEvm = hasBoth || (!isSolanaApp && publicKeyIsEvm);
-  const hasSvm = hasBoth || isSolanaApp;
+    (publicKeyIsSolana || svmAddress !== undefined);
+  const hasEvm = hasBoth || (!isSolana && publicKeyIsEvm);
+  const hasSvm = hasBoth || isSolana;
   const userState: UserState = {};
 
   if (hasEvm && publicKey !== undefined) {

@@ -116,7 +116,7 @@ export async function loginCommand(config: CliConfig): Promise<void> {
       );
     }
     if (payload.status === "ok") {
-      cli.setAccountAccessToken(payload.credential);
+      cli.setAccountBearer(payload.credential);
       console.log(`Account: ${payload.user_id}`);
       console.log(
         `CLI credential expires at ${new Date(payload.expires_at * 1000).toISOString()}.`,

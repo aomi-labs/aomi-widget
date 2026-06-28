@@ -145,7 +145,6 @@ export class CliSession {
       svmPrivateKey: config.solanaPrivateKey ?? seed?.svmPrivateKey,
       chainId: config.chain ?? seed?.chainId,
       secretHandles: seed?.secretHandles,
-      operatingWalletRef: seed?.operatingWalletRef,
     };
     applyAccountCredentialConfig(state, config);
     const cli = new CliSession(state);
@@ -204,11 +203,6 @@ export class CliSession {
   }
   get secretHandles(): Readonly<Record<string, string>> {
     return this.state.secretHandles ?? {};
-  }
-
-  /** Account-scoped selected authorized (delegated) wallet ref, if any. */
-  operatingWalletRef(): string | undefined {
-    return this.state.operatingWalletRef;
   }
 
   // ---------------------------------------------------------------------------
@@ -328,18 +322,14 @@ export class CliSession {
     this.save();
   }
 
-  setOperatingWalletRef(walletRef: string): void {
-    this.state.operatingWalletRef = walletRef;
-    this.save();
-  }
-
-  clearOperatingWalletRef(): void {
-    this.state.operatingWalletRef = undefined;
-    this.save();
-  }
-
-  setAccountAccessToken(token: string): void {
-    this.state.accountAccessToken = token;
+  /**
+   * Persist the account bearer minted by the device-login flow. The credential
+   * is the account bearer the client attaches to requests, so it lands in
+   * `accountBearer` (the field `createClientSession` reads) and clears any
+   * stale legacy provider-exchange config.
+   */
+  setAccountBearer(token: string): void {
+    this.state.accountBearer = token;
     this.state.accountProvider = undefined;
     this.state.accountProviderToken = undefined;
     this.save();
@@ -531,7 +521,6 @@ export class CliSession {
     );
     session.resolveUserState(
       buildCliUserState(this.state.publicKey, this.state.chainId, {
-        app: this.state.app,
         aaMode: this.state.aaMode ?? null,
         smartAccount: this.state.smartAccount ?? null,
         svmAddress: this.state.svmPublicKey,

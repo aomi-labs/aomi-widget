@@ -1,7 +1,17 @@
 # Wire contract — account-scoped wallet selection
 
-**Status:** locked 2026-06-25. Pairs with the BE DbThread unification
+**Status:** locked 2026-06-25; implemented both sides 2026-06-26. Pairs with the
+BE DbThread unification
 (`product-mono:docs/superpowers/plans/2026-06-25-dbthread-unification.md`).
+
+**Implementation note (2026-06-26):** the BE went one step further than Clause 3
+— it dropped the per-turn `authorized_wallet_ref` request param entirely and now
+resolves the operating wallet from account grants in the thread context
+(`WalletResolver::resolve(user_id, snapshot)`). So the client neither pins a ref
+nor declares a sign-mode. Consequence on the FE: the authorized-wallet
+*selection* surface (`operatingWalletRef`, `account auth use/current/clear`, the
+chat `authorized_wallet_ref` param) was **removed** as dead weight — see the
+revised Clause 3 below.
 
 Selection of which wallet operates is **account-scoped**, never app-scoped.
 Identity is the account (`users.id`). In the pink→blue→yellow model:
@@ -51,12 +61,14 @@ render/group without a round-trip.
 | connected / sync (metamask, para)    | `UserState.evm.address` / `svm.address` + `connection.provider` | none — `authorized_mode=false`, client signs                                                              |
 | authorized / async (privy-delegated) | same — address in `UserState`                                   | `authorized_wallet_ref` (Clause 1) → `authorized_mode=true`; BE resolves grant→signing key and auto-signs |
 
-`authorized_wallet_ref` is **not** removed — it is narrowed to "which delegation
-signs". It is no longer a per-app identity hint: once selected, the BE persists
-the selection into thread context (`sessions.active_identity_wallet_id` +
-`sessions.user_state` snapshot), so it survives offline resume without being
-re-sent. On the CLI this collapses per-app `authorizedWalletRefsByApp` into one
-account-scoped `operatingWalletRef`.
+**Revised by implementation (2026-06-26):** the operating *address* (blue→yellow)
+rides `UserState`, hydrated by the FE from the connected/sync wallet and captured
+durably in the thread's `user_state` snapshot. The *signer* (blue→pink) is
+resolved entirely by the BE from the account's grants — there is no client pin
+and no `authorized_wallet_ref` request param. The FE therefore carries **no
+authorized-wallet selection**: `operatingWalletRef` and `account auth
+use/current/clear` are gone; authorized wallets are surfaced read-only via
+`aomi wallet authorized`.
 
 ## Clause 4 — scheduled intents drop the per-intent wallet
 
@@ -71,26 +83,27 @@ account-scoped `operatingWalletRef`.
 
 ## Encoding map
 
-**CLI (`aomi-widget`, this repo)** — `packages/client`:
+**CLI (`aomi-widget`, this repo)** — `packages/client`, done:
 
-- `types.ts` — `AomiAuthorizedWallet` drop `application`; `AomiScheduledIntent`
-  drop `authorized_wallet_ref`.
-- `client.ts` — `listAuthorizedWallets` drop `app`.
-- `cli/state.ts` + `cli/cli-session.ts` — `authorizedWalletRefsByApp` →
-  `operatingWalletRef` (account-scoped); accessor/mutators lose the `app` arg.
-- `cli/commands/authorizations.ts` — account-scoped; `formatWallet` drops
-  `application`.
-- `cli/commands/chat.ts` — source `authorizedWalletRef` from `operatingWalletRef()`.
-- `cli/commands/schedule.ts` — drop the `authorized wallet` print line.
-- `cli/commands/defs/account.ts` — help text loses "for this app".
+- `types.ts` — `AomiAuthorizedWallet` dropped `application`; scheduled wire is
+  `AomiScheduledThread { …, root_thread_id, requires_authorization }` (renamed
+  from `AomiScheduledIntent`, dropped `authorized_wallet_ref`).
+- `client.ts` — `listAuthorizedWallets` dropped `app`; chat dropped the
+  `authorized_wallet_ref` param; `listScheduledThreads` reads `scheduled_threads`.
+- `cli/user-state.ts` — `buildCliUserState` derives family from the address, not
+  the app name (the last app-scoping leak).
+- selection removed — `operatingWalletRef`, `account auth use/current/clear`, and
+  the chat ref param are gone; `wallet authorized` lists delegated wallets
+  read-only.
 
-**BE (`product-mono`)** — paired, coordinate before editing #667's module:
+**BE (`product-mono`, dbthread line)** — done:
 
-- `aomi/crates/tools/src/authorization/types.rs` — `wallet_ref()` drops
-  `application_key`; `AuthorizedWalletCandidate` drops `application`.
-- `authorization/repository.rs` + `resolver.rs` — stop filtering identities by
-  `application` (account-scoped lookup).
-- `endpoint/account/authorizations.rs` — drop `app` query param.
-- `endpoint/session/chat.rs` — `authorized_wallet_ref` stays (async selector).
-- `endpoint/account/scheduled_intents.rs` + `scheduled_intents.{rs}` + schema —
-  drop `authorized_wallet_ref` column/field.
+- `authorization/types.rs` — `wallet_ref(provider, family, approval_id)`, no app;
+  `AuthorizedWalletCandidate` dropped `application`.
+- `authorization/repository.rs` + `resolver.rs` — account-scoped lookup;
+  `WalletResolver::resolve(user_id, snapshot)` picks the account's authorization
+  (no per-turn pin, no app).
+- `endpoint/account/authorizations.rs` — `?provider=` only.
+- `endpoint/thread/chat.rs` — no `authorized_wallet_ref` request param.
+- scheduling folded onto `threads` (DbThread); `scheduled_intents` table dropped;
+  wire is `scheduled_threads` / `root_thread_id`, path `/scheduled-intents` kept.

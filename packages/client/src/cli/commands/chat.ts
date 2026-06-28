@@ -115,7 +115,6 @@ export async function syncWalletStateForChat(
   // ({ address, isConnected, chainId }) is NOT parsed by the backend and
   // would silently overwrite the correctly-set user state with an empty one.
   const userState = buildCliUserState(next.publicKey, next.chainId, {
-    app: config.app,
     aaMode: next.aaMode ?? null,
     smartAccount: next.smartAccount ?? null,
     svmAddress: next.svmAddress,
@@ -139,7 +138,6 @@ export async function chatCommand(
   config: CliConfig,
   message: string,
   verbose: boolean,
-  options?: { authorizedWalletRef?: string },
 ): Promise<void> {
   if (!message) {
     fatal("Usage: aomi chat <message>");
@@ -157,8 +155,6 @@ export async function chatCommand(
     : null;
   const cli = CliSession.loadOrCreate(config);
   const session = cli.createClientSession(config);
-  const authorizedWalletRef =
-    options?.authorizedWalletRef?.trim() || cli.operatingWalletRef();
 
   // Resolve Solana address after session is created/loaded so we pick up the
   // key persisted by `wallet set --solana` even for `--new-session` flows
@@ -216,7 +212,7 @@ export async function chatCommand(
       });
     }
 
-    await session.sendAsync(message, { authorizedWalletRef });
+    await session.sendAsync(message);
 
     const allMessages = session.getMessages();
     let seedIdx = allMessages.length;

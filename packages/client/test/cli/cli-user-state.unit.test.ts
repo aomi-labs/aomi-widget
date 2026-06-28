@@ -20,15 +20,9 @@ describe("CLI user state AA fields", () => {
     });
   });
 
-  it("builds Solana user state when the active app is svm", () => {
+  it("derives Solana family from a base58 key (not the app)", () => {
     expect(
-      buildCliUserState(
-        "6ihjJiFMrn8VM1HLX8EMqAt8Ym8JxZCqxBai2bYHviZG",
-        undefined,
-        {
-          app: "svm",
-        },
-      ),
+      buildCliUserState("6ihjJiFMrn8VM1HLX8EMqAt8Ym8JxZCqxBai2bYHviZG"),
     ).toMatchObject({
       connection: {
         is_connected: true,

@@ -117,10 +117,7 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
    * mid-processing, polling continues but the promise pauses until the
    * request is resolved or rejected via `resolve()` / `reject()`.
    */
-  async send(
-    message: string,
-    options?: { authorizedWalletRef?: string },
-  ): Promise<SendResult> {
+  async send(message: string): Promise<SendResult> {
     this.assertOpen();
 
     const response = await this.client.sendMessage(this.sessionId, message, {
@@ -128,7 +125,6 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
       apiKey: this.apiKey,
       userState: this.userState,
       clientId: this.clientId,
-      authorizedWalletRef: options?.authorizedWalletRef,
     });
 
     this.assertUserStateAligned(response.user_state);
@@ -151,10 +147,7 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
    * Send a message without waiting for completion.
    * Polling starts in the background; listen to events for updates.
    */
-  async sendAsync(
-    message: string,
-    options?: { authorizedWalletRef?: string },
-  ): Promise<AomiChatResponse> {
+  async sendAsync(message: string): Promise<AomiChatResponse> {
     this.assertOpen();
 
     const response = await this.client.sendMessage(this.sessionId, message, {
@@ -162,7 +155,6 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
       apiKey: this.apiKey,
       userState: this.userState,
       clientId: this.clientId,
-      authorizedWalletRef: options?.authorizedWalletRef,
     });
 
     this.assertUserStateAligned(response.user_state);

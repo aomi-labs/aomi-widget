@@ -461,7 +461,6 @@ export class AomiClient {
       apiKey?: string;
       userState?: UserStateShape;
       clientId?: string;
-      authorizedWalletRef?: string;
     },
   ): Promise<AomiChatResponse> {
     const app = options?.app ?? "default";
@@ -476,7 +475,6 @@ export class AomiClient {
         ? JSON.stringify(normalizedUserState)
         : undefined,
       client_id: options?.clientId,
-      authorized_wallet_ref: options?.authorizedWalletRef,
     });
 
     this.logger?.debug("[aomi][client] POST /api/chat prepared", {
@@ -484,7 +482,6 @@ export class AomiClient {
       app,
       applicationId,
       clientId: options?.clientId,
-      authorizedWalletRef: options?.authorizedWalletRef,
       hasUserState: Boolean(normalizedUserState),
       messagePreview: previewText(message),
     });

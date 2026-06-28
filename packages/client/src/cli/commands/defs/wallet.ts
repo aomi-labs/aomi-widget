@@ -101,6 +101,27 @@ const walletWhoamiDef = defineCommand({
   },
 });
 
+const walletAuthorizedDef = defineCommand({
+  meta: {
+    name: "authorized",
+    description:
+      "List the account's authorized (delegated) wallets the backend can sign with",
+  },
+  args: {
+    ...globalArgs,
+    provider: {
+      type: "string",
+      description: 'Authorization provider (default: "privy")',
+    },
+  },
+  async run({ args }) {
+    const { listAuthorizationsCommand } = await import("../authorizations");
+    await listAuthorizationsCommand(buildCliConfig(args), {
+      provider: typeof args.provider === "string" ? args.provider : undefined,
+    });
+  },
+});
+
 export const walletDef = defineCommand({
   meta: { name: "wallet", description: "Wallet configuration" },
   subCommands: {
@@ -108,5 +129,6 @@ export const walletDef = defineCommand({
     current: walletCurrentDef,
     login: walletLoginDef,
     whoami: walletWhoamiDef,
+    authorized: walletAuthorizedDef,
   },
 });
