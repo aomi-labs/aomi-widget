@@ -9,9 +9,10 @@ import { ClassValue } from 'clsx';
 type AomiRuntimeProviderProps = {
     children: ReactNode;
     backendUrl?: string;
+    applicationId?: number | string | null;
     clientOptions?: Omit<AomiClientOptions, "baseUrl">;
 };
-declare function AomiRuntimeProvider({ children, backendUrl, clientOptions, }: Readonly<AomiRuntimeProviderProps>): react_jsx_runtime.JSX.Element;
+declare function AomiRuntimeProvider({ children, backendUrl, applicationId, clientOptions, }: Readonly<AomiRuntimeProviderProps>): react_jsx_runtime.JSX.Element;
 
 declare class SessionManager {
     private readonly clientFactory;
@@ -175,7 +176,7 @@ type Notification$1 = {
     /**
      * Optional discriminator for notifications that have a bespoke UI consumer.
      *
-     * - `payment_required` is consumed by `PaymentRequiredGate` (apps/registry)
+     * - `payment_required` is consumed by `PaymentRequiredGate` (apps/shadcn-registry)
      *   as a blocking modal. The toaster skips this kind. As a result, `type`,
      *   `message`, and `duration` are NOT rendered for this kind — only `kind`
      *   matters for routing. Don't bother passing those fields when firing it.

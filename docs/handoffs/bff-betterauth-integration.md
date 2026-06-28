@@ -168,13 +168,17 @@ customize) them, so a one-line "yes, headless is allowed" closes it.
 Our deployed BFF doesn't have BetterAuth yet, but the CLI now runs against our seams
 shaped so migration is a URL swap, not a rewrite. Landed on `bff-unification`:
 
-1. ✅ **`GET /api/bff/auth/token`** — the analog of your `jwt()` `/api/auth/token`.
-   Reads the session and returns `mintAccountBearer(userId)` →
-   `{ bearer, expires_at }`. Reads the session from
-   `Authorization: Bearer <aomi_session>` **first**, cookie as fallback — so the CLI
-   uses your `bearer()`-plugin header shape from day one and migration is a pure URL
-   swap. `packages/account/src/token.ts` (`createBearerTokenRoute`), mounted in portal +
-   base + landing at `app/api/bff/auth/token/route.ts`.
+1. ✅ **Proxy + `/token` both mint from the session presented as `Authorization:
+   Bearer <aomi_session>`** (or the cookie). `getSessionedCanonicalId` reads the
+   header first — the shape your `bearer()` plugin uses — then the cookie, so the
+   **proxy** transparently authenticates a headless client: the CLI sends its session
+   on `Authorization`, the proxy mints the backend bearer inline and forwards. `GET
+   /api/bff/auth/token` (`createBearerTokenRoute`, mounted on portal + base + landing)
+   is the same thing for the **direct-to-backend** case — returns `{ bearer, expires_at }`,
+   the analog of your `jwt()` `/api/auth/token`. *(e2e-validated: the first cut had the
+   CLI fetch a backend bearer from `/token` and send **that** to the proxy, which strips
+   client `Authorization` and re-mints from the cookie → 401. Fixed by having the proxy
+   read the session from `Authorization` and the CLI present the session there.)*
 2. ✅ **`aomi login` → non-interactive SIWE** against `createSiweNonceRoute` +
    `createSiweExchangeRoute`, signing with the CLI's EVM key (`--private-key`). Stores the
    returned `aomi_session` value. Falls back to the legacy Privy-URL print only when no
@@ -187,27 +191,34 @@ shaped so migration is a URL swap, not a rewrite. Landed on `bff-unification`:
    landing** (parity) so the CLI can log in against any BFF origin. Maps onto arixon's
    `getOrCreateAomiUserForBetterAuthSession` + `syncSiweWalletsForUser` — the GAP-3 /
    Alice-invariant note in §1 (wallet vs `better_auth` keying) applies here too.
-3. ✅ **`getAccountBearer({forceRefresh})` is now live** — `createSessionGetAccountBearer`
-   fetches `/api/bff/auth/token` with the stored session cookie, caches `{bearer, expires_at}`,
-   and refetches on `forceRefresh` (the existing 401 retry) or near expiry. Wired in
-   `cli/client-factory.ts`; the session cookie persists in CLI state (`sessionCookie`).
-4. ⚠️ **CLI `baseUrl`** must point at a BFF origin (it serves `/api/bff/auth/siwe` +
-   `/token`), not the raw backend. The hardcoded default is still `api.aomi.dev` — flipping
-   it is a deploy-facing decision left to the owner; today the CLI passes `--base-url`.
+3. ✅ **`getAccountBearer` presents the session** — the CLI's account credential is the
+   `aomi_session` value; `getAccountBearer` returns it so every proxied request carries
+   `Authorization: Bearer <aomi_session>` and the proxy mints the (15-min) backend bearer
+   per request. No client-side `/token` round-trip or refresh — the proxy re-mints each
+   call. Wired in `cli/client-factory.ts`; the session persists in CLI state as
+   `sessionCookie`.
+4. ⚠️ **CLI `baseUrl`** must point at a BFF origin (serves `/api/bff/auth/siwe` + proxy),
+   not the raw backend. The hardcoded default is still `api.aomi.dev` — flipping it is a
+   deploy-facing decision left to the owner; today the CLI passes `--backend-url`.
    `--account-bearer` remains the CI/power-user escape hatch and wins when set.
 
-**Migration delta:** when your branch lands, repoint the two SIWE URLs and `/token`; the
-session credential changes issuer (our HS256 `aomi_session` cookie → your `bearer()`
-session token) but the header shape and the whole refresh loop are unchanged. Tests:
+**e2e validated (2026-06-28):** local portal BFF → staging backend. `aomi account login`
+(SIWE, hardhat key) created the canonical user in the staging DB; `aomi wallet whoami` and
+`aomi chat` returned `/api/account` + `/api/chat` **200** through the proxy as that user
+(only the LLM call 402'd on backend OpenRouter credits — orthogonal).
+
+**Migration delta:** when your branch lands, repoint the SIWE URLs; the session credential
+changes issuer (our HS256 `aomi_session` cookie → your `bearer()` session token) but the
+header shape (`Authorization: Bearer <session>` → server mints) is identical. Tests:
 `packages/account/src/token.test.ts`, `packages/client/src/cli/account-auth.test.ts`.
 
 **Migration map (for-now → yours):**
 
 | For-now (ours) | Yours | Migration |
 |---|---|---|
-| `aomi login` → SIWE `/api/bff/auth/siwe/{nonce,verify}` → store `aomi_session` cookie | SIWE `/api/auth/siwe/{nonce,verify}` → store session bearer | repoint URLs; stored-credential format changes; the loop is identical |
-| `getAccountBearer` → `GET /api/bff/auth/token` (`{ bearer, expires_at }`), `Authorization: Bearer <aomi_session>` | `GET /api/auth/token`, `Authorization: Bearer <session>` | **URL swap only** (header shape pre-matched) |
-| refresh-on-401 refetches `/token` | same | identical |
+| `aomi login` → SIWE `/api/bff/auth/siwe/{nonce,verify}` → store `aomi_session` cookie | SIWE `/api/auth/siwe/{nonce,verify}` → store session bearer | repoint URLs; stored-credential format changes; the flow is identical |
+| `getAccountBearer` → present `Authorization: Bearer <aomi_session>` → proxy mints | present `Authorization: Bearer <session>` → `bearer()` plugin | **header shape pre-matched**; same model |
+| `/api/bff/auth/token` (direct-to-backend bearer) | `GET /api/auth/token` | **URL swap only** |
 
 The only non-mechanical delta is that our session credential is our HS256 `aomi_session`
 cookie and yours is a BetterAuth session bearer — same header, different issuer. Everything

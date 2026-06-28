@@ -3503,108 +3503,6 @@ var init_session2 = __esm({
   }
 });
 
-// src/cli/account-auth.ts
-import { privateKeyToAccount as privateKeyToAccount2 } from "viem/accounts";
-import { createSiweMessage } from "viem/siwe";
-async function siweLogin(input2) {
-  var _a3, _b;
-  const fetchImpl = (_a3 = input2.fetchImpl) != null ? _a3 : fetch;
-  const account = privateKeyToAccount2(input2.privateKey);
-  const base2 = input2.baseUrl.replace(/\/+$/, "");
-  const origin = new URL(base2);
-  const chainId3 = (_b = input2.chainId) != null ? _b : DEFAULT_SIWE_CHAIN_ID;
-  const nonceRes = await fetchImpl(`${base2}/api/bff/auth/siwe/nonce`);
-  if (!nonceRes.ok) {
-    throw new Error(`SIWE nonce request failed: HTTP ${nonceRes.status}`);
-  }
-  const { nonce } = await nonceRes.json();
-  if (!nonce) throw new Error("SIWE nonce response missing nonce");
-  const message = createSiweMessage({
-    address: account.address,
-    chainId: chainId3,
-    domain: origin.host,
-    uri: origin.origin,
-    nonce,
-    version: "1",
-    statement: "Sign in to Aomi."
-  });
-  const signature = await account.signMessage({ message });
-  const verifyRes = await fetchImpl(`${base2}/api/bff/auth/siwe/verify`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Cookie: `${NONCE_COOKIE}=${nonce}`
-    },
-    body: JSON.stringify({ message, signature })
-  });
-  if (!verifyRes.ok) {
-    const detail = await verifyRes.text().catch(() => "");
-    throw new Error(
-      `SIWE verify failed: HTTP ${verifyRes.status}${detail ? ` \u2014 ${detail}` : ""}`
-    );
-  }
-  const sessionCookie = extractSetCookie(verifyRes, SESSION_COOKIE);
-  if (!sessionCookie) {
-    throw new Error("SIWE verify succeeded but no aomi_session cookie was set");
-  }
-  return { sessionCookie, address: account.address };
-}
-function createSessionGetAccountBearer(input2) {
-  var _a3;
-  const fetchImpl = (_a3 = input2.fetchImpl) != null ? _a3 : fetch;
-  const base2 = input2.baseUrl.replace(/\/+$/, "");
-  let cached;
-  return async (options) => {
-    var _a4;
-    const now = Math.floor(Date.now() / 1e3);
-    if (!(options == null ? void 0 : options.forceRefresh) && cached && cached.expiresAt - BEARER_EXPIRY_SKEW_SECONDS > now) {
-      return cached.bearer;
-    }
-    const res = await fetchImpl(`${base2}/api/bff/auth/token`, {
-      headers: { Authorization: `Bearer ${input2.sessionCookie}` }
-    });
-    if (!res.ok) {
-      cached = void 0;
-      return void 0;
-    }
-    const data = await res.json();
-    if (!data.bearer) {
-      cached = void 0;
-      return void 0;
-    }
-    cached = {
-      bearer: data.bearer,
-      // Fall back to a conservative 14-min life if the BFF omits expiry.
-      expiresAt: (_a4 = data.expires_at) != null ? _a4 : now + 14 * 60
-    };
-    return cached.bearer;
-  };
-}
-function extractSetCookie(response, name) {
-  var _a3;
-  const headers = response.headers;
-  const cookies = headers.getSetCookie ? headers.getSetCookie() : ((_a3 = response.headers.get("set-cookie")) != null ? _a3 : "").split(/,(?=[^;]+=)/);
-  const prefix = `${name}=`;
-  for (const cookie of cookies) {
-    const trimmed = cookie.trim();
-    if (trimmed.startsWith(prefix)) {
-      const value = trimmed.slice(prefix.length).split(";", 1)[0];
-      return value ? decodeURIComponent(value) : void 0;
-    }
-  }
-  return void 0;
-}
-var SESSION_COOKIE, NONCE_COOKIE, DEFAULT_SIWE_CHAIN_ID, BEARER_EXPIRY_SKEW_SECONDS;
-var init_account_auth = __esm({
-  "src/cli/account-auth.ts"() {
-    "use strict";
-    SESSION_COOKIE = "aomi_session";
-    NONCE_COOKIE = "aomi_siwe_nonce";
-    DEFAULT_SIWE_CHAIN_ID = 8453;
-    BEARER_EXPIRY_SKEW_SECONDS = 30;
-  }
-});
-
 // src/cli/client-factory.ts
 function resolveCliBaseUrl(config) {
   var _a3;
@@ -3616,10 +3514,8 @@ function createCliGetAccountBearer(config) {
     return async () => bearer;
   }
   if (config.sessionCookie) {
-    return createSessionGetAccountBearer({
-      baseUrl: resolveCliBaseUrl(config),
-      sessionCookie: config.sessionCookie
-    });
+    const sessionCookie = config.sessionCookie;
+    return async () => sessionCookie;
   }
   return void 0;
 }
@@ -3640,7 +3536,6 @@ var init_client_factory = __esm({
   "src/cli/client-factory.ts"() {
     "use strict";
     init_client();
-    init_account_auth();
     DEFAULT_BACKEND_URL = "https://api.aomi.dev";
   }
 });
@@ -5329,7 +5224,7 @@ var init_types2 = __esm({
 
 // src/aa/execute.ts
 import { createPublicClient, createWalletClient, http } from "viem";
-import { privateKeyToAccount as privateKeyToAccount3 } from "viem/accounts";
+import { privateKeyToAccount as privateKeyToAccount2 } from "viem/accounts";
 function normalizeRpcCallData(data) {
   return data === "0x" ? void 0 : data;
 }
@@ -5508,7 +5403,7 @@ async function executeViaEoa({
       if (!rpcUrl) {
         throw new Error(`No RPC for chain ${call.chainId}`);
       }
-      const account = privateKeyToAccount3(localPrivateKey);
+      const account = privateKeyToAccount2(localPrivateKey);
       const walletClient = createWalletClient({
         account,
         chain,
@@ -5871,13 +5766,13 @@ var init_adapt = __esm({
 });
 
 // src/aa/owner.ts
-import { privateKeyToAccount as privateKeyToAccount4 } from "viem/accounts";
+import { privateKeyToAccount as privateKeyToAccount3 } from "viem/accounts";
 function getDirectOwnerParams(owner) {
   return {
     kind: "ready",
     ownerParams: {
       para: void 0,
-      signer: privateKeyToAccount4(owner.privateKey)
+      signer: privateKeyToAccount3(owner.privateKey)
     }
   };
 }
@@ -5942,7 +5837,7 @@ var init_owner = __esm({
 });
 
 // src/aa/alchemy/create.ts
-import { privateKeyToAccount as privateKeyToAccount5 } from "viem/accounts";
+import { privateKeyToAccount as privateKeyToAccount4 } from "viem/accounts";
 function extractExistingAccountAddress(error) {
   var _a3;
   const message = error instanceof Error ? error.message : String(error);
@@ -6091,7 +5986,7 @@ async function createAlchemyAAState(options) {
 async function createAlchemyWalletApisState(params) {
   const { createSmartWalletClient, alchemyWalletTransport } = await import("@alchemy/wallet-apis");
   const transport = params.proxyBaseUrl ? alchemyWalletTransport({ url: params.proxyBaseUrl }) : alchemyWalletTransport({ apiKey: params.apiKey });
-  const signer = privateKeyToAccount5(params.privateKey);
+  const signer = privateKeyToAccount4(params.privateKey);
   const alchemyClient = createSmartWalletClient(__spreadValues({
     transport,
     chain: params.chain,
@@ -6224,7 +6119,7 @@ var init_provider2 = __esm({
 });
 
 // src/aa/pimlico/create.ts
-import { privateKeyToAccount as privateKeyToAccount6 } from "viem/accounts";
+import { privateKeyToAccount as privateKeyToAccount5 } from "viem/accounts";
 function pimDebug(message, fields) {
   if (!AA_DEBUG_ENABLED2) return;
   if (fields) {
@@ -6264,7 +6159,7 @@ async function createPimlicoAAState(options) {
   }
   const localSessionSigner = owner.kind === "session" ? resolvePimlicoSessionSigner(ownerParams.ownerParams) : null;
   try {
-    const signer = owner.kind === "direct" ? privateKeyToAccount6(owner.privateKey) : localSessionSigner;
+    const signer = owner.kind === "direct" ? privateKeyToAccount5(owner.privateKey) : localSessionSigner;
     if (signer) {
       return await createPimlicoPermissionlessState({
         resolved: execution,
@@ -6810,7 +6705,7 @@ __export(wallet_exports, {
   txCommand: () => txCommand
 });
 import { createWalletClient as createWalletClient2, http as http2 } from "viem";
-import { privateKeyToAccount as privateKeyToAccount7 } from "viem/accounts";
+import { privateKeyToAccount as privateKeyToAccount6 } from "viem/accounts";
 import * as viemChains from "viem/chains";
 async function txCommand(config) {
   const cli = CliSession.load();
@@ -7094,7 +6989,7 @@ Available: ${available}`
         ].join("\n")
       );
     }
-    const account = privateKeyToAccount7(privateKey);
+    const account = privateKeyToAccount6(privateKey);
     if (cli.publicKey && account.address.toLowerCase() !== cli.publicKey.toLowerCase()) {
       console.log(
         `\u26A0\uFE0F  Signer ${account.address} differs from session public key ${cli.publicKey}`
@@ -8158,7 +8053,7 @@ __export(preferences_exports, {
   setSvmWalletCommand: () => setSvmWalletCommand,
   setWalletCommand: () => setWalletCommand
 });
-import { privateKeyToAccount as privateKeyToAccount8 } from "viem/accounts";
+import { privateKeyToAccount as privateKeyToAccount7 } from "viem/accounts";
 function loadOrCreateForSettings() {
   const existing = CliSession.load();
   if (existing) return existing;
@@ -8173,7 +8068,7 @@ function setWalletCommand(privateKeyInput) {
   if (!privateKey) {
     fatal("Usage: aomi wallet set <private-key>  (EVM hex key)");
   }
-  const account = privateKeyToAccount8(privateKey);
+  const account = privateKeyToAccount7(privateKey);
   const cli = loadOrCreateForSettings();
   cli.setWallet(privateKey, account.address);
   console.log(`EVM wallet set to ${account.address}`);
@@ -8223,6 +8118,76 @@ var init_preferences = __esm({
     init_validation();
     init_errors();
     init_solana_signer();
+  }
+});
+
+// src/cli/account-auth.ts
+import { privateKeyToAccount as privateKeyToAccount8 } from "viem/accounts";
+import { createSiweMessage } from "viem/siwe";
+async function siweLogin(input2) {
+  var _a3, _b;
+  const fetchImpl = (_a3 = input2.fetchImpl) != null ? _a3 : fetch;
+  const account = privateKeyToAccount8(input2.privateKey);
+  const base2 = input2.baseUrl.replace(/\/+$/, "");
+  const origin = new URL(base2);
+  const chainId3 = (_b = input2.chainId) != null ? _b : DEFAULT_SIWE_CHAIN_ID;
+  const nonceRes = await fetchImpl(`${base2}/api/bff/auth/siwe/nonce`);
+  if (!nonceRes.ok) {
+    throw new Error(`SIWE nonce request failed: HTTP ${nonceRes.status}`);
+  }
+  const { nonce } = await nonceRes.json();
+  if (!nonce) throw new Error("SIWE nonce response missing nonce");
+  const message = createSiweMessage({
+    address: account.address,
+    chainId: chainId3,
+    domain: origin.host,
+    uri: origin.origin,
+    nonce,
+    version: "1",
+    statement: "Sign in to Aomi."
+  });
+  const signature = await account.signMessage({ message });
+  const verifyRes = await fetchImpl(`${base2}/api/bff/auth/siwe/verify`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Cookie: `${NONCE_COOKIE}=${nonce}`
+    },
+    body: JSON.stringify({ message, signature })
+  });
+  if (!verifyRes.ok) {
+    const detail = await verifyRes.text().catch(() => "");
+    throw new Error(
+      `SIWE verify failed: HTTP ${verifyRes.status}${detail ? ` \u2014 ${detail}` : ""}`
+    );
+  }
+  const sessionCookie = extractSetCookie(verifyRes, SESSION_COOKIE);
+  if (!sessionCookie) {
+    throw new Error("SIWE verify succeeded but no aomi_session cookie was set");
+  }
+  return { sessionCookie, address: account.address };
+}
+function extractSetCookie(response, name) {
+  var _a3;
+  const headers = response.headers;
+  const cookies = headers.getSetCookie ? headers.getSetCookie() : ((_a3 = response.headers.get("set-cookie")) != null ? _a3 : "").split(/,(?=[^;]+=)/);
+  const prefix = `${name}=`;
+  for (const cookie of cookies) {
+    const trimmed = cookie.trim();
+    if (trimmed.startsWith(prefix)) {
+      const value = trimmed.slice(prefix.length).split(";", 1)[0];
+      return value ? decodeURIComponent(value) : void 0;
+    }
+  }
+  return void 0;
+}
+var SESSION_COOKIE, NONCE_COOKIE, DEFAULT_SIWE_CHAIN_ID;
+var init_account_auth = __esm({
+  "src/cli/account-auth.ts"() {
+    "use strict";
+    SESSION_COOKIE = "aomi_session";
+    NONCE_COOKIE = "aomi_siwe_nonce";
+    DEFAULT_SIWE_CHAIN_ID = 8453;
   }
 });
 

@@ -1787,17 +1787,19 @@ function useRuntimeOrchestrator(aomiClient, options) {
   }, [registry]);
   const getSession = useCallback9(
     (threadId) => {
-      var _a, _b, _c, _d;
+      var _a, _b, _c, _d, _e;
       const manager = registry.sessionManager;
       const nextOptions = optionsRef.current;
       const nextApp = nextOptions.getApp();
-      const nextApiKey = (_b = (_a = nextOptions.getApiKey) == null ? void 0 : _a.call(nextOptions)) != null ? _b : void 0;
-      const nextClientId = (_c = nextOptions.getClientId) == null ? void 0 : _c.call(nextOptions);
-      const nextUserState = (_d = nextOptions.getUserState) == null ? void 0 : _d.call(nextOptions);
+      const nextApplicationId = (_a = nextOptions.getApplicationId) == null ? void 0 : _a.call(nextOptions);
+      const nextApiKey = (_c = (_b = nextOptions.getApiKey) == null ? void 0 : _b.call(nextOptions)) != null ? _c : void 0;
+      const nextClientId = (_d = nextOptions.getClientId) == null ? void 0 : _d.call(nextOptions);
+      const nextUserState = (_e = nextOptions.getUserState) == null ? void 0 : _e.call(nextOptions);
       const existing = manager.get(threadId);
       if (existing) {
         existing.syncRuntimeOptions({
           app: nextApp,
+          applicationId: nextApplicationId,
           apiKey: nextApiKey,
           clientId: nextClientId,
           userState: nextUserState
@@ -1809,6 +1811,7 @@ function useRuntimeOrchestrator(aomiClient, options) {
       }
       const session = manager.getOrCreate(threadId, {
         app: nextApp,
+        applicationId: nextApplicationId,
         apiKey: nextApiKey,
         clientId: nextClientId,
         clientType: CLIENT_TYPE_WEB_UI,
@@ -2690,7 +2693,8 @@ var getHttpStatus2 = (error) => {
 };
 function AomiRuntimeCore({
   children,
-  aomiClient
+  aomiClient,
+  applicationId
 }) {
   const threadContext = useThreadContext();
   const eventContext = useEventContext();
@@ -2724,6 +2728,7 @@ function AomiRuntimeCore({
   } = useRuntimeOrchestrator(aomiClient, {
     getUserState,
     getApp: getCurrentThreadApp,
+    getApplicationId: () => applicationId,
     getApiKey: () => getControlState().apiKey,
     getClientId: () => {
       var _a;
@@ -3080,6 +3085,7 @@ function normalizeBackendUrl(url) {
 function AomiRuntimeProvider({
   children,
   backendUrl = "http://127.0.0.1:8080",
+  applicationId,
   clientOptions
 }) {
   const resolvedClientOptions = useMemo3(
@@ -3096,11 +3102,19 @@ function AomiRuntimeProvider({
     }, resolvedClientOptions)),
     [backendUrl, resolvedClientOptions]
   );
-  return /* @__PURE__ */ jsx8(ThreadContextProvider, { children: /* @__PURE__ */ jsx8(NotificationContextProvider, { children: /* @__PURE__ */ jsx8(ExtUserProvider, { children: /* @__PURE__ */ jsx8(AomiRuntimeInner, { aomiClient, children }) }) }) });
+  return /* @__PURE__ */ jsx8(ThreadContextProvider, { children: /* @__PURE__ */ jsx8(NotificationContextProvider, { children: /* @__PURE__ */ jsx8(ExtUserProvider, { children: /* @__PURE__ */ jsx8(
+    AomiRuntimeInner,
+    {
+      aomiClient,
+      applicationId,
+      children
+    }
+  ) }) }) });
 }
 function AomiRuntimeInner({
   children,
-  aomiClient
+  aomiClient,
+  applicationId
 }) {
   const threadContext = useThreadContext();
   return /* @__PURE__ */ jsx8(
@@ -3115,7 +3129,14 @@ function AomiRuntimeInner({
         {
           aomiClient,
           sessionId: threadContext.currentThreadId,
-          children: /* @__PURE__ */ jsx8(AomiRuntimeCore, { aomiClient, children })
+          children: /* @__PURE__ */ jsx8(
+            AomiRuntimeCore,
+            {
+              aomiClient,
+              applicationId,
+              children
+            }
+          )
         }
       )
     }
