@@ -46,6 +46,7 @@ export type ProvidersConfig = {
         appLogoUrl?: string;
       }
     | false;
+  [providerId: string]: unknown;
 };
 
 export type AomiSession = {
@@ -55,8 +56,10 @@ export type AomiSession = {
 };
 
 export type AuthConfig =
-  | { provider: "para"; methods?: readonly AuthMethodId[] }
-  | { provider: "privy"; methods?: readonly AuthMethodId[] }
+  | {
+      provider: AuthProviderId;
+      methods?: readonly AuthMethodId[];
+    }
   | false;
 
 export type EvmWalletsConfig = {
@@ -129,7 +132,7 @@ export type AccountConfig =
     };
 
 export type AomiWalletKitProviderProps = {
-  preset?: "para" | "privy" | "wallets-only";
+  preset?: "para" | "privy" | "wallets-only" | (string & {});
   providers?: ProvidersConfig;
   auth?: AuthConfig;
   wallets?: WalletsConfig;

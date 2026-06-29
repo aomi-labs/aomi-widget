@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildPrivyClientConfig,
   privyLoginMethodsToOptions,
+  toPrivyLoginMethods,
 } from "./privy-auth";
 
 describe("privyLoginMethodsToOptions", () => {
@@ -20,6 +21,21 @@ describe("privyLoginMethodsToOptions", () => {
     expect(privyLoginMethodsToOptions(["google"])[0]?.label).toBe(
       "Email or Google",
     );
+  });
+});
+
+describe("toPrivyLoginMethods", () => {
+  it("maps generic Aomi auth methods to Privy login method names", () => {
+    expect(toPrivyLoginMethods(["email", "google", "x", "phone"])).toEqual([
+      "email",
+      "google",
+      "twitter",
+      "sms",
+    ]);
+  });
+
+  it("returns undefined when no methods are configured", () => {
+    expect(toPrivyLoginMethods(undefined)).toBeUndefined();
   });
 });
 

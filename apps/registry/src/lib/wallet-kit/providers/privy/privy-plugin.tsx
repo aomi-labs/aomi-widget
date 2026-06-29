@@ -1,19 +1,24 @@
 "use client";
 
 import { type ReactNode, useMemo } from "react";
-import { PrivyProvider, type PrivyClientConfig } from "@privy-io/react-auth";
+import { PrivyProvider } from "@privy-io/react-auth";
 import { SmartWalletsProvider } from "@privy-io/react-auth/smart-wallets";
+import { registerWalletBrand } from "../../catalog/wallet-branding";
 import {
   registerWalletProvider,
   type WalletProviderPlugin,
 } from "../plugin-registry";
 import { AomiPrivyPluginProvider } from "./PrivyPluginProvider";
-import { buildPrivyClientConfig } from "./privy-auth";
+import { buildPrivyClientConfig, toPrivyLoginMethods } from "./privy-auth";
 import type { AuthConfig, ProvidersConfig } from "../../config/types";
+
+const PRIVY_BRAND_KEY = "privy";
+
+registerWalletBrand({ key: PRIVY_BRAND_KEY, matchers: ["privy"] });
 
 function isPrivyAuth(
   auth: AuthConfig | undefined,
-): auth is Extract<AuthConfig, { provider: "privy" }> {
+): auth is Exclude<AuthConfig, false> & { provider: "privy" } {
   return auth !== false && auth?.provider === "privy";
 }
 
@@ -34,9 +39,7 @@ function PrivyAuthLayer({
       buildPrivyClientConfig({
         appLogoUrl: privy?.appLogoUrl,
         appName: privy?.appName,
-        loginMethods: enabled
-          ? (auth?.methods as PrivyClientConfig["loginMethods"])
-          : undefined,
+        loginMethods: enabled ? toPrivyLoginMethods(auth?.methods) : undefined,
       }),
     [auth, enabled, privy?.appLogoUrl, privy?.appName],
   );
@@ -74,9 +77,7 @@ export const privyPlugin: WalletProviderPlugin = {
     <AomiPrivyPluginProvider
       supportedChains={supportedChains}
       loginMethods={
-        isPrivyAuth(auth)
-          ? (auth.methods as PrivyClientConfig["loginMethods"])
-          : undefined
+        isPrivyAuth(auth) ? toPrivyLoginMethods(auth.methods) : undefined
       }
       execution={execution}
       account={account}
