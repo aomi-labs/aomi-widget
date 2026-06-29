@@ -7,6 +7,13 @@ export type AccountCredentialProvider = () => Promise<{
   keyId?: string;
 }>;
 
+export class AccountCredentialUnavailableError extends Error {
+  constructor(message = "Account credential is not available yet") {
+    super(message);
+    this.name = "AccountCredentialUnavailableError";
+  }
+}
+
 export type AccountSessionExchangeResponse = {
   access_token: string;
   token_type: "Bearer";
@@ -207,8 +214,10 @@ export function createAccountAccessTokenProvider({
           }
           return next;
         })
-        .catch(() => {
-          failedAt = now();
+        .catch((error) => {
+          if (!(error instanceof AccountCredentialUnavailableError)) {
+            failedAt = now();
+          }
           return null;
         })
         .finally(() => {
@@ -246,11 +255,14 @@ function normalizeBetterAuthTokenResponse(
     throw new Error("Better Auth token is missing a valid exp claim");
   }
   const userId =
-    typeof payload.aomi_user_id === "string"
+    typeof payload.aomi_user_id === "string" && payload.aomi_user_id
       ? payload.aomi_user_id
       : typeof payload.sub === "string"
         ? payload.sub
         : "";
+  if (!userId) {
+    throw new Error("Better Auth token is missing a user id claim");
+  }
   return {
     access_token: response.token,
     token_type: "Bearer",

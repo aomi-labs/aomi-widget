@@ -180,6 +180,9 @@ describe("Chat API", () => {
         "auto-model",
         expect.objectContaining({ app: "default" }),
       );
+      expect(createThread.mock.invocationCallOrder[0]).toBeLessThan(
+        setModel.mock.invocationCallOrder[0],
+      );
       expect(setModel.mock.invocationCallOrder[0]).toBeLessThan(
         postChatMessage.mock.invocationCallOrder[0],
       );
@@ -187,6 +190,9 @@ describe("Chat API", () => {
     });
 
     it("syncs dirty control state before the first message on a new thread", async () => {
+      const createThread = vi.fn(async (threadId: string) => ({
+        session_id: threadId,
+      }));
       const setModel = vi.fn(async () => ({ rig: "auto-model" }));
       const postChatMessage = vi.fn(
         async (): Promise<AomiChatResponse> => ({
@@ -195,6 +201,7 @@ describe("Chat API", () => {
         }),
       );
       setAomiClientConfig({
+        createThread,
         getModels: vi.fn(async () => ["auto-model"]),
         setModel,
         postChatMessage,
@@ -222,6 +229,9 @@ describe("Chat API", () => {
         expect.objectContaining({ app: "default" }),
       );
       expect(postChatMessage).toHaveBeenCalled();
+      expect(createThread.mock.invocationCallOrder[0]).toBeLessThan(
+        setModel.mock.invocationCallOrder[0],
+      );
       expect(setModel.mock.invocationCallOrder[0]).toBeLessThan(
         postChatMessage.mock.invocationCallOrder[0],
       );

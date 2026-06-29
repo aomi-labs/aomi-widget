@@ -1,6 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { createAccountAccessTokenProvider } from "../src/index";
+import {
+  AccountCredentialUnavailableError,
+  createAccountAccessTokenProvider,
+} from "../src/index";
 import type { AccountSessionExchangeResponse } from "../src/index";
 
 // =============================================================================
@@ -117,6 +120,35 @@ describe("createAccountAccessTokenProvider", () => {
         credentials: "include",
       }),
     );
+
+    provider.dispose();
+  });
+
+  it("falls back to the Better Auth sub claim until all tokens include aomi_user_id", async () => {
+    const token = jwtWithPayload({
+      sub: "better-user-1",
+      exp: 4600,
+    });
+    const fetchImpl = vi.fn(async () => okJsonResponse({ token }));
+    const getProviderCredential = vi.fn(async () => ({
+      provider: "privy" as const,
+      providerToken: "privy-jwt",
+    }));
+
+    const provider = createAccountAccessTokenProvider({
+      baseUrl: BASE_URL,
+      betterAuthToken: {
+        enabled: true,
+        baseUrl: "https://portal.aomi.dev",
+        providerExchange: false,
+      },
+      getProviderCredential,
+      fetch: fetchImpl as unknown as typeof fetch,
+      now,
+    });
+
+    await expect(provider()).resolves.toBe(token);
+    expect(getProviderCredential).not.toHaveBeenCalled();
 
     provider.dispose();
   });
@@ -372,6 +404,34 @@ describe("createAccountAccessTokenProvider", () => {
     nowMs += 1_000;
     await expect(provider()).resolves.toBeUndefined();
     expect(getProviderCredential).toHaveBeenCalledTimes(1);
+
+    provider.dispose();
+  });
+
+  it("does not back off when the wallet credential is only temporarily unavailable", async () => {
+    let attempt = 0;
+    const getProviderCredential = vi.fn(async () => {
+      attempt += 1;
+      if (attempt === 1) {
+        throw new AccountCredentialUnavailableError();
+      }
+      return { provider: "para" as const, providerToken: "ready-now" };
+    });
+    const fetchImpl = vi.fn(async () =>
+      okResponse(exchangeResponse({ access_token: "token-A" })),
+    );
+    const provider = createAccountAccessTokenProvider({
+      baseUrl: BASE_URL,
+      getProviderCredential,
+      fetch: fetchImpl as unknown as typeof fetch,
+      now,
+    });
+
+    await expect(provider()).resolves.toBeUndefined();
+    nowMs += 1_000;
+    await expect(provider()).resolves.toBe("token-A");
+    expect(getProviderCredential).toHaveBeenCalledTimes(2);
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
 
     provider.dispose();
   });

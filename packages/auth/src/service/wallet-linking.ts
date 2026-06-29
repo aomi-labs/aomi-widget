@@ -93,12 +93,86 @@ export function walletLinkMessageMatches(input: {
   nonce: string;
   domain: string;
 }): boolean {
-  return (
-    input.message.includes(input.domain) &&
-    input.message.toLowerCase().includes(input.address.toLowerCase()) &&
-    input.message.includes(`Chain ID: ${input.chainId}`) &&
-    input.message.includes(`Nonce: ${input.nonce}`)
+  const parsed = parseWalletLinkMessage(input.message);
+  return Boolean(
+    parsed &&
+    parsed.domain === input.domain &&
+    parsed.address.toLowerCase() === input.address.toLowerCase() &&
+    parsed.chainId === input.chainId &&
+    parsed.nonce === input.nonce,
   );
+}
+
+export type ParsedWalletLinkMessage = {
+  domain: string;
+  address: string;
+  uri: string;
+  chainId: number;
+  nonce: string;
+  issuedAt: string;
+};
+
+export function parseWalletLinkMessage(
+  message: string,
+): ParsedWalletLinkMessage | null {
+  const lines = message.split(/\r?\n/);
+  if (lines.length !== 10) return null;
+  const domainMatch = lines[0]?.match(
+    /^(.+) wants to link this wallet to your Aomi account:$/,
+  );
+  if (!domainMatch) return null;
+  if (!/^0x[0-9a-fA-F]{40}$/.test(lines[1] ?? "")) return null;
+  if (lines[2] !== "") return null;
+  if (
+    lines[3] !==
+    "Only sign this message if you want this wallet attached to the current Aomi account."
+  ) {
+    return null;
+  }
+  if (lines[4] !== "") return null;
+  const fields = {
+    uri: readExactField(lines[5], "URI"),
+    version: readExactField(lines[6], "Version"),
+    chainId: readExactField(lines[7], "Chain ID"),
+    nonce: readExactField(lines[8], "Nonce"),
+    issuedAt: readExactField(lines[9], "Issued At"),
+  };
+  if (
+    !fields.uri ||
+    fields.version !== "1" ||
+    !fields.chainId ||
+    !fields.nonce ||
+    !fields.issuedAt
+  ) {
+    return null;
+  }
+  const chainId = Number(fields.chainId);
+  if (
+    !Number.isInteger(chainId) ||
+    chainId <= 0 ||
+    String(chainId) !== fields.chainId
+  ) {
+    return null;
+  }
+  if (Number.isNaN(Date.parse(fields.issuedAt))) return null;
+
+  return {
+    domain: domainMatch[1],
+    address: lines[1],
+    uri: fields.uri,
+    chainId,
+    nonce: fields.nonce,
+    issuedAt: fields.issuedAt,
+  };
+}
+
+function readExactField(
+  line: string | undefined,
+  field: string,
+): string | null {
+  const prefix = `${field}: `;
+  if (!line?.startsWith(prefix)) return null;
+  return line.slice(prefix.length);
 }
 
 function signWalletLinkNoncePayload(

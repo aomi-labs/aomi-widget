@@ -49,9 +49,13 @@ describe("wallet link nonce", () => {
     const message = `portal.aomi.dev wants to link this wallet to your Aomi account:
 ${address}
 
+Only sign this message if you want this wallet attached to the current Aomi account.
+
 URI: https://portal.aomi.dev
+Version: 1
 Chain ID: 1
-Nonce: nonce`;
+Nonce: nonce
+Issued At: 2026-06-29T10:00:00.000Z`;
 
     expect(
       walletLinkMessageMatches({
@@ -69,6 +73,31 @@ Nonce: nonce`;
         chainId: 1,
         nonce: "nonce",
         domain: "embedder.example.com",
+      }),
+    ).toBe(false);
+  });
+
+  it("does not accept wallet-link messages that only include expected fields as substrings", () => {
+    const message = `portal.aomi.dev.evil.example wants to link this wallet to your Aomi account:
+0x2222222222222222222222222222222222222222
+
+Only sign this message if you want this wallet attached to the current Aomi account.
+
+URI: https://portal.aomi.dev
+Version: 1
+Chain ID: 11
+Nonce: nonce-and-more
+Issued At: 2026-06-29T10:00:00.000Z
+
+portal.aomi.dev ${address} Chain ID: 1 Nonce: nonce`;
+
+    expect(
+      walletLinkMessageMatches({
+        message,
+        address,
+        chainId: 1,
+        nonce: "nonce",
+        domain: "portal.aomi.dev",
       }),
     ).toBe(false);
   });

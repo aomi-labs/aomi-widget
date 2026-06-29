@@ -116,7 +116,9 @@ export type ControlContextApi = {
   /** Mark control state as synced (called after chat starts) */
   markControlSynced: () => void;
   /** Sync pending control state to the backend before sending */
-  syncCurrentThreadControl: () => Promise<void>;
+  syncCurrentThreadControl: (options?: {
+    ignoreProcessing?: boolean;
+  }) => Promise<void>;
   /** Build initial control state for new local threads */
   getPreferredThreadControl: () => ThreadControlState;
   /** Get global control state */
@@ -807,14 +809,16 @@ export function ControlContextProvider({
     }
   }, []);
 
-  const syncCurrentThreadControl = useCallback(async () => {
+  const syncCurrentThreadControl = useCallback(async (options?: {
+    ignoreProcessing?: boolean;
+  }) => {
     const threadId = sessionIdRef.current;
     const currentControl =
       getThreadMetadataRef.current(threadId)?.control ?? initThreadControl();
 
     if (
       !currentControl.controlDirty ||
-      currentControl.isProcessing ||
+      (!options?.ignoreProcessing && currentControl.isProcessing) ||
       !currentControl.model
     ) {
       return;

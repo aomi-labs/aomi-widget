@@ -3,10 +3,14 @@
 import { useEffect, useMemo, useRef } from "react";
 import Link from "next/link";
 import { Settings } from "lucide-react";
-import { createAccountAccessTokenProvider } from "@aomi-labs/client";
+import {
+  AccountCredentialUnavailableError,
+  createAccountAccessTokenProvider,
+} from "@aomi-labs/client";
 import { AomiFrame, useAomiWalletKit } from "@aomi-labs/widget-lib";
 import { type AomiClientOptions, useControl } from "@aomi-labs/react";
 import { RequiredSecretsGate } from "@portal/components/required-secrets-gate";
+import { shouldUseBetterAuthBackendJwt } from "@portal/lib/backend-auth";
 import { x402Client } from "@x402/core/client";
 import { ExactEvmScheme } from "@x402/evm/exact/client";
 import { wrapFetchWithPayment } from "@x402/fetch";
@@ -36,21 +40,26 @@ function usePortalClientOptions():
   const walletClient = useWalletClient();
   const backendUrl = getBackendUrl();
   const nativeFetch = useMemo(() => globalThis.fetch.bind(globalThis), []);
+  const getAccountCredentialRef = useRef(getAccountCredential);
+  useEffect(() => {
+    getAccountCredentialRef.current = getAccountCredential;
+  }, [getAccountCredential]);
+
   const accountAccessTokenProvider = useMemo(() => {
-    if (!getAccountCredential) {
-      return undefined;
-    }
     return createAccountAccessTokenProvider({
       baseUrl: backendUrl,
       betterAuthToken: {
-        enabled: true,
+        enabled: shouldUseBetterAuthBackendJwt(),
         baseUrl: "",
-        providerExchange: false,
       },
       getProviderCredential: async () => {
-        const credential = await getAccountCredential();
+        const getCredential = getAccountCredentialRef.current;
+        if (!getCredential) {
+          throw new AccountCredentialUnavailableError();
+        }
+        const credential = await getCredential();
         if (!credential) {
-          throw new Error(
+          throw new AccountCredentialUnavailableError(
             "Wallet provider is connected without an exchangeable credential",
           );
         }
@@ -67,7 +76,7 @@ function usePortalClientOptions():
       },
       fetch: nativeFetch,
     });
-  }, [backendUrl, getAccountCredential, nativeFetch]);
+  }, [backendUrl, nativeFetch]);
 
   useEffect(
     () => () => {

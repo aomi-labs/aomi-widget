@@ -1,5 +1,8 @@
 import type { FC, SVGProps } from "react";
-import { canonicalWalletKey } from "../../lib/wallet-kit/catalog/wallet-branding";
+import {
+  canonicalWalletKey,
+  normalizeWalletOptionId,
+} from "../../lib/wallet-kit/catalog/wallet-branding";
 import {
   BaseWalletIcon,
   CoinbaseWalletIcon,
@@ -33,12 +36,15 @@ const WALLET_ICONS: Record<string, FC<SVGProps<SVGSVGElement>>> = {
 export function getWalletIcon(
   walletIdOrLabel: string,
 ): FC<SVGProps<SVGSVGElement>> | undefined {
-  return WALLET_ICONS[canonicalWalletKey(walletIdOrLabel)];
+  const direct = WALLET_ICONS[normalizeWalletOptionId(walletIdOrLabel)];
+  return direct ?? WALLET_ICONS[canonicalWalletKey(walletIdOrLabel)];
 }
 
 export function getWalletIconBrand(
   walletIdOrLabel: string,
 ): string | undefined {
+  const direct = normalizeWalletOptionId(walletIdOrLabel);
+  if (WALLET_ICONS[direct]) return direct;
   const brand = canonicalWalletKey(walletIdOrLabel);
   return WALLET_ICONS[brand] ? brand : undefined;
 }
