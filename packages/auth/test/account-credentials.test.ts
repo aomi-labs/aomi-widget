@@ -3,6 +3,7 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   createDefaultProviderCredentialVerifiers,
+  providerSessionUserSeed,
   verifyProviderCredential,
 } from "../src/providers/account-credentials";
 import { readAccountAuthEnv } from "../src/better-auth/env";
@@ -13,6 +14,11 @@ const baseEnv: AccountAuthEnv = {
   betterAuthSecret: "secret",
   betterAuthUrl: "http://localhost:3001",
   databaseUrl: "postgresql://postgres:postgres@localhost:5432/aomi_auth",
+  backendJwtIssuer: "http://localhost:3001",
+  backendJwtAudience: "aomi-backend",
+  backendJwtExpiresIn: "15m",
+  backendJwtJwksPath: "/.well-known/jwks.json",
+  backendJwtScope: "aomi:api",
   siweDomain: "localhost:3001",
   trustedOrigins: ["http://localhost:3001"],
 };
@@ -100,8 +106,52 @@ describe("verifyProviderCredential", () => {
       DATABASE_URL: "postgresql://postgres:postgres@localhost:5432/aomi_auth",
       PARA_JWT_AUDIENCE: "para-audience-uuid",
       NEXT_PUBLIC_PARA_API_KEY: "beta_public_api_key",
+      BETTER_AUTH_SECRET: "test-secret",
+      NODE_ENV: "test",
     });
 
     expect(env.paraAudience).toBe("para-audience-uuid");
+  });
+});
+
+describe("providerSessionUserSeed", () => {
+  it("uses verified provider email for BetterAuth session lookup", () => {
+    expect(
+      providerSessionUserSeed({
+        provider: "privy",
+        walletAttestationProvider: "privy",
+        token: {
+          subject: "did:privy:user-1",
+          expiresAt: 4_102_444_800,
+          email: "person@example.com",
+          emailVerified: true,
+          providerMetadata: {},
+        },
+      }),
+    ).toEqual({
+      email: "person@example.com",
+      emailVerified: true,
+      name: "person@example.com",
+    });
+  });
+
+  it("uses a provider-subject email when provider email is unverified", () => {
+    expect(
+      providerSessionUserSeed({
+        provider: "para",
+        walletAttestationProvider: "para",
+        token: {
+          subject: "para:user/123",
+          expiresAt: 4_102_444_800,
+          email: "claimed@example.com",
+          emailVerified: false,
+          providerMetadata: {},
+        },
+      }),
+    ).toEqual({
+      email: "para-para_user_123@auth.aomi.local",
+      emailVerified: false,
+      name: "para user",
+    });
   });
 });

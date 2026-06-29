@@ -161,16 +161,22 @@ function createParaCredentialVerifier(
 export function providerSessionUserSeed(
   verified: VerifiedProviderTokenCredential,
 ): { email: string; emailVerified: boolean; name: string } {
-  const email =
-    verified.token.email ??
-    `${verified.provider}-${verified.token.subject.replace(/[^a-zA-Z0-9_-]/g, "_")}@auth.aomi.local`;
+  const providerEmail = verified.token.email?.trim();
+  const verifiedEmail =
+    providerEmail && verified.token.emailVerified ? providerEmail : undefined;
+  const email = verifiedEmail ?? providerSubjectEmail(verified);
   return {
     email,
-    emailVerified: Boolean(
-      verified.token.email && verified.token.emailVerified,
-    ),
-    name: verified.token.email ?? `${verified.provider} user`,
+    emailVerified: Boolean(verifiedEmail),
+    name: verifiedEmail ?? `${verified.provider} user`,
   };
+}
+
+function providerSubjectEmail(
+  verified: VerifiedProviderTokenCredential,
+): string {
+  const subject = verified.token.subject.replace(/[^a-zA-Z0-9_-]/g, "_");
+  return `${verified.provider}-${subject}@auth.aomi.local`;
 }
 
 function normalizeCredential(

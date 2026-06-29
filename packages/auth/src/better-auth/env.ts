@@ -25,19 +25,35 @@ export interface AccountAuthEnv {
   paraApiKey?: string;
 }
 
-export function readAccountAuthEnv(env = process.env): AccountAuthEnv {
+type AccountAuthEnvInput = Record<string, string | undefined>;
+
+const DEV_BETTER_AUTH_SECRET =
+  "dev-better-auth-secret-change-me-at-least-32-bytes";
+const DEV_DATABASE_URL =
+  "postgresql://postgres:postgres@localhost:5432/aomi_auth";
+
+export function readAccountAuthEnv(
+  env: AccountAuthEnvInput = process.env,
+): AccountAuthEnv {
   const betterAuthUrl =
     env.BETTER_AUTH_URL ?? env.AOMI_PORTAL_BASE_URL ?? "http://localhost:3001";
   const url = new URL(betterAuthUrl);
   const origin = url.origin;
+  const allowDevDefaults = isAccountAuthLocalRuntime(env);
   return {
-    betterAuthSecret:
-      env.BETTER_AUTH_SECRET ??
-      "dev-better-auth-secret-change-me-at-least-32-bytes",
+    betterAuthSecret: requiredAuthEnvValue({
+      env,
+      key: "BETTER_AUTH_SECRET",
+      devDefault: DEV_BETTER_AUTH_SECRET,
+      allowDevDefaults,
+    }),
     betterAuthUrl,
-    databaseUrl:
-      env.DATABASE_URL ??
-      "postgresql://postgres:postgres@localhost:5432/aomi_auth",
+    databaseUrl: requiredAuthEnvValue({
+      env,
+      key: "DATABASE_URL",
+      devDefault: DEV_DATABASE_URL,
+      allowDevDefaults,
+    }),
     backendJwtIssuer: env.AOMI_BACKEND_JWT_ISSUER ?? origin,
     backendJwtAudience: env.AOMI_BACKEND_JWT_AUDIENCE ?? "aomi-backend",
     backendJwtExpiresIn: env.AOMI_BACKEND_JWT_EXPIRES_IN ?? "15m",
@@ -59,6 +75,28 @@ export function readAccountAuthEnv(env = process.env): AccountAuthEnv {
     paraJwksUrl: env.PARA_JWKS_URL,
     paraApiKey: env.PARA_API_SECRET_KEY,
   };
+}
+
+export function isAccountAuthLocalRuntime(
+  env: AccountAuthEnvInput = process.env,
+): boolean {
+  return env.NODE_ENV === "development" || env.NODE_ENV === "test";
+}
+
+function requiredAuthEnvValue(input: {
+  env: AccountAuthEnvInput;
+  key: "BETTER_AUTH_SECRET" | "DATABASE_URL";
+  devDefault: string;
+  allowDevDefaults: boolean;
+}): string {
+  const value = input.env[input.key]?.trim();
+  if (value && (input.allowDevDefaults || value !== input.devDefault)) {
+    return value;
+  }
+  if (input.allowDevDefaults) return input.devDefault;
+  throw new Error(
+    `${input.key} must be configured outside NODE_ENV=development/test`,
+  );
 }
 
 function parseCsv(value: string): string[] {

@@ -211,7 +211,6 @@ export function LandingWalletKitProvider({ children }: { children: ReactNode }) 
           networks: solanaNetworks,
           preferDirectSend: true,
         },
-        embedded: { provider: "para" },
       }}
     >
       <DevAnvilRpcHook>{children}</DevAnvilRpcHook>

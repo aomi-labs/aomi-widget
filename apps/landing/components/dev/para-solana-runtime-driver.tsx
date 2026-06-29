@@ -664,7 +664,6 @@ export function ParaSolanaRuntimeDriver() {
           networks: PARA_SOLANA_NETWORKS,
           preferDirectSend: true,
         },
-        embedded: { provider: "para" },
       }}
       execution={{ aa: "off" }}
     >
