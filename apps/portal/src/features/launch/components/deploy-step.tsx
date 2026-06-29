@@ -376,9 +376,7 @@ export function DeployStep({
           }
           // Early exit if any app reports a terminal error
           const terminal = checks.find(
-            (c) =>
-              c.ok === false ||
-              (c.app?.is_active === false && c.app?.loaded === false),
+            (c) => c.app?.is_active === false && c.app?.loaded === false,
           );
           if (terminal) {
             setError(

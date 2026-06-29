@@ -422,7 +422,7 @@ export async function launchAppRoute(req: Request) {
     });
     const live = app.isActive && app.loaded;
     return NextResponse.json({
-      ok: Boolean(live),
+      ok: true,
       state: live ? "live" : "pending",
       app: {
         id: app.id,
