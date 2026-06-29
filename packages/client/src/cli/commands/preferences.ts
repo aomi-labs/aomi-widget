@@ -1,5 +1,6 @@
 import { privateKeyToAccount } from "viem/accounts";
 import { CliSession } from "../cli-session";
+import { DEFAULT_CLI_BASE_URL } from "../client-factory";
 import { printDataFileLocation } from "../output";
 import { normalizePrivateKey, parseChainId } from "../validation";
 import { fatal } from "../errors";
@@ -14,7 +15,7 @@ function loadOrCreateForSettings(): CliSession {
   const existing = CliSession.load();
   if (existing) return existing;
   return CliSession.loadOrCreate({
-    baseUrl: "https://api.aomi.dev",
+    baseUrl: DEFAULT_CLI_BASE_URL,
     app: "default",
     secrets: {},
   });
