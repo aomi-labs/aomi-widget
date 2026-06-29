@@ -2,7 +2,7 @@
 @import "tw-animate-css";
 @import "@aomi-labs/widget-lib/styles.css";
 
-@source "../../registry/src";
+@source "../../shadcn-registry/src";
 
 /* ── Base brand color overrides ───────────────────────────────── */
 

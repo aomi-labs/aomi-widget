@@ -411,13 +411,13 @@ describe("CLI session lifecycle", () => {
       app: "default",
       execution: "eoa" as const,
       secrets: {},
-      accountProvider: "privy" as const,
-      accountProviderToken: "privy-provider-token",
+      embeddedProvider: "privy" as const,
+      embeddedProviderToken: "privy-provider-token",
     });
 
     const state = readState();
-    expect(state?.accountProvider).toBe("privy");
-    expect(state?.accountProviderToken).toBe("privy-provider-token");
+    expect(state?.embeddedProvider).toBe("privy");
+    expect(state?.embeddedProviderToken).toBe("privy-provider-token");
   });
 
   it("clears a persisted bearer when switching the active session to legacy provider auth", async () => {
@@ -437,14 +437,14 @@ describe("CLI session lifecycle", () => {
       app: "default",
       execution: "eoa" as const,
       secrets: {},
-      accountProvider: "privy" as const,
-      accountProviderToken: "privy-provider-token",
+      embeddedProvider: "privy" as const,
+      embeddedProviderToken: "privy-provider-token",
     });
 
     const state = readState();
     expect(state?.accountBearer).toBeUndefined();
-    expect(state?.accountProvider).toBe("privy");
-    expect(state?.accountProviderToken).toBe("privy-provider-token");
+    expect(state?.embeddedProvider).toBe("privy");
+    expect(state?.embeddedProviderToken).toBe("privy-provider-token");
   });
 
   it("reuses the persisted account bearer when building a client without re-supplying it", async () => {
@@ -512,8 +512,8 @@ describe("CLI session lifecycle", () => {
 
     try {
       const session = cli!.createClientSession({
-        accountProvider: "privy",
-        accountProviderToken: "privy-provider-token",
+        embeddedProvider: "privy",
+        embeddedProviderToken: "privy-provider-token",
       });
       await session.client.fetchState(cli!.sessionId);
 

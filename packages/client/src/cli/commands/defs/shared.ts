@@ -1,7 +1,7 @@
 import type { ArgsDef } from "citty";
 import { privateKeyToAccount } from "viem/accounts";
 import type {
-  CliAccountProvider,
+  CliEmbeddedProvider,
   CliConfig,
   CliExecutionMode,
 } from "../../types";
@@ -15,15 +15,15 @@ import {
 
 type SvmCluster = NonNullable<CliConfig["svmCluster"]>;
 
-function parseAccountProvider(
+function parseEmbeddedProvider(
   raw: string | undefined,
-): CliAccountProvider | undefined {
+): CliEmbeddedProvider | undefined {
   if (!raw) return undefined;
   const normalized = raw.trim().toLowerCase();
   if (normalized === "para" || normalized === "privy") {
     return normalized;
   }
-  fatal(`Unknown --account-provider value "${raw}". Use "para" or "privy".`);
+  fatal(`Unknown --embedded-provider value "${raw}". Use "para" or "privy".`);
 }
 
 /**
@@ -59,7 +59,7 @@ function parseSvmCluster(raw: string | undefined): SvmCluster | undefined {
 export const globalArgs = {
   "backend-url": {
     type: "string",
-    description: "Backend URL (default: https://api.aomi.dev)",
+    description: "Aomi API/BFF URL (default: https://chat.aomi.dev)",
   },
   "api-key": {
     type: "string",
@@ -69,12 +69,12 @@ export const globalArgs = {
     type: "string",
     description: "Aomi account bearer for authenticated REST/SSE requests",
   },
-  "account-provider": {
+  "embedded-provider": {
     type: "string",
     description:
       'Deprecated legacy provider exchange config ("para" or "privy")',
   },
-  "account-provider-token": {
+  "embedded-provider-token": {
     type: "string",
     description: "Deprecated legacy provider token; use --account-bearer",
   },
@@ -180,12 +180,12 @@ export function buildCliConfig(args: Record<string, unknown>): CliConfig {
   const derivedPublicKey = derivePublicKeyFromPrivateKey(privateKey);
   const accountBearer =
     str(args["account-bearer"]) ?? process.env.AOMI_ACCOUNT_BEARER;
-  const accountProvider = parseAccountProvider(
-    str(args["account-provider"]) ?? process.env.AOMI_ACCOUNT_PROVIDER,
+  const embeddedProvider = parseEmbeddedProvider(
+    str(args["embedded-provider"]) ?? process.env.AOMI_EMBEDDED_PROVIDER,
   );
-  const accountProviderToken =
-    str(args["account-provider-token"]) ??
-    process.env.AOMI_ACCOUNT_PROVIDER_TOKEN;
+  const embeddedProviderToken =
+    str(args["embedded-provider-token"]) ??
+    process.env.AOMI_EMBEDDED_PROVIDER_TOKEN;
 
   if (
     configuredPublicKey &&
@@ -205,19 +205,19 @@ export function buildCliConfig(args: Record<string, unknown>): CliConfig {
   if (execution === "eoa" && (aaProvider || aaMode)) {
     fatal("`--aa-provider` and `--aa-mode` cannot be used with `--eoa`.");
   }
-  if (accountBearer && (accountProvider || accountProviderToken)) {
+  if (accountBearer && (embeddedProvider || embeddedProviderToken)) {
     fatal(
-      "Choose either `--account-bearer` or the `--account-provider` + `--account-provider-token` pair.",
+      "Choose either `--account-bearer` or the `--embedded-provider` + `--embedded-provider-token` pair.",
     );
   }
-  if (accountProvider && !accountProviderToken) {
+  if (embeddedProvider && !embeddedProviderToken) {
     fatal(
-      "`--account-provider-token` is required when `--account-provider` is set.",
+      "`--embedded-provider-token` is required when `--embedded-provider` is set.",
     );
   }
-  if (accountProviderToken && !accountProvider) {
+  if (embeddedProviderToken && !embeddedProvider) {
     fatal(
-      "`--account-provider` is required when `--account-provider-token` is set.",
+      "`--embedded-provider` is required when `--embedded-provider-token` is set.",
     );
   }
 
@@ -232,8 +232,8 @@ export function buildCliConfig(args: Record<string, unknown>): CliConfig {
     baseUrl: str(args["backend-url"]) ?? process.env.AOMI_BACKEND_URL,
     apiKey: str(args["api-key"]) ?? process.env.AOMI_API_KEY,
     accountBearer,
-    accountProvider,
-    accountProviderToken,
+    embeddedProvider,
+    embeddedProviderToken,
     app: str(args.app) ?? process.env.AOMI_APP,
     model: str(args.model) ?? process.env.AOMI_MODEL,
     freshSession: args["new-session"] === true,
