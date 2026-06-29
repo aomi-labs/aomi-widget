@@ -76,13 +76,18 @@ describe("OneshotWizard", () => {
     render(
       <OneshotWizard
         {...defaultProps}
-        progress={{ ...baseProgress(), live: true, apps: ["my-agent"] }}
+        progress={{
+          ...baseProgress(),
+          live: true,
+          apps: ["my-agent"],
+          applicationId: "42",
+        }}
       />,
     );
     expect(screen.getByText(/Your agent is live/)).toBeInTheDocument();
     expect(screen.getByTitle("Chat with your agent")).toHaveAttribute(
       "src",
-      "https://chat.aomi.dev?app=my-agent&lock_app=1",
+      "https://chat.aomi.dev?app=my-agent&application_id=42&lock_app=1",
     );
   });
 
