@@ -1,6 +1,6 @@
 "use client";
 
-import "@aomi-labs/widget-lib/providers/privy";
+import "@aomi-labs/widget-lib/providers/para";
 import { type ReactNode } from "react";
 import {
   mainnet,
@@ -19,7 +19,9 @@ import {
   monadTestnet,
 } from "@aomi-labs/widget-lib";
 
-const privyAppId = process.env.NEXT_PUBLIC_PRIVY_APP_ID?.trim() ?? "";
+const paraApiKey = process.env.NEXT_PUBLIC_PARA_API_KEY?.trim() ?? "";
+const paraEnvironment =
+  process.env.NEXT_PUBLIC_PARA_ENVIRONMENT === "PROD" ? "PROD" : "BETA";
 
 const walletConnectProjectId =
   process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID?.trim() ||
@@ -86,9 +88,9 @@ export function WalletProviders({ children }: Props) {
       ? (["metamask", "rabby", "coinbase", "walletconnect"] as const)
       : (["metamask", "rabby", "coinbase"] as const);
   const auth =
-    privyAppId.length > 0
+    paraApiKey.length > 0
       ? ({
-          provider: "privy",
+          provider: "para",
           methods: ["email", "google"],
         } as const)
       : false;
@@ -98,10 +100,12 @@ export function WalletProviders({ children }: Props) {
       auth={auth}
       account={{ mode: "aomi-backend" }}
       providers={{
-        privy: privyAppId
+        para: paraApiKey
           ? {
               appName: "Aomi Labs",
-              appId: privyAppId,
+              appDescription: "Aomi portal testing",
+              apiKey: paraApiKey,
+              environment: paraEnvironment,
             }
           : false,
       }}
