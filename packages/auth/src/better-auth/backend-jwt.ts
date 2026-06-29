@@ -70,8 +70,20 @@ export async function defineAomiBackendJwtPayload(
   };
 }
 
-export function getAomiBackendJwtSubject(session: BetterAuthJwtSession): string {
-  return session.user.id;
+export async function getAomiBackendJwtSubject(
+  session: BetterAuthJwtSession,
+  options: BackendJwtPayloadOptions = {},
+): Promise<string> {
+  const resolveUser =
+    options.resolveUser ?? getOrCreateAomiUserForBetterAuthSession;
+  const user = await resolveUser({
+    betterAuthUserId: session.user.id,
+    email: session.user.email,
+    emailVerified: session.user.emailVerified ?? undefined,
+    name: session.user.name,
+    avatarUrl: session.user.image,
+  });
+  return user.id;
 }
 
 export function createAomiBackendJwtOptions(
@@ -91,7 +103,7 @@ export function createAomiBackendJwtOptions(
       issuer: env.backendJwtIssuer,
       audience: env.backendJwtAudience,
       expirationTime: env.backendJwtExpiresIn,
-      getSubject: getAomiBackendJwtSubject,
+      getSubject: (session) => getAomiBackendJwtSubject(session, options),
       definePayload: (session) =>
         defineAomiBackendJwtPayload(session, {
           ...options,

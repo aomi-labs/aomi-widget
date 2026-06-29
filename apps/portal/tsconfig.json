@@ -21,6 +21,9 @@
     "paths": {
       "@portal/*": ["./src/*"],
       "@aomi-labs/widget-lib": ["../registry/src/index.ts"],
+      "@aomi-labs/widget-lib/providers/*": [
+        "../registry/src/lib/wallet-kit/providers/*"
+      ],
       "@aomi-labs/widget-lib/*": ["../registry/src/*"],
       "@/components/*": ["../registry/src/components/*"],
       "@/hooks/*": ["../registry/src/hooks/*"],
@@ -33,6 +36,10 @@
       "@aomi-labs/auth/providers": [
         "../../packages/auth/src/providers/index.ts"
       ],
+      "@aomi-labs/account": ["../../packages/account/src/index.ts"],
+      "@aomi-labs/account/*": ["../../packages/account/src/*"],
+      "@aomi-labs/service": ["../../packages/service/src/index.ts"],
+      "@aomi-labs/service/*": ["../../packages/service/src/*"],
       "@aomi-labs/mcp-core": ["../../packages/mcp-core/src/index.ts"],
       "@aomi-labs/mcp-core/*": ["../../packages/mcp-core/src/*"],
       "@aomi-labs/client": ["../../packages/client/src/index.ts"],

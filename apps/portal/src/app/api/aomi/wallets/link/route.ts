@@ -8,9 +8,11 @@ import {
   upsertVerifiedWallet,
   verifyWalletLinkNonce,
   verifyWalletLinkSignature,
+  walletLinkMessageMatches,
 } from "@aomi-labs/auth/account";
 import type { WalletFamily } from "@aomi-labs/auth";
 import { readAccountAuthEnv } from "@aomi-labs/auth/better-auth";
+import { recoverMessageAddress } from "viem";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -83,6 +85,29 @@ export async function POST(req: Request): Promise<Response> {
     domain: env.siweDomain,
   });
   if (!signatureOk) {
+    const recoveredAddress = await recoverWalletLinkSigner({
+      message: body.message,
+      signature: body.signature,
+    });
+    console.warn("[aomi][wallet-link] invalid wallet signature", {
+      expectedAddress: shortAddress(body.address),
+      recoveredAddress: recoveredAddress ? shortAddress(recoveredAddress) : null,
+      chainId: body.chainId,
+      messageMatches: walletLinkMessageMatches({
+        message: body.message,
+        address: body.address,
+        chainId: body.chainId,
+        nonce: body.nonce,
+        domain: env.siweDomain,
+      }),
+      messageShape: describeWalletLinkMessage({
+        message: body.message,
+        address: body.address,
+        chainId: body.chainId,
+        nonce: body.nonce,
+        domain: env.siweDomain,
+      }),
+    });
     return json(401, { error: "invalid_wallet_signature" });
   }
 
@@ -107,4 +132,45 @@ export async function POST(req: Request): Promise<Response> {
     status: resolution.status === "noop" ? "linked" : resolution.status,
     account: await accountResponseFromSession(req),
   });
+}
+
+async function recoverWalletLinkSigner(input: {
+  message: string;
+  signature: string;
+}): Promise<string | null> {
+  try {
+    return await recoverMessageAddress({
+      message: input.message,
+      signature: input.signature as `0x${string}`,
+    });
+  } catch {
+    return null;
+  }
+}
+
+function shortAddress(address: string): string {
+  return `${address.slice(0, 6)}...${address.slice(-4)}`;
+}
+
+function describeWalletLinkMessage(input: {
+  message: string;
+  address: string;
+  chainId: number;
+  nonce: string;
+  domain: string;
+}) {
+  const lines = input.message.split(/\r?\n/);
+  const domainPrefix = `${input.domain} wants to link this wallet`;
+  return {
+    lineCount: lines.length,
+    firstLinePrefix: lines[0]?.slice(0, 80) ?? null,
+    expectedDomainPrefix: domainPrefix,
+    firstLineMatchesDomain: lines[0]?.startsWith(domainPrefix) ?? false,
+    addressLine: lines[1] ? shortAddress(lines[1]) : null,
+    addressMatches: lines[1]?.toLowerCase() === input.address.toLowerCase(),
+    chainLine: lines.find((line) => line.startsWith("Chain ID: ")) ?? null,
+    chainMatches: lines.includes(`Chain ID: ${input.chainId}`),
+    nonceLinePresent: lines.some((line) => line.startsWith("Nonce: ")),
+    nonceMatches: lines.includes(`Nonce: ${input.nonce}`),
+  };
 }

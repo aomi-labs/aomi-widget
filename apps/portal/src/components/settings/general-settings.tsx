@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   AccountCredentialUnavailableError,
   createAccountAccessTokenProvider,
@@ -67,10 +67,6 @@ export function GeneralSettings() {
   const [account, setAccount] = useState<AccountOverview | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const getAccountCredentialRef = useRef(getAccountCredential);
-  useEffect(() => {
-    getAccountCredentialRef.current = getAccountCredential;
-  }, [getAccountCredential]);
 
   const accountAccessTokenProvider = useMemo(() => {
     return createAccountAccessTokenProvider({
@@ -80,11 +76,10 @@ export function GeneralSettings() {
         baseUrl: "",
       },
       getProviderCredential: async () => {
-        const getCredential = getAccountCredentialRef.current;
-        if (!getCredential) {
+        if (!getAccountCredential) {
           throw new AccountCredentialUnavailableError();
         }
-        const credential = await getCredential();
+        const credential = await getAccountCredential();
         if (!credential) {
           throw new AccountCredentialUnavailableError(
             "No account credential is available",
@@ -102,7 +97,7 @@ export function GeneralSettings() {
         throw new Error("Account credential cannot be exchanged");
       },
     });
-  }, []);
+  }, [getAccountCredential]);
 
   useEffect(
     () => () => {

@@ -385,11 +385,13 @@ export function normalizeAccountWalletProvider(
   if (
     provider &&
     walletKind &&
-    (walletKind !== "embedded" && walletKind !== "smart_account")
+    walletKind !== "embedded" &&
+    walletKind !== "smart_account"
   ) {
     return wallet;
   }
-  const inferredProvider = provider ?? providerLinkedWalletVia(wallet.linkedVia);
+  const inferredProvider =
+    provider ?? providerLinkedWalletVia(wallet.linkedVia);
   if (!inferredProvider) return wallet;
 
   return {
@@ -529,7 +531,7 @@ export function resolveAuthMessageConfig(input: {
     base?.host ?? (typeof window !== "undefined" ? window.location.host : "");
   return {
     domain: normalizeDomain(input.authDomain) ?? fallbackDomain,
-    uri: input.authUri?.replace(/\/+$/, "") || fallbackOrigin,
+    uri: normalizeUri(input.authUri) ?? fallbackOrigin,
   };
 }
 
@@ -540,12 +542,13 @@ export function buildSiweMessage(input: {
   domain: string;
   uri: string;
 }): string {
-  return `${input.domain} wants you to sign in with your Ethereum account:
+  const { domain, uri } = requireAuthMessageConfig(input);
+  return `${domain} wants you to sign in with your Ethereum account:
 ${input.address}
 
 Sign in to Aomi.
 
-URI: ${input.uri}
+URI: ${uri}
 Version: 1
 Chain ID: ${input.chainId}
 Nonce: ${input.nonce}
@@ -559,12 +562,13 @@ export function buildWalletLinkMessage(input: {
   domain: string;
   uri: string;
 }): string {
-  return `${input.domain} wants to link this wallet to your Aomi account:
+  const { domain, uri } = requireAuthMessageConfig(input);
+  return `${domain} wants to link this wallet to your Aomi account:
 ${input.address}
 
 Only sign this message if you want this wallet attached to the current Aomi account.
 
-URI: ${input.uri}
+URI: ${uri}
 Version: 1
 Chain ID: ${input.chainId}
 Nonce: ${input.nonce}
@@ -575,10 +579,37 @@ function messageConfigFromNonce(
   nonce: AomiBackendNonceResponse,
   fallback: AuthMessageConfig,
 ): AuthMessageConfig {
+  const browserFallback = browserAuthMessageConfig();
   return {
-    domain: normalizeDomain(nonce.domain) ?? fallback.domain,
-    uri: nonce.uri?.replace(/\/+$/, "") || fallback.uri,
+    domain:
+      normalizeDomain(nonce.domain) ??
+      normalizeDomain(fallback.domain) ??
+      browserFallback.domain,
+    uri:
+      normalizeUri(nonce.uri) ??
+      normalizeUri(fallback.uri) ??
+      browserFallback.uri,
   };
+}
+
+function browserAuthMessageConfig(): AuthMessageConfig {
+  if (typeof window === "undefined") {
+    return { domain: "", uri: "" };
+  }
+  return {
+    domain: window.location.host,
+    uri: window.location.origin,
+  };
+}
+
+function requireAuthMessageConfig(input: AuthMessageConfig): AuthMessageConfig {
+  const browserFallback = browserAuthMessageConfig();
+  const domain = normalizeDomain(input.domain) ?? browserFallback.domain;
+  const uri = normalizeUri(input.uri) ?? browserFallback.uri;
+  if (!domain || !uri) {
+    throw new Error("Auth domain and URI are required to build SIWE messages");
+  }
+  return { domain, uri };
 }
 
 function absoluteUrl(value: string | undefined): URL | null {
@@ -591,10 +622,21 @@ function absoluteUrl(value: string | undefined): URL | null {
 }
 
 function normalizeDomain(value: string | undefined): string | undefined {
-  if (!value) return undefined;
+  const trimmed = value?.trim();
+  if (!trimmed) return undefined;
   try {
-    return new URL(value).host;
+    return new URL(trimmed).host;
   } catch {
-    return value.replace(/^https?:\/\//, "").replace(/\/.*$/, "") || undefined;
+    return (
+      trimmed
+        .replace(/^https?:\/\//, "")
+        .replace(/\/.*$/, "")
+        .trim() || undefined
+    );
   }
+}
+
+function normalizeUri(value: string | undefined): string | undefined {
+  const trimmed = value?.trim().replace(/\/+$/, "");
+  return trimmed || undefined;
 }

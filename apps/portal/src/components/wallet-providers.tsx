@@ -1,7 +1,7 @@
 "use client";
 
 import "@aomi-labs/widget-lib/providers/para";
-import { type ReactNode } from "react";
+import { type ReactNode, useEffect, useMemo, useState } from "react";
 import {
   mainnet,
   arbitrum,
@@ -82,7 +82,32 @@ type Props = {
   cookies?: string | null;
 };
 
+type BrowserAuthOrigin = {
+  authDomain: string;
+  authUri: string;
+};
+
+function getBrowserAuthOrigin(): BrowserAuthOrigin | null {
+  if (typeof window === "undefined") return null;
+  return {
+    authDomain: window.location.host,
+    authUri: window.location.origin,
+  };
+}
+
 export function WalletProviders({ children }: Props) {
+  const [browserAuthOrigin, setBrowserAuthOrigin] =
+    useState<BrowserAuthOrigin | null>(() => getBrowserAuthOrigin());
+  useEffect(() => {
+    setBrowserAuthOrigin(getBrowserAuthOrigin());
+  }, []);
+  const account = useMemo(
+    () => ({
+      mode: "aomi-backend" as const,
+      ...(browserAuthOrigin ?? {}),
+    }),
+    [browserAuthOrigin],
+  );
   const evmWallets =
     typeof window !== "undefined" && walletConnectProjectId
       ? (["metamask", "rabby", "coinbase", "walletconnect"] as const)
@@ -98,7 +123,7 @@ export function WalletProviders({ children }: Props) {
   return (
     <AomiWalletKitProvider
       auth={auth}
-      account={{ mode: "aomi-backend" }}
+      account={account}
       providers={{
         para: paraApiKey
           ? {

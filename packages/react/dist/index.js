@@ -828,11 +828,11 @@ function ControlContextProvider({
       });
     }
   }, []);
-  const syncCurrentThreadControl = useCallback(async () => {
+  const syncCurrentThreadControl = useCallback(async (options) => {
     var _a2, _b2, _c, _d, _e, _f, _g;
     const threadId = sessionIdRef.current;
     const currentControl = (_b2 = (_a2 = getThreadMetadataRef.current(threadId)) == null ? void 0 : _a2.control) != null ? _b2 : initThreadControl();
-    if (!currentControl.controlDirty || currentControl.isProcessing || !currentControl.model) {
+    if (!currentControl.controlDirty || !(options == null ? void 0 : options.ignoreProcessing) && currentControl.isProcessing || !currentControl.model) {
       return;
     }
     const app = (_c = resolveAuthorizedApp(
@@ -2688,11 +2688,11 @@ function AomiRuntimeCore({
       return (_a = getControlState().clientId) != null ? _a : void 0;
     },
     prepareThreadForSend: async (threadId) => {
-      await syncCurrentThreadControl();
       const wasCreated = await ensureBackendThread(threadId);
       if (wasCreated) {
         threadsMaterializedForSendRef.current.add(threadId);
       }
+      await syncCurrentThreadControl({ ignoreProcessing: true });
     },
     onSendSuccess: (threadId) => {
       const wasRemote = remoteThreadIdsRef.current.has(threadId);

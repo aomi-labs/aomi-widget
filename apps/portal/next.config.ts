@@ -22,6 +22,8 @@ const widgetTurbopackAliases = {
   "@/components": "../../apps/registry/src/components",
   "@/hooks": "../../apps/registry/src/hooks",
   "@/lib": "../../apps/registry/src/lib",
+  "@aomi-labs/widget-lib/providers/para":
+    "../../apps/registry/src/lib/wallet-kit/providers/para/index.ts",
   "@aomi-labs/widget-lib": "../../apps/registry/src/index.ts",
 } as const;
 
@@ -31,6 +33,10 @@ const widgetWebpackAliases = {
   "@/components": path.join(widgetSrc, "components"),
   "@/hooks": path.join(widgetSrc, "hooks"),
   "@/lib": path.join(widgetSrc, "lib"),
+  "@aomi-labs/widget-lib/providers/para": path.join(
+    widgetSrc,
+    "lib/wallet-kit/providers/para/index.ts",
+  ),
   "@aomi-labs/widget-lib": path.join(widgetSrc, "index.ts"),
 } as const;
 

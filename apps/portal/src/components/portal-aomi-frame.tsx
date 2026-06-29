@@ -40,10 +40,6 @@ function usePortalClientOptions():
   const walletClient = useWalletClient();
   const backendUrl = getBackendUrl();
   const nativeFetch = useMemo(() => globalThis.fetch.bind(globalThis), []);
-  const getAccountCredentialRef = useRef(getAccountCredential);
-  useEffect(() => {
-    getAccountCredentialRef.current = getAccountCredential;
-  }, [getAccountCredential]);
 
   const accountAccessTokenProvider = useMemo(() => {
     return createAccountAccessTokenProvider({
@@ -53,11 +49,10 @@ function usePortalClientOptions():
         baseUrl: "",
       },
       getProviderCredential: async () => {
-        const getCredential = getAccountCredentialRef.current;
-        if (!getCredential) {
+        if (!getAccountCredential) {
           throw new AccountCredentialUnavailableError();
         }
-        const credential = await getCredential();
+        const credential = await getAccountCredential();
         if (!credential) {
           throw new AccountCredentialUnavailableError(
             "Wallet provider is connected without an exchangeable credential",
@@ -76,7 +71,7 @@ function usePortalClientOptions():
       },
       fetch: nativeFetch,
     });
-  }, [backendUrl, nativeFetch]);
+  }, [backendUrl, getAccountCredential, nativeFetch]);
 
   useEffect(
     () => () => {

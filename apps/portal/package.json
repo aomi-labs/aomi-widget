@@ -18,6 +18,7 @@
     "clean": "rm -rf .next node_modules"
   },
   "dependencies": {
+    "@aomi-labs/account": "workspace:*",
     "@aomi-labs/auth": "workspace:*",
     "@aomi-labs/client": "workspace:*",
     "@aomi-labs/deploy": "workspace:*",
