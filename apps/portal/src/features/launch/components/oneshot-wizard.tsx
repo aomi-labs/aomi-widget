@@ -225,7 +225,10 @@ export function OneshotWizard({
           repo={progress.repo}
           chatUrl={
             progress.apps?.[0]
-              ? chatAppUrl(progress.apps[0], { locked: true })
+              ? chatAppUrl(progress.apps[0], {
+                  locked: true,
+                  applicationId: progress.applicationId,
+                })
               : undefined
           }
         />

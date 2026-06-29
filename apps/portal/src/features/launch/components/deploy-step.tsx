@@ -370,7 +370,13 @@ export function DeployStep({
             checks.length > 0 &&
             checks.every((check) => check.ok && check.state === "live")
           ) {
-            onProgress({ live: true });
+            const firstApplicationId = checks
+              .find((check) => check.app?.id)
+              ?.app?.id?.toString();
+            onProgress({
+              live: true,
+              applicationId: firstApplicationId,
+            });
             setPhase("live");
             return;
           }
@@ -414,12 +420,16 @@ export function DeployStep({
         const failed = activatedApps.find((app) => app.error);
         throw new Error(failed?.error ?? "Activation was not accepted.");
       }
+      const applicationId = activatedApps
+        .find((app) => app.applicationId)
+        ?.applicationId?.toString();
+      if (applicationId) onProgress({ applicationId });
       await verifyLive(apps, tags);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
       setPhase("error");
     }
-  }, [actor, apps, tags, verifyLive]);
+  }, [actor, apps, onProgress, tags, verifyLive]);
 
   const reset = useCallback(() => {
     setError(null);
