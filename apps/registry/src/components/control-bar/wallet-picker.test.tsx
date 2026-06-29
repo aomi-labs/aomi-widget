@@ -896,7 +896,7 @@ describe("WalletPicker", () => {
     expect(screen.getAllByRole("button", { name: "Sign out" }).length).toBe(2);
   });
 
-  it("does not fold stored provider wallets into live provider rows", () => {
+  it("promotes linked provider wallets to connected rows when the provider session is active", async () => {
     renderPicker(
       makeAdapter({
         identity: {
@@ -946,12 +946,20 @@ describe("WalletPicker", () => {
       }),
     );
 
-    expect(screen.getByText("Manage wallets")).toBeTruthy();
+    await act(async () => {
+      fireEvent.click(
+        screen.getByRole("button", { name: "Manage your account" }),
+      );
+    });
+
+    expect(screen.getByText("Manage account")).toBeTruthy();
     expect(screen.getAllByText("Privy").length).toBeGreaterThan(0);
     expect(screen.queryByText("EVM/SVM")).toBeNull();
-    expect(screen.queryByText("0xCC8..8f")).toBeNull();
+    expect(screen.getAllByText("EVM").length).toBeGreaterThan(0);
     expect(screen.getAllByText("SVM").length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/0xCC8\.\.8f/).length).toBeGreaterThan(0);
     expect(screen.getByText("AG6eZ..8E")).toBeTruthy();
+    expect(screen.getByText("Account access")).toBeTruthy();
     expect(screen.queryByText("Privy Solana")).toBeNull();
   });
 

@@ -130,6 +130,65 @@ function isGenericBrowserWallet(
   );
 }
 
+function linkedProviderWalletRow(wallet: LinkedWalletRow): WalletModalRow {
+  const providerLabel =
+    (wallet.provider
+      ? (formatWalletProvider(wallet.provider) ?? wallet.provider)
+      : undefined) ?? "Wallet";
+  return {
+    id: wallet.id,
+    family: wallet.family,
+    address: wallet.address,
+    chainId: wallet.chainId ?? chainIdFromScope(wallet.chainScope),
+    label: wallet.label ?? formatWalletAddress(wallet.address) ?? wallet.address,
+    walletName: providerLabel,
+    source: "stored",
+    status: "connected",
+    provider: wallet.provider,
+    walletKind: wallet.kind,
+    linked: true,
+    linkedVia: wallet.linkedVia,
+    capability: "write",
+    actions: [],
+  };
+}
+
+function buildConnectedWalletRows(
+  walletRows: readonly WalletModalRow[],
+  accountWallets: readonly LinkedWalletRow[] | undefined,
+  identity: AomiWalletKit["identity"],
+): WalletModalRow[] {
+  if (!identity.isConnected) return [];
+  const connected = walletRows.filter(
+    (row) =>
+      row.source === "live" &&
+      (row.status === "active" || row.status === "connected"),
+  );
+  const providers = new Set(
+    [
+      identity.embeddedProvider,
+      identity.sessionProvider,
+      identity.walletProvider,
+    ].filter((provider): provider is string => Boolean(provider)),
+  );
+  if (!providers.size) return connected;
+
+  const promoted: WalletModalRow[] = [];
+  for (const wallet of accountWallets ?? []) {
+    const provider = providerBackedAccountProvider(wallet);
+    if (!provider || !providers.has(provider)) continue;
+    const alreadyConnected = [...connected, ...promoted].some(
+      (row) =>
+        row.family === wallet.family &&
+        sameWalletAddress(wallet.family, row.address, wallet.address),
+    );
+    if (alreadyConnected) continue;
+    promoted.push(linkedProviderWalletRow(wallet));
+  }
+
+  return [...connected, ...promoted];
+}
+
 function dedupeWalletActions(actions: readonly WalletAction[]): WalletAction[] {
   const seen = new Set<string>();
   const result: WalletAction[] = [];
@@ -225,15 +284,8 @@ export function WalletPicker() {
 
   const walletRows = adapter.walletModalRows ?? [];
   const connectedAccounts = useMemo(
-    () =>
-      identity.isConnected
-        ? walletRows.filter(
-            (row) =>
-              row.source === "live" &&
-              (row.status === "active" || row.status === "connected"),
-          )
-        : [],
-    [identity.isConnected, walletRows],
+    () => buildConnectedWalletRows(walletRows, adapter.accountWallets, identity),
+    [adapter.accountWallets, identity, walletRows],
   );
   const canManageAccounts = Boolean(
     adapter.openAccountUI && adapter.canOpenAccountUI,
