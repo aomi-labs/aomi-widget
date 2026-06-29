@@ -11,7 +11,6 @@ import {
   type LaunchPreflightInput,
   type LaunchRedeployResult,
   type LaunchStatus,
-  type LaunchSyncInstalledResult,
 } from "./contracts";
 import { normalizeRepo } from "./state";
 
@@ -113,12 +112,3 @@ export function launchAppStatus(input: {
   );
 }
 
-export function launchSyncInstalled(input: {
-  repo: string;
-}): Promise<LaunchSyncInstalledResult> {
-  return postJson(
-    API_PATHS.bff.launch.syncInstalled,
-    "launch installed app sync",
-    input,
-  );
-}

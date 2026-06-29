@@ -6,8 +6,11 @@ import { API_PATHS } from "@portal/lib/api-paths";
 export const runtime = "nodejs";
 
 const OAUTH_STATE_COOKIE = "aomi_github_oauth_state";
-const STAGING_CLIENT_ID = "Iv23liYCfZYr4JhvfwgN";
-const PRODUCTION_CLIENT_ID = "Iv23liMWx5sEbC2mMRBu";
+// One-shot App OAuth client ids (app index 2). Sign-in runs against the
+// one-shot App so the user token can list one-shot installations for the
+// skip-install check. The callback exchanges against app index 2.
+const STAGING_CLIENT_ID = "Iv23lilgvJz13pJekLSZ";
+const PRODUCTION_CLIENT_ID = "Iv23li4wPpAfoGOJ6v0Q";
 
 function githubOAuthClientId(req: Request): string {
   const host = new URL(req.url).hostname;
