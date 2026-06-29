@@ -4,7 +4,10 @@ import type {
   DeploymentStatus,
 } from "@aomi-labs/deploy";
 
-export type LaunchPath = "oneshot" | "bootstrap";
+// One-click is the only launch path: the portal forks the template and deploys
+// it for the user. (Kept as a single-member union so the small amount of
+// path-keyed state plumbing stays typed.)
+export type LaunchPath = "oneshot";
 
 export const TEMPLATE_REPO =
   process.env.NEXT_PUBLIC_APP_DEPLOY_TEMPLATE_REPO?.trim() ||
@@ -85,14 +88,6 @@ export type LaunchAppStatus = {
     is_active: boolean;
     loaded: boolean;
   };
-};
-
-export type LaunchSyncInstalledResult = {
-  ok: boolean;
-  repo: string;
-  installationId: string;
-  appSourceId?: number;
-  sourceRef?: string;
 };
 
 export type LaunchRedeployResult = {

@@ -1,13 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import {
-  ExternalLink,
-  ArrowLeft,
-  Loader2,
-  Plus,
-  RotateCcw,
-} from "lucide-react";
+import { ExternalLink, Loader2, Plus, RotateCcw } from "lucide-react";
 import { Button } from "@aomi-labs/widget-lib";
 import {
   installationStatusLabel,
@@ -31,27 +25,23 @@ const STEPS = [
 export function OneshotWizard({
   progress,
   actor,
-  onBack,
-  showBack = true,
+  onRestart,
   beginInstall,
-  beginAuthorize,
   installing,
   installError,
   patch,
   onReset,
-  onRestartInBootstrap,
+  onInstallRejected,
 }: {
   progress: LaunchProgress;
   actor?: string;
-  onBack: () => void;
-  showBack?: boolean;
+  onRestart?: () => void;
   beginInstall: () => void;
-  beginAuthorize: () => void;
   installing?: boolean;
   installError?: string | null;
   patch: (patch: Partial<LaunchProgress>) => void;
   onReset?: () => void;
-  onRestartInBootstrap?: () => void;
+  onInstallRejected?: (installationId?: string) => void;
 }) {
   const step = oneshotStep(progress);
   const installStatus = installationStatusLabel(progress.installationStatus);
@@ -73,7 +63,17 @@ export function OneshotWizard({
         sourceRef: result.sourceRef,
       });
     } catch (err) {
-      setCreateError(err instanceof Error ? err.message : String(err));
+      const message = err instanceof Error ? err.message : String(err);
+      setCreateError(message);
+      // A skip-install installation can go stale (uninstalled, wrong account,
+      // permissions revoked). If create blames the installation, drop it so the
+      // wizard falls back to the install step and the user can re-authorize
+      // instead of being stuck retrying against a dead installation. Recording
+      // it as rejected also stops it being re-seeded from the session cookie.
+      if (isInstallationError(message)) {
+        if (onInstallRejected) onInstallRejected(progress.installationId);
+        else patch({ installationId: undefined });
+      }
     } finally {
       setCreating(false);
     }
@@ -82,12 +82,12 @@ export function OneshotWizard({
   return (
     <div className="space-y-6">
       <WizardHeader
-        title="One-click"
+        title="Deploy your agent"
         subtitle="We create the repo and deploy it for you."
-        onBack={onBack}
-        showBack={showBack}
-        actionLabel="Restart in Fork & Customize"
-        onAction={onRestartInBootstrap}
+        actionLabel={
+          progress.installationId || progress.repo ? "Start over" : undefined
+        }
+        onAction={onRestart}
       />
 
       <Stepper steps={STEPS} current={step} />
@@ -130,17 +130,9 @@ export function OneshotWizard({
                 {installing ? "Waiting for GitHub..." : "Install on GitHub"}
                 <ExternalLink className="ml-1 h-4 w-4" />
               </Button>
-              <Button
-                onClick={beginAuthorize}
-                disabled={installing}
-                className="h-10 rounded-full px-4 text-sm font-medium"
-              >
-                <RotateCcw className="mr-1 h-4 w-4" />
-                Already installed?
-              </Button>
             </div>
           </div>
-          <WizardError message={installError} />
+          <WizardError message={installError ?? createError} />
         </div>
       )}
 
@@ -201,6 +193,18 @@ export function OneshotWizard({
   );
 }
 
+/**
+ * Does this create error point at the GitHub App installation (removed, wrong
+ * account, missing permissions) rather than something transient like a repo
+ * name clash? If so the wizard should drop the cached installation and send the
+ * user back to install/re-authorize.
+ */
+function isInstallationError(message: string): boolean {
+  return /install|not owned|permission|forbidden|\b404\b|not found/i.test(
+    message,
+  );
+}
+
 function WizardError({ message }: { message?: string | null }) {
   if (!message) return null;
 
@@ -214,29 +218,16 @@ function WizardError({ message }: { message?: string | null }) {
 function WizardHeader({
   title,
   subtitle,
-  onBack,
-  showBack = true,
   actionLabel,
   onAction,
 }: {
   title: string;
   subtitle: string;
-  onBack: () => void;
-  showBack?: boolean;
   actionLabel?: string;
   onAction?: () => void;
 }) {
   return (
     <header className="space-y-2">
-      {showBack && (
-        <button
-          type="button"
-          onClick={onBack}
-          className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1 text-sm"
-        >
-          <ArrowLeft className="h-4 w-4" /> Back
-        </button>
-      )}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-foreground text-2xl font-semibold tracking-tight">
           {title}

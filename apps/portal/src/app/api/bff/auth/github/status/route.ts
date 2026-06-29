@@ -11,5 +11,8 @@ export async function GET() {
   return NextResponse.json({
     signedIn: Boolean(session),
     githubLogin: session?.githubLogin ?? null,
+    // Present when the one-shot App is already installed → the wizard skips the
+    // install step. The github_user_id stays server-side.
+    installationId: session?.installationId ?? null,
   });
 }
