@@ -2,9 +2,8 @@
 
 import { AomiWalletKitProvider } from "../config";
 import type { AomiWalletKitProviderInput } from "../config";
-import type { SvmWalletsConfig } from "../config/types";
+import type { AuthMethodId, SvmWalletsConfig } from "../config/types";
 import type { Chain } from "viem";
-import type { TExternalWallet, TOAuthMethod } from "@getpara/react-sdk";
 
 export type AomiWalletProviderProps =
   | AomiWalletKitProviderInput
@@ -18,8 +17,8 @@ export type AomiWalletProviderProps =
       appUrl?: string;
       networks?: readonly [Chain, ...Chain[]];
       walletConnectProjectId?: string;
-      externalWallets?: readonly TExternalWallet[];
-      oAuthMethods?: readonly TOAuthMethod[];
+      externalWallets?: readonly string[];
+      oAuthMethods?: readonly AuthMethodId[];
       solana?: SvmWalletsConfig | false;
     });
 

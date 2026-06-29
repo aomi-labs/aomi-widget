@@ -10,6 +10,7 @@ import { useSolanaWallets } from "@privy-io/react-auth/solana";
 import { useSmartWallets } from "@privy-io/react-auth/smart-wallets";
 import type { Chain } from "viem";
 import type { AomiLoginMethod, AomiWalletOption } from "../../types";
+import type { AuthMethodId } from "../../config/types";
 
 export type PrivyHook = ReturnType<typeof usePrivy>;
 export type PrivyAccessTokenHook = PrivyHook & {
@@ -247,6 +248,34 @@ export function privyLoginMethodsToOptions(
       description: "Fast account sign-in",
     },
   ];
+}
+
+export function toPrivyLoginMethods(
+  methods: readonly AuthMethodId[] | undefined,
+): PrivyClientConfig["loginMethods"] | undefined {
+  if (!methods) return undefined;
+  type PrivyLoginMethod = NonNullable<PrivyClientConfig["loginMethods"]>[number];
+  const map = {
+    apple: "apple",
+    discord: "discord",
+    email: "email",
+    farcaster: "farcaster",
+    github: "github",
+    google: "google",
+    passkey: "passkey",
+    phone: "sms",
+    telegram: "telegram",
+    wallet: "wallet",
+    x: "twitter",
+  } as const satisfies Partial<
+    Record<AuthMethodId, PrivyLoginMethod>
+  >;
+  const resolved: PrivyLoginMethod[] = [];
+  for (const method of methods) {
+    const loginMethod = map[method];
+    if (loginMethod) resolved.push(loginMethod);
+  }
+  return resolved.length ? resolved : undefined;
 }
 
 /**
