@@ -48,6 +48,11 @@ yarn-error.log*
 apps/landing/public/r/dist
 apps/shadcn-registry/dist
 
+# generated package JavaScript bundles
+packages/*/dist/*.js
+packages/*/dist/*.cjs
+packages/*/dist/*.map
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts
