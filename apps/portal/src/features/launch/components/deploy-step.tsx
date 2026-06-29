@@ -235,7 +235,12 @@ export function DeployStep({
           "Could not resolve a source to deploy. Run a preflight first.",
         );
       }
-      const result = await launchDeploy({ appSourceId, sourceRef, repo, actor });
+      const result = await launchDeploy({
+        appSourceId,
+        sourceRef,
+        repo,
+        actor,
+      });
       applyDeployment(result);
       const id = result.deployment.id;
       setDeploymentId(id);
@@ -264,7 +269,7 @@ export function DeployStep({
     progress.appSourceId,
     progress.sourceRef,
     repo,
-    deployment?.source?.ref,
+    deployment,
   ]);
 
   useEffect(() => {
@@ -394,7 +399,7 @@ export function DeployStep({
         await new Promise((resolve) => setTimeout(resolve, 3000));
       }
       setError(
-        "Activation finished, but the runtime did not report the app as loaded.",
+        "Activation was accepted, but the app artifact did not become ready.",
       );
       setPhase("error");
     },
@@ -407,9 +412,9 @@ export function DeployStep({
     try {
       const result = await launchActivate({ releaseTags: tags, apps, actor });
       const activatedApps = result.activation?.apps ?? [];
-      if (!result.ok || activatedApps.some((app) => !app.loaded || app.error)) {
+      if (!result.ok || activatedApps.some((app) => app.error)) {
         const failed = activatedApps.find((app) => app.error);
-        throw new Error(failed?.error ?? "Activation did not load every app.");
+        throw new Error(failed?.error ?? "Activation was not accepted.");
       }
       await verifyLive(apps, tags);
     } catch (e) {
@@ -556,7 +561,7 @@ export function DeployStep({
           "Promoting the built release into the live branch."}
         {phase === "verifying" &&
           `Checking runtime... attempt ${verifyAttempt}/30`}
-        {phase === "live" && "Runtime reports the app is loaded."}
+        {phase === "live" && "App artifact is ready."}
       </div>
 
       {progressModel !== null && ["building", "releasing"].includes(phase) && (

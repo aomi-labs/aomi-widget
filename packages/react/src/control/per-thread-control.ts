@@ -16,7 +16,7 @@
 
 import { useCallback, useEffect } from "react";
 import type { MutableRefObject } from "react";
-import type { AomiClient } from "@aomi-labs/client";
+import type { AomiAppDescriptor, AomiClient } from "@aomi-labs/client";
 import {
   initThreadControl,
   type ThreadControlState,
@@ -30,6 +30,12 @@ const MODEL_SELECTION_STORAGE_KEY = "aomi_model_selection";
 type StoredModelPreference = {
   mode: ModelSelectionMode;
   model: string | null;
+};
+
+type ApplicationId = number | string | null;
+
+type AppSelectionOptions = {
+  applicationId?: ApplicationId;
 };
 
 function readStoredModelPreference(): StoredModelPreference {
@@ -88,24 +94,89 @@ function getFallbackModel(
   return defaultModel ?? resolveAutoModel(models);
 }
 
+function normalizeApplicationId(value: unknown): ApplicationId {
+  if (typeof value === "number")
+    return Number.isSafeInteger(value) ? value : null;
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    return trimmed ? trimmed : null;
+  }
+  return null;
+}
+
+function sameApplicationId(left: unknown, right: unknown): boolean {
+  return (
+    normalizeApplicationId(left)?.toString() ===
+    normalizeApplicationId(right)?.toString()
+  );
+}
+
+function findAuthorizedDescriptor(
+  app: string,
+  applicationId: ApplicationId,
+  descriptors: AomiAppDescriptor[],
+): AomiAppDescriptor | null {
+  const scopedId = normalizeApplicationId(applicationId);
+  if (scopedId !== null) {
+    return (
+      descriptors.find(
+        (descriptor) =>
+          descriptor.name === app &&
+          sameApplicationId(descriptor.applicationId, scopedId),
+      ) ?? null
+    );
+  }
+  return (
+    descriptors.find(
+      (descriptor) =>
+        descriptor.name === app &&
+        normalizeApplicationId(descriptor.applicationId) === null,
+    ) ?? null
+  );
+}
+
 function resolveAuthorizedApp(
   app: string | null | undefined,
+  applicationId: ApplicationId,
   authorizedApps: string[],
+  appDescriptors: AomiAppDescriptor[],
   defaultApp: string | null,
-): string | null {
-  if (app && authorizedApps.includes(app)) return app;
-  return defaultApp;
+): AomiAppDescriptor | null {
+  if (app) {
+    const scopedId = normalizeApplicationId(applicationId);
+    const exact = findAuthorizedDescriptor(app, applicationId, appDescriptors);
+    if (exact) return exact;
+    const nameRequiresApplicationId = appDescriptors.some(
+      (descriptor) =>
+        descriptor.name === app &&
+        normalizeApplicationId(descriptor.applicationId) !== null,
+    );
+    if (
+      scopedId === null &&
+      !nameRequiresApplicationId &&
+      authorizedApps.includes(app)
+    ) {
+      return { name: app, applicationId: null };
+    }
+  }
+  if (!defaultApp) return null;
+  return (
+    findAuthorizedDescriptor(defaultApp, null, appDescriptors) ?? {
+      name: defaultApp,
+    }
+  );
 }
 
 export type PerThreadControlActions = {
   getCurrentThreadControl: () => ThreadControlState;
   getCurrentThreadApp: () => string;
+  getCurrentThreadApplicationId: () => ApplicationId;
   getPreferredThreadControl: () => ThreadControlState;
   onModelSelect: (
     model: string,
     options?: { mode?: ModelSelectionMode },
   ) => Promise<void>;
-  onAppSelect: (app: string) => void;
+  onAppSelect: (app: string, options?: AppSelectionOptions) => void;
   markControlSynced: () => void;
   syncCurrentThreadControl: () => Promise<void>;
 };
@@ -128,6 +199,7 @@ type UsePerThreadControlOptions = {
   availableModelsRef: MutableRefObject<string[]>;
   defaultModelRef: MutableRefObject<string | null>;
   authorizedAppsRef: MutableRefObject<string[]>;
+  appDescriptorsRef: MutableRefObject<AomiAppDescriptor[]>;
   defaultAppRef: MutableRefObject<string | null>;
   /** Current thread id (reactive — used to retrigger the auto-model effect). */
   sessionId: string;
@@ -147,6 +219,7 @@ export function usePerThreadControlImpl({
   availableModelsRef,
   defaultModelRef,
   authorizedAppsRef,
+  appDescriptorsRef,
   defaultAppRef,
   sessionId,
 }: UsePerThreadControlOptions): {
@@ -185,9 +258,26 @@ export function usePerThreadControlImpl({
     return (
       resolveAuthorizedApp(
         currentControl.app,
+        currentControl.applicationId,
         authorizedAppsRef.current,
+        appDescriptorsRef.current,
         defaultAppRef.current,
-      ) ?? "default"
+      )?.name ?? "default"
+    );
+  }, []);
+
+  const getCurrentThreadApplicationId = useCallback((): ApplicationId => {
+    const currentControl =
+      getThreadMetadataRef.current(sessionIdRef.current)?.control ??
+      initThreadControl();
+    return (
+      resolveAuthorizedApp(
+        currentControl.app,
+        currentControl.applicationId,
+        authorizedAppsRef.current,
+        appDescriptorsRef.current,
+        defaultAppRef.current,
+      )?.applicationId ?? null
     );
   }, []);
 
@@ -204,26 +294,29 @@ export function usePerThreadControlImpl({
       }
 
       const modelMode = options?.mode ?? "manual";
-      const app =
-        resolveAuthorizedApp(
-          currentControl.app,
-          authorizedAppsRef.current,
-          defaultAppRef.current,
-        ) ?? "default";
+      const selectedApp = resolveAuthorizedApp(
+        currentControl.app,
+        currentControl.applicationId,
+        authorizedAppsRef.current,
+        appDescriptorsRef.current,
+        defaultAppRef.current,
+      ) ?? { name: "default" };
 
       updateThreadMetadataRef.current(threadId, {
         control: {
           ...currentControl,
           model,
           modelMode,
-          app,
+          app: selectedApp.name,
+          applicationId: normalizeApplicationId(selectedApp.applicationId),
           controlDirty: true,
         },
       });
 
       try {
         await aomiClientRef.current.setModel(threadId, model, {
-          app,
+          app: selectedApp.name,
+          applicationId: normalizeApplicationId(selectedApp.applicationId),
           apiKey: apiKeyRef.current ?? undefined,
           clientId: clientIdRef.current ?? undefined,
         });
@@ -233,7 +326,14 @@ export function usePerThreadControlImpl({
         });
         const latestControl =
           getThreadMetadataRef.current(threadId)?.control ?? currentControl;
-        if (latestControl.model === model && latestControl.app === app) {
+        if (
+          latestControl.model === model &&
+          latestControl.app === selectedApp.name &&
+          sameApplicationId(
+            latestControl.applicationId,
+            selectedApp.applicationId,
+          )
+        ) {
           updateThreadMetadataRef.current(threadId, {
             control: {
               ...latestControl,
@@ -250,31 +350,44 @@ export function usePerThreadControlImpl({
     [],
   );
 
-  const onAppSelect = useCallback((app: string) => {
-    const threadId = sessionIdRef.current;
-    const currentControl =
-      getThreadMetadataRef.current(threadId)?.control ?? initThreadControl();
-    if (currentControl.isProcessing) {
-      console.warn("[per-thread-control] Cannot switch app while processing");
-      return;
-    }
-    if (
-      authorizedAppsRef.current.length > 0 &&
-      !authorizedAppsRef.current.includes(app)
-    ) {
-      console.warn("[per-thread-control] Cannot select unauthorized app", {
+  const onAppSelect = useCallback(
+    (app: string, options?: AppSelectionOptions) => {
+      const threadId = sessionIdRef.current;
+      const currentControl =
+        getThreadMetadataRef.current(threadId)?.control ?? initThreadControl();
+      if (currentControl.isProcessing) {
+        console.warn("[per-thread-control] Cannot switch app while processing");
+        return;
+      }
+      const descriptor = resolveAuthorizedApp(
         app,
+        options?.applicationId ?? null,
+        authorizedAppsRef.current,
+        appDescriptorsRef.current,
+        null,
+      );
+      const hasAuthData =
+        authorizedAppsRef.current.length > 0 ||
+        appDescriptorsRef.current.length > 0;
+      if (hasAuthData && !descriptor) {
+        console.warn("[per-thread-control] Cannot select unauthorized app", {
+          app,
+        });
+        return;
+      }
+      updateThreadMetadataRef.current(threadId, {
+        control: {
+          ...currentControl,
+          app: descriptor?.name ?? app,
+          applicationId: normalizeApplicationId(
+            options?.applicationId ?? descriptor?.applicationId ?? null,
+          ),
+          controlDirty: true,
+        },
       });
-      return;
-    }
-    updateThreadMetadataRef.current(threadId, {
-      control: {
-        ...currentControl,
-        app,
-        controlDirty: true,
-      },
-    });
-  }, []);
+    },
+    [],
+  );
 
   const markControlSynced = useCallback(() => {
     const threadId = sessionIdRef.current;
@@ -300,15 +413,17 @@ export function usePerThreadControlImpl({
       return;
     }
 
-    const app =
-      resolveAuthorizedApp(
-        currentControl.app,
-        authorizedAppsRef.current,
-        defaultAppRef.current,
-      ) ?? "default";
+    const selectedApp = resolveAuthorizedApp(
+      currentControl.app,
+      currentControl.applicationId,
+      authorizedAppsRef.current,
+      appDescriptorsRef.current,
+      defaultAppRef.current,
+    ) ?? { name: "default" };
 
     await aomiClientRef.current.setModel(threadId, currentControl.model, {
-      app,
+      app: selectedApp.name,
+      applicationId: normalizeApplicationId(selectedApp.applicationId),
       apiKey: apiKeyRef.current ?? undefined,
       clientId: clientIdRef.current ?? undefined,
     });
@@ -317,12 +432,17 @@ export function usePerThreadControlImpl({
       getThreadMetadataRef.current(threadId)?.control ?? currentControl;
     if (
       latestControl.model === currentControl.model &&
-      latestControl.app === currentControl.app
+      latestControl.app === currentControl.app &&
+      sameApplicationId(
+        latestControl.applicationId,
+        currentControl.applicationId,
+      )
     ) {
       updateThreadMetadataRef.current(threadId, {
         control: {
           ...latestControl,
-          app,
+          app: selectedApp.name,
+          applicationId: normalizeApplicationId(selectedApp.applicationId),
           controlDirty: false,
         },
       });
@@ -383,6 +503,7 @@ export function usePerThreadControlImpl({
     actions: {
       getCurrentThreadControl,
       getCurrentThreadApp,
+      getCurrentThreadApplicationId,
       getPreferredThreadControl,
       onModelSelect,
       onAppSelect,

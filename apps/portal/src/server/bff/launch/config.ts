@@ -7,6 +7,7 @@ const DEFAULT_TEMPLATE_REPO = "aomi-labs/playground-example";
 export type LaunchConfig = {
   platform: string;
   platforms: string[];
+  catalogPlatforms: string[];
   templateRepo: string;
   createdRepoPrivate: boolean;
   targetTags: string[];
@@ -58,14 +59,39 @@ function envJsonOrCommaList(name: string): string[] {
   );
 }
 
+function deployPlatforms(): string[] {
+  for (const name of [
+    "APP_DEPLOY_PLATFORMS",
+    "NEXT_PUBLIC_APP_DEPLOY_PLATFORMS",
+    "APP_DEPLOY_PLATFORM",
+    "NEXT_PUBLIC_APP_DEPLOY_PLATFORM",
+  ]) {
+    const platforms = envJsonOrCommaList(name);
+    if (platforms.length > 0) return platforms;
+  }
+
+  return [DEFAULT_DEPLOY_PLATFORM];
+}
+
+function catalogPlatforms(): string[] {
+  for (const name of [
+    "APP_CATALOG_PLATFORMS",
+    "NEXT_PUBLIC_APP_CATALOG_PLATFORMS",
+  ]) {
+    const platforms = envJsonOrCommaList(name);
+    if (platforms.length > 0) return platforms;
+  }
+
+  return [];
+}
+
 export function launchConfig(): LaunchConfig {
-  const platforms = envJsonOrCommaList("APP_DEPLOY_PLATFORMS");
-  const resolvedPlatforms =
-    platforms.length > 0 ? platforms : [DEFAULT_DEPLOY_PLATFORM];
+  const resolvedPlatforms = deployPlatforms();
 
   return {
     platform: resolvedPlatforms[0],
     platforms: resolvedPlatforms,
+    catalogPlatforms: catalogPlatforms(),
     templateRepo:
       process.env.APP_DEPLOY_TEMPLATE_REPO?.trim() ||
       envString("NEXT_PUBLIC_APP_DEPLOY_TEMPLATE_REPO", DEFAULT_TEMPLATE_REPO),
