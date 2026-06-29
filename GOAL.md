@@ -22,6 +22,9 @@ Portal onboarding keeps the `community` platform default through server-owned
 launch config; white-labeled partner portals, such as `somm.finance`, must set
 `APP_DEPLOY_PLATFORMS` so the first platform remains the primary deploy target
 and the app picker can merge every configured public loaded platform.
+Local smoke tooling now has environment-qualified AomiBearer signing keys in
+`~/.zshenv` and the canonical `product-mono/.agents/skills/run-aomi` helper can
+mint staging/production portal or admin bearers without committing key material.
 
 ---
 

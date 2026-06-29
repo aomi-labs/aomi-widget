@@ -3,7 +3,11 @@
 import { useMemo } from "react";
 import type { ReactNode } from "react";
 
-import { AomiClient, type AomiClientOptions } from "@aomi-labs/client";
+import {
+  AomiClient,
+  type AomiClientOptions,
+  type AomiPlatformFilter,
+} from "@aomi-labs/client";
 import { ControlContextProvider } from "../contexts/control-context";
 import { EventContextProvider } from "../contexts/event-context";
 import { NotificationContextProvider } from "../contexts/notification-context";
@@ -22,6 +26,7 @@ export type AomiRuntimeProviderProps = {
   children: ReactNode;
   backendUrl?: string;
   applicationId?: number | string | null;
+  appPlatforms?: AomiPlatformFilter;
   clientOptions?: Omit<AomiClientOptions, "baseUrl">;
 };
 
@@ -46,6 +51,7 @@ export function AomiRuntimeProvider({
   children,
   backendUrl = "http://127.0.0.1:8080",
   applicationId,
+  appPlatforms,
   clientOptions,
 }: Readonly<AomiRuntimeProviderProps>) {
   const resolvedClientOptions = useMemo(
@@ -74,6 +80,7 @@ export function AomiRuntimeProvider({
           <AomiRuntimeInner
             aomiClient={aomiClient}
             applicationId={applicationId}
+            appPlatforms={appPlatforms}
           >
             {children}
           </AomiRuntimeInner>
@@ -91,12 +98,14 @@ type AomiRuntimeInnerProps = {
   children: ReactNode;
   aomiClient: AomiClient;
   applicationId?: number | string | null;
+  appPlatforms?: AomiPlatformFilter;
 };
 
 function AomiRuntimeInner({
   children,
   aomiClient,
   applicationId,
+  appPlatforms,
 }: Readonly<AomiRuntimeInnerProps>) {
   const threadContext = useThreadContext();
 
@@ -106,15 +115,13 @@ function AomiRuntimeInner({
       sessionId={threadContext.currentThreadId}
       getThreadMetadata={threadContext.getThreadMetadata}
       updateThreadMetadata={threadContext.updateThreadMetadata}
+      appPlatforms={appPlatforms}
     >
       <EventContextProvider
         aomiClient={aomiClient}
         sessionId={threadContext.currentThreadId}
       >
-        <AomiRuntimeCore
-          aomiClient={aomiClient}
-          applicationId={applicationId}
-        >
+        <AomiRuntimeCore aomiClient={aomiClient} applicationId={applicationId}>
           {children}
         </AomiRuntimeCore>
       </EventContextProvider>

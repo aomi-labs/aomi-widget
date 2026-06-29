@@ -1,6 +1,10 @@
 "use client";
 
-import { AomiBaseAccountProvider, AomiFrame } from "@aomi-labs/widget-lib";
+import {
+  AomiBaseAccountProvider,
+  AomiFrame,
+  AomiWalletSiweSessionProvider,
+} from "@aomi-labs/widget-lib";
 import { useMemo } from "react";
 
 type AomiAppProps = {
@@ -37,21 +41,23 @@ export function AomiApp({ paymasterServiceUrl, walletAppName }: AomiAppProps) {
             : undefined
         }
       >
-        <AomiFrame.Root
-          width="100%"
-          height="100%"
-          backendUrl={backendUrl}
-          walletPosition="footer"
-          className="rounded-none border-0 shadow-none"
-        >
-          <AomiFrame.Header />
-          <AomiFrame.Composer
-            withControl
-            controlBarProps={{
-              hideApiKey: true,
-            }}
-          />
-        </AomiFrame.Root>
+        <AomiWalletSiweSessionProvider>
+          <AomiFrame.Root
+            width="100%"
+            height="100%"
+            backendUrl={backendUrl}
+            walletPosition="footer"
+            className="rounded-none border-0 shadow-none"
+          >
+            <AomiFrame.Header />
+            <AomiFrame.Composer
+              withControl
+              controlBarProps={{
+                hideApiKey: true,
+              }}
+            />
+          </AomiFrame.Root>
+        </AomiWalletSiweSessionProvider>
       </AomiBaseAccountProvider>
     </main>
   );

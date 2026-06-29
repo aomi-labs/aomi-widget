@@ -12,7 +12,7 @@ import {
   polygon,
   sepolia,
 } from "wagmi/chains";
-import { AomiWalletProvider } from "../../../registry/src";
+import { AomiSessionProvider, AomiWalletProvider } from "../../../shadcn-registry/src";
 
 const privyAppId = process.env.NEXT_PUBLIC_PRIVY_APP_ID;
 const walletConnectProjectId =
@@ -76,7 +76,7 @@ export function LandingPrivyProvider({ children }: { children: ReactNode }) {
         preferDirectSend: true,
       }}
     >
-      {children}
+      <AomiSessionProvider>{children}</AomiSessionProvider>
     </AomiWalletProvider>
   );
 }

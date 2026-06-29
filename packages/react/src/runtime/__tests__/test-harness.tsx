@@ -5,11 +5,13 @@ import { render } from "@testing-library/react";
 import type {
   AomiThread,
   AomiCreateThreadResponse,
+  AomiAppDescriptor,
   AomiStateResponse,
   AomiChatResponse,
   AomiInterruptResponse,
   AomiSystemEvent,
   AomiSSEEvent,
+  AomiPlatformFilter,
 } from "@aomi-labs/client";
 
 // =============================================================================
@@ -51,8 +53,8 @@ export type AomiClientConfig = {
   // Control API
   getApps?: (
     sessionId: string,
-    options?: { apiKey?: string },
-  ) => Promise<string[]>;
+    options?: { apiKey?: string; platforms?: AomiPlatformFilter },
+  ) => Promise<AomiAppDescriptor[]>;
   getModels?: (sessionId: string) => Promise<string[]>;
   setModel?: (
     sessionId: string,
@@ -243,7 +245,10 @@ vi.mock("@aomi-labs/client", async (importOriginal) => {
 
     // Control API
     getApps = vi.fn(
-      async (sessionId: string, options?: { apiKey?: string }) => {
+      async (
+        sessionId: string,
+        options?: { apiKey?: string; platforms?: AomiPlatformFilter },
+      ) => {
         return mockState.config.getApps
           ? await mockState.config.getApps(sessionId, options)
           : [];
@@ -634,6 +639,7 @@ RuntimeHarness.displayName = "RuntimeHarness";
 export type RenderRuntimeOptions = {
   backendUrl?: string;
   applicationId?: number | string | null;
+  appPlatforms?: string | readonly string[] | null;
 };
 
 export type RenderRuntimeResult = {
@@ -649,11 +655,16 @@ export type RenderRuntimeResult = {
 export const renderRuntime = ({
   backendUrl = "http://test-backend",
   applicationId,
+  appPlatforms,
 }: RenderRuntimeOptions = {}): RenderRuntimeResult => {
   const ref = React.createRef<RuntimeHarnessHandle>();
 
   const { unmount, rerender } = render(
-    <AomiRuntimeProvider backendUrl={backendUrl} applicationId={applicationId}>
+    <AomiRuntimeProvider
+      backendUrl={backendUrl}
+      applicationId={applicationId}
+      appPlatforms={appPlatforms}
+    >
       <RuntimeHarness ref={ref} />
     </AomiRuntimeProvider>,
   );

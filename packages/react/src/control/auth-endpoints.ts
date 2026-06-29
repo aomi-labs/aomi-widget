@@ -15,7 +15,11 @@
 
 import { useCallback, useEffect, useState } from "react";
 import type { MutableRefObject } from "react";
-import type { AomiAppDescriptor, AomiClient } from "@aomi-labs/client";
+import type {
+  AomiAppDescriptor,
+  AomiClient,
+  AomiPlatformFilter,
+} from "@aomi-labs/client";
 import { resolveAutoModel } from "../utils/model-selection";
 
 export type AuthEndpointsState = {
@@ -40,6 +44,8 @@ type UseAuthEndpointsOptions = {
   getControlSessionId: () => string;
   /** Trigger that should cause apps to refetch (e.g. apiKey changes). */
   apiKey: string | null;
+  /** Optional backend platform filter for the app catalog. */
+  appPlatforms?: AomiPlatformFilter;
 };
 
 function getDefaultApp(apps: string[]): string | null {
@@ -57,10 +63,14 @@ export function useAuthEndpointsImpl({
   apiKeyRef,
   getControlSessionId,
   apiKey,
+  appPlatforms,
 }: UseAuthEndpointsOptions): {
   state: AuthEndpointsState;
   actions: AuthEndpointsActions;
 } {
+  const appPlatformsKey = Array.isArray(appPlatforms)
+    ? appPlatforms.join("\0")
+    : (appPlatforms ?? "");
   const [availableModels, setAvailableModels] = useState<string[]>([]);
   const [defaultModel, setDefaultModel] = useState<string | null>(null);
   const [authorizedApps, setAuthorizedApps] = useState<string[]>([]);
@@ -76,6 +86,7 @@ export function useAuthEndpointsImpl({
           getControlSessionId(),
           {
             apiKey: apiKeyRef.current ?? undefined,
+            platforms: appPlatforms,
           },
         );
         const names = namesFromDescriptors(descriptors);
@@ -91,7 +102,7 @@ export function useAuthEndpointsImpl({
     };
     void fetchApps();
     // apiKey is the only meaningful trigger; everything else is refs.
-  }, [aomiClientRef, getControlSessionId, apiKey]);
+  }, [aomiClientRef, getControlSessionId, apiKey, appPlatformsKey]);
 
   // Fetch models on mount only.
   useEffect(() => {
@@ -134,6 +145,7 @@ export function useAuthEndpointsImpl({
         getControlSessionId(),
         {
           apiKey: apiKeyRef.current ?? undefined,
+          platforms: appPlatforms,
         },
       );
       const names = namesFromDescriptors(descriptors);
@@ -148,7 +160,7 @@ export function useAuthEndpointsImpl({
       setDefaultApp("default");
       return ["default"];
     }
-  }, [aomiClientRef, apiKeyRef, getControlSessionId]);
+  }, [aomiClientRef, apiKeyRef, getControlSessionId, appPlatformsKey]);
 
   return {
     state: {

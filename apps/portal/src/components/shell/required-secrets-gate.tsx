@@ -16,18 +16,26 @@ export function RequiredSecretsGate() {
   const { state: authState } = useAuthEndpoints();
   const { state: apiKeyState } = useApiKey();
   const { ingestSecrets, listSecrets } = useByok().actions;
-  const { getCurrentThreadApp, onAppSelect } = usePerThreadControl().actions;
-  const [savedNamesByApp, setSavedNamesByApp] = useState<Record<string, string[]>>(
-    {},
-  );
+  const { getCurrentThreadApp, getCurrentThreadApplicationId, onAppSelect } =
+    usePerThreadControl().actions;
+  const [savedNamesByApp, setSavedNamesByApp] = useState<
+    Record<string, string[]>
+  >({});
   const [slotValues, setSlotValues] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const currentApp = getCurrentThreadApp();
+  const currentApplicationId = getCurrentThreadApplicationId();
   const descriptor = useMemo<AomiAppDescriptor | undefined>(
-    () => authState.appDescriptors.find((d) => d.name === currentApp),
-    [authState.appDescriptors, currentApp],
+    () =>
+      authState.appDescriptors.find(
+        (d) =>
+          d.name === currentApp &&
+          (d.applicationId?.toString() ?? "") ===
+            (currentApplicationId?.toString() ?? ""),
+      ) ?? authState.appDescriptors.find((d) => d.name === currentApp),
+    [authState.appDescriptors, currentApp, currentApplicationId],
   );
   const requiredSlots = useMemo(
     () => (descriptor?.secrets ?? []).filter((s) => s.required),
@@ -57,13 +65,16 @@ export function RequiredSecretsGate() {
   const filledNames = new Set(savedNamesByApp[currentApp] ?? []);
   const missingRequired = requiredSlots.filter((s) => !filledNames.has(s.name));
 
-  const fallbackName = useMemo(() => {
+  const fallbackDescriptor = useMemo(() => {
     if (currentApp === FALLBACK_APP) {
-      const next = authState.authorizedApps.find((a) => a !== currentApp);
-      return next ?? null;
+      return (
+        authState.appDescriptors.find((a) => a.name !== currentApp) ?? null
+      );
     }
-    return authState.authorizedApps.includes(FALLBACK_APP) ? FALLBACK_APP : null;
-  }, [currentApp, authState.authorizedApps]);
+    return (
+      authState.appDescriptors.find((a) => a.name === FALLBACK_APP) ?? null
+    );
+  }, [currentApp, authState.appDescriptors]);
 
   if (missingRequired.length === 0) {
     return null;
@@ -94,13 +105,15 @@ export function RequiredSecretsGate() {
   };
 
   const handleSwitchApp = () => {
-    if (fallbackName) {
-      onAppSelect(fallbackName);
+    if (fallbackDescriptor) {
+      onAppSelect(fallbackDescriptor.name, {
+        applicationId: fallbackDescriptor.applicationId,
+      });
     }
   };
 
   return (
-    <div className="absolute inset-0 z-50 flex items-center justify-center bg-background/70 backdrop-blur-sm">
+    <div className="bg-background/70 absolute inset-0 z-50 flex items-center justify-center backdrop-blur-sm">
       <div className="bg-background border-input mx-4 w-full max-w-md space-y-5 rounded-3xl border p-8 shadow-xl">
         <div className="space-y-2">
           <h2 className="text-foreground text-lg font-semibold">
@@ -118,7 +131,7 @@ export function RequiredSecretsGate() {
             <div key={slot.name} className="space-y-3">
               <label
                 htmlFor={`gate-${currentApp}-${slot.name}`}
-                className="text-foreground block text-sm font-mono font-medium"
+                className="text-foreground block font-mono text-sm font-medium"
               >
                 {slot.name}
               </label>
@@ -134,19 +147,19 @@ export function RequiredSecretsGate() {
                 }
                 placeholder="Paste the value from the provider's dashboard"
                 autoComplete="off"
-                className="h-10 rounded-3xl border-2 bg-muted px-5 text-sm"
+                className="bg-muted h-10 rounded-3xl border-2 px-5 text-sm"
               />
-              <p className="text-muted-foreground text-xs">{slot.description}</p>
+              <p className="text-muted-foreground text-xs">
+                {slot.description}
+              </p>
             </div>
           ))}
         </div>
 
-        {error && (
-          <p className="text-destructive text-sm">{error}</p>
-        )}
+        {error && <p className="text-destructive text-sm">{error}</p>}
 
         <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
-          {fallbackName && (
+          {fallbackDescriptor && (
             <Button
               type="button"
               variant="ghost"
@@ -154,7 +167,7 @@ export function RequiredSecretsGate() {
               disabled={saving}
               className="rounded-full"
             >
-              Switch to {fallbackName}
+              Switch to {fallbackDescriptor.label ?? fallbackDescriptor.name}
             </Button>
           )}
           <Button

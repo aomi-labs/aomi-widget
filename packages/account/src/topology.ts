@@ -1,6 +1,5 @@
-import { readFileSync } from "node:fs";
-
 import { AomiService } from "@aomi-labs/service";
+import { PORTAL_TOPOLOGIES, type PortalTopologyName } from "./topology-data";
 
 // The issuer's runtime view of the AOMI service topology. It selects the
 // committed portal topology for the target backend, selects its own node
@@ -13,10 +12,6 @@ import { AomiService } from "@aomi-labs/service";
 // `@aomi-labs/account` package must stay out of client/browser code.
 
 const SELF = "aomi-bff";
-const DEFAULT_TOPOLOGY_PATH = "service.portal.toml";
-const STAGING_TOPOLOGY_PATH = "service.portal.staging.toml";
-const PRODUCTION_TOPOLOGY_PATH = "service.portal.production.toml";
-
 let cached: AomiService | null = null;
 
 // Match on the exact host, not a substring: `api-staging.aomi.dev` is the only
@@ -31,11 +26,14 @@ function hostOf(value: string): string {
   try {
     return new URL(trimmed).hostname;
   } catch {
-    return trimmed.replace(/^[a-z]+:\/\//, "").split("/")[0].split(":")[0];
+    return trimmed
+      .replace(/^[a-z]+:\/\//, "")
+      .split("/")[0]
+      .split(":")[0];
   }
 }
 
-function portalTopologyPath(): string {
+export function portalTopologyName(): PortalTopologyName {
   const host = hostOf(
     process.env.BACKEND_URL ??
       process.env.NEXT_PUBLIC_BACKEND_URL ??
@@ -43,18 +41,17 @@ function portalTopologyPath(): string {
       "",
   );
 
-  if (host === STAGING_HOST) return STAGING_TOPOLOGY_PATH;
-  if (host === PRODUCTION_HOST) return PRODUCTION_TOPOLOGY_PATH;
-  if (process.env.VERCEL_ENV === "production") return PRODUCTION_TOPOLOGY_PATH;
-  if (process.env.VERCEL_ENV === "preview") return STAGING_TOPOLOGY_PATH;
-  return DEFAULT_TOPOLOGY_PATH;
+  if (host === STAGING_HOST) return "staging";
+  if (host === PRODUCTION_HOST) return "production";
+  if (process.env.VERCEL_ENV === "production") return "production";
+  if (process.env.VERCEL_ENV === "preview") return "staging";
+  return "default";
 }
 
 /** The portal as an `AomiService` (self = `aomi-bff`), loaded once and reused. */
 export function portalService(): AomiService {
   if (cached) return cached;
-  const path = portalTopologyPath();
-  const toml = readFileSync(path, "utf8");
+  const toml = PORTAL_TOPOLOGIES[portalTopologyName()];
   cached = AomiService.fromTopology({
     toml,
     selfName: SELF,
