@@ -28,9 +28,11 @@ import type {
   GetAccountBearer,
   Logger,
   AomiHttpMethod,
+  AomiPlatformFilter,
 } from "./types";
 import { UserState, type UserState as UserStateShape } from "./user-state";
 import { createSseSubscriber, type SseSubscriber } from "./sse";
+import { normalizeAppDescriptor } from "./app-descriptor";
 
 // =============================================================================
 // Internal helpers
@@ -117,10 +119,12 @@ function joinApiPath(baseUrl: string, path: string): string {
   return `${normalizedBase}${normalizedPath}` || normalizedPath;
 }
 
+type ApiQueryValue = string | readonly string[] | undefined;
+
 function buildApiUrl(
   baseUrl: string,
   path: string,
-  query?: Record<string, string | undefined>,
+  query?: Record<string, ApiQueryValue>,
 ): string {
   const url = joinApiPath(baseUrl, path);
   if (!query) return url;
@@ -128,7 +132,13 @@ function buildApiUrl(
   const params = new URLSearchParams();
   for (const [key, value] of Object.entries(query)) {
     if (value === undefined) continue;
-    params.set(key, value);
+    if (typeof value === "string") {
+      params.set(key, value);
+    } else {
+      for (const item of value) {
+        params.append(key, item);
+      }
+    }
   }
 
   const queryString = params.toString();
@@ -137,14 +147,35 @@ function buildApiUrl(
 
 function normalizeQuery(
   query: AomiRequestOptions["query"],
-): Record<string, string | undefined> | undefined {
+): Record<string, ApiQueryValue> | undefined {
   if (!query) return undefined;
-  const normalized: Record<string, string | undefined> = {};
+  const normalized: Record<string, ApiQueryValue> = {};
   for (const [key, value] of Object.entries(query)) {
+    if (Array.isArray(value)) {
+      normalized[key] = value.map((item) => String(item));
+      continue;
+    }
     normalized[key] =
       value === null || value === undefined ? undefined : String(value);
   }
   return normalized;
+}
+
+function normalizePlatformFilter(platforms: AomiPlatformFilter): string[] {
+  const rawValues = Array.isArray(platforms)
+    ? platforms
+    : platforms === null || platforms === undefined
+      ? []
+      : [platforms];
+
+  return Array.from(
+    new Set(
+      rawValues
+        .flatMap((value) => value.split(","))
+        .map((value) => value.trim())
+        .filter(Boolean),
+    ),
+  );
 }
 
 function encodeJsonBody(body: unknown): BodyInit | undefined {
@@ -179,16 +210,16 @@ function wrapFetchWithAccountBearer(
     );
     const fetchWithBearer = async (forceRefresh: boolean) => {
       const headers = new Headers(baseHeaders);
-      // The account bearer is additive — never let a failing token source break
-      // the request. A throwing/absent token just means no Authorization header.
-      let accessToken: string | null | undefined;
+      // The account bearer is additive — never let a failing source break the
+      // request. A throwing/absent bearer just means no Authorization header.
+      let bearer: string | null | undefined;
       try {
-        accessToken = await getAccountBearer({ forceRefresh });
+        bearer = await getAccountBearer({ forceRefresh });
       } catch {
-        accessToken = undefined;
+        bearer = undefined;
       }
-      if (accessToken) {
-        headers.set("Authorization", `Bearer ${accessToken}`);
+      if (bearer) {
+        headers.set("Authorization", `Bearer ${bearer}`);
       }
       return fetchImpl(input, { ...init, headers });
     };
@@ -869,9 +900,12 @@ export class AomiClient {
    */
   async getApps(
     sessionId: string,
-    options?: { apiKey?: string },
+    options?: { apiKey?: string; platforms?: AomiPlatformFilter },
   ): Promise<AomiAppDescriptor[]> {
-    const url = buildApiUrl(this.baseUrl, "/api/session/apps");
+    const platforms = normalizePlatformFilter(options?.platforms);
+    const url = buildApiUrl(this.baseUrl, "/api/session/apps", {
+      platform: platforms.length > 0 ? platforms : undefined,
+    });
 
     const apiKey = options?.apiKey ?? this.apiKey;
     const headers = new Headers(withSessionHeader(sessionId));
@@ -888,18 +922,7 @@ export class AomiClient {
     const data = (await response.json()) as unknown;
     if (!Array.isArray(data)) return [];
     return data
-      .map((item) => {
-        if (typeof item === "string") {
-          return { name: item };
-        }
-        if (item && typeof item === "object" && "name" in item) {
-          const name = (item as { name?: unknown }).name;
-          if (typeof name === "string" && name.trim().length > 0) {
-            return item as AomiAppDescriptor;
-          }
-        }
-        return null;
-      })
+      .map((item) => normalizeAppDescriptor(item))
       .filter((item): item is AomiAppDescriptor => item !== null);
   }
 

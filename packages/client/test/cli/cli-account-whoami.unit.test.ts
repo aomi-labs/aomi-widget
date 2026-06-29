@@ -111,8 +111,8 @@ describe("aomi account whoami", () => {
 
     CliSession.loadOrCreate({
       ...baseConfig,
-      accountProvider: "privy",
-      accountProviderToken: "bad-provider-token",
+      embeddedProvider: "privy",
+      embeddedProviderToken: "bad-provider-token",
     });
 
     const profileResponse = {

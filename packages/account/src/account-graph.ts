@@ -21,15 +21,6 @@ export type ResolveInput = {
   provider: string;
   /** Provider subject, e.g. `did:privy:…`. The credential key, never the `sub`. */
   subject: string;
-  /**
-   * TMP(account-graph): an EVM address from the verified-login exchange. When it
-   * matches an existing `wallet`-keyed identity, resolve to that account — this
-   * bridges returning wallet-first users (created via `wallet_bind`, keyed by
-   * address, with no provider identity yet) to their existing sessions. Trusted
-   * as supplied — a deliberate stopgap for this week; the account-graph refactor
-   * replaces this with proper credential linking and wallet-ownership proof.
-   */
-  walletAddress?: string;
 };
 
 export type CanonicalUser = {
@@ -64,27 +55,6 @@ export async function resolveOrCreateCanonicalUser(
   const pool = getPool();
   const client = await pool.connect();
   try {
-    // TMP(account-graph): wallet-first restore. If the exchange passed a wallet
-    // address matching an existing `wallet`-keyed identity, resolve to that
-    // account so returning wallet-first users keep their sessions. Read-only on
-    // purpose — it never writes the `(provider, subject)` link, so a wrong address
-    // can't corrupt the graph the refactor inherits. The key mirrors how
-    // wallet-first users were created (`wallet_provider = 'wallet'`,
-    // `auth_value_normalized = lower(address)`). Remove when the account graph
-    // links credentials. See ResolveInput.walletAddress.
-    if (input.walletAddress) {
-      const byWallet = await client.query(
-        `select user_id from auth_identities
-          where application is null
-            and wallet_provider = 'wallet'
-            and auth_value_normalized = $1
-          limit 1`,
-        [normalizeValue(input.walletAddress)],
-      );
-      const walletUserId = byWallet.rows[0]?.user_id as string | undefined;
-      if (walletUserId) return { userId: walletUserId, created: false };
-    }
-
     const existing = await findUserIdBySubject(client, provider, subject);
     if (existing) return { userId: existing, created: false };
 
@@ -130,6 +100,84 @@ export async function resolveOrCreateCanonicalUser(
   } finally {
     client.release();
   }
+}
+
+/**
+ * Resolve-or-create the canonical user for a **wallet-proven** identity (base's
+ * SIWE login). Unlike the provider exchange, there is no `(provider, subject)`
+ * credential — only an EVM address whose ownership the SIWE signature proved
+ * server-side. Keyed by `wallet_provider = 'wallet'` and
+ * `auth_value_normalized = lower(address)`, so wallet identities are only
+ * resolved from a proven wallet-ownership path.
+ *
+ * Mirrors `insert_for_identity`'s column set + the unique-index race handling.
+ */
+export async function resolveOrCreateByWallet(
+  address: string,
+): Promise<CanonicalUser> {
+  const normalized = normalizeValue(address);
+  if (!normalized) {
+    throw new Error("resolveOrCreateByWallet requires a wallet address");
+  }
+
+  const pool = getPool();
+  const client = await pool.connect();
+  try {
+    const existing = await findUserIdByWallet(client, normalized);
+    if (existing) return { userId: existing, created: false };
+
+    const userId = randomUUID();
+    // Unix *seconds* — the backend's timestamps are `bigint` seconds.
+    const now = Math.floor(Date.now() / 1000);
+    try {
+      await client.query("begin");
+      await client.query(
+        `insert into users (id, username, created_at, updated_at)
+         values ($1, null, $2, $2)`,
+        [userId, now],
+      );
+      await client.query(
+        `insert into auth_identities
+           (user_id, application, wallet_provider, wallet_provider_subject,
+            auth_method, auth_value, auth_value_normalized,
+            auth_verified_at, is_primary, metadata, created_at, updated_at)
+         values ($1, null, 'wallet', $2, 'wallet', $3, $2, $4, true, $5, $4, $4)`,
+        [
+          userId,
+          normalized,
+          address,
+          now,
+          JSON.stringify({ source: "base_siwe" }),
+        ],
+      );
+      await client.query("commit");
+      return { userId, created: true };
+    } catch (error) {
+      await client.query("rollback").catch(() => {});
+      if (isUniqueViolation(error)) {
+        const winner = await findUserIdByWallet(client, normalized);
+        if (winner) return { userId: winner, created: false };
+      }
+      throw error;
+    }
+  } finally {
+    client.release();
+  }
+}
+
+async function findUserIdByWallet(
+  client: { query: PoolClientQuery },
+  normalizedAddress: string,
+): Promise<string | null> {
+  const result = await client.query(
+    `select user_id from auth_identities
+      where application is null
+        and wallet_provider = 'wallet'
+        and auth_value_normalized = $1
+      limit 1`,
+    [normalizedAddress],
+  );
+  return (result.rows[0]?.user_id as string | undefined) ?? null;
 }
 
 async function findUserIdBySubject(

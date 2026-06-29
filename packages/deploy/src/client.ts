@@ -886,6 +886,7 @@ function camelActivateResult(result: unknown): ActivateResult {
         path: app.path ?? null,
         releaseTag: app.release_tag ?? null,
         isActive: Boolean(app.is_active),
+        artifactReady: Boolean(app.artifact_ready ?? app.artifactReady),
         loaded: Boolean(app.loaded),
         error: app.error ?? null,
         sourceBranch: app.source_branch ?? null,
@@ -981,11 +982,13 @@ function camelPlatformApp(raw: unknown): PlatformApp {
     id: Number(a.id),
     name: a.name,
     label: a.label ?? null,
+    platform: a.platform ?? null,
     isActive: Boolean(a.is_active),
     isPublic: Boolean(a.is_public),
     appSourceId: a.app_source_id ?? null,
     appReleaseTag: a.app_release_tag ?? null,
     targetTags: a.target_tags ?? [],
+    artifactReady: Boolean(a.artifact_ready ?? a.artifactReady),
     loaded: Boolean(a.loaded),
   };
 }
@@ -1017,6 +1020,7 @@ function camelUserSourceLatestDeployment(
       appSourceId: app.app_source_id ?? app.appSourceId ?? null,
       appReleaseTag: app.app_release_tag ?? app.appReleaseTag ?? null,
       isActive: Boolean(app.is_active ?? app.isActive),
+      artifactReady: Boolean(app.artifact_ready ?? app.artifactReady),
       loaded: Boolean(app.loaded),
     })),
   };

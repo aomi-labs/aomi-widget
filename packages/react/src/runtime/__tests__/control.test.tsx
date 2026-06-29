@@ -29,7 +29,7 @@ describe("Control context", () => {
       getModels: async () => [],
     });
 
-    const { api } = renderRuntime();
+    const { api } = renderRuntime({ appPlatforms: ["somm.finance", "community"] });
 
     await waitFor(() => {
       expect(getApps).toHaveBeenCalledTimes(1);
@@ -37,6 +37,7 @@ describe("Control context", () => {
 
     expect(getApps.mock.calls[0]?.[1]).toMatchObject({
       apiKey: undefined,
+      platforms: ["somm.finance", "community"],
     });
 
     await act(async () => {
@@ -54,7 +55,7 @@ describe("Control context", () => {
   it("does not refetch authorized apps on thread changes", async () => {
     const getApps = vi.fn(async () => [
       { name: "default" },
-      { name: "special" },
+      { name: "special", applicationId: 2936606, platform: "somm.finance" },
     ]);
     setAomiClientConfig({
       getApps,
@@ -87,7 +88,7 @@ describe("Control context", () => {
     );
     const getApps = vi.fn(async () => [
       { name: "default" },
-      { name: "special" },
+      { name: "special", applicationId: 2936606, platform: "somm.finance" },
     ]);
 
     setAomiClientConfig({
@@ -103,10 +104,11 @@ describe("Control context", () => {
     });
 
     act(() => {
-      getControl().onAppSelect("special");
+      getControl().onAppSelect("special", { applicationId: 2936606 });
     });
 
     expect(getControl().getCurrentThreadApp()).toBe("special");
+    expect(getControl().getCurrentThreadApplicationId()).toBe(2936606);
 
     await act(async () => {
       api.setUser({
@@ -130,10 +132,34 @@ describe("Control context", () => {
 
     expect(sendMessage.mock.calls[0]?.[2]).toMatchObject({
       app: "special",
+      applicationId: 2936606,
       userState: expect.objectContaining({
         evm: expect.objectContaining({ address: "0xabc" }),
       }),
     });
+  });
+
+  it("does not select a hosted app by bare name when an application id is required", async () => {
+    setAomiClientConfig({
+      getApps: async () => [
+        { name: "default" },
+        { name: "special", applicationId: 2936606, platform: "somm.finance" },
+      ],
+      getModels: async () => [],
+    });
+
+    const { getControl } = renderRuntime();
+
+    await waitFor(() => {
+      expect(getControl().state.authorizedApps).toEqual(["default", "special"]);
+    });
+
+    act(() => {
+      getControl().onAppSelect("special");
+    });
+
+    expect(getControl().getCurrentThreadApp()).toBe("default");
+    expect(getControl().getCurrentThreadApplicationId()).toBeNull();
   });
 
   it("resends with the updated app on an existing thread session", async () => {
@@ -145,7 +171,10 @@ describe("Control context", () => {
     );
 
     setAomiClientConfig({
-      getApps: async () => [{ name: "default" }, { name: "special" }],
+      getApps: async () => [
+        { name: "default" },
+        { name: "special", applicationId: 2936606, platform: "somm.finance" },
+      ],
       getModels: async () => [],
       sendMessage,
     });
@@ -161,7 +190,7 @@ describe("Control context", () => {
     });
 
     act(() => {
-      getControl().onAppSelect("special");
+      getControl().onAppSelect("special", { applicationId: 2936606 });
     });
 
     await act(async () => {
@@ -177,6 +206,7 @@ describe("Control context", () => {
     });
     expect(sendMessage.mock.calls[1]?.[2]).toMatchObject({
       app: "special",
+      applicationId: 2936606,
     });
   });
 });

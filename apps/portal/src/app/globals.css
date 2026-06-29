@@ -1,7 +1,7 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "@aomi-labs/widget-lib/styles.css";
-@source "../../../../apps/registry/src/**/*.{ts,tsx}";
+@source "../../../../apps/shadcn-registry/src/**/*.{ts,tsx}";
 
 @font-face {
   font-family: "Bauhaus_Chez_Display_2.0";
