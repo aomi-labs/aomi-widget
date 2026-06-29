@@ -48,21 +48,14 @@ vi.mock("@portal/features/launch", () => ({
 }));
 
 function baseProgress(): LaunchProgress {
-  return {
-    path: null,
-    oneshot: {},
-    bootstrap: {},
-    pendingInstall: null,
-  };
+  return {};
 }
 
 describe("OneshotWizard", () => {
   const defaultProps = {
     progress: baseProgress(),
     actor: "test-user",
-    onBack: noop,
     beginInstall: noop,
-    beginAuthorize: noop,
     installing: false,
     installError: null,
     patch: noop,
@@ -73,10 +66,9 @@ describe("OneshotWizard", () => {
     expect(screen.getByText(/Install the Aomi GitHub App/)).toBeInTheDocument();
   });
 
-  it("shows install buttons", () => {
+  it("shows the install button", () => {
     render(<OneshotWizard {...defaultProps} />);
     expect(screen.getByText("Install on GitHub")).toBeInTheDocument();
-    expect(screen.getByText("Already installed?")).toBeInTheDocument();
   });
 
   it("shows live panel when live", () => {
@@ -114,27 +106,23 @@ describe("OneshotWizard", () => {
     expect(screen.getByText("Live")).toBeInTheDocument();
   });
 
-  it("shows the back button", () => {
-    render(<OneshotWizard {...defaultProps} />);
-    expect(screen.getByText("Back")).toBeInTheDocument();
-  });
-
   it("shows the wizard title", () => {
     render(<OneshotWizard {...defaultProps} />);
-    expect(screen.getByText("One-click")).toBeInTheDocument();
+    expect(screen.getByText("Deploy your agent")).toBeInTheDocument();
   });
 
-  it("offers restart into fork and customize when provided", () => {
-    const onRestartInBootstrap = vi.fn();
+  it("offers start over once there is progress", () => {
+    const onRestart = vi.fn();
 
     render(
       <OneshotWizard
         {...defaultProps}
-        onRestartInBootstrap={onRestartInBootstrap}
+        progress={{ installationId: "1" }}
+        onRestart={onRestart}
       />,
     );
 
-    fireEvent.click(screen.getByText("Restart in Fork & Customize"));
-    expect(onRestartInBootstrap).toHaveBeenCalledOnce();
+    fireEvent.click(screen.getByText("Start over"));
+    expect(onRestart).toHaveBeenCalledOnce();
   });
 });

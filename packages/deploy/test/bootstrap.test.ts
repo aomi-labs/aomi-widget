@@ -207,6 +207,7 @@ describe("DeploymentClient bootstrap — sources", () => {
       installationId: 555,
       repoName: "my-bot",
       templateRepo: "alice/template-bot",
+      githubUserId: "42",
     });
     const [url, init] = fetchMock.mock.calls[0];
     expect(url).toBe(
@@ -216,6 +217,7 @@ describe("DeploymentClient bootstrap — sources", () => {
       installation_id: 555,
       template_repo: "alice/template-bot",
       repo_name: "my-bot",
+      github_user_id: "42",
       private: false,
     });
     expect(src.id).toBe(99);

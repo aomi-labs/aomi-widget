@@ -48,7 +48,11 @@ import { Onboarding } from "./onboarding";
 type SessionState =
   | { status: "loading" }
   | { status: "signed_out" }
-  | { status: "signed_in"; login: string | null };
+  | {
+      status: "signed_in";
+      login: string | null;
+      installationId: string | null;
+    };
 
 /**
  * The GitHub-identity-first deploy flow:
@@ -64,7 +68,11 @@ export function DeployDashboard() {
       if (!active) return;
       setSession(
         s.signedIn
-          ? { status: "signed_in", login: s.githubLogin }
+          ? {
+              status: "signed_in",
+              login: s.githubLogin,
+              installationId: s.installationId ?? null,
+            }
           : { status: "signed_out" },
       );
     });
@@ -82,6 +90,7 @@ export function DeployDashboard() {
   return (
     <SignedInDashboard
       login={session.login}
+      sessionInstallationId={session.installationId}
       onSignOut={async () => {
         await signOutGitHub();
         setSession({ status: "signed_out" });
@@ -111,19 +120,12 @@ function SignInGate() {
         <Github className="h-4 w-4" /> Sign in with GitHub
       </a>
 
-      <div className="pointer-events-none grid gap-3 opacity-50 sm:grid-cols-2">
+      <div className="pointer-events-none opacity-50">
         <PathBox
           title="One-click"
-          subtitle="We create the repo and deploy it for you."
-        />
-        <PathBox
-          title="Fork & customize"
-          subtitle="Make your own repo from our template, then we deploy it."
+          subtitle="We create the repo from our template and deploy it for you."
         />
       </div>
-      <p className="text-muted-foreground text-xs">
-        Choose a path after signing in.
-      </p>
     </div>
   );
 }
@@ -141,9 +143,11 @@ function PathBox({ title, subtitle }: { title: string; subtitle: string }) {
 
 function SignedInDashboard({
   login,
+  sessionInstallationId,
   onSignOut,
 }: {
   login: string | null;
+  sessionInstallationId: string | null;
   onSignOut: () => void;
 }) {
   const [sources, setSources] = useState<UserSource[] | null>(null);
@@ -229,7 +233,11 @@ function SignedInDashboard({
             ← Back to your repositories
           </button>
         )}
-        <Onboarding hideWizardBack knownSources={sources ?? []} />
+        <Onboarding
+          hideWizardBack
+          knownSources={sources ?? []}
+          sessionInstallationId={sessionInstallationId}
+        />
       </div>
     );
   }

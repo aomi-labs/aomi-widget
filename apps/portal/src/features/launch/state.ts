@@ -9,14 +9,25 @@ export type PendingInstall = {
 export type LaunchState = {
   path: LaunchPath | null;
   oneshot: LaunchProgress;
-  bootstrap: LaunchProgress;
   pendingInstall: PendingInstall | null;
+  /**
+   * An installation id that a create attempt rejected (uninstalled, wrong
+   * account, missing permissions). Kept so we never re-seed it from the signed
+   * session cookie on reload or "Start over" — it's cleared when a fresh install
+   * redirect supplies a new installation.
+   */
+  rejectedInstallationId: string | null;
 };
 
 const STORAGE_KEY = "aomi_launch";
 
 function empty(): LaunchState {
-  return { path: null, oneshot: {}, bootstrap: {}, pendingInstall: null };
+  return {
+    path: null,
+    oneshot: {},
+    pendingInstall: null,
+    rejectedInstallationId: null,
+  };
 }
 
 export function loadLaunch(): LaunchState {
@@ -28,8 +39,8 @@ export function loadLaunch(): LaunchState {
     return {
       path: parsed.path ?? null,
       oneshot: parsed.oneshot ?? {},
-      bootstrap: parsed.bootstrap ?? {},
       pendingInstall: parsed.pendingInstall ?? null,
+      rejectedInstallationId: parsed.rejectedInstallationId ?? null,
     };
   } catch {
     return empty();
@@ -73,6 +84,13 @@ export function withPendingInstall(
   pending: PendingInstall | null,
 ): LaunchState {
   return { ...state, pendingInstall: pending };
+}
+
+export function withRejectedInstall(
+  state: LaunchState,
+  installationId: string | null,
+): LaunchState {
+  return { ...state, rejectedInstallationId: installationId };
 }
 
 export type GithubRedirect = {
@@ -144,18 +162,11 @@ export const GITHUB_REDIRECT_KEYS = [
 ] as const;
 
 export type OneshotStep = "install" | "create" | "build" | "live";
-export type BootstrapStep = "template" | "install" | "deploy" | "live";
 
 export const ONESHOT_STEPS: OneshotStep[] = [
   "install",
   "create",
   "build",
-  "live",
-];
-export const BOOTSTRAP_STEPS: BootstrapStep[] = [
-  "template",
-  "install",
-  "deploy",
   "live",
 ];
 
@@ -166,19 +177,10 @@ export function oneshotStep(p: LaunchProgress): OneshotStep {
   return "live";
 }
 
-export function bootstrapStep(p: LaunchProgress): BootstrapStep {
-  if (!p.repo) return "template";
-  if (!p.installationId) return "install";
-  if (!p.live) return "deploy";
-  return "live";
-}
-
 export function installationStatusLabel(status?: string): string | null {
   switch (status) {
     case "bound":
       return "installation done";
-    case "awaiting_webhook":
-      return "installed, syncing repositories";
     case "awaiting_install":
       return "installation requested";
     default:
