@@ -55,7 +55,11 @@ export function mergeWalletRows({
         walletKey(wallet.family, wallet.address) ===
           walletKey(account.family, account.address),
     );
-    const linked = account.linked ?? Boolean(stored);
+    const providerOwnedEmbedded =
+      Boolean(account.provider) &&
+      (account.walletKind === "embedded" ||
+        account.walletKind === "smart_account");
+    const linked = account.linked ?? (Boolean(stored) || providerOwnedEmbedded);
     const actions: WalletRowAction[] = account.actions?.length
       ? account.actions.map((action) => ({
           kind: action.kind,
@@ -77,8 +81,8 @@ export function mergeWalletRows({
       walletName: account.walletName,
       source: "live" as const,
       status: account.active ? ("active" as const) : ("connected" as const),
-      provider: stored?.provider,
-      walletKind: stored?.kind,
+      provider: account.provider ?? stored?.provider,
+      walletKind: account.walletKind ?? stored?.kind,
       linked,
       linkedVia: account.linkedVia ?? stored?.linkedVia,
       capability: account.capability ?? stored?.capability,

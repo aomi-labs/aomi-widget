@@ -304,6 +304,7 @@ function withEmbeddedSessionConnection(
         addresses: [address],
         chainId: session.chainId ?? undefined,
         walletName: session.walletName,
+        providerId: session.providerId ?? undefined,
       },
     ],
   });
@@ -638,6 +639,7 @@ export function reduce(
           address: event.publicKey,
           addresses: [event.publicKey],
           walletName: event.walletName ?? undefined,
+          providerId: event.providerId,
         });
       }
       let next: WalletRegistryState = withConnectionOrder({

@@ -11,11 +11,7 @@ export type LinkedWalletRow = NonNullable<
   AomiWalletKit["accountWallets"]
 >[number];
 
-/**
- * One chain "leg" of a consolidated entry. A provider-backed account can
- * contribute one EVM and one SVM leg under the same row instead of showing as
- * separate cards.
- */
+/** One chain "leg" of a wallet entry. */
 export type WalletLeg = {
   family: WalletFamily;
   address?: string;
@@ -34,7 +30,6 @@ export type ConnectedEntry = {
 };
 
 export type AccountAccessEntries = {
-  providerEntries: { account: LinkedAccountRow; wallets: LinkedWalletRow[] }[];
   standaloneAccounts: LinkedAccountRow[];
   standaloneWallets: LinkedWalletRow[];
 };
@@ -83,50 +78,48 @@ export function providerBackedAccountProvider(input: {
   return input.source === "embedded" ? input.provider : null;
 }
 
+export function providerBackedWalletTitle(input: {
+  provider?: string;
+  walletName?: string;
+  family: WalletFamily;
+  kind?: string;
+  walletKind?: string;
+  source?: string;
+}): string {
+  const provider = providerBackedAccountProvider(input);
+  return provider !== null
+    ? (formatWalletProvider(provider) ?? provider)
+    : (input.walletName ?? familyLabel(input.family));
+}
+
 export function buildConnectedEntries(
   accounts: readonly WalletModalRow[],
   wallets: readonly LinkedWalletRow[],
 ): ConnectedEntry[] {
-  const byKey = new Map<string, ConnectedEntry>();
-  const order: string[] = [];
-  for (const account of accounts) {
-    const provider = providerBackedAccountProvider(account);
-    const groupKey =
-      provider !== null ? `provider:${provider}` : `row:${account.id}`;
+  return accounts.map((account) => {
     const linkedWallet = account.linked
       ? wallets.find((wallet) =>
           sameWalletAddress(wallet.family, wallet.address, account.address),
         )
       : undefined;
-    const leg: WalletLeg = {
-      family: account.family,
-      address: account.address,
-      chainId: account.chainId,
-      capability: account.capability ?? linkedWallet?.capability,
-      linked: account.linked,
+    const provider = providerBackedAccountProvider(account);
+    const title = providerBackedWalletTitle(account);
+    return {
+      key: `row:${account.family}:${account.id}:${account.address ?? ""}`,
+      title,
+      iconId: provider ?? account.id,
+      iconLabel: title,
+      iconProvider: account.provider,
+      legs: [
+        {
+          family: account.family,
+          address: account.address,
+          chainId: account.chainId ?? linkedWallet?.chainId,
+          capability: account.capability ?? linkedWallet?.capability,
+          linked: account.linked ?? Boolean(linkedWallet),
+        },
+      ],
     };
-    let entry = byKey.get(groupKey);
-    if (!entry) {
-      const title =
-        provider !== null
-          ? (formatWalletProvider(provider) ?? provider)
-          : (account.walletName ?? familyLabel(account.family));
-      entry = {
-        key: groupKey,
-        title,
-        iconId: provider !== null ? provider : account.id,
-        iconLabel: title,
-        iconProvider: account.provider,
-        legs: [],
-      };
-      byKey.set(groupKey, entry);
-      order.push(groupKey);
-    }
-    entry.legs.push(leg);
-  }
-  return order.map((key) => {
-    const entry = byKey.get(key)!;
-    return { ...entry, legs: sortWalletLegs(entry.legs) };
   });
 }
 
@@ -141,52 +134,17 @@ export function connectedLinkState(legs: readonly WalletLeg[]): string {
 export function groupConnectedByProvider(
   accounts: readonly WalletModalRow[],
 ): WalletModalRow[][] {
-  const byKey = new Map<string, WalletModalRow[]>();
-  const order: string[] = [];
-  for (const account of accounts) {
-    const provider = providerBackedAccountProvider(account);
-    const key =
-      provider !== null ? `provider:${provider}` : `row:${account.id}`;
-    let group = byKey.get(key);
-    if (!group) {
-      group = [];
-      byKey.set(key, group);
-      order.push(key);
-    }
-    group.push(account);
-  }
-  return order.map((key) => sortWalletLegs(byKey.get(key)!));
+  return accounts.map((account) => [account]);
 }
 
 export function buildAccountAccessEntries(
   linkedAccounts: readonly LinkedAccountRow[],
   wallets: readonly LinkedWalletRow[],
 ): AccountAccessEntries {
-  const consumedWalletIds = new Set<string>();
-  const consumedAccountIds = new Set<string>();
-  const providerEntries: AccountAccessEntries["providerEntries"] = [];
-
-  for (const account of linkedAccounts) {
-    const provider = account.provider;
-    if (!provider) continue;
-    const matched = wallets.filter(
-      (wallet) =>
-        providerBackedAccountProvider(wallet) === provider &&
-        !consumedWalletIds.has(wallet.id),
-    );
-    if (matched.length === 0) continue;
-    matched.forEach((wallet) => consumedWalletIds.add(wallet.id));
-    consumedAccountIds.add(account.id);
-    providerEntries.push({ account, wallets: matched });
-  }
-
   return {
-    providerEntries,
-    standaloneAccounts: linkedAccounts.filter(
-      (account) => !consumedAccountIds.has(account.id),
-    ),
+    standaloneAccounts: [...linkedAccounts],
     standaloneWallets: wallets.filter(
-      (wallet) => !consumedWalletIds.has(wallet.id),
+      (wallet) => providerBackedAccountProvider(wallet) === null,
     ),
   };
 }

@@ -14,6 +14,7 @@ export type RegistryConnection = {
   addresses: string[];
   chainId?: number;
   walletName?: string;
+  providerId?: string;
 };
 
 export type RegistryConnectionOrderItem = {
@@ -113,6 +114,7 @@ export type RegistryEvent =
       uid?: string;
       stableId?: string;
       kind?: Extract<RegistryConnection["kind"], "embedded-session" | "svm">;
+      providerId?: string;
       walletName: string | null;
       now: number;
     }

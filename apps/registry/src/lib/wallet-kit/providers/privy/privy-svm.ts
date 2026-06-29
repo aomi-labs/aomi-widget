@@ -19,6 +19,7 @@ export function buildPrivySvmWalletState({
     connecting: false,
     disconnecting: false,
     walletName: wallet ? "Privy Solana" : undefined,
+    providerId: wallet ? "privy" : undefined,
     transport: wallet ? "embedded" : undefined,
     wallets: wallets.map((entry) => ({
       adapter: {

@@ -225,6 +225,10 @@ export type AomiAccount = {
   label?: string;
   /** Human wallet name, e.g. "MetaMask", "Phantom", "Para". */
   walletName?: string;
+  /** Provider that owns this account when it is an embedded/provider wallet. */
+  provider?: AomiWalletProvider;
+  /** Runtime wallet kind for UI/account-linking classification. */
+  walletKind?: "external" | "embedded" | "smart_account";
   /** EVM chain id of this connection, for per-row network labels. */
   chainId?: number;
   /** All wagmi connector uids exposing this address (EVM, dedup metadata). */

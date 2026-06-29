@@ -48,6 +48,7 @@ import {
   familyLabel,
   groupConnectedByProvider,
   providerBackedAccountProvider,
+  providerBackedWalletTitle,
   sameWalletAddress,
   sortWalletLegs as sortLegs,
   type ConnectedEntry,
@@ -548,16 +549,7 @@ export function WalletPicker() {
   const renderConnectedGroup = (group: WalletModalRow[]) => {
     const representative = group[0];
     const provider = providerBackedAccountProvider(representative);
-    const title =
-      provider !== null
-        ? (formatWalletProvider(provider) ?? provider)
-        : (representative.walletName ?? familyLabel(representative.family));
-    const providerWallets =
-      provider !== null
-        ? (adapter.accountWallets ?? []).filter(
-            (wallet) => providerBackedAccountProvider(wallet) === provider,
-          )
-        : [];
+    const title = providerBackedWalletTitle(representative);
 
     const svmCluster = (identity.svmCluster ?? identity.solanaCluster)?.replace(
       "solana:",
@@ -573,8 +565,10 @@ export function WalletPicker() {
           : undefined;
 
     const liveLegs: WalletLeg[] = group.map((account) => {
-      const linkedWallet = providerWallets.find((wallet) =>
-        sameWalletAddress(wallet.family, wallet.address, account.address),
+      const linkedWallet = (adapter.accountWallets ?? []).find(
+        (wallet) =>
+          wallet.family === account.family &&
+          sameWalletAddress(wallet.family, wallet.address, account.address),
       );
       return {
         family: account.family,
@@ -587,28 +581,10 @@ export function WalletPicker() {
         linked: account.linked ?? Boolean(linkedWallet),
       };
     });
-    const storedLegs: WalletLeg[] = providerWallets
-      .filter(
-        (wallet) =>
-          !liveLegs.some(
-            (leg) =>
-              leg.family === wallet.family &&
-              sameWalletAddress(wallet.family, leg.address, wallet.address),
-          ),
-      )
-      .map((wallet) => ({
-        family: wallet.family,
-        address: wallet.address,
-        chainId: wallet.chainId ?? chainIdFromScope(wallet.chainScope),
-        capability: wallet.capability,
-        linked: true,
-      }));
-    const legs = sortLegs([...liveLegs, ...storedLegs]);
-    const grouped = provider !== null ? legs.length > 1 : group.length > 1;
+    const legs = sortLegs(liveLegs);
+    const grouped = group.length > 1;
 
-    // A single wallet keeps its original address/label + network/cluster detail;
-    // a provider group shows both shortened addresses, dropping the per-leg
-    // network so the line stays readable.
+    // A single wallet keeps its original address/label + network/cluster detail.
     const addressText = grouped
       ? joinLegAddresses(legs)
       : (representative.label ??
@@ -647,11 +623,7 @@ export function WalletPicker() {
 
     return (
       <ConnectedWalletRow
-        key={
-          provider !== null
-            ? `provider:${provider}`
-            : `row:${representative.id}`
-        }
+        key={`row:${representative.family}:${representative.id}:${representative.address ?? ""}`}
         title={title}
         iconId={provider !== null ? provider : representative.id}
         iconLabel={title}
@@ -1206,13 +1178,12 @@ function AccountManagerPanel({
     userEmail ?? (user ? walletSummary : (subtitle ?? walletSummary));
   const visibleLinkedAccounts = linkedAccounts.filter(isVisibleLinkedAccount);
   const connectedEntries = buildConnectedEntries(connectedAccounts, wallets);
-  const {
-    providerEntries: providerAccessEntries,
-    standaloneAccounts,
-    standaloneWallets,
-  } = buildAccountAccessEntries(visibleLinkedAccounts, wallets);
+  const { standaloneAccounts, standaloneWallets } = buildAccountAccessEntries(
+    visibleLinkedAccounts,
+    wallets,
+  );
   const hasAccountAccess =
-    visibleLinkedAccounts.length > 0 || wallets.length > 0;
+    standaloneAccounts.length > 0 || standaloneWallets.length > 0;
   const headerBrandLabel = user ? undefined : brandLabel;
 
   const startRenaming = (wallet: LinkedWalletRow) => {
@@ -1366,32 +1337,6 @@ function AccountManagerPanel({
         {hasAccountAccess ? (
           <section className="flex flex-col gap-1.5">
             <SectionLabel>Account access</SectionLabel>
-            {providerAccessEntries.map(
-              ({ account, wallets: providerWallets }) => (
-                <LinkedAuthAccountRow
-                  key={account.id}
-                  account={account}
-                  wallets={providerWallets}
-                  supportedEvmChains={supportedEvmChains}
-                  editing={editingLinkedAccountId === account.id}
-                  draftLabel={draftLinkedAccountLabel}
-                  pending={pending}
-                  onDraftLabelChange={setDraftLinkedAccountLabel}
-                  onStartRename={
-                    onRenameLinkedAccount
-                      ? () => startRenamingLinkedAccount(account)
-                      : undefined
-                  }
-                  onCancelRename={() => setEditingLinkedAccountId(null)}
-                  onSubmitRename={() => void submitLinkedAccountRename(account)}
-                  onUnlink={
-                    onUnlinkAccount
-                      ? () => void onUnlinkAccount(account.id)
-                      : undefined
-                  }
-                />
-              ),
-            )}
             {standaloneAccounts.map((account) => (
               <LinkedAuthAccountRow
                 key={account.id}
@@ -1582,9 +1527,9 @@ function LinkedAuthAccountRow({
   onUnlink,
 }: {
   account: LinkedAccountRow;
-  /** Provider-owned wallets folded into this sign-in row (Privy/Para mint both
-   * an EVM and an SVM wallet under one identity). Empty for provider-less
-   * sign-ins (e.g. Google), which keep their email/subject subtitle. */
+  /** Optional wallet legs for legacy callers that intentionally render a
+   * combined auth+wallet row. Account access normally keeps provider auth and
+   * provider-owned embedded wallets separate. */
   wallets?: readonly LinkedWalletRow[];
   supportedEvmChains?: readonly SupportedEvmChain[];
   editing: boolean;

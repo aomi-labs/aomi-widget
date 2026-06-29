@@ -130,6 +130,11 @@ export function selectAccounts(
             walletName: connection.walletName ?? connection.stableId,
             address: connection.address,
             chainId: connection.chainId ?? selectedChainId,
+            provider: connection.providerId,
+            walletKind:
+              connection.kind === "embedded-session"
+                ? ("embedded" as const)
+                : undefined,
           }))
       : [];
 
@@ -139,6 +144,8 @@ export function selectAccounts(
       walletName: evmIdentity.walletName ?? "Wallet",
       address: evmIdentity.address,
       chainId: evmIdentity.chainId,
+      provider: undefined,
+      walletKind: undefined,
     });
   }
 
@@ -155,6 +162,9 @@ export function selectAccounts(
       id: connection.uid,
       publicKey: connection.address,
       walletName: connection.walletName,
+      provider: connection.providerId,
+      walletKind:
+        connection.kind === "embedded-session" ? "embedded" : undefined,
     })),
     activeSolanaAddress: activeSvm?.address,
   });
