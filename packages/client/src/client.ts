@@ -41,7 +41,7 @@ import { createSseSubscriber, type SseSubscriber } from "./sse";
 // Internal helpers
 // =============================================================================
 
-const SESSION_ID_HEADER = "X-Session-Id";
+const SESSION_ID_HEADER = "X-Thread-Id";
 const APP_KEY_HEADER = "Aomi-App-Key";
 
 function previewText(value: string, max = 80): string {
@@ -734,7 +734,7 @@ export class AomiClient {
    * List all threads for the authenticated account.
    */
   async listThreads(sessionId: string): Promise<AomiThread[]> {
-    const url = buildApiUrl(this.baseUrl, "/api/sessions");
+    const url = buildApiUrl(this.baseUrl, "/api/threads");
     const response = await this.fetchImpl(url, {
       headers: withSessionHeader(sessionId),
     });
@@ -752,7 +752,7 @@ export class AomiClient {
   async getThread(sessionId: string): Promise<AomiThread> {
     const url = buildApiUrl(
       this.baseUrl,
-      `/api/sessions/${encodeURIComponent(sessionId)}`,
+      `/api/threads/${encodeURIComponent(sessionId)}`,
     );
     const response = await this.fetchImpl(url, {
       headers: withSessionHeader(sessionId),
@@ -769,7 +769,7 @@ export class AomiClient {
    * Create a new thread. The client generates the session ID.
    */
   async createThread(threadId: string): Promise<AomiCreateThreadResponse> {
-    const url = buildApiUrl(this.baseUrl, "/api/sessions");
+    const url = buildApiUrl(this.baseUrl, "/api/threads");
     const response = await this.fetchImpl(url, {
       method: "POST",
       headers: withSessionHeader(threadId),
@@ -788,7 +788,7 @@ export class AomiClient {
   async deleteThread(sessionId: string): Promise<void> {
     const url = buildApiUrl(
       this.baseUrl,
-      `/api/sessions/${encodeURIComponent(sessionId)}`,
+      `/api/threads/${encodeURIComponent(sessionId)}`,
     );
     const response = await this.fetchImpl(url, {
       method: "DELETE",
@@ -806,7 +806,7 @@ export class AomiClient {
   async renameThread(sessionId: string, newTitle: string): Promise<void> {
     const url = buildApiUrl(
       this.baseUrl,
-      `/api/sessions/${encodeURIComponent(sessionId)}`,
+      `/api/threads/${encodeURIComponent(sessionId)}`,
     );
     const response = await this.fetchImpl(url, {
       method: "PATCH",
@@ -878,7 +878,7 @@ export class AomiClient {
     sessionId: string,
     options?: { apiKey?: string },
   ): Promise<AomiAppDescriptor[]> {
-    const url = buildApiUrl(this.baseUrl, "/api/session/apps");
+    const url = buildApiUrl(this.baseUrl, "/api/thread/apps");
 
     const apiKey = options?.apiKey ?? this.apiKey;
     const headers = new Headers(withSessionHeader(sessionId));
@@ -1048,7 +1048,7 @@ export class AomiClient {
     sessionId: string,
     options?: { apiKey?: string },
   ): Promise<string[]> {
-    const url = buildApiUrl(this.baseUrl, "/api/session/models");
+    const url = buildApiUrl(this.baseUrl, "/api/thread/runtime/models");
     const apiKey = options?.apiKey ?? this.apiKey;
     const headers = new Headers(withSessionHeader(sessionId));
     if (apiKey) {
@@ -1086,7 +1086,7 @@ export class AomiClient {
   }> {
     const apiKey = options?.apiKey ?? this.apiKey;
     const applicationId = options?.applicationId?.toString().trim();
-    const url = buildApiUrl(this.baseUrl, "/api/session/model", {
+    const url = buildApiUrl(this.baseUrl, "/api/thread/runtime/model", {
       rig,
       app: options?.app,
       application_id: applicationId || undefined,

@@ -31,7 +31,7 @@ const ALLOWED_REQUEST_HEADERS = new Set([
   "accept",
   "content-type",
   "aomi-app-key",
-  "x-session-id",
+  "x-thread-id",
 ]);
 
 // Backend routes this proxy is willing to forward. Portal-owned routes
@@ -58,15 +58,15 @@ const ALLOWED_ROUTES: Array<{
   { pattern: /^\/api\/secrets$/, methods: new Set(["GET", "POST", "DELETE"]) },
   { pattern: /^\/api\/secrets\/[^/]+$/, methods: new Set(["DELETE"]) },
   { pattern: /^\/api\/updates$/, methods: new Set(["GET"]) },
-  { pattern: /^\/api\/sessions$/, methods: new Set(["GET", "POST"]) },
+  { pattern: /^\/api\/threads$/, methods: new Set(["GET", "POST"]) },
   {
-    pattern: /^\/api\/sessions\/[^/]+$/,
+    pattern: /^\/api\/threads\/[^/]+$/,
     methods: new Set(["GET", "PATCH", "DELETE"]),
   },
   { pattern: /^\/api\/events$/, methods: new Set(["GET"]) },
-  { pattern: /^\/api\/session\/apps$/, methods: new Set(["GET"]) },
-  { pattern: /^\/api\/session\/models$/, methods: new Set(["GET"]) },
-  { pattern: /^\/api\/session\/model$/, methods: new Set(["POST"]) },
+  { pattern: /^\/api\/thread\/apps$/, methods: new Set(["GET"]) },
+  { pattern: /^\/api\/thread\/runtime\/models$/, methods: new Set(["GET"]) },
+  { pattern: /^\/api\/thread\/runtime\/model$/, methods: new Set(["POST"]) },
   {
     pattern: /^\/api\/integrations\/github-app\/oauth\/start$/,
     methods: new Set(["GET"]),
