@@ -22,6 +22,12 @@ const TTL_SECONDS = 7 * 24 * 60 * 60;
 export interface GitHubSession {
   githubUserId: string;
   githubLogin: string;
+  /**
+   * Most-recent one-shot App installation visible to this user at sign-in, if
+   * any. Lets the onboarding wizard skip the install step when the App is
+   * already installed. `null` when not installed.
+   */
+  installationId?: string | null;
 }
 
 function secret(): Uint8Array {
@@ -36,7 +42,10 @@ function secret(): Uint8Array {
 
 export async function issueGitHubSession(session: GitHubSession): Promise<string> {
   const now = Math.floor(Date.now() / 1000);
-  return new SignJWT({ login: session.githubLogin })
+  return new SignJWT({
+    login: session.githubLogin,
+    installationId: session.installationId ?? null,
+  })
     .setProtectedHeader({ alg: "HS256" })
     .setSubject(session.githubUserId)
     .setIssuedAt(now)
@@ -55,6 +64,10 @@ export async function readGitHubSession(
     return {
       githubUserId,
       githubLogin: typeof payload.login === "string" ? payload.login : "",
+      installationId:
+        typeof payload.installationId === "string"
+          ? payload.installationId
+          : null,
     };
   } catch {
     return null;

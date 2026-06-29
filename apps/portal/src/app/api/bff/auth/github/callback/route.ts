@@ -7,9 +7,10 @@ import { deploymentClient } from "@portal/server/bff/backend";
 import { setGitHubSessionCookie } from "@portal/server/cookies/github";
 
 const OAUTH_STATE_COOKIE = "aomi_github_oauth_state";
-// The login client id is the build App client id; backend exchange must use the
-// matching client secret. 1 = build App.
-const LOGIN_APP_INDEX = 1;
+// Sign-in runs against the one-shot App so the resulting user token can
+// enumerate the user's one-shot installations (skip-install detection). The
+// backend exchange uses the matching client secret. 2 = one-shot App.
+const LOGIN_APP_INDEX = 2;
 
 function deploySettingsUrl(req: Request): URL {
   const url = new URL(req.url);
@@ -49,6 +50,7 @@ export async function GET(req: Request) {
     await setGitHubSessionCookie(res, {
       githubUserId: identity.githubUserId,
       githubLogin: identity.githubLogin,
+      installationId: identity.installationId,
     });
     return res;
   } catch {

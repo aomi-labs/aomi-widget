@@ -28,7 +28,6 @@ export const API_PATHS = {
       redeploy: `${BFF}/launch/redeploy`,
       create: `${BFF}/launch/create`,
       activate: `${BFF}/launch/activate`,
-      syncInstalled: `${BFF}/launch/sync-installed`,
       sources: `${BFF}/launch/sources`,
       status: (deploymentId: string) =>
         `${BFF}/launch/status?deploymentId=${encodeURIComponent(deploymentId)}`,
@@ -37,8 +36,6 @@ export const API_PATHS = {
         if (releaseTag) params.set("releaseTag", releaseTag);
         return `${BFF}/launch/app?${params}`;
       },
-      checkRepo: (repo: string) =>
-        `${BFF}/launch/check-repo?repo=${encodeURIComponent(repo)}`,
     },
     e2e: {
       execute: `${BFF}/e2e/execute`,

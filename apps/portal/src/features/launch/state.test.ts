@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
   GITHUB_REDIRECT_KEYS,
-  bootstrapStep,
   installationStatusLabel,
   isResumingInstall,
   loadLaunch,
@@ -18,8 +17,8 @@ import {
 const launchState = (over: Partial<LaunchState> = {}): LaunchState => ({
   path: null,
   oneshot: {},
-  bootstrap: {},
   pendingInstall: null,
+  rejectedInstallationId: null,
   ...over,
 });
 
@@ -32,19 +31,10 @@ describe("oneshotStep", () => {
   });
 });
 
-describe("bootstrapStep", () => {
-  it("advances template -> install -> deploy -> live", () => {
-    expect(bootstrapStep({})).toBe("template");
-    expect(bootstrapStep({ repo: "a/b" })).toBe("install");
-    expect(bootstrapStep({ repo: "a/b", installationId: "1" })).toBe("deploy");
-    expect(bootstrapStep({ repo: "a/b", installationId: "1", live: true })).toBe("live");
-  });
-});
-
 describe("installationStatusLabel", () => {
   it("describes backend callback statuses", () => {
     expect(installationStatusLabel("bound")).toBe("installation done");
-    expect(installationStatusLabel("awaiting_webhook")).toBe("installed, syncing repositories");
+    expect(installationStatusLabel("awaiting_install")).toBe("installation requested");
     expect(installationStatusLabel("unknown")).toBeNull();
   });
 });
@@ -90,7 +80,12 @@ describe("readGithubRedirect", () => {
 
 describe("state transitions", () => {
   it("are immutable and correct", () => {
-    const base = { path: null, oneshot: {}, bootstrap: {}, pendingInstall: null };
+    const base = {
+      path: null,
+      oneshot: {},
+      pendingInstall: null,
+      rejectedInstallationId: null,
+    };
 
     const a = withPath(base, "oneshot");
     expect(a.path).toBe("oneshot");
@@ -121,13 +116,13 @@ describe("load/save", () => {
     expect(loadLaunch()).toEqual({
       path: null,
       oneshot: {},
-      bootstrap: {},
       pendingInstall: null,
+      rejectedInstallationId: null,
     });
 
-    const next = withProgress(loadLaunch(), "bootstrap", { repo: "me/app" });
+    const next = withProgress(loadLaunch(), "oneshot", { repo: "me/app" });
     saveLaunch(next);
-    expect(loadLaunch().bootstrap.repo).toBe("me/app");
+    expect(loadLaunch().oneshot.repo).toBe("me/app");
 
     (globalThis as { window?: unknown }).window = undefined;
   });
@@ -138,7 +133,7 @@ describe("isResumingInstall", () => {
     // Saved pendingInstall before the full-page nav to GitHub.
     expect(
       isResumingInstall(
-        launchState({ path: "bootstrap", pendingInstall: { path: "bootstrap" } }),
+        launchState({ path: "oneshot", pendingInstall: { path: "oneshot" } }),
         "",
       ),
     ).toBe(true);
@@ -146,7 +141,7 @@ describe("isResumingInstall", () => {
     // Backend callback redirect on the URL, even if pendingInstall was cleared.
     expect(
       isResumingInstall(
-        launchState({ path: "bootstrap" }),
+        launchState({ path: "oneshot" }),
         "?installation_id=141779906&launch=bound&repo=ceciliaz030%2Flocal-4",
       ),
     ).toBe(true);
@@ -159,7 +154,7 @@ describe("isResumingInstall", () => {
     ).toBe(false);
 
     // Active path but nothing pending and no redirect → fall through to list.
-    expect(isResumingInstall(launchState({ path: "bootstrap" }), "")).toBe(false);
+    expect(isResumingInstall(launchState({ path: "oneshot" }), "")).toBe(false);
   });
 });
 
