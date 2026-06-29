@@ -3,11 +3,7 @@
 import { useMemo } from "react";
 import type { ReactNode } from "react";
 
-import {
-  AomiClient,
-  UserState,
-  type AomiClientOptions,
-} from "@aomi-labs/client";
+import { AomiClient, type AomiClientOptions } from "@aomi-labs/client";
 import { ControlContextProvider } from "../contexts/control-context";
 import { EventContextProvider } from "../contexts/event-context";
 import { NotificationContextProvider } from "../contexts/notification-context";
@@ -39,11 +35,6 @@ function normalizeBackendUrl(url: string): string {
     // Keep caller-provided strings unchanged if URL parsing fails.
   }
   return url;
-}
-
-function legacySessionPublicKey(user: ReturnType<typeof UserState.normalize>) {
-  const address = UserState.address(user);
-  return address?.startsWith("0x") ? address : undefined;
 }
 
 // =============================================================================
@@ -101,15 +92,11 @@ function AomiRuntimeInner({
   aomiClient,
 }: Readonly<AomiRuntimeInnerProps>) {
   const threadContext = useThreadContext();
-  const { user } = useUser();
 
   return (
     <ControlContextProvider
       aomiClient={aomiClient}
       sessionId={threadContext.currentThreadId}
-      publicKey={
-        UserState.isConnected(user) ? legacySessionPublicKey(user) : undefined
-      }
       getThreadMetadata={threadContext.getThreadMetadata}
       updateThreadMetadata={threadContext.updateThreadMetadata}
     >

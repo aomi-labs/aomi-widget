@@ -1,8 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  AccountCredentialUnavailableError,
+  createAccountAccessTokenProvider,
+} from "@aomi-labs/client";
 import { Button, Input, useAomiWalletKit } from "@aomi-labs/widget-lib";
-import { settingsApiFetch } from "@portal/lib/settings-api";
+import { getBackendUrl, settingsApiFetch } from "@portal/lib/settings-api";
+import { shouldUseBetterAuthBackendJwt } from "@portal/lib/backend-auth";
 import {
   settingsActionRowClass,
   settingsBodyTextClass,
@@ -47,7 +52,8 @@ function formatTs(ts?: number | null): string {
 }
 
 export function AppKeys() {
-  const { identity } = useAomiWalletKit();
+  const adapter = useAomiWalletKit();
+  const { accountUser, getAccountCredential } = adapter;
   const [appKeys, setAppKeys] = useState<OwnedAppKey[]>([]);
   const [availableApps, setAvailableApps] = useState<string[]>([]);
   const [loadingKeys, setLoadingKeys] = useState(false);
@@ -63,19 +69,66 @@ export function AppKeys() {
   } | null>(null);
   const [createdAppKey, setCreatedAppKey] = useState<string | null>(null);
 
-  const ensureBoundSession = useCallback(async () => {
-    if (!identity.address) return;
-    await settingsApiFetch<{ session_id: string; title?: string | null }>(
-      "/api/sessions",
-      {
-        method: "POST",
-        body: JSON.stringify({ public_key: identity.address }),
+  const accountAccessTokenProvider = useMemo(() => {
+    return createAccountAccessTokenProvider({
+      baseUrl: getBackendUrl(),
+      betterAuthToken: {
+        enabled: shouldUseBetterAuthBackendJwt(),
+        baseUrl: "",
       },
+      getProviderCredential: async () => {
+        if (!getAccountCredential) {
+          throw new AccountCredentialUnavailableError();
+        }
+        const credential = await getAccountCredential();
+        if (!credential) {
+          throw new AccountCredentialUnavailableError(
+            "No account credential is available",
+          );
+        }
+        if ("providerToken" in credential) {
+          return credential;
+        }
+        if (credential.kind === "token") {
+          return {
+            provider: credential.provider,
+            providerToken: credential.token,
+          };
+        }
+        throw new Error("Account credential cannot be exchanged");
+      },
+    });
+  }, [getAccountCredential]);
+
+  useEffect(
+    () => () => {
+      accountAccessTokenProvider.dispose();
+    },
+    [accountAccessTokenProvider],
+  );
+
+  const accountFetch = useCallback(
+    async <T,>(path: string, options?: RequestInit): Promise<T> => {
+      const accessToken = await accountAccessTokenProvider();
+      const headers = new Headers(options?.headers);
+      if (accessToken) {
+        headers.set("Authorization", `Bearer ${accessToken}`);
+      }
+      return settingsApiFetch<T>(path, { ...options, headers });
+    },
+    [accountAccessTokenProvider],
+  );
+
+  const ensureBoundSession = useCallback(async () => {
+    if (!accountUser) return;
+    await accountFetch<{ session_id: string; title?: string | null }>(
+      "/api/sessions",
+      { method: "POST", body: JSON.stringify({}) },
     );
-  }, [identity.address]);
+  }, [accountFetch, accountUser]);
 
   const loadAppKeys = useCallback(async () => {
-    if (!identity.address) {
+    if (!accountUser) {
       setAppKeys([]);
       return;
     }
@@ -84,7 +137,7 @@ export function AppKeys() {
     setStatus(null);
     try {
       await ensureBoundSession();
-      const data = await settingsApiFetch<AppKeysResponse>(
+      const data = await accountFetch<AppKeysResponse>(
         "/api/settings/api-keys",
       );
       setAppKeys(data.app_keys ?? []);
@@ -97,15 +150,12 @@ export function AppKeys() {
     } finally {
       setLoadingKeys(false);
     }
-  }, [ensureBoundSession, identity.address]);
+  }, [accountFetch, accountUser, ensureBoundSession]);
 
   const loadApps = useCallback(async () => {
     setLoadingApps(true);
     try {
-      const path = identity.address
-        ? `/api/control/apps?public_key=${encodeURIComponent(identity.address)}`
-        : "/api/control/apps";
-      const data = await settingsApiFetch<string[]>(path);
+      const data = await accountFetch<string[]>("/api/control/apps");
       const normalized = [
         ...new Set((data ?? []).map((app) => app.toLowerCase())),
       ];
@@ -126,15 +176,15 @@ export function AppKeys() {
     } finally {
       setLoadingApps(false);
     }
-  }, [identity.address]);
+  }, [accountFetch]);
 
   useEffect(() => {
     void Promise.all([loadAppKeys(), loadApps()]);
   }, [loadAppKeys, loadApps]);
 
   const canCreate = useMemo(
-    () => Boolean(identity.address) && !creating && selectedApps.length > 0,
-    [creating, identity.address, selectedApps.length],
+    () => Boolean(accountUser) && !creating && selectedApps.length > 0,
+    [accountUser, creating, selectedApps.length],
   );
 
   const toggleApp = useCallback((app: string) => {
@@ -158,7 +208,7 @@ export function AppKeys() {
         label: labelInput.trim() || undefined,
         app_key: manualKeyInput.trim() || undefined,
       };
-      const data = await settingsApiFetch<CreateAppKeyResponse>(
+      const data = await accountFetch<CreateAppKeyResponse>(
         "/api/settings/api-keys",
         {
           method: "POST",
@@ -181,6 +231,7 @@ export function AppKeys() {
     }
   }, [
     canCreate,
+    accountFetch,
     ensureBoundSession,
     labelInput,
     loadAppKeys,
@@ -199,7 +250,7 @@ export function AppKeys() {
       setStatus(null);
       try {
         await ensureBoundSession();
-        await settingsApiFetch<{ revoked: boolean }>(
+        await accountFetch<{ revoked: boolean }>(
           `/api/settings/api-keys/${encodeURIComponent(key.key_hash)}`,
           { method: "DELETE" },
         );
@@ -215,7 +266,7 @@ export function AppKeys() {
         setDeletingHash(null);
       }
     },
-    [deletingHash, ensureBoundSession, loadAppKeys],
+    [accountFetch, deletingHash, ensureBoundSession, loadAppKeys],
   );
 
   return (

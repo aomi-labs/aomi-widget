@@ -156,7 +156,7 @@ function defaultLiveWalletActions({
 }): WalletRowAction[] {
   const actions: WalletRowAction[] = [];
   if (canLinkWallet && !linked && account.family === "evm") {
-    actions.push({ kind: "link", label: "Verify" });
+    actions.push({ kind: "link", label: "Link" });
   }
   actions.push(
     account.manageable

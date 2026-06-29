@@ -89,43 +89,27 @@ function stableStateString(state: UserState): string {
 }
 
 function normalizeWalletId(value: string | undefined): string | undefined {
-  if (!value) {
-    return undefined;
-  }
+  if (!value) return undefined;
   return value.startsWith("0x") ? value.toLowerCase() : value;
-}
-
-function getConnectedWalletId(userState: UserState): string | undefined {
-  return (
-    UserStateHelpers.address(userState) ??
-    UserStateHelpers.svmAddress(userState)
-  );
-}
-
-function getLegacySessionPublicKey(userState: UserState): string | undefined {
-  const address = UserStateHelpers.address(userState);
-  if (!address?.startsWith("0x")) {
-    return undefined;
-  }
-  if (
-    UserStateHelpers.chainId(userState) === undefined &&
-    !userState.evm?.address
-  ) {
-    return undefined;
-  }
-  return address;
 }
 
 function useWalletStateSync(
   context: Pick<
     RuntimeUserStateContext,
-    "getCurrentThreadApp" | "getUserState" | "onUserStateChange" | "threadContextRef"
+    | "getCurrentThreadApp"
+    | "getUserState"
+    | "onUserStateChange"
+    | "threadContextRef"
   >,
   sessions: Pick<RuntimeSessionBridge, "aomiClientRef">,
   remoteThreads: Pick<RemoteThreadRegistry, "remoteThreadIdsRef">,
 ) {
-  const { getCurrentThreadApp, getUserState, onUserStateChange, threadContextRef } =
-    context;
+  const {
+    getCurrentThreadApp,
+    getUserState,
+    onUserStateChange,
+    threadContextRef,
+  } = context;
   const { aomiClientRef } = sessions;
   const { remoteThreadIdsRef } = remoteThreads;
 
@@ -260,7 +244,7 @@ function useRemoteThreadListSync(
 ): { isThreadListLoading: boolean } {
   const [isThreadListLoading, setIsThreadListLoading] = useState(true);
   const prefetchCancelRef = useRef<(() => void) | null>(null);
-  const lastConnectedAddressRef = useRef<string | undefined>(undefined);
+  const wasConnectedRef = useRef(false);
   const { getControlState, threadContextRef, user } = context;
   const {
     aomiClientRef,
@@ -275,9 +259,7 @@ function useRemoteThreadListSync(
     warmedThreadIdsRef,
     warmThread,
   } = remoteThreads;
-  const connectedAddress = UserStateHelpers.isConnected(user)
-    ? getLegacySessionPublicKey(user)
-    : undefined;
+  const isConnected = UserStateHelpers.isConnected(user) === true;
 
   const scheduleThreadPrefetch = useCallback(
     (threadIds: string[]) => {
@@ -325,32 +307,9 @@ function useRemoteThreadListSync(
   );
 
   useEffect(() => {
-    const userAddress = connectedAddress;
-    const normalizedUserAddress = normalizeWalletId(userAddress);
-    const previousAddress = lastConnectedAddressRef.current;
-    const isConnected = UserStateHelpers.isConnected(user) === true;
-    const walletChanged =
-      previousAddress !== undefined &&
-      normalizedUserAddress !== undefined &&
-      previousAddress !== normalizedUserAddress;
-
-    if (!userAddress) {
-      // Solana-only or family-focused states do not have a legacy EVM
-      // `public_key`. Keep the active chat/session visible; SVM wallet
-      // context is carried through user_state and the wallet-context API.
-      if (isConnected) {
-        lastConnectedAddressRef.current = undefined;
-        setIsThreadListLoading(false);
-        return;
-      }
-
-      // Only tear down sessions when the user actually disconnected every
-      // wallet. Para/wagmi can emit transient identity changes with no EVM
-      // address while a Solana wallet remains connected; those must not reset
-      // the active thread.
-      const wasPreviouslyConnected =
-        lastConnectedAddressRef.current !== undefined;
-      lastConnectedAddressRef.current = undefined;
+    if (!isConnected) {
+      const wasPreviouslyConnected = wasConnectedRef.current;
+      wasConnectedRef.current = false;
       setIsThreadListLoading(false);
       prefetchCancelRef.current?.();
       prefetchCancelRef.current = null;
@@ -369,15 +328,7 @@ function useRemoteThreadListSync(
       return;
     }
 
-    lastConnectedAddressRef.current = normalizedUserAddress;
-
-    if (walletChanged) {
-      prefetchCancelRef.current?.();
-      prefetchCancelRef.current = null;
-      remoteThreadIdsRef.current.clear();
-      warmedThreadIdsRef.current.clear();
-      warmPromisesRef.current.clear();
-    }
+    wasConnectedRef.current = true;
 
     let cancelled = false;
     setIsThreadListLoading(true);
@@ -390,10 +341,8 @@ function useRemoteThreadListSync(
           getControlState().clientId,
           currentContext.currentThreadId,
         );
-        const threadList = await aomiClientRef.current.listThreads(
-          controlSessionId,
-          userAddress,
-        );
+        const threadList =
+          await aomiClientRef.current.listThreads(controlSessionId);
         if (cancelled) return;
 
         const remoteThreadIds = new Set<string>();
@@ -484,7 +433,7 @@ function useRemoteThreadListSync(
     sessionManager,
     setIsThreadLoading,
     threadContextRef,
-    connectedAddress,
+    isConnected,
     warmPromisesRef,
     warmedThreadIdsRef,
     warmThread,

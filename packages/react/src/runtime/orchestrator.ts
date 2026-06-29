@@ -14,7 +14,6 @@ import { SessionManager } from "./session-manager";
 import { toInboundMessage } from "./utils";
 
 type OrchestratorOptions = {
-  getPublicKey?: () => string | undefined;
   getUserState?: () => UserState;
   getApp: () => string;
   getApiKey?: () => string | null;
@@ -237,7 +236,6 @@ export function useRuntimeOrchestrator(
       const manager = sessionManagerRef.current!;
       const nextOptions = optionsRef.current;
       const nextApp = nextOptions.getApp();
-      const nextPublicKey = nextOptions.getPublicKey?.();
       const nextApiKey = nextOptions.getApiKey?.() ?? undefined;
       const nextClientId = nextOptions.getClientId?.();
       const nextUserState = nextOptions.getUserState?.();
@@ -245,7 +243,6 @@ export function useRuntimeOrchestrator(
       if (existing) {
         existing.syncRuntimeOptions({
           app: nextApp,
-          publicKey: nextPublicKey,
           apiKey: nextApiKey,
           clientId: nextClientId,
           userState: nextUserState,
@@ -258,14 +255,15 @@ export function useRuntimeOrchestrator(
 
       const session = manager.getOrCreate(threadId, {
         app: nextApp,
-        publicKey: nextPublicKey,
         apiKey: nextApiKey,
         clientId: nextClientId,
         clientType: CLIENT_TYPE_WEB_UI,
         syncPendingTxRequestsFromUserState: false,
         userState: nextUserState,
       });
-      session.setSSEActive(threadContextRef.current.currentThreadId === threadId);
+      session.setSSEActive(
+        threadContextRef.current.currentThreadId === threadId,
+      );
 
       // Wire ClientSession events → React state
       const cleanups: Array<() => void> = [];

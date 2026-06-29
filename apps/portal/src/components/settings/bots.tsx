@@ -1,8 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  AccountCredentialUnavailableError,
+  createAccountAccessTokenProvider,
+} from "@aomi-labs/client";
 import { Button, Input, useAomiWalletKit } from "@aomi-labs/widget-lib";
-import { settingsApiFetch } from "@portal/lib/settings-api";
+import { getBackendUrl, settingsApiFetch } from "@portal/lib/settings-api";
+import { shouldUseBetterAuthBackendJwt } from "@portal/lib/backend-auth";
 import {
   settingsActionRowClass,
   settingsBodyTextClass,
@@ -83,7 +88,7 @@ function normalizeAppOptions(apps: AppOption[]): string[] {
 }
 
 export function Bots() {
-  const { identity } = useAomiWalletKit();
+  const { accountUser, getAccountCredential } = useAomiWalletKit();
   const [bots, setBots] = useState<BotRegistration[]>([]);
   const [availableApps, setAvailableApps] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
@@ -99,19 +104,66 @@ export function Bots() {
     text: string;
   } | null>(null);
 
-  const ensureBoundSession = useCallback(async () => {
-    if (!identity.address) return;
-    await settingsApiFetch<{ session_id: string; title?: string | null }>(
-      "/api/sessions",
-      {
-        method: "POST",
-        body: JSON.stringify({ public_key: identity.address }),
+  const accountAccessTokenProvider = useMemo(() => {
+    return createAccountAccessTokenProvider({
+      baseUrl: getBackendUrl(),
+      betterAuthToken: {
+        enabled: shouldUseBetterAuthBackendJwt(),
+        baseUrl: "",
       },
+      getProviderCredential: async () => {
+        if (!getAccountCredential) {
+          throw new AccountCredentialUnavailableError();
+        }
+        const credential = await getAccountCredential();
+        if (!credential) {
+          throw new AccountCredentialUnavailableError(
+            "No account credential is available",
+          );
+        }
+        if ("providerToken" in credential) {
+          return credential;
+        }
+        if (credential.kind === "token") {
+          return {
+            provider: credential.provider,
+            providerToken: credential.token,
+          };
+        }
+        throw new Error("Account credential cannot be exchanged");
+      },
+    });
+  }, [getAccountCredential]);
+
+  useEffect(
+    () => () => {
+      accountAccessTokenProvider.dispose();
+    },
+    [accountAccessTokenProvider],
+  );
+
+  const accountFetch = useCallback(
+    async <T,>(path: string, options?: RequestInit): Promise<T> => {
+      const accessToken = await accountAccessTokenProvider();
+      const headers = new Headers(options?.headers);
+      if (accessToken) {
+        headers.set("Authorization", `Bearer ${accessToken}`);
+      }
+      return settingsApiFetch<T>(path, { ...options, headers });
+    },
+    [accountAccessTokenProvider],
+  );
+
+  const ensureBoundSession = useCallback(async () => {
+    if (!accountUser) return;
+    await accountFetch<{ session_id: string; title?: string | null }>(
+      "/api/sessions",
+      { method: "POST", body: JSON.stringify({}) },
     );
-  }, [identity.address]);
+  }, [accountFetch, accountUser]);
 
   const loadBots = useCallback(async () => {
-    if (!identity.address) {
+    if (!accountUser) {
       setBots([]);
       return;
     }
@@ -120,7 +172,7 @@ export function Bots() {
     setError(null);
     try {
       await ensureBoundSession();
-      const data = await settingsApiFetch<BotRegistrationsResponse>(
+      const data = await accountFetch<BotRegistrationsResponse>(
         "/api/settings/bot-registrations",
       );
       setBots(data.bot_registrations ?? []);
@@ -129,15 +181,12 @@ export function Bots() {
     } finally {
       setLoading(false);
     }
-  }, [ensureBoundSession, identity.address]);
+  }, [accountFetch, accountUser, ensureBoundSession]);
 
   const loadApps = useCallback(async () => {
     setLoadingApps(true);
     try {
-      const path = identity.address
-        ? `/api/control/apps?public_key=${encodeURIComponent(identity.address)}`
-        : "/api/control/apps";
-      const data = await settingsApiFetch<AppOption[]>(path);
+      const data = await accountFetch<AppOption[]>("/api/control/apps");
       const normalized = normalizeAppOptions(data ?? []);
       setAvailableApps(normalized);
       setSelectedApp((previous) => {
@@ -155,7 +204,7 @@ export function Bots() {
     } finally {
       setLoadingApps(false);
     }
-  }, [identity.address]);
+  }, [accountFetch]);
 
   useEffect(() => {
     void Promise.all([loadBots(), loadApps()]);
@@ -163,11 +212,11 @@ export function Bots() {
 
   const canCreate = useMemo(
     () =>
-      Boolean(identity.address) &&
+      Boolean(accountUser) &&
       selectedApp.length > 0 &&
       tokenInput.trim().length > 0 &&
       !creating,
-    [creating, identity.address, selectedApp, tokenInput],
+    [accountUser, creating, selectedApp, tokenInput],
   );
 
   const handleCreate = useCallback(async () => {
@@ -177,7 +226,7 @@ export function Bots() {
     setStatus(null);
     try {
       await ensureBoundSession();
-      const data = await settingsApiFetch<CreateBotRegistrationResponse>(
+      const data = await accountFetch<CreateBotRegistrationResponse>(
         "/api/settings/bot-registrations",
         {
           method: "POST",
@@ -207,6 +256,7 @@ export function Bots() {
     }
   }, [
     canCreate,
+    accountFetch,
     ensureBoundSession,
     labelInput,
     selectedApp,
@@ -237,7 +287,7 @@ export function Bots() {
         </div>
       )}
 
-      {!identity.address && (
+      {!accountUser && (
         <section className={settingsCardStackClass}>
           <p className={settingsBodyTextClass}>
             Connect your account to view registered bots.
@@ -258,9 +308,9 @@ export function Bots() {
           <h2 className={settingsCardTitleClass}>Register Telegram Bot</h2>
           <p className={settingsBodyTextClass}>
             Create the bot in BotFather, paste its token here, and we will
-            verify it with Telegram and activate the webhook automatically.
-            This account owns the bot configuration; people who message the bot
-            still use their own Aomi identity, wallets, and threads.
+            verify it with Telegram and activate the webhook automatically. This
+            account owns the bot configuration; people who message the bot still
+            use their own Aomi identity, wallets, and threads.
           </p>
         </div>
 
@@ -276,7 +326,7 @@ export function Bots() {
               onChange={(event) => setLabelInput(event.target.value)}
               placeholder="Trading assistant"
               className={settingsInputClass}
-              disabled={!identity.address || creating}
+              disabled={!accountUser || creating}
             />
           </div>
           <div className="min-w-0 space-y-4">
@@ -290,7 +340,7 @@ export function Bots() {
               onChange={(event) => setTokenInput(event.target.value)}
               placeholder="Paste Telegram BotFather token"
               className={settingsInputClass}
-              disabled={!identity.address || creating}
+              disabled={!accountUser || creating}
             />
           </div>
         </div>
@@ -305,7 +355,7 @@ export function Bots() {
               value={selectedApp}
               onChange={(event) => setSelectedApp(event.target.value)}
               className={`${settingsInputClass} w-full`}
-              disabled={!identity.address || creating || loadingApps}
+              disabled={!accountUser || creating || loadingApps}
             >
               {availableApps.map((app) => (
                 <option key={app} value={app}>
@@ -331,16 +381,15 @@ export function Bots() {
               value={threadMode}
               onChange={(event) => setThreadMode(event.target.value)}
               className={`${settingsInputClass} w-full`}
-              disabled={!identity.address || creating}
+              disabled={!accountUser || creating}
             >
               <option value="single">Single thread</option>
               <option value="multi">Multiple threads</option>
             </select>
             <p className={settingsBodyTextClass}>
               Single keeps the bot simple; multiple lets users switch threads
-              with session commands. For a true single-chat Telegram
-              experience, also disable threaded/topic mode for the bot in
-              BotFather.
+              with session commands. For a true single-chat Telegram experience,
+              also disable threaded/topic mode for the bot in BotFather.
             </p>
           </div>
         </div>
@@ -365,7 +414,7 @@ export function Bots() {
           The bot works without configuring commands, but this list makes the
           supported slash commands visible in Telegram.
         </p>
-        <pre className="text-foreground overflow-x-auto rounded-2xl border border-input bg-muted/30 p-4 font-mono text-xs leading-6">
+        <pre className="text-foreground border-input bg-muted/30 overflow-x-auto rounded-2xl border p-4 font-mono text-xs leading-6">
           {BOTFATHER_COMMANDS}
         </pre>
       </section>
@@ -402,7 +451,7 @@ export function Bots() {
                     className="text-muted-foreground px-3 py-4 text-center"
                     colSpan={7}
                   >
-                    {identity.address
+                    {accountUser
                       ? "No bots registered yet."
                       : "Connect your account to load bots."}
                   </td>

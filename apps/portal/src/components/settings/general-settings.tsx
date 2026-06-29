@@ -117,7 +117,7 @@ export function GeneralSettings() {
 
   useEffect(() => {
     const run = async () => {
-      if (!accountUser && !identity.address) {
+      if (!accountUser) {
         setAccount(null);
         return;
       }
@@ -125,12 +125,8 @@ export function GeneralSettings() {
       setError(null);
       try {
         const accessToken = await accountAccessTokenProvider?.();
-        const query = new URLSearchParams();
-        if (identity.address) query.set("public_key", identity.address);
         const data = await settingsApiFetch<AccountOverview>(
-          query.size > 0
-            ? `/api/settings/account?${query.toString()}`
-            : "/api/settings/account",
+          "/api/settings/account",
           accessToken
             ? { headers: { Authorization: `Bearer ${accessToken}` } }
             : undefined,
@@ -144,7 +140,7 @@ export function GeneralSettings() {
     };
 
     void run();
-  }, [accountAccessTokenProvider, accountUser, identity.address]);
+  }, [accountAccessTokenProvider, accountUser]);
 
   return (
     <div className={settingsPageClass}>

@@ -123,7 +123,7 @@ export function AomiWalletKitComposer({
     const walletModalRows = mergeWalletRows({
       accounts,
       storedWallets: account.wallets,
-      canLinkWallet: Boolean(account.user && account.linkWallet),
+      canLinkWallet: Boolean(account.linkWallet),
       auth,
       options: [...evmWalletOptions, ...svmWalletOptions, ...auth.methods],
     });

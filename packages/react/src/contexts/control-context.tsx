@@ -85,11 +85,7 @@ export type ControlContextApi = {
    *  truth for the Secrets settings page (no values are returned). */
   listSecrets: () => Promise<Record<string, string[]>>;
   /** Store a BYOK entry for an LLM provider in localStorage and ingest into backend vault */
-  setByok: (
-    provider: string,
-    apiKey: string,
-    label?: string,
-  ) => Promise<void>;
+  setByok: (provider: string, apiKey: string, label?: string) => Promise<void>;
   /** Remove a BYOK entry from localStorage and backend vault */
   removeByok: (provider: string) => Promise<void>;
   /** Get all stored BYOK entries (metadata only — keys are in state.byokKeys) */
@@ -146,9 +142,7 @@ function getDefaultApp(apps: string[]): string | null {
   return apps.includes("default") ? "default" : (apps[0] ?? null);
 }
 
-function namesFromDescriptors(
-  apps: ReadonlyArray<{ name: string }>,
-): string[] {
+function namesFromDescriptors(apps: ReadonlyArray<{ name: string }>): string[] {
   return apps.map((a) => a.name);
 }
 
@@ -247,7 +241,6 @@ export type ControlContextProviderProps = {
   children: ReactNode;
   aomiClient: AomiClient;
   sessionId: string;
-  publicKey?: string;
   /** Get metadata for a thread */
   getThreadMetadata: (threadId: string) => ThreadMetadata | undefined;
   /** Update metadata for a thread */
@@ -261,7 +254,6 @@ export function ControlContextProvider({
   children,
   aomiClient,
   sessionId,
-  publicKey,
   getThreadMetadata,
   updateThreadMetadata,
 }: ControlContextProviderProps) {
@@ -284,9 +276,6 @@ export function ControlContextProvider({
 
   const sessionIdRef = useRef(sessionId);
   sessionIdRef.current = sessionId;
-
-  const publicKeyRef = useRef(publicKey);
-  publicKeyRef.current = publicKey;
 
   const getThreadMetadataRef = useRef(getThreadMetadata);
   getThreadMetadataRef.current = getThreadMetadata;
@@ -399,7 +388,6 @@ export function ControlContextProvider({
         const descriptors = await aomiClientRef.current.getApps(
           getCurrentControlSessionId(),
           {
-            publicKey: publicKeyRef.current,
             apiKey: stateRef.current.apiKey ?? undefined,
           },
         );
@@ -502,7 +490,9 @@ export function ControlContextProvider({
     [getCurrentControlSessionId],
   );
 
-  const listSecrets = useCallback(async (): Promise<Record<string, string[]>> => {
+  const listSecrets = useCallback(async (): Promise<
+    Record<string, string[]>
+  > => {
     const { by_app } = await aomiClientRef.current.listSecrets(
       getCurrentControlSessionId(),
     );
@@ -608,7 +598,6 @@ export function ControlContextProvider({
       const descriptors = await aomiClientRef.current.getApps(
         getCurrentControlSessionId(),
         {
-          publicKey: publicKeyRef.current,
           apiKey: stateRef.current.apiKey ?? undefined,
         },
       );
@@ -809,49 +798,50 @@ export function ControlContextProvider({
     }
   }, []);
 
-  const syncCurrentThreadControl = useCallback(async (options?: {
-    ignoreProcessing?: boolean;
-  }) => {
-    const threadId = sessionIdRef.current;
-    const currentControl =
-      getThreadMetadataRef.current(threadId)?.control ?? initThreadControl();
+  const syncCurrentThreadControl = useCallback(
+    async (options?: { ignoreProcessing?: boolean }) => {
+      const threadId = sessionIdRef.current;
+      const currentControl =
+        getThreadMetadataRef.current(threadId)?.control ?? initThreadControl();
 
-    if (
-      !currentControl.controlDirty ||
-      (!options?.ignoreProcessing && currentControl.isProcessing) ||
-      !currentControl.model
-    ) {
-      return;
-    }
+      if (
+        !currentControl.controlDirty ||
+        (!options?.ignoreProcessing && currentControl.isProcessing) ||
+        !currentControl.model
+      ) {
+        return;
+      }
 
-    const app =
-      resolveAuthorizedApp(
-        currentControl.app,
-        stateRef.current.authorizedApps,
-        stateRef.current.defaultApp,
-      ) ?? "default";
+      const app =
+        resolveAuthorizedApp(
+          currentControl.app,
+          stateRef.current.authorizedApps,
+          stateRef.current.defaultApp,
+        ) ?? "default";
 
-    await aomiClientRef.current.setModel(threadId, currentControl.model, {
-      app,
-      apiKey: stateRef.current.apiKey ?? undefined,
-      clientId: stateRef.current.clientId ?? undefined,
-    });
-
-    const latestControl =
-      getThreadMetadataRef.current(threadId)?.control ?? currentControl;
-    if (
-      latestControl.model === currentControl.model &&
-      latestControl.app === currentControl.app
-    ) {
-      updateThreadMetadataRef.current(threadId, {
-        control: {
-          ...latestControl,
-          app,
-          controlDirty: false,
-        },
+      await aomiClientRef.current.setModel(threadId, currentControl.model, {
+        app,
+        apiKey: stateRef.current.apiKey ?? undefined,
+        clientId: stateRef.current.clientId ?? undefined,
       });
-    }
-  }, []);
+
+      const latestControl =
+        getThreadMetadataRef.current(threadId)?.control ?? currentControl;
+      if (
+        latestControl.model === currentControl.model &&
+        latestControl.app === currentControl.app
+      ) {
+        updateThreadMetadataRef.current(threadId, {
+          control: {
+            ...latestControl,
+            app,
+            controlDirty: false,
+          },
+        });
+      }
+    },
+    [],
+  );
 
   useEffect(() => {
     const threadId = sessionIdRef.current;

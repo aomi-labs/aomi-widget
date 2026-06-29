@@ -354,7 +354,6 @@ export class AomiClient {
     const url = buildApiUrl(this.baseUrl, "/api/chat", {
       app,
       application_id: applicationId || undefined,
-      public_key: options?.publicKey,
       message,
       user_state: normalizedUserState
         ? JSON.stringify(normalizedUserState)
@@ -366,7 +365,6 @@ export class AomiClient {
       sessionId,
       app,
       applicationId,
-      publicKey: options?.publicKey,
       clientId: options?.clientId,
       hasUserState: Boolean(normalizedUserState),
       messagePreview: previewText(message),
@@ -604,15 +602,10 @@ export class AomiClient {
   }
 
   /**
-   * List all threads for a wallet address.
+   * List all threads for the current authenticated Aomi account.
    */
-  async listThreads(
-    sessionId: string,
-    publicKey: string,
-  ): Promise<AomiThread[]> {
-    const url = buildApiUrl(this.baseUrl, "/api/sessions", {
-      public_key: publicKey,
-    });
+  async listThreads(sessionId: string): Promise<AomiThread[]> {
+    const url = buildApiUrl(this.baseUrl, "/api/sessions");
     const response = await this.fetchImpl(url, {
       headers: withSessionHeader(sessionId),
     });
@@ -646,20 +639,14 @@ export class AomiClient {
   /**
    * Create a new thread. The client generates the session ID.
    */
-  async createThread(
-    threadId: string,
-    publicKey?: string,
-  ): Promise<AomiCreateThreadResponse> {
-    const body: Record<string, string> = {};
-    if (publicKey) body.public_key = publicKey;
-
+  async createThread(threadId: string): Promise<AomiCreateThreadResponse> {
     const url = buildApiUrl(this.baseUrl, "/api/sessions");
     const response = await this.fetchImpl(url, {
       method: "POST",
       headers: withSessionHeader(threadId, {
         "Content-Type": "application/json",
       }),
-      body: JSON.stringify(body),
+      body: JSON.stringify({}),
     });
 
     if (!response.ok) {
@@ -765,9 +752,7 @@ export class AomiClient {
     sessionId: string,
     options?: { publicKey?: string; apiKey?: string },
   ): Promise<AomiAppDescriptor[]> {
-    const url = buildApiUrl(this.baseUrl, "/api/session/apps", {
-      public_key: options?.publicKey,
-    });
+    const url = buildApiUrl(this.baseUrl, "/api/session/apps");
 
     const apiKey = options?.apiKey ?? this.apiKey;
     const headers = new Headers(withSessionHeader(sessionId));
