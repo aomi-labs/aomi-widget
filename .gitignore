@@ -60,3 +60,6 @@ next-env.d.ts
 **/.specstory/*
 .env*.local
 .kiro/
+
+# Guard against accidentally re-adding a nested checkout as a gitlink
+/bff-unification
