@@ -148,7 +148,7 @@ function linkedProviderWalletRow(wallet: LinkedWalletRow): WalletModalRow {
     walletKind: wallet.kind,
     linked: true,
     linkedVia: wallet.linkedVia,
-    capability: "write",
+    capability: wallet.capability,
     actions: [],
   };
 }
@@ -646,7 +646,11 @@ export function WalletPicker() {
 
     const active = group.some((account) => account.status === "active");
     const selectLeg = group.find(
-      (account) => account.family === "evm" && account.status !== "active",
+      (account) =>
+        account.family === "evm" &&
+        account.status !== "active" &&
+        account.source === "live" &&
+        account.capability !== "read",
     );
 
     const actions: ConnectedActionRef[] = [];

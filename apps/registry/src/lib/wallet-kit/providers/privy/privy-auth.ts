@@ -22,6 +22,14 @@ export type WalletsHook = ReturnType<typeof useWallets>;
 export type PrivyUser = PrivyHook["user"];
 export type PrivySolanaWallet = SolanaWalletsHook["wallets"][number];
 export type PrivyConnectedWallet = ConnectedWallet;
+export type PrivyEmbeddedEvmUserWallet = {
+  id?: string | null;
+  address: string;
+  chainType?: string;
+  walletClientType?: string;
+  connectorType?: string;
+  imported?: boolean;
+};
 
 const DISCONNECTED_PRIVY: PrivyAccessTokenHook = {
   ready: false,
@@ -121,6 +129,34 @@ export function pickPrivyEmbeddedEvmWallet(
       !wallet.imported &&
       PRIVY_EMBEDDED_CLIENT_TYPES.has(wallet.walletClientType),
   );
+}
+
+function isPrivyEmbeddedEvmUserWallet(
+  wallet: unknown,
+): wallet is PrivyEmbeddedEvmUserWallet {
+  if (!wallet || typeof wallet !== "object") return false;
+  const candidate = wallet as PrivyEmbeddedEvmUserWallet;
+  return (
+    typeof candidate.address === "string" &&
+    /^0x[0-9a-fA-F]{40}$/.test(candidate.address) &&
+    candidate.imported !== true &&
+    (candidate.chainType === undefined ||
+      candidate.chainType === "ethereum" ||
+      candidate.chainType === "evm") &&
+    (candidate.walletClientType === undefined ||
+      PRIVY_EMBEDDED_CLIENT_TYPES.has(candidate.walletClientType))
+  );
+}
+
+export function pickPrivyEmbeddedEvmUserWallet(
+  user: PrivyUser,
+): PrivyEmbeddedEvmUserWallet | undefined {
+  if (!user) return undefined;
+  const direct = (user as { wallet?: unknown }).wallet;
+  if (isPrivyEmbeddedEvmUserWallet(direct)) return direct;
+  const linked = ((user as { linkedAccounts?: unknown[] }).linkedAccounts ??
+    []) as unknown[];
+  return linked.find(isPrivyEmbeddedEvmUserWallet);
 }
 
 function asAomiLoginMethod(

@@ -606,6 +606,38 @@ describe("WalletRegistry reducer", () => {
     ).toBe(false);
   });
 
+  it("locally clears embedded SVM sessions on all-family disconnect", () => {
+    let state = boot();
+    state = reduce(state, {
+      type: "svm/changed",
+      publicKey: "privy-sol",
+      uid: "privy-solana-session",
+      stableId: "privy",
+      kind: "embedded-session",
+      providerId: "privy",
+      walletName: "Privy Solana",
+      now: 10,
+    });
+    expect(state.connections).toContainEqual(
+      expect.objectContaining({
+        family: "svm",
+        stableId: "privy",
+        address: "privy-sol",
+      }),
+    );
+
+    state = reduce(state, {
+      type: "user/disconnect-family",
+      family: "all",
+      now: 20,
+    });
+
+    expect(
+      state.connections.some((connection) => connection.family === "svm"),
+    ).toBe(false);
+    expect(state.activeByFamily.svm).toBeUndefined();
+  });
+
   it("ignores stale SVM connect-settled events for a newer request", () => {
     let state = boot();
     state = reduce(state, {

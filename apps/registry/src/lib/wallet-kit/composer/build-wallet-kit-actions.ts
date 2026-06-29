@@ -45,7 +45,11 @@ export function buildWalletKitActions({
 }: BuildWalletKitActionsParams): WalletKitActions {
   return {
     selectAccount: async (id: string) => {
-      const target = accounts.find((account) => account.id === id);
+      const target = accounts.find(
+        (account) =>
+          account.id === id ||
+          (account.family === "evm" && account.connectorIds?.includes(id)),
+      );
       if (!target) {
         throw new Error(`Unknown account: ${id}`);
       }

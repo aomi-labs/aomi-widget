@@ -25,6 +25,7 @@ import {
   inferPrivyAuthMethod,
   inferPrivyPrimaryLabel,
   pickPrivyEmbeddedEvmWallet,
+  pickPrivyEmbeddedEvmUserWallet,
   privyLoginMethodsToOptions,
   useSafePrivy,
   useSafeSmartWallets,
@@ -74,18 +75,30 @@ export function AomiPrivyPluginProvider({
     storageKey: REGISTRY_STORAGE_KEY,
     providerHooks: { providerLogout: privy.logout },
   });
+  const startPrivyAuthFlow = useCallback(
+    (reason: string) => {
+      evmRuntime.registryStore.dispatch({
+        type: "provider/auth-flow-started",
+        reason,
+        now: Date.now(),
+      });
+    },
+    [evmRuntime.registryStore],
+  );
   const smartAddress = smartWalletClient?.account?.address as Hex | undefined;
-  // Embedded EVM EOA from Privy's `useWallets()` — the non-imported,
-  // Privy-custodied wallet created on login. Surfaced as a synthetic EVM
-  // connection so it appears in "Connected now" with write capability,
-  // mirroring the Para session source. Falls back to the smart wallet
-  // address when a smart wallet is active so account-abstracted execution
-  // stays the primary surface when present.
+  // Embedded EVM EOA from Privy's connected-wallet snapshot or user record.
+  // Surfaced as a synthetic EVM connection so it appears in "Connected now"
+  // with write capability, mirroring the Para session source. Falls back to
+  // the smart wallet address when one is active so account-abstracted
+  // execution stays the primary surface when present.
   const embeddedEvmWallet = pickPrivyEmbeddedEvmWallet(connectedWallets);
-  const embeddedEvmAddress = embeddedEvmWallet?.address as Hex | undefined;
+  const embeddedEvmUserWallet = pickPrivyEmbeddedEvmUserWallet(privy.user);
+  const embeddedEvmAddress = (embeddedEvmWallet?.address ??
+    embeddedEvmUserWallet?.address) as Hex | undefined;
   const sessionEvmAddress = smartAddress ?? embeddedEvmAddress ?? null;
   const sessionReady =
-    privy.authenticated && Boolean(embeddedEvmWallet || smartAddress);
+    privy.authenticated &&
+    Boolean(embeddedEvmWallet || embeddedEvmUserWallet || smartAddress);
   const activeSolanaWallet =
     solanaWallets.find((wallet) => wallet.address === activeSolanaAddress) ??
     solanaWallets[0];
@@ -148,7 +161,13 @@ export function AomiPrivyPluginProvider({
       authValue: primaryLabel,
       methods: privyLoginMethodsToOptions(loginMethods),
       canOpenModal: Boolean(privy.login),
-      login: async () => {
+      startFlow: startPrivyAuthFlow,
+      login: async (reason = "provider-auth-modal") => {
+        evmRuntime.registryStore.dispatch({
+          type: "user/provider-reconnect-requested",
+          now: Date.now(),
+        });
+        startPrivyAuthFlow(reason);
         await privy.login();
       },
       logout: privy.logout,
@@ -185,6 +204,8 @@ export function AomiPrivyPluginProvider({
       privy.logout,
       privy.ready,
       privy.user?.id,
+      evmRuntime.registryStore,
+      startPrivyAuthFlow,
     ],
   );
 
