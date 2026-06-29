@@ -109,7 +109,7 @@ export function buildConnectedEntries(
       title,
       iconId: provider ?? account.id,
       iconLabel: title,
-      iconProvider: account.provider,
+      iconProvider: provider ?? account.provider,
       legs: [
         {
           family: account.family,

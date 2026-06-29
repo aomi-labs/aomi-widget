@@ -110,11 +110,11 @@ export function AomiRuntimeCore({
     getApiKey: () => getControlState().apiKey,
     getClientId: () => getControlState().clientId ?? undefined,
     prepareThreadForSend: async (threadId) => {
-      await syncCurrentThreadControl();
       const wasCreated = await ensureBackendThread(threadId);
       if (wasCreated) {
         threadsMaterializedForSendRef.current.add(threadId);
       }
+      await syncCurrentThreadControl({ ignoreProcessing: true });
     },
     onSendSuccess: (threadId) => {
       const wasRemote = remoteThreadIdsRef.current.has(threadId);

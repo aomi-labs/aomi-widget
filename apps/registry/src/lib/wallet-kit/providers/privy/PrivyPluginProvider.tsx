@@ -35,6 +35,7 @@ import {
 import type { PrivyClientConfig } from "@privy-io/react-auth";
 import { buildPrivySvmWalletState } from "./privy-svm";
 import { sendPrivySmartWalletTransaction } from "./privy-execution";
+import { useEmbeddedSessionSource } from "../sources/embedded-session-source";
 
 export type AomiPrivyPluginProviderProps = {
   children: ReactNode;
@@ -122,24 +123,15 @@ export function AomiPrivyPluginProvider({
     setActiveSolanaAddress(solanaWallets[0]?.address);
   }, [activeSolanaAddress, solanaWallets]);
 
-  useEffect(() => {
-    evmRuntime.registryStore.dispatch({
-      type: "provider/embedded-session-changed",
-      up: sessionReady,
-      providerId: "privy",
-      uid: "privy-smart-session",
-      stableId: "privy",
-      walletName: "Privy Smart Wallet",
-      embeddedEvmAddress: sessionEvmAddress,
-      chainId: selectedEvmChainId,
-      now: Date.now(),
-    });
-  }, [
-    evmRuntime.registryStore,
-    selectedEvmChainId,
-    sessionEvmAddress,
-    sessionReady,
-  ]);
+  useEmbeddedSessionSource(evmRuntime.registryStore, {
+    up: sessionReady,
+    providerId: "privy",
+    uid: "privy-smart-session",
+    stableId: "privy",
+    walletName: "Privy Smart Wallet",
+    embeddedEvmAddress: sessionEvmAddress,
+    chainId: selectedEvmChainId,
+  });
 
   const authMethod = inferPrivyAuthMethod(privy.user);
   const primaryLabel = inferPrivyPrimaryLabel(privy.user);
@@ -214,7 +206,9 @@ export function AomiPrivyPluginProvider({
       accounts.map((account) => {
         if (
           !privy.authenticated ||
-          !account.walletName?.toLowerCase().startsWith("privy")
+          account.provider !== "privy" ||
+          (account.walletKind !== "embedded" &&
+            account.walletKind !== "smart_account")
         ) {
           return account;
         }

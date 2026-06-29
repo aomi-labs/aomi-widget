@@ -3,7 +3,10 @@
 // =============================================================================
 
 export { AomiClient } from "./client";
-export { createAccountAccessTokenProvider } from "./account-session";
+export {
+  AccountCredentialUnavailableError,
+  createAccountAccessTokenProvider,
+} from "./account-session";
 export type {
   AccountAccessTokenProviderOptions,
   AccountAccessTokenProvider,

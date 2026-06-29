@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef } from "react";
 import type { WalletRegistryStore } from "../../../registry/store";
+import { useEmbeddedSessionSource } from "../../sources/embedded-session-source";
 
 type ParaAccountSnapshot = {
   isConnected: boolean;
@@ -107,13 +108,9 @@ export function useParaSessionSource(
   const snapshotKey = useMemo(
     () =>
       `${opts.paraAccount.isConnected ? "up" : "down"}:${
-        embeddedEvmAddress?.toLowerCase() ?? ""
-      }:${chainId ?? ""}:${embeddedSolanaAddress ?? ""}:${
-        embeddedSolanaWallet?.id ?? ""
-      }`,
+        embeddedSolanaAddress ?? ""
+      }:${embeddedSolanaWallet?.id ?? ""}`,
     [
-      chainId,
-      embeddedEvmAddress,
       embeddedSolanaAddress,
       embeddedSolanaWallet?.id,
       opts.paraAccount.isConnected,
@@ -121,20 +118,19 @@ export function useParaSessionSource(
   );
   const previousKeyRef = useRef<string | null>(null);
 
+  useEmbeddedSessionSource(store, {
+    up: opts.paraAccount.isConnected,
+    providerId: "para",
+    uid: "para-session",
+    stableId: "para",
+    walletName: "Para",
+    embeddedEvmAddress,
+    chainId,
+  });
+
   useEffect(() => {
     if (previousKeyRef.current === snapshotKey) return;
     previousKeyRef.current = snapshotKey;
-    store.dispatch({
-      type: "provider/embedded-session-changed",
-      up: opts.paraAccount.isConnected,
-      providerId: "para",
-      uid: "para-session",
-      stableId: "para",
-      walletName: "Para",
-      embeddedEvmAddress,
-      chainId,
-      now: Date.now(),
-    });
     store.dispatch({
       type: "svm/changed",
       publicKey:
@@ -148,12 +144,5 @@ export function useParaSessionSource(
       walletName: "Para",
       now: Date.now(),
     });
-  }, [
-    chainId,
-    embeddedEvmAddress,
-    embeddedSolanaAddress,
-    opts.paraAccount.isConnected,
-    snapshotKey,
-    store,
-  ]);
+  }, [embeddedSolanaAddress, opts.paraAccount.isConnected, snapshotKey, store]);
 }

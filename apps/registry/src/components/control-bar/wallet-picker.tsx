@@ -140,7 +140,8 @@ function linkedProviderWalletRow(wallet: LinkedWalletRow): WalletModalRow {
     family: wallet.family,
     address: wallet.address,
     chainId: wallet.chainId ?? chainIdFromScope(wallet.chainScope),
-    label: wallet.label ?? formatWalletAddress(wallet.address) ?? wallet.address,
+    label:
+      wallet.label ?? formatWalletAddress(wallet.address) ?? wallet.address,
     walletName: providerLabel,
     source: "stored",
     status: "connected",
@@ -284,7 +285,8 @@ export function WalletPicker() {
 
   const walletRows = adapter.walletModalRows ?? [];
   const connectedAccounts = useMemo(
-    () => buildConnectedWalletRows(walletRows, adapter.accountWallets, identity),
+    () =>
+      buildConnectedWalletRows(walletRows, adapter.accountWallets, identity),
     [adapter.accountWallets, identity, walletRows],
   );
   const canManageAccounts = Boolean(
@@ -683,7 +685,7 @@ export function WalletPicker() {
         title={title}
         iconId={provider !== null ? provider : representative.id}
         iconLabel={title}
-        iconProvider={providerHint}
+        iconProvider={provider ?? providerHint}
         legs={legs}
         addressText={addressText}
         detail={detail}

@@ -37,8 +37,9 @@ export function WalletIconSlot({
   className?: string;
 }) {
   const key = `${provider ?? ""} ${id ?? ""} ${label}`;
-  const BrandIcon = getWalletIcon(key);
-  const brand = getWalletIconBrand(key);
+  const brandKey = provider ?? key;
+  const BrandIcon = getWalletIcon(brandKey) ?? getWalletIcon(key);
+  const brand = getWalletIconBrand(brandKey) ?? getWalletIconBrand(key);
   const lowerKey = key.toLowerCase();
   const isPhantom = lowerKey.includes("phantom");
   const isPara = lowerKey.includes("para");

@@ -1,7 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { createAccountAccessTokenProvider } from "@aomi-labs/client";
+import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  AccountCredentialUnavailableError,
+  createAccountAccessTokenProvider,
+} from "@aomi-labs/client";
 import { getChainInfo } from "@aomi-labs/react";
 import {
   Button,
@@ -19,6 +22,7 @@ import {
   settingsSubTitleClass,
   settingsTitleClass,
 } from "./settings-styles";
+import { shouldUseBetterAuthBackendJwt } from "@portal/lib/backend-auth";
 
 type AccountProfile = {
   user_id: string;
@@ -63,20 +67,28 @@ export function GeneralSettings() {
   const [account, setAccount] = useState<AccountOverview | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const getAccountCredentialRef = useRef(getAccountCredential);
+  useEffect(() => {
+    getAccountCredentialRef.current = getAccountCredential;
+  }, [getAccountCredential]);
 
   const accountAccessTokenProvider = useMemo(() => {
-    if (!getAccountCredential) return undefined;
     return createAccountAccessTokenProvider({
       baseUrl: getBackendUrl(),
       betterAuthToken: {
-        enabled: true,
+        enabled: shouldUseBetterAuthBackendJwt(),
         baseUrl: "",
-        providerExchange: false,
       },
       getProviderCredential: async () => {
-        const credential = await getAccountCredential();
+        const getCredential = getAccountCredentialRef.current;
+        if (!getCredential) {
+          throw new AccountCredentialUnavailableError();
+        }
+        const credential = await getCredential();
         if (!credential) {
-          throw new Error("No account credential is available");
+          throw new AccountCredentialUnavailableError(
+            "No account credential is available",
+          );
         }
         if ("providerToken" in credential) {
           return credential;
@@ -90,7 +102,7 @@ export function GeneralSettings() {
         throw new Error("Account credential cannot be exchanged");
       },
     });
-  }, [getAccountCredential]);
+  }, []);
 
   useEffect(
     () => () => {
