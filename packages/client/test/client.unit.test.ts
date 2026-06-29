@@ -54,7 +54,7 @@ describe("AomiClient route manifest", () => {
     expect(JSON.parse(init.body as string)).toEqual({ source: "github" });
 
     const headers = new Headers(init.headers);
-    expect(headers.get("X-Session-Id")).toBe("session-1");
+    expect(headers.get("X-Thread-Id")).toBe("session-1");
     expect(headers.get("Aomi-App-Key")).toBe("app-key-1");
     expect(headers.get("Content-Type")).toBe("application/json");
   });
@@ -108,7 +108,7 @@ describe("AomiClient account profile", () => {
         (nativeFetch.mock.calls[0]?.[1] as RequestInit).headers,
       );
       expect(headers.get("Authorization")).toBe("Bearer bearer-1");
-      expect(headers.get("X-Session-Id")).toBe("session-1");
+      expect(headers.get("X-Thread-Id")).toBe("session-1");
       expect(result?.account.user_id).toBe("user-1");
       expect(result?.wallets?.[0]?.wallet_id).toBe("wallet-evm-1");
     } finally {
@@ -212,7 +212,7 @@ describe("AomiClient account profile", () => {
       for (const [, init] of nativeFetch.mock.calls) {
         const headers = new Headers((init as RequestInit).headers);
         expect(headers.get("Authorization")).toBe("Bearer bearer-1");
-        expect(headers.get("X-Session-Id")).toBe("session-1");
+        expect(headers.get("X-Thread-Id")).toBe("session-1");
       }
     } finally {
       vi.stubGlobal("fetch", originalFetch);
@@ -291,7 +291,7 @@ describe("AomiClient account profile", () => {
       );
       expect((init as RequestInit | undefined)?.body).toBeUndefined();
       expect(
-        new Headers((init as RequestInit).headers).get("X-Session-Id"),
+        new Headers((init as RequestInit).headers).get("X-Thread-Id"),
       ).toBe("session-1");
     } finally {
       vi.stubGlobal("fetch", originalFetch);
@@ -324,11 +324,11 @@ describe("AomiClient account profile", () => {
 
       const [url, init] = nativeFetch.mock.calls[0] ?? [];
       expect(String(url)).toBe(
-        "http://unit.test/api/session/model?rig=gpt-5&app=default&client_id=client-1",
+        "http://unit.test/api/thread/runtime/model?rig=gpt-5&app=default&client_id=client-1",
       );
       expect((init as RequestInit | undefined)?.body).toBeUndefined();
       expect(
-        new Headers((init as RequestInit).headers).get("X-Session-Id"),
+        new Headers((init as RequestInit).headers).get("X-Thread-Id"),
       ).toBe("session-1");
     } finally {
       vi.stubGlobal("fetch", originalFetch);
@@ -741,8 +741,8 @@ describe("AomiClient transport selection", () => {
       const secondHeaders = new Headers(
         (nativeFetch.mock.calls[1]?.[1] as RequestInit | undefined)?.headers,
       );
-      expect(firstHeaders.get("X-Session-Id")).toBe("session-1");
-      expect(secondHeaders.get("X-Session-Id")).toBe("session-2");
+      expect(firstHeaders.get("X-Thread-Id")).toBe("session-1");
+      expect(secondHeaders.get("X-Thread-Id")).toBe("session-2");
 
       connections[0]?.emit(
         'data: {"type":"title_changed","session_id":"session-1","new_title":"One"}\n\n',

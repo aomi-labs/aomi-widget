@@ -96,11 +96,11 @@ export interface UserStatePending extends Record<string, unknown> {
 }
 
 /**
- * Client-side user state, canonicalized to the backend's nested snake_case
- * wire shape. EVM and Solana identities are independent blocks (`evm` / `svm`)
- * so a single session can carry both families at once. `normalize` accepts the
- * backend's nested camelCase responses and legacy flat host input, and emits
- * this canonical shape.
+ * Client-side user state, in the backend's canonical nested snake_case wire
+ * shape. EVM and Solana identities are independent blocks (`evm` / `svm`) so a
+ * single session can carry both families at once. This nested shape is the only
+ * input shape; `normalize` just canonicalizes it (camelCase→snake_case key
+ * aliases, null-pruning of non-`Option` wire fields, pending-bucket aliasing).
  */
 export interface UserState extends Record<string, unknown> {
   connection?: UserStateConnection | null;

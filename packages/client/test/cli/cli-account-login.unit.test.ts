@@ -29,7 +29,7 @@ describe("aomi account login", () => {
   });
 
   it("prints a backend-minted Privy auth URL bound to the active session", async () => {
-    const { loginCommand } = await import("../../src/cli/commands/account");
+    const { walletLoginCommand } = await import("../../src/cli/commands/account");
 
     const response = {
       ok: true,
@@ -47,7 +47,7 @@ describe("aomi account login", () => {
     const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
 
     try {
-      await loginCommand(baseConfig);
+      await walletLoginCommand(baseConfig);
 
       expect(String(nativeFetch.mock.calls[0]?.[0])).toBe(
         "http://unit.test/api/auth/privy/begin",
@@ -62,7 +62,7 @@ describe("aomi account login", () => {
       const headers = new Headers(
         (nativeFetch.mock.calls[0]?.[1] as RequestInit).headers,
       );
-      expect(headers.get("X-Session-Id")).toBeTruthy();
+      expect(headers.get("X-Thread-Id")).toBeTruthy();
       expect(logSpy).toHaveBeenCalledWith(
         expect.stringContaining("https://chat.example/auth/privy"),
       );
@@ -75,7 +75,7 @@ describe("aomi account login", () => {
   });
 
   it("can request a solana-first Privy auth flow", async () => {
-    const { loginCommand } = await import("../../src/cli/commands/account");
+    const { walletLoginCommand } = await import("../../src/cli/commands/account");
 
     const response = {
       ok: true,
@@ -93,7 +93,7 @@ describe("aomi account login", () => {
     vi.stubGlobal("fetch", nativeFetch);
 
     try {
-      await loginCommand(baseConfig, { walletFamily: "solana" });
+      await walletLoginCommand(baseConfig, { walletFamily: "solana" });
 
       expect(
         JSON.parse(

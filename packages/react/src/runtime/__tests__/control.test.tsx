@@ -41,9 +41,8 @@ describe("Control context", () => {
 
     await act(async () => {
       api.setUser({
-        address: "0xabc",
-        chainId: 1,
-        isConnected: true,
+        connection: { is_connected: true },
+        evm: [{ address: "0xabc", chain_id: 1 }],
       });
       await flushPromises();
     });
@@ -110,9 +109,8 @@ describe("Control context", () => {
 
     await act(async () => {
       api.setUser({
-        address: "0xabc",
-        chainId: 1,
-        isConnected: true,
+        connection: { is_connected: true },
+        evm: [{ address: "0xabc", chain_id: 1 }],
       });
       await flushPromises();
     });
@@ -131,7 +129,9 @@ describe("Control context", () => {
     expect(sendMessage.mock.calls[0]?.[2]).toMatchObject({
       app: "special",
       userState: expect.objectContaining({
-        evm: expect.objectContaining({ address: "0xabc" }),
+        evm: expect.arrayContaining([
+          expect.objectContaining({ address: "0xabc" }),
+        ]),
       }),
     });
   });

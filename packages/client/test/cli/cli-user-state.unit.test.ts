@@ -58,13 +58,15 @@ describe("CLI user state AA fields", () => {
 describe("pendingTxsFromBackendUserState", () => {
   it("strips data from native_transfer entries", () => {
     const result = pendingTxsFromBackendUserState({
-      pending_txs: {
-        1: {
-          to: "0x742d35Cc6634C0532925a3b844Bc9e7595f33749",
-          value: "0",
-          data: "0x8a4068dd",
-          kind: "native_transfer",
-          chain_id: 10,
+      pending: {
+        evm_txs: {
+          1: {
+            to: "0x742d35Cc6634C0532925a3b844Bc9e7595f33749",
+            value: "0",
+            data: "0x8a4068dd",
+            kind: "native_transfer",
+            chain_id: 10,
+          },
         },
       },
     });
@@ -76,13 +78,15 @@ describe("pendingTxsFromBackendUserState", () => {
 
   it("preserves data on contract call entries", () => {
     const result = pendingTxsFromBackendUserState({
-      pending_txs: {
-        2: {
-          to: "0x742d35Cc6634C0532925a3b844Bc9e7595f33749",
-          value: "0",
-          data: "0xa9059cbb0000000000000000000000001234",
-          kind: "contract_call",
-          chain_id: 10,
+      pending: {
+        evm_txs: {
+          2: {
+            to: "0x742d35Cc6634C0532925a3b844Bc9e7595f33749",
+            value: "0",
+            data: "0xa9059cbb0000000000000000000000001234",
+            kind: "contract_call",
+            chain_id: 10,
+          },
         },
       },
     });
@@ -96,12 +100,14 @@ describe("pendingTxsFromBackendUserState", () => {
 
   it("preserves data when kind is absent", () => {
     const result = pendingTxsFromBackendUserState({
-      pending_txs: {
-        3: {
-          to: "0x742d35Cc6634C0532925a3b844Bc9e7595f33749",
-          value: "0",
-          data: "0xdeadbeef",
-          chain_id: 1,
+      pending: {
+        evm_txs: {
+          3: {
+            to: "0x742d35Cc6634C0532925a3b844Bc9e7595f33749",
+            value: "0",
+            data: "0xdeadbeef",
+            chain_id: 1,
+          },
         },
       },
     });
@@ -140,13 +146,15 @@ describe("pendingTxsFromBackendUserState", () => {
 describe("pendingSolTxsFromBackendUserState", () => {
   it("rebuilds Solana requests from legacy pending.solana_txs", () => {
     const result = pendingSolTxsFromBackendUserState({
-      pending_solana_txs: {
-        21: {
-          request_kind: "send_transaction",
-          description: "bridge back to main wallet",
-          cluster: "solana:devnet",
-          unsigned_tx: "U0VORE1F",
-          signer: "So1aBcExampleSigner",
+      pending: {
+        solana_txs: {
+          21: {
+            request_kind: "send_transaction",
+            description: "bridge back to main wallet",
+            cluster: "solana:devnet",
+            unsigned_tx: "U0VORE1F",
+            signer: "So1aBcExampleSigner",
+          },
         },
       },
     });

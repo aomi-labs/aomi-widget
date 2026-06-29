@@ -332,39 +332,40 @@ describe("CLI session lifecycle", () => {
     });
 
     const synced = cli.syncPendingFromUserState({
-      address: "0xabc",
-      chain_id: 8453,
-      is_connected: true,
-      pending_txs: {
-        "7": {
-          chain_id: 8453,
-          from: "0xabc",
-          to: "0x1111111111111111111111111111111111111111",
-          value: "0",
-          gas: null,
-          data: "0x",
-          label: "Approve",
-          kind: "erc20_approve",
-          batch_status: "Batch [7] pending",
-        },
-      },
-      pending_eip712s: {
-        "8": {
-          chain_id: 8453,
-          signer: "0xabc",
-          description: "Permit2 signature",
-          typed_data: {
-            domain: { chainId: 8453, name: "Permit2" },
-            types: { Permit: [{ name: "owner", type: "address" }] },
-            primaryType: "Permit",
-            message: { owner: "0xabc" },
+      connection: { is_connected: true },
+      evm: [{ address: "0xabc", chain_id: 8453 }],
+      pending: {
+        evm_txs: {
+          "7": {
+            chain_id: 8453,
+            from: "0xabc",
+            to: "0x1111111111111111111111111111111111111111",
+            value: "0",
+            gas: null,
+            data: "0x",
+            label: "Approve",
+            kind: "erc20_approve",
+            batch_status: "Batch [7] pending",
           },
         },
-        "9": {
-          chain_id: 1,
-          signer: "0xabc",
-          description: "SIWE login",
-          non_typed_data: "Sign in with Ethereum",
+        evm_sigs: {
+          "8": {
+            chain_id: 8453,
+            signer: "0xabc",
+            description: "Permit2 signature",
+            typed_data: {
+              domain: { chainId: 8453, name: "Permit2" },
+              types: { Permit: [{ name: "owner", type: "address" }] },
+              primaryType: "Permit",
+              message: { owner: "0xabc" },
+            },
+          },
+          "9": {
+            chain_id: 1,
+            signer: "0xabc",
+            description: "SIWE login",
+            non_typed_data: "Sign in with Ethereum",
+          },
         },
       },
     });
@@ -539,10 +540,9 @@ describe("CLI session lifecycle", () => {
     });
 
     cli.syncPendingFromUserState({
-      address: "0xabc",
-      is_connected: true,
-      pending_txs: {},
-      pending_eip712s: {},
+      connection: { is_connected: true },
+      evm: [{ address: "0xabc" }],
+      pending: { evm_txs: {}, evm_sigs: {} },
     });
 
     expect(cli.publicKey).toBe("0xabc");

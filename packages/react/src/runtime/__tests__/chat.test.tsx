@@ -244,9 +244,8 @@ describe("Chat API", () => {
 
       await act(async () => {
         api.setUser({
-          address: "0xabc",
-          chainId: 8453,
-          isConnected: true,
+          connection: { is_connected: true },
+          evm: [{ address: "0xabc", chain_id: 8453 }],
         });
       });
 
@@ -425,14 +424,13 @@ describe("Chat API", () => {
 
       await act(async () => {
         api.setUser({
-          address: "0xabc",
-          chainId: 1,
-          isConnected: true,
+          connection: { is_connected: true },
+          evm: [{ address: "0xabc", chain_id: 1 }],
         });
       });
 
       await act(async () => {
-        api.setUser({ isConnected: false });
+        api.setUser({ connection: { is_connected: false } });
       });
 
       await act(async () => {
@@ -467,20 +465,21 @@ describe("Chat API", () => {
           is_processing: false,
           messages: [],
           user_state: {
-            address: "0xabc",
-            chain_id: 8453,
-            is_connected: true,
-            pending_eip712s: {
-              7: {
-                typed_data: {
-                  domain: { chainId: 8453 },
-                  types: {
-                    Permit: [{ name: "spender", type: "address" }],
+            connection: { is_connected: true },
+            evm: [{ address: "0xabc", chain_id: 8453 }],
+            pending: {
+              evm_sigs: {
+                7: {
+                  typed_data: {
+                    domain: { chainId: 8453 },
+                    types: {
+                      Permit: [{ name: "spender", type: "address" }],
+                    },
+                    primaryType: "Permit",
+                    message: { spender: "0x123" },
                   },
-                  primaryType: "Permit",
-                  message: { spender: "0x123" },
+                  description: "Permit2",
                 },
-                description: "Permit2",
               },
             },
           },
@@ -491,9 +490,8 @@ describe("Chat API", () => {
 
       await act(async () => {
         api.setUser({
-          address: "0xabc",
-          chainId: 8453,
-          isConnected: true,
+          connection: { is_connected: true },
+          evm: [{ address: "0xabc", chain_id: 8453 }],
         });
       });
 

@@ -266,7 +266,10 @@ describe("Thread API", () => {
       const { api, getApi } = renderRuntime();
 
       await act(async () => {
-        api.setUser({ address: "0x123", chainId: 1, isConnected: true });
+        api.setUser({
+          connection: { is_connected: true },
+          evm: [{ address: "0x123", chain_id: 1 }],
+        });
         await flushPromises();
       });
 
@@ -295,7 +298,10 @@ describe("Thread API", () => {
       const activeThreadId = api.currentThreadId;
 
       await act(async () => {
-        api.setUser({ address: "0x123", chainId: 1, isConnected: true });
+        api.setUser({
+          connection: { is_connected: true },
+          evm: [{ address: "0x123", chain_id: 1 }],
+        });
         await flushPromises();
       });
 
@@ -306,7 +312,10 @@ describe("Thread API", () => {
       });
 
       await act(async () => {
-        api.setUser({ address: "0x456", chainId: 1, isConnected: true });
+        api.setUser({
+          connection: { is_connected: true },
+          evm: [{ address: "0x456", chain_id: 1 }],
+        });
         await flushPromises();
       });
 
@@ -335,7 +344,10 @@ describe("Thread API", () => {
       const activeThreadId = api.currentThreadId;
 
       await act(async () => {
-        api.setUser({ address: "0x123", chainId: 1, isConnected: true });
+        api.setUser({
+          connection: { is_connected: true },
+          evm: [{ address: "0x123", chain_id: 1 }],
+        });
         await flushPromises();
       });
 
@@ -347,10 +359,8 @@ describe("Thread API", () => {
 
       await act(async () => {
         getApi().setUser({
-          address: undefined,
-          chainId: undefined,
-          isConnected: true,
           connection: { is_connected: true },
+          evm: [{ address: undefined, chain_id: undefined }],
           svm: {
             address: "So1anaCaseSensitiveSigner",
             cluster: "solana:mainnet",
@@ -375,7 +385,10 @@ describe("Thread API", () => {
       const { api, getApi } = renderRuntime();
 
       await act(async () => {
-        api.setUser({ address: "0x123", chainId: 1, isConnected: true });
+        api.setUser({
+          connection: { is_connected: true },
+          evm: [{ address: "0x123", chain_id: 1 }],
+        });
         await flushPromises();
       });
 
@@ -387,7 +400,7 @@ describe("Thread API", () => {
       expect(listThreads).toHaveBeenCalledTimes(1);
 
       await act(async () => {
-        api.setUser({ chainId: 8453 });
+        api.setUser({ evm: [{ chain_id: 8453 }] });
         await flushPromises();
       });
 
@@ -405,7 +418,10 @@ describe("Thread API", () => {
       const { api, getApi } = renderRuntime();
 
       await act(async () => {
-        api.setUser({ address: "0x456", chainId: 1, isConnected: true });
+        api.setUser({
+          connection: { is_connected: true },
+          evm: [{ address: "0x456", chain_id: 1 }],
+        });
         await flushPromises();
       });
 
@@ -428,7 +444,10 @@ describe("Thread API", () => {
       const { api, getApi } = renderRuntime();
 
       await act(async () => {
-        api.setUser({ address: "0x789", chainId: 1, isConnected: true });
+        api.setUser({
+          connection: { is_connected: true },
+          evm: [{ address: "0x789", chain_id: 1 }],
+        });
         await flushPromises();
       });
 
@@ -469,7 +488,10 @@ describe("Thread API", () => {
       const { api, getApi } = renderRuntime();
 
       await act(async () => {
-        api.setUser({ address: "0xprefetch", chainId: 1, isConnected: true });
+        api.setUser({
+          connection: { is_connected: true },
+          evm: [{ address: "0xprefetch", chain_id: 1 }],
+        });
         await flushPromises();
       });
 
@@ -528,7 +550,10 @@ describe("Thread API", () => {
       const { api, getApi } = renderRuntime();
 
       await act(async () => {
-        api.setUser({ address: "0xabc", chainId: 1, isConnected: true });
+        api.setUser({
+          connection: { is_connected: true },
+          evm: [{ address: "0xabc", chain_id: 1 }],
+        });
         await flushPromises();
       });
 

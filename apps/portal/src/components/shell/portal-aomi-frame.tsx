@@ -10,6 +10,7 @@ import {
   usePerThreadControl,
 } from "@aomi-labs/react";
 import { RequiredSecretsGate } from "@portal/components/shell/required-secrets-gate";
+import { DelegatedWalletHydrator } from "@portal/components/providers/delegated-wallet-hydrator";
 import { x402Client } from "@x402/core/client";
 import { ExactEvmScheme } from "@x402/evm/exact/client";
 import { wrapFetchWithPayment } from "@x402/fetch";
@@ -366,6 +367,7 @@ export function PortalAomiFrame() {
           requestedApp={requestedApp.app}
           locked={Boolean(lockedApp)}
         />
+        <DelegatedWalletHydrator />
         <AomiFrame.Header>
           <Link
             href="/settings"

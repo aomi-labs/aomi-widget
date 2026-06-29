@@ -66,16 +66,18 @@ describe("AomiAuthAdapterProvider user sync", () => {
           is_connected: true,
           provider: "baseAccount",
         },
-        evm: {
-          address: "0x1111111111111111111111111111111111111111",
-          chain_id: 8453,
-          sponsorship: {
-            sponsored: true,
-            sponsor_provider: "coinbase",
+        evm: [
+          {
+            address: "0x1111111111111111111111111111111111111111",
+            chain_id: 8453,
+            sponsorship: {
+              sponsored: true,
+              sponsor_provider: "coinbase",
+            },
           },
-        },
+        ],
       });
-      expect(state.evm?.aa?.mode).toBeUndefined();
+      expect(state.evm?.[0]?.aa?.mode).toBeUndefined();
     });
   });
 
@@ -96,12 +98,14 @@ describe("AomiAuthAdapterProvider user sync", () => {
         connection: {
           provider: "baseAccount",
         },
-        evm: {
-          sponsorship: {
-            sponsored: true,
-            sponsor_provider: "coinbase",
+        evm: [
+          {
+            sponsorship: {
+              sponsored: true,
+              sponsor_provider: "coinbase",
+            },
           },
-        },
+        ],
       });
     });
 
@@ -116,8 +120,8 @@ describe("AomiAuthAdapterProvider user sync", () => {
     await waitFor(() => {
       const state = JSON.parse(screen.getByTestId("user-state").textContent!);
       expect(state.connection.provider).toBeNull();
-      expect(state.evm.sponsorship.sponsored).toBeNull();
-      expect(state.evm.sponsorship.sponsor_provider).toBeNull();
+      expect(state.evm?.[0]?.sponsorship.sponsored).toBeNull();
+      expect(state.evm?.[0]?.sponsorship.sponsor_provider).toBeNull();
     });
   });
 
@@ -141,13 +145,15 @@ describe("AomiAuthAdapterProvider user sync", () => {
           provider: "para",
           auth_method: "google",
         },
-        evm: {
-          sponsorship: {
-            sponsored: true,
-            sponsor_provider: "alchemy",
-            sponsor_account: "gp_test_policy_id",
+        evm: [
+          {
+            sponsorship: {
+              sponsored: true,
+              sponsor_provider: "alchemy",
+              sponsor_account: "gp_test_policy_id",
+            },
           },
-        },
+        ],
       });
     });
   });

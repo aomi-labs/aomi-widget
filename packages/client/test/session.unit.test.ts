@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { AomiClient, Session } from "../src/index";
 import type { AomiChatResponse, AomiStateResponse } from "../src/index";
-import { CLIENT_TYPE_WEB_UI, UserState } from "../src/index";
+import { CLIENT_TYPE_WEB_UI } from "../src/index";
 
 function createSerializedSolanaTransactionBase64(): string {
   return "AQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAQACBze9yJWsbqTbnUiruXeZbHqIy/BaQd1UCCVe1GfudGivVNbgjaz4czD0q91ZPUZxlTq9s13835CVa+PSjizkq2teI0IZn3VSjcqRRQskF9qFq2Zlfqj34I+nqiTQs0EuSpL6J7MXfuoBbVCR6gPpz3qT8eX0mPdmeEXgt601lv7ksoYaZa0ZuOykPPWQK9mdR+XAjqOctjCYRJlGapf0M3oDBkZv5SEXMv/srbpyw5vnvIzlu8X3EmssQ5s6QAAAAAY00hfx5PhTIw4frM/vninJ79+8fqRa5+HbpLoNaiTIV0cb8EE8yckcu5VkPvGUqBH8hy7DIb7MVsx7B4DI+OICBQAFAq9WAgAGFAANCQgKBxIUAwIODwsRDBATARUEKR7xY9ze2hIzAC0xAQAAAABSOBkAAAAAAAAAAAAAAAAAAAAAAAAAAAABAvwDnAmOrTN/ziyz/kclDi1tJPgEebksJycmNOV7yVu/AAcABQYBAhkDF3JHWXSsa3h2cA0oler3oXpCTBtn+vmrgbTwn1QUBrwEBAIBAwQIBgkF";
@@ -89,10 +89,8 @@ describe("ClientSession ext helpers", () => {
     const session = new Session(client, {
       sessionId: "session-unit-2",
       userState: {
-        address: "0xabc",
-        chainId: 1,
-        isConnected: true,
-        ensName: "wallet.eth",
+        connection: { is_connected: true },
+        evm: [{ address: "0xabc", chain_id: 1, ens_name: "wallet.eth" }],
       },
     });
 
@@ -122,7 +120,10 @@ describe("ClientSession ext helpers", () => {
     const { client, sendMessage } = createMockClient();
     const session = new Session(client, {
       sessionId: "session-unit-3",
-      userState: { address: "0xdef", isConnected: true },
+      userState: {
+        connection: { is_connected: true },
+        evm: [{ address: "0xdef" }],
+      },
     });
 
     session.addExtValue("SIMMER_API_KEY", "sk_live_3");
@@ -177,7 +178,10 @@ describe("ClientSession ext helpers", () => {
     const session = new Session(client, {
       sessionId: "session-unit-4b",
       clientType: CLIENT_TYPE_WEB_UI,
-      userState: { address: "0x123", isConnected: true },
+      userState: {
+        connection: { is_connected: true },
+        evm: [{ address: "0x123" }],
+      },
     });
 
     await session.sendAsync("hello from web");
@@ -300,9 +304,8 @@ describe("ClientSession ext helpers", () => {
     const session = new Session(client, {
       sessionId: "session-unit-5b",
       userState: {
-        address: "0xabc",
-        chain_id: 8453,
-        is_connected: true,
+        connection: { is_connected: true },
+        evm: [{ address: "0xabc", chain_id: 8453 }],
       },
     });
 
@@ -310,9 +313,9 @@ describe("ClientSession ext helpers", () => {
       is_processing: false,
       messages: [],
       user_state: {
-        address: "0xabc",
-        is_connected: true,
-        pending_txs: {},
+        connection: { is_connected: true },
+        evm: [{ address: "0xabc" }],
+        pending: { evm_txs: {} },
       },
     } satisfies AomiStateResponse);
 
@@ -337,11 +340,14 @@ describe("ClientSession ext helpers", () => {
     const session = new Session(client, {
       sessionId: "session-unit-5c",
       userState: {
-        address: "0xabc",
-        chain_id: 8453,
-        is_connected: true,
-        aa_mode: "4337",
-        smart_account: "0xsmart",
+        connection: { is_connected: true },
+        evm: [
+          {
+            address: "0xabc",
+            chain_id: 8453,
+            aa: { mode: "4337", smart_account: "0xsmart" },
+          },
+        ],
       },
     });
 
@@ -349,9 +355,9 @@ describe("ClientSession ext helpers", () => {
       is_processing: false,
       messages: [],
       user_state: {
-        address: "0xabc",
-        is_connected: true,
-        pending_txs: {},
+        connection: { is_connected: true },
+        evm: [{ address: "0xabc" }],
+        pending: { evm_txs: {} },
       },
     } satisfies AomiStateResponse);
 
@@ -373,31 +379,6 @@ describe("ClientSession ext helpers", () => {
     });
 
     session.close();
-  });
-
-  it("normalizes camelCase AA user_state aliases", () => {
-    expect(
-      UserState.normalize({
-        address: "0xabc",
-        aaMode: "4337",
-        smartAccount: "0xsmart",
-        walletKind: "smart-account",
-        walletProvider: "baseAccount",
-        authMethod: "google",
-        sponsorProvider: "coinbase",
-        sponsorAccount: "gp_test",
-      }),
-    ).toMatchObject({
-      evm: [
-        {
-          address: "0xabc",
-          aa: {
-            mode: "4337",
-            smart_account: "0xsmart",
-          },
-        },
-      ],
-    });
   });
 
   it("warns when backend user_state ext mismatches expected subset", async () => {
@@ -541,25 +522,26 @@ describe("ClientSession ext helpers", () => {
       is_processing: false,
       messages: [],
       user_state: {
-        address: "0x9C7a99480c59955a635123EDa064456393e519f5",
-        chain_id: 8453,
-        is_connected: true,
-        pending_txs: {
-          1: {
-            to: "0x742d35Cc6634C0532925a3b844Bc9e7595f33749",
-            value: "0",
-            data: "0x",
-            chain_id: 8453,
+        connection: { is_connected: true },
+        evm: [{ address: "0x9C7a99480c59955a635123EDa064456393e519f5", chain_id: 8453 }],
+        pending: {
+          evm_txs: {
+            1: {
+              to: "0x742d35Cc6634C0532925a3b844Bc9e7595f33749",
+              value: "0",
+              data: "0x",
+              chain_id: 8453,
+            },
           },
-        },
-        pending_eip712s: {
-          7: {
-            description: "Permit2 signature",
-            typed_data: {
-              domain: { chainId: 8453, name: "Permit2" },
-              types: { Permit: [{ name: "owner", type: "address" }] },
-              primaryType: "Permit",
-              message: { owner: "0x123" },
+          evm_sigs: {
+            7: {
+              description: "Permit2 signature",
+              typed_data: {
+                domain: { chainId: 8453, name: "Permit2" },
+                types: { Permit: [{ name: "owner", type: "address" }] },
+                primaryType: "Permit",
+                message: { owner: "0x123" },
+              },
             },
           },
         },
@@ -600,12 +582,14 @@ describe("ClientSession ext helpers", () => {
       is_processing: false,
       messages: [],
       user_state: {
-        pending_txs: {
-          15: {
-            to: "0x742d35Cc6634C0532925a3b844Bc9e7595f33749",
-            value: "42",
-            data: "0x",
-            chain_id: 8453,
+        pending: {
+          evm_txs: {
+            15: {
+              to: "0x742d35Cc6634C0532925a3b844Bc9e7595f33749",
+              value: "42",
+              data: "0x",
+              chain_id: 8453,
+            },
           },
         },
       },
@@ -662,12 +646,14 @@ describe("ClientSession ext helpers", () => {
       is_processing: false,
       messages: [],
       user_state: {
-        pending_txs: {
-          15: {
-            to: "0x742d35Cc6634C0532925a3b844Bc9e7595f33749",
-            value: "42",
-            data: "0x",
-            chain_id: 8453,
+        pending: {
+          evm_txs: {
+            15: {
+              to: "0x742d35Cc6634C0532925a3b844Bc9e7595f33749",
+              value: "42",
+              data: "0x",
+              chain_id: 8453,
+            },
           },
         },
       },
@@ -710,18 +696,20 @@ describe("ClientSession ext helpers", () => {
       is_processing: false,
       messages: [],
       user_state: {
-        pending_txs: {
-          1: {
-            to: "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
-            value: "0",
-            data: "0x095ea7b3",
-            chain_id: 1,
-          },
-          2: {
-            to: "0xbEbc44782C7dB0a1A60Cb6fe97d0b483032FF1C7",
-            value: "0",
-            data: "0x3df02124",
-            chain_id: 1,
+        pending: {
+          evm_txs: {
+            1: {
+              to: "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+              value: "0",
+              data: "0x095ea7b3",
+              chain_id: 1,
+            },
+            2: {
+              to: "0xbEbc44782C7dB0a1A60Cb6fe97d0b483032FF1C7",
+              value: "0",
+              data: "0x3df02124",
+              chain_id: 1,
+            },
           },
         },
       },
@@ -760,20 +748,22 @@ describe("ClientSession ext helpers", () => {
       is_processing: false,
       messages: [],
       user_state: {
-        pending_txs: {
-          1: {
-            to: "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
-            value: "0",
-            data: "0x095ea7b3",
-            chain_id: 1,
-            batch_status: "Batch [1,2] passed",
-          },
-          2: {
-            to: "0xbEbc44782C7dB0a1A60Cb6fe97d0b483032FF1C7",
-            value: "0",
-            data: "0x3df02124",
-            chain_id: 1,
-            batch_status: "Batch [1,2] passed",
+        pending: {
+          evm_txs: {
+            1: {
+              to: "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+              value: "0",
+              data: "0x095ea7b3",
+              chain_id: 1,
+              batch_status: "Batch [1,2] passed",
+            },
+            2: {
+              to: "0xbEbc44782C7dB0a1A60Cb6fe97d0b483032FF1C7",
+              value: "0",
+              data: "0x3df02124",
+              chain_id: 1,
+              batch_status: "Batch [1,2] passed",
+            },
           },
         },
       },
@@ -808,12 +798,14 @@ describe("ClientSession ext helpers", () => {
       is_processing: false,
       messages: [],
       user_state: {
-        pending_txs: {
-          7: {
-            to: "0x742d35Cc6634C0532925a3b844Bc9e7595f33749",
-            value: "0",
-            data: "0x",
-            chain_id: 8453,
+        pending: {
+          evm_txs: {
+            7: {
+              to: "0x742d35Cc6634C0532925a3b844Bc9e7595f33749",
+              value: "0",
+              data: "0x",
+              chain_id: 8453,
+            },
           },
         },
       },
@@ -2150,10 +2142,9 @@ describe("ClientSession ext helpers", () => {
     const session = new Session(client, {
       sessionId: "session-solana-4",
       userState: {
-        address: "0xabc",
-        chainId: 1,
-        isConnected: true,
-        svmAddress: "So1aBcExampleSigner",
+        connection: { is_connected: true },
+        evm: [{ address: "0xabc", chain_id: 1 }],
+        svm: { address: "So1aBcExampleSigner" },
       },
     });
 
@@ -2161,10 +2152,9 @@ describe("ClientSession ext helpers", () => {
       is_processing: false,
       messages: [],
       user_state: {
-        address: "0xabc",
-        chain_id: 1,
-        is_connected: true,
-        svm_address: "So1aBcExampleSigner",
+        connection: { is_connected: true },
+        evm: [{ address: "0xabc", chain_id: 1 }],
+        svm: { address: "So1aBcExampleSigner" },
         pending: {
           svm_ixs: {
             12: {
