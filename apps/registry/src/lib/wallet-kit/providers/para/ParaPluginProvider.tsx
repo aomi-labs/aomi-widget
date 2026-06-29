@@ -1,8 +1,13 @@
 "use client";
 
 import { useCallback, useMemo, type ReactNode } from "react";
-import type { Chain } from "viem";
-import { getViemAccount, type TOAuthMethod } from "@getpara/react-sdk";
+import {
+  hashMessage,
+  parseSignature,
+  serializeSignature,
+  type Chain,
+} from "viem";
+import type { TOAuthMethod } from "@getpara/react-sdk";
 import { AomiWalletKitComposer } from "../../composer/AomiWalletKitComposer";
 import { useResolvedAccountRuntime } from "../../account/use-resolved-account-runtime";
 import type {
@@ -56,6 +61,24 @@ type PluginSvmRuntimeConfig = Pick<
   "cluster" | "rpcHttpUrl" | "rpcWsUrl" | "preferDirectSend"
 >;
 
+type ParaSigningWallet = {
+  id?: string;
+  address?: string;
+  type?: string;
+};
+
+type ParaSigningClient = {
+  findWalletByAddress?: (
+    address: `0x${string}`,
+    filter?: { type?: readonly string[] },
+  ) => ParaSigningWallet | undefined;
+  signMessage?: (args: {
+    walletId: string;
+    messageBase64: string;
+  }) => Promise<{ signature?: string }>;
+  wallets?: Record<string, ParaSigningWallet>;
+};
+
 export type AomiParaPluginProviderProps = {
   children: ReactNode;
   supportedChains?: readonly Chain[];
@@ -67,6 +90,65 @@ export type AomiParaPluginProviderProps = {
   execution?: ExecutionConfig;
   account?: AccountConfig;
 };
+
+function hexToBase64(hex: string): string {
+  const normalized = hex.startsWith("0x") ? hex.slice(2) : hex;
+  let binary = "";
+  for (let index = 0; index < normalized.length; index += 2) {
+    binary += String.fromCharCode(
+      parseInt(normalized.slice(index, index + 2), 16),
+    );
+  }
+  return btoa(binary);
+}
+
+function normalizeParaSignature(signature: string): `0x${string}` {
+  const normalized = signature.startsWith("0x") ? signature : `0x${signature}`;
+  const parsed = parseSignature(normalized as `0x${string}`);
+  return serializeSignature({
+    r: parsed.r,
+    s: parsed.s,
+    yParity: parsed.yParity,
+  });
+}
+
+function findParaSigningWallet(
+  paraSession: ParaSigningClient,
+  address: `0x${string}`,
+): ParaSigningWallet | undefined {
+  const wallet = paraSession.findWalletByAddress?.(address, { type: ["EVM"] });
+  if (wallet) {
+    return wallet;
+  }
+
+  return Object.entries(paraSession.wallets ?? {}).find(([, candidate]) => {
+    return (
+      candidate.address?.toLowerCase() === address.toLowerCase() &&
+      (!candidate.type || candidate.type === "EVM")
+    );
+  })?.[1];
+}
+
+async function signParaMessage(
+  paraSession: ParaSigningClient,
+  address: `0x${string}`,
+  message: string,
+): Promise<`0x${string}`> {
+  const wallet = findParaSigningWallet(paraSession, address);
+  const walletId = wallet?.id;
+  if (!walletId || typeof paraSession.signMessage !== "function") {
+    throw new Error("Para embedded wallet is not available for signing");
+  }
+
+  const result = await paraSession.signMessage({
+    walletId,
+    messageBase64: hexToBase64(hashMessage(message)),
+  });
+  if (!result.signature) {
+    throw new Error("Para embedded wallet did not return a signature");
+  }
+  return normalizeParaSignature(result.signature);
+}
 
 export function AomiParaPluginProvider({
   children,
@@ -181,14 +263,11 @@ export function AomiParaPluginProvider({
         if (connection.stableId !== PARA_BRAND_KEY || !paraSession) {
           return null;
         }
-        const account = await getViemAccount({
-          para: paraSession,
-          address: connection.address as `0x${string}`,
-        });
-        if (!account) {
-          throw new Error("Para embedded wallet is not available for signing");
-        }
-        return account.signMessage({ message });
+        return signParaMessage(
+          paraSession as ParaSigningClient,
+          connection.address as `0x${string}`,
+          message,
+        );
       },
     }),
     [logoutParaSession, paraModal, paraSession],
