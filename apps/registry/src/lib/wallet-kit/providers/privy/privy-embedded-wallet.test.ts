@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import type { ConnectedWallet } from "@privy-io/react-auth";
-import { pickPrivyEmbeddedEvmWallet } from "./privy-auth";
+import {
+  pickPrivyEmbeddedEvmUserWallet,
+  pickPrivyEmbeddedEvmWallet,
+} from "./privy-auth";
 
 type MinimalConnectedWallet = Pick<
   ConnectedWallet,
@@ -82,5 +85,67 @@ describe("pickPrivyEmbeddedEvmWallet", () => {
       }),
     ]);
     expect(picked?.address).toBe("0xEMB");
+  });
+});
+
+describe("pickPrivyEmbeddedEvmUserWallet", () => {
+  it("picks the direct embedded EVM wallet from the Privy user", () => {
+    const picked = pickPrivyEmbeddedEvmUserWallet({
+      wallet: {
+        id: "e09bb7a8-19a1-46ca-9ccd-cd4213fcb697",
+        address: "0xCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC",
+        chainType: "ethereum",
+        walletClientType: "privy",
+        imported: false,
+      },
+      linkedAccounts: [],
+    } as never);
+
+    expect(picked).toMatchObject({
+      id: "e09bb7a8-19a1-46ca-9ccd-cd4213fcb697",
+      address: "0xCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC",
+    });
+  });
+
+  it("falls back to linkedAccounts when user.wallet is absent", () => {
+    const picked = pickPrivyEmbeddedEvmUserWallet({
+      linkedAccounts: [
+        {
+          type: "email",
+          address: "user@example.com",
+        },
+        {
+          type: "wallet",
+          address: "0xAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+          chainType: "ethereum",
+          walletClientType: "privy-v2",
+          imported: false,
+        },
+      ],
+    } as never);
+
+    expect(picked?.address).toBe("0xAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA");
+  });
+
+  it("skips imported and non-EVM user wallets", () => {
+    const picked = pickPrivyEmbeddedEvmUserWallet({
+      wallet: {
+        address: "0xBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB",
+        chainType: "ethereum",
+        walletClientType: "privy",
+        imported: true,
+      },
+      linkedAccounts: [
+        {
+          type: "wallet",
+          address: "SoLAddr",
+          chainType: "solana",
+          walletClientType: "privy",
+          imported: false,
+        },
+      ],
+    } as never);
+
+    expect(picked).toBeUndefined();
   });
 });

@@ -332,6 +332,50 @@ describe("WalletPicker", () => {
     expect(selectAccount).toHaveBeenCalledWith("mm-other");
   });
 
+  it("does not offer activation for provider-promoted read-only wallets", () => {
+    const selectAccount = vi.fn(async () => undefined);
+    renderPicker(
+      makeAdapter({
+        selectAccount,
+        identity: {
+          status: "connected",
+          isConnected: true,
+          address: "0xBBBBBBBB",
+          chainId: 1,
+          sessionProvider: "privy",
+          embeddedProvider: "privy",
+          walletProvider: "privy",
+        },
+        accounts: [
+          {
+            id: "coinbase-active",
+            family: "evm",
+            address: "0xBBBBBBBB",
+            label: "0xBBB..BB",
+            walletName: "Coinbase Wallet",
+            active: true,
+          },
+        ],
+        accountWallets: [
+          {
+            id: "e09bb7a8-19a1-46ca-9ccd-cd4213fcb697",
+            family: "evm",
+            address: "0xCCCCCCCC",
+            kind: "embedded",
+            provider: "privy",
+            linkedVia: "privy",
+            label: "0xCCC..CC",
+            capability: "read",
+          },
+        ],
+      }),
+    );
+
+    expect(screen.getAllByText("Privy").length).toBeGreaterThan(0);
+    expect(screen.queryByLabelText("Make Privy active")).toBeNull();
+    expect(selectAccount).not.toHaveBeenCalled();
+  });
+
   it("orders quick sign-in above the wallet list when disconnected", () => {
     renderPicker(
       makeAdapter({

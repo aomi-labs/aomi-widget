@@ -795,35 +795,41 @@ export function reduce(
       const explicitFamilyDisconnect = {
         ...state.intents.explicitFamilyDisconnect,
       };
-      if (event.family === "all" || event.family === "evm") {
+      const disconnectsEvm = event.family === "all" || event.family === "evm";
+      const disconnectsSvm = event.family === "all" || event.family === "svm";
+      if (disconnectsEvm) {
         delete activeByFamily.evm;
         explicitFamilyDisconnect.evm = true;
       }
-      if (event.family === "all" || event.family === "svm") {
+      if (disconnectsSvm) {
         delete activeByFamily.svm;
         explicitFamilyDisconnect.svm = true;
+      }
+      let connections = state.connections;
+      if (disconnectsEvm) {
+        connections = withoutSyntheticEmbeddedSessionConnection(
+          state,
+          connections,
+        );
+      }
+      if (disconnectsSvm) {
+        connections = connections.filter(
+          (connection) => connection.family !== "svm",
+        );
       }
       let next: WalletRegistryState = withConnectionOrder({
         ...state,
         activeByFamily,
         evmGrace:
-          event.family === "all" || event.family === "evm"
+          disconnectsEvm
             ? { last: null, disconnectedAt: null }
             : state.evmGrace,
-        connections:
-          event.family === "all" || event.family === "evm"
-            ? withoutSyntheticEmbeddedSessionConnection(
-                state,
-                state.connections,
-              )
-            : state.connections,
+        connections,
         intents: {
           ...state.intents,
           explicitFamilyDisconnect,
           providerSessionDetached:
-            event.family === "all" || event.family === "evm"
-              ? true
-              : state.intents.providerSessionDetached,
+            disconnectsEvm ? true : state.intents.providerSessionDetached,
         },
       });
       next = withEmbeddedSessionConnection(next);
