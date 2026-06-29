@@ -12,6 +12,7 @@ import {
   cn,
   useAomiRuntime,
   type AomiClientOptions,
+  type AomiPlatformFilter,
 } from "@aomi-labs/react";
 import { Thread } from "@/components/assistant-ui/thread";
 import { ThreadListSidebar } from "@/components/assistant-ui/threadlist-sidebar";
@@ -63,6 +64,8 @@ type RootProps = {
   backendUrl?: string;
   /** Optional concrete application row to route runtime calls to. */
   applicationId?: number | string | null;
+  /** Optional backend platform filter for the session app catalog. */
+  appPlatforms?: AomiPlatformFilter;
   /** Optional runtime client overrides. */
   clientOptions?: Omit<AomiClientOptions, "baseUrl">;
 };
@@ -107,6 +110,7 @@ const Root: FC<RootProps> = ({
   showSidebar = true,
   backendUrl,
   applicationId,
+  appPlatforms,
   clientOptions,
 }) => {
   const resolvedBackendUrl =
@@ -119,6 +123,7 @@ const Root: FC<RootProps> = ({
     <AomiRuntimeProvider
       backendUrl={resolvedBackendUrl}
       applicationId={applicationId}
+      appPlatforms={appPlatforms}
       clientOptions={clientOptions}
     >
       <SidebarProvider className="min-h-0! h-full">

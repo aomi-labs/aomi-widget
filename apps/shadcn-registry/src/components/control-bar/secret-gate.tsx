@@ -24,12 +24,20 @@ export function SecretGate() {
   const { state: authState } = useAuthEndpoints();
   const { state: apiKeyState } = useApiKey();
   const { ingestSecrets, listSecrets } = useByok().actions;
-  const { getCurrentThreadApp, onAppSelect } = usePerThreadControl().actions;
+  const { getCurrentThreadApp, getCurrentThreadApplicationId, onAppSelect } =
+    usePerThreadControl().actions;
 
   const currentApp = getCurrentThreadApp();
+  const currentApplicationId = getCurrentThreadApplicationId();
   const descriptor = useMemo(
-    () => authState.appDescriptors.find((d) => d.name === currentApp),
-    [authState.appDescriptors, currentApp],
+    () =>
+      authState.appDescriptors.find(
+        (d) =>
+          d.name === currentApp &&
+          (d.applicationId?.toString() ?? "") ===
+            (currentApplicationId?.toString() ?? ""),
+      ) ?? authState.appDescriptors.find((d) => d.name === currentApp),
+    [authState.appDescriptors, currentApp, currentApplicationId],
   );
   const requiredSlots = useMemo(
     () => (descriptor?.secrets ?? []).filter((s) => s.required),
@@ -109,10 +117,11 @@ export function SecretGate() {
   const handleSwitchAway = useCallback(() => {
     const candidate = authState.appDescriptors.find(
       (d) =>
-        d.name !== currentApp &&
-        (d.secrets ?? []).every((s) => !s.required),
+        d.name !== currentApp && (d.secrets ?? []).every((s) => !s.required),
     );
-    onAppSelect(candidate?.name ?? "default");
+    onAppSelect(candidate?.name ?? "default", {
+      applicationId: candidate?.applicationId,
+    });
   }, [currentApp, onAppSelect, authState.appDescriptors]);
 
   if (!knownEmpty || missing.length === 0) return null;
@@ -169,9 +178,7 @@ export function SecretGate() {
           ))}
         </div>
 
-        {error && (
-          <p className="text-destructive mt-3 text-sm">{error}</p>
-        )}
+        {error && <p className="text-destructive mt-3 text-sm">{error}</p>}
 
         <div className="mt-5 flex items-center justify-between gap-3">
           <button

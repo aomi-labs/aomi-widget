@@ -57,6 +57,7 @@ export function AomiRuntimeCore({
   const { getUserState } = useUser();
   const {
     getControlState,
+    getCurrentThreadApplicationId,
     getCurrentThreadApp,
     getPreferredThreadControl,
     syncCurrentThreadControl,
@@ -92,7 +93,7 @@ export function AomiRuntimeCore({
   } = useRuntimeOrchestrator(aomiClient, {
     getUserState,
     getApp: getCurrentThreadApp,
-    getApplicationId: () => applicationId,
+    getApplicationId: () => getCurrentThreadApplicationId() ?? applicationId,
     getApiKey: () => getControlState().apiKey,
     getClientId: () => getControlState().clientId ?? undefined,
     prepareThreadForSend: async (threadId) => {
