@@ -16,6 +16,16 @@
         "types": "./dist/index.d.cts",
         "default": "./dist/index.cjs"
       }
+    },
+    "./lifecycle": {
+      "import": {
+        "types": "./dist/lifecycle.d.ts",
+        "default": "./dist/lifecycle.js"
+      },
+      "require": {
+        "types": "./dist/lifecycle.d.cts",
+        "default": "./dist/lifecycle.cjs"
+      }
     }
   },
   "files": [

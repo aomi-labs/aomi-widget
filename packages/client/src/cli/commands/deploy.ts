@@ -1,4 +1,4 @@
-import { execSync } from "child_process";
+import { execFileSync, execSync } from "child_process";
 import { DeployCliError } from "../errors";
 import { writeDeploymentState } from "../../lib/deployment-state";
 
@@ -25,6 +25,23 @@ function currentBranch(): string {
     throw new DeployCliError(
       "NOT_A_GIT_REPO",
       "Run this from inside a git repository",
+    );
+  }
+}
+
+function resolveGitCommit(ref: string): string {
+  try {
+    const commit = execFileSync("git", ["rev-parse", "--verify", `${ref}^{commit}`], {
+      encoding: "utf-8",
+    }).trim();
+    if (!/^[0-9a-f]{7,40}$/i.test(commit)) {
+      throw new Error(`unexpected git commit hash: ${commit}`);
+    }
+    return commit.toLowerCase();
+  } catch {
+    throw new DeployCliError(
+      "VALIDATION_ERROR",
+      `Could not resolve \`${ref}\` to a git commit SHA.`,
     );
   }
 }
@@ -173,38 +190,34 @@ export async function deployCommand(args: DeployArgs): Promise<void> {
     );
   }
 
-  const sourceRef = commit
-    ? { kind: "commit", value: commit }
-    : { kind: "branch", value: branch ?? currentBranch() };
+  const selectedRef = commit ?? branch ?? currentBranch();
+  const sourceRef = resolveGitCommit(selectedRef);
 
   if (!commit && !branch) {
     checkGitRemote();
   }
 
-  const aomiTomlPaths = (
-    str(args["aomi-toml-paths"]) ?? "aomi.toml"
-  )
+  const aomiTomlPaths = (str(args["aomi-toml-paths"]) ?? "")
     .split(",")
     .map((p) => p.trim())
     .filter(Boolean);
-  const dryRun = args["dry-run"] === true;
+  const preflight = args["preflight"] === true;
 
   console.log(` Deploying to ${backendUrl} (platform: ${platform})`);
   console.log(`   app source id: ${appSourceId}`);
-  if (sourceRef.kind === "commit") {
-    console.log(`   commit:        ${sourceRef.value}`);
-  } else {
-    console.log(`   branch:        ${sourceRef.value}`);
-  }
-  console.log(`   aomi.toml:     ${aomiTomlPaths.join(", ")}`);
-  if (dryRun) console.log("   dry run:      yes");
+  if (branch) console.log(`   branch:        ${branch}`);
+  console.log(`   commit:        ${sourceRef}`);
+  console.log(
+    `   aomi.toml:     ${aomiTomlPaths.length ? aomiTomlPaths.join(", ") : "discover"}`,
+  );
+  if (preflight) console.log("   preflight:      yes");
 
   const url = `${backendUrl}/api/platforms/${encodeURIComponent(platform)}/deploy`;
   const body = {
     app_source_id: appSourceId,
     source_ref: sourceRef,
     aomi_toml_paths: aomiTomlPaths,
-    dry_run: dryRun,
+    preflight: preflight,
   };
 
   let res: Response;
@@ -251,8 +264,8 @@ export async function deployCommand(args: DeployArgs): Promise<void> {
   const sourceInfo = deployment?.source as Record<string, unknown> | undefined;
 
   console.log();
-  if (dryRun) {
-    console.log(" Dry run complete. Review the manifest below:");
+  if (preflight) {
+    console.log(" Preflight complete. Review the manifest below:");
     console.log(`   ${JSON.stringify(result, null, 2)}`);
     return;
   }

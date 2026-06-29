@@ -17,6 +17,14 @@ The full contract is in product-mono
 `docs/topics/account-authentication/facts/service-identity.md` — read that first;
 this doc is the delta + migration notes for your branch.
 
+> **Update (2026-06-27):** the BFF side is now implemented and verified — shared
+> `createBackendProxy` / `createAuthExchangeRoute` / session in `@aomi-labs/account`,
+> plus base SIWE and Privy/Para verifiers shaped to drop into your stack. For the
+> consolidated **seam contract**, the **his↔ours data-type tables**, and the
+> **recommended merge plan**, see
+> [bff-betterauth-integration.md](./bff-betterauth-integration.md). GAP-1/2/3 below
+> are unchanged and remain the integration checklist.
+
 ## Same model — where we already agree
 
 Both designs are the *same architecture*. Strip away naming and both say: **the
@@ -173,7 +181,7 @@ Server-only issuer package — **`@aomi-labs/account`** (`packages/account/src/`
 | file | what it does | your move |
 |---|---|---|
 | `account-graph.ts` | `resolveOrCreateCanonicalUser({provider, subject}) → {userId, created}` — TS port of the Rust `DbUser::insert_for_identity` against the existing `users`/`auth_identities`. Race-safe. 4 unit tests. | **Replace the body** with your Better-Auth account graph — keep the signature + the stable-UUID contract. This is the seam. |
-| `bearer.ts` | `mintAccountBearer(userId, role?) → {accessToken, expiresAt}` — `sub` = UUID, EdDSA, via the topology signer. | Converge your JWT minting here; keep the claim set (`sub`/`iss`/`aud`/`role`/`iat`/`exp`). |
+| `bearer.ts` | `mintAccountBearer(userId, role?) → {bearer, expiresAt}` — `sub` = UUID, EdDSA, via the topology signer. (`@aomi-labs/service`'s generic signer returns `accessToken`; `bearer.ts` re-labels it `bearer` — the account domain names this credential a bearer.) | Converge your JWT minting here; keep the claim set (`sub`/`iss`/`aud`/`role`/`iat`/`exp`). |
 | `topology.ts` | `portalService()` = `AomiService.fromTopology(service.portal.toml)`; signing key from env `PORTAL_SERVICE_PRIVATE_KEY`. | The mint mechanism. (Topology/`AomiService` is owned elsewhere — coordinate before changing it.) |
 | `db.ts` | `pg` pool from `DATABASE_URL` (same DB the backend reads). | Reuse, or swap for Better-Auth's pool — but write the tables the backend reads. |
 

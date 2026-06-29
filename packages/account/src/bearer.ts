@@ -16,7 +16,7 @@ export const ACCOUNT_BEARER_TTL_SECONDS = 15 * 60;
 
 export type MintedBearer = {
   /** The signed EdDSA JWT — used as the `Authorization: Bearer` AccountBearer. */
-  accessToken: string;
+  bearer: string;
   /** Expiry, unix seconds — matches the `exp` claim. */
   expiresAt: number;
 };
@@ -24,15 +24,20 @@ export type MintedBearer = {
 /**
  * Sign an AccountBearer for a resolved canonical user. `role` defaults to
  * `user`; the topology authorizes it against `aomi-bff`'s configured roles.
+ *
+ * `@aomi-labs/service` is the generic JWT signer (service-mesh tokens too), so it
+ * returns the neutral `accessToken`; we re-label it `bearer` here — the account
+ * domain names this credential a bearer, never a token.
  */
 export async function mintAccountBearer(
   canonicalUserId: string,
   role: string = "user",
 ): Promise<MintedBearer> {
-  return portalService().mint({
+  const { accessToken, expiresAt } = await portalService().mint({
     role,
     subject: canonicalUserId,
     audience: AUDIENCE,
     ttlSeconds: ACCOUNT_BEARER_TTL_SECONDS,
   });
+  return { bearer: accessToken, expiresAt };
 }

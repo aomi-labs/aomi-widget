@@ -5,10 +5,24 @@ BFF / server use only** (holds the activation bearer token).
 
 ## API
 
+### `preflight()`
+
+Calls `POST /api/platforms/:platform/deploy` with `app_source_id`, `source_ref`,
+optional `aomi_toml_paths`, and `preflight: true`. Returns the deployment
+record without opening or updating the platform PR. Use this to render
+`deployment.json` before the user applies.
+
 ### `deploy()`
 
 Calls `POST /api/platforms/:platform/deploy` with `app_source_id`, `source_ref`,
-`aomi_toml_paths`, and optional `dry_run`.
+and optional `aomi_toml_paths`. This is the apply step: it writes the platform
+deployment branch/PR when needed and starts the CI path.
+
+`sourceRef` must be the immutable git commit SHA to deploy. Resolve branches or
+tags before calling the client; the backend does not accept mutable refs.
+
+`aomiTomlPaths` may be omitted to let the backend discover every `aomi.toml` in
+the source commit.
 
 ### `activate()`
 
@@ -86,7 +100,7 @@ const { id } = await client.syncSource({
 await client.deploy({
   platform: "playground",
   appSourceId: id,
-  sourceRef: { kind: "branch", value: "main" },
+  sourceRef: process.env.AOMI_SOURCE_REF!,
   aomiTomlPaths: ["aomi.toml"],
 });
 ```
@@ -124,10 +138,12 @@ if (!result.ok) {
 interface DeployRequest {
   platform: string;
   appSourceId: number;
-  sourceRef: { kind: "branch" | "commit"; value: string };
-  aomiTomlPaths: string[];
-  dryRun?: boolean;
+  /** Immutable git commit SHA. Branch names are rejected by the backend. */
+  sourceRef: string;
+  aomiTomlPaths?: string[];
 }
+
+type PreflightRequest = DeployRequest;
 
 interface ActivateRequest {
   platform: string;
@@ -152,6 +168,19 @@ interface ActivationResult {
 }
 ```
 
+## Browser-safe lifecycle helpers
+
+The root package entry is for BFF/server code. Portal UI that only needs to
+project deploy records into dashboard state should import the pure helper
+subpath instead:
+
+```ts
+import {
+  deploymentLifecycleFromSource,
+  deploymentLifecycleFromStatus,
+} from "@aomi-labs/deploy/lifecycle";
+```
+
 ## Example
 
 ```ts
@@ -164,12 +193,17 @@ const dc = new DeploymentClient({
   },
 });
 
+const preview = await dc.preflight({
+  platform: "community",
+  appSourceId: 42,
+  sourceRef: process.env.AOMI_SOURCE_REF!,
+});
+console.log(JSON.stringify(preview.deployment, null, 2));
+
 const { deployment } = await dc.deploy({
   platform: "community",
   appSourceId: 42,
-  sourceRef: { kind: "branch", value: "main" },
-  aomiTomlPaths: ["aomi.toml"],
-  dryRun: true,
+  sourceRef: process.env.AOMI_SOURCE_REF!,
 });
 
 await dc.activate({

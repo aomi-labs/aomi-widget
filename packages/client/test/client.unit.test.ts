@@ -10,10 +10,12 @@ describe("AomiClient route manifest", () => {
         `${endpoint.method} ${endpoint.path} [${endpoint.auth.join(", ")}]`,
     );
 
-    expect(routeKeys).toHaveLength(77);
+    expect(routeKeys).toHaveLength(78);
     expect(new Set(routeKeys).size).toBe(routeKeys.length);
     expect(routeKeys).toContain("GET /api/session/apps [session]");
-    expect(routeKeys).toContain("POST /api/platforms/:name/deploy [activation]");
+    expect(routeKeys).toContain(
+      "POST /api/platforms/:name/deploy [activation]",
+    );
     expect(routeKeys).not.toContain("GET /api/control/apps [session]");
     expect(routeKeys.some((route) => route.includes("/api/control/"))).toBe(
       false,
@@ -39,14 +41,14 @@ describe("AomiClient route manifest", () => {
     await expect(
       client.request("POST", "/api/platforms/community/deploy", {
         sessionId: "session-1",
-        query: { dry_run: true, empty: null },
+        query: { preflight: true, empty: null },
         body: { source: "github" },
       }),
     ).resolves.toEqual({ ok: true });
 
     const [url, init] = fetchImpl.mock.calls[0] as [string, RequestInit];
     expect(url).toBe(
-      "http://unit.test/api/platforms/community/deploy?dry_run=true",
+      "http://unit.test/api/platforms/community/deploy?preflight=true",
     );
     expect(init.method).toBe("POST");
     expect(JSON.parse(init.body as string)).toEqual({ source: "github" });
@@ -334,6 +336,54 @@ describe("AomiClient account profile", () => {
   });
 });
 
+describe("AomiClient app catalog", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("passes platform filters and normalizes artifact readiness", async () => {
+    const response = {
+      ok: true,
+      status: 200,
+      statusText: "OK",
+      json: vi.fn(async () => [
+        {
+          name: "somm-agent",
+          application_id: 42,
+          platform: "somm.finance",
+          artifact_ready: true,
+        },
+      ]),
+    } as unknown as Response;
+    const nativeFetch = vi.fn(async () => response);
+    const originalFetch = globalThis.fetch;
+    vi.stubGlobal("fetch", nativeFetch);
+
+    try {
+      const client = new AomiClient({ baseUrl: "http://unit.test" });
+
+      const apps = await client.getApps("session-1", {
+        platforms: ["somm.finance", "community"],
+      });
+
+      expect(String(nativeFetch.mock.calls[0]?.[0])).toBe(
+        "http://unit.test/api/session/apps?platform=somm.finance&platform=community",
+      );
+      expect(apps).toEqual([
+        {
+          name: "somm-agent",
+          applicationId: 42,
+          platform: "somm.finance",
+          artifactReady: true,
+          secrets: [],
+        },
+      ]);
+    } finally {
+      vi.stubGlobal("fetch", originalFetch);
+    }
+  });
+});
+
 const encoder = new TextEncoder();
 
 const createMockSseConnection = (signal: AbortSignal) => {
@@ -410,9 +460,8 @@ describe("AomiClient transport selection", () => {
       },
     ] as Response[];
     const nativeFetch = vi.fn(async () => responses.shift() as Response);
-    const getAccountBearer = vi.fn(
-      async ({ forceRefresh = false } = {}) =>
-        forceRefresh ? "fresh-token" : "stale-token",
+    const getAccountBearer = vi.fn(async ({ forceRefresh = false } = {}) =>
+      forceRefresh ? "fresh-token" : "stale-token",
     );
     const originalFetch = globalThis.fetch;
     vi.stubGlobal("fetch", nativeFetch);

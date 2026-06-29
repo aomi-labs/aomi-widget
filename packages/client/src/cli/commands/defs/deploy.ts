@@ -22,7 +22,7 @@ export const deployDef = defineCommand({
       description:
         "Backend app source ID (required; or set AOMI_APP_SOURCE_ID env)",
     },
-    "dry-run": {
+    "preflight": {
       type: "boolean",
       description: "Preview the deployment manifest without applying it",
     },
@@ -38,7 +38,7 @@ export const deployDef = defineCommand({
     "aomi-toml-paths": {
       type: "string",
       description:
-        "Comma-separated paths to aomi.toml files (default: aomi.toml)",
+        "Comma-separated paths to aomi.toml files (default: discover)",
     },
     platform: {
       type: "string",

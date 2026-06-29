@@ -3,8 +3,8 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import { useUser, ExtUserProvider } from "@aomi-labs/react";
-import { AomiAuthAdapterProvider } from "../../../../../apps/registry/src/lib/aomi-auth-adapter/context";
-import type { AomiAuthAdapter } from "../../../../../apps/registry/src/lib/aomi-auth-adapter/types";
+import { AomiAuthAdapterProvider } from "../../../../../apps/shadcn-registry/src/lib/auth-adapter/context";
+import type { AomiAuthAdapter } from "../../../../../apps/shadcn-registry/src/lib/auth-adapter/types";
 
 afterEach(() => {
   cleanup();

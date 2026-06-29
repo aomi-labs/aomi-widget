@@ -9,14 +9,25 @@ export type PendingInstall = {
 export type LaunchState = {
   path: LaunchPath | null;
   oneshot: LaunchProgress;
-  bootstrap: LaunchProgress;
   pendingInstall: PendingInstall | null;
+  /**
+   * An installation id that a create attempt rejected (uninstalled, wrong
+   * account, missing permissions). Kept so we never re-seed it from the signed
+   * session cookie on reload or "Start over" — it's cleared when a fresh install
+   * redirect supplies a new installation.
+   */
+  rejectedInstallationId: string | null;
 };
 
 const STORAGE_KEY = "aomi_launch";
 
 function empty(): LaunchState {
-  return { path: null, oneshot: {}, bootstrap: {}, pendingInstall: null };
+  return {
+    path: null,
+    oneshot: {},
+    pendingInstall: null,
+    rejectedInstallationId: null,
+  };
 }
 
 export function loadLaunch(): LaunchState {
@@ -28,8 +39,8 @@ export function loadLaunch(): LaunchState {
     return {
       path: parsed.path ?? null,
       oneshot: parsed.oneshot ?? {},
-      bootstrap: parsed.bootstrap ?? {},
       pendingInstall: parsed.pendingInstall ?? null,
+      rejectedInstallationId: parsed.rejectedInstallationId ?? null,
     };
   } catch {
     return empty();
@@ -75,6 +86,13 @@ export function withPendingInstall(
   return { ...state, pendingInstall: pending };
 }
 
+export function withRejectedInstall(
+  state: LaunchState,
+  installationId: string | null,
+): LaunchState {
+  return { ...state, rejectedInstallationId: installationId };
+}
+
 export type GithubRedirect = {
   installationId: string;
   setupAction: string | null;
@@ -118,6 +136,22 @@ export function readGithubRedirect(search: string): GithubRedirect | null {
   };
 }
 
+/**
+ * Is a launch mid-flow, returning from the GitHub install round-trip?
+ *
+ * A template → install → deploy launch is a full-page navigation away to GitHub
+ * and back, so by the time we return a matching source already exists. Callers
+ * (the deploy dashboard) gate the wizard on "nothing connected yet", which would
+ * otherwise yank the user out of the stepper to the source list at exactly the
+ * install → deploy hand-off. This stays true only while the install redirect is
+ * being consumed: an active `path` plus either a saved `pendingInstall` or the
+ * `installation_id` redirect still on the URL.
+ */
+export function isResumingInstall(state: LaunchState, search: string): boolean {
+  if (!state.path) return false;
+  return Boolean(state.pendingInstall) || readGithubRedirect(search) !== null;
+}
+
 export const GITHUB_REDIRECT_KEYS = [
   "installation_id",
   "setup_action",
@@ -128,18 +162,11 @@ export const GITHUB_REDIRECT_KEYS = [
 ] as const;
 
 export type OneshotStep = "install" | "create" | "build" | "live";
-export type BootstrapStep = "template" | "install" | "deploy" | "live";
 
 export const ONESHOT_STEPS: OneshotStep[] = [
   "install",
   "create",
   "build",
-  "live",
-];
-export const BOOTSTRAP_STEPS: BootstrapStep[] = [
-  "template",
-  "install",
-  "deploy",
   "live",
 ];
 
@@ -150,19 +177,10 @@ export function oneshotStep(p: LaunchProgress): OneshotStep {
   return "live";
 }
 
-export function bootstrapStep(p: LaunchProgress): BootstrapStep {
-  if (!p.repo) return "template";
-  if (!p.installationId) return "install";
-  if (!p.live) return "deploy";
-  return "live";
-}
-
 export function installationStatusLabel(status?: string): string | null {
   switch (status) {
     case "bound":
       return "installation done";
-    case "awaiting_webhook":
-      return "installed, syncing repositories";
     case "awaiting_install":
       return "installation requested";
     default:

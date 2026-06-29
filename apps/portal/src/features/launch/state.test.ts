@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   GITHUB_REDIRECT_KEYS,
-  bootstrapStep,
   installationStatusLabel,
+  isResumingInstall,
   loadLaunch,
   normalizeRepo,
   oneshotStep,
@@ -11,7 +11,16 @@ import {
   withPath,
   withPendingInstall,
   withProgress,
+  type LaunchState,
 } from ".";
+
+const launchState = (over: Partial<LaunchState> = {}): LaunchState => ({
+  path: null,
+  oneshot: {},
+  pendingInstall: null,
+  rejectedInstallationId: null,
+  ...over,
+});
 
 describe("oneshotStep", () => {
   it("advances install -> create -> build -> live", () => {
@@ -22,19 +31,10 @@ describe("oneshotStep", () => {
   });
 });
 
-describe("bootstrapStep", () => {
-  it("advances template -> install -> deploy -> live", () => {
-    expect(bootstrapStep({})).toBe("template");
-    expect(bootstrapStep({ repo: "a/b" })).toBe("install");
-    expect(bootstrapStep({ repo: "a/b", installationId: "1" })).toBe("deploy");
-    expect(bootstrapStep({ repo: "a/b", installationId: "1", live: true })).toBe("live");
-  });
-});
-
 describe("installationStatusLabel", () => {
   it("describes backend callback statuses", () => {
     expect(installationStatusLabel("bound")).toBe("installation done");
-    expect(installationStatusLabel("awaiting_webhook")).toBe("installed, syncing repositories");
+    expect(installationStatusLabel("awaiting_install")).toBe("installation requested");
     expect(installationStatusLabel("unknown")).toBeNull();
   });
 });
@@ -80,7 +80,12 @@ describe("readGithubRedirect", () => {
 
 describe("state transitions", () => {
   it("are immutable and correct", () => {
-    const base = { path: null, oneshot: {}, bootstrap: {}, pendingInstall: null };
+    const base = {
+      path: null,
+      oneshot: {},
+      pendingInstall: null,
+      rejectedInstallationId: null,
+    };
 
     const a = withPath(base, "oneshot");
     expect(a.path).toBe("oneshot");
@@ -111,15 +116,45 @@ describe("load/save", () => {
     expect(loadLaunch()).toEqual({
       path: null,
       oneshot: {},
-      bootstrap: {},
       pendingInstall: null,
+      rejectedInstallationId: null,
     });
 
-    const next = withProgress(loadLaunch(), "bootstrap", { repo: "me/app" });
+    const next = withProgress(loadLaunch(), "oneshot", { repo: "me/app" });
     saveLaunch(next);
-    expect(loadLaunch().bootstrap.repo).toBe("me/app");
+    expect(loadLaunch().oneshot.repo).toBe("me/app");
 
     (globalThis as { window?: unknown }).window = undefined;
+  });
+});
+
+describe("isResumingInstall", () => {
+  it("stays in the wizard while returning from the install round-trip", () => {
+    // Saved pendingInstall before the full-page nav to GitHub.
+    expect(
+      isResumingInstall(
+        launchState({ path: "oneshot", pendingInstall: { path: "oneshot" } }),
+        "",
+      ),
+    ).toBe(true);
+
+    // Backend callback redirect on the URL, even if pendingInstall was cleared.
+    expect(
+      isResumingInstall(
+        launchState({ path: "oneshot" }),
+        "?installation_id=141779906&launch=bound&repo=ceciliaz030%2Flocal-4",
+      ),
+    ).toBe(true);
+  });
+
+  it("does not resume without an active launch or a pending install", () => {
+    // No active path → never resume, even with a redirect on the URL.
+    expect(
+      isResumingInstall(launchState(), "?installation_id=42&launch=bound"),
+    ).toBe(false);
+
+    // Active path but nothing pending and no redirect → fall through to list.
+    expect(isResumingInstall(launchState({ path: "oneshot" }), "")).toBe(false);
   });
 });
 

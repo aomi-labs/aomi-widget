@@ -1,41 +1,21 @@
-export type LaunchPath = "oneshot" | "bootstrap";
+import type {
+  ActivateResult,
+  DeployPayload,
+  DeploymentStatus,
+} from "@aomi-labs/deploy";
 
-export const TEMPLATE_REPO = "aomi-labs/playground-example";
+// One-click is the only launch path: the portal forks the template and deploys
+// it for the user. (Kept as a single-member union so the small amount of
+// path-keyed state plumbing stays typed.)
+export type LaunchPath = "oneshot";
+
+export const TEMPLATE_REPO =
+  process.env.NEXT_PUBLIC_APP_DEPLOY_TEMPLATE_REPO?.trim() ||
+  "aomi-labs/playground-example";
 export const TEMPLATE_REPO_URL = `https://github.com/${TEMPLATE_REPO}`;
 export const TEMPLATE_GENERATE_URL = `${TEMPLATE_REPO_URL}/generate`;
 
-export type LaunchDeployPayload = {
-  id: string;
-  status?: string;
-  source?: Record<string, unknown>;
-  platform?: {
-    platform?: string;
-    repository?: string;
-    deploy_branch?: string;
-    deployBranch?: string;
-    source_branch?: string;
-    sourceBranch?: string;
-    commit_hash?: string | null;
-    commitHash?: string | null;
-    pr_number?: number | null;
-    prNumber?: number | null;
-    pr_url?: string | null;
-    prUrl?: string | null;
-    ci_status?: string | null;
-    ciStatus?: string | null;
-    ci_url?: string | null;
-    ciUrl?: string | null;
-    apps?: Array<{
-      name: string;
-      path?: string;
-      aomi_toml_path?: string;
-      aomiTomlPath?: string;
-      release_tag?: string;
-      releaseTag?: string;
-      target?: string;
-    }>;
-  };
-};
+export type LaunchDeployPayload = DeployPayload;
 
 export type LaunchProgress = {
   installationId?: string;
@@ -43,6 +23,8 @@ export type LaunchProgress = {
   repo?: string;
   /** Cached source row id from create/sync/dashboard responses. */
   appSourceId?: number;
+  /** Immutable source commit returned by source sync/create. */
+  sourceRef?: string;
   deploymentId?: string;
   deployment?: LaunchDeployPayload;
   releaseTags?: string[];
@@ -51,12 +33,25 @@ export type LaunchProgress = {
   live?: boolean;
 };
 
-export type LaunchDeployInput = {
-  /** Backend source row id. When present, deploy can skip source syncing. */
+/**
+ * Preflight / preview input. This is the one place a repo may stand in for a
+ * source row: the preflight materializes the backend source and returns its
+ * `appSourceId`.
+ */
+export type LaunchPreflightInput = {
   appSourceId?: number;
-  /** GitHub App installation that owns the source repo. Kept for wizard context. */
+  sourceRef?: string;
+  /** GitHub App installation that owns the source repo. Wizard context only. */
   installationId?: string;
-  /** `owner/name` repo used to sync the backend source when appSourceId is absent. */
+  /** `owner/name` repo used to mint the backend source when appSourceId is absent. */
+  repo?: string;
+  actor?: string;
+};
+
+/** Commit a deploy against a stable, already-resolved source row. */
+export type LaunchDeployInput = {
+  appSourceId: number;
+  sourceRef?: string;
   repo?: string;
   actor?: string;
 };
@@ -65,6 +60,7 @@ export type LaunchDeployResult = {
   repo: string;
   installationId?: string;
   appSourceId?: number;
+  sourceRef?: string;
   deployment: LaunchDeployPayload;
   releaseTags: string[];
   apps: string[];
@@ -75,42 +71,12 @@ export type LaunchCreateRepoResult = {
   repo: string;
   installationId: string;
   appSourceId?: number;
+  sourceRef?: string;
 };
 
-export type LaunchStatus = {
-  state: "building" | "releasing" | "ready" | "failed" | "pending";
-  deployment?: LaunchDeployPayload;
-  releaseTags: string[];
-  apps?: Array<{
-    name: string;
-    release_tag: string;
-    release_ready: boolean;
-    message?: string | null;
-  }>;
-  ci?: {
-    status?: string;
-    url?: string;
-    commit_hash?: string;
-    commitHash?: string;
-  };
-  message?: string;
-};
+export type LaunchStatus = DeploymentStatus;
 
-export type LaunchActivateResult = {
-  ok: boolean;
-  activation?: {
-    status?: string;
-    apps?: Array<{
-      application_id?: number | null;
-      applicationId?: number | null;
-      name: string;
-      release_tag?: string | null;
-      is_active: boolean;
-      loaded: boolean;
-      error?: string | null;
-    }>;
-  };
-};
+export type LaunchActivateResult = ActivateResult;
 
 export type LaunchAppStatus = {
   ok: boolean;
@@ -122,13 +88,6 @@ export type LaunchAppStatus = {
     is_active: boolean;
     loaded: boolean;
   };
-};
-
-export type LaunchSyncInstalledResult = {
-  ok: boolean;
-  repo: string;
-  installationId: string;
-  appSourceId?: number;
 };
 
 export type LaunchRedeployResult = {

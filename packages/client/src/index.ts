@@ -11,6 +11,7 @@ export { AomiClient } from "./client";
 export type {
   AomiRequestOptions,
   AomiRequestQueryValue,
+  AomiPlatformFilter,
   AomiAppDescriptor,
   AomiAccessApproval,
   AomiAccountProfile,
@@ -66,6 +67,12 @@ export {
   isSystemError,
   isSystemNotice,
 } from "./types";
+
+// =============================================================================
+// App Descriptors
+// =============================================================================
+
+export { normalizeAppDescriptor, appIdentityKey } from "./app-descriptor";
 
 // =============================================================================
 // Session (high-level orchestrated client)

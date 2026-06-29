@@ -20,7 +20,7 @@ describe("validateOrigin — property-based", () => {
           "https://portal.aomi.dev/some/path?q=1",
         ),
         (url) => {
-          const req = new Request("https://portal.aomi.dev/api/launch/deploy", {
+          const req = new Request("https://portal.aomi.dev/api/bff/launch/deploy", {
             headers: { origin: url },
           });
           expect(validateOrigin(req)).toBe(true);
@@ -36,7 +36,7 @@ describe("validateOrigin — property-based", () => {
         fc.domain().filter((d) => d !== "portal.aomi.dev"),
         (domain) => {
           const url = `https://${domain}/`;
-          const req = new Request("https://portal.aomi.dev/api/launch/deploy", {
+          const req = new Request("https://portal.aomi.dev/api/bff/launch/deploy", {
             headers: { origin: url },
           });
           expect(validateOrigin(req)).toBe(false);

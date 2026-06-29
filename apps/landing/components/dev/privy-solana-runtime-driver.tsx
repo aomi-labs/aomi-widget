@@ -23,11 +23,11 @@ import {
   type WalletRequestResult,
 } from "@aomi-labs/react";
 import { LandingPrivyProvider } from "../../app/components/landing-privy-provider";
-import { RuntimeTxHandler } from "../../../registry/src/components/runtime-tx-handler";
+import { RuntimeTxHandler } from "../../../shadcn-registry/src/components/runtime-tx-handler";
 import {
   useAomiAuthAdapter,
   type AomiAuthAdapter,
-} from "../../../registry/src/lib/aomi-auth-adapter";
+} from "../../../shadcn-registry/src/lib/auth-adapter";
 
 type DriverMode =
   | "sign"

@@ -162,6 +162,8 @@ describe("DeploymentClient bootstrap — sources", () => {
       installation_id: 555,
       repository_id: 111,
       repository_link: "https://github.com/alice/alice-bot",
+      source_ref: "abc1234def5678",
+      commit_hash: "abc1234def5678",
       github_account: "alice",
       github_user_id: 222,
       bound_platform_id: 3,
@@ -186,18 +188,26 @@ describe("DeploymentClient bootstrap — sources", () => {
       installationId: 555,
       repositoryId: 111,
       repositoryLink: "https://github.com/alice/alice-bot",
+      sourceRef: "abc1234def5678",
+      commitHash: "abc1234def5678",
       githubAccount: "alice",
       githubUserId: 222,
       boundPlatformId: 3,
+      boundPlatformName: null,
+      createdBy: null,
+      templateRepo: null,
+      launchSourceKind: null,
     });
   });
 
-  it("scaffolds from the default template and maps the source", async () => {
+  it("scaffolds from the caller-provided template and maps the source", async () => {
     jsonOnce(fetchMock, sourceBody);
     const src = await client({ activationToken: "plat-tok" }).scaffold({
       platform: "playground",
       installationId: 555,
       repoName: "my-bot",
+      templateRepo: "alice/template-bot",
+      githubUserId: "42",
     });
     const [url, init] = fetchMock.mock.calls[0];
     expect(url).toBe(
@@ -205,8 +215,9 @@ describe("DeploymentClient bootstrap — sources", () => {
     );
     expect(JSON.parse((init as RequestInit).body as string)).toEqual({
       installation_id: 555,
-      template_repo: "aomi-labs/playground-example",
+      template_repo: "alice/template-bot",
       repo_name: "my-bot",
+      github_user_id: "42",
       private: false,
     });
     expect(src.id).toBe(99);
@@ -244,10 +255,12 @@ describe("DeploymentClient bootstrap — apps", () => {
       id: 5,
       name: "my-bot",
       label: "My Bot",
+      platform: null,
       isActive: true,
       isPublic: true,
       appSourceId: 99,
       appReleaseTag: "apps-555-r1-my-bot-abc1234",
+      artifactReady: false,
       targetTags: ["staging"],
       loaded: true,
     });

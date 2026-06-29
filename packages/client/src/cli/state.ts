@@ -18,7 +18,7 @@ import {
   pendingSolTxsFromBackendUserState,
   walletSnapshotFromUserState,
 } from "./user-state";
-import type { CliAccountProvider } from "./types";
+import type { CliEmbeddedProvider } from "./types";
 
 export type PendingTx = {
   id: string;
@@ -104,10 +104,14 @@ export type CliSessionState = {
   /** Aomi account bearer for authenticated requests. Persisted so a bearer
    * supplied once (via `--account-bearer`) survives across CLI invocations. */
   accountBearer?: string;
+  /** BFF session token (`aomi_session`) established by `aomi login` (SIWE).
+   * Persisted so the session survives across invocations; the CLI mints
+   * short-lived AccountBearers from it via the BFF's `/api/bff/auth/token`. */
+  sessionCookie?: string;
   /** Deprecated legacy provider-exchange config. */
-  accountProvider?: CliAccountProvider;
+  embeddedProvider?: CliEmbeddedProvider;
   /** Deprecated legacy provider-exchange config. */
-  accountProviderToken?: string;
+  embeddedProviderToken?: string;
   publicKey?: string;
   privateKey?: string;
   /** Solana public key (base58), derived from the Solana keypair when provided. */
@@ -211,8 +215,9 @@ function toCliSessionState(stored: StoredSessionState): CliSessionState {
     modelSynced: stored.modelSynced,
     apiKey: stored.apiKey,
     accountBearer: stored.accountBearer,
-    accountProvider: stored.accountProvider,
-    accountProviderToken: stored.accountProviderToken,
+    sessionCookie: stored.sessionCookie,
+    embeddedProvider: stored.embeddedProvider,
+    embeddedProviderToken: stored.embeddedProviderToken,
     publicKey: stored.publicKey,
     privateKey: stored.privateKey,
     svmPublicKey: stored.svmPublicKey,
@@ -263,8 +268,9 @@ function readStoredSession(path: string): StoredSessionState | null {
       model: parsed.model,
       apiKey: parsed.apiKey,
       accountBearer: parsed.accountBearer,
-      accountProvider: parsed.accountProvider,
-      accountProviderToken: parsed.accountProviderToken,
+      sessionCookie: parsed.sessionCookie,
+      embeddedProvider: parsed.embeddedProvider,
+      embeddedProviderToken: parsed.embeddedProviderToken,
       publicKey: parsed.publicKey,
       privateKey: parsed.privateKey,
       svmPublicKey: parsed.svmPublicKey,

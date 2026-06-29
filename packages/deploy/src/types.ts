@@ -22,6 +22,7 @@ export interface AomiConfig {
 export interface AuditEvent {
   action:
     | "request"
+    | "preflight"
     | "deploy"
     | "activate"
     | "status"
@@ -33,7 +34,8 @@ export interface AuditEvent {
     | "list_apps"
     | "get_app"
     | "exchange_github_code"
-    | "list_user_sources";
+    | "list_user_sources"
+    | "get_user_source_latest_deployment";
   platform?: string;
   appSourceId?: number;
   apps?: string[];
@@ -54,23 +56,27 @@ export interface DeploymentClientOptions {
   onAudit?: (event: AuditEvent) => void | Promise<void>;
 }
 
-export type SourceRef =
-  | { kind: "branch"; value: string }
-  | { kind: "commit"; value: string };
+/** Immutable git commit SHA accepted by the platform deploy backend. */
+export type SourceRef = string;
 
 export interface DeployInput {
   platform: string;
   /** Connected GitHub App source row selected for this deploy. */
   appSourceId: number;
   sourceRef: SourceRef;
-  aomiTomlPaths: string[];
-  /** Resolve + validate only; open no PR, write nothing. */
-  dryRun?: boolean;
+  /** Optional explicit manifests. Empty/omitted lets the backend discover every aomi.toml. */
+  aomiTomlPaths?: string[];
   actor?: string;
 }
 
-export type DeployStatus = "dry_run" | "pr_created" | "pr_updated";
-export type CiStatus = "pending" | "running" | "passed" | "failed";
+export interface PreflightInput extends DeployInput {}
+
+export type DeployStatus =
+  | "preflight"
+  | "pr_created"
+  | "pr_updated"
+  | "unchanged";
+export type CiStatus = "no_ci" | "pending" | "running" | "passed" | "failed";
 
 export interface DeployResult {
   ok: boolean;
@@ -113,6 +119,13 @@ export interface AppRecord {
   aomiTomlPath: string;
   releaseTag: string;
   target?: string | null;
+  files: AppFileRecord[];
+}
+
+export interface AppFileRecord {
+  path: string;
+  sha256: string;
+  bytes: number;
 }
 
 export interface ReleaseTags {
@@ -132,7 +145,7 @@ export interface ActivateInput {
 export interface ActivateResult {
   ok: boolean;
   activation: {
-    status: "activated" | "partial_failed" | string;
+    status: "activating" | "partial_failed" | string;
     platform: string;
     target: {
       kind: string;
@@ -152,11 +165,13 @@ export interface ActivationPromotion {
   name: string;
   releaseTag: string;
   sourceBranch: string;
-  platformCommitHash: string;
+  platformCommitHash: string | null;
   liveCommitHash?: string | null;
+  activationStatus?: "promoted" | "unchanged" | string | null;
   ciStatus: CiStatus | string;
   ciUrl: string | null;
   releaseAssets: string[];
+  releaseAssetDigests?: Record<string, string>;
 }
 
 export interface ActivatedApp {
@@ -165,8 +180,14 @@ export interface ActivatedApp {
   path?: string | null;
   releaseTag?: string | null;
   isActive: boolean;
+  artifactReady?: boolean | null;
   loaded: boolean;
   error?: string | null;
+  sourceBranch?: string | null;
+  liveCommitHash?: string | null;
+  activationStatus?: "promoted" | "unchanged" | string | null;
+  activationPr?: unknown | null;
+  activationPrCloseError?: string | null;
 }
 
 export interface StatusInput {
@@ -180,7 +201,7 @@ export interface StatusInput {
 
 // NEW — replaces StatusResult = unknown
 export interface DeploymentStatus {
-  state: "building" | "releasing" | "ready" | "failed" | "pending";
+  state: "no_ci" | "building" | "releasing" | "ready" | "failed" | "pending";
   deployment?: DeployPayload;
   releaseTags: string[];
   apps?: DeploymentAppStatus[];
@@ -192,6 +213,8 @@ export interface DeploymentAppStatus {
   name: string;
   releaseTag: string;
   releaseReady: boolean;
+  releaseAssets?: string[];
+  releaseAssetDigests?: Record<string, string>;
   message?: string | null;
 }
 
@@ -296,9 +319,15 @@ export interface AppSource {
   installationId: number;
   repositoryId: number | null;
   repositoryLink: string | null;
+  sourceRef: SourceRef | null;
+  commitHash: string | null;
   githubAccount: string | null;
   githubUserId: number | null;
   boundPlatformId: number | null;
+  boundPlatformName?: string | null;
+  createdBy?: string | null;
+  templateRepo?: string | null;
+  launchSourceKind?: string | null;
 }
 
 export interface SyncSourceInput extends BearerOverride {
@@ -312,8 +341,14 @@ export interface ScaffoldInput extends BearerOverride {
   installationId: number;
   /** New repo name created in the installation's account from the template. */
   repoName: string;
-  /** Template `owner/repo`. Defaults to the portal one-shot template. */
-  templateRepo?: string;
+  /** Template `owner/repo` to copy for the one-shot flow. */
+  templateRepo: string;
+  /**
+   * GitHub user the created source is owned by. Written onto the source row at
+   * insert so it appears on the developer's dashboard immediately. Supplied by
+   * the portal BFF from the signed-in GitHub session.
+   */
+  githubUserId: string;
   /** Create the new repo private. Defaults to false. */
   private?: boolean;
 }
@@ -335,12 +370,14 @@ export interface PlatformApp {
   id: number;
   name: string;
   label: string | null;
+  platform: string | null;
   isActive: boolean;
   isPublic: boolean;
   appSourceId: number | null;
   appReleaseTag: string | null;
   targetTags: string[];
   loaded: boolean;
+  artifactReady?: boolean | null;
 }
 
 // ── GitHub identity + per-user sources (the sign-in dashboard) ────────────────
@@ -355,10 +392,22 @@ export interface ExchangeGitHubCodeInput extends BearerOverride {
 export interface GitHubIdentity {
   githubUserId: string;
   githubLogin: string;
+  /**
+   * Most-recent installation of the exchanged App visible to this user, if any.
+   * Lets the portal skip the install step when the App is already installed.
+   */
+  installationId: string | null;
 }
 
 export interface ListUserSourcesInput extends BearerOverride {
   githubUserId: string;
+  platform?: string;
+}
+
+export interface GetUserSourceLatestDeploymentInput extends BearerOverride {
+  githubUserId: string;
+  platform: string;
+  appSourceId: number;
 }
 
 export interface UserSourceDeploymentApp {
@@ -369,6 +418,7 @@ export interface UserSourceDeploymentApp {
   appSourceId?: number | null;
   appReleaseTag?: string | null;
   isActive?: boolean;
+  artifactReady?: boolean | null;
   loaded?: boolean;
 }
 
