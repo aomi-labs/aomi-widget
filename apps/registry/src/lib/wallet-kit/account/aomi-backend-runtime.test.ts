@@ -3,6 +3,7 @@ import {
   buildSiweMessage,
   buildWalletLinkMessage,
   buildDefaultWalletLabel,
+  normalizeAccountWalletProvider,
   resolveAuthMessageConfig,
   resolveLinkedWalletName,
 } from "./aomi-backend-runtime";
@@ -90,6 +91,72 @@ describe("buildDefaultWalletLabel", () => {
         family: "evm",
       }),
     ).toBe("Wallet 1");
+  });
+});
+
+describe("normalizeAccountWalletProvider", () => {
+  it("classifies linked backend wallets that match live embedded provider accounts", () => {
+    expect(
+      normalizeAccountWalletProvider(
+        {
+          id: "wallet-1",
+          family: "evm",
+          address: "0xE7700000000000000000000000000000000000A6",
+          linkedVia: "para",
+          label: "Para 1",
+        },
+        [
+          {
+            family: "evm",
+            address: "0xe7700000000000000000000000000000000000a6",
+            provider: "para",
+            walletKind: "embedded",
+          },
+        ],
+      ),
+    ).toMatchObject({
+      provider: "para",
+      kind: "embedded",
+    });
+  });
+
+  it("does not reclassify external wallets just because they are live", () => {
+    const wallet = {
+      id: "wallet-1",
+      family: "evm" as const,
+      address: "0xE7700000000000000000000000000000000000A6",
+      linkedVia: "siwe" as const,
+      label: "MetaMask 1",
+    };
+
+    expect(
+      normalizeAccountWalletProvider(wallet, [
+        {
+          family: "evm",
+          address: "0xe7700000000000000000000000000000000000a6",
+          provider: undefined,
+          walletKind: undefined,
+        },
+      ]),
+    ).toEqual(wallet);
+  });
+
+  it("classifies provider-linked backend wallets even when the wallet is not currently live", () => {
+    expect(
+      normalizeAccountWalletProvider(
+        {
+          id: "wallet-1",
+          family: "evm",
+          address: "0xE7700000000000000000000000000000000000A6",
+          linkedVia: "privy",
+          label: "Privy 1",
+        },
+        [],
+      ),
+    ).toMatchObject({
+      provider: "privy",
+      kind: "embedded",
+    });
   });
 });
 

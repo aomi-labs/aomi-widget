@@ -745,7 +745,7 @@ describe("WalletPicker", () => {
     expect(unlinkLinkedWallet).toHaveBeenCalledWith("wallet-1");
   });
 
-  it("collapses a provider's EVM + SVM into one row in both sections", async () => {
+  it("renders provider auth separately from embedded EVM and SVM wallets", async () => {
     const updateLinkedAccount = vi.fn(async () => undefined);
     renderPicker(
       makeAdapter({
@@ -827,26 +827,20 @@ describe("WalletPicker", () => {
 
     expect(screen.getByText("Connected now")).toBeTruthy();
     expect(screen.getByText("Account access")).toBeTruthy();
-    // The combined chip is shown once per consolidated row — Manage wallets
-    // "Connected", the account panel "Connected now", and "Account access" —
-    // never two separate per-family cards.
-    expect(screen.getAllByText("EVM/SVM").length).toBe(3);
-    // Both addresses live on a single subtitle (EVM first, slash-separated).
-    expect(
-      screen.getAllByText(/0xCC8\.\.8f \/ AG6eZ\.\.8E/).length,
-    ).toBeGreaterThanOrEqual(2);
-    // The Manage wallets list also collapses into one "Privy" row, so the
-    // per-family wallet names are gone.
+    expect(screen.queryByText("EVM/SVM")).toBeNull();
+    expect(screen.getAllByText("EVM").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("SVM").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Privy").length).toBeGreaterThanOrEqual(3);
+    expect(screen.getAllByText(/0xCC8\.\.8f/).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/AG6eZ\.\.8E/).length).toBeGreaterThan(0);
     expect(screen.queryByText("Privy Smart Wallet")).toBeNull();
     expect(screen.queryByText("Privy Solana")).toBeNull();
-    // The embedded wallets folded into the "Privy" sign-in, so there is no bare
-    // "Wallet" management row for them.
+    // Provider-owned embedded wallets are wallet rows, not account-access rows.
     expect(screen.queryByText("Wallet")).toBeNull();
-    // The merged row still drives the auth-identity rename.
     expect(screen.getByRole("button", { name: "Rename Privy" })).toBeTruthy();
   });
 
-  it("collapses a provider's wallets into one row in Manage wallets", () => {
+  it("renders provider wallets as separate EVM and SVM rows in Manage wallets", () => {
     renderPicker(
       makeAdapter({
         identity: {
@@ -891,17 +885,18 @@ describe("WalletPicker", () => {
     );
 
     expect(screen.getByText("Manage wallets")).toBeTruthy();
-    // One consolidated "Privy" row with the combined chip + both addresses.
-    expect(screen.getByText("Privy")).toBeTruthy();
-    expect(screen.getByText("EVM/SVM")).toBeTruthy();
-    expect(screen.getByText("0xCC8..8f / AG6eZ..8E")).toBeTruthy();
+    expect(screen.getAllByText("Privy").length).toBe(2);
+    expect(screen.queryByText("EVM/SVM")).toBeNull();
+    expect(screen.getByText("EVM")).toBeTruthy();
+    expect(screen.getByText("SVM")).toBeTruthy();
+    expect(screen.getByText(/0xCC8/)).toBeTruthy();
+    expect(screen.getByText("AG6eZ..8E")).toBeTruthy();
     expect(screen.queryByText("Privy Smart Wallet")).toBeNull();
     expect(screen.queryByText("Privy Solana")).toBeNull();
-    // The provider's two legs collapse to a single sign-out control.
-    expect(screen.getAllByRole("button", { name: "Sign out" }).length).toBe(1);
+    expect(screen.getAllByRole("button", { name: "Sign out" }).length).toBe(2);
   });
 
-  it("shows stored provider EVM and live SVM legs together in Manage wallets", () => {
+  it("does not fold stored provider wallets into live provider rows", () => {
     renderPicker(
       makeAdapter({
         identity: {
@@ -953,8 +948,10 @@ describe("WalletPicker", () => {
 
     expect(screen.getByText("Manage wallets")).toBeTruthy();
     expect(screen.getAllByText("Privy").length).toBeGreaterThan(0);
-    expect(screen.getByText("EVM/SVM")).toBeTruthy();
-    expect(screen.getByText("0xCC8..8f / AG6eZ..8E")).toBeTruthy();
+    expect(screen.queryByText("EVM/SVM")).toBeNull();
+    expect(screen.queryByText("0xCC8..8f")).toBeNull();
+    expect(screen.getAllByText("SVM").length).toBeGreaterThan(0);
+    expect(screen.getByText("AG6eZ..8E")).toBeTruthy();
     expect(screen.queryByText("Privy Solana")).toBeNull();
   });
 

@@ -30,6 +30,7 @@ export type SafeSvmWalletState = {
   connecting: boolean;
   disconnecting: boolean;
   walletName: string | undefined;
+  providerId?: string;
   transport?: "extension" | "embedded" | "mwa";
   wallets: Array<{
     adapter: {
@@ -397,7 +398,9 @@ export function useSvmWalletRuntime({
         ...registryIdentity,
         cluster: selectedNetwork?.cluster ?? DEFAULT_SVM_CLUSTER,
         walletSource: registryIdentity.address
-          ? ("injected" as const)
+          ? wallet.transport === "embedded"
+            ? ("embedded" as const)
+            : ("injected" as const)
           : undefined,
         transport: registryIdentity.address
           ? (wallet.transport ?? detectSvmTransport(registryIdentity.walletName))

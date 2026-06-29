@@ -21,6 +21,8 @@ export function useSvmRegistrySource(
     store.dispatch({
       type: "svm/changed",
       publicKey: opts.svmWallet.publicKey ?? null,
+      kind: opts.svmWallet.transport === "embedded" ? "embedded-session" : "svm",
+      providerId: opts.svmWallet.providerId,
       walletName: opts.svmWallet.walletName ?? null,
       now: Date.now(),
     });

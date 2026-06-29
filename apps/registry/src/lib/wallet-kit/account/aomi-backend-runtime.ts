@@ -5,7 +5,7 @@ import type { AuthRuntime, SvmWalletRuntime } from "../composer/types";
 import type { EvmWalletRuntime } from "../runtime/evm/wallet-runtime";
 import { brandDisplayName } from "../runtime/evm/brands";
 import type { AccountRuntime, AccountWallet } from "./types";
-import type { WalletFamily } from "../types";
+import type { AomiAccount, WalletFamily } from "../types";
 import {
   createAomiBackendAccountClient,
   type AomiBackendAccountResponse,
@@ -202,29 +202,32 @@ export function useAomiBackendAccountRuntime(input: {
     status,
   ]);
 
+  const liveAccounts = useMemo(
+    () => [
+      ...input.evm.accounts(Date.now()),
+      ...(input.svm?.accounts(Date.now()) ?? []),
+    ],
+    [errorVersion, input.evm, input.svm],
+  );
+
   const liveWalletKeys = useMemo(() => {
     const keys = new Set<string>();
-    for (const acct of input.evm.accounts(Date.now())) {
-      keys.add(`evm:${acct.address.toLowerCase()}`);
+    for (const acct of liveAccounts) {
+      keys.add(walletAccountKey(acct.family, acct.address));
     }
-    const svmIdentity = input.svm?.identity(Date.now());
-    if (svmIdentity?.address) keys.add(`svm:${svmIdentity.address}`);
     return keys;
-  }, [errorVersion, input.evm, input.svm]);
+  }, [liveAccounts]);
 
   const wallets = useMemo(
     () =>
       (account?.wallets ?? []).map((wallet) => {
-        const key =
-          wallet.family === "evm"
-            ? `evm:${wallet.address.toLowerCase()}`
-            : `svm:${wallet.address}`;
+        const key = walletAccountKey(wallet.family, wallet.address);
         return {
-          ...wallet,
+          ...normalizeAccountWalletProvider(wallet, liveAccounts),
           capability: liveWalletKeys.has(key) ? "write" : "read",
         } satisfies AccountWallet;
       }),
-    [account?.wallets, liveWalletKeys],
+    [account?.wallets, liveAccounts, liveWalletKeys],
   );
 
   return {
@@ -356,6 +359,61 @@ export function useAomiBackendAccountRuntime(input: {
       await refresh();
     },
   };
+}
+
+function walletAccountKey(family: WalletFamily, address: string): string {
+  return family === "evm"
+    ? `${family}:${address.toLowerCase()}`
+    : `${family}:${address}`;
+}
+
+export function normalizeAccountWalletProvider(
+  wallet: AccountWallet,
+  liveAccounts: readonly Pick<
+    AomiAccount,
+    "family" | "address" | "provider" | "walletKind"
+  >[],
+): AccountWallet {
+  const liveAccount = liveAccounts.find(
+    (account) =>
+      account.family === wallet.family &&
+      walletAccountKey(account.family, account.address) ===
+        walletAccountKey(wallet.family, wallet.address),
+  );
+  const provider = liveAccount?.provider;
+  const walletKind = liveAccount?.walletKind;
+  if (
+    provider &&
+    walletKind &&
+    (walletKind !== "embedded" && walletKind !== "smart_account")
+  ) {
+    return wallet;
+  }
+  const inferredProvider = provider ?? providerLinkedWalletVia(wallet.linkedVia);
+  if (!inferredProvider) return wallet;
+
+  return {
+    ...wallet,
+    provider: wallet.provider ?? inferredProvider,
+    kind:
+      walletKind === "embedded" || walletKind === "smart_account"
+        ? walletKind
+        : (wallet.kind ?? "embedded"),
+  };
+}
+
+function providerLinkedWalletVia(linkedVia: AccountWallet["linkedVia"]) {
+  if (
+    linkedVia === "siwe" ||
+    linkedVia === "siws" ||
+    linkedVia === "challenge" ||
+    linkedVia === "import" ||
+    linkedVia === "observed" ||
+    linkedVia === "migration"
+  ) {
+    return null;
+  }
+  return linkedVia;
 }
 
 function credentialKey(credential: unknown): string {

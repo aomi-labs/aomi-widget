@@ -71,8 +71,7 @@ describe("buildAccountAccessEntries", () => {
       ],
     );
 
-    expect(result.providerEntries).toHaveLength(1);
-    expect(result.standaloneAccounts).toEqual([]);
+    expect(result.standaloneAccounts).toHaveLength(1);
     expect(result.standaloneWallets).toEqual([]);
   });
 });

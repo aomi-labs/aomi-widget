@@ -144,7 +144,8 @@ export function useParaSessionSource(
       uid: "para-solana-session",
       stableId: "para",
       kind: "embedded-session",
-      walletName: "Para Solana",
+      providerId: "para",
+      walletName: "Para",
       now: Date.now(),
     });
   }, [

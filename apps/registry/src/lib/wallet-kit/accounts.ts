@@ -10,12 +10,16 @@ export type EvmConnectionInput = {
   walletName: string;
   address: string;
   chainId?: number;
+  provider?: string;
+  walletKind?: AomiAccount["walletKind"];
 };
 
 export type SolanaConnectionInput = {
   id?: string;
   publicKey: string;
   walletName?: string;
+  provider?: string;
+  walletKind?: AomiAccount["walletKind"];
 };
 
 const GENERIC_WALLET_NAMES = new Set(["", "injected", "browser wallet", "wallet"]);
@@ -68,6 +72,8 @@ export function buildAccounts(input: {
       label: formatWalletAddress(display.address),
       walletName: display.walletName,
       chainId: display.chainId,
+      provider: display.provider,
+      walletKind: display.walletKind,
       connectorIds: conns.map((c) => c.id),
       active: isActive,
     });
@@ -84,6 +90,8 @@ export function buildAccounts(input: {
       address: connection.publicKey,
       label: formatWalletAddress(connection.publicKey),
       walletName: connection.walletName,
+      provider: connection.provider,
+      walletKind: connection.walletKind,
       active: connection.publicKey === input.activeSolanaAddress,
     });
   }
