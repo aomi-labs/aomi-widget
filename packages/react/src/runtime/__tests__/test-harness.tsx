@@ -19,7 +19,7 @@ import type {
 export type AomiClientConfig = {
   // New names (match AomiClient API)
   ensureAccount?: (sessionId: string, publicKey: string) => Promise<void>;
-  listThreads?: (sessionId: string, publicKey: string) => Promise<AomiThread[]>;
+  listThreads?: (sessionId: string) => Promise<AomiThread[]>;
   fetchState?: (
     sessionId: string,
     userState?: Record<string, unknown>,
@@ -63,7 +63,7 @@ export type AomiClientConfig = {
   ) => Promise<{ rig: string; app?: string }>;
 
   // Legacy aliases (so existing tests keep working without changes)
-  fetchThreads?: (publicKey: string) => Promise<AomiThread[]>;
+  fetchThreads?: (publicKey?: string) => Promise<AomiThread[]>;
   postChatMessage?: (
     sessionId: string,
     message: string,
@@ -139,22 +139,6 @@ vi.mock("@aomi-labs/client", async (importOriginal) => {
     ) => boolean | undefined;
   };
 
-  const legacySessionPublicKey = (
-    userState?: Record<string, unknown>,
-  ): string | undefined => {
-    const address = UserState.address(userState);
-    if (!address?.startsWith("0x")) {
-      return undefined;
-    }
-    if (
-      UserState.chainId(userState) === undefined &&
-      !(userState?.evm as { address?: unknown } | undefined)?.address
-    ) {
-      return undefined;
-    }
-    return address;
-  };
-
   // Mock class defined inside the factory
   class MockAomiClient {
     private sseHandler: ((event: AomiSSEEvent) => void) | null = null;
@@ -165,13 +149,13 @@ vi.mock("@aomi-labs/client", async (importOriginal) => {
       }
     });
 
-    listThreads = vi.fn(async (sessionId: string, publicKey: string) => {
+    listThreads = vi.fn(async (sessionId: string) => {
       const fn = mockState.config.listThreads;
       if (fn) {
-        return await fn(sessionId, publicKey);
+        return await fn(sessionId);
       }
       return mockState.config.fetchThreads
-        ? await mockState.config.fetchThreads(publicKey)
+        ? await mockState.config.fetchThreads()
         : [];
     });
 
@@ -183,9 +167,9 @@ vi.mock("@aomi-labs/client", async (importOriginal) => {
       },
     );
 
-    createThread = vi.fn(async (threadId: string, publicKey?: string) => {
+    createThread = vi.fn(async (threadId: string) => {
       return mockState.config.createThread
-        ? await mockState.config.createThread(threadId, publicKey)
+        ? await mockState.config.createThread(threadId)
         : { session_id: threadId };
     });
 
@@ -216,12 +200,12 @@ vi.mock("@aomi-labs/client", async (importOriginal) => {
           app?: string;
         },
       ) => {
-      const fn =
-        mockState.config.sendSystemMessage ??
-        mockState.config.postSystemMessage;
-      return fn
-        ? await fn(sessionId, message, options)
-        : { res: { sender: "system", content: message } };
+        const fn =
+          mockState.config.sendSystemMessage ??
+          mockState.config.postSystemMessage;
+        return fn
+          ? await fn(sessionId, message, options)
+          : { res: { sender: "system", content: message } };
       },
     );
 
@@ -379,7 +363,7 @@ vi.mock("@aomi-labs/client", async (importOriginal) => {
     async sendAsync(message: string) {
       const response = await this.client.sendMessage(this.sessionId, message, {
         app: this._app,
-        publicKey: this._publicKey ?? legacySessionPublicKey(this._userState),
+        publicKey: this._publicKey,
         apiKey: this._apiKey,
         userState: this._userState,
         clientId: this._clientId,
@@ -420,10 +404,9 @@ vi.mock("@aomi-labs/client", async (importOriginal) => {
       if (!normalized) return;
 
       this._userState = normalized;
-      this._publicKey =
-        UserState.isConnected(normalized) === false
-          ? undefined
-          : legacySessionPublicKey(normalized);
+      if (UserState.isConnected(normalized) === false) {
+        this._publicKey = undefined;
+      }
       this.syncWalletRequests();
     }
     syncRuntimeOptions(options: {

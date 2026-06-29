@@ -1,9 +1,14 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  AccountCredentialUnavailableError,
+  createAccountAccessTokenProvider,
+} from "@aomi-labs/client";
 import { Input, useAomiWalletKit } from "@aomi-labs/widget-lib";
-import { settingsApiFetch } from "@portal/lib/settings-api";
+import { getBackendUrl, settingsApiFetch } from "@portal/lib/settings-api";
 import { defaultUsageDateRange } from "@portal/lib/usage-range";
+import { shouldUseBetterAuthBackendJwt } from "@portal/lib/backend-auth";
 import {
   settingsBodyTextClass,
   settingsCardStackClass,
@@ -50,7 +55,7 @@ function formatNumber(n?: number): string {
 }
 
 export function AppsSettings() {
-  const { identity } = useAomiWalletKit();
+  const { accountUser, getAccountCredential } = useAomiWalletKit();
   const [overview, setOverview] = useState<AppOverview | null>(null);
   const [fromDate, setFromDate] = useState<string>(
     () => defaultUsageDateRange().fromDate,
@@ -61,8 +66,58 @@ export function AppsSettings() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const accountAccessTokenProvider = useMemo(() => {
+    return createAccountAccessTokenProvider({
+      baseUrl: getBackendUrl(),
+      betterAuthToken: {
+        enabled: shouldUseBetterAuthBackendJwt(),
+        baseUrl: "",
+      },
+      getProviderCredential: async () => {
+        if (!getAccountCredential) {
+          throw new AccountCredentialUnavailableError();
+        }
+        const credential = await getAccountCredential();
+        if (!credential) {
+          throw new AccountCredentialUnavailableError(
+            "No account credential is available",
+          );
+        }
+        if ("providerToken" in credential) {
+          return credential;
+        }
+        if (credential.kind === "token") {
+          return {
+            provider: credential.provider,
+            providerToken: credential.token,
+          };
+        }
+        throw new Error("Account credential cannot be exchanged");
+      },
+    });
+  }, [getAccountCredential]);
+
+  useEffect(
+    () => () => {
+      accountAccessTokenProvider.dispose();
+    },
+    [accountAccessTokenProvider],
+  );
+
+  const accountFetch = useCallback(
+    async <T,>(path: string, options?: RequestInit): Promise<T> => {
+      const accessToken = await accountAccessTokenProvider();
+      const headers = new Headers(options?.headers);
+      if (accessToken) {
+        headers.set("Authorization", `Bearer ${accessToken}`);
+      }
+      return settingsApiFetch<T>(path, { ...options, headers });
+    },
+    [accountAccessTokenProvider],
+  );
+
   const fetchOverview = useCallback(async () => {
-    if (!identity.address) {
+    if (!accountUser) {
       setOverview(null);
       return;
     }
@@ -76,11 +131,10 @@ export function AppsSettings() {
     setError(null);
     try {
       const query = new URLSearchParams({
-        public_key: identity.address,
         from_date: fromDate,
         to_date: toDate,
       });
-      const data = await settingsApiFetch<AppOverview>(
+      const data = await accountFetch<AppOverview>(
         `/api/settings/apps/overview?${query.toString()}`,
       );
       setOverview(data);
@@ -91,7 +145,7 @@ export function AppsSettings() {
     } finally {
       setLoading(false);
     }
-  }, [fromDate, identity.address, toDate]);
+  }, [accountFetch, accountUser, fromDate, toDate]);
 
   useEffect(() => {
     void fetchOverview();
@@ -102,9 +156,9 @@ export function AppsSettings() {
       <div>
         <h1 className={`${settingsTitleClass} mb-4`}>Usage</h1>
         <div className={settingsCardStackClass}>
-          {!identity.address && (
+          {!accountUser && (
             <p className={settingsBodyTextClass}>
-              Connect a wallet to view usage across your apps.
+              Connect your account to view usage across your apps.
             </p>
           )}
           {loading && <p className={settingsBodyTextClass}>Loading usage...</p>}

@@ -41,19 +41,6 @@ export type {
   WalletRequestResult,
 } from "./types";
 
-function legacySessionPublicKey(
-  userState?: UserStateShape,
-): string | undefined {
-  const address = UserState.address(userState);
-  if (!address?.startsWith("0x")) {
-    return undefined;
-  }
-  if (UserState.chainId(userState) === undefined && !userState?.evm?.address) {
-    return undefined;
-  }
-  return address;
-}
-
 export class ClientSession extends TypedEventEmitter<SessionEventMap> {
   readonly client: AomiClient;
   readonly sessionId: string;
@@ -316,13 +303,8 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
     this.userState = UserState.reconcile(this.userState, userState);
     const nextSerialized = stableUserStateString(this.userState);
 
-    // `public_key` is a legacy EVM session-history key. SVM identity travels in
-    // user_state/context so base58 addresses keep their original case.
-    const publicKey = legacySessionPublicKey(this.userState);
     const isConnected = UserState.isConnected(this.userState);
-    if (publicKey && isConnected !== false) {
-      this.publicKey = publicKey;
-    } else {
+    if (isConnected === false) {
       this.publicKey = undefined;
     }
 

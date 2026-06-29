@@ -185,6 +185,26 @@ describe("auth message config", () => {
     });
   });
 
+  it("keeps localhost host:port auth domains intact", () => {
+    const config = resolveAuthMessageConfig({
+      authDomain: "localhost:3000",
+      authUri: "http://localhost:3000",
+    });
+
+    expect(config).toEqual({
+      domain: "localhost:3000",
+      uri: "http://localhost:3000",
+    });
+    expect(
+      buildSiweMessage({
+        address: "0x1111111111111111111111111111111111111111",
+        chainId: 1,
+        nonce: "nonce",
+        ...config,
+      }).split("\n")[0],
+    ).toBe("localhost:3000 wants you to sign in with your Ethereum account:");
+  });
+
   it("builds SIWE and wallet-link messages with the auth domain", () => {
     expect(
       buildSiweMessage({

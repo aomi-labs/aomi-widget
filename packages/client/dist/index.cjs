@@ -48,6 +48,7 @@ var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: tru
 var index_exports = {};
 __export(index_exports, {
   ALCHEMY_CHAIN_SLUGS: () => ALCHEMY_CHAIN_SLUGS,
+  AccountCredentialUnavailableError: () => AccountCredentialUnavailableError,
   AomiClient: () => AomiClient,
   CHAINS_BY_ID: () => CHAINS_BY_ID,
   CHAIN_NAMES: () => CHAIN_NAMES,
@@ -1014,37 +1015,50 @@ var AomiClient = class {
    * Send a chat message and return updated session state.
    */
   async sendMessage(sessionId, message, options) {
-    var _a, _b, _c;
+    var _a, _b, _c, _d, _e, _f;
     const app = (_a = options == null ? void 0 : options.app) != null ? _a : "default";
     const apiKey = (_b = options == null ? void 0 : options.apiKey) != null ? _b : this.apiKey;
     const normalizedUserState = UserState.normalize(options == null ? void 0 : options.userState);
-    const payload = { message, app };
-    if (options == null ? void 0 : options.publicKey) {
-      payload.public_key = options.publicKey;
-    }
-    if (normalizedUserState) {
-      payload.user_state = JSON.stringify(normalizedUserState);
-    }
-    if (options == null ? void 0 : options.clientId) {
-      payload.client_id = options.clientId;
-    }
-    (_c = this.logger) == null ? void 0 : _c.debug("[aomi][client] POST /api/chat prepared", {
+    const applicationId = (_c = options == null ? void 0 : options.applicationId) == null ? void 0 : _c.toString().trim();
+    const url = buildApiUrl(this.baseUrl, "/api/chat", {
+      app,
+      application_id: applicationId || void 0,
+      message,
+      user_state: normalizedUserState ? JSON.stringify(normalizedUserState) : void 0,
+      client_id: options == null ? void 0 : options.clientId
+    });
+    (_d = this.logger) == null ? void 0 : _d.debug("[aomi][client] POST /api/chat prepared", {
       sessionId,
       app,
-      publicKey: options == null ? void 0 : options.publicKey,
+      applicationId,
       clientId: options == null ? void 0 : options.clientId,
       hasUserState: Boolean(normalizedUserState),
       messagePreview: previewText(message)
     });
-    return postState(
-      this.baseUrl,
-      "/api/chat",
-      payload,
+    const headers = new Headers(withSessionHeader(sessionId));
+    if (apiKey) {
+      headers.set(APP_KEY_HEADER, apiKey);
+    }
+    (_e = this.logger) == null ? void 0 : _e.debug("[aomi][client] POST start", {
+      path: "/api/chat",
       sessionId,
-      this.fetchImpl,
-      apiKey,
-      this.logger
-    );
+      hasApiKey: Boolean(apiKey),
+      url
+    });
+    const response = await this.fetchImpl(url, {
+      method: "POST",
+      headers
+    });
+    (_f = this.logger) == null ? void 0 : _f.debug("[aomi][client] POST response", {
+      path: "/api/chat",
+      sessionId,
+      status: response.status,
+      ok: response.ok
+    });
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+    return await response.json();
   }
   /**
    * Send a system-level message (e.g. wallet state changes, context switches).
@@ -1204,12 +1218,10 @@ var AomiClient = class {
     return void 0;
   }
   /**
-   * List all threads for a wallet address.
+   * List all threads for the current authenticated Aomi account.
    */
-  async listThreads(sessionId, publicKey) {
-    const url = buildApiUrl(this.baseUrl, "/api/sessions", {
-      public_key: publicKey
-    });
+  async listThreads(sessionId) {
+    const url = buildApiUrl(this.baseUrl, "/api/sessions");
     const response = await this.fetchImpl(url, {
       headers: withSessionHeader(sessionId)
     });
@@ -1237,16 +1249,14 @@ var AomiClient = class {
   /**
    * Create a new thread. The client generates the session ID.
    */
-  async createThread(threadId, publicKey) {
-    const body = {};
-    if (publicKey) body.public_key = publicKey;
+  async createThread(threadId) {
     const url = buildApiUrl(this.baseUrl, "/api/sessions");
     const response = await this.fetchImpl(url, {
       method: "POST",
       headers: withSessionHeader(threadId, {
         "Content-Type": "application/json"
       }),
-      body: JSON.stringify(body)
+      body: JSON.stringify({})
     });
     if (!response.ok) {
       throw new Error(`Failed to create thread: HTTP ${response.status}`);
@@ -1333,9 +1343,7 @@ var AomiClient = class {
    */
   async getApps(sessionId, options) {
     var _a;
-    const url = buildApiUrl(this.baseUrl, "/api/session/apps", {
-      public_key: options == null ? void 0 : options.publicKey
-    });
+    const url = buildApiUrl(this.baseUrl, "/api/session/apps");
     const apiKey = (_a = options == null ? void 0 : options.apiKey) != null ? _a : this.apiKey;
     const headers = new Headers(withSessionHeader(sessionId));
     if (apiKey) {
@@ -1383,23 +1391,27 @@ var AomiClient = class {
    * Set the model for a session.
    */
   async setModel(sessionId, rig, options) {
-    var _a;
+    var _a, _b;
     const apiKey = (_a = options == null ? void 0 : options.apiKey) != null ? _a : this.apiKey;
-    const payload = { rig };
-    if (options == null ? void 0 : options.app) {
-      payload.app = options.app;
+    const applicationId = (_b = options == null ? void 0 : options.applicationId) == null ? void 0 : _b.toString().trim();
+    const url = buildApiUrl(this.baseUrl, "/api/session/model", {
+      rig,
+      app: options == null ? void 0 : options.app,
+      application_id: applicationId || void 0,
+      client_id: options == null ? void 0 : options.clientId
+    });
+    const headers = new Headers(withSessionHeader(sessionId));
+    if (apiKey) {
+      headers.set(APP_KEY_HEADER, apiKey);
     }
-    if (options == null ? void 0 : options.clientId) {
-      payload.client_id = options.clientId;
+    const response = await this.fetchImpl(url, {
+      method: "POST",
+      headers
+    });
+    if (!response.ok) {
+      throw new Error(`Failed to set model: HTTP ${response.status}`);
     }
-    return postState(
-      this.baseUrl,
-      "/api/session/model",
-      payload,
-      sessionId,
-      this.fetchImpl,
-      apiKey
-    );
+    return await response.json();
   }
   /**
    * List BYOK keys (one per LLM provider) bound to the current session's client.
@@ -1504,6 +1516,12 @@ ${body}` : ""}`
 };
 
 // src/account-session.ts
+var AccountCredentialUnavailableError = class extends Error {
+  constructor(message = "Account credential is not available yet") {
+    super(message);
+    this.name = "AccountCredentialUnavailableError";
+  }
+};
 var DEFAULT_REFRESH_BEFORE_EXPIRY_MS = 2 * 60 * 1e3;
 var FAILURE_COOLDOWN_MS = 30 * 1e3;
 var DEFAULT_BETTER_AUTH_TOKEN_PATH = "/api/auth/token";
@@ -1629,8 +1647,10 @@ function createAccountAccessTokenProvider({
           for (const listener of listeners) listener();
         }
         return next;
-      }).catch(() => {
-        failedAt = now();
+      }).catch((error) => {
+        if (!(error instanceof AccountCredentialUnavailableError)) {
+          failedAt = now();
+        }
         return null;
       }).finally(() => {
         pending = null;
@@ -1661,7 +1681,10 @@ function normalizeBetterAuthTokenResponse(response) {
   if (!Number.isFinite(expiresAt) || expiresAt <= 0) {
     throw new Error("Better Auth token is missing a valid exp claim");
   }
-  const userId = typeof payload.aomi_user_id === "string" ? payload.aomi_user_id : typeof payload.sub === "string" ? payload.sub : "";
+  const userId = typeof payload.aomi_user_id === "string" && payload.aomi_user_id ? payload.aomi_user_id : typeof payload.sub === "string" ? payload.sub : "";
+  if (!userId) {
+    throw new Error("Better Auth token is missing a user id claim");
+  }
   return {
     access_token: response.token,
     token_type: "Bearer",
@@ -2710,17 +2733,6 @@ var SessionWalletController = class {
 };
 
 // src/session/index.ts
-function legacySessionPublicKey(userState) {
-  var _a;
-  const address3 = UserState.address(userState);
-  if (!(address3 == null ? void 0 : address3.startsWith("0x"))) {
-    return void 0;
-  }
-  if (UserState.chainId(userState) === void 0 && !((_a = userState == null ? void 0 : userState.evm) == null ? void 0 : _a.address)) {
-    return void 0;
-  }
-  return address3;
-}
 var ClientSession = class extends TypedEventEmitter {
   constructor(clientOrOptions, sessionOptions) {
     var _a, _b, _c, _d, _e;
@@ -2926,11 +2938,8 @@ var ClientSession = class extends TypedEventEmitter {
     const previousSerialized = stableUserStateString(this.userState);
     this.userState = UserState.reconcile(this.userState, userState);
     const nextSerialized = stableUserStateString(this.userState);
-    const publicKey = legacySessionPublicKey(this.userState);
     const isConnected3 = UserState.isConnected(this.userState);
-    if (publicKey && isConnected3 !== false) {
-      this.publicKey = publicKey;
-    } else {
+    if (isConnected3 === false) {
       this.publicKey = void 0;
     }
     this.walletController.sync();
@@ -4667,6 +4676,7 @@ async function createAAProviderState(options) {
 // Annotate the CommonJS export names for ESM import in node:
 0 && (module.exports = {
   ALCHEMY_CHAIN_SLUGS,
+  AccountCredentialUnavailableError,
   AomiClient,
   CHAINS_BY_ID,
   CHAIN_NAMES,

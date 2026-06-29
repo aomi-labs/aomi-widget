@@ -80,7 +80,7 @@ describe("Chat API", () => {
           },
         },
       });
-      expect(createThread).toHaveBeenCalledWith(api.currentThreadId, undefined);
+      expect(createThread).toHaveBeenCalledWith(api.currentThreadId);
       expect(postChatMessage).toHaveBeenCalled();
 
       await act(async () => {
@@ -174,7 +174,7 @@ describe("Chat API", () => {
           text: "You're out of funds, please set up a payment method.",
         },
       ]);
-      expect(createThread).toHaveBeenCalledWith(api.currentThreadId, undefined);
+      expect(createThread).toHaveBeenCalledWith(api.currentThreadId);
       expect(setModel).toHaveBeenCalledWith(
         api.currentThreadId,
         "auto-model",
@@ -265,7 +265,7 @@ describe("Chat API", () => {
       });
 
       expect(ensureAccount).not.toHaveBeenCalled();
-      expect(createThread).toHaveBeenCalledWith(api.currentThreadId, "0xabc");
+      expect(createThread).toHaveBeenCalledWith(api.currentThreadId);
       expect(createThread.mock.invocationCallOrder[0]).toBeLessThan(
         postChatMessage.mock.invocationCallOrder[0],
       );
@@ -301,7 +301,7 @@ describe("Chat API", () => {
       });
 
       expect(ensureAccount).not.toHaveBeenCalled();
-      expect(createThread).toHaveBeenCalledWith(api.currentThreadId, undefined);
+      expect(createThread).toHaveBeenCalledWith(api.currentThreadId);
       expect(postChatMessage).toHaveBeenCalledWith(
         api.currentThreadId,
         "Use my Solana wallet",

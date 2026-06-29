@@ -1321,37 +1321,50 @@ var init_client = __esm({
        * Send a chat message and return updated session state.
        */
       async sendMessage(sessionId, message, options) {
-        var _a3, _b, _c;
+        var _a3, _b, _c, _d, _e, _f;
         const app = (_a3 = options == null ? void 0 : options.app) != null ? _a3 : "default";
         const apiKey = (_b = options == null ? void 0 : options.apiKey) != null ? _b : this.apiKey;
         const normalizedUserState = UserState.normalize(options == null ? void 0 : options.userState);
-        const payload = { message, app };
-        if (options == null ? void 0 : options.publicKey) {
-          payload.public_key = options.publicKey;
-        }
-        if (normalizedUserState) {
-          payload.user_state = JSON.stringify(normalizedUserState);
-        }
-        if (options == null ? void 0 : options.clientId) {
-          payload.client_id = options.clientId;
-        }
-        (_c = this.logger) == null ? void 0 : _c.debug("[aomi][client] POST /api/chat prepared", {
+        const applicationId = (_c = options == null ? void 0 : options.applicationId) == null ? void 0 : _c.toString().trim();
+        const url = buildApiUrl(this.baseUrl, "/api/chat", {
+          app,
+          application_id: applicationId || void 0,
+          message,
+          user_state: normalizedUserState ? JSON.stringify(normalizedUserState) : void 0,
+          client_id: options == null ? void 0 : options.clientId
+        });
+        (_d = this.logger) == null ? void 0 : _d.debug("[aomi][client] POST /api/chat prepared", {
           sessionId,
           app,
-          publicKey: options == null ? void 0 : options.publicKey,
+          applicationId,
           clientId: options == null ? void 0 : options.clientId,
           hasUserState: Boolean(normalizedUserState),
           messagePreview: previewText(message)
         });
-        return postState(
-          this.baseUrl,
-          "/api/chat",
-          payload,
+        const headers = new Headers(withSessionHeader(sessionId));
+        if (apiKey) {
+          headers.set(APP_KEY_HEADER, apiKey);
+        }
+        (_e = this.logger) == null ? void 0 : _e.debug("[aomi][client] POST start", {
+          path: "/api/chat",
           sessionId,
-          this.fetchImpl,
-          apiKey,
-          this.logger
-        );
+          hasApiKey: Boolean(apiKey),
+          url
+        });
+        const response = await this.fetchImpl(url, {
+          method: "POST",
+          headers
+        });
+        (_f = this.logger) == null ? void 0 : _f.debug("[aomi][client] POST response", {
+          path: "/api/chat",
+          sessionId,
+          status: response.status,
+          ok: response.ok
+        });
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        return await response.json();
       }
       /**
        * Send a system-level message (e.g. wallet state changes, context switches).
@@ -1511,12 +1524,10 @@ var init_client = __esm({
         return void 0;
       }
       /**
-       * List all threads for a wallet address.
+       * List all threads for the current authenticated Aomi account.
        */
-      async listThreads(sessionId, publicKey) {
-        const url = buildApiUrl(this.baseUrl, "/api/sessions", {
-          public_key: publicKey
-        });
+      async listThreads(sessionId) {
+        const url = buildApiUrl(this.baseUrl, "/api/sessions");
         const response = await this.fetchImpl(url, {
           headers: withSessionHeader(sessionId)
         });
@@ -1544,16 +1555,14 @@ var init_client = __esm({
       /**
        * Create a new thread. The client generates the session ID.
        */
-      async createThread(threadId, publicKey) {
-        const body = {};
-        if (publicKey) body.public_key = publicKey;
+      async createThread(threadId) {
         const url = buildApiUrl(this.baseUrl, "/api/sessions");
         const response = await this.fetchImpl(url, {
           method: "POST",
           headers: withSessionHeader(threadId, {
             "Content-Type": "application/json"
           }),
-          body: JSON.stringify(body)
+          body: JSON.stringify({})
         });
         if (!response.ok) {
           throw new Error(`Failed to create thread: HTTP ${response.status}`);
@@ -1640,9 +1649,7 @@ var init_client = __esm({
        */
       async getApps(sessionId, options) {
         var _a3;
-        const url = buildApiUrl(this.baseUrl, "/api/session/apps", {
-          public_key: options == null ? void 0 : options.publicKey
-        });
+        const url = buildApiUrl(this.baseUrl, "/api/session/apps");
         const apiKey = (_a3 = options == null ? void 0 : options.apiKey) != null ? _a3 : this.apiKey;
         const headers = new Headers(withSessionHeader(sessionId));
         if (apiKey) {
@@ -1690,23 +1697,27 @@ var init_client = __esm({
        * Set the model for a session.
        */
       async setModel(sessionId, rig, options) {
-        var _a3;
+        var _a3, _b;
         const apiKey = (_a3 = options == null ? void 0 : options.apiKey) != null ? _a3 : this.apiKey;
-        const payload = { rig };
-        if (options == null ? void 0 : options.app) {
-          payload.app = options.app;
+        const applicationId = (_b = options == null ? void 0 : options.applicationId) == null ? void 0 : _b.toString().trim();
+        const url = buildApiUrl(this.baseUrl, "/api/session/model", {
+          rig,
+          app: options == null ? void 0 : options.app,
+          application_id: applicationId || void 0,
+          client_id: options == null ? void 0 : options.clientId
+        });
+        const headers = new Headers(withSessionHeader(sessionId));
+        if (apiKey) {
+          headers.set(APP_KEY_HEADER, apiKey);
         }
-        if (options == null ? void 0 : options.clientId) {
-          payload.client_id = options.clientId;
+        const response = await this.fetchImpl(url, {
+          method: "POST",
+          headers
+        });
+        if (!response.ok) {
+          throw new Error(`Failed to set model: HTTP ${response.status}`);
         }
-        return postState(
-          this.baseUrl,
-          "/api/session/model",
-          payload,
-          sessionId,
-          this.fetchImpl,
-          apiKey
-        );
+        return await response.json();
       }
       /**
        * List BYOK keys (one per LLM provider) bound to the current session's client.
@@ -2888,17 +2899,6 @@ var init_wallet = __esm({
 });
 
 // src/session/index.ts
-function legacySessionPublicKey(userState) {
-  var _a3;
-  const address3 = UserState.address(userState);
-  if (!(address3 == null ? void 0 : address3.startsWith("0x"))) {
-    return void 0;
-  }
-  if (UserState.chainId(userState) === void 0 && !((_a3 = userState == null ? void 0 : userState.evm) == null ? void 0 : _a3.address)) {
-    return void 0;
-  }
-  return address3;
-}
 var ClientSession;
 var init_session = __esm({
   "src/session/index.ts"() {
@@ -3116,11 +3116,8 @@ var init_session = __esm({
         const previousSerialized = stableUserStateString(this.userState);
         this.userState = UserState.reconcile(this.userState, userState);
         const nextSerialized = stableUserStateString(this.userState);
-        const publicKey = legacySessionPublicKey(this.userState);
         const isConnected3 = UserState.isConnected(this.userState);
-        if (publicKey && isConnected3 !== false) {
-          this.publicKey = publicKey;
-        } else {
+        if (isConnected3 === false) {
           this.publicKey = void 0;
         }
         this.walletController.sync();

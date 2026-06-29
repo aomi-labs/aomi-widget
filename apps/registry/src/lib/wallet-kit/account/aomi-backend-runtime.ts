@@ -86,15 +86,18 @@ export function useAomiBackendAccountRuntime(input: {
     }
   }, [input.auth.status, input.auth.subject]);
 
-  const activeEvmAddress = input.evm.activeEvmConnection?.address;
-  const activeEvmChainId = input.evm.activeEvmConnection?.chainId;
+  const activeEvmAddress =
+    input.evm.activeEvmConnection?.address ?? input.evm.activeAccount?.address;
+  const activeEvmChainId =
+    input.evm.activeEvmConnection?.chainId ?? input.evm.activeAccount?.chainId;
 
   useEffect(() => {
     if (
       !input.enabled ||
       status === "error" ||
       account === null ||
-      account.user
+      account.user ||
+      !hasAuthMessageConfig(authMessageConfig)
     ) {
       return;
     }
@@ -299,6 +302,28 @@ export function useAomiBackendAccountRuntime(input: {
       }
       const chainId = wallet.chainId ?? activeEvmChainId;
       if (!chainId) throw new Error("Wallet linking requires an EVM chain id");
+      if (!account?.user) {
+        const accountId = wallet.accountId;
+        const signMessageForAccount = input.evm.signMessageForAccount;
+        await signInWithEvmWallet({
+          accountClient,
+          address: wallet.address as `0x${string}`,
+          chainId,
+          signMessage:
+            accountId && signMessageForAccount
+              ? (message) =>
+                  signMessageForAccount({
+                    accountId,
+                    chainId,
+                    message,
+                  })
+              : (message) =>
+                  signMessageWithActiveEvm(input.evm.signMessageAsync, message),
+          messageConfig: authMessageConfig,
+        });
+        await refresh();
+        return;
+      }
       const nonceResult = await accountClient.getWalletLinkNonce({
         address: wallet.address,
         chainId,
@@ -494,6 +519,22 @@ async function signInWithActiveEvmWallet(input: {
   signMessageAsync: (args: { message: string }) => Promise<`0x${string}`>;
   messageConfig: AuthMessageConfig;
 }): Promise<void> {
+  await signInWithEvmWallet({
+    accountClient: input.accountClient,
+    address: input.address,
+    chainId: input.chainId,
+    signMessage: (message) => input.signMessageAsync({ message }),
+    messageConfig: input.messageConfig,
+  });
+}
+
+async function signInWithEvmWallet(input: {
+  accountClient: ReturnType<typeof createAomiBackendAccountClient>;
+  address: `0x${string}`;
+  chainId: number;
+  signMessage: (message: string) => Promise<`0x${string}`>;
+  messageConfig: AuthMessageConfig;
+}): Promise<void> {
   const nonceResult = await input.accountClient.createSiweNonce({
     walletAddress: input.address,
     chainId: input.chainId,
@@ -504,7 +545,7 @@ async function signInWithActiveEvmWallet(input: {
     nonce: nonceResult.nonce,
     ...messageConfigFromNonce(nonceResult, input.messageConfig),
   });
-  const signature = await input.signMessageAsync({ message });
+  const signature = await input.signMessage(message);
   await input.accountClient.verifySiwe({
     message,
     signature,
@@ -579,17 +620,10 @@ function messageConfigFromNonce(
   nonce: AomiBackendNonceResponse,
   fallback: AuthMessageConfig,
 ): AuthMessageConfig {
-  const browserFallback = browserAuthMessageConfig();
-  return {
-    domain:
-      normalizeDomain(nonce.domain) ??
-      normalizeDomain(fallback.domain) ??
-      browserFallback.domain,
-    uri:
-      normalizeUri(nonce.uri) ??
-      normalizeUri(fallback.uri) ??
-      browserFallback.uri,
-  };
+  return completeAuthMessageConfig({
+    domain: normalizeDomain(nonce.domain) ?? normalizeDomain(fallback.domain),
+    uri: normalizeUri(nonce.uri) ?? normalizeUri(fallback.uri),
+  });
 }
 
 function browserAuthMessageConfig(): AuthMessageConfig {
@@ -603,13 +637,35 @@ function browserAuthMessageConfig(): AuthMessageConfig {
 }
 
 function requireAuthMessageConfig(input: AuthMessageConfig): AuthMessageConfig {
+  return completeAuthMessageConfig(input);
+}
+
+function completeAuthMessageConfig(
+  input: Partial<AuthMessageConfig>,
+): AuthMessageConfig {
   const browserFallback = browserAuthMessageConfig();
-  const domain = normalizeDomain(input.domain) ?? browserFallback.domain;
-  const uri = normalizeUri(input.uri) ?? browserFallback.uri;
-  if (!domain || !uri) {
-    throw new Error("Auth domain and URI are required to build SIWE messages");
-  }
+  const uri =
+    normalizeUri(input.uri) ??
+    normalizeUri(browserFallback.uri) ??
+    deriveUriFromDomain(input.domain) ??
+    "http://localhost";
+  const domain =
+    normalizeDomain(input.domain) ??
+    normalizeDomain(uri) ??
+    normalizeDomain(browserFallback.domain) ??
+    "localhost";
   return { domain, uri };
+}
+
+function hasAuthMessageConfig(input: Partial<AuthMessageConfig>): boolean {
+  const browserFallback = browserAuthMessageConfig();
+  const domain =
+    normalizeDomain(input.domain) ?? normalizeDomain(browserFallback.domain);
+  const uri =
+    normalizeUri(input.uri) ??
+    normalizeUri(browserFallback.uri) ??
+    deriveUriFromDomain(domain);
+  return Boolean(domain && uri);
 }
 
 function absoluteUrl(value: string | undefined): URL | null {
@@ -625,18 +681,37 @@ function normalizeDomain(value: string | undefined): string | undefined {
   const trimmed = value?.trim();
   if (!trimmed) return undefined;
   try {
-    return new URL(trimmed).host;
+    const host = new URL(trimmed).host.trim();
+    if (host) return host;
   } catch {
-    return (
-      trimmed
-        .replace(/^https?:\/\//, "")
-        .replace(/\/.*$/, "")
-        .trim() || undefined
-    );
+    // Fall through to authority parsing below.
   }
+  return (
+    trimmed
+      .replace(/^[a-z][a-z0-9+.-]*:\/\//i, "")
+      .replace(/\/.*$/, "")
+      .trim() || undefined
+  );
 }
 
 function normalizeUri(value: string | undefined): string | undefined {
   const trimmed = value?.trim().replace(/\/+$/, "");
-  return trimmed || undefined;
+  if (!trimmed) return undefined;
+  try {
+    const url = new URL(trimmed);
+    if (url.protocol !== "http:" && url.protocol !== "https:") {
+      return undefined;
+    }
+    return url.toString().replace(/\/+$/, "");
+  } catch {
+    return undefined;
+  }
+}
+
+function deriveUriFromDomain(value: string | undefined): string | undefined {
+  const domain = normalizeDomain(value);
+  if (!domain) return undefined;
+  return domain.includes("localhost") || domain.startsWith("127.")
+    ? `http://${domain}`
+    : `https://${domain}`;
 }

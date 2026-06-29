@@ -8,7 +8,7 @@ import {
   type AppendMessage,
 } from "@assistant-ui/react";
 
-import { UserState, type AomiClient } from "@aomi-labs/client";
+import type { AomiClient } from "@aomi-labs/client";
 import { useControl } from "../contexts/control-context";
 import { useEventContext } from "../contexts/event-context";
 import { useUser } from "../contexts/ext-user-context";
@@ -31,19 +31,6 @@ export type AomiRuntimeCoreProps = {
   children: ReactNode;
   aomiClient: AomiClient;
 };
-
-function getLegacySessionPublicKey(
-  userState: ReturnType<typeof UserState.normalize>,
-) {
-  const address = UserState.address(userState);
-  if (!address?.startsWith("0x")) {
-    return undefined;
-  }
-  if (UserState.chainId(userState) === undefined && !userState?.evm?.address) {
-    return undefined;
-  }
-  return address;
-}
 
 const getHttpStatus = (error: unknown): number | undefined => {
   const status = (error as { status?: unknown })?.status;
@@ -101,10 +88,6 @@ export function AomiRuntimeCore({
     closeAllSessions,
     aomiClientRef,
   } = useRuntimeOrchestrator(aomiClient, {
-    getPublicKey: () =>
-      UserState.isConnected(getUserState())
-        ? getLegacySessionPublicKey(getUserState())
-        : undefined,
     getUserState,
     getApp: getCurrentThreadApp,
     getApiKey: () => getControlState().apiKey,
@@ -188,11 +171,7 @@ export function AomiRuntimeCore({
       }
 
       const warmPromise = (async () => {
-        const userState = getUserState();
-        const publicKey = UserState.isConnected(userState)
-          ? getLegacySessionPublicKey(userState)
-          : undefined;
-        await aomiClientRef.current.createThread(threadId, publicKey);
+        await aomiClientRef.current.createThread(threadId);
         warmedThreadIdsRef.current.add(threadId);
       })();
 
@@ -204,7 +183,7 @@ export function AomiRuntimeCore({
         warmPromisesRef.current.delete(threadId);
       }
     },
-    [aomiClientRef, getUserState],
+    [aomiClientRef],
   );
 
   // ---------------------------------------------------------------------------
@@ -214,16 +193,12 @@ export function AomiRuntimeCore({
     async (threadId: string) => {
       if (remoteThreadIdsRef.current.has(threadId)) return false;
 
-      const userState = getUserState();
-      const publicKey = UserState.isConnected(userState)
-        ? getLegacySessionPublicKey(userState)
-        : undefined;
-      await aomiClientRef.current.createThread(threadId, publicKey);
+      await aomiClientRef.current.createThread(threadId);
       remoteThreadIdsRef.current.add(threadId);
       warmedThreadIdsRef.current.add(threadId);
       return true;
     },
-    [aomiClientRef, getUserState],
+    [aomiClientRef],
   );
 
   const getRuntimeSession = useCallback(
