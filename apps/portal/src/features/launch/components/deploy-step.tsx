@@ -68,6 +68,42 @@ function backoffDelay(failureCount: number): number {
   return Math.min(delay, MAX_BACKOFF_MS);
 }
 
+async function readSdkPin(url: string, init?: RequestInit): Promise<string | null> {
+  try {
+    const res = await fetch(url, init);
+    if (!res.ok) return null;
+    const text = await res.text();
+    const m = text.match(/aomi-sdk\s*=\s*"=?([0-9]+\.[0-9]+\.[0-9]+)"/);
+    return m ? m[1] : null;
+  } catch {
+    return null;
+  }
+}
+
+// A deploy/preflight that fails with a server error is most often an aomi-sdk pin the
+// platform no longer accepts, which otherwise surfaces as an opaque "(502)". Compare the
+// app's pinned SDK against the platform's current version (the playground template's pin
+// is the canonical version builders must match) and return an actionable message instead.
+// Fails open to the raw error for anything that isn't a clear version mismatch.
+async function enrichDeployError(
+  repo: string | undefined,
+  raw: string,
+): Promise<string> {
+  if (!repo || !/\((?:400|409|500|502)\)/.test(raw)) return raw;
+  const [appSdk, requiredSdk] = await Promise.all([
+    readSdkPin(`https://api.github.com/repos/${repo}/contents/Cargo.toml`, {
+      headers: { Accept: "application/vnd.github.raw" },
+    }),
+    readSdkPin(
+      "https://raw.githubusercontent.com/aomi-labs/playground-example/main/Cargo.toml",
+    ),
+  ]);
+  if (appSdk && requiredSdk && appSdk !== requiredSdk) {
+    return `Your app pins aomi-sdk ${appSdk}, but the platform requires ${requiredSdk}. Set aomi-sdk = "=${requiredSdk}" in your Cargo.toml, push, and redeploy.`;
+  }
+  return raw;
+}
+
 function buildProgressModel(
   state: string,
   lastCompleted: number,
@@ -195,7 +231,8 @@ export function DeployStep({
       applyDeployment(result);
       setPhase("preflight_ready");
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      const raw = e instanceof Error ? e.message : String(e);
+      setError(await enrichDeployError(repo, raw));
       setPhase("error");
     }
   }, [
@@ -258,7 +295,8 @@ export function DeployStep({
       onProgress(patch);
       setPhase("building");
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      const raw = e instanceof Error ? e.message : String(e);
+      setError(await enrichDeployError(repo, raw));
       setPhase("error");
     }
   }, [
@@ -418,10 +456,11 @@ export function DeployStep({
       }
       await verifyLive(apps, tags);
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      const raw = e instanceof Error ? e.message : String(e);
+      setError(await enrichDeployError(repo, raw));
       setPhase("error");
     }
-  }, [actor, apps, tags, verifyLive]);
+  }, [actor, apps, repo, tags, verifyLive]);
 
   const reset = useCallback(() => {
     setError(null);
