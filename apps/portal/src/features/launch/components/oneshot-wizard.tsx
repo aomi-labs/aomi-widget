@@ -22,6 +22,24 @@ const STEPS = [
   { key: "live", label: "Live" },
 ];
 
+const DEFAULT_REPO_NAME = "my-aomi-playground";
+
+function repoNameError(value: string): string | null {
+  const repo = value.trim();
+  if (!repo) return "Repo name is required.";
+  if (repo.length > 100) return "Repo name must be 100 characters or less.";
+  if (repo === "." || repo === ".." || repo.includes("..")) {
+    return "Repo name cannot be . or .. or contain consecutive dots.";
+  }
+  if (repo.includes("/") || repo.endsWith(".git")) {
+    return "Enter only the repo name, not a GitHub URL.";
+  }
+  if (!/^[A-Za-z0-9._-]+$/.test(repo)) {
+    return "Use letters, numbers, dots, underscores, or hyphens.";
+  }
+  return null;
+}
+
 export function OneshotWizard({
   progress,
   actor,
@@ -47,14 +65,17 @@ export function OneshotWizard({
   const installStatus = installationStatusLabel(progress.installationStatus);
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
+  const [repoName, setRepoName] = useState(DEFAULT_REPO_NAME);
+  const repoError = repoNameError(repoName);
 
   const createRepo = async () => {
-    if (!progress.installationId) return;
+    if (!progress.installationId || repoError) return;
     setCreating(true);
     setCreateError(null);
     try {
       const result = await launchCreateRepo({
         installationId: progress.installationId,
+        repoName: repoName.trim(),
       });
       patch({
         installationId: result.installationId,
@@ -146,9 +167,29 @@ export function OneshotWizard({
               Creates a GitHub repo from <code>{TEMPLATE_REPO}</code> in the
               account where you installed <code>aomi-build-oneshot</code>.
             </p>
+            <label className="block space-y-1.5">
+              <span className="text-foreground text-xs font-medium">
+                Repo name
+              </span>
+              <input
+                value={repoName}
+                onChange={(event) => {
+                  setRepoName(event.target.value);
+                  setCreateError(null);
+                }}
+                disabled={creating}
+                className="border-input bg-background text-foreground focus-visible:ring-ring h-10 w-full max-w-sm rounded-md border px-3 text-sm outline-none focus-visible:ring-2"
+                placeholder={DEFAULT_REPO_NAME}
+                autoComplete="off"
+                spellCheck={false}
+              />
+            </label>
+            {repoError && (
+              <div className="text-destructive text-xs">{repoError}</div>
+            )}
             <Button
               onClick={createRepo}
-              disabled={creating}
+              disabled={creating || Boolean(repoError)}
               className="h-10 rounded-full px-4 text-sm font-medium"
             >
               {creating ? (

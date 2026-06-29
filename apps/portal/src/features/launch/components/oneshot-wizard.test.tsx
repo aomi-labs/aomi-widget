@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { OneshotWizard } from "./oneshot-wizard";
+import { launchCreateRepo } from "@portal/features/launch";
 import type { LaunchProgress } from "@portal/features/launch";
 
 const noop = () => {};
@@ -124,5 +125,36 @@ describe("OneshotWizard", () => {
 
     fireEvent.click(screen.getByText("Start over"));
     expect(onRestart).toHaveBeenCalledOnce();
+  });
+
+  it("passes the custom repo name when creating a repo", async () => {
+    vi.mocked(launchCreateRepo).mockResolvedValue({
+      ok: true,
+      repo: "alice/custom-playground",
+      installationId: "12345",
+      appSourceId: 7,
+      sourceRef: "abc123",
+    });
+    const patch = vi.fn();
+
+    render(
+      <OneshotWizard
+        {...defaultProps}
+        progress={{ installationId: "12345" }}
+        patch={patch}
+      />,
+    );
+
+    fireEvent.change(screen.getByLabelText("Repo name"), {
+      target: { value: "custom-playground" },
+    });
+    fireEvent.click(screen.getByText("Create repo"));
+
+    await waitFor(() => {
+      expect(launchCreateRepo).toHaveBeenCalledWith({
+        installationId: "12345",
+        repoName: "custom-playground",
+      });
+    });
   });
 });
