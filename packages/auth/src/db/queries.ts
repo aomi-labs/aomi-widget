@@ -1,4 +1,6 @@
 import { readFileSync } from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import type { Pool, PoolClient, QueryResult } from "pg";
 import { pool as defaultPool } from "./pool";
 import type {
@@ -24,10 +26,28 @@ import {
 type Db = Pool | PoolClient;
 type Row = Record<string, unknown>;
 
-const schemaSql = readFileSync(
-  new URL("./schema.sql", import.meta.url),
-  "utf8",
-);
+function readSchemaSql(): string {
+  try {
+    return readFileSync(
+      fileURLToPath(new URL("./schema.sql", import.meta.url)),
+      "utf8",
+    );
+  } catch {
+    for (const candidate of [
+      path.resolve(process.cwd(), "../../packages/auth/src/db/schema.sql"),
+      path.resolve(process.cwd(), "packages/auth/src/db/schema.sql"),
+    ]) {
+      try {
+        return readFileSync(candidate, "utf8");
+      } catch {
+        // Try the next monorepo-relative location.
+      }
+    }
+    throw new Error("Could not load Aomi auth schema.sql");
+  }
+}
+
+const schemaSql = readSchemaSql();
 
 export async function runAomiAuthSchema(db: Db = defaultPool): Promise<void> {
   await db.query(schemaSql);

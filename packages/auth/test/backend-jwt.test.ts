@@ -102,7 +102,7 @@ describe("Aomi backend JWT contract", () => {
     expect(options.jwt?.issuer).toBe("https://auth.aomi.dev");
     expect(options.jwt?.audience).toBe("rust-api");
     expect(options.jwt?.expirationTime).toBe("10m");
-    expect(await options.jwt?.getSubject?.(session)).toBe("better-user-1");
+    expect(await options.jwt?.getSubject?.(session)).toBe("aomi-user-2");
     expect(await options.jwt?.definePayload?.(session)).toEqual({
       sid: "better-session-1",
       aomi_user_id: "aomi-user-2",
@@ -110,7 +110,11 @@ describe("Aomi backend JWT contract", () => {
     });
   });
 
-  it("uses the Better Auth user id as the JWT subject", () => {
-    expect(getAomiBackendJwtSubject(session)).toBe("better-user-1");
+  it("uses the canonical Aomi user id as the JWT subject", async () => {
+    expect(
+      await getAomiBackendJwtSubject(session, {
+        resolveUser: async () => ({ id: "aomi-user-3" }),
+      }),
+    ).toBe("aomi-user-3");
   });
 });

@@ -1,0 +1,34 @@
+{
+  "name": "@aomi-labs/account",
+  "version": "0.1.0",
+  "description": "Server-only account graph: resolve-or-create the canonical user and mint AccountBearers. Node-only; never bundle into a browser.",
+  "type": "module",
+  "main": "./src/index.ts",
+  "module": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": {
+      "import": "./src/index.ts",
+      "types": "./src/index.ts"
+    }
+  },
+  "scripts": {
+    "type-check": "tsc --noEmit"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "@aomi-labs/auth": "workspace:*",
+    "@aomi-labs/service": "workspace:*",
+    "jose": "^6.1.3",
+    "pg": "^8.22.0",
+    "viem": "^2.47.11"
+  },
+  "peerDependencies": {
+    "next": ">=15"
+  },
+  "devDependencies": {
+    "@types/pg": "^8.20.0"
+  }
+}

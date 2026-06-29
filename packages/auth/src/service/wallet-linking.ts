@@ -116,26 +116,17 @@ export function parseWalletLinkMessage(
   message: string,
 ): ParsedWalletLinkMessage | null {
   const lines = message.split(/\r?\n/);
-  if (lines.length !== 10) return null;
   const domainMatch = lines[0]?.match(
-    /^(.+) wants to link this wallet to your Aomi account:$/,
+    /^(.+) wants (?:to link this wallet to your Aomi account|you to sign in with your Ethereum account):$/,
   );
   if (!domainMatch) return null;
   if (!/^0x[0-9a-fA-F]{40}$/.test(lines[1] ?? "")) return null;
-  if (lines[2] !== "") return null;
-  if (
-    lines[3] !==
-    "Only sign this message if you want this wallet attached to the current Aomi account."
-  ) {
-    return null;
-  }
-  if (lines[4] !== "") return null;
   const fields = {
-    uri: readExactField(lines[5], "URI"),
-    version: readExactField(lines[6], "Version"),
-    chainId: readExactField(lines[7], "Chain ID"),
-    nonce: readExactField(lines[8], "Nonce"),
-    issuedAt: readExactField(lines[9], "Issued At"),
+    uri: readField(lines, "URI"),
+    version: readField(lines, "Version"),
+    chainId: readField(lines, "Chain ID"),
+    nonce: readField(lines, "Nonce"),
+    issuedAt: readField(lines, "Issued At"),
   };
   if (
     !fields.uri ||
@@ -166,12 +157,10 @@ export function parseWalletLinkMessage(
   };
 }
 
-function readExactField(
-  line: string | undefined,
-  field: string,
-): string | null {
+function readField(lines: readonly string[], field: string): string | null {
   const prefix = `${field}: `;
-  if (!line?.startsWith(prefix)) return null;
+  const line = lines.find((candidate) => candidate.startsWith(prefix));
+  if (!line) return null;
   return line.slice(prefix.length);
 }
 

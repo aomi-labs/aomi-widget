@@ -205,4 +205,40 @@ describe("auth message config", () => {
       }),
     ).toContain("URI: https://portal.aomi.dev");
   });
+
+  it("falls back to the browser origin instead of building blank-domain messages", () => {
+    const linkMessage = buildWalletLinkMessage({
+      address: "0x1111111111111111111111111111111111111111",
+      chainId: 1,
+      nonce: "nonce",
+      domain: " ",
+      uri: " ",
+    });
+    const siweMessage = buildSiweMessage({
+      address: "0x1111111111111111111111111111111111111111",
+      chainId: 1,
+      nonce: "nonce",
+      domain: " ",
+      uri: " ",
+    });
+
+    expect(linkMessage).not.toMatch(/^ wants /);
+    expect(siweMessage).not.toMatch(/^ wants /);
+    expect(linkMessage).toMatch(
+      /^localhost(?::\d+)? wants to link this wallet/,
+    );
+    expect(siweMessage).toMatch(/^localhost(?::\d+)? wants you to sign in/);
+  });
+
+  it("ignores blank auth domains when building messages", () => {
+    expect(
+      resolveAuthMessageConfig({
+        baseUrl: "http://localhost:3001",
+        authDomain: " ",
+      }),
+    ).toEqual({
+      domain: "localhost:3001",
+      uri: "http://localhost:3001",
+    });
+  });
 });

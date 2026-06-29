@@ -77,6 +77,29 @@ Issued At: 2026-06-29T10:00:00.000Z`;
     ).toBe(false);
   });
 
+  it("accepts standard SIWE wording for a wallet-link nonce", () => {
+    const message = `portal.aomi.dev wants you to sign in with your Ethereum account:
+${address}
+
+Sign in to Aomi.
+
+URI: https://portal.aomi.dev
+Version: 1
+Chain ID: 1
+Nonce: nonce
+Issued At: 2026-06-29T10:00:00.000Z`;
+
+    expect(
+      walletLinkMessageMatches({
+        message,
+        address,
+        chainId: 1,
+        nonce: "nonce",
+        domain: "portal.aomi.dev",
+      }),
+    ).toBe(true);
+  });
+
   it("does not accept wallet-link messages that only include expected fields as substrings", () => {
     const message = `portal.aomi.dev.evil.example wants to link this wallet to your Aomi account:
 0x2222222222222222222222222222222222222222
