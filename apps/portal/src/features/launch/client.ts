@@ -6,6 +6,8 @@ import {
   type LaunchActivateResult,
   type LaunchAppStatus,
   type LaunchCreateRepoResult,
+  type DeploymentRollbackResult,
+  type DeploymentSourcesResult,
   type LaunchDeployInput,
   type LaunchDeployResult,
   type LaunchPreflightInput,
@@ -100,6 +102,29 @@ export function launchStatus(deploymentId: string): Promise<LaunchStatus> {
 
 export function launchSdkStatus(): Promise<LaunchSdkStatus> {
   return launchFetch(API_PATHS.bff.launch.sdkStatus, "launch SDK status");
+}
+
+export function deploymentSources(): Promise<DeploymentSourcesResult> {
+  return launchFetch(API_PATHS.bff.deployments.sources, "deployment sources");
+}
+
+export function deploymentSdkStatus(): Promise<LaunchSdkStatus> {
+  return launchFetch(
+    API_PATHS.bff.deployments.sdkStatus,
+    "deployment SDK status",
+  );
+}
+
+export function deploymentRollback(input: {
+  deploymentId: string;
+  apps?: string[];
+  actor?: string;
+}): Promise<DeploymentRollbackResult> {
+  return postJson(
+    API_PATHS.bff.deployments.rollback,
+    "deployment rollback",
+    input,
+  );
 }
 
 export function launchActivate(input: {

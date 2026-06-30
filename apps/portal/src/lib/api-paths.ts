@@ -39,7 +39,14 @@ export const API_PATHS = {
       },
     },
     deployments: {
+      preflight: `${BFF}/deployments/preflight`,
+      deploy: `${BFF}/deployments/deploy`,
+      redeploy: `${BFF}/deployments/redeploy`,
+      rollback: `${BFF}/deployments/rollback`,
+      sources: `${BFF}/deployments/sources`,
       sdkStatus: `${BFF}/deployments/sdk-status`,
+      status: (deploymentId: string) =>
+        `${BFF}/deployments/status?deploymentId=${encodeURIComponent(deploymentId)}`,
     },
     e2e: {
       execute: `${BFF}/e2e/execute`,

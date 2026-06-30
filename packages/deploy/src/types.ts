@@ -25,6 +25,7 @@ export interface AuditEvent {
     | "preflight"
     | "deploy"
     | "activate"
+    | "rollback"
     | "status"
     | "mint_token"
     | "list_tokens"
@@ -429,6 +430,7 @@ export interface GetUserSourceLatestDeploymentInput extends BearerOverride {
 export interface UserSourceDeploymentApp {
   name: string;
   releaseTag: string | null;
+  sdkVersion?: string | null;
   target?: string | null;
   applicationId?: number | null;
   appSourceId?: number | null;
@@ -448,6 +450,7 @@ export interface UserSourceLatestDeployment {
   ciUrl: string | null;
   ciRunId?: string | number | null;
   releaseTags: string[];
+  sdkVersion?: string | null;
   artifactTarget?: string | null;
   buildTarget?: string | null;
   apps: UserSourceDeploymentApp[];
@@ -518,9 +521,9 @@ export interface RedactedDeploymentEnvVar {
 
 export interface RollbackInput {
   platform: string;
-  appSourceId: number;
   deploymentId: string;
   apps?: string[];
+  targetTags?: string[];
   actor?: string;
 }
 
