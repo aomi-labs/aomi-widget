@@ -201,7 +201,7 @@ export function createAccountAccessTokenProvider({
     if (
       failedAt !== null &&
       now() - failedAt < FAILURE_COOLDOWN_MS &&
-      (!forceRefresh || betterAuthToken?.enabled)
+      !forceRefresh
     ) {
       return undefined;
     }

@@ -482,6 +482,52 @@ describe("createAccountAccessTokenProvider", () => {
     provider.dispose();
   });
 
+  it("forceRefresh also bypasses the failure backoff in Better Auth mode", async () => {
+    let attempt = 0;
+    const getProviderCredential = vi.fn(async () => {
+      attempt += 1;
+      if (attempt === 1) throw new Error("403");
+      return { provider: "para" as const, providerToken: "now-verified" };
+    });
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ error: "No active session" }), {
+          status: 401,
+          headers: { "Content-Type": "application/json" },
+        }),
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ error: "No active session" }), {
+          status: 401,
+          headers: { "Content-Type": "application/json" },
+        }),
+      )
+      .mockResolvedValueOnce(okJsonResponse({ status: "linked" }))
+      .mockResolvedValueOnce(
+        okJsonResponse({
+          bearer: jwtWithPayload({ sub: "aomi-user", exp: 4_000 }),
+          expires_at: 4_000,
+        }),
+      );
+    const provider = createAccountAccessTokenProvider({
+      baseUrl: BASE_URL,
+      betterAuthToken: { enabled: true },
+      getProviderCredential,
+      fetch: fetchImpl as unknown as typeof fetch,
+      now,
+    });
+
+    await expect(provider()).resolves.toBeUndefined();
+    await expect(provider({ forceRefresh: true })).resolves.toBe(
+      jwtWithPayload({ sub: "aomi-user", exp: 4_000 }),
+    );
+    expect(getProviderCredential).toHaveBeenCalledTimes(2);
+    expect(fetchImpl).toHaveBeenCalledTimes(4);
+
+    provider.dispose();
+  });
+
   it("proactively refreshes via the timer and notifies subscribers when the token rotates", async () => {
     vi.useFakeTimers();
     const fetchImpl = vi
