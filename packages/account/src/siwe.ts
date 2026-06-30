@@ -57,7 +57,14 @@ function publicClientForChain(chainId: number): PublicClient | null {
   const chain = SUPPORTED_CHAINS.find((c) => c.id === chainId);
   if (!chain) return null;
   const rpcUrl = process.env[RPC_ENV_BY_CHAIN[chainId]]?.trim() || undefined;
-  return createPublicClient({ chain, transport: http(rpcUrl) }) as PublicClient;
+  // Bounded timeout + single retry: the smart-account (EIP-1271 / ERC-6492)
+  // deployless `eth_call` stalls on keyless public RPCs, hanging the sign-in
+  // spinner. Fail fast instead. Set BASE_RPC_URL to a real RPC to make Coinbase
+  // Smart Wallet / Base Account verification actually succeed.
+  return createPublicClient({
+    chain,
+    transport: http(rpcUrl, { timeout: 10_000, retryCount: 1 }),
+  }) as PublicClient;
 }
 
 /**

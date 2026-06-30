@@ -2,9 +2,38 @@
 
 ## Last Updated
 
-2026-06-19 - Widget auth cleanup: policy-free sign-in, full sign-out, quick sign-in de-dupe, and SIWE unlink detachment.
+2026-06-30 - Fixed Coinbase Smart Wallet SIWE hang (RPC timeout) + per-request schema-DDL deadlock.
 
 ## Recent Changes
+
+### Coinbase Smart Wallet SIWE hang + Postgres deadlock (2026-06-30)
+
+Branch `codex/merge-bff-betterauth`. Two server-side bugs surfaced when signing in
+with Coinbase Wallet (EOA wallets like MetaMask/Rabby were unaffected):
+
+- **SIWE sign-in spun forever for Coinbase.** Coinbase Wallet is a Smart Wallet
+  (WebAuthn/passkey, ERC-6492-wrapped signature), so the EOA `ecrecover` path
+  rejects it (`invalid signature length`) and verification falls through to the
+  on-chain EIP-1271/6492 check. That `verifyMessage` ran a heavy deployless
+  `eth_call` against viem's keyless default mainnet RPC (`eth.merkle.io`), which
+  timed out (`The request took too long to respond`). With no tight timeout in
+  the client fetch, the landing proxy, or the public client, the sign-in spinner
+  hung. Fix: `packages/auth/src/better-auth/siwe.ts` (and twin
+  `packages/account/src/siwe.ts`) now read a per-chain RPC env override
+  (`MAINNET_RPC_URL`/`ETH_RPC_URL`, `BASE_RPC_URL`, etc.) and use
+  `http(url, { timeout: 10_000, retryCount: 1 })`. **Requires** setting a real
+  EVM RPC (e.g. `MAINNET_RPC_URL`) in `apps/portal/.env.local` for verification
+  to actually succeed; otherwise it just fails fast instead of hanging.
+- **Postgres `deadlock detected` (×24 in one session).** `ensureAccountSchema()`
+  ran the full `schema.sql` (including `alter table … drop constraint` →
+  AccessExclusiveLock) on the request path, gating getOrCreate / link / delete.
+  Concurrent requests deadlocked the DDL against row writes on
+  aomi_users/aomi_auth_identities/aomi_wallets. Fix:
+  `packages/auth/src/service/account-service.ts` memoizes `ensureAccountSchema`
+  so the DDL applies at most once per process (failure clears the cache to allow
+  retry). The dev-auth-stack script already applies the schema at startup.
+
+
 
 ### Wallet auth bug fixes: quick sign-in de-dupe + SIWE unlink detachment (2026-06-19)
 

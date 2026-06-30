@@ -80,6 +80,34 @@ const VERIFY_CHAINS: readonly Chain[] = [
 
 const publicClients = new Map<number, PublicClient>();
 
+// Per-chain RPC override read from env. Smart-account (EIP-1271 / ERC-6492)
+// verification does a heavy *deployless* `eth_call` (it counterfactually deploys
+// the wallet, then calls `isValidSignature`). Keyless public RPCs — notably
+// viem's mainnet default `eth.merkle.io` — frequently time out on this call,
+// which makes Coinbase Smart Wallet / Base Account SIWE logins appear to hang
+// (the EOA path short-circuits, so MetaMask/Rabby are unaffected). Point these
+// at a real RPC (Alchemy/Infura/etc.) so the on-chain check resolves.
+const RPC_ENV_BY_CHAIN: Record<number, readonly string[]> = {
+  [mainnet.id]: ["MAINNET_RPC_URL", "ETH_RPC_URL"],
+  [base.id]: ["BASE_RPC_URL"],
+  [baseSepolia.id]: ["BASE_SEPOLIA_RPC_URL"],
+  [arbitrum.id]: ["ARBITRUM_RPC_URL"],
+  [optimism.id]: ["OPTIMISM_RPC_URL"],
+  [polygon.id]: ["POLYGON_RPC_URL"],
+  [sepolia.id]: ["SEPOLIA_RPC_URL"],
+  [linea.id]: ["LINEA_RPC_URL"],
+  [lineaSepolia.id]: ["LINEA_SEPOLIA_RPC_URL"],
+};
+
+function rpcUrlForChain(chain: Chain): string | undefined {
+  for (const name of RPC_ENV_BY_CHAIN[chain.id] ?? []) {
+    const value = process.env[name]?.trim();
+    if (value) return value;
+  }
+  // Fall back to the chain's default public RPC.
+  return chain.rpcUrls.default.http[0];
+}
+
 function publicClientForChain(chainId: number): PublicClient | null {
   const existing = publicClients.get(chainId);
   if (existing) return existing;
@@ -87,7 +115,9 @@ function publicClientForChain(chainId: number): PublicClient | null {
   if (!chain) return null;
   const client = createPublicClient({
     chain,
-    transport: http(chain.rpcUrls.default.http[0]),
+    // Bounded timeout + a single retry so an unreachable/slow RPC fails fast
+    // (a ~20s 401) instead of stalling the sign-in spinner indefinitely.
+    transport: http(rpcUrlForChain(chain), { timeout: 10_000, retryCount: 1 }),
   }) as PublicClient;
   publicClients.set(chainId, client);
   return client;
