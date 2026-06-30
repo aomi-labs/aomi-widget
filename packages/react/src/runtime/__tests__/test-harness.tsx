@@ -302,7 +302,6 @@ vi.mock("@aomi-labs/client", async (importOriginal) => {
     private _isSSEActive = false;
 
     private _app?: string;
-    private _publicKey?: string;
     private _apiKey?: string;
     private _userState?: Record<string, unknown>;
     private _clientId?: string;
@@ -318,7 +317,6 @@ vi.mock("@aomi-labs/client", async (importOriginal) => {
       opts?: {
         sessionId?: string;
         app?: string;
-        publicKey?: string;
         apiKey?: string;
         clientId?: string;
         userState?: Record<string, unknown>;
@@ -339,7 +337,6 @@ vi.mock("@aomi-labs/client", async (importOriginal) => {
       }
       this.sessionId = opts?.sessionId ?? "mock-session";
       this._app = opts?.app;
-      this._publicKey = opts?.publicKey;
       this._apiKey = opts?.apiKey;
       this._clientId = opts?.clientId;
       this.resolveUserState(opts?.userState);
@@ -363,7 +360,6 @@ vi.mock("@aomi-labs/client", async (importOriginal) => {
     async sendAsync(message: string) {
       const response = await this.client.sendMessage(this.sessionId, message, {
         app: this._app,
-        publicKey: this._publicKey,
         apiKey: this._apiKey,
         userState: this._userState,
         clientId: this._clientId,
@@ -404,20 +400,15 @@ vi.mock("@aomi-labs/client", async (importOriginal) => {
       if (!normalized) return;
 
       this._userState = normalized;
-      if (UserState.isConnected(normalized) === false) {
-        this._publicKey = undefined;
-      }
       this.syncWalletRequests();
     }
     syncRuntimeOptions(options: {
       app: string;
-      publicKey?: string;
       apiKey?: string;
       clientId?: string;
       userState?: Record<string, unknown>;
     }) {
       this._app = options.app;
-      this._publicKey = options.publicKey;
       this._apiKey = options.apiKey;
       this._clientId = options.clientId ?? this._clientId;
       if (options.userState) {

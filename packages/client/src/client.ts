@@ -349,7 +349,9 @@ export class AomiClient {
   ): Promise<AomiChatResponse> {
     const app = options?.app ?? "default";
     const apiKey = options?.apiKey ?? this.apiKey;
-    const normalizedUserState = UserState.normalize(options?.userState);
+    const normalizedUserState = stripBulkyPendingFields(
+      UserState.normalize(options?.userState),
+    );
     const applicationId = options?.applicationId?.toString().trim();
     const url = buildApiUrl(this.baseUrl, "/api/chat", {
       app,
