@@ -23,6 +23,8 @@ export type {
   AomiConfig,
   AuditEvent,
   DeploymentClientOptions,
+  ServerTagsResult,
+  SdkVersionStatus,
   SourceRef,
   DeployInput,
   PreflightInput,
@@ -62,6 +64,13 @@ export type {
   GitHubIdentity,
   ListUserSourcesInput,
   UserSource,
+  DeploymentProject,
+  DeploymentRecord,
+  DeploymentRecordApp,
+  RedactedDeploymentSecret,
+  RedactedDeploymentEnvVar,
+  RollbackInput,
+  RollbackResult,
 } from "./types";
 
 export type {

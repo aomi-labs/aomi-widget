@@ -24,6 +24,7 @@ import type {
   PlatformApp,
   PreflightInput,
   ProgressModel,
+  ServerTagsResult,
   RevokeTokenInput,
   ScaffoldInput,
   StatusInput,
@@ -180,6 +181,18 @@ export class DeploymentClient {
       ts: Date.now(),
     });
     return camelStatusResult(result);
+  }
+
+  async serverTags(): Promise<ServerTagsResult> {
+    const result = await this.get<Record<string, unknown>>(
+      "/api/platforms/server-tags",
+      "server tags",
+      this.resolveBearer(),
+    );
+    return {
+      serverTags: (result.server_tags ?? result.serverTags ?? []) as string[],
+      sdkVersion: String(result.sdk_version ?? result.sdkVersion ?? ""),
+    };
   }
 
   /**
@@ -809,6 +822,7 @@ function camelDeployResult(result: unknown): DeployResult {
     deployment: {
       id: deployment.id,
       status: deployment.status,
+      sdkVersion: deployment.sdk_version ?? deployment.sdkVersion ?? null,
       source: {
         installationId: source.installation_id,
         repositoryId: source.repository_id,
@@ -833,6 +847,7 @@ function camelDeployResult(result: unknown): DeployResult {
           path: app.path,
           aomiTomlPath: app.aomi_toml_path,
           releaseTag: app.release_tag,
+          sdkVersion: app.sdk_version ?? app.sdkVersion ?? null,
           target: app.target ?? null,
           files: (app.files ?? []).map((file: Record<string, any>) => ({
             path: file.path,

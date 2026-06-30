@@ -6,7 +6,6 @@ import { SettingsSidebar, SettingsCategory } from "./settings-sidebar";
 import { ErrorBoundary } from "@portal/components/shell/error-boundary";
 import { GeneralSettings } from "@portal/features/general";
 import { AppsSettings } from "@portal/features/apps";
-import { DeployDashboard } from "@portal/features/launch/components";
 import { AppKeys } from "@portal/features/app-keys";
 import { Bots } from "@portal/features/bots";
 import { Secrets } from "@portal/features/secrets";
@@ -105,6 +104,7 @@ export function SettingsLayout() {
       params.get("launch") === "github" ||
       params.has("github_error")
     ) {
+      window.location.replace(`/deployments?${params.toString()}`);
       setActiveCategory("deploy");
     }
   }, []);
@@ -117,9 +117,15 @@ export function SettingsLayout() {
         return <AppsSettings />;
       case "deploy":
         return (
-          <div className="min-w-0">
+          <div className={`${settingsCardStackClass} space-y-4`}>
             <ErrorBoundary>
-              <DeployDashboard />
+              <h1 className={settingsTitleClass}>Deployments</h1>
+              <p className={settingsBodyTextClass}>
+                Deployment management now lives in its own developer console.
+              </p>
+              <a href="/deployments" className={settingsPrimaryButtonClass}>
+                Open deployments
+              </a>
             </ErrorBoundary>
           </div>
         );
