@@ -11,6 +11,15 @@ type ParaClaims = {
   wallets?: unknown[];
   connectedWallets?: unknown[];
   connected_wallets?: unknown[];
+  data?: {
+    email?: unknown;
+    identifier?: unknown;
+    authType?: unknown;
+    oAuthMethod?: unknown;
+    wallets?: unknown;
+    connectedWallets?: unknown;
+    connected_wallets?: unknown;
+  };
   [key: string]: unknown;
 };
 
@@ -40,18 +49,25 @@ export async function verifyParaJwt(input: {
   }
   if (!payload.sub) throw new Error("Para JWT is missing sub");
   if (!payload.exp) throw new Error("Para JWT is missing exp");
+  const nested = payload.data;
+  const nestedEmail = stringClaim(nested?.email);
+  const email = nestedEmail ?? stringClaim(payload.email);
+  const identifier = stringClaim(nested?.identifier);
+  const wallets = arrayClaim(nested?.wallets) ?? arrayClaim(payload.wallets);
+  const connectedWallets =
+    arrayClaim(nested?.connectedWallets) ??
+    arrayClaim(nested?.connected_wallets) ??
+    arrayClaim(payload.connectedWallets) ??
+    arrayClaim(payload.connected_wallets);
   return {
     subject: payload.sub,
     audience: input.expectedAudience,
     expiresAt: payload.exp,
-    email: stringClaim(payload.email),
-    emailVerified: Boolean(payload.email_verified),
-    wallets: Array.isArray(payload.wallets) ? payload.wallets : undefined,
-    connectedWallets: Array.isArray(payload.connectedWallets)
-      ? payload.connectedWallets
-      : Array.isArray(payload.connected_wallets)
-        ? payload.connected_wallets
-        : undefined,
+    email,
+    emailVerified: Boolean(payload.email_verified || nestedEmail),
+    displayLabel: email ?? identifier,
+    wallets,
+    connectedWallets,
     rawClaims: { ...payload },
   };
 }
@@ -158,5 +174,11 @@ function getJwks(url: string): ReturnType<typeof createRemoteJWKSet> {
 }
 
 function stringClaim(value: unknown): string | undefined {
-  return typeof value === "string" && value.length > 0 ? value : undefined;
+  return typeof value === "string" && value.trim().length > 0
+    ? value
+    : undefined;
+}
+
+function arrayClaim(value: unknown): unknown[] | undefined {
+  return Array.isArray(value) ? value : undefined;
 }

@@ -12,6 +12,7 @@ export type VerifiedProviderToken = {
   expiresAt: number;
   email?: string;
   emailVerified?: boolean;
+  displayLabel?: string;
   providerMetadata: Record<string, unknown>;
 };
 
@@ -116,8 +117,10 @@ function createPrivyCredentialVerifier(
         expiresAt: token.expiresAt,
         email: token.email,
         emailVerified: token.emailVerified,
+        displayLabel: token.displayLabel,
         providerMetadata: {
           expiresAt: token.expiresAt,
+          displayLabel: token.displayLabel,
           linkedAccounts: token.linkedAccounts,
         },
       },
@@ -148,8 +151,10 @@ function createParaCredentialVerifier(
         expiresAt: token.expiresAt,
         email: token.email,
         emailVerified: token.emailVerified,
+        displayLabel: token.displayLabel,
         providerMetadata: {
           expiresAt: token.expiresAt,
+          displayLabel: token.displayLabel,
           wallets: token.wallets,
           connectedWallets: token.connectedWallets,
         },
@@ -164,11 +169,12 @@ export function providerSessionUserSeed(
   const providerEmail = verified.token.email?.trim();
   const verifiedEmail =
     providerEmail && verified.token.emailVerified ? providerEmail : undefined;
+  const displayLabel = verified.token.displayLabel?.trim() || undefined;
   const email = verifiedEmail ?? providerSubjectEmail(verified);
   return {
     email,
     emailVerified: Boolean(verifiedEmail),
-    name: verifiedEmail ?? `${verified.provider} user`,
+    name: verifiedEmail ?? displayLabel ?? `${verified.provider} user`,
   };
 }
 
