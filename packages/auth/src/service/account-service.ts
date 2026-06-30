@@ -51,8 +51,23 @@ import type {
 } from "../types";
 import { normalizeWalletAddress } from "./wallet-normalization";
 
+// Run the schema DDL at most once per process. `schema.sql` contains
+// `alter table … drop constraint` and `create index` statements that take an
+// AccessExclusiveLock even when they're no-ops; running it on every request (it
+// gates getOrCreate / link / delete below) deadlocks against concurrent row
+// writes to aomi_users / aomi_auth_identities / aomi_wallets under any
+// parallelism. Memoizing collapses that to a single startup-time apply; a
+// failure clears the cache so the next call can retry.
+let accountSchemaReady: Promise<void> | null = null;
+
 export async function ensureAccountSchema(): Promise<void> {
-  await runAomiAuthSchema(pool);
+  if (!accountSchemaReady) {
+    accountSchemaReady = runAomiAuthSchema(pool).catch((error) => {
+      accountSchemaReady = null;
+      throw error;
+    });
+  }
+  await accountSchemaReady;
 }
 
 export async function getOrCreateAomiUserForBetterAuthSession(input: {
