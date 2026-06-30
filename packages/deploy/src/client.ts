@@ -24,6 +24,8 @@ import type {
   PlatformApp,
   PreflightInput,
   ProgressModel,
+  RollbackInput,
+  RollbackResult,
   ServerTagsResult,
   RevokeTokenInput,
   ScaffoldInput,
@@ -162,6 +164,43 @@ export class DeploymentClient {
       ts: Date.now(),
     });
     return cameled;
+  }
+
+  async rollback(input: RollbackInput): Promise<RollbackResult> {
+    const platform = cleanPlatform(input.platform);
+    const deploymentId = required(input.deploymentId, "deploymentId");
+    const result = await this.post<ActivateResult>(
+      `/api/platforms/${encodeURIComponent(platform)}/deployments/${encodeURIComponent(deploymentId)}/rollback`,
+      {
+        deployment_id: deploymentId,
+        apps: input.apps,
+        target_tags: input.targetTags,
+        actor: input.actor,
+      },
+      "rollback",
+      this.resolveBearer(),
+    );
+    await this.audit({
+      action: "rollback",
+      platform,
+      apps: input.apps ?? [],
+      targetTags: input.targetTags,
+      actor: input.actor,
+      ts: Date.now(),
+    });
+    const cameled = camelActivateResult(result);
+    const releaseTags = cameled.activation.apps
+      .map((app) => app.releaseTag)
+      .filter((tag): tag is string => Boolean(tag));
+    return {
+      ok: cameled.ok,
+      rollback: {
+        deploymentId,
+        releaseTags,
+        status: cameled.ok ? "rolled_back" : "blocked",
+        activation: cameled.activation,
+      },
+    };
   }
 
   async status(input: StatusInput): Promise<DeploymentStatus> {
@@ -1025,11 +1064,13 @@ function camelUserSourceLatestDeployment(
     ciUrl: d.ci_url ?? d.ciUrl ?? d.ci?.url ?? null,
     ciRunId: d.ci_run_id ?? d.ciRunId ?? null,
     releaseTags: (d.release_tags ?? d.releaseTags ?? []) as string[],
+    sdkVersion: d.sdk_version ?? d.sdkVersion ?? null,
     artifactTarget: d.artifact_target ?? d.artifactTarget ?? null,
     buildTarget: d.build_target ?? d.buildTarget ?? d.target ?? null,
     apps: apps.map((app) => ({
       name: app.name,
       releaseTag: app.release_tag ?? app.releaseTag ?? null,
+      sdkVersion: app.sdk_version ?? app.sdkVersion ?? null,
       target: app.target ?? null,
       applicationId: app.application_id ?? app.applicationId ?? null,
       appSourceId: app.app_source_id ?? app.appSourceId ?? null,

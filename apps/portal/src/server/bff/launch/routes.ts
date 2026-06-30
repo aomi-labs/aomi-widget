@@ -461,6 +461,48 @@ export async function launchSdkStatusRoute(req: Request) {
   }
 }
 
+export const deploymentSourcesRoute = userSourcesRoute;
+export const deploymentStatusRoute = launchStatusRoute;
+export const deploymentDeployRoute = launchDeployRoute;
+export const deploymentRedeployRoute = redeployLaunchRoute;
+
+export async function deploymentRollbackRoute(req: Request) {
+  const blocked = checkWrite(req);
+  if (blocked) return blocked;
+
+  const body = (await req.json().catch(() => ({}))) as {
+    deploymentId?: unknown;
+    apps?: unknown;
+    actor?: string;
+  };
+  if (!isValidDeploymentId(body.deploymentId)) {
+    return NextResponse.json(
+      { error: "missing or invalid `deploymentId`" },
+      { status: 400 },
+    );
+  }
+  const apps =
+    Array.isArray(body.apps) &&
+    body.apps.every((app) => typeof app === "string")
+      ? body.apps.map((app) => app.trim()).filter(Boolean)
+      : undefined;
+
+  try {
+    const config = launchConfig();
+    const client = await deploymentClient();
+    const result = await client.rollback({
+      platform: config.platform,
+      deploymentId: body.deploymentId,
+      apps,
+      targetTags: config.targetTags,
+      actor: typeof body.actor === "string" ? body.actor : undefined,
+    });
+    return NextResponse.json(result, { status: result.ok ? 202 : 409 });
+  } catch (err) {
+    return launchErrorResponse(err);
+  }
+}
+
 function ciRunIdFromUrl(url: string | null | undefined): string | null {
   if (!url) return null;
   const match = url.match(/\/actions\/runs\/(\d+)(?:\/|$)/);
