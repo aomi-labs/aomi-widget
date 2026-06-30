@@ -46,6 +46,19 @@ type CreateAppKeyResponse = {
   key: OwnedAppKey;
 };
 
+type AppOption = string | { name?: string };
+
+function normalizeAppOptions(apps: AppOption[]): string[] {
+  return [
+    ...new Set(
+      apps
+        .map((app) => (typeof app === "string" ? app : app.name))
+        .filter((app): app is string => Boolean(app?.trim()))
+        .map((app) => app.toLowerCase()),
+    ),
+  ];
+}
+
 function formatTs(ts?: number | null): string {
   if (!ts) return "-";
   return new Date(ts * 1000).toLocaleString();
@@ -137,9 +150,7 @@ export function AppKeys() {
     setStatus(null);
     try {
       await ensureBoundSession();
-      const data = await accountFetch<AppKeysResponse>(
-        "/api/settings/api-keys",
-      );
+      const data = await accountFetch<AppKeysResponse>("/api/account/app-keys");
       setAppKeys(data.app_keys ?? []);
     } catch (error) {
       setStatus({
@@ -155,10 +166,8 @@ export function AppKeys() {
   const loadApps = useCallback(async () => {
     setLoadingApps(true);
     try {
-      const data = await accountFetch<string[]>("/api/control/apps");
-      const normalized = [
-        ...new Set((data ?? []).map((app) => app.toLowerCase())),
-      ];
+      const data = await accountFetch<AppOption[]>("/api/account/apps");
+      const normalized = normalizeAppOptions(data ?? []);
       setAvailableApps(normalized);
       setSelectedApps((previous) => {
         const filtered = previous.filter((ns) => normalized.includes(ns));
@@ -209,7 +218,7 @@ export function AppKeys() {
         app_key: manualKeyInput.trim() || undefined,
       };
       const data = await accountFetch<CreateAppKeyResponse>(
-        "/api/settings/api-keys",
+        "/api/account/app-keys",
         {
           method: "POST",
           body: JSON.stringify(payload),
@@ -251,7 +260,7 @@ export function AppKeys() {
       try {
         await ensureBoundSession();
         await accountFetch<{ revoked: boolean }>(
-          `/api/settings/api-keys/${encodeURIComponent(key.key_hash)}`,
+          `/api/account/app-keys/${encodeURIComponent(key.key_hash)}`,
           { method: "DELETE" },
         );
         await loadAppKeys();

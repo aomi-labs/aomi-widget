@@ -1,6 +1,7 @@
 import type { NextRequest, NextResponse } from "next/server";
 import { jwtVerify, SignJWT } from "jose";
 import { auth } from "@aomi-labs/auth/better-auth";
+import { getOrCreateAomiUserForBetterAuthSession } from "@aomi-labs/auth/account";
 import { resolveOrCreateCanonicalUser } from "./account-graph";
 
 /**
@@ -93,12 +94,21 @@ export async function getSessionedCanonicalId(
   request: NextRequest,
 ): Promise<string | null> {
   const session = await auth.api.getSession({ headers: request.headers });
+  const sessionUser = session?.user;
   const betterAuthUserId =
-    typeof session?.user?.id === "string" ? session.user.id : null;
-  if (betterAuthUserId) {
+    typeof sessionUser?.id === "string" ? sessionUser.id : null;
+  if (sessionUser && betterAuthUserId) {
+    const aomiUser = await getOrCreateAomiUserForBetterAuthSession({
+      betterAuthUserId,
+      email: sessionUser.email,
+      emailVerified: sessionUser.emailVerified ?? undefined,
+      name: sessionUser.name,
+      avatarUrl: sessionUser.image,
+    });
     const user = await resolveOrCreateCanonicalUser({
       provider: "better_auth",
       subject: betterAuthUserId,
+      canonicalUserId: aomiUser.id,
     });
     return user.userId;
   }

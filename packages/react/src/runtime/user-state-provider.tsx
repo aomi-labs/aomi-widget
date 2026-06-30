@@ -8,7 +8,7 @@ import {
   type MutableRefObject,
   type ReactNode,
 } from "react";
-import type { AomiClient, UserState } from "@aomi-labs/client";
+import type { AomiClient, AomiThread, UserState } from "@aomi-labs/client";
 import { UserState as UserStateHelpers } from "@aomi-labs/client";
 
 import { useControl, type ControlState } from "../contexts/control-context";
@@ -23,6 +23,7 @@ import { SessionManager } from "./session-manager";
 
 const THREAD_PREFETCH_LIMIT = 5;
 const PREFETCH_IDLE_TIMEOUT_MS = 1500;
+const THREAD_LIST_AUTH_RETRY_DELAYS_MS = [250, 750, 1500] as const;
 
 type GlobalWithIdleCallback = typeof globalThis & {
   requestIdleCallback?: (
@@ -44,6 +45,21 @@ function scheduleBackgroundTask(task: () => void): () => void {
 
   const timeoutId = runtimeGlobal.setTimeout(task, 0);
   return () => runtimeGlobal.clearTimeout(timeoutId);
+}
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    globalThis.setTimeout(resolve, ms);
+  });
+}
+
+function getHttpStatus(error: unknown): number | undefined {
+  const status = (error as { status?: unknown })?.status;
+  if (typeof status === "number") return status;
+
+  const message = error instanceof Error ? error.message : String(error);
+  const match = /\bHTTP\s+(\d{3})\b/i.exec(message);
+  return match ? Number(match[1]) : undefined;
 }
 
 type RuntimeUserStateProviderProps = {
@@ -261,6 +277,31 @@ function useRemoteThreadListSync(
   } = remoteThreads;
   const isConnected = UserStateHelpers.isConnected(user) === true;
 
+  const listThreadsWithAuthRetry = useCallback(
+    async (sessionId: string, isCancelled: () => boolean) => {
+      let attempt = 0;
+
+      for (;;) {
+        try {
+          return await aomiClientRef.current.listThreads(sessionId);
+        } catch (error) {
+          const retryDelay = THREAD_LIST_AUTH_RETRY_DELAYS_MS[attempt];
+          if (
+            isCancelled() ||
+            getHttpStatus(error) !== 401 ||
+            retryDelay === undefined
+          ) {
+            throw error;
+          }
+
+          attempt += 1;
+          await delay(retryDelay);
+        }
+      }
+    },
+    [aomiClientRef],
+  );
+
   const scheduleThreadPrefetch = useCallback(
     (threadIds: string[]) => {
       prefetchCancelRef.current?.();
@@ -341,8 +382,10 @@ function useRemoteThreadListSync(
           getControlState().clientId,
           currentContext.currentThreadId,
         );
-        const threadList =
-          await aomiClientRef.current.listThreads(controlSessionId);
+        const threadList: AomiThread[] = await listThreadsWithAuthRetry(
+          controlSessionId,
+          () => cancelled,
+        );
         if (cancelled) return;
 
         const remoteThreadIds = new Set<string>();
@@ -428,6 +471,7 @@ function useRemoteThreadListSync(
     closeAllSessions,
     ensureInitialState,
     getControlState,
+    listThreadsWithAuthRetry,
     remoteThreadIdsRef,
     scheduleThreadPrefetch,
     sessionManager,

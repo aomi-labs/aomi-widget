@@ -18,7 +18,10 @@ function normalizeBackendUrl(url: string): string {
 }
 
 function generateSessionId(): string {
-  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+  if (
+    typeof crypto !== "undefined" &&
+    typeof crypto.randomUUID === "function"
+  ) {
     return crypto.randomUUID();
   }
   return `settings-${Date.now()}-${Math.random().toString(16).slice(2)}`;
@@ -43,6 +46,12 @@ export function getBackendUrl(): string {
   return normalizeBackendUrl(
     process.env.NEXT_PUBLIC_BACKEND_URL ?? DEFAULT_BACKEND_URL,
   );
+}
+
+function joinApiPath(baseUrl: string, path: string): string {
+  const normalizedBase = baseUrl === "/" ? "" : baseUrl.replace(/\/+$/, "");
+  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
+  return `${normalizedBase}${normalizedPath}` || normalizedPath;
 }
 
 export function getSettingsSecret(): string | null {
@@ -77,10 +86,11 @@ export async function settingsApiFetch<T>(
   options?: RequestInit & { secret?: string | null },
 ): Promise<T> {
   const { secret, ...requestInit } = options ?? {};
-  const url = `${getBackendUrl()}${path}`;
+  const url = joinApiPath(getBackendUrl(), path);
   const headers = new Headers(requestInit.headers ?? {});
   headers.set("X-Session-Id", getSettingsSessionId());
-  const resolvedSecret = secret === undefined ? getSettingsSecret() : secret?.trim() || null;
+  const resolvedSecret =
+    secret === undefined ? getSettingsSecret() : secret?.trim() || null;
   if (resolvedSecret) {
     headers.set("AOMI-APP-KEY", resolvedSecret);
   }

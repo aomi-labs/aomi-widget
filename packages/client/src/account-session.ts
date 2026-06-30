@@ -22,18 +22,25 @@ export type AccountSessionExchangeResponse = {
 };
 
 export type BetterAuthTokenResponse = {
-  token: string;
+  /** Better Auth jwt() plugin shape. Kept for compatibility with older BFFs. */
+  token?: string;
+  /** Aomi BFF AccountBearer shape from /api/bff/auth/token. */
+  bearer?: string;
+  expires_at?: number;
+  expiresAt?: number;
+  user_id?: string;
+  userId?: string;
 };
 
 export type BetterAuthAccountTokenSourceOptions = {
   /**
-   * Off by default until the Rust backend validates Better Auth JWTs by JWKS.
-   * Current production backends still expect the legacy account-session bearer.
+   * Off by default so existing deployments stay on legacy provider exchange
+   * unless they explicitly opt into a BFF-minted backend bearer.
    */
   enabled?: boolean;
   /** Portal/auth origin. Defaults to `baseUrl` when omitted. */
   baseUrl?: string;
-  /** Better Auth token endpoint under the auth origin. */
+  /** BFF backend bearer endpoint under the auth origin. */
   tokenPath?: string;
   /**
    * When enabled, a missing Better Auth cookie can be created by exchanging the
@@ -59,7 +66,7 @@ export type AccountAccessTokenProvider = GetAccountAccessToken & {
 
 const DEFAULT_REFRESH_BEFORE_EXPIRY_MS = 2 * 60 * 1000;
 const FAILURE_COOLDOWN_MS = 30 * 1000;
-const DEFAULT_BETTER_AUTH_TOKEN_PATH = "/api/auth/token";
+const DEFAULT_BETTER_AUTH_TOKEN_PATH = "/api/bff/auth/token";
 const DEFAULT_BETTER_AUTH_PROVIDER_EXCHANGE_PATH =
   "/api/auth/aomi/provider/exchange";
 
@@ -246,25 +253,37 @@ function joinUrl(baseUrl: string, path: string): string {
 function normalizeBetterAuthTokenResponse(
   response: BetterAuthTokenResponse,
 ): AccountSessionExchangeResponse {
-  if (!response.token) {
+  const token =
+    typeof response.bearer === "string" && response.bearer
+      ? response.bearer
+      : typeof response.token === "string" && response.token
+        ? response.token
+        : "";
+  if (!token) {
     throw new Error("Better Auth token response is missing token");
   }
-  const payload = decodeJwtPayload(response.token);
-  const expiresAt = Number(payload.exp);
+  const payload = decodeJwtPayload(token);
+  const expiresAt = Number(
+    response.expires_at ?? response.expiresAt ?? payload.exp,
+  );
   if (!Number.isFinite(expiresAt) || expiresAt <= 0) {
     throw new Error("Better Auth token is missing a valid exp claim");
   }
   const userId =
-    typeof payload.aomi_user_id === "string" && payload.aomi_user_id
-      ? payload.aomi_user_id
-      : typeof payload.sub === "string"
-        ? payload.sub
-        : "";
+    typeof response.user_id === "string" && response.user_id
+      ? response.user_id
+      : typeof response.userId === "string" && response.userId
+        ? response.userId
+        : typeof payload.aomi_user_id === "string" && payload.aomi_user_id
+          ? payload.aomi_user_id
+          : typeof payload.sub === "string"
+            ? payload.sub
+            : "";
   if (!userId) {
     throw new Error("Better Auth token is missing a user id claim");
   }
   return {
-    access_token: response.token,
+    access_token: token,
     token_type: "Bearer",
     expires_at: expiresAt,
     user_id: userId,

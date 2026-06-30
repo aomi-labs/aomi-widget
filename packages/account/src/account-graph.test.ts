@@ -22,7 +22,10 @@ class FakeClient {
     if (sql.includes("from auth_identities")) {
       return this.opts.selectResponses.shift() ?? { rows: [] };
     }
-    if (sql.includes("insert into auth_identities") && this.opts.identityInsertError) {
+    if (
+      sql.includes("insert into auth_identities") &&
+      this.opts.identityInsertError
+    ) {
       throw this.opts.identityInsertError;
     }
     return { rows: [] };
@@ -101,7 +104,55 @@ describe("resolveOrCreateCanonicalUser", () => {
     );
     expect(result.userId).not.toBe("did:privy:new");
     expect(client.calls).toContain("begin");
-    expect(client.calls.some((c) => c.startsWith("insert into users"))).toBe(true);
+    expect(client.calls.some((c) => c.startsWith("insert into users"))).toBe(
+      true,
+    );
+    expect(client.calls).toContain("commit");
+  });
+
+  it("uses a provided Aomi account id as the backend user id", async () => {
+    const client = new FakeClient({ selectResponses: [{ rows: [] }] });
+    mockPoolWith(client);
+    const { resolveOrCreateCanonicalUser } = await loadModule();
+
+    const result = await resolveOrCreateCanonicalUser({
+      provider: "better_auth",
+      subject: "better-user-1",
+      canonicalUserId: "aomi-account-1",
+    });
+
+    expect(result).toEqual({ userId: "aomi-account-1", created: true });
+    expect(client.calls).toContain("begin");
+    expect(client.calls.some((c) => c.startsWith("insert into users"))).toBe(
+      true,
+    );
+    expect(
+      client.calls.some((c) => c.startsWith("insert into auth_identities")),
+    ).toBe(true);
+    expect(client.calls).toContain("commit");
+  });
+
+  it("rebinds an existing Better Auth identity to the provided Aomi account id", async () => {
+    const client = new FakeClient({
+      selectResponses: [{ rows: [{ user_id: "old-backend-user" }] }],
+    });
+    mockPoolWith(client);
+    const { resolveOrCreateCanonicalUser } = await loadModule();
+
+    const result = await resolveOrCreateCanonicalUser({
+      provider: "better_auth",
+      subject: "better-user-1",
+      canonicalUserId: "aomi-account-1",
+    });
+
+    expect(result).toEqual({ userId: "aomi-account-1", created: false });
+    expect(client.calls).toContain("begin");
+    expect(client.calls.some((c) => c.startsWith("insert into users"))).toBe(
+      true,
+    );
+    expect(
+      client.calls.some((c) => c.startsWith("update auth_identities")),
+    ).toBe(true);
     expect(client.calls).toContain("commit");
   });
 
@@ -122,6 +173,28 @@ describe("resolveOrCreateCanonicalUser", () => {
 
     expect(result).toEqual({ userId: "u-winner", created: false });
     expect(client.calls).toContain("rollback");
+    expect(client.released).toBe(true);
+  });
+
+  it("rebinds a concurrent Better Auth winner to the provided Aomi account id", async () => {
+    const client = new FakeClient({
+      selectResponses: [{ rows: [] }, { rows: [{ user_id: "race-winner" }] }],
+      identityInsertError: { code: "23505" },
+    });
+    mockPoolWith(client);
+    const { resolveOrCreateCanonicalUser } = await loadModule();
+
+    const result = await resolveOrCreateCanonicalUser({
+      provider: "better_auth",
+      subject: "better-user-1",
+      canonicalUserId: "aomi-account-1",
+    });
+
+    expect(result).toEqual({ userId: "aomi-account-1", created: false });
+    expect(client.calls).toContain("rollback");
+    expect(
+      client.calls.some((c) => c.startsWith("update auth_identities")),
+    ).toBe(true);
     expect(client.released).toBe(true);
   });
 
@@ -173,7 +246,9 @@ describe("resolveOrCreateByWallet", () => {
       /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/,
     );
     expect(client.calls).toContain("begin");
-    expect(client.calls.some((c) => c.startsWith("insert into users"))).toBe(true);
+    expect(client.calls.some((c) => c.startsWith("insert into users"))).toBe(
+      true,
+    );
     expect(
       client.calls.some((c) => c.startsWith("insert into auth_identities")),
     ).toBe(true);
