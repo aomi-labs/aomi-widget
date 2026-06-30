@@ -56,6 +56,20 @@ export interface DeploymentClientOptions {
   onAudit?: (event: AuditEvent) => void | Promise<void>;
 }
 
+export interface ServerTagsResult {
+  serverTags: string[];
+  sdkVersion: string;
+}
+
+export interface SdkVersionStatus {
+  requiredVersion: string;
+  projectVersion?: string | null;
+  lockfileVersion?: string | null;
+  cliVersion?: string | null;
+  status: "unknown" | "matching" | "outdated" | "loose" | "missing";
+  fixCommand?: string | null;
+}
+
 /** Immutable git commit SHA accepted by the platform deploy backend. */
 export type SourceRef = string;
 
@@ -86,6 +100,7 @@ export interface DeployResult {
 export interface DeployPayload {
   id: string;
   status: DeployStatus | string;
+  sdkVersion?: string | null;
   source: Source;
   platform: Platform;
 }
@@ -118,6 +133,7 @@ export interface AppRecord {
   path: string;
   aomiTomlPath: string;
   releaseTag: string;
+  sdkVersion?: string | null;
   target?: string | null;
   files: AppFileRecord[];
 }
@@ -441,4 +457,80 @@ export interface UserSourceLatestDeployment {
 export interface UserSource extends AppSource {
   apps: PlatformApp[];
   latestDeployment?: UserSourceLatestDeployment | null;
+}
+
+// =============================================================================
+// Deployment-management surface. These types are shared by the standalone
+// dashboard/TUI work while the current launch routes remain compatible.
+// =============================================================================
+
+export interface DeploymentProject {
+  id: number;
+  platform: string;
+  source: AppSource;
+  apps: PlatformApp[];
+  activeReleaseTags: string[];
+  latestDeployment?: DeploymentRecord | null;
+  sdkStatus?: SdkVersionStatus | null;
+}
+
+export interface DeploymentRecord {
+  id: string;
+  platform: string;
+  appSourceId: number;
+  sourceRef: string | null;
+  commitHash: string | null;
+  state: DeploymentStatus["state"] | string | null;
+  ciStatus: string | null;
+  ciUrl: string | null;
+  releaseTags: string[];
+  sdkVersion?: string | null;
+  target?: string | null;
+  createdAt?: string | null;
+  activatedAt?: string | null;
+  apps: DeploymentRecordApp[];
+}
+
+export interface DeploymentRecordApp {
+  name: string;
+  releaseTag: string | null;
+  sdkVersion?: string | null;
+  target?: string | null;
+  isActive?: boolean;
+  loaded?: boolean;
+}
+
+export interface RedactedDeploymentSecret {
+  name: string;
+  app?: string | null;
+  scope: "user_app" | "user" | "project" | string;
+  configured: boolean;
+  updatedAt?: string | null;
+}
+
+export interface RedactedDeploymentEnvVar {
+  name: string;
+  app?: string | null;
+  scope: "app" | "project" | string;
+  configured: boolean;
+  updatedAt?: string | null;
+}
+
+export interface RollbackInput {
+  platform: string;
+  appSourceId: number;
+  deploymentId: string;
+  apps?: string[];
+  actor?: string;
+}
+
+export interface RollbackResult {
+  ok: boolean;
+  rollback: {
+    deploymentId: string;
+    releaseTags: string[];
+    status: "rolled_back" | "blocked" | string;
+    sdkStatus?: SdkVersionStatus | null;
+    activation?: ActivateResult["activation"];
+  };
 }

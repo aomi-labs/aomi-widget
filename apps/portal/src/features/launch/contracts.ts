@@ -2,6 +2,7 @@ import type {
   ActivateResult,
   DeployPayload,
   DeploymentStatus,
+  SdkVersionStatus,
 } from "@aomi-labs/deploy";
 
 // One-click is the only launch path: the portal forks the template and deploys
@@ -96,4 +97,10 @@ export type LaunchRedeployResult = {
   platformRepo: string;
   ciRunId: string;
   ciUrl: string;
+};
+
+export type LaunchSdkStatus = {
+  ok: boolean;
+  serverTags: string[];
+  sdkStatus: SdkVersionStatus;
 };

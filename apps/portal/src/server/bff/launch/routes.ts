@@ -437,6 +437,30 @@ export async function launchAppRoute(req: Request) {
   }
 }
 
+export async function launchSdkStatusRoute(req: Request) {
+  const blocked = checkRead(req);
+  if (blocked) return blocked;
+
+  try {
+    const client = await deploymentClient();
+    const status = await client.serverTags();
+    const requiredVersion = status.sdkVersion;
+    return NextResponse.json({
+      ok: true,
+      serverTags: status.serverTags,
+      sdkStatus: {
+        requiredVersion,
+        status: requiredVersion ? "unknown" : "missing",
+        fixCommand: requiredVersion
+          ? `aomi-build sdk fix --backend ${new URL(req.url).origin}`
+          : null,
+      },
+    });
+  } catch (err) {
+    return launchErrorResponse(err);
+  }
+}
+
 function ciRunIdFromUrl(url: string | null | undefined): string | null {
   if (!url) return null;
   const match = url.match(/\/actions\/runs\/(\d+)(?:\/|$)/);

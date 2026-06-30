@@ -10,6 +10,7 @@ import {
   type LaunchDeployResult,
   type LaunchPreflightInput,
   type LaunchRedeployResult,
+  type LaunchSdkStatus,
   type LaunchStatus,
 } from "./contracts";
 import { normalizeRepo } from "./state";
@@ -91,7 +92,14 @@ export function launchCreateRepo(input: {
 }
 
 export function launchStatus(deploymentId: string): Promise<LaunchStatus> {
-  return launchFetch(API_PATHS.bff.launch.status(deploymentId), "launch status");
+  return launchFetch(
+    API_PATHS.bff.launch.status(deploymentId),
+    "launch status",
+  );
+}
+
+export function launchSdkStatus(): Promise<LaunchSdkStatus> {
+  return launchFetch(API_PATHS.bff.launch.sdkStatus, "launch SDK status");
 }
 
 export function launchActivate(input: {
@@ -111,4 +119,3 @@ export function launchAppStatus(input: {
     "launch app status",
   );
 }
-
