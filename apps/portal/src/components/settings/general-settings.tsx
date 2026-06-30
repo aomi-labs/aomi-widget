@@ -22,7 +22,6 @@ import {
   settingsSubTitleClass,
   settingsTitleClass,
 } from "./settings-styles";
-import { shouldUseBetterAuthBackendJwt } from "@portal/lib/backend-auth";
 
 type AccountProfile = {
   user_id: string;
@@ -72,7 +71,6 @@ export function GeneralSettings() {
     return createAccountAccessTokenProvider({
       baseUrl: getBackendUrl(),
       betterAuthToken: {
-        enabled: shouldUseBetterAuthBackendJwt(),
         baseUrl: "",
       },
       getProviderCredential: async () => {

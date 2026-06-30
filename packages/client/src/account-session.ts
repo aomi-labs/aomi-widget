@@ -22,8 +22,6 @@ export type AccountSessionExchangeResponse = {
 };
 
 export type BetterAuthTokenResponse = {
-  /** Better Auth jwt() plugin shape. Kept for compatibility with older BFFs. */
-  token?: string;
   /** Aomi BFF AccountBearer shape from /api/bff/auth/token. */
   bearer?: string;
   expires_at?: number;
@@ -33,15 +31,8 @@ export type BetterAuthTokenResponse = {
 };
 
 export type BetterAuthAccountTokenSourceOptions = {
-  /**
-   * Off by default so existing deployments stay on legacy provider exchange
-   * unless they explicitly opt into a BFF-minted backend bearer.
-   */
-  enabled?: boolean;
   /** Portal/auth origin. Defaults to `baseUrl` when omitted. */
   baseUrl?: string;
-  /** BFF backend bearer endpoint under the auth origin. */
-  tokenPath?: string;
   /**
    * When enabled, a missing Better Auth cookie can be created by exchanging the
    * connected wallet provider credential. Disable this when another account
@@ -100,11 +91,10 @@ export function createAccountAccessTokenProvider({
 
   const fetchBetterAuthToken =
     async (): Promise<AccountSessionExchangeResponse | null> => {
-      if (!betterAuthToken?.enabled) return null;
       const response = await fetchImpl(
         joinUrl(
-          betterAuthToken.baseUrl ?? baseUrl,
-          betterAuthToken.tokenPath ?? DEFAULT_BETTER_AUTH_TOKEN_PATH,
+          betterAuthToken?.baseUrl ?? baseUrl,
+          DEFAULT_BETTER_AUTH_TOKEN_PATH,
         ),
         {
           method: "GET",
@@ -120,8 +110,7 @@ export function createAccountAccessTokenProvider({
   const exchangeBetterAuthProviderCredential =
     async (): Promise<AccountSessionExchangeResponse | null> => {
       if (
-        !betterAuthToken?.enabled ||
-        betterAuthToken.providerExchange === false ||
+        betterAuthToken?.providerExchange === false ||
         !getProviderCredential
       ) {
         return null;
@@ -129,7 +118,7 @@ export function createAccountAccessTokenProvider({
       const credential = await getProviderCredential();
       const response = await fetchImpl(
         joinUrl(
-          betterAuthToken.baseUrl ?? baseUrl,
+          betterAuthToken?.baseUrl ?? baseUrl,
           DEFAULT_BETTER_AUTH_PROVIDER_EXCHANGE_PATH,
         ),
         {
@@ -146,40 +135,12 @@ export function createAccountAccessTokenProvider({
       return fetchBetterAuthToken();
     };
 
-  const exchangeProviderCredential =
-    async (): Promise<AccountSessionExchangeResponse> => {
-      if (!getProviderCredential) {
-        throw new Error("No account credential source is configured");
-      }
-      const credential = await getProviderCredential();
-      const response = await fetchImpl(
-        joinUrl(baseUrl, "/api/account/sessions/exchange"),
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            provider: credential.provider,
-            provider_token: credential.providerToken,
-          }),
-        },
-      );
-      if (!response.ok) {
-        throw new Error(
-          `Failed to exchange account credential: HTTP ${response.status}`,
-        );
-      }
-      return (await response.json()) as AccountSessionExchangeResponse;
-    };
-
   const exchange = async (): Promise<AccountSessionExchangeResponse> => {
     const betterAuthJwt = await fetchBetterAuthToken();
     if (betterAuthJwt) return betterAuthJwt;
     const exchangedBetterAuthJwt = await exchangeBetterAuthProviderCredential();
     if (exchangedBetterAuthJwt) return exchangedBetterAuthJwt;
-    if (betterAuthToken?.enabled) {
-      throw new Error("Failed to exchange Better Auth provider credential");
-    }
-    return exchangeProviderCredential();
+    throw new Error("Failed to exchange Better Auth provider credential");
   };
 
   const getAccountAccessToken: AccountAccessTokenProvider = async ({
@@ -196,8 +157,7 @@ export function createAccountAccessTokenProvider({
     // verification 403s on issueJwt) or the exchange fails, resolve to no token
     // so the caller's request proceeds unauthenticated instead of erroring.
     // A short cooldown prevents every backend poll from re-triggering a failing
-    // exchange. Legacy backends may still force-refresh after a 401; Better
-    // Auth mode keeps the cooldown because its provider exchange is also local.
+    // exchange. Callers may still force-refresh after a 401.
     if (
       failedAt !== null &&
       now() - failedAt < FAILURE_COOLDOWN_MS &&
@@ -256,29 +216,34 @@ function normalizeBetterAuthTokenResponse(
   const token =
     typeof response.bearer === "string" && response.bearer
       ? response.bearer
-      : typeof response.token === "string" && response.token
-        ? response.token
-        : "";
+      : "";
   if (!token) {
     throw new Error("Better Auth token response is missing token");
   }
-  const payload = decodeJwtPayload(token);
+  let payload: Record<string, unknown> | null = null;
+  const getPayload = () => {
+    payload ??= decodeJwtPayload(token);
+    return payload;
+  };
   const expiresAt = Number(
-    response.expires_at ?? response.expiresAt ?? payload.exp,
+    response.expires_at ?? response.expiresAt ?? getPayload().exp,
   );
   if (!Number.isFinite(expiresAt) || expiresAt <= 0) {
     throw new Error("Better Auth token is missing a valid exp claim");
   }
+  const getPayloadUserId = () => {
+    const claims = getPayload();
+    if (typeof claims.aomi_user_id === "string" && claims.aomi_user_id) {
+      return claims.aomi_user_id;
+    }
+    return typeof claims.sub === "string" ? claims.sub : "";
+  };
   const userId =
     typeof response.user_id === "string" && response.user_id
       ? response.user_id
       : typeof response.userId === "string" && response.userId
         ? response.userId
-        : typeof payload.aomi_user_id === "string" && payload.aomi_user_id
-          ? payload.aomi_user_id
-          : typeof payload.sub === "string"
-            ? payload.sub
-            : "";
+        : getPayloadUserId();
   if (!userId) {
     throw new Error("Better Auth token is missing a user id claim");
   }

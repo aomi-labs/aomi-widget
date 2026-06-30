@@ -26,7 +26,11 @@ function okResponse(body: AccountSessionExchangeResponse) {
   return {
     ok: true,
     status: 200,
-    json: async () => body,
+    json: async () => ({
+      bearer: body.access_token,
+      expires_at: body.expires_at,
+      user_id: body.user_id,
+    }),
   } as unknown as Response;
 }
 
@@ -58,7 +62,7 @@ describe("createAccountAccessTokenProvider", () => {
     vi.useRealTimers();
   });
 
-  it("exchanges the provider credential for an Aomi bearer with the correct contract", async () => {
+  it("fetches the BFF-minted Aomi bearer with the correct contract", async () => {
     const fetchImpl = vi.fn(async () => okResponse(exchangeResponse()));
     const getProviderCredential = vi.fn(async () => ({
       provider: "privy" as const,
@@ -77,13 +81,15 @@ describe("createAccountAccessTokenProvider", () => {
 
     expect(fetchImpl).toHaveBeenCalledTimes(1);
     const [url, init] = fetchImpl.mock.calls[0];
-    expect(url).toBe(`${BASE_URL}/api/account/sessions/exchange`);
-    expect(init?.method).toBe("POST");
-    // Maps camelCase providerToken -> snake_case provider_token at the boundary.
-    expect(JSON.parse(init?.body as string)).toEqual({
-      provider: "privy",
-      provider_token: "privy-jwt",
-    });
+    expect(url).toBe(`${BASE_URL}/api/bff/auth/token`);
+    expect(init).toEqual(
+      expect.objectContaining({
+        method: "GET",
+        credentials: "include",
+        headers: { Accept: "application/json" },
+      }),
+    );
+    expect(getProviderCredential).not.toHaveBeenCalled();
 
     provider.dispose();
   });
@@ -111,7 +117,6 @@ describe("createAccountAccessTokenProvider", () => {
     const provider = createAccountAccessTokenProvider({
       baseUrl: BASE_URL,
       betterAuthToken: {
-        enabled: true,
         baseUrl: "https://portal.aomi.dev",
       },
       getProviderCredential,
@@ -127,40 +132,6 @@ describe("createAccountAccessTokenProvider", () => {
         method: "GET",
         credentials: "include",
       }),
-    );
-
-    provider.dispose();
-  });
-
-  it("still supports the older Better Auth jwt() token endpoint shape", async () => {
-    const token = jwtWithPayload({
-      sub: "better-user-1",
-      exp: 4600,
-    });
-    const fetchImpl = vi.fn(async () => okJsonResponse({ token }));
-    const getProviderCredential = vi.fn(async () => ({
-      provider: "privy" as const,
-      providerToken: "privy-jwt",
-    }));
-
-    const provider = createAccountAccessTokenProvider({
-      baseUrl: BASE_URL,
-      betterAuthToken: {
-        enabled: true,
-        baseUrl: "https://portal.aomi.dev",
-        tokenPath: "/api/auth/token",
-        providerExchange: false,
-      },
-      getProviderCredential,
-      fetch: fetchImpl as unknown as typeof fetch,
-      now,
-    });
-
-    await expect(provider()).resolves.toBe(token);
-    expect(getProviderCredential).not.toHaveBeenCalled();
-    expect(fetchImpl).toHaveBeenCalledWith(
-      "https://portal.aomi.dev/api/auth/token",
-      expect.objectContaining({ method: "GET" }),
     );
 
     provider.dispose();
@@ -198,7 +169,6 @@ describe("createAccountAccessTokenProvider", () => {
     const provider = createAccountAccessTokenProvider({
       baseUrl: BASE_URL,
       betterAuthToken: {
-        enabled: true,
         baseUrl: "https://portal.aomi.dev",
       },
       getProviderCredential,
@@ -249,7 +219,6 @@ describe("createAccountAccessTokenProvider", () => {
     const provider = createAccountAccessTokenProvider({
       baseUrl: BASE_URL,
       betterAuthToken: {
-        enabled: true,
         baseUrl: "https://portal.aomi.dev",
         providerExchange: false,
       },
@@ -388,7 +357,11 @@ describe("createAccountAccessTokenProvider", () => {
   it("degrades to no token when the wallet cannot mint a credential (Para 403)", async () => {
     // Mirrors Para issueJwtAsync() rejecting with 403 "user must verify
     // biometrics or external wallets" before verification is complete.
-    const fetchImpl = vi.fn();
+    const fetchImpl = vi.fn(async () => ({
+      ok: false,
+      status: 401,
+      json: async () => ({}),
+    }));
     const getProviderCredential = vi.fn(async () => {
       throw new Error(
         "ParaApiError: user must verify biometrics or external wallets",
@@ -402,8 +375,8 @@ describe("createAccountAccessTokenProvider", () => {
     });
 
     await expect(provider()).resolves.toBeUndefined();
-    // Never reached the exchange HTTP call.
-    expect(fetchImpl).not.toHaveBeenCalled();
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+    expect(getProviderCredential).toHaveBeenCalledTimes(1);
 
     provider.dispose();
   });
@@ -412,10 +385,15 @@ describe("createAccountAccessTokenProvider", () => {
     const getProviderCredential = vi.fn(async () => {
       throw new Error("403");
     });
+    const fetchImpl = vi.fn(async () => ({
+      ok: false,
+      status: 401,
+      json: async () => ({}),
+    }));
     const provider = createAccountAccessTokenProvider({
       baseUrl: BASE_URL,
       getProviderCredential,
-      fetch: vi.fn() as unknown as typeof fetch,
+      fetch: fetchImpl as unknown as typeof fetch,
       now,
     });
 
@@ -425,6 +403,7 @@ describe("createAccountAccessTokenProvider", () => {
     nowMs += 1_000;
     await expect(provider()).resolves.toBeUndefined();
     expect(getProviderCredential).toHaveBeenCalledTimes(1);
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
 
     provider.dispose();
   });
@@ -438,9 +417,22 @@ describe("createAccountAccessTokenProvider", () => {
       }
       return { provider: "para" as const, providerToken: "ready-now" };
     });
-    const fetchImpl = vi.fn(async () =>
-      okResponse(exchangeResponse({ access_token: "token-A" })),
-    );
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 401,
+        json: async () => ({}),
+      } as Response)
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 401,
+        json: async () => ({}),
+      } as Response)
+      .mockResolvedValueOnce(okJsonResponse({ status: "linked" }))
+      .mockResolvedValueOnce(
+        okResponse(exchangeResponse({ access_token: "token-A" })),
+      );
     const provider = createAccountAccessTokenProvider({
       baseUrl: BASE_URL,
       getProviderCredential,
@@ -452,7 +444,7 @@ describe("createAccountAccessTokenProvider", () => {
     nowMs += 1_000;
     await expect(provider()).resolves.toBe("token-A");
     expect(getProviderCredential).toHaveBeenCalledTimes(2);
-    expect(fetchImpl).toHaveBeenCalledTimes(1);
+    expect(fetchImpl).toHaveBeenCalledTimes(4);
 
     provider.dispose();
   });
@@ -464,9 +456,22 @@ describe("createAccountAccessTokenProvider", () => {
       if (attempt === 1) throw new Error("403");
       return { provider: "para" as const, providerToken: "now-verified" };
     });
-    const fetchImpl = vi.fn(async () =>
-      okResponse(exchangeResponse({ access_token: "token-A" })),
-    );
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 401,
+        json: async () => ({}),
+      } as Response)
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 401,
+        json: async () => ({}),
+      } as Response)
+      .mockResolvedValueOnce(okJsonResponse({ status: "linked" }))
+      .mockResolvedValueOnce(
+        okResponse(exchangeResponse({ access_token: "token-A" })),
+      );
     const provider = createAccountAccessTokenProvider({
       baseUrl: BASE_URL,
       getProviderCredential,
@@ -512,7 +517,7 @@ describe("createAccountAccessTokenProvider", () => {
       );
     const provider = createAccountAccessTokenProvider({
       baseUrl: BASE_URL,
-      betterAuthToken: { enabled: true },
+      betterAuthToken: {},
       getProviderCredential,
       fetch: fetchImpl as unknown as typeof fetch,
       now,

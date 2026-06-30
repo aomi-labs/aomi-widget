@@ -8,7 +8,6 @@ import {
 import { Input, useAomiWalletKit } from "@aomi-labs/widget-lib";
 import { getBackendUrl, settingsApiFetch } from "@portal/lib/settings-api";
 import { defaultUsageDateRange } from "@portal/lib/usage-range";
-import { shouldUseBetterAuthBackendJwt } from "@portal/lib/backend-auth";
 import {
   settingsBodyTextClass,
   settingsCardStackClass,
@@ -70,7 +69,6 @@ export function AppsSettings() {
     return createAccountAccessTokenProvider({
       baseUrl: getBackendUrl(),
       betterAuthToken: {
-        enabled: shouldUseBetterAuthBackendJwt(),
         baseUrl: "",
       },
       getProviderCredential: async () => {
