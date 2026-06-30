@@ -7,7 +7,6 @@ import {
 } from "@aomi-labs/client";
 import { Button, Input, useAomiWalletKit } from "@aomi-labs/widget-lib";
 import { getBackendUrl, settingsApiFetch } from "@portal/lib/settings-api";
-import { shouldUseBetterAuthBackendJwt } from "@portal/lib/backend-auth";
 import {
   settingsActionRowClass,
   settingsBodyTextClass,
@@ -108,7 +107,6 @@ export function Bots() {
     return createAccountAccessTokenProvider({
       baseUrl: getBackendUrl(),
       betterAuthToken: {
-        enabled: shouldUseBetterAuthBackendJwt(),
         baseUrl: "",
       },
       getProviderCredential: async () => {

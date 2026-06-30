@@ -10,7 +10,6 @@ import {
 import { AomiFrame, useAomiWalletKit } from "@aomi-labs/widget-lib";
 import { type AomiClientOptions, useControl } from "@aomi-labs/react";
 import { RequiredSecretsGate } from "@portal/components/required-secrets-gate";
-import { shouldUseBetterAuthBackendJwt } from "@portal/lib/backend-auth";
 import { x402Client } from "@x402/core/client";
 import { ExactEvmScheme } from "@x402/evm/exact/client";
 import { wrapFetchWithPayment } from "@x402/fetch";
@@ -45,7 +44,6 @@ function usePortalClientOptions():
     return createAccountAccessTokenProvider({
       baseUrl: backendUrl,
       betterAuthToken: {
-        enabled: shouldUseBetterAuthBackendJwt(),
         baseUrl: "",
       },
       getProviderCredential: async () => {

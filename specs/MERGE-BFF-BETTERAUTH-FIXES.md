@@ -59,26 +59,26 @@
 > `resolveOrCreateCanonicalUser` → `mintAccountBearer` (mesh) → proxy-inject → backend verify.
 
 ### 2.1 Delete the dead JWKS minter
-- [ ] Remove `jwt(createAomiBackendJwtOptions(env))` from the plugins array in [`packages/auth/src/better-auth/auth.ts:37`](../packages/auth/src/better-auth/auth.ts).
-- [ ] Delete [`packages/auth/src/better-auth/backend-jwt.ts`](../packages/auth/src/better-auth/backend-jwt.ts) + `backend-jwt.test.ts` + its re-exports in `better-auth/index.ts`.
-- [ ] Drop the now-unused `backendJwt*` fields (issuer/audience/expiresIn/jwksPath/scope) from `better-auth/env.ts` and their env reads.
-- [ ] Grep-confirm zero references to `/api/auth/token` / `jwks` remain in `apps/` + `packages/` (except docs).
-- [ ] Verify: `pnpm --filter @aomi-labs/auth type-check` + `pnpm exec vitest run packages/auth`.
+- [x] Remove `jwt(createAomiBackendJwtOptions(env))` from the plugins array in [`packages/auth/src/better-auth/auth.ts:37`](../packages/auth/src/better-auth/auth.ts).
+- [x] Delete [`packages/auth/src/better-auth/backend-jwt.ts`](../packages/auth/src/better-auth/backend-jwt.ts) + `backend-jwt.test.ts` + its re-exports in `better-auth/index.ts`.
+- [x] Drop the now-unused `backendJwt*` fields (issuer/audience/expiresIn/jwksPath/scope) from `better-auth/env.ts` and their env reads.
+- [x] Grep-confirm zero references to `/api/auth/token` / `jwks` remain in `apps/` + `packages/` (except docs).
+- [x] Verify: `pnpm --filter @aomi-labs/auth type-check` + `pnpm exec vitest run packages/auth`.
 
 ### 2.2 Delete the legacy auth mode
-- [ ] Delete [`apps/portal/src/lib/backend-auth.ts`](../apps/portal/src/lib/backend-auth.ts) (the `NEXT_PUBLIC_AOMI_AUTH_MODE` switch).
-- [ ] At the 5 call sites (`portal-aomi-frame.tsx:48`, `settings/bots.tsx:111`, `general-settings.tsx:75`, `apps-settings.tsx:73`, `app-keys.tsx:89`) hardcode the better-auth path (drop `shouldUseBetterAuthBackendJwt()`).
-- [ ] Delete the now-dead `exchangeProviderCredential()` legacy branch in [`packages/client/src/account-session.ts`](../packages/client/src/account-session.ts) (~149-172) and simplify `exchange()` to the better-auth path.
-- [ ] Verify: `pnpm --filter portal exec tsc --noEmit` + `pnpm exec vitest run packages/client`.
+- [x] Delete [`apps/portal/src/lib/backend-auth.ts`](../apps/portal/src/lib/backend-auth.ts) (the `NEXT_PUBLIC_AOMI_AUTH_MODE` switch).
+- [x] At the 5 call sites (`portal-aomi-frame.tsx:48`, `settings/bots.tsx:111`, `general-settings.tsx:75`, `apps-settings.tsx:73`, `app-keys.tsx:89`) hardcode the better-auth path (drop `shouldUseBetterAuthBackendJwt()`).
+- [x] Delete the now-dead `exchangeProviderCredential()` legacy branch in [`packages/client/src/account-session.ts`](../packages/client/src/account-session.ts) (~149-172) and simplify `exchange()` to the better-auth path.
+- [x] Verify: `pnpm --filter portal exec tsc --noEmit` + `pnpm exec vitest run packages/client`.
 
 ### 2.3 Delete the `packages/account` drop-ins (NOT the live path)
 > ⚠️ KEEP the live contract core. DELETE only the base/landing drop-ins + HS256 cookie helpers.
-- [ ] **KEEP:** `bearer.ts`, `proxy.ts`, `token.ts`, `topology.ts`, `topology-data.ts`, `db.ts`, `account-graph.ts::resolveOrCreateCanonicalUser` (+ its helpers `findUserIdBySubject`/`ensureBackendUser`/`rebindIdentityToCanonicalUser`/`isUniqueViolation`), and `session.ts::getSessionedCanonicalId` **(BetterAuth branch only)**.
-- [ ] **DELETE:** [`packages/account/src/exchange.ts`](../packages/account/src/exchange.ts), [`siwe.ts`](../packages/account/src/siwe.ts), [`providers.ts`](../packages/account/src/providers.ts) (+ their tests), and `account-graph.ts::resolveOrCreateByWallet` + `findUserIdByWallet`.
-- [ ] In `session.ts`: delete `issueSessionCookie` / `setSessionCookie` / `clearSessionCookie` / `readSessionCookie` and the **HS256 fallback branch** of `getSessionedCanonicalId` (the `authorization`/cookie tail, ~116-122) — the CLI now uses BetterAuth (§6), so the HS256 session is fully dead.
-- [ ] Update `packages/account/src/index.ts` to stop exporting the deleted symbols.
-- [ ] Grep-confirm no importers of the deleted symbols remain (esp. that `apps/base` / `apps/landing` in THIS repo don't import them; if they do, they move to BetterAuth too or this decision changes).
-- [ ] Verify: `pnpm --filter @aomi-labs/account type-check` + `pnpm exec vitest run packages/account`.
+- [x] **KEEP:** `bearer.ts`, `proxy.ts`, `token.ts`, `topology.ts`, `topology-data.ts`, `db.ts`, `account-graph.ts::resolveOrCreateCanonicalUser` (+ its helpers `findUserIdBySubject`/`ensureBackendUser`/`rebindIdentityToCanonicalUser`/`isUniqueViolation`), and `session.ts::getSessionedCanonicalId` **(BetterAuth branch only)**.
+- [x] **DELETE:** [`packages/account/src/exchange.ts`](../packages/account/src/exchange.ts), [`siwe.ts`](../packages/account/src/siwe.ts), [`providers.ts`](../packages/account/src/providers.ts) (+ their tests), and `account-graph.ts::resolveOrCreateByWallet` + `findUserIdByWallet`.
+- [x] In `session.ts`: delete `issueSessionCookie` / `setSessionCookie` / `clearSessionCookie` / `readSessionCookie` and the **HS256 fallback branch** of `getSessionedCanonicalId` (the `authorization`/cookie tail, ~116-122) — the CLI now uses BetterAuth (§6), so the HS256 session is fully dead.
+- [x] Update `packages/account/src/index.ts` to stop exporting the deleted symbols.
+- [x] Grep-confirm no importers of the deleted symbols remain (esp. that `apps/base` / `apps/landing` in THIS repo don't import them; if they do, they move to BetterAuth too or this decision changes).
+- [x] Verify: `pnpm --filter @aomi-labs/account type-check` + `pnpm exec vitest run packages/account`.
 
 ---
 

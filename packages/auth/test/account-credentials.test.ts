@@ -14,11 +14,6 @@ const baseEnv: AccountAuthEnv = {
   betterAuthSecret: "secret",
   betterAuthUrl: "http://localhost:3001",
   databaseUrl: "postgresql://postgres:postgres@localhost:5432/aomi_auth",
-  backendJwtIssuer: "http://localhost:3001",
-  backendJwtAudience: "aomi-backend",
-  backendJwtExpiresIn: "15m",
-  backendJwtJwksPath: "/.well-known/jwks.json",
-  backendJwtScope: "aomi:api",
   siweDomain: "localhost:3001",
   trustedOrigins: ["http://localhost:3001"],
 };

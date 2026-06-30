@@ -8,7 +8,6 @@
 
 export {
   resolveOrCreateCanonicalUser,
-  resolveOrCreateByWallet,
   type ResolveInput,
   type CanonicalUser,
 } from "./account-graph";
@@ -19,39 +18,10 @@ export {
   type MintedBearer,
 } from "./bearer";
 export { portalService } from "./topology";
-export {
-  SESSION_COOKIE,
-  issueSessionCookie,
-  readSessionCookie,
-  setSessionCookie,
-  getSessionedCanonicalId,
-  clearSessionCookie,
-} from "./session";
+export { getSessionedCanonicalId } from "./session";
 export {
   createBackendProxy,
   type ProxyConfig,
   type AllowedRoute,
 } from "./proxy";
-export {
-  createAuthExchangeRoute,
-  type ExchangeConfig,
-  type Provider,
-} from "./exchange";
 export { createBearerTokenRoute } from "./token";
-export {
-  verifyProviderCredential,
-  verifyPrivyToken,
-  verifyParaJwt,
-  ProviderCredentialError,
-  type AccountCredentialProvider,
-  type ProviderTokenCredential,
-  type VerifiedProviderToken,
-  type VerifiedProviderTokenCredential,
-  type ProviderCredentialVerifier,
-} from "./providers";
-export {
-  createSiweNonceRoute,
-  createSiweExchangeRoute,
-  verifySiweMessage,
-  type SiweConfig,
-} from "./siwe";

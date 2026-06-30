@@ -1,9 +1,8 @@
 import { betterAuth } from "better-auth";
 import { generateRandomString } from "better-auth/crypto";
 import { nextCookies } from "better-auth/next-js";
-import { bearer, jwt, siwe } from "better-auth/plugins";
+import { bearer, siwe } from "better-auth/plugins";
 import { pool } from "../db/pool";
-import { createAomiBackendJwtOptions } from "./backend-jwt";
 import { readAccountAuthEnv } from "./env";
 import { verifySiweMessage } from "./siwe";
 import { aomiProviderAuthPlugin } from "./provider-plugin";
@@ -34,7 +33,6 @@ export const auth = betterAuth({
       getNonce: async () => generateRandomString(32, "a-z", "A-Z", "0-9"),
       verifyMessage: verifySiweMessage,
     }),
-    jwt(createAomiBackendJwtOptions(env)),
     bearer(),
     aomiProviderAuthPlugin(),
     nextCookies(),

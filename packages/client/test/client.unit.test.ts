@@ -534,8 +534,7 @@ describe("createAccountAccessTokenProvider", () => {
       .mockResolvedValueOnce({
         ok: true,
         json: async () => ({
-          access_token: "token-1",
-          token_type: "Bearer",
+          bearer: "token-1",
           expires_at: now / 1000 + 15 * 60,
           user_id: "user-1",
         }),
@@ -543,8 +542,7 @@ describe("createAccountAccessTokenProvider", () => {
       .mockResolvedValueOnce({
         ok: true,
         json: async () => ({
-          access_token: "token-2",
-          token_type: "Bearer",
+          bearer: "token-2",
           expires_at: now / 1000 + 15 * 60,
           user_id: "user-1",
         }),
@@ -567,13 +565,10 @@ describe("createAccountAccessTokenProvider", () => {
     await expect(getAccountAccessToken()).resolves.toBe("token-2");
     expect(fetch).toHaveBeenCalledTimes(2);
     expect(fetch).toHaveBeenLastCalledWith(
-      "http://unit.test/api/account/sessions/exchange",
+      "http://unit.test/api/bff/auth/token",
       expect.objectContaining({
-        method: "POST",
-        body: JSON.stringify({
-          provider: "para",
-          provider_token: "provider-token",
-        }),
+        method: "GET",
+        credentials: "include",
       }),
     );
     getAccountAccessToken.dispose();
@@ -585,8 +580,7 @@ describe("createAccountAccessTokenProvider", () => {
     const fetch = vi.fn(async () => ({
       ok: true,
       json: async () => ({
-        access_token: `token-${fetch.mock.calls.length}`,
-        token_type: "Bearer",
+        bearer: `token-${fetch.mock.calls.length}`,
         expires_at: now / 1000 + 15 * 60,
         user_id: "user-1",
       }),
