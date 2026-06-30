@@ -14,7 +14,7 @@ export type EvmConnectionInput = {
   walletKind?: AomiAccount["walletKind"];
 };
 
-export type SolanaConnectionInput = {
+export type SvmConnectionInput = {
   id?: string;
   publicKey: string;
   walletName?: string;
@@ -33,8 +33,8 @@ export function buildAccounts(input: {
   evmConnections: readonly EvmConnectionInput[];
   activeEvmAddress?: string;
   activeEvmConnectionId?: string;
-  solanaConnections?: readonly SolanaConnectionInput[];
-  activeSolanaAddress?: string;
+  svmConnections?: readonly SvmConnectionInput[];
+  activeSvmAddress?: string;
 }): AomiAccount[] {
   const accounts: AomiAccount[] = [];
   const active = input.activeEvmAddress
@@ -79,11 +79,11 @@ export function buildAccounts(input: {
     });
   }
 
-  const seenSolana = new Set<string>();
-  for (const connection of input.solanaConnections ?? []) {
+  const seenSvm = new Set<string>();
+  for (const connection of input.svmConnections ?? []) {
     const key = walletKey("svm", connection.publicKey);
-    if (seenSolana.has(key)) continue;
-    seenSolana.add(key);
+    if (seenSvm.has(key)) continue;
+    seenSvm.add(key);
     accounts.push({
       id: connection.id ?? connection.walletName ?? connection.publicKey,
       family: "svm",
@@ -92,7 +92,7 @@ export function buildAccounts(input: {
       walletName: connection.walletName,
       provider: connection.provider,
       walletKind: connection.walletKind,
-      active: connection.publicKey === input.activeSolanaAddress,
+      active: connection.publicKey === input.activeSvmAddress,
     });
   }
 

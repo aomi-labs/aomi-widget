@@ -35,11 +35,11 @@ export type SafeSvmWalletState = {
   wallets: Array<{
     adapter: {
       name: string;
-      readyState: SolanaWalletReadyState;
+      readyState: SvmWalletReadyState;
     };
-    readyState: SolanaWalletReadyState;
+    readyState: SvmWalletReadyState;
   }>;
-  select: ((walletName: SolanaWalletName) => void) | undefined;
+  select: ((walletName: SvmWalletName) => void) | undefined;
   connect: (() => Promise<void>) | undefined;
   disconnect: (() => Promise<void>) | undefined;
   signTransaction:
@@ -81,12 +81,12 @@ export const DEFAULT_SVM_ENDPOINT =
   DEFAULT_SVM_RPC_HTTP_URLS[DEFAULT_SVM_CLUSTER];
 const SVM_AUTOCONNECT_GRACE_MS = 400;
 
-type SolanaWalletReadyState =
+type SvmWalletReadyState =
   | "Installed"
   | "NotDetected"
   | "Loadable"
   | "Unsupported";
-type SolanaWalletName = Parameters<
+type SvmWalletName = Parameters<
   ReturnType<typeof useSolanaWallet>["select"]
 >[0];
 
@@ -127,7 +127,7 @@ export function detectSvmTransport(
   return "extension";
 }
 
-function isUsableWalletReadyState(readyState: SolanaWalletReadyState): boolean {
+function isUsableWalletReadyState(readyState: SvmWalletReadyState): boolean {
   return readyState === "Installed" || readyState === "Loadable";
 }
 
@@ -185,7 +185,7 @@ export async function connectPreferredSvmWallet(
     return { status: "unavailable" };
   }
 
-  wallet.select(selectedWallet.adapter.name as SolanaWalletName);
+  wallet.select(selectedWallet.adapter.name as SvmWalletName);
   return { status: "selecting", walletName: selectedWallet.adapter.name };
 }
 
@@ -282,7 +282,7 @@ export function useSvmWalletRuntime({
           return;
         }
         if (current.walletName !== walletName) {
-          current.select?.(walletName as SolanaWalletName);
+          current.select?.(walletName as SvmWalletName);
         }
         if (!current.connect) return;
         await new Promise((resolve) =>

@@ -237,9 +237,7 @@ export function RuntimeTxHandler() {
             description: req.payload.description,
             adapterReady: adapter.isReady,
             svmAddress: adapter.identity.svmAddress,
-            svmWalletName:
-              adapter.identity.svmWalletName ??
-              adapter.identity.solanaWalletName,
+            svmWalletName: adapter.identity.svmWalletName,
             hasSignSolanaMessage: Boolean(adapter.signSolanaMessage),
           });
           const result = await adapter.signSolanaMessage(req.payload);

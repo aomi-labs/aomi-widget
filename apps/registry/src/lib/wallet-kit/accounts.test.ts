@@ -9,7 +9,7 @@ describe("buildAccounts", () => {
         { id: "rb", walletName: "Rabby", address: "0xBBB", chainId: 1 },
       ],
       activeEvmAddress: "0xbbb",
-      solanaConnections: [],
+      svmConnections: [],
     });
     expect(accounts).toHaveLength(2);
     expect(accounts[0]).toMatchObject({
@@ -32,7 +32,7 @@ describe("buildAccounts", () => {
       ],
       activeEvmAddress: "0xaaa",
       activeEvmConnectionId: "rb",
-      solanaConnections: [],
+      svmConnections: [],
     });
     expect(accounts).toHaveLength(1);
     expect(accounts[0]).toMatchObject({
@@ -53,7 +53,7 @@ describe("buildAccounts", () => {
       ],
       activeEvmAddress: "0xda6",
       activeEvmConnectionId: "mm",
-      solanaConnections: [],
+      svmConnections: [],
     });
     expect(accounts).toHaveLength(1);
     expect(accounts[0]).toMatchObject({
@@ -71,7 +71,7 @@ describe("buildAccounts", () => {
         { id: "mm-b", walletName: "MetaMask", address: "0xBBB", chainId: 1 },
       ],
       activeEvmAddress: "0xaaa",
-      solanaConnections: [],
+      svmConnections: [],
     });
     expect(accounts).toHaveLength(2);
     expect(accounts.map((a) => a.address)).toEqual(["0xAAA", "0xBBB"]);
@@ -84,7 +84,7 @@ describe("buildAccounts", () => {
         { id: "rb", walletName: "Rabby", address: "0xAAA", chainId: 1 },
       ],
       activeEvmAddress: "0xaaa",
-      solanaConnections: [],
+      svmConnections: [],
     });
     expect(accounts).toHaveLength(1);
     expect(accounts[0]).toMatchObject({ walletName: "Rabby", active: true });
@@ -94,11 +94,11 @@ describe("buildAccounts", () => {
     const accounts = buildAccounts({
       evmConnections: [],
       activeEvmAddress: undefined,
-      solanaConnections: [
+      svmConnections: [
         { publicKey: "9xQpub", walletName: "Phantom" },
         { publicKey: "AbCpub", walletName: "Solflare" },
       ],
-      activeSolanaAddress: "AbCpub",
+      activeSvmAddress: "AbCpub",
     });
     expect(accounts).toHaveLength(2);
     expect(accounts[0]).toMatchObject({
@@ -118,8 +118,8 @@ describe("buildAccounts", () => {
     const accounts = buildAccounts({
       evmConnections: [],
       activeEvmAddress: undefined,
-      solanaConnections: [{ publicKey: "9xQpub" }],
-      activeSolanaAddress: "9XQPUB",
+      svmConnections: [{ publicKey: "9xQpub" }],
+      activeSvmAddress: "9XQPUB",
     });
     expect(accounts[0]).toMatchObject({
       family: "svm",
@@ -134,8 +134,8 @@ describe("buildAccounts", () => {
         { id: "mm", walletName: "MetaMask", address: "0xAAA", chainId: 1 },
       ],
       activeEvmAddress: "0xAAA",
-      solanaConnections: [{ publicKey: "9xQpub", walletName: "Phantom" }],
-      activeSolanaAddress: "9xQpub",
+      svmConnections: [{ publicKey: "9xQpub", walletName: "Phantom" }],
+      activeSvmAddress: "9xQpub",
     });
     expect(accounts.filter((a) => a.family === "evm")).toHaveLength(1);
     expect(accounts.filter((a) => a.family === "svm")).toHaveLength(1);

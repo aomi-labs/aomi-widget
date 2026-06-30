@@ -55,13 +55,10 @@ function AomiWalletKitSync({ walletKit }: { walletKit: AomiWalletKit }) {
       isConnected: identity.isConnected,
       svm: {
         address: identity.svmAddress ?? null,
-        cluster: identity.svmCluster ?? identity.solanaCluster ?? undefined,
-        wallet_name: identity.svmWalletName ?? identity.solanaWalletName ?? null,
-        transport: identity.svmTransport ?? identity.solanaTransport ?? null,
-        capabilities:
-          toSvmCapabilities(
-            identity.svmCapabilities ?? identity.solanaCapabilities,
-          ) ?? [],
+        cluster: identity.svmCluster ?? undefined,
+        wallet_name: identity.svmWalletName ?? null,
+        transport: identity.svmTransport ?? null,
+        capabilities: toSvmCapabilities(identity.svmCapabilities) ?? [],
       },
       walletProvider: identity.isConnected
         ? (identity.sessionProvider ??
@@ -100,10 +97,6 @@ function AomiWalletKitSync({ walletKit }: { walletKit: AomiWalletKit }) {
     identity.svmCluster,
     identity.svmTransport,
     identity.svmWalletName,
-    identity.solanaCapabilities,
-    identity.solanaCluster,
-    identity.solanaTransport,
-    identity.solanaWalletName,
     identity.svmAddress,
     identity.embeddedProvider,
     identity.sessionProvider,

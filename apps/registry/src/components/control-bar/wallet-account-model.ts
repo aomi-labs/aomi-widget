@@ -11,22 +11,17 @@ export type LinkedWalletRow = NonNullable<
   AomiWalletKit["accountWallets"]
 >[number];
 
-/** One chain "leg" of a wallet entry. */
-export type WalletLeg = {
-  family: WalletFamily;
-  address?: string;
-  chainId?: number;
-  capability?: "read" | "write";
-  linked?: boolean;
-};
-
 export type ConnectedEntry = {
   key: string;
   title: string;
   iconId: string;
   iconLabel: string;
   iconProvider?: string;
-  legs: WalletLeg[];
+  family: WalletFamily;
+  address?: string;
+  chainId?: number;
+  capability?: "read" | "write";
+  linked?: boolean;
 };
 
 export type AccountAccessEntries = {
@@ -42,12 +37,6 @@ export function familyLabel(family: WalletFamily): string {
 
 export function familyRank(family: WalletFamily): number {
   return FAMILY_ORDER[family] ?? 2;
-}
-
-export function sortWalletLegs<T extends { family: WalletFamily }>(
-  legs: readonly T[],
-): T[] {
-  return [...legs].sort((a, b) => familyRank(a.family) - familyRank(b.family));
 }
 
 export function sameWalletAddress(
@@ -110,31 +99,21 @@ export function buildConnectedEntries(
       iconId: provider ?? account.id,
       iconLabel: title,
       iconProvider: provider ?? account.provider,
-      legs: [
-        {
-          family: account.family,
-          address: account.address,
-          chainId: account.chainId ?? linkedWallet?.chainId,
-          capability: account.capability ?? linkedWallet?.capability,
-          linked: account.linked ?? Boolean(linkedWallet),
-        },
-      ],
+      family: account.family,
+      address: account.address,
+      chainId: account.chainId ?? linkedWallet?.chainId,
+      capability: account.capability ?? linkedWallet?.capability,
+      linked: account.linked ?? Boolean(linkedWallet),
     };
   });
 }
 
-export function connectedLinkState(legs: readonly WalletLeg[]): string {
-  if (legs.length > 0 && legs.every((leg) => leg.linked)) return "Linked";
-  const anyEvmUnlinked = legs.some(
-    (leg) => leg.family === "evm" && !leg.linked,
-  );
-  return anyEvmUnlinked ? "Verify to link" : "Connected only";
-}
-
-export function groupConnectedByProvider(
-  accounts: readonly WalletModalRow[],
-): WalletModalRow[][] {
-  return accounts.map((account) => [account]);
+export function connectedLinkState(entry: {
+  family: WalletFamily;
+  linked?: boolean;
+}): string {
+  if (entry.linked) return "Linked";
+  return entry.family === "evm" ? "Verify to link" : "Connected only";
 }
 
 export function buildAccountAccessEntries(
