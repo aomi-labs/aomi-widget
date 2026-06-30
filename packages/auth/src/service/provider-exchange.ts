@@ -48,11 +48,12 @@ export async function exchangeProviderForExistingSession(input: {
     };
   }
 
+  const seed = providerSessionUserSeed(verified);
   const user = await getOrCreateAomiUserForBetterAuthSession({
     betterAuthUserId: input.betterAuthUserId,
-    email: verified.token.email,
-    emailVerified: verified.token.emailVerified,
-    name: verified.token.email,
+    email: seed.email,
+    emailVerified: seed.emailVerified,
+    name: seed.name,
   });
   const resolution = await linkProviderIdentity({
     userId: user.id,
@@ -60,6 +61,7 @@ export async function exchangeProviderForExistingSession(input: {
     subject: verified.token.subject,
     email: verified.token.email,
     emailVerified: verified.token.emailVerified,
+    displayLabel: verified.token.displayLabel,
     providerMetadata: verified.token.providerMetadata,
   });
   if (resolution.status === "conflict") return resolution;

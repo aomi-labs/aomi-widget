@@ -1232,8 +1232,15 @@ function AccountManagerPanel({
   const userEmail =
     user?.email && !isSyntheticAomiEmail(user.email) ? user.email : undefined;
   const headerTitle = formatAccountDisplayName(displayName);
+  const headerTitleIsEmail =
+    userEmail !== undefined &&
+    headerTitle.toLowerCase() === userEmail.toLowerCase();
   const primarySubtitle =
-    userEmail ?? (user ? walletSummary : (subtitle ?? walletSummary));
+    userEmail && !headerTitleIsEmail
+      ? userEmail
+      : user
+        ? walletSummary
+        : (subtitle ?? walletSummary);
   const visibleLinkedAccounts = linkedAccounts.filter(isVisibleLinkedAccount);
   const connectedEntries = buildConnectedEntries(connectedAccounts, wallets);
   const { standaloneAccounts, standaloneWallets } = buildAccountAccessEntries(
@@ -1251,11 +1258,7 @@ function AccountManagerPanel({
 
   const startRenamingLinkedAccount = (account: LinkedAccountRow) => {
     setEditingLinkedAccountId(account.id);
-    setDraftLinkedAccountLabel(
-      account.displayLabel ??
-        formatWalletProvider(account.provider) ??
-        account.provider,
-    );
+    setDraftLinkedAccountLabel(linkedAccountTitle(account));
   };
 
   const startRenamingAccount = () => {
@@ -1544,7 +1547,11 @@ function AccountManagerPanel({
 }
 
 function isVisibleLinkedAccount(account: LinkedAccountRow): boolean {
-  return account.provider !== "better_auth" && account.provider !== "siwe";
+  return (
+    account.provider !== "better_auth" &&
+    account.provider !== "siwe" &&
+    account.provider !== "email"
+  );
 }
 
 function accountProfileEmail(
@@ -1562,7 +1569,10 @@ function formatAccountDisplayName(value: string): string {
 }
 
 function isSyntheticAomiEmail(email: string): boolean {
-  return /^0x[a-f0-9]{40}@aomi\.dev$/i.test(email);
+  return (
+    /^0x[a-f0-9]{40}@aomi\.dev$/i.test(email) ||
+    /@auth\.aomi\.local$/i.test(email)
+  );
 }
 
 function chainIdFromScope(chainScope?: string): number | undefined {
@@ -1601,7 +1611,7 @@ function LinkedAuthAccountRow({
 }) {
   const providerLabel =
     formatWalletProvider(account.provider) ?? account.provider;
-  const title = account.displayLabel ?? providerLabel;
+  const title = linkedAccountTitle(account);
   const legs: WalletLeg[] = sortLegs(
     wallets.map((wallet) => ({
       family: wallet.family,
@@ -1615,7 +1625,7 @@ function LinkedAuthAccountRow({
   const subtitle =
     legs.length > 0
       ? [addresses, networkName].filter(Boolean).join(" · ")
-      : linkedAccountSubtitle(account);
+      : linkedAccountSubtitle(account, title);
   const busy =
     pending === `identity:rename:${account.id}` ||
     pending === `identity:unlink:${account.id}`;
@@ -1694,14 +1704,40 @@ function LinkedAuthAccountRow({
   );
 }
 
-function linkedAccountSubtitle(account: LinkedAccountRow): string {
-  if (account.email) {
-    return account.email;
-  }
-  if (account.provider === "privy" || account.provider === "para") {
+function linkedAccountSubtitle(
+  account: LinkedAccountRow,
+  title?: string,
+): string {
+  if (isProviderAuthAccount(account.provider)) {
     return "Provider sign-in";
   }
+  if (
+    account.email &&
+    !isSyntheticAomiEmail(account.email) &&
+    account.email.toLowerCase() !== title?.toLowerCase()
+  ) {
+    return account.email;
+  }
   return account.subject;
+}
+
+function linkedAccountTitle(account: LinkedAccountRow): string {
+  const providerLabel =
+    formatWalletProvider(account.provider) ?? account.provider;
+  const displayLabel = account.displayLabel?.trim();
+  if (!displayLabel) return providerLabel;
+  if (
+    isProviderAuthAccount(account.provider) &&
+    account.email &&
+    displayLabel.toLowerCase() === account.email.toLowerCase()
+  ) {
+    return providerLabel;
+  }
+  return displayLabel;
+}
+
+function isProviderAuthAccount(provider: string): boolean {
+  return provider === "para" || provider === "privy";
 }
 
 function ConnectedWalletSummaryRow({

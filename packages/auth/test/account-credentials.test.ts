@@ -56,6 +56,7 @@ describe("verifyProviderCredential", () => {
         expiresAt: 4_102_444_800,
         email: "custom@example.com",
         emailVerified: true,
+        displayLabel: "Custom Person",
         providerMetadata: { source: "test" },
       },
     }));
@@ -83,6 +84,7 @@ describe("verifyProviderCredential", () => {
         expiresAt: 4_102_444_800,
         email: "custom@example.com",
         emailVerified: true,
+        displayLabel: "Custom Person",
         providerMetadata: { source: "test" },
       },
     });
@@ -152,6 +154,25 @@ describe("providerSessionUserSeed", () => {
       email: "para-para_user_123@auth.aomi.local",
       emailVerified: false,
       name: "para user",
+    });
+  });
+
+  it("uses provider display label for synthetic-email BetterAuth users", () => {
+    expect(
+      providerSessionUserSeed({
+        provider: "privy",
+        walletAttestationProvider: "privy",
+        token: {
+          subject: "did:privy:user-1",
+          expiresAt: 4_102_444_800,
+          displayLabel: "alice",
+          providerMetadata: {},
+        },
+      }),
+    ).toEqual({
+      email: "privy-did_privy_user-1@auth.aomi.local",
+      emailVerified: false,
+      name: "alice",
     });
   });
 });

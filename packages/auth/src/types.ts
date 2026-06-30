@@ -145,6 +145,7 @@ export type VerifiedPrivyToken = {
   expiresAt: number;
   email?: string;
   emailVerified?: boolean;
+  displayLabel?: string;
   linkedAccounts?: unknown[];
   rawClaims: Record<string, unknown>;
 };
@@ -155,6 +156,7 @@ export type VerifiedParaJwt = {
   expiresAt: number;
   email?: string;
   emailVerified?: boolean;
+  displayLabel?: string;
   wallets?: unknown[];
   connectedWallets?: unknown[];
   rawClaims: Record<string, unknown>;

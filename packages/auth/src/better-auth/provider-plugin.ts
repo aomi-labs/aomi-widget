@@ -82,6 +82,7 @@ export function aomiProviderAuthPlugin(): BetterAuthPlugin {
             subject: verified.token.subject,
             email: verified.token.email,
             emailVerified: verified.token.emailVerified,
+            displayLabel: verified.token.displayLabel,
             providerMetadata: verified.token.providerMetadata,
           });
           if (resolution.status === "conflict") {

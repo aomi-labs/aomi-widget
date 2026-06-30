@@ -789,6 +789,103 @@ describe("WalletPicker", () => {
     expect(unlinkLinkedWallet).toHaveBeenCalledWith("wallet-1");
   });
 
+  it("hides synthetic provider emails in the account manager", async () => {
+    renderPicker(
+      makeAdapter({
+        accountStatus: "ready",
+        accountUser: {
+          id: "user-1",
+          email: "para-para_user_123@auth.aomi.local",
+        },
+        identity: {
+          status: "connected",
+          isConnected: true,
+          walletProvider: "para",
+          sessionProvider: "para",
+          walletProviderSubject: "para:user/123",
+          primaryLabel: "alice@example.com",
+        },
+        accountLinkedAccounts: [
+          {
+            id: "identity-1",
+            provider: "para",
+            subject: "para:user/123",
+            email: "para-para_user_123@auth.aomi.local",
+            displayLabel: "Para",
+          },
+        ],
+      }),
+    );
+
+    await act(async () => {
+      fireEvent.click(
+        screen.getByRole("button", { name: "Manage your account" }),
+      );
+    });
+
+    expect(screen.queryByText("para-para_user_123@auth.aomi.local")).toBeNull();
+    expect(screen.getByText("alice@example.com")).toBeTruthy();
+    expect(screen.getByText("Provider sign-in")).toBeTruthy();
+  });
+
+  it("does not duplicate resolved email identities in the account manager", async () => {
+    const updateLinkedAccount = vi.fn(async () => undefined);
+    const unlinkLinkedAccount = vi.fn(async () => undefined);
+    renderPicker(
+      makeAdapter({
+        accountStatus: "ready",
+        accountUser: {
+          id: "user-1",
+          displayName: "arixon.ethereum@gmail.com",
+          email: "arixon.ethereum@gmail.com",
+        },
+        identity: {
+          status: "connected",
+          isConnected: true,
+          walletProvider: "para",
+          sessionProvider: "para",
+          walletProviderSubject: "para:user/123",
+          primaryLabel: "arixon.ethereum@gmail.com",
+        },
+        accountLinkedAccounts: [
+          {
+            id: "identity-para",
+            provider: "para",
+            subject: "para:user/123",
+            email: "arixon.ethereum@gmail.com",
+            displayLabel: "arixon.ethereum@gmail.com",
+          },
+          {
+            id: "identity-email",
+            provider: "email",
+            subject: "arixon.ethereum@gmail.com",
+            email: "arixon.ethereum@gmail.com",
+            displayLabel: "email",
+          },
+        ],
+        updateLinkedAccount,
+        unlinkLinkedAccount,
+      }),
+    );
+
+    await act(async () => {
+      fireEvent.click(
+        screen.getByRole("button", { name: "Manage your account" }),
+      );
+    });
+
+    expect(screen.getByText("2 wallets connected")).toBeTruthy();
+    expect(screen.getByText("Provider sign-in")).toBeTruthy();
+    expect(screen.queryByText("email")).toBeNull();
+    expect(screen.getByRole("button", { name: "Rename Para" })).toBeTruthy();
+    expect(
+      screen.queryByRole("button", {
+        name: "Rename arixon.ethereum@gmail.com",
+      }),
+    ).toBeNull();
+    expect(screen.queryByRole("button", { name: "Rename email" })).toBeNull();
+  });
+
   it("renders provider auth separately from embedded EVM and SVM wallets", async () => {
     const updateLinkedAccount = vi.fn(async () => undefined);
     renderPicker(

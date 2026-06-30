@@ -10,8 +10,8 @@ type PrivyClaims = {
   exp?: number;
   email?: string;
   email_verified?: boolean;
-  linked_accounts?: unknown[];
-  linkedAccounts?: unknown[];
+  linked_accounts?: unknown[] | string;
+  linkedAccounts?: unknown[] | string;
   [key: string]: unknown;
 };
 
@@ -89,19 +89,22 @@ export async function verifyPrivyToken(input: {
   });
   if (!payload.sub) throw new Error("Privy token is missing sub");
   if (!payload.exp) throw new Error("Privy token is missing exp");
+  const linkedAccounts = parseLinkedAccounts(
+    payload.linked_accounts ?? payload.linkedAccounts,
+  );
+  const linkedEmail = findPrivyLinkedEmail(linkedAccounts);
+  const displayLabel = findPrivyDisplayLabel(linkedAccounts);
+  const email = stringClaim(payload.email) ?? linkedEmail;
   return {
     subject: payload.sub,
     sessionId: payload.sid,
     audience: input.appId,
     issuer: "privy.io",
     expiresAt: payload.exp,
-    email: stringClaim(payload.email),
-    emailVerified: Boolean(payload.email_verified),
-    linkedAccounts: Array.isArray(payload.linked_accounts)
-      ? payload.linked_accounts
-      : Array.isArray(payload.linkedAccounts)
-        ? payload.linkedAccounts
-        : undefined,
+    email,
+    emailVerified: Boolean(payload.email_verified || linkedEmail),
+    displayLabel: email ?? displayLabel,
+    linkedAccounts,
     rawClaims: { ...payload },
   };
 }
@@ -218,6 +221,66 @@ function fromAccessToken(
   };
 }
 
+function parseLinkedAccounts(value: unknown): unknown[] | undefined {
+  if (Array.isArray(value)) return value;
+  if (typeof value !== "string" || value.trim().length === 0) return undefined;
+  try {
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed) ? parsed : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function findPrivyLinkedEmail(
+  linkedAccounts: readonly unknown[] | undefined,
+): string | undefined {
+  if (!linkedAccounts) return undefined;
+  for (const account of linkedAccounts) {
+    if (!account || typeof account !== "object") continue;
+    const record = account as Record<string, unknown>;
+    for (const field of ["email", "address", "emailAddress"]) {
+      const value = stringClaim(record[field]);
+      if (value && looksLikeEmail(value)) return value;
+    }
+  }
+  return undefined;
+}
+
+function findPrivyDisplayLabel(
+  linkedAccounts: readonly unknown[] | undefined,
+): string | undefined {
+  return findPrivyLinkedField(linkedAccounts, [
+    "username",
+    "name",
+    "displayName",
+    "firstName",
+    "number",
+  ]);
+}
+
+function findPrivyLinkedField(
+  linkedAccounts: readonly unknown[] | undefined,
+  fields: readonly string[],
+): string | undefined {
+  if (!linkedAccounts) return undefined;
+  for (const account of linkedAccounts) {
+    if (!account || typeof account !== "object") continue;
+    const record = account as Record<string, unknown>;
+    for (const field of fields) {
+      const value = stringClaim(record[field]);
+      if (value) return value;
+    }
+  }
+  return undefined;
+}
+
 function stringClaim(value: unknown): string | undefined {
-  return typeof value === "string" && value.length > 0 ? value : undefined;
+  return typeof value === "string" && value.trim().length > 0
+    ? value
+    : undefined;
+}
+
+function looksLikeEmail(value: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 }
