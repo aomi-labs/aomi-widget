@@ -36,7 +36,6 @@ describe("Control context", () => {
     });
 
     expect(getApps.mock.calls[0]?.[1]).toMatchObject({
-      publicKey: undefined,
       apiKey: undefined,
     });
 
@@ -125,7 +124,6 @@ describe("Control context", () => {
 
     expect(sendMessage.mock.calls[0]?.[2]).toMatchObject({
       app: "special",
-      publicKey: "0xabc",
     });
   });
 

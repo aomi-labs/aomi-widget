@@ -272,6 +272,50 @@ describe("AomiClient transport selection", () => {
     }
   });
 
+  it("strips bulky pending payloads from sendMessage user_state URLs", async () => {
+    const chatResponse = {
+      ok: true,
+      status: 200,
+      statusText: "OK",
+      json: vi.fn(async () => ({ is_processing: false, messages: [] })),
+    } as unknown as Response;
+    const customFetch = vi.fn(async () => chatResponse);
+    const client = new AomiClient({
+      baseUrl: "http://unit.test",
+      fetch: customFetch,
+    });
+
+    await client.sendMessage("session-1", "hello", {
+      userState: {
+        connection: { is_connected: true },
+        evm: { address: "0xabc", chain_id: 1 },
+        pending: {
+          evm_sigs: {
+            7: {
+              signer: "0xabc",
+              description: "permit",
+              typed_data: {
+                primaryType: "Permit",
+                message: { nonce: "large-payload" },
+              },
+              pendingEip712Id: 7,
+            },
+          },
+        },
+      },
+    });
+
+    const url = String(customFetch.mock.calls[0]?.[0]);
+    expect(url).not.toContain("large-payload");
+
+    const parsed = new URL(url);
+    const userState = JSON.parse(
+      parsed.searchParams.get("user_state") ?? "{}",
+    );
+    expect(userState.pending.evm_sigs["7"].typed_data).toBeUndefined();
+    expect(userState.pending.evm_sigs["7"].pending_eip712_id).toBe(7);
+  });
+
   it("reuses one SSE connection for multiple listeners on the same session", async () => {
     const connections: Array<ReturnType<typeof createMockSseConnection>> = [];
     const nativeFetch = vi.fn(async (_input, init) => {

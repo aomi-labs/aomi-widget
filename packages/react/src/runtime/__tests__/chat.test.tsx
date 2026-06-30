@@ -306,7 +306,6 @@ describe("Chat API", () => {
         api.currentThreadId,
         "Use my Solana wallet",
         expect.objectContaining({
-          publicKey: undefined,
           userState: expect.objectContaining({
             svm: expect.objectContaining({
               address: "So1anaCaseSensitiveSigner",

@@ -59,8 +59,9 @@ only in a session scratchpad, so recreate it):
 `product-mono/run-local-backend.sh`:
 ```bash
 #!/bin/bash
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 set -a
-source /Users/aronmegyeri/Documents/Work/Aomi/Work.nosync/product-mono/.env.dev
+source "$SCRIPT_DIR/.env.dev"
 set +a
 # .env.dev points OpenRouter at a local proxy (127.0.0.1:18082) that isn't running
 # here; use the real OpenRouter endpoint so the streaming chat path works.
@@ -69,7 +70,7 @@ export OPENROUTER_API_BASE=https://openrouter.ai/api/v1
 # Force the LOCAL db (the backend otherwise hardcodes a remote pooler — see §4)
 export DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:54322/aomi_local
 export BACKEND_HOST=127.0.0.1 BACKEND_PORT=8080 RUST_LOG=info BAML_LOG=warn
-cd /Users/aronmegyeri/Documents/Work/Aomi/Work.nosync/product-mono/aomi
+cd "$SCRIPT_DIR/aomi"
 exec cargo run -p backend
 ```
 
@@ -79,7 +80,7 @@ Start / restart:
 pkill -f "target/debug/backend"; lsof -ti tcp:8080 | xargs kill -9 2>/dev/null
 
 # run it (background); first build ~50s, restarts ~20s
-nohup bash product-mono/run-local-backend.sh > /tmp/aomi-backend.log 2>&1 &
+nohup bash ../product-mono/run-local-backend.sh > /tmp/aomi-backend.log 2>&1 &
 
 # wait for health
 until curl -sf http://127.0.0.1:8080/health >/dev/null; do sleep 2; done; echo OK
@@ -106,12 +107,13 @@ place. So we created a clean DB and applied the current migrations:
 ```bash
 ADMIN="postgresql://postgres:postgres@127.0.0.1:54322/postgres"
 DBL="postgresql://postgres:postgres@127.0.0.1:54322/aomi_local"
+PRODUCT_MONO_ROOT="$(cd ../product-mono && pwd)"
 
 # (re)create the DB
 psql "$ADMIN" -c "DROP DATABASE IF EXISTS aomi_local;" -c "CREATE DATABASE aomi_local;"
 
 # apply all 40 product-mono migrations in order (self-contained, pgcrypto-only)
-for f in /Users/aronmegyeri/Documents/Work/Aomi/Work.nosync/product-mono/supabase/migrations/*.sql; do
+for f in "$PRODUCT_MONO_ROOT"/supabase/migrations/*.sql; do
   psql "$DBL" -v ON_ERROR_STOP=1 -q -f "$f" || { echo "FAILED: $f"; break; }
 done
 ```
@@ -137,22 +139,27 @@ key under `kid = aomi-bff-dev-1`. We generated a throwaway dev pair (the real
   `aomi/service.dev.toml`, then its `aomi-bff` public_key replaced with the one
   below). Backend reads `service.toml` from its working dir (`product-mono/aomi/`).
 - **Portal signer** — `aomi-bff-unification/apps/portal/.env.local` →
-  `PORTAL_SERVICE_PRIVATE_KEY` (the private half below).
+  `PORTAL_SERVICE_PRIVATE_KEY`. Store the private half only in local env /
+  1Password, never in git.
 
 ```
 # PUBLIC (goes in product-mono/aomi/service.toml under kid aomi-bff-dev-1, both
 # the user and service trusted_issuer entries):
 -----BEGIN PUBLIC KEY-----
-MCowBQYDK2VwAyEApvuJ3bdYsKb3LS+EIJbgF/jhqBoS3bVsYwk+9Ahh8EI=
+MCowBQYDK2VwAyEARK6H6nByUxFk68PqBKJocX11IX+9zKFFne0rXKdW94M=
 -----END PUBLIC KEY-----
-
-# PRIVATE (PORTAL_SERVICE_PRIVATE_KEY in the portal .env.local):
------BEGIN PRIVATE KEY-----
-MC4CAQAwBQYDK2VwBCIEIO13W4rm3/9Z74/T0N37QqpSFHK2UAXmY8R7k9mUjLCa
------END PRIVATE KEY-----
 ```
-Regenerate a matched pair with: `openssl genpkey -algorithm ed25519` +
-`openssl pkey -pubout`. If you regenerate, update BOTH files and restart the backend.
+
+Regenerate a matched pair with:
+```bash
+openssl genpkey -algorithm ed25519 -out dev.key
+openssl pkey -in dev.key -pubout
+```
+
+Put the public key in `packages/account/src/topology-data.ts` and
+`product-mono/aomi/service.toml` / `service.dev.toml`; put the private key in
+`apps/portal/.env.local` as `PORTAL_SERVICE_PRIVATE_KEY` and mirror it in
+1Password. Restart the backend and portal after any rotation.
 
 ## 6. Uncommitted local patches in `product-mono` (don't lose these)
 
@@ -194,7 +201,7 @@ curl -s -X POST -b /tmp/jar -H "Host: 127.0.0.1:3000" -H "x-session-id: $(uuidge
 ## 8. How to START the portal (bff-unification)
 
 ```bash
-cd /Users/aronmegyeri/Documents/Work/Aomi/Work.nosync/aomi-bff-unification
+cd ../aomi-bff-unification
 # first time only:
 pnpm install
 # run (background):
