@@ -255,13 +255,13 @@ describe("Thread API", () => {
 
   describe("fetching thread list", () => {
     it("fetches threads when user connects", async () => {
-      const fetchThreads = vi.fn(
+      const listThreads = vi.fn(
         async (): Promise<AomiThread[]> => [
           { session_id: "thread-1", title: "Chat 1" },
           { session_id: "thread-2", title: "Chat 2" },
         ],
       );
-      setAomiClientConfig({ fetchThreads });
+      setAomiClientConfig({ listThreads });
 
       const { api, getApi } = renderRuntime();
 
@@ -271,7 +271,7 @@ describe("Thread API", () => {
       });
 
       await waitFor(() => {
-        expect(fetchThreads).toHaveBeenCalledWith("0x123");
+        expect(listThreads).toHaveBeenCalledWith(expect.any(String));
       });
 
       await waitFor(() => {
@@ -280,16 +280,13 @@ describe("Thread API", () => {
       });
     });
 
-    it("keeps the active chat visible when the connected address changes", async () => {
-      const fetchThreads = vi
+    it("does not refetch account threads when the connected address changes", async () => {
+      const listThreads = vi
         .fn<() => Promise<AomiThread[]>>()
         .mockResolvedValueOnce([
           { session_id: "thread-a", title: "Wallet A Thread" },
-        ])
-        .mockResolvedValueOnce([
-          { session_id: "thread-b", title: "Wallet B Thread" },
         ]);
-      setAomiClientConfig({ fetchThreads });
+      setAomiClientConfig({ listThreads });
 
       const { api, getApi } = renderRuntime();
       const activeThreadId = api.currentThreadId;
@@ -310,17 +307,39 @@ describe("Thread API", () => {
         await flushPromises();
       });
 
-      await waitFor(() => {
-        expect(getApi().getThreadMetadata("thread-b")?.title).toBe(
-          "Wallet B Thread",
-        );
-      });
-
       expect(getApi().currentThreadId).toBe(activeThreadId);
       expect(getApi().getThreadMetadata(activeThreadId)).toBeDefined();
       expect(getApi().getThreadMetadata("thread-a")?.title).toBe(
         "Wallet A Thread",
       );
+      expect(listThreads).toHaveBeenCalledTimes(1);
+    });
+
+    it("retries thread list fetches that race account authentication", async () => {
+      const listThreads = vi
+        .fn<() => Promise<AomiThread[]>>()
+        .mockRejectedValueOnce(new Error("Failed to fetch threads: HTTP 401"))
+        .mockResolvedValueOnce([
+          { session_id: "thread-1", title: "Recovered Thread" },
+        ]);
+      setAomiClientConfig({ listThreads });
+
+      const { api, getApi } = renderRuntime();
+
+      await act(async () => {
+        api.setUser({ address: "0x123", chainId: 1, isConnected: true });
+        await flushPromises();
+      });
+
+      await waitFor(
+        () => {
+          expect(getApi().getThreadMetadata("thread-1")?.title).toBe(
+            "Recovered Thread",
+          );
+        },
+        { timeout: 2000 },
+      );
+      expect(listThreads).toHaveBeenCalledTimes(2);
     });
 
     it("keeps the active chat visible when focus moves to a Solana-only state", async () => {
@@ -470,7 +489,11 @@ describe("Thread API", () => {
             );
           }),
       );
-      setAomiClientConfig({ fetchThreads, createThread, fetchState });
+      setAomiClientConfig({
+        listThreads: fetchThreads,
+        createThread,
+        fetchState,
+      });
 
       const { api, getApi } = renderRuntime();
 
@@ -552,7 +575,11 @@ describe("Thread API", () => {
           };
         },
       );
-      setAomiClientConfig({ fetchThreads, createThread, fetchState });
+      setAomiClientConfig({
+        listThreads: fetchThreads,
+        createThread,
+        fetchState,
+      });
 
       const { api, getApi } = renderRuntime();
 
@@ -562,7 +589,7 @@ describe("Thread API", () => {
       });
 
       await waitFor(() => {
-        expect(fetchThreads).toHaveBeenCalledWith("0xabc");
+        expect(fetchThreads).toHaveBeenCalledWith(expect.any(String));
       });
 
       await act(async () => {
@@ -571,7 +598,7 @@ describe("Thread API", () => {
       });
 
       await waitFor(() => {
-        expect(createThread).toHaveBeenCalledWith("thread-1", "0xabc");
+        expect(createThread).toHaveBeenCalledWith("thread-1");
       });
 
       await waitFor(() => {

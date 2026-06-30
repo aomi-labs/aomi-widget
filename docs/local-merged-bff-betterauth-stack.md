@@ -84,3 +84,24 @@ curl -s http://localhost:3000/api/aomi/account
 Unauthenticated `/api/aomi/account` should return a null account payload, not a
 Better Auth `Failed to get session` error. Some proxied backend routes may return
 `401` before login; that is expected.
+
+For a full authenticated CLI smoke, let the script create two temporary SIWE
+wallets, sign in with the first, link the second, create/list a thread, create
+an app key, send a chat message, then sign in with the second wallet and confirm
+it sees the same account/thread:
+
+```bash
+AOMI_SMOKE_SIWE=1 node scripts/smoke-auth-stack.mjs
+```
+
+You can also smoke an existing browser login by copying the browser's raw Cookie
+header for `localhost:3000`:
+
+```bash
+AOMI_PORTAL_COOKIE='better-auth.session_token=...' node scripts/smoke-auth-stack.mjs
+```
+
+The smoke checks the BFF bearer endpoint, direct backend bearer acceptance,
+thread create/list, state, account app discovery, app-key creation, chat, and
+the portal proxy thread list. It only prints redacted token claims and app-key
+prefixes.

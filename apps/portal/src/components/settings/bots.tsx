@@ -186,7 +186,7 @@ export function Bots() {
   const loadApps = useCallback(async () => {
     setLoadingApps(true);
     try {
-      const data = await accountFetch<AppOption[]>("/api/control/apps");
+      const data = await accountFetch<AppOption[]>("/api/account/apps");
       const normalized = normalizeAppOptions(data ?? []);
       setAvailableApps(normalized);
       setSelectedApp((previous) => {

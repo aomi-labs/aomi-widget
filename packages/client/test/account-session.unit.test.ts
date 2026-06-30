@@ -88,13 +88,21 @@ describe("createAccountAccessTokenProvider", () => {
     provider.dispose();
   });
 
-  it("can opt into Better Auth JWTs without fetching provider credentials", async () => {
+  it("can opt into BFF backend bearers without fetching provider credentials", async () => {
     const token = jwtWithPayload({
-      sub: "better-user-1",
-      aomi_user_id: "aomi-user-1",
+      sub: "aomi-user-1",
+      iss: "aomi-bff",
+      aud: "aomi-backend",
+      role: "user",
       exp: 4600,
     });
-    const fetchImpl = vi.fn(async () => okJsonResponse({ token }));
+    const fetchImpl = vi.fn(async () =>
+      okJsonResponse({
+        bearer: token,
+        expires_at: 4600,
+        user_id: "aomi-user-1",
+      }),
+    );
     const getProviderCredential = vi.fn(async () => ({
       provider: "privy" as const,
       providerToken: "privy-jwt",
@@ -114,7 +122,7 @@ describe("createAccountAccessTokenProvider", () => {
     await expect(provider()).resolves.toBe(token);
     expect(getProviderCredential).not.toHaveBeenCalled();
     expect(fetchImpl).toHaveBeenCalledWith(
-      "https://portal.aomi.dev/api/auth/token",
+      "https://portal.aomi.dev/api/bff/auth/token",
       expect.objectContaining({
         method: "GET",
         credentials: "include",
@@ -124,7 +132,7 @@ describe("createAccountAccessTokenProvider", () => {
     provider.dispose();
   });
 
-  it("falls back to the Better Auth sub claim until all tokens include aomi_user_id", async () => {
+  it("still supports the older Better Auth jwt() token endpoint shape", async () => {
     const token = jwtWithPayload({
       sub: "better-user-1",
       exp: 4600,
@@ -140,6 +148,7 @@ describe("createAccountAccessTokenProvider", () => {
       betterAuthToken: {
         enabled: true,
         baseUrl: "https://portal.aomi.dev",
+        tokenPath: "/api/auth/token",
         providerExchange: false,
       },
       getProviderCredential,
@@ -149,14 +158,20 @@ describe("createAccountAccessTokenProvider", () => {
 
     await expect(provider()).resolves.toBe(token);
     expect(getProviderCredential).not.toHaveBeenCalled();
+    expect(fetchImpl).toHaveBeenCalledWith(
+      "https://portal.aomi.dev/api/auth/token",
+      expect.objectContaining({ method: "GET" }),
+    );
 
     provider.dispose();
   });
 
-  it("exchanges a provider credential for a Better Auth session before fetching the token again", async () => {
+  it("exchanges a provider credential for a Better Auth session before fetching the BFF bearer again", async () => {
     const token = jwtWithPayload({
-      sub: "better-user-1",
-      aomi_user_id: "aomi-user-1",
+      sub: "aomi-user-1",
+      iss: "aomi-bff",
+      aud: "aomi-backend",
+      role: "user",
       exp: 4600,
     });
     const fetchImpl = vi
@@ -167,7 +182,13 @@ describe("createAccountAccessTokenProvider", () => {
         json: async () => ({}),
       } as Response)
       .mockResolvedValueOnce(okJsonResponse({ status: "linked" }))
-      .mockResolvedValueOnce(okJsonResponse({ token }));
+      .mockResolvedValueOnce(
+        okJsonResponse({
+          bearer: token,
+          expires_at: 4600,
+          user_id: "aomi-user-1",
+        }),
+      );
     const getProviderCredential = vi.fn(async () => ({
       provider: "privy" as const,
       tokenKind: "identity_token",
@@ -188,7 +209,7 @@ describe("createAccountAccessTokenProvider", () => {
     await expect(provider()).resolves.toBe(token);
     expect(fetchImpl).toHaveBeenNthCalledWith(
       1,
-      "https://portal.aomi.dev/api/auth/token",
+      "https://portal.aomi.dev/api/bff/auth/token",
       expect.any(Object),
     );
     expect(fetchImpl).toHaveBeenNthCalledWith(
@@ -206,7 +227,7 @@ describe("createAccountAccessTokenProvider", () => {
     );
     expect(fetchImpl).toHaveBeenNthCalledWith(
       3,
-      "https://portal.aomi.dev/api/auth/token",
+      "https://portal.aomi.dev/api/bff/auth/token",
       expect.objectContaining({ method: "GET" }),
     );
 
@@ -241,7 +262,7 @@ describe("createAccountAccessTokenProvider", () => {
     expect(getProviderCredential).not.toHaveBeenCalled();
     expect(fetchImpl).toHaveBeenCalledTimes(1);
     expect(fetchImpl).toHaveBeenCalledWith(
-      "https://portal.aomi.dev/api/auth/token",
+      "https://portal.aomi.dev/api/bff/auth/token",
       expect.objectContaining({ method: "GET" }),
     );
 

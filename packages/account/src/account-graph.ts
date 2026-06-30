@@ -21,6 +21,12 @@ export type ResolveInput = {
   provider: string;
   /** Provider subject, e.g. `did:privy:…`. The credential key, never the `sub`. */
   subject: string;
+  /**
+   * Optional already-resolved account id to use as the backend `users.id`.
+   * Better Auth sessions pass the Aomi account id here so linked wallets share
+   * one backend thread owner.
+   */
+  canonicalUserId?: string;
 };
 
 export type CanonicalUser = {
@@ -48,17 +54,31 @@ export async function resolveOrCreateCanonicalUser(
 ): Promise<CanonicalUser> {
   const provider = input.provider.trim();
   const subject = input.subject.trim();
+  const canonicalUserId = input.canonicalUserId?.trim();
   if (!provider || !subject) {
-    throw new Error("resolveOrCreateCanonicalUser requires provider and subject");
+    throw new Error(
+      "resolveOrCreateCanonicalUser requires provider and subject",
+    );
   }
 
   const pool = getPool();
   const client = await pool.connect();
   try {
     const existing = await findUserIdBySubject(client, provider, subject);
-    if (existing) return { userId: existing, created: false };
+    if (existing) {
+      if (!canonicalUserId || existing === canonicalUserId) {
+        return { userId: existing, created: false };
+      }
+      await rebindIdentityToCanonicalUser(client, {
+        userId: canonicalUserId,
+        previousUserId: existing,
+        provider,
+        subject,
+      });
+      return { userId: canonicalUserId, created: false };
+    }
 
-    const userId = randomUUID();
+    const userId = canonicalUserId ?? randomUUID();
     // Unix *seconds* — the backend's `users`/`auth_identities` timestamps are
     // `bigint` seconds (`chrono::Utc::now().timestamp()`), not millis.
     const now = Math.floor(Date.now() / 1000);
@@ -66,11 +86,7 @@ export async function resolveOrCreateCanonicalUser(
       await client.query("begin");
       // Minimal column set, matching `insert_for_identity`: DB defaults fill
       // `applications` / `tier` / `status`.
-      await client.query(
-        `insert into users (id, username, created_at, updated_at)
-         values ($1, null, $2, $2)`,
-        [userId, now],
-      );
+      await ensureBackendUser(client, userId, now);
       await client.query(
         `insert into auth_identities
            (user_id, application, wallet_provider, wallet_provider_subject,
@@ -93,12 +109,77 @@ export async function resolveOrCreateCanonicalUser(
       // A concurrent first login won the race; re-read the canonical winner.
       if (isUniqueViolation(error)) {
         const winner = await findUserIdBySubject(client, provider, subject);
-        if (winner) return { userId: winner, created: false };
+        if (winner) {
+          if (canonicalUserId && winner !== canonicalUserId) {
+            await rebindIdentityToCanonicalUser(client, {
+              userId: canonicalUserId,
+              previousUserId: winner,
+              provider,
+              subject,
+            });
+            return { userId: canonicalUserId, created: false };
+          }
+          return { userId: winner, created: false };
+        }
       }
       throw error;
     }
   } finally {
     client.release();
+  }
+}
+
+async function ensureBackendUser(
+  client: { query: PoolClientQuery },
+  userId: string,
+  now: number,
+): Promise<void> {
+  await client.query(
+    `insert into users (id, username, created_at, updated_at)
+     values ($1, null, $2, $2)
+     on conflict (id) do update set updated_at = excluded.updated_at`,
+    [userId, now],
+  );
+}
+
+async function rebindIdentityToCanonicalUser(
+  client: { query: PoolClientQuery },
+  input: {
+    userId: string;
+    previousUserId: string;
+    provider: string;
+    subject: string;
+  },
+): Promise<void> {
+  const now = Math.floor(Date.now() / 1000);
+  await client.query("begin");
+  try {
+    await ensureBackendUser(client, input.userId, now);
+    await client.query(
+      `update auth_identities
+       set user_id = $1,
+           metadata = coalesce(metadata, '{}'::jsonb) || $5::jsonb,
+           updated_at = $6
+       where application is null
+         and wallet_provider = $2
+         and wallet_provider_subject = $3
+         and user_id = $4`,
+      [
+        input.userId,
+        input.provider,
+        input.subject,
+        input.previousUserId,
+        JSON.stringify({
+          source: "portal_better_auth_account_rebind",
+          previous_user_id: input.previousUserId,
+        }),
+        now,
+      ],
+    );
+    await client.query("commit");
+  } catch (error) {
+    await client.query("rollback").catch(() => {});
+    throw error;
   }
 }
 

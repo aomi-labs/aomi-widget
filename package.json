@@ -37,6 +37,7 @@
     "dev:auth-stack": "./scripts/dev-auth-stack.sh",
     "dev:auth-stack:status": "./scripts/dev-auth-stack.sh status",
     "dev:auth-stack:stop": "./scripts/dev-auth-stack.sh stop",
+    "smoke:auth-stack": "node ./scripts/smoke-auth-stack.mjs",
     "dev:telegram": "pnpm --filter telegram dev",
     "dev:telegram:webpack": "pnpm --filter telegram dev:webpack",
     "build:lib": "pnpm run build:client && tsup",
