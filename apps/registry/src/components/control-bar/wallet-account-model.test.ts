@@ -50,7 +50,7 @@ describe("providerBackedAccountProvider", () => {
 });
 
 describe("buildAccountAccessEntries", () => {
-  it("groups custom embedded provider wallets behind their linked account", () => {
+  it("omits custom embedded provider wallets from standalone wallet access", () => {
     const result = buildAccountAccessEntries(
       [
         {

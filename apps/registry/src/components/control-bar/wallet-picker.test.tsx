@@ -238,7 +238,7 @@ function openAddWallets() {
 }
 
 describe("WalletPicker", () => {
-  it("renders connected accounts with EVM/SVM tags and a collapsible add-wallet list", () => {
+  it("renders connected accounts with family tags and a collapsible add-wallet list", () => {
     renderPicker(makeAdapter());
     expect(screen.getByText("Manage wallets")).toBeTruthy();
     const connectedLabel = screen.getByText("Connected");

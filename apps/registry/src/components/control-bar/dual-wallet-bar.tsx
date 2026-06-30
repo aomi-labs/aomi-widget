@@ -69,12 +69,9 @@ const DualWalletBarInner: FC<DualWalletBarProps> = ({
               family,
               walletName:
                 activeSolanaAccount?.walletName ??
-                identity.svmWalletName ??
-                identity.solanaWalletName,
+                identity.svmWalletName,
               address: identity.svmAddress,
-              detail: solanaClusterLabel(
-                identity.svmCluster ?? identity.solanaCluster,
-              ),
+              detail: solanaClusterLabel(identity.svmCluster),
             }
           : null,
     )

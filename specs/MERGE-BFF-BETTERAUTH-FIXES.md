@@ -30,26 +30,26 @@
 ## 1. 🔴 Blockers — must be done before merge
 
 ### 1.1 Remove + rotate the committed dev signing key
-- [ ] Generate a fresh dev Ed25519 keypair: `openssl genpkey -algorithm ed25519 -out dev.key && openssl pkey -in dev.key -pubout`.
-- [ ] Strip the private key from [`HANDOFF-LOCAL-BACKEND.md`](../HANDOFF-LOCAL-BACKEND.md) §5; replace with the `openssl` recipe + "store in `PORTAL_SERVICE_PRIVATE_KEY` / 1Password" note. Also fix the machine-specific absolute paths in its shell snippets.
-- [ ] Update the **new public key** in [`packages/account/src/topology-data.ts`](../packages/account/src/topology-data.ts) for `kid = aomi-bff-dev-1`.
-- [ ] Update the matching public key in the backend `../product-mono/aomi/service.toml` + `service.dev.toml` (see §8.1 — fix the stale one at the same time).
-- [ ] Set the new private key in `apps/portal/.env.local` (`PORTAL_SERVICE_PRIVATE_KEY`); confirm it is git-ignored.
-- [ ] Verify: `pnpm exec vitest run packages/service` and a local mint→verify round-trip succeed with the new pair.
+- [x] Generate a fresh dev Ed25519 keypair: `openssl genpkey -algorithm ed25519 -out dev.key && openssl pkey -in dev.key -pubout`.
+- [x] Strip the private key from [`HANDOFF-LOCAL-BACKEND.md`](../HANDOFF-LOCAL-BACKEND.md) §5; replace with the `openssl` recipe + "store in `PORTAL_SERVICE_PRIVATE_KEY` / 1Password" note. Also fix the machine-specific absolute paths in its shell snippets.
+- [x] Update the **new public key** in [`packages/account/src/topology-data.ts`](../packages/account/src/topology-data.ts) for `kid = aomi-bff-dev-1`.
+- [x] Update the matching public key in the backend `../product-mono/aomi/service.toml` + `service.dev.toml` (see §8.1 — fix the stale one at the same time).
+- [x] Set the new private key in `apps/portal/.env.local` (`PORTAL_SERVICE_PRIVATE_KEY`); confirm it is git-ignored.
+- [x] Verify: `pnpm exec vitest run packages/service` and a local mint→verify round-trip succeed with the new pair.
 - [ ] (Optional but recommended) scrub the key from git history before this branch merges (`git filter-repo` / BFG), since it lives in commit `7e03d36a`.
 
 ### 1.2 Green the suite — stale `publicKey` test
 > Confirmed a **stale test, not a regression**: the backend reads the wallet via
 > `public_key_from_user_state(user_state)` (product-mono `runtime/src/auth/mod.rs:317`),
 > never a standalone chat param.
-- [ ] Remove `publicKey` from `MockSession.syncRuntimeOptions`, the `_publicKey` field, and the `sendAsync` mock in [`packages/react/src/runtime/__tests__/test-harness.tsx`](../packages/react/src/runtime/__tests__/test-harness.tsx) (~lines 366, 412-426).
-- [ ] Remove the `publicKey: "0xabc"` expectation in [`packages/react/src/runtime/__tests__/control.test.tsx:128`](../packages/react/src/runtime/__tests__/control.test.tsx).
-- [ ] Verify: `pnpm exec vitest run packages/react` → fully green.
+- [x] Remove `publicKey` from `MockSession.syncRuntimeOptions`, the `_publicKey` field, and the `sendAsync` mock in [`packages/react/src/runtime/__tests__/test-harness.tsx`](../packages/react/src/runtime/__tests__/test-harness.tsx) (~lines 366, 412-426).
+- [x] Remove the `publicKey: "0xabc"` expectation in [`packages/react/src/runtime/__tests__/control.test.tsx:128`](../packages/react/src/runtime/__tests__/control.test.tsx).
+- [x] Verify: `pnpm exec vitest run packages/react` → fully green.
 
 ### 1.3 `/api/chat` URL overflow
-- [ ] In [`packages/client/src/client.ts:352`](../packages/client/src/client.ts), wrap with the same strip `fetchState` uses:
+- [x] In [`packages/client/src/client.ts:352`](../packages/client/src/client.ts), wrap with the same strip `fetchState` uses:
       `const normalizedUserState = stripBulkyPendingFields(UserState.normalize(options?.userState));`
-- [ ] Verify: a `sendMessage` with a pending unsigned-tx / EIP-712 in `userState` no longer puts the blob in the URL (unit test or manual URL inspection).
+- [x] Verify: a `sendMessage` with a pending unsigned-tx / EIP-712 in `userState` no longer puts the blob in the URL (unit test or manual URL inspection).
 
 ---
 
@@ -87,13 +87,13 @@
 > The "collapse Privy/Para EVM+SVM into one row" feature was reverted; tests already
 > assert `"EVM/SVM"` never renders. This is dead scaffolding.
 
-- [ ] Collapse `groupConnectedByProvider` (now `accounts.map(a => [a])`) and the `legs: WalletLeg[]` concept to a single leg in [`apps/registry/src/components/control-bar/wallet-account-model.ts`](../apps/registry/src/components/control-bar/wallet-account-model.ts).
-- [ ] In [`wallet-picker.tsx`](../apps/registry/src/components/control-bar/wallet-picker.tsx): delete the always-false `grouped` branch (`renderConnectedGroup` ~639-666), `joinLegAddresses`, `singleNetworkName`, and fold the combined `FamilyChip` into `ChainTag`.
-- [ ] Drop the dead `wallets?` / `supportedEvmChains?` props + leg logic from `LinkedAuthAccountRow` (only call site passes neither).
-- [ ] Drop `ChainTag`'s unused `chainId` / `supportedEvmChains` props.
-- [ ] Rename the stale test `wallet-account-model.test.ts:53` ("groups … behind their linked account").
-- [ ] **Finish `solana*`→`svm*` (KEEP public aliases — landing consumes them):** in [`composer/build-identity.ts`](../apps/registry/src/lib/wallet-kit/composer/build-identity.ts) keep writing the public `solana*` aliases (consumed by `apps/landing/components/dev/para-solana-runtime-driver.tsx`), but remove the **internal** dead `?? solanaX` read-fallbacks in [`context.tsx:58`](../apps/registry/src/lib/wallet-kit/context.tsx) and `runtime-tx-handler.tsx`, and trim the doubled effect deps. Rename internal `Solana*` types/params (`accounts.ts`, `runtime/svm/wallet-runtime.ts`) to `Svm*`.
-- [ ] Verify: `pnpm --filter @aomi-labs/widget-lib exec vitest run src/lib/wallet-kit src/components/control-bar` (190 ✓) + `pnpm run typecheck:landing`.
+- [x] Collapse `groupConnectedByProvider` (now `accounts.map(a => [a])`) and the `legs: WalletLeg[]` concept to a single leg in [`apps/registry/src/components/control-bar/wallet-account-model.ts`](../apps/registry/src/components/control-bar/wallet-account-model.ts).
+- [x] In [`wallet-picker.tsx`](../apps/registry/src/components/control-bar/wallet-picker.tsx): delete the always-false `grouped` branch (`renderConnectedGroup` ~639-666), `joinLegAddresses`, `singleNetworkName`, and fold the combined `FamilyChip` into `ChainTag`.
+- [x] Drop the dead `wallets?` / `supportedEvmChains?` props + leg logic from `LinkedAuthAccountRow` (only call site passes neither).
+- [x] Drop `ChainTag`'s unused `chainId` / `supportedEvmChains` props.
+- [x] Rename the stale test `wallet-account-model.test.ts:53` ("groups … behind their linked account").
+- [x] **Finish `solana*`→`svm*` (KEEP public aliases — landing consumes them):** in [`composer/build-identity.ts`](../apps/registry/src/lib/wallet-kit/composer/build-identity.ts) keep writing the public `solana*` aliases (consumed by `apps/landing/components/dev/para-solana-runtime-driver.tsx`), but remove the **internal** dead `?? solanaX` read-fallbacks in [`context.tsx:58`](../apps/registry/src/lib/wallet-kit/context.tsx) and `runtime-tx-handler.tsx`, and trim the doubled effect deps. Rename internal `Solana*` types/params (`accounts.ts`, `runtime/svm/wallet-runtime.ts`) to `Svm*`.
+- [x] Verify: `pnpm --filter @aomi-labs/widget-lib exec vitest run src/lib/wallet-kit src/components/control-bar` (190 ✓) + `pnpm run typecheck:landing`.
 
 ---
 

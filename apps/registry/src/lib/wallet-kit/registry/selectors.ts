@@ -158,7 +158,7 @@ export function selectAccounts(
     evmConnections,
     activeEvmAddress: evmIdentity.address,
     activeEvmConnectionId: activeEvm?.uid ?? evmIdentity.connectorId,
-    solanaConnections: svmConnections.map((connection) => ({
+    svmConnections: svmConnections.map((connection) => ({
       id: connection.uid,
       publicKey: connection.address,
       walletName: connection.walletName,
@@ -166,6 +166,6 @@ export function selectAccounts(
       walletKind:
         connection.kind === "embedded-session" ? "embedded" : undefined,
     })),
-    activeSolanaAddress: activeSvm?.address,
+    activeSvmAddress: activeSvm?.address,
   });
 }
