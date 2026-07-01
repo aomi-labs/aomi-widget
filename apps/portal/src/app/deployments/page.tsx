@@ -1,10 +1,10 @@
 import { ErrorBoundary } from "@portal/components/shell/error-boundary";
-import { DeploymentConsole } from "@portal/features/launch/components";
+import { ProjectIndex } from "@portal/features/launch/components/deployments";
 
 export default function DeploymentsPage() {
   return (
     <ErrorBoundary>
-      <DeploymentConsole />
+      <ProjectIndex />
     </ErrorBoundary>
   );
 }
