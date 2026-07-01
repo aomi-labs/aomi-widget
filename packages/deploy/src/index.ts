@@ -64,6 +64,8 @@ export type {
   GitHubIdentity,
   ListUserSourcesInput,
   ListUserSourceDeploymentsInput,
+  ListSecretsInput,
+  ListSecretsResult,
   UserSource,
   UserSourceDeploymentApp,
   UserSourceLatestDeployment,
