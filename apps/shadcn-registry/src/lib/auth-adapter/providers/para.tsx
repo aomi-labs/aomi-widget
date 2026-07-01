@@ -1191,18 +1191,12 @@ function AomiParaProviderInner({
             </ParaSolanaWrapper>
           </ParaProvider>
         ) : (
-          <FullTestnetWalletRouter
-            enabled={routing.enabled}
-            chains={routing.routedChains}
-            routedChainIds={routing.routedChainIds}
+          <AomiParaAdapterProvider
+            supportedChains={routing.routedChains}
+            solanaConfig={resolvedSolanaConfig}
           >
-            <AomiParaAdapterProvider
-              supportedChains={routing.routedChains}
-              solanaConfig={resolvedSolanaConfig}
-            >
-              {children}
-            </AomiParaAdapterProvider>
-          </FullTestnetWalletRouter>
+            {children}
+          </AomiParaAdapterProvider>
         )}
       </QueryClientProvider>
     </ExtUserProvider>
