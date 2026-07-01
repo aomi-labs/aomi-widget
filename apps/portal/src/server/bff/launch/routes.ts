@@ -502,6 +502,29 @@ export async function deploymentHistoryRoute(req: Request) {
   }
 }
 
+export async function deploymentSecretsRoute(req: Request) {
+  const blocked = checkRead(req);
+  if (blocked) return blocked;
+
+  const session = await getGitHubSession();
+  if (!session) {
+    return NextResponse.json(
+      { error: "not signed in with GitHub" },
+      { status: 401 },
+    );
+  }
+
+  try {
+    const client = await deploymentClient();
+    const { byApp } = await client.listSecrets({
+      githubUserId: session.githubUserId,
+    });
+    return NextResponse.json({ byApp });
+  } catch (err) {
+    return launchErrorResponse(err);
+  }
+}
+
 export async function deploymentRollbackRoute(req: Request) {
   const blocked = checkWrite(req);
   if (blocked) return blocked;
