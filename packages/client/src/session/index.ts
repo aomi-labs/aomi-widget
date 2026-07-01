@@ -46,7 +46,6 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
   readonly sessionId: string;
 
   private app: string;
-  private publicKey?: string;
   private apiKey?: string;
   private userState?: UserStateShape;
   private clientId: string;
@@ -79,7 +78,6 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
 
     this.sessionId = sessionOptions?.sessionId ?? crypto.randomUUID();
     this.app = sessionOptions?.app ?? "default";
-    this.publicKey = sessionOptions?.publicKey;
     this.apiKey = sessionOptions?.apiKey;
     const initialUserState = UserState.reconcile(
       undefined,
@@ -124,7 +122,6 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
 
     const response = await this.client.sendMessage(this.sessionId, message, {
       app: this.app,
-      publicKey: this.publicKey,
       apiKey: this.apiKey,
       userState: this.userState,
       clientId: this.clientId,
@@ -155,7 +152,6 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
 
     const response = await this.client.sendMessage(this.sessionId, message, {
       app: this.app,
-      publicKey: this.publicKey,
       apiKey: this.apiKey,
       userState: this.userState,
       clientId: this.clientId,
@@ -286,7 +282,6 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
 
   syncRuntimeOptions(options: SessionRuntimeOptions): void {
     this.app = options.app;
-    this.publicKey = options.publicKey;
     this.apiKey = options.apiKey;
     this.clientId = options.clientId ?? this.clientId;
 
@@ -302,11 +297,6 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
     const previousSerialized = stableUserStateString(this.userState);
     this.userState = UserState.reconcile(this.userState, userState);
     const nextSerialized = stableUserStateString(this.userState);
-
-    const isConnected = UserState.isConnected(this.userState);
-    if (isConnected === false) {
-      this.publicKey = undefined;
-    }
 
     this.walletController.sync();
 

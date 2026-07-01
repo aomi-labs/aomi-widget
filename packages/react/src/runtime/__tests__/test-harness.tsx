@@ -33,7 +33,6 @@ export type AomiClientConfig = {
     message: string,
     options?: {
       app?: string;
-      publicKey?: string;
       apiKey?: string;
       userState?: Record<string, unknown>;
     },
@@ -53,7 +52,7 @@ export type AomiClientConfig = {
   // Control API
   getApps?: (
     sessionId: string,
-    options?: { publicKey?: string; apiKey?: string },
+    options?: { apiKey?: string },
   ) => Promise<string[]>;
   getModels?: (sessionId: string) => Promise<string[]>;
   setModel?: (
@@ -69,7 +68,6 @@ export type AomiClientConfig = {
     message: string,
     options?: {
       app?: string;
-      publicKey?: string;
       apiKey?: string;
       userState?: Record<string, unknown>;
     },
@@ -179,7 +177,6 @@ vi.mock("@aomi-labs/client", async (importOriginal) => {
         message: string,
         options?: {
           app?: string;
-          publicKey?: string;
           apiKey?: string;
           userState?: Record<string, unknown>;
         },
@@ -240,10 +237,7 @@ vi.mock("@aomi-labs/client", async (importOriginal) => {
 
     // Control API
     getApps = vi.fn(
-      async (
-        sessionId: string,
-        options?: { publicKey?: string; apiKey?: string },
-      ) => {
+      async (sessionId: string, options?: { apiKey?: string }) => {
         return mockState.config.getApps
           ? await mockState.config.getApps(sessionId, options)
           : [];

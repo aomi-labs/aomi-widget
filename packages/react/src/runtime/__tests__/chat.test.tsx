@@ -452,16 +452,9 @@ describe("Chat API", () => {
       const call = postChatMessage.mock.calls[0] as unknown as [
         string,
         string,
-        (
-          | {
-              publicKey?: string;
-              userState?: Record<string, unknown>;
-            }
-          | undefined
-        ),
+        { userState?: Record<string, unknown> } | undefined,
       ];
 
-      expect(call[2]?.publicKey).toBeUndefined();
       expect(call[2]?.userState).toMatchObject({
         connection: { is_connected: false },
       });

@@ -293,6 +293,140 @@ describe("WalletPicker", () => {
     expect(screen.queryByRole("button", { name: "Connect Para" })).toBeNull();
   });
 
+  it("keeps linked wallet records out of the add-wallet picker", async () => {
+    const connectEvmWallet = vi.fn(async () => undefined);
+    const walletModalRows: NonNullable<AomiWalletKit["walletModalRows"]> = [
+      {
+        id: "para-evm",
+        family: "evm",
+        address: "0xe77a600000000000000000000000000000000000",
+        chainId: 1,
+        label: "0xe77...a6",
+        walletName: "Para",
+        source: "live",
+        status: "active",
+        linked: true,
+        actions: [{ kind: "manage", label: "Manage" }],
+      },
+      {
+        id: "stored-rabby",
+        family: "evm",
+        address: "0xda60000000000000000000000000000000000000",
+        label: "Rabby 1",
+        walletName: "Rabby 1",
+        source: "stored",
+        status: "stored",
+        provider: "siwe",
+        linked: true,
+        actions: [{ kind: "connect", label: "Connect" }],
+      },
+      {
+        id: "stored-walletconnect",
+        family: "evm",
+        address: "0x71f0000000000000000000000000000000000000",
+        label: "WalletConnect 1",
+        walletName: "WalletConnect 1",
+        source: "stored",
+        status: "stored",
+        provider: "siwe",
+        linked: true,
+        actions: [{ kind: "connect", label: "Connect" }],
+      },
+      {
+        id: "stored-coinbase",
+        family: "evm",
+        address: "0x67f0000000000000000000000000000000000000",
+        label: "Coinbase Wallet 1",
+        walletName: "Coinbase Wallet 1",
+        source: "stored",
+        status: "stored",
+        provider: "siwe",
+        linked: true,
+        actions: [{ kind: "connect", label: "Connect" }],
+      },
+      {
+        id: "metamask",
+        family: "evm",
+        label: "MetaMask",
+        walletName: "MetaMask",
+        kind: "evm",
+        source: "option",
+        status: "available",
+        actions: [{ kind: "connect", label: "Connect" }],
+      },
+      {
+        id: "rabby",
+        family: "evm",
+        label: "Rabby",
+        walletName: "Rabby",
+        kind: "evm",
+        source: "option",
+        status: "available",
+        actions: [{ kind: "connect", label: "Connect" }],
+      },
+      {
+        id: "coinbase",
+        family: "evm",
+        label: "Coinbase Wallet",
+        walletName: "Coinbase Wallet",
+        kind: "evm",
+        source: "option",
+        status: "available",
+        actions: [{ kind: "connect", label: "Connect" }],
+      },
+      {
+        id: "walletconnect",
+        family: "evm",
+        label: "WalletConnect",
+        walletName: "WalletConnect",
+        kind: "walletconnect",
+        source: "option",
+        status: "available",
+        actions: [{ kind: "connect", label: "Connect" }],
+      },
+    ];
+
+    renderPicker(
+      makeAdapter({
+        connectEvmWallet,
+        accounts: [
+          {
+            id: "para-evm",
+            family: "evm",
+            address: "0xe77a600000000000000000000000000000000000",
+            walletName: "Para",
+            chainId: 1,
+            active: true,
+            linked: true,
+            manageable: true,
+          },
+        ],
+        walletModalRows,
+      }),
+    );
+
+    openAddWallets();
+
+    expect(screen.getByRole("button", { name: "Link Rabby" })).toBeTruthy();
+    expect(
+      screen.getByRole("button", { name: "Link Coinbase Wallet" }),
+    ).toBeTruthy();
+    expect(
+      screen.getByRole("button", { name: "Link WalletConnect" }),
+    ).toBeTruthy();
+    expect(
+      screen.queryByRole("button", { name: "Link Rabby 1" }),
+    ).toBeNull();
+    expect(
+      screen.queryByRole("button", { name: "Link Coinbase Wallet 1" }),
+    ).toBeNull();
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Link Rabby" }));
+    });
+    expect(connectEvmWallet).toHaveBeenCalledWith("rabby");
+  });
+
   it("renders inactive connected EVM wallets and can make one active", async () => {
     const selectAccount = vi.fn(async () => undefined);
     // The adapter dedupes same-address connectors, so the picker receives one

@@ -341,7 +341,6 @@ export class AomiClient {
     options?: {
       app?: string;
       applicationId?: number | string | null;
-      publicKey?: string;
       apiKey?: string;
       userState?: UserStateShape;
       clientId?: string;
@@ -752,7 +751,7 @@ export class AomiClient {
    */
   async getApps(
     sessionId: string,
-    options?: { publicKey?: string; apiKey?: string },
+    options?: { apiKey?: string },
   ): Promise<AomiAppDescriptor[]> {
     const url = buildApiUrl(this.baseUrl, "/api/session/apps");
 

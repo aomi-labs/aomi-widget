@@ -160,6 +160,13 @@ export async function getOrCreateAomiUserForBetterAuthSession(input: {
   });
 }
 
+export function isIdentityAlreadyLinkedError(error: unknown): boolean {
+  return (
+    error instanceof Error &&
+    error.message === "identity_already_linked_to_another_account"
+  );
+}
+
 async function findFirstSignalOwner(
   signals: SignalRef[],
   db: Parameters<typeof findSignalOwner>[1],
