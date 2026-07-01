@@ -151,6 +151,37 @@ describe("AomiClient transport selection", () => {
     }
   });
 
+  it("attaches bearer sessions to account probes", async () => {
+    const accountResponse = {
+      ok: true,
+      json: vi.fn(async () => ({ id: "account-1" })),
+    } as unknown as Response;
+    const nativeFetch = vi.fn(async () => accountResponse);
+    const originalFetch = globalThis.fetch;
+    vi.stubGlobal("fetch", nativeFetch);
+
+    try {
+      const client = new AomiClient({
+        baseUrl: "http://unit.test",
+        getAccountAccessToken: async () => "better-auth-session",
+      });
+
+      await expect(client.getAccount("session-1")).resolves.toEqual({
+        id: "account-1",
+      });
+      expect(String(nativeFetch.mock.calls[0]?.[0])).toBe(
+        "http://unit.test/api/account",
+      );
+      expect(
+        new Headers(
+          (nativeFetch.mock.calls[0]?.[1] as RequestInit).headers,
+        ).get("Authorization"),
+      ).toBe("Bearer better-auth-session");
+    } finally {
+      vi.stubGlobal("fetch", originalFetch);
+    }
+  });
+
   it("uses native fetch for SSE subscriptions even when a custom fetch is provided", async () => {
     let connection: ReturnType<typeof createMockSseConnection> | undefined;
     const nativeFetch = vi.fn(async (_input, init) => {
@@ -309,9 +340,7 @@ describe("AomiClient transport selection", () => {
     expect(url).not.toContain("large-payload");
 
     const parsed = new URL(url);
-    const userState = JSON.parse(
-      parsed.searchParams.get("user_state") ?? "{}",
-    );
+    const userState = JSON.parse(parsed.searchParams.get("user_state") ?? "{}");
     expect(userState.pending.evm_sigs["7"].typed_data).toBeUndefined();
     expect(userState.pending.evm_sigs["7"].pending_eip712_id).toBe(7);
   });

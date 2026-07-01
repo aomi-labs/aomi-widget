@@ -29,6 +29,7 @@ export type {
   AomiChatResponse,
   AomiClearSecretsResponse,
   AomiCreateThreadResponse,
+  AomiAccountResponse,
   AomiDeleteSecretResponse,
   AomiIngestSecretsResponse,
   AomiInterruptResponse,

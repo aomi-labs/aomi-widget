@@ -148,6 +148,8 @@ export interface AomiThread {
   is_archived?: boolean;
 }
 
+export type AomiAccountResponse = Record<string, unknown>;
+
 /**
  * POST /api/sessions
  * Creates a new thread/session

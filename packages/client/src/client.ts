@@ -13,6 +13,7 @@ import type {
   AomiListSecretsResponse,
   AomiByokKeyEntry,
   AomiSaveByokKeyResponse,
+  AomiAccountResponse,
   AomiSSEEvent,
   AomiSimulateResponse,
   AomiStateResponse,
@@ -600,6 +601,22 @@ export class AomiClient {
    */
   async ensureAccount(_sessionId: string, _publicKey: string): Promise<void> {
     return undefined;
+  }
+
+  /**
+   * Return backend account identity for the current authenticated session.
+   */
+  async getAccount(sessionId: string): Promise<AomiAccountResponse> {
+    const url = buildApiUrl(this.baseUrl, "/api/account");
+    const response = await this.fetchImpl(url, {
+      headers: withSessionHeader(sessionId),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to fetch account: HTTP ${response.status}`);
+    }
+
+    return (await response.json()) as AomiAccountResponse;
   }
 
   /**
