@@ -405,6 +405,8 @@ export interface ExchangeGitHubCodeInput extends BearerOverride {
   code: string;
   /** Which configured GitHub App (1 = build, 2 = oneshot). */
   app?: number;
+  /** Redirect URI used when the authorization code was issued. */
+  redirectUri?: string;
 }
 
 export interface GitHubIdentity {

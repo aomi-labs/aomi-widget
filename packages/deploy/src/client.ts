@@ -549,6 +549,9 @@ export class DeploymentClient {
     const code = required(input.code, "code");
     const params = new URLSearchParams({ code });
     if (input.app) params.set("app", String(input.app));
+    if (input.redirectUri?.trim()) {
+      params.set("redirect_uri", input.redirectUri.trim());
+    }
     const bearer = this.resolveBearer(input.bearer);
     const raw = await this.get<{
       github_user_id?: string;
