@@ -1,6 +1,6 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useContext, type ReactNode } from "react";
 import { useClient as useParaClient } from "@getpara/react-sdk";
 import {
   ParaSolanaProvider,
@@ -12,7 +12,10 @@ import {
   type WalletList as SolanaWalletList,
 } from "@getpara/solana-wallet-connectors";
 import { Chain as SolanaMobileChain } from "@solana-mobile/mobile-wallet-adapter-protocol";
-import { useWallet as useSolanaWallet } from "@solana/wallet-adapter-react";
+import {
+  WalletContext,
+  type WalletContextState,
+} from "@solana/wallet-adapter-react";
 import {
   Connection as SolanaConnection,
   Transaction as SolanaTransaction,
@@ -102,13 +105,37 @@ type SolanaWalletReadyState =
   | "NotDetected"
   | "Loadable"
   | "Unsupported";
-type SolanaWalletName = Parameters<
-  ReturnType<typeof useSolanaWallet>["select"]
->[0];
+type SolanaWalletName = Parameters<WalletContextState["select"]>[0];
+
+const DISCONNECTED_SOLANA_WALLET: SafeSolanaWalletState = {
+  publicKey: undefined,
+  connected: false,
+  connecting: false,
+  disconnecting: false,
+  walletName: undefined,
+  wallets: [],
+  select: undefined,
+  connect: undefined,
+  disconnect: undefined,
+  signTransaction: undefined,
+  signAllTransactions: undefined,
+  signMessage: undefined,
+  sendTransaction: undefined,
+};
+
+function hasMissingProviderGetters(wallet: WalletContextState): boolean {
+  return ["publicKey", "wallet", "wallets"].some(
+    (property) => Object.getOwnPropertyDescriptor(wallet, property)?.get,
+  );
+}
 
 export function useSafeSolanaWallet(): SafeSolanaWalletState {
+  const wallet = useContext(WalletContext);
+  if (hasMissingProviderGetters(wallet)) {
+    return DISCONNECTED_SOLANA_WALLET;
+  }
+
   try {
-    const wallet = useSolanaWallet();
     return {
       publicKey: wallet.publicKey?.toBase58(),
       connected: wallet.connected,
@@ -125,21 +152,7 @@ export function useSafeSolanaWallet(): SafeSolanaWalletState {
       sendTransaction: wallet.sendTransaction,
     };
   } catch {
-    return {
-      publicKey: undefined,
-      connected: false,
-      connecting: false,
-      disconnecting: false,
-      walletName: undefined,
-      wallets: [],
-      select: undefined,
-      connect: undefined,
-      disconnect: undefined,
-      signTransaction: undefined,
-      signAllTransactions: undefined,
-      signMessage: undefined,
-      sendTransaction: undefined,
-    };
+    return DISCONNECTED_SOLANA_WALLET;
   }
 }
 
