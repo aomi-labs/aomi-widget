@@ -153,14 +153,14 @@ to every proxied `/api/*` call → the proxy's `getSessionedCanonicalId` resolve
 from the _incoming_ request before it strips client headers, so presenting the session bearer
 is correct — the CLI does **not** need `/api/bff/auth/token`.)
 
-- [ ] **6.1 Build the CLI auth client** (`packages/client/src/account-session.ts` or a new `cli/auth.ts`):
-  - [ ] `GET {portal}/api/auth/siwe/nonce` → nonce.
-  - [ ] Build the EIP-4361 message (domain = portal host, address = CLI EVM key, the nonce) and sign it with the CLI keypair.
-  - [ ] `POST {portal}/api/auth/siwe/verify` (BetterAuth) with `{ message, signature }` → capture the session token from the `set-auth-token` response header (bearer plugin).
-  - [ ] Persist the session token in the CLI session store (`cli/state.ts`), with expiry.
-- [ ] **6.2 Attach the session on proxied calls:** wire `AomiClient`'s bearer seam so CLI requests carry `Authorization: Bearer <sessionToken>` (the proxy mints from it). Do **not** fetch an AomiBearer client-side for the CLI.
-- [ ] **6.3 Confirm the data paths** reuse the existing CLI commands unchanged once auth is attached: `aomi chat` (`/api/chat`), `aomi wallet whoami` (`/api/account`), thread list/switch (`/api/sessions`, `/api/state`).
-- [ ] **6.4 Sign-out:** add `aomi logout` → `POST /api/auth/sign-out` (BetterAuth) + clear the stored session token.
+- [x] **6.1 Build the CLI auth client** (`packages/client/src/account-session.ts` or a new `cli/auth.ts`):
+  - [x] `POST {portal}/api/auth/siwe/nonce` → nonce (BetterAuth's current SIWE endpoint is POST-only).
+  - [x] Build the EIP-4361 message (domain = portal host, address = CLI EVM key, the nonce) and sign it with the CLI keypair.
+  - [x] `POST {portal}/api/auth/siwe/verify` (BetterAuth) with `{ message, signature, walletAddress, chainId }` → capture the session token from the `set-auth-token` response header (bearer plugin).
+  - [x] Persist the session token in the CLI session store (`cli/state.ts`), with expiry.
+- [x] **6.2 Attach the session on proxied calls:** wire `AomiClient`'s bearer seam so CLI requests carry `Authorization: Bearer <sessionToken>` (the proxy mints from it). Do **not** fetch an AomiBearer client-side for the CLI.
+- [x] **6.3 Confirm the data paths** reuse the existing CLI commands unchanged once auth is attached: `aomi chat` (`/api/chat`), `aomi wallet whoami` (`/api/account`), thread list/switch (`/api/sessions`, `/api/state`).
+- [x] **6.4 Sign-out:** add `aomi logout` → `POST /api/auth/sign-out` (BetterAuth) + clear the stored session token.
 
 ### CLI ↔ GUI parity verification matrix
 
@@ -168,15 +168,23 @@ Run the local stack (`scripts/dev-auth-stack.sh`) and confirm each row passes fo
 
 | Capability                 | GUI (portal)                | CLI (target)                                                              | Pass? |
 | -------------------------- | --------------------------- | ------------------------------------------------------------------------- | ----- |
-| SIWE auth → canonical user | login in widget             | `aomi account login` (SIWE)                                               | [ ]   |
+| SIWE auth → canonical user | login in widget             | `aomi account login` (SIWE)                                               | [x]   |
 | Same user across surfaces  | —                           | CLI + GUI with the same wallet resolve to the **same** `users.id` (Alice) | [ ]   |
-| Send message               | composer → `/api/chat` 200  | `aomi chat "hi"` → 200, streams                                           | [ ]   |
-| Load / list threads        | sidebar list                | `aomi` thread list → `/api/sessions` 200                                  | [ ]   |
-| Switch thread / poll state | click thread                | thread switch → `/api/state` 200                                          | [ ]   |
-| Backend identity           | `DbUser::get(sub)` resolves | same `sub` (canonical UUID) verifies in backend                           | [ ]   |
-| Sign-out                   | account panel               | `aomi logout` clears session                                              | [ ]   |
+| Send message               | composer → `/api/chat` 200  | `aomi chat "hi"` → 200, streams                                           | [x]   |
+| Load / list threads        | sidebar list                | `aomi` thread list → `/api/sessions` 200                                  | [x]   |
+| Switch thread / poll state | click thread                | thread switch → `/api/state` 200                                          | [x]   |
+| Backend identity           | `DbUser::get(sub)` resolves | same `sub` (canonical UUID) verifies in backend                           | [x]   |
+| Sign-out                   | account panel               | `aomi logout` clears session                                              | [x]   |
 
 - [ ] **Gate:** all rows green against the local stack → CLI is at parity.
+
+Verification note (2026-07-01): local stack was healthy via
+`scripts/dev-auth-stack.sh status`; CLI SIWE login with a test EVM key resolved canonical
+backend user `cce71768-e2b5-46bb-96f4-5c2aaa8a2616`, `aomi wallet whoami`,
+`aomi chat "hi"`, `aomi session list`, `aomi session status`, AomiClient
+`/api/sessions` list/create, AomiClient `/api/state`, and `aomi logout` all passed
+against `http://localhost:3000`. The GUI same-wallet comparison row remains open because
+this pass did not exercise a browser wallet/widget login.
 
 ---
 

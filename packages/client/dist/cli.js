@@ -1324,7 +1324,9 @@ var init_client = __esm({
         var _a3, _b, _c, _d, _e, _f;
         const app = (_a3 = options == null ? void 0 : options.app) != null ? _a3 : "default";
         const apiKey = (_b = options == null ? void 0 : options.apiKey) != null ? _b : this.apiKey;
-        const normalizedUserState = UserState.normalize(options == null ? void 0 : options.userState);
+        const normalizedUserState = stripBulkyPendingFields(
+          UserState.normalize(options == null ? void 0 : options.userState)
+        );
         const applicationId = (_c = options == null ? void 0 : options.applicationId) == null ? void 0 : _c.toString().trim();
         const url = buildApiUrl(this.baseUrl, "/api/chat", {
           app,
@@ -1522,6 +1524,19 @@ var init_client = __esm({
        */
       async ensureAccount(_sessionId, _publicKey) {
         return void 0;
+      }
+      /**
+       * Return backend account identity for the current authenticated session.
+       */
+      async getAccount(sessionId) {
+        const url = buildApiUrl(this.baseUrl, "/api/account");
+        const response = await this.fetchImpl(url, {
+          headers: withSessionHeader(sessionId)
+        });
+        if (!response.ok) {
+          throw new Error(`Failed to fetch account: HTTP ${response.status}`);
+        }
+        return await response.json();
       }
       /**
        * List all threads for the current authenticated Aomi account.
@@ -2926,7 +2941,6 @@ var init_session = __esm({
         this.client = clientOrOptions instanceof AomiClient ? clientOrOptions : new AomiClient(clientOrOptions);
         this.sessionId = (_a3 = sessionOptions == null ? void 0 : sessionOptions.sessionId) != null ? _a3 : crypto.randomUUID();
         this.app = (_b = sessionOptions == null ? void 0 : sessionOptions.app) != null ? _b : "default";
-        this.publicKey = sessionOptions == null ? void 0 : sessionOptions.publicKey;
         this.apiKey = sessionOptions == null ? void 0 : sessionOptions.apiKey;
         const initialUserState = UserState.reconcile(
           void 0,
@@ -2964,7 +2978,6 @@ var init_session = __esm({
         this.assertOpen();
         const response = await this.client.sendMessage(this.sessionId, message, {
           app: this.app,
-          publicKey: this.publicKey,
           apiKey: this.apiKey,
           userState: this.userState,
           clientId: this.clientId
@@ -2989,7 +3002,6 @@ var init_session = __esm({
         this.assertOpen();
         const response = await this.client.sendMessage(this.sessionId, message, {
           app: this.app,
-          publicKey: this.publicKey,
           apiKey: this.apiKey,
           userState: this.userState,
           clientId: this.clientId
@@ -3105,7 +3117,6 @@ var init_session = __esm({
       syncRuntimeOptions(options) {
         var _a3;
         this.app = options.app;
-        this.publicKey = options.publicKey;
         this.apiKey = options.apiKey;
         this.clientId = (_a3 = options.clientId) != null ? _a3 : this.clientId;
         if (options.userState) {
@@ -3116,10 +3127,6 @@ var init_session = __esm({
         const previousSerialized = stableUserStateString(this.userState);
         this.userState = UserState.reconcile(this.userState, userState);
         const nextSerialized = stableUserStateString(this.userState);
-        const isConnected3 = UserState.isConnected(this.userState);
-        if (isConnected3 === false) {
-          this.publicKey = void 0;
-        }
         this.walletController.sync();
         if (!(opts == null ? void 0 : opts.skipEmit) && this.userState && previousSerialized !== nextSerialized) {
           this.emit("user_state_updated", this.userState);
@@ -3603,7 +3610,10 @@ function parseSessionFileLocalId(filename) {
   return Number.isNaN(localId) ? null : localId;
 }
 function toSessionFilePath(localId) {
-  return join(SESSIONS_DIR, `${SESSION_FILE_PREFIX}${localId}${SESSION_FILE_SUFFIX}`);
+  return join(
+    SESSIONS_DIR,
+    `${SESSION_FILE_PREFIX}${localId}${SESSION_FILE_SUFFIX}`
+  );
 }
 function toCliSessionState(stored) {
   return {
@@ -3625,7 +3635,8 @@ function toCliSessionState(stored) {
     pendingSolTxs: stored.pendingSolTxs,
     signedTxs: stored.signedTxs,
     signedSolTxs: stored.signedSolTxs,
-    secretHandles: stored.secretHandles
+    secretHandles: stored.secretHandles,
+    auth: stored.auth
   };
 }
 function normalizeSignedTx(tx) {
@@ -3666,6 +3677,7 @@ function readStoredSession(path) {
       signedTxs: normalizeSignedTxs(parsed.signedTxs),
       signedSolTxs: parsed.signedSolTxs,
       secretHandles: parsed.secretHandles,
+      auth: normalizeAuthSession(parsed.auth),
       localId: typeof parsed.localId === "number" && parsed.localId > 0 ? parsed.localId : fallbackLocalId,
       createdAt: typeof parsed.createdAt === "number" && parsed.createdAt > 0 ? parsed.createdAt : Date.now(),
       updatedAt: typeof parsed.updatedAt === "number" && parsed.updatedAt > 0 ? parsed.updatedAt : Date.now()
@@ -3673,6 +3685,20 @@ function readStoredSession(path) {
   } catch (e) {
     return null;
   }
+}
+function normalizeAuthSession(value) {
+  if (!value || typeof value !== "object") return void 0;
+  const auth = value;
+  if (typeof auth.sessionToken !== "string" || !auth.sessionToken || typeof auth.expiresAt !== "number" || !Number.isFinite(auth.expiresAt)) {
+    return void 0;
+  }
+  return {
+    sessionToken: auth.sessionToken,
+    expiresAt: auth.expiresAt,
+    walletAddress: auth.walletAddress,
+    chainId: auth.chainId,
+    betterAuthUserId: auth.betterAuthUserId
+  };
 }
 function readActiveLocalId() {
   try {
@@ -3739,6 +3765,8 @@ function migrateLegacyStateIfNeeded() {
     }
     const now = Date.now();
     const migrated = __spreadProps(__spreadValues({}, legacy), {
+      sessionId: legacy.sessionId,
+      baseUrl: legacy.baseUrl,
       signedTxs: normalizeSignedTxs(legacy.signedTxs),
       localId: 1,
       createdAt: now,
@@ -3810,7 +3838,9 @@ function deleteStoredSession(selector) {
   }
   const activeLocalId = readActiveLocalId();
   if (activeLocalId === target.localId) {
-    const remaining = readAllStoredSessions().sort((a, b) => b.updatedAt - a.updatedAt);
+    const remaining = readAllStoredSessions().sort(
+      (a, b) => b.updatedAt - a.updatedAt
+    );
     writeActiveLocalId((_b = (_a3 = remaining[0]) == null ? void 0 : _a3.localId) != null ? _b : null);
   }
   return toStoredSessionRecord(target);
@@ -4008,6 +4038,232 @@ var init_solana_signer = __esm({
   }
 });
 
+// src/cli/auth.ts
+import { privateKeyToAccount as privateKeyToAccount2 } from "viem/accounts";
+function createCliAuthTokenProvider(readState2, now = Date.now) {
+  return async () => {
+    const auth = readState2().auth;
+    if (!(auth == null ? void 0 : auth.sessionToken)) return void 0;
+    if (auth.expiresAt <= now() + AUTH_REFRESH_SKEW_MS) {
+      return void 0;
+    }
+    return auth.sessionToken;
+  };
+}
+async function signInWithCliSiwe({
+  baseUrl,
+  privateKey,
+  chainId: chainId3 = DEFAULT_CHAIN_ID,
+  fetch: fetchImpl = fetch,
+  now = Date.now
+}) {
+  var _a3, _b, _c, _d, _e, _f, _g, _h, _i;
+  const portalUrl = normalizeBaseUrl(baseUrl);
+  const account = privateKeyToAccount2(privateKey);
+  const address3 = account.address;
+  const nonceResponse = await requestJson(
+    fetchImpl,
+    joinUrl(portalUrl, "/api/auth/siwe/nonce"),
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ walletAddress: address3, chainId: chainId3 })
+    },
+    "SIWE nonce"
+  );
+  const nonce = typeof nonceResponse.nonce === "string" ? nonceResponse.nonce : "";
+  if (!nonce) {
+    throw new Error("SIWE nonce response is missing nonce");
+  }
+  const message = buildSiweMessage({
+    address: address3,
+    chainId: chainId3,
+    nonce,
+    domain: (_a3 = normalizeDomain(nonceResponse.domain)) != null ? _a3 : domainFromBaseUrl(portalUrl),
+    uri: (_b = normalizeUri(nonceResponse.uri)) != null ? _b : portalUrl
+  });
+  const signature = await account.signMessage({ message });
+  const verifyResponse = await fetchImpl(
+    joinUrl(portalUrl, "/api/auth/siwe/verify"),
+    {
+      method: "POST",
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json"
+      },
+      credentials: "include",
+      body: JSON.stringify({
+        message,
+        signature,
+        walletAddress: address3,
+        chainId: chainId3
+      })
+    }
+  );
+  if (!verifyResponse.ok) {
+    throw new Error(
+      `SIWE verify failed: HTTP ${verifyResponse.status} ${await safeResponseText(
+        verifyResponse
+      )}`
+    );
+  }
+  const verifyBody = await verifyResponse.json().catch(() => ({}));
+  const sessionToken = (_c = getSessionTokenHeader(verifyResponse.headers)) != null ? _c : typeof verifyBody.token === "string" ? verifyBody.token : "";
+  if (!sessionToken) {
+    throw new Error("SIWE verify response is missing BetterAuth session token");
+  }
+  const accountInfo = await fetchPortalAccount(
+    fetchImpl,
+    portalUrl,
+    sessionToken
+  );
+  const expiresAt = (_e = parseExpiresAt((_d = accountInfo == null ? void 0 : accountInfo.session) == null ? void 0 : _d.expiresAt)) != null ? _e : now() + DEFAULT_SESSION_TTL_MS;
+  return {
+    address: address3,
+    auth: {
+      sessionToken,
+      expiresAt,
+      walletAddress: typeof ((_f = verifyBody.user) == null ? void 0 : _f.walletAddress) === "string" ? verifyBody.user.walletAddress : address3,
+      chainId: typeof ((_g = verifyBody.user) == null ? void 0 : _g.chainId) === "number" ? verifyBody.user.chainId : chainId3,
+      betterAuthUserId: typeof ((_h = accountInfo == null ? void 0 : accountInfo.session) == null ? void 0 : _h.betterAuthUserId) === "string" ? accountInfo.session.betterAuthUserId : typeof ((_i = verifyBody.user) == null ? void 0 : _i.id) === "string" ? verifyBody.user.id : void 0
+    }
+  };
+}
+async function signOutCliSession(input2) {
+  var _a3;
+  if (!input2.sessionToken) return;
+  const response = await ((_a3 = input2.fetch) != null ? _a3 : fetch)(
+    joinUrl(normalizeBaseUrl(input2.baseUrl), "/api/auth/sign-out"),
+    {
+      method: "POST",
+      headers: {
+        Accept: "application/json",
+        Authorization: `Bearer ${input2.sessionToken}`,
+        "Content-Type": "application/json"
+      },
+      credentials: "include",
+      body: JSON.stringify({})
+    }
+  );
+  if (!response.ok && response.status !== 401) {
+    throw new Error(
+      `Sign-out failed: HTTP ${response.status} ${await safeResponseText(
+        response
+      )}`
+    );
+  }
+}
+function buildSiweMessage(input2) {
+  return `${input2.domain} wants you to sign in with your Ethereum account:
+${input2.address}
+
+Sign in to Aomi.
+
+URI: ${input2.uri}
+Version: 1
+Chain ID: ${input2.chainId}
+Nonce: ${input2.nonce}
+Issued At: ${(/* @__PURE__ */ new Date()).toISOString()}`;
+}
+function normalizeBaseUrl(baseUrl) {
+  const trimmed = baseUrl.trim().replace(/\/+$/, "");
+  if (!trimmed) throw new Error("Portal URL is required");
+  return trimmed;
+}
+function joinUrl(baseUrl, path) {
+  return `${baseUrl.replace(/\/+$/, "")}/${path.replace(/^\/+/, "")}`;
+}
+function domainFromBaseUrl(baseUrl) {
+  try {
+    return new URL(baseUrl).host;
+  } catch (e) {
+    return baseUrl.replace(/^[a-z][a-z0-9+.-]*:\/\//i, "").replace(/\/.*$/, "");
+  }
+}
+function normalizeDomain(value) {
+  if (typeof value !== "string") return void 0;
+  const trimmed = value.trim();
+  if (!trimmed) return void 0;
+  try {
+    return new URL(trimmed).host || void 0;
+  } catch (e) {
+    return trimmed.replace(/^[a-z][a-z0-9+.-]*:\/\//i, "").replace(/\/.*$/, "").trim();
+  }
+}
+function normalizeUri(value) {
+  if (typeof value !== "string") return void 0;
+  const trimmed = value.trim().replace(/\/+$/, "");
+  if (!trimmed) return void 0;
+  try {
+    const url = new URL(trimmed);
+    if (url.protocol !== "http:" && url.protocol !== "https:") {
+      return void 0;
+    }
+    return url.toString().replace(/\/+$/, "");
+  } catch (e) {
+    return void 0;
+  }
+}
+function getSessionTokenHeader(headers) {
+  for (const header of SESSION_TOKEN_HEADERS) {
+    const value = headers.get(header);
+    if (value) return value;
+  }
+  return null;
+}
+async function fetchPortalAccount(fetchImpl, baseUrl, sessionToken) {
+  const response = await fetchImpl(joinUrl(baseUrl, "/api/aomi/account"), {
+    method: "GET",
+    credentials: "include",
+    headers: {
+      Accept: "application/json",
+      Authorization: `Bearer ${sessionToken}`
+    }
+  });
+  if (!response.ok) return null;
+  return await response.json().catch(() => null);
+}
+async function requestJson(fetchImpl, url, init, label) {
+  var _a3;
+  const response = await fetchImpl(url, __spreadValues({
+    headers: __spreadValues({ Accept: "application/json" }, (_a3 = init.headers) != null ? _a3 : {})
+  }, init));
+  if (!response.ok) {
+    throw new Error(
+      `${label} failed: HTTP ${response.status} ${await safeResponseText(
+        response
+      )}`
+    );
+  }
+  return await response.json();
+}
+function parseExpiresAt(value) {
+  if (value instanceof Date) return value.getTime();
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value > 1e12 ? value : value * 1e3;
+  }
+  if (typeof value === "string" && value.trim()) {
+    const parsed = Date.parse(value);
+    return Number.isNaN(parsed) ? null : parsed;
+  }
+  return null;
+}
+async function safeResponseText(response) {
+  const text = await response.text().catch(() => "");
+  return text ? `- ${text}` : "";
+}
+var DEFAULT_CHAIN_ID, DEFAULT_SESSION_TTL_MS, AUTH_REFRESH_SKEW_MS, SESSION_TOKEN_HEADERS;
+var init_auth = __esm({
+  "src/cli/auth.ts"() {
+    "use strict";
+    DEFAULT_CHAIN_ID = 1;
+    DEFAULT_SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1e3;
+    AUTH_REFRESH_SKEW_MS = 30 * 1e3;
+    SESSION_TOKEN_HEADERS = ["set-auth-token", "x-auth-token", "auth-token"];
+  }
+});
+
 // src/cli/cli-session.ts
 var CliSession;
 var init_cli_session = __esm({
@@ -4018,6 +4274,7 @@ var init_cli_session = __esm({
     init_user_state3();
     init_errors();
     init_solana_signer();
+    init_auth();
     CliSession = class _CliSession {
       constructor(state) {
         this.state = state;
@@ -4049,7 +4306,9 @@ var init_cli_session = __esm({
         let svmPublicKey;
         if (config.solanaPrivateKey) {
           try {
-            svmPublicKey = parseSolanaKeypairSecret(config.solanaPrivateKey).publicKey.toBase58();
+            svmPublicKey = parseSolanaKeypairSecret(
+              config.solanaPrivateKey
+            ).publicKey.toBase58();
           } catch (e) {
           }
         }
@@ -4068,7 +4327,8 @@ var init_cli_session = __esm({
           // per-session artifact.
           svmPrivateKey: (_h = config.solanaPrivateKey) != null ? _h : seed == null ? void 0 : seed.svmPrivateKey,
           chainId: (_i = config.chain) != null ? _i : seed == null ? void 0 : seed.chainId,
-          secretHandles: seed == null ? void 0 : seed.secretHandles
+          secretHandles: seed == null ? void 0 : seed.secretHandles,
+          auth: seed == null ? void 0 : seed.auth
         };
         const cli = new _CliSession(state);
         cli.save();
@@ -4130,6 +4390,9 @@ var init_cli_session = __esm({
         var _a3;
         return (_a3 = this.state.secretHandles) != null ? _a3 : {};
       }
+      get auth() {
+        return this.state.auth;
+      }
       // ---------------------------------------------------------------------------
       // Mutators (auto-persist)
       // ---------------------------------------------------------------------------
@@ -4159,7 +4422,9 @@ var init_cli_session = __esm({
         }
         if (config.solanaPrivateKey !== void 0) {
           try {
-            const svmPub = parseSolanaKeypairSecret(config.solanaPrivateKey).publicKey.toBase58();
+            const svmPub = parseSolanaKeypairSecret(
+              config.solanaPrivateKey
+            ).publicKey.toBase58();
             if (svmPub !== this.state.svmPublicKey) {
               this.state.svmPublicKey = svmPub;
               changed = true;
@@ -4221,6 +4486,15 @@ var init_cli_session = __esm({
       }
       clearSecretHandles() {
         this.state.secretHandles = {};
+        this.save();
+      }
+      setAuthSession(auth) {
+        this.state.auth = auth;
+        this.save();
+      }
+      clearAuthSession() {
+        if (!this.state.auth) return;
+        delete this.state.auth;
         this.save();
       }
       /** Ensure clientId exists, generate if absent. Returns the clientId. */
@@ -4319,7 +4593,9 @@ Available: ${available}`);
       requirePendingTxs(txIds) {
         const uniqueIds = Array.from(new Set(txIds));
         if (uniqueIds.length !== txIds.length) {
-          fatal("Duplicate transaction IDs are not allowed in a single `aomi tx sign` call.");
+          fatal(
+            "Duplicate transaction IDs are not allowed in a single `aomi tx sign` call."
+          );
         }
         return uniqueIds.map((txId) => this.requirePendingTx(txId));
       }
@@ -4347,21 +4623,26 @@ Available: ${available}`);
       createClientSession() {
         var _a3, _b;
         const session = new ClientSession(
-          { baseUrl: this.state.baseUrl, apiKey: this.state.apiKey },
+          {
+            baseUrl: this.state.baseUrl,
+            apiKey: this.state.apiKey,
+            getAccountAccessToken: createCliAuthTokenProvider(() => this.state)
+          },
           {
             sessionId: this.state.sessionId,
             clientId: this.state.clientId,
             app: this.state.app,
-            apiKey: this.state.apiKey,
-            publicKey: this.state.publicKey
+            apiKey: this.state.apiKey
           }
         );
-        session.resolveUserState(buildCliUserState(this.state.publicKey, this.state.chainId, {
-          app: this.state.app,
-          aaMode: (_a3 = this.state.aaMode) != null ? _a3 : null,
-          smartAccount: (_b = this.state.smartAccount) != null ? _b : null,
-          svmAddress: this.state.svmPublicKey
-        }));
+        session.resolveUserState(
+          buildCliUserState(this.state.publicKey, this.state.chainId, {
+            app: this.state.app,
+            aaMode: (_a3 = this.state.aaMode) != null ? _a3 : null,
+            smartAccount: (_b = this.state.smartAccount) != null ? _b : null,
+            svmAddress: this.state.svmPublicKey
+          })
+        );
         return session;
       }
       /** Snapshot of the raw state (for backward compat or serialization). */
@@ -4516,7 +4797,11 @@ function createControlClient(config) {
   var _a3;
   return new AomiClient({
     baseUrl: (_a3 = config.baseUrl) != null ? _a3 : "https://api.aomi.dev",
-    apiKey: config.apiKey
+    apiKey: config.apiKey,
+    getAccountAccessToken: createCliAuthTokenProvider(() => {
+      var _a4;
+      return (_a4 = readState()) != null ? _a4 : {};
+    })
   });
 }
 async function ingestSecretsForSession(config, cli, client) {
@@ -4550,6 +4835,8 @@ var init_context = __esm({
   "src/cli/context.ts"() {
     "use strict";
     init_client();
+    init_auth();
+    init_state2();
   }
 });
 
@@ -4738,7 +5025,7 @@ async function chatCommand(config, message, verbose) {
         console.log(`   to:    ${payload.to}`);
         if (payload.value) console.log(`   value: ${payload.value}`);
         if (payload.chainId) console.log(`   chain: ${payload.chainId}`);
-      } else if (pending.kind === "eip712_sign") {
+      } else if ("kind" in pending && pending.kind === "eip712_sign") {
         const payload = pending.payload;
         if (payload.description) {
           console.log(`   desc:  ${payload.description}`);
@@ -4888,7 +5175,7 @@ var init_types2 = __esm({
 
 // src/aa/execute.ts
 import { createPublicClient, createWalletClient, http } from "viem";
-import { privateKeyToAccount as privateKeyToAccount2 } from "viem/accounts";
+import { privateKeyToAccount as privateKeyToAccount3 } from "viem/accounts";
 function normalizeRpcCallData(data) {
   return data === "0x" ? void 0 : data;
 }
@@ -5067,7 +5354,7 @@ async function executeViaEoa({
       if (!rpcUrl) {
         throw new Error(`No RPC for chain ${call.chainId}`);
       }
-      const account = privateKeyToAccount2(localPrivateKey);
+      const account = privateKeyToAccount3(localPrivateKey);
       const walletClient = createWalletClient({
         account,
         chain,
@@ -5430,13 +5717,13 @@ var init_adapt = __esm({
 });
 
 // src/aa/owner.ts
-import { privateKeyToAccount as privateKeyToAccount3 } from "viem/accounts";
+import { privateKeyToAccount as privateKeyToAccount4 } from "viem/accounts";
 function getDirectOwnerParams(owner) {
   return {
     kind: "ready",
     ownerParams: {
       para: void 0,
-      signer: privateKeyToAccount3(owner.privateKey)
+      signer: privateKeyToAccount4(owner.privateKey)
     }
   };
 }
@@ -5523,7 +5810,7 @@ var init_owner = __esm({
 });
 
 // src/aa/alchemy/create.ts
-import { privateKeyToAccount as privateKeyToAccount4 } from "viem/accounts";
+import { privateKeyToAccount as privateKeyToAccount5 } from "viem/accounts";
 function extractExistingAccountAddress(error) {
   var _a3;
   const message = error instanceof Error ? error.message : String(error);
@@ -5680,7 +5967,7 @@ async function createAlchemyAAState(options) {
 async function createAlchemyWalletApisState(params) {
   const { createSmartWalletClient, alchemyWalletTransport } = await import("@alchemy/wallet-apis");
   const transport = params.proxyBaseUrl ? alchemyWalletTransport({ url: params.proxyBaseUrl }) : alchemyWalletTransport({ apiKey: params.apiKey });
-  const signer = privateKeyToAccount4(params.privateKey);
+  const signer = privateKeyToAccount5(params.privateKey);
   const alchemyClient = createSmartWalletClient(__spreadValues({
     transport,
     chain: params.chain,
@@ -5817,7 +6104,7 @@ var init_provider2 = __esm({
 });
 
 // src/aa/pimlico/create.ts
-import { privateKeyToAccount as privateKeyToAccount5 } from "viem/accounts";
+import { privateKeyToAccount as privateKeyToAccount6 } from "viem/accounts";
 function pimDebug(message, fields) {
   if (!AA_DEBUG_ENABLED2) return;
   if (fields) {
@@ -5857,7 +6144,7 @@ async function createPimlicoAAState(options) {
   }
   const permissionlessSigner = owner.kind === "session" || owner.kind === "external-wallet" ? resolvePimlicoSessionSigner(ownerParams.ownerParams) : null;
   try {
-    const signer = owner.kind === "direct" ? privateKeyToAccount5(owner.privateKey) : permissionlessSigner;
+    const signer = owner.kind === "direct" ? privateKeyToAccount6(owner.privateKey) : permissionlessSigner;
     if (signer) {
       return await createPimlicoPermissionlessState({
         resolved: execution,
@@ -6405,7 +6692,7 @@ __export(wallet_exports, {
   txCommand: () => txCommand
 });
 import { createWalletClient as createWalletClient2, http as http2 } from "viem";
-import { privateKeyToAccount as privateKeyToAccount6 } from "viem/accounts";
+import { privateKeyToAccount as privateKeyToAccount7 } from "viem/accounts";
 import * as viemChains from "viem/chains";
 async function txCommand() {
   const cli = CliSession.load();
@@ -6689,7 +6976,7 @@ Available: ${available}`
         ].join("\n")
       );
     }
-    const account = privateKeyToAccount6(privateKey);
+    const account = privateKeyToAccount7(privateKey);
     if (cli.publicKey && account.address.toLowerCase() !== cli.publicKey.toLowerCase()) {
       console.log(
         `\u26A0\uFE0F  Signer ${account.address} differs from session public key ${cli.publicKey}`
@@ -7294,10 +7581,15 @@ async function fetchRemoteSessionStats(record) {
   var _a3, _b, _c;
   const client = new AomiClient({
     baseUrl: record.state.baseUrl,
-    apiKey: record.state.apiKey
+    apiKey: record.state.apiKey,
+    getAccountAccessToken: createCliAuthTokenProvider(() => record.state)
   });
   try {
-    const apiState = await client.fetchState(record.sessionId, void 0, record.state.clientId);
+    const apiState = await client.fetchState(
+      record.sessionId,
+      void 0,
+      record.state.clientId
+    );
     const messages = (_a3 = apiState.messages) != null ? _a3 : [];
     return {
       topic: (_b = apiState.title) != null ? _b : "Untitled Session",
@@ -7338,7 +7630,9 @@ function printSessionSummary(record, stats, isActive) {
 }
 async function sessionsCommand(_config) {
   var _a3;
-  const sessions = listStoredSessions().sort((a, b) => b.updatedAt - a.updatedAt);
+  const sessions = listStoredSessions().sort(
+    (a, b) => b.updatedAt - a.updatedAt
+  );
   if (sessions.length === 0) {
     console.log("No local sessions.");
     printDataFileLocation();
@@ -7370,7 +7664,9 @@ function resumeSessionCommand(selector) {
   if (!resumed) {
     fatal(`No local session found for selector "${selector}".`);
   }
-  console.log(`Active session set to ${resumed.sessionId} (session-${resumed.localId}).`);
+  console.log(
+    `Active session set to ${resumed.sessionId} (session-${resumed.localId}).`
+  );
   printDataFileLocation();
 }
 function deleteSessionCommand(selector) {
@@ -7378,7 +7674,9 @@ function deleteSessionCommand(selector) {
   if (!deleted) {
     fatal(`No local session found for selector "${selector}".`);
   }
-  console.log(`Deleted local session ${deleted.sessionId} (session-${deleted.localId}).`);
+  console.log(
+    `Deleted local session ${deleted.sessionId} (session-${deleted.localId}).`
+  );
   const active = CliSession.load();
   if (active) {
     console.log(`Active session: ${active.sessionId}`);
@@ -7395,6 +7693,7 @@ var init_sessions = __esm({
     init_errors();
     init_output();
     init_state2();
+    init_auth();
     init_user_state3();
     init_tables();
   }
@@ -7427,7 +7726,11 @@ async function statusCommand(config) {
   cli.mergeConfig(config);
   const session = cli.createClientSession();
   try {
-    const apiState = await session.client.fetchState(cli.sessionId, void 0, cli.clientId);
+    const apiState = await session.client.fetchState(
+      cli.sessionId,
+      void 0,
+      cli.clientId
+    );
     console.log(
       JSON.stringify(
         {
@@ -7467,23 +7770,22 @@ async function eventsCommand(config) {
   }
 }
 async function appsCommand(config) {
-  var _a3, _b, _c, _d, _e;
+  var _a3, _b, _c, _d;
   const client = createControlClient(config);
   const cli = CliSession.load();
   const sessionId = (_a3 = cli == null ? void 0 : cli.sessionId) != null ? _a3 : crypto.randomUUID();
   const apps = await client.getApps(sessionId, {
-    publicKey: (_b = config.publicKey) != null ? _b : cli == null ? void 0 : cli.publicKey,
-    apiKey: (_c = config.apiKey) != null ? _c : cli == null ? void 0 : cli.apiKey
+    apiKey: (_b = config.apiKey) != null ? _b : cli == null ? void 0 : cli.apiKey
   });
   if (apps.length === 0) {
     console.log("No apps available.");
     return;
   }
-  const currentApp = (_d = cli == null ? void 0 : cli.app) != null ? _d : config.app;
+  const currentApp = (_c = cli == null ? void 0 : cli.app) != null ? _c : config.app;
   for (const descriptor of apps) {
     const name = descriptor.name;
     const marker = currentApp === name ? "  (current)" : "";
-    const required = ((_e = descriptor.secrets) != null ? _e : []).filter((s) => s.required).map((s) => s.name);
+    const required = ((_d = descriptor.secrets) != null ? _d : []).filter((s) => s.required).map((s) => s.name);
     const requiredSuffix = required.length > 0 ? `  [requires: ${required.join(", ")}]` : "";
     console.log(`${name}${marker}${requiredSuffix}`);
   }
@@ -7745,7 +8047,7 @@ __export(preferences_exports, {
   setSvmWalletCommand: () => setSvmWalletCommand,
   setWalletCommand: () => setWalletCommand
 });
-import { privateKeyToAccount as privateKeyToAccount7 } from "viem/accounts";
+import { privateKeyToAccount as privateKeyToAccount8 } from "viem/accounts";
 function loadOrCreateForSettings() {
   const existing = CliSession.load();
   if (existing) return existing;
@@ -7760,7 +8062,7 @@ function setWalletCommand(privateKeyInput) {
   if (!privateKey) {
     fatal("Usage: aomi wallet set <private-key>  (EVM hex key)");
   }
-  const account = privateKeyToAccount7(privateKey);
+  const account = privateKeyToAccount8(privateKey);
   const cli = loadOrCreateForSettings();
   cli.setWallet(privateKey, account.address);
   console.log(`EVM wallet set to ${account.address}`);
@@ -7810,6 +8112,89 @@ var init_preferences = __esm({
     init_validation();
     init_errors();
     init_solana_signer();
+  }
+});
+
+// src/cli/commands/account.ts
+var account_exports = {};
+__export(account_exports, {
+  accountLoginCommand: () => accountLoginCommand,
+  accountWhoamiCommand: () => accountWhoamiCommand,
+  logoutCommand: () => logoutCommand
+});
+async function accountLoginCommand(config) {
+  var _a3, _b, _c;
+  const cli = CliSession.loadOrCreate(config);
+  const privateKey = (_a3 = config.privateKey) != null ? _a3 : cli.privateKey;
+  if (!privateKey) {
+    fatal(
+      "No EVM private key configured.\nRun `aomi wallet set <evm-private-key>` or pass `--private-key`."
+    );
+  }
+  const chainId3 = (_c = (_b = config.chain) != null ? _b : cli.chainId) != null ? _c : DEFAULT_CHAIN_ID2;
+  const result = await signInWithCliSiwe({
+    baseUrl: cli.baseUrl,
+    privateKey,
+    chainId: chainId3
+  });
+  cli.setWallet(privateKey, result.address);
+  if (cli.chainId !== chainId3) {
+    cli.setChainId(chainId3);
+  }
+  cli.setAuthSession(result.auth);
+  console.log(`Signed in with ${result.address}`);
+  console.log(
+    `Session expires at ${new Date(result.auth.expiresAt).toISOString()}`
+  );
+  printDataFileLocation();
+}
+async function accountWhoamiCommand(config) {
+  const cli = CliSession.load();
+  if (!cli) {
+    console.log("No active session");
+    printDataFileLocation();
+    return;
+  }
+  cli.mergeConfig(config);
+  const session = cli.createClientSession();
+  try {
+    const account = await session.client.getAccount(cli.sessionId);
+    console.log(JSON.stringify(account, null, 2));
+    printDataFileLocation();
+  } finally {
+    session.close();
+  }
+}
+async function logoutCommand(config) {
+  var _a3;
+  const cli = CliSession.load();
+  if (!cli) {
+    console.log("No active session");
+    printDataFileLocation();
+    return;
+  }
+  cli.mergeConfig(config);
+  const token = (_a3 = cli.auth) == null ? void 0 : _a3.sessionToken;
+  try {
+    await signOutCliSession({
+      baseUrl: cli.baseUrl,
+      sessionToken: token
+    });
+  } finally {
+    cli.clearAuthSession();
+  }
+  console.log("Signed out");
+  printDataFileLocation();
+}
+var DEFAULT_CHAIN_ID2;
+var init_account = __esm({
+  "src/cli/commands/account.ts"() {
+    "use strict";
+    init_cli_session();
+    init_errors();
+    init_output();
+    init_auth();
+    DEFAULT_CHAIN_ID2 = 1;
   }
 });
 
@@ -8125,7 +8510,7 @@ var init_repl = __esm({
 import { runMain } from "citty";
 
 // src/cli/root.ts
-import { defineCommand as defineCommand10 } from "citty";
+import { defineCommand as defineCommand11 } from "citty";
 
 // src/cli/commands/defs/chat.ts
 init_shared();
@@ -8421,6 +8806,7 @@ var chainDef = defineCommand6({
 });
 
 // src/cli/commands/defs/wallet.ts
+init_shared();
 import { defineCommand as defineCommand7 } from "citty";
 var walletSetDef = defineCommand7({
   meta: {
@@ -8471,17 +8857,62 @@ var walletCurrentDef = defineCommand7({
     currentWalletCommand2();
   }
 });
+var walletWhoamiDef = defineCommand7({
+  meta: {
+    name: "whoami",
+    description: "Show the authenticated backend account"
+  },
+  args: __spreadValues({}, globalArgs),
+  async run({ args }) {
+    const { accountWhoamiCommand: accountWhoamiCommand2 } = await Promise.resolve().then(() => (init_account(), account_exports));
+    await accountWhoamiCommand2(buildCliConfig(args));
+  }
+});
 var walletDef = defineCommand7({
   meta: { name: "wallet", description: "Wallet configuration" },
   subCommands: {
     set: walletSetDef,
-    current: walletCurrentDef
+    current: walletCurrentDef,
+    whoami: walletWhoamiDef
+  }
+});
+
+// src/cli/commands/defs/account.ts
+init_shared();
+import { defineCommand as defineCommand8 } from "citty";
+var accountLoginDef = defineCommand8({
+  meta: {
+    name: "login",
+    description: "Sign in with the configured EVM wallet"
+  },
+  args: __spreadValues({}, globalArgs),
+  async run({ args }) {
+    const { accountLoginCommand: accountLoginCommand2 } = await Promise.resolve().then(() => (init_account(), account_exports));
+    await accountLoginCommand2(buildCliConfig(args));
+  }
+});
+var accountWhoamiDef = defineCommand8({
+  meta: {
+    name: "whoami",
+    description: "Show the authenticated backend account"
+  },
+  args: __spreadValues({}, globalArgs),
+  async run({ args }) {
+    const { accountWhoamiCommand: accountWhoamiCommand2 } = await Promise.resolve().then(() => (init_account(), account_exports));
+    await accountWhoamiCommand2(buildCliConfig(args));
+  }
+});
+var accountDef = defineCommand8({
+  meta: { name: "account", description: "Account authentication" },
+  subCommands: {
+    login: accountLoginDef,
+    whoami: accountWhoamiDef
   }
 });
 
 // src/cli/commands/defs/config.ts
-import { defineCommand as defineCommand8 } from "citty";
-var configSetBackendDef = defineCommand8({
+import { defineCommand as defineCommand9 } from "citty";
+var configSetBackendDef = defineCommand9({
   meta: { name: "set-backend", description: "Persist the backend base URL" },
   args: {
     url: {
@@ -8495,7 +8926,7 @@ var configSetBackendDef = defineCommand8({
     setBackendCommand2(args.url);
   }
 });
-var configCurrentDef = defineCommand8({
+var configCurrentDef = defineCommand9({
   meta: { name: "current", description: "Show the configured backend URL" },
   args: {},
   async run() {
@@ -8503,7 +8934,7 @@ var configCurrentDef = defineCommand8({
     currentBackendCommand2();
   }
 });
-var configDef = defineCommand8({
+var configDef = defineCommand9({
   meta: { name: "config", description: "CLI configuration" },
   subCommands: {
     "set-backend": configSetBackendDef,
@@ -8514,8 +8945,8 @@ var configDef = defineCommand8({
 // src/cli/commands/defs/secret.ts
 init_errors();
 init_shared();
-import { defineCommand as defineCommand9 } from "citty";
-var secretListDef = defineCommand9({
+import { defineCommand as defineCommand10 } from "citty";
+var secretListDef = defineCommand10({
   meta: { name: "list", description: "List configured secrets for the active session" },
   args: {},
   async run() {
@@ -8523,7 +8954,7 @@ var secretListDef = defineCommand9({
     listSecretsCommand2();
   }
 });
-var secretClearDef = defineCommand9({
+var secretClearDef = defineCommand10({
   meta: { name: "clear", description: "Clear all secrets for the active session" },
   args: __spreadValues({}, globalArgs),
   async run({ args }) {
@@ -8531,7 +8962,7 @@ var secretClearDef = defineCommand9({
     await clearSecretsCommand2(buildCliConfig(args));
   }
 });
-var secretAddDef = defineCommand9({
+var secretAddDef = defineCommand10({
   meta: { name: "add", description: "Add one or more secrets (NAME=value)" },
   args: __spreadProps(__spreadValues({}, globalArgs), {
     secret: {
@@ -8560,7 +8991,7 @@ Usage: aomi secret add NAME=value [NAME=value ...]`
     await ingestSecretsCommand2(config);
   }
 });
-var secretDef = defineCommand9({
+var secretDef = defineCommand10({
   meta: { name: "secret", description: "Secret management" },
   subCommands: {
     list: secretListDef,
@@ -8626,10 +9057,23 @@ var SUBCOMMAND_NAMES = /* @__PURE__ */ new Set([
   "app",
   "chain",
   "wallet",
+  "account",
+  "logout",
   "config",
   "secret"
 ]);
-var root = defineCommand10({
+var logoutDef = defineCommand11({
+  meta: {
+    name: "logout",
+    description: "Sign out and clear the CLI auth session"
+  },
+  args: __spreadValues({}, globalArgs),
+  async run({ args }) {
+    const { logoutCommand: logoutCommand2 } = await Promise.resolve().then(() => (init_account(), account_exports));
+    await logoutCommand2(buildCliConfig(args));
+  }
+});
+var root = defineCommand11({
   meta: {
     name: "aomi",
     version: package_default.version,
@@ -8666,6 +9110,8 @@ var root = defineCommand10({
     app: appDef,
     chain: chainDef,
     wallet: walletDef,
+    account: accountDef,
+    logout: logoutDef,
     config: configDef,
     secret: secretDef
   }
@@ -8681,6 +9127,8 @@ var ROOT_SUBCOMMANDS = /* @__PURE__ */ new Set([
   "app",
   "chain",
   "wallet",
+  "account",
+  "logout",
   "config",
   "secret"
 ]);
@@ -8746,6 +9194,8 @@ function printRootHelp() {
   console.log("  app                          App management");
   console.log("  chain                        Chain information");
   console.log("  wallet                       Wallet configuration");
+  console.log("  account                      Account authentication");
+  console.log("  logout                       Sign out and clear the CLI auth session");
   console.log("  config                       CLI configuration");
   console.log("  secret                       Secret management");
   console.log("");

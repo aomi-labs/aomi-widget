@@ -1,4 +1,5 @@
 import { defineCommand } from "citty";
+import { buildCliConfig, globalArgs } from "./shared";
 
 const walletSetDef = defineCommand({
   meta: {
@@ -10,7 +11,8 @@ const walletSetDef = defineCommand({
   args: {
     privateKey: {
       type: "positional",
-      description: "Hex EVM private key (default) or Solana base58 key when --solana is set",
+      description:
+        "Hex EVM private key (default) or Solana base58 key when --solana is set",
       required: false,
     },
     evm: {
@@ -57,10 +59,23 @@ const walletCurrentDef = defineCommand({
   },
 });
 
+const walletWhoamiDef = defineCommand({
+  meta: {
+    name: "whoami",
+    description: "Show the authenticated backend account",
+  },
+  args: { ...globalArgs },
+  async run({ args }) {
+    const { accountWhoamiCommand } = await import("../account");
+    await accountWhoamiCommand(buildCliConfig(args));
+  },
+});
+
 export const walletDef = defineCommand({
   meta: { name: "wallet", description: "Wallet configuration" },
   subCommands: {
     set: walletSetDef,
     current: walletCurrentDef,
+    whoami: walletWhoamiDef,
   },
 });

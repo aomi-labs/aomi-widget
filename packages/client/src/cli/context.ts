@@ -3,11 +3,14 @@ import type { AomiIngestSecretsResponse } from "../types";
 import type { ClientSession } from "../session";
 import type { CliConfig } from "./types";
 import type { CliSession } from "./cli-session";
+import { createCliAuthTokenProvider } from "./auth";
+import { readState } from "./state";
 
 export function createControlClient(config: CliConfig): AomiClient {
   return new AomiClient({
     baseUrl: config.baseUrl ?? "https://api.aomi.dev",
     apiKey: config.apiKey,
+    getAccountAccessToken: createCliAuthTokenProvider(() => readState() ?? {}),
   });
 }
 

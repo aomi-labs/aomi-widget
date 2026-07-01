@@ -1018,7 +1018,9 @@ var AomiClient = class {
     var _a, _b, _c, _d, _e, _f;
     const app = (_a = options == null ? void 0 : options.app) != null ? _a : "default";
     const apiKey = (_b = options == null ? void 0 : options.apiKey) != null ? _b : this.apiKey;
-    const normalizedUserState = UserState.normalize(options == null ? void 0 : options.userState);
+    const normalizedUserState = stripBulkyPendingFields(
+      UserState.normalize(options == null ? void 0 : options.userState)
+    );
     const applicationId = (_c = options == null ? void 0 : options.applicationId) == null ? void 0 : _c.toString().trim();
     const url = buildApiUrl(this.baseUrl, "/api/chat", {
       app,
@@ -1216,6 +1218,19 @@ var AomiClient = class {
    */
   async ensureAccount(_sessionId, _publicKey) {
     return void 0;
+  }
+  /**
+   * Return backend account identity for the current authenticated session.
+   */
+  async getAccount(sessionId) {
+    const url = buildApiUrl(this.baseUrl, "/api/account");
+    const response = await this.fetchImpl(url, {
+      headers: withSessionHeader(sessionId)
+    });
+    if (!response.ok) {
+      throw new Error(`Failed to fetch account: HTTP ${response.status}`);
+    }
+    return await response.json();
   }
   /**
    * List all threads for the current authenticated Aomi account.
@@ -1524,7 +1539,7 @@ var AccountCredentialUnavailableError = class extends Error {
 };
 var DEFAULT_REFRESH_BEFORE_EXPIRY_MS = 2 * 60 * 1e3;
 var FAILURE_COOLDOWN_MS = 30 * 1e3;
-var DEFAULT_BETTER_AUTH_TOKEN_PATH = "/api/auth/token";
+var DEFAULT_BETTER_AUTH_TOKEN_PATH = "/api/bff/auth/token";
 var DEFAULT_BETTER_AUTH_PROVIDER_EXCHANGE_PATH = "/api/auth/aomi/provider/exchange";
 function createAccountAccessTokenProvider({
   baseUrl,
@@ -1552,12 +1567,11 @@ function createAccountAccessTokenProvider({
     );
   };
   const fetchBetterAuthToken = async () => {
-    var _a, _b;
-    if (!(betterAuthToken == null ? void 0 : betterAuthToken.enabled)) return null;
+    var _a;
     const response = await fetchImpl(
       joinUrl(
-        (_a = betterAuthToken.baseUrl) != null ? _a : baseUrl,
-        (_b = betterAuthToken.tokenPath) != null ? _b : DEFAULT_BETTER_AUTH_TOKEN_PATH
+        (_a = betterAuthToken == null ? void 0 : betterAuthToken.baseUrl) != null ? _a : baseUrl,
+        DEFAULT_BETTER_AUTH_TOKEN_PATH
       ),
       {
         method: "GET",
@@ -1571,13 +1585,13 @@ function createAccountAccessTokenProvider({
   };
   const exchangeBetterAuthProviderCredential = async () => {
     var _a;
-    if (!(betterAuthToken == null ? void 0 : betterAuthToken.enabled) || betterAuthToken.providerExchange === false || !getProviderCredential) {
+    if ((betterAuthToken == null ? void 0 : betterAuthToken.providerExchange) === false || !getProviderCredential) {
       return null;
     }
     const credential = await getProviderCredential();
     const response = await fetchImpl(
       joinUrl(
-        (_a = betterAuthToken.baseUrl) != null ? _a : baseUrl,
+        (_a = betterAuthToken == null ? void 0 : betterAuthToken.baseUrl) != null ? _a : baseUrl,
         DEFAULT_BETTER_AUTH_PROVIDER_EXCHANGE_PATH
       ),
       {
@@ -1593,38 +1607,12 @@ function createAccountAccessTokenProvider({
     if (!response.ok) return null;
     return fetchBetterAuthToken();
   };
-  const exchangeProviderCredential = async () => {
-    if (!getProviderCredential) {
-      throw new Error("No account credential source is configured");
-    }
-    const credential = await getProviderCredential();
-    const response = await fetchImpl(
-      joinUrl(baseUrl, "/api/account/sessions/exchange"),
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          provider: credential.provider,
-          provider_token: credential.providerToken
-        })
-      }
-    );
-    if (!response.ok) {
-      throw new Error(
-        `Failed to exchange account credential: HTTP ${response.status}`
-      );
-    }
-    return await response.json();
-  };
   const exchange = async () => {
     const betterAuthJwt = await fetchBetterAuthToken();
     if (betterAuthJwt) return betterAuthJwt;
     const exchangedBetterAuthJwt = await exchangeBetterAuthProviderCredential();
     if (exchangedBetterAuthJwt) return exchangedBetterAuthJwt;
-    if (betterAuthToken == null ? void 0 : betterAuthToken.enabled) {
-      throw new Error("Failed to exchange Better Auth provider credential");
-    }
-    return exchangeProviderCredential();
+    throw new Error("Failed to exchange Better Auth provider credential");
   };
   const getAccountAccessToken = async ({
     forceRefresh = false
@@ -1634,7 +1622,7 @@ function createAccountAccessTokenProvider({
     if (!forceRefresh && cached && now() < refreshAt) {
       return cached.access_token;
     }
-    if (failedAt !== null && now() - failedAt < FAILURE_COOLDOWN_MS && (!forceRefresh || (betterAuthToken == null ? void 0 : betterAuthToken.enabled))) {
+    if (failedAt !== null && now() - failedAt < FAILURE_COOLDOWN_MS && !forceRefresh) {
       return void 0;
     }
     if (!pending) {
@@ -1673,20 +1661,35 @@ function joinUrl(baseUrl, path) {
   return `${baseUrl.replace(/\/+$/, "")}/${path.replace(/^\/+/, "")}`;
 }
 function normalizeBetterAuthTokenResponse(response) {
-  if (!response.token) {
+  var _a, _b;
+  const token = typeof response.bearer === "string" && response.bearer ? response.bearer : "";
+  if (!token) {
     throw new Error("Better Auth token response is missing token");
   }
-  const payload = decodeJwtPayload(response.token);
-  const expiresAt = Number(payload.exp);
+  let payload = null;
+  const getPayload = () => {
+    payload != null ? payload : payload = decodeJwtPayload(token);
+    return payload;
+  };
+  const expiresAt = Number(
+    (_b = (_a = response.expires_at) != null ? _a : response.expiresAt) != null ? _b : getPayload().exp
+  );
   if (!Number.isFinite(expiresAt) || expiresAt <= 0) {
     throw new Error("Better Auth token is missing a valid exp claim");
   }
-  const userId = typeof payload.aomi_user_id === "string" && payload.aomi_user_id ? payload.aomi_user_id : typeof payload.sub === "string" ? payload.sub : "";
+  const getPayloadUserId = () => {
+    const claims = getPayload();
+    if (typeof claims.aomi_user_id === "string" && claims.aomi_user_id) {
+      return claims.aomi_user_id;
+    }
+    return typeof claims.sub === "string" ? claims.sub : "";
+  };
+  const userId = typeof response.user_id === "string" && response.user_id ? response.user_id : typeof response.userId === "string" && response.userId ? response.userId : getPayloadUserId();
   if (!userId) {
     throw new Error("Better Auth token is missing a user id claim");
   }
   return {
-    access_token: response.token,
+    access_token: token,
     token_type: "Bearer",
     expires_at: expiresAt,
     user_id: userId
@@ -2748,7 +2751,6 @@ var ClientSession = class extends TypedEventEmitter {
     this.client = clientOrOptions instanceof AomiClient ? clientOrOptions : new AomiClient(clientOrOptions);
     this.sessionId = (_a = sessionOptions == null ? void 0 : sessionOptions.sessionId) != null ? _a : crypto.randomUUID();
     this.app = (_b = sessionOptions == null ? void 0 : sessionOptions.app) != null ? _b : "default";
-    this.publicKey = sessionOptions == null ? void 0 : sessionOptions.publicKey;
     this.apiKey = sessionOptions == null ? void 0 : sessionOptions.apiKey;
     const initialUserState = UserState.reconcile(
       void 0,
@@ -2786,7 +2788,6 @@ var ClientSession = class extends TypedEventEmitter {
     this.assertOpen();
     const response = await this.client.sendMessage(this.sessionId, message, {
       app: this.app,
-      publicKey: this.publicKey,
       apiKey: this.apiKey,
       userState: this.userState,
       clientId: this.clientId
@@ -2811,7 +2812,6 @@ var ClientSession = class extends TypedEventEmitter {
     this.assertOpen();
     const response = await this.client.sendMessage(this.sessionId, message, {
       app: this.app,
-      publicKey: this.publicKey,
       apiKey: this.apiKey,
       userState: this.userState,
       clientId: this.clientId
@@ -2927,7 +2927,6 @@ var ClientSession = class extends TypedEventEmitter {
   syncRuntimeOptions(options) {
     var _a;
     this.app = options.app;
-    this.publicKey = options.publicKey;
     this.apiKey = options.apiKey;
     this.clientId = (_a = options.clientId) != null ? _a : this.clientId;
     if (options.userState) {
@@ -2938,10 +2937,6 @@ var ClientSession = class extends TypedEventEmitter {
     const previousSerialized = stableUserStateString(this.userState);
     this.userState = UserState.reconcile(this.userState, userState);
     const nextSerialized = stableUserStateString(this.userState);
-    const isConnected3 = UserState.isConnected(this.userState);
-    if (isConnected3 === false) {
-      this.publicKey = void 0;
-    }
     this.walletController.sync();
     if (!(opts == null ? void 0 : opts.skipEmit) && this.userState && previousSerialized !== nextSerialized) {
       this.emit("user_state_updated", this.userState);

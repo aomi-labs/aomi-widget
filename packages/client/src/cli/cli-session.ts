@@ -16,6 +16,7 @@ import {
   hasSameSolanaPendingId,
   syncPendingTxsFromUserState,
   writeState,
+  type CliAuthSession,
   type CliSessionState,
   type PendingSolTx,
   type PendingTx,
@@ -25,6 +26,7 @@ import {
 import { buildCliUserState } from "./user-state";
 import { fatal } from "./errors";
 import { parseSolanaKeypairSecret } from "./solana-signer";
+import { createCliAuthTokenProvider } from "./auth";
 
 export class CliSession {
   private state: CliSessionState;
@@ -87,6 +89,7 @@ export class CliSession {
       svmPrivateKey: config.solanaPrivateKey ?? seed?.svmPrivateKey,
       chainId: config.chain ?? seed?.chainId,
       secretHandles: seed?.secretHandles,
+      auth: seed?.auth,
     };
     const cli = new CliSession(state);
     cli.save();
@@ -144,6 +147,9 @@ export class CliSession {
   }
   get secretHandles(): Readonly<Record<string, string>> {
     return this.state.secretHandles ?? {};
+  }
+  get auth(): CliAuthSession | undefined {
+    return this.state.auth;
   }
 
   // ---------------------------------------------------------------------------
@@ -259,6 +265,17 @@ export class CliSession {
 
   clearSecretHandles(): void {
     this.state.secretHandles = {};
+    this.save();
+  }
+
+  setAuthSession(auth: CliAuthSession): void {
+    this.state.auth = auth;
+    this.save();
+  }
+
+  clearAuthSession(): void {
+    if (!this.state.auth) return;
+    delete this.state.auth;
     this.save();
   }
 
@@ -408,7 +425,11 @@ export class CliSession {
   /** Build a ClientSession from the current state. */
   createClientSession(): ClientSession {
     const session = new ClientSession(
-      { baseUrl: this.state.baseUrl, apiKey: this.state.apiKey },
+      {
+        baseUrl: this.state.baseUrl,
+        apiKey: this.state.apiKey,
+        getAccountAccessToken: createCliAuthTokenProvider(() => this.state),
+      },
       {
         sessionId: this.state.sessionId,
         clientId: this.state.clientId,
