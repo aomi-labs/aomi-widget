@@ -117,4 +117,8 @@ export type DeploymentHistoryResult = {
   deployments: UserSourceLatestDeployment[];
 };
 
+export type DeploymentSecretsResult = {
+  byApp: Record<string, string[]>;
+};
+
 export type DeploymentRollbackResult = RollbackResult;

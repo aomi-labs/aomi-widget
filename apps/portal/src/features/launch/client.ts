@@ -7,6 +7,7 @@ import {
   type LaunchAppStatus,
   type LaunchCreateRepoResult,
   type DeploymentHistoryResult,
+  type DeploymentSecretsResult,
   type DeploymentRollbackResult,
   type DeploymentSourcesResult,
   type LaunchDeployInput,
@@ -124,6 +125,10 @@ export function deploymentHistory(input: {
     API_PATHS.bff.deployments.history(input.appSourceId, input.limit),
     "deployment history",
   );
+}
+
+export function deploymentSecrets(): Promise<DeploymentSecretsResult> {
+  return launchFetch(API_PATHS.bff.deployments.secrets, "deployment secrets");
 }
 
 export function deploymentRollback(input: {

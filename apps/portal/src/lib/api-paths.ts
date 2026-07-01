@@ -54,6 +54,7 @@ export const API_PATHS = {
       sdkStatus: `${BFF}/deployments/sdk-status`,
       status: (deploymentId: string) =>
         `${BFF}/deployments/status?deploymentId=${encodeURIComponent(deploymentId)}`,
+      secrets: `${BFF}/deployments/secrets`,
     },
     e2e: {
       execute: `${BFF}/e2e/execute`,
