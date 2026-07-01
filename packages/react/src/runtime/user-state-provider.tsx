@@ -24,7 +24,19 @@ import { getHttpStatus } from "./http-status";
 
 const THREAD_PREFETCH_LIMIT = 5;
 const PREFETCH_IDLE_TIMEOUT_MS = 1500;
-const THREAD_LIST_AUTH_RETRY_DELAYS_MS = [250, 750, 1500] as const;
+// On a fresh login the wallet reports "connected" (isConnected -> true) before
+// the SIWE / provider sign-in has written the BetterAuth `aomi_session` cookie.
+// Until that cookie exists the same-origin BFF proxy forwards the thread-list
+// request anonymously and the backend answers 401. Signing (wallet popup +
+// round-trip) routinely takes longer than a couple of seconds, so we retry 401s
+// with capped exponential backoff for a generous-but-bounded budget instead of
+// giving up after a fixed handful of attempts and stranding the list until a
+// manual refresh. Backoff is capped low so threads appear within ~2s of the
+// cookie landing; the budget bounds noise if sign-in is declined entirely.
+const THREAD_LIST_AUTH_RETRY_BUDGET_MS = 30_000;
+const THREAD_LIST_AUTH_RETRY_BASE_DELAY_MS = 300;
+const THREAD_LIST_AUTH_RETRY_MAX_DELAY_MS = 2_000;
+const THREAD_LIST_AUTH_RETRY_BACKOFF_FACTOR = 1.7;
 
 type GlobalWithIdleCallback = typeof globalThis & {
   requestIdleCallback?: (
@@ -272,23 +284,30 @@ function useRemoteThreadListSync(
 
   const listThreadsWithAuthRetry = useCallback(
     async (sessionId: string, isCancelled: () => boolean) => {
-      let attempt = 0;
+      let nextDelay = THREAD_LIST_AUTH_RETRY_BASE_DELAY_MS;
+      let waitedMs = 0;
 
       for (;;) {
         try {
           return await aomiClientRef.current.listThreads(sessionId);
         } catch (error) {
-          const retryDelay = THREAD_LIST_AUTH_RETRY_DELAYS_MS[attempt];
+          // Only 401s are treated as transient (the sign-in cookie not being
+          // ready yet). Anything else, a cancelled effect, or an exhausted
+          // budget surfaces the error to the caller.
           if (
             isCancelled() ||
             getHttpStatus(error) !== 401 ||
-            retryDelay === undefined
+            waitedMs >= THREAD_LIST_AUTH_RETRY_BUDGET_MS
           ) {
             throw error;
           }
 
-          attempt += 1;
-          await delay(retryDelay);
+          await delay(nextDelay);
+          waitedMs += nextDelay;
+          nextDelay = Math.min(
+            Math.round(nextDelay * THREAD_LIST_AUTH_RETRY_BACKOFF_FACTOR),
+            THREAD_LIST_AUTH_RETRY_MAX_DELAY_MS,
+          );
         }
       }
     },
