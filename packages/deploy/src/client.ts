@@ -1,5 +1,7 @@
 import { BackendError, BrowserEnvironmentError, DeployError } from "./errors";
 import type {
+  ListSecretsInput,
+  ListSecretsResult,
   ActivateInput,
   ActivateResult,
   AppSource,
@@ -656,6 +658,18 @@ export class DeploymentClient {
       .filter((deployment): deployment is UserSourceLatestDeployment =>
         Boolean(deployment),
       );
+  }
+
+  async listSecrets(input: ListSecretsInput = {}): Promise<ListSecretsResult> {
+    const params = new URLSearchParams();
+    if (input.clientId) params.set("client_id", input.clientId);
+    const query = params.toString();
+    const raw = await this.get<{ by_app?: Record<string, string[]> }>(
+      `/api/secrets${query ? `?${query}` : ""}`,
+      "list_secrets",
+      this.resolveBearer(input.bearer),
+    );
+    return { byApp: raw.by_app ?? {} };
   }
 
   endpoint(path: string): string {

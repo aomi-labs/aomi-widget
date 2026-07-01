@@ -58,6 +58,15 @@ export interface DeploymentClientOptions {
   onAudit?: (event: AuditEvent) => void | Promise<void>;
 }
 
+export interface ListSecretsInput extends BearerOverride {
+  githubUserId?: string;
+  clientId?: string;
+}
+
+export interface ListSecretsResult {
+  byApp: Record<string, string[]>;
+}
+
 export interface ServerTagsResult {
   serverTags: string[];
   sdkVersion: string;
