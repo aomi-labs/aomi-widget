@@ -1,5 +1,6 @@
 // @vitest-environment node
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { BackendError } from "@aomi-labs/deploy";
 
 import { GET } from "./route";
 
@@ -70,5 +71,25 @@ describe("GitHub callback route", () => {
       redirectUri: "http://localhost:3000/api/bff/auth/github/callback",
     });
     expect(mocks.setGitHubSessionCookie).toHaveBeenCalled();
+  });
+
+  it("redirects backend service-auth failures with a specific error code", async () => {
+    mocks.oauthState = "state-123";
+    mocks.exchangeGitHubCode.mockRejectedValue(
+      new BackendError("exchange_github_code", 403, "forbidden"),
+    );
+
+    const res = await GET(
+      new Request(
+        "http://localhost:3000/api/bff/auth/github/callback?code=code-123&state=state-123",
+      ),
+    );
+
+    expect(res.status).toBe(307);
+    const location = new URL(res.headers.get("location") ?? "");
+    expect(location.pathname).toBe("/deployments");
+    expect(location.searchParams.get("github_error")).toBe(
+      "service_auth_forbidden",
+    );
   });
 });

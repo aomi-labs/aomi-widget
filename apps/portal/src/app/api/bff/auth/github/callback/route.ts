@@ -1,9 +1,11 @@
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
+import { BackendError } from "@aomi-labs/deploy";
 
 export const runtime = "nodejs";
 
 import { API_PATHS } from "@portal/lib/api-paths";
+import { configuredBackendUrl } from "@portal/server/backend-url";
 import { deploymentClient } from "@portal/server/bff/backend";
 import { setGitHubSessionCookie } from "@portal/server/cookies/github";
 
@@ -56,6 +58,16 @@ export async function GET(req: Request) {
     });
     return res;
   } catch (error) {
+    if (error instanceof BackendError && error.status === 403) {
+      console.error("GitHub sign-in exchange forbidden by backend service auth", {
+        backendUrl: configuredBackendUrl(),
+        status: error.status,
+        body: error.body,
+      });
+      deployments.searchParams.set("github_error", "service_auth_forbidden");
+      return NextResponse.redirect(deployments);
+    }
+
     console.error("GitHub sign-in exchange failed", error);
     deployments.searchParams.set("github_error", "exchange_failed");
     return NextResponse.redirect(deployments);
