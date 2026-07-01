@@ -3,10 +3,6 @@
 import { useEffect, useMemo, useRef } from "react";
 import Link from "next/link";
 import { Settings } from "lucide-react";
-import {
-  AccountCredentialUnavailableError,
-  createAccountAccessTokenProvider,
-} from "@aomi-labs/client";
 import { AomiFrame, useAomiWalletKit } from "@aomi-labs/widget-lib";
 import { type AomiClientOptions, useControl } from "@aomi-labs/react";
 import { RequiredSecretsGate } from "@portal/components/required-secrets-gate";
@@ -17,6 +13,7 @@ import { Mppx, tempo } from "mppx/client";
 import { useConfig, useWalletClient } from "wagmi";
 import { getConnectorClient } from "wagmi/actions";
 import { getBackendUrl } from "@portal/lib/settings-api";
+import { createPortalAccountAccessTokenProvider } from "@portal/lib/account-access-token";
 
 function getRequestedAppFromSearch(search: string): string | null {
   const params = new URLSearchParams(search);
@@ -37,39 +34,13 @@ function usePortalClientOptions():
   const { getAccountCredential } = useAomiWalletKit();
   const wagmiConfig = useConfig();
   const walletClient = useWalletClient();
-  const backendUrl = getBackendUrl();
   const nativeFetch = useMemo(() => globalThis.fetch.bind(globalThis), []);
 
   const accountAccessTokenProvider = useMemo(() => {
-    return createAccountAccessTokenProvider({
-      baseUrl: backendUrl,
-      betterAuthToken: {
-        baseUrl: "",
-      },
-      getProviderCredential: async () => {
-        if (!getAccountCredential) {
-          throw new AccountCredentialUnavailableError();
-        }
-        const credential = await getAccountCredential();
-        if (!credential) {
-          throw new AccountCredentialUnavailableError(
-            "Wallet provider is connected without an exchangeable credential",
-          );
-        }
-        if ("providerToken" in credential) {
-          return credential;
-        }
-        if (credential.kind === "token") {
-          return {
-            provider: credential.provider,
-            providerToken: credential.token,
-          };
-        }
-        throw new Error("Wallet provider credential cannot be exchanged");
-      },
+    return createPortalAccountAccessTokenProvider(getAccountCredential, {
       fetch: nativeFetch,
     });
-  }, [backendUrl, getAccountCredential, nativeFetch]);
+  }, [getAccountCredential, nativeFetch]);
 
   useEffect(
     () => () => {
@@ -269,7 +240,7 @@ function usePortalClientOptions():
 
     return {
       fetch: routedFetch,
-      getAccountAccessToken: accountAccessTokenProvider,
+      getAccountAccessToken: accountAccessTokenProvider ?? undefined,
     };
   }, [
     accountAccessTokenProvider,
