@@ -207,7 +207,7 @@ export function AomiRuntimeCore({
     [getSession],
   );
 
-  const { isThreadListLoading } = useRuntimeUserStateEffects({
+  const { isThreadListLoading, threadListError } = useRuntimeUserStateEffects({
     sessions: {
       aomiClientRef,
       sessionManager,
@@ -511,6 +511,7 @@ export function AomiRuntimeCore({
       currentThreadId: threadContext.currentThreadId,
       threadViewKey: threadContext.threadViewKey,
       threadMetadata: threadContext.allThreadsMetadata,
+      threadListError,
       getThreadMetadata: threadContext.getThreadMetadata,
       createThread,
       deleteThread,
@@ -549,6 +550,7 @@ export function AomiRuntimeCore({
       threadContext.threadViewKey,
       threadContext.allThreadsMetadata,
       threadContext.getThreadMetadata,
+      threadListError,
       createThread,
       deleteThread,
       renameThread,

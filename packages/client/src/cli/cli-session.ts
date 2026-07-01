@@ -63,7 +63,9 @@ export class CliSession {
     let svmPublicKey: string | undefined;
     if (config.solanaPrivateKey) {
       try {
-        svmPublicKey = parseSolanaKeypairSecret(config.solanaPrivateKey).publicKey.toBase58();
+        svmPublicKey = parseSolanaKeypairSecret(
+          config.solanaPrivateKey,
+        ).publicKey.toBase58();
       } catch {
         // Ignore — signing will produce a clearer error at sign time.
       }
@@ -169,14 +171,19 @@ export class CliSession {
       this.state.apiKey = config.apiKey;
       changed = true;
     }
-    if (config.publicKey !== undefined && config.publicKey !== this.state.publicKey) {
+    if (
+      config.publicKey !== undefined &&
+      config.publicKey !== this.state.publicKey
+    ) {
       this.state.publicKey = config.publicKey;
       changed = true;
     }
     // Derive and persist the Solana public key when a keypair secret is provided.
     if (config.solanaPrivateKey !== undefined) {
       try {
-        const svmPub = parseSolanaKeypairSecret(config.solanaPrivateKey).publicKey.toBase58();
+        const svmPub = parseSolanaKeypairSecret(
+          config.solanaPrivateKey,
+        ).publicKey.toBase58();
         if (svmPub !== this.state.svmPublicKey) {
           this.state.svmPublicKey = svmPub;
           changed = true;
@@ -243,7 +250,10 @@ export class CliSession {
   }
 
   addSecretHandles(handles: Record<string, string>): void {
-    this.state.secretHandles = { ...(this.state.secretHandles ?? {}), ...handles };
+    this.state.secretHandles = {
+      ...(this.state.secretHandles ?? {}),
+      ...handles,
+    };
     this.save();
   }
 
@@ -333,7 +343,10 @@ export class CliSession {
 
   syncPendingFromUserState(
     userState: Parameters<typeof syncPendingTxsFromUserState>[1],
-  ): { pendingTxs: readonly PendingTx[]; pendingSolTxs: readonly PendingSolTx[] } {
+  ): {
+    pendingTxs: readonly PendingTx[];
+    pendingSolTxs: readonly PendingSolTx[];
+  } {
     const result = syncPendingTxsFromUserState(this.state, userState);
     this.reload();
     return result;
@@ -364,7 +377,9 @@ export class CliSession {
   requirePendingTxs(txIds: string[]): PendingTx[] {
     const uniqueIds = Array.from(new Set(txIds));
     if (uniqueIds.length !== txIds.length) {
-      fatal("Duplicate transaction IDs are not allowed in a single `aomi tx sign` call.");
+      fatal(
+        "Duplicate transaction IDs are not allowed in a single `aomi tx sign` call.",
+      );
     }
     return uniqueIds.map((txId) => this.requirePendingTx(txId));
   }
@@ -399,15 +414,16 @@ export class CliSession {
         clientId: this.state.clientId,
         app: this.state.app,
         apiKey: this.state.apiKey,
-        publicKey: this.state.publicKey,
       },
     );
-    session.resolveUserState(buildCliUserState(this.state.publicKey, this.state.chainId, {
-      app: this.state.app,
-      aaMode: this.state.aaMode ?? null,
-      smartAccount: this.state.smartAccount ?? null,
-      svmAddress: this.state.svmPublicKey,
-    }));
+    session.resolveUserState(
+      buildCliUserState(this.state.publicKey, this.state.chainId, {
+        app: this.state.app,
+        aaMode: this.state.aaMode ?? null,
+        smartAccount: this.state.smartAccount ?? null,
+        svmAddress: this.state.svmPublicKey,
+      }),
+    );
     return session;
   }
 

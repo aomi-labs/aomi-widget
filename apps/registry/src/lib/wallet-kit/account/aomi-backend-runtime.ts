@@ -51,10 +51,12 @@ export function useAomiBackendAccountRuntime(input: {
   );
   const [errorVersion, setErrorVersion] = useState(0);
   const siweInFlight = useRef<string | null>(null);
+  const accountCreateInFlight = useRef<string | null>(null);
   const signedOutEvmKey = useRef<string | null>(null);
   const signedOutCredentialKey = useRef<string | null>(null);
   const credentialInFlight = useRef<string | null>(null);
   const credentialExchanged = useRef<string | null>(null);
+  const providerSessionAttempted = useRef<string | null>(null);
   const credentialFailed = useRef<{
     attemptKey: string;
     failedAt: number;
@@ -82,6 +84,7 @@ export function useAomiBackendAccountRuntime(input: {
       signedOutCredentialKey.current = null;
       credentialInFlight.current = null;
       credentialExchanged.current = null;
+      providerSessionAttempted.current = null;
       credentialFailed.current = null;
     }
   }, [input.auth.status, input.auth.subject]);
@@ -106,9 +109,19 @@ export function useAomiBackendAccountRuntime(input: {
       return;
     }
     const key = `${activeEvmAddress}:${activeEvmChainId}`;
+    const authKey = authSessionKey(input.auth);
+    if (
+      input.auth.status === "authenticated" &&
+      input.auth.getCredential &&
+      providerSessionAttempted.current !== authKey
+    ) {
+      return;
+    }
     if (signedOutEvmKey.current === key) return;
     if (siweInFlight.current === key) return;
+    if (accountCreateInFlight.current) return;
     siweInFlight.current = key;
+    accountCreateInFlight.current = `siwe:${key}`;
     signInWithActiveEvmWallet({
       address: activeEvmAddress as `0x${string}`,
       accountClient,
@@ -128,6 +141,9 @@ export function useAomiBackendAccountRuntime(input: {
       })
       .finally(() => {
         siweInFlight.current = null;
+        if (accountCreateInFlight.current === `siwe:${key}`) {
+          accountCreateInFlight.current = null;
+        }
       });
   }, [
     account,
@@ -152,17 +168,23 @@ export function useAomiBackendAccountRuntime(input: {
     if (!input.auth.getCredential) return;
     let cancelled = false;
     async function exchange() {
+      const authKey = authSessionKey(input.auth);
       const credential = await input.auth.getCredential?.().catch(() => null);
-      if (!credential || cancelled) return;
+      if (!credential || cancelled) {
+        if (!cancelled) providerSessionAttempted.current = authKey;
+        return;
+      }
       const key = credentialKey(credential);
       const signedOutKey = authCredentialKey(input.auth, key);
       if (!account?.user && signedOutCredentialKey.current === signedOutKey) {
+        providerSessionAttempted.current = authKey;
         return;
       }
       // Any provider credential is exchangeable, in any order: link to the
       // current account if one exists, otherwise create one. No policy gate.
       const hasAccount = Boolean(account?.user);
       const attemptKey = `${hasAccount ? "link" : "session"}:${account?.user?.id ?? "new"}:${key}`;
+      if (!hasAccount && accountCreateInFlight.current) return;
       const failedAttempt = credentialFailed.current;
       if (
         credentialInFlight.current === attemptKey ||
@@ -174,6 +196,7 @@ export function useAomiBackendAccountRuntime(input: {
         return;
       }
       credentialInFlight.current = attemptKey;
+      if (!hasAccount) accountCreateInFlight.current = attemptKey;
       try {
         const result = await accountClient.exchangeProviderCredential(
           credential,
@@ -187,8 +210,12 @@ export function useAomiBackendAccountRuntime(input: {
         setStatus("ready");
         setErrorVersion((version) => version + 1);
       } finally {
+        providerSessionAttempted.current = authKey;
         if (credentialInFlight.current === attemptKey) {
           credentialInFlight.current = null;
+        }
+        if (accountCreateInFlight.current === attemptKey) {
+          accountCreateInFlight.current = null;
         }
       }
     }
@@ -254,6 +281,7 @@ export function useAomiBackendAccountRuntime(input: {
       }
       credentialInFlight.current = null;
       credentialExchanged.current = null;
+      providerSessionAttempted.current = null;
       credentialFailed.current = null;
       await accountClient.signOut();
       setAccount({
@@ -279,6 +307,7 @@ export function useAomiBackendAccountRuntime(input: {
       }
       credentialInFlight.current = null;
       credentialExchanged.current = null;
+      providerSessionAttempted.current = null;
       credentialFailed.current = null;
       await accountClient.deleteAccount();
       setAccount({
@@ -452,6 +481,12 @@ function authCredentialKey(
   key: string,
 ): string {
   return `${auth.provider}:${auth.subject ?? "unknown"}:${key}`;
+}
+
+function authSessionKey(
+  auth: Pick<AuthRuntime, "provider" | "subject">,
+): string {
+  return `${auth.provider}:${auth.subject ?? "unknown"}`;
 }
 
 /**

@@ -4,7 +4,7 @@ import { getOrCreateAomiUserForBetterAuthSession } from "@aomi-labs/auth/account
 import { resolveOrCreateCanonicalUser } from "./account-graph";
 
 /**
- * Resolve the canonical backend user id from the incoming BetterAuth session.
+ * Resolve the canonical backend user id from the incoming BetterAuth-session-first flow.
  * Browsers present the BetterAuth cookie; headless clients present the bearer()
  * token in Authorization. The proxy then mints the short-lived AccountBearer
  * for the Rust backend from this canonical id.

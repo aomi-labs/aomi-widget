@@ -257,8 +257,9 @@ function useRemoteThreadListSync(
   context: RuntimeUserStateContext,
   sessions: RuntimeSessionBridge,
   remoteThreads: RemoteThreadRegistry,
-): { isThreadListLoading: boolean } {
+): { isThreadListLoading: boolean; threadListError: boolean } {
   const [isThreadListLoading, setIsThreadListLoading] = useState(true);
+  const [threadListError, setThreadListError] = useState(false);
   const prefetchCancelRef = useRef<(() => void) | null>(null);
   const wasConnectedRef = useRef(false);
   const { getControlState, threadContextRef, user } = context;
@@ -373,6 +374,7 @@ function useRemoteThreadListSync(
 
     let cancelled = false;
     setIsThreadListLoading(true);
+    setThreadListError(false);
 
     const fetchThreadList = async () => {
       try {
@@ -452,6 +454,9 @@ function useRemoteThreadListSync(
         }
       } catch (error) {
         console.error("Failed to fetch thread list:", error);
+        if (!cancelled) {
+          setThreadListError(true);
+        }
       } finally {
         if (!cancelled) {
           setIsThreadListLoading(false);
@@ -483,7 +488,7 @@ function useRemoteThreadListSync(
     warmThread,
   ]);
 
-  return { isThreadListLoading };
+  return { isThreadListLoading, threadListError };
 }
 
 export function useRuntimeUserStateEffects({
@@ -496,7 +501,10 @@ export function useRuntimeUserStateEffects({
     setIsThreadLoading,
   },
   remoteThreads,
-}: RuntimeUserStateEffectsOptions): { isThreadListLoading: boolean } {
+}: RuntimeUserStateEffectsOptions): {
+  isThreadListLoading: boolean;
+  threadListError: boolean;
+} {
   const threadContext = useThreadContext();
   const { user, getUserState, onUserStateChange } = useUser();
   const { getControlState, getCurrentThreadApp } = useControl();

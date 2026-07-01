@@ -17,7 +17,11 @@ export async function statusCommand(config: CliConfig): Promise<void> {
 
   const session = cli.createClientSession();
   try {
-    const apiState = await session.client.fetchState(cli.sessionId, undefined, cli.clientId);
+    const apiState = await session.client.fetchState(
+      cli.sessionId,
+      undefined,
+      cli.clientId,
+    );
     console.log(
       JSON.stringify(
         {
@@ -64,7 +68,6 @@ export async function appsCommand(config: CliConfig): Promise<void> {
   const cli = CliSession.load();
   const sessionId = cli?.sessionId ?? crypto.randomUUID();
   const apps = await client.getApps(sessionId, {
-    publicKey: config.publicKey ?? cli?.publicKey,
     apiKey: config.apiKey ?? cli?.apiKey,
   });
 

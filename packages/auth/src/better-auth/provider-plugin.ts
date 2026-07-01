@@ -9,10 +9,10 @@ import {
 } from "../providers/account-credentials";
 import {
   getOrCreateAomiUserForBetterAuthSession,
-  linkProviderIdentity,
-  syncProviderAttestedWallets,
+  isIdentityAlreadyLinkedError,
 } from "../service/account-service";
-import { buildAccountResponse, findAomiUserById } from "../db/queries";
+import { linkVerifiedProviderCredentialForUser } from "../service/provider-exchange";
+import { buildAccountResponse } from "../db/queries";
 import type { AomiAccountCredential } from "../types";
 
 const bodySchema = z.object({
@@ -63,27 +63,34 @@ export function aomiProviderAuthPlugin(): BetterAuthPlugin {
               emailVerified: seed.emailVerified,
               name: seed.name,
             }));
-          const aomiUser = await getOrCreateAomiUserForBetterAuthSession({
-            betterAuthUserId: betterAuthUser.id,
-            email: seed.email,
-            emailVerified: seed.emailVerified,
-            name: seed.name,
-            accessSignals: [
-              {
-                type: "identity",
-                provider: verified.provider,
-                subject: verified.token.subject,
-              },
-            ],
-          });
-          const resolution = await linkProviderIdentity({
+          let aomiUser: Awaited<
+            ReturnType<typeof getOrCreateAomiUserForBetterAuthSession>
+          >;
+          try {
+            aomiUser = await getOrCreateAomiUserForBetterAuthSession({
+              betterAuthUserId: betterAuthUser.id,
+              email: seed.email,
+              emailVerified: seed.emailVerified,
+              name: seed.name,
+              accessSignals: [
+                {
+                  type: "identity",
+                  provider: verified.provider,
+                  subject: verified.token.subject,
+                },
+              ],
+            });
+          } catch (error) {
+            if (isIdentityAlreadyLinkedError(error)) {
+              throw new APIError("CONFLICT", {
+                message: "already_linked_to_another_account",
+              });
+            }
+            throw error;
+          }
+          const resolution = await linkVerifiedProviderCredentialForUser({
             userId: aomiUser.id,
-            provider: verified.provider,
-            subject: verified.token.subject,
-            email: verified.token.email,
-            emailVerified: verified.token.emailVerified,
-            displayLabel: verified.token.displayLabel,
-            providerMetadata: verified.token.providerMetadata,
+            verified,
           });
           if (resolution.status === "conflict") {
             throw new APIError("CONFLICT", {
@@ -91,12 +98,6 @@ export function aomiProviderAuthPlugin(): BetterAuthPlugin {
             });
           }
 
-          await syncProviderAttestedWallets({
-            userId: aomiUser.id,
-            provider: verified.walletAttestationProvider,
-            subject: verified.token.subject,
-            email: verified.token.email,
-          });
           const session = await ctx.context.internalAdapter.createSession(
             betterAuthUser.id,
           );
@@ -104,11 +105,10 @@ export function aomiProviderAuthPlugin(): BetterAuthPlugin {
             session,
             user: betterAuthUser,
           });
-          const updatedAomiUser = await findAomiUserById(aomiUser.id);
           return ctx.json({
             status: "linked",
             account: await buildAccountResponse({
-              user: updatedAomiUser ?? aomiUser,
+              user: resolution.user ?? aomiUser,
               betterAuthUserId: betterAuthUser.id,
               sessionExpiresAt: session.expiresAt,
             }),

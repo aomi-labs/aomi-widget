@@ -1,4 +1,5 @@
-import { describe, expect, it } from "vitest";
+import { renderHook, waitFor } from "@testing-library/react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   buildSiweMessage,
   buildWalletLinkMessage,
@@ -6,7 +7,85 @@ import {
   normalizeAccountWalletProvider,
   resolveAuthMessageConfig,
   resolveLinkedWalletName,
+  useAomiBackendAccountRuntime,
 } from "./aomi-backend-runtime";
+import type { AomiAccountCredential } from "../types";
+
+const mockState = vi.hoisted(() => ({
+  accountClient: null as null | {
+    getAccount: ReturnType<typeof vi.fn>;
+    exchangeProviderCredential: ReturnType<typeof vi.fn>;
+    createSiweNonce: ReturnType<typeof vi.fn>;
+    verifySiwe: ReturnType<typeof vi.fn>;
+    signOut: ReturnType<typeof vi.fn>;
+    deleteAccount: ReturnType<typeof vi.fn>;
+    updateAccount: ReturnType<typeof vi.fn>;
+  },
+}));
+
+vi.mock("./aomi-backend-client", () => ({
+  createAomiBackendAccountClient: vi.fn(() => mockState.accountClient),
+}));
+
+beforeEach(() => {
+  mockState.accountClient = {
+    getAccount: vi.fn().mockResolvedValue({
+      user: null,
+      linkedAccounts: [],
+      wallets: [],
+      session: null,
+    }),
+    exchangeProviderCredential: vi.fn(() => new Promise(() => undefined)),
+    createSiweNonce: vi.fn(),
+    verifySiwe: vi.fn(),
+    signOut: vi.fn(),
+    deleteAccount: vi.fn(),
+    updateAccount: vi.fn(),
+  };
+});
+
+describe("useAomiBackendAccountRuntime", () => {
+  it("lets provider-credential session exchange create the account before auto-SIWE", async () => {
+    const credential: AomiAccountCredential = {
+      provider: "para",
+      tokenKind: "session_jwt",
+      providerToken: "provider-session",
+    };
+    const getCredential = vi.fn().mockResolvedValue(credential);
+    const signMessageAsync = vi.fn().mockResolvedValue("0xsig");
+
+    renderHook(() =>
+      useAomiBackendAccountRuntime({
+        enabled: true,
+        baseUrl: "http://localhost:3000",
+        auth: {
+          status: "authenticated",
+          provider: "para",
+          subject: "para-user",
+          getCredential,
+        },
+        evm: {
+          activeEvmConnection: {
+            address: "0x1111111111111111111111111111111111111111",
+            chainId: 1,
+          },
+          activeAccount: undefined,
+          accounts: () => [],
+          signMessageAsync,
+        },
+      }),
+    );
+
+    await waitFor(() => {
+      expect(
+        mockState.accountClient?.exchangeProviderCredential,
+      ).toHaveBeenCalledWith(credential, { hasAccount: false });
+    });
+
+    expect(mockState.accountClient?.createSiweNonce).not.toHaveBeenCalled();
+    expect(signMessageAsync).not.toHaveBeenCalled();
+  });
+});
 
 describe("resolveLinkedWalletName", () => {
   const accounts = [

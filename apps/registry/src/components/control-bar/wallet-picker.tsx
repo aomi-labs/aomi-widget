@@ -329,7 +329,9 @@ export function WalletPicker() {
     const optionRows = walletRows
       .filter(
         (row) =>
-          (row.source === "option" || row.source === "stored") &&
+          (row.source === "option" ||
+            (row.source === "stored" &&
+              row.actions.some((action) => action.kind === "authenticate"))) &&
           row.actions.some(
             (action) =>
               action.kind === "connect" || action.kind === "authenticate",

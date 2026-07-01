@@ -118,7 +118,9 @@ export type CliSessionState = {
   secretHandles?: Record<string, string>;
 };
 
-function getBackendPendingId(tx: Omit<PendingTx, "id"> | PendingTx): number | undefined {
+function getBackendPendingId(
+  tx: Omit<PendingTx, "id"> | PendingTx,
+): number | undefined {
   return tx.kind === "transaction" ? tx.txId : tx.eip712Id;
 }
 
@@ -185,7 +187,10 @@ function parseSessionFileLocalId(filename: string): number | null {
 }
 
 function toSessionFilePath(localId: number): string {
-  return join(SESSIONS_DIR, `${SESSION_FILE_PREFIX}${localId}${SESSION_FILE_SUFFIX}`);
+  return join(
+    SESSIONS_DIR,
+    `${SESSION_FILE_PREFIX}${localId}${SESSION_FILE_SUFFIX}`,
+  );
 }
 
 function toCliSessionState(stored: StoredSessionState): CliSessionState {
@@ -231,7 +236,10 @@ function readStoredSession(path: string): StoredSessionState | null {
     const raw = readFileSync(path, "utf-8");
     const parsed = JSON.parse(raw) as Partial<LegacyStoredSessionState>;
 
-    if (typeof parsed.sessionId !== "string" || typeof parsed.baseUrl !== "string") {
+    if (
+      typeof parsed.sessionId !== "string" ||
+      typeof parsed.baseUrl !== "string"
+    ) {
       return null;
     }
 
@@ -305,8 +313,9 @@ function readAllStoredSessions(): StoredSessionState[] {
     ensureStorageDirs();
     const filenames = readdirSync(SESSIONS_DIR)
       .map((name) => ({ name, localId: parseSessionFileLocalId(name) }))
-      .filter((entry): entry is { name: string; localId: number } =>
-        entry.localId !== null,
+      .filter(
+        (entry): entry is { name: string; localId: number } =>
+          entry.localId !== null,
       )
       .sort((a, b) => a.localId - b.localId);
 
@@ -358,6 +367,8 @@ function migrateLegacyStateIfNeeded(): void {
     const now = Date.now();
     const migrated: StoredSessionState = {
       ...legacy,
+      sessionId: legacy.sessionId,
+      baseUrl: legacy.baseUrl,
       signedTxs: normalizeSignedTxs(legacy.signedTxs),
       localId: 1,
       createdAt: now,
@@ -391,7 +402,9 @@ function resolveStoredSession(
   return sessions.find((session) => session.sessionId === trimmed) ?? null;
 }
 
-function toStoredSessionRecord(stored: StoredSessionState): StoredSessionRecord {
+function toStoredSessionRecord(
+  stored: StoredSessionState,
+): StoredSessionRecord {
   return {
     localId: stored.localId,
     sessionId: stored.sessionId,
@@ -425,7 +438,9 @@ export function setActiveSession(selector: string): StoredSessionRecord | null {
   return toStoredSessionRecord(target);
 }
 
-export function deleteStoredSession(selector: string): StoredSessionRecord | null {
+export function deleteStoredSession(
+  selector: string,
+): StoredSessionRecord | null {
   migrateLegacyStateIfNeeded();
   const sessions = readAllStoredSessions();
   const target = resolveStoredSession(selector, sessions);
@@ -442,7 +457,9 @@ export function deleteStoredSession(selector: string): StoredSessionRecord | nul
 
   const activeLocalId = readActiveLocalId();
   if (activeLocalId === target.localId) {
-    const remaining = readAllStoredSessions().sort((a, b) => b.updatedAt - a.updatedAt);
+    const remaining = readAllStoredSessions().sort(
+      (a, b) => b.updatedAt - a.updatedAt,
+    );
     writeActiveLocalId(remaining[0]?.localId ?? null);
   }
 
@@ -560,10 +577,7 @@ export function removePendingTx(
   return removed;
 }
 
-export function addSignedTx(
-  state: CliSessionState,
-  tx: SignedTx,
-): void {
+export function addSignedTx(state: CliSessionState, tx: SignedTx): void {
   if (!state.signedTxs) state.signedTxs = [];
   state.signedTxs.push(tx);
   writeState(state);
@@ -610,10 +624,7 @@ export function removePendingSolTx(
   return removed;
 }
 
-export function addSignedSolTx(
-  state: CliSessionState,
-  tx: SignedSolTx,
-): void {
+export function addSignedSolTx(state: CliSessionState, tx: SignedSolTx): void {
   if (!state.signedSolTxs) state.signedSolTxs = [];
   state.signedSolTxs.push(tx);
   writeState(state);

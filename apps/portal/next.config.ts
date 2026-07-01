@@ -62,19 +62,6 @@ const nextConfig: NextConfig = {
   images: {
     unoptimized: true,
   },
-  async rewrites() {
-    const backendProxyTarget = process.env.AOMI_BACKEND_PROXY_TARGET;
-    if (!backendProxyTarget) {
-      return [];
-    }
-
-    return [
-      {
-        source: "/api/:path*",
-        destination: `${backendProxyTarget}/api/:path*`,
-      },
-    ];
-  },
   typescript: {
     ignoreBuildErrors: true,
   },
