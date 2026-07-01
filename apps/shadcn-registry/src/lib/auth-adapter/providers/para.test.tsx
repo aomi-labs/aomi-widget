@@ -3,7 +3,7 @@ import { cleanup, render, screen } from "@testing-library/react";
 import { ExtUserProvider } from "@aomi-labs/react";
 import { AomiWalletNetworkPreferencesProvider } from "../network-preferences";
 import { useAomiAuthAdapter } from "../context";
-import { AomiParaAdapterProvider } from "./para";
+import { AomiParaAdapterProvider, AomiParaProvider } from "./para";
 
 const paraMock = vi.hoisted(() => ({
   account: {
@@ -152,5 +152,33 @@ describe("AomiParaAdapterProvider", () => {
     expect(identity.authValue).toBe("alice@example.com");
     expect(identity.address).toBeUndefined();
     expect(identity.walletKind).toBeUndefined();
+  });
+});
+
+describe("AomiParaProvider", () => {
+  beforeEach(() => {
+    cleanup();
+    paraMock.account = {
+      isLoading: false,
+      isConnected: false,
+      embedded: { isConnected: false },
+      external: {},
+    };
+    paraMock.issueJwtAsync.mockClear();
+    paraMock.openModal.mockClear();
+  });
+
+  it("renders a disconnected adapter when no Para API key is configured", () => {
+    render(
+      <AomiParaProvider apiKey="" networks={evmChains}>
+        <IdentityProbe />
+      </AomiParaProvider>,
+    );
+
+    const identity = JSON.parse(
+      screen.getByTestId("identity").textContent ?? "{}",
+    );
+    expect(identity.status).toBe("disconnected");
+    expect(identity.isConnected).toBe(false);
   });
 });
