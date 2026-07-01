@@ -57,6 +57,8 @@ export type AccountAccessTokenProvider = GetAccountAccessToken & {
 
 const DEFAULT_REFRESH_BEFORE_EXPIRY_MS = 2 * 60 * 1000;
 const FAILURE_COOLDOWN_MS = 30 * 1000;
+const CREDENTIAL_UNAVAILABLE_RETRY_DELAYS_MS = [250, 1_000, 3_000] as const;
+const EXPIRES_AT_MILLISECONDS_THRESHOLD = 100_000_000_000;
 const DEFAULT_BETTER_AUTH_TOKEN_PATH = "/api/bff/auth/token";
 const DEFAULT_BETTER_AUTH_PROVIDER_EXCHANGE_PATH =
   "/api/auth/aomi/provider/exchange";
@@ -74,6 +76,8 @@ export function createAccountAccessTokenProvider({
   let pending: Promise<AccountSessionExchangeResponse | null> | null = null;
   let refreshTimer: ReturnType<typeof setTimeout> | null = null;
   let failedAt: number | null = null;
+  let credentialUnavailableRetryAfter = 0;
+  let credentialUnavailableRetryCount = 0;
   const listeners = new Set<() => void>();
 
   const scheduleRefresh = (session: AccountSessionExchangeResponse) => {
@@ -165,10 +169,15 @@ export function createAccountAccessTokenProvider({
     ) {
       return undefined;
     }
+    if (!forceRefresh && now() < credentialUnavailableRetryAfter) {
+      return undefined;
+    }
     if (!pending) {
       pending = exchange()
         .then((next) => {
           failedAt = null;
+          credentialUnavailableRetryAfter = 0;
+          credentialUnavailableRetryCount = 0;
           const previous = cached;
           cached = next;
           scheduleRefresh(next);
@@ -182,8 +191,22 @@ export function createAccountAccessTokenProvider({
           return next;
         })
         .catch((error) => {
-          if (!(error instanceof AccountCredentialUnavailableError)) {
+          if (error instanceof AccountCredentialUnavailableError) {
+            const retryDelay =
+              CREDENTIAL_UNAVAILABLE_RETRY_DELAYS_MS[
+                credentialUnavailableRetryCount
+              ];
+            if (retryDelay === undefined) {
+              failedAt = now();
+              credentialUnavailableRetryAfter = 0;
+            } else {
+              credentialUnavailableRetryCount += 1;
+              credentialUnavailableRetryAfter = now() + retryDelay;
+            }
+          } else {
             failedAt = now();
+            credentialUnavailableRetryAfter = 0;
+            credentialUnavailableRetryCount = 0;
           }
           return null;
         })
@@ -230,6 +253,9 @@ function normalizeBetterAuthTokenResponse(
   );
   if (!Number.isFinite(expiresAt) || expiresAt <= 0) {
     throw new Error("Better Auth token is missing a valid exp claim");
+  }
+  if (expiresAt > EXPIRES_AT_MILLISECONDS_THRESHOLD) {
+    throw new Error("Better Auth token expires_at must be seconds, not ms");
   }
   const getPayloadUserId = () => {
     const claims = getPayload();

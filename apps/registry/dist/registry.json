@@ -635,6 +635,10 @@
         },
         {
           "type": "registry:component",
+          "path": "lib/wallet-kit/providers/sources/embedded-session-source.ts"
+        },
+        {
+          "type": "registry:component",
           "path": "lib/wallet-kit/providers/para/sources/para-session-source.ts"
         },
         {
@@ -736,6 +740,10 @@
         {
           "type": "registry:component",
           "path": "lib/wallet-kit/providers/privy/privy.tsx"
+        },
+        {
+          "type": "registry:component",
+          "path": "lib/wallet-kit/providers/sources/embedded-session-source.ts"
         },
         {
           "type": "registry:component",

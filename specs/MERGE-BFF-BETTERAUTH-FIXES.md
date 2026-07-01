@@ -122,18 +122,18 @@
 
 ## 5. 🟢 Low / Nit
 
-- [ ] Delete dead [`packages/auth/src/service/siwe-mirror.ts`](../packages/auth/src/service/siwe-mirror.ts) (1-line re-export, no importers).
-- [ ] Delete scratch files: [`tmp-v2-report.md`](../tmp-v2-report.md), [`memory/2026-04-01.md`](../memory/2026-04-01.md). Add `tmp*.md` to `.gitignore`.
-- [ ] [`tmp.md`](../tmp.md): keep but rename to `docs/generated/userstate-shape-reference.md` and update the test comment that cites it (`packages/client/test/cli/cli-e2e-user-state.unit.test.ts`).
-- [ ] Delete vestigial [`apps/portal/service.portal.toml`](../apps/portal/service.portal.toml) (NOT loaded — `topology-data.ts` is the live source) or add a header noting it is documentation-only.
-- [ ] Gate `/dev/widget-auth-e2e` behind `NODE_ENV !== "production"` (Hardhat test keys ship to a prod route otherwise).
-- [ ] Gate the unconditional `console.debug("[RuntimeTxHandler] … solana_sign_message …")` behind `walletDebug()` like the portal-fetch path.
-- [ ] Pin `algorithms: ["HS256"]` on any remaining `jwtVerify` (defense-in-depth) — moot if all HS256 verify is deleted in §2.3.
-- [ ] De-dupe: `familyLabel` (`network-select.tsx` ↔ `wallet-account-model.ts`), `getHttpStatus` (`user-state-provider.tsx` ↔ `core.tsx`), `UserId` (`mcp-core/types.ts` ↔ `ports/backend.ts`).
-- [ ] `liveAccounts` `errorVersion` recompute hack (`aomi-backend-runtime.ts:208`) — add a comment or a cleaner trigger.
-- [ ] Remove `aomiClientRef` from the `useEffect` dep array (`user-state-provider.tsx:471`, no-op).
-- [ ] mcp-core: replace the `_ensureImport` suppressor alias (`aomi-client.ts:216`) with an explicit cast at the call site.
-- [ ] `account-session.ts`: add a retry cap/backoff for `AccountCredentialUnavailableError`; validate `expiresAt` is seconds not ms.
+- [x] Delete dead `packages/auth/src/service/siwe-mirror.ts` (1-line re-export, no importers).
+- [x] Delete scratch files: `tmp-v2-report.md`, `memory/2026-04-01.md`. Add `tmp*.md` to `.gitignore`.
+- [x] `tmp.md`: keep but rename to [`docs/generated/userstate-shape-reference.md`](../docs/generated/userstate-shape-reference.md) and update the test comment that cites it (`packages/client/test/cli/cli-e2e-user-state.unit.test.ts`).
+- [x] Delete vestigial [`apps/portal/service.portal.toml`](../apps/portal/service.portal.toml) (NOT loaded — `topology-data.ts` is the live source) or add a header noting it is documentation-only.
+- [x] Gate `/dev/widget-auth-e2e` behind `NODE_ENV !== "production"` (Hardhat test keys ship to a prod route otherwise).
+- [x] Gate the unconditional `console.debug("[RuntimeTxHandler] … solana_sign_message …")` behind `walletDebug()` like the portal-fetch path.
+- [x] Pin algorithms on remaining `jwtVerify` calls where applicable — Privy already pins ES256; service topology now pins EdDSA.
+- [ ] De-dupe: `familyLabel` (`network-select.tsx` ↔ `wallet-account-model.ts`), `getHttpStatus` (`user-state-provider.tsx` ↔ `core.tsx`), `UserId` (`mcp-core/types.ts` ↔ `ports/backend.ts`). (`getHttpStatus` + `UserId` done; `familyLabel` intentionally left separate because the labels differ: EVM/SVM vs Ethereum/Solana.)
+- [x] `liveAccounts` `errorVersion` recompute hack (`aomi-backend-runtime.ts:208`) — add a comment or a cleaner trigger.
+- [x] Remove `aomiClientRef` from the `useEffect` dep array (`user-state-provider.tsx:471`, no-op).
+- [x] mcp-core: replace the `_ensureImport` suppressor alias (`aomi-client.ts:216`) with an explicit cast at the call site.
+- [x] `account-session.ts`: add a retry cap/backoff for `AccountCredentialUnavailableError`; validate `expiresAt` is seconds not ms.
 - [ ] `aa/pimlico/create.ts`: revisit the six `as never` casts on SDK owner params.
 - [ ] Use fake timers in the retry-path tests (`thread.test.tsx:551`).
 
@@ -142,9 +142,9 @@
 ## 6. ✅ CLI parity — make the CLI work like the GUI (BetterAuth SIWE + bearer)
 
 > Goal: the `aomi` CLI can **SIWE-authenticate, send a message, and load threads**, the
-> same as the portal GUI. On this branch the CLI has **no auth client** wired. The portal
-> already serves BetterAuth's SIWE endpoints at `/api/auth/siwe/*` and the `bearer()`
-> plugin, so no new portal routes are needed — only a CLI-side client.
+> same as the portal GUI. The CLI-side client is now wired; the portal already serves
+> BetterAuth's SIWE endpoints at `/api/auth/siwe/*` and the `bearer()` plugin, so no new
+> portal routes were needed.
 
 **How it works (target):** CLI does the SIWE handshake against the portal → BetterAuth
 issues a session token (via `bearer()`) → the CLI attaches `Authorization: Bearer <session>`
@@ -201,8 +201,8 @@ this pass did not exercise a browser wallet/widget login.
 
 ### 8.1 Backend repo (`../product-mono`) — stale dev key
 
-- [ ] Fix the `aomi-bff-dev-1` public key in `../product-mono/aomi/service.dev.toml` to match `topology-data.ts` + the active `service.toml` (currently `...Xx7J...`, should be the rotated key from §1.1). Otherwise "copy `service.dev.toml` → `service.toml`" silently 401s a fresh dev.
-- [ ] Remove the admin dev private key from the comment in the local `service.toml` (keep a generate recipe).
+- [x] Fix the `aomi-bff-dev-1` public key in `../product-mono/aomi/service.dev.toml` to match `topology-data.ts` + the active `service.toml` (currently `...Xx7J...`, should be the rotated key from §1.1). Otherwise "copy `service.dev.toml` → `service.toml`" silently 401s a fresh dev.
+- [x] Remove the admin dev private key from the comment in the local `service.toml` (keep a generate recipe).
 
 ### 8.2 Reconcile with `origin/main` (advanced past this branch's base)
 
@@ -224,19 +224,19 @@ this pass did not exercise a browser wallet/widget login.
 
 ### Delete (scratch + superseded)
 
-- [ ] `tmp-v2-report.md` — overnight e2e scratch log (the 2 referrers are `docs/generated/*` inventories that mark it _not-included_). _(also §5)_
-- [ ] `memory/2026-04-01.md` — agent session journal, not project doc. _(also §5)_
-- [ ] [`specs/AUTH-BACKEND-JWT-CONTRACT.md`](AUTH-BACKEND-JWT-CONTRACT.md) — documents the **JWKS path deleted in §2.1**; now describes code that no longer exists. (1 referrer — update/remove it.)
+- [x] `tmp-v2-report.md` — overnight e2e scratch log (the 2 referrers are `docs/generated/*` inventories that mark it _not-included_). _(also §5)_
+- [x] `memory/2026-04-01.md` — agent session journal, not project doc. _(also §5)_
+- [x] `specs/AUTH-BACKEND-JWT-CONTRACT.md` — documents the **JWKS path deleted in §2.1**; now describes code that no longer exists. (1 referrer — update/remove it.)
 - [ ] **`specs/MERGE-BFF-BETTERAUTH-FIXES.md` (THIS doc)** — delete once every box above is ticked; its outcome lives in `STATE.md` + the `bff-betterauth-merge-review` memory.
 
 ### Rename
 
-- [ ] `tmp.md` → `docs/generated/userstate-shape-reference.md` (3 referrers incl. a test — update `packages/client/test/cli/cli-e2e-user-state.unit.test.ts`). _(also §5)_
+- [x] `tmp.md` → [`docs/generated/userstate-shape-reference.md`](../docs/generated/userstate-shape-reference.md) (3 referrers incl. a test — update `packages/client/test/cli/cli-e2e-user-state.unit.test.ts`). _(also §5)_
 
 ### Consolidate (genuine overlap)
 
 - [ ] `HANDOFF-LOCAL-BACKEND.md` **+** `docs/local-merged-bff-betterauth-stack.md` both describe "bring up the local merged stack." After the §1.1 key scrub, merge into **one** doc (e.g. `docs/local-dev-stack.md`); update the 4 referrers of HANDOFF.
-- [ ] Auth planning docs: keep [`specs/WIDGET-AUTH-PLAN.md`](WIDGET-AUTH-PLAN.md) as the single surviving auth spec; fold "what actually shipped" from [`specs/MERGE-PLAN-BFF-BETTERAUTH.md`](MERGE-PLAN-BFF-BETTERAUTH.md) into `STATE.md` + memory, then **delete MERGE-PLAN**.
+- [x] Auth planning docs: keep [`specs/WIDGET-AUTH-PLAN.md`](WIDGET-AUTH-PLAN.md) as the single surviving auth spec; fold "what actually shipped" from `specs/MERGE-PLAN-BFF-BETTERAUTH.md` into `STATE.md`, then **delete MERGE-PLAN**.
 
 ### Archive or delete (executed plans — history keeps them)
 
@@ -247,7 +247,7 @@ this pass did not exercise a browser wallet/widget login.
 
 ### Stale-check (these may now describe deleted code)
 
-- [ ] `docs/topics/auth/facts/auth.md`, `docs/topics/auth/facts/base-account.md`, and the renamed `auth-adapter.md` — confirm none of them still document the **JWKS / legacy-mode** paths removed in §2; update or trim if they do.
+- [x] `docs/topics/auth/facts/auth.md`, `docs/topics/auth/facts/base-account.md`, and the renamed `auth-adapter.md` — confirm none of them still document the **JWKS / legacy-mode** paths removed in §2; update or trim if they do.
 
 ### Keep (living docs — leave as-is)
 
@@ -255,8 +255,8 @@ this pass did not exercise a browser wallet/widget login.
 
 ### Update + regenerate (last)
 
-- [ ] Update [`specs/STATE.md`](STATE.md) with the merge outcome and drop the completed pending items (per `CLAUDE.md`).
-- [ ] Regenerate `docs/generated/markdown-inventory.md` + `docs/generated/repo-inventory.md` **after** all the deletes/renames above so the inventory is accurate.
+- [x] Update [`specs/STATE.md`](STATE.md) with the merge outcome and drop the completed pending items (per `CLAUDE.md`).
+- [x] Regenerate `docs/generated/markdown-inventory.md` + `docs/generated/repo-inventory.md` **after** all the deletes/renames above so the inventory is accurate.
 - [ ] Final grep: no remaining links point at any deleted `.md` (`grep -rl <deleted-name> . --include='*.md'`).
 
 ---

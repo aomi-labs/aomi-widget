@@ -185,6 +185,7 @@ export class AomiService {
     const { payload } = await jwtVerify(token, key, {
       issuer: issuer.name,
       audience: this.self.name,
+      algorithms: [ALG],
     });
     const claims = payload as AccountBearerClaims;
     const role = claims.role ?? "user";

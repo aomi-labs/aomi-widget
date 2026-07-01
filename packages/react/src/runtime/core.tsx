@@ -22,6 +22,7 @@ import {
   RuntimeUserStateProvider,
   useRuntimeUserStateEffects,
 } from "./user-state-provider";
+import { getHttpStatus } from "./http-status";
 
 // =============================================================================
 // Core Props
@@ -30,15 +31,6 @@ import {
 export type AomiRuntimeCoreProps = {
   children: ReactNode;
   aomiClient: AomiClient;
-};
-
-const getHttpStatus = (error: unknown): number | undefined => {
-  const status = (error as { status?: unknown })?.status;
-  if (typeof status === "number") return status;
-
-  const message = error instanceof Error ? error.message : String(error);
-  const match = /\bHTTP\s+(\d{3})\b/i.exec(message);
-  return match ? Number(match[1]) : undefined;
 };
 
 // =============================================================================

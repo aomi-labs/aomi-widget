@@ -7,7 +7,9 @@ review_after_days: 30
 sources_of_truth:
   - packages/auth/src/account.ts
   - packages/auth/src/better-auth/auth.ts
-  - packages/auth/src/better-auth/backend-jwt.ts
+  - packages/auth/src/better-auth/provider-plugin.ts
+  - packages/auth/src/service/account-service.ts
+  - packages/auth/src/service/provider-exchange.ts
   - packages/auth/src/types.ts
   - packages/auth/src/mcp-approvals/routes/begin.ts
   - packages/auth/src/mcp-approvals/routes/callback.ts
@@ -21,7 +23,7 @@ sources_of_truth:
 
 `@aomi-labs/auth` contains two separate auth systems:
 
-- Account auth: Better Auth sessions, SIWE, provider-token sign-in/linking, the `aomi_*` account graph, wallet linking, and the Better Auth-signed backend JWT contract.
+- Account auth: Better Auth sessions, SIWE, provider-token sign-in/linking, the `aomi_*` account graph, wallet linking, and canonical Aomi account resolution.
 - MCP approvals: pending OAuth-style provider approvals and the secret-store handoff that keeps raw credential material out of MCP-facing responses.
 
 Do not couple those systems. Account auth answers "who is this user?" MCP approvals answer "may this app use this external credential?"
@@ -30,7 +32,9 @@ Do not couple those systems. Account auth answers "who is this user?" MCP approv
 
 - [packages/auth/src/account.ts](../../../../packages/auth/src/account.ts)
 - [packages/auth/src/better-auth/auth.ts](../../../../packages/auth/src/better-auth/auth.ts)
-- [packages/auth/src/better-auth/backend-jwt.ts](../../../../packages/auth/src/better-auth/backend-jwt.ts)
+- [packages/auth/src/better-auth/provider-plugin.ts](../../../../packages/auth/src/better-auth/provider-plugin.ts)
+- [packages/auth/src/service/account-service.ts](../../../../packages/auth/src/service/account-service.ts)
+- [packages/auth/src/service/provider-exchange.ts](../../../../packages/auth/src/service/provider-exchange.ts)
 - [packages/auth/src/types.ts](../../../../packages/auth/src/types.ts)
 - [packages/auth/src/mcp-approvals/routes/begin.ts](../../../../packages/auth/src/mcp-approvals/routes/begin.ts)
 - [packages/auth/src/mcp-approvals/routes/callback.ts](../../../../packages/auth/src/mcp-approvals/routes/callback.ts)
@@ -43,11 +47,11 @@ Do not couple those systems. Account auth answers "who is this user?" MCP approv
 
 Better Auth owns browser/device sessions. SIWE sign-in verifies an ERC-4361 message through the Better Auth SIWE plugin. Privy/Para token sign-in goes through the Aomi provider plugin, which verifies the provider token server-side, creates or finds a Better Auth user, links the provider identity in the `aomi_*` graph, syncs attested provider wallets, and sets the Better Auth session cookie.
 
-### Backend JWT
+### Backend Bearer Handoff
 
-The Better Auth JWT plugin exposes `GET /api/auth/token` and JWKS at `/api/auth/.well-known/jwks.json`. The custom payload is intentionally small: `sub` is the Better Auth user id, `sid` is the Better Auth session id, `aomi_user_id` is the durable Aomi account id, and `scope` is `aomi:api`.
+Portal and CLI requests authenticate to the BFF with a Better Auth session cookie or bearer-plugin session token. The portal proxy resolves that session to the canonical Aomi `users.id`, mints a short-lived EdDSA `AccountBearer` with the static service topology, strips client auth headers, and forwards the backend request with the trusted bearer.
 
-The TypeScript client keeps the legacy provider-token exchange as the default until Rust validates Better Auth JWTs through JWKS.
+The old Better Auth JWT/JWKS minter path has been removed. Backend identity now flows through `resolveOrCreateCanonicalUser` plus the service mesh signer, not `/api/auth/token`.
 
 ### Begin
 
@@ -89,7 +93,7 @@ The callback stores only secret handles in approval metadata. It sorts the retur
 - MCP provider names are URL slugs under `/api/mcp-auth/{provider}` and keys in `ProviderRegistry`.
 - Portal's singleton auth runtime is stored on `globalThis` so `next dev` hot reloads do not lose pending auth state.
 - `AOMI_AUTH_TOKEN` is the v1 shared secret between portal and the backend trusted secret ingest path.
-- `AOMI_BACKEND_JWT_ISSUER`, `AOMI_BACKEND_JWT_AUDIENCE`, `AOMI_BACKEND_JWKS_PATH`, and `AOMI_BACKEND_JWT_SCOPE` define the future Rust JWT validation contract.
+- `PORTAL_SERVICE_PRIVATE_KEY` provides the portal BFF's Ed25519 signing key. The matching public key lives in `packages/account/src/topology-data.ts` and the backend `service.toml`.
 - `PRIVY_APP_ID` or `NEXT_PUBLIC_PRIVY_APP_ID` plus the server-only `PRIVY_JWT_VERIFICATION_KEY` control whether the Privy provider is registered.
 - Production persistence is still future work; the current store implementation is in-memory.
 
