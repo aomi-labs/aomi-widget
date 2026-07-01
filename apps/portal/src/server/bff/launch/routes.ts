@@ -466,6 +466,42 @@ export const deploymentStatusRoute = launchStatusRoute;
 export const deploymentDeployRoute = launchDeployRoute;
 export const deploymentRedeployRoute = redeployLaunchRoute;
 
+export async function deploymentHistoryRoute(req: Request) {
+  const blocked = checkRead(req);
+  if (blocked) return blocked;
+
+  const session = await getGitHubSession();
+  if (!session) {
+    return NextResponse.json(
+      { error: "not signed in with GitHub" },
+      { status: 401 },
+    );
+  }
+  const params = new URL(req.url).searchParams;
+  const appSourceId = Number(params.get("appSourceId"));
+  if (!isValidAppSourceId(appSourceId)) {
+    return NextResponse.json(
+      { error: "missing or invalid `appSourceId`" },
+      { status: 400 },
+    );
+  }
+  const limit = Number(params.get("limit") ?? "20");
+
+  try {
+    const config = launchConfig();
+    const client = await deploymentClient();
+    const deployments = await client.listUserSourceDeployments({
+      githubUserId: session.githubUserId,
+      platform: config.platform,
+      appSourceId,
+      limit: Number.isSafeInteger(limit) && limit > 0 ? limit : undefined,
+    });
+    return NextResponse.json({ deployments });
+  } catch (err) {
+    return launchErrorResponse(err);
+  }
+}
+
 export async function deploymentRollbackRoute(req: Request) {
   const blocked = checkWrite(req);
   if (blocked) return blocked;

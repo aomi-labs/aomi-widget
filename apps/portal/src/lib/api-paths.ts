@@ -44,6 +44,13 @@ export const API_PATHS = {
       redeploy: `${BFF}/deployments/redeploy`,
       rollback: `${BFF}/deployments/rollback`,
       sources: `${BFF}/deployments/sources`,
+      history: (appSourceId: number, limit?: number) => {
+        const params = new URLSearchParams({
+          appSourceId: String(appSourceId),
+        });
+        if (limit) params.set("limit", String(limit));
+        return `${BFF}/deployments/history?${params}`;
+      },
       sdkStatus: `${BFF}/deployments/sdk-status`,
       status: (deploymentId: string) =>
         `${BFF}/deployments/status?deploymentId=${encodeURIComponent(deploymentId)}`,

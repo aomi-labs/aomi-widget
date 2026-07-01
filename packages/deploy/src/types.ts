@@ -36,6 +36,7 @@ export interface AuditEvent {
     | "get_app"
     | "exchange_github_code"
     | "list_user_sources"
+    | "list_user_source_deployments"
     | "get_user_source_latest_deployment";
   platform?: string;
   appSourceId?: number;
@@ -425,6 +426,13 @@ export interface GetUserSourceLatestDeploymentInput extends BearerOverride {
   githubUserId: string;
   platform: string;
   appSourceId: number;
+}
+
+export interface ListUserSourceDeploymentsInput extends BearerOverride {
+  githubUserId: string;
+  platform: string;
+  appSourceId: number;
+  limit?: number;
 }
 
 export interface UserSourceDeploymentApp {
