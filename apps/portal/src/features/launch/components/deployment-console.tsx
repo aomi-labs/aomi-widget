@@ -11,14 +11,21 @@ import {
   deploymentSources,
 } from "@portal/features/launch/client";
 import type { LaunchSdkStatus } from "@portal/features/launch/contracts";
+import {
+  fetchGitHubSession,
+  GITHUB_SIGNIN_URL,
+  type GitHubSessionInfo,
+} from "@portal/features/launch/dashboard";
 
 type LoadState =
   | { status: "loading" }
+  | { status: "signed_out"; sdk: LaunchSdkStatus | null }
   | {
       status: "ready";
       sources: UserSource[];
       histories: Record<number, UserSourceLatestDeployment[]>;
       sdk: LaunchSdkStatus | null;
+      github: GitHubSessionInfo;
     }
   | { status: "error"; error: string };
 
@@ -40,10 +47,15 @@ export function DeploymentConsole() {
   const load = useCallback(async () => {
     setState({ status: "loading" });
     try {
-      const [sourcesResult, sdk] = await Promise.all([
-        deploymentSources(),
+      const [github, sdk] = await Promise.all([
+        fetchGitHubSession(),
         deploymentSdkStatus().catch(() => null),
       ]);
+      if (!github.signedIn) {
+        setState({ status: "signed_out", sdk });
+        return;
+      }
+      const sourcesResult = await deploymentSources();
       const historyPairs = await Promise.all(
         sourcesResult.sources.map(async (source) => {
           try {
@@ -65,14 +77,20 @@ export function DeploymentConsole() {
         sources: sourcesResult.sources,
         histories: Object.fromEntries(historyPairs),
         sdk,
+        github,
       });
     } catch (err) {
+      const message =
+        err instanceof Error
+          ? err.message
+          : "Failed to load deployment sources";
+      if (message.toLowerCase().includes("not signed in with github")) {
+        setState({ status: "signed_out", sdk: null });
+        return;
+      }
       setState({
         status: "error",
-        error:
-          err instanceof Error
-            ? err.message
-            : "Failed to load deployment sources",
+        error: message,
       });
     }
   }, []);
@@ -142,7 +160,9 @@ export function DeploymentConsole() {
   );
 
   const requiredSdk =
-    state.status === "ready" ? state.sdk?.sdkStatus.requiredVersion : null;
+    state.status === "ready" || state.status === "signed_out"
+      ? state.sdk?.sdkStatus.requiredVersion
+      : null;
 
   return (
     <main className="min-h-screen bg-zinc-50 text-zinc-950">
@@ -193,6 +213,7 @@ export function DeploymentConsole() {
                 {state.error}
               </div>
             )}
+            {state.status === "signed_out" && <GitHubSignInPanel />}
             {state.status === "ready" && state.sources.length === 0 && (
               <div className="px-4 py-8 text-sm text-zinc-500">
                 No connected deployment sources.
@@ -234,6 +255,26 @@ export function DeploymentConsole() {
         </section>
       </div>
     </main>
+  );
+}
+
+function GitHubSignInPanel() {
+  return (
+    <div className="flex min-h-[220px] min-w-[980px] flex-col items-center justify-center gap-4 px-4 py-10 text-center">
+      <div>
+        <div className="text-base font-semibold">Sign in with GitHub</div>
+        <div className="mt-1 max-w-md text-sm leading-6 text-zinc-500">
+          Deployment history is scoped to repositories connected to your GitHub
+          account.
+        </div>
+      </div>
+      <a
+        href={GITHUB_SIGNIN_URL}
+        className="inline-flex h-10 items-center justify-center rounded-md bg-zinc-950 px-4 text-sm font-medium text-white hover:bg-zinc-800"
+      >
+        Continue with GitHub
+      </a>
+    </div>
   );
 }
 
