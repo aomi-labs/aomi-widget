@@ -3,8 +3,9 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { AlertCircle, KeyRound, RotateCcw, Server } from "lucide-react";
-import type { UserSource } from "@aomi-labs/deploy";
+import type { UserSource, UserSourceLatestDeployment } from "@aomi-labs/deploy";
 import {
+  deploymentHistory,
   deploymentRollback,
   deploymentSdkStatus,
   deploymentSources,
@@ -13,13 +14,23 @@ import type { LaunchSdkStatus } from "@portal/features/launch/contracts";
 
 type LoadState =
   | { status: "loading" }
-  | { status: "ready"; sources: UserSource[]; sdk: LaunchSdkStatus | null }
+  | {
+      status: "ready";
+      sources: UserSource[];
+      histories: Record<number, UserSourceLatestDeployment[]>;
+      sdk: LaunchSdkStatus | null;
+    }
   | { status: "error"; error: string };
 
 type RollbackState = {
   deploymentId: string;
   status: "running" | "done" | "error";
   message: string;
+};
+
+type DeploymentEntry = {
+  source: UserSource;
+  deployment: UserSourceLatestDeployment | null;
 };
 
 export function DeploymentConsole() {
@@ -33,9 +44,26 @@ export function DeploymentConsole() {
         deploymentSources(),
         deploymentSdkStatus().catch(() => null),
       ]);
+      const historyPairs = await Promise.all(
+        sourcesResult.sources.map(async (source) => {
+          try {
+            const history = await deploymentHistory({
+              appSourceId: source.id,
+              limit: 20,
+            });
+            return [source.id, history.deployments] as const;
+          } catch {
+            return [
+              source.id,
+              source.latestDeployment ? [source.latestDeployment] : [],
+            ] as const;
+          }
+        }),
+      );
       setState({
         status: "ready",
         sources: sourcesResult.sources,
+        histories: Object.fromEntries(historyPairs),
         sdk,
       });
     } catch (err) {
@@ -55,14 +83,15 @@ export function DeploymentConsole() {
 
   const summary = useMemo(() => {
     const sources = state.status === "ready" ? state.sources : [];
-    const deployments = sources.filter((source) => source.latestDeployment);
+    const histories = state.status === "ready" ? state.histories : {};
+    const deployments = Object.values(histories).flat();
     const liveApps = sources.flatMap((source) =>
       source.apps.filter((app) => app.isActive && app.loaded),
     );
-    const blocked = sources.filter((source) => {
-      const latest = source.latestDeployment;
-      return latest?.state === "failed" || latest?.ciStatus === "failed";
-    });
+    const blocked = deployments.filter(
+      (deployment) =>
+        deployment.state === "failed" || deployment.ciStatus === "failed",
+    );
     return {
       sourceCount: sources.length,
       deploymentCount: deployments.length,
@@ -71,9 +100,20 @@ export function DeploymentConsole() {
     };
   }, [state]);
 
+  const entries = useMemo<DeploymentEntry[]>(() => {
+    if (state.status !== "ready") return [];
+    return state.sources.flatMap((source) => {
+      const history = state.histories[source.id] ?? [];
+      if (history.length === 0) {
+        return [{ source, deployment: source.latestDeployment ?? null }];
+      }
+      return history.map((deployment) => ({ source, deployment }));
+    });
+  }, [state]);
+
   const runRollback = useCallback(
-    async (source: UserSource) => {
-      const deploymentId = source.latestDeployment?.deploymentId;
+    async (deployment: UserSourceLatestDeployment | null) => {
+      const deploymentId = deployment?.deploymentId;
       if (!deploymentId) return;
       setRollback({
         deploymentId,
@@ -159,13 +199,14 @@ export function DeploymentConsole() {
               </div>
             )}
             {state.status === "ready" &&
-              state.sources.map((source) => (
+              entries.map(({ source, deployment }, index) => (
                 <DeploymentRow
-                  key={source.id}
+                  key={`${source.id}-${deployment?.deploymentId ?? index}`}
                   source={source}
+                  deployment={deployment}
                   requiredSdk={requiredSdk}
                   rollback={rollback}
-                  onRollback={() => void runRollback(source)}
+                  onRollback={() => void runRollback(deployment)}
                 />
               ))}
           </div>
@@ -207,24 +248,26 @@ function Metric({ label, value }: { label: string; value: number }) {
 
 function DeploymentRow({
   source,
+  deployment,
   requiredSdk,
   rollback,
   onRollback,
 }: {
   source: UserSource;
+  deployment: UserSourceLatestDeployment | null;
   requiredSdk: string | null | undefined;
   rollback: RollbackState | null;
   onRollback: () => void;
 }) {
-  const latest = source.latestDeployment;
   const sdkVersion =
-    latest?.sdkVersion ??
-    latest?.apps.find((app) => app.sdkVersion)?.sdkVersion ??
+    deployment?.sdkVersion ??
+    deployment?.apps.find((app) => app.sdkVersion)?.sdkVersion ??
     null;
   const target =
-    latest?.apps.find((app) => app.target)?.target ?? latest?.buildTarget;
-  const state = latest?.state ?? "not deployed";
-  const deploymentId = latest?.deploymentId ?? null;
+    deployment?.apps.find((app) => app.target)?.target ??
+    deployment?.buildTarget;
+  const state = deployment?.state ?? "not deployed";
+  const deploymentId = deployment?.deploymentId ?? null;
   const running =
     rollback?.deploymentId === deploymentId && rollback.status === "running";
   const rollbackMessage =
@@ -241,13 +284,13 @@ function DeploymentRow({
       <div className="min-w-0">
         <div className="truncate font-mono text-xs">{deploymentId ?? "-"}</div>
         <div className="mt-1 text-xs text-zinc-500">
-          {latest?.releaseTags.length ?? 0} release tag(s)
+          {deployment?.releaseTags.length ?? 0} release tag(s)
         </div>
       </div>
       <div>
         <StatusPill value={state} />
         <div className="mt-1 truncate text-xs text-zinc-500">
-          {latest?.ciStatus ?? "no CI status"}
+          {deployment?.ciStatus ?? "no CI status"}
         </div>
       </div>
       <div className="min-w-0">

@@ -5,6 +5,7 @@ import type {
   RollbackResult,
   SdkVersionStatus,
   UserSource,
+  UserSourceLatestDeployment,
 } from "@aomi-labs/deploy";
 
 // One-click is the only launch path: the portal forks the template and deploys
@@ -110,6 +111,10 @@ export type LaunchSdkStatus = {
 export type DeploymentSourcesResult = {
   sources: UserSource[];
   githubLogin?: string;
+};
+
+export type DeploymentHistoryResult = {
+  deployments: UserSourceLatestDeployment[];
 };
 
 export type DeploymentRollbackResult = RollbackResult;

@@ -6,6 +6,7 @@ import {
   type LaunchActivateResult,
   type LaunchAppStatus,
   type LaunchCreateRepoResult,
+  type DeploymentHistoryResult,
   type DeploymentRollbackResult,
   type DeploymentSourcesResult,
   type LaunchDeployInput,
@@ -112,6 +113,16 @@ export function deploymentSdkStatus(): Promise<LaunchSdkStatus> {
   return launchFetch(
     API_PATHS.bff.deployments.sdkStatus,
     "deployment SDK status",
+  );
+}
+
+export function deploymentHistory(input: {
+  appSourceId: number;
+  limit?: number;
+}): Promise<DeploymentHistoryResult> {
+  return launchFetch(
+    API_PATHS.bff.deployments.history(input.appSourceId, input.limit),
+    "deployment history",
   );
 }
 

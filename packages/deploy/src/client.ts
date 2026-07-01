@@ -15,6 +15,7 @@ import type {
   GetUserSourceLatestDeploymentInput,
   GitHubIdentity,
   ListAppsInput,
+  ListUserSourceDeploymentsInput,
   ListUserSourcesInput,
   UserSource,
   UserSourceLatestDeployment,
@@ -617,6 +618,41 @@ export class DeploymentClient {
       ts: Date.now(),
     });
     return camelUserSourceLatestDeployment(raw.latest_deployment) ?? null;
+  }
+
+  async listUserSourceDeployments(
+    input: ListUserSourceDeploymentsInput,
+  ): Promise<UserSourceLatestDeployment[]> {
+    const githubUserId = required(input.githubUserId, "githubUserId");
+    const platform = cleanPlatform(input.platform);
+    const appSourceId = required(String(input.appSourceId), "appSourceId");
+    const bearer = this.resolveBearer(input.bearer);
+    const params = new URLSearchParams({
+      github_user_id: githubUserId,
+      platform,
+    });
+    if (input.limit && Number.isSafeInteger(input.limit) && input.limit > 0) {
+      params.set("limit", String(input.limit));
+    }
+    const raw = await this.get<{ deployments?: unknown[] }>(
+      `/api/integrations/github-app/user/sources/${encodeURIComponent(
+        appSourceId,
+      )}/deployments?${params.toString()}`,
+      "list_user_source_deployments",
+      bearer,
+    );
+    await this.audit({
+      action: "list_user_source_deployments",
+      platform,
+      appSourceId: input.appSourceId,
+      actor: input.actor,
+      ts: Date.now(),
+    });
+    return (raw.deployments ?? [])
+      .map(camelUserSourceLatestDeployment)
+      .filter((deployment): deployment is UserSourceLatestDeployment =>
+        Boolean(deployment),
+      );
   }
 
   endpoint(path: string): string {
