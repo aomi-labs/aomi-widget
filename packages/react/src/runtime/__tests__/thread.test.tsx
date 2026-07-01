@@ -342,6 +342,61 @@ describe("Thread API", () => {
       expect(listThreads).toHaveBeenCalledTimes(2);
     });
 
+    it("keeps retrying past the old fixed cap while the sign-in cookie lands", async () => {
+      // Four 401s exceeds the previous fixed 3-retry ladder, which would have
+      // given up and stranded the list. The extended budget must recover once
+      // authentication finally succeeds (e.g. a slow SIWE signature).
+      const listThreads = vi
+        .fn<() => Promise<AomiThread[]>>()
+        .mockRejectedValueOnce(new Error("Failed to fetch threads: HTTP 401"))
+        .mockRejectedValueOnce(new Error("Failed to fetch threads: HTTP 401"))
+        .mockRejectedValueOnce(new Error("Failed to fetch threads: HTTP 401"))
+        .mockRejectedValueOnce(new Error("Failed to fetch threads: HTTP 401"))
+        .mockResolvedValueOnce([
+          { session_id: "thread-late", title: "Late Thread" },
+        ]);
+      setAomiClientConfig({ listThreads });
+
+      const { api, getApi } = renderRuntime();
+
+      await act(async () => {
+        api.setUser({ address: "0x123", chainId: 1, isConnected: true });
+        await flushPromises();
+      });
+
+      await waitFor(
+        () => {
+          expect(getApi().getThreadMetadata("thread-late")?.title).toBe(
+            "Late Thread",
+          );
+        },
+        { timeout: 6000 },
+      );
+      expect(listThreads).toHaveBeenCalledTimes(5);
+    });
+
+    it("stops retrying non-auth thread list failures", async () => {
+      // A 500 is not the sign-in race — surface it immediately rather than
+      // burning the retry budget on an error that will not self-heal.
+      const listThreads = vi
+        .fn<() => Promise<AomiThread[]>>()
+        .mockRejectedValue(new Error("Failed to fetch threads: HTTP 500"));
+      setAomiClientConfig({ listThreads });
+
+      const { api } = renderRuntime();
+
+      await act(async () => {
+        api.setUser({ address: "0x123", chainId: 1, isConnected: true });
+        await flushPromises();
+      });
+
+      await waitFor(() => {
+        expect(listThreads).toHaveBeenCalledTimes(1);
+      });
+      await flushPromises();
+      expect(listThreads).toHaveBeenCalledTimes(1);
+    });
+
     it("keeps the active chat visible when focus moves to a Solana-only state", async () => {
       const listThreads = vi.fn(
         async (): Promise<AomiThread[]> => [

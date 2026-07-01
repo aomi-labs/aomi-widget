@@ -2,9 +2,50 @@
 
 ## Last Updated
 
-2026-07-01 - Merge BFF + BetterAuth cleanup: removed stale JWT/JWKS docs, finished low-risk code cleanup, and kept the origin/main reconciliation deferred.
+2026-07-01 - Thread list now self-heals the login auth race (no more manual refresh); surfaced portal auth tech debt.
 
 ## Recent Changes
+
+### Thread list "needs a refresh on login" fix (2026-07-01)
+
+Branch `codex/merge-bff-betterauth`. On a fresh login the thread list did not
+load until a manual page refresh.
+
+- **Root cause:** the thread-list effect in
+  `packages/react/src/runtime/user-state-provider.tsx` fires when `isConnected`
+  flips true, but `isConnected` is forwarded from wallet *connection*
+  (`apps/registry/.../wallet-kit/context.tsx` -> `identity.isConnected`), which
+  lands before the SIWE/provider sign-in writes the BetterAuth `aomi_session`
+  cookie. On the portal every `/api/*` call is same-origin through the BFF proxy
+  (`packages/account/src/proxy.ts`), which authorizes purely from that cookie
+  (`injectBearer` -> `getSessionedCanonicalId`) and **ignores the browser's
+  `Authorization` header** entirely. So `GET /api/sessions` 401s until the
+  cookie exists. The old `listThreadsWithAuthRetry` retried only 3× over ~2.5s
+  (`[250, 750, 1500]`) then gave up permanently with no re-trigger; signing a
+  SIWE message routinely outlasts 2.5s, so the list stayed stranded until a
+  refresh (by which point the cookie is already on disk).
+- **Fix:** replaced the fixed 3-step ladder with a bounded, capped exponential
+  backoff (base 300ms, ×1.7, cap 2000ms, 30s budget) that keeps retrying 401s
+  while the user stays connected. Cancellation is unchanged (the effect still
+  sets `cancelled` on disconnect/unmount, and `isCancelled()`/non-401/budget
+  each break the loop). Threads now appear within ~2s of the cookie landing.
+- **Tests:** `packages/react/src/runtime/__tests__/thread.test.tsx` gained
+  "keeps retrying past the old fixed cap while the sign-in cookie lands" (4×401
+  then success -> 5 calls, impossible under the old cap) and "stops retrying
+  non-auth thread list failures" (a 500 fails fast, 1 call). Full react runtime
+  suite green (24 thread + 45 user/thread), tsc + eslint clean, `@aomi-labs/react`
+  rebuilt so the portal consumes the fix.
+- **Tech debt surfaced (not fixed here, flagged for follow-up):** (1) the portal
+  wires a full client-side account-bearer provider
+  (`packages/client/src/account-session.ts`, `createAccountAccessTokenProvider`
+  in `portal-aomi-frame.tsx`) whose `Authorization` header the proxy discards —
+  dead weight on the portal (only a direct-to-backend client like the CLI needs
+  it), plus a second `providerExchange` owner alongside the wallet-kit account
+  runtime; (2) `is_connected` conflates "wallet connected" with "backend
+  authenticated," so the widget has no true "session cookie live" signal to key
+  loading off; (3) the token provider's `subscribe` does not fire on the first
+  successful mint (`previous === null`), so the SSE reconnect hook misses the
+  initial auth-ready moment.
 
 ### Merge BFF + BetterAuth cleanup (2026-07-01)
 

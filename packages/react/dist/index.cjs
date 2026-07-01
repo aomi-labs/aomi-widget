@@ -2228,7 +2228,10 @@ function getHttpStatus2(error) {
 var import_jsx_runtime6 = require("react/jsx-runtime");
 var THREAD_PREFETCH_LIMIT = 5;
 var PREFETCH_IDLE_TIMEOUT_MS = 1500;
-var THREAD_LIST_AUTH_RETRY_DELAYS_MS = [250, 750, 1500];
+var THREAD_LIST_AUTH_RETRY_BUDGET_MS = 3e4;
+var THREAD_LIST_AUTH_RETRY_BASE_DELAY_MS = 300;
+var THREAD_LIST_AUTH_RETRY_MAX_DELAY_MS = 2e3;
+var THREAD_LIST_AUTH_RETRY_BACKOFF_FACTOR = 1.7;
 function scheduleBackgroundTask(task) {
   const runtimeGlobal = globalThis;
   if (typeof runtimeGlobal.requestIdleCallback === "function") {
@@ -2383,17 +2386,21 @@ function useRemoteThreadListSync(context, sessions, remoteThreads) {
   const isConnected = import_client6.UserState.isConnected(user) === true;
   const listThreadsWithAuthRetry = (0, import_react9.useCallback)(
     async (sessionId, isCancelled) => {
-      let attempt = 0;
+      let nextDelay = THREAD_LIST_AUTH_RETRY_BASE_DELAY_MS;
+      let waitedMs = 0;
       for (; ; ) {
         try {
           return await aomiClientRef.current.listThreads(sessionId);
         } catch (error) {
-          const retryDelay = THREAD_LIST_AUTH_RETRY_DELAYS_MS[attempt];
-          if (isCancelled() || getHttpStatus2(error) !== 401 || retryDelay === void 0) {
+          if (isCancelled() || getHttpStatus2(error) !== 401 || waitedMs >= THREAD_LIST_AUTH_RETRY_BUDGET_MS) {
             throw error;
           }
-          attempt += 1;
-          await delay(retryDelay);
+          await delay(nextDelay);
+          waitedMs += nextDelay;
+          nextDelay = Math.min(
+            Math.round(nextDelay * THREAD_LIST_AUTH_RETRY_BACKOFF_FACTOR),
+            THREAD_LIST_AUTH_RETRY_MAX_DELAY_MS
+          );
         }
       }
     },
