@@ -2209,9 +2209,21 @@ import {
   useState as useState6
 } from "react";
 import { UserState as UserStateHelpers } from "@aomi-labs/client";
+
+// src/runtime/http-status.ts
+function getHttpStatus2(error) {
+  const status = error == null ? void 0 : error.status;
+  if (typeof status === "number") return status;
+  const message = error instanceof Error ? error.message : String(error);
+  const match = /\bHTTP\s+(\d{3})\b/i.exec(message);
+  return match ? Number(match[1]) : void 0;
+}
+
+// src/runtime/user-state-provider.tsx
 import { Fragment as Fragment2, jsx as jsx6 } from "react/jsx-runtime";
 var THREAD_PREFETCH_LIMIT = 5;
 var PREFETCH_IDLE_TIMEOUT_MS = 1500;
+var THREAD_LIST_AUTH_RETRY_DELAYS_MS = [250, 750, 1500];
 function scheduleBackgroundTask(task) {
   const runtimeGlobal = globalThis;
   if (typeof runtimeGlobal.requestIdleCallback === "function") {
@@ -2225,6 +2237,11 @@ function scheduleBackgroundTask(task) {
   }
   const timeoutId = runtimeGlobal.setTimeout(task, 0);
   return () => runtimeGlobal.clearTimeout(timeoutId);
+}
+function delay(ms) {
+  return new Promise((resolve) => {
+    globalThis.setTimeout(resolve, ms);
+  });
 }
 function stableStateString2(state) {
   return JSON.stringify(state != null ? state : {});
@@ -2341,6 +2358,7 @@ function useUserStateRequestResponder(context, sessions) {
 }
 function useRemoteThreadListSync(context, sessions, remoteThreads) {
   const [isThreadListLoading, setIsThreadListLoading] = useState6(true);
+  const [threadListError, setThreadListError] = useState6(false);
   const prefetchCancelRef = useRef8(null);
   const wasConnectedRef = useRef8(false);
   const { getControlState, threadContextRef, user } = context;
@@ -2358,6 +2376,24 @@ function useRemoteThreadListSync(context, sessions, remoteThreads) {
     warmThread
   } = remoteThreads;
   const isConnected = UserStateHelpers.isConnected(user) === true;
+  const listThreadsWithAuthRetry = useCallback7(
+    async (sessionId, isCancelled) => {
+      let attempt = 0;
+      for (; ; ) {
+        try {
+          return await aomiClientRef.current.listThreads(sessionId);
+        } catch (error) {
+          const retryDelay = THREAD_LIST_AUTH_RETRY_DELAYS_MS[attempt];
+          if (isCancelled() || getHttpStatus2(error) !== 401 || retryDelay === void 0) {
+            throw error;
+          }
+          attempt += 1;
+          await delay(retryDelay);
+        }
+      }
+    },
+    [aomiClientRef]
+  );
   const scheduleThreadPrefetch = useCallback7(
     (threadIds) => {
       var _a;
@@ -2418,6 +2454,7 @@ function useRemoteThreadListSync(context, sessions, remoteThreads) {
     wasConnectedRef.current = true;
     let cancelled = false;
     setIsThreadListLoading(true);
+    setThreadListError(false);
     const fetchThreadList = async () => {
       var _a2, _b, _c;
       try {
@@ -2427,7 +2464,10 @@ function useRemoteThreadListSync(context, sessions, remoteThreads) {
           getControlState().clientId,
           currentContext.currentThreadId
         );
-        const threadList = await aomiClientRef.current.listThreads(controlSessionId);
+        const threadList = await listThreadsWithAuthRetry(
+          controlSessionId,
+          () => cancelled
+        );
         if (cancelled) return;
         const remoteThreadIds = /* @__PURE__ */ new Set();
         const newMetadata = new Map(currentContext.allThreadsMetadata);
@@ -2485,6 +2525,9 @@ function useRemoteThreadListSync(context, sessions, remoteThreads) {
         }
       } catch (error) {
         console.error("Failed to fetch thread list:", error);
+        if (!cancelled) {
+          setThreadListError(true);
+        }
       } finally {
         if (!cancelled) {
           setIsThreadListLoading(false);
@@ -2499,10 +2542,10 @@ function useRemoteThreadListSync(context, sessions, remoteThreads) {
       prefetchCancelRef.current = null;
     };
   }, [
-    aomiClientRef,
     closeAllSessions,
     ensureInitialState,
     getControlState,
+    listThreadsWithAuthRetry,
     remoteThreadIdsRef,
     scheduleThreadPrefetch,
     sessionManager,
@@ -2513,7 +2556,7 @@ function useRemoteThreadListSync(context, sessions, remoteThreads) {
     warmedThreadIdsRef,
     warmThread
   ]);
-  return { isThreadListLoading };
+  return { isThreadListLoading, threadListError };
 }
 function useRuntimeUserStateEffects({
   sessions: {
@@ -2592,13 +2635,6 @@ function RuntimeUserStateProvider({
 
 // src/runtime/core.tsx
 import { jsx as jsx7 } from "react/jsx-runtime";
-var getHttpStatus2 = (error) => {
-  const status = error == null ? void 0 : error.status;
-  if (typeof status === "number") return status;
-  const message = error instanceof Error ? error.message : String(error);
-  const match = /\bHTTP\s+(\d{3})\b/i.exec(message);
-  return match ? Number(match[1]) : void 0;
-};
 function AomiRuntimeCore({
   children,
   aomiClient
@@ -2730,7 +2766,7 @@ function AomiRuntimeCore({
     },
     [getSession]
   );
-  const { isThreadListLoading } = useRuntimeUserStateEffects({
+  const { isThreadListLoading, threadListError } = useRuntimeUserStateEffects({
     sessions: {
       aomiClientRef,
       sessionManager,
@@ -2955,6 +2991,7 @@ function AomiRuntimeCore({
       currentThreadId: threadContext.currentThreadId,
       threadViewKey: threadContext.threadViewKey,
       threadMetadata: threadContext.allThreadsMetadata,
+      threadListError,
       getThreadMetadata: threadContext.getThreadMetadata,
       createThread,
       deleteThread,
@@ -2989,6 +3026,7 @@ function AomiRuntimeCore({
       threadContext.threadViewKey,
       threadContext.allThreadsMetadata,
       threadContext.getThreadMetadata,
+      threadListError,
       createThread,
       deleteThread,
       renameThread,

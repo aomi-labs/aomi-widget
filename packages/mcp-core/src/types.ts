@@ -2,7 +2,7 @@
 // @aomi-labs/mcp-core — types
 // =============================================================================
 
-type UserId = string;
+export type UserId = string;
 
 /** Per-request context derived from MCP transport. v1: just the resolved
  *  Aomi user. Future: scopes from plugin OAuth, client install id, etc. */

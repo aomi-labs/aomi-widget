@@ -1,4 +1,5 @@
-# The AOMI service topology — the portal's committed view of the mesh.
+# Documentation-only snapshot of the AOMI service topology for the portal.
+# Runtime verification/minting uses packages/account/src/topology-data.ts.
 #
 # One node per service: its identity (`name`/`kid`), SPKI `public_key` (the
 # private half lives in that service's env, never here), the `issues` roles it

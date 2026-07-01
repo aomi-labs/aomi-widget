@@ -2,9 +2,29 @@
 
 ## Last Updated
 
-2026-06-30 - Fixed Coinbase Smart Wallet SIWE hang (RPC timeout) + per-request schema-DDL deadlock.
+2026-07-01 - Merge BFF + BetterAuth cleanup: removed stale JWT/JWKS docs, finished low-risk code cleanup, and kept the origin/main reconciliation deferred.
 
 ## Recent Changes
+
+### Merge BFF + BetterAuth cleanup (2026-07-01)
+
+Branch `codex/merge-bff-betterauth`. Current auth path is BetterAuth session
+cookie or bearer-plugin token -> portal proxy session resolution -> canonical
+Aomi `users.id` -> EdDSA `AccountBearer` minted through the static service
+topology -> backend verification. The deleted BetterAuth JWT/JWKS minter and
+legacy auth-mode switch are no longer part of the contract.
+
+- CLI BetterAuth SIWE login is wired and verified for login, `wallet whoami`,
+  chat, session list/status, state fetch, and logout against the local stack.
+  The only remaining CLI parity row is the browser-wallet comparison proving
+  the same wallet resolves to the same `users.id` in GUI and CLI.
+- Rotated the dev BFF key and aligned the portal topology data with the
+  neighboring backend `service.toml` / `service.dev.toml`.
+- Cleaned the stale docs/scratch surface: the old JWT contract and merge plan
+  were deleted, `tmp.md` became the generated user-state shape reference, and
+  dead scratch files were removed.
+- `origin/main` reconciliation remains intentionally deferred for the PR author;
+  do not treat this branch as rebased onto the BFF-unification changes.
 
 ### Coinbase Smart Wallet SIWE hang + Postgres deadlock (2026-06-30)
 
@@ -32,8 +52,6 @@ with Coinbase Wallet (EOA wallets like MetaMask/Rabby were unaffected):
   `packages/auth/src/service/account-service.ts` memoizes `ensureAccountSchema`
   so the DDL applies at most once per process (failure clears the cache to allow
   retry). The dev-auth-stack script already applies the schema at startup.
-
-
 
 ### Wallet auth bug fixes: quick sign-in de-dupe + SIWE unlink detachment (2026-06-19)
 
@@ -89,7 +107,6 @@ when there's no account, link when one exists); SIWE was already ungated.
 - Dev E2E harness fix: `linkSecondTestWallet` now fetches the link nonce, signs
   a message containing it, and posts the nonce back to `/api/aomi/wallets/link`.
 
-
 ### Account manager: collapse Privy/Para EVM+SVM into one row (2026-06-19)
 
 Branch `codex/widget-auth-pre-rust`. UI cleanup of the "Manage account" panel
@@ -134,7 +151,7 @@ provider-backed sign-in no longer shows as two cards per family.
   'siwe'". Suite 31 green.
 - **Bug fix (default link label):** `linkWallet` in
   `account/aomi-backend-runtime.ts` derived the first-link label from
-  `activeEvmConnection.walletName` — the *active* EVM signer — so linking
+  `activeEvmConnection.walletName` — the _active_ EVM signer — so linking
   MetaMask while a Privy smart wallet was active produced "Privy Smart Wallet 1".
   Extracted `resolveLinkedWalletName` (match the live EVM account by `accountId`,
   then `address`; fall back to the active connection only when absent) and named
@@ -204,9 +221,10 @@ real (`wallet-utils.ts:5`), `AccountRuntime` is the thin stub the plan describes
 (`types.ts:260`) already has provider-token + `{ kind: "cookie" }` variants and
 `getAccountCredential` is documented to exchange for a short-lived Aomi bearer.
 
-Four decisions locked (now in plan §0.1): (1) trust boundary = thin token at the
-backend — BetterAuth signs an Aomi backend JWT carrying `aomi_user_id`, Rust
-verifies it via JWKS;
+Four decisions locked at the time (now superseded for backend auth by the
+2026-07-01 static service-topology AccountBearer path): (1) trust boundary =
+thin token at the backend — BetterAuth signs an Aomi backend JWT carrying
+`aomi_user_id`, Rust verifies it via JWKS;
 (2) session transport pluggable — same-origin cookie now, bearer addable later;
 (3) BetterAuth = successor to the System A account-session exchange, MCP approvals
 (System B: `packages/auth`) untouched, reuse `makePrivyJwtVerifier`; (4)
@@ -247,9 +265,9 @@ push-nav shell + an Account panel stub.
   test to expect the button present. New/changed picker tests pass.
 - **Pre-existing failures (NOT from this change, confirmed against pristine
   HEAD):** `wallet-picker > uses the Para brand mark for manageable Para
-  accounts with generic names` (`getWalletIcon("…para…")` → null brand, likely
+accounts with generic names` (`getWalletIcon("…para…")` → null brand, likely
   fallout from the recent icon-registry refresh) and `network-select >
-  connects without a family selection`.
+connects without a family selection`.
 - Not yet eyeballed live (the connected state needs a real wallet extension):
   confirm the slide reads cleanly and the stub panel looks right.
 
@@ -328,8 +346,8 @@ consistency finish. Findings:
 - **Dead code/deps (C5, decided=delete now):** `useSafeWagmiAccount`,
   `isProviderInternalWalletLabel` stub, dead Para Solana wrapper in `para-svm.tsx`
   (drops `@getpara/solana-wallet-connectors` + `@solana-mobile/...`), `AomiBaseAccountProvider`
-  + duplicate `base-account` branch + `ParaPluginProvider.solanaConfig`, `wallet-family.ts`
-  (`toWireWalletFamily` 0 callers), dead `internal.ts` barrel, zero-consumer presets.
+  - duplicate `base-account` branch + `ParaPluginProvider.solanaConfig`, `wallet-family.ts`
+    (`toWireWalletFamily` 0 callers), dead `internal.ts` barrel, zero-consumer presets.
 - **Provider symmetry (C6):** Privy is a 658-line monolith; split to mirror Para's
   file layout + align the plugin `isAvailable` field.
 - **Layering (C7):** `registry/selectors.ts`→`runtime/evm/identity-grace` (real
@@ -425,8 +443,8 @@ plugins, EVM/SVM runtimes, registry core, account stub, `para-aa.ts`,
 - **Naming:** wallet/account layer is `AomiWalletKit*` (NOT `AomiRuntime*` —
   that collides with `@aomi-labs/react`'s chat widget `AomiRuntimeProvider`/
   `useAomiRuntime`). `AomiWalletKit→AomiWalletKit`, `AomiSessionIdentity→
-  AomiSessionIdentity`, `socialLoginOptions/connectSocial→authMethods/
-  authenticate`, `evmWallets/solanaWallets→walletOptions`. All old names kept as
+AomiSessionIdentity`, `socialLoginOptions/connectSocial→authMethods/
+authenticate`, `evmWallets/solanaWallets→walletOptions`. All old names kept as
   `@deprecated` aliases for 1–2 releases.
 - **Lost-wallets fix (P1):** Aomi-owned connector catalog (`catalog/`) supplying
   injected EIP-6963 + WalletConnect + Coinbase + Base Account in ONE isolated
@@ -449,7 +467,7 @@ plugins, EVM/SVM runtimes, registry core, account stub, `para-aa.ts`,
   implicit from the auth provider. Config = presets + override + BYO connectors.
   **wallets-only is first-class.**
 - **Identity split (P0):** `walletProvider → authProvider/embeddedProvider/
-  walletSource`; types now, `/api/state` payload migration deferred with backend.
+walletSource`; types now, `/api/state` payload migration deferred with backend.
 - **Multi-provider future:** decision #1 revised — one canonical auth (Better
   Auth), many linked providers/embedded wallets switchable, hosted SDKs
   lazy-mounted one at a time. The `mergeWalletRows` stored→`authenticate` path
@@ -468,7 +486,7 @@ WALLET-ARCHITECTURE.md §12–13 / WALLET-REFACTOR-PLAN.md. Headline changes:
 
 - **"Wallet Links Runtime" renamed to Account Runtime** and re-shaped around a canonical
   Aomi user (`{ user, linkedAccounts, wallets }`): provider subjects (Para/Privy/Google)
-  are linked accounts *under* the user, not the root identity. `capability: "read"|"write"`
+  are linked accounts _under_ the user, not the root identity. `capability: "read"|"write"`
   reserved on stored wallets (linking ≠ authorization, per the meeting's impersonation
   discussion); `verifiedAt` optional; `linkedVia` gains `"observed"`.
 - **Session model written in**: provider session (browser credential source) vs Aomi
@@ -663,7 +681,7 @@ Branch `polish-multi-wallet`. Round-4 fixed refresh-active (user confirmed). Two
 
 ### Wallet round 4: enforce-budget refund + Para logout fallback (2026-06-10)
 
-Branch `polish-multi-wallet`. The round-3 trace nailed the remaining refresh bug: Para doesn't steal once — wagmi flips `current` to the just-(re)connected connector as each connection completes during boot (connections grew 1→2→3→4; Para re-asserted 4+ times in one load). The enforcement's "satisfied → reset budget" never fired because each satisfaction landed while the previous switch was still in flight (`skip: switch-in-flight` in the trace), so attempts accumulated ACROSS won fights and the 4th theft hit `budget-exhausted` → Para wins. **Fix**: refund the budget when a `switchAccountAsync` *succeeds* (in `.then`), so the 3-attempt cap only bounds *consecutive failed* switches — the boot-time war is now won regardless of rounds. Known tradeoff: switching to the Para account from inside Para's own modal would be fought back (the picker is the canonical switch surface; picking Para there updates the persisted choice so no fight).
+Branch `polish-multi-wallet`. The round-3 trace nailed the remaining refresh bug: Para doesn't steal once — wagmi flips `current` to the just-(re)connected connector as each connection completes during boot (connections grew 1→2→3→4; Para re-asserted 4+ times in one load). The enforcement's "satisfied → reset budget" never fired because each satisfaction landed while the previous switch was still in flight (`skip: switch-in-flight` in the trace), so attempts accumulated ACROSS won fights and the 4th theft hit `budget-exhausted` → Para wins. **Fix**: refund the budget when a `switchAccountAsync` _succeeds_ (in `.then`), so the 3-attempt cap only bounds _consecutive failed_ switches — the boot-time war is now won regardless of rounds. Known tradeoff: switching to the Para account from inside Para's own modal would be fought back (the picker is the canonical switch surface; picking Para there updates the persisted choice so no fight).
 
 Second report from the trace session: **per-row Para sign-out doesn't stick across refresh** (post-disconnect trace showed `init {persisted: null}` then Para reconnects as the sole connection). Instrumented + hardened: `evm:account-sign-out` log (wallet/address/isParaAccount/connectors-being-disconnected), `para:logout` logs (via useLogout / via client / ok / failed / no-path), and a duck-typed fallback to `paraSession.logout()` when the `useLogout` hook is missing or rejects — a sign-out can no longer silently no-op. **Awaiting next trace run** to see which logout path fires and whether it errors; if `para:logout` says ok and Para still re-attaches, the session revival is server/cookie-side and needs Para SDK escalation.
 
@@ -677,8 +695,8 @@ Branch `polish-multi-wallet`. Para STILL wins active after refresh despite the r
 
 Branch `polish-multi-wallet`. Follow-up to the round-1 fixes after live testing: three bugs remained + a structure ask. 64 registry + 360 root tests green, lint clean, registry+landing typecheck clean.
 
-- **Active EVM wallet enforcement** (`providers/para/para.tsx`): replaced the attempt-once persisted-active-address restore with a watching *enforcement* effect. Para's connector re-asserts itself as wagmi's current connection on reconnect/session syncs — stomping the chosen wallet after a refresh (the one-shot restore lost the race) and right after the first switch away from Para (the "flips back, second click sticks" bug). The effect re-switches to the persisted choice whenever its connection is live and the current connection is Para *or vacant* (never fights a different external connector — that's a deliberate wallet-side switch), bounded at 3 attempts per theft (counter re-arms when satisfied). Covers both reported bugs via one mechanism since `selectAccount` updates the persisted address.
-- **Phantom SVM connect race — root cause found in wallet-adapter + Para provider source**: Para's `ParaSolanaProvider` mounts `WalletProvider` with `autoConnect: true` (hard-coded), and wallet-adapter marks `select()` as user-initiated → the provider fires `adapter.connect()` ITSELF when the adapter lands. Our manual `connect()` raced it, and the losing attempt's error path (`onConnectError` → `changeWallet(null)`) **unselects + disconnects the wallet** — click silently dies; localStorage often kept the wallet name so a refresh re-ran a clean auto-connect → "works after refresh". Fix: the pending effect now defers to the provider's auto-connect (watches `connecting`), and only calls `connect()` after a 400 ms grace if *no* attempt was observed (covers providers without autoConnect). A per-target `solanaConnectAttemptObservedRef` prevents re-popping the wallet after a failed/dismissed attempt and settles the pending state if wallet-adapter unselected the wallet.
+- **Active EVM wallet enforcement** (`providers/para/para.tsx`): replaced the attempt-once persisted-active-address restore with a watching _enforcement_ effect. Para's connector re-asserts itself as wagmi's current connection on reconnect/session syncs — stomping the chosen wallet after a refresh (the one-shot restore lost the race) and right after the first switch away from Para (the "flips back, second click sticks" bug). The effect re-switches to the persisted choice whenever its connection is live and the current connection is Para _or vacant_ (never fights a different external connector — that's a deliberate wallet-side switch), bounded at 3 attempts per theft (counter re-arms when satisfied). Covers both reported bugs via one mechanism since `selectAccount` updates the persisted address.
+- **Phantom SVM connect race — root cause found in wallet-adapter + Para provider source**: Para's `ParaSolanaProvider` mounts `WalletProvider` with `autoConnect: true` (hard-coded), and wallet-adapter marks `select()` as user-initiated → the provider fires `adapter.connect()` ITSELF when the adapter lands. Our manual `connect()` raced it, and the losing attempt's error path (`onConnectError` → `changeWallet(null)`) **unselects + disconnects the wallet** — click silently dies; localStorage often kept the wallet name so a refresh re-ran a clean auto-connect → "works after refresh". Fix: the pending effect now defers to the provider's auto-connect (watches `connecting`), and only calls `connect()` after a 400 ms grace if _no_ attempt was observed (covers providers without autoConnect). A per-target `solanaConnectAttemptObservedRef` prevents re-popping the wallet after a failed/dismissed attempt and settles the pending state if wallet-adapter unselected the wallet.
 - **Provider subfolders**: `providers/para/` (para.tsx, para-sol.tsx, para-aa.ts, evm-identity-grace.ts + test, index.ts), `providers/privy/` (privy.tsx, index.ts), `providers/base-account/` (base-account.tsx, index.ts). Folder names match the old module names, so every existing import path (`providers/para`, `providers/privy`, `providers/base-account`) resolves to the new folder indexes — zero changes at import sites (`providers/index.tsx`, `src/index.ts`). registry.ts file lists updated to the new paths (+ index files, + para-sol.tsx which was previously missing); dist rebuilt; the affected artifacts copied to `apps/landing/public/r/` (committed snapshot read by `packages/client/test/registry-chain-artifacts.unit.test.ts`, whose pinned path was updated to `providers/para/para.tsx`).
 - **Still needs live verification**: (1) Para + MetaMask → set MetaMask active → refresh → stays MetaMask; (2) first switch away from Para sticks without a second click; (3) Phantom connects on first click (and doesn't re-pop after a dismissed popup). Watch for: enforcement tug-of-war if Para re-asserts repeatedly (bounded per theft, but verify no visible flapping).
 
@@ -700,9 +718,9 @@ Branch `polish-multi-wallet`. Big pass over the branch's wallet/auth code: extra
 
 1. **Connect-button parity** (`dual-wallet-bar.tsx`): disconnected "Connect wallet" label now sits in an `h-7` row matching `AVATAR_SIZE`, so both states render the same button height/colour.
 2. **Rabby shows as MetaMask until refresh** + 3. **adding MetaMask swallowed the Rabby row**: root cause — we displayed `connection.connector.name`, but with Rabby set as default wallet the "MetaMask" connector binds Rabby's provider (`isMetaMask` compat flag). New `detectEvmProviderBrand(provider)` (checks `isRabby`/`isPhantom`/`isBraveWallet`/`isRainbow`/`isCoinbaseWallet` before `isMetaMask`) + `useEvmProviderBrands(connections, connectors)` hook sniffs `connector.getProvider()` per live connection (re-sniffs on membership change, so flipping Rabby's default-wallet setting updates without refresh). Applied to `evmConnectionInputs.walletName` and the grace identity's `walletName`. The merged same-address row now truthfully reads "Rabby".
-3. **Phantom click sometimes no-op until refresh** (`para.tsx` + `para-sol.tsx`): `pendingSolanaConnect: boolean` → `pendingSolanaWallet: string | null` (target wallet name). The connect effect now only completes when the *target* wallet reports connected and waits for the `select()` adapter swap to land — a stale `publicKey` from a previous wallet no longer cancels the pending connect. `connectPreferredSolanaWallet` returns `{status, walletName?}` so callers know what was selected.
+3. **Phantom click sometimes no-op until refresh** (`para.tsx` + `para-sol.tsx`): `pendingSolanaConnect: boolean` → `pendingSolanaWallet: string | null` (target wallet name). The connect effect now only completes when the _target_ wallet reports connected and waits for the `select()` adapter swap to land — a stale `publicKey` from a previous wallet no longer cancels the pending connect. `connectPreferredSolanaWallet` returns `{status, walletName?}` so callers know what was selected.
 4. **EVM wallet vanishes during Para OAuth popup** (`para.tsx`): the one-shot reconnect guard is re-armed whenever Para rebuilds its connector set, and a second heal step re-attaches remembered connectors via `connectAsync` (silent for already-authorized injected wallets; skips para/walletconnect + explicitly dropped addresses) 1.5s after a wipe if storage-level `reconnect()` restored nothing.
-5. **Para sign-out killed all wallets** (`para.tsx` disconnect): the per-account sign-out no longer sets the *global* `explicitEvmDisconnectRef` when other connections remain — it records the address in a new `explicitlyDroppedEvmAddressesRef` set (grace won't resurrect it, re-attach skips it) and re-arms the heal so the Para-logout-induced wagmi wipe restores the surviving external wallets. Family/all disconnects keep the global flag. Deliberate connects clear the dropped set.
+5. **Para sign-out killed all wallets** (`para.tsx` disconnect): the per-account sign-out no longer sets the _global_ `explicitEvmDisconnectRef` when other connections remain — it records the address in a new `explicitlyDroppedEvmAddressesRef` set (grace won't resurrect it, re-attach skips it) and re-arms the heal so the Para-logout-induced wagmi wipe restores the surviving external wallets. Family/all disconnects keep the global flag. Deliberate connects clear the dropped set.
 
 **Registry**: dist rebuilt (34 files). NOTE — the registry item file lists are stale for most of the new wallet UI (`dual-wallet-bar.tsx`, `wallet-picker.tsx`, `wallet-icon-slot.tsx`, `wallet-map.tsx`, `icons/wallets/`, `accounts.ts`, `network-preferences.tsx`, `solana-networks.ts`, `para-sol.tsx`, …) — pre-existing gap on this branch, flagged as follow-up.
 
@@ -722,13 +740,13 @@ Branch `polish-multi-wallet`. `icons/wallets/index.tsx` + `icons/wallet-map.tsx`
 Branch `polish-multi-wallet`. `types.ts` + `para.tsx` + `wallet-picker.tsx` + `wallet-picker.test.tsx`. Backend contract unchanged. Driven by "wallets with a management menu should have a manage option, not just sign out — e.g. Para".
 
 - **New optional `manageable?: boolean` on `AomiAccount`** (`types.ts`). Set when an account has an in-app management surface (the handler is the adapter's existing `openAccountUI({ family })`). External wallets managed only in their own extension (MetaMask, Phantom) leave it unset.
-- **Para adapter marks its own account manageable** (`para.tsx`): after `buildAccounts`, accounts whose `walletName` canonicalizes to `"para"` get `manageable: true`, gated on `Boolean(paraModal) && isConnected`. External wallets connected *through* Para keep their brand name → stay unmanaged. Renamed the `buildAccounts` result to `builtAccounts` and map over it.
+- **Para adapter marks its own account manageable** (`para.tsx`): after `buildAccounts`, accounts whose `walletName` canonicalizes to `"para"` get `manageable: true`, gated on `Boolean(paraModal) && isConnected`. External wallets connected _through_ Para keep their brand name → stay unmanaged. Renamed the `buildAccounts` result to `builtAccounts` and map over it.
 - **Picker renders a per-row gear button** (`Settings2Icon`) **before the logout icon** in `FamilyStatusRow`, shown only when `account.manageable && adapter.openAccountUI && adapter.canOpenAccountUI`. Click → `openAccountUI({ family })` then `closePicker()` (the Para modal takes over). New `onManage` prop + `manage:${id}` pending key. The header "Account" button stays (account-level entry); the per-row button is the wallet-level manage. Order in the right cluster: Active pill → manage → logout.
 - **Add-list separators tidied** (`wallet-picker.tsx`): a hairline now divides the Connected section from the link/add area (rendered after `connectedSection` when anything follows). The full-list row was renamed `"More wallet options"`/`"Connect or link additional wallets"` → **"Other wallets"** (subtitle still "Open the full wallet list", both modes). The brand connect options render as one **flat list** — EVM, then Solana, then "Other wallets" — with **no separators between families** (the earlier EVM↔Solana hairline was removed per the user, connected and disconnected alike); dropped the now-unused `Fragment` import. Test updated (`"Other wallets"`).
 - **Provider sign-in row visibility = gated on Para, not on any connection**: the "Para / Email or Google" row (under a "Quick sign-in" label) shows whenever **Para itself is not connected** — including alongside connected external wallets, so Para stays reachable to (re)connect — and hides once Para is connected (`socialOptionsToShow = paraAccountConnected ? [] : socialLoginOptions`, where `paraAccountConnected = connectedAccounts.some(a => a.manageable)`). The section label is always "Quick sign-in" (dropped the "Link additional accounts" wording the user disliked). (This is the final rule after a back-and-forth: brief "hide whenever connected" pass was reverted per user — they want it shown whenever Para isn't connected.)
-- **Active EVM account now persists across refresh** (`para.tsx`). Selecting a non-Para wallet (e.g. MetaMask) as active didn't survive reload — wagmi/Para's connector re-asserts Para as current. Fix: persist the chosen address to localStorage (`aomi.wallet.active-evm-address`) in `selectAccount`, and a once-per-load restore effect re-applies it via `switchAccount` once the matching connection reconnects (guarded by `accountSwitchInFlightRef` so it doesn't fight the reconnect effect). Cleared when that account / the EVM family is disconnected. **Not verified live** — needs two extensions; watch for Para re-asserting active *after* the one-shot restore (would need a repeating enforce instead of attempt-once).
+- **Active EVM account now persists across refresh** (`para.tsx`). Selecting a non-Para wallet (e.g. MetaMask) as active didn't survive reload — wagmi/Para's connector re-asserts Para as current. Fix: persist the chosen address to localStorage (`aomi.wallet.active-evm-address`) in `selectAccount`, and a once-per-load restore effect re-applies it via `switchAccount` once the matching connection reconnects (guarded by `accountSwitchInFlightRef` so it doesn't fight the reconnect effect). Cleared when that account / the EVM family is disconnected. **Not verified live** — needs two extensions; watch for Para re-asserting active _after_ the one-shot restore (would need a repeating enforce instead of attempt-once).
 - **Fixed: Para sign-out didn't stick across refresh** (`para.tsx`). The per-row "sign out" only dropped the wagmi connector; Para's embedded/social session stayed alive and silently re-attached on the next load. Now wired `useLogout` from `@getpara/react-sdk` (re-exported via react-core) behind a `useSafeLogout` wrapper → a `logoutParaSession()` helper in `disconnect`. Called when signing out the Para account (`accountId` path, `canonicalWalletKey(walletName) === "para"`) and on a full `{ family: "all" }` disconnect; a family-scoped disconnect leaves the Para session alone. Note: Para logout is cross-tab (the reason it was previously deferred to the account modal) — acceptable for the sign-out action. **Not verified live.**
-- **Fixed: first EVM account switch after load reverted** (`para.tsx`). On a fresh load with Para active, clicking MetaMask switched for a few ms then flipped back to Para; the 2nd click stuck, and a refresh reset it. Cause: during the first `switchAccount`, wagmi's *current* connection briefly reads disconnected, the auto-reconnect effect fired `wagmiReconnect()`, and that restored the previous (Para) connection. Fix: the reconnect effect now only fires on a *truly wiped* session (`!wagmiConnected && evmConnections.length === 0`) — during a switch the connections list stays populated — plus an `accountSwitchInFlightRef` set around `switchAccountAsync` that the effect skips on. (Still recovers the Para-session-reinit wipe it was built for, where connections go empty.) **Not verified live** — needs two real wallet extensions; confirm a single MetaMask click sticks.
+- **Fixed: first EVM account switch after load reverted** (`para.tsx`). On a fresh load with Para active, clicking MetaMask switched for a few ms then flipped back to Para; the 2nd click stuck, and a refresh reset it. Cause: during the first `switchAccount`, wagmi's _current_ connection briefly reads disconnected, the auto-reconnect effect fired `wagmiReconnect()`, and that restored the previous (Para) connection. Fix: the reconnect effect now only fires on a _truly wiped_ session (`!wagmiConnected && evmConnections.length === 0`) — during a switch the connections list stays populated — plus an `accountSwitchInFlightRef` set around `switchAccountAsync` that the effect skips on. (Still recovers the Para-session-reinit wipe it was built for, where connections go empty.) **Not verified live** — needs two real wallet extensions; confirm a single MetaMask click sticks.
 - **Removed the "Active" pill and the "Switch" hover hint** (per product call). Active state still reads from the checkmark next to the name + the highlighted row border/bg; the in-progress spinner on switch is kept. With the pill gone the trailing cluster is just `[manage?] [logout]`; logout is right-anchored so it aligns across rows on its own — so the earlier `reserveManageSlot` fixed-column machinery was reverted as unnecessary. (Considered a gear on every wallet for symmetry but external wallets have no in-app management surface, so the gear would open nothing.)
 - Tests: 2 new cases in `wallet-picker.test.tsx` — manage button shows for the manageable Para row but not the Phantom row and fires `openAccountUI({family:"evm"})`; hidden when `canOpenAccountUI` is false. 55 registry tests green, lint clean, typecheck clean except the pre-existing `GITHUB` error (`para.tsx:231`).
 - **Not yet eyeballed live**: verify the gear renders on the Para row (not Phantom) and opens the Para account modal.
@@ -737,7 +755,7 @@ Branch `polish-multi-wallet`. `types.ts` + `para.tsx` + `wallet-picker.tsx` + `w
 
 Branch `polish-multi-wallet`. `network-select.tsx` + `network-select.test.tsx` + `vitest.setup.ts`. GUI only; adapter/backend contract unchanged. Driven by "the list looks bloated" — 13 rows with testnets at full weight.
 
-- **Collapse testnets behind a "Show testnets" toggle.** Mainnets show by default; testnets fold behind a footer toggle that advertises the hidden count ("3 hidden"). Partition is derived, not configured: `chain.testnet === true` for EVM, `cluster !== "solana:mainnet"` for SVM. Default landing view drops from 13 rows to 8. Toggle state persists to a standalone localStorage key (`aomi.network-select.show-testnets`) — kept out of `WalletPreferences` since it's a display pref, not a wallet selection. **Edge cases:** if the *active* network is a testnet the rows stay visible and the toggle is suppressed (can't hide the network you're on); a non-empty search query also forces testnets visible so search can jump to one ("sep" → Sepolia) while collapsed.
+- **Collapse testnets behind a "Show testnets" toggle.** Mainnets show by default; testnets fold behind a footer toggle that advertises the hidden count ("3 hidden"). Partition is derived, not configured: `chain.testnet === true` for EVM, `cluster !== "solana:mainnet"` for SVM. Default landing view drops from 13 rows to 8. Toggle state persists to a standalone localStorage key (`aomi.network-select.show-testnets`) — kept out of `WalletPreferences` since it's a display pref, not a wallet selection. **Edge cases:** if the _active_ network is a testnet the rows stay visible and the toggle is suppressed (can't hide the network you're on); a non-empty search query also forces testnets visible so search can jump to one ("sep" → Sepolia) while collapsed.
 - **Lighter rows.** Only the live network carries a filled icon chip (`bg-primary/10`); inactive rows show a bare brand mark (`text-muted-foreground`), so the list reads as one clean column instead of a stack of grey boxes.
 - **Rebuilt on the `Command` (cmdk) primitive** — same as the App/Model selectors, for keyboard nav + structural consistency. Kept real chain names in rows (per the earlier "row titles keep real names" decision); did NOT shorten labels.
 - **Search input is count-gated, not always-on.** Decided against a permanent search box: at ~8 branded rows it's chrome that re-bloats what we just trimmed, and logo-recognition beats typing for a small set. `CommandInput` renders only when the default (mainnet) list exceeds `SEARCH_VISIBLE_THRESHOLD` (=10) — so it stays hidden at today's scale but appears for hosts that configure many custom chains. One constant to tune (0 = always show). Search reveals testnets when active.
@@ -750,9 +768,9 @@ Branch `polish-multi-wallet`. `network-select.tsx` + `network-select.test.tsx` +
 Branch `polish-multi-wallet`. Symptom: switch an EVM network once → wallet approves → EVM wallet logo + EVM network chip start flashing ~every second (off a few ms, back on) and network switching is dead until reload. Three stacked bugs in `aomi-wallet-kit`:
 
 1. **Root cause — Para SDK rebuilt the wagmi config on every network switch** (`para.tsx`, `AomiParaProviderInner`). `resolvedWallets` was recomputed (new array identity) on each render and `paraClientConfig`/`config` were inline JSX objects. A network switch updates the network-preferences context → Inner re-renders → new `externalWalletConfig.wallets` identity → Para's `ParaProviderMin` does an identity compare (`externalWallets !== externalWalletConfig?.wallets`), pushes the array into its zustand store → `@getpara/evm-wallet-connectors` `ParaEvmProvider` sees a new wallet list → `createWagmiConfig()` from scratch → **all in-memory connections dropped** (wagmi's reconnect-on-mount doesn't re-run for a swapped config prop — mount-only effect). Fix: `useMemo` `resolvedWallets` / `paraClientConfig` / `paraConfig` (`apiKey ? {…} : null`, JSX branches on `paraClientConfig`), hoisted shared `defaultOAuthMethods` module const (a fresh `["GOOGLE"]` default array per render churned the `oAuthMethods`-keyed memos in both Inner and `AomiParaPluginProvider`).
-2. **Flash oscillation — grace window restarted itself** (`evm-identity-grace.ts`). On expiry it returned `disconnectedAt: null`; the provider wrote that back to the ref, so the next render treated the still-missing address as a *fresh* disconnect and restarted the 1.8 s grace → identity flipped cached(on) → empty(off) → cached(on) forever. That's the visible ~1 s flash of the EVM logo + chip. Fix: expired branch now preserves `disconnectedAt` so it stays expired until a live address returns. Test updated + regression test added (feed expired result back in → must stay expired).
+2. **Flash oscillation — grace window restarted itself** (`evm-identity-grace.ts`). On expiry it returned `disconnectedAt: null`; the provider wrote that back to the ref, so the next render treated the still-missing address as a _fresh_ disconnect and restarted the 1.8 s grace → identity flipped cached(on) → empty(off) → cached(on) forever. That's the visible ~1 s flash of the EVM logo + chip. Fix: expired branch now preserves `disconnectedAt` so it stays expired until a live address returns. Test updated + regression test added (feed expired result back in → must stay expired).
 3. **No self-heal** (`para.tsx` reconnect effect). Auto-reconnect required `paraAccount.isConnected`, so external-wallet-only sessions (MetaMask/Rabby without Para login) never recovered from an in-memory wagmi reset. Fix: reconnect now keys off `hadEvmConnectionRef && !explicitEvmDisconnectRef` (still one attempt until restored; wagmi `reconnect()` only restores storage-persisted connectors so it can't fight a deliberate disconnect). `explicitEvmDisconnectRef` declaration moved up next to the reconnect refs.
-4. **Bonus race fix**: `selectNetwork`/`switchChain` set the chain preference then await `switchChainAsync`, while the align-to-preference effect *also* fired `switchChainAsync` as soon as the preference changed (wagmi `chainId` still old) → two concurrent `wallet_switchEthereumChain` (dup popups / -32002 in some wallets). New `evmSwitchInFlightRef` set around user-initiated switches; the effect skips while set. Effect's promise also gets a `.catch` (was an unhandled rejection on user reject).
+4. **Bonus race fix**: `selectNetwork`/`switchChain` set the chain preference then await `switchChainAsync`, while the align-to-preference effect _also_ fired `switchChainAsync` as soon as the preference changed (wagmi `chainId` still old) → two concurrent `wallet_switchEthereumChain` (dup popups / -32002 in some wallets). New `evmSwitchInFlightRef` set around user-initiated switches; the effect skips while set. Effect's promise also gets a `.catch` (was an unhandled rejection on user reject).
 5. Typed `evmConnectionInputs` as `EvmConnectionInput[]` — fixes the `string` vs `` `0x${string}` `` tsc error the uncommitted grace wiring introduced.
 
 51 registry tests green, lint clean, typecheck clean except the pre-existing `GITHUB` OAuth-label error (`para.tsx:231`). **Not verified live** (needs a real wallet extension): user verifying manually — load → connect → switch EVM network → no flash, switcher stays usable, repeat switches work.
@@ -761,12 +779,12 @@ Branch `polish-multi-wallet`. Symptom: switch an EVM network once → wallet app
 
 Branch `polish-multi-wallet`. `network-select.tsx` + `network-select.test.tsx` + `icons/chains/index.tsx`. GUI only; adapter/backend contract unchanged.
 
-- **Connection-aware gating.** Which families surface now follows what's actually *connected* (`identity.address` for EVM, `identity.svmAddress` for SVM), not just what the host *supports*. EVM-only wallet → only EVM networks; SVM-only → only SVM; both → both. When nothing is connected it falls back to showing all supported networks so the picker doubles as a pre-connect preference. (Was: gated on supported-network counts, so it always showed both EVM+SVM tabs regardless of connection.)
+- **Connection-aware gating.** Which families surface now follows what's actually _connected_ (`identity.address` for EVM, `identity.svmAddress` for SVM), not just what the host _supports_. EVM-only wallet → only EVM networks; SVM-only → only SVM; both → both. When nothing is connected it falls back to showing all supported networks so the picker doubles as a pre-connect preference. (Was: gated on supported-network counts, so it always showed both EVM+SVM tabs regardless of connection.)
 - **Collapsed the EVM | Solana tab toggle into one unified list.** Single scrollable popover; when both families are present, subtle uppercase group headers (`EVM` / `SVM`) separate them. One family → no header. Matches the flat-list direction the wallet picker already landed on. Removed the `panel`/`setPanel` tab state + its reset effect + `canShowFamilyTabs`.
 - **Brand logos everywhere.** Added `SolanaIcon` to `icons/chains/index.tsx` (official 3-bar mark, monochrome `currentColor`, layered opacities). SVM rows + trigger now render it; EVM rows/trigger use `getChainIcon`. The **trigger** previously had no logo (the user's main gripe — sibling Model/App selects show one): it now renders `icon + label` per shown family, joined by a `/` separator (e.g. `[Base] Base / [◎] Mainnet`). EVM chip label = chain name; SVM chip label = cluster (`Mainnet`/`Devnet`/`Testnet`), the icon carrying the family.
-- **"Solana" → "SVM"** in UI chrome: group header + confirm-dialog title/body ("Switch SVM network?"). Network *row* titles keep their real names ("Solana Mainnet" etc.).
+- **"Solana" → "SVM"** in UI chrome: group header + confirm-dialog title/body ("Switch SVM network?"). Network _row_ titles keep their real names ("Solana Mainnet" etc.).
 - **Fixed first-row always looking pre-selected.** Radix auto-focuses the first row on open; `focus:bg-accent` painted it as if hovered/active. Switched to `focus-visible:` so the highlight only shows for keyboard nav, not the mouse-triggered open. `isActive && bg-accent` still marks the live network.
-- **Hide guard** now counts only *visible* (shown-family) targets — hides the selector when ≤1 switchable network is visible.
+- **Hide guard** now counts only _visible_ (shown-family) targets — hides the selector when ≤1 switchable network is visible.
 - Tests reworked: dropped the tab-click steps; added an EVM-only gating case (Solana rows absent) + a both-connected unified-list case; `createHarnessAdapter` gained `address` / `evmChains` / `solanaNetworks` overrides. 45 registry tests green, lint clean, registry typecheck clean for changed files (pre-existing `GITHUB` error in `para.tsx:222` unchanged).
 - **Not yet eyeballed live**: trigger logos + connected-family gating need a real wallet connection to fully exercise (automated preview can't sign one) — user verifying via screenshots.
 
@@ -775,7 +793,7 @@ Branch `polish-multi-wallet`. `network-select.tsx` + `network-select.test.tsx` +
 Branch `polish-multi-wallet`. `dual-wallet-bar.tsx` only. Iterated once on product feedback.
 
 - **One shared button surface for both states.** Dropped the deep-black connected (`bg-primary`) state and the dashed-border disconnected state. Both now use the original `bg-muted` fill with a **solid** `border border-border` outline and `hover:bg-muted/70`, text in full `text-foreground` (was `text-muted-foreground`) so "Connect wallet" reads clearly. (First pass tried `bg-foreground/[0.05]`; reverted to muted per feedback.)
-- **Connected**: active wallets render as circular brand avatars **plus the short address(es)** beside them (`formatAddress`, joined ` / `). Discs are **opaque `bg-muted` with a `ring-1 ring-border` outline** and **stack** with `-ml-2` overlap — opaque so the front disc masks the one behind (a translucent fill let the back logo bleed through). Button padding tightened to `px-3.5 py-2` so more of the address fits.
+- **Connected**: active wallets render as circular brand avatars **plus the short address(es)** beside them (`formatAddress`, joined `/`). Discs are **opaque `bg-muted` with a `ring-1 ring-border` outline** and **stack** with `-ml-2` overlap — opaque so the front disc masks the one behind (a translucent fill let the back logo bleed through). Button padding tightened to `px-3.5 py-2` so more of the address fits.
 - **Shared icon rendering** (`wallet-icon-slot.tsx`): the picker's `WalletIconSlot` was extracted into its own module and is now used by **both** the picker rows and the trigger avatars, so brand mark colour (`text-muted-foreground`), proportional sizing, the Phantom-art quirk, and the iconUrl/generic fallbacks are defined **once**. It takes a numeric `size` (slot px; mark scales from it via fixed ratios) + a `className` to restyle the slot (the trigger passes `rounded-full ring-1 ring-border` + stack margin; picker uses the 36px default). The trigger uses `size={28}`. This fixed the "logo colours off (esp. Phantom)" by matching the modal exactly.
 - **Note**: the brand icons in `components/icons/wallets` are **monochrome** (`fill="currentColor"`), so they tint to `currentColor` — now consistently `text-muted-foreground` in both surfaces. True brand colours would need new colored SVG assets; not done (the muted-foreground look matches the approved modal).
 - **Responsive disclosure (container queries).** The trigger button is now an `@container`; its content reveals more as the bar widens (fixing "button grows but text doesn't"). Each connected wallet carries a `detail` (EVM chain name via `getChainInfo`, Solana cluster via `solanaClusterLabel`). For a **single** wallet (most empty space): network `· {detail}` appears at `@[12rem]`, and the address swaps short→`longAddress` (12+8 hex) at `@[15rem]`. For **two** wallets: addresses stay short (avatars stacked), network only at `@[20rem]`. `singleWallet = connectedWallets.length === 1` drives the breakpoint choice. Breakpoints tuned for a ~15rem (w-full sidebar-footer) button — easy to nudge.
@@ -786,11 +804,13 @@ Branch `polish-multi-wallet`. `dual-wallet-bar.tsx` only. Iterated once on produ
 Branch `polish-multi-wallet`. GUI/adapter polish; backend contract unchanged. Done in two passes (same day).
 
 Adapter (`apps/registry/src/lib/wallet-kit/`):
+
 - **Fixed duplicate connected rows** (Rabby "take over MetaMask" / EIP-6963 impersonation). `buildAccounts` (`accounts.ts`) groups EVM connections by **lowercased address** → one row per address. Display name/`id` prefer the active connector, else a real brand over a generic "Injected" label; the row carries `connectorIds` + `chainId`. Solana deduped defensively by `publicKey`. Distinct addresses stay separate.
 - **"Sign out one = sign out all" fixed** as a side effect — `disconnect({accountId})` in `para.tsx` already groups by address; correct once the display is one row per address. `para.tsx` unchanged.
 - **`AomiAccount` type** (`types.ts`) gained optional `chainId` + `connectorIds`.
 
 Picker (`wallet-picker.tsx`):
+
 - **Connected section is one flat list** (network grouping was tried, then dropped per product feedback). Each row carries a compact **`FamilyTag`** — text "EVM"/"SVM" with a small green status dot (no chip outline) — so execution family is clear. Chain/cluster shows inline in the meta line (`0xdA6..F0 · Base`, cluster capitalized: `· Mainnet`) only when it adds info beyond the family name.
 - **Switching the active wallet = click the row.** The whole row (icon + name + meta) is one button for inactive EVM accounts (chevron removed); hover highlights the card + reveals a "Switch" hint, a spinner shows while switching, and the "Active" pill fades in. Disconnect stays a separate icon button beside it. Solana/active rows render as a static (non-clickable) row.
 - **Section order when connected:** Connected → Quick sign-in → Add wallet; disconnected keeps Quick sign-in on top.
@@ -816,8 +836,6 @@ Branch `codex/para-solana-support-wip` (PR #150). Merged `fix/pr150-runtime-wiri
 - **Live e2e**: `client.integration.test.ts` gained an LLM-free app-scoped system-message test (green vs local backend :8080 + local supabase).
 - **Backend DB e2e** (product-mono, branch `test/account-exchange-db-e2e`): `entities.rs` test mirroring the exchange's Privy identity resolution + provider scoping (green vs local supabase :54322).
 - **Known gap (flagged, no code)**: backend `ScheduledIntentDueEvent` (`scheduled_intent_due`, declared System→UI) from product-mono #564 has no FE handler — falls through as a raw system message. Product decision needed.
-
-
 
 ### Multi-wallet per-family connection + hybrid picker (2026-05-29)
 
@@ -879,12 +897,13 @@ Branch `codex/para-solana-support-wip`. Design/plan in `docs/superpowers/specs/2
 - All 155 tests pass, build clean, lint clean
 
 #### New execution model
-| Env vars | Flag | Result |
-|---|---|---|
-| (none) | (none) | **AA proxy** (zero-config, via backend) |
-| `ALCHEMY_API_KEY` | (none) | AA BYOK (Alchemy direct) |
-| `PIMLICO_API_KEY` | `--aa-provider pimlico` | AA BYOK (Pimlico direct) |
-| any | `--eoa` | EOA |
+
+| Env vars          | Flag                    | Result                                  |
+| ----------------- | ----------------------- | --------------------------------------- |
+| (none)            | (none)                  | **AA proxy** (zero-config, via backend) |
+| `ALCHEMY_API_KEY` | (none)                  | AA BYOK (Alchemy direct)                |
+| `PIMLICO_API_KEY` | `--aa-provider pimlico` | AA BYOK (Pimlico direct)                |
+| any               | `--eoa`                 | EOA                                     |
 
 ### Phase 5: Cleanup legacy code (2026-04-12)
 
@@ -923,13 +942,14 @@ Branch `codex/para-solana-support-wip`. Design/plan in `docs/superpowers/specs/2
 - All 189 tests pass, build clean
 
 #### Execution model
-| AA configured? | Flag | Result |
-|---|---|---|
-| Yes | (none) | **AA automatically** (7702 → 4337 fallback) |
-| Yes | `--aa` | AA required, same fallback |
-| Yes | `--eoa` | EOA, skip AA |
-| No | (none) | EOA |
-| No | `--aa` | Error: "configure AA first" |
+
+| AA configured? | Flag    | Result                                      |
+| -------------- | ------- | ------------------------------------------- |
+| Yes            | (none)  | **AA automatically** (7702 → 4337 fallback) |
+| Yes            | `--aa`  | AA required, same fallback                  |
+| Yes            | `--eoa` | EOA, skip AA                                |
+| No             | (none)  | EOA                                         |
+| No             | `--aa`  | Error: "configure AA first"                 |
 
 ### Spec: AA-ARCH.md refresh (2026-04-11)
 
@@ -951,6 +971,7 @@ Branch `codex/para-solana-support-wip`. Design/plan in `docs/superpowers/specs/2
 - **Deleted `createRuntime`** from `args.ts`
 
 #### Command surface
+
 ```
 aomi chat <message>                 Send a message
 aomi tx list                        List transactions
@@ -1030,7 +1051,7 @@ aomi aa status|set|test|reset
 - **Sub-task B: Updated routing and nav files**
   - Changed default redirect in `app/docs/[[...slug]]/page.tsx` from `/docs/getting-started/overview` to `/docs/build/overview`
   - Updated all 16 legacy redirects to point to new `/docs/build/` and `/docs/use-aomi/` paths
-  - Added 19 new redirects for restructured paths (getting-started/*, core-concepts/*, integration/*, telegram/*)
+  - Added 19 new redirects for restructured paths (getting-started/_, core-concepts/_, integration/_, telegram/_)
   - Updated both `navLinks` and `navTabs` in `layout-config.tsx` to `/docs/build/overview`
 - **Sub-task C: Updated internal links across all documentation pages**
   - Updated links in 8 persistent `.mdx` files: namespaces, api-reference, sessions, widget/configuration, reference/runtime, headless/runtime-provider, headless/install, widget/aomi-frame
@@ -1124,6 +1145,7 @@ aomi aa status|set|test|reset
 - **Modified**: `PlaygroundConfigurator.tsx` — tabbed config (Layout|Theme) + tabbed code output (JSX|CSS)
 
 #### Radius unification refactor
+
 - **`default.css`** — extended `@theme inline` with `--radius-2xl`, `--radius-3xl`, `--radius-4xl` tokens (calc offsets from `--radius`)
 - **`theme-utils.ts`** — `themeToStyleObject` now sets all 7 radius tokens (`sm` through `4xl`) as inline style overrides
 - **`thread-list.tsx`** — "New Chat" button and thread list items changed from `rounded-full` → `rounded-3xl`

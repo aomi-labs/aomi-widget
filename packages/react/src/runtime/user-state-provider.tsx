@@ -20,6 +20,7 @@ import { initThreadControl } from "../state/thread-store";
 import { getControlSessionId } from "../utils/client-session";
 import { isPlaceholderTitle } from "./utils";
 import { SessionManager } from "./session-manager";
+import { getHttpStatus } from "./http-status";
 
 const THREAD_PREFETCH_LIMIT = 5;
 const PREFETCH_IDLE_TIMEOUT_MS = 1500;
@@ -51,15 +52,6 @@ function delay(ms: number): Promise<void> {
   return new Promise((resolve) => {
     globalThis.setTimeout(resolve, ms);
   });
-}
-
-function getHttpStatus(error: unknown): number | undefined {
-  const status = (error as { status?: unknown })?.status;
-  if (typeof status === "number") return status;
-
-  const message = error instanceof Error ? error.message : String(error);
-  const match = /\bHTTP\s+(\d{3})\b/i.exec(message);
-  return match ? Number(match[1]) : undefined;
 }
 
 type RuntimeUserStateProviderProps = {
@@ -472,7 +464,6 @@ function useRemoteThreadListSync(
       prefetchCancelRef.current = null;
     };
   }, [
-    aomiClientRef,
     closeAllSessions,
     ensureInitialState,
     getControlState,

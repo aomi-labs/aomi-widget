@@ -21,7 +21,6 @@
 import {
   AomiClient,
   type AomiMessage,
-  type AomiStateResponse,
   type UserState,
 } from "@aomi-labs/client";
 import type {
@@ -50,7 +49,9 @@ export function buildBackendPort(deps: BackendPortDeps): BackendPort {
       const client = clientForUser(deps, userId);
       // 1. Snapshot pre-call pending state so we can diff.
       const preState = await client.fetchState(userId, undefined, userId);
-      const preIds = new Set(extractPendingTx(preState.user_state).map((t) => t.id));
+      const preIds = new Set(
+        extractPendingTx(preState.user_state).map((t) => t.id),
+      );
 
       // 2. Send the chat. Returns initial response immediately; if the
       //    agent kicks off async work, `is_processing` will be true.
@@ -66,7 +67,7 @@ export function buildBackendPort(deps: BackendPortDeps): BackendPort {
           userId,
           undefined,
           userId,
-        )) as typeof last;
+        )) as unknown as typeof last;
       }
 
       // 4. Final reply: latest agent-sender message that came in after
@@ -164,7 +165,9 @@ function extractPendingTx(
   return out;
 }
 
-function latestAgentReplyText(messages: AomiMessage[] | null | undefined): string {
+function latestAgentReplyText(
+  messages: AomiMessage[] | null | undefined,
+): string {
   if (!messages || messages.length === 0) return "";
   // Walk backwards: first agent/assistant message before the last user
   // message is the "current turn's" final agent message.
@@ -211,9 +214,6 @@ function displayId(rawId: string): string | null {
   if (!Number.isFinite(n) || n < 0) return null;
   return `tx-${n}`;
 }
-
-// Avoid the AomiStateResponse import being unused if helpers stay self-contained.
-type _ensureImport = AomiStateResponse;
 
 function defaultSleep(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms));

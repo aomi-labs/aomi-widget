@@ -208,6 +208,8 @@ type AomiRuntimeApi = {
     threadViewKey: number;
     /** Metadata for all threads (title, status, lastActiveAt) */
     threadMetadata: Map<string, ThreadMetadata>;
+    /** True when the authenticated thread list failed to load. */
+    threadListError: boolean;
     /** Get metadata for a specific thread */
     getThreadMetadata: (threadId: string) => ThreadMetadata | undefined;
     /** Create a new thread and return its ID */

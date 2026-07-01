@@ -449,6 +449,57 @@ describe("createAccountAccessTokenProvider", () => {
     provider.dispose();
   });
 
+  it("briefly backs off temporary credential-unavailable errors before retrying", async () => {
+    const getProviderCredential = vi.fn(async () => {
+      throw new AccountCredentialUnavailableError();
+    });
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValue({ ok: false, status: 401, json: async () => ({}) });
+    const provider = createAccountAccessTokenProvider({
+      baseUrl: BASE_URL,
+      getProviderCredential,
+      fetch: fetchImpl as unknown as typeof fetch,
+      now,
+    });
+
+    await expect(provider()).resolves.toBeUndefined();
+    nowMs += 100;
+    await expect(provider()).resolves.toBeUndefined();
+    expect(getProviderCredential).toHaveBeenCalledTimes(1);
+
+    nowMs += 200;
+    await expect(provider()).resolves.toBeUndefined();
+    expect(getProviderCredential).toHaveBeenCalledTimes(2);
+
+    provider.dispose();
+  });
+
+  it("rejects Better Auth token expiries that look like milliseconds", async () => {
+    const token = jwtWithPayload({
+      sub: "aomi-user-1",
+      exp: 4_600_000,
+    });
+    const fetchImpl = vi.fn(async () =>
+      okJsonResponse({
+        bearer: token,
+        expires_at: 4_600_000_000_000,
+        user_id: "aomi-user-1",
+      }),
+    );
+    const provider = createAccountAccessTokenProvider({
+      baseUrl: BASE_URL,
+      betterAuthToken: {},
+      fetch: fetchImpl as unknown as typeof fetch,
+      now,
+    });
+
+    await expect(provider()).resolves.toBeUndefined();
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+
+    provider.dispose();
+  });
+
   it("forceRefresh bypasses the failure backoff (used by the 401 retry path)", async () => {
     let attempt = 0;
     const getProviderCredential = vi.fn(async () => {

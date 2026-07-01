@@ -237,6 +237,9 @@ export function useAomiBackendAccountRuntime(input: {
       ...input.evm.accounts(Date.now()),
       ...(input.svm?.accounts(Date.now()) ?? []),
     ],
+    // `errorVersion` intentionally re-samples live wallet adapters after a
+    // failed auth/account side effect, because the adapter object identities
+    // can stay stable while their internal account snapshots changed.
     [errorVersion, input.evm, input.svm],
   );
 

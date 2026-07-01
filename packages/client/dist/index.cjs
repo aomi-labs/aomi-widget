@@ -1539,6 +1539,8 @@ var AccountCredentialUnavailableError = class extends Error {
 };
 var DEFAULT_REFRESH_BEFORE_EXPIRY_MS = 2 * 60 * 1e3;
 var FAILURE_COOLDOWN_MS = 30 * 1e3;
+var CREDENTIAL_UNAVAILABLE_RETRY_DELAYS_MS = [250, 1e3, 3e3];
+var EXPIRES_AT_MILLISECONDS_THRESHOLD = 1e11;
 var DEFAULT_BETTER_AUTH_TOKEN_PATH = "/api/bff/auth/token";
 var DEFAULT_BETTER_AUTH_PROVIDER_EXCHANGE_PATH = "/api/auth/aomi/provider/exchange";
 function createAccountAccessTokenProvider({
@@ -1553,6 +1555,8 @@ function createAccountAccessTokenProvider({
   let pending = null;
   let refreshTimer = null;
   let failedAt = null;
+  let credentialUnavailableRetryAfter = 0;
+  let credentialUnavailableRetryCount = 0;
   const listeners = /* @__PURE__ */ new Set();
   const scheduleRefresh = (session) => {
     if (refreshTimer) clearTimeout(refreshTimer);
@@ -1625,9 +1629,14 @@ function createAccountAccessTokenProvider({
     if (failedAt !== null && now() - failedAt < FAILURE_COOLDOWN_MS && !forceRefresh) {
       return void 0;
     }
+    if (!forceRefresh && now() < credentialUnavailableRetryAfter) {
+      return void 0;
+    }
     if (!pending) {
       pending = exchange().then((next) => {
         failedAt = null;
+        credentialUnavailableRetryAfter = 0;
+        credentialUnavailableRetryCount = 0;
         const previous = cached;
         cached = next;
         scheduleRefresh(next);
@@ -1636,8 +1645,19 @@ function createAccountAccessTokenProvider({
         }
         return next;
       }).catch((error) => {
-        if (!(error instanceof AccountCredentialUnavailableError)) {
+        if (error instanceof AccountCredentialUnavailableError) {
+          const retryDelay = CREDENTIAL_UNAVAILABLE_RETRY_DELAYS_MS[credentialUnavailableRetryCount];
+          if (retryDelay === void 0) {
+            failedAt = now();
+            credentialUnavailableRetryAfter = 0;
+          } else {
+            credentialUnavailableRetryCount += 1;
+            credentialUnavailableRetryAfter = now() + retryDelay;
+          }
+        } else {
           failedAt = now();
+          credentialUnavailableRetryAfter = 0;
+          credentialUnavailableRetryCount = 0;
         }
         return null;
       }).finally(() => {
@@ -1676,6 +1696,9 @@ function normalizeBetterAuthTokenResponse(response) {
   );
   if (!Number.isFinite(expiresAt) || expiresAt <= 0) {
     throw new Error("Better Auth token is missing a valid exp claim");
+  }
+  if (expiresAt > EXPIRES_AT_MILLISECONDS_THRESHOLD) {
+    throw new Error("Better Auth token expires_at must be seconds, not ms");
   }
   const getPayloadUserId = () => {
     const claims = getPayload();

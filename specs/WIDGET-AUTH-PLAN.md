@@ -1,12 +1,17 @@
 # Widget User Auth — Current State And Remaining Work
 
 > Status: code-aligned current-state document.
-> Last checked against this repo on 2026-06-20.
+> Last checked against this repo on 2026-07-01.
 >
 > This is no longer only an implementation plan. It records what exists in the
 > code right now, where it lives, how the pieces fit together, and what is still
 > left before the Rust backend can treat `aomi_users.id` as its durable account
 > owner.
+>
+> 2026-07-01 implementation note: historical BetterAuth backend JWT/JWKS
+> references below are superseded. The live backend-auth path is BetterAuth
+> session -> canonical Aomi user -> portal-minted EdDSA AccountBearer via the
+> static service topology.
 
 ---
 
