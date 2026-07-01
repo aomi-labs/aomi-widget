@@ -745,7 +745,7 @@ export class DeploymentClient {
       throw new BackendError(
         operation,
         0,
-        `${operation} request failed: ${err instanceof Error ? err.message : String(err)}`,
+        `${operation} request to ${url} failed: ${err instanceof Error ? err.message : String(err)}`,
       );
     }
 
