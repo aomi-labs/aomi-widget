@@ -14,7 +14,7 @@ issues = ["user", "service"]
 audiences = ["aomi-backend"]
 public_key = """
 -----BEGIN PUBLIC KEY-----
-MCowBQYDK2VwAyEAXx7J0PUDLOHG4dz5gIB0tpHdezW6TyV8N98cwunGyKw=
+MCowBQYDK2VwAyEAcz9wTX8DsJmDChhmt02UIhv9LCceCsJBSlsBgJlExc4=
 -----END PUBLIC KEY-----
 """
 
