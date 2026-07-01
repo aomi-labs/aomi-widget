@@ -1,17 +1,14 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import {
-  AccountCredentialUnavailableError,
-  createAccountAccessTokenProvider,
-} from "@aomi-labs/client";
 import { getChainInfo } from "@aomi-labs/react";
 import {
   Button,
   formatAuthMethod,
   useAomiWalletKit,
 } from "@aomi-labs/widget-lib";
-import { getBackendUrl, settingsApiFetch } from "@portal/lib/settings-api";
+import { settingsApiFetch } from "@portal/lib/settings-api";
+import { createPortalAccountAccessTokenProvider } from "@portal/lib/account-access-token";
 import {
   settingsBodyTextClass,
   settingsCardClass,
@@ -68,33 +65,7 @@ export function GeneralSettings() {
   const [error, setError] = useState<string | null>(null);
 
   const accountAccessTokenProvider = useMemo(() => {
-    return createAccountAccessTokenProvider({
-      baseUrl: getBackendUrl(),
-      betterAuthToken: {
-        baseUrl: "",
-      },
-      getProviderCredential: async () => {
-        if (!getAccountCredential) {
-          throw new AccountCredentialUnavailableError();
-        }
-        const credential = await getAccountCredential();
-        if (!credential) {
-          throw new AccountCredentialUnavailableError(
-            "No account credential is available",
-          );
-        }
-        if ("providerToken" in credential) {
-          return credential;
-        }
-        if (credential.kind === "token") {
-          return {
-            provider: credential.provider,
-            providerToken: credential.token,
-          };
-        }
-        throw new Error("Account credential cannot be exchanged");
-      },
-    });
+    return createPortalAccountAccessTokenProvider(getAccountCredential);
   }, [getAccountCredential]);
 
   useEffect(

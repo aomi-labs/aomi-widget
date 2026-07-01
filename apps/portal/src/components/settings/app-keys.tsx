@@ -1,12 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import {
-  AccountCredentialUnavailableError,
-  createAccountAccessTokenProvider,
-} from "@aomi-labs/client";
 import { Button, Input, useAomiWalletKit } from "@aomi-labs/widget-lib";
-import { getBackendUrl, settingsApiFetch } from "@portal/lib/settings-api";
+import { settingsApiFetch } from "@portal/lib/settings-api";
+import { createPortalAccountAccessTokenProvider } from "@portal/lib/account-access-token";
 import {
   settingsActionRowClass,
   settingsBodyTextClass,
@@ -82,45 +79,19 @@ export function AppKeys() {
   const [createdAppKey, setCreatedAppKey] = useState<string | null>(null);
 
   const accountAccessTokenProvider = useMemo(() => {
-    return createAccountAccessTokenProvider({
-      baseUrl: getBackendUrl(),
-      betterAuthToken: {
-        baseUrl: "",
-      },
-      getProviderCredential: async () => {
-        if (!getAccountCredential) {
-          throw new AccountCredentialUnavailableError();
-        }
-        const credential = await getAccountCredential();
-        if (!credential) {
-          throw new AccountCredentialUnavailableError(
-            "No account credential is available",
-          );
-        }
-        if ("providerToken" in credential) {
-          return credential;
-        }
-        if (credential.kind === "token") {
-          return {
-            provider: credential.provider,
-            providerToken: credential.token,
-          };
-        }
-        throw new Error("Account credential cannot be exchanged");
-      },
-    });
+    return createPortalAccountAccessTokenProvider(getAccountCredential);
   }, [getAccountCredential]);
 
   useEffect(
     () => () => {
-      accountAccessTokenProvider.dispose();
+      accountAccessTokenProvider?.dispose();
     },
     [accountAccessTokenProvider],
   );
 
   const accountFetch = useCallback(
     async <T,>(path: string, options?: RequestInit): Promise<T> => {
-      const accessToken = await accountAccessTokenProvider();
+      const accessToken = await accountAccessTokenProvider?.();
       const headers = new Headers(options?.headers);
       if (accessToken) {
         headers.set("Authorization", `Bearer ${accessToken}`);

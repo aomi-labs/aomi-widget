@@ -2,9 +2,44 @@
 
 ## Last Updated
 
-2026-07-01 - Thread list now self-heals the login auth race (no more manual refresh); surfaced portal auth tech debt.
+2026-07-01 - Portal client token provider now conditional (dead weight gone in same-origin proxy mode); verified via full auth-stack smoke + real CLI e2e.
 
 ## Recent Changes
+
+### Portal client-token-provider dead-weight cleanup (2026-07-01)
+
+Branch `codex/merge-bff-betterauth`. Follow-up to the thread-list race fix. The
+portal wired a client-side `createAccountAccessTokenProvider` into **5**
+components (widget + `general-settings`/`bots`/`apps-settings`/`app-keys`) that
+minted an `Authorization: Bearer` header — but in same-origin proxy mode
+(`NEXT_PUBLIC_BACKEND_URL=/`, the shipped default) the BFF proxy mints the bearer
+server-side from the `aomi_session` cookie and strips that header, so the whole
+machine was dead weight (latency + `/api/bff/auth/token` 401 spam + a duplicate
+`providerExchange` owner).
+
+- **Not deleted outright — made conditional.** It is still load-bearing in
+  direct-to-backend mode (browser talks cross-origin to the Rust backend), so a
+  blind delete would have broken that path. New helper
+  `apps/portal/src/lib/account-access-token.ts`
+  (`createPortalAccountAccessTokenProvider`) returns `null` in same-origin /
+  SSR and only builds a real provider when `getBackendUrl()` is cross-origin.
+  This also collapsed the ~30 duplicated lines across the 5 components into one
+  call. The shared `@aomi-labs/client` `createAccountAccessTokenProvider` +
+  `@aomi-labs/account` `createBearerTokenRoute` (`/api/bff/auth/token`) are kept
+  intact as the documented direct-to-backend seam (used by out-of-repo
+  base/landing and the CLI-less direct path).
+- **User decision:** deployment topology was "not sure — play it safe", so the
+  conditional (no regression either way) was chosen over a hard delete.
+- **Verified.** `typecheck:portal` + eslint clean; `packages/client` +
+  `packages/account` auth suites green (36); full `scripts/smoke-auth-stack.mjs`
+  with `AOMI_SMOKE_SIWE=1` against the live local stack passed every row (SIWE
+  sign-in, bearer claims `kid=aomi-bff-dev-1 iss=aomi-bff aud=aomi-backend`,
+  direct-backend bearer path, same-origin proxy path, thread/app-key/chat,
+  cross-wallet account linking). Real `aomi` CLI e2e (isolated `AOMI_STATE_DIR`)
+  passed: `account login` (SIWE) → `whoami` → `wallet whoami` → `chat` ("pong")
+  → `logout` → post-logout 401. Browser manual testing left to the user.
+- **Pre-existing nit (not touched):** `aomi account whoami` throws a raw stack
+  trace on a 401 instead of printing "not signed in".
 
 ### Thread list "needs a refresh on login" fix (2026-07-01)
 
