@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import {
   AlertCircle,
   Boxes,
@@ -51,6 +52,8 @@ type DeploymentEntry = {
 };
 
 export function DeploymentConsole() {
+  const searchParams = useSearchParams();
+  const githubError = searchParams.get("github_error");
   const [state, setState] = useState<LoadState>({ status: "loading" });
   const [rollback, setRollback] = useState<RollbackState | null>(null);
   const [selectedSourceId, setSelectedSourceId] = useState<number | null>(null);
@@ -285,7 +288,9 @@ export function DeploymentConsole() {
                 {state.status === "error" && (
                   <TableMessage tone="error">{state.error}</TableMessage>
                 )}
-                {state.status === "signed_out" && <GitHubSignInPanel />}
+                {state.status === "signed_out" && (
+                  <GitHubSignInPanel error={githubError} />
+                )}
                 {state.status === "ready" && selectedEntries.length === 0 && (
                   <TableMessage>No deployments for this project.</TableMessage>
                 )}
@@ -408,7 +413,18 @@ function ProjectList({
   );
 }
 
-function GitHubSignInPanel() {
+function GitHubSignInPanel({ error }: { error?: string | null }) {
+  const errorMessage =
+    error === "service_auth_forbidden"
+      ? "The backend rejected the portal service bearer. Use a local backend with the dev service key, or set PORTAL_SERVICE_PRIVATE_KEY to the matching staging or production BFF key for the backend you are targeting."
+      : error === "exchange_failed"
+        ? "GitHub sign-in reached the backend, but the OAuth exchange failed. Check the backend GitHub App OAuth settings and callback URL."
+        : error === "invalid_oauth_state"
+          ? "GitHub sign-in state expired. Start the sign-in flow again."
+          : error === "identity_unresolved"
+            ? "GitHub sign-in completed, but the backend could not resolve your GitHub identity."
+            : null;
+
   return (
     <div className="flex min-h-[320px] flex-col items-center justify-center gap-4 px-4 py-10 text-center">
       <div className="flex size-10 items-center justify-center rounded-full border border-zinc-200">
@@ -421,6 +437,11 @@ function GitHubSignInPanel() {
           account.
         </div>
       </div>
+      {errorMessage && (
+        <div className="max-w-xl rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-left text-sm leading-6 text-amber-900">
+          {errorMessage}
+        </div>
+      )}
       <a
         href={GITHUB_SIGNIN_URL}
         className="inline-flex h-9 items-center justify-center rounded-md bg-zinc-950 px-3 text-sm font-medium text-white hover:bg-zinc-800"
