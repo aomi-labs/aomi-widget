@@ -33,6 +33,7 @@
     "node": ">=20"
   },
   "dependencies": {
+    "@aomi-labs/deploy": "workspace:*",
     "@inkjs/ui": "^2.0.0",
     "execa": "^9.6.0",
     "ink": "^7.1.0",
