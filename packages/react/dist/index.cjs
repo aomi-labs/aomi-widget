@@ -64,6 +64,7 @@ __export(index_exports, {
   ThreadContextProvider: () => ThreadContextProvider,
   UserState: () => import_client2.UserState,
   aaModeFromExecutionKind: () => import_client9.aaModeFromExecutionKind,
+  appIdentityKey: () => import_client9.appIdentityKey,
   appendFeeCallToPayload: () => import_client9.appendFeeCallToPayload,
   buildFeeAAWalletCall: () => import_client9.buildFeeAAWalletCall,
   cn: () => cn,
@@ -73,6 +74,7 @@ __export(index_exports, {
   getNetworkName: () => getNetworkName,
   hydrateTxPayloadFromUserState: () => import_client9.hydrateTxPayloadFromUserState,
   initThreadControl: () => initThreadControl,
+  normalizeAppDescriptor: () => import_client9.normalizeAppDescriptor,
   normalizeSimulatedFee: () => import_client9.normalizeSimulatedFee,
   parseChainId: () => import_client9.parseChainId,
   resolveAutoModel: () => resolveAutoModel,
@@ -81,6 +83,9 @@ __export(index_exports, {
   toViemSignMessageArgs: () => import_client9.toViemSignMessageArgs,
   toViemSignTypedDataArgs: () => import_client9.toViemSignTypedDataArgs,
   useAomiRuntime: () => useAomiRuntime,
+  useApiKey: () => useApiKey,
+  useAuthEndpoints: () => useAuthEndpoints,
+  useByok: () => useByok,
   useControl: () => useControl,
   useCurrentThreadMessages: () => useCurrentThreadMessages,
   useCurrentThreadMetadata: () => useCurrentThreadMetadata,
@@ -88,6 +93,7 @@ __export(index_exports, {
   useNotification: () => useNotification,
   useNotificationHandler: () => useNotificationHandler,
   useOptionalAomiRuntime: () => useOptionalAomiRuntime,
+  usePerThreadControl: () => usePerThreadControl,
   useThreadContext: () => useThreadContext,
   useUser: () => useUser,
   useWalletHandler: () => useWalletHandler
@@ -133,6 +139,7 @@ function initThreadControl() {
     model: null,
     modelMode: "auto",
     app: null,
+    applicationId: null,
     controlDirty: false,
     isProcessing: false
   };
@@ -416,6 +423,68 @@ function useControl() {
     throw new Error("useControl must be used within ControlContextProvider");
   }
   return ctx;
+}
+function useApiKey() {
+  const ctx = useControl();
+  return {
+    state: {
+      apiKey: ctx.state.apiKey,
+      clientId: ctx.state.clientId
+    },
+    actions: {
+      setApiKey: ctx.setApiKey
+    }
+  };
+}
+function useByok() {
+  const ctx = useControl();
+  return {
+    state: {
+      byokKeys: ctx.state.byokKeys
+    },
+    actions: {
+      clearSecrets: ctx.clearSecrets,
+      deleteSecret: ctx.deleteSecret,
+      getByokKeys: ctx.getByokKeys,
+      hasByok: ctx.hasByok,
+      ingestSecrets: ctx.ingestSecrets,
+      listSecrets: ctx.listSecrets,
+      removeByok: ctx.removeByok,
+      setByok: ctx.setByok
+    }
+  };
+}
+function useAuthEndpoints() {
+  const ctx = useControl();
+  return {
+    state: {
+      appDescriptors: ctx.state.appDescriptors,
+      authorizedApps: ctx.state.authorizedApps,
+      availableModels: ctx.state.availableModels,
+      defaultApp: ctx.state.defaultApp,
+      defaultModel: ctx.state.defaultModel
+    },
+    actions: {
+      getAuthorizedApps: ctx.getAuthorizedApps,
+      getAvailableModels: ctx.getAvailableModels
+    }
+  };
+}
+function usePerThreadControl() {
+  const ctx = useControl();
+  return {
+    actions: {
+      getCurrentThreadApp: ctx.getCurrentThreadApp,
+      getCurrentThreadApplicationId: ctx.getCurrentThreadApplicationId,
+      getCurrentThreadControl: ctx.getCurrentThreadControl,
+      getPreferredThreadControl: ctx.getPreferredThreadControl,
+      markControlSynced: ctx.markControlSynced,
+      onAppSelect: ctx.onAppSelect,
+      onModelSelect: ctx.onModelSelect,
+      syncCurrentThreadControl: ctx.syncCurrentThreadControl
+    },
+    isProcessing: ctx.isProcessing
+  };
 }
 function ControlContextProvider({
   children,
@@ -748,6 +817,11 @@ function ControlContextProvider({
       stateRef.current.defaultApp
     )) != null ? _c : "default";
   }, []);
+  const getCurrentThreadApplicationId = (0, import_react.useCallback)(() => {
+    var _a2, _b2, _c;
+    const currentControl = (_b2 = (_a2 = getThreadMetadataRef.current(sessionIdRef.current)) == null ? void 0 : _a2.control) != null ? _b2 : initThreadControl();
+    return (_c = currentControl.applicationId) != null ? _c : null;
+  }, []);
   const onModelSelect = (0, import_react.useCallback)(
     async (model, options) => {
       var _a2, _b2, _c, _d, _e, _f, _g, _h;
@@ -817,37 +891,41 @@ function ControlContextProvider({
     },
     []
   );
-  const onAppSelect = (0, import_react.useCallback)((app) => {
-    var _a2, _b2;
-    const threadId = sessionIdRef.current;
-    const currentControl = (_b2 = (_a2 = getThreadMetadataRef.current(threadId)) == null ? void 0 : _a2.control) != null ? _b2 : initThreadControl();
-    const isProcessing2 = currentControl.isProcessing;
-    console.log("[control-context] onAppSelect called", {
-      app,
-      isProcessing: isProcessing2,
-      threadId
-    });
-    if (isProcessing2) {
-      console.warn("[control-context] Cannot switch app while processing");
-      return;
-    }
-    if (stateRef.current.authorizedApps.length > 0 && !stateRef.current.authorizedApps.includes(app)) {
-      console.warn("[control-context] Cannot select unauthorized app", { app });
-      return;
-    }
-    console.log("[control-context] onAppSelect updating metadata", {
-      threadId,
-      app,
-      currentControl
-    });
-    updateThreadMetadataRef.current(threadId, {
-      control: __spreadProps(__spreadValues({}, currentControl), {
+  const onAppSelect = (0, import_react.useCallback)(
+    (app, options) => {
+      var _a2, _b2, _c;
+      const threadId = sessionIdRef.current;
+      const currentControl = (_b2 = (_a2 = getThreadMetadataRef.current(threadId)) == null ? void 0 : _a2.control) != null ? _b2 : initThreadControl();
+      const isProcessing2 = currentControl.isProcessing;
+      console.log("[control-context] onAppSelect called", {
         app,
-        controlDirty: true
-      })
-    });
-    console.log("[control-context] onAppSelect metadata updated");
-  }, []);
+        isProcessing: isProcessing2,
+        threadId
+      });
+      if (isProcessing2) {
+        console.warn("[control-context] Cannot switch app while processing");
+        return;
+      }
+      if (stateRef.current.authorizedApps.length > 0 && !stateRef.current.authorizedApps.includes(app)) {
+        console.warn("[control-context] Cannot select unauthorized app", { app });
+        return;
+      }
+      console.log("[control-context] onAppSelect updating metadata", {
+        threadId,
+        app,
+        currentControl
+      });
+      updateThreadMetadataRef.current(threadId, {
+        control: __spreadProps(__spreadValues({}, currentControl), {
+          app,
+          applicationId: (_c = options == null ? void 0 : options.applicationId) != null ? _c : null,
+          controlDirty: true
+        })
+      });
+      console.log("[control-context] onAppSelect metadata updated");
+    },
+    []
+  );
   const markControlSynced = (0, import_react.useCallback)(() => {
     var _a2, _b2;
     const threadId = sessionIdRef.current;
@@ -983,6 +1061,7 @@ function ControlContextProvider({
         getAuthorizedApps,
         getCurrentThreadControl,
         getCurrentThreadApp,
+        getCurrentThreadApplicationId,
         onModelSelect,
         onAppSelect,
         isProcessing,
@@ -3181,6 +3260,7 @@ function useNotificationHandler({
   ThreadContextProvider,
   UserState,
   aaModeFromExecutionKind,
+  appIdentityKey,
   appendFeeCallToPayload,
   buildFeeAAWalletCall,
   cn,
@@ -3190,6 +3270,7 @@ function useNotificationHandler({
   getNetworkName,
   hydrateTxPayloadFromUserState,
   initThreadControl,
+  normalizeAppDescriptor,
   normalizeSimulatedFee,
   parseChainId,
   resolveAutoModel,
@@ -3198,6 +3279,9 @@ function useNotificationHandler({
   toViemSignMessageArgs,
   toViemSignTypedDataArgs,
   useAomiRuntime,
+  useApiKey,
+  useAuthEndpoints,
+  useByok,
   useControl,
   useCurrentThreadMessages,
   useCurrentThreadMetadata,
@@ -3205,6 +3289,7 @@ function useNotificationHandler({
   useNotification,
   useNotificationHandler,
   useOptionalAomiRuntime,
+  usePerThreadControl,
   useThreadContext,
   useUser,
   useWalletHandler

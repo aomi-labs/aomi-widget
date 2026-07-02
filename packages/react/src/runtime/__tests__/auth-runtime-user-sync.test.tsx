@@ -3,8 +3,8 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import { useUser, ExtUserProvider } from "@aomi-labs/react";
-import { AomiWalletKitContextProvider } from "../../../../../apps/registry/src/lib/wallet-kit/context";
-import type { AomiWalletKit } from "../../../../../apps/registry/src/lib/wallet-kit/types";
+import { AomiWalletKitContextProvider } from "../../../../../apps/shadcn-registry/src/lib/wallet-kit/context";
+import type { AomiWalletKit } from "../../../../../apps/shadcn-registry/src/lib/wallet-kit/types";
 
 afterEach(() => {
   cleanup();

@@ -463,6 +463,7 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
       setMessages: (messages) => {
         this._messages = messages;
       },
+      getMessages: () => this.getMessages(),
       setTitle: (title) => {
         this._title = title;
       },

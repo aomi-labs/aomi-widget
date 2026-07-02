@@ -1,6 +1,11 @@
 import { webcrypto } from "node:crypto";
 import "@testing-library/jest-dom/vitest";
-import { vi } from "vitest";
+import { cleanup } from "@testing-library/react";
+import { afterEach, vi } from "vitest";
+
+afterEach(() => {
+  cleanup();
+});
 
 vi.mock("@getpara/solana-wallet-connectors", () => {
   const wallet = (name: string) => ({

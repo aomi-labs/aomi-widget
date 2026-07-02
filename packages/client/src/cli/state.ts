@@ -18,6 +18,7 @@ import {
   pendingSolTxsFromBackendUserState,
   walletSnapshotFromUserState,
 } from "./user-state";
+import type { CliEmbeddedProvider } from "./types";
 
 export type PendingTx = {
   id: string;
@@ -108,6 +109,17 @@ export type CliSessionState = {
   /** Whether the active model has been pushed to the backend session. */
   modelSynced?: boolean;
   apiKey?: string;
+  /** Aomi account bearer for authenticated requests. Persisted so a bearer
+   * supplied once (via `--account-bearer`) survives across CLI invocations. */
+  accountBearer?: string;
+  /** BFF session token (`aomi_session`) established by `aomi login` (SIWE).
+   * Persisted so the session survives across invocations; the CLI mints
+   * short-lived AccountBearers from it via the BFF's `/api/bff/auth/token`. */
+  sessionCookie?: string;
+  /** Deprecated legacy provider-exchange config. */
+  embeddedProvider?: CliEmbeddedProvider;
+  /** Deprecated legacy provider-exchange config. */
+  embeddedProviderToken?: string;
   publicKey?: string;
   privateKey?: string;
   /** Solana public key (base58), derived from the Solana keypair when provided. */
@@ -211,6 +223,10 @@ function toCliSessionState(stored: StoredSessionState): CliSessionState {
     model: stored.model,
     modelSynced: stored.modelSynced,
     apiKey: stored.apiKey,
+    accountBearer: stored.accountBearer,
+    sessionCookie: stored.sessionCookie,
+    embeddedProvider: stored.embeddedProvider,
+    embeddedProviderToken: stored.embeddedProviderToken,
     publicKey: stored.publicKey,
     privateKey: stored.privateKey,
     svmPublicKey: stored.svmPublicKey,
@@ -261,6 +277,10 @@ function readStoredSession(path: string): StoredSessionState | null {
       app: parsed.app,
       model: parsed.model,
       apiKey: parsed.apiKey,
+      accountBearer: parsed.accountBearer,
+      sessionCookie: parsed.sessionCookie,
+      embeddedProvider: parsed.embeddedProvider,
+      embeddedProviderToken: parsed.embeddedProviderToken,
       publicKey: parsed.publicKey,
       privateKey: parsed.privateKey,
       svmPublicKey: parsed.svmPublicKey,

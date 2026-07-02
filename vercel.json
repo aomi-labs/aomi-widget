@@ -1,7 +1,4 @@
 {
-  "installCommand": "pnpm install --frozen-lockfile",
-  "buildCommand": "pnpm -w run vercel-build",
-  "outputDirectory": "apps/landing/.next",
   "rewrites": [
     {
       "source": "/_mintlify/:path*",
@@ -30,10 +27,6 @@
     {
       "source": "/docs/robots.txt",
       "destination": "https://aomilabs.mintlify.dev/robots.txt"
-    },
-    {
-      "source": "/docs/mcp",
-      "destination": "https://aomilabs.mintlify.dev/mcp"
     },
     {
       "source": "/docs/:path*",

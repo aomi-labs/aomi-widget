@@ -1,94 +1,40 @@
-import { NextRequest, NextResponse } from "next/server";
+import { createBackendProxy, type AllowedRoute } from "@aomi-labs/account";
 
-const HOP_BY_HOP_HEADERS = new Set([
-  "connection",
-  "content-length",
-  "host",
-  "origin",
-  "referer",
-  "transfer-encoding",
-]);
+/**
+ * Landing's same-origin backend proxy. The transport machinery (header
+ * filtering, bearer minting from the `aomi_session` cookie, SSE, forwarding)
+ * lives in `@aomi-labs/account`'s `createBackendProxy`, shared with portal +
+ * base. Landing supplies only the route allowlist for the widget surface it
+ * embeds — previously it forwarded *everything* (including the session cookie);
+ * now it strips the cookie and forwards only these routes.
+ */
+const ALLOWED_ROUTES: AllowedRoute[] = [
+  {
+    pattern: /^\/api\/account(\/.*)?$/,
+    methods: new Set(["GET", "POST", "PATCH", "PUT", "DELETE"]),
+  },
+  { pattern: /^\/api\/state$/, methods: new Set(["GET"]) },
+  { pattern: /^\/api\/chat$/, methods: new Set(["POST"]) },
+  { pattern: /^\/api\/system$/, methods: new Set(["POST"]) },
+  { pattern: /^\/api\/interrupt$/, methods: new Set(["POST"]) },
+  { pattern: /^\/api\/secrets$/, methods: new Set(["GET", "POST", "DELETE"]) },
+  { pattern: /^\/api\/secrets\/[^/]+$/, methods: new Set(["DELETE"]) },
+  { pattern: /^\/api\/updates$/, methods: new Set(["GET"]) },
+  { pattern: /^\/api\/sessions$/, methods: new Set(["GET", "POST"]) },
+  {
+    pattern: /^\/api\/sessions\/[^/]+$/,
+    methods: new Set(["GET", "PATCH", "DELETE"]),
+  },
+  { pattern: /^\/api\/events$/, methods: new Set(["GET"]) },
+  { pattern: /^\/api\/session\/apps$/, methods: new Set(["GET"]) },
+  { pattern: /^\/api\/session\/models$/, methods: new Set(["GET"]) },
+  { pattern: /^\/api\/session\/model$/, methods: new Set(["POST"]) },
+  { pattern: /^\/api\/simulate$/, methods: new Set(["POST"]) },
+];
 
-const UPSTREAM_BASE_URL =
-  process.env.AOMI_PROXY_BACKEND_URL ??
-  process.env.NEXT_PUBLIC_BACKEND_URL ??
-  "https://api.aomi.dev";
-
-function buildUpstreamUrl(req: NextRequest, slug: string[] | undefined): URL {
-  const target = new URL(`/api/${(slug ?? []).join("/")}`, UPSTREAM_BASE_URL);
-  target.search = req.nextUrl.search;
-  return target;
-}
-
-function copyRequestHeaders(req: NextRequest): Headers {
-  const headers = new Headers();
-  req.headers.forEach((value, key) => {
-    if (!HOP_BY_HOP_HEADERS.has(key.toLowerCase())) {
-      headers.set(key, value);
-    }
-  });
-  return headers;
-}
-
-function copyResponseHeaders(upstream: Response): Headers {
-  const headers = new Headers();
-  const contentType = upstream.headers.get("content-type");
-  const cacheControl = upstream.headers.get("cache-control");
-
-  if (contentType) {
-    headers.set("content-type", contentType);
-  }
-
-  if (contentType?.includes("text/event-stream")) {
-    headers.set("cache-control", "no-cache, no-transform");
-  } else if (cacheControl) {
-    headers.set("cache-control", cacheControl);
-  }
-
-  return headers;
-}
-
-async function handle(
-  req: NextRequest,
-  context: { params: Promise<{ slug?: string[] }> },
-): Promise<NextResponse> {
-  const { slug } = await context.params;
-  const upstreamUrl = buildUpstreamUrl(req, slug);
-
-  try {
-    const upstream = await fetch(upstreamUrl, {
-      method: req.method,
-      headers: copyRequestHeaders(req),
-      body:
-        req.method === "GET" || req.method === "HEAD"
-          ? undefined
-          : await req.text(),
-      redirect: "manual",
-    });
-
-    return new NextResponse(upstream.body, {
-      status: upstream.status,
-      statusText: upstream.statusText,
-      headers: copyResponseHeaders(upstream),
-    });
-  } catch (error) {
-    return NextResponse.json(
-      {
-        error: "Upstream request failed",
-        detail: String(error),
-        upstream: upstreamUrl.toString(),
-      },
-      { status: 502 },
-    );
-  }
-}
+export const { GET, POST, PUT, PATCH, DELETE } = createBackendProxy({
+  allowedRoutes: ALLOWED_ROUTES,
+});
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
-
-export const GET = handle;
-export const POST = handle;
-export const PUT = handle;
-export const PATCH = handle;
-export const DELETE = handle;
-

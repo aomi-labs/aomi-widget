@@ -68,7 +68,7 @@ The paymaster proxy lives in `app/api/paymaster/route.ts`. It accepts only the e
 
 Styling is loaded from `app/globals.css`, including Tailwind and the Aomi widget stylesheet. Tailwind scans the local registry source so widget class changes are visible immediately during development.
 
-The widget/runtime code is consumed through the normal package names, `@aomi-labs/widget-lib` and `@aomi-labs/react`, but both dependencies are workspace packages. The app behaves like a package consumer while resolving changes directly from `apps/registry/src`, `packages/react/src`, and `packages/client/src`.
+The widget/runtime code is consumed through the normal package names, `@aomi-labs/widget-lib` and `@aomi-labs/react`, but both dependencies are workspace packages. The app behaves like a package consumer while resolving changes directly from `apps/shadcn-registry/src`, `packages/react/src`, and `packages/client/src`.
 
 ## Production Notes
 

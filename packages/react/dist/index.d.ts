@@ -1,5 +1,5 @@
 import { AomiClientOptions, AomiClient, SessionOptions, Session, UserState, WalletRequest, WalletRequestResult, AomiSimulateResponse, ChainInfo, AomiAppDescriptor } from '@aomi-labs/client';
-export { AomiAppDescriptor, AomiChatResponse, AomiClient, AomiClientOptions, AomiCreateThreadResponse, AomiInterruptResponse, AomiMessage, AomiSSEEvent, AomiSecretSlot, AomiStateResponse, AomiSystemEvent, AomiSystemResponse, AomiThread, ChainInfo, DISABLED_PROVIDER_STATE, MAX_AUTO_FEE_WEI, NativeWalletExecutionPolicy, NativeWalletSponsorship, SponsorshipPaymasterServiceContext, UserState, ViemSignMessageArgs, WalletCapabilities, WalletEip712Payload, WalletRequest, WalletRequestKind, WalletRequestResult, WalletSolanaSignMessagePayload, WalletSolanaSignPayload, WalletTxPayload, aaModeFromExecutionKind, appendFeeCallToPayload, buildFeeAAWalletCall, executeWalletCalls, hydrateTxPayloadFromUserState, normalizeSimulatedFee, parseChainId, toAAWalletCall, toAAWalletCalls, toViemSignMessageArgs, toViemSignTypedDataArgs } from '@aomi-labs/client';
+export { AomiAppDescriptor, AomiChatResponse, AomiClient, AomiClientOptions, AomiCreateThreadResponse, AomiInterruptResponse, AomiMessage, AomiPlatformFilter, AomiSSEEvent, AomiSecretSlot, AomiStateResponse, AomiSystemEvent, AomiSystemResponse, AomiThread, ChainInfo, DISABLED_PROVIDER_STATE, MAX_AUTO_FEE_WEI, NativeWalletExecutionPolicy, NativeWalletSponsorship, SponsorshipPaymasterServiceContext, UserState, ViemSignMessageArgs, WalletCapabilities, WalletEip712Payload, WalletRequest, WalletRequestKind, WalletRequestResult, WalletSolanaSignMessagePayload, WalletSolanaSignPayload, WalletTxPayload, aaModeFromExecutionKind, appIdentityKey, appendFeeCallToPayload, buildFeeAAWalletCall, executeWalletCalls, hydrateTxPayloadFromUserState, normalizeAppDescriptor, normalizeSimulatedFee, parseChainId, toAAWalletCall, toAAWalletCalls, toViemSignMessageArgs, toViemSignTypedDataArgs } from '@aomi-labs/client';
 import * as react_jsx_runtime from 'react/jsx-runtime';
 import * as react from 'react';
 import { ReactNode, SetStateAction } from 'react';
@@ -70,6 +70,8 @@ type ThreadControlState = {
     modelMode?: ModelSelectionMode;
     /** Selected app for this thread */
     app: string | null;
+    /** Concrete backend application row for hosted/platform apps */
+    applicationId: number | string | null;
     /** Whether control state has changed but chat hasn't started yet */
     controlDirty: boolean;
     /** Whether this thread is currently processing (assistant generating) */
@@ -128,7 +130,7 @@ type Notification$1 = {
     /**
      * Optional discriminator for notifications that have a bespoke UI consumer.
      *
-     * - `payment_required` is consumed by `PaymentRequiredGate` (apps/registry)
+     * - `payment_required` is consumed by `PaymentRequiredGate` (apps/shadcn-registry)
      *   as a blocking modal. The toaster skips this kind. As a result, `type`,
      *   `message`, and `duration` are NOT rendered for this kind — only `kind`
      *   matters for routing. Don't bother passing those fields when firing it.
@@ -387,10 +389,6 @@ type StoredByokKey = {
     keyPrefix: string;
     label?: string;
 };
-type StoredModelPreference = {
-    mode: ModelSelectionMode;
-    model: string | null;
-};
 /** Global control state (shared across all threads) */
 type ControlState = {
     /** API key for authenticated requests */
@@ -448,12 +446,16 @@ type ControlContextApi = {
     getCurrentThreadControl: () => ThreadControlState;
     /** Get the current thread's effective app after auth fallback */
     getCurrentThreadApp: () => string;
+    /** Get the current thread's effective application id after auth fallback */
+    getCurrentThreadApplicationId: () => number | string | null;
     /** Select a model for the current thread (updates metadata + calls backend) */
     onModelSelect: (model: string, options?: {
         mode?: ModelSelectionMode;
     }) => Promise<void>;
     /** Select an app for the current thread (updates metadata only) */
-    onAppSelect: (app: string) => void;
+    onAppSelect: (app: string, options?: {
+        applicationId?: number | string | null;
+    }) => void;
     /** Whether the current thread is processing (disables control switching) */
     isProcessing: boolean;
     /** Mark control state as synced (called after chat starts) */
@@ -475,6 +477,22 @@ type ControlContextApi = {
     }>) => void;
 };
 declare function useControl(): ControlContextApi;
+declare function useApiKey(): {
+    state: Pick<ControlState, "apiKey" | "clientId">;
+    actions: Pick<ControlContextApi, "setApiKey">;
+};
+declare function useByok(): {
+    state: Pick<ControlState, "byokKeys">;
+    actions: Pick<ControlContextApi, "clearSecrets" | "deleteSecret" | "getByokKeys" | "hasByok" | "ingestSecrets" | "listSecrets" | "removeByok" | "setByok">;
+};
+declare function useAuthEndpoints(): {
+    state: Pick<ControlState, "appDescriptors" | "authorizedApps" | "availableModels" | "defaultApp" | "defaultModel">;
+    actions: Pick<ControlContextApi, "getAuthorizedApps" | "getAvailableModels">;
+};
+declare function usePerThreadControl(): {
+    actions: Pick<ControlContextApi, "getCurrentThreadApp" | "getCurrentThreadApplicationId" | "getCurrentThreadControl" | "getPreferredThreadControl" | "markControlSynced" | "onAppSelect" | "onModelSelect" | "syncCurrentThreadControl">;
+    isProcessing: boolean;
+};
 type ControlContextProviderProps = {
     children: ReactNode;
     aomiClient: AomiClient;
@@ -486,4 +504,4 @@ type ControlContextProviderProps = {
 };
 declare function ControlContextProvider({ children, aomiClient, sessionId, getThreadMetadata, updateThreadMetadata, }: ControlContextProviderProps): react_jsx_runtime.JSX.Element;
 
-export { type AomiRuntimeApi, AomiRuntimeApiProvider, AomiRuntimeProvider, type AomiRuntimeProviderProps, type ControlContextApi, ControlContextProvider, type ControlContextProviderProps, type ControlState, type EventContext, EventContextProvider, type EventContextProviderProps, type EventSubscriber, ExtUserProvider, type InboundEvent, type ModelSelectionMode, type Notification$1 as Notification, type NotificationApi, NotificationContextProvider, type NotificationContextProviderProps, type NotificationContextApi as NotificationContextValue, type NotificationHandlerConfig, type NotificationType, RuntimeUserStateProvider, type SSEStatus, SUPPORTED_CHAINS, type NotificationData as ShowNotificationParams, type StoredByokKey, type StoredModelPreference, type ThreadContext, ThreadContextProvider, type ThreadControlState, type ThreadMetadata, type UserConfig, type WalletHandlerApi, type WalletHandlerConfig, type WalletRequestStatus, cn, formatAddress, getChainInfo, getNetworkName, initThreadControl, resolveAutoModel, useAomiRuntime, useControl, useCurrentThreadMessages, useCurrentThreadMetadata, useEventContext, useNotification, useNotificationHandler, useOptionalAomiRuntime, useThreadContext, useUser, useWalletHandler };
+export { type AomiRuntimeApi, AomiRuntimeApiProvider, AomiRuntimeProvider, type AomiRuntimeProviderProps, type ControlContextApi, ControlContextProvider, type ControlContextProviderProps, type ControlState, type EventContext, EventContextProvider, type EventContextProviderProps, type EventSubscriber, ExtUserProvider, type InboundEvent, type ModelSelectionMode, type Notification$1 as Notification, type NotificationApi, NotificationContextProvider, type NotificationContextProviderProps, type NotificationContextApi as NotificationContextValue, type NotificationHandlerConfig, type NotificationType, RuntimeUserStateProvider, type SSEStatus, SUPPORTED_CHAINS, type NotificationData as ShowNotificationParams, type StoredByokKey, type ThreadContext, ThreadContextProvider, type ThreadControlState, type ThreadMetadata, type UserConfig, type WalletHandlerApi, type WalletHandlerConfig, type WalletRequestStatus, cn, formatAddress, getChainInfo, getNetworkName, initThreadControl, resolveAutoModel, useAomiRuntime, useApiKey, useAuthEndpoints, useByok, useControl, useCurrentThreadMessages, useCurrentThreadMetadata, useEventContext, useNotification, useNotificationHandler, useOptionalAomiRuntime, usePerThreadControl, useThreadContext, useUser, useWalletHandler };

@@ -387,6 +387,145 @@ describe("CLI session lifecycle", () => {
     expect(synced.pendingSolTxs).toEqual([]);
   });
 
+  it("persists the account bearer on the active session", async () => {
+    const { CliSession } = await import("../../src/cli/cli-session");
+    const { readState } = await import("../../src/cli/state");
+
+    CliSession.loadOrCreate({
+      baseUrl: "https://api.aomi.dev",
+      app: "default",
+      execution: "eoa" as const,
+      secrets: {},
+      accountBearer: "bearer-1",
+    });
+
+    expect(readState()?.accountBearer).toBe("bearer-1");
+  });
+
+  it("persists legacy account provider credential fields on the active session", async () => {
+    const { CliSession } = await import("../../src/cli/cli-session");
+    const { readState } = await import("../../src/cli/state");
+
+    CliSession.loadOrCreate({
+      baseUrl: "https://api.aomi.dev",
+      app: "default",
+      execution: "eoa" as const,
+      secrets: {},
+      embeddedProvider: "privy" as const,
+      embeddedProviderToken: "privy-provider-token",
+    });
+
+    const state = readState();
+    expect(state?.embeddedProvider).toBe("privy");
+    expect(state?.embeddedProviderToken).toBe("privy-provider-token");
+  });
+
+  it("clears a persisted bearer when switching the active session to legacy provider auth", async () => {
+    const { CliSession } = await import("../../src/cli/cli-session");
+    const { readState } = await import("../../src/cli/state");
+
+    CliSession.loadOrCreate({
+      baseUrl: "https://api.aomi.dev",
+      app: "default",
+      execution: "eoa" as const,
+      secrets: {},
+      accountBearer: "bearer-1",
+    });
+
+    CliSession.loadOrCreate({
+      baseUrl: "https://api.aomi.dev",
+      app: "default",
+      execution: "eoa" as const,
+      secrets: {},
+      embeddedProvider: "privy" as const,
+      embeddedProviderToken: "privy-provider-token",
+    });
+
+    const state = readState();
+    expect(state?.accountBearer).toBeUndefined();
+    expect(state?.embeddedProvider).toBe("privy");
+    expect(state?.embeddedProviderToken).toBe("privy-provider-token");
+  });
+
+  it("reuses the persisted account bearer when building a client without re-supplying it", async () => {
+    const { CliSession } = await import("../../src/cli/cli-session");
+
+    // First invocation supplies the bearer (e.g. `aomi --account-bearer ...`).
+    CliSession.loadOrCreate({
+      baseUrl: "http://unit.test",
+      app: "default",
+      execution: "eoa" as const,
+      secrets: {},
+      accountBearer: "bearer-1",
+    });
+
+    // Later invocation: the bearer is NOT passed again on the command line.
+    const reused = CliSession.load();
+    expect(reused).not.toBeNull();
+
+    const stateResponse = {
+      ok: true,
+      status: 200,
+      statusText: "OK",
+      json: vi.fn(async () => ({ is_processing: false, messages: [] })),
+    } as unknown as Response;
+    const nativeFetch = vi.fn(async () => stateResponse);
+    const originalFetch = globalThis.fetch;
+    vi.stubGlobal("fetch", nativeFetch);
+
+    try {
+      const session = reused!.createClientSession();
+      await session.client.fetchState(reused!.sessionId);
+
+      const headers = new Headers(
+        (nativeFetch.mock.calls[0]?.[1] as RequestInit).headers,
+      );
+      expect(headers.get("Authorization")).toBe("Bearer bearer-1");
+    } finally {
+      vi.stubGlobal("fetch", originalFetch);
+    }
+  });
+
+  it("does not exchange provider credentials or replace a persisted bearer", async () => {
+    const { CliSession } = await import("../../src/cli/cli-session");
+
+    CliSession.loadOrCreate({
+      baseUrl: "http://unit.test",
+      app: "default",
+      execution: "eoa" as const,
+      secrets: {},
+      accountBearer: "legacy-bearer",
+    });
+
+    const cli = CliSession.load();
+    expect(cli).not.toBeNull();
+
+    const stateResponse = {
+      ok: true,
+      status: 200,
+      statusText: "OK",
+      json: vi.fn(async () => ({ is_processing: false, messages: [] })),
+    } as unknown as Response;
+    const nativeFetch = vi.fn(async () => stateResponse);
+    const originalFetch = globalThis.fetch;
+    vi.stubGlobal("fetch", nativeFetch);
+
+    try {
+      const session = cli!.createClientSession({
+        embeddedProvider: "privy",
+        embeddedProviderToken: "privy-provider-token",
+      });
+      await session.client.fetchState(cli!.sessionId);
+
+      const headers = new Headers(
+        (nativeFetch.mock.calls[0]?.[1] as RequestInit).headers,
+      );
+      expect(headers.get("Authorization")).toBe("Bearer legacy-bearer");
+    } finally {
+      vi.stubGlobal("fetch", originalFetch);
+    }
+  });
+
   it("does not wipe local chain when backend user_state omits chain_id", async () => {
     const { CliSession } = await import("../../src/cli/cli-session");
 

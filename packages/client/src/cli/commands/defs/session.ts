@@ -3,10 +3,10 @@ import { globalArgs, buildCliConfig } from "./shared";
 
 const sessionListDef = defineCommand({
   meta: { name: "list", description: "List local sessions with metadata" },
-  args: {},
-  async run() {
+  args: { ...globalArgs },
+  async run({ args }) {
     const { sessionsCommand } = await import("../sessions");
-    await sessionsCommand(buildCliConfig({}));
+    await sessionsCommand(buildCliConfig(args));
   },
 });
 

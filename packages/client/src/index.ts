@@ -22,8 +22,20 @@ export type {
 
 export type {
   AomiAppDescriptor,
+  AomiPlatformFilter,
+  AomiRequestOptions,
+  AomiRequestQueryValue,
   AomiClientOptions,
+  AomiHttpMethod,
+  AomiAccessApproval,
+  AomiAccountProfile,
+  AomiAuthIdentity,
+  AomiCreateApprovalRequest,
+  AomiIdentityWallet,
+  AomiUsageStats,
+  AomiUser,
   GetAccountAccessToken,
+  GetAccountBearer,
   AomiMessage,
   AomiWalletFamily,
   AomiChatResponse,
@@ -45,6 +57,7 @@ export type {
   AomiThread,
   Logger,
 } from "./types";
+export { normalizeAppDescriptor, appIdentityKey } from "./app-descriptor";
 export type {
   AomiClientType,
   UserStateAAMode,

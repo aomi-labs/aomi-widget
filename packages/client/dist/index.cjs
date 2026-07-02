@@ -64,6 +64,7 @@ __export(index_exports, {
   UserState: () => UserState,
   aaModeFromExecutionKind: () => aaModeFromExecutionKind,
   adaptSmartAccount: () => adaptSmartAccount,
+  appIdentityKey: () => appIdentityKey,
   appendFeeCallToPayload: () => appendFeeCallToPayload,
   buildAAExecutionPlan: () => buildAAExecutionPlan,
   buildFeeAAWalletCall: () => buildFeeAAWalletCall,
@@ -82,6 +83,7 @@ __export(index_exports, {
   isSystemNotice: () => isSystemNotice,
   monad: () => monad,
   monadTestnet: () => monadTestnet,
+  normalizeAppDescriptor: () => normalizeAppDescriptor,
   normalizeEip712Payload: () => normalizeEip712Payload,
   normalizeSimulatedFee: () => normalizeSimulatedFee,
   normalizeSolanaSignMessagePayload: () => normalizeSolanaSignMessagePayload,
@@ -97,6 +99,68 @@ __export(index_exports, {
   unwrapSystemEvent: () => unwrapSystemEvent
 });
 module.exports = __toCommonJS(index_exports);
+
+// src/app-descriptor.ts
+function normalizeAppDescriptor(item) {
+  var _a, _b;
+  if (typeof item === "string") {
+    const name2 = item.trim();
+    return name2 ? { name: name2 } : null;
+  }
+  if (!item || typeof item !== "object") return null;
+  const raw = item;
+  const name = typeof raw.name === "string" ? raw.name.trim() : "";
+  if (!name) return null;
+  const descriptor = __spreadProps(__spreadValues({}, raw), {
+    name
+  });
+  const applicationId = (_b = (_a = raw.applicationId) != null ? _a : raw.application_id) != null ? _b : raw.id;
+  if (typeof applicationId === "number" || typeof applicationId === "string") {
+    descriptor.applicationId = applicationId;
+  }
+  if (typeof raw.platform === "string") descriptor.platform = raw.platform;
+  if (typeof raw.label === "string") descriptor.label = raw.label;
+  if (typeof raw.appReleaseTag === "string") {
+    descriptor.appReleaseTag = raw.appReleaseTag;
+  } else if (typeof raw.app_release_tag === "string") {
+    descriptor.appReleaseTag = raw.app_release_tag;
+  }
+  if (typeof raw.isActive === "boolean") {
+    descriptor.isActive = raw.isActive;
+  } else if (typeof raw.is_active === "boolean") {
+    descriptor.isActive = raw.is_active;
+  }
+  if (typeof raw.isPublic === "boolean") {
+    descriptor.isPublic = raw.isPublic;
+  } else if (typeof raw.is_public === "boolean") {
+    descriptor.isPublic = raw.is_public;
+  }
+  if (typeof raw.artifactReady === "boolean") {
+    descriptor.artifactReady = raw.artifactReady;
+  } else if (typeof raw.artifact_ready === "boolean") {
+    descriptor.artifactReady = raw.artifact_ready;
+  }
+  descriptor.secrets = Array.isArray(raw.secrets) ? raw.secrets : [];
+  for (const key of [
+    "id",
+    "application_id",
+    "app_release_tag",
+    "is_active",
+    "is_public",
+    "artifact_ready"
+  ]) {
+    delete descriptor[key];
+  }
+  return descriptor;
+}
+function appIdentityKey(descriptor) {
+  var _a, _b;
+  const applicationId = (_a = descriptor.applicationId) == null ? void 0 : _a.toString().trim();
+  if (applicationId) return `application:${applicationId}`;
+  const platform = (_b = descriptor.platform) == null ? void 0 : _b.trim();
+  if (platform) return `platform:${platform}:${descriptor.name}`;
+  return `name:${descriptor.name}`;
+}
 
 // src/user-state/normalize.ts
 function asObject(value) {
@@ -167,7 +231,6 @@ function buildConnection(src, flat) {
   const c = __spreadValues({}, src != null ? src : {});
   renameKey(c, "isConnected", "is_connected");
   renameKey(c, "providerLabel", "provider_label");
-  renameKey(c, "primaryFamily", "primary_family");
   renameKey(c, "walletProviderSubject", "wallet_provider_subject");
   renameKey(c, "authMethod", "auth_method");
   renameKey(c, "authValue", "auth_value");
@@ -181,6 +244,7 @@ function buildConnection(src, flat) {
   liftFlat(c, flat, "auth_method", ["auth_method", "authMethod"]);
   liftFlat(c, flat, "auth_value", ["auth_value", "authValue"]);
   liftFlat(c, flat, "auth_verified_at", ["auth_verified_at", "authVerifiedAt"]);
+  dropNullKeys(c, "is_connected");
   return Object.keys(c).length ? c : void 0;
 }
 function buildEvm(src, flat) {
@@ -229,6 +293,7 @@ function buildSvm(src, flat) {
   const s = __spreadValues({}, src != null ? src : {});
   renameKey(s, "walletName", "wallet_name");
   liftFlat(s, flat, "address", ["svm_address", "svmAddress"]);
+  dropNullKeys(s, "capabilities");
   return Object.keys(s).length ? s : void 0;
 }
 function buildPending(src, flat) {
@@ -261,6 +326,13 @@ function buildPending(src, flat) {
     snakeizeBucket(pick(src, "svm_sigs", "svmSigs", "solana_sigs", "solanaSigs"))
   );
   return Object.keys(p).length ? p : void 0;
+}
+function dropNullKeys(obj, ...keys) {
+  for (const key of keys) {
+    if (obj[key] === null || obj[key] === void 0) {
+      delete obj[key];
+    }
+  }
 }
 function deepMergePreserve(previous, incoming) {
   const out = __spreadValues({}, previous);
@@ -463,10 +535,6 @@ function svmAddress2(userState) {
   const value = (_a = svmBlock(userState)) == null ? void 0 : _a.address;
   return typeof value === "string" && value.length > 0 ? value : void 0;
 }
-function preferredPublicKey(userState) {
-  var _a;
-  return (_a = address2(userState)) != null ? _a : svmAddress2(userState);
-}
 function chainId2(userState) {
   var _a;
   return parseChainId2((_a = evmBlock(userState)) == null ? void 0 : _a.chain_id);
@@ -562,7 +630,6 @@ var UserState;
   UserState2.address = address2;
   UserState2.evmAddress = evmAddress;
   UserState2.svmAddress = svmAddress2;
-  UserState2.preferredPublicKey = preferredPublicKey;
   UserState2.chainId = chainId2;
   UserState2.ensName = ensName;
   UserState2.aaMode = aaMode;
@@ -863,7 +930,11 @@ function buildApiUrl(baseUrl, path, query) {
   const params = new URLSearchParams();
   for (const [key, value] of Object.entries(query)) {
     if (value === void 0) continue;
-    params.set(key, value);
+    if (typeof value === "string") {
+      params.set(key, value);
+    } else {
+      for (const item of value) params.append(key, item);
+    }
   }
   const queryString = params.toString();
   return queryString ? `${url}?${queryString}` : url;
@@ -900,6 +971,14 @@ function wrapFetchWithAccountBearer(fetchImpl, getAccountAccessToken) {
 }
 function supportsTokenRefreshSubscription(provider) {
   return typeof (provider == null ? void 0 : provider.subscribe) === "function";
+}
+function normalizePlatformFilter(platforms) {
+  const rawValues = Array.isArray(platforms) ? platforms : platforms === null || platforms === void 0 ? [] : [platforms];
+  return Array.from(
+    new Set(
+      rawValues.flatMap((value) => value.split(",")).map((value) => value.trim()).filter(Boolean)
+    )
+  );
 }
 async function postState(baseUrl, path, payload, sessionId, fetchImpl, apiKey, logger) {
   const url = `${baseUrl}${path}`;
@@ -1186,8 +1265,8 @@ var AomiClient = class {
    * backend never returns raw values; the settings page uses this as the
    * source of truth instead of trusting localStorage.
    */
-  async listSecrets(sessionId) {
-    const url = joinApiPath(this.baseUrl, "/api/secrets");
+  async listSecrets(sessionId, clientId) {
+    const url = clientId && clientId.trim().length > 0 ? buildApiUrl(this.baseUrl, "/api/secrets", { client_id: clientId }) : joinApiPath(this.baseUrl, "/api/secrets");
     const response = await this.fetchImpl(url, {
       method: "GET",
       headers: withSessionHeader(sessionId)
@@ -1358,7 +1437,10 @@ var AomiClient = class {
    */
   async getApps(sessionId, options) {
     var _a;
-    const url = buildApiUrl(this.baseUrl, "/api/session/apps");
+    const platforms = normalizePlatformFilter(options == null ? void 0 : options.platforms);
+    const url = buildApiUrl(this.baseUrl, "/api/session/apps", {
+      platform: platforms.length > 0 ? platforms : void 0
+    });
     const apiKey = (_a = options == null ? void 0 : options.apiKey) != null ? _a : this.apiKey;
     const headers = new Headers(withSessionHeader(sessionId));
     if (apiKey) {
@@ -1370,18 +1452,7 @@ var AomiClient = class {
     }
     const data = await response.json();
     if (!Array.isArray(data)) return [];
-    return data.map((item) => {
-      if (typeof item === "string") {
-        return { name: item };
-      }
-      if (item && typeof item === "object" && "name" in item) {
-        const name = item.name;
-        if (typeof name === "string" && name.trim().length > 0) {
-          return item;
-        }
-      }
-      return null;
-    }).filter((item) => item !== null);
+    return data.map((item) => normalizeAppDescriptor(item)).filter((item) => item !== null);
   }
   /**
    * Get available models.
@@ -1432,7 +1503,7 @@ var AomiClient = class {
    * List BYOK keys (one per LLM provider) bound to the current session's client.
    */
   async listByokKeys(sessionId) {
-    var _a;
+    var _a, _b;
     const url = buildApiUrl(this.baseUrl, "/api/control/provider-keys");
     const response = await this.fetchImpl(url, {
       headers: withSessionHeader(sessionId)
@@ -1441,7 +1512,7 @@ var AomiClient = class {
       throw new Error(`Failed to get BYOK keys: HTTP ${response.status}`);
     }
     const data = await response.json();
-    return (_a = data.byok_keys) != null ? _a : [];
+    return (_b = (_a = data.byok_keys) != null ? _a : data.byok) != null ? _b : [];
   }
   /**
    * Save or replace a BYOK key for the client bound to this session.
@@ -2206,14 +2277,34 @@ function toViemSignMessageArgs(payload) {
 }
 
 // src/session/events.ts
+function aomiMessagesEqual(a, b) {
+  if (a === b) return true;
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) {
+    const x = a[i];
+    const y = b[i];
+    if (x.sender !== y.sender || x.content !== y.content || x.timestamp !== y.timestamp || x.is_streaming !== y.is_streaming) {
+      return false;
+    }
+    const xt = x.tool_result;
+    const yt = y.tool_result;
+    if (xt !== yt) {
+      if (!xt || !yt) return false;
+      if (xt[0] !== yt[0] || xt[1] !== yt[1]) return false;
+    }
+  }
+  return true;
+}
 function applySessionState(state, deps) {
   var _a;
   if (state.user_state) {
     deps.resolveUserState(state.user_state);
   }
   if (state.messages) {
-    deps.setMessages(state.messages);
-    deps.emit("messages", state.messages);
+    if (!aomiMessagesEqual(state.messages, deps.getMessages())) {
+      deps.setMessages(state.messages);
+      deps.emit("messages", state.messages);
+    }
   }
   if (state.title) {
     deps.setTitle(state.title);
@@ -3083,6 +3174,7 @@ var ClientSession = class extends TypedEventEmitter {
       setMessages: (messages) => {
         this._messages = messages;
       },
+      getMessages: () => this.getMessages(),
       setTitle: (title) => {
         this._title = title;
       },
@@ -4710,6 +4802,7 @@ async function createAAProviderState(options) {
   UserState,
   aaModeFromExecutionKind,
   adaptSmartAccount,
+  appIdentityKey,
   appendFeeCallToPayload,
   buildAAExecutionPlan,
   buildFeeAAWalletCall,
@@ -4728,6 +4821,7 @@ async function createAAProviderState(options) {
   isSystemNotice,
   monad,
   monadTestnet,
+  normalizeAppDescriptor,
   normalizeEip712Payload,
   normalizeSimulatedFee,
   normalizeSolanaSignMessagePayload,

@@ -129,6 +129,58 @@ export async function resolveOrCreateCanonicalUser(
   }
 }
 
+/**
+ * Resolve-or-create the canonical user for a wallet-proven identity. SIWE paths
+ * key this by normalized wallet address after server-side signature verification.
+ */
+export async function resolveOrCreateByWallet(
+  address: string,
+): Promise<CanonicalUser> {
+  const normalized = normalizeValue(address);
+  if (!normalized) {
+    throw new Error("resolveOrCreateByWallet requires a wallet address");
+  }
+
+  const pool = getPool();
+  const client = await pool.connect();
+  try {
+    const existing = await findUserIdByWallet(client, normalized);
+    if (existing) return { userId: existing, created: false };
+
+    const userId = randomUUID();
+    const now = Math.floor(Date.now() / 1000);
+    try {
+      await client.query("begin");
+      await ensureBackendUser(client, userId, now);
+      await client.query(
+        `insert into auth_identities
+           (user_id, application, wallet_provider, wallet_provider_subject,
+            auth_method, auth_value, auth_value_normalized,
+            auth_verified_at, is_primary, metadata, created_at, updated_at)
+         values ($1, null, 'wallet', $2, 'wallet', $3, $2, $4, true, $5, $4, $4)`,
+        [
+          userId,
+          normalized,
+          address,
+          now,
+          JSON.stringify({ source: "base_siwe" }),
+        ],
+      );
+      await client.query("commit");
+      return { userId, created: true };
+    } catch (error) {
+      await client.query("rollback").catch(() => {});
+      if (isUniqueViolation(error)) {
+        const winner = await findUserIdByWallet(client, normalized);
+        if (winner) return { userId: winner, created: false };
+      }
+      throw error;
+    }
+  } finally {
+    client.release();
+  }
+}
+
 async function ensureBackendUser(
   client: { query: PoolClientQuery },
   userId: string,
@@ -197,6 +249,21 @@ async function findUserIdBySubject(
         and wallet_provider_subject = $2
       limit 1`,
     [provider, subject],
+  );
+  return (result.rows[0]?.user_id as string | undefined) ?? null;
+}
+
+async function findUserIdByWallet(
+  client: { query: PoolClientQuery },
+  normalizedAddress: string,
+): Promise<string | null> {
+  const result = await client.query(
+    `select user_id from auth_identities
+      where application is null
+        and wallet_provider = 'wallet'
+        and auth_value_normalized = $1
+      limit 1`,
+    [normalizedAddress],
   );
   return (result.rows[0]?.user_id as string | undefined) ?? null;
 }

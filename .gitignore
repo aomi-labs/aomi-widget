@@ -4,6 +4,7 @@
 **/node_modules
 .pnpm-store/
 /.pnp
+.playwright-cli/
 .pnp.*
 .yarn/*
 !.yarn/patches
@@ -46,7 +47,12 @@ tmp*.md
 
 # generated registry build output
 apps/landing/public/r/dist
-apps/registry/dist
+apps/shadcn-registry/dist
+
+# generated package JavaScript bundles
+packages/*/dist/*.js
+packages/*/dist/*.cjs
+packages/*/dist/*.map
 
 # typescript
 *.tsbuildinfo
@@ -54,3 +60,4 @@ next-env.d.ts
 
 **/.specstory/*
 .env*.local
+.kiro/

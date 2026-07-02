@@ -44,16 +44,22 @@ const AUTH_REFRESH_SKEW_MS = 30 * 1000;
 const SESSION_TOKEN_HEADERS = ["set-auth-token", "x-auth-token", "auth-token"];
 
 export function createCliAuthTokenProvider(
-  readState: () => Pick<CliSessionState, "auth">,
+  readState: () => Pick<
+    CliSessionState,
+    "accountBearer" | "auth" | "sessionCookie"
+  >,
   now: () => number = Date.now,
 ): GetAccountAccessToken {
   return async () => {
-    const auth = readState().auth;
-    if (!auth?.sessionToken) return undefined;
-    if (auth.expiresAt <= now() + AUTH_REFRESH_SKEW_MS) {
-      return undefined;
+    const state = readState();
+    const auth = state.auth;
+    if (
+      auth?.sessionToken &&
+      auth.expiresAt > now() + AUTH_REFRESH_SKEW_MS
+    ) {
+      return auth.sessionToken;
     }
-    return auth.sessionToken;
+    return state.accountBearer ?? state.sessionCookie;
   };
 }
 

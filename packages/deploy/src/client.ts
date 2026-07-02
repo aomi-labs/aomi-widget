@@ -1,252 +1,690 @@
-import { Octokit } from "@octokit/rest";
-
-import { ActivationError, BrowserEnvironmentError, DeployError, TagWideningError } from "./errors";
-import {
-  buildDeploymentManifest,
-  stageFiles,
-  validateManifest,
-} from "./deployment-json";
-import { assertValidCommit, deriveSourceCommit } from "./release-tag";
-import { GitHubCommitter, type GitHubRestClient } from "./github";
-import {
-  buildActivationRequest,
-  buildActivationRequestDiscordBody,
-  type ActivationRequestPayload,
-  type DiscordWebhookBody,
-} from "./activation-request";
-import type { ActivateAppRequest, PlatformDescriptor } from "./contract";
+import { BackendError, BrowserEnvironmentError, DeployError } from "./errors";
 import type {
   ActivateInput,
   ActivateResult,
+  AppSource,
   AuditEvent,
   DeployInput,
   DeployResult,
   DeploymentClientOptions,
-  StatusResult,
+  DeploymentProgressEvent,
+  DeploymentStatus,
+  DeploymentAppStatus,
+  ExchangeGitHubCodeInput,
+  GetAppInput,
+  GetUserSourceLatestDeploymentInput,
+  GitHubIdentity,
+  ListAppsInput,
+  ListUserSourcesInput,
+  UserSource,
+  UserSourceLatestDeployment,
+  ListTokensInput,
+  MintTokenInput,
+  MintedToken,
+  PlatformApp,
+  PreflightInput,
+  ProgressModel,
+  RevokeTokenInput,
+  ScaffoldInput,
+  StatusInput,
+  SyncSourceInput,
+  TokenRecord,
+  WatchDeploymentOptions,
 } from "./types";
 
-const DEFAULT_BRANCH = "publish";
-const DEFAULT_ACTIVATE_PATH = "/api/admin/apps/activate";
-const DEFAULT_SERVER_TAGS = ["staging"];
-const SLUG_RE = /^[a-z0-9][a-z0-9-]*$/;
-
 /**
- * Server-side client to the Aomi deployment platform. Holds the bot PAT and
- * the platform activation token; performs `deploy` (GitHub publish) and
- * `activate` (backend) on behalf of a proxy that has ALREADY authorized the
- * caller for the given slug.
- *
- * This client does NOT do ownership/auth — that is the proxy's job. It enforces
- * the platform contract (path scope, narrow-only tags, deployment.json shape).
+ * Server-side client to the Aomi platform deploy backend. It is a typed HTTP
+ * wrapper only: source reads, platform writes, CI checks, and activation all
+ * happen in the backend.
  */
 export class DeploymentClient {
   private readonly opts: DeploymentClientOptions;
-  private readonly descriptor: PlatformDescriptor;
-  private readonly committer: GitHubCommitter;
-  private readonly branch: string;
-  private readonly tagPrefix: string;
+  private readonly baseUrl: string;
+  /** Activation token for deploy/activate/status and bootstrap reads. */
+  private readonly activationToken?: string;
+  /** Privileged admin/service bearer for bootstrap writes (token minting). */
+  private readonly adminBearer?: string;
 
   constructor(opts: DeploymentClientOptions) {
     assertServerOnly();
     this.opts = opts;
-    this.branch = opts.github.branch ?? DEFAULT_BRANCH;
-    this.descriptor = opts.descriptor ?? defaultDescriptor(opts.aomi.platform, opts.github.repo, this.branch);
-    this.tagPrefix = this.descriptor.release_tag_convention.split("{app_slug}")[0].replace(/-+$/, "");
-
-    const api = resolveGitHubApi(opts);
-    this.committer = new GitHubCommitter(api, opts.github.repo, this.branch);
+    this.baseUrl = required(opts.aomi.backendUrl, "aomi.backendUrl").replace(
+      /\/+$/,
+      "",
+    );
+    this.activationToken = opts.aomi.activationToken?.trim() || undefined;
+    this.adminBearer = opts.aomi.adminBearer?.trim() || undefined;
   }
 
   /**
-   * Build a pre-deploy activation request (onboarding ask) for `app`, filling
-   * `platform` + `repo` from this client's config. Mirror of `aomi-git request`
-   * — same canonical payload, so a request raised here and one from the CLI are
-   * indistinguishable to the consumer.
-   *
-   * If `discord.webhookUrl` is configured, the embed is POSTed and `posted` is
-   * true; otherwise nothing is sent and the caller delivers `discordBody`
-   * itself. The activation code is NEVER part of this — ops mint + deliver it
-   * out-of-band.
+   * Pick the bearer for a call: an explicit per-call override wins; otherwise
+   * privileged writes prefer the admin bearer, everything else the activation
+   * token. Throws a typed error (no network call) when neither is configured.
    */
-  async requestActivation(input: {
-    email: string;
-    githubAccount: string;
-    app: string;
-    requestedAt?: string;
-    actor?: string;
-  }): Promise<{ payload: ActivationRequestPayload; discordBody: DiscordWebhookBody; posted: boolean }> {
-    assertValidSlug(input.app);
-
-    const common = {
-      email: input.email,
-      githubAccount: input.githubAccount,
-      app: input.app,
-      platform: this.opts.aomi.platform,
-      repo: this.descriptor.source_repo,
-      requestedAt: input.requestedAt,
-    };
-    const payload = buildActivationRequest(common);
-    const discordBody = buildActivationRequestDiscordBody(common, {
-      opsMention: this.opts.discord?.opsMention,
-    });
-
-    let posted = false;
-    const webhookUrl = this.opts.discord?.webhookUrl;
-    if (webhookUrl) {
-      let res: Response;
-      try {
-        res = await fetch(webhookUrl, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(discordBody),
-        });
-      } catch (err) {
-        throw new DeployError(
-          "ACTIVATION_REQUEST",
-          `failed to POST Discord webhook: ${err instanceof Error ? err.message : String(err)}`,
-        );
-      }
-      if (!res.ok) {
-        const text = await res.text().catch(() => "");
-        throw new DeployError("ACTIVATION_REQUEST", `Discord webhook returned ${res.status}: ${text.trim()}`);
-      }
-      posted = true;
+  private resolveBearer(
+    override?: string,
+    opts?: { privileged?: boolean },
+  ): string {
+    const order = opts?.privileged
+      ? [override, this.adminBearer, this.activationToken]
+      : [override, this.activationToken, this.adminBearer];
+    const found = order.map((t) => t?.trim()).find(Boolean);
+    if (!found) {
+      throw new DeployError(
+        "INVALID_REQUEST",
+        opts?.privileged
+          ? "this operation needs a privileged admin/service bearer (aomi.adminBearer) or an activation token"
+          : "this operation needs an activation token (aomi.activationToken)",
+      );
     }
+    return found;
+  }
 
+  async preflight(input: PreflightInput): Promise<DeployResult> {
+    const platform = cleanPlatform(input.platform);
+    const body = deployRequest(input, true);
+    const result = await this.post<DeployResult>(
+      `/api/platforms/${encodeURIComponent(platform)}/deploy`,
+      body,
+      "preflight",
+      this.resolveBearer(),
+    );
+    const cameled = camelDeployResult(result);
+    if (!cameled.ok) {
+      throw new DeployError(
+        "BACKEND",
+        `preflight rejected by backend (deployment ${cameled.deployment.id})`,
+      );
+    }
     await this.audit({
-      action: "request",
-      slug: input.app,
+      action: "preflight",
+      platform,
+      appSourceId: input.appSourceId,
       actor: input.actor,
       ts: Date.now(),
     });
-
-    return { payload, discordBody, posted };
+    return cameled;
   }
 
-  /** Commit `apps/<slug>/` to the publish branch. Does NOT activate. */
   async deploy(input: DeployInput): Promise<DeployResult> {
-    assertValidSlug(input.slug);
-
-    const staged = stageFiles(input.slug, input.files);
-    const sourceCommit = input.sourceCommit ?? deriveSourceCommit(staged);
-    assertValidCommit(sourceCommit);
-
-    const serverTags = normalizeTags(input.serverTags) ?? DEFAULT_SERVER_TAGS;
-
-    const manifest = buildDeploymentManifest({
-      slug: input.slug,
-      displayName: input.displayName,
-      descriptor: this.descriptor,
-      staged,
-      sourceCommit,
-      serverTags,
-      isPublic: input.isPublic ?? false,
-    });
-    // Defense: refuse to push a manifest CI would reject.
-    validateManifest(manifest, this.descriptor);
-
-    const releaseTag = manifest.target.release_tag;
-    const publishCommitSha = await this.committer.commitApp({
-      slug: input.slug,
-      files: input.files,
-      staged,
-      manifest,
-      message: `deploy ${input.slug} (${releaseTag})`,
-    });
-
+    const platform = cleanPlatform(input.platform);
+    const body = deployRequest(input, false);
+    const result = await this.post<DeployResult>(
+      `/api/platforms/${encodeURIComponent(platform)}/deploy`,
+      body,
+      "deploy",
+      this.resolveBearer(),
+    );
+    const cameled = camelDeployResult(result);
+    if (!cameled.ok) {
+      throw new DeployError(
+        "BACKEND",
+        `deploy rejected by backend (deployment ${cameled.deployment.id})`,
+      );
+    }
     await this.audit({
       action: "deploy",
-      slug: input.slug,
-      releaseTag,
-      targetTags: serverTags,
+      platform,
+      appSourceId: input.appSourceId,
       actor: input.actor,
       ts: Date.now(),
     });
-
-    return {
-      releaseTag,
-      publishCommitSha,
-      sourceCommit,
-      appPath: manifest.target.app_path,
-      serverTags,
-      ciUrl: `https://github.com/${this.opts.github.repo}/actions`,
-    };
+    return cameled;
   }
 
-  /** CI + release readiness for a slug's latest matching release. */
-  async getStatus(slug: string): Promise<StatusResult> {
-    assertValidSlug(slug);
-    return this.committer.status(slug, this.tagPrefix);
+  async activate(input: ActivateInput): Promise<ActivateResult> {
+    const platform = cleanPlatform(input.platform);
+    const body = activateRequest(input);
+    const result = await this.post<ActivateResult>(
+      `/api/platforms/${encodeURIComponent(platform)}/apps/activate`,
+      body,
+      "activation",
+      this.resolveBearer(),
+    );
+    const cameled = camelActivateResult(result);
+    if (!cameled.ok) {
+      const partialErrors = cameled.activation.apps
+        .filter((a) => a.error)
+        .map((a) => ({ app: a.name, error: a.error }));
+      throw new DeployError(
+        "ACTIVATION",
+        `activate rejected by backend (status ${cameled.activation.status})`,
+        partialErrors.length ? partialErrors : undefined,
+      );
+    }
+    await this.audit({
+      action: "activate",
+      platform,
+      apps: input.apps ?? [],
+      targetTags: input.targetTags,
+      actor: input.actor,
+      ts: Date.now(),
+    });
+    return cameled;
+  }
+
+  async status(input: StatusInput): Promise<DeploymentStatus> {
+    const platform = cleanPlatform(input.platform);
+    const path = input.deploymentId
+      ? `/api/platforms/${encodeURIComponent(platform)}/deployments/${encodeURIComponent(input.deploymentId)}/status`
+      : (input.path ?? `/api/platforms/${encodeURIComponent(platform)}/status`);
+    const result = await this.get<Record<string, unknown>>(
+      path,
+      "status",
+      this.resolveBearer(),
+    );
+    await this.audit({
+      action: "status",
+      platform,
+      actor: input.actor,
+      ts: Date.now(),
+    });
+    return camelStatusResult(result);
   }
 
   /**
-   * Activate a built release on the backend. Call only after `getStatus`
-   * reports `release: "ready"`. Enforces narrow-only `target_tags` when the
-   * build's `server_tags` are supplied.
+   * Poll GET /api/platforms/:platform/deployments/:id/status until a terminal
+   * state is reached or retries are exhausted. Calls onEvent for every tick.
    */
-  async activate(input: ActivateInput): Promise<ActivateResult> {
-    assertValidSlug(input.slug);
+  async watchDeployment(
+    deploymentId: string,
+    platform: string,
+    onEvent: (event: DeploymentProgressEvent) => void,
+    options?: WatchDeploymentOptions,
+  ): Promise<void> {
+    const baseDelayMs = options?.baseDelayMs ?? 3000;
+    const maxDelayMs = options?.maxDelayMs ?? 30000;
+    const maxRetries = options?.maxRetries ?? 8;
+    const signal = options?.signal;
 
-    const targetTags = normalizeTags(input.targetTags) ?? (input.targetEnv ? [input.targetEnv] : undefined);
-    if (!targetTags || targetTags.length === 0) {
-      throw new DeployError("ACTIVATION", "activate requires `targetTags` or `targetEnv`");
-    }
-    if (input.buildServerTags) {
-      assertSubset(targetTags, normalizeTags(input.buildServerTags) ?? []);
-    }
-
-    const body: ActivateAppRequest = {
-      app_slug: input.slug,
-      platform: this.opts.aomi.platform,
-      source_repo: this.descriptor.source_repo,
-      app_release_tag: input.releaseTag,
-      source_commit: input.sourceCommit,
-      is_public: input.isPublic ?? false,
-      target_tags: targetTags,
-      github_token: this.opts.github.botPat,
-      ...(input.displayName ? { display_name: input.displayName } : {}),
+    let failures = 0;
+    let lastCompleted = 0;
+    let lastProgress: ProgressModel = {
+      completed: 0,
+      total: 8,
+      label: "Waiting for build",
     };
 
-    const url =
-      this.opts.aomi.backendUrl.replace(/\/+$/, "") +
-      (this.opts.aomi.activatePath ?? DEFAULT_ACTIVATE_PATH);
+    while (!signal?.aborted && failures < maxRetries) {
+      try {
+        const status = await this.status({ platform, deploymentId });
+        const mapped = this.buildProgressModel(status, lastCompleted);
+        const completed = Math.max(mapped.completed, lastCompleted);
+        const progress: ProgressModel = { ...mapped, completed };
+        lastCompleted = completed;
+        lastProgress = progress;
 
+        const isTerminal =
+          status.state === "ready" ||
+          status.state === "failed" ||
+          status.state === "no_ci";
+        onEvent({
+          kind: isTerminal ? "terminal" : "progress",
+          status,
+          progress,
+        });
+
+        if (isTerminal) return;
+
+        failures = 0;
+        await sleep(this.backoffDelay(0, baseDelayMs, maxDelayMs));
+      } catch (err) {
+        // Non-retryable HTTP error — bail immediately
+        if (
+          err instanceof BackendError &&
+          err.status >= 400 &&
+          err.status < 500
+        ) {
+          onEvent({
+            kind: "error",
+            status: {
+              state: "failed",
+              releaseTags: [],
+              message: err.message,
+            },
+            progress: lastProgress,
+            error: err,
+          });
+          return;
+        }
+        failures++;
+        onEvent({
+          kind: "warning",
+          status: {
+            state: "failed",
+            releaseTags: [],
+            message: `Polling attempt failed (${failures}/${maxRetries}): ${err instanceof Error ? err.message : String(err)}`,
+          },
+          progress: lastProgress,
+          error: err instanceof Error ? err : new Error(String(err)),
+        });
+        await sleep(this.backoffDelay(failures, baseDelayMs, maxDelayMs));
+      }
+    }
+
+    // Loop exited without a terminal state — emit error event
+    const errorMsg = signal?.aborted
+      ? "Watch cancelled"
+      : `Polling stopped after ${maxRetries} consecutive failures`;
+    onEvent({
+      kind: "error",
+      status: {
+        state: "failed",
+        releaseTags: [],
+        message: errorMsg,
+      },
+      progress: lastProgress,
+      error: new Error(errorMsg),
+    });
+  }
+
+  // ───────────────────────── Bootstrap: tokens ──────────────────────────────
+
+  /**
+   * Mint a platform or app activation token.
+   * `POST /api/platforms/:platform/tokens`.
+   *
+   * The plaintext token is returned ONCE — store it now; the backend keeps only
+   * its hash. Minting the first platform token needs the privileged admin
+   * bearer (`aomi.adminBearer` or `input.bearer`); a platform token may then
+   * mint app-scoped tokens.
+   */
+  async mintToken(input: MintTokenInput): Promise<MintedToken> {
+    const platform = cleanPlatform(input.platform);
+    if (input.scope !== "platform" && input.scope !== "app") {
+      throw new DeployError(
+        "INVALID_REQUEST",
+        `scope must be "platform" or "app" (got ${JSON.stringify(input.scope)})`,
+      );
+    }
+    const body: Record<string, unknown> = { scope: input.scope };
+    if (input.scope === "app") {
+      const appId = Number(input.appId);
+      if (!Number.isSafeInteger(appId) || appId <= 0) {
+        throw new DeployError(
+          "INVALID_REQUEST",
+          'scope "app" requires a positive appId',
+        );
+      }
+      body.app_id = appId;
+    }
+    const bearer = this.resolveBearer(input.bearer, { privileged: true });
+    const raw = await this.post<Record<string, unknown>>(
+      `/api/platforms/${encodeURIComponent(platform)}/tokens`,
+      body,
+      "mint_token",
+      bearer,
+    );
+    await this.audit({
+      action: "mint_token",
+      platform,
+      scope: input.scope,
+      actor: input.actor,
+      ts: Date.now(),
+    });
+    return {
+      id: Number(raw.id),
+      token: String(raw.token),
+      scope: (raw.scope as string) ?? input.scope,
+    };
+  }
+
+  /** List a platform's activation tokens. `GET /api/platforms/:platform/tokens`. */
+  async listTokens(input: ListTokensInput): Promise<TokenRecord[]> {
+    const platform = cleanPlatform(input.platform);
+    const bearer = this.resolveBearer(input.bearer);
+    const raw = await this.get<unknown>(
+      `/api/platforms/${encodeURIComponent(platform)}/tokens`,
+      "list_tokens",
+      bearer,
+    );
+    await this.audit({
+      action: "list_tokens",
+      platform,
+      actor: input.actor,
+      ts: Date.now(),
+    });
+    return (Array.isArray(raw) ? raw : []).map(camelTokenRecord);
+  }
+
+  /** Revoke a token by id. `DELETE /api/platforms/:platform/tokens/:id`. */
+  async revokeToken(input: RevokeTokenInput): Promise<boolean> {
+    const platform = cleanPlatform(input.platform);
+    const id = Number(input.id);
+    if (!Number.isSafeInteger(id) || id <= 0) {
+      throw new DeployError(
+        "INVALID_REQUEST",
+        "revokeToken requires a positive id",
+      );
+    }
+    const bearer = this.resolveBearer(input.bearer, { privileged: true });
+    const raw = await this.del<unknown>(
+      `/api/platforms/${encodeURIComponent(platform)}/tokens/${id}`,
+      "revoke_token",
+      bearer,
+    );
+    await this.audit({
+      action: "revoke_token",
+      platform,
+      tokenId: id,
+      actor: input.actor,
+      ts: Date.now(),
+    });
+    return raw === true;
+  }
+
+  // ──────────────────────── Bootstrap: app sources ──────────────────────────
+
+  /**
+   * Resolve (sync) the GitHub App source row for a repo already installed on
+   * the Aomi GitHub App, returning its `id` — the `appSourceId` deploy needs.
+   * `POST /api/platforms/:platform/sources/sync-installed`.
+   */
+  async syncSource(input: SyncSourceInput): Promise<AppSource> {
+    const platform = cleanPlatform(input.platform);
+    const repo = required(input.repo, "repo");
+    const bearer = this.resolveBearer(input.bearer);
+    const body: { repo: string; github_user_id?: string } = { repo };
+    if (input.githubUserId !== undefined) {
+      body.github_user_id = required(input.githubUserId, "githubUserId");
+    }
+    const raw = await this.post<{ ok?: boolean; source?: unknown }>(
+      `/api/platforms/${encodeURIComponent(platform)}/sources/sync-installed`,
+      body,
+      "sync_source",
+      bearer,
+    );
+    await this.audit({
+      action: "sync_source",
+      platform,
+      repo,
+      actor: input.actor,
+      ts: Date.now(),
+    });
+    return camelAppSource(raw.source);
+  }
+
+  /**
+   * One-shot: create a new source repo from a template in the installation's
+   * account and return its source row. The portal "one-click" path.
+   * `POST /api/integrations/github-app/platforms/:platform/sources/create-from-template`.
+   */
+  async scaffold(input: ScaffoldInput): Promise<AppSource> {
+    const platform = cleanPlatform(input.platform);
+    const installationId = Number(input.installationId);
+    if (!Number.isSafeInteger(installationId) || installationId <= 0) {
+      throw new DeployError(
+        "INVALID_REQUEST",
+        "scaffold requires a positive installationId",
+      );
+    }
+    const repoName = required(input.repoName, "repoName");
+    const templateRepo = required(input.templateRepo, "templateRepo");
+    const githubUserId = required(input.githubUserId, "githubUserId");
+    const bearer = this.resolveBearer(input.bearer);
+    const raw = await this.post<{ ok?: boolean; source?: unknown }>(
+      `/api/integrations/github-app/platforms/${encodeURIComponent(platform)}/sources/create-from-template`,
+      {
+        installation_id: installationId,
+        template_repo: templateRepo,
+        repo_name: repoName,
+        github_user_id: githubUserId,
+        private: Boolean(input.private),
+      },
+      "scaffold",
+      bearer,
+    );
+    await this.audit({
+      action: "scaffold",
+      platform,
+      repo: repoName,
+      actor: input.actor,
+      ts: Date.now(),
+    });
+    return camelAppSource(raw.source);
+  }
+
+  // ──────────────────────── Bootstrap: platform apps ────────────────────────
+
+  /** List loaded apps on a platform. `GET /api/platforms/:platform/apps`. */
+  async listApps(input: ListAppsInput): Promise<PlatformApp[]> {
+    const platform = cleanPlatform(input.platform);
+    const bearer = this.resolveBearer(input.bearer);
+    const raw = await this.get<{ apps?: unknown[] }>(
+      `/api/platforms/${encodeURIComponent(platform)}/apps`,
+      "list_apps",
+      bearer,
+    );
+    await this.audit({
+      action: "list_apps",
+      platform,
+      actor: input.actor,
+      ts: Date.now(),
+    });
+    return (raw.apps ?? []).map(camelPlatformApp);
+  }
+
+  /** Get one app on a platform. `GET /api/platforms/:platform/apps/:app`. */
+  async getApp(input: GetAppInput): Promise<PlatformApp> {
+    const platform = cleanPlatform(input.platform);
+    const app = required(input.app, "app");
+    const bearer = this.resolveBearer(input.bearer);
+    const releaseTag = input.releaseTag?.trim();
+    const query = releaseTag
+      ? `?${new URLSearchParams({ release_tag: releaseTag })}`
+      : "";
+    const raw = await this.get<{ app?: unknown }>(
+      `/api/platforms/${encodeURIComponent(platform)}/apps/${encodeURIComponent(app)}${query}`,
+      "get_app",
+      bearer,
+    );
+    await this.audit({
+      action: "get_app",
+      platform,
+      actor: input.actor,
+      ts: Date.now(),
+    });
+    return camelPlatformApp(raw.app);
+  }
+
+  // ──────────────────── Sign-in: identity + user sources ────────────────────
+
+  /**
+   * Exchange a GitHub OAuth `code` for the user's identity (login flow). The
+   * client secret stays backend-side; this is the portal's sign-in seam.
+   * `GET /api/integrations/github-app/oauth/exchange`.
+   */
+  async exchangeGitHubCode(
+    input: ExchangeGitHubCodeInput,
+  ): Promise<GitHubIdentity> {
+    const code = required(input.code, "code");
+    const params = new URLSearchParams({ code });
+    if (input.app) params.set("app", String(input.app));
+    const bearer = this.resolveBearer(input.bearer);
+    const raw = await this.get<{
+      github_user_id?: string;
+      github_login?: string;
+      installation_id?: number | string | null;
+    }>(
+      `/api/integrations/github-app/oauth/exchange?${params.toString()}`,
+      "exchange_github_code",
+      bearer,
+    );
+    return {
+      githubUserId: String(raw.github_user_id ?? ""),
+      githubLogin: String(raw.github_login ?? ""),
+      installationId:
+        raw.installation_id === null || raw.installation_id === undefined
+          ? null
+          : String(raw.installation_id),
+    };
+  }
+
+  /**
+   * Source repos a GitHub user connected. Passing `platform` asks the backend
+   * to return only launch-relevant sources for that platform.
+   */
+  async listUserSources(input: ListUserSourcesInput): Promise<UserSource[]> {
+    const githubUserId = required(input.githubUserId, "githubUserId");
+    const bearer = this.resolveBearer(input.bearer);
+    const params = new URLSearchParams({ github_user_id: githubUserId });
+    if (input.platform?.trim()) params.set("platform", input.platform.trim());
+    const raw = await this.get<{ sources?: unknown[] }>(
+      `/api/integrations/github-app/user/sources?${params.toString()}`,
+      "list_user_sources",
+      bearer,
+    );
+    await this.audit({
+      action: "list_user_sources",
+      platform: input.platform,
+      actor: input.actor,
+      ts: Date.now(),
+    });
+    return (raw.sources ?? []).map(camelUserSource);
+  }
+
+  async getUserSourceLatestDeployment(
+    input: GetUserSourceLatestDeploymentInput,
+  ): Promise<UserSourceLatestDeployment | null> {
+    const githubUserId = required(input.githubUserId, "githubUserId");
+    const platform = cleanPlatform(input.platform);
+    const appSourceId = required(String(input.appSourceId), "appSourceId");
+    const bearer = this.resolveBearer(input.bearer);
+    const params = new URLSearchParams({
+      github_user_id: githubUserId,
+      platform,
+    });
+    const raw = await this.get<{ latest_deployment?: unknown }>(
+      `/api/integrations/github-app/user/sources/${encodeURIComponent(
+        appSourceId,
+      )}/latest-deployment?${params.toString()}`,
+      "get_user_source_latest_deployment",
+      bearer,
+    );
+    await this.audit({
+      action: "get_user_source_latest_deployment",
+      platform,
+      appSourceId: input.appSourceId,
+      actor: input.actor,
+      ts: Date.now(),
+    });
+    return camelUserSourceLatestDeployment(raw.latest_deployment) ?? null;
+  }
+
+  endpoint(path: string): string {
+    const cleanPath = path.startsWith("/") ? path : `/${path}`;
+    return `${this.baseUrl}${cleanPath}`;
+  }
+
+  private buildProgressModel(
+    status: DeploymentStatus,
+    lastCompleted: number,
+  ): ProgressModel {
+    const total = 8;
+    switch (status.state) {
+      case "pending":
+        return { completed: 1, total, label: "Waiting for build" };
+      case "building":
+        return { completed: 2, total, label: "Building CI" };
+      case "releasing":
+        return { completed: 5, total, label: "Verifying release assets" };
+      case "ready":
+        return { completed: 8, total, label: "Build ready" };
+      case "no_ci":
+        return { completed: lastCompleted, total, label: "No CI" };
+      case "failed":
+        return { completed: lastCompleted, total, label: "Build failed" };
+      default:
+        return { completed: lastCompleted, total, label: "Waiting for build" };
+    }
+  }
+
+  private backoffDelay(
+    failures: number,
+    baseMs: number,
+    maxMs: number,
+  ): number {
+    return Math.min(baseMs * Math.pow(2, failures), maxMs);
+  }
+
+  private async get<Resp>(
+    path: string,
+    operation: string,
+    bearer: string,
+  ): Promise<Resp> {
+    return this.request<Resp>(path, { method: "GET" }, operation, bearer);
+  }
+
+  private async post<Resp>(
+    path: string,
+    body: unknown,
+    operation: string,
+    bearer: string,
+  ): Promise<Resp> {
+    return this.request<Resp>(
+      path,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      },
+      operation,
+      bearer,
+    );
+  }
+
+  private async del<Resp>(
+    path: string,
+    operation: string,
+    bearer: string,
+  ): Promise<Resp> {
+    return this.request<Resp>(path, { method: "DELETE" }, operation, bearer);
+  }
+
+  private async request<Resp>(
+    path: string,
+    init: RequestInit,
+    operation: string,
+    bearer: string,
+  ): Promise<Resp> {
+    const url = this.endpoint(path);
     let res: Response;
     try {
       res = await fetch(url, {
-        method: "POST",
+        ...init,
         headers: {
-          Authorization: `Bearer ${this.opts.aomi.activationToken}`,
-          "Content-Type": "application/json",
+          Authorization: `Bearer ${bearer}`,
+          ...(init.headers ?? {}),
         },
-        body: JSON.stringify(body),
       });
     } catch (err) {
-      throw new ActivationError(0, `activation request failed: ${err instanceof Error ? err.message : String(err)}`);
+      throw new BackendError(
+        operation,
+        0,
+        `${operation} request failed: ${err instanceof Error ? err.message : String(err)}`,
+      );
     }
 
     const text = await res.text();
-    let parsed: unknown = text;
-    try {
-      parsed = text ? JSON.parse(text) : null;
-    } catch {
-      /* keep raw text */
-    }
-
     if (!res.ok) {
-      throw new ActivationError(res.status, `activation failed (${res.status})`, text);
+      throw new BackendError(
+        operation,
+        res.status,
+        `${operation} failed (${res.status})`,
+        text,
+      );
     }
-
-    await this.audit({
-      action: "activate",
-      slug: input.slug,
-      releaseTag: input.releaseTag,
-      targetTags,
-      actor: input.actor,
-      ts: Date.now(),
-    });
-
-    return { activated: true, status: res.status, body: parsed };
+    if (!text.trim()) return null as Resp;
+    try {
+      return JSON.parse(text) as Resp;
+    } catch {
+      throw new BackendError(
+        operation,
+        res.status,
+        `${operation} returned invalid JSON`,
+        text,
+      );
+    }
   }
 
   private async audit(event: AuditEvent): Promise<void> {
@@ -254,70 +692,351 @@ export class DeploymentClient {
   }
 }
 
-// =============================================================================
-// Helpers
-// =============================================================================
-
-/**
- * Refuse to run in a browser. This client holds the bot PAT + activation token,
- * which must never reach a browser bundle. The check allows an explicit
- * `globalThis.__AOMI_ALLOW_BROWSER__ = true` escape hatch for jsdom test setups
- * that deliberately exercise constructor behavior.
- */
 export function assertServerOnly(): void {
   const g = globalThis as Record<string, unknown>;
   if (g.__AOMI_ALLOW_BROWSER__ === true) return;
-  if (typeof (g as { window?: unknown }).window !== "undefined" &&
-      typeof (g as { document?: unknown }).document !== "undefined") {
+  if (
+    typeof (g as { window?: unknown }).window !== "undefined" &&
+    typeof (g as { document?: unknown }).document !== "undefined"
+  ) {
     throw new BrowserEnvironmentError(
-      "@aomi-labs/deploy is server-only: it holds the bot PAT and activation token and " +
-        "must never run in a browser. Import it from a server route handler, not client code.",
+      "@aomi-labs/deploy is server-only: it holds the activation token and " +
+        "must never run in a browser. Import it from a server route handler.",
     );
   }
 }
 
-function assertValidSlug(slug: string): void {
-  if (!SLUG_RE.test(slug)) {
+function deployRequest(
+  input: DeployInput | PreflightInput,
+  preflight: boolean,
+): Record<string, unknown> {
+  const appSourceId = Number(input.appSourceId);
+  if (!Number.isSafeInteger(appSourceId) || appSourceId <= 0) {
     throw new DeployError(
-      "INVALID_SLUG",
-      `invalid app slug ${JSON.stringify(slug)}: must match ${SLUG_RE} (lowercase alphanumeric + hyphen)`,
+      "INVALID_REQUEST",
+      "deploy requires a positive appSourceId",
     );
   }
-}
-
-function normalizeTags(tags: string[] | undefined): string[] | undefined {
-  if (!tags) return undefined;
-  const cleaned = tags.map((t) => t.trim()).filter((t) => t.length > 0);
-  return cleaned.length > 0 ? cleaned : undefined;
-}
-
-function assertSubset(requested: string[], allowed: string[]): void {
-  const allowedSet = new Set(allowed);
-  const widened = requested.filter((t) => !allowedSet.has(t));
-  if (widened.length > 0) {
-    throw new TagWideningError(requested, allowed);
-  }
-}
-
-/** Krexa-shaped descriptor used when the caller doesn't pass a real one. */
-function defaultDescriptor(platform: string, repo: string, branch: string): PlatformDescriptor {
+  const aomiTomlPaths = cleanStringList(
+    input.aomiTomlPaths ?? [],
+    "aomiTomlPaths",
+    true,
+  );
   return {
-    name: platform,
-    source_repo: repo,
-    publish_branch: branch,
-    app_path_prefix: "apps",
-    release_tag_convention: "apps-{app_slug}-{short_commit}",
-    visibility: "private",
+    app_source_id: appSourceId,
+    source_ref: sourceRef(input.sourceRef),
+    aomi_toml_paths: aomiTomlPaths,
+    ...(preflight ? { preflight: true } : {}),
   };
 }
 
-/** Build the narrow REST adapter from an injected fake or a real Octokit. */
-function resolveGitHubApi(opts: DeploymentClientOptions): GitHubRestClient {
-  const injected = opts.octokit as { rest?: unknown } | undefined;
-  if (injected) {
-    return ((injected.rest as GitHubRestClient | undefined) ?? (injected as unknown as GitHubRestClient));
+function activateRequest(input: ActivateInput): Record<string, unknown> {
+  const apps = cleanStringList(input.apps ?? [], "apps", true);
+  const targetTags = cleanStringList(
+    input.targetTags ?? [],
+    "targetTags",
+    true,
+  );
+  const target = releaseTagsTarget(input.target);
+  const releaseTags = target.value as string[];
+  if (apps.length > 0 && apps.length !== releaseTags.length) {
+    throw new DeployError(
+      "INVALID_REQUEST",
+      "release_tags activation requires the same number of apps and release tags",
+    );
   }
-  const octokit = new Octokit({ auth: opts.github.botPat });
-  return ((octokit as unknown as { rest?: GitHubRestClient }).rest ??
-    (octokit as unknown as GitHubRestClient));
+  return {
+    target,
+    ...(apps.length ? { apps } : {}),
+    ...(targetTags.length ? { target_tags: targetTags } : {}),
+  };
+}
+
+function sourceRef(ref: DeployInput["sourceRef"]): string {
+  const clean = required(ref, "sourceRef");
+  if (!/^[0-9a-f]{7,40}$/i.test(clean)) {
+    throw new DeployError(
+      "INVALID_REQUEST",
+      "sourceRef must be a git commit SHA (7-40 hex chars)",
+    );
+  }
+  return clean.toLowerCase();
+}
+
+function releaseTagsTarget(
+  ref: ActivateInput["target"],
+): Record<string, unknown> {
+  if (ref.kind !== "release_tags") {
+    throw new DeployError(
+      "INVALID_REQUEST",
+      "activation target.kind must be release_tags",
+    );
+  }
+  return {
+    kind: "release_tags",
+    value: cleanStringList(ref.value, "target.value"),
+  };
+}
+
+function cleanPlatform(value: string): string {
+  return required(value, "platform");
+}
+
+function required(value: string | undefined | null, field: string): string {
+  const clean = value?.trim();
+  if (!clean) throw new DeployError("INVALID_REQUEST", `${field} is required`);
+  return clean;
+}
+
+function cleanStringList(
+  values: string[],
+  field: string,
+  allowEmpty = false,
+): string[] {
+  const clean = values.map((value) => value.trim()).filter(Boolean);
+  if (!allowEmpty && clean.length === 0) {
+    throw new DeployError(
+      "INVALID_REQUEST",
+      `${field} must contain at least one value`,
+    );
+  }
+  return clean;
+}
+
+function camelDeployResult(result: unknown): DeployResult {
+  const raw = result as Record<string, any>;
+  const deployment = raw.deployment ?? {};
+  const source = deployment.source ?? {};
+  const platform = deployment.platform ?? {};
+  return {
+    ok: Boolean(raw.ok),
+    deployment: {
+      id: deployment.id,
+      status: deployment.status,
+      source: {
+        installationId: source.installation_id,
+        repositoryId: source.repository_id,
+        repositoryLink: source.repository_link,
+        ownerRepoName: source.owner_repo_name,
+        ref: source.ref,
+        commitHash: source.commit_hash,
+        aomiTomlPaths: source.aomi_toml_paths ?? [],
+      },
+      platform: {
+        platform: platform.platform,
+        repository: platform.repository,
+        deployBranch: platform.deploy_branch,
+        sourceBranch: platform.source_branch,
+        commitHash: platform.commit_hash ?? null,
+        prNumber: platform.pr_number ?? null,
+        prUrl: platform.pr_url ?? null,
+        ciStatus: platform.ci_status ?? null,
+        ciUrl: platform.ci_url ?? null,
+        apps: (platform.apps ?? []).map((app: Record<string, any>) => ({
+          name: app.name,
+          path: app.path,
+          aomiTomlPath: app.aomi_toml_path,
+          releaseTag: app.release_tag,
+          target: app.target ?? null,
+          files: (app.files ?? []).map((file: Record<string, any>) => ({
+            path: file.path,
+            sha256: file.sha256,
+            bytes: Number(file.bytes ?? 0),
+          })),
+        })),
+      },
+    },
+  };
+}
+
+function camelActivateResult(result: unknown): ActivateResult {
+  const raw = result as Record<string, any>;
+  const activation = raw.activation ?? {};
+  const target = activation.target ?? {};
+  return {
+    ok: Boolean(raw.ok),
+    activation: {
+      status: activation.status,
+      platform: activation.platform,
+      target: {
+        kind: target.kind,
+        value: target.value,
+        platformRepo: target.platform_repo ?? null,
+        platformBranch: target.platform_branch ?? null,
+        platformCommitHash: target.platform_commit_hash ?? null,
+        ciStatus: target.ci_status ?? null,
+        ciUrl: target.ci_url ?? null,
+        promoted: (target.promoted ?? []).map(
+          (promotion: Record<string, any>) => ({
+            name: promotion.name,
+            releaseTag: promotion.release_tag,
+            sourceBranch: promotion.source_branch,
+            platformCommitHash:
+              promotion.platform_commit_hash ??
+              promotion.activated_commit_hash ??
+              null,
+            liveCommitHash: promotion.live_commit_hash ?? null,
+            activationStatus: promotion.activation_status ?? null,
+            ciStatus: promotion.ci_status,
+            ciUrl: promotion.ci_url ?? null,
+            releaseAssets: promotion.release_assets ?? [],
+            releaseAssetDigests: promotion.release_asset_digests ?? {},
+          }),
+        ),
+      },
+      apps: (activation.apps ?? []).map((app: Record<string, any>) => ({
+        applicationId: app.application_id ?? app.applicationId ?? null,
+        name: app.name,
+        path: app.path ?? null,
+        releaseTag: app.release_tag ?? null,
+        isActive: Boolean(app.is_active),
+        artifactReady: Boolean(app.artifact_ready ?? app.artifactReady),
+        loaded: Boolean(app.loaded),
+        error: app.error ?? null,
+        sourceBranch: app.source_branch ?? null,
+        liveCommitHash: app.live_commit_hash ?? null,
+        activationStatus: app.activation_status ?? null,
+        activationPr: app.activation_pr ?? app.activationPr ?? null,
+        activationPrCloseError:
+          app.activation_pr_close_error ?? app.activationPrCloseError ?? null,
+      })),
+    },
+  };
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function camelStatusResult(raw: Record<string, unknown>): DeploymentStatus {
+  const apps = (raw.apps ?? []) as Record<string, unknown>[];
+  return {
+    state: raw.state as DeploymentStatus["state"],
+    deployment: raw.deployment
+      ? camelDeployResult({ deployment: raw.deployment }).deployment
+      : undefined,
+    releaseTags: (raw.release_tags ?? raw.releaseTags ?? []) as string[],
+    apps: apps.length
+      ? apps.map((app: Record<string, unknown>) => ({
+          name: app.name as string,
+          releaseTag: (app.release_tag ?? app.releaseTag) as string,
+          releaseReady: Boolean(app.release_ready ?? app.releaseReady),
+          releaseAssets: (app.release_assets ??
+            app.releaseAssets ??
+            []) as string[],
+          releaseAssetDigests: (app.release_asset_digests ??
+            app.releaseAssetDigests ??
+            {}) as Record<string, string>,
+          message: (app.message ?? null) as string | null,
+        }))
+      : undefined,
+    ci: raw.ci
+      ? {
+          status: (raw.ci as Record<string, unknown>).status as
+            | string
+            | undefined,
+          url: (raw.ci as Record<string, unknown>).url as string | undefined,
+          commitHash: ((raw.ci as Record<string, unknown>).commit_hash ??
+            (raw.ci as Record<string, unknown>).commitHash) as
+            | string
+            | undefined,
+        }
+      : undefined,
+    message: raw.message as string | undefined,
+  };
+}
+
+function camelAppSource(raw: unknown): AppSource {
+  const s = (raw ?? {}) as Record<string, any>;
+  return {
+    id: Number(s.id),
+    installationId: Number(s.installation_id),
+    repositoryId: s.repository_id ?? null,
+    repositoryLink: s.repository_link ?? null,
+    sourceRef: s.source_ref ?? null,
+    commitHash: s.commit_hash ?? s.source_ref ?? null,
+    githubAccount: s.github_account ?? null,
+    githubUserId: s.github_user_id ?? null,
+    boundPlatformId: s.bound_platform_id ?? null,
+    boundPlatformName: s.bound_platform_name ?? null,
+    createdBy: s.created_by ?? s.createdBy ?? null,
+    templateRepo: s.template_repo ?? s.templateRepo ?? null,
+    launchSourceKind: s.launch_source_kind ?? s.launchSourceKind ?? null,
+  };
+}
+
+function camelTokenRecord(raw: unknown): TokenRecord {
+  const t = (raw ?? {}) as Record<string, any>;
+  return {
+    id: Number(t.id),
+    scope: t.scope ?? null,
+    appId: t.app_id ?? null,
+    tokenHashPrefix: t.token_hash_prefix ?? "",
+    createdAt: t.created_at ?? null,
+    lastUsedAt: t.last_used_at ?? null,
+    revokedAt: t.revoked_at ?? null,
+    appsUsage: t.apps_usage ?? null,
+    platformUsage: t.platform_usage ?? null,
+  };
+}
+
+function camelPlatformApp(raw: unknown): PlatformApp {
+  const a = (raw ?? {}) as Record<string, any>;
+  return {
+    id: Number(a.id),
+    name: a.name,
+    label: a.label ?? null,
+    platform: a.platform ?? null,
+    isActive: Boolean(a.is_active),
+    isPublic: Boolean(a.is_public),
+    appSourceId: a.app_source_id ?? null,
+    appReleaseTag: a.app_release_tag ?? null,
+    targetTags: a.target_tags ?? [],
+    artifactReady: Boolean(a.artifact_ready ?? a.artifactReady),
+    loaded: Boolean(a.loaded),
+  };
+}
+
+function camelUserSourceLatestDeployment(
+  raw: unknown,
+): UserSource["latestDeployment"] {
+  if (!raw || typeof raw !== "object") return null;
+  const d = raw as Record<string, any>;
+  const apps = (d.apps ?? []) as Record<string, any>[];
+  return {
+    deploymentId: d.deployment_id ?? d.deploymentId ?? d.id ?? null,
+    state: d.state ?? d.status ?? null,
+    deployBranch:
+      d.deploy_branch ?? d.deployBranch ?? d.platform_branch ?? null,
+    platformRepo: d.platform_repo ?? d.platformRepo ?? d.repository ?? null,
+    commitHash: d.commit_hash ?? d.commitHash ?? null,
+    ciStatus: d.ci_status ?? d.ciStatus ?? d.ci?.status ?? null,
+    ciUrl: d.ci_url ?? d.ciUrl ?? d.ci?.url ?? null,
+    ciRunId: d.ci_run_id ?? d.ciRunId ?? null,
+    releaseTags: (d.release_tags ?? d.releaseTags ?? []) as string[],
+    artifactTarget: d.artifact_target ?? d.artifactTarget ?? null,
+    buildTarget: d.build_target ?? d.buildTarget ?? d.target ?? null,
+    apps: apps.map((app) => ({
+      name: app.name,
+      releaseTag: app.release_tag ?? app.releaseTag ?? null,
+      target: app.target ?? null,
+      applicationId: app.application_id ?? app.applicationId ?? null,
+      appSourceId: app.app_source_id ?? app.appSourceId ?? null,
+      appReleaseTag: app.app_release_tag ?? app.appReleaseTag ?? null,
+      isActive: Boolean(app.is_active ?? app.isActive),
+      artifactReady: Boolean(app.artifact_ready ?? app.artifactReady),
+      loaded: Boolean(app.loaded),
+    })),
+  };
+}
+
+function camelUserSource(raw: unknown): UserSource {
+  const s = (raw ?? {}) as Record<string, any>;
+  return {
+    ...camelAppSource(s),
+    apps: ((s.apps ?? []) as unknown[]).map(camelPlatformApp),
+    latestDeployment: camelUserSourceLatestDeployment(
+      s.latest_deployment ?? s.latestDeployment,
+    ),
+  };
 }

@@ -20,14 +20,14 @@
     ],
     "paths": {
       "@portal/*": ["./src/*"],
-      "@aomi-labs/widget-lib": ["../registry/src/index.ts"],
+      "@aomi-labs/widget-lib": ["../shadcn-registry/src/index.ts"],
       "@aomi-labs/widget-lib/providers/*": [
-        "../registry/src/lib/wallet-kit/providers/*"
+        "../shadcn-registry/src/lib/wallet-kit/providers/*"
       ],
-      "@aomi-labs/widget-lib/*": ["../registry/src/*"],
-      "@/components/*": ["../registry/src/components/*"],
-      "@/hooks/*": ["../registry/src/hooks/*"],
-      "@/lib/*": ["../registry/src/lib/*"],
+      "@aomi-labs/widget-lib/*": ["../shadcn-registry/src/*"],
+      "@/components/*": ["../shadcn-registry/src/components/*"],
+      "@/hooks/*": ["../shadcn-registry/src/hooks/*"],
+      "@/lib/*": ["../shadcn-registry/src/lib/*"],
       "@aomi-labs/auth": ["../../packages/auth/src/index.ts"],
       "@aomi-labs/auth/account": ["../../packages/auth/src/account.ts"],
       "@aomi-labs/auth/better-auth": [
@@ -67,5 +67,5 @@
     ".next/types/**/*.ts",
     ".next/dev/types/**/*.ts"
   ],
-  "exclude": ["node_modules"]
+  "exclude": ["node_modules", "**/*.test.ts", "**/*.test.tsx"]
 }

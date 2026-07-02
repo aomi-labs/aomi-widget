@@ -13,7 +13,7 @@ import {
   settingsPageClass,
   settingsPrimaryButtonClass,
   settingsTitleClass,
-} from "./settings-styles";
+} from "@portal/lib/settings-styles";
 
 const EXAMPLE_REPO_URL = "https://github.com/aomi-labs/aomi-app-example";
 

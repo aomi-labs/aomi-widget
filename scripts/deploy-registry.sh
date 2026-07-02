@@ -9,7 +9,7 @@ pnpm run build:registry
 
 echo "Copying to public/r..."
 mkdir -p apps/landing/public/r
-cp -r apps/registry/dist/. apps/landing/public/r/
+cp -r apps/shadcn-registry/dist/. apps/landing/public/r/
 
 echo "Deploying to Vercel production..."
 vercel --prod --scope aomi-labs

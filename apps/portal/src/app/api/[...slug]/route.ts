@@ -1,4 +1,5 @@
 import { createBackendProxy, type AllowedRoute } from "@aomi-labs/account";
+import { launchConfig } from "@portal/server/bff/launch/config";
 
 const ALLOWED_ROUTES: AllowedRoute[] = [
   {
@@ -51,6 +52,17 @@ const ALLOWED_ROUTES: AllowedRoute[] = [
 
 export const { GET, POST, PUT, PATCH, DELETE } = createBackendProxy({
   allowedRoutes: ALLOWED_ROUTES,
+  applyDefaults: (upstreamUrl) => {
+    if (
+      upstreamUrl.pathname !== "/api/session/apps" ||
+      upstreamUrl.searchParams.has("platform")
+    ) {
+      return;
+    }
+    for (const platform of launchConfig().catalogPlatforms) {
+      upstreamUrl.searchParams.append("platform", platform);
+    }
+  },
 });
 
 export const dynamic = "force-dynamic";

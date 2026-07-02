@@ -17,6 +17,8 @@
     "@getpara/evm-wallet-connectors": "2.24.0",
     "@getpara/react-sdk": "2.24.0",
     "@getpara/web-sdk": "2.24.0",
+    "@privy-io/react-auth": "^2.0.0",
+    "@privy-io/wagmi": "^1.0.0",
     "@tanstack/react-query": "^5.90.10",
     "@walletconnect/sign-client": "^2.23.9",
     "next": "16.1.0",

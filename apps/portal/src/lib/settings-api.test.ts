@@ -1,5 +1,4 @@
-import test from "node:test";
-import assert from "node:assert/strict";
+import { describe, expect, it } from "vitest";
 
 type FetchCall = {
   url: string;
@@ -18,44 +17,44 @@ function installLocalStorage() {
   });
 }
 
-test("settingsApiFetch joins same-origin backend URLs as /api paths", async () => {
-  const previousBackendUrl = process.env.NEXT_PUBLIC_BACKEND_URL;
-  const previousFetch = globalThis.fetch;
-  process.env.NEXT_PUBLIC_BACKEND_URL = "/";
-  installLocalStorage();
+describe("settingsApiFetch", () => {
+  it("joins same-origin backend URLs as /api paths", async () => {
+    const previousBackendUrl = process.env.NEXT_PUBLIC_BACKEND_URL;
+    const previousFetch = globalThis.fetch;
+    process.env.NEXT_PUBLIC_BACKEND_URL = "/";
+    installLocalStorage();
 
-  const calls: FetchCall[] = [];
-  Object.defineProperty(globalThis, "fetch", {
-    configurable: true,
-    value: async (url: string, init?: RequestInit) => {
-      calls.push({
-        url,
-        headers: new Headers(init?.headers),
-      });
-      return Response.json({ ok: true });
-    },
-  });
-
-  try {
-    const moduleUrl = new URL("./settings-api.ts", import.meta.url);
-    const { settingsApiFetch } = await import(moduleUrl.href);
-    await settingsApiFetch("/api/account/apps");
-
-    assert.equal(calls[0]?.url, "/api/account/apps");
-    assert.match(
-      calls[0]?.headers.get("X-Session-Id") ?? "",
-      /^(settings-|[0-9a-f-]{36})/,
-    );
-  } finally {
-    if (previousBackendUrl === undefined) {
-      delete process.env.NEXT_PUBLIC_BACKEND_URL;
-    } else {
-      process.env.NEXT_PUBLIC_BACKEND_URL = previousBackendUrl;
-    }
+    const calls: FetchCall[] = [];
     Object.defineProperty(globalThis, "fetch", {
       configurable: true,
-      value: previousFetch,
+      value: async (url: string, init?: RequestInit) => {
+        calls.push({
+          url,
+          headers: new Headers(init?.headers),
+        });
+        return Response.json({ ok: true });
+      },
     });
-    Reflect.deleteProperty(globalThis, "localStorage");
-  }
+
+    try {
+      const { sessionScopedFetch } = await import("./settings-api");
+      await sessionScopedFetch("/api/account/apps");
+
+      expect(calls[0]?.url).toBe("/api/account/apps");
+      expect(calls[0]?.headers.get("X-Session-Id") ?? "").toMatch(
+        /^(settings-|[0-9a-f-]{36})/,
+      );
+    } finally {
+      if (previousBackendUrl === undefined) {
+        delete process.env.NEXT_PUBLIC_BACKEND_URL;
+      } else {
+        process.env.NEXT_PUBLIC_BACKEND_URL = previousBackendUrl;
+      }
+      Object.defineProperty(globalThis, "fetch", {
+        configurable: true,
+        value: previousFetch,
+      });
+      Reflect.deleteProperty(globalThis, "localStorage");
+    }
+  });
 });
