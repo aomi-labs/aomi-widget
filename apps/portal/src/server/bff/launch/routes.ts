@@ -525,6 +525,35 @@ export async function deploymentSecretsRoute(req: Request) {
   }
 }
 
+export async function deploymentActivationsRoute(req: Request) {
+  const blocked = checkRead(req);
+  if (blocked) return blocked;
+
+  const session = await getGitHubSession();
+  if (!session) {
+    return NextResponse.json(
+      { error: "not signed in with GitHub" },
+      { status: 401 },
+    );
+  }
+  const app = new URL(req.url).searchParams.get("app")?.trim();
+  if (!app) {
+    return NextResponse.json({ error: "missing `app`" }, { status: 400 });
+  }
+
+  try {
+    const config = launchConfig();
+    const client = await deploymentClient();
+    const result = await client.listActivations({
+      platform: config.platform,
+      app,
+    });
+    return NextResponse.json(result);
+  } catch (err) {
+    return launchErrorResponse(err);
+  }
+}
+
 export async function deploymentRollbackRoute(req: Request) {
   const blocked = checkWrite(req);
   if (blocked) return blocked;
