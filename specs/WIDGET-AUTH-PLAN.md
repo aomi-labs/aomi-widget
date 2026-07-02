@@ -80,7 +80,7 @@ The code now implements this separation in the portal and widget layer:
 | Linked wallets                    | Shipped in `aomi_wallets`, including SIWE external wallets and provider-attested embedded wallets when REST credentials are configured.            |
 | Account deletion/deactivation     | Shipped at `DELETE /api/aomi/account`; soft-deactivates the user, revokes linked identities/wallets, clears the BetterAuth mapping, and signs out. |
 | Conflict policy                   | Shipped: unclaimed signals link, same-owner signals no-op, other-owner signals return conflict. No merge engine.                                   |
-| MCP approval auth                 | Deprecated. Legacy helpers remain under `packages/auth/src/mcp-approvals/*`, but portal routes and MCP tools no longer depend on them.             |
+| MCP approval auth                 | Removed after deprecation. Portal routes and MCP tools do not depend on legacy auth approval subpaths.                                             |
 | BetterAuth backend JWT            | Shipped in `packages/auth/src/better-auth/backend-jwt.ts`, off by default in the Rust-facing client path.                                          |
 | Rust `aomi_users.id` trust        | Not shipped. This is the main remaining Phase F backend integration.                                                                               |
 | SIWE-only Rust history            | Still anonymous/ephemeral until Rust validates BetterAuth JWTs or ids are unified.                                                                 |
@@ -120,13 +120,6 @@ packages/auth/src/
     siwe-mirror.ts                          # SIWE mirror helper export surface
     wallet-linking.ts                       # HMAC nonce + SIWE wallet-link proof
     wallet-normalization.ts                 # EVM/SVM address normalization + CAIP-10
-  mcp-approvals/
-    # deprecated legacy approval-auth helpers, not mounted by portal
-    api/
-    providers/
-    routes/
-    secret-store/
-    store/
 ```
 
 Portal route mounts:
@@ -198,7 +191,6 @@ flowchart TD
   DB["Postgres<br/>BetterAuth tables + jwks + aomi_*"]
   Rust["Rust backend<br/>existing product API"]
   MCP["MCP runtime<br/>/api/mcp/[transport]"]
-  Legacy["Deprecated MCP approvals<br/>packages/auth/src/mcp-approvals"]
 
   Widget -->|"SIWE nonce/verify<br/>provider exchange<br/>account runtime"| Portal
   Portal --> Better
@@ -209,7 +201,6 @@ flowchart TD
   Portal -->|"BFF proxy, allowlisted routes"| Rust
   Portal -->|"MCP chat + pending tx tools"| MCP
   MCP -->|"backend port"| Rust
-  Legacy -.->|"kept only for old explicit imports"| Rust
 ```
 
 The v1 seam is still real:
@@ -751,25 +742,7 @@ pending_tx
 There are no active `connect_provider`, `connect_app`, `disconnect_provider`,
 or `disconnect_app` tools.
 
-Deprecated package layout:
-
-```text
-packages/auth/src/mcp-approvals/
-  api/{begin,await,lookup,revoke}.ts
-  providers/{dummy,privy,registry,types}.ts
-  routes/{await,begin,callback,start,index}.ts
-  secret-store/be-approvals.ts
-  store/{index,memory}.ts
-  types.ts
-```
-
-The deprecated helpers are still available through explicit legacy package
-subpaths:
-
-```text
-@aomi-labs/auth/mcp-approvals
-@aomi-labs/auth/mcp-approvals/routes
-```
+The deprecated package layout and explicit legacy package subpaths were removed.
 
 Do not confuse this with widget user auth:
 
@@ -777,10 +750,10 @@ Do not confuse this with widget user auth:
 | ------------------------ | ----------------------------- | ------------------------------------------------- |
 | Widget account auth      | Who is this user?             | `/api/auth/*`, `/api/aomi/*`, `@aomi-labs/auth/*` |
 | Active MCP runtime       | What tools can this MCP call? | `/api/mcp/[transport]`, `@aomi-labs/mcp-core`     |
-| Deprecated MCP approvals | May app X use provider Y?     | `@aomi-labs/auth/mcp-approvals/*` only            |
+| Removed MCP approvals    | May app X use provider Y?     | Removed package surface                           |
 
-The deprecated MCP approval helpers no longer share the root auth export, portal
-route aliases, or MCP runtime dependency graph.
+The former MCP approval helpers no longer share the root auth export, package
+subpaths, portal route aliases, or MCP runtime dependency graph.
 
 ---
 
@@ -913,7 +886,7 @@ These are the places where the old plan no longer matched the code:
 7. The BFF proxy is still Rust-facing and does not inject BetterAuth JWTs today.
 8. The client has BetterAuth JWT support, but it is explicitly opt-in and disabled
    by default.
-9. MCP approval auth is now deprecated and unmounted. Legacy exports remain only
-   under `@aomi-labs/auth/mcp-approvals*`.
+9. MCP approval auth was deprecated, unmounted, and then removed from
+   `@aomi-labs/auth`.
 10. The current account runtime computes linked wallet capability from live
     wallet state; capability is not stored in Postgres.

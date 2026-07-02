@@ -48,16 +48,7 @@ export function createPortalAccountAccessTokenProvider(
           "Wallet provider is connected without an exchangeable credential",
         );
       }
-      if ("providerToken" in credential) {
-        return credential;
-      }
-      if (credential.kind === "token") {
-        return {
-          provider: credential.provider,
-          providerToken: credential.token,
-        };
-      }
-      throw new Error("Wallet provider credential cannot be exchanged");
+      return credential;
     },
   });
 }

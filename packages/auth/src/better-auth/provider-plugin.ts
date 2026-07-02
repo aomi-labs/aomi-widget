@@ -3,7 +3,6 @@ import { setSessionCookie } from "better-auth/cookies";
 import type { BetterAuthPlugin } from "better-auth";
 import { z } from "zod";
 import {
-  isVerifiedProviderTokenCredential,
   providerSessionUserSeed,
   verifyProviderCredential,
 } from "../providers/account-credentials";
@@ -15,12 +14,19 @@ import { linkVerifiedProviderCredentialForUser } from "../service/provider-excha
 import { buildAccountResponse } from "../db/queries";
 import type { AomiAccountCredential } from "../types";
 
-const bodySchema = z.object({
-  provider: z.string().min(1),
-  tokenKind: z.string().min(1).optional(),
-  providerToken: z.string().min(1),
-  keyId: z.string().optional(),
-});
+const bodySchema = z.discriminatedUnion("provider", [
+  z.object({
+    provider: z.literal("privy"),
+    tokenKind: z.enum(["identity_token", "access_token"]).optional(),
+    providerToken: z.string().min(1),
+  }),
+  z.object({
+    provider: z.literal("para"),
+    tokenKind: z.literal("session_jwt").optional(),
+    providerToken: z.string().min(1),
+    keyId: z.string().optional(),
+  }),
+]);
 
 export function aomiProviderAuthPlugin(): BetterAuthPlugin {
   return {
@@ -46,10 +52,6 @@ export function aomiProviderAuthPlugin(): BetterAuthPlugin {
                   : "provider_exchange_failed",
             });
           }
-          if (!isVerifiedProviderTokenCredential(verified)) {
-            return ctx.json({ status: "linked" });
-          }
-
           const seed = providerSessionUserSeed(verified);
           const existing = seed.email
             ? await ctx.context.internalAdapter.findUserByEmail(seed.email, {

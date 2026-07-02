@@ -128,15 +128,6 @@ function WidgetAuthE2EPanel() {
     if (!credential) {
       throw new Error("Para did not return a credential");
     }
-    if ("kind" in credential && credential.kind === "cookie") {
-      throw new Error("Cookie credentials cannot be manually exchanged");
-    }
-    const providerToken =
-      "providerToken" in credential
-        ? credential.providerToken
-        : credential.token;
-    const tokenKind =
-      "providerToken" in credential ? credential.tokenKind : credential.kind;
     const exchangePath = walletKit.accountUser
       ? "/api/aomi/provider/exchange"
       : "/api/auth/aomi/provider/exchange";
@@ -146,8 +137,8 @@ function WidgetAuthE2EPanel() {
       credentials: "include",
       body: JSON.stringify({
         provider: credential.provider,
-        tokenKind,
-        providerToken,
+        tokenKind: credential.tokenKind,
+        providerToken: credential.providerToken,
       }),
     });
     const body = await readJsonOrThrow(response, "Para provider exchange");

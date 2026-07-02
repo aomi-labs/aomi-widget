@@ -22,13 +22,11 @@ export type VerifiedProviderTokenCredential = {
   walletAttestationProvider: AttestedWalletProvider;
 };
 
-export type VerifiedProviderCredential =
-  | { provider: "cookie" }
-  | VerifiedProviderTokenCredential;
+export type VerifiedProviderCredential = VerifiedProviderTokenCredential;
 
-type NormalizedProviderCredential =
-  | ({ kind: "provider" } & ProviderTokenCredential)
-  | { kind: "cookie"; provider: "cookie" };
+type NormalizedProviderCredential = {
+  kind: "provider";
+} & ProviderTokenCredential;
 
 export type ProviderTokenCredential = {
   provider: AccountCredentialProvider;
@@ -57,7 +55,6 @@ export async function verifyProviderCredential(
 ): Promise<VerifiedProviderCredential> {
   const options = normalizeVerifyOptions(optionsOrEnv);
   const parsed = normalizeCredential(credential);
-  if (parsed.kind === "cookie") return { provider: "cookie" };
 
   const verifiers =
     options.verifiers ??
@@ -188,34 +185,6 @@ function providerSubjectEmail(
 function normalizeCredential(
   credential: AomiAccountCredential,
 ): NormalizedProviderCredential {
-  if ("kind" in credential && credential.kind === "cookie") {
-    return { kind: "cookie", provider: "cookie" };
-  }
-  if ("kind" in credential && credential.kind === "token") {
-    if (credential.provider === "privy") {
-      return {
-        kind: "provider",
-        provider: "privy",
-        tokenKind: "identity_token",
-        providerToken: credential.token,
-      };
-    }
-    if (credential.provider === "para") {
-      return {
-        kind: "provider",
-        provider: "para",
-        tokenKind: "session_jwt",
-        providerToken: credential.token,
-        keyId: credential.keyId,
-      };
-    }
-    return {
-      kind: "provider",
-      provider: credential.provider,
-      providerToken: credential.token,
-      keyId: credential.keyId,
-    };
-  }
   if (credential.provider === "privy") {
     return {
       kind: "provider",

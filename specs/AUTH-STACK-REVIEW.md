@@ -433,9 +433,8 @@ Four packages, four boundaries:
 - **`@aomi-labs/account`** — backend-canonical-identity + transport boundary (who is this
   user **to the backend** = `users.id`; the proxy + `/api/bff/auth/token`). Targets backend DB.
 - **`@aomi-labs/auth`** — BetterAuth session + account-graph + provider-verification boundary
-  (who is this user **to us** = `aomi_users.id`; login). Targets auth DB. Three subsystems:
-  `better-auth/`, the account graph (`service/`+`db/`+`providers/`), and a deprecated,
-  self-contained `mcp-approvals/` island (only borrows `providers/privy`).
+  (who is this user **to us** = `aomi_users.id`; login). Targets auth DB. The former
+  deprecated, self-contained `mcp-approvals/` island has been removed.
 - **`@aomi-labs/client`** — consumer SDK boundary (runs in browsers; no `@aomi-labs/*` deps,
   no server secrets; only *attaches* a bearer someone else mints).
 
@@ -452,7 +451,6 @@ flowchart TB
   subgraph AUTH["@aomi-labs/auth"]
     BA2["better-auth/<br/>auth · siwe · provider-plugin · env"]
     GRAPH["service/ + db/ + providers/<br/>account graph · aomi_*"]
-    MCP["mcp-approvals/<br/>deprecated island"]
   end
   PORTAL --> ACC
   PORTAL --> CLI2
@@ -462,7 +460,6 @@ flowchart TB
   ACC --> BA2
   ACC --> GRAPH
   BA2 <--> GRAPH
-  MCP -. "borrows providers/privy" .-> GRAPH
 ```
 
 ### File reference (load-bearing auth files)
@@ -480,9 +477,6 @@ verifier), `provider-plugin.ts` (`/aomi/provider/exchange`), `env.ts`, `auth-cli
 `service/provider-exchange.ts`, `service/wallet-linking.ts`, `db/queries.ts`, `db/pool.ts`
 (auth-DB pool), `db/schema.sql` (aomi_* DDL), `providers/{privy,para,account-credentials,
 wallet-attestation,default-wallet-attesters}.ts`, `account.ts` (façade), `types.ts`.
-
-**`@aomi-labs/auth` mcp-approvals/** (deprecated island): `api/*` (begin/await/lookup/revoke),
-`routes/*` (HTTP), `providers/*`, `secret-store/be-approvals.ts`, `store/*`. Extraction/deletion candidate.
 
 **`@aomi-labs/client`:** `client.ts` (`AomiClient` + `wrapFetchWithAccountBearer`),
 `account-session.ts` (browser bearer provider; first-mint `subscribe` bug), `cli/auth.ts`
@@ -518,7 +512,7 @@ UUID bridge; backend find-only `DbUser::get` (never creates); multi-class routes
 | 🟠 Hygiene | Purge dev Ed25519 private key from git history (`7e03d36a`) if public PR | Dev-only + rotated, but mints valid dev bearers | git history |
 | ✅ Done | Fix `apps/portal/service.portal.toml` stale key; collapse duplicate dev BFF key in `product-mono/service.toml` | Wrong key silently 401s a fresh dev | `service.portal.toml`, `product-mono/service.toml` |
 | 🟠 Hygiene | Decide committed `packages/react/dist/` policy (build-on-install vs keep) | Churns committed artifacts every lib change | `packages/react/dist` |
-| 🟡 Cleanup | Extract/delete deprecated `mcp-approvals/` island; schedule live DB drop for former dormant `jwks` table | Self-contained dead weight; no active `jwt()` plugin | `packages/auth/src` |
+| ✅ Done | Delete deprecated `mcp-approvals/` island | Self-contained dead weight with no active source consumers | `packages/auth/src` |
 | 🟡 Cleanup | Tech-debt: `is_connected` conflates wallet-connected vs backend-authenticated; first-mint `subscribe` never fires (`previous===null`) | Retry-backoff is a workaround for #1; SSE misses first auth-ready | `user-state-provider.tsx`, `account-session.ts` |
 | 🟡 Cleanup | Deferred perf: proxy hot-path cache (`getSession` + 2 DB writes per proxied call); thread-list refetch storm (`wasConnectedRef`) | Every `/api/state` poll re-resolves the session | `session.ts`, `user-state-provider.tsx` |
 | 🟡 Cleanup | CLI: default `baseUrl` to portal (or add explicit portal flag); friendly `whoami`/`wallet whoami` 401; consider encrypting stored keys | Login silently needs a portal override; keys in plaintext | `packages/client/src/cli` |
@@ -729,9 +723,9 @@ it goes and update `specs/STATE.md`.
 
 ### E. Dead-code / slop (§9)
 
-- [ ] Extract or delete the deprecated `mcp-approvals/` island (`packages/auth/src/mcp-approvals/*`).
+- [x] Delete the deprecated `mcp-approvals/` island.
 - [ ] Trim the wallet-attestation indirection (`providers/wallet-attestation.ts`, `default-wallet-attesters.ts`) — PR #615 confirms no attestation table is needed; the nullable FK covers provenance.
-- [ ] Remove the type-only `capability` field; collapse `AomiAccountCredential` to the live privy+para shapes.
+- [x] Remove the type-only `capability` field; collapse `AomiAccountCredential` to the live privy+para shapes.
 - [ ] Decide committed `packages/react/dist/` policy (build-on-install vs keep).
 
 ### F. Docs (§9)
