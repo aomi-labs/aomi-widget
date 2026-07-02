@@ -9,23 +9,21 @@ review_after_days: 7
 
 # Markdown Inventory
 
-- Indexed markdown files: 33
-- Excluded markdown files: 304
+- Indexed markdown files: 36
+- Excluded markdown files: 301
 
 ## Reasons
-
-- `indexed`: 33
-- `missing-rule`: 1
-- `not-included`: 303
+- `indexed`: 36
+- `not-included`: 301
 
 ## Indexed Files
-
 - `AGENTS.md` via `root-guidance`
 - `README.md` via `root-readme`
 - `docs/generated/markdown-inventory.md` via `generated`
 - `docs/generated/repo-inventory.md` via `generated`
 - `docs/generated/userstate-shape-reference.md` via `generated`
 - `docs/index.md` via `docs-index`
+- `docs/local-dev-stack.md` via `local-dev-stack`
 - `docs/topics/apps/facts/app-surfaces.md` via `topics`
 - `docs/topics/apps/facts/widget-frame.md` via `topics`
 - `docs/topics/auth/facts/auth.md` via `topics`
@@ -35,7 +33,9 @@ review_after_days: 7
 - `docs/topics/client-runtime/facts/react-runtime.md` via `topics`
 - `docs/topics/client-runtime/facts/transport-client.md` via `topics`
 - `docs/topics/development/facts/workspace.md` via `topics`
+- `docs/topics/index.md` via `topics-index`
 - `specs/AA-ARCH.md` via `specs`
+- `specs/AUTH-STACK-REVIEW.md` via `specs`
 - `specs/DOMAIN.md` via `specs`
 - `specs/MERGE-BFF-BETTERAUTH-FIXES.md` via `specs`
 - `specs/METADATA.md` via `specs`
@@ -55,7 +55,6 @@ review_after_days: 7
 - `specs/portal-widget-lib-unification.md` via `specs`
 
 ## Excluded Files
-
 - `.claude/commands/cleanup-md.md` (not-included)
 - `.claude/commands/read-specs.md` (not-included)
 - `.claude/commands/sync-today.md` (not-included)
@@ -316,7 +315,6 @@ review_after_days: 7
 - `.specstory/history/2025-11-28_06-48Z-publishing-an-npm-library.md` (not-included)
 - `AOMI-FRAME-COMPONENT-TREE.md` (not-included)
 - `CLAUDE.md` (not-included)
-- `HANDOFF-LOCAL-BACKEND.md` (not-included)
 - `MIGRATION-PLAN-CLAUDE.md` (not-included)
 - `apps/base/README.md` (not-included)
 - `apps/landing/README.md` (not-included)
@@ -339,12 +337,10 @@ review_after_days: 7
 - `apps/portal/README.md` (not-included)
 - `apps/registry/SHADCN-FETCH-GUIDE.md` (not-included)
 - `docs/krexa-wallet.md` (not-included)
-- `docs/local-merged-bff-betterauth-stack.md` (not-included)
 - `docs/playground-deploy.md` (not-included)
 - `docs/superpowers/plans/2026-05-29-multiwallet-per-family-picker.md` (not-included)
 - `docs/superpowers/specs/2026-05-29-multiwallet-per-family-picker-design.md` (not-included)
 - `docs/test-mcp-claude.md` (not-included)
-- `docs/topics/index.md` (missing-rule)
 - `fill-sol-gap.md` (not-included)
 - `memory/2026-03-31.md` (not-included)
 - `memory/2026-04-10.md` (not-included)

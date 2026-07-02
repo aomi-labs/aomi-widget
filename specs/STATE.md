@@ -2,9 +2,21 @@
 
 ## Last Updated
 
-2026-07-01 - Portal client token provider now conditional (dead weight gone in same-origin proxy mode); verified via full auth-stack smoke + real CLI e2e.
+2026-07-02 - Auth docs cleanup: consolidated local stack handoff, refreshed JWT/JWKS-stale auth plan text, and updated repowiki/auth fact references.
 
 ## Recent Changes
+
+### Auth docs cleanup pass (2026-07-02)
+
+Branch `codex/merge-bff-betterauth`. Consolidated the stale root
+`HANDOFF-LOCAL-BACKEND.md` and `docs/local-merged-bff-betterauth-stack.md` into
+`docs/local-dev-stack.md`, removing the old `bff-unification` worktree and HS256
+`aomi_session` local-stack story. Refreshed `specs/WIDGET-AUTH-PLAN.md` so the
+surviving auth plan describes the live BetterAuth session -> BFF AccountBearer
+architecture instead of deleted BetterAuth backend JWT/JWKS or legacy provider
+exchange paths. Updated auth fact docs, docs indexes, repowiki globs, and
+generated UserState references to point at the live `wallet-kit` / `aomi-account`
+paths. The §13-A schema rename and provider-provenance FK work remains deferred.
 
 ### Portal client-token-provider dead-weight cleanup (2026-07-01)
 

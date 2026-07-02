@@ -1,4 +1,5 @@
-Let me re-read the current state of the providers and runtime-user-sync to ensure the table is accurate:
+This generated reference tracks the final `UserState` shape synced by wallet-kit,
+CLI, and session transaction paths.
 
 # Final UserState shape — synced via all paths
 
@@ -25,7 +26,7 @@ Two tables: **(A)** connect-time state, **(B)** post-tx mutations. All values sh
 | `ext.client_type`    | `"ts_cli"` | `"ts_cli"`      | `"web_ui"`        | `"web_ui"`        | `"web_ui"`         | `"web_ui"`       | `"web_ui"`         | `"web_ui"`       | `"web_ui"`   | –       |
 
 Legend: `–` = field absent from snapshot (not normalized into UserState).  
-`null` = field explicitly set to null by `runtime-user-sync` to clear stale state.
+`null` = field explicitly set to null by wallet-kit sync or session state to clear stale state.
 
 \* Other valid `auth_method` values: `"apple" | "facebook" | "x" | "discord" | "github" | "farcaster" | "telegram" | "email" | "phone" | "basic_login"`.  
 ‡ Para Solana-only only captures `auth_method` if the user went through OAuth; otherwise undefined.  
@@ -36,7 +37,7 @@ Legend: `–` = field absent from snapshot (not normalized into UserState).
 
 Only `aa_mode`, `wallet_kind`, `smart_account_4337`, `delegation_7702` can change after a tx. Everything else stays.
 
-| Scenario                                    | tx kind                                          | After-tx writes ([session.ts:445-453](packages/client/src/session.ts:445))                                                            |
+| Scenario                                    | tx kind                                          | After-tx writes ([wallet.ts:324-352](packages/client/src/session/wallet.ts:324))                                                       |
 | ------------------------------------------- | ------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------- |
 | **Base Account**                            | single or batched (always 4337)                  | `aa_mode: "4337"`, `wallet_kind: "smart-account"`, `smart_account_4337: <addr>` (= `address`), `delegation_7702: null`                |
 | **Para+OAuth, embedded signer, single tx**  | EOA path                                         | `aa_mode: "none"`, `wallet_kind: "eoa"`, `smart_account_4337: null`, `delegation_7702: null`                                          |
@@ -52,13 +53,20 @@ Only `aa_mode`, `wallet_kind`, `smart_account_4337`, `delegation_7702` can chang
 
 | Source                                                                                                                                                                                                    | Writes                                                                                                                                              | Read by                                |
 | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------- |
-| Wallet kit providers ([para.tsx:506-521](apps/registry/src/lib/aomi-wallet-kit/providers/para.tsx:506), [base-account.tsx:188-209](apps/registry/src/lib/aomi-wallet-kit/providers/base-account.tsx:188)) | `AomiSessionIdentity` fields including `SmartAccount4337` / `Delegation7702` (from local `resolvedAA` state, captured in `sendTransaction` wrapper) | UI (connect button, etc.)              |
-| `AomiWalletKitSync` ([runtime-user-sync.tsx:21-49](apps/registry/src/lib/aomi-wallet-kit/runtime-user-sync.tsx:21))                                                                                       | Pushes identity → UserState via `setUser` (camelCase normalized)                                                                                    | Backend (via `AomiClient.sendMessage`) |
-| `session.ts:445-453` tx-complete handler                                                                                                                                                                  | Writes UserState directly with same per-tx result                                                                                                   | Backend                                |
+| Wallet kit identity builders ([build-identity.ts](apps/registry/src/lib/wallet-kit/composer/build-identity.ts)) | Build `AomiSessionIdentity` from connected EVM/SVM provider state, auth metadata, and sponsorship metadata. | UI (connect button, picker, account rows) |
+| `AomiWalletKitSync` ([context.tsx:41-84](apps/registry/src/lib/wallet-kit/context.tsx:41)) | Pushes wallet/provider identity into `UserState` via `setUser`; deliberately does not forward per-tx AA fields. | Backend (via `AomiClient.sendMessage`) |
+| Transaction completion handler ([wallet.ts:324-352](packages/client/src/session/wallet.ts:324)) | Writes `aa_mode`, `smart_account_4337`, and `delegation_7702` directly from the tx result. | Backend and UI state |
 
-**Convergence:** both writers operate on the **same** `result.SmartAccount4337` / `result.Delegation7702` from `executeWalletKitTransaction`, on the same render tick. The reducer in `setUser` ([user-context.tsx:76-108](packages/react/src/contexts/user-context.tsx:76)) merges by key — last-writer-wins per field, but values match either way.
+**Convergence:** wallet-kit sync owns connection/auth/sponsorship identity, while
+the session transaction controller owns per-tx AA outputs. This avoids a
+UserState -> identity -> setUser write loop for `smart_account_4337` and
+`delegation_7702`.
 
-**Reset on context change:** identity's `resolvedAA` is cleared by `useEffect(() => setResolvedAA(null), [address, chainId])` in each provider; UserState's `smart_account_4337` / `delegation_7702` are preserved by the reconciler **only when address matches** ([types.ts:303-317](packages/client/src/types.ts:303)).
+**Reset on context change:** `ExtUserProvider.setUser` drops address-scoped
+wallet and AA state on disconnect or connected address changes
+([ext-user-context.tsx:146-178](packages/react/src/contexts/ext-user-context.tsx:146)).
+`UserState.normalize` accepts flat or nested AA fields and normalizes them under
+`evm.aa` ([normalize.ts:121-132](packages/client/src/user-state/normalize.ts:121)).
 
 ## D. Fields the client forwards but never originates
 
@@ -67,4 +75,4 @@ Only `aa_mode`, `wallet_kind`, `smart_account_4337`, `delegation_7702` can chang
 | `pending_txs`, `pending_eip712s`, `pending_solana_txs`, `next_id` | Backend pushes in `AomiStateResponse.user_state` or `AomiChatResponse.user_state`   | In-flight wallet requests; consumed by `pendingTxsFromBackendUserState` etc. |
 | `ens_name`                                                        | SDK consumer via `setUser({ ensName })` if integrated; no current path populates it | Display name for connected wallet                                            |
 
-These are typed in the interface for documentation and forwarding fidelity; the reconciler ([types.ts:319-326](packages/client/src/types.ts:319)) preserves `ens_name` under the AA-context rules.
+These are typed in the interface for documentation and forwarding fidelity.

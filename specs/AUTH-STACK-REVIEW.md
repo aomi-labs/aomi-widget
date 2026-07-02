@@ -518,9 +518,9 @@ UUID bridge; backend find-only `DbUser::get` (never creates); multi-class routes
 | 🟡 Cleanup | CLI: default `baseUrl` to portal (or add explicit portal flag); friendly `whoami`/`wallet whoami` 401; consider encrypting stored keys | Login silently needs a portal override; keys in plaintext | `packages/client/src/cli` |
 | 🟡 Cleanup | Vestigial: `capability` field (type-only); `AomiAccountCredential` has 4 shapes, only privy+para live; `packages/auth/src/index.ts` exports only `./types` | Low-grade cruft / near-empty package root | `packages/auth/src/types.ts`, `index.ts` |
 | 📘 Docs | Refresh `DOMAIN.md`/`METADATA.md` (endpoints `/api/session/*`; `AomiClient`/`ClientSession` in `@aomi-labs/client`; real cookie name `better-auth.session_token`; no polling/message-controller files) | The "read on session start" docs are stale | `specs/` |
-| 📘 Docs | Empty stale scaffolding in portal: `src/app/auth/`, `src/app/auth/privy/`, `src/app/api/mcp-auth/**` (no route files) | Leftover from earlier MCP-auth/Privy design | `apps/portal/src/app` |
-| 📘 Docs | Stale content docs: `docs/topics/clients/facts/ts-client.md` still documents the old Privy `account login`; `rust-cli.md`; `docs/topics/auth/facts/*` | Describe replaced flows | `docs/topics` |
-| 📘 Docs | §9 items from the fix checklist still open (consolidate `HANDOFF-LOCAL-BACKEND.md` + `docs/local-merged-bff-betterauth-stack.md`; delete executed plan specs; final grep for dead `.md` links) | Docs hygiene before merge | repo-wide |
+| ✅ Done | Empty stale scaffolding in portal: `src/app/auth/`, `src/app/auth/privy/`, `src/app/api/mcp-auth/**` | Verified absent in this worktree; live auth routes are `/api/auth/[...all]`, `/api/aomi/*`, and `/api/bff/auth/token` | `apps/portal/src/app` |
+| ✅ Done | Stale content docs: `docs/topics/clients/facts/ts-client.md`, `rust-cli.md`, `docs/topics/auth/facts/*` | Old client docs are absent; auth facts now describe the BetterAuth session -> BFF AccountBearer path and Base Account as compatibility wallet-kit surface | `docs/topics` |
+| 📘 Docs | Remaining optional docs pruning: executed wallet/refactor plan specs can still be deleted or archived after merge if desired | This pass consolidated the local stack docs and fixed dead links/indexes, but did not delete broader wallet-history specs | repo-wide |
 
 ---
 
@@ -731,7 +731,11 @@ it goes and update `specs/STATE.md`.
 ### F. Docs (§9)
 
 - [x] Refresh `DOMAIN.md` / `METADATA.md` (endpoints; `AomiClient` / `ClientSession` in `@aomi-labs/client`; real cookie name `better-auth.session_token`).
-- [ ] Delete empty stale scaffolding (`apps/portal/src/app/auth/*`, `api/mcp-auth/**`) + stale content docs (ts-client Privy login, rust-cli, `docs/topics/auth/facts/*`). Verified 2026-07-02: the scaffold paths plus `ts-client.md`/`rust-cli.md` are already absent; remaining auth fact docs are still indexed by repowiki/docs and were not deleted.
+- [x] Delete empty stale scaffolding (`apps/portal/src/app/auth/*`, `api/mcp-auth/**`) + stale content docs (ts-client Privy login, rust-cli, `docs/topics/auth/facts/*`). Verified 2026-07-02: the scaffold paths plus `ts-client.md`/`rust-cli.md` are already absent; remaining auth fact docs are repowiki-indexed and now describe the live BetterAuth/BFF/wallet-kit architecture.
+- [x] Consolidate `HANDOFF-LOCAL-BACKEND.md` and `docs/local-merged-bff-betterauth-stack.md` into `docs/local-dev-stack.md`; remove the stale HS256 `aomi_session` / `bff-unification` handoff.
+- [x] Refresh `WIDGET-AUTH-PLAN.md` stale BetterAuth JWT/JWKS and legacy provider-exchange sections so it matches the live BFF AccountBearer architecture.
+- [x] Fix repowiki/index references for moved local stack docs and old auth code globs (`aomi-auth` / `aomi-wallet-kit`).
+- [ ] Optional later cleanup: delete or archive broader executed wallet/refactor plan specs after merge.
 
 ### G. Merge gate — two repos (§10, §12)
 

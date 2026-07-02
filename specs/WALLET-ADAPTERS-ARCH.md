@@ -1,8 +1,16 @@
 # Wallet Adapter Architecture
 
-This document describes the current widget wallet adapter architecture. It
+> Historical reference. This May 2026 architecture snapshot predates the
+> wallet-kit path cleanup (`apps/registry/src/lib/aomi-wallet-kit/*` ->
+> `apps/registry/src/lib/wallet-kit/*`) and several later auth-stack changes.
+> Use `specs/DOMAIN.md`, `specs/WIDGET-AUTH-PLAN.md`, and
+> `docs/topics/auth/facts/wallet-kit.md` for the live architecture. Keep this
+> file for migration rationale until the broader executed wallet plan specs are
+> deleted or archived after merge.
+
+This document describes the May 2026 widget wallet adapter architecture. It
 covers the registry wallet kit, provider implementations, runtime transaction
-bridge, and client AA executor.
+bridge, and client AA executor as they existed at that snapshot.
 
 **Last Updated:** 2026-05-03
 
@@ -15,7 +23,7 @@ The widget wallet layer is provider-based. UI components consume a single
 connection, identity, signing, transaction submission, and account-abstraction
 details.
 
-The current architecture supports:
+That snapshot supported:
 
 - Para-backed auth through `AomiParaPluginProvider` / `AomiParaProvider`.
 - Base Account auth through `AomiBaseAccountProvider`.

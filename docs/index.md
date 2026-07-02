@@ -24,6 +24,7 @@ sources_of_truth:
 - [topics/index.md](topics/index.md): curated topic list
 - [generated/repo-inventory.md](generated/repo-inventory.md): generated workspace inventory
 - [generated/markdown-inventory.md](generated/markdown-inventory.md): generated markdown inventory
+- [local-dev-stack.md](local-dev-stack.md): local BFF/BetterAuth stack setup
 - [../specs/DOMAIN.md](../specs/DOMAIN.md): architecture and runtime invariants
 - [../specs/METADATA.md](../specs/METADATA.md): environment and package reference
 

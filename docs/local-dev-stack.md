@@ -1,7 +1,10 @@
-# Local Merged BFF/BetterAuth Stack
+# Local Dev Stack
 
 This is the quick path for testing the merged `codex/merge-bff-betterauth`
-portal in this repo, not the older sibling `aomi-bff-unification` worktree.
+portal in this repo against the local Rust backend in sibling `product-mono`.
+It replaces the older root `HANDOFF-LOCAL-BACKEND.md` scratch handoff, which
+described the pre-merge `bff-unification` worktree and the removed HS256
+`aomi_session` path.
 
 ## Start
 
@@ -40,7 +43,7 @@ tail -f /tmp/aomi-backend.log
 - Ensures `aomi_local` exists.
 - Applies product-mono migrations only if the backend `users` table is missing.
 - Applies `packages/auth/src/db/schema.sql` for `aomi_users`,
-  `aomi_auth_identities`, `aomi_wallets`, and `jwks`.
+  `aomi_auth_identities`, `aomi_wallets`, and `aomi_account_events`.
 - Runs Better Auth's migration helper so `"user"`, `"session"`, `"account"`,
   `"verification"`, and `"walletAddress"` exist.
 - Overrides the portal runtime `DATABASE_URL` to
@@ -65,13 +68,47 @@ pnpm run dev:auth-stack:stop     # stop the tmux sessions and free ports
 - OrbStack/Supabase is running and exposes `supabase_db_aomi-api-e2e-supabase`
   on `127.0.0.1:54322`.
 - `../product-mono/run-local-backend.sh` exists and points the backend at
-  `aomi_local`.
-- `../product-mono` keeps the local backend patches described in
-  `HANDOFF-LOCAL-BACKEND.md`, especially the patch that makes the backend honor
-  `DATABASE_URL`.
+  `aomi_local`. A minimal launcher sources `../product-mono/.env.dev`, overrides
+  `DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:54322/aomi_local`,
+  sets `BACKEND_HOST=127.0.0.1` and `BACKEND_PORT=8080`, then runs
+  `cargo run -p backend` from `../product-mono/aomi`.
+- `../product-mono` keeps any local backend-only development patches needed for
+  this stack, especially the patch that makes the backend honor `DATABASE_URL`.
+  Do not commit those from this repo.
 - `apps/portal/.env.local` has the local backend and auth values, including
   `AOMI_PROXY_BACKEND_URL=http://127.0.0.1:8080` and
   `PORTAL_SERVICE_PRIVATE_KEY`.
+
+## Auth Contract
+
+The live local path is:
+
+```text
+browser or CLI -> portal BFF -> Rust backend
+```
+
+Browsers authenticate to the portal with the `better-auth.session_token` cookie.
+The TypeScript CLI signs in through Better Auth SIWE and sends the opaque
+Better Auth bearer session token to the portal. The portal BFF resolves either
+session carrier to the canonical Aomi user, mints a short-lived EdDSA
+`AccountBearer` with `iss=aomi-bff` and `aud=aomi-backend`, strips browser
+cookies and incoming client `Authorization`, then forwards the trusted bearer to
+the backend. The backend verifies only; it does not mint this bearer.
+
+The removed local handoff's HS256 `aomi_session`, `/api/auth/token`, and local
+BetterAuth JWT/JWKS path are no longer part of this stack.
+
+## Product-Mono Notes
+
+The sibling backend needs the same service public key that matches this repo's
+`packages/account/src/topology-data.ts` dev `aomi-bff-dev-1` entry. Keep the
+private half only in local environment or a secret manager as
+`PORTAL_SERVICE_PRIVATE_KEY`.
+
+If backend startup or chat generation fails, check the sibling backend's local
+model/env overrides. The historical handoff noted that only OpenRouter-backed
+models were reliable in that local environment, and that `.env.dev` should be
+sourced by the shell rather than hand-parsed because values may be quoted.
 
 ## Sanity Checks
 
