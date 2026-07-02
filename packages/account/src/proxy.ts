@@ -5,14 +5,14 @@ import { getSessionedCanonicalId } from "./session";
 
 /**
  * The shared same-origin proxy that fronts the Rust backend and **injects the
- * AccountBearer server-side** from the `aomi_session` cookie (Option 2). Every
- * Aomi BFF (portal, base, landing) mounts this with its own route allowlist; the
+ * AccountBearer server-side** from the Better Auth session cookie. Every Aomi
+ * BFF (portal, base, landing) mounts this with its own route allowlist; the
  * machinery — header filtering, upstream forwarding, bearer minting, SSE — is
  * identical, only the policy (`allowedRoutes`) and a couple of hooks differ.
  *
- * The browser holds no bearer: it calls `/api/*` same-origin, this handler reads
- * `aomi_session`, mints `sub` = canonical user id, and forwards with
- * `Authorization` set. See
+ * The browser holds no bearer: it calls `/api/*` same-origin, this handler
+ * resolves the `better-auth.session_token` cookie, mints `sub` = canonical user
+ * id, and forwards with `Authorization` set. See
  * docs/topics/account-authentication/facts/service-identity.md ("Transport").
  */
 const HOP_BY_HOP_HEADERS = new Set([
@@ -125,9 +125,10 @@ function copyRequestHeaders(req: NextRequest): Headers {
 
 /**
  * Inject `Authorization: Bearer <AccountBearer>` minted from the session, when
- * the request carries a valid `aomi_session` cookie. No session → forward
- * unauthenticated (the backend treats it as anonymous). A misconfigured signer
- * degrades to anonymous + a warning rather than failing every API call.
+ * the request carries a valid `better-auth.session_token` cookie. No session →
+ * forward unauthenticated (the backend treats it as anonymous). A
+ * misconfigured signer degrades to anonymous + a warning rather than failing
+ * every API call.
  */
 async function injectBearer(req: NextRequest, headers: Headers): Promise<void> {
   const canonicalId = await getSessionedCanonicalId(req);

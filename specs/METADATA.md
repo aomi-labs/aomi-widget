@@ -1,220 +1,159 @@
 # Project Metadata
 
-## Package
+## Packages
 
-- Name: `@aomi-labs/react`
-- Purpose: AI assistant widget for onchain apps (React component wrapping Assistant UI)
+| Package | Purpose |
+| --- | --- |
+| `@aomi-labs/react` | React runtime provider, contexts, hooks, and public widget integration surface |
+| `@aomi-labs/client` | `AomiClient`, `ClientSession`/`Session`, CLI, user-state types, wallet helpers, AA helpers |
+| `@aomi-labs/auth` | Better Auth setup, SIWE/provider exchange, account graph helpers, provider wallet sync |
+| `@aomi-labs/account` | Account bearer minting, service topology, shared same-origin backend proxy |
+| `@aomi-labs/widget-lib` | Registry UI components and wallet-kit provider adapters |
 
 ## Stack
 
 - React 19 / Next.js 15 / TypeScript
 - `@assistant-ui/react` for chat primitives
 - Radix UI + Tailwind CSS 4 for styling
-- `tsup` for library bundling
+- Better Auth for browser/device sessions
+- `tsup` for publishable package bundles
 
-## Visual Layout Diagram
+## Package Entrypoints
 
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                            AomiFrame.Root                                   │
-│  ┌──────────────────────┐  ┌──────────────────────────────────────────────┐ │
-│  │  ThreadListSidebar   │  │              SidebarInset                    │ │
-│  │  ┌────────────────┐  │  │  ┌────────────────────────────────────────┐  │ │
-│  │  │ SidebarHeader  │  │  │  │           AomiFrame.Header             │  │ │
-│  │  │ ┌────────────┐ │  │  │  │ ┌─────┐ ┌───────────────────┐ ┌─────┐  │  │ │
-│  │  │ │    Logo    │ │  │  │  │ │ ☰   │ │    ControlBar     │ │Title│  │  │ │
-│  │  │ └────────────┘ │  │  │  │ └─────┘ │ Model│Agent│🔑│👛 │ └─────┘  │  │ │
-│  │  │ [WalletConnect]│  │  │  │         └───────────────────┘          │  │ │
-│  │  └────────────────┘  │  │  └────────────────────────────────────────┘  │ │
-│  │  ┌────────────────┐  │  │  ┌────────────────────────────────────────┐  │ │
-│  │  │  ThreadList    │  │  │  │          AomiFrame.Composer            │  │ │
-│  │  │  ┌──────────┐  │  │  │  │  ┌──────────────────────────────────┐  │  │ │
-│  │  │  │ Thread 1 │  │  │  │  │  │                                  │  │  │ │
-│  │  │  ├──────────┤  │  │  │  │  │           Message List           │  │  │ │
-│  │  │  │ Thread 2 │  │  │  │  │  │         (Thread component)       │  │  │ │
-│  │  │  ├──────────┤  │  │  │  │  │                                  │  │  │ │
-│  │  │  │ Thread 3 │  │  │  │  │  │    ┌─────────────────────────┐   │  │  │ │
-│  │  │  └──────────┘  │  │  │  │  │    │     User Message        │   │  │  │ │
-│  │  └────────────────┘  │  │  │  │    └─────────────────────────┘   │  │  │ │
-│  │  ┌────────────────┐  │  │  │  │    ┌─────────────────────────┐   │  │  │ │
-│  │  │ SidebarFooter  │  │  │  │  │    │   Assistant Message     │   │  │  │ │
-│  │  │ [WalletConnect]│  │  │  │  │    └─────────────────────────┘   │  │  │ │
-│  │  └────────────────┘  │  │  │  │                                  │  │  │ │
-│  └──────────────────────┘  │  │  │  ┌──────────────────────────────────┐  │ │
-│                            │  │  │  │           Composer               │  │ │
-│                            │  │  │  │  ┌────────────────────────┐ ┌──┐ │  │ │
-│                            │  │  │  │  │  Type a message...     │ │➤ │ │  │ │
-│                            │  │  │  │  └────────────────────────┘ └──┘ │  │ │
-│                            │  │  │  └──────────────────────────────────┘  │ │
-│                            │  │  └────────────────────────────────────┘  │ │
-│                            │  └──────────────────────────────────────────┘ │
-└─────────────────────────────────────────────────────────────────────────────┘
-
-ControlBar Components:
-┌───────────────────────────────────────────────────────────────────────────┐
-│  ┌─────────────┐  ┌─────────────┐  ┌────┐  ┌─────────────────┐            │
-│  │ ModelSelect │  │NamespaceSelect│  │ 🔑 │  │  WalletConnect │ {children} │
-│  │  (dropdown) │  │  (dropdown)   │  │    │  │   (button)     │            │
-│  └─────────────┘  └───────────────┘  └────┘  └─────────────────┘            │
-│                                      ApiKey                                │
-│                                      Input                                 │
-└───────────────────────────────────────────────────────────────────────────┘
-```
-
-### Component Hierarchy
-
-```
-AomiFrame (DefaultLayout)
-├── AomiFrame.Root
-│   ├── AomiRuntimeProvider (context)
-│   ├── SidebarProvider (context)
-│   ├── ThreadListSidebar
-│   │   ├── SidebarHeader (Logo + optional WalletConnect)
-│   │   ├── ThreadList
-│   │   └── SidebarFooter (optional WalletConnect)
-│   └── SidebarInset
-│       ├── AomiFrame.Header
-│       │   ├── SidebarTrigger (hamburger menu)
-│       │   ├── ControlBar
-│       │   │   ├── ModelSelect
-│       │   │   ├── NamespaceSelect
-│       │   │   ├── ApiKeyInput
-│       │   │   └── WalletConnect
-│       │   └── Breadcrumb (thread title)
-│       └── AomiFrame.Composer
-│           └── Thread (messages + composer input)
-```
+| Package | Main exports |
+| --- | --- |
+| `@aomi-labs/react` | `AomiRuntimeProvider`, runtime hooks, handlers, re-exported `AomiClient`/client types |
+| `@aomi-labs/client` | `AomiClient`, `Session` (`ClientSession`), `createAccountAccessTokenProvider`, CLI entrypoint |
+| `@aomi-labs/auth/account` | account-service/provider-exchange helpers used by portal routes |
+| `@aomi-labs/auth/better-auth` | Better Auth server and client setup |
 
 ## Directory Structure
 
 ```
-packages/react/src/
-├── index.ts                      # Public exports
-├── interface.tsx                 # AomiRuntimeApi type and useAomiRuntime hook
-├── backend/
-│   ├── client.ts                 # AomiClient HTTP client
-│   └── types.ts                  # API response types
-├── contexts/
-│   ├── control-context.tsx       # Model/namespace/apiKey state (per-thread)
-│   ├── event-context.tsx         # Event system (SSE + system events)
-│   ├── user-context.tsx          # User/wallet state
-│   ├── thread-context.tsx        # Thread state management
-│   └── notification-context.tsx  # Toast notifications
-├── handlers/
-│   ├── wallet-handler.ts         # useWalletHandler hook
-│   └── notification-handler.ts   # useNotificationHandler hook
-├── runtime/
-│   ├── aomi-runtime.tsx          # Provider shell (contexts)
-│   ├── core.tsx                  # Runtime logic (syncs isRunning → threadMetadata)
-│   ├── threadlist-adapter.ts     # Thread list adapter builder
-│   ├── orchestrator.ts           # Coordinates polling + messages
-│   ├── polling-controller.ts     # Polling state machine
-│   ├── message-controller.ts     # Message send/receive
-│   └── utils.ts                  # Message conversion, wallet helpers
-├── state/
-│   ├── backend-state.ts          # Backend sync state
-│   ├── thread-store.ts           # ThreadStore class, ThreadMetadata, ThreadControlState
-│   └── event-buffer.ts           # Event queue
+packages/client/src/
+├── client.ts                      # AomiClient HTTP/SSE transport
+├── session.ts                     # ClientSession re-export
+├── session/                       # ClientSession implementation and wallet controller
+├── account-session.ts             # Optional BFF bearer provider for cross-origin clients
+├── user-state/                    # UserState normalization and accessors
+├── wallet-utils.ts                # Wallet request payload normalization
+└── cli/                           # aomi CLI
 
-apps/registry/src/                # UI components (AomiFrame, Thread, etc.)
-├── components/control-bar/       # ModelSelect, NamespaceSelect, ApiKeyInput, WalletConnect
-apps/landing/                     # Demo Next.js app
-dist/                             # Build output
+packages/react/src/
+├── index.ts                       # Public React package exports
+├── interface.tsx                  # AomiRuntimeApi type and hooks
+├── contexts/                      # User, event, thread, notification, control contexts
+├── handlers/                      # useWalletHandler, useNotificationHandler
+└── runtime/                       # React shell around AomiClient + ClientSession
+
+packages/auth/src/
+├── better-auth/                   # Better Auth config, SIWE, provider plugin, env
+├── providers/                     # Privy/Para token verification and embedded-wallet listing
+├── service/                       # account-service, provider-exchange, wallet-linking
+└── db/                            # Auth/account graph schema and queries
+
+packages/account/src/
+├── bearer.ts                      # AccountBearer minting
+├── proxy.ts                       # Same-origin backend proxy
+├── session.ts                     # Better Auth session -> canonical user lookup
+└── topology-data.ts               # trusted service public keys
+
+apps/registry/src/lib/wallet-kit/  # Provider adapters, registry state, execution
+apps/landing/                      # Demo Next.js app consuming built packages
+apps/portal/                       # Portal app and auth/BFF routes
 ```
 
 ## Commands
 
 ```bash
-pnpm install                 # Install deps
-pnpm run build:lib           # Build → dist/
-pnpm --filter landing dev    # Demo at :3000
-pnpm run dev:landing:live    # Watch lib + landing together
-pnpm lint                    # Lint check
+pnpm install
+pnpm run build:lib
+pnpm --filter @aomi-labs/client build
+pnpm --filter @aomi-labs/react build
+pnpm --filter @aomi-labs/auth type-check
+pnpm --filter landing dev
+pnpm run dev:landing:live
+pnpm run lint
 ```
 
 ## Environment
 
 ```
-NEXT_PUBLIC_BACKEND_URL   # API base (default: localhost:8080)
-NEXT_PUBLIC_PROJECT_ID    # Reown Web3 project ID
+NEXT_PUBLIC_BACKEND_URL       # Browser backend base; "/" uses same-origin BFF proxy
+NEXT_PUBLIC_PROJECT_ID        # Reown/WalletConnect project id for demos
+BETTER_AUTH_SECRET            # Better Auth secret
+BETTER_AUTH_URL               # Better Auth base URL
+DATABASE_URL                  # Auth DB URL
+PORTAL_SERVICE_PRIVATE_KEY    # Ed25519 service key used to mint AccountBearer
+PRIVY_APP_ID                  # Privy app id for provider token verification
+PRIVY_APP_SECRET              # Privy REST secret for embedded-wallet listing
+PARA_API_KEY                  # Para REST key for embedded-wallet listing
 ```
+
+The real Better Auth browser cookie is `better-auth.session_token`.
 
 ## Ports
 
-- 3000: Demo app (Next.js dev)
-- 8080: Backend API (expected)
+- 3000: Landing/demo app
+- 3001: Portal app in local auth-stack flows
+- 8080: Backend API
 
-## Build Output
+## Build Output Policy
 
-```
-dist/
-├── index.js      # ESM
-├── index.cjs     # CommonJS
-├── index.d.ts    # Types
-└── styles.css    # Styles
-```
+`packages/react` and `packages/client` both publish from `dist/`, and their `package.json` exports point at `dist` files. The repo currently tracks those build artifacts and has no install-time build hook, so the committed policy is to keep `dist/` checked in until the package/export convention changes deliberately.
 
-## Key Types
-
-### ThreadMetadata (per-thread state)
+## Key Client Types
 
 ```typescript
-type ThreadMetadata = {
-  title: string;
-  status: "regular" | "archived" | "pending";
-  lastActiveAt?: string | number;
-  control: ThreadControlState; // Per-thread control configuration
+type AomiClientOptions = {
+  baseUrl: string;
+  fetch?: typeof fetch;
+  apiKey?: string;
+  getAccountAccessToken?: GetAccountAccessToken;
+  logger?: { debug: (...args: unknown[]) => void };
 };
-```
 
-### ThreadControlState (control configuration per thread)
+class AomiClient {
+  fetchState(sessionId: string, userState?: UserState, clientId?: string): Promise<AomiStateResponse>;
+  sendMessage(sessionId: string, message: string, options?: SendOptions): Promise<AomiChatResponse>;
+  subscribeSSE(sessionId: string, onUpdate: (event: AomiSSEEvent) => void): () => void;
+  listThreads(sessionId: string): Promise<AomiThread[]>;
+  createThread(threadId: string): Promise<AomiCreateThreadResponse>;
+  getApps(sessionId: string): Promise<AomiAppDescriptor[]>;
+  getModels(sessionId: string): Promise<string[]>;
+  setModel(sessionId: string, rig: string, options?: SetModelOptions): Promise<SetModelResponse>;
+}
 
-```typescript
-type ThreadControlState = {
-  model: string | null; // Selected model label
-  namespace: string | null; // Selected namespace/agent
-  controlDirty: boolean; // Changed but chat hasn't started
-  isProcessing: boolean; // Assistant generating (disables controls)
-};
-```
-
-### ControlState (global control state)
-
-```typescript
-type ControlState = {
-  apiKey: string | null; // Persisted to localStorage
-  availableModels: string[]; // From GET /api/control/models
-  authorizedNamespaces: string[]; // From GET /api/control/apps
-  defaultModel: string | null; // First available model
-  defaultNamespace: string | null; // "default" or first namespace
-};
-```
-
-### ControlContextApi (useControl() return type)
-
-```typescript
-type ControlContextApi = {
-  state: ControlState;
-  setApiKey: (apiKey: string | null) => void;
-  getAvailableModels: () => Promise<string[]>;
-  getAuthorizedNamespaces: () => Promise<string[]>;
-  getCurrentThreadControl: () => ThreadControlState;
-  onModelSelect: (model: string) => Promise<void>;
-  onNamespaceSelect: (namespace: string) => void;
-  isProcessing: boolean; // Derived from thread metadata
-  markControlSynced: () => void;
-  // ... other methods
-};
+class ClientSession {
+  constructor(clientOrOptions: AomiClient | AomiClientOptions, sessionOptions?: SessionOptions);
+  send(message: string): Promise<SendResult>;
+  sendAsync(message: string): Promise<AomiChatResponse>;
+  resolve(requestId: string, result: WalletRequestResult): Promise<void>;
+  reject(requestId: string, reason?: string): Promise<void>;
+  close(): void;
+}
 ```
 
 ## Backend API Endpoints
 
 ```
-GET  /api/control/models              # List available models
-GET  /api/control/apps          # List authorized namespaces
-POST /api/control/model?rig=X&namespace=Y  # Set model for session
-GET  /api/state                       # Get thread state
-POST /api/chat?message=X&namespace=Y  # Send chat message
+POST   /api/chat
+GET    /api/state
+POST   /api/interrupt
+POST   /api/system
+GET    /api/updates
+POST   /api/sessions
+GET    /api/sessions
+GET    /api/sessions/:id
+PATCH  /api/sessions/:id
+DELETE /api/sessions/:id
+GET    /api/session/apps
+GET    /api/session/models
+POST   /api/session/model?rig=X&app=Y
+GET    /api/account
+GET    /api/bff/auth/token
+POST   /api/auth/aomi/provider/exchange
+POST   /api/aomi/provider/exchange
 ```
 
-All endpoints require `X-Session-Id` header.
+All backend session/thread endpoints carry `X-Session-Id`. Same-origin browser calls rely on the BFF proxy to translate the Better Auth cookie into a backend `AccountBearer`; direct cross-origin calls can opt into `createAccountAccessTokenProvider`.

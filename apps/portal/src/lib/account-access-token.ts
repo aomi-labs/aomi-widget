@@ -17,10 +17,10 @@ type GetAccountCredential = AomiWalletKit["getAccountCredential"];
  *
  * In the same-origin BFF proxy configuration (`NEXT_PUBLIC_BACKEND_URL=/`, the
  * shipped default) the proxy mints the AccountBearer server-side from the
- * `aomi_session` cookie and strips any incoming `Authorization` header, so a
- * client-side token provider is pure dead weight — it just adds latency and
- * spams `/api/bff/auth/token` with 401s before sign-in completes. There we
- * return `null` and let the session cookie do the work.
+ * `better-auth.session_token` cookie and strips any incoming `Authorization`
+ * header, so a client-side token provider is pure dead weight — it just adds
+ * latency and spams `/api/bff/auth/token` with 401s before sign-in completes.
+ * There we return `null` and let the session cookie do the work.
  *
  * When the backend is a different origin the browser must carry the bearer
  * itself, so we return a real provider (minting via the same-origin

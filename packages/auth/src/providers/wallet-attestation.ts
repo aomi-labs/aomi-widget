@@ -2,16 +2,11 @@ import type { WalletFamily } from "../types";
 
 export type AttestedWalletProvider = "privy" | "para" | (string & {});
 
-export type WalletAttestationRequest = {
-  provider: AttestedWalletProvider;
+export type WalletAttester = (input: {
   /** Verified provider-token subject. */
   subject: string;
   email?: string | null;
-};
-
-export type WalletAttester = (
-  input: Omit<WalletAttestationRequest, "provider">,
-) => Promise<AttestedWallet[] | null>;
+}) => Promise<AttestedWallet[] | null>;
 
 export type WalletAttesterRegistry = Record<string, WalletAttester | undefined>;
 
@@ -46,34 +41,4 @@ export function validWalletAddress(
       ? EVM_ADDRESS_RE.test(address)
       : SVM_ADDRESS_RE.test(address))
   );
-}
-
-/** Fetch attested wallets through a provider registry. A missing attester or
- * transient provider failure returns `null`, which callers interpret as
- * "skip reconciliation" rather than "revoke every existing wallet". */
-export async function fetchAttestedWallets(input: {
-  request: WalletAttestationRequest;
-  attesters: WalletAttesterRegistry;
-  logger?: WalletAttestationLogger;
-}): Promise<AttestedWallet[] | null> {
-  const attester = input.attesters[input.request.provider];
-  if (!attester) return null;
-  try {
-    const wallets = await attester({
-      subject: input.request.subject,
-      email: input.request.email,
-    });
-    return (
-      wallets?.map((wallet) => ({
-        ...wallet,
-        provider: input.request.provider,
-      })) ?? null
-    );
-  } catch (error) {
-    input.logger?.warn(
-      `syncProviderWallets: failed to list ${input.request.provider} wallets for ${input.request.subject}`,
-      error,
-    );
-    return null;
-  }
 }
