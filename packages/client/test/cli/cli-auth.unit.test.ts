@@ -9,7 +9,7 @@ const PRIVATE_KEY =
   "0x0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef" as const;
 const ACCOUNT = privateKeyToAccount(PRIVATE_KEY);
 
-describe("CLI BetterAuth SIWE auth", () => {
+describe("CLI BFF SIWE auth", () => {
   let stateDir: string;
 
   beforeEach(() => {
@@ -25,25 +25,36 @@ describe("CLI BetterAuth SIWE auth", () => {
     vi.restoreAllMocks();
   });
 
-  it("signs the BetterAuth SIWE nonce and persists the session token header with expiry", async () => {
+  it("signs the BFF SIWE nonce and persists the session cookie with expiry", async () => {
     const { signInWithCliSiwe } = await import("../../src/cli/auth");
     const fetchMock = vi.fn(
       async (input: RequestInfo | URL, init?: RequestInit) => {
         const url = String(input);
-        if (url.endsWith("/api/auth/siwe/nonce")) {
+        if (url.endsWith("/api/bff/auth/siwe/nonce")) {
           expect(init?.method).toBe("POST");
           expect(JSON.parse(String(init?.body))).toEqual({
             walletAddress: ACCOUNT.address,
             chainId: 8453,
           });
-          return Response.json({
-            nonce: "nonce-123",
-            domain: "portal.test",
-            uri: "https://portal.test",
-          });
+          return Response.json(
+            {
+              nonce: "nonce-123",
+              domain: "portal.test",
+              uri: "https://portal.test",
+            },
+            {
+              headers: {
+                "set-cookie":
+                  "aomi_siwe_nonce=nonce-123; Path=/; HttpOnly; SameSite=Lax",
+              },
+            },
+          );
         }
-        if (url.endsWith("/api/auth/siwe/verify")) {
+        if (url.endsWith("/api/bff/auth/siwe/verify")) {
           expect(init?.method).toBe("POST");
+          expect(new Headers(init?.headers).get("Cookie")).toBe(
+            "aomi_siwe_nonce=nonce-123",
+          );
           const body = JSON.parse(String(init?.body));
           expect(body.walletAddress).toBe(ACCOUNT.address);
           expect(body.chainId).toBe(8453);
@@ -53,25 +64,25 @@ describe("CLI BetterAuth SIWE auth", () => {
           expect(body.signature).toMatch(/^0x[0-9a-f]+$/i);
           return Response.json(
             {
-              token: "body-session-token",
-              success: true,
-              user: {
-                id: "better-auth-user",
-                walletAddress: ACCOUNT.address,
-                chainId: 8453,
+              ok: true,
+              user_id: "canonical-user",
+            },
+            {
+              headers: {
+                "set-cookie":
+                  "aomi_session=bff-session-token; Path=/; HttpOnly; SameSite=Lax",
               },
             },
-            { headers: { "set-auth-token": "header-session-token" } },
           );
         }
         if (url.endsWith("/api/aomi/account")) {
           const headers = new Headers(init?.headers);
           expect(headers.get("Authorization")).toBe(
-            "Bearer header-session-token",
+            "Bearer bff-session-token",
           );
           return Response.json({
             session: {
-              betterAuthUserId: "better-auth-user",
+              betterAuthUserId: "canonical-user",
               expiresAt: "2030-01-02T03:04:05.000Z",
             },
           });
@@ -89,15 +100,15 @@ describe("CLI BetterAuth SIWE auth", () => {
 
     expect(result.address).toBe(ACCOUNT.address);
     expect(result.auth).toEqual({
-      sessionToken: "header-session-token",
+      sessionToken: "bff-session-token",
       expiresAt: Date.parse("2030-01-02T03:04:05.000Z"),
       walletAddress: ACCOUNT.address,
       chainId: 8453,
-      betterAuthUserId: "better-auth-user",
+      betterAuthUserId: "canonical-user",
     });
   });
 
-  it("provides only unexpired BetterAuth session tokens to AomiClient", async () => {
+  it("provides only unexpired BFF session tokens to AomiClient", async () => {
     const { createCliAuthTokenProvider } = await import("../../src/cli/auth");
 
     const validProvider = createCliAuthTokenProvider(
@@ -123,7 +134,7 @@ describe("CLI BetterAuth SIWE auth", () => {
     await expect(expiredProvider()).resolves.toBeUndefined();
   });
 
-  it("logs out through BetterAuth and clears the stored CLI auth session", async () => {
+  it("logs out and clears the stored CLI auth session", async () => {
     const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
     const fetchMock = vi.fn(
       async (input: RequestInfo | URL, init?: RequestInit) => {

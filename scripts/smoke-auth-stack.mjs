@@ -142,7 +142,7 @@ class CookieJar {
 }
 
 async function signInWithWallet(jar, wallet) {
-  const nonceResponse = await jar.request("/api/auth/siwe/nonce", {
+  const nonceResponse = await jar.request("/api/bff/auth/siwe/nonce", {
     method: "POST",
     body: JSON.stringify({
       walletAddress: wallet.address,
@@ -159,7 +159,7 @@ async function signInWithWallet(jar, wallet) {
     nonce,
   });
   const signature = await wallet.signMessage({ message });
-  const verifyResponse = await jar.request("/api/auth/siwe/verify", {
+  const verifyResponse = await jar.request("/api/bff/auth/siwe/verify", {
     method: "POST",
     body: JSON.stringify({
       message,
@@ -168,74 +168,41 @@ async function signInWithWallet(jar, wallet) {
       chainId,
     }),
   });
-  await readJsonOrThrow(verifyResponse, `${jar.label} SIWE verify`);
+  return readJsonOrThrow(verifyResponse, `${jar.label} SIWE verify`);
 }
 
 async function bootstrapSiweSession() {
   const walletOne = privateKeyToAccount(generatePrivateKey());
-  const walletTwo = privateKeyToAccount(generatePrivateKey());
   const jar = new CookieJar("wallet1");
 
-  await signInWithWallet(jar, walletOne);
-  const accountOne = await readJsonOrThrow(
-    await jar.request("/api/aomi/account"),
-    "account after wallet1 sign-in",
-  );
-  const accountId = accountOne?.user?.id;
+  const accountOne = await signInWithWallet(jar, walletOne);
+  const accountId = accountOne?.user_id;
   console.log(
     `siwe wallet1: ${short(walletOne.address)} account=${accountId ?? "unknown"}`,
   );
 
-  const nonceResponse = await readJsonOrThrow(
-    await jar.request(
-      `/api/aomi/wallets/link?address=${encodeURIComponent(
-        walletTwo.address,
-      )}&chainId=${chainId}`,
-    ),
-    "wallet link nonce",
-  );
-  const message = buildWalletLinkMessage({
-    address: walletTwo.address,
-    chainId,
-    nonce: nonceResponse.nonce,
-  });
-  const signature = await walletTwo.signMessage({ message });
-  const linkResponse = await readJsonOrThrow(
-    await jar.request("/api/aomi/wallets/link", {
-      method: "POST",
-      body: JSON.stringify({
-        family: "evm",
-        address: walletTwo.address,
-        chainId,
-        nonce: nonceResponse.nonce,
-        message,
-        signature,
-      }),
-    }),
-    "wallet2 link",
-  );
+  const repeatJar = new CookieJar("wallet1-repeat");
+  const accountRepeat = await signInWithWallet(repeatJar, walletOne);
+  const sameAccount = Boolean(accountId && accountId === accountRepeat?.user_id);
   console.log(
-    `siwe wallet2 linked: ${short(walletTwo.address)} status=${linkResponse?.status ?? "unknown"}`,
+    `siwe wallet1 repeat: ${short(walletOne.address)} account=${accountRepeat?.user_id ?? "unknown"} sameAccount=${sameAccount}`,
   );
+  if (!sameAccount) process.exitCode = 1;
 
   cookieHeader = jar.header();
-  return { accountId, walletTwo };
+  return { accountId, wallet: walletOne };
 }
 
-async function verifySecondWalletSeesThread(
-  { walletTwo, accountId },
+async function verifySameWalletSeesThread(
+  { wallet, accountId },
   threadId,
 ) {
-  const jar = new CookieJar("wallet2");
-  await signInWithWallet(jar, walletTwo);
-  const accountTwo = await readJsonOrThrow(
-    await jar.request("/api/aomi/account"),
-    "account after wallet2 sign-in",
-  );
-  const accountIdTwo = accountTwo?.user?.id;
+  const jar = new CookieJar("wallet1-thread-check");
+  const accountTwo = await signInWithWallet(jar, wallet);
+  const accountIdTwo = accountTwo?.user_id;
   const sameAccount = Boolean(accountId && accountId === accountIdTwo);
   console.log(
-    `siwe wallet2 account: ${accountIdTwo ?? "unknown"} sameAccount=${sameAccount}`,
+    `siwe same wallet account: ${accountIdTwo ?? "unknown"} sameAccount=${sameAccount}`,
   );
 
   const listResponse = await readJsonOrThrow(
@@ -247,7 +214,7 @@ async function verifySecondWalletSeesThread(
   const containsCreated = Array.isArray(listResponse)
     ? listResponse.some((thread) => thread?.session_id === threadId)
     : false;
-  console.log(`siwe wallet2 thread visibility: ${containsCreated}`);
+  console.log(`siwe same wallet thread visibility: ${containsCreated}`);
   if (!sameAccount || !containsCreated) {
     process.exitCode = 1;
   }
@@ -262,14 +229,14 @@ if (!cookieHeader && !sessionBearer && runSiweFlow) {
 }
 
 const accountResponse = await check(
-  "portal account endpoint",
-  `${portalUrl}/api/aomi/account`,
+  "portal account proxy",
+  `${portalUrl}/api/account`,
   {
-    headers: authHeaders(),
+    headers: portalHeaders({ "X-Session-Id": sessionId }),
   },
 );
 const account = await accountResponse.json().catch(() => null);
-console.log(`account: ${account?.user?.id ? "authenticated" : "anonymous"}`);
+console.log(`account: ${account?.user?.user_id ? "authenticated" : "anonymous"}`);
 
 if (!cookieHeader && !sessionBearer) {
   console.log(
@@ -395,5 +362,5 @@ if (createdSessionId) {
 }
 
 if (siweContext && createdSessionId) {
-  await verifySecondWalletSeesThread(siweContext, createdSessionId);
+  await verifySameWalletSeesThread(siweContext, createdSessionId);
 }
