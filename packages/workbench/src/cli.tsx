@@ -2,10 +2,16 @@ import path from "node:path";
 import { dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { ConfirmInput, TextInput } from "@inkjs/ui";
+import { ConfirmInput, Select, TextInput } from "@inkjs/ui";
 import { Box, Text, render, useApp } from "ink";
 import { defaultSdkRoot } from "./binaries";
 import { loadRunPlan } from "./state";
+import {
+  executeRollback,
+  planRollback,
+  rollbackClientFromEnv,
+  type RollbackPlanSummary,
+} from "./rollback";
 import { runWorkbenchWorkflow, type WorkflowEvent } from "./workflow";
 import { intakeSchema, type RunPlan, type WorkbenchIntake } from "./types";
 
@@ -94,6 +100,43 @@ function stringValue(values: Map<string, string | boolean>, key: string): string
   return typeof value === "string" ? value : undefined;
 }
 
+type RollbackArgs = {
+  help: boolean;
+  yes: boolean;
+  app: string;
+  platform: string;
+  deployment?: string;
+  backendUrl?: string;
+  activationToken?: string;
+};
+
+function parseRollbackArgs(argv: string[]): RollbackArgs {
+  const values = new Map<string, string | boolean>();
+  for (let i = 0; i < argv.length; i += 1) {
+    const arg = argv[i];
+    if (!arg.startsWith("--")) {
+      continue;
+    }
+    const key = arg.slice(2);
+    const next = argv[i + 1];
+    if (!next || next.startsWith("--")) {
+      values.set(key, true);
+    } else {
+      values.set(key, next);
+      i += 1;
+    }
+  }
+  return {
+    help: Boolean(values.get("help") || values.get("h")),
+    yes: Boolean(values.get("yes") || values.get("y")),
+    app: stringValue(values, "app") ?? "",
+    platform: stringValue(values, "platform") ?? "",
+    deployment: stringValue(values, "deployment"),
+    backendUrl: stringValue(values, "backend-url"),
+    activationToken: stringValue(values, "activation-token"),
+  };
+}
+
 function printHelp() {
   console.log(`Aomi Workbench
 
@@ -119,6 +162,15 @@ OPTIONS
   --dry-run                   Persist and preview the workflow without executing tools
   --overwrite                 Reset existing .smithers run state for the app
   --yes                       Accept workflow, agent, and deploy approvals
+
+SUBCOMMANDS
+  rollback                    Roll an app back to a previous deployment
+    --app <name>              App to roll back (required)
+    --platform <name>         Hosted platform name (required)
+    --deployment <id>         Explicit deployment id (default: previous)
+    --backend-url <url>       Backend base URL (or AOMI_BACKEND_URL)
+    --activation-token <tok>  Activation token (or AOMI_APP_ACTIVATION_TOKEN)
+    --yes                     Skip the confirm gate
 `);
 }
 
@@ -419,13 +471,198 @@ function symbol(status: string): string {
   return ".";
 }
 
-const args = parseArgs(process.argv.slice(2));
-if (args.help) {
-  printHelp();
-} else if (args.yes || !process.stdin.isTTY) {
-  await runHeadless(args);
+type RollbackPhase =
+  | { name: "loading" }
+  | { name: "select"; plan: RollbackPlanSummary }
+  | { name: "confirm"; plan: RollbackPlanSummary; deploymentId: string }
+  | { name: "running"; deploymentId: string }
+  | { name: "done"; status: string; releaseTags: string[] }
+  | { name: "error"; message: string };
+
+function RollbackApp({ args }: { args: RollbackArgs }) {
+  const { exit } = useApp();
+  const [phase, setPhase] = useState<RollbackPhase>({ name: "loading" });
+
+  useEffect(() => {
+    void (async () => {
+      try {
+        const client = await rollbackClientFromEnv(args);
+        const plan = planRollback(
+          await client.listActivations({
+            platform: args.platform,
+            app: args.app,
+          }),
+        );
+        if (args.deployment) {
+          setPhase({ name: "confirm", plan, deploymentId: args.deployment });
+        } else if (!plan.previous) {
+          setPhase({
+            name: "error",
+            message:
+              "No rollback target: only one release has ever been activated.",
+          });
+        } else {
+          setPhase({ name: "select", plan });
+        }
+      } catch (error) {
+        setPhase({
+          name: "error",
+          message: error instanceof Error ? error.message : String(error),
+        });
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    if (phase.name === "error") {
+      process.exitCode = 1;
+      exit();
+    }
+    if (phase.name === "done") {
+      exit();
+    }
+  }, [phase, exit]);
+
+  const run = useCallback(
+    (deploymentId: string) => {
+      setPhase({ name: "running", deploymentId });
+      void (async () => {
+        try {
+          const client = await rollbackClientFromEnv(args);
+          const result = await executeRollback(client, {
+            platform: args.platform,
+            app: args.app,
+            deploymentId,
+          });
+          if (result.ok) {
+            setPhase({
+              name: "done",
+              status: result.status,
+              releaseTags: result.releaseTags,
+            });
+          } else {
+            setPhase({ name: "error", message: `rollback ${result.status}` });
+          }
+        } catch (error) {
+          setPhase({
+            name: "error",
+            message: error instanceof Error ? error.message : String(error),
+          });
+        }
+      })();
+    },
+    [args],
+  );
+
+  if (phase.name === "loading") {
+    return <Text>Loading activation timeline for {args.app}…</Text>;
+  }
+  if (phase.name === "error") {
+    return <Text color="red">Failed: {phase.message}</Text>;
+  }
+  if (phase.name === "running") {
+    return <Text>Rolling back to {phase.deploymentId}…</Text>;
+  }
+  if (phase.name === "done") {
+    return (
+      <Text color="green">
+        Rollback {phase.status}: {phase.releaseTags.join(", ")}
+      </Text>
+    );
+  }
+  if (phase.name === "confirm") {
+    return (
+      <Box flexDirection="column" gap={0}>
+        <Text>
+          Roll back {args.app} to {phase.deploymentId}?
+        </Text>
+        <ConfirmInput
+          onConfirm={() => run(phase.deploymentId)}
+          onCancel={() => exit()}
+        />
+      </Box>
+    );
+  }
+  const selectable = phase.plan.activations.filter((row) => !row.current);
+  return (
+    <Box flexDirection="column" gap={0}>
+      {phase.plan.current ? (
+        <Text>
+          Current: {phase.plan.current.deploymentId} (
+          {phase.plan.current.releaseTag})
+        </Text>
+      ) : null}
+      <Text>Pick a rollback target for {args.app}:</Text>
+      <Select
+        options={selectable.map((row) => ({
+          label: `${row.action} · ${row.deploymentId} · ${row.releaseTag}`,
+          value: row.deploymentId,
+        }))}
+        defaultValue={phase.plan.previous?.deploymentId}
+        onChange={(deploymentId) =>
+          setPhase({ name: "confirm", plan: phase.plan, deploymentId })
+        }
+      />
+    </Box>
+  );
+}
+
+async function runRollbackHeadless(args: RollbackArgs): Promise<void> {
+  const client = await rollbackClientFromEnv(args).catch((error: unknown) => {
+    console.error(error instanceof Error ? error.message : String(error));
+    process.exitCode = 1;
+    return null;
+  });
+  if (!client) {
+    return;
+  }
+  const plan = planRollback(
+    await client.listActivations({ platform: args.platform, app: args.app }),
+  );
+  const deploymentId = args.deployment ?? plan.previous?.deploymentId;
+  if (!deploymentId) {
+    console.error(
+      "No rollback target: only one release has ever been activated.",
+    );
+    process.exitCode = 1;
+    return;
+  }
+  const result = await executeRollback(client, {
+    platform: args.platform,
+    app: args.app,
+    deploymentId,
+  });
+  console.log(
+    `rollback ${result.status}: ${args.app} -> ${deploymentId} (${result.releaseTags.join(", ")})`,
+  );
+  if (!result.ok) {
+    process.exitCode = 1;
+  }
+}
+
+const [subcommand, ...restArgv] = process.argv.slice(2);
+if (subcommand === "rollback") {
+  const rollbackArgs = parseRollbackArgs(restArgv);
+  if (rollbackArgs.help) {
+    printHelp();
+  } else if (!rollbackArgs.app || !rollbackArgs.platform) {
+    console.error("rollback requires --app and --platform");
+    process.exitCode = 1;
+  } else if (rollbackArgs.yes || !process.stdin.isTTY) {
+    await runRollbackHeadless(rollbackArgs);
+  } else {
+    render(<RollbackApp args={rollbackArgs} />);
+  }
 } else {
-  render(<WorkbenchApp args={args} />);
+  const args = parseArgs(process.argv.slice(2));
+  if (args.help) {
+    printHelp();
+  } else if (args.yes || !process.stdin.isTTY) {
+    await runHeadless(args);
+  } else {
+    render(<WorkbenchApp args={args} />);
+  }
 }
 
 async function runHeadless(args: CliArgs): Promise<void> {
