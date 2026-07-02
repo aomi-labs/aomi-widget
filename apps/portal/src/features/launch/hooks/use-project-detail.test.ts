@@ -8,7 +8,7 @@ vi.mock("@portal/features/launch/client", () => ({
         id: 7,
         installationId: 5,
         repositoryLink: "a/b",
-        apps: [],
+        apps: [{ name: "my-bot" }],
         latestDeployment: null,
       },
     ],
@@ -23,10 +23,33 @@ vi.mock("@portal/features/launch/client", () => ({
     byApp: { demo: ["$SECRET:APP:demo::KEY"] },
   })),
   deploymentRollback: vi.fn(),
+  deploymentActivations: vi.fn(async () => ({
+    app: "my-bot",
+    currentReleaseTag: "tag-b",
+    activations: [
+      {
+        deploymentId: "dep_b",
+        releaseTag: "tag-b",
+        action: "rollback",
+        actor: null,
+        createdAt: 2,
+        current: true,
+      },
+      {
+        deploymentId: "dep_a",
+        releaseTag: "tag-a",
+        action: "activate",
+        actor: null,
+        createdAt: 1,
+        current: false,
+      },
+    ],
+  })),
 }));
 
 import { useProjectDetail } from "./use-project-detail";
 import {
+  deploymentActivations,
   deploymentHistory,
   deploymentSecrets,
 } from "@portal/features/launch/client";
@@ -43,5 +66,18 @@ describe("useProjectDetail", () => {
     await waitFor(() => expect(result.current.history).toHaveLength(1));
     expect(deploymentHistory).toHaveBeenCalledTimes(1);
     expect(deploymentSecrets).not.toHaveBeenCalled();
+  });
+
+  it("lazily loads activations per app once", async () => {
+    const { result } = renderHook(() => useProjectDetail(7));
+    await waitFor(() => expect(result.current.source?.id).toBe(7));
+    expect(deploymentActivations).not.toHaveBeenCalled();
+    act(() => result.current.loadActivations());
+    act(() => result.current.loadActivations());
+    await waitFor(() =>
+      expect(result.current.activationsByApp?.["my-bot"]).toHaveLength(2),
+    );
+    expect(deploymentActivations).toHaveBeenCalledTimes(1);
+    expect(deploymentActivations).toHaveBeenCalledWith({ app: "my-bot" });
   });
 });

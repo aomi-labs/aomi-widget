@@ -8,6 +8,11 @@ import type {
   UserSourceLatestDeployment,
 } from "@aomi-labs/deploy";
 
+export type {
+  DeploymentActivation,
+  ListActivationsResult,
+} from "@aomi-labs/deploy";
+
 // One-click is the only launch path: the portal forks the template and deploys
 // it for the user. (Kept as a single-member union so the small amount of
 // path-keyed state plumbing stays typed.)
