@@ -27,9 +27,9 @@ import {
   type WalletSolanaSignPayload,
 } from "@aomi-labs/react";
 import type { UserState as UserStateShape } from "@aomi-labs/client";
-import { RuntimeTxHandler } from "../../../registry/src/components/runtime-tx-handler";
-import { AomiWalletKitContextProvider } from "../../../registry/src/lib/wallet-kit/context";
-import type { AomiWalletKit } from "../../../registry/src/lib/wallet-kit/types";
+import { RuntimeTxHandler } from "../../../shadcn-registry/src/components/runtime-tx-handler";
+import { AomiWalletKitContextProvider } from "../../../shadcn-registry/src/lib/wallet-kit/context";
+import type { AomiWalletKit } from "../../../shadcn-registry/src/lib/wallet-kit/types";
 
 type DriverMode =
   | "sign"
@@ -424,6 +424,7 @@ export function SolanaRuntimeDriver() {
       onUserStateChange: () => () => undefined,
       currentThreadId: DRIVER_SESSION_ID,
       threadViewKey: 0,
+      threadListError: false,
       threadMetadata: new Map(),
       getThreadMetadata: () => undefined,
       createThread: async () => DRIVER_SESSION_ID,

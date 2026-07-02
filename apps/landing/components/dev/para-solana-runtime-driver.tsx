@@ -22,12 +22,12 @@ import {
   type WalletRequestKind,
   type WalletRequestResult,
 } from "@aomi-labs/react";
-import { RuntimeTxHandler } from "../../../registry/src/components/runtime-tx-handler";
+import { RuntimeTxHandler } from "../../../shadcn-registry/src/components/runtime-tx-handler";
 import {
   AomiWalletKitProvider,
   useAomiWalletKit,
   type AomiWalletKit,
-} from "../../../registry/src/lib/wallet-kit";
+} from "../../../shadcn-registry/src/lib/wallet-kit";
 import { registerAomiParaWalletProvider } from "@aomi-labs/widget-lib/providers/para";
 
 type DriverMode =
@@ -255,6 +255,7 @@ function ParaSolanaRuntimeDriverInner() {
       onUserStateChange: () => () => undefined,
       currentThreadId: DRIVER_SESSION_ID,
       threadViewKey: 0,
+      threadListError: false,
       threadMetadata: new Map(),
       getThreadMetadata: () => undefined,
       createThread: async () => DRIVER_SESSION_ID,

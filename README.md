@@ -31,6 +31,7 @@ All entry points share a common backend API, so a conversation started in the wi
 - **Drop-in React widget** — one `<AomiFrame />` tag renders the full chat, sidebar, and composer.
 - **Headless runtime for custom UIs** — concurrent thread management, per-thread model/namespace state, backend polling/SSE, event bus, and wallet request handler, exposed as React hooks.
 - **Terminal-first CLI** — `aomi chat`, `aomi tx list`, `aomi tx simulate`, `aomi tx sign`, session management, secret ingestion.
+- **Account auth in CLI** — `aomi account login` opens a backend-minted Privy auth URL, and `aomi account whoami` confirms the backend session is bound to an Aomi account.
 - **Account Abstraction built in** — EIP-4337 and EIP-7702 signing via Alchemy or Pimlico, with automatic mode fallback.
 - **Batch simulation** — dry-run multi-step flows (approve → swap) on a forked chain before signing.
 - **Agent-ready** — install `aomi-transact` as a Claude/Codex skill and your agent can transact on-chain autonomously.

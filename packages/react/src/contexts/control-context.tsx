@@ -100,13 +100,18 @@ export type ControlContextApi = {
   getCurrentThreadControl: () => ThreadControlState;
   /** Get the current thread's effective app after auth fallback */
   getCurrentThreadApp: () => string;
+  /** Get the current thread's effective application id after auth fallback */
+  getCurrentThreadApplicationId: () => number | string | null;
   /** Select a model for the current thread (updates metadata + calls backend) */
   onModelSelect: (
     model: string,
     options?: { mode?: ModelSelectionMode },
   ) => Promise<void>;
   /** Select an app for the current thread (updates metadata only) */
-  onAppSelect: (app: string) => void;
+  onAppSelect: (
+    app: string,
+    options?: { applicationId?: number | string | null },
+  ) => void;
   /** Whether the current thread is processing (disables control switching) */
   isProcessing: boolean;
   /** Mark control state as synced (called after chat starts) */
@@ -231,6 +236,111 @@ export function useControl(): ControlContextApi {
     throw new Error("useControl must be used within ControlContextProvider");
   }
   return ctx;
+}
+
+export function useApiKey(): {
+  state: Pick<ControlState, "apiKey" | "clientId">;
+  actions: Pick<ControlContextApi, "setApiKey">;
+} {
+  const ctx = useControl();
+  return {
+    state: {
+      apiKey: ctx.state.apiKey,
+      clientId: ctx.state.clientId,
+    },
+    actions: {
+      setApiKey: ctx.setApiKey,
+    },
+  };
+}
+
+export function useByok(): {
+  state: Pick<ControlState, "byokKeys">;
+  actions: Pick<
+    ControlContextApi,
+    | "clearSecrets"
+    | "deleteSecret"
+    | "getByokKeys"
+    | "hasByok"
+    | "ingestSecrets"
+    | "listSecrets"
+    | "removeByok"
+    | "setByok"
+  >;
+} {
+  const ctx = useControl();
+  return {
+    state: {
+      byokKeys: ctx.state.byokKeys,
+    },
+    actions: {
+      clearSecrets: ctx.clearSecrets,
+      deleteSecret: ctx.deleteSecret,
+      getByokKeys: ctx.getByokKeys,
+      hasByok: ctx.hasByok,
+      ingestSecrets: ctx.ingestSecrets,
+      listSecrets: ctx.listSecrets,
+      removeByok: ctx.removeByok,
+      setByok: ctx.setByok,
+    },
+  };
+}
+
+export function useAuthEndpoints(): {
+  state: Pick<
+    ControlState,
+    | "appDescriptors"
+    | "authorizedApps"
+    | "availableModels"
+    | "defaultApp"
+    | "defaultModel"
+  >;
+  actions: Pick<ControlContextApi, "getAuthorizedApps" | "getAvailableModels">;
+} {
+  const ctx = useControl();
+  return {
+    state: {
+      appDescriptors: ctx.state.appDescriptors,
+      authorizedApps: ctx.state.authorizedApps,
+      availableModels: ctx.state.availableModels,
+      defaultApp: ctx.state.defaultApp,
+      defaultModel: ctx.state.defaultModel,
+    },
+    actions: {
+      getAuthorizedApps: ctx.getAuthorizedApps,
+      getAvailableModels: ctx.getAvailableModels,
+    },
+  };
+}
+
+export function usePerThreadControl(): {
+  actions: Pick<
+    ControlContextApi,
+    | "getCurrentThreadApp"
+    | "getCurrentThreadApplicationId"
+    | "getCurrentThreadControl"
+    | "getPreferredThreadControl"
+    | "markControlSynced"
+    | "onAppSelect"
+    | "onModelSelect"
+    | "syncCurrentThreadControl"
+  >;
+  isProcessing: boolean;
+} {
+  const ctx = useControl();
+  return {
+    actions: {
+      getCurrentThreadApp: ctx.getCurrentThreadApp,
+      getCurrentThreadApplicationId: ctx.getCurrentThreadApplicationId,
+      getCurrentThreadControl: ctx.getCurrentThreadControl,
+      getPreferredThreadControl: ctx.getPreferredThreadControl,
+      markControlSynced: ctx.markControlSynced,
+      onAppSelect: ctx.onAppSelect,
+      onModelSelect: ctx.onModelSelect,
+      syncCurrentThreadControl: ctx.syncCurrentThreadControl,
+    },
+    isProcessing: ctx.isProcessing,
+  };
 }
 
 // =============================================================================
@@ -658,6 +768,13 @@ export function ControlContextProvider({
     );
   }, []);
 
+  const getCurrentThreadApplicationId = useCallback((): number | string | null => {
+    const currentControl =
+      getThreadMetadataRef.current(sessionIdRef.current)?.control ??
+      initThreadControl();
+    return currentControl.applicationId ?? null;
+  }, []);
+
   const onModelSelect = useCallback(
     async (model: string, options?: { mode?: ModelSelectionMode }) => {
       const threadId = sessionIdRef.current;
@@ -740,7 +857,8 @@ export function ControlContextProvider({
     [],
   );
 
-  const onAppSelect = useCallback((app: string) => {
+  const onAppSelect = useCallback(
+    (app: string, options?: { applicationId?: number | string | null }) => {
     const threadId = sessionIdRef.current;
     const currentControl =
       getThreadMetadataRef.current(threadId)?.control ?? initThreadControl();
@@ -776,12 +894,15 @@ export function ControlContextProvider({
       control: {
         ...currentControl,
         app,
+        applicationId: options?.applicationId ?? null,
         controlDirty: true,
       },
     });
 
     console.log("[control-context] onAppSelect metadata updated");
-  }, []);
+    },
+    [],
+  );
 
   const markControlSynced = useCallback(() => {
     const threadId = sessionIdRef.current;
@@ -955,6 +1076,7 @@ export function ControlContextProvider({
         getAuthorizedApps,
         getCurrentThreadControl,
         getCurrentThreadApp,
+        getCurrentThreadApplicationId,
         onModelSelect,
         onAppSelect,
         isProcessing,

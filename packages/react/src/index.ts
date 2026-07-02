@@ -5,6 +5,7 @@ export { AomiClient } from "@aomi-labs/client";
 export type { AomiClientOptions } from "@aomi-labs/client";
 export type {
   AomiAppDescriptor,
+  AomiPlatformFilter,
   AomiMessage,
   AomiChatResponse,
   AomiCreateThreadResponse,
@@ -34,6 +35,8 @@ export {
   parseChainId,
   aaModeFromExecutionKind,
   toViemSignMessageArgs,
+  normalizeAppDescriptor,
+  appIdentityKey,
 } from "@aomi-labs/client";
 
 // =============================================================================
@@ -154,10 +157,13 @@ export {
 // =============================================================================
 export {
   useControl,
+  useApiKey,
+  useByok,
+  useAuthEndpoints,
+  usePerThreadControl,
   ControlContextProvider,
   type ControlState,
   type ControlContextApi,
   type ControlContextProviderProps,
-  type StoredModelPreference,
   type StoredByokKey,
 } from "./contexts/control-context";

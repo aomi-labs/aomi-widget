@@ -58,7 +58,7 @@ describe("CLI UserState — Table A connect-time", () => {
 
     expect(state).toEqual({
       evm: { address: EOA, chain_id: CHAIN_ID },
-      connection: { is_connected: true, primary_family: "evm" },
+      connection: { is_connected: true },
       ext: { client_type: "ts_cli" },
     });
     // Per Table A: no AA block at all (walletKind derives to eoa).

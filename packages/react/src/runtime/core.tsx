@@ -109,7 +109,7 @@ export function AomiRuntimeCore({
       const httpStatus = getHttpStatus(error);
 
       if (httpStatus === 402) {
-        // The `payment_required` modal (apps/registry payment-required-gate)
+        // The `payment_required` modal (apps/shadcn-registry payment-required-gate)
         // owns its own copy; only `kind` is consumed for routing. `message`
         // would be dead config — leave it off so there's one source of truth.
         notificationContext.showNotification({

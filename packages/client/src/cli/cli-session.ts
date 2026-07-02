@@ -80,6 +80,11 @@ export class CliSession {
       app: config.app ?? seed?.app,
       model: config.model ?? seed?.model,
       apiKey: config.apiKey ?? seed?.apiKey,
+      accountBearer: config.accountBearer ?? seed?.accountBearer,
+      sessionCookie: config.sessionCookie ?? seed?.sessionCookie,
+      embeddedProvider: config.embeddedProvider ?? seed?.embeddedProvider,
+      embeddedProviderToken:
+        config.embeddedProviderToken ?? seed?.embeddedProviderToken,
       publicKey: config.publicKey ?? seed?.publicKey,
       privateKey: config.privateKey ?? seed?.privateKey,
       svmPublicKey: svmPublicKey ?? seed?.svmPublicKey,
@@ -175,6 +180,38 @@ export class CliSession {
     }
     if (config.apiKey !== undefined && config.apiKey !== this.state.apiKey) {
       this.state.apiKey = config.apiKey;
+      changed = true;
+    }
+    if (
+      config.accountBearer !== undefined &&
+      config.accountBearer !== this.state.accountBearer
+    ) {
+      this.state.accountBearer = config.accountBearer;
+      delete this.state.embeddedProvider;
+      delete this.state.embeddedProviderToken;
+      changed = true;
+    }
+    if (
+      config.sessionCookie !== undefined &&
+      config.sessionCookie !== this.state.sessionCookie
+    ) {
+      this.state.sessionCookie = config.sessionCookie;
+      changed = true;
+    }
+    if (
+      config.embeddedProvider !== undefined &&
+      config.embeddedProvider !== this.state.embeddedProvider
+    ) {
+      this.state.embeddedProvider = config.embeddedProvider;
+      delete this.state.accountBearer;
+      changed = true;
+    }
+    if (
+      config.embeddedProviderToken !== undefined &&
+      config.embeddedProviderToken !== this.state.embeddedProviderToken
+    ) {
+      this.state.embeddedProviderToken = config.embeddedProviderToken;
+      delete this.state.accountBearer;
       changed = true;
     }
     if (

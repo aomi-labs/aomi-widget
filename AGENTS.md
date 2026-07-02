@@ -1,5 +1,8 @@
 # Repository Guidelines
 
+> Persistent goal: see `GOAL.md` in the repo root. Every session should
+> read it first and update it as work progresses.
+
 ## Project Structure & Module Organization
 
 `src/` holds the publishable widget library: `components/assistant-ui/` for the Aomi frame and chat surfaces, `components/ui/` for shadcn-style primitives, `hooks/` for reusable state, `lib/` for runtime/context helpers, `utils/` for wallet helpers, and `themes/` for CSS token packs that feed the `styles.css` entry point. The demo Next.js app now lives in `apps/landing/` and consumes the built package from `dist/`; use it to validate UI flows before publishing. Static assets shared by the example go in `apps/landing/public/`, while high-level product briefs sit in `specs/`—update both when you introduce new flows.

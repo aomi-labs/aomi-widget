@@ -17,6 +17,10 @@ function toResponseShape(state: ReturnType<typeof getWalletState>) {
     connecting: state.presence === 'connecting',
     address: state.address,
     chainId: state.chainId,
+    svmAddress: state.svmAddress,
+    svmCluster: state.svmCluster,
+    walletProvider: state.walletProvider,
+    providerLabel: state.providerLabel,
     source: state.source,
     label: state.label,
     operationId: active?.operationId,
@@ -50,10 +54,14 @@ export async function POST(req: NextRequest) {
   const userId = typeof body?.user_id === 'string' ? body.user_id.trim() : '';
   const address = typeof body?.address === 'string' ? body.address : '';
   const chainId = typeof body?.chainId === 'number' ? body.chainId : null;
+  const svmAddress = typeof body?.svmAddress === 'string' ? body.svmAddress : '';
+  const svmCluster = typeof body?.svmCluster === 'string' ? body.svmCluster : null;
+  const walletProvider = typeof body?.walletProvider === 'string' ? body.walletProvider : undefined;
+  const providerLabel = typeof body?.providerLabel === 'string' ? body.providerLabel : undefined;
   const source = (body?.source as WalletConnectionSource | undefined) ?? 'mini_app';
 
-  if (!userId || !address) {
-    return NextResponse.json({ error: 'missing user_id or address' }, { status: 400 });
+  if (!userId || (!address && !svmAddress)) {
+    return NextResponse.json({ error: 'missing user_id or wallet address' }, { status: 400 });
   }
 
   if (source !== 'mini_app' && source !== 'server_wc') {
@@ -61,8 +69,12 @@ export async function POST(req: NextRequest) {
   }
 
   const state = markConnected(userId, {
-    address,
+    address: address || undefined,
     chainId,
+    svmAddress: svmAddress || undefined,
+    svmCluster,
+    walletProvider,
+    providerLabel,
     source,
   });
 

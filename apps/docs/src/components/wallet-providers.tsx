@@ -8,7 +8,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
   FullTestnetWalletRouter,
   useFullTestnet,
-} from "../../../registry/src";
+} from "../../../shadcn-registry/src";
 
 import {
   LOCALHOST_CHAIN_ID,

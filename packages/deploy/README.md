@@ -1,76 +1,230 @@
 # @aomi-labs/deploy
 
-Server-side TypeScript client to the Aomi **deployment platform** — the
-privileged engine of the ADR 0011 deploy-proxy. It performs the two credentialed
-operations a browser cannot:
+Server-side TypeScript client for the Aomi platform deploy API — **intended for
+BFF / server use only** (holds the activation bearer token).
 
-1. **deploy** — commit `apps/<slug>/` to the publish branch via the GitHub Git
-   Data API (reproduces the `aomi-git deploy` contract, no git binary), writing
-   a contract-valid `.aomi/deployment.json` that the publish CI reads.
-2. **activate** — call the backend `POST /api/admin/apps/activate` with the
-   platform-wide activation token + the transient read PAT.
+## API
 
-Plus **status** polling to bridge the CI build gap.
+### `preflight()`
 
-> ⚠️ **Node-only. Never bundle into a browser.** This package holds the bot PAT
-> and the platform activation token. The constructor throws
-> `BrowserEnvironmentError` if it detects a browser. Import it only from a
-> server route handler / serverless function.
+Calls `POST /api/platforms/:platform/deploy` with `app_source_id`, `source_ref`,
+optional `aomi_toml_paths`, and `preflight: true`. Returns the deployment
+record without opening or updating the platform PR. Use this to render
+`deployment.json` before the user applies.
 
-## What this package does NOT do
+### `deploy()`
 
-Per ADR 0011, **all per-user isolation and attribution live in your proxy**:
+Calls `POST /api/platforms/:platform/deploy` with `app_source_id`, `source_ref`,
+and optional `aomi_toml_paths`. This is the apply step: it writes the platform
+deployment branch/PR when needed and starts the CI path.
 
-- **Ownership** — resolving "does this session own `<slug>`?" is the caller's job
-  (it depends on your own user records). Call `deploy`/`activate` only after you
-  have authorized the caller.
-- **Audit persistence** — pass an `onAudit` hook; this package calls it on every
-  privileged op, but you must persist the record. It is the only place
-  per-user attribution exists.
+`sourceRef` must be the immutable git commit SHA to deploy. Resolve branches or
+tags before calling the client; the backend does not accept mutable refs.
 
-This package enforces the **platform contract**: per-slug path scoping,
-narrow-only `target_tags`, and the exact `deployment.json` shape CI validates.
+`aomiTomlPaths` may be omitted to let the backend discover every `aomi.toml` in
+the source commit.
 
-## Usage
+### `activate()`
+
+Calls `POST /api/platforms/:platform/apps/activate` with one `release_tags`
+target. Returns an `ActivationResult` — check `result.ok` and inspect
+`result.activation.apps` for per-app errors on partial failure.
+
+### `deploymentStatus()`
+
+Calls `GET /api/platforms/:platform/deployments/:id`. The status endpoint now
+resolves CI against the **recorded built commit** (not the live branch HEAD),
+preventing deployments from being orphaned by snapshot merges.
+
+### `watchDeployment()`
+
+Polls `deploymentStatus` with **exponential backoff** (3s → 30s base, max
+~5 min total). Throws `DeployError` with `.reason` on timeout or terminal
+failure. Best for CLI and automated workflows.
+
+## Bootstrap API
+
+The steps **before** deploy — the twin of the Rust `aomi-build` bootstrap
+commands. Each maps 1:1 onto a `/api/platforms/*` route.
+
+| Method                           | Route                                                                         | Purpose                                                               |
+| -------------------------------- | ----------------------------------------------------------------------------- | --------------------------------------------------------------------- |
+| `mintToken()`                    | `POST /:p/tokens`                                                             | mint a `platform` or `app` activation token (plaintext returned once) |
+| `listTokens()` / `revokeToken()` | `GET` / `DELETE /:p/tokens[/:id]`                                             | token lifecycle                                                       |
+| `syncSource()`                   | `POST /:p/sources/sync-installed`                                             | resolve an installed repo → `appSourceId` for deploy                  |
+| `scaffold()`                     | `POST /api/integrations/github-app/platforms/:p/sources/create-from-template` | one-shot: create a repo from a template → source                      |
+| `listApps()` / `getApp()`        | `GET /:p/apps[/:app]`                                                         | inventory loaded apps (find `app_id` for app-scoped tokens)           |
+
+### Credential model
+
+`mintToken()` is privileged: minting the **first** platform token needs an
+admin/service AomiBearer, since no activation token exists yet. Configure it as
+`aomi.adminBearer` (or pass `bearer` per call). All other calls use
+`aomi.activationToken`. Unlike the Rust CLI — which signs the admin bearer
+itself — this package stays signing-free; mint the bearer with
+[`@aomi-labs/service`](../service) and hand it in.
+
+```ts
+import { AomiService } from "@aomi-labs/service";
+import { DeploymentClient } from "@aomi-labs/deploy";
+
+// 1. Sign a short-lived admin bearer (holds the EdDSA private key).
+const svc = AomiService.fromTopology({
+  toml: process.env.AOMI_SERVICE_TOPOLOGY!,
+  selfName: "aomi-admin",
+  privateKeyPem: process.env.AOMI_ADMIN_KEY!,
+});
+const { accessToken: adminBearer } = await svc.mint({
+  role: "admin",
+  subject: "ops-admin",
+  audience: "aomi-backend",
+});
+
+// 2. Mint a platform activation token with it.
+const dc = new DeploymentClient({
+  aomi: { backendUrl: process.env.AOMI_BACKEND_URL!, adminBearer },
+});
+const { token } = await dc.mintToken({
+  platform: "playground",
+  scope: "platform",
+});
+
+// 3. Resolve the source, then deploy with the minted token.
+const client = new DeploymentClient({
+  aomi: { backendUrl: process.env.AOMI_BACKEND_URL!, activationToken: token },
+});
+const { id } = await client.syncSource({
+  platform: "playground",
+  repo: "alice/alice-bot",
+});
+await client.deploy({
+  platform: "playground",
+  appSourceId: id,
+  sourceRef: process.env.AOMI_SOURCE_REF!,
+  aomiTomlPaths: ["aomi.toml"],
+});
+```
+
+### Error handling
+
+All client methods throw `DeployError` on non-2xx responses:
+
+```ts
+try {
+  await dc.deploy({ ... });
+} catch (e) {
+  if (e instanceof DeployError) {
+    console.error(e.reason);      // human-readable reason from the backend
+    console.error(e.statusCode);  // HTTP status
+    console.error(e.body);        // raw response body
+  }
+}
+```
+
+For activation, check partial failure:
+
+```ts
+const result = await dc.activate({ ... });
+if (!result.ok) {
+  for (const app of result.activation?.apps ?? []) {
+    if (app.error) console.error(`${app.name}: ${app.error}`);
+  }
+}
+```
+
+## Types
+
+```ts
+interface DeployRequest {
+  platform: string;
+  appSourceId: number;
+  /** Immutable git commit SHA. Branch names are rejected by the backend. */
+  sourceRef: string;
+  aomiTomlPaths?: string[];
+}
+
+type PreflightRequest = DeployRequest;
+
+interface ActivateRequest {
+  platform: string;
+  target: { kind: "release_tags"; value: string[] };
+  apps: string[];
+  targetTags?: string[];
+  actor?: string;
+}
+
+class DeployError extends Error {
+  readonly reason: string;
+  readonly statusCode: number | undefined;
+  readonly body: unknown;
+}
+
+interface ActivationResult {
+  ok: boolean;
+  activation?: {
+    id: string;
+    apps: Array<{ name: string; loaded: boolean; error?: string }>;
+  };
+}
+```
+
+## Browser-safe lifecycle helpers
+
+The root package entry is for BFF/server code. Portal UI that only needs to
+project deploy records into dashboard state should import the pure helper
+subpath instead:
+
+```ts
+import {
+  deploymentLifecycleFromSource,
+  deploymentLifecycleFromStatus,
+} from "@aomi-labs/deploy/lifecycle";
+```
+
+## Example
 
 ```ts
 import { DeploymentClient } from "@aomi-labs/deploy";
 
 const dc = new DeploymentClient({
-  github: { repo: "aomi-labs/krexa-hosted-apps", branch: "publish", botPat: process.env.BOT_PAT! },
-  aomi:   { backendUrl: process.env.AOMI_BACKEND_URL!, platform: "krexa", activationToken: process.env.KREXA_ACTIVATION_TOKEN! },
-  onAudit: (e) => auditLog.write(e), // YOU persist this (attribution)
+  aomi: {
+    backendUrl: process.env.AOMI_BACKEND_URL!,
+    activationToken: process.env.AOMI_APP_ACTIVATION_TOKEN!,
+  },
 });
 
-// in POST /api/deploy — AFTER your own ownershipCheck(session, slug):
-const { releaseTag, sourceCommit, serverTags } = await dc.deploy({
-  slug, displayName, files, serverTags: ["staging"], actor: session.userId,
+const preview = await dc.preflight({
+  platform: "community",
+  appSourceId: 42,
+  sourceRef: process.env.AOMI_SOURCE_REF!,
+});
+console.log(JSON.stringify(preview.deployment, null, 2));
+
+const { deployment } = await dc.deploy({
+  platform: "community",
+  appSourceId: 42,
+  sourceRef: process.env.AOMI_SOURCE_REF!,
 });
 
-// poll until CI publishes the release:
-const { ci, release } = await dc.getStatus(slug);
-
-// in POST /api/activate — once release === "ready":
-await dc.activate({ slug, targetEnv: "staging", releaseTag, sourceCommit, buildServerTags: serverTags, actor: session.userId });
+await dc.activate({
+  platform: "community",
+  target: {
+    kind: "release_tags",
+    value: deployment.platform.apps.map((app) => app.releaseTag),
+  },
+  apps: deployment.platform.apps.map((app) => app.name),
+  targetTags: ["staging"],
+});
 ```
 
-### One-click flow (deploy → build → activate)
+## Tests
 
-"One click = live" is an async pipeline, **not** one call — CI takes minutes and
-the release tag does not exist when the push returns. Model it as a progress UI
-(deploy → building → activating → live). **Never auto-activate at push** (CI-race
-502). `deploy()` and `activate()` are intentionally separate methods.
+```
+packages/deploy/test/
+  client.test.ts              — 9 tests (deploy, activate, status, errors)
+  bootstrap.test.ts           — 11 tests (tokens, sources, scaffold, apps)
+  activation-request.test.ts  — 8 tests (request construction)
+  watch-deployment.pbt.test.ts — 6 property-based tests (backoff, timeout)
+```
 
-### Promote to prod
-
-`target_tags` is narrow-only — it must be a subset of the build's `server_tags`.
-You cannot promote a staging build to prod; re-`deploy` with `prod` in
-`serverTags`, then `activate` prod. Pass the build's `serverTags` as
-`buildServerTags` to get a local `TagWideningError` before the backend call.
-
-## Contract pinning
-
-The generated `deployment.json` is pinned to ADR 0004 / `platform.json` /
-`publish_app.py`. `test/contract-drift.test.ts` re-implements the CI validator
-independently and runs it against a generated manifest — if upstream changes,
-that test fails. Keep the descriptor constants in sync with `platform.json`.
+Run: `npx vitest run packages/deploy/test/`

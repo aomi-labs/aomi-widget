@@ -3,7 +3,6 @@ import { Hex, Chain, TransactionReceipt } from 'viem';
 
 declare function address(userState?: UserState | null): string | undefined;
 declare function svmAddress(userState?: UserState | null): string | undefined;
-declare function preferredPublicKey(userState?: UserState | null): string | undefined;
 declare function chainId(userState?: UserState | null): number | undefined;
 declare function ensName(userState?: UserState | null): string | undefined;
 declare function aaMode(userState?: UserState | null): UserStateAAMode | null | undefined;
@@ -33,13 +32,11 @@ type UserStateWalletKind = "eoa" | "smart-account";
 type UserStateWalletProvider = "para" | "privy" | "baseAccount";
 type UserStateAuthMethod = "google" | "apple" | "facebook" | "x" | "discord" | "github" | "farcaster" | "telegram" | "email" | "phone" | "wagmi";
 type UserStateSponsorProvider = "alchemy" | "coinbase" | "pimlico" | "self";
-type UserStatePrimaryFamily = "evm" | "svm" | "dual";
 /** Session-level connection facts shared across chain families. */
 interface UserStateConnection extends Record<string, unknown> {
     is_connected?: boolean | null;
     provider?: UserStateWalletProvider | null;
     provider_label?: string | null;
-    primary_family?: UserStatePrimaryFamily | null;
     wallet_provider_subject?: string | null;
     auth_method?: UserStateAuthMethod | null;
     auth_value?: string | null;
@@ -120,7 +117,6 @@ declare namespace UserState {
     const address: typeof address;
     const evmAddress: typeof address;
     const svmAddress: typeof svmAddress;
-    const preferredPublicKey: typeof preferredPublicKey;
     const chainId: typeof chainId;
     const ensName: typeof ensName;
     const aaMode: typeof aaMode;
@@ -152,15 +148,33 @@ type AomiClientOptions = {
     fetch?: typeof fetch;
     /** Default API key for non-default apps */
     apiKey?: string;
-    /** Supplies a short-lived Aomi account bearer for REST and SSE requests. */
+    /** Supplies a short-lived Aomi account access token for REST and SSE requests. */
     getAccountAccessToken?: GetAccountAccessToken;
     /** Optional logger for debug output (default: silent) */
     logger?: Logger;
 };
 type GetAccountAccessToken = (options?: {
-    /** Re-exchange the upstream Para/Privy credential after an API 401. */
+    /** Force a refresh after an API 401. */
     forceRefresh?: boolean;
 }) => Promise<string | null | undefined>;
+type GetAccountBearer = GetAccountAccessToken;
+type AomiRequestQueryValue = string | number | boolean | readonly (string | number | boolean)[] | null | undefined;
+type AomiPlatformFilter = string | readonly string[] | null | undefined;
+type AomiHttpMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
+interface AomiRequestOptions {
+    /** Session id for session-scoped routes. */
+    sessionId?: string;
+    /** App key for app-key checked routes; defaults to the client's apiKey. */
+    apiKey?: string;
+    /** Query params appended to the request URL. */
+    query?: Record<string, AomiRequestQueryValue>;
+    /** JSON request payload. */
+    body?: unknown;
+    /** Extra request headers. */
+    headers?: HeadersInit;
+    /** Use the native fetch path instead of a custom payment-aware fetch wrapper. */
+    raw?: boolean;
+}
 interface AomiMessage {
     sender?: "user" | "agent" | "system" | string;
     content?: string;
@@ -247,7 +261,7 @@ interface AomiThread {
     title: string;
     is_archived?: boolean;
 }
-type AomiAccountResponse = Record<string, unknown>;
+type AomiAccountResponse = AomiAccountProfile;
 /**
  * POST /api/sessions
  * Creates a new thread/session
@@ -256,10 +270,81 @@ interface AomiCreateThreadResponse {
     session_id: string;
     title?: string;
 }
+/**
+ * GET /api/account
+ * The account bound to the authenticated request (resolved from the account
+ * bearer). Returned only when the session is bound to a real user; an
+ * anonymous session yields HTTP 400.
+ */
+interface AomiUser {
+    user_id: string;
+    username?: string | null;
+    apps?: string[];
+    tier?: string;
+    verified_email?: string | null;
+    status?: string;
+    last_seen_at?: number | null;
+    created_at?: number;
+    updated_at?: number;
+}
+interface AomiAuthIdentity {
+    id: number;
+    application?: string | null;
+    wallet_provider: string;
+    auth_method: string;
+    auth_verified_at?: number | null;
+    is_primary: boolean;
+    created_at: number;
+}
+interface AomiIdentityWallet {
+    wallet_id?: string | null;
+    address: string;
+    chain_type: string;
+    wallet_provider: string;
+}
+interface AomiUsageStats {
+    period_utc_month?: string;
+    input_tokens: number;
+    output_tokens: number;
+    credit_used: number;
+    credit_paid: number;
+}
+interface AomiAccountProfile {
+    user: AomiUser;
+    auth_identities?: AomiAuthIdentity[];
+    identity_wallets?: AomiIdentityWallet[];
+    usage?: AomiUsageStats;
+}
+interface AomiCreateApprovalRequest {
+    auth_identity_id: number;
+    grant_kind: string;
+    secret_handle: string;
+    external_subject?: string | null;
+    display_label?: string | null;
+    scopes?: string[];
+    expires_at?: number | null;
+    metadata?: unknown;
+}
+interface AomiAccessApproval {
+    id: number;
+    user_id: string;
+    auth_identity_id: number;
+    external_subject?: string | null;
+    display_label?: string | null;
+    grant_kind: string;
+    scopes: string[];
+    secret_handle: string;
+    expires_at?: number | null;
+    granted_at: number;
+    revoked_at?: number | null;
+    metadata: unknown;
+    created_at: number;
+    updated_at: number;
+}
 type AomiWalletFamily = "evm" | "svm";
 /**
- * GET/POST /api/control/provider-keys
- * Lists or saves BYOK keys (one per LLM provider) for the bound client.
+ * GET/POST/DELETE /api/account/payment/byok
+ * Lists or saves BYOK keys (one per LLM provider) for the account.
  */
 interface AomiByokKeyEntry {
     provider: string;
@@ -322,6 +407,13 @@ interface AomiSecretSlot {
  */
 interface AomiAppDescriptor {
     name: string;
+    applicationId?: number | string | null;
+    platform?: string | null;
+    label?: string | null;
+    appReleaseTag?: string | null;
+    isActive?: boolean | null;
+    isPublic?: boolean | null;
+    artifactReady?: boolean | null;
     secrets?: AomiSecretSlot[];
 }
 type AomiSSEEventType = "title_changed" | "tool_update" | "tool_complete" | "system_notice";
@@ -420,7 +512,7 @@ declare class AomiClient {
      * backend never returns raw values; the settings page uses this as the
      * source of truth instead of trusting localStorage.
      */
-    listSecrets(sessionId: string): Promise<AomiListSecretsResponse>;
+    listSecrets(sessionId: string, clientId?: string): Promise<AomiListSecretsResponse>;
     /**
      * Subscribe to real-time SSE updates for a session.
      * Automatically reconnects with exponential backoff on disconnects.
@@ -476,6 +568,7 @@ declare class AomiClient {
      */
     getApps(sessionId: string, options?: {
         apiKey?: string;
+        platforms?: AomiPlatformFilter;
     }): Promise<AomiAppDescriptor[]>;
     /**
      * Get available models.
@@ -574,6 +667,26 @@ type AccountAccessTokenProvider = GetAccountAccessToken & {
 };
 /** Cache and refresh the short-lived Aomi bearer used for backend requests. */
 declare function createAccountAccessTokenProvider({ baseUrl, getProviderCredential, betterAuthToken, fetch: fetchImpl, now, refreshBeforeExpiryMs, }: AccountAccessTokenProviderOptions): AccountAccessTokenProvider;
+
+/**
+ * Canonical home for app-descriptor identity logic. The backend speaks
+ * snake_case and may scope a single app `name` across multiple platforms, so
+ * both normalization (wire shape → descriptor) and identity (descriptor →
+ * stable key) live here to keep every consumer — client, React control state,
+ * UI selectors, and any future server/BFF code — in lockstep.
+ */
+/**
+ * Coerce an arbitrary wire item (string id, camelCase object, or snake_case
+ * object) into a single camelCase {@link AomiAppDescriptor}. Returns null for
+ * anything without a usable `name`.
+ */
+declare function normalizeAppDescriptor(item: unknown): AomiAppDescriptor | null;
+/**
+ * Stable key identifying an app for dedup and selection-matching. Prefers the
+ * concrete backend `applicationId`, falls back to `platform:name`, then `name`.
+ * Server-side dedup and client-side selection must agree, so both call this.
+ */
+declare function appIdentityKey(descriptor: AomiAppDescriptor): string;
 
 type Listener<T = unknown> = (payload: T) => void;
 /**
@@ -1424,4 +1537,4 @@ interface CreateAAStateOptions {
  */
 declare function createAAProviderState(options: CreateAAStateOptions): Promise<AAState>;
 
-export { type AACallPayload, type AAChainConfig, type AAConfig, type AAMode, type AAOwner, type AAProvider, type AAResolvedConfig, type AASponsorship, type AAState, type AAWalletCall, ALCHEMY_CHAIN_SLUGS, type AccountAccessTokenProvider, type AccountAccessTokenProviderOptions, type AccountCredentialProvider, AccountCredentialUnavailableError, type AccountSessionExchangeResponse, type AlchemyHookParams, type AomiAccountResponse, type AomiAppDescriptor, type AomiChatResponse, type AomiClearSecretsResponse, AomiClient, type AomiClientOptions, type AomiClientType, type AomiCreateThreadResponse, type AomiDeleteSecretResponse, type AomiIngestSecretsResponse, type AomiInterruptResponse, type AomiListSecretsResponse, type AomiMessage, type AomiSSEEvent, type AomiSSEEventType, type AomiSecretSlot, type AomiSimulateFee, type AomiSimulateResponse, type AomiStateResponse, type AomiSystemEvent, type AomiSystemResponse, type AomiThread, type AomiWalletFamily, type AtomicBatchArgs, type BetterAuthAccountTokenSourceOptions, type BetterAuthTokenResponse, CHAINS_BY_ID, CHAIN_NAMES, CLIENT_TYPE_TS_CLI, CLIENT_TYPE_WEB_UI, type ChainInfo, type CreateAAStateOptions, type CreateAlchemyAAProviderOptions, type CreatePimlicoAAProviderOptions, DEFAULT_AA_CONFIG, DISABLED_PROVIDER_STATE, type ExecuteWalletCallsParams, type ExecutionResult, type GetAccountAccessToken, type Logger, MAX_AUTO_FEE_WEI, type NativeWalletExecutionPolicy, type NativeWalletSponsorship, type NormalizedSimulatedFee, type NormalizedSolanaWalletRequest, type PimlicoHookParams, type PimlicoResolveOptions, type PimlicoResolvedConfig, SUPPORTED_CHAINS, SUPPORTED_CHAIN_IDS, type SendResult, ClientSession as Session, type SessionEventMap, type SessionOptions, type SmartAccount, type SponsorshipPaymasterServiceContext, TypedEventEmitter, type UnwrappedEvent, type UseAlchemyAAHook, type UsePimlicoAAHook, UserState, type UserStateAAMode, type UserStateAuthMethod, type UserStateSponsorProvider, type UserStateWalletKind, type UserStateWalletProvider, type ViemSignMessageArgs, type ViemSignTypedDataArgs, type WalletAtomicCapability, type WalletCapabilities, type WalletEip712Payload, type WalletRequest, type WalletRequestKind, type WalletRequestResult, type WalletSolanaSignMessagePayload, type WalletSolanaSignPayload, type WalletTxAaPreference, type WalletTxCallPayload, type WalletTxPayload, aaModeFromExecutionKind, adaptSmartAccount, appendFeeCallToPayload, buildAAExecutionPlan, buildFeeAAWalletCall, createAAProviderState, createAccountAccessTokenProvider, createAlchemyAAProvider, createPimlicoAAProvider, executeWalletCalls, getAAChainConfig, getWalletExecutorReady, hydrateTxPayloadFromUserState, isAlchemySponsorshipLimitError, isAsyncCallback, isInlineCall, isSystemError, isSystemNotice, monad, monadTestnet, normalizeEip712Payload, normalizeSimulatedFee, normalizeSolanaSignMessagePayload, normalizeSolanaSignPayload, normalizeSolanaWalletRequest, normalizeTxPayload, parseChainId, resolvePimlicoConfig, toAAWalletCall, toAAWalletCalls, toViemSignMessageArgs, toViemSignTypedDataArgs, unwrapSystemEvent };
+export { type AACallPayload, type AAChainConfig, type AAConfig, type AAMode, type AAOwner, type AAProvider, type AAResolvedConfig, type AASponsorship, type AAState, type AAWalletCall, ALCHEMY_CHAIN_SLUGS, type AccountAccessTokenProvider, type AccountAccessTokenProviderOptions, type AccountCredentialProvider, AccountCredentialUnavailableError, type AccountSessionExchangeResponse, type AlchemyHookParams, type AomiAccessApproval, type AomiAccountProfile, type AomiAccountResponse, type AomiAppDescriptor, type AomiAuthIdentity, type AomiChatResponse, type AomiClearSecretsResponse, AomiClient, type AomiClientOptions, type AomiClientType, type AomiCreateApprovalRequest, type AomiCreateThreadResponse, type AomiDeleteSecretResponse, type AomiHttpMethod, type AomiIdentityWallet, type AomiIngestSecretsResponse, type AomiInterruptResponse, type AomiListSecretsResponse, type AomiMessage, type AomiPlatformFilter, type AomiRequestOptions, type AomiRequestQueryValue, type AomiSSEEvent, type AomiSSEEventType, type AomiSecretSlot, type AomiSimulateFee, type AomiSimulateResponse, type AomiStateResponse, type AomiSystemEvent, type AomiSystemResponse, type AomiThread, type AomiUsageStats, type AomiUser, type AomiWalletFamily, type AtomicBatchArgs, type BetterAuthAccountTokenSourceOptions, type BetterAuthTokenResponse, CHAINS_BY_ID, CHAIN_NAMES, CLIENT_TYPE_TS_CLI, CLIENT_TYPE_WEB_UI, type ChainInfo, type CreateAAStateOptions, type CreateAlchemyAAProviderOptions, type CreatePimlicoAAProviderOptions, DEFAULT_AA_CONFIG, DISABLED_PROVIDER_STATE, type ExecuteWalletCallsParams, type ExecutionResult, type GetAccountAccessToken, type GetAccountBearer, type Logger, MAX_AUTO_FEE_WEI, type NativeWalletExecutionPolicy, type NativeWalletSponsorship, type NormalizedSimulatedFee, type NormalizedSolanaWalletRequest, type PimlicoHookParams, type PimlicoResolveOptions, type PimlicoResolvedConfig, SUPPORTED_CHAINS, SUPPORTED_CHAIN_IDS, type SendResult, ClientSession as Session, type SessionEventMap, type SessionOptions, type SmartAccount, type SponsorshipPaymasterServiceContext, TypedEventEmitter, type UnwrappedEvent, type UseAlchemyAAHook, type UsePimlicoAAHook, UserState, type UserStateAAMode, type UserStateAuthMethod, type UserStateSponsorProvider, type UserStateWalletKind, type UserStateWalletProvider, type ViemSignMessageArgs, type ViemSignTypedDataArgs, type WalletAtomicCapability, type WalletCapabilities, type WalletEip712Payload, type WalletRequest, type WalletRequestKind, type WalletRequestResult, type WalletSolanaSignMessagePayload, type WalletSolanaSignPayload, type WalletTxAaPreference, type WalletTxCallPayload, type WalletTxPayload, aaModeFromExecutionKind, adaptSmartAccount, appIdentityKey, appendFeeCallToPayload, buildAAExecutionPlan, buildFeeAAWalletCall, createAAProviderState, createAccountAccessTokenProvider, createAlchemyAAProvider, createPimlicoAAProvider, executeWalletCalls, getAAChainConfig, getWalletExecutorReady, hydrateTxPayloadFromUserState, isAlchemySponsorshipLimitError, isAsyncCallback, isInlineCall, isSystemError, isSystemNotice, monad, monadTestnet, normalizeAppDescriptor, normalizeEip712Payload, normalizeSimulatedFee, normalizeSolanaSignMessagePayload, normalizeSolanaSignPayload, normalizeSolanaWalletRequest, normalizeTxPayload, parseChainId, resolvePimlicoConfig, toAAWalletCall, toAAWalletCalls, toViemSignMessageArgs, toViemSignTypedDataArgs, unwrapSystemEvent };

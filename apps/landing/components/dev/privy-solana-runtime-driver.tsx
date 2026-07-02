@@ -23,11 +23,11 @@ import {
   type WalletRequestResult,
 } from "@aomi-labs/react";
 import { LandingPrivyProvider } from "../../app/components/landing-privy-provider";
-import { RuntimeTxHandler } from "../../../registry/src/components/runtime-tx-handler";
+import { RuntimeTxHandler } from "../../../shadcn-registry/src/components/runtime-tx-handler";
 import {
   useAomiWalletKit,
   type AomiWalletKit,
-} from "../../../registry/src/lib/wallet-kit";
+} from "../../../shadcn-registry/src/lib/wallet-kit";
 
 type DriverMode =
   | "sign"
@@ -221,6 +221,7 @@ function PrivySolanaRuntimeDriverInner() {
       onUserStateChange: () => () => undefined,
       currentThreadId: DRIVER_SESSION_ID,
       threadViewKey: 0,
+      threadListError: false,
       threadMetadata: new Map(),
       getThreadMetadata: () => undefined,
       createThread: async () => DRIVER_SESSION_ID,

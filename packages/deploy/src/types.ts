@@ -1,142 +1,446 @@
 // =============================================================================
-// Public input/output types
+// Public input/output types for the repo-scoped platform deploy contract.
 // =============================================================================
 
-/**
- * The app's files, keyed by path **relative to `apps/<slug>/`** (posix).
- * Values are file contents (UTF-8 string or raw bytes).
- *
- * Do NOT include `.aomi/deployment.json` — the client generates it. Paths that
- * escape the app dir (absolute, or containing `..`) are rejected.
- */
-export type SourceBundle = Record<string, string | Uint8Array>;
-
-export interface GitHubConfig {
-  /** `owner/repo`, e.g. "aomi-labs/krexa-hosted-apps". */
-  repo: string;
-  /** Publish branch; defaults to "publish". */
-  branch?: string;
-  /**
-   * Fine-grained bot PAT (Contents: read+write on this repo only). Used to
-   * commit, and reused as the transient read PAT the backend uses to fetch the
-   * private release at activate time.
-   */
-  botPat: string;
-}
-
 export interface AomiConfig {
-  /** Backend base URL, e.g. "https://staging-api...". No trailing `/api`. */
+  /** Backend base URL, e.g. "https://api-staging.aomi.dev". */
   backendUrl: string;
-  /** Platform name (e.g. "krexa"); must match the platform descriptor. */
-  platform: string;
-  /** Platform-wide activation token (Bearer). Server-side only. */
-  activationToken: string;
-  /** Override the activate path. Defaults to "/api/admin/apps/activate". */
-  activatePath?: string;
-}
-
-/**
- * Optional Discord delivery for activation requests. Mirrors the `aomi-git`
- * code-owned webhook, but here the destination is consumer-configured (this
- * library never hardcodes secrets). When `webhookUrl` is set, `requestActivation`
- * POSTs the embed; otherwise it just returns the body for you to deliver.
- */
-export interface DiscordConfig {
-  /** Incoming webhook URL for the activation-request channel. */
-  webhookUrl?: string;
-  /** Ops role/user mention, e.g. "<@&123>". Goes in the message `content`. */
-  opsMention?: string;
+  /**
+   * Bearer token for platform/app activation (deploy / activate / status, and
+   * the bootstrap reads). Optional so a bootstrap-only client can be built with
+   * just `adminBearer`. Server-side only.
+   */
+  activationToken?: string;
+  /**
+   * Privileged admin/service AomiBearer for bootstrap writes — minting the very
+   * first platform token, which no activation token can do yet. Mint it with
+   * `@aomi-labs/service` (the signing twin). Server-side only.
+   */
+  adminBearer?: string;
 }
 
 export interface AuditEvent {
-  action: "request" | "deploy" | "activate";
-  /** App slug (absent only for malformed events). */
-  slug: string;
-  releaseTag?: string;
+  action:
+    | "request"
+    | "preflight"
+    | "deploy"
+    | "activate"
+    | "status"
+    | "mint_token"
+    | "list_tokens"
+    | "revoke_token"
+    | "sync_source"
+    | "scaffold"
+    | "list_apps"
+    | "get_app"
+    | "exchange_github_code"
+    | "list_user_sources"
+    | "get_user_source_latest_deployment";
+  platform?: string;
+  appSourceId?: number;
+  apps?: string[];
   targetTags?: string[];
-  /** Caller-supplied actor identity (the proxy resolves this from its session). */
+  /** Token scope for `mint_token`. */
+  scope?: TokenScope;
+  /** Source repo / scaffolded repo name for source + scaffold ops. */
+  repo?: string;
+  /** Token id for `revoke_token`. */
+  tokenId?: number;
   actor?: string;
-  /** Unix ms. */
   ts: number;
 }
 
 export interface DeploymentClientOptions {
-  github: GitHubConfig;
   aomi: AomiConfig;
-  /**
-   * Platform descriptor (`platform.json`). If omitted, a krexa-shaped default
-   * is derived from `aomi.platform` + `github.repo`. Pass the real descriptor
-   * to guarantee the manifest matches the publish CI validator.
-   */
-  descriptor?: import("./contract").PlatformDescriptor;
-  /** Optional Discord delivery for `requestActivation`. */
-  discord?: DiscordConfig;
-  /** Called on every privileged op. The proxy MUST persist this (attribution). */
+  /** Called on every privileged op. The proxy should persist this. */
   onAudit?: (event: AuditEvent) => void | Promise<void>;
-  /** Injectable for tests; defaults to a real Octokit. */
-  octokit?: unknown;
 }
 
+/** Immutable git commit SHA accepted by the platform deploy backend. */
+export type SourceRef = string;
+
 export interface DeployInput {
-  slug: string;
-  /** Human-facing name; defaults to `slug`. */
-  displayName?: string;
-  files: SourceBundle;
-  /** Build scope; defaults to ["staging"]. Activation can only narrow this. */
-  serverTags?: string[];
-  isPublic?: boolean;
-  /**
-   * Provenance commit (12–40 lowercase hex). If omitted, a deterministic one is
-   * derived from the bundle contents (for browser uploads with no git history).
-   */
-  sourceCommit?: string;
-  /** Attribution actor, forwarded to `onAudit`. */
+  platform: string;
+  /** Connected GitHub App source row selected for this deploy. */
+  appSourceId: number;
+  sourceRef: SourceRef;
+  /** Optional explicit manifests. Empty/omitted lets the backend discover every aomi.toml. */
+  aomiTomlPaths?: string[];
   actor?: string;
 }
 
+export interface PreflightInput extends DeployInput {}
+
+export type DeployStatus =
+  | "preflight"
+  | "pr_created"
+  | "pr_updated"
+  | "unchanged";
+export type CiStatus = "no_ci" | "pending" | "running" | "passed" | "failed";
+
 export interface DeployResult {
-  releaseTag: string;
-  /** SHA of the commit created on the publish branch. */
-  publishCommitSha: string;
-  /** The provenance commit used in the release tag + manifest. */
-  sourceCommit: string;
-  appPath: string;
-  serverTags: string[];
-  /** Link to the publish workflow runs for this repo. */
-  ciUrl: string;
+  ok: boolean;
+  deployment: DeployPayload;
 }
 
-export type CiStatus = "pending" | "running" | "success" | "failure" | "unknown";
-export type ReleaseStatus = "absent" | "building" | "ready";
+export interface DeployPayload {
+  id: string;
+  status: DeployStatus | string;
+  source: Source;
+  platform: Platform;
+}
 
-export interface StatusResult {
-  ci: CiStatus;
-  release: ReleaseStatus;
-  releaseTag: string | null;
+export interface Source {
+  installationId: number;
+  repositoryId: number;
+  repositoryLink: string;
+  ownerRepoName?: string;
+  ref: SourceRef;
+  commitHash: string;
+  aomiTomlPaths: string[];
+}
+
+export interface Platform {
+  platform: string;
+  repository: string;
+  deployBranch: string;
+  sourceBranch: string;
+  commitHash: string | null;
+  prNumber: number | null;
+  prUrl: string | null;
+  ciStatus: CiStatus | null;
+  ciUrl: string | null;
+  apps: AppRecord[];
+}
+
+export interface AppRecord {
+  name: string;
+  path: string;
+  aomiTomlPath: string;
+  releaseTag: string;
+  target?: string | null;
+  files: AppFileRecord[];
+}
+
+export interface AppFileRecord {
+  path: string;
+  sha256: string;
+  bytes: number;
+}
+
+export interface ReleaseTags {
+  kind: "release_tags";
+  value: string[];
 }
 
 export interface ActivateInput {
-  slug: string;
-  /** Convenience: "staging" | "prod" → `target_tags: [env]`. */
-  targetEnv?: string;
-  /** Explicit target tags (takes precedence over `targetEnv`). */
+  platform: string;
+  target: ReleaseTags;
+  /** Apps to activate. Optional; the backend can derive names from release tags. */
+  apps?: string[];
   targetTags?: string[];
-  releaseTag: string;
-  sourceCommit: string;
-  isPublic?: boolean;
-  displayName?: string;
-  /**
-   * The build's declared `server_tags` (from the DeployResult). When provided,
-   * the client asserts `targetTags ⊆ buildServerTags` before calling the
-   * backend (narrow-only, defense in depth).
-   */
-  buildServerTags?: string[];
   actor?: string;
 }
 
 export interface ActivateResult {
-  activated: boolean;
-  status: number;
-  /** Raw backend response body (JSON or text). */
-  body: unknown;
+  ok: boolean;
+  activation: {
+    status: "activating" | "partial_failed" | string;
+    platform: string;
+    target: {
+      kind: string;
+      value: unknown;
+      platformRepo?: string | null;
+      platformBranch?: string | null;
+      platformCommitHash?: string | null;
+      ciStatus?: CiStatus | null;
+      ciUrl?: string | null;
+      promoted: ActivationPromotion[];
+    };
+    apps: ActivatedApp[];
+  };
+}
+
+export interface ActivationPromotion {
+  name: string;
+  releaseTag: string;
+  sourceBranch: string;
+  platformCommitHash: string | null;
+  liveCommitHash?: string | null;
+  activationStatus?: "promoted" | "unchanged" | string | null;
+  ciStatus: CiStatus | string;
+  ciUrl: string | null;
+  releaseAssets: string[];
+  releaseAssetDigests?: Record<string, string>;
+}
+
+export interface ActivatedApp {
+  applicationId?: number | null;
+  name: string;
+  path?: string | null;
+  releaseTag?: string | null;
+  isActive: boolean;
+  artifactReady?: boolean | null;
+  loaded: boolean;
+  error?: string | null;
+  sourceBranch?: string | null;
+  liveCommitHash?: string | null;
+  activationStatus?: "promoted" | "unchanged" | string | null;
+  activationPr?: unknown | null;
+  activationPrCloseError?: string | null;
+}
+
+export interface StatusInput {
+  platform: string;
+  /** Deployment ID to poll `/api/platforms/:platform/deployments/:id/status`. */
+  deploymentId?: string;
+  /** Optional backend status path. Defaults to `/api/platforms/:platform/status`. */
+  path?: string;
+  actor?: string;
+}
+
+// NEW — replaces StatusResult = unknown
+export interface DeploymentStatus {
+  state: "no_ci" | "building" | "releasing" | "ready" | "failed" | "pending";
+  deployment?: DeployPayload;
+  releaseTags: string[];
+  apps?: DeploymentAppStatus[];
+  ci?: { status?: string; url?: string; commitHash?: string };
+  message?: string;
+}
+
+export interface DeploymentAppStatus {
+  name: string;
+  releaseTag: string;
+  releaseReady: boolean;
+  releaseAssets?: string[];
+  releaseAssetDigests?: Record<string, string>;
+  message?: string | null;
+}
+
+/** Structured progress value emitted with every DeploymentProgressEvent. */
+export interface ProgressModel {
+  /** 0–total */
+  completed: number;
+  /** total steps (>0) */
+  total: number;
+  /** human-readable phase label, e.g. "Building CI (2/5)" */
+  label: string;
+}
+
+export type DeploymentEventKind =
+  | "progress" // normal polling tick
+  | "terminal" // ready or failed — polling will stop
+  | "warning" // transient polling failure, will retry
+  | "error"; // polling stopped due to exhaustion/timeout/cancellation/non-retryable
+
+export interface DeploymentProgressEvent {
+  kind: DeploymentEventKind;
+  status: DeploymentStatus;
+  progress: ProgressModel;
+  /** Only set when kind === "error" || kind === "warning" */
+  error?: Error;
+}
+
+export interface WatchDeploymentOptions {
+  /** Polling interval for the first tick (ms). Default: 3000 */
+  baseDelayMs?: number;
+  /** Maximum polling interval after backoff (ms). Default: 30000 */
+  maxDelayMs?: number;
+  /** Maximum number of consecutive failures before emitting error event. Default: 8 */
+  maxRetries?: number;
+  /** AbortSignal to cancel the watch loop externally. */
+  signal?: AbortSignal;
+}
+
+// =============================================================================
+// Bootstrap surface — the runbook steps before deploy.
+//
+// Twin of the Rust `aomi-build` bootstrap commands; every call maps 1:1 onto a
+// `/api/platforms/*` route (mint a token → resolve/scaffold a source → list
+// apps). The `bearer` override lets a single client carry both an activation
+// token (deploy/activate) and a privileged admin bearer (token minting).
+// =============================================================================
+
+/** Per-call bearer override — wins over the client's configured tokens. */
+interface BearerOverride {
+  /**
+   * Bearer to authorize this call. For `mintToken` this is the privileged
+   * admin/service AomiBearer; otherwise an activation token. Defaults to the
+   * client's configured token (admin-preferred for privileged writes).
+   */
+  bearer?: string;
+  actor?: string;
+}
+
+// ── Tokens (POST/GET/DELETE /api/platforms/:p/tokens) ────────────────────────
+
+export type TokenScope = "platform" | "app";
+
+export interface MintTokenInput extends BearerOverride {
+  platform: string;
+  scope: TokenScope;
+  /** Required when `scope === "app"`. The target `applications.id`. */
+  appId?: number;
+}
+
+/** Plaintext is returned ONCE at mint time; the backend stores only its hash. */
+export interface MintedToken {
+  id: number;
+  token: string;
+  scope: TokenScope | string;
+}
+
+export interface TokenRecord {
+  id: number;
+  scope: TokenScope | string | null;
+  appId: number | null;
+  tokenHashPrefix: string;
+  createdAt: string | null;
+  lastUsedAt: string | null;
+  revokedAt: string | null;
+  appsUsage: string[] | null;
+  platformUsage: string | null;
+}
+
+export interface ListTokensInput extends BearerOverride {
+  platform: string;
+}
+
+export interface RevokeTokenInput extends BearerOverride {
+  platform: string;
+  id: number;
+}
+
+// ── App sources (POST sync-installed / GET resolve / POST create-from-template)
+
+export interface AppSource {
+  id: number;
+  installationId: number;
+  repositoryId: number | null;
+  repositoryLink: string | null;
+  sourceRef: SourceRef | null;
+  commitHash: string | null;
+  githubAccount: string | null;
+  githubUserId: number | null;
+  boundPlatformId: number | null;
+  boundPlatformName?: string | null;
+  createdBy?: string | null;
+  templateRepo?: string | null;
+  launchSourceKind?: string | null;
+}
+
+export interface SyncSourceInput extends BearerOverride {
+  platform: string;
+  /** `owner/name` of a repo already installed on the Aomi GitHub App. */
+  repo: string;
+  /** Signed-in GitHub user id to bind this existing source to, when known. */
+  githubUserId?: string;
+}
+
+export interface ScaffoldInput extends BearerOverride {
+  platform: string;
+  installationId: number;
+  /** New repo name created in the installation's account from the template. */
+  repoName: string;
+  /** Template `owner/repo` to copy for the one-shot flow. */
+  templateRepo: string;
+  /**
+   * GitHub user the created source is owned by. Written onto the source row at
+   * insert so it appears on the developer's dashboard immediately. Supplied by
+   * the portal BFF from the signed-in GitHub session.
+   */
+  githubUserId: string;
+  /** Create the new repo private. Defaults to false. */
+  private?: boolean;
+}
+
+// ── Platform apps (GET /api/platforms/:p/apps[/:app]) ────────────────────────
+
+export interface ListAppsInput extends BearerOverride {
+  platform: string;
+}
+
+export interface GetAppInput extends BearerOverride {
+  platform: string;
+  app: string;
+  /** Check loaded-state for a specific release tag. */
+  releaseTag?: string;
+}
+
+export interface PlatformApp {
+  id: number;
+  name: string;
+  label: string | null;
+  platform: string | null;
+  isActive: boolean;
+  isPublic: boolean;
+  appSourceId: number | null;
+  appReleaseTag: string | null;
+  targetTags: string[];
+  loaded: boolean;
+  artifactReady?: boolean | null;
+}
+
+// ── GitHub identity + per-user sources (the sign-in dashboard) ────────────────
+
+export interface ExchangeGitHubCodeInput extends BearerOverride {
+  /** GitHub OAuth authorization code from the sign-in redirect. */
+  code: string;
+  /** Which configured GitHub App (1 = build, 2 = oneshot). */
+  app?: number;
+}
+
+export interface GitHubIdentity {
+  githubUserId: string;
+  githubLogin: string;
+  /**
+   * Most-recent installation of the exchanged App visible to this user, if any.
+   * Lets the portal skip the install step when the App is already installed.
+   */
+  installationId: string | null;
+}
+
+export interface ListUserSourcesInput extends BearerOverride {
+  githubUserId: string;
+  platform?: string;
+}
+
+export interface GetUserSourceLatestDeploymentInput extends BearerOverride {
+  githubUserId: string;
+  platform: string;
+  appSourceId: number;
+}
+
+export interface UserSourceDeploymentApp {
+  name: string;
+  releaseTag: string | null;
+  target?: string | null;
+  applicationId?: number | null;
+  appSourceId?: number | null;
+  appReleaseTag?: string | null;
+  isActive?: boolean;
+  artifactReady?: boolean | null;
+  loaded?: boolean;
+}
+
+export interface UserSourceLatestDeployment {
+  deploymentId: string | null;
+  state: string | null;
+  deployBranch: string | null;
+  platformRepo: string | null;
+  commitHash: string | null;
+  ciStatus: string | null;
+  ciUrl: string | null;
+  ciRunId?: string | number | null;
+  releaseTags: string[];
+  artifactTarget?: string | null;
+  buildTarget?: string | null;
+  apps: UserSourceDeploymentApp[];
+}
+
+/** A source repo plus the applications deployed from it. */
+export interface UserSource extends AppSource {
+  apps: PlatformApp[];
+  latestDeployment?: UserSourceLatestDeployment | null;
 }

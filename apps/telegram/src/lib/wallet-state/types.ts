@@ -84,6 +84,10 @@ export interface UserWalletState {
   presence: WalletPresence;
   address?: string;
   chainId?: number | null;
+  svmAddress?: string;
+  svmCluster?: string | null;
+  walletProvider?: string;
+  providerLabel?: string;
   source?: WalletConnectionSource;
   activeOperation?: WalletOperation;
   label: string;

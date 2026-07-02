@@ -33,7 +33,7 @@ The durable walkthrough for this workspace lives in [../docs/topics/frontend-e2e
    ```bash
    pnpm dev
    ```
-   The runtime reads `NEXT_PUBLIC_BACKEND_URL`, defaulting to `http://localhost:8080`. For local full-stack startup use [../scripts/dev.sh](../scripts/dev.sh).
+   Local development defaults to `http://127.0.0.1:8080`. Vercel production defaults to `https://api.aomi.dev`; previews default to `https://api-staging.aomi.dev`. For local full-stack startup use [../scripts/dev.sh](../scripts/dev.sh).
 
 3. **Open in browser**:
    ```
@@ -45,14 +45,14 @@ The durable walkthrough for this workspace lives in [../docs/topics/frontend-e2e
 - `AomiRuntimeProvider` is mounted in `aomi-frame.tsx`.
 - `Thread` renders the assistant UI.
 - `WalletTxHandler` consumes `pendingWalletRequests`, switches chains when needed, then resolves or rejects requests back into the runtime.
-- Settings pages use `settingsApiFetch()`, which always sends `X-Session-Id` and conditionally sends `X-API-Key`.
+- Settings pages use `sessionScopedFetch()`, which always sends `X-Session-Id` and conditionally sends `X-API-Key`.
 
 ## Local E2E
 
 Current end-to-end testing is mostly manual:
 
 1. Start the backend.
-2. Start the frontend with `NEXT_PUBLIC_BACKEND_URL` pointed at that backend.
+2. Start the frontend. Set `NEXT_PUBLIC_BACKEND_URL` only when using a non-default backend.
 3. Exercise chat, wallet requests, and settings screens in the browser.
 4. Verify wallet callbacks and settings headers in backend logs or network tools.
 

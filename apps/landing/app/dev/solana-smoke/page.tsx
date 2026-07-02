@@ -22,7 +22,7 @@
 
 import { useEffect, useState } from "react";
 import type { WalletSolanaSignPayload } from "@aomi-labs/react";
-import type { AomiWalletKit } from "../../../../registry/src/lib/wallet-kit";
+import type { AomiWalletKit } from "../../../../shadcn-registry/src/lib/wallet-kit";
 
 // -----------------------------------------------------------------------------
 // Two adapter modes

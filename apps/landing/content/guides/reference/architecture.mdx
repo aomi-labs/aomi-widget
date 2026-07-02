@@ -37,7 +37,6 @@ graph TB
 
     subgraph "External Services"
         ANTHROPIC[Anthropic Claude]
-        MCP[MCP Server]
         ETHERSCAN[Etherscan API]
         RPC[RPC Nodes]
         BAML[BAML Server]
@@ -61,7 +60,6 @@ graph TB
     CHAT --> SEQ
     CHAT --> ANTHROPIC
 
-    SCHED --> MCP
     SCHED --> ETHERSCAN
     SCHED --> RPC
     SCHED --> BAML
@@ -86,7 +84,6 @@ graph TD
     end
 
     subgraph "Integrations"
-        MCP[aomi-mcp<br/>MCP Protocol]
         RAG[aomi-rag<br/>Document Search]
         BAML[aomi-baml<br/>Structured AI]
     end
@@ -108,7 +105,6 @@ graph TD
     BIN_TUI --> CHAT
 
     CHAT --> TOOLS
-    CHAT --> MCP
     CHAT --> RAG
 
     BACKEND --> CHAT
@@ -233,7 +229,7 @@ let app = ChatAppBuilder::new(&preamble).await?
     .add_tool(GetContractABI)?
     .add_tool(SimulateTransaction)?
     .add_docs_tool(sender, None).await?
-    .build(skip_mcp, system_events, sender).await?;
+    .build(system_events, sender).await?;
 ```
 
 ### Trait-Based Abstractions
@@ -340,7 +336,6 @@ flowchart TB
 | Service          | Crate      | Purpose                |
 | ---------------- | ---------- | ---------------------- |
 | Anthropic Claude | aomi-chat  | LLM inference          |
-| MCP Server       | aomi-mcp   | Extended tool protocol |
 | Etherscan        | aomi-tools | Contract data          |
 | Brave Search     | aomi-tools | Web search             |
 | BAML Server      | aomi-baml  | Structured AI outputs  |

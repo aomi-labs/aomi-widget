@@ -20,9 +20,11 @@ import type {
   AomiSystemEvent,
   AomiSystemResponse,
   AomiThread,
+  AomiPlatformFilter,
   GetAccountAccessToken,
   Logger,
 } from "./types";
+import { normalizeAppDescriptor } from "./app-descriptor";
 import { UserState, type UserState as UserStateShape } from "./user-state";
 import { createSseSubscriber, type SseSubscriber } from "./sse";
 
@@ -114,7 +116,7 @@ function joinApiPath(baseUrl: string, path: string): string {
 function buildApiUrl(
   baseUrl: string,
   path: string,
-  query?: Record<string, string | undefined>,
+  query?: Record<string, readonly string[] | string | undefined>,
 ): string {
   const url = joinApiPath(baseUrl, path);
   if (!query) return url;
@@ -122,7 +124,11 @@ function buildApiUrl(
   const params = new URLSearchParams();
   for (const [key, value] of Object.entries(query)) {
     if (value === undefined) continue;
-    params.set(key, value);
+    if (typeof value === "string") {
+      params.set(key, value);
+    } else {
+      for (const item of value) params.append(key, item);
+    }
   }
 
   const queryString = params.toString();
@@ -175,6 +181,23 @@ function supportsTokenRefreshSubscription(
   return (
     typeof (provider as { subscribe?: unknown } | undefined)?.subscribe ===
     "function"
+  );
+}
+
+function normalizePlatformFilter(platforms: AomiPlatformFilter): string[] {
+  const rawValues = Array.isArray(platforms)
+    ? platforms
+    : platforms === null || platforms === undefined
+      ? []
+      : [platforms];
+
+  return Array.from(
+    new Set(
+      rawValues
+        .flatMap((value) => value.split(","))
+        .map((value) => value.trim())
+        .filter(Boolean),
+    ),
   );
 }
 
@@ -559,8 +582,14 @@ export class AomiClient {
    * backend never returns raw values; the settings page uses this as the
    * source of truth instead of trusting localStorage.
    */
-  async listSecrets(sessionId: string): Promise<AomiListSecretsResponse> {
-    const url = joinApiPath(this.baseUrl, "/api/secrets");
+  async listSecrets(
+    sessionId: string,
+    clientId?: string,
+  ): Promise<AomiListSecretsResponse> {
+    const url =
+      clientId && clientId.trim().length > 0
+        ? buildApiUrl(this.baseUrl, "/api/secrets", { client_id: clientId })
+        : joinApiPath(this.baseUrl, "/api/secrets");
     const response = await this.fetchImpl(url, {
       method: "GET",
       headers: withSessionHeader(sessionId),
@@ -768,9 +797,12 @@ export class AomiClient {
    */
   async getApps(
     sessionId: string,
-    options?: { apiKey?: string },
+    options?: { apiKey?: string; platforms?: AomiPlatformFilter },
   ): Promise<AomiAppDescriptor[]> {
-    const url = buildApiUrl(this.baseUrl, "/api/session/apps");
+    const platforms = normalizePlatformFilter(options?.platforms);
+    const url = buildApiUrl(this.baseUrl, "/api/session/apps", {
+      platform: platforms.length > 0 ? platforms : undefined,
+    });
 
     const apiKey = options?.apiKey ?? this.apiKey;
     const headers = new Headers(withSessionHeader(sessionId));
@@ -787,18 +819,7 @@ export class AomiClient {
     const data = (await response.json()) as unknown;
     if (!Array.isArray(data)) return [];
     return data
-      .map((item) => {
-        if (typeof item === "string") {
-          return { name: item };
-        }
-        if (item && typeof item === "object" && "name" in item) {
-          const name = (item as { name?: unknown }).name;
-          if (typeof name === "string" && name.trim().length > 0) {
-            return item as AomiAppDescriptor;
-          }
-        }
-        return null;
-      })
+      .map((item) => normalizeAppDescriptor(item))
       .filter((item): item is AomiAppDescriptor => item !== null);
   }
 
@@ -889,8 +910,10 @@ export class AomiClient {
       throw new Error(`Failed to get BYOK keys: HTTP ${response.status}`);
     }
 
-    const data = (await response.json()) as AomiListByokKeysResponse;
-    return data.byok_keys ?? [];
+    const data = (await response.json()) as AomiListByokKeysResponse & {
+      byok_keys?: AomiByokKeyEntry[];
+    };
+    return data.byok_keys ?? data.byok ?? [];
   }
 
   /**

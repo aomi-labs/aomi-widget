@@ -7,7 +7,7 @@ const workspaceRoot = path.resolve(appRoot, "../..");
 const appNodeModules = path.join(appRoot, "node_modules");
 const portalSrc = path.join(appRoot, "src");
 const authSrc = path.join(workspaceRoot, "packages/auth/src");
-const widgetSrc = path.join(workspaceRoot, "apps/registry/src");
+const widgetSrc = path.join(workspaceRoot, "apps/shadcn-registry/src");
 
 const emptyModulePath = path.join(appRoot, "empty-module.js");
 const nobleHashesAssertCompatPath = path.join(
@@ -19,12 +19,12 @@ const nobleHashesAssertCompatPath = path.join(
 // These `@/components|hooks|lib` aliases exist only so registry source imported
 // through `@aomi-labs/widget-lib` can resolve its own internal paths.
 const widgetTurbopackAliases = {
-  "@/components": "../../apps/registry/src/components",
-  "@/hooks": "../../apps/registry/src/hooks",
-  "@/lib": "../../apps/registry/src/lib",
+  "@/components": "../../apps/shadcn-registry/src/components",
+  "@/hooks": "../../apps/shadcn-registry/src/hooks",
+  "@/lib": "../../apps/shadcn-registry/src/lib",
   "@aomi-labs/widget-lib/providers/para":
-    "../../apps/registry/src/lib/wallet-kit/providers/para/index.ts",
-  "@aomi-labs/widget-lib": "../../apps/registry/src/index.ts",
+    "../../apps/shadcn-registry/src/lib/wallet-kit/providers/para/index.ts",
+  "@aomi-labs/widget-lib": "../../apps/shadcn-registry/src/index.ts",
 } as const;
 
 // Keep these in sync with the corresponding `paths` entries in
