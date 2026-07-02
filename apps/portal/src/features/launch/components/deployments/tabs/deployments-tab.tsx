@@ -19,6 +19,7 @@ export function DeploymentsTab({ detail }: { detail: Detail }) {
 
   useEffect(() => {
     detail.loadHistory();
+    detail.loadActivations();
   }, [detail]);
 
   const requiredSdk = detail.sdk?.sdkStatus.requiredVersion;
@@ -56,6 +57,14 @@ export function DeploymentsTab({ detail }: { detail: Detail }) {
     }
   };
 
+  // The backend history JSON sets a per-app `appReleaseTag` only when it
+  // matches that app's live release tag, so equality means "this deployment
+  // is what is running now".
+  const isCurrent = (deployment: (typeof detail.history)[number]) =>
+    deployment.apps.some(
+      (app) => app.appReleaseTag && app.appReleaseTag === app.releaseTag,
+    );
+
   return (
     <div>
       {detail.history.map((deployment, index) => {
@@ -71,12 +80,37 @@ export function DeploymentsTab({ detail }: { detail: Detail }) {
             requiredSdk={requiredSdk}
             running={running}
             message={message}
+            current={isCurrent(deployment)}
             onRollback={() => {
               if (id) setConfirmId(id);
             }}
           />
         );
       })}
+      {detail.activationsByApp && (
+        <div className="mt-6">
+          <div className="px-4 text-xs font-medium uppercase tracking-wide text-zinc-400">
+            Activity
+          </div>
+          {Object.entries(detail.activationsByApp).flatMap(([app, rows]) =>
+            rows.map((row) => (
+              <div
+                key={`${app}-${row.deploymentId}-${row.createdAt}`}
+                className="flex items-center justify-between border-b border-zinc-100 px-4 py-2 text-xs text-zinc-600 last:border-b-0"
+              >
+                <span className="font-mono">
+                  {row.action} · {row.deploymentId}
+                </span>
+                <span>
+                  {app}
+                  {row.actor ? ` · ${row.actor}` : ""} ·{" "}
+                  {new Date(row.createdAt * 1000).toLocaleString()}
+                </span>
+              </div>
+            )),
+          )}
+        </div>
+      )}
       <ConfirmDialog
         open={confirmId !== null}
         title="Roll back deployment?"
