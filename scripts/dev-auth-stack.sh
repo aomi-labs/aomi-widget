@@ -175,7 +175,7 @@ start_backend() {
   if [ ! -f "$PRODUCT_BACKEND_LAUNCHER" ]; then
     cat >&2 <<EOF
 Missing backend launcher: $PRODUCT_BACKEND_LAUNCHER
-Expected the helper from HANDOFF-LOCAL-BACKEND.md in sibling product-mono.
+Expected the sibling product-mono helper described in docs/local-dev-stack.md.
 EOF
     exit 1
   fi

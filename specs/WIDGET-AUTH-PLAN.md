@@ -8,10 +8,10 @@
 > left before the Rust backend can treat `aomi_users.id` as its durable account
 > owner.
 >
-> 2026-07-01 implementation note: historical BetterAuth backend JWT/JWKS
-> references below are superseded. The live backend-auth path is BetterAuth
-> session -> canonical Aomi user -> portal-minted EdDSA AccountBearer via the
-> static service topology.
+> 2026-07-02 implementation note: historical BetterAuth backend JWT/JWKS and
+> legacy Rust provider-exchange paths have been removed. The live backend-auth
+> path is BetterAuth session -> canonical Aomi user -> portal-minted EdDSA
+> AccountBearer via the static service topology.
 
 ---
 
@@ -81,9 +81,9 @@ The code now implements this separation in the portal and widget layer:
 | Account deletion/deactivation     | Shipped at `DELETE /api/aomi/account`; soft-deactivates the user, revokes linked identities/wallets, clears the BetterAuth mapping, and signs out. |
 | Conflict policy                   | Shipped: unclaimed signals link, same-owner signals no-op, other-owner signals return conflict. No merge engine.                                   |
 | MCP approval auth                 | Removed after deprecation. Portal routes and MCP tools do not depend on legacy auth approval subpaths.                                             |
-| BetterAuth backend JWT            | Shipped in `packages/auth/src/better-auth/backend-jwt.ts`, off by default in the Rust-facing client path.                                          |
-| Rust `aomi_users.id` trust        | Not shipped. This is the main remaining Phase F backend integration.                                                                               |
-| SIWE-only Rust history            | Still anonymous/ephemeral until Rust validates BetterAuth JWTs or ids are unified.                                                                 |
+| BetterAuth backend JWT            | Removed. Backend trust now uses portal-minted EdDSA AccountBearer tokens, not BetterAuth JWT/JWKS.                                                 |
+| Rust canonical-user trust         | Shipped through the BFF proxy: `aomi_users.id` is mirrored to backend `users.id`, then used as AccountBearer `sub`.                                |
+| SIWE-only Rust history            | No longer anonymous after BFF login; SIWE creates a Better Auth session and the proxy mints the backend bearer from that session.                  |
 
 ---
 
@@ -99,7 +99,6 @@ packages/auth/src/
   better-auth/
     auth.ts                                 # betterAuth(...) server config
     auth-client.ts                          # createAuthClient + siweClient
-    backend-jwt.ts                          # BetterAuth JWT/JWKS payload contract
     env.ts                                  # auth/account env reader
     index.ts                                # BetterAuth package exports
     provider-plugin.ts                      # /api/auth/aomi/provider/exchange
@@ -107,7 +106,7 @@ packages/auth/src/
   db/
     pool.ts                                 # pg.Pool from DATABASE_URL
     queries.ts                              # schema runner + account queries
-    schema.sql                              # jwks + aomi_* tables/indexes
+    schema.sql                              # aomi_* tables/indexes
   providers/
     account-credentials.ts                  # provider credential verification dispatcher
     default-wallet-attesters.ts             # Privy/Para REST attester registry
@@ -117,7 +116,6 @@ packages/auth/src/
   service/
     account-service.ts                      # account creation, linking, unlinking, sync
     provider-exchange.ts                    # link provider credential into existing session
-    siwe-mirror.ts                          # SIWE mirror helper export surface
     wallet-linking.ts                       # HMAC nonce + SIWE wallet-link proof
     wallet-normalization.ts                 # EVM/SVM address normalization + CAIP-10
 ```
@@ -165,7 +163,7 @@ apps/registry/src/lib/wallet-kit/
 Client/backend credential bridge:
 
 ```text
-packages/client/src/account-session.ts      # legacy provider exchange + opt-in BetterAuth JWT
+packages/client/src/account-session.ts      # optional BFF bearer provider for cross-origin clients
 apps/portal/src/components/portal-aomi-frame.tsx
 apps/portal/src/app/api/[...slug]/route.ts  # BFF proxy allowlist
 ```
@@ -188,7 +186,7 @@ flowchart TD
   Portal["Portal Next app<br/>apps/portal"]
   Better["BetterAuth<br/>/api/auth/[...all]"]
   Account["Aomi account service<br/>packages/auth/src/service"]
-  DB["Postgres<br/>BetterAuth tables + jwks + aomi_*"]
+  DB["Postgres<br/>BetterAuth tables + aomi_*"]
   Rust["Rust backend<br/>existing product API"]
   MCP["MCP runtime<br/>/api/mcp/[transport]"]
 
@@ -203,14 +201,17 @@ flowchart TD
   MCP -->|"backend port"| Rust
 ```
 
-The v1 seam is still real:
+The remaining seam is operational, not a separate auth design:
 
 - Portal/account identity works today.
-- Privy/Para provider credentials can still be exchanged with the Rust backend
-  through the legacy `/api/account/sessions/exchange` path.
-- BetterAuth JWTs are implemented, but the client keeps that source disabled by
-  default until Rust validates BetterAuth JWKS tokens.
-- SIWE-only users are known to the portal but remain Rust-anonymous until Phase F.
+- Privy/Para provider credentials create or link Better Auth sessions through
+  `/api/auth/aomi/provider/exchange` and `/api/aomi/provider/exchange`.
+- Browser and CLI backend calls enter through the portal BFF. The proxy resolves
+  the Better Auth session, mirrors the canonical user into the backend DB, and
+  mints the backend AccountBearer.
+- Direct cross-origin clients can call `/api/bff/auth/token` with a Better Auth
+  cookie when they intentionally need a short-lived AccountBearer outside the
+  same-origin proxy path.
 
 ---
 
@@ -225,8 +226,6 @@ Mounted by `apps/portal/src/app/api/auth/[...all]/route.ts`.
 | `/api/auth/siwe/nonce`                                    | BetterAuth SIWE plugin     | Create SIWE nonce.                                                                                     |
 | `/api/auth/siwe/verify`                                   | BetterAuth SIWE plugin     | Verify SIWE message/signature and create BetterAuth session.                                           |
 | `/api/auth/aomi/provider/exchange`                        | `aomiProviderAuthPlugin()` | Verify Privy/Para credential, create or find BetterAuth user, create Aomi account, set session cookie. |
-| `/api/auth/token`                                         | BetterAuth JWT plugin      | Issue short-lived BetterAuth-signed backend JWT.                                                       |
-| `/api/auth/.well-known/jwks.json` or configured JWKS path | BetterAuth JWT plugin      | Expose public keys for backend verification.                                                           |
 | `/api/auth/sign-out`                                      | BetterAuth                 | Clear BetterAuth session.                                                                              |
 
 ### Aomi Account API
@@ -266,8 +265,9 @@ aomi-app-key
 x-session-id
 ```
 
-The proxy currently allowlists `/api/account/sessions/exchange`, sessions,
-state, chat, events, model/control routes, secrets, settings, and simulation.
+The proxy currently allowlists account, session/thread, state, chat, events,
+model/control, secret, settings, and simulation routes. It strips browser
+cookies and incoming client `Authorization` before forwarding to the backend.
 
 ---
 
@@ -384,43 +384,22 @@ There are still several credentials, and they intentionally do different jobs.
 | Privy access token         | Privy      | Privy login/session subject               | Raw token is not stored  | Can verify login proof; no email/linked accounts.                |
 | Privy identity token       | Privy      | Privy user plus identity claims           | Raw token is not stored  | Preferred account credential; can include email/linked accounts. |
 | Para session JWT           | Para       | Para session/user subject                 | Raw token is not stored  | Verifies via Para JWKS and feeds account link/sign-in.           |
-| BetterAuth session         | BetterAuth | Browser/device is BetterAuth user X       | BetterAuth session table | Primary portal session.                                          |
-| BetterAuth backend JWT     | BetterAuth | Rust may trust request as `aomi_users.id` | Not stored               | Implemented, but opt-in until Rust validates JWKS.               |
-| Legacy Rust account bearer | Rust       | Rust product account session              | Not stored               | Still default for backend calls via provider-token exchange.     |
+| BetterAuth session         | BetterAuth | Browser/device is BetterAuth user X       | BetterAuth session table | Primary portal session; carried by cookie or CLI bearer token.   |
+| AccountBearer              | Portal BFF | Backend may trust canonical `users.id`    | Not stored               | Minted per BFF request, verified by Rust service topology.       |
 
-### BetterAuth Backend JWT
+### Backend AccountBearer
 
-Defined in `packages/auth/src/better-auth/backend-jwt.ts`.
+The BFF-facing bridge is `@aomi-labs/account`, not a BetterAuth JWT plugin.
 
-Current payload custom claims:
-
-```json
-{
-  "sid": "<better_auth session.id>",
-  "aomi_user_id": "<aomi_users.id>",
-  "scope": "aomi:api"
-}
-```
-
-BetterAuth also owns standard JWT claims such as `iss`, `aud`, `sub`, `iat`,
-`exp`, `nbf`, and `jti`. The configured subject is the BetterAuth user id, not
-the Aomi user id.
-
-Current defaults from `readAccountAuthEnv()`:
-
-```text
-AOMI_BACKEND_JWT_AUDIENCE     default: aomi-backend
-AOMI_BACKEND_JWT_EXPIRES_IN   default: 15m
-AOMI_BACKEND_JWT_SCOPE        default: aomi:api
-AOMI_BACKEND_JWKS_PATH        default: /.well-known/jwks.json
-```
-
-The client support lives in `packages/client/src/account-session.ts`:
-
-- `betterAuthToken.enabled` is off by default.
-- When enabled, it fetches `/api/auth/token`.
-- Otherwise it falls back to the legacy Rust `/api/account/sessions/exchange`
-  provider-token flow.
+- `packages/account/src/session.ts` resolves the Better Auth session to a
+  canonical Aomi user and backend `users.id`.
+- `packages/account/src/proxy.ts` strips client credentials, mints an EdDSA
+  `AccountBearer`, and forwards trusted backend requests.
+- `packages/account/src/token.ts` backs `/api/bff/auth/token` for explicit
+  cross-origin clients.
+- `packages/client/src/account-session.ts` can use that BFF token route when a
+  consumer is intentionally calling the backend directly. The CLI does not need
+  that route; it sends its Better Auth bearer session to the portal proxy.
 
 ---
 
@@ -543,7 +522,6 @@ erDiagram
 Schema facts that matter:
 
 - `pgcrypto` and `citext` are enabled.
-- `jwks` table is created for BetterAuth JWT keys.
 - `aomi_users.better_auth_user_id` is unique but nullable.
 - `aomi_users.primary_email` has a non-unique active-user index, not a uniqueness
   constraint.
@@ -697,15 +675,13 @@ It always passes:
 account={{ mode: "aomi-backend" }}
 ```
 
-`apps/portal/src/components/portal-aomi-frame.tsx` still prepares Rust/backend
-access tokens through `createAccountAccessTokenProvider()`:
+`apps/portal/src/components/portal-aomi-frame.tsx` uses same-origin proxy mode
+by default. In that mode the frame does not need a client token provider: browser
+requests carry the Better Auth cookie to the portal, and the BFF proxy mints the
+backend AccountBearer server-side.
 
-- It calls `getAccountCredential()` from the wallet kit.
-- It exchanges provider credentials with Rust at `/api/account/sessions/exchange`.
-- It does not enable the BetterAuth JWT source yet.
-
-That means the portal account graph exists now, but Rust ownership still depends
-on either the legacy provider-token exchange or anonymous session behavior.
+`createAccountAccessTokenProvider()` remains for explicit cross-origin clients
+that need `/api/bff/auth/token`; it is not the normal portal widget path.
 
 ---
 
@@ -759,16 +735,15 @@ subpaths, portal route aliases, or MCP runtime dependency graph.
 
 ## 14. What Remains
 
-### Phase F: Rust Trusts `aomi_users.id`
+### Deferred Schema Alignment
 
-Main remaining backend work:
+The remaining auth-model work is the later schema/provenance alignment from
+`AUTH-STACK-REVIEW.md` §13-A, not the removed BetterAuth JWT path:
 
-- Rust validates BetterAuth JWTs via JWKS.
-- Rust checks issuer, audience, expiry, and `scope = "aomi:api"`.
-- Rust reads `aomi_user_id` as the product owner id.
-- The portal/client enables the BetterAuth token source in
-  `createAccountAccessTokenProvider()`.
-- SIWE-only users stop being Rust-anonymous.
+- Decide final canonical table names across portal auth DB and backend DB.
+- Add a nullable provider-provenance FK for provider-attested wallet rows.
+- Include a live auth-DB `jwks` table drop in that later migration if any
+  deployed auth database has the old table.
 
 ### Id Unification / Mapping
 
@@ -778,7 +753,8 @@ The durable open question is still how `aomi_users.id` maps to product-mono
 - Direct unification if databases/users are shared.
 - Explicit mapping if product-mono keeps a separate user table.
 
-The current code does not re-key Rust `sessions.user_id`.
+The current merge keeps `sub = users.id` for backend bearers. It does not
+attempt the deferred schema rename or cross-DB convergence work.
 
 ### Solana Auth
 
@@ -820,7 +796,6 @@ Current focused tests exist under:
 ```text
 packages/auth/test/
   account-credentials.test.ts
-  backend-jwt.test.ts
   privy.test.ts
   provider-wallets.test.ts
   wallet-attestation.test.ts
@@ -880,12 +855,12 @@ These are the places where the old plan no longer matched the code:
 5. There are two provider-exchange paths:
    `/api/auth/aomi/provider/exchange` creates a BetterAuth session, while
    `/api/aomi/provider/exchange` links into an existing session.
-6. `packages/auth/src/service/siwe-mirror.ts` is present in the package surface,
-   but SIWE mirroring currently happens through `syncSiweWalletsForUser()` in
-   `account-service.ts`.
-7. The BFF proxy is still Rust-facing and does not inject BetterAuth JWTs today.
-8. The client has BetterAuth JWT support, but it is explicitly opt-in and disabled
-   by default.
+6. `packages/auth/src/service/siwe-mirror.ts` was removed; SIWE mirroring
+   happens through `syncSiweWalletsForUser()` in `account-service.ts`.
+7. The BFF proxy is the Rust-facing auth boundary and injects portal-minted
+   AccountBearer tokens, not BetterAuth JWTs.
+8. The old BetterAuth JWT/JWKS client support was removed; cross-origin clients
+   use `/api/bff/auth/token` when needed.
 9. MCP approval auth was deprecated, unmounted, and then removed from
    `@aomi-labs/auth`.
 10. The current account runtime computes linked wallet capability from live

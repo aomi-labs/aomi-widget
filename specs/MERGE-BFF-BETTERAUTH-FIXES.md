@@ -32,7 +32,7 @@
 ### 1.1 Remove + rotate the committed dev signing key
 
 - [x] Generate a fresh dev Ed25519 keypair: `openssl genpkey -algorithm ed25519 -out dev.key && openssl pkey -in dev.key -pubout`.
-- [x] Strip the private key from [`HANDOFF-LOCAL-BACKEND.md`](../HANDOFF-LOCAL-BACKEND.md) §5; replace with the `openssl` recipe + "store in `PORTAL_SERVICE_PRIVATE_KEY` / 1Password" note. Also fix the machine-specific absolute paths in its shell snippets.
+- [x] Strip the private key from the former `HANDOFF-LOCAL-BACKEND.md` §5; replace with the `openssl` recipe + "store in `PORTAL_SERVICE_PRIVATE_KEY` / 1Password" note. The stale handoff was later consolidated into [`docs/local-dev-stack.md`](../docs/local-dev-stack.md).
 - [x] Update the **new public key** in [`packages/account/src/topology-data.ts`](../packages/account/src/topology-data.ts) for `kid = aomi-bff-dev-1`.
 - [x] Update the matching public key in the backend `../product-mono/aomi/service.toml` + `service.dev.toml` (see §8.1 — fix the stale one at the same time).
 - [x] Set the new private key in `apps/portal/.env.local` (`PORTAL_SERVICE_PRIVATE_KEY`); confirm it is git-ignored.
@@ -235,7 +235,7 @@ this pass did not exercise a browser wallet/widget login.
 
 ### Consolidate (genuine overlap)
 
-- [ ] `HANDOFF-LOCAL-BACKEND.md` **+** `docs/local-merged-bff-betterauth-stack.md` both describe "bring up the local merged stack." After the §1.1 key scrub, merge into **one** doc (e.g. `docs/local-dev-stack.md`); update the 4 referrers of HANDOFF.
+- [x] `HANDOFF-LOCAL-BACKEND.md` **+** `docs/local-merged-bff-betterauth-stack.md` both describe "bring up the local merged stack." Merged into [`docs/local-dev-stack.md`](../docs/local-dev-stack.md); stale HS256 `aomi_session` / `bff-unification` instructions removed.
 - [x] Auth planning docs: keep [`specs/WIDGET-AUTH-PLAN.md`](WIDGET-AUTH-PLAN.md) as the single surviving auth spec; fold "what actually shipped" from `specs/MERGE-PLAN-BFF-BETTERAUTH.md` into `STATE.md`, then **delete MERGE-PLAN**.
 
 ### Archive or delete (executed plans — history keeps them)

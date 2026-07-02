@@ -1,5 +1,12 @@
 # Aomi MCP — Design
 
+> Historical design note. The old MCP approval-auth surface described here has
+> been deprecated and removed from `@aomi-labs/auth`. The live portal MCP route
+> is `apps/portal/src/app/api/mcp/[transport]/route.ts` and currently exposes
+> chat / pending transaction tools; widget account auth is the separate
+> BetterAuth session -> BFF AccountBearer path documented in
+> `specs/WIDGET-AUTH-PLAN.md` and `specs/AUTH-STACK-REVIEW.md`.
+
 A single design document for shipping Aomi as a Claude/Codex plugin via MCP,
 and for hosting the shared credential authority that both MCP and the Rust BE
 depend on.

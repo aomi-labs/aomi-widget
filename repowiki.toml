@@ -11,6 +11,7 @@ include = [
     "AGENTS.md",
     "README.md",
     "docs/index.md",
+    "docs/local-dev-stack.md",
     "docs/topics/index.md",
     "docs/topics/**/facts/**/*.md",
     "docs/generated/**/*.md",
@@ -62,6 +63,24 @@ default_owner = "platform"
 require_metadata = true
 
 [[source_rule]]
+name = "local-dev-stack"
+glob = "docs/local-dev-stack.md"
+kind = "guide"
+default_status = "reference"
+default_area = "development"
+default_owner = "platform"
+require_metadata = false
+
+[[source_rule]]
+name = "topics-index"
+glob = "docs/topics/index.md"
+kind = "index"
+default_status = "authoritative"
+default_area = "repowiki"
+default_owner = "platform"
+require_metadata = true
+
+[[source_rule]]
 name = "topics"
 glob = "docs/topics/**/facts/**/*.md"
 kind = "topic"
@@ -97,7 +116,10 @@ code = [
     "packages/client/package.json",
     "packages/react/package.json",
 ]
-docs = ["docs/topics/development/facts/workspace.md"]
+docs = [
+    "docs/topics/development/facts/workspace.md",
+    "docs/local-dev-stack.md",
+]
 owners = ["platform", "frontend"]
 
 [[area]]
@@ -150,8 +172,8 @@ name = "auth"
 code = [
     "packages/auth/**",
     "apps/portal/src/app/api/auth/**",
-    "apps/portal/src/lib/aomi-auth/**",
-    "apps/registry/src/lib/aomi-wallet-kit/**",
+    "apps/portal/src/lib/aomi-account/**",
+    "apps/registry/src/lib/wallet-kit/**",
     "packages/react/src/runtime/user-state-provider.tsx",
 ]
 docs = [

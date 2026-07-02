@@ -242,9 +242,9 @@ the agent calls them when it needs wallet capability.
 
 ### 2.5 Portal callback rewrites
 
-`apps/portal/src/lib/aomi-auth/secret-store/be-vault.ts` → replaced by a
-new module that calls the atomic endpoint. The auth `callback.ts` route
-handler collects everything the BE needs from the provider response and
+Former path `apps/portal/src/lib/aomi-auth/secret-store/be-vault.ts` was to be
+replaced by a new module that calls the atomic endpoint. The auth `callback.ts`
+route handler collects everything the BE needs from the provider response and
 sends one POST.
 
 ```ts
