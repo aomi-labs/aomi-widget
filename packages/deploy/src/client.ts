@@ -17,6 +17,8 @@ import type {
   GetUserSourceLatestDeploymentInput,
   GitHubIdentity,
   ListAppsInput,
+  ListActivationsInput,
+  ListActivationsResult,
   ListUserSourceDeploymentsInput,
   ListUserSourcesInput,
   UserSource,
@@ -658,6 +660,34 @@ export class DeploymentClient {
       .filter((deployment): deployment is UserSourceLatestDeployment =>
         Boolean(deployment),
       );
+  }
+
+  async listActivations(
+    input: ListActivationsInput,
+  ): Promise<ListActivationsResult> {
+    const platform = cleanPlatform(input.platform);
+    const app = required(input.app, "app");
+    const raw = await this.get<{
+      app?: string;
+      current_release_tag?: string | null;
+      activations?: Array<Record<string, unknown>>;
+    }>(
+      `/api/platforms/${encodeURIComponent(platform)}/apps/${encodeURIComponent(app)}/activations`,
+      "list_activations",
+      this.resolveBearer(input.bearer),
+    );
+    return {
+      app: raw.app ?? app,
+      currentReleaseTag: (raw.current_release_tag as string | null) ?? null,
+      activations: (raw.activations ?? []).map((row) => ({
+        deploymentId: String(row.deployment_id ?? ""),
+        releaseTag: String(row.release_tag ?? ""),
+        action: String(row.action ?? ""),
+        actor: (row.actor as string | null) ?? null,
+        createdAt: Number(row.created_at ?? 0),
+        current: Boolean(row.current),
+      })),
+    };
   }
 
   async listSecrets(input: ListSecretsInput = {}): Promise<ListSecretsResult> {

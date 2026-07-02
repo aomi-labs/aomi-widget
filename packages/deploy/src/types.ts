@@ -446,6 +446,27 @@ export interface ListUserSourceDeploymentsInput extends BearerOverride {
   limit?: number;
 }
 
+/** One append-only activation event from the backend activation log. */
+export interface DeploymentActivation {
+  deploymentId: string;
+  releaseTag: string;
+  action: string;
+  actor: string | null;
+  createdAt: number;
+  current: boolean;
+}
+
+export interface ListActivationsInput extends BearerOverride {
+  platform: string;
+  app: string;
+}
+
+export interface ListActivationsResult {
+  app: string;
+  currentReleaseTag: string | null;
+  activations: DeploymentActivation[];
+}
+
 export interface UserSourceDeploymentApp {
   name: string;
   releaseTag: string | null;
