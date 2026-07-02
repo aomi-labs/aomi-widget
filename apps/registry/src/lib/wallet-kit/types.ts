@@ -282,14 +282,7 @@ export type AomiAccountCredential =
       tokenKind?: "session_jwt";
       providerToken: string;
       keyId?: string;
-    }
-  | {
-      kind: "token";
-      provider: "para" | "privy" | (string & {});
-      token: string;
-      keyId?: string;
-    }
-  | { kind: "cookie" };
+    };
 
 export type AomiWalletKit = {
   identity: AomiSessionIdentity;

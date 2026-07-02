@@ -8,7 +8,6 @@ import {
 } from "../src/providers/account-credentials";
 import { readAccountAuthEnv } from "../src/better-auth/env";
 import type { AccountAuthEnv } from "../src/better-auth/env";
-import type { AomiAccountCredential } from "../src/types";
 
 const baseEnv: AccountAuthEnv = {
   betterAuthSecret: "secret",
@@ -19,67 +18,42 @@ const baseEnv: AccountAuthEnv = {
 };
 
 describe("verifyProviderCredential", () => {
-  it("rejects unsupported provider token credentials explicitly", async () => {
-    await expect(
-      verifyProviderCredential({
-        kind: "token",
-        provider: "custom-provider",
-        token: "token",
-      }),
-    ).rejects.toThrow(
-      "Unsupported account credential provider: custom-provider",
-    );
-  });
-
-  it("rejects unsupported provider exchange credentials explicitly", async () => {
-    await expect(
-      verifyProviderCredential({
-        provider: "custom-provider",
-        providerToken: "token",
-      } as AomiAccountCredential),
-    ).rejects.toThrow(
-      "Unsupported account credential provider: custom-provider",
-    );
-  });
-
-  it("accepts a custom provider verifier registry", async () => {
+  it("accepts a Privy provider verifier override", async () => {
     const verifier = vi.fn(async () => ({
-      provider: "custom-provider",
-      walletAttestationProvider: "custom-provider",
+      provider: "privy",
+      walletAttestationProvider: "privy",
       token: {
-        subject: "custom-user",
+        subject: "did:privy:user-1",
         expiresAt: 4_102_444_800,
-        email: "custom@example.com",
+        email: "privy@example.com",
         emailVerified: true,
-        displayLabel: "Custom Person",
+        displayLabel: "Privy Person",
         providerMetadata: { source: "test" },
       },
     }));
 
     const result = await verifyProviderCredential(
       {
-        kind: "token",
-        provider: "custom-provider",
-        token: "custom-token",
-        keyId: "kid-1",
+        provider: "privy",
+        providerToken: "privy-token",
       },
-      { verifiers: { "custom-provider": verifier } },
+      { verifiers: { privy: verifier } },
     );
 
     expect(verifier).toHaveBeenCalledWith({
-      provider: "custom-provider",
-      providerToken: "custom-token",
-      keyId: "kid-1",
+      provider: "privy",
+      tokenKind: "identity_token",
+      providerToken: "privy-token",
     });
     expect(result).toEqual({
-      provider: "custom-provider",
-      walletAttestationProvider: "custom-provider",
+      provider: "privy",
+      walletAttestationProvider: "privy",
       token: {
-        subject: "custom-user",
+        subject: "did:privy:user-1",
         expiresAt: 4_102_444_800,
-        email: "custom@example.com",
+        email: "privy@example.com",
         emailVerified: true,
-        displayLabel: "Custom Person",
+        displayLabel: "Privy Person",
         providerMetadata: { source: "test" },
       },
     });

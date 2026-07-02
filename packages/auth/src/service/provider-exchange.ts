@@ -1,8 +1,4 @@
-import {
-  buildAccountResponse,
-  findAomiUserById,
-  findAomiUserByBetterAuthId,
-} from "../db/queries";
+import { buildAccountResponse, findAomiUserById } from "../db/queries";
 import type {
   AomiAccountCredential,
   AomiAccountResponse,
@@ -70,18 +66,6 @@ export async function exchangeProviderForExistingSession(input: {
   credential: AomiAccountCredential;
 }): Promise<ProviderExchangeResult> {
   const verified = await verifyProviderCredential(input.credential);
-  if (!isVerifiedProviderTokenCredential(verified)) {
-    const user = await findAomiUserByBetterAuthId(input.betterAuthUserId);
-    if (!user) throw new Error("Aomi user not found for session");
-    return {
-      status: "linked",
-      account: await buildAccountResponse({
-        user,
-        betterAuthUserId: input.betterAuthUserId,
-      }),
-    };
-  }
-
   const seed = providerSessionUserSeed(verified);
   let user: Awaited<ReturnType<typeof getOrCreateAomiUserForBetterAuthSession>>;
   try {
