@@ -37,7 +37,7 @@ describe("aomi account login", () => {
 
     const nativeFetch = vi.fn(async (url: string | URL | Request) => {
       const target = String(url);
-      if (target.endsWith("/api/auth/siwe/nonce")) {
+      if (target.endsWith("/api/bff/auth/siwe/nonce")) {
         return {
           ok: true,
           status: 200,
@@ -46,26 +46,26 @@ describe("aomi account login", () => {
             domain: "chat.aomi.dev",
             uri: "https://chat.aomi.dev",
           })),
+          headers: {
+            get: (name: string) =>
+              name.toLowerCase() === "set-cookie"
+                ? "aomi_siwe_nonce=abc123def456; Path=/; HttpOnly; SameSite=Lax"
+                : null,
+          },
         } as unknown as Response;
       }
-      if (target.endsWith("/api/auth/siwe/verify")) {
+      if (target.endsWith("/api/bff/auth/siwe/verify")) {
         return {
           ok: true,
           status: 200,
           json: vi.fn(async () => ({
-            token: "session-123",
-            success: true,
-            user: {
-              id: "better-auth-user",
-              walletAddress:
-                "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
-              chainId: 1,
-            },
+            ok: true,
+            user_id: "canonical-user",
           })),
           headers: {
             get: (name: string) =>
-              name.toLowerCase() === "set-auth-token"
-                ? "session-123"
+              name.toLowerCase() === "set-cookie"
+                ? "aomi_session=session-123; Path=/; HttpOnly; SameSite=Lax"
                 : null,
           },
         } as unknown as Response;
@@ -76,7 +76,7 @@ describe("aomi account login", () => {
           status: 200,
           json: vi.fn(async () => ({
             session: {
-              betterAuthUserId: "better-auth-user",
+              betterAuthUserId: "canonical-user",
               expiresAt: "2030-01-02T03:04:05.000Z",
             },
           })),
@@ -97,17 +97,20 @@ describe("aomi account login", () => {
 
       expect(nativeFetch).toHaveBeenNthCalledWith(
         1,
-        "https://chat.aomi.dev/api/auth/siwe/nonce",
+        "https://chat.aomi.dev/api/bff/auth/siwe/nonce",
         expect.objectContaining({
           method: "POST",
         }),
       );
       expect(String(nativeFetch.mock.calls[1]?.[0])).toBe(
-        "https://chat.aomi.dev/api/auth/siwe/verify",
+        "https://chat.aomi.dev/api/bff/auth/siwe/verify",
       );
       const verifyInit = nativeFetch.mock.calls[1]?.[1] as RequestInit;
       expect(new Headers(verifyInit.headers).get("Content-Type")).toBe(
         "application/json",
+      );
+      expect(new Headers(verifyInit.headers).get("Cookie")).toBe(
+        "aomi_siwe_nonce=abc123def456",
       );
       expect(JSON.parse(verifyInit.body as string)).toEqual({
         chainId: 1,

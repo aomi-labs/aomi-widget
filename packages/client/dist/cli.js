@@ -4209,21 +4209,31 @@ async function signInWithCliSiwe({
   fetch: fetchImpl = fetch,
   now = Date.now
 }) {
-  var _a3, _b, _c, _d, _e, _f, _g, _h, _i;
+  var _a3, _b, _c, _d, _e, _f, _g, _h, _i, _j;
   const portalUrl = normalizeBaseUrl(baseUrl);
   const account = privateKeyToAccount2(privateKey);
   const address3 = account.address;
-  const nonceResponse = await requestJson(
-    fetchImpl,
-    joinUrl(portalUrl, "/api/auth/siwe/nonce"),
+  const nonceHttpResponse = await fetchImpl(
+    joinUrl(portalUrl, "/api/bff/auth/siwe/nonce"),
     {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json"
+      },
       credentials: "include",
       body: JSON.stringify({ walletAddress: address3, chainId: chainId3 })
-    },
-    "SIWE nonce"
+    }
   );
+  if (!nonceHttpResponse.ok) {
+    throw new Error(
+      `SIWE nonce failed: HTTP ${nonceHttpResponse.status} ${await safeResponseText(
+        nonceHttpResponse
+      )}`
+    );
+  }
+  const nonceResponse = await nonceHttpResponse.json();
+  const nonceCookie = getCookie(nonceHttpResponse.headers, NONCE_COOKIE_NAME);
   const nonce = typeof nonceResponse.nonce === "string" ? nonceResponse.nonce : "";
   if (!nonce) {
     throw new Error("SIWE nonce response is missing nonce");
@@ -4236,14 +4246,18 @@ async function signInWithCliSiwe({
     uri: (_b = normalizeUri(nonceResponse.uri)) != null ? _b : portalUrl
   });
   const signature = await account.signMessage({ message });
+  const verifyHeaders = new Headers({
+    Accept: "application/json",
+    "Content-Type": "application/json"
+  });
+  if (nonceCookie) {
+    verifyHeaders.set("Cookie", `${NONCE_COOKIE_NAME}=${nonceCookie}`);
+  }
   const verifyResponse = await fetchImpl(
-    joinUrl(portalUrl, "/api/auth/siwe/verify"),
+    joinUrl(portalUrl, "/api/bff/auth/siwe/verify"),
     {
       method: "POST",
-      headers: {
-        Accept: "application/json",
-        "Content-Type": "application/json"
-      },
+      headers: verifyHeaders,
       credentials: "include",
       body: JSON.stringify({
         message,
@@ -4261,24 +4275,24 @@ async function signInWithCliSiwe({
     );
   }
   const verifyBody = await verifyResponse.json().catch(() => ({}));
-  const sessionToken = (_c = getSessionTokenHeader(verifyResponse.headers)) != null ? _c : typeof verifyBody.token === "string" ? verifyBody.token : "";
+  const sessionToken = (_d = (_c = getSessionTokenHeader(verifyResponse.headers)) != null ? _c : getCookie(verifyResponse.headers, SESSION_COOKIE_NAME)) != null ? _d : typeof verifyBody.token === "string" ? verifyBody.token : "";
   if (!sessionToken) {
-    throw new Error("SIWE verify response is missing BetterAuth session token");
+    throw new Error("SIWE verify response is missing BFF session token");
   }
   const accountInfo = await fetchPortalAccount(
     fetchImpl,
     portalUrl,
     sessionToken
   );
-  const expiresAt = (_e = parseExpiresAt((_d = accountInfo == null ? void 0 : accountInfo.session) == null ? void 0 : _d.expiresAt)) != null ? _e : now() + DEFAULT_SESSION_TTL_MS;
+  const expiresAt = (_f = parseExpiresAt((_e = accountInfo == null ? void 0 : accountInfo.session) == null ? void 0 : _e.expiresAt)) != null ? _f : now() + DEFAULT_SESSION_TTL_MS;
   return {
     address: address3,
     auth: {
       sessionToken,
       expiresAt,
-      walletAddress: typeof ((_f = verifyBody.user) == null ? void 0 : _f.walletAddress) === "string" ? verifyBody.user.walletAddress : address3,
-      chainId: typeof ((_g = verifyBody.user) == null ? void 0 : _g.chainId) === "number" ? verifyBody.user.chainId : chainId3,
-      betterAuthUserId: typeof ((_h = accountInfo == null ? void 0 : accountInfo.session) == null ? void 0 : _h.betterAuthUserId) === "string" ? accountInfo.session.betterAuthUserId : typeof ((_i = verifyBody.user) == null ? void 0 : _i.id) === "string" ? verifyBody.user.id : void 0
+      walletAddress: typeof ((_g = verifyBody.user) == null ? void 0 : _g.walletAddress) === "string" ? verifyBody.user.walletAddress : address3,
+      chainId: typeof ((_h = verifyBody.user) == null ? void 0 : _h.chainId) === "number" ? verifyBody.user.chainId : chainId3,
+      betterAuthUserId: typeof ((_i = accountInfo == null ? void 0 : accountInfo.session) == null ? void 0 : _i.betterAuthUserId) === "string" ? accountInfo.session.betterAuthUserId : typeof verifyBody.user_id === "string" ? verifyBody.user_id : typeof ((_j = verifyBody.user) == null ? void 0 : _j.id) === "string" ? verifyBody.user.id : void 0
     }
   };
 }
@@ -4364,6 +4378,21 @@ function getSessionTokenHeader(headers) {
   }
   return null;
 }
+function getCookie(headers, name) {
+  var _a3, _b;
+  const setCookieHeaders = [
+    ...(_b = (_a3 = headers.getSetCookie) == null ? void 0 : _a3.call(headers)) != null ? _b : []
+  ];
+  const singleHeader = headers.get("set-cookie");
+  if (singleHeader) setCookieHeaders.push(singleHeader);
+  for (const header of setCookieHeaders) {
+    const match = new RegExp(`(?:^|,\\s*)${name}=([^;,]+)`).exec(
+      header
+    );
+    if (match == null ? void 0 : match[1]) return match[1];
+  }
+  return null;
+}
 async function fetchPortalAccount(fetchImpl, baseUrl, sessionToken) {
   const response = await fetchImpl(joinUrl(baseUrl, "/api/aomi/account"), {
     method: "GET",
@@ -4375,20 +4404,6 @@ async function fetchPortalAccount(fetchImpl, baseUrl, sessionToken) {
   });
   if (!response.ok) return null;
   return await response.json().catch(() => null);
-}
-async function requestJson(fetchImpl, url, init, label) {
-  var _a3;
-  const response = await fetchImpl(url, __spreadValues({
-    headers: __spreadValues({ Accept: "application/json" }, (_a3 = init.headers) != null ? _a3 : {})
-  }, init));
-  if (!response.ok) {
-    throw new Error(
-      `${label} failed: HTTP ${response.status} ${await safeResponseText(
-        response
-      )}`
-    );
-  }
-  return await response.json();
 }
 function parseExpiresAt(value) {
   if (value instanceof Date) return value.getTime();
@@ -4405,7 +4420,7 @@ async function safeResponseText(response) {
   const text = await response.text().catch(() => "");
   return text ? `- ${text}` : "";
 }
-var DEFAULT_CHAIN_ID, DEFAULT_SESSION_TTL_MS, AUTH_REFRESH_SKEW_MS, SESSION_TOKEN_HEADERS;
+var DEFAULT_CHAIN_ID, DEFAULT_SESSION_TTL_MS, AUTH_REFRESH_SKEW_MS, SESSION_TOKEN_HEADERS, NONCE_COOKIE_NAME, SESSION_COOKIE_NAME;
 var init_auth = __esm({
   "src/cli/auth.ts"() {
     "use strict";
@@ -4413,6 +4428,8 @@ var init_auth = __esm({
     DEFAULT_SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1e3;
     AUTH_REFRESH_SKEW_MS = 30 * 1e3;
     SESSION_TOKEN_HEADERS = ["set-auth-token", "x-auth-token", "auth-token"];
+    NONCE_COOKIE_NAME = "aomi_siwe_nonce";
+    SESSION_COOKIE_NAME = "aomi_session";
   }
 });
 

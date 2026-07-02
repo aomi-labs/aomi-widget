@@ -11,6 +11,7 @@ type SiweNonceResponse = {
 type SiweVerifyResponse = {
   token?: unknown;
   success?: unknown;
+  user_id?: unknown;
   user?: {
     id?: unknown;
     walletAddress?: unknown;
@@ -42,6 +43,8 @@ const DEFAULT_CHAIN_ID = 1;
 const DEFAULT_SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 const AUTH_REFRESH_SKEW_MS = 30 * 1000;
 const SESSION_TOKEN_HEADERS = ["set-auth-token", "x-auth-token", "auth-token"];
+const NONCE_COOKIE_NAME = "aomi_siwe_nonce";
+const SESSION_COOKIE_NAME = "aomi_session";
 
 export function createCliAuthTokenProvider(
   readState: () => Pick<
@@ -73,17 +76,28 @@ export async function signInWithCliSiwe({
   const portalUrl = normalizeBaseUrl(baseUrl);
   const account = privateKeyToAccount(privateKey);
   const address = account.address;
-  const nonceResponse = await requestJson<SiweNonceResponse>(
-    fetchImpl,
-    joinUrl(portalUrl, "/api/auth/siwe/nonce"),
+  const nonceHttpResponse = await fetchImpl(
+    joinUrl(portalUrl, "/api/bff/auth/siwe/nonce"),
     {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+      },
       credentials: "include",
       body: JSON.stringify({ walletAddress: address, chainId }),
     },
-    "SIWE nonce",
   );
+  if (!nonceHttpResponse.ok) {
+    throw new Error(
+      `SIWE nonce failed: HTTP ${nonceHttpResponse.status} ${await safeResponseText(
+        nonceHttpResponse,
+      )}`,
+    );
+  }
+  const nonceResponse =
+    (await nonceHttpResponse.json()) as SiweNonceResponse;
+  const nonceCookie = getCookie(nonceHttpResponse.headers, NONCE_COOKIE_NAME);
   const nonce =
     typeof nonceResponse.nonce === "string" ? nonceResponse.nonce : "";
   if (!nonce) {
@@ -99,14 +113,18 @@ export async function signInWithCliSiwe({
     uri: normalizeUri(nonceResponse.uri) ?? portalUrl,
   });
   const signature = await account.signMessage({ message });
+  const verifyHeaders = new Headers({
+    Accept: "application/json",
+    "Content-Type": "application/json",
+  });
+  if (nonceCookie) {
+    verifyHeaders.set("Cookie", `${NONCE_COOKIE_NAME}=${nonceCookie}`);
+  }
   const verifyResponse = await fetchImpl(
-    joinUrl(portalUrl, "/api/auth/siwe/verify"),
+    joinUrl(portalUrl, "/api/bff/auth/siwe/verify"),
     {
       method: "POST",
-      headers: {
-        Accept: "application/json",
-        "Content-Type": "application/json",
-      },
+      headers: verifyHeaders,
       credentials: "include",
       body: JSON.stringify({
         message,
@@ -130,9 +148,10 @@ export async function signInWithCliSiwe({
     .catch(() => ({}))) as SiweVerifyResponse;
   const sessionToken =
     getSessionTokenHeader(verifyResponse.headers) ??
+    getCookie(verifyResponse.headers, SESSION_COOKIE_NAME) ??
     (typeof verifyBody.token === "string" ? verifyBody.token : "");
   if (!sessionToken) {
-    throw new Error("SIWE verify response is missing BetterAuth session token");
+    throw new Error("SIWE verify response is missing BFF session token");
   }
 
   const accountInfo = await fetchPortalAccount(
@@ -160,6 +179,8 @@ export async function signInWithCliSiwe({
       betterAuthUserId:
         typeof accountInfo?.session?.betterAuthUserId === "string"
           ? accountInfo.session.betterAuthUserId
+          : typeof verifyBody.user_id === "string"
+            ? verifyBody.user_id
           : typeof verifyBody.user?.id === "string"
             ? verifyBody.user.id
             : undefined,
@@ -265,6 +286,23 @@ function getSessionTokenHeader(headers: Headers): string | null {
   for (const header of SESSION_TOKEN_HEADERS) {
     const value = headers.get(header);
     if (value) return value;
+  }
+  return null;
+}
+
+function getCookie(headers: Headers, name: string): string | null {
+  const setCookieHeaders = [
+    ...((headers as Headers & { getSetCookie?: () => string[] }).getSetCookie?.() ??
+      []),
+  ];
+  const singleHeader = headers.get("set-cookie");
+  if (singleHeader) setCookieHeaders.push(singleHeader);
+
+  for (const header of setCookieHeaders) {
+    const match = new RegExp(`(?:^|,\\s*)${name}=([^;,]+)`).exec(
+      header,
+    );
+    if (match?.[1]) return match[1];
   }
   return null;
 }
