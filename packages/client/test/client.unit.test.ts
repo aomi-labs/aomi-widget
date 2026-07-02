@@ -557,7 +557,7 @@ describe("AomiClient transport selection", () => {
     }
   });
 
-  it("canonicalizes legacy solana_sigs into svm_sigs and strips bulky svm sign payloads during fetchState", async () => {
+  it("strips bulky svm sign payloads during fetchState", async () => {
     const nativeResponse = {
       ok: true,
       status: 200,
@@ -575,7 +575,7 @@ describe("AomiClient transport selection", () => {
         connection: { is_connected: true },
         solana: { address: "Bv9abc", cluster: "solana:mainnet" },
         pending: {
-          solana_sigs: {
+          svm_sigs: {
             1: {
               signer: "Bv9abc",
               description: "swap",
@@ -592,10 +592,8 @@ describe("AomiClient transport selection", () => {
       const userState = JSON.parse(
         parsed.searchParams.get("user_state") ?? "{}",
       );
-      // Legacy `solana_sigs` is canonicalized into `svm_sigs`; the bulky
-      // `unsignedTx` is stripped while correlation ids are preserved.
-      expect(userState.pending.solana_sigs).toBeUndefined();
-      // Bucket entries are snake-cased to match the backend input contract.
+      // The bulky `unsignedTx` is stripped while correlation ids are preserved;
+      // bucket entries are snake-cased to match the backend input contract.
       expect(userState.pending.svm_sigs["1"].unsigned_tx).toBeUndefined();
       expect(userState.pending.svm_sigs["1"].unsignedTx).toBeUndefined();
       expect(userState.pending.svm_sigs["1"].pending_svm_sig_id).toBe(1);

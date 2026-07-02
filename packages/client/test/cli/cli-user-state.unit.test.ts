@@ -144,32 +144,6 @@ describe("pendingTxsFromBackendUserState", () => {
 });
 
 describe("pendingSolTxsFromBackendUserState", () => {
-  it("rebuilds Solana requests from legacy pending.solana_txs", () => {
-    const result = pendingSolTxsFromBackendUserState({
-      pending: {
-        solana_txs: {
-          21: {
-            request_kind: "send_transaction",
-            description: "bridge back to main wallet",
-            cluster: "solana:devnet",
-            unsigned_tx: "U0VORE1F",
-            signer: "So1aBcExampleSigner",
-          },
-        },
-      },
-    });
-
-    expect(result).toHaveLength(1);
-    expect(result[0]).toMatchObject({
-      id: "tx-21",
-      solanaId: 21,
-      unsignedTx: "U0VORE1F",
-      description: "bridge back to main wallet",
-      cluster: "solana:devnet",
-      signer: "So1aBcExampleSigner",
-    });
-  });
-
   it("rebuilds Solana requests from canonical pending.svm_ixs", () => {
     const result = pendingSolTxsFromBackendUserState({
       pending: {

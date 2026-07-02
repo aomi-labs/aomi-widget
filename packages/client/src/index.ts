@@ -2,7 +2,7 @@
 // Client
 // =============================================================================
 
-export { AomiClient } from "./client";
+export { AomiClient, AomiAuthorizationError } from "./client";
 
 // =============================================================================
 // Types
@@ -12,11 +12,9 @@ export type {
   AomiRequestOptions,
   AomiRequestQueryValue,
   AomiAppDescriptor,
-  AomiAccessApproval,
   AomiAccountProfile,
   AomiAuthIdentity,
   AomiClientOptions,
-  AomiCreateApprovalRequest,
   AomiIdentityWallet,
   AomiUsageStats,
   AomiUser,
@@ -24,6 +22,12 @@ export type {
   GetAccountBearer,
   AomiMessage,
   AomiWalletFamily,
+  AomiSigningMode,
+  AomiAuthorizationPermit,
+  AomiAuthorizationChallengeRequest,
+  AomiAuthorizationChallengeResponse,
+  AomiAuthorizationCommitRequest,
+  AomiAuthorizationCommitResponse,
   AomiChatResponse,
   AomiClearSecretsResponse,
   AomiCreateThreadResponse,

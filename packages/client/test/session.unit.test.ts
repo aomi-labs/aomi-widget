@@ -2188,7 +2188,7 @@ describe("ClientSession ext helpers", () => {
     session.close();
   });
 
-  it("rebuilds solana_send requests from nested user_state.pending.solana_txs", async () => {
+  it("rebuilds solana_send requests from nested user_state.pending.svm_ixs", async () => {
     const { client, fetchState } = createMockClient();
     const session = new Session(client, {
       sessionId: "session-solana-send-3",
@@ -2215,7 +2215,7 @@ describe("ClientSession ext helpers", () => {
           cluster: "solana:devnet",
         },
         pending: {
-          solana_txs: {
+          svm_ixs: {
             21: {
               request_kind: "send_transaction",
               description: "bridge back to main wallet",

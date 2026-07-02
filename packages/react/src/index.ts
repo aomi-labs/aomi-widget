@@ -5,6 +5,7 @@ export { AomiClient } from "@aomi-labs/client";
 export type { AomiClientOptions } from "@aomi-labs/client";
 export type {
   AomiAppDescriptor,
+  AomiAuthorizationCommitResponse,
   AomiMessage,
   AomiChatResponse,
   AomiCreateThreadResponse,
@@ -13,6 +14,7 @@ export type {
   AomiSSEEvent,
   AomiStateResponse,
   AomiSystemEvent,
+  AomiSigningMode,
   AomiSystemResponse,
   AomiThread,
   NativeWalletExecutionPolicy,
@@ -93,6 +95,14 @@ export type {
   NotificationHandlerConfig,
   NotificationApi,
 } from "./handlers/notification-handler";
+export { useAuthorizationPermit } from "./handlers/authorization-permit";
+export type {
+  AuthorizationPermitConfig,
+  AuthorizationPermitInput,
+  AuthorizationPermitStatus,
+  AuthorizationPermitError,
+  AuthorizationPermitApi,
+} from "./handlers/authorization-permit";
 
 // =============================================================================
 // User Context (wallet/user state)

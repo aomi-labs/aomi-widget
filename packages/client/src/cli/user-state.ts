@@ -253,9 +253,9 @@ export function pendingTxsFromBackendUserState(
  * instruction-staging / `svm_sigs` flow into the CLI signer needs product-level
  * rework; this only keeps legacy unsigned-tx records working.
  *
- * Accept both the legacy `pending.solana_txs` / `pending.solana_sigs` shape
- * and the canonical `pending.svm_ixs` / `pending.svm_sigs` buckets because the
- * backend still has older camelCase and aliasing paths on some surfaces.
+ * Reads the canonical `pending.svm_ixs` / `pending.svm_sigs` buckets. (The
+ * backend also emits a write-only `solana_txs` alias for the released v0.1.37
+ * CLI; this client reads the canonical buckets, so that alias is ignored here.)
  */
 export function pendingSolTxsFromBackendUserState(
   userState: UserState | null | undefined,
@@ -271,12 +271,7 @@ export function pendingSolTxsFromBackendUserState(
   const next: PendingSolTx[] = [];
 
   const pending = asRecord(normalizedUserState.pending) ?? {};
-  const pendingSolanaTxs =
-    asRecord(pending.solanaTxs) ??
-    asRecord(pending.solana_txs) ??
-    asRecord(pending.svmIxs) ??
-    asRecord(pending.svm_ixs) ??
-    {};
+  const pendingSolanaTxs = asRecord(pending.svm_ixs) ?? {};
   for (const [rawId, rawValue] of Object.entries(pendingSolanaTxs)) {
     const pendingId = parsePendingId(rawId);
     const request = asRecord(rawValue);
@@ -317,23 +312,10 @@ export function pendingSolTxsFromBackendUserState(
     });
   }
 
-  // Also surface pending Solana sign-only tx requests that were staged in the
-  // signature bucket (`solana_sigs` / `svm_sigs`) by `svm_sign_tx`. Message
-  // signatures remain message-sign requests and should not be reconstructed as
-  // tx-sign prompts here. The backend serializes keys snake_to_camel on the
-  // wire, so also accept `solanaSigs` / `svmSigs`.
-  const pendingSolanaSigs =
-    asRecord(normalizedUserState.pending?.solanaSigs) ??
-    asRecord(normalizedUserState.pending?.solana_sigs) ??
-    asRecord(
-      (normalizedUserState.pending as Record<string, unknown> | undefined)
-        ?.svmSigs,
-    ) ??
-    asRecord(
-      (normalizedUserState.pending as Record<string, unknown> | undefined)
-        ?.svm_sigs,
-    ) ??
-    {};
+  // Also surface pending Solana sign-only tx requests staged in the signature
+  // bucket (`svm_sigs`) by `svm_sign_tx`. Message signatures remain message-sign
+  // requests and should not be reconstructed as tx-sign prompts here.
+  const pendingSolanaSigs = asRecord(pending.svm_sigs) ?? {};
   for (const [rawId, rawValue] of Object.entries(pendingSolanaSigs)) {
     const pendingId = parsePendingId(rawId);
     const request = asRecord(rawValue);

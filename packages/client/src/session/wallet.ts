@@ -112,16 +112,12 @@ export class SessionWalletController {
     const pendingEip712s = isRecord(pending?.evm_sigs)
       ? pending.evm_sigs
       : undefined;
-    const pendingSolanaTxs = isRecord(pending?.solana_txs)
-      ? pending.solana_txs
-      : isRecord(pending?.svm_ixs)
-        ? pending.svm_ixs
-        : undefined;
-    const pendingSolanaSigs = isRecord(pending?.solana_sigs)
-      ? pending.solana_sigs
-      : isRecord(pending?.svm_sigs)
-        ? pending.svm_sigs
-        : undefined;
+    const pendingSolanaTxs = isRecord(pending?.svm_ixs)
+      ? pending.svm_ixs
+      : undefined;
+    const pendingSolanaSigs = isRecord(pending?.svm_sigs)
+      ? pending.svm_sigs
+      : undefined;
 
     const next: WalletRequest[] = [];
     this.syncTransactions(next, pendingTxs);

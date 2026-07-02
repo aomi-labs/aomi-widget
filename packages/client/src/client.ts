@@ -1,11 +1,13 @@
 import type {
   AomiAccountProfile,
-  AomiAccessApproval,
   AomiAuthWalletFamily,
   AomiAppDescriptor,
+  AomiAuthorizationChallengeRequest,
+  AomiAuthorizationChallengeResponse,
+  AomiAuthorizationCommitRequest,
+  AomiAuthorizationCommitResponse,
   AomiBeginAccountAuthResponse,
   AomiClientOptions,
-  AomiCreateApprovalRequest,
   AomiMessage,
   AomiChatResponse,
   AomiClearSecretsResponse,
@@ -95,7 +97,6 @@ function stripBulkyPendingFields(
 ): UserStateShape | undefined {
   if (!userState?.pending) return userState;
   const pending = userState.pending;
-  const legacyPending = pending as Record<string, unknown>;
   return {
     ...userState,
     pending: {
@@ -103,15 +104,7 @@ function stripBulkyPendingFields(
       evm_txs: pruneBucket(pending.evm_txs),
       evm_sigs: pruneBucket(pending.evm_sigs),
       svm_ixs: pruneBucket(pending.svm_ixs),
-      solana_txs: pruneBucket(
-        legacyPending.solana_txs as Record<string, unknown> | null | undefined,
-      ),
-      solana_sigs: pruneBucket(
-        legacyPending.solana_sigs as Record<string, unknown> | null | undefined,
-      ),
-      svm_sigs: pruneBucket(
-        legacyPending.svm_sigs as Record<string, unknown> | null | undefined,
-      ),
+      svm_sigs: pruneBucket(pending.svm_sigs),
     },
   };
 }
@@ -278,6 +271,46 @@ async function postState<T>(
   }
 
   return (await response.json()) as T;
+}
+
+// =============================================================================
+// Authorization permit errors
+// =============================================================================
+
+/**
+ * Error thrown by the signing-authorization endpoints. Carries the HTTP status
+ * and the backend's machine-readable code (`"stale_permit"`,
+ * `"missing_delegated_grant"`, …) so flows can branch without string-matching
+ * the message.
+ */
+export class AomiAuthorizationError extends Error {
+  constructor(
+    message: string,
+    readonly status: number,
+    readonly code: string | null,
+  ) {
+    super(message);
+    this.name = "AomiAuthorizationError";
+  }
+}
+
+async function authorizationError(
+  action: string,
+  response: Response,
+): Promise<AomiAuthorizationError> {
+  const body = await response.text().catch(() => "");
+  let code: string | null = null;
+  try {
+    const parsed = JSON.parse(body) as { error?: unknown };
+    if (typeof parsed?.error === "string") code = parsed.error;
+  } catch {
+    // Non-JSON error body — keep code null.
+  }
+  return new AomiAuthorizationError(
+    `Failed to ${action}: HTTP ${response.status}${code ? ` (${code})` : ""}`,
+    response.status,
+    code,
+  );
 }
 
 // =============================================================================
@@ -941,14 +974,6 @@ export class AomiClient {
     return (await response.json()) as AomiAccountProfile;
   }
 
-  async createAccountApproval(
-    request: AomiCreateApprovalRequest,
-  ): Promise<AomiAccessApproval> {
-    return this.request<AomiAccessApproval>("POST", "/api/account/approvals", {
-      body: request,
-      raw: true,
-    });
-  }
 
   /**
    * Mint a Privy browser auth URL bound to the current backend session.
@@ -992,6 +1017,63 @@ export class AomiClient {
         raw: true,
       },
     );
+  }
+
+  /**
+   * Assemble an unsigned signing-authorization permit for one wallet.
+   * Account-scoped like {@link listWallets}. The returned `typed_data` goes
+   * straight to `signTypedData`; the `permit` is echoed back verbatim to
+   * {@link commitAuthorization}. Throws {@link AomiAuthorizationError} with the
+   * backend code on failure — notably 409 `missing_delegated_grant` when
+   * `autonomous` requires connecting the wallet first, 422 when the mode is
+   * illegal for the wallet's provider.
+   */
+  async challengeAuthorization(
+    sessionId: string,
+    req: AomiAuthorizationChallengeRequest,
+  ): Promise<AomiAuthorizationChallengeResponse> {
+    const url = joinApiPath(
+      this.baseUrl,
+      "/api/account/authorization/challenge",
+    );
+    const response = await this.rawFetchImpl(url, {
+      method: "POST",
+      headers: withSessionHeader(sessionId, {
+        "Content-Type": "application/json",
+      }),
+      body: JSON.stringify(req),
+    });
+
+    if (!response.ok) {
+      throw await authorizationError("challenge authorization", response);
+    }
+    return (await response.json()) as AomiAuthorizationChallengeResponse;
+  }
+
+  /**
+   * Verify a signed permit and apply the wallet's signing mode. A grant must
+   * be signed by the wallet itself; a revoke may be signed by any linked
+   * wallet. Throws {@link AomiAuthorizationError} — notably 409 `stale_permit`
+   * when someone else committed first (re-challenge and retry), 400 for an
+   * expired permit or bad signature, 403 for the wrong signer.
+   */
+  async commitAuthorization(
+    sessionId: string,
+    req: AomiAuthorizationCommitRequest,
+  ): Promise<AomiAuthorizationCommitResponse> {
+    const url = joinApiPath(this.baseUrl, "/api/account/authorization/commit");
+    const response = await this.rawFetchImpl(url, {
+      method: "POST",
+      headers: withSessionHeader(sessionId, {
+        "Content-Type": "application/json",
+      }),
+      body: JSON.stringify(req),
+    });
+
+    if (!response.ok) {
+      throw await authorizationError("commit authorization", response);
+    }
+    return (await response.json()) as AomiAuthorizationCommitResponse;
   }
 
   async listScheduledThreads(

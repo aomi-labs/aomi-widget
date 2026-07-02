@@ -194,18 +194,8 @@ function buildPending(
   const p: UnknownRecord = {};
   assignDefined(p, "evm_txs", snakeizeBucket(pick(src, "evm_txs", "evmTxs")));
   assignDefined(p, "evm_sigs", snakeizeBucket(pick(src, "evm_sigs", "evmSigs")));
-  assignDefined(
-    p,
-    "svm_ixs",
-    snakeizeBucket(pick(src, "svm_ixs", "svmIxs", "solana_txs", "solanaTxs")),
-  );
-  assignDefined(
-    p,
-    "svm_sigs",
-    snakeizeBucket(
-      pick(src, "svm_sigs", "svmSigs", "solana_sigs", "solanaSigs"),
-    ),
-  );
+  assignDefined(p, "svm_ixs", snakeizeBucket(pick(src, "svm_ixs", "svmIxs")));
+  assignDefined(p, "svm_sigs", snakeizeBucket(pick(src, "svm_sigs", "svmSigs")));
   return Object.keys(p).length ? p : undefined;
 }
 
