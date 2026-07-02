@@ -1,12 +1,16 @@
 import { execSync } from "child_process";
+import type { DeployResult, SourceRef } from "@aomi-labs/deploy";
 import { DeployCliError } from "../errors";
 import { writeDeploymentState } from "../../lib/deployment-state";
+import {
+  asCliError,
+  deployClient,
+  resolveBackendUrl,
+  resolvePlatform,
+  str,
+} from "./deploy-shared";
 
 type DeployArgs = Record<string, unknown>;
-
-function str(value: unknown): string | undefined {
-  return typeof value === "string" && value.trim() ? value.trim() : undefined;
-}
 
 function required(
   value: string | undefined,
@@ -142,13 +146,8 @@ async function deviceAuthFlow(
 }
 
 export async function deployCommand(args: DeployArgs): Promise<void> {
-  const backendUrl = (
-    str(args["backend-url"]) ??
-    process.env.AOMI_BACKEND_URL ??
-    "https://api.aomi.dev"
-  ).replace(/\/+$/, "");
-  const platform =
-    str(args.platform) ?? process.env.AOMI_DEPLOY_PLATFORM ?? "community";
+  const backendUrl = resolveBackendUrl(args);
+  const platform = resolvePlatform(args);
 
   const activationToken =
     str(args["activation-token"]) ??
@@ -179,7 +178,7 @@ export async function deployCommand(args: DeployArgs): Promise<void> {
     );
   }
 
-  const sourceRef = commit
+  const sourceRef: SourceRef = commit
     ? { kind: "commit", value: commit }
     : { kind: "branch", value: branch ?? currentBranch() };
 
@@ -203,66 +202,21 @@ export async function deployCommand(args: DeployArgs): Promise<void> {
   console.log(`   aomi.toml:     ${aomiTomlPaths.join(", ")}`);
   if (preflight) console.log("   preflight:      yes");
 
-  const url = `${backendUrl}/api/platforms/${encodeURIComponent(platform)}/deploy`;
-  const body = {
-    app_source_id: appSourceId,
-    source_ref: sourceRef,
-    aomi_toml_paths: aomiTomlPaths,
-    preflight: preflight,
-  };
-
-  let res: Response;
+  const client = deployClient(backendUrl, activationToken);
+  let result: DeployResult;
   try {
-    res = await fetch(url, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${activationToken}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(body),
+    result = await client.deploy({
+      platform,
+      appSourceId,
+      sourceRef,
+      aomiTomlPaths,
+      preflight,
     });
   } catch (err) {
-    throw new DeployCliError(
-      "NETWORK_ERROR",
-      "Cannot reach Aomi backend; check your connection",
-    );
+    throw asCliError(err);
   }
 
-  const text = await res.text();
-  if (!res.ok) {
-    const message = (() => {
-      try {
-        const json = JSON.parse(text);
-        if (json && typeof json === "object")
-          return (
-            (json.error as string) ??
-            (json.reason as string) ??
-            `${res.status} ${res.statusText}`
-          );
-      } catch {}
-      return `${res.status} ${res.statusText}`;
-    })();
-    if (res.status === 401 || res.status === 403) {
-      throw new DeployCliError(
-        "AUTH_FAILED",
-        "Session expired; run `aomi account login`",
-      );
-    }
-    throw new DeployCliError("BACKEND_ERROR", message);
-  }
-
-  let result: Record<string, unknown>;
-  try {
-    result = JSON.parse(text) as Record<string, unknown>;
-  } catch {
-    throw new DeployCliError("BACKEND_ERROR", "Backend returned invalid JSON.");
-  }
-
-  const deployment = result.deployment as Record<string, unknown> | undefined;
-  const platformInfo = deployment?.platform as
-    | Record<string, unknown>
-    | undefined;
-  const sourceInfo = deployment?.source as Record<string, unknown> | undefined;
+  const { deployment } = result;
 
   console.log();
   if (preflight) {
@@ -271,38 +225,35 @@ export async function deployCommand(args: DeployArgs): Promise<void> {
     return;
   }
 
-  console.log(` Deployment created: ${deployment?.id ?? "unknown"}`);
-  console.log(`   status:  ${deployment?.status ?? "unknown"}`);
-  if (sourceInfo?.repository_link) {
-    console.log(`   source:  ${sourceInfo.repository_link}`);
+  console.log(` Deployment created: ${deployment.id ?? "unknown"}`);
+  console.log(`   status:  ${deployment.status ?? "unknown"}`);
+  if (deployment.source.repositoryLink) {
+    console.log(`   source:  ${deployment.source.repositoryLink}`);
   }
-  if (platformInfo?.pr_url) {
-    console.log(`   PR:      ${platformInfo.pr_url}`);
+  if (deployment.platform.prUrl) {
+    console.log(`   PR:      ${deployment.platform.prUrl}`);
   }
-  if (platformInfo?.ci_url) {
-    console.log(`   CI:      ${platformInfo.ci_url}`);
+  if (deployment.platform.ciUrl) {
+    console.log(`   CI:      ${deployment.platform.ciUrl}`);
   }
 
   const releaseTags: string[] = [];
   const apps: string[] = [];
 
-  if (platformInfo?.apps) {
-    const appsArr = platformInfo.apps as Array<Record<string, unknown>>;
-    for (const app of appsArr) {
-      const name = String(app.name ?? "?");
-      const tag = String(app.release_tag ?? app.releaseTag ?? "");
-      apps.push(name);
-      if (tag) releaseTags.push(tag);
-      console.log(`   app:     ${name}${tag ? ` (${tag})` : ""}`);
-    }
+  for (const app of deployment.platform.apps) {
+    const name = String(app.name ?? "?");
+    const tag = app.releaseTag ?? "";
+    apps.push(name);
+    if (tag) releaseTags.push(tag);
+    console.log(`   app:     ${name}${tag ? ` (${tag})` : ""}`);
   }
 
-  if (platformInfo?.commit_hash) {
-    console.log(`   commit:  ${platformInfo.commit_hash}`);
+  if (deployment.platform.commitHash) {
+    console.log(`   commit:  ${deployment.platform.commitHash}`);
   }
 
   // Persist deployment state for use by `aomi deploy status` and `aomi deploy activate`
-  const deploymentId = String(deployment?.id ?? "");
+  const deploymentId = String(deployment.id ?? "");
   if (deploymentId) {
     await writeDeploymentState({
       deploymentId,

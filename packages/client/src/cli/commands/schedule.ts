@@ -44,7 +44,7 @@ export async function listSchedulesCommand(
       offset: options?.offset,
     });
     console.log(
-      `Scheduled intents for app "${app}": ${response.scheduled_threads.length}`,
+      `Cron jobs for app "${app}": ${response.scheduled_threads.length}`,
     );
     for (const intent of response.scheduled_threads) {
       printIntent(intent);
@@ -60,7 +60,7 @@ export async function showScheduleCommand(
   id: string,
 ): Promise<void> {
   const scheduleId = id.trim();
-  if (!scheduleId) fatal("Usage: aomi schedule show <id>");
+  if (!scheduleId) fatal("Usage: aomi cron show <id>");
 
   const cli = CliSession.loadOrCreate(config);
   cli.mergeConfig(config);
@@ -85,7 +85,7 @@ export async function cancelScheduleCommand(
   id: string,
 ): Promise<void> {
   const scheduleId = id.trim();
-  if (!scheduleId) fatal("Usage: aomi schedule cancel <id>");
+  if (!scheduleId) fatal("Usage: aomi cron cancel <id>");
 
   const cli = CliSession.loadOrCreate(config);
   cli.mergeConfig(config);

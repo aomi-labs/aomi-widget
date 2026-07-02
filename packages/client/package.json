@@ -35,6 +35,7 @@
   },
   "dependencies": {
     "@alchemy/wallet-apis": "5.0.0-beta.22",
+    "@aomi-labs/deploy": "workspace:*",
     "@getpara/aa-alchemy": "2.21.0",
     "@getpara/aa-pimlico": "2.21.0",
     "@solana/web3.js": "^1.98.4",

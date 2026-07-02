@@ -1,7 +1,8 @@
 import { CliSession } from "../cli-session";
+import { fatal } from "../errors";
 import { printDataFileLocation } from "../output";
 import type { CliConfig } from "../types";
-import type { AomiListWalletsResponse } from "../../types";
+import type { AomiAuthIdentity, AomiListWalletsResponse } from "../../types";
 
 type LoginWalletFamily = "evm" | "solana";
 
@@ -37,8 +38,11 @@ async function hydratePrimaryWallets(
 }
 
 /**
- * Mint a backend-owned Privy auth URL for the active session and print it so
- * the user can complete browser login out of band.
+ * `aomi login --provider privy` — mint a backend-owned Privy auth URL for the
+ * active session and print it so the user can complete browser login out of
+ * band. The browser flow links the provider credential into the account and
+ * mints the delegated grant; if the session is not bound to an account yet,
+ * the backend resolves/creates one.
  */
 export async function walletLoginCommand(
   config: CliConfig,
@@ -55,7 +59,9 @@ export async function walletLoginCommand(
     });
     console.log("Open this URL to authenticate with Privy:");
     console.log(begin.auth_url);
-    console.log("After the browser flow completes, run `aomi wallet whoami`.");
+    console.log(
+      "After the browser flow completes, run `aomi account` or `aomi wallet ls`.",
+    );
     printDataFileLocation();
   } finally {
     session.close();
@@ -168,11 +174,13 @@ export async function loginCommand(config: CliConfig): Promise<void> {
 }
 
 /**
- * Show the account the active session is bound to on the backend. Resolves the
- * binding via the account bearer (or persisted credential), so it doubles as a
- * "is my session authenticated / bound to a user" check.
+ * `aomi account` (bare) — the canonical account view: user info followed by
+ * the linked auth providers table (the profile's `auth_identities`). Resolves
+ * the binding via the account bearer (or persisted credential), so it doubles
+ * as a "is my session authenticated / bound to a user" check. The wallets
+ * (keys) live under `aomi wallet ls`.
  */
-export async function whoamiCommand(config: CliConfig): Promise<void> {
+export async function accountShowCommand(config: CliConfig): Promise<void> {
   const cli = CliSession.load();
   if (!cli) {
     console.log("No active session");
@@ -191,8 +199,8 @@ export async function whoamiCommand(config: CliConfig): Promise<void> {
       console.log("Not bound to an account (anonymous session).");
       if (!hasCredential) {
         console.log(
-          "No account credential configured. Pass --account-bearer, or " +
-            "complete account auth through the portal.",
+          "No account credential configured. Run `aomi login`, pass " +
+            "--account-bearer, or complete account auth through the portal.",
         );
       } else {
         console.log(
@@ -211,17 +219,12 @@ export async function whoamiCommand(config: CliConfig): Promise<void> {
     }
     if (user.tier) console.log(`Tier:     ${user.tier}`);
     if (user.status) console.log(`Status:   ${user.status}`);
-    const wallets = profile.identity_wallets ?? [];
-    console.log(`Wallets:  ${wallets.length}`);
-    for (const wallet of wallets) {
-      const walletId = wallet.wallet_id ? ` (${wallet.wallet_id})` : "";
-      console.log(
-        `- ${formatWalletChainType(wallet.chain_type)} [${wallet.wallet_provider}]: ${wallet.address}${walletId}`,
-      );
-    }
-    // Browser-based wallet login (`wallet login`) completes out of band, so
-    // `whoami` is where the CLI first sees the connected wallet — hydrate the
-    // operating address here too (no-op once a wallet is already set).
+
+    printAuthIdentities(profile.auth_identities ?? []);
+
+    // Browser-based provider login completes out of band, so this view is
+    // where the CLI first sees the connected wallet — hydrate the operating
+    // address here too (no-op once a wallet is already set).
     await hydratePrimaryWallets(cli, session.client, cli.sessionId);
     printDataFileLocation();
   } finally {
@@ -229,13 +232,71 @@ export async function whoamiCommand(config: CliConfig): Promise<void> {
   }
 }
 
-function formatWalletChainType(chainType: string): string {
-  const normalized = chainType.trim().toLowerCase();
-  if (normalized === "ethereum" || normalized === "evm") {
-    return "Ethereum";
+/**
+ * Render the linked-providers table (`auth_identities`). The profile carries
+ * no separate subject/handle field, so `auth_method` stands in for it.
+ */
+function printAuthIdentities(identities: AomiAuthIdentity[]): void {
+  console.log(`Providers: ${identities.length}`);
+  if (identities.length === 0) return;
+
+  const headers = ["provider", "method", "verified", "primary"];
+  const rows = identities.map((identity) => [
+    identity.wallet_provider,
+    identity.auth_method,
+    identity.auth_verified_at ? "✓" : "✗",
+    identity.is_primary ? "✓" : "",
+  ]);
+  const widths = headers.map((header, i) =>
+    Math.max(header.length, ...rows.map((row) => row[i].length)),
+  );
+  console.log(
+    headers
+      .map((header, i) => header.padEnd(widths[i]))
+      .join("  ")
+      .trimEnd(),
+  );
+  for (const row of rows) {
+    console.log(
+      row
+        .map((cell, i) => cell.padEnd(widths[i]))
+        .join("  ")
+        .trimEnd(),
+    );
   }
-  if (normalized === "solana" || normalized === "svm") {
-    return "Solana";
+}
+
+/**
+ * `aomi logout` (bare) — clear the locally stored account credential (the
+ * bearer minted by the device flow, plus any legacy provider-exchange
+ * config). Local-only: the backend-side credential simply expires.
+ */
+export function logoutCommand(): void {
+  const cli = CliSession.load();
+  if (!cli) {
+    console.log("Not logged in (no local CLI state).");
+    return;
   }
-  return chainType;
+  const state = cli.toState();
+  const hadCredential = Boolean(
+    state.accountBearer || state.accountProvider || state.accountProviderToken,
+  );
+  if (!hadCredential) {
+    console.log("Not logged in — no stored account credential.");
+    printDataFileLocation();
+    return;
+  }
+  cli.clearAccountCredentials();
+  console.log("Logged out — cleared the stored account credential.");
+  printDataFileLocation();
+}
+
+// TODO(backend): needs a revoke endpoint. The approvals endpoints were
+// removed, so delegated-grant revocation has no REST surface yet — wire this
+// up once the account-authorization endpoints land.
+export function providerLogoutCommand(provider: string): never {
+  fatal(
+    `Provider disconnect ("${provider}") is not yet available from the CLI — ` +
+      "coming with the account-authorization endpoints.",
+  );
 }

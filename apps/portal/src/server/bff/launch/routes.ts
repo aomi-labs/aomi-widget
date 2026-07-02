@@ -96,7 +96,7 @@ export function launchDeployRoute(dryRun: boolean) {
         appSourceId,
         sourceRef: config.sourceRef,
         aomiTomlPaths: config.aomiTomlPaths,
-        dryRun,
+        preflight: dryRun,
         actor: typeof body.actor === "string" ? body.actor : undefined,
       });
       return NextResponse.json(

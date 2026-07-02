@@ -139,7 +139,7 @@ export class CliSession {
       publicKey: config.publicKey ?? seed?.publicKey,
       privateKey: config.privateKey ?? seed?.privateKey,
       svmPublicKey: svmPublicKey ?? seed?.svmPublicKey,
-      // Carry forward the persisted Solana private key so `wallet set --solana`
+      // Carry forward the persisted Solana private key so `wallet dev-key --solana`
       // survives `--new-session` — signing key is a user preference, not a
       // per-session artifact.
       svmPrivateKey: config.solanaPrivateKey ?? seed?.svmPrivateKey,
@@ -212,7 +212,7 @@ export class CliSession {
   /**
    * Apply config overrides (baseUrl, app, apiKey, publicKey, chain). Only
    * persists if something changed. Fields left `undefined` on the input are
-   * NOT clobbered — settings commands like `wallet set` pass partial configs
+   * NOT clobbered — settings commands like `wallet dev-key` pass partial configs
    * and must not wipe out an existing `baseUrl`.
    */
   mergeConfig(config: Partial<CliConfig>): void {
@@ -299,7 +299,7 @@ export class CliSession {
 
   /** The Solana private key to use for signing. Prefers the transiently-
    * supplied `solanaPrivateKey` from `CliConfig` (i.e. `--solana-private-key`)
-   * and falls back to the key persisted by `wallet set --solana`. */
+   * and falls back to the key persisted by `wallet dev-key --solana`. */
   resolvedSvmPrivateKey(fromConfig?: string): string | undefined {
     return fromConfig ?? this.state.svmPrivateKey;
   }
@@ -352,6 +352,17 @@ export class CliSession {
    */
   setAccountBearer(token: string): void {
     this.state.accountBearer = token;
+    this.state.accountProvider = undefined;
+    this.state.accountProviderToken = undefined;
+    this.save();
+  }
+
+  /**
+   * Drop every persisted account credential — the device-flow bearer plus any
+   * legacy provider-exchange config. `aomi logout`.
+   */
+  clearAccountCredentials(): void {
+    this.state.accountBearer = undefined;
     this.state.accountProvider = undefined;
     this.state.accountProviderToken = undefined;
     this.save();

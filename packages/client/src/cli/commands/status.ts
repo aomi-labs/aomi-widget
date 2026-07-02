@@ -1,98 +1,17 @@
+import type { DeploymentStatus } from "@aomi-labs/deploy";
+import { BackendError } from "@aomi-labs/deploy";
 import { DeployCliError } from "../errors";
 import { readDeploymentState } from "../../lib/deployment-state";
+import {
+  asCliError,
+  deployClient,
+  requireToken,
+  resolveBackendUrl,
+  resolvePlatform,
+  str,
+} from "./deploy-shared";
 
 type StatusArgs = Record<string, unknown>;
-
-interface DeploymentAppStatus {
-  name: string;
-  releaseTag: string;
-  releaseReady: boolean;
-  message?: string | null;
-}
-
-interface DeploymentStatus {
-  state: "building" | "releasing" | "ready" | "failed" | "pending";
-  deployment?: Record<string, unknown>;
-  releaseTags: string[];
-  apps?: DeploymentAppStatus[];
-  ci?: { status?: string; url?: string; commitHash?: string };
-  message?: string;
-}
-
-function str(value: unknown): string | undefined {
-  return typeof value === "string" && value.trim() ? value.trim() : undefined;
-}
-
-function requireToken(args: StatusArgs): string {
-  const token = str(args["activation-token"]) ?? process.env.AOMI_DEPLOY_TOKEN;
-  if (!token) {
-    throw new DeployCliError(
-      "VALIDATION_ERROR",
-      "`--activation-token` is required. Pass it or set the AOMI_DEPLOY_TOKEN env var.",
-    );
-  }
-  return token;
-}
-
-function resolveBackendUrl(args: StatusArgs): string {
-  return (
-    str(args["backend-url"]) ??
-    process.env.AOMI_BACKEND_URL ??
-    "https://api.aomi.dev"
-  ).replace(/\/+$/, "");
-}
-
-function resolvePlatform(args: StatusArgs): string {
-  return str(args.platform) ?? process.env.AOMI_DEPLOY_PLATFORM ?? "community";
-}
-
-async function fetchStatus(
-  deploymentId: string,
-  platform: string,
-  activationToken: string,
-  backendUrl: string,
-): Promise<DeploymentStatus> {
-  const url = `${backendUrl}/api/platforms/${encodeURIComponent(platform)}/deployments/${encodeURIComponent(deploymentId)}/status`;
-  let res: Response;
-  try {
-    res = await fetch(url, {
-      headers: {
-        Authorization: `Bearer ${activationToken}`,
-        "Content-Type": "application/json",
-      },
-    });
-  } catch (err) {
-    throw new DeployCliError(
-      "NETWORK_ERROR",
-      "Cannot reach Aomi backend; check your connection",
-    );
-  }
-
-  const text = await res.text();
-  if (!res.ok) {
-    const message = (() => {
-      try {
-        const json = JSON.parse(text);
-        if (json && typeof json === "object" && json.error)
-          return json.error as string;
-      } catch {}
-      return `${res.status} ${res.statusText}`;
-    })();
-    if (res.status === 401 || res.status === 403) {
-      throw new DeployCliError(
-        "AUTH_FAILED",
-        "Session expired; run `aomi account login`",
-      );
-    }
-    throw new DeployCliError("BACKEND_ERROR", message);
-  }
-
-  try {
-    return JSON.parse(text) as DeploymentStatus;
-  } catch {
-    throw new DeployCliError("BACKEND_ERROR", "Backend returned invalid JSON.");
-  }
-}
 
 function printStatus(status: DeploymentStatus): void {
   const CYAN = "\x1b[36m";
@@ -105,12 +24,9 @@ function printStatus(status: DeploymentStatus): void {
     console.log(`${DIM}CI:${RESET}    ${status.ci.url}`);
   }
 
-  if (status.deployment) {
-    const platform = (status.deployment as Record<string, unknown>)
-      ?.platform as Record<string, unknown> | undefined;
-    if (platform?.pr_url) {
-      console.log(`${DIM}PR:${RESET}    ${platform.pr_url}`);
-    }
+  const prUrl = status.deployment?.platform.prUrl;
+  if (prUrl) {
+    console.log(`${DIM}PR:${RESET}    ${prUrl}`);
   }
 
   if (status.apps && status.apps.length > 0) {
@@ -129,10 +45,6 @@ function printStatus(status: DeploymentStatus): void {
   }
 }
 
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
 export async function statusCommand(args: StatusArgs): Promise<void> {
   const deploymentId =
     str(args["deployment-id"]) ?? (await readDeploymentState())?.deploymentId;
@@ -148,61 +60,41 @@ export async function statusCommand(args: StatusArgs): Promise<void> {
   const backendUrl = resolveBackendUrl(args);
   const platform = resolvePlatform(args);
   const watch = args.watch === true;
+  const client = deployClient(backendUrl, activationToken);
 
   if (!watch) {
-    const status = await fetchStatus(
-      deploymentId,
-      platform,
-      activationToken,
-      backendUrl,
-    );
+    let status: DeploymentStatus;
+    try {
+      status = await client.status({ platform, deploymentId });
+    } catch (err) {
+      throw asCliError(err);
+    }
     printStatus(status);
     return;
   }
 
-  // --watch: poll with exponential backoff
+  // --watch: the package polls (3s ticks, exponential backoff to 30s, 8
+  // consecutive failures max) and reports each tick through onEvent; terminal
+  // states set the exit code.
   const MAX_FAILURES = 8;
-  const BASE_DELAY_MS = 3_000;
-  const MAX_DELAY_MS = 30_000;
-  let failures = 0;
   let lastCiUrl: string | undefined;
 
-  while (true) {
-    try {
-      const status = await fetchStatus(
-        deploymentId,
-        platform,
-        activationToken,
-        backendUrl,
-      );
-      if (status.ci?.url) lastCiUrl = status.ci.url;
-      printStatus(status);
-      failures = 0;
-
-      if (status.state === "ready") {
-        process.exit(0);
-        return;
-      }
-      if (status.state === "failed") {
-        process.exit(1);
-        return;
-      }
-
-      await sleep(BASE_DELAY_MS);
-    } catch (err) {
-      failures++;
-      if (failures >= MAX_FAILURES) {
-        const ciSuffix = lastCiUrl ? `; check CI status at ${lastCiUrl}` : "";
-        throw new DeployCliError(
-          "BACKEND_ERROR",
-          `Deployment timed out after ${MAX_FAILURES} attempts${ciSuffix}`,
-        );
-      }
-      const backoffMs = Math.min(
-        BASE_DELAY_MS * Math.pow(2, failures),
-        MAX_DELAY_MS,
-      );
-      await sleep(backoffMs);
+  await client.watchDeployment(deploymentId, platform, (event) => {
+    if (event.kind === "progress" || event.kind === "terminal") {
+      if (event.status.ci?.url) lastCiUrl = event.status.ci.url;
+      printStatus(event.status);
     }
-  }
+    if (event.kind === "terminal") {
+      process.exit(event.status.state === "ready" ? 0 : 1);
+    }
+    if (event.kind === "error") {
+      // Non-retryable HTTP error (e.g. expired token) — surface it directly.
+      if (event.error instanceof BackendError) throw asCliError(event.error);
+      const ciSuffix = lastCiUrl ? `; check CI status at ${lastCiUrl}` : "";
+      throw new DeployCliError(
+        "BACKEND_ERROR",
+        `Deployment timed out after ${MAX_FAILURES} attempts${ciSuffix}`,
+      );
+    }
+  });
 }

@@ -1,22 +1,9 @@
 import { runMain } from "citty";
-import { root } from "./root";
+import { root, SUBCOMMAND_NAMES } from "./root";
 import { CliExit, DeployCliError } from "./errors";
 import packageJson from "../../package.json";
 
-const ROOT_SUBCOMMANDS = new Set([
-  "chat",
-  "tx",
-  "session",
-  "model",
-  "app",
-  "chain",
-  "wallet",
-  "config",
-  "secret",
-  "account",
-  "deploy",
-  "schedule",
-]);
+const ROOT_SUBCOMMANDS = SUBCOMMAND_NAMES;
 
 function isPnpmExecWrapper(): boolean {
   const npmCommand = process.env.npm_command ?? "";
@@ -97,20 +84,34 @@ function printRootHelp(): void {
   console.log("");
   console.log("  chat                         Explicit one-shot chat command");
   console.log("  tx                           Transaction management");
-  console.log("  session                      Session management");
+  console.log(
+    "  thread                       Threads — conversations with the agent",
+  );
+  console.log(
+    "  cron                         Cron jobs — timers that spawn threads",
+  );
+  console.log(
+    "  login                        Log in (device flow; --provider privy to connect a wallet)",
+  );
+  console.log(
+    "  logout                       Log out (clear the stored credential)",
+  );
+  console.log(
+    "  account                      The canonical account — user info and linked providers",
+  );
+  console.log(
+    "  wallet                       Wallet keys — signing policy and capability",
+  );
   console.log("  model                        Model management");
   console.log("  app                          App management");
   console.log("  chain                        Chain information");
-  console.log("  wallet                       Wallet configuration");
   console.log("  config                       CLI configuration");
   console.log("  secret                       Secret management");
   console.log(
-    "  account                      Account identity (login, whoami)",
-  );
-  console.log(
     "  deploy                       Deploy your app (requires --activation-token)",
   );
-  console.log("  schedule                     Scheduled intent management");
+  console.log("  session                      (deprecated) use `thread`");
+  console.log("  schedule                     (deprecated) use `cron`");
   console.log("");
   console.log("Use aomi <command> --help for command-specific details.");
 }

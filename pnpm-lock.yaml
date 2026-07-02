@@ -778,6 +778,9 @@ importers:
       "@alchemy/wallet-apis":
         specifier: 5.0.0-beta.22
         version: 5.0.0-beta.22(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)(viem@2.47.11(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@3.25.76))(zod@3.25.76)
+      "@aomi-labs/deploy":
+        specifier: workspace:*
+        version: link:../deploy
       "@getpara/aa-alchemy":
         specifier: 2.21.0
         version: 2.21.0(bufferutil@4.1.0)(encoding@0.1.13)(typescript@5.9.3)(utf-8-validate@5.0.10)(viem@2.47.11(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@3.25.76))

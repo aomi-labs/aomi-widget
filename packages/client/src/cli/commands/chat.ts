@@ -157,7 +157,7 @@ export async function chatCommand(
   const session = cli.createClientSession(config);
 
   // Resolve Solana address after session is created/loaded so we pick up the
-  // key persisted by `wallet set --solana` even for `--new-session` flows
+  // key persisted by `wallet dev-key --solana` even for `--new-session` flows
   // (the key is seeded from the previous session into the new one in create()).
   const resolvedSolanaKey = cli.resolvedSvmPrivateKey(config.solanaPrivateKey);
   const svmAddress = deriveSvmAddress(resolvedSolanaKey) ?? cli.svmPublicKey;

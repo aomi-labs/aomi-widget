@@ -67,7 +67,7 @@ describe("aomi account login", () => {
         expect.stringContaining("https://chat.example/auth/privy"),
       );
       expect(logSpy).toHaveBeenCalledWith(
-        expect.stringContaining("aomi wallet whoami"),
+        expect.stringContaining("aomi account"),
       );
     } finally {
       vi.stubGlobal("fetch", originalFetch);

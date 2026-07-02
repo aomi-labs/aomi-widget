@@ -231,7 +231,7 @@ async function signSolanaPending(params: {
       [
         "Solana keypair required for `aomi tx sign` on a solana_sign request.",
         "Pass one of:",
-        "  aomi wallet set --solana <base58-key>             # persist once",
+        "  aomi wallet dev-key --solana <base58-key>         # persist once",
         "  aomi tx sign --solana-private-key <base58|json> <tx-id>",
         "  SOLANA_PRIVATE_KEY=<base58|json> aomi tx sign <tx-id>",
         "",
@@ -421,7 +421,7 @@ export async function signCommand(
         [
           "Private key required for `aomi tx sign`.",
           "Pass one of:",
-          "  aomi wallet set <hex-key>",
+          "  aomi wallet dev-key <hex-key>",
           "  aomi tx sign --private-key <hex-key> <tx-id>",
           "  PRIVATE_KEY=<hex-key> aomi tx sign <tx-id>",
         ].join("\n"),

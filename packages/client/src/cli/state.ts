@@ -112,7 +112,7 @@ export type CliSessionState = {
   privateKey?: string;
   /** Solana public key (base58), derived from the Solana keypair when provided. */
   svmPublicKey?: string;
-  /** Solana private key (base58), persisted by `wallet set --solana`. Used as
+  /** Solana private key (base58), persisted by `wallet dev-key --solana`. Used as
    * the signing key fallback when `--solana-private-key` is not passed on a
    * command. Never printed in output. */
   svmPrivateKey?: string;
@@ -405,7 +405,7 @@ function resolveStoredSession(
   const trimmed = selector.trim();
   if (!trimmed) return null;
 
-  const localMatch = trimmed.match(/^(?:session-)?(\d+)$/);
+  const localMatch = trimmed.match(/^(?:thread-|session-)?(\d+)$/);
   if (localMatch) {
     const localId = parseInt(localMatch[1], 10);
     if (!Number.isNaN(localId)) {

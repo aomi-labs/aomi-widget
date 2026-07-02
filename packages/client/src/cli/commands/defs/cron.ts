@@ -10,16 +10,18 @@ function parseOptionalInt(value: unknown): number | undefined {
   return parsed;
 }
 
-const scheduleListDef = defineCommand({
+const cronLsDef = defineCommand({
   meta: {
-    name: "list",
-    description: "List scheduled intents for the current account/app",
+    name: "ls",
+    // `list` kept so the deprecated `aomi schedule list` spelling still works.
+    alias: ["list"],
+    description: "List cron jobs for the current account/app (~ crontab -l)",
   },
   args: {
     ...globalArgs,
     limit: {
       type: "string",
-      description: "Maximum number of scheduled intents to return",
+      description: "Maximum number of cron jobs to return",
     },
     offset: {
       type: "string",
@@ -35,16 +37,16 @@ const scheduleListDef = defineCommand({
   },
 });
 
-const scheduleShowDef = defineCommand({
+const cronShowDef = defineCommand({
   meta: {
     name: "show",
-    description: "Show one scheduled intent",
+    description: "Show one cron job",
   },
   args: {
     ...globalArgs,
     id: {
       type: "positional",
-      description: "Scheduled intent id",
+      description: "Cron job id",
       required: true,
     },
   },
@@ -54,16 +56,16 @@ const scheduleShowDef = defineCommand({
   },
 });
 
-const scheduleCancelDef = defineCommand({
+const cronCancelDef = defineCommand({
   meta: {
     name: "cancel",
-    description: "Cancel one scheduled intent",
+    description: "Cancel one cron job",
   },
   args: {
     ...globalArgs,
     id: {
       type: "positional",
-      description: "Scheduled intent id",
+      description: "Cron job id",
       required: true,
     },
   },
@@ -73,14 +75,33 @@ const scheduleCancelDef = defineCommand({
   },
 });
 
+const cronSubCommands = {
+  ls: cronLsDef,
+  show: cronShowDef,
+  cancel: cronCancelDef,
+};
+
+export const cronDef = defineCommand({
+  meta: {
+    name: "cron",
+    description: "Cron jobs — timers that spawn threads",
+  },
+  subCommands: cronSubCommands,
+});
+
+/** Deprecated alias — same subcommands as `aomi cron`, kept one release. */
 export const scheduleDef = defineCommand({
   meta: {
     name: "schedule",
-    description: "Inspect and manage scheduled intents",
+    description: "(deprecated) use `aomi cron`",
   },
-  subCommands: {
-    list: scheduleListDef,
-    show: scheduleShowDef,
-    cancel: scheduleCancelDef,
+  run({ rawArgs }) {
+    // citty 0.2.2 runs the parent `run` after a matched subcommand (see
+    // root.ts), so this fires on every `aomi schedule …`.
+    console.error("`aomi schedule` is deprecated — use `aomi cron`.");
+    if (!rawArgs.some((arg) => !arg.startsWith("-"))) {
+      console.error("Run `aomi cron --help` for usage.");
+    }
   },
+  subCommands: cronSubCommands,
 });

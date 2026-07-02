@@ -12,13 +12,13 @@ const baseConfig = {
   secrets: {},
 };
 
-describe("aomi account whoami", () => {
+describe("aomi account (bare canonical view; whoami stays a hidden alias)", () => {
   let stateDir: string;
 
   beforeEach(() => {
     vi.resetModules();
     process.env = { ...ORIGINAL_ENV };
-    stateDir = mkdtempSync(join(tmpdir(), "aomi-cli-whoami-"));
+    stateDir = mkdtempSync(join(tmpdir(), "aomi-cli-account-"));
     process.env.AOMI_STATE_DIR = stateDir;
   });
 
@@ -28,9 +28,11 @@ describe("aomi account whoami", () => {
     vi.restoreAllMocks();
   });
 
-  it("prints the bound account identity when authenticated", async () => {
+  it("prints the bound account identity and the linked providers table", async () => {
     const { CliSession } = await import("../../src/cli/cli-session");
-    const { whoamiCommand } = await import("../../src/cli/commands/account");
+    const { accountShowCommand } = await import(
+      "../../src/cli/commands/account"
+    );
 
     CliSession.loadOrCreate({ ...baseConfig, accountBearer: "bearer-1" });
 
@@ -40,17 +42,29 @@ describe("aomi account whoami", () => {
       statusText: "OK",
       json: vi.fn(async () => ({
         user: { user_id: "user-1", verified_email: "a@b.c", tier: "free" },
+        auth_identities: [
+          {
+            id: 1,
+            wallet_provider: "privy",
+            auth_method: "wallet",
+            auth_verified_at: 1_750_000_000,
+            is_primary: true,
+            created_at: 1_750_000_000,
+          },
+          {
+            id: 2,
+            wallet_provider: "better-auth",
+            auth_method: "email",
+            auth_verified_at: null,
+            is_primary: false,
+            created_at: 1_750_000_000,
+          },
+        ],
         identity_wallets: [
           {
             wallet_id: "wallet-evm-1",
             address: "0xabc",
             chain_type: "ethereum",
-            wallet_provider: "privy",
-          },
-          {
-            wallet_id: "wallet-sol-1",
-            address: "So11111111111111111111111111111111111111112",
-            chain_type: "solana",
             wallet_provider: "privy",
           },
         ],
@@ -62,24 +76,29 @@ describe("aomi account whoami", () => {
     );
     const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
 
-    await whoamiCommand(baseConfig);
+    await accountShowCommand(baseConfig);
 
     expect(logSpy).toHaveBeenCalledWith(expect.stringContaining("user-1"));
     expect(logSpy).toHaveBeenCalledWith(expect.stringContaining("a@b.c"));
-    expect(logSpy).toHaveBeenCalledWith(expect.stringContaining("Wallets:  2"));
+    expect(logSpy).toHaveBeenCalledWith(expect.stringContaining("free"));
     expect(logSpy).toHaveBeenCalledWith(
-      expect.stringContaining("Ethereum [privy]: 0xabc"),
+      expect.stringContaining("Providers: 2"),
     );
-    expect(logSpy).toHaveBeenCalledWith(
-      expect.stringContaining(
-        "Solana [privy]: So11111111111111111111111111111111111111112",
-      ),
-    );
+    const lines = logSpy.mock.calls.map((call) => String(call[0]));
+    const privyRow = lines.find((line) => line.includes("privy"));
+    expect(privyRow).toBeDefined();
+    expect(privyRow).toContain("wallet");
+    expect(privyRow).toContain("✓");
+    expect(lines.some((line) => line.includes("better-auth"))).toBe(true);
+    // The keys moved to `aomi wallet ls` — the account view no longer lists them.
+    expect(lines.some((line) => line.startsWith("Wallets:"))).toBe(false);
   });
 
   it("reports an anonymous session and hints at the credential flags", async () => {
     const { CliSession } = await import("../../src/cli/cli-session");
-    const { whoamiCommand } = await import("../../src/cli/commands/account");
+    const { accountShowCommand } = await import(
+      "../../src/cli/commands/account"
+    );
 
     CliSession.loadOrCreate(baseConfig);
 
@@ -95,7 +114,7 @@ describe("aomi account whoami", () => {
     );
     const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
 
-    await whoamiCommand(baseConfig);
+    await accountShowCommand(baseConfig);
 
     expect(logSpy).toHaveBeenCalledWith(
       expect.stringContaining("Not bound to an account"),
@@ -103,11 +122,14 @@ describe("aomi account whoami", () => {
     expect(logSpy).toHaveBeenCalledWith(
       expect.stringContaining("--account-bearer"),
     );
+    expect(logSpy).toHaveBeenCalledWith(expect.stringContaining("aomi login"));
   });
 
   it("treats legacy provider exchange config as unavailable account auth", async () => {
     const { CliSession } = await import("../../src/cli/cli-session");
-    const { whoamiCommand } = await import("../../src/cli/commands/account");
+    const { accountShowCommand } = await import(
+      "../../src/cli/commands/account"
+    );
 
     CliSession.loadOrCreate({
       ...baseConfig,
@@ -127,7 +149,7 @@ describe("aomi account whoami", () => {
     );
     const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
 
-    await whoamiCommand(baseConfig);
+    await accountShowCommand(baseConfig);
 
     expect(logSpy).toHaveBeenCalledWith(
       expect.stringContaining("--account-bearer"),

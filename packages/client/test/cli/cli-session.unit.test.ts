@@ -67,7 +67,7 @@ describe("CLI session lifecycle", () => {
 
     expect(readState()?.sessionId).toBeDefined();
     expect(logSpy).toHaveBeenCalledWith(
-      expect.stringContaining("Active session set to"),
+      expect.stringContaining("Active thread set to"),
     );
   });
 

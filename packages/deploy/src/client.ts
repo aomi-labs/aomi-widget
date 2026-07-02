@@ -685,7 +685,7 @@ function deployRequest(input: DeployInput): Record<string, unknown> {
     app_source_id: appSourceId,
     source_ref: sourceRef(input.sourceRef),
     aomi_toml_paths: aomiTomlPaths,
-    ...(input.dryRun ? { dry_run: true } : {}),
+    ...(input.preflight ? { preflight: true } : {}),
   };
 }
 
@@ -824,7 +824,10 @@ function camelActivateResult(result: unknown): ActivateResult {
             name: promotion.name,
             releaseTag: promotion.release_tag,
             sourceBranch: promotion.source_branch,
-            platformCommitHash: promotion.platform_commit_hash,
+            platformCommitHash:
+              promotion.platform_commit_hash ??
+              promotion.activated_commit_hash ??
+              null,
             liveCommitHash: promotion.live_commit_hash ?? null,
             ciStatus: promotion.ci_status,
             ciUrl: promotion.ci_url ?? null,
