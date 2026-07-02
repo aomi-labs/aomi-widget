@@ -384,9 +384,13 @@ export class DeploymentClient {
     const platform = cleanPlatform(input.platform);
     const repo = required(input.repo, "repo");
     const bearer = this.resolveBearer(input.bearer);
+    const body: { repo: string; github_user_id?: string } = { repo };
+    if (input.githubUserId !== undefined) {
+      body.github_user_id = required(input.githubUserId, "githubUserId");
+    }
     const raw = await this.post<{ ok?: boolean; source?: unknown }>(
       `/api/platforms/${encodeURIComponent(platform)}/sources/sync-installed`,
-      { repo },
+      body,
       "sync_source",
       bearer,
     );
@@ -416,6 +420,7 @@ export class DeploymentClient {
     }
     const repoName = required(input.repoName, "repoName");
     const templateRepo = required(input.templateRepo, "templateRepo");
+    const githubUserId = required(input.githubUserId, "githubUserId");
     const bearer = this.resolveBearer(input.bearer);
     const raw = await this.post<{ ok?: boolean; source?: unknown }>(
       `/api/integrations/github-app/platforms/${encodeURIComponent(platform)}/sources/create-from-template`,
@@ -423,6 +428,7 @@ export class DeploymentClient {
         installation_id: installationId,
         template_repo: templateRepo,
         repo_name: repoName,
+        github_user_id: githubUserId,
         private: Boolean(input.private),
       },
       "scaffold",
@@ -498,6 +504,7 @@ export class DeploymentClient {
     const raw = await this.get<{
       github_user_id?: string;
       github_login?: string;
+      installation_id?: number | string | null;
     }>(
       `/api/integrations/github-app/oauth/exchange?${params.toString()}`,
       "exchange_github_code",
@@ -506,6 +513,10 @@ export class DeploymentClient {
     return {
       githubUserId: String(raw.github_user_id ?? ""),
       githubLogin: String(raw.github_login ?? ""),
+      installationId:
+        raw.installation_id === null || raw.installation_id === undefined
+          ? null
+          : String(raw.installation_id),
     };
   }
 

@@ -334,6 +334,8 @@ export interface SyncSourceInput extends BearerOverride {
   platform: string;
   /** `owner/name` of a repo already installed on the Aomi GitHub App. */
   repo: string;
+  /** Signed-in GitHub user id to bind this existing source to, when known. */
+  githubUserId?: string;
 }
 
 export interface ScaffoldInput extends BearerOverride {
@@ -343,6 +345,12 @@ export interface ScaffoldInput extends BearerOverride {
   repoName: string;
   /** Template `owner/repo` to copy for the one-shot flow. */
   templateRepo: string;
+  /**
+   * GitHub user the created source is owned by. Written onto the source row at
+   * insert so it appears on the developer's dashboard immediately. Supplied by
+   * the portal BFF from the signed-in GitHub session.
+   */
+  githubUserId: string;
   /** Create the new repo private. Defaults to false. */
   private?: boolean;
 }
@@ -386,6 +394,11 @@ export interface ExchangeGitHubCodeInput extends BearerOverride {
 export interface GitHubIdentity {
   githubUserId: string;
   githubLogin: string;
+  /**
+   * Most-recent installation of the exchanged App visible to this user, if any.
+   * Lets the portal skip the install step when the App is already installed.
+   */
+  installationId: string | null;
 }
 
 export interface ListUserSourcesInput extends BearerOverride {

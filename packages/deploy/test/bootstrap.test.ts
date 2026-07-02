@@ -51,7 +51,11 @@ describe("DeploymentClient bootstrap — tokens", () => {
     expect(JSON.parse((init as RequestInit).body as string)).toEqual({
       scope: "platform",
     });
-    expect(result).toEqual({ id: 12, token: "plaintext-once", scope: "platform" });
+    expect(result).toEqual({
+      id: 12,
+      token: "plaintext-once",
+      scope: "platform",
+    });
     expect(audits).toEqual([
       expect.objectContaining({
         action: "mint_token",
@@ -200,6 +204,21 @@ describe("DeploymentClient bootstrap — sources", () => {
     });
   });
 
+  it("binds an installed source to the signed-in GitHub user when provided", async () => {
+    jsonOnce(fetchMock, sourceBody);
+    await client({ activationToken: "plat-tok" }).syncSource({
+      platform: "playground",
+      repo: "alice/alice-bot",
+      githubUserId: "222",
+    });
+
+    const [, init] = fetchMock.mock.calls[0];
+    expect(JSON.parse((init as RequestInit).body as string)).toEqual({
+      repo: "alice/alice-bot",
+      github_user_id: "222",
+    });
+  });
+
   it("scaffolds from the caller-provided template and maps the source", async () => {
     jsonOnce(fetchMock, sourceBody);
     const src = await client({ activationToken: "plat-tok" }).scaffold({
@@ -207,6 +226,7 @@ describe("DeploymentClient bootstrap — sources", () => {
       installationId: 555,
       repoName: "my-bot",
       templateRepo: "alice/template-bot",
+      githubUserId: "42",
     });
     const [url, init] = fetchMock.mock.calls[0];
     expect(url).toBe(
@@ -216,6 +236,7 @@ describe("DeploymentClient bootstrap — sources", () => {
       installation_id: 555,
       template_repo: "alice/template-bot",
       repo_name: "my-bot",
+      github_user_id: "42",
       private: false,
     });
     expect(src.id).toBe(99);
