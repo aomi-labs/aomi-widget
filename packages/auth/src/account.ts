@@ -1,7 +1,6 @@
 export { createDefaultWalletAttesters } from "./providers/default-wallet-attesters";
 
 export {
-  fetchAttestedWallets,
   validWalletAddress,
 } from "./providers/wallet-attestation";
 
@@ -56,7 +55,6 @@ export type {
   AttestedWallet,
   AttestedWalletProvider,
   WalletAttestationLogger,
-  WalletAttestationRequest,
   WalletAttester,
   WalletAttesterRegistry,
 } from "./providers/wallet-attestation";

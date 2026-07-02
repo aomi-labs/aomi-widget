@@ -26,12 +26,10 @@ export {
 export { listParaWalletsForUser, verifyParaJwt } from "./para";
 
 export {
-  fetchAttestedWallets,
   validWalletAddress,
   type AttestedWallet,
   type AttestedWalletProvider,
   type WalletAttestationLogger,
-  type WalletAttestationRequest,
   type WalletAttester,
   type WalletAttesterRegistry,
 } from "./wallet-attestation";

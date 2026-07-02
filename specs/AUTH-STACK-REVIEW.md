@@ -400,7 +400,7 @@ is `null` in same-origin (`createPortalAccountAccessTokenProvider`).
 is orthogonal to backend auth. `account/aomi-backend-runtime.ts` drives sign-in: auto-SIWE
 for a bare wallet, or `providerExchange` (create → `POST /api/auth/aomi/provider/exchange`;
 link → `POST /api/aomi/provider/exchange`). `identity.isConnected` flips true on wallet
-connect, **before** the `aomi_session` cookie lands — the root cause of the thread-list race
+connect, **before** the `better-auth.session_token` cookie lands — the root cause of the thread-list race
 (fixed with a bounded exponential 401-retry backoff in `user-state-provider.tsx`).
 
 **CLI (two of them!):**
@@ -517,7 +517,7 @@ UUID bridge; backend find-only `DbUser::get` (never creates); multi-class routes
 | 🟡 Cleanup | Deferred perf: proxy hot-path cache (`getSession` + 2 DB writes per proxied call); thread-list refetch storm (`wasConnectedRef`) | Every `/api/state` poll re-resolves the session | `session.ts`, `user-state-provider.tsx` |
 | 🟡 Cleanup | CLI: default `baseUrl` to portal (or add explicit portal flag); friendly `whoami`/`wallet whoami` 401; consider encrypting stored keys | Login silently needs a portal override; keys in plaintext | `packages/client/src/cli` |
 | 🟡 Cleanup | Vestigial: `capability` field (type-only); `AomiAccountCredential` has 4 shapes, only privy+para live; `packages/auth/src/index.ts` exports only `./types` | Low-grade cruft / near-empty package root | `packages/auth/src/types.ts`, `index.ts` |
-| 📘 Docs | Refresh `DOMAIN.md`/`METADATA.md` (endpoints `/api/session/*`; `AomiClient`/`ClientSession` in `@aomi-labs/client`; no polling/message-controller files); fix `aomi_session` cookie-name nickname (real: `better-auth.session_token`) | The "read on session start" docs are stale | `specs/` |
+| 📘 Docs | Refresh `DOMAIN.md`/`METADATA.md` (endpoints `/api/session/*`; `AomiClient`/`ClientSession` in `@aomi-labs/client`; real cookie name `better-auth.session_token`; no polling/message-controller files) | The "read on session start" docs are stale | `specs/` |
 | 📘 Docs | Empty stale scaffolding in portal: `src/app/auth/`, `src/app/auth/privy/`, `src/app/api/mcp-auth/**` (no route files) | Leftover from earlier MCP-auth/Privy design | `apps/portal/src/app` |
 | 📘 Docs | Stale content docs: `docs/topics/clients/facts/ts-client.md` still documents the old Privy `account login`; `rust-cli.md`; `docs/topics/auth/facts/*` | Describe replaced flows | `docs/topics` |
 | 📘 Docs | §9 items from the fix checklist still open (consolidate `HANDOFF-LOCAL-BACKEND.md` + `docs/local-merged-bff-betterauth-stack.md`; delete executed plan specs; final grep for dead `.md` links) | Docs hygiene before merge | repo-wide |
@@ -701,7 +701,7 @@ it goes and update `specs/STATE.md`.
 - [x] Confirm no `jwt()` plugin exists in `better-auth/auth.ts` (Para's remote JWKS is unrelated — leave it).
 - [x] Grep remaining `jwks` refs: live DDL is gone; remaining live code is Para remote JWKS verification/tests, and remaining docs are historical/planning notes.
 - [x] Verification: direct `tsc -p packages/auth/tsconfig.json --noEmit` and `vitest run packages/auth` pass. The requested pnpm wrappers were attempted but blocked by pnpm's unapproved-builds preflight (`pnpm approve-builds` required).
-- [ ] Drop the `jwks` table in any live auth DB (deploy/migration task; not run locally).
+- [x] Drop the `jwks` table in any live auth DB: not applicable yet because no auth DB has been deployed.
 
 ### C. Reconcile the dev service key + the misleading test (§4)
 
@@ -724,14 +724,14 @@ it goes and update `specs/STATE.md`.
 ### E. Dead-code / slop (§9)
 
 - [x] Delete the deprecated `mcp-approvals/` island.
-- [ ] Trim the wallet-attestation indirection (`providers/wallet-attestation.ts`, `default-wallet-attesters.ts`) — PR #615 confirms no attestation table is needed; the nullable FK covers provenance.
+- [x] Trim the wallet-attestation indirection (`providers/wallet-attestation.ts`, `default-wallet-attesters.ts`) — fetch/error handling now lives with provider-wallet reconciliation in `account-service`; the deferred nullable FK still covers future provenance.
 - [x] Remove the type-only `capability` field; collapse `AomiAccountCredential` to the live privy+para shapes.
-- [ ] Decide committed `packages/react/dist/` policy (build-on-install vs keep).
+- [x] Decide committed `packages/react/dist/` policy (build-on-install vs keep) — keep committed for now; package exports/files point at `dist/`, `packages/client/dist` is also tracked, and there is no install-time build hook.
 
 ### F. Docs (§9)
 
-- [ ] Refresh `DOMAIN.md` / `METADATA.md` (endpoints; `AomiClient` / `ClientSession` in `@aomi-labs/client`; real cookie name `better-auth.session_token`).
-- [ ] Delete empty stale scaffolding (`apps/portal/src/app/auth/*`, `api/mcp-auth/**`) + stale content docs (ts-client Privy login, rust-cli, `docs/topics/auth/facts/*`).
+- [x] Refresh `DOMAIN.md` / `METADATA.md` (endpoints; `AomiClient` / `ClientSession` in `@aomi-labs/client`; real cookie name `better-auth.session_token`).
+- [ ] Delete empty stale scaffolding (`apps/portal/src/app/auth/*`, `api/mcp-auth/**`) + stale content docs (ts-client Privy login, rust-cli, `docs/topics/auth/facts/*`). Verified 2026-07-02: the scaffold paths plus `ts-client.md`/`rust-cli.md` are already absent; remaining auth fact docs are still indexed by repowiki/docs and were not deleted.
 
 ### G. Merge gate — two repos (§10, §12)
 

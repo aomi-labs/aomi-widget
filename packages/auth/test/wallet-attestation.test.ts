@@ -4,10 +4,10 @@ import { describe, expect, it, vi } from "vitest";
 import type { AccountAuthEnv } from "../src/better-auth/env";
 import { createDefaultWalletAttesters } from "../src/providers/default-wallet-attesters";
 import {
-  fetchAttestedWallets,
   type AttestedWallet,
   type WalletAttesterRegistry,
 } from "../src/providers/wallet-attestation";
+import { fetchAttestedProviderWallets } from "../src/service/account-service";
 
 const EVM = "0x1111111111111111111111111111111111111111";
 
@@ -19,7 +19,7 @@ const baseEnv: AccountAuthEnv = {
   trustedOrigins: ["http://localhost:3001"],
 };
 
-describe("fetchAttestedWallets", () => {
+describe("fetchAttestedProviderWallets", () => {
   it("fetches wallets from a provider registry", async () => {
     const wallets: AttestedWallet[] = [
       {
@@ -32,12 +32,10 @@ describe("fetchAttestedWallets", () => {
     ];
     const attester = vi.fn(async () => wallets);
 
-    const result = await fetchAttestedWallets({
-      request: {
-        provider: "custom",
-        subject: "provider-user",
-        email: "user@example.com",
-      },
+    const result = await fetchAttestedProviderWallets({
+      provider: "custom",
+      subject: "provider-user",
+      email: "user@example.com",
       attesters: { custom: attester },
     });
 
@@ -50,8 +48,9 @@ describe("fetchAttestedWallets", () => {
 
   it("returns null when no attester is registered", async () => {
     await expect(
-      fetchAttestedWallets({
-        request: { provider: "custom", subject: "provider-user" },
+      fetchAttestedProviderWallets({
+        provider: "custom",
+        subject: "provider-user",
         attesters: {},
       }),
     ).resolves.toBeNull();
@@ -67,8 +66,9 @@ describe("fetchAttestedWallets", () => {
     };
 
     await expect(
-      fetchAttestedWallets({
-        request: { provider: "custom", subject: "provider-user" },
+      fetchAttestedProviderWallets({
+        provider: "custom",
+        subject: "provider-user",
         attesters,
         logger,
       }),

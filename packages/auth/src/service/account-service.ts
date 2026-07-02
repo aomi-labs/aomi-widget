@@ -31,7 +31,6 @@ import {
 } from "../db/queries";
 import { createDefaultWalletAttesters } from "../providers/default-wallet-attesters";
 import {
-  fetchAttestedWallets,
   type AttestedWallet,
   type AttestedWalletProvider,
   type WalletAttestationLogger,
@@ -485,15 +484,27 @@ export async function fetchAttestedProviderWallets(input: {
   attesters?: WalletAttesterRegistry;
   logger?: WalletAttestationLogger;
 }): Promise<AttestedWallet[] | null> {
-  return fetchAttestedWallets({
-    request: {
-      provider: input.provider,
+  const attester =
+    (input.attesters ?? createDefaultWalletAttesters())[input.provider];
+  if (!attester) return null;
+  try {
+    const wallets = await attester({
       subject: input.subject,
       email: input.email,
-    },
-    attesters: input.attesters ?? createDefaultWalletAttesters(),
-    logger: input.logger ?? console,
-  });
+    });
+    return (
+      wallets?.map((wallet) => ({
+        ...wallet,
+        provider: input.provider,
+      })) ?? null
+    );
+  } catch (error) {
+    (input.logger ?? console).warn(
+      `syncProviderWallets: failed to list ${input.provider} wallets for ${input.subject}`,
+      error,
+    );
+    return null;
+  }
 }
 
 /** Best-effort embedded-wallet sync after a successful provider identity link.

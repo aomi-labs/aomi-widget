@@ -25,7 +25,7 @@ import { getHttpStatus } from "./http-status";
 const THREAD_PREFETCH_LIMIT = 5;
 const PREFETCH_IDLE_TIMEOUT_MS = 1500;
 // On a fresh login the wallet reports "connected" (isConnected -> true) before
-// the SIWE / provider sign-in has written the BetterAuth `aomi_session` cookie.
+// the SIWE / provider sign-in has written the Better Auth session cookie.
 // Until that cookie exists the same-origin BFF proxy forwards the thread-list
 // request anonymously and the backend answers 401. Signing (wallet popup +
 // round-trip) routinely takes longer than a couple of seconds, so we retry 401s

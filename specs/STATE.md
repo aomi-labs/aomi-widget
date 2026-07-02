@@ -13,7 +13,7 @@ portal wired a client-side `createAccountAccessTokenProvider` into **5**
 components (widget + `general-settings`/`bots`/`apps-settings`/`app-keys`) that
 minted an `Authorization: Bearer` header — but in same-origin proxy mode
 (`NEXT_PUBLIC_BACKEND_URL=/`, the shipped default) the BFF proxy mints the bearer
-server-side from the `aomi_session` cookie and strips that header, so the whole
+server-side from the `better-auth.session_token` cookie and strips that header, so the whole
 machine was dead weight (latency + `/api/bff/auth/token` 401 spam + a duplicate
 `providerExchange` owner).
 
@@ -50,7 +50,7 @@ load until a manual page refresh.
   `packages/react/src/runtime/user-state-provider.tsx` fires when `isConnected`
   flips true, but `isConnected` is forwarded from wallet *connection*
   (`apps/registry/.../wallet-kit/context.tsx` -> `identity.isConnected`), which
-  lands before the SIWE/provider sign-in writes the BetterAuth `aomi_session`
+  lands before the SIWE/provider sign-in writes the BetterAuth `better-auth.session_token`
   cookie. On the portal every `/api/*` call is same-origin through the BFF proxy
   (`packages/account/src/proxy.ts`), which authorizes purely from that cookie
   (`injectBearer` -> `getSessionedCanonicalId`) and **ignores the browser's
