@@ -11,6 +11,7 @@ export function DeploymentRow({
   running,
   message,
   onRollback,
+  current,
 }: {
   deployment: UserSourceLatestDeployment | null;
   source: UserSource;
@@ -18,6 +19,7 @@ export function DeploymentRow({
   running: boolean;
   message?: string | null;
   onRollback: () => void;
+  current?: boolean;
 }) {
   const sdkVersion =
     deployment?.sdkVersion ??
@@ -38,6 +40,11 @@ export function DeploymentRow({
           <div className="truncate text-sm font-medium">
             {deploymentId ?? "No deployment"}
           </div>
+          {current && (
+            <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-700">
+              Current
+            </span>
+          )}
         </div>
         <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-zinc-500">
           <span className="inline-flex items-center gap-1">
@@ -70,10 +77,12 @@ export function DeploymentRow({
       <div className="flex flex-col items-end gap-2">
         <button
           type="button"
-          disabled={!deploymentId || running}
+          disabled={!deploymentId || running || current}
           onClick={onRollback}
           className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-zinc-300 bg-white px-2.5 text-xs font-medium text-zinc-800 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50"
-          title="Rollback to this deployment"
+          title={
+            current ? "This deployment is live" : "Rollback to this deployment"
+          }
         >
           <RotateCcw className="size-3.5" aria-hidden />
           Rollback
