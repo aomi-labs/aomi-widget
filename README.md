@@ -347,6 +347,22 @@ The skill file lives at [`packages/client/skills/aomi-transact/SKILL.md`](packag
 
 A companion skill, `aomi-build`, scaffolds new backend apps from OpenAPI specs, REST endpoints, or SDK examples.
 
+## Aomi Workbench
+
+`aomi-workbench` is the Smithers-powered terminal workbench for long-running app creation. Use it when a new app needs OpenAPI discovery, Codex/Claude curation, validation loops, local smoke tests, and deploy approval in one resumable workflow.
+
+```bash
+pnpm --filter @aomi-labs/workbench build
+pnpm --filter @aomi-labs/workbench exec aomi-workbench --sdk-root ../aomi-sdk --app my-app
+```
+
+Smithers currently requires Bun for its durable SQLite runtime. The Node CLI still
+persists the per-app workbench plan under `packages/workbench/.smithers/runs/`
+and records the Smithers state path; running the workbench under Bun enables the
+Smithers runtime for that state.
+
+`aomi-build` remains the deterministic Rust CLI for codegen, compile, deploy, status, and activate. Running `aomi-build` with no subcommand still opens its lightweight deploy/codegen wizard; `aomi-workbench` is the recommended app-from-scratch path when agents and workflow persistence are needed.
+
 ---
 
 ## FAQ
