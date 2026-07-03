@@ -29,10 +29,8 @@ vi.mock("@aomi-labs/widget-lib", () => ({
   ),
 }));
 
-vi.mock("@portal/lib/chat-url", () => ({
-  chatAppUrl: (name: string, options?: { locked?: boolean }) =>
-    `https://chat.aomi.dev?app=${name}${options?.locked ? "&lock_app=1" : ""}`,
-}));
+// `@portal/lib/chat-url` is intentionally NOT mocked: it is a pure helper and
+// a stale fake here previously dropped `application_id` from asserted URLs.
 
 vi.mock("@portal/features/launch", () => ({
   oneshotStep: (p: LaunchProgress) => {
