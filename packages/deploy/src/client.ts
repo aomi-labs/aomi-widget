@@ -17,6 +17,7 @@ import type {
   GetUserSourceLatestDeploymentInput,
   GitHubIdentity,
   ListAppsInput,
+  DeactivateAppInput,
   ListActivationsInput,
   ListActivationsResult,
   ListUserSourceDeploymentsInput,
@@ -169,6 +170,30 @@ export class DeploymentClient {
       ts: Date.now(),
     });
     return cameled;
+  }
+
+  /** Deactivate one app: clears its live pointer and unloads the binary. The
+   *  deployment's git record and activation history are untouched. */
+  async deactivateApp(input: DeactivateAppInput): Promise<void> {
+    const platform = cleanPlatform(input.platform);
+    const app = required(input.app, "app");
+    const query =
+      input.appSourceId != null
+        ? `?app_source_id=${encodeURIComponent(String(input.appSourceId))}`
+        : "";
+    await this.post<unknown>(
+      `/api/platforms/${encodeURIComponent(platform)}/apps/${encodeURIComponent(app)}/deactivate${query}`,
+      {},
+      "deactivate",
+      this.resolveBearer(input.bearer),
+    );
+    await this.audit({
+      action: "deactivate",
+      platform,
+      apps: [app],
+      actor: input.actor,
+      ts: Date.now(),
+    });
   }
 
   async rollback(input: RollbackInput): Promise<RollbackResult> {

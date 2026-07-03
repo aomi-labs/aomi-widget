@@ -695,6 +695,70 @@ export async function deploymentRollbackRoute(req: Request) {
   }
 }
 
+export async function deploymentDeactivateRoute(req: Request) {
+  const blocked = checkWrite(req);
+  if (blocked) return blocked;
+
+  const auth = await requireSession();
+  if ("response" in auth) return auth.response;
+  const { session } = auth;
+
+  const body = (await req.json().catch(() => ({}))) as {
+    appSourceId?: unknown;
+    apps?: unknown;
+    actor?: string;
+  };
+  if (!isValidAppSourceId(body.appSourceId)) {
+    return NextResponse.json(
+      { error: "missing or invalid `appSourceId`" },
+      { status: 400 },
+    );
+  }
+  const apps =
+    Array.isArray(body.apps) && body.apps.every((a) => typeof a === "string")
+      ? body.apps.map((a) => a.trim()).filter(Boolean)
+      : [];
+  if (apps.length === 0) {
+    return NextResponse.json(
+      { error: "missing or invalid `apps`" },
+      { status: 400 },
+    );
+  }
+
+  try {
+    const config = launchConfig();
+    const client = await deploymentClient();
+    if (
+      !(await ownsAppSource(
+        client,
+        session.githubUserId,
+        config.platform,
+        body.appSourceId,
+      ))
+    ) {
+      return NextResponse.json(
+        { error: "app source not found for this user" },
+        { status: 404 },
+      );
+    }
+    const actor =
+      typeof body.actor === "string" && body.actor.trim()
+        ? body.actor
+        : session.githubLogin;
+    for (const app of apps) {
+      await client.deactivateApp({
+        platform: config.platform,
+        app,
+        appSourceId: body.appSourceId,
+        actor,
+      });
+    }
+    return NextResponse.json({ ok: true, apps }, { status: 202 });
+  } catch (err) {
+    return launchErrorResponse(err);
+  }
+}
+
 function ciRunIdFromUrl(url: string | null | undefined): string | null {
   if (!url) return null;
   const match = url.match(/\/actions\/runs\/(\d+)(?:\/|$)/);

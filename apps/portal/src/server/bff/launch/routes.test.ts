@@ -2,6 +2,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
+  deploymentDeactivateRoute,
   deploymentRollbackRoute,
   launchDeployRoute,
   launchStatusRoute,
@@ -575,6 +576,90 @@ describe("redeployLaunchRoute", () => {
     expect(res.status).toBe(503);
     expect(body.error).toContain("GitHub rerun token is not configured");
     expect(fetchMock).toHaveBeenCalledOnce();
+  });
+});
+
+describe("deploymentDeactivateRoute", () => {
+  function deactReq(body: unknown) {
+    return new Request("http://localhost:3000/api/bff/deployments/deactivate", {
+      method: "POST",
+      headers: {
+        origin: "http://localhost:3000",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(body),
+    });
+  }
+
+  beforeEach(() => {
+    getGitHubSession.mockResolvedValue({
+      githubUserId: "42",
+      githubLogin: "alice",
+    });
+  });
+  afterEach(() => {
+    vi.restoreAllMocks();
+    getGitHubSession.mockReset();
+  });
+
+  it("rejects without a session", async () => {
+    getGitHubSession.mockResolvedValue(null);
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    const res = await deploymentDeactivateRoute(
+      deactReq({ appSourceId: 99, apps: ["my-bot"] }),
+    );
+    expect(res.status).toBe(401);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("requires appSourceId and apps", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    expect((await deploymentDeactivateRoute(deactReq({ apps: ["x"] }))).status).toBe(
+      400,
+    );
+    expect(
+      (await deploymentDeactivateRoute(deactReq({ appSourceId: 99 }))).status,
+    ).toBe(400);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects a foreign app source", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        Response.json({ sources: [{ id: 1, installation_id: 5 }] }),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+    const res = await deploymentDeactivateRoute(
+      deactReq({ appSourceId: 99, apps: ["my-bot"] }),
+    );
+    expect(res.status).toBe(404);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("deactivates each owned app", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        Response.json({ sources: [{ id: 99, installation_id: 5 }] }),
+      )
+      .mockResolvedValueOnce(Response.json(true))
+      .mockResolvedValueOnce(Response.json(true));
+    vi.stubGlobal("fetch", fetchMock);
+    const res = await deploymentDeactivateRoute(
+      deactReq({ appSourceId: 99, apps: ["api", "web"] }),
+    );
+    const body = await res.json();
+    expect(res.status).toBe(202);
+    expect(body).toMatchObject({ ok: true, apps: ["api", "web"] });
+    expect(String(fetchMock.mock.calls[1][0])).toContain(
+      "/apps/api/deactivate",
+    );
+    expect(String(fetchMock.mock.calls[2][0])).toContain(
+      "/apps/web/deactivate",
+    );
   });
 });
 
