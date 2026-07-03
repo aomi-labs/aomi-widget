@@ -640,7 +640,7 @@ type AccountSessionExchangeResponse = {
     user_id: string;
 };
 type BetterAuthTokenResponse = {
-    /** Aomi BFF AccountBearer shape from /api/bff/auth/token. */
+    /** Aomi AccountBearer shape from /api/aomi/account-bearer. */
     bearer?: string;
     expires_at?: number;
     expiresAt?: number;

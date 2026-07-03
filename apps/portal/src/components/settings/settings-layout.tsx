@@ -23,9 +23,9 @@ import {
 } from "@portal/lib/settings-styles";
 
 // Tabs whose data is account-bearer scoped (`/api/account/*`). They're gated on
-// an established session so they never fire before the `aomi_session` cookie
-// exists (else the proxy forwards anonymous and the backend 401s). Secrets/BYOK
-// are device/client_id scoped and Deploy owns its own (onboarding) flow, so they
+// an established session so they never fire before BetterAuth is ready (else the
+// proxy forwards anonymous and the backend 401s). Secrets/BYOK are
+// device/client_id scoped and Deploy owns its own (onboarding) flow, so they
 // render regardless.
 const ACCOUNT_SCOPED_TABS: ReadonlySet<SettingsCategory> = new Set([
   "general",

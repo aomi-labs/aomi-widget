@@ -26,7 +26,7 @@ components (widget + `general-settings`/`bots`/`apps-settings`/`app-keys`) that
 minted an `Authorization: Bearer` header — but in same-origin proxy mode
 (`NEXT_PUBLIC_BACKEND_URL=/`, the shipped default) the BFF proxy mints the bearer
 server-side from the `better-auth.session_token` cookie and strips that header, so the whole
-machine was dead weight (latency + `/api/bff/auth/token` 401 spam + a duplicate
+machine was dead weight (latency + `/api/aomi/account-bearer` 401 spam + a duplicate
 `providerExchange` owner).
 
 - **Not deleted outright — made conditional.** It is still load-bearing in
@@ -37,7 +37,7 @@ machine was dead weight (latency + `/api/bff/auth/token` 401 spam + a duplicate
   SSR and only builds a real provider when `getBackendUrl()` is cross-origin.
   This also collapsed the ~30 duplicated lines across the 5 components into one
   call. The shared `@aomi-labs/client` `createAccountAccessTokenProvider` +
-  `@aomi-labs/account` `createBearerTokenRoute` (`/api/bff/auth/token`) are kept
+  `@aomi-labs/account` `createBearerTokenRoute` (`/api/aomi/account-bearer`) are kept
   intact as the documented direct-to-backend seam (used by out-of-repo
   base/landing and the CLI-less direct path).
 - **User decision:** deployment topology was "not sure — play it safe", so the

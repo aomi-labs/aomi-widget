@@ -9,7 +9,7 @@ const PRIVATE_KEY =
   "0x0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef" as const;
 const ACCOUNT = privateKeyToAccount(PRIVATE_KEY);
 
-describe("CLI BFF SIWE auth", () => {
+describe("CLI BetterAuth SIWE auth", () => {
   let stateDir: string;
 
   beforeEach(() => {
@@ -25,12 +25,12 @@ describe("CLI BFF SIWE auth", () => {
     vi.restoreAllMocks();
   });
 
-  it("signs the BFF SIWE nonce and persists the session cookie with expiry", async () => {
+  it("signs the BetterAuth SIWE nonce and persists the session token with expiry", async () => {
     const { signInWithCliSiwe } = await import("../../src/cli/auth");
     const fetchMock = vi.fn(
       async (input: RequestInfo | URL, init?: RequestInit) => {
         const url = String(input);
-        if (url.endsWith("/api/bff/auth/siwe/nonce")) {
+        if (url.endsWith("/api/auth/siwe/nonce")) {
           expect(init?.method).toBe("POST");
           expect(JSON.parse(String(init?.body))).toEqual({
             walletAddress: ACCOUNT.address,
@@ -43,18 +43,12 @@ describe("CLI BFF SIWE auth", () => {
               uri: "https://portal.test",
             },
             {
-              headers: {
-                "set-cookie":
-                  "aomi_siwe_nonce=nonce-123; Path=/; HttpOnly; SameSite=Lax",
-              },
             },
           );
         }
-        if (url.endsWith("/api/bff/auth/siwe/verify")) {
+        if (url.endsWith("/api/auth/siwe/verify")) {
           expect(init?.method).toBe("POST");
-          expect(new Headers(init?.headers).get("Cookie")).toBe(
-            "aomi_siwe_nonce=nonce-123",
-          );
+          expect(new Headers(init?.headers).get("Cookie")).toBeNull();
           const body = JSON.parse(String(init?.body));
           expect(body.walletAddress).toBe(ACCOUNT.address);
           expect(body.chainId).toBe(8453);
@@ -69,8 +63,7 @@ describe("CLI BFF SIWE auth", () => {
             },
             {
               headers: {
-                "set-cookie":
-                  "aomi_session=bff-session-token; Path=/; HttpOnly; SameSite=Lax",
+                "set-auth-token": "better-auth-session-token",
               },
             },
           );
@@ -78,7 +71,7 @@ describe("CLI BFF SIWE auth", () => {
         if (url.endsWith("/api/aomi/account")) {
           const headers = new Headers(init?.headers);
           expect(headers.get("Authorization")).toBe(
-            "Bearer bff-session-token",
+            "Bearer better-auth-session-token",
           );
           return Response.json({
             session: {
@@ -100,7 +93,7 @@ describe("CLI BFF SIWE auth", () => {
 
     expect(result.address).toBe(ACCOUNT.address);
     expect(result.auth).toEqual({
-      sessionToken: "bff-session-token",
+      sessionToken: "better-auth-session-token",
       expiresAt: Date.parse("2030-01-02T03:04:05.000Z"),
       walletAddress: ACCOUNT.address,
       chainId: 8453,
@@ -108,7 +101,7 @@ describe("CLI BFF SIWE auth", () => {
     });
   });
 
-  it("provides only unexpired BFF session tokens to AomiClient", async () => {
+  it("provides only unexpired BetterAuth session tokens to AomiClient", async () => {
     const { createCliAuthTokenProvider } = await import("../../src/cli/auth");
 
     const validProvider = createCliAuthTokenProvider(
@@ -132,6 +125,38 @@ describe("CLI BFF SIWE auth", () => {
       () => 10_000,
     );
     await expect(expiredProvider()).resolves.toBeUndefined();
+  });
+
+  it("signs localhost as the SIWE domain when the portal URL uses 127.0.0.1", async () => {
+    const { signInWithCliSiwe } = await import("../../src/cli/auth");
+    const fetchMock = vi.fn(
+      async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input);
+        if (url.endsWith("/api/auth/siwe/nonce")) {
+          return Response.json({ nonce: "nonce-123" });
+        }
+        if (url.endsWith("/api/auth/siwe/verify")) {
+          const body = JSON.parse(String(init?.body));
+          expect(body.message).toContain(
+            "localhost:3000 wants you to sign in",
+          );
+          return Response.json(
+            { success: true },
+            { headers: { "set-auth-token": "better-auth-session-token" } },
+          );
+        }
+        if (url.endsWith("/api/aomi/account")) {
+          return Response.json({ session: null });
+        }
+        throw new Error(`Unexpected URL ${url}`);
+      },
+    ) as unknown as typeof fetch;
+
+    await signInWithCliSiwe({
+      baseUrl: "http://127.0.0.1:3000",
+      privateKey: PRIVATE_KEY,
+      fetch: fetchMock,
+    });
   });
 
   it("logs out and clears the stored CLI auth session", async () => {

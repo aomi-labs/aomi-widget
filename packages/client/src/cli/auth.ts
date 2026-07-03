@@ -45,8 +45,6 @@ const DEFAULT_CHAIN_ID = 1;
 export const DEFAULT_SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 const AUTH_REFRESH_SKEW_MS = 30 * 1000;
 const SESSION_TOKEN_HEADERS = ["set-auth-token", "x-auth-token", "auth-token"];
-const NONCE_COOKIE_NAME = "aomi_siwe_nonce";
-const SESSION_COOKIE_NAME = "aomi_session";
 
 export function createCliAuthTokenProvider(
   readState: () => Pick<
@@ -76,7 +74,7 @@ export async function signInWithCliSiwe({
   const account = privateKeyToAccount(privateKey);
   const address = account.address;
   const nonceHttpResponse = await fetchImpl(
-    joinUrl(portalUrl, "/api/bff/auth/siwe/nonce"),
+    joinUrl(portalUrl, "/api/auth/siwe/nonce"),
     {
       method: "POST",
       headers: {
@@ -95,7 +93,6 @@ export async function signInWithCliSiwe({
     );
   }
   const nonceResponse = (await nonceHttpResponse.json()) as SiweNonceResponse;
-  const nonceCookie = getCookie(nonceHttpResponse.headers, NONCE_COOKIE_NAME);
   const nonce =
     typeof nonceResponse.nonce === "string" ? nonceResponse.nonce : "";
   if (!nonce) {
@@ -115,11 +112,8 @@ export async function signInWithCliSiwe({
     Accept: "application/json",
     "Content-Type": "application/json",
   });
-  if (nonceCookie) {
-    verifyHeaders.set("Cookie", `${NONCE_COOKIE_NAME}=${nonceCookie}`);
-  }
   const verifyResponse = await fetchImpl(
-    joinUrl(portalUrl, "/api/bff/auth/siwe/verify"),
+    joinUrl(portalUrl, "/api/auth/siwe/verify"),
     {
       method: "POST",
       headers: verifyHeaders,
@@ -146,10 +140,11 @@ export async function signInWithCliSiwe({
     .catch(() => ({}))) as SiweVerifyResponse;
   const sessionToken =
     getSessionTokenHeader(verifyResponse.headers) ??
-    getCookie(verifyResponse.headers, SESSION_COOKIE_NAME) ??
     (typeof verifyBody.token === "string" ? verifyBody.token : "");
   if (!sessionToken) {
-    throw new Error("SIWE verify response is missing BFF session token");
+    throw new Error(
+      "SIWE verify response is missing BetterAuth session token",
+    );
   }
 
   const accountInfo = await fetchPortalAccount(
@@ -245,7 +240,11 @@ export function joinUrl(baseUrl: string, path: string): string {
 
 function domainFromBaseUrl(baseUrl: string): string {
   try {
-    return new URL(baseUrl).host;
+    const url = new URL(baseUrl);
+    if (url.hostname === "127.0.0.1") {
+      return url.port ? `localhost:${url.port}` : "localhost";
+    }
+    return url.host;
   } catch {
     return baseUrl.replace(/^[a-z][a-z0-9+.-]*:\/\//i, "").replace(/\/.*$/, "");
   }
@@ -284,22 +283,6 @@ export function getSessionTokenHeader(headers: Headers): string | null {
   for (const header of SESSION_TOKEN_HEADERS) {
     const value = headers.get(header);
     if (value) return value;
-  }
-  return null;
-}
-
-function getCookie(headers: Headers, name: string): string | null {
-  const setCookieHeaders = [
-    ...((
-      headers as Headers & { getSetCookie?: () => string[] }
-    ).getSetCookie?.() ?? []),
-  ];
-  const singleHeader = headers.get("set-cookie");
-  if (singleHeader) setCookieHeaders.push(singleHeader);
-
-  for (const header of setCookieHeaders) {
-    const match = new RegExp(`(?:^|,\\s*)${name}=([^;,]+)`).exec(header);
-    if (match?.[1]) return match[1];
   }
   return null;
 }

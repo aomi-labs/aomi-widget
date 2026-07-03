@@ -1556,7 +1556,7 @@ var DEFAULT_REFRESH_BEFORE_EXPIRY_MS = 2 * 60 * 1e3;
 var FAILURE_COOLDOWN_MS = 30 * 1e3;
 var CREDENTIAL_UNAVAILABLE_RETRY_DELAYS_MS = [250, 1e3, 3e3];
 var EXPIRES_AT_MILLISECONDS_THRESHOLD = 1e11;
-var DEFAULT_BETTER_AUTH_TOKEN_PATH = "/api/bff/auth/token";
+var DEFAULT_BETTER_AUTH_TOKEN_PATH = "/api/aomi/account-bearer";
 var DEFAULT_BETTER_AUTH_PROVIDER_EXCHANGE_PATH = "/api/auth/aomi/provider/exchange";
 function createAccountAccessTokenProvider({
   baseUrl,

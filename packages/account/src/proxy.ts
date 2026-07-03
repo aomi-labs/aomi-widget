@@ -1,7 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server";
 
 import { mintAccountBearer } from "./bearer";
-import { getSessionedCanonicalId } from "./session";
 
 /**
  * The shared same-origin proxy that fronts the Rust backend and **injects the
@@ -42,6 +41,10 @@ export type AllowedRoute = {
   methods: ReadonlySet<string>;
 };
 
+export type ResolveCanonicalUserId = (
+  request: NextRequest,
+) => Promise<string | null>;
+
 export type ProxyConfig = {
   /**
    * Backend routes this proxy is willing to forward. A request whose path+method
@@ -65,6 +68,8 @@ export type ProxyConfig = {
   }) => Promise<NextResponse | null>;
   /** Override the upstream backend base URL (defaults to env-derived). */
   upstreamBaseUrl?: string;
+  /** Resolve the canonical backend user id for bearer injection. */
+  resolveCanonicalUserId: ResolveCanonicalUserId;
 };
 
 function defaultBackendUrl(): string {
@@ -137,8 +142,12 @@ function copyRequestHeaders(req: NextRequest): Headers {
  * misconfigured signer degrades to anonymous + a warning rather than failing
  * every API call.
  */
-async function injectBearer(req: NextRequest, headers: Headers): Promise<void> {
-  const canonicalId = await getSessionedCanonicalId(req);
+async function injectBearer(
+  req: NextRequest,
+  headers: Headers,
+  resolveCanonicalUserId: ResolveCanonicalUserId,
+): Promise<void> {
+  const canonicalId = await resolveCanonicalUserId(req);
   if (!canonicalId) return;
   try {
     const { bearer } = await mintAccountBearer(canonicalId);
@@ -205,7 +214,7 @@ export function createBackendProxy(config: ProxyConfig) {
     }
 
     const headers = copyRequestHeaders(req);
-    await injectBearer(req, headers);
+    await injectBearer(req, headers, config.resolveCanonicalUserId);
 
     try {
       const upstream = await fetch(upstreamUrl, {

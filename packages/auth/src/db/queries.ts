@@ -109,6 +109,7 @@ export async function findAomiUserById(
 }
 
 export async function createAomiUserForBetterAuth(input: {
+  userId?: AomiUserId;
   betterAuthUserId: BetterAuthUserId;
   email?: string | null;
   name?: string | null;
@@ -117,6 +118,29 @@ export async function createAomiUserForBetterAuth(input: {
   db?: Db;
 }): Promise<DbAomiUser> {
   const db = input.db ?? defaultPool;
+  if (input.userId) {
+    const result = await db.query(
+      `insert into aomi_users
+         (id, better_auth_user_id, primary_email, display_name, avatar_url)
+       values ($1, $2, $3, $4, $5)
+       on conflict (id)
+       do update set
+         updated_at = now(),
+         better_auth_user_id = coalesce(aomi_users.better_auth_user_id, excluded.better_auth_user_id),
+         primary_email = coalesce(aomi_users.primary_email, excluded.primary_email),
+         display_name = coalesce(aomi_users.display_name, excluded.display_name),
+         avatar_url = coalesce(aomi_users.avatar_url, excluded.avatar_url)
+       returning *`,
+      [
+        input.userId,
+        input.betterAuthUserId,
+        input.email ?? null,
+        input.displayName ?? input.name ?? deriveDisplayName(input.email),
+        input.avatarUrl ?? null,
+      ],
+    );
+    return mapUser(result.rows[0]);
+  }
   const result = await db.query(
     `insert into aomi_users
        (better_auth_user_id, primary_email, display_name, avatar_url)
@@ -136,6 +160,40 @@ export async function createAomiUserForBetterAuth(input: {
     ],
   );
   return mapUser(result.rows[0]);
+}
+
+export async function findLegacyBackendUserIdByWallet(
+  normalizedAddress: string,
+  db: Db = defaultPool,
+): Promise<AomiUserId | null> {
+  try {
+    const publicKey = await db.query(
+      `select user_id from public_keys
+        where chain_type = 'evm'
+          and lower(address) = $1
+        limit 1`,
+      [normalizedAddress],
+    );
+    const publicKeyOwner =
+      (publicKey.rows[0]?.user_id as string | undefined) ?? null;
+    if (publicKeyOwner) return publicKeyOwner;
+  } catch (error) {
+    if (!isMissingRelation(error)) throw error;
+  }
+
+  try {
+    const provider = await db.query(
+      `select user_id from auth_providers
+        where provider = 'wallet'
+          and (lower(subject) = $1 or (method = 'wallet' and lower(value) = $1))
+        limit 1`,
+      [normalizedAddress],
+    );
+    return (provider.rows[0]?.user_id as string | undefined) ?? null;
+  } catch (error) {
+    if (!isMissingRelation(error)) throw error;
+  }
+  return null;
 }
 
 export async function touchAomiUser(

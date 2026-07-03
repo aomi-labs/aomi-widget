@@ -4,13 +4,16 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 WORK_DIR="$(cd "$ROOT_DIR/.." && pwd)"
 PRODUCT_MONO_DIR="${PRODUCT_MONO_DIR:-$WORK_DIR/product-mono}"
-PRODUCT_BACKEND_LAUNCHER="${PRODUCT_BACKEND_LAUNCHER:-$PRODUCT_MONO_DIR/run-local-backend.sh}"
+PRODUCT_BACKEND_LAUNCHER="${PRODUCT_BACKEND_LAUNCHER:-}"
+DB_MASTER_DIR="${DB_MASTER_DIR:-$WORK_DIR/db-master}"
 PORTAL_DIR="$ROOT_DIR/apps/portal"
 
 LOCAL_DB_URL="${AOMI_LOCAL_DB_URL:-postgresql://postgres:postgres@127.0.0.1:54322/aomi_local}"
 LOCAL_ADMIN_DB_URL="${AOMI_LOCAL_ADMIN_DB_URL:-postgresql://postgres:postgres@127.0.0.1:54322/postgres}"
 BACKEND_URL="${AOMI_LOCAL_BACKEND_URL:-http://127.0.0.1:8080}"
 PORTAL_URL="${AOMI_LOCAL_PORTAL_URL:-http://127.0.0.1:3000}"
+OPENROUTER_BASE="${AOMI_OPENROUTER_BASE_URL:-https://openrouter.ai/api/v1}"
+SMOKE_CHAT="${AOMI_DEV_STACK_SMOKE_CHAT:-1}"
 
 BACKEND_SESSION="${AOMI_BACKEND_TMUX_SESSION:-aomi-backend}"
 PORTAL_SESSION="${AOMI_PORTAL_TMUX_SESSION:-aomi-portal}"
@@ -22,13 +25,14 @@ usage() {
 Usage: $0 [start|restart|stop|status|db]
 
 Starts the merged BFF/BetterAuth local stack:
-  backend  $BACKEND_URL  via product-mono/run-local-backend.sh
+  backend  $BACKEND_URL  from product-mono/aomi
   portal   $PORTAL_URL   from this repo's apps/portal
   db       $LOCAL_DB_URL
 
 Environment overrides:
-  PRODUCT_MONO_DIR, PRODUCT_BACKEND_LAUNCHER, AOMI_LOCAL_DB_URL,
-  AOMI_LOCAL_ADMIN_DB_URL, AOMI_BACKEND_LOG, AOMI_PORTAL_LOG
+  PRODUCT_MONO_DIR, PRODUCT_BACKEND_LAUNCHER, DB_MASTER_DIR,
+  AOMI_LOCAL_DB_URL, AOMI_LOCAL_ADMIN_DB_URL, AOMI_BACKEND_LOG,
+  AOMI_PORTAL_LOG, AOMI_OPENROUTER_BASE_URL, AOMI_DEV_STACK_SMOKE_CHAT
 EOF
 }
 
@@ -100,19 +104,73 @@ EOF
 }
 
 ensure_backend_schema() {
-  if psql "$LOCAL_DB_URL" -tAc "select to_regclass('public.users')" | grep -q users; then
-    return 0
-  fi
-
-  if [ ! -d "$PRODUCT_MONO_DIR/supabase/migrations" ]; then
-    echo "Missing product-mono migrations: $PRODUCT_MONO_DIR/supabase/migrations" >&2
+  local migrations_dir
+  if [ -d "$DB_MASTER_DIR/migrations" ]; then
+    migrations_dir="$DB_MASTER_DIR/migrations"
+  elif [ -d "$PRODUCT_MONO_DIR/supabase/migrations" ]; then
+    migrations_dir="$PRODUCT_MONO_DIR/supabase/migrations"
+  else
+    echo "Missing migrations: $DB_MASTER_DIR/migrations or $PRODUCT_MONO_DIR/supabase/migrations" >&2
     exit 1
   fi
 
-  echo "Applying product-mono migrations into aomi_local"
-  for migration in "$PRODUCT_MONO_DIR"/supabase/migrations/*.sql; do
-    psql "$LOCAL_DB_URL" -v ON_ERROR_STOP=1 -q -f "$migration"
-  done
+  apply_migration() {
+    local name="$1"
+    local path="$migrations_dir/$name"
+    if [ ! -f "$path" ]; then
+      echo "Missing migration: $path" >&2
+      exit 1
+    fi
+    echo "Applying migration: $name"
+    psql "$LOCAL_DB_URL" -v ON_ERROR_STOP=1 -q -f "$path"
+  }
+
+  if ! psql "$LOCAL_DB_URL" -tAc "select to_regclass('public.users')" | grep -q users; then
+    echo "Applying migrations into aomi_local from $migrations_dir"
+    for migration in "$migrations_dir"/*.sql; do
+      psql "$LOCAL_DB_URL" -v ON_ERROR_STOP=1 -q -f "$migration"
+    done
+    return 0
+  fi
+
+  echo "Converging local backend schema from $migrations_dir"
+
+  if ! psql "$LOCAL_DB_URL" -tAc "select to_regclass('public.bff_cli_sessions')" | grep -q bff_cli_sessions; then
+    apply_migration 20260624010000_bff_cli_sessions.sql
+  fi
+
+  if ! psql "$LOCAL_DB_URL" -tAc "select to_regclass('public.threads')" | grep -q threads; then
+    apply_migration 20260625000000_session_user_state.sql
+    apply_migration 20260625010000_drop_sessions_active_identity_wallet_id.sql
+    apply_migration 20260626000000_drop_scheduled_intents_authorized_wallet_ref.sql
+    apply_migration 20260626010000_sessions_thread_scheduling.sql
+    apply_migration 20260626020000_backfill_scheduled_intents_to_threads.sql
+    apply_migration 20260626030000_drop_sessions_active_identity_id.sql
+    apply_migration 20260627000000_drop_scheduled_intents.sql
+    apply_migration 20260627005000_rename_sessions_to_threads.sql
+    apply_migration 20260627010000_threads_spawn_input.sql
+    apply_migration 20260627020000_threads_fold_intent_into_spawn_input.sql
+    apply_migration 20260627030000_cron_jobs.sql
+    apply_migration 20260627040000_threads_drop_timers.sql
+  fi
+
+  if ! psql "$LOCAL_DB_URL" -tAc "select to_regclass('public.cron_jobs')" | grep -q cron_jobs; then
+    apply_migration 20260627030000_cron_jobs.sql
+  fi
+
+  if ! psql "$LOCAL_DB_URL" -tAc "select 1 from information_schema.columns where table_schema = 'public' and table_name = 'cron_jobs' and column_name = 'lease_until'" | grep -q 1; then
+    apply_migration 20260629010000_cron_jobs_lease.sql
+  fi
+
+  if ! psql "$LOCAL_DB_URL" -tAc "select to_regclass('public.auth_providers')" | grep -q auth_providers; then
+    if psql "$LOCAL_DB_URL" -tAc "select to_regclass('public.auth_identities')" | grep -q auth_identities; then
+      apply_migration 20260624000000_betterauth_global_identity_uidx.sql
+    fi
+    apply_migration 20260630010000_identity_wallets_signing_authorization.sql
+    apply_migration 20260701010000_account_model_consolidation.sql
+    apply_migration 20260701020000_account_model_contract.sql
+    apply_migration 20260701030000_account_model_slim.sql
+  fi
 }
 
 ensure_auth_schema() {
@@ -172,18 +230,24 @@ ensure_db() {
 }
 
 start_backend() {
-  if [ ! -f "$PRODUCT_BACKEND_LAUNCHER" ]; then
-    cat >&2 <<EOF
-Missing backend launcher: $PRODUCT_BACKEND_LAUNCHER
-Expected the sibling product-mono helper described in docs/local-dev-stack.md.
-EOF
+  if [ ! -d "$PRODUCT_MONO_DIR/aomi" ]; then
+    echo "Missing product-mono Rust workspace: $PRODUCT_MONO_DIR/aomi" >&2
     exit 1
   fi
 
   echo "Starting backend tmux session: $BACKEND_SESSION"
   rm -f "$BACKEND_LOG"
-  tmux new-session -d -s "$BACKEND_SESSION" \
-    "cd '$WORK_DIR' && bash '$PRODUCT_BACKEND_LAUNCHER' 2>&1 | tee '$BACKEND_LOG'"
+  if [ -n "$PRODUCT_BACKEND_LAUNCHER" ]; then
+    if [ ! -f "$PRODUCT_BACKEND_LAUNCHER" ]; then
+      echo "Missing backend launcher: $PRODUCT_BACKEND_LAUNCHER" >&2
+      exit 1
+    fi
+    tmux new-session -d -s "$BACKEND_SESSION" \
+      "cd '$WORK_DIR' && bash '$PRODUCT_BACKEND_LAUNCHER' 2>&1 | tee '$BACKEND_LOG'"
+  else
+    tmux new-session -d -s "$BACKEND_SESSION" \
+      "cd '$PRODUCT_MONO_DIR/aomi' && set -a && source ../.env.dev && set +a && export DATABASE_URL='$LOCAL_DB_URL' AOMI_APPS_DIR='$PRODUCT_MONO_DIR/aomi/plugins' BACKEND_HOST='127.0.0.1' BACKEND_PORT='8080' OPENROUTER_BASE_URL='$OPENROUTER_BASE' OPENROUTER_API_BASE='$OPENROUTER_BASE' RUST_LOG=\"\${RUST_LOG:-info}\" BAML_LOG=\"\${BAML_LOG:-warn}\" && cargo run -p backend 2>&1 | tee '$BACKEND_LOG'"
+  fi
   wait_for_url "backend" "$BACKEND_URL/health" 120
 }
 
@@ -196,8 +260,51 @@ start_portal() {
   echo "Starting merged portal tmux session: $PORTAL_SESSION"
   rm -f "$PORTAL_LOG"
   tmux new-session -d -s "$PORTAL_SESSION" \
-    "cd '$PORTAL_DIR' && set -a && source .env.local && set +a && export DATABASE_URL='$LOCAL_DB_URL' && ./node_modules/.bin/next dev -H 127.0.0.1 -p 3000 2>&1 | tee '$PORTAL_LOG'"
+    "cd '$PORTAL_DIR' && set -a && source .env.local && set +a && export DATABASE_URL='$LOCAL_DB_URL' NEXT_PUBLIC_BACKEND_URL='$BACKEND_URL' && ./node_modules/.bin/next dev -H 127.0.0.1 -p 3000 2>&1 | tee '$PORTAL_LOG'"
   wait_for_url "portal" "$PORTAL_URL/" 90
+}
+
+smoke_chat() {
+  if [ "$SMOKE_CHAT" = "0" ]; then
+    return 0
+  fi
+
+  local thread_id
+  local body
+  thread_id="dev-stack-smoke-$(date +%s)"
+  echo
+  echo "Smoke:"
+  printf "  create thread: "
+  curl -s -o /tmp/aomi-dev-stack-create.json -w "%{http_code}\n" \
+    -X POST \
+    -H "X-Thread-Id: $thread_id" \
+    -H "Content-Type: application/json" \
+    -d '{}' \
+    "$PORTAL_URL/api/threads" | grep -q '^200$'
+  echo "200"
+
+  printf "  chat pong: "
+  curl --max-time 30 -s -o /tmp/aomi-dev-stack-chat.json -w "%{http_code}\n" \
+    -X POST \
+    -H "X-Thread-Id: $thread_id" \
+    "$PORTAL_URL/api/chat?app=default&message=Say%20only%20pong&client_id=dev-stack-smoke" | grep -q '^200$'
+
+  for _ in $(seq 1 18); do
+    body="$(curl -s -H "X-Thread-Id: $thread_id" "$PORTAL_URL/api/state")"
+    if printf "%s" "$body" | grep -q '"is_processing":false'; then
+      if printf "%s" "$body" | grep -q '"content":"pong"'; then
+        echo "200 pong"
+        return 0
+      fi
+      echo "completed without pong" >&2
+      printf "%s\n" "$body" >&2
+      return 1
+    fi
+    sleep 5
+  done
+
+  echo "timed out" >&2
+  return 1
 }
 
 status_stack() {
@@ -235,6 +342,7 @@ main() {
       start_backend
       start_portal
       status_stack
+      smoke_chat
       ;;
     db)
       ensure_db
@@ -244,6 +352,9 @@ main() {
       ;;
     status)
       status_stack
+      ;;
+    smoke)
+      smoke_chat
       ;;
     -h|--help|help)
       usage

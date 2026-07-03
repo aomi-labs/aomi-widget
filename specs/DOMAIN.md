@@ -126,7 +126,7 @@ Browser -> /api/* same-origin request with Better Auth cookie
 
 ```
 createAccountAccessTokenProvider()
-  -> GET /api/bff/auth/token using Better Auth cookie
+  -> GET /api/aomi/account-bearer using Better Auth cookie
   -> optional provider exchange through /api/auth/aomi/provider/exchange
   -> AomiClient attaches Authorization when talking directly to backend
 ```
@@ -149,7 +149,7 @@ createAccountAccessTokenProvider()
 | `GET /api/session/models` | List models | `AomiClient.getModels` |
 | `POST /api/session/model` | Set model/app for session | `AomiClient.setModel` |
 | `GET /api/account` | Current account profile | `AomiClient.getAccount` |
-| `GET /api/bff/auth/token` | Mint BFF bearer from Better Auth session | `createAccountAccessTokenProvider` |
+| `GET /api/aomi/account-bearer` | Mint AccountBearer from Better Auth session | `createAccountAccessTokenProvider` |
 | `POST /api/auth/aomi/provider/exchange` | Create Better Auth session from provider token | Better Auth Aomi provider plugin |
 | `POST /api/aomi/provider/exchange` | Link provider token into existing Better Auth session | Portal route + `@aomi-labs/auth` |
 

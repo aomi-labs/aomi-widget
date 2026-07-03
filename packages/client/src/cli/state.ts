@@ -112,9 +112,8 @@ export type CliSessionState = {
   /** Aomi account bearer for authenticated requests. Persisted so a bearer
    * supplied once (via `--account-bearer`) survives across CLI invocations. */
   accountBearer?: string;
-  /** BFF session token (`aomi_session`) established by `aomi login` (SIWE).
-   * Persisted so the session survives across invocations; the CLI mints
-   * short-lived AccountBearers from it via the BFF's `/api/bff/auth/token`. */
+  /** Legacy persisted session token slot. New logins write BetterAuth bearer
+   * sessions to `auth`; this remains for older local state migration. */
   sessionCookie?: string;
   /** Deprecated legacy provider-exchange config. */
   embeddedProvider?: CliEmbeddedProvider;

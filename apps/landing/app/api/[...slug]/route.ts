@@ -2,11 +2,10 @@ import { createBackendProxy, type AllowedRoute } from "@aomi-labs/account";
 
 /**
  * Landing's same-origin backend proxy. The transport machinery (header
- * filtering, bearer minting from the `aomi_session` cookie, SSE, forwarding)
+ * filtering, optional bearer minting, SSE, forwarding)
  * lives in `@aomi-labs/account`'s `createBackendProxy`, shared with portal +
- * base. Landing supplies only the route allowlist for the widget surface it
- * embeds — previously it forwarded *everything* (including the session cookie);
- * now it strips the cookie and forwards only these routes.
+ * base. Landing is unauthenticated in this cleanup, so it passes an anonymous
+ * resolver and forwards only the widget routes below.
  */
 const ALLOWED_ROUTES: AllowedRoute[] = [
   {
@@ -34,6 +33,7 @@ const ALLOWED_ROUTES: AllowedRoute[] = [
 
 export const { GET, POST, PUT, PATCH, DELETE } = createBackendProxy({
   allowedRoutes: ALLOWED_ROUTES,
+  resolveCanonicalUserId: async () => null,
 });
 
 export const dynamic = "force-dynamic";

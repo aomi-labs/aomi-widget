@@ -4235,12 +4235,12 @@ async function signInWithCliSiwe({
   fetch: fetchImpl = fetch,
   now = Date.now
 }) {
-  var _a3, _b, _c, _d, _e, _f, _g, _h, _i, _j;
+  var _a3, _b, _c, _d, _e, _f, _g, _h, _i;
   const portalUrl = normalizeBaseUrl(baseUrl);
   const account = privateKeyToAccount2(privateKey);
   const address3 = account.address;
   const nonceHttpResponse = await fetchImpl(
-    joinUrl(portalUrl, "/api/bff/auth/siwe/nonce"),
+    joinUrl(portalUrl, "/api/auth/siwe/nonce"),
     {
       method: "POST",
       headers: {
@@ -4259,7 +4259,6 @@ async function signInWithCliSiwe({
     );
   }
   const nonceResponse = await nonceHttpResponse.json();
-  const nonceCookie = getCookie(nonceHttpResponse.headers, NONCE_COOKIE_NAME);
   const nonce = typeof nonceResponse.nonce === "string" ? nonceResponse.nonce : "";
   if (!nonce) {
     throw new Error("SIWE nonce response is missing nonce");
@@ -4276,11 +4275,8 @@ async function signInWithCliSiwe({
     Accept: "application/json",
     "Content-Type": "application/json"
   });
-  if (nonceCookie) {
-    verifyHeaders.set("Cookie", `${NONCE_COOKIE_NAME}=${nonceCookie}`);
-  }
   const verifyResponse = await fetchImpl(
-    joinUrl(portalUrl, "/api/bff/auth/siwe/verify"),
+    joinUrl(portalUrl, "/api/auth/siwe/verify"),
     {
       method: "POST",
       headers: verifyHeaders,
@@ -4301,24 +4297,26 @@ async function signInWithCliSiwe({
     );
   }
   const verifyBody = await verifyResponse.json().catch(() => ({}));
-  const sessionToken = (_d = (_c = getSessionTokenHeader(verifyResponse.headers)) != null ? _c : getCookie(verifyResponse.headers, SESSION_COOKIE_NAME)) != null ? _d : typeof verifyBody.token === "string" ? verifyBody.token : "";
+  const sessionToken = (_c = getSessionTokenHeader(verifyResponse.headers)) != null ? _c : typeof verifyBody.token === "string" ? verifyBody.token : "";
   if (!sessionToken) {
-    throw new Error("SIWE verify response is missing BFF session token");
+    throw new Error(
+      "SIWE verify response is missing BetterAuth session token"
+    );
   }
   const accountInfo = await fetchPortalAccount(
     fetchImpl,
     portalUrl,
     sessionToken
   );
-  const expiresAt = (_f = parseExpiresAt((_e = accountInfo == null ? void 0 : accountInfo.session) == null ? void 0 : _e.expiresAt)) != null ? _f : now() + DEFAULT_SESSION_TTL_MS;
+  const expiresAt = (_e = parseExpiresAt((_d = accountInfo == null ? void 0 : accountInfo.session) == null ? void 0 : _d.expiresAt)) != null ? _e : now() + DEFAULT_SESSION_TTL_MS;
   return {
     address: address3,
     auth: {
       sessionToken,
       expiresAt,
-      walletAddress: typeof ((_g = verifyBody.user) == null ? void 0 : _g.walletAddress) === "string" ? verifyBody.user.walletAddress : address3,
-      chainId: typeof ((_h = verifyBody.user) == null ? void 0 : _h.chainId) === "number" ? verifyBody.user.chainId : chainId3,
-      betterAuthUserId: typeof ((_i = accountInfo == null ? void 0 : accountInfo.session) == null ? void 0 : _i.betterAuthUserId) === "string" ? accountInfo.session.betterAuthUserId : typeof verifyBody.user_id === "string" ? verifyBody.user_id : typeof ((_j = verifyBody.user) == null ? void 0 : _j.id) === "string" ? verifyBody.user.id : void 0
+      walletAddress: typeof ((_f = verifyBody.user) == null ? void 0 : _f.walletAddress) === "string" ? verifyBody.user.walletAddress : address3,
+      chainId: typeof ((_g = verifyBody.user) == null ? void 0 : _g.chainId) === "number" ? verifyBody.user.chainId : chainId3,
+      betterAuthUserId: typeof ((_h = accountInfo == null ? void 0 : accountInfo.session) == null ? void 0 : _h.betterAuthUserId) === "string" ? accountInfo.session.betterAuthUserId : typeof verifyBody.user_id === "string" ? verifyBody.user_id : typeof ((_i = verifyBody.user) == null ? void 0 : _i.id) === "string" ? verifyBody.user.id : void 0
     }
   };
 }
@@ -4368,7 +4366,11 @@ function joinUrl(baseUrl, path) {
 }
 function domainFromBaseUrl(baseUrl) {
   try {
-    return new URL(baseUrl).host;
+    const url = new URL(baseUrl);
+    if (url.hostname === "127.0.0.1") {
+      return url.port ? `localhost:${url.port}` : "localhost";
+    }
+    return url.host;
   } catch (e) {
     return baseUrl.replace(/^[a-z][a-z0-9+.-]*:\/\//i, "").replace(/\/.*$/, "");
   }
@@ -4401,19 +4403,6 @@ function getSessionTokenHeader(headers) {
   for (const header of SESSION_TOKEN_HEADERS) {
     const value = headers.get(header);
     if (value) return value;
-  }
-  return null;
-}
-function getCookie(headers, name) {
-  var _a3, _b;
-  const setCookieHeaders = [
-    ...(_b = (_a3 = headers.getSetCookie) == null ? void 0 : _a3.call(headers)) != null ? _b : []
-  ];
-  const singleHeader = headers.get("set-cookie");
-  if (singleHeader) setCookieHeaders.push(singleHeader);
-  for (const header of setCookieHeaders) {
-    const match = new RegExp(`(?:^|,\\s*)${name}=([^;,]+)`).exec(header);
-    if (match == null ? void 0 : match[1]) return match[1];
   }
   return null;
 }
@@ -4458,7 +4447,7 @@ async function safeResponseText(response) {
   const text = await response.text().catch(() => "");
   return text ? `- ${text}` : "";
 }
-var DEFAULT_CHAIN_ID, DEFAULT_SESSION_TTL_MS, AUTH_REFRESH_SKEW_MS, SESSION_TOKEN_HEADERS, NONCE_COOKIE_NAME, SESSION_COOKIE_NAME;
+var DEFAULT_CHAIN_ID, DEFAULT_SESSION_TTL_MS, AUTH_REFRESH_SKEW_MS, SESSION_TOKEN_HEADERS;
 var init_auth = __esm({
   "src/cli/auth.ts"() {
     "use strict";
@@ -4466,8 +4455,6 @@ var init_auth = __esm({
     DEFAULT_SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1e3;
     AUTH_REFRESH_SKEW_MS = 30 * 1e3;
     SESSION_TOKEN_HEADERS = ["set-auth-token", "x-auth-token", "auth-token"];
-    NONCE_COOKIE_NAME = "aomi_siwe_nonce";
-    SESSION_COOKIE_NAME = "aomi_session";
   }
 });
 
@@ -4851,7 +4838,7 @@ Available: ${available}`);
       // Bridge to ClientSession
       // ---------------------------------------------------------------------------
       /** Build a ClientSession from the current state. */
-      createClientSession() {
+      createClientSession(_config) {
         var _a3, _b;
         const session = new ClientSession(
           {
@@ -8477,12 +8464,49 @@ async function signInWithDeviceProvider({
     await closeServer(server);
   }
 }
+async function getDeviceProviderCredential({
+  baseUrl,
+  provider,
+  timeoutMs = DEFAULT_TIMEOUT_MS,
+  openBrowser = openUrlInBrowser,
+  randomBytes: randomBytesImpl = randomBytes
+}) {
+  const portalUrl = normalizeBaseUrl(baseUrl);
+  const state = base64Url(randomBytesImpl(32));
+  const verifier = base64Url(randomBytesImpl(32));
+  const codeChallenge = sha256Base64Url(verifier);
+  const { server, redirectUri, callback } = await createLoopbackCredentialCallback({
+    state,
+    timeoutMs
+  });
+  try {
+    const authUrl = buildDeviceAuthUrl({
+      portalUrl,
+      state,
+      codeChallenge,
+      redirectUri,
+      provider,
+      mode: "link"
+    });
+    console.log(
+      `Opening browser to link ${provider != null ? provider : "provider"}: ${authUrl}`
+    );
+    await openBrowser(authUrl);
+    console.log("Waiting for browser authentication...");
+    return await callback;
+  } finally {
+    await closeServer(server);
+  }
+}
 function buildDeviceAuthUrl(input2) {
   const url = new URL(joinUrl(input2.portalUrl, "/device-auth"));
   url.searchParams.set("state", input2.state);
   url.searchParams.set("code_challenge", input2.codeChallenge);
   url.searchParams.set("redirect_uri", input2.redirectUri);
   if (input2.provider) url.searchParams.set("provider", input2.provider);
+  if (input2.mode && input2.mode !== "login") {
+    url.searchParams.set("mode", input2.mode);
+  }
   return url.toString();
 }
 async function createLoopbackCallback(input2) {
@@ -8552,10 +8576,113 @@ async function createLoopbackCallback(input2) {
     callback
   };
 }
+async function createLoopbackCredentialCallback(input2) {
+  let settle;
+  let fail;
+  const callback = new Promise(
+    (resolve, reject) => {
+      settle = resolve;
+      fail = reject;
+    }
+  );
+  let settled = false;
+  const timer = setTimeout(() => {
+    if (!settled) {
+      settled = true;
+      fail(new Error("Timed out waiting for browser authentication"));
+    }
+  }, input2.timeoutMs);
+  const server = createServer(async (req, res) => {
+    var _a3, _b;
+    try {
+      const host = (_a3 = req.headers.host) != null ? _a3 : "127.0.0.1";
+      const url = new URL((_b = req.url) != null ? _b : "/", `http://${host}`);
+      if (url.pathname !== "/callback") {
+        res.writeHead(404).end("Not found");
+        return;
+      }
+      if (req.method !== "POST") {
+        res.writeHead(405).end("Method not allowed");
+        return;
+      }
+      const raw = await readRequestBody(req);
+      const body = parseCredentialCallbackBody(
+        raw,
+        req.headers["content-type"]
+      );
+      if (body.state !== input2.state) {
+        throw new Error("Invalid browser auth state");
+      }
+      if (!body.credential) {
+        throw new Error("Missing provider credential");
+      }
+      res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" }).end(
+        "<!doctype html><title>Aomi CLI link complete</title><body>Account link complete. You can close this window.</body>"
+      );
+      if (!settled) {
+        settled = true;
+        clearTimeout(timer);
+        settle({
+          credential: body.credential,
+          provider: body.provider === "privy" || body.provider === "para" ? body.provider : void 0
+        });
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Auth failed";
+      res.writeHead(400, { "Content-Type": "text/plain; charset=utf-8" }).end(message);
+      if (!settled) {
+        settled = true;
+        clearTimeout(timer);
+        fail(error);
+      }
+    }
+  });
+  await new Promise((resolve, reject) => {
+    server.once("error", reject);
+    server.listen(0, "127.0.0.1", () => {
+      server.off("error", reject);
+      resolve();
+    });
+  });
+  const address3 = server.address();
+  return {
+    server,
+    redirectUri: `http://127.0.0.1:${address3.port}/callback`,
+    callback
+  };
+}
 function closeServer(server) {
   return new Promise((resolve) => {
     server.close(() => resolve());
   });
+}
+function readRequestBody(req) {
+  return new Promise((resolve, reject) => {
+    let body = "";
+    req.setEncoding("utf8");
+    req.on("data", (chunk) => {
+      body += chunk;
+      if (body.length > 1e6) {
+        reject(new Error("Provider credential response is too large"));
+      }
+    });
+    req.on("end", () => resolve(body));
+    req.on("error", reject);
+  });
+}
+function parseCredentialCallbackBody(raw, contentType) {
+  var _a3, _b;
+  const normalized = Array.isArray(contentType) ? contentType.join(";") : contentType != null ? contentType : "";
+  if (normalized.includes("application/json")) {
+    return JSON.parse(raw);
+  }
+  const params = new URLSearchParams(raw);
+  const credential = params.get("credential");
+  return {
+    state: (_a3 = params.get("state")) != null ? _a3 : void 0,
+    provider: (_b = params.get("provider")) != null ? _b : void 0,
+    credential: credential ? JSON.parse(credential) : void 0
+  };
 }
 function openUrlInBrowser(url) {
   const platform = process.platform;
@@ -8582,10 +8709,257 @@ var init_device_auth = __esm({
   }
 });
 
+// src/cli/account-graph.ts
+import { privateKeyToAccount as privateKeyToAccount9 } from "viem/accounts";
+function requireAccountGraphClient(cli) {
+  var _a3;
+  const sessionToken = (_a3 = cli.auth) == null ? void 0 : _a3.sessionToken;
+  if (!sessionToken) {
+    fatal("No account session. Run `aomi account login` first.");
+  }
+  return new AccountGraphClient({
+    baseUrl: cli.baseUrl,
+    sessionToken
+  });
+}
+function resolveAccountPrivateKey(cli, config) {
+  var _a3;
+  const privateKey = (_a3 = config.privateKey) != null ? _a3 : cli.privateKey;
+  if (!privateKey) {
+    fatal(
+      "No EVM private key configured.\nRun `aomi wallet set <evm-private-key>` or pass `--private-key`."
+    );
+  }
+  return privateKey;
+}
+function buildWalletLinkMessage(input2) {
+  var _a3, _b, _c;
+  const baseUrl = normalizeBaseUrl(input2.baseUrl);
+  const domain = (_a3 = input2.domain) != null ? _a3 : new URL(baseUrl).host;
+  const uri = (_b = input2.uri) != null ? _b : baseUrl;
+  return `${domain} wants to link this wallet to your Aomi account:
+${input2.address}
+
+Sign in to Aomi.
+
+URI: ${uri}
+Version: 1
+Chain ID: ${input2.chainId}
+Nonce: ${input2.nonce}
+Issued At: ${((_c = input2.issuedAt) != null ? _c : /* @__PURE__ */ new Date()).toISOString()}`;
+}
+async function buildSignedWalletLink(input2) {
+  var _a3, _b, _c;
+  const client = requireAccountGraphClient(input2.cli);
+  const privateKey = resolveAccountPrivateKey(input2.cli, input2.config);
+  const account = privateKeyToAccount9(privateKey);
+  const chainId3 = (_b = (_a3 = input2.config.chain) != null ? _a3 : input2.cli.chainId) != null ? _b : 1;
+  const nonce = await client.getWalletLinkNonce({
+    address: account.address,
+    chainId: chainId3
+  });
+  const message = buildWalletLinkMessage({
+    address: account.address,
+    chainId: chainId3,
+    nonce: nonce.nonce,
+    domain: nonce.domain,
+    uri: nonce.uri,
+    baseUrl: input2.cli.baseUrl
+  });
+  const signature = await account.signMessage({ message });
+  return {
+    family: "evm",
+    address: account.address,
+    chainId: chainId3,
+    nonce: nonce.nonce,
+    message,
+    signature,
+    label: (_c = input2.label) != null ? _c : null
+  };
+}
+function resolveAccountLink(account, selector) {
+  if (!account.user) return null;
+  const raw = selector.trim();
+  const separator = raw.indexOf(":");
+  const [kindPrefix, idFromPrefix] = separator >= 0 ? [raw.slice(0, separator), raw.slice(separator + 1)] : ["", ""];
+  const wantedKind = kindPrefix === "identity" || kindPrefix === "wallet" ? kindPrefix : void 0;
+  const id = wantedKind ? idFromPrefix : raw;
+  if (!id) return null;
+  const identity = account.linkedAccounts.find((link) => link.id === id);
+  const wallet = account.wallets.find((link) => link.id === id);
+  if (wantedKind === "identity") {
+    return identity ? { kind: "identity", id, link: identity } : null;
+  }
+  if (wantedKind === "wallet") {
+    return wallet ? { kind: "wallet", id, link: wallet } : null;
+  }
+  if (identity && wallet) {
+    fatal(
+      `Link id "${id}" is ambiguous. Use "identity:${id}" or "wallet:${id}".`
+    );
+  }
+  if (identity) return { kind: "identity", id, link: identity };
+  if (wallet) return { kind: "wallet", id, link: wallet };
+  return null;
+}
+function formatAccountGraphError(status, body, fallback) {
+  var _a3;
+  const code = extractErrorCode(body);
+  if (status === 401) {
+    return "Session expired; run `aomi account login`";
+  }
+  if (status === 409 && code === "cannot_unlink_last_login_factor") {
+    return "Cannot unlink the last login method. Link another account method first.";
+  }
+  if (status === 409 && code === "already_linked_to_another_account") {
+    return "This login method is already linked to another Aomi account.";
+  }
+  if (status === 403 && code === "protected_identity") {
+    return "This login identity is protected and cannot be edited directly.";
+  }
+  return (_a3 = code != null ? code : fallback) != null ? _a3 : `Request failed: HTTP ${status}`;
+}
+function extractErrorCode(body) {
+  if (!body || typeof body !== "object") return null;
+  const record = body;
+  if (typeof record.error === "string") return record.error;
+  if (typeof record.message === "string") return record.message;
+  if (record.error && typeof record.error === "object" && typeof record.error.message === "string") {
+    return record.error.message;
+  }
+  return null;
+}
+var AccountGraphClient;
+var init_account_graph = __esm({
+  "src/cli/account-graph.ts"() {
+    "use strict";
+    init_auth();
+    init_errors();
+    AccountGraphClient = class {
+      constructor(input2) {
+        var _a3;
+        this.baseUrl = normalizeBaseUrl(input2.baseUrl);
+        this.sessionToken = input2.sessionToken;
+        this.fetchImpl = (_a3 = input2.fetch) != null ? _a3 : fetch;
+      }
+      getAccount() {
+        return this.request("/api/aomi/account", {
+          method: "GET"
+        });
+      }
+      updateAccount(body) {
+        return this.request("/api/aomi/account", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body)
+        });
+      }
+      deleteAccount() {
+        return this.request("/api/aomi/account", {
+          method: "DELETE"
+        });
+      }
+      signOut() {
+        return this.request("/api/aomi/sign-out", { method: "POST" });
+      }
+      async getWalletLinkNonce(input2) {
+        const params = new URLSearchParams({
+          address: input2.address,
+          chainId: String(input2.chainId)
+        });
+        return this.request(`/api/aomi/wallets/link?${params.toString()}`, {
+          method: "GET"
+        });
+      }
+      linkWallet(body) {
+        return this.request(
+          "/api/aomi/wallets/link",
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(body)
+          }
+        );
+      }
+      exchangeProviderCredential(credential) {
+        return this.request(
+          "/api/aomi/provider/exchange",
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(credential)
+          }
+        );
+      }
+      updateIdentity(identityId, body) {
+        return this.request(
+          `/api/aomi/identities/${encodeURIComponent(identityId)}`,
+          {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(body)
+          }
+        );
+      }
+      unlinkIdentity(identityId) {
+        return this.request(
+          `/api/aomi/identities/${encodeURIComponent(identityId)}`,
+          {
+            method: "DELETE"
+          }
+        );
+      }
+      updateWallet(walletId, body) {
+        return this.request(
+          `/api/aomi/wallets/${encodeURIComponent(walletId)}`,
+          {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(body)
+          }
+        );
+      }
+      unlinkWallet(walletId) {
+        return this.request(`/api/aomi/wallets/${encodeURIComponent(walletId)}`, {
+          method: "DELETE"
+        });
+      }
+      async request(path, init) {
+        var _a3;
+        const response = await this.fetchImpl(joinUrl(this.baseUrl, path), __spreadProps(__spreadValues({}, init), {
+          credentials: "include",
+          headers: __spreadValues({
+            Accept: "application/json",
+            Authorization: `Bearer ${this.sessionToken}`
+          }, (_a3 = init.headers) != null ? _a3 : {})
+        }));
+        if (!response.ok) {
+          throw new Error(
+            formatAccountGraphError(
+              response.status,
+              await response.json().catch(() => null),
+              await safeResponseText(response).catch(() => "")
+            )
+          );
+        }
+        return await response.json().catch(() => ({}));
+      }
+    };
+  }
+});
+
 // src/cli/commands/account.ts
 var account_exports = {};
 __export(account_exports, {
+  accountDeleteCommand: () => accountDeleteCommand,
+  accountLinkCommand: () => accountLinkCommand,
+  accountLinksCommand: () => accountLinksCommand,
   accountLoginCommand: () => accountLoginCommand,
+  accountRenameCommand: () => accountRenameCommand,
+  accountSessionsCommand: () => accountSessionsCommand,
+  accountSwitchCommand: () => accountSwitchCommand,
+  accountUnlinkCommand: () => accountUnlinkCommand,
+  accountUpdateCommand: () => accountUpdateCommand,
   accountWhoamiCommand: () => accountWhoamiCommand,
   logoutCommand: () => logoutCommand,
   whoamiCommand: () => whoamiCommand
@@ -8645,7 +9019,7 @@ function formatProvider(provider) {
   return provider === "privy" ? "Privy" : "Para";
 }
 async function accountWhoamiCommand(config) {
-  var _a3;
+  var _a3, _b;
   const cli = CliSession.load();
   if (!cli) {
     console.log("No active session");
@@ -8653,6 +9027,15 @@ async function accountWhoamiCommand(config) {
     return;
   }
   cli.mergeConfig(config);
+  if ((_a3 = cli.auth) == null ? void 0 : _a3.sessionToken) {
+    try {
+      const account = await requireAccountGraphClient(cli).getAccount();
+      printAccountGraph(account);
+      printDataFileLocation();
+      return;
+    } catch (e) {
+    }
+  }
   const session = cli.createClientSession();
   try {
     const account = await session.client.getAccount(cli.sessionId);
@@ -8664,7 +9047,7 @@ async function accountWhoamiCommand(config) {
     }
     if (user.tier) console.log(`Tier:     ${user.tier}`);
     if (user.status) console.log(`Status:   ${user.status}`);
-    const wallets = (_a3 = account.identity_wallets) != null ? _a3 : [];
+    const wallets = (_b = account.identity_wallets) != null ? _b : [];
     console.log(`Wallets:  ${wallets.length}`);
     for (const wallet of wallets) {
       const walletId = wallet.wallet_id ? ` (${wallet.wallet_id})` : "";
@@ -8688,6 +9071,114 @@ async function accountWhoamiCommand(config) {
   } finally {
     session.close();
   }
+}
+async function accountLinksCommand(config) {
+  const cli = loadMergedCli(config);
+  const client = requireAccountGraphClient(cli);
+  const account = await client.getAccount();
+  printAccountGraph(account);
+  printDataFileLocation();
+}
+async function accountLinkCommand(config, options = {}) {
+  const cli = loadMergedCli(config);
+  const client = requireAccountGraphClient(cli);
+  const provider = normalizeProviderOption(options.provider);
+  const wantsWallet = options.wallet || !provider;
+  if (provider && options.wallet) {
+    fatal("Choose either `--provider` or `--wallet`.");
+  }
+  if (provider) {
+    const result = await getDeviceProviderCredential({
+      baseUrl: cli.baseUrl,
+      provider
+    });
+    const exchange = await client.exchangeProviderCredential(result.credential);
+    if (exchange.status === "conflict") {
+      fatal("This login method is already linked to another Aomi account.");
+    }
+    console.log(`Linked ${formatProvider(provider)} login method`);
+    if (exchange.status === "linked" && exchange.account) {
+      printAccountGraph(exchange.account);
+    }
+    printDataFileLocation();
+    return;
+  }
+  if (wantsWallet) {
+    const body = await buildSignedWalletLink({
+      cli,
+      config,
+      label: options.label
+    });
+    const result = await client.linkWallet(body);
+    console.log(
+      result.status === "noop" ? `Login method already linked for ${body.address}` : `Linked wallet login method ${body.address}`
+    );
+    if (result.account) {
+      printAccountGraph(result.account);
+    }
+    printDataFileLocation();
+  }
+}
+async function accountUnlinkCommand(config, selector, options = {}) {
+  requireConfirmed(options.yes, "unlink an account login method");
+  const cli = loadMergedCli(config);
+  const client = requireAccountGraphClient(cli);
+  const account = await client.getAccount();
+  const link = requireResolvedLink(account, selector);
+  if (link.kind === "identity") {
+    await client.unlinkIdentity(link.id);
+  } else {
+    await client.unlinkWallet(link.id);
+  }
+  console.log(`Unlinked ${formatResolvedLink(link)}`);
+  printDataFileLocation();
+}
+async function accountRenameCommand(config, selector, options = {}) {
+  if (options.label === void 0) {
+    fatal("Pass `--label <name>`.");
+  }
+  const cli = loadMergedCli(config);
+  const client = requireAccountGraphClient(cli);
+  const account = await client.getAccount();
+  const link = requireResolvedLink(account, selector);
+  if (link.kind === "identity") {
+    await client.updateIdentity(link.id, { displayLabel: options.label });
+  } else {
+    await client.updateWallet(link.id, { label: options.label });
+  }
+  console.log(`Renamed ${formatResolvedLink(link)}`);
+  printDataFileLocation();
+}
+async function accountUpdateCommand(config, input2) {
+  if (input2.displayName === void 0 && input2.avatarUrl === void 0) {
+    fatal("Pass `--display-name` or `--avatar-url`.");
+  }
+  const cli = loadMergedCli(config);
+  const client = requireAccountGraphClient(cli);
+  const account = await client.updateAccount({
+    displayName: input2.displayName,
+    avatarUrl: input2.avatarUrl
+  });
+  console.log("Updated account profile");
+  printAccountGraph(account);
+  printDataFileLocation();
+}
+async function accountDeleteCommand(config, options = {}) {
+  requireConfirmed(options.yes, "delete this Aomi account");
+  const cli = loadMergedCli(config);
+  const client = requireAccountGraphClient(cli);
+  const result = await client.deleteAccount();
+  cli.clearAuthSession();
+  console.log(
+    `Deleted account (${result.revokedIdentities} login methods, ${result.revokedWallets} wallets revoked)`
+  );
+  printDataFileLocation();
+}
+async function accountSessionsCommand(config) {
+  await sessionsCommand(config);
+}
+function accountSwitchCommand(selector) {
+  resumeSessionCommand(selector);
 }
 function hasAccountCredential2(state) {
   var _a3;
@@ -8724,6 +9215,100 @@ async function logoutCommand(config) {
   console.log("Signed out");
   printDataFileLocation();
 }
+function loadMergedCli(config) {
+  const cli = CliSession.load();
+  if (!cli) {
+    fatal("No active session. Run `aomi account login` first.");
+  }
+  cli.mergeConfig(config);
+  return cli;
+}
+function normalizeProviderOption(provider) {
+  if (!provider) return void 0;
+  const normalized = provider.trim().toLowerCase();
+  if (normalized === "privy" || normalized === "para") return normalized;
+  fatal('Unknown --provider value. Use "privy" or "para".');
+}
+function printAccountGraph(account) {
+  var _a3, _b;
+  if (!account.user) {
+    console.log("No active account");
+    return;
+  }
+  console.log(`Account:  ${account.user.id}`);
+  if (account.user.displayName) {
+    console.log(`Name:     ${account.user.displayName}`);
+  }
+  if (account.user.email) {
+    console.log(`Email:    ${account.user.email}`);
+  }
+  if ((_a3 = account.session) == null ? void 0 : _a3.expiresAt) {
+    console.log(
+      `Session:  expires ${new Date(account.session.expiresAt).toISOString()}`
+    );
+  }
+  const identities = (_b = account.linkedAccounts) != null ? _b : [];
+  console.log(`Links:    ${identities.length}`);
+  for (const identity of identities) {
+    console.log(formatIdentityLine(identity));
+    const childWallets = account.wallets.filter(
+      (wallet) => walletBelongsToIdentity(wallet, identity)
+    );
+    for (const wallet of childWallets) {
+      console.log(`  ${formatWalletLine(wallet)}`);
+    }
+  }
+  const attachedWalletIds = new Set(
+    identities.flatMap(
+      (identity) => account.wallets.filter((wallet) => walletBelongsToIdentity(wallet, identity)).map((wallet) => wallet.id)
+    )
+  );
+  const otherWallets = account.wallets.filter(
+    (wallet) => !attachedWalletIds.has(wallet.id)
+  );
+  if (otherWallets.length > 0) {
+    console.log(`Wallets:  ${otherWallets.length}`);
+    for (const wallet of otherWallets) {
+      console.log(formatWalletLine(wallet));
+    }
+  }
+}
+function formatIdentityLine(identity) {
+  const label = identity.displayLabel ? ` "${identity.displayLabel}"` : "";
+  const email = identity.email ? ` <${identity.email}>` : "";
+  return `- identity:${identity.id} ${identity.provider}${label}${email}`;
+}
+function formatWalletLine(wallet) {
+  const label = wallet.label ? ` "${wallet.label}"` : "";
+  const chain = wallet.chainId ? ` chain:${wallet.chainId}` : "";
+  const provider = wallet.provider ? ` [${wallet.provider}]` : "";
+  return `- wallet:${wallet.id} ${wallet.family}${provider}: ${wallet.address}${chain}${label}`;
+}
+function walletBelongsToIdentity(wallet, identity) {
+  if (wallet.provider && wallet.provider === identity.provider) return true;
+  if (wallet.linkedVia === identity.provider) return true;
+  return identity.provider === "siwe" && wallet.linkedVia === "siwe";
+}
+function requireResolvedLink(account, selector) {
+  const link = resolveAccountLink(account, selector);
+  if (!link) {
+    fatal(
+      `No account link found for "${selector}". Run \`aomi account links\`.`
+    );
+  }
+  return link;
+}
+function formatResolvedLink(link) {
+  if (link.kind === "identity") {
+    return `${link.link.provider} login method identity:${link.id}`;
+  }
+  return `${link.link.family} wallet login method wallet:${link.id}`;
+}
+function requireConfirmed(confirmed, action) {
+  if (!confirmed) {
+    fatal(`Refusing to ${action} without --yes.`);
+  }
+}
 var DEFAULT_CHAIN_ID2, LEGACY_RAW_BACKEND_URL, whoamiCommand;
 var init_account = __esm({
   "src/cli/commands/account.ts"() {
@@ -8734,6 +9319,8 @@ var init_account = __esm({
     init_auth();
     init_device_auth();
     init_client_factory();
+    init_account_graph();
+    init_sessions();
     DEFAULT_CHAIN_ID2 = 1;
     LEGACY_RAW_BACKEND_URL = "https://api.aomi.dev";
     whoamiCommand = accountWhoamiCommand;
@@ -9461,11 +10048,186 @@ var accountWhoamiDef = defineCommand8({
     await accountWhoamiCommand2(buildCliConfig(args));
   }
 });
+var accountLogoutDef = defineCommand8({
+  meta: {
+    name: "logout",
+    description: "Sign out and clear the CLI auth session"
+  },
+  args: __spreadValues({}, globalArgs),
+  async run({ args }) {
+    const { logoutCommand: logoutCommand2 } = await Promise.resolve().then(() => (init_account(), account_exports));
+    await logoutCommand2(buildCliConfig(args));
+  }
+});
+var accountLinksDef = defineCommand8({
+  meta: {
+    name: "links",
+    description: "List account login methods and linked wallets"
+  },
+  args: __spreadValues({}, globalArgs),
+  async run({ args }) {
+    const { accountLinksCommand: accountLinksCommand2 } = await Promise.resolve().then(() => (init_account(), account_exports));
+    await accountLinksCommand2(buildCliConfig(args));
+  }
+});
+var accountLinkDef = defineCommand8({
+  meta: {
+    name: "link",
+    description: "Link a wallet or provider login method to the account"
+  },
+  args: __spreadProps(__spreadValues({}, globalArgs), {
+    provider: {
+      type: "string",
+      description: 'Provider login method to link ("privy" or "para")'
+    },
+    wallet: {
+      type: "boolean",
+      description: "Link an EVM wallet with SIWE (default)"
+    },
+    label: {
+      type: "string",
+      description: "Optional display label for the linked wallet"
+    }
+  }),
+  async run({ args }) {
+    const { accountLinkCommand: accountLinkCommand2 } = await Promise.resolve().then(() => (init_account(), account_exports));
+    await accountLinkCommand2(buildCliConfig(args), {
+      provider: typeof args.provider === "string" ? args.provider : void 0,
+      wallet: args.wallet === true,
+      label: typeof args.label === "string" ? args.label : void 0
+    });
+  }
+});
+var accountUnlinkDef = defineCommand8({
+  meta: {
+    name: "unlink",
+    description: "Unlink an account login method or linked wallet"
+  },
+  args: __spreadProps(__spreadValues({}, globalArgs), {
+    id: {
+      type: "positional",
+      description: "Link id, identity:<id>, or wallet:<id>",
+      required: true
+    },
+    yes: {
+      type: "boolean",
+      description: "Confirm unlinking"
+    }
+  }),
+  async run({ args }) {
+    const { accountUnlinkCommand: accountUnlinkCommand2 } = await Promise.resolve().then(() => (init_account(), account_exports));
+    await accountUnlinkCommand2(buildCliConfig(args), args.id, {
+      yes: args.yes === true
+    });
+  }
+});
+var accountRenameDef = defineCommand8({
+  meta: {
+    name: "rename",
+    description: "Rename an account login method or linked wallet"
+  },
+  args: __spreadProps(__spreadValues({}, globalArgs), {
+    id: {
+      type: "positional",
+      description: "Link id, identity:<id>, or wallet:<id>",
+      required: true
+    },
+    label: {
+      type: "string",
+      description: "Display label",
+      required: true
+    }
+  }),
+  async run({ args }) {
+    const { accountRenameCommand: accountRenameCommand2 } = await Promise.resolve().then(() => (init_account(), account_exports));
+    await accountRenameCommand2(buildCliConfig(args), args.id, {
+      label: typeof args.label === "string" ? args.label : void 0
+    });
+  }
+});
+var accountUpdateDef = defineCommand8({
+  meta: {
+    name: "update",
+    description: "Update the account profile"
+  },
+  args: __spreadProps(__spreadValues({}, globalArgs), {
+    "display-name": {
+      type: "string",
+      description: "Display name"
+    },
+    "avatar-url": {
+      type: "string",
+      description: "Avatar URL"
+    }
+  }),
+  async run({ args }) {
+    const { accountUpdateCommand: accountUpdateCommand2 } = await Promise.resolve().then(() => (init_account(), account_exports));
+    await accountUpdateCommand2(buildCliConfig(args), {
+      displayName: typeof args["display-name"] === "string" ? args["display-name"] : void 0,
+      avatarUrl: typeof args["avatar-url"] === "string" ? args["avatar-url"] : void 0
+    });
+  }
+});
+var accountDeleteDef = defineCommand8({
+  meta: {
+    name: "delete",
+    description: "Delete the Aomi account"
+  },
+  args: __spreadProps(__spreadValues({}, globalArgs), {
+    yes: {
+      type: "boolean",
+      description: "Confirm account deletion"
+    }
+  }),
+  async run({ args }) {
+    const { accountDeleteCommand: accountDeleteCommand2 } = await Promise.resolve().then(() => (init_account(), account_exports));
+    await accountDeleteCommand2(buildCliConfig(args), {
+      yes: args.yes === true
+    });
+  }
+});
+var accountSessionsDef = defineCommand8({
+  meta: {
+    name: "sessions",
+    description: "List local CLI sessions for account switching"
+  },
+  args: __spreadValues({}, globalArgs),
+  async run({ args }) {
+    const { accountSessionsCommand: accountSessionsCommand2 } = await Promise.resolve().then(() => (init_account(), account_exports));
+    await accountSessionsCommand2(buildCliConfig(args));
+  }
+});
+var accountSwitchDef = defineCommand8({
+  meta: {
+    name: "switch",
+    description: "Switch the active local CLI session"
+  },
+  args: {
+    id: {
+      type: "positional",
+      description: "Session ID or session-N",
+      required: true
+    }
+  },
+  async run({ args }) {
+    const { accountSwitchCommand: accountSwitchCommand2 } = await Promise.resolve().then(() => (init_account(), account_exports));
+    accountSwitchCommand2(args.id);
+  }
+});
 var accountDef = defineCommand8({
   meta: { name: "account", description: "Account authentication" },
   subCommands: {
     login: accountLoginDef,
-    whoami: accountWhoamiDef
+    whoami: accountWhoamiDef,
+    logout: accountLogoutDef,
+    links: accountLinksDef,
+    link: accountLinkDef,
+    unlink: accountUnlinkDef,
+    rename: accountRenameDef,
+    update: accountUpdateDef,
+    delete: accountDeleteDef,
+    sessions: accountSessionsDef,
+    switch: accountSwitchDef
   }
 });
 
@@ -9778,13 +10540,14 @@ function printRootHelp() {
   console.log("  app                          App management");
   console.log("  chain                        Chain information");
   console.log("  wallet                       Wallet configuration");
-  console.log("  account                      Account authentication");
-  console.log("  logout                       Sign out and clear the CLI auth session");
+  console.log(
+    "  account                      Account login and link management"
+  );
+  console.log(
+    "  logout                       Sign out and clear the CLI auth session"
+  );
   console.log("  config                       CLI configuration");
   console.log("  secret                       Secret management");
-  console.log(
-    "  account                      Account identity (login, whoami)"
-  );
   console.log(
     "  deploy                       Deploy your app (requires --activation-token)"
   );

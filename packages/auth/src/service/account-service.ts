@@ -10,6 +10,7 @@ import {
   findAuthIdentityById,
   findAomiUserById,
   findAomiUserByBetterAuthId,
+  findLegacyBackendUserIdByWallet,
   findSignalOwner,
   findWalletById,
   listBetterAuthSiweWallets,
@@ -102,11 +103,9 @@ export async function getOrCreateAomiUserForBetterAuthSession(input: {
       return existing;
     }
 
+    const siweSignals = await betterAuthSiweSignals(input.betterAuthUserId, db);
     const signalOwner = await findFirstSignalOwner(
-      [
-        ...(input.accessSignals ?? []),
-        ...(await betterAuthSiweSignals(input.betterAuthUserId, db)),
-      ],
+      [...(input.accessSignals ?? []), ...siweSignals],
       db,
     );
     if (signalOwner) {
@@ -134,7 +133,15 @@ export async function getOrCreateAomiUserForBetterAuthSession(input: {
       return signalOwner;
     }
 
-    const user = await createAomiUserForBetterAuth({ ...input, db });
+    const legacyWalletOwnerId = await findFirstLegacyWalletOwner(
+      siweSignals,
+      db,
+    );
+    const user = await createAomiUserForBetterAuth({
+      ...input,
+      userId: legacyWalletOwnerId ?? undefined,
+      db,
+    });
     await upsertAuthIdentity({
       userId: user.id,
       provider: "better_auth",
@@ -157,6 +164,21 @@ export async function getOrCreateAomiUserForBetterAuthSession(input: {
     });
     return user;
   });
+}
+
+async function findFirstLegacyWalletOwner(
+  signals: SignalRef[],
+  db: Parameters<typeof findLegacyBackendUserIdByWallet>[1],
+): Promise<AomiUserId | null> {
+  for (const signal of signals) {
+    if (signal.type !== "wallet") continue;
+    const ownerId = await findLegacyBackendUserIdByWallet(
+      signal.normalizedAddress,
+      db,
+    );
+    if (ownerId) return ownerId;
+  }
+  return null;
 }
 
 export function isIdentityAlreadyLinkedError(error: unknown): boolean {
