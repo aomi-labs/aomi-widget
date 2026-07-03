@@ -106,6 +106,7 @@ type RollbackArgs = {
   app: string;
   platform: string;
   deployment?: string;
+  appSourceId?: number;
   backendUrl?: string;
   activationToken?: string;
 };
@@ -126,12 +127,14 @@ function parseRollbackArgs(argv: string[]): RollbackArgs {
       i += 1;
     }
   }
+  const source = stringValue(values, "source");
   return {
     help: Boolean(values.get("help") || values.get("h")),
     yes: Boolean(values.get("yes") || values.get("y")),
     app: stringValue(values, "app") ?? "",
     platform: stringValue(values, "platform") ?? "",
     deployment: stringValue(values, "deployment"),
+    appSourceId: source && /^\d+$/.test(source) ? Number(source) : undefined,
     backendUrl: stringValue(values, "backend-url"),
     activationToken: stringValue(values, "activation-token"),
   };
@@ -168,6 +171,7 @@ SUBCOMMANDS
     --app <name>              App to roll back (required)
     --platform <name>         Hosted platform name (required)
     --deployment <id>         Explicit deployment id (default: previous)
+    --source <id>             App source id when the name exists for several sources
     --backend-url <url>       Backend base URL (or AOMI_BACKEND_URL)
     --activation-token <tok>  Activation token (or AOMI_APP_ACTIVATION_TOKEN)
     --yes                     Skip the confirm gate
@@ -491,6 +495,7 @@ function RollbackApp({ args }: { args: RollbackArgs }) {
           await client.listActivations({
             platform: args.platform,
             app: args.app,
+            appSourceId: args.appSourceId,
           }),
         );
         if (args.deployment) {
@@ -591,12 +596,14 @@ function RollbackApp({ args }: { args: RollbackArgs }) {
         </Text>
       ) : null}
       <Text>Pick a rollback target for {args.app}:</Text>
+      {/* No defaultValue: @inkjs/ui Select only fires onChange when the value
+          changes, so a preselected value could never be confirmed. The
+          previous release is the top option (timeline is newest-first). */}
       <Select
         options={selectable.map((row) => ({
           label: `${row.action} · ${row.deploymentId} · ${row.releaseTag}`,
           value: row.deploymentId,
         }))}
-        defaultValue={phase.plan.previous?.deploymentId}
         onChange={(deploymentId) =>
           setPhase({ name: "confirm", plan: phase.plan, deploymentId })
         }
@@ -615,7 +622,11 @@ async function runRollbackHeadless(args: RollbackArgs): Promise<void> {
     return;
   }
   const plan = planRollback(
-    await client.listActivations({ platform: args.platform, app: args.app }),
+    await client.listActivations({
+      platform: args.platform,
+      app: args.app,
+      appSourceId: args.appSourceId,
+    }),
   );
   const deploymentId = args.deployment ?? plan.previous?.deploymentId;
   if (!deploymentId) {
