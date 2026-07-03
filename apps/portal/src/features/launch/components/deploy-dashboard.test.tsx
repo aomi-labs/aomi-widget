@@ -34,6 +34,7 @@ vi.mock("@portal/features/launch", () => ({
   launchActivate: vi.fn(),
   launchRedeploy: vi.fn(),
   launchStatus: vi.fn(),
+  launchSdkStatus: vi.fn(async () => null),
   signOutGitHub: vi.fn(),
   readLaunchUrlContext: vi.fn(() => null),
   loadLaunch: vi.fn(() => null),
