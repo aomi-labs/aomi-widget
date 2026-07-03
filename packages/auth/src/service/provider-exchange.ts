@@ -1,4 +1,8 @@
-import { buildAccountResponse, findAomiUserById } from "../db/queries";
+import {
+  buildAccountResponse,
+  findAomiUserById,
+  withTransaction,
+} from "../db/queries";
 import type {
   AomiAccountCredential,
   AomiAccountResponse,
@@ -31,6 +35,12 @@ export type ProviderExchangeResult =
   | { status: "linked"; account: AomiAccountResponse }
   | (SignalResolution & { status: "conflict" | "noop" });
 
+class ProviderLinkRollback extends Error {
+  constructor(readonly resolution: SignalResolution & { status: "conflict" }) {
+    super(resolution.reason);
+  }
+}
+
 export async function linkVerifiedProviderCredentialForUser(input: {
   userId: AomiUserId;
   verified: VerifiedProviderTokenCredential;
@@ -38,22 +48,37 @@ export async function linkVerifiedProviderCredentialForUser(input: {
   | { status: "linked"; user: DbAomiUser | null }
   | (SignalResolution & { status: "conflict" })
 > {
-  const resolution = await linkProviderIdentity({
-    userId: input.userId,
-    provider: input.verified.provider,
-    subject: input.verified.token.subject,
-    email: input.verified.token.email,
-    emailVerified: input.verified.token.emailVerified,
-    displayLabel: input.verified.token.displayLabel,
-    providerMetadata: input.verified.token.providerMetadata,
-  });
-  if (resolution.status === "conflict") return resolution;
-  await syncProviderAttestedWallets({
-    userId: input.userId,
-    provider: input.verified.walletAttestationProvider,
-    subject: input.verified.token.subject,
-    email: input.verified.token.email,
-  });
+  try {
+    await withTransaction(async (db) => {
+      const resolution = await linkProviderIdentity({
+        userId: input.userId,
+        provider: input.verified.provider,
+        subject: input.verified.token.subject,
+        email: input.verified.token.email,
+        emailVerified: input.verified.token.emailVerified,
+        displayLabel: input.verified.token.displayLabel,
+        providerMetadata: input.verified.token.providerMetadata,
+        db,
+      });
+      if (resolution.status === "conflict") {
+        throw new ProviderLinkRollback(resolution);
+      }
+      const walletResolution = await syncProviderAttestedWallets({
+        userId: input.userId,
+        provider: input.verified.walletAttestationProvider,
+        subject: input.verified.token.subject,
+        email: input.verified.token.email,
+        fallbackAttested: input.verified.token.walletAttestations,
+        db,
+      });
+      if (walletResolution.status === "conflict") {
+        throw new ProviderLinkRollback(walletResolution);
+      }
+    });
+  } catch (error) {
+    if (error instanceof ProviderLinkRollback) return error.resolution;
+    throw error;
+  }
 
   return {
     status: "linked",

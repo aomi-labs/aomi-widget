@@ -73,14 +73,12 @@ function decodeJwtPayload(token) {
 }
 
 function buildSiweMessage(input) {
-  const origin = portalUrl;
-  const domain = new URL(portalUrl).host;
-  return `${domain} wants you to sign in with your Ethereum account:
+  return `${input.domain} wants you to sign in with your Ethereum account:
 ${input.address}
 
 Sign in to Aomi.
 
-URI: ${origin}
+URI: ${input.uri}
 Version: 1
 Chain ID: ${input.chainId}
 Nonce: ${input.nonce}
@@ -142,24 +140,27 @@ class CookieJar {
 }
 
 async function signInWithWallet(jar, wallet) {
-  const nonceResponse = await jar.request("/api/bff/auth/siwe/nonce", {
+  const nonceResponse = await jar.request("/api/auth/siwe/nonce", {
     method: "POST",
     body: JSON.stringify({
       walletAddress: wallet.address,
       chainId,
     }),
   });
-  const { nonce } = await readJsonOrThrow(
+  const nonceBody = await readJsonOrThrow(
     nonceResponse,
     `${jar.label} SIWE nonce`,
   );
+  const { nonce } = nonceBody;
   const message = buildSiweMessage({
     address: wallet.address,
     chainId,
     nonce,
+    domain: nonceBody.domain ?? new URL(portalUrl).host,
+    uri: nonceBody.uri ?? portalUrl,
   });
   const signature = await wallet.signMessage({ message });
-  const verifyResponse = await jar.request("/api/bff/auth/siwe/verify", {
+  const verifyResponse = await jar.request("/api/auth/siwe/verify", {
     method: "POST",
     body: JSON.stringify({
       message,
@@ -168,7 +169,16 @@ async function signInWithWallet(jar, wallet) {
       chainId,
     }),
   });
-  return readJsonOrThrow(verifyResponse, `${jar.label} SIWE verify`);
+  const body = await readJsonOrThrow(verifyResponse, `${jar.label} SIWE verify`);
+  if (body?.user_id) return body;
+  const account = await readJsonOrThrow(
+    await jar.request("/api/aomi/account"),
+    `${jar.label} account graph`,
+  );
+  return {
+    ...body,
+    user_id: account?.user?.id ?? account?.session?.betterAuthUserId,
+  };
 }
 
 async function bootstrapSiweSession() {
@@ -251,7 +261,7 @@ if (!cookieHeader && !sessionBearer) {
 
 const tokenResponse = await check(
   "BFF bearer token",
-  `${portalUrl}/api/bff/auth/token`,
+  `${portalUrl}/api/aomi/account-bearer`,
   { headers: authHeaders() },
 );
 if (!tokenResponse.ok) {

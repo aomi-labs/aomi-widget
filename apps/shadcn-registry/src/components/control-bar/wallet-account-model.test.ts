@@ -50,7 +50,7 @@ describe("providerBackedAccountProvider", () => {
 });
 
 describe("buildAccountAccessEntries", () => {
-  it("omits custom embedded provider wallets from standalone wallet access", () => {
+  it("omits provider-backed wallets from account access", () => {
     const result = buildAccountAccessEntries(
       [
         {

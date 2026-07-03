@@ -14,11 +14,10 @@ export type WalletAttestationLogger = Pick<typeof console, "warn">;
 
 /** A wallet the provider attests is owned by the verified user and currently
  * custodied by that provider. Only these are eligible to become
- * `aomi_wallets` rows with `linked_via = provider`. */
+ * canonical `public_keys` rows with provider provenance. */
 export interface AttestedWallet {
   provider: AttestedWalletProvider;
-  /** Stable provider-side wallet id. Stored on
-   * `aomi_wallets.provider_wallet_id` for later server-side signing lookups. */
+  /** Stable provider-side wallet id for later server-side signing lookups. */
   providerWalletId: string;
   family: WalletFamily;
   address: string;

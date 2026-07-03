@@ -51,13 +51,9 @@ import type {
 } from "../types";
 import { normalizeWalletAddress } from "./wallet-normalization";
 
-// Run the schema DDL at most once per process. `schema.sql` contains
-// `alter table … drop constraint` and `create index` statements that take an
-// AccessExclusiveLock even when they're no-ops; running it on every request (it
-// gates getOrCreate / link / delete below) deadlocks against concurrent row
-// writes to aomi_users / aomi_auth_identities / aomi_wallets under any
-// parallelism. Memoizing collapses that to a single startup-time apply; a
-// failure clears the cache so the next call can retry.
+// Historically this applied the portal-owned `aomi_*` schema. AUTH-001 moves
+// durable account state to the shared backend canonical tables, so the hook now
+// only preserves the existing startup/error behavior around schema readiness.
 let accountSchemaReady: Promise<void> | null = null;
 
 export async function ensureAccountSchema(): Promise<void> {
@@ -263,9 +259,10 @@ export async function syncSiweWalletsForUser(input: {
 export async function resolveSignal(input: {
   currentUserId: AomiUserId;
   signal: SignalRef;
+  db?: import("pg").Pool | import("pg").PoolClient;
 }): Promise<SignalResolution> {
   await ensureAccountSchema();
-  const ownerId = await findSignalOwner(input.signal);
+  const ownerId = await findSignalOwner(input.signal, input.db);
   if (!ownerId) return { status: "linked" };
   if (ownerId === input.currentUserId) return { status: "noop" };
 
@@ -274,6 +271,7 @@ export async function resolveSignal(input: {
     actorUserId: input.currentUserId,
     eventType: signalEventType(input.signal, "conflict"),
     data: { signal: input.signal },
+    db: input.db,
   });
   return {
     status: "conflict",
@@ -359,6 +357,7 @@ export async function linkProviderIdentity(input: {
   emailVerified?: boolean;
   displayLabel?: string | null;
   providerMetadata?: Record<string, unknown>;
+  db?: import("pg").Pool | import("pg").PoolClient;
 }): Promise<SignalResolution> {
   const identitySignal = {
     type: "identity" as const,
@@ -368,6 +367,7 @@ export async function linkProviderIdentity(input: {
   const identityResolution = await resolveSignal({
     currentUserId: input.userId,
     signal: identitySignal,
+    db: input.db,
   });
   if (identityResolution.status === "conflict") {
     return identityResolution;
@@ -377,6 +377,7 @@ export async function linkProviderIdentity(input: {
     const emailResolution = await resolveSignal({
       currentUserId: input.userId,
       signal: { type: "email", email: input.email },
+      db: input.db,
     });
     if (emailResolution.status === "conflict") {
       return emailResolution;
@@ -384,6 +385,7 @@ export async function linkProviderIdentity(input: {
     await upsertEmailIdentity({
       userId: input.userId,
       email: input.email,
+      db: input.db,
     });
   }
 
@@ -393,6 +395,7 @@ export async function linkProviderIdentity(input: {
       userId: input.userId,
       displayName: input.email,
       primaryEmail: input.email,
+      db: input.db,
     });
   }
   if (identityResolution.status !== "noop") {
@@ -400,6 +403,7 @@ export async function linkProviderIdentity(input: {
       userId: input.userId,
       eventType: "identity.linked",
       data: { provider: input.provider, subject: input.subject },
+      db: input.db,
     });
   }
   return identityResolution.status === "noop"
@@ -407,8 +411,8 @@ export async function linkProviderIdentity(input: {
     : identityResolution;
 }
 
-/** Sync embedded wallets a provider attests for the user into the
- *  `aomi_wallets` graph. Server-side attestation replaces a SIWE/SIWS
+/** Sync embedded wallets a provider attests for the user into canonical
+ *  `public_keys` rows. Server-side attestation replaces a SIWE/SIWS
  *  signature for custodied embedded wallets (and is the only SVM ownership
  *  proof available today).
  *
@@ -424,15 +428,46 @@ export async function linkProviderIdentity(input: {
 export async function syncProviderWallets(input: {
   userId: AomiUserId;
   provider: AttestedWalletProvider;
+  subject?: string | null;
   attested: AttestedWallet[];
   db?: import("pg").Pool | import("pg").PoolClient;
-}): Promise<void> {
+}): Promise<SignalResolution> {
   const keepKeys = new Set(
     input.attested.map((w) => walletKeyString(w.family, w.address)),
   );
 
+  for (const wallet of input.attested) {
+    const resolution = await resolveSignal({
+      currentUserId: input.userId,
+      signal: {
+        type: "wallet",
+        family: wallet.family,
+        normalizedAddress: normalizeWalletAddress(
+          wallet.family,
+          wallet.address,
+        ),
+        chainScope: wallet.chainScope,
+      },
+      db: input.db,
+    });
+    if (resolution.status === "conflict") {
+      await logAccountEvent({
+        userId: input.userId,
+        eventType: "wallet.link_conflict",
+        data: {
+          family: wallet.family,
+          address: wallet.address,
+          provider: wallet.provider,
+        },
+        db: input.db,
+      });
+      return resolution;
+    }
+  }
+
   // 1. Upsert every attested wallet. A cross-account collision on one
-  //    address must not abort the rest of the sync — log and continue.
+  //    address must fail the provider exchange so the provider identity and
+  //    its child wallet graph cannot drift apart.
   for (const wallet of input.attested) {
     try {
       await upsertWallet({
@@ -442,6 +477,7 @@ export async function syncProviderWallets(input: {
         chainScope: wallet.chainScope,
         kind: "embedded",
         provider: input.provider,
+        providerSubject: input.subject,
         providerWalletId: wallet.providerWalletId,
         linkedVia: input.provider,
         db: input.db,
@@ -459,7 +495,11 @@ export async function syncProviderWallets(input: {
           },
           db: input.db,
         });
-        continue;
+        return {
+          status: "conflict",
+          reason: "already_linked_to_another_account",
+          signalType: "wallet",
+        };
       }
       throw error;
     }
@@ -491,6 +531,8 @@ export async function syncProviderWallets(input: {
       });
     }
   }
+
+  return input.attested.length > 0 ? { status: "linked" } : { status: "noop" };
 }
 
 /** Fetch attested embedded wallets for a verified provider subject using the
@@ -506,8 +548,9 @@ export async function fetchAttestedProviderWallets(input: {
   attesters?: WalletAttesterRegistry;
   logger?: WalletAttestationLogger;
 }): Promise<AttestedWallet[] | null> {
-  const attester =
-    (input.attesters ?? createDefaultWalletAttesters())[input.provider];
+  const attester = (input.attesters ?? createDefaultWalletAttesters())[
+    input.provider
+  ];
   if (!attester) return null;
   try {
     const wallets = await attester({
@@ -540,21 +583,42 @@ export async function syncProviderAttestedWallets(input: {
   db?: import("pg").Pool | import("pg").PoolClient;
   attesters?: WalletAttesterRegistry;
   logger?: WalletAttestationLogger;
-}): Promise<void> {
-  const attested = await fetchAttestedProviderWallets({
+  fallbackAttested?: readonly AttestedWallet[];
+}): Promise<SignalResolution> {
+  const fetched = await fetchAttestedProviderWallets({
     provider: input.provider,
     subject: input.subject,
     email: input.email,
     attesters: input.attesters,
     logger: input.logger,
   });
-  if (!attested) return;
-  await syncProviderWallets({
+  const wallets = mergeProviderWalletAttestations(
+    fetched ?? [],
+    input.fallbackAttested ?? [],
+  );
+  if (!wallets.length) return { status: "noop" };
+  return syncProviderWallets({
     userId: input.userId,
     provider: input.provider,
-    attested,
+    subject: input.subject,
+    attested: wallets,
     db: input.db,
   });
+}
+
+export function mergeProviderWalletAttestations(
+  primary: readonly AttestedWallet[],
+  fallback: readonly AttestedWallet[],
+): AttestedWallet[] {
+  const wallets: AttestedWallet[] = [];
+  const seen = new Set<string>();
+  for (const wallet of [...primary, ...fallback]) {
+    const key = walletKeyString(wallet.family, wallet.address);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    wallets.push(wallet);
+  }
+  return wallets;
 }
 
 function walletKeyString(family: WalletFamily, address: string): string {
