@@ -83,12 +83,15 @@ export function newAppArgs(input: {
     ];
   }
 
+  // Always `--all`: without it aomi-build opens an interactive operation
+  // picker, which dies under the workflow runner (no TTY). The agent
+  // curation step prunes the tool surface afterwards.
   return [
     "new-app",
     input.app,
     ...(input.openApiUrl ? ["--from-url", input.openApiUrl] : []),
     ...(input.shared ? ["--shared"] : []),
-    ...(input.includeAllOperations ? ["--all"] : []),
+    "--all",
     ...(input.force ? ["--force"] : []),
     ...(input.build ? [] : ["--no-build"]),
   ];

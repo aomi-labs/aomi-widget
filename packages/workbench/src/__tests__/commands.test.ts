@@ -36,6 +36,20 @@ describe("commands", () => {
     ]);
   });
 
+  it("always exposes all operations (no TTY for the interactive picker)", () => {
+    expect(
+      newAppArgs({
+        app: "demo",
+        source: "url",
+        openApiUrl: "https://example.com/openapi.json",
+        shared: false,
+        includeAllOperations: false,
+        force: false,
+        build: true,
+      }),
+    ).toContain("--all");
+  });
+
   it("runs aomi-build from the selected SDK root", async () => {
     const calls: unknown[] = [];
     const runner: CommandRunner = async (file, args, options) => {

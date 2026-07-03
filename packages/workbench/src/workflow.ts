@@ -145,7 +145,9 @@ export async function runWorkbenchWorkflow(
             [
               plan.app,
               ...(plan.intake.shared ? ["--shared"] : []),
-              ...(plan.intake.includeAllOperations ? ["--all"] : []),
+              // Always `--all`: the interactive operation picker cannot run
+              // under the workflow runner (no TTY); the agent step curates.
+              "--all",
               ...(plan.intake.force ? ["--force"] : []),
             ],
             runner,
