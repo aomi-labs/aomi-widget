@@ -1,6 +1,6 @@
 import { runMain } from "citty";
 import { root, SUBCOMMAND_NAMES } from "./root";
-import { CliExit, DeployCliError } from "./errors";
+import { CliExit } from "./errors";
 import packageJson from "../../package.json";
 
 const ROOT_SUBCOMMANDS = SUBCOMMAND_NAMES;
@@ -11,13 +11,8 @@ function isPnpmExecWrapper(): boolean {
   return npmCommand === "exec" && userAgent.includes("pnpm/");
 }
 
-function shouldPrintRootHelp(rawArgs: string[]): boolean {
-  if (!rawArgs.includes("--help") && !rawArgs.includes("-h")) {
-    return false;
-  }
-
-  const firstToken = rawArgs.find((arg) => !arg.startsWith("-"));
-  return !firstToken || !ROOT_SUBCOMMANDS.has(firstToken);
+function wantsHelp(rawArgs: string[]): boolean {
+  return rawArgs.includes("--help") || rawArgs.includes("-h");
 }
 
 function printRootHelp(): void {
@@ -107,11 +102,6 @@ function printRootHelp(): void {
   console.log("  chain                        Chain information");
   console.log("  config                       CLI configuration");
   console.log("  secret                       Secret management");
-  console.log(
-    "  deploy                       Deploy your app (requires --activation-token)",
-  );
-  console.log("  session                      (deprecated) use `thread`");
-  console.log("  schedule                     (deprecated) use `cron`");
   console.log("");
   console.log("Use aomi <command> --help for command-specific details.");
 }
@@ -121,9 +111,17 @@ export async function runCli(argv: string[] = process.argv): Promise<void> {
   const rawArgs = argv.slice(2);
 
   try {
-    if (shouldPrintRootHelp(rawArgs)) {
-      printRootHelp();
-      return;
+    if (wantsHelp(rawArgs)) {
+      const firstToken = rawArgs.find((arg) => !arg.startsWith("-"));
+      if (!firstToken) {
+        printRootHelp();
+        return;
+      }
+      if (!ROOT_SUBCOMMANDS.has(firstToken)) {
+        // Match citty's unknown-command failure instead of dumping root help.
+        console.error(`Unknown command ${firstToken}`);
+        throw new CliExit(1);
+      }
     }
 
     await runMain(root, { rawArgs });
@@ -137,11 +135,6 @@ export async function runCli(argv: string[] = process.argv): Promise<void> {
     }
     const RED = "\x1b[31m";
     const RESET = "\x1b[0m";
-    if (err instanceof DeployCliError) {
-      console.error(`${RED}❌ [${err.errorCode}] ${err.message}${RESET}`);
-      process.exit(1);
-      return;
-    }
     const message = err instanceof Error ? err.message : String(err);
     console.error(`${RED}❌ ${message}${RESET}`);
     process.exit(1);

@@ -12,7 +12,7 @@ const baseConfig = {
   secrets: {},
 };
 
-describe("aomi account (bare canonical view; whoami stays a hidden alias)", () => {
+describe("aomi account (bare canonical view)", () => {
   let stateDir: string;
 
   beforeEach(() => {

@@ -405,7 +405,7 @@ function resolveStoredSession(
   const trimmed = selector.trim();
   if (!trimmed) return null;
 
-  const localMatch = trimmed.match(/^(?:thread-|session-)?(\d+)$/);
+  const localMatch = trimmed.match(/^(?:thread-)?(\d+)$/);
   if (localMatch) {
     const localId = parseInt(localMatch[1], 10);
     if (!Number.isNaN(localId)) {

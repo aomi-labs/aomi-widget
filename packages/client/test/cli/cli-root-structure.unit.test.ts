@@ -34,7 +34,26 @@ describe("aomi root command structure", () => {
     expect(new Set(Object.keys(subs))).toEqual(SUBCOMMAND_NAMES);
   });
 
-  it("registers thread with session as a deprecated alias sharing subcommands", async () => {
+  it("exposes exactly the clean command surface — no legacy aliases", async () => {
+    const { SUBCOMMAND_NAMES } = await loadRoot();
+    expect([...SUBCOMMAND_NAMES].sort()).toEqual([
+      "account",
+      "app",
+      "chain",
+      "chat",
+      "config",
+      "cron",
+      "login",
+      "logout",
+      "model",
+      "secret",
+      "thread",
+      "tx",
+      "wallet",
+    ]);
+  });
+
+  it("registers the thread subcommands", async () => {
     const { subs } = await loadRoot();
     expect(Object.keys(subs.thread.subCommands!)).toEqual([
       "list",
@@ -46,57 +65,32 @@ describe("aomi root command structure", () => {
       "events",
       "close",
     ]);
-    expect(subs.session.subCommands).toBe(subs.thread.subCommands);
-    expect(subs.session.meta?.description).toContain("deprecated");
-    expect(subs.session.meta?.description).toContain("thread");
   });
 
-  it("registers cron with schedule as a deprecated alias sharing subcommands", async () => {
+  it("registers cron with ls as the single list verb", async () => {
     const { subs } = await loadRoot();
     expect(Object.keys(subs.cron.subCommands!)).toEqual([
       "ls",
       "show",
       "cancel",
     ]);
-    expect(subs.schedule.subCommands).toBe(subs.cron.subCommands);
-    expect(subs.schedule.meta?.description).toContain("deprecated");
-    expect(subs.schedule.meta?.description).toContain("cron");
-    // `aomi schedule list` keeps working through the ls alias for one release.
     expect(
       (subs.cron.subCommands!.ls.meta as { alias?: string[] }).alias,
-    ).toContain("list");
+    ).toBeUndefined();
   });
 
-  it("exposes the new wallet shape with deprecated set/login aliases", async () => {
+  it("exposes the wallet shape: ls, set-mode, dev-key", async () => {
     const { subs } = await loadRoot();
     expect(Object.keys(subs.wallet.subCommands!)).toEqual([
       "ls",
       "set-mode",
       "dev-key",
-      "set",
-      "login",
     ]);
-    expect(subs.wallet.subCommands!.set.meta?.description).toContain(
-      "deprecated",
-    );
-    expect(subs.wallet.subCommands!.set.meta?.description).toContain(
-      "dev-key",
-    );
-    expect(subs.wallet.subCommands!.login.meta?.description).toContain(
-      "aomi login --provider privy",
-    );
   });
 
-  it("keeps account whoami as a hidden deprecated alias", async () => {
+  it("keeps account as the bare canonical view with no subcommands", async () => {
     const { subs } = await loadRoot();
-    expect(Object.keys(subs.account.subCommands!)).toEqual([
-      "login",
-      "whoami",
-    ]);
-    expect(subs.account.subCommands!.whoami.meta?.hidden).toBe(true);
-    expect(subs.account.subCommands!.login.meta?.description).toContain(
-      "deprecated",
-    );
+    expect(subs.account.subCommands).toBeUndefined();
     expect(subs.account.run).toBeTypeOf("function");
   });
 
@@ -112,7 +106,7 @@ describe("aomi root command structure", () => {
     vi.doMock("../../src/cli/repl", () => ({ runRootCli }));
     const { root } = await loadRoot();
 
-    for (const token of ["thread", "session", "cron", "login", "logout"]) {
+    for (const token of ["thread", "cron", "login", "logout", "wallet"]) {
       await root.run!({ args: {}, rawArgs: [token] });
     }
     expect(runRootCli).not.toHaveBeenCalled();

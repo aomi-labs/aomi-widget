@@ -166,24 +166,14 @@ describe("aomi login / logout dispatch", () => {
     );
   });
 
-  it("bare `aomi account` prints the canonical view; subcommands suppress it", async () => {
+  it("bare `aomi account` prints the canonical view", async () => {
     const mocks = mockAccountModule();
     const { accountDef } = await import("../../src/cli/commands/defs/account");
     const { runCommand } = await import("citty");
-    vi.spyOn(console, "error").mockImplementation(() => {});
 
-    // Bare invocation → the canonical account view.
     await runCommand(accountDef as never, { rawArgs: [] });
-    expect(mocks.accountShowCommand).toHaveBeenCalledTimes(1);
 
-    // Deprecated `account login` → device flow, and the citty parent-run
-    // fallthrough must NOT also print the account view.
-    await runCommand(accountDef as never, { rawArgs: ["login"] });
-    expect(mocks.loginCommand).toHaveBeenCalledTimes(1);
     expect(mocks.accountShowCommand).toHaveBeenCalledTimes(1);
-
-    // Hidden deprecated `whoami` alias renders the same view exactly once.
-    await runCommand(accountDef as never, { rawArgs: ["whoami"] });
-    expect(mocks.accountShowCommand).toHaveBeenCalledTimes(2);
+    expect(mocks.loginCommand).not.toHaveBeenCalled();
   });
 });

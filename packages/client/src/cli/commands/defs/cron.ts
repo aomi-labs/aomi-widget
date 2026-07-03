@@ -13,8 +13,6 @@ function parseOptionalInt(value: unknown): number | undefined {
 const cronLsDef = defineCommand({
   meta: {
     name: "ls",
-    // `list` kept so the deprecated `aomi schedule list` spelling still works.
-    alias: ["list"],
     description: "List cron jobs for the current account/app (~ crontab -l)",
   },
   args: {
@@ -75,33 +73,14 @@ const cronCancelDef = defineCommand({
   },
 });
 
-const cronSubCommands = {
-  ls: cronLsDef,
-  show: cronShowDef,
-  cancel: cronCancelDef,
-};
-
 export const cronDef = defineCommand({
   meta: {
     name: "cron",
     description: "Cron jobs — timers that spawn threads",
   },
-  subCommands: cronSubCommands,
-});
-
-/** Deprecated alias — same subcommands as `aomi cron`, kept one release. */
-export const scheduleDef = defineCommand({
-  meta: {
-    name: "schedule",
-    description: "(deprecated) use `aomi cron`",
+  subCommands: {
+    ls: cronLsDef,
+    show: cronShowDef,
+    cancel: cronCancelDef,
   },
-  run({ rawArgs }) {
-    // citty 0.2.2 runs the parent `run` after a matched subcommand (see
-    // root.ts), so this fires on every `aomi schedule …`.
-    console.error("`aomi schedule` is deprecated — use `aomi cron`.");
-    if (!rawArgs.some((arg) => !arg.startsWith("-"))) {
-      console.error("Run `aomi cron --help` for usage.");
-    }
-  },
-  subCommands: cronSubCommands,
 });

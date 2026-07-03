@@ -12,7 +12,7 @@ const baseConfig = {
   secrets: {},
 };
 
-describe("aomi account login", () => {
+describe("aomi login --provider privy (provider connect flow)", () => {
   let stateDir: string;
 
   beforeEach(() => {

@@ -65,7 +65,7 @@ aomi chat <message>                 Send a message
 aomi tx list                        List pending/signed transactions
 aomi tx simulate <id>...            Simulate a batch
 aomi tx sign <id>...                Sign and submit
-aomi session list|new|resume|delete|status|log|events|close
+aomi thread list|new|resume|delete|status|log|events|close
 aomi model list|set|current
 aomi app list|current
 aomi chain list
@@ -79,7 +79,7 @@ Run this once at the start of the session:
 ```bash
 aomi --version
 aomi --prompt "hello" --new-session
-aomi session status 2>/dev/null || echo "no session"
+aomi thread status 2>/dev/null || echo "no session"
 ```
 
 If the user is asking for a read-only result, that may be enough. If they want
@@ -91,7 +91,7 @@ to build or sign a transaction, continue with the workflow below.
 2. If the agent asks whether to proceed, send a short confirmation in the same session.
 3. Review pending requests with `aomi tx list`.
 4. Sign the queued request with `aomi tx sign <id>`.
-5. Verify with `aomi tx list`, `aomi session log`, or `aomi session status`.
+5. Verify with `aomi tx list`, `aomi thread log`, or `aomi thread status`.
 
 The CLI output is the source of truth. If you do not see `Wallet request queued:
 tx-N`, there is nothing to sign yet.
@@ -108,17 +108,17 @@ aomi
 aomi chat "<message>" --new-session
 aomi chat "<message>" --verbose
 aomi tx list
-aomi session log
-aomi session status
-aomi session events
+aomi thread log
+aomi thread status
+aomi thread events
 aomi --version
 aomi app list
 aomi app current
 aomi model list
 aomi model current
 aomi chain list
-aomi session list
-aomi session resume <id>
+aomi thread list
+aomi thread resume <id>
 ```
 
 Notes:
@@ -131,7 +131,7 @@ Notes:
 - Pass `--public-key` on the first wallet-aware chat if the backend needs the user's address.
 - For chain-specific requests, prefer `--chain <id>` on the command itself. Use `AOMI_CHAIN_ID=<id>` only when multiple consecutive commands should stay on the same chain.
 - Use `aomi secret list` to inspect configured secret handles for the active session.
-- `aomi session close` wipes the active local session pointer and starts a fresh thread next time.
+- `aomi thread close` wipes the active local session pointer and starts a fresh thread next time.
 
 ### Secret Ingestion
 
@@ -313,14 +313,14 @@ More signing notes:
 ### Session And Storage Notes
 
 - Active session, app, model, chain, pending txs, and signed txs are stored locally under `AOMI_STATE_DIR` or `~/.aomi`.
-- Session files live under `~/.aomi/sessions/` by default and get local IDs like `session-1`.
+- Session files live under `~/.aomi/sessions/` by default and get local IDs like `thread-1`.
 - Useful commands:
 
 ```bash
-aomi session list
-aomi session resume <id>
-aomi session delete <id>
-aomi session close
+aomi thread list
+aomi thread resume <id>
+aomi thread delete <id>
+aomi thread close
 ```
 
 ## Reference: Commands
@@ -357,21 +357,21 @@ aomi tx sign <id> [<id> ...]
 ### Session Commands
 
 ```bash
-aomi session list
-aomi session new
-aomi session resume <id>
-aomi session delete <id>
-aomi session status
-aomi session log
-aomi session events
-aomi session close
+aomi thread list
+aomi thread new
+aomi thread resume <id>
+aomi thread delete <id>
+aomi thread status
+aomi thread log
+aomi thread events
+aomi thread close
 ```
 
-- `aomi session status` shows the current session summary.
-- `aomi session log` replays conversation and tool output.
-- `aomi session events` shows raw backend system events.
-- `aomi session close` clears the active local session pointer. The next chat starts fresh.
-- Session selectors accept the backend session ID, `session-N`, or `N`.
+- `aomi thread status` shows the current session summary.
+- `aomi thread log` replays conversation and tool output.
+- `aomi thread events` shows raw backend system events.
+- `aomi thread close` clears the active local session pointer. The next chat starts fresh.
+- Session selectors accept the backend session ID, `thread-N`, or `N`.
 
 ### Secret Commands
 
@@ -642,7 +642,7 @@ AA configuration is supplied per-invocation via flags or environment variables (
 
 ```bash
 aomi chat "what is the price of ETH?" --verbose
-aomi session log
+aomi thread log
 ```
 
 ### Basic Swap Flow
@@ -666,7 +666,7 @@ aomi tx sign tx-1
 
 # 5. Verify
 aomi tx list
-aomi session log
+aomi thread log
 ```
 
 ### Approve + Swap With Simulation
@@ -776,15 +776,15 @@ aomi tx sign tx-8 --rpc-url https://polygon.drpc.org --chain 137
 ### Session Control
 
 ```bash
-aomi session list
-aomi session resume 2
-aomi session status
-aomi session close
+aomi thread list
+aomi thread resume 2
+aomi thread status
+aomi thread close
 ```
 
 ## Troubleshooting
 
-- If `aomi chat` returns `(no response)`, wait briefly and run `aomi session status`.
+- If `aomi chat` returns `(no response)`, wait briefly and run `aomi thread status`.
 - If AA signing fails, the CLI tries the alternative AA mode automatically. If both modes fail, it returns an error suggesting `--eoa`. Read the console output before retrying manually.
 - If AA is required and fails, check `ALCHEMY_API_KEY` or `PIMLICO_API_KEY`, the selected chain, and any requested `--aa-mode`.
 - If a transaction fails on-chain, check the RPC URL, balance, and chain.

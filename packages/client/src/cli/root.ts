@@ -1,7 +1,7 @@
 import { defineCommand } from "citty";
 import { chatDef } from "./commands/defs/chat";
 import { txDef } from "./commands/defs/tx";
-import { threadDef, sessionDef } from "./commands/defs/thread";
+import { threadDef } from "./commands/defs/thread";
 import { modelDef } from "./commands/defs/model";
 import { appDef } from "./commands/defs/app";
 import { chainDef } from "./commands/defs/chain";
@@ -10,8 +10,7 @@ import { configDef } from "./commands/defs/config";
 import { secretDef } from "./commands/defs/secret";
 import { accountDef } from "./commands/defs/account";
 import { loginDef, logoutDef } from "./commands/defs/login";
-import { deployDef } from "./commands/defs/deploy";
-import { cronDef, scheduleDef } from "./commands/defs/cron";
+import { cronDef } from "./commands/defs/cron";
 import { globalArgs } from "./commands/defs/shared";
 import packageJson from "../../package.json";
 
@@ -19,7 +18,6 @@ export const SUBCOMMAND_NAMES = new Set([
   "chat",
   "tx",
   "thread",
-  "session",
   "model",
   "app",
   "chain",
@@ -29,9 +27,7 @@ export const SUBCOMMAND_NAMES = new Set([
   "account",
   "login",
   "logout",
-  "deploy",
   "cron",
-  "schedule",
 ]);
 
 export const root = defineCommand({
@@ -73,7 +69,6 @@ export const root = defineCommand({
     chat: chatDef,
     tx: txDef,
     thread: threadDef,
-    session: sessionDef,
     model: modelDef,
     app: appDef,
     chain: chainDef,
@@ -83,8 +78,6 @@ export const root = defineCommand({
     account: accountDef,
     login: loginDef,
     logout: logoutDef,
-    deploy: deployDef,
     cron: cronDef,
-    schedule: scheduleDef,
   },
 });

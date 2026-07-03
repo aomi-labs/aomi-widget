@@ -88,39 +88,19 @@ const threadCloseDef = defineCommand({
   },
 });
 
-const threadSubCommands = {
-  list: threadListDef,
-  new: threadNewDef,
-  resume: threadResumeDef,
-  delete: threadDeleteDef,
-  status: threadStatusDef,
-  log: threadLogDef,
-  events: threadEventsDef,
-  close: threadCloseDef,
-};
-
 export const threadDef = defineCommand({
   meta: {
     name: "thread",
     description: "Threads — conversations with the agent",
   },
-  subCommands: threadSubCommands,
-});
-
-/** Deprecated alias — same subcommands as `aomi thread`, kept one release. */
-export const sessionDef = defineCommand({
-  meta: {
-    name: "session",
-    description: "(deprecated) use `aomi thread`",
+  subCommands: {
+    list: threadListDef,
+    new: threadNewDef,
+    resume: threadResumeDef,
+    delete: threadDeleteDef,
+    status: threadStatusDef,
+    log: threadLogDef,
+    events: threadEventsDef,
+    close: threadCloseDef,
   },
-  run({ rawArgs }) {
-    // citty 0.2.2 runs the parent `run` after a matched subcommand (see
-    // root.ts), so this fires on every `aomi session …` — exactly where the
-    // deprecation nudge belongs.
-    console.error("`aomi session` is deprecated — use `aomi thread`.");
-    if (!rawArgs.some((arg) => !arg.startsWith("-"))) {
-      console.error("Run `aomi thread --help` for usage.");
-    }
-  },
-  subCommands: threadSubCommands,
 });

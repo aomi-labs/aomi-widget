@@ -129,15 +129,15 @@ npx @aomi-labs/client --provider-key anthropic:sk-ant-... --prompt "hello"
 npx @aomi-labs/client app list                           # list available apps
 npx @aomi-labs/client model list                         # list available models
 npx @aomi-labs/client model set claude-sonnet-4          # switch the current session model
-npx @aomi-labs/client session new                        # create a fresh active session
+npx @aomi-labs/client thread new                        # create a fresh active session
 npx @aomi-labs/client secret list                        # list configured secret handles
 npx @aomi-labs/client secret add ALCHEMY_API_KEY=...     # ingest a secret for the active session
-npx @aomi-labs/client session log                        # show full conversation history
+npx @aomi-labs/client thread log                        # show full conversation history
 npx @aomi-labs/client tx list                            # list pending + signed txs
 npx @aomi-labs/client tx sign tx-1                       # sign a specific pending tx
-npx @aomi-labs/client session status                     # session info
-npx @aomi-labs/client session events                     # system events
-npx @aomi-labs/client session close                      # clear session
+npx @aomi-labs/client thread status                     # session info
+npx @aomi-labs/client thread events                     # system events
+npx @aomi-labs/client thread close                      # clear session
 ```
 
 The root command now mirrors the Rust CLI shape:
@@ -178,7 +178,7 @@ session instead of reusing the currently active one:
 ```bash
 $ npx @aomi-labs/client chat "show my balances" --new-session
 $ npx @aomi-labs/client secret add ALCHEMY_API_KEY=... --new-session
-$ npx @aomi-labs/client session new
+$ npx @aomi-labs/client thread new
 ```
 
 This is useful when starting a new operator flow or a new external chat thread
@@ -299,10 +299,10 @@ $ npx @aomi-labs/client chat "what's the price of ETH?" --verbose
 
 Without `--verbose`, only the final agent message is printed.
 
-Use `aomi session log` to replay the full conversation with all messages and tool results:
+Use `aomi thread log` to replay the full conversation with all messages and tool results:
 
 ```
-$ npx @aomi-labs/client session log
+$ npx @aomi-labs/client thread log
 10:30:15 AM 👤 You: what's the price of ETH?
 10:30:16 AM 🤖 Agent: Let me check the current on-chain context for you.
 10:30:16 AM 🔧 [Current ETH price] {"price": 2045.67, "symbol": "ETH"}
