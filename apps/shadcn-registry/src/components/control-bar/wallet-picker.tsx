@@ -125,64 +125,16 @@ function isGenericBrowserWallet(
   );
 }
 
-function linkedProviderWalletRow(wallet: LinkedWalletRow): WalletModalRow {
-  const providerLabel =
-    (wallet.provider
-      ? (formatWalletProvider(wallet.provider) ?? wallet.provider)
-      : undefined) ?? "Wallet";
-  return {
-    id: wallet.id,
-    family: wallet.family,
-    address: wallet.address,
-    chainId: wallet.chainId ?? chainIdFromScope(wallet.chainScope),
-    label:
-      wallet.label ?? formatWalletAddress(wallet.address) ?? wallet.address,
-    walletName: providerLabel,
-    source: "stored",
-    status: "connected",
-    provider: wallet.provider,
-    walletKind: wallet.kind,
-    linked: true,
-    linkedVia: wallet.linkedVia,
-    capability: wallet.capability,
-    actions: [],
-  };
-}
-
 function buildConnectedWalletRows(
   walletRows: readonly WalletModalRow[],
-  accountWallets: readonly LinkedWalletRow[] | undefined,
   identity: AomiWalletKit["identity"],
 ): WalletModalRow[] {
   if (!identity.isConnected) return [];
-  const connected = walletRows.filter(
+  return walletRows.filter(
     (row) =>
       row.source === "live" &&
       (row.status === "active" || row.status === "connected"),
   );
-  const providers = new Set(
-    [
-      identity.embeddedProvider,
-      identity.sessionProvider,
-      identity.walletProvider,
-    ].filter((provider): provider is string => Boolean(provider)),
-  );
-  if (!providers.size) return connected;
-
-  const promoted: WalletModalRow[] = [];
-  for (const wallet of accountWallets ?? []) {
-    const provider = providerBackedAccountProvider(wallet);
-    if (!provider || !providers.has(provider)) continue;
-    const alreadyConnected = [...connected, ...promoted].some(
-      (row) =>
-        row.family === wallet.family &&
-        sameWalletAddress(wallet.family, row.address, wallet.address),
-    );
-    if (alreadyConnected) continue;
-    promoted.push(linkedProviderWalletRow(wallet));
-  }
-
-  return [...connected, ...promoted];
 }
 
 function dedupeWalletActions(actions: readonly WalletAction[]): WalletAction[] {
@@ -280,9 +232,8 @@ export function WalletPicker() {
 
   const walletRows = adapter.walletModalRows ?? [];
   const connectedAccounts = useMemo(
-    () =>
-      buildConnectedWalletRows(walletRows, adapter.accountWallets, identity),
-    [adapter.accountWallets, identity, walletRows],
+    () => buildConnectedWalletRows(walletRows, identity),
+    [identity, walletRows],
   );
   const canManageAccounts = Boolean(
     adapter.openAccountUI && adapter.canOpenAccountUI,
@@ -469,8 +420,8 @@ export function WalletPicker() {
     [walletActions],
   );
   const providerSignInOptions = useMemo(
-    () => filterQuickSignInOptions(socialLoginOptions),
-    [socialLoginOptions],
+    () => filterQuickSignInOptions(socialLoginOptions, identity.walletProvider),
+    [identity.walletProvider, socialLoginOptions],
   );
   const providerSubtitle =
     identity.secondaryLabel ?? formatAuthMethod(identity.authProvider);
@@ -966,17 +917,24 @@ function SectionLabel({ children }: { children: string }) {
 
 function filterQuickSignInOptions(
   options: readonly WalletAction[],
+  authProvider?: string,
 ): WalletAction[] {
   const providerAuthOptions = new Set(
     options
       .filter((option) => option.kind === "social")
-      .map((option) => quickSignInProvider(option))
+      .map((option) => quickSignInProvider(option, authProvider))
       .filter((provider): provider is string => provider !== null),
   );
+  const seenSocialProviders = new Set<string>();
   const seenStoredProviders = new Set<string>();
 
   return options.filter((option) => {
-    const provider = quickSignInProvider(option);
+    const provider = quickSignInProvider(option, authProvider);
+    if (option.kind === "social" && provider !== null) {
+      if (seenSocialProviders.has(provider)) return false;
+      seenSocialProviders.add(provider);
+      return true;
+    }
     const storedProviderAuth =
       option.source === "stored" &&
       provider !== null &&
@@ -990,9 +948,12 @@ function filterQuickSignInOptions(
   });
 }
 
-function quickSignInProvider(option: WalletAction): string | null {
+function quickSignInProvider(
+  option: WalletAction,
+  authProvider?: string,
+): string | null {
   if (option.kind === "social") {
-    return option.provider ?? option.id;
+    return option.provider ?? authProvider ?? option.id;
   }
   return option.provider ?? null;
 }
@@ -1677,7 +1638,15 @@ function LinkedWalletManagementRow({
   onSubmitRename: () => void;
   onUnlink?: () => void;
 }) {
-  const title = wallet.label ?? "Wallet";
+  const providerTitle = providerBackedAccountProvider(wallet)
+    ? providerBackedWalletTitle({
+        provider: wallet.provider,
+        walletName: wallet.label,
+        family: wallet.family,
+        kind: wallet.kind,
+      })
+    : null;
+  const title = wallet.label ?? providerTitle ?? "Wallet";
   const busy =
     pending === `wallet:rename:${wallet.id}` ||
     pending === `wallet:unlink:${wallet.id}`;

@@ -7,9 +7,14 @@ import {
   type AttestedWallet,
   type WalletAttesterRegistry,
 } from "../src/providers/wallet-attestation";
-import { fetchAttestedProviderWallets } from "../src/service/account-service";
+import {
+  fetchAttestedProviderWallets,
+  mergeProviderWalletAttestations,
+} from "../src/service/account-service";
 
 const EVM = "0x1111111111111111111111111111111111111111";
+const EVM2 = "0x2222222222222222222222222222222222222222";
+const SOL = "53GfEkka7UYR9KsM6ePWSNfbW678grShT41uZMjXAvoL";
 
 const baseEnv: AccountAuthEnv = {
   betterAuthSecret: "secret",
@@ -77,6 +82,69 @@ describe("fetchAttestedProviderWallets", () => {
       expect.stringContaining("failed to list custom wallets"),
       error,
     );
+  });
+});
+
+describe("mergeProviderWalletAttestations", () => {
+  it("keeps provider API rows and fills missing token-attested wallets", () => {
+    expect(
+      mergeProviderWalletAttestations(
+        [
+          {
+            provider: "para",
+            providerWalletId: "api-evm",
+            family: "evm",
+            address: EVM,
+            chainScope: null,
+          },
+        ],
+        [
+          {
+            provider: "para",
+            providerWalletId: "token-evm",
+            family: "evm",
+            address: `0x${EVM.slice(2).toUpperCase()}`,
+            chainScope: null,
+          },
+          {
+            provider: "para",
+            providerWalletId: "token-svm",
+            family: "svm",
+            address: SOL,
+            chainScope: null,
+          },
+          {
+            provider: "para",
+            providerWalletId: "token-evm-2",
+            family: "evm",
+            address: EVM2,
+            chainScope: null,
+          },
+        ],
+      ),
+    ).toEqual([
+      {
+        provider: "para",
+        providerWalletId: "api-evm",
+        family: "evm",
+        address: EVM,
+        chainScope: null,
+      },
+      {
+        provider: "para",
+        providerWalletId: "token-svm",
+        family: "svm",
+        address: SOL,
+        chainScope: null,
+      },
+      {
+        provider: "para",
+        providerWalletId: "token-evm-2",
+        family: "evm",
+        address: EVM2,
+        chainScope: null,
+      },
+    ]);
   });
 });
 

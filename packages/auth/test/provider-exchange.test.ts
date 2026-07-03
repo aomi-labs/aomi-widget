@@ -1,9 +1,17 @@
 // @vitest-environment node
 
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mockState = vi.hoisted(() => ({
   getOrCreateError: null as Error | null,
+  syncResolution: { status: "noop" } as
+    | { status: "linked" }
+    | { status: "noop" }
+    | {
+        status: "conflict";
+        reason: "already_linked_to_another_account";
+        signalType: "wallet" | "identity" | "email";
+      },
 }));
 
 vi.mock("../src/providers/account-credentials", () => ({
@@ -38,7 +46,7 @@ vi.mock("../src/service/account-service", () => ({
       error.message === "identity_already_linked_to_another_account",
   ),
   linkProviderIdentity: vi.fn(async () => ({ status: "linked" })),
-  syncProviderAttestedWallets: vi.fn(async () => undefined),
+  syncProviderAttestedWallets: vi.fn(async () => mockState.syncResolution),
 }));
 
 vi.mock("../src/db/queries", () => ({
@@ -50,9 +58,15 @@ vi.mock("../src/db/queries", () => ({
   })),
   findAomiUserByBetterAuthId: vi.fn(),
   findAomiUserById: vi.fn(async () => ({ id: "user-1" })),
+  withTransaction: vi.fn(async (fn) => fn({})),
 }));
 
 describe("exchangeProviderForExistingSession", () => {
+  beforeEach(() => {
+    mockState.getOrCreateError = null;
+    mockState.syncResolution = { status: "noop" };
+  });
+
   it("returns a handled conflict for better_auth identity collisions", async () => {
     mockState.getOrCreateError = new Error(
       "identity_already_linked_to_another_account",
@@ -72,6 +86,30 @@ describe("exchangeProviderForExistingSession", () => {
       status: "conflict",
       reason: "already_linked_to_another_account",
       signalType: "identity",
+    });
+  });
+
+  it("returns a handled conflict when an attested provider wallet belongs to another account", async () => {
+    mockState.syncResolution = {
+      status: "conflict",
+      reason: "already_linked_to_another_account",
+      signalType: "wallet",
+    };
+    const { exchangeProviderForExistingSession } =
+      await import("../src/service/provider-exchange");
+
+    await expect(
+      exchangeProviderForExistingSession({
+        betterAuthUserId: "ba-user-1",
+        credential: {
+          provider: "privy",
+          providerToken: "token",
+        },
+      }),
+    ).resolves.toEqual({
+      status: "conflict",
+      reason: "already_linked_to_another_account",
+      signalType: "wallet",
     });
   });
 });

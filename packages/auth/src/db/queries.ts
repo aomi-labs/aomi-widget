@@ -1,7 +1,5 @@
-import { readFileSync } from "node:fs";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
-import type { Pool, PoolClient, QueryResult } from "pg";
+import { randomUUID } from "node:crypto";
+import type { Pool, PoolClient } from "pg";
 import { pool as defaultPool } from "./pool";
 import type {
   AccountWallet,
@@ -18,39 +16,17 @@ import type {
   WalletFamily,
   WalletKind,
 } from "../types";
-import {
-  caip10,
-  normalizeWalletAddress,
-} from "../service/wallet-normalization";
+import { normalizeWalletAddress } from "../service/wallet-normalization";
 
 type Db = Pool | PoolClient;
 type Row = Record<string, unknown>;
 
-function readSchemaSql(): string {
-  try {
-    return readFileSync(
-      fileURLToPath(new URL("./schema.sql", import.meta.url)),
-      "utf8",
-    );
-  } catch {
-    for (const candidate of [
-      path.resolve(process.cwd(), "../../packages/auth/src/db/schema.sql"),
-      path.resolve(process.cwd(), "packages/auth/src/db/schema.sql"),
-    ]) {
-      try {
-        return readFileSync(candidate, "utf8");
-      } catch {
-        // Try the next monorepo-relative location.
-      }
-    }
-    throw new Error("Could not load Aomi auth schema.sql");
-  }
-}
+const BETTER_AUTH_PROVIDER = "betterauth";
 
-const schemaSql = readSchemaSql();
-
-export async function runAomiAuthSchema(db: Db = defaultPool): Promise<void> {
-  await db.query(schemaSql);
+export async function runAomiAuthSchema(_db: Db = defaultPool): Promise<void> {
+  // AUTH-001: account-link state lives in the backend canonical schema
+  // (`users`, `auth_providers`, `public_keys`). BetterAuth creates its own
+  // session tables; db-master/product-mono migrations create the canonical graph.
 }
 
 export async function withTransaction<T>(
@@ -75,24 +51,18 @@ export async function findAomiUserByBetterAuthId(
   betterAuthUserId: BetterAuthUserId,
   db: Db = defaultPool,
 ): Promise<DbAomiUser | null> {
-  const direct = await db.query(
-    `select * from aomi_users
-     where better_auth_user_id = $1 and deactivated_at is null
-     limit 1`,
-    [betterAuthUserId],
+  const result = await db.query(
+    `select u.*
+       from auth_providers ap
+       join users u on u.id = ap.user_id
+      where ap.provider = any($1::text[])
+        and ap.subject = $2
+        and coalesce(u.status, '') <> 'deactivated'
+      order by ap.is_primary desc, ap.created_at asc
+      limit 1`,
+    [[BETTER_AUTH_PROVIDER, "better_auth"], betterAuthUserId],
   );
-  if (direct.rows[0]) return mapUser(direct.rows[0]);
-  const identity = await db.query(
-    `select u.* from aomi_auth_identities i
-     join aomi_users u on u.id = i.user_id
-     where i.provider = 'better_auth'
-       and i.subject = $1
-       and i.revoked_at is null
-       and u.deactivated_at is null
-     limit 1`,
-    [betterAuthUserId],
-  );
-  return identity.rows[0] ? mapUser(identity.rows[0]) : null;
+  return result.rows[0] ? mapUser(result.rows[0]) : null;
 }
 
 export async function findAomiUserById(
@@ -100,9 +70,9 @@ export async function findAomiUserById(
   db: Db = defaultPool,
 ): Promise<DbAomiUser | null> {
   const result = await db.query(
-    `select * from aomi_users
-     where id = $1 and deactivated_at is null
-     limit 1`,
+    `select * from users
+      where id = $1 and coalesce(status, '') <> 'deactivated'
+      limit 1`,
     [userId],
   );
   return result.rows[0] ? mapUser(result.rows[0]) : null;
@@ -118,45 +88,19 @@ export async function createAomiUserForBetterAuth(input: {
   db?: Db;
 }): Promise<DbAomiUser> {
   const db = input.db ?? defaultPool;
-  if (input.userId) {
-    const result = await db.query(
-      `insert into aomi_users
-         (id, better_auth_user_id, primary_email, display_name, avatar_url)
-       values ($1, $2, $3, $4, $5)
-       on conflict (id)
-       do update set
-         updated_at = now(),
-         better_auth_user_id = coalesce(aomi_users.better_auth_user_id, excluded.better_auth_user_id),
-         primary_email = coalesce(aomi_users.primary_email, excluded.primary_email),
-         display_name = coalesce(aomi_users.display_name, excluded.display_name),
-         avatar_url = coalesce(aomi_users.avatar_url, excluded.avatar_url)
-       returning *`,
-      [
-        input.userId,
-        input.betterAuthUserId,
-        input.email ?? null,
-        input.displayName ?? input.name ?? deriveDisplayName(input.email),
-        input.avatarUrl ?? null,
-      ],
-    );
-    return mapUser(result.rows[0]);
-  }
+  const userId = input.userId ?? randomUUID();
+  const now = nowSeconds();
   const result = await db.query(
-    `insert into aomi_users
-       (better_auth_user_id, primary_email, display_name, avatar_url)
-     values ($1, $2, $3, $4)
-     on conflict (better_auth_user_id)
-     do update set
-       updated_at = now(),
-       primary_email = coalesce(aomi_users.primary_email, excluded.primary_email),
-       display_name = coalesce(aomi_users.display_name, excluded.display_name),
-       avatar_url = coalesce(aomi_users.avatar_url, excluded.avatar_url)
+    `insert into users (id, username, created_at, updated_at)
+     values ($1, $2, $3, $3)
+     on conflict (id) do update set
+       username = coalesce(users.username, excluded.username),
+       updated_at = excluded.updated_at
      returning *`,
     [
-      input.betterAuthUserId,
-      input.email ?? null,
+      userId,
       input.displayName ?? input.name ?? deriveDisplayName(input.email),
-      input.avatarUrl ?? null,
+      now,
     ],
   );
   return mapUser(result.rows[0]);
@@ -166,63 +110,45 @@ export async function findLegacyBackendUserIdByWallet(
   normalizedAddress: string,
   db: Db = defaultPool,
 ): Promise<AomiUserId | null> {
-  try {
-    const publicKey = await db.query(
-      `select user_id from public_keys
-        where chain_type = 'evm'
-          and lower(address) = $1
-        limit 1`,
-      [normalizedAddress],
-    );
-    const publicKeyOwner =
-      (publicKey.rows[0]?.user_id as string | undefined) ?? null;
-    if (publicKeyOwner) return publicKeyOwner;
-  } catch (error) {
-    if (!isMissingRelation(error)) throw error;
-  }
+  const publicKey = await db.query(
+    `select user_id from public_keys
+      where chain_type = 'evm'
+        and lower(address) = $1
+      limit 1`,
+    [normalizedAddress],
+  );
+  const publicKeyOwner =
+    (publicKey.rows[0]?.user_id as string | undefined) ?? null;
+  if (publicKeyOwner) return publicKeyOwner;
 
-  try {
-    const provider = await db.query(
-      `select user_id from auth_providers
-        where provider = 'wallet'
-          and (lower(subject) = $1 or (method = 'wallet' and lower(value) = $1))
-        limit 1`,
-      [normalizedAddress],
-    );
-    return (provider.rows[0]?.user_id as string | undefined) ?? null;
-  } catch (error) {
-    if (!isMissingRelation(error)) throw error;
-  }
-  return null;
+  const provider = await db.query(
+    `select user_id from auth_providers
+      where provider in ('wallet', 'siwe')
+        and (lower(coalesce(subject, '')) = $1 or (method = 'wallet' and lower(value) = $1))
+      limit 1`,
+    [normalizedAddress],
+  );
+  return (provider.rows[0]?.user_id as string | undefined) ?? null;
 }
 
 export async function touchAomiUser(
   userId: AomiUserId,
   db: Db = defaultPool,
 ): Promise<void> {
-  await db.query("update aomi_users set updated_at = now() where id = $1", [
+  await db.query("update users set updated_at = $2 where id = $1", [
     userId,
+    nowSeconds(),
   ]);
 }
 
-export async function logAccountEvent(input: {
+export async function logAccountEvent(_input?: {
   userId?: AomiUserId | null;
   actorUserId?: AomiUserId | null;
   eventType: string;
   data?: Record<string, unknown>;
   db?: Db;
 }): Promise<void> {
-  const db = input.db ?? defaultPool;
-  await db.query(
-    `insert into aomi_account_events (user_id, actor_user_id, event_type, data)
-     values ($1, $2, $3, $4::jsonb)`,
-    [
-      input.userId ?? null,
-      input.actorUserId ?? input.userId ?? null,
-      input.eventType,
-      JSON.stringify(input.data ?? {}),
-    ],
-  );
+  // There is no canonical account-events table in the backend graph yet.
 }
 
 export async function findSignalOwner(
@@ -231,37 +157,42 @@ export async function findSignalOwner(
 ): Promise<AomiUserId | null> {
   if (signal.type === "wallet") {
     const result = await db.query(
-      `select user_id from aomi_wallets w
-       join aomi_users u on u.id = w.user_id
-       where w.family = $1
-         and w.normalized_address = $2
-         and coalesce(w.chain_scope, '*') = coalesce($3, '*')
-         and w.revoked_at is null
-         and u.deactivated_at is null
-       limit 1`,
-      [signal.family, signal.normalizedAddress, signal.chainScope],
+      `select pk.user_id
+         from public_keys pk
+         join users u on u.id = pk.user_id
+        where pk.chain_type = $1
+          and pk.address = $2
+          and coalesce(u.status, '') <> 'deactivated'
+        limit 1`,
+      [
+        canonicalChainType(signal.family),
+        canonicalAddress(signal.family, signal.normalizedAddress),
+      ],
     );
     return (result.rows[0]?.user_id as string | undefined) ?? null;
   }
   if (signal.type === "identity") {
     const result = await db.query(
-      `select i.user_id from aomi_auth_identities i
-       join aomi_users u on u.id = i.user_id
-       where i.provider = $1 and i.subject = $2
-         and i.revoked_at is null
-         and u.deactivated_at is null
-       limit 1`,
-      [signal.provider, signal.subject],
+      `select ap.user_id
+         from auth_providers ap
+         join users u on u.id = ap.user_id
+        where ap.provider = $1
+          and ap.subject = $2
+          and coalesce(u.status, '') <> 'deactivated'
+        limit 1`,
+      [canonicalProvider(signal.provider), signal.subject],
     );
     return (result.rows[0]?.user_id as string | undefined) ?? null;
   }
   const result = await db.query(
-    `select i.user_id from aomi_auth_identities i
-     join aomi_users u on u.id = i.user_id
-     where i.provider = 'email' and i.email = $1
-       and i.revoked_at is null
-       and u.deactivated_at is null
-     limit 1`,
+    `select ap.user_id
+       from auth_providers ap
+       join users u on u.id = ap.user_id
+      where ap.method = 'email'
+        and lower(ap.value) = lower($1)
+        and ap.verified_at is not null
+        and coalesce(u.status, '') <> 'deactivated'
+      limit 1`,
     [signal.email],
   );
   return (result.rows[0]?.user_id as string | undefined) ?? null;
@@ -273,12 +204,11 @@ export async function countLoginFactors(
 ): Promise<number> {
   const result = await db.query(
     `select
-       (select count(*)::int from aomi_wallets
-        where user_id = $1 and revoked_at is null)
+       (select count(*)::int from public_keys where user_id = $1)
        +
-       (select count(*)::int from aomi_auth_identities
-        where user_id = $1 and revoked_at is null
-          and provider not in ('better_auth', 'siwe', 'email')) as count`,
+       (select count(*)::int from auth_providers
+         where user_id = $1
+           and provider not in ('betterauth', 'better_auth', 'email', 'siwe', 'wallet')) as count`,
     [userId],
   );
   return Number(result.rows[0]?.count ?? 0);
@@ -294,25 +224,40 @@ export async function upsertAuthIdentity(input: {
   db?: Db;
 }): Promise<DbAomiAuthIdentity> {
   const db = input.db ?? defaultPool;
+  const provider = canonicalProvider(input.provider);
+  const now = nowSeconds();
+  const metadata = {
+    ...(input.providerMetadata ?? {}),
+    ...(input.displayLabel ? { display_label: input.displayLabel } : {}),
+    ...(input.email ? { email: input.email } : {}),
+  };
+  const method = provider === "email" ? "email" : provider;
+  const value =
+    provider === "email" ? (input.email ?? input.subject) : input.subject;
   const result = await db.query(
-    `insert into aomi_auth_identities
-       (user_id, provider, subject, email, display_label, provider_metadata)
-     values ($1, $2, $3, $4, $5, $6::jsonb)
-     on conflict (provider, subject) where revoked_at is null
+    `insert into auth_providers
+       (user_id, provider, subject, method, value, verified_at, is_primary,
+        provider_metadata, created_at, updated_at)
+     values ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9, $9)
+     on conflict (provider, subject) where subject is not null
      do update set
-       email = coalesce(excluded.email, aomi_auth_identities.email),
-       display_label = coalesce(excluded.display_label, aomi_auth_identities.display_label),
-       provider_metadata = aomi_auth_identities.provider_metadata || excluded.provider_metadata,
-       last_seen_at = now()
-     where aomi_auth_identities.user_id = excluded.user_id
+       value = excluded.value,
+       verified_at = coalesce(auth_providers.verified_at, excluded.verified_at),
+       is_primary = auth_providers.is_primary or excluded.is_primary,
+       provider_metadata = auth_providers.provider_metadata || excluded.provider_metadata,
+       updated_at = excluded.updated_at
+     where auth_providers.user_id = excluded.user_id
      returning *`,
     [
       input.userId,
-      input.provider,
+      provider,
       input.subject,
-      input.email ?? null,
-      input.displayLabel ?? null,
-      JSON.stringify(input.providerMetadata ?? {}),
+      method,
+      value.trim(),
+      now,
+      provider === BETTER_AUTH_PROVIDER,
+      JSON.stringify(metadata),
+      now,
     ],
   );
   if (!result.rows[0]) {
@@ -342,12 +287,22 @@ export async function revokeAuthIdentity(input: {
   db?: Db;
 }): Promise<boolean> {
   const db = input.db ?? defaultPool;
+  const identity = await db.query(
+    `select id from auth_providers
+      where user_id = $1 and provider = $2 and subject = $3
+      limit 1`,
+    [input.userId, canonicalProvider(input.provider), input.subject],
+  );
+  const identityId = identity.rows[0]?.id;
+  if (identityId != null) {
+    await db.query(`delete from public_keys where auth_provider_id = $1`, [
+      Number(identityId),
+    ]);
+  }
   const result = await db.query(
-    `update aomi_auth_identities
-     set revoked_at = now(), last_seen_at = now()
-     where user_id = $1 and provider = $2 and subject = $3
-       and revoked_at is null`,
-    [input.userId, input.provider, input.subject],
+    `delete from auth_providers
+      where user_id = $1 and provider = $2 and subject = $3`,
+    [input.userId, canonicalProvider(input.provider), input.subject],
   );
   return (result.rowCount ?? 0) > 0;
 }
@@ -360,11 +315,15 @@ export async function clearAomiBetterAuthUserIds(input: {
   if (input.betterAuthUserIds.length === 0) return false;
   const db = input.db ?? defaultPool;
   const result = await db.query(
-    `update aomi_users
-     set better_auth_user_id = null, updated_at = now()
-     where id = $1
-       and better_auth_user_id = any($2::text[])`,
-    [input.userId, [...input.betterAuthUserIds]],
+    `delete from auth_providers
+      where user_id = $1
+        and provider = any($2::text[])
+        and subject = any($3::text[])`,
+    [
+      input.userId,
+      [BETTER_AUTH_PROVIDER, "better_auth"],
+      [...input.betterAuthUserIds],
+    ],
   );
   return (result.rowCount ?? 0) > 0;
 }
@@ -377,48 +336,54 @@ export async function upsertWallet(input: {
   chainScope?: string | null;
   kind: WalletKind;
   provider?: string | null;
+  providerSubject?: string | null;
   providerWalletId?: string | null;
   linkedVia: LinkedVia;
   label?: string | null;
   db?: Db;
 }): Promise<DbAomiWallet> {
   const db = input.db ?? defaultPool;
-  const normalized = normalizeWalletAddress(input.family, input.address);
+  const chainType = canonicalChainType(input.family);
+  const address = canonicalAddress(input.family, input.address);
+  const authProvider = await resolveWalletAuthProvider(input, db);
+  const now = nowSeconds();
+
   const result = await db.query(
-    `insert into aomi_wallets
-       (user_id, family, address, normalized_address, caip10, chain_scope, kind,
-        provider, provider_wallet_id, linked_via, label)
-     values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
-     on conflict (family, normalized_address, coalesce(chain_scope, '*')) where revoked_at is null
+    `insert into public_keys
+       (chain_type, address, user_id, auth_provider_id, is_primary, created_at, updated_at)
+     values ($1, $2, $3, $4, $5, $6, $6)
+     on conflict (chain_type, address)
      do update set
-       address = excluded.address,
-       caip10 = excluded.caip10,
-       kind = excluded.kind,
-       provider = excluded.provider,
-       provider_wallet_id = excluded.provider_wallet_id,
-       linked_via = excluded.linked_via,
-       label = coalesce(aomi_wallets.label, excluded.label),
-       last_seen_at = now()
-     where aomi_wallets.user_id = excluded.user_id
+       user_id = excluded.user_id,
+       auth_provider_id = excluded.auth_provider_id,
+       is_primary = excluded.is_primary,
+       updated_at = excluded.updated_at
+     where public_keys.user_id = excluded.user_id
      returning *`,
-    [
-      input.userId,
-      input.family,
-      input.address,
-      normalized,
-      caip10(input),
-      input.chainScope ?? null,
-      input.kind,
-      input.provider ?? null,
-      input.providerWalletId ?? null,
-      input.linkedVia,
-      input.label ?? null,
-    ],
+    [chainType, address, input.userId, authProvider?.id ?? null, false, now],
   );
   if (!result.rows[0]) {
     throw new Error("wallet_already_linked_to_another_account");
   }
-  return mapWallet(result.rows[0]);
+  if (input.kind !== "external" && input.family === "evm") {
+    const provider = canonicalProvider(input.provider ?? input.linkedVia);
+    if (provider !== "siwe") {
+      await db.query(
+        `delete from auth_providers ap
+          where ap.user_id = $1
+            and ap.provider = 'siwe'
+            and ap.subject = $2
+            and not exists (
+              select 1 from public_keys pk where pk.auth_provider_id = ap.id
+            )`,
+        [input.userId, siweSubject(input.address)],
+      );
+    }
+  }
+  return mapWallet(
+    result.rows[0],
+    authProvider?.provider ?? input.provider ?? null,
+  );
 }
 
 export async function listIdentitiesForUser(
@@ -426,9 +391,9 @@ export async function listIdentitiesForUser(
   db: Db = defaultPool,
 ): Promise<DbAomiAuthIdentity[]> {
   const result = await db.query(
-    `select * from aomi_auth_identities
-     where user_id = $1 and revoked_at is null
-     order by linked_at asc`,
+    `select * from auth_providers
+      where user_id = $1
+      order by is_primary desc, created_at asc`,
     [userId],
   );
   return result.rows.map(mapIdentity);
@@ -439,12 +404,18 @@ export async function listWalletsForUser(
   db: Db = defaultPool,
 ): Promise<DbAomiWallet[]> {
   const result = await db.query(
-    `select * from aomi_wallets
-     where user_id = $1 and revoked_at is null
-     order by verified_at asc`,
+    `select pk.*,
+            ap.provider as wallet_provider,
+            ap.provider_metadata as wallet_provider_metadata
+       from public_keys pk
+       left join auth_providers ap on ap.id = pk.auth_provider_id
+      where pk.user_id = $1
+      order by pk.is_primary desc, pk.created_at asc`,
     [userId],
   );
-  return result.rows.map(mapWallet);
+  return result.rows.map((row) =>
+    mapWallet(row, (row.wallet_provider as string | undefined) ?? null),
+  );
 }
 
 export async function updateAomiUserProfile(input: {
@@ -456,19 +427,15 @@ export async function updateAomiUserProfile(input: {
 }): Promise<DbAomiUser> {
   const db = input.db ?? defaultPool;
   const result = await db.query(
-    `update aomi_users
-     set display_name = coalesce($2, display_name),
-         primary_email = coalesce($3, primary_email),
-         avatar_url = case when $4 then $5 else avatar_url end,
-         updated_at = now()
-     where id = $1 and deactivated_at is null
-     returning *`,
+    `update users
+        set username = coalesce($2, username),
+            updated_at = $3
+      where id = $1
+      returning *`,
     [
       input.userId,
-      input.displayName ?? null,
-      input.primaryEmail ?? null,
-      input.avatarUrl !== undefined,
-      input.avatarUrl ?? null,
+      input.displayName ?? input.primaryEmail ?? null,
+      nowSeconds(),
     ],
   );
   return mapUser(result.rows[0]);
@@ -480,13 +447,11 @@ export async function deactivateAomiUser(input: {
 }): Promise<DbAomiUser | null> {
   const db = input.db ?? defaultPool;
   const result = await db.query(
-    `update aomi_users
-     set deactivated_at = now(),
-         better_auth_user_id = null,
-         updated_at = now()
-     where id = $1 and deactivated_at is null
-     returning *`,
-    [input.userId],
+    `update users
+        set status = 'deactivated', updated_at = $2
+      where id = $1 and coalesce(status, '') <> 'deactivated'
+      returning *`,
+    [input.userId, nowSeconds()],
   );
   return result.rows[0] ? mapUser(result.rows[0]) : null;
 }
@@ -496,10 +461,8 @@ export async function findAuthIdentityById(
   db: Db = defaultPool,
 ): Promise<DbAomiAuthIdentity | null> {
   const result = await db.query(
-    `select * from aomi_auth_identities
-     where id = $1 and revoked_at is null
-     limit 1`,
-    [identityId],
+    `select * from auth_providers where id = $1 limit 1`,
+    [Number(identityId)],
   );
   return result.rows[0] ? mapIdentity(result.rows[0]) : null;
 }
@@ -512,11 +475,17 @@ export async function updateAuthIdentityLabel(input: {
 }): Promise<DbAomiAuthIdentity | null> {
   const db = input.db ?? defaultPool;
   const result = await db.query(
-    `update aomi_auth_identities
-     set display_label = $3, last_seen_at = now()
-     where id = $1 and user_id = $2 and revoked_at is null
-     returning *`,
-    [input.identityId, input.userId, input.displayLabel],
+    `update auth_providers
+        set provider_metadata = provider_metadata || $3::jsonb,
+            updated_at = $4
+      where id = $1 and user_id = $2
+      returning *`,
+    [
+      Number(input.identityId),
+      input.userId,
+      JSON.stringify({ display_label: input.displayLabel }),
+      nowSeconds(),
+    ],
   );
   return result.rows[0] ? mapIdentity(result.rows[0]) : null;
 }
@@ -528,14 +497,24 @@ export async function updateWalletLabel(input: {
   db?: Db;
 }): Promise<DbAomiWallet | null> {
   const db = input.db ?? defaultPool;
-  const result = await db.query(
-    `update aomi_wallets
-     set label = $3, last_seen_at = now()
-     where id = $1 and user_id = $2 and revoked_at is null
-     returning *`,
-    [input.walletId, input.userId, input.label],
+  await db.query(
+    `update auth_providers ap
+        set provider_metadata = provider_metadata || $3::jsonb,
+            updated_at = $4
+       from public_keys pk
+      where pk.auth_provider_id = ap.id
+        and pk.id = $1
+        and pk.user_id = $2`,
+    [
+      Number(input.walletId),
+      input.userId,
+      JSON.stringify({ display_label: input.label }),
+      nowSeconds(),
+    ],
   );
-  return result.rows[0] ? mapWallet(result.rows[0]) : null;
+  const wallet = await findWalletById(input.walletId, db);
+  if (!wallet || wallet.userId !== input.userId) return null;
+  return wallet;
 }
 
 export async function revokeWallet(input: {
@@ -545,10 +524,8 @@ export async function revokeWallet(input: {
 }): Promise<boolean> {
   const db = input.db ?? defaultPool;
   const result = await db.query(
-    `update aomi_wallets
-     set revoked_at = now(), last_seen_at = now()
-     where id = $1 and user_id = $2 and revoked_at is null`,
-    [input.walletId, input.userId],
+    `delete from public_keys where id = $1 and user_id = $2`,
+    [Number(input.walletId), input.userId],
   );
   return (result.rowCount ?? 0) > 0;
 }
@@ -558,10 +535,15 @@ export async function revokeAllAuthIdentitiesForUser(input: {
   db?: Db;
 }): Promise<number> {
   const db = input.db ?? defaultPool;
+  await db.query(
+    `delete from public_keys
+      where auth_provider_id in (
+        select id from auth_providers where user_id = $1
+      )`,
+    [input.userId],
+  );
   const result = await db.query(
-    `update aomi_auth_identities
-     set revoked_at = now(), last_seen_at = now()
-     where user_id = $1 and revoked_at is null`,
+    `delete from auth_providers where user_id = $1`,
     [input.userId],
   );
   return result.rowCount ?? 0;
@@ -572,12 +554,9 @@ export async function revokeAllWalletsForUser(input: {
   db?: Db;
 }): Promise<number> {
   const db = input.db ?? defaultPool;
-  const result = await db.query(
-    `update aomi_wallets
-     set revoked_at = now(), last_seen_at = now()
-     where user_id = $1 and revoked_at is null`,
-    [input.userId],
-  );
+  const result = await db.query(`delete from public_keys where user_id = $1`, [
+    input.userId,
+  ]);
   return result.rowCount ?? 0;
 }
 
@@ -586,10 +565,21 @@ export async function findWalletById(
   db: Db = defaultPool,
 ): Promise<DbAomiWallet | null> {
   const result = await db.query(
-    `select * from aomi_wallets where id = $1 and revoked_at is null limit 1`,
-    [walletId],
+    `select pk.*,
+            ap.provider as wallet_provider,
+            ap.provider_metadata as wallet_provider_metadata
+       from public_keys pk
+       left join auth_providers ap on ap.id = pk.auth_provider_id
+      where pk.id = $1
+      limit 1`,
+    [Number(walletId)],
   );
-  return result.rows[0] ? mapWallet(result.rows[0]) : null;
+  return result.rows[0]
+    ? mapWallet(
+        result.rows[0],
+        (result.rows[0].wallet_provider as string | undefined) ?? null,
+      )
+    : null;
 }
 
 export async function buildAccountResponse(input: {
@@ -656,8 +646,8 @@ export async function listBetterAuthSiweWallets(
                 ${candidate.chainId} as chain_id,
                 ${candidate.isPrimary} as is_primary,
                 ${candidate.createdAt} as created_at
-         from ${candidate.table}
-         where ${candidate.userId} = $1`,
+           from ${candidate.table}
+          where ${candidate.userId} = $1`,
         [betterAuthUserId],
       );
       return result.rows.map((row) => ({
@@ -683,33 +673,23 @@ export async function deleteBetterAuthSiweWallet(input: {
   const db = input.db ?? defaultPool;
   const betterAuthUserIds = new Set<string>();
   let deletedCount = 0;
-  let walletAddressUserLookup: { table: string; userId: string } | null = null;
-  const walletAddressCandidates = [
-    {
-      table: '"walletAddress"',
-      userId: '"userId"',
-      chainId: '"chainId"',
-    },
-    {
-      table: "wallet_address",
-      userId: "user_id",
-      chainId: "chain_id",
-    },
-  ];
-  for (const candidate of walletAddressCandidates) {
+
+  for (const candidate of [
+    { table: '"walletAddress"', userId: '"userId"', chainId: '"chainId"' },
+    { table: "wallet_address", userId: "user_id", chainId: "chain_id" },
+  ]) {
     try {
       const result = await db.query(
         `delete from ${candidate.table}
-         where lower(address) = lower($1)
-           and ($2::int is null or ${candidate.chainId} = $2)
-         returning ${candidate.userId} as better_auth_user_id`,
+          where lower(address) = lower($1)
+            and ($2::int is null or ${candidate.chainId} = $2)
+          returning ${candidate.userId} as better_auth_user_id`,
         [input.address, input.chainId ?? null],
       );
       deletedCount += result.rowCount ?? 0;
       for (const row of result.rows) {
         betterAuthUserIds.add(String(row.better_auth_user_id));
       }
-      walletAddressUserLookup = candidate;
       break;
     } catch (error) {
       if (!isMissingRelation(error)) throw error;
@@ -719,10 +699,10 @@ export async function deleteBetterAuthSiweWallet(input: {
   try {
     const result = await db.query(
       `delete from "account"
-       where "providerId" = 'siwe'
-         and lower(split_part("accountId", ':', 1)) = lower($1)
-         and ($2::int is null or split_part("accountId", ':', 2) = $2::text)
-       returning "userId" as better_auth_user_id`,
+        where "providerId" = 'siwe'
+          and lower(split_part("accountId", ':', 1)) = lower($1)
+          and ($2::int is null or split_part("accountId", ':', 2) = $2::text)
+        returning "userId" as better_auth_user_id`,
       [input.address, input.chainId ?? null],
     );
     deletedCount += result.rowCount ?? 0;
@@ -733,98 +713,109 @@ export async function deleteBetterAuthSiweWallet(input: {
     if (!isMissingRelation(error)) throw error;
   }
 
-  const ids = [...betterAuthUserIds];
-  const syntheticEmails = uniqueLower(input.syntheticEmails ?? []);
-  if (ids.length > 0 && syntheticEmails.length > 0) {
-    try {
-      const walletAddressEmpty = walletAddressUserLookup
-        ? `and not exists (
-             select 1 from ${walletAddressUserLookup.table} w
-             where w.${walletAddressUserLookup.userId} = u.id
-           )`
-        : "";
-      const deletableUsers = await db.query(
-        `select u.id
-         from "user" u
-         where u.id = any($1::text[])
-           and lower(u.email) = any($2::text[])
-           and not exists (
-             select 1 from "account" a where a."userId" = u.id
-           )
-           ${walletAddressEmpty}`,
-        [ids, syntheticEmails],
-      );
-      const deletableIds = deletableUsers.rows.map((row) => String(row.id));
-      if (deletableIds.length > 0) {
-        try {
-          await db.query(
-            `delete from "session" where "userId" = any($1::text[])`,
-            [deletableIds],
-          );
-        } catch (error) {
-          if (!isMissingRelation(error)) throw error;
-        }
-        const result = await db.query(
-          `delete from "user" where id = any($1::text[])`,
-          [deletableIds],
-        );
-        deletedCount += result.rowCount ?? 0;
-      }
-    } catch (error) {
-      if (!isMissingRelation(error)) throw error;
-    }
-  }
+  return {
+    deleted: deletedCount > 0,
+    betterAuthUserIds: [...betterAuthUserIds],
+  };
+}
 
-  return { deleted: deletedCount > 0, betterAuthUserIds: ids };
+async function resolveWalletAuthProvider(
+  input: {
+    userId: AomiUserId;
+    family: WalletFamily;
+    address: string;
+    provider?: string | null;
+    providerSubject?: string | null;
+    label?: string | null;
+    linkedVia: LinkedVia;
+  },
+  db: Db,
+): Promise<{ id: number; provider: string } | null> {
+  const provider = canonicalProvider(input.provider ?? input.linkedVia);
+  if (!provider || provider === "import" || provider === "observed") {
+    return null;
+  }
+  const subject =
+    input.providerSubject ??
+    (provider === "siwe" && input.family === "evm"
+      ? siweSubject(input.address)
+      : null);
+  if (subject) {
+    const identity = await upsertAuthIdentity({
+      userId: input.userId,
+      provider,
+      subject,
+      displayLabel: input.label,
+      db,
+    });
+    return { id: Number(identity.id), provider };
+  }
+  const result = await db.query(
+    `select id, provider from auth_providers
+      where user_id = $1 and provider = $2
+      order by is_primary desc, created_at desc
+      limit 1`,
+    [input.userId, provider],
+  );
+  if (!result.rows[0]) return null;
+  return {
+    id: Number(result.rows[0].id),
+    provider: String(result.rows[0].provider),
+  };
 }
 
 function mapUser(row: Row): DbAomiUser {
   return {
     id: String(row.id),
-    betterAuthUserId: nullableString(row.better_auth_user_id),
-    displayName: nullableString(row.display_name),
-    primaryEmail: nullableString(row.primary_email),
-    avatarUrl: nullableString(row.avatar_url),
-    metadata: asRecord(row.metadata),
-    deactivatedAt: nullableDate(row.deactivated_at),
-    createdAt: new Date(row.created_at as string | Date),
-    updatedAt: new Date(row.updated_at as string | Date),
+    betterAuthUserId: null,
+    displayName: optionalString(row.username),
+    primaryEmail: undefinedToNull(row.primary_email),
+    avatarUrl: null,
+    metadata: {},
+    deactivatedAt: row.status === "deactivated" ? new Date() : null,
+    createdAt: secondsToDate(row.created_at),
+    updatedAt: secondsToDate(row.updated_at),
   };
 }
 
 function mapIdentity(row: Row): DbAomiAuthIdentity {
+  const metadata = asRecord(row.provider_metadata);
+  const provider = publicProvider(String(row.provider));
   return {
     id: String(row.id),
     userId: String(row.user_id),
-    provider: row.provider as AuthIdentityProvider,
-    subject: String(row.subject),
-    email: nullableString(row.email),
-    displayLabel: nullableString(row.display_label),
-    providerMetadata: asRecord(row.provider_metadata),
-    linkedAt: new Date(row.linked_at as string | Date),
-    lastSeenAt: new Date(row.last_seen_at as string | Date),
-    revokedAt: nullableDate(row.revoked_at),
+    provider,
+    subject: String(row.subject ?? row.value ?? ""),
+    email: optionalString(metadata.email),
+    displayLabel: optionalString(metadata.display_label),
+    providerMetadata: metadata,
+    linkedAt: secondsToDate(row.created_at),
+    lastSeenAt: secondsToDate(row.updated_at),
+    revokedAt: null,
   };
 }
 
-function mapWallet(row: Row): DbAomiWallet {
+function mapWallet(row: Row, provider: string | null): DbAomiWallet {
+  const family = walletFamily(String(row.chain_type));
+  const address = String(row.address);
+  const metadata = asRecord(row.wallet_provider_metadata);
   return {
     id: String(row.id),
     userId: String(row.user_id),
-    family: row.family as WalletFamily,
-    address: String(row.address),
-    normalizedAddress: String(row.normalized_address),
-    caip10: nullableString(row.caip10),
-    chainScope: nullableString(row.chain_scope),
-    kind: row.kind as WalletKind,
-    provider: nullableString(row.provider),
-    providerWalletId: nullableString(row.provider_wallet_id),
-    linkedVia: row.linked_via as LinkedVia,
-    label: nullableString(row.label),
-    displayMetadata: asRecord(row.display_metadata),
-    verifiedAt: new Date(row.verified_at as string | Date),
-    lastSeenAt: new Date(row.last_seen_at as string | Date),
-    revokedAt: nullableDate(row.revoked_at),
+    family,
+    address,
+    normalizedAddress: normalizeWalletAddress(family, address),
+    caip10: null,
+    chainScope: null,
+    kind: provider && provider !== "siwe" ? "embedded" : "external",
+    provider: provider ? publicProvider(provider) : null,
+    providerWalletId: null,
+    linkedVia: provider ? publicProvider(provider) : "import",
+    label: optionalString(metadata.display_label),
+    displayMetadata: {},
+    verifiedAt: secondsToDate(row.created_at),
+    lastSeenAt: secondsToDate(row.updated_at),
+    revokedAt: null,
   };
 }
 
@@ -849,7 +840,6 @@ function toAccountWallet(wallet: DbAomiWallet): AccountWallet {
     provider: wallet.provider ?? undefined,
     providerWalletId: wallet.providerWalletId ?? undefined,
     chainScope: wallet.chainScope ?? undefined,
-    chainId: chainIdFromCaip10(wallet.caip10) ?? undefined,
     linkedVia: wallet.linkedVia,
     label: wallet.label ?? undefined,
     verifiedAt: wallet.verifiedAt.getTime(),
@@ -857,47 +847,69 @@ function toAccountWallet(wallet: DbAomiWallet): AccountWallet {
   };
 }
 
-function chainIdFromCaip10(caip10Value: string | null): number | null {
-  const match = caip10Value?.match(/^eip155:(\d+):/);
-  if (!match) return null;
-  const chainId = Number(match[1]);
-  return Number.isInteger(chainId) && chainId > 0 ? chainId : null;
+function canonicalProvider(provider: string): string {
+  const normalized = provider.trim();
+  if (normalized === "better_auth") return BETTER_AUTH_PROVIDER;
+  if (normalized === "siws") return "siwe";
+  return normalized;
 }
 
-function nullableString(value: unknown): string | null {
-  return typeof value === "string" ? value : null;
+function publicProvider(provider: string): AuthIdentityProvider {
+  return (
+    provider === BETTER_AUTH_PROVIDER ? "better_auth" : provider
+  ) as AuthIdentityProvider;
 }
 
-function uniqueLower(values: readonly string[]): string[] {
-  return [
-    ...new Set(
-      values
-        .map((value) => value.trim().toLowerCase())
-        .filter((value) => value.length > 0),
-    ),
-  ];
+function canonicalChainType(family: WalletFamily): string {
+  return family === "svm" ? "svm" : "evm";
 }
 
-function nullableDate(value: unknown): Date | null {
-  return value ? new Date(value as string | Date) : null;
+function walletFamily(chainType: string): WalletFamily {
+  return chainType.trim().toLowerCase() === "svm" ? "svm" : "evm";
 }
 
-function asRecord(value: unknown): Record<string, unknown> {
-  return value && typeof value === "object" && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : {};
+function canonicalAddress(family: WalletFamily, address: string): string {
+  return normalizeWalletAddress(family, address);
 }
 
-function toMillis(
-  value: Date | string | number | null | undefined,
-): number | undefined {
-  if (value == null) return undefined;
-  return value instanceof Date ? value.getTime() : new Date(value).getTime();
+function siweSubject(address: string): string {
+  return `eip155:*:${normalizeWalletAddress("evm", address)}`;
 }
 
 function deriveDisplayName(email?: string | null): string | null {
   if (!email) return null;
-  return email.split("@")[0]?.slice(0, 80) || null;
+  return email.split("@")[0] || email;
+}
+
+function nowSeconds(): number {
+  return Math.floor(Date.now() / 1000);
+}
+
+function toMillis(value?: Date | string | number | null): number | undefined {
+  if (value == null) return undefined;
+  if (value instanceof Date) return value.getTime();
+  if (typeof value === "number") return value;
+  const parsed = Date.parse(value);
+  return Number.isNaN(parsed) ? undefined : parsed;
+}
+
+function secondsToDate(value: unknown): Date {
+  const seconds = Number(value ?? nowSeconds());
+  return new Date(seconds * 1000);
+}
+
+function optionalString(value: unknown): string | null {
+  return typeof value === "string" && value.length > 0 ? value : null;
+}
+
+function undefinedToNull(value: unknown): string | null {
+  return typeof value === "string" ? value : null;
+}
+
+function asRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object"
+    ? (value as Record<string, unknown>)
+    : {};
 }
 
 function isMissingRelation(error: unknown): boolean {
@@ -905,8 +917,6 @@ function isMissingRelation(error: unknown): boolean {
     typeof error === "object" &&
     error !== null &&
     "code" in error &&
-    (error as { code?: string }).code === "42P01"
+    (error as { code?: unknown }).code === "42P01"
   );
 }
-
-export type { QueryResult };

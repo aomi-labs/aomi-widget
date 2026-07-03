@@ -414,9 +414,7 @@ describe("WalletPicker", () => {
     expect(
       screen.getByRole("button", { name: "Link WalletConnect" }),
     ).toBeTruthy();
-    expect(
-      screen.queryByRole("button", { name: "Link Rabby 1" }),
-    ).toBeNull();
+    expect(screen.queryByRole("button", { name: "Link Rabby 1" })).toBeNull();
     expect(
       screen.queryByRole("button", { name: "Link Coinbase Wallet 1" }),
     ).toBeNull();
@@ -1110,7 +1108,8 @@ describe("WalletPicker", () => {
     expect(screen.getAllByText(/AG6eZ\.\.8E/).length).toBeGreaterThan(0);
     expect(screen.queryByText("Privy Smart Wallet")).toBeNull();
     expect(screen.queryByText("Privy Solana")).toBeNull();
-    // Provider-owned embedded wallets are wallet rows, not account-access rows.
+    // Provider-owned embedded wallets stay represented by the provider
+    // sign-in row under Account access.
     expect(screen.queryByText("Wallet")).toBeNull();
     expect(screen.getByRole("button", { name: "Rename Privy" })).toBeTruthy();
   });
@@ -1165,13 +1164,13 @@ describe("WalletPicker", () => {
     expect(screen.getByText("EVM")).toBeTruthy();
     expect(screen.getByText("SVM")).toBeTruthy();
     expect(screen.getByText(/0xCC8/)).toBeTruthy();
-    expect(screen.getByText("AG6eZ..8E")).toBeTruthy();
+    expect(screen.getAllByText("AG6eZ..8E").length).toBeGreaterThan(0);
     expect(screen.queryByText("Privy Smart Wallet")).toBeNull();
     expect(screen.queryByText("Privy Solana")).toBeNull();
     expect(screen.getAllByRole("button", { name: "Sign out" }).length).toBe(2);
   });
 
-  it("promotes linked provider wallets to connected rows when the provider session is active", async () => {
+  it("does not promote linked provider wallets to connected rows without live provider accounts", async () => {
     renderPicker(
       makeAdapter({
         identity: {
@@ -1184,17 +1183,15 @@ describe("WalletPicker", () => {
         accountUser: { id: "user-1", displayName: "Privy Account" },
         walletModalRows: [
           {
-            id: "privy-svm",
-            family: "svm",
-            address: "AG6eZ8E",
-            label: "AG6eZ..8E",
-            walletName: "Privy Solana",
+            id: "rabby",
+            family: "evm",
+            address: "0xAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+            label: "Rabby",
+            walletName: "Rabby",
             source: "live",
             status: "active",
-            provider: "privy",
             linked: true,
-            linkedVia: "privy",
-            actions: [{ kind: "signout", label: "Sign out" }],
+            actions: [{ kind: "disconnect", label: "Disconnect" }],
           },
         ],
         accountWallets: [
@@ -1228,14 +1225,10 @@ describe("WalletPicker", () => {
     });
 
     expect(screen.getByText("Manage account")).toBeTruthy();
-    expect(screen.getAllByText("Privy").length).toBeGreaterThan(0);
-    expect(screen.queryByText("EVM/SVM")).toBeNull();
-    expect(screen.getAllByText("EVM").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("SVM").length).toBeGreaterThan(0);
-    expect(screen.getAllByText(/0xCC8\.\.8f/).length).toBeGreaterThan(0);
-    expect(screen.getByText("AG6eZ..8E")).toBeTruthy();
+    expect(screen.getAllByText("Rabby").length).toBeGreaterThan(0);
+    expect(screen.queryByText(/0xCC8\.\.8f/)).toBeNull();
+    expect(screen.queryByText("AG6eZ..8E")).toBeNull();
     expect(screen.getByText("Account access")).toBeTruthy();
-    expect(screen.queryByText("Privy Solana")).toBeNull();
   });
 
   it("keeps a SIWE-verified external wallet's own brand, not 'siwe'", () => {
@@ -1656,9 +1649,9 @@ describe("WalletPicker", () => {
             actions: [{ kind: "disconnect", label: "Disconnect" }],
           },
           {
-            id: "privy",
+            id: "google",
             family: "evm",
-            label: "Email, wallet, or social",
+            label: "Email or Google",
             walletName: "Privy",
             kind: "social",
             source: "option",
@@ -1683,11 +1676,11 @@ describe("WalletPicker", () => {
     );
 
     const socialRow = screen.getByRole("button", {
-      name: "Email, wallet, or social",
+      name: "Email or Google",
     });
     expect(within(socialRow).getByText("Privy")).toBeTruthy();
     expect(
-      screen.getAllByRole("button", { name: "Email, wallet, or social" }),
+      screen.getAllByRole("button", { name: "Email or Google" }),
     ).toHaveLength(1);
     expect(
       screen.queryByText("AG6eZtiXAhp8uzaXabn7eSZfaXBWrMYtvBH5dTzww18E"),

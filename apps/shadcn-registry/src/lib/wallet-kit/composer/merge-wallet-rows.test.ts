@@ -35,6 +35,27 @@ describe("account wallet row merging", () => {
     });
   });
 
+  it("does not mark provider-owned live rows linked without a stored account wallet", () => {
+    const rows = mergeWalletRows({
+      accounts: [
+        {
+          ...liveEvmAccount,
+          id: "para-evm",
+          walletName: "Para",
+          provider: "para",
+          walletKind: "embedded",
+        },
+      ],
+    });
+
+    expect(rows[0]).toMatchObject({
+      id: "para-evm",
+      provider: "para",
+      walletKind: "embedded",
+      linked: false,
+    });
+  });
+
   it("dedupes stored wallets against live rows by family and address", () => {
     const rows = mergeWalletRows({
       accounts: [{ ...liveEvmAccount, linked: true, capability: "write" }],

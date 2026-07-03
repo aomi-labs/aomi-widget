@@ -3,7 +3,9 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   createDefaultProviderCredentialVerifiers,
+  paraTokenWalletAttestations,
   providerSessionUserSeed,
+  privyTokenWalletAttestations,
   verifyProviderCredential,
 } from "../src/providers/account-credentials";
 import { readAccountAuthEnv } from "../src/better-auth/env";
@@ -82,6 +84,74 @@ describe("verifyProviderCredential", () => {
     });
 
     expect(env.paraAudience).toBe("para-audience-uuid");
+  });
+});
+
+describe("token wallet attestations", () => {
+  it("normalizes Para JWT wallet rows as embedded wallet attestations", () => {
+    expect(
+      paraTokenWalletAttestations([
+        {
+          id: "evm-wallet",
+          type: "EVM",
+          address: "0xe7749cf819d324b54d2a04c710fa4d17929107a6",
+        },
+        {
+          id: "svm-wallet",
+          type: "SOLANA",
+          address: "53GfEkka7UYR9KsM6ePWSNfbW678grShT41uZMjXAvoL",
+        },
+        {
+          id: "bad-wallet",
+          type: "EVM",
+          address: "not-an-address",
+        },
+      ]),
+    ).toEqual([
+      {
+        provider: "para",
+        providerWalletId: "evm-wallet",
+        family: "evm",
+        address: "0xe7749cf819d324b54d2a04c710fa4d17929107a6",
+        chainScope: null,
+      },
+      {
+        provider: "para",
+        providerWalletId: "svm-wallet",
+        family: "svm",
+        address: "53GfEkka7UYR9KsM6ePWSNfbW678grShT41uZMjXAvoL",
+        chainScope: null,
+      },
+    ]);
+  });
+
+  it("only trusts clearly embedded Privy wallet rows from token metadata", () => {
+    expect(
+      privyTokenWalletAttestations([
+        {
+          id: "embedded-evm",
+          type: "wallet",
+          wallet_client_type: "privy",
+          chain_type: "ethereum",
+          address: "0x1111111111111111111111111111111111111111",
+        },
+        {
+          id: "external-evm",
+          type: "wallet",
+          wallet_client_type: "metamask",
+          chain_type: "ethereum",
+          address: "0x2222222222222222222222222222222222222222",
+        },
+      ]),
+    ).toEqual([
+      {
+        provider: "privy",
+        providerWalletId: "embedded-evm",
+        family: "evm",
+        address: "0x1111111111111111111111111111111111111111",
+        chainScope: null,
+      },
+    ]);
   });
 });
 

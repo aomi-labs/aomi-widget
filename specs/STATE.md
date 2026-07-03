@@ -2,7 +2,17 @@
 
 ## Last Updated
 
-2026-07-02 - Auth docs cleanup: consolidated local stack handoff, refreshed JWT/JWKS-stale auth plan text, and updated repowiki/auth fact references.
+2026-07-03 - Tri-repo pre-merge review (aomi vs origin/main, product-mono vs origin/refactor/dbthread-unification, db-master). Local checks all green. Blockers logged below.
+
+## Pending (from 2026-07-03 pre-merge review)
+
+- BLOCKER: re-resolve merge of `packages/react/src/contexts/control-context.tsx` — merge commit 59cebe8e restored the pre-refactor monolith, clobbering main's composition root (`packages/react/src/control/*` now dead) and dropping `AomiPlatformFilter`/`applicationId` props main still passes.
+- BLOCKER: `/api/mcp/[transport]` is unauthenticated and trusts `x-aomi-user`; gate or session-auth before deploy.
+- BLOCKER: device-auth grant store is an in-process Map (`apps/portal/src/lib/device-auth-grants.ts`) — breaks on Vercel; move to Postgres.
+- BLOCKER: client `/api/control/provider-keys` calls 404 vs new backend (BYOK moved to `/api/account/payment/byok`).
+- HIGH: `packages/account/src/proxy.ts` fails open (mint failure → anonymous forward); apps/base forked its own anonymous proxy; committed `packages/{client,react}/dist` bundles; `scripts/smoke-auth-stack.mjs` targets deleted `/api/bff/auth/*` routes; portal next.config lost prod backend-URL fallback.
+- Cross-repo: `signing_authorization` migration has no frontend counterpart; `aomi_wallets` vs backend `identity_wallets` never sync; db-master's 48 migrations are uncommitted and `rename_sessions_to_threads` is fresh-DB-only (staging/prod variant needed).
+- Docs to prune before PR: AUTH-STACK-REVIEW.md, MERGE-BFF-BETTERAUTH-FIXES.md, WALLET-KIT-{CLEANUP,PR-WALKTHROUGH}.md, mcp-design.md; fix `apps/registry/` refs in DOMAIN.md/METADATA.md/repowiki.toml; prune this file's diary.
 
 ## Recent Changes
 
