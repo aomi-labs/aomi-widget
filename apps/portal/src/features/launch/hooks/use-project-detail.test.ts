@@ -23,6 +23,11 @@ vi.mock("@portal/features/launch/client", () => ({
     byApp: { demo: ["$SECRET:APP:demo::KEY"] },
   })),
   deploymentRollback: vi.fn(),
+  deploymentDeactivate: vi.fn(async () => ({ ok: true, apps: ["my-bot"] })),
+  launchPreflight: vi.fn(),
+  launchDeploy: vi.fn(),
+  launchStatus: vi.fn(),
+  launchActivate: vi.fn(),
   deploymentActivations: vi.fn(async () => ({
     app: "my-bot",
     currentReleaseTag: "tag-b",

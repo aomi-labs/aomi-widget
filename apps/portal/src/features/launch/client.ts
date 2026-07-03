@@ -163,6 +163,17 @@ export function launchActivate(input: {
   return postJson(API_PATHS.bff.launch.activate, "launch activation", input);
 }
 
+export function deploymentDeactivate(input: {
+  appSourceId: number;
+  apps: string[];
+}): Promise<{ ok: boolean; apps: string[] }> {
+  return postJson(
+    API_PATHS.bff.deployments.deactivate,
+    "deployment deactivate",
+    input,
+  );
+}
+
 export function launchAppStatus(input: {
   name: string;
   releaseTag?: string;

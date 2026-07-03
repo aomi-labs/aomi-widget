@@ -65,6 +65,7 @@ export type {
   ListUserSourcesInput,
   ListUserSourceDeploymentsInput,
   DeploymentActivation,
+  DeactivateAppInput,
   ListActivationsInput,
   ListActivationsResult,
   ListSecretsInput,

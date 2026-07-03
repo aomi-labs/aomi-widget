@@ -37,7 +37,8 @@ export interface AuditEvent {
     | "exchange_github_code"
     | "list_user_sources"
     | "list_user_source_deployments"
-    | "get_user_source_latest_deployment";
+    | "get_user_source_latest_deployment"
+    | "deactivate";
   platform?: string;
   appSourceId?: number;
   apps?: string[];
@@ -461,6 +462,14 @@ export interface ListActivationsInput extends BearerOverride {
   app: string;
   /** Disambiguates same-named apps across sources on one platform. */
   appSourceId?: number;
+}
+
+export interface DeactivateAppInput extends BearerOverride {
+  platform: string;
+  app: string;
+  /** Disambiguates same-named apps across sources on one platform. */
+  appSourceId?: number;
+  actor?: string;
 }
 
 export interface ListActivationsResult {

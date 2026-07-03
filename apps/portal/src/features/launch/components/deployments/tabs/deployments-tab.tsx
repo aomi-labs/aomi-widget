@@ -1,55 +1,69 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { Rocket } from "lucide-react";
 import { useProjectDetail } from "@portal/features/launch/hooks/use-project-detail";
-import { DeploymentRow } from "../ui/deployment-row";
+import { TimelineDeploymentRow } from "../ui/timeline-deployment-row";
 import { ConfirmDialog } from "../ui/confirm-dialog";
 import { LoadingPanel, EmptyPanel } from "../ui/state-panels";
+import { buildDeploymentList } from "../deployment-timeline";
 
 type Detail = ReturnType<typeof useProjectDetail>;
-type RollbackState = {
+type OpState = {
   deploymentId: string;
   status: "running" | "done" | "error";
   message: string;
 };
+type Pending =
+  | { kind: "rollback"; deploymentId: string }
+  | { kind: "deactivate"; deploymentId: string; apps: string[] }
+  | null;
 
 export function DeploymentsTab({ detail }: { detail: Detail }) {
-  const [rollback, setRollback] = useState<RollbackState | null>(null);
-  const [confirmId, setConfirmId] = useState<string | null>(null);
+  const [op, setOp] = useState<OpState | null>(null);
+  const [pending, setPending] = useState<Pending>(null);
 
   useEffect(() => {
-    detail.loadHistory();
     detail.loadActivations();
   }, [detail]);
 
-  const requiredSdk = detail.sdk?.sdkStatus.requiredVersion;
   const source = detail.source;
+  const deployments = useMemo(
+    () => buildDeploymentList(detail.activationsByApp),
+    [detail.activationsByApp],
+  );
+  const deploying =
+    detail.deployFlow.phase !== "idle" &&
+    detail.deployFlow.phase !== "done" &&
+    detail.deployFlow.phase !== "error";
 
-  if (detail.history === null) {
-    return <LoadingPanel label="Loading deployments…" />;
-  }
   if (!source) {
-    return <EmptyPanel>Project not found.</EmptyPanel>;
+    return detail.loading ? (
+      <LoadingPanel label="Loading project…" />
+    ) : (
+      <EmptyPanel>Project not found.</EmptyPanel>
+    );
   }
-  if (detail.history.length === 0) {
-    return <EmptyPanel>No deployments for this project.</EmptyPanel>;
+  if (detail.activationsByApp === null) {
+    return <LoadingPanel label="Loading deployments…" />;
   }
 
   const runRollback = async (deploymentId: string) => {
-    setConfirmId(null);
-    setRollback({ deploymentId, status: "running", message: "Rolling back…" });
+    setPending(null);
+    setOp({ deploymentId, status: "running", message: "Rolling back…" });
     try {
       const result = await detail.rollback(deploymentId);
-      setRollback({
+      setOp({
         deploymentId,
         status: result.ok ? "done" : "error",
         message: result.ok
-          ? `Rollback activated ${result.rollback.releaseTags.length} release tag(s).`
+          ? `Rolled back ${result.rollback.releaseTags.length} release tag(s).`
           : result.rollback.status,
       });
       detail.reload();
+      detail.refreshActivations();
     } catch (err) {
-      setRollback({
+      setOp({
         deploymentId,
         status: "error",
         message: err instanceof Error ? err.message : "Rollback failed",
@@ -57,69 +71,107 @@ export function DeploymentsTab({ detail }: { detail: Detail }) {
     }
   };
 
-  // The backend history JSON sets a per-app `appReleaseTag` only when it
-  // matches that app's live release tag, so equality means "this deployment
-  // is what is running now".
-  const isCurrent = (deployment: (typeof detail.history)[number]) =>
-    deployment.apps.some(
-      (app) => app.appReleaseTag && app.appReleaseTag === app.releaseTag,
-    );
+  const runDeactivate = async (deploymentId: string, apps: string[]) => {
+    setPending(null);
+    setOp({ deploymentId, status: "running", message: "Deactivating…" });
+    try {
+      await detail.deactivate(apps);
+      setOp({ deploymentId, status: "done", message: "Deactivated." });
+      detail.reload();
+      detail.refreshActivations();
+    } catch (err) {
+      setOp({
+        deploymentId,
+        status: "error",
+        message: err instanceof Error ? err.message : "Deactivate failed",
+      });
+    }
+  };
 
   return (
     <div>
-      {detail.history.map((deployment, index) => {
-        const id = deployment.deploymentId ?? null;
-        const running =
-          rollback?.deploymentId === id && rollback.status === "running";
-        const message = rollback?.deploymentId === id ? rollback.message : null;
-        return (
-          <DeploymentRow
-            key={id ?? index}
-            deployment={deployment}
-            source={source}
-            requiredSdk={requiredSdk}
-            running={running}
-            message={message}
-            current={isCurrent(deployment)}
-            onRollback={() => {
-              if (id) setConfirmId(id);
-            }}
-          />
-        );
-      })}
-      {detail.activationsByApp && (
-        <div className="mt-6">
-          <div className="px-4 text-xs font-medium uppercase tracking-wide text-zinc-400">
-            Activity
-          </div>
-          {Object.entries(detail.activationsByApp).flatMap(([app, rows]) =>
-            rows.map((row) => (
-              <div
-                key={`${app}-${row.deploymentId}-${row.createdAt}`}
-                className="flex items-center justify-between border-b border-zinc-100 px-4 py-2 text-xs text-zinc-600 last:border-b-0"
-              >
-                <span className="font-mono">
-                  {row.action} · {row.deploymentId}
-                </span>
-                <span>
-                  {app}
-                  {row.actor ? ` · ${row.actor}` : ""} ·{" "}
-                  {new Date(row.createdAt * 1000).toLocaleString()}
-                </span>
-              </div>
-            )),
-          )}
+      <div className="flex items-center justify-between gap-3 border-b border-zinc-100 px-4 py-3">
+        <div className="text-sm font-medium">Deployments</div>
+        <button
+          type="button"
+          disabled={deploying}
+          onClick={() => void detail.deployNewVersion()}
+          className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md bg-zinc-900 px-3 text-xs font-medium text-white hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50"
+          title="Deploy the source repo's latest commit and activate it"
+        >
+          <Rocket className="size-3.5" aria-hidden />
+          {deploying ? "Deploying…" : "Deploy new version"}
+        </button>
+      </div>
+
+      {detail.deployFlow.phase !== "idle" && (
+        <div
+          className={`border-b border-zinc-100 px-4 py-2 text-xs ${
+            detail.deployFlow.phase === "error"
+              ? "text-red-600"
+              : "text-zinc-500"
+          }`}
+        >
+          {detail.deployFlow.message}
         </div>
       )}
+
+      {deployments.length === 0 ? (
+        <EmptyPanel>
+          No deployments yet. Use “Deploy new version” to publish this project.
+        </EmptyPanel>
+      ) : (
+        deployments.map((deployment) => {
+          const running =
+            op?.deploymentId === deployment.deploymentId &&
+            op.status === "running";
+          const message =
+            op?.deploymentId === deployment.deploymentId ? op.message : null;
+          return (
+            <TimelineDeploymentRow
+              key={deployment.deploymentId}
+              deployment={deployment}
+              busy={running}
+              message={message}
+              onRollback={() =>
+                setPending({
+                  kind: "rollback",
+                  deploymentId: deployment.deploymentId,
+                })
+              }
+              onDeactivate={() =>
+                setPending({
+                  kind: "deactivate",
+                  deploymentId: deployment.deploymentId,
+                  apps: deployment.apps,
+                })
+              }
+            />
+          );
+        })
+      )}
+
       <ConfirmDialog
-        open={confirmId !== null}
-        title="Roll back deployment?"
-        body="This re-activates the release tags recorded for this deployment. Cross-SDK rollbacks are blocked by the backend."
-        confirmLabel="Roll back"
+        open={pending !== null}
+        title={
+          pending?.kind === "deactivate"
+            ? "Deactivate deployment?"
+            : "Roll back deployment?"
+        }
+        body={
+          pending?.kind === "deactivate"
+            ? "This unloads the running binary and clears the live pointer. The deployment record and history are kept."
+            : "This re-activates the release tags recorded for this deployment. Cross-SDK rollbacks are blocked by the backend."
+        }
+        confirmLabel={pending?.kind === "deactivate" ? "Deactivate" : "Roll back"}
         onConfirm={() => {
-          if (confirmId) void runRollback(confirmId);
+          if (pending?.kind === "rollback") {
+            void runRollback(pending.deploymentId);
+          } else if (pending?.kind === "deactivate") {
+            void runDeactivate(pending.deploymentId, pending.apps);
+          }
         }}
-        onCancel={() => setConfirmId(null)}
+        onCancel={() => setPending(null)}
       />
     </div>
   );

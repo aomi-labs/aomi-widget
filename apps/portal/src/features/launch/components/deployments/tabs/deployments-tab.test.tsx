@@ -1,78 +1,94 @@
 import { describe, expect, it, vi } from "vitest";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import {
+  render,
+  screen,
+  fireEvent,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { DeploymentsTab } from "./deployments-tab";
 
 const rollback = vi.fn(async () => ({
   ok: true,
-  rollback: { deploymentId: "dep_0", releaseTags: ["t0"], status: "rolled_back" },
+  rollback: { deploymentId: "dep_1_ra_bbbb", releaseTags: ["t1"], status: "rolled_back" },
 }));
+const deactivate = vi.fn(async () => ({ ok: true, apps: ["my-bot"] }));
 
 const detail = {
-  source: { id: 1, repositoryLink: "a/b", apps: [{ name: "my-bot" }], latestDeployment: null },
-  loadHistory: vi.fn(),
+  source: { id: 1, repositoryLink: "a/b", apps: [{ name: "my-bot" }] },
+  loading: false,
   loadActivations: vi.fn(),
-  history: [
-    {
-      deploymentId: "dep_1",
-      apps: [{ name: "my-bot", releaseTag: "t1", appReleaseTag: "t1", isActive: true }],
-      releaseTags: ["t1"],
-      state: "recorded",
-      commitHash: "abc123",
-      ciStatus: null,
-    },
-    {
-      deploymentId: "dep_0",
-      apps: [{ name: "my-bot", releaseTag: "t0", appReleaseTag: null }],
-      releaseTags: ["t0"],
-      state: "recorded",
-      commitHash: "def456",
-      ciStatus: null,
-    },
-  ],
+  refreshActivations: vi.fn(),
+  deployNewVersion: vi.fn(),
+  deployFlow: { phase: "idle" },
   activationsByApp: {
     "my-bot": [
       {
-        deploymentId: "dep_1",
-        releaseTag: "t1",
-        action: "rollback",
-        actor: "cecilia",
-        createdAt: 1750000000,
+        deploymentId: "dep_1_ra_currentcmt",
+        releaseTag: "t-current",
+        action: "activate",
+        actor: "alice",
+        createdAt: 200,
         current: true,
+      },
+      {
+        deploymentId: "dep_1_ra_oldcommit1",
+        releaseTag: "t-old",
+        action: "activate",
+        actor: "alice",
+        createdAt: 100,
+        current: false,
       },
     ],
   },
   rollback,
+  deactivate,
   reload: vi.fn(),
-  sdk: { sdkStatus: { requiredVersion: "3.0.1" } },
 } as unknown as ReturnType<
   typeof import("@portal/features/launch/hooks/use-project-detail").useProjectDetail
 >;
 
 describe("DeploymentsTab", () => {
-  it("confirms before rolling back", async () => {
-    render(<DeploymentsTab detail={detail} />);
-    const rollbackButtons = await screen.findAllByRole("button", {
-      name: /rollback/i,
-    });
-    // dep_0 is not current, so its rollback button is enabled.
-    fireEvent.click(rollbackButtons[1]);
-    expect(rollback).not.toHaveBeenCalled();
-    fireEvent.click(screen.getByRole("button", { name: /roll back/i }));
-    await waitFor(() => expect(rollback).toHaveBeenCalledWith("dep_0"));
-  });
-
-  it("marks the live deployment as current and blocks rolling back to it", async () => {
-    render(<DeploymentsTab detail={detail} />);
-    expect(await screen.findByText(/current/i)).toBeInTheDocument();
-    const buttons = screen.getAllByRole("button", { name: /rollback/i });
-    expect(buttons[0]).toBeDisabled();
-    expect(buttons[1]).toBeEnabled();
-  });
-
-  it("renders the activation timeline", async () => {
+  it("renders deployments from the DB timeline, current first", async () => {
     render(<DeploymentsTab detail={detail} />);
     expect(detail.loadActivations).toHaveBeenCalled();
-    expect(await screen.findByText(/rollback · dep_1/i)).toBeInTheDocument();
-    expect(screen.getByText(/cecilia/i)).toBeInTheDocument();
+    expect(await screen.findByText("dep_1_ra_currentcmt")).toBeInTheDocument();
+    expect(screen.getByText("dep_1_ra_oldcommit1")).toBeInTheDocument();
+    expect(screen.getByText("Current")).toBeInTheDocument();
+  });
+
+  it("offers Deactivate on the current deployment and Rollback on older ones", () => {
+    render(<DeploymentsTab detail={detail} />);
+    expect(
+      screen.getByRole("button", { name: /deactivate/i }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /rollback/i }),
+    ).toBeInTheDocument();
+  });
+
+  it("confirms before rolling back an older deployment", async () => {
+    render(<DeploymentsTab detail={detail} />);
+    fireEvent.click(screen.getByRole("button", { name: /rollback/i }));
+    expect(rollback).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: /roll back/i }));
+    await waitFor(() =>
+      expect(rollback).toHaveBeenCalledWith("dep_1_ra_oldcommit1"),
+    );
+  });
+
+  it("confirms before deactivating the current deployment", async () => {
+    render(<DeploymentsTab detail={detail} />);
+    fireEvent.click(screen.getByRole("button", { name: /deactivate/i }));
+    expect(deactivate).not.toHaveBeenCalled();
+    const dialog = screen.getByRole("dialog", { name: /deactivate deployment/i });
+    fireEvent.click(within(dialog).getByRole("button", { name: /deactivate/i }));
+    await waitFor(() => expect(deactivate).toHaveBeenCalledWith(["my-bot"]));
+  });
+
+  it("triggers a new-version deploy", () => {
+    render(<DeploymentsTab detail={detail} />);
+    fireEvent.click(screen.getByRole("button", { name: /deploy new version/i }));
+    expect(detail.deployNewVersion).toHaveBeenCalled();
   });
 });

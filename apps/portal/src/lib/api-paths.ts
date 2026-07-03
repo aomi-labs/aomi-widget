@@ -59,6 +59,7 @@ export const API_PATHS = {
         `${BFF}/deployments/activations?app=${encodeURIComponent(app)}${
           appSourceId != null ? `&appSourceId=${appSourceId}` : ""
         }`,
+      deactivate: `${BFF}/deployments/deactivate`,
     },
     e2e: {
       execute: `${BFF}/e2e/execute`,
