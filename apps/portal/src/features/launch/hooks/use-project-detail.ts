@@ -89,8 +89,8 @@ export function useProjectDetail(sourceId: number) {
 
   const rollback = useCallback(
     (deploymentId: string): Promise<DeploymentRollbackResult> =>
-      deploymentRollback({ deploymentId }),
-    [],
+      deploymentRollback({ deploymentId, appSourceId: sourceId }),
+    [sourceId],
   );
 
   return {

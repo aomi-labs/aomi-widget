@@ -144,6 +144,7 @@ export function deploymentActivations(input: {
 
 export function deploymentRollback(input: {
   deploymentId: string;
+  appSourceId: number;
   apps?: string[];
   actor?: string;
 }): Promise<DeploymentRollbackResult> {
