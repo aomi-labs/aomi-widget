@@ -15,14 +15,17 @@ class FakeClient {
   ) {}
   async query(sql: string): Promise<QueryResponse> {
     this.calls.push(sql.trim().split("\n")[0].trim());
-    if (sql.includes("from auth_identities")) {
+    if (sql.includes("from auth_providers")) {
       return this.opts.selectResponses.shift() ?? { rows: [] };
     }
     if (
-      sql.includes("insert into auth_identities") &&
+      sql.includes("insert into auth_providers") &&
       this.opts.identityInsertError
     ) {
       throw this.opts.identityInsertError;
+    }
+    if (sql.includes("insert into auth_providers")) {
+      return { rows: [{ id: 1 }] };
     }
     return { rows: [] };
   }
@@ -122,7 +125,7 @@ describe("resolveOrCreateCanonicalUser", () => {
       true,
     );
     expect(
-      client.calls.some((c) => c.startsWith("insert into auth_identities")),
+      client.calls.some((c) => c.startsWith("insert into auth_providers")),
     ).toBe(true);
     expect(client.calls).toContain("commit");
   });
@@ -146,7 +149,7 @@ describe("resolveOrCreateCanonicalUser", () => {
       true,
     );
     expect(
-      client.calls.some((c) => c.startsWith("update auth_identities")),
+      client.calls.some((c) => c.startsWith("update auth_providers")),
     ).toBe(true);
     expect(client.calls).toContain("commit");
   });
@@ -188,7 +191,7 @@ describe("resolveOrCreateCanonicalUser", () => {
     expect(result).toEqual({ userId: "aomi-account-1", created: false });
     expect(client.calls).toContain("rollback");
     expect(
-      client.calls.some((c) => c.startsWith("update auth_identities")),
+      client.calls.some((c) => c.startsWith("update auth_providers")),
     ).toBe(true);
     expect(client.released).toBe(true);
   });

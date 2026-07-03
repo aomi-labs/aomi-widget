@@ -118,7 +118,8 @@ export async function sessionsCommand(_config: CliConfig): Promise<void> {
 }
 
 export function newSessionCommand(config: CliConfig): void {
-  const cli = CliSession.create(config);
+  const existing = CliSession.load();
+  const cli = CliSession.create(config, existing?.toState());
   console.log(`Active session set to ${cli.sessionId} (new).`);
   printDataFileLocation();
 }

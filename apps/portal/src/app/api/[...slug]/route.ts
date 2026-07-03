@@ -13,15 +13,15 @@ const ALLOWED_ROUTES: AllowedRoute[] = [
   { pattern: /^\/api\/secrets$/, methods: new Set(["GET", "POST", "DELETE"]) },
   { pattern: /^\/api\/secrets\/[^/]+$/, methods: new Set(["DELETE"]) },
   { pattern: /^\/api\/updates$/, methods: new Set(["GET"]) },
-  { pattern: /^\/api\/sessions$/, methods: new Set(["GET", "POST"]) },
+  { pattern: /^\/api\/threads$/, methods: new Set(["GET", "POST"]) },
   {
-    pattern: /^\/api\/sessions\/[^/]+$/,
+    pattern: /^\/api\/threads\/[^/]+$/,
     methods: new Set(["GET", "PATCH", "DELETE"]),
   },
   { pattern: /^\/api\/events$/, methods: new Set(["GET"]) },
-  { pattern: /^\/api\/session\/apps$/, methods: new Set(["GET"]) },
-  { pattern: /^\/api\/session\/models$/, methods: new Set(["GET"]) },
-  { pattern: /^\/api\/session\/model$/, methods: new Set(["POST"]) },
+  { pattern: /^\/api\/thread\/apps$/, methods: new Set(["GET"]) },
+  { pattern: /^\/api\/thread\/models$/, methods: new Set(["GET"]) },
+  { pattern: /^\/api\/thread\/model$/, methods: new Set(["POST"]) },
   { pattern: /^\/api\/control\/apps$/, methods: new Set(["GET"]) },
   { pattern: /^\/api\/control\/models$/, methods: new Set(["GET"]) },
   { pattern: /^\/api\/control\/model$/, methods: new Set(["POST"]) },
@@ -50,11 +50,40 @@ const ALLOWED_ROUTES: AllowedRoute[] = [
   { pattern: /^\/api\/simulate$/, methods: new Set(["POST"]) },
 ];
 
+function rewriteLegacyThreadPath(upstreamUrl: URL): void {
+  if (upstreamUrl.pathname === "/api/sessions") {
+    upstreamUrl.pathname = "/api/threads";
+    return;
+  }
+
+  if (upstreamUrl.pathname.startsWith("/api/sessions/")) {
+    upstreamUrl.pathname = `/api/threads/${upstreamUrl.pathname.slice(
+      "/api/sessions/".length,
+    )}`;
+    return;
+  }
+
+  if (upstreamUrl.pathname === "/api/session/apps") {
+    upstreamUrl.pathname = "/api/thread/apps";
+    return;
+  }
+
+  if (upstreamUrl.pathname === "/api/session/models") {
+    upstreamUrl.pathname = "/api/thread/models";
+    return;
+  }
+
+  if (upstreamUrl.pathname === "/api/session/model") {
+    upstreamUrl.pathname = "/api/thread/model";
+  }
+}
+
 export const { GET, POST, PUT, PATCH, DELETE } = createBackendProxy({
   allowedRoutes: ALLOWED_ROUTES,
   applyDefaults: (upstreamUrl) => {
+    rewriteLegacyThreadPath(upstreamUrl);
     if (
-      upstreamUrl.pathname !== "/api/session/apps" ||
+      upstreamUrl.pathname !== "/api/thread/apps" ||
       upstreamUrl.searchParams.has("platform")
     ) {
       return;

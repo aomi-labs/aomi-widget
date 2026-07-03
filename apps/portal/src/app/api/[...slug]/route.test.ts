@@ -40,11 +40,13 @@ vi.mock("@portal/server/bff/launch/config", () => ({
   }),
 }));
 
-function sessionAppsRequest() {
-  return [
-    new NextRequest("https://chat-staging.aomi.dev/api/session/apps"),
-    { params: Promise.resolve({ slug: ["session", "apps"] }) },
-  ] as const;
+function apiRequest(path: string) {
+  const url = new URL(`https://chat-staging.aomi.dev${path}`);
+  const slug = url.pathname
+    .replace(/^\/api\/?/, "")
+    .split("/")
+    .filter(Boolean);
+  return [new NextRequest(url), { params: Promise.resolve({ slug }) }] as const;
 }
 
 function proxiedUrl(call: unknown[] | undefined): URL {
@@ -62,7 +64,7 @@ describe("portal API proxy", () => {
     listApps.mockReset();
   });
 
-  it("forwards the backend session app catalog without a default platform filter", async () => {
+  it("forwards the backend thread app catalog without a default platform filter", async () => {
     const fetchMock = vi.fn(async () =>
       Response.json([
         { name: "default" },
@@ -71,7 +73,7 @@ describe("portal API proxy", () => {
     );
     vi.stubGlobal("fetch", fetchMock);
 
-    const res = await GET(...sessionAppsRequest());
+    const res = await GET(...apiRequest("/api/thread/apps"));
     const body = await res.json();
 
     expect(body).toEqual([
@@ -79,41 +81,44 @@ describe("portal API proxy", () => {
       { name: "somm-agent", application_id: 1, platform: "somm.finance" },
     ]);
     const url = proxiedUrl(fetchMock.mock.calls[0]);
-    expect(url.pathname).toBe("/api/session/apps");
+    expect(url.pathname).toBe("/api/thread/apps");
     expect(url.search).toBe("");
     expect(listApps).not.toHaveBeenCalled();
   });
 
-  it("adds explicit catalog platform filters to session app catalog calls", async () => {
+  it("rewrites legacy session app catalog calls", async () => {
+    const fetchMock = vi.fn(async () => Response.json([{ name: "default" }]));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await GET(...apiRequest("/api/session/apps"));
+
+    const url = proxiedUrl(fetchMock.mock.calls[0]);
+    expect(url.pathname).toBe("/api/thread/apps");
+    expect(listApps).not.toHaveBeenCalled();
+  });
+
+  it("adds explicit catalog platform filters to thread app catalog calls", async () => {
     launchConfigMock.catalogPlatforms = ["somm.finance", "community"];
     const fetchMock = vi.fn(async () => Response.json([{ name: "default" }]));
     vi.stubGlobal("fetch", fetchMock);
 
-    await GET(...sessionAppsRequest());
+    await GET(...apiRequest("/api/thread/apps"));
 
     const url = proxiedUrl(fetchMock.mock.calls[0]);
-    expect(url.pathname).toBe("/api/session/apps");
+    expect(url.pathname).toBe("/api/thread/apps");
     expect(url.search).toBe("?platform=somm.finance&platform=community");
     expect(listApps).not.toHaveBeenCalled();
   });
 
-  it("preserves an explicit session app platform filter", async () => {
+  it("preserves an explicit thread app platform filter", async () => {
     const fetchMock = vi.fn(async () => Response.json([{ name: "default" }]));
     vi.stubGlobal("fetch", fetchMock);
 
-    await GET(
-      new NextRequest(
-        "https://chat-staging.aomi.dev/api/session/apps?platform=community",
-      ),
-      {
-        params: Promise.resolve({ slug: ["session", "apps"] }),
-      },
-    );
+    await GET(...apiRequest("/api/thread/apps?platform=community"));
 
     const url = proxiedUrl(fetchMock.mock.calls[0]);
-    expect(url.pathname).toBe("/api/session/apps");
+    expect(url.pathname).toBe("/api/thread/apps");
     expect(url.search).toBe("?platform=community");
     expect(listApps).not.toHaveBeenCalled();
   });
-
 });

@@ -51,7 +51,7 @@ export type ControlState = {
    *  `appDescriptors`. Kept as a separate field so existing
    *  `authorizedApps.includes(app)` consumers keep working. */
   authorizedApps: string[];
-  /** Full per-app descriptors from `/api/session/apps`, including each
+  /** Full per-app descriptors from `/api/thread/apps`, including each
    *  app's declared secret slots. Used by the Secrets settings page to
    *  render slot inputs and by the chat shell to gate app load. */
   appDescriptors: AomiAppDescriptor[];
@@ -768,7 +768,10 @@ export function ControlContextProvider({
     );
   }, []);
 
-  const getCurrentThreadApplicationId = useCallback((): number | string | null => {
+  const getCurrentThreadApplicationId = useCallback(():
+    | number
+    | string
+    | null => {
     const currentControl =
       getThreadMetadataRef.current(sessionIdRef.current)?.control ??
       initThreadControl();
@@ -859,47 +862,49 @@ export function ControlContextProvider({
 
   const onAppSelect = useCallback(
     (app: string, options?: { applicationId?: number | string | null }) => {
-    const threadId = sessionIdRef.current;
-    const currentControl =
-      getThreadMetadataRef.current(threadId)?.control ?? initThreadControl();
-    const isProcessing = currentControl.isProcessing;
+      const threadId = sessionIdRef.current;
+      const currentControl =
+        getThreadMetadataRef.current(threadId)?.control ?? initThreadControl();
+      const isProcessing = currentControl.isProcessing;
 
-    console.log("[control-context] onAppSelect called", {
-      app,
-      isProcessing,
-      threadId,
-    });
-
-    if (isProcessing) {
-      console.warn("[control-context] Cannot switch app while processing");
-      return;
-    }
-
-    if (
-      stateRef.current.authorizedApps.length > 0 &&
-      !stateRef.current.authorizedApps.includes(app)
-    ) {
-      console.warn("[control-context] Cannot select unauthorized app", { app });
-      return;
-    }
-
-    console.log("[control-context] onAppSelect updating metadata", {
-      threadId,
-      app,
-      currentControl,
-    });
-
-    // Update thread metadata with new app and mark as dirty
-    updateThreadMetadataRef.current(threadId, {
-      control: {
-        ...currentControl,
+      console.log("[control-context] onAppSelect called", {
         app,
-        applicationId: options?.applicationId ?? null,
-        controlDirty: true,
-      },
-    });
+        isProcessing,
+        threadId,
+      });
 
-    console.log("[control-context] onAppSelect metadata updated");
+      if (isProcessing) {
+        console.warn("[control-context] Cannot switch app while processing");
+        return;
+      }
+
+      if (
+        stateRef.current.authorizedApps.length > 0 &&
+        !stateRef.current.authorizedApps.includes(app)
+      ) {
+        console.warn("[control-context] Cannot select unauthorized app", {
+          app,
+        });
+        return;
+      }
+
+      console.log("[control-context] onAppSelect updating metadata", {
+        threadId,
+        app,
+        currentControl,
+      });
+
+      // Update thread metadata with new app and mark as dirty
+      updateThreadMetadataRef.current(threadId, {
+        control: {
+          ...currentControl,
+          app,
+          applicationId: options?.applicationId ?? null,
+          controlDirty: true,
+        },
+      });
+
+      console.log("[control-context] onAppSelect metadata updated");
     },
     [],
   );

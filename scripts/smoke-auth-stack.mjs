@@ -35,7 +35,7 @@ function backendHeaders(token) {
   return {
     Accept: "application/json",
     Authorization: `Bearer ${token}`,
-    "X-Session-Id": sessionId,
+    "X-Thread-Id": sessionId,
   };
 }
 
@@ -183,7 +183,9 @@ async function bootstrapSiweSession() {
 
   const repeatJar = new CookieJar("wallet1-repeat");
   const accountRepeat = await signInWithWallet(repeatJar, walletOne);
-  const sameAccount = Boolean(accountId && accountId === accountRepeat?.user_id);
+  const sameAccount = Boolean(
+    accountId && accountId === accountRepeat?.user_id,
+  );
   console.log(
     `siwe wallet1 repeat: ${short(walletOne.address)} account=${accountRepeat?.user_id ?? "unknown"} sameAccount=${sameAccount}`,
   );
@@ -193,10 +195,7 @@ async function bootstrapSiweSession() {
   return { accountId, wallet: walletOne };
 }
 
-async function verifySameWalletSeesThread(
-  { wallet, accountId },
-  threadId,
-) {
+async function verifySameWalletSeesThread({ wallet, accountId }, threadId) {
   const jar = new CookieJar("wallet1-thread-check");
   const accountTwo = await signInWithWallet(jar, wallet);
   const accountIdTwo = accountTwo?.user_id;
@@ -206,13 +205,16 @@ async function verifySameWalletSeesThread(
   );
 
   const listResponse = await readJsonOrThrow(
-    await jar.request("/api/sessions", {
-      headers: { "X-Session-Id": threadId },
+    await jar.request("/api/threads", {
+      headers: { "X-Thread-Id": threadId },
     }),
     "wallet2 thread list",
   );
   const containsCreated = Array.isArray(listResponse)
-    ? listResponse.some((thread) => thread?.session_id === threadId)
+    ? listResponse.some(
+        (thread) =>
+          thread?.thread_id === threadId || thread?.session_id === threadId,
+      )
     : false;
   console.log(`siwe same wallet thread visibility: ${containsCreated}`);
   if (!sameAccount || !containsCreated) {
@@ -232,11 +234,13 @@ const accountResponse = await check(
   "portal account proxy",
   `${portalUrl}/api/account`,
   {
-    headers: portalHeaders({ "X-Session-Id": sessionId }),
+    headers: portalHeaders({ "X-Thread-Id": sessionId }),
   },
 );
 const account = await accountResponse.json().catch(() => null);
-console.log(`account: ${account?.user?.user_id ? "authenticated" : "anonymous"}`);
+console.log(
+  `account: ${account?.user?.user_id ? "authenticated" : "anonymous"}`,
+);
 
 if (!cookieHeader && !sessionBearer) {
   console.log(
@@ -270,25 +274,25 @@ console.log("bearer claims:", {
   exp: decoded?.payload?.exp,
 });
 
-await check("backend accepts bearer", `${backendUrl}/api/sessions?limit=5`, {
+await check("backend accepts bearer", `${backendUrl}/api/threads?limit=5`, {
   headers: backendHeaders(token),
 });
 
 const createResponse = await check(
   "backend creates account thread",
-  `${backendUrl}/api/sessions`,
+  `${backendUrl}/api/threads`,
   {
     method: "POST",
     headers: backendHeaders(token),
   },
 );
 const created = await createResponse.json().catch(() => null);
-const createdSessionId = created?.session_id;
+const createdSessionId = created?.thread_id ?? created?.session_id;
 console.log(`created thread: ${createdSessionId ?? "unknown"}`);
 
 await check(
   "backend lists created thread",
-  `${backendUrl}/api/sessions?limit=10`,
+  `${backendUrl}/api/threads?limit=10`,
   {
     headers: backendHeaders(token),
   },
@@ -298,13 +302,13 @@ if (createdSessionId) {
   await check("backend state call", `${backendUrl}/api/state`, {
     headers: {
       ...backendHeaders(token),
-      "X-Session-Id": createdSessionId,
+      "X-Thread-Id": createdSessionId,
     },
   });
 }
 
-await check("portal proxy lists threads", `${portalUrl}/api/sessions?limit=5`, {
-  headers: portalHeaders({ "X-Session-Id": sessionId }),
+await check("portal proxy lists threads", `${portalUrl}/api/threads?limit=5`, {
+  headers: portalHeaders({ "X-Thread-Id": sessionId }),
 });
 
 const appsResponse = await check(
@@ -331,7 +335,7 @@ const keyResponse = await check(
     method: "POST",
     headers: portalHeaders({
       "Content-Type": "application/json",
-      "X-Session-Id": sessionId,
+      "X-Thread-Id": sessionId,
     }),
     body: JSON.stringify({
       apps: ["default"],
@@ -356,7 +360,7 @@ if (createdSessionId) {
     )}`,
     {
       method: "POST",
-      headers: portalHeaders({ "X-Session-Id": createdSessionId }),
+      headers: portalHeaders({ "X-Thread-Id": createdSessionId }),
     },
   );
 }

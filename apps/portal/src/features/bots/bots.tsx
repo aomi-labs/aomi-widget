@@ -125,8 +125,8 @@ export function Bots() {
 
   const ensureBoundSession = useCallback(async () => {
     if (!accountUser) return;
-    await accountFetch<{ session_id: string; title?: string | null }>(
-      "/api/sessions",
+    await accountFetch<{ thread_id: string; title?: string | null }>(
+      "/api/threads",
       { method: "POST", body: JSON.stringify({}) },
     );
   }, [accountFetch, accountUser]);

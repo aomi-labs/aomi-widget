@@ -2,6 +2,7 @@ export type AomiHttpMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 
 export type AomiAuthClass =
   | "session"
+  | "thread"
   | "account"
   | "app_gate"
   | "service"

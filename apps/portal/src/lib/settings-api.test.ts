@@ -41,7 +41,7 @@ describe("settingsApiFetch", () => {
       await sessionScopedFetch("/api/account/apps");
 
       expect(calls[0]?.url).toBe("/api/account/apps");
-      expect(calls[0]?.headers.get("X-Session-Id") ?? "").toMatch(
+      expect(calls[0]?.headers.get("X-Thread-Id") ?? "").toMatch(
         /^(settings-|[0-9a-f-]{36})/,
       );
     } finally {

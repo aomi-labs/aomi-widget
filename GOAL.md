@@ -25,6 +25,12 @@ and the app picker can merge every configured public loaded platform.
 Local smoke tooling now has environment-qualified AomiBearer signing keys in
 `~/.zshenv` and the canonical `product-mono/.agents/skills/run-aomi` helper can
 mint staging/production portal or admin bearers without committing key material.
+Current auth/thread compatibility session: backend work is based on
+`origin/refactor/dbthread-unification` in a separate product-mono worktree, and
+the TS client/portal proxy now target `/api/threads`, `/api/thread/*`, and
+`X-Thread-Id` while preserving SDK `session_id` compatibility. Full local CLI
+smoke now covers SIWE login, `whoami`, seeded `session new`, account-bound
+thread creation, chat send, state/log reads, and persisted DB messages.
 
 ---
 
