@@ -151,7 +151,7 @@ GET    /api/session/apps
 GET    /api/session/models
 POST   /api/session/model?rig=X&app=Y
 GET    /api/account
-GET    /api/bff/auth/token
+GET    /api/aomi/account-bearer
 POST   /api/auth/aomi/provider/exchange
 POST   /api/aomi/provider/exchange
 ```

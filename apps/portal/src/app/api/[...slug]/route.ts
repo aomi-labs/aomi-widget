@@ -1,4 +1,5 @@
 import { createBackendProxy, type AllowedRoute } from "@aomi-labs/account";
+import { resolveBetterAuthCanonicalUserId } from "@portal/lib/aomi-account/canonical-session";
 import { launchConfig } from "@portal/server/bff/launch/config";
 
 const ALLOWED_ROUTES: AllowedRoute[] = [
@@ -80,6 +81,7 @@ function rewriteLegacyThreadPath(upstreamUrl: URL): void {
 
 export const { GET, POST, PUT, PATCH, DELETE } = createBackendProxy({
   allowedRoutes: ALLOWED_ROUTES,
+  resolveCanonicalUserId: resolveBetterAuthCanonicalUserId,
   applyDefaults: (upstreamUrl) => {
     rewriteLegacyThreadPath(upstreamUrl);
     if (

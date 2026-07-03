@@ -99,8 +99,8 @@ export async function accountScopedFetch<T>(
   options?: RequestInit,
 ): Promise<T> {
   // Same-origin `/api/account/*` through the portal proxy, which injects the
-  // AccountBearer from the `aomi_session` cookie (established by
-  // AomiSessionBridge). The browser carries no bearer itself.
+  // AccountBearer from the BetterAuth session. The browser carries no bearer
+  // itself.
   const response = await fetch(`${getBackendUrl()}${path}`, {
     ...options,
     headers: {

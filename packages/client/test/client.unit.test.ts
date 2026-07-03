@@ -634,7 +634,7 @@ describe("createAccountAccessTokenProvider", () => {
     await expect(getAccountAccessToken()).resolves.toBe("token-2");
     expect(fetch).toHaveBeenCalledTimes(2);
     expect(fetch).toHaveBeenLastCalledWith(
-      "http://unit.test/api/bff/auth/token",
+      "http://unit.test/api/aomi/account-bearer",
       expect.objectContaining({
         method: "GET",
         credentials: "include",

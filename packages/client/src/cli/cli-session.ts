@@ -460,7 +460,7 @@ export class CliSession {
   // ---------------------------------------------------------------------------
 
   /** Build a ClientSession from the current state. */
-  createClientSession(): ClientSession {
+  createClientSession(_config?: Partial<CliConfig>): ClientSession {
     const session = new ClientSession(
       {
         baseUrl: this.state.baseUrl,

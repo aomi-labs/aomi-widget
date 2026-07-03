@@ -36,11 +36,6 @@ export type CanonicalUser = {
   created: boolean;
 };
 
-/** Mirrors `DbAuthIdentity::normalize_value` (trim + ASCII-lowercase). */
-function normalizeValue(value: string): string {
-  return value.trim().toLowerCase();
-}
-
 /**
  * Resolve the canonical user for `(provider, subject)`, creating one on first
  * login. Atomic enough for concurrent first logins: the create races on the
@@ -124,64 +119,6 @@ export async function resolveOrCreateCanonicalUser(
   }
 }
 
-/**
- * Resolve-or-create the canonical user for a wallet-proven identity. SIWE paths
- * key this by normalized wallet address after server-side signature verification.
- */
-export async function resolveOrCreateByWallet(
-  address: string,
-): Promise<CanonicalUser> {
-  const normalized = normalizeValue(address);
-  if (!normalized) {
-    throw new Error("resolveOrCreateByWallet requires a wallet address");
-  }
-
-  const pool = getPool();
-  const client = await pool.connect();
-  try {
-    const existing = await findUserIdByWallet(client, normalized);
-    if (existing) {
-      await ensureExistingWalletLink(client, existing, normalized);
-      return { userId: existing, created: false };
-    }
-
-    const userId = randomUUID();
-    const now = Math.floor(Date.now() / 1000);
-    try {
-      await client.query("begin");
-      await ensureBackendUser(client, userId, now);
-      const authProviderId = await insertAuthProvider(client, {
-        userId,
-        provider: "wallet",
-        subject: normalized,
-        method: "wallet",
-        value: normalized,
-        verifiedAt: now,
-        isPrimary: true,
-        metadata: { source: "base_siwe" },
-        now,
-      });
-      await upsertOwnedPublicKey(client, {
-        userId,
-        authProviderId,
-        address: normalized,
-        now,
-      });
-      await client.query("commit");
-      return { userId, created: true };
-    } catch (error) {
-      await client.query("rollback").catch(() => {});
-      if (isUniqueViolation(error)) {
-        const winner = await findUserIdByWallet(client, normalized);
-        if (winner) return { userId: winner, created: false };
-      }
-      throw error;
-    }
-  } finally {
-    client.release();
-  }
-}
-
 function backendProvider(provider: string): string {
   const normalized = provider.trim();
   return normalized === "better_auth" ? "betterauth" : normalized;
@@ -224,108 +161,6 @@ async function insertAuthProvider(
     throw new Error("auth provider insert did not return id");
   }
   return Number(id);
-}
-
-async function ensureWalletLink(
-  client: { query: PoolClientQuery },
-  input: {
-    userId: string;
-    normalizedAddress: string;
-    now: number;
-  },
-): Promise<void> {
-  const existing = await client.query(
-    `select id, user_id
-       from auth_providers
-      where provider = 'wallet'
-        and subject = $1
-      limit 1`,
-    [input.normalizedAddress],
-  );
-  const existingRow = existing.rows[0];
-  if (existingRow) {
-    if (existingRow.user_id !== input.userId) {
-      throw new Error(
-        `wallet ${input.normalizedAddress} is already bound to user ${existingRow.user_id}`,
-      );
-    }
-    await upsertOwnedPublicKey(client, {
-      userId: input.userId,
-      authProviderId: Number(existingRow.id),
-      address: input.normalizedAddress,
-      now: input.now,
-    });
-    return;
-  }
-
-  const authProviderId = await insertAuthProvider(client, {
-    userId: input.userId,
-    provider: "wallet",
-    subject: input.normalizedAddress,
-    method: "wallet",
-    value: input.normalizedAddress,
-    verifiedAt: input.now,
-    isPrimary: true,
-    metadata: { source: "base_siwe" },
-    now: input.now,
-  });
-  await upsertOwnedPublicKey(client, {
-    userId: input.userId,
-    authProviderId,
-    address: input.normalizedAddress,
-    now: input.now,
-  });
-}
-
-async function upsertOwnedPublicKey(
-  client: { query: PoolClientQuery },
-  input: {
-    userId: string;
-    authProviderId: number;
-    address: string;
-    now: number;
-  },
-): Promise<void> {
-  const owner = await client.query(
-    `select user_id
-       from public_keys
-      where chain_type = 'evm'
-        and address = $1
-      limit 1`,
-    [input.address],
-  );
-  const ownerId = owner.rows[0]?.user_id;
-  if (ownerId && ownerId !== input.userId) {
-    throw new Error(
-      `public key ${input.address} is already bound to user ${ownerId}`,
-    );
-  }
-
-  await client.query(
-    `insert into public_keys
-       (chain_type, address, user_id, auth_provider_id, is_primary, created_at, updated_at)
-     values ('evm', $1, $2, $3, true, $4, $4)
-     on conflict (chain_type, address)
-     do update set
-       user_id = excluded.user_id,
-       auth_provider_id = excluded.auth_provider_id,
-       is_primary = excluded.is_primary,
-       updated_at = excluded.updated_at`,
-    [input.address, input.userId, input.authProviderId, input.now],
-  );
-}
-
-async function ensureExistingWalletLink(
-  client: { query: PoolClientQuery },
-  userId: string,
-  normalizedAddress: string,
-): Promise<void> {
-  const now = Math.floor(Date.now() / 1000);
-  await ensureWalletLink(client, {
-    userId,
-    normalizedAddress,
-    now,
-  });
 }
 
 async function ensureBackendUser(
@@ -394,31 +229,6 @@ async function findUserIdBySubject(
     [provider, subject],
   );
   return (result.rows[0]?.user_id as string | undefined) ?? null;
-}
-
-async function findUserIdByWallet(
-  client: { query: PoolClientQuery },
-  normalizedAddress: string,
-): Promise<string | null> {
-  const publicKey = await client.query(
-    `select user_id from public_keys
-      where chain_type = 'evm'
-        and address = $1
-      limit 1`,
-    [normalizedAddress],
-  );
-  const publicKeyOwner =
-    (publicKey.rows[0]?.user_id as string | undefined) ?? null;
-  if (publicKeyOwner) return publicKeyOwner;
-
-  const provider = await client.query(
-    `select user_id from auth_providers
-      where provider = 'wallet'
-        and (subject = $1 or (method = 'wallet' and lower(value) = $1))
-      limit 1`,
-    [normalizedAddress],
-  );
-  return (provider.rows[0]?.user_id as string | undefined) ?? null;
 }
 
 type PoolClientQuery = (

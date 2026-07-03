@@ -19,28 +19,45 @@ type BetterAuthSessionResult = {
   };
 } | null;
 
+export type BetterAuthSessionSeed = {
+  betterAuthUserId: string;
+  email?: string | null;
+  emailVerified?: boolean;
+  name?: string | null;
+  avatarUrl?: string | null;
+};
+
 export async function getBetterAuthSession(req: Request) {
   return (await auth.api.getSession({
     headers: req.headers,
   })) as BetterAuthSessionResult;
 }
 
-export async function requireAomiSession(req: Request) {
-  const session = await getBetterAuthSession(req);
+export function sessionUserSeed(
+  session: BetterAuthSessionResult,
+): BetterAuthSessionSeed | null {
   if (!session?.user?.id) return null;
-  const user = await getOrCreateAomiUserForBetterAuthSession({
+  return {
     betterAuthUserId: session.user.id,
     email: session.user.email,
     emailVerified: session.user.emailVerified,
     name: session.user.name,
     avatarUrl: session.user.image,
-  });
+  };
+}
+
+export async function requireAomiSession(req: Request) {
+  const session = await getBetterAuthSession(req);
+  const seed = sessionUserSeed(session);
+  if (!seed) return null;
+  const user = await getOrCreateAomiUserForBetterAuthSession(seed);
   return { session, user };
 }
 
 export async function accountResponseFromSession(req: Request) {
   const session = await getBetterAuthSession(req);
-  if (!session?.user?.id) {
+  const seed = sessionUserSeed(session);
+  if (!seed) {
     return {
       user: null,
       linkedAccounts: [],
@@ -49,13 +66,9 @@ export async function accountResponseFromSession(req: Request) {
     } as const;
   }
   return getAccountResponseForBetterAuthSession({
-    betterAuthUserId: session.user.id,
-    email: session.user.email,
-    emailVerified: session.user.emailVerified,
-    name: session.user.name,
-    avatarUrl: session.user.image,
-    expiresAt: session.session?.expiresAt,
-    fresh: session.session?.fresh,
+    ...seed,
+    expiresAt: session?.session?.expiresAt,
+    fresh: session?.session?.fresh,
   });
 }
 

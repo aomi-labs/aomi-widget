@@ -39,7 +39,7 @@ export async function DELETE(
   const result = await unlinkWallet({
     userId: current.user.id,
     walletId: id,
-    betterAuthUserId: current.session.user?.id,
+    betterAuthUserId: current.session?.user?.id,
   });
   if (result === "not_found") return json(404, { error: "wallet_not_found" });
   if (result === "last_factor") {

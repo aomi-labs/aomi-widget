@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import {
   buildDeviceAuthUrl,
+  getDeviceProviderCredential,
   signInWithDeviceProvider,
 } from "../../src/cli/device-auth";
 
@@ -24,6 +25,21 @@ describe("CLI device provider auth", () => {
       "http://127.0.0.1:12345/callback",
     );
     expect(parsed.searchParams.get("provider")).toBe("privy");
+  });
+
+  it("builds provider link URLs with link mode", () => {
+    const url = buildDeviceAuthUrl({
+      portalUrl: "https://chat.aomi.dev",
+      state: "state-123",
+      codeChallenge: "challenge-123",
+      redirectUri: "http://127.0.0.1:12345/callback",
+      provider: "para",
+      mode: "link",
+    });
+
+    const parsed = new URL(url);
+    expect(parsed.searchParams.get("provider")).toBe("para");
+    expect(parsed.searchParams.get("mode")).toBe("link");
   });
 
   it("exchanges a loopback callback code for a BetterAuth session", async () => {
@@ -90,6 +106,53 @@ describe("CLI device provider auth", () => {
         sessionToken: "better-auth-session",
         expiresAt: Date.parse("2032-03-04T05:06:07.000Z"),
         betterAuthUserId: "ba-user",
+      });
+    } finally {
+      vi.stubGlobal("fetch", originalFetch);
+    }
+  });
+
+  it("receives provider credentials over the loopback callback for account linking", async () => {
+    const originalFetch = globalThis.fetch;
+    try {
+      const result = await getDeviceProviderCredential({
+        baseUrl: "https://chat.aomi.dev",
+        provider: "privy",
+        openBrowser: async (url) => {
+          const parsed = new URL(url);
+          expect(parsed.searchParams.get("provider")).toBe("privy");
+          expect(parsed.searchParams.get("mode")).toBe("link");
+          const redirectUri = parsed.searchParams.get("redirect_uri");
+          const state = parsed.searchParams.get("state");
+          expect(redirectUri).toBeTruthy();
+          expect(state).toBeTruthy();
+          const form = new URLSearchParams({
+            state: state ?? "",
+            provider: "privy",
+            credential: JSON.stringify({
+              provider: "privy",
+              tokenKind: "identity_token",
+              providerToken: "provider-token",
+            }),
+          });
+          await originalFetch(redirectUri!, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/x-www-form-urlencoded",
+            },
+            body: form.toString(),
+          });
+        },
+        timeoutMs: 5_000,
+      });
+
+      expect(result).toEqual({
+        provider: "privy",
+        credential: {
+          provider: "privy",
+          tokenKind: "identity_token",
+          providerToken: "provider-token",
+        },
       });
     } finally {
       vi.stubGlobal("fetch", originalFetch);

@@ -25,7 +25,7 @@ export function createCliGetAccountBearer(
 
   // The normal path: present the SIWE-established BFF session as the credential.
   // The CLI points at a BFF, so it sends the session as `Authorization: Bearer
-  // <aomi_session>` (matching arixon's `bearer()` plugin) and the proxy mints the
+  // <BetterAuth session>` (matching BetterAuth's bearer plugin) and the proxy mints the
   // short-lived backend bearer from it per request — no client-side `/token`
   // round-trip or refresh needed (the proxy re-mints on every call).
   if (config.sessionCookie) {

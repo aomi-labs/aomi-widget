@@ -30,6 +30,7 @@ const providerLabels = {
 export function DeviceAuthClient() {
   const params = useSearchParams();
   const requestedProvider = normalizeProvider(params.get("provider"));
+  const mode = params.get("mode") === "link" ? "link" : "login";
   const [provider, setProvider] = useState<Provider | null>(
     requestedProvider ?? null,
   );
@@ -71,7 +72,11 @@ export function DeviceAuthClient() {
 
   return (
     <ProviderRuntime provider={provider}>
-      <DeviceAuthProviderPanel provider={provider} request={request} />
+      <DeviceAuthProviderPanel
+        mode={mode}
+        provider={provider}
+        request={request}
+      />
     </ProviderRuntime>
   );
 }
@@ -111,9 +116,11 @@ function ProviderRuntime({
 }
 
 function DeviceAuthProviderPanel({
+  mode,
   provider,
   request,
 }: {
+  mode: "login" | "link";
   provider: Provider;
   request: {
     state: string;
@@ -123,7 +130,9 @@ function DeviceAuthProviderPanel({
 }) {
   const walletKit = useAomiWalletKit();
   const [status, setStatus] = useState(
-    `Continue with ${providerLabels[provider]} to connect your CLI.`,
+    `Continue with ${providerLabels[provider]} to ${
+      mode === "link" ? "link this login method." : "connect your CLI."
+    }`,
   );
   const [pending, setPending] = useState(false);
   const [complete, setComplete] = useState(false);
@@ -149,11 +158,26 @@ function DeviceAuthProviderPanel({
     let cancelled = false;
     const run = async () => {
       try {
-        setStatus("Creating Aomi session...");
+        setStatus(
+          mode === "link"
+            ? "Preparing account link..."
+            : "Creating Aomi session...",
+        );
         const credential = await waitForCredential(() =>
           walletKit.getAccountCredential?.(),
         );
         if (cancelled) return;
+        if (mode === "link") {
+          postCredentialToCli({
+            credential,
+            provider,
+            redirectUri: request.redirectUri,
+            state: request.state,
+          });
+          setComplete(true);
+          setStatus("Account link complete. Returning to the CLI...");
+          return;
+        }
         const exchangeResponse = await fetch(
           "/api/auth/aomi/provider/exchange",
           {
@@ -213,6 +237,7 @@ function DeviceAuthProviderPanel({
     complete,
     exchangeRequested,
     pending,
+    mode,
     provider,
     request,
     walletKit.getAccountCredential,
@@ -257,6 +282,33 @@ function DeviceAuthLayout({
       </section>
     </main>
   );
+}
+
+function postCredentialToCli(input: {
+  credential: unknown;
+  provider: Provider;
+  redirectUri: string;
+  state: string;
+}) {
+  const form = document.createElement("form");
+  form.method = "POST";
+  form.action = input.redirectUri;
+  form.style.display = "none";
+
+  for (const [name, value] of Object.entries({
+    state: input.state,
+    provider: input.provider,
+    credential: JSON.stringify(input.credential),
+  })) {
+    const field = document.createElement("input");
+    field.type = "hidden";
+    field.name = name;
+    field.value = value;
+    form.appendChild(field);
+  }
+
+  document.body.appendChild(form);
+  form.submit();
 }
 
 async function waitForCredential(

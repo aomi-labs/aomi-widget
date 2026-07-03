@@ -209,7 +209,7 @@ The remaining seam is operational, not a separate auth design:
 - Browser and CLI backend calls enter through the portal BFF. The proxy resolves
   the Better Auth session, mirrors the canonical user into the backend DB, and
   mints the backend AccountBearer.
-- Direct cross-origin clients can call `/api/bff/auth/token` with a Better Auth
+- Direct cross-origin clients can call `/api/aomi/account-bearer` with a Better Auth
   cookie when they intentionally need a short-lived AccountBearer outside the
   same-origin proxy path.
 
@@ -391,11 +391,11 @@ There are still several credentials, and they intentionally do different jobs.
 
 The BFF-facing bridge is `@aomi-labs/account`, not a BetterAuth JWT plugin.
 
-- `packages/account/src/session.ts` resolves the Better Auth session to a
-  canonical Aomi user and backend `users.id`.
+- `apps/portal/src/lib/aomi-account/canonical-session.ts` resolves the Better
+  Auth session to a canonical Aomi user and backend `users.id`.
 - `packages/account/src/proxy.ts` strips client credentials, mints an EdDSA
   `AccountBearer`, and forwards trusted backend requests.
-- `packages/account/src/token.ts` backs `/api/bff/auth/token` for explicit
+- `packages/account/src/token.ts` backs `/api/aomi/account-bearer` for explicit
   cross-origin clients.
 - `packages/client/src/account-session.ts` can use that BFF token route when a
   consumer is intentionally calling the backend directly. The CLI does not need
@@ -681,7 +681,7 @@ requests carry the Better Auth cookie to the portal, and the BFF proxy mints the
 backend AccountBearer server-side.
 
 `createAccountAccessTokenProvider()` remains for explicit cross-origin clients
-that need `/api/bff/auth/token`; it is not the normal portal widget path.
+that need `/api/aomi/account-bearer`; it is not the normal portal widget path.
 
 ---
 
@@ -860,7 +860,7 @@ These are the places where the old plan no longer matched the code:
 7. The BFF proxy is the Rust-facing auth boundary and injects portal-minted
    AccountBearer tokens, not BetterAuth JWTs.
 8. The old BetterAuth JWT/JWKS client support was removed; cross-origin clients
-   use `/api/bff/auth/token` when needed.
+   use `/api/aomi/account-bearer` when needed.
 9. MCP approval auth was deprecated, unmounted, and then removed from
    `@aomi-labs/auth`.
 10. The current account runtime computes linked wallet capability from live

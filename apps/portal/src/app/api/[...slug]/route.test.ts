@@ -9,10 +9,9 @@ const launchConfigMock = vi.hoisted(() => ({
   catalogPlatforms: [] as string[],
 }));
 
-// Keep the real `createBackendProxy` / `getSessionedCanonicalId` (the proxy now
-// lives in `@aomi-labs/account`); only stub the mint. With no `aomi_session`
-// cookie on the test requests, the real `getSessionedCanonicalId` returns null,
-// so the proxy forwards anonymous and `mintAccountBearer` is never called.
+// Keep the real `createBackendProxy`; only stub the mint. Requests in these
+// tests are unauthenticated, so the portal resolver returns null and the proxy
+// forwards anonymous.
 vi.mock("@aomi-labs/account", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@aomi-labs/account")>();
   return {
@@ -26,6 +25,10 @@ vi.mock("@aomi-labs/account", async (importOriginal) => {
 
 vi.mock("@portal/server/backend-url", () => ({
   configuredBackendUrl: () => "https://api-staging.aomi.dev",
+}));
+
+vi.mock("@portal/lib/aomi-account/canonical-session", () => ({
+  resolveBetterAuthCanonicalUserId: vi.fn(async () => null),
 }));
 
 vi.mock("@portal/server/bff/backend", () => ({
