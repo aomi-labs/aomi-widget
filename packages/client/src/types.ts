@@ -323,6 +323,14 @@ export interface AomiAuthorizationCommitRequest {
   signature: string;
 }
 
+export interface AomiRevokeProviderGrantResponse {
+  status: "revoked" | "already_revoked";
+  provider: string;
+  approval_id?: number;
+  auth_provider_id?: number;
+  vault_cleared: boolean;
+}
+
 export interface AomiAuthorizationCommitResponse {
   address: string;
   chain_type: AomiWalletFamily;

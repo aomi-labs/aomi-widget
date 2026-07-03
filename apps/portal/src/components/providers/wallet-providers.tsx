@@ -211,7 +211,12 @@ type Props = {
 
 export function WalletProviders({ children, e2eWallet }: Props) {
   const pathname = usePathname();
-  if (pathname?.startsWith("/auth/privy")) {
+  // Standalone auth landing pages (src/app/auth/*) mount their own provider
+  // keyed by the auth URL's credentials — keep the global one out of the way.
+  if (
+    pathname?.startsWith("/auth/privy") ||
+    pathname?.startsWith("/auth/para")
+  ) {
     return <>{children}</>;
   }
 

@@ -28,6 +28,7 @@ export type {
   AomiAuthorizationChallengeResponse,
   AomiAuthorizationCommitRequest,
   AomiAuthorizationCommitResponse,
+  AomiRevokeProviderGrantResponse,
   AomiChatResponse,
   AomiClearSecretsResponse,
   AomiCreateThreadResponse,

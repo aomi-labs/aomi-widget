@@ -27,9 +27,7 @@ describe("aomi login / logout dispatch", () => {
     const walletLoginCommand = vi.fn(async () => {});
     const accountShowCommand = vi.fn(async () => {});
     const logoutCommand = vi.fn(() => {});
-    const providerLogoutCommand = vi.fn(() => {
-      throw new Error("unexpected providerLogoutCommand call");
-    });
+    const providerLogoutCommand = vi.fn(async () => {});
     vi.doMock("../../src/cli/commands/account", () => ({
       loginCommand,
       walletLoginCommand,
@@ -142,28 +140,21 @@ describe("aomi login / logout dispatch", () => {
     );
   });
 
-  it("`aomi logout --provider privy` exits 1 pending the revoke endpoint", async () => {
+  it("`aomi logout --provider privy` dispatches to providerLogoutCommand", async () => {
+    const mocks = mockAccountModule();
     const { logoutDef } = await import("../../src/cli/commands/defs/login");
     const { runCommand } = await import("citty");
-    const { CliExit } = await import("../../src/cli/errors");
 
-    const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
-
-    const err = await runCommand(logoutDef as never, {
+    await runCommand(logoutDef as never, {
       rawArgs: ["--provider", "privy"],
-    }).then(
-      () => null,
-      (e: unknown) => e,
-    );
+    });
 
-    expect(err).toBeInstanceOf(CliExit);
-    expect((err as InstanceType<typeof CliExit>).code).toBe(1);
-    expect(errSpy).toHaveBeenCalledWith(
-      expect.stringContaining("not yet available from the CLI"),
+    expect(mocks.providerLogoutCommand).toHaveBeenCalledTimes(1);
+    expect(mocks.providerLogoutCommand).toHaveBeenCalledWith(
+      "privy",
+      expect.anything(),
     );
-    expect(errSpy).toHaveBeenCalledWith(
-      expect.stringContaining("account-authorization endpoints"),
-    );
+    expect(mocks.logoutCommand).not.toHaveBeenCalled();
   });
 
   it("bare `aomi account` prints the canonical view", async () => {

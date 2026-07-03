@@ -16,14 +16,14 @@ class FakeClient {
   ) {}
   async query(sql: string): Promise<QueryResponse> {
     this.calls.push(sql.trim().split("\n")[0].trim());
-    if (sql.includes("wallet_provider = 'wallet'")) {
+    if (sql.includes("from public_keys")) {
       return this.opts.walletResponse ?? { rows: [] };
     }
-    if (sql.includes("from auth_identities")) {
+    if (sql.includes("from auth_providers")) {
       return this.opts.selectResponses.shift() ?? { rows: [] };
     }
     if (
-      sql.includes("insert into auth_identities") &&
+      sql.includes("insert into auth_providers") &&
       this.opts.identityInsertError
     ) {
       throw this.opts.identityInsertError;
@@ -73,7 +73,7 @@ describe("resolveOrCreateCanonicalUser", () => {
     const client = new FakeClient({
       // No (provider, subject) row exists for this returning wallet-first user…
       selectResponses: [{ rows: [] }],
-      // …but the wallet-keyed identity does (e.g. Alice → e624).
+      // …but the `public_keys` row does (e.g. Alice → e624).
       walletResponse: { rows: [{ user_id: "u-wallet-first" }] },
     });
     mockPoolWith(client);

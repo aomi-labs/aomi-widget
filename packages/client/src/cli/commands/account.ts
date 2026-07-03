@@ -291,12 +291,37 @@ export function logoutCommand(): void {
   printDataFileLocation();
 }
 
-// TODO(backend): needs a revoke endpoint. The approvals endpoints were
-// removed, so delegated-grant revocation has no REST surface yet — wire this
-// up once the account-authorization endpoints land.
-export function providerLogoutCommand(provider: string): never {
-  fatal(
-    `Provider disconnect ("${provider}") is not yet available from the CLI — ` +
-      "coming with the account-authorization endpoints.",
+/**
+ * `aomi logout --provider <name>` — revoke the provider's active delegated
+ * grant (server-side signing access) and clear its server-held secrets. The
+ * credential and keys stay linked; re-granting is a fresh
+ * `aomi login --provider <name>`. Idempotent.
+ */
+export async function providerLogoutCommand(
+  provider: string,
+  config: CliConfig,
+): Promise<void> {
+  const cli = CliSession.load();
+  if (!cli) {
+    fatal("No active session — run `aomi login` first.");
+  }
+  cli.mergeConfig(config);
+  const session = cli.createClientSession(config);
+  const result = await session.client.revokeProviderGrant(
+    cli.sessionId,
+    provider,
   );
+  if (result.status === "revoked") {
+    console.log(
+      `Revoked ${provider} delegated grant` +
+        (result.approval_id ? ` (approval ${result.approval_id})` : "") +
+        `${result.vault_cleared ? "; server-held secrets cleared" : ""}.`,
+    );
+    console.log(
+      `The credential and wallets stay linked — re-grant with ` +
+        `\`aomi login --provider ${provider}\`.`,
+    );
+  } else {
+    console.log(`No active ${provider} grant to revoke (already revoked).`);
+  }
 }

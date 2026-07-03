@@ -60,6 +60,7 @@ import {
 import {
   useSafeCapabilities,
   useSafeConnections,
+  useSafeConnectors,
   useSafeDisconnect,
   useSafeReconnect,
   useSafeSendCallsSync,
@@ -435,6 +436,7 @@ export function AomiParaAdapterProvider({
   const { switchChainAsync, isPending } = useSafeSwitchChain();
   const { disconnectAsync: wagmiDisconnectAsync } = useSafeDisconnect();
   const { reconnect: wagmiReconnect } = useSafeReconnect();
+  const wagmiConnectors = useSafeConnectors();
   const evmConnections = useSafeConnections();
   const { switchAccountAsync } = useSafeSwitchAccount();
   const { sendTransactionAsync } = useSafeSendTransaction();
@@ -518,6 +520,59 @@ export function AomiParaAdapterProvider({
       });
     }
   }, [paraAccount.isConnected, wagmiConnected, wagmiReconnect]);
+
+  // Attach the Para *embedded* wallet to wagmi when the session exists without
+  // a live EVM connection. wagmi only auto-connects the `para` connector during
+  // its reconnect-on-mount pass; a session that appears afterwards — e.g. the
+  // /auth/para landing page logs in from its own page-scoped provider and the
+  // user returns to an already-open chat tab — leaves wagmi disconnected, so
+  // the identity shows the embedded address while every tx/eip712 request
+  // rejects with "Connector not connected". A wagmi `reconnect` scoped to the
+  // para connector re-runs its `isAuthorized()` (`eth_accounts` off the live
+  // session): it connects silently, respects a deliberate disconnect (the
+  // `para.disconnected` shim), and no-ops while the session is still
+  // hydrating. `hadEvmConnectionRef` keeps it from resurrecting a connection
+  // the user just dropped in-session; the attempt ref makes it one-shot per
+  // embedded-session transition.
+  const embeddedAttachAttemptedRef = useRef(false);
+  useEffect(() => {
+    const embeddedConnected = Boolean(
+      paraAccount.embedded.isConnected && !paraAccount.embedded.isGuestMode,
+    );
+    if (!embeddedConnected) {
+      embeddedAttachAttemptedRef.current = false;
+      return;
+    }
+    if (
+      wagmiConnected ||
+      hadEvmConnectionRef.current ||
+      embeddedAttachAttemptedRef.current ||
+      !wagmiReconnect
+    ) {
+      return;
+    }
+    const paraConnector = wagmiConnectors.find(
+      (candidate) => candidate.id === "para",
+    );
+    if (!paraConnector) {
+      return;
+    }
+    embeddedAttachAttemptedRef.current = true;
+    void Promise.resolve(wagmiReconnect({ connectors: [paraConnector] })).catch(
+      (error) => {
+        console.warn(
+          "[aomi-auth-adapter] Para embedded wallet attach failed",
+          error,
+        );
+      },
+    );
+  }, [
+    paraAccount.embedded.isConnected,
+    paraAccount.embedded.isGuestMode,
+    wagmiConnected,
+    wagmiConnectors,
+    wagmiReconnect,
+  ]);
 
   useEffect(() => {
     if (pendingSolanaConnect && solanaWallet.publicKey) {

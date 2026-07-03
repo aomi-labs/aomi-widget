@@ -6,6 +6,7 @@ import type {
   AomiAuthorizationChallengeResponse,
   AomiAuthorizationCommitRequest,
   AomiAuthorizationCommitResponse,
+  AomiRevokeProviderGrantResponse,
   AomiBeginAccountAuthResponse,
   AomiClientOptions,
   AomiMessage,
@@ -1057,6 +1058,27 @@ export class AomiClient {
    * when someone else committed first (re-challenge and retry), 400 for an
    * expired permit or bad signature, 403 for the wrong signer.
    */
+  /** DELETE /api/account/providers/:provider/grant — revoke the provider's
+   * active delegated grant + clear its server-held secrets. The credential and
+   * keys stay linked; idempotent ("already_revoked"). */
+  async revokeProviderGrant(
+    sessionId: string,
+    provider: string,
+  ): Promise<AomiRevokeProviderGrantResponse> {
+    const url = joinApiPath(
+      this.baseUrl,
+      `/api/account/providers/${encodeURIComponent(provider)}/grant`,
+    );
+    const response = await this.rawFetchImpl(url, {
+      method: "DELETE",
+      headers: withSessionHeader(sessionId, {}),
+    });
+    if (!response.ok) {
+      throw await authorizationError("revoke provider grant", response);
+    }
+    return (await response.json()) as AomiRevokeProviderGrantResponse;
+  }
+
   async commitAuthorization(
     sessionId: string,
     req: AomiAuthorizationCommitRequest,

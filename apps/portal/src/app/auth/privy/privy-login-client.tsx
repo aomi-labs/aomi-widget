@@ -11,15 +11,19 @@
 //      Privy opens its modal (email/SMS/wallet) and runs the login flow in
 //      a privy.io iframe — Alice's email codes and key material never touch
 //      this page's JS.
-//   3. Once authenticated, collect the EVM embedded wallet info + access
-//      token and POST to the backend callback URL with the state token.
-//      That endpoint registers Aomi's signer and persists the approval.
+//   3. Once authenticated, re-fetch the user over the live Privy session
+//      (`refreshUser`) and derive the wallet payload strictly from that
+//      fresh user object, then POST it + the access token to the backend
+//      callback URL with the state token. That endpoint registers Aomi's
+//      signer and persists the approval.
 //   4. Show success (or error) — Alice closes the tab.
 //
 // We do NOT support unlinking, account switching, or wallet management here;
 // this is a one-shot connect flow. If Alice has an existing Privy session in
 // this browser (from a prior visit), `authenticated` will be true on mount —
-// in that case we just collect the cached credentials and POST. No re-prompt.
+// we still re-fetch the user before POSTing, so a stale cached identity (or
+// a wallet belonging to a different account) can never enter the payload.
+// No re-prompt.
 
 import {
   PrivyProvider,
@@ -27,14 +31,18 @@ import {
   useCreateWallet,
   usePrivy,
   useSigners,
+  useUser,
   useWallets,
 } from "@privy-io/react-auth";
 import {
   useCreateWallet as useCreateSolanaWallet,
   useWallets as useSolanaWallets,
 } from "@privy-io/react-auth/solana";
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { ensureServerSignerAccess } from "./signer-grants";
+import { useCallback, useEffect, useState } from "react";
+import {
+  ensureServerSignerAccess,
+  isWalletOwnershipMismatchError,
+} from "./signer-grants";
 
 interface Props {
   state: string;
@@ -101,32 +109,18 @@ function PrivyConnectFlow({
 }) {
   const { ready, authenticated, user, login, getAccessToken, logout } =
     usePrivy();
+  const { refreshUser } = useUser();
   const { createWallet } = useCreateWallet();
   const { createWallet: createSolanaWallet } = useCreateSolanaWallet();
   const { addSigners } = useSigners();
-  const { ready: walletsReady, wallets } = useWallets();
-  const { ready: solanaWalletsReady, wallets: solanaWallets } =
-    useSolanaWallets();
+  // The wallet lists themselves are deliberately unused: they are hydrated
+  // caches that can lag (or outlive) the live session. We only gate on
+  // readiness so the embedded-wallet iframe is up before create/grant calls.
+  const { ready: walletsReady } = useWallets();
+  const { ready: solanaWalletsReady } = useSolanaWallets();
 
   const [status, setStatus] = useState<Status>({ kind: "loading" });
   const [hasSubmitted, setHasSubmitted] = useState(false);
-
-  // The embedded wallet we just created (or that Privy already had cached).
-  // `walletClientType === 'privy'` filters out injected/external wallets that
-  // the user might have linked — we only stash the embedded one because
-  // that's the one Aomi BE will sign through.
-  const embeddedEvmWallet = useMemo(
-    () =>
-      wallets.find(
-        (w) =>
-          w.walletClientType === "privy" || w.walletClientType === "privy-v2",
-      ),
-    [wallets],
-  );
-  const embeddedSolanaWallet = useMemo(
-    () => solanaWallets[0] ?? null,
-    [solanaWallets],
-  );
 
   // Transition to `ready` once the SDK reports ready. Don't auto-submit on
   // mount even if already authenticated — wait for the user to acknowledge
@@ -151,19 +145,32 @@ function PrivyConnectFlow({
     setStatus({ kind: "pending", message: "Preparing your Privy wallets…" });
     const shouldRequireSolana = requestedWalletFamily === "solana";
 
-    let evmWallet = walletRefForUser(
-      user,
-      "ethereum",
-      embeddedEvmWallet?.address,
-    );
+    // Re-fetch the user over the live Privy session. Everything we POST is
+    // derived strictly from this fresh object — never from the mounted
+    // `user` snapshot or the `useWallets()` caches, which can go stale when
+    // the browser's Privy session changed underneath us (another tab logged
+    // into a different account, a logout/login race) and would smuggle a
+    // wallet from a different account into the payload.
+    let freshUser: User;
+    try {
+      freshUser = await refreshUser();
+      if (!freshUser) {
+        throw new Error("Privy returned no authenticated user");
+      }
+    } catch (err) {
+      setStatus({
+        kind: "error",
+        message: `Could not confirm the just-authenticated Privy user: ${errMsg(err)}. Start over and log in again.`,
+      });
+      setHasSubmitted(false);
+      return;
+    }
+
+    let evmWallet = walletRefForUser(freshUser, "ethereum");
     if (!evmWallet) {
       try {
         const createdWallet = await createWallet();
-        evmWallet = walletRefForUser(
-          user,
-          "ethereum",
-          createdWallet.address,
-        ) ?? {
+        evmWallet = {
           id: createdWallet.id ?? "",
           address: createdWallet.address,
           chainType: "ethereum",
@@ -178,19 +185,11 @@ function PrivyConnectFlow({
       }
     }
 
-    let solanaWallet = walletRefForUser(
-      user,
-      "solana",
-      embeddedSolanaWallet?.address,
-    );
-    if (!solanaWallet && shouldRequireSolana && !embeddedSolanaWallet) {
+    let solanaWallet = walletRefForUser(freshUser, "solana");
+    if (!solanaWallet && shouldRequireSolana) {
       try {
         const { wallet: createdWallet } = await createSolanaWallet();
-        solanaWallet = walletRefForUser(
-          user,
-          "solana",
-          createdWallet.address,
-        ) ?? {
+        solanaWallet = {
           id: createdWallet.id ?? "",
           address: createdWallet.address,
           chainType: "solana",
@@ -203,15 +202,6 @@ function PrivyConnectFlow({
         setHasSubmitted(false);
         return;
       }
-    }
-    if (!solanaWallet && shouldRequireSolana && embeddedSolanaWallet) {
-      setStatus({
-        kind: "error",
-        message:
-          "Privy already has an embedded Solana wallet for this user, but it has not exposed a stable wallet id yet. Retry the login.",
-      });
-      setHasSubmitted(false);
-      return;
     }
 
     const callbackWallets = [evmWallet, solanaWallet]
@@ -241,6 +231,15 @@ function PrivyConnectFlow({
         signerId,
         addSigners,
       });
+      if (signerGrantError && isWalletOwnershipMismatchError(signerGrantError)) {
+        // Privy refused the grant because the wallet belongs to another
+        // account — the backend callback could only ever fail. Stop here.
+        setStatus({
+          kind: "error",
+          message: WALLET_OWNERSHIP_MISMATCH_MESSAGE,
+        });
+        return;
+      }
 
       setStatus({
         kind: "pending",
@@ -248,7 +247,7 @@ function PrivyConnectFlow({
       });
       const callback = await postPrivyCallbackWithRefresh({
         state,
-        userId: user.id,
+        userId: freshUser.id,
         wallets: callbackWallets,
         callbackUrl,
         getAccessToken,
@@ -256,7 +255,9 @@ function PrivyConnectFlow({
       if (!callback.ok) {
         setStatus({
           kind: "error",
-          message: formatCallbackFailure(callback, signerGrantError),
+          message: isOwnershipMismatchCallback(callback)
+            ? WALLET_OWNERSHIP_MISMATCH_MESSAGE
+            : formatCallbackFailure(callback, signerGrantError),
         });
         return;
       }
@@ -271,11 +272,10 @@ function PrivyConnectFlow({
     callbackUrl,
     createWallet,
     createSolanaWallet,
-    embeddedEvmWallet,
-    embeddedSolanaWallet,
     getAccessToken,
     hasSubmitted,
     addSigners,
+    refreshUser,
     requestedWalletFamily,
     signerId,
     state,
@@ -317,9 +317,17 @@ function PrivyConnectFlow({
             void login();
           }}
           onLogoutAndRetry={() => {
-            void logout();
-            setHasSubmitted(false);
-            setStatus({ kind: "ready" });
+            // Finish the logout before re-arming auto-submit — resetting
+            // while `authenticated` is still true would immediately re-run
+            // `submit` against the session we are trying to discard.
+            void (async () => {
+              try {
+                await logout();
+              } finally {
+                setHasSubmitted(false);
+                setStatus({ kind: "ready" });
+              }
+            })();
           }}
         />
       </div>
@@ -526,6 +534,27 @@ function sleep(ms: number): Promise<void> {
   });
 }
 
+// Shown for the cross-account failure mode: the wallet in the payload (or
+// the one the browser tried to grant) belongs to a different Privy account
+// than the live session. Retrying cannot fix it — only re-authenticating as
+// the owning account can.
+const WALLET_OWNERSHIP_MISMATCH_MESSAGE =
+  "This wallet belongs to a different Privy account than the one you just " +
+  "logged in with — log out of Privy and sign in with the original account.";
+
+// The backend maps the wallet-ownership conflict to 409 with a
+// `wallet_not_owned_by_authenticated_user` marker (bin/backend
+// endpoint/privy_oauth.rs). 412 (signer consent pending) stays retryable.
+function isOwnershipMismatchCallback(callback: {
+  status: number;
+  detail: string;
+}): boolean {
+  return (
+    callback.status === 409 ||
+    callback.detail.includes("wallet_not_owned_by_authenticated_user")
+  );
+}
+
 function formatCallbackFailure(
   callback: { ok: false; status: number; detail: string },
   signerGrantError: string | null,
@@ -554,30 +583,24 @@ function buildEmbeddedWalletConfig(requestedWalletFamily?: WalletChainType): {
       };
 }
 
+// The user's embedded wallet, read off the (freshly fetched) user object
+// itself. `walletClientType 'privy'|'privy-v2'` filters out injected or
+// external wallets the user may have linked — Aomi BE only signs through
+// the embedded one. A missing account id maps to `""` so the caller's
+// stable-id guard can reject it with a precise error.
 function walletRefForUser(
   user: User,
   chainType: WalletChainType,
-  address?: string | null,
 ): CallbackWallet | null {
-  const target = address?.toLowerCase();
-
   for (const account of user.linkedAccounts) {
     if (
       account.type === "wallet" &&
       (account.walletClientType === "privy" ||
         account.walletClientType === "privy-v2") &&
-      account.chainType === chainType &&
-      (!target || account.address.toLowerCase() === target)
+      account.chainType === chainType
     ) {
-      if (!account.id) {
-        return {
-          id: "",
-          address: account.address,
-          chainType,
-        };
-      }
       return {
-        id: account.id,
+        id: account.id ?? "",
         address: account.address,
         chainType,
       };

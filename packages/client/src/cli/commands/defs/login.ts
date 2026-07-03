@@ -75,7 +75,7 @@ export const logoutDef = defineCommand({
     const provider = parseProvider(args.provider);
     if (provider) {
       const { providerLogoutCommand } = await import("../account");
-      providerLogoutCommand(provider);
+      await providerLogoutCommand(provider, buildCliConfig(args));
       return;
     }
     const { logoutCommand } = await import("../account");

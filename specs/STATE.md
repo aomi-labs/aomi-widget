@@ -2,9 +2,20 @@
 
 ## Last Updated
 
-2026-06-22 — Removed no-op `createAccountBearerProvider` (proxy-inject is canonical)
+2026-07-01 — Removed deploy CLI from `@aomi-labs/client` (belongs in `@aomi-labs/deploy`)
 
 ## Recent Changes
+
+### Remove deploy from client package (2026-07-01)
+
+`@aomi-labs/deploy` is a separate platform-deploy SDK; it should not be a
+dependency of the AI chat client.
+
+- Removed `@aomi-labs/deploy` from `packages/client/package.json` (and
+  `fast-check`, only used by deploy error PBTs).
+- Deleted `aomi deploy` / `deploy status` / `deploy activate` commands and
+  `deployment-state.ts`, `DeployCliError`, and related tests.
+- Updated `root.ts`, `main.ts`, and `cli-root-structure` test.
 
 ### Remove no-op `createAccountBearerProvider` (2026-06-22)
 
