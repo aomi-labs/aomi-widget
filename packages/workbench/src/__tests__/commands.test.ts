@@ -72,13 +72,19 @@ describe("commands", () => {
     expect(calls[1]).toEqual([
       "cargo",
       "clippy",
-      "-p",
-      "demo",
+      "--manifest-path",
+      "/sdk/apps/demo/Cargo.toml",
       "--lib",
       "--",
       "-Dwarnings",
     ]);
-    expect(calls[2]).toEqual(["cargo", "test", "-p", "demo", "--no-run"]);
+    expect(calls[2]).toEqual([
+      "cargo",
+      "test",
+      "--manifest-path",
+      "/sdk/apps/demo/Cargo.toml",
+      "--no-run",
+    ]);
   });
 
   it("resolves deploy activation credentials with SDK precedence", async () => {

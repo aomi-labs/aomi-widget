@@ -26,6 +26,13 @@ export async function runAgent(
   sdkRoot: string,
   runner: CommandRunner = defaultRunner,
 ) {
-  const bin = agent === "codex" ? "codex" : "claude";
-  return runner(bin, [prompt], { cwd: sdkRoot });
+  // The workflow runner provides no TTY, so both agents must run in their
+  // non-interactive modes: `codex exec` and `claude -p` (with edits allowed,
+  // since curation/repair phases write into apps/<name>).
+  if (agent === "codex") {
+    return runner("codex", ["exec", "--full-auto", prompt], { cwd: sdkRoot });
+  }
+  return runner("claude", ["-p", "--permission-mode", "acceptEdits", prompt], {
+    cwd: sdkRoot,
+  });
 }
