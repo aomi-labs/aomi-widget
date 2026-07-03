@@ -545,10 +545,7 @@ function RollbackApp({ args }: { args: RollbackArgs }) {
             setPhase({ name: "error", message: `rollback ${result.status}` });
           }
         } catch (error) {
-          setPhase({
-            name: "error",
-            message: error instanceof Error ? error.message : String(error),
-          });
+          setPhase({ name: "error", message: rollbackErrorMessage(error) });
         }
       })();
     },
@@ -628,17 +625,38 @@ async function runRollbackHeadless(args: RollbackArgs): Promise<void> {
     process.exitCode = 1;
     return;
   }
-  const result = await executeRollback(client, {
-    platform: args.platform,
-    app: args.app,
-    deploymentId,
-  });
-  console.log(
-    `rollback ${result.status}: ${args.app} -> ${deploymentId} (${result.releaseTags.join(", ")})`,
-  );
-  if (!result.ok) {
+  try {
+    const result = await executeRollback(client, {
+      platform: args.platform,
+      app: args.app,
+      deploymentId,
+    });
+    console.log(
+      `rollback ${result.status}: ${args.app} -> ${deploymentId} (${result.releaseTags.join(", ")})`,
+    );
+    if (!result.ok) {
+      process.exitCode = 1;
+    }
+  } catch (error) {
+    console.error(`rollback failed: ${rollbackErrorMessage(error)}`);
     process.exitCode = 1;
   }
+}
+
+/** Prefer the backend's structured error message over a raw stack trace. */
+function rollbackErrorMessage(error: unknown): string {
+  const body = (error as { body?: string })?.body;
+  if (typeof body === "string") {
+    try {
+      const parsed = JSON.parse(body) as { error?: string };
+      if (parsed.error) {
+        return parsed.error;
+      }
+    } catch {
+      // fall through to the generic message
+    }
+  }
+  return error instanceof Error ? error.message : String(error);
 }
 
 const [subcommand, ...restArgv] = process.argv.slice(2);

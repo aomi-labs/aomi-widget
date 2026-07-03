@@ -41,7 +41,9 @@ export async function runAppCargoChecks(
   app: string,
   runner: CommandRunner = defaultRunner,
 ) {
-  const manifest = path.join(sdkRoot, "Cargo.toml");
+  // Apps are `exclude`d from the SDK root workspace (app-local mode), so
+  // `-p <app>` at the root never resolves; target the app's own manifest.
+  const manifest = path.join(sdkRoot, "apps", app, "Cargo.toml");
   const fmt = await runner("cargo", ["fmt", "--manifest-path", manifest], {
     cwd: sdkRoot,
   });
@@ -51,14 +53,16 @@ export async function runAppCargoChecks(
 
   const clippy = await runner(
     "cargo",
-    ["clippy", "-p", app, "--lib", "--", "-Dwarnings"],
+    ["clippy", "--manifest-path", manifest, "--lib", "--", "-Dwarnings"],
     { cwd: sdkRoot },
   );
   if (clippy.exitCode !== 0) {
     return clippy;
   }
 
-  return runner("cargo", ["test", "-p", app, "--no-run"], { cwd: sdkRoot });
+  return runner("cargo", ["test", "--manifest-path", manifest, "--no-run"], {
+    cwd: sdkRoot,
+  });
 }
 
 export function newAppArgs(input: {
