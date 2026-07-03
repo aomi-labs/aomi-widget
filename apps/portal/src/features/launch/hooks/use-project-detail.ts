@@ -78,9 +78,10 @@ export function useProjectDetail(sourceId: number) {
     activationsReq.current = true;
     void Promise.all(
       source.apps.map(async (app) => {
-        const result = await deploymentActivations({ app: app.name }).catch(
-          () => null,
-        );
+        const result = await deploymentActivations({
+          app: app.name,
+          appSourceId: source.id,
+        }).catch(() => null);
         return [app.name, result?.activations ?? []] as const;
       }),
     ).then((entries) => setActivations(Object.fromEntries(entries)));

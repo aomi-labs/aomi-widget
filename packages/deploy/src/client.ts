@@ -667,12 +667,16 @@ export class DeploymentClient {
   ): Promise<ListActivationsResult> {
     const platform = cleanPlatform(input.platform);
     const app = required(input.app, "app");
+    const query =
+      input.appSourceId != null
+        ? `?app_source_id=${encodeURIComponent(String(input.appSourceId))}`
+        : "";
     const raw = await this.get<{
       app?: string;
       current_release_tag?: string | null;
       activations?: Array<Record<string, unknown>>;
     }>(
-      `/api/platforms/${encodeURIComponent(platform)}/apps/${encodeURIComponent(app)}/activations`,
+      `/api/platforms/${encodeURIComponent(platform)}/apps/${encodeURIComponent(app)}/activations${query}`,
       "list_activations",
       this.resolveBearer(input.bearer),
     );

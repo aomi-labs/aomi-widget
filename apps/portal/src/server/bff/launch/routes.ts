@@ -536,10 +536,12 @@ export async function deploymentActivationsRoute(req: Request) {
       { status: 401 },
     );
   }
-  const app = new URL(req.url).searchParams.get("app")?.trim();
+  const params = new URL(req.url).searchParams;
+  const app = params.get("app")?.trim();
   if (!app) {
     return NextResponse.json({ error: "missing `app`" }, { status: 400 });
   }
+  const appSourceId = Number(params.get("appSourceId"));
 
   try {
     const config = launchConfig();
@@ -547,6 +549,7 @@ export async function deploymentActivationsRoute(req: Request) {
     const result = await client.listActivations({
       platform: config.platform,
       app,
+      appSourceId: isValidAppSourceId(appSourceId) ? appSourceId : undefined,
     });
     return NextResponse.json(result);
   } catch (err) {
@@ -578,12 +581,19 @@ export async function deploymentRollbackRoute(req: Request) {
   try {
     const config = launchConfig();
     const client = await deploymentClient();
+    // Default the activation-log actor to the signed-in GitHub user so
+    // portal rollbacks are attributable without the client threading it.
+    const session = await getGitHubSession();
+    const actor =
+      typeof body.actor === "string" && body.actor.trim()
+        ? body.actor
+        : session?.githubLogin;
     const result = await client.rollback({
       platform: config.platform,
       deploymentId: body.deploymentId,
       apps,
       targetTags: config.targetTags,
-      actor: typeof body.actor === "string" ? body.actor : undefined,
+      actor,
     });
     return NextResponse.json(result, { status: result.ok ? 202 : 409 });
   } catch (err) {

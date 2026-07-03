@@ -459,6 +459,8 @@ export interface DeploymentActivation {
 export interface ListActivationsInput extends BearerOverride {
   platform: string;
   app: string;
+  /** Disambiguates same-named apps across sources on one platform. */
+  appSourceId?: number;
 }
 
 export interface ListActivationsResult {

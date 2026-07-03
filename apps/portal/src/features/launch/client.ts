@@ -134,9 +134,10 @@ export function deploymentSecrets(): Promise<DeploymentSecretsResult> {
 
 export function deploymentActivations(input: {
   app: string;
+  appSourceId?: number;
 }): Promise<ListActivationsResult> {
   return launchFetch(
-    API_PATHS.bff.deployments.activations(input.app),
+    API_PATHS.bff.deployments.activations(input.app, input.appSourceId),
     "deployment activations",
   );
 }

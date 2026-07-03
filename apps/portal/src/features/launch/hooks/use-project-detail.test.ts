@@ -78,6 +78,9 @@ describe("useProjectDetail", () => {
       expect(result.current.activationsByApp?.["my-bot"]).toHaveLength(2),
     );
     expect(deploymentActivations).toHaveBeenCalledTimes(1);
-    expect(deploymentActivations).toHaveBeenCalledWith({ app: "my-bot" });
+    expect(deploymentActivations).toHaveBeenCalledWith({
+      app: "my-bot",
+      appSourceId: 7,
+    });
   });
 });
