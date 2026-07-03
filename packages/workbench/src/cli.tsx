@@ -678,8 +678,16 @@ if (subcommand === "rollback") {
   } else if (!rollbackArgs.app || !rollbackArgs.platform) {
     console.error("rollback requires --app and --platform");
     process.exitCode = 1;
-  } else if (rollbackArgs.yes || !process.stdin.isTTY) {
+  } else if (rollbackArgs.yes) {
     await runRollbackHeadless(rollbackArgs);
+  } else if (!process.stdin.isTTY) {
+    // Rollback is destructive (re-activates an older release). Unlike the
+    // build workflow, there is no safe partial outcome, so a non-interactive
+    // invocation must opt in explicitly rather than auto-executing.
+    console.error(
+      "rollback needs a TTY for the confirm prompt; pass --yes to roll back non-interactively",
+    );
+    process.exitCode = 1;
   } else {
     render(<RollbackApp args={rollbackArgs} />);
   }

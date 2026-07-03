@@ -34,6 +34,39 @@ function checkWrite(req: Request): NextResponse | null {
   return checkRead(req) ?? (validateOrigin(req) ? null : forbidden());
 }
 
+type GitHubSession = NonNullable<Awaited<ReturnType<typeof getGitHubSession>>>;
+type DeploymentClientInstance = Awaited<ReturnType<typeof deploymentClient>>;
+
+/** Require a signed-in GitHub session; the credentials backing these writes
+ *  are server-held, so origin+rate-limit alone must not authorize them. */
+async function requireSession(): Promise<
+  { session: GitHubSession } | { response: NextResponse }
+> {
+  const session = await getGitHubSession();
+  if (!session) {
+    return {
+      response: NextResponse.json(
+        { error: "not signed in with GitHub" },
+        { status: 401 },
+      ),
+    };
+  }
+  return { session };
+}
+
+/** Whether `appSourceId` belongs to the signed-in user. The backend scopes
+ *  listUserSources to the session's GitHub user id, so a source id absent from
+ *  the result is not owned by the caller. */
+async function ownsAppSource(
+  client: DeploymentClientInstance,
+  githubUserId: string,
+  platform: string,
+  appSourceId: number,
+): Promise<boolean> {
+  const sources = await client.listUserSources({ githubUserId, platform });
+  return sources.some((source) => source.id === appSourceId);
+}
+
 function defaultRepoName() {
   const normalized = CREATED_REPO_PREFIX.trim()
     .toLowerCase()
@@ -64,6 +97,10 @@ export function launchDeployRoute(preflight: boolean) {
     const blocked = checkWrite(req);
     if (blocked) return blocked;
 
+    const auth = await requireSession();
+    if ("response" in auth) return auth.response;
+    const { session } = auth;
+
     const body = (await req.json().catch(() => ({}))) as Record<
       string,
       unknown
@@ -84,6 +121,24 @@ export function launchDeployRoute(preflight: boolean) {
     try {
       const config = launchConfig();
       const client = await deploymentClient();
+
+      // An explicit source id must belong to the signed-in user; the
+      // repo-based preflight path resolves/creates a source scoped to the
+      // installation instead.
+      if (
+        isValidAppSourceId(body.appSourceId) &&
+        !(await ownsAppSource(
+          client,
+          session.githubUserId,
+          config.platform,
+          body.appSourceId,
+        ))
+      ) {
+        return NextResponse.json(
+          { error: "app source not found for this user" },
+          { status: 404 },
+        );
+      }
 
       // Deploy uses a stable source row plus an immutable source commit. When
       // the portal only has a repo, sync-installed resolves both from GitHub.
@@ -561,14 +616,25 @@ export async function deploymentRollbackRoute(req: Request) {
   const blocked = checkWrite(req);
   if (blocked) return blocked;
 
+  const auth = await requireSession();
+  if ("response" in auth) return auth.response;
+  const { session } = auth;
+
   const body = (await req.json().catch(() => ({}))) as {
     deploymentId?: unknown;
+    appSourceId?: unknown;
     apps?: unknown;
     actor?: string;
   };
   if (!isValidDeploymentId(body.deploymentId)) {
     return NextResponse.json(
       { error: "missing or invalid `deploymentId`" },
+      { status: 400 },
+    );
+  }
+  if (!isValidAppSourceId(body.appSourceId)) {
+    return NextResponse.json(
+      { error: "missing or invalid `appSourceId`" },
       { status: 400 },
     );
   }
@@ -581,13 +647,41 @@ export async function deploymentRollbackRoute(req: Request) {
   try {
     const config = launchConfig();
     const client = await deploymentClient();
+
+    // Authorize the rollback target against the signed-in user: the source
+    // must be theirs, and the deployment must belong to that source. Both
+    // lookups are scoped to the session's GitHub user id server-side.
+    if (
+      !(await ownsAppSource(
+        client,
+        session.githubUserId,
+        config.platform,
+        body.appSourceId,
+      ))
+    ) {
+      return NextResponse.json(
+        { error: "app source not found for this user" },
+        { status: 404 },
+      );
+    }
+    const deployments = await client.listUserSourceDeployments({
+      githubUserId: session.githubUserId,
+      platform: config.platform,
+      appSourceId: body.appSourceId,
+    });
+    if (!deployments.some((d) => d.deploymentId === body.deploymentId)) {
+      return NextResponse.json(
+        { error: "deployment does not belong to this source" },
+        { status: 404 },
+      );
+    }
+
     // Default the activation-log actor to the signed-in GitHub user so
     // portal rollbacks are attributable without the client threading it.
-    const session = await getGitHubSession();
     const actor =
       typeof body.actor === "string" && body.actor.trim()
         ? body.actor
-        : session?.githubLogin;
+        : session.githubLogin;
     const result = await client.rollback({
       platform: config.platform,
       deploymentId: body.deploymentId,
