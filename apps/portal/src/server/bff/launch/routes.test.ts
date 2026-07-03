@@ -2,6 +2,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
+  deploymentRollbackRoute,
   launchDeployRoute,
   launchStatusRoute,
   redeployLaunchRoute,
@@ -32,19 +33,89 @@ function writeReq(body: unknown) {
   });
 }
 
+/** The listUserSources response granting the signed-in user these source ids. */
+function ownedSources(...ids: number[]) {
+  return Response.json({
+    sources: ids.map((id) => ({ id, installation_id: 555 })),
+  });
+}
+
 describe("launchDeployRoute", () => {
+  beforeEach(() => {
+    getGitHubSession.mockResolvedValue({
+      githubUserId: "42",
+      githubLogin: "alice",
+    });
+  });
+
   afterEach(() => {
     vi.unstubAllEnvs();
     vi.restoreAllMocks();
+    getGitHubSession.mockReset();
+  });
+
+  it("rejects deploy without a GitHub session before any backend call", async () => {
+    getGitHubSession.mockResolvedValue(null);
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    const POST = launchDeployRoute(false);
+    const res = await POST(
+      new Request("http://localhost:3000/api/bff/launch/deploy", {
+        method: "POST",
+        headers: {
+          origin: "http://localhost:3000",
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          appSourceId: 123,
+          sourceRef: "abc1234def5678",
+        }),
+      }),
+    );
+
+    expect(res.status).toBe(401);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects deploy of an app source the user does not own", async () => {
+    const fetchMock = vi.fn().mockResolvedValueOnce(ownedSources(1, 2));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const POST = launchDeployRoute(false);
+    const res = await POST(
+      new Request("http://localhost:3000/api/bff/launch/deploy", {
+        method: "POST",
+        headers: {
+          origin: "http://localhost:3000",
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          appSourceId: 123,
+          sourceRef: "abc1234def5678",
+        }),
+      }),
+    );
+    const body = await res.json();
+
+    expect(res.status).toBe(404);
+    expect(body.error).toContain("app source not found");
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(String(fetchMock.mock.calls[0][0])).toContain(
+      "/api/integrations/github-app/user/sources?github_user_id=42",
+    );
   });
 
   it("propagates BackendError status codes (400-599)", async () => {
-    const fetchMock = vi.fn().mockResolvedValueOnce(
-      new Response(JSON.stringify({ error: "deploy rejected" }), {
-        status: 409,
-        headers: { "Content-Type": "application/json" },
-      }),
-    );
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(ownedSources(123))
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ error: "deploy rejected" }), {
+          status: 409,
+          headers: { "Content-Type": "application/json" },
+        }),
+      );
 
     vi.stubGlobal("fetch", fetchMock);
 
@@ -64,7 +135,7 @@ describe("launchDeployRoute", () => {
     const res = await POST(req);
     const body = await res.json();
 
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(res.status).toBe(409);
     expect(body).toEqual({ error: "deploy rejected" });
   });
@@ -148,19 +219,22 @@ describe("launchDeployRoute", () => {
   });
 
   it("deploys directly by appSourceId when the source identity is already known", async () => {
-    const fetchMock = vi.fn().mockResolvedValueOnce(
-      Response.json({
-        ok: true,
-        deployment: {
-          id: "dep_999_rabc1234_deadbeef",
-          source: {
-            installation_id: 999,
-            repository_link: "alice/bot",
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(ownedSources(777))
+      .mockResolvedValueOnce(
+        Response.json({
+          ok: true,
+          deployment: {
+            id: "dep_999_rabc1234_deadbeef",
+            source: {
+              installation_id: 999,
+              repository_link: "alice/bot",
+            },
+            platform: { apps: [] },
           },
-          platform: { apps: [] },
-        },
-      }),
-    );
+        }),
+      );
     vi.stubGlobal("fetch", fetchMock);
 
     const POST = launchDeployRoute(false);
@@ -187,7 +261,7 @@ describe("launchDeployRoute", () => {
       appSourceId: 777,
     });
     expect(fetchMock).toHaveBeenNthCalledWith(
-      1,
+      2,
       "http://127.0.0.1:8080/api/platforms/community/deploy",
       expect.objectContaining({
         method: "POST",
@@ -198,7 +272,9 @@ describe("launchDeployRoute", () => {
 
   it("rejects deploy requests when no source commit is supplied or resolved", async () => {
     vi.unstubAllEnvs();
-    const fetchMock = vi.fn();
+    // The ownership lookup runs before commit resolution (authorize before
+    // acting on the caller's behalf), so exactly one backend read happens.
+    const fetchMock = vi.fn().mockResolvedValueOnce(ownedSources(777));
     vi.stubGlobal("fetch", fetchMock);
 
     const POST = launchDeployRoute(false);
@@ -216,7 +292,10 @@ describe("launchDeployRoute", () => {
 
     expect(res.status).toBe(400);
     expect(body.error).toContain("missing source commit");
-    expect(fetchMock).not.toHaveBeenCalled();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(String(fetchMock.mock.calls[0][0])).toContain(
+      "/api/integrations/github-app/user/sources",
+    );
   });
 
   it("rejects a request without appSourceId or repo before calling the backend", async () => {
@@ -258,7 +337,10 @@ describe("launchDeployRoute", () => {
   });
 
   it("returns 502 for non-BackendError exceptions", async () => {
-    const fetchMock = vi.fn().mockRejectedValueOnce(new Error("network down"));
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(ownedSources(123))
+      .mockRejectedValueOnce(new Error("network down"));
     vi.stubGlobal("fetch", fetchMock);
 
     const POST = launchDeployRoute(false);
@@ -276,6 +358,128 @@ describe("launchDeployRoute", () => {
 
     const res = await POST(req);
     expect(res.status).toBe(502);
+  });
+});
+
+describe("deploymentRollbackRoute", () => {
+  const DEPLOYMENT = "dep_555_r0123abcdef_a5a81b6b8be1";
+
+  function rollbackReq(body: unknown) {
+    return new Request("http://localhost:3000/api/bff/deployments/rollback", {
+      method: "POST",
+      headers: {
+        origin: "http://localhost:3000",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(body),
+    });
+  }
+
+  beforeEach(() => {
+    getGitHubSession.mockResolvedValue({
+      githubUserId: "42",
+      githubLogin: "alice",
+    });
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    getGitHubSession.mockReset();
+  });
+
+  it("rejects rollback without a GitHub session before any backend call", async () => {
+    getGitHubSession.mockResolvedValue(null);
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    const res = await deploymentRollbackRoute(
+      rollbackReq({ deploymentId: DEPLOYMENT, appSourceId: 99 }),
+    );
+
+    expect(res.status).toBe(401);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("requires appSourceId so the rollback target can be authorized", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    const res = await deploymentRollbackRoute(
+      rollbackReq({ deploymentId: DEPLOYMENT }),
+    );
+    const body = await res.json();
+
+    expect(res.status).toBe(400);
+    expect(body.error).toContain("appSourceId");
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects rollback of an app source the user does not own", async () => {
+    const fetchMock = vi.fn().mockResolvedValueOnce(ownedSources(1, 2));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const res = await deploymentRollbackRoute(
+      rollbackReq({ deploymentId: DEPLOYMENT, appSourceId: 99 }),
+    );
+    const body = await res.json();
+
+    expect(res.status).toBe(404);
+    expect(body.error).toContain("app source not found");
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("rejects a deployment that does not belong to the source", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(ownedSources(99))
+      .mockResolvedValueOnce(
+        Response.json({
+          deployments: [{ deployment_id: "dep_555_r0123abcdef_other001" }],
+        }),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const res = await deploymentRollbackRoute(
+      rollbackReq({ deploymentId: DEPLOYMENT, appSourceId: 99 }),
+    );
+    const body = await res.json();
+
+    expect(res.status).toBe(404);
+    expect(body.error).toContain("deployment does not belong");
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("rolls back an owned deployment and attributes the GitHub login", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(ownedSources(99))
+      .mockResolvedValueOnce(
+        Response.json({ deployments: [{ deployment_id: DEPLOYMENT }] }),
+      )
+      .mockResolvedValueOnce(
+        Response.json({
+          ok: true,
+          activation: {
+            status: "activating",
+            apps: [{ name: "my-bot", release_tag: "apps-555-tag" }],
+          },
+        }),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const res = await deploymentRollbackRoute(
+      rollbackReq({ deploymentId: DEPLOYMENT, appSourceId: 99 }),
+    );
+    const body = await res.json();
+
+    expect(res.status).toBe(202);
+    expect(body.ok).toBe(true);
+    expect(body.rollback.deploymentId).toBe(DEPLOYMENT);
+    const [rollbackUrl, rollbackInit] = fetchMock.mock.calls[2];
+    expect(String(rollbackUrl)).toContain(
+      `/deployments/${DEPLOYMENT}/rollback`,
+    );
+    expect(String(rollbackInit?.body)).toContain('"actor":"alice"');
   });
 });
 
