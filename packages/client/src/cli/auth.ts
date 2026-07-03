@@ -26,6 +26,8 @@ type PortalAccountResponse = {
   } | null;
 };
 
+export type CliAuthAccountInfo = PortalAccountResponse;
+
 export type CliSiweLoginOptions = {
   baseUrl: string;
   privateKey: `0x${string}`;
@@ -40,7 +42,7 @@ export type CliSiweLoginResult = {
 };
 
 const DEFAULT_CHAIN_ID = 1;
-const DEFAULT_SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+export const DEFAULT_SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 const AUTH_REFRESH_SKEW_MS = 30 * 1000;
 const SESSION_TOKEN_HEADERS = ["set-auth-token", "x-auth-token", "auth-token"];
 const NONCE_COOKIE_NAME = "aomi_siwe_nonce";
@@ -56,10 +58,7 @@ export function createCliAuthTokenProvider(
   return async () => {
     const state = readState();
     const auth = state.auth;
-    if (
-      auth?.sessionToken &&
-      auth.expiresAt > now() + AUTH_REFRESH_SKEW_MS
-    ) {
+    if (auth?.sessionToken && auth.expiresAt > now() + AUTH_REFRESH_SKEW_MS) {
       return auth.sessionToken;
     }
     return state.accountBearer ?? state.sessionCookie;
@@ -95,8 +94,7 @@ export async function signInWithCliSiwe({
       )}`,
     );
   }
-  const nonceResponse =
-    (await nonceHttpResponse.json()) as SiweNonceResponse;
+  const nonceResponse = (await nonceHttpResponse.json()) as SiweNonceResponse;
   const nonceCookie = getCookie(nonceHttpResponse.headers, NONCE_COOKIE_NAME);
   const nonce =
     typeof nonceResponse.nonce === "string" ? nonceResponse.nonce : "";
@@ -181,9 +179,9 @@ export async function signInWithCliSiwe({
           ? accountInfo.session.betterAuthUserId
           : typeof verifyBody.user_id === "string"
             ? verifyBody.user_id
-          : typeof verifyBody.user?.id === "string"
-            ? verifyBody.user.id
-            : undefined,
+            : typeof verifyBody.user?.id === "string"
+              ? verifyBody.user.id
+              : undefined,
     },
   };
 }
@@ -235,13 +233,13 @@ Nonce: ${input.nonce}
 Issued At: ${new Date().toISOString()}`;
 }
 
-function normalizeBaseUrl(baseUrl: string): string {
+export function normalizeBaseUrl(baseUrl: string): string {
   const trimmed = baseUrl.trim().replace(/\/+$/, "");
   if (!trimmed) throw new Error("Portal URL is required");
   return trimmed;
 }
 
-function joinUrl(baseUrl: string, path: string): string {
+export function joinUrl(baseUrl: string, path: string): string {
   return `${baseUrl.replace(/\/+$/, "")}/${path.replace(/^\/+/, "")}`;
 }
 
@@ -282,7 +280,7 @@ function normalizeUri(value: unknown): string | undefined {
   }
 }
 
-function getSessionTokenHeader(headers: Headers): string | null {
+export function getSessionTokenHeader(headers: Headers): string | null {
   for (const header of SESSION_TOKEN_HEADERS) {
     const value = headers.get(header);
     if (value) return value;
@@ -292,22 +290,21 @@ function getSessionTokenHeader(headers: Headers): string | null {
 
 function getCookie(headers: Headers, name: string): string | null {
   const setCookieHeaders = [
-    ...((headers as Headers & { getSetCookie?: () => string[] }).getSetCookie?.() ??
-      []),
+    ...((
+      headers as Headers & { getSetCookie?: () => string[] }
+    ).getSetCookie?.() ?? []),
   ];
   const singleHeader = headers.get("set-cookie");
   if (singleHeader) setCookieHeaders.push(singleHeader);
 
   for (const header of setCookieHeaders) {
-    const match = new RegExp(`(?:^|,\\s*)${name}=([^;,]+)`).exec(
-      header,
-    );
+    const match = new RegExp(`(?:^|,\\s*)${name}=([^;,]+)`).exec(header);
     if (match?.[1]) return match[1];
   }
   return null;
 }
 
-async function fetchPortalAccount(
+export async function fetchPortalAccount(
   fetchImpl: typeof fetch,
   baseUrl: string,
   sessionToken: string,
@@ -326,7 +323,7 @@ async function fetchPortalAccount(
     .catch(() => null)) as PortalAccountResponse | null;
 }
 
-async function requestJson<T>(
+export async function requestJson<T>(
   fetchImpl: typeof fetch,
   url: string,
   init: RequestInit,
@@ -346,7 +343,7 @@ async function requestJson<T>(
   return (await response.json()) as T;
 }
 
-function parseExpiresAt(value: unknown): number | null {
+export function parseExpiresAt(value: unknown): number | null {
   if (value instanceof Date) return value.getTime();
   if (typeof value === "number" && Number.isFinite(value)) {
     return value > 1_000_000_000_000 ? value : value * 1000;
@@ -358,7 +355,7 @@ function parseExpiresAt(value: unknown): number | null {
   return null;
 }
 
-async function safeResponseText(response: Response): Promise<string> {
+export async function safeResponseText(response: Response): Promise<string> {
   const text = await response.text().catch(() => "");
   return text ? `- ${text}` : "";
 }

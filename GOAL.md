@@ -31,6 +31,15 @@ the TS client/portal proxy now target `/api/threads`, `/api/thread/*`, and
 `X-Thread-Id` while preserving SDK `session_id` compatibility. Full local CLI
 smoke now covers SIWE login, `whoami`, seeded `session new`, account-bound
 thread creation, chat send, state/log reads, and persisted DB messages.
+CLI provider-auth session: `aomi account login` now defaults to browser
+provider auth through the portal BFF (`/device-auth` + one-time loopback grant),
+with `--provider privy|para` selecting a provider and `--wallet`,
+`--private-key`, or `--no-browser` preserving native SIWE. A built-CLI mock BFF
+smoke covers provider login callback → BetterAuth session storage → `whoami` →
+account-bound thread creation → chat send with `Authorization: Bearer
+<session>`. Real local Privy E2E reached the OTP screen, but the code did not
+arrive in `aron@megyeri.eu`; Google login returned `Login with Google not
+allowed` for the configured Privy app.
 
 ---
 
