@@ -13,6 +13,7 @@ type BetterAuthSessionResult = {
     image?: string | null;
   };
   session?: {
+    token?: string;
     expiresAt?: Date | string | number | null;
     fresh?: boolean;
   };

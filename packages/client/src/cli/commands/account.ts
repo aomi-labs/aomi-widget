@@ -3,11 +3,62 @@ import { fatal } from "../errors";
 import { printDataFileLocation } from "../output";
 import { signInWithCliSiwe, signOutCliSession } from "../auth";
 import type { CliConfig } from "../types";
+import {
+  signInWithDeviceProvider,
+  type DeviceAuthProvider,
+} from "../device-auth";
+import { DEFAULT_CLI_BASE_URL } from "../client-factory";
 
 const DEFAULT_CHAIN_ID = 1;
+const LEGACY_RAW_BACKEND_URL = "https://api.aomi.dev";
 
-export async function accountLoginCommand(config: CliConfig): Promise<void> {
+export type AccountLoginOptions = {
+  provider?: string;
+  wallet?: boolean;
+  noBrowser?: boolean;
+};
+
+export async function accountLoginCommand(
+  config: CliConfig,
+  options: AccountLoginOptions = {},
+): Promise<void> {
   const cli = CliSession.loadOrCreate(config);
+  if (!config.baseUrl && cli.baseUrl === LEGACY_RAW_BACKEND_URL) {
+    cli.setBaseUrl(DEFAULT_CLI_BASE_URL);
+  }
+  if (options.wallet || options.noBrowser || config.privateKey) {
+    await accountLoginWithSiwe(cli, config);
+    return;
+  }
+
+  if (
+    options.provider &&
+    options.provider !== "privy" &&
+    options.provider !== "para"
+  ) {
+    fatal('Unknown --provider value. Use "privy" or "para".');
+  }
+
+  const provider = options.provider as DeviceAuthProvider | undefined;
+  const result = await signInWithDeviceProvider({
+    baseUrl: cli.baseUrl,
+    provider,
+  });
+  cli.setAuthSession(result.auth);
+
+  console.log(
+    `Signed in${result.provider ? ` with ${formatProvider(result.provider)}` : ""}`,
+  );
+  console.log(
+    `Session expires at ${new Date(result.auth.expiresAt).toISOString()}`,
+  );
+  printDataFileLocation();
+}
+
+async function accountLoginWithSiwe(
+  cli: CliSession,
+  config: CliConfig,
+): Promise<void> {
   const privateKey = config.privateKey ?? cli.privateKey;
   if (!privateKey) {
     fatal(
@@ -34,6 +85,10 @@ export async function accountLoginCommand(config: CliConfig): Promise<void> {
     `Session expires at ${new Date(result.auth.expiresAt).toISOString()}`,
   );
   printDataFileLocation();
+}
+
+function formatProvider(provider: DeviceAuthProvider): string {
+  return provider === "privy" ? "Privy" : "Para";
 }
 
 export async function accountWhoamiCommand(config: CliConfig): Promise<void> {
@@ -84,7 +139,9 @@ export async function accountWhoamiCommand(config: CliConfig): Promise<void> {
 
 export const whoamiCommand = accountWhoamiCommand;
 
-function hasAccountCredential(state: ReturnType<CliSession["toState"]>): boolean {
+function hasAccountCredential(
+  state: ReturnType<CliSession["toState"]>,
+): boolean {
   return Boolean(state.auth?.sessionToken || state.accountBearer);
 }
 

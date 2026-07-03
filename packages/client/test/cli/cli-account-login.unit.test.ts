@@ -19,6 +19,7 @@ describe("aomi account login", () => {
 
   beforeEach(() => {
     vi.resetModules();
+    vi.doUnmock("../../src/cli/device-auth");
     process.env = { ...ORIGINAL_ENV };
     stateDir = mkdtempSync(join(tmpdir(), "aomi-cli-login-"));
     process.env.AOMI_STATE_DIR = stateDir;
@@ -30,10 +31,74 @@ describe("aomi account login", () => {
     vi.restoreAllMocks();
   });
 
+  it("uses device provider auth by default", async () => {
+    const deviceLogin = vi.fn(async () => ({
+      provider: "privy" as const,
+      auth: {
+        sessionToken: "better-auth-session",
+        expiresAt: Date.parse("2031-01-02T03:04:05.000Z"),
+        betterAuthUserId: "better-auth-user",
+      },
+    }));
+    vi.doMock("../../src/cli/device-auth", () => ({
+      signInWithDeviceProvider: deviceLogin,
+    }));
+    const { accountLoginCommand } =
+      await import("../../src/cli/commands/account");
+    const { readState } = await import("../../src/cli/state");
+    const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+
+    await accountLoginCommand(baseConfig);
+
+    expect(deviceLogin).toHaveBeenCalledWith({
+      baseUrl: "http://unit.test",
+      provider: undefined,
+    });
+    expect(readState()?.auth?.sessionToken).toBe("better-auth-session");
+    expect(logSpy).toHaveBeenCalledWith("Signed in with Privy");
+  });
+
+  it("passes an explicit provider to device auth", async () => {
+    const deviceLogin = vi.fn(async () => ({
+      provider: "para" as const,
+      auth: {
+        sessionToken: "para-session",
+        expiresAt: Date.parse("2031-01-02T03:04:05.000Z"),
+      },
+    }));
+    vi.doMock("../../src/cli/device-auth", () => ({
+      signInWithDeviceProvider: deviceLogin,
+    }));
+    const { accountLoginCommand } =
+      await import("../../src/cli/commands/account");
+    vi.spyOn(console, "log").mockImplementation(() => {});
+
+    await accountLoginCommand(baseConfig, { provider: "para" });
+
+    expect(deviceLogin).toHaveBeenCalledWith({
+      baseUrl: "http://unit.test",
+      provider: "para",
+    });
+  });
+
+  it("rejects an unknown device provider", async () => {
+    const deviceLogin = vi.fn();
+    vi.doMock("../../src/cli/device-auth", () => ({
+      signInWithDeviceProvider: deviceLogin,
+    }));
+    const { accountLoginCommand } =
+      await import("../../src/cli/commands/account");
+    vi.spyOn(console, "error").mockImplementation(() => {});
+
+    await expect(
+      accountLoginCommand(baseConfig, { provider: "unknown" }),
+    ).rejects.toMatchObject({ code: 1 });
+    expect(deviceLogin).not.toHaveBeenCalled();
+  });
+
   it("establishes an account session through BFF SIWE", async () => {
-    const { accountLoginCommand } = await import(
-      "../../src/cli/commands/account"
-    );
+    const { accountLoginCommand } =
+      await import("../../src/cli/commands/account");
 
     const nativeFetch = vi.fn(async (url: string | URL | Request) => {
       const target = String(url);
@@ -130,9 +195,8 @@ describe("aomi account login", () => {
   });
 
   it("requires an EVM private key", async () => {
-    const { accountLoginCommand } = await import(
-      "../../src/cli/commands/account"
-    );
+    const { accountLoginCommand } =
+      await import("../../src/cli/commands/account");
 
     const nativeFetch = vi.fn();
     const originalFetch = globalThis.fetch;
@@ -140,7 +204,9 @@ describe("aomi account login", () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
 
     try {
-      await expect(accountLoginCommand(baseConfig)).rejects.toMatchObject({
+      await expect(
+        accountLoginCommand(baseConfig, { noBrowser: true }),
+      ).rejects.toMatchObject({
         code: 1,
       });
       expect(nativeFetch).not.toHaveBeenCalled();
@@ -148,5 +214,4 @@ describe("aomi account login", () => {
       vi.stubGlobal("fetch", originalFetch);
     }
   });
-
 });

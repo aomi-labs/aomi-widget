@@ -4412,9 +4412,7 @@ function getCookie(headers, name) {
   const singleHeader = headers.get("set-cookie");
   if (singleHeader) setCookieHeaders.push(singleHeader);
   for (const header of setCookieHeaders) {
-    const match = new RegExp(`(?:^|,\\s*)${name}=([^;,]+)`).exec(
-      header
-    );
+    const match = new RegExp(`(?:^|,\\s*)${name}=([^;,]+)`).exec(header);
     if (match == null ? void 0 : match[1]) return match[1];
   }
   return null;
@@ -4430,6 +4428,20 @@ async function fetchPortalAccount(fetchImpl, baseUrl, sessionToken) {
   });
   if (!response.ok) return null;
   return await response.json().catch(() => null);
+}
+async function requestJson(fetchImpl, url, init, label) {
+  var _a3;
+  const response = await fetchImpl(url, __spreadValues({
+    headers: __spreadValues({ Accept: "application/json" }, (_a3 = init.headers) != null ? _a3 : {})
+  }, init));
+  if (!response.ok) {
+    throw new Error(
+      `${label} failed: HTTP ${response.status} ${await safeResponseText(
+        response
+      )}`
+    );
+  }
+  return await response.json();
 }
 function parseExpiresAt(value) {
   if (value instanceof Date) return value.getTime();
@@ -8395,6 +8407,181 @@ var init_preferences = __esm({
   }
 });
 
+// src/cli/device-auth.ts
+import { spawn } from "child_process";
+import { createHash, randomBytes } from "crypto";
+import { createServer } from "http";
+async function signInWithDeviceProvider({
+  baseUrl,
+  provider,
+  fetch: fetchImpl = fetch,
+  now = Date.now,
+  timeoutMs = DEFAULT_TIMEOUT_MS,
+  openBrowser = openUrlInBrowser,
+  randomBytes: randomBytesImpl = randomBytes
+}) {
+  var _a3, _b, _c, _d;
+  const portalUrl = normalizeBaseUrl(baseUrl);
+  const state = base64Url(randomBytesImpl(32));
+  const verifier = base64Url(randomBytesImpl(32));
+  const codeChallenge = sha256Base64Url(verifier);
+  const { server, redirectUri, callback } = await createLoopbackCallback({
+    state,
+    timeoutMs
+  });
+  try {
+    const authUrl = buildDeviceAuthUrl({
+      portalUrl,
+      state,
+      codeChallenge,
+      redirectUri,
+      provider
+    });
+    console.log(`Opening browser for Aomi account login: ${authUrl}`);
+    await openBrowser(authUrl);
+    console.log("Waiting for browser authentication...");
+    const { code } = await callback;
+    const exchange = await requestJson(
+      fetchImpl,
+      joinUrl(portalUrl, "/api/aomi/device-auth/exchange"),
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          code,
+          state,
+          codeVerifier: verifier,
+          redirectUri
+        })
+      },
+      "Device auth exchange"
+    );
+    const sessionToken = typeof exchange.sessionToken === "string" ? exchange.sessionToken : "";
+    if (!sessionToken) {
+      throw new Error("Device auth exchange is missing session token");
+    }
+    const accountInfo = await fetchPortalAccount(
+      fetchImpl,
+      portalUrl,
+      sessionToken
+    );
+    return {
+      provider: exchange.provider === "privy" || exchange.provider === "para" ? exchange.provider : provider,
+      auth: {
+        sessionToken,
+        expiresAt: (_c = (_b = parseExpiresAt(exchange.expiresAt)) != null ? _b : parseExpiresAt((_a3 = accountInfo == null ? void 0 : accountInfo.session) == null ? void 0 : _a3.expiresAt)) != null ? _c : now() + DEFAULT_SESSION_TTL_MS,
+        betterAuthUserId: typeof ((_d = accountInfo == null ? void 0 : accountInfo.session) == null ? void 0 : _d.betterAuthUserId) === "string" ? accountInfo.session.betterAuthUserId : typeof exchange.betterAuthUserId === "string" ? exchange.betterAuthUserId : void 0
+      }
+    };
+  } finally {
+    await closeServer(server);
+  }
+}
+function buildDeviceAuthUrl(input2) {
+  const url = new URL(joinUrl(input2.portalUrl, "/device-auth"));
+  url.searchParams.set("state", input2.state);
+  url.searchParams.set("code_challenge", input2.codeChallenge);
+  url.searchParams.set("redirect_uri", input2.redirectUri);
+  if (input2.provider) url.searchParams.set("provider", input2.provider);
+  return url.toString();
+}
+async function createLoopbackCallback(input2) {
+  let settle;
+  let fail;
+  const callback = new Promise((resolve, reject) => {
+    settle = resolve;
+    fail = reject;
+  });
+  let settled = false;
+  const timer = setTimeout(() => {
+    if (!settled) {
+      settled = true;
+      fail(new Error("Timed out waiting for browser authentication"));
+    }
+  }, input2.timeoutMs);
+  const server = createServer((req, res) => {
+    var _a3, _b, _c, _d;
+    try {
+      const host = (_a3 = req.headers.host) != null ? _a3 : "127.0.0.1";
+      const url = new URL((_b = req.url) != null ? _b : "/", `http://${host}`);
+      if (url.pathname !== "/callback") {
+        res.writeHead(404).end("Not found");
+        return;
+      }
+      const code = (_c = url.searchParams.get("code")) != null ? _c : "";
+      const state = (_d = url.searchParams.get("state")) != null ? _d : "";
+      const error = url.searchParams.get("error");
+      if (error) {
+        throw new Error(error);
+      }
+      if (state !== input2.state) {
+        throw new Error("Invalid browser auth state");
+      }
+      if (!code) {
+        throw new Error("Missing browser auth code");
+      }
+      res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" }).end(
+        "<!doctype html><title>Aomi CLI login complete</title><body>Authentication complete. You can close this window.</body>"
+      );
+      if (!settled) {
+        settled = true;
+        clearTimeout(timer);
+        settle({ code });
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Auth failed";
+      res.writeHead(400, { "Content-Type": "text/plain; charset=utf-8" }).end(message);
+      if (!settled) {
+        settled = true;
+        clearTimeout(timer);
+        fail(error);
+      }
+    }
+  });
+  await new Promise((resolve, reject) => {
+    server.once("error", reject);
+    server.listen(0, "127.0.0.1", () => {
+      server.off("error", reject);
+      resolve();
+    });
+  });
+  const address3 = server.address();
+  return {
+    server,
+    redirectUri: `http://127.0.0.1:${address3.port}/callback`,
+    callback
+  };
+}
+function closeServer(server) {
+  return new Promise((resolve) => {
+    server.close(() => resolve());
+  });
+}
+function openUrlInBrowser(url) {
+  const platform = process.platform;
+  const command = platform === "darwin" ? "open" : platform === "win32" ? "cmd" : "xdg-open";
+  const args = platform === "win32" ? ["/c", "start", "", url] : [url];
+  const child = spawn(command, args, {
+    detached: true,
+    stdio: "ignore"
+  });
+  child.unref();
+}
+function sha256Base64Url(value) {
+  return createHash("sha256").update(value).digest("base64url");
+}
+function base64Url(value) {
+  return value.toString("base64url");
+}
+var DEFAULT_TIMEOUT_MS;
+var init_device_auth = __esm({
+  "src/cli/device-auth.ts"() {
+    "use strict";
+    init_auth();
+    DEFAULT_TIMEOUT_MS = 5 * 60 * 1e3;
+  }
+});
+
 // src/cli/commands/account.ts
 var account_exports = {};
 __export(account_exports, {
@@ -8403,9 +8590,34 @@ __export(account_exports, {
   logoutCommand: () => logoutCommand,
   whoamiCommand: () => whoamiCommand
 });
-async function accountLoginCommand(config) {
-  var _a3, _b, _c;
+async function accountLoginCommand(config, options = {}) {
   const cli = CliSession.loadOrCreate(config);
+  if (!config.baseUrl && cli.baseUrl === LEGACY_RAW_BACKEND_URL) {
+    cli.setBaseUrl(DEFAULT_CLI_BASE_URL);
+  }
+  if (options.wallet || options.noBrowser || config.privateKey) {
+    await accountLoginWithSiwe(cli, config);
+    return;
+  }
+  if (options.provider && options.provider !== "privy" && options.provider !== "para") {
+    fatal('Unknown --provider value. Use "privy" or "para".');
+  }
+  const provider = options.provider;
+  const result = await signInWithDeviceProvider({
+    baseUrl: cli.baseUrl,
+    provider
+  });
+  cli.setAuthSession(result.auth);
+  console.log(
+    `Signed in${result.provider ? ` with ${formatProvider(result.provider)}` : ""}`
+  );
+  console.log(
+    `Session expires at ${new Date(result.auth.expiresAt).toISOString()}`
+  );
+  printDataFileLocation();
+}
+async function accountLoginWithSiwe(cli, config) {
+  var _a3, _b, _c;
   const privateKey = (_a3 = config.privateKey) != null ? _a3 : cli.privateKey;
   if (!privateKey) {
     fatal(
@@ -8428,6 +8640,9 @@ async function accountLoginCommand(config) {
     `Session expires at ${new Date(result.auth.expiresAt).toISOString()}`
   );
   printDataFileLocation();
+}
+function formatProvider(provider) {
+  return provider === "privy" ? "Privy" : "Para";
 }
 async function accountWhoamiCommand(config) {
   var _a3;
@@ -8509,7 +8724,7 @@ async function logoutCommand(config) {
   console.log("Signed out");
   printDataFileLocation();
 }
-var DEFAULT_CHAIN_ID2, whoamiCommand;
+var DEFAULT_CHAIN_ID2, LEGACY_RAW_BACKEND_URL, whoamiCommand;
 var init_account = __esm({
   "src/cli/commands/account.ts"() {
     "use strict";
@@ -8517,7 +8732,10 @@ var init_account = __esm({
     init_errors();
     init_output();
     init_auth();
+    init_device_auth();
+    init_client_factory();
     DEFAULT_CHAIN_ID2 = 1;
+    LEGACY_RAW_BACKEND_URL = "https://api.aomi.dev";
     whoamiCommand = accountWhoamiCommand;
   }
 });
@@ -9207,12 +9425,29 @@ import { defineCommand as defineCommand8 } from "citty";
 var accountLoginDef = defineCommand8({
   meta: {
     name: "login",
-    description: "Sign in with the configured EVM wallet"
+    description: "Sign in to an Aomi account"
   },
-  args: __spreadValues({}, globalArgs),
+  args: __spreadProps(__spreadValues({}, globalArgs), {
+    provider: {
+      type: "string",
+      description: 'Browser auth provider ("privy" or "para")'
+    },
+    wallet: {
+      type: "boolean",
+      description: "Use native CLI SIWE with the configured EVM wallet"
+    },
+    "no-browser": {
+      type: "boolean",
+      description: "Do not open provider auth; use native CLI SIWE"
+    }
+  }),
   async run({ args }) {
     const { accountLoginCommand: accountLoginCommand2 } = await Promise.resolve().then(() => (init_account(), account_exports));
-    await accountLoginCommand2(buildCliConfig(args));
+    await accountLoginCommand2(buildCliConfig(args), {
+      provider: typeof args.provider === "string" ? args.provider : void 0,
+      wallet: args.wallet === true,
+      noBrowser: args["no-browser"] === true
+    });
   }
 });
 var accountWhoamiDef = defineCommand8({
