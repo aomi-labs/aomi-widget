@@ -182,6 +182,46 @@ describe("AomiClient transport selection", () => {
     }
   });
 
+  it("normalizes backend thread_id responses to session_id compatibility fields", async () => {
+    const fetch = vi
+      .fn<typeof globalThis.fetch>()
+      .mockResolvedValueOnce(
+        Response.json({ thread_id: "thread-1", title: null }),
+      )
+      .mockResolvedValueOnce(
+        Response.json([{ thread_id: "thread-1", title: "One" }]),
+      );
+    const client = new AomiClient({
+      baseUrl: "http://unit.test",
+      fetch,
+    });
+
+    await expect(client.createThread("thread-1")).resolves.toEqual({
+      session_id: "thread-1",
+      thread_id: "thread-1",
+      title: null,
+    });
+    await expect(client.listThreads("thread-1")).resolves.toEqual([
+      {
+        session_id: "thread-1",
+        thread_id: "thread-1",
+        title: "One",
+        is_archived: undefined,
+      },
+    ]);
+
+    expect(String(fetch.mock.calls[0]?.[0])).toBe(
+      "http://unit.test/api/threads",
+    );
+    expect(String(fetch.mock.calls[1]?.[0])).toBe(
+      "http://unit.test/api/threads",
+    );
+    const headers = new Headers(
+      (fetch.mock.calls[0]?.[1] as RequestInit | undefined)?.headers,
+    );
+    expect(headers.get("X-Thread-Id")).toBe("thread-1");
+  });
+
   it("uses native fetch for SSE subscriptions even when a custom fetch is provided", async () => {
     let connection: ReturnType<typeof createMockSseConnection> | undefined;
     const nativeFetch = vi.fn(async (_input, init) => {
@@ -432,8 +472,8 @@ describe("AomiClient transport selection", () => {
       const secondHeaders = new Headers(
         (nativeFetch.mock.calls[1]?.[1] as RequestInit | undefined)?.headers,
       );
-      expect(firstHeaders.get("X-Session-Id")).toBe("session-1");
-      expect(secondHeaders.get("X-Session-Id")).toBe("session-2");
+      expect(firstHeaders.get("X-Thread-Id")).toBe("session-1");
+      expect(secondHeaders.get("X-Thread-Id")).toBe("session-2");
 
       connections[0]?.emit(
         'data: {"type":"title_changed","session_id":"session-1","new_title":"One"}\n\n',

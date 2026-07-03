@@ -34,6 +34,7 @@ const ALLOWED_REQUEST_HEADERS = new Set([
   "content-type",
   "aomi-app-key",
   "x-session-id",
+  "x-thread-id",
 ]);
 
 export type AllowedRoute = {
@@ -67,13 +68,15 @@ export type ProxyConfig = {
 };
 
 function defaultBackendUrl(): string {
-  if (process.env.VERCEL_ENV === "preview") return "https://api-staging.aomi.dev";
+  if (process.env.VERCEL_ENV === "preview")
+    return "https://api-staging.aomi.dev";
   if (process.env.VERCEL_ENV === "production") return "https://api.aomi.dev";
   return "http://127.0.0.1:8080";
 }
 
 function resolveUpstreamBaseUrl(config: ProxyConfig): string {
-  const configured = config.upstreamBaseUrl ?? process.env.AOMI_PROXY_BACKEND_URL;
+  const configured =
+    config.upstreamBaseUrl ?? process.env.AOMI_PROXY_BACKEND_URL;
   if (configured) {
     try {
       return new URL(configured).toString();
@@ -120,6 +123,10 @@ function copyRequestHeaders(req: NextRequest): Headers {
       headers.set(key, value);
     }
   });
+  const legacySessionId = headers.get("x-session-id");
+  if (legacySessionId && !headers.has("x-thread-id")) {
+    headers.set("x-thread-id", legacySessionId);
+  }
   return headers;
 }
 
@@ -177,11 +184,24 @@ export function createBackendProxy(config: ProxyConfig) {
     const { slug } = await context.params;
     // Resolve per request, not at factory creation, so the upstream tracks env
     // (and stays test-friendly — tests can set the backend URL before a call).
-    const upstreamUrl = buildUpstreamUrl(resolveUpstreamBaseUrl(config), req, slug);
+    const upstreamUrl = buildUpstreamUrl(
+      resolveUpstreamBaseUrl(config),
+      req,
+      slug,
+    );
     config.applyDefaults?.(upstreamUrl);
 
-    if (!isAllowedProxyRequest(config.allowedRoutes, upstreamUrl.pathname, req.method)) {
-      return NextResponse.json({ error: "Unsupported API route" }, { status: 404 });
+    if (
+      !isAllowedProxyRequest(
+        config.allowedRoutes,
+        upstreamUrl.pathname,
+        req.method,
+      )
+    ) {
+      return NextResponse.json(
+        { error: "Unsupported API route" },
+        { status: 404 },
+      );
     }
 
     const headers = copyRequestHeaders(req);
@@ -217,9 +237,18 @@ export function createBackendProxy(config: ProxyConfig) {
       console.error("Aomi upstream request failed", {
         message: error instanceof Error ? error.message : String(error),
       });
-      return NextResponse.json({ error: "Upstream request failed" }, { status: 502 });
+      return NextResponse.json(
+        { error: "Upstream request failed" },
+        { status: 502 },
+      );
     }
   }
 
-  return { GET: handle, POST: handle, PUT: handle, PATCH: handle, DELETE: handle };
+  return {
+    GET: handle,
+    POST: handle,
+    PUT: handle,
+    PATCH: handle,
+    DELETE: handle,
+  };
 }

@@ -1275,8 +1275,32 @@ function buildApiUrl(baseUrl, path, query) {
 }
 function withSessionHeader(sessionId, init) {
   const headers = new Headers(init);
-  headers.set(SESSION_ID_HEADER, sessionId);
+  headers.set(THREAD_ID_HEADER, sessionId);
   return headers;
+}
+function normalizeThreadResponse(data) {
+  if (!data || typeof data !== "object" || Array.isArray(data)) {
+    throw new Error("Backend thread response must be an object");
+  }
+  const record = data;
+  const threadId = typeof record.thread_id === "string" ? record.thread_id : typeof record.session_id === "string" ? record.session_id : null;
+  if (!threadId) {
+    throw new Error("Backend thread response missing thread_id");
+  }
+  return {
+    session_id: threadId,
+    thread_id: threadId,
+    title: typeof record.title === "string" ? record.title : record.title === null ? null : "",
+    is_archived: typeof record.is_archived === "boolean" ? record.is_archived : void 0
+  };
+}
+function normalizeCreateThreadResponse(data) {
+  const thread = normalizeThreadResponse(data);
+  return {
+    session_id: thread.session_id,
+    thread_id: thread.thread_id,
+    title: thread.title
+  };
 }
 function wrapFetchWithAccountBearer(fetchImpl, getAccountAccessToken) {
   if (!getAccountAccessToken) return fetchImpl;
@@ -1361,14 +1385,14 @@ async function postState(baseUrl, path, payload, sessionId, fetchImpl, apiKey, l
   }
   return await response.json();
 }
-var SESSION_ID_HEADER, APP_KEY_HEADER, BULKY_PENDING_FIELDS, AomiClient;
+var THREAD_ID_HEADER, APP_KEY_HEADER, BULKY_PENDING_FIELDS, AomiClient;
 var init_client = __esm({
   "src/client.ts"() {
     "use strict";
     init_app_descriptor();
     init_user_state();
     init_sse();
-    SESSION_ID_HEADER = "X-Session-Id";
+    THREAD_ID_HEADER = "X-Thread-Id";
     APP_KEY_HEADER = "AOMI-APP-KEY";
     BULKY_PENDING_FIELDS = /* @__PURE__ */ new Set([
       "messageBase64",
@@ -1673,14 +1697,16 @@ var init_client = __esm({
        * List all threads for the current authenticated Aomi account.
        */
       async listThreads(sessionId) {
-        const url = buildApiUrl(this.baseUrl, "/api/sessions");
+        const url = buildApiUrl(this.baseUrl, "/api/threads");
         const response = await this.fetchImpl(url, {
           headers: withSessionHeader(sessionId)
         });
         if (!response.ok) {
           throw new Error(`Failed to fetch threads: HTTP ${response.status}`);
         }
-        return await response.json();
+        const data = await response.json();
+        if (!Array.isArray(data)) return [];
+        return data.map((item) => normalizeThreadResponse(item));
       }
       /**
        * Get a single thread by ID.
@@ -1688,7 +1714,7 @@ var init_client = __esm({
       async getThread(sessionId) {
         const url = buildApiUrl(
           this.baseUrl,
-          `/api/sessions/${encodeURIComponent(sessionId)}`
+          `/api/threads/${encodeURIComponent(sessionId)}`
         );
         const response = await this.fetchImpl(url, {
           headers: withSessionHeader(sessionId)
@@ -1696,13 +1722,13 @@ var init_client = __esm({
         if (!response.ok) {
           throw new Error(`HTTP ${response.status}: ${response.statusText}`);
         }
-        return await response.json();
+        return normalizeThreadResponse(await response.json());
       }
       /**
        * Create a new thread. The client generates the session ID.
        */
       async createThread(threadId) {
-        const url = buildApiUrl(this.baseUrl, "/api/sessions");
+        const url = buildApiUrl(this.baseUrl, "/api/threads");
         const response = await this.fetchImpl(url, {
           method: "POST",
           headers: withSessionHeader(threadId, {
@@ -1713,7 +1739,7 @@ var init_client = __esm({
         if (!response.ok) {
           throw new Error(`Failed to create thread: HTTP ${response.status}`);
         }
-        return await response.json();
+        return normalizeCreateThreadResponse(await response.json());
       }
       /**
        * Delete a thread by ID.
@@ -1721,7 +1747,7 @@ var init_client = __esm({
       async deleteThread(sessionId) {
         const url = buildApiUrl(
           this.baseUrl,
-          `/api/sessions/${encodeURIComponent(sessionId)}`
+          `/api/threads/${encodeURIComponent(sessionId)}`
         );
         const response = await this.fetchImpl(url, {
           method: "DELETE",
@@ -1737,7 +1763,7 @@ var init_client = __esm({
       async renameThread(sessionId, newTitle) {
         const url = buildApiUrl(
           this.baseUrl,
-          `/api/sessions/${encodeURIComponent(sessionId)}`
+          `/api/threads/${encodeURIComponent(sessionId)}`
         );
         const response = await this.fetchImpl(url, {
           method: "PATCH",
@@ -1755,7 +1781,7 @@ var init_client = __esm({
        */
       async archiveThread(sessionId) {
         throw new Error(
-          "Failed to archive thread: current backend does not expose /api/sessions/:id/archive"
+          "Failed to archive thread: current backend does not expose /api/threads/:id/archive"
         );
       }
       /**
@@ -1763,7 +1789,7 @@ var init_client = __esm({
        */
       async unarchiveThread(sessionId) {
         throw new Error(
-          "Failed to unarchive thread: current backend does not expose /api/sessions/:id/unarchive"
+          "Failed to unarchive thread: current backend does not expose /api/threads/:id/unarchive"
         );
       }
       // ===========================================================================
@@ -1796,7 +1822,7 @@ var init_client = __esm({
       async getApps(sessionId, options) {
         var _a3;
         const platforms = normalizePlatformFilter(options == null ? void 0 : options.platforms);
-        const url = buildApiUrl(this.baseUrl, "/api/session/apps", {
+        const url = buildApiUrl(this.baseUrl, "/api/thread/apps", {
           platform: platforms.length > 0 ? platforms : void 0
         });
         const apiKey = (_a3 = options == null ? void 0 : options.apiKey) != null ? _a3 : this.apiKey;
@@ -1817,7 +1843,7 @@ var init_client = __esm({
        */
       async getModels(sessionId, options) {
         var _a3;
-        const url = buildApiUrl(this.baseUrl, "/api/session/models");
+        const url = buildApiUrl(this.baseUrl, "/api/thread/models");
         const apiKey = (_a3 = options == null ? void 0 : options.apiKey) != null ? _a3 : this.apiKey;
         const headers = new Headers(withSessionHeader(sessionId));
         if (apiKey) {
@@ -1838,7 +1864,7 @@ var init_client = __esm({
         var _a3, _b;
         const apiKey = (_a3 = options == null ? void 0 : options.apiKey) != null ? _a3 : this.apiKey;
         const applicationId = (_b = options == null ? void 0 : options.applicationId) == null ? void 0 : _b.toString().trim();
-        const url = buildApiUrl(this.baseUrl, "/api/session/model", {
+        const url = buildApiUrl(this.baseUrl, "/api/thread/model", {
           rig,
           app: options == null ? void 0 : options.app,
           application_id: applicationId || void 0,
@@ -5049,6 +5075,22 @@ function extractMentionedTxIds(content) {
   const matches = (_a3 = content.match(/\btx-\d+\b/gi)) != null ? _a3 : [];
   return Array.from(new Set(matches.map((id) => id.toLowerCase()))).sort();
 }
+function hasAccountCredential(cli) {
+  var _a3;
+  const state = cli.toState();
+  return Boolean(
+    ((_a3 = state.auth) == null ? void 0 : _a3.sessionToken) || state.accountBearer || state.sessionCookie
+  );
+}
+async function ensureAccountBoundThread(cli, session) {
+  if (!hasAccountCredential(cli)) return;
+  try {
+    await session.client.createThread(cli.sessionId);
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error);
+    fatal(`Failed to create account-bound backend thread: ${detail}`);
+  }
+}
 function deriveSvmAddress(solanaPrivateKey) {
   if (!solanaPrivateKey) return void 0;
   try {
@@ -5109,6 +5151,7 @@ async function chatCommand(config, message, verbose) {
   const resolvedSolanaKey = cli.resolvedSvmPrivateKey(config.solanaPrivateKey);
   const svmAddress3 = (_c = deriveSvmAddress(resolvedSolanaKey)) != null ? _c : cli.svmPublicKey;
   try {
+    await ensureAccountBoundThread(cli, session);
     await ingestSecretsForSession(config, cli, session.client);
     await applyRequestedModelIfPresent(config, cli, session);
     await syncWalletStateForChat(
@@ -7890,7 +7933,8 @@ async function sessionsCommand(_config) {
   printDataFileLocation();
 }
 function newSessionCommand(config) {
-  const cli = CliSession.create(config);
+  const existing = CliSession.load();
+  const cli = CliSession.create(config, existing == null ? void 0 : existing.toState());
   console.log(`Active session set to ${cli.sessionId} (new).`);
   printDataFileLocation();
 }
@@ -8416,7 +8460,7 @@ async function accountWhoamiCommand(config) {
     printDataFileLocation();
   } catch (e) {
     console.log("Not bound to an account (anonymous session).");
-    if (!hasAccountCredential(cli.toState())) {
+    if (!hasAccountCredential2(cli.toState())) {
       console.log(
         "No account credential configured. Run `aomi account login` or pass --account-bearer."
       );
@@ -8430,7 +8474,7 @@ async function accountWhoamiCommand(config) {
     session.close();
   }
 }
-function hasAccountCredential(state) {
+function hasAccountCredential2(state) {
   var _a3;
   return Boolean(((_a3 = state.auth) == null ? void 0 : _a3.sessionToken) || state.accountBearer);
 }

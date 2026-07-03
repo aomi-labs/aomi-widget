@@ -4,16 +4,16 @@ import { getPool } from "./db";
 
 /**
  * The portal's resolve-or-create of the **canonical user id** — a faithful TS
- * port of the Rust backend's `DbUser::insert_for_identity`
+ * port of the Rust backend's account resolution helpers
  * (aomi/crates/database/src/entities/user.rs). It writes the same `users` /
- * `auth_identities` rows the backend reads, so the canonical UUID the portal
+ * `auth_providers` rows the backend reads, so the canonical UUID the portal
  * signs into the AccountBearer `sub` is one the backend's find-only `DbUser::get`
  * resolves immediately.
  *
  * Identity model (see service-identity.md "Identity root"): the provider
  * (`privy`/`para`) is a *linked credential*, keyed by `(provider, subject)`. The
  * canonical user is *ours* — a stable UUID in `users.id`. A returning user
- * resolves to her existing UUID (Alice keeps her sessions); only a genuinely new
+ * resolves to her existing UUID (Alice keeps her threads); only a genuinely new
  * `(provider, subject)` mints a new user.
  */
 export type ResolveInput = {
@@ -44,15 +44,14 @@ function normalizeValue(value: string): string {
 /**
  * Resolve the canonical user for `(provider, subject)`, creating one on first
  * login. Atomic enough for concurrent first logins: the create races on the
- * `auth_identities` unique index `(application, wallet_provider,
- * wallet_provider_subject)`; the loser catches the unique violation (SQLSTATE
+ * `auth_providers` unique index `(provider, subject)`; the loser catches the unique violation (SQLSTATE
  * 23505), rolls back its orphan `users` row, and re-reads the winner — so two
  * concurrent first logins converge on one user, matching the backend.
  */
 export async function resolveOrCreateCanonicalUser(
   input: ResolveInput,
 ): Promise<CanonicalUser> {
-  const provider = input.provider.trim();
+  const provider = backendProvider(input.provider);
   const subject = input.subject.trim();
   const canonicalUserId = input.canonicalUserId?.trim();
   if (!provider || !subject) {
@@ -79,29 +78,25 @@ export async function resolveOrCreateCanonicalUser(
     }
 
     const userId = canonicalUserId ?? randomUUID();
-    // Unix *seconds* — the backend's `users`/`auth_identities` timestamps are
+    // Unix *seconds* — the backend's account timestamps are
     // `bigint` seconds (`chrono::Utc::now().timestamp()`), not millis.
     const now = Math.floor(Date.now() / 1000);
     try {
       await client.query("begin");
-      // Minimal column set, matching `insert_for_identity`: DB defaults fill
+      // Minimal column set, matching backend account creation: DB defaults fill
       // `applications` / `tier` / `status`.
       await ensureBackendUser(client, userId, now);
-      await client.query(
-        `insert into auth_identities
-           (user_id, application, wallet_provider, wallet_provider_subject,
-            auth_method, auth_value, auth_value_normalized,
-            auth_verified_at, is_primary, metadata, created_at, updated_at)
-         values ($1, null, $2, $3, $2, $3, $4, $5, true, $6, $5, $5)`,
-        [
-          userId,
-          provider,
-          subject,
-          normalizeValue(subject),
-          now,
-          JSON.stringify({ source: "portal_resolve_or_create" }),
-        ],
-      );
+      await insertAuthProvider(client, {
+        userId,
+        provider,
+        subject,
+        method: provider,
+        value: subject,
+        verifiedAt: now,
+        isPrimary: true,
+        metadata: { source: "portal_resolve_or_create" },
+        now,
+      });
       await client.query("commit");
       return { userId, created: true };
     } catch (error) {
@@ -145,27 +140,33 @@ export async function resolveOrCreateByWallet(
   const client = await pool.connect();
   try {
     const existing = await findUserIdByWallet(client, normalized);
-    if (existing) return { userId: existing, created: false };
+    if (existing) {
+      await ensureExistingWalletLink(client, existing, normalized);
+      return { userId: existing, created: false };
+    }
 
     const userId = randomUUID();
     const now = Math.floor(Date.now() / 1000);
     try {
       await client.query("begin");
       await ensureBackendUser(client, userId, now);
-      await client.query(
-        `insert into auth_identities
-           (user_id, application, wallet_provider, wallet_provider_subject,
-            auth_method, auth_value, auth_value_normalized,
-            auth_verified_at, is_primary, metadata, created_at, updated_at)
-         values ($1, null, 'wallet', $2, 'wallet', $3, $2, $4, true, $5, $4, $4)`,
-        [
-          userId,
-          normalized,
-          address,
-          now,
-          JSON.stringify({ source: "base_siwe" }),
-        ],
-      );
+      const authProviderId = await insertAuthProvider(client, {
+        userId,
+        provider: "wallet",
+        subject: normalized,
+        method: "wallet",
+        value: normalized,
+        verifiedAt: now,
+        isPrimary: true,
+        metadata: { source: "base_siwe" },
+        now,
+      });
+      await upsertOwnedPublicKey(client, {
+        userId,
+        authProviderId,
+        address: normalized,
+        now,
+      });
       await client.query("commit");
       return { userId, created: true };
     } catch (error) {
@@ -179,6 +180,152 @@ export async function resolveOrCreateByWallet(
   } finally {
     client.release();
   }
+}
+
+function backendProvider(provider: string): string {
+  const normalized = provider.trim();
+  return normalized === "better_auth" ? "betterauth" : normalized;
+}
+
+async function insertAuthProvider(
+  client: { query: PoolClientQuery },
+  input: {
+    userId: string;
+    provider: string;
+    subject: string;
+    method: string;
+    value: string;
+    verifiedAt: number;
+    isPrimary: boolean;
+    metadata: Record<string, unknown>;
+    now: number;
+  },
+): Promise<number> {
+  const result = await client.query(
+    `insert into auth_providers
+       (user_id, provider, subject, method, value, verified_at, is_primary,
+        provider_metadata, created_at, updated_at)
+     values ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9, $9)
+     returning id`,
+    [
+      input.userId,
+      input.provider,
+      input.subject,
+      input.method,
+      input.value.trim(),
+      input.verifiedAt,
+      input.isPrimary,
+      JSON.stringify(input.metadata),
+      input.now,
+    ],
+  );
+  const id = result.rows[0]?.id;
+  if (typeof id !== "number" && typeof id !== "string") {
+    throw new Error("auth provider insert did not return id");
+  }
+  return Number(id);
+}
+
+async function ensureWalletLink(
+  client: { query: PoolClientQuery },
+  input: {
+    userId: string;
+    normalizedAddress: string;
+    now: number;
+  },
+): Promise<void> {
+  const existing = await client.query(
+    `select id, user_id
+       from auth_providers
+      where provider = 'wallet'
+        and subject = $1
+      limit 1`,
+    [input.normalizedAddress],
+  );
+  const existingRow = existing.rows[0];
+  if (existingRow) {
+    if (existingRow.user_id !== input.userId) {
+      throw new Error(
+        `wallet ${input.normalizedAddress} is already bound to user ${existingRow.user_id}`,
+      );
+    }
+    await upsertOwnedPublicKey(client, {
+      userId: input.userId,
+      authProviderId: Number(existingRow.id),
+      address: input.normalizedAddress,
+      now: input.now,
+    });
+    return;
+  }
+
+  const authProviderId = await insertAuthProvider(client, {
+    userId: input.userId,
+    provider: "wallet",
+    subject: input.normalizedAddress,
+    method: "wallet",
+    value: input.normalizedAddress,
+    verifiedAt: input.now,
+    isPrimary: true,
+    metadata: { source: "base_siwe" },
+    now: input.now,
+  });
+  await upsertOwnedPublicKey(client, {
+    userId: input.userId,
+    authProviderId,
+    address: input.normalizedAddress,
+    now: input.now,
+  });
+}
+
+async function upsertOwnedPublicKey(
+  client: { query: PoolClientQuery },
+  input: {
+    userId: string;
+    authProviderId: number;
+    address: string;
+    now: number;
+  },
+): Promise<void> {
+  const owner = await client.query(
+    `select user_id
+       from public_keys
+      where chain_type = 'evm'
+        and address = $1
+      limit 1`,
+    [input.address],
+  );
+  const ownerId = owner.rows[0]?.user_id;
+  if (ownerId && ownerId !== input.userId) {
+    throw new Error(
+      `public key ${input.address} is already bound to user ${ownerId}`,
+    );
+  }
+
+  await client.query(
+    `insert into public_keys
+       (chain_type, address, user_id, auth_provider_id, is_primary, created_at, updated_at)
+     values ('evm', $1, $2, $3, true, $4, $4)
+     on conflict (chain_type, address)
+     do update set
+       user_id = excluded.user_id,
+       auth_provider_id = excluded.auth_provider_id,
+       is_primary = excluded.is_primary,
+       updated_at = excluded.updated_at`,
+    [input.address, input.userId, input.authProviderId, input.now],
+  );
+}
+
+async function ensureExistingWalletLink(
+  client: { query: PoolClientQuery },
+  userId: string,
+  normalizedAddress: string,
+): Promise<void> {
+  const now = Math.floor(Date.now() / 1000);
+  await ensureWalletLink(client, {
+    userId,
+    normalizedAddress,
+    now,
+  });
 }
 
 async function ensureBackendUser(
@@ -208,13 +355,12 @@ async function rebindIdentityToCanonicalUser(
   try {
     await ensureBackendUser(client, input.userId, now);
     await client.query(
-      `update auth_identities
+      `update auth_providers
        set user_id = $1,
-           metadata = coalesce(metadata, '{}'::jsonb) || $5::jsonb,
+           provider_metadata = coalesce(provider_metadata, '{}'::jsonb) || $5::jsonb,
            updated_at = $6
-       where application is null
-         and wallet_provider = $2
-         and wallet_provider_subject = $3
+       where provider = $2
+         and subject = $3
          and user_id = $4`,
       [
         input.userId,
@@ -240,13 +386,10 @@ async function findUserIdBySubject(
   provider: string,
   subject: string,
 ): Promise<string | null> {
-  // Global (unscoped) identities only: `application is null`, matching the
-  // backend's `insert_for_identity` (`application = None`).
   const result = await client.query(
-    `select user_id from auth_identities
-      where application is null
-        and wallet_provider = $1
-        and wallet_provider_subject = $2
+    `select user_id from auth_providers
+      where provider = $1
+        and subject = $2
       limit 1`,
     [provider, subject],
   );
@@ -257,15 +400,25 @@ async function findUserIdByWallet(
   client: { query: PoolClientQuery },
   normalizedAddress: string,
 ): Promise<string | null> {
-  const result = await client.query(
-    `select user_id from auth_identities
-      where application is null
-        and wallet_provider = 'wallet'
-        and auth_value_normalized = $1
+  const publicKey = await client.query(
+    `select user_id from public_keys
+      where chain_type = 'evm'
+        and address = $1
       limit 1`,
     [normalizedAddress],
   );
-  return (result.rows[0]?.user_id as string | undefined) ?? null;
+  const publicKeyOwner =
+    (publicKey.rows[0]?.user_id as string | undefined) ?? null;
+  if (publicKeyOwner) return publicKeyOwner;
+
+  const provider = await client.query(
+    `select user_id from auth_providers
+      where provider = 'wallet'
+        and (subject = $1 or (method = 'wallet' and lower(value) = $1))
+      limit 1`,
+    [normalizedAddress],
+  );
+  return (provider.rows[0]?.user_id as string | undefined) ?? null;
 }
 
 type PoolClientQuery = (
