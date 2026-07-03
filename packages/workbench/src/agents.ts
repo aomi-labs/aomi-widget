@@ -34,5 +34,6 @@ export async function runAgent(
   }
   return runner("claude", ["-p", "--permission-mode", "acceptEdits", prompt], {
     cwd: sdkRoot,
+    stdin: "ignore",
   });
 }

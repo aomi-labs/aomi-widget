@@ -10,7 +10,11 @@ import { DeploymentsTab } from "./deployments-tab";
 
 const rollback = vi.fn(async () => ({
   ok: true,
-  rollback: { deploymentId: "dep_1_ra_bbbb", releaseTags: ["t1"], status: "rolled_back" },
+  rollback: {
+    deploymentId: "dep_1_ra_bbbb",
+    releaseTags: ["t1"],
+    status: "rolled_back",
+  },
 }));
 const deactivate = vi.fn(async () => ({ ok: true, apps: ["my-bot"] }));
 
@@ -55,6 +59,22 @@ describe("DeploymentsTab", () => {
     expect(await screen.findByText("dep_1_ra_currentcmt")).toBeInTheDocument();
     expect(screen.getByText("dep_1_ra_oldcommit1")).toBeInTheDocument();
     expect(screen.getByText("Current")).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: /logs/i })).toHaveAttribute(
+      "aria-selected",
+      "false",
+    );
+  });
+
+  it("renders activation activity in the Logs subtab", async () => {
+    render(<DeploymentsTab detail={detail} />);
+    fireEvent.click(screen.getByRole("tab", { name: /logs/i }));
+    expect(screen.getByRole("tab", { name: /logs/i })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    expect(
+      await screen.findByText(/activate · dep_1_ra_currentcmt/),
+    ).toBeInTheDocument();
   });
 
   it("offers Deactivate on the current deployment and Rollback on older ones", () => {
@@ -81,14 +101,20 @@ describe("DeploymentsTab", () => {
     render(<DeploymentsTab detail={detail} />);
     fireEvent.click(screen.getByRole("button", { name: /deactivate/i }));
     expect(deactivate).not.toHaveBeenCalled();
-    const dialog = screen.getByRole("dialog", { name: /deactivate deployment/i });
-    fireEvent.click(within(dialog).getByRole("button", { name: /deactivate/i }));
+    const dialog = screen.getByRole("dialog", {
+      name: /deactivate deployment/i,
+    });
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: /deactivate/i }),
+    );
     await waitFor(() => expect(deactivate).toHaveBeenCalledWith(["my-bot"]));
   });
 
   it("triggers a new-version deploy", () => {
     render(<DeploymentsTab detail={detail} />);
-    fireEvent.click(screen.getByRole("button", { name: /deploy new version/i }));
+    fireEvent.click(
+      screen.getByRole("button", { name: /deploy new version/i }),
+    );
     expect(detail.deployNewVersion).toHaveBeenCalled();
   });
 });

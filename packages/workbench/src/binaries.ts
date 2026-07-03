@@ -6,12 +6,31 @@ import type { CommandResult, CommandRunner, ResolvedBinaries } from "./types";
 const executable = process.platform === "win32" ? ".exe" : "";
 
 export const defaultRunner: CommandRunner = async (file, args, options) => {
-  const result = await execa(file, args, {
+  const child = execa(file, args, {
     cwd: options?.cwd,
     env: options?.env,
+    stdin: options?.stdin,
     reject: false,
     all: false,
   });
+
+  const command = [file, ...args].join(" ");
+  child.stdout?.on("data", (chunk: Buffer | string) => {
+    options?.onOutput?.({
+      stream: "stdout",
+      data: chunk.toString(),
+      command,
+    });
+  });
+  child.stderr?.on("data", (chunk: Buffer | string) => {
+    options?.onOutput?.({
+      stream: "stderr",
+      data: chunk.toString(),
+      command,
+    });
+  });
+
+  const result = await child;
   return {
     exitCode: result.exitCode ?? 0,
     stdout: result.stdout,

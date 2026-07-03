@@ -713,7 +713,7 @@ export class DeploymentClient {
         releaseTag: String(row.release_tag ?? ""),
         action: String(row.action ?? ""),
         actor: (row.actor as string | null) ?? null,
-        createdAt: Number(row.created_at ?? 0),
+        createdAt: timestampSeconds(row.created_at),
         current: Boolean(row.current),
       })),
     };
@@ -1157,6 +1157,21 @@ function camelPlatformApp(raw: unknown): PlatformApp {
     artifactReady: Boolean(a.artifact_ready ?? a.artifactReady),
     loaded: Boolean(a.loaded),
   };
+}
+
+function timestampSeconds(value: unknown): number {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value > 100_000_000_000 ? Math.floor(value / 1000) : value;
+  }
+  if (typeof value !== "string") return 0;
+  const trimmed = value.trim();
+  if (!trimmed) return 0;
+  const numeric = Number(trimmed);
+  if (Number.isFinite(numeric)) {
+    return numeric > 100_000_000_000 ? Math.floor(numeric / 1000) : numeric;
+  }
+  const parsed = Date.parse(trimmed);
+  return Number.isFinite(parsed) ? Math.floor(parsed / 1000) : 0;
 }
 
 function camelUserSourceLatestDeployment(

@@ -1,6 +1,7 @@
 import path from "node:path";
+import { mkdir } from "node:fs/promises";
 import { agentPrompt, runAgent } from "./agents";
-import { resolveAomiBinaries } from "./binaries";
+import { defaultRunner, resolveAomiBinaries } from "./binaries";
 import {
   pluginLibraryFileName,
   newAppArgs,
@@ -24,6 +25,13 @@ import { intakeSchema, type CommandRunner, type RunPlan, type WorkbenchIntake } 
 export type WorkflowEvent =
   | { type: "plan"; plan: RunPlan }
   | { type: "step"; plan: RunPlan; stepId: string }
+  | { type: "command-start"; command: string; cwd?: string }
+  | {
+      type: "command-output";
+      command: string;
+      stream: "stdout" | "stderr";
+      data: string;
+    }
   | { type: "warning"; message: string }
   | { type: "blocked"; message: string }
   | { type: "done"; plan: RunPlan };
@@ -43,6 +51,30 @@ export type WorkflowOptions = {
 
 async function emit(options: WorkflowOptions, event: WorkflowEvent) {
   await options.onEvent?.(event);
+}
+
+function eventedRunner(options: WorkflowOptions): CommandRunner {
+  const runner = options.runner ?? defaultRunner;
+  return async (file, args, commandOptions) => {
+    const command = [file, ...args].join(" ");
+    await emit(options, {
+      type: "command-start",
+      command,
+      cwd: commandOptions?.cwd,
+    });
+    return runner(file, args, {
+      ...commandOptions,
+      onOutput: (chunk) => {
+        commandOptions?.onOutput?.(chunk);
+        void emit(options, {
+          type: "command-output",
+          command: chunk.command,
+          stream: chunk.stream,
+          data: chunk.data,
+        });
+      },
+    });
+  };
 }
 
 async function setStep(
@@ -65,6 +97,7 @@ export async function prepareRunPlan(
   if (options.overwrite) {
     await resetRunPlan(intake.app, options.runsRoot);
   }
+  await mkdir(runDir(intake.app, options.runsRoot), { recursive: true });
   const existing = await loadRunPlan(intake.app, options.runsRoot);
   if (existing) {
     if (!existing.smithers) {
@@ -112,7 +145,7 @@ export async function runWorkbenchWorkflow(
     return plan;
   }
 
-  const runner = options.runner;
+  const runner = eventedRunner(options);
   plan = await setStep(plan, "binaries", { status: "running" }, options);
   const binaries = await resolveAomiBinaries(plan.intake.sdkRoot, runner);
   if (binaries.warning) {
@@ -163,13 +196,17 @@ export async function runWorkbenchWorkflow(
         ];
   const codegen = codegenResults.find((result) => result.exitCode !== 0);
   if (codegen) {
+    const output = codegen.stderr || codegen.stdout;
     plan = await setStep(
       plan,
       "codegen",
-      { status: "failed", detail: boundedLog(codegen.stderr || codegen.stdout) },
+      { status: "failed", detail: boundedLog(output) },
       options,
     );
-    throw new Error(`aomi-build codegen failed: ${codegen.stderr || codegen.stdout}`);
+    const hint = output.includes("Pass --force to overwrite")
+      ? "\nHint: workbench --overwrite only resets .smithers state. Add --force to overwrite existing generated app files, or use --existing to reuse the current spec."
+      : "";
+    throw new Error(`aomi-build codegen failed: ${output}${hint}`);
   }
   plan = await setStep(plan, "codegen", { status: "complete" }, options);
 
