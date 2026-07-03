@@ -73,6 +73,12 @@ export type CommandRunner = (
   options?: {
     cwd?: string;
     env?: NodeJS.ProcessEnv;
+    stdin?: "ignore" | "inherit" | "pipe";
+    onOutput?: (chunk: {
+      stream: "stdout" | "stderr";
+      data: string;
+      command: string;
+    }) => void;
   },
 ) => Promise<CommandResult>;
 

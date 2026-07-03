@@ -41,14 +41,14 @@ export function useProjectDetail(sourceId: number) {
   const [history, setHistory] = useState<UserSourceLatestDeployment[] | null>(
     null,
   );
-  const [secretsByApp, setSecrets] = useState<Record<
-    string,
-    string[]
-  > | null>(null);
+  const [secretsByApp, setSecrets] = useState<Record<string, string[]> | null>(
+    null,
+  );
   const [activationsByApp, setActivations] = useState<Record<
     string,
     DeploymentActivation[]
   > | null>(null);
+  const [activationsError, setActivationsError] = useState<string | null>(null);
   const [deployFlow, setDeployFlow] = useState<DeployFlowState>({
     phase: "idle",
   });
@@ -95,31 +95,41 @@ export function useProjectDetail(sourceId: number) {
 
   // Fetch the DB activation timeline for every app on this source (per-app but
   // all DB reads — no GitHub fan-out). `force` re-fetches after an operation.
-  const fetchActivations = useCallback(
-    async (src: UserSource) => {
+  const fetchActivations = useCallback(async (src: UserSource) => {
+    setActivationsError(null);
+    try {
       const entries = await Promise.all(
         src.apps.map(async (app) => {
           const result = await deploymentActivations({
             app: app.name,
             appSourceId: src.id,
-          }).catch(() => null);
-          return [app.name, result?.activations ?? []] as const;
+          });
+          return [app.name, result.activations] as const;
         }),
       );
       setActivations(Object.fromEntries(entries));
-    },
-    [],
-  );
+    } catch (err) {
+      const message =
+        err instanceof Error
+          ? err.message
+          : "Failed to load deployment activity";
+      setActivationsError(message);
+      setActivations({});
+      throw err;
+    }
+  }, []);
 
   const loadActivations = useCallback(() => {
     if (activationsReq.current || activationsByApp !== null || !source) return;
     activationsReq.current = true;
-    void fetchActivations(source);
+    void fetchActivations(source).catch(() => {
+      activationsReq.current = false;
+    });
   }, [source, activationsByApp, fetchActivations]);
 
   const refreshActivations = useCallback(() => {
     if (!source) return;
-    void fetchActivations(source);
+    void fetchActivations(source).catch(() => undefined);
   }, [source, fetchActivations]);
 
   const rollback = useCallback(
@@ -143,7 +153,10 @@ export function useProjectDetail(sourceId: number) {
       return;
     }
     try {
-      setDeployFlow({ phase: "deploying", message: "Resolving latest commit…" });
+      setDeployFlow({
+        phase: "deploying",
+        message: "Resolving latest commit…",
+      });
       const pre = await launchPreflight({ repo });
       const appSourceId = pre.appSourceId ?? sourceId;
       setDeployFlow({ phase: "deploying", message: "Deploying new version…" });
@@ -186,8 +199,14 @@ export function useProjectDetail(sourceId: number) {
       }
 
       setDeployFlow({ phase: "activating", message: "Activating release…" });
-      await launchActivate({ releaseTags, apps });
-      setDeployFlow({ phase: "done", message: "New version is live." });
+      const activated = await launchActivate({ releaseTags, apps });
+      const unloaded = activated.activation.apps.filter((app) => !app.loaded);
+      setDeployFlow({
+        phase: unloaded.length ? "error" : "done",
+        message: unloaded.length
+          ? `Release selected, but ${unloaded.map((app) => app.name).join(", ")} is not loaded in this runtime.`
+          : "New version is live.",
+      });
       await reload();
       refreshActivations();
     } catch (err) {
@@ -206,6 +225,7 @@ export function useProjectDetail(sourceId: number) {
     history,
     secretsByApp,
     activationsByApp,
+    activationsError,
     deployFlow,
     loadHistory,
     loadSecrets,

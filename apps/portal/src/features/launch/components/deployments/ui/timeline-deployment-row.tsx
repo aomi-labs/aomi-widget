@@ -8,12 +8,14 @@ export function TimelineDeploymentRow({
   deployment,
   busy,
   message,
+  runtimeState,
   onRollback,
   onDeactivate,
 }: {
   deployment: TimelineDeployment;
   busy: boolean;
   message?: string | null;
+  runtimeState?: "loaded" | "not-loaded";
   onRollback: () => void;
   onDeactivate: () => void;
 }) {
@@ -26,8 +28,16 @@ export function TimelineDeploymentRow({
         <div className="flex min-w-0 items-center gap-2">
           <div className="truncate text-sm font-medium">{deploymentId}</div>
           {current && (
-            <span className="shrink-0 rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-700">
-              Current
+            <span
+              className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium ${
+                runtimeState === "not-loaded"
+                  ? "bg-amber-50 text-amber-700"
+                  : "bg-emerald-50 text-emerald-700"
+              }`}
+            >
+              {runtimeState === "not-loaded"
+                ? "Selected, not loaded"
+                : "Current"}
             </span>
           )}
         </div>

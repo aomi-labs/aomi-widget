@@ -434,6 +434,24 @@ function Timeline({
   events: WorkflowEvent[];
   error: string | null;
 }) {
+  const commandEvents = events
+    .filter(
+      (
+        event,
+      ): event is Extract<WorkflowEvent, { type: "command-start" | "command-output" }> =>
+        event.type === "command-start" || event.type === "command-output",
+    )
+    .flatMap((event) => {
+      if (event.type === "command-start") {
+        return [`$ ${event.command}`];
+      }
+      return event.data
+        .split(/\r?\n/)
+        .filter((line) => line.trim().length > 0)
+        .map((line) => `${event.stream === "stderr" ? "!" : ">"} ${line}`);
+    })
+    .slice(-14);
+
   return (
     <>
       <Text>SDK: {intake.sdkRoot}</Text>
@@ -447,6 +465,16 @@ function Timeline({
           </Text>
         ))}
       </Box>
+      {commandEvents.length > 0 ? (
+        <Box marginTop={1} flexDirection="column">
+          <Text color="gray">Recent logs</Text>
+          {commandEvents.map((line, index) => (
+            <Text key={index} color={line.startsWith("!") ? "yellow" : "gray"}>
+              {line}
+            </Text>
+          ))}
+        </Box>
+      ) : null}
       {events
         .filter((event) => event.type === "warning" || event.type === "blocked")
         .map((event, index) => (
@@ -704,21 +732,46 @@ if (subcommand === "rollback") {
 
 async function runHeadless(args: CliArgs): Promise<void> {
   const events: WorkflowEvent[] = [];
+  let latestPlan: RunPlan | null = null;
   const agentApproved = args.yes || args.intake.dryRun || args.intake.agent === "none";
   const deployApproved = args.intake.deploy ? args.yes : true;
-  const plan = await runWorkbenchWorkflow(args.intake, {
-    overwrite: args.overwrite,
-    runsRoot: args.runsRoot,
-    activationToken: args.activationToken,
-    agentApproved,
-    deployApproved,
-    onEvent: (event) => {
-      events.push(event);
-      if (event.type === "warning" || event.type === "blocked") {
-        console.error(event.message);
+  let plan: RunPlan;
+  try {
+    plan = await runWorkbenchWorkflow(args.intake, {
+      overwrite: args.overwrite,
+      runsRoot: args.runsRoot,
+      activationToken: args.activationToken,
+      agentApproved,
+      deployApproved,
+      onEvent: (event) => {
+        events.push(event);
+        if ("plan" in event) {
+          latestPlan = event.plan;
+        }
+        if (event.type === "warning" || event.type === "blocked") {
+          console.error(event.message);
+        } else if (event.type === "command-start") {
+          console.error(`$ ${event.command}`);
+        } else if (event.type === "command-output") {
+          const write = event.stream === "stderr" ? process.stderr : process.stdout;
+          write.write(event.data);
+        }
+      },
+    });
+  } catch (error) {
+    const plan = latestPlan;
+    if (plan) {
+      console.error(`${plan.workflow} failed: ${plan.app}`);
+      for (const step of plan.steps) {
+        console.error(`${symbol(step.status)} ${step.label}${step.detail ? ` - ${step.detail}` : ""}`);
       }
-    },
-  });
+    } else {
+      console.error(`aomi-app-from-scratch failed: ${args.intake.app}`);
+    }
+    console.error(`Failed: ${conciseWorkflowError(error)}`);
+    process.exitCode = 1;
+    return;
+  }
   const failed = plan.steps.find((step) => step.status === "failed");
   const blocked = events.some((event) => event.type === "blocked");
   console.log(
@@ -730,4 +783,15 @@ async function runHeadless(args: CliArgs): Promise<void> {
   if (failed || blocked) {
     process.exitCode = failed ? 1 : 2;
   }
+}
+
+function conciseWorkflowError(error: unknown): string {
+  const message = error instanceof Error ? error.message : String(error);
+  if (message.includes("Pass --force to overwrite")) {
+    return [
+      "aomi-build codegen failed because generated app files already exist.",
+      "Add --force to overwrite existing app files, or use --existing to reuse the current spec.",
+    ].join(" ");
+  }
+  return message.length > 1200 ? `${message.slice(0, 1200)}\n...` : message;
 }

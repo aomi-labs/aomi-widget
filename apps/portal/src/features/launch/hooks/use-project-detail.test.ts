@@ -88,4 +88,19 @@ describe("useProjectDetail", () => {
       appSourceId: 7,
     });
   });
+
+  it("surfaces activation load failures instead of silently emptying logs", async () => {
+    vi.mocked(deploymentActivations).mockRejectedValueOnce(
+      new Error("deployment activations failed (401)"),
+    );
+    const { result } = renderHook(() => useProjectDetail(7));
+    await waitFor(() => expect(result.current.source?.id).toBe(7));
+    act(() => result.current.loadActivations());
+    await waitFor(() =>
+      expect(result.current.activationsError).toContain(
+        "deployment activations failed",
+      ),
+    );
+    expect(result.current.activationsByApp).toEqual({});
+  });
 });

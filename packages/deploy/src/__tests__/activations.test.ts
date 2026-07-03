@@ -30,7 +30,7 @@ describe("listActivations", () => {
           release_tag: "apps-1-r0123abcdef-my-bot-bbbbbbbbbbbb",
           action: "rollback",
           actor: "cecilia",
-          created_at: 1750000000,
+          created_at: "2025-06-15T15:06:40Z",
           current: true,
         },
       ],

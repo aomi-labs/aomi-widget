@@ -14,6 +14,10 @@ export type TimelineDeployment = {
   createdAt: number;
 };
 
+export type TimelineActivity = DeploymentActivation & {
+  app: string;
+};
+
 function commitFromDeploymentId(deploymentId: string): string | null {
   const parts = deploymentId.split("_");
   return parts.length === 4 ? parts[3] : null;
@@ -62,4 +66,13 @@ export function buildDeploymentList(
   }
 
   return [...byId.values()].sort((a, b) => b.createdAt - a.createdAt);
+}
+
+export function buildActivityList(
+  activationsByApp: Record<string, DeploymentActivation[]> | null,
+): TimelineActivity[] {
+  if (!activationsByApp) return [];
+  return Object.entries(activationsByApp)
+    .flatMap(([app, rows]) => rows.map((row) => ({ ...row, app })))
+    .sort((a, b) => b.createdAt - a.createdAt);
 }

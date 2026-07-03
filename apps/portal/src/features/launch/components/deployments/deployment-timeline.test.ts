@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildDeploymentList } from "./deployment-timeline";
+import { buildActivityList, buildDeploymentList } from "./deployment-timeline";
 
 describe("buildDeploymentList", () => {
   it("returns [] for null", () => {
@@ -64,5 +64,34 @@ describe("buildDeploymentList", () => {
     ]);
     expect(rows[0].lastAction).toBe("rollback");
     expect(rows[0].actor).toBe("bob");
+  });
+
+  it("flattens activity newest-first with app names", () => {
+    const rows = buildActivityList({
+      api: [
+        {
+          deploymentId: "dep_1_ra_old0",
+          releaseTag: "t-old",
+          action: "activate",
+          actor: "alice",
+          createdAt: 5,
+          current: false,
+        },
+      ],
+      web: [
+        {
+          deploymentId: "dep_1_ra_new0",
+          releaseTag: "t-new",
+          action: "rollback",
+          actor: "bob",
+          createdAt: 20,
+          current: true,
+        },
+      ],
+    });
+    expect(rows.map((row) => `${row.app}:${row.deploymentId}`)).toEqual([
+      "web:dep_1_ra_new0",
+      "api:dep_1_ra_old0",
+    ]);
   });
 });
