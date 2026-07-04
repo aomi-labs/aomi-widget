@@ -112,3 +112,13 @@ Progress:
   adapter is disconnected. Verified focused portal/client Vitest coverage,
   portal typecheck, client build, registry build, actual CLI no-browser SIWE
   login/whoami, and browser settings tab smoke with the CLI SIWE session.
+- 2026-07-04 Vercel deploy-readiness follow-up: GitHub commit status showed
+  only `Vercel - chat-portal` failing on `codex/merge-bff-betterauth` while
+  `base`, `landing-page`, and `tg-mini-app` passed. Vercel CLI inspection was
+  blocked by missing `aomi-labs` scope in the local CLI session, so remote logs
+  could not be fetched. Hardened BetterAuth env resolution so Vercel preview
+  deployments derive `baseURL`, SIWE domain, and trusted origins from arbitrary
+  `VERCEL_BRANCH_URL` / `VERCEL_URL` values while production keeps the explicit
+  canonical URL. Verified focused auth env/provider/linking tests, auth
+  typecheck, portal test script, portal typecheck, and a Vercel-preview-shaped
+  portal production build with branch/deployment URLs.
