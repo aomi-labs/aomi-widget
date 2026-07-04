@@ -30,10 +30,8 @@ const DEV_DATABASE_URL =
 export function readAccountAuthEnv(
   env: AccountAuthEnvInput = process.env,
 ): AccountAuthEnv {
-  const betterAuthUrl =
-    env.BETTER_AUTH_URL ?? env.AOMI_PORTAL_BASE_URL ?? "http://localhost:3001";
+  const betterAuthUrl = resolveBetterAuthUrl(env);
   const url = new URL(betterAuthUrl);
-  const origin = url.origin;
   const allowDevDefaults = isAccountAuthLocalRuntime(env);
   return {
     betterAuthSecret: requiredAuthEnvValue({
@@ -49,9 +47,9 @@ export function readAccountAuthEnv(
       devDefault: DEV_DATABASE_URL,
       allowDevDefaults,
     }),
-    siweDomain: env.AOMI_AUTH_DOMAIN ?? url.host,
+    siweDomain: resolveSiweDomain(env, url.host),
     siweEmailDomain: env.AOMI_AUTH_EMAIL_DOMAIN,
-    trustedOrigins: parseCsv(env.AOMI_TRUSTED_ORIGINS ?? betterAuthUrl),
+    trustedOrigins: collectTrustedOrigins(env, betterAuthUrl),
     privyAppId: env.PRIVY_APP_ID ?? env.NEXT_PUBLIC_PRIVY_APP_ID,
     privyAppSecret: env.PRIVY_APP_SECRET,
     privyAccessTokenVerificationKey: env.PRIVY_JWT_VERIFICATION_KEY,
@@ -89,8 +87,79 @@ function requiredAuthEnvValue(input: {
   );
 }
 
-function parseCsv(value: string): string[] {
-  return value
+function resolveBetterAuthUrl(env: AccountAuthEnvInput): string {
+  const vercelDeploymentUrl = firstUrl(env.VERCEL_BRANCH_URL, env.VERCEL_URL);
+
+  if (env.VERCEL_ENV === "preview" && vercelDeploymentUrl) {
+    return vercelDeploymentUrl;
+  }
+
+  return (
+    firstUrl(
+      env.BETTER_AUTH_URL,
+      env.AOMI_PORTAL_BASE_URL,
+      env.VERCEL_PROJECT_PRODUCTION_URL,
+      env.VERCEL_URL,
+    ) ?? "http://localhost:3001"
+  );
+}
+
+function collectTrustedOrigins(
+  env: AccountAuthEnvInput,
+  betterAuthUrl: string,
+): string[] {
+  return uniqueOrigins([
+    ...parseCsv(env.AOMI_TRUSTED_ORIGINS),
+    betterAuthUrl,
+    firstUrl(env.VERCEL_BRANCH_URL),
+    firstUrl(env.VERCEL_URL),
+    firstUrl(env.VERCEL_PROJECT_PRODUCTION_URL),
+  ]);
+}
+
+function resolveSiweDomain(
+  env: AccountAuthEnvInput,
+  fallbackHost: string,
+): string {
+  if (env.VERCEL_ENV === "preview") return fallbackHost;
+  return env.AOMI_AUTH_DOMAIN ?? fallbackHost;
+}
+
+function firstUrl(...values: Array<string | undefined>): string | undefined {
+  for (const value of values) {
+    const normalized = normalizeUrl(value);
+    if (normalized) return normalized;
+  }
+  return undefined;
+}
+
+function normalizeUrl(value: string | undefined): string | undefined {
+  const trimmed = value?.trim();
+  if (!trimmed) return undefined;
+  const withProtocol = /^[a-z][a-z0-9+.-]*:\/\//i.test(trimmed)
+    ? trimmed
+    : `https://${trimmed}`;
+  try {
+    return new URL(withProtocol).origin;
+  } catch {
+    return undefined;
+  }
+}
+
+function uniqueOrigins(values: Array<string | undefined>): string[] {
+  const origins: string[] = [];
+  const seen = new Set<string>();
+  for (const value of values) {
+    const origin = normalizeUrl(value);
+    if (!origin || seen.has(origin)) continue;
+    seen.add(origin);
+    origins.push(origin);
+  }
+  return origins;
+}
+
+function parseCsv(value: string | undefined): string[] {
+  return (value ?? "")
     .split(",")
     .map((part) => part.trim())
     .filter(Boolean);
