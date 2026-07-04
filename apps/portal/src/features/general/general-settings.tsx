@@ -8,7 +8,6 @@ import {
   useAomiWalletKit,
 } from "@aomi-labs/widget-lib";
 import { settingsApiFetch } from "@portal/lib/settings-api";
-import { createPortalAccountAccessTokenProvider } from "@portal/lib/account-access-token";
 import {
   settingsBodyTextClass,
   settingsCardClass,
@@ -42,8 +41,10 @@ type AccountUsage = {
 };
 
 type AccountOverview = {
-  account: AccountProfile;
-  usage: AccountUsage;
+  user: AccountProfile;
+  auth_identities?: unknown[];
+  identity_wallets?: unknown[];
+  usage?: AccountUsage | null;
 };
 
 function formatTs(ts?: number | null): string {
@@ -59,21 +60,9 @@ function formatNumber(n?: number): string {
 export function GeneralSettings() {
   const adapter = useAomiWalletKit();
   const identity = adapter.identity;
-  const { accountUser, getAccountCredential } = adapter;
   const [account, setAccount] = useState<AccountOverview | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  const accountAccessTokenProvider = useMemo(() => {
-    return createPortalAccountAccessTokenProvider(getAccountCredential);
-  }, [getAccountCredential]);
-
-  useEffect(
-    () => () => {
-      accountAccessTokenProvider?.dispose();
-    },
-    [accountAccessTokenProvider],
-  );
 
   const networkTicker = identity.chainId
     ? getChainInfo(identity.chainId)?.ticker
@@ -86,20 +75,10 @@ export function GeneralSettings() {
 
   useEffect(() => {
     const run = async () => {
-      if (!accountUser) {
-        setAccount(null);
-        return;
-      }
       setLoading(true);
       setError(null);
       try {
-        const accessToken = await accountAccessTokenProvider?.();
-        const data = await settingsApiFetch<AccountOverview>(
-          "/api/settings/account",
-          accessToken
-            ? { headers: { Authorization: `Bearer ${accessToken}` } }
-            : undefined,
-        );
+        const data = await settingsApiFetch<AccountOverview>("/api/account");
         setAccount(data);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to load account");
@@ -109,7 +88,7 @@ export function GeneralSettings() {
     };
 
     void run();
-  }, [accountAccessTokenProvider, accountUser]);
+  }, []);
 
   return (
     <div className={settingsPageClass}>
@@ -176,33 +155,31 @@ export function GeneralSettings() {
           {!loading && !error && account && (
             <>
               <p className={settingsBodyTextClass}>
-                User ID: {account.account.user_id}
+                User ID: {account.user.user_id}
+              </p>
+              <p className={settingsBodyTextClass}>Tier: {account.user.tier}</p>
+              <p className={settingsBodyTextClass}>
+                Verified email: {account.user.verified_email ?? "-"}
               </p>
               <p className={settingsBodyTextClass}>
-                Tier: {account.account.tier}
+                Status: {account.user.status}
               </p>
               <p className={settingsBodyTextClass}>
-                Verified email: {account.account.verified_email ?? "-"}
+                Month: {account.usage?.period_utc_month ?? "-"}
               </p>
               <p className={settingsBodyTextClass}>
-                Status: {account.account.status}
+                Credits: {formatNumber(account.usage?.credit_used)} /{" "}
+                {formatNumber(account.usage?.credit_paid)}
               </p>
               <p className={settingsBodyTextClass}>
-                Month: {account.usage.period_utc_month}
+                Tokens: in {formatNumber(account.usage?.input_tokens)} | out{" "}
+                {formatNumber(account.usage?.output_tokens)}
               </p>
               <p className={settingsBodyTextClass}>
-                Credits: {formatNumber(account.usage.credit_used)} /{" "}
-                {formatNumber(account.usage.credit_paid)}
+                Created at: {formatTs(account.user.created_at)}
               </p>
               <p className={settingsBodyTextClass}>
-                Tokens: in {formatNumber(account.usage.input_tokens)} | out{" "}
-                {formatNumber(account.usage.output_tokens)}
-              </p>
-              <p className={settingsBodyTextClass}>
-                Created at: {formatTs(account.account.created_at)}
-              </p>
-              <p className={settingsBodyTextClass}>
-                Last seen: {formatTs(account.account.last_seen_at)}
+                Last seen: {formatTs(account.user.last_seen_at)}
               </p>
             </>
           )}

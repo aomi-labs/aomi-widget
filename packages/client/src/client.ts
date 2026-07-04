@@ -670,15 +670,6 @@ export class AomiClient {
   // ===========================================================================
 
   /**
-   * @deprecated Account bootstrap is handled by session create/chat requests and
-   * the account-token exchange. `/api/settings/account` is now an authenticated
-   * profile endpoint, so this legacy helper intentionally does nothing.
-   */
-  async ensureAccount(_sessionId: string, _publicKey: string): Promise<void> {
-    return undefined;
-  }
-
-  /**
    * Return backend account identity for the current authenticated session.
    */
   async getAccount(sessionId: string): Promise<AomiAccountResponse> {
@@ -948,11 +939,9 @@ export class AomiClient {
   /**
    * List BYOK keys (one per LLM provider) bound to the current session's client.
    */
-  async listByokKeys(sessionId: string): Promise<AomiByokKeyEntry[]> {
-    const url = buildApiUrl(this.baseUrl, "/api/control/provider-keys");
-    const response = await this.fetchImpl(url, {
-      headers: withSessionHeader(sessionId),
-    });
+  async listByokKeys(_sessionId: string): Promise<AomiByokKeyEntry[]> {
+    const url = buildApiUrl(this.baseUrl, "/api/account/payment");
+    const response = await this.fetchImpl(url);
 
     if (!response.ok) {
       throw new Error(`Failed to get BYOK keys: HTTP ${response.status}`);
@@ -973,7 +962,7 @@ export class AomiClient {
     byokKey: string,
     label?: string,
   ): Promise<AomiByokKeyEntry> {
-    const url = joinApiPath(this.baseUrl, "/api/control/provider-keys");
+    const url = joinApiPath(this.baseUrl, "/api/account/payment/byok");
     const response = await this.fetchImpl(url, {
       method: "POST",
       headers: withSessionHeader(sessionId, {
@@ -1000,7 +989,7 @@ export class AomiClient {
   async deleteByokKey(sessionId: string, provider: string): Promise<boolean> {
     const url = buildApiUrl(
       this.baseUrl,
-      `/api/control/provider-keys/${encodeURIComponent(provider)}`,
+      `/api/account/payment/byok/${encodeURIComponent(provider)}`,
     );
     const response = await this.fetchImpl(url, {
       method: "DELETE",

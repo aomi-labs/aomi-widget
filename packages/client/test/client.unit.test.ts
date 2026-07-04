@@ -182,6 +182,88 @@ describe("AomiClient transport selection", () => {
     }
   });
 
+  describe("AomiClient BYOK account routes", () => {
+    it("lists BYOK keys from the account payment route", async () => {
+      const fetch = vi.fn<typeof globalThis.fetch>(async () =>
+        Response.json({
+          byok_keys: [
+            { provider: "openai", key_prefix: "sk-open", label: "OpenAI" },
+          ],
+        }),
+      );
+      const client = new AomiClient({
+        baseUrl: "http://unit.test",
+        fetch,
+      });
+
+      await expect(client.listByokKeys("session-1")).resolves.toEqual([
+        { provider: "openai", key_prefix: "sk-open", label: "OpenAI" },
+      ]);
+
+      expect(String(fetch.mock.calls[0]?.[0])).toBe(
+        "http://unit.test/api/account/payment",
+      );
+      expect(fetch.mock.calls[0]?.[1]?.method ?? "GET").toBe("GET");
+    });
+
+    it("saves BYOK keys through the account payment BYOK route", async () => {
+      const fetch = vi.fn<typeof globalThis.fetch>(async () =>
+        Response.json({
+          key: {
+            provider: "anthropic",
+            key_prefix: "sk-ant",
+            label: "Claude",
+          },
+        }),
+      );
+      const client = new AomiClient({
+        baseUrl: "http://unit.test",
+        fetch,
+      });
+
+      await expect(
+        client.saveByokKey("session-1", "anthropic", "sk-ant-secret", "Claude"),
+      ).resolves.toEqual({
+        provider: "anthropic",
+        key_prefix: "sk-ant",
+        label: "Claude",
+      });
+
+      expect(String(fetch.mock.calls[0]?.[0])).toBe(
+        "http://unit.test/api/account/payment/byok",
+      );
+      const init = fetch.mock.calls[0]?.[1] as RequestInit;
+      expect(init.method).toBe("POST");
+      expect(new Headers(init.headers).get("X-Thread-Id")).toBe("session-1");
+      expect(JSON.parse(String(init.body))).toEqual({
+        provider: "anthropic",
+        byok_key: "sk-ant-secret",
+        label: "Claude",
+      });
+    });
+
+    it("deletes BYOK keys through the provider-specific account route", async () => {
+      const fetch = vi.fn<typeof globalThis.fetch>(async () =>
+        Response.json({ deleted: true }),
+      );
+      const client = new AomiClient({
+        baseUrl: "http://unit.test",
+        fetch,
+      });
+
+      await expect(
+        client.deleteByokKey("session-1", "openai/test"),
+      ).resolves.toBe(true);
+
+      expect(String(fetch.mock.calls[0]?.[0])).toBe(
+        "http://unit.test/api/account/payment/byok/openai%2Ftest",
+      );
+      const init = fetch.mock.calls[0]?.[1] as RequestInit;
+      expect(init.method).toBe("DELETE");
+      expect(new Headers(init.headers).get("X-Thread-Id")).toBe("session-1");
+    });
+  });
+
   it("normalizes backend thread_id responses to session_id compatibility fields", async () => {
     const fetch = vi
       .fn<typeof globalThis.fetch>()

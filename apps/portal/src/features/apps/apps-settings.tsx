@@ -1,9 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { Input, useAomiWalletKit } from "@aomi-labs/widget-lib";
+import { useCallback, useEffect, useState } from "react";
+import { Input } from "@aomi-labs/widget-lib";
 import { settingsApiFetch } from "@portal/lib/settings-api";
-import { createPortalAccountAccessTokenProvider } from "@portal/lib/account-access-token";
 import { defaultUsageDateRange } from "@portal/lib/usage-range";
 import {
   settingsBodyTextClass,
@@ -51,7 +50,6 @@ function formatNumber(n?: number): string {
 }
 
 export function AppsSettings() {
-  const { accountUser, getAccountCredential } = useAomiWalletKit();
   const [overview, setOverview] = useState<AppOverview | null>(null);
   const [fromDate, setFromDate] = useState<string>(
     () => defaultUsageDateRange().fromDate,
@@ -62,34 +60,7 @@ export function AppsSettings() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const accountAccessTokenProvider = useMemo(() => {
-    return createPortalAccountAccessTokenProvider(getAccountCredential);
-  }, [getAccountCredential]);
-
-  useEffect(
-    () => () => {
-      accountAccessTokenProvider?.dispose();
-    },
-    [accountAccessTokenProvider],
-  );
-
-  const accountFetch = useCallback(
-    async <T,>(path: string, options?: RequestInit): Promise<T> => {
-      const accessToken = await accountAccessTokenProvider?.();
-      const headers = new Headers(options?.headers);
-      if (accessToken) {
-        headers.set("Authorization", `Bearer ${accessToken}`);
-      }
-      return settingsApiFetch<T>(path, { ...options, headers });
-    },
-    [accountAccessTokenProvider],
-  );
-
   const fetchOverview = useCallback(async () => {
-    if (!accountUser) {
-      setOverview(null);
-      return;
-    }
     if (fromDate > toDate) {
       setOverview(null);
       setError("From date must be on or before to date.");
@@ -103,8 +74,8 @@ export function AppsSettings() {
         from_date: fromDate,
         to_date: toDate,
       });
-      const data = await accountFetch<AppOverview>(
-        `/api/settings/apps/overview?${query.toString()}`,
+      const data = await settingsApiFetch<AppOverview>(
+        `/api/account/usage?${query.toString()}`,
       );
       setOverview(data);
     } catch (err) {
@@ -114,7 +85,7 @@ export function AppsSettings() {
     } finally {
       setLoading(false);
     }
-  }, [accountFetch, accountUser, fromDate, toDate]);
+  }, [fromDate, toDate]);
 
   useEffect(() => {
     void fetchOverview();
@@ -125,11 +96,6 @@ export function AppsSettings() {
       <div>
         <h1 className={`${settingsTitleClass} mb-4`}>Usage</h1>
         <div className={settingsCardStackClass}>
-          {!accountUser && (
-            <p className={settingsBodyTextClass}>
-              Connect your account to view usage across your apps.
-            </p>
-          )}
           {loading && <p className={settingsBodyTextClass}>Loading usage...</p>}
           {error && (
             <p className="text-destructive text-sm">

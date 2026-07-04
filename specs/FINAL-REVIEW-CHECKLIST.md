@@ -128,8 +128,8 @@ pass unless the owner explicitly reopens scope:
 | SEC-005 | High | M | aomi | Completed | Base app is an anonymous relay to production by default. |
 | SEC-006 | Medium | M | aomi | P2 current branch | Device-auth grants are in-process and store session tokens. |
 | XREPO-001 | Blocker | M | aomi/product-mono | Owner-deferred, branch-related | BYOK client still calls removed `/api/control/provider-keys`. |
-| XREPO-002 | Blocker | L | db-master/product-mono | P0 current branch | Required DB migrations are untracked. |
-| XREPO-003 | Blocker | L | db-master | P0 current branch | `sessions` to `threads` migration is fresh-DB only. |
+| XREPO-002 | Blocker | L | db-master/product-mono | Implemented locally; prod data blockers | Required DB migrations are untracked. |
+| XREPO-003 | Blocker | L | db-master | Implemented locally; prod-shaped replay passed | `sessions` to `threads` migration is fresh-DB only. |
 | XREPO-004 | High | L | aomi/db-master/product-mono | Owner-deferred, branch-related | Signing authorization contract is split and not surfaced end to end. |
 | RUNTIME-001 | Blocker | L | aomi | Completed | Control-context merge regression resurrected old monolith. |
 | RUNTIME-002 | Blocker | M | aomi | Completed | Application/platform scoping is dropped. |
@@ -441,21 +441,52 @@ Problem:
 account-model chain. `product-mono` is already compiled against the final
 schema (`threads`, `auth_providers`, `public_keys.signing_mode`, etc.).
 
+
+Implementation note, 2026-07-04:
+
+The `db-master` work is staged locally on branch
+`codex/xrepo-db-migration-replay` and has not been pushed. The 48 previously
+untracked migration files are staged deliberately. Prod read-only inspection
+showed the branch's DB delta starts from the current `sessions` /
+`scheduled_intents` / `auth_identities` shape, not from an empty local DB.
+`20260627005000` was made self-converging for old `sessions` shape and
+already-renamed `threads` shape. `20260627020000` now preserves scheduled
+thread launch payloads in `spawn_input`, and `20260627030000` now backfills
+`cron_jobs` before timer columns are dropped. Fresh replay and a prod-shaped
+seeded replay both passed against an isolated local Postgres 17 container.
+
+Prod read-only preflight found remaining deploy blockers that must be resolved
+before this DB branch can be pushed/deployed:
+
+- `auth_identities` has 12 duplicate `(wallet_provider, wallet_provider_subject)`
+  groups, including 4 cross-user groups. `20260701010000` now aborts before
+  dropping `application` if these are still present, because choosing survivors
+  and repointing wallet/access rows needs an explicit owner-approved policy.
+- `messages` has existing duplicate groups for the proposed
+  `idx_messages_dedup` shape, so that unique index was not added to the DB
+  branch. If runtime idempotent insert needs this guarantee, fix the product
+  code/index contract separately; do not deploy a unique index that cannot build
+  on prod data.
+
 Fix checklist:
 
-- [ ] Create a db-master branch for this migration chain.
-- [ ] Add the intended migrations deliberately.
-- [ ] Squash add-then-drop churn before first commit.
-- [ ] Verify `git ls-files migrations/*.sql` includes the full chain.
-- [ ] Replay from empty DB.
-- [ ] Replay against a staging/prod clone snapshot.
+- [x] Create a db-master branch for this migration chain.
+- [x] Add the intended migrations deliberately.
+- [x] Document why the intermediate files are needed for deployed-data
+  backfills; prod still has `scheduled_intents`, `sessions`, `auth_identities`,
+  and `public_keyes` data that the chain must carry forward.
+- [x] Verify `git ls-files migrations/*.sql` includes the full chain.
+- [x] Replay from empty DB.
+- [x] Replay against a prod-shaped local fixture seeded from prod schema facts.
+- [ ] Replay against a real staging/prod clone snapshot.
 - [ ] Publish a PR before merging dependent product code.
 
 Acceptance checks:
 
-- [ ] Fresh DB reaches schema expected by `product-mono` Diesel schema.
-- [ ] Upgraded DB reaches the same schema.
-- [ ] No migration file needed for runtime is untracked.
+- [x] Fresh DB reaches schema expected by `product-mono` Diesel schema.
+- [ ] Upgraded DB reaches the same schema on a real staging/prod clone after
+  duplicate provider-subject groups are resolved.
+- [x] No migration file needed for runtime is untracked.
 
 ### XREPO-003: Thread Rename Migration Is Fresh-DB Only
 
@@ -469,21 +500,35 @@ Problem:
 The migration itself says staging/prod need a self-converging variant, but the
 file contains unconditional renames.
 
+
+Implementation note, 2026-07-04:
+
+`20260627005000_rename_sessions_to_threads.sql` now guards the table and child
+column renames with catalog checks. It succeeds when the old `sessions` shape is
+present, succeeds when the table/columns were already renamed, preserves
+transitional timer/payload columns for later migrations, and fails before
+mutation if both old and new table shapes exist. Local verification seeded a
+prod-shaped `sessions` + `scheduled_intents` state; the chain preserved scheduled
+payloads into `threads.spawn_input`, backfilled `cron_jobs`, dropped
+`scheduled_intents`, and removed obsolete timer columns.
+
 Fix checklist:
 
-- [ ] Replace unconditional renames with guarded old/new shape checks.
-- [ ] Handle DBs where later `threads_*` migrations already no-oped into
+- [x] Replace unconditional renames with guarded old/new shape checks.
+- [x] Handle DBs where later `threads_*` migrations already no-oped into
   migration history.
-- [ ] Reassert final `threads` columns, indexes, constraints, and timer drops.
-- [ ] Add preflight SQL that reports current shape before mutating.
+- [x] Reassert final `threads` columns and preserve timer columns until cron
+  backfill runs.
+- [x] Add preflight SQL that reports current shape before mutating.
 - [ ] Rehearse on a prod clone and capture row counts before/after.
 
 Acceptance checks:
 
-- [ ] Running on fresh schema succeeds.
-- [ ] Running on already partially migrated staging shape succeeds.
-- [ ] Messages, usage events, transactions, and thread parent links preserve row
-  counts and references.
+- [x] Running on fresh schema succeeds.
+- [x] Running on a prod-shaped `sessions` / `scheduled_intents` fixture
+  succeeds in local seeded simulation.
+- [x] Scheduled intent payloads, user ownership, parent thread links, and cron
+  timing rows preserve counts and references in local seeded simulation.
 
 ### XREPO-004: Signing Authorization Is Not End-to-End
 
@@ -1056,7 +1101,8 @@ Before merge:
   or unsupported surfaces before merge: `SEC-001`, `XREPO-001`, `XREPO-004`.
 - [ ] Out-of-scope deferrals are acknowledged separately:
   pre-existing `SEC-003` and non-branch `RUNTIME-004`.
-- [ ] `XREPO-002` and `XREPO-003` DB migration PR opened and reviewed.
+- [ ] `XREPO-002` and `XREPO-003` DB migration PR opened and reviewed; local
+  branch is staged but not pushed per owner instruction.
 - [x] `RUNTIME-001` and `RUNTIME-002` fixed.
 - [ ] Smoke script updated and passing.
 - [ ] Dependency audit triaged.

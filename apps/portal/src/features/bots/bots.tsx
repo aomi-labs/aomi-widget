@@ -1,9 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Button, Input, useAomiWalletKit } from "@aomi-labs/widget-lib";
+import { Button, Input } from "@aomi-labs/widget-lib";
 import { settingsApiFetch } from "@portal/lib/settings-api";
-import { createPortalAccountAccessTokenProvider } from "@portal/lib/account-access-token";
 import {
   settingsActionRowClass,
   settingsBodyTextClass,
@@ -84,7 +83,6 @@ function normalizeAppOptions(apps: AppOption[]): string[] {
 }
 
 export function Bots() {
-  const { accountUser, getAccountCredential } = useAomiWalletKit();
   const [bots, setBots] = useState<BotRegistration[]>([]);
   const [availableApps, setAvailableApps] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
@@ -100,62 +98,32 @@ export function Bots() {
     text: string;
   } | null>(null);
 
-  const accountAccessTokenProvider = useMemo(() => {
-    return createPortalAccountAccessTokenProvider(getAccountCredential);
-  }, [getAccountCredential]);
-
-  useEffect(
-    () => () => {
-      accountAccessTokenProvider?.dispose();
-    },
-    [accountAccessTokenProvider],
-  );
-
-  const accountFetch = useCallback(
-    async <T,>(path: string, options?: RequestInit): Promise<T> => {
-      const accessToken = await accountAccessTokenProvider?.();
-      const headers = new Headers(options?.headers);
-      if (accessToken) {
-        headers.set("Authorization", `Bearer ${accessToken}`);
-      }
-      return settingsApiFetch<T>(path, { ...options, headers });
-    },
-    [accountAccessTokenProvider],
-  );
-
   const ensureBoundSession = useCallback(async () => {
-    if (!accountUser) return;
-    await accountFetch<{ thread_id: string; title?: string | null }>(
+    await settingsApiFetch<{ thread_id: string; title?: string | null }>(
       "/api/threads",
       { method: "POST", body: JSON.stringify({}) },
     );
-  }, [accountFetch, accountUser]);
+  }, []);
 
   const loadBots = useCallback(async () => {
-    if (!accountUser) {
-      setBots([]);
-      return;
-    }
-
     setLoading(true);
     setError(null);
     try {
       await ensureBoundSession();
-      const data = await accountFetch<BotRegistrationsResponse>(
-        "/api/settings/bot-registrations",
-      );
+      const data =
+        await settingsApiFetch<BotRegistrationsResponse>("/api/account/bots");
       setBots(data.bot_registrations ?? []);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load bots");
     } finally {
       setLoading(false);
     }
-  }, [accountFetch, accountUser, ensureBoundSession]);
+  }, [ensureBoundSession]);
 
   const loadApps = useCallback(async () => {
     setLoadingApps(true);
     try {
-      const data = await accountFetch<AppOption[]>("/api/account/apps");
+      const data = await settingsApiFetch<AppOption[]>("/api/account/apps");
       const normalized = normalizeAppOptions(data ?? []);
       setAvailableApps(normalized);
       setSelectedApp((previous) => {
@@ -173,19 +141,15 @@ export function Bots() {
     } finally {
       setLoadingApps(false);
     }
-  }, [accountFetch]);
+  }, []);
 
   useEffect(() => {
     void Promise.all([loadBots(), loadApps()]);
   }, [loadApps, loadBots]);
 
   const canCreate = useMemo(
-    () =>
-      Boolean(accountUser) &&
-      selectedApp.length > 0 &&
-      tokenInput.trim().length > 0 &&
-      !creating,
-    [accountUser, creating, selectedApp, tokenInput],
+    () => selectedApp.length > 0 && tokenInput.trim().length > 0 && !creating,
+    [creating, selectedApp, tokenInput],
   );
 
   const handleCreate = useCallback(async () => {
@@ -195,8 +159,8 @@ export function Bots() {
     setStatus(null);
     try {
       await ensureBoundSession();
-      const data = await accountFetch<CreateBotRegistrationResponse>(
-        "/api/settings/bot-registrations",
+      const data = await settingsApiFetch<CreateBotRegistrationResponse>(
+        "/api/account/bots",
         {
           method: "POST",
           body: JSON.stringify({
@@ -225,7 +189,6 @@ export function Bots() {
     }
   }, [
     canCreate,
-    accountFetch,
     ensureBoundSession,
     labelInput,
     selectedApp,
@@ -254,14 +217,6 @@ export function Bots() {
         >
           {status.text}
         </div>
-      )}
-
-      {!accountUser && (
-        <section className={settingsCardStackClass}>
-          <p className={settingsBodyTextClass}>
-            Connect your account to view registered bots.
-          </p>
-        </section>
       )}
 
       {error && (
@@ -295,7 +250,7 @@ export function Bots() {
               onChange={(event) => setLabelInput(event.target.value)}
               placeholder="Trading assistant"
               className={settingsInputClass}
-              disabled={!accountUser || creating}
+              disabled={creating}
             />
           </div>
           <div className="min-w-0 space-y-4">
@@ -309,7 +264,7 @@ export function Bots() {
               onChange={(event) => setTokenInput(event.target.value)}
               placeholder="Paste Telegram BotFather token"
               className={settingsInputClass}
-              disabled={!accountUser || creating}
+              disabled={creating}
             />
           </div>
         </div>
@@ -324,7 +279,7 @@ export function Bots() {
               value={selectedApp}
               onChange={(event) => setSelectedApp(event.target.value)}
               className={`${settingsInputClass} w-full`}
-              disabled={!accountUser || creating || loadingApps}
+              disabled={creating || loadingApps}
             >
               {availableApps.map((app) => (
                 <option key={app} value={app}>
@@ -350,7 +305,7 @@ export function Bots() {
               value={threadMode}
               onChange={(event) => setThreadMode(event.target.value)}
               className={`${settingsInputClass} w-full`}
-              disabled={!accountUser || creating}
+              disabled={creating}
             >
               <option value="single">Single thread</option>
               <option value="multi">Multiple threads</option>
@@ -420,9 +375,7 @@ export function Bots() {
                     className="text-muted-foreground px-3 py-4 text-center"
                     colSpan={7}
                   >
-                    {accountUser
-                      ? "No bots registered yet."
-                      : "Connect your account to load bots."}
+                    No bots registered yet.
                   </td>
                 </tr>
               )}
