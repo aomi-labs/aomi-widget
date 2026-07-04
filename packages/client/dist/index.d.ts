@@ -525,12 +525,6 @@ declare class AomiClient {
      */
     subscribeSSE(sessionId: string, onUpdate: (event: AomiSSEEvent) => void, onError?: (error: unknown) => void): () => void;
     /**
-     * @deprecated Account bootstrap is handled by session create/chat requests and
-     * the account-token exchange. `/api/settings/account` is now an authenticated
-     * profile endpoint, so this legacy helper intentionally does nothing.
-     */
-    ensureAccount(_sessionId: string, _publicKey: string): Promise<void>;
-    /**
      * Return backend account identity for the current authenticated session.
      */
     getAccount(sessionId: string): Promise<AomiAccountResponse>;
@@ -598,7 +592,7 @@ declare class AomiClient {
     /**
      * List BYOK keys (one per LLM provider) bound to the current session's client.
      */
-    listByokKeys(sessionId: string): Promise<AomiByokKeyEntry[]>;
+    listByokKeys(_sessionId: string): Promise<AomiByokKeyEntry[]>;
     /**
      * Save or replace a BYOK key for the client bound to this session.
      */

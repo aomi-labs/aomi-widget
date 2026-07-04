@@ -2,7 +2,7 @@
 
 import { useState, type FC } from "react";
 import { KeyIcon, CheckIcon, EyeIcon, EyeOffIcon } from "lucide-react";
-import { useControl, cn } from "@aomi-labs/react";
+import { useApiKey, cn } from "@aomi-labs/react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -27,7 +27,7 @@ export const ApiKeyInput: FC<ApiKeyInputProps> = ({
   title = "Aomi API Key",
   description = "Enter your API key to authenticate with Aomi services.",
 }) => {
-  const { state, setState } = useControl();
+  const { state, actions } = useApiKey();
   const [open, setOpen] = useState(false);
   const [inputValue, setInputValue] = useState("");
   const [showKey, setShowKey] = useState(false);
@@ -94,7 +94,7 @@ export const ApiKeyInput: FC<ApiKeyInputProps> = ({
               variant="outline"
               className="rounded-full"
               onClick={() => {
-                setState({ apiKey: null });
+                actions.setApiKey(null);
                 setInputValue("");
               }}
             >
@@ -105,7 +105,7 @@ export const ApiKeyInput: FC<ApiKeyInputProps> = ({
             className="rounded-full"
             onClick={() => {
               if (inputValue.trim()) {
-                setState({ apiKey: inputValue.trim() });
+                actions.setApiKey(inputValue.trim());
                 setOpen(false);
                 setInputValue("");
               }

@@ -7,6 +7,11 @@ const ALLOWED_ROUTES: AllowedRoute[] = [
     pattern: /^\/api\/account(\/.*)?$/,
     methods: new Set(["GET", "POST", "PATCH", "PUT", "DELETE"]),
   },
+  {
+    pattern: /^\/api\/integrations\/github-app\/oauth\/start$/,
+    methods: new Set(["GET"]),
+    auth: "optional",
+  },
   { pattern: /^\/api\/state$/, methods: new Set(["GET"]), auth: "optional" },
   { pattern: /^\/api\/chat$/, methods: new Set(["POST"]), auth: "optional" },
   { pattern: /^\/api\/system$/, methods: new Set(["POST"]), auth: "optional" },
@@ -58,28 +63,6 @@ const ALLOWED_ROUTES: AllowedRoute[] = [
     pattern: /^\/api\/control\/model$/,
     methods: new Set(["POST"]),
     auth: "optional",
-  },
-  {
-    pattern: /^\/api\/control\/provider-keys$/,
-    methods: new Set(["GET", "POST"]),
-  },
-  {
-    pattern: /^\/api\/control\/provider-keys\/[^/]+$/,
-    methods: new Set(["DELETE"]),
-  },
-  { pattern: /^\/api\/settings\/account$/, methods: new Set(["GET"]) },
-  { pattern: /^\/api\/settings\/apps\/overview$/, methods: new Set(["GET"]) },
-  {
-    pattern: /^\/api\/settings\/api-keys$/,
-    methods: new Set(["GET", "POST"]),
-  },
-  {
-    pattern: /^\/api\/settings\/api-keys\/[^/]+$/,
-    methods: new Set(["DELETE"]),
-  },
-  {
-    pattern: /^\/api\/settings\/bot-registrations$/,
-    methods: new Set(["GET", "POST"]),
   },
   {
     pattern: /^\/api\/simulate$/,

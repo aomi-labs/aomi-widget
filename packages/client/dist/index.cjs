@@ -1319,14 +1319,6 @@ var AomiClient = class {
   // Thread / Session Management
   // ===========================================================================
   /**
-   * @deprecated Account bootstrap is handled by session create/chat requests and
-   * the account-token exchange. `/api/settings/account` is now an authenticated
-   * profile endpoint, so this legacy helper intentionally does nothing.
-   */
-  async ensureAccount(_sessionId, _publicKey) {
-    return void 0;
-  }
-  /**
    * Return backend account identity for the current authenticated session.
    */
   async getAccount(sessionId) {
@@ -1532,12 +1524,10 @@ var AomiClient = class {
   /**
    * List BYOK keys (one per LLM provider) bound to the current session's client.
    */
-  async listByokKeys(sessionId) {
+  async listByokKeys(_sessionId) {
     var _a, _b;
-    const url = buildApiUrl(this.baseUrl, "/api/control/provider-keys");
-    const response = await this.fetchImpl(url, {
-      headers: withSessionHeader(sessionId)
-    });
+    const url = buildApiUrl(this.baseUrl, "/api/account/payment");
+    const response = await this.fetchImpl(url);
     if (!response.ok) {
       throw new Error(`Failed to get BYOK keys: HTTP ${response.status}`);
     }
@@ -1548,7 +1538,7 @@ var AomiClient = class {
    * Save or replace a BYOK key for the client bound to this session.
    */
   async saveByokKey(sessionId, provider, byokKey, label) {
-    const url = joinApiPath(this.baseUrl, "/api/control/provider-keys");
+    const url = joinApiPath(this.baseUrl, "/api/account/payment/byok");
     const response = await this.fetchImpl(url, {
       method: "POST",
       headers: withSessionHeader(sessionId, {
@@ -1572,7 +1562,7 @@ var AomiClient = class {
   async deleteByokKey(sessionId, provider) {
     const url = buildApiUrl(
       this.baseUrl,
-      `/api/control/provider-keys/${encodeURIComponent(provider)}`
+      `/api/account/payment/byok/${encodeURIComponent(provider)}`
     );
     const response = await this.fetchImpl(url, {
       method: "DELETE",

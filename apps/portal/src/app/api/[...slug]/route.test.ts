@@ -124,4 +124,40 @@ describe("portal API proxy", () => {
     expect(url.search).toBe("?platform=community");
     expect(listApps).not.toHaveBeenCalled();
   });
+
+  it("forwards GitHub App OAuth start anonymously with its app query", async () => {
+    const fetchMock = vi.fn(async () =>
+      Response.json({
+        install_url: "https://github.com/apps/aomi/installations/new",
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const res = await GET(
+      ...apiRequest("/api/integrations/github-app/oauth/start?app=2"),
+    );
+    const body = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(body).toEqual({
+      install_url: "https://github.com/apps/aomi/installations/new",
+    });
+    const url = proxiedUrl(fetchMock.mock.calls[0]);
+    expect(url.pathname).toBe("/api/integrations/github-app/oauth/start");
+    expect(url.search).toBe("?app=2");
+    const headers = new Headers(fetchMock.mock.calls[0]?.[1]?.headers);
+    expect(headers.has("authorization")).toBe(false);
+  });
+
+  it("rejects stale settings account proxy calls", async () => {
+    const fetchMock = vi.fn(async () => Response.json({ ok: true }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const res = await GET(...apiRequest("/api/settings/account"));
+    const body = await res.json();
+
+    expect(res.status).toBe(404);
+    expect(body).toEqual({ error: "Unsupported API route" });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
 });

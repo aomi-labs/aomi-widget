@@ -1,9 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Button, Input, useAomiWalletKit } from "@aomi-labs/widget-lib";
+import { Button, Input } from "@aomi-labs/widget-lib";
 import { settingsApiFetch } from "@portal/lib/settings-api";
-import { createPortalAccountAccessTokenProvider } from "@portal/lib/account-access-token";
 import {
   settingsActionRowClass,
   settingsBodyTextClass,
@@ -61,8 +60,6 @@ function formatTs(ts?: number | null): string {
 }
 
 export function AppKeys() {
-  const adapter = useAomiWalletKit();
-  const { accountUser, getAccountCredential } = adapter;
   const [appKeys, setAppKeys] = useState<OwnedAppKey[]>([]);
   const [availableApps, setAvailableApps] = useState<string[]>([]);
   const [loadingKeys, setLoadingKeys] = useState(false);
@@ -78,48 +75,21 @@ export function AppKeys() {
   } | null>(null);
   const [createdAppKey, setCreatedAppKey] = useState<string | null>(null);
 
-  const accountAccessTokenProvider = useMemo(() => {
-    return createPortalAccountAccessTokenProvider(getAccountCredential);
-  }, [getAccountCredential]);
-
-  useEffect(
-    () => () => {
-      accountAccessTokenProvider?.dispose();
-    },
-    [accountAccessTokenProvider],
-  );
-
-  const accountFetch = useCallback(
-    async <T,>(path: string, options?: RequestInit): Promise<T> => {
-      const accessToken = await accountAccessTokenProvider?.();
-      const headers = new Headers(options?.headers);
-      if (accessToken) {
-        headers.set("Authorization", `Bearer ${accessToken}`);
-      }
-      return settingsApiFetch<T>(path, { ...options, headers });
-    },
-    [accountAccessTokenProvider],
-  );
-
   const ensureBoundSession = useCallback(async () => {
-    if (!accountUser) return;
-    await accountFetch<{ thread_id: string; title?: string | null }>(
+    await settingsApiFetch<{ thread_id: string; title?: string | null }>(
       "/api/threads",
       { method: "POST", body: JSON.stringify({}) },
     );
-  }, [accountFetch, accountUser]);
+  }, []);
 
   const loadAppKeys = useCallback(async () => {
-    if (!accountUser) {
-      setAppKeys([]);
-      return;
-    }
-
     setLoadingKeys(true);
     setStatus(null);
     try {
       await ensureBoundSession();
-      const data = await accountFetch<AppKeysResponse>("/api/account/app-keys");
+      const data = await settingsApiFetch<AppKeysResponse>(
+        "/api/account/app-keys",
+      );
       setAppKeys(data.app_keys ?? []);
     } catch (error) {
       setStatus({
@@ -130,12 +100,12 @@ export function AppKeys() {
     } finally {
       setLoadingKeys(false);
     }
-  }, [accountFetch, accountUser, ensureBoundSession]);
+  }, [ensureBoundSession]);
 
   const loadApps = useCallback(async () => {
     setLoadingApps(true);
     try {
-      const data = await accountFetch<AppOption[]>("/api/account/apps");
+      const data = await settingsApiFetch<AppOption[]>("/api/account/apps");
       const normalized = normalizeAppOptions(data ?? []);
       setAvailableApps(normalized);
       setSelectedApps((previous) => {
@@ -154,15 +124,15 @@ export function AppKeys() {
     } finally {
       setLoadingApps(false);
     }
-  }, [accountFetch]);
+  }, []);
 
   useEffect(() => {
     void Promise.all([loadAppKeys(), loadApps()]);
   }, [loadAppKeys, loadApps]);
 
   const canCreate = useMemo(
-    () => Boolean(accountUser) && !creating && selectedApps.length > 0,
-    [accountUser, creating, selectedApps.length],
+    () => !creating && selectedApps.length > 0,
+    [creating, selectedApps.length],
   );
 
   const toggleApp = useCallback((app: string) => {
@@ -186,7 +156,7 @@ export function AppKeys() {
         label: labelInput.trim() || undefined,
         app_key: manualKeyInput.trim() || undefined,
       };
-      const data = await accountFetch<CreateAppKeyResponse>(
+      const data = await settingsApiFetch<CreateAppKeyResponse>(
         "/api/account/app-keys",
         {
           method: "POST",
@@ -209,7 +179,6 @@ export function AppKeys() {
     }
   }, [
     canCreate,
-    accountFetch,
     ensureBoundSession,
     labelInput,
     loadAppKeys,
@@ -228,7 +197,7 @@ export function AppKeys() {
       setStatus(null);
       try {
         await ensureBoundSession();
-        await accountFetch<{ revoked: boolean }>(
+        await settingsApiFetch<{ revoked: boolean }>(
           `/api/account/app-keys/${encodeURIComponent(key.key_hash)}`,
           { method: "DELETE" },
         );
@@ -244,7 +213,7 @@ export function AppKeys() {
         setDeletingHash(null);
       }
     },
-    [accountFetch, deletingHash, ensureBoundSession, loadAppKeys],
+    [deletingHash, ensureBoundSession, loadAppKeys],
   );
 
   return (

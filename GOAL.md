@@ -90,3 +90,25 @@ Progress:
   send paths, and covered platform filtering plus duplicate hosted app names by
   application id. Verified full React runtime/control Vitest coverage,
   targeted lint, client build, and library typecheck.
+- 2026-07-04 XREPO-002/XREPO-003 prod-shape follow-up: created local
+  `db-master` branch `codex/xrepo-db-migration-replay`, staged the 48
+  previously untracked migrations, made
+  `20260627005000_rename_sessions_to_threads.sql` self-converging for old
+  `sessions` and already-renamed `threads` shapes, fixed the scheduled work
+  cutover so prod `scheduled_intents` backfill into `threads.spawn_input` and
+  `cron_jobs` before timer columns are dropped, and verified fresh replay plus
+  prod-shaped seeded replay against an isolated local Postgres 17 container.
+  Read-only prod inspection found deploy blockers: 12 duplicate provider-subject
+  groups in `auth_identities` including 4 cross-user groups, and existing
+  message duplicates that make the proposed `idx_messages_dedup` unique index
+  invalid for prod. No GitHub push was performed; real staging/prod clone replay
+  and duplicate-resolution policy remain deploy gates.
+- 2026-07-04 portal settings route follow-up: migrated settings General,
+  Usage, App Keys, Bots, BYOK, and Deploy install flows off stale
+  `/api/settings/*` and `/api/control/provider-keys` paths onto the current
+  `/api/account/*` backend contract, allowed the public GitHub App OAuth start
+  route through the portal proxy, removed stale proxy allowlist entries, and
+  made `/settings` accept a BetterAuth SIWE session cookie even when the wallet
+  adapter is disconnected. Verified focused portal/client Vitest coverage,
+  portal typecheck, client build, registry build, actual CLI no-browser SIWE
+  login/whoami, and browser settings tab smoke with the CLI SIWE session.
