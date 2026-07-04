@@ -46,9 +46,34 @@ describe("Chat API", () => {
       const call = postChatMessage.mock.calls[0] as unknown as [
         string,
         string,
-        { userState?: Record<string, unknown> } | undefined,
+        {
+          applicationId?: number | string | null;
+          userState?: Record<string, unknown>;
+        } | undefined,
       ];
       expect(call[1]).toBe("Hello world");
+    });
+
+    it("forwards a locked application id to chat sends", async () => {
+      const postChatMessage = vi.fn(
+        async (): Promise<AomiChatResponse> => ({
+          is_processing: false,
+          messages: [],
+        }),
+      );
+      setAomiClientConfig({ postChatMessage });
+
+      const { api } = renderRuntime({ applicationId: 77 });
+
+      await act(async () => {
+        await api.sendMessage("Hello app");
+      });
+
+      expect(postChatMessage).toHaveBeenCalledWith(
+        expect.any(String),
+        "Hello app",
+        expect.objectContaining({ applicationId: 77 }),
+      );
     });
 
     it("shows an optimistic sending message before the backend send finishes", async () => {

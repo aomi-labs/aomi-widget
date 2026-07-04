@@ -84,3 +84,9 @@ Progress:
   plus Base, shadcn registry, portal, and telegram app tests. CLI SIWE live E2E
   was not rerun because SEC-005 changes only the anonymous Base demo proxy and
   does not touch BetterAuth, SIWE, account linking, or CLI auth surfaces.
+- 2026-07-04 RUNTIME-001/RUNTIME-002 follow-up: restored the React control
+  context to the extracted hook composition from `origin/main`, reintroduced
+  application/platform scoping through runtime, control, session, and client
+  send paths, and covered platform filtering plus duplicate hosted app names by
+  application id. Verified full React runtime/control Vitest coverage,
+  targeted lint, client build, and library typecheck.

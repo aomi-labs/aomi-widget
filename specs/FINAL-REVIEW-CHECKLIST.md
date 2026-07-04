@@ -131,8 +131,8 @@ pass unless the owner explicitly reopens scope:
 | XREPO-002 | Blocker | L | db-master/product-mono | P0 current branch | Required DB migrations are untracked. |
 | XREPO-003 | Blocker | L | db-master | P0 current branch | `sessions` to `threads` migration is fresh-DB only. |
 | XREPO-004 | High | L | aomi/db-master/product-mono | Owner-deferred, branch-related | Signing authorization contract is split and not surfaced end to end. |
-| RUNTIME-001 | Blocker | L | aomi | P0 current branch | Control-context merge regression resurrected old monolith. |
-| RUNTIME-002 | Blocker | M | aomi | P0 current branch | Application/platform scoping is dropped. |
+| RUNTIME-001 | Blocker | L | aomi | Completed | Control-context merge regression resurrected old monolith. |
+| RUNTIME-002 | Blocker | M | aomi | Completed | Application/platform scoping is dropped. |
 | RUNTIME-003 | High | M | aomi | P1 current branch | New sessions miss `user_state_updated` listener. |
 | RUNTIME-004 | High | M | aomi | Deferred, not in branch diff | Wallet request suppression can hide blocking requests. |
 | RUNTIME-005 | Medium | M | aomi | P2 current branch | Runtime/provider values are render-unstable. |
@@ -555,20 +555,20 @@ This dropped main's composition-root refactor and reintroduced deprecated
 
 Fix checklist:
 
-- [ ] Re-resolve the merge using `origin/main` control-context structure as the
+- [x] Re-resolve the merge using `origin/main` control-context structure as the
   base.
-- [ ] Port only the BFF/thread-auth deltas onto the extracted hook structure.
-- [ ] Use `useApiKeyImpl`, `useByokImpl`, `useAuthEndpointsImpl`, and
+- [x] Port only the BFF/thread-auth deltas onto the extracted hook structure.
+- [x] Use `useApiKeyImpl`, `useByokImpl`, `useAuthEndpointsImpl`, and
   `usePerThreadControlImpl` from `ControlContextProvider`.
-- [ ] Delete duplicate inline implementations after parity tests pass.
-- [ ] Remove or intentionally keep compatibility shims with tests.
+- [x] Delete duplicate inline implementations after parity tests pass.
+- [x] Remove or intentionally keep compatibility shims with tests.
 
 Acceptance checks:
 
-- [ ] `rg 'useApiKeyImpl|useByokImpl|useAuthEndpointsImpl|usePerThreadControlImpl'
+- [x] `rg 'useApiKeyImpl|useByokImpl|useAuthEndpointsImpl|usePerThreadControlImpl'
   packages/react/src` shows real imports/usages, not declarations only.
-- [ ] Existing control-context tests pass.
-- [ ] New tests prove app platform and application id paths work.
+- [x] Existing control-context tests pass.
+- [x] New tests prove app platform and application id paths work.
 
 ### RUNTIME-002: Application/Platform Scoping Is Dropped
 
@@ -590,20 +590,20 @@ and the current control context calls `getApps` without platform filters and
 
 Fix checklist:
 
-- [ ] Restore `applicationId?: number | string | null`.
-- [ ] Restore `appPlatforms?: AomiPlatformFilter`.
-- [ ] Forward both props through `AomiRuntimeInner`.
-- [ ] Pass `platforms` to `getApps`.
-- [ ] Resolve selected app by `(name, applicationId)` descriptor, not name only.
-- [ ] Include normalized `applicationId` in every set-model and send path that
+- [x] Restore `applicationId?: number | string | null`.
+- [x] Restore `appPlatforms?: AomiPlatformFilter`.
+- [x] Forward both props through `AomiRuntimeInner`.
+- [x] Pass `platforms` to `getApps`.
+- [x] Resolve selected app by `(name, applicationId)` descriptor, not name only.
+- [x] Include normalized `applicationId` in every set-model and send path that
   reaches backend.
 
 Acceptance checks:
 
-- [ ] Hosted app iframe with `application_id=42` uses app ID 42, not first app
+- [x] Hosted app iframe with `application_id=42` uses app ID 42, not first app
   with same name.
-- [ ] Platform filter changes authorized app list.
-- [ ] Regression test covers duplicate app names across platforms.
+- [x] Platform filter changes authorized app list.
+- [x] Regression test covers duplicate app names across platforms.
 
 ### RUNTIME-003: New Sessions Miss User-State Listener
 
@@ -1057,7 +1057,7 @@ Before merge:
 - [ ] Out-of-scope deferrals are acknowledged separately:
   pre-existing `SEC-003` and non-branch `RUNTIME-004`.
 - [ ] `XREPO-002` and `XREPO-003` DB migration PR opened and reviewed.
-- [ ] `RUNTIME-001` and `RUNTIME-002` fixed.
+- [x] `RUNTIME-001` and `RUNTIME-002` fixed.
 - [ ] Smoke script updated and passing.
 - [ ] Dependency audit triaged.
 - [ ] Generated artifacts policy resolved.

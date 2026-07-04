@@ -16,6 +16,7 @@ import { toInboundMessage } from "./utils";
 type OrchestratorOptions = {
   getUserState?: () => UserState;
   getApp: () => string;
+  getApplicationId?: () => number | string | null | undefined;
   getApiKey?: () => string | null;
   getClientId?: () => string | undefined;
   prepareThreadForSend?: (threadId: string) => Promise<void> | void;
@@ -236,6 +237,7 @@ export function useRuntimeOrchestrator(
       const manager = sessionManagerRef.current!;
       const nextOptions = optionsRef.current;
       const nextApp = nextOptions.getApp();
+      const nextApplicationId = nextOptions.getApplicationId?.();
       const nextApiKey = nextOptions.getApiKey?.() ?? undefined;
       const nextClientId = nextOptions.getClientId?.();
       const nextUserState = nextOptions.getUserState?.();
@@ -243,6 +245,7 @@ export function useRuntimeOrchestrator(
       if (existing) {
         existing.syncRuntimeOptions({
           app: nextApp,
+          applicationId: nextApplicationId,
           apiKey: nextApiKey,
           clientId: nextClientId,
           userState: nextUserState,
@@ -255,6 +258,7 @@ export function useRuntimeOrchestrator(
 
       const session = manager.getOrCreate(threadId, {
         app: nextApp,
+        applicationId: nextApplicationId,
         apiKey: nextApiKey,
         clientId: nextClientId,
         clientType: CLIENT_TYPE_WEB_UI,

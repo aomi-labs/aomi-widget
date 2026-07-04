@@ -476,15 +476,19 @@ export class AomiClient {
   async sendSystemMessage(
     sessionId: string,
     message: string,
-    options?: { app?: string },
+    options?: { app?: string; applicationId?: number | string | null },
   ): Promise<AomiSystemResponse> {
     const payload: Record<string, unknown> = { message };
     if (options?.app) {
       payload.app = options.app;
     }
+    if (options?.applicationId) {
+      payload.application_id = options.applicationId;
+    }
     this.logger?.debug("[aomi][client] POST /api/system prepared", {
       sessionId,
       app: options?.app,
+      applicationId: options?.applicationId,
       messagePreview: previewText(message),
     });
     return postState<AomiSystemResponse>(
