@@ -1094,9 +1094,13 @@ var AomiClient = class {
     if (options == null ? void 0 : options.app) {
       payload.app = options.app;
     }
+    if (options == null ? void 0 : options.applicationId) {
+      payload.application_id = options.applicationId;
+    }
     (_a = this.logger) == null ? void 0 : _a.debug("[aomi][client] POST /api/system prepared", {
       sessionId,
       app: options == null ? void 0 : options.app,
+      applicationId: options == null ? void 0 : options.applicationId,
       messagePreview: previewText(message)
     });
     return postState(
@@ -2809,6 +2813,7 @@ var ClientSession = class extends TypedEventEmitter {
     this.client = clientOrOptions instanceof AomiClient ? clientOrOptions : new AomiClient(clientOrOptions);
     this.sessionId = (_a = sessionOptions == null ? void 0 : sessionOptions.sessionId) != null ? _a : crypto.randomUUID();
     this.app = (_b = sessionOptions == null ? void 0 : sessionOptions.app) != null ? _b : "default";
+    this.applicationId = sessionOptions == null ? void 0 : sessionOptions.applicationId;
     this.apiKey = sessionOptions == null ? void 0 : sessionOptions.apiKey;
     const initialUserState = UserState.reconcile(
       void 0,
@@ -2846,6 +2851,7 @@ var ClientSession = class extends TypedEventEmitter {
     this.assertOpen();
     const response = await this.client.sendMessage(this.sessionId, message, {
       app: this.app,
+      applicationId: this.applicationId,
       apiKey: this.apiKey,
       userState: this.userState,
       clientId: this.clientId
@@ -2870,6 +2876,7 @@ var ClientSession = class extends TypedEventEmitter {
     this.assertOpen();
     const response = await this.client.sendMessage(this.sessionId, message, {
       app: this.app,
+      applicationId: this.applicationId,
       apiKey: this.apiKey,
       userState: this.userState,
       clientId: this.clientId
@@ -2985,6 +2992,7 @@ var ClientSession = class extends TypedEventEmitter {
   syncRuntimeOptions(options) {
     var _a;
     this.app = options.app;
+    this.applicationId = options.applicationId;
     this.apiKey = options.apiKey;
     this.clientId = (_a = options.clientId) != null ? _a : this.clientId;
     if (options.userState) {
@@ -3143,7 +3151,8 @@ var ClientSession = class extends TypedEventEmitter {
   async sendSystemEvent(type, payload) {
     const message = JSON.stringify({ type, payload });
     await this.client.sendSystemMessage(this.sessionId, message, {
-      app: this.app
+      app: this.app,
+      applicationId: this.applicationId
     });
   }
   resolvePending() {
