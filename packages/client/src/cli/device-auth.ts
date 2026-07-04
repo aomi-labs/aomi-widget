@@ -10,6 +10,7 @@ import {
   parseExpiresAt,
   requestJson,
 } from "./auth";
+import type { AccountGraphProviderExchangeResponse } from "./account-graph";
 import type { CliAuthSession } from "./state";
 
 export type DeviceAuthProvider = "privy" | "para";
@@ -30,14 +31,20 @@ export type DeviceProviderAuthResult = {
 };
 
 export type DeviceProviderCredentialResult = {
-  credential: unknown;
   provider?: DeviceAuthProvider;
-};
+} & AccountGraphProviderExchangeResponse;
 
 type ExchangeResponse = {
   sessionToken?: unknown;
   expiresAt?: unknown;
   betterAuthUserId?: unknown;
+  provider?: unknown;
+};
+
+type LinkIntentResponse = {
+  linkIntent?: unknown;
+  state?: unknown;
+  redirectUri?: unknown;
   provider?: unknown;
 };
 
@@ -125,24 +132,55 @@ export async function signInWithDeviceProvider({
 export async function getDeviceProviderCredential({
   baseUrl,
   provider,
+  sessionToken,
+  fetch: fetchImpl = fetch,
   timeoutMs = DEFAULT_TIMEOUT_MS,
   openBrowser = openUrlInBrowser,
   randomBytes: randomBytesImpl = randomBytes,
 }: Pick<
   DeviceProviderAuthOptions,
-  "baseUrl" | "provider" | "timeoutMs" | "openBrowser" | "randomBytes"
->): Promise<DeviceProviderCredentialResult> {
+  "baseUrl" | "provider" | "fetch" | "timeoutMs" | "openBrowser" | "randomBytes"
+> & {
+  sessionToken: string;
+}): Promise<DeviceProviderCredentialResult> {
+  if (!sessionToken) {
+    throw new Error("Device auth provider linking requires an account session");
+  }
   const portalUrl = normalizeBaseUrl(baseUrl);
   const state = base64Url(randomBytesImpl(32));
   const verifier = base64Url(randomBytesImpl(32));
   const codeChallenge = sha256Base64Url(verifier);
-  const { server, redirectUri, callback } =
-    await createLoopbackCredentialCallback({
-      state,
-      timeoutMs,
-    });
+  const { server, redirectUri, callback } = await createLoopbackCallback({
+    state,
+    timeoutMs,
+  });
 
   try {
+    const intent = await requestJson<LinkIntentResponse>(
+      fetchImpl,
+      joinUrl(portalUrl, "/api/aomi/device-auth/link-intent"),
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${sessionToken}`,
+        },
+        body: JSON.stringify({
+          state,
+          codeChallenge,
+          redirectUri,
+          provider,
+        }),
+      },
+      "Device auth link intent",
+    );
+    if (
+      typeof intent.linkIntent !== "string" ||
+      intent.state !== state ||
+      intent.redirectUri !== redirectUri
+    ) {
+      throw new Error("Device auth link intent response is invalid");
+    }
     const authUrl = buildDeviceAuthUrl({
       portalUrl,
       state,
@@ -150,13 +188,36 @@ export async function getDeviceProviderCredential({
       redirectUri,
       provider,
       mode: "link",
+      linkIntent: intent.linkIntent,
     });
     console.log(
       `Opening browser to link ${provider ?? "provider"}: ${authUrl}`,
     );
     await openBrowser(authUrl);
     console.log("Waiting for browser authentication...");
-    return await callback;
+    const { code } = await callback;
+    const exchange = await requestJson<DeviceProviderCredentialResult>(
+      fetchImpl,
+      joinUrl(portalUrl, "/api/aomi/device-auth/exchange"),
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          code,
+          state,
+          codeVerifier: verifier,
+          redirectUri,
+        }),
+      },
+      "Device auth link exchange",
+    );
+    return {
+      ...exchange,
+      provider:
+        exchange.provider === "privy" || exchange.provider === "para"
+          ? exchange.provider
+          : provider,
+    };
   } finally {
     await closeServer(server);
   }
@@ -169,6 +230,7 @@ export function buildDeviceAuthUrl(input: {
   redirectUri: string;
   provider?: DeviceAuthProvider;
   mode?: "login" | "link";
+  linkIntent?: string;
 }): string {
   const url = new URL(joinUrl(input.portalUrl, "/device-auth"));
   url.searchParams.set("state", input.state);
@@ -178,6 +240,7 @@ export function buildDeviceAuthUrl(input: {
   if (input.mode && input.mode !== "login") {
     url.searchParams.set("mode", input.mode);
   }
+  if (input.linkIntent) url.searchParams.set("link_intent", input.linkIntent);
   return url.toString();
 }
 
@@ -261,141 +324,10 @@ async function createLoopbackCallback(input: {
   };
 }
 
-async function createLoopbackCredentialCallback(input: {
-  state: string;
-  timeoutMs: number;
-}): Promise<{
-  server: Server;
-  redirectUri: string;
-  callback: Promise<DeviceProviderCredentialResult>;
-}> {
-  let settle!: (value: DeviceProviderCredentialResult) => void;
-  let fail!: (reason?: unknown) => void;
-  const callback = new Promise<DeviceProviderCredentialResult>(
-    (resolve, reject) => {
-      settle = resolve;
-      fail = reject;
-    },
-  );
-  let settled = false;
-  const timer = setTimeout(() => {
-    if (!settled) {
-      settled = true;
-      fail(new Error("Timed out waiting for browser authentication"));
-    }
-  }, input.timeoutMs);
-
-  const server = createServer(async (req, res) => {
-    try {
-      const host = req.headers.host ?? "127.0.0.1";
-      const url = new URL(req.url ?? "/", `http://${host}`);
-      if (url.pathname !== "/callback") {
-        res.writeHead(404).end("Not found");
-        return;
-      }
-      if (req.method !== "POST") {
-        res.writeHead(405).end("Method not allowed");
-        return;
-      }
-      const raw = await readRequestBody(req);
-      const body = parseCredentialCallbackBody(
-        raw,
-        req.headers["content-type"],
-      );
-      if (body.state !== input.state) {
-        throw new Error("Invalid browser auth state");
-      }
-      if (!body.credential) {
-        throw new Error("Missing provider credential");
-      }
-      res
-        .writeHead(200, { "Content-Type": "text/html; charset=utf-8" })
-        .end(
-          "<!doctype html><title>Aomi CLI link complete</title><body>Account link complete. You can close this window.</body>",
-        );
-      if (!settled) {
-        settled = true;
-        clearTimeout(timer);
-        settle({
-          credential: body.credential,
-          provider:
-            body.provider === "privy" || body.provider === "para"
-              ? body.provider
-              : undefined,
-        });
-      }
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Auth failed";
-      res
-        .writeHead(400, { "Content-Type": "text/plain; charset=utf-8" })
-        .end(message);
-      if (!settled) {
-        settled = true;
-        clearTimeout(timer);
-        fail(error);
-      }
-    }
-  });
-
-  await new Promise<void>((resolve, reject) => {
-    server.once("error", reject);
-    server.listen(0, "127.0.0.1", () => {
-      server.off("error", reject);
-      resolve();
-    });
-  });
-  const address = server.address() as AddressInfo;
-  return {
-    server,
-    redirectUri: `http://127.0.0.1:${address.port}/callback`,
-    callback,
-  };
-}
-
 function closeServer(server: Server): Promise<void> {
   return new Promise((resolve) => {
     server.close(() => resolve());
   });
-}
-
-function readRequestBody(
-  req: import("node:http").IncomingMessage,
-): Promise<string> {
-  return new Promise((resolve, reject) => {
-    let body = "";
-    req.setEncoding("utf8");
-    req.on("data", (chunk) => {
-      body += chunk;
-      if (body.length > 1_000_000) {
-        reject(new Error("Provider credential response is too large"));
-      }
-    });
-    req.on("end", () => resolve(body));
-    req.on("error", reject);
-  });
-}
-
-function parseCredentialCallbackBody(
-  raw: string,
-  contentType: string | string[] | undefined,
-): { state?: string; provider?: string; credential?: unknown } {
-  const normalized = Array.isArray(contentType)
-    ? contentType.join(";")
-    : (contentType ?? "");
-  if (normalized.includes("application/json")) {
-    return JSON.parse(raw) as {
-      state?: string;
-      provider?: string;
-      credential?: unknown;
-    };
-  }
-  const params = new URLSearchParams(raw);
-  const credential = params.get("credential");
-  return {
-    state: params.get("state") ?? undefined,
-    provider: params.get("provider") ?? undefined,
-    credential: credential ? JSON.parse(credential) : undefined,
-  };
 }
 
 function openUrlInBrowser(url: string): void {

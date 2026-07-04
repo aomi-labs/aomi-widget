@@ -162,15 +162,11 @@ describe("aomi account link management", () => {
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
-  it("links a provider credential to the current account", async () => {
-    const providerCredential = {
-      provider: "privy",
-      tokenKind: "identity_token",
-      providerToken: "privy-token",
-    };
+  it("links a provider through the device auth PKCE flow", async () => {
     const getDeviceProviderCredential = vi.fn(async () => ({
       provider: "privy" as const,
-      credential: providerCredential,
+      status: "linked" as const,
+      account: accountGraph,
     }));
     vi.doMock("../../src/cli/device-auth", async () => {
       const actual = await vi.importActual<
@@ -182,18 +178,7 @@ describe("aomi account link management", () => {
     const { accountLinkCommand } =
       await import("../../src/cli/commands/account");
     vi.spyOn(console, "log").mockImplementation(() => {});
-    const fetchMock = vi.fn(
-      async (input: RequestInfo | URL, init?: RequestInit) => {
-        expect(String(input)).toBe(
-          "https://portal.test/api/aomi/provider/exchange",
-        );
-        expect(new Headers(init?.headers).get("Authorization")).toBe(
-          "Bearer session-token",
-        );
-        expect(JSON.parse(String(init?.body))).toEqual(providerCredential);
-        return Response.json({ status: "linked", account: accountGraph });
-      },
-    );
+    const fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);
     const cli = CliSession.loadOrCreate(baseConfig);
     cli.setAuthSession({
@@ -206,8 +191,9 @@ describe("aomi account link management", () => {
     expect(getDeviceProviderCredential).toHaveBeenCalledWith({
       baseUrl: "https://portal.test",
       provider: "privy",
+      sessionToken: "session-token",
     });
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it("renames and unlinks links by graph id", async () => {

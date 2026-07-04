@@ -35,11 +35,13 @@ describe("CLI device provider auth", () => {
       redirectUri: "http://127.0.0.1:12345/callback",
       provider: "para",
       mode: "link",
+      linkIntent: "intent-123",
     });
 
     const parsed = new URL(url);
     expect(parsed.searchParams.get("provider")).toBe("para");
     expect(parsed.searchParams.get("mode")).toBe("link");
+    expect(parsed.searchParams.get("link_intent")).toBe("intent-123");
   });
 
   it("exchanges a loopback callback code for a BetterAuth session", async () => {
@@ -112,47 +114,86 @@ describe("CLI device provider auth", () => {
     }
   });
 
-  it("receives provider credentials over the loopback callback for account linking", async () => {
+  it("links provider credentials through a portal PKCE code exchange", async () => {
     const originalFetch = globalThis.fetch;
+    const exchangeFetch = vi.fn(
+      async (url: string | URL | Request, init?: RequestInit) => {
+        const target = String(url);
+        if (target.startsWith("http://127.0.0.1:")) {
+          return originalFetch(url, init);
+        }
+        if (
+          target === "https://chat.aomi.dev/api/aomi/device-auth/link-intent"
+        ) {
+          const body = JSON.parse(String(init?.body));
+          expect(new Headers(init?.headers).get("Authorization")).toBe(
+            "Bearer current-session",
+          );
+          expect(body.state).toMatch(/^[A-Za-z0-9_-]+$/);
+          expect(body.codeChallenge).toMatch(/^[A-Za-z0-9_-]+$/);
+          expect(body.redirectUri).toMatch(
+            /^http:\/\/127\.0\.0\.1:\d+\/callback$/,
+          );
+          expect(body.provider).toBe("privy");
+          return Response.json({
+            linkIntent: "link-intent-123",
+            state: body.state,
+            redirectUri: body.redirectUri,
+            provider: "privy",
+          });
+        }
+        if (target === "https://chat.aomi.dev/api/aomi/device-auth/exchange") {
+          const body = JSON.parse(String(init?.body));
+          expect(body.code).toBe("link-grant-code");
+          expect(body.state).toMatch(/^[A-Za-z0-9_-]+$/);
+          expect(body.codeVerifier).toMatch(/^[A-Za-z0-9_-]+$/);
+          expect(body.redirectUri).toMatch(
+            /^http:\/\/127\.0\.0\.1:\d+\/callback$/,
+          );
+          return Response.json({
+            status: "linked",
+            provider: "privy",
+            account: {
+              user: { id: "aomi-user-1" },
+              linkedAccounts: [],
+              wallets: [],
+              session: { betterAuthUserId: "ba-user" },
+            },
+          });
+        }
+        throw new Error(`unexpected fetch: ${target}`);
+      },
+    );
+    vi.stubGlobal("fetch", exchangeFetch);
+
     try {
       const result = await getDeviceProviderCredential({
         baseUrl: "https://chat.aomi.dev",
         provider: "privy",
+        sessionToken: "current-session",
         openBrowser: async (url) => {
           const parsed = new URL(url);
           expect(parsed.searchParams.get("provider")).toBe("privy");
           expect(parsed.searchParams.get("mode")).toBe("link");
+          expect(parsed.searchParams.get("link_intent")).toBe(
+            "link-intent-123",
+          );
           const redirectUri = parsed.searchParams.get("redirect_uri");
           const state = parsed.searchParams.get("state");
           expect(redirectUri).toBeTruthy();
           expect(state).toBeTruthy();
-          const form = new URLSearchParams({
-            state: state ?? "",
-            provider: "privy",
-            credential: JSON.stringify({
-              provider: "privy",
-              tokenKind: "identity_token",
-              providerToken: "provider-token",
-            }),
-          });
-          await originalFetch(redirectUri!, {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/x-www-form-urlencoded",
-            },
-            body: form.toString(),
-          });
+          await originalFetch(
+            `${redirectUri}?code=link-grant-code&state=${encodeURIComponent(
+              state ?? "",
+            )}`,
+          );
         },
         timeoutMs: 5_000,
       });
 
-      expect(result).toEqual({
+      expect(result).toMatchObject({
         provider: "privy",
-        credential: {
-          provider: "privy",
-          tokenKind: "identity_token",
-          providerToken: "provider-token",
-        },
+        status: "linked",
       });
     } finally {
       vi.stubGlobal("fetch", originalFetch);

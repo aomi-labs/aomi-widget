@@ -53,3 +53,34 @@ Progress:
   durable Para/Privy account-wallet rows are not promoted into Connected unless
   the provider runtime reports live wallet rows, and Quick Sign-In dedupes
   method-keyed social rows against stored provider-auth rows by provider.
+- 2026-07-03 final-review scope triage: updated
+  `specs/FINAL-REVIEW-CHECKLIST.md` to prioritize current-branch blockers
+  across `aomi`, `product-mono`, and `db-master`, and to defer pre-existing or
+  non-branch findings such as `SEC-003` and `RUNTIME-004` unless owner scope is
+  reopened.
+- 2026-07-03 SEC-002 follow-up: moved device-auth provider link mode off raw
+  credential loopback posts. CLI provider linking now creates an authenticated
+  portal link intent, returns only a one-time PKCE code to an approved loopback
+  `/callback`, and performs the provider link during portal exchange after the
+  verifier check.
+- 2026-07-04 SEC-002 verification: full root package Vitest suite, full portal
+  Vitest suite, client build, actual CLI no-browser SIWE login/link/list smoke,
+  and `scripts/smoke-auth-stack.mjs` with SIWE all passed against the local
+  dev auth stack.
+- 2026-07-03 SEC-004 follow-up: made the shared account proxy fail closed when
+  a resolved BetterAuth session cannot mint an AccountBearer, added explicit
+  optional-anonymous route policy for public widget routes, kept protected
+  account/settings/secrets routes from forwarding without Authorization, and
+  covered the behavior with focused proxy tests.
+- 2026-07-04 SEC-004 verification: ran broad root/portal/telegram test suites,
+  the live SIWE auth-stack smoke, and an actual CLI SIWE login/whoami/chat
+  flow through the local portal proxy.
+- 2026-07-03 SEC-005 base follow-up: replaced the Base app's hand-rolled
+  anonymous catch-all proxy with the shared backend proxy, removed the
+  production backend fallback for deployed environments, narrowed Base to a
+  demo-only route allowlist, and updated Base env/docs/tests for the new
+  explicit-backend requirement.
+- 2026-07-04 SEC-005 verification follow-up: ran the broad root Vitest suite
+  plus Base, shadcn registry, portal, and telegram app tests. CLI SIWE live E2E
+  was not rerun because SEC-005 changes only the anonymous Base demo proxy and
+  does not touch BetterAuth, SIWE, account linking, or CLI auth surfaces.

@@ -8467,33 +8467,78 @@ async function signInWithDeviceProvider({
 async function getDeviceProviderCredential({
   baseUrl,
   provider,
+  sessionToken,
+  fetch: fetchImpl = fetch,
   timeoutMs = DEFAULT_TIMEOUT_MS,
   openBrowser = openUrlInBrowser,
   randomBytes: randomBytesImpl = randomBytes
 }) {
+  if (!sessionToken) {
+    throw new Error("Device auth provider linking requires an account session");
+  }
   const portalUrl = normalizeBaseUrl(baseUrl);
   const state = base64Url(randomBytesImpl(32));
   const verifier = base64Url(randomBytesImpl(32));
   const codeChallenge = sha256Base64Url(verifier);
-  const { server, redirectUri, callback } = await createLoopbackCredentialCallback({
+  const { server, redirectUri, callback } = await createLoopbackCallback({
     state,
     timeoutMs
   });
   try {
+    const intent = await requestJson(
+      fetchImpl,
+      joinUrl(portalUrl, "/api/aomi/device-auth/link-intent"),
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${sessionToken}`
+        },
+        body: JSON.stringify({
+          state,
+          codeChallenge,
+          redirectUri,
+          provider
+        })
+      },
+      "Device auth link intent"
+    );
+    if (typeof intent.linkIntent !== "string" || intent.state !== state || intent.redirectUri !== redirectUri) {
+      throw new Error("Device auth link intent response is invalid");
+    }
     const authUrl = buildDeviceAuthUrl({
       portalUrl,
       state,
       codeChallenge,
       redirectUri,
       provider,
-      mode: "link"
+      mode: "link",
+      linkIntent: intent.linkIntent
     });
     console.log(
       `Opening browser to link ${provider != null ? provider : "provider"}: ${authUrl}`
     );
     await openBrowser(authUrl);
     console.log("Waiting for browser authentication...");
-    return await callback;
+    const { code } = await callback;
+    const exchange = await requestJson(
+      fetchImpl,
+      joinUrl(portalUrl, "/api/aomi/device-auth/exchange"),
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          code,
+          state,
+          codeVerifier: verifier,
+          redirectUri
+        })
+      },
+      "Device auth link exchange"
+    );
+    return __spreadProps(__spreadValues({}, exchange), {
+      provider: exchange.provider === "privy" || exchange.provider === "para" ? exchange.provider : provider
+    });
   } finally {
     await closeServer(server);
   }
@@ -8507,6 +8552,7 @@ function buildDeviceAuthUrl(input2) {
   if (input2.mode && input2.mode !== "login") {
     url.searchParams.set("mode", input2.mode);
   }
+  if (input2.linkIntent) url.searchParams.set("link_intent", input2.linkIntent);
   return url.toString();
 }
 async function createLoopbackCallback(input2) {
@@ -8576,113 +8622,10 @@ async function createLoopbackCallback(input2) {
     callback
   };
 }
-async function createLoopbackCredentialCallback(input2) {
-  let settle;
-  let fail;
-  const callback = new Promise(
-    (resolve, reject) => {
-      settle = resolve;
-      fail = reject;
-    }
-  );
-  let settled = false;
-  const timer = setTimeout(() => {
-    if (!settled) {
-      settled = true;
-      fail(new Error("Timed out waiting for browser authentication"));
-    }
-  }, input2.timeoutMs);
-  const server = createServer(async (req, res) => {
-    var _a3, _b;
-    try {
-      const host = (_a3 = req.headers.host) != null ? _a3 : "127.0.0.1";
-      const url = new URL((_b = req.url) != null ? _b : "/", `http://${host}`);
-      if (url.pathname !== "/callback") {
-        res.writeHead(404).end("Not found");
-        return;
-      }
-      if (req.method !== "POST") {
-        res.writeHead(405).end("Method not allowed");
-        return;
-      }
-      const raw = await readRequestBody(req);
-      const body = parseCredentialCallbackBody(
-        raw,
-        req.headers["content-type"]
-      );
-      if (body.state !== input2.state) {
-        throw new Error("Invalid browser auth state");
-      }
-      if (!body.credential) {
-        throw new Error("Missing provider credential");
-      }
-      res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" }).end(
-        "<!doctype html><title>Aomi CLI link complete</title><body>Account link complete. You can close this window.</body>"
-      );
-      if (!settled) {
-        settled = true;
-        clearTimeout(timer);
-        settle({
-          credential: body.credential,
-          provider: body.provider === "privy" || body.provider === "para" ? body.provider : void 0
-        });
-      }
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Auth failed";
-      res.writeHead(400, { "Content-Type": "text/plain; charset=utf-8" }).end(message);
-      if (!settled) {
-        settled = true;
-        clearTimeout(timer);
-        fail(error);
-      }
-    }
-  });
-  await new Promise((resolve, reject) => {
-    server.once("error", reject);
-    server.listen(0, "127.0.0.1", () => {
-      server.off("error", reject);
-      resolve();
-    });
-  });
-  const address3 = server.address();
-  return {
-    server,
-    redirectUri: `http://127.0.0.1:${address3.port}/callback`,
-    callback
-  };
-}
 function closeServer(server) {
   return new Promise((resolve) => {
     server.close(() => resolve());
   });
-}
-function readRequestBody(req) {
-  return new Promise((resolve, reject) => {
-    let body = "";
-    req.setEncoding("utf8");
-    req.on("data", (chunk) => {
-      body += chunk;
-      if (body.length > 1e6) {
-        reject(new Error("Provider credential response is too large"));
-      }
-    });
-    req.on("end", () => resolve(body));
-    req.on("error", reject);
-  });
-}
-function parseCredentialCallbackBody(raw, contentType) {
-  var _a3, _b;
-  const normalized = Array.isArray(contentType) ? contentType.join(";") : contentType != null ? contentType : "";
-  if (normalized.includes("application/json")) {
-    return JSON.parse(raw);
-  }
-  const params = new URLSearchParams(raw);
-  const credential = params.get("credential");
-  return {
-    state: (_a3 = params.get("state")) != null ? _a3 : void 0,
-    provider: (_b = params.get("provider")) != null ? _b : void 0,
-    credential: credential ? JSON.parse(credential) : void 0
-  };
 }
 function openUrlInBrowser(url) {
   const platform = process.platform;
@@ -9080,6 +9023,7 @@ async function accountLinksCommand(config) {
   printDataFileLocation();
 }
 async function accountLinkCommand(config, options = {}) {
+  var _a3, _b;
   const cli = loadMergedCli(config);
   const client = requireAccountGraphClient(cli);
   const provider = normalizeProviderOption(options.provider);
@@ -9090,15 +9034,15 @@ async function accountLinkCommand(config, options = {}) {
   if (provider) {
     const result = await getDeviceProviderCredential({
       baseUrl: cli.baseUrl,
-      provider
+      provider,
+      sessionToken: (_b = (_a3 = cli.auth) == null ? void 0 : _a3.sessionToken) != null ? _b : ""
     });
-    const exchange = await client.exchangeProviderCredential(result.credential);
-    if (exchange.status === "conflict") {
+    if (result.status === "conflict") {
       fatal("This login method is already linked to another Aomi account.");
     }
     console.log(`Linked ${formatProvider(provider)} login method`);
-    if (exchange.status === "linked" && exchange.account) {
-      printAccountGraph(exchange.account);
+    if (result.status === "linked" && result.account) {
+      printAccountGraph(result.account);
     }
     printDataFileLocation();
     return;

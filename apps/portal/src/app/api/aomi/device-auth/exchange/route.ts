@@ -1,5 +1,7 @@
 import { exchangeDeviceAuthGrant } from "@portal/lib/device-auth-grants";
 import { json } from "@portal/lib/aomi-account/session";
+import { exchangeProviderForExistingSession } from "@aomi-labs/auth/account";
+import type { AomiAccountCredential } from "@aomi-labs/auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -30,6 +32,27 @@ export async function POST(req: Request): Promise<Response> {
     redirectUri: body.redirectUri,
   });
   if (!grant) return json(400, { error: "invalid_or_expired_code" });
+
+  if (grant.purpose === "link") {
+    if (!grant.betterAuthUserId) {
+      return json(400, { error: "invalid_or_expired_code" });
+    }
+    try {
+      const result = await exchangeProviderForExistingSession({
+        betterAuthUserId: grant.betterAuthUserId,
+        credential: grant.credential as AomiAccountCredential,
+      });
+      return Response.json({
+        ...result,
+        provider: grant.provider,
+      });
+    } catch (error) {
+      return json(400, {
+        error:
+          error instanceof Error ? error.message : "provider_exchange_failed",
+      });
+    }
+  }
 
   return Response.json({
     sessionToken: grant.sessionToken,

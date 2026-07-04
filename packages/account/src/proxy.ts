@@ -39,11 +39,23 @@ const ALLOWED_REQUEST_HEADERS = new Set([
 export type AllowedRoute = {
   pattern: RegExp;
   methods: ReadonlySet<string>;
+  /**
+   * `required` (default) means the proxy must inject a trusted AccountBearer
+   * before forwarding. `optional` is for explicitly public backend routes that
+   * may be reached anonymously, while still receiving a bearer when a valid
+   * session is present.
+   */
+  auth?: "required" | "optional";
 };
 
 export type ResolveCanonicalUserId = (
   request: NextRequest,
 ) => Promise<string | null>;
+
+type ProxyAuthState =
+  | { kind: "anonymous" }
+  | { kind: "authenticated"; bearer: string }
+  | { kind: "mint_failed"; error: unknown };
 
 export type ProxyConfig = {
   /**
@@ -107,14 +119,77 @@ function buildUpstreamUrl(
   return target;
 }
 
-function isAllowedProxyRequest(
+function findAllowedProxyRoute(
   routes: ReadonlyArray<AllowedRoute>,
   pathname: string,
   method: string,
-): boolean {
-  return routes.some(
-    (route) => route.pattern.test(pathname) && route.methods.has(method),
+): AllowedRoute | null {
+  return (
+    routes.find(
+      (route) => route.pattern.test(pathname) && route.methods.has(method),
+    ) ?? null
   );
+}
+
+function routeRequiresAuth(route: AllowedRoute): boolean {
+  return (route.auth ?? "required") === "required";
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+function bearerMintFailureResponse(error: unknown): NextResponse {
+  console.error("Aomi proxy: could not mint AccountBearer", {
+    message: errorMessage(error),
+  });
+  return NextResponse.json(
+    { error: "Account bearer mint failed" },
+    { status: 502 },
+  );
+}
+
+function authenticationRequiredResponse(): NextResponse {
+  return NextResponse.json(
+    { error: "Authentication required" },
+    { status: 401 },
+  );
+}
+
+async function resolveProxyAuthState(
+  req: NextRequest,
+  resolveCanonicalUserId: ResolveCanonicalUserId,
+): Promise<ProxyAuthState> {
+  const canonicalId = await resolveCanonicalUserId(req);
+  if (!canonicalId) return { kind: "anonymous" };
+
+  try {
+    const { bearer } = await mintAccountBearer(canonicalId);
+    return { kind: "authenticated", bearer };
+  } catch (error) {
+    return { kind: "mint_failed", error };
+  }
+}
+
+function applyProxyAuthState(
+  route: AllowedRoute,
+  authState: ProxyAuthState,
+  headers: Headers,
+): NextResponse | null {
+  if (authState.kind === "authenticated") {
+    headers.set("authorization", `Bearer ${authState.bearer}`);
+    return null;
+  }
+
+  if (authState.kind === "mint_failed") {
+    return bearerMintFailureResponse(authState.error);
+  }
+
+  if (routeRequiresAuth(route)) {
+    return authenticationRequiredResponse();
+  }
+
+  return null;
 }
 
 function copyRequestHeaders(req: NextRequest): Headers {
@@ -133,31 +208,6 @@ function copyRequestHeaders(req: NextRequest): Headers {
     headers.set("x-thread-id", legacySessionId);
   }
   return headers;
-}
-
-/**
- * Inject `Authorization: Bearer <AccountBearer>` minted from the session, when
- * the request carries a valid `better-auth.session_token` cookie. No session →
- * forward unauthenticated (the backend treats it as anonymous). A
- * misconfigured signer degrades to anonymous + a warning rather than failing
- * every API call.
- */
-async function injectBearer(
-  req: NextRequest,
-  headers: Headers,
-  resolveCanonicalUserId: ResolveCanonicalUserId,
-): Promise<void> {
-  const canonicalId = await resolveCanonicalUserId(req);
-  if (!canonicalId) return;
-  try {
-    const { bearer } = await mintAccountBearer(canonicalId);
-    headers.set("authorization", `Bearer ${bearer}`);
-  } catch (error) {
-    console.warn(
-      "Aomi proxy: could not mint AccountBearer; forwarding anonymous",
-      { message: error instanceof Error ? error.message : String(error) },
-    );
-  }
 }
 
 function copyResponseHeaders(upstream: Response): Headers {
@@ -200,13 +250,12 @@ export function createBackendProxy(config: ProxyConfig) {
     );
     config.applyDefaults?.(upstreamUrl);
 
-    if (
-      !isAllowedProxyRequest(
-        config.allowedRoutes,
-        upstreamUrl.pathname,
-        req.method,
-      )
-    ) {
+    const allowedRoute = findAllowedProxyRoute(
+      config.allowedRoutes,
+      upstreamUrl.pathname,
+      req.method,
+    );
+    if (!allowedRoute) {
       return NextResponse.json(
         { error: "Unsupported API route" },
         { status: 404 },
@@ -214,7 +263,12 @@ export function createBackendProxy(config: ProxyConfig) {
     }
 
     const headers = copyRequestHeaders(req);
-    await injectBearer(req, headers, config.resolveCanonicalUserId);
+    const authState = await resolveProxyAuthState(
+      req,
+      config.resolveCanonicalUserId,
+    );
+    const authResponse = applyProxyAuthState(allowedRoute, authState, headers);
+    if (authResponse) return authResponse;
 
     try {
       const upstream = await fetch(upstreamUrl, {

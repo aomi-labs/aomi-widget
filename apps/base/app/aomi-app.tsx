@@ -59,7 +59,9 @@ export function AomiApp({ paymasterServiceUrl, walletAppName }: AomiAppProps) {
           <AomiFrame.Composer
             withControl
             controlBarProps={{
+              hideApp: true,
               hideApiKey: true,
+              hideModel: true,
             }}
           />
         </AomiFrame.Root>
