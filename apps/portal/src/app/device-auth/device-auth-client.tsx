@@ -39,11 +39,18 @@ export function DeviceAuthClient() {
       state: params.get("state") ?? "",
       codeChallenge: params.get("code_challenge") ?? "",
       redirectUri: params.get("redirect_uri") ?? "",
+      linkIntent: params.get("link_intent") ?? "",
     }),
     [params],
   );
 
-  if (!request.state || !request.codeChallenge || !request.redirectUri) {
+  if (
+    !request.state ||
+    !request.codeChallenge ||
+    !request.redirectUri ||
+    (mode === "link" && !request.linkIntent) ||
+    !isApprovedCliLoopbackRedirectUri(request.redirectUri)
+  ) {
     return <DeviceAuthLayout status="Invalid device auth request." />;
   }
 
@@ -126,6 +133,7 @@ function DeviceAuthProviderPanel({
     state: string;
     codeChallenge: string;
     redirectUri: string;
+    linkIntent: string;
   };
 }) {
   const walletKit = useAomiWalletKit();
@@ -168,14 +176,40 @@ function DeviceAuthProviderPanel({
         );
         if (cancelled) return;
         if (mode === "link") {
-          postCredentialToCli({
-            credential,
-            provider,
+          const grantResponse = await fetch(
+            "/api/aomi/device-auth/link-grant",
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              credentials: "include",
+              body: JSON.stringify({
+                linkIntent: request.linkIntent,
+                state: request.state,
+                redirectUri: request.redirectUri,
+                provider,
+                credential,
+              }),
+            },
+          );
+          const grant = (await grantResponse
+            .json()
+            .catch(() => null)) as GrantResponse | null;
+          if (
+            !grantResponse.ok ||
+            typeof grant?.code !== "string" ||
+            grant.state !== request.state
+          ) {
+            throw new Error(
+              `Device auth link failed: HTTP ${grantResponse.status}`,
+            );
+          }
+          setComplete(true);
+          setStatus("Account link complete. Returning to the CLI...");
+          redirectToCli({
+            code: grant.code,
             redirectUri: request.redirectUri,
             state: request.state,
           });
-          setComplete(true);
-          setStatus("Account link complete. Returning to the CLI...");
           return;
         }
         const exchangeResponse = await fetch(
@@ -217,10 +251,11 @@ function DeviceAuthProviderPanel({
         }
         setComplete(true);
         setStatus("Authentication complete. Returning to the CLI...");
-        const redirect = new URL(request.redirectUri);
-        redirect.searchParams.set("code", grant.code);
-        redirect.searchParams.set("state", request.state);
-        window.location.assign(redirect.toString());
+        redirectToCli({
+          code: grant.code,
+          redirectUri: request.redirectUri,
+          state: request.state,
+        });
       } catch (error) {
         if (cancelled) return;
         setStatus(
@@ -284,31 +319,15 @@ function DeviceAuthLayout({
   );
 }
 
-function postCredentialToCli(input: {
-  credential: unknown;
-  provider: Provider;
+function redirectToCli(input: {
+  code: string;
   redirectUri: string;
   state: string;
 }) {
-  const form = document.createElement("form");
-  form.method = "POST";
-  form.action = input.redirectUri;
-  form.style.display = "none";
-
-  for (const [name, value] of Object.entries({
-    state: input.state,
-    provider: input.provider,
-    credential: JSON.stringify(input.credential),
-  })) {
-    const field = document.createElement("input");
-    field.type = "hidden";
-    field.name = name;
-    field.value = value;
-    form.appendChild(field);
-  }
-
-  document.body.appendChild(form);
-  form.submit();
+  const redirect = new URL(input.redirectUri);
+  redirect.searchParams.set("code", input.code);
+  redirect.searchParams.set("state", input.state);
+  window.location.assign(redirect.toString());
 }
 
 async function waitForCredential(
@@ -325,4 +344,20 @@ async function waitForCredential(
 
 function normalizeProvider(value: string | null): Provider | null {
   return value === "privy" || value === "para" ? value : null;
+}
+
+function isApprovedCliLoopbackRedirectUri(redirectUri: string): boolean {
+  let url: URL;
+  try {
+    url = new URL(redirectUri);
+  } catch {
+    return false;
+  }
+  if (url.protocol !== "http:") return false;
+  if (url.username || url.password) return false;
+  if (!["127.0.0.1", "localhost"].includes(url.hostname)) return false;
+  if (!/^\d{1,5}$/.test(url.port)) return false;
+  const port = Number(url.port);
+  if (!Number.isInteger(port) || port <= 0 || port > 65_535) return false;
+  return url.pathname === "/callback" && !url.search && !url.hash;
 }

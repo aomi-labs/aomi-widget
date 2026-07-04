@@ -201,14 +201,14 @@ export async function accountLinkCommand(
     const result = await getDeviceProviderCredential({
       baseUrl: cli.baseUrl,
       provider,
+      sessionToken: cli.auth?.sessionToken ?? "",
     });
-    const exchange = await client.exchangeProviderCredential(result.credential);
-    if (exchange.status === "conflict") {
+    if (result.status === "conflict") {
       fatal("This login method is already linked to another Aomi account.");
     }
     console.log(`Linked ${formatProvider(provider)} login method`);
-    if (exchange.status === "linked" && exchange.account) {
-      printAccountGraph(exchange.account);
+    if (result.status === "linked" && result.account) {
+      printAccountGraph(result.account);
     }
     printDataFileLocation();
     return;
