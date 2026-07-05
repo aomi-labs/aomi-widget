@@ -17,8 +17,15 @@ function asObject(value: unknown): UnknownRecord | undefined {
   return value as UnknownRecord;
 }
 
+function firstObject(value: unknown): UnknownRecord | undefined {
+  if (Array.isArray(value)) {
+    return asObject(value[0]);
+  }
+  return asObject(value);
+}
+
 function evmBlock(userState?: UserState | null): UnknownRecord | undefined {
-  return asObject(normalizeUserState(userState)?.evm);
+  return firstObject(normalizeUserState(userState)?.evm);
 }
 function svmBlock(userState?: UserState | null): UnknownRecord | undefined {
   return asObject(normalizeUserState(userState)?.svm);

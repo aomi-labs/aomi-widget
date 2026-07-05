@@ -134,7 +134,7 @@ describe("Control context", () => {
       app: "special",
       applicationId: 2936606,
       userState: expect.objectContaining({
-        evm: expect.objectContaining({ address: "0xabc" }),
+        evm: [expect.objectContaining({ address: "0xabc" })],
       }),
     });
   });

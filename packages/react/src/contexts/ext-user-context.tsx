@@ -21,12 +21,32 @@ function asRecord(value: unknown): UnknownRecord | undefined {
   return value as UnknownRecord;
 }
 
+function firstRecord(value: unknown): UnknownRecord | undefined {
+  if (Array.isArray(value)) {
+    return asRecord(value[0]);
+  }
+  return asRecord(value);
+}
+
 function mergeRecords(
   previous: UnknownRecord,
   incoming: UnknownRecord,
 ): UnknownRecord {
   const next: UnknownRecord = { ...previous };
   for (const [key, value] of Object.entries(incoming)) {
+    const prevArray = Array.isArray(next[key]) ? next[key] : undefined;
+    const incomingArray = Array.isArray(value) ? value : undefined;
+    if (prevArray && incomingArray) {
+      next[key] = incomingArray.map((entry, index) => {
+        const prevRecord = asRecord(prevArray[index]);
+        const incomingRecord = asRecord(entry);
+        return prevRecord && incomingRecord
+          ? mergeRecords(prevRecord, incomingRecord)
+          : entry;
+      });
+      continue;
+    }
+
     const prevRecord = asRecord(next[key]);
     const incomingRecord = asRecord(value);
     if (prevRecord && incomingRecord) {
@@ -50,7 +70,7 @@ function dropWalletBlocks(state: UserState): UserState {
 }
 
 function dropAddressScopedState(state: UserState): UserState {
-  const evm = asRecord(state.evm);
+  const evm = firstRecord(state.evm);
   const nextEvm = evm ? { ...evm } : undefined;
   if (nextEvm) {
     delete nextEvm.aa;
@@ -59,7 +79,7 @@ function dropAddressScopedState(state: UserState): UserState {
 
   const next: UserState = { ...state };
   if (nextEvm && Object.keys(nextEvm).length > 0) {
-    next.evm = nextEvm;
+    next.evm = [nextEvm];
   } else {
     delete next.evm;
   }

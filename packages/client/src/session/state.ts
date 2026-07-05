@@ -1,8 +1,19 @@
-import { UserState, type UserState as UserStateShape, type UserStateAAMode } from "../user-state";
+import {
+  UserState,
+  type UserState as UserStateShape,
+  type UserStateAAMode,
+} from "../user-state";
 import { isSubsetMatch, sortJson } from "./json";
 
 export function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function firstRecord(value: unknown): Record<string, unknown> | undefined {
+  if (Array.isArray(value)) {
+    return isRecord(value[0]) ? value[0] : undefined;
+  }
+  return isRecord(value) ? value : undefined;
 }
 
 export function addExtValue(
@@ -60,17 +71,19 @@ export function resolveWalletState(
       resolvedAAMode === "7702" ? aa?.delegation7702 ?? null : null;
   }
 
-  const prevEvm = isRecord(userState?.evm) ? userState?.evm : {};
+  const prevEvm = firstRecord(userState?.evm) ?? {};
   const prevConn = isRecord(userState?.connection) ? userState?.connection : {};
 
   return {
     ...(userState ?? {}),
-    evm: {
-      ...prevEvm,
-      address,
-      chain_id: chainId ?? 1,
-      aa: aaBlock,
-    },
+    evm: [
+      {
+        ...prevEvm,
+        address,
+        chain_id: chainId ?? 1,
+        aa: aaBlock,
+      },
+    ],
     connection: {
       ...prevConn,
       is_connected: true,
@@ -81,9 +94,14 @@ export function resolveWalletState(
 export function warnIfUserStateMisaligned(
   expected: UserStateShape | undefined,
   actual: UserStateShape | null | undefined,
+  opts?: { app?: string },
 ): void {
   const expectedUserState = UserState.normalize(expected);
-  const normalizedActualUserState = UserState.reconcile(expectedUserState, actual);
+  const normalizedActualUserState = normalizeComparableActualUserState(
+    expectedUserState,
+    UserState.reconcile(expectedUserState, actual),
+    opts,
+  );
 
   if (!expectedUserState || !normalizedActualUserState) {
     return;
@@ -96,4 +114,37 @@ export function warnIfUserStateMisaligned(
       `[session] Backend user_state mismatch (non-fatal). expected subset=${expectedJson} actual=${actualJson}`,
     );
   }
+}
+
+function normalizeComparableActualUserState(
+  expected: UserStateShape | undefined,
+  actual: UserStateShape | undefined,
+  opts?: { app?: string },
+): UserStateShape | undefined {
+  if (opts?.app !== "byreal" || !expected || !actual) {
+    return actual;
+  }
+
+  const expectedConn = isRecord(expected.connection) ? expected.connection : {};
+  const actualConn = isRecord(actual.connection) ? actual.connection : {};
+  const expectedSvm = isRecord(expected.svm) ? expected.svm : undefined;
+  const actualSvm = isRecord(actual.svm) ? actual.svm : undefined;
+  if (
+    expectedConn.primary_family !== "svm" ||
+    expectedConn.is_connected !== actualConn.is_connected ||
+    !expectedSvm ||
+    !actualSvm ||
+    typeof expectedSvm.address !== "string" ||
+    typeof actualSvm.address !== "string"
+  ) {
+    return actual;
+  }
+
+  return {
+    ...actual,
+    svm: {
+      ...actualSvm,
+      address: expectedSvm.address,
+    },
+  };
 }

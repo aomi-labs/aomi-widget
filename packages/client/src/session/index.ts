@@ -521,6 +521,8 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
   private assertUserStateAligned(
     actualUserState?: UserStateShape | null,
   ): void {
-    warnIfUserStateMisaligned(this.userState, actualUserState);
+    warnIfUserStateMisaligned(this.userState, actualUserState, {
+      app: this.app,
+    });
   }
 }
