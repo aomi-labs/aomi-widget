@@ -142,6 +142,10 @@ describe("launchDeployRoute", () => {
   });
 
   it("preflight mints the source row by repo, then previews by app source id", async () => {
+    getGitHubSession.mockResolvedValueOnce({
+      githubUserId: "42",
+      githubLogin: "alice",
+    });
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(
@@ -187,7 +191,10 @@ describe("launchDeployRoute", () => {
       "http://127.0.0.1:8080/api/platforms/community/sources/sync-installed",
       expect.objectContaining({
         method: "POST",
-        body: expect.stringContaining('"repo":"alice/bot"'),
+        body: JSON.stringify({
+          repo: "alice/bot",
+          github_user_id: "42",
+        }),
       }),
     );
     expect(fetchMock).toHaveBeenNthCalledWith(

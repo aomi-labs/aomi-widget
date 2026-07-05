@@ -362,6 +362,8 @@ export interface SyncSourceInput extends BearerOverride {
   platform: string;
   /** `owner/name` of a repo already installed on the Aomi GitHub App. */
   repo: string;
+  /** Signed-in GitHub user id to bind this existing source to, when known. */
+  githubUserId?: string;
 }
 
 export interface ScaffoldInput extends BearerOverride {

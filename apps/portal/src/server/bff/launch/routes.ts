@@ -117,6 +117,13 @@ export function launchDeployRoute(preflight: boolean) {
     if (body.repo !== undefined && !isValidRepo(body.repo)) {
       return NextResponse.json({ error: "invalid `repo`" }, { status: 400 });
     }
+    const repo = isValidRepo(body.repo) ? body.repo : undefined;
+    let syncGithubUserId: string | null | undefined;
+    async function githubUserIdForSync(): Promise<string | null> {
+      if (syncGithubUserId !== undefined) return syncGithubUserId;
+      syncGithubUserId = (await getGitHubSession())?.githubUserId ?? null;
+      return syncGithubUserId;
+    }
 
     try {
       const config = launchConfig();
@@ -146,10 +153,18 @@ export function launchDeployRoute(preflight: boolean) {
       let deploySourceRef = sourceRef(body.sourceRef);
       if (isValidAppSourceId(body.appSourceId)) {
         appSourceId = body.appSourceId;
-      } else if (preflight && isValidRepo(body.repo)) {
+      } else if (preflight && repo) {
+        const githubUserId = await githubUserIdForSync();
+        if (!githubUserId) {
+          return NextResponse.json(
+            { error: "not signed in with GitHub" },
+            { status: 401 },
+          );
+        }
         const synced = await client.syncSource({
           platform: config.platform,
-          repo: body.repo as string,
+          repo,
+          githubUserId,
         });
         if (!isValidAppSourceId(synced.id)) {
           throw new Error("backend did not return a valid app source id");
@@ -167,10 +182,18 @@ export function launchDeployRoute(preflight: boolean) {
         );
       }
 
-      if (!deploySourceRef && isValidRepo(body.repo)) {
+      if (!deploySourceRef && repo) {
+        const githubUserId = await githubUserIdForSync();
+        if (!githubUserId) {
+          return NextResponse.json(
+            { error: "not signed in with GitHub" },
+            { status: 401 },
+          );
+        }
         const synced = await client.syncSource({
           platform: config.platform,
-          repo: body.repo as string,
+          repo,
+          githubUserId,
         });
         if (synced.id !== appSourceId) {
           return NextResponse.json(
@@ -203,9 +226,7 @@ export function launchDeployRoute(preflight: boolean) {
       return NextResponse.json(
         {
           ok: true,
-          repo:
-            deployment.source.repositoryLink ??
-            (body.repo as string | undefined),
+          repo: deployment.source.repositoryLink ?? repo,
           installationId: deployment.source.installationId
             ? String(deployment.source.installationId)
             : undefined,
