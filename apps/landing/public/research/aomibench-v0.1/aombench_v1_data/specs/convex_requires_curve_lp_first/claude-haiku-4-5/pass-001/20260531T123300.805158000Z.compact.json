@@ -20,9 +20,7 @@
     "total_turns": 1,
     "total_tool_calls": 5,
     "total_responses": 8,
-    "activated_skills": [
-      "convex"
-    ],
+    "activated_skills": ["convex"],
     "failed_assertions": [],
     "budget_summary": {
       "total": 1,
@@ -116,10 +114,7 @@
         "tool": "activate_skills",
         "topic": "activate_skills",
         "arguments": {
-          "skill_ids": [
-            "convex",
-            "common_erc20"
-          ]
+          "skill_ids": ["convex", "common_erc20"]
         },
         "result_preview": "{\n  \"activated\": [\n    \"convex\"\n  ],\n  \"rejected\": [\n    [\n      \"common_erc20\",\n      \"invalid\"\n    ]\n  ],\n  \"applied_scope\": \"current_serve_cycle\"\n}"
       },
@@ -170,9 +165,7 @@
         "topic": "Check Alice's 3Crv balance",
         "arguments": {
           "function_signature": "balanceOf(address)",
-          "arguments": [
-            "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
-          ],
+          "arguments": ["0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"],
           "to": "0x6c3F90f043a72FA612cbac8115EE7e52BDe6E490",
           "value": "0",
           "topic": "Check Alice's 3Crv balance"
@@ -188,12 +181,8 @@
     },
     "skills": {
       "mode": "restricted",
-      "allowed": [
-        "convex"
-      ],
-      "activated_skills": [
-        "convex"
-      ],
+      "allowed": ["convex"],
+      "activated_skills": ["convex"],
       "bundle_path": "../output/eval/model-bench-public-skills-opus47-opus46-haiku45-20260531/specs/convex_requires_curve_lp_first/claude-haiku-4.5/pass-001/spec-skills/convex_requires_curve_lp_first-skills.json",
       "bundle_revision": "fnv1a64:657afdadfe89a203"
     },

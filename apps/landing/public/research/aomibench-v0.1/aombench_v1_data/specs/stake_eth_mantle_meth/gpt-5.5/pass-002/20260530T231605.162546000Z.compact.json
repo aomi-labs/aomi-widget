@@ -20,9 +20,7 @@
     "total_turns": 1,
     "total_tool_calls": 13,
     "total_responses": 19,
-    "activated_skills": [
-      "mantle_staked_eth"
-    ],
+    "activated_skills": ["mantle_staked_eth"],
     "failed_assertions": [],
     "budget_summary": {
       "total": 1,
@@ -193,9 +191,7 @@
         "tool": "activate_skills",
         "topic": "activate_skills",
         "arguments": {
-          "skill_ids": [
-            "mantle_staked_eth"
-          ]
+          "skill_ids": ["mantle_staked_eth"]
         },
         "result_preview": "{\n  \"activated\": [\n    \"mantle_staked_eth\"\n  ],\n  \"rejected\": [],\n  \"applied_scope\": \"current_serve_cycle\"\n}"
       },
@@ -240,9 +236,7 @@
         "tool": "encode_and_call",
         "topic": "Quote expected mETH for 0.1 ETH",
         "arguments": {
-          "arguments": [
-            "100000000000000000"
-          ],
+          "arguments": ["100000000000000000"],
           "function_signature": "ethToMETH(uint256)",
           "to": "0xd5F7838F5C461fefF7FE49ea5ebaF7728bB0ADfa",
           "topic": "Quote expected mETH for 0.1 ETH",
@@ -291,9 +285,7 @@
         "tool": "encode_and_call",
         "topic": "Quote expected mETH from staking contract",
         "arguments": {
-          "arguments": [
-            "100000000000000000"
-          ],
+          "arguments": ["100000000000000000"],
           "function_signature": "ethToMETH(uint256)",
           "to": "0xe3cBd06D7dadB3F4e6557bAb7EdD924CD1489E8f",
           "topic": "Quote expected mETH from staking contract",
@@ -306,9 +298,7 @@
         "tool": "encode_and_call",
         "topic": "Probe Mantle stake with tentative minimum",
         "arguments": {
-          "arguments": [
-            "100000000000000000"
-          ],
+          "arguments": ["100000000000000000"],
           "function_signature": "stake(uint256)",
           "to": "0xe3cBd06D7dadB3F4e6557bAb7EdD924CD1489E8f",
           "topic": "Probe Mantle stake with tentative minimum",
@@ -321,9 +311,7 @@
         "tool": "encode_and_call",
         "topic": "Simulate Mantle stake 0.1 ETH with slippage protection",
         "arguments": {
-          "arguments": [
-            "91018773757160041"
-          ],
+          "arguments": ["91018773757160041"],
           "function_signature": "stake(uint256)",
           "to": "0xe3cBd06D7dadB3F4e6557bAb7EdD924CD1489E8f",
           "topic": "Simulate Mantle stake 0.1 ETH with slippage protection",
@@ -338,9 +326,7 @@
         "arguments": {
           "value": "100000000000000000",
           "data": {
-            "args": [
-              "91018773757160041"
-            ],
+            "args": ["91018773757160041"],
             "raw": "",
             "signature": "stake(uint256)"
           },
@@ -376,9 +362,7 @@
         "topic": "Request wallet approval for Mantle mETH stake",
         "arguments": {
           "topic": "Request wallet approval for Mantle mETH stake",
-          "tx_ids": [
-            1
-          ]
+          "tx_ids": [1]
         },
         "result_preview": "{\n  \"status\": \"pending_approval\",\n  \"tx_ids\": [\n    1\n  ],\n  \"timestamp\": \"2026-05-30T23:16:01.414280+00:00\"\n}"
       }
@@ -391,12 +375,8 @@
     },
     "skills": {
       "mode": "restricted",
-      "allowed": [
-        "mantle_staked_eth"
-      ],
-      "activated_skills": [
-        "mantle_staked_eth"
-      ],
+      "allowed": ["mantle_staked_eth"],
+      "activated_skills": ["mantle_staked_eth"],
       "bundle_path": "../output/eval/model-bench-public-skills-gpt55-opus48-sonnet46-20260530/specs/stake_eth_mantle_meth/gpt-5.5/pass-002/spec-skills/stake_eth_mantle_meth-skills.json",
       "bundle_revision": "fnv1a64:0c85696036b5a461"
     },

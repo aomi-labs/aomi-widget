@@ -20,9 +20,7 @@
     "total_turns": 1,
     "total_tool_calls": 12,
     "total_responses": 17,
-    "activated_skills": [
-      "lido"
-    ],
+    "activated_skills": ["lido"],
     "failed_assertions": [],
     "budget_summary": {
       "total": 1,
@@ -179,10 +177,7 @@
         "tool": "activate_skills",
         "topic": "activate_skills",
         "arguments": {
-          "skill_ids": [
-            "lido",
-            "common_erc20"
-          ]
+          "skill_ids": ["lido", "common_erc20"]
         },
         "result_preview": "{\n  \"activated\": [\n    \"lido\"\n  ],\n  \"rejected\": [\n    [\n      \"common_erc20\",\n      \"invalid\"\n    ]\n  ],\n  \"applied_scope\": \"current_serve_cycle\"\n}"
       },
@@ -215,9 +210,7 @@
         "topic": "Check Alice stETH balance",
         "arguments": {
           "function_signature": "balanceOf(address)",
-          "arguments": [
-            "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
-          ],
+          "arguments": ["0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"],
           "to": "0xae7ab96520DE3A18E5e111B5EaAb095312D7fE84",
           "value": "0",
           "topic": "Check Alice stETH balance"
@@ -245,9 +238,7 @@
         "tool": "encode_and_call",
         "topic": "Validate Lido submit of 0.1 ETH",
         "arguments": {
-          "arguments": [
-            "0x0000000000000000000000000000000000000000"
-          ],
+          "arguments": ["0x0000000000000000000000000000000000000000"],
           "function_signature": "submit(address)",
           "to": "0xae7ab96520DE3A18E5e111B5EaAb095312D7fE84",
           "topic": "Validate Lido submit of 0.1 ETH",
@@ -280,9 +271,7 @@
           "description": "Stake 0.1 ETH with Lido (submit, referral=address(0)) → mints ~0.1 stETH to Alice",
           "data": {
             "signature": "submit(address)",
-            "args": [
-              "0x0000000000000000000000000000000000000000"
-            ],
+            "args": ["0x0000000000000000000000000000000000000000"],
             "raw": ""
           },
           "value": "100000000000000000",
@@ -371,11 +360,7 @@
         "tool": "commit_txs",
         "topic": "Commit stake → approve → withdrawal request",
         "arguments": {
-          "tx_ids": [
-            1,
-            2,
-            3
-          ],
+          "tx_ids": [1, 2, 3],
           "topic": "Commit stake → approve → withdrawal request"
         },
         "result_preview": "{\n  \"status\": \"pending_approval\",\n  \"tx_ids\": [\n    1,\n    2,\n    3\n  ],\n  \"timestamp\": \"2026-05-31T21:00:01.844757+00:00\"\n}"
@@ -389,12 +374,8 @@
     },
     "skills": {
       "mode": "restricted",
-      "allowed": [
-        "lido"
-      ],
-      "activated_skills": [
-        "lido"
-      ],
+      "allowed": ["lido"],
+      "activated_skills": ["lido"],
       "bundle_path": "../output/eval/model-bench-public-skills-expansion-20260531/specs/stake_then_request_steth_withdrawal/claude-opus-4.8/pass-001/spec-skills/stake_then_request_steth_withdrawal-skills.json",
       "bundle_revision": "fnv1a64:3dc3c3eb3312b7e4"
     },

@@ -223,9 +223,7 @@
         "topic": "Check Alice's USDC balance",
         "arguments": {
           "function_signature": "balanceOf(address)",
-          "arguments": [
-            "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
-          ],
+          "arguments": ["0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"],
           "to": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
           "value": "0",
           "topic": "Check Alice's USDC balance"
@@ -241,10 +239,7 @@
           "description": "Transfer 25 USDC from Alice to 0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
           "data": {
             "signature": "transfer(address,uint256)",
-            "args": [
-              "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
-              "25000000"
-            ],
+            "args": ["0x70997970C51812dc3A010C7d01b50e0d17dc79C8", "25000000"],
             "raw": ""
           },
           "value": "0",
@@ -277,9 +272,7 @@
         "tool": "commit_txs",
         "topic": "Commit USDC transfer to wallet",
         "arguments": {
-          "tx_ids": [
-            1
-          ],
+          "tx_ids": [1],
           "topic": "Commit USDC transfer to wallet"
         },
         "result_preview": "{\n  \"status\": \"pending_approval\",\n  \"tx_ids\": [\n    1\n  ],\n  \"timestamp\": \"2026-05-31T18:52:06.101069+00:00\"\n}"

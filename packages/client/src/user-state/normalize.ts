@@ -9,6 +9,22 @@ function asObject(value: unknown): UnknownRecord | undefined {
   return value as UnknownRecord;
 }
 
+function asObjectArray(value: unknown): UnknownRecord[] | undefined {
+  if (Array.isArray(value)) {
+    const records = value.flatMap((item) => {
+      const obj = asObject(item);
+      return obj ? [obj] : [];
+    });
+    return records.length ? records : undefined;
+  }
+  const obj = asObject(value);
+  return obj ? [obj] : undefined;
+}
+
+function firstEvm(value: unknown): UnknownRecord | undefined {
+  return asObjectArray(value)?.[0];
+}
+
 function pick(record: UnknownRecord | undefined, ...keys: string[]): unknown {
   if (!record) {
     return undefined;
@@ -260,7 +276,7 @@ function parseChainId(value: unknown): number | undefined {
 }
 
 function address(state: UserState | undefined): string | undefined {
-  const value = asObject(state?.evm)?.address;
+  const value = firstEvm(state?.evm)?.address;
   return typeof value === "string" && value.length > 0 ? value : undefined;
 }
 
@@ -270,7 +286,7 @@ function svmAddress(state: UserState | undefined): string | undefined {
 }
 
 function chainId(state: UserState | undefined): number | undefined {
-  return parseChainId(asObject(state?.evm)?.chain_id);
+  return parseChainId(firstEvm(state?.evm)?.chain_id);
 }
 
 function isConnected(state: UserState | undefined): boolean | undefined {
@@ -295,8 +311,8 @@ export function normalizeUserState(
   const out: UserState = {};
   const connection = buildConnection(asObject(pick(src, "connection")), src);
   if (connection) out.connection = connection;
-  const evm = buildEvm(asObject(pick(src, "evm")), src);
-  if (evm) out.evm = evm;
+  const evm = buildEvm(firstEvm(pick(src, "evm")), src);
+  if (evm) out.evm = [evm];
   const svm = buildSvm(asObject(pick(src, "svm", "solana")), src);
   if (svm) out.svm = svm;
   const pending = buildPending(asObject(pick(src, "pending")), src);
@@ -349,12 +365,12 @@ export function reconcileUserState(
     out.connection = incConn ? deepMergePreserve(prevConn, incConn) : prevConn;
   }
 
-  const prevEvm = asObject(prev.evm);
-  const incEvm = asObject(inc.evm);
+  const prevEvm = firstEvm(prev.evm);
+  const incEvm = firstEvm(inc.evm);
   const sameEvm =
     !!address(prev) && (!address(inc) || sameAddress(address(prev), address(inc)));
   if (connectedNotBroken && prevEvm && (sameEvm || !incEvm)) {
-    out.evm = incEvm ? deepMergePreserve(prevEvm, incEvm) : prevEvm;
+    out.evm = [incEvm ? deepMergePreserve(prevEvm, incEvm) : prevEvm];
   }
 
   const prevSvm = asObject(prev.svm);

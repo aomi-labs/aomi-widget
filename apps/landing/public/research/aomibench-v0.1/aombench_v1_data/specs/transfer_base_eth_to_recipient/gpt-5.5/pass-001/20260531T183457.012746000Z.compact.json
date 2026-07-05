@@ -182,9 +182,7 @@
         "topic": "Request wallet approval for Base ETH transfer",
         "arguments": {
           "topic": "Request wallet approval for Base ETH transfer",
-          "tx_ids": [
-            1
-          ]
+          "tx_ids": [1]
         },
         "result_preview": "{\n  \"status\": \"pending_approval\",\n  \"tx_ids\": [\n    1\n  ],\n  \"timestamp\": \"2026-05-31T18:34:54.398706+00:00\"\n}"
       }

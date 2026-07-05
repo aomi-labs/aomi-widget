@@ -26,7 +26,7 @@ workspace) on the first run after a fresh checkout or rebuild. Expect on a cold
 run:
 
 - It can take **a few minutes**, and may print `Blocking waiting for file lock on
-  artifact directory` if another build holds the lock — wait.
+artifact directory` if another build holds the lock — wait.
 - It emits cargo build noise to stderr, including warnings like
   `skill '<name>' is disabled in its manifest … skipping`. **These are not
   errors** — they come from an unrelated workspace crate's build script. Judge
@@ -109,7 +109,7 @@ speculative edits to the command, or dumping raw cargo/stderr noise.
 ## Install globally (run repowiki in any repo)
 
 `./scripts/repowiki` here depends on the sibling product-mono checkout and builds
-on demand. To use repowiki in *any* repo — and drop the sibling dependency —
+on demand. To use repowiki in _any_ repo — and drop the sibling dependency —
 install the binary onto PATH. Share these with colleagues; run from a
 **product-mono** checkout (which owns the crate):
 

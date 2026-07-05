@@ -1,10 +1,10 @@
-'use client';
+"use client";
 
 export function getTelegramUserId(): string | undefined {
   return (
-    window.Telegram?.WebApp?.initDataUnsafe?.user?.id?.toString()
-    || new URLSearchParams(window.location.search).get('user_id')
-    || undefined
+    window.Telegram?.WebApp?.initDataUnsafe?.user?.id?.toString() ||
+    new URLSearchParams(window.location.search).get("user_id") ||
+    undefined
   );
 }
 

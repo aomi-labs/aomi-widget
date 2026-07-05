@@ -140,8 +140,7 @@ export function Bots() {
   }, [loadApps, loadBots]);
 
   const canCreate = useMemo(
-    () =>
-      selectedApp.length > 0 && tokenInput.trim().length > 0 && !creating,
+    () => selectedApp.length > 0 && tokenInput.trim().length > 0 && !creating,
     [creating, selectedApp, tokenInput],
   );
 

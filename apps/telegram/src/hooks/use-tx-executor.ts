@@ -1,11 +1,11 @@
 // @ts-nocheck
-'use client';
+"use client";
 
-import { useMemo } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { useAccount, useWalletClient } from 'wagmi';
-import { useClient } from '@getpara/react-sdk';
-import type { Chain, Hex } from 'viem';
+import { useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { useAccount, useWalletClient } from "wagmi";
+import { useClient } from "@getpara/react-sdk";
+import type { Chain, Hex } from "viem";
 
 import {
   buildAAExecutionPlan,
@@ -23,11 +23,11 @@ import {
   type ExecutionResult,
   type SmartAccount,
   type PimlicoResolvedConfig,
-} from '@aomi-labs/client';
+} from "@aomi-labs/client";
 
-import { CHAIN_BY_ID } from '@/lib/chains';
-import { getPreferredRpcUrl } from '@/lib/rpc';
-import type { TxCall } from '@/lib/wallet-state/types';
+import { CHAIN_BY_ID } from "@/lib/chains";
+import { getPreferredRpcUrl } from "@/lib/rpc";
+import type { TxCall } from "@/lib/wallet-state/types";
 
 // Re-export for consumers
 export type TransactionExecutionResult = ExecutionResult;
@@ -50,14 +50,15 @@ function toWalletExecutionCall(call: TxCall): AAWalletCall {
 // Env vars (static access for Next.js client-side)
 // ---------------------------------------------------------------------------
 
-const ALCHEMY_API_KEY = process.env.NEXT_PUBLIC_ALCHEMY_API_KEY?.trim() || '';
-const PIMLICO_API_KEY = process.env.NEXT_PUBLIC_PIMLICO_API_KEY?.trim() || '';
-const ALCHEMY_GAS_POLICY_ID = process.env.NEXT_PUBLIC_ALCHEMY_GAS_POLICY_ID?.trim();
+const ALCHEMY_API_KEY = process.env.NEXT_PUBLIC_ALCHEMY_API_KEY?.trim() || "";
+const PIMLICO_API_KEY = process.env.NEXT_PUBLIC_PIMLICO_API_KEY?.trim() || "";
+const ALCHEMY_GAS_POLICY_ID =
+  process.env.NEXT_PUBLIC_ALCHEMY_GAS_POLICY_ID?.trim();
 const AA_PROVIDER = normalizeAAProvider(process.env.NEXT_PUBLIC_AA_PROVIDER);
 
-type AAProviderPreference = AAProvider | 'auto';
+type AAProviderPreference = AAProvider | "auto";
 type AlchemyProviderConfig = AAResolvedConfig & {
-  provider: 'alchemy';
+  provider: "alchemy";
   chain: Chain;
   rpcUrl: string;
   apiKey?: string;
@@ -66,25 +67,25 @@ type AlchemyProviderConfig = AAResolvedConfig & {
 
 type ResolvedProviderConfig =
   | AlchemyProviderConfig
-  | (PimlicoResolvedConfig & { provider: 'pimlico' });
+  | (PimlicoResolvedConfig & { provider: "pimlico" });
 
 function normalizeAAProvider(value: string | undefined): AAProviderPreference {
   const normalized = value?.trim().toLowerCase();
-  if (normalized === 'alchemy' || normalized === 'pimlico') {
+  if (normalized === "alchemy" || normalized === "pimlico") {
     return normalized;
   }
-  return 'auto';
+  return "auto";
 }
 
 function getSelectedAAProvider(): AAProvider | null {
-  if (AA_PROVIDER === 'alchemy' || AA_PROVIDER === 'pimlico') {
+  if (AA_PROVIDER === "alchemy" || AA_PROVIDER === "pimlico") {
     return AA_PROVIDER;
   }
   if (ALCHEMY_API_KEY) {
-    return 'alchemy';
+    return "alchemy";
   }
   if (PIMLICO_API_KEY) {
-    return 'pimlico';
+    return "pimlico";
   }
   return null;
 }
@@ -96,11 +97,11 @@ function getSelectedAAProvider(): AAProvider | null {
 function resolveConfig(
   calls: AAWalletCall[] | null,
   localPrivateKey: `0x${string}` | null,
-  modeOverride?: '4337' | '7702',
+  modeOverride?: "4337" | "7702",
 ): ResolvedProviderConfig | null {
   const provider = getSelectedAAProvider();
 
-  if (provider === 'pimlico') {
+  if (provider === "pimlico") {
     const resolved = resolvePimlicoConfig({
       calls,
       localPrivateKey,
@@ -113,7 +114,7 @@ function resolveConfig(
     return resolved ? { ...resolved, provider } : null;
   }
 
-  if (provider !== 'alchemy') {
+  if (provider !== "alchemy") {
     return null;
   }
 
@@ -147,7 +148,7 @@ function resolveConfig(
     rpcUrl: getPreferredRpcUrl(chain),
     apiKey: ALCHEMY_API_KEY || undefined,
     gasPolicyId: ALCHEMY_GAS_POLICY_ID || undefined,
-    sponsorship: ALCHEMY_GAS_POLICY_ID ? plan.sponsorship : 'disabled',
+    sponsorship: ALCHEMY_GAS_POLICY_ID ? plan.sponsorship : "disabled",
   };
 }
 
@@ -161,22 +162,23 @@ function useAAProvider(
 ): TopicProviderState {
   const para = useClient();
   const { address, connector, isConnected } = useAccount();
-  const { data: walletClient, isLoading: isWalletClientLoading } = useWalletClient();
-  const connectorName = connector?.name?.toLowerCase() ?? '';
-  const isParaWallet = connectorName.includes('para');
+  const { data: walletClient, isLoading: isWalletClientLoading } =
+    useWalletClient();
+  const connectorName = connector?.name?.toLowerCase() ?? "";
+  const isParaWallet = connectorName.includes("para");
   const shouldUseExternalSigner = Boolean(walletClient && !isParaWallet);
-  const modeOverride = shouldUseExternalSigner ? '4337' : undefined;
+  const modeOverride = shouldUseExternalSigner ? "4337" : undefined;
 
   const resolved = resolveConfig(calls, localPrivateKey, modeOverride);
   const resolvedGasPolicyId =
-    resolved?.provider === 'alchemy' ? resolved.gasPolicyId ?? null : null;
+    resolved?.provider === "alchemy" ? (resolved.gasPolicyId ?? null) : null;
 
   // Para client exists = we have an active Para session
   const hasParaSession = Boolean(para);
 
   const query = useQuery({
     queryKey: [
-      'SMART_ACCOUNT',
+      "SMART_ACCOUNT",
       resolved?.provider ?? null,
       hasParaSession,
       shouldUseExternalSigner,
@@ -190,12 +192,9 @@ function useAAProvider(
       resolved?.mode ?? null,
     ],
     enabled: Boolean(
-      resolved
-      && !isWalletClientLoading
-      && (
-        hasParaSession
-        || shouldUseExternalSigner
-      ),
+      resolved &&
+      !isWalletClientLoading &&
+      (hasParaSession || shouldUseExternalSigner),
     ),
     queryFn: async (): Promise<AAState> => {
       if (!resolved) {
@@ -210,15 +209,15 @@ function useAAProvider(
       const ownerParams: AAOwner | null = para
         ? shouldUseExternalSigner
           ? {
-              kind: 'session',
-              adapter: 'para',
+              kind: "session",
+              adapter: "para",
               session: para,
               signer: walletClient,
               address: address as Hex | undefined,
             }
           : {
-              kind: 'session',
-              adapter: 'para',
+              kind: "session",
+              adapter: "para",
               session: para,
               address: address as Hex | undefined,
             }
@@ -229,7 +228,7 @@ function useAAProvider(
           resolved,
           account: null,
           pending: false,
-          error: new Error('AA owner is not ready.'),
+          error: new Error("AA owner is not ready."),
         };
       }
 
@@ -242,7 +241,7 @@ function useAAProvider(
         mode: resolved.mode,
         apiKey: resolved.apiKey,
         gasPolicyId:
-          resolved.provider === 'alchemy' ? resolved.gasPolicyId : undefined,
+          resolved.provider === "alchemy" ? resolved.gasPolicyId : undefined,
       });
     },
   });

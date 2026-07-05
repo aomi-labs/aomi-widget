@@ -237,9 +237,7 @@
         "tool": "activate_skills",
         "topic": "activate_skills",
         "arguments": {
-          "skill_ids": [
-            "common_erc20"
-          ]
+          "skill_ids": ["common_erc20"]
         },
         "result_preview": "{\n  \"activated\": [],\n  \"rejected\": [],\n  \"applied_scope\": \"current_serve_cycle\",\n  \"error\": {\n    \"code\": \"activation_window_closed\",\n    \"message\": \"activate_skills is only valid in the first pass of this request\"\n  }\n}"
       },
@@ -276,9 +274,7 @@
         "arguments": {
           "function_signature": "balanceOf(address)",
           "topic": "Check Alice's USDC balance",
-          "arguments": [
-            "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
-          ],
+          "arguments": ["0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"],
           "to": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
           "value": "0"
         },
@@ -293,9 +289,7 @@
     },
     "skills": {
       "mode": "restricted",
-      "allowed": [
-        "common_erc20"
-      ],
+      "allowed": ["common_erc20"],
       "activated_skills": [],
       "bundle_path": "../output/eval/model-bench-public-skills-expansion-20260531/specs/send_base_usdc_to_bob/minimax-m2.5/pass-002/spec-skills/send_base_usdc_to_bob-skills.json",
       "bundle_revision": "fnv1a64:dd502dd19897120a"

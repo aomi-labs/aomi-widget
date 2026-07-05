@@ -53,7 +53,9 @@ describe("CLI REPL command routing", () => {
       secrets: {},
     };
 
-    await expect(handleReplLine(config, "hello", true)).resolves.toBe("continue");
+    await expect(handleReplLine(config, "hello", true)).resolves.toBe(
+      "continue",
+    );
     expect(chatCommandMock).toHaveBeenCalledWith(config, "hello", true);
   });
 
@@ -67,11 +69,9 @@ describe("CLI REPL command routing", () => {
 
     await handleReplLine(config, "/app khalani", false);
 
-    expect(setAppCommandMock).toHaveBeenCalledWith(
-      config,
-      "khalani",
-      { printLocation: false },
-    );
+    expect(setAppCommandMock).toHaveBeenCalledWith(config, "khalani", {
+      printLocation: false,
+    });
     expect(config.app).toBe("khalani");
   });
 
@@ -87,11 +87,9 @@ describe("CLI REPL command routing", () => {
     expect(modelsCommandMock).toHaveBeenCalledWith(config);
 
     await handleReplLine(config, "/model gpt-5", false);
-    expect(setModelCommandMock).toHaveBeenCalledWith(
-      config,
-      "gpt-5",
-      { printLocation: false },
-    );
+    expect(setModelCommandMock).toHaveBeenCalledWith(config, "gpt-5", {
+      printLocation: false,
+    });
     expect(config.model).toBe("gpt-5");
   });
 
@@ -111,16 +109,14 @@ describe("CLI REPL command routing", () => {
     );
 
     await handleReplLine(config, "/key show", false);
-    expect(showByokKeysCommandMock).toHaveBeenCalledWith(
-      config,
-      { printLocation: false },
-    );
+    expect(showByokKeysCommandMock).toHaveBeenCalledWith(config, {
+      printLocation: false,
+    });
 
     await handleReplLine(config, "/key clear", false);
-    expect(clearByokKeysCommandMock).toHaveBeenCalledWith(
-      config,
-      { printLocation: false },
-    );
+    expect(clearByokKeysCommandMock).toHaveBeenCalledWith(config, {
+      printLocation: false,
+    });
   });
 
   it("exits on :exit", async () => {

@@ -145,9 +145,7 @@
         "topic": "Send 0.01 ETH on Base",
         "arguments": {
           "topic": "Send 0.01 ETH on Base",
-          "tx_ids": [
-            1
-          ]
+          "tx_ids": [1]
         },
         "result_preview": "{\n  \"status\": \"pending_approval\",\n  \"tx_ids\": [\n    1\n  ],\n  \"timestamp\": \"2026-05-31T18:38:36.613492+00:00\"\n}"
       }

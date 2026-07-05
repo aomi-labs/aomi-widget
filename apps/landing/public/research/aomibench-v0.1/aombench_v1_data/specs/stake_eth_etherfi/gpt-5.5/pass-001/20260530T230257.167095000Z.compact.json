@@ -20,9 +20,7 @@
     "total_turns": 1,
     "total_tool_calls": 7,
     "total_responses": 11,
-    "activated_skills": [
-      "etherfi"
-    ],
+    "activated_skills": ["etherfi"],
     "failed_assertions": [],
     "budget_summary": {
       "total": 1,
@@ -137,9 +135,7 @@
         "tool": "activate_skills",
         "topic": "activate_skills",
         "arguments": {
-          "skill_ids": [
-            "etherfi"
-          ]
+          "skill_ids": ["etherfi"]
         },
         "result_preview": "{\n  \"activated\": [\n    \"etherfi\"\n  ],\n  \"rejected\": [],\n  \"applied_scope\": \"current_serve_cycle\"\n}"
       },
@@ -222,9 +218,7 @@
         "topic": "Submit ether.fi stake transaction",
         "arguments": {
           "topic": "Submit ether.fi stake transaction",
-          "tx_ids": [
-            1
-          ]
+          "tx_ids": [1]
         },
         "result_preview": "{\n  \"status\": \"pending_approval\",\n  \"tx_ids\": [\n    1\n  ],\n  \"timestamp\": \"2026-05-30T23:02:54.681850+00:00\"\n}"
       }
@@ -237,12 +231,8 @@
     },
     "skills": {
       "mode": "restricted",
-      "allowed": [
-        "etherfi"
-      ],
-      "activated_skills": [
-        "etherfi"
-      ],
+      "allowed": ["etherfi"],
+      "activated_skills": ["etherfi"],
       "bundle_path": "../output/eval/model-bench-public-skills-gpt55-opus48-sonnet46-20260530/specs/stake_eth_etherfi/gpt-5.5/pass-001/spec-skills/stake_eth_etherfi-skills.json",
       "bundle_revision": "fnv1a64:361558ee0a991d15"
     },

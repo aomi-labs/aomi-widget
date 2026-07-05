@@ -20,9 +20,8 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock("viem/accounts", async () => {
-  const actual = await vi.importActual<typeof import("viem/accounts")>(
-    "viem/accounts",
-  );
+  const actual =
+    await vi.importActual<typeof import("viem/accounts")>("viem/accounts");
   return {
     ...actual,
     privateKeyToAccount: vi.fn(() => ({ address: MOCK_ADDRESS })),
@@ -45,9 +44,8 @@ vi.mock("../../src/session", () => ({
 }));
 
 vi.mock("../../src/aa", async () => {
-  const actual = await vi.importActual<typeof import("../../src/aa")>(
-    "../../src/aa",
-  );
+  const actual =
+    await vi.importActual<typeof import("../../src/aa")>("../../src/aa");
   return {
     ...actual,
     executeWalletCalls: mocks.executeWalletCalls,
@@ -55,9 +53,9 @@ vi.mock("../../src/aa", async () => {
 });
 
 vi.mock("../../src/cli/execution", async () => {
-  const actual = await vi.importActual<typeof import("../../src/cli/execution")>(
-    "../../src/cli/execution",
-  );
+  const actual = await vi.importActual<
+    typeof import("../../src/cli/execution")
+  >("../../src/cli/execution");
   return {
     ...actual,
     createCliProviderState: mocks.createCliProviderState,
@@ -134,7 +132,9 @@ describe("CLI wallet sign simulation integration", () => {
     mocks.createCliProviderState.mockResolvedValue({ providerState: "mock" });
     mocks.describeExecutionDecision.mockReturnValue("EOA");
     mocks.resolveCliExecutionDecision.mockReturnValue({ execution: "eoa" });
-    mocks.syncPendingTxsFromUserState.mockImplementation((state) => state.pendingTxs ?? []);
+    mocks.syncPendingTxsFromUserState.mockImplementation(
+      (state) => state.pendingTxs ?? [],
+    );
     mocks.executeWalletCalls.mockResolvedValue({
       txHash: "0xabc",
       txHashes: ["0xabc"],
@@ -466,7 +466,8 @@ describe("CLI wallet sign simulation integration", () => {
 
     await signCommand(
       {
-        privateKey: "0x0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+        privateKey:
+          "0x0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
         baseUrl: "http://127.0.0.1:8080",
         app: "default",
         apiKey: "test-key",
@@ -502,7 +503,9 @@ describe("CLI wallet sign simulation integration", () => {
     expect(mocks.executeWalletCalls).toHaveBeenCalledTimes(2);
     expect(mocks.sendSystemMessage).toHaveBeenCalledTimes(1);
     expect(mocks.sendSystemMessage.mock.calls[0]?.[0]).toBe("session-1");
-    expect(JSON.parse(mocks.sendSystemMessage.mock.calls[0]?.[1] as string)).toMatchObject({
+    expect(
+      JSON.parse(mocks.sendSystemMessage.mock.calls[0]?.[1] as string),
+    ).toMatchObject({
       type: "wallet:tx_complete",
       payload: {
         pending_tx_ids: [1],
@@ -538,7 +541,8 @@ describe("CLI wallet sign simulation integration", () => {
     await expect(
       signCommand(
         {
-          privateKey: "0x0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+          privateKey:
+            "0x0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
           baseUrl: "http://127.0.0.1:8080",
           app: "default",
           apiKey: "test-key",
@@ -585,7 +589,8 @@ describe("CLI wallet sign simulation integration", () => {
 
     await signCommand(
       {
-        privateKey: "0x0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+        privateKey:
+          "0x0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
         baseUrl: "http://127.0.0.1:8080",
         app: "default",
         apiKey: "test-key",
@@ -620,7 +625,9 @@ describe("CLI wallet sign simulation integration", () => {
       error: null,
     });
     mocks.executeWalletCalls.mockRejectedValue(
-      new Error("wallet_prepareCalls failed: validation reverted: [reason]: AA23 reverted"),
+      new Error(
+        "wallet_prepareCalls failed: validation reverted: [reason]: AA23 reverted",
+      ),
     );
 
     await expect(

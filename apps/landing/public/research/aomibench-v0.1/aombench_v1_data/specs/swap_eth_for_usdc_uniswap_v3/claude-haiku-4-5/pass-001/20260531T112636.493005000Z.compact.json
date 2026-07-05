@@ -37,9 +37,7 @@
     "total_turns": 1,
     "total_tool_calls": 16,
     "total_responses": 28,
-    "activated_skills": [
-      "uniswap"
-    ],
+    "activated_skills": ["uniswap"],
     "failed_assertions": [
       {
         "label": "tool",
@@ -319,9 +317,7 @@
         "tool": "activate_skills",
         "topic": "activate_skills",
         "arguments": {
-          "skill_ids": [
-            "uniswap"
-          ]
+          "skill_ids": ["uniswap"]
         },
         "result_preview": "{\n  \"activated\": [\n    \"uniswap\"\n  ],\n  \"rejected\": [],\n  \"applied_scope\": \"current_serve_cycle\"\n}"
       },
@@ -625,12 +621,8 @@
     },
     "skills": {
       "mode": "restricted",
-      "allowed": [
-        "uniswap"
-      ],
-      "activated_skills": [
-        "uniswap"
-      ],
+      "allowed": ["uniswap"],
+      "activated_skills": ["uniswap"],
       "bundle_path": "../output/eval/model-bench-public-skills-opus47-opus46-haiku45-20260531/specs/swap_eth_for_usdc_uniswap_v3/claude-haiku-4.5/pass-001/spec-skills/swap_eth_for_usdc_uniswap_v3-skills.json",
       "bundle_revision": "fnv1a64:b60b7265d48b4779"
     },

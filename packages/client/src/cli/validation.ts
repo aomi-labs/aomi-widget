@@ -15,14 +15,18 @@ export function parseChainId(value: string | undefined): number | undefined {
   return n;
 }
 
-export function normalizePrivateKey(value: string | undefined): string | undefined {
+export function normalizePrivateKey(
+  value: string | undefined,
+): string | undefined {
   if (value === undefined) return undefined;
   const trimmed = value.trim();
   if (!trimmed) return undefined;
   return trimmed.startsWith("0x") ? trimmed : `0x${trimmed}`;
 }
 
-export function parseAAProvider(value: string | undefined): CliAAProvider | undefined {
+export function parseAAProvider(
+  value: string | undefined,
+): CliAAProvider | undefined {
   if (value === undefined || value.trim() === "") return undefined;
   if (value === "alchemy" || value === "pimlico") {
     return value;

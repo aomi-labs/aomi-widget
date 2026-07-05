@@ -417,7 +417,10 @@ export function Secrets() {
               </thead>
               <tbody>
                 <tr>
-                  <td className="text-muted-foreground px-3 py-4 text-center" colSpan={4}>
+                  <td
+                    className="text-muted-foreground px-3 py-4 text-center"
+                    colSpan={4}
+                  >
                     No secrets saved.
                   </td>
                 </tr>

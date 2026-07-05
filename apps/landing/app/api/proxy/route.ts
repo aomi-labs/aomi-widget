@@ -85,7 +85,8 @@ async function proxy(req: NextRequest): Promise<NextResponse> {
       status: upstream.status,
       statusText: upstream.statusText,
       headers: {
-        "Content-Type": upstream.headers.get("content-type") ?? "application/json",
+        "Content-Type":
+          upstream.headers.get("content-type") ?? "application/json",
         "Access-Control-Allow-Origin": "*",
       },
     });

@@ -1,11 +1,15 @@
 import { describe, it, expect } from "vitest";
 import { validateOrigin } from "./csrf";
 
-function request(opts: { origin?: string; referer?: string; url?: string } = {}): Request {
+function request(
+  opts: { origin?: string; referer?: string; url?: string } = {},
+): Request {
   const headers = new Headers();
   if (opts.origin) headers.set("origin", opts.origin);
   if (opts.referer) headers.set("referer", opts.referer);
-  return new Request(opts.url ?? "http://localhost/api/bff/launch/deploy", { headers });
+  return new Request(opts.url ?? "http://localhost/api/bff/launch/deploy", {
+    headers,
+  });
 }
 
 describe("validateOrigin", () => {

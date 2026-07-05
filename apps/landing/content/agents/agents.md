@@ -23,6 +23,7 @@ This page routes you to one of three install paths based on the user's intent.
 Read prices, balances, build/sign transfers, swaps, stakes, lends, bridges.
 
 **Install once:**
+
 ```bash
 npx skills add aomi-labs/skills
 npm install -g @aomi-labs/client
@@ -31,6 +32,7 @@ npm install -g @aomi-labs/client
 **Then operate:** the [`aomi-transact` skill](https://github.com/aomi-labs/skills/blob/main/aomi-transact/SKILL.md) handles the chat → simulate → sign flow over the `aomi` CLI.
 
 **Verify it works:**
+
 ```bash
 aomi --prompt "what is the price of ETH?"
 ```
@@ -38,6 +40,7 @@ aomi --prompt "what is the price of ETH?"
 If `aomi` is not on PATH, replace `aomi` with `npx @aomi-labs/client` everywhere — same flags, same behavior.
 
 **Hard rules** (the skill enforces these; respect them even without the skill):
+
 - Never invent or guess credentials. Pass through only what the user gave you in this turn.
 - Never echo a credential value back after using it.
 - Always run `aomi tx simulate` before `aomi tx sign` for multi-step batches (approve → swap, etc.).
@@ -50,11 +53,13 @@ If `aomi` is not on PATH, replace `aomi` with `npx @aomi-labs/client` everywhere
 Drop a working AI chat widget into a Next.js app, with simulation and wallet signing already wired.
 
 **Install:**
+
 ```bash
 npx shadcn add https://aomi.dev/r/aomi-frame.json
 ```
 
 **Minimum code:**
+
 ```tsx
 import { AomiFrame } from "@/components/aomi-frame";
 
@@ -75,6 +80,7 @@ Set `NEXT_PUBLIC_BACKEND_URL=https://api.aomi.dev` in `.env.local`.
 **Read this for the full quickstart:** https://aomi.dev/docs/build/quickstart.md
 
 **For a custom UI** (your own composer, message list, tool views) using the headless React library, install `@aomi-labs/react` and read:
+
 - https://aomi.dev/docs/build/ui/headless/install.md
 - https://aomi.dev/docs/build/ui/headless/build-custom-ui.md
 
@@ -87,6 +93,7 @@ Set `NEXT_PUBLIC_BACKEND_URL=https://api.aomi.dev` in `.env.local`.
 Take an OpenAPI spec, an SDK, or a repo with a service interface, and turn it into an Aomi App that any Aomi agent can call.
 
 **Install once:**
+
 ```bash
 npx skills add aomi-labs/skills
 ```
@@ -94,6 +101,7 @@ npx skills add aomi-labs/skills
 **Then build:** the [`aomi-build` skill](https://github.com/aomi-labs/skills/blob/main/aomi-build/SKILL.md) scaffolds the standard Aomi SDK file split (`lib.rs`, `client.rs`, `tool.rs`) from the source material. It encodes the tool-design rules you should follow even without the skill (see below).
 
 **Tool design rules that always apply:**
+
 - Prefer the smallest sufficient toolset that makes the primary user workflow work end-to-end.
 - Prefer 3–8 tools with clear intent boundaries (`search_*`, `get_*`, `build_*`, `submit_*`).
 - Prefer typed args over raw JSON blobs.
@@ -101,6 +109,7 @@ npx skills add aomi-labs/skills
 - Tool descriptions tell the model **when to call**, not just what endpoint they wrap.
 
 **Read these for SDK patterns:**
+
 - https://aomi.dev/docs/build/services/building-apps.md
 - https://aomi.dev/docs/build/namespaces.md
 - https://aomi.dev/docs/build/services/api-reference.md

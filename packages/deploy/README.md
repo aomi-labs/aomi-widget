@@ -52,6 +52,7 @@ commands. Each maps 1:1 onto a `/api/platforms/*` route.
 | `mintToken()`                    | `POST /:p/tokens`                                                             | mint a `platform` or `app` activation token (plaintext returned once) |
 | `listTokens()` / `revokeToken()` | `GET` / `DELETE /:p/tokens[/:id]`                                             | token lifecycle                                                       |
 | `syncSource()`                   | `POST /:p/sources/sync-installed`                                             | resolve an installed repo → `appSourceId` for deploy                  |
+| `resolveSource()`                | `GET /:p/sources/resolve`                                                     | look up an existing source without syncing                            |
 | `scaffold()`                     | `POST /api/integrations/github-app/platforms/:p/sources/create-from-template` | one-shot: create a repo from a template → source                      |
 | `listApps()` / `getApp()`        | `GET /:p/apps[/:app]`                                                         | inventory loaded apps (find `app_id` for app-scoped tokens)           |
 

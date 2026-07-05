@@ -55,11 +55,12 @@ describe("User API", () => {
         connection: {
           is_connected: true,
         },
-        evm: {
-          address: "0xABC",
-          chain_id: 1,
-        },
-        ext: undefined,
+        evm: [
+          {
+            address: "0xABC",
+            chain_id: 1,
+          },
+        ],
       });
     });
   });
@@ -72,22 +73,22 @@ describe("User API", () => {
         api.setUser({ address: "0x123" });
       });
 
-      expect(getApi().user.evm?.address).toBe("0x123");
+      expect(getApi().user.evm?.[0]?.address).toBe("0x123");
       expect(getApi().user.connection?.is_connected).toBe(false);
 
       await act(async () => {
         api.setUser({ isConnected: true });
       });
 
-      expect(getApi().user.evm?.address).toBe("0x123");
+      expect(getApi().user.evm?.[0]?.address).toBe("0x123");
       expect(getApi().user.connection?.is_connected).toBe(true);
 
       await act(async () => {
         api.setUser({ chainId: 1, isConnected: true });
       });
 
-      expect(getApi().user.evm?.address).toBe("0x123");
-      expect(getApi().user.evm?.chain_id).toBe(1);
+      expect(getApi().user.evm?.[0]?.address).toBe("0x123");
+      expect(getApi().user.evm?.[0]?.chain_id).toBe(1);
       expect(getApi().user.connection?.is_connected).toBe(true);
     });
 
@@ -107,12 +108,13 @@ describe("User API", () => {
         connection: {
           is_connected: true,
         },
-        evm: {
-          address: "0xDEF",
-          chain_id: 137,
-          ens_name: "user.eth",
-        },
-        ext: undefined,
+        evm: [
+          {
+            address: "0xDEF",
+            chain_id: 137,
+            ens_name: "user.eth",
+          },
+        ],
       });
     });
 
@@ -187,9 +189,9 @@ describe("User API", () => {
       const messageJson = JSON.parse(call[1]);
       expect(messageJson.type).toBe("wallet:state_changed");
       expect(call[2]).toEqual({ app: "default" });
-      expect(messageJson.payload.evm.address).toBe("0x789");
+      expect(messageJson.payload.evm[0].address).toBe("0x789");
       expect(messageJson.payload.ext).toBeUndefined();
-      expect(messageJson.payload.evm.chain_id).toBe(137);
+      expect(messageJson.payload.evm[0].chain_id).toBe(137);
       expect(messageJson.payload.connection.is_connected).toBe(true);
       expect(messageJson.payload.svm).toEqual({
         address: "Bv9abc",
@@ -415,10 +417,12 @@ describe("User API", () => {
           connection: {
             is_connected: true,
           },
-          evm: {
-            address: "0xLIVE",
-            chain_id: 8453,
-          },
+          evm: [
+            {
+              address: "0xLIVE",
+              chain_id: 8453,
+            },
+          ],
         },
       });
     });
@@ -533,8 +537,8 @@ describe("User API", () => {
       });
 
       const state = api.getUserState();
-      expect(state.evm?.address).toBe("0xABC");
-      expect(state.evm?.chain_id).toBe(1);
+      expect(state.evm?.[0]?.address).toBe("0xABC");
+      expect(state.evm?.[0]?.chain_id).toBe(1);
       expect(state.connection?.is_connected).toBe(true);
     });
 
@@ -549,8 +553,8 @@ describe("User API", () => {
 
       const state2 = api.getUserState();
 
-      expect(state1.evm?.address).toBeUndefined();
-      expect(state2.evm?.address).toBe("0x111");
+      expect(state1.evm?.[0]?.address).toBeUndefined();
+      expect(state2.evm?.[0]?.address).toBe("0x111");
     });
   });
 
@@ -567,7 +571,7 @@ describe("User API", () => {
 
       expect(callback).toHaveBeenCalledWith(
         expect.objectContaining({
-          evm: expect.objectContaining({ address: "0xNEW" }),
+          evm: [expect.objectContaining({ address: "0xNEW" })],
         }),
       );
     });
@@ -625,8 +629,8 @@ describe("User API", () => {
         api.setUser({ isConnected: true, chainId: undefined });
       });
 
-      expect(getApi().user.evm?.address).toBe("0xAAA");
-      expect(getApi().user.evm?.chain_id).toBe(1);
+      expect(getApi().user.evm?.[0]?.address).toBe("0xAAA");
+      expect(getApi().user.evm?.[0]?.chain_id).toBe(1);
       expect(getApi().user.connection?.is_connected).toBe(true);
     });
   });
@@ -646,7 +650,7 @@ describe("User API", () => {
       });
 
       expect(getApi().user.connection?.is_connected).toBe(true);
-      expect(getApi().user.evm?.address).toBe("0xWALLET");
+      expect(getApi().user.evm?.[0]?.address).toBe("0xWALLET");
 
       // Disconnect
       await act(async () => {
@@ -659,7 +663,7 @@ describe("User API", () => {
       });
 
       expect(getApi().user.connection?.is_connected).toBe(false);
-      expect(getApi().user.evm?.address).toBeUndefined();
+      expect(getApi().user.evm?.[0]?.address).toBeUndefined();
     });
 
     it("clears wallet identity on partial disconnect updates", async () => {
@@ -679,9 +683,9 @@ describe("User API", () => {
       });
 
       expect(getApi().user.connection?.is_connected).toBe(false);
-      expect(getApi().user.evm?.address).toBeUndefined();
-      expect(getApi().user.evm?.chain_id).toBeUndefined();
-      expect(getApi().user.evm?.ens_name).toBeUndefined();
+      expect(getApi().user.evm?.[0]?.address).toBeUndefined();
+      expect(getApi().user.evm?.[0]?.chain_id).toBeUndefined();
+      expect(getApi().user.evm?.[0]?.ens_name).toBeUndefined();
     });
 
     it("handles chain switching", async () => {
@@ -695,14 +699,14 @@ describe("User API", () => {
         });
       });
 
-      expect(getApi().user.evm?.chain_id).toBe(1);
+      expect(getApi().user.evm?.[0]?.chain_id).toBe(1);
 
       await act(async () => {
         api.setUser({ chainId: 137 }); // Polygon
       });
 
-      expect(getApi().user.evm?.chain_id).toBe(137);
-      expect(getApi().user.evm?.address).toBe("0xUSER");
+      expect(getApi().user.evm?.[0]?.chain_id).toBe(137);
+      expect(getApi().user.evm?.[0]?.address).toBe("0xUSER");
     });
   });
 });

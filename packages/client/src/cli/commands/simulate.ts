@@ -14,7 +14,9 @@ export async function simulateCommand(
   }
 
   if (txIds.length === 0) {
-    fatal("Usage: aomi tx simulate <tx-id> [<tx-id> ...]\nRun `aomi tx list` to see available IDs.");
+    fatal(
+      "Usage: aomi tx simulate <tx-id> [<tx-id> ...]\nRun `aomi tx list` to see available IDs.",
+    );
   }
 
   const session = cli.createClientSession(config);
@@ -55,18 +57,16 @@ export async function simulateCommand(
     chain_id: tx.chainId ?? cli.chainId,
   }));
 
-  const response = await client.simulateBatch(
-    cli.sessionId,
-    transactions,
-    {
-      from: cli.publicKey ?? undefined,
-      chainId: cli.chainId ?? undefined,
-    },
-  );
+  const response = await client.simulateBatch(cli.sessionId, transactions, {
+    from: cli.publicKey ?? undefined,
+    chainId: cli.chainId ?? undefined,
+  });
   const { result } = response;
 
   // Print header.
-  const modeLabel = result.stateful ? "stateful (Anvil snapshot)" : "stateless (independent eth_call)";
+  const modeLabel = result.stateful
+    ? "stateful (Anvil snapshot)"
+    : "stateless (independent eth_call)";
   console.log(`\nBatch simulation (${modeLabel}):`);
   console.log(`From: ${result.from} | Network: ${result.network}\n`);
 
@@ -74,9 +74,13 @@ export async function simulateCommand(
   for (const step of result.steps) {
     const icon = step.success ? `${GREEN}✓${RESET}` : `\x1b[31m✗${RESET}`;
     const label = step.label || `Step ${step.step}`;
-    const gasInfo = step.gas_used ? ` | gas: ${step.gas_used.toLocaleString()}` : "";
+    const gasInfo = step.gas_used
+      ? ` | gas: ${step.gas_used.toLocaleString()}`
+      : "";
     console.log(`  ${icon} ${step.step}. ${label}`);
-    console.log(`    ${DIM}to: ${step.tx.to} | value: ${step.tx.value_eth} ETH${gasInfo}${RESET}`);
+    console.log(
+      `    ${DIM}to: ${step.tx.to} | value: ${step.tx.value_eth} ETH${gasInfo}${RESET}`,
+    );
     if (!step.success && step.revert_reason) {
       console.log(`    \x1b[31mRevert: ${step.revert_reason}${RESET}`);
     }
@@ -84,13 +88,13 @@ export async function simulateCommand(
 
   // Print gas and fee summary.
   if (result.total_gas) {
-    console.log(`\n${DIM}Total gas: ${result.total_gas.toLocaleString()}${RESET}`);
+    console.log(
+      `\n${DIM}Total gas: ${result.total_gas.toLocaleString()}${RESET}`,
+    );
   }
   if (result.fee) {
     const feeEth = (Number(result.fee.amount_wei) / 1e18).toFixed(6);
-    console.log(
-      `Service fee: ${feeEth} ETH → ${result.fee.recipient}`,
-    );
+    console.log(`Service fee: ${feeEth} ETH → ${result.fee.recipient}`);
   }
 
   // Print summary.

@@ -20,9 +20,7 @@
     "total_turns": 1,
     "total_tool_calls": 11,
     "total_responses": 17,
-    "activated_skills": [
-      "compound"
-    ],
+    "activated_skills": ["compound"],
     "failed_assertions": [],
     "budget_summary": {
       "total": 1,
@@ -179,10 +177,7 @@
         "tool": "activate_skills",
         "topic": "activate_skills",
         "arguments": {
-          "skill_ids": [
-            "compound",
-            "common_erc20"
-          ]
+          "skill_ids": ["compound", "common_erc20"]
         },
         "result_preview": "{\n  \"activated\": [\n    \"compound\"\n  ],\n  \"rejected\": [\n    [\n      \"common_erc20\",\n      \"invalid\"\n    ]\n  ],\n  \"applied_scope\": \"current_serve_cycle\"\n}"
       },
@@ -215,9 +210,7 @@
         "topic": "Check Alice's USDC balance",
         "arguments": {
           "function_signature": "balanceOf(address)",
-          "arguments": [
-            "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
-          ],
+          "arguments": ["0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"],
           "to": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
           "value": "0",
           "topic": "Check Alice's USDC balance"
@@ -262,10 +255,7 @@
           "description": "Approve cUSDCv3 to spend 500 USDC",
           "data": {
             "signature": "approve(address,uint256)",
-            "args": [
-              "0xc3d688B66703497DAA19211EEdff47f25384cdc3",
-              "500000000"
-            ],
+            "args": ["0xc3d688B66703497DAA19211EEdff47f25384cdc3", "500000000"],
             "raw": ""
           },
           "value": "0",
@@ -284,10 +274,7 @@
           "description": "Supply 500 USDC to cUSDCv3",
           "data": {
             "signature": "supply(address,uint256)",
-            "args": [
-              "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
-              "500000000"
-            ],
+            "args": ["0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48", "500000000"],
             "raw": ""
           },
           "value": "0",
@@ -306,10 +293,7 @@
           "description": "Withdraw 125 USDC from cUSDCv3",
           "data": {
             "signature": "withdraw(address,uint256)",
-            "args": [
-              "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
-              "125000000"
-            ],
+            "args": ["0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48", "125000000"],
             "raw": ""
           },
           "value": "0",
@@ -354,11 +338,7 @@
         "tool": "commit_txs",
         "topic": "Execute Compound V3 supply and withdraw workflow",
         "arguments": {
-          "tx_ids": [
-            1,
-            2,
-            3
-          ],
+          "tx_ids": [1, 2, 3],
           "topic": "Execute Compound V3 supply and withdraw workflow"
         },
         "result_preview": "{\n  \"status\": \"pending_approval\",\n  \"tx_ids\": [\n    1,\n    2,\n    3\n  ],\n  \"timestamp\": \"2026-05-31T20:37:54.264610+00:00\"\n}"
@@ -372,12 +352,8 @@
     },
     "skills": {
       "mode": "restricted",
-      "allowed": [
-        "compound"
-      ],
-      "activated_skills": [
-        "compound"
-      ],
+      "allowed": ["compound"],
+      "activated_skills": ["compound"],
       "bundle_path": "../output/eval/model-bench-public-skills-expansion-20260531/specs/supply_then_withdraw_usdc_compound_v3/claude-haiku-4.5/pass-001/spec-skills/supply_then_withdraw_usdc_compound_v3-skills.json",
       "bundle_revision": "fnv1a64:570f86ce89cae15a"
     },

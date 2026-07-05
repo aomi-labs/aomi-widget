@@ -279,10 +279,7 @@ export default async function ResearchPostPage({
       </div>
 
       <article className="space-y-6">
-        <ReactMarkdown
-          remarkPlugins={[remarkGfm]}
-          components={components}
-        >
+        <ReactMarkdown remarkPlugins={[remarkGfm]} components={components}>
           {post.body}
         </ReactMarkdown>
       </article>

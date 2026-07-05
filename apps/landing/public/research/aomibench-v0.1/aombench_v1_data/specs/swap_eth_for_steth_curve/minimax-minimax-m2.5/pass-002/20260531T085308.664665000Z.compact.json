@@ -20,9 +20,7 @@
     "total_turns": 1,
     "total_tool_calls": 10,
     "total_responses": 18,
-    "activated_skills": [
-      "curve"
-    ],
+    "activated_skills": ["curve"],
     "failed_assertions": [],
     "budget_summary": {
       "total": 1,
@@ -200,10 +198,7 @@
         "tool": "activate_skills",
         "topic": "activate_skills",
         "arguments": {
-          "skill_ids": [
-            "curve",
-            "common_erc20"
-          ]
+          "skill_ids": ["curve", "common_erc20"]
         },
         "result_preview": "{\n  \"activated\": [\n    \"curve\"\n  ],\n  \"rejected\": [\n    [\n      \"common_erc20\",\n      \"invalid\"\n    ]\n  ],\n  \"applied_scope\": \"current_serve_cycle\"\n}"
       },
@@ -223,9 +218,7 @@
         "arguments": {
           "topic": "Verify pool token indices",
           "function_signature": "coins(uint256)",
-          "arguments": [
-            "1"
-          ],
+          "arguments": ["1"],
           "to": "0xDC24316b9AE028F1497c275EB9192a3Ea0f67022",
           "value": "0"
         },
@@ -238,9 +231,7 @@
         "arguments": {
           "topic": "Verify pool token indices",
           "function_signature": "coins(uint256)",
-          "arguments": [
-            "0"
-          ],
+          "arguments": ["0"],
           "to": "0xDC24316b9AE028F1497c275EB9192a3Ea0f67022",
           "value": "0"
         },
@@ -254,11 +245,7 @@
           "topic": "Quote the swap: ETH to stETH",
           "value": "0",
           "function_signature": "get_dy(int128,int128,uint256)",
-          "arguments": [
-            "0",
-            "1",
-            "50000000000000000"
-          ],
+          "arguments": ["0", "1", "50000000000000000"],
           "to": "0xDC24316b9AE028F1497c275EB9192a3Ea0f67022"
         },
         "result_preview": "{\n  \"success\": true,\n  \"result\": \"0x00000000000000000000000000000000000000000000000000b1a2b389cbddc5\",\n  \"revert_reason\": null,\n  \"tx\": {\n    \"from\": \"0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266\",\n    \"to\": \"0xDC24316b9AE028F1497c275EB9192a3Ea0f67022\",\n    \"value_wei\": \"0\",\n    \"value_eth\": \"0\",\n    \"input\": \"0x5e0d443f00000000000000000000000000000000000000000000000000000000000000000000000000000000...0000000000000000000000000000000000000000b1a2bc2ec50000\",\n    \"chain_id\": 1\n  },\n  \"result_decoded\": {\n    \"kind\": \"single_abi_word\",\n    \"raw_hex\": \"0x00000000000000000000000000000000000000000000000000b1a2b389cbddc5\",\n    \"decoded\": {\n      \"type\": \"uint256\",\n      \"decoded\": \"49999962872470981\",\n      \"as_bool\": null,\n      \"as_address\": \"0x00000000000000000000000000b1a2b389cbddc5\"\n    }\n  }\n}"
@@ -270,12 +257,7 @@
         "arguments": {
           "function_signature": "exchange(int128,int128,uint256,uint256)",
           "topic": "Execute ETH to stETH swap",
-          "arguments": [
-            "0",
-            "1",
-            "50000000000000000",
-            "49499962700000000"
-          ],
+          "arguments": ["0", "1", "50000000000000000", "49499962700000000"],
           "to": "0xDC24316b9AE028F1497c275EB9192a3Ea0f67022",
           "value": "50000000000000000"
         },
@@ -287,12 +269,7 @@
         "topic": "Stage ETH→stETH swap transaction",
         "arguments": {
           "data": {
-            "args": [
-              "0",
-              "1",
-              "50000000000000000",
-              "49499962700000000"
-            ],
+            "args": ["0", "1", "50000000000000000", "49499962700000000"],
             "raw": "",
             "signature": "exchange(int128,int128,uint256,uint256)"
           },
@@ -329,9 +306,7 @@
         "topic": "Commit ETH→stETH swap",
         "arguments": {
           "topic": "Commit ETH→stETH swap",
-          "tx_ids": [
-            1
-          ]
+          "tx_ids": [1]
         },
         "result_preview": "{\n  \"status\": \"pending_approval\",\n  \"tx_ids\": [\n    1\n  ],\n  \"timestamp\": \"2026-05-31T08:52:57.836290+00:00\"\n}"
       }
@@ -344,12 +319,8 @@
     },
     "skills": {
       "mode": "restricted",
-      "allowed": [
-        "curve"
-      ],
-      "activated_skills": [
-        "curve"
-      ],
+      "allowed": ["curve"],
+      "activated_skills": ["curve"],
       "bundle_path": "../output/eval/model-bench-public-skills-minimax-m25-kiro-20260531/specs/swap_eth_for_steth_curve/minimax-m2.5/pass-002/spec-skills/swap_eth_for_steth_curve-skills.json",
       "bundle_revision": "fnv1a64:3655e1da3f82fcca"
     },

@@ -30,7 +30,9 @@ export function generateStaticParams() {
   return blogs.map((blog) => ({ slug: blog.slug }));
 }
 
-export async function generateMetadata({ params }: BlogPageProps): Promise<Metadata> {
+export async function generateMetadata({
+  params,
+}: BlogPageProps): Promise<Metadata> {
   const { slug } = await params;
   const blog = getBlog(slug);
 
@@ -60,23 +62,34 @@ export default async function BlogArticlePage({ params }: BlogPageProps) {
   }
 
   const publishedLabel = formatDate(blog.publishedAt);
-  const bodyParagraphs = blog.body ? blog.body.split(/\n{2,}/).map((paragraph) => paragraph.trim()).filter(Boolean) : [];
+  const bodyParagraphs = blog.body
+    ? blog.body
+        .split(/\n{2,}/)
+        .map((paragraph) => paragraph.trim())
+        .filter(Boolean)
+    : [];
 
   return (
     <main className="min-h-screen bg-white text-gray-900">
       <article className="mx-auto flex w-full max-w-3xl flex-col gap-10 px-6 pb-32 pt-24 md:px-10">
         <div className="flex flex-col gap-4 text-left">
-          <Link href="/blog" className="text-xs uppercase tracking-[0.35em] text-gray-400 font-bauhaus">
+          <Link
+            href="/blog"
+            className="font-bauhaus text-xs uppercase tracking-[0.35em] text-gray-400"
+          >
             ← Back to blog
           </Link>
-          <span className="text-xs uppercase tracking-[0.35em] text-gray-500 font-bauhaus">
+          <span className="font-bauhaus text-xs uppercase tracking-[0.35em] text-gray-500">
             {blog.eyebrow || "Dispatch"}
           </span>
-          <h1 className="text-4xl font-semibold text-gray-900 font-pixelify">
+          <h1 className="font-pixelify text-4xl font-semibold text-gray-900">
             {blog.title}
           </h1>
           {publishedLabel && (
-            <time dateTime={blog.publishedAt} className="text-xs uppercase tracking-[0.2em] text-gray-400 font-bauhaus">
+            <time
+              dateTime={blog.publishedAt}
+              className="font-bauhaus text-xs uppercase tracking-[0.2em] text-gray-400"
+            >
               {publishedLabel}
             </time>
           )}
@@ -93,7 +106,7 @@ export default async function BlogArticlePage({ params }: BlogPageProps) {
           />
         </div>
 
-        <div className="flex flex-col gap-6 text-sm font-light leading-relaxed text-gray-800 text-justify font-bauhaus">
+        <div className="font-bauhaus flex flex-col gap-6 text-justify text-sm font-light leading-relaxed text-gray-800">
           <p>{blog.description}</p>
           {bodyParagraphs.map((paragraph) => (
             <p key={paragraph.slice(0, 24)}>{paragraph}</p>
@@ -106,7 +119,7 @@ export default async function BlogArticlePage({ params }: BlogPageProps) {
               href={blog.cta.href}
               target="_blank"
               rel="noreferrer"
-              className="rounded-full border border-gray-300 px-5 py-2 text-sm font-medium text-gray-900 transition hover:border-gray-400 font-bauhaus"
+              className="font-bauhaus rounded-full border border-gray-300 px-5 py-2 text-sm font-medium text-gray-900 transition hover:border-gray-400"
             >
               View external version ↗
             </a>

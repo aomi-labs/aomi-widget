@@ -144,7 +144,7 @@ export function deploymentLifecycleFromSource(
     kind: "empty",
     statusLabel: "Not deployed",
     statusTone: "muted",
-    message: "Run a preflight to preview the deployment manifest.",
+    message: "Run a dry run to preview the deployment manifest.",
   };
 }
 

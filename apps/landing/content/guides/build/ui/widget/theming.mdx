@@ -55,7 +55,7 @@ import { ThemeProvider } from "next-themes";
 
 <ThemeProvider attribute="class" defaultTheme="system">
   <AomiFrame />
-</ThemeProvider>
+</ThemeProvider>;
 ```
 
 Both light and dark variants are defined in the CSS variables above. The `.dark` class on a parent element activates the dark palette.
@@ -68,7 +68,7 @@ Override the color variables to match your brand:
 
 ```css
 :root {
-  --primary: 221.2 83.2% 53.3%;          /* Blue */
+  --primary: 221.2 83.2% 53.3%; /* Blue */
   --primary-foreground: 210 40% 98%;
 }
 ```
@@ -79,7 +79,7 @@ Adjust the global radius variable:
 
 ```css
 :root {
-  --radius: 0.75rem;  /* More rounded */
+  --radius: 0.75rem; /* More rounded */
 }
 ```
 
@@ -128,18 +128,18 @@ import { cn } from "@aomi-labs/react";
   className={cn(
     "base-styles",
     isActive && "active-styles",
-    className,  // Allow overrides from props
+    className, // Allow overrides from props
   )}
-/>
+/>;
 ```
 
 ## Best Practices
 
-| Do | Don't |
-| --- | --- |
-| Edit component source directly | Use `!important` overrides |
-| Use CSS variables for colors | Hardcode hex values |
-| Keep Tailwind for layout | Create separate CSS files |
+| Do                                    | Don't                      |
+| ------------------------------------- | -------------------------- |
+| Edit component source directly        | Use `!important` overrides |
+| Use CSS variables for colors          | Hardcode hex values        |
+| Keep Tailwind for layout              | Create separate CSS files  |
 | Extend the theme in `tailwind.config` | Override everything inline |
 
 ## Resources

@@ -30,6 +30,7 @@ export interface AuditEvent {
     | "list_tokens"
     | "revoke_token"
     | "sync_source"
+    | "resolve_source"
     | "scaffold"
     | "list_apps"
     | "get_app"
@@ -336,6 +337,13 @@ export interface SyncSourceInput extends BearerOverride {
   repo: string;
   /** Signed-in GitHub user id to bind this existing source to, when known. */
   githubUserId?: string;
+}
+
+export interface ResolveSourceInput extends BearerOverride {
+  platform: string;
+  installationId: number;
+  /** Optional `owner/name` filter within the installation. */
+  repo?: string;
 }
 
 export interface ScaffoldInput extends BearerOverride {

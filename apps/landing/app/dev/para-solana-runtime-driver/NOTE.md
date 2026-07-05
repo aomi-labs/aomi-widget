@@ -4,20 +4,24 @@ This page is a frontend-only test harness for the Solana wallet flow through
 the real Para adapter.
 
 Route:
+
 - `http://127.0.0.1:3003/dev/para-solana-runtime-driver`
 
 What it tests:
+
 - `LandingParaProvider`
 - real `AomiParaProvider` Solana adapter wiring
 - local Solana request injection into `RuntimeTxHandler`
 - real wallet connect / approve UX through Para
 
 What it does not need:
+
 - backend-emitted Solana events
 
 ## Setup
 
 Required env:
+
 - `NEXT_PUBLIC_PARA_API_KEY`
 - optional: `NEXT_PUBLIC_PARA_ENVIRONMENT`
 - optional: `NEXT_PUBLIC_SOLANA_RPC_URL`
@@ -48,18 +52,22 @@ Success means the page records a `solana_sign` result in `Last Result`.
 ## Common Failure Modes
 
 `Connected: true` but `Solana address: not connected`
+
 - Para auth succeeded, but no Solana wallet is attached yet.
 - Open `Manage Para account` and connect Phantom or another Solana wallet.
 
 Phantom connect modal spins forever
+
 - the extension popup is still waiting for approval, blocked, or stuck
 - close the modal, reload the page, and reconnect
 - no Solana signing can happen until `Solana address` is populated
 
 `Run solana_sign` disabled
+
 - the page still does not see a Solana-capable signer
 
 `send_direct` / `send via sign+broadcast` fails
+
 - the connected Solana account likely has no devnet SOL
 - `sign only` is the cheapest validation path because it does not need funds
 

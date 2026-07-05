@@ -20,9 +20,7 @@
     "total_turns": 1,
     "total_tool_calls": 8,
     "total_responses": 14,
-    "activated_skills": [
-      "curve"
-    ],
+    "activated_skills": ["curve"],
     "failed_assertions": [],
     "budget_summary": {
       "total": 1,
@@ -158,9 +156,7 @@
         "tool": "activate_skills",
         "topic": "activate_skills",
         "arguments": {
-          "skill_ids": [
-            "curve"
-          ]
+          "skill_ids": ["curve"]
         },
         "result_preview": "{\n  \"activated\": [\n    \"curve\"\n  ],\n  \"rejected\": [],\n  \"applied_scope\": \"current_serve_cycle\"\n}"
       },
@@ -179,9 +175,7 @@
         "topic": "Verify index 0 is ETH in stETH pool",
         "arguments": {
           "function_signature": "coins(uint256)",
-          "arguments": [
-            "0"
-          ],
+          "arguments": ["0"],
           "to": "0xDC24316b9AE028F1497c275EB9192a3Ea0f67022",
           "value": "0",
           "topic": "Verify index 0 is ETH in stETH pool"
@@ -194,9 +188,7 @@
         "topic": "Verify index 1 is stETH in stETH pool",
         "arguments": {
           "function_signature": "coins(uint256)",
-          "arguments": [
-            "1"
-          ],
+          "arguments": ["1"],
           "to": "0xDC24316b9AE028F1497c275EB9192a3Ea0f67022",
           "value": "0",
           "topic": "Verify index 1 is stETH in stETH pool"
@@ -209,11 +201,7 @@
         "topic": "Quote 0.05 ETH to stETH on Curve",
         "arguments": {
           "function_signature": "get_dy(int128,int128,uint256)",
-          "arguments": [
-            "0",
-            "1",
-            "50000000000000000"
-          ],
+          "arguments": ["0", "1", "50000000000000000"],
           "to": "0xDC24316b9AE028F1497c275EB9192a3Ea0f67022",
           "value": "0",
           "topic": "Quote 0.05 ETH to stETH on Curve"
@@ -229,12 +217,7 @@
           "description": "Swap 0.05 ETH for stETH on Curve stETH/ETH pool (min out: ~0.04975 stETH)",
           "data": {
             "signature": "exchange(int128,int128,uint256,uint256)",
-            "args": [
-              "0",
-              "1",
-              "50000000000000000",
-              "49749963147061437"
-            ],
+            "args": ["0", "1", "50000000000000000", "49749963147061437"],
             "raw": ""
           },
           "value": "50000000000000000",
@@ -267,9 +250,7 @@
         "tool": "commit_txs",
         "topic": "Commit 0.05 ETH → stETH swap on Curve",
         "arguments": {
-          "tx_ids": [
-            1
-          ],
+          "tx_ids": [1],
           "topic": "Commit 0.05 ETH → stETH swap on Curve"
         },
         "result_preview": "{\n  \"status\": \"pending_approval\",\n  \"tx_ids\": [\n    1\n  ],\n  \"timestamp\": \"2026-05-31T11:13:14.255282+00:00\"\n}"
@@ -283,12 +264,8 @@
     },
     "skills": {
       "mode": "restricted",
-      "allowed": [
-        "curve"
-      ],
-      "activated_skills": [
-        "curve"
-      ],
+      "allowed": ["curve"],
+      "activated_skills": ["curve"],
       "bundle_path": "../output/eval/model-bench-public-skills-opus47-opus46-haiku45-20260531/specs/swap_eth_for_steth_curve/claude-opus-4.6/pass-002/spec-skills/swap_eth_for_steth_curve-skills.json",
       "bundle_revision": "fnv1a64:3655e1da3f82fcca"
     },

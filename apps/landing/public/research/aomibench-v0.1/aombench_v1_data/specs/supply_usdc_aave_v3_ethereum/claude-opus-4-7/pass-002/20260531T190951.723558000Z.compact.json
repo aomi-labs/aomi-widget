@@ -20,9 +20,7 @@
     "total_turns": 1,
     "total_tool_calls": 8,
     "total_responses": 10,
-    "activated_skills": [
-      "aave"
-    ],
+    "activated_skills": ["aave"],
     "failed_assertions": [],
     "budget_summary": {
       "total": 1,
@@ -130,10 +128,7 @@
         "tool": "activate_skills",
         "topic": "activate_skills",
         "arguments": {
-          "skill_ids": [
-            "aave",
-            "common_erc20"
-          ]
+          "skill_ids": ["aave", "common_erc20"]
         },
         "result_preview": "{\n  \"activated\": [\n    \"aave\"\n  ],\n  \"rejected\": [\n    [\n      \"common_erc20\",\n      \"invalid\"\n    ]\n  ],\n  \"applied_scope\": \"current_serve_cycle\"\n}"
       },
@@ -152,9 +147,7 @@
         "topic": "check Alice USDC balance",
         "arguments": {
           "function_signature": "balanceOf(address)",
-          "arguments": [
-            "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
-          ],
+          "arguments": ["0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"],
           "to": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
           "value": "0",
           "topic": "check Alice USDC balance"
@@ -186,10 +179,7 @@
           "description": "Approve Aave V3 Pool to spend 100 USDC",
           "data": {
             "signature": "approve(address,uint256)",
-            "args": [
-              "0x87870Bca3F3fD6335C3F4ce8392D69350B4fA4E2",
-              "100000000"
-            ],
+            "args": ["0x87870Bca3F3fD6335C3F4ce8392D69350B4fA4E2", "100000000"],
             "raw": ""
           },
           "value": "0",
@@ -253,10 +243,7 @@
         "topic": "commit approve + supply USDC to Aave",
         "arguments": {
           "topic": "commit approve + supply USDC to Aave",
-          "tx_ids": [
-            1,
-            2
-          ]
+          "tx_ids": [1, 2]
         },
         "result_preview": "{\n  \"status\": \"pending_approval\",\n  \"tx_ids\": [\n    1,\n    2\n  ],\n  \"timestamp\": \"2026-05-31T19:09:47.578096+00:00\"\n}"
       }
@@ -269,12 +256,8 @@
     },
     "skills": {
       "mode": "restricted",
-      "allowed": [
-        "aave"
-      ],
-      "activated_skills": [
-        "aave"
-      ],
+      "allowed": ["aave"],
+      "activated_skills": ["aave"],
       "bundle_path": "../output/eval/model-bench-public-skills-expansion-20260531/specs/supply_usdc_aave_v3_ethereum/claude-opus-4.7/pass-002/spec-skills/supply_usdc_aave_v3_ethereum-skills.json",
       "bundle_revision": "fnv1a64:30836aa43718b8be"
     },

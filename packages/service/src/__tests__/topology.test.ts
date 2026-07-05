@@ -33,8 +33,13 @@ public_key = ""
 });
 
 const issuer = () =>
-  AomiService.fromTopology({ toml, selfName: "aomi-bff", privateKeyPem: bffPrivatePem });
-const verifier = () => AomiService.fromTopology({ toml, selfName: "aomi-backend" });
+  AomiService.fromTopology({
+    toml,
+    selfName: "aomi-bff",
+    privateKeyPem: bffPrivatePem,
+  });
+const verifier = () =>
+  AomiService.fromTopology({ toml, selfName: "aomi-backend" });
 
 describe("AomiService topology", () => {
   it("mints and verifies a service bearer across the topology", async () => {
@@ -74,14 +79,17 @@ describe("AomiService topology", () => {
   });
 
   it("fromTopology fails for an unknown self", () => {
-    expect(() =>
-      AomiService.fromTopology({ toml, selfName: "ghost" }),
-    ).toThrow(/not in the topology/);
+    expect(() => AomiService.fromTopology({ toml, selfName: "ghost" })).toThrow(
+      /not in the topology/,
+    );
   });
 
   it("parseTopology reads the mesh nodes", () => {
     const mesh = parseTopology(toml);
-    expect(mesh.services.map((s) => s.name)).toEqual(["aomi-bff", "aomi-backend"]);
+    expect(mesh.services.map((s) => s.name)).toEqual([
+      "aomi-bff",
+      "aomi-backend",
+    ]);
     expect(mesh.services[0].issues).toEqual(["user", "service"]);
   });
 });

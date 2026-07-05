@@ -6,18 +6,18 @@
 
 /** Browser storage key prefixes for wallet session data. */
 export const WALLET_STORAGE_KEY_PREFIXES = [
-  '@appkit/',
-  '@CAPSULE/',
-  '@PARA/',
-  'wagmi.',
-  'WALLETCONNECT_DEEPLINK',
+  "@appkit/",
+  "@CAPSULE/",
+  "@PARA/",
+  "wagmi.",
+  "WALLETCONNECT_DEEPLINK",
 ] as const;
 
 /** IndexedDB database name for WalletConnect v2. */
-export const WC_IDB_NAME = 'WALLET_CONNECT_V2_INDEXED_DB';
+export const WC_IDB_NAME = "WALLET_CONNECT_V2_INDEXED_DB";
 
 /** IndexedDB object store name for WalletConnect v2. */
-export const WC_IDB_STORE = 'keyvaluestorage';
+export const WC_IDB_STORE = "keyvaluestorage";
 
 // ── Request TTLs ──
 
@@ -27,13 +27,13 @@ export const REQUEST_TTL_MS = 10 * 60 * 1000;
 // ── Connect Wallet Constants ──
 
 /** LocalStorage key prefix for tracking force_new token application. */
-export const FORCE_NEW_MARKER_PREFIX = 'aomi_force_new_applied_v1';
+export const FORCE_NEW_MARKER_PREFIX = "aomi_force_new_applied_v1";
 
 /** TTL for force_new marker to prevent re-clearing on page refresh (15 minutes). */
 export const FORCE_NEW_MARKER_TTL_MS = 15 * 60 * 1000;
 
 /** LocalStorage key for storing connect context (userId, forceNewToken). */
-export const CONNECT_CONTEXT_KEY = 'aomi_connect_context_v1';
+export const CONNECT_CONTEXT_KEY = "aomi_connect_context_v1";
 
 /** TTL for connect context persistence (30 minutes). */
 export const CONNECT_CONTEXT_TTL_MS = 30 * 60 * 1000;
@@ -69,64 +69,64 @@ export const WALLET_OP_TTL_SWITCH_NETWORK_MS = 3 * 60 * 1000;
 
 /** Supported EIP-155 chain identifiers for server WalletConnect. */
 export const SUPPORTED_EIP155_CHAINS = [
-  'eip155:1', // Ethereum Mainnet
-  'eip155:42161', // Arbitrum One
-  'eip155:10', // Optimism
-  'eip155:137', // Polygon
-  'eip155:8453', // Base
+  "eip155:1", // Ethereum Mainnet
+  "eip155:42161", // Arbitrum One
+  "eip155:10", // Optimism
+  "eip155:137", // Polygon
+  "eip155:8453", // Base
 ] as const;
 
 /** Supported WalletConnect methods for server-side sessions. */
 export const SUPPORTED_WC_METHODS = [
-  'eth_sendTransaction',
-  'eth_signTransaction',
-  'personal_sign',
-  'eth_sign',
-  'eth_signTypedData',
-  'eth_signTypedData_v4',
-  'wallet_switchEthereumChain',
-  'wallet_addEthereumChain',
+  "eth_sendTransaction",
+  "eth_signTransaction",
+  "personal_sign",
+  "eth_sign",
+  "eth_signTypedData",
+  "eth_signTypedData_v4",
+  "wallet_switchEthereumChain",
+  "wallet_addEthereumChain",
 ] as const;
 
 /** Supported WalletConnect events for server-side sessions. */
 export const SUPPORTED_WC_EVENTS = [
-  'chainChanged',
-  'accountsChanged',
-  'disconnect',
+  "chainChanged",
+  "accountsChanged",
+  "disconnect",
 ] as const;
 
 // ── Transaction Status Values ──
 
 /** Status when transaction is created and waiting to be sent to wallet. */
-export const TX_STATUS_PENDING = 'pending';
+export const TX_STATUS_PENDING = "pending";
 
 /** Status when transaction has been sent to wallet and awaiting user action. */
-export const TX_STATUS_AWAITING_WALLET = 'awaiting_wallet';
+export const TX_STATUS_AWAITING_WALLET = "awaiting_wallet";
 
 /** Status when transaction was signed successfully. */
-export const TX_STATUS_SIGNED = 'signed';
+export const TX_STATUS_SIGNED = "signed";
 
 /** Status when user rejected the transaction. */
-export const TX_STATUS_REJECTED = 'rejected';
+export const TX_STATUS_REJECTED = "rejected";
 
 /** Status when transaction signing failed. */
-export const TX_STATUS_FAILED = 'failed';
+export const TX_STATUS_FAILED = "failed";
 
 /** Status when transaction request expired. */
-export const TX_STATUS_EXPIRED = 'expired';
+export const TX_STATUS_EXPIRED = "expired";
 
 // ── Network Switch Status Values ──
 
 /** Status when network switch completed successfully. */
-export const NETWORK_STATUS_SWITCHED = 'switched';
+export const NETWORK_STATUS_SWITCHED = "switched";
 
 // ── Wallet Connection Sources ──
 
 /** Connection originated from mini-app (WebApp modal). */
-export const WALLET_SOURCE_MINI_APP = 'mini_app';
+export const WALLET_SOURCE_MINI_APP = "mini_app";
 
 /** Connection originated from server-side WalletConnect. */
-export const WALLET_SOURCE_SERVER_WC = 'server_wc';
+export const WALLET_SOURCE_SERVER_WC = "server_wc";
 
 // ── Default Chain IDs ──
 

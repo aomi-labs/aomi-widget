@@ -98,7 +98,8 @@ const solanaNetworks = [
       process.env.NEXT_PUBLIC_SOLANA_DEVNET_RPC_URL ??
       process.env.NEXT_PUBLIC_SOLANA_RPC_URL ??
       "https://api.devnet.solana.com",
-    rpcWsUrl: process.env.NEXT_PUBLIC_SOLANA_DEVNET_RPC_WS_URL ??
+    rpcWsUrl:
+      process.env.NEXT_PUBLIC_SOLANA_DEVNET_RPC_WS_URL ??
       process.env.NEXT_PUBLIC_SOLANA_RPC_WS_URL,
   },
   {

@@ -14,7 +14,7 @@
 1. **CLI session loader silently drops `aaMode` / `smartAccount`** ([packages/client/src/cli/state.ts:175,194](packages/client/src/cli/state.ts:175)) — `toCliSessionState` / `readStoredSession` did not copy these fields, so a CLI `--aa-mode 4337` sign was never remembered next invocation. Fixed in this branch.
 2. **CLI tx-complete never wrote `smart_account_4337` / `delegation_7702`** ([packages/client/src/cli/commands/wallet.ts](packages/client/src/cli/commands/wallet.ts), [packages/client/src/session.ts:684](packages/client/src/session.ts:684)) — `resolveWallet` extended to accept + write the per-tx AA addresses mode-exclusively, and CLI threads them through from `execution.SmartAccount4337` / `execution.Delegation7702`. Verified live in C1 (both nulled for EOA) and C4 (`delegation_7702` populated, `smart_account_4337` nulled).
 3. **`resolveWallet` dropped `ext.client_type`** — the reducer reconciler only preserves connection-scoped fields; fixed by spreading `this.userState` into the wallet snapshot.
-4. **Disconnect/wallet-switch state leak** ([packages/react/src/contexts/ext-user-context.tsx](packages/react/src/contexts/ext-user-context.tsx)) — extended the `is_connected:false` branch to clear all wallet-bound fields; added address-change clear of per-tx AA fields. Unit tests in [packages/react/src/contexts/__tests__/user-context.test.tsx](packages/react/src/contexts/__tests__/user-context.test.tsx).
+4. **Disconnect/wallet-switch state leak** ([packages/react/src/contexts/ext-user-context.tsx](packages/react/src/contexts/ext-user-context.tsx)) — extended the `is_connected:false` branch to clear all wallet-bound fields; added address-change clear of per-tx AA fields. Unit tests in [packages/react/src/contexts/**tests**/user-context.test.tsx](packages/react/src/contexts/__tests__/user-context.test.tsx).
 5. **`apps/base` missing `ExtUserProvider` ancestor** — `AomiBaseAccountProvider` now calls `useUser` (the single-source-of-truth refactor), but `apps/base/app/aomi-app.tsx` only wraps with `AomiFrame.Root` which provides `ExtUserProvider` _inside_ → adapter init crashed SSR. Fixed by adding `ExtUserProvider` as an outer wrapper + re-exporting `ExtUserProvider` from `@aomi-labs/widget-lib` ([apps/registry/src/index.ts](apps/registry/src/index.ts)).
 
 ## Bugs found, NOT fixed
@@ -26,19 +26,19 @@
 
 ## Cell-by-cell status (v2 table refresh)
 
-| ID | Live signed? | Client OUT correct per v2? | Backend ECHO correct? |
-|----|--------------|----------------------------|------------------------|
-| C1 CLI EOA | ✅ broadcast on anvil ETH fork | ✅ `aa_mode="none"`, `wallet_kind="eoa"`, `smart_account_4337=null`, `delegation_7702=null` | partial — new fields dropped (PR#492) |
-| C2 CLI 4337 sponsored | ❌ Alchemy bundler → mainnet | partial — `aa_mode="4337"` ok; **missing** `sponsored`, `sponsor_provider`, `sponsor_account` in OUT | n/a (no broadcast) |
-| C3 CLI 4337 unsponsored | ❌ unreachable | unreachable — `sponsored` hard-coded by CLI Alchemy path | n/a |
-| C4 CLI 7702 | ✅ broadcast on anvil ETH fork | ✅ `aa_mode="7702"`, `delegation_7702="0x69007702…E139"`, `smart_account_4337=null`, `wallet_kind="eoa"` | partial — `delegation_7702`/`wallet_kind` dropped (PR#492) |
-| C5 CLI Pimlico 4337 | not attempted | — | — |
-| B1 Base unsponsored | ❌ Connect popup blocked | disconnected wire ok | — |
-| B2 Base optional sponsorship | ❌ same | — | — |
-| B3 Base required sponsorship | ❌ same | — | — |
-| P1–P8 Para variants | ❌ portal app crashes pre-connect | — | — |
-| D1 disconnect-clear | unit-tested only (passing) | n/a | n/a |
-| D2 address-change clear | unit-tested only (passing) | n/a | n/a |
+| ID                           | Live signed?                      | Client OUT correct per v2?                                                                               | Backend ECHO correct?                                      |
+| ---------------------------- | --------------------------------- | -------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
+| C1 CLI EOA                   | ✅ broadcast on anvil ETH fork    | ✅ `aa_mode="none"`, `wallet_kind="eoa"`, `smart_account_4337=null`, `delegation_7702=null`              | partial — new fields dropped (PR#492)                      |
+| C2 CLI 4337 sponsored        | ❌ Alchemy bundler → mainnet      | partial — `aa_mode="4337"` ok; **missing** `sponsored`, `sponsor_provider`, `sponsor_account` in OUT     | n/a (no broadcast)                                         |
+| C3 CLI 4337 unsponsored      | ❌ unreachable                    | unreachable — `sponsored` hard-coded by CLI Alchemy path                                                 | n/a                                                        |
+| C4 CLI 7702                  | ✅ broadcast on anvil ETH fork    | ✅ `aa_mode="7702"`, `delegation_7702="0x69007702…E139"`, `smart_account_4337=null`, `wallet_kind="eoa"` | partial — `delegation_7702`/`wallet_kind` dropped (PR#492) |
+| C5 CLI Pimlico 4337          | not attempted                     | —                                                                                                        | —                                                          |
+| B1 Base unsponsored          | ❌ Connect popup blocked          | disconnected wire ok                                                                                     | —                                                          |
+| B2 Base optional sponsorship | ❌ same                           | —                                                                                                        | —                                                          |
+| B3 Base required sponsorship | ❌ same                           | —                                                                                                        | —                                                          |
+| P1–P8 Para variants          | ❌ portal app crashes pre-connect | —                                                                                                        | —                                                          |
+| D1 disconnect-clear          | unit-tested only (passing)        | n/a                                                                                                      | n/a                                                        |
+| D2 address-change clear      | unit-tested only (passing)        | n/a                                                                                                      | n/a                                                        |
 
 ## Artifacts
 
@@ -63,25 +63,28 @@
 ## Morning addendum — self-contained stack works (2026-05-17)
 
 ### What changed
+
 - `EnsureExtUserProvider` shipped (linter-assisted) and is now wired inside `AomiBaseAccountProvider` + `AomiParaAdapterProvider`. Resolves bugs #5 and #9 above. Both `/apps/base` and `/apps/portal` boot cleanly without manual `ExtUserProvider` wrappers.
 - Backend PR's first push broke CI: `aomi/bin/backend/src/endpoint/tests/chat.rs:450` was a hand-written `UserState { … }` literal that missed the new fields. Fixed by adding `..Default::default()`. Re-pushed; CI re-running.
 - Built the local backend (`product-mono/aomi/target/debug/backend`) from this branch and ran it on `localhost:8088`, pointed at the source `providers.toml`. This sidesteps the staging-deploy wait — the backend now in process has the new schema loaded.
 
 ### Live verification, self-contained stack
+
 - Direct `curl POST /api/chat?…&user_state=<full v2 payload>` round-trips perfectly. All 9 new fields (`smart_account_4337`, `delegation_7702`, `wallet_kind`, `wallet_provider`, `auth_method`, `sponsored`, `sponsor_provider`, `sponsor_account`, `svm_address`) echo back on `/api/state` unchanged. Legacy `smart_account` also still works in parallel.
 - C1 via real Node CLI (`--backend-url http://localhost:8088`) — chat fires, post-chat ECHO carries `wallet_kind="eoa"`, `smart_account_4337=null`, `delegation_7702=null`, `sponsored=null`, `sponsor_provider=null`. End-to-end CLI→BE round-trip now produces the v2 wire shape.
 - `tx sign` against local BE could not be exercised — local BE's agent loop (no LLM provider key, model-fallback) does not emit `wallet_tx_request` system events, so the wallet-request queue stays empty even when the chat reply claims it queued. Unrelated to my schema PR — overnight C1/C4 broadcasts against staging confirmed the sign path works there.
 
 ### Status now
 
-| Question | Answer |
-|---|---|
-| Does the client send the new fields? | **Yes** — proven overnight C1/C4 against staging + the curl harness today. |
-| Does the backend accept + echo them after my PR? | **Yes** — proven via local BE on `localhost:8088`. |
-| Will staging echo them too? | **Yes** once #492 deploys; the local BE is identical Rust code. |
+| Question                                            | Answer                                                                                                                          |
+| --------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| Does the client send the new fields?                | **Yes** — proven overnight C1/C4 against staging + the curl harness today.                                                      |
+| Does the backend accept + echo them after my PR?    | **Yes** — proven via local BE on `localhost:8088`.                                                                              |
+| Will staging echo them too?                         | **Yes** once #492 deploys; the local BE is identical Rust code.                                                                 |
 | Are Base/Para UIs exercisable for the connect flow? | **Yes** for app boot + disconnected wire. Live wallet connect still requires real-gesture popup (preview tools can't drive it). |
 
 ### Remaining gaps
+
 - Live AA broadcast verification for C2/C3/C5 (Alchemy + Pimlico bundler routes to mainnet — won't target a local fork).
 - `sponsored`/`sponsor_provider`/`sponsor_account` not yet written by `resolveWallet` from execution result (bug #8 still open).
 - Connected/post-tx UserState shape for Base + Para cells (B1–B3, P1–P8) — needs Playwright-headful for popup handling.

@@ -20,9 +20,7 @@
     "total_turns": 1,
     "total_tool_calls": 5,
     "total_responses": 10,
-    "activated_skills": [
-      "pendle"
-    ],
+    "activated_skills": ["pendle"],
     "failed_assertions": [],
     "budget_summary": {
       "total": 1,
@@ -130,10 +128,7 @@
         "tool": "activate_skills",
         "topic": "activate_skills",
         "arguments": {
-          "skill_ids": [
-            "pendle",
-            "common_erc20"
-          ]
+          "skill_ids": ["pendle", "common_erc20"]
         },
         "result_preview": "{\n  \"activated\": [\n    \"pendle\"\n  ],\n  \"rejected\": [\n    [\n      \"common_erc20\",\n      \"invalid\"\n    ]\n  ],\n  \"applied_scope\": \"current_serve_cycle\"\n}"
       },
@@ -185,9 +180,7 @@
         "arguments": {
           "to": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
           "function_signature": "balanceOf(address)",
-          "arguments": [
-            "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
-          ],
+          "arguments": ["0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"],
           "value": "0",
           "topic": "Check Alice's USDC balance"
         },
@@ -202,12 +195,8 @@
     },
     "skills": {
       "mode": "restricted",
-      "allowed": [
-        "pendle"
-      ],
-      "activated_skills": [
-        "pendle"
-      ],
+      "allowed": ["pendle"],
+      "activated_skills": ["pendle"],
       "bundle_path": "../output/eval/model-bench-public-skills-minimax-m25-kiro-20260531/specs/pendle_requires_approx_params/minimax-m2.5/pass-002/spec-skills/pendle_requires_approx_params-skills.json",
       "bundle_revision": "fnv1a64:5ddebc17b4eea61d"
     },

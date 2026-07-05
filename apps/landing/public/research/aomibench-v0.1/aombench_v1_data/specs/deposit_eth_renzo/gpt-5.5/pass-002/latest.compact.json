@@ -20,9 +20,7 @@
     "total_turns": 1,
     "total_tool_calls": 6,
     "total_responses": 10,
-    "activated_skills": [
-      "renzo"
-    ],
+    "activated_skills": ["renzo"],
     "failed_assertions": [
       {
         "label": "tool",
@@ -166,9 +164,7 @@
         "tool": "activate_skills",
         "topic": "activate_skills",
         "arguments": {
-          "skill_ids": [
-            "renzo"
-          ]
+          "skill_ids": ["renzo"]
         },
         "result_preview": "{\n  \"activated\": [\n    \"renzo\"\n  ],\n  \"rejected\": [],\n  \"applied_scope\": \"current_serve_cycle\"\n}"
       },
@@ -200,9 +196,7 @@
         "tool": "encode_and_call",
         "topic": "Preview Renzo 0.1 ETH restake deposit",
         "arguments": {
-          "arguments": [
-            "0"
-          ],
+          "arguments": ["0"],
           "function_signature": "depositETH(uint256)",
           "to": "0x74a09653A083691711cF8215a6ab074BB4e99ef5",
           "topic": "Preview Renzo 0.1 ETH restake deposit",
@@ -217,9 +211,7 @@
         "arguments": {
           "value": "100000000000000000",
           "data": {
-            "args": [
-              "0"
-            ],
+            "args": ["0"],
             "raw": "",
             "signature": "depositETH(uint256)"
           },
@@ -258,12 +250,8 @@
     },
     "skills": {
       "mode": "restricted",
-      "allowed": [
-        "renzo"
-      ],
-      "activated_skills": [
-        "renzo"
-      ],
+      "allowed": ["renzo"],
+      "activated_skills": ["renzo"],
       "bundle_path": "../output/eval/model-bench-public-skills-gpt55-opus48-sonnet46-20260530/specs/deposit_eth_renzo/gpt-5.5/pass-002/spec-skills/deposit_eth_renzo-skills.json",
       "bundle_revision": "fnv1a64:6771891cbd887290"
     },

@@ -27,9 +27,7 @@
     "total_turns": 1,
     "total_tool_calls": 25,
     "total_responses": 39,
-    "activated_skills": [
-      "aerodrome"
-    ],
+    "activated_skills": ["aerodrome"],
     "failed_assertions": [
       {
         "label": "tool",
@@ -429,9 +427,7 @@
         "tool": "activate_skills",
         "topic": "activate_skills",
         "arguments": {
-          "skill_ids": [
-            "aerodrome"
-          ]
+          "skill_ids": ["aerodrome"]
         },
         "result_preview": "{\n  \"activated\": [\n    \"aerodrome\"\n  ],\n  \"rejected\": [],\n  \"applied_scope\": \"current_serve_cycle\"\n}"
       },
@@ -569,9 +565,7 @@
         "tool": "encode_and_call",
         "topic": "Check first pool in Aerodrome factory",
         "arguments": {
-          "arguments": [
-            "0"
-          ],
+          "arguments": ["0"],
           "function_signature": "allPools(uint256)",
           "to": "0x420DD381b31aEf6683db6B902084cB0FFECe40Da",
           "topic": "Check first pool in Aerodrome factory",
@@ -812,12 +806,8 @@
     },
     "skills": {
       "mode": "restricted",
-      "allowed": [
-        "aerodrome"
-      ],
-      "activated_skills": [
-        "aerodrome"
-      ],
+      "allowed": ["aerodrome"],
+      "activated_skills": ["aerodrome"],
       "bundle_path": "../output/eval/model-bench-public-skills-expansion-20260531/specs/add_eth_usdc_lp_after_half_swap/claude-haiku-4.5/pass-001/spec-skills/add_eth_usdc_lp_after_half_swap-skills.json",
       "bundle_revision": "fnv1a64:c0406359c2059af7"
     },

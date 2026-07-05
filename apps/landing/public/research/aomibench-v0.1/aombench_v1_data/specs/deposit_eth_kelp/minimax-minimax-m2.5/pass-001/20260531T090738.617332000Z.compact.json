@@ -298,10 +298,7 @@
         "tool": "activate_skills",
         "topic": "activate_skills",
         "arguments": {
-          "skill_ids": [
-            "kelp",
-            "common_erc20"
-          ]
+          "skill_ids": ["kelp", "common_erc20"]
         },
         "result_preview": "{\n  \"activated\": [],\n  \"rejected\": [],\n  \"applied_scope\": \"current_serve_cycle\",\n  \"error\": {\n    \"code\": \"activation_window_closed\",\n    \"message\": \"activate_skills is only valid in the first pass of this request\"\n  }\n}"
       },
@@ -357,10 +354,7 @@
         "tool": "encode_and_call",
         "topic": "Simulate 0.1 ETH deposit to Kelp",
         "arguments": {
-          "arguments": [
-            "980000000000000000",
-            ""
-          ],
+          "arguments": ["980000000000000000", ""],
           "function_signature": "depositETH(uint256,string)",
           "topic": "Simulate 0.1 ETH deposit to Kelp",
           "to": "0x036676389e48133b63a802f8635ad39e752d375d",
@@ -444,9 +438,7 @@
     },
     "skills": {
       "mode": "restricted",
-      "allowed": [
-        "kelp"
-      ],
+      "allowed": ["kelp"],
       "activated_skills": [],
       "bundle_path": "../output/eval/model-bench-public-skills-minimax-m25-kiro-20260531/specs/deposit_eth_kelp/minimax-m2.5/pass-001/spec-skills/deposit_eth_kelp-skills.json",
       "bundle_revision": "fnv1a64:24da19ae93ec9d7a"

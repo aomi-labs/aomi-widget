@@ -53,6 +53,11 @@ export async function ensureServerSignerAccess({
           break;
         }
         lastError = `${wallet.chainType}: ${message}`;
+        // Privy rejects grants for wallets owned by another account
+        // deterministically — retrying cannot succeed.
+        if (isWalletOwnershipMismatchError(message)) {
+          break;
+        }
       }
     }
 
@@ -70,6 +75,16 @@ export function isDuplicateSignerGrantError(message: string): boolean {
     normalized.includes("duplicate signer") ||
     normalized.includes("already been added")
   );
+}
+
+// Privy wording for the cross-account grant rejection, e.g. "Address to add
+// signers too is not associated with current user." — the wallet in the
+// payload belongs to a different Privy account than the live session.
+export function isWalletOwnershipMismatchError(message: string): boolean {
+  return message
+    .trim()
+    .toLowerCase()
+    .includes("not associated with current user");
 }
 
 function errMsg(err: unknown): string {

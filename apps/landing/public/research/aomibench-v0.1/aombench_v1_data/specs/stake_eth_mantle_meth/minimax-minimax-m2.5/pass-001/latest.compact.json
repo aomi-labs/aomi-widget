@@ -27,9 +27,7 @@
     "total_turns": 1,
     "total_tool_calls": 14,
     "total_responses": 28,
-    "activated_skills": [
-      "mantle_staked_eth"
-    ],
+    "activated_skills": ["mantle_staked_eth"],
     "failed_assertions": [],
     "budget_summary": {
       "total": 1,
@@ -263,10 +261,7 @@
         "tool": "activate_skills",
         "topic": "activate_skills",
         "arguments": {
-          "skill_ids": [
-            "mantle_staked_eth",
-            "common_erc20"
-          ]
+          "skill_ids": ["mantle_staked_eth", "common_erc20"]
         },
         "result_preview": "{\n  \"activated\": [\n    \"mantle_staked_eth\"\n  ],\n  \"rejected\": [\n    [\n      \"common_erc20\",\n      \"invalid\"\n    ]\n  ],\n  \"applied_scope\": \"current_serve_cycle\"\n}"
       },
@@ -335,9 +330,7 @@
         "topic": "Calculate mETH output for 0.1 ETH",
         "arguments": {
           "function_signature": "ethToMETH(uint256) view returns (uint256)",
-          "arguments": [
-            "100000000000000000"
-          ],
+          "arguments": ["100000000000000000"],
           "to": "0x01a360392c74b5b8bf4973f438ff3983507a06a2",
           "value": "0",
           "topic": "Calculate mETH output for 0.1 ETH"
@@ -377,9 +370,7 @@
         "arguments": {
           "function_signature": "ethToMETH(uint256)",
           "topic": "Calculate expected mETH from 0.1 ETH",
-          "arguments": [
-            "100000000000000000"
-          ],
+          "arguments": ["100000000000000000"],
           "to": "0x01a360392c74b5b8bf4973f438ff3983507a06a2",
           "value": "0"
         },
@@ -392,9 +383,7 @@
         "arguments": {
           "function_signature": "ethToMETH(uint256)",
           "topic": "Calculate expected mETH from 0.1 ETH via proxy",
-          "arguments": [
-            "100000000000000000"
-          ],
+          "arguments": ["100000000000000000"],
           "to": "0xe3cBd06D7dadB3F4e6557bAb7EdD924CD1489E8f",
           "value": "0"
         },
@@ -405,9 +394,7 @@
         "tool": "encode_and_call",
         "topic": "Stake 0.1 ETH for mETH with slippage protection",
         "arguments": {
-          "arguments": [
-            "91017290632358468"
-          ],
+          "arguments": ["91017290632358468"],
           "function_signature": "stake(uint256)",
           "to": "0xe3cBd06D7dadB3F4e6557bAb7EdD924CD1489E8f",
           "topic": "Stake 0.1 ETH for mETH with slippage protection",
@@ -423,9 +410,7 @@
           "topic": "Stake 0.1 ETH for Mantle mETH",
           "data": {
             "signature": "stake(uint256)",
-            "args": [
-              "91017290632358468"
-            ],
+            "args": ["91017290632358468"],
             "raw": ""
           },
           "description": "Stake 0.1 ETH for Mantle mETH (min 0.091 mETH)",
@@ -459,9 +444,7 @@
         "tool": "commit_txs",
         "topic": "Commit stake transaction",
         "arguments": {
-          "tx_ids": [
-            1
-          ],
+          "tx_ids": [1],
           "topic": "Commit stake transaction"
         },
         "result_preview": "{\n  \"status\": \"pending_approval\",\n  \"tx_ids\": [\n    1\n  ],\n  \"timestamp\": \"2026-05-31T09:10:20.653552+00:00\"\n}"
@@ -475,12 +458,8 @@
     },
     "skills": {
       "mode": "restricted",
-      "allowed": [
-        "mantle_staked_eth"
-      ],
-      "activated_skills": [
-        "mantle_staked_eth"
-      ],
+      "allowed": ["mantle_staked_eth"],
+      "activated_skills": ["mantle_staked_eth"],
       "bundle_path": "../output/eval/model-bench-public-skills-minimax-m25-kiro-20260531/specs/stake_eth_mantle_meth/minimax-m2.5/pass-001/spec-skills/stake_eth_mantle_meth-skills.json",
       "bundle_revision": "fnv1a64:0c85696036b5a461"
     },

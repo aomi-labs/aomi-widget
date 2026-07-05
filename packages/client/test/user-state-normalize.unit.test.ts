@@ -17,15 +17,17 @@ describe("normalizeUserState null pruning", () => {
         auth_value: null,
         auth_verified_at: null,
       },
-      evm: {
-        address: "0xC764D92E312195114595cB645f31C38Fad9c14eE",
-        chain_id: 1,
-        sponsorship: {
-          sponsored: false,
-          sponsor_provider: "self",
-          sponsor_account: null,
+      evm: [
+        {
+          address: "0xC764D92E312195114595cB645f31C38Fad9c14eE",
+          chain_id: 1,
+          sponsorship: {
+            sponsored: false,
+            sponsor_provider: "self",
+            sponsor_account: null,
+          },
         },
-      },
+      ],
       svm: {
         address: null,
         cluster: "solana:mainnet",
@@ -43,7 +45,7 @@ describe("normalizeUserState null pruning", () => {
     expect(normalized?.connection?.is_connected).toBe(true);
     // Option fields keep their nulls — the backend accepts them (verified
     // against staging: only `svm.capabilities: null` returned 400).
-    expect(normalized?.evm?.sponsorship).toMatchObject({
+    expect(normalized?.evm?.[0]?.sponsorship).toMatchObject({
       sponsored: false,
       sponsor_provider: "self",
     });
@@ -62,12 +64,15 @@ describe("normalizeUserState null pruning", () => {
       evm: { address: "0xabc", aa: { mode: "4337", delegation_7702: null } },
     });
     // `delegation_7702: null` is a meaningful clear-signal; must survive.
-    expect(normalized?.evm?.aa).toHaveProperty("delegation_7702", null);
+    expect(normalized?.evm?.[0]?.aa).toHaveProperty("delegation_7702", null);
   });
 
   it("preserves an empty capabilities array (valid wire value)", () => {
     const normalized = UserState.normalize({
-      svm: { address: "So11111111111111111111111111111111111111112", capabilities: [] },
+      svm: {
+        address: "So11111111111111111111111111111111111111112",
+        capabilities: [],
+      },
     });
     expect(normalized?.svm?.capabilities).toEqual([]);
   });
@@ -78,7 +83,7 @@ describe("normalizeUserState null pruning", () => {
       evm: { address: "0xabc", sponsorship: { sponsored: false } },
     });
     expect(normalized?.connection).toEqual({ is_connected: false });
-    expect(normalized?.evm?.sponsorship).toEqual({ sponsored: false });
+    expect(normalized?.evm?.[0]?.sponsorship).toEqual({ sponsored: false });
   });
 
   it("does not prune nulls inside free-form ext", () => {

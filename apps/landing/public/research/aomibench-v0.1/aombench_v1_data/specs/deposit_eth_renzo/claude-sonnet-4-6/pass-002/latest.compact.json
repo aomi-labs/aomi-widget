@@ -37,9 +37,7 @@
     "total_turns": 1,
     "total_tool_calls": 8,
     "total_responses": 16,
-    "activated_skills": [
-      "renzo"
-    ],
+    "activated_skills": ["renzo"],
     "failed_assertions": [],
     "budget_summary": {
       "total": 1,
@@ -189,9 +187,7 @@
         "tool": "activate_skills",
         "topic": "activate_skills",
         "arguments": {
-          "skill_ids": [
-            "renzo"
-          ]
+          "skill_ids": ["renzo"]
         },
         "result_preview": "{\n  \"activated\": [\n    \"renzo\"\n  ],\n  \"rejected\": [],\n  \"applied_scope\": \"current_serve_cycle\"\n}"
       },
@@ -224,9 +220,7 @@
         "topic": "Simulate Renzo depositETH 0.1 ETH",
         "arguments": {
           "function_signature": "depositETH(uint256)",
-          "arguments": [
-            "0"
-          ],
+          "arguments": ["0"],
           "to": "0x74a09653A083691711cF8215a6ab074BB4e99ef5",
           "value": "100000000000000000",
           "topic": "Simulate Renzo depositETH 0.1 ETH"
@@ -242,9 +236,7 @@
           "description": "Restake 0.1 ETH into Renzo to receive ezETH",
           "data": {
             "signature": "depositETH(uint256)",
-            "args": [
-              "0"
-            ],
+            "args": ["0"],
             "raw": ""
           },
           "value": "100000000000000000",
@@ -263,9 +255,7 @@
           "description": "Restake 0.1 ETH into Renzo to receive ezETH",
           "data": {
             "signature": "depositETH(uint256)",
-            "args": [
-              "0"
-            ],
+            "args": ["0"],
             "raw": ""
           },
           "value": "100000000000000000",
@@ -298,9 +288,7 @@
         "tool": "commit_txs",
         "topic": "Restake 0.1 ETH into Renzo for Alice",
         "arguments": {
-          "tx_ids": [
-            1
-          ],
+          "tx_ids": [1],
           "topic": "Restake 0.1 ETH into Renzo for Alice"
         },
         "result_preview": "{\n  \"status\": \"pending_approval\",\n  \"tx_ids\": [\n    1\n  ],\n  \"timestamp\": \"2026-05-30T23:25:00.309023+00:00\"\n}"
@@ -314,12 +302,8 @@
     },
     "skills": {
       "mode": "restricted",
-      "allowed": [
-        "renzo"
-      ],
-      "activated_skills": [
-        "renzo"
-      ],
+      "allowed": ["renzo"],
+      "activated_skills": ["renzo"],
       "bundle_path": "../output/eval/model-bench-public-skills-gpt55-opus48-sonnet46-20260530/specs/deposit_eth_renzo/claude-sonnet-4.6/pass-002/spec-skills/deposit_eth_renzo-skills.json",
       "bundle_revision": "fnv1a64:6771891cbd887290"
     },

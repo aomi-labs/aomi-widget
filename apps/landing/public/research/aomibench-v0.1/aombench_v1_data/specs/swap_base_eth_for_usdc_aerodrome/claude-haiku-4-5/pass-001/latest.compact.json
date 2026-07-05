@@ -43,9 +43,7 @@
     "total_turns": 1,
     "total_tool_calls": 10,
     "total_responses": 16,
-    "activated_skills": [
-      "aerodrome"
-    ],
+    "activated_skills": ["aerodrome"],
     "failed_assertions": [
       {
         "label": "tool",
@@ -241,10 +239,7 @@
         "tool": "activate_skills",
         "topic": "activate_skills",
         "arguments": {
-          "skill_ids": [
-            "aerodrome",
-            "common_erc20"
-          ]
+          "skill_ids": ["aerodrome", "common_erc20"]
         },
         "result_preview": "{\n  \"activated\": [\n    \"aerodrome\"\n  ],\n  \"rejected\": [\n    [\n      \"common_erc20\",\n      \"invalid\"\n    ]\n  ],\n  \"applied_scope\": \"current_serve_cycle\"\n}"
       },
@@ -406,12 +401,8 @@
     },
     "skills": {
       "mode": "restricted",
-      "allowed": [
-        "aerodrome"
-      ],
-      "activated_skills": [
-        "aerodrome"
-      ],
+      "allowed": ["aerodrome"],
+      "activated_skills": ["aerodrome"],
       "bundle_path": "../output/eval/model-bench-public-skills-opus47-opus46-haiku45-20260531/specs/swap_base_eth_for_usdc_aerodrome/claude-haiku-4.5/pass-001/spec-skills/swap_base_eth_for_usdc_aerodrome-skills.json",
       "bundle_revision": "fnv1a64:c0406359c2059af7"
     },

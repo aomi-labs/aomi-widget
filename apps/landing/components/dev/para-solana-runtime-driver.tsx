@@ -1,12 +1,6 @@
 "use client";
 
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import {
   Connection,
@@ -94,7 +88,10 @@ async function buildUnsignedSolanaTransaction(
   return encodeBase64(serialized);
 }
 
-async function postDriverReport(runId: string, payload: Record<string, unknown>) {
+async function postDriverReport(
+  runId: string,
+  payload: Record<string, unknown>,
+) {
   try {
     await fetch("/api/dev/solana-runtime-driver", {
       method: "POST",
@@ -111,7 +108,9 @@ async function postDriverReport(runId: string, payload: Record<string, unknown>)
   }
 }
 
-function getRequestKindForMode(mode: DriverMode): Extract<
+function getRequestKindForMode(
+  mode: DriverMode,
+): Extract<
   WalletRequestKind,
   "solana_sign" | "solana_send" | "solana_sign_and_send"
 > {
@@ -126,9 +125,7 @@ function getRequestKindForMode(mode: DriverMode): Extract<
   }
 }
 
-function identityToUserState(
-  adapter: AomiAuthAdapter,
-): UserStateShape {
+function identityToUserState(adapter: AomiAuthAdapter): UserStateShape {
   const identity = adapter.identity;
 
   return {
@@ -161,7 +158,8 @@ function identityToUserState(
             can_send_transaction:
               identity.solanaCapabilities.canSendTransaction ?? undefined,
             can_sign_and_send_transaction:
-              identity.solanaCapabilities.canSignAndSendTransaction ?? undefined,
+              identity.solanaCapabilities.canSignAndSendTransaction ??
+              undefined,
           }
         : undefined,
     },
@@ -180,7 +178,9 @@ function ParaSolanaRuntimeDriverInner() {
     WalletRequest[]
   >([]);
   const [reportStatus, setReportStatus] = useState<DriverReportStatus>("idle");
-  const [lastResult, setLastResult] = useState<WalletRequestResult | null>(null);
+  const [lastResult, setLastResult] = useState<WalletRequestResult | null>(
+    null,
+  );
   const [lastError, setLastError] = useState<string | null>(null);
   const [logs, setLogs] = useState<DriverLog[]>([]);
   const requestCounterRef = useRef(1);
@@ -253,7 +253,9 @@ function ParaSolanaRuntimeDriverInner() {
       resolveWalletRequest,
       rejectWalletRequest,
       simulateBatchTransactions: async () => {
-        throw new Error("simulateBatchTransactions is not used in Solana driver");
+        throw new Error(
+          "simulateBatchTransactions is not used in Solana driver",
+        );
       },
       subscribe: () => () => undefined,
       sendSystemCommand: async () => undefined,
@@ -362,8 +364,7 @@ function ParaSolanaRuntimeDriverInner() {
           } as WalletRequest,
         ]);
       } catch (error) {
-        const message =
-          error instanceof Error ? error.message : String(error);
+        const message = error instanceof Error ? error.message : String(error);
         setReportStatus("failed");
         setLastError(message);
         appendLog("err", message);
@@ -457,7 +458,11 @@ function ParaSolanaRuntimeDriverInner() {
             <div className="space-y-2 text-sm">
               <div>
                 <span className="text-stone-400">Para configured:</span>{" "}
-                <span className={PARA_API_KEY ? "text-emerald-300" : "text-rose-300"}>
+                <span
+                  className={
+                    PARA_API_KEY ? "text-emerald-300" : "text-rose-300"
+                  }
+                >
                   {PARA_API_KEY ? "yes" : "no"}
                 </span>
               </div>
@@ -544,7 +549,9 @@ function ParaSolanaRuntimeDriverInner() {
                   }}
                   className="rounded-lg border border-stone-600 px-4 py-2 text-sm font-semibold hover:border-stone-400"
                 >
-                  {adapter.identity.isConnected ? "Manage Para account" : "Connect with Para"}
+                  {adapter.identity.isConnected
+                    ? "Manage Para account"
+                    : "Connect with Para"}
                 </button>
 
                 <button
@@ -569,7 +576,7 @@ function ParaSolanaRuntimeDriverInner() {
 
           <section className="grid gap-4 md:grid-cols-2">
             <div className="rounded-2xl border border-stone-800 bg-stone-900/60 p-4">
-              <h2 className="mb-3 text-sm uppercase tracking-wide text-stone-400">
+              <h2 className="mb-3 text-sm tracking-wide text-stone-400 uppercase">
                 Identity
               </h2>
               <pre className="overflow-x-auto text-xs text-stone-200">
@@ -578,7 +585,7 @@ function ParaSolanaRuntimeDriverInner() {
             </div>
 
             <div className="rounded-2xl border border-stone-800 bg-stone-900/60 p-4">
-              <h2 className="mb-3 text-sm uppercase tracking-wide text-stone-400">
+              <h2 className="mb-3 text-sm tracking-wide text-stone-400 uppercase">
                 Last Result
               </h2>
               <pre className="overflow-x-auto text-xs text-stone-200">
@@ -588,7 +595,7 @@ function ParaSolanaRuntimeDriverInner() {
           </section>
 
           <section className="rounded-2xl border border-stone-800 bg-stone-900/60 p-4">
-            <h2 className="mb-3 text-sm uppercase tracking-wide text-stone-400">
+            <h2 className="mb-3 text-sm tracking-wide text-stone-400 uppercase">
               Log
             </h2>
             {logs.length === 0 ? (

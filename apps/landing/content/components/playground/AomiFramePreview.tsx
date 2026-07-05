@@ -46,10 +46,7 @@ export function AomiFramePreview({
         <AomiFrame.Header showSidebarTrigger={showSidebar} />
       )}
       {hasAnyControl && controlPlacement === "composer" ? (
-        <AomiFrame.Composer
-          withControl
-          controlBarProps={controlBarProps}
-        />
+        <AomiFrame.Composer withControl controlBarProps={controlBarProps} />
       ) : (
         <AomiFrame.Composer />
       )}

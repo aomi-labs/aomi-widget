@@ -18,22 +18,22 @@
 
 ## File structure
 
-| File | Responsibility | Action |
-| --- | --- | --- |
-| `apps/registry/src/lib/aomi-auth-adapter/types.ts` | `AomiAccount` type + adapter interface additions | Modify |
-| `apps/registry/src/lib/aomi-auth-adapter/accounts.ts` | Pure helpers: `buildAccounts`, `isAccountSelectable` | Create |
-| `apps/registry/src/lib/aomi-auth-adapter/accounts.test.ts` | Unit tests for account helpers | Create |
-| `apps/registry/src/lib/aomi-auth-adapter/persistence.ts` | localStorage read/write for wallet preferences | Create |
-| `apps/registry/src/lib/aomi-auth-adapter/persistence.test.ts` | Unit tests for persistence | Create |
-| `apps/registry/src/lib/aomi-auth-adapter/network-preferences.tsx` | Add persistence + `storageKey` prop | Modify |
-| `apps/registry/src/lib/aomi-auth-adapter/safe-wagmi-hooks.ts` | Add `useSafeConnections`, `useSafeSwitchAccount` | Modify |
-| `apps/registry/src/lib/aomi-auth-adapter/context.tsx` | Default `accounts`/`selectAccount` on disconnected adapter | Modify |
-| `apps/registry/src/lib/aomi-auth-adapter/providers/para.tsx` | Build `accounts`, `selectAccount`, per-account disconnect, EVM-connect guard | Modify |
-| `apps/registry/src/components/control-bar/wallet-picker-context.tsx` | Picker open/close state + provider list | Create (ported) |
-| `apps/registry/src/components/control-bar/wallet-picker.tsx` | Picker modal: provider rows + family sections | Create (ported + extended) |
-| `apps/registry/src/components/control-bar/wallet-picker.test.tsx` | Picker component test | Create |
-| `apps/registry/src/components/control-bar/dual-wallet-bar.tsx` | Becomes the trigger that opens the picker | Modify |
-| `apps/registry/src/lib/aomi-auth-adapter/index.ts` | Export new modules | Modify |
+| File                                                                 | Responsibility                                                               | Action                     |
+| -------------------------------------------------------------------- | ---------------------------------------------------------------------------- | -------------------------- |
+| `apps/registry/src/lib/aomi-auth-adapter/types.ts`                   | `AomiAccount` type + adapter interface additions                             | Modify                     |
+| `apps/registry/src/lib/aomi-auth-adapter/accounts.ts`                | Pure helpers: `buildAccounts`, `isAccountSelectable`                         | Create                     |
+| `apps/registry/src/lib/aomi-auth-adapter/accounts.test.ts`           | Unit tests for account helpers                                               | Create                     |
+| `apps/registry/src/lib/aomi-auth-adapter/persistence.ts`             | localStorage read/write for wallet preferences                               | Create                     |
+| `apps/registry/src/lib/aomi-auth-adapter/persistence.test.ts`        | Unit tests for persistence                                                   | Create                     |
+| `apps/registry/src/lib/aomi-auth-adapter/network-preferences.tsx`    | Add persistence + `storageKey` prop                                          | Modify                     |
+| `apps/registry/src/lib/aomi-auth-adapter/safe-wagmi-hooks.ts`        | Add `useSafeConnections`, `useSafeSwitchAccount`                             | Modify                     |
+| `apps/registry/src/lib/aomi-auth-adapter/context.tsx`                | Default `accounts`/`selectAccount` on disconnected adapter                   | Modify                     |
+| `apps/registry/src/lib/aomi-auth-adapter/providers/para.tsx`         | Build `accounts`, `selectAccount`, per-account disconnect, EVM-connect guard | Modify                     |
+| `apps/registry/src/components/control-bar/wallet-picker-context.tsx` | Picker open/close state + provider list                                      | Create (ported)            |
+| `apps/registry/src/components/control-bar/wallet-picker.tsx`         | Picker modal: provider rows + family sections                                | Create (ported + extended) |
+| `apps/registry/src/components/control-bar/wallet-picker.test.tsx`    | Picker component test                                                        | Create                     |
+| `apps/registry/src/components/control-bar/dual-wallet-bar.tsx`       | Becomes the trigger that opens the picker                                    | Modify                     |
+| `apps/registry/src/lib/aomi-auth-adapter/index.ts`                   | Export new modules                                                           | Modify                     |
 
 `wallet-family-slot.tsx` is deleted in Task 9 once the picker covers its role.
 
@@ -42,6 +42,7 @@
 ## Task 1: `AomiAccount` type + account helpers
 
 **Files:**
+
 - Modify: `apps/registry/src/lib/aomi-auth-adapter/types.ts`
 - Create: `apps/registry/src/lib/aomi-auth-adapter/accounts.ts`
 - Test: `apps/registry/src/lib/aomi-auth-adapter/accounts.test.ts`
@@ -108,8 +109,16 @@ describe("buildAccounts", () => {
       solana: undefined,
     });
     expect(accounts).toHaveLength(2);
-    expect(accounts[0]).toMatchObject({ family: "evm", walletName: "MetaMask", active: false });
-    expect(accounts[1]).toMatchObject({ family: "evm", walletName: "Rabby", active: true });
+    expect(accounts[0]).toMatchObject({
+      family: "evm",
+      walletName: "MetaMask",
+      active: false,
+    });
+    expect(accounts[1]).toMatchObject({
+      family: "evm",
+      walletName: "Rabby",
+      active: true,
+    });
   });
 
   it("adds the connected Solana wallet as a single active account", () => {
@@ -119,13 +128,20 @@ describe("buildAccounts", () => {
       solana: { publicKey: "9xQpub", walletName: "Phantom" },
     });
     expect(accounts).toEqual([
-      expect.objectContaining({ family: "solana", address: "9xQpub", walletName: "Phantom", active: true }),
+      expect.objectContaining({
+        family: "solana",
+        address: "9xQpub",
+        walletName: "Phantom",
+        active: true,
+      }),
     ]);
   });
 
   it("returns both families for a dual connection", () => {
     const accounts = buildAccounts({
-      evmConnections: [{ id: "mm", walletName: "MetaMask", address: "0xAAA", chainId: 1 }],
+      evmConnections: [
+        { id: "mm", walletName: "MetaMask", address: "0xAAA", chainId: 1 },
+      ],
       activeEvmAddress: "0xAAA",
       solana: { publicKey: "9xQpub", walletName: "Phantom" },
     });
@@ -134,13 +150,24 @@ describe("buildAccounts", () => {
   });
 
   it("returns empty when nothing is connected", () => {
-    expect(buildAccounts({ evmConnections: [], activeEvmAddress: undefined, solana: undefined })).toEqual([]);
+    expect(
+      buildAccounts({
+        evmConnections: [],
+        activeEvmAddress: undefined,
+        solana: undefined,
+      }),
+    ).toEqual([]);
   });
 });
 
 describe("isAccountSelectable", () => {
   it("only allows accounts in the active family", () => {
-    const evm = { id: "x", family: "evm", address: "0x", active: false } as const;
+    const evm = {
+      id: "x",
+      family: "evm",
+      address: "0x",
+      active: false,
+    } as const;
     expect(isAccountSelectable(evm, "evm")).toBe(true);
     expect(isAccountSelectable(evm, "solana")).toBe(false);
   });
@@ -227,6 +254,7 @@ git commit -m "feat(adapter): add AomiAccount type and account-registry helpers"
 ## Task 2: Wallet preferences persistence helper
 
 **Files:**
+
 - Create: `apps/registry/src/lib/aomi-auth-adapter/persistence.ts`
 - Test: `apps/registry/src/lib/aomi-auth-adapter/persistence.test.ts`
 
@@ -261,7 +289,10 @@ describe("wallet preferences persistence", () => {
   });
 
   it("returns {} on malformed JSON", () => {
-    globalThis.localStorage.setItem("aomi.wallet-preferences.para", "{not json");
+    globalThis.localStorage.setItem(
+      "aomi.wallet-preferences.para",
+      "{not json",
+    );
     expect(loadWalletPreferences("para")).toEqual({});
   });
 
@@ -338,6 +369,7 @@ git commit -m "feat(adapter): add wallet preferences persistence helper"
 ## Task 3: Wire persistence into network-preferences
 
 **Files:**
+
 - Modify: `apps/registry/src/lib/aomi-auth-adapter/network-preferences.tsx`
 - Test: `apps/registry/src/lib/aomi-auth-adapter/network-preferences.test.tsx` (create)
 
@@ -360,16 +392,41 @@ afterEach(() => {
 });
 
 const evmChains = [
-  { id: 1, name: "Ethereum", nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 }, rpcUrls: { default: { http: ["https://eth.example"] } } },
-  { id: 8453, name: "Base", nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 }, rpcUrls: { default: { http: ["https://base.example"] } } },
+  {
+    id: 1,
+    name: "Ethereum",
+    nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
+    rpcUrls: { default: { http: ["https://eth.example"] } },
+  },
+  {
+    id: 8453,
+    name: "Base",
+    nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
+    rpcUrls: { default: { http: ["https://base.example"] } },
+  },
 ] as const;
 
 const solanaNetworks = [
-  { id: "solana-mainnet", label: "Mainnet", cluster: "solana:mainnet", rpcHttpUrl: "https://m.example", isDefault: true },
-  { id: "solana-devnet", label: "Devnet", cluster: "solana:devnet", rpcHttpUrl: "https://d.example" },
+  {
+    id: "solana-mainnet",
+    label: "Mainnet",
+    cluster: "solana:mainnet",
+    rpcHttpUrl: "https://m.example",
+    isDefault: true,
+  },
+  {
+    id: "solana-devnet",
+    label: "Devnet",
+    cluster: "solana:devnet",
+    rpcHttpUrl: "https://d.example",
+  },
 ] as const;
 
-function Harness({ onReady }: { onReady: (v: ReturnType<typeof useAomiWalletNetworkPreferences>) => void }) {
+function Harness({
+  onReady,
+}: {
+  onReady: (v: ReturnType<typeof useAomiWalletNetworkPreferences>) => void;
+}) {
   const value = useAomiWalletNetworkPreferences();
   onReady(value);
   return null;
@@ -379,7 +436,11 @@ describe("network preferences persistence", () => {
   it("persists family + chain selections and restores them on remount", () => {
     let api!: ReturnType<typeof useAomiWalletNetworkPreferences>;
     const { unmount } = render(
-      <AomiWalletNetworkPreferencesProvider storageKey="test" evmChains={evmChains} solanaNetworks={solanaNetworks}>
+      <AomiWalletNetworkPreferencesProvider
+        storageKey="test"
+        evmChains={evmChains}
+        solanaNetworks={solanaNetworks}
+      >
         <Harness onReady={(v) => (api = v)} />
       </AomiWalletNetworkPreferencesProvider>,
     );
@@ -391,7 +452,11 @@ describe("network preferences persistence", () => {
 
     let restored!: ReturnType<typeof useAomiWalletNetworkPreferences>;
     render(
-      <AomiWalletNetworkPreferencesProvider storageKey="test" evmChains={evmChains} solanaNetworks={solanaNetworks}>
+      <AomiWalletNetworkPreferencesProvider
+        storageKey="test"
+        evmChains={evmChains}
+        solanaNetworks={solanaNetworks}
+      >
         <Harness onReady={(v) => (restored = v)} />
       </AomiWalletNetworkPreferencesProvider>,
     );
@@ -437,39 +502,38 @@ export function AomiWalletNetworkPreferencesProvider({
 Update the three `useState` initializers to prefer persisted values (validated against the available chains/networks):
 
 ```tsx
-  const [selectedFamily, setSelectedFamily] = useState<WalletFamily>(
-    () =>
-      persisted.selectedFamily ??
-      resolveInitialFamily(evmChains, solanaNetworks),
-  );
-  const [selectedEvmChainId, setSelectedEvmChainId] = useState<
-    number | undefined
-  >(() =>
-    persisted.selectedEvmChainId !== undefined &&
-    evmChains.some((chain) => chain.id === persisted.selectedEvmChainId)
-      ? persisted.selectedEvmChainId
-      : evmChains[0]?.id,
-  );
-  const [selectedSolanaNetworkId, setSelectedSolanaNetworkId] = useState<
-    string | undefined
-  >(() =>
-    persisted.selectedSolanaNetworkId &&
-    solanaNetworks.some((n) => n.id === persisted.selectedSolanaNetworkId)
-      ? persisted.selectedSolanaNetworkId
-      : resolveSelectedSolanaNetwork(solanaNetworks)?.id,
-  );
+const [selectedFamily, setSelectedFamily] = useState<WalletFamily>(
+  () =>
+    persisted.selectedFamily ?? resolveInitialFamily(evmChains, solanaNetworks),
+);
+const [selectedEvmChainId, setSelectedEvmChainId] = useState<
+  number | undefined
+>(() =>
+  persisted.selectedEvmChainId !== undefined &&
+  evmChains.some((chain) => chain.id === persisted.selectedEvmChainId)
+    ? persisted.selectedEvmChainId
+    : evmChains[0]?.id,
+);
+const [selectedSolanaNetworkId, setSelectedSolanaNetworkId] = useState<
+  string | undefined
+>(() =>
+  persisted.selectedSolanaNetworkId &&
+  solanaNetworks.some((n) => n.id === persisted.selectedSolanaNetworkId)
+    ? persisted.selectedSolanaNetworkId
+    : resolveSelectedSolanaNetwork(solanaNetworks)?.id,
+);
 ```
 
 Add a persistence effect after the existing effects (before the `selectedSolanaNetwork` memo):
 
 ```tsx
-  useEffect(() => {
-    saveWalletPreferences(storageKey, {
-      selectedFamily,
-      selectedEvmChainId,
-      selectedSolanaNetworkId,
-    });
-  }, [storageKey, selectedFamily, selectedEvmChainId, selectedSolanaNetworkId]);
+useEffect(() => {
+  saveWalletPreferences(storageKey, {
+    selectedFamily,
+    selectedEvmChainId,
+    selectedSolanaNetworkId,
+  });
+}, [storageKey, selectedFamily, selectedEvmChainId, selectedSolanaNetworkId]);
 ```
 
 (`useEffect` is already imported in this file.)
@@ -508,6 +572,7 @@ git commit -m "feat(adapter): persist network/family selection to localStorage"
 ## Task 4: Safe wagmi multi-connection hooks
 
 **Files:**
+
 - Modify: `apps/registry/src/lib/aomi-auth-adapter/safe-wagmi-hooks.ts`
 
 No new test — these are thin try/catch wrappers like the existing hooks in the file; they are exercised by Task 5 + the build.
@@ -595,6 +660,7 @@ git commit -m "feat(adapter): add safe useConnections + useSwitchAccount wrapper
 ## Task 5: Build `accounts` + `selectAccount` + per-account disconnect + connect guard in para.tsx
 
 **Files:**
+
 - Modify: `apps/registry/src/lib/aomi-auth-adapter/providers/para.tsx`
 - Modify: `apps/registry/src/lib/aomi-auth-adapter/context.tsx`
 
@@ -646,8 +712,8 @@ import { buildAccounts } from "../accounts";
 After the existing `const { disconnectAsync: wagmiDisconnectAsync } = useSafeDisconnect();` line, add:
 
 ```ts
-  const evmConnections = useSafeConnections();
-  const { switchAccountAsync } = useSafeSwitchAccount();
+const evmConnections = useSafeConnections();
+const { switchAccountAsync } = useSafeSwitchAccount();
 ```
 
 - [ ] **Step 4: Build the `accounts` registry inside the `adapter` useMemo**
@@ -655,18 +721,18 @@ After the existing `const { disconnectAsync: wagmiDisconnectAsync } = useSafeDis
 Inside the `adapter` `useMemo` (after `address` is computed, before the `return`), add:
 
 ```ts
-    const accounts = buildAccounts({
-      evmConnections: evmConnections.map((conn) => ({
-        id: conn.connectorId,
-        walletName: conn.connectorName,
-        address: conn.address,
-        chainId: conn.chainId,
-      })),
-      activeEvmAddress: address,
-      solana: svmAddress
-        ? { publicKey: svmAddress, walletName: solanaWallet.walletName }
-        : undefined,
-    });
+const accounts = buildAccounts({
+  evmConnections: evmConnections.map((conn) => ({
+    id: conn.connectorId,
+    walletName: conn.connectorName,
+    address: conn.address,
+    chainId: conn.chainId,
+  })),
+  activeEvmAddress: address,
+  solana: svmAddress
+    ? { publicKey: svmAddress, walletName: solanaWallet.walletName }
+    : undefined,
+});
 ```
 
 Then add `accounts` and `selectAccount` to the returned object (next to `solanaWallets`):
@@ -737,13 +803,13 @@ In the `adapter` `useMemo` dependency array, add `evmConnections`, `switchAccoun
 In the returned `connect` function, change the EVM path so it only opens the Para modal when there is no active EVM account. Replace the final `paraModal?.openModal({ step: "AUTH_MAIN" });` line of `connect` with:
 
 ```ts
-        if (requestedFamily === "evm" && address) {
-          // Already have a live EVM account — do not re-open the Para modal.
-          // Account management happens through the picker (select/disconnect)
-          // or `openAccountUI`.
-          return;
-        }
-        paraModal?.openModal({ step: "AUTH_MAIN" });
+if (requestedFamily === "evm" && address) {
+  // Already have a live EVM account — do not re-open the Para modal.
+  // Account management happens through the picker (select/disconnect)
+  // or `openAccountUI`.
+  return;
+}
+paraModal?.openModal({ step: "AUTH_MAIN" });
 ```
 
 (`address` is in scope inside the memo and already a dep.)
@@ -753,22 +819,18 @@ In the returned `connect` function, change the EVM path so it only opens the Par
 In the returned `disconnect` function, handle `options.accountId` first (EVM-only). Add at the top of the `disconnect` body, before the existing family logic:
 
 ```ts
-        if (options?.accountId) {
-          const target = accounts.find((a) => a.id === options.accountId);
-          if (target?.family === "evm" && wagmiDisconnectAsync) {
-            const connector = wagmiConfig.connectors?.find(
-              (c) => c.uid === target.id,
-            );
-            try {
-              await wagmiDisconnectAsync(
-                connector ? { connector } : undefined,
-              );
-            } catch (error) {
-              console.warn("[aomi-auth-adapter] EVM account disconnect failed", error);
-            }
-            return;
-          }
-        }
+if (options?.accountId) {
+  const target = accounts.find((a) => a.id === options.accountId);
+  if (target?.family === "evm" && wagmiDisconnectAsync) {
+    const connector = wagmiConfig.connectors?.find((c) => c.uid === target.id);
+    try {
+      await wagmiDisconnectAsync(connector ? { connector } : undefined);
+    } catch (error) {
+      console.warn("[aomi-auth-adapter] EVM account disconnect failed", error);
+    }
+    return;
+  }
+}
 ```
 
 - [ ] **Step 8: Build the library to type-check the changes**
@@ -795,6 +857,7 @@ git commit -m "feat(adapter): account registry, selectAccount, per-account disco
 ## Task 6: Port the wallet picker context
 
 **Files:**
+
 - Create: `apps/registry/src/components/control-bar/wallet-picker-context.tsx`
 
 - [ ] **Step 1: Create the context (adapted from the remote branch)**
@@ -901,6 +964,7 @@ git commit -m "feat(picker): add wallet picker context"
 ## Task 7: Build the picker modal (provider rows + family sections)
 
 **Files:**
+
 - Create: `apps/registry/src/components/control-bar/wallet-picker.tsx`
 - Test: `apps/registry/src/components/control-bar/wallet-picker.test.tsx`
 
@@ -920,13 +984,26 @@ import { WalletPicker } from "./wallet-picker";
 afterEach(cleanup);
 
 const evmChains = [
-  { id: 1, name: "Ethereum", nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 }, rpcUrls: { default: { http: ["https://eth.example"] } } },
+  {
+    id: 1,
+    name: "Ethereum",
+    nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
+    rpcUrls: { default: { http: ["https://eth.example"] } },
+  },
 ] as const;
 const solanaNetworks = [
-  { id: "solana-mainnet", label: "Mainnet", cluster: "solana:mainnet", rpcHttpUrl: "https://m.example", isDefault: true },
+  {
+    id: "solana-mainnet",
+    label: "Mainnet",
+    cluster: "solana:mainnet",
+    rpcHttpUrl: "https://m.example",
+    isDefault: true,
+  },
 ] as const;
 
-function makeAdapter(overrides: Partial<AomiAuthAdapter> = {}): AomiAuthAdapter {
+function makeAdapter(
+  overrides: Partial<AomiAuthAdapter> = {},
+): AomiAuthAdapter {
   return {
     identity: {
       status: "connected",
@@ -943,8 +1020,20 @@ function makeAdapter(overrides: Partial<AomiAuthAdapter> = {}): AomiAuthAdapter 
     canOpenAccountUI: true,
     canDisconnect: true,
     accounts: [
-      { id: "mm", family: "evm", address: "0xAAAAAAAA", walletName: "MetaMask", active: true },
-      { id: "phantom", family: "solana", address: "9xQpubKey", walletName: "Phantom", active: true },
+      {
+        id: "mm",
+        family: "evm",
+        address: "0xAAAAAAAA",
+        walletName: "MetaMask",
+        active: true,
+      },
+      {
+        id: "phantom",
+        family: "solana",
+        address: "9xQpubKey",
+        walletName: "Phantom",
+        active: true,
+      },
     ],
     selectAccount: vi.fn(async () => undefined),
     connect: vi.fn(async () => undefined),
@@ -957,7 +1046,11 @@ function makeAdapter(overrides: Partial<AomiAuthAdapter> = {}): AomiAuthAdapter 
 function renderPicker(adapter: AomiAuthAdapter) {
   return render(
     <AomiAuthAdapterProvider value={adapter}>
-      <AomiWalletNetworkPreferencesProvider storageKey="test" evmChains={evmChains} solanaNetworks={solanaNetworks}>
+      <AomiWalletNetworkPreferencesProvider
+        storageKey="test"
+        evmChains={evmChains}
+        solanaNetworks={solanaNetworks}
+      >
         <WalletPickerProvider>
           <OpenAndRender />
         </WalletPickerProvider>
@@ -970,7 +1063,9 @@ import { useEffect } from "react";
 import { useWalletPicker } from "./wallet-picker-context";
 function OpenAndRender() {
   const { openPicker } = useWalletPicker();
-  useEffect(() => { openPicker(); }, [openPicker]);
+  useEffect(() => {
+    openPicker();
+  }, [openPicker]);
   return <WalletPicker />;
 }
 
@@ -1005,8 +1100,23 @@ Create `apps/registry/src/components/control-bar/wallet-picker.tsx`. This adapts
 ```tsx
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, type FC, type SVGProps } from "react";
-import { Loader2Icon, LogOutIcon, Settings2Icon, WalletIcon, XIcon, CheckIcon, ChevronRightIcon } from "lucide-react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type FC,
+  type SVGProps,
+} from "react";
+import {
+  Loader2Icon,
+  LogOutIcon,
+  Settings2Icon,
+  WalletIcon,
+  XIcon,
+  CheckIcon,
+  ChevronRightIcon,
+} from "lucide-react";
 import { cn, getChainInfo } from "@aomi-labs/react";
 import {
   useAomiAuthAdapter,
@@ -1015,7 +1125,10 @@ import {
 } from "../../lib/aomi-auth-adapter";
 import { isAccountSelectable } from "../../lib/aomi-auth-adapter/accounts";
 import { useAomiWalletNetworkPreferences } from "../../lib/aomi-auth-adapter/network-preferences";
-import type { AomiAccount, WalletFamily } from "../../lib/aomi-auth-adapter/types";
+import type {
+  AomiAccount,
+  WalletFamily,
+} from "../../lib/aomi-auth-adapter/types";
 import { useWalletPicker } from "./wallet-picker-context";
 
 function familyLabel(family: WalletFamily): string {
@@ -1026,7 +1139,8 @@ export function WalletPicker() {
   const { open, closePicker } = useWalletPicker();
   const adapter = useAomiAuthAdapter();
   const identity = adapter.identity;
-  const { selectedFamily, setSelectedFamily } = useAomiWalletNetworkPreferences();
+  const { selectedFamily, setSelectedFamily } =
+    useAomiWalletNetworkPreferences();
   const activeFamily: WalletFamily = adapter.activeFamily ?? selectedFamily;
   const [pending, setPending] = useState<string | null>(null);
 
@@ -1077,14 +1191,40 @@ export function WalletPicker() {
       aria-labelledby="aomi-wallet-picker-title"
       className="animate-in fade-in-0 absolute inset-0 z-50 flex items-center justify-center px-4 py-4 duration-150"
     >
-      <button type="button" aria-label="Close" onClick={closePicker} className="absolute inset-0 cursor-default bg-black/15 dark:bg-black/30" />
-      <div className={cn("relative z-10 flex w-full max-w-[360px] flex-col overflow-hidden", "border-border/60 bg-popover text-popover-foreground rounded-3xl border shadow-lg", "animate-in zoom-in-95 fade-in-0 duration-200")}>
+      <button
+        type="button"
+        aria-label="Close"
+        onClick={closePicker}
+        className="absolute inset-0 cursor-default bg-black/15 dark:bg-black/30"
+      />
+      <div
+        className={cn(
+          "relative z-10 flex w-full max-w-[360px] flex-col overflow-hidden",
+          "border-border/60 bg-popover text-popover-foreground rounded-3xl border shadow-lg",
+          "animate-in zoom-in-95 fade-in-0 duration-200",
+        )}
+      >
         <div className="border-border/60 relative border-b px-4 pb-3 pt-3">
-          <h2 id="aomi-wallet-picker-title" className="text-sm font-semibold tracking-tight">Wallets</h2>
+          <h2
+            id="aomi-wallet-picker-title"
+            className="text-sm font-semibold tracking-tight"
+          >
+            Wallets
+          </h2>
           <p className="text-muted-foreground mt-0.5 pr-7 text-xs leading-snug">
-            {identity.isConnected ? (providerLabel ?? "Manage your connected wallets.") : "Connect an EVM or Solana wallet."}
+            {identity.isConnected
+              ? (providerLabel ?? "Manage your connected wallets.")
+              : "Connect an EVM or Solana wallet."}
           </p>
-          <button type="button" onClick={closePicker} aria-label="Close" className={cn("absolute right-3 top-3 rounded-full p-1 transition-colors", "text-muted-foreground hover:bg-muted hover:text-foreground")}>
+          <button
+            type="button"
+            onClick={closePicker}
+            aria-label="Close"
+            className={cn(
+              "absolute right-3 top-3 rounded-full p-1 transition-colors",
+              "text-muted-foreground hover:bg-muted hover:text-foreground",
+            )}
+          >
             <XIcon className="size-3.5" />
           </button>
         </div>
@@ -1097,9 +1237,25 @@ export function WalletPicker() {
             chainId={identity.chainId}
             pending={pending}
             onSwitchFamily={() => setSelectedFamily("evm")}
-            onSelect={(id) => void runAction(`select:${id}`, () => adapter.selectAccount(id))}
-            onDisconnect={(id) => adapter.disconnect ? void runAction(`disconnect:${id}`, () => adapter.disconnect!({ accountId: id })) : undefined}
-            onConnect={adapter.canConnect ? () => void runAction("connect:evm", async () => { await adapter.connect({ family: "evm" }); closePicker(); }) : undefined}
+            onSelect={(id) =>
+              void runAction(`select:${id}`, () => adapter.selectAccount(id))
+            }
+            onDisconnect={(id) =>
+              adapter.disconnect
+                ? void runAction(`disconnect:${id}`, () =>
+                    adapter.disconnect!({ accountId: id }),
+                  )
+                : undefined
+            }
+            onConnect={
+              adapter.canConnect
+                ? () =>
+                    void runAction("connect:evm", async () => {
+                      await adapter.connect({ family: "evm" });
+                      closePicker();
+                    })
+                : undefined
+            }
           />
           <FamilySection
             family="solana"
@@ -1107,9 +1263,25 @@ export function WalletPicker() {
             activeFamily={activeFamily}
             pending={pending}
             onSwitchFamily={() => setSelectedFamily("solana")}
-            onSelect={(id) => void runAction(`select:${id}`, () => adapter.selectAccount(id))}
-            onDisconnect={(id) => adapter.disconnect ? void runAction(`disconnect:${id}`, () => adapter.disconnect!({ family: "solana" })) : undefined}
-            onConnect={adapter.canConnect ? () => void runAction("connect:solana", async () => { await adapter.connect({ family: "solana" }); closePicker(); }) : undefined}
+            onSelect={(id) =>
+              void runAction(`select:${id}`, () => adapter.selectAccount(id))
+            }
+            onDisconnect={(id) =>
+              adapter.disconnect
+                ? void runAction(`disconnect:${id}`, () =>
+                    adapter.disconnect!({ family: "solana" }),
+                  )
+                : undefined
+            }
+            onConnect={
+              adapter.canConnect
+                ? () =>
+                    void runAction("connect:solana", async () => {
+                      await adapter.connect({ family: "solana" });
+                      closePicker();
+                    })
+                : undefined
+            }
           />
         </div>
       </div>
@@ -1129,41 +1301,115 @@ type FamilySectionProps = {
   onConnect?: () => void;
 };
 
-function FamilySection({ family, accounts, activeFamily, chainId, pending, onSwitchFamily, onSelect, onDisconnect, onConnect }: FamilySectionProps) {
+function FamilySection({
+  family,
+  accounts,
+  activeFamily,
+  chainId,
+  pending,
+  onSwitchFamily,
+  onSelect,
+  onDisconnect,
+  onConnect,
+}: FamilySectionProps) {
   const isActiveFamily = family === activeFamily;
   return (
-    <section className={cn("flex flex-col gap-1.5", !isActiveFamily && "opacity-60")}>
+    <section
+      className={cn("flex flex-col gap-1.5", !isActiveFamily && "opacity-60")}
+    >
       <div className="flex items-center justify-between px-1">
-        <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">{familyLabel(family)}</span>
+        <span className="text-muted-foreground text-[11px] font-medium uppercase tracking-wide">
+          {familyLabel(family)}
+        </span>
         {!isActiveFamily && (
-          <button type="button" onClick={onSwitchFamily} className="text-[11px] text-primary hover:underline">
+          <button
+            type="button"
+            onClick={onSwitchFamily}
+            className="text-primary text-[11px] hover:underline"
+          >
             Switch to {familyLabel(family)}
           </button>
         )}
       </div>
       {accounts.length === 0 ? (
-        <p className="px-1 text-[11px] text-muted-foreground">No {familyLabel(family)} wallet connected.</p>
+        <p className="text-muted-foreground px-1 text-[11px]">
+          No {familyLabel(family)} wallet connected.
+        </p>
       ) : (
         accounts.map((account) => {
-          const selectable = isActiveFamily && isAccountSelectable(account, activeFamily);
-          const chainLabel = family === "evm" && account.active && chainId ? getChainInfo(chainId)?.ticker : undefined;
+          const selectable =
+            isActiveFamily && isAccountSelectable(account, activeFamily);
+          const chainLabel =
+            family === "evm" && account.active && chainId
+              ? getChainInfo(chainId)?.ticker
+              : undefined;
           return (
-            <div key={account.id} className={cn("flex items-center gap-2 rounded-2xl border px-2.5 py-2", account.active ? "border-primary/40 bg-primary/[0.04]" : "border-border/60 bg-background")}>
-              <span className="bg-muted/40 text-foreground flex size-8 shrink-0 items-center justify-center rounded-xl"><WalletIcon className="size-4" /></span>
-              <button type="button" disabled={!selectable || pending !== null || account.active} onClick={() => onSelect(account.id)} className={cn("min-w-0 flex-1 text-left", selectable && !account.active ? "cursor-pointer" : "cursor-default")}>
-                <span className="block truncate text-sm font-medium">{account.walletName ?? familyLabel(family)}</span>
-                <span className="text-muted-foreground block truncate text-[11px]">{[account.label ?? formatAddress(account.address), chainLabel].filter(Boolean).join(" / ")}</span>
+            <div
+              key={account.id}
+              className={cn(
+                "flex items-center gap-2 rounded-2xl border px-2.5 py-2",
+                account.active
+                  ? "border-primary/40 bg-primary/[0.04]"
+                  : "border-border/60 bg-background",
+              )}
+            >
+              <span className="bg-muted/40 text-foreground flex size-8 shrink-0 items-center justify-center rounded-xl">
+                <WalletIcon className="size-4" />
+              </span>
+              <button
+                type="button"
+                disabled={!selectable || pending !== null || account.active}
+                onClick={() => onSelect(account.id)}
+                className={cn(
+                  "min-w-0 flex-1 text-left",
+                  selectable && !account.active
+                    ? "cursor-pointer"
+                    : "cursor-default",
+                )}
+              >
+                <span className="block truncate text-sm font-medium">
+                  {account.walletName ?? familyLabel(family)}
+                </span>
+                <span className="text-muted-foreground block truncate text-[11px]">
+                  {[account.label ?? formatAddress(account.address), chainLabel]
+                    .filter(Boolean)
+                    .join(" / ")}
+                </span>
               </button>
-              {account.active && <CheckIcon className="text-primary size-4 shrink-0" />}
-              {!account.active && selectable && (pending === `select:${account.id}` ? <Loader2Icon className="size-4 shrink-0 animate-spin" /> : <ChevronRightIcon className="text-muted-foreground size-4 shrink-0" />)}
-              <RowIconButton icon={LogOutIcon} ariaLabel="Disconnect" disabled={pending !== null} loading={pending === `disconnect:${account.id}`} onClick={() => onDisconnect(account.id)} />
+              {account.active && (
+                <CheckIcon className="text-primary size-4 shrink-0" />
+              )}
+              {!account.active &&
+                selectable &&
+                (pending === `select:${account.id}` ? (
+                  <Loader2Icon className="size-4 shrink-0 animate-spin" />
+                ) : (
+                  <ChevronRightIcon className="text-muted-foreground size-4 shrink-0" />
+                ))}
+              <RowIconButton
+                icon={LogOutIcon}
+                ariaLabel="Disconnect"
+                disabled={pending !== null}
+                loading={pending === `disconnect:${account.id}`}
+                onClick={() => onDisconnect(account.id)}
+              />
             </div>
           );
         })
       )}
       {isActiveFamily && onConnect && (
-        <button type="button" onClick={onConnect} disabled={pending !== null} className={cn("flex items-center justify-center gap-2 rounded-2xl border border-dashed border-border px-2.5 py-2 text-xs text-muted-foreground", "hover:bg-accent/40")}>
-          {pending === `connect:${family}` ? <Loader2Icon className="size-3.5 animate-spin" /> : null}
+        <button
+          type="button"
+          onClick={onConnect}
+          disabled={pending !== null}
+          className={cn(
+            "border-border text-muted-foreground flex items-center justify-center gap-2 rounded-2xl border border-dashed px-2.5 py-2 text-xs",
+            "hover:bg-accent/40",
+          )}
+        >
+          {pending === `connect:${family}` ? (
+            <Loader2Icon className="size-3.5 animate-spin" />
+          ) : null}
           Connect {familyLabel(family)} wallet
         </button>
       )}
@@ -1171,10 +1417,36 @@ function FamilySection({ family, accounts, activeFamily, chainId, pending, onSwi
   );
 }
 
-function RowIconButton({ icon: Icon, onClick, disabled, loading, ariaLabel }: { icon: FC<SVGProps<SVGSVGElement>>; onClick: () => void; disabled?: boolean; loading?: boolean; ariaLabel: string }) {
+function RowIconButton({
+  icon: Icon,
+  onClick,
+  disabled,
+  loading,
+  ariaLabel,
+}: {
+  icon: FC<SVGProps<SVGSVGElement>>;
+  onClick: () => void;
+  disabled?: boolean;
+  loading?: boolean;
+  ariaLabel: string;
+}) {
   return (
-    <button type="button" onClick={onClick} disabled={disabled || loading} aria-label={ariaLabel} className={cn("rounded-full p-1.5 transition-colors", "text-muted-foreground hover:bg-muted hover:text-foreground", "disabled:pointer-events-none disabled:opacity-50")}>
-      {loading ? <Loader2Icon className="size-3.5 animate-spin" /> : <Icon className="size-3.5" />}
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled || loading}
+      aria-label={ariaLabel}
+      className={cn(
+        "rounded-full p-1.5 transition-colors",
+        "text-muted-foreground hover:bg-muted hover:text-foreground",
+        "disabled:pointer-events-none disabled:opacity-50",
+      )}
+    >
+      {loading ? (
+        <Loader2Icon className="size-3.5 animate-spin" />
+      ) : (
+        <Icon className="size-3.5" />
+      )}
     </button>
   );
 }
@@ -1200,6 +1472,7 @@ git commit -m "feat(picker): wallet picker modal with per-family sections"
 ## Task 8: Wire the picker as the trigger from dual-wallet-bar
 
 **Files:**
+
 - Modify: `apps/registry/src/components/control-bar/dual-wallet-bar.tsx`
 
 - [ ] **Step 1: Replace the popover body with a picker trigger**
@@ -1216,10 +1489,7 @@ import { useAomiAuthAdapter } from "../../lib/aomi-auth-adapter";
 import { useAomiWalletNetworkPreferences } from "../../lib/aomi-auth-adapter/network-preferences";
 import { formatAddress } from "../../lib/aomi-auth-adapter/identity";
 import { WalletPicker } from "./wallet-picker";
-import {
-  WalletPickerProvider,
-  useWalletPicker,
-} from "./wallet-picker-context";
+import { WalletPickerProvider, useWalletPicker } from "./wallet-picker-context";
 
 export type DualWalletBarProps = {
   families: Array<"evm" | "solana">;
@@ -1282,11 +1552,11 @@ const DualWalletBarInner: FC<DualWalletBarProps> = ({
         onClick={openPicker}
         className={cn(
           "inline-flex items-center justify-between gap-2 whitespace-nowrap text-sm font-medium",
-          "rounded-3xl px-5 py-2.5 transition-all duration-200 w-full",
+          "w-full rounded-3xl px-5 py-2.5 transition-all duration-200",
           "focus-visible:ring-ring focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2",
           connected
             ? "bg-primary text-primary-foreground hover:bg-primary/90"
-            : "bg-muted text-muted-foreground border border-dashed border-border hover:bg-muted/80",
+            : "bg-muted text-muted-foreground border-border hover:bg-muted/80 border border-dashed",
           className,
         )}
         aria-label="Manage wallets"
@@ -1332,6 +1602,7 @@ git commit -m "feat(picker): open wallet picker from the dual-wallet bar trigger
 ## Task 9: Remove dead family-slot, full build, lint, demo verification
 
 **Files:**
+
 - Delete: `apps/registry/src/components/control-bar/wallet-family-slot.tsx`
 
 - [ ] **Step 1: Confirm `wallet-family-slot.tsx` has no remaining importers**
@@ -1363,11 +1634,12 @@ Expected: build succeeds, no type errors.
 - [ ] **Step 6: Manual demo verification**
 
 Run: `pnpm --filter landing dev` (requires `NEXT_PUBLIC_PARA_API_KEY`). In the browser at `localhost:3000`:
-  - Open the wallet bar → the picker modal shows EVM and Solana sections.
-  - Solana network/cluster defaults to **Mainnet**.
-  - Connect EVM via Para; while connected, the EVM section shows the account with select/disconnect and **does not** re-open the Para modal.
-  - Switch network family to Solana via NetworkSelect → EVM section greys out with a "Switch to EVM" affordance; the EVM account is still listed (not "lost").
-  - Reload the page → the last selected family/chain/Solana network is restored.
+
+- Open the wallet bar → the picker modal shows EVM and Solana sections.
+- Solana network/cluster defaults to **Mainnet**.
+- Connect EVM via Para; while connected, the EVM section shows the account with select/disconnect and **does not** re-open the Para modal.
+- Switch network family to Solana via NetworkSelect → EVM section greys out with a "Switch to EVM" affordance; the EVM account is still listed (not "lost").
+- Reload the page → the last selected family/chain/Solana network is restored.
 
 - [ ] **Step 7: Commit**
 
@@ -1383,5 +1655,7 @@ git commit -m "refactor(picker): remove wallet-family-slot, superseded by picker
 - **Spec coverage:** account registry (Task 1, 5), persistence (Task 2, 3), SOL→EVM display fix + EVM-connect guard + per-account disconnect (Task 5), hybrid picker with family sections + gating + switch-family affordance (Task 6, 7), trigger wiring (Task 8), tests (Task 1-3, 7), build/lint/demo (Task 9). Default-mainnet fix already landed this session.
 - **Type consistency:** `AomiAccount`/`accounts`/`selectAccount`/`disconnect({accountId})` defined in Task 1, defaulted in Task 5 (`context.tsx`), consumed in Task 7/8. `buildAccounts` signature matches its caller in Task 5. `useSafeConnections`/`useSafeSwitchAccount`/`WagmiConfigShape.connectors` defined in Task 4/5 and used in Task 5.
 - **Deviation:** persistence covers selection only (not `activeAccountId`) — see header rationale; delegated to wagmi/solana-adapter storage.
+
 ```
 
+```

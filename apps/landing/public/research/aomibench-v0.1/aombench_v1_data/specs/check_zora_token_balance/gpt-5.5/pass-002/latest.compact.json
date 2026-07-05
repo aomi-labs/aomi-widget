@@ -20,9 +20,7 @@
     "total_turns": 1,
     "total_tool_calls": 1,
     "total_responses": 2,
-    "activated_skills": [
-      "zora"
-    ],
+    "activated_skills": ["zora"],
     "failed_assertions": [
       {
         "label": "tool",
@@ -30,16 +28,9 @@
         "detail": "sequence broke before expected tool 'encode_and_call'; no matching tool arguments for encode_and_call:$.to; no matching tool arguments for encode_and_call:$.function_signature",
         "observed": {
           "kind": "tool_assertion",
-          "expected_tools": [
-            "activate_skills",
-            "encode_and_call"
-          ],
-          "observed_tools": [
-            "activate_skills"
-          ],
-          "missing_tools": [
-            "encode_and_call"
-          ],
+          "expected_tools": ["activate_skills", "encode_and_call"],
+          "observed_tools": ["activate_skills"],
+          "missing_tools": ["encode_and_call"],
           "order": "sequential",
           "turn": null,
           "param_predicates": [
@@ -73,9 +64,7 @@
               "tool": "activate_skills",
               "topic": "activate_skills",
               "arguments": {
-                "skill_ids": [
-                  "zora"
-                ]
+                "skill_ids": ["zora"]
               }
             }
           ]
@@ -132,9 +121,7 @@
         "tool": "activate_skills",
         "topic": "activate_skills",
         "arguments": {
-          "skill_ids": [
-            "zora"
-          ]
+          "skill_ids": ["zora"]
         },
         "result_preview": "{\n  \"activated\": [\n    \"zora\"\n  ],\n  \"rejected\": [],\n  \"applied_scope\": \"current_serve_cycle\"\n}"
       }
@@ -147,12 +134,8 @@
     },
     "skills": {
       "mode": "restricted",
-      "allowed": [
-        "zora"
-      ],
-      "activated_skills": [
-        "zora"
-      ],
+      "allowed": ["zora"],
+      "activated_skills": ["zora"],
       "bundle_path": "../output/eval/model-bench-public-skills-gpt55-opus48-sonnet46-20260530/specs/check_zora_token_balance/gpt-5.5/pass-002/spec-skills/check_zora_token_balance-skills.json",
       "bundle_revision": "fnv1a64:207bf8ad29dce92d"
     },

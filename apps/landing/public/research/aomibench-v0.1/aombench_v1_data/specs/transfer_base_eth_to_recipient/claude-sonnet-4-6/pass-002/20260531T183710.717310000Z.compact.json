@@ -188,9 +188,7 @@
         "tool": "commit_txs",
         "topic": "Send 0.01 ETH from Alice to 0x2000...0002 on Base",
         "arguments": {
-          "tx_ids": [
-            1
-          ],
+          "tx_ids": [1],
           "topic": "Send 0.01 ETH from Alice to 0x2000...0002 on Base"
         },
         "result_preview": "{\n  \"status\": \"pending_approval\",\n  \"tx_ids\": [\n    1\n  ],\n  \"timestamp\": \"2026-05-31T18:37:06.587360+00:00\"\n}"

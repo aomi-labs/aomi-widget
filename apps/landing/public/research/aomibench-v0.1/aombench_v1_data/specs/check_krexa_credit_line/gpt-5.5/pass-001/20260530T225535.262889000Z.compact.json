@@ -20,9 +20,7 @@
     "total_turns": 1,
     "total_tool_calls": 7,
     "total_responses": 11,
-    "activated_skills": [
-      "krexa"
-    ],
+    "activated_skills": ["krexa"],
     "failed_assertions": [],
     "budget_summary": {
       "total": 1,
@@ -137,9 +135,7 @@
         "tool": "activate_skills",
         "topic": "activate_skills",
         "arguments": {
-          "skill_ids": [
-            "krexa"
-          ]
+          "skill_ids": ["krexa"]
         },
         "result_preview": "{\n  \"activated\": [\n    \"krexa\"\n  ],\n  \"rejected\": [],\n  \"applied_scope\": \"current_serve_cycle\"\n}"
       },
@@ -157,9 +153,7 @@
         "tool": "encode_and_call",
         "topic": "Read Alice Krexa MockUSDC balance",
         "arguments": {
-          "arguments": [
-            "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
-          ],
+          "arguments": ["0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"],
           "function_signature": "balanceOf(address)",
           "to": "0x460b023a87f7Dbe0114357Ab45830F1A41e9C103",
           "topic": "Read Alice Krexa MockUSDC balance",
@@ -172,9 +166,7 @@
         "tool": "encode_and_call",
         "topic": "Read Alice active Krexa credit line status",
         "arguments": {
-          "arguments": [
-            "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
-          ],
+          "arguments": ["0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"],
           "function_signature": "hasActiveCreditLine(address)",
           "to": "0xd0CB44B07e922d3bc276061bCB9eF41e103Cc872",
           "topic": "Read Alice active Krexa credit line status",
@@ -187,9 +179,7 @@
         "tool": "encode_and_call",
         "topic": "Read Alice Krexa credit validity",
         "arguments": {
-          "arguments": [
-            "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
-          ],
+          "arguments": ["0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"],
           "function_signature": "isCreditValid(address)",
           "to": "0xd0CB44B07e922d3bc276061bCB9eF41e103Cc872",
           "topic": "Read Alice Krexa credit validity",
@@ -202,9 +192,7 @@
         "tool": "encode_and_call",
         "topic": "Read Alice Krexa credit level",
         "arguments": {
-          "arguments": [
-            "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
-          ],
+          "arguments": ["0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"],
           "function_signature": "getCreditLevel(address)",
           "to": "0xd0CB44B07e922d3bc276061bCB9eF41e103Cc872",
           "topic": "Read Alice Krexa credit level",
@@ -217,9 +205,7 @@
         "tool": "encode_and_call",
         "topic": "Read Alice Krexa KYA tier",
         "arguments": {
-          "arguments": [
-            "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
-          ],
+          "arguments": ["0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"],
           "function_signature": "getKyaTier(address)",
           "to": "0xd0CB44B07e922d3bc276061bCB9eF41e103Cc872",
           "topic": "Read Alice Krexa KYA tier",
@@ -236,12 +222,8 @@
     },
     "skills": {
       "mode": "restricted",
-      "allowed": [
-        "krexa"
-      ],
-      "activated_skills": [
-        "krexa"
-      ],
+      "allowed": ["krexa"],
+      "activated_skills": ["krexa"],
       "bundle_path": "../output/eval/model-bench-public-skills-gpt55-opus48-sonnet46-20260530/specs/check_krexa_credit_line/gpt-5.5/pass-001/spec-skills/check_krexa_credit_line-skills.json",
       "bundle_revision": "fnv1a64:d92ab920ef77d5a2"
     },

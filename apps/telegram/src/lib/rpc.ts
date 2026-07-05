@@ -1,12 +1,12 @@
-import type { Chain } from 'viem';
-import { http } from 'wagmi';
+import type { Chain } from "viem";
+import { http } from "wagmi";
 
 const ALCHEMY_NETWORK_BY_CHAIN_ID: Record<number, string> = {
-  1: 'eth-mainnet',
-  137: 'polygon-mainnet',
-  42161: 'arb-mainnet',
-  10: 'opt-mainnet',
-  8453: 'base-mainnet',
+  1: "eth-mainnet",
+  137: "polygon-mainnet",
+  42161: "arb-mainnet",
+  10: "opt-mainnet",
+  8453: "base-mainnet",
 };
 
 function getAlchemyRpcUrl(chainId: number): string | undefined {

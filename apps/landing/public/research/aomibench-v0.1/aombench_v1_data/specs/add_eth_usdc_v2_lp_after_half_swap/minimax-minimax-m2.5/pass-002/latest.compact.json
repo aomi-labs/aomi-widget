@@ -37,9 +37,7 @@
     "total_turns": 1,
     "total_tool_calls": 13,
     "total_responses": 26,
-    "activated_skills": [
-      "uniswap"
-    ],
+    "activated_skills": ["uniswap"],
     "failed_assertions": [
       {
         "label": "tool",
@@ -306,10 +304,7 @@
         "tool": "activate_skills",
         "topic": "activate_skills",
         "arguments": {
-          "skill_ids": [
-            "uniswap",
-            "common_erc20"
-          ]
+          "skill_ids": ["uniswap", "common_erc20"]
         },
         "result_preview": "{\n  \"activated\": [\n    \"uniswap\"\n  ],\n  \"rejected\": [\n    [\n      \"common_erc20\",\n      \"invalid\"\n    ]\n  ],\n  \"applied_scope\": \"current_serve_cycle\"\n}"
       },
@@ -519,9 +514,7 @@
         "tool": "commit_txs",
         "topic": "Commit ETH to USDC swap",
         "arguments": {
-          "tx_ids": [
-            1
-          ],
+          "tx_ids": [1],
           "topic": "Commit ETH to USDC swap"
         },
         "result_preview": "{\n  \"status\": \"pending_approval\",\n  \"tx_ids\": [\n    1\n  ],\n  \"timestamp\": \"2026-05-31T21:44:03.472598+00:00\"\n}"
@@ -535,12 +528,8 @@
     },
     "skills": {
       "mode": "restricted",
-      "allowed": [
-        "uniswap"
-      ],
-      "activated_skills": [
-        "uniswap"
-      ],
+      "allowed": ["uniswap"],
+      "activated_skills": ["uniswap"],
       "bundle_path": "../output/eval/model-bench-public-skills-expansion-20260531/specs/add_eth_usdc_v2_lp_after_half_swap/minimax-m2.5/pass-002/spec-skills/add_eth_usdc_v2_lp_after_half_swap-skills.json",
       "bundle_revision": "fnv1a64:b60b7265d48b4779"
     },

@@ -313,13 +313,13 @@ networks:
 
 ## Error Handling
 
-| Error | Cause | Resolution |
-| ----- | ----- | ---------- |
-| `ForkNotInitialized` | `init_fork_provider` not called | Initialize before use |
-| `SimulationReverted` | Transaction would fail on-chain | Check calldata and state |
-| `InsufficientFunds` | Not enough ETH/tokens | Fund the account |
-| `GasEstimationFailed` | Complex transaction | Provide manual gas limit |
-| `RpcError` | Network issues | Retry or switch RPC |
+| Error                 | Cause                           | Resolution               |
+| --------------------- | ------------------------------- | ------------------------ |
+| `ForkNotInitialized`  | `init_fork_provider` not called | Initialize before use    |
+| `SimulationReverted`  | Transaction would fail on-chain | Check calldata and state |
+| `InsufficientFunds`   | Not enough ETH/tokens           | Fund the account         |
+| `GasEstimationFailed` | Complex transaction             | Provide manual gas limit |
+| `RpcError`            | Network issues                  | Retry or switch RPC      |
 
 ## Security Best Practices
 
@@ -333,14 +333,14 @@ flowchart LR
     APPROVE -->|No| CANCEL[Cancel]
 ```
 
-| Practice | Description |
-| -------- | ----------- |
-| **Always simulate** | Never skip the simulation step |
-| **Show state changes** | Display balance deltas clearly |
-| **Require confirmation** | Never auto-execute transactions |
-| **Validate addresses** | Check checksums and formats |
-| **Warn on high value** | Alert for large transfers |
-| **Check approvals** | Verify token approvals before swaps |
+| Practice                 | Description                         |
+| ------------------------ | ----------------------------------- |
+| **Always simulate**      | Never skip the simulation step      |
+| **Show state changes**   | Display balance deltas clearly      |
+| **Require confirmation** | Never auto-execute transactions     |
+| **Validate addresses**   | Check checksums and formats         |
+| **Warn on high value**   | Alert for large transfers           |
+| **Check approvals**      | Verify token approvals before swaps |
 
 ## Further Reading
 

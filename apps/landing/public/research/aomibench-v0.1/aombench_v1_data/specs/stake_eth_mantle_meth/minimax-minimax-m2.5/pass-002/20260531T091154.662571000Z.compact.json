@@ -20,9 +20,7 @@
     "total_turns": 1,
     "total_tool_calls": 10,
     "total_responses": 19,
-    "activated_skills": [
-      "mantle_staked_eth"
-    ],
+    "activated_skills": ["mantle_staked_eth"],
     "failed_assertions": [],
     "budget_summary": {
       "total": 1,
@@ -193,9 +191,7 @@
         "tool": "activate_skills",
         "topic": "activate_skills",
         "arguments": {
-          "skill_ids": [
-            "mantle_staked_eth"
-          ]
+          "skill_ids": ["mantle_staked_eth"]
         },
         "result_preview": "{\n  \"activated\": [\n    \"mantle_staked_eth\"\n  ],\n  \"rejected\": [],\n  \"applied_scope\": \"current_serve_cycle\"\n}"
       },
@@ -205,9 +201,7 @@
         "topic": "Check ETH to mETH conversion for 0.1 ETH",
         "arguments": {
           "function_signature": "ethToMETH(uint256)\"",
-          "arguments": [
-            "100000000000000000"
-          ],
+          "arguments": ["100000000000000000"],
           "to": "0xd5F7838F5C461fefF7FE49ea5ebaF7728bB0ADfa",
           "value": "0",
           "topic": "Check ETH to mETH conversion for 0.1 ETH"
@@ -284,9 +278,7 @@
         "arguments": {
           "function_signature": "ethToMETH(uint256)\"",
           "topic": "Check ETH to mETH conversion for 0.1 ETH",
-          "arguments": [
-            "100000000000000000"
-          ],
+          "arguments": ["100000000000000000"],
           "to": "0xe3cBd06D7dadB3F4e6557bAb7EdD924CD1489E8f",
           "value": "0"
         },
@@ -298,9 +290,7 @@
         "topic": "Stake 0.1 ETH for mETH",
         "arguments": {
           "data": {
-            "args": [
-              "91017238632382468"
-            ],
+            "args": ["91017238632382468"],
             "raw": "",
             "signature": "stake(uint256)"
           },
@@ -336,9 +326,7 @@
         "tool": "commit_txs",
         "topic": "Commit stake transaction",
         "arguments": {
-          "tx_ids": [
-            1
-          ],
+          "tx_ids": [1],
           "topic": "Commit stake transaction"
         },
         "result_preview": "{\n  \"status\": \"pending_approval\",\n  \"tx_ids\": [\n    1\n  ],\n  \"timestamp\": \"2026-05-31T09:11:45.283481+00:00\"\n}"
@@ -352,12 +340,8 @@
     },
     "skills": {
       "mode": "restricted",
-      "allowed": [
-        "mantle_staked_eth"
-      ],
-      "activated_skills": [
-        "mantle_staked_eth"
-      ],
+      "allowed": ["mantle_staked_eth"],
+      "activated_skills": ["mantle_staked_eth"],
       "bundle_path": "../output/eval/model-bench-public-skills-minimax-m25-kiro-20260531/specs/stake_eth_mantle_meth/minimax-m2.5/pass-002/spec-skills/stake_eth_mantle_meth-skills.json",
       "bundle_revision": "fnv1a64:0c85696036b5a461"
     },

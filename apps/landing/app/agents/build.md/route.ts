@@ -138,7 +138,9 @@ export async function GET() {
       // Drop the file's own H1 — we provide section headings instead.
       .replace(/^#\s.+\n+/, "");
     parts.push(`${heading}\n\n`);
-    parts.push(`<!-- source: github.com/aomi-labs/skills:aomi-build/${rel} -->\n\n`);
+    parts.push(
+      `<!-- source: github.com/aomi-labs/skills:aomi-build/${rel} -->\n\n`,
+    );
     parts.push(stripped);
     parts.push("\n");
   }
@@ -148,7 +150,8 @@ export async function GET() {
   return new Response(parts.join(""), {
     headers: {
       "content-type": "text/markdown; charset=utf-8",
-      "cache-control": "public, max-age=0, s-maxage=3600, stale-while-revalidate=86400",
+      "cache-control":
+        "public, max-age=0, s-maxage=3600, stale-while-revalidate=86400",
     },
   });
 }

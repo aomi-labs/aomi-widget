@@ -6,7 +6,8 @@ import { PlaygroundConfigurator } from "@/content/components/playground/Playgrou
 
 export const metadata = {
   title: "Playground — Aomi",
-  description: "Interactively configure the AomiFrame widget and copy the generated code.",
+  description:
+    "Interactively configure the AomiFrame widget and copy the generated code.",
   robots: { index: false },
 };
 

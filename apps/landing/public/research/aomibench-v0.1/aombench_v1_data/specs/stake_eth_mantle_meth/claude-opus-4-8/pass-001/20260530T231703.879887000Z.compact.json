@@ -20,9 +20,7 @@
     "total_turns": 1,
     "total_tool_calls": 9,
     "total_responses": 13,
-    "activated_skills": [
-      "mantle_staked_eth"
-    ],
+    "activated_skills": ["mantle_staked_eth"],
     "failed_assertions": [],
     "budget_summary": {
       "total": 1,
@@ -151,9 +149,7 @@
         "tool": "activate_skills",
         "topic": "activate_skills",
         "arguments": {
-          "skill_ids": [
-            "mantle_staked_eth"
-          ]
+          "skill_ids": ["mantle_staked_eth"]
         },
         "result_preview": "{\n  \"activated\": [\n    \"mantle_staked_eth\"\n  ],\n  \"rejected\": [],\n  \"applied_scope\": \"current_serve_cycle\"\n}"
       },
@@ -199,9 +195,7 @@
         "topic": "Compute expected mETH for 0.1 ETH",
         "arguments": {
           "function_signature": "ethToMETH(uint256)",
-          "arguments": [
-            "100000000000000000"
-          ],
+          "arguments": ["100000000000000000"],
           "to": "0xe3cBd06D7dadB3F4e6557bAb7EdD924CD1489E8f",
           "value": "0",
           "topic": "Compute expected mETH for 0.1 ETH"
@@ -213,9 +207,7 @@
         "tool": "encode_and_call",
         "topic": "Simulate Mantle stake of 0.1 ETH with 0.5% slippage",
         "arguments": {
-          "arguments": [
-            "91018773757160042"
-          ],
+          "arguments": ["91018773757160042"],
           "function_signature": "stake(uint256)",
           "to": "0xe3cBd06D7dadB3F4e6557bAb7EdD924CD1489E8f",
           "topic": "Simulate Mantle stake of 0.1 ETH with 0.5% slippage",
@@ -232,9 +224,7 @@
           "description": "Stake 0.1 ETH into Mantle mETH; minMETHAmount 0.091018 mETH (0.5% slippage)",
           "data": {
             "signature": "stake(uint256)",
-            "args": [
-              "91018773757160042"
-            ],
+            "args": ["91018773757160042"],
             "raw": ""
           },
           "value": "100000000000000000",
@@ -267,9 +257,7 @@
         "tool": "commit_txs",
         "topic": "Commit Mantle stake of 0.1 ETH",
         "arguments": {
-          "tx_ids": [
-            1
-          ],
+          "tx_ids": [1],
           "topic": "Commit Mantle stake of 0.1 ETH"
         },
         "result_preview": "{\n  \"status\": \"pending_approval\",\n  \"tx_ids\": [\n    1\n  ],\n  \"timestamp\": \"2026-05-30T23:16:56.628094+00:00\"\n}"
@@ -283,12 +271,8 @@
     },
     "skills": {
       "mode": "restricted",
-      "allowed": [
-        "mantle_staked_eth"
-      ],
-      "activated_skills": [
-        "mantle_staked_eth"
-      ],
+      "allowed": ["mantle_staked_eth"],
+      "activated_skills": ["mantle_staked_eth"],
       "bundle_path": "../output/eval/model-bench-public-skills-gpt55-opus48-sonnet46-20260530/specs/stake_eth_mantle_meth/claude-opus-4.8/pass-001/spec-skills/stake_eth_mantle_meth-skills.json",
       "bundle_revision": "fnv1a64:0c85696036b5a461"
     },

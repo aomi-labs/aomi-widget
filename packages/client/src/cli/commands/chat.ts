@@ -46,7 +46,9 @@ function extractMentionedTxIds(content: string | undefined): string[] {
  * Derive the Solana public key from a keypair secret string if provided.
  * Returns undefined on any parse failure (non-fatal — just omits svm.address).
  */
-function deriveSvmAddress(solanaPrivateKey: string | undefined): string | undefined {
+function deriveSvmAddress(
+  solanaPrivateKey: string | undefined,
+): string | undefined {
   if (!solanaPrivateKey) return undefined;
   try {
     return parseSolanaKeypairSecret(solanaPrivateKey).publicKey.toBase58();
@@ -92,7 +94,13 @@ export async function syncWalletStateForChat(
   session: {
     resolveUserState: (userState: ReturnType<typeof buildCliUserState>) => void;
     syncUserState: () => Promise<unknown>;
-    client: { sendSystemMessage: (sessionId: string, message: string, options?: { app?: string }) => Promise<unknown> };
+    client: {
+      sendSystemMessage: (
+        sessionId: string,
+        message: string,
+        options?: { app?: string },
+      ) => Promise<unknown>;
+    };
   },
 ): Promise<void> {
   if (
@@ -107,7 +115,6 @@ export async function syncWalletStateForChat(
   // ({ address, isConnected, chainId }) is NOT parsed by the backend and
   // would silently overwrite the correctly-set user state with an empty one.
   const userState = buildCliUserState(next.publicKey, next.chainId, {
-    app: config.app,
     aaMode: next.aaMode ?? null,
     smartAccount: next.smartAccount ?? null,
     svmAddress: next.svmAddress,
@@ -150,7 +157,7 @@ export async function chatCommand(
   const session = cli.createClientSession(config);
 
   // Resolve Solana address after session is created/loaded so we pick up the
-  // key persisted by `wallet set --solana` even for `--new-session` flows
+  // key persisted by `wallet dev-key --solana` even for `--new-session` flows
   // (the key is seeded from the previous session into the new one in create()).
   const resolvedSolanaKey = cli.resolvedSvmPrivateKey(config.solanaPrivateKey);
   const svmAddress = deriveSvmAddress(resolvedSolanaKey) ?? cli.svmPublicKey;

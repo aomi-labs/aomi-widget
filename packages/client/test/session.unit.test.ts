@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { AomiClient, Session } from "../src/index";
 import type { AomiChatResponse, AomiStateResponse } from "../src/index";
-import { CLIENT_TYPE_WEB_UI, UserState } from "../src/index";
+import { CLIENT_TYPE_WEB_UI } from "../src/index";
 
 function createSerializedSolanaTransactionBase64(): string {
   return "AQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAQACBze9yJWsbqTbnUiruXeZbHqIy/BaQd1UCCVe1GfudGivVNbgjaz4czD0q91ZPUZxlTq9s13835CVa+PSjizkq2teI0IZn3VSjcqRRQskF9qFq2Zlfqj34I+nqiTQs0EuSpL6J7MXfuoBbVCR6gPpz3qT8eX0mPdmeEXgt601lv7ksoYaZa0ZuOykPPWQK9mdR+XAjqOctjCYRJlGapf0M3oDBkZv5SEXMv/srbpyw5vnvIzlu8X3EmssQ5s6QAAAAAY00hfx5PhTIw4frM/vninJ79+8fqRa5+HbpLoNaiTIV0cb8EE8yckcu5VkPvGUqBH8hy7DIb7MVsx7B4DI+OICBQAFAq9WAgAGFAANCQgKBxIUAwIODwsRDBATARUEKR7xY9ze2hIzAC0xAQAAAABSOBkAAAAAAAAAAAAAAAAAAAAAAAAAAAABAvwDnAmOrTN/ziyz/kclDi1tJPgEebksJycmNOV7yVu/AAcABQYBAhkDF3JHWXSsa3h2cA0oler3oXpCTBtn+vmrgbTwn1QUBrwEBAIBAwQIBgkF";
@@ -89,10 +89,8 @@ describe("ClientSession ext helpers", () => {
     const session = new Session(client, {
       sessionId: "session-unit-2",
       userState: {
-        address: "0xabc",
-        chainId: 1,
-        isConnected: true,
-        ensName: "wallet.eth",
+        connection: { is_connected: true },
+        evm: [{ address: "0xabc", chain_id: 1, ens_name: "wallet.eth" }],
       },
     });
 
@@ -102,11 +100,13 @@ describe("ClientSession ext helpers", () => {
 
     expect(sendMessage.mock.calls[0][2]?.userState).toEqual({
       connection: { is_connected: true },
-      evm: {
-        address: "0xabc",
-        chain_id: 1,
-        ens_name: "wallet.eth",
-      },
+      evm: [
+        {
+          address: "0xabc",
+          chain_id: 1,
+          ens_name: "wallet.eth",
+        },
+      ],
       ext: {
         SIMMER_API_KEY: "sk_live_2",
         PARA_API_KEY: "para_live_2",
@@ -120,7 +120,10 @@ describe("ClientSession ext helpers", () => {
     const { client, sendMessage } = createMockClient();
     const session = new Session(client, {
       sessionId: "session-unit-3",
-      userState: { address: "0xdef", isConnected: true },
+      userState: {
+        connection: { is_connected: true },
+        evm: [{ address: "0xdef" }],
+      },
     });
 
     session.addExtValue("SIMMER_API_KEY", "sk_live_3");
@@ -129,9 +132,11 @@ describe("ClientSession ext helpers", () => {
     await session.sendAsync("first");
 
     expect(sendMessage.mock.calls[0][2]?.userState).toEqual({
-      evm: {
-        address: "0xdef",
-      },
+      evm: [
+        {
+          address: "0xdef",
+        },
+      ],
       ext: { SIMMER_API_KEY: "sk_live_3" },
     });
 
@@ -139,9 +144,11 @@ describe("ClientSession ext helpers", () => {
     await session.sendAsync("second");
 
     expect(sendMessage.mock.calls[1][2]?.userState).toMatchObject({
-      evm: {
-        address: "0xdef",
-      },
+      evm: [
+        {
+          address: "0xdef",
+        },
+      ],
     });
     expect(sendMessage.mock.calls[1][2]?.userState?.ext).toBeUndefined();
 
@@ -171,15 +178,20 @@ describe("ClientSession ext helpers", () => {
     const session = new Session(client, {
       sessionId: "session-unit-4b",
       clientType: CLIENT_TYPE_WEB_UI,
-      userState: { address: "0x123", isConnected: true },
+      userState: {
+        connection: { is_connected: true },
+        evm: [{ address: "0x123" }],
+      },
     });
 
     await session.sendAsync("hello from web");
 
     expect(sendMessage.mock.calls[0][2]?.userState).toMatchObject({
-      evm: {
-        address: "0x123",
-      },
+      evm: [
+        {
+          address: "0x123",
+        },
+      ],
       ext: { client_type: CLIENT_TYPE_WEB_UI },
     });
 
@@ -217,14 +229,83 @@ describe("ClientSession ext helpers", () => {
     session.close();
   });
 
+  it("does not warn when byreal backend swaps local svm wallet for app-scoped privy wallet", async () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const { client, sendMessage } = createMockClient();
+    const session = new Session(client, {
+      sessionId: "session-unit-byreal-privy",
+      app: "byreal",
+      userState: {
+        connection: { is_connected: true, primary_family: "svm" },
+        svm: {
+          address: "4kbGbZtfkfkRVGunkbKX4M7dGPm9MghJZodjbnRZbmug",
+          cluster: "solana:mainnet",
+        },
+        ext: { client_type: "ts_cli" },
+      },
+    });
+
+    sendMessage.mockResolvedValueOnce({
+      is_processing: false,
+      messages: [],
+      user_state: {
+        connection: { is_connected: true, primary_family: "svm" },
+        svm: {
+          address: "B3M1JwTUNYUHhmKAKgxdzupqJwz5RsgGWUypVu2ebpQG",
+          cluster: "solana:mainnet",
+        },
+        ext: { client_type: "ts_cli" },
+      },
+    } satisfies AomiChatResponse);
+
+    await session.sendAsync("schedule swap");
+
+    expect(warnSpy).not.toHaveBeenCalled();
+    session.close();
+  });
+
+  it("still warns on byreal when mismatch is not limited to the svm address override", async () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const { client, sendMessage } = createMockClient();
+    const session = new Session(client, {
+      sessionId: "session-unit-byreal-mismatch",
+      app: "byreal",
+      userState: {
+        connection: { is_connected: true, primary_family: "svm" },
+        svm: {
+          address: "4kbGbZtfkfkRVGunkbKX4M7dGPm9MghJZodjbnRZbmug",
+          cluster: "solana:mainnet",
+        },
+        ext: { client_type: "ts_cli" },
+      },
+    });
+
+    sendMessage.mockResolvedValueOnce({
+      is_processing: false,
+      messages: [],
+      user_state: {
+        connection: { is_connected: false, primary_family: "svm" },
+        svm: {
+          address: "B3M1JwTUNYUHhmKAKgxdzupqJwz5RsgGWUypVu2ebpQG",
+          cluster: "solana:mainnet",
+        },
+        ext: { client_type: "ts_cli" },
+      },
+    } satisfies AomiChatResponse);
+
+    await session.sendAsync("schedule swap");
+
+    expect(warnSpy).toHaveBeenCalledTimes(1);
+    session.close();
+  });
+
   it("preserves chain_id across partial backend user_state snapshots", async () => {
     const { client, fetchState, sendMessage } = createMockClient();
     const session = new Session(client, {
       sessionId: "session-unit-5b",
       userState: {
-        address: "0xabc",
-        chain_id: 8453,
-        is_connected: true,
+        connection: { is_connected: true },
+        evm: [{ address: "0xabc", chain_id: 8453 }],
       },
     });
 
@@ -232,9 +313,9 @@ describe("ClientSession ext helpers", () => {
       is_processing: false,
       messages: [],
       user_state: {
-        address: "0xabc",
-        is_connected: true,
-        pending_txs: {},
+        connection: { is_connected: true },
+        evm: [{ address: "0xabc" }],
+        pending: { evm_txs: {} },
       },
     } satisfies AomiStateResponse);
 
@@ -243,10 +324,12 @@ describe("ClientSession ext helpers", () => {
 
     expect(sendMessage.mock.calls[0][2]?.userState).toMatchObject({
       connection: { is_connected: true },
-      evm: {
-        address: "0xabc",
-        chain_id: 8453,
-      },
+      evm: [
+        {
+          address: "0xabc",
+          chain_id: 8453,
+        },
+      ],
     });
 
     session.close();
@@ -257,11 +340,14 @@ describe("ClientSession ext helpers", () => {
     const session = new Session(client, {
       sessionId: "session-unit-5c",
       userState: {
-        address: "0xabc",
-        chain_id: 8453,
-        is_connected: true,
-        aa_mode: "4337",
-        smart_account: "0xsmart",
+        connection: { is_connected: true },
+        evm: [
+          {
+            address: "0xabc",
+            chain_id: 8453,
+            aa: { mode: "4337", smart_account: "0xsmart" },
+          },
+        ],
       },
     });
 
@@ -269,9 +355,9 @@ describe("ClientSession ext helpers", () => {
       is_processing: false,
       messages: [],
       user_state: {
-        address: "0xabc",
-        is_connected: true,
-        pending_txs: {},
+        connection: { is_connected: true },
+        evm: [{ address: "0xabc" }],
+        pending: { evm_txs: {} },
       },
     } satisfies AomiStateResponse);
 
@@ -280,38 +366,19 @@ describe("ClientSession ext helpers", () => {
 
     expect(sendMessage.mock.calls[0][2]?.userState).toMatchObject({
       connection: { is_connected: true },
-      evm: {
-        address: "0xabc",
-        chain_id: 8453,
-        aa: {
-          mode: "4337",
-          smart_account: "0xsmart",
+      evm: [
+        {
+          address: "0xabc",
+          chain_id: 8453,
+          aa: {
+            mode: "4337",
+            smart_account: "0xsmart",
+          },
         },
-      },
+      ],
     });
 
     session.close();
-  });
-
-  it("normalizes camelCase AA user_state aliases", () => {
-    expect(UserState.normalize({
-      address: "0xabc",
-      aaMode: "4337",
-      smartAccount: "0xsmart",
-      walletKind: "smart-account",
-      walletProvider: "baseAccount",
-      authMethod: "google",
-      sponsorProvider: "coinbase",
-      sponsorAccount: "gp_test",
-    })).toMatchObject({
-      evm: {
-        address: "0xabc",
-        aa: {
-          mode: "4337",
-          smart_account: "0xsmart",
-        },
-      },
-    });
   });
 
   it("warns when backend user_state ext mismatches expected subset", async () => {
@@ -455,25 +522,26 @@ describe("ClientSession ext helpers", () => {
       is_processing: false,
       messages: [],
       user_state: {
-        address: "0x9C7a99480c59955a635123EDa064456393e519f5",
-        chain_id: 8453,
-        is_connected: true,
-        pending_txs: {
-          1: {
-            to: "0x742d35Cc6634C0532925a3b844Bc9e7595f33749",
-            value: "0",
-            data: "0x",
-            chain_id: 8453,
+        connection: { is_connected: true },
+        evm: [{ address: "0x9C7a99480c59955a635123EDa064456393e519f5", chain_id: 8453 }],
+        pending: {
+          evm_txs: {
+            1: {
+              to: "0x742d35Cc6634C0532925a3b844Bc9e7595f33749",
+              value: "0",
+              data: "0x",
+              chain_id: 8453,
+            },
           },
-        },
-        pending_eip712s: {
-          7: {
-            description: "Permit2 signature",
-            typed_data: {
-              domain: { chainId: 8453, name: "Permit2" },
-              types: { Permit: [{ name: "owner", type: "address" }] },
-              primaryType: "Permit",
-              message: { owner: "0x123" },
+          evm_sigs: {
+            7: {
+              description: "Permit2 signature",
+              typed_data: {
+                domain: { chainId: 8453, name: "Permit2" },
+                types: { Permit: [{ name: "owner", type: "address" }] },
+                primaryType: "Permit",
+                message: { owner: "0x123" },
+              },
             },
           },
         },
@@ -514,12 +582,14 @@ describe("ClientSession ext helpers", () => {
       is_processing: false,
       messages: [],
       user_state: {
-        pending_txs: {
-          15: {
-            to: "0x742d35Cc6634C0532925a3b844Bc9e7595f33749",
-            value: "42",
-            data: "0x",
-            chain_id: 8453,
+        pending: {
+          evm_txs: {
+            15: {
+              to: "0x742d35Cc6634C0532925a3b844Bc9e7595f33749",
+              value: "42",
+              data: "0x",
+              chain_id: 8453,
+            },
           },
         },
       },
@@ -576,12 +646,14 @@ describe("ClientSession ext helpers", () => {
       is_processing: false,
       messages: [],
       user_state: {
-        pending_txs: {
-          15: {
-            to: "0x742d35Cc6634C0532925a3b844Bc9e7595f33749",
-            value: "42",
-            data: "0x",
-            chain_id: 8453,
+        pending: {
+          evm_txs: {
+            15: {
+              to: "0x742d35Cc6634C0532925a3b844Bc9e7595f33749",
+              value: "42",
+              data: "0x",
+              chain_id: 8453,
+            },
           },
         },
       },
@@ -624,18 +696,20 @@ describe("ClientSession ext helpers", () => {
       is_processing: false,
       messages: [],
       user_state: {
-        pending_txs: {
-          1: {
-            to: "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
-            value: "0",
-            data: "0x095ea7b3",
-            chain_id: 1,
-          },
-          2: {
-            to: "0xbEbc44782C7dB0a1A60Cb6fe97d0b483032FF1C7",
-            value: "0",
-            data: "0x3df02124",
-            chain_id: 1,
+        pending: {
+          evm_txs: {
+            1: {
+              to: "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+              value: "0",
+              data: "0x095ea7b3",
+              chain_id: 1,
+            },
+            2: {
+              to: "0xbEbc44782C7dB0a1A60Cb6fe97d0b483032FF1C7",
+              value: "0",
+              data: "0x3df02124",
+              chain_id: 1,
+            },
           },
         },
       },
@@ -674,20 +748,22 @@ describe("ClientSession ext helpers", () => {
       is_processing: false,
       messages: [],
       user_state: {
-        pending_txs: {
-          1: {
-            to: "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
-            value: "0",
-            data: "0x095ea7b3",
-            chain_id: 1,
-            batch_status: "Batch [1,2] passed",
-          },
-          2: {
-            to: "0xbEbc44782C7dB0a1A60Cb6fe97d0b483032FF1C7",
-            value: "0",
-            data: "0x3df02124",
-            chain_id: 1,
-            batch_status: "Batch [1,2] passed",
+        pending: {
+          evm_txs: {
+            1: {
+              to: "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+              value: "0",
+              data: "0x095ea7b3",
+              chain_id: 1,
+              batch_status: "Batch [1,2] passed",
+            },
+            2: {
+              to: "0xbEbc44782C7dB0a1A60Cb6fe97d0b483032FF1C7",
+              value: "0",
+              data: "0x3df02124",
+              chain_id: 1,
+              batch_status: "Batch [1,2] passed",
+            },
           },
         },
       },
@@ -722,12 +798,14 @@ describe("ClientSession ext helpers", () => {
       is_processing: false,
       messages: [],
       user_state: {
-        pending_txs: {
-          7: {
-            to: "0x742d35Cc6634C0532925a3b844Bc9e7595f33749",
-            value: "0",
-            data: "0x",
-            chain_id: 8453,
+        pending: {
+          evm_txs: {
+            7: {
+              to: "0x742d35Cc6634C0532925a3b844Bc9e7595f33749",
+              value: "0",
+              data: "0x",
+              chain_id: 8453,
+            },
           },
         },
       },
@@ -757,11 +835,13 @@ describe("ClientSession ext helpers", () => {
     });
 
     expect(session.getUserState()).toMatchObject({
-      evm: {
-        aa: {
-          mode: "7702",
+      evm: [
+        {
+          aa: {
+            mode: "7702",
+          },
         },
-      },
+      ],
       pending: {
         evm_txs: {
           7: expect.objectContaining({
@@ -968,20 +1048,22 @@ describe("ClientSession ext helpers", () => {
     sendMessage.mockResolvedValueOnce({
       is_processing: false,
       messages: [],
-      system_events: [{
-        InlineCall: {
-          type: "wallet::solana_sign_request",
-          payload: {
-            chain_kind: "svm",
-            request_kind: "message_sign",
-            kind: "solana_sign_message",
-            message_base64: "TWVtbw==",
-            description: "sign login proof",
-            cluster: "solana:devnet",
-            pending_solana_id: 17,
+      system_events: [
+        {
+          InlineCall: {
+            type: "wallet::solana_sign_request",
+            payload: {
+              chain_kind: "svm",
+              request_kind: "message_sign",
+              kind: "solana_sign_message",
+              message_base64: "TWVtbw==",
+              description: "sign login proof",
+              cluster: "solana:devnet",
+              pending_solana_id: 17,
+            },
           },
         },
-      }],
+      ],
     } satisfies AomiChatResponse);
 
     const requestPromise = new Promise((resolve) => {
@@ -1020,20 +1102,22 @@ describe("ClientSession ext helpers", () => {
     sendMessage.mockResolvedValueOnce({
       is_processing: false,
       messages: [],
-      system_events: [{
-        InlineCall: {
-          type: "wallet::solana_sign_request",
-          payload: {
-            chain_kind: "svm",
-            request_kind: "sign_transaction",
-            kind: "solana_sign",
-            unsigned_tx: unsignedTx,
-            description: "sign serialized swap tx",
-            cluster: "solana:mainnet",
-            pending_solana_id: 18,
+      system_events: [
+        {
+          InlineCall: {
+            type: "wallet::solana_sign_request",
+            payload: {
+              chain_kind: "svm",
+              request_kind: "sign_transaction",
+              kind: "solana_sign",
+              unsigned_tx: unsignedTx,
+              description: "sign serialized swap tx",
+              cluster: "solana:mainnet",
+              pending_solana_id: 18,
+            },
           },
         },
-      }],
+      ],
     } satisfies AomiChatResponse);
 
     const requestPromise = new Promise((resolve) => {
@@ -1072,20 +1156,22 @@ describe("ClientSession ext helpers", () => {
     sendMessage.mockResolvedValueOnce({
       is_processing: false,
       messages: [],
-      system_events: [{
-        InlineCall: {
-          type: "wallet::solana_sign_request",
-          payload: {
-            chain_kind: "svm",
-            request_kind: "sign_transaction",
-            kind: "solana_sign",
-            unsigned_tx: unsignedTx,
-            description: "sign serialized swap tx",
-            cluster: "solana:mainnet",
-            pendingSvmSigId: 19,
+      system_events: [
+        {
+          InlineCall: {
+            type: "wallet::solana_sign_request",
+            payload: {
+              chain_kind: "svm",
+              request_kind: "sign_transaction",
+              kind: "solana_sign",
+              unsigned_tx: unsignedTx,
+              description: "sign serialized swap tx",
+              cluster: "solana:mainnet",
+              pendingSvmSigId: 19,
+            },
           },
         },
-      }],
+      ],
     } satisfies AomiChatResponse);
 
     const requestPromise = new Promise((resolve) => {
@@ -1190,22 +1276,27 @@ describe("ClientSession ext helpers", () => {
     // and without the resolved-id guard, syncWalletRequests re-adds the request
     // and the preservation block keeps it forever — so `walletRequests.length`
     // stays > 0 even after `is_processing` flips false.
-    const { client, sendMessage, fetchState, sendSystemMessage } = createMockClient();
-    const session = new Session(client, { sessionId: "session-solana-resolve-race" });
+    const { client, sendMessage, fetchState, sendSystemMessage } =
+      createMockClient();
+    const session = new Session(client, {
+      sessionId: "session-solana-resolve-race",
+    });
 
     sendMessage.mockResolvedValueOnce({
       is_processing: true,
       messages: [],
-      system_events: [{
-        InlineCall: {
-          type: "wallet::solana_sign_request",
-          payload: {
-            unsigned_tx: "AQAA",
-            description: "byreal swap",
-            pending_solana_id: 1,
+      system_events: [
+        {
+          InlineCall: {
+            type: "wallet::solana_sign_request",
+            payload: {
+              unsigned_tx: "AQAA",
+              description: "byreal swap",
+              pending_solana_id: 1,
+            },
           },
         },
-      }],
+      ],
     } satisfies AomiChatResponse);
 
     const requestPromise = new Promise<{ id: string }>((resolve) => {
@@ -1270,16 +1361,18 @@ describe("ClientSession ext helpers", () => {
     sendMessage.mockResolvedValueOnce({
       is_processing: true,
       messages: [],
-      system_events: [{
-        InlineCall: {
-          type: "wallet::solana_sign_request",
-          payload: {
-            unsigned_tx: "AQAA",
-            description: "byreal AMM swap",
-            pending_svm_sig_id: 1,
+      system_events: [
+        {
+          InlineCall: {
+            type: "wallet::solana_sign_request",
+            payload: {
+              unsigned_tx: "AQAA",
+              description: "byreal AMM swap",
+              pending_svm_sig_id: 1,
+            },
           },
         },
-      }],
+      ],
     } satisfies AomiChatResponse);
 
     const requestPromise = new Promise<{ id: string }>((resolve) => {
@@ -1336,16 +1429,18 @@ describe("ClientSession ext helpers", () => {
     sendMessage.mockResolvedValueOnce({
       is_processing: true,
       messages: [],
-      system_events: [{
-        InlineCall: {
-          type: "wallet::solana_sign_request",
-          payload: {
-            unsigned_tx: "AQAA",
-            description: "byreal AMM swap",
-            pending_svm_sig_id: 1,
+      system_events: [
+        {
+          InlineCall: {
+            type: "wallet::solana_sign_request",
+            payload: {
+              unsigned_tx: "AQAA",
+              description: "byreal AMM swap",
+              pending_svm_sig_id: 1,
+            },
           },
         },
-      }],
+      ],
     } satisfies AomiChatResponse);
 
     const requestPromise = new Promise<{ id: string }>((resolve) => {
@@ -1368,16 +1463,18 @@ describe("ClientSession ext helpers", () => {
     fetchState.mockResolvedValueOnce({
       is_processing: false,
       messages: [],
-      system_events: [{
-        InlineCall: {
-          type: "wallet::solana_sign_request",
-          payload: {
-            unsigned_tx: "AQAA",
-            description: "byreal AMM swap",
-            pending_svm_sig_id: 1,
+      system_events: [
+        {
+          InlineCall: {
+            type: "wallet::solana_sign_request",
+            payload: {
+              unsigned_tx: "AQAA",
+              description: "byreal AMM swap",
+              pending_svm_sig_id: 1,
+            },
           },
         },
-      }],
+      ],
     } satisfies AomiStateResponse);
     await session.fetchCurrentState();
 
@@ -1490,17 +1587,19 @@ describe("ClientSession ext helpers", () => {
     sendMessage.mockResolvedValueOnce({
       is_processing: false,
       messages: [],
-      system_events: [{
-        InlineCall: {
-          type: "wallet::solana_send_request",
-          payload: {
-            unsigned_tx: "QkFTRTY0U0VORFRY",
-            description: "send 0.01 SOL",
-            cluster: "devnet",
-            pending_solana_id: 11,
+      system_events: [
+        {
+          InlineCall: {
+            type: "wallet::solana_send_request",
+            payload: {
+              unsigned_tx: "QkFTRTY0U0VORFRY",
+              description: "send 0.01 SOL",
+              cluster: "devnet",
+              pending_solana_id: 11,
+            },
           },
         },
-      }],
+      ],
     } satisfies AomiChatResponse);
 
     const requestPromise = new Promise((resolve) => {
@@ -1536,16 +1635,18 @@ describe("ClientSession ext helpers", () => {
     sendMessage.mockResolvedValueOnce({
       is_processing: false,
       messages: [],
-      system_events: [{
-        InlineCall: {
-          type: "wallet::solana_send_request",
-          payload: {
-            unsigned_tx: "AQABAg",
-            description: "swap for BONK",
-            pending_solana_id: 12,
+      system_events: [
+        {
+          InlineCall: {
+            type: "wallet::solana_send_request",
+            payload: {
+              unsigned_tx: "AQABAg",
+              description: "swap for BONK",
+              pending_solana_id: 12,
+            },
           },
         },
-      }],
+      ],
     } satisfies AomiChatResponse);
 
     const requestPromise = new Promise((resolve) => {
@@ -1587,20 +1688,22 @@ describe("ClientSession ext helpers", () => {
     sendMessage.mockResolvedValueOnce({
       is_processing: false,
       messages: [],
-      system_events: [{
-        InlineCall: {
-          type: "wallet_tx_request",
-          payload: {
-            chain_kind: "svm",
-            svm_tx_ids: [14],
-            request_kind: "send_transaction",
-            unsigned_tx: "U0VORE1F",
-            description: "transfer SOL",
-            cluster: "solana:devnet",
-            pending_solana_id: 14,
+      system_events: [
+        {
+          InlineCall: {
+            type: "wallet_tx_request",
+            payload: {
+              chain_kind: "svm",
+              svm_tx_ids: [14],
+              request_kind: "send_transaction",
+              unsigned_tx: "U0VORE1F",
+              description: "transfer SOL",
+              cluster: "solana:devnet",
+              pending_solana_id: 14,
+            },
           },
         },
-      }],
+      ],
     } satisfies AomiChatResponse);
 
     const requestPromise = new Promise((resolve) => {
@@ -1636,17 +1739,19 @@ describe("ClientSession ext helpers", () => {
     sendMessage.mockResolvedValueOnce({
       is_processing: false,
       messages: [],
-      system_events: [{
-        InlineCall: {
-          type: "wallet::solana_sign_message_request",
-          payload: {
-            message_base64: "TWVtbw==",
-            description: "sign login proof",
-            cluster: "solana:devnet",
-            pending_solana_id: 17,
+      system_events: [
+        {
+          InlineCall: {
+            type: "wallet::solana_sign_message_request",
+            payload: {
+              message_base64: "TWVtbw==",
+              description: "sign login proof",
+              cluster: "solana:devnet",
+              pending_solana_id: 17,
+            },
           },
         },
-      }],
+      ],
     } satisfies AomiChatResponse);
 
     const requestPromise = new Promise((resolve) => {
@@ -1684,17 +1789,19 @@ describe("ClientSession ext helpers", () => {
     sendMessage.mockResolvedValueOnce({
       is_processing: false,
       messages: [],
-      system_events: [{
-        InlineCall: {
-          type: "wallet::solana_sign_message_request",
-          payload: {
-            message_base64: "TWVtbw==",
-            description: "sign login proof",
-            cluster: "solana:devnet",
-            pending_solana_id: 17,
+      system_events: [
+        {
+          InlineCall: {
+            type: "wallet::solana_sign_message_request",
+            payload: {
+              message_base64: "TWVtbw==",
+              description: "sign login proof",
+              cluster: "solana:devnet",
+              pending_solana_id: 17,
+            },
           },
         },
-      }],
+      ],
     } satisfies AomiChatResponse);
 
     const requestPromise = new Promise((resolve) => {
@@ -1736,16 +1843,18 @@ describe("ClientSession ext helpers", () => {
     sendMessage.mockResolvedValueOnce({
       is_processing: false,
       messages: [],
-      system_events: [{
-        InlineCall: {
-          type: "wallet::solana_sign_message_request",
-          payload: {
-            message_base64: "TWVtbw==",
-            description: "sign login proof",
-            pending_solana_id: 17,
+      system_events: [
+        {
+          InlineCall: {
+            type: "wallet::solana_sign_message_request",
+            payload: {
+              message_base64: "TWVtbw==",
+              description: "sign login proof",
+              pending_solana_id: 17,
+            },
           },
         },
-      }],
+      ],
     } satisfies AomiChatResponse);
 
     const requestPromise = new Promise((resolve) => {
@@ -1782,16 +1891,18 @@ describe("ClientSession ext helpers", () => {
     sendMessage.mockResolvedValueOnce({
       is_processing: false,
       messages: [],
-      system_events: [{
-        InlineCall: {
-          type: "wallet::solana_sign_message_request",
-          payload: {
-            message_base64: "TWVtbw==",
-            description: "sign login proof",
-            pending_solana_id: 17,
+      system_events: [
+        {
+          InlineCall: {
+            type: "wallet::solana_sign_message_request",
+            payload: {
+              message_base64: "TWVtbw==",
+              description: "sign login proof",
+              pending_solana_id: 17,
+            },
           },
         },
-      }],
+      ],
     } satisfies AomiChatResponse);
 
     const requestPromise = new Promise((resolve) => {
@@ -1830,17 +1941,19 @@ describe("ClientSession ext helpers", () => {
     sendMessage.mockResolvedValueOnce({
       is_processing: false,
       messages: [],
-      system_events: [{
-        InlineCall: {
-          type: "wallet::solana_sign_and_send_request",
-          payload: {
-            unsigned_tx: "Qg==",
-            description: "swap+send",
-            cluster: "solana:mainnet",
-            pending_solana_id: 22,
+      system_events: [
+        {
+          InlineCall: {
+            type: "wallet::solana_sign_and_send_request",
+            payload: {
+              unsigned_tx: "Qg==",
+              description: "swap+send",
+              cluster: "solana:mainnet",
+              pending_solana_id: 22,
+            },
           },
         },
-      }],
+      ],
     } satisfies AomiChatResponse);
 
     const requestPromise = new Promise((resolve) => {
@@ -1878,17 +1991,19 @@ describe("ClientSession ext helpers", () => {
     sendMessage.mockResolvedValueOnce({
       is_processing: false,
       messages: [],
-      system_events: [{
-        InlineCall: {
-          type: "wallet::solana_sign_and_send_request",
-          payload: {
-            unsigned_tx: "Qg==",
-            description: "swap+send",
-            cluster: "solana:mainnet",
-            pending_solana_id: 22,
+      system_events: [
+        {
+          InlineCall: {
+            type: "wallet::solana_sign_and_send_request",
+            payload: {
+              unsigned_tx: "Qg==",
+              description: "swap+send",
+              cluster: "solana:mainnet",
+              pending_solana_id: 22,
+            },
           },
         },
-      }],
+      ],
     } satisfies AomiChatResponse);
 
     const requestPromise = new Promise((resolve) => {
@@ -1932,16 +2047,18 @@ describe("ClientSession ext helpers", () => {
     sendMessage.mockResolvedValueOnce({
       is_processing: false,
       messages: [],
-      system_events: [{
-        InlineCall: {
-          type: "wallet::solana_sign_and_send_request",
-          payload: {
-            unsigned_tx: "Qg==",
-            description: "swap+send",
-            pending_solana_id: 22,
+      system_events: [
+        {
+          InlineCall: {
+            type: "wallet::solana_sign_and_send_request",
+            payload: {
+              unsigned_tx: "Qg==",
+              description: "swap+send",
+              pending_solana_id: 22,
+            },
           },
         },
-      }],
+      ],
     } satisfies AomiChatResponse);
 
     const requestPromise = new Promise((resolve) => {
@@ -1979,16 +2096,18 @@ describe("ClientSession ext helpers", () => {
     sendMessage.mockResolvedValueOnce({
       is_processing: false,
       messages: [],
-      system_events: [{
-        InlineCall: {
-          type: "wallet::solana_sign_and_send_request",
-          payload: {
-            unsigned_tx: "Qg==",
-            description: "swap+send",
-            pending_solana_id: 22,
+      system_events: [
+        {
+          InlineCall: {
+            type: "wallet::solana_sign_and_send_request",
+            payload: {
+              unsigned_tx: "Qg==",
+              description: "swap+send",
+              pending_solana_id: 22,
+            },
           },
         },
-      }],
+      ],
     } satisfies AomiChatResponse);
 
     const requestPromise = new Promise((resolve) => {
@@ -2023,10 +2142,9 @@ describe("ClientSession ext helpers", () => {
     const session = new Session(client, {
       sessionId: "session-solana-4",
       userState: {
-        address: "0xabc",
-        chainId: 1,
-        isConnected: true,
-        svmAddress: "So1aBcExampleSigner",
+        connection: { is_connected: true },
+        evm: [{ address: "0xabc", chain_id: 1 }],
+        svm: { address: "So1aBcExampleSigner" },
       },
     });
 
@@ -2034,10 +2152,9 @@ describe("ClientSession ext helpers", () => {
       is_processing: false,
       messages: [],
       user_state: {
-        address: "0xabc",
-        chain_id: 1,
-        is_connected: true,
-        svm_address: "So1aBcExampleSigner",
+        connection: { is_connected: true },
+        evm: [{ address: "0xabc", chain_id: 1 }],
+        svm: { address: "So1aBcExampleSigner" },
         pending: {
           svm_ixs: {
             12: {
@@ -2071,7 +2188,7 @@ describe("ClientSession ext helpers", () => {
     session.close();
   });
 
-  it("rebuilds solana_send requests from nested user_state.pending.solana_txs", async () => {
+  it("rebuilds solana_send requests from nested user_state.pending.svm_ixs", async () => {
     const { client, fetchState } = createMockClient();
     const session = new Session(client, {
       sessionId: "session-solana-send-3",
@@ -2098,7 +2215,7 @@ describe("ClientSession ext helpers", () => {
           cluster: "solana:devnet",
         },
         pending: {
-          solana_txs: {
+          svm_ixs: {
             21: {
               request_kind: "send_transaction",
               description: "bridge back to main wallet",

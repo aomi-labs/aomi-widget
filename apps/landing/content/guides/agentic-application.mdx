@@ -13,7 +13,15 @@ When you interact with Aomi, you are always operating within an App. The active 
 
 The App you're in determines what the assistant can do. An agent running in a DeFi App may have access to swap aggregators, liquidity pools, and live price feeds. The same platform running a different App might query social APIs or prediction markets instead. If the assistant cannot perform an action you expect, verify you are in the correct App using the App selector in the control bar.
 
-<iframe width="100%" style={{aspectRatio: "16/9"}} src="https://www.youtube.com/embed/TSXkgjIfuKk" title="Aomi App Selector" frameBorder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen></iframe>
+<iframe
+  width="100%"
+  style={{ aspectRatio: "16/9" }}
+  src="https://www.youtube.com/embed/TSXkgjIfuKk"
+  title="Aomi App Selector"
+  frameBorder="0"
+  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+  allowFullScreen
+></iframe>
 
 ## For Builders
 
@@ -43,10 +51,10 @@ A `default` App is available in all environments without requiring an API key. I
 
 Apps are protected by API keys scoped to that App. Requests that fail authentication return:
 
-| Status | Meaning |
-|--------|---------|
-| `401 Unauthorized` | No API key provided |
-| `403 Forbidden` | Key does not authorize this App |
+| Status             | Meaning                         |
+| ------------------ | ------------------------------- |
+| `401 Unauthorized` | No API key provided             |
+| `403 Forbidden`    | Key does not authorize this App |
 
 Pass your key via the `X-API-Key` header, or enter it in the API key field of the control bar.
 

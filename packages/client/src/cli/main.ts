@@ -1,21 +1,9 @@
 import { runMain } from "citty";
-import { root } from "./root";
-import { CliExit, DeployCliError } from "./errors";
+import { root, SUBCOMMAND_NAMES } from "./root";
+import { CliExit } from "./errors";
 import packageJson from "../../package.json";
 
-const ROOT_SUBCOMMANDS = new Set([
-  "chat",
-  "tx",
-  "session",
-  "model",
-  "app",
-  "chain",
-  "wallet",
-  "config",
-  "secret",
-  "account",
-  "deploy",
-]);
+const ROOT_SUBCOMMANDS = SUBCOMMAND_NAMES;
 
 function isPnpmExecWrapper(): boolean {
   const npmCommand = process.env.npm_command ?? "";
@@ -23,13 +11,8 @@ function isPnpmExecWrapper(): boolean {
   return npmCommand === "exec" && userAgent.includes("pnpm/");
 }
 
-function shouldPrintRootHelp(rawArgs: string[]): boolean {
-  if (!rawArgs.includes("--help") && !rawArgs.includes("-h")) {
-    return false;
-  }
-
-  const firstToken = rawArgs.find((arg) => !arg.startsWith("-"));
-  return !firstToken || !ROOT_SUBCOMMANDS.has(firstToken);
+function wantsHelp(rawArgs: string[]): boolean {
+  return rawArgs.includes("--help") || rawArgs.includes("-h");
 }
 
 function printRootHelp(): void {
@@ -65,9 +48,9 @@ function printRootHelp(): void {
     "  --account-bearer <token>     Aomi account bearer for authenticated requests",
   );
   console.log(
-    "  --embedded-provider <name>    Deprecated; provider exchange is disabled",
+    "  --account-provider <name>    Deprecated; provider exchange is disabled",
   );
-  console.log("  --embedded-provider-token <t>");
+  console.log("  --account-provider-token <t>");
   console.log(
     "                               Deprecated; use --account-bearer",
   );
@@ -96,19 +79,29 @@ function printRootHelp(): void {
   console.log("");
   console.log("  chat                         Explicit one-shot chat command");
   console.log("  tx                           Transaction management");
-  console.log("  session                      Session management");
+  console.log(
+    "  thread                       Threads — conversations with the agent",
+  );
+  console.log(
+    "  cron                         Cron jobs — timers that spawn threads",
+  );
+  console.log(
+    "  login                        Log in (device flow; --provider privy to connect a wallet)",
+  );
+  console.log(
+    "  logout                       Log out (clear the stored credential)",
+  );
+  console.log(
+    "  account                      The canonical account — user info and linked providers",
+  );
+  console.log(
+    "  wallet                       Wallet keys — signing policy and capability",
+  );
   console.log("  model                        Model management");
   console.log("  app                          App management");
   console.log("  chain                        Chain information");
-  console.log("  wallet                       Wallet configuration");
   console.log("  config                       CLI configuration");
   console.log("  secret                       Secret management");
-  console.log(
-    "  account                      Account identity (login, whoami)",
-  );
-  console.log(
-    "  deploy                       Deploy your app (requires --activation-token)",
-  );
   console.log("");
   console.log("Use aomi <command> --help for command-specific details.");
 }
@@ -118,9 +111,17 @@ export async function runCli(argv: string[] = process.argv): Promise<void> {
   const rawArgs = argv.slice(2);
 
   try {
-    if (shouldPrintRootHelp(rawArgs)) {
-      printRootHelp();
-      return;
+    if (wantsHelp(rawArgs)) {
+      const firstToken = rawArgs.find((arg) => !arg.startsWith("-"));
+      if (!firstToken) {
+        printRootHelp();
+        return;
+      }
+      if (!ROOT_SUBCOMMANDS.has(firstToken)) {
+        // Match citty's unknown-command failure instead of dumping root help.
+        console.error(`Unknown command ${firstToken}`);
+        throw new CliExit(1);
+      }
     }
 
     await runMain(root, { rawArgs });
@@ -134,11 +135,6 @@ export async function runCli(argv: string[] = process.argv): Promise<void> {
     }
     const RED = "\x1b[31m";
     const RESET = "\x1b[0m";
-    if (err instanceof DeployCliError) {
-      console.error(`${RED}❌ [${err.errorCode}] ${err.message}${RESET}`);
-      process.exit(1);
-      return;
-    }
     const message = err instanceof Error ? err.message : String(err);
     console.error(`${RED}❌ ${message}${RESET}`);
     process.exit(1);

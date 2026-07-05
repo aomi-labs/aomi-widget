@@ -20,9 +20,7 @@
     "total_turns": 1,
     "total_tool_calls": 1,
     "total_responses": 3,
-    "activated_skills": [
-      "convex"
-    ],
+    "activated_skills": ["convex"],
     "failed_assertions": [],
     "budget_summary": {
       "total": 1,
@@ -81,11 +79,7 @@
         "tool": "activate_skills",
         "topic": "activate_skills",
         "arguments": {
-          "skill_ids": [
-            "convex",
-            "curve",
-            "common_erc20"
-          ]
+          "skill_ids": ["convex", "curve", "common_erc20"]
         },
         "result_preview": "{\n  \"activated\": [\n    \"convex\"\n  ],\n  \"rejected\": [\n    [\n      \"curve\",\n      \"invalid\"\n    ],\n    [\n      \"common_erc20\",\n      \"invalid\"\n    ]\n  ],\n  \"applied_scope\": \"current_serve_cycle\"\n}"
       }
@@ -98,12 +92,8 @@
     },
     "skills": {
       "mode": "restricted",
-      "allowed": [
-        "convex"
-      ],
-      "activated_skills": [
-        "convex"
-      ],
+      "allowed": ["convex"],
+      "activated_skills": ["convex"],
       "bundle_path": "../output/eval/model-bench-public-skills-opus47-opus46-haiku45-20260531/specs/convex_requires_curve_lp_first/claude-opus-4.7/pass-002/spec-skills/convex_requires_curve_lp_first-skills.json",
       "bundle_revision": "fnv1a64:657afdadfe89a203"
     },

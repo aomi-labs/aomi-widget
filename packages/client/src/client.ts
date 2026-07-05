@@ -29,6 +29,17 @@ import type {
   Logger,
   AomiHttpMethod,
   AomiPlatformFilter,
+  AomiListWalletsResponse,
+  AomiAccountWallet,
+  AomiSigningMode,
+  AomiAuthorizationChallengeRequest,
+  AomiAuthorizationChallengeResponse,
+  AomiAuthorizationCommitRequest,
+  AomiAuthorizationCommitResponse,
+  AomiScheduledThread,
+  AomiListScheduledThreadsResponse,
+  AomiDeleteScheduledThreadResponse,
+  AomiRevokeProviderGrantResponse,
 } from "./types";
 import { UserState, type UserState as UserStateShape } from "./user-state";
 import { createSseSubscriber, type SseSubscriber } from "./sse";
@@ -1193,4 +1204,173 @@ export class AomiClient {
 
     return (await response.json()) as AomiSimulateResponse;
   }
+
+  // ===== GRAFT: permit CLI + wallet-ls + scheduled-thread methods (our tested surface) =====
+  async listWallets(sessionId: string): Promise<AomiListWalletsResponse> {
+    return this.request<AomiListWalletsResponse>(
+      "GET",
+      "/api/account/wallets",
+      {
+        sessionId,
+        raw: true,
+      },
+    );
+  }
+
+  /**
+   * Assemble an unsigned signing-authorization permit for one wallet.
+   * Account-scoped like {@link listWallets}. The returned `typed_data` goes
+   * straight to `signTypedData`; the `permit` is echoed back verbatim to
+   * {@link commitAuthorization}. Throws {@link AomiAuthorizationError} with the
+   * backend code on failure — notably 409 `missing_delegated_grant` when
+   * `autonomous` requires connecting the wallet first, 422 when the mode is
+   * illegal for the wallet's provider.
+   */
+  async challengeAuthorization(
+    sessionId: string,
+    req: AomiAuthorizationChallengeRequest,
+  ): Promise<AomiAuthorizationChallengeResponse> {
+    const url = joinApiPath(
+      this.baseUrl,
+      "/api/account/authorization/challenge",
+    );
+    const response = await this.rawFetchImpl(url, {
+      method: "POST",
+      headers: withSessionHeader(sessionId, {
+        "Content-Type": "application/json",
+      }),
+      body: JSON.stringify(req),
+    });
+
+    if (!response.ok) {
+      throw await authorizationError("challenge authorization", response);
+    }
+    return (await response.json()) as AomiAuthorizationChallengeResponse;
+  }
+
+  /**
+   * Verify a signed permit and apply the wallet's signing mode. A grant must
+   * be signed by the wallet itself; a revoke may be signed by any linked
+   * wallet. Throws {@link AomiAuthorizationError} — notably 409 `stale_permit`
+   * when someone else committed first (re-challenge and retry), 400 for an
+   * expired permit or bad signature, 403 for the wrong signer.
+   */
+  /** DELETE /api/account/providers/:provider/grant — revoke the provider's
+   * active delegated grant + clear its server-held secrets. The credential and
+   * keys stay linked; idempotent ("already_revoked"). */
+  async revokeProviderGrant(
+    sessionId: string,
+    provider: string,
+  ): Promise<AomiRevokeProviderGrantResponse> {
+    const url = joinApiPath(
+      this.baseUrl,
+      `/api/account/providers/${encodeURIComponent(provider)}/grant`,
+    );
+    const response = await this.rawFetchImpl(url, {
+      method: "DELETE",
+      headers: withSessionHeader(sessionId, {}),
+    });
+    if (!response.ok) {
+      throw await authorizationError("revoke provider grant", response);
+    }
+    return (await response.json()) as AomiRevokeProviderGrantResponse;
+  }
+
+  async commitAuthorization(
+    sessionId: string,
+    req: AomiAuthorizationCommitRequest,
+  ): Promise<AomiAuthorizationCommitResponse> {
+    const url = joinApiPath(this.baseUrl, "/api/account/authorization/commit");
+    const response = await this.rawFetchImpl(url, {
+      method: "POST",
+      headers: withSessionHeader(sessionId, {
+        "Content-Type": "application/json",
+      }),
+      body: JSON.stringify(req),
+    });
+
+    if (!response.ok) {
+      throw await authorizationError("commit authorization", response);
+    }
+    return (await response.json()) as AomiAuthorizationCommitResponse;
+  }
+
+  async listScheduledThreads(
+    sessionId: string,
+    options?: { app?: string; limit?: number; offset?: number },
+  ): Promise<AomiListScheduledThreadsResponse> {
+    return this.request<AomiListScheduledThreadsResponse>(
+      "GET",
+      "/api/account/scheduled-intents",
+      {
+        sessionId,
+        query: {
+          app: options?.app,
+          limit: options?.limit,
+          offset: options?.offset,
+        },
+        raw: true,
+      },
+    );
+  }
+
+  async getScheduledThread(
+    sessionId: string,
+    id: string,
+  ): Promise<AomiScheduledThread> {
+    return this.request<AomiScheduledThread>(
+      "GET",
+      `/api/account/scheduled-intents/${encodeURIComponent(id)}`,
+      {
+        sessionId,
+        raw: true,
+      },
+    );
+  }
+
+  async cancelScheduledThread(
+    sessionId: string,
+    id: string,
+  ): Promise<AomiDeleteScheduledThreadResponse> {
+    return this.request<AomiDeleteScheduledThreadResponse>(
+      "DELETE",
+      `/api/account/scheduled-intents/${encodeURIComponent(id)}`,
+      {
+        sessionId,
+        raw: true,
+      },
+    );
+  }
+}
+
+
+// ===== GRAFT: authorization error + helper (our permit CLI) =====
+export class AomiAuthorizationError extends Error {
+  constructor(
+    message: string,
+    readonly status: number,
+    readonly code: string | null,
+  ) {
+    super(message);
+    this.name = "AomiAuthorizationError";
+  }
+}
+
+async function authorizationError(
+  action: string,
+  response: Response,
+): Promise<AomiAuthorizationError> {
+  const body = await response.text().catch(() => "");
+  let code: string | null = null;
+  try {
+    const parsed = JSON.parse(body) as { error?: unknown };
+    if (typeof parsed?.error === "string") code = parsed.error;
+  } catch {
+    // Non-JSON error body — keep code null.
+  }
+  return new AomiAuthorizationError(
+    `Failed to ${action}: HTTP ${response.status}${code ? ` (${code})` : ""}`,
+    response.status,
+    code,
+  );
 }

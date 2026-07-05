@@ -31,7 +31,8 @@ export function launchErrorResponse(err: unknown): NextResponse {
   let message = err instanceof Error ? err.message : String(err);
   if (err instanceof BackendError) {
     if (err.status >= 400 && err.status < 600) status = err.status;
-    message = backendErrorMessage(err.body) ?? activationErrorMessage(err) ?? message;
+    message =
+      backendErrorMessage(err.body) ?? activationErrorMessage(err) ?? message;
   } else if (err instanceof DeployError) {
     if (err.code === "INVALID_REQUEST") status = 400;
     message = activationErrorMessage(err) ?? message;

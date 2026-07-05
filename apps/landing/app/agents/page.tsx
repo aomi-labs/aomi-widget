@@ -58,7 +58,7 @@ export default function AgentsPage() {
         <h2 className="font-geist text-xl font-semibold">
           Three guarantees define the harness
         </h2>
-        <div className="space-y-3 font-geist text-sm leading-6 text-muted-foreground">
+        <div className="font-geist space-y-3 text-sm leading-6 text-muted-foreground">
           <p>
             <strong className="text-foreground">Read by default.</strong> Chat,
             prices, balances, and simulations require no signing key.

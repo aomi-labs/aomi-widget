@@ -99,16 +99,17 @@ export const THEME_COLOR_KEYS: (keyof ThemeColors)[] = [
 ];
 
 /** Subset of keys shown in the color-override UI. */
-export const EDITABLE_COLOR_KEYS: { key: keyof ThemeColors; label: string }[] = [
-  { key: "primary", label: "Primary" },
-  { key: "background", label: "Background" },
-  { key: "secondary", label: "Secondary" },
-  { key: "accent", label: "Accent" },
-  { key: "muted", label: "Muted" },
-  { key: "border", label: "Border" },
-  { key: "destructive", label: "Destructive" },
-  { key: "foreground", label: "Foreground" },
-];
+export const EDITABLE_COLOR_KEYS: { key: keyof ThemeColors; label: string }[] =
+  [
+    { key: "primary", label: "Primary" },
+    { key: "background", label: "Background" },
+    { key: "secondary", label: "Secondary" },
+    { key: "accent", label: "Accent" },
+    { key: "muted", label: "Muted" },
+    { key: "border", label: "Border" },
+    { key: "destructive", label: "Destructive" },
+    { key: "foreground", label: "Foreground" },
+  ];
 
 // ---------------------------------------------------------------------------
 // Presets

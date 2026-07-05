@@ -30,9 +30,6 @@
     "build": "tsup",
     "clean:dist": "rm -rf dist"
   },
-  "devDependencies": {
-    "fast-check": "^4.8.0"
-  },
   "dependencies": {
     "@alchemy/wallet-apis": "5.0.0-beta.22",
     "@getpara/aa-alchemy": "2.21.0",

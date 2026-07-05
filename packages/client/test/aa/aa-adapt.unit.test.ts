@@ -70,7 +70,10 @@ describe("adaptSmartAccount", () => {
 
   it("rejects an unsupported SDK provider", () => {
     expect(() =>
-      adaptSmartAccount(makeMockAccount({ provider: "BICONOMY" }), OWNER_ADDRESS),
+      adaptSmartAccount(
+        makeMockAccount({ provider: "BICONOMY" }),
+        OWNER_ADDRESS,
+      ),
     ).toThrow(/Unsupported AA provider/);
   });
 
@@ -117,7 +120,9 @@ describe("isAlchemySponsorshipLimitError", () => {
   });
 
   it("returns false for unrelated errors", () => {
-    expect(isAlchemySponsorshipLimitError(new Error("validation reverted"))).toBe(false);
+    expect(
+      isAlchemySponsorshipLimitError(new Error("validation reverted")),
+    ).toBe(false);
   });
 
   it("handles non-Error values", () => {

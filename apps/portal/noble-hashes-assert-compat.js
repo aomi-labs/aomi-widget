@@ -1,14 +1,14 @@
 function bool(value) {
-  if (typeof value !== 'boolean') {
+  if (typeof value !== "boolean") {
     throw new Error(`boolean expected, got ${typeof value}`);
   }
 }
 
 function bytes(value, ...lengths) {
   const isByteArray =
-    value instanceof Uint8Array
-    || ArrayBuffer.isView(value)
-    || value instanceof ArrayBuffer;
+    value instanceof Uint8Array ||
+    ArrayBuffer.isView(value) ||
+    value instanceof ArrayBuffer;
 
   if (!isByteArray) {
     throw new Error(`Uint8Array expected, got ${typeof value}`);

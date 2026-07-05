@@ -3,10 +3,7 @@
 import { useState, useMemo, useCallback, useEffect, type FC } from "react";
 import dynamic from "next/dynamic";
 import { CopyButton } from "./CopyButton";
-import {
-  ThemeCustomizer,
-  useThemeCustomizer,
-} from "./ThemeCustomizer";
+import { ThemeCustomizer, useThemeCustomizer } from "./ThemeCustomizer";
 import { ChevronDown, ChevronUp } from "lucide-react";
 
 const AomiFramePreview = dynamic(
@@ -76,12 +73,13 @@ function generateCode(s: PlaygroundState): string {
     rootProps.push(`walletPosition={${walletProp}}`);
   }
 
-  const headerWithControl =
-    hasAnyControl && s.controlPlacement === "header";
+  const headerWithControl = hasAnyControl && s.controlPlacement === "header";
   const composerWithControl =
     hasAnyControl && s.controlPlacement === "composer";
 
-  const sidebarTriggerStr = !s.sidebarShown ? " showSidebarTrigger={false}" : "";
+  const sidebarTriggerStr = !s.sidebarShown
+    ? " showSidebarTrigger={false}"
+    : "";
 
   let headerLine: string;
   if (headerWithControl) {
@@ -162,7 +160,7 @@ const LayoutPanel: FC<{
   <div className="space-y-5">
     {/* ── Sidebar ── */}
     <fieldset className="space-y-3">
-      <legend className="text-xs font-semibold uppercase tracking-wider text-fd-muted-foreground">
+      <legend className="text-xs font-semibold tracking-wider text-fd-muted-foreground uppercase">
         Sidebar
       </legend>
       <Checkbox
@@ -172,7 +170,7 @@ const LayoutPanel: FC<{
       />
       {state.sidebarShown && (
         <div className="space-y-1.5">
-          <span className="text-[10px] font-medium uppercase tracking-wider text-fd-muted-foreground/70">
+          <span className="text-[10px] font-medium tracking-wider text-fd-muted-foreground/70 uppercase">
             Wallet Position
           </span>
           <div className="flex flex-wrap gap-1">
@@ -211,7 +209,7 @@ const LayoutPanel: FC<{
 
     {/* ── Control Panel ── */}
     <fieldset className="space-y-3">
-      <legend className="text-xs font-semibold uppercase tracking-wider text-fd-muted-foreground">
+      <legend className="text-xs font-semibold tracking-wider text-fd-muted-foreground uppercase">
         Control Panel
       </legend>
       <div className="flex flex-wrap gap-1">
@@ -278,7 +276,11 @@ const LayoutPanel: FC<{
 // Main Playground
 // =============================================================================
 
-export function PlaygroundConfigurator({ forceEmbed }: { forceEmbed?: boolean }) {
+export function PlaygroundConfigurator({
+  forceEmbed,
+}: {
+  forceEmbed?: boolean;
+}) {
   const [state, setState] = useState<PlaygroundState>(DEFAULT_STATE);
   const [configTab, setConfigTab] = useState<ConfigTab>("layout");
   const [codeTab, setCodeTab] = useState<CodeTab>("jsx");
@@ -292,19 +294,17 @@ export function PlaygroundConfigurator({ forceEmbed }: { forceEmbed?: boolean })
       setCodeExpanded(false);
       return;
     }
-    const detected = typeof window !== "undefined" && window.top !== window.self;
+    const detected =
+      typeof window !== "undefined" && window.top !== window.self;
     if (detected) {
       setIsEmbedded(true);
       setCodeExpanded(false);
     }
   }, [forceEmbed]);
 
-  const update = useCallback(
-    (patch: Partial<PlaygroundState>) => {
-      setState((prev) => ({ ...prev, ...patch }));
-    },
-    [],
-  );
+  const update = useCallback((patch: Partial<PlaygroundState>) => {
+    setState((prev) => ({ ...prev, ...patch }));
+  }, []);
 
   const jsxCode = useMemo(() => generateCode(state), [state]);
 
@@ -341,7 +341,9 @@ export function PlaygroundConfigurator({ forceEmbed }: { forceEmbed?: boolean })
   return (
     <div className={isEmbedded ? "space-y-2" : "space-y-4"}>
       {/* Main split panel */}
-      <div className={`flex flex-col ${isEmbedded ? "gap-2" : "gap-4"} md:flex-row`}>
+      <div
+        className={`flex flex-col ${isEmbedded ? "gap-2" : "gap-4"} md:flex-row`}
+      >
         {/* Left: Live preview */}
         <div className="min-w-0 flex-1">
           <div
@@ -363,7 +365,10 @@ export function PlaygroundConfigurator({ forceEmbed }: { forceEmbed?: boolean })
         </div>
 
         {/* Right: Config sidebar with tabs */}
-        <div className="w-full shrink-0 md:w-72" style={{ maxHeight: embedHeight }}>
+        <div
+          className="w-full shrink-0 md:w-72"
+          style={{ maxHeight: embedHeight }}
+        >
           <div className="flex h-full max-h-[inherit] flex-col rounded-xl border border-fd-border bg-fd-card">
             {/* Tab header */}
             <div className="border-b border-fd-border px-4 py-3">
@@ -412,10 +417,14 @@ export function PlaygroundConfigurator({ forceEmbed }: { forceEmbed?: boolean })
               <button
                 type="button"
                 onClick={() => setCodeExpanded((v) => !v)}
-                className="text-fd-muted-foreground hover:text-fd-foreground transition-colors"
+                className="text-fd-muted-foreground transition-colors hover:text-fd-foreground"
                 aria-label={codeExpanded ? "Collapse code" : "Expand code"}
               >
-                {codeExpanded ? <ChevronUp className="size-4" /> : <ChevronDown className="size-4" />}
+                {codeExpanded ? (
+                  <ChevronUp className="size-4" />
+                ) : (
+                  <ChevronDown className="size-4" />
+                )}
               </button>
             )}
           </div>

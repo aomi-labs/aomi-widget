@@ -84,9 +84,7 @@ const ENDPOINTS: EndpointDef[] = [
     method: "GET",
     path: "/api/session/apps",
     description: "List available apps (agents) for the current context.",
-    params: [
-      { key: "public_key", placeholder: "0x…" },
-    ],
+    params: [{ key: "public_key", placeholder: "0x…" }],
     headers: [SESSION_HEADER, APP_KEY_HEADER],
   },
   {

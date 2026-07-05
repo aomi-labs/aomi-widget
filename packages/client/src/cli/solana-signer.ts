@@ -12,11 +12,7 @@
 // Both versioned (v0) and legacy transactions are supported, matching what
 // wallet adapters accept.
 
-import {
-  Keypair,
-  Transaction,
-  VersionedTransaction,
-} from "@solana/web3.js";
+import { Keypair, Transaction, VersionedTransaction } from "@solana/web3.js";
 import bs58 from "bs58";
 
 export type SolanaSignOutcome = {
@@ -42,7 +38,10 @@ export function parseSolanaKeypairSecret(input: string): Keypair {
   let bytes: Uint8Array;
   if (trimmed.startsWith("[") && trimmed.endsWith("]")) {
     const parsed = JSON.parse(trimmed) as unknown;
-    if (!Array.isArray(parsed) || parsed.some((value) => typeof value !== "number")) {
+    if (
+      !Array.isArray(parsed) ||
+      parsed.some((value) => typeof value !== "number")
+    ) {
       throw new Error(
         "Solana keypair JSON must be an array of byte values (e.g. `[1,2,...,64]`).",
       );
@@ -125,7 +124,9 @@ export function signSolanaTransaction(
       };
     } catch (legacyErr) {
       const versionedMsg =
-        versionedErr instanceof Error ? versionedErr.message : String(versionedErr);
+        versionedErr instanceof Error
+          ? versionedErr.message
+          : String(versionedErr);
       const legacyMsg =
         legacyErr instanceof Error ? legacyErr.message : String(legacyErr);
       throw new Error(

@@ -216,9 +216,7 @@
         "tool": "commit_txs",
         "topic": "Commit ETH transfer",
         "arguments": {
-          "tx_ids": [
-            1
-          ],
+          "tx_ids": [1],
           "topic": "Commit ETH transfer"
         },
         "result_preview": "{\n  \"status\": \"pending_approval\",\n  \"tx_ids\": [\n    1\n  ],\n  \"timestamp\": \"2026-05-31T18:45:12.179411+00:00\"\n}"

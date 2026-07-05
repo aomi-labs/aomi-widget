@@ -25,14 +25,17 @@ The durable walkthrough for this workspace lives in [../docs/topics/frontend-e2e
 ## Setup And Development
 
 1. **Install dependencies**:
+
    ```bash
    pnpm install --frozen-lockfile
    ```
 
 2. **Start development server**:
+
    ```bash
    pnpm dev
    ```
+
    Local development defaults to `http://127.0.0.1:8080`. Vercel production defaults to `https://api.aomi.dev`; previews default to `https://api-staging.aomi.dev`. For local full-stack startup use [../scripts/dev.sh](../scripts/dev.sh).
 
 3. **Open in browser**:

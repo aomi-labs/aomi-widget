@@ -20,9 +20,7 @@
     "total_turns": 1,
     "total_tool_calls": 4,
     "total_responses": 7,
-    "activated_skills": [
-      "eigenlayer"
-    ],
+    "activated_skills": ["eigenlayer"],
     "failed_assertions": [
       {
         "label": "tool",
@@ -30,9 +28,7 @@
         "detail": "no matching tool arguments for stage_tx:$.to; no matching tool arguments for stage_tx:$.data.signature",
         "observed": {
           "kind": "tool_assertion",
-          "expected_tools": [
-            "activate_skills"
-          ],
+          "expected_tools": ["activate_skills"],
           "observed_tools": [
             "activate_skills",
             "get_account_info",
@@ -73,10 +69,7 @@
               "tool": "activate_skills",
               "topic": "activate_skills",
               "arguments": {
-                "skill_ids": [
-                  "eigenlayer",
-                  "common_erc20"
-                ]
+                "skill_ids": ["eigenlayer", "common_erc20"]
               }
             },
             {
@@ -97,9 +90,7 @@
               "tool": "encode_and_call",
               "topic": "Check Alice's stETH balance",
               "arguments": {
-                "arguments": [
-                  "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
-                ],
+                "arguments": ["0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"],
                 "function_signature": "balanceOf(address)",
                 "topic": "Check Alice's stETH balance",
                 "to": "0xae7ab96520DE3A18E5e111B5EaAb095312D7fE84",
@@ -210,10 +201,7 @@
         "tool": "activate_skills",
         "topic": "activate_skills",
         "arguments": {
-          "skill_ids": [
-            "eigenlayer",
-            "common_erc20"
-          ]
+          "skill_ids": ["eigenlayer", "common_erc20"]
         },
         "result_preview": "{\n  \"activated\": [\n    \"eigenlayer\"\n  ],\n  \"rejected\": [\n    [\n      \"common_erc20\",\n      \"invalid\"\n    ]\n  ],\n  \"applied_scope\": \"current_serve_cycle\"\n}"
       },
@@ -236,9 +224,7 @@
         "tool": "encode_and_call",
         "topic": "Check Alice's stETH balance",
         "arguments": {
-          "arguments": [
-            "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
-          ],
+          "arguments": ["0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"],
           "function_signature": "balanceOf(address)",
           "topic": "Check Alice's stETH balance",
           "to": "0xae7ab96520DE3A18E5e111B5EaAb095312D7fE84",
@@ -271,12 +257,8 @@
     },
     "skills": {
       "mode": "restricted",
-      "allowed": [
-        "eigenlayer"
-      ],
-      "activated_skills": [
-        "eigenlayer"
-      ],
+      "allowed": ["eigenlayer"],
+      "activated_skills": ["eigenlayer"],
       "bundle_path": "../output/eval/model-bench-public-skills-minimax-m25-kiro-20260531/specs/deposit_steth_strategy_review_first/minimax-m2.5/pass-002/spec-skills/deposit_steth_strategy_review_first-skills.json",
       "bundle_revision": "fnv1a64:0e680e7c7b41b68f"
     },

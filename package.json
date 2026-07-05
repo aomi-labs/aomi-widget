@@ -91,6 +91,14 @@
     ],
     "tailwindStylesheet": "app/globals.css"
   },
+  "pnpm": {
+    "overrides": {
+      "@getpara/react-core": "2.27.0",
+      "@getpara/react-common": "2.27.0",
+      "@getpara/react-components": "2.27.0",
+      "viem": "2.47.11"
+    }
+  },
   "peerDependencies": {
     "@assistant-ui/react": "^0.11.0",
     "@assistant-ui/react-markdown": "^0.11.0",
@@ -115,11 +123,6 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "tailwind-merge": "^3.3.1"
-  },
-  "pnpm": {
-    "overrides": {
-      "viem": "2.47.11"
-    }
   },
   "devDependencies": {
     "@ai-sdk/openai": "^2.0.46",

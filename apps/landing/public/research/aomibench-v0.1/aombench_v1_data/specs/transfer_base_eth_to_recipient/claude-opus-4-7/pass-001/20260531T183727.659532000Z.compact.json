@@ -131,9 +131,7 @@
         "topic": "Commit 0.01 ETH transfer on Base",
         "arguments": {
           "topic": "Commit 0.01 ETH transfer on Base",
-          "tx_ids": [
-            1
-          ]
+          "tx_ids": [1]
         },
         "result_preview": "{\n  \"status\": \"pending_approval\",\n  \"tx_ids\": [\n    1\n  ],\n  \"timestamp\": \"2026-05-31T18:37:23.867052+00:00\"\n}"
       }

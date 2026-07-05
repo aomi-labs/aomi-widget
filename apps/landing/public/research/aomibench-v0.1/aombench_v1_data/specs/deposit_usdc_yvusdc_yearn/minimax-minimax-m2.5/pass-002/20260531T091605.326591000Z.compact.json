@@ -20,9 +20,7 @@
     "total_turns": 2,
     "total_tool_calls": 12,
     "total_responses": 22,
-    "activated_skills": [
-      "yearn"
-    ],
+    "activated_skills": ["yearn"],
     "failed_assertions": [
       {
         "label": "Alice supplies about 100 USDC to Yearn",
@@ -235,10 +233,7 @@
         "tool": "activate_skills",
         "topic": "activate_skills",
         "arguments": {
-          "skill_ids": [
-            "yearn",
-            "common_erc20"
-          ]
+          "skill_ids": ["yearn", "common_erc20"]
         },
         "result_preview": "{\n  \"activated\": [\n    \"yearn\"\n  ],\n  \"rejected\": [\n    [\n      \"common_erc20\",\n      \"invalid\"\n    ]\n  ],\n  \"applied_scope\": \"current_serve_cycle\"\n}"
       },
@@ -287,9 +282,7 @@
           "topic": "Check max deposit for Alice",
           "function_signature": "maxDeposit(address)",
           "to": "0xBe53A109B494E5c9f97b9Cd39Fe969BE68BF6204",
-          "arguments": [
-            "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
-          ],
+          "arguments": ["0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"],
           "value": "0"
         },
         "result_preview": "{\n  \"success\": true,\n  \"result\": \"0x0000000000000000000000000000000000000000000000000000146a4b501ec1\",\n  \"revert_reason\": null,\n  \"tx\": {\n    \"from\": \"0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266\",\n    \"to\": \"0xBe53A109B494E5c9f97b9Cd39Fe969BE68BF6204\",\n    \"value_wei\": \"0\",\n    \"value_eth\": \"0\",\n    \"input\": \"0x402d267d000000000000000000000000f39fd6e51aad88f6f4ce6ab8827279cfffb92266\",\n    \"chain_id\": 1\n  },\n  \"result_decoded\": {\n    \"kind\": \"single_abi_word\",\n    \"raw_hex\": \"0x0000000000000000000000000000000000000000000000000000146a4b501ec1\",\n    \"decoded\": {\n      \"type\": \"uint256\",\n      \"decoded\": \"22446762630849\",\n      \"as_bool\": null,\n      \"as_address\": \"0x0000000000000000000000000000146a4b501ec1\"\n    }\n  }\n}"
@@ -318,9 +311,7 @@
           "topic": "Check USDC balance",
           "function_signature": "balanceOf(address)",
           "to": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
-          "arguments": [
-            "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
-          ],
+          "arguments": ["0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"],
           "value": "0"
         },
         "result_preview": "{\n  \"success\": true,\n  \"result\": \"0x00000000000000000000000000000000000000000000000000000002540be400\",\n  \"revert_reason\": null,\n  \"tx\": {\n    \"from\": \"0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266\",\n    \"to\": \"0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48\",\n    \"value_wei\": \"0\",\n    \"value_eth\": \"0\",\n    \"input\": \"0x70a08231000000000000000000000000f39fd6e51aad88f6f4ce6ab8827279cfffb92266\",\n    \"chain_id\": 1\n  },\n  \"result_decoded\": {\n    \"kind\": \"single_abi_word\",\n    \"raw_hex\": \"0x00000000000000000000000000000000000000000000000000000002540be400\",\n    \"decoded\": {\n      \"type\": \"uint256\",\n      \"decoded\": \"10000000000\",\n      \"as_bool\": null,\n      \"as_address\": \"0x00000000000000000000000000000002540be400\"\n    }\n  }\n}"
@@ -352,10 +343,7 @@
         "topic": "Deposit USDC into Yearn vault",
         "arguments": {
           "data": {
-            "args": [
-              "100000000",
-              "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
-            ],
+            "args": ["100000000", "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"],
             "signature": "deposit(uint256,address)"
           },
           "description": "Deposit 100 USDC into yvUSDC vault",
@@ -396,10 +384,7 @@
         "topic": "Commit approve + deposit transactions",
         "arguments": {
           "topic": "Commit approve + deposit transactions",
-          "tx_ids": [
-            1,
-            2
-          ]
+          "tx_ids": [1, 2]
         },
         "result_preview": "{\n  \"status\": \"pending_approval\",\n  \"tx_ids\": [\n    1,\n    2\n  ],\n  \"timestamp\": \"2026-05-31T09:15:52.937478+00:00\"\n}"
       },
@@ -409,10 +394,7 @@
         "topic": "Commit Yearn deposit transactions",
         "arguments": {
           "topic": "Commit Yearn deposit transactions",
-          "tx_ids": [
-            1,
-            2
-          ]
+          "tx_ids": [1, 2]
         },
         "result_preview": "{\n  \"status\": \"pending_approval\",\n  \"tx_ids\": [\n    1,\n    2\n  ],\n  \"timestamp\": \"2026-05-31T09:15:58.684335+00:00\"\n}"
       }
@@ -425,12 +407,8 @@
     },
     "skills": {
       "mode": "restricted",
-      "allowed": [
-        "yearn"
-      ],
-      "activated_skills": [
-        "yearn"
-      ],
+      "allowed": ["yearn"],
+      "activated_skills": ["yearn"],
       "bundle_path": "../output/eval/model-bench-public-skills-minimax-m25-kiro-20260531/specs/deposit_usdc_yvusdc_yearn/minimax-m2.5/pass-002/spec-skills/deposit_usdc_yvusdc_yearn-skills.json",
       "bundle_revision": "fnv1a64:2b01e8645ddcbc68"
     },

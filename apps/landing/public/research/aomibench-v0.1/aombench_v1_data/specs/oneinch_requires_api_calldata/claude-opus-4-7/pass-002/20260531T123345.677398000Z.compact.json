@@ -20,9 +20,7 @@
     "total_turns": 1,
     "total_tool_calls": 1,
     "total_responses": 3,
-    "activated_skills": [
-      "oneinch"
-    ],
+    "activated_skills": ["oneinch"],
     "failed_assertions": [],
     "budget_summary": {
       "total": 1,
@@ -81,10 +79,7 @@
         "tool": "activate_skills",
         "topic": "activate_skills",
         "arguments": {
-          "skill_ids": [
-            "oneinch",
-            "common_erc20"
-          ]
+          "skill_ids": ["oneinch", "common_erc20"]
         },
         "result_preview": "{\n  \"activated\": [\n    \"oneinch\"\n  ],\n  \"rejected\": [\n    [\n      \"common_erc20\",\n      \"invalid\"\n    ]\n  ],\n  \"applied_scope\": \"current_serve_cycle\"\n}"
       }
@@ -97,12 +92,8 @@
     },
     "skills": {
       "mode": "restricted",
-      "allowed": [
-        "oneinch"
-      ],
-      "activated_skills": [
-        "oneinch"
-      ],
+      "allowed": ["oneinch"],
+      "activated_skills": ["oneinch"],
       "bundle_path": "../output/eval/model-bench-public-skills-opus47-opus46-haiku45-20260531/specs/oneinch_requires_api_calldata/claude-opus-4.7/pass-002/spec-skills/oneinch_requires_api_calldata-skills.json",
       "bundle_revision": "fnv1a64:d3d910a168b23b54"
     },

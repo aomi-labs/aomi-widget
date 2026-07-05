@@ -283,10 +283,9 @@ export function markConnected(
     ...prev,
     presence: "connected",
     address: params.address,
-    chainId:
-      params.address
-        ? (params.chainId ?? DEFAULT_CHAIN_ID)
-        : (params.chainId ?? null),
+    chainId: params.address
+      ? (params.chainId ?? DEFAULT_CHAIN_ID)
+      : (params.chainId ?? null),
     svmAddress: params.svmAddress,
     svmCluster: params.svmCluster ?? null,
     walletProvider: params.walletProvider,

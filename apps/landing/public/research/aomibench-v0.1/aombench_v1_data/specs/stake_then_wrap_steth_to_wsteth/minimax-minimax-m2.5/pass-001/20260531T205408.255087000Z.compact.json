@@ -384,10 +384,7 @@
         "tool": "activate_skills",
         "topic": "activate_skills",
         "arguments": {
-          "skill_ids": [
-            "lido",
-            "common_erc20"
-          ]
+          "skill_ids": ["lido", "common_erc20"]
         },
         "result_preview": "{\n  \"activated\": [],\n  \"rejected\": [],\n  \"applied_scope\": \"current_serve_cycle\",\n  \"error\": {\n    \"code\": \"activation_window_closed\",\n    \"message\": \"activate_skills is only valid in the first pass of this request\"\n  }\n}"
       },
@@ -440,9 +437,7 @@
         "tool": "encode_and_call",
         "topic": "Simulate staking 0.1 ETH to Lido",
         "arguments": {
-          "arguments": [
-            "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
-          ],
+          "arguments": ["0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"],
           "function_signature": "submit(address)",
           "to": "0xae7ab96520DE3A18E5e111B5EaAb095312D7fE84",
           "value": "100000000000000000",
@@ -456,9 +451,7 @@
         "topic": "Stage Lido stake transaction",
         "arguments": {
           "data": {
-            "args": [
-              "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
-            ],
+            "args": ["0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"],
             "raw": "",
             "signature": "submit(address)"
           },
@@ -477,9 +470,7 @@
         "topic": "Commit Lido stake transaction",
         "arguments": {
           "topic": "Commit Lido stake transaction",
-          "tx_ids": [
-            1
-          ]
+          "tx_ids": [1]
         },
         "result_preview": "{\n  \"status\": \"pending_approval\",\n  \"tx_ids\": [\n    1\n  ],\n  \"timestamp\": \"2026-05-31T20:52:52.947263+00:00\"\n}"
       },
@@ -490,9 +481,7 @@
         "arguments": {
           "function_signature": "wrap(uint256)",
           "topic": "Simulate wrapping 0.05 stETH to wstETH",
-          "arguments": [
-            "50000000000000000"
-          ],
+          "arguments": ["50000000000000000"],
           "to": "0x7f39C581F595B53c5cb19bD0b3f8dA6c935E2Ca0",
           "value": "0"
         },
@@ -552,9 +541,7 @@
         "arguments": {
           "gas_limit": "200000",
           "data": {
-            "args": [
-              "50000000000000000"
-            ],
+            "args": ["50000000000000000"],
             "raw": "",
             "signature": "wrap(uint256)"
           },
@@ -619,10 +606,7 @@
         "tool": "commit_txs",
         "topic": "Commit approval + wrap transactions",
         "arguments": {
-          "tx_ids": [
-            2,
-            3
-          ],
+          "tx_ids": [2, 3],
           "topic": "Commit approval + wrap transactions"
         },
         "result_preview": "{\n  \"status\": \"pending_approval\",\n  \"tx_ids\": [\n    2,\n    3\n  ],\n  \"timestamp\": \"2026-05-31T20:54:01.529887+00:00\"\n}"
@@ -636,9 +620,7 @@
     },
     "skills": {
       "mode": "restricted",
-      "allowed": [
-        "lido"
-      ],
+      "allowed": ["lido"],
       "activated_skills": [],
       "bundle_path": "../output/eval/model-bench-public-skills-expansion-20260531/specs/stake_then_wrap_steth_to_wsteth/minimax-m2.5/pass-001/spec-skills/stake_then_wrap_steth_to_wsteth-skills.json",
       "bundle_revision": "fnv1a64:3dc3c3eb3312b7e4"

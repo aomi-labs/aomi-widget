@@ -20,9 +20,7 @@
     "total_turns": 1,
     "total_tool_calls": 9,
     "total_responses": 13,
-    "activated_skills": [
-      "lido"
-    ],
+    "activated_skills": ["lido"],
     "failed_assertions": [],
     "budget_summary": {
       "total": 1,
@@ -151,9 +149,7 @@
         "tool": "activate_skills",
         "topic": "activate_skills",
         "arguments": {
-          "skill_ids": [
-            "lido"
-          ]
+          "skill_ids": ["lido"]
         },
         "result_preview": "{\n  \"activated\": [\n    \"lido\"\n  ],\n  \"rejected\": [],\n  \"applied_scope\": \"current_serve_cycle\"\n}"
       },
@@ -186,9 +182,7 @@
         "topic": "Validate Lido submit (stake 0.1 ETH)",
         "arguments": {
           "function_signature": "submit(address)",
-          "arguments": [
-            "0x0000000000000000000000000000000000000000"
-          ],
+          "arguments": ["0x0000000000000000000000000000000000000000"],
           "to": "0xae7ab96520DE3A18E5e111B5EaAb095312D7fE84",
           "value": "100000000000000000",
           "topic": "Validate Lido submit (stake 0.1 ETH)"
@@ -204,9 +198,7 @@
           "description": "Stake 0.1 ETH with Lido (submit, referral = address(0)) → receive ~0.1 stETH",
           "data": {
             "signature": "submit(address)",
-            "args": [
-              "0x0000000000000000000000000000000000000000"
-            ],
+            "args": ["0x0000000000000000000000000000000000000000"],
             "raw": ""
           },
           "value": "100000000000000000",
@@ -247,9 +239,7 @@
           "description": "Wrap 0.05 stETH into non-rebasing wstETH",
           "data": {
             "signature": "wrap(uint256)",
-            "args": [
-              "50000000000000000"
-            ],
+            "args": ["50000000000000000"],
             "raw": ""
           },
           "value": "0",
@@ -294,11 +284,7 @@
         "tool": "commit_txs",
         "topic": "Commit Lido stake + approve + wrap",
         "arguments": {
-          "tx_ids": [
-            1,
-            2,
-            3
-          ],
+          "tx_ids": [1, 2, 3],
           "topic": "Commit Lido stake + approve + wrap"
         },
         "result_preview": "{\n  \"status\": \"pending_approval\",\n  \"tx_ids\": [\n    1,\n    2,\n    3\n  ],\n  \"timestamp\": \"2026-05-31T20:43:31.285434+00:00\"\n}"
@@ -312,12 +298,8 @@
     },
     "skills": {
       "mode": "restricted",
-      "allowed": [
-        "lido"
-      ],
-      "activated_skills": [
-        "lido"
-      ],
+      "allowed": ["lido"],
+      "activated_skills": ["lido"],
       "bundle_path": "../output/eval/model-bench-public-skills-expansion-20260531/specs/stake_then_wrap_steth_to_wsteth/claude-opus-4.8/pass-001/spec-skills/stake_then_wrap_steth_to_wsteth-skills.json",
       "bundle_revision": "fnv1a64:3dc3c3eb3312b7e4"
     },

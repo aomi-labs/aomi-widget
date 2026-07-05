@@ -20,11 +20,10 @@ describe("CLI chat wallet sync", () => {
     const config = createConfig({ privateKey: "0xabc" });
 
     expect(
-      shouldBroadcastWalletStateChange(
-        config,
-        null,
-        { publicKey: "0x111", chainId: 1 },
-      ),
+      shouldBroadcastWalletStateChange(config, null, {
+        publicKey: "0x111",
+        chainId: 1,
+      }),
     ).toBe(true);
 
     expect(
@@ -52,11 +51,10 @@ describe("CLI chat wallet sync", () => {
     // privateKey) so backend tools like commit_message can see the
     // connected wallet. The privateKey is only required at sign time.
     expect(
-      shouldBroadcastWalletStateChange(
-        createConfig(),
-        null,
-        { publicKey: "0x111", chainId: 1 },
-      ),
+      shouldBroadcastWalletStateChange(createConfig(), null, {
+        publicKey: "0x111",
+        chainId: 1,
+      }),
     ).toBe(true);
 
     expect(
@@ -89,13 +87,15 @@ describe("CLI chat wallet sync", () => {
       connection: {
         is_connected: true,
       },
-      evm: {
-        aa: {
-          mode: "none",
+      evm: [
+        {
+          aa: {
+            mode: "none",
+          },
+          address: "0xnew",
+          chain_id: 8453,
         },
-        address: "0xnew",
-        chain_id: 8453,
-      },
+      ],
       ext: { client_type: "ts_cli" },
     });
     expect(syncUserState).toHaveBeenCalledTimes(1);
@@ -111,13 +111,15 @@ describe("CLI chat wallet sync", () => {
         connection: {
           is_connected: true,
         },
-        evm: {
-          aa: {
-            mode: "none",
+        evm: [
+          {
+            aa: {
+              mode: "none",
+            },
+            address: "0xnew",
+            chain_id: 8453,
           },
-          address: "0xnew",
-          chain_id: 8453,
-        },
+        ],
         ext: { client_type: "ts_cli" },
       },
     });

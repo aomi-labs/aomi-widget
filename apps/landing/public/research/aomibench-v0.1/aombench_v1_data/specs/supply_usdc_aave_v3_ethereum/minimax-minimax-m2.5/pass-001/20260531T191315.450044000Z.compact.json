@@ -20,9 +20,7 @@
     "total_turns": 1,
     "total_tool_calls": 11,
     "total_responses": 18,
-    "activated_skills": [
-      "aave"
-    ],
+    "activated_skills": ["aave"],
     "failed_assertions": [
       {
         "label": "Alice supplies about 100 USDC to Aave V3",
@@ -220,10 +218,7 @@
         "tool": "activate_skills",
         "topic": "activate_skills",
         "arguments": {
-          "skill_ids": [
-            "aave",
-            "common_erc20"
-          ]
+          "skill_ids": ["aave", "common_erc20"]
         },
         "result_preview": "{\n  \"activated\": [\n    \"aave\"\n  ],\n  \"rejected\": [\n    [\n      \"common_erc20\",\n      \"invalid\"\n    ]\n  ],\n  \"applied_scope\": \"current_serve_cycle\"\n}"
       },
@@ -293,9 +288,7 @@
         "arguments": {
           "topic": "Check USDC balance",
           "function_signature": "balanceOf(address)",
-          "arguments": [
-            "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
-          ],
+          "arguments": ["0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"],
           "to": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
           "value": "0"
         },
@@ -391,10 +384,7 @@
         "tool": "commit_txs",
         "topic": "Commit approval + supply to Aave V3",
         "arguments": {
-          "tx_ids": [
-            1,
-            2
-          ],
+          "tx_ids": [1, 2],
           "topic": "Commit approval + supply to Aave V3"
         },
         "result_preview": "{\n  \"status\": \"pending_approval\",\n  \"tx_ids\": [\n    1,\n    2\n  ],\n  \"timestamp\": \"2026-05-31T19:13:11.516922+00:00\"\n}"
@@ -408,12 +398,8 @@
     },
     "skills": {
       "mode": "restricted",
-      "allowed": [
-        "aave"
-      ],
-      "activated_skills": [
-        "aave"
-      ],
+      "allowed": ["aave"],
+      "activated_skills": ["aave"],
       "bundle_path": "../output/eval/model-bench-public-skills-expansion-20260531/specs/supply_usdc_aave_v3_ethereum/minimax-m2.5/pass-001/spec-skills/supply_usdc_aave_v3_ethereum-skills.json",
       "bundle_revision": "fnv1a64:30836aa43718b8be"
     },

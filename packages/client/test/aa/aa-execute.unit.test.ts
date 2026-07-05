@@ -131,7 +131,9 @@ describe("executeWalletCalls AA execution", () => {
 
   it("passes the preferred RPC URL when fetching the 7702 delegation", async () => {
     getTransactionMock.mockResolvedValue({ authorizationList: [] });
-    const getPreferredRpcUrl = vi.fn().mockReturnValue("https://my-rpc.invalid");
+    const getPreferredRpcUrl = vi
+      .fn()
+      .mockReturnValue("https://my-rpc.invalid");
 
     await executeWalletCalls({
       callList: [...CALL_LIST],
@@ -173,9 +175,11 @@ describe("executeWalletCalls AA execution", () => {
 
   it("retries once on transient bundler submission errors then propagates", async () => {
     const providerState = make4337ProviderState({
-      sendBatchTransaction: vi.fn().mockRejectedValue(
-        new Error("This bundle id is unknown / has not been submitted."),
-      ),
+      sendBatchTransaction: vi
+        .fn()
+        .mockRejectedValue(
+          new Error("This bundle id is unknown / has not been submitted."),
+        ),
     });
     const sendTransactionAsync = vi.fn();
 
@@ -194,15 +198,19 @@ describe("executeWalletCalls AA execution", () => {
       }),
     ).rejects.toThrow("This bundle id is unknown / has not been submitted.");
 
-    expect(providerState.account?.sendBatchTransaction).toHaveBeenCalledTimes(2);
+    expect(providerState.account?.sendBatchTransaction).toHaveBeenCalledTimes(
+      2,
+    );
     expect(sendTransactionAsync).not.toHaveBeenCalled();
   });
 
   it("propagates 4337 gas estimation revert without falling back to EOA", async () => {
     const providerState = make4337ProviderState({
-      sendBatchTransaction: vi.fn().mockRejectedValue(
-        new Error("eth_estimateUserOperationGas failed: execution reverted"),
-      ),
+      sendBatchTransaction: vi
+        .fn()
+        .mockRejectedValue(
+          new Error("eth_estimateUserOperationGas failed: execution reverted"),
+        ),
     });
     const sendTransactionAsync = vi.fn();
 
@@ -219,19 +227,25 @@ describe("executeWalletCalls AA execution", () => {
         chainsById: { [mainnet.id]: mainnet },
         getPreferredRpcUrl: () => "https://example-rpc.invalid",
       }),
-    ).rejects.toThrow("eth_estimateUserOperationGas failed: execution reverted");
+    ).rejects.toThrow(
+      "eth_estimateUserOperationGas failed: execution reverted",
+    );
 
-    expect(providerState.account?.sendBatchTransaction).toHaveBeenCalledTimes(1);
+    expect(providerState.account?.sendBatchTransaction).toHaveBeenCalledTimes(
+      1,
+    );
     expect(sendTransactionAsync).not.toHaveBeenCalled();
   });
 
   it("propagates wallet_prepareCalls AA23 validation error without falling back to EOA", async () => {
     const providerState = make4337ProviderState({
-      sendBatchTransaction: vi.fn().mockRejectedValue(
-        new Error(
-          "wallet_prepareCalls failed: validation reverted: [reason]: AA23 reverted",
+      sendBatchTransaction: vi
+        .fn()
+        .mockRejectedValue(
+          new Error(
+            "wallet_prepareCalls failed: validation reverted: [reason]: AA23 reverted",
+          ),
         ),
-      ),
     });
     const sendTransactionAsync = vi.fn();
 
@@ -248,9 +262,13 @@ describe("executeWalletCalls AA execution", () => {
         chainsById: { [mainnet.id]: mainnet },
         getPreferredRpcUrl: () => "https://example-rpc.invalid",
       }),
-    ).rejects.toThrow("wallet_prepareCalls failed: validation reverted: [reason]: AA23 reverted");
+    ).rejects.toThrow(
+      "wallet_prepareCalls failed: validation reverted: [reason]: AA23 reverted",
+    );
 
-    expect(providerState.account?.sendBatchTransaction).toHaveBeenCalledTimes(1);
+    expect(providerState.account?.sendBatchTransaction).toHaveBeenCalledTimes(
+      1,
+    );
     expect(sendTransactionAsync).not.toHaveBeenCalled();
   });
 });

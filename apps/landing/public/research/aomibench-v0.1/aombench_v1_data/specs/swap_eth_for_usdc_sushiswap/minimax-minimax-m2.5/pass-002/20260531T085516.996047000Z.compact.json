@@ -20,9 +20,7 @@
     "total_turns": 1,
     "total_tool_calls": 9,
     "total_responses": 18,
-    "activated_skills": [
-      "sushiswap"
-    ],
+    "activated_skills": ["sushiswap"],
     "failed_assertions": [],
     "budget_summary": {
       "total": 1,
@@ -186,10 +184,7 @@
         "tool": "activate_skills",
         "topic": "activate_skills",
         "arguments": {
-          "skill_ids": [
-            "sushiswap",
-            "common_erc20"
-          ]
+          "skill_ids": ["sushiswap", "common_erc20"]
         },
         "result_preview": "{\n  \"activated\": [\n    \"sushiswap\"\n  ],\n  \"rejected\": [\n    [\n      \"common_erc20\",\n      \"invalid\"\n    ]\n  ],\n  \"applied_scope\": \"current_serve_cycle\"\n}"
       },
@@ -302,9 +297,7 @@
         "tool": "commit_txs",
         "topic": "Commit SushiSwap ETH to USDC swap",
         "arguments": {
-          "tx_ids": [
-            1
-          ],
+          "tx_ids": [1],
           "topic": "Commit SushiSwap ETH to USDC swap"
         },
         "result_preview": "{\n  \"status\": \"pending_approval\",\n  \"tx_ids\": [\n    1\n  ],\n  \"timestamp\": \"2026-05-31T08:55:12.173751+00:00\"\n}"
@@ -318,12 +311,8 @@
     },
     "skills": {
       "mode": "restricted",
-      "allowed": [
-        "sushiswap"
-      ],
-      "activated_skills": [
-        "sushiswap"
-      ],
+      "allowed": ["sushiswap"],
+      "activated_skills": ["sushiswap"],
       "bundle_path": "../output/eval/model-bench-public-skills-minimax-m25-kiro-20260531/specs/swap_eth_for_usdc_sushiswap/minimax-m2.5/pass-002/spec-skills/swap_eth_for_usdc_sushiswap-skills.json",
       "bundle_revision": "fnv1a64:71f80a80fc792556"
     },

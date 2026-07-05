@@ -27,9 +27,7 @@
     "total_turns": 1,
     "total_tool_calls": 17,
     "total_responses": 24,
-    "activated_skills": [
-      "mantle_staked_eth"
-    ],
+    "activated_skills": ["mantle_staked_eth"],
     "failed_assertions": [],
     "budget_summary": {
       "total": 1,
@@ -235,9 +233,7 @@
         "tool": "activate_skills",
         "topic": "activate_skills",
         "arguments": {
-          "skill_ids": [
-            "mantle_staked_eth"
-          ]
+          "skill_ids": ["mantle_staked_eth"]
         },
         "result_preview": "{\n  \"activated\": [\n    \"mantle_staked_eth\"\n  ],\n  \"rejected\": [],\n  \"applied_scope\": \"current_serve_cycle\"\n}"
       },
@@ -318,9 +314,7 @@
         "tool": "encode_and_call",
         "topic": "Estimate mETH for 0.1 ETH",
         "arguments": {
-          "arguments": [
-            "100000000000000000"
-          ],
+          "arguments": ["100000000000000000"],
           "function_signature": "ethToMETH(uint256)",
           "to": "0xd5F7838F5C461fefF7FE49ea5ebaF7728bB0ADfa",
           "topic": "Estimate mETH for 0.1 ETH",
@@ -333,9 +327,7 @@
         "tool": "encode_and_call",
         "topic": "Check Alice mETH balance",
         "arguments": {
-          "arguments": [
-            "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
-          ],
+          "arguments": ["0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"],
           "function_signature": "balanceOf(address)",
           "to": "0xd5F7838F5C461fefF7FE49ea5ebaF7728bB0ADfa",
           "topic": "Check Alice mETH balance",
@@ -397,9 +389,7 @@
         "tool": "encode_and_call",
         "topic": "Estimate mETH for 0.1 ETH via staking contract",
         "arguments": {
-          "arguments": [
-            "100000000000000000"
-          ],
+          "arguments": ["100000000000000000"],
           "function_signature": "ethToMETH(uint256)",
           "to": "0xe3cBd06D7dadB3F4e6557bAb7EdD924CD1489E8f",
           "topic": "Estimate mETH for 0.1 ETH via staking contract",
@@ -412,9 +402,7 @@
         "tool": "encode_and_call",
         "topic": "Check if Alice is blocked for mETH",
         "arguments": {
-          "arguments": [
-            "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
-          ],
+          "arguments": ["0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"],
           "function_signature": "isBlocked(address)",
           "to": "0xd5F7838F5C461fefF7FE49ea5ebaF7728bB0ADfa",
           "topic": "Check if Alice is blocked for mETH",
@@ -427,9 +415,7 @@
         "tool": "encode_and_call",
         "topic": "Preview Mantle mETH stake 0.1 ETH",
         "arguments": {
-          "arguments": [
-            "91018773757160041"
-          ],
+          "arguments": ["91018773757160041"],
           "function_signature": "stake(uint256)",
           "to": "0xe3cBd06D7dadB3F4e6557bAb7EdD924CD1489E8f",
           "topic": "Preview Mantle mETH stake 0.1 ETH",
@@ -444,9 +430,7 @@
         "arguments": {
           "value": "100000000000000000",
           "data": {
-            "args": [
-              "91018773757160041"
-            ],
+            "args": ["91018773757160041"],
             "raw": "",
             "signature": "stake(uint256)"
           },
@@ -482,9 +466,7 @@
         "topic": "Request wallet approval for Mantle mETH stake",
         "arguments": {
           "topic": "Request wallet approval for Mantle mETH stake",
-          "tx_ids": [
-            1
-          ]
+          "tx_ids": [1]
         },
         "result_preview": "{\n  \"status\": \"pending_approval\",\n  \"tx_ids\": [\n    1\n  ],\n  \"timestamp\": \"2026-05-30T23:15:18.073732+00:00\"\n}"
       }
@@ -497,12 +479,8 @@
     },
     "skills": {
       "mode": "restricted",
-      "allowed": [
-        "mantle_staked_eth"
-      ],
-      "activated_skills": [
-        "mantle_staked_eth"
-      ],
+      "allowed": ["mantle_staked_eth"],
+      "activated_skills": ["mantle_staked_eth"],
       "bundle_path": "../output/eval/model-bench-public-skills-gpt55-opus48-sonnet46-20260530/specs/stake_eth_mantle_meth/gpt-5.5/pass-001/spec-skills/stake_eth_mantle_meth-skills.json",
       "bundle_revision": "fnv1a64:0c85696036b5a461"
     },

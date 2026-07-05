@@ -20,9 +20,7 @@
     "total_turns": 1,
     "total_tool_calls": 3,
     "total_responses": 5,
-    "activated_skills": [
-      "common_erc20"
-    ],
+    "activated_skills": ["common_erc20"],
     "failed_assertions": [
       {
         "label": "tool",
@@ -41,9 +39,7 @@
             "get_time_and_onchain_context",
             "encode_and_call"
           ],
-          "missing_tools": [
-            "stage_tx"
-          ],
+          "missing_tools": ["stage_tx"],
           "order": "sequential",
           "turn": null,
           "param_predicates": [
@@ -77,9 +73,7 @@
               "tool": "activate_skills",
               "topic": "activate_skills",
               "arguments": {
-                "skill_ids": [
-                  "common_erc20"
-                ]
+                "skill_ids": ["common_erc20"]
               }
             },
             {
@@ -96,9 +90,7 @@
               "topic": "Alice USDC balance on Base",
               "arguments": {
                 "function_signature": "balanceOf(address)",
-                "arguments": [
-                  "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
-                ],
+                "arguments": ["0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"],
                 "to": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
                 "value": "0",
                 "topic": "Alice USDC balance on Base"
@@ -218,9 +210,7 @@
         "tool": "activate_skills",
         "topic": "activate_skills",
         "arguments": {
-          "skill_ids": [
-            "common_erc20"
-          ]
+          "skill_ids": ["common_erc20"]
         },
         "result_preview": "{\n  \"activated\": [\n    \"common_erc20\"\n  ],\n  \"rejected\": [],\n  \"applied_scope\": \"current_serve_cycle\"\n}"
       },
@@ -239,9 +229,7 @@
         "topic": "Alice USDC balance on Base",
         "arguments": {
           "function_signature": "balanceOf(address)",
-          "arguments": [
-            "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
-          ],
+          "arguments": ["0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"],
           "to": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
           "value": "0",
           "topic": "Alice USDC balance on Base"
@@ -257,12 +245,8 @@
     },
     "skills": {
       "mode": "restricted",
-      "allowed": [
-        "common_erc20"
-      ],
-      "activated_skills": [
-        "common_erc20"
-      ],
+      "allowed": ["common_erc20"],
+      "activated_skills": ["common_erc20"],
       "bundle_path": "../output/eval/model-bench-public-skills-expansion-20260531/specs/send_base_usdc_to_bob/claude-opus-4.7/pass-002/spec-skills/send_base_usdc_to_bob-skills.json",
       "bundle_revision": "fnv1a64:dd502dd19897120a"
     },

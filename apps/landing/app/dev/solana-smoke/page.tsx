@@ -59,7 +59,9 @@ const phantomSign: SignFn = async (payload: WalletSolanaSignPayload) => {
       isPhantom?: boolean;
       publicKey?: { toBase58(): string };
       connect: () => Promise<{ publicKey: { toBase58(): string } }>;
-      signTransaction: (tx: unknown) => Promise<{ serialize: () => Uint8Array }>;
+      signTransaction: (
+        tx: unknown,
+      ) => Promise<{ serialize: () => Uint8Array }>;
     };
   };
   if (!w.solana?.isPhantom) {
@@ -75,15 +77,21 @@ const phantomSign: SignFn = async (payload: WalletSolanaSignPayload) => {
   // Defer-import @solana/web3.js so dev pages without Solana usage don't pay
   // the bundle cost. This keeps the mock-only path zero-dep.
   const { VersionedTransaction, Transaction } = await import("@solana/web3.js");
-  const bytes = Uint8Array.from(atob(payload.unsignedTx), (c) => c.charCodeAt(0));
+  const bytes = Uint8Array.from(atob(payload.unsignedTx), (c) =>
+    c.charCodeAt(0),
+  );
 
   let signed: { serialize: () => Uint8Array };
   try {
     const tx = VersionedTransaction.deserialize(bytes);
-    signed = (await w.solana.signTransaction(tx)) as { serialize: () => Uint8Array };
+    signed = (await w.solana.signTransaction(tx)) as {
+      serialize: () => Uint8Array;
+    };
   } catch {
     const tx = Transaction.from(bytes);
-    signed = (await w.solana.signTransaction(tx)) as { serialize: () => Uint8Array };
+    signed = (await w.solana.signTransaction(tx)) as {
+      serialize: () => Uint8Array;
+    };
   }
 
   const signedBytes = signed.serialize();
@@ -91,7 +99,11 @@ const phantomSign: SignFn = async (payload: WalletSolanaSignPayload) => {
   for (const b of signedBytes) bin += String.fromCharCode(b);
   const signedTx = btoa(bin);
 
-  console.log("[smoke/phantom] signedTx", signedTx.slice(0, 48), `(${signedTx.length} chars)`);
+  console.log(
+    "[smoke/phantom] signedTx",
+    signedTx.slice(0, 48),
+    `(${signedTx.length} chars)`,
+  );
   return { signedTx };
 };
 
@@ -168,14 +180,20 @@ export default function SolanaSmokePage() {
         cluster: "solana:devnet",
         pendingSolanaId: 42,
       };
-      append("info", `payload prepared (${unsignedTx.length} chars unsignedTx)`);
+      append(
+        "info",
+        `payload prepared (${unsignedTx.length} chars unsignedTx)`,
+      );
 
       const sign = mode === "phantom" ? phantomSign : mockSign;
       append("info", `calling adapter.signSolanaTransaction (${mode})`);
 
       const result = await sign(payload);
 
-      append("ok", `signedTx (${result.signedTx.length} chars): ${result.signedTx.slice(0, 64)}…`);
+      append(
+        "ok",
+        `signedTx (${result.signedTx.length} chars): ${result.signedTx.slice(0, 64)}…`,
+      );
 
       // Demonstrate what Session.resolve would post — without actually posting
       // (BE not ready). This is the wire shape the host expects.
@@ -200,25 +218,26 @@ export default function SolanaSmokePage() {
   }
 
   return (
-    <main className="min-h-screen bg-stone-950 text-stone-100 px-8 py-12">
+    <main className="min-h-screen bg-stone-950 px-8 py-12 text-stone-100">
       <div className="mx-auto max-w-2xl space-y-6">
         <header>
           <h1 className="text-2xl font-semibold">Solana sign smoke</h1>
-          <p className="text-sm text-stone-400 mt-1">
-            Ladder 1: exercises <code>AomiAuthAdapter.signSolanaTransaction</code>{" "}
-            without a backend or the SDK queue. Logs what{" "}
-            <code>Session.resolve</code> would have posted.
+          <p className="mt-1 text-sm text-stone-400">
+            Ladder 1: exercises{" "}
+            <code>AomiAuthAdapter.signSolanaTransaction</code> without a backend
+            or the SDK queue. Logs what <code>Session.resolve</code> would have
+            posted.
           </p>
         </header>
 
-        <section className="rounded-lg border border-stone-700 p-4 space-y-3">
+        <section className="space-y-3 rounded-lg border border-stone-700 p-4">
           <div className="flex gap-3">
             <button
               type="button"
               onClick={() => setMode("mock")}
-              className={`px-3 py-1.5 rounded text-sm border ${
+              className={`rounded border px-3 py-1.5 text-sm ${
                 mode === "mock"
-                  ? "bg-stone-200 text-stone-900 border-stone-200"
+                  ? "border-stone-200 bg-stone-200 text-stone-900"
                   : "border-stone-600 hover:border-stone-400"
               }`}
             >
@@ -228,9 +247,9 @@ export default function SolanaSmokePage() {
               type="button"
               onClick={() => setMode("phantom")}
               disabled={!phantomDetected}
-              className={`px-3 py-1.5 rounded text-sm border disabled:opacity-40 disabled:cursor-not-allowed ${
+              className={`rounded border px-3 py-1.5 text-sm disabled:cursor-not-allowed disabled:opacity-40 ${
                 mode === "phantom"
-                  ? "bg-violet-300 text-stone-900 border-violet-300"
+                  ? "border-violet-300 bg-violet-300 text-stone-900"
                   : "border-stone-600 hover:border-stone-400"
               }`}
             >
@@ -242,18 +261,18 @@ export default function SolanaSmokePage() {
             type="button"
             onClick={run}
             disabled={running}
-            className="px-4 py-2 rounded bg-emerald-500 text-stone-900 font-semibold disabled:opacity-50"
+            className="rounded bg-emerald-500 px-4 py-2 font-semibold text-stone-900 disabled:opacity-50"
           >
             {running ? "Signing…" : "Run smoke test"}
           </button>
         </section>
 
-        <section className="rounded-lg border border-stone-700 p-4 min-h-[200px]">
-          <h2 className="text-sm uppercase tracking-wide text-stone-400 mb-2">
+        <section className="min-h-[200px] rounded-lg border border-stone-700 p-4">
+          <h2 className="mb-2 text-sm tracking-wide text-stone-400 uppercase">
             Log
           </h2>
           {log.length === 0 ? (
-            <p className="text-stone-500 text-sm">
+            <p className="text-sm text-stone-500">
               Click <em>Run smoke test</em> above. Output appears here and in
               DevTools.
             </p>
@@ -266,8 +285,8 @@ export default function SolanaSmokePage() {
                     entry.level === "err"
                       ? "text-red-400"
                       : entry.level === "ok"
-                      ? "text-emerald-300"
-                      : "text-stone-300"
+                        ? "text-emerald-300"
+                        : "text-stone-300"
                   }
                 >
                   {new Date(entry.ts).toLocaleTimeString()}{" "}
@@ -279,15 +298,14 @@ export default function SolanaSmokePage() {
           )}
         </section>
 
-        <section className="text-xs text-stone-500 leading-relaxed">
+        <section className="text-xs leading-relaxed text-stone-500">
           <p>
             <strong className="text-stone-400">Next ladders:</strong> when the
             backend is ready, the same adapter swaps into{" "}
-            <code>AomiParaProvider</code> and{" "}
-            <code>RuntimeTxHandler</code> picks up real{" "}
-            <code>wallet::solana_sign_request</code> events from the SDK queue.
-            For real signature validation, switch to Phantom mode and decode
-            the resulting <code>signedTx</code> with{" "}
+            <code>AomiParaProvider</code> and <code>RuntimeTxHandler</code>{" "}
+            picks up real <code>wallet::solana_sign_request</code> events from
+            the SDK queue. For real signature validation, switch to Phantom mode
+            and decode the resulting <code>signedTx</code> with{" "}
             <code>VersionedTransaction.deserialize</code> in DevTools.
           </p>
         </section>

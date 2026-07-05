@@ -43,9 +43,7 @@
   "optimize": {
     "model": "openrouter/anthropic/claude-sonnet-4-6",
     "apiKeyEnv": "OPENROUTER_API_KEY",
-    "allowedPaths": [
-      "SKILL.md"
-    ],
+    "allowedPaths": ["SKILL.md"],
     "validation": [],
     "maxIterations": 5
   }

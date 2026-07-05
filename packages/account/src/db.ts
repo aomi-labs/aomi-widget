@@ -9,10 +9,10 @@ import { Pool } from "pg";
  * `DbUser::get` — see docs/topics/account-authentication/facts/service-identity.md
  * ("Account resolution — FE-driven, backend find-only").
  *
- * This is the stripped-down, in-repo precursor to arixoneth's Better-Auth
- * account graph: it targets the backend's existing `users` / `auth_identities`
- * tables (which forward-migrate into his `aomi_users` / `aomi_auth_identities`),
- * so the cutover is a store swap behind this module, not a contract change.
+ * This is the stripped-down, in-repo precursor to the full account graph: it
+ * targets the backend's consolidated `users` / `auth_providers` / `public_keys`
+ * tables, so any later store cutover is a swap behind this module, not a
+ * contract change.
  *
  * Connection string comes from `DATABASE_URL` — never hard-coded, since it
  * carries the DB password. Node runtime only (not Edge).

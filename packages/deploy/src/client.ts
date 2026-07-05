@@ -24,6 +24,7 @@ import type {
   PlatformApp,
   PreflightInput,
   ProgressModel,
+  ResolveSourceInput,
   RevokeTokenInput,
   ScaffoldInput,
   StatusInput,
@@ -396,6 +397,40 @@ export class DeploymentClient {
     );
     await this.audit({
       action: "sync_source",
+      platform,
+      repo,
+      actor: input.actor,
+      ts: Date.now(),
+    });
+    return camelAppSource(raw.source);
+  }
+
+  /**
+   * Look up an existing source row by installation (+ optional repo) without
+   * syncing. `GET /api/platforms/:platform/sources/resolve`.
+   */
+  async resolveSource(input: ResolveSourceInput): Promise<AppSource> {
+    const platform = cleanPlatform(input.platform);
+    const installationId = Number(input.installationId);
+    if (!Number.isSafeInteger(installationId) || installationId <= 0) {
+      throw new DeployError(
+        "INVALID_REQUEST",
+        "resolveSource requires a positive installationId",
+      );
+    }
+    const params = new URLSearchParams({
+      installation_id: String(installationId),
+    });
+    const repo = input.repo?.trim();
+    if (repo) params.set("repo", repo);
+    const bearer = this.resolveBearer(input.bearer);
+    const raw = await this.get<{ ok?: boolean; source?: unknown }>(
+      `/api/platforms/${encodeURIComponent(platform)}/sources/resolve?${params.toString()}`,
+      "resolve_source",
+      bearer,
+    );
+    await this.audit({
+      action: "resolve_source",
       platform,
       repo,
       actor: input.actor,

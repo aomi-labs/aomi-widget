@@ -6,7 +6,7 @@ import { getPool } from "./db";
  * The portal's resolve-or-create of the **canonical user id** — a faithful TS
  * port of the Rust backend's `DbUser::insert_for_identity`
  * (aomi/crates/database/src/entities/user.rs). It writes the same `users` /
- * `auth_identities` rows the backend reads, so the canonical UUID the portal
+ * `auth_providers` rows the backend reads, so the canonical UUID the portal
  * signs into the AccountBearer `sub` is one the backend's find-only `DbUser::get`
  * resolves immediately.
  *
@@ -21,6 +21,15 @@ export type ResolveInput = {
   provider: string;
   /** Provider subject, e.g. `did:privy:…`. The credential key, never the `sub`. */
   subject: string;
+  /**
+   * TMP(account-graph): an EVM address from the verified-login exchange. When it
+   * matches an existing `public_keys` row, resolve to that account — this
+   * bridges returning wallet-first users (created via `wallet_bind`, keyed by
+   * address, with no provider identity yet) to their existing sessions. Trusted
+   * as supplied — a deliberate stopgap for this week; the account-graph refactor
+   * replaces this with proper credential linking and wallet-ownership proof.
+   */
+  walletAddress?: string;
 };
 
 export type CanonicalUser = {
@@ -30,7 +39,7 @@ export type CanonicalUser = {
   created: boolean;
 };
 
-/** Mirrors `DbAuthIdentity::normalize_value` (trim + ASCII-lowercase). */
+/** Mirrors `DbAuthProvider::normalize_value` (trim + ASCII-lowercase). */
 function normalizeValue(value: string): string {
   return value.trim().toLowerCase();
 }
@@ -38,10 +47,10 @@ function normalizeValue(value: string): string {
 /**
  * Resolve the canonical user for `(provider, subject)`, creating one on first
  * login. Atomic enough for concurrent first logins: the create races on the
- * `auth_identities` unique index `(application, wallet_provider,
- * wallet_provider_subject)`; the loser catches the unique violation (SQLSTATE
- * 23505), rolls back its orphan `users` row, and re-reads the winner — so two
- * concurrent first logins converge on one user, matching the backend.
+ * `auth_providers` unique index `(provider, subject) where subject is not
+ * null`; the loser catches the unique violation (SQLSTATE 23505), rolls back
+ * its orphan `users` row, and re-reads the winner — so two concurrent first
+ * logins converge on one user, matching the backend.
  */
 export async function resolveOrCreateCanonicalUser(
   input: ResolveInput,
@@ -49,17 +58,39 @@ export async function resolveOrCreateCanonicalUser(
   const provider = input.provider.trim();
   const subject = input.subject.trim();
   if (!provider || !subject) {
-    throw new Error("resolveOrCreateCanonicalUser requires provider and subject");
+    throw new Error(
+      "resolveOrCreateCanonicalUser requires provider and subject",
+    );
   }
 
   const pool = getPool();
   const client = await pool.connect();
   try {
+    // TMP(account-graph): wallet-first restore. If the exchange passed a wallet
+    // address matching an existing `public_keys` row, resolve to that account
+    // so returning wallet-first users keep their sessions. Read-only on
+    // purpose — it never writes the `(provider, subject)` link, so a wrong address
+    // can't corrupt the graph the refactor inherits. The key mirrors the
+    // backend's `DbPublicKey::user_by_wallet` (`chain_type = 'evm'`, address
+    // stored lowercased). Remove when the account graph links credentials.
+    // See ResolveInput.walletAddress.
+    if (input.walletAddress) {
+      const byWallet = await client.query(
+        `select user_id from public_keys
+          where chain_type = 'evm'
+            and address = $1
+          limit 1`,
+        [normalizeValue(input.walletAddress)],
+      );
+      const walletUserId = byWallet.rows[0]?.user_id as string | undefined;
+      if (walletUserId) return { userId: walletUserId, created: false };
+    }
+
     const existing = await findUserIdBySubject(client, provider, subject);
     if (existing) return { userId: existing, created: false };
 
     const userId = randomUUID();
-    // Unix *seconds* — the backend's `users`/`auth_identities` timestamps are
+    // Unix *seconds* — the backend's `users`/`auth_providers` timestamps are
     // `bigint` seconds (`chrono::Utc::now().timestamp()`), not millis.
     const now = Math.floor(Date.now() / 1000);
     try {
@@ -71,17 +102,18 @@ export async function resolveOrCreateCanonicalUser(
          values ($1, null, $2, $2)`,
         [userId, now],
       );
+      // `method`/`value` mirror `insert_for_identity` (both set to the
+      // provider/subject pair); lookups by value use the functional index on
+      // `lower(value)`, so no normalized column is stored.
       await client.query(
-        `insert into auth_identities
-           (user_id, application, wallet_provider, wallet_provider_subject,
-            auth_method, auth_value, auth_value_normalized,
-            auth_verified_at, is_primary, metadata, created_at, updated_at)
-         values ($1, null, $2, $3, $2, $3, $4, $5, true, $6, $5, $5)`,
+        `insert into auth_providers
+           (user_id, provider, subject, method, value,
+            verified_at, is_primary, provider_metadata, created_at, updated_at)
+         values ($1, $2, $3, $2, $3, $4, true, $5, $4, $4)`,
         [
           userId,
           provider,
           subject,
-          normalizeValue(subject),
           now,
           JSON.stringify({ source: "portal_resolve_or_create" }),
         ],
@@ -185,13 +217,12 @@ async function findUserIdBySubject(
   provider: string,
   subject: string,
 ): Promise<string | null> {
-  // Global (unscoped) identities only: `application is null`, matching the
-  // backend's `insert_for_identity` (`application = None`).
+  // Provider identities are global per user (no app scoping), matching the
+  // backend's `DbAuthProvider::find_by_subject`.
   const result = await client.query(
-    `select user_id from auth_identities
-      where application is null
-        and wallet_provider = $1
-        and wallet_provider_subject = $2
+    `select user_id from auth_providers
+      where provider = $1
+        and subject = $2
       limit 1`,
     [provider, subject],
   );

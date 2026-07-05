@@ -20,9 +20,7 @@
     "total_turns": 1,
     "total_tool_calls": 6,
     "total_responses": 9,
-    "activated_skills": [
-      "base_native"
-    ],
+    "activated_skills": ["base_native"],
     "failed_assertions": [],
     "budget_summary": {
       "total": 1,
@@ -123,9 +121,7 @@
         "tool": "activate_skills",
         "topic": "activate_skills",
         "arguments": {
-          "skill_ids": [
-            "base_native"
-          ]
+          "skill_ids": ["base_native"]
         },
         "result_preview": "{\n  \"activated\": [\n    \"base_native\"\n  ],\n  \"rejected\": [],\n  \"applied_scope\": \"current_serve_cycle\"\n}"
       },
@@ -219,12 +215,8 @@
     },
     "skills": {
       "mode": "restricted",
-      "allowed": [
-        "base_native"
-      ],
-      "activated_skills": [
-        "base_native"
-      ],
+      "allowed": ["base_native"],
+      "activated_skills": ["base_native"],
       "bundle_path": "../output/eval/model-bench-public-skills-gpt55-opus48-sonnet46-20260530/specs/bridge_eth_to_base_native_review_first/claude-opus-4.8/pass-002/spec-skills/bridge_eth_to_base_native_review_first-skills.json",
       "bundle_revision": "fnv1a64:db84863bc535c607"
     },

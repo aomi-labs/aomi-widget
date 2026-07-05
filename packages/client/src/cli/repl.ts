@@ -1,7 +1,11 @@
 import { createInterface } from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
 import { chatCommand } from "./commands/chat";
-import { modelsCommand, setAppCommand, setModelCommand } from "./commands/control";
+import {
+  modelsCommand,
+  setAppCommand,
+  setModelCommand,
+} from "./commands/control";
 import {
   clearByokKeysCommand,
   saveByokKeyCommand,
@@ -34,7 +38,10 @@ function currentModelLabel(config: CliConfig): string {
   return cli.model ?? "(default backend model)";
 }
 
-async function handleModelCommand(config: CliConfig, command: string): Promise<void> {
+async function handleModelCommand(
+  config: CliConfig,
+  command: string,
+): Promise<void> {
   if (!command) {
     fatal("Usage: /model <rig> | /model list | /model show");
   }
@@ -55,7 +62,8 @@ async function handleModelCommand(config: CliConfig, command: string): Promise<v
     fatal(`Usage: /model ${action} <rig>`);
   }
 
-  const nextModel = action === "main" || action === "small" ? maybeModel : command;
+  const nextModel =
+    action === "main" || action === "small" ? maybeModel : command;
   if (!nextModel) {
     fatal("Usage: /model <rig>");
   }
@@ -64,7 +72,10 @@ async function handleModelCommand(config: CliConfig, command: string): Promise<v
   config.model = nextModel;
 }
 
-async function handleKeyCommand(config: CliConfig, command: string): Promise<void> {
+async function handleKeyCommand(
+  config: CliConfig,
+  command: string,
+): Promise<void> {
   if (!command) {
     fatal("Usage: /key <provider:key> | /key show | /key clear");
   }
@@ -132,20 +143,28 @@ export async function runInteractiveCli(
   options?: { showTool?: boolean },
 ): Promise<void> {
   if (!process.stdin.isTTY || !process.stdout.isTTY) {
-    fatal("Interactive mode requires a TTY. Use `--prompt` for non-interactive usage.");
+    fatal(
+      "Interactive mode requires a TTY. Use `--prompt` for non-interactive usage.",
+    );
   }
 
   CliSession.loadOrCreate(config);
 
   console.log("Interactive Aomi CLI ready.");
-  console.log("Commands: /heap, /app <name>, /model <rig>|list|show, /key, :exit");
+  console.log(
+    "Commands: /heap, /app <name>, /model <rig>|list|show, /key, :exit",
+  );
 
   const rl = createInterface({ input, output });
   try {
     while (true) {
       const line = await rl.question("> ");
       try {
-        const next = await handleReplLine(config, line, options?.showTool === true);
+        const next = await handleReplLine(
+          config,
+          line,
+          options?.showTool === true,
+        );
         if (next === "exit") {
           break;
         }

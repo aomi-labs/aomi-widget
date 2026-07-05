@@ -30,7 +30,9 @@ afterEach(() => {
 function mockStatusSequence(states: string[]) {
   let idx = 0;
   return vi.fn().mockImplementation(async () => {
-    const state = states[Math.min(idx, states.length - 1)] as DeploymentStatus["state"];
+    const state = states[
+      Math.min(idx, states.length - 1)
+    ] as DeploymentStatus["state"];
     idx++;
     return new Response(
       JSON.stringify({ state, releaseTags: [] } satisfies DeploymentStatus),
@@ -49,8 +51,10 @@ async function runWatch(
   const fetchMock = mockStatusSequence(states);
   vi.stubGlobal("fetch", fetchMock);
 
-  const promise = client.watchDeployment("dep_1", "community", (e) =>
-    events.push(e),
+  const promise = client.watchDeployment(
+    "dep_1",
+    "community",
+    (e) => events.push(e),
     { baseDelayMs: 1, maxDelayMs: 5, maxRetries: 3, signal },
   );
 
@@ -65,7 +69,13 @@ describe("Property 1 — terminates on terminal state", () => {
     fc.assert(
       fc.asyncProperty(
         fc.array(
-          fc.constantFrom("pending", "building", "releasing", "ready", "failed"),
+          fc.constantFrom(
+            "pending",
+            "building",
+            "releasing",
+            "ready",
+            "failed",
+          ),
           { minLength: 1, maxLength: 8 },
         ),
         async (states) => {
@@ -94,7 +104,13 @@ describe("Property 2 — every event has a valid ProgressModel", () => {
     fc.assert(
       fc.asyncProperty(
         fc.array(
-          fc.constantFrom("pending", "building", "releasing", "ready", "failed"),
+          fc.constantFrom(
+            "pending",
+            "building",
+            "releasing",
+            "ready",
+            "failed",
+          ),
           { minLength: 1, maxLength: 8 },
         ),
         async (states) => {
@@ -122,7 +138,13 @@ describe("Property 3 — monotonically non-decreasing completed", () => {
     fc.assert(
       fc.asyncProperty(
         fc.array(
-          fc.constantFrom("pending", "building", "releasing", "ready", "failed"),
+          fc.constantFrom(
+            "pending",
+            "building",
+            "releasing",
+            "ready",
+            "failed",
+          ),
           { minLength: 2, maxLength: 8 },
         ),
         async (states) => {
@@ -149,10 +171,10 @@ describe("Property 3 — monotonically non-decreasing completed", () => {
   it("clamps completed using max(mapped, lastCompleted)", () => {
     fc.assert(
       fc.asyncProperty(
-        fc.array(
-          fc.constantFrom("pending", "building", "releasing"),
-          { minLength: 2, maxLength: 6 },
-        ),
+        fc.array(fc.constantFrom("pending", "building", "releasing"), {
+          minLength: 2,
+          maxLength: 6,
+        }),
         async (states) => {
           const events = await runWatch(states);
 
@@ -177,18 +199,15 @@ describe("Property 3 — monotonically non-decreasing completed", () => {
 describe("Property 4 — exponential backoff is non-decreasing", () => {
   it("delay at failure n is always >= delay at failure n-1", () => {
     fc.assert(
-      fc.property(
-        fc.integer({ min: 1, max: 7 }),
-        (n) => {
-          const delayN = (client as any).backoffDelay(n, 3000, 30000) as number;
-          const delayNminus1 = (client as any).backoffDelay(
-            n - 1,
-            3000,
-            30000,
-          ) as number;
-          expect(delayN).toBeGreaterThanOrEqual(delayNminus1);
-        },
-      ),
+      fc.property(fc.integer({ min: 1, max: 7 }), (n) => {
+        const delayN = (client as any).backoffDelay(n, 3000, 30000) as number;
+        const delayNminus1 = (client as any).backoffDelay(
+          n - 1,
+          3000,
+          30000,
+        ) as number;
+        expect(delayN).toBeGreaterThanOrEqual(delayNminus1);
+      }),
       { numRuns: 50 },
     );
   });

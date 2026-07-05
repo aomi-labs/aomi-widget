@@ -61,7 +61,7 @@ export interface UserStateEvmSponsorship extends Record<string, unknown> {
   sponsor_account?: string | null;
 }
 
-/** EVM-family wallet block (`evm`). */
+/** EVM-family wallet block (`evm[]`). */
 export interface UserStateEvm extends Record<string, unknown> {
   address?: string | null;
   chain_id?: number | string | null;
@@ -94,14 +94,14 @@ export interface UserStatePending extends Record<string, unknown> {
 
 /**
  * Client-side user state, canonicalized to the backend's nested snake_case
- * wire shape. EVM and Solana identities are independent blocks (`evm` / `svm`)
+ * wire shape. EVM and Solana identities are independent blocks (`evm[]` / `svm`)
  * so a single session can carry both families at once. `normalize` accepts the
  * backend's nested camelCase responses and legacy flat host input, and emits
  * this canonical shape.
  */
 export interface UserState extends Record<string, unknown> {
   connection?: UserStateConnection | null;
-  evm?: UserStateEvm | null;
+  evm?: UserStateEvm[] | null;
   svm?: UserStateSvm | null;
   pending?: UserStatePending | null;
   ext?: Record<string, unknown> | null;

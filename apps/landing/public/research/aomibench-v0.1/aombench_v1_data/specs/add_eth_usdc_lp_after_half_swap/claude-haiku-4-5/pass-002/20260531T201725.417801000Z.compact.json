@@ -33,9 +33,7 @@
     "total_turns": 1,
     "total_tool_calls": 35,
     "total_responses": 59,
-    "activated_skills": [
-      "aerodrome"
-    ],
+    "activated_skills": ["aerodrome"],
     "failed_assertions": [
       {
         "label": "Alice spends about 1 Base ETH total",
@@ -410,9 +408,7 @@
         "tool": "activate_skills",
         "topic": "activate_skills",
         "arguments": {
-          "skill_ids": [
-            "aerodrome"
-          ]
+          "skill_ids": ["aerodrome"]
         },
         "result_preview": "{\n  \"activated\": [\n    \"aerodrome\"\n  ],\n  \"rejected\": [],\n  \"applied_scope\": \"current_serve_cycle\"\n}"
       },
@@ -521,9 +517,7 @@
         "tool": "encode_and_call",
         "topic": "Check Alice's USDC balance on Base",
         "arguments": {
-          "arguments": [
-            "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
-          ],
+          "arguments": ["0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"],
           "function_signature": "balanceOf(address)",
           "to": "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
           "topic": "Check Alice's USDC balance on Base",
@@ -564,10 +558,7 @@
           "description": "Approve Aerodrome router to spend USDC for liquidity add",
           "data": {
             "signature": "approve(address,uint256)",
-            "args": [
-              "0xcF77a3Ba9A5CA399B7c97c74d54e5b1Beb874E43",
-              "930000000"
-            ],
+            "args": ["0xcF77a3Ba9A5CA399B7c97c74d54e5b1Beb874E43", "930000000"],
             "raw": ""
           },
           "value": "0",
@@ -655,9 +646,7 @@
         "tool": "encode_and_call",
         "topic": "Check Alice's USDC balance after swap simulation",
         "arguments": {
-          "arguments": [
-            "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
-          ],
+          "arguments": ["0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"],
           "function_signature": "balanceOf(address)",
           "to": "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
           "topic": "Check Alice's USDC balance after swap simulation",
@@ -1051,10 +1040,7 @@
         "arguments": {
           "value": "0",
           "data": {
-            "args": [
-              "0xcF77a3Ba9A5CA399B7c97c74d54e5b1Beb874E43",
-              "930000000"
-            ],
+            "args": ["0xcF77a3Ba9A5CA399B7c97c74d54e5b1Beb874E43", "930000000"],
             "raw": "",
             "signature": "approve(address,uint256)"
           },
@@ -1132,9 +1118,7 @@
         "tool": "commit_txs",
         "topic": "Commit the working swap: 0.5 ETH to USDC",
         "arguments": {
-          "tx_ids": [
-            1
-          ],
+          "tx_ids": [1],
           "topic": "Commit the working swap: 0.5 ETH to USDC"
         },
         "result_preview": "{\n  \"status\": \"pending_approval\",\n  \"tx_ids\": [\n    1\n  ],\n  \"timestamp\": \"2026-05-31T20:17:18.953031+00:00\"\n}"
@@ -1148,12 +1132,8 @@
     },
     "skills": {
       "mode": "restricted",
-      "allowed": [
-        "aerodrome"
-      ],
-      "activated_skills": [
-        "aerodrome"
-      ],
+      "allowed": ["aerodrome"],
+      "activated_skills": ["aerodrome"],
       "bundle_path": "../output/eval/model-bench-public-skills-expansion-20260531/specs/add_eth_usdc_lp_after_half_swap/claude-haiku-4.5/pass-002/spec-skills/add_eth_usdc_lp_after_half_swap-skills.json",
       "bundle_revision": "fnv1a64:c0406359c2059af7"
     },

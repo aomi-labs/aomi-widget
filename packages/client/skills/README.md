@@ -10,10 +10,10 @@ Install Aomi Skills with `npx skills add aomi-labs/skills`, install the CLI with
 
 ## Skills
 
-| Skill | Description |
-|-------|-------------|
-| [aomi-build](aomi-build/SKILL.md) | Build Aomi apps and plugins from APIs, specs, SDK docs, runtime interfaces, and product requirements |
-| [aomi-transact](aomi-transact/SKILL.md) | Build and execute EVM transactions through a conversational AI agent via the `aomi` CLI |
+| Skill                                   | Description                                                                                          |
+| --------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| [aomi-build](aomi-build/SKILL.md)       | Build Aomi apps and plugins from APIs, specs, SDK docs, runtime interfaces, and product requirements |
+| [aomi-transact](aomi-transact/SKILL.md) | Build and execute EVM transactions through a conversational AI agent via the `aomi` CLI              |
 
 ## Installation
 

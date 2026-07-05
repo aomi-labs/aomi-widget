@@ -27,7 +27,7 @@ Read this when a command fails unexpectedly or behaves differently than the work
 
 ## Cross-chain
 
-- When the chat/session chain (`--chain`) differs from the chain the agent eventually queues a tx for, that's normal — the user may have asked for a cross-chain operation. Sign with `--rpc-url` matching the *queued tx*'s chain, not the session chain.
+- When the chat/session chain (`--chain`) differs from the chain the agent eventually queues a tx for, that's normal — the user may have asked for a cross-chain operation. Sign with `--rpc-url` matching the _queued tx_'s chain, not the session chain.
 
 ## Invocation
 

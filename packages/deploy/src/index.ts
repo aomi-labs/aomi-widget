@@ -54,6 +54,7 @@ export type {
   RevokeTokenInput,
   AppSource,
   SyncSourceInput,
+  ResolveSourceInput,
   ScaffoldInput,
   ListAppsInput,
   GetAppInput,

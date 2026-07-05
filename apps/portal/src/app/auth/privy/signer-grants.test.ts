@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   ensureServerSignerAccess,
   isDuplicateSignerGrantError,
+  isWalletOwnershipMismatchError,
 } from "./signer-grants";
 
 describe("ensureServerSignerAccess", () => {
@@ -63,6 +64,28 @@ describe("ensureServerSignerAccess", () => {
 
     expect(result).toBe("solana: temporary upstream failure");
   });
+
+  it("does not retry ownership-mismatch rejections", async () => {
+    const addSigners = vi
+      .fn<({ address }: { address: string }) => Promise<unknown>>()
+      .mockRejectedValue(
+        new Error(
+          "Address to add signers too is not associated with current user.",
+        ),
+      );
+
+    const result = await ensureServerSignerAccess({
+      wallets: [{ address: "0xabc", chainType: "ethereum" }],
+      signerId: "signer-1",
+      addSigners,
+      retryDelaysMs: [0, 0, 0],
+    });
+
+    expect(result).toBe(
+      "ethereum: Address to add signers too is not associated with current user.",
+    );
+    expect(addSigners).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe("isDuplicateSignerGrantError", () => {
@@ -72,5 +95,21 @@ describe("isDuplicateSignerGrantError", () => {
         "Duplicate signer(s) provided when updating wallet. To address, ensure each additional signer has not already been added.",
       ),
     ).toBe(true);
+  });
+});
+
+describe("isWalletOwnershipMismatchError", () => {
+  it("matches Privy cross-account grant rejection wording", () => {
+    expect(
+      isWalletOwnershipMismatchError(
+        "ethereum: Address to add signers too is not associated with current user.",
+      ),
+    ).toBe(true);
+  });
+
+  it("does not match transient failures", () => {
+    expect(isWalletOwnershipMismatchError("temporary upstream failure")).toBe(
+      false,
+    );
   });
 });

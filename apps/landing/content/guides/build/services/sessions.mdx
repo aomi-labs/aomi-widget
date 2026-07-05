@@ -78,16 +78,16 @@ Messages are persisted to PostgreSQL as they are exchanged. This ensures convers
 
 Each message record includes:
 
-| Field | Type | Description |
-| --- | --- | --- |
-| `id` | UUID | Unique message identifier |
-| `session_id` | UUID | Parent session |
-| `thread_id` | UUID | Parent thread |
-| `role` | string | `user`, `assistant`, or `system` |
-| `content` | text | Message text content |
-| `tool_calls` | JSON | Tool calls made by the assistant (if any) |
-| `tool_results` | JSON | Results from tool execution (if any) |
-| `created_at` | timestamp | When the message was created |
+| Field          | Type      | Description                               |
+| -------------- | --------- | ----------------------------------------- |
+| `id`           | UUID      | Unique message identifier                 |
+| `session_id`   | UUID      | Parent session                            |
+| `thread_id`    | UUID      | Parent thread                             |
+| `role`         | string    | `user`, `assistant`, or `system`          |
+| `content`      | text      | Message text content                      |
+| `tool_calls`   | JSON      | Tool calls made by the assistant (if any) |
+| `tool_results` | JSON      | Results from tool execution (if any)      |
+| `created_at`   | timestamp | When the message was created              |
 
 ## Wallet Binding
 
@@ -122,13 +122,13 @@ Within a session, users can create multiple **threads** -- separate conversation
 
 ### Operations
 
-| Operation | API Call | Description |
-| --- | --- | --- |
-| **Create** | `POST /api/sessions` | Start a new thread |
-| **List** | `GET /api/sessions/{id}` | List all threads in a session |
-| **Switch** | Client-side | Change the active thread (update `X-Session-Id`) |
-| **Rename** | `PATCH /api/sessions/{id}` | Update a thread's title |
-| **Delete** | `DELETE /api/sessions/{id}` | Remove a thread and its messages |
+| Operation  | API Call                    | Description                                      |
+| ---------- | --------------------------- | ------------------------------------------------ |
+| **Create** | `POST /api/sessions`        | Start a new thread                               |
+| **List**   | `GET /api/sessions/{id}`    | List all threads in a session                    |
+| **Switch** | Client-side                 | Change the active thread (update `X-Session-Id`) |
+| **Rename** | `PATCH /api/sessions/{id}`  | Update a thread's title                          |
+| **Delete** | `DELETE /api/sessions/{id}` | Remove a thread and its messages                 |
 
 ### Using the Widget
 
@@ -191,9 +191,9 @@ type SessionState = {
 Use the state endpoint to poll for the current session state:
 
 ```ts
-const state = await fetch(
-  `/api/state?session_id=${sessionId}`
-).then((r) => r.json());
+const state = await fetch(`/api/state?session_id=${sessionId}`).then((r) =>
+  r.json(),
+);
 
 console.log(state.status); // "idle" | "processing"
 console.log(state.userState.address); // "0x742d..." or null
@@ -204,9 +204,7 @@ console.log(state.userState.address); // "0x742d..." or null
 For real-time updates without polling, subscribe to the SSE updates endpoint:
 
 ```ts
-const events = new EventSource(
-  `/api/updates?session_id=${sessionId}`,
-);
+const events = new EventSource(`/api/updates?session_id=${sessionId}`);
 
 events.onmessage = (event) => {
   const data = JSON.parse(event.data);

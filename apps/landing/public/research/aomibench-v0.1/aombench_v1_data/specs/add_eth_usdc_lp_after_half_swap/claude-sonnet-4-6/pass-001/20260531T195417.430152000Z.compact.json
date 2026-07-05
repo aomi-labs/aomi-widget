@@ -37,9 +37,7 @@
     "total_turns": 1,
     "total_tool_calls": 11,
     "total_responses": 17,
-    "activated_skills": [
-      "aerodrome"
-    ],
+    "activated_skills": ["aerodrome"],
     "failed_assertions": [
       {
         "label": "tool",
@@ -262,10 +260,7 @@
         "tool": "activate_skills",
         "topic": "activate_skills",
         "arguments": {
-          "skill_ids": [
-            "aerodrome",
-            "common_erc20"
-          ]
+          "skill_ids": ["aerodrome", "common_erc20"]
         },
         "result_preview": "{\n  \"activated\": [\n    \"aerodrome\"\n  ],\n  \"rejected\": [\n    [\n      \"common_erc20\",\n      \"invalid\"\n    ]\n  ],\n  \"applied_scope\": \"current_serve_cycle\"\n}"
       },
@@ -378,10 +373,7 @@
           "description": "Approve Aerodrome Router to spend 997,857,494 USDC for LP add",
           "data": {
             "signature": "approve(address,uint256)",
-            "args": [
-              "0xcF77a3Ba9A5CA399B7c97c74d54e5b1Beb874E43",
-              "997857494"
-            ],
+            "args": ["0xcF77a3Ba9A5CA399B7c97c74d54e5b1Beb874E43", "997857494"],
             "raw": ""
           },
           "value": "0",
@@ -464,12 +456,8 @@
     },
     "skills": {
       "mode": "restricted",
-      "allowed": [
-        "aerodrome"
-      ],
-      "activated_skills": [
-        "aerodrome"
-      ],
+      "allowed": ["aerodrome"],
+      "activated_skills": ["aerodrome"],
       "bundle_path": "../output/eval/model-bench-public-skills-expansion-20260531/specs/add_eth_usdc_lp_after_half_swap/claude-sonnet-4.6/pass-001/spec-skills/add_eth_usdc_lp_after_half_swap-skills.json",
       "bundle_revision": "fnv1a64:c0406359c2059af7"
     },

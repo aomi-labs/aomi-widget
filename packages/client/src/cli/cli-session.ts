@@ -10,7 +10,7 @@
 
 import { ClientSession } from "../session";
 import type { CliConfig } from "./types";
-import { DEFAULT_CLI_BASE_URL, createCliClient } from "./client-factory";
+import { createCliClient } from "./client-factory";
 import {
   readState,
   hasSameBackendPendingId,
@@ -31,26 +31,26 @@ function applyAccountCredentialConfig(
   state: CliSessionState,
   config: Pick<
     Partial<CliConfig>,
-    "accountBearer" | "embeddedProvider" | "embeddedProviderToken"
+    "accountBearer" | "accountProvider" | "accountProviderToken"
   >,
 ): boolean {
   let changed = false;
   const selectsBearer = config.accountBearer !== undefined;
   const selectsProviderExchange =
-    config.embeddedProvider !== undefined ||
-    config.embeddedProviderToken !== undefined;
+    config.accountProvider !== undefined ||
+    config.accountProviderToken !== undefined;
 
   if (selectsBearer) {
     if (state.accountBearer !== config.accountBearer) {
       state.accountBearer = config.accountBearer;
       changed = true;
     }
-    if (state.embeddedProvider !== undefined) {
-      state.embeddedProvider = undefined;
+    if (state.accountProvider !== undefined) {
+      state.accountProvider = undefined;
       changed = true;
     }
-    if (state.embeddedProviderToken !== undefined) {
-      state.embeddedProviderToken = undefined;
+    if (state.accountProviderToken !== undefined) {
+      state.accountProviderToken = undefined;
       changed = true;
     }
     return changed;
@@ -65,17 +65,17 @@ function applyAccountCredentialConfig(
     changed = true;
   }
   if (
-    config.embeddedProvider !== undefined &&
-    state.embeddedProvider !== config.embeddedProvider
+    config.accountProvider !== undefined &&
+    state.accountProvider !== config.accountProvider
   ) {
-    state.embeddedProvider = config.embeddedProvider;
+    state.accountProvider = config.accountProvider;
     changed = true;
   }
   if (
-    config.embeddedProviderToken !== undefined &&
-    state.embeddedProviderToken !== config.embeddedProviderToken
+    config.accountProviderToken !== undefined &&
+    state.accountProviderToken !== config.accountProviderToken
   ) {
-    state.embeddedProviderToken = config.embeddedProviderToken;
+    state.accountProviderToken = config.accountProviderToken;
     changed = true;
   }
   return changed;
@@ -129,18 +129,17 @@ export class CliSession {
     const state: CliSessionState = {
       sessionId: crypto.randomUUID(),
       clientId: crypto.randomUUID(),
-      baseUrl: config.baseUrl ?? seed?.baseUrl ?? DEFAULT_CLI_BASE_URL,
+      baseUrl: config.baseUrl ?? seed?.baseUrl ?? "https://api.aomi.dev",
       app: config.app ?? seed?.app,
       model: config.model ?? seed?.model,
       apiKey: config.apiKey ?? seed?.apiKey,
       accountBearer: seed?.accountBearer,
-      sessionCookie: config.sessionCookie ?? seed?.sessionCookie,
-      embeddedProvider: seed?.embeddedProvider,
-      embeddedProviderToken: seed?.embeddedProviderToken,
+      accountProvider: seed?.accountProvider,
+      accountProviderToken: seed?.accountProviderToken,
       publicKey: config.publicKey ?? seed?.publicKey,
       privateKey: config.privateKey ?? seed?.privateKey,
       svmPublicKey: svmPublicKey ?? seed?.svmPublicKey,
-      // Carry forward the persisted Solana private key so `wallet set --solana`
+      // Carry forward the persisted Solana private key so `wallet dev-key --solana`
       // survives `--new-session` — signing key is a user preference, not a
       // per-session artifact.
       svmPrivateKey: config.solanaPrivateKey ?? seed?.svmPrivateKey,
@@ -181,9 +180,6 @@ export class CliSession {
   get privateKey(): string | undefined {
     return this.state.privateKey;
   }
-  get sessionCookie(): string | undefined {
-    return this.state.sessionCookie;
-  }
   get svmPublicKey(): string | undefined {
     return this.state.svmPublicKey;
   }
@@ -216,7 +212,7 @@ export class CliSession {
   /**
    * Apply config overrides (baseUrl, app, apiKey, publicKey, chain). Only
    * persists if something changed. Fields left `undefined` on the input are
-   * NOT clobbered — settings commands like `wallet set` pass partial configs
+   * NOT clobbered — settings commands like `wallet dev-key` pass partial configs
    * and must not wipe out an existing `baseUrl`.
    */
   mergeConfig(config: Partial<CliConfig>): void {
@@ -289,14 +285,6 @@ export class CliSession {
     this.save();
   }
 
-  /** Persist the BFF session token established by `aomi login` (SIWE). Clears
-   * any static `accountBearer` so the session becomes the single credential. */
-  setSessionCookie(sessionCookie: string): void {
-    this.state.sessionCookie = sessionCookie;
-    this.state.accountBearer = undefined;
-    this.save();
-  }
-
   setWallet(privateKey: string, publicKey: string): void {
     this.state.privateKey = privateKey;
     this.state.publicKey = publicKey;
@@ -311,7 +299,7 @@ export class CliSession {
 
   /** The Solana private key to use for signing. Prefers the transiently-
    * supplied `solanaPrivateKey` from `CliConfig` (i.e. `--solana-private-key`)
-   * and falls back to the key persisted by `wallet set --solana`. */
+   * and falls back to the key persisted by `wallet dev-key --solana`. */
   resolvedSvmPrivateKey(fromConfig?: string): string | undefined {
     return fromConfig ?? this.state.svmPrivateKey;
   }
@@ -319,6 +307,28 @@ export class CliSession {
   setChainId(id: number): void {
     this.state.chainId = id;
     this.save();
+  }
+
+  /**
+   * Persist the operating address(es) for a backend-signed (delegated) wallet —
+   * the CLI's blue→yellow step. No private key is stored: signing routes
+   * through the backend (blue→pink, keyed on this address), so the address
+   * alone must reach `UserState`. Only fills empty slots, so a local
+   * self-custody key is never clobbered.
+   */
+  hydrateOperatingWallet(operating: { evm?: string; svm?: string }): void {
+    let changed = false;
+    if (operating.evm && !this.state.publicKey) {
+      this.state.publicKey = operating.evm;
+      changed = true;
+    }
+    if (operating.svm && !this.state.svmPublicKey) {
+      this.state.svmPublicKey = operating.svm;
+      changed = true;
+    }
+    if (changed) {
+      this.save();
+    }
   }
 
   addSecretHandles(handles: Record<string, string>): void {
@@ -331,6 +341,30 @@ export class CliSession {
 
   clearSecretHandles(): void {
     this.state.secretHandles = {};
+    this.save();
+  }
+
+  /**
+   * Persist the account bearer minted by the device-login flow. The credential
+   * is the account bearer the client attaches to requests, so it lands in
+   * `accountBearer` (the field `createClientSession` reads) and clears any
+   * stale legacy provider-exchange config.
+   */
+  setAccountBearer(token: string): void {
+    this.state.accountBearer = token;
+    this.state.accountProvider = undefined;
+    this.state.accountProviderToken = undefined;
+    this.save();
+  }
+
+  /**
+   * Drop every persisted account credential — the device-flow bearer plus any
+   * legacy provider-exchange config. `aomi logout`.
+   */
+  clearAccountCredentials(): void {
+    this.state.accountBearer = undefined;
+    this.state.accountProvider = undefined;
+    this.state.accountProviderToken = undefined;
     this.save();
   }
 
@@ -479,16 +513,16 @@ export class CliSession {
 
   /** Build a ClientSession from the current state. */
   createClientSession(config: Partial<CliConfig> = {}): ClientSession {
-    const resolvedEmbeddedProvider =
+    const effectiveAccountProvider =
       config.accountBearer !== undefined
         ? undefined
-        : (config.embeddedProvider ?? this.state.embeddedProvider);
-    const resolvedEmbeddedProviderToken =
+        : (config.accountProvider ?? this.state.accountProvider);
+    const effectiveAccountProviderToken =
       config.accountBearer !== undefined
         ? undefined
-        : (config.embeddedProviderToken ?? this.state.embeddedProviderToken);
+        : (config.accountProviderToken ?? this.state.accountProviderToken);
     const shouldUseProviderExchange = Boolean(
-      resolvedEmbeddedProvider && resolvedEmbeddedProviderToken,
+      effectiveAccountProvider && effectiveAccountProviderToken,
     );
 
     const session = new ClientSession(
@@ -502,11 +536,8 @@ export class CliSession {
           accountBearer: shouldUseProviderExchange
             ? undefined
             : (config.accountBearer ?? this.state.accountBearer),
-          // SIWE-established BFF session: the CLI mints short-lived bearers from
-          // it. Preferred over a static accountBearer when both are present.
-          sessionCookie: config.sessionCookie ?? this.state.sessionCookie,
-          embeddedProvider: resolvedEmbeddedProvider,
-          embeddedProviderToken: resolvedEmbeddedProviderToken,
+          accountProvider: effectiveAccountProvider,
+          accountProviderToken: effectiveAccountProviderToken,
           secrets: config.secrets ?? {},
         },
         {
@@ -523,7 +554,6 @@ export class CliSession {
     );
     session.resolveUserState(
       buildCliUserState(this.state.publicKey, this.state.chainId, {
-        app: this.state.app,
         aaMode: this.state.aaMode ?? null,
         smartAccount: this.state.smartAccount ?? null,
         svmAddress: this.state.svmPublicKey,

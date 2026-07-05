@@ -27,9 +27,7 @@
     "total_turns": 1,
     "total_tool_calls": 14,
     "total_responses": 23,
-    "activated_skills": [
-      "mantle_staked_eth"
-    ],
+    "activated_skills": ["mantle_staked_eth"],
     "failed_assertions": [],
     "budget_summary": {
       "total": 1,
@@ -228,9 +226,7 @@
         "tool": "activate_skills",
         "topic": "activate_skills",
         "arguments": {
-          "skill_ids": [
-            "mantle_staked_eth"
-          ]
+          "skill_ids": ["mantle_staked_eth"]
         },
         "result_preview": "{\n  \"activated\": [\n    \"mantle_staked_eth\"\n  ],\n  \"rejected\": [],\n  \"applied_scope\": \"current_serve_cycle\"\n}"
       },
@@ -277,9 +273,7 @@
         "arguments": {
           "to": "0xd5F7838F5C461fefF7FE49ea5ebaF7728bB0ADfa",
           "function_signature": "ethToMETH(uint256)",
-          "arguments": [
-            "100000000000000000"
-          ],
+          "arguments": ["100000000000000000"],
           "value": "0",
           "topic": "Get mETH output for 0.1 ETH"
         },
@@ -375,9 +369,7 @@
         "tool": "encode_and_call",
         "topic": "Calculate mETH output for 0.1 ETH",
         "arguments": {
-          "arguments": [
-            "100000000000000000"
-          ],
+          "arguments": ["100000000000000000"],
           "function_signature": "ethToMETH(uint256)",
           "to": "0xe3cBd06D7dadB3F4e6557bAb7EdD924CD1489E8f",
           "topic": "Calculate mETH output for 0.1 ETH",
@@ -394,9 +386,7 @@
           "description": "Stake 0.1 ETH for Mantle mETH",
           "data": {
             "signature": "stake(uint256)",
-            "args": [
-              "91015380528260308"
-            ],
+            "args": ["91015380528260308"],
             "raw": ""
           },
           "value": "100000000000000000",
@@ -429,9 +419,7 @@
         "tool": "commit_txs",
         "topic": "Commit Mantle stake transaction",
         "arguments": {
-          "tx_ids": [
-            1
-          ],
+          "tx_ids": [1],
           "topic": "Commit Mantle stake transaction"
         },
         "result_preview": "{\n  \"status\": \"pending_approval\",\n  \"tx_ids\": [\n    1\n  ],\n  \"timestamp\": \"2026-05-31T12:01:58.121833+00:00\"\n}"
@@ -445,12 +433,8 @@
     },
     "skills": {
       "mode": "restricted",
-      "allowed": [
-        "mantle_staked_eth"
-      ],
-      "activated_skills": [
-        "mantle_staked_eth"
-      ],
+      "allowed": ["mantle_staked_eth"],
+      "activated_skills": ["mantle_staked_eth"],
       "bundle_path": "../output/eval/model-bench-public-skills-opus47-opus46-haiku45-20260531/specs/stake_eth_mantle_meth/claude-haiku-4.5/pass-002/spec-skills/stake_eth_mantle_meth-skills.json",
       "bundle_revision": "fnv1a64:0c85696036b5a461"
     },

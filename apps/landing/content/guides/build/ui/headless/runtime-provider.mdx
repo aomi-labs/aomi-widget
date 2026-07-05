@@ -23,10 +23,10 @@ export default function App() {
 
 ## Props
 
-| Prop | Type | Default | Description |
-| --- | --- | --- | --- |
-| `backendUrl` | `string` | `"http://localhost:8080"` | URL of the Aomi backend API |
-| `children` | `ReactNode` | -- | Your application components |
+| Prop         | Type        | Default                   | Description                 |
+| ------------ | ----------- | ------------------------- | --------------------------- |
+| `backendUrl` | `string`    | `"http://localhost:8080"` | URL of the Aomi backend API |
+| `children`   | `ReactNode` | --                        | Your application components |
 
 ## What It Provides
 
@@ -45,14 +45,14 @@ AomiRuntimeProvider
 
 Each layer provides specific functionality through its own hook:
 
-| Context | Hook | Provides |
-| --- | --- | --- |
-| Thread | `useThreadContext` | Thread ID, messages, metadata, thread operations |
-| User | `useUser` | Wallet address, chain ID, connection status |
-| Notification | `useNotification` | Show/dismiss notifications |
-| Control | `useControl` | Model selection, app, API key |
-| Event | `useEventContext` | SSE subscription, outbound events |
-| **Unified** | `useAomiRuntime` | **All of the above in one hook** |
+| Context      | Hook               | Provides                                         |
+| ------------ | ------------------ | ------------------------------------------------ |
+| Thread       | `useThreadContext` | Thread ID, messages, metadata, thread operations |
+| User         | `useUser`          | Wallet address, chain ID, connection status      |
+| Notification | `useNotification`  | Show/dismiss notifications                       |
+| Control      | `useControl`       | Model selection, app, API key                    |
+| Event        | `useEventContext`  | SSE subscription, outbound events                |
+| **Unified**  | `useAomiRuntime`   | **All of the above in one hook**                 |
 
 ## Typical Provider Hierarchy
 
@@ -73,9 +73,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
   return (
     <WagmiProvider config={wagmiConfig}>
       <QueryClientProvider client={queryClient}>
-        <AomiRuntimeProvider
-          backendUrl={process.env.NEXT_PUBLIC_BACKEND_URL}
-        >
+        <AomiRuntimeProvider backendUrl={process.env.NEXT_PUBLIC_BACKEND_URL}>
           {children}
         </AomiRuntimeProvider>
       </QueryClientProvider>

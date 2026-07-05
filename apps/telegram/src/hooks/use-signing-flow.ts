@@ -1,13 +1,22 @@
-'use client';
+"use client";
 
-import { useEffect, useRef, useState, useCallback } from 'react';
-import { useAccount } from 'wagmi';
-import { getTelegramStartParam, getTelegramUserId } from '@/lib/telegram-webapp';
+import { useEffect, useRef, useState, useCallback } from "react";
+import { useAccount } from "wagmi";
+import {
+  getTelegramStartParam,
+  getTelegramUserId,
+} from "@/lib/telegram-webapp";
 
 // ── Types ──
 
-export type SigningStatus = 'loading' | 'signing' | 'needs_connect' | 'done';
-export type RelayStatus = 'pending' | 'awaiting_wallet' | 'signed' | 'rejected' | 'failed' | 'expired';
+export type SigningStatus = "loading" | "signing" | "needs_connect" | "done";
+export type RelayStatus =
+  | "pending"
+  | "awaiting_wallet"
+  | "signed"
+  | "rejected"
+  | "failed"
+  | "expired";
 
 export interface SigningFlowConfig<T = unknown> {
   /** API endpoint for fetching/updating signing requests (e.g., '/api/operation/tx') */
@@ -21,7 +30,11 @@ export interface SigningFlowConfig<T = unknown> {
   /** Key in API response/sendData for the result (e.g., 'tx_hash' or 'signature') */
   resultKey: string;
   /** Convert relay status to terminal message */
-  terminalMessageFromStatus: (status: RelayStatus, result?: string, error?: string) => string;
+  terminalMessageFromStatus: (
+    status: RelayStatus,
+    result?: string,
+    error?: string,
+  ) => string;
   /** Whether to check for local private key (transaction signing only) */
   checkLocalPrivateKey?: boolean;
   /** Optional transform function for API response data */
@@ -45,16 +58,24 @@ export interface SigningFlowState<T> {
 
 export interface SigningResultHandlers {
   /** Report successful signing to API and Telegram */
-  reportSuccess: (requestId: string, result: string, extraData?: Record<string, unknown>) => Promise<void>;
+  reportSuccess: (
+    requestId: string,
+    result: string,
+    extraData?: Record<string, unknown>,
+  ) => Promise<void>;
   /** Report signing failure/rejection to API and Telegram */
-  reportFailure: (requestId: string, error: unknown, extraData?: Record<string, unknown>) => Promise<void>;
+  reportFailure: (
+    requestId: string,
+    error: unknown,
+    extraData?: Record<string, unknown>,
+  ) => Promise<void>;
   /** Report awaiting wallet status to API */
   reportAwaitingWallet: (requestId: string) => Promise<void>;
 }
 
 // ── Constants ──
 
-const LOCAL_PRIVATE_KEY_STORAGE_KEY = 'aomi_aa_wallet_private_key_v1';
+const LOCAL_PRIVATE_KEY_STORAGE_KEY = "aomi_aa_wallet_private_key_v1";
 const CONNECTION_SETTLE_TIMEOUT_MS = 3500;
 
 // ── Helper Functions ──
@@ -68,51 +89,53 @@ export function isUserRejectedError(err: unknown): boolean {
   const code = extractErrorCode(err);
   return (
     code === 4001 ||
-    code === 'ACTION_REJECTED' ||
-    lowered.includes('user rejected') ||
-    lowered.includes('rejected by user') ||
-    lowered.includes('user denied') ||
-    lowered.includes('user cancelled')
+    code === "ACTION_REJECTED" ||
+    lowered.includes("user rejected") ||
+    lowered.includes("rejected by user") ||
+    lowered.includes("user denied") ||
+    lowered.includes("user cancelled")
   );
 }
 
 function extractErrorCode(err: unknown, depth = 0): unknown {
-  if (depth > 4 || !err || typeof err !== 'object') return undefined;
+  if (depth > 4 || !err || typeof err !== "object") return undefined;
   const rec = err as Record<string, unknown>;
   if (rec.code !== undefined) return rec.code;
   return (
-    extractErrorCode(rec.error, depth + 1)
-    ?? extractErrorCode(rec.cause, depth + 1)
-    ?? extractErrorCode(rec.data, depth + 1)
+    extractErrorCode(rec.error, depth + 1) ??
+    extractErrorCode(rec.cause, depth + 1) ??
+    extractErrorCode(rec.data, depth + 1)
   );
 }
 
 function extractErrorMessage(err: unknown, depth = 0): string {
-  if (depth > 4) return 'unknown';
-  if (typeof err === 'string') return err;
-  if (err instanceof Error) return err.message || 'unknown';
+  if (depth > 4) return "unknown";
+  if (typeof err === "string") return err;
+  if (err instanceof Error) return err.message || "unknown";
   if (Array.isArray(err)) {
-    const parts = err.map((v) => extractErrorMessage(v, depth + 1)).filter(Boolean);
-    return parts.length > 0 ? parts.join('; ') : 'unknown';
+    const parts = err
+      .map((v) => extractErrorMessage(v, depth + 1))
+      .filter(Boolean);
+    return parts.length > 0 ? parts.join("; ") : "unknown";
   }
-  if (err && typeof err === 'object') {
+  if (err && typeof err === "object") {
     const rec = err as Record<string, unknown>;
-    for (const key of ['shortMessage', 'reason', 'message']) {
+    for (const key of ["shortMessage", "reason", "message"]) {
       const val = rec[key];
-      if (typeof val === 'string' && val.trim()) return val;
+      if (typeof val === "string" && val.trim()) return val;
     }
-    for (const key of ['error', 'cause', 'data']) {
+    for (const key of ["error", "cause", "data"]) {
       const nested = extractErrorMessage(rec[key], depth + 1);
-      if (nested !== 'unknown') return nested;
+      if (nested !== "unknown") return nested;
     }
     try {
       const json = JSON.stringify(err);
-      if (json && json !== '{}') return json;
+      if (json && json !== "{}") return json;
     } catch {
       // ignore
     }
   }
-  return String(err ?? 'unknown');
+  return String(err ?? "unknown");
 }
 
 /**
@@ -124,16 +147,16 @@ export function terminalMessageFromTxStatus(
   errorMessage?: string,
 ): string {
   switch (status) {
-    case 'signed':
-      return txHash ? `Already signed: ${txHash}` : 'Already signed.';
-    case 'rejected':
-      return 'This request was already rejected in wallet.';
-    case 'failed':
-      return `Signing failed: ${errorMessage ?? 'unknown error'}`;
-    case 'expired':
-      return 'This signing request expired. Ask the bot to resend it.';
+    case "signed":
+      return txHash ? `Already signed: ${txHash}` : "Already signed.";
+    case "rejected":
+      return "This request was already rejected in wallet.";
+    case "failed":
+      return `Signing failed: ${errorMessage ?? "unknown error"}`;
+    case "expired":
+      return "This signing request expired. Ask the bot to resend it.";
     default:
-      return 'Request is not signable.';
+      return "Request is not signable.";
   }
 }
 
@@ -146,16 +169,16 @@ export function terminalMessageFromEip712Status(
   errorMessage?: string,
 ): string {
   switch (status) {
-    case 'signed':
-      return signature ? `Already signed: ${signature}` : 'Already signed.';
-    case 'rejected':
-      return 'This signature request was already rejected in wallet.';
-    case 'failed':
-      return `Signature failed: ${errorMessage ?? 'unknown error'}`;
-    case 'expired':
-      return 'This signature request expired. Ask the bot to resend it.';
+    case "signed":
+      return signature ? `Already signed: ${signature}` : "Already signed.";
+    case "rejected":
+      return "This signature request was already rejected in wallet.";
+    case "failed":
+      return `Signature failed: ${errorMessage ?? "unknown error"}`;
+    case "expired":
+      return "This signature request expired. Ask the bot to resend it.";
     default:
-      return 'Request is not signable.';
+      return "Request is not signable.";
   }
 }
 
@@ -172,13 +195,15 @@ export function useSigningFlow<T>(
   const { isConnected } = useAccount();
 
   // State
-  const [status, setStatus] = useState<SigningStatus>('loading');
+  const [status, setStatus] = useState<SigningStatus>("loading");
   const [terminalMessage, setTerminalMessage] = useState<string | null>(null);
   const [data, setData] = useState<T | null>(null);
   const [requestId, setRequestId] = useState<string | null>(null);
   const [idParam, setIdParam] = useState<string | null>(null);
   const [telegramUserId, setTelegramUserId] = useState<string | null>(null);
-  const [localPrivateKey, setLocalPrivateKey] = useState<`0x${string}` | null>(null);
+  const [localPrivateKey, setLocalPrivateKey] = useState<`0x${string}` | null>(
+    null,
+  );
   const [connectionSettled, setConnectionSettled] = useState(false);
 
   // Refs to prevent duplicate actions
@@ -187,26 +212,34 @@ export function useSigningFlow<T>(
 
   // ── Initialization: read TG params, local key, URL params ──
   useEffect(() => {
-    const queryUserId = new URLSearchParams(window.location.search).get('user_id');
+    const queryUserId = new URLSearchParams(window.location.search).get(
+      "user_id",
+    );
     const userId = getTelegramUserId() ?? queryUserId;
     if (userId) setTelegramUserId(userId);
 
     const startParam = getTelegramStartParam();
     if (startParam) setIdParam(startParam);
 
-    const urlId = new URLSearchParams(window.location.search).get(config.idParamName);
+    const urlId = new URLSearchParams(window.location.search).get(
+      config.idParamName,
+    );
     if (urlId) setIdParam(urlId);
 
     // Check for local private key (transaction signing only)
     if (config.checkLocalPrivateKey) {
       try {
-        const storedKey = window.localStorage.getItem(LOCAL_PRIVATE_KEY_STORAGE_KEY);
+        const storedKey = window.localStorage.getItem(
+          LOCAL_PRIVATE_KEY_STORAGE_KEY,
+        );
         if (storedKey) {
           // Validate by importing (will throw if invalid)
-          import('viem/accounts').then(({ privateKeyToAccount }) => {
-            privateKeyToAccount(storedKey as `0x${string}`);
-            setLocalPrivateKey(storedKey as `0x${string}`);
-          }).catch(() => {});
+          import("viem/accounts")
+            .then(({ privateKeyToAccount }) => {
+              privateKeyToAccount(storedKey as `0x${string}`);
+              setLocalPrivateKey(storedKey as `0x${string}`);
+            })
+            .catch(() => {});
         }
       } catch {
         /* ignore */
@@ -224,7 +257,7 @@ export function useSigningFlow<T>(
         if (idParam) {
           params.set(config.idParamName, idParam);
         } else if (telegramUserId) {
-          params.set('session_key', `telegram:dm:${telegramUserId}`);
+          params.set("session_key", `telegram:dm:${telegramUserId}`);
         }
 
         const resp = await fetch(`${config.apiEndpoint}?${params}`);
@@ -237,7 +270,7 @@ export function useSigningFlow<T>(
           setData(extractedData as T);
           setRequestId(json[config.idResponseKey] as string);
         } else if (json.status) {
-          setStatus('done');
+          setStatus("done");
           setTerminalMessage(
             config.terminalMessageFromStatus(
               json.status as RelayStatus,
@@ -246,8 +279,8 @@ export function useSigningFlow<T>(
             ),
           );
         } else {
-          setStatus('done');
-          setTerminalMessage('No pending signing request found.');
+          setStatus("done");
+          setTerminalMessage("No pending signing request found.");
         }
       } catch {
         /* will be caught by polling fallback on Rust side */
@@ -277,24 +310,31 @@ export function useSigningFlow<T>(
     if (!connectionSettled) return;
     if (signingStarted.current) return;
     if (isConnected || localPrivateKey) return;
-    setStatus('needs_connect');
-  }, [data, requestId, isConnected, localPrivateKey, restoreDone, connectionSettled]);
+    setStatus("needs_connect");
+  }, [
+    data,
+    requestId,
+    isConnected,
+    localPrivateKey,
+    restoreDone,
+    connectionSettled,
+  ]);
 
   // ── Report "wallet not connected" and close ──
   useEffect(() => {
-    if (status !== 'needs_connect') return;
+    if (status !== "needs_connect") return;
     if (!requestId || needsConnectReported.current) return;
     needsConnectReported.current = true;
 
     (async () => {
       await fetch(config.apiEndpoint, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           [config.idParamName]: requestId,
-          status: 'failed',
-          error_code: 'wallet_not_connected',
-          error_message: 'Wallet is not connected in this webview.',
+          status: "failed",
+          error_code: "wallet_not_connected",
+          error_message: "Wallet is not connected in this webview.",
         }),
       }).catch(() => {});
 
@@ -302,8 +342,8 @@ export function useSigningFlow<T>(
         window.Telegram.WebApp.sendData(
           JSON.stringify({
             [config.idParamName]: requestId,
-            status: 'failed',
-            error: 'wallet_not_connected',
+            status: "failed",
+            error: "wallet_not_connected",
           }),
         );
         window.Telegram.WebApp.close();
@@ -315,11 +355,11 @@ export function useSigningFlow<T>(
   const reportAwaitingWallet = useCallback(
     async (reqId: string) => {
       await fetch(config.apiEndpoint, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           [config.idParamName]: reqId,
-          status: 'awaiting_wallet',
+          status: "awaiting_wallet",
         }),
       }).catch(() => {});
     },
@@ -327,49 +367,57 @@ export function useSigningFlow<T>(
   );
 
   const reportSuccess = useCallback(
-    async (reqId: string, result: string, extraData?: Record<string, unknown>) => {
+    async (
+      reqId: string,
+      result: string,
+      extraData?: Record<string, unknown>,
+    ) => {
       // 1. Store on server (backup in case webview closes before sendData)
       await fetch(config.apiEndpoint, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           [config.idParamName]: reqId,
-          status: 'signed',
+          status: "signed",
           [config.resultKey]: result,
           ...extraData,
         }),
       });
 
       // 2. Return result to bot via sendData (closes the webview)
-      setStatus('done');
-      window.Telegram?.WebApp?.HapticFeedback?.notificationOccurred('success');
+      setStatus("done");
+      window.Telegram?.WebApp?.HapticFeedback?.notificationOccurred("success");
       if (window.Telegram?.WebApp?.sendData) {
         window.Telegram.WebApp.sendData(
           JSON.stringify({
             [config.idParamName]: reqId,
             [config.resultKey]: result,
-            status: 'signed',
+            status: "signed",
           }),
         );
         window.Telegram.WebApp.close();
       } else {
-        console.log('[dev] signed:', reqId, result);
+        console.log("[dev] signed:", reqId, result);
       }
     },
     [config.apiEndpoint, config.idParamName, config.resultKey],
   );
 
   const reportFailure = useCallback(
-    async (reqId: string, error: unknown, extraData?: Record<string, unknown>) => {
+    async (
+      reqId: string,
+      error: unknown,
+      extraData?: Record<string, unknown>,
+    ) => {
       const rejected = isUserRejectedError(error);
-      const errorStatus = rejected ? 'rejected' : 'failed';
+      const errorStatus = rejected ? "rejected" : "failed";
       const errorMessage = extractErrorMessage(error);
-      const errorCode = rejected ? 'user_rejected' : 'signing_failed';
+      const errorCode = rejected ? "user_rejected" : "signing_failed";
 
       // Store rejection so polling picks it up
       await fetch(config.apiEndpoint, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           [config.idParamName]: reqId,
           status: errorStatus,
@@ -379,7 +427,7 @@ export function useSigningFlow<T>(
         }),
       }).catch(() => {});
 
-      window.Telegram?.WebApp?.HapticFeedback?.notificationOccurred('error');
+      window.Telegram?.WebApp?.HapticFeedback?.notificationOccurred("error");
       if (window.Telegram?.WebApp?.sendData) {
         window.Telegram.WebApp.sendData(
           JSON.stringify({
@@ -396,7 +444,7 @@ export function useSigningFlow<T>(
 
   const startSigning = useCallback(() => {
     signingStarted.current = true;
-    setStatus('signing');
+    setStatus("signing");
   }, []);
 
   const state: SigningFlowState<T> = {

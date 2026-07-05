@@ -1,17 +1,18 @@
 import { defineCommand } from "citty";
 import { buildCliConfig, globalArgs } from "./shared";
 
-const walletSetDef = defineCommand({
+const walletDevKeyDef = defineCommand({
   meta: {
-    name: "set",
+    name: "dev-key",
     description:
-      "Persist a signing key and derived wallet address. " +
+      "Persist a local dev signing key and derived wallet address. " +
       "Defaults to EVM (hex key). Pass --solana for a Solana keypair (base58).",
   },
   args: {
     privateKey: {
       type: "positional",
-      description: "Hex EVM private key (default) or Solana base58 key when --solana is set",
+      description:
+        "Hex EVM private key (default) or Solana base58 key when --solana is set",
       required: false,
     },
     evm: {
@@ -22,7 +23,7 @@ const walletSetDef = defineCommand({
     solana: {
       type: "string",
       description: "Solana base58 secret key to persist",
-      alias: ["s"],
+      alias: ["s", "svm"],
     },
   },
   async run({ args }) {
@@ -33,15 +34,17 @@ const walletSetDef = defineCommand({
       return;
     }
 
-    // --evm flag or positional (backward-compat default = EVM)
-    const evmKey = (args.evm as string | undefined) ?? args.privateKey;
+    // --evm flag or positional (default = EVM)
+    const evmKey =
+      (args.evm as string | undefined) ??
+      (args.privateKey as string | undefined);
     if (!evmKey) {
       const { fatal } = await import("../../errors");
       fatal(
         "Usage:\n" +
-          "  aomi wallet set <evm-hex-key>          # EVM (default)\n" +
-          "  aomi wallet set --evm <evm-hex-key>    # EVM (explicit)\n" +
-          "  aomi wallet set --solana <base58-key>  # Solana",
+          "  aomi wallet dev-key <evm-hex-key>          # EVM (default)\n" +
+          "  aomi wallet dev-key --evm <evm-hex-key>    # EVM (explicit)\n" +
+          "  aomi wallet dev-key --solana <base58-key>  # Solana",
       );
     }
     const { setWalletCommand } = await import("../preferences");
@@ -49,62 +52,71 @@ const walletSetDef = defineCommand({
   },
 });
 
-const walletCurrentDef = defineCommand({
-  meta: { name: "current", description: "Show the configured wallet address" },
-  args: {},
-  async run() {
-    const { currentWalletCommand } = await import("../control");
-    currentWalletCommand();
-  },
-});
-
-const walletLoginDef = defineCommand({
+const walletLsDef = defineCommand({
   meta: {
-    name: "login",
+    name: "ls",
     description:
-      "Mint a Privy browser auth URL for the active session. Defaults to EVM; pass --solana to require a Solana wallet.",
+      "List the account's wallets (keys) with signing mode, grant, and capability",
   },
   args: {
     ...globalArgs,
-    evm: {
-      type: "boolean",
-      description: "Request the default EVM embedded-wallet flow explicitly",
-    },
-    solana: {
-      type: "boolean",
-      description: "Request a Solana embedded-wallet login flow",
+    provider: {
+      type: "string",
+      description: 'Only show wallets from this provider (e.g. "privy")',
     },
   },
   async run({ args }) {
-    if (args.evm === true && args.solana === true) {
-      const { fatal } = await import("../../errors");
-      fatal("Choose only one of `--evm` or `--solana`.");
-    }
-    const { loginCommand } = await import("../account");
-    await loginCommand(buildCliConfig(args), {
-      walletFamily: args.solana === true ? "solana" : "evm",
+    const { walletLsCommand } = await import("../wallet-policy");
+    await walletLsCommand(buildCliConfig(args), {
+      provider: typeof args.provider === "string" ? args.provider : undefined,
     });
   },
 });
 
-const walletWhoamiDef = defineCommand({
+const walletSetModeDef = defineCommand({
   meta: {
-    name: "whoami",
-    description: "Show the bound account and every linked wallet on the backend",
+    name: "set-mode",
+    description:
+      "Change a wallet's signing mode with a signed EIP-712 permit " +
+      "(challenge → sign → commit)",
   },
-  args: { ...globalArgs },
+  args: {
+    ...globalArgs,
+    address: {
+      type: "positional",
+      description: "Wallet address (as shown by `aomi wallet ls`)",
+      required: true,
+    },
+    mode: {
+      type: "positional",
+      description: "autonomous | human_sync | denied",
+      required: true,
+    },
+    "local-key": {
+      type: "string",
+      description:
+        "Hex private key that signs the permit (default: the stored dev key)",
+    },
+  },
   async run({ args }) {
-    const { whoamiCommand } = await import("../account");
-    await whoamiCommand(buildCliConfig(args));
+    const { setWalletModeCommand } = await import("../wallet-policy");
+    await setWalletModeCommand(buildCliConfig(args), {
+      address: String(args.address ?? ""),
+      mode: String(args.mode ?? ""),
+      localKey:
+        typeof args["local-key"] === "string" ? args["local-key"] : undefined,
+    });
   },
 });
 
 export const walletDef = defineCommand({
-  meta: { name: "wallet", description: "Wallet configuration" },
+  meta: {
+    name: "wallet",
+    description: "Wallet keys — signing policy and capability",
+  },
   subCommands: {
-    set: walletSetDef,
-    current: walletCurrentDef,
-    login: walletLoginDef,
-    whoami: walletWhoamiDef,
+    ls: walletLsDef,
+    "set-mode": walletSetModeDef,
+    "dev-key": walletDevKeyDef,
   },
 });

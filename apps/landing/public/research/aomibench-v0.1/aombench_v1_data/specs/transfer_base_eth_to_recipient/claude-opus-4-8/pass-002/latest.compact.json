@@ -167,9 +167,7 @@
         "tool": "commit_txs",
         "topic": "Commit 0.01 ETH transfer on Base",
         "arguments": {
-          "tx_ids": [
-            1
-          ],
+          "tx_ids": [1],
           "topic": "Commit 0.01 ETH transfer on Base"
         },
         "result_preview": "{\n  \"status\": \"pending_approval\",\n  \"tx_ids\": [\n    1\n  ],\n  \"timestamp\": \"2026-05-31T18:36:12.027114+00:00\"\n}"

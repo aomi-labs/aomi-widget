@@ -7,8 +7,7 @@ const METAMASK_ENDPOINTS: EndpointDef[] = [
     label: "Get Balance",
     method: "GET",
     path: "/api/accounts/:address/balance",
-    description:
-      "Fetch native token balance and network info for an address.",
+    description: "Fetch native token balance and network info for an address.",
     params: [
       {
         key: "address",
@@ -132,8 +131,7 @@ const METAMASK_ENDPOINTS: EndpointDef[] = [
     label: "Get Transaction",
     method: "GET",
     path: "/api/transaction/:txHash",
-    description:
-      "Fetch the status and receipt of a submitted transaction.",
+    description: "Fetch the status and receipt of a submitted transaction.",
     params: [
       {
         key: "txHash",

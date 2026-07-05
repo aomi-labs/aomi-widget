@@ -72,7 +72,6 @@ export function buildCliUserState(
   publicKey?: string,
   chainId?: number,
   options?: {
-    app?: string;
     aaMode?: UserStateAAMode | null;
     smartAccount?: string | null;
     /** Solana public key (base58). When present, sets svm.address. */
@@ -81,7 +80,6 @@ export function buildCliUserState(
     svmCluster?: "solana:mainnet" | "solana:devnet" | "solana:testnet";
   },
 ): UserState {
-  const app = options?.app?.trim().toLowerCase();
   const evm: UserStateEvm = {};
   const publicKeyIsSolana =
     publicKey !== undefined && !publicKey.trim().startsWith("0x");
@@ -90,17 +88,14 @@ export function buildCliUserState(
   const svmAddress =
     options?.svmAddress ?? (publicKeyIsSolana ? publicKey : undefined);
   const hasBoth = publicKeyIsEvm && svmAddress !== undefined;
-  const isSolanaApp =
+  // Chain family (yellow) is derived from the address (blue), never from the
+  // app: an `0x` key is EVM, a base58 key / `svmAddress` is Solana.
+  const isSolana =
     !hasBoth &&
     !publicKeyIsEvm &&
-    (app === "sol" ||
-      app === "solana" ||
-      app === "svm" ||
-      app === "byreal" ||
-      publicKeyIsSolana ||
-      svmAddress !== undefined);
-  const hasEvm = hasBoth || (!isSolanaApp && publicKeyIsEvm);
-  const hasSvm = hasBoth || isSolanaApp;
+    (publicKeyIsSolana || svmAddress !== undefined);
+  const hasEvm = hasBoth || (!isSolana && publicKeyIsEvm);
+  const hasSvm = hasBoth || isSolana;
   const userState: UserState = {};
 
   if (hasEvm && publicKey !== undefined) {
@@ -124,7 +119,9 @@ export function buildCliUserState(
   }
 
   if (Object.keys(evm).length > 0) {
-    userState.evm = evm;
+    // `evm` is the canonical per-chain array; the CLI connects a single wallet,
+    // so it's a one-element array (its `chain_id`, when set, pins the chain).
+    userState.evm = [evm];
   }
 
   if (hasSvm) {
@@ -137,7 +134,7 @@ export function buildCliUserState(
   }
   const anyConnected = Boolean(
     (hasEvm && publicKey !== undefined) ||
-      (hasSvm && (svmAddress ?? publicKey) !== undefined),
+    (hasSvm && (svmAddress ?? publicKey) !== undefined),
   );
   if (anyConnected) {
     userState.connection = {
@@ -162,9 +159,7 @@ export function pendingTxsFromBackendUserState(
 
   const pending = asRecord(normalizedUserState.pending) ?? {};
   const pendingTxs =
-    asRecord(pending.evmTxs) ??
-    asRecord(pending.evm_txs) ??
-    {};
+    asRecord(pending.evmTxs) ?? asRecord(pending.evm_txs) ?? {};
   for (const [rawId, rawValue] of Object.entries(pendingTxs)) {
     const pendingId = parsePendingId(rawId);
     const tx = asRecord(rawValue);
@@ -203,9 +198,7 @@ export function pendingTxsFromBackendUserState(
   }
 
   const pendingEip712s =
-    asRecord(pending.evmSigs) ??
-    asRecord(pending.evm_sigs) ??
-    {};
+    asRecord(pending.evmSigs) ?? asRecord(pending.evm_sigs) ?? {};
   for (const [rawId, rawValue] of Object.entries(pendingEip712s)) {
     const pendingId = parsePendingId(rawId);
     const request = asRecord(rawValue);
@@ -260,9 +253,9 @@ export function pendingTxsFromBackendUserState(
  * instruction-staging / `svm_sigs` flow into the CLI signer needs product-level
  * rework; this only keeps legacy unsigned-tx records working.
  *
- * Accept both the legacy `pending.solana_txs` / `pending.solana_sigs` shape
- * and the canonical `pending.svm_ixs` / `pending.svm_sigs` buckets because the
- * backend still has older camelCase and aliasing paths on some surfaces.
+ * Reads the canonical `pending.svm_ixs` / `pending.svm_sigs` buckets. (The
+ * backend also emits a write-only `solana_txs` alias for the released v0.1.37
+ * CLI; this client reads the canonical buckets, so that alias is ignored here.)
  */
 export function pendingSolTxsFromBackendUserState(
   userState: UserState | null | undefined,
@@ -278,12 +271,7 @@ export function pendingSolTxsFromBackendUserState(
   const next: PendingSolTx[] = [];
 
   const pending = asRecord(normalizedUserState.pending) ?? {};
-  const pendingSolanaTxs =
-    asRecord(pending.solanaTxs) ??
-    asRecord(pending.solana_txs) ??
-    asRecord(pending.svmIxs) ??
-    asRecord(pending.svm_ixs) ??
-    {};
+  const pendingSolanaTxs = asRecord(pending.svm_ixs) ?? {};
   for (const [rawId, rawValue] of Object.entries(pendingSolanaTxs)) {
     const pendingId = parsePendingId(rawId);
     const request = asRecord(rawValue);
@@ -324,17 +312,10 @@ export function pendingSolTxsFromBackendUserState(
     });
   }
 
-  // Also surface pending Solana sign-only tx requests that were staged in the
-  // signature bucket (`solana_sigs` / `svm_sigs`) by `svm_sign_tx`. Message
-  // signatures remain message-sign requests and should not be reconstructed as
-  // tx-sign prompts here. The backend serializes keys snake_to_camel on the
-  // wire, so also accept `solanaSigs` / `svmSigs`.
-  const pendingSolanaSigs =
-    asRecord(normalizedUserState.pending?.solanaSigs) ??
-    asRecord(normalizedUserState.pending?.solana_sigs) ??
-    asRecord((normalizedUserState.pending as Record<string, unknown> | undefined)?.svmSigs) ??
-    asRecord((normalizedUserState.pending as Record<string, unknown> | undefined)?.svm_sigs) ??
-    {};
+  // Also surface pending Solana sign-only tx requests staged in the signature
+  // bucket (`svm_sigs`) by `svm_sign_tx`. Message signatures remain message-sign
+  // requests and should not be reconstructed as tx-sign prompts here.
+  const pendingSolanaSigs = asRecord(pending.svm_sigs) ?? {};
   for (const [rawId, rawValue] of Object.entries(pendingSolanaSigs)) {
     const pendingId = parsePendingId(rawId);
     const request = asRecord(rawValue);

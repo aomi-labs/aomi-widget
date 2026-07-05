@@ -20,9 +20,7 @@
     "total_turns": 1,
     "total_tool_calls": 12,
     "total_responses": 22,
-    "activated_skills": [
-      "uniswap"
-    ],
+    "activated_skills": ["uniswap"],
     "failed_assertions": [],
     "budget_summary": {
       "total": 1,
@@ -214,9 +212,7 @@
         "tool": "activate_skills",
         "topic": "activate_skills",
         "arguments": {
-          "skill_ids": [
-            "uniswap"
-          ]
+          "skill_ids": ["uniswap"]
         },
         "result_preview": "{\n  \"activated\": [\n    \"uniswap\"\n  ],\n  \"rejected\": [],\n  \"applied_scope\": \"current_serve_cycle\"\n}"
       },
@@ -418,9 +414,7 @@
         "tool": "commit_txs",
         "topic": "Commit ETH→USDC swap on Uniswap V3",
         "arguments": {
-          "tx_ids": [
-            1
-          ],
+          "tx_ids": [1],
           "topic": "Commit ETH→USDC swap on Uniswap V3"
         },
         "result_preview": "{\n  \"status\": \"pending_approval\",\n  \"tx_ids\": [\n    1\n  ],\n  \"timestamp\": \"2026-05-31T11:27:45.039329+00:00\"\n}"
@@ -434,12 +428,8 @@
     },
     "skills": {
       "mode": "restricted",
-      "allowed": [
-        "uniswap"
-      ],
-      "activated_skills": [
-        "uniswap"
-      ],
+      "allowed": ["uniswap"],
+      "activated_skills": ["uniswap"],
       "bundle_path": "../output/eval/model-bench-public-skills-opus47-opus46-haiku45-20260531/specs/swap_eth_for_usdc_uniswap_v3/claude-haiku-4.5/pass-002/spec-skills/swap_eth_for_usdc_uniswap_v3-skills.json",
       "bundle_revision": "fnv1a64:b60b7265d48b4779"
     },

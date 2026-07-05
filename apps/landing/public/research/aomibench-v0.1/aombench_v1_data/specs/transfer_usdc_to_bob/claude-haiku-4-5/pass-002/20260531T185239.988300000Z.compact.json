@@ -217,10 +217,7 @@
           "description": "Transfer 25 USDC to 0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
           "data": {
             "signature": "transfer(address,uint256)",
-            "args": [
-              "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
-              "25000000"
-            ],
+            "args": ["0x70997970C51812dc3A010C7d01b50e0d17dc79C8", "25000000"],
             "raw": ""
           },
           "value": "0",
@@ -253,9 +250,7 @@
         "tool": "commit_txs",
         "topic": "Commit USDC transfer from Alice to Bob",
         "arguments": {
-          "tx_ids": [
-            1
-          ],
+          "tx_ids": [1],
           "topic": "Commit USDC transfer from Alice to Bob"
         },
         "result_preview": "{\n  \"status\": \"pending_approval\",\n  \"tx_ids\": [\n    1\n  ],\n  \"timestamp\": \"2026-05-31T18:52:35.922548+00:00\"\n}"

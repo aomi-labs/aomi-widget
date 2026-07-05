@@ -20,9 +20,7 @@
     "total_turns": 1,
     "total_tool_calls": 9,
     "total_responses": 15,
-    "activated_skills": [
-      "aerodrome"
-    ],
+    "activated_skills": ["aerodrome"],
     "failed_assertions": [],
     "budget_summary": {
       "total": 1,
@@ -165,10 +163,7 @@
         "tool": "activate_skills",
         "topic": "activate_skills",
         "arguments": {
-          "skill_ids": [
-            "aerodrome",
-            "common_erc20"
-          ]
+          "skill_ids": ["aerodrome", "common_erc20"]
         },
         "result_preview": "{\n  \"activated\": [\n    \"aerodrome\"\n  ],\n  \"rejected\": [\n    [\n      \"common_erc20\",\n      \"invalid\"\n    ]\n  ],\n  \"applied_scope\": \"current_serve_cycle\"\n}"
       },
@@ -247,10 +242,7 @@
           "description": "Approve Aerodrome Router to spend USDC for liquidity add",
           "data": {
             "signature": "approve(address,uint256)",
-            "args": [
-              "0xcF77a3Ba9A5CA399B7c97c74d54e5b1Beb874E43",
-              "995649667"
-            ],
+            "args": ["0xcF77a3Ba9A5CA399B7c97c74d54e5b1Beb874E43", "995649667"],
             "raw": ""
           },
           "value": "0",
@@ -322,11 +314,7 @@
         "tool": "commit_txs",
         "topic": "Commit swap + approve + addLiquidity batch",
         "arguments": {
-          "tx_ids": [
-            1,
-            2,
-            3
-          ],
+          "tx_ids": [1, 2, 3],
           "topic": "Commit swap + approve + addLiquidity batch"
         },
         "result_preview": "{\n  \"status\": \"pending_approval\",\n  \"tx_ids\": [\n    1,\n    2,\n    3\n  ],\n  \"timestamp\": \"2026-05-31T20:06:02.219182+00:00\"\n}"
@@ -340,12 +328,8 @@
     },
     "skills": {
       "mode": "restricted",
-      "allowed": [
-        "aerodrome"
-      ],
-      "activated_skills": [
-        "aerodrome"
-      ],
+      "allowed": ["aerodrome"],
+      "activated_skills": ["aerodrome"],
       "bundle_path": "../output/eval/model-bench-public-skills-expansion-20260531/specs/add_eth_usdc_lp_after_half_swap/claude-opus-4.6/pass-001/spec-skills/add_eth_usdc_lp_after_half_swap-skills.json",
       "bundle_revision": "fnv1a64:c0406359c2059af7"
     },

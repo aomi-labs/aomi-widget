@@ -121,9 +121,7 @@
         "tool": "activate_skills",
         "topic": "activate_skills",
         "arguments": {
-          "skill_ids": [
-            "common_erc20"
-          ]
+          "skill_ids": ["common_erc20"]
         },
         "result_preview": "{\n  \"activated\": [],\n  \"rejected\": [\n    [\n      \"common_erc20\",\n      \"invalid\"\n    ]\n  ],\n  \"applied_scope\": \"current_serve_cycle\"\n}"
       },
@@ -160,9 +158,7 @@
         "topic": "Check Alice's ZORA balance on Base",
         "arguments": {
           "function_signature": "balanceOf(address)",
-          "arguments": [
-            "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
-          ],
+          "arguments": ["0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"],
           "to": "0x1111111111166b7fe7bd91427724b487980afc69",
           "value": "0",
           "topic": "Check Alice's ZORA balance on Base"
@@ -178,9 +174,7 @@
     },
     "skills": {
       "mode": "restricted",
-      "allowed": [
-        "zora"
-      ],
+      "allowed": ["zora"],
       "activated_skills": [],
       "bundle_path": "../output/eval/model-bench-public-skills-opus47-opus46-haiku45-20260531/specs/check_zora_token_balance/claude-haiku-4.5/pass-001/spec-skills/check_zora_token_balance-skills.json",
       "bundle_revision": "fnv1a64:207bf8ad29dce92d"

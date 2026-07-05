@@ -67,7 +67,7 @@ describe("CLI session lifecycle", () => {
 
     expect(readState()?.sessionId).toBeDefined();
     expect(logSpy).toHaveBeenCalledWith(
-      expect.stringContaining("Active session set to"),
+      expect.stringContaining("Active thread set to"),
     );
   });
 
@@ -332,39 +332,40 @@ describe("CLI session lifecycle", () => {
     });
 
     const synced = cli.syncPendingFromUserState({
-      address: "0xabc",
-      chain_id: 8453,
-      is_connected: true,
-      pending_txs: {
-        "7": {
-          chain_id: 8453,
-          from: "0xabc",
-          to: "0x1111111111111111111111111111111111111111",
-          value: "0",
-          gas: null,
-          data: "0x",
-          label: "Approve",
-          kind: "erc20_approve",
-          batch_status: "Batch [7] pending",
-        },
-      },
-      pending_eip712s: {
-        "8": {
-          chain_id: 8453,
-          signer: "0xabc",
-          description: "Permit2 signature",
-          typed_data: {
-            domain: { chainId: 8453, name: "Permit2" },
-            types: { Permit: [{ name: "owner", type: "address" }] },
-            primaryType: "Permit",
-            message: { owner: "0xabc" },
+      connection: { is_connected: true },
+      evm: [{ address: "0xabc", chain_id: 8453 }],
+      pending: {
+        evm_txs: {
+          "7": {
+            chain_id: 8453,
+            from: "0xabc",
+            to: "0x1111111111111111111111111111111111111111",
+            value: "0",
+            gas: null,
+            data: "0x",
+            label: "Approve",
+            kind: "erc20_approve",
+            batch_status: "Batch [7] pending",
           },
         },
-        "9": {
-          chain_id: 1,
-          signer: "0xabc",
-          description: "SIWE login",
-          non_typed_data: "Sign in with Ethereum",
+        evm_sigs: {
+          "8": {
+            chain_id: 8453,
+            signer: "0xabc",
+            description: "Permit2 signature",
+            typed_data: {
+              domain: { chainId: 8453, name: "Permit2" },
+              types: { Permit: [{ name: "owner", type: "address" }] },
+              primaryType: "Permit",
+              message: { owner: "0xabc" },
+            },
+          },
+          "9": {
+            chain_id: 1,
+            signer: "0xabc",
+            description: "SIWE login",
+            non_typed_data: "Sign in with Ethereum",
+          },
         },
       },
     });
@@ -411,13 +412,13 @@ describe("CLI session lifecycle", () => {
       app: "default",
       execution: "eoa" as const,
       secrets: {},
-      embeddedProvider: "privy" as const,
-      embeddedProviderToken: "privy-provider-token",
+      accountProvider: "privy" as const,
+      accountProviderToken: "privy-provider-token",
     });
 
     const state = readState();
-    expect(state?.embeddedProvider).toBe("privy");
-    expect(state?.embeddedProviderToken).toBe("privy-provider-token");
+    expect(state?.accountProvider).toBe("privy");
+    expect(state?.accountProviderToken).toBe("privy-provider-token");
   });
 
   it("clears a persisted bearer when switching the active session to legacy provider auth", async () => {
@@ -437,14 +438,14 @@ describe("CLI session lifecycle", () => {
       app: "default",
       execution: "eoa" as const,
       secrets: {},
-      embeddedProvider: "privy" as const,
-      embeddedProviderToken: "privy-provider-token",
+      accountProvider: "privy" as const,
+      accountProviderToken: "privy-provider-token",
     });
 
     const state = readState();
     expect(state?.accountBearer).toBeUndefined();
-    expect(state?.embeddedProvider).toBe("privy");
-    expect(state?.embeddedProviderToken).toBe("privy-provider-token");
+    expect(state?.accountProvider).toBe("privy");
+    expect(state?.accountProviderToken).toBe("privy-provider-token");
   });
 
   it("reuses the persisted account bearer when building a client without re-supplying it", async () => {
@@ -512,8 +513,8 @@ describe("CLI session lifecycle", () => {
 
     try {
       const session = cli!.createClientSession({
-        embeddedProvider: "privy",
-        embeddedProviderToken: "privy-provider-token",
+        accountProvider: "privy",
+        accountProviderToken: "privy-provider-token",
       });
       await session.client.fetchState(cli!.sessionId);
 
@@ -539,10 +540,9 @@ describe("CLI session lifecycle", () => {
     });
 
     cli.syncPendingFromUserState({
-      address: "0xabc",
-      is_connected: true,
-      pending_txs: {},
-      pending_eip712s: {},
+      connection: { is_connected: true },
+      evm: [{ address: "0xabc" }],
+      pending: { evm_txs: {}, evm_sigs: {} },
     });
 
     expect(cli.publicKey).toBe("0xabc");

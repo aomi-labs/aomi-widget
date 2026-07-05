@@ -3820,16 +3820,9 @@
           "detail": "sequence broke before expected tool 'encode_and_call'; no matching tool arguments for encode_and_call:$.to; no matching tool arguments for encode_and_call:$.function_signature",
           "observed": {
             "kind": "tool_assertion",
-            "expected_tools": [
-              "activate_skills",
-              "encode_and_call"
-            ],
-            "observed_tools": [
-              "activate_skills"
-            ],
-            "missing_tools": [
-              "encode_and_call"
-            ],
+            "expected_tools": ["activate_skills", "encode_and_call"],
+            "observed_tools": ["activate_skills"],
+            "missing_tools": ["encode_and_call"],
             "order": "sequential",
             "turn": null,
             "param_predicates": [
@@ -3863,9 +3856,7 @@
                 "tool": "activate_skills",
                 "topic": "activate_skills",
                 "arguments": {
-                  "skill_ids": [
-                    "zora"
-                  ]
+                  "skill_ids": ["zora"]
                 }
               }
             ]
@@ -3907,16 +3898,9 @@
           "detail": "sequence broke before expected tool 'encode_and_call'; no matching tool arguments for encode_and_call:$.to; no matching tool arguments for encode_and_call:$.function_signature",
           "observed": {
             "kind": "tool_assertion",
-            "expected_tools": [
-              "activate_skills",
-              "encode_and_call"
-            ],
-            "observed_tools": [
-              "activate_skills"
-            ],
-            "missing_tools": [
-              "encode_and_call"
-            ],
+            "expected_tools": ["activate_skills", "encode_and_call"],
+            "observed_tools": ["activate_skills"],
+            "missing_tools": ["encode_and_call"],
             "order": "sequential",
             "turn": null,
             "param_predicates": [
@@ -3950,9 +3934,7 @@
                 "tool": "activate_skills",
                 "topic": "activate_skills",
                 "arguments": {
-                  "skill_ids": [
-                    "zora"
-                  ]
+                  "skill_ids": ["zora"]
                 }
               }
             ]
@@ -4078,14 +4060,8 @@
           "detail": "no matching tool arguments for encode_and_call:$.to",
           "observed": {
             "kind": "tool_assertion",
-            "expected_tools": [
-              "activate_skills",
-              "encode_and_call"
-            ],
-            "observed_tools": [
-              "activate_skills",
-              "encode_and_call"
-            ],
+            "expected_tools": ["activate_skills", "encode_and_call"],
+            "observed_tools": ["activate_skills", "encode_and_call"],
             "missing_tools": [],
             "order": "sequential",
             "turn": null,
@@ -4109,9 +4085,7 @@
                 "tolerance": null
               }
             ],
-            "missing_param_predicates": [
-              "encode_and_call:$.to"
-            ],
+            "missing_param_predicates": ["encode_and_call:$.to"],
             "sequence_broke_before": null,
             "tool_calls": [
               {
@@ -4119,10 +4093,7 @@
                 "tool": "activate_skills",
                 "topic": "activate_skills",
                 "arguments": {
-                  "skill_ids": [
-                    "common_erc20",
-                    "zora"
-                  ]
+                  "skill_ids": ["common_erc20", "zora"]
                 }
               },
               {
@@ -4131,9 +4102,7 @@
                 "topic": "Read Alice ZORA balance on Base",
                 "arguments": {
                   "function_signature": "balanceOf(address)",
-                  "arguments": [
-                    "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
-                  ],
+                  "arguments": ["0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"],
                   "to": "0x1111111111166b7FE7bD91427724B487980aFc69",
                   "value": "0",
                   "topic": "Read Alice ZORA balance on Base"
@@ -4178,19 +4147,14 @@
           "detail": "sequence broke before expected tool 'activate_skills'",
           "observed": {
             "kind": "tool_assertion",
-            "expected_tools": [
-              "activate_skills",
-              "encode_and_call"
-            ],
+            "expected_tools": ["activate_skills", "encode_and_call"],
             "observed_tools": [
               "get_time_and_onchain_context",
               "get_contract",
               "brave_search",
               "encode_and_call"
             ],
-            "missing_tools": [
-              "activate_skills"
-            ],
+            "missing_tools": ["activate_skills"],
             "order": "sequential",
             "turn": null,
             "param_predicates": [
@@ -4261,9 +4225,7 @@
                   "to": "0x1111111111166b7fe7bd91427724b487980afc69",
                   "topic": "Check ZORA balance for Alice",
                   "function_signature": "balanceOf(address)",
-                  "arguments": [
-                    "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
-                  ],
+                  "arguments": ["0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"],
                   "value": "0"
                 }
               }
@@ -5696,9 +5658,7 @@
               "get_account_info",
               "encode_and_call"
             ],
-            "missing_tools": [
-              "stage_tx"
-            ],
+            "missing_tools": ["stage_tx"],
             "order": "sequential",
             "turn": null,
             "param_predicates": [
@@ -5742,10 +5702,7 @@
                 "tool": "activate_skills",
                 "topic": "activate_skills",
                 "arguments": {
-                  "skill_ids": [
-                    "sushiswap",
-                    "common_erc20"
-                  ]
+                  "skill_ids": ["sushiswap", "common_erc20"]
                 }
               },
               {
@@ -7474,9 +7431,7 @@
               "encode_and_call",
               "encode_and_call"
             ],
-            "missing_tools": [
-              "stage_tx"
-            ],
+            "missing_tools": ["stage_tx"],
             "order": "sequential",
             "turn": null,
             "param_predicates": [
@@ -7490,9 +7445,7 @@
                 "tolerance": null
               }
             ],
-            "missing_param_predicates": [
-              "stage_tx:$.to"
-            ],
+            "missing_param_predicates": ["stage_tx:$.to"],
             "sequence_broke_before": "stage_tx",
             "tool_calls": [
               {
@@ -7508,10 +7461,7 @@
                 "tool": "activate_skills",
                 "topic": "activate_skills",
                 "arguments": {
-                  "skill_ids": [
-                    "compound",
-                    "common_erc20"
-                  ]
+                  "skill_ids": ["compound", "common_erc20"]
                 }
               },
               {
@@ -7533,9 +7483,7 @@
                 "topic": "Check Alice's USDC balance",
                 "arguments": {
                   "function_signature": "balanceOf(address)",
-                  "arguments": [
-                    "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
-                  ],
+                  "arguments": ["0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"],
                   "to": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
                   "value": "0",
                   "topic": "Check Alice's USDC balance"
@@ -7647,9 +7595,7 @@
               "encode_and_call",
               "encode_and_call"
             ],
-            "missing_tools": [
-              "stage_tx"
-            ],
+            "missing_tools": ["stage_tx"],
             "order": "sequential",
             "turn": null,
             "param_predicates": [
@@ -7663,9 +7609,7 @@
                 "tolerance": null
               }
             ],
-            "missing_param_predicates": [
-              "stage_tx:$.to"
-            ],
+            "missing_param_predicates": ["stage_tx:$.to"],
             "sequence_broke_before": "stage_tx",
             "tool_calls": [
               {
@@ -7681,10 +7625,7 @@
                 "tool": "activate_skills",
                 "topic": "activate_skills",
                 "arguments": {
-                  "skill_ids": [
-                    "compound",
-                    "common_erc20"
-                  ]
+                  "skill_ids": ["compound", "common_erc20"]
                 }
               },
               {
@@ -7706,9 +7647,7 @@
                 "topic": "Check Alice's USDC balance",
                 "arguments": {
                   "function_signature": "balanceOf(address)",
-                  "arguments": [
-                    "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
-                  ],
+                  "arguments": ["0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"],
                   "to": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
                   "value": "0",
                   "topic": "Check Alice's USDC balance"
@@ -8174,10 +8113,7 @@
                 "tool": "activate_skills",
                 "topic": "activate_skills",
                 "arguments": {
-                  "skill_ids": [
-                    "morpho",
-                    "common_erc20"
-                  ]
+                  "skill_ids": ["morpho", "common_erc20"]
                 }
               },
               {
@@ -8869,9 +8805,7 @@
           "detail": "no matching tool arguments for stage_tx:$.to; no matching tool arguments for stage_tx:$.data.signature",
           "observed": {
             "kind": "tool_assertion",
-            "expected_tools": [
-              "activate_skills"
-            ],
+            "expected_tools": ["activate_skills"],
             "observed_tools": [
               "activate_skills",
               "get_time_and_onchain_context",
@@ -8912,9 +8846,7 @@
                 "tool": "activate_skills",
                 "topic": "activate_skills",
                 "arguments": {
-                  "skill_ids": [
-                    "eigenlayer"
-                  ]
+                  "skill_ids": ["eigenlayer"]
                 }
               },
               {
@@ -8930,9 +8862,7 @@
                 "tool": "encode_and_call",
                 "topic": "Check Alice stETH balance",
                 "arguments": {
-                  "arguments": [
-                    "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
-                  ],
+                  "arguments": ["0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"],
                   "function_signature": "balanceOf(address)",
                   "to": "0xae7ab96520DE3A18E5e111B5EaAb095312D7fE84",
                   "topic": "Check Alice stETH balance",
@@ -9077,9 +9007,7 @@
           "detail": "no matching tool arguments for stage_tx:$.to; no matching tool arguments for stage_tx:$.data.signature",
           "observed": {
             "kind": "tool_assertion",
-            "expected_tools": [
-              "activate_skills"
-            ],
+            "expected_tools": ["activate_skills"],
             "observed_tools": [
               "activate_skills",
               "get_time_and_onchain_context",
@@ -9120,10 +9048,7 @@
                 "tool": "activate_skills",
                 "topic": "activate_skills",
                 "arguments": {
-                  "skill_ids": [
-                    "eigenlayer",
-                    "common_erc20"
-                  ]
+                  "skill_ids": ["eigenlayer", "common_erc20"]
                 }
               },
               {
@@ -9140,9 +9065,7 @@
                 "topic": "check Alice stETH balance",
                 "arguments": {
                   "function_signature": "balanceOf(address)",
-                  "arguments": [
-                    "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
-                  ],
+                  "arguments": ["0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"],
                   "to": "0xae7ab96520DE3A18E5e111B5EaAb095312D7fE84",
                   "value": "0",
                   "topic": "check Alice stETH balance"
@@ -9230,9 +9153,7 @@
           "detail": "no matching tool arguments for stage_tx:$.to; no matching tool arguments for stage_tx:$.data.signature",
           "observed": {
             "kind": "tool_assertion",
-            "expected_tools": [
-              "activate_skills"
-            ],
+            "expected_tools": ["activate_skills"],
             "observed_tools": [
               "get_account_info",
               "activate_skills",
@@ -9285,10 +9206,7 @@
                 "tool": "activate_skills",
                 "topic": "activate_skills",
                 "arguments": {
-                  "skill_ids": [
-                    "eigenlayer",
-                    "common_erc20"
-                  ]
+                  "skill_ids": ["eigenlayer", "common_erc20"]
                 }
               },
               {
@@ -9321,9 +9239,7 @@
                 "arguments": {
                   "topic": "Check stETH balance",
                   "function_signature": "balanceOf(address)",
-                  "arguments": [
-                    "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
-                  ],
+                  "arguments": ["0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"],
                   "to": "0xae7ab96520DE3A18E5e111B5EaAb095312D7fE84",
                   "value": "0"
                 }
@@ -9367,9 +9283,7 @@
           "detail": "no matching tool arguments for stage_tx:$.to; no matching tool arguments for stage_tx:$.data.signature",
           "observed": {
             "kind": "tool_assertion",
-            "expected_tools": [
-              "activate_skills"
-            ],
+            "expected_tools": ["activate_skills"],
             "observed_tools": [
               "activate_skills",
               "get_account_info",
@@ -9410,10 +9324,7 @@
                 "tool": "activate_skills",
                 "topic": "activate_skills",
                 "arguments": {
-                  "skill_ids": [
-                    "eigenlayer",
-                    "common_erc20"
-                  ]
+                  "skill_ids": ["eigenlayer", "common_erc20"]
                 }
               },
               {
@@ -9434,9 +9345,7 @@
                 "tool": "encode_and_call",
                 "topic": "Check Alice's stETH balance",
                 "arguments": {
-                  "arguments": [
-                    "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
-                  ],
+                  "arguments": ["0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"],
                   "function_signature": "balanceOf(address)",
                   "topic": "Check Alice's stETH balance",
                   "to": "0xae7ab96520DE3A18E5e111B5EaAb095312D7fE84",
@@ -9497,9 +9406,7 @@
           "detail": "no matching tool arguments for stage_tx:$.to; no matching tool arguments for stage_tx:$.data.signature",
           "observed": {
             "kind": "tool_assertion",
-            "expected_tools": [
-              "activate_skills"
-            ],
+            "expected_tools": ["activate_skills"],
             "observed_tools": [
               "activate_skills",
               "get_time_and_onchain_context",
@@ -9541,10 +9448,7 @@
                 "tool": "activate_skills",
                 "topic": "activate_skills",
                 "arguments": {
-                  "skill_ids": [
-                    "eigenlayer",
-                    "common_erc20"
-                  ]
+                  "skill_ids": ["eigenlayer", "common_erc20"]
                 }
               },
               {
@@ -9574,9 +9478,7 @@
                 "topic": "Check Alice's stETH balance",
                 "arguments": {
                   "function_signature": "balanceOf(address)",
-                  "arguments": [
-                    "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
-                  ],
+                  "arguments": ["0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"],
                   "to": "0xae7ab96520DE3A18E5e111B5EaAb095312D7fE84",
                   "value": "0",
                   "topic": "Check Alice's stETH balance"
@@ -9636,9 +9538,7 @@
           "detail": "no matching tool arguments for stage_tx:$.to; no matching tool arguments for stage_tx:$.data.signature",
           "observed": {
             "kind": "tool_assertion",
-            "expected_tools": [
-              "activate_skills"
-            ],
+            "expected_tools": ["activate_skills"],
             "observed_tools": [
               "activate_skills",
               "get_time_and_onchain_context",
@@ -9680,10 +9580,7 @@
                 "tool": "activate_skills",
                 "topic": "activate_skills",
                 "arguments": {
-                  "skill_ids": [
-                    "eigenlayer",
-                    "common_erc20"
-                  ]
+                  "skill_ids": ["eigenlayer", "common_erc20"]
                 }
               },
               {
@@ -9713,9 +9610,7 @@
                 "topic": "Check Alice's stETH balance",
                 "arguments": {
                   "function_signature": "balanceOf(address)",
-                  "arguments": [
-                    "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
-                  ],
+                  "arguments": ["0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"],
                   "to": "0xae7ab96520DE3A18E5e111B5EaAb095312D7fE84",
                   "value": "0",
                   "topic": "Check Alice's stETH balance"
@@ -17200,20 +17095,14 @@
           "detail": "sequence broke before expected tool 'commit_txs'",
           "observed": {
             "kind": "tool_assertion",
-            "expected_tools": [
-              "stage_tx",
-              "simulate_batch",
-              "commit_txs"
-            ],
+            "expected_tools": ["stage_tx", "simulate_batch", "commit_txs"],
             "observed_tools": [
               "get_time_and_onchain_context",
               "get_account_info",
               "stage_tx",
               "simulate_batch"
             ],
-            "missing_tools": [
-              "commit_txs"
-            ],
+            "missing_tools": ["commit_txs"],
             "order": "sequential",
             "turn": null,
             "param_predicates": [
@@ -17379,20 +17268,14 @@
           "detail": "sequence broke before expected tool 'commit_txs'",
           "observed": {
             "kind": "tool_assertion",
-            "expected_tools": [
-              "stage_tx",
-              "simulate_batch",
-              "commit_txs"
-            ],
+            "expected_tools": ["stage_tx", "simulate_batch", "commit_txs"],
             "observed_tools": [
               "get_time_and_onchain_context",
               "get_account_info",
               "stage_tx",
               "simulate_batch"
             ],
-            "missing_tools": [
-              "commit_txs"
-            ],
+            "missing_tools": ["commit_txs"],
             "order": "sequential",
             "turn": null,
             "param_predicates": [
@@ -17614,20 +17497,14 @@
           "detail": "sequence broke before expected tool 'commit_txs'",
           "observed": {
             "kind": "tool_assertion",
-            "expected_tools": [
-              "stage_tx",
-              "simulate_batch",
-              "commit_txs"
-            ],
+            "expected_tools": ["stage_tx", "simulate_batch", "commit_txs"],
             "observed_tools": [
               "get_time_and_onchain_context",
               "get_account_info",
               "stage_tx",
               "simulate_batch"
             ],
-            "missing_tools": [
-              "commit_txs"
-            ],
+            "missing_tools": ["commit_txs"],
             "order": "sequential",
             "turn": null,
             "param_predicates": [
@@ -17793,20 +17670,14 @@
           "detail": "sequence broke before expected tool 'commit_txs'",
           "observed": {
             "kind": "tool_assertion",
-            "expected_tools": [
-              "stage_tx",
-              "simulate_batch",
-              "commit_txs"
-            ],
+            "expected_tools": ["stage_tx", "simulate_batch", "commit_txs"],
             "observed_tools": [
               "get_time_and_onchain_context",
               "get_account_info",
               "stage_tx",
               "simulate_batch"
             ],
-            "missing_tools": [
-              "commit_txs"
-            ],
+            "missing_tools": ["commit_txs"],
             "order": "sequential",
             "turn": null,
             "param_predicates": [
@@ -17972,18 +17843,9 @@
           "detail": "sequence broke before expected tool 'commit_txs'",
           "observed": {
             "kind": "tool_assertion",
-            "expected_tools": [
-              "stage_tx",
-              "simulate_batch",
-              "commit_txs"
-            ],
-            "observed_tools": [
-              "stage_tx",
-              "simulate_batch"
-            ],
-            "missing_tools": [
-              "commit_txs"
-            ],
+            "expected_tools": ["stage_tx", "simulate_batch", "commit_txs"],
+            "observed_tools": ["stage_tx", "simulate_batch"],
+            "missing_tools": ["commit_txs"],
             "order": "sequential",
             "turn": null,
             "param_predicates": [
@@ -18128,18 +17990,9 @@
           "detail": "sequence broke before expected tool 'commit_txs'",
           "observed": {
             "kind": "tool_assertion",
-            "expected_tools": [
-              "stage_tx",
-              "simulate_batch",
-              "commit_txs"
-            ],
-            "observed_tools": [
-              "stage_tx",
-              "simulate_batch"
-            ],
-            "missing_tools": [
-              "commit_txs"
-            ],
+            "expected_tools": ["stage_tx", "simulate_batch", "commit_txs"],
+            "observed_tools": ["stage_tx", "simulate_batch"],
+            "missing_tools": ["commit_txs"],
             "order": "sequential",
             "turn": null,
             "param_predicates": [
@@ -18357,20 +18210,14 @@
           "detail": "sequence broke before expected tool 'commit_txs'",
           "observed": {
             "kind": "tool_assertion",
-            "expected_tools": [
-              "stage_tx",
-              "simulate_batch",
-              "commit_txs"
-            ],
+            "expected_tools": ["stage_tx", "simulate_batch", "commit_txs"],
             "observed_tools": [
               "get_time_and_onchain_context",
               "get_account_info",
               "stage_tx",
               "simulate_batch"
             ],
-            "missing_tools": [
-              "commit_txs"
-            ],
+            "missing_tools": ["commit_txs"],
             "order": "sequential",
             "turn": null,
             "param_predicates": [
@@ -18844,20 +18691,14 @@
           "detail": "sequence broke before expected tool 'stage_tx'; no matching tool arguments for stage_tx:$.to",
           "observed": {
             "kind": "tool_assertion",
-            "expected_tools": [
-              "stage_tx",
-              "simulate_batch",
-              "commit_txs"
-            ],
+            "expected_tools": ["stage_tx", "simulate_batch", "commit_txs"],
             "observed_tools": [
               "get_account_info",
               "get_contract",
               "get_contract",
               "encode_and_call"
             ],
-            "missing_tools": [
-              "stage_tx"
-            ],
+            "missing_tools": ["stage_tx"],
             "order": "sequential",
             "turn": null,
             "param_predicates": [
@@ -18871,9 +18712,7 @@
                 "tolerance": null
               }
             ],
-            "missing_param_predicates": [
-              "stage_tx:$.to"
-            ],
+            "missing_param_predicates": ["stage_tx:$.to"],
             "sequence_broke_before": "stage_tx",
             "tool_calls": [
               {
@@ -18927,9 +18766,7 @@
                 "topic": "Check Alice's USDC balance",
                 "arguments": {
                   "to": "0x43506849d7c04f9138d1a2050bbf3a0c054402dd",
-                  "arguments": [
-                    "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
-                  ],
+                  "arguments": ["0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"],
                   "function_signature": "balanceOf(address)",
                   "topic": "Check Alice's USDC balance",
                   "value": "0"

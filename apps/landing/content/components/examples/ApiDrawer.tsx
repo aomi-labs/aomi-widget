@@ -1,12 +1,6 @@
 "use client";
 
-import {
-  useState,
-  useCallback,
-  useRef,
-  type FC,
-  type ReactNode,
-} from "react";
+import { useState, useCallback, useRef, type FC, type ReactNode } from "react";
 import { CopyButton } from "@/content/components/playground/CopyButton";
 
 // =============================================================================
@@ -115,7 +109,8 @@ function EndpointDrawer({
   });
 
   const queryParams = (ep.params ?? []).filter(
-    (p) => !ep.path.includes(`:${p.key}`) && (paramValues[p.key] || p.defaultValue),
+    (p) =>
+      !ep.path.includes(`:${p.key}`) && (paramValues[p.key] || p.defaultValue),
   );
   const queryString = queryParams.length
     ? "?" +
@@ -212,22 +207,22 @@ function EndpointDrawer({
         <div className="border-t border-fd-border">
           {/* Description */}
           {ep.description && (
-            <p className=" px-5 text-xs leading-relaxed text-fd-muted-foreground">
+            <p className="px-5 text-xs leading-relaxed text-fd-muted-foreground">
               {ep.description}
             </p>
           )}
 
           {/* URL bar */}
-          <div className="flex items-center rounded-lg gap-3 border-b border-fd-border px-4 py-3">
+          <div className="flex items-center gap-3 rounded-lg border-b border-fd-border px-4 py-3">
             <MethodBadge method={ep.method} />
             <input
               type="text"
               value={baseUrl}
               onChange={(e) => setBaseUrl(e.target.value)}
-              className="w-36 shrink-0 rounded-lg roundedborder border-fd-border bg-fd-background px-2.5 py-2 text-xs text-fd-foreground"
+              className="roundedborder w-36 shrink-0 rounded-lg border-fd-border bg-fd-background px-2.5 py-2 text-xs text-fd-foreground"
               placeholder="Base URL"
             />
-            <code className="flex-1 px-2 py-1.5 truncate text-xs text-fd-muted-foreground rounded-lg">
+            <code className="flex-1 truncate rounded-lg px-2 py-1.5 text-xs text-fd-muted-foreground">
               {resolvedPath}
               {queryString}
             </code>
@@ -247,16 +242,14 @@ function EndpointDrawer({
             <div className="space-y-4 px-6 py-4">
               {(ep.params ?? []).length > 0 && (
                 <fieldset className="space-y-2">
-                  <legend className="text-[10px] font-semibold uppercase tracking-wider text-fd-muted-foreground">
+                  <legend className="text-[10px] font-semibold tracking-wider text-fd-muted-foreground uppercase">
                     Parameters
                   </legend>
                   {ep.params!.map((p) => (
                     <label key={p.key} className="flex items-center gap-3">
-                      <span className="w-24 shrink-0  font-mono text-[11px] text-fd-muted-foreground">
+                      <span className="w-24 shrink-0 font-mono text-[11px] text-fd-muted-foreground">
                         {p.key}
-                        {p.required && (
-                          <span className="text-red-500">*</span>
-                        )}
+                        {p.required && <span className="text-red-500">*</span>}
                       </span>
                       <input
                         type="text"
@@ -277,16 +270,14 @@ function EndpointDrawer({
 
               {(ep.headers ?? []).length > 0 && (
                 <fieldset className="space-y-2">
-                  <legend className="text-[10px] font-semibold uppercase tracking-wider text-fd-muted-foreground">
+                  <legend className="text-[10px] font-semibold tracking-wider text-fd-muted-foreground uppercase">
                     Headers
                   </legend>
                   {ep.headers!.map((h) => (
                     <label key={h.key} className="flex items-center gap-3">
                       <span className="w-24 shrink-0 text-right font-mono text-[11px] text-fd-muted-foreground">
                         {h.key}
-                        {h.required && (
-                          <span className="text-red-500">*</span>
-                        )}
+                        {h.required && <span className="text-red-500">*</span>}
                       </span>
                       <input
                         type="text"
@@ -309,7 +300,7 @@ function EndpointDrawer({
             {/* Right: body editor */}
             <div className="px-6 py-4">
               <div className="flex items-center justify-between">
-                <span className="text-[10px] font-semibold uppercase tracking-wider text-fd-muted-foreground">
+                <span className="text-[10px] font-semibold tracking-wider text-fd-muted-foreground uppercase">
                   Body
                 </span>
                 {ep.bodyTemplate && (
@@ -342,7 +333,7 @@ function EndpointDrawer({
             <div className="border-t border-fd-border">
               <div className="flex items-center justify-between px-4 py-3">
                 <div className="flex items-center gap-3">
-                  <span className="text-[10px] font-semibold uppercase tracking-wider text-fd-muted-foreground">
+                  <span className="text-[10px] font-semibold tracking-wider text-fd-muted-foreground uppercase">
                     Response
                   </span>
                   {status !== null && (
@@ -394,11 +385,7 @@ export function ApiDrawer({
   return (
     <div className="space-y-2">
       {endpoints.map((ep, i) => (
-        <EndpointDrawer
-          key={i}
-          endpoint={ep}
-          defaultBaseUrl={defaultBaseUrl}
-        />
+        <EndpointDrawer key={i} endpoint={ep} defaultBaseUrl={defaultBaseUrl} />
       ))}
     </div>
   );

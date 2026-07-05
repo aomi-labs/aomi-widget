@@ -12,7 +12,11 @@ const POLYMARKET_ENDPOINTS: EndpointDef[] = [
     description:
       "Query prediction markets with filtering options. Returns markets with current prices, volumes, liquidity, and metadata.",
     params: [
-      { key: "limit", placeholder: "Max results (default: 100, max: 1000)", defaultValue: "100" },
+      {
+        key: "limit",
+        placeholder: "Max results (default: 100, max: 1000)",
+        defaultValue: "100",
+      },
       { key: "offset", placeholder: "Pagination offset", defaultValue: "0" },
       { key: "active", placeholder: "true | false" },
       { key: "closed", placeholder: "true | false" },
@@ -24,8 +28,7 @@ const POLYMARKET_ENDPOINTS: EndpointDef[] = [
     label: "Get Market by Slug",
     method: "GET",
     path: "/markets?slug=:slug",
-    description:
-      "Fetch a single market by its URL slug.",
+    description: "Fetch a single market by its URL slug.",
     params: [
       {
         key: "slug",
@@ -58,7 +61,11 @@ const POLYMARKET_ENDPOINTS: EndpointDef[] = [
     description:
       "Retrieve historical trades. Returns trade history with timestamps, prices, sizes, and user information.",
     params: [
-      { key: "limit", placeholder: "Max results (default: 100, max: 10000)", defaultValue: "100" },
+      {
+        key: "limit",
+        placeholder: "Max results (default: 100, max: 10000)",
+        defaultValue: "100",
+      },
       { key: "offset", placeholder: "Pagination offset", defaultValue: "0" },
       { key: "market", placeholder: "Market condition ID (comma-separated)" },
       { key: "user", placeholder: "Wallet address (0x-prefixed)" },
@@ -75,7 +82,11 @@ const POLYMARKET_ENDPOINTS: EndpointDef[] = [
     description:
       "Fetch the current order book for a token. Returns bids and asks with prices and sizes.",
     params: [
-      { key: "token_id", placeholder: "Token ID (outcome token)", required: true },
+      {
+        key: "token_id",
+        placeholder: "Token ID (outcome token)",
+        required: true,
+      },
     ],
   },
   {
@@ -87,11 +98,23 @@ const POLYMARKET_ENDPOINTS: EndpointDef[] = [
       "Submit a signed order to the CLOB. Requires a wallet-signed EIP-712 payload with order parameters.",
     params: [],
     headers: [
-      { key: "POLY_ADDRESS", placeholder: "Wallet address (0x-prefixed)", required: true },
-      { key: "POLY_SIGNATURE", placeholder: "L2 HMAC signature", required: true },
+      {
+        key: "POLY_ADDRESS",
+        placeholder: "Wallet address (0x-prefixed)",
+        required: true,
+      },
+      {
+        key: "POLY_SIGNATURE",
+        placeholder: "L2 HMAC signature",
+        required: true,
+      },
       { key: "POLY_TIMESTAMP", placeholder: "Unix timestamp", required: true },
       { key: "POLY_API_KEY", placeholder: "CLOB API key", required: true },
-      { key: "POLY_PASSPHRASE", placeholder: "CLOB passphrase", required: true },
+      {
+        key: "POLY_PASSPHRASE",
+        placeholder: "CLOB passphrase",
+        required: true,
+      },
     ],
     bodyTemplate: JSON.stringify(
       {

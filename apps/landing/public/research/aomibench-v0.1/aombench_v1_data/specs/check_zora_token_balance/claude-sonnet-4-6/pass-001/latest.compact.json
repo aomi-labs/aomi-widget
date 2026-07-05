@@ -20,9 +20,7 @@
     "total_turns": 1,
     "total_tool_calls": 2,
     "total_responses": 5,
-    "activated_skills": [
-      "zora"
-    ],
+    "activated_skills": ["zora"],
     "failed_assertions": [],
     "budget_summary": {
       "total": 1,
@@ -95,10 +93,7 @@
         "tool": "activate_skills",
         "topic": "activate_skills",
         "arguments": {
-          "skill_ids": [
-            "common_erc20",
-            "zora"
-          ]
+          "skill_ids": ["common_erc20", "zora"]
         },
         "result_preview": "{\n  \"activated\": [\n    \"zora\"\n  ],\n  \"rejected\": [\n    [\n      \"common_erc20\",\n      \"invalid\"\n    ]\n  ],\n  \"applied_scope\": \"current_serve_cycle\"\n}"
       },
@@ -108,9 +103,7 @@
         "topic": "Alice ZORA token balance on Base",
         "arguments": {
           "function_signature": "balanceOf(address)",
-          "arguments": [
-            "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
-          ],
+          "arguments": ["0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"],
           "to": "0x1111111111166b7fe7bd91427724b487980afc69",
           "value": "0",
           "topic": "Alice ZORA token balance on Base"
@@ -126,12 +119,8 @@
     },
     "skills": {
       "mode": "restricted",
-      "allowed": [
-        "zora"
-      ],
-      "activated_skills": [
-        "zora"
-      ],
+      "allowed": ["zora"],
+      "activated_skills": ["zora"],
       "bundle_path": "../output/eval/model-bench-public-skills-gpt55-opus48-sonnet46-20260530/specs/check_zora_token_balance/claude-sonnet-4.6/pass-001/spec-skills/check_zora_token_balance-skills.json",
       "bundle_revision": "fnv1a64:207bf8ad29dce92d"
     },

@@ -53,6 +53,9 @@ packages/*/dist/*.js
 packages/*/dist/*.cjs
 packages/*/dist/*.map
 
+# package build output (bundles)
+packages/*/dist
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts

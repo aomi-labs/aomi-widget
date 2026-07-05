@@ -20,9 +20,7 @@
     "total_turns": 1,
     "total_tool_calls": 12,
     "total_responses": 19,
-    "activated_skills": [
-      "lido"
-    ],
+    "activated_skills": ["lido"],
     "failed_assertions": [
       {
         "label": "Alice spends about 0.1 ETH before receiving wstETH",
@@ -217,9 +215,7 @@
         "tool": "activate_skills",
         "topic": "activate_skills",
         "arguments": {
-          "skill_ids": [
-            "lido"
-          ]
+          "skill_ids": ["lido"]
         },
         "result_preview": "{\n  \"activated\": [\n    \"lido\"\n  ],\n  \"rejected\": [],\n  \"applied_scope\": \"current_serve_cycle\"\n}"
       },
@@ -253,9 +249,7 @@
         "arguments": {
           "to": "0xae7ab96520DE3A18E5e111B5EaAb095312D7fE84",
           "function_signature": "submit(address)",
-          "arguments": [
-            "0x0000000000000000000000000000000000000000"
-          ],
+          "arguments": ["0x0000000000000000000000000000000000000000"],
           "value": "100000000000000000",
           "topic": "Simulate staking 0.1 ETH to Lido"
         },
@@ -288,9 +282,7 @@
           "description": "Stake 0.1 ETH to Lido, receive stETH",
           "data": {
             "signature": "submit(address)",
-            "args": [
-              "0x0000000000000000000000000000000000000000"
-            ],
+            "args": ["0x0000000000000000000000000000000000000000"],
             "raw": ""
           },
           "value": "100000000000000000",
@@ -343,9 +335,7 @@
         "tool": "encode_and_call",
         "topic": "Simulate wrapping 0.05 stETH to wstETH",
         "arguments": {
-          "arguments": [
-            "50000000000000000"
-          ],
+          "arguments": ["50000000000000000"],
           "function_signature": "wrap(uint256)",
           "to": "0x7f39C581F595B53c5cb19bD0b3f8dA6c935E2Ca0",
           "topic": "Simulate wrapping 0.05 stETH to wstETH",
@@ -360,9 +350,7 @@
         "arguments": {
           "value": "0",
           "data": {
-            "args": [
-              "50000000000000000"
-            ],
+            "args": ["50000000000000000"],
             "raw": "",
             "signature": "wrap(uint256)"
           },
@@ -409,11 +397,7 @@
         "tool": "commit_txs",
         "topic": "Commit Lido staking and wrapping sequence",
         "arguments": {
-          "tx_ids": [
-            1,
-            2,
-            3
-          ],
+          "tx_ids": [1, 2, 3],
           "topic": "Commit Lido staking and wrapping sequence"
         },
         "result_preview": "{\n  \"status\": \"pending_approval\",\n  \"tx_ids\": [\n    1,\n    2,\n    3\n  ],\n  \"timestamp\": \"2026-05-31T20:50:51.466809+00:00\"\n}"
@@ -427,12 +411,8 @@
     },
     "skills": {
       "mode": "restricted",
-      "allowed": [
-        "lido"
-      ],
-      "activated_skills": [
-        "lido"
-      ],
+      "allowed": ["lido"],
+      "activated_skills": ["lido"],
       "bundle_path": "../output/eval/model-bench-public-skills-expansion-20260531/specs/stake_then_wrap_steth_to_wsteth/claude-haiku-4.5/pass-001/spec-skills/stake_then_wrap_steth_to_wsteth-skills.json",
       "bundle_revision": "fnv1a64:3dc3c3eb3312b7e4"
     },

@@ -230,23 +230,22 @@ export function Hero() {
         <h1 className="mb-4 max-w-5xl text-center font-serif text-4xl leading-[1.1] tracking-tight text-neutral-50 drop-shadow-2xl md:text-5xl lg:text-6xl">
           Best Blockchain Harness
           <br />
-          <span className="text-white/90">
-            for Agentic AI
-          </span>
+          <span className="text-white/90">for Agentic AI</span>
         </h1>
         <p className="mb-6 max-w-5xl text-center font-serif text-2xl leading-[1.2] tracking-tight text-white/70 drop-shadow-lg md:text-3xl lg:text-4xl">
           One prompt away
           <span className="font-pt-serif italic"> from action.</span>
         </p>
         <p className="font-geist mr-auto mb-10 ml-auto max-w-xl text-sm leading-relaxed font-light tracking-wide text-neutral-50 drop-shadow-lg md:text-base">
-          Empower your crypto journey with AI. Transact across universal protocols,
+          Empower your crypto journey with AI. Transact across universal
+          protocols,
           <br className="hidden md:block" />
           top-security, multi-chain. Land in seconds.
         </p>
         <div className="flex w-full max-w-[1500px] flex-col items-center justify-start gap-14 pt-2 pb-0">
           <div className="relative flex h-10 w-full max-w-[316px] rounded-full bg-black/20 p-0.5 shadow-[0_8px_32px_0_rgba(0,0,0,0.1)] ring-1 ring-white/20 backdrop-blur-[80px]">
             <div
-              className={`absolute top-0.5 left-0.5 bottom-0.5 w-[calc(50%-2px)] rounded-full border border-white/40 bg-gradient-to-r from-[#733e83] to-[#ec6b83] transition-transform duration-300 ease-out ${audienceMode === "human" ? "translate-x-0" : "translate-x-full"}`}
+              className={`absolute top-0.5 bottom-0.5 left-0.5 w-[calc(50%-2px)] rounded-full border border-white/40 bg-gradient-to-r from-[#733e83] to-[#ec6b83] transition-transform duration-300 ease-out ${audienceMode === "human" ? "translate-x-0" : "translate-x-full"}`}
             />
             <button
               type="button"
@@ -289,7 +288,7 @@ export function Hero() {
           ) : (
             <div className="mb-14 flex w-full justify-center">
               <div className="w-full max-w-[900px] rounded-[2rem] border border-white/20 bg-black/55 p-5 text-left text-white shadow-[0_24px_80px_rgba(0,0,0,0.28)] backdrop-blur-xl md:p-7">
-                <h3 className="mx-4 ml-2 mt-2 font-serif text-2xl leading-[1.1] tracking-tight text-white md:text-md">
+                <h3 className="md:text-md mx-4 mt-2 ml-2 font-serif text-2xl leading-[1.1] tracking-tight text-white">
                   Onboard your Agent to Aomi
                 </h3>
                 <div className="mx-2 mt-4 rounded-xl border border-white/15 bg-black px-4 py-3">
@@ -304,14 +303,13 @@ export function Hero() {
                       Build on Aomi
                     </div>
                     <p className="font-geist mt-2 text-sm leading-6 text-white/85">
-                      Turn your platform into an agentic application. Bring
-                      your APIs - OpenAPI, REST, SDK - Aomi converts them into
-                      intent-shaped tools, deployed as an Aomi App hosted on
-                      our runtime, with built-in scalability and on-chain
-                      harness.
+                      Turn your platform into an agentic application. Bring your
+                      APIs - OpenAPI, REST, SDK - Aomi converts them into
+                      intent-shaped tools, deployed as an Aomi App hosted on our
+                      runtime, with built-in scalability and on-chain harness.
                     </p>
 
-                    <p className="font-geist mt-5 text-sm leading-6 italic text-white/85">
+                    <p className="font-geist mt-5 text-sm leading-6 text-white/85 italic">
                       Tell your agent
                     </p>
                     <blockquote className="mt-2 border-l-2 border-white/30 pl-4">
@@ -335,12 +333,13 @@ export function Hero() {
                     </div>
 
                     <div className="mt-2">
-                      <div className="font-geist text-sm font-sm text-white/90">
+                      <div className="font-geist font-sm text-sm text-white/90">
                         Backend in Rust
                       </div>
                       <div className="mt-3 rounded-xl border border-white/15 bg-black px-3 py-2">
                         <code className="font-geist-mono block text-xs leading-6 text-white">
-                          $ cargo new my-aomi-app --lib &amp;&amp; cd my-aomi-app
+                          $ cargo new my-aomi-app --lib &amp;&amp; cd
+                          my-aomi-app
                         </code>
                         <code className="font-geist-mono block text-xs leading-6 text-white">
                           $ cargo add aomi-sdk
@@ -373,7 +372,6 @@ export function Hero() {
                         and iOS frontend.
                       </p>
                     </div>
-
                   </div>
 
                   <div className="flex h-full flex-col rounded-[1.75rem] p-3 md:rounded-l-none md:border-l md:border-white/12 md:pl-8">
@@ -387,14 +385,15 @@ export function Hero() {
                       handles the routing and simulation. You sign locally.
                     </p>
 
-                    <p className="font-geist mt-5 text-sm leading-6 italic text-white/85">
+                    <p className="font-geist mt-5 text-sm leading-6 text-white/85 italic">
                       Tell your agent
                     </p>
                     <blockquote className="mt-2 border-l-2 border-white/30 pl-4">
                       <p className="font-geist text-sm leading-6 text-white/50">
-                        &quot;Read https://aomi.dev/agents/transact.md and find the highest-APY USDC vault on Morpho across
-                        Ethereum and Base, bridge $100 of USDC there if needed,
-                        simulate the deposit, then ask me before signing.&quot;
+                        &quot;Read https://aomi.dev/agents/transact.md and find
+                        the highest-APY USDC vault on Morpho across Ethereum and
+                        Base, bridge $100 of USDC there if needed, simulate the
+                        deposit, then ask me before signing.&quot;
                       </p>
                     </blockquote>
                     <a
@@ -406,7 +405,7 @@ export function Hero() {
                       → aomi.dev/agents/transact.md
                     </a>
 
-                    <div className="font-geist text-bold text-sm mt-5 font-medium text-white">
+                    <div className="font-geist text-bold mt-5 text-sm font-medium text-white">
                       Installation
                     </div>
                     <p className="font-geist mt-2 text-sm leading-6 text-white/85">
@@ -425,15 +424,18 @@ export function Hero() {
 
                     <div className="mt-3 rounded-xl border border-white/15 bg-black px-4 py-3">
                       <code className="font-geist-mono block text-xs leading-6 text-white">
-                        $ aomi chat &quot;Stake 50% of my USDC into the Steakhouse
-                        USDC vault on Morpho. Simulate before signing.&quot;
+                        $ aomi chat &quot;Stake 50% of my USDC into the
+                        Steakhouse USDC vault on Morpho. Simulate before
+                        signing.&quot;
                       </code>
                     </div>
 
                     <p className="font-geist mt-3 text-sm leading-6 text-white/85">
-                      Aomi builds and simulates the transaction. You sign locally — non-custodial by design. Account abstraction is on by default; bring a BYOK provider for gas sponsorship on L2s.
+                      Aomi builds and simulates the transaction. You sign
+                      locally — non-custodial by design. Account abstraction is
+                      on by default; bring a BYOK provider for gas sponsorship
+                      on L2s.
                     </p>
-
                   </div>
                 </div>
 

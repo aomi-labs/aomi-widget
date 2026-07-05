@@ -20,9 +20,7 @@
     "total_turns": 1,
     "total_tool_calls": 9,
     "total_responses": 17,
-    "activated_skills": [
-      "curve"
-    ],
+    "activated_skills": ["curve"],
     "failed_assertions": [],
     "budget_summary": {
       "total": 1,
@@ -179,10 +177,7 @@
         "tool": "activate_skills",
         "topic": "activate_skills",
         "arguments": {
-          "skill_ids": [
-            "curve",
-            "common_erc20"
-          ]
+          "skill_ids": ["curve", "common_erc20"]
         },
         "result_preview": "{\n  \"activated\": [\n    \"curve\"\n  ],\n  \"rejected\": [\n    [\n      \"common_erc20\",\n      \"invalid\"\n    ]\n  ],\n  \"applied_scope\": \"current_serve_cycle\"\n}"
       },
@@ -192,9 +187,7 @@
         "topic": "Verify pool coin index 0",
         "arguments": {
           "function_signature": "coins(uint256)",
-          "arguments": [
-            "0"
-          ],
+          "arguments": ["0"],
           "to": "0xDC24316b9AE028F1497c275EB9192a3Ea0f67022",
           "value": "0",
           "topic": "Verify pool coin index 0"
@@ -207,9 +200,7 @@
         "topic": "Verify pool coin index 1",
         "arguments": {
           "function_signature": "coins(uint256)",
-          "arguments": [
-            "1"
-          ],
+          "arguments": ["1"],
           "to": "0xDC24316b9AE028F1497c275EB9192a3Ea0f67022",
           "value": "0",
           "topic": "Verify pool coin index 1"
@@ -230,11 +221,7 @@
         "tool": "encode_and_call",
         "topic": "Quote ETH to stETH swap",
         "arguments": {
-          "arguments": [
-            "0",
-            "1",
-            "50000000000000000"
-          ],
+          "arguments": ["0", "1", "50000000000000000"],
           "function_signature": "get_dy(int128,int128,uint256)",
           "topic": "Quote ETH to stETH swap",
           "to": "0xDC24316b9AE028F1497c275EB9192a3Ea0f67022",
@@ -247,12 +234,7 @@
         "tool": "encode_and_call",
         "topic": "Simulate ETH to stETH swap",
         "arguments": {
-          "arguments": [
-            "0",
-            "1",
-            "50000000000000000",
-            "49000000000000000"
-          ],
+          "arguments": ["0", "1", "50000000000000000", "49000000000000000"],
           "function_signature": "exchange(int128,int128,uint256,uint256)",
           "to": "0xDC24316b9AE028F1497c275EB9192a3Ea0f67022",
           "topic": "Simulate ETH to stETH swap",
@@ -266,12 +248,7 @@
         "topic": "Stage ETH to stETH swap",
         "arguments": {
           "data": {
-            "args": [
-              "0",
-              "1",
-              "50000000000000000",
-              "49000000000000000"
-            ],
+            "args": ["0", "1", "50000000000000000", "49000000000000000"],
             "raw": "",
             "signature": "exchange(int128,int128,uint256,uint256)"
           },
@@ -306,9 +283,7 @@
         "tool": "commit_txs",
         "topic": "Commit ETH to stETH swap",
         "arguments": {
-          "tx_ids": [
-            1
-          ],
+          "tx_ids": [1],
           "topic": "Commit ETH to stETH swap"
         },
         "result_preview": "{\n  \"status\": \"pending_approval\",\n  \"tx_ids\": [\n    1\n  ],\n  \"timestamp\": \"2026-05-31T08:52:08.882277+00:00\"\n}"
@@ -322,12 +297,8 @@
     },
     "skills": {
       "mode": "restricted",
-      "allowed": [
-        "curve"
-      ],
-      "activated_skills": [
-        "curve"
-      ],
+      "allowed": ["curve"],
+      "activated_skills": ["curve"],
       "bundle_path": "../output/eval/model-bench-public-skills-minimax-m25-kiro-20260531/specs/swap_eth_for_steth_curve/minimax-m2.5/pass-001/spec-skills/swap_eth_for_steth_curve-skills.json",
       "bundle_revision": "fnv1a64:3655e1da3f82fcca"
     },

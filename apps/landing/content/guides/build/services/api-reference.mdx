@@ -11,10 +11,10 @@ This page documents the HTTP endpoints exposed by the Aomi backend. All endpoint
 
 Most endpoints require two headers:
 
-| Header | Description |
-| --- | --- |
-| `X-Session-Id` | UUID identifying the conversation session |
-| `X-API-Key` | Your Aomi API key (required for non-default apps) |
+| Header         | Description                                       |
+| -------------- | ------------------------------------------------- |
+| `X-Session-Id` | UUID identifying the conversation session         |
+| `X-API-Key`    | Your Aomi API key (required for non-default apps) |
 
 ## Endpoints
 
@@ -30,9 +30,9 @@ POST /api/sessions
 
 **Headers:**
 
-| Header | Required | Value |
-| --- | --- | --- |
-| `X-Session-Id` | Yes | UUID for the new session |
+| Header         | Required | Value                    |
+| -------------- | -------- | ------------------------ |
+| `X-Session-Id` | Yes      | UUID for the new session |
 
 **Response:**
 
@@ -55,9 +55,9 @@ GET /api/sessions/{id}
 
 **Path Parameters:**
 
-| Parameter | Type | Description |
-| --- | --- | --- |
-| `id` | string | Session UUID |
+| Parameter | Type   | Description  |
+| --------- | ------ | ------------ |
+| `id`      | string | Session UUID |
 
 **Response:**
 
@@ -87,17 +87,17 @@ POST /api/chat?app={app}
 
 **Query Parameters:**
 
-| Parameter | Required | Description |
-| --- | --- | --- |
-| `app` | No | Target app (defaults to `default`) |
+| Parameter | Required | Description                        |
+| --------- | -------- | ---------------------------------- |
+| `app`     | No       | Target app (defaults to `default`) |
 
 **Headers:**
 
-| Header | Required | Description |
-| --- | --- | --- |
-| `X-Session-Id` | Yes | Session UUID |
-| `X-API-Key` | For non-default apps | Your API key |
-| `Content-Type` | Yes | `application/json` |
+| Header         | Required             | Description        |
+| -------------- | -------------------- | ------------------ |
+| `X-Session-Id` | Yes                  | Session UUID       |
+| `X-API-Key`    | For non-default apps | Your API key       |
+| `Content-Type` | Yes                  | `application/json` |
 
 **Request Body:**
 
@@ -125,14 +125,14 @@ data: {"type":"complete"}
 
 **SSE Event Types:**
 
-| Type | Description | Fields |
-| --- | --- | --- |
-| `text` | Incremental text from the LLM | `content` |
-| `tool_call` | The assistant is calling a tool | `name`, `call_id`, `args` |
-| `tool_result` | Result from a tool execution | `call_id`, `name`, `result` |
-| `async_tool_result` | Result from a multi-step tool | `call_id`, `name`, `result` |
-| `complete` | Response generation finished | -- |
-| `error` | An error occurred | `message` |
+| Type                | Description                     | Fields                      |
+| ------------------- | ------------------------------- | --------------------------- |
+| `text`              | Incremental text from the LLM   | `content`                   |
+| `tool_call`         | The assistant is calling a tool | `name`, `call_id`, `args`   |
+| `tool_result`       | Result from a tool execution    | `call_id`, `name`, `result` |
+| `async_tool_result` | Result from a multi-step tool   | `call_id`, `name`, `result` |
+| `complete`          | Response generation finished    | --                          |
+| `error`             | An error occurred               | `message`                   |
 
 ---
 
@@ -146,9 +146,9 @@ GET /api/state?session_id={session_id}
 
 **Query Parameters:**
 
-| Parameter | Required | Description |
-| --- | --- | --- |
-| `session_id` | Yes | Session UUID |
+| Parameter    | Required | Description  |
+| ------------ | -------- | ------------ |
+| `session_id` | Yes      | Session UUID |
 
 **Response:**
 
@@ -177,9 +177,9 @@ POST /api/interrupt?session_id={session_id}
 
 **Query Parameters:**
 
-| Parameter | Required | Description |
-| --- | --- | --- |
-| `session_id` | Yes | Session UUID |
+| Parameter    | Required | Description  |
+| ------------ | -------- | ------------ |
+| `session_id` | Yes      | Session UUID |
 
 **Response:**
 
@@ -201,9 +201,9 @@ GET /api/updates
 
 **Headers:**
 
-| Header | Required | Description |
-| --- | --- | --- |
-| `X-Session-Id` | Yes | Session UUID |
+| Header         | Required | Description  |
+| -------------- | -------- | ------------ |
+| `X-Session-Id` | Yes      | Session UUID |
 
 **Response:** SSE stream with system events.
 
@@ -219,15 +219,15 @@ POST /api/control/{action}?session_id={session_id}
 
 **Path Parameters:**
 
-| Parameter | Description |
-| --- | --- |
-| `action` | The control action to perform (e.g., `model`) |
+| Parameter | Description                                   |
+| --------- | --------------------------------------------- |
+| `action`  | The control action to perform (e.g., `model`) |
 
 **Query Parameters:**
 
-| Parameter | Required | Description |
-| --- | --- | --- |
-| `session_id` | Yes | Session UUID |
+| Parameter    | Required | Description  |
+| ------------ | -------- | ------------ |
+| `session_id` | Yes      | Session UUID |
 
 **Request Body:** Varies by action.
 
@@ -288,9 +288,9 @@ GET /api/session/apps
 
 **Headers:**
 
-| Header | Required | Description |
-| --- | --- | --- |
-| `X-API-Key` | Yes | Your API key |
+| Header      | Required | Description  |
+| ----------- | -------- | ------------ |
+| `X-API-Key` | Yes      | Your API key |
 
 **Response:**
 
@@ -384,13 +384,13 @@ All error responses follow this format:
 }
 ```
 
-| Status Code | Meaning |
-| --- | --- |
-| `400` | Bad request (missing or invalid parameters) |
-| `401` | Unauthorized (invalid or missing API key) |
-| `403` | Forbidden (API key does not authorize this app) |
-| `404` | Not found (session or resource does not exist) |
-| `500` | Internal server error |
+| Status Code | Meaning                                         |
+| ----------- | ----------------------------------------------- |
+| `400`       | Bad request (missing or invalid parameters)     |
+| `401`       | Unauthorized (invalid or missing API key)       |
+| `403`       | Forbidden (API key does not authorize this app) |
+| `404`       | Not found (session or resource does not exist)  |
+| `500`       | Internal server error                           |
 
 ## Next Steps
 

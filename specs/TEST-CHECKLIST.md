@@ -3,6 +3,7 @@
 Run through this checklist to verify all layers work before you demo or ship.
 
 **Deployed Portal URLs:**
+
 - **Production:** https://chat.aomi.dev/settings
 - **Preview:** https://chat-portal-ec2p90hnr-aomi-labs.vercel.app/settings (auto-deployed from `main`)
 
@@ -40,15 +41,19 @@ node packages/client/dist/cli.mjs <command>
 ```
 
 ### 3a. Help output
+
 - [ ] `node packages/client/dist/cli.mjs deploy --help` — Shows `--commit`, `--app-source-id` flags
 - [ ] `node packages/client/dist/cli.mjs status --help` — Shows `--deployment-id` flag
 - [ ] `node packages/client/dist/cli.mjs activate --help` — Shows `--deployment-id` flag
 
 ### 3b. Deploy error handling (no backend needed)
+
 - [ ] Run from a non-git directory:
+
   ```bash
   cd /tmp && node /path/to/packages/client/dist/cli.mjs deploy --commit
   ```
+
   — Exits with `NOT_A_GIT_REPO` error
 
 - [ ] Run from a git repo without `--app-source-id`:
@@ -58,6 +63,7 @@ node packages/client/dist/cli.mjs <command>
   — Exits with `VALIDATION_ERROR`
 
 ### 3c. Deploy dry-run / CI trigger (requires live backend)
+
 These need `AOMI_BACKEND_URL` pointing to a real backend:
 
 ```bash
@@ -75,30 +81,37 @@ export AOMI_BACKEND_URL=https://api-staging.aomi.dev
 Start the portal dev server with `pnpm --filter landing dev`.
 
 ### 4a. CSRF protection
+
 - [ ] `curl -X POST http://localhost:3000/api/onboard/deploy` _(no CSRF token)_ — Returns 403
 - [ ] `curl -X POST http://localhost:3000/api/onboard/activate` _(no CSRF token)_ — Returns 403
 
 ### 4b. Route factory — dry-run/deploy
+
 - [ ] `POST /api/onboard/dry-run` with valid body — Returns 200 with deployment manifest
 - [ ] `POST /api/onboard/dry-run` with missing body — Returns 4xx validation error
 - [ ] `POST /api/onboard/deploy` with valid body — Returns 200 with `deploymentId`
 - [ ] `POST /api/onboard/deploy` with invalid body — Returns 4xx validation error
 
 ### 4c. Status
+
 - [ ] `GET /api/onboard/status?deploymentId=<valid>` — Returns deployment payload
 - [ ] `GET /api/onboard/status` _(no deploymentId)_ — Returns 4xx
 
 ### 4d. Activate
+
 - [ ] `POST /api/onboard/activate` with valid deploymentId — Returns success
 
 ### 4e. App verification
+
 - [ ] `GET /api/onboard/app?name=<app-name>` — Returns app runtime status
 - [ ] `GET /api/onboard/app` _(no name)_ — Returns 4xx
 
 ### 4f. Create repo (oneshot)
+
 - [ ] `POST /api/onboard/create` — Returns repo owner/name
 
 ### 4g. Sync installed
+
 - [ ] `POST /api/onboard/sync-installed` — Re-syncs installation
 
 ---
@@ -106,11 +119,13 @@ Start the portal dev server with `pnpm --filter landing dev`.
 ## 5. Portal UI — Onboarding Wizard
 
 ### 5a. Picker screen
+
 - [ ] Visit `/settings` — Both path options visible ("One-click" + "Fork & customize")
 - [ ] "One-click" card has "Recommended" badge
 - [ ] "Fork & customize" card shows template URL
 
 ### 5b. One-click path
+
 - [ ] Click "One-click" → Install GitHub App flow starts
 - [ ] After install → Redirects back to `/settings?installation_id=...`
 - [ ] Green banner "GitHub App installed successfully" shows and auto-dismisses in 6 seconds
@@ -122,6 +137,7 @@ Start the portal dev server with `pnpm --filter landing dev`.
 - [ ] Verify polls runtime status ("Checking runtime... attempt 3/30")
 
 ### 5c. Live panel
+
 - [ ] Green success card: "owner/repo is live"
 - [ ] Clone instructions shown (`git clone`, `cd`, `aomi-build deploy`)
 - [ ] "Open in chat" link uses `chatAppUrl()` (configurable, not hardcoded)
@@ -130,6 +146,7 @@ Start the portal dev server with `pnpm --filter landing dev`.
 - [ ] URL has `?deployment_id=<id>&deploy_path=oneshot`
 
 ### 5d. Fork & customize path
+
 - [ ] Click "Fork & customize" → Template link opens in new tab
 - [ ] Paste repo `owner/name` → Input normalizes correctly
 - [ ] Install GitHub App flow (scoped to single repo)
@@ -138,6 +155,7 @@ Start the portal dev server with `pnpm --filter landing dev`.
 - [ ] Error state shows "Reconnect Install" button
 
 ### 5e. Edge cases
+
 - [ ] Page refresh during deploy — URL params restore `deploymentId`
 - [ ] Start Over resets state during active phases
 - [ ] Deployment ID is copyable (clipboard button)
@@ -173,10 +191,10 @@ Start the portal dev server with `pnpm --filter landing dev`.
 
 ## Common Issues & How to Check
 
-| Symptom | Likely Cause | Check |
-|---|---|---|
-| `DeployCliError` build error | Duplicate class from rebase | `specs/TEST-CHECKLIST.md` should catch on `pnpm run build:lib` |
-| CSRF 403 on all routes | Missing CSRF token in curl | Use portal dev server + browser for UI tests |
-| Portal build fails on server | `NEXT_PUBLIC_BACKEND_URL` unset | Set env var or verify CI conditional works |
-| Property test timeout | `vi.useFakeTimers()` leaking | Check `watch-deployment.property.test.ts` setup |
-| CLI command not found | Old dist bundle | Rebuild with `pnpm run build:lib` |
+| Symptom                      | Likely Cause                    | Check                                                          |
+| ---------------------------- | ------------------------------- | -------------------------------------------------------------- |
+| `DeployCliError` build error | Duplicate class from rebase     | `specs/TEST-CHECKLIST.md` should catch on `pnpm run build:lib` |
+| CSRF 403 on all routes       | Missing CSRF token in curl      | Use portal dev server + browser for UI tests                   |
+| Portal build fails on server | `NEXT_PUBLIC_BACKEND_URL` unset | Set env var or verify CI conditional works                     |
+| Property test timeout        | `vi.useFakeTimers()` leaking    | Check `watch-deployment.property.test.ts` setup                |
+| CLI command not found        | Old dist bundle                 | Rebuild with `pnpm run build:lib`                              |

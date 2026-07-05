@@ -22,7 +22,7 @@ npx shadcn add https://aomi.dev/r/aomi-frame.json
 ```tsx
 import { AomiFrame } from "@/components/aomi-frame";
 
-<AomiFrame height="600px" />
+<AomiFrame height="600px" />;
 ```
 
 ### AssistantThread
@@ -36,7 +36,7 @@ npx shadcn add https://aomi.dev/r/assistant-thread.json
 ```tsx
 import { Thread } from "@/components/assistant-ui/thread";
 
-<Thread />
+<Thread />;
 ```
 
 ### ThreadList
@@ -50,7 +50,7 @@ npx shadcn add https://aomi.dev/r/assistant-thread-list.json
 ```tsx
 import { ThreadList } from "@/components/assistant-ui/thread-list";
 
-<ThreadList />
+<ThreadList />;
 ```
 
 ### ThreadListSidebar
@@ -64,7 +64,7 @@ npx shadcn add https://aomi.dev/r/threadlist-sidebar.json
 ```tsx
 import { ThreadListSidebar } from "@/components/assistant-ui/threadlist-sidebar";
 
-<ThreadListSidebar walletPosition="footer" />
+<ThreadListSidebar walletPosition="footer" />;
 ```
 
 ### ToolFallback
@@ -78,7 +78,7 @@ npx shadcn add https://aomi.dev/r/tool-fallback.json
 ```tsx
 import { ToolFallback } from "@/components/assistant-ui/tool-fallback";
 
-<ToolFallback />
+<ToolFallback />;
 ```
 
 ### Notification
@@ -92,7 +92,7 @@ npx shadcn add https://aomi.dev/r/notification.json
 ```tsx
 import { NotificationToaster } from "@/components/ui/notification";
 
-<NotificationToaster />
+<NotificationToaster />;
 ```
 
 ## Control Bar Components
@@ -125,7 +125,7 @@ Dropdown to select the AI model. Fetches available models from the backend.
 ```tsx
 import { ModelSelect } from "@/components/control-bar";
 
-<ModelSelect placeholder="Choose model" className="w-[200px]" />
+<ModelSelect placeholder="Choose model" className="w-[200px]" />;
 ```
 
 ### AppSelect
@@ -135,7 +135,7 @@ Dropdown to select the app (AI agent/application).
 ```tsx
 import { AppSelect } from "@/components/control-bar";
 
-<AppSelect placeholder="Choose agent" className="w-[200px]" />
+<AppSelect placeholder="Choose agent" className="w-[200px]" />;
 ```
 
 ### ApiKeyInput
@@ -148,7 +148,7 @@ import { ApiKeyInput } from "@/components/control-bar";
 <ApiKeyInput
   title="API Key"
   description="Enter your API key to authenticate."
-/>
+/>;
 ```
 
 ### ConnectButton
@@ -161,7 +161,7 @@ import { ConnectButton } from "@/components/control-bar";
 <ConnectButton
   connectLabel="Connect Wallet"
   onConnectionChange={(connected) => console.log(connected)}
-/>
+/>;
 ```
 
 ### NetworkSelect
@@ -171,28 +171,28 @@ Dropdown to switch between blockchain networks.
 ```tsx
 import { NetworkSelect } from "@/components/control-bar";
 
-<NetworkSelect />
+<NetworkSelect />;
 ```
 
 ## shadcn Primitives
 
 These standard UI primitives are installed as dependencies. They come from the official shadcn registry.
 
-| Component | Description |
-| --- | --- |
-| `Button` | Clickable button with variants |
-| `Input` | Text input field |
-| `Label` | Form label |
-| `Card` | Content container |
-| `Dialog` | Modal dialog |
-| `Sheet` | Side panel overlay |
-| `Popover` | Floating content panel |
-| `Command` | Command palette / search |
-| `Drawer` | Bottom drawer |
-| `Sidebar` | Collapsible sidebar layout |
-| `Separator` | Visual divider |
-| `Breadcrumb` | Navigation breadcrumb |
-| `Tooltip` | Hover tooltip |
+| Component    | Description                    |
+| ------------ | ------------------------------ |
+| `Button`     | Clickable button with variants |
+| `Input`      | Text input field               |
+| `Label`      | Form label                     |
+| `Card`       | Content container              |
+| `Dialog`     | Modal dialog                   |
+| `Sheet`      | Side panel overlay             |
+| `Popover`    | Floating content panel         |
+| `Command`    | Command palette / search       |
+| `Drawer`     | Bottom drawer                  |
+| `Sidebar`    | Collapsible sidebar layout     |
+| `Separator`  | Visual divider                 |
+| `Breadcrumb` | Navigation breadcrumb          |
+| `Tooltip`    | Hover tooltip                  |
 
 ## Dependency Tree
 

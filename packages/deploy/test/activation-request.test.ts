@@ -37,22 +37,31 @@ describe("buildActivationRequest", () => {
   });
 
   it("defaults requested_at to an RFC3339 Z timestamp", () => {
-    const { requested_at } = buildActivationRequest({ ...INPUT, requestedAt: undefined });
+    const { requested_at } = buildActivationRequest({
+      ...INPUT,
+      requestedAt: undefined,
+    });
     expect(requested_at).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/);
   });
 
   it("rejects a malformed email", () => {
-    expect(() => buildActivationRequest({ ...INPUT, email: "not-an-email" })).toThrowError(/email/);
+    expect(() =>
+      buildActivationRequest({ ...INPUT, email: "not-an-email" }),
+    ).toThrowError(/email/);
   });
 
   it("rejects empty required fields", () => {
-    expect(() => buildActivationRequest({ ...INPUT, githubAccount: "  " })).toThrowError(/githubAccount/);
+    expect(() =>
+      buildActivationRequest({ ...INPUT, githubAccount: "  " }),
+    ).toThrowError(/githubAccount/);
   });
 });
 
 describe("buildActivationRequestDiscordBody", () => {
   it("builds an embed whose fields mirror the payload", () => {
-    const body = buildActivationRequestDiscordBody(INPUT, { opsMention: "<@&123>" });
+    const body = buildActivationRequestDiscordBody(INPUT, {
+      opsMention: "<@&123>",
+    });
     expect(body.content).toBe("<@&123>");
     expect(body.allowed_mentions).toEqual({ parse: ["users", "roles"] });
     expect(body.allowed_mentions.parse).not.toContain("everyone");

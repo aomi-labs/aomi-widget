@@ -1,16 +1,19 @@
-import Para from '@getpara/web-sdk';
+import Para from "@getpara/web-sdk";
 
 let paraClient: Para | null | undefined;
 let telegramOAuthPopupInstalled = false;
 
 type ParaWithPopup = Para & {
   platformUtils?: {
-    openPopup?: (url: string, options?: { type?: { toString: () => string } }) => Promise<Window>;
+    openPopup?: (
+      url: string,
+      options?: { type?: { toString: () => string } },
+    ) => Promise<Window>;
   };
 };
 
 function installTelegramOAuthPopup(para: Para) {
-  if (telegramOAuthPopupInstalled || typeof window === 'undefined') return;
+  if (telegramOAuthPopupInstalled || typeof window === "undefined") return;
 
   const openLink = window.Telegram?.WebApp?.openLink;
   const platformUtils = (para as ParaWithPopup).platformUtils;
@@ -18,7 +21,8 @@ function installTelegramOAuthPopup(para: Para) {
   if (!openLink || !platformUtils || !originalOpenPopup) return;
 
   platformUtils.openPopup = async (url, options) => {
-    const isOAuthPopup = options?.type?.toString() === 'OAUTH' && url === 'about:blank';
+    const isOAuthPopup =
+      options?.type?.toString() === "OAUTH" && url === "about:blank";
     if (!isOAuthPopup) {
       return originalOpenPopup(url, options);
     }

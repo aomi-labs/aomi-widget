@@ -9,7 +9,14 @@ export function cn(...inputs: ClassValue[]) {
 // Type definitions
 
 export interface TextSectionProps {
-  type: 'ascii' | 'intro-title' | 'intro-description' | 'h2-title' | 'paragraph' | 'ascii-sub' | 'headline';
+  type:
+    | "ascii"
+    | "intro-title"
+    | "intro-description"
+    | "h2-title"
+    | "paragraph"
+    | "ascii-sub"
+    | "headline";
   content: string;
   options?: Record<string, unknown>;
 }

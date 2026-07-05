@@ -1,4 +1,8 @@
-import { WALLET_STORAGE_KEY_PREFIXES, WC_IDB_NAME, WC_IDB_STORE } from './constants';
+import {
+  WALLET_STORAGE_KEY_PREFIXES,
+  WC_IDB_NAME,
+  WC_IDB_STORE,
+} from "./constants";
 
 // ---------------------------------------------------------------------------
 // IDB helpers
@@ -15,7 +19,7 @@ async function readIdb(): Promise<Record<string, unknown>> {
           db.close();
           return resolve({});
         }
-        const tx = db.transaction(WC_IDB_STORE, 'readonly');
+        const tx = db.transaction(WC_IDB_STORE, "readonly");
         const store = tx.objectStore(WC_IDB_STORE);
         const all = store.getAll();
         const keys = store.getAllKeys();
@@ -27,7 +31,10 @@ async function readIdb(): Promise<Record<string, unknown>> {
           db.close();
           resolve(entries);
         };
-        tx.onerror = () => { db.close(); resolve({}); };
+        tx.onerror = () => {
+          db.close();
+          resolve({});
+        };
       };
       req.onupgradeneeded = () => {
         // DB didn't exist yet — nothing to read
@@ -79,9 +86,13 @@ async function writeIdb(entries: Record<string, unknown>): Promise<void> {
   });
 }
 
-function putEntries(db: IDBDatabase, entries: Record<string, unknown>, keys: string[]) {
+function putEntries(
+  db: IDBDatabase,
+  entries: Record<string, unknown>,
+  keys: string[],
+) {
   try {
-    const tx = db.transaction(WC_IDB_STORE, 'readwrite');
+    const tx = db.transaction(WC_IDB_STORE, "readwrite");
     const store = tx.objectStore(WC_IDB_STORE);
     for (const k of keys) {
       store.put(entries[k], k);
@@ -162,9 +173,9 @@ export async function persist(userId: string): Promise<void> {
   try {
     const ls = readLsWhitelisted();
     const idb = await readIdb();
-    await fetch('/api/sessions/record', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+    await fetch("/api/sessions/record", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ user_id: userId, ls, idb }),
     });
   } catch {
@@ -174,7 +185,9 @@ export async function persist(userId: string): Promise<void> {
 
 export async function restore(userId: string): Promise<boolean> {
   try {
-    const res = await fetch(`/api/sessions/record?user_id=${encodeURIComponent(userId)}`);
+    const res = await fetch(
+      `/api/sessions/record?user_id=${encodeURIComponent(userId)}`,
+    );
     const data = await res.json();
     if (!data.found) {
       // Server has no session (e.g. server restarted) — let wallet providers try to
@@ -191,9 +204,9 @@ export async function restore(userId: string): Promise<boolean> {
 
 export async function clear(userId: string): Promise<void> {
   try {
-    await fetch('/api/sessions/record', {
-      method: 'DELETE',
-      headers: { 'Content-Type': 'application/json' },
+    await fetch("/api/sessions/record", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ user_id: userId }),
     });
   } catch {

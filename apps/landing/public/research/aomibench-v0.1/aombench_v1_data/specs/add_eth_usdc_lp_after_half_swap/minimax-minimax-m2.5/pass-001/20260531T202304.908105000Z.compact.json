@@ -61,9 +61,7 @@
     "total_turns": 1,
     "total_tool_calls": 40,
     "total_responses": 79,
-    "activated_skills": [
-      "aerodrome"
-    ],
+    "activated_skills": ["aerodrome"],
     "failed_assertions": [
       {
         "label": "tool",
@@ -440,10 +438,7 @@
         "tool": "activate_skills",
         "topic": "activate_skills",
         "arguments": {
-          "skill_ids": [
-            "aerodrome",
-            "common_erc20"
-          ]
+          "skill_ids": ["aerodrome", "common_erc20"]
         },
         "result_preview": "{\n  \"activated\": [\n    \"aerodrome\"\n  ],\n  \"rejected\": [\n    [\n      \"common_erc20\",\n      \"invalid\"\n    ]\n  ],\n  \"applied_scope\": \"current_serve_cycle\"\n}"
       },
@@ -550,9 +545,7 @@
               "0x4200000000000000000000000000000000000006",
               "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"
             ],
-            [
-              "false"
-            ],
+            ["false"],
             "0x420DD381b31aEf6683db6B902084cB0FFECe40Da"
           ],
           "to": "0xcF77a3Ba9A5CA399B7c97c74d54e5b1Beb874E43",
@@ -585,15 +578,9 @@
           "topic": "Quote swap with flat arrays",
           "arguments": [
             "500000000000000000",
-            [
-              "0x4200000000000000000000000000000000000006"
-            ],
-            [
-              "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"
-            ],
-            [
-              "false"
-            ],
+            ["0x4200000000000000000000000000000000000006"],
+            ["0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"],
+            ["false"],
             "0x420DD381b31aEf6683db6B902084cB0FFECe40Da"
           ],
           "to": "0xcF77a3Ba9A5CA399B7c97c74d54e5b1Beb874E43",
@@ -1307,12 +1294,8 @@
     },
     "skills": {
       "mode": "restricted",
-      "allowed": [
-        "aerodrome"
-      ],
-      "activated_skills": [
-        "aerodrome"
-      ],
+      "allowed": ["aerodrome"],
+      "activated_skills": ["aerodrome"],
       "bundle_path": "../output/eval/model-bench-public-skills-expansion-20260531/specs/add_eth_usdc_lp_after_half_swap/minimax-m2.5/pass-001/spec-skills/add_eth_usdc_lp_after_half_swap-skills.json",
       "bundle_revision": "fnv1a64:c0406359c2059af7"
     },

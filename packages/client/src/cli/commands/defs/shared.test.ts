@@ -13,8 +13,8 @@ describe("buildCliConfig", () => {
     delete process.env.AOMI_BACKEND_URL;
     delete process.env.AOMI_APP;
     delete process.env.AOMI_ACCOUNT_BEARER;
-    delete process.env.AOMI_EMBEDDED_PROVIDER;
-    delete process.env.AOMI_EMBEDDED_PROVIDER_TOKEN;
+    delete process.env.AOMI_ACCOUNT_PROVIDER;
+    delete process.env.AOMI_ACCOUNT_PROVIDER_TOKEN;
   });
 
   afterEach(() => {
@@ -23,8 +23,8 @@ describe("buildCliConfig", () => {
     delete process.env.AOMI_BACKEND_URL;
     delete process.env.AOMI_APP;
     delete process.env.AOMI_ACCOUNT_BEARER;
-    delete process.env.AOMI_EMBEDDED_PROVIDER;
-    delete process.env.AOMI_EMBEDDED_PROVIDER_TOKEN;
+    delete process.env.AOMI_ACCOUNT_PROVIDER;
+    delete process.env.AOMI_ACCOUNT_PROVIDER_TOKEN;
     vi.restoreAllMocks();
   });
 
@@ -75,18 +75,18 @@ describe("buildCliConfig", () => {
     });
 
     expect(config.accountBearer).toBe("bearer-123");
-    expect(config.embeddedProvider).toBeUndefined();
-    expect(config.embeddedProviderToken).toBeUndefined();
+    expect(config.accountProvider).toBeUndefined();
+    expect(config.accountProviderToken).toBeUndefined();
   });
 
   it("reads legacy account provider config from environment", () => {
-    process.env.AOMI_EMBEDDED_PROVIDER = "privy";
-    process.env.AOMI_EMBEDDED_PROVIDER_TOKEN = "privy-token";
+    process.env.AOMI_ACCOUNT_PROVIDER = "privy";
+    process.env.AOMI_ACCOUNT_PROVIDER_TOKEN = "privy-token";
 
     const config = buildCliConfig({});
 
-    expect(config.embeddedProvider).toBe("privy");
-    expect(config.embeddedProviderToken).toBe("privy-token");
+    expect(config.accountProvider).toBe("privy");
+    expect(config.accountProviderToken).toBe("privy-token");
     expect(config.accountBearer).toBeUndefined();
   });
 
@@ -97,7 +97,7 @@ describe("buildCliConfig", () => {
 
     expect(() =>
       buildCliConfig({
-        "embedded-provider": "privy",
+        "account-provider": "privy",
       }),
     ).toThrow(CliExit);
 
@@ -112,8 +112,8 @@ describe("buildCliConfig", () => {
     expect(() =>
       buildCliConfig({
         "account-bearer": "bearer-123",
-        "embedded-provider": "privy",
-        "embedded-provider-token": "privy-token",
+        "account-provider": "privy",
+        "account-provider-token": "privy-token",
       }),
     ).toThrow(CliExit);
 

@@ -11,12 +11,12 @@ This page explains how AI assistants are constructed on the Aomi platform. It co
 
 Every AI assistant on the Aomi platform implements the **AomiApp** pattern. An AomiApp bundles:
 
-| Component | Purpose |
-| --- | --- |
-| **Tools** | Functions the AI can call during conversations |
+| Component    | Purpose                                                         |
+| ------------ | --------------------------------------------------------------- |
+| **Tools**    | Functions the AI can call during conversations                  |
 | **Preamble** | System prompt defining personality, rules, and domain knowledge |
-| **Model** | Which LLM powers the assistant |
-| **RAG docs** | Optional document store for knowledge retrieval |
+| **Model**    | Which LLM powers the assistant                                  |
+| **RAG docs** | Optional document store for knowledge retrieval                 |
 
 ```mermaid
 flowchart TB
@@ -197,11 +197,11 @@ fn build_preamble(user_preferences: &UserPrefs) -> String {
 
 Aomi supports multiple LLM providers. The model is configured via the `Selection` type:
 
-| Provider | Models | Notes |
-| --- | --- | --- |
-| **Anthropic** | Claude Sonnet, Claude Haiku | Strong tool use, reliable structured output |
-| **OpenAI** | GPT-4o, GPT-4o Mini | Broad general knowledge |
-| **OpenRouter** | 100+ models | Access to Llama, Mistral, and others |
+| Provider       | Models                      | Notes                                       |
+| -------------- | --------------------------- | ------------------------------------------- |
+| **Anthropic**  | Claude Sonnet, Claude Haiku | Strong tool use, reliable structured output |
+| **OpenAI**     | GPT-4o, GPT-4o Mini         | Broad general knowledge                     |
+| **OpenRouter** | 100+ models                 | Access to Llama, Mistral, and others        |
 
 Models can be switched at runtime via the `/api/session/model` endpoint without redeploying the app.
 

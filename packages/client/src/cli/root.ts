@@ -1,7 +1,7 @@
 import { defineCommand } from "citty";
 import { chatDef } from "./commands/defs/chat";
 import { txDef } from "./commands/defs/tx";
-import { sessionDef } from "./commands/defs/session";
+import { threadDef } from "./commands/defs/thread";
 import { modelDef } from "./commands/defs/model";
 import { appDef } from "./commands/defs/app";
 import { chainDef } from "./commands/defs/chain";
@@ -9,14 +9,15 @@ import { walletDef } from "./commands/defs/wallet";
 import { configDef } from "./commands/defs/config";
 import { secretDef } from "./commands/defs/secret";
 import { accountDef } from "./commands/defs/account";
-import { deployDef } from "./commands/defs/deploy";
+import { loginDef, logoutDef } from "./commands/defs/login";
+import { cronDef } from "./commands/defs/cron";
 import { globalArgs } from "./commands/defs/shared";
 import packageJson from "../../package.json";
 
-const SUBCOMMAND_NAMES = new Set([
+export const SUBCOMMAND_NAMES = new Set([
   "chat",
   "tx",
-  "session",
+  "thread",
   "model",
   "app",
   "chain",
@@ -24,7 +25,9 @@ const SUBCOMMAND_NAMES = new Set([
   "config",
   "secret",
   "account",
-  "deploy",
+  "login",
+  "logout",
+  "cron",
 ]);
 
 export const root = defineCommand({
@@ -52,7 +55,7 @@ export const root = defineCommand({
   async run({ args, rawArgs }) {
     // citty 0.2.2 quirk: when a subCommand is matched, it runs the subcommand
     // AND still falls through to the parent's `run`. Bail out here if rawArgs
-    // contain a known subcommand token — otherwise every `aomi wallet set …`
+    // contain a known subcommand token — otherwise every `aomi wallet ls …`
     // or `aomi tx sign …` would spuriously try to start the REPL and exit 1
     // on non-TTY.
     const firstToken = rawArgs.find((arg) => !arg.startsWith("-"));
@@ -65,7 +68,7 @@ export const root = defineCommand({
   subCommands: {
     chat: chatDef,
     tx: txDef,
-    session: sessionDef,
+    thread: threadDef,
     model: modelDef,
     app: appDef,
     chain: chainDef,
@@ -73,6 +76,8 @@ export const root = defineCommand({
     config: configDef,
     secret: secretDef,
     account: accountDef,
-    deploy: deployDef,
+    login: loginDef,
+    logout: logoutDef,
+    cron: cronDef,
   },
 });

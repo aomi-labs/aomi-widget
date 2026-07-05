@@ -145,33 +145,6 @@ export function currentBackendCommand(): void {
   printDataFileLocation();
 }
 
-export function currentWalletCommand(): void {
-  const cli = CliSession.load();
-  if (!cli) {
-    console.log("No active session");
-    printDataFileLocation();
-    return;
-  }
-
-  const state = cli.toState();
-  const hasAny = cli.publicKey || state.svmPublicKey;
-  if (!hasAny) {
-    console.log("No wallet configured");
-    printDataFileLocation();
-    return;
-  }
-
-  if (cli.publicKey) {
-    const signerStatus = cli.privateKey ? "saved signer" : "address only";
-    console.log(`EVM:    ${cli.publicKey} (${signerStatus})`);
-  }
-  if (state.svmPublicKey) {
-    const signerStatus = state.svmPrivateKey ? "saved signer" : "address only";
-    console.log(`Solana: ${state.svmPublicKey} (${signerStatus})`);
-  }
-  printDataFileLocation();
-}
-
 export function currentModelCommand(): void {
   const cli = CliSession.load();
   if (!cli) {

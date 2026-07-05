@@ -24,7 +24,10 @@ type DataEntry = {
 function cleanSegments(segments: string[] = []) {
   return segments.filter(
     (segment) =>
-      segment.length > 0 && segment !== "." && segment !== ".." && !segment.includes("/"),
+      segment.length > 0 &&
+      segment !== "." &&
+      segment !== ".." &&
+      !segment.includes("/"),
   );
 }
 
@@ -68,7 +71,9 @@ async function readDirectory(segments: string[]) {
 
         return {
           name: dirent.name,
-          href: isDirectory ? routeHref(entrySegments) : publicHref(entrySegments),
+          href: isDirectory
+            ? routeHref(entrySegments)
+            : publicHref(entrySegments),
           isDirectory,
           size: stat?.size ?? null,
         };

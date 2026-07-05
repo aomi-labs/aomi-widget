@@ -50,13 +50,13 @@ export function useThemeCustomizer() {
   const [state, setState] = useState<ThemeState>(DEFAULT_THEME_STATE);
 
   const preset = useMemo(
-    () => THEME_PRESETS.find((p) => p.id === state.presetId) ?? THEME_PRESETS[0],
+    () =>
+      THEME_PRESETS.find((p) => p.id === state.presetId) ?? THEME_PRESETS[0],
     [state.presetId],
   );
 
   const update = useCallback(
-    (patch: Partial<ThemeState>) =>
-      setState((prev) => ({ ...prev, ...patch })),
+    (patch: Partial<ThemeState>) => setState((prev) => ({ ...prev, ...patch })),
     [],
   );
 
@@ -96,8 +96,7 @@ export function useThemeCustomizer() {
   );
 
   const output = useMemo<ThemeOutput>(() => {
-    const colors =
-      state.mode === "dark" ? preset.dark : preset.light;
+    const colors = state.mode === "dark" ? preset.dark : preset.light;
     const overrides = state.overrides[state.mode];
     return {
       styleObject: themeToStyleObject(colors, overrides, state.radius),
@@ -131,7 +130,11 @@ type PresetSwatchProps = {
   onSelect: () => void;
 };
 
-const PresetSwatch: FC<PresetSwatchProps> = ({ preset, selected, onSelect }) => (
+const PresetSwatch: FC<PresetSwatchProps> = ({
+  preset,
+  selected,
+  onSelect,
+}) => (
   <button
     type="button"
     onClick={onSelect}
@@ -155,7 +158,7 @@ const PresetSwatch: FC<PresetSwatchProps> = ({ preset, selected, onSelect }) => 
         style={{ backgroundColor: preset.preview.bg }}
       />
     </div>
-    <span className="text-[10px] font-medium leading-none text-fd-muted-foreground group-hover:text-fd-foreground">
+    <span className="text-[10px] leading-none font-medium text-fd-muted-foreground group-hover:text-fd-foreground">
       {preset.label}
     </span>
   </button>
@@ -221,7 +224,11 @@ type ThemeCustomizerProps = {
   preset: ThemePreset;
   selectPreset: (id: string) => void;
   update: (patch: Partial<ThemeState>) => void;
-  setColorOverride: (mode: ThemeMode, key: keyof ThemeColors, value: string) => void;
+  setColorOverride: (
+    mode: ThemeMode,
+    key: keyof ThemeColors,
+    value: string,
+  ) => void;
   clearColorOverride: (mode: ThemeMode, key: keyof ThemeColors) => void;
 };
 
@@ -235,7 +242,8 @@ export const ThemeCustomizer: FC<ThemeCustomizerProps> = ({
   const [colorsExpanded, setColorsExpanded] = useState(false);
 
   const preset = useMemo(
-    () => THEME_PRESETS.find((p) => p.id === state.presetId) ?? THEME_PRESETS[0],
+    () =>
+      THEME_PRESETS.find((p) => p.id === state.presetId) ?? THEME_PRESETS[0],
     [state.presetId],
   );
 
@@ -249,7 +257,7 @@ export const ThemeCustomizer: FC<ThemeCustomizerProps> = ({
     <div className="space-y-5">
       {/* ── Presets grid ── */}
       <fieldset className="space-y-2">
-        <legend className="text-xs font-semibold uppercase tracking-wider text-fd-muted-foreground">
+        <legend className="text-xs font-semibold tracking-wider text-fd-muted-foreground uppercase">
           Presets
         </legend>
         <div className="grid grid-cols-2 gap-1.5">
@@ -266,7 +274,7 @@ export const ThemeCustomizer: FC<ThemeCustomizerProps> = ({
 
       {/* ── Mode toggle ── */}
       <fieldset className="space-y-2">
-        <legend className="text-xs font-semibold uppercase tracking-wider text-fd-muted-foreground">
+        <legend className="text-xs font-semibold tracking-wider text-fd-muted-foreground uppercase">
           Preview Mode
         </legend>
         <div className="flex gap-1">
@@ -295,7 +303,7 @@ export const ThemeCustomizer: FC<ThemeCustomizerProps> = ({
 
       {/* ── Radius slider ── */}
       <fieldset className="space-y-2">
-        <legend className="text-xs font-semibold uppercase tracking-wider text-fd-muted-foreground">
+        <legend className="text-xs font-semibold tracking-wider text-fd-muted-foreground uppercase">
           Radius
         </legend>
         <div className="flex items-center gap-2">
@@ -308,7 +316,7 @@ export const ThemeCustomizer: FC<ThemeCustomizerProps> = ({
             onChange={(e) => update({ radius: `${e.target.value}rem` })}
             className="flex-1 accent-fd-primary"
           />
-          <span className="w-14 text-right text-xs tabular-nums text-fd-muted-foreground">
+          <span className="w-14 text-right text-xs text-fd-muted-foreground tabular-nums">
             {state.radius}
           </span>
         </div>
@@ -319,7 +327,7 @@ export const ThemeCustomizer: FC<ThemeCustomizerProps> = ({
         <button
           type="button"
           onClick={() => setColorsExpanded((v) => !v)}
-          className="flex w-full items-center justify-between text-xs font-semibold uppercase tracking-wider text-fd-muted-foreground"
+          className="flex w-full items-center justify-between text-xs font-semibold tracking-wider text-fd-muted-foreground uppercase"
         >
           <span>Color Overrides</span>
           <span className="text-[10px]">{colorsExpanded ? "▼" : "▶"}</span>

@@ -188,9 +188,7 @@
         "tool": "commit_txs",
         "topic": "Commit 0.01 ETH transfer to 0x2000000000000000000000000000000000000002",
         "arguments": {
-          "tx_ids": [
-            1
-          ],
+          "tx_ids": [1],
           "topic": "Commit 0.01 ETH transfer to 0x2000000000000000000000000000000000000002"
         },
         "result_preview": "{\n  \"status\": \"pending_approval\",\n  \"tx_ids\": [\n    1\n  ],\n  \"timestamp\": \"2026-05-31T18:38:59.804299+00:00\"\n}"

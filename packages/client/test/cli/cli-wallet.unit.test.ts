@@ -29,19 +29,15 @@ vi.mock("viem", async () => {
 });
 
 vi.mock("viem/accounts", async () => {
-  const actual = await vi.importActual<typeof import("viem/accounts")>(
-    "viem/accounts",
-  );
+  const actual =
+    await vi.importActual<typeof import("viem/accounts")>("viem/accounts");
   return {
     ...actual,
     privateKeyToAccount: vi.fn(() => ({ address: MOCK_ADDRESS })),
   };
 });
 
-import {
-  DISABLED_PROVIDER_STATE,
-  executeWalletCalls,
-} from "../../src/aa";
+import { DISABLED_PROVIDER_STATE, executeWalletCalls } from "../../src/aa";
 import { toSignedTxMetadata } from "../../src/cli/tables";
 import type { PendingTx } from "../../src/cli/state";
 import {

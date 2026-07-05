@@ -20,9 +20,7 @@
     "total_turns": 1,
     "total_tool_calls": 11,
     "total_responses": 20,
-    "activated_skills": [
-      "compound"
-    ],
+    "activated_skills": ["compound"],
     "failed_assertions": [
       {
         "label": "Alice supplies about 100 USDC to Compound",
@@ -242,10 +240,7 @@
         "tool": "activate_skills",
         "topic": "activate_skills",
         "arguments": {
-          "skill_ids": [
-            "compound",
-            "common_erc20"
-          ]
+          "skill_ids": ["compound", "common_erc20"]
         },
         "result_preview": "{\n  \"activated\": [\n    \"compound\"\n  ],\n  \"rejected\": [\n    [\n      \"common_erc20\",\n      \"invalid\"\n    ]\n  ],\n  \"applied_scope\": \"current_serve_cycle\"\n}"
       },
@@ -303,9 +298,7 @@
         "topic": "Check Alice's USDC balance",
         "arguments": {
           "function_signature": "balanceOf(address)",
-          "arguments": [
-            "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
-          ],
+          "arguments": ["0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"],
           "to": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
           "value": "0",
           "topic": "Check Alice's USDC balance"
@@ -335,10 +328,7 @@
         "arguments": {
           "topic": "Stage USDC approval for cUSDCv3",
           "data": {
-            "args": [
-              "0xc3d688B66703497DAA19211EEdff47f25384cdc3",
-              "100000000"
-            ],
+            "args": ["0xc3d688B66703497DAA19211EEdff47f25384cdc3", "100000000"],
             "raw": "",
             "signature": "approve(address,uint256)"
           },
@@ -357,10 +347,7 @@
         "arguments": {
           "gas_limit": "200000",
           "data": {
-            "args": [
-              "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
-              "100000000"
-            ],
+            "args": ["0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48", "100000000"],
             "raw": "",
             "signature": "supply(address,uint256)"
           },
@@ -401,10 +388,7 @@
         "tool": "commit_txs",
         "topic": "Commit approve + supply transactions",
         "arguments": {
-          "tx_ids": [
-            1,
-            2
-          ],
+          "tx_ids": [1, 2],
           "topic": "Commit approve + supply transactions"
         },
         "result_preview": "{\n  \"status\": \"pending_approval\",\n  \"tx_ids\": [\n    1,\n    2\n  ],\n  \"timestamp\": \"2026-05-31T09:01:09.122566+00:00\"\n}"
@@ -418,12 +402,8 @@
     },
     "skills": {
       "mode": "restricted",
-      "allowed": [
-        "compound"
-      ],
-      "activated_skills": [
-        "compound"
-      ],
+      "allowed": ["compound"],
+      "activated_skills": ["compound"],
       "bundle_path": "../output/eval/model-bench-public-skills-minimax-m25-kiro-20260531/specs/supply_usdc_compound_v3/minimax-m2.5/pass-001/spec-skills/supply_usdc_compound_v3-skills.json",
       "bundle_revision": "fnv1a64:570f86ce89cae15a"
     },

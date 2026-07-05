@@ -202,7 +202,10 @@ export function Byok() {
             <tbody>
               {byokKeys.length === 0 ? (
                 <tr>
-                  <td className="text-muted-foreground px-3 py-4 text-center" colSpan={4}>
+                  <td
+                    className="text-muted-foreground px-3 py-4 text-center"
+                    colSpan={4}
+                  >
                     No BYOK keys saved.
                   </td>
                 </tr>
@@ -227,7 +230,9 @@ export function Byok() {
                         onClick={() => void handleDelete(key.provider)}
                         className="rounded-full"
                       >
-                        {deletingProvider === key.provider ? "Removing..." : "Delete"}
+                        {deletingProvider === key.provider
+                          ? "Removing..."
+                          : "Delete"}
                       </Button>
                     </td>
                   </tr>

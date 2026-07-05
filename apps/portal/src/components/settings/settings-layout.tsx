@@ -3,9 +3,9 @@
 import { useEffect, useState } from "react";
 import { Button, useAomiAuthAdapter } from "@aomi-labs/widget-lib";
 import { SettingsSidebar, SettingsCategory } from "./settings-sidebar";
-import { ErrorBoundary } from "@portal/components/shell/error-boundary";
 import { GeneralSettings } from "@portal/features/general";
 import { AppsSettings } from "@portal/features/apps";
+import { ErrorBoundary } from "@portal/components/shell/error-boundary";
 import { DeployDashboard } from "@portal/features/launch/components";
 import { AppKeys } from "@portal/features/app-keys";
 import { Bots } from "@portal/features/bots";

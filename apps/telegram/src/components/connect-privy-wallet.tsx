@@ -1,37 +1,37 @@
-'use client';
+"use client";
 
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { useEffect, useMemo, useRef, useState } from "react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
   PrivyProvider,
   usePrivy,
   type PrivyClientConfig,
-} from '@privy-io/react-auth';
-import { useSolanaWallets } from '@privy-io/react-auth/solana';
+} from "@privy-io/react-auth";
+import { useSolanaWallets } from "@privy-io/react-auth/solana";
 import {
   SmartWalletsProvider,
   useSmartWallets,
-} from '@privy-io/react-auth/smart-wallets';
+} from "@privy-io/react-auth/smart-wallets";
 import {
   WagmiProvider,
   createConfig as createPrivyWagmiConfig,
-} from '@privy-io/wagmi';
-import { http, type Chain, type Transport } from 'viem';
-import { useChainId } from 'wagmi';
-import { arbitrum, base, mainnet, optimism, polygon } from 'wagmi/chains';
+} from "@privy-io/wagmi";
+import { http, type Chain, type Transport } from "viem";
+import { useChainId } from "wagmi";
+import { arbitrum, base, mainnet, optimism, polygon } from "wagmi/chains";
 
-import { getTelegramUserId, readyTelegramWebApp } from '@/lib/telegram-webapp';
+import { getTelegramUserId, readyTelegramWebApp } from "@/lib/telegram-webapp";
 
-type RequestedFamily = 'evm' | 'svm';
+type RequestedFamily = "evm" | "svm";
 
 const queryClient = new QueryClient();
 const defaultNetworks = [mainnet, arbitrum, optimism, base, polygon] as const;
-const defaultSolanaCluster = 'solana:mainnet';
+const defaultSolanaCluster = "solana:mainnet";
 const privyAppId = process.env.NEXT_PUBLIC_PRIVY_APP_ID;
 const walletConnectProjectId =
-  process.env.NEXT_PUBLIC_PROJECT_ID
-  || process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID
-  || '';
+  process.env.NEXT_PUBLIC_PROJECT_ID ||
+  process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID ||
+  "";
 const defaultTransports: Record<
   | typeof mainnet.id
   | typeof arbitrum.id
@@ -48,12 +48,12 @@ const defaultTransports: Record<
 };
 
 function parseRequestedFamily(search: string): RequestedFamily {
-  const family = new URLSearchParams(search).get('family');
-  return family === 'solana' || family === 'svm' ? 'svm' : 'evm';
+  const family = new URLSearchParams(search).get("family");
+  return family === "solana" || family === "svm" ? "svm" : "evm";
 }
 
 function useRequestedFamily(): RequestedFamily {
-  const [family, setFamily] = useState<RequestedFamily>('evm');
+  const [family, setFamily] = useState<RequestedFamily>("evm");
 
   useEffect(() => {
     setFamily(parseRequestedFamily(window.location.search));
@@ -75,9 +75,7 @@ function PrivyProviders({ children }: { children: React.ReactNode }) {
 
   if (!privyAppId) {
     return (
-      <QueryClientProvider client={queryClient}>
-        {children}
-      </QueryClientProvider>
+      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
     );
   }
 
@@ -87,18 +85,18 @@ function PrivyProviders({ children }: { children: React.ReactNode }) {
       config={
         {
           appearance: {
-            walletList: ['detected_wallets', 'metamask', 'wallet_connect'],
+            walletList: ["detected_wallets", "metamask", "wallet_connect"],
           },
           embeddedWallets: {
-            ethereum: { createOnLogin: 'users-without-wallets' },
-            solana: { createOnLogin: 'all-users' },
+            ethereum: { createOnLogin: "users-without-wallets" },
+            solana: { createOnLogin: "all-users" },
           },
           defaultChain: defaultNetworks[0] as Chain,
           supportedChains: defaultNetworks as unknown as Chain[],
           ...(walletConnectProjectId
             ? { walletConnectCloudProjectId: walletConnectProjectId }
             : {}),
-          appName: 'Aomi',
+          appName: "Aomi",
         } as PrivyClientConfig
       }
     >
@@ -182,7 +180,7 @@ function ConnectPrivyContent() {
     readyTelegramWebApp();
     const params = new URLSearchParams(window.location.search);
     setTgUserId(getTelegramUserId() || undefined);
-    setForceNew(params.get('force_new') === 'true');
+    setForceNew(params.get("force_new") === "true");
   }, []);
 
   useEffect(() => {
@@ -193,7 +191,9 @@ function ConnectPrivyContent() {
     try {
       logout();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to reset Privy session.');
+      setError(
+        err instanceof Error ? err.message : "Failed to reset Privy session.",
+      );
     }
   }, [authenticated, forceNew, logout, ready]);
 
@@ -205,15 +205,17 @@ function ConnectPrivyContent() {
     try {
       login();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Privy login failed.');
+      setError(err instanceof Error ? err.message : "Privy login failed.");
       loginRequested.current = false;
     }
   }, [authenticated, login, ready]);
 
   const evmAddress = smartWalletClient?.account?.address;
   const svmAddress = solanaWallets[0]?.address;
-  const providerLabel = requestedFamily === 'svm' ? 'Privy Solana' : 'Privy EVM';
-  const desiredReady = requestedFamily === 'svm' ? Boolean(svmAddress) : Boolean(evmAddress);
+  const providerLabel =
+    requestedFamily === "svm" ? "Privy Solana" : "Privy EVM";
+  const desiredReady =
+    requestedFamily === "svm" ? Boolean(svmAddress) : Boolean(evmAddress);
 
   useEffect(() => {
     if (!authenticated || !desiredReady || completionSent.current) {
@@ -227,15 +229,17 @@ function ConnectPrivyContent() {
       ensName: null,
       svmAddress: svmAddress ?? null,
       svmCluster: svmAddress ? defaultSolanaCluster : null,
-      walletProvider: 'privy',
+      walletProvider: "privy",
       providerLabel,
     };
 
-    const userId = tgUserId || `privy-${requestedFamily}-${evmAddress || svmAddress || 'wallet'}`;
+    const userId =
+      tgUserId ||
+      `privy-${requestedFamily}-${evmAddress || svmAddress || "wallet"}`;
 
-    fetch('/api/sessions/wallet', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+    fetch("/api/sessions/wallet", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         user_id: userId,
         address: payload.address,
@@ -244,10 +248,10 @@ function ConnectPrivyContent() {
         svmCluster: payload.svmCluster,
         walletProvider: payload.walletProvider,
         providerLabel: payload.providerLabel,
-        source: 'mini_app',
+        source: "mini_app",
       }),
     }).catch((err: unknown) => {
-      console.warn('[privy-connect] backup POST failed:', err);
+      console.warn("[privy-connect] backup POST failed:", err);
     });
 
     if (window.Telegram?.WebApp?.sendData) {
@@ -256,7 +260,7 @@ function ConnectPrivyContent() {
       return;
     }
 
-    console.log('[privy-connect] connected:', payload);
+    console.log("[privy-connect] connected:", payload);
   }, [
     authenticated,
     chainId,
@@ -268,24 +272,24 @@ function ConnectPrivyContent() {
     tgUserId,
   ]);
 
-  let body = 'Opening Privy...';
+  let body = "Opening Privy...";
   if (!privyAppId) {
-    body = 'Privy is not configured for this Telegram app.';
+    body = "Privy is not configured for this Telegram app.";
   } else if (error) {
     body = error;
   } else if (!ready) {
-    body = 'Loading Privy...';
+    body = "Loading Privy...";
   } else if (authenticated && !desiredReady) {
     body =
-      requestedFamily === 'svm'
-        ? 'Waiting for your Privy Solana wallet...'
-        : 'Waiting for your Privy EVM wallet...';
+      requestedFamily === "svm"
+        ? "Waiting for your Privy Solana wallet..."
+        : "Waiting for your Privy EVM wallet...";
   } else if (authenticated) {
-    body = 'Connecting wallet to Telegram...';
+    body = "Connecting wallet to Telegram...";
   }
 
   return (
-    <main className="min-h-screen bg-black text-white flex items-center justify-center px-6">
+    <main className="flex min-h-screen items-center justify-center bg-black px-6 text-white">
       <div className="max-w-sm text-center">
         <div className="mx-auto mb-5 h-8 w-8 animate-spin rounded-full border-b-2 border-t-2 border-white" />
         <p className="text-base font-medium">{providerLabel}</p>

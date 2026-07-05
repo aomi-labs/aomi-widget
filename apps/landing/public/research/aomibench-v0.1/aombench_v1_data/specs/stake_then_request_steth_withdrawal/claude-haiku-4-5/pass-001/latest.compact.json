@@ -20,9 +20,7 @@
     "total_turns": 1,
     "total_tool_calls": 13,
     "total_responses": 22,
-    "activated_skills": [
-      "lido"
-    ],
+    "activated_skills": ["lido"],
     "failed_assertions": [
       {
         "label": "Alice spends about 0.1 ETH staking before requesting stETH withdrawal",
@@ -238,9 +236,7 @@
         "tool": "activate_skills",
         "topic": "activate_skills",
         "arguments": {
-          "skill_ids": [
-            "lido"
-          ]
+          "skill_ids": ["lido"]
         },
         "result_preview": "{\n  \"activated\": [\n    \"lido\"\n  ],\n  \"rejected\": [],\n  \"applied_scope\": \"current_serve_cycle\"\n}"
       },
@@ -274,9 +270,7 @@
         "arguments": {
           "to": "0xae7ab96520DE3A18E5e111B5EaAb095312D7fE84",
           "function_signature": "submit(address)",
-          "arguments": [
-            "0x0000000000000000000000000000000000000000"
-          ],
+          "arguments": ["0x0000000000000000000000000000000000000000"],
           "value": "100000000000000000",
           "topic": "Simulate staking 0.1 ETH with Lido"
         },
@@ -291,9 +285,7 @@
           "description": "Stake 0.1 ETH with Lido to receive stETH",
           "data": {
             "signature": "submit(address)",
-            "args": [
-              "0x0000000000000000000000000000000000000000"
-            ],
+            "args": ["0x0000000000000000000000000000000000000000"],
             "raw": ""
           },
           "value": "100000000000000000",
@@ -308,9 +300,7 @@
         "tool": "encode_and_call",
         "topic": "Check Alice's current stETH balance",
         "arguments": {
-          "arguments": [
-            "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
-          ],
+          "arguments": ["0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"],
           "function_signature": "balanceOf(address)",
           "to": "0xae7ab96520DE3A18E5e111B5EaAb095312D7fE84",
           "topic": "Check Alice's current stETH balance",
@@ -447,11 +437,7 @@
         "tool": "commit_txs",
         "topic": "Execute Lido staking and withdrawal request workflow",
         "arguments": {
-          "tx_ids": [
-            1,
-            2,
-            3
-          ],
+          "tx_ids": [1, 2, 3],
           "topic": "Execute Lido staking and withdrawal request workflow"
         },
         "result_preview": "{\n  \"status\": \"pending_approval\",\n  \"tx_ids\": [\n    1,\n    2,\n    3\n  ],\n  \"timestamp\": \"2026-05-31T21:08:36.986910+00:00\"\n}"
@@ -465,12 +451,8 @@
     },
     "skills": {
       "mode": "restricted",
-      "allowed": [
-        "lido"
-      ],
-      "activated_skills": [
-        "lido"
-      ],
+      "allowed": ["lido"],
+      "activated_skills": ["lido"],
       "bundle_path": "../output/eval/model-bench-public-skills-expansion-20260531/specs/stake_then_request_steth_withdrawal/claude-haiku-4.5/pass-001/spec-skills/stake_then_request_steth_withdrawal-skills.json",
       "bundle_revision": "fnv1a64:3dc3c3eb3312b7e4"
     },

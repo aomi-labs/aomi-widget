@@ -11,8 +11,27 @@ const baseConfig = {
   execution: "eoa" as const,
   secrets: {},
 };
-const TEST_PRIVATE_KEY =
-  "0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d";
+
+function jsonResponse(
+  payload: unknown,
+  init: { ok?: boolean; status?: number; statusText?: string } = {},
+): Response {
+  return {
+    ok: init.ok ?? true,
+    status: init.status ?? 200,
+    statusText: init.statusText ?? "OK",
+    headers: new Headers({ "content-type": "application/json" }),
+    json: vi.fn(async () => payload),
+    text: vi.fn(async () => JSON.stringify(payload)),
+  } as unknown as Response;
+}
+
+async function flushDevicePoll(): Promise<void> {
+  for (let i = 0; i < 5; i += 1) {
+    await Promise.resolve();
+  }
+  await vi.advanceTimersByTimeAsync(1000);
+}
 
 describe("aomi account login", () => {
   let stateDir: string;
@@ -25,34 +44,60 @@ describe("aomi account login", () => {
   });
 
   afterEach(() => {
+    vi.useRealTimers();
     process.env = { ...ORIGINAL_ENV };
     rmSync(stateDir, { recursive: true, force: true });
     vi.restoreAllMocks();
   });
 
-  it("establishes an account session through BFF SIWE", async () => {
+  it("establishes an account session through CLI device login", async () => {
     const { loginCommand } = await import("../../src/cli/commands/account");
+    const { readState } = await import("../../src/cli/state");
 
-    const nativeFetch = vi.fn(async (url: string | URL | Request) => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-01-01T00:00:00.000Z"));
+
+    const nativeFetch = vi.fn(async (url: string | URL | Request, init?: RequestInit) => {
       const target = String(url);
-      if (target.endsWith("/api/bff/auth/siwe/nonce")) {
-        return {
-          ok: true,
-          status: 200,
-          json: vi.fn(async () => ({ nonce: "abc123def456" })),
-        } as unknown as Response;
+      if (target.endsWith("/api/cli/device/start")) {
+        return jsonResponse({
+          device_code: "device-123",
+          user_code: "ABCD-EFGH",
+          verification_uri: "https://chat.aomi.dev/cli/device",
+          expires_at: Math.floor(Date.now() / 1000) + 60,
+          interval: 1,
+        });
       }
-      if (target.endsWith("/api/bff/auth/siwe/verify")) {
-        return {
-          ok: true,
-          status: 200,
-          headers: {
-            get: (name: string) =>
-              name.toLowerCase() === "set-cookie"
-                ? "aomi_session=session-123; Path=/; HttpOnly"
-                : null,
-          },
-        } as unknown as Response;
+      if (target.endsWith("/api/cli/device/poll")) {
+        expect(JSON.parse(String(init?.body))).toEqual({
+          device_code: "device-123",
+        });
+        return jsonResponse({
+          status: "ok",
+          credential: "bearer-1",
+          expires_at: Math.floor(Date.now() / 1000) + 3600,
+          user_id: "user-1",
+        });
+      }
+      if (target.endsWith("/api/account/wallets")) {
+        const headers = new Headers(init?.headers);
+        expect(headers.get("Authorization")).toBe("Bearer bearer-1");
+        return jsonResponse({
+          wallets: [
+            {
+              address: "0x1111111111111111111111111111111111111111",
+              chain_type: "evm",
+              wallet_provider: "privy",
+              is_primary: true,
+            },
+            {
+              address: "So11111111111111111111111111111111111111112",
+              chain_type: "svm",
+              wallet_provider: "privy",
+              is_primary: true,
+            },
+          ],
+        });
       }
       throw new Error(`unexpected fetch: ${target}`);
     });
@@ -61,76 +106,92 @@ describe("aomi account login", () => {
     const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
 
     try {
-      await loginCommand({
-        ...baseConfig,
-        baseUrl: "https://chat.aomi.dev",
-        privateKey: TEST_PRIVATE_KEY,
-      });
+      const loginPromise = loginCommand(baseConfig);
+      await flushDevicePoll();
+      await loginPromise;
 
       expect(nativeFetch).toHaveBeenNthCalledWith(
         1,
-        "https://chat.aomi.dev/api/bff/auth/siwe/nonce",
+        "http://unit.test/api/cli/device/start",
+        expect.objectContaining({ method: "POST" }),
       );
-      expect(String(nativeFetch.mock.calls[1]?.[0])).toBe(
-        "https://chat.aomi.dev/api/bff/auth/siwe/verify",
+      expect(nativeFetch).toHaveBeenNthCalledWith(
+        2,
+        "http://unit.test/api/cli/device/poll",
+        expect.objectContaining({ method: "POST" }),
       );
-      const verifyInit = nativeFetch.mock.calls[1]?.[1] as RequestInit;
-      expect(new Headers(verifyInit.headers).get("Cookie")).toBe(
-        "aomi_siwe_nonce=abc123def456",
+      expect(logSpy).toHaveBeenCalledWith(
+        "Open this URL to authenticate your Aomi CLI:",
       );
-      expect(JSON.parse(verifyInit.body as string)).toMatchObject({
-        signature: expect.stringMatching(/^0x/),
+      expect(logSpy).toHaveBeenCalledWith("https://chat.aomi.dev/cli/device");
+      expect(logSpy).toHaveBeenCalledWith("Code: ABCD-EFGH");
+      expect(logSpy).toHaveBeenCalledWith("Account: user-1");
+      expect(readState()).toMatchObject({
+        accountBearer: "bearer-1",
+        publicKey: "0x1111111111111111111111111111111111111111",
+        svmPublicKey: "So11111111111111111111111111111111111111112",
       });
-      expect(logSpy).toHaveBeenCalledWith(
-        expect.stringContaining("Signed in as 0x"),
-      );
-      expect(logSpy).toHaveBeenCalledWith(
-        "Session established at https://chat.aomi.dev.",
+    } finally {
+      vi.stubGlobal("fetch", originalFetch);
+    }
+  });
+
+  it("surfaces device-start failures", async () => {
+    const { loginCommand } = await import("../../src/cli/commands/account");
+
+    const nativeFetch = vi.fn(async () =>
+      jsonResponse(
+        { error: "device login unavailable" },
+        { ok: false, status: 503, statusText: "Service Unavailable" },
+      ),
+    );
+    const originalFetch = globalThis.fetch;
+    vi.stubGlobal("fetch", nativeFetch);
+
+    try {
+      await expect(loginCommand(baseConfig)).rejects.toThrow(
+        "HTTP 503: device login unavailable",
       );
     } finally {
       vi.stubGlobal("fetch", originalFetch);
     }
   });
 
-  it("requires an EVM private key", async () => {
+  it("reports denied device authorization", async () => {
     const { loginCommand } = await import("../../src/cli/commands/account");
 
-    const nativeFetch = vi.fn();
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-01-01T00:00:00.000Z"));
+
+    const nativeFetch = vi.fn(async (url: string | URL | Request) => {
+      const target = String(url);
+      if (target.endsWith("/api/cli/device/start")) {
+        return jsonResponse({
+          device_code: "device-123",
+          user_code: "ABCD-EFGH",
+          verification_uri: "https://chat.aomi.dev/cli/device",
+          expires_at: Math.floor(Date.now() / 1000) + 60,
+          interval: 1,
+        });
+      }
+      if (target.endsWith("/api/cli/device/poll")) {
+        return jsonResponse(
+          { status: "access_denied" },
+          { ok: false, status: 403, statusText: "Forbidden" },
+        );
+      }
+      throw new Error(`unexpected fetch: ${target}`);
+    });
     const originalFetch = globalThis.fetch;
     vi.stubGlobal("fetch", nativeFetch);
-    vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.spyOn(console, "log").mockImplementation(() => {});
 
     try {
-      await expect(loginCommand(baseConfig)).rejects.toMatchObject({
-        code: 1,
-      });
-      expect(nativeFetch).not.toHaveBeenCalled();
-    } finally {
-      vi.stubGlobal("fetch", originalFetch);
-    }
-  });
-
-  it("does not route Solana login through backend Privy auth", async () => {
-    const { loginCommand } = await import("../../src/cli/commands/account");
-
-    const nativeFetch = vi.fn();
-    const originalFetch = globalThis.fetch;
-    vi.stubGlobal("fetch", nativeFetch);
-    vi.spyOn(console, "error").mockImplementation(() => {});
-
-    try {
-      await expect(
-        loginCommand(
-          {
-            ...baseConfig,
-            privateKey: TEST_PRIVATE_KEY,
-          },
-          { walletFamily: "solana" },
-        ),
-      ).rejects.toMatchObject({
-        code: 1,
-      });
-      expect(nativeFetch).not.toHaveBeenCalled();
+      const loginPromise = expect(loginCommand(baseConfig)).rejects.toThrow(
+        "Device login failed: access_denied",
+      );
+      await flushDevicePoll();
+      await loginPromise;
     } finally {
       vi.stubGlobal("fetch", originalFetch);
     }

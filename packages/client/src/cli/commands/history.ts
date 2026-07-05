@@ -29,7 +29,11 @@ export async function logCommand(config: CliConfig): Promise<void> {
 
   const session = cli.createClientSession(config);
   try {
-    const apiState = await session.client.fetchState(cli.sessionId, undefined, cli.clientId);
+    const apiState = await session.client.fetchState(
+      cli.sessionId,
+      undefined,
+      cli.clientId,
+    );
     cli.syncPendingFromUserState(apiState.user_state);
     const messages = apiState.messages ?? [];
     const pendingTxs = [...cli.pendingTxs];
@@ -90,10 +94,7 @@ export async function logCommand(config: CliConfig): Promise<void> {
           console.log(`${time}${CYAN}🤖 Agent:${RESET} ${content}`);
         }
       } else if (sender === "system") {
-        if (
-          content &&
-          !content.startsWith("Response of system endpoint:")
-        ) {
+        if (content && !content.startsWith("Response of system endpoint:")) {
           console.log(`${time}${YELLOW}⚙️  System:${RESET} ${content}`);
         }
       } else {

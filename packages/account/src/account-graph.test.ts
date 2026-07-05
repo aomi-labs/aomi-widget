@@ -10,19 +10,22 @@ class FakeClient {
   constructor(
     private readonly opts: {
       selectResponses: QueryResponse[]; // consumed in order, per subject SELECT
-      walletResponse?: QueryResponse; // consumed by the wallet-proven SIWE lookup
+      walletResponse?: QueryResponse; // the TMP wallet-bridge lookup
       identityInsertError?: { code: string };
     },
   ) {}
   async query(sql: string): Promise<QueryResponse> {
     this.calls.push(sql.trim().split("\n")[0].trim());
-    if (sql.includes("wallet_provider = 'wallet'")) {
+    if (sql.includes("from public_keys")) {
       return this.opts.walletResponse ?? { rows: [] };
     }
-    if (sql.includes("from auth_identities")) {
+    if (sql.includes("from auth_providers")) {
       return this.opts.selectResponses.shift() ?? { rows: [] };
     }
-    if (sql.includes("insert into auth_identities") && this.opts.identityInsertError) {
+    if (
+      sql.includes("insert into auth_providers") &&
+      this.opts.identityInsertError
+    ) {
       throw this.opts.identityInsertError;
     }
     return { rows: [] };
@@ -66,9 +69,11 @@ describe("resolveOrCreateCanonicalUser", () => {
     expect(client.released).toBe(true);
   });
 
-  it("does not resolve provider logins by wallet-keyed accounts", async () => {
+  it("TMP wallet-bridge: a trusted walletAddress resolves to the wallet-keyed account", async () => {
     const client = new FakeClient({
+      // No (provider, subject) row exists for this returning wallet-first user…
       selectResponses: [{ rows: [] }],
+      // …but the `public_keys` row does (e.g. Alice → e624).
       walletResponse: { rows: [{ user_id: "u-wallet-first" }] },
     });
     mockPoolWith(client);
@@ -77,11 +82,12 @@ describe("resolveOrCreateCanonicalUser", () => {
     const result = await resolveOrCreateCanonicalUser({
       provider: "para",
       subject: "para-sub-xyz",
+      walletAddress: "0x245677Fb496D156e9D6047791E2CFbd34F400825",
     });
 
-    expect(result.created).toBe(true);
-    expect(result.userId).not.toBe("u-wallet-first");
-    expect(client.calls).toContain("begin");
+    expect(result).toEqual({ userId: "u-wallet-first", created: false });
+    // Bridged before any subject lookup or write — no new account minted.
+    expect(client.calls).not.toContain("begin");
   });
 
   it("creates a new user + identity on first login", async () => {
@@ -101,7 +107,9 @@ describe("resolveOrCreateCanonicalUser", () => {
     );
     expect(result.userId).not.toBe("did:privy:new");
     expect(client.calls).toContain("begin");
-    expect(client.calls.some((c) => c.startsWith("insert into users"))).toBe(true);
+    expect(client.calls.some((c) => c.startsWith("insert into users"))).toBe(
+      true,
+    );
     expect(client.calls).toContain("commit");
   });
 
@@ -133,92 +141,5 @@ describe("resolveOrCreateCanonicalUser", () => {
     await expect(
       resolveOrCreateCanonicalUser({ provider: "privy", subject: "  " }),
     ).rejects.toThrow(/provider and subject/);
-  });
-});
-
-describe("resolveOrCreateByWallet", () => {
-  it("returns the existing wallet-keyed user without creating", async () => {
-    const client = new FakeClient({
-      selectResponses: [],
-      walletResponse: { rows: [{ user_id: "u-wallet" }] },
-    });
-    mockPoolWith(client);
-    const { resolveOrCreateByWallet } = await loadModule();
-
-    const result = await resolveOrCreateByWallet(
-      "0x245677Fb496D156e9D6047791E2CFbd34F400825",
-    );
-
-    expect(result).toEqual({ userId: "u-wallet", created: false });
-    // Resolve-only: never opened a write transaction.
-    expect(client.calls).not.toContain("begin");
-    expect(client.released).toBe(true);
-  });
-
-  it("creates a new user + wallet identity on first SIWE login", async () => {
-    // No existing wallet identity → the create path runs.
-    const client = new FakeClient({
-      selectResponses: [],
-      walletResponse: { rows: [] },
-    });
-    mockPoolWith(client);
-    const { resolveOrCreateByWallet } = await loadModule();
-
-    const result = await resolveOrCreateByWallet(
-      "0x245677Fb496D156e9D6047791E2CFbd34F400825",
-    );
-
-    expect(result.created).toBe(true);
-    expect(result.userId).toMatch(
-      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/,
-    );
-    expect(client.calls).toContain("begin");
-    expect(client.calls.some((c) => c.startsWith("insert into users"))).toBe(true);
-    expect(
-      client.calls.some((c) => c.startsWith("insert into auth_identities")),
-    ).toBe(true);
-    expect(client.calls).toContain("commit");
-  });
-
-  it("converges on the winner when two first SIWE logins race (23505)", async () => {
-    // walletResponse drives BOTH the pre-insert lookup (empty) and the
-    // post-violation re-read (winner), since FakeClient returns it for every
-    // `wallet_provider = 'wallet'` query. Use a stateful response.
-    let walletLookups = 0;
-    const client = new (class extends FakeClient {
-      async query(sql: string): Promise<QueryResponse> {
-        this.calls.push(sql.trim().split("\n")[0].trim());
-        if (sql.includes("wallet_provider = 'wallet'")) {
-          walletLookups += 1;
-          return walletLookups === 1
-            ? { rows: [] }
-            : { rows: [{ user_id: "u-winner" }] };
-        }
-        if (sql.includes("insert into auth_identities")) {
-          throw { code: "23505" };
-        }
-        return { rows: [] };
-      }
-    })({ selectResponses: [] });
-    mockPoolWith(client);
-    const { resolveOrCreateByWallet } = await loadModule();
-
-    const result = await resolveOrCreateByWallet(
-      "0x245677Fb496D156e9D6047791E2CFbd34F400825",
-    );
-
-    expect(result).toEqual({ userId: "u-winner", created: false });
-    expect(client.calls).toContain("rollback");
-    expect(client.released).toBe(true);
-  });
-
-  it("rejects a missing wallet address", async () => {
-    const client = new FakeClient({ selectResponses: [] });
-    mockPoolWith(client);
-    const { resolveOrCreateByWallet } = await loadModule();
-
-    await expect(resolveOrCreateByWallet("  ")).rejects.toThrow(
-      /wallet address/,
-    );
   });
 });

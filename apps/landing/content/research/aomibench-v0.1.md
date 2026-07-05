@@ -11,7 +11,7 @@ Remaining placeholder: {{HC_TURN_TIMEOUT}}. Confirm tool names + 27-guard count 
 
 # AomiBench: Benchmarking Frontier Models on Onchain Execution
 
-*A wallet-aware harness for agents executing on blockchains, and how frontier models perform when run through it on real transactions, simulations, and chain-state evidence.*
+_A wallet-aware harness for agents executing on blockchains, and how frontier models perform when run through it on real transactions, simulations, and chain-state evidence._
 
 A bad commit can be reverted. A bad transaction usually cannot. That asymmetry is why evaluating an onchain agent is a different problem from evaluating a chatbot or a coding agent. Chain state is contingent, encrypted, and irreversible: a model can produce a fluent plan and still emit the wrong calldata, recipient, or chain id. A transcript that "looks right" tells you little about whether an agent is sound behind a wallet, and it only has one shot to write to a constantly changing, consensused state. What matters is what the agent does to chain state. Aomi is a harness built for exactly that; AomiBench is the evaluation on top of it, where the score is tied to a deterministic verifier reading the chain, the wallet, and the tools.
 
@@ -46,7 +46,7 @@ Everything below is organized around producing and checking that evidence.
 
 ## 2. Inside the Aomi harness
 
-If you have used a coding agent, the shape of Aomi is familiar. This section covers what the harness *is*; the mechanisms that make it trustworthy (skills, guards) come later, in the discussion.
+If you have used a coding agent, the shape of Aomi is familiar. This section covers what the harness _is_; the mechanisms that make it trustworthy (skills, guards) come later, in the discussion.
 
 ### 2.1 The same agent loop, a harder world
 
@@ -58,16 +58,16 @@ A coding agent runs a loop over a machine. The state is the codebase and OS; the
 
 **Table 1 — Coding agent vs Aomi agent, axis by axis.**
 
-| | Coding agent | Aomi agent |
-|---|---|---|
-| State / world | codebase + OS: files, processes, env | chain at a pinned fork block + wallet: balances, storage, positions |
-| Read | `cat`, `grep`, `ls`, read file | `get_time_and_onchain_context`, `get_account_info`, `get_contract`, `encode_and_call` |
-| Propose | edit file (open-ended) | `stage_tx` (from a typed, namespaced tool catalog) |
-| Verify-before | run tests / build (cheap, repeatable) | `simulate_batch` (dry-run against the fork) |
-| Commit | write to disk — *agent has authority* | `commit_txs` → wallet request → wallet signs — *agent does not* |
-| Judge | tests pass? OS output correct? | balance Δ correct? event emitted? final state right? |
+|               | Coding agent                          | Aomi agent                                                                            |
+| ------------- | ------------------------------------- | ------------------------------------------------------------------------------------- |
+| State / world | codebase + OS: files, processes, env  | chain at a pinned fork block + wallet: balances, storage, positions                   |
+| Read          | `cat`, `grep`, `ls`, read file        | `get_time_and_onchain_context`, `get_account_info`, `get_contract`, `encode_and_call` |
+| Propose       | edit file (open-ended)                | `stage_tx` (from a typed, namespaced tool catalog)                                    |
+| Verify-before | run tests / build (cheap, repeatable) | `simulate_batch` (dry-run against the fork)                                           |
+| Commit        | write to disk — _agent has authority_ | `commit_txs` → wallet request → wallet signs — _agent does not_                       |
+| Judge         | tests pass? OS output correct?        | balance Δ correct? event emitted? final state right?                                  |
 
-The five divergences are each a reason an onchain benchmark is strictly harder than a coding-agent one: (1) the action space is typed and gated, not a free-form shell; (2) `simulate_batch` against the fork is the only safe rehearsal; (3) `commit_txs` only *requests* — a wallet signs, so the agent can "open a PR" but not "merge to main"; (4) an onchain commit is final and costs real value; (5) the chain is shared and adversarial, and only the pinned fork restores replayability.
+The five divergences are each a reason an onchain benchmark is strictly harder than a coding-agent one: (1) the action space is typed and gated, not a free-form shell; (2) `simulate_batch` against the fork is the only safe rehearsal; (3) `commit_txs` only _requests_ — a wallet signs, so the agent can "open a PR" but not "merge to main"; (4) an onchain commit is final and costs real value; (5) the chain is shared and adversarial, and only the pinned fork restores replayability.
 
 ### 2.2 Two states, two ground truths
 
@@ -75,19 +75,19 @@ The harness reads two distinct kinds of state, and keeping them separate gives a
 
 ![Figure 3 — The two states: per-session wallet state versus fork-backed chain state, and the handoff between them.](figures/f03_two_states.png)
 
-**Figure 3 — Wallet state vs chain state.** Wallet state is per-session and server-owned: identity plus the agent's *pending* (unsigned) transactions and EIP-712 requests — reversible, and proof the agent formed the right intent. Chain state is the fork-backed global ground truth: balances, storage, nonces, logs — final, and only a *signed* transaction mutates it. The agent stages into wallet state; `commit_txs` requests a signature; a signed tx mutates chain state; a `wallet:tx_complete` callback reconciles and clears the pending ids.
+**Figure 3 — Wallet state vs chain state.** Wallet state is per-session and server-owned: identity plus the agent's _pending_ (unsigned) transactions and EIP-712 requests — reversible, and proof the agent formed the right intent. Chain state is the fork-backed global ground truth: balances, storage, nonces, logs — final, and only a _signed_ transaction mutates it. The agent stages into wallet state; `commit_txs` requests a signature; a signed tx mutates chain state; a `wallet:tx_complete` callback reconciles and clears the pending ids.
 
 **Table 2 — The two states on every axis.**
 
-| Axis | Wallet state (`UserState`) | Chain state (anvil forks) |
-|---|---|---|
-| Scope | per-session, per-user | global, shared |
-| Owner | backend session (lock-protected) | `ProviderManager` singleton |
-| Holds | identity + *pending* (unsigned) actions | balances, storage, nonces, logs |
-| Authority | agent stages here, wallet signs | only a *signed* tx mutates it |
-| Lifecycle | cleared on terminal callback | `sync` (reset) + `refork` (respawn) |
-| Reversible? | yes — discard pending | no — committed state is final |
-| Eval role | tool / wallet / EIP-712 / pending assertions | balance-Δ / event-log assertions (ground truth) |
+| Axis        | Wallet state (`UserState`)                   | Chain state (anvil forks)                       |
+| ----------- | -------------------------------------------- | ----------------------------------------------- |
+| Scope       | per-session, per-user                        | global, shared                                  |
+| Owner       | backend session (lock-protected)             | `ProviderManager` singleton                     |
+| Holds       | identity + _pending_ (unsigned) actions      | balances, storage, nonces, logs                 |
+| Authority   | agent stages here, wallet signs              | only a _signed_ tx mutates it                   |
+| Lifecycle   | cleared on terminal callback                 | `sync` (reset) + `refork` (respawn)             |
+| Reversible? | yes — discard pending                        | no — committed state is final                   |
+| Eval role   | tool / wallet / EIP-712 / pending assertions | balance-Δ / event-log assertions (ground truth) |
 
 The benchmark reads both: wallet state proves the agent formed the right intent (correct tool, recipient/amount in the pending tx, correct EIP-712 payload); chain state proves the outcome actually landed. A model can get one right and the other wrong — two states, two independent ground truths.
 
@@ -101,27 +101,27 @@ On a shell, `cd ~/my/path && ls -al` is parsed into syscalls the kernel runs aga
 
 **Figure 4 — The read/encode harness.** On the read path, `get_contract` checks a local ABI/source cache, fetches on a miss, and resolves proxies (EIP-1967); view functions are auto-encoded, the `eth_call` is issued, and the raw 32-byte result is formatted before the model sees it (`1291473` with `decimals = 6` becomes `"1.291473"`). On the write path, the model emits high-level intent and the harness assembles the transaction. The amber panel is the point: the harness owns every byte; the model owns only addresses, signatures, and base-unit amounts.
 
-Here is a real `stage_tx` argument for *"Approve 500 USDC for the Uniswap router"*:
+Here is a real `stage_tx` argument for _"Approve 500 USDC for the Uniswap router"_:
 
 ```jsonc
 {
-  "to": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",      // ① USDC contract address
-  "description": "Approve 500 USDC for Uniswap V3 Router",  // ② human-readable UI label
+  "to": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48", // ① USDC contract address
+  "description": "Approve 500 USDC for Uniswap V3 Router", // ② human-readable UI label
   "data": {
     "encode": {
-      "signature": "approve(address,uint256)",             // ③ Solidity-style signature
+      "signature": "approve(address,uint256)", // ③ Solidity-style signature
       "args": [
-        "0xE592427A0AEce92De3Edee1F18E0157C05861564",       // ④ spender (the router)
-        "500000000"                                         // ⑤ amount in base units (500 × 10^6)
-      ]
-    }
+        "0xE592427A0AEce92De3Edee1F18E0157C05861564", // ④ spender (the router)
+        "500000000", // ⑤ amount in base units (500 × 10^6)
+      ],
+    },
   },
-  "value": "0",                                             // ⑥ native value in wei (none here)
-  "kind": "erc20_approve"                                   // ⑦ semantic tag for safety hooks
+  "value": "0", // ⑥ native value in wei (none here)
+  "kind": "erc20_approve", // ⑦ semantic tag for safety hooks
 }
 ```
 
-**Code 1.** Everything ①–⑦ is human-readable; the model emits no selector and no 32-byte word. The harness computes `keccak256("approve(address,uint256)")[:4] = 0x095ea7b3`, ABI-encodes each argument, concatenates the calldata, injects `from` and `chain_id` from wallet context, and pushes the result to the pending queue. One nuance: unit conversion is asymmetric — the harness owns all encoding and all *output* formatting, but on the raw write path the model still supplies the amount in base units (it computed `500 × 10^6` itself). The skills layer can close even that gap for specific protocols.
+**Code 1.** Everything ①–⑦ is human-readable; the model emits no selector and no 32-byte word. The harness computes `keccak256("approve(address,uint256)")[:4] = 0x095ea7b3`, ABI-encodes each argument, concatenates the calldata, injects `from` and `chain_id` from wallet context, and pushes the result to the pending queue. One nuance: unit conversion is asymmetric — the harness owns all encoding and all _output_ formatting, but on the raw write path the model still supplies the amount in base units (it computed `500 × 10^6` itself). The skills layer can close even that gap for specific protocols.
 
 ![Figure 5 — The staging-to-commit-to-reconcile handoff: the agent stages into wallet state, commit_txs requests a signature, a signed transaction mutates chain state, and a wallet:tx_complete callback reconciles and clears the queue.](figures/f05_handoff.png)
 
@@ -131,11 +131,11 @@ Here is a real `stage_tx` argument for *"Approve 500 USDC for the Uniswap router
 
 ### 3.1 What a task is
 
-An AomiBench task consists of (1) a user-story instruction in natural language; (2) a chain environment — a pinned fork block, wallet state, and account set; (3) a scoped tool surface — the typed tool catalog and skills made visible for the task; (4) a deterministic specification — required and warning assertions over observable evidence; and (5) a reference solution — a tool path known to satisfy the specification. A *run* (or trial) is one live agent session — one model, one task, one tool surface, one chain environment, one wallet state, one or more user turns — and the harness records the full trajectory (transcript, tool calls, wallet events, callbacks, state mutations, balances, logs, timing, tokens, assertion results) as replayable JSON.
+An AomiBench task consists of (1) a user-story instruction in natural language; (2) a chain environment — a pinned fork block, wallet state, and account set; (3) a scoped tool surface — the typed tool catalog and skills made visible for the task; (4) a deterministic specification — required and warning assertions over observable evidence; and (5) a reference solution — a tool path known to satisfy the specification. A _run_ (or trial) is one live agent session — one model, one task, one tool surface, one chain environment, one wallet state, one or more user turns — and the harness records the full trajectory (transcript, tool calls, wallet events, callbacks, state mutations, balances, logs, timing, tokens, assertion results) as replayable JSON.
 
 ![Figure 6 — Task anatomy and the single-leaf pipeline: a task is a spec plus a forked-chain world plus an assertion oracle (Panel A); one leaf runs from spec load through setup, the turn loop, verification, and the written report (Panel B).](figures/f06_task_anatomy.png)
 
-**Figure 6 — Task anatomy and the single-leaf pipeline.** *Panel A:* a task is a spec plus a forked-chain world plus an assertion oracle. The agent is given an `EvalSpec` (one user story, its turns, and a run environment) and acts in a world that is an Anvil fork pinned at a block; it is not given the `assertions`, which the verifier evaluates against observed evidence (tool calls, wallet events, callbacks, pending tx / EIP-712, chain balance deltas, and event logs). One (spec × model × pass) is one *leaf*. *Panel B:* how a single leaf runs, from `EvalSpec::load` through setup (resolve the app plugin and skill mode, preflight the test environment, connect the chain client, snapshot balances and logs BEFORE), the turn loop (send prompt, flush to idle, drain wallet and usage events, auto-approve the local tx), verification (evaluate session and chain assertions against the before-snapshot), and `ReportWriter::write`. The process exits non-zero if any required assertion failed.
+**Figure 6 — Task anatomy and the single-leaf pipeline.** _Panel A:_ a task is a spec plus a forked-chain world plus an assertion oracle. The agent is given an `EvalSpec` (one user story, its turns, and a run environment) and acts in a world that is an Anvil fork pinned at a block; it is not given the `assertions`, which the verifier evaluates against observed evidence (tool calls, wallet events, callbacks, pending tx / EIP-712, chain balance deltas, and event logs). One (spec × model × pass) is one _leaf_. _Panel B:_ how a single leaf runs, from `EvalSpec::load` through setup (resolve the app plugin and skill mode, preflight the test environment, connect the chain client, snapshot balances and logs BEFORE), the turn loop (send prompt, flush to idle, drain wallet and usage events, auto-approve the local tx), verification (evaluate session and chain assertions against the before-snapshot), and `ReportWriter::write`. The process exits non-zero if any required assertion failed.
 
 ### 3.2 When a task is valid
 
@@ -158,7 +158,7 @@ The verifier is deterministic and assertion-based: a spec declares the externall
 
 ![Figure 7 — Assertion and verification taxonomy: three evidence kinds feed an assertion menu, split into required (gates pass/fail) and warning (diagnostic).](figures/f07_verification_taxonomy.svg)
 
-**Figure 7 — Assertion & verification taxonomy.** Verification draws on three evidence kinds — deterministic simulation (predicted state, traces, gas, events, before authorization), pinned-fork replay (end-state equivalence after the action), and wallet/callback evidence (the authorization round-trip and `wallet:tx_complete`). Required assertions gate pass/fail; warning assertions add diagnostic signal. Two principles sit underneath: execution correctness is not economic correctness (assert the objective — route, amount, resulting state — not just that a tx landed), and safety is part of correctness (review-first tasks assert the *absence* of unsafe side effects).
+**Figure 7 — Assertion & verification taxonomy.** Verification draws on three evidence kinds — deterministic simulation (predicted state, traces, gas, events, before authorization), pinned-fork replay (end-state equivalence after the action), and wallet/callback evidence (the authorization round-trip and `wallet:tx_complete`). Required assertions gate pass/fail; warning assertions add diagnostic signal. Two principles sit underneath: execution correctness is not economic correctness (assert the objective — route, amount, resulting state — not just that a tx landed), and safety is part of correctness (review-first tasks assert the _absence_ of unsafe side effects).
 
 A concrete example. One task is written simply as:
 
@@ -211,19 +211,19 @@ event_log: Aerodrome WETH/USDC LP token minted, min_count = 1
 
 ### 3.5 The task families
 
-The spread tests whether a model can preserve intent across different *shapes* of onchain action — read, quote, stage, simulate, authorize, wait, or stop safely — rather than topping a single-protocol leaderboard.
+The spread tests whether a model can preserve intent across different _shapes_ of onchain action — read, quote, stage, simulate, authorize, wait, or stop safely — rather than topping a single-protocol leaderboard.
 
 **Table 3 — Task families.** Task success rate is the per-family pass rate across all models and passes.
 
-| Task family | Tasks | Task success rate | Example scenarios | What it measures |
-|---|---|---|---|---|
-| Wallet state & read-only checks | 15 | 0.98 | Check Base ETH, Base USDC, ZORA balance, market/credit state | Reads the right state without staging unsafe actions |
-| Transfers & signatures | 4 | 0.84 | Send ETH or USDC; request a harmless EIP-712 login signature | Distinguishes transfers from signatures; right wallet event; no extra pending txs |
-| Swaps & quotes | 5 | 0.91 | Swap ETH→USDC via Uniswap, SushiSwap, Curve, Aerodrome; CoW / 1inch quotes | Selects the route, stages valid calldata, simulates before authorizing |
-| Lending & borrowing | 6 | 0.91 | Supply USDC to Aave or Compound; deposit ETH collateral and borrow USDC | Approval + protocol-action ordering, balance deltas, logs, callbacks |
-| Staking & restaking | 12 | 0.82 | Lido, Rocket Pool, ether.fi, Kelp, Renzo, Mantle mETH, Yearn | Protocol-specific skills/guards, right contracts, received assets |
-| Liquidity provision | 3 | 0.81 | Swap half, then add both sides as LP on Aerodrome or Uniswap V2 | Multi-step sequencing, amount splitting, resulting LP evidence |
-| Bridging & review-first | 5 | 0.99 | Base native bridge, CCTP, Optimism, zkSync, Across route lookup | Recipient/refund intent, chain context, pauses when asked to review |
+| Task family                     | Tasks | Task success rate | Example scenarios                                                          | What it measures                                                                  |
+| ------------------------------- | ----- | ----------------- | -------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| Wallet state & read-only checks | 15    | 0.98              | Check Base ETH, Base USDC, ZORA balance, market/credit state               | Reads the right state without staging unsafe actions                              |
+| Transfers & signatures          | 4     | 0.84              | Send ETH or USDC; request a harmless EIP-712 login signature               | Distinguishes transfers from signatures; right wallet event; no extra pending txs |
+| Swaps & quotes                  | 5     | 0.91              | Swap ETH→USDC via Uniswap, SushiSwap, Curve, Aerodrome; CoW / 1inch quotes | Selects the route, stages valid calldata, simulates before authorizing            |
+| Lending & borrowing             | 6     | 0.91              | Supply USDC to Aave or Compound; deposit ETH collateral and borrow USDC    | Approval + protocol-action ordering, balance deltas, logs, callbacks              |
+| Staking & restaking             | 12    | 0.82              | Lido, Rocket Pool, ether.fi, Kelp, Renzo, Mantle mETH, Yearn               | Protocol-specific skills/guards, right contracts, received assets                 |
+| Liquidity provision             | 3     | 0.81              | Swap half, then add both sides as LP on Aerodrome or Uniswap V2            | Multi-step sequencing, amount splitting, resulting LP evidence                    |
+| Bridging & review-first         | 5     | 0.99              | Base native bridge, CCTP, Optimism, zkSync, Across route lookup            | Recipient/refund intent, chain context, pauses when asked to review               |
 
 ### 3.6 Experimental setup
 
@@ -231,7 +231,7 @@ We ran AomiBench v0.1 across 50 specs, 2 passes per model, on 7 public models �
 
 ![Figure 8 — The eval matrix and run loop: a suite expands to N leaves (specs × models × passes), the parent brings the test environment up once, runs each leaf sequentially as a child process, and aggregates per-leaf reports into the suite output.](figures/f08_eval_matrix.png)
 
-**Figure 8 — The eval matrix and the run loop.** A suite expands to N *leaves*: `benchmarks[]` (specs) × models × passes → `ResolvedEvalRun[]`. The parent brings the test environment up once, then runs each leaf sequentially — the shared chain rules out parallelism. On a Reset policy it resets the chain and spawns a child process (`aomi-eval --spec --model --out-dir --test-env manual`) that writes `latest.full.json`, which the parent reads back and renames to `<run-id>.full.json`. A per-leaf `leaf_summary()` feeds `SuiteReportWriter`, which writes the suite outputs under `output/eval/<suite>/<spec>/<model>/pass-NNN/` as `summary.full.json` and `summary.compact.json`; a spec passes only when all of its leaves pass.
+**Figure 8 — The eval matrix and the run loop.** A suite expands to N _leaves_: `benchmarks[]` (specs) × models × passes → `ResolvedEvalRun[]`. The parent brings the test environment up once, then runs each leaf sequentially — the shared chain rules out parallelism. On a Reset policy it resets the chain and spawns a child process (`aomi-eval --spec --model --out-dir --test-env manual`) that writes `latest.full.json`, which the parent reads back and renames to `<run-id>.full.json`. A per-leaf `leaf_summary()` feeds `SuiteReportWriter`, which writes the suite outputs under `output/eval/<suite>/<spec>/<model>/pass-NNN/` as `summary.full.json` and `summary.compact.json`; a spec passes only when all of its leaves pass.
 
 ## 4. Discussion: the harness mechanisms, and what they reveal
 
@@ -243,7 +243,7 @@ A frozen base model knows canonical assets (USDC, WETH), standard ERC-20 pattern
 
 ![Figure 9 — A skill delivers three things: knowledge (instruction markdown), capability (injected tools), and safety (guards), all skill-scoped.](figures/f09_skill_three_things.svg)
 
-**Figure 9 — A skill delivers three things.** Knowledge (protocol addresses, ABI signatures, procedure) tells the model *what* to call; capability (purpose-built encoders) gives it a *verb it lacked*; safety (guards) *bounds what can go wrong*. Critically, skill-scoping is also what defines each task's action space: capability is granted protocol-by-protocol, not preloaded into every prompt. Skills are compiled from a JSON manifest plus a markdown template, and a skill-doctor job re-checks each skill against the live chain so addresses and parameters do not rot.
+**Figure 9 — A skill delivers three things.** Knowledge (protocol addresses, ABI signatures, procedure) tells the model _what_ to call; capability (purpose-built encoders) gives it a _verb it lacked_; safety (guards) _bounds what can go wrong_. Critically, skill-scoping is also what defines each task's action space: capability is granted protocol-by-protocol, not preloaded into every prompt. Skills are compiled from a JSON manifest plus a markdown template, and a skill-doctor job re-checks each skill against the live chain so addresses and parameters do not rot.
 
 ### 4.2 Guards: a hard gate before authorization
 
@@ -251,7 +251,7 @@ Guards are wired as `post_call` hooks: a dispatch runs `pre_call` hooks, then th
 
 ![Figure 10 — Guards run as post_call hooks on the simulation result; a passing check lets the tx stage, a Block replaces the return with an error and the model cannot override.](figures/f10_guards_gate.svg)
 
-**Figure 10 — The post-simulation gate.** The 27 registered guards (configured from each skill's manifest) check the target against an allowlist, the `approve` spender against an approved set, selectors under default-deny, sentinel/burn recipients paired with a missing sweep, recipient/owner identity, parameter sanity, and slippage bounds. Because they run against the *simulated* outcome, they catch malformed or value-losing actions at the last safe moment — after the dry run, before any signature. This is the contrast with a coding benchmark like Terminal-Bench: their agent gets a full shell (maximum generality, and a correspondingly large surface for mistakes); Aomi's gets a curated, guarded, per-skill capability surface. That curation is "guarded generality," and it is what makes irreversible onchain actions safe to benchmark.
+**Figure 10 — The post-simulation gate.** The 27 registered guards (configured from each skill's manifest) check the target against an allowlist, the `approve` spender against an approved set, selectors under default-deny, sentinel/burn recipients paired with a missing sweep, recipient/owner identity, parameter sanity, and slippage bounds. Because they run against the _simulated_ outcome, they catch malformed or value-losing actions at the last safe moment — after the dry run, before any signature. This is the contrast with a coding benchmark like Terminal-Bench: their agent gets a full shell (maximum generality, and a correspondingly large surface for mistakes); Aomi's gets a curated, guarded, per-skill capability surface. That curation is "guarded generality," and it is what makes irreversible onchain actions safe to benchmark.
 
 ### 4.3 Injected tools: bounded capability, not a shell
 
@@ -298,15 +298,15 @@ Figure 1 (above) gives the headline; the full per-model picture follows. Overall
 
 **Table 4 — Per-model results.**
 
-| Model | Task success rate | Aomi score | Median cost (cr) | Median latency | Output tok/test |
-|---|---|---|---|---|---|
-| `opus-4.6` | 99.0% | 99.0 | 5.78 | 32.5s | 1,094 |
-| `opus-4.8` | 98.0% | 98.0 | 5.33 | 45.2s | 553 |
-| `sonnet-4.6` | 96.0% | 96.8 | 4.39 | 42.2s | 1,814 |
-| `gpt-5.5` | 96.0% | 97.8 | 6.86 | 25.0s | 868 |
-| `opus-4.7` | 94.8% | 96.0 | 5.01 | 31.1s | 496 |
-| `minimax-m2.5` | 76.8% | 86.1 | 1.17 | 31.4s | 373 |
-| `haiku-4.5` | 74.0% | 84.5 | 1.36 | 25.5s | 1,767 |
+| Model          | Task success rate | Aomi score | Median cost (cr) | Median latency | Output tok/test |
+| -------------- | ----------------- | ---------- | ---------------- | -------------- | --------------- |
+| `opus-4.6`     | 99.0%             | 99.0       | 5.78             | 32.5s          | 1,094           |
+| `opus-4.8`     | 98.0%             | 98.0       | 5.33             | 45.2s          | 553             |
+| `sonnet-4.6`   | 96.0%             | 96.8       | 4.39             | 42.2s          | 1,814           |
+| `gpt-5.5`      | 96.0%             | 97.8       | 6.86             | 25.0s          | 868             |
+| `opus-4.7`     | 94.8%             | 96.0       | 5.01             | 31.1s          | 496             |
+| `minimax-m2.5` | 76.8%             | 86.1       | 1.17             | 31.4s          | 373             |
+| `haiku-4.5`    | 74.0%             | 84.5       | 1.36             | 25.5s          | 1,767           |
 
 ![Figure 12 — Task difficulty split: of 50 specs, 28 were saturated, 22 separated the field, 0 were unsolved.](figures/f12_difficulty_split.png)
 
@@ -343,19 +343,19 @@ In agentic benchmarks the configuration is part of the result, especially when c
 
 **Table 5 — Harness card.**
 
-| Field | Value |
-|---|---|
-| Benchmark / split | `aomi-bench-v0.1` (public-skills suite, 50 specs) |
-| Build | git `5b026609` (working tree dirty) |
-| Models | `opus-4.6`, `opus-4.8`, `opus-4.7`, `sonnet-4.6`, `gpt-5.5`, `minimax-m2.5`, `haiku-4.5` |
-| Verifier | deterministic, assertion-based on recorded trajectory + chain state |
-| Toolset | `activate_skills`, `get_time_and_onchain_context`, `get_account_info`, `get_contract`, `encode_and_call`, `stage_tx`, `simulate_batch`, `commit_txs` (+ per-skill injected encoders) |
-| Skills | public-skills set; skill-scoped (off by default) |
-| Wallet / accounts | funded local test accounts (Alice primary; Bob, Charlie as recipients) |
-| Chains | Ethereum (1) and Base (8453); bridge tasks target Optimism and zkSync |
-| Test environment | local fork, reset between tests; wallet requests auto-approved by impersonating the pending sender and feeding a `wallet:tx_complete` callback |
-| Turn timeout | {{HC_TURN_TIMEOUT}} *(not in dataset — confirm)* |
-| Passes per spec | 2 |
+| Field             | Value                                                                                                                                                                                |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Benchmark / split | `aomi-bench-v0.1` (public-skills suite, 50 specs)                                                                                                                                    |
+| Build             | git `5b026609` (working tree dirty)                                                                                                                                                  |
+| Models            | `opus-4.6`, `opus-4.8`, `opus-4.7`, `sonnet-4.6`, `gpt-5.5`, `minimax-m2.5`, `haiku-4.5`                                                                                             |
+| Verifier          | deterministic, assertion-based on recorded trajectory + chain state                                                                                                                  |
+| Toolset           | `activate_skills`, `get_time_and_onchain_context`, `get_account_info`, `get_contract`, `encode_and_call`, `stage_tx`, `simulate_batch`, `commit_txs` (+ per-skill injected encoders) |
+| Skills            | public-skills set; skill-scoped (off by default)                                                                                                                                     |
+| Wallet / accounts | funded local test accounts (Alice primary; Bob, Charlie as recipients)                                                                                                               |
+| Chains            | Ethereum (1) and Base (8453); bridge tasks target Optimism and zkSync                                                                                                                |
+| Test environment  | local fork, reset between tests; wallet requests auto-approved by impersonating the pending sender and feeding a `wallet:tx_complete` callback                                       |
+| Turn timeout      | {{HC_TURN_TIMEOUT}} _(not in dataset — confirm)_                                                                                                                                     |
+| Passes per spec   | 2                                                                                                                                                                                    |
 
 ## 7. Related work
 

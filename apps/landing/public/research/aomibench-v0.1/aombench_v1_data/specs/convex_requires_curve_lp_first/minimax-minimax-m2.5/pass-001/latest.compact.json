@@ -20,9 +20,7 @@
     "total_turns": 1,
     "total_tool_calls": 3,
     "total_responses": 7,
-    "activated_skills": [
-      "convex"
-    ],
+    "activated_skills": ["convex"],
     "failed_assertions": [],
     "budget_summary": {
       "total": 1,
@@ -109,10 +107,7 @@
         "tool": "activate_skills",
         "topic": "activate_skills",
         "arguments": {
-          "skill_ids": [
-            "convex",
-            "common_erc20"
-          ]
+          "skill_ids": ["convex", "common_erc20"]
         },
         "result_preview": "{\n  \"activated\": [\n    \"convex\"\n  ],\n  \"rejected\": [\n    [\n      \"common_erc20\",\n      \"invalid\"\n    ]\n  ],\n  \"applied_scope\": \"current_serve_cycle\"\n}"
       },
@@ -146,12 +141,8 @@
     },
     "skills": {
       "mode": "restricted",
-      "allowed": [
-        "convex"
-      ],
-      "activated_skills": [
-        "convex"
-      ],
+      "allowed": ["convex"],
+      "activated_skills": ["convex"],
       "bundle_path": "../output/eval/model-bench-public-skills-minimax-m25-kiro-20260531/specs/convex_requires_curve_lp_first/minimax-m2.5/pass-001/spec-skills/convex_requires_curve_lp_first-skills.json",
       "bundle_revision": "fnv1a64:657afdadfe89a203"
     },

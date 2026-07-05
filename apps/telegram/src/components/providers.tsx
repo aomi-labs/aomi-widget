@@ -1,28 +1,28 @@
-'use client';
+"use client";
 
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { ParaProvider, type TExternalWallet } from '@getpara/react-sdk';
-import { http } from 'wagmi';
-import { mainnet, arbitrum, optimism, polygon, base } from 'wagmi/chains';
-import type { ReactNode } from 'react';
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { ParaProvider, type TExternalWallet } from "@getpara/react-sdk";
+import { http } from "wagmi";
+import { mainnet, arbitrum, optimism, polygon, base } from "wagmi/chains";
+import type { ReactNode } from "react";
 
-import '@getpara/react-sdk/styles.css';
+import "@getpara/react-sdk/styles.css";
 
-import { getParaClient, isParaEnabled } from '@/lib/para-client';
+import { getParaClient, isParaEnabled } from "@/lib/para-client";
 
 const queryClient = new QueryClient();
 
 const walletConnectProjectId =
-  process.env.NEXT_PUBLIC_PROJECT_ID
-  || process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID
-  || '';
-const alchemyApiKey = process.env.NEXT_PUBLIC_ALCHEMY_API_KEY || '';
+  process.env.NEXT_PUBLIC_PROJECT_ID ||
+  process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID ||
+  "";
+const alchemyApiKey = process.env.NEXT_PUBLIC_ALCHEMY_API_KEY || "";
 
 const externalWallets: TExternalWallet[] = [
-  'METAMASK',
-  'COINBASE',
-  'RAINBOW',
-  'WALLETCONNECT',
+  "METAMASK",
+  "COINBASE",
+  "RAINBOW",
+  "WALLETCONNECT",
 ];
 
 function getAlchemyTransports() {
@@ -32,9 +32,15 @@ function getAlchemyTransports() {
 
   return {
     [mainnet.id]: http(`https://eth-mainnet.g.alchemy.com/v2/${alchemyApiKey}`),
-    [arbitrum.id]: http(`https://arb-mainnet.g.alchemy.com/v2/${alchemyApiKey}`),
-    [optimism.id]: http(`https://opt-mainnet.g.alchemy.com/v2/${alchemyApiKey}`),
-    [polygon.id]: http(`https://polygon-mainnet.g.alchemy.com/v2/${alchemyApiKey}`),
+    [arbitrum.id]: http(
+      `https://arb-mainnet.g.alchemy.com/v2/${alchemyApiKey}`,
+    ),
+    [optimism.id]: http(
+      `https://opt-mainnet.g.alchemy.com/v2/${alchemyApiKey}`,
+    ),
+    [polygon.id]: http(
+      `https://polygon-mainnet.g.alchemy.com/v2/${alchemyApiKey}`,
+    ),
     [base.id]: http(`https://base-mainnet.g.alchemy.com/v2/${alchemyApiKey}`),
   };
 }
@@ -56,9 +62,7 @@ export function Providers({ children }: { children: ReactNode }) {
 
   if (!paraClient) {
     return (
-      <QueryClientProvider client={queryClient}>
-        {children}
-      </QueryClientProvider>
+      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
     );
   }
 
@@ -67,18 +71,18 @@ export function Providers({ children }: { children: ReactNode }) {
       <ParaProvider
         paraClientConfig={paraClient}
         config={{
-          appName: 'Aomi',
+          appName: "Aomi",
         }}
         paraModalConfig={{
-          oAuthMethods: ['GOOGLE'],
+          oAuthMethods: ["GOOGLE"],
           disableEmailLogin: false,
           disablePhoneLogin: false,
           theme: {
-            mode: 'dark',
-            accentColor: '#ffffff',
-            backgroundColor: '#000000',
-            foregroundColor: '#ffffff',
-            borderRadius: 'lg',
+            mode: "dark",
+            accentColor: "#ffffff",
+            backgroundColor: "#000000",
+            foregroundColor: "#ffffff",
+            borderRadius: "lg",
           },
         }}
         externalWalletConfig={{
