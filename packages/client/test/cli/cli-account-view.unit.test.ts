@@ -133,8 +133,8 @@ describe("aomi account (bare canonical view)", () => {
 
     CliSession.loadOrCreate({
       ...baseConfig,
-      accountProvider: "privy",
-      accountProviderToken: "bad-provider-token",
+      embeddedProvider: "privy",
+      embeddedProviderToken: "bad-provider-token",
     });
 
     const profileResponse = {

@@ -18,9 +18,13 @@ absent.
 `aomi-build status` now checks the platform app endpoint with the activation
 token, so the developer status step reports the live loaded app instead of the
 removed aggregate control route's 404.
-Portal onboarding keeps the public `community` platform default through the
-single `resolveDeployPlatform()` seam; white-labeled partner portals, such as
-`somm.finance`, must use an explicit `NEXT_PUBLIC_DEPLOY_PLATFORM` override.
+Portal onboarding keeps the `community` platform default through server-owned
+launch config; white-labeled partner portals, such as `somm.finance`, must set
+`APP_DEPLOY_PLATFORMS` so the first platform remains the primary deploy target
+and the app picker can merge every configured public loaded platform.
+Local smoke tooling now has environment-qualified AomiBearer signing keys in
+`~/.zshenv` and the canonical `product-mono/.agents/skills/run-aomi` helper can
+mint staging/production portal or admin bearers without committing key material.
 
 ---
 

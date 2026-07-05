@@ -17,7 +17,7 @@ import {
   launchActivate,
   launchAppStatus,
   launchDeploy,
-  launchDryRun,
+  launchPreflight,
   launchStatus,
   type LaunchDeployPayload,
   type LaunchProgress,
@@ -25,8 +25,8 @@ import {
 
 type Phase =
   | "idle"
-  | "dry_running"
-  | "dry_ready"
+  | "preflight_running"
+  | "preflight_ready"
   | "deploying"
   | "building"
   | "releasing"
@@ -48,7 +48,7 @@ function deploymentApps(deployment?: LaunchDeployPayload) {
 
 function releaseTags(deployment?: LaunchDeployPayload): string[] {
   return deploymentApps(deployment)
-    .map((app) => app.release_tag ?? app.releaseTag)
+    .map((app) => app.releaseTag)
     .map((tag) => tag?.trim())
     .filter((tag): tag is string => Boolean(tag));
 }
@@ -80,6 +80,7 @@ function buildProgressModel(
     building: { completed: 2, total: 8, label: "Building CI" },
     releasing: { completed: 5, total: 8, label: "Verifying release assets" },
     ready: { completed: 8, total: 8, label: "Build ready" },
+    no_ci: { completed: lastCompleted, total: 8, label: "No CI" },
     failed: { completed: lastCompleted, total: 8, label: "Build failed" },
   };
   const mapped = stateToSteps[state] ?? {
@@ -96,7 +97,8 @@ function buildProgressModel(
 
 function initialPhase(progress: LaunchProgress): Phase {
   if (progress.live) return "live";
-  if (!progress.deploymentId) return progress.deployment ? "dry_ready" : "idle";
+  if (!progress.deploymentId)
+    return progress.deployment ? "preflight_ready" : "idle";
   return "building";
 }
 
@@ -109,7 +111,7 @@ export function DeployStep({
   onReconnectInstall,
   onReset,
 }: {
-  /** GitHub App installation for the source repo. The BFF resolves appSourceId. */
+  /** GitHub App installation for wizard context; deploy uses appSourceId or repo. */
   installationId: string;
   repo?: string;
   actor?: string;
@@ -153,6 +155,9 @@ export function DeployStep({
   const applyDeployment = useCallback(
     (next: {
       repo?: string;
+      installationId?: string;
+      appSourceId?: number;
+      sourceRef?: string;
       deployment: LaunchDeployPayload;
       releaseTags?: string[];
       apps?: string[];
@@ -161,57 +166,111 @@ export function DeployStep({
       const nextApps = next.apps ?? appNames(next.deployment);
       setDeployment(next.deployment);
       setShowManifest(false);
-      onProgress({
+      const patch: Partial<LaunchProgress> = {
         repo: next.repo ?? repo,
         deployment: next.deployment,
         releaseTags: nextTags,
         apps: nextApps,
-      });
+        sourceRef: next.sourceRef ?? next.deployment.source?.ref,
+      };
+      if (next.installationId) patch.installationId = next.installationId;
+      if (next.appSourceId) patch.appSourceId = next.appSourceId;
+      onProgress(patch);
     },
     [onProgress, repo],
   );
 
-  const dryRun = useCallback(async () => {
-    setPhase("dry_running");
+  const preflight = useCallback(async () => {
+    setPhase("preflight_running");
     setError(null);
     statusFailuresRef.current = 0;
     try {
-      const result = await launchDryRun({ installationId, repo, actor });
+      const result = await launchPreflight({
+        installationId,
+        repo,
+        appSourceId: progress.appSourceId,
+        sourceRef: progress.sourceRef,
+        actor,
+      });
       applyDeployment(result);
-      setPhase("dry_ready");
+      setPhase("preflight_ready");
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
       setPhase("error");
     }
-  }, [actor, applyDeployment, installationId, repo]);
+  }, [
+    actor,
+    applyDeployment,
+    installationId,
+    progress.appSourceId,
+    progress.sourceRef,
+    repo,
+  ]);
 
   const deploy = useCallback(async () => {
     setPhase("deploying");
     setError(null);
     statusFailuresRef.current = 0;
     try {
-      if (!deployment) {
-        const dryResult = await launchDryRun({ installationId, repo, actor });
-        applyDeployment(dryResult);
+      // Deploy commits against a stable source row id. The first deploy after
+      // an install has none yet, so a preflight mints it (and primes the
+      // preview); afterwards we go straight through by id.
+      let appSourceId = progress.appSourceId;
+      let sourceRef = progress.sourceRef ?? deployment?.source?.ref;
+      if (!appSourceId || !sourceRef) {
+        const preflightResult = await launchPreflight({
+          installationId,
+          repo,
+          appSourceId,
+          sourceRef,
+          actor,
+        });
+        applyDeployment(preflightResult);
+        appSourceId = preflightResult.appSourceId;
+        sourceRef =
+          preflightResult.sourceRef ?? preflightResult.deployment.source?.ref;
       }
-      const result = await launchDeploy({ installationId, repo, actor });
+      if (!appSourceId) {
+        throw new Error(
+          "Could not resolve a source to deploy. Run a preflight first.",
+        );
+      }
+      const result = await launchDeploy({
+        appSourceId,
+        sourceRef,
+        repo,
+        actor,
+      });
       applyDeployment(result);
       const id = result.deployment.id;
       setDeploymentId(id);
-      onProgress({
+      const patch: Partial<LaunchProgress> = {
         repo: result.repo ?? repo,
         deploymentId: id,
         deployment: result.deployment,
+        sourceRef: result.sourceRef ?? result.deployment.source?.ref,
         releaseTags: result.releaseTags,
         apps: result.apps,
         live: false,
-      });
+      };
+      if (result.installationId) patch.installationId = result.installationId;
+      if (result.appSourceId) patch.appSourceId = result.appSourceId;
+      onProgress(patch);
       setPhase("building");
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
       setPhase("error");
     }
-  }, [actor, applyDeployment, deployment, installationId, onProgress, repo]);
+  }, [
+    actor,
+    applyDeployment,
+    installationId,
+    onProgress,
+    progress.appSourceId,
+    progress.sourceRef,
+    repo,
+    deployment,
+  ]);
 
   useEffect(() => {
     if (
@@ -264,8 +323,13 @@ export function DeployStep({
           pollRef.current = setTimeout(tick, 6000);
           return;
         }
-        if (status.state === "failed") {
-          setError(status.message ?? "Deploy CI failed.");
+        if (status.state === "failed" || status.state === "no_ci") {
+          setError(
+            status.message ??
+              (status.state === "no_ci"
+                ? "No CI ran for this deployment."
+                : "Deploy CI failed."),
+          );
           setPhase("error");
           return;
         }
@@ -306,15 +370,19 @@ export function DeployStep({
             checks.length > 0 &&
             checks.every((check) => check.ok && check.state === "live")
           ) {
-            onProgress({ live: true });
+            const firstApplicationId = checks
+              .find((check) => check.app?.id)
+              ?.app?.id?.toString();
+            onProgress({
+              live: true,
+              applicationId: firstApplicationId,
+            });
             setPhase("live");
             return;
           }
           // Early exit if any app reports a terminal error
           const terminal = checks.find(
-            (c) =>
-              c.ok === false ||
-              (c.app?.is_active === false && c.app?.loaded === false),
+            (c) => c.app?.is_active === false && c.app?.loaded === false,
           );
           if (terminal) {
             setError(
@@ -335,7 +403,7 @@ export function DeployStep({
         await new Promise((resolve) => setTimeout(resolve, 3000));
       }
       setError(
-        "Activation finished, but the runtime did not report the app as loaded.",
+        "Activation was accepted, but the app artifact did not become ready.",
       );
       setPhase("error");
     },
@@ -348,16 +416,20 @@ export function DeployStep({
     try {
       const result = await launchActivate({ releaseTags: tags, apps, actor });
       const activatedApps = result.activation?.apps ?? [];
-      if (!result.ok || activatedApps.some((app) => !app.loaded || app.error)) {
+      if (!result.ok || activatedApps.some((app) => app.error)) {
         const failed = activatedApps.find((app) => app.error);
-        throw new Error(failed?.error ?? "Activation did not load every app.");
+        throw new Error(failed?.error ?? "Activation was not accepted.");
       }
+      const applicationId = activatedApps
+        .find((app) => app.applicationId)
+        ?.applicationId?.toString();
+      if (applicationId) onProgress({ applicationId });
       await verifyLive(apps, tags);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
       setPhase("error");
     }
-  }, [actor, apps, tags, verifyLive]);
+  }, [actor, apps, onProgress, tags, verifyLive]);
 
   const reset = useCallback(() => {
     setError(null);
@@ -368,7 +440,7 @@ export function DeployStep({
     setVerifyAttempt(0);
     setDeploymentId(undefined);
     onProgress({ deploymentId: undefined, live: false });
-    setPhase(deployment ? "dry_ready" : "idle");
+    setPhase(deployment ? "preflight_ready" : "idle");
     onReset?.();
   }, [deployment, onProgress, onReset]);
 
@@ -419,16 +491,16 @@ export function DeployStep({
     <div className="space-y-4 text-sm">
       <div className="flex flex-wrap items-center gap-2">
         <Button
-          onClick={dryRun}
-          disabled={phase !== "idle" && phase !== "dry_ready"}
+          onClick={preflight}
+          disabled={phase !== "idle" && phase !== "preflight_ready"}
           className="h-9 rounded-full px-3 text-sm font-medium"
         >
-          {phase === "dry_running" ? (
+          {phase === "preflight_running" ? (
             <Loader2 className="mr-1 h-4 w-4 animate-spin" />
           ) : (
             <Play className="mr-1 h-4 w-4" />
           )}
-          Dry run
+          Preflight
         </Button>
         <Button
           onClick={deploy}
@@ -473,7 +545,7 @@ export function DeployStep({
 
       <div className="text-muted-foreground flex items-center gap-2 text-xs">
         {[
-          "dry_running",
+          "preflight_running",
           "deploying",
           "building",
           "releasing",
@@ -483,10 +555,11 @@ export function DeployStep({
           <Loader2 className="h-4 w-4 animate-spin text-blue-500" />
         )}
         {phase === "idle" &&
-          "Run a dry run to preview the deployment manifest."}
-        {phase === "dry_running" &&
+          "Run a preflight to preview the deployment manifest."}
+        {phase === "preflight_running" &&
           "Resolving source and rendering deployment.json."}
-        {phase === "dry_ready" && "Dry run is ready. Review it, then deploy."}
+        {phase === "preflight_ready" &&
+          "Preflight is ready. Review it, then deploy."}
         {phase === "deploying" &&
           "Creating or updating the platform deploy branch."}
         {phase === "building" && "Waiting for platform CI and release assets."}
@@ -496,7 +569,7 @@ export function DeployStep({
           "Promoting the built release into the live branch."}
         {phase === "verifying" &&
           `Checking runtime... attempt ${verifyAttempt}/30`}
-        {phase === "live" && "Runtime reports the app is loaded."}
+        {phase === "live" && "App artifact is ready."}
       </div>
 
       {progressModel !== null && ["building", "releasing"].includes(phase) && (
@@ -555,23 +628,15 @@ function DeploymentSummary({
 }) {
   const platform = deployment.platform;
   const apps = deploymentApps(deployment);
-  const source = deployment.source as
-    | {
-        repository_link?: string;
-        owner_repo_name?: string;
-        commit_hash?: string;
-        ref?: { kind?: string; value?: string };
-      }
-    | undefined;
-  const ciStatus = platform?.ci_status ?? platform?.ciStatus;
-  const ciUrl = platform?.ci_url ?? platform?.ciUrl;
-  const prNumber = platform?.pr_number ?? platform?.prNumber;
-  const prUrl = platform?.pr_url ?? platform?.prUrl;
-  const sourceBranch = platform?.source_branch ?? platform?.sourceBranch;
+  const source = deployment.source;
+  const ciStatus = platform?.ciStatus;
+  const ciUrl = platform?.ciUrl;
+  const prNumber = platform?.prNumber;
+  const prUrl = platform?.prUrl;
+  const sourceBranch = platform?.sourceBranch;
   const target = apps[0]?.target;
   const fileCount = apps.reduce((sum, app) => {
-    const files = "files" in app && Array.isArray(app.files) ? app.files : [];
-    return sum + files.length;
+    return sum + (app.files?.length ?? 0);
   }, 0);
 
   return (
@@ -579,11 +644,11 @@ function DeploymentSummary({
       <div className="grid gap-3 sm:grid-cols-3">
         <SummaryTile
           label="Source"
-          value={source?.owner_repo_name ?? source?.repository_link ?? "Repo"}
+          value={source?.ownerRepoName ?? source?.repositoryLink ?? "Repo"}
           detail={
-            source?.commit_hash
-              ? `${source.commit_hash.slice(0, 12)} from ${
-                  source.ref?.value ?? "source"
+            source?.commitHash
+              ? `${source.commitHash.slice(0, 12)} from ${
+                  source.ref ?? "source"
                 }`
               : undefined
           }
@@ -725,7 +790,7 @@ function ProgressBar({ model }: { model: ProgressModel }) {
 
 function statusLabel(phase: Phase): string {
   switch (phase) {
-    case "dry_ready":
+    case "preflight_ready":
       return "Preview ready";
     case "building":
       return "CI pending";

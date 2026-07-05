@@ -2,20 +2,134 @@
 
 ## Last Updated
 
-2026-07-01 — Removed deploy CLI from `@aomi-labs/client` (belongs in `@aomi-labs/deploy`)
+2026-06-28 — CLI converted to the BFF session + `/token` refresh model (BetterAuth-compatible)
 
 ## Recent Changes
 
-### Remove deploy from client package (2026-07-01)
+### CLI auth: SIWE session + `/token` bearer refresh (2026-06-28)
 
-`@aomi-labs/deploy` is a separate platform-deploy SDK; it should not be a
-dependency of the AI chat client.
+Made the `aomi` CLI work under the proxy-mint model and shaped it as a drop-in to
+arixon's BetterAuth. Before: the CLI talked to the raw backend with a static,
+hand-pasted `--account-bearer` that died in 15 min and could not refresh (the
+refresh-on-401 plumbing was dead). Now it holds a **BFF session** and mints
+short-lived AccountBearers on demand — the same two-token loop arixon's `bearer()`
++ `jwt()` plugins serve (verified by reading `codex/widget-auth-pre-rust`: his
+`auth.ts` enables `bearer()` for headless clients and `jwt()` exposes
+`GET /api/auth/token`).
 
-- Removed `@aomi-labs/deploy` from `packages/client/package.json` (and
-  `fast-check`, only used by deploy error PBTs).
-- Deleted `aomi deploy` / `deploy status` / `deploy activate` commands and
-  `deployment-state.ts`, `DeployCliError`, and related tests.
-- Updated `root.ts`, `main.ts`, and `cli-root-structure` test.
+- **New BFF route** `createBearerTokenRoute` (`packages/account/src/token.ts`),
+  mounted in portal + base + landing at `app/api/bff/auth/token/route.ts`. Reads the
+  session from `Authorization: Bearer <aomi_session>` (cookie fallback) → returns
+  `mintAccountBearer` → `{ access_token, token_type, expires_at }`. The bearer-header
+  read pre-matches arixon's `bearer()` plugin so migration is a URL swap.
+- **SIWE login now creates a canonical user** via `resolveOrCreateByWallet` (inserts
+  `users` + `auth_identities`, keyed `wallet_provider='wallet'`, `application=null` so the
+  wallet user is global — same UUID across BFFs). The SIWE nonce/verify routes are now
+  mounted on **portal + base + landing** (parity) so the CLI can log in against any BFF
+  origin, not just base.
+- **e2e validated (2026-06-28)** against a local portal BFF → staging backend
+  (`api-staging.aomi.dev`): `aomi account login` (SIWE) created the canonical user in the
+  staging DB; `aomi wallet whoami` + `aomi chat` returned `/api/account` and `/api/chat`
+  **200** through the proxy as that user (only the LLM call 402'd on backend OpenRouter
+  credits). The e2e exposed + fixed a design bug: the CLI first fetched a backend bearer
+  from `/token` and sent **that** to the proxy, which strips client `Authorization` and
+  re-mints from the cookie → 401. Fix: `getSessionedCanonicalId` now reads the session from
+  `Authorization: Bearer <aomi_session>` first (then cookie), so the **proxy** mints from
+  the session the CLI presents; `getAccountBearer` returns the session directly (no `/token`
+  round-trip). `/token` remains the direct-to-backend analog of arixon's `/api/auth/token`.
+- **CLI** (`packages/client/src/cli/account-auth.ts`): `siweLogin` (non-interactive
+  SIWE with the device `--private-key` → stores `aomi_session`) +
+  `createSessionGetAccountBearer` (fetches `/api/bff/auth/token`, caches, refreshes on
+  401/expiry). `aomi login` now does SIWE (Privy-URL print kept as fallback for
+  Solana/no-key); `accountSession` persisted in CLI state; `--account-bearer` kept as
+  CI escape hatch. Open decision: the CLI's default `baseUrl` still points at the raw
+  backend — it must point at a BFF for login; flipping the default is left to the owner.
+- Tests: `token.test.ts` (4) + `account-auth.test.ts` (5) green; account-graph 9/9
+  regression; account + client typecheck clean; client bundle builds.
+- Full design + his↔ours mapping: `docs/handoffs/bff-betterauth-integration.md` §3.
+
+### base SIWE shaped as a BetterAuth drop-in (2026-06-27)
+
+Checked our BFF account model against arixon's `codex/widget-auth-pre-rust`
+(BetterAuth, `@aomi-labs/auth`). Most of our work already matches the seams in
+`docs/handoffs/arixoneth-account-auth.md` (sub=canonical UUID, proxy
+inject-from-session, `getSessionedCanonicalId` contract). The one new divergence —
+base SIWE — was reshaped to be a drop-in for his BetterAuth SIWE: extracted
+`verifySiweMessage({message,signature,address,chainId?})` in
+`packages/account/src/siwe.ts` to mirror `@aomi-labs/auth/better-auth/siwe`
+exactly (EOA → smart-account EIP-1271/6492), split field-validation
+(`validateSiweMessage`) from signature-verification like his. Full per-seam
+mapping + the GAP-3 UUID-preservation note: `docs/handoffs/base-siwe-betterauth-dropin.md`.
+Account typecheck + base typecheck clean; account-graph tests 9/9.
+
+Also extracted Privy/Para credential verification out of `exchange.ts` into
+`packages/account/src/providers.ts`, shaped to mirror his `@aomi-labs/auth/providers`
+(`verifyProviderCredential` / `ProviderTokenCredential` / `VerifiedProviderToken`),
+so his verifiers drop in for the exchange's verification sub-seam (the exchange
+*flow* itself still gets reframed under BetterAuth — session-first link). Portal
+175/175 + account-graph 9/9 green; account + portal typecheck clean.
+
+Handoffs for the BetterAuth integration (`docs/handoffs/`):
+`bff-betterauth-integration.md` is the centerpiece — the full seam contract (which
+points drop in literally vs replace-body vs reframe), his↔ours data-type tables
+(bearer claims, session, account graph, provider credential, SIWE, exchange), and
+the recommended merge plan (his branch as base, our contract wins the seams, the
+GAP-1/2/3 checklist, and the one backend-verify gate). `arixoneth-account-auth.md`
+is the contract + gaps; `base-siwe-betterauth-dropin.md` is the SIWE/provider detail.
+
+### BFF unification: one shared bearer/proxy/session seam (2026-06-27)
+
+Extracted the per-app BFF plumbing (previously triplicated and divergent across
+portal/base/landing) into `@aomi-labs/account` (server-only) so every Next app
+mounts it as a thin config — change the auth model once, all clients inherit it.
+
+**`@aomi-labs/account` (new server-only modules):**
+- `session.ts` — moved from `apps/portal/src/server/cookies/session.ts`. HS256
+  `aomi_session` cookie helpers. Secret now `AOMI_SESSION_SECRET` (falls back to
+  `PORTAL_ONLY_SESSION_SECRET`). Portal's old file is a re-export shim.
+- `proxy.ts` — `createBackendProxy(config)` → Next `{GET,POST,PUT,PATCH,DELETE}`.
+  Single auth model: strips inbound `authorization`/`cookie`, mints the bearer
+  from `aomi_session`, injects `Authorization`, SSE-aware, degrades to anonymous
+  on mint failure. Config: `allowedRoutes`, `applyDefaults`, `transformResponse`,
+  `upstreamBaseUrl`.
+- `exchange.ts` — `createAuthExchangeRoute(config)`: Privy/Para JWT → canonical
+  user → session cookie (provider verification moved in from portal). The bearer
+  stays server-side and is minted by the proxy from the session cookie.
+- `siwe.ts` — `createSiweNonceRoute()` + `createSiweExchangeRoute()`: wallet-
+  ownership login for base's Base smart account (no provider JWT). Verifies SIWE
+  signatures on-chain (EIP-1271/6492 via viem) and mints the session from the
+  proven address without returning a bearer to the browser. Added deps: `jose`,
+  `viem`; peer `next`.
+- `account-graph.ts` — added `resolveOrCreateByWallet(address)` (mirrors
+  `insert_for_identity` for a `wallet`-keyed identity).
+
+**Shared client (`@aomi-labs/widget-lib`):**
+- `AomiSessionProvider` / `useAomiSession` — moved from portal's
+  `aomi-session-bridge.tsx` (now a re-export shim). Provider-JWT login bridge.
+- `AomiWalletSiweSessionProvider` — new SIWE login bridge (nonce → `signMessage`
+  → verify) for base.
+
+**Apps (now thin configs):**
+- portal — `[...slug]` + exchange routes delegate to the factories; behavior
+  preserved (all 175 portal tests pass; the existing proxy test was rewired to
+  use the real `createBackendProxy`).
+- landing — replaced the blind passthrough proxy (which leaked the session
+  cookie upstream) with `createBackendProxy` + a real allowlist; added exchange
+  route; mounted `AomiSessionProvider` in the Privy/Para providers.
+- base — replaced its hand-rolled proxy with `createBackendProxy`; added SIWE
+  `nonce`/`verify` routes; mounted `AomiWalletSiweSessionProvider`; dropped the
+  old browser-held-bearer routes (`/api/account/exchange`, `/api/auth/privy/begin`).
+
+**Verification:** all apps + lib typecheck clean; base + landing `next build`
+clean (no server-only leak into client bundles); base/landing/changed-files lint
+clean. New env (base + landing): `PORTAL_SERVICE_PRIVATE_KEY`,
+`AOMI_SESSION_SECRET`, provider verify keys, optional `BASE_RPC_URL`.
+
+**Not done this round:** telegram (no backend proxy today). CLI/React transport
+needed no change — already compatible with the same-origin proxy contract.
+
+**Pre-existing (not mine):** `apps/portal/src/features/launch/components/deploy-step.tsx:210`
+has a `react-hooks/preserve-manual-memoization` lint error on the branch.
 
 ### Remove no-op `createAccountBearerProvider` (2026-06-22)
 
@@ -31,13 +145,13 @@ no-op that always yielded `undefined`, so its plumbing produced nothing.
 - Stripped the dead `accountBearerProvider` memo + dispose effect and the `getAccountBearer` client option from `apps/portal/src/components/portal-aomi-frame.tsx`.
 - Note: `dist/` (`packages/client`) still needs a rebuild (`pnpm run build:lib`) to drop the stale export/types.
 
+
 ### Deploy flow: CLI, SDK, BFF security, Portal UI (2026-06-20)
 
 Shipped 11 PRs enabling a full deploy app flow. End-to-end: `aomi deploy --commit` →
 BFF → platform backend → GitHub Pages, surfaced in the Portal onboarding wizard.
 
 **CLI (new — `packages/client/src/cli/commands/`):**
-
 - `aomi deploy --commit` — validates git state, uploads source, returns app ID (#234)
 - `aomi status` — polls deployment/release progress with live terminal output (#239)
 - `aomi activate` — promotes a built release to live (#239)
@@ -45,12 +159,10 @@ BFF → platform backend → GitHub Pages, surfaced in the Portal onboarding wiz
 - Property-based tests for deploy error handling using `fast-check` (#242)
 
 **SDK (`packages/deploy/src/`):**
-
 - Typed deployment status and watch types (#232)
 - `watchDeployment()` with exponential backoff, property-based tests (#235)
 
 **BFF (`apps/portal/src/app/api/onboard/`):**
-
 - Security utilities: CSRF protection, rate limiting, input validation (#233)
 - `TokenCache` with configurable TTL, 30s fetch timeout, 401/403 auto-invalidation (#236)
 - `handleDeploy()` factory unifying dry-run/deploy routes (#237)
@@ -58,12 +170,10 @@ BFF → platform backend → GitHub Pages, surfaced in the Portal onboarding wiz
 - Property-based tests for route factory and security (#242)
 
 **Portal UI (`apps/portal/src/components/settings/onboarding/`):**
-
 - Progress bar in deploy step, `applicationId` wiring through wizard (#240)
 - `chatAppUrl()` helper, configurable chat URL, dead mock code removed (#241)
 
 **CI:**
-
 - OpenAPI check made conditional (`if: vars.NEXT_PUBLIC_BACKEND_URL != ''`) — cherry-picked to all 11 branches
 
 379 tests pass. All branches deleted after merge.
@@ -75,7 +185,7 @@ Root-caused two blockers for the byreal autonomous swap (`authorized_sign` via P
 1. **BE (product-mono, fixed there)**: `privy_rs::PrivateKey` only accepts SEC1 PEM, but `PRIVY_AUTHORIZATION_PRIVATE_KEY` in env was the dashboard `wallet-auth:<base64 PKCS#8>` format → "Invalid key format: provided PEM string is malformed", with no BE log. Added `normalize_authorization_key()` (accepts SEC1/PKCS#8 PEM, wallet-auth base64, `\n`-escaped) + info/error logs in `aomi/crates/tools/src/authorized_signer/privy.rs`. 13 tests pass.
 2. **FE (`packages/auth/src/providers/privy.ts`)**: the portal login page POSTs a `wallets[]` array (EVM + Solana), but the provider callback only persisted the 4 EVM slots. The BE `PrivySigner` SVM path hard-requires `PRIVY_SOLANA_WALLET_ID`/`PRIVY_SOLANA_WALLET_ADDRESS`. Callback now parses `wallets[]`, validates the base58 address, and persists the two Solana slots + identity metadata. 7 tests pass (`packages/auth/test/privy.test.ts`).
 
-To re-test e2e: restart portal, redo `aomi wallet login --solana` (vault must re-populate with the new slots), then chat swap should route through `authorized_sign` → BE-signed blob → byreal broadcast. Note `svm_sign_tx` is the _interactive_ tool (FE/CLI signs); "pending wallet approval" in BE logs with no follow-up means the client never resolved the request — there is no timeout on either side.
+To re-test e2e: restart portal, redo `aomi wallet login --solana` (vault must re-populate with the new slots), then chat swap should route through `authorized_sign` → BE-signed blob → byreal broadcast. Note `svm_sign_tx` is the *interactive* tool (FE/CLI signs); "pending wallet approval" in BE logs with no follow-up means the client never resolved the request — there is no timeout on either side.
 
 ### CLI e2e smoke: Solana wallet connect + Byreal swap (2026-06-12)
 
@@ -95,6 +205,8 @@ Branch `codex/para-solana-support-wip` (PR #150). Merged `fix/pr150-runtime-wiri
 - **Live e2e**: `client.integration.test.ts` gained an LLM-free app-scoped system-message test (green vs local backend :8080 + local supabase).
 - **Backend DB e2e** (product-mono, branch `test/account-exchange-db-e2e`): `entities.rs` test mirroring the exchange's Privy identity resolution + provider scoping (green vs local supabase :54322).
 - **Known gap (flagged, no code)**: backend `ScheduledIntentDueEvent` (`scheduled_intent_due`, declared System→UI) from product-mono #564 has no FE handler — falls through as a raw system message. Product decision needed.
+
+
 
 ### Multi-wallet per-family connection + hybrid picker (2026-05-29)
 
@@ -156,13 +268,12 @@ Branch `codex/para-solana-support-wip`. Design/plan in `docs/superpowers/specs/2
 - All 155 tests pass, build clean, lint clean
 
 #### New execution model
-
-| Env vars          | Flag                    | Result                                  |
-| ----------------- | ----------------------- | --------------------------------------- |
-| (none)            | (none)                  | **AA proxy** (zero-config, via backend) |
-| `ALCHEMY_API_KEY` | (none)                  | AA BYOK (Alchemy direct)                |
-| `PIMLICO_API_KEY` | `--aa-provider pimlico` | AA BYOK (Pimlico direct)                |
-| any               | `--eoa`                 | EOA                                     |
+| Env vars | Flag | Result |
+|---|---|---|
+| (none) | (none) | **AA proxy** (zero-config, via backend) |
+| `ALCHEMY_API_KEY` | (none) | AA BYOK (Alchemy direct) |
+| `PIMLICO_API_KEY` | `--aa-provider pimlico` | AA BYOK (Pimlico direct) |
+| any | `--eoa` | EOA |
 
 ### Phase 5: Cleanup legacy code (2026-04-12)
 
@@ -201,14 +312,13 @@ Branch `codex/para-solana-support-wip`. Design/plan in `docs/superpowers/specs/2
 - All 189 tests pass, build clean
 
 #### Execution model
-
-| AA configured? | Flag    | Result                                      |
-| -------------- | ------- | ------------------------------------------- |
-| Yes            | (none)  | **AA automatically** (7702 → 4337 fallback) |
-| Yes            | `--aa`  | AA required, same fallback                  |
-| Yes            | `--eoa` | EOA, skip AA                                |
-| No             | (none)  | EOA                                         |
-| No             | `--aa`  | Error: "configure AA first"                 |
+| AA configured? | Flag | Result |
+|---|---|---|
+| Yes | (none) | **AA automatically** (7702 → 4337 fallback) |
+| Yes | `--aa` | AA required, same fallback |
+| Yes | `--eoa` | EOA, skip AA |
+| No | (none) | EOA |
+| No | `--aa` | Error: "configure AA first" |
 
 ### Spec: AA-ARCH.md refresh (2026-04-11)
 
@@ -230,7 +340,6 @@ Branch `codex/para-solana-support-wip`. Design/plan in `docs/superpowers/specs/2
 - **Deleted `createRuntime`** from `args.ts`
 
 #### Command surface
-
 ```
 aomi chat <message>                 Send a message
 aomi tx list                        List transactions
@@ -310,7 +419,7 @@ aomi aa status|set|test|reset
 - **Sub-task B: Updated routing and nav files**
   - Changed default redirect in `app/docs/[[...slug]]/page.tsx` from `/docs/getting-started/overview` to `/docs/build/overview`
   - Updated all 16 legacy redirects to point to new `/docs/build/` and `/docs/use-aomi/` paths
-  - Added 19 new redirects for restructured paths (getting-started/_, core-concepts/_, integration/_, telegram/_)
+  - Added 19 new redirects for restructured paths (getting-started/*, core-concepts/*, integration/*, telegram/*)
   - Updated both `navLinks` and `navTabs` in `layout-config.tsx` to `/docs/build/overview`
 - **Sub-task C: Updated internal links across all documentation pages**
   - Updated links in 8 persistent `.mdx` files: namespaces, api-reference, sessions, widget/configuration, reference/runtime, headless/runtime-provider, headless/install, widget/aomi-frame
@@ -404,7 +513,6 @@ aomi aa status|set|test|reset
 - **Modified**: `PlaygroundConfigurator.tsx` — tabbed config (Layout|Theme) + tabbed code output (JSX|CSS)
 
 #### Radius unification refactor
-
 - **`default.css`** — extended `@theme inline` with `--radius-2xl`, `--radius-3xl`, `--radius-4xl` tokens (calc offsets from `--radius`)
 - **`theme-utils.ts`** — `themeToStyleObject` now sets all 7 radius tokens (`sm` through `4xl`) as inline style overrides
 - **`thread-list.tsx`** — "New Chat" button and thread list items changed from `rounded-full` → `rounded-3xl`

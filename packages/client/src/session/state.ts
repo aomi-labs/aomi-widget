@@ -1,13 +1,5 @@
-import {
-  UserState,
-  type UserState as UserStateShape,
-  type UserStateAAMode,
-} from "../user-state";
+import { UserState, type UserState as UserStateShape, type UserStateAAMode } from "../user-state";
 import { isSubsetMatch, sortJson } from "./json";
-
-type UserStateAlignmentOptions = {
-  app?: string;
-};
 
 export function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -63,27 +55,22 @@ export function resolveWalletState(
 
   if (aa?.smartAccount4337 !== undefined || aa?.delegation7702 !== undefined) {
     aaBlock.smart_account =
-      resolvedAAMode === "4337" ? (aa?.smartAccount4337 ?? null) : null;
+      resolvedAAMode === "4337" ? aa?.smartAccount4337 ?? null : null;
     aaBlock.delegation_7702 =
-      resolvedAAMode === "7702" ? (aa?.delegation7702 ?? null) : null;
+      resolvedAAMode === "7702" ? aa?.delegation7702 ?? null : null;
   }
 
-  // `evm` is the per-chain array; resolving the connected wallet updates the
-  // primary (first) entry. Preserve any prior detail on it.
-  const prevEvmArray = Array.isArray(userState?.evm) ? userState.evm : [];
-  const prevEvm = isRecord(prevEvmArray[0]) ? prevEvmArray[0] : {};
+  const prevEvm = isRecord(userState?.evm) ? userState?.evm : {};
   const prevConn = isRecord(userState?.connection) ? userState?.connection : {};
 
   return {
     ...(userState ?? {}),
-    evm: [
-      {
-        ...prevEvm,
-        address,
-        chain_id: chainId ?? 1,
-        aa: aaBlock,
-      },
-    ],
+    evm: {
+      ...prevEvm,
+      address,
+      chain_id: chainId ?? 1,
+      aa: aaBlock,
+    },
     connection: {
       ...prevConn,
       is_connected: true,
@@ -94,75 +81,19 @@ export function resolveWalletState(
 export function warnIfUserStateMisaligned(
   expected: UserStateShape | undefined,
   actual: UserStateShape | null | undefined,
-  options?: UserStateAlignmentOptions,
 ): void {
   const expectedUserState = UserState.normalize(expected);
-  const normalizedActualUserState = UserState.reconcile(
-    expectedUserState,
-    actual,
-  );
+  const normalizedActualUserState = UserState.reconcile(expectedUserState, actual);
 
   if (!expectedUserState || !normalizedActualUserState) {
     return;
   }
 
   if (!isSubsetMatch(expectedUserState, normalizedActualUserState)) {
-    if (
-      shouldIgnoreAppScopedSvmOverride(
-        expectedUserState,
-        normalizedActualUserState,
-        options,
-      )
-    ) {
-      return;
-    }
     const expectedJson = JSON.stringify(sortJson(expectedUserState));
     const actualJson = JSON.stringify(sortJson(normalizedActualUserState));
     console.warn(
       `[session] Backend user_state mismatch (non-fatal). expected subset=${expectedJson} actual=${actualJson}`,
     );
   }
-}
-
-function shouldIgnoreAppScopedSvmOverride(
-  expected: UserStateShape,
-  actual: UserStateShape,
-  options?: UserStateAlignmentOptions,
-): boolean {
-  if (options?.app?.trim().toLowerCase() !== "byreal") {
-    return false;
-  }
-  if (
-    expected.ext?.client_type !== "ts_cli" ||
-    actual.ext?.client_type !== "ts_cli"
-  ) {
-    return false;
-  }
-  if (
-    !expected.svm?.address ||
-    !actual.svm?.address ||
-    expected.svm.address === actual.svm.address
-  ) {
-    return false;
-  }
-  if (expected.svm.cluster !== actual.svm.cluster) {
-    return false;
-  }
-
-  const expectedWithoutSvmAddress = {
-    ...expected,
-    svm: {
-      ...expected.svm,
-      address: undefined,
-    },
-  };
-  const actualWithoutSvmAddress = {
-    ...actual,
-    svm: {
-      ...actual.svm,
-      address: undefined,
-    },
-  };
-
-  return isSubsetMatch(expectedWithoutSvmAddress, actualWithoutSvmAddress);
 }

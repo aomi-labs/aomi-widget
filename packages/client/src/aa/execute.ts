@@ -375,7 +375,10 @@ async function executeViaEoa({
       usedSendCalls = true;
     } catch (error) {
       if (
-        !canFallbackToSequentialWalletSends(error, requiresSponsoredSendCalls)
+        !canFallbackToSequentialWalletSends(
+          error,
+          requiresSponsoredSendCalls,
+        )
       ) {
         throw error;
       }

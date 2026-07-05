@@ -1,14 +1,11 @@
 import type {
   AomiAccountProfile,
+  AomiAccessApproval,
   AomiAuthWalletFamily,
   AomiAppDescriptor,
-  AomiAuthorizationChallengeRequest,
-  AomiAuthorizationChallengeResponse,
-  AomiAuthorizationCommitRequest,
-  AomiAuthorizationCommitResponse,
-  AomiRevokeProviderGrantResponse,
   AomiBeginAccountAuthResponse,
   AomiClientOptions,
+  AomiCreateApprovalRequest,
   AomiMessage,
   AomiChatResponse,
   AomiClearSecretsResponse,
@@ -18,33 +15,41 @@ import type {
   AomiIngestSecretsResponse,
   AomiInterruptResponse,
   AomiListByokKeysResponse,
-  AomiListWalletsResponse,
-  AomiListScheduledThreadsResponse,
   AomiListSecretsResponse,
   AomiRequestOptions,
   AomiByokKeyEntry,
-  AomiDeleteScheduledThreadResponse,
   AomiSaveByokKeyResponse,
   AomiSSEEvent,
   AomiSimulateResponse,
-  AomiScheduledThread,
   AomiStateResponse,
   AomiSystemEvent,
   AomiSystemResponse,
   AomiThread,
-  GetAccountAccessToken,
   GetAccountBearer,
   Logger,
   AomiHttpMethod,
+  AomiPlatformFilter,
+  AomiListWalletsResponse,
+  AomiAccountWallet,
+  AomiSigningMode,
+  AomiAuthorizationChallengeRequest,
+  AomiAuthorizationChallengeResponse,
+  AomiAuthorizationCommitRequest,
+  AomiAuthorizationCommitResponse,
+  AomiScheduledThread,
+  AomiListScheduledThreadsResponse,
+  AomiDeleteScheduledThreadResponse,
+  AomiRevokeProviderGrantResponse,
 } from "./types";
 import { UserState, type UserState as UserStateShape } from "./user-state";
 import { createSseSubscriber, type SseSubscriber } from "./sse";
+import { normalizeAppDescriptor } from "./app-descriptor";
 
 // =============================================================================
 // Internal helpers
 // =============================================================================
 
-const SESSION_ID_HEADER = "X-Thread-Id";
+const SESSION_ID_HEADER = "X-Session-Id";
 const APP_KEY_HEADER = "Aomi-App-Key";
 
 function previewText(value: string, max = 80): string {
@@ -98,6 +103,7 @@ function stripBulkyPendingFields(
 ): UserStateShape | undefined {
   if (!userState?.pending) return userState;
   const pending = userState.pending;
+  const legacyPending = pending as Record<string, unknown>;
   return {
     ...userState,
     pending: {
@@ -105,7 +111,15 @@ function stripBulkyPendingFields(
       evm_txs: pruneBucket(pending.evm_txs),
       evm_sigs: pruneBucket(pending.evm_sigs),
       svm_ixs: pruneBucket(pending.svm_ixs),
-      svm_sigs: pruneBucket(pending.svm_sigs),
+      solana_txs: pruneBucket(
+        legacyPending.solana_txs as Record<string, unknown> | null | undefined,
+      ),
+      solana_sigs: pruneBucket(
+        legacyPending.solana_sigs as Record<string, unknown> | null | undefined,
+      ),
+      svm_sigs: pruneBucket(
+        legacyPending.svm_sigs as Record<string, unknown> | null | undefined,
+      ),
     },
   };
 }
@@ -116,10 +130,12 @@ function joinApiPath(baseUrl: string, path: string): string {
   return `${normalizedBase}${normalizedPath}` || normalizedPath;
 }
 
+type ApiQueryValue = string | readonly string[] | undefined;
+
 function buildApiUrl(
   baseUrl: string,
   path: string,
-  query?: Record<string, string | undefined>,
+  query?: Record<string, ApiQueryValue>,
 ): string {
   const url = joinApiPath(baseUrl, path);
   if (!query) return url;
@@ -127,7 +143,13 @@ function buildApiUrl(
   const params = new URLSearchParams();
   for (const [key, value] of Object.entries(query)) {
     if (value === undefined) continue;
-    params.set(key, value);
+    if (typeof value === "string") {
+      params.set(key, value);
+    } else {
+      for (const item of value) {
+        params.append(key, item);
+      }
+    }
   }
 
   const queryString = params.toString();
@@ -136,14 +158,35 @@ function buildApiUrl(
 
 function normalizeQuery(
   query: AomiRequestOptions["query"],
-): Record<string, string | undefined> | undefined {
+): Record<string, ApiQueryValue> | undefined {
   if (!query) return undefined;
-  const normalized: Record<string, string | undefined> = {};
+  const normalized: Record<string, ApiQueryValue> = {};
   for (const [key, value] of Object.entries(query)) {
+    if (Array.isArray(value)) {
+      normalized[key] = value.map((item) => String(item));
+      continue;
+    }
     normalized[key] =
       value === null || value === undefined ? undefined : String(value);
   }
   return normalized;
+}
+
+function normalizePlatformFilter(platforms: AomiPlatformFilter): string[] {
+  const rawValues = Array.isArray(platforms)
+    ? platforms
+    : platforms === null || platforms === undefined
+      ? []
+      : [platforms];
+
+  return Array.from(
+    new Set(
+      rawValues
+        .flatMap((value) => value.split(","))
+        .map((value) => value.trim())
+        .filter(Boolean),
+    ),
+  );
 }
 
 function encodeJsonBody(body: unknown): BodyInit | undefined {
@@ -178,16 +221,16 @@ function wrapFetchWithAccountBearer(
     );
     const fetchWithBearer = async (forceRefresh: boolean) => {
       const headers = new Headers(baseHeaders);
-      // The account bearer is additive — never let a failing token source break
-      // the request. A throwing/absent token just means no Authorization header.
-      let accessToken: string | null | undefined;
+      // The account bearer is additive — never let a failing source break the
+      // request. A throwing/absent bearer just means no Authorization header.
+      let bearer: string | null | undefined;
       try {
-        accessToken = await getAccountBearer({ forceRefresh });
+        bearer = await getAccountBearer({ forceRefresh });
       } catch {
-        accessToken = undefined;
+        bearer = undefined;
       }
-      if (accessToken) {
-        headers.set("Authorization", `Bearer ${accessToken}`);
+      if (bearer) {
+        headers.set("Authorization", `Bearer ${bearer}`);
       }
       return fetchImpl(input, { ...init, headers });
     };
@@ -275,46 +318,6 @@ async function postState<T>(
 }
 
 // =============================================================================
-// Authorization permit errors
-// =============================================================================
-
-/**
- * Error thrown by the signing-authorization endpoints. Carries the HTTP status
- * and the backend's machine-readable code (`"stale_permit"`,
- * `"missing_delegated_grant"`, …) so flows can branch without string-matching
- * the message.
- */
-export class AomiAuthorizationError extends Error {
-  constructor(
-    message: string,
-    readonly status: number,
-    readonly code: string | null,
-  ) {
-    super(message);
-    this.name = "AomiAuthorizationError";
-  }
-}
-
-async function authorizationError(
-  action: string,
-  response: Response,
-): Promise<AomiAuthorizationError> {
-  const body = await response.text().catch(() => "");
-  let code: string | null = null;
-  try {
-    const parsed = JSON.parse(body) as { error?: unknown };
-    if (typeof parsed?.error === "string") code = parsed.error;
-  } catch {
-    // Non-JSON error body — keep code null.
-  }
-  return new AomiAuthorizationError(
-    `Failed to ${action}: HTTP ${response.status}${code ? ` (${code})` : ""}`,
-    response.status,
-    code,
-  );
-}
-
-// =============================================================================
 // AomiClient
 // =============================================================================
 
@@ -335,15 +338,13 @@ export class AomiClient {
       typeof globalThis.fetch === "function"
         ? globalThis.fetch.bind(globalThis)
         : fetchImpl;
-    const accountBearerProvider =
-      options.getAccountBearer ?? options.getAccountAccessToken;
     this.fetchImpl = wrapFetchWithAccountBearer(
       fetchImpl,
-      accountBearerProvider,
+      options.getAccountBearer,
     );
     this.rawFetchImpl = wrapFetchWithAccountBearer(
       rawFetchImpl,
-      accountBearerProvider,
+      options.getAccountBearer,
     );
     this.logger = options.logger;
 
@@ -356,8 +357,8 @@ export class AomiClient {
       fetchImpl: this.rawFetchImpl,
       logger: this.logger,
     });
-    if (supportsTokenRefreshSubscription(accountBearerProvider)) {
-      accountBearerProvider.subscribe(() => {
+    if (supportsTokenRefreshSubscription(options.getAccountBearer)) {
+      options.getAccountBearer.subscribe(() => {
         this.sseSubscriber.reconnect("account-token-refreshed");
       });
     }
@@ -768,7 +769,7 @@ export class AomiClient {
    * List all threads for the authenticated account.
    */
   async listThreads(sessionId: string): Promise<AomiThread[]> {
-    const url = buildApiUrl(this.baseUrl, "/api/threads");
+    const url = buildApiUrl(this.baseUrl, "/api/sessions");
     const response = await this.fetchImpl(url, {
       headers: withSessionHeader(sessionId),
     });
@@ -786,7 +787,7 @@ export class AomiClient {
   async getThread(sessionId: string): Promise<AomiThread> {
     const url = buildApiUrl(
       this.baseUrl,
-      `/api/threads/${encodeURIComponent(sessionId)}`,
+      `/api/sessions/${encodeURIComponent(sessionId)}`,
     );
     const response = await this.fetchImpl(url, {
       headers: withSessionHeader(sessionId),
@@ -803,7 +804,7 @@ export class AomiClient {
    * Create a new thread. The client generates the session ID.
    */
   async createThread(threadId: string): Promise<AomiCreateThreadResponse> {
-    const url = buildApiUrl(this.baseUrl, "/api/threads");
+    const url = buildApiUrl(this.baseUrl, "/api/sessions");
     const response = await this.fetchImpl(url, {
       method: "POST",
       headers: withSessionHeader(threadId),
@@ -822,7 +823,7 @@ export class AomiClient {
   async deleteThread(sessionId: string): Promise<void> {
     const url = buildApiUrl(
       this.baseUrl,
-      `/api/threads/${encodeURIComponent(sessionId)}`,
+      `/api/sessions/${encodeURIComponent(sessionId)}`,
     );
     const response = await this.fetchImpl(url, {
       method: "DELETE",
@@ -840,7 +841,7 @@ export class AomiClient {
   async renameThread(sessionId: string, newTitle: string): Promise<void> {
     const url = buildApiUrl(
       this.baseUrl,
-      `/api/threads/${encodeURIComponent(sessionId)}`,
+      `/api/sessions/${encodeURIComponent(sessionId)}`,
     );
     const response = await this.fetchImpl(url, {
       method: "PATCH",
@@ -910,9 +911,12 @@ export class AomiClient {
    */
   async getApps(
     sessionId: string,
-    options?: { apiKey?: string },
+    options?: { apiKey?: string; platforms?: AomiPlatformFilter },
   ): Promise<AomiAppDescriptor[]> {
-    const url = buildApiUrl(this.baseUrl, "/api/thread/apps");
+    const platforms = normalizePlatformFilter(options?.platforms);
+    const url = buildApiUrl(this.baseUrl, "/api/session/apps", {
+      platform: platforms.length > 0 ? platforms : undefined,
+    });
 
     const apiKey = options?.apiKey ?? this.apiKey;
     const headers = new Headers(withSessionHeader(sessionId));
@@ -929,18 +933,7 @@ export class AomiClient {
     const data = (await response.json()) as unknown;
     if (!Array.isArray(data)) return [];
     return data
-      .map((item) => {
-        if (typeof item === "string") {
-          return { name: item };
-        }
-        if (item && typeof item === "object" && "name" in item) {
-          const name = (item as { name?: unknown }).name;
-          if (typeof name === "string" && name.trim().length > 0) {
-            return item as AomiAppDescriptor;
-          }
-        }
-        return null;
-      })
+      .map((item) => normalizeAppDescriptor(item))
       .filter((item): item is AomiAppDescriptor => item !== null);
   }
 
@@ -975,6 +968,14 @@ export class AomiClient {
     return (await response.json()) as AomiAccountProfile;
   }
 
+  async createAccountApproval(
+    request: AomiCreateApprovalRequest,
+  ): Promise<AomiAccessApproval> {
+    return this.request<AomiAccessApproval>("POST", "/api/account/approvals", {
+      body: request,
+      raw: true,
+    });
+  }
 
   /**
    * Mint a Privy browser auth URL bound to the current backend session.
@@ -1004,155 +1005,13 @@ export class AomiClient {
   }
 
   /**
-   * List every operable wallet on the account — the unified "blue" view across
-   * self-custody and delegated wallets (see the account-scoped-wallet-selection
-   * wire contract). Account-scoped; supersedes the old `/authorizations`
-   * endpoint, which is now the `signing === "delegated"` subset of this list.
-   */
-  async listWallets(sessionId: string): Promise<AomiListWalletsResponse> {
-    return this.request<AomiListWalletsResponse>(
-      "GET",
-      "/api/account/wallets",
-      {
-        sessionId,
-        raw: true,
-      },
-    );
-  }
-
-  /**
-   * Assemble an unsigned signing-authorization permit for one wallet.
-   * Account-scoped like {@link listWallets}. The returned `typed_data` goes
-   * straight to `signTypedData`; the `permit` is echoed back verbatim to
-   * {@link commitAuthorization}. Throws {@link AomiAuthorizationError} with the
-   * backend code on failure — notably 409 `missing_delegated_grant` when
-   * `autonomous` requires connecting the wallet first, 422 when the mode is
-   * illegal for the wallet's provider.
-   */
-  async challengeAuthorization(
-    sessionId: string,
-    req: AomiAuthorizationChallengeRequest,
-  ): Promise<AomiAuthorizationChallengeResponse> {
-    const url = joinApiPath(
-      this.baseUrl,
-      "/api/account/authorization/challenge",
-    );
-    const response = await this.rawFetchImpl(url, {
-      method: "POST",
-      headers: withSessionHeader(sessionId, {
-        "Content-Type": "application/json",
-      }),
-      body: JSON.stringify(req),
-    });
-
-    if (!response.ok) {
-      throw await authorizationError("challenge authorization", response);
-    }
-    return (await response.json()) as AomiAuthorizationChallengeResponse;
-  }
-
-  /**
-   * Verify a signed permit and apply the wallet's signing mode. A grant must
-   * be signed by the wallet itself; a revoke may be signed by any linked
-   * wallet. Throws {@link AomiAuthorizationError} — notably 409 `stale_permit`
-   * when someone else committed first (re-challenge and retry), 400 for an
-   * expired permit or bad signature, 403 for the wrong signer.
-   */
-  /** DELETE /api/account/providers/:provider/grant — revoke the provider's
-   * active delegated grant + clear its server-held secrets. The credential and
-   * keys stay linked; idempotent ("already_revoked"). */
-  async revokeProviderGrant(
-    sessionId: string,
-    provider: string,
-  ): Promise<AomiRevokeProviderGrantResponse> {
-    const url = joinApiPath(
-      this.baseUrl,
-      `/api/account/providers/${encodeURIComponent(provider)}/grant`,
-    );
-    const response = await this.rawFetchImpl(url, {
-      method: "DELETE",
-      headers: withSessionHeader(sessionId, {}),
-    });
-    if (!response.ok) {
-      throw await authorizationError("revoke provider grant", response);
-    }
-    return (await response.json()) as AomiRevokeProviderGrantResponse;
-  }
-
-  async commitAuthorization(
-    sessionId: string,
-    req: AomiAuthorizationCommitRequest,
-  ): Promise<AomiAuthorizationCommitResponse> {
-    const url = joinApiPath(this.baseUrl, "/api/account/authorization/commit");
-    const response = await this.rawFetchImpl(url, {
-      method: "POST",
-      headers: withSessionHeader(sessionId, {
-        "Content-Type": "application/json",
-      }),
-      body: JSON.stringify(req),
-    });
-
-    if (!response.ok) {
-      throw await authorizationError("commit authorization", response);
-    }
-    return (await response.json()) as AomiAuthorizationCommitResponse;
-  }
-
-  async listScheduledThreads(
-    sessionId: string,
-    options?: { app?: string; limit?: number; offset?: number },
-  ): Promise<AomiListScheduledThreadsResponse> {
-    return this.request<AomiListScheduledThreadsResponse>(
-      "GET",
-      "/api/account/scheduled-intents",
-      {
-        sessionId,
-        query: {
-          app: options?.app,
-          limit: options?.limit,
-          offset: options?.offset,
-        },
-        raw: true,
-      },
-    );
-  }
-
-  async getScheduledThread(
-    sessionId: string,
-    id: string,
-  ): Promise<AomiScheduledThread> {
-    return this.request<AomiScheduledThread>(
-      "GET",
-      `/api/account/scheduled-intents/${encodeURIComponent(id)}`,
-      {
-        sessionId,
-        raw: true,
-      },
-    );
-  }
-
-  async cancelScheduledThread(
-    sessionId: string,
-    id: string,
-  ): Promise<AomiDeleteScheduledThreadResponse> {
-    return this.request<AomiDeleteScheduledThreadResponse>(
-      "DELETE",
-      `/api/account/scheduled-intents/${encodeURIComponent(id)}`,
-      {
-        sessionId,
-        raw: true,
-      },
-    );
-  }
-
-  /**
    * Get available models.
    */
   async getModels(
     sessionId: string,
     options?: { apiKey?: string },
   ): Promise<string[]> {
-    const url = buildApiUrl(this.baseUrl, "/api/thread/runtime/models");
+    const url = buildApiUrl(this.baseUrl, "/api/session/models");
     const apiKey = options?.apiKey ?? this.apiKey;
     const headers = new Headers(withSessionHeader(sessionId));
     if (apiKey) {
@@ -1190,7 +1049,7 @@ export class AomiClient {
   }> {
     const apiKey = options?.apiKey ?? this.apiKey;
     const applicationId = options?.applicationId?.toString().trim();
-    const url = buildApiUrl(this.baseUrl, "/api/thread/runtime/model", {
+    const url = buildApiUrl(this.baseUrl, "/api/session/model", {
       rig,
       app: options?.app,
       application_id: applicationId || undefined,
@@ -1345,4 +1204,173 @@ export class AomiClient {
 
     return (await response.json()) as AomiSimulateResponse;
   }
+
+  // ===== GRAFT: permit CLI + wallet-ls + scheduled-thread methods (our tested surface) =====
+  async listWallets(sessionId: string): Promise<AomiListWalletsResponse> {
+    return this.request<AomiListWalletsResponse>(
+      "GET",
+      "/api/account/wallets",
+      {
+        sessionId,
+        raw: true,
+      },
+    );
+  }
+
+  /**
+   * Assemble an unsigned signing-authorization permit for one wallet.
+   * Account-scoped like {@link listWallets}. The returned `typed_data` goes
+   * straight to `signTypedData`; the `permit` is echoed back verbatim to
+   * {@link commitAuthorization}. Throws {@link AomiAuthorizationError} with the
+   * backend code on failure — notably 409 `missing_delegated_grant` when
+   * `autonomous` requires connecting the wallet first, 422 when the mode is
+   * illegal for the wallet's provider.
+   */
+  async challengeAuthorization(
+    sessionId: string,
+    req: AomiAuthorizationChallengeRequest,
+  ): Promise<AomiAuthorizationChallengeResponse> {
+    const url = joinApiPath(
+      this.baseUrl,
+      "/api/account/authorization/challenge",
+    );
+    const response = await this.rawFetchImpl(url, {
+      method: "POST",
+      headers: withSessionHeader(sessionId, {
+        "Content-Type": "application/json",
+      }),
+      body: JSON.stringify(req),
+    });
+
+    if (!response.ok) {
+      throw await authorizationError("challenge authorization", response);
+    }
+    return (await response.json()) as AomiAuthorizationChallengeResponse;
+  }
+
+  /**
+   * Verify a signed permit and apply the wallet's signing mode. A grant must
+   * be signed by the wallet itself; a revoke may be signed by any linked
+   * wallet. Throws {@link AomiAuthorizationError} — notably 409 `stale_permit`
+   * when someone else committed first (re-challenge and retry), 400 for an
+   * expired permit or bad signature, 403 for the wrong signer.
+   */
+  /** DELETE /api/account/providers/:provider/grant — revoke the provider's
+   * active delegated grant + clear its server-held secrets. The credential and
+   * keys stay linked; idempotent ("already_revoked"). */
+  async revokeProviderGrant(
+    sessionId: string,
+    provider: string,
+  ): Promise<AomiRevokeProviderGrantResponse> {
+    const url = joinApiPath(
+      this.baseUrl,
+      `/api/account/providers/${encodeURIComponent(provider)}/grant`,
+    );
+    const response = await this.rawFetchImpl(url, {
+      method: "DELETE",
+      headers: withSessionHeader(sessionId, {}),
+    });
+    if (!response.ok) {
+      throw await authorizationError("revoke provider grant", response);
+    }
+    return (await response.json()) as AomiRevokeProviderGrantResponse;
+  }
+
+  async commitAuthorization(
+    sessionId: string,
+    req: AomiAuthorizationCommitRequest,
+  ): Promise<AomiAuthorizationCommitResponse> {
+    const url = joinApiPath(this.baseUrl, "/api/account/authorization/commit");
+    const response = await this.rawFetchImpl(url, {
+      method: "POST",
+      headers: withSessionHeader(sessionId, {
+        "Content-Type": "application/json",
+      }),
+      body: JSON.stringify(req),
+    });
+
+    if (!response.ok) {
+      throw await authorizationError("commit authorization", response);
+    }
+    return (await response.json()) as AomiAuthorizationCommitResponse;
+  }
+
+  async listScheduledThreads(
+    sessionId: string,
+    options?: { app?: string; limit?: number; offset?: number },
+  ): Promise<AomiListScheduledThreadsResponse> {
+    return this.request<AomiListScheduledThreadsResponse>(
+      "GET",
+      "/api/account/scheduled-intents",
+      {
+        sessionId,
+        query: {
+          app: options?.app,
+          limit: options?.limit,
+          offset: options?.offset,
+        },
+        raw: true,
+      },
+    );
+  }
+
+  async getScheduledThread(
+    sessionId: string,
+    id: string,
+  ): Promise<AomiScheduledThread> {
+    return this.request<AomiScheduledThread>(
+      "GET",
+      `/api/account/scheduled-intents/${encodeURIComponent(id)}`,
+      {
+        sessionId,
+        raw: true,
+      },
+    );
+  }
+
+  async cancelScheduledThread(
+    sessionId: string,
+    id: string,
+  ): Promise<AomiDeleteScheduledThreadResponse> {
+    return this.request<AomiDeleteScheduledThreadResponse>(
+      "DELETE",
+      `/api/account/scheduled-intents/${encodeURIComponent(id)}`,
+      {
+        sessionId,
+        raw: true,
+      },
+    );
+  }
+}
+
+
+// ===== GRAFT: authorization error + helper (our permit CLI) =====
+export class AomiAuthorizationError extends Error {
+  constructor(
+    message: string,
+    readonly status: number,
+    readonly code: string | null,
+  ) {
+    super(message);
+    this.name = "AomiAuthorizationError";
+  }
+}
+
+async function authorizationError(
+  action: string,
+  response: Response,
+): Promise<AomiAuthorizationError> {
+  const body = await response.text().catch(() => "");
+  let code: string | null = null;
+  try {
+    const parsed = JSON.parse(body) as { error?: unknown };
+    if (typeof parsed?.error === "string") code = parsed.error;
+  } catch {
+    // Non-JSON error body — keep code null.
+  }
+  return new AomiAuthorizationError(
+    `Failed to ${action}: HTTP ${response.status}${code ? ` (${code})` : ""}`,
+    response.status,
+    code,
+  );
 }

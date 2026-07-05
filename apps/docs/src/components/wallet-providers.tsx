@@ -5,7 +5,10 @@ import { ParaProvider } from "@getpara/react-sdk";
 import { useEffect, useState, type ReactNode } from "react";
 import { useAccount, useSwitchChain } from "wagmi";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { FullTestnetWalletRouter, useFullTestnet } from "../../../registry/src";
+import {
+  FullTestnetWalletRouter,
+  useFullTestnet,
+} from "../../../shadcn-registry/src";
 
 import {
   LOCALHOST_CHAIN_ID,

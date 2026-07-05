@@ -1,6 +1,11 @@
 "use client";
 
-import { createContext, useCallback, useContext, useRef } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useRef,
+} from "react";
 import type { ReactNode } from "react";
 
 import type { AomiClient } from "@aomi-labs/client";
@@ -30,11 +35,7 @@ export type EventContext = {
   /** Dispatch an event to all matching subscribers (used by orchestrator) */
   dispatch: (event: InboundEvent) => void;
   /** Send an outbound system message to backend */
-  sendOutboundSystem: (event: {
-    type: string;
-    sessionId: string;
-    payload: unknown;
-  }) => Promise<void>;
+  sendOutboundSystem: (event: { type: string; sessionId: string; payload: unknown }) => Promise<void>;
   /** Current SSE connection status */
   sseStatus: SSEStatus;
 };
@@ -85,16 +86,19 @@ export function EventContextProvider({
   const { getCurrentThreadApp } = useControl();
   const subscribersRef = useRef<Map<string, Set<EventSubscriber>>>(new Map());
 
-  const subscribe = useCallback((type: string, callback: EventSubscriber) => {
-    const subs = subscribersRef.current;
-    if (!subs.has(type)) {
-      subs.set(type, new Set());
-    }
-    subs.get(type)!.add(callback);
-    return () => {
-      subs.get(type)?.delete(callback);
-    };
-  }, []);
+  const subscribe = useCallback(
+    (type: string, callback: EventSubscriber) => {
+      const subs = subscribersRef.current;
+      if (!subs.has(type)) {
+        subs.set(type, new Set());
+      }
+      subs.get(type)!.add(callback);
+      return () => {
+        subs.get(type)?.delete(callback);
+      };
+    },
+    [],
+  );
 
   const dispatchEvent = useCallback((event: InboundEvent) => {
     const subs = subscribersRef.current;

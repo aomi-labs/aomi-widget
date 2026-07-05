@@ -77,7 +77,8 @@ export function useWalletHandler({
       ),
     );
     setHasBlockingWalletRequests(
-      requestsRef.current.length > 0 || inFlightRequestSetRef.current.size > 0,
+      requestsRef.current.length > 0 ||
+        inFlightRequestSetRef.current.size > 0,
     );
   }, []);
 

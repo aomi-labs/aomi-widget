@@ -1,5 +1,6 @@
 "use client";
 
+import { API_PATHS } from "@portal/lib/api-paths";
 import { sessionScopedFetch } from "@portal/lib/settings-api";
 import {
   type LaunchActivateResult,
@@ -7,9 +8,9 @@ import {
   type LaunchCreateRepoResult,
   type LaunchDeployInput,
   type LaunchDeployResult,
+  type LaunchPreflightInput,
   type LaunchRedeployResult,
   type LaunchStatus,
-  type LaunchSyncInstalledResult,
 } from "./contracts";
 import { normalizeRepo } from "./state";
 
@@ -41,162 +42,73 @@ export async function githubAppInstallUrl(args: {
   return result.install_url;
 }
 
-async function postLaunchDeploy(
-  path: "/api/bff/launch/preflight" | "/api/bff/launch/deploy",
-  input: LaunchDeployInput,
-): Promise<LaunchDeployResult> {
-  const res = await fetch(path, {
+// Every launch BFF route returns the payload on success or `{ error }` on
+// failure. Centralize that contract so each call site stays a one-liner.
+async function launchFetch<T>(
+  path: string,
+  label: string,
+  init?: RequestInit,
+): Promise<T> {
+  const res = await fetch(path, init);
+  const json = (await res.json().catch(() => ({}))) as T & { error?: string };
+  if (!res.ok) {
+    throw new Error(json.error || `${label} failed (${res.status})`);
+  }
+  return json;
+}
+
+function postJson<T>(path: string, label: string, input: unknown): Promise<T> {
+  return launchFetch<T>(path, label, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(input),
   });
-  const json = (await res.json().catch(() => ({}))) as
-    | LaunchDeployResult
-    | { error?: string };
-  if (!res.ok) {
-    const msg =
-      "error" in json && json.error
-        ? json.error
-        : `launch deploy failed (${res.status})`;
-    throw new Error(msg);
-  }
-  return json as LaunchDeployResult;
 }
 
-export function launchDryRun(
-  input: LaunchDeployInput,
+export function launchPreflight(
+  input: LaunchPreflightInput,
 ): Promise<LaunchDeployResult> {
-  return postLaunchDeploy("/api/bff/launch/preflight", input);
+  return postJson(API_PATHS.bff.launch.preflight, "launch preflight", input);
 }
 
 export function launchDeploy(
   input: LaunchDeployInput,
 ): Promise<LaunchDeployResult> {
-  return postLaunchDeploy("/api/bff/launch/deploy", input);
+  return postJson(API_PATHS.bff.launch.deploy, "launch deploy", input);
 }
 
-export async function launchRedeploy(input: {
+export function launchRedeploy(input: {
   appSourceId: number;
 }): Promise<LaunchRedeployResult> {
-  const res = await fetch("/api/bff/launch/redeploy", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(input),
-  });
-  const json = (await res.json().catch(() => ({}))) as
-    | LaunchRedeployResult
-    | { error?: string };
-  if (!res.ok) {
-    const msg =
-      "error" in json && json.error
-        ? json.error
-        : `launch redeploy failed (${res.status})`;
-    throw new Error(msg);
-  }
-  return json as LaunchRedeployResult;
+  return postJson(API_PATHS.bff.launch.redeploy, "launch redeploy", input);
 }
 
-export async function launchCreateRepo(input: {
+export function launchCreateRepo(input: {
   installationId: string;
   repoName?: string;
 }): Promise<LaunchCreateRepoResult> {
-  const res = await fetch("/api/bff/launch/create", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(input),
-  });
-  const json = (await res.json().catch(() => ({}))) as
-    | LaunchCreateRepoResult
-    | { error?: string };
-  if (!res.ok) {
-    const msg =
-      "error" in json && json.error
-        ? json.error
-        : `launch repo creation failed (${res.status})`;
-    throw new Error(msg);
-  }
-  return json as LaunchCreateRepoResult;
+  return postJson(API_PATHS.bff.launch.create, "launch repo creation", input);
 }
 
-export async function launchStatus(
-  deploymentId: string,
-): Promise<LaunchStatus> {
-  const res = await fetch(
-    `/api/bff/launch/status?deploymentId=${encodeURIComponent(deploymentId)}`,
-  );
-  const json = (await res.json().catch(() => ({}))) as
-    | LaunchStatus
-    | { error?: string };
-  if (!res.ok) {
-    const msg =
-      "error" in json && json.error
-        ? json.error
-        : `launch status failed (${res.status})`;
-    throw new Error(msg);
-  }
-  return json as LaunchStatus;
+export function launchStatus(deploymentId: string): Promise<LaunchStatus> {
+  return launchFetch(API_PATHS.bff.launch.status(deploymentId), "launch status");
 }
 
-export async function launchActivate(input: {
+export function launchActivate(input: {
   releaseTags: string[];
   apps?: string[];
   actor?: string;
 }): Promise<LaunchActivateResult> {
-  const res = await fetch("/api/bff/launch/activate", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(input),
-  });
-  const json = (await res.json().catch(() => ({}))) as
-    | LaunchActivateResult
-    | { error?: string };
-  if (!res.ok) {
-    const msg =
-      "error" in json && json.error
-        ? json.error
-        : `launch activation failed (${res.status})`;
-    throw new Error(msg);
-  }
-  return json as LaunchActivateResult;
+  return postJson(API_PATHS.bff.launch.activate, "launch activation", input);
 }
 
-export async function launchAppStatus(input: {
+export function launchAppStatus(input: {
   name: string;
   releaseTag?: string;
 }): Promise<LaunchAppStatus> {
-  const params = new URLSearchParams({ name: input.name });
-  if (input.releaseTag) params.set("releaseTag", input.releaseTag);
-  const res = await fetch(`/api/bff/launch/app?${params}`);
-  const json = (await res.json().catch(() => ({}))) as
-    | LaunchAppStatus
-    | { error?: string };
-  if (!res.ok) {
-    const msg =
-      "error" in json && json.error
-        ? json.error
-        : `launch app status failed (${res.status})`;
-    throw new Error(msg);
-  }
-  return json as LaunchAppStatus;
+  return launchFetch(
+    API_PATHS.bff.launch.app(input.name, input.releaseTag),
+    "launch app status",
+  );
 }
 
-export async function launchSyncInstalled(input: {
-  repo: string;
-}): Promise<LaunchSyncInstalledResult> {
-  const res = await fetch("/api/bff/launch/sync-installed", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(input),
-  });
-  const json = (await res.json().catch(() => ({}))) as
-    | LaunchSyncInstalledResult
-    | { error?: string };
-  if (!res.ok) {
-    const msg =
-      "error" in json && json.error
-        ? json.error
-        : `launch installed app sync failed (${res.status})`;
-    throw new Error(msg);
-  }
-  return json as LaunchSyncInstalledResult;
-}

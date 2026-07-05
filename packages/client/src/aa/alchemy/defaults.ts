@@ -36,10 +36,9 @@ export function resolveAlchemyGasPolicyId(options?: {
     if (privateEnv) return privateEnv;
   }
 
-  const publicEnv = trimToUndefined(
-    process.env.NEXT_PUBLIC_ALCHEMY_GAS_POLICY_ID,
-  );
+  const publicEnv = trimToUndefined(process.env.NEXT_PUBLIC_ALCHEMY_GAS_POLICY_ID);
   if (publicEnv) return publicEnv;
 
   return DEFAULT_ALCHEMY_GAS_POLICY_ID;
 }
+

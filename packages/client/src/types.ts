@@ -42,8 +42,6 @@ export type AomiClientOptions = {
   apiKey?: string;
   /** Supplies a short-lived Aomi account bearer for REST and SSE requests. */
   getAccountBearer?: GetAccountBearer;
-  /** @deprecated Use getAccountBearer. */
-  getAccountAccessToken?: GetAccountAccessToken;
   /** Optional logger for debug output (default: silent) */
   logger?: Logger;
 };
@@ -53,14 +51,15 @@ export type GetAccountBearer = (options?: {
   forceRefresh?: boolean;
 }) => Promise<string | null | undefined>;
 
-export type GetAccountAccessToken = GetAccountBearer;
-
 export type AomiRequestQueryValue =
   | string
   | number
   | boolean
+  | readonly (string | number | boolean)[]
   | null
   | undefined;
+
+export type AomiPlatformFilter = string | readonly string[] | null | undefined;
 
 export type AomiHttpMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 
@@ -235,6 +234,34 @@ export interface AomiAccountProfile {
   usage?: AomiUsageStats;
 }
 
+export interface AomiCreateApprovalRequest {
+  auth_identity_id: number;
+  grant_kind: string;
+  secret_handle: string;
+  external_subject?: string | null;
+  display_label?: string | null;
+  scopes?: string[];
+  expires_at?: number | null;
+  metadata?: unknown;
+}
+
+export interface AomiAccessApproval {
+  id: number;
+  user_id: string;
+  auth_identity_id: number;
+  external_subject?: string | null;
+  display_label?: string | null;
+  grant_kind: string;
+  scopes: string[];
+  secret_handle: string;
+  expires_at?: number | null;
+  granted_at: number;
+  revoked_at?: number | null;
+  metadata: unknown;
+  created_at: number;
+  updated_at: number;
+}
+
 export interface AomiBeginAccountAuthResponse {
   state_token: string;
   auth_url: string;
@@ -243,127 +270,6 @@ export interface AomiBeginAccountAuthResponse {
 
 export type AomiWalletFamily = "evm" | "svm";
 export type AomiAuthWalletFamily = "evm" | "solana";
-
-/** How a wallet signs: the backend (`delegated`, blue→pink) or the user (`client`). */
-export type AomiWalletSigning = "delegated" | "client";
-
-/**
- * Per-wallet signing policy. Changed only through the signed EIP-712 permit
- * flow (`challengeAuthorization` → wallet signature → `commitAuthorization`).
- */
-export type AomiSigningMode = "autonomous" | "human_sync" | "denied";
-
-/**
- * One operable wallet (blue) on the account — the unified view from
- * `GET /api/account/wallets` spanning self-custody (`signing: "client"`) and
- * delegated (`signing: "delegated"`) wallets. For delegated wallets the grant
- * annotation is filled in: `wallet_ref` is the opaque account-scoped selector
- * `provider:family:approval_id` (see the account-scoped-wallet-selection wire
- * contract — no `application` segment), alongside `label` / `expires_at` /
- * `approval_id`. `chain_type` is the family (`"evm" | "svm"`).
- */
-export interface AomiAccountWallet {
-  address: string;
-  chain_type: AomiWalletFamily;
-  wallet_provider?: string | null;
-  signing: AomiWalletSigning;
-  is_primary: boolean;
-  wallet_ref?: string | null;
-  label?: string | null;
-  expires_at?: number | null;
-  approval_id?: number;
-  auth_identity_id?: number;
-  /** Current signing policy; changed only via the signed permit flow. */
-  signing_mode?: AomiSigningMode;
-  auth_provider_id?: number | null;
-  /** Whether a delegated grant exists (required before `autonomous`). */
-  has_delegated_grant?: boolean;
-  /** Whether the wallet's provider allows `autonomous` at all. */
-  can_use_autonomous?: boolean;
-}
-
-export interface AomiListWalletsResponse {
-  wallets: AomiAccountWallet[];
-}
-
-/**
- * POST /api/account/authorization/challenge
- * Assembles the unsigned permit that flips one wallet's `signing_mode`. The
- * `permit` must be echoed back verbatim on commit; `typed_data` is the full
- * EIP-712 payload, ready for `signTypedData`.
- */
-export interface AomiAuthorizationChallengeRequest {
-  chain_type: AomiWalletFamily;
-  wallet: string;
-  mode: AomiSigningMode;
-}
-
-export interface AomiAuthorizationPermit {
-  account: string;
-  chain_type: AomiWalletFamily;
-  wallet: string;
-  mode: AomiSigningMode;
-  version: number;
-  expiry: number;
-}
-
-export interface AomiAuthorizationChallengeResponse {
-  permit: AomiAuthorizationPermit;
-  typed_data: ViemSignTypedDataArgs;
-}
-
-/**
- * POST /api/account/authorization/commit
- * Verifies the wallet's signature over the permit and applies the mode.
- */
-export interface AomiAuthorizationCommitRequest {
-  /** The permit object from the challenge response, unchanged. */
-  permit: AomiAuthorizationPermit;
-  /** 65-byte `r||s||v` signature hex from `signTypedData`. */
-  signature: string;
-}
-
-export interface AomiRevokeProviderGrantResponse {
-  status: "revoked" | "already_revoked";
-  provider: string;
-  approval_id?: number;
-  auth_provider_id?: number;
-  vault_cleared: boolean;
-}
-
-export interface AomiAuthorizationCommitResponse {
-  address: string;
-  chain_type: AomiWalletFamily;
-  signing_mode: AomiSigningMode;
-  authorization_version: number;
-}
-
-export interface AomiScheduledThread {
-  id: string;
-  user_id: string;
-  root_thread_id: string;
-  application: string;
-  intent: string;
-  trigger_at: number;
-  recurrence_seconds?: number | null;
-  last_attempted_at?: number | null;
-  /**
-   * Derived: an intent that fires offline can only use a delegated signer. The
-   * operating wallet itself is recovered from the forked child thread's
-   * persisted context, not carried on the intent (see the wire contract).
-   */
-  requires_authorization: boolean;
-  created_at: number;
-  updated_at: number;
-}
-
-export interface AomiListScheduledThreadsResponse {
-  scheduled_threads: AomiScheduledThread[];
-}
-
-export interface AomiDeleteScheduledThreadResponse {
-  deleted: boolean;
-}
 
 /**
  * GET/POST/DELETE /api/account/payment/byok
@@ -458,6 +364,13 @@ export interface AomiSecretSlot {
  */
 export interface AomiAppDescriptor {
   name: string;
+  applicationId?: number | string | null;
+  platform?: string | null;
+  label?: string | null;
+  appReleaseTag?: string | null;
+  isActive?: boolean | null;
+  isPublic?: boolean | null;
+  artifactReady?: boolean | null;
   secrets?: AomiSecretSlot[];
 }
 
@@ -510,4 +423,124 @@ export function isAsyncCallback(
   event: AomiSystemEvent,
 ): event is { AsyncCallback: Record<string, unknown> } {
   return "AsyncCallback" in event;
+}
+
+// ===== GRAFT: permit-CLI wallet + authorization types (our tested set_authorization surface) =====
+export type AomiWalletSigning = "delegated" | "client";
+
+/**
+ * Per-wallet signing policy. Changed only through the signed EIP-712 permit
+ * flow (`challengeAuthorization` → wallet signature → `commitAuthorization`).
+ */
+export type AomiSigningMode = "autonomous" | "human_sync" | "denied";
+
+/**
+ * One operable wallet (blue) on the account — the unified view from
+ * `GET /api/account/wallets` spanning self-custody (`signing: "client"`) and
+ * delegated (`signing: "delegated"`) wallets. For delegated wallets the grant
+ * annotation is filled in: `wallet_ref` is the opaque account-scoped selector
+ * `provider:family:approval_id` (see the account-scoped-wallet-selection wire
+ * contract — no `application` segment), alongside `label` / `expires_at` /
+ * `approval_id`. `chain_type` is the family (`"evm" | "svm"`).
+ */
+export interface AomiAccountWallet {
+  address: string;
+  chain_type: AomiWalletFamily;
+  wallet_provider?: string | null;
+  signing: AomiWalletSigning;
+  is_primary: boolean;
+  wallet_ref?: string | null;
+  label?: string | null;
+  expires_at?: number | null;
+  approval_id?: number;
+  auth_identity_id?: number;
+  /** Current signing policy; changed only via the signed permit flow. */
+  signing_mode?: AomiSigningMode;
+  auth_provider_id?: number | null;
+  /** Whether a delegated grant exists (required before `autonomous`). */
+  has_delegated_grant?: boolean;
+  /** Whether the wallet's provider allows `autonomous` at all. */
+  can_use_autonomous?: boolean;
+}
+
+export interface AomiListWalletsResponse {
+  wallets: AomiAccountWallet[];
+}
+
+/**
+ * POST /api/account/authorization/challenge
+ * Assembles the unsigned permit that flips one wallet's `signing_mode`. The
+ * `permit` must be echoed back verbatim on commit; `typed_data` is the full
+ * EIP-712 payload, ready for `signTypedData`.
+ */
+export interface AomiAuthorizationChallengeRequest {
+  chain_type: AomiWalletFamily;
+  wallet: string;
+  mode: AomiSigningMode;
+}
+
+export interface AomiAuthorizationPermit {
+  account: string;
+  chain_type: AomiWalletFamily;
+  wallet: string;
+  mode: AomiSigningMode;
+  version: number;
+  expiry: number;
+}
+
+export interface AomiAuthorizationChallengeResponse {
+  permit: AomiAuthorizationPermit;
+  typed_data: ViemSignTypedDataArgs;
+}
+
+/**
+ * POST /api/account/authorization/commit
+ * Verifies the wallet's signature over the permit and applies the mode.
+ */
+export interface AomiAuthorizationCommitRequest {
+  /** The permit object from the challenge response, unchanged. */
+  permit: AomiAuthorizationPermit;
+  /** 65-byte `r||s||v` signature hex from `signTypedData`. */
+  signature: string;
+}
+
+export interface AomiRevokeProviderGrantResponse {
+  status: "revoked" | "already_revoked";
+  provider: string;
+  approval_id?: number;
+  auth_provider_id?: number;
+  vault_cleared: boolean;
+}
+
+export interface AomiAuthorizationCommitResponse {
+  address: string;
+  chain_type: AomiWalletFamily;
+  signing_mode: AomiSigningMode;
+  authorization_version: number;
+}
+export interface AomiScheduledThread {
+  id: string;
+  user_id: string;
+  root_thread_id: string;
+  application: string;
+  intent: string;
+  trigger_at: number;
+  recurrence_seconds?: number | null;
+  last_attempted_at?: number | null;
+  /**
+   * Derived: an intent that fires offline can only use a delegated signer. The
+   * operating wallet itself is recovered from the forked child thread's
+   * persisted context, not carried on the intent (see the wire contract).
+   */
+  requires_authorization: boolean;
+  created_at: number;
+  updated_at: number;
+}
+
+export interface AomiListScheduledThreadsResponse {
+  scheduled_threads: AomiScheduledThread[];
+}
+
+export interface AomiDeleteScheduledThreadResponse {
+  deleted: boolean;
 }

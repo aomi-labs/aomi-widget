@@ -90,6 +90,19 @@ function getConnectedWalletId(userState: UserState): string | undefined {
   );
 }
 
+function getLegacySessionPublicKey(userState: UserState): string | undefined {
+  const address = UserStateHelpers.address(userState);
+  if (!address?.startsWith("0x")) {
+    return undefined;
+  }
+  if (
+    UserStateHelpers.chainId(userState) === undefined &&
+    !userState.evm?.address
+  ) {
+    return undefined;
+  }
+  return address;
+}
 
 function useWalletStateSync(
   context: Pick<
@@ -121,32 +134,28 @@ function useWalletStateSync(
         auth_verified_at:
           UserStateHelpers.authVerifiedAt(nextUser) ?? undefined,
       },
-      // `evm` is the canonical per-chain array; this snapshot describes the
-      // primary operating wallet, so it's a one-element array.
-      evm: [
-        {
-          address: UserStateHelpers.address(nextUser),
-          chain_id: UserStateHelpers.chainId(nextUser),
-          ens_name:
-            typeof nextUser.evm?.[0]?.ens_name === "string"
-              ? nextUser.evm[0].ens_name
-              : undefined,
-          aa: {
-            mode: UserStateHelpers.aaMode(nextUser) ?? undefined,
-            smart_account:
-              UserStateHelpers.SmartAccount4337(nextUser) ?? undefined,
-            delegation_7702:
-              UserStateHelpers.Delegation7702(nextUser) ?? undefined,
-          },
-          sponsorship: {
-            sponsored: UserStateHelpers.sponsored(nextUser) ?? undefined,
-            sponsor_provider:
-              UserStateHelpers.sponsorProvider(nextUser) ?? undefined,
-            sponsor_account:
-              UserStateHelpers.sponsorAccount(nextUser) ?? undefined,
-          },
+      evm: {
+        address: UserStateHelpers.address(nextUser),
+        chain_id: UserStateHelpers.chainId(nextUser),
+        ens_name:
+          typeof nextUser.evm?.ens_name === "string"
+            ? nextUser.evm.ens_name
+            : undefined,
+        aa: {
+          mode: UserStateHelpers.aaMode(nextUser) ?? undefined,
+          smart_account:
+            UserStateHelpers.SmartAccount4337(nextUser) ?? undefined,
+          delegation_7702:
+            UserStateHelpers.Delegation7702(nextUser) ?? undefined,
         },
-      ],
+        sponsorship: {
+          sponsored: UserStateHelpers.sponsored(nextUser) ?? undefined,
+          sponsor_provider:
+            UserStateHelpers.sponsorProvider(nextUser) ?? undefined,
+          sponsor_account:
+            UserStateHelpers.sponsorAccount(nextUser) ?? undefined,
+        },
+      },
       svm: {
         address: UserStateHelpers.svmAddress(nextUser),
         cluster: nextUser.svm?.cluster,
@@ -166,8 +175,8 @@ function useWalletStateSync(
     const unsubscribe = onUserStateChange(async (newUser) => {
       const nextWalletState = walletSnapshot(newUser);
       const prevWalletState = lastWalletStateRef.current;
-      const previousAddress = normalizeWalletId(prevWalletState.evm?.[0]?.address);
-      const nextAddress = normalizeWalletId(nextWalletState.evm?.[0]?.address);
+      const previousAddress = normalizeWalletId(prevWalletState.evm?.address);
+      const nextAddress = normalizeWalletId(nextWalletState.evm?.address);
       if (
         stableStateString(prevWalletState as UserState) ===
         stableStateString(nextWalletState as UserState)
@@ -251,7 +260,7 @@ function useRemoteThreadListSync(
     setIsThreadLoading,
   } = options;
   const connectedAddress = UserStateHelpers.isConnected(user)
-    ? UserStateHelpers.address(user)
+    ? getLegacySessionPublicKey(user)
     : undefined;
 
   // Prefetch behavior is intentionally minimal in this pass: the prior version

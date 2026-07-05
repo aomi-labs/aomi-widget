@@ -108,7 +108,7 @@ export function DelegatedWalletHydrator() {
     }
 
     setUser({
-      ...(evmAddress ? { evm: [{ address: evmAddress }] } : {}),
+      ...(evmAddress ? { evm: { address: evmAddress } } : {}),
       ...(svmAddress
         ? { svm: { address: svmAddress, cluster: DEFAULT_SVM_CLUSTER } }
         : {}),

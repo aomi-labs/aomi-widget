@@ -10,11 +10,12 @@ import "@getpara/react-sdk/styles.css";
 import { defineChain, type Chain } from "viem";
 import { useAccount, useSwitchChain } from "wagmi";
 import {
+  AomiSessionProvider,
   AomiWalletProvider,
   isFullTestnet,
   monad,
   monadTestnet,
-} from "../../../registry/src";
+} from "../../../shadcn-registry/src";
 import {
   arbitrum,
   base,
@@ -187,7 +188,9 @@ export function LandingParaProvider({ children }: { children: ReactNode }) {
   }
 
   const content = paraApiKey ? (
-    <DevAnvilRpcHook>{children}</DevAnvilRpcHook>
+    <DevAnvilRpcHook>
+      <AomiSessionProvider>{children}</AomiSessionProvider>
+    </DevAnvilRpcHook>
   ) : (
     children
   );

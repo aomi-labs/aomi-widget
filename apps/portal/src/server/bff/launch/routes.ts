@@ -3,12 +3,12 @@ import "server-only";
 import { randomBytes } from "crypto";
 import { NextResponse } from "next/server";
 import { deploymentClient } from "@portal/server/bff/backend";
-import { BackendError, launchErrorResponse } from "./errors";
+import { launchErrorResponse } from "./errors";
 import { launchConfig } from "./config";
 import { appNamesFromDeployment, releaseTagsFromDeployment } from "./mappers";
 import { checkRateLimit, getClientIp } from "@portal/lib/rate-limit";
 import { validateOrigin } from "@portal/lib/csrf";
-import { getGitHubSession } from "@portal/server/aomi-account/github-session";
+import { getGitHubSession } from "@portal/server/cookies/github";
 import {
   isValidDeploymentId,
   isValidInstallationId,
@@ -46,24 +46,20 @@ function isValidAppSourceId(value: unknown): value is number {
   return typeof value === "number" && Number.isSafeInteger(value) && value > 0;
 }
 
-async function resolveAppSourceId(args: {
-  client: Awaited<ReturnType<typeof deploymentClient>>;
-  platform: string;
-  installationId: string;
-  repo?: string;
-}): Promise<number> {
-  const source = await args.client.resolveSource({
-    platform: args.platform,
-    installationId: Number(args.installationId),
-    repo: args.repo,
-  });
-  if (!Number.isSafeInteger(source.id) || source.id <= 0) {
-    throw new Error("backend did not return a valid app source id");
-  }
-  return source.id;
+function sourceRef(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const clean = value.trim().toLowerCase();
+  return /^[0-9a-f]{7,40}$/.test(clean) ? clean : null;
 }
 
-export function launchDeployRoute(dryRun: boolean) {
+function sourceRefFromSource(source: {
+  sourceRef?: string | null;
+  commitHash?: string | null;
+}): string | null {
+  return sourceRef(source.sourceRef) ?? sourceRef(source.commitHash);
+}
+
+export function launchDeployRoute(preflight: boolean) {
   return async function POST(req: Request): Promise<NextResponse> {
     const blocked = checkWrite(req);
     if (blocked) return blocked;
@@ -72,44 +68,120 @@ export function launchDeployRoute(dryRun: boolean) {
       string,
       unknown
     >;
-    if (!isValidInstallationId(body.installationId)) {
+    if (
+      body.appSourceId !== undefined &&
+      !isValidAppSourceId(body.appSourceId)
+    ) {
       return NextResponse.json(
-        { error: "missing or invalid `installationId`" },
+        { error: "invalid `appSourceId`" },
         { status: 400 },
       );
     }
     if (body.repo !== undefined && !isValidRepo(body.repo)) {
       return NextResponse.json({ error: "invalid `repo`" }, { status: 400 });
     }
+    const repo = isValidRepo(body.repo) ? body.repo : undefined;
+    let syncGithubUserId: string | null | undefined;
+    async function githubUserIdForSync(): Promise<string | null> {
+      if (syncGithubUserId !== undefined) return syncGithubUserId;
+      syncGithubUserId = (await getGitHubSession())?.githubUserId ?? null;
+      return syncGithubUserId;
+    }
 
     try {
       const config = launchConfig();
       const client = await deploymentClient();
-      const appSourceId = await resolveAppSourceId({
-        client,
-        platform: config.platform,
-        installationId: body.installationId,
-        repo: body.repo as string | undefined,
-      });
-      const { deployment } = await client.deploy({
+
+      // Deploy uses a stable source row plus an immutable source commit. When
+      // the portal only has a repo, sync-installed resolves both from GitHub.
+      let appSourceId: number;
+      let deploySourceRef = sourceRef(body.sourceRef);
+      if (isValidAppSourceId(body.appSourceId)) {
+        appSourceId = body.appSourceId;
+      } else if (preflight && repo) {
+        const githubUserId = await githubUserIdForSync();
+        if (!githubUserId) {
+          return NextResponse.json(
+            { error: "not signed in with GitHub" },
+            { status: 401 },
+          );
+        }
+        const synced = await client.syncSource({
+          platform: config.platform,
+          repo,
+          githubUserId,
+        });
+        if (!isValidAppSourceId(synced.id)) {
+          throw new Error("backend did not return a valid app source id");
+        }
+        appSourceId = synced.id;
+        deploySourceRef = sourceRefFromSource(synced);
+      } else {
+        return NextResponse.json(
+          {
+            error: preflight
+              ? "missing `appSourceId` or `repo`"
+              : "missing `appSourceId`",
+          },
+          { status: 400 },
+        );
+      }
+
+      if (!deploySourceRef && repo) {
+        const githubUserId = await githubUserIdForSync();
+        if (!githubUserId) {
+          return NextResponse.json(
+            { error: "not signed in with GitHub" },
+            { status: 401 },
+          );
+        }
+        const synced = await client.syncSource({
+          platform: config.platform,
+          repo,
+          githubUserId,
+        });
+        if (synced.id !== appSourceId) {
+          return NextResponse.json(
+            { error: "repo does not match `appSourceId`" },
+            { status: 409 },
+          );
+        }
+        deploySourceRef = sourceRefFromSource(synced);
+      }
+      if (!deploySourceRef) {
+        return NextResponse.json(
+          {
+            error:
+              "missing source commit for deploy; sync the source repo and retry",
+          },
+          { status: 400 },
+        );
+      }
+
+      const deployInput = {
         platform: config.platform,
         appSourceId,
-        sourceRef: config.sourceRef,
-        aomiTomlPaths: config.aomiTomlPaths,
-        preflight: dryRun,
+        sourceRef: deploySourceRef,
+        aomiTomlPaths: [],
         actor: typeof body.actor === "string" ? body.actor : undefined,
-      });
+      };
+      const { deployment } = preflight
+        ? await client.preflight(deployInput)
+        : await client.deploy(deployInput);
       return NextResponse.json(
         {
           ok: true,
-          repo:
-            (body.repo as string | undefined) ??
-            deployment.source.repositoryLink,
+          repo: deployment.source.repositoryLink ?? repo,
+          installationId: deployment.source.installationId
+            ? String(deployment.source.installationId)
+            : undefined,
+          appSourceId,
+          sourceRef: deploySourceRef,
           deployment,
           releaseTags: releaseTagsFromDeployment(deployment),
           apps: appNamesFromDeployment(deployment),
         },
-        { status: dryRun ? 200 : 202 },
+        { status: preflight ? 200 : 202 },
       );
     } catch (err) {
       return launchErrorResponse(err);
@@ -120,6 +192,16 @@ export function launchDeployRoute(dryRun: boolean) {
 export async function createLaunchRepoRoute(req: Request) {
   const blocked = checkWrite(req);
   if (blocked) return blocked;
+
+  // The created source is owned by the signed-in GitHub user — taken from the
+  // server-side session, never trusted from the client body.
+  const session = await getGitHubSession();
+  if (!session) {
+    return NextResponse.json(
+      { error: "not signed in with GitHub" },
+      { status: 401 },
+    );
+  }
 
   try {
     const body = (await req.json().catch(() => ({}))) as {
@@ -140,6 +222,7 @@ export async function createLaunchRepoRoute(req: Request) {
       installationId: Number(body.installationId),
       templateRepo: config.templateRepo,
       repoName: body.repoName?.trim() || defaultRepoName(),
+      githubUserId: session.githubUserId,
       private: config.createdRepoPrivate,
     });
     if (!source.repositoryLink || !source.installationId) {
@@ -153,6 +236,7 @@ export async function createLaunchRepoRoute(req: Request) {
       repo: source.repositoryLink,
       installationId: String(source.installationId),
       appSourceId: source.id,
+      sourceRef: source.sourceRef ?? source.commitHash ?? undefined,
       source,
     });
   } catch (err) {
@@ -359,7 +443,7 @@ export async function launchAppRoute(req: Request) {
     });
     const live = app.isActive && app.loaded;
     return NextResponse.json({
-      ok: Boolean(live),
+      ok: true,
       state: live ? "live" : "pending",
       app: {
         id: app.id,
@@ -370,104 +454,6 @@ export async function launchAppRoute(req: Request) {
       },
     });
   } catch (err) {
-    return launchErrorResponse(err);
-  }
-}
-
-export async function checkLaunchRepoRoute(req: Request) {
-  const blocked = checkRead(req);
-  if (blocked) return blocked;
-
-  const repo = new URL(req.url).searchParams.get("repo");
-  if (!isValidRepo(repo)) {
-    return NextResponse.json(
-      { error: "missing or invalid `repo`" },
-      { status: 400 },
-    );
-  }
-
-  try {
-    const headers: Record<string, string> = {
-      Accept: "application/vnd.github+json",
-      "User-Agent": "aomi-portal",
-    };
-    const token = process.env.GITHUB_TOKEN;
-    if (token) headers.Authorization = `Bearer ${token}`;
-
-    const res = await fetch(`https://api.github.com/repos/${repo}`, {
-      headers,
-    });
-    const body = await res.json().catch(() => ({}));
-    if (!res.ok) {
-      if (res.status === 404) {
-        return NextResponse.json({ exists: false, fromTemplate: false });
-      }
-      return NextResponse.json(
-        { error: `GitHub API error (${res.status})` },
-        { status: 502 },
-      );
-    }
-
-    const templateFullName = (
-      (body as Record<string, unknown>)?.template_repository as
-        | Record<string, unknown>
-        | undefined
-    )?.full_name as string | undefined;
-    const fromTemplate =
-      typeof templateFullName === "string" &&
-      templateFullName.toLowerCase().startsWith("aomi-labs/");
-
-    return NextResponse.json({ exists: true, fromTemplate });
-  } catch (err) {
-    return NextResponse.json(
-      { error: err instanceof Error ? err.message : String(err) },
-      { status: 502 },
-    );
-  }
-}
-
-export async function syncInstalledLaunchRoute(req: Request) {
-  const blocked = checkWrite(req);
-  if (blocked) return blocked;
-
-  try {
-    const body = (await req.json().catch(() => ({}))) as {
-      repo?: unknown;
-    };
-    if (!isValidRepo(body.repo)) {
-      return NextResponse.json(
-        { error: "missing or invalid `repo`" },
-        { status: 400 },
-      );
-    }
-
-    const repo = body.repo as string;
-    const config = launchConfig();
-    const client = await deploymentClient();
-    const source = await client.syncSource({ platform: config.platform, repo });
-    if (!source.installationId) {
-      return NextResponse.json(
-        { error: "backend did not return an installation id" },
-        { status: 502 },
-      );
-    }
-    return NextResponse.json({
-      ok: true,
-      repo: source.repositoryLink ?? repo,
-      installationId: String(source.installationId),
-      appSourceId: source.id,
-      source,
-    });
-  } catch (err) {
-    if (err instanceof BackendError && err.status === 404) {
-      return NextResponse.json(
-        {
-          error:
-            "GitHub install not found. Make sure the GitHub App is installed on this repository.",
-        },
-        { status: 404 },
-      );
-    }
     return launchErrorResponse(err);
   }
 }
@@ -499,26 +485,19 @@ export async function redeployLaunchRoute(req: Request) {
   }
 
   try {
+    const config = launchConfig();
     const client = await deploymentClient();
-    const sources = await client.listUserSources({
+    const latest = await client.getUserSourceLatestDeployment({
       githubUserId: session.githubUserId,
+      platform: config.platform,
+      appSourceId: body.appSourceId,
     });
-    const source = sources.find(
-      (candidate) => candidate.id === body.appSourceId,
-    );
-    const latest = source?.latestDeployment;
     const platformRepo = latest?.platformRepo;
     const ciRunId =
       latest?.ciRunId === null || latest?.ciRunId === undefined
         ? ciRunIdFromUrl(latest?.ciUrl)
         : String(latest.ciRunId);
 
-    if (!source) {
-      return NextResponse.json(
-        { error: "source does not belong to the signed-in GitHub account" },
-        { status: 404 },
-      );
-    }
     if (!platformRepo || !isValidRepo(platformRepo) || !ciRunId) {
       return NextResponse.json(
         {
@@ -589,9 +568,11 @@ export async function userSourcesRoute(req: Request) {
   }
 
   try {
+    const config = launchConfig();
     const client = await deploymentClient();
     const sources = await client.listUserSources({
       githubUserId: session.githubUserId,
+      platform: config.platform,
     });
     return NextResponse.json({ sources, githubLogin: session.githubLogin });
   } catch (err) {

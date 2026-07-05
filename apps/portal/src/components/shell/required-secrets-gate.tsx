@@ -16,7 +16,8 @@ export function RequiredSecretsGate() {
   const { state: authState } = useAuthEndpoints();
   const { state: apiKeyState } = useApiKey();
   const { ingestSecrets, listSecrets } = useByok().actions;
-  const { getCurrentThreadApp, onAppSelect } = usePerThreadControl().actions;
+  const { getCurrentThreadApp, getCurrentThreadApplicationId, onAppSelect } =
+    usePerThreadControl().actions;
   const [savedNamesByApp, setSavedNamesByApp] = useState<
     Record<string, string[]>
   >({});
@@ -25,9 +26,16 @@ export function RequiredSecretsGate() {
   const [error, setError] = useState<string | null>(null);
 
   const currentApp = getCurrentThreadApp();
+  const currentApplicationId = getCurrentThreadApplicationId();
   const descriptor = useMemo<AomiAppDescriptor | undefined>(
-    () => authState.appDescriptors.find((d) => d.name === currentApp),
-    [authState.appDescriptors, currentApp],
+    () =>
+      authState.appDescriptors.find(
+        (d) =>
+          d.name === currentApp &&
+          (d.applicationId?.toString() ?? "") ===
+            (currentApplicationId?.toString() ?? ""),
+      ) ?? authState.appDescriptors.find((d) => d.name === currentApp),
+    [authState.appDescriptors, currentApp, currentApplicationId],
   );
   const requiredSlots = useMemo(
     () => (descriptor?.secrets ?? []).filter((s) => s.required),
@@ -57,15 +65,16 @@ export function RequiredSecretsGate() {
   const filledNames = new Set(savedNamesByApp[currentApp] ?? []);
   const missingRequired = requiredSlots.filter((s) => !filledNames.has(s.name));
 
-  const fallbackName = useMemo(() => {
+  const fallbackDescriptor = useMemo(() => {
     if (currentApp === FALLBACK_APP) {
-      const next = authState.authorizedApps.find((a) => a !== currentApp);
-      return next ?? null;
+      return (
+        authState.appDescriptors.find((a) => a.name !== currentApp) ?? null
+      );
     }
-    return authState.authorizedApps.includes(FALLBACK_APP)
-      ? FALLBACK_APP
-      : null;
-  }, [currentApp, authState.authorizedApps]);
+    return (
+      authState.appDescriptors.find((a) => a.name === FALLBACK_APP) ?? null
+    );
+  }, [currentApp, authState.appDescriptors]);
 
   if (missingRequired.length === 0) {
     return null;
@@ -96,8 +105,10 @@ export function RequiredSecretsGate() {
   };
 
   const handleSwitchApp = () => {
-    if (fallbackName) {
-      onAppSelect(fallbackName);
+    if (fallbackDescriptor) {
+      onAppSelect(fallbackDescriptor.name, {
+        applicationId: fallbackDescriptor.applicationId,
+      });
     }
   };
 
@@ -148,7 +159,7 @@ export function RequiredSecretsGate() {
         {error && <p className="text-destructive text-sm">{error}</p>}
 
         <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
-          {fallbackName && (
+          {fallbackDescriptor && (
             <Button
               type="button"
               variant="ghost"
@@ -156,7 +167,7 @@ export function RequiredSecretsGate() {
               disabled={saving}
               className="rounded-full"
             >
-              Switch to {fallbackName}
+              Switch to {fallbackDescriptor.label ?? fallbackDescriptor.name}
             </Button>
           )}
           <Button

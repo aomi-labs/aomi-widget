@@ -2,7 +2,7 @@
 // Client
 // =============================================================================
 
-export { AomiClient, AomiAuthorizationError } from "./client";
+export { AomiClient } from "./client";
 
 // =============================================================================
 // Types
@@ -11,24 +11,19 @@ export { AomiClient, AomiAuthorizationError } from "./client";
 export type {
   AomiRequestOptions,
   AomiRequestQueryValue,
+  AomiPlatformFilter,
   AomiAppDescriptor,
+  AomiAccessApproval,
   AomiAccountProfile,
   AomiAuthIdentity,
   AomiClientOptions,
+  AomiCreateApprovalRequest,
   AomiIdentityWallet,
   AomiUsageStats,
   AomiUser,
-  GetAccountAccessToken,
   GetAccountBearer,
   AomiMessage,
   AomiWalletFamily,
-  AomiSigningMode,
-  AomiAuthorizationPermit,
-  AomiAuthorizationChallengeRequest,
-  AomiAuthorizationChallengeResponse,
-  AomiAuthorizationCommitRequest,
-  AomiAuthorizationCommitResponse,
-  AomiRevokeProviderGrantResponse,
   AomiChatResponse,
   AomiClearSecretsResponse,
   AomiCreateThreadResponse,
@@ -72,6 +67,12 @@ export {
   isSystemError,
   isSystemNotice,
 } from "./types";
+
+// =============================================================================
+// App Descriptors
+// =============================================================================
+
+export { normalizeAppDescriptor, appIdentityKey } from "./app-descriptor";
 
 // =============================================================================
 // Session (high-level orchestrated client)

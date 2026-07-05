@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 
 export const runtime = "nodejs";
 
-import { setGitHubSessionCookie } from "@portal/server/aomi-account/github-session";
+import { setGitHubSessionCookie } from "@portal/server/cookies/github";
 
 type GitHubUserResponse = {
   id?: unknown;

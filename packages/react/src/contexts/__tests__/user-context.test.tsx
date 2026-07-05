@@ -33,39 +33,28 @@ describe("ExtUserProvider.setUser", () => {
 
     act(() => {
       ref.current!.setUser({
-        connection: {
-          is_connected: true,
-          provider: "baseAccount",
-          auth_method: "wagmi",
-        },
-        evm: [
-          {
-            address: "0x1111111111111111111111111111111111111111",
-            chain_id: 8453,
-            ens_name: "alice.eth",
-            aa: {
-              mode: "4337",
-              smart_account: "0x2222222222222222222222222222222222222222",
-              delegation_7702: "0x3333333333333333333333333333333333333333",
-            },
-            sponsorship: {
-              sponsored: true,
-              sponsor_provider: "coinbase",
-              sponsor_account: "gp_test",
-            },
-          },
-        ],
-        svm: { address: "Bv9..." },
-        pending: {
-          evm_txs: { "1": { foo: "bar" } },
-          evm_sigs: { "2": {} },
-          svm_ixs: { "3": {} },
-        },
+        address: "0x1111111111111111111111111111111111111111",
+        chain_id: 8453,
+        is_connected: true,
+        wallet_kind: "smart-account",
+        aa_mode: "4337",
+        smart_account_4337: "0x2222222222222222222222222222222222222222",
+        delegation_7702: "0x3333333333333333333333333333333333333333",
+        svm_address: "Bv9...",
+        wallet_provider: "baseAccount",
+        auth_method: "wagmi",
+        sponsored: true,
+        sponsor_provider: "coinbase",
+        sponsor_account: "gp_test",
+        ens_name: "alice.eth",
+        pending_txs: { "1": { foo: "bar" } },
+        pending_eip712s: { "2": {} },
+        pending_solana_txs: { "3": {} },
       });
     });
 
     act(() => {
-      ref.current!.setUser({ connection: { is_connected: false } });
+      ref.current!.setUser({ is_connected: false });
     });
 
     const u = ref.current!.user;
@@ -89,40 +78,29 @@ describe("ExtUserProvider.setUser", () => {
 
     act(() => {
       ref.current!.setUser({
-        connection: {
-          is_connected: true,
-          provider: "para",
-        },
-        evm: [
-          {
-            address: "0x1111111111111111111111111111111111111111",
-            chain_id: 8453,
-            ens_name: "alice.eth",
-            aa: {
-              mode: "4337",
-              smart_account: "0x2222222222222222222222222222222222222222",
-              delegation_7702: "0x3333333333333333333333333333333333333333",
-            },
-          },
-        ],
-        pending: {
-          evm_txs: { "1": {} },
-          evm_sigs: { "2": {} },
-          svm_ixs: { "3": {} },
-        },
+        address: "0x1111111111111111111111111111111111111111",
+        chain_id: 8453,
+        is_connected: true,
+        wallet_kind: "smart-account",
+        aa_mode: "4337",
+        smart_account_4337: "0x2222222222222222222222222222222222222222",
+        delegation_7702: "0x3333333333333333333333333333333333333333",
+        wallet_provider: "para",
+        ens_name: "alice.eth",
+        pending_txs: { "1": {} },
+        pending_eip712s: { "2": {} },
+        pending_solana_txs: { "3": {} },
       });
     });
 
     act(() => {
       ref.current!.setUser({
-        evm: [{ address: "0x4444444444444444444444444444444444444444" }],
+        address: "0x4444444444444444444444444444444444444444",
       });
     });
 
     const u = ref.current!.user;
-    expect(UserState.address(u)).toBe(
-      "0x4444444444444444444444444444444444444444",
-    );
+    expect(UserState.address(u)).toBe("0x4444444444444444444444444444444444444444");
     // Identity-static fields persist across the in-place switch.
     expect(UserState.walletProvider(u)).toBe("para");
     expect(UserState.chainId(u)).toBe(8453);
@@ -143,28 +121,17 @@ describe("ExtUserProvider.setUser", () => {
 
     act(() => {
       ref.current!.setUser({
-        connection: { is_connected: true },
-        evm: [
-          {
-            address: "0x1111111111111111111111111111111111111111",
-            chain_id: 8453,
-            aa: {
-              mode: "4337",
-              smart_account: "0x2222222222222222222222222222222222222222",
-            },
-          },
-        ],
+        address: "0x1111111111111111111111111111111111111111",
+        chain_id: 8453,
+        is_connected: true,
+        aa_mode: "4337",
+        smart_account_4337: "0x2222222222222222222222222222222222222222",
       });
     });
 
     act(() => {
       ref.current!.setUser({
-        evm: [
-          {
-            address:
-              "0x1111111111111111111111111111111111111111".toUpperCase(),
-          },
-        ],
+        address: "0x1111111111111111111111111111111111111111".toUpperCase(),
       });
     });
 

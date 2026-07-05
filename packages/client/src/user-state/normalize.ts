@@ -24,11 +24,7 @@ function pick(record: UnknownRecord | undefined, ...keys: string[]): unknown {
   return undefined;
 }
 
-function assignDefined(
-  target: UnknownRecord,
-  key: string,
-  value: unknown,
-): void {
+function assignDefined(target: UnknownRecord, key: string, value: unknown): void {
   if (value !== undefined) {
     target[key] = value;
   }
@@ -41,6 +37,19 @@ function renameKey(obj: UnknownRecord, from: string, to: string): void {
       obj[to] = obj[from];
     }
     delete obj[from];
+  }
+}
+
+function liftFlat(
+  obj: UnknownRecord,
+  flat: UnknownRecord | undefined,
+  to: string,
+  fromKeys: string[],
+): void {
+  if (to in obj && obj[to] !== undefined) return;
+  const value = pick(flat, ...fromKeys);
+  if (value !== undefined) {
+    obj[to] = value;
   }
 }
 
@@ -79,6 +88,7 @@ function snakeizeBucket(bucket: unknown): UnknownRecord | undefined {
 
 function buildConnection(
   src: UnknownRecord | undefined,
+  flat: UnknownRecord,
 ): UnknownRecord | undefined {
   const c: UnknownRecord = { ...(src ?? {}) };
   renameKey(c, "isConnected", "is_connected");
@@ -87,13 +97,25 @@ function buildConnection(
   renameKey(c, "authMethod", "auth_method");
   renameKey(c, "authValue", "auth_value");
   renameKey(c, "authVerifiedAt", "auth_verified_at");
+  liftFlat(c, flat, "is_connected", ["is_connected", "isConnected"]);
+  liftFlat(c, flat, "provider", ["wallet_provider", "walletProvider"]);
+  liftFlat(c, flat, "wallet_provider_subject", [
+    "wallet_provider_subject",
+    "walletProviderSubject",
+  ]);
+  liftFlat(c, flat, "auth_method", ["auth_method", "authMethod"]);
+  liftFlat(c, flat, "auth_value", ["auth_value", "authValue"]);
+  liftFlat(c, flat, "auth_verified_at", ["auth_verified_at", "authVerifiedAt"]);
   // `connection.is_connected` is a non-`Option` `bool` on the backend; an
   // explicit `null` fails serde with a 400. Drop it (defaults to false).
   dropNullKeys(c, "is_connected");
   return Object.keys(c).length ? c : undefined;
 }
 
-function buildEvm(src: UnknownRecord | undefined): UnknownRecord | undefined {
+function buildEvm(
+  src: UnknownRecord | undefined,
+  flat: UnknownRecord,
+): UnknownRecord | undefined {
   const e: UnknownRecord = { ...(src ?? {}) };
   renameKey(e, "chainId", "chain_id");
   renameKey(e, "ensName", "ens_name");
@@ -102,85 +124,49 @@ function buildEvm(src: UnknownRecord | undefined): UnknownRecord | undefined {
   delete e.aa;
   renameKey(aa, "smartAccount", "smart_account");
   renameKey(aa, "delegation7702", "delegation_7702");
+  liftFlat(aa, flat, "mode", ["aa_mode", "aaMode"]);
+  liftFlat(aa, flat, "smart_account", [
+    "smart_account_4337",
+    "smartAccount4337",
+    "smart_account",
+    "smartAccount",
+  ]);
+  liftFlat(aa, flat, "delegation_7702", ["delegation_7702", "delegation7702"]);
   if (Object.keys(aa).length) e.aa = aa;
 
   const sponsorship: UnknownRecord = { ...(asObject(e.sponsorship) ?? {}) };
   delete e.sponsorship;
   renameKey(sponsorship, "sponsorProvider", "sponsor_provider");
   renameKey(sponsorship, "sponsorAccount", "sponsor_account");
+  liftFlat(sponsorship, flat, "sponsored", ["sponsored"]);
+  liftFlat(sponsorship, flat, "sponsor_provider", [
+    "sponsor_provider",
+    "sponsorProvider",
+  ]);
+  liftFlat(sponsorship, flat, "sponsor_account", [
+    "sponsor_account",
+    "sponsorAccount",
+  ]);
   if (Object.keys(sponsorship).length) e.sponsorship = sponsorship;
 
+  liftFlat(e, flat, "address", ["address"]);
+  liftFlat(e, flat, "chain_id", ["chain_id", "chainId"]);
   if (e.chain_id != null) {
     const cid = parseChainId(e.chain_id);
     if (cid !== undefined) e.chain_id = cid;
     else delete e.chain_id;
   }
+  liftFlat(e, flat, "ens_name", ["ens_name", "ensName"]);
   return Object.keys(e).length ? e : undefined;
 }
 
-/**
- * Normalize `evm` to its canonical array shape (one entry per chain). A bare
- * single object is tolerated and folded into a one-element array; each element
- * is canonicalized (camelCase→snake_case) by [`buildEvm`].
- */
-function buildEvmArray(srcEvm: unknown): UnknownRecord[] {
-  if (Array.isArray(srcEvm)) {
-    return srcEvm
-      .map((element) => buildEvm(asObject(element)))
-      .filter((element): element is UnknownRecord => element !== undefined);
-  }
-  const single = buildEvm(asObject(srcEvm));
-  return single ? [single] : [];
-}
-
-/**
- * Merge key for an EVM wallet. Keyed by address (case-insensitive) so a
- * chain-agnostic entry and a later chain-refined entry for the SAME address
- * collapse into one (the chain_id refines the wallet, it doesn't fork it).
- * Distinct addresses stay distinct entries (the multi-chain-different-address
- * case). Address-less entries fall back to chain id.
- */
-function evmMergeKey(wallet: UnknownRecord): string {
-  const addr = wallet.address;
-  if (typeof addr === "string" && addr.length > 0) {
-    return `addr:${addr.toLowerCase()}`;
-  }
-  const cid = parseChainId(wallet.chain_id);
-  return cid === undefined ? "__default__" : `chain:${cid}`;
-}
-
-/** Merge two EVM wallet arrays by wallet, preserving prior per-wallet detail. */
-function mergeEvmArrays(
-  previous: UnknownRecord[],
-  incoming: UnknownRecord[],
-): UnknownRecord[] {
-  const prevByKey = new Map<string, UnknownRecord>();
-  for (const wallet of previous) prevByKey.set(evmMergeKey(wallet), wallet);
-
-  const out: UnknownRecord[] = [];
-  const seen = new Set<string>();
-  for (const wallet of incoming) {
-    const key = evmMergeKey(wallet);
-    seen.add(key);
-    const prior = prevByKey.get(key);
-    out.push(prior ? deepMergePreserve(prior, wallet) : wallet);
-  }
-  for (const [key, wallet] of prevByKey) {
-    if (!seen.has(key)) out.push(wallet);
-  }
-  return out;
-}
-
-/** The primary (first) EVM wallet — the default operating wallet. */
-function primaryEvm(state: UserState | undefined): UnknownRecord | undefined {
-  const evm = state?.evm;
-  if (Array.isArray(evm)) return asObject(evm[0]);
-  return asObject(evm);
-}
-
-function buildSvm(src: UnknownRecord | undefined): UnknownRecord | undefined {
+function buildSvm(
+  src: UnknownRecord | undefined,
+  flat: UnknownRecord,
+): UnknownRecord | undefined {
   const s: UnknownRecord = { ...(src ?? {}) };
   renameKey(s, "walletName", "wallet_name");
+  liftFlat(s, flat, "address", ["svm_address", "svmAddress"]);
   // `svm.capabilities` is a non-`Option` `Vec` on the backend; an explicit
   // `null` fails serde with a 400 (the staging chat-portal regression). Drop it
   // when null/undefined — absence defaults to an empty capability set.
@@ -190,12 +176,37 @@ function buildSvm(src: UnknownRecord | undefined): UnknownRecord | undefined {
 
 function buildPending(
   src: UnknownRecord | undefined,
+  flat: UnknownRecord,
 ): UnknownRecord | undefined {
   const p: UnknownRecord = {};
-  assignDefined(p, "evm_txs", snakeizeBucket(pick(src, "evm_txs", "evmTxs")));
-  assignDefined(p, "evm_sigs", snakeizeBucket(pick(src, "evm_sigs", "evmSigs")));
-  assignDefined(p, "svm_ixs", snakeizeBucket(pick(src, "svm_ixs", "svmIxs")));
-  assignDefined(p, "svm_sigs", snakeizeBucket(pick(src, "svm_sigs", "svmSigs")));
+  assignDefined(
+    p,
+    "evm_txs",
+    snakeizeBucket(
+      pick(src, "evm_txs", "evmTxs") ?? pick(flat, "pending_txs", "pendingTxs"),
+    ),
+  );
+  assignDefined(
+    p,
+    "evm_sigs",
+    snakeizeBucket(
+      pick(src, "evm_sigs", "evmSigs") ??
+        pick(flat, "pending_eip712s", "pendingEip712s"),
+    ),
+  );
+  assignDefined(
+    p,
+    "svm_ixs",
+    snakeizeBucket(
+      pick(src, "svm_ixs", "svmIxs", "solana_txs", "solanaTxs") ??
+        pick(flat, "pending_solana_txs", "pendingSolanaTxs"),
+    ),
+  );
+  assignDefined(
+    p,
+    "svm_sigs",
+    snakeizeBucket(pick(src, "svm_sigs", "svmSigs", "solana_sigs", "solanaSigs")),
+  );
   return Object.keys(p).length ? p : undefined;
 }
 
@@ -249,7 +260,7 @@ function parseChainId(value: unknown): number | undefined {
 }
 
 function address(state: UserState | undefined): string | undefined {
-  const value = primaryEvm(state)?.address;
+  const value = asObject(state?.evm)?.address;
   return typeof value === "string" && value.length > 0 ? value : undefined;
 }
 
@@ -259,7 +270,7 @@ function svmAddress(state: UserState | undefined): string | undefined {
 }
 
 function chainId(state: UserState | undefined): number | undefined {
-  return parseChainId(primaryEvm(state)?.chain_id);
+  return parseChainId(asObject(state?.evm)?.chain_id);
 }
 
 function isConnected(state: UserState | undefined): boolean | undefined {
@@ -282,13 +293,13 @@ export function normalizeUserState(
   }
 
   const out: UserState = {};
-  const connection = buildConnection(asObject(pick(src, "connection")));
+  const connection = buildConnection(asObject(pick(src, "connection")), src);
   if (connection) out.connection = connection;
-  const evm = buildEvmArray(pick(src, "evm"));
-  if (evm.length) out.evm = evm;
-  const svm = buildSvm(asObject(pick(src, "svm", "solana")));
+  const evm = buildEvm(asObject(pick(src, "evm")), src);
+  if (evm) out.evm = evm;
+  const svm = buildSvm(asObject(pick(src, "svm", "solana")), src);
   if (svm) out.svm = svm;
-  const pending = buildPending(asObject(pick(src, "pending")));
+  const pending = buildPending(asObject(pick(src, "pending")), src);
   if (pending) out.pending = pending;
 
   const ext = pick(src, "ext");
@@ -338,13 +349,12 @@ export function reconcileUserState(
     out.connection = incConn ? deepMergePreserve(prevConn, incConn) : prevConn;
   }
 
-  const prevEvm = Array.isArray(prev.evm) ? prev.evm : [];
-  const incEvm = Array.isArray(inc.evm) ? inc.evm : [];
+  const prevEvm = asObject(prev.evm);
+  const incEvm = asObject(inc.evm);
   const sameEvm =
-    !!address(prev) &&
-    (!address(inc) || sameAddress(address(prev), address(inc)));
-  if (connectedNotBroken && prevEvm.length && (sameEvm || !incEvm.length)) {
-    out.evm = incEvm.length ? mergeEvmArrays(prevEvm, incEvm) : prevEvm;
+    !!address(prev) && (!address(inc) || sameAddress(address(prev), address(inc)));
+  if (connectedNotBroken && prevEvm && (sameEvm || !incEvm)) {
+    out.evm = incEvm ? deepMergePreserve(prevEvm, incEvm) : prevEvm;
   }
 
   const prevSvm = asObject(prev.svm);

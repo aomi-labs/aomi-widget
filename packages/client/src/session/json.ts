@@ -4,9 +4,7 @@ function isNil(value: unknown): value is null | undefined {
   return value === null || value === undefined;
 }
 
-export function stableUserStateString(
-  state: UserStateShape | undefined,
-): string {
+export function stableUserStateString(state: UserStateShape | undefined): string {
   return JSON.stringify(sortJson(state ?? {}));
 }
 

@@ -1,7 +1,8 @@
 // Client seam for the GitHub-signed-in deploy dashboard. Talks only to the
-// same-origin portal BFF (`/api/bff/auth/github/*`, `/api/bff/launch/sources`); the
-// GitHub session cookie + service bearer stay server-side.
+// same-origin portal BFF (`/api/bff/auth/github/*`, `/api/bff/launch/sources`);
+// the GitHub session cookie + service bearer stay server-side.
 
+import { API_PATHS } from "@portal/lib/api-paths";
 import type { UserSource } from "@aomi-labs/deploy";
 
 export type { UserSource };
@@ -9,14 +10,16 @@ export type { UserSource };
 export interface GitHubSessionInfo {
   signedIn: boolean;
   githubLogin: string | null;
+  /** Present when the one-shot App is already installed (skip-install). */
+  installationId?: string | null;
 }
 
 /** Where the "Sign in with GitHub" button points. */
-export const GITHUB_SIGNIN_URL = "/api/bff/auth/github/login";
+export const GITHUB_SIGNIN_URL = API_PATHS.bff.auth.github.login;
 
 export async function fetchGitHubSession(): Promise<GitHubSessionInfo> {
   try {
-    const res = await fetch("/api/bff/auth/github/status", {
+    const res = await fetch(API_PATHS.bff.auth.github.status, {
       cache: "no-store",
     });
     if (!res.ok) return { signedIn: false, githubLogin: null };
@@ -27,7 +30,7 @@ export async function fetchGitHubSession(): Promise<GitHubSessionInfo> {
 }
 
 export async function signOutGitHub(): Promise<void> {
-  await fetch("/api/bff/auth/github/signout", { method: "POST" });
+  await fetch(API_PATHS.bff.auth.github.signout, { method: "POST" });
 }
 
 export interface UserSourcesResult {
@@ -36,7 +39,7 @@ export interface UserSourcesResult {
 }
 
 export async function fetchUserSources(): Promise<UserSourcesResult> {
-  const res = await fetch("/api/bff/launch/sources", { cache: "no-store" });
+  const res = await fetch(API_PATHS.bff.launch.sources, { cache: "no-store" });
   const json = (await res.json().catch(() => ({}))) as
     | UserSourcesResult
     | { error?: string };

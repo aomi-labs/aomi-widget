@@ -11,47 +11,57 @@ import {
   withPath,
   withProgress,
   withPendingInstall,
+  withRejectedInstall,
   GITHUB_REDIRECT_KEYS,
   type LaunchState,
-  type LaunchPath,
   type LaunchProgress,
   type UserSource,
 } from "@portal/features/launch";
-import { resolveDeployPlatform } from "@portal/lib/deploy-platform";
-import { Picker } from "./picker";
 import { OneshotWizard } from "./oneshot-wizard";
-import { BootstrapWizard } from "./bootstrap-wizard";
+
+const PATH = "oneshot" as const;
 
 export function Onboarding({
   hideWizardBack = false,
   knownSources = [],
+  sessionInstallationId = null,
 }: {
   hideWizardBack?: boolean;
   knownSources?: UserSource[];
+  /**
+   * Installation id from the signed-in GitHub session — present when the App is
+   * already installed. Seeds the wizard so it skips the install step and starts
+   * at "create".
+   */
+  sessionInstallationId?: string | null;
 }) {
   const adapter = useAomiAuthAdapter();
   const actor = adapter.identity.address ?? undefined;
 
   const [state, setState] = useState<LaunchState>(() => {
     const loaded = loadLaunch();
+    // One-click is the only path — always mount the wizard.
+    loaded.path = PATH;
+    // Skip-install: if the App is already installed and we don't have a repo
+    // in flight yet, seed the installation id so the wizard opens at "create".
+    // Never re-seed an installation a prior create already rejected.
+    if (
+      sessionInstallationId &&
+      !loaded.oneshot.installationId &&
+      sessionInstallationId !== loaded.rejectedInstallationId
+    ) {
+      loaded.oneshot.installationId = sessionInstallationId;
+    }
     if (typeof window !== "undefined") {
       const url = new URL(window.location.href);
       const urlDeployId = url.searchParams.get("deployment_id");
-      const urlDeployPath = url.searchParams.get("deploy_path");
-      if (urlDeployId) {
-        if (urlDeployPath === "oneshot" && !loaded.oneshot.deploymentId) {
-          loaded.oneshot.deploymentId = urlDeployId;
-        } else if (
-          urlDeployPath === "bootstrap" &&
-          !loaded.bootstrap.deploymentId
-        ) {
-          loaded.bootstrap.deploymentId = urlDeployId;
-        }
+      if (urlDeployId && !loaded.oneshot.deploymentId) {
+        loaded.oneshot.deploymentId = urlDeployId;
       }
     }
     return loaded;
   });
-  const [installingPath, setInstallingPath] = useState<LaunchPath | null>(null);
+  const [installing, setInstalling] = useState(false);
   const [installError, setInstallError] = useState<string | null>(null);
   const [installSuccess, setInstallSuccess] = useState(false);
 
@@ -63,9 +73,45 @@ export function Onboarding({
   // --- hydrate the GitHub install redirect (runs once) ----------------------
   useEffect(() => {
     if (typeof window === "undefined") return;
+    const stripRedirectParams = () => {
+      const url = new URL(window.location.href);
+      let changed = false;
+      for (const key of GITHUB_REDIRECT_KEYS) {
+        if (url.searchParams.has(key)) {
+          url.searchParams.delete(key);
+          changed = true;
+        }
+      }
+      if (changed) window.history.replaceState({}, "", url.toString());
+    };
+
+    // The backend redirects here with `launch=personal_required` (and no
+    // installation id) when the user installed on an org. One-click only
+    // supports their personal account, so surface that and keep them on the
+    // install step instead of advancing to a create that would fail.
+    const launchStatus = new URLSearchParams(window.location.search).get(
+      "launch",
+    );
+    if (launchStatus === "personal_required") {
+      setInstalling(false);
+      setInstallSuccess(false);
+      setInstallError(
+        "One-click installs into your personal GitHub account. Please install the Aomi app on your personal account (not an organization), then continue.",
+      );
+      const cur = loadLaunch();
+      update(
+        withProgress(withPath(cur, PATH), PATH, {
+          installationId: undefined,
+          installationStatus: undefined,
+        }),
+      );
+      stripRedirectParams();
+      return;
+    }
+
     const redirect = readGithubRedirect(window.location.search);
     if (!redirect) {
-      setInstallingPath(null);
+      setInstalling(false);
       setInstallError(null);
       const cur = loadLaunch();
       if (cur.pendingInstall) {
@@ -75,29 +121,21 @@ export function Onboarding({
     }
 
     const cur = loadLaunch();
-    const matched = cur.pendingInstall?.path ?? cur.path;
-    if (matched) {
-      const next = withPendingInstall(
-        withProgress(withPath(cur, matched), matched, {
-          ...(redirect.repo ? { repo: redirect.repo } : {}),
+    // A fresh install supersedes any earlier rejection — clear the marker so
+    // this installation can be used (and re-skipped) normally.
+    const next = withRejectedInstall(
+      withPendingInstall(
+        withProgress(withPath(cur, PATH), PATH, {
           installationId: redirect.installationId,
           installationStatus: redirect.launchStatus ?? undefined,
         }),
         null,
-      );
-      update(next);
-      setInstallSuccess(true);
-    }
-
-    const url = new URL(window.location.href);
-    let changed = false;
-    for (const key of GITHUB_REDIRECT_KEYS) {
-      if (url.searchParams.has(key)) {
-        url.searchParams.delete(key);
-        changed = true;
-      }
-    }
-    if (changed) window.history.replaceState({}, "", url.toString());
+      ),
+      null,
+    );
+    update(next);
+    setInstallSuccess(true);
+    stripRedirectParams();
   }, [update]);
 
   // --- auto-dismiss the install-success banner after 6s ---------------------
@@ -110,14 +148,13 @@ export function Onboarding({
   // --- sync deploymentId to URL params -------------------------------------
   useEffect(() => {
     if (typeof window === "undefined") return;
-    const id = state.oneshot.deploymentId || state.bootstrap.deploymentId;
-    const path = state.path;
+    const id = state.oneshot.deploymentId;
     const url = new URL(window.location.href);
     const currentId = url.searchParams.get("deployment_id");
-    if (id && path) {
+    if (id) {
       if (id !== currentId) {
         url.searchParams.set("deployment_id", id);
-        url.searchParams.set("deploy_path", path);
+        url.searchParams.set("deploy_path", PATH);
         window.history.replaceState({}, "", url.toString());
       }
     } else if (currentId) {
@@ -125,130 +162,99 @@ export function Onboarding({
       url.searchParams.delete("deploy_path");
       window.history.replaceState({}, "", url.toString());
     }
-  }, [state.oneshot.deploymentId, state.bootstrap.deploymentId, state.path]);
+  }, [state.oneshot.deploymentId]);
 
-  // --- actions handed to the picker / wizards -------------------------------
-  const choose = useCallback(
-    (path: LaunchPath) => update(withPath(state, path)),
-    [state, update],
-  );
-
-  const back = useCallback(
-    () => update(withPath(state, null)),
-    [state, update],
-  );
-
-  const restartIn = useCallback(
-    (path: LaunchPath) => {
-      if (typeof window !== "undefined") {
-        const url = new URL(window.location.href);
-        url.searchParams.delete("deployment_id");
-        url.searchParams.delete("deploy_path");
-        window.history.replaceState({}, "", url.toString());
-      }
-
-      const next: LaunchState =
-        path === "oneshot"
-          ? { ...state, path, pendingInstall: null, oneshot: {} }
-          : { ...state, path, pendingInstall: null, bootstrap: {} };
-
-      setInstallingPath(null);
-      setInstallError(null);
-      setInstallSuccess(false);
-      update(next);
-    },
-    [state, update],
-  );
-
-  const makePatch = useCallback(
-    (path: LaunchPath) => (patch: Partial<LaunchProgress>) =>
-      update(withProgress(state, path, patch)),
-    [state, update],
-  );
-
-  const makeOnReset = useCallback(
-    (path: LaunchPath) => () => {
-      if (typeof window === "undefined") return;
+  // --- actions handed to the wizard -----------------------------------------
+  const restart = useCallback(() => {
+    if (typeof window !== "undefined") {
       const url = new URL(window.location.href);
       url.searchParams.delete("deployment_id");
       url.searchParams.delete("deploy_path");
       window.history.replaceState({}, "", url.toString());
-      update(
-        withProgress(state, path, { deploymentId: undefined, live: false }),
-      );
-    },
+    }
+    setInstalling(false);
+    setInstallError(null);
+    setInstallSuccess(false);
+    // Preserve a known installation so restart doesn't re-ask for install —
+    // unless a prior create rejected it (stale/wrong account), in which case
+    // start fresh at the install step.
+    const candidate = sessionInstallationId ?? state.oneshot.installationId;
+    const keepInstall =
+      candidate && candidate !== state.rejectedInstallationId
+        ? candidate
+        : undefined;
+    update({
+      ...state,
+      path: PATH,
+      pendingInstall: null,
+      oneshot: keepInstall ? { installationId: keepInstall } : {},
+    });
+  }, [state, update, sessionInstallationId]);
+
+  const patch = useCallback(
+    (p: Partial<LaunchProgress>) => update(withProgress(state, PATH, p)),
     [state, update],
   );
 
-  const makeBeginInstall = useCallback(
-    (path: LaunchPath, mode: "install" | "authorize" = "install") =>
-      async () => {
-        const next = withPendingInstall(withPath(state, path), { path });
-        saveLaunch(next);
-        setState(next);
-        setInstallError(null);
-        setInstallingPath(path);
-        try {
-          const repo = next[path].repo;
-          window.location.href = await githubAppInstallUrl({
-            platform: resolveDeployPlatform(),
-            repo,
-            mode,
-            app: path === "oneshot" ? 2 : undefined,
-          });
-        } catch (error) {
-          setInstallingPath(null);
-          setInstallError(
-            error instanceof Error
-              ? error.message
-              : "Failed to start GitHub App install.",
-          );
-        }
-      },
-    [state],
+  // A create attempt blamed the installation (uninstalled, wrong account,
+  // missing permissions). Record it as rejected so it is never re-seeded from
+  // the session cookie, and drop back to the install step to re-authorize.
+  const onInstallRejected = useCallback(
+    (installationId?: string) =>
+      update(
+        withRejectedInstall(
+          withProgress(state, PATH, { installationId: undefined }),
+          installationId ?? null,
+        ),
+      ),
+    [state, update],
   );
 
-  if (!state.path) {
-    return <Picker onChoose={choose} />;
-  }
+  const onReset = useCallback(() => {
+    if (typeof window === "undefined") return;
+    const url = new URL(window.location.href);
+    url.searchParams.delete("deployment_id");
+    url.searchParams.delete("deploy_path");
+    window.history.replaceState({}, "", url.toString());
+    update(withProgress(state, PATH, { deploymentId: undefined, live: false }));
+  }, [state, update]);
 
-  if (state.path === "oneshot") {
-    return (
-      <>
-        {installSuccess && <InstallSuccessBanner />}
-        <OneshotWizard
-          progress={state.oneshot}
-          actor={actor}
-          onBack={back}
-          showBack={!hideWizardBack}
-          beginInstall={makeBeginInstall("oneshot")}
-          beginAuthorize={makeBeginInstall("oneshot", "authorize")}
-          installing={installingPath === "oneshot"}
-          installError={installError}
-          patch={makePatch("oneshot")}
-          onReset={makeOnReset("oneshot")}
-          onRestartInBootstrap={() => restartIn("bootstrap")}
-        />
-      </>
-    );
-  }
+  const beginInstall = useCallback(async () => {
+    const next = withPendingInstall(withPath(state, PATH), { path: PATH });
+    saveLaunch(next);
+    setState(next);
+    setInstallError(null);
+    setInstalling(true);
+    try {
+      window.location.href = await githubAppInstallUrl({ app: 2 });
+    } catch (error) {
+      setInstalling(false);
+      setInstallError(
+        error instanceof Error
+          ? error.message
+          : "Failed to start GitHub App install.",
+      );
+    }
+  }, [state]);
+
+  // knownSources / hideWizardBack are accepted for parity with the dashboard's
+  // call site; the one-click wizard derives everything it needs from `progress`.
+  void knownSources;
+  void hideWizardBack;
 
   return (
     <>
       {installSuccess && <InstallSuccessBanner />}
-      <BootstrapWizard
-        progress={state.bootstrap}
+      <OneshotWizard
+        progress={state.oneshot}
         actor={actor}
-        onBack={back}
-        showBack={!hideWizardBack}
-        knownSources={knownSources}
-        beginInstall={makeBeginInstall("bootstrap")}
-        beginAuthorize={makeBeginInstall("bootstrap", "authorize")}
-        installing={installingPath === "bootstrap"}
+        onRestart={restart}
+        beginInstall={beginInstall}
+        installing={installing}
         installError={installError}
-        patch={makePatch("bootstrap")}
-        onReset={makeOnReset("bootstrap")}
-        onRestartInOneshot={() => restartIn("oneshot")}
+        patch={patch}
+        onReset={onReset}
+        onInstallRejected={onInstallRejected}
       />
     </>
   );

@@ -38,34 +38,6 @@ function mergeRecords(
   return next;
 }
 
-/**
- * Merge an incoming `evm` array into the previous one with primary-patch
- * semantics. `setUser` callers (the wallet adapter, per-tx session writebacks)
- * describe the single operating wallet, often as a partial (just `chain_id`, or
- * AA fields) — and `mergeRecords` treats the array as opaque and *replaces* it,
- * dropping the prior address. So we patch the primary entry instead, mirroring
- * the pre-array single-object deep-merge: a same/absent-address update merges
- * onto the primary; a new address is a wallet switch that replaces it. A
- * multi-entry incoming array is an authoritative list and replaces wholesale.
- */
-function mergeEvmIntoPrimary(
-  previous: UnknownRecord[],
-  incoming: UnknownRecord[],
-): UnknownRecord[] {
-  if (incoming.length === 0) return previous;
-  if (incoming.length > 1) return incoming;
-
-  const prevPrimary = previous[0];
-  const incomingPrimary = incoming[0];
-  if (!prevPrimary) return incoming;
-
-  // Always deep-merge onto the primary — even on an address switch the new
-  // address just overwrites the old one while identity-static fields (chain_id,
-  // …) carry over. Per-address state (AA outputs, ENS) is dropped separately by
-  // `dropAddressScopedState` once `setUser` detects the address changed.
-  return [mergeRecords(prevPrimary, incomingPrimary), ...previous.slice(1)];
-}
-
 function dropWalletBlocks(state: UserState): UserState {
   return (
     UserState.normalize({
@@ -78,19 +50,15 @@ function dropWalletBlocks(state: UserState): UserState {
 }
 
 function dropAddressScopedState(state: UserState): UserState {
-  // `evm` is the per-chain array; drop the per-address fields (AA outputs, ENS)
-  // from each entry while keeping the operating addresses themselves.
-  const nextEvm = Array.isArray(state.evm)
-    ? state.evm.map((wallet) => {
-        const next = { ...wallet };
-        delete next.aa;
-        delete next.ens_name;
-        return next;
-      })
-    : undefined;
+  const evm = asRecord(state.evm);
+  const nextEvm = evm ? { ...evm } : undefined;
+  if (nextEvm) {
+    delete nextEvm.aa;
+    delete nextEvm.ens_name;
+  }
 
   const next: UserState = { ...state };
-  if (nextEvm && nextEvm.length > 0) {
+  if (nextEvm && Object.keys(nextEvm).length > 0) {
     next.evm = nextEvm;
   } else {
     delete next.evm;
@@ -179,18 +147,13 @@ function ExtUserProviderImpl({ children }: { children: ReactNode }) {
     (data: Partial<UserState>) => {
       setUserState((prev) => {
         const normalizedData = UserState.normalize(data) ?? {};
-        const prevNormalized = UserState.normalize(prev) ?? {};
-        const mergedRaw = mergeRecords(prevNormalized, normalizedData);
-        // `mergeRecords` replaces the opaque `evm` array; restore primary-patch
-        // semantics so a partial update (chain switch, AA writeback) keeps the
-        // operating address instead of dropping it.
-        if (Array.isArray(normalizedData.evm)) {
-          mergedRaw.evm = mergeEvmIntoPrimary(
-            Array.isArray(prevNormalized.evm) ? prevNormalized.evm : [],
-            normalizedData.evm,
-          );
-        }
-        const merged = UserState.normalize(mergedRaw as UserState) ?? prev;
+        const merged =
+          UserState.normalize(
+            mergeRecords(
+              UserState.normalize(prev) ?? {},
+              normalizedData,
+            ) as UserState,
+          ) ?? prev;
 
         // Wallet-context fields belong to a specific connected session. On
         // disconnect we wipe them all so that the next connection cannot

@@ -105,10 +105,9 @@ async function createAlchemySdkState(params: {
     };
   }
 
-  const ownerAddress =
-    "address" in params.ownerParams
-      ? (params.ownerParams.address as Hex | undefined)
-      : undefined;
+  const ownerAddress = "address" in params.ownerParams
+    ? (params.ownerParams.address as Hex | undefined)
+    : undefined;
   if (!ownerAddress) {
     return {
       resolved: params.resolved,
@@ -251,8 +250,9 @@ export async function createAlchemyAAState(
 async function createAlchemyWalletApisState(
   params: AlchemyDirectOwnerParams,
 ): Promise<AAState> {
-  const { createSmartWalletClient, alchemyWalletTransport } =
-    await import("@alchemy/wallet-apis");
+  const { createSmartWalletClient, alchemyWalletTransport } = await import(
+    "@alchemy/wallet-apis"
+  );
 
   const transport = params.proxyBaseUrl
     ? alchemyWalletTransport({ url: params.proxyBaseUrl })
@@ -263,9 +263,7 @@ async function createAlchemyWalletApisState(
     transport,
     chain: params.chain,
     signer,
-    ...(params.gasPolicyId
-      ? { paymaster: { policyId: params.gasPolicyId } }
-      : {}),
+    ...(params.gasPolicyId ? { paymaster: { policyId: params.gasPolicyId } } : {}),
   });
 
   const signerAddress = signer.address as Hex;
@@ -322,9 +320,7 @@ async function createAlchemyWalletApisState(
         ...(params.resolved.mode === "4337" ? { account: accountAddress } : {}),
         calls,
       });
-      aaDebug(`${params.resolved.mode}:sendCalls:submitted`, {
-        callId: result.id,
-      });
+      aaDebug(`${params.resolved.mode}:sendCalls:submitted`, { callId: result.id });
 
       const status = await alchemyClient.waitForCallsStatus({ id: result.id });
       const transactionHash = status.receipts?.[0]?.transactionHash;
@@ -334,9 +330,7 @@ async function createAlchemyWalletApisState(
         receipts: status.receipts?.length ?? 0,
       });
       if (!transactionHash) {
-        throw new Error(
-          "Alchemy Wallets API did not return a transaction hash.",
-        );
+        throw new Error("Alchemy Wallets API did not return a transaction hash.");
       }
       return { transactionHash };
     } catch (error) {

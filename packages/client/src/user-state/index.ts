@@ -1,5 +1,8 @@
 import * as accessors from "./accessors";
-import { normalizeUserState, reconcileUserState } from "./normalize";
+import {
+  normalizeUserState,
+  reconcileUserState,
+} from "./normalize";
 
 /**
  * Client-side user state synced with the backend.
@@ -59,12 +62,6 @@ export interface UserStateEvmSponsorship extends Record<string, unknown> {
 }
 
 /** EVM-family wallet block (`evm`). */
-/**
- * One EVM operating wallet. `chain_id` omitted/null is the chain-agnostic
- * default (operate on whatever chain the action targets); an explicit `chain_id`
- * pins this wallet to that chain, so a session can operate different addresses
- * on different chains at once. Mirrors the backend `EvmChainWallet`.
- */
 export interface UserStateEvm extends Record<string, unknown> {
   address?: string | null;
   chain_id?: number | string | null;
@@ -96,21 +93,15 @@ export interface UserStatePending extends Record<string, unknown> {
 }
 
 /**
- * Client-side user state, in the backend's canonical nested snake_case wire
- * shape. EVM and Solana identities are independent blocks (`evm` / `svm`) so a
- * single session can carry both families at once. This nested shape is the only
- * input shape; `normalize` just canonicalizes it (camelCase→snake_case key
- * aliases, null-pruning of non-`Option` wire fields, pending-bucket aliasing).
+ * Client-side user state, canonicalized to the backend's nested snake_case
+ * wire shape. EVM and Solana identities are independent blocks (`evm` / `svm`)
+ * so a single session can carry both families at once. `normalize` accepts the
+ * backend's nested camelCase responses and legacy flat host input, and emits
+ * this canonical shape.
  */
 export interface UserState extends Record<string, unknown> {
   connection?: UserStateConnection | null;
-  /**
-   * EVM operating wallets, one entry per selected chain (plus an optional
-   * chain-agnostic default with no `chain_id`). Serializes as a JSON array,
-   * mirroring the backend `EvmWalletState`. `normalize` also accepts the legacy
-   * single-object shape and folds it into a one-element array.
-   */
-  evm?: UserStateEvm[] | null;
+  evm?: UserStateEvm | null;
   svm?: UserStateSvm | null;
   pending?: UserStatePending | null;
   ext?: Record<string, unknown> | null;

@@ -10,7 +10,7 @@ describe("AomiClient route manifest", () => {
         `${endpoint.method} ${endpoint.path} [${endpoint.auth.join(", ")}]`,
     );
 
-    expect(routeKeys).toHaveLength(77);
+    expect(routeKeys).toHaveLength(78);
     expect(new Set(routeKeys).size).toBe(routeKeys.length);
     expect(routeKeys).toContain("GET /api/session/apps [session]");
     expect(routeKeys).toContain(
@@ -330,6 +330,54 @@ describe("AomiClient account profile", () => {
       expect(
         new Headers((init as RequestInit).headers).get("X-Thread-Id"),
       ).toBe("session-1");
+    } finally {
+      vi.stubGlobal("fetch", originalFetch);
+    }
+  });
+});
+
+describe("AomiClient app catalog", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("passes platform filters and normalizes artifact readiness", async () => {
+    const response = {
+      ok: true,
+      status: 200,
+      statusText: "OK",
+      json: vi.fn(async () => [
+        {
+          name: "somm-agent",
+          application_id: 42,
+          platform: "somm.finance",
+          artifact_ready: true,
+        },
+      ]),
+    } as unknown as Response;
+    const nativeFetch = vi.fn(async () => response);
+    const originalFetch = globalThis.fetch;
+    vi.stubGlobal("fetch", nativeFetch);
+
+    try {
+      const client = new AomiClient({ baseUrl: "http://unit.test" });
+
+      const apps = await client.getApps("session-1", {
+        platforms: ["somm.finance", "community"],
+      });
+
+      expect(String(nativeFetch.mock.calls[0]?.[0])).toBe(
+        "http://unit.test/api/session/apps?platform=somm.finance&platform=community",
+      );
+      expect(apps).toEqual([
+        {
+          name: "somm-agent",
+          applicationId: 42,
+          platform: "somm.finance",
+          artifactReady: true,
+          secrets: [],
+        },
+      ]);
     } finally {
       vi.stubGlobal("fetch", originalFetch);
     }

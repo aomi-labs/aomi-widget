@@ -129,15 +129,15 @@ npx @aomi-labs/client --provider-key anthropic:sk-ant-... --prompt "hello"
 npx @aomi-labs/client app list                           # list available apps
 npx @aomi-labs/client model list                         # list available models
 npx @aomi-labs/client model set claude-sonnet-4          # switch the current session model
-npx @aomi-labs/client thread new                        # create a fresh active session
+npx @aomi-labs/client session new                        # create a fresh active session
 npx @aomi-labs/client secret list                        # list configured secret handles
 npx @aomi-labs/client secret add ALCHEMY_API_KEY=...     # ingest a secret for the active session
-npx @aomi-labs/client thread log                        # show full conversation history
+npx @aomi-labs/client session log                        # show full conversation history
 npx @aomi-labs/client tx list                            # list pending + signed txs
 npx @aomi-labs/client tx sign tx-1                       # sign a specific pending tx
-npx @aomi-labs/client thread status                     # session info
-npx @aomi-labs/client thread events                     # system events
-npx @aomi-labs/client thread close                      # clear session
+npx @aomi-labs/client session status                     # session info
+npx @aomi-labs/client session events                     # system events
+npx @aomi-labs/client session close                      # clear session
 ```
 
 The root command now mirrors the Rust CLI shape:
@@ -178,7 +178,7 @@ session instead of reusing the currently active one:
 ```bash
 $ npx @aomi-labs/client chat "show my balances" --new-session
 $ npx @aomi-labs/client secret add ALCHEMY_API_KEY=... --new-session
-$ npx @aomi-labs/client thread new
+$ npx @aomi-labs/client session new
 ```
 
 This is useful when starting a new operator flow or a new external chat thread
@@ -299,10 +299,10 @@ $ npx @aomi-labs/client chat "what's the price of ETH?" --verbose
 
 Without `--verbose`, only the final agent message is printed.
 
-Use `aomi thread log` to replay the full conversation with all messages and tool results:
+Use `aomi session log` to replay the full conversation with all messages and tool results:
 
 ```
-$ npx @aomi-labs/client thread log
+$ npx @aomi-labs/client session log
 10:30:15 AM 👤 You: what's the price of ETH?
 10:30:16 AM 🤖 Agent: Let me check the current on-chain context for you.
 10:30:16 AM 🔧 [Current ETH price] {"price": 2045.67, "symbol": "ETH"}
@@ -315,21 +315,21 @@ $ npx @aomi-labs/client thread log
 
 All config can be passed as flags (which take priority over env vars):
 
-| Flag              | Env Variable       | Default                | Description                                  |
-| ----------------- | ------------------ | ---------------------- | -------------------------------------------- |
-| `--backend-url`   | `AOMI_BACKEND_URL` | `https://api.aomi.dev` | Backend URL                                  |
-| `--api-key`       | `AOMI_API_KEY`     | —                      | API key for non-default apps                 |
-| `--app`           | `AOMI_APP`         | `default`              | App                                          |
-| `--model`         | `AOMI_MODEL`       | —                      | Model rig to apply before chat               |
-| `--prompt`, `-p`  | —                  | —                      | Send a single prompt and exit                |
-| `--show-tool`     | —                  | —                      | Show tool output in root prompt/REPL mode    |
-| `--provider-key`  | —                  | —                      | Save a BYOK provider key as `PROVIDER:KEY`   |
-| `--public-key`    | `AOMI_PUBLIC_KEY`  | —                      | Wallet address (tells agent your wallet)     |
-| `--private-key`   | `PRIVATE_KEY`      | —                      | Hex private key for `aomi tx sign`           |
-| `--rpc-url`       | `CHAIN_RPC_URL`    | —                      | RPC URL for transaction submission           |
-| `--chain`         | `AOMI_CHAIN_ID`    | `1`                    | Chain ID (1, 137, 42161, 8453, 10, 11155111) |
-| `--verbose`, `-v` | —                  | —                      | Stream tool calls and agent responses live   |
-| `--version`, `-V` | —                  | —                      | Print the installed CLI version              |
+| Flag                    | Env Variable      | Default                | Description                                  |
+| ----------------------- | ----------------- | ---------------------- | -------------------------------------------- |
+| `--backend-url`         | `AOMI_BACKEND_URL` | `https://chat.aomi.dev` | Aomi API/BFF URL                            |
+| `--api-key`             | `AOMI_API_KEY`    | —                      | API key for non-default apps                 |
+| `--app`                 | `AOMI_APP`        | `default`              | App                                          |
+| `--model`               | `AOMI_MODEL`      | —                      | Model rig to apply before chat               |
+| `--prompt`, `-p`        | —                 | —                      | Send a single prompt and exit                |
+| `--show-tool`           | —                 | —                      | Show tool output in root prompt/REPL mode    |
+| `--provider-key`        | —                 | —                      | Save a BYOK provider key as `PROVIDER:KEY`   |
+| `--public-key`          | `AOMI_PUBLIC_KEY` | —                      | Wallet address (tells agent your wallet)     |
+| `--private-key`         | `PRIVATE_KEY`     | —                      | Hex private key for `aomi tx sign`           |
+| `--rpc-url`             | `CHAIN_RPC_URL`   | —                      | RPC URL for transaction submission           |
+| `--chain`               | `AOMI_CHAIN_ID`   | `1`                    | Chain ID (1, 137, 42161, 8453, 10, 11155111) |
+| `--verbose`, `-v`       | —                 | —                      | Stream tool calls and agent responses live   |
+| `--version`, `-V`       | —                 | —                      | Print the installed CLI version              |
 
 ```bash
 # Use a custom backend

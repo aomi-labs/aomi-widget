@@ -18,11 +18,7 @@ function asObject(value: unknown): UnknownRecord | undefined {
 }
 
 function evmBlock(userState?: UserState | null): UnknownRecord | undefined {
-  // `evm` is an array of per-chain wallets; the primary (first) is the default
-  // operating wallet these accessors read. `normalize` tolerates the legacy
-  // single-object shape too.
-  const evm = normalizeUserState(userState)?.evm;
-  return Array.isArray(evm) ? asObject(evm[0]) : asObject(evm);
+  return asObject(normalizeUserState(userState)?.evm);
 }
 function svmBlock(userState?: UserState | null): UnknownRecord | undefined {
   return asObject(normalizeUserState(userState)?.svm);
@@ -54,9 +50,7 @@ function parseChainId(value: unknown): number | undefined {
 
 function optionalString(value: unknown): string | null | undefined {
   if (value === null) return null;
-  return typeof value === "string" && value.trim().length > 0
-    ? value
-    : undefined;
+  return typeof value === "string" && value.trim().length > 0 ? value : undefined;
 }
 
 function optionalAddress(value: unknown): string | null | undefined {
@@ -66,8 +60,7 @@ function optionalAddress(value: unknown): string | null | undefined {
 
 function timestamp(value: unknown): number | null | undefined {
   if (value === null) return null;
-  if (typeof value === "number" && Number.isFinite(value))
-    return Math.trunc(value);
+  if (typeof value === "number" && Number.isFinite(value)) return Math.trunc(value);
   if (typeof value !== "string") return undefined;
   const parsed = Number.parseInt(value, 10);
   return Number.isFinite(parsed) ? parsed : undefined;
@@ -167,8 +160,7 @@ export function authMethod(
 ): UserStateAuthMethod | null | undefined {
   const value = connBlock(userState)?.auth_method;
   if (value === null) return null;
-  return typeof value === "string" &&
-    AUTH_METHODS.has(value as UserStateAuthMethod)
+  return typeof value === "string" && AUTH_METHODS.has(value as UserStateAuthMethod)
     ? (value as UserStateAuthMethod)
     : undefined;
 }

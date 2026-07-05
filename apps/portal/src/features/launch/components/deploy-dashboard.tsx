@@ -20,21 +20,27 @@ import {
   fetchGitHubSession,
   fetchUserSources,
   hasSourceForLaunchUrlContext,
-  deploymentIdFromReleaseTag,
-  lifecycleFromLaunchStatus,
   launchActivate,
   launchRedeploy,
   launchStatus,
   signOutGitHub,
   readLaunchUrlContext,
-  sourceLifecycle,
+  loadLaunch,
+  isResumingInstall,
   GITHUB_SIGNIN_URL,
   type GitHubSessionInfo,
   type LaunchUrlContext,
   type LaunchProgress,
-  type SourceLifecycle,
-  type UserSource,
 } from "@portal/features/launch";
+import type { UserSource } from "@aomi-labs/deploy";
+import {
+  deploymentLifecycleFromSource,
+  deploymentLifecycleFromStatus,
+  deploymentIdFromReleaseTag,
+  failedActivationApp,
+  firstActivatedApp,
+  type DeploymentLifecycle,
+} from "@aomi-labs/deploy/lifecycle";
 import { chatAppUrl } from "@portal/lib/chat-url";
 import { DeployStep } from "./deploy-step";
 import { Onboarding } from "./onboarding";
@@ -42,7 +48,11 @@ import { Onboarding } from "./onboarding";
 type SessionState =
   | { status: "loading" }
   | { status: "signed_out" }
-  | { status: "signed_in"; login: string | null };
+  | {
+      status: "signed_in";
+      login: string | null;
+      installationId: string | null;
+    };
 
 /**
  * The GitHub-identity-first deploy flow:
@@ -58,7 +68,11 @@ export function DeployDashboard() {
       if (!active) return;
       setSession(
         s.signedIn
-          ? { status: "signed_in", login: s.githubLogin }
+          ? {
+              status: "signed_in",
+              login: s.githubLogin,
+              installationId: s.installationId ?? null,
+            }
           : { status: "signed_out" },
       );
     });
@@ -76,6 +90,7 @@ export function DeployDashboard() {
   return (
     <SignedInDashboard
       login={session.login}
+      sessionInstallationId={session.installationId}
       onSignOut={async () => {
         await signOutGitHub();
         setSession({ status: "signed_out" });
@@ -105,19 +120,12 @@ function SignInGate() {
         <Github className="h-4 w-4" /> Sign in with GitHub
       </a>
 
-      <div className="pointer-events-none grid gap-3 opacity-50 sm:grid-cols-2">
+      <div className="pointer-events-none opacity-50">
         <PathBox
           title="One-click"
-          subtitle="We create the repo and deploy it for you."
-        />
-        <PathBox
-          title="Fork & customize"
-          subtitle="Make your own repo from our template, then we deploy it."
+          subtitle="We create the repo from our template and deploy it for you."
         />
       </div>
-      <p className="text-muted-foreground text-xs">
-        Choose a path after signing in.
-      </p>
     </div>
   );
 }
@@ -135,9 +143,11 @@ function PathBox({ title, subtitle }: { title: string; subtitle: string }) {
 
 function SignedInDashboard({
   login,
+  sessionInstallationId,
   onSignOut,
 }: {
   login: string | null;
+  sessionInstallationId: string | null;
   onSignOut: () => void;
 }) {
   const [sources, setSources] = useState<UserSource[] | null>(null);
@@ -148,6 +158,16 @@ function SignedInDashboard({
     typeof window === "undefined"
       ? null
       : readLaunchUrlContext(window.location.search),
+  );
+  // A multi-step launch (template → install → deploy) outlives the
+  // "nothing connected" gate: the install round-trip is a full-page nav, so by
+  // the time we return a source already exists. Capture once at mount whether
+  // we're mid-flow so the wizard stays mounted and can advance to Deploy,
+  // instead of being yanked to the source list.
+  const [resumingWizard] = useState<boolean>(() =>
+    typeof window === "undefined"
+      ? false
+      : isResumingInstall(loadLaunch(), window.location.search),
   );
 
   const load = useCallback(async () => {
@@ -193,9 +213,14 @@ function SignedInDashboard({
     );
   }
 
-  // Page 2: nothing connected yet (or the user asked to add another) → the
-  // existing install/template/deploy wizard.
-  if (showInstall || (sources !== null && sources.length === 0)) {
+  // Page 2: nothing connected yet, the user asked to add another, or a launch
+  // is mid-flow returning from the install round-trip → the existing
+  // install/template/deploy wizard.
+  if (
+    showInstall ||
+    resumingWizard ||
+    (sources !== null && sources.length === 0)
+  ) {
     return (
       <div className="space-y-6">
         {header}
@@ -208,7 +233,11 @@ function SignedInDashboard({
             ← Back to your repositories
           </button>
         )}
-        <Onboarding hideWizardBack knownSources={sources ?? []} />
+        <Onboarding
+          hideWizardBack
+          knownSources={sources ?? []}
+          sessionInstallationId={sessionInstallationId}
+        />
       </div>
     );
   }
@@ -348,10 +377,13 @@ function SourceCard({ source }: { source: UserSource }) {
     name: string;
     applicationId?: number;
   } | null>(null);
-  const lifecycle = useMemo(() => sourceLifecycle(source), [source]);
+  const lifecycle = useMemo(
+    () => deploymentLifecycleFromSource(source),
+    [source],
+  );
   const [statusLifecycle, setStatusLifecycle] =
-    useState<SourceLifecycle | null>(null);
-  const liveLifecycle: SourceLifecycle | null = localLiveApp
+    useState<DeploymentLifecycle | null>(null);
+  const liveLifecycle: DeploymentLifecycle | null = localLiveApp
     ? {
         ...(statusLifecycle ?? lifecycle),
         kind: "live",
@@ -376,6 +408,7 @@ function SourceCard({ source }: { source: UserSource }) {
     installationId: String(source.installationId),
     repo: lifecycle.repo,
     appSourceId: source.id,
+    sourceRef: source.sourceRef ?? source.commitHash ?? undefined,
     apps: lifecycle.appNames,
     releaseTags: lifecycle.releaseTags,
     live: visibleLifecycle.kind === "live",
@@ -397,7 +430,7 @@ function SourceCard({ source }: { source: UserSource }) {
       try {
         const status = await launchStatus(derivedDeploymentId);
         if (cancelled) return;
-        const next = lifecycleFromLaunchStatus(lifecycle, status);
+        const next = deploymentLifecycleFromStatus(lifecycle, status);
         setStatusLifecycle(next);
         if (next.kind === "building") {
           timer = setTimeout(poll, 5000);
@@ -462,7 +495,7 @@ function SourceCard({ source }: { source: UserSource }) {
   );
 }
 
-function LifecycleBadge({ lifecycle }: { lifecycle: SourceLifecycle }) {
+function LifecycleBadge({ lifecycle }: { lifecycle: DeploymentLifecycle }) {
   const toneClass =
     lifecycle.statusTone === "good"
       ? "bg-green-500/10 text-green-500"
@@ -487,7 +520,7 @@ function LifecycleBadge({ lifecycle }: { lifecycle: SourceLifecycle }) {
   );
 }
 
-function shouldShowChatForLifecycle(lifecycle: SourceLifecycle): boolean {
+function shouldShowChatForLifecycle(lifecycle: DeploymentLifecycle): boolean {
   return lifecycle.kind === "live" && Boolean(lifecycle.chatApp);
 }
 
@@ -498,8 +531,8 @@ function LifecyclePanel({
   onLive,
 }: {
   appSourceId: number;
-  lifecycle: SourceLifecycle;
-  onLifecycleChange: (lifecycle: SourceLifecycle) => void;
+  lifecycle: DeploymentLifecycle;
+  onLifecycleChange: (lifecycle: DeploymentLifecycle) => void;
   onLive: (app: { name: string; applicationId?: number }) => void;
 }) {
   const [action, setAction] = useState<
@@ -524,20 +557,17 @@ function LifecyclePanel({
         releaseTags: lifecycle.releaseTags,
         apps: lifecycle.appNames,
       });
-      const failed = result.activation?.apps?.find((app) => app.error);
+      const failed = failedActivationApp(result);
       if (!result.ok || failed) {
         throw new Error(failed?.error ?? "Activation failed.");
       }
-      const activated = result.activation?.apps?.find(
-        (app) => app.application_id ?? app.applicationId,
-      );
+      const activated = firstActivatedApp(result);
       if (!activated) {
         throw new Error("Activation did not return an application id.");
       }
       onLive({
         name: activated.name,
-        applicationId:
-          activated.application_id ?? activated.applicationId ?? undefined,
+        applicationId: activated.applicationId ?? undefined,
       });
       setAction("idle");
     } catch (e) {
@@ -650,7 +680,7 @@ function LifecyclePanel({
   );
 }
 
-function LifecycleProgress({ lifecycle }: { lifecycle: SourceLifecycle }) {
+function LifecycleProgress({ lifecycle }: { lifecycle: DeploymentLifecycle }) {
   const pct = Math.max(0, Math.min(100, lifecycle.progressPercent ?? 0));
   const barClass =
     lifecycle.kind === "failed"
@@ -681,7 +711,7 @@ function isTargetCiPending(message: string): boolean {
   );
 }
 
-function LifecycleDetails({ lifecycle }: { lifecycle: SourceLifecycle }) {
+function LifecycleDetails({ lifecycle }: { lifecycle: DeploymentLifecycle }) {
   const hasDetails =
     lifecycle.deploymentId ||
     lifecycle.ciStatus ||
@@ -725,7 +755,7 @@ function LifecycleDetails({ lifecycle }: { lifecycle: SourceLifecycle }) {
   );
 }
 
-function LifecycleLinks({ lifecycle }: { lifecycle: SourceLifecycle }) {
+function LifecycleLinks({ lifecycle }: { lifecycle: DeploymentLifecycle }) {
   if (!lifecycle.branchUrl && !lifecycle.ciUrl) return null;
   return (
     <div className="flex flex-wrap gap-3 text-xs">

@@ -1,5 +1,5 @@
 // @vitest-environment node
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   launchDeployRoute,
@@ -17,7 +17,7 @@ vi.mock("@aomi-labs/account", () => ({
 }));
 
 const getGitHubSession = vi.fn();
-vi.mock("@portal/server/aomi-account/github-session", () => ({
+vi.mock("@portal/server/cookies/github", () => ({
   getGitHubSession: () => getGitHubSession(),
 }));
 
@@ -34,28 +34,18 @@ function writeReq(body: unknown) {
 
 describe("launchDeployRoute", () => {
   afterEach(() => {
+    vi.unstubAllEnvs();
     vi.restoreAllMocks();
+    getGitHubSession.mockReset();
   });
 
   it("propagates BackendError status codes (400-599)", async () => {
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValueOnce(
-        Response.json({
-          ok: true,
-          source: {
-            id: 123,
-            installation_id: 555,
-            repository_link: "alice/bot",
-          },
-        }),
-      )
-      .mockResolvedValueOnce(
-        new Response(JSON.stringify({ error: "deploy rejected" }), {
-          status: 409,
-          headers: { "Content-Type": "application/json" },
-        }),
-      );
+    const fetchMock = vi.fn().mockResolvedValueOnce(
+      new Response(JSON.stringify({ error: "deploy rejected" }), {
+        status: 409,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
 
     vi.stubGlobal("fetch", fetchMock);
 
@@ -66,18 +56,25 @@ describe("launchDeployRoute", () => {
         origin: "http://localhost:3000",
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ installationId: "555", repo: "alice/bot" }),
+      body: JSON.stringify({
+        appSourceId: 123,
+        sourceRef: "abc1234def5678",
+      }),
     });
 
     const res = await POST(req);
     const body = await res.json();
 
-    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(res.status).toBe(409);
     expect(body).toEqual({ error: "deploy rejected" });
   });
 
-  it("resolves source id before deploying", async () => {
+  it("preflight mints the source row by repo, then previews by app source id", async () => {
+    getGitHubSession.mockResolvedValueOnce({
+      githubUserId: "42",
+      githubLogin: "alice",
+    });
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(
@@ -87,6 +84,7 @@ describe("launchDeployRoute", () => {
             id: 123,
             installation_id: 555,
             repository_link: "alice/bot",
+            source_ref: "abc1234def5678",
           },
         }),
       )
@@ -102,8 +100,8 @@ describe("launchDeployRoute", () => {
       );
     vi.stubGlobal("fetch", fetchMock);
 
-    const POST = launchDeployRoute(false);
-    const req = new Request("http://localhost:3000/api/bff/launch/deploy", {
+    const POST = launchDeployRoute(true);
+    const req = new Request("http://localhost:3000/api/bff/launch/preflight", {
       method: "POST",
       headers: {
         origin: "http://localhost:3000",
@@ -115,24 +113,30 @@ describe("launchDeployRoute", () => {
     const res = await POST(req);
     const body = await res.json();
 
-    expect(res.status).toBe(202);
+    expect(res.status).toBe(200);
     expect(body.repo).toBe("alice/bot");
     expect(fetchMock).toHaveBeenNthCalledWith(
       1,
-      "http://127.0.0.1:8080/api/platforms/community/sources/resolve?installation_id=555&repo=alice%2Fbot",
-      expect.objectContaining({ method: "GET" }),
+      "http://127.0.0.1:8080/api/platforms/community/sources/sync-installed",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          repo: "alice/bot",
+          github_user_id: "42",
+        }),
+      }),
     );
     expect(fetchMock).toHaveBeenNthCalledWith(
       2,
       "http://127.0.0.1:8080/api/platforms/community/deploy",
       expect.objectContaining({
         method: "POST",
-        body: expect.stringContaining('"app_source_id":123'),
+        body: expect.stringContaining('"source_ref":"abc1234def5678"'),
       }),
     );
   });
 
-  it("rejects a missing installationId before calling the backend", async () => {
+  it("real deploy rejects a repo-only request without an app source id", async () => {
     const fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);
 
@@ -143,7 +147,98 @@ describe("launchDeployRoute", () => {
         origin: "http://localhost:3000",
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ repo: "alice/bot" }),
+      body: JSON.stringify({ installationId: "555", repo: "alice/bot" }),
+    });
+
+    const res = await POST(req);
+    expect(res.status).toBe(400);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("deploys directly by appSourceId when the source identity is already known", async () => {
+    const fetchMock = vi.fn().mockResolvedValueOnce(
+      Response.json({
+        ok: true,
+        deployment: {
+          id: "dep_999_rabc1234_deadbeef",
+          source: {
+            installation_id: 999,
+            repository_link: "alice/bot",
+          },
+          platform: { apps: [] },
+        },
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const POST = launchDeployRoute(false);
+    const req = new Request("http://localhost:3000/api/bff/launch/deploy", {
+      method: "POST",
+      headers: {
+        origin: "http://localhost:3000",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        appSourceId: 777,
+        sourceRef: "abc1234def5678",
+        installationId: "555",
+        repo: "alice/bot",
+      }),
+    });
+
+    const res = await POST(req);
+    const body = await res.json();
+
+    expect(res.status).toBe(202);
+    expect(body).toMatchObject({
+      repo: "alice/bot",
+      appSourceId: 777,
+    });
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      "http://127.0.0.1:8080/api/platforms/community/deploy",
+      expect.objectContaining({
+        method: "POST",
+        body: expect.stringContaining('"source_ref":"abc1234def5678"'),
+      }),
+    );
+  });
+
+  it("rejects deploy requests when no source commit is supplied or resolved", async () => {
+    vi.unstubAllEnvs();
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    const POST = launchDeployRoute(false);
+    const req = new Request("http://localhost:3000/api/bff/launch/deploy", {
+      method: "POST",
+      headers: {
+        origin: "http://localhost:3000",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ appSourceId: 777 }),
+    });
+
+    const res = await POST(req);
+    const body = await res.json();
+
+    expect(res.status).toBe(400);
+    expect(body.error).toContain("missing source commit");
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects a request without appSourceId or repo before calling the backend", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    const POST = launchDeployRoute(false);
+    const req = new Request("http://localhost:3000/api/bff/launch/deploy", {
+      method: "POST",
+      headers: {
+        origin: "http://localhost:3000",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ installationId: "555" }),
     });
 
     const res = await POST(req);
@@ -181,7 +276,10 @@ describe("launchDeployRoute", () => {
         origin: "http://localhost:3000",
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ installationId: "555", repo: "alice/bot" }),
+      body: JSON.stringify({
+        appSourceId: 123,
+        sourceRef: "abc1234def5678",
+      }),
     });
 
     const res = await POST(req);
@@ -206,22 +304,13 @@ describe("redeployLaunchRoute", () => {
       .fn()
       .mockResolvedValueOnce(
         Response.json({
-          sources: [
-            {
-              id: 99,
-              installation_id: 555,
-              repository_link: "alice/bot",
-              github_user_id: "42",
-              apps: [],
-              latest_deployment: {
-                deployment_id: "dep_1",
-                platform_repo: "aomi-labs/community-apps",
-                ci_run_id: "123456",
-                ci_url:
-                  "https://github.com/aomi-labs/community-apps/actions/runs/123456",
-              },
-            },
-          ],
+          latest_deployment: {
+            deployment_id: "dep_1",
+            platform_repo: "aomi-labs/community-apps",
+            ci_run_id: "123456",
+            ci_url:
+              "https://github.com/aomi-labs/community-apps/actions/runs/123456",
+          },
         }),
       )
       .mockResolvedValueOnce(new Response(null, { status: 201 }));
@@ -241,6 +330,9 @@ describe("redeployLaunchRoute", () => {
       "https://api.github.com/repos/aomi-labs/community-apps/actions/runs/123456/rerun",
       expect.objectContaining({ method: "POST" }),
     );
+    expect(String(fetchMock.mock.calls[0][0])).toContain(
+      "/api/integrations/github-app/user/sources/99/latest-deployment?github_user_id=42&platform=community",
+    );
   });
 
   it("refuses redeploy when backend source state has no CI run to rerun", async () => {
@@ -250,15 +342,7 @@ describe("redeployLaunchRoute", () => {
     });
     const fetchMock = vi.fn().mockResolvedValueOnce(
       Response.json({
-        sources: [
-          {
-            id: 99,
-            installation_id: 555,
-            repository_link: "alice/bot",
-            github_user_id: "42",
-            apps: [],
-          },
-        ],
+        latest_deployment: null,
       }),
     );
     vi.stubGlobal("fetch", fetchMock);
@@ -270,10 +354,37 @@ describe("redeployLaunchRoute", () => {
     expect(body.error).toContain("No backend-owned CI run");
     expect(fetchMock).toHaveBeenCalledOnce();
   });
+
+  it("503s redeploy when the GitHub rerun token is missing", async () => {
+    getGitHubSession.mockResolvedValueOnce({
+      githubUserId: "42",
+      githubLogin: "alice",
+    });
+    const fetchMock = vi.fn().mockResolvedValueOnce(
+      Response.json({
+        latest_deployment: {
+          deployment_id: "dep_1",
+          platform_repo: "aomi-labs/community-apps",
+          ci_run_id: "123456",
+          ci_url:
+            "https://github.com/aomi-labs/community-apps/actions/runs/123456",
+        },
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const res = await redeployLaunchRoute(writeReq({ appSourceId: 99 }));
+    const body = await res.json();
+
+    expect(res.status).toBe(503);
+    expect(body.error).toContain("GitHub rerun token is not configured");
+    expect(fetchMock).toHaveBeenCalledOnce();
+  });
 });
 
 describe("launchStatusRoute", () => {
   afterEach(() => {
+    vi.unstubAllEnvs();
     vi.restoreAllMocks();
   });
 

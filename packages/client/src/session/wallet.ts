@@ -105,19 +105,21 @@ export class SessionWalletController {
 
   sync(): void {
     const userState = this.deps.getUserState();
-    const pending = isRecord(userState?.pending)
-      ? userState.pending
-      : undefined;
+    const pending = isRecord(userState?.pending) ? userState.pending : undefined;
     const pendingTxs = isRecord(pending?.evm_txs) ? pending.evm_txs : undefined;
     const pendingEip712s = isRecord(pending?.evm_sigs)
       ? pending.evm_sigs
       : undefined;
-    const pendingSolanaTxs = isRecord(pending?.svm_ixs)
-      ? pending.svm_ixs
-      : undefined;
-    const pendingSolanaSigs = isRecord(pending?.svm_sigs)
-      ? pending.svm_sigs
-      : undefined;
+    const pendingSolanaTxs = isRecord(pending?.solana_txs)
+      ? pending.solana_txs
+      : isRecord(pending?.svm_ixs)
+        ? pending.svm_ixs
+        : undefined;
+    const pendingSolanaSigs = isRecord(pending?.solana_sigs)
+      ? pending.solana_sigs
+      : isRecord(pending?.svm_sigs)
+        ? pending.svm_sigs
+        : undefined;
 
     const next: WalletRequest[] = [];
     this.syncTransactions(next, pendingTxs);
@@ -234,9 +236,7 @@ export class SessionWalletController {
 
     if (req.kind === "transaction") {
       const pendingTxIds = txIdsFromPayload(req.payload);
-      const requestedMode = aaRequestedModeFromPreference(
-        req.payload.aaPreference,
-      );
+      const requestedMode = aaRequestedModeFromPreference(req.payload.aaPreference);
       await this.deps.sendSystemEvent("wallet:tx_complete", {
         txHash: "",
         status: "failed",
@@ -313,32 +313,27 @@ export class SessionWalletController {
   ): Promise<void> {
     const pendingTxIds = txIdsFromPayload(payload);
     const requestedMode =
-      result.aaRequestedMode ??
-      aaRequestedModeFromPreference(payload.aaPreference);
+      result.aaRequestedMode ?? aaRequestedModeFromPreference(payload.aaPreference);
     const resolvedMode =
       result.aaResolvedMode ??
       aaModeFromExecutionKind(result.executionKind) ??
       requestedMode;
     const userState = this.deps.getUserState();
-    // `evm` is the per-chain array; update the primary (first) wallet's AA block.
-    const prevEvmArray = Array.isArray(userState?.evm) ? userState.evm : [];
-    const prevEvm = isRecord(prevEvmArray[0]) ? prevEvmArray[0] : {};
+    const prevEvm = isRecord(userState?.evm) ? userState.evm : {};
     const prevAa = isRecord(prevEvm.aa) ? prevEvm.aa : {};
     this.deps.resolveUserState({
       ...(userState ?? {}),
-      evm: [
-        {
-          ...prevEvm,
-          aa: {
-            ...prevAa,
-            mode: resolvedMode,
-            smart_account:
-              resolvedMode === "4337" ? (result.SmartAccount4337 ?? null) : null,
-            delegation_7702:
-              resolvedMode === "7702" ? (result.Delegation7702 ?? null) : null,
-          },
+      evm: {
+        ...prevEvm,
+        aa: {
+          ...prevAa,
+          mode: resolvedMode,
+          smart_account:
+            resolvedMode === "4337" ? result.SmartAccount4337 ?? null : null,
+          delegation_7702:
+            resolvedMode === "7702" ? result.Delegation7702 ?? null : null,
         },
-      ],
+      },
     });
     await this.deps.sendSystemEvent("wallet:tx_complete", {
       txHash: result.txHash,
@@ -373,10 +368,7 @@ export class SessionWalletController {
           request.kind === "transaction",
       )
       .map((request) => ({ request, txIds: txIdsFromPayload(request.payload) }))
-      .filter(
-        ({ txIds }) =>
-          txIds.length > 0 && txIds.every((id) => pendingIds.has(id)),
-      )
+      .filter(({ txIds }) => txIds.length > 0 && txIds.every((id) => pendingIds.has(id)))
       .sort((left, right) =>
         left.txIds.length !== right.txIds.length
           ? right.txIds.length - left.txIds.length
@@ -412,8 +404,8 @@ export class SessionWalletController {
         kind: "transaction",
         payload,
         timestamp:
-          this.requests.find((request) => request.id === requestId)
-            ?.timestamp ?? Date.now(),
+          this.requests.find((request) => request.id === requestId)?.timestamp ??
+          Date.now(),
       });
     }
   }
@@ -435,8 +427,8 @@ export class SessionWalletController {
         kind: "eip712_sign",
         payload,
         timestamp:
-          this.requests.find((request) => request.id === requestId)
-            ?.timestamp ?? Date.now(),
+          this.requests.find((request) => request.id === requestId)?.timestamp ??
+          Date.now(),
       });
     }
   }
@@ -463,8 +455,8 @@ export class SessionWalletController {
           normalized.kind,
           normalized.payload,
           requestId,
-          this.requests.find((request) => request.id === requestId)
-            ?.timestamp ?? Date.now(),
+          this.requests.find((request) => request.id === requestId)?.timestamp ??
+            Date.now(),
         ),
       );
     }
@@ -480,10 +472,7 @@ export class SessionWalletController {
   ): string {
     if (kind === "transaction") {
       const txPayload = payload as WalletTxPayload;
-      if (
-        typeof txPayload.requestId === "string" &&
-        txPayload.requestId.length > 0
-      ) {
+      if (typeof txPayload.requestId === "string" && txPayload.requestId.length > 0) {
         return `txreq-${txPayload.requestId}`;
       }
       const txIds = txIdsFromPayload(txPayload);
@@ -495,8 +484,7 @@ export class SessionWalletController {
       const { pendingSolanaId } = payload as
         | WalletSolanaSignPayload
         | WalletSolanaSignMessagePayload;
-      if (typeof pendingSolanaId === "number")
-        return `${kind}-${pendingSolanaId}`;
+      if (typeof pendingSolanaId === "number") return `${kind}-${pendingSolanaId}`;
     }
     return `wreq-${this.nextId++}`;
   }

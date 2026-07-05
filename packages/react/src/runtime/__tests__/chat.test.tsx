@@ -51,6 +51,28 @@ describe("Chat API", () => {
       expect(call[1]).toBe("Hello world");
     });
 
+    it("forwards a locked application id to chat sends", async () => {
+      const postChatMessage = vi.fn(
+        async (): Promise<AomiChatResponse> => ({
+          is_processing: false,
+          messages: [],
+        }),
+      );
+      setAomiClientConfig({ postChatMessage });
+
+      const { api } = renderRuntime({ applicationId: 77 });
+
+      await act(async () => {
+        await api.sendMessage("Hello app");
+      });
+
+      expect(postChatMessage).toHaveBeenCalledWith(
+        expect.any(String),
+        "Hello app",
+        expect.objectContaining({ applicationId: 77 }),
+      );
+    });
+
     it("shows an optimistic sending message before the backend send finishes", async () => {
       let resolveChat: ((value: AomiChatResponse) => void) | undefined;
       const createThread = vi.fn();
@@ -244,8 +266,9 @@ describe("Chat API", () => {
 
       await act(async () => {
         api.setUser({
-          connection: { is_connected: true },
-          evm: [{ address: "0xabc", chain_id: 8453 }],
+          address: "0xabc",
+          chainId: 8453,
+          isConnected: true,
         });
       });
 
@@ -424,13 +447,14 @@ describe("Chat API", () => {
 
       await act(async () => {
         api.setUser({
-          connection: { is_connected: true },
-          evm: [{ address: "0xabc", chain_id: 1 }],
+          address: "0xabc",
+          chainId: 1,
+          isConnected: true,
         });
       });
 
       await act(async () => {
-        api.setUser({ connection: { is_connected: false } });
+        api.setUser({ isConnected: false });
       });
 
       await act(async () => {
@@ -465,21 +489,20 @@ describe("Chat API", () => {
           is_processing: false,
           messages: [],
           user_state: {
-            connection: { is_connected: true },
-            evm: [{ address: "0xabc", chain_id: 8453 }],
-            pending: {
-              evm_sigs: {
-                7: {
-                  typed_data: {
-                    domain: { chainId: 8453 },
-                    types: {
-                      Permit: [{ name: "spender", type: "address" }],
-                    },
-                    primaryType: "Permit",
-                    message: { spender: "0x123" },
+            address: "0xabc",
+            chain_id: 8453,
+            is_connected: true,
+            pending_eip712s: {
+              7: {
+                typed_data: {
+                  domain: { chainId: 8453 },
+                  types: {
+                    Permit: [{ name: "spender", type: "address" }],
                   },
-                  description: "Permit2",
+                  primaryType: "Permit",
+                  message: { spender: "0x123" },
                 },
+                description: "Permit2",
               },
             },
           },
@@ -490,8 +513,9 @@ describe("Chat API", () => {
 
       await act(async () => {
         api.setUser({
-          connection: { is_connected: true },
-          evm: [{ address: "0xabc", chain_id: 8453 }],
+          address: "0xabc",
+          chainId: 8453,
+          isConnected: true,
         });
       });
 
