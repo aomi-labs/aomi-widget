@@ -128,8 +128,13 @@ export function deploymentHistory(input: {
   );
 }
 
-export function deploymentSecrets(): Promise<DeploymentSecretsResult> {
-  return launchFetch(API_PATHS.bff.deployments.secrets, "deployment secrets");
+export function deploymentSecrets(input: {
+  appSourceId: number;
+}): Promise<DeploymentSecretsResult> {
+  return launchFetch(
+    API_PATHS.bff.deployments.secrets(input.appSourceId),
+    "deployment secrets",
+  );
 }
 
 export function deploymentRecords(input: {
@@ -180,7 +185,7 @@ export function deploymentSetSecrets(input: {
   secrets: Record<string, string>;
 }): Promise<{ ok: boolean; keys: string[] }> {
   return postJson(
-    API_PATHS.bff.deployments.secrets,
+    API_PATHS.bff.deployments.secrets(input.appSourceId),
     "set environment variables",
     input,
   );
@@ -192,7 +197,7 @@ export function deploymentDeleteSecret(input: {
   name: string;
 }): Promise<{ ok: boolean; removed: boolean }> {
   return launchFetch(
-    API_PATHS.bff.deployments.secrets,
+    API_PATHS.bff.deployments.secrets(input.appSourceId),
     "delete environment variable",
     {
       method: "DELETE",

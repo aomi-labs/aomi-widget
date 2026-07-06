@@ -742,14 +742,18 @@ export class DeploymentClient {
 
   /** Ingest app-scoped env vars into the secret vault under `userId` (the vault
    *  key). `listAppSecrets({ userId })` then returns them. Service op. */
-  async ingestSecrets(
-    input: IngestSecretsInput,
-  ): Promise<IngestSecretsResult> {
+  async ingestSecrets(input: IngestSecretsInput): Promise<IngestSecretsResult> {
     const userId = required(input.userId, "userId");
     const app = required(input.app, "app");
+    const sourceId = input.sourceId?.trim();
     const raw = await this.post<{ handles?: Record<string, string> }>(
       `/api/_internal/secrets`,
-      { user_id: userId, app, secrets: input.secrets },
+      {
+        user_id: userId,
+        app,
+        ...(sourceId ? { source_id: sourceId } : {}),
+        secrets: input.secrets,
+      },
       "ingest_secrets",
       this.resolveBearer(input.bearer, { privileged: true }),
     );
@@ -759,12 +763,11 @@ export class DeploymentClient {
   /** List vault handle names (never values) for `userId`, keyed by app. Service
    *  read, so it works with the portal's service bearer (unlike the
    *  session-scoped `listSecrets`). */
-  async listAppSecrets(
-    input: ListAppSecretsInput,
-  ): Promise<ListSecretsResult> {
+  async listAppSecrets(input: ListAppSecretsInput): Promise<ListSecretsResult> {
     const userId = required(input.userId, "userId");
     const params = new URLSearchParams({ user_id: userId });
     if (input.app?.trim()) params.set("app", input.app.trim());
+    if (input.sourceId?.trim()) params.set("source_id", input.sourceId.trim());
     const raw = await this.get<{ by_app?: Record<string, string[]> }>(
       `/api/_internal/secrets?${params.toString()}`,
       "list_secrets",
@@ -778,11 +781,17 @@ export class DeploymentClient {
     const userId = required(input.userId, "userId");
     const app = required(input.app, "app");
     const name = required(input.name, "name");
+    const sourceId = input.sourceId?.trim();
     const raw = await this.del<{ removed?: boolean }>(
       `/api/_internal/secrets`,
       "ingest_secrets",
       this.resolveBearer(input.bearer, { privileged: true }),
-      { user_id: userId, app, name },
+      {
+        user_id: userId,
+        app,
+        ...(sourceId ? { source_id: sourceId } : {}),
+        name,
+      },
     );
     return Boolean(raw.removed);
   }

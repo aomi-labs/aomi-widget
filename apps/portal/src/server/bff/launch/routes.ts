@@ -94,7 +94,11 @@ async function sourceDeploymentIds(
   await Promise.all(
     source.apps.map(async (app) => {
       const { records } = await client
-        .listDeploymentRecords({ platform, app: app.name, appSourceId: source.id })
+        .listDeploymentRecords({
+          platform,
+          app: app.name,
+          appSourceId: source.id,
+        })
         .catch(() => ({ records: [] }));
       for (const record of records) ids.add(record.deploymentId);
     }),
@@ -624,14 +628,33 @@ export async function deploymentSecretsRoute(req: Request) {
       { status: 401 },
     );
   }
+  const params = new URL(req.url).searchParams;
+  const appSourceId = Number(params.get("appSourceId"));
+  if (!isValidAppSourceId(appSourceId)) {
+    return NextResponse.json(
+      { error: "missing or invalid `appSourceId`" },
+      { status: 400 },
+    );
+  }
 
   try {
+    const config = launchConfig();
     const client = await deploymentClient();
-    // Service-scoped internal list keyed by the GitHub user id, matching the
-    // write side. (The session-scoped `listSecrets` can't be read by the
-    // portal's service bearer.)
+    const source = await findOwnedSource(
+      client,
+      session.githubUserId,
+      config.platform,
+      appSourceId,
+    );
+    if (!source) {
+      return NextResponse.json(
+        { error: "source not found for this user" },
+        { status: 404 },
+      );
+    }
     const { byApp } = await client.listAppSecrets({
       userId: session.githubUserId,
+      sourceId: String(appSourceId),
     });
     return NextResponse.json({ byApp });
   } catch (err) {
@@ -665,7 +688,9 @@ export async function deploymentSecretsWriteRoute(req: Request) {
   // Accept a { KEY: value } map of non-empty string values.
   const secrets: Record<string, string> = {};
   if (body.secrets && typeof body.secrets === "object") {
-    for (const [k, v] of Object.entries(body.secrets as Record<string, unknown>)) {
+    for (const [k, v] of Object.entries(
+      body.secrets as Record<string, unknown>,
+    )) {
       const key = k.trim();
       if (key && typeof v === "string" && v.length > 0) secrets[key] = v;
     }
@@ -697,6 +722,7 @@ export async function deploymentSecretsWriteRoute(req: Request) {
     const { handles } = await client.ingestSecrets({
       userId: session.githubUserId,
       app,
+      sourceId: String(body.appSourceId),
       secrets,
     });
     return NextResponse.json(
@@ -754,6 +780,7 @@ export async function deploymentSecretsDeleteRoute(req: Request) {
     const removed = await client.removeAppSecret({
       userId: session.githubUserId,
       app,
+      sourceId: String(body.appSourceId),
       name,
     });
     return NextResponse.json({ ok: true, removed });
