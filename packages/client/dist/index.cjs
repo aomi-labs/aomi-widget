@@ -81,7 +81,7 @@ __export(index_exports, {
   buildAAExecutionPlan: () => buildAAExecutionPlan,
   buildFeeAAWalletCall: () => buildFeeAAWalletCall,
   createAAProviderState: () => createAAProviderState,
-  createAccountAccessTokenProvider: () => createAccountAccessTokenProvider,
+  createAccountBearerProvider: () => createAccountBearerProvider,
   createAlchemyAAProvider: () => createAlchemyAAProvider,
   createPimlicoAAProvider: () => createPimlicoAAProvider,
   executeWalletCalls: () => executeWalletCalls,
@@ -996,8 +996,8 @@ async function fetchStateResponse(fetchImpl, url, sessionId) {
     headers: withSessionHeader(sessionId)
   });
 }
-function wrapFetchWithAccountBearer(fetchImpl, getAccountAccessToken) {
-  if (!getAccountAccessToken) return fetchImpl;
+function wrapFetchWithAccountBearer(fetchImpl, getAccountBearer) {
+  if (!getAccountBearer) return fetchImpl;
   return async (input, init) => {
     var _a;
     const baseHeaders = new Headers(
@@ -1007,7 +1007,7 @@ function wrapFetchWithAccountBearer(fetchImpl, getAccountAccessToken) {
       const headers = new Headers(baseHeaders);
       let bearer;
       try {
-        bearer = await getAccountAccessToken({ forceRefresh });
+        bearer = await getAccountBearer({ forceRefresh });
       } catch (e) {
         bearer = void 0;
       }
@@ -1082,11 +1082,11 @@ var AomiClient = class {
     const rawFetchImpl = typeof globalThis.fetch === "function" ? globalThis.fetch.bind(globalThis) : fetchImpl;
     this.fetchImpl = wrapFetchWithAccountBearer(
       fetchImpl,
-      options.getAccountAccessToken
+      options.getAccountBearer
     );
     this.rawFetchImpl = wrapFetchWithAccountBearer(
       rawFetchImpl,
-      options.getAccountAccessToken
+      options.getAccountBearer
     );
     this.logger = options.logger;
     this.sseSubscriber = createSseSubscriber({
@@ -1097,8 +1097,8 @@ var AomiClient = class {
       fetchImpl: this.rawFetchImpl,
       logger: this.logger
     });
-    if (supportsTokenRefreshSubscription(options.getAccountAccessToken)) {
-      options.getAccountAccessToken.subscribe(() => {
+    if (supportsTokenRefreshSubscription(options.getAccountBearer)) {
+      options.getAccountBearer.subscribe(() => {
         this.sseSubscriber.reconnect("account-token-refreshed");
       });
     }
@@ -1775,7 +1775,7 @@ var CREDENTIAL_UNAVAILABLE_RETRY_DELAYS_MS = [250, 1e3, 3e3];
 var EXPIRES_AT_MILLISECONDS_THRESHOLD = 1e11;
 var DEFAULT_BETTER_AUTH_TOKEN_PATH = "/api/aomi/account-bearer";
 var DEFAULT_BETTER_AUTH_PROVIDER_EXCHANGE_PATH = "/api/auth/aomi/provider/exchange";
-function createAccountAccessTokenProvider({
+function createAccountBearerProvider({
   baseUrl,
   getProviderCredential,
   betterAuthToken,
@@ -1795,7 +1795,7 @@ function createAccountAccessTokenProvider({
     const refreshAt = session.expires_at * 1e3 - refreshBeforeExpiryMs;
     refreshTimer = setTimeout(
       () => {
-        void getAccountAccessToken({ forceRefresh: true }).catch(
+        void getAccountBearer({ forceRefresh: true }).catch(
           () => void 0
         );
       },
@@ -1850,7 +1850,7 @@ function createAccountAccessTokenProvider({
     if (exchangedBetterAuthJwt) return exchangedBetterAuthJwt;
     throw new Error("Failed to exchange Better Auth provider credential");
   };
-  const getAccountAccessToken = async ({
+  const getAccountBearer = async ({
     forceRefresh = false
   } = {}) => {
     var _a;
@@ -1898,16 +1898,16 @@ function createAccountAccessTokenProvider({
     }
     return (_a = await pending) == null ? void 0 : _a.access_token;
   };
-  getAccountAccessToken.subscribe = (listener) => {
+  getAccountBearer.subscribe = (listener) => {
     listeners.add(listener);
     return () => listeners.delete(listener);
   };
-  getAccountAccessToken.dispose = () => {
+  getAccountBearer.dispose = () => {
     if (refreshTimer) clearTimeout(refreshTimer);
     refreshTimer = null;
     listeners.clear();
   };
-  return getAccountAccessToken;
+  return getAccountBearer;
 }
 function joinUrl(baseUrl, path) {
   return `${baseUrl.replace(/\/+$/, "")}/${path.replace(/^\/+/, "")}`;
@@ -4973,7 +4973,7 @@ async function createAAProviderState(options) {
   buildAAExecutionPlan,
   buildFeeAAWalletCall,
   createAAProviderState,
-  createAccountAccessTokenProvider,
+  createAccountBearerProvider,
   createAlchemyAAProvider,
   createPimlicoAAProvider,
   executeWalletCalls,

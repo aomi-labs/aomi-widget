@@ -5,11 +5,11 @@
 export { AomiClient } from "./client";
 export {
   AccountCredentialUnavailableError,
-  createAccountAccessTokenProvider,
+  createAccountBearerProvider,
 } from "./account-session";
 export type {
-  AccountAccessTokenProviderOptions,
-  AccountAccessTokenProvider,
+  AccountBearerProviderOptions,
+  AccountBearerProvider,
   AccountCredentialProvider,
   AccountSessionExchangeResponse,
   BetterAuthAccountTokenSourceOptions,
@@ -34,7 +34,6 @@ export type {
   AomiIdentityWallet,
   AomiUsageStats,
   AomiUser,
-  GetAccountAccessToken,
   GetAccountBearer,
   AomiMessage,
   AomiWalletFamily,

@@ -39,18 +39,16 @@ export type AomiClientOptions = {
   fetch?: typeof fetch;
   /** Default API key for non-default apps */
   apiKey?: string;
-  /** Supplies a short-lived Aomi account access token for REST and SSE requests. */
-  getAccountAccessToken?: GetAccountAccessToken;
+  /** Supplies a short-lived Aomi account bearer for REST and SSE requests. */
+  getAccountBearer?: GetAccountBearer;
   /** Optional logger for debug output (default: silent) */
   logger?: Logger;
 };
 
-export type GetAccountAccessToken = (options?: {
+export type GetAccountBearer = (options?: {
   /** Force a refresh after an API 401. */
   forceRefresh?: boolean;
 }) => Promise<string | null | undefined>;
-
-export type GetAccountBearer = GetAccountAccessToken;
 
 export type AomiRequestQueryValue =
   | string

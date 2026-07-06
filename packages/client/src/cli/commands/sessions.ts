@@ -31,7 +31,7 @@ async function fetchRemoteSessionStats(
   const client = new AomiClient({
     baseUrl: record.state.baseUrl,
     apiKey: record.state.apiKey,
-    getAccountAccessToken: createCliAuthTokenProvider(() => record.state),
+    getAccountBearer: createCliAuthTokenProvider(() => record.state),
   });
 
   try {

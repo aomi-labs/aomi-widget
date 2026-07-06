@@ -1,4 +1,4 @@
-import type { GetAccountAccessToken } from "./types";
+import type { GetAccountBearer } from "./types";
 
 export type AccountCredentialProvider = () => Promise<{
   provider: "para" | "privy" | (string & {});
@@ -41,7 +41,7 @@ export type BetterAuthAccountTokenSourceOptions = {
   providerExchange?: boolean;
 };
 
-export type AccountAccessTokenProviderOptions = {
+export type AccountBearerProviderOptions = {
   baseUrl: string;
   getProviderCredential?: AccountCredentialProvider;
   betterAuthToken?: BetterAuthAccountTokenSourceOptions;
@@ -50,7 +50,7 @@ export type AccountAccessTokenProviderOptions = {
   refreshBeforeExpiryMs?: number;
 };
 
-export type AccountAccessTokenProvider = GetAccountAccessToken & {
+export type AccountBearerProvider = GetAccountBearer & {
   subscribe: (listener: () => void) => () => void;
   dispose: () => void;
 };
@@ -64,14 +64,14 @@ const DEFAULT_BETTER_AUTH_PROVIDER_EXCHANGE_PATH =
   "/api/auth/aomi/provider/exchange";
 
 /** Cache and refresh the short-lived Aomi bearer used for backend requests. */
-export function createAccountAccessTokenProvider({
+export function createAccountBearerProvider({
   baseUrl,
   getProviderCredential,
   betterAuthToken,
   fetch: fetchImpl = fetch,
   now = Date.now,
   refreshBeforeExpiryMs = DEFAULT_REFRESH_BEFORE_EXPIRY_MS,
-}: AccountAccessTokenProviderOptions): AccountAccessTokenProvider {
+}: AccountBearerProviderOptions): AccountBearerProvider {
   let cached: AccountSessionExchangeResponse | null = null;
   let pending: Promise<AccountSessionExchangeResponse | null> | null = null;
   let refreshTimer: ReturnType<typeof setTimeout> | null = null;
@@ -85,7 +85,7 @@ export function createAccountAccessTokenProvider({
     const refreshAt = session.expires_at * 1000 - refreshBeforeExpiryMs;
     refreshTimer = setTimeout(
       () => {
-        void getAccountAccessToken({ forceRefresh: true }).catch(
+        void getAccountBearer({ forceRefresh: true }).catch(
           () => undefined,
         );
       },
@@ -147,7 +147,7 @@ export function createAccountAccessTokenProvider({
     throw new Error("Failed to exchange Better Auth provider credential");
   };
 
-  const getAccountAccessToken: AccountAccessTokenProvider = async ({
+  const getAccountBearer: AccountBearerProvider = async ({
     forceRefresh = false,
   } = {}) => {
     const refreshAt = cached
@@ -217,16 +217,16 @@ export function createAccountAccessTokenProvider({
     return (await pending)?.access_token;
   };
 
-  getAccountAccessToken.subscribe = (listener) => {
+  getAccountBearer.subscribe = (listener) => {
     listeners.add(listener);
     return () => listeners.delete(listener);
   };
-  getAccountAccessToken.dispose = () => {
+  getAccountBearer.dispose = () => {
     if (refreshTimer) clearTimeout(refreshTimer);
     refreshTimer = null;
     listeners.clear();
   };
-  return getAccountAccessToken;
+  return getAccountBearer;
 }
 
 function joinUrl(baseUrl: string, path: string): string {

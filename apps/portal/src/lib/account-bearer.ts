@@ -2,8 +2,8 @@
 
 import {
   AccountCredentialUnavailableError,
-  createAccountAccessTokenProvider,
-  type AccountAccessTokenProvider,
+  createAccountBearerProvider,
+  type AccountBearerProvider,
 } from "@aomi-labs/client";
 import type { AomiWalletKit } from "@aomi-labs/widget-lib";
 import { getBackendUrl } from "./settings-api";
@@ -26,15 +26,15 @@ type GetAccountCredential = AomiWalletKit["getAccountCredential"];
  * itself, so we return a real provider (minting via the same-origin
  * `/api/aomi/account-bearer`, hence `betterAuthToken.baseUrl: ""`).
  */
-export function createPortalAccountAccessTokenProvider(
+export function createPortalAccountBearerProvider(
   getAccountCredential: GetAccountCredential,
   options?: { fetch?: typeof fetch },
-): AccountAccessTokenProvider | null {
+): AccountBearerProvider | null {
   if (!isCrossOriginBackend()) {
     return null;
   }
 
-  return createAccountAccessTokenProvider({
+  return createAccountBearerProvider({
     baseUrl: getBackendUrl(),
     betterAuthToken: { baseUrl: "" },
     ...(options?.fetch ? { fetch: options.fetch } : {}),

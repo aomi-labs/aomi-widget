@@ -465,7 +465,7 @@ export class CliSession {
       {
         baseUrl: this.state.baseUrl,
         apiKey: this.state.apiKey,
-        getAccountAccessToken: createCliAuthTokenProvider(() => this.state),
+        getAccountBearer: createCliAuthTokenProvider(() => this.state),
       },
       {
         sessionId: this.state.sessionId,

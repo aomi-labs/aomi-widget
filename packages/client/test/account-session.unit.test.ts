@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   AccountCredentialUnavailableError,
-  createAccountAccessTokenProvider,
+  createAccountBearerProvider,
 } from "../src/index";
 import type { AccountSessionExchangeResponse } from "../src/index";
 
@@ -49,7 +49,7 @@ function jwtWithPayload(payload: Record<string, unknown>): string {
 
 const BASE_URL = "https://api.aomi.dev";
 
-describe("createAccountAccessTokenProvider", () => {
+describe("createAccountBearerProvider", () => {
   // Cache logic keys off now(); we inject a controllable clock.
   let nowMs: number;
   const now = () => nowMs;
@@ -69,7 +69,7 @@ describe("createAccountAccessTokenProvider", () => {
       providerToken: "privy-jwt",
     }));
 
-    const provider = createAccountAccessTokenProvider({
+    const provider = createAccountBearerProvider({
       baseUrl: `${BASE_URL}/`, // trailing slash should be trimmed
       getProviderCredential,
       fetch: fetchImpl as unknown as typeof fetch,
@@ -114,7 +114,7 @@ describe("createAccountAccessTokenProvider", () => {
       providerToken: "privy-jwt",
     }));
 
-    const provider = createAccountAccessTokenProvider({
+    const provider = createAccountBearerProvider({
       baseUrl: BASE_URL,
       betterAuthToken: {
         baseUrl: "https://portal.aomi.dev",
@@ -166,7 +166,7 @@ describe("createAccountAccessTokenProvider", () => {
       providerToken: "privy-jwt",
     }));
 
-    const provider = createAccountAccessTokenProvider({
+    const provider = createAccountBearerProvider({
       baseUrl: BASE_URL,
       betterAuthToken: {
         baseUrl: "https://portal.aomi.dev",
@@ -216,7 +216,7 @@ describe("createAccountAccessTokenProvider", () => {
       providerToken: "para-jwt",
     }));
 
-    const provider = createAccountAccessTokenProvider({
+    const provider = createAccountBearerProvider({
       baseUrl: BASE_URL,
       betterAuthToken: {
         baseUrl: "https://portal.aomi.dev",
@@ -247,7 +247,7 @@ describe("createAccountAccessTokenProvider", () => {
       .mockResolvedValueOnce(
         okResponse(exchangeResponse({ access_token: "token-B" })),
       );
-    const provider = createAccountAccessTokenProvider({
+    const provider = createAccountBearerProvider({
       baseUrl: BASE_URL,
       getProviderCredential: async () => ({
         provider: "para",
@@ -279,7 +279,7 @@ describe("createAccountAccessTokenProvider", () => {
       .mockResolvedValueOnce(
         okResponse(exchangeResponse({ access_token: "token-B" })),
       );
-    const provider = createAccountAccessTokenProvider({
+    const provider = createAccountBearerProvider({
       baseUrl: BASE_URL,
       getProviderCredential: async () => ({
         provider: "privy",
@@ -304,7 +304,7 @@ describe("createAccountAccessTokenProvider", () => {
           resolveExchange = resolve;
         }),
     );
-    const provider = createAccountAccessTokenProvider({
+    const provider = createAccountBearerProvider({
       baseUrl: BASE_URL,
       getProviderCredential: async () => ({
         provider: "para",
@@ -339,7 +339,7 @@ describe("createAccountAccessTokenProvider", () => {
           json: async () => ({}),
         }) as unknown as Response,
     );
-    const provider = createAccountAccessTokenProvider({
+    const provider = createAccountBearerProvider({
       baseUrl: BASE_URL,
       getProviderCredential: async () => ({
         provider: "privy",
@@ -367,7 +367,7 @@ describe("createAccountAccessTokenProvider", () => {
         "ParaApiError: user must verify biometrics or external wallets",
       );
     });
-    const provider = createAccountAccessTokenProvider({
+    const provider = createAccountBearerProvider({
       baseUrl: BASE_URL,
       getProviderCredential,
       fetch: fetchImpl as unknown as typeof fetch,
@@ -390,7 +390,7 @@ describe("createAccountAccessTokenProvider", () => {
       status: 401,
       json: async () => ({}),
     }));
-    const provider = createAccountAccessTokenProvider({
+    const provider = createAccountBearerProvider({
       baseUrl: BASE_URL,
       getProviderCredential,
       fetch: fetchImpl as unknown as typeof fetch,
@@ -433,7 +433,7 @@ describe("createAccountAccessTokenProvider", () => {
       .mockResolvedValueOnce(
         okResponse(exchangeResponse({ access_token: "token-A" })),
       );
-    const provider = createAccountAccessTokenProvider({
+    const provider = createAccountBearerProvider({
       baseUrl: BASE_URL,
       getProviderCredential,
       fetch: fetchImpl as unknown as typeof fetch,
@@ -456,7 +456,7 @@ describe("createAccountAccessTokenProvider", () => {
     const fetchImpl = vi
       .fn()
       .mockResolvedValue({ ok: false, status: 401, json: async () => ({}) });
-    const provider = createAccountAccessTokenProvider({
+    const provider = createAccountBearerProvider({
       baseUrl: BASE_URL,
       getProviderCredential,
       fetch: fetchImpl as unknown as typeof fetch,
@@ -487,7 +487,7 @@ describe("createAccountAccessTokenProvider", () => {
         user_id: "aomi-user-1",
       }),
     );
-    const provider = createAccountAccessTokenProvider({
+    const provider = createAccountBearerProvider({
       baseUrl: BASE_URL,
       betterAuthToken: {},
       fetch: fetchImpl as unknown as typeof fetch,
@@ -523,7 +523,7 @@ describe("createAccountAccessTokenProvider", () => {
       .mockResolvedValueOnce(
         okResponse(exchangeResponse({ access_token: "token-A" })),
       );
-    const provider = createAccountAccessTokenProvider({
+    const provider = createAccountBearerProvider({
       baseUrl: BASE_URL,
       getProviderCredential,
       fetch: fetchImpl as unknown as typeof fetch,
@@ -566,7 +566,7 @@ describe("createAccountAccessTokenProvider", () => {
           expires_at: 4_000,
         }),
       );
-    const provider = createAccountAccessTokenProvider({
+    const provider = createAccountBearerProvider({
       baseUrl: BASE_URL,
       betterAuthToken: {},
       getProviderCredential,
@@ -594,7 +594,7 @@ describe("createAccountAccessTokenProvider", () => {
       .mockResolvedValueOnce(
         okResponse(exchangeResponse({ access_token: "token-B" })),
       );
-    const provider = createAccountAccessTokenProvider({
+    const provider = createAccountBearerProvider({
       baseUrl: BASE_URL,
       getProviderCredential: async () => ({
         provider: "para",
@@ -622,7 +622,7 @@ describe("createAccountAccessTokenProvider", () => {
   it("dispose() clears the refresh timer and detaches subscribers", async () => {
     vi.useFakeTimers();
     const fetchImpl = vi.fn(async () => okResponse(exchangeResponse()));
-    const provider = createAccountAccessTokenProvider({
+    const provider = createAccountBearerProvider({
       baseUrl: BASE_URL,
       getProviderCredential: async () => ({
         provider: "privy",

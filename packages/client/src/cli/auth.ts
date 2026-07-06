@@ -1,5 +1,5 @@
 import { privateKeyToAccount } from "viem/accounts";
-import type { GetAccountAccessToken } from "../types";
+import type { GetAccountBearer } from "../types";
 import type { CliAuthSession, CliSessionState } from "./state";
 
 type SiweNonceResponse = {
@@ -52,7 +52,7 @@ export function createCliAuthTokenProvider(
     "accountBearer" | "auth" | "sessionCookie"
   >,
   now: () => number = Date.now,
-): GetAccountAccessToken {
+): GetAccountBearer {
   return async () => {
     const state = readState();
     const auth = state.auth;

@@ -26,7 +26,7 @@ import type {
   AomiSystemEvent,
   AomiSystemResponse,
   AomiThread,
-  GetAccountAccessToken,
+  GetAccountBearer,
   Logger,
   AomiHttpMethod,
   AomiPlatformFilter,
@@ -222,9 +222,9 @@ async function fetchStateResponse(
 
 function wrapFetchWithAccountBearer(
   fetchImpl: typeof fetch,
-  getAccountAccessToken?: GetAccountAccessToken,
+  getAccountBearer?: GetAccountBearer,
 ): typeof fetch {
-  if (!getAccountAccessToken) return fetchImpl;
+  if (!getAccountBearer) return fetchImpl;
 
   return async (input, init) => {
     const baseHeaders = new Headers(
@@ -236,7 +236,7 @@ function wrapFetchWithAccountBearer(
       // request. A throwing/absent bearer just means no Authorization header.
       let bearer: string | null | undefined;
       try {
-        bearer = await getAccountAccessToken({ forceRefresh });
+        bearer = await getAccountBearer({ forceRefresh });
       } catch {
         bearer = undefined;
       }
@@ -253,8 +253,8 @@ function wrapFetchWithAccountBearer(
 }
 
 function supportsTokenRefreshSubscription(
-  provider: GetAccountAccessToken | undefined,
-): provider is GetAccountAccessToken & {
+  provider: GetAccountBearer | undefined,
+): provider is GetAccountBearer & {
   subscribe: (listener: () => void) => () => void;
 } {
   return (
@@ -351,11 +351,11 @@ export class AomiClient {
         : fetchImpl;
     this.fetchImpl = wrapFetchWithAccountBearer(
       fetchImpl,
-      options.getAccountAccessToken,
+      options.getAccountBearer,
     );
     this.rawFetchImpl = wrapFetchWithAccountBearer(
       rawFetchImpl,
-      options.getAccountAccessToken,
+      options.getAccountBearer,
     );
     this.logger = options.logger;
 
@@ -368,8 +368,8 @@ export class AomiClient {
       fetchImpl: this.rawFetchImpl,
       logger: this.logger,
     });
-    if (supportsTokenRefreshSubscription(options.getAccountAccessToken)) {
-      options.getAccountAccessToken.subscribe(() => {
+    if (supportsTokenRefreshSubscription(options.getAccountBearer)) {
+      options.getAccountBearer.subscribe(() => {
         this.sseSubscriber.reconnect("account-token-refreshed");
       });
     }

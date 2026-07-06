@@ -10,7 +10,7 @@ import {
   usePerThreadControl,
 } from "@aomi-labs/react";
 import { RequiredSecretsGate } from "@portal/components/shell/required-secrets-gate";
-import { createPortalAccountAccessTokenProvider } from "@portal/lib/account-access-token";
+import { createPortalAccountBearerProvider } from "@portal/lib/account-bearer";
 import { x402Client } from "@x402/core/client";
 import { ExactEvmScheme } from "@x402/evm/exact/client";
 import { wrapFetchWithPayment } from "@x402/fetch";
@@ -75,7 +75,7 @@ function usePortalClientOptions(
   const { getAccountCredential } = useAomiWalletKit();
 
   const accountAccessTokenProvider = useMemo(() => {
-    return createPortalAccountAccessTokenProvider(getAccountCredential, {
+    return createPortalAccountBearerProvider(getAccountCredential, {
       fetch: nativeFetch,
     });
   }, [getAccountCredential, nativeFetch]);
@@ -280,7 +280,7 @@ function usePortalClientOptions(
 
     return {
       fetch: routedFetch,
-      getAccountAccessToken: accountAccessTokenProvider ?? undefined,
+      getAccountBearer: accountAccessTokenProvider ?? undefined,
     };
   }, [
     accountAccessTokenProvider,
