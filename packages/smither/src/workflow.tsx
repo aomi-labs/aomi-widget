@@ -1,4 +1,5 @@
 import path from "node:path";
+import { existsSync } from "node:fs";
 import type { CreateSmithersApi } from "smithers-orchestrator";
 import { WORKFLOW_NAME, nodeId, type BuildPlan } from "./plan";
 import {
@@ -260,6 +261,17 @@ async function codegenStep(
   binaries: ResolvedBinaries,
   runner: CommandRunner,
 ): Promise<CodegenRow> {
+  // Idempotence: a re-run (e.g. a deploy-only pass) must not clobber sources
+  // an agent already curated. gen-* only runs when the app has no sources yet.
+  if (plan.source === "existing" && !plan.force) {
+    const toolPath = path.join(plan.sdkRoot, "apps", plan.app, "src", "tool.rs");
+    if (existsSync(toolPath)) {
+      return {
+        ok: true,
+        log: `kept existing generated + curated sources (apps/${plan.app}/src); pass --force to regenerate`,
+      };
+    }
+  }
   const results =
     plan.source === "existing"
       ? [
@@ -366,7 +378,13 @@ async function deployStep(
   const deploy = await runAomiBuild(
     binaries,
     "deploy",
-    ["--path", plan.sdkRoot],
+    [
+      "--path",
+      plan.deployPath ?? plan.sdkRoot,
+      ...(plan.deployAomiToml ? ["--aomi-toml", plan.deployAomiToml] : []),
+      ...(plan.deployPlatform ? ["--platform", plan.deployPlatform] : []),
+      "--json",
+    ],
     runner,
     deployEnv,
   );

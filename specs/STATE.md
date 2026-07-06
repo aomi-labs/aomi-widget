@@ -2,7 +2,7 @@
 
 ## Last Updated
 
-2026-07-05 — aomi-smither rewritten as a real Smithers-native orchestrator (on `feat/deployment-sdk-guardrails`)
+2026-07-06 — aomi-smither: branded gateway-react console UI shipped (on `feat/deployment-sdk-guardrails`)
 
 ## Recent Changes
 
@@ -100,10 +100,75 @@ workflow client.js bundle all 200), and `console --app geckoterminal`
 serves the real completed run's state. `plan.json` for geckoterminal was
 reconstructed manually (run predates savePlan).
 
-### Pending
+### Shipped: geckoterminal live on staging community platform (2026-07-06)
 
-- Deploy of a smither-built app has not been exercised (gate + activation
-  token are wired; needs a human at the gate).
+Smither's deploy stage ran the full lifecycle: exported app committed to
+`ceciliaz030/my-aomi-bots` (branch `smither/geckoterminal-poc`, standalone
+Cargo.toml pinned to published aomi-sdk 3.0.1), community-scoped activation
+token minted with the staging admin key (id 137), preflight → PR #84 on
+`aomi-labs/community-apps` → CI "Build candidate release: pass" → release
+`apps-141779906-r229e1090c5-geckoterminal-cb7227310237` activated. Backend
+status: `active=true artifact_ready=true loaded`. Full narrative with real
+snippets: `aomi-smither-poc-log.md` (repo root).
+
+New plan fields from the ship: `deployPath`/`deployAomiToml`/`deployPlatform`
+(+ CLI flags), and a codegen idempotence guard (existing curated sources are
+never regenerated without --force). Backend quirks surfaced: unbound
+app-scoped token mint 500s on `platform_activation_tokens_scope_shape`;
+`aomi-build deploy` resolves platform from saved config before the manifest.
+SECURITY: the staging admin private key was echoed into the session transcript
+by a clap parse error — rotate `AOMI_ADMIN_SERVICE_PRIVATE_KEY_STAGING`.
+
+### Branded gateway-react console UI (2026-07-06)
+
+Shipped the phase-2 custom UI. The console sidecar now serves an aomi-branded
+React app instead of the generic operator console:
+
+- **`src/ui/aomi-smither.tsx`** — Gateway UI entry (`createGatewayReactRoot` +
+  `gateway-react` hooks). Renders the plan's named stages as a stage rail
+  coloured by live events, an approvals panel (real approve/deny →
+  `submitApproval`), an activity feed, and per-node output. aomi design tokens
+  inlined (ink `#09090b`, lilac accent, PT Serif/Geist via Google Fonts, pill
+  controls, semantic status colours). Self-contained; no `@aomi-labs/design`
+  import (browser bundle).
+- **`src/console-model.ts`** — pure, DOM-free event→stage reducer +
+  snapshot-executed-stage collector. 10 unit tests. Mirrors the TUI's
+  `reduceEvent` over the wire frame shape.
+- **`console.ts`** — `register(app, workflow, { ui: { entry, title, props } })`
+  with `props = { app, stages: stagesFor(plan) }`; resolves the entry abs path
+  from the package root (works from dist/ and src/), falls back to the built-in
+  console if the source isn't present. `--console-builtin` forces the generic
+  console; `/console` still serves it too.
+- **Stage status sourcing**: live runs light the rail from `useGatewayRunEvents`
+  (afterSeq:0 replay + tail). A run that finished before the console attached
+  has no streamable events, so its rail is reconstructed from
+  `getDevToolsSnapshot` (called via `useSmithersGateway().rpcRaw` — it's an
+  HTTP route, not in the typed RPC union): only stages present in the persisted
+  tree + a succeeded run render `done`, so a non-executed stage never falsely
+  greens.
+
+Verified: 48 vitest tests, `tsc` (node) + `tsc -p tsconfig.ui.json` (browser,
+`allowImportingTsExtensions`) + eslint all clean; Bun bundled the entry (5.7 MB,
+HTTP 200); Playwright rendered the branded UI against the real geckoterminal
+run — all five stages `done`, "finished" pill, PT Serif loaded, zero console
+exceptions.
+
+REACT FIX (repo-wide, low blast radius): the Bun-built browser bundle crashed
+with "Incompatible React versions" — the dedupe plugin resolved `react@19.2.3`
+(root-hoisted) against `react-dom@19.2.7` (smithers' pin). Added
+`pnpm.overrides` `react`/`react-dom` → `19.2.7`; every workspace consumer
+declares `^19.2.0`, so this is an in-range patch alignment, not a bump past any
+declared range. Collapses the two react copies to one (also subsumes the
+earlier `@inkjs/ui` packageExtensions workaround, left in place as
+belt-and-suspenders).
+
+Known limitation: the entry is compiled from `src/ui/aomi-smither.tsx` at
+gateway request time, so a published tarball (which ships only `dist`) would
+fall back to the built-in console. Fine for workspace-internal use (always run
+from source); ship `src/ui` + `src/console-model.ts` in `files` if this ever
+publishes standalone.
+
+### Pending
 - Add a draft-spec agent stage for platforms without an OpenAPI spec.
 - Decide whether `review`/`fix` agent output schemas should feed a quality
   gate (currently informational).

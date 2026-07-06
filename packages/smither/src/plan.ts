@@ -30,6 +30,16 @@ export const buildPlanSchema = z.object({
   smoke: z.boolean().default(false),
   smokePrompt: z.string().default("List the app capabilities in one paragraph."),
   deploy: z.boolean().default(false),
+  /** Deploy from a standalone source repo instead of the SDK checkout —
+   *  `aomi-build deploy` requires a pushed GitHub commit with a tracked
+   *  aomi.toml, which the SDK monorepo does not provide for generated apps. */
+  deployPath: z.string().optional(),
+  /** Repo-relative aomi.toml to scope the deploy to one app (a deploy repo
+   *  may host several apps). */
+  deployAomiToml: z.string().optional(),
+  /** Backend platform tag. Passed explicitly because aomi-build prefers the
+   *  operator's saved config over the manifest when resolving the platform. */
+  deployPlatform: z.string().optional(),
   /** Skip approval gates (headless --yes). */
   autoApprove: z.boolean().default(false),
   /** Proceed even when the SDK checkout can't be synced with GitHub. */

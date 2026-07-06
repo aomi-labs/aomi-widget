@@ -119,7 +119,9 @@
   },
   "pnpm": {
     "overrides": {
-      "viem": "2.47.11"
+      "viem": "2.47.11",
+      "react": "19.2.7",
+      "react-dom": "19.2.7"
     },
     "packageExtensions": {
       "@inkjs/ui": {
