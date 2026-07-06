@@ -1,4 +1,4 @@
-import { renameWallet, unlinkWallet } from "@aomi-labs/auth/account";
+import { renameWallet, unlinkWallet } from "@aomi-labs/account/account";
 import {
   accountResponseFromSession,
   json,

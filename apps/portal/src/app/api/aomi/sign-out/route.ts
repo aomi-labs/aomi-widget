@@ -1,4 +1,4 @@
-import { auth } from "@aomi-labs/auth/better-auth";
+import { auth } from "@aomi-labs/account/better-auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

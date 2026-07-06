@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 
-import { getPool } from "./db";
+import { getPool } from "./db/pool";
 
 /**
  * The portal's resolve-or-create of the **canonical user id** — a faithful TS

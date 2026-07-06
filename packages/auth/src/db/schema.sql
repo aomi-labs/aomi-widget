@@ -1,6 +1,0 @@
--- AUTH-001: durable account state lives in the shared canonical backend graph:
---   users -> auth_providers -> public_keys
---
--- BetterAuth owns its own session/login tables. Portal account-link UX writes
--- the canonical tables through src/db/queries.ts and no longer creates a
--- parallel aomi_users/aomi_auth_identities/aomi_wallets graph.

@@ -1,5 +1,5 @@
-import { exchangeProviderForExistingSession } from "@aomi-labs/auth/account";
-import type { AomiAccountCredential } from "@aomi-labs/auth";
+import { exchangeProviderForExistingSession } from "@aomi-labs/account/account";
+import type { AomiAccountCredential } from "@aomi-labs/account";
 import { getBetterAuthSession, json } from "@portal/lib/aomi-account/session";
 
 export const runtime = "nodejs";

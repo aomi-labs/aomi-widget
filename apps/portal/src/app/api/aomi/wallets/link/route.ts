@@ -9,9 +9,9 @@ import {
   verifyWalletLinkNonce,
   verifyWalletLinkSignature,
   walletLinkMessageMatches,
-} from "@aomi-labs/auth/account";
-import type { WalletFamily } from "@aomi-labs/auth";
-import { readAccountAuthEnv } from "@aomi-labs/auth/better-auth";
+} from "@aomi-labs/account/account";
+import type { WalletFamily } from "@aomi-labs/account";
+import { readAccountAuthEnv } from "@aomi-labs/account/better-auth";
 import { recoverMessageAddress } from "viem";
 
 export const runtime = "nodejs";

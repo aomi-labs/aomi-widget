@@ -6,8 +6,8 @@ import {
 import {
   deactivateAomiAccount,
   updateAccountProfile,
-} from "@aomi-labs/auth/account";
-import { auth } from "@aomi-labs/auth/better-auth";
+} from "@aomi-labs/account/account";
+import { auth } from "@aomi-labs/account/better-auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

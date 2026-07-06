@@ -1,8 +1,8 @@
-import { auth } from "@aomi-labs/auth/better-auth";
+import { auth } from "@aomi-labs/account/better-auth";
 import {
   getAccountResponseForBetterAuthSession,
   getOrCreateAomiUserForBetterAuthSession,
-} from "@aomi-labs/auth/account";
+} from "@aomi-labs/account/account";
 
 type BetterAuthSessionResult = {
   user?: {
