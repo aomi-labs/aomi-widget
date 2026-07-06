@@ -10,9 +10,9 @@ describe("AomiClient route manifest", () => {
         `${endpoint.method} ${endpoint.path} [${endpoint.auth.join(", ")}]`,
     );
 
-    expect(routeKeys).toHaveLength(78);
+    expect(routeKeys).toHaveLength(85);
     expect(new Set(routeKeys).size).toBe(routeKeys.length);
-    expect(routeKeys).toContain("GET /api/session/apps [session]");
+    expect(routeKeys).toContain("GET /api/thread/apps [thread]");
     expect(routeKeys).toContain(
       "POST /api/platforms/:name/deploy [activation]",
     );
@@ -324,7 +324,7 @@ describe("AomiClient account profile", () => {
 
       const [url, init] = nativeFetch.mock.calls[0] ?? [];
       expect(String(url)).toBe(
-        "http://unit.test/api/session/model?rig=gpt-5&app=default&client_id=client-1",
+        "http://unit.test/api/thread/model?rig=gpt-5&app=default&client_id=client-1",
       );
       expect((init as RequestInit | undefined)?.body).toBeUndefined();
       expect(
@@ -367,7 +367,7 @@ describe("AomiClient app catalog", () => {
       });
 
       expect(String(nativeFetch.mock.calls[0]?.[0])).toBe(
-        "http://unit.test/api/session/apps?platform=somm.finance&platform=community",
+        "http://unit.test/api/thread/apps?platform=somm.finance&platform=community",
       );
       expect(apps).toEqual([
         {

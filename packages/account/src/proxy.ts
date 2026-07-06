@@ -34,6 +34,7 @@ const ALLOWED_REQUEST_HEADERS = new Set([
   "content-type",
   "aomi-app-key",
   "x-session-id",
+  "x-thread-id",
 ]);
 
 export type AllowedRoute = {
