@@ -95,17 +95,11 @@ export function useProjectDetail(sourceId: number) {
   }, [secretsByApp]);
 
   const setEnvVars = useCallback(
-    async (app: string, secrets: Record<string, string>) => {
-      const result = await deploymentSetSecrets({
-        app,
-        appSourceId: sourceId,
-        secrets,
-      });
-      // Refresh the handle list after a successful write.
-      const refreshed = await deploymentSecrets().catch(() => null);
-      if (refreshed) setSecrets(refreshed.byApp);
-      return result;
-    },
+    async (app: string, secrets: Record<string, string>) =>
+      // The runtime read-back (`GET /api/secrets`) is session-scoped to the
+      // chat user, so the portal cannot list them back here; the write itself
+      // is the durable action and the response echoes the saved keys.
+      deploymentSetSecrets({ app, appSourceId: sourceId, secrets }),
     [sourceId],
   );
 
