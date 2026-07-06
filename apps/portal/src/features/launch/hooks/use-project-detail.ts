@@ -6,6 +6,7 @@ import {
   deploymentSources,
   deploymentHistory,
   deploymentSecrets,
+  deploymentSetSecrets,
   deploymentSdkStatus,
   deploymentPromote,
   deploymentRecords,
@@ -92,6 +93,21 @@ export function useProjectDetail(sourceId: number) {
       .then((r) => setSecrets(r.byApp))
       .catch(() => setSecrets({}));
   }, [secretsByApp]);
+
+  const setEnvVars = useCallback(
+    async (app: string, secrets: Record<string, string>) => {
+      const result = await deploymentSetSecrets({
+        app,
+        appSourceId: sourceId,
+        secrets,
+      });
+      // Refresh the handle list after a successful write.
+      const refreshed = await deploymentSecrets().catch(() => null);
+      if (refreshed) setSecrets(refreshed.byApp);
+      return result;
+    },
+    [sourceId],
+  );
 
   // Fetch the DB activation timeline for every app on this source (per-app but
   // all DB reads — no GitHub fan-out). `force` re-fetches after an operation.
@@ -229,6 +245,7 @@ export function useProjectDetail(sourceId: number) {
     deployFlow,
     loadHistory,
     loadSecrets,
+    setEnvVars,
     loadRecords,
     refreshRecords,
     promote,

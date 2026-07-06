@@ -1,5 +1,7 @@
 import { BackendError, BrowserEnvironmentError, DeployError } from "./errors";
 import type {
+  IngestSecretsInput,
+  IngestSecretsResult,
   ListSecretsInput,
   ListSecretsResult,
   ActivateInput,
@@ -725,14 +727,31 @@ export class DeploymentClient {
 
   async listSecrets(input: ListSecretsInput = {}): Promise<ListSecretsResult> {
     const params = new URLSearchParams();
-    if (input.clientId) params.set("client_id", input.clientId);
+    const clientId = input.clientId ?? input.githubUserId;
+    if (clientId) params.set("client_id", clientId);
     const query = params.toString();
     const raw = await this.get<{ by_app?: Record<string, string[]> }>(
       `/api/secrets${query ? `?${query}` : ""}`,
       "list_secrets",
-      this.resolveBearer(input.bearer),
+      this.resolveBearer(input.bearer, { privileged: true }),
     );
     return { byApp: raw.by_app ?? {} };
+  }
+
+  /** Ingest app-scoped env vars into the secret vault under `userId` (the vault
+   *  key). `listSecrets({ clientId: userId })` then returns them. Service op. */
+  async ingestSecrets(
+    input: IngestSecretsInput,
+  ): Promise<IngestSecretsResult> {
+    const userId = required(input.userId, "userId");
+    const app = required(input.app, "app");
+    const raw = await this.post<{ handles?: Record<string, string> }>(
+      `/api/_internal/secrets`,
+      { user_id: userId, app, secrets: input.secrets },
+      "ingest_secrets",
+      this.resolveBearer(input.bearer, { privileged: true }),
+    );
+    return { handles: raw.handles ?? {} };
   }
 
   endpoint(path: string): string {

@@ -628,9 +628,78 @@ export async function deploymentSecretsRoute(req: Request) {
   try {
     const client = await deploymentClient();
     const { byApp } = await client.listSecrets({
-      githubUserId: session.githubUserId,
+      clientId: session.githubUserId,
     });
     return NextResponse.json({ byApp });
+  } catch (err) {
+    return launchErrorResponse(err);
+  }
+}
+
+export async function deploymentSecretsWriteRoute(req: Request) {
+  const blocked = checkWrite(req);
+  if (blocked) return blocked;
+
+  const auth = await requireSession();
+  if ("response" in auth) return auth.response;
+  const { session } = auth;
+
+  const body = (await req.json().catch(() => ({}))) as {
+    app?: unknown;
+    appSourceId?: unknown;
+    secrets?: unknown;
+  };
+  const app = typeof body.app === "string" ? body.app.trim() : "";
+  if (!app) {
+    return NextResponse.json({ error: "missing `app`" }, { status: 400 });
+  }
+  if (!isValidAppSourceId(body.appSourceId)) {
+    return NextResponse.json(
+      { error: "missing or invalid `appSourceId`" },
+      { status: 400 },
+    );
+  }
+  // Accept a { KEY: value } map of non-empty string values.
+  const secrets: Record<string, string> = {};
+  if (body.secrets && typeof body.secrets === "object") {
+    for (const [k, v] of Object.entries(body.secrets as Record<string, unknown>)) {
+      const key = k.trim();
+      if (key && typeof v === "string" && v.length > 0) secrets[key] = v;
+    }
+  }
+  if (Object.keys(secrets).length === 0) {
+    return NextResponse.json(
+      { error: "no valid secrets provided" },
+      { status: 400 },
+    );
+  }
+
+  try {
+    const config = launchConfig();
+    const client = await deploymentClient();
+    // The app must belong to a source the signed-in user owns.
+    const source = await findOwnedSource(
+      client,
+      session.githubUserId,
+      config.platform,
+      body.appSourceId,
+    );
+    if (!source || !source.apps.some((a) => a.name === app)) {
+      return NextResponse.json(
+        { error: "app not found for this user" },
+        { status: 404 },
+      );
+    }
+    // Vault key is the GitHub user id, matching the read side.
+    const { handles } = await client.ingestSecrets({
+      userId: session.githubUserId,
+      app,
+      secrets,
+    });
+    return NextResponse.json(
+      { ok: true, keys: Object.keys(handles) },
+      { status: 202 },
+    );
   } catch (err) {
     return launchErrorResponse(err);
   }
