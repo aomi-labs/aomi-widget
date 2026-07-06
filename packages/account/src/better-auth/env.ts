@@ -24,8 +24,6 @@ type AccountAuthEnvInput = Record<string, string | undefined>;
 
 const DEV_BETTER_AUTH_SECRET =
   "dev-better-auth-secret-change-me-at-least-32-bytes";
-const DEV_DATABASE_URL =
-  "postgresql://postgres:postgres@localhost:5432/aomi_auth";
 
 export function readAccountAuthEnv(
   env: AccountAuthEnvInput = process.env,
@@ -41,12 +39,7 @@ export function readAccountAuthEnv(
       allowDevDefaults,
     }),
     betterAuthUrl,
-    databaseUrl: requiredAuthEnvValue({
-      env,
-      key: "DATABASE_URL",
-      devDefault: DEV_DATABASE_URL,
-      allowDevDefaults,
-    }),
+    databaseUrl: requiredDatabaseUrl(env),
     siweDomain: resolveSiweDomain(env, url.host),
     siweEmailDomain: env.AOMI_AUTH_EMAIL_DOMAIN,
     trustedOrigins: collectTrustedOrigins(env, betterAuthUrl),
@@ -73,7 +66,7 @@ export function isAccountAuthLocalRuntime(
 
 function requiredAuthEnvValue(input: {
   env: AccountAuthEnvInput;
-  key: "BETTER_AUTH_SECRET" | "DATABASE_URL";
+  key: "BETTER_AUTH_SECRET";
   devDefault: string;
   allowDevDefaults: boolean;
 }): string {
@@ -85,6 +78,18 @@ function requiredAuthEnvValue(input: {
   throw new Error(
     `${input.key} must be configured outside NODE_ENV=development/test`,
   );
+}
+
+// One database. No dev fallback: a missing `DATABASE_URL` fails loudly in
+// every environment rather than silently splitting BetterAuth onto its own DB.
+function requiredDatabaseUrl(env: AccountAuthEnvInput): string {
+  const value = env.DATABASE_URL?.trim();
+  if (!value) {
+    throw new Error(
+      "DATABASE_URL is not set — BetterAuth and the canonical account graph share one Postgres URL",
+    );
+  }
+  return value;
 }
 
 function resolveBetterAuthUrl(env: AccountAuthEnvInput): string {

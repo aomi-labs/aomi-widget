@@ -1,5 +1,5 @@
 import { readAccountAuthEnv } from "../better-auth/env";
-import { pool } from "../db/pool";
+import { getPool } from "../db/pool";
 import {
   buildAccountResponse,
   clearAomiBetterAuthUserIds,
@@ -58,7 +58,7 @@ let accountSchemaReady: Promise<void> | null = null;
 
 export async function ensureAccountSchema(): Promise<void> {
   if (!accountSchemaReady) {
-    accountSchemaReady = runAomiAuthSchema(pool).catch((error) => {
+    accountSchemaReady = runAomiAuthSchema(getPool()).catch((error) => {
       accountSchemaReady = null;
       throw error;
     });

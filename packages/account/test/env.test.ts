@@ -5,18 +5,18 @@ import { readAccountAuthEnv } from "../src/better-auth/env";
 
 const DEV_BETTER_AUTH_SECRET =
   "dev-better-auth-secret-change-me-at-least-32-bytes";
-const DEV_DATABASE_URL =
-  "postgresql://postgres:postgres@localhost:5432/aomi_auth";
+const TEST_DATABASE_URL = "postgresql://postgres:postgres@localhost:5432/aomi";
 
 describe("readAccountAuthEnv", () => {
-  it("keeps local/test defaults available for auth package tests", () => {
+  it("keeps the local/test secret default but never defaults the database", () => {
     const env = readAccountAuthEnv({
       BETTER_AUTH_URL: "http://localhost:3001",
+      DATABASE_URL: TEST_DATABASE_URL,
       NODE_ENV: "test",
     });
 
     expect(env.betterAuthSecret).toBe(DEV_BETTER_AUTH_SECRET);
-    expect(env.databaseUrl).toBe(DEV_DATABASE_URL);
+    expect(env.databaseUrl).toBe(TEST_DATABASE_URL);
   });
 
   it("requires BetterAuth secret outside development and test", () => {
@@ -31,24 +31,24 @@ describe("readAccountAuthEnv", () => {
     );
   });
 
-  it("requires database URL outside development and test", () => {
-    expect(() =>
-      readAccountAuthEnv({
-        BETTER_AUTH_SECRET: "prod-secret",
-        BETTER_AUTH_URL: "https://app.aomi.dev",
-        NODE_ENV: "production",
-      }),
-    ).toThrow(
-      "DATABASE_URL must be configured outside NODE_ENV=development/test",
-    );
+  it("requires the one shared database URL in every environment", () => {
+    for (const NODE_ENV of ["development", "test", "production"]) {
+      expect(() =>
+        readAccountAuthEnv({
+          BETTER_AUTH_SECRET: "prod-secret",
+          BETTER_AUTH_URL: "https://app.aomi.dev",
+          NODE_ENV,
+        }),
+      ).toThrow("DATABASE_URL is not set");
+    }
   });
 
-  it("rejects explicit known dev defaults outside development and test", () => {
+  it("rejects the known dev secret outside development and test", () => {
     expect(() =>
       readAccountAuthEnv({
         BETTER_AUTH_SECRET: DEV_BETTER_AUTH_SECRET,
         BETTER_AUTH_URL: "https://app.aomi.dev",
-        DATABASE_URL: DEV_DATABASE_URL,
+        DATABASE_URL: "postgresql://prod.example/aomi",
         NODE_ENV: "production",
       }),
     ).toThrow(

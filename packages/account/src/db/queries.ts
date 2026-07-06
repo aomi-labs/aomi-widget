@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { Pool, PoolClient } from "pg";
-import { pool as defaultPool } from "./pool";
+import { getPool } from "./pool";
 import type {
   AccountWallet,
   AomiAccountResponse,
@@ -23,7 +23,7 @@ type Row = Record<string, unknown>;
 
 const BETTER_AUTH_PROVIDER = "betterauth";
 
-export async function runAomiAuthSchema(_db: Db = defaultPool): Promise<void> {
+export async function runAomiAuthSchema(_db: Db = getPool()): Promise<void> {
   // AUTH-001: account-link state lives in the backend canonical schema
   // (`users`, `auth_providers`, `public_keys`). BetterAuth creates its own
   // session tables; db-master/product-mono migrations create the canonical graph.
@@ -31,7 +31,7 @@ export async function runAomiAuthSchema(_db: Db = defaultPool): Promise<void> {
 
 export async function withTransaction<T>(
   fn: (client: PoolClient) => Promise<T>,
-  db: Pool = defaultPool,
+  db: Pool = getPool(),
 ): Promise<T> {
   const client = await db.connect();
   try {
@@ -49,7 +49,7 @@ export async function withTransaction<T>(
 
 export async function findAomiUserByBetterAuthId(
   betterAuthUserId: BetterAuthUserId,
-  db: Db = defaultPool,
+  db: Db = getPool(),
 ): Promise<DbAomiUser | null> {
   const result = await db.query(
     `select u.*
@@ -67,7 +67,7 @@ export async function findAomiUserByBetterAuthId(
 
 export async function findAomiUserById(
   userId: AomiUserId,
-  db: Db = defaultPool,
+  db: Db = getPool(),
 ): Promise<DbAomiUser | null> {
   const result = await db.query(
     `select * from users
@@ -87,7 +87,7 @@ export async function createAomiUserForBetterAuth(input: {
   displayName?: string | null;
   db?: Db;
 }): Promise<DbAomiUser> {
-  const db = input.db ?? defaultPool;
+  const db = input.db ?? getPool();
   const userId = input.userId ?? randomUUID();
   const now = nowSeconds();
   const result = await db.query(
@@ -108,7 +108,7 @@ export async function createAomiUserForBetterAuth(input: {
 
 export async function findLegacyBackendUserIdByWallet(
   normalizedAddress: string,
-  db: Db = defaultPool,
+  db: Db = getPool(),
 ): Promise<AomiUserId | null> {
   const publicKey = await db.query(
     `select user_id from public_keys
@@ -133,7 +133,7 @@ export async function findLegacyBackendUserIdByWallet(
 
 export async function touchAomiUser(
   userId: AomiUserId,
-  db: Db = defaultPool,
+  db: Db = getPool(),
 ): Promise<void> {
   await db.query("update users set updated_at = $2 where id = $1", [
     userId,
@@ -153,7 +153,7 @@ export async function logAccountEvent(_input?: {
 
 export async function findSignalOwner(
   signal: SignalRef,
-  db: Db = defaultPool,
+  db: Db = getPool(),
 ): Promise<AomiUserId | null> {
   if (signal.type === "wallet") {
     const result = await db.query(
@@ -200,7 +200,7 @@ export async function findSignalOwner(
 
 export async function countLoginFactors(
   userId: AomiUserId,
-  db: Db = defaultPool,
+  db: Db = getPool(),
 ): Promise<number> {
   const result = await db.query(
     `select
@@ -223,7 +223,7 @@ export async function upsertAuthIdentity(input: {
   providerMetadata?: Record<string, unknown>;
   db?: Db;
 }): Promise<DbAomiAuthIdentity> {
-  const db = input.db ?? defaultPool;
+  const db = input.db ?? getPool();
   const provider = canonicalProvider(input.provider);
   const now = nowSeconds();
   const metadata = {
@@ -286,7 +286,7 @@ export async function revokeAuthIdentity(input: {
   subject: string;
   db?: Db;
 }): Promise<boolean> {
-  const db = input.db ?? defaultPool;
+  const db = input.db ?? getPool();
   const identity = await db.query(
     `select id from auth_providers
       where user_id = $1 and provider = $2 and subject = $3
@@ -313,7 +313,7 @@ export async function clearAomiBetterAuthUserIds(input: {
   db?: Db;
 }): Promise<boolean> {
   if (input.betterAuthUserIds.length === 0) return false;
-  const db = input.db ?? defaultPool;
+  const db = input.db ?? getPool();
   const result = await db.query(
     `delete from auth_providers
       where user_id = $1
@@ -342,7 +342,7 @@ export async function upsertWallet(input: {
   label?: string | null;
   db?: Db;
 }): Promise<DbAomiWallet> {
-  const db = input.db ?? defaultPool;
+  const db = input.db ?? getPool();
   const chainType = canonicalChainType(input.family);
   const address = canonicalAddress(input.family, input.address);
   const authProvider = await resolveWalletAuthProvider(input, db);
@@ -388,7 +388,7 @@ export async function upsertWallet(input: {
 
 export async function listIdentitiesForUser(
   userId: AomiUserId,
-  db: Db = defaultPool,
+  db: Db = getPool(),
 ): Promise<DbAomiAuthIdentity[]> {
   const result = await db.query(
     `select * from auth_providers
@@ -401,7 +401,7 @@ export async function listIdentitiesForUser(
 
 export async function listWalletsForUser(
   userId: AomiUserId,
-  db: Db = defaultPool,
+  db: Db = getPool(),
 ): Promise<DbAomiWallet[]> {
   const result = await db.query(
     `select pk.*,
@@ -425,7 +425,7 @@ export async function updateAomiUserProfile(input: {
   avatarUrl?: string | null;
   db?: Db;
 }): Promise<DbAomiUser> {
-  const db = input.db ?? defaultPool;
+  const db = input.db ?? getPool();
   const result = await db.query(
     `update users
         set username = coalesce($2, username),
@@ -445,7 +445,7 @@ export async function deactivateAomiUser(input: {
   userId: AomiUserId;
   db?: Db;
 }): Promise<DbAomiUser | null> {
-  const db = input.db ?? defaultPool;
+  const db = input.db ?? getPool();
   const result = await db.query(
     `update users
         set status = 'deactivated', updated_at = $2
@@ -458,7 +458,7 @@ export async function deactivateAomiUser(input: {
 
 export async function findAuthIdentityById(
   identityId: string,
-  db: Db = defaultPool,
+  db: Db = getPool(),
 ): Promise<DbAomiAuthIdentity | null> {
   const result = await db.query(
     `select * from auth_providers where id = $1 limit 1`,
@@ -473,7 +473,7 @@ export async function updateAuthIdentityLabel(input: {
   displayLabel: string | null;
   db?: Db;
 }): Promise<DbAomiAuthIdentity | null> {
-  const db = input.db ?? defaultPool;
+  const db = input.db ?? getPool();
   const result = await db.query(
     `update auth_providers
         set provider_metadata = provider_metadata || $3::jsonb,
@@ -496,7 +496,7 @@ export async function updateWalletLabel(input: {
   label: string | null;
   db?: Db;
 }): Promise<DbAomiWallet | null> {
-  const db = input.db ?? defaultPool;
+  const db = input.db ?? getPool();
   await db.query(
     `update auth_providers ap
         set provider_metadata = provider_metadata || $3::jsonb,
@@ -522,7 +522,7 @@ export async function revokeWallet(input: {
   walletId: string;
   db?: Db;
 }): Promise<boolean> {
-  const db = input.db ?? defaultPool;
+  const db = input.db ?? getPool();
   const result = await db.query(
     `delete from public_keys where id = $1 and user_id = $2`,
     [Number(input.walletId), input.userId],
@@ -534,7 +534,7 @@ export async function revokeAllAuthIdentitiesForUser(input: {
   userId: AomiUserId;
   db?: Db;
 }): Promise<number> {
-  const db = input.db ?? defaultPool;
+  const db = input.db ?? getPool();
   await db.query(
     `delete from public_keys
       where auth_provider_id in (
@@ -553,7 +553,7 @@ export async function revokeAllWalletsForUser(input: {
   userId: AomiUserId;
   db?: Db;
 }): Promise<number> {
-  const db = input.db ?? defaultPool;
+  const db = input.db ?? getPool();
   const result = await db.query(`delete from public_keys where user_id = $1`, [
     input.userId,
   ]);
@@ -562,7 +562,7 @@ export async function revokeAllWalletsForUser(input: {
 
 export async function findWalletById(
   walletId: string,
-  db: Db = defaultPool,
+  db: Db = getPool(),
 ): Promise<DbAomiWallet | null> {
   const result = await db.query(
     `select pk.*,
@@ -612,7 +612,7 @@ export async function buildAccountResponse(input: {
 
 export async function listBetterAuthSiweWallets(
   betterAuthUserId: string,
-  db: Db = defaultPool,
+  db: Db = getPool(),
 ): Promise<
   Array<{
     betterAuthUserId: string;
@@ -670,7 +670,7 @@ export async function deleteBetterAuthSiweWallet(input: {
   syntheticEmails?: readonly string[];
   db?: Db;
 }): Promise<{ deleted: boolean; betterAuthUserIds: string[] }> {
-  const db = input.db ?? defaultPool;
+  const db = input.db ?? getPool();
   const betterAuthUserIds = new Set<string>();
   let deletedCount = 0;
 

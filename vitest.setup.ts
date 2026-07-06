@@ -3,6 +3,12 @@ import "@testing-library/jest-dom/vitest";
 import { cleanup } from "@testing-library/react";
 import { afterEach, vi } from "vitest";
 
+// One shared DB, no in-code fallback: suites that import the account package's
+// query/better-auth modules need a URL present. pg never connects until the
+// first query, so a placeholder is safe for unit tests.
+process.env.DATABASE_URL ??=
+  "postgresql://postgres:postgres@127.0.0.1:5432/vitest_placeholder";
+
 afterEach(() => {
   cleanup();
 });

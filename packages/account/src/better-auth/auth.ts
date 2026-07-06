@@ -2,7 +2,7 @@ import { betterAuth } from "better-auth";
 import { generateRandomString } from "better-auth/crypto";
 import { nextCookies } from "better-auth/next-js";
 import { bearer, siwe } from "better-auth/plugins";
-import { pool } from "../db/pool";
+import { getPool } from "../db/pool";
 import { readAccountAuthEnv } from "./env";
 import { verifySiweMessage } from "./siwe";
 import { aomiProviderAuthPlugin } from "./provider-plugin";
@@ -10,7 +10,7 @@ import { aomiProviderAuthPlugin } from "./provider-plugin";
 const env = readAccountAuthEnv();
 
 export const auth = betterAuth({
-  database: pool,
+  database: getPool(),
   trustedOrigins: env.trustedOrigins,
   secret: env.betterAuthSecret,
   baseURL: env.betterAuthUrl,

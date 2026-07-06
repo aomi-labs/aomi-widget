@@ -1,16 +1,16 @@
 import { Pool } from "pg";
 
 /**
- * Postgres pool for the shared BetterAuth + canonical account database.
+ * The single Postgres pool for the one shared database: BetterAuth's session
+ * tables and the canonical account graph (`users` / `auth_providers` /
+ * `public_keys`) live side by side, so a user the portal creates is
+ * immediately found by the backend's find-only `DbUser::get`.
  *
- * The portal owns **resolve-or-create** of the canonical user. It connects to
- * the same database BetterAuth uses for sessions and the Rust backend uses for
- * canonical account reads, so a user the portal creates is immediately found by
- * the backend's find-only `DbUser::get`.
- *
- * Connection string comes from `DATABASE_URL`, matching BetterAuth.
- * Never hard-code this value; it carries the DB password. Node runtime only
- * (not Edge).
+ * Connection string comes from `DATABASE_URL` — the only DB env var in this
+ * package. Never hard-code it; it carries the DB password. Node runtime only
+ * (not Edge). Lazy: constructed on first use, so importing query/service
+ * modules never requires the env (pg also defers connecting until the first
+ * query).
  */
 let cachedPool: Pool | undefined;
 
@@ -19,7 +19,7 @@ export function getPool(): Pool {
   const connectionString = process.env.DATABASE_URL?.trim();
   if (!connectionString) {
     throw new Error(
-      "DATABASE_URL is not set — the portal account graph needs the shared Postgres URL",
+      "DATABASE_URL is not set — the account package needs the one shared Postgres URL",
     );
   }
   cachedPool = new Pool({
@@ -32,28 +32,3 @@ export function getPool(): Pool {
   });
   return cachedPool;
 }
-
-/**
- * Alias kept for the BetterAuth/account-service consumers that historically
- * lived in `@aomi-labs/auth`. There is exactly one canonical pool now.
- */
-export const getAccountPool = getPool;
-
-/**
- * Default pool handle used by the query/service layer. Lazy: it defers to the
- * single canonical `getPool()` on first access, so importing the query/service
- * modules never constructs a pool (or throws on a missing `DATABASE_URL`) at
- * module-load time — matching the pre-merge `@aomi-labs/auth` import behavior.
- * Still exactly one underlying `new Pool(...)`.
- */
-export const pool = new Proxy({} as Pool, {
-  get(_target, property) {
-    const real = getPool();
-    const value = Reflect.get(real, property, real);
-    // Bind methods to the real pool so `this` is the Pool, not the Proxy.
-    return typeof value === "function" ? value.bind(real) : value;
-  },
-  has(_target, property) {
-    return Reflect.has(getPool(), property);
-  },
-}) as Pool;
