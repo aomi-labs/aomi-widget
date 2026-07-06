@@ -1,11 +1,8 @@
 "use client";
 
-import {
-  AomiBaseAccountProvider,
-  AomiFrame,
-  AomiWalletSiweSessionProvider,
-} from "@aomi-labs/widget-lib";
+import { AomiFrame, AomiWalletKitProvider } from "@aomi-labs/widget-lib";
 import { useMemo } from "react";
+import { base } from "wagmi/chains";
 
 type AomiAppProps = {
   paymasterServiceUrl?: string;
@@ -30,35 +27,45 @@ export function AomiApp({ paymasterServiceUrl, walletAppName }: AomiAppProps) {
 
   return (
     <main className="bg-background h-full w-full overflow-hidden">
-      <AomiBaseAccountProvider
-        appName={walletAppName}
-        sponsorship={
-          resolvedPaymasterServiceUrl
+      <AomiWalletKitProvider
+        preset="wallets-only"
+        execution={{
+          aa: "optional",
+          sponsorship: resolvedPaymasterServiceUrl
             ? {
                 mode: "optional",
                 paymasterServiceUrl: resolvedPaymasterServiceUrl,
               }
-            : undefined
-        }
+            : undefined,
+        }}
+        wallets={{
+          evm: {
+            chains: [base],
+            wallets: ["baseAccount"],
+            coinbase: false,
+            appName: walletAppName,
+          },
+          solana: false,
+        }}
       >
-        <AomiWalletSiweSessionProvider>
-          <AomiFrame.Root
-            width="100%"
-            height="100%"
-            backendUrl={backendUrl}
-            walletPosition="footer"
-            className="rounded-none border-0 shadow-none"
-          >
-            <AomiFrame.Header />
-            <AomiFrame.Composer
-              withControl
-              controlBarProps={{
-                hideApiKey: true,
-              }}
-            />
-          </AomiFrame.Root>
-        </AomiWalletSiweSessionProvider>
-      </AomiBaseAccountProvider>
+        <AomiFrame.Root
+          width="100%"
+          height="100%"
+          backendUrl={backendUrl}
+          walletPosition="footer"
+          className="rounded-none border-0 shadow-none"
+        >
+          <AomiFrame.Header />
+          <AomiFrame.Composer
+            withControl
+            controlBarProps={{
+              hideApp: true,
+              hideApiKey: true,
+              hideModel: true,
+            }}
+          />
+        </AomiFrame.Root>
+      </AomiWalletKitProvider>
     </main>
   );
 }

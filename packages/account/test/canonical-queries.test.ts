@@ -1,0 +1,123 @@
+// @vitest-environment node
+
+import { describe, expect, it, vi } from "vitest";
+import { revokeAuthIdentity, upsertWallet } from "../src/db/queries";
+
+type QueryCall = {
+  sql: string;
+  params?: unknown[];
+};
+
+function fakeDb(
+  handler: (call: QueryCall) => { rows: unknown[]; rowCount?: number },
+) {
+  const calls: QueryCall[] = [];
+  return {
+    calls,
+    db: {
+      query: vi.fn(async (sql: string, params?: unknown[]) => {
+        const call = { sql, params };
+        calls.push(call);
+        return handler(call);
+      }),
+    },
+  };
+}
+
+describe("canonical account queries", () => {
+  it("links a SIWE wallet as an owned public key with SIWE provenance", async () => {
+    const { db, calls } = fakeDb((call) => {
+      if (call.sql.includes("insert into auth_providers")) {
+        expect(JSON.parse(String(call.params?.[7]))).toMatchObject({
+          display_label: "CLI wallet",
+        });
+        return {
+          rows: [
+            {
+              id: 42,
+              user_id: "user-1",
+              provider: "siwe",
+              subject: "eip155:*:0x1111111111111111111111111111111111111111",
+              method: "siwe",
+              value: "eip155:*:0x1111111111111111111111111111111111111111",
+              provider_metadata: {},
+              created_at: 1,
+              updated_at: 1,
+            },
+          ],
+        };
+      }
+      if (call.sql.includes("insert into public_keys")) {
+        expect(call.params).toEqual([
+          "evm",
+          "0x1111111111111111111111111111111111111111",
+          "user-1",
+          42,
+          false,
+          expect.any(Number),
+        ]);
+        return {
+          rows: [
+            {
+              id: 7,
+              chain_type: "evm",
+              address: "0x1111111111111111111111111111111111111111",
+              user_id: "user-1",
+              auth_provider_id: 42,
+              created_at: 1,
+              updated_at: 1,
+            },
+          ],
+        };
+      }
+      throw new Error(`unexpected query: ${call.sql}`);
+    });
+
+    const wallet = await upsertWallet({
+      userId: "user-1",
+      family: "evm",
+      address: "0x1111111111111111111111111111111111111111",
+      kind: "external",
+      provider: "siwe",
+      linkedVia: "siwe",
+      label: "CLI wallet",
+      db: db as never,
+    });
+
+    expect(wallet.id).toBe("7");
+    expect(wallet.provider).toBe("siwe");
+    expect(calls[0]?.sql).toContain("auth_providers");
+    expect(calls[1]?.sql).toContain("public_keys");
+  });
+
+  it("deletes provider-owned public keys before deleting the provider", async () => {
+    const { db, calls } = fakeDb((call) => {
+      if (call.sql.includes("select id from auth_providers")) {
+        return { rows: [{ id: 42 }] };
+      }
+      if (call.sql.includes("delete from public_keys")) {
+        expect(call.params).toEqual([42]);
+        return { rows: [], rowCount: 1 };
+      }
+      if (call.sql.includes("delete from auth_providers")) {
+        return { rows: [], rowCount: 1 };
+      }
+      throw new Error(`unexpected query: ${call.sql}`);
+    });
+
+    await expect(
+      revokeAuthIdentity({
+        userId: "user-1",
+        provider: "privy",
+        subject: "did:privy:alice",
+        db: db as never,
+      }),
+    ).resolves.toBe(true);
+
+    expect(calls.map((call) => call.sql.replace(/\s+/g, " "))).toEqual([
+      expect.stringContaining("select id from auth_providers"),
+      expect.stringContaining("delete from public_keys"),
+      expect.stringContaining("delete from auth_providers"),
+    ]);
+  });
+});

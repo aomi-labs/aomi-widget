@@ -56,7 +56,8 @@ export function parseTopology(tomlText: string): Topology {
     services: services.map((node, index) => {
       const n = node as Record<string, unknown>;
       const name = typeof n.name === "string" ? n.name : "";
-      if (!name) throw new Error(`topology service #${index} is missing a name`);
+      if (!name)
+        throw new Error(`topology service #${index} is missing a name`);
       return {
         name,
         kid: typeof n.kid === "string" ? n.kid : "",
@@ -69,7 +70,9 @@ export function parseTopology(tomlText: string): Topology {
 }
 
 function toStringArray(value: unknown): string[] {
-  return Array.isArray(value) ? value.filter((v): v is string => typeof v === "string") : [];
+  return Array.isArray(value)
+    ? value.filter((v): v is string => typeof v === "string")
+    : [];
 }
 
 /**
@@ -78,7 +81,10 @@ function toStringArray(value: unknown): string[] {
  * it. A partner platform is just a different `selfName` against the same mesh.
  */
 export class AomiService {
-  private signing: { privateKey: Awaited<ReturnType<typeof importPKCS8>>; kid: string } | null = null;
+  private signing: {
+    privateKey: Awaited<ReturnType<typeof importPKCS8>>;
+    kid: string;
+  } | null = null;
 
   private constructor(
     readonly self: ServiceNode,
@@ -108,9 +114,14 @@ export class AomiService {
     if (this.signing) return this.signing;
     const pem = this.privateKeyPem?.replaceAll("\\n", "\n").trim();
     if (!pem) {
-      throw new Error(`signing is not configured for service "${this.self.name}" (missing private key)`);
+      throw new Error(
+        `signing is not configured for service "${this.self.name}" (missing private key)`,
+      );
     }
-    this.signing = { privateKey: await importPKCS8(pem, ALG), kid: this.self.kid };
+    this.signing = {
+      privateKey: await importPKCS8(pem, ALG),
+      kid: this.self.kid,
+    };
     return this.signing;
   }
 
@@ -125,10 +136,14 @@ export class AomiService {
     ttlSeconds?: number;
   }): Promise<{ accessToken: string; expiresAt: number }> {
     if (!this.self.issues.includes(args.role)) {
-      throw new Error(`service "${this.self.name}" is not authorized to mint role "${args.role}"`);
+      throw new Error(
+        `service "${this.self.name}" is not authorized to mint role "${args.role}"`,
+      );
     }
     if (!this.self.audiences.includes(args.audience)) {
-      throw new Error(`service "${this.self.name}" is not authorized to address audience "${args.audience}"`);
+      throw new Error(
+        `service "${this.self.name}" is not authorized to address audience "${args.audience}"`,
+      );
     }
     const { privateKey, kid } = await this.signingKey();
     const now = Math.floor(Date.now() / 1000);
@@ -155,24 +170,43 @@ export class AomiService {
     if (!kid) throw new Error("bearer header carries no kid");
     const issuer = this.topology.services.find((node) => node.kid === kid);
     if (!issuer) throw new Error(`no trusted service for kid "${kid}"`);
-    const key = await importSPKI(issuer.publicKey.replaceAll("\\n", "\n").trim(), ALG);
+    if (!issuer.publicKey.trim()) {
+      throw new Error(`trusted service "${issuer.name}" has no public key`);
+    }
+    if (issuer.issues.length === 0) {
+      throw new Error(
+        `trusted service "${issuer.name}" is not authorized to issue bearers`,
+      );
+    }
+    const key = await importSPKI(
+      issuer.publicKey.replaceAll("\\n", "\n").trim(),
+      ALG,
+    );
     const { payload } = await jwtVerify(token, key, {
       issuer: issuer.name,
       audience: this.self.name,
+      algorithms: [ALG],
     });
     const claims = payload as AccountBearerClaims;
     const role = claims.role ?? "user";
     if (!issuer.issues.includes(role)) {
-      throw new Error(`issuer "${issuer.name}" is not authorized for role "${role}"`);
+      throw new Error(
+        `issuer "${issuer.name}" is not authorized for role "${role}"`,
+      );
     }
     return { ...claims, role };
   }
 
   /** Verify and require the bearer to carry exactly `requiredRole`. */
-  async verifyRole(token: string, requiredRole: string): Promise<AccountBearerClaims> {
+  async verifyRole(
+    token: string,
+    requiredRole: string,
+  ): Promise<AccountBearerClaims> {
     const claims = await this.verify(token);
     if (claims.role !== requiredRole) {
-      throw new Error(`bearer role "${claims.role}" does not satisfy required role "${requiredRole}"`);
+      throw new Error(
+        `bearer role "${claims.role}" does not satisfy required role "${requiredRole}"`,
+      );
     }
     return claims;
   }

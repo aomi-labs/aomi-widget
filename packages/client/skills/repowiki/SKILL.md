@@ -86,8 +86,8 @@ Keep the reply operational.
 
 Good:
 
-- "Ran `./scripts/repowiki update auth-adapter`. It updated
-  `docs/topics/auth-adapter.md`."
+- "Ran `./scripts/repowiki update wallet-kit`. It updated
+  `docs/topics/wallet-kit.md`."
 - "Interpreted `/repowiki refres --skip-embeddings` as
   `./scripts/repowiki refresh --skip-embeddings`."
 - "`doctor` failed because one source path is missing and generated docs are
@@ -102,10 +102,10 @@ Avoid:
 ## Examples
 
 User:
-`/repowiki update auth-adapter`
+`/repowiki update wallet-kit`
 
 Agent behavior:
-Run `./scripts/repowiki update auth-adapter` from the repo root and summarize
+Run `./scripts/repowiki update wallet-kit` from the repo root and summarize
 what changed.
 
 User:

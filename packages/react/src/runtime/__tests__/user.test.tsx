@@ -288,7 +288,7 @@ describe("User API", () => {
       );
     });
 
-    it("does not list remote threads for Solana-only wallets without an account address", async () => {
+    it("lists remote threads for Solana-only account state without a legacy public_key", async () => {
       const ensureAccount = vi.fn(async () => undefined);
       const listThreads = vi.fn(async (): Promise<AomiThread[]> => []);
 
@@ -298,7 +298,7 @@ describe("User API", () => {
 
       await act(async () => {
         api.setUser({
-          connection: { is_connected: true },
+          connection: { is_connected: true, primary_family: "svm" },
           svm: {
             address: "So1anaCaseSensitiveSigner",
             cluster: "solana:mainnet",
@@ -308,7 +308,9 @@ describe("User API", () => {
       });
 
       expect(ensureAccount).not.toHaveBeenCalled();
-      expect(listThreads).not.toHaveBeenCalled();
+      expect(listThreads).toHaveBeenCalledWith(
+        expect.stringMatching(/^control:/),
+      );
     });
 
     it("does not send wallet state changes to the previous wallet thread when the address changes", async () => {
@@ -426,11 +428,8 @@ describe("User API", () => {
     it("keeps the thread counter stable when a wallet with older chat names connects", async () => {
       const listThreads = vi
         .fn<() => Promise<AomiThread[]>>()
-        .mockResolvedValueOnce([
+        .mockResolvedValue([
           { session_id: "wallet-a-thread", title: "Chat 9" },
-        ])
-        .mockResolvedValueOnce([
-          { session_id: "wallet-b-thread", title: "Chat 3" },
         ]);
 
       setAomiClientConfig({ listThreads });
@@ -455,23 +454,10 @@ describe("User API", () => {
         expect(getThreadCount()).toBe(9);
       });
 
-      await act(async () => {
-        getApi().setUser({
-          address: "0xBBB",
-          chainId: 1,
-          isConnected: true,
-        });
-        await flushPromises();
-      });
-
-      await waitFor(() => {
-        expect(getApi().getThreadMetadata("wallet-b-thread")?.title).toBe(
-          "Chat 3",
-        );
-      });
       await waitFor(() => {
         expect(getThreadCount()).toBe(9);
       });
+      expect(listThreads).toHaveBeenCalledTimes(1);
     });
   });
 

@@ -38,5 +38,5 @@ sources_of_truth:
 ## Related Topics
 
 - [client-runtime/facts/react-runtime.md](../../client-runtime/facts/react-runtime.md)
-- [auth/facts/auth-adapter.md](../../auth/facts/auth-adapter.md)
+- [auth/facts/wallet-kit.md](../../auth/facts/wallet-kit.md)
 - [apps/facts/app-surfaces.md](../../apps/facts/app-surfaces.md)
