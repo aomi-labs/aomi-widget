@@ -19,7 +19,18 @@ const promote = vi.fn(async () => ({
 const deactivate = vi.fn(async () => ({ ok: true, apps: ["my-bot"] }));
 
 const detail = {
-  source: { id: 1, repositoryLink: "a/b", apps: [{ name: "my-bot" }] },
+  source: {
+    id: 1,
+    repositoryLink: "a/b",
+    apps: [
+      {
+        name: "my-bot",
+        isActive: true,
+        loaded: true,
+        appReleaseTag: "t-current",
+      },
+    ],
+  },
   loading: false,
   loadRecords: vi.fn(),
   refreshRecords: vi.fn(),
@@ -109,6 +120,23 @@ describe("DeploymentsTab", () => {
       within(dialog).getByRole("button", { name: /deactivate/i }),
     );
     await waitFor(() => expect(deactivate).toHaveBeenCalledWith(["my-bot"]));
+  });
+
+  it("shows a deactivated state and makes the previous current deployment promotable", async () => {
+    render(<DeploymentsTab detail={detail} />);
+    fireEvent.click(screen.getByRole("button", { name: /deactivate/i }));
+    const dialog = screen.getByRole("dialog", {
+      name: /deactivate deployment/i,
+    });
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: /deactivate/i }),
+    );
+
+    await screen.findByText("Deactivated");
+
+    expect(screen.queryByText("Current")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /deactivate/i })).toBeDisabled();
+    expect(screen.getAllByRole("button", { name: /promote/i })).toHaveLength(2);
   });
 
   it("triggers a new-version deploy", () => {
