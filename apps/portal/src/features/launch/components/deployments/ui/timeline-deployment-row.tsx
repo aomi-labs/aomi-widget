@@ -1,25 +1,25 @@
 import { GitCommitHorizontal, RotateCcw, PowerOff } from "lucide-react";
 import type { TimelineDeployment } from "../deployment-timeline";
 
-/** Deployment row rendered purely from the DB activation timeline (no GitHub
+/** Deployment row rendered purely from the DB promotion records (no GitHub
  *  reads). The live deployment is marked Current and offers Deactivate; older
- *  deployments offer Rollback. */
+ *  deployments offer Promote. */
 export function TimelineDeploymentRow({
   deployment,
   busy,
   message,
   runtimeState,
-  onRollback,
+  onPromote,
   onDeactivate,
 }: {
   deployment: TimelineDeployment;
   busy: boolean;
   message?: string | null;
   runtimeState?: "loaded" | "not-loaded";
-  onRollback: () => void;
+  onPromote: () => void;
   onDeactivate: () => void;
 }) {
-  const { deploymentId, commit, apps, current, lastAction, actor, createdAt } =
+  const { deploymentId, commit, apps, current, actor, sdkVersion, createdAt } =
     deployment;
 
   return (
@@ -47,9 +47,9 @@ export function TimelineDeploymentRow({
             {commit ?? "unknown"}
           </span>
           <span>{apps.join(", ") || "no apps"}</span>
+          {sdkVersion && <span>sdk {sdkVersion}</span>}
           <span>
-            {lastAction}
-            {actor ? ` · ${actor}` : ""} ·{" "}
+            {actor ? `${actor} · ` : ""}
             {new Date(createdAt * 1000).toLocaleString()}
           </span>
         </div>
@@ -72,12 +72,12 @@ export function TimelineDeploymentRow({
           <button
             type="button"
             disabled={busy}
-            onClick={onRollback}
+            onClick={onPromote}
             className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-zinc-300 bg-white px-2.5 text-xs font-medium text-zinc-800 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50"
-            title="Rollback to this deployment"
+            title="Promote this deployment to live"
           >
             <RotateCcw className="size-3.5" aria-hidden />
-            Rollback
+            Promote
           </button>
         )}
       </div>

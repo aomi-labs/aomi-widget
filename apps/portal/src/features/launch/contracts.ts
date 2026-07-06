@@ -2,15 +2,15 @@ import type {
   ActivateResult,
   DeployPayload,
   DeploymentStatus,
-  RollbackResult,
+  PromoteResult,
   SdkVersionStatus,
   UserSource,
   UserSourceLatestDeployment,
 } from "@aomi-labs/deploy";
 
 export type {
-  DeploymentActivation,
-  ListActivationsResult,
+  DeploymentRecord,
+  ListDeploymentRecordsResult,
 } from "@aomi-labs/deploy";
 
 // One-click is the only launch path: the portal forks the template and deploys
@@ -126,4 +126,4 @@ export type DeploymentSecretsResult = {
   byApp: Record<string, string[]>;
 };
 
-export type DeploymentRollbackResult = RollbackResult;
+export type DeploymentPromoteResult = PromoteResult;

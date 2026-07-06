@@ -42,7 +42,7 @@ export const API_PATHS = {
       preflight: `${BFF}/deployments/preflight`,
       deploy: `${BFF}/deployments/deploy`,
       redeploy: `${BFF}/deployments/redeploy`,
-      rollback: `${BFF}/deployments/rollback`,
+      promote: `${BFF}/deployments/promote`,
       sources: `${BFF}/deployments/sources`,
       history: (appSourceId: number, limit?: number) => {
         const params = new URLSearchParams({
@@ -55,8 +55,8 @@ export const API_PATHS = {
       status: (deploymentId: string) =>
         `${BFF}/deployments/status?deploymentId=${encodeURIComponent(deploymentId)}`,
       secrets: `${BFF}/deployments/secrets`,
-      activations: (app: string, appSourceId?: number) =>
-        `${BFF}/deployments/activations?app=${encodeURIComponent(app)}${
+      records: (app: string, appSourceId?: number) =>
+        `${BFF}/deployments/records?app=${encodeURIComponent(app)}${
           appSourceId != null ? `&appSourceId=${appSourceId}` : ""
         }`,
       deactivate: `${BFF}/deployments/deactivate`,

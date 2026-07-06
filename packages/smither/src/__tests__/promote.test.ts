@@ -1,69 +1,69 @@
 import { describe, expect, it, vi } from "vitest";
-import { planRollback, executeRollback } from "../rollback";
+import { planPromote, executePromote } from "../promote";
 
-const activations = {
+const records = {
   app: "my-bot",
   currentReleaseTag: "tag-c",
-  activations: [
+  records: [
     {
       deploymentId: "dep_c",
       releaseTag: "tag-c",
-      action: "activate",
       actor: null,
       createdAt: 3,
+      sdkVersion: "3.0.1",
       current: true,
     },
     {
       deploymentId: "dep_b",
       releaseTag: "tag-b",
-      action: "rollback",
       actor: null,
       createdAt: 2,
+      sdkVersion: "3.0.1",
       current: false,
     },
     {
       deploymentId: "dep_a",
       releaseTag: "tag-a",
-      action: "activate",
       actor: null,
       createdAt: 1,
+      sdkVersion: "3.0.1",
       current: false,
     },
   ],
 };
 
-describe("planRollback", () => {
+describe("planPromote", () => {
   it("picks the newest non-current release as the previous target", () => {
-    const plan = planRollback(activations);
+    const plan = planPromote(records);
     expect(plan.current?.deploymentId).toBe("dep_c");
     expect(plan.previous?.deploymentId).toBe("dep_b");
   });
 
   it("returns no previous target when only one release exists", () => {
-    const plan = planRollback({
-      ...activations,
-      activations: [activations.activations[0]],
+    const plan = planPromote({
+      ...records,
+      records: [records.records[0]],
     });
     expect(plan.previous).toBeNull();
   });
 });
 
-describe("executeRollback", () => {
+describe("executePromote", () => {
   it("calls the deploy client with app scoping and smither actor", async () => {
-    const rollback = vi.fn(async () => ({
+    const promote = vi.fn(async () => ({
       ok: true,
-      rollback: {
+      promote: {
         deploymentId: "dep_b",
         releaseTags: ["tag-b"],
-        status: "rolled_back",
+        status: "promoted",
         activation: { status: "ok", apps: [] },
       },
     }));
-    const result = await executeRollback(
-      { rollback, listActivations: vi.fn() } as never,
+    const result = await executePromote(
+      { promote, listDeploymentRecords: vi.fn() } as never,
       { platform: "community", app: "my-bot", deploymentId: "dep_b" },
     );
-    expect(rollback).toHaveBeenCalledWith({
+    expect(promote).toHaveBeenCalledWith({
       platform: "community",
       deploymentId: "dep_b",
       apps: ["my-bot"],
@@ -72,7 +72,7 @@ describe("executeRollback", () => {
     expect(result).toEqual({
       ok: true,
       releaseTags: ["tag-b"],
-      status: "rolled_back",
+      status: "promoted",
     });
   });
 });

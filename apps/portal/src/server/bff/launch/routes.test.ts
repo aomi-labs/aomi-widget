@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   deploymentDeactivateRoute,
-  deploymentRollbackRoute,
+  deploymentPromoteRoute,
   launchDeployRoute,
   launchStatusRoute,
   redeployLaunchRoute,
@@ -37,7 +37,27 @@ function writeReq(body: unknown) {
 /** The listUserSources response granting the signed-in user these source ids. */
 function ownedSources(...ids: number[]) {
   return Response.json({
-    sources: ids.map((id) => ({ id, installation_id: 555 })),
+    sources: ids.map((id) => ({
+      id,
+      installation_id: 555,
+      apps: [{ name: "my-bot" }],
+    })),
+  });
+}
+
+/** The DB promotion-records response for one app (the promote authz source). */
+function appRecords(...deploymentIds: string[]) {
+  return Response.json({
+    app: "my-bot",
+    current_release_tag: null,
+    records: deploymentIds.map((deployment_id) => ({
+      deployment_id,
+      release_tag: `${deployment_id}-tag`,
+      actor: null,
+      created_at: 0,
+      sdk_version: "3.0.1",
+      current: false,
+    })),
   });
 }
 
@@ -369,11 +389,11 @@ describe("launchDeployRoute", () => {
   });
 });
 
-describe("deploymentRollbackRoute", () => {
+describe("deploymentPromoteRoute", () => {
   const DEPLOYMENT = "dep_555_r0123abcdef_a5a81b6b8be1";
 
-  function rollbackReq(body: unknown) {
-    return new Request("http://localhost:3000/api/bff/deployments/rollback", {
+  function promoteReq(body: unknown) {
+    return new Request("http://localhost:3000/api/bff/deployments/promote", {
       method: "POST",
       headers: {
         origin: "http://localhost:3000",
@@ -395,25 +415,25 @@ describe("deploymentRollbackRoute", () => {
     getGitHubSession.mockReset();
   });
 
-  it("rejects rollback without a GitHub session before any backend call", async () => {
+  it("rejects promote without a GitHub session before any backend call", async () => {
     getGitHubSession.mockResolvedValue(null);
     const fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);
 
-    const res = await deploymentRollbackRoute(
-      rollbackReq({ deploymentId: DEPLOYMENT, appSourceId: 99 }),
+    const res = await deploymentPromoteRoute(
+      promoteReq({ deploymentId: DEPLOYMENT, appSourceId: 99 }),
     );
 
     expect(res.status).toBe(401);
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it("requires appSourceId so the rollback target can be authorized", async () => {
+  it("requires appSourceId so the promote target can be authorized", async () => {
     const fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);
 
-    const res = await deploymentRollbackRoute(
-      rollbackReq({ deploymentId: DEPLOYMENT }),
+    const res = await deploymentPromoteRoute(
+      promoteReq({ deploymentId: DEPLOYMENT }),
     );
     const body = await res.json();
 
@@ -422,12 +442,12 @@ describe("deploymentRollbackRoute", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it("rejects rollback of an app source the user does not own", async () => {
+  it("rejects promote of an app source the user does not own", async () => {
     const fetchMock = vi.fn().mockResolvedValueOnce(ownedSources(1, 2));
     vi.stubGlobal("fetch", fetchMock);
 
-    const res = await deploymentRollbackRoute(
-      rollbackReq({ deploymentId: DEPLOYMENT, appSourceId: 99 }),
+    const res = await deploymentPromoteRoute(
+      promoteReq({ deploymentId: DEPLOYMENT, appSourceId: 99 }),
     );
     const body = await res.json();
 
@@ -436,34 +456,32 @@ describe("deploymentRollbackRoute", () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
-  it("rejects a deployment that does not belong to the source", async () => {
+  it("rejects a deployment absent from the source's DB records", async () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(ownedSources(99))
-      .mockResolvedValueOnce(
-        Response.json({
-          deployments: [{ deployment_id: "dep_555_r0123abcdef_other001" }],
-        }),
-      );
+      .mockResolvedValueOnce(appRecords("dep_555_r0123abcdef_other001"));
     vi.stubGlobal("fetch", fetchMock);
 
-    const res = await deploymentRollbackRoute(
-      rollbackReq({ deploymentId: DEPLOYMENT, appSourceId: 99 }),
+    const res = await deploymentPromoteRoute(
+      promoteReq({ deploymentId: DEPLOYMENT, appSourceId: 99 }),
     );
     const body = await res.json();
 
     expect(res.status).toBe(404);
     expect(body.error).toContain("deployment does not belong");
     expect(fetchMock).toHaveBeenCalledTimes(2);
+    // The records lookup is DB, not the GitHub history fanout.
+    expect(String(fetchMock.mock.calls[1][0])).toContain(
+      "/apps/my-bot/records",
+    );
   });
 
-  it("rolls back an owned deployment and attributes the GitHub login", async () => {
+  it("promotes an owned deployment and attributes the GitHub login", async () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(ownedSources(99))
-      .mockResolvedValueOnce(
-        Response.json({ deployments: [{ deployment_id: DEPLOYMENT }] }),
-      )
+      .mockResolvedValueOnce(appRecords(DEPLOYMENT))
       .mockResolvedValueOnce(
         Response.json({
           ok: true,
@@ -475,19 +493,17 @@ describe("deploymentRollbackRoute", () => {
       );
     vi.stubGlobal("fetch", fetchMock);
 
-    const res = await deploymentRollbackRoute(
-      rollbackReq({ deploymentId: DEPLOYMENT, appSourceId: 99 }),
+    const res = await deploymentPromoteRoute(
+      promoteReq({ deploymentId: DEPLOYMENT, appSourceId: 99 }),
     );
     const body = await res.json();
 
     expect(res.status).toBe(202);
     expect(body.ok).toBe(true);
-    expect(body.rollback.deploymentId).toBe(DEPLOYMENT);
-    const [rollbackUrl, rollbackInit] = fetchMock.mock.calls[2];
-    expect(String(rollbackUrl)).toContain(
-      `/deployments/${DEPLOYMENT}/rollback`,
-    );
-    expect(String(rollbackInit?.body)).toContain('"actor":"alice"');
+    expect(body.promote.deploymentId).toBe(DEPLOYMENT);
+    const [promoteUrl, promoteInit] = fetchMock.mock.calls[2];
+    expect(String(promoteUrl)).toContain(`/deployments/${DEPLOYMENT}/promote`);
+    expect(String(promoteInit?.body)).toContain('"actor":"alice"');
   });
 });
 
