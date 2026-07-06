@@ -49,7 +49,7 @@ describe("planRollback", () => {
 });
 
 describe("executeRollback", () => {
-  it("calls the deploy client with app scoping and workbench actor", async () => {
+  it("calls the deploy client with app scoping and smither actor", async () => {
     const rollback = vi.fn(async () => ({
       ok: true,
       rollback: {
@@ -67,7 +67,7 @@ describe("executeRollback", () => {
       platform: "community",
       deploymentId: "dep_b",
       apps: ["my-bot"],
-      actor: "aomi-workbench",
+      actor: "aomi-smither",
     });
     expect(result).toEqual({
       ok: true,

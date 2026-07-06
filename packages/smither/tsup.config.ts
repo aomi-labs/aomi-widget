@@ -23,7 +23,8 @@ export default defineConfig([
     splitting: false,
     sourcemap: false,
     clean: false,
-    banner: { js: "#!/usr/bin/env node" },
+    // Smithers persists runs via bun:sqlite, so the CLI prefers Bun.
+    banner: { js: "#!/usr/bin/env bun" },
     tsconfig: "tsconfig.json",
   },
 ]);

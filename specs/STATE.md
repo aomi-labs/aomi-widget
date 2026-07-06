@@ -2,9 +2,119 @@
 
 ## Last Updated
 
-2026-06-28 — CLI converted to the BFF session + `/token` refresh model (BetterAuth-compatible)
+2026-07-05 — aomi-smither rewritten as a real Smithers-native orchestrator (on `feat/deployment-sdk-guardrails`)
 
 ## Recent Changes
+
+### aomi-smither engine rewrite: Smithers-native, compose-from-intent (2026-07-05)
+
+Rewrote `packages/smither` (Cecilia's direction; Han returns Monday to
+continue on this branch). The old hand-rolled sequential engine + plan.json
+state (`workflow.ts`, `state.ts`, `smithers.ts`) is replaced by a real
+`smithers-orchestrator` (0.26.1) integration:
+
+- **plan.ts** — `BuildPlan` zod schema is the contract between the intake
+  chat and the workflow; `stagesFor(plan)` drives preview, dry-run, and node
+  ids (stable, resume-safe).
+- **workflow.tsx** — JSX task graph rendered from the plan: binaries →
+  codegen → agent curate (needsApproval) → optional forked-session review →
+  `<Loop>` validate/repair (maxFixRounds) → optional smoke → `<Approval>`
+  deploy gate → deploy → result. Conditional mounting from persisted ctx
+  outputs.
+- **run.ts** — embeds the engine (`Effect.runPromise(runWorkflow(...))`),
+  durable approvals via `approveNode`/`denyNode`, run pointer in
+  `.smithers/runs/<app>/run.json`, resume on re-run. Bun-only (bun:sqlite);
+  modules lazy-import the orchestrator so Node can still load them.
+- **intent.ts / cli.tsx** — new TUI: intent chat ("What Aomi App do you wanna
+  build?") → read-only CLI agent distills the plan → editable preview →
+  live run view with inline approval prompts. Headless `--yes` and
+  `--dry-run` modes; `rollback` subcommand unchanged.
+- **binaries.ts** — fresh-from-GitHub guarantee: `ensureFreshSdkCheckout`
+  (fetch, ff-only merge when clean+behind; throws on dirty/diverged/offline
+  unless `--allow-stale-sdk`), and stale fallbacks are gated behind the same
+  flag. CLI shebang is now `#!/usr/bin/env bun`; added `effect` dep.
+
+Also earlier same day: renamed the package from Han's `aomi-workbench`
+(`@aomi-labs/workbench`) to `aomi-smither` (`@aomi-labs/smither`) across
+package/bin/identifiers/docs/lockfile.
+
+Verified: 35 vitest tests pass (plan/intent/binaries-freshness/state/commands/
+rollback), `pnpm run build:smither` green, `tsc --noEmit` clean, CLI help +
+dry-run compose correctly under Bun. All uncommitted — pending Cecilia's
+review.
+
+### Live E2E: geckoterminal app built by smither (2026-07-05)
+
+First real end-to-end run succeeded. `aomi-smither --app geckoterminal
+--existing --builder claude --yes` against `~/Code/aomi-sdk`: GitHub-fresh
+sync fast-forwarded the checkout to origin/main, built binaries, gen-client +
+gen-tool from a sanitized GeckoTerminal OpenAPI spec (20 client methods,
+~6.6k LOC generated), Claude curated 10 pool-centric tools, and cargo
+fmt/clippy/test validated green on the first pass (zero repair rounds).
+Plugin compiles (`plugins/geckoterminal.dylib`).
+
+Fixes that came out of the live run:
+- Freshness gate no longer counts untracked files as dirty
+  (`git status --untracked-files=no`) — generated apps and the engine's own
+  `.smithers/` state under sdkRoot used to block every second run.
+- React duplication crash in the TUI (`@inkjs/ui` declares no react dep) —
+  fixed via root `pnpm.packageExtensions` granting it a react peer.
+- CLI/headless runs exit explicitly (engine timers keep the loop alive).
+- TUI: elapsed ticker on intent "thinking…", streamed command output tail in
+  the run view. `savePlan`/`loadPlan` persist the BuildPlan beside the run.
+
+Notes: GeckoTerminal's published spec has 14 `include` query params missing
+`schema` — sanitized copy written to `apps/geckoterminal/openapi.yaml` in the
+SDK checkout (untracked) plus a one-line workspace-exclude edit to the SDK
+root `Cargo.toml` (codegen artifact). Morpho has no public OpenAPI (GraphQL
+only) — a draft-spec agent stage (SDK's `aomi-app-client-api-gen` skill) is
+the path for spec-less platforms. Stale `morpho` run state from Cecilia's
+first TUI session remains under `packages/smither/.smithers/runs/morpho/`.
+
+### Browser console: live workflow visualization via Smithers Gateway (2026-07-05)
+
+Added a Gateway sidecar (`packages/smither/src/console.ts`) per Cecilia's ask
+to visualize workflow progress (smithers.sh workflow-ui pattern):
+
+- **startConsole** — boots `smithers-orchestrator/gateway` on `127.0.0.1`
+  (no auth ⇒ operator role, loopback-only by design), registers the run's own
+  workflow object (`ui: true` mounts the built-in operator console), serves
+  `/console` + `/workflows/<app>`. Port retry starts at 7331; ports are
+  probed with a raw `net` server first because `gateway.listen` does NOT
+  reject on EADDRINUSE — it emits an unhandled 'error' that would crash the
+  process.
+- **startConsoleForApp** — observer mode: rebuilds the workflow from the
+  persisted `plan.json` (written by `prepareRun` since this change) and
+  attaches to the same `smithers.sqlite`; the gateway's out-of-process event
+  bridge (1s poll) streams a run executing in another terminal.
+- **CLI**: interactive runs boot the sidecar by default and show
+  `⌗ live console: <url>` in the run view; headless opts in with
+  `--console`; `--no-console` / `--console-port` to disable/move. New
+  `aomi-smither console --app <name>` subcommand for external observation.
+- Browser approvals work (operator console approve/deny writes the same
+  durable decision the TUI does; first writer wins).
+
+Verified: 38 vitest tests green, tsc + eslint clean, live smoke under Bun
+(port-conflict bump, /health, /workflows `hasUi:true`, console HTML, 42.5KB
+workflow client.js bundle all 200), and `console --app geckoterminal`
+serves the real completed run's state. `plan.json` for geckoterminal was
+reconstructed manually (run predates savePlan).
+
+### Pending
+
+- Deploy of a smither-built app has not been exercised (gate + activation
+  token are wired; needs a human at the gate).
+- Add a draft-spec agent stage for platforms without an OpenAPI spec.
+- Decide whether `review`/`fix` agent output schemas should feed a quality
+  gate (currently informational).
+- Optional: custom aomi-branded gateway-react UI
+  (`ui: { entry: ".smithers/ui/aomi-smither.tsx" }`, hooks from
+  `smithers-orchestrator/gateway-react`) — the built-in operator console
+  already covers graph/outputs/approvals, so this is branding polish.
+- Cosmetic: observer-mode boot logs a ClaudeCodeAgent ANTHROPIC_API_KEY WARN
+  (agents are constructed, never invoked); consider suppressing.
+- Root `vercel-build`/CI: smither package is not in the app build path; no CI
+  wiring for bun tests yet.
 
 ### CLI auth: SIWE session + `/token` bearer refresh (2026-06-28)
 

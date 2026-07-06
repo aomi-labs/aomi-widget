@@ -1,54 +1,68 @@
 import path from "node:path";
-import { dirname } from "node:path";
-import { fileURLToPath } from "node:url";
-import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { ConfirmInput, Select, TextInput } from "@inkjs/ui";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Box, Text, render, useApp } from "ink";
-import { defaultSdkRoot } from "./binaries";
-import { loadRunPlan } from "./state";
+import { ConfirmInput, Select, TextInput } from "@inkjs/ui";
+import type { SmithersEvent } from "smithers-orchestrator";
+import {
+  buildPlanSchema,
+  describePlan,
+  finalizePlan,
+  mergePlanDraft,
+  stagesFor,
+  type BuildPlan,
+  type PlanStage,
+} from "./plan";
+import type { IntentTurn } from "./prompts";
+import { distillIntent, type IntentAgent } from "./intent";
+import { defaultRunner, defaultSdkRoot } from "./binaries";
+import type { CommandRunner } from "./types";
+import { defaultRunsRoot } from "./state";
+import {
+  decideApproval,
+  executeRun,
+  prepareRun,
+  type PreparedRun,
+} from "./run";
+import {
+  startConsole,
+  startConsoleForApp,
+  type ConsoleHandle,
+} from "./console";
 import {
   executeRollback,
   planRollback,
   rollbackClientFromEnv,
-  type RollbackPlanSummary,
 } from "./rollback";
-import { runWorkbenchWorkflow, type WorkflowEvent } from "./workflow";
-import { intakeSchema, type RunPlan, type WorkbenchIntake } from "./types";
+
+// ---------------------------------------------------------------------------
+// Argument parsing
+// ---------------------------------------------------------------------------
 
 type CliArgs = {
   help: boolean;
   yes: boolean;
+  dryRun: boolean;
   overwrite: boolean;
-  activationToken?: string;
   runsRoot: string;
-  intake: WorkbenchIntake;
+  activationToken?: string;
+  intentAgent: IntentAgent;
+  /** Browser console sidecar. Unset ⇒ on for interactive runs, off for
+   *  headless ones (scripts/CI must opt in with --console). */
+  console?: boolean;
+  consolePort?: number;
+  /** Plan fields provided via flags; the chat fills in the rest. */
+  draft: Partial<BuildPlan>;
   provided: Set<string>;
 };
 
-type GatePhase =
-  | "intake-app"
-  | "check-existing"
-  | "resume-existing"
-  | "overwrite-existing"
-  | "preview"
-  | "approve-agent"
-  | "approve-deploy"
-  | "running"
-  | "done";
-
-const packageRoot = path.resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const defaultWorkbenchRunsRoot = path.join(packageRoot, ".smithers", "runs");
-
-function parseArgs(argv: string[]): CliArgs {
+function parseFlagMap(argv: string[]): Map<string, string | boolean> {
   const values = new Map<string, string | boolean>();
-  const provided = new Set<string>();
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i];
     if (!arg.startsWith("--")) {
       continue;
     }
     const key = arg.slice(2);
-    provided.add(key);
     const next = argv[i + 1];
     if (!next || next.startsWith("--")) {
       values.set(key, true);
@@ -57,47 +71,69 @@ function parseArgs(argv: string[]): CliArgs {
       i += 1;
     }
   }
-
-  const app = stringValue(values, "app") ?? "";
-  const openApiUrl = stringValue(values, "openapi-url");
-  const source = values.has("existing")
-    ? "existing"
-    : openApiUrl
-      ? "url"
-      : "discover";
-
-  return {
-    help: Boolean(values.get("help") || values.get("h")),
-    yes: Boolean(values.get("yes") || values.get("y")),
-    overwrite: Boolean(values.get("overwrite")),
-    activationToken: stringValue(values, "activation-token"),
-    runsRoot: stringValue(values, "state-root") ?? defaultWorkbenchRunsRoot,
-    intake: intakeSchema.parse({
-      sdkRoot: stringValue(values, "sdk-root") ?? defaultSdkRoot(),
-      app: app || "new-aomi-app",
-      source,
-      openApiUrl,
-      shared: Boolean(values.get("shared")),
-      includeAllOperations: Boolean(values.get("all")),
-      force: Boolean(values.get("force")),
-      build: !values.get("no-build"),
-      primaryUserStory:
-        stringValue(values, "user-story") ?? "Create and validate an Aomi app.",
-      agent: (stringValue(values, "agent") as WorkbenchIntake["agent"]) ?? "codex",
-      runSmoke: Boolean(values.get("smoke")),
-      smokePrompt:
-        stringValue(values, "smoke-prompt") ??
-        "List the app capabilities in one paragraph.",
-      deploy: Boolean(values.get("deploy")),
-      dryRun: Boolean(values.get("dry-run")),
-    }),
-    provided,
-  };
+  return values;
 }
 
 function stringValue(values: Map<string, string | boolean>, key: string): string | undefined {
   const value = values.get(key);
   return typeof value === "string" ? value : undefined;
+}
+
+function parseArgs(argv: string[]): CliArgs {
+  const values = parseFlagMap(argv);
+  const draft: Partial<BuildPlan> = {
+    sdkRoot: path.resolve(stringValue(values, "sdk-root") ?? defaultSdkRoot()),
+  };
+  const provided = new Set<string>();
+  const setField = <K extends keyof BuildPlan>(key: K, value: BuildPlan[K] | undefined) => {
+    if (value === undefined) return;
+    draft[key] = value;
+    provided.add(key);
+  };
+
+  setField("app", stringValue(values, "app"));
+  const openApiUrl = stringValue(values, "openapi-url");
+  if (openApiUrl) {
+    setField("openApiUrl", openApiUrl);
+    setField("source", "url");
+  }
+  if (values.get("existing")) setField("source", "existing");
+  if (values.get("shared")) setField("shared", true);
+  if (values.get("force")) setField("force", true);
+  if (values.get("no-build")) setField("build", false);
+  setField("userStory", stringValue(values, "user-story"));
+  const builder = stringValue(values, "builder") ?? stringValue(values, "agent");
+  if (builder === "claude" || builder === "codex" || builder === "none") {
+    setField("builder", builder);
+  }
+  if (values.get("review")) setField("review", true);
+  const reviewer = stringValue(values, "reviewer");
+  if (reviewer === "claude" || reviewer === "codex") setField("reviewer", reviewer);
+  const fixRounds = stringValue(values, "max-fix-rounds");
+  if (fixRounds && /^\d+$/.test(fixRounds)) setField("maxFixRounds", Number(fixRounds));
+  if (values.get("smoke")) setField("smoke", true);
+  setField("smokePrompt", stringValue(values, "smoke-prompt"));
+  if (values.get("deploy")) setField("deploy", true);
+  if (values.get("allow-stale-sdk")) setField("allowStaleSdk", true);
+  const yes = Boolean(values.get("yes") || values.get("y"));
+  if (yes) setField("autoApprove", true);
+
+  const intentAgent = stringValue(values, "intent-agent");
+  const consolePortRaw = stringValue(values, "console-port");
+  return {
+    help: Boolean(values.get("help") || values.get("h")),
+    yes,
+    dryRun: Boolean(values.get("dry-run")),
+    overwrite: Boolean(values.get("overwrite")),
+    runsRoot: stringValue(values, "state-root") ?? defaultRunsRoot,
+    activationToken: stringValue(values, "activation-token"),
+    intentAgent: intentAgent === "codex" ? "codex" : "claude",
+    console: values.get("no-console") ? false : values.get("console") ? true : undefined,
+    consolePort:
+      consolePortRaw && /^\d+$/.test(consolePortRaw) ? Number(consolePortRaw) : undefined,
+    draft,
+    provided,
+  };
 }
 
 type RollbackArgs = {
@@ -112,21 +148,7 @@ type RollbackArgs = {
 };
 
 function parseRollbackArgs(argv: string[]): RollbackArgs {
-  const values = new Map<string, string | boolean>();
-  for (let i = 0; i < argv.length; i += 1) {
-    const arg = argv[i];
-    if (!arg.startsWith("--")) {
-      continue;
-    }
-    const key = arg.slice(2);
-    const next = argv[i + 1];
-    if (!next || next.startsWith("--")) {
-      values.set(key, true);
-    } else {
-      values.set(key, next);
-      i += 1;
-    }
-  }
+  const values = parseFlagMap(argv);
   const source = stringValue(values, "source");
   return {
     help: Boolean(values.get("help") || values.get("h")),
@@ -141,32 +163,49 @@ function parseRollbackArgs(argv: string[]): RollbackArgs {
 }
 
 function printHelp() {
-  console.log(`Aomi Workbench
+  console.log(`Aomi Smither — compose a Smithers workflow from your intent and build an Aomi app
 
 USAGE
-  aomi-workbench --sdk-root ../aomi-sdk --app <name> [options]
+  aomi-smither                              Interactive: chat about what to build
+  aomi-smither --app <name> --yes           Headless: run straight from flags
 
 OPTIONS
   --app <name>                App/platform name
   --sdk-root <path>           Aomi SDK checkout (default: ../aomi-sdk)
-  --state-root <path>         Workbench run state root (default: packages/workbench/.smithers/runs)
-  --openapi-url <url>         Fetch from a known OpenAPI URL
+  --state-root <path>         Run state root (default: packages/smither/.smithers/runs)
+  --openapi-url <url>         Generate from a known OpenAPI URL
   --existing                  Use existing apps/<name>/openapi.yaml
   --shared                    Generate shared provider under ext/
-  --all                       Expose every OpenAPI operation as a stub tool
-  --force                     Overwrite generated files
+  --force                     Overwrite generated app files
   --no-build                  Skip aomi-build's cargo build step
   --user-story <text>         Primary workflow the app should support
-  --agent codex|claude|none
+  --builder claude|codex|none Agent that curates tools and repairs validation
+  --review                    Second agent reviews the curation (forked session)
+  --reviewer claude|codex     Reviewing agent (default: codex)
+  --max-fix-rounds <n>        Validation repair budget (default: 2)
   --smoke                     Run aomi-run --prompt after validation
   --smoke-prompt <text>       Prompt for local smoke
-  --deploy                    Deploy after validation and token gate
+  --deploy                    Deploy after validation, behind an approval gate
   --activation-token <token>  Runtime deploy token; not persisted
-  --dry-run                   Persist and preview the workflow without executing tools
+  --intent-agent claude|codex Agent that distills the intake chat (default: claude)
+  --allow-stale-sdk           Skip the GitHub-freshness guarantee for the SDK checkout
+  --dry-run                   Show the composed plan and stages without running
   --overwrite                 Reset existing .smithers run state for the app
-  --yes                       Accept workflow, agent, and deploy approvals
+  --resume                    (implicit) an existing run for the app resumes automatically
+  --yes                       Auto-approve gates; required for headless runs
+  --console / --no-console    Browser console sidecar (Smithers Gateway on
+                              127.0.0.1): live task graph, node outputs, and
+                              approve/deny. Default: on for interactive runs,
+                              off for headless.
+  --console-port <n>          First port to try for the console (default: 7331)
 
 SUBCOMMANDS
+  console                     Observe an app's run from a browser (works while
+                              a run executes in another terminal)
+    --app <name>              App whose run state to watch (required)
+    --state-root <path>       Run state root (default: packages/smither/.smithers/runs)
+    --port <n>                Console port (default: 7331)
+
   rollback                    Roll an app back to a previous deployment
     --app <name>              App to roll back (required)
     --platform <name>         Hosted platform name (required)
@@ -175,338 +214,531 @@ SUBCOMMANDS
     --backend-url <url>       Backend base URL (or AOMI_BACKEND_URL)
     --activation-token <tok>  Activation token (or AOMI_APP_ACTIVATION_TOKEN)
     --yes                     Skip the confirm gate
+
+Requires Bun (https://bun.sh) — Smithers persists runs in bun:sqlite.
 `);
 }
 
-function WorkbenchApp({ args }: { args: CliArgs }) {
+// ---------------------------------------------------------------------------
+// Run view model: stages + events
+// ---------------------------------------------------------------------------
+
+type StageStatus = "pending" | "running" | "complete" | "failed" | "waiting";
+
+/** Map engine node events onto the plan's stage checklist. Loop children
+ *  (validate/fix) report into the loop stage. */
+function stageKeyForNode(plan: BuildPlan, nodeIdValue: string): string {
+  const loopChildren = new Set([`${plan.app}:validate`, `${plan.app}:fix`]);
+  if (loopChildren.has(nodeIdValue)) {
+    return `${plan.app}:validate-loop`;
+  }
+  return nodeIdValue;
+}
+
+type RunViewState = {
+  stageStatus: Record<string, StageStatus>;
+  lines: string[];
+  approvals: { nodeId: string; iteration: number; title?: string }[];
+};
+
+function reduceEvent(
+  plan: BuildPlan,
+  state: RunViewState,
+  event: SmithersEvent,
+): RunViewState {
+  const next: RunViewState = {
+    stageStatus: { ...state.stageStatus },
+    lines: [...state.lines],
+    approvals: [...state.approvals],
+  };
+  const push = (line: string) => {
+    next.lines = [...next.lines.slice(-120), line];
+  };
+  const setStage = (nodeIdValue: string, status: StageStatus) => {
+    const key = stageKeyForNode(plan, nodeIdValue);
+    // Never let a later loop iteration mark a finished stage as pending again.
+    if (next.stageStatus[key] === "complete" && status === "running") return;
+    next.stageStatus[key] = status;
+  };
+
+  switch (event.type) {
+    case "NodeStarted":
+      setStage(event.nodeId, "running");
+      push(`▸ ${event.nodeId}${event.iteration > 0 ? ` (round ${event.iteration + 1})` : ""}`);
+      break;
+    case "NodeFinished":
+      setStage(event.nodeId, "complete");
+      push(`✓ ${event.nodeId}`);
+      break;
+    case "NodeFailed": {
+      setStage(event.nodeId, "failed");
+      const message =
+        event.error instanceof Error
+          ? event.error.message
+          : typeof event.error === "string"
+            ? event.error
+            : JSON.stringify(event.error);
+      push(`✗ ${event.nodeId}: ${message?.slice(0, 400) ?? "failed"}`);
+      break;
+    }
+    case "NodeRetrying":
+      push(`↻ ${event.nodeId} retrying (attempt ${event.attempt})`);
+      break;
+    case "NodeWaitingApproval": {
+      setStage(event.nodeId, "waiting");
+      const exists = next.approvals.some(
+        (approval) =>
+          approval.nodeId === event.nodeId && approval.iteration === event.iteration,
+      );
+      if (!exists) {
+        next.approvals.push({ nodeId: event.nodeId, iteration: event.iteration });
+        push(`⏸ ${event.nodeId} awaiting approval`);
+      }
+      break;
+    }
+    case "ApprovalRequested": {
+      const request = (event as { request?: { title?: string } }).request;
+      const pending = next.approvals.find(
+        (approval) => approval.nodeId === (event as { nodeId?: string }).nodeId,
+      );
+      if (pending && request?.title) {
+        pending.title = request.title;
+      }
+      break;
+    }
+    case "ApprovalGranted":
+    case "ApprovalDenied": {
+      const nodeIdValue = (event as { nodeId?: string }).nodeId;
+      next.approvals = next.approvals.filter((approval) => approval.nodeId !== nodeIdValue);
+      break;
+    }
+    case "RunStatusChanged":
+      push(`run status: ${event.status}`);
+      break;
+    default:
+      break;
+  }
+  return next;
+}
+
+function stageSymbol(status: StageStatus | undefined): string {
+  switch (status) {
+    case "running":
+      return "◐";
+    case "complete":
+      return "✓";
+    case "failed":
+      return "✗";
+    case "waiting":
+      return "⏸";
+    default:
+      return "·";
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Interactive app
+// ---------------------------------------------------------------------------
+
+const GREETING =
+  "What Aomi App do you wanna build? Tell me about the product or API — I'll compose the workflow (spec source, agents, validation, smoke, deploy) from your answers.";
+
+type Screen =
+  | { name: "chat"; thinking: boolean; error?: string }
+  | { name: "preview"; plan: BuildPlan }
+  | { name: "running"; plan: BuildPlan }
+  | { name: "fatal"; message: string };
+
+function SmitherApp({ args }: { args: CliArgs }) {
   const { exit } = useApp();
-  const autoApprove = args.yes || args.intake.dryRun;
-  const [phase, setPhase] = useState<GatePhase>(
-    args.provided.has("app") || autoApprove ? "check-existing" : "intake-app",
-  );
-  const [intake, setIntake] = useState(args.intake);
-  const [overwrite, setOverwrite] = useState(args.overwrite);
-  const [agentApproved, setAgentApproved] = useState(autoApprove);
-  const [deployApproved, setDeployApproved] = useState(args.intake.deploy ? args.yes : true);
-  const [events, setEvents] = useState<WorkflowEvent[]>([]);
-  const [plan, setPlan] = useState<RunPlan | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [turns, setTurns] = useState<IntentTurn[]>([{ role: "smither", text: GREETING }]);
+  const [draft, setDraft] = useState<Partial<BuildPlan>>(args.draft);
+  const [screen, setScreen] = useState<Screen>({ name: "chat", thinking: false });
 
-  const currentPlan = plan;
-  const existingLabel = useMemo(
-    () => path.join(args.runsRoot, intake.app, "plan.json"),
-    [args.runsRoot, intake.app],
-  );
-
-  useEffect(() => {
-    if (phase !== "check-existing") {
-      return;
-    }
-    let cancelled = false;
-    loadRunPlan(intake.app, args.runsRoot)
-      .then((existing) => {
-        if (cancelled) {
-          return;
-        }
-        if (existing && !overwrite && !autoApprove) {
-          setPhase("resume-existing");
+  const submitChat = useCallback(
+    (text: string) => {
+      const trimmed = text.trim();
+      if (!trimmed) return;
+      if (trimmed === "/quit") {
+        exit();
+        return;
+      }
+      if (trimmed === "/go" || trimmed === "/plan") {
+        const outcome = finalizePlan(draft);
+        if (outcome.plan) {
+          setScreen({ name: "preview", plan: outcome.plan });
         } else {
-          setPhase("preview");
+          setTurns((prev) => [
+            ...prev,
+            { role: "smither", text: `Not runnable yet: ${outcome.issues.join("; ")}` },
+          ]);
         }
-      })
-      .catch((err) => {
-        if (!cancelled) {
-          setError(err instanceof Error ? err.message : String(err));
-          setPhase("done");
-        }
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [phase, intake.app, args.runsRoot, overwrite, autoApprove]);
-
-  const startWorkflow = useCallback(() => {
-    setPhase("running");
-  }, []);
-
-  useEffect(() => {
-    if (phase !== "running") {
-      return;
-    }
-    let cancelled = false;
-    runWorkbenchWorkflow(intake, {
-      overwrite,
-      runsRoot: args.runsRoot,
-      activationToken: args.activationToken,
-      agentApproved,
-      deployApproved,
-      onEvent: (event) => {
-        if (cancelled) {
-          return;
-        }
-        setEvents((current) => [...current, event]);
-        if ("plan" in event) {
-          setPlan(event.plan);
-        }
-      },
-    })
-      .then(() => {
-        if (!cancelled) {
-          setPhase("done");
-          setTimeout(exit, 10);
-        }
-      })
-      .catch((err) => {
-        if (!cancelled) {
-          setError(err instanceof Error ? err.message : String(err));
-          setPhase("done");
-          setTimeout(exit, 10);
-        }
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [
-    phase,
-    intake,
-    overwrite,
-    args.runsRoot,
-    args.activationToken,
-    agentApproved,
-    deployApproved,
-    exit,
-  ]);
-
-  useEffect(() => {
-    if (phase === "preview" && autoApprove) {
-      if (intake.agent !== "none") {
-        setAgentApproved(true);
+        return;
       }
-      if (intake.deploy) {
-        setDeployApproved(args.yes);
-      }
-      startWorkflow();
-    }
-  }, [phase, autoApprove, intake.agent, intake.deploy, args.yes, startWorkflow]);
-
-  return (
-    <Box flexDirection="column" paddingX={1}>
-      <Text bold>Aomi Workbench</Text>
-      <Text color="gray">Smithers workflow: aomi-app-from-scratch</Text>
-      <Text>State: {args.runsRoot}</Text>
-      <Box marginTop={1} flexDirection="column">
-        {phase === "intake-app" ? (
-          <>
-            <Text>App name</Text>
-            <TextInput
-              defaultValue={intake.app}
-              onSubmit={(value) => {
-                setIntake((current) => ({ ...current, app: value.trim() || current.app }));
-                setPhase("check-existing");
-              }}
-            />
-          </>
-        ) : null}
-        {phase === "resume-existing" ? (
-          <>
-            <Text>Existing workflow state found: {existingLabel}</Text>
-            <Text>Resume existing run?</Text>
-            <ConfirmInput
-              defaultChoice="confirm"
-              onConfirm={() => setPhase("preview")}
-              onCancel={() => setPhase("overwrite-existing")}
-            />
-          </>
-        ) : null}
-        {phase === "overwrite-existing" ? (
-          <>
-            <Text color="yellow">Overwrite existing workflow state?</Text>
-            <ConfirmInput
-              defaultChoice="cancel"
-              onConfirm={() => {
-                setOverwrite(true);
-                setPhase("preview");
-              }}
-              onCancel={() => {
-                setError("Existing run state was left unchanged.");
-                setPhase("done");
-                setTimeout(exit, 10);
-              }}
-            />
-          </>
-        ) : null}
-        {phase === "preview" ? (
-          <Preview intake={intake} onAccept={() => {
-            if (intake.agent !== "none" && !agentApproved) {
-              setPhase("approve-agent");
-            } else if (intake.deploy && !deployApproved) {
-              setPhase("approve-deploy");
-            } else {
-              startWorkflow();
-            }
-          }} onCancel={() => {
-            setError("Workflow was not approved.");
-            setPhase("done");
-            setTimeout(exit, 10);
-          }} />
-        ) : null}
-        {phase === "approve-agent" ? (
-          <>
-            <Text>Approve {intake.agent} curation from SDK root?</Text>
-            <Text color="gray">Edits are constrained to apps/{intake.app} and required ext/ files.</Text>
-            <ConfirmInput
-              defaultChoice="confirm"
-              onConfirm={() => {
-                setAgentApproved(true);
-                if (intake.deploy && !deployApproved) {
-                  setPhase("approve-deploy");
-                } else {
-                  startWorkflow();
-                }
-              }}
-              onCancel={() => {
-                setAgentApproved(false);
-                startWorkflow();
-              }}
-            />
-          </>
-        ) : null}
-        {phase === "approve-deploy" ? (
-          <>
-            <Text>Approve deploy after validation?</Text>
-            <ConfirmInput
-              defaultChoice="cancel"
-              onConfirm={() => {
-                setDeployApproved(true);
-                startWorkflow();
-              }}
-              onCancel={() => {
-                setDeployApproved(false);
-                startWorkflow();
-              }}
-            />
-          </>
-        ) : null}
-        {phase === "running" || phase === "done" ? (
-          <Timeline plan={currentPlan} intake={intake} events={events} error={error} />
-        ) : null}
-      </Box>
-    </Box>
+      const nextTurns: IntentTurn[] = [...turns, { role: "user", text: trimmed }];
+      setTurns(nextTurns);
+      setScreen({ name: "chat", thinking: true });
+      void (async () => {
+        try {
+          const result = await distillIntent({
+            turns: nextTurns,
+            draft,
+            sdkRoot: draft.sdkRoot ?? defaultSdkRoot(),
+            agent: args.intentAgent,
+          });
+          const merged = mergePlanDraft(draft, result.plan);
+          setDraft(merged);
+          const reply = [
+            result.summary,
+            ...result.questions.map((question) => `· ${question}`),
+          ]
+            .filter(Boolean)
+            .join("\n");
+          setTurns((prev) => [
+            ...prev,
+            { role: "smither", text: reply || "Noted." },
+          ]);
+          const outcome = finalizePlan(merged);
+          if (result.ready && outcome.plan) {
+            setScreen({ name: "preview", plan: outcome.plan });
+          } else {
+            setScreen({ name: "chat", thinking: false });
+          }
+        } catch (error) {
+          setScreen({
+            name: "chat",
+            thinking: false,
+            error: error instanceof Error ? error.message : String(error),
+          });
+        }
+      })();
+    },
+    [args.intentAgent, draft, exit, turns],
   );
-}
 
-function Preview({
-  intake,
-  onAccept,
-  onCancel,
-}: {
-  intake: WorkbenchIntake;
-  onAccept: () => void;
-  onCancel: () => void;
-}) {
-  return (
-    <>
-      <Text bold>Workflow Preview</Text>
-      <Text>SDK: {intake.sdkRoot}</Text>
-      <Text>App: {intake.app}</Text>
-      <Text>Source: {intake.source}{intake.openApiUrl ? ` (${intake.openApiUrl})` : ""}</Text>
-      <Text>Mode: {intake.shared ? "shared provider" : "app-local"}</Text>
-      <Text>Story: {intake.primaryUserStory}</Text>
-      <Text>Agent: {intake.agent}</Text>
-      <Text>Smoke: {intake.runSmoke ? "enabled" : "disabled"}</Text>
-      <Text>Deploy: {intake.deploy ? "requested" : "disabled"}</Text>
-      <Box marginTop={1} flexDirection="column">
-        <Text>Run this workflow?</Text>
-        <ConfirmInput defaultChoice="confirm" onConfirm={onAccept} onCancel={onCancel} />
-      </Box>
-    </>
-  );
-}
+  if (screen.name === "fatal") {
+    return <Text color="red">Failed: {screen.message}</Text>;
+  }
 
-function Timeline({
-  plan,
-  intake,
-  events,
-  error,
-}: {
-  plan: RunPlan | null;
-  intake: WorkbenchIntake;
-  events: WorkflowEvent[];
-  error: string | null;
-}) {
-  const commandEvents = events
-    .filter(
-      (
-        event,
-      ): event is Extract<WorkflowEvent, { type: "command-start" | "command-output" }> =>
-        event.type === "command-start" || event.type === "command-output",
-    )
-    .flatMap((event) => {
-      if (event.type === "command-start") {
-        return [`$ ${event.command}`];
-      }
-      return event.data
-        .split(/\r?\n/)
-        .filter((line) => line.trim().length > 0)
-        .map((line) => `${event.stream === "stderr" ? "!" : ">"} ${line}`);
-    })
-    .slice(-14);
-
-  return (
-    <>
-      <Text>SDK: {intake.sdkRoot}</Text>
-      <Text>App: {intake.app}</Text>
-      <Text>Agent: {intake.agent} {intake.dryRun ? "(dry-run)" : ""}</Text>
-      <Box marginTop={1} flexDirection="column">
-        {plan?.steps.map((step) => (
-          <Text key={step.id}>
-            {symbol(step.status)} {step.label}
-            {step.detail ? ` - ${step.detail}` : ""}
+  if (screen.name === "chat") {
+    return (
+      <Box flexDirection="column" gap={0}>
+        <Text bold>Aomi Smither</Text>
+        {turns.slice(-12).map((turn, index) => (
+          <Text key={index} color={turn.role === "smither" ? "cyan" : undefined}>
+            {turn.role === "smither" ? "smither" : "you"}: {turn.text}
           </Text>
         ))}
+        {screen.error ? <Text color="red">{screen.error}</Text> : null}
+        {screen.thinking ? (
+          <ThinkingLine />
+        ) : (
+          <Box>
+            <Text>{"> "}</Text>
+            <TextInput placeholder="describe the app (/go to run, /quit to exit)" onSubmit={submitChat} />
+          </Box>
+        )}
       </Box>
-      {commandEvents.length > 0 ? (
-        <Box marginTop={1} flexDirection="column">
-          <Text color="gray">Recent logs</Text>
-          {commandEvents.map((line, index) => (
-            <Text key={index} color={line.startsWith("!") ? "yellow" : "gray"}>
-              {line}
+    );
+  }
+
+  if (screen.name === "preview") {
+    return (
+      <Box flexDirection="column" gap={0}>
+        <Text bold>Plan</Text>
+        {describePlan(screen.plan).map((line) => (
+          <Text key={line}> {line}</Text>
+        ))}
+        <Text bold>Workflow</Text>
+        {stagesFor(screen.plan).map((stage) => (
+          <Text key={stage.id}>
+            {" "}
+            · {stage.label}
+          </Text>
+        ))}
+        <Text>Start this run? (state persists; re-running resumes)</Text>
+        <ConfirmInput
+          onConfirm={() => setScreen({ name: "running", plan: screen.plan })}
+          onCancel={() => {
+            setTurns((prev) => [
+              ...prev,
+              { role: "smither", text: "Okay — what should change?" },
+            ]);
+            setScreen({ name: "chat", thinking: false });
+          }}
+        />
+      </Box>
+    );
+  }
+
+  return (
+    <RunView
+      plan={screen.plan}
+      args={args}
+      onExit={(code) => {
+        process.exitCode = code;
+        exit();
+        // The Smithers engine keeps heartbeat/timer handles alive after the
+        // run resolves; give Ink one tick to flush, then exit for real.
+        setTimeout(() => process.exit(code), 100);
+      }}
+    />
+  );
+}
+
+function ThinkingLine() {
+  const [seconds, setSeconds] = useState(0);
+  useEffect(() => {
+    const timer = setInterval(() => setSeconds((prev) => prev + 1), 1000);
+    return () => clearInterval(timer);
+  }, []);
+  return <Text dimColor>thinking… ({seconds}s — one claude call per turn)</Text>;
+}
+
+function RunView({
+  plan,
+  args,
+  onExit,
+}: {
+  plan: BuildPlan;
+  args: CliArgs;
+  onExit: (code: number) => void;
+}) {
+  const stages = stagesFor(plan);
+  const [view, setView] = useState<RunViewState>({
+    stageStatus: {},
+    lines: [],
+    approvals: [],
+  });
+  const [tail, setTail] = useState<string[]>([]);
+  const [outcome, setOutcome] = useState<string | null>(null);
+  const [consoleUrl, setConsoleUrl] = useState<string | null>(null);
+  const preparedRef = useRef<PreparedRun | null>(null);
+  const consoleRef = useRef<ConsoleHandle | null>(null);
+
+  useEffect(() => {
+    // Stream compute-step command output (cargo, aomi-build, git) into the
+    // view. Agent steps run through Smithers' own agent transport, not this
+    // runner, so they surface via node events only.
+    const streamingRunner: CommandRunner = (file, cmdArgs, options) =>
+      defaultRunner(file, cmdArgs, {
+        ...options,
+        onOutput: (chunk) => {
+          options?.onOutput?.(chunk);
+          const fresh = chunk.data
+            .split("\n")
+            .map((line) => line.trim())
+            .filter(Boolean);
+          if (fresh.length > 0) {
+            setTail((prev) => [...prev, ...fresh].slice(-4));
+          }
+        },
+      });
+    void (async () => {
+      try {
+        const prepared = await prepareRun({
+          plan,
+          deps: {
+            env: process.env,
+            activationToken: args.activationToken,
+            runner: streamingRunner,
+          },
+          runsRoot: args.runsRoot,
+          overwrite: args.overwrite,
+        });
+        preparedRef.current = prepared;
+        if (args.console ?? true) {
+          // Gateway sidecar on the run's own SQLite: browser console with the
+          // live task graph, node outputs, and approve/deny. Never fatal —
+          // the TUI run proceeds without it.
+          try {
+            const handle = await startConsole({
+              workflow: prepared.workflow,
+              app: plan.app,
+              port: args.consolePort,
+            });
+            consoleRef.current = handle;
+            setConsoleUrl(handle.workflowUrl);
+          } catch (error) {
+            setView((prev) => ({
+              ...prev,
+              lines: [
+                ...prev.lines,
+                `console unavailable: ${error instanceof Error ? error.message : String(error)}`,
+              ],
+            }));
+          }
+        }
+        const result = await executeRun(prepared, {
+          onEvent: (event) => setView((prev) => reduceEvent(plan, prev, event)),
+        });
+        setOutcome(result.status);
+        onExit(result.status === "finished" ? 0 : 1);
+      } catch (error) {
+        setOutcome(error instanceof Error ? error.message : String(error));
+        onExit(1);
+      }
+    })();
+  }, []);
+
+  const decide = useCallback(
+    (approval: { nodeId: string; iteration: number }, approve: boolean) => {
+      const prepared = preparedRef.current;
+      if (!prepared) return;
+      void decideApproval({
+        api: prepared.api,
+        runId: prepared.runId,
+        nodeId: approval.nodeId,
+        iteration: approval.iteration,
+        approve,
+      }).catch((error) => {
+        setView((prev) => ({
+          ...prev,
+          lines: [...prev.lines, `approval write failed: ${String(error)}`],
+        }));
+      });
+      // Optimistically clear; ApprovalGranted/Denied confirms.
+      setView((prev) => ({
+        ...prev,
+        approvals: prev.approvals.filter(
+          (pending) =>
+            !(pending.nodeId === approval.nodeId && pending.iteration === approval.iteration),
+        ),
+      }));
+    },
+    [],
+  );
+
+  const pendingApproval = view.approvals[0];
+  return (
+    <Box flexDirection="column" gap={0}>
+      <Text bold>
+        Building {plan.app} {outcome ? `— ${outcome}` : ""}
+      </Text>
+      {consoleUrl ? <Text dimColor>⌗ live console: {consoleUrl}</Text> : null}
+      {stages.map((stage: PlanStage) => (
+        <Text key={stage.id}>
+          {stageSymbol(view.stageStatus[stage.id])} {stage.label}
+        </Text>
+      ))}
+      {view.lines.slice(-8).map((line, index) => (
+        <Text key={`${index}-${line.slice(0, 24)}`} dimColor>
+          {line}
+        </Text>
+      ))}
+      {!outcome && tail.length > 0 ? (
+        <Box flexDirection="column" marginLeft={2}>
+          {tail.map((line, index) => (
+            <Text key={`tail-${index}`} dimColor>
+              {line.slice(0, 100)}
             </Text>
           ))}
         </Box>
       ) : null}
-      {events
-        .filter((event) => event.type === "warning" || event.type === "blocked")
-        .map((event, index) => (
-          <Text key={index} color={event.type === "warning" ? "yellow" : "red"}>
-            {event.message}
+      {pendingApproval && !outcome ? (
+        <Box flexDirection="column">
+          <Text color="yellow">
+            {pendingApproval.title ?? `Approve ${pendingApproval.nodeId}?`}
           </Text>
-        ))}
-      {error ? <Text color="red">Failed: {error}</Text> : null}
-    </>
+          <ConfirmInput
+            onConfirm={() => decide(pendingApproval, true)}
+            onCancel={() => decide(pendingApproval, false)}
+          />
+        </Box>
+      ) : null}
+    </Box>
   );
 }
 
-function symbol(status: string): string {
-  if (status === "complete") {
-    return "✓";
+// ---------------------------------------------------------------------------
+// Headless mode
+// ---------------------------------------------------------------------------
+
+async function runHeadless(args: CliArgs): Promise<void> {
+  const outcome = finalizePlan(args.draft);
+  if (!outcome.plan) {
+    console.error(`plan incomplete: ${outcome.issues.join("; ")}`);
+    console.error("headless runs need at least --app (see --help)");
+    process.exitCode = 1;
+    return;
   }
-  if (status === "running") {
-    return "...";
+  const plan = outcome.plan;
+  if (!args.yes && (plan.builder !== "none" || plan.deploy)) {
+    console.error(
+      "non-interactive runs cannot prompt at approval gates; pass --yes to auto-approve",
+    );
+    process.exitCode = 1;
+    return;
   }
-  if (status === "failed") {
-    return "x";
+  if (args.dryRun) {
+    printDryRun(plan);
+    return;
   }
-  if (status === "skipped") {
-    return "-";
+  try {
+    const prepared = await prepareRun({
+      plan,
+      deps: { env: process.env, activationToken: args.activationToken },
+      runsRoot: args.runsRoot,
+      overwrite: args.overwrite,
+    });
+    console.log(
+      `${prepared.resume ? "resuming" : "starting"} run ${prepared.runId} (state: ${prepared.dbPath})`,
+    );
+    if (args.console === true) {
+      try {
+        const handle = await startConsole({
+          workflow: prepared.workflow,
+          app: plan.app,
+          port: args.consolePort,
+        });
+        console.error(`live console: ${handle.workflowUrl}`);
+      } catch (error) {
+        console.error(
+          `console unavailable: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
+    }
+    const result = await executeRun(prepared, {
+      onEvent: (event) => {
+        if (event.type === "NodeStarted") console.error(`▸ ${event.nodeId}`);
+        if (event.type === "NodeFinished") console.error(`✓ ${event.nodeId}`);
+        if (event.type === "NodeFailed") {
+          const message =
+            event.error instanceof Error ? event.error.message : String(event.error);
+          console.error(`✗ ${event.nodeId}: ${message}`);
+        }
+      },
+    });
+    console.log(`run ${result.status}`);
+    // The engine keeps timer handles alive after the run resolves; exit
+    // explicitly so headless invocations terminate.
+    process.exit(result.status === "finished" ? 0 : result.status === "waiting-approval" ? 2 : 1);
+  } catch (error) {
+    console.error(`Failed: ${error instanceof Error ? error.message : String(error)}`);
+    process.exit(1);
   }
-  return ".";
 }
+
+function printDryRun(plan: BuildPlan): void {
+  console.log("Plan:");
+  for (const line of describePlan(plan)) {
+    console.log(`  ${line}`);
+  }
+  console.log("Workflow:");
+  for (const stage of stagesFor(plan)) {
+    console.log(`  · ${stage.label} [${stage.kind}] (${stage.id})`);
+  }
+  console.log("(dry-run: nothing executed)");
+}
+
+// ---------------------------------------------------------------------------
+// Rollback (unchanged flow: deterministic, no Smithers involvement)
+// ---------------------------------------------------------------------------
 
 type RollbackPhase =
   | { name: "loading" }
-  | { name: "select"; plan: RollbackPlanSummary }
-  | { name: "confirm"; plan: RollbackPlanSummary; deploymentId: string }
+  | { name: "select"; plan: ReturnType<typeof planRollback> }
+  | { name: "confirm"; plan: ReturnType<typeof planRollback> | null; deploymentId: string }
   | { name: "running"; deploymentId: string }
   | { name: "done"; status: string; releaseTags: string[] }
   | { name: "error"; message: string };
@@ -531,8 +763,7 @@ function RollbackApp({ args }: { args: RollbackArgs }) {
         } else if (!plan.previous) {
           setPhase({
             name: "error",
-            message:
-              "No rollback target: only one release has ever been activated.",
+            message: "No rollback target: only one release has ever been activated.",
           });
         } else {
           setPhase({ name: "select", plan });
@@ -544,7 +775,6 @@ function RollbackApp({ args }: { args: RollbackArgs }) {
         });
       }
     })();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -619,8 +849,7 @@ function RollbackApp({ args }: { args: RollbackArgs }) {
     <Box flexDirection="column" gap={0}>
       {phase.plan.current ? (
         <Text>
-          Current: {phase.plan.current.deploymentId} (
-          {phase.plan.current.releaseTag})
+          Current: {phase.plan.current.deploymentId} ({phase.plan.current.releaseTag})
         </Text>
       ) : null}
       <Text>Pick a rollback target for {args.app}:</Text>
@@ -658,9 +887,7 @@ async function runRollbackHeadless(args: RollbackArgs): Promise<void> {
   );
   const deploymentId = args.deployment ?? plan.previous?.deploymentId;
   if (!deploymentId) {
-    console.error(
-      "No rollback target: only one release has ever been activated.",
-    );
+    console.error("No rollback target: only one release has ever been activated.");
     process.exitCode = 1;
     return;
   }
@@ -698,8 +925,42 @@ function rollbackErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
+// ---------------------------------------------------------------------------
+// Entry
+// ---------------------------------------------------------------------------
+
+async function runConsoleCommand(argv: string[]): Promise<void> {
+  const values = parseFlagMap(argv);
+  const app = stringValue(values, "app") ?? "";
+  if (values.get("help") || values.get("h") || !app) {
+    if (!app) console.error("console requires --app <name>");
+    printHelp();
+    process.exitCode = app ? 0 : 1;
+    return;
+  }
+  const portRaw = stringValue(values, "port") ?? stringValue(values, "console-port");
+  try {
+    const handle = await startConsoleForApp({
+      app,
+      runsRoot: stringValue(values, "state-root") ?? defaultRunsRoot,
+      port: portRaw && /^\d+$/.test(portRaw) ? Number(portRaw) : undefined,
+    });
+    console.log(`console:  ${handle.consoleUrl}`);
+    console.log(`workflow: ${handle.workflowUrl}`);
+    console.log(
+      "Streaming run state from this app's smithers.sqlite (live if a run is executing elsewhere). Ctrl-C to stop.",
+    );
+    // The gateway's HTTP server keeps the event loop alive until Ctrl-C.
+  } catch (error) {
+    console.error(`Failed: ${error instanceof Error ? error.message : String(error)}`);
+    process.exitCode = 1;
+  }
+}
+
 const [subcommand, ...restArgv] = process.argv.slice(2);
-if (subcommand === "rollback") {
+if (subcommand === "console") {
+  await runConsoleCommand(restArgv);
+} else if (subcommand === "rollback") {
   const rollbackArgs = parseRollbackArgs(restArgv);
   if (rollbackArgs.help) {
     printHelp();
@@ -723,75 +984,17 @@ if (subcommand === "rollback") {
   const args = parseArgs(process.argv.slice(2));
   if (args.help) {
     printHelp();
+  } else if (args.dryRun && args.provided.has("app")) {
+    const outcome = finalizePlan(args.draft);
+    if (outcome.plan) {
+      printDryRun(outcome.plan);
+    } else {
+      console.error(`plan incomplete: ${outcome.issues.join("; ")}`);
+      process.exitCode = 1;
+    }
   } else if (args.yes || !process.stdin.isTTY) {
     await runHeadless(args);
   } else {
-    render(<WorkbenchApp args={args} />);
+    render(<SmitherApp args={args} />);
   }
-}
-
-async function runHeadless(args: CliArgs): Promise<void> {
-  const events: WorkflowEvent[] = [];
-  let latestPlan: RunPlan | null = null;
-  const agentApproved = args.yes || args.intake.dryRun || args.intake.agent === "none";
-  const deployApproved = args.intake.deploy ? args.yes : true;
-  let plan: RunPlan;
-  try {
-    plan = await runWorkbenchWorkflow(args.intake, {
-      overwrite: args.overwrite,
-      runsRoot: args.runsRoot,
-      activationToken: args.activationToken,
-      agentApproved,
-      deployApproved,
-      onEvent: (event) => {
-        events.push(event);
-        if ("plan" in event) {
-          latestPlan = event.plan;
-        }
-        if (event.type === "warning" || event.type === "blocked") {
-          console.error(event.message);
-        } else if (event.type === "command-start") {
-          console.error(`$ ${event.command}`);
-        } else if (event.type === "command-output") {
-          const write = event.stream === "stderr" ? process.stderr : process.stdout;
-          write.write(event.data);
-        }
-      },
-    });
-  } catch (error) {
-    const plan = latestPlan;
-    if (plan) {
-      console.error(`${plan.workflow} failed: ${plan.app}`);
-      for (const step of plan.steps) {
-        console.error(`${symbol(step.status)} ${step.label}${step.detail ? ` - ${step.detail}` : ""}`);
-      }
-    } else {
-      console.error(`aomi-app-from-scratch failed: ${args.intake.app}`);
-    }
-    console.error(`Failed: ${conciseWorkflowError(error)}`);
-    process.exitCode = 1;
-    return;
-  }
-  const failed = plan.steps.find((step) => step.status === "failed");
-  const blocked = events.some((event) => event.type === "blocked");
-  console.log(
-    `${plan.workflow} ${failed ? "failed" : blocked ? "blocked" : "complete"}: ${plan.app}`,
-  );
-  for (const step of plan.steps) {
-    console.log(`${symbol(step.status)} ${step.label}${step.detail ? ` - ${step.detail}` : ""}`);
-  }
-  if (failed || blocked) {
-    process.exitCode = failed ? 1 : 2;
-  }
-}
-
-function conciseWorkflowError(error: unknown): string {
-  const message = error instanceof Error ? error.message : String(error);
-  if (message.includes("Pass --force to overwrite")) {
-    return [
-      "aomi-build codegen failed because generated app files already exist.",
-      "Add --force to overwrite existing app files, or use --existing to reuse the current spec.",
-    ].join(" ");
-  }
-  return message.length > 1200 ? `${message.slice(0, 1200)}\n...` : message;
 }

@@ -17,14 +17,14 @@ metadata:
 
 # Aomi Build
 
-For long-running app creation from scratch, prefer the Smithers workbench when
+For long-running app creation from scratch, prefer Aomi Smither when
 `aomi-widget` is available:
 
 ```bash
-pnpm --filter @aomi-labs/workbench exec aomi-workbench --sdk-root ../aomi-sdk --app <name>
+pnpm --filter @aomi-labs/smither exec aomi-smither --sdk-root ../aomi-sdk --app <name>
 ```
 
-Use this skill inside the workbench's Codex/Claude steps, or directly for
+Use this skill inside Aomi Smither's Codex/Claude steps, or directly for
 small targeted app patches. `aomi-build` itself remains the deterministic Rust
 CLI for codegen, compile, deploy, status, and activate.
 
