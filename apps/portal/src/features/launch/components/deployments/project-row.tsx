@@ -9,7 +9,28 @@ export function ProjectRow({
   source: UserSource;
   requiredSdk?: string | null;
 }) {
-  const live = source.apps.filter((a) => a.isActive && a.loaded).length;
+  const activeApps = source.apps.filter((app) => app.isActive).length;
+  const hasDeployment =
+    source.latestDeployment !== null ||
+    source.apps.some((app) => app.appReleaseTag != null);
+  const deploymentState =
+    activeApps > 0
+      ? (source.latestDeployment?.state ?? "live")
+      : hasDeployment
+        ? "deactivated"
+        : "none";
+  const deploymentLabel =
+    activeApps > 0
+      ? "Live deployment"
+      : hasDeployment
+        ? "Deactivated"
+        : "No deployment";
+  const appLabel =
+    source.apps.length === 0
+      ? "No apps"
+      : source.apps.length === 1
+        ? source.apps[0]?.name
+        : `${source.apps.length} apps`;
   const stamped =
     source.sdkVersion ??
     source.latestDeployment?.sdkVersion ??
@@ -28,8 +49,10 @@ export function ProjectRow({
           {source.repositoryLink ?? "Unknown repository"}
         </div>
         <div className="mt-1 flex items-center gap-2 text-xs text-zinc-500">
-          <StatusDot state={source.latestDeployment?.state ?? "none"} />
-          <span>{live} live app(s)</span>
+          <StatusDot state={deploymentState} />
+          <span>{deploymentLabel}</span>
+          <span aria-hidden>·</span>
+          <span>{appLabel}</span>
         </div>
       </div>
       <SdkBadge stamped={stamped} required={requiredSdk} />
