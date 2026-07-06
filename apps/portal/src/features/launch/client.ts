@@ -8,8 +8,8 @@ import {
   type LaunchCreateRepoResult,
   type DeploymentHistoryResult,
   type DeploymentSecretsResult,
-  type ListActivationsResult,
-  type DeploymentRollbackResult,
+  type ListDeploymentRecordsResult,
+  type DeploymentPromoteResult,
   type DeploymentSourcesResult,
   type LaunchDeployInput,
   type LaunchDeployResult,
@@ -132,25 +132,25 @@ export function deploymentSecrets(): Promise<DeploymentSecretsResult> {
   return launchFetch(API_PATHS.bff.deployments.secrets, "deployment secrets");
 }
 
-export function deploymentActivations(input: {
+export function deploymentRecords(input: {
   app: string;
   appSourceId?: number;
-}): Promise<ListActivationsResult> {
+}): Promise<ListDeploymentRecordsResult> {
   return launchFetch(
-    API_PATHS.bff.deployments.activations(input.app, input.appSourceId),
-    "deployment activations",
+    API_PATHS.bff.deployments.records(input.app, input.appSourceId),
+    "deployment records",
   );
 }
 
-export function deploymentRollback(input: {
+export function deploymentPromote(input: {
   deploymentId: string;
   appSourceId: number;
   apps?: string[];
   actor?: string;
-}): Promise<DeploymentRollbackResult> {
+}): Promise<DeploymentPromoteResult> {
   return postJson(
-    API_PATHS.bff.deployments.rollback,
-    "deployment rollback",
+    API_PATHS.bff.deployments.promote,
+    "deployment promote",
     input,
   );
 }

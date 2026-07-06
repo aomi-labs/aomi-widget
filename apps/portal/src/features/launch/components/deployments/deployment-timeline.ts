@@ -1,7 +1,7 @@
-import type { DeploymentActivation } from "@portal/features/launch/contracts";
+import type { DeploymentRecord } from "@portal/features/launch/contracts";
 
-/** One deployment as derived purely from the DB activation timeline — no
- *  GitHub reads. `commit` is decoded from the deployment id
+/** One deployment as derived purely from the DB promotion records — no GitHub
+ *  reads. `commit` is decoded from the deployment id
  *  (`dep_<install>_<repokey>_<shortcommit>`). */
 export type TimelineDeployment = {
   deploymentId: string;
@@ -9,12 +9,13 @@ export type TimelineDeployment = {
   apps: string[];
   releaseTags: string[];
   current: boolean;
-  lastAction: string;
   actor: string | null;
+  sdkVersion: string | null;
   createdAt: number;
 };
 
-export type TimelineActivity = DeploymentActivation & {
+/** One promotion record, tagged with the app it belongs to (for the activity feed). */
+export type TimelineActivity = DeploymentRecord & {
   app: string;
 };
 
@@ -24,19 +25,19 @@ function commitFromDeploymentId(deploymentId: string): string | null {
 }
 
 /**
- * Merge per-app activation rows into a newest-first deployment list. A single
- * deploy can touch several apps (same `deploymentId`, one activation row per
- * app), so rows are grouped by `deploymentId`. A deployment is "current" when
- * any of its apps' latest activation is live; `createdAt`/`lastAction`/`actor`
- * come from the newest row in the group.
+ * Merge per-app promotion records into a newest-first deployment list. A single
+ * deploy can touch several apps (same `deploymentId`, one record per app), so
+ * records are grouped by `deploymentId`. A deployment is "current" when any of
+ * its apps' latest record is live; `createdAt`/`actor`/`sdkVersion` come from
+ * the newest record in the group.
  */
 export function buildDeploymentList(
-  activationsByApp: Record<string, DeploymentActivation[]> | null,
+  recordsByApp: Record<string, DeploymentRecord[]> | null,
 ): TimelineDeployment[] {
-  if (!activationsByApp) return [];
+  if (!recordsByApp) return [];
 
   const byId = new Map<string, TimelineDeployment>();
-  for (const [app, rows] of Object.entries(activationsByApp)) {
+  for (const [app, rows] of Object.entries(recordsByApp)) {
     for (const row of rows) {
       const existing = byId.get(row.deploymentId);
       if (!existing) {
@@ -46,8 +47,8 @@ export function buildDeploymentList(
           apps: [app],
           releaseTags: [row.releaseTag],
           current: row.current,
-          lastAction: row.action,
           actor: row.actor,
+          sdkVersion: row.sdkVersion,
           createdAt: row.createdAt,
         });
         continue;
@@ -59,8 +60,8 @@ export function buildDeploymentList(
       existing.current = existing.current || row.current;
       if (row.createdAt > existing.createdAt) {
         existing.createdAt = row.createdAt;
-        existing.lastAction = row.action;
         existing.actor = row.actor;
+        existing.sdkVersion = row.sdkVersion;
       }
     }
   }
@@ -69,10 +70,10 @@ export function buildDeploymentList(
 }
 
 export function buildActivityList(
-  activationsByApp: Record<string, DeploymentActivation[]> | null,
+  recordsByApp: Record<string, DeploymentRecord[]> | null,
 ): TimelineActivity[] {
-  if (!activationsByApp) return [];
-  return Object.entries(activationsByApp)
+  if (!recordsByApp) return [];
+  return Object.entries(recordsByApp)
     .flatMap(([app, rows]) => rows.map((row) => ({ ...row, app })))
     .sort((a, b) => b.createdAt - a.createdAt);
 }

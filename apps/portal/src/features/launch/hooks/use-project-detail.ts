@@ -7,8 +7,8 @@ import {
   deploymentHistory,
   deploymentSecrets,
   deploymentSdkStatus,
-  deploymentRollback,
-  deploymentActivations,
+  deploymentPromote,
+  deploymentRecords,
   deploymentDeactivate,
   launchPreflight,
   launchDeploy,
@@ -17,8 +17,8 @@ import {
 } from "@portal/features/launch/client";
 import type {
   LaunchSdkStatus,
-  DeploymentRollbackResult,
-  DeploymentActivation,
+  DeploymentPromoteResult,
+  DeploymentRecord,
 } from "@portal/features/launch/contracts";
 
 /** Progress of an in-flight "deploy new version" pipeline (deploy → CI → activate). */
@@ -44,17 +44,17 @@ export function useProjectDetail(sourceId: number) {
   const [secretsByApp, setSecrets] = useState<Record<string, string[]> | null>(
     null,
   );
-  const [activationsByApp, setActivations] = useState<Record<
+  const [recordsByApp, setRecords] = useState<Record<
     string,
-    DeploymentActivation[]
+    DeploymentRecord[]
   > | null>(null);
-  const [activationsError, setActivationsError] = useState<string | null>(null);
+  const [recordsError, setRecordsError] = useState<string | null>(null);
   const [deployFlow, setDeployFlow] = useState<DeployFlowState>({
     phase: "idle",
   });
   const historyReq = useRef(false);
   const secretsReq = useRef(false);
-  const activationsReq = useRef(false);
+  const recordsReq = useRef(false);
 
   const reload = useCallback(async () => {
     setLoading(true);
@@ -95,46 +95,46 @@ export function useProjectDetail(sourceId: number) {
 
   // Fetch the DB activation timeline for every app on this source (per-app but
   // all DB reads — no GitHub fan-out). `force` re-fetches after an operation.
-  const fetchActivations = useCallback(async (src: UserSource) => {
-    setActivationsError(null);
+  const fetchRecords = useCallback(async (src: UserSource) => {
+    setRecordsError(null);
     try {
       const entries = await Promise.all(
         src.apps.map(async (app) => {
-          const result = await deploymentActivations({
+          const result = await deploymentRecords({
             app: app.name,
             appSourceId: src.id,
           });
-          return [app.name, result.activations] as const;
+          return [app.name, result.records] as const;
         }),
       );
-      setActivations(Object.fromEntries(entries));
+      setRecords(Object.fromEntries(entries));
     } catch (err) {
       const message =
         err instanceof Error
           ? err.message
           : "Failed to load deployment activity";
-      setActivationsError(message);
-      setActivations({});
+      setRecordsError(message);
+      setRecords({});
       throw err;
     }
   }, []);
 
-  const loadActivations = useCallback(() => {
-    if (activationsReq.current || activationsByApp !== null || !source) return;
-    activationsReq.current = true;
-    void fetchActivations(source).catch(() => {
-      activationsReq.current = false;
+  const loadRecords = useCallback(() => {
+    if (recordsReq.current || recordsByApp !== null || !source) return;
+    recordsReq.current = true;
+    void fetchRecords(source).catch(() => {
+      recordsReq.current = false;
     });
-  }, [source, activationsByApp, fetchActivations]);
+  }, [source, recordsByApp, fetchRecords]);
 
-  const refreshActivations = useCallback(() => {
+  const refreshRecords = useCallback(() => {
     if (!source) return;
-    void fetchActivations(source).catch(() => undefined);
-  }, [source, fetchActivations]);
+    void fetchRecords(source).catch(() => undefined);
+  }, [source, fetchRecords]);
 
-  const rollback = useCallback(
-    (deploymentId: string): Promise<DeploymentRollbackResult> =>
-      deploymentRollback({ deploymentId, appSourceId: sourceId }),
+  const promote = useCallback(
+    (deploymentId: string): Promise<DeploymentPromoteResult> =>
+      deploymentPromote({ deploymentId, appSourceId: sourceId }),
     [sourceId],
   );
 
@@ -208,14 +208,14 @@ export function useProjectDetail(sourceId: number) {
           : "New version is live.",
       });
       await reload();
-      refreshActivations();
+      refreshRecords();
     } catch (err) {
       setDeployFlow({
         phase: "error",
         message: err instanceof Error ? err.message : "Deploy failed",
       });
     }
-  }, [source, sourceId, reload, refreshActivations]);
+  }, [source, sourceId, reload, refreshRecords]);
 
   return {
     source,
@@ -224,14 +224,14 @@ export function useProjectDetail(sourceId: number) {
     sdk,
     history,
     secretsByApp,
-    activationsByApp,
-    activationsError,
+    recordsByApp,
+    recordsError,
     deployFlow,
     loadHistory,
     loadSecrets,
-    loadActivations,
-    refreshActivations,
-    rollback,
+    loadRecords,
+    refreshRecords,
+    promote,
     deactivate,
     deployNewVersion,
     reload: () => void reload(),

@@ -3,7 +3,7 @@ export * from "./commands";
 export * from "./intent";
 export * from "./plan";
 export * from "./prompts";
-export * from "./rollback";
+export * from "./promote";
 export * from "./schemas";
 export * from "./state";
 export * from "./types";

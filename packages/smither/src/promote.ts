@@ -1,52 +1,49 @@
 import {
   DeploymentClient,
-  type ListActivationsResult,
+  type ListDeploymentRecordsResult,
 } from "@aomi-labs/deploy";
 import { resolveActivationCredential } from "./commands";
 
-export type RollbackClient = Pick<
+export type PromoteClient = Pick<
   DeploymentClient,
-  "listActivations" | "rollback"
+  "listDeploymentRecords" | "promote"
 >;
 
-export type RollbackTarget = {
+export type PromoteTarget = {
   deploymentId: string;
   releaseTag: string;
-  action: string;
   createdAt: number;
   current: boolean;
 };
 
-export type RollbackPlanSummary = {
+export type PromotePlanSummary = {
   app: string;
-  current: RollbackTarget | null;
-  /** Newest activation whose release tag differs from the live one. */
-  previous: RollbackTarget | null;
-  activations: RollbackTarget[];
+  current: PromoteTarget | null;
+  /** Newest record whose release tag differs from the live one. */
+  previous: PromoteTarget | null;
+  records: PromoteTarget[];
 };
 
-export function planRollback(
-  result: ListActivationsResult,
-): RollbackPlanSummary {
-  const activations = result.activations.map((row) => ({
+export function planPromote(
+  result: ListDeploymentRecordsResult,
+): PromotePlanSummary {
+  const records = result.records.map((row) => ({
     deploymentId: row.deploymentId,
     releaseTag: row.releaseTag,
-    action: row.action,
     createdAt: row.createdAt,
     current: row.current,
   }));
-  const current = activations.find((row) => row.current) ?? null;
+  const current = records.find((row) => row.current) ?? null;
   const previous =
-    activations.find((row) => row.releaseTag !== result.currentReleaseTag) ??
-    null;
-  return { app: result.app, current, previous, activations };
+    records.find((row) => row.releaseTag !== result.currentReleaseTag) ?? null;
+  return { app: result.app, current, previous, records };
 }
 
-export async function executeRollback(
-  client: RollbackClient,
+export async function executePromote(
+  client: PromoteClient,
   input: { platform: string; app: string; deploymentId: string },
 ): Promise<{ ok: boolean; releaseTags: string[]; status: string }> {
-  const result = await client.rollback({
+  const result = await client.promote({
     platform: input.platform,
     deploymentId: input.deploymentId,
     apps: [input.app],
@@ -54,12 +51,12 @@ export async function executeRollback(
   });
   return {
     ok: result.ok,
-    releaseTags: result.rollback.releaseTags,
-    status: result.rollback.status,
+    releaseTags: result.promote.releaseTags,
+    status: result.promote.status,
   };
 }
 
-export async function rollbackClientFromEnv(options: {
+export async function promoteClientFromEnv(options: {
   env?: NodeJS.ProcessEnv;
   activationToken?: string;
   backendUrl?: string;

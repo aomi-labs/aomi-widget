@@ -18,8 +18,8 @@ import type {
   GitHubIdentity,
   ListAppsInput,
   DeactivateAppInput,
-  ListActivationsInput,
-  ListActivationsResult,
+  ListDeploymentRecordsInput,
+  ListDeploymentRecordsResult,
   ListUserSourceDeploymentsInput,
   ListUserSourcesInput,
   UserSource,
@@ -30,8 +30,8 @@ import type {
   PlatformApp,
   PreflightInput,
   ProgressModel,
-  RollbackInput,
-  RollbackResult,
+  PromoteInput,
+  PromoteResult,
   ServerTagsResult,
   RevokeTokenInput,
   ScaffoldInput,
@@ -196,22 +196,22 @@ export class DeploymentClient {
     });
   }
 
-  async rollback(input: RollbackInput): Promise<RollbackResult> {
+  async promote(input: PromoteInput): Promise<PromoteResult> {
     const platform = cleanPlatform(input.platform);
     const deploymentId = required(input.deploymentId, "deploymentId");
     const result = await this.post<ActivateResult>(
-      `/api/platforms/${encodeURIComponent(platform)}/deployments/${encodeURIComponent(deploymentId)}/rollback`,
+      `/api/platforms/${encodeURIComponent(platform)}/deployments/${encodeURIComponent(deploymentId)}/promote`,
       {
         deployment_id: deploymentId,
         apps: input.apps,
         target_tags: input.targetTags,
         actor: input.actor,
       },
-      "rollback",
+      "promote",
       this.resolveBearer(),
     );
     await this.audit({
-      action: "rollback",
+      action: "promote",
       platform,
       apps: input.apps ?? [],
       targetTags: input.targetTags,
@@ -224,10 +224,10 @@ export class DeploymentClient {
       .filter((tag): tag is string => Boolean(tag));
     return {
       ok: cameled.ok,
-      rollback: {
+      promote: {
         deploymentId,
         releaseTags,
-        status: cameled.ok ? "rolled_back" : "blocked",
+        status: cameled.ok ? "promoted" : "blocked",
         activation: cameled.activation,
       },
     };
@@ -691,9 +691,9 @@ export class DeploymentClient {
       );
   }
 
-  async listActivations(
-    input: ListActivationsInput,
-  ): Promise<ListActivationsResult> {
+  async listDeploymentRecords(
+    input: ListDeploymentRecordsInput,
+  ): Promise<ListDeploymentRecordsResult> {
     const platform = cleanPlatform(input.platform);
     const app = required(input.app, "app");
     const query =
@@ -703,21 +703,21 @@ export class DeploymentClient {
     const raw = await this.get<{
       app?: string;
       current_release_tag?: string | null;
-      activations?: Array<Record<string, unknown>>;
+      records?: Array<Record<string, unknown>>;
     }>(
-      `/api/platforms/${encodeURIComponent(platform)}/apps/${encodeURIComponent(app)}/activations${query}`,
-      "list_activations",
+      `/api/platforms/${encodeURIComponent(platform)}/apps/${encodeURIComponent(app)}/records${query}`,
+      "list_deployment_records",
       this.resolveBearer(input.bearer),
     );
     return {
       app: raw.app ?? app,
       currentReleaseTag: (raw.current_release_tag as string | null) ?? null,
-      activations: (raw.activations ?? []).map((row) => ({
+      records: (raw.records ?? []).map((row) => ({
         deploymentId: String(row.deployment_id ?? ""),
         releaseTag: String(row.release_tag ?? ""),
-        action: String(row.action ?? ""),
         actor: (row.actor as string | null) ?? null,
         createdAt: timestampSeconds(row.created_at),
+        sdkVersion: (row.sdk_version as string | null) ?? null,
         current: Boolean(row.current),
       })),
     };
@@ -1221,5 +1221,6 @@ function camelUserSource(raw: unknown): UserSource {
     latestDeployment: camelUserSourceLatestDeployment(
       s.latest_deployment ?? s.latestDeployment,
     ),
+    sdkVersion: s.sdk_version ?? s.sdkVersion ?? null,
   };
 }

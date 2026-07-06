@@ -29,10 +29,10 @@ import {
   type ConsoleHandle,
 } from "./console";
 import {
-  executeRollback,
-  planRollback,
-  rollbackClientFromEnv,
-} from "./rollback";
+  executePromote,
+  planPromote,
+  promoteClientFromEnv,
+} from "./promote";
 
 // ---------------------------------------------------------------------------
 // Argument parsing
@@ -143,7 +143,7 @@ function parseArgs(argv: string[]): CliArgs {
   };
 }
 
-type RollbackArgs = {
+type PromoteArgs = {
   help: boolean;
   yes: boolean;
   app: string;
@@ -154,7 +154,7 @@ type RollbackArgs = {
   activationToken?: string;
 };
 
-function parseRollbackArgs(argv: string[]): RollbackArgs {
+function parsePromoteArgs(argv: string[]): PromoteArgs {
   const values = parseFlagMap(argv);
   const source = stringValue(values, "source");
   return {
@@ -218,8 +218,8 @@ SUBCOMMANDS
     --port <n>                Console port (default: 7331)
     --console-builtin         Use the generic operator console instead of aomi UI
 
-  rollback                    Roll an app back to a previous deployment
-    --app <name>              App to roll back (required)
+  promote                     Promote a deployment to live
+    --app <name>              App to promote (required)
     --platform <name>         Hosted platform name (required)
     --deployment <id>         Explicit deployment id (default: previous)
     --source <id>             App source id when the name exists for several sources
@@ -748,27 +748,27 @@ function printDryRun(plan: BuildPlan): void {
 }
 
 // ---------------------------------------------------------------------------
-// Rollback (unchanged flow: deterministic, no Smithers involvement)
+// Promote (deterministic, no Smithers involvement)
 // ---------------------------------------------------------------------------
 
-type RollbackPhase =
+type PromotePhase =
   | { name: "loading" }
-  | { name: "select"; plan: ReturnType<typeof planRollback> }
-  | { name: "confirm"; plan: ReturnType<typeof planRollback> | null; deploymentId: string }
+  | { name: "select"; plan: ReturnType<typeof planPromote> }
+  | { name: "confirm"; plan: ReturnType<typeof planPromote> | null; deploymentId: string }
   | { name: "running"; deploymentId: string }
   | { name: "done"; status: string; releaseTags: string[] }
   | { name: "error"; message: string };
 
-function RollbackApp({ args }: { args: RollbackArgs }) {
+function PromoteApp({ args }: { args: PromoteArgs }) {
   const { exit } = useApp();
-  const [phase, setPhase] = useState<RollbackPhase>({ name: "loading" });
+  const [phase, setPhase] = useState<PromotePhase>({ name: "loading" });
 
   useEffect(() => {
     void (async () => {
       try {
-        const client = await rollbackClientFromEnv(args);
-        const plan = planRollback(
-          await client.listActivations({
+        const client = await promoteClientFromEnv(args);
+        const plan = planPromote(
+          await client.listDeploymentRecords({
             platform: args.platform,
             app: args.app,
             appSourceId: args.appSourceId,
@@ -779,7 +779,7 @@ function RollbackApp({ args }: { args: RollbackArgs }) {
         } else if (!plan.previous) {
           setPhase({
             name: "error",
-            message: "No rollback target: only one release has ever been activated.",
+            message: "No promote target: only one release has ever been recorded.",
           });
         } else {
           setPhase({ name: "select", plan });
@@ -808,8 +808,8 @@ function RollbackApp({ args }: { args: RollbackArgs }) {
       setPhase({ name: "running", deploymentId });
       void (async () => {
         try {
-          const client = await rollbackClientFromEnv(args);
-          const result = await executeRollback(client, {
+          const client = await promoteClientFromEnv(args);
+          const result = await executePromote(client, {
             platform: args.platform,
             app: args.app,
             deploymentId,
@@ -821,10 +821,10 @@ function RollbackApp({ args }: { args: RollbackArgs }) {
               releaseTags: result.releaseTags,
             });
           } else {
-            setPhase({ name: "error", message: `rollback ${result.status}` });
+            setPhase({ name: "error", message: `promote ${result.status}` });
           }
         } catch (error) {
-          setPhase({ name: "error", message: rollbackErrorMessage(error) });
+          setPhase({ name: "error", message: promoteErrorMessage(error) });
         }
       })();
     },
@@ -832,18 +832,18 @@ function RollbackApp({ args }: { args: RollbackArgs }) {
   );
 
   if (phase.name === "loading") {
-    return <Text>Loading activation timeline for {args.app}…</Text>;
+    return <Text>Loading deployment records for {args.app}…</Text>;
   }
   if (phase.name === "error") {
     return <Text color="red">Failed: {phase.message}</Text>;
   }
   if (phase.name === "running") {
-    return <Text>Rolling back to {phase.deploymentId}…</Text>;
+    return <Text>Promoting to {phase.deploymentId}…</Text>;
   }
   if (phase.name === "done") {
     return (
       <Text color="green">
-        Rollback {phase.status}: {phase.releaseTags.join(", ")}
+        Promote {phase.status}: {phase.releaseTags.join(", ")}
       </Text>
     );
   }
@@ -851,7 +851,7 @@ function RollbackApp({ args }: { args: RollbackArgs }) {
     return (
       <Box flexDirection="column" gap={0}>
         <Text>
-          Roll back {args.app} to {phase.deploymentId}?
+          Promote {args.app} to {phase.deploymentId}?
         </Text>
         <ConfirmInput
           onConfirm={() => run(phase.deploymentId)}
@@ -860,7 +860,7 @@ function RollbackApp({ args }: { args: RollbackArgs }) {
       </Box>
     );
   }
-  const selectable = phase.plan.activations.filter((row) => !row.current);
+  const selectable = phase.plan.records.filter((row) => !row.current);
   return (
     <Box flexDirection="column" gap={0}>
       {phase.plan.current ? (
@@ -868,13 +868,13 @@ function RollbackApp({ args }: { args: RollbackArgs }) {
           Current: {phase.plan.current.deploymentId} ({phase.plan.current.releaseTag})
         </Text>
       ) : null}
-      <Text>Pick a rollback target for {args.app}:</Text>
+      <Text>Pick a promote target for {args.app}:</Text>
       {/* No defaultValue: @inkjs/ui Select only fires onChange when the value
           changes, so a preselected value could never be confirmed. The
           previous release is the top option (timeline is newest-first). */}
       <Select
         options={selectable.map((row) => ({
-          label: `${row.action} · ${row.deploymentId} · ${row.releaseTag}`,
+          label: `${row.deploymentId} · ${row.releaseTag}`,
           value: row.deploymentId,
         }))}
         onChange={(deploymentId) =>
@@ -885,8 +885,8 @@ function RollbackApp({ args }: { args: RollbackArgs }) {
   );
 }
 
-async function runRollbackHeadless(args: RollbackArgs): Promise<void> {
-  const client = await rollbackClientFromEnv(args).catch((error: unknown) => {
+async function runPromoteHeadless(args: PromoteArgs): Promise<void> {
+  const client = await promoteClientFromEnv(args).catch((error: unknown) => {
     console.error(error instanceof Error ? error.message : String(error));
     process.exitCode = 1;
     return null;
@@ -894,8 +894,8 @@ async function runRollbackHeadless(args: RollbackArgs): Promise<void> {
   if (!client) {
     return;
   }
-  const plan = planRollback(
-    await client.listActivations({
+  const plan = planPromote(
+    await client.listDeploymentRecords({
       platform: args.platform,
       app: args.app,
       appSourceId: args.appSourceId,
@@ -903,30 +903,30 @@ async function runRollbackHeadless(args: RollbackArgs): Promise<void> {
   );
   const deploymentId = args.deployment ?? plan.previous?.deploymentId;
   if (!deploymentId) {
-    console.error("No rollback target: only one release has ever been activated.");
+    console.error("No promote target: only one release has ever been recorded.");
     process.exitCode = 1;
     return;
   }
   try {
-    const result = await executeRollback(client, {
+    const result = await executePromote(client, {
       platform: args.platform,
       app: args.app,
       deploymentId,
     });
     console.log(
-      `rollback ${result.status}: ${args.app} -> ${deploymentId} (${result.releaseTags.join(", ")})`,
+      `promote ${result.status}: ${args.app} -> ${deploymentId} (${result.releaseTags.join(", ")})`,
     );
     if (!result.ok) {
       process.exitCode = 1;
     }
   } catch (error) {
-    console.error(`rollback failed: ${rollbackErrorMessage(error)}`);
+    console.error(`promote failed: ${promoteErrorMessage(error)}`);
     process.exitCode = 1;
   }
 }
 
 /** Prefer the backend's structured error message over a raw stack trace. */
-function rollbackErrorMessage(error: unknown): string {
+function promoteErrorMessage(error: unknown): string {
   const body = (error as { body?: string })?.body;
   if (typeof body === "string") {
     try {
@@ -977,25 +977,25 @@ async function runConsoleCommand(argv: string[]): Promise<void> {
 const [subcommand, ...restArgv] = process.argv.slice(2);
 if (subcommand === "console") {
   await runConsoleCommand(restArgv);
-} else if (subcommand === "rollback") {
-  const rollbackArgs = parseRollbackArgs(restArgv);
-  if (rollbackArgs.help) {
+} else if (subcommand === "promote") {
+  const promoteArgs = parsePromoteArgs(restArgv);
+  if (promoteArgs.help) {
     printHelp();
-  } else if (!rollbackArgs.app || !rollbackArgs.platform) {
-    console.error("rollback requires --app and --platform");
+  } else if (!promoteArgs.app || !promoteArgs.platform) {
+    console.error("promote requires --app and --platform");
     process.exitCode = 1;
-  } else if (rollbackArgs.yes) {
-    await runRollbackHeadless(rollbackArgs);
+  } else if (promoteArgs.yes) {
+    await runPromoteHeadless(promoteArgs);
   } else if (!process.stdin.isTTY) {
-    // Rollback is destructive (re-activates an older release). Unlike the
+    // Promote is destructive (re-activates an older release). Unlike the
     // build workflow, there is no safe partial outcome, so a non-interactive
     // invocation must opt in explicitly rather than auto-executing.
     console.error(
-      "rollback needs a TTY for the confirm prompt; pass --yes to roll back non-interactively",
+      "promote needs a TTY for the confirm prompt; pass --yes to promote non-interactively",
     );
     process.exitCode = 1;
   } else {
-    render(<RollbackApp args={rollbackArgs} />);
+    render(<PromoteApp args={promoteArgs} />);
   }
 } else {
   const args = parseArgs(process.argv.slice(2));
