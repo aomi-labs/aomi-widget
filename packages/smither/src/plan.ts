@@ -22,7 +22,7 @@ export const buildPlanSchema = z.object({
   build: z.boolean().default(true),
   /** Agent that curates tools and repairs validation failures. */
   builder: z.enum(["claude", "codex", "none"]).default("claude"),
-  /** Second agent reviews the builder's curation from a forked session. */
+  /** Second agent independently reviews the builder's curation. */
   review: z.boolean().default(false),
   reviewer: z.enum(["claude", "codex"]).default("codex"),
   /** Validate/fix loop budget: 1 validation + up to N agent repair rounds. */
@@ -84,7 +84,7 @@ export function stagesFor(plan: BuildPlan): PlanStage[] {
     if (plan.review) {
       stages.push({
         id: id("review"),
-        label: `Review curation with ${plan.reviewer} (forked session)`,
+        label: `Review curation with ${plan.reviewer}`,
         kind: "agent",
       });
     }

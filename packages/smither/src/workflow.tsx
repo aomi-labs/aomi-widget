@@ -145,12 +145,15 @@ export async function buildAppWorkflow(
             </Task>
           ) : null}
           {reviewerAgent && curation ? (
+            // No `fork`: CLI agents (ClaudeCodeAgent/CodexAgent) don't persist
+            // a session snapshot in smithers-orchestrator 0.26.1, so forking
+            // the curate session fails with "no usable agent session snapshot".
+            // The review prompt is written to work from the repo state alone.
             <Task
               id={id("review")}
               label={`Review curation with ${plan.reviewer}`}
               output={outputs.review}
               agent={reviewerAgent}
-              fork={id("curate")}
             >
               {reviewPrompt(plan)}
             </Task>
@@ -172,12 +175,13 @@ export async function buildAppWorkflow(
                   {() => validationStep(plan, runner)}
                 </Task>
                 {builderAgent && latestValidation && !latestValidation.green ? (
+                  // No `fork` (see review task): the repair prompt carries the
+                  // validation log, which is the context that matters.
                   <Task
                     id={id("fix")}
                     label={`Repair validation with ${plan.builder}`}
                     output={outputs.fix}
                     agent={builderAgent}
-                    fork={id("curate")}
                   >
                     {fixPrompt(plan, latestValidation.log)}
                   </Task>

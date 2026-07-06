@@ -24,6 +24,7 @@ import {
   frameTone,
   reduceStageStatuses,
   summarizeFrame,
+  unwrapFrame,
   type EventFrameLike,
   type SnapshotNode,
   type StageStatus,
@@ -139,7 +140,15 @@ function App() {
     afterSeq: 0,
     maxEvents: 500,
   });
-  const frames = events as unknown as EventFrameLike[];
+  // Unwrap the transport envelope (run.event → engine event) and drop frames
+  // that carry no engine event (heartbeats, gap resyncs).
+  const frames = useMemo<EventFrameLike[]>(
+    () =>
+      (events as unknown as EventFrameLike[])
+        .map(unwrapFrame)
+        .filter((frame) => !frame.event.startsWith("run.")),
+    [events],
+  );
 
   const liveStatus = useMemo(
     () => reduceStageStatuses(planStages, frames),

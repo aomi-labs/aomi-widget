@@ -24,6 +24,30 @@ export type EventFrameLike = {
   seq: number;
 };
 
+/**
+ * Unwrap the gateway transport envelope. `streamRunEvents` frames arrive as
+ * `{event: "run.event", seq: <transport>, payload: {seq: <run>, event:
+ * "<SmithersEvent type>", payload: <the event object>}}` — the engine event is
+ * double-nested. Returns a flat `{event, payload, seq}` the reducers read;
+ * frames that are already flat (or non-run channels like heartbeats) pass
+ * through unchanged.
+ */
+export function unwrapFrame(frame: EventFrameLike): EventFrameLike {
+  if (!frame.event.startsWith("run.")) return frame;
+  const inner = frame.payload as
+    | { event?: unknown; payload?: unknown; seq?: unknown }
+    | undefined;
+  if (!inner || typeof inner.event !== "string") return frame;
+  return {
+    event: inner.event,
+    payload:
+      inner.payload && typeof inner.payload === "object"
+        ? (inner.payload as Record<string, unknown>)
+        : undefined,
+    seq: typeof inner.seq === "number" ? inner.seq : frame.seq,
+  };
+}
+
 /** Node id carried by an event frame — the engine puts it in the payload. */
 export function eventNodeId(frame: EventFrameLike): string | undefined {
   const payload = frame.payload ?? {};
@@ -74,6 +98,9 @@ export function statusFromFrame(frame: EventFrameLike): StageStatus | undefined 
   if (includesAny(event, ["finish", "succeed", "complete", "fulfil"])) return "complete";
   if (includesAny(event, ["retry"])) return "running";
   if (includesAny(event, ["start", "running"])) return "running";
+  // A node emitting heartbeats or agent activity is running, even when its
+  // `started` frame predates the gateway's replay window.
+  if (includesAny(event, ["heartbeat", "agent."])) return "running";
   return undefined;
 }
 
