@@ -39,7 +39,8 @@ export interface AuditEvent {
     | "list_user_source_deployments"
     | "list_deployment_records"
     | "get_user_source_latest_deployment"
-    | "deactivate";
+    | "deactivate"
+    | "ingest_secrets";
   platform?: string;
   appSourceId?: number;
   apps?: string[];
@@ -67,6 +68,17 @@ export interface ListSecretsInput extends BearerOverride {
 
 export interface ListSecretsResult {
   byApp: Record<string, string[]>;
+}
+
+export interface IngestSecretsInput extends BearerOverride {
+  /** Vault key — the owning user's stable id (portal uses the GitHub user id). */
+  userId: string;
+  app: string;
+  secrets: Record<string, string>;
+}
+
+export interface IngestSecretsResult {
+  handles: Record<string, string>;
 }
 
 export interface ServerTagsResult {

@@ -174,6 +174,18 @@ export function deploymentDeactivate(input: {
   );
 }
 
+export function deploymentSetSecrets(input: {
+  app: string;
+  appSourceId: number;
+  secrets: Record<string, string>;
+}): Promise<{ ok: boolean; keys: string[] }> {
+  return postJson(
+    API_PATHS.bff.deployments.secrets,
+    "set environment variables",
+    input,
+  );
+}
+
 export function launchAppStatus(input: {
   name: string;
   releaseTag?: string;

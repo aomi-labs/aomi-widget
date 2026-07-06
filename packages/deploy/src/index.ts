@@ -68,6 +68,8 @@ export type {
   DeactivateAppInput,
   ListDeploymentRecordsInput,
   ListDeploymentRecordsResult,
+  IngestSecretsInput,
+  IngestSecretsResult,
   ListSecretsInput,
   ListSecretsResult,
   UserSource,
