@@ -14,7 +14,7 @@ import type { AccountAuthEnv } from "../src/better-auth/env";
 const baseEnv: AccountAuthEnv = {
   betterAuthSecret: "secret",
   betterAuthUrl: "http://localhost:3001",
-  databaseUrl: "postgresql://postgres:postgres@localhost:5432/aomi_auth",
+  databaseUrl: "postgresql://postgres:postgres@localhost:5432/aomi",
   siweDomain: "localhost:3001",
   trustedOrigins: ["http://localhost:3001"],
 };
@@ -76,7 +76,7 @@ describe("verifyProviderCredential", () => {
   it("prefers the explicit Para JWT audience over the public API key", () => {
     const env = readAccountAuthEnv({
       BETTER_AUTH_URL: "http://localhost:3001",
-      DATABASE_URL: "postgresql://postgres:postgres@localhost:5432/aomi_auth",
+      DATABASE_URL: "postgresql://postgres:postgres@localhost:5432/aomi",
       PARA_JWT_AUDIENCE: "para-audience-uuid",
       NEXT_PUBLIC_PARA_API_KEY: "beta_public_api_key",
       BETTER_AUTH_SECRET: "test-secret",

@@ -19,7 +19,7 @@ const SOL = "53GfEkka7UYR9KsM6ePWSNfbW678grShT41uZMjXAvoL";
 const baseEnv: AccountAuthEnv = {
   betterAuthSecret: "secret",
   betterAuthUrl: "http://localhost:3001",
-  databaseUrl: "postgresql://postgres:postgres@localhost:5432/aomi_auth",
+  databaseUrl: "postgresql://postgres:postgres@localhost:5432/aomi",
   siweDomain: "localhost:3001",
   trustedOrigins: ["http://localhost:3001"],
 };
