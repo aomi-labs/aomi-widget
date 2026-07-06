@@ -70,6 +70,8 @@ export type {
   ListDeploymentRecordsResult,
   IngestSecretsInput,
   IngestSecretsResult,
+  ListAppSecretsInput,
+  RemoveAppSecretInput,
   ListSecretsInput,
   ListSecretsResult,
   UserSource,

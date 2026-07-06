@@ -2,6 +2,8 @@ import { BackendError, BrowserEnvironmentError, DeployError } from "./errors";
 import type {
   IngestSecretsInput,
   IngestSecretsResult,
+  ListAppSecretsInput,
+  RemoveAppSecretInput,
   ListSecretsInput,
   ListSecretsResult,
   ActivateInput,
@@ -739,7 +741,7 @@ export class DeploymentClient {
   }
 
   /** Ingest app-scoped env vars into the secret vault under `userId` (the vault
-   *  key). `listSecrets({ clientId: userId })` then returns them. Service op. */
+   *  key). `listAppSecrets({ userId })` then returns them. Service op. */
   async ingestSecrets(
     input: IngestSecretsInput,
   ): Promise<IngestSecretsResult> {
@@ -752,6 +754,37 @@ export class DeploymentClient {
       this.resolveBearer(input.bearer, { privileged: true }),
     );
     return { handles: raw.handles ?? {} };
+  }
+
+  /** List vault handle names (never values) for `userId`, keyed by app. Service
+   *  read, so it works with the portal's service bearer (unlike the
+   *  session-scoped `listSecrets`). */
+  async listAppSecrets(
+    input: ListAppSecretsInput,
+  ): Promise<ListSecretsResult> {
+    const userId = required(input.userId, "userId");
+    const params = new URLSearchParams({ user_id: userId });
+    if (input.app?.trim()) params.set("app", input.app.trim());
+    const raw = await this.get<{ by_app?: Record<string, string[]> }>(
+      `/api/_internal/secrets?${params.toString()}`,
+      "list_secrets",
+      this.resolveBearer(input.bearer, { privileged: true }),
+    );
+    return { byApp: raw.by_app ?? {} };
+  }
+
+  /** Remove one app-scoped secret. Service op. Returns whether it existed. */
+  async removeAppSecret(input: RemoveAppSecretInput): Promise<boolean> {
+    const userId = required(input.userId, "userId");
+    const app = required(input.app, "app");
+    const name = required(input.name, "name");
+    const raw = await this.del<{ removed?: boolean }>(
+      `/api/_internal/secrets`,
+      "ingest_secrets",
+      this.resolveBearer(input.bearer, { privileged: true }),
+      { user_id: userId, app, name },
+    );
+    return Boolean(raw.removed);
   }
 
   endpoint(path: string): string {
@@ -820,8 +853,17 @@ export class DeploymentClient {
     path: string,
     operation: string,
     bearer: string,
+    body?: unknown,
   ): Promise<Resp> {
-    return this.request<Resp>(path, { method: "DELETE" }, operation, bearer);
+    const init: RequestInit =
+      body === undefined
+        ? { method: "DELETE" }
+        : {
+            method: "DELETE",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(body),
+          };
+    return this.request<Resp>(path, init, operation, bearer);
   }
 
   private async request<Resp>(

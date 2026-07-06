@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Plus } from "lucide-react";
+import { Plus, Trash2 } from "lucide-react";
 import { useProjectDetail } from "@portal/features/launch/hooks/use-project-detail";
 import { LoadingPanel } from "../ui/state-panels";
 
@@ -19,7 +19,6 @@ export function EnvironmentTab({ detail }: { detail: Detail }) {
   );
   const [app, setApp] = useState<string>("");
   const [rows, setRows] = useState<Row[]>([{ key: "", value: "" }]);
-  const [savedKeys, setSavedKeys] = useState<Record<string, string[]>>({});
   const [status, setStatus] = useState<{
     kind: "idle" | "saving" | "done" | "error";
     message: string;
@@ -33,9 +32,11 @@ export function EnvironmentTab({ detail }: { detail: Detail }) {
     return <LoadingPanel label="Loading environment…" />;
   }
 
-  // The runtime read-back is session-scoped, so the console shows the keys
-  // written in this session rather than re-reading the vault.
-  const currentKeys = app ? (savedKeys[app] ?? []) : [];
+  // Handle names read back from the vault (values are never returned). The
+  // backend keys these by `$SECRET:APP:<app>::<KEY>`; strip that for display.
+  const currentKeys = (app ? (detail.secretsByApp[app] ?? []) : []).map(
+    (handle) => ({ handle, key: handle.split("::").pop() ?? handle }),
+  );
 
   const save = async () => {
     const secrets: Record<string, string> = {};
@@ -50,10 +51,6 @@ export function EnvironmentTab({ detail }: { detail: Detail }) {
     setStatus({ kind: "saving", message: "Saving…" });
     try {
       const result = await detail.setEnvVars(app, secrets);
-      setSavedKeys((prev) => ({
-        ...prev,
-        [app]: [...new Set([...(prev[app] ?? []), ...result.keys])],
-      }));
       setStatus({
         kind: "done",
         message: `Saved ${result.keys.length} variable(s).`,
@@ -63,6 +60,19 @@ export function EnvironmentTab({ detail }: { detail: Detail }) {
       setStatus({
         kind: "error",
         message: err instanceof Error ? err.message : "Failed to save",
+      });
+    }
+  };
+
+  const remove = async (key: string) => {
+    setStatus({ kind: "saving", message: `Removing ${key}…` });
+    try {
+      await detail.deleteEnvVar(app, key);
+      setStatus({ kind: "done", message: `Removed ${key}.` });
+    } catch (err) {
+      setStatus({
+        kind: "error",
+        message: err instanceof Error ? err.message : "Failed to remove",
       });
     }
   };
@@ -156,12 +166,24 @@ export function EnvironmentTab({ detail }: { detail: Detail }) {
       {currentKeys.length > 0 && (
         <div className="px-4 py-3">
           <div className="text-xs font-medium uppercase tracking-wide text-zinc-400">
-            Saved this session
+            Configured
           </div>
           <ul className="mt-2 space-y-1">
-            {currentKeys.map((key) => (
-              <li key={key} className="font-mono text-xs text-zinc-600">
-                {key}
+            {currentKeys.map(({ handle, key }) => (
+              <li
+                key={handle}
+                className="flex items-center justify-between gap-3 py-0.5"
+              >
+                <span className="font-mono text-xs text-zinc-600">{key}</span>
+                <button
+                  type="button"
+                  onClick={() => void remove(key)}
+                  className="inline-flex items-center gap-1 text-xs text-zinc-400 hover:text-red-600"
+                  title={`Remove ${key}`}
+                >
+                  <Trash2 className="size-3.5" aria-hidden />
+                  Remove
+                </button>
               </li>
             ))}
           </ul>

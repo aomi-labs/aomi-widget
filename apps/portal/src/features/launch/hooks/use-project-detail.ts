@@ -7,6 +7,7 @@ import {
   deploymentHistory,
   deploymentSecrets,
   deploymentSetSecrets,
+  deploymentDeleteSecret,
   deploymentSdkStatus,
   deploymentPromote,
   deploymentRecords,
@@ -94,13 +95,35 @@ export function useProjectDetail(sourceId: number) {
       .catch(() => setSecrets({}));
   }, [secretsByApp]);
 
+  const refreshSecrets = useCallback(async () => {
+    const r = await deploymentSecrets().catch(() => null);
+    if (r) setSecrets(r.byApp);
+  }, []);
+
   const setEnvVars = useCallback(
-    async (app: string, secrets: Record<string, string>) =>
-      // The runtime read-back (`GET /api/secrets`) is session-scoped to the
-      // chat user, so the portal cannot list them back here; the write itself
-      // is the durable action and the response echoes the saved keys.
-      deploymentSetSecrets({ app, appSourceId: sourceId, secrets }),
-    [sourceId],
+    async (app: string, secrets: Record<string, string>) => {
+      const result = await deploymentSetSecrets({
+        app,
+        appSourceId: sourceId,
+        secrets,
+      });
+      await refreshSecrets();
+      return result;
+    },
+    [sourceId, refreshSecrets],
+  );
+
+  const deleteEnvVar = useCallback(
+    async (app: string, name: string) => {
+      const result = await deploymentDeleteSecret({
+        app,
+        appSourceId: sourceId,
+        name,
+      });
+      await refreshSecrets();
+      return result;
+    },
+    [sourceId, refreshSecrets],
   );
 
   // Fetch the DB activation timeline for every app on this source (per-app but
@@ -240,6 +263,7 @@ export function useProjectDetail(sourceId: number) {
     loadHistory,
     loadSecrets,
     setEnvVars,
+    deleteEnvVar,
     loadRecords,
     refreshRecords,
     promote,

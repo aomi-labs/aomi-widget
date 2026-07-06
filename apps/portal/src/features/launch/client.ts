@@ -186,6 +186,22 @@ export function deploymentSetSecrets(input: {
   );
 }
 
+export function deploymentDeleteSecret(input: {
+  app: string;
+  appSourceId: number;
+  name: string;
+}): Promise<{ ok: boolean; removed: boolean }> {
+  return launchFetch(
+    API_PATHS.bff.deployments.secrets,
+    "delete environment variable",
+    {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input),
+    },
+  );
+}
+
 export function launchAppStatus(input: {
   name: string;
   releaseTag?: string;

@@ -627,8 +627,11 @@ export async function deploymentSecretsRoute(req: Request) {
 
   try {
     const client = await deploymentClient();
-    const { byApp } = await client.listSecrets({
-      clientId: session.githubUserId,
+    // Service-scoped internal list keyed by the GitHub user id, matching the
+    // write side. (The session-scoped `listSecrets` can't be read by the
+    // portal's service bearer.)
+    const { byApp } = await client.listAppSecrets({
+      userId: session.githubUserId,
     });
     return NextResponse.json({ byApp });
   } catch (err) {
@@ -700,6 +703,60 @@ export async function deploymentSecretsWriteRoute(req: Request) {
       { ok: true, keys: Object.keys(handles) },
       { status: 202 },
     );
+  } catch (err) {
+    return launchErrorResponse(err);
+  }
+}
+
+export async function deploymentSecretsDeleteRoute(req: Request) {
+  const blocked = checkWrite(req);
+  if (blocked) return blocked;
+
+  const auth = await requireSession();
+  if ("response" in auth) return auth.response;
+  const { session } = auth;
+
+  const body = (await req.json().catch(() => ({}))) as {
+    app?: unknown;
+    appSourceId?: unknown;
+    name?: unknown;
+  };
+  const app = typeof body.app === "string" ? body.app.trim() : "";
+  const name = typeof body.name === "string" ? body.name.trim() : "";
+  if (!app || !name) {
+    return NextResponse.json(
+      { error: "missing `app` or `name`" },
+      { status: 400 },
+    );
+  }
+  if (!isValidAppSourceId(body.appSourceId)) {
+    return NextResponse.json(
+      { error: "missing or invalid `appSourceId`" },
+      { status: 400 },
+    );
+  }
+
+  try {
+    const config = launchConfig();
+    const client = await deploymentClient();
+    const source = await findOwnedSource(
+      client,
+      session.githubUserId,
+      config.platform,
+      body.appSourceId,
+    );
+    if (!source || !source.apps.some((a) => a.name === app)) {
+      return NextResponse.json(
+        { error: "app not found for this user" },
+        { status: 404 },
+      );
+    }
+    const removed = await client.removeAppSecret({
+      userId: session.githubUserId,
+      app,
+      name,
+    });
+    return NextResponse.json({ ok: true, removed });
   } catch (err) {
     return launchErrorResponse(err);
   }
