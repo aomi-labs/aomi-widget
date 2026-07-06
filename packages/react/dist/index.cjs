@@ -1681,6 +1681,63 @@ var formatAddress = (addr) => addr ? `${addr.slice(0, 6)}...${addr.slice(-4)}` :
 var SUPPORTED_CHAINS = [...import_client4.SUPPORTED_CHAINS];
 var getChainInfo = (chainId) => chainId === void 0 ? void 0 : SUPPORTED_CHAINS.find((c) => c.id === chainId);
 
+// src/runtime/merge-turns.ts
+var hasNoticeKind = (message) => {
+  var _a, _b;
+  return Boolean(
+    (_b = (_a = message.metadata) == null ? void 0 : _a.custom) == null ? void 0 : _b.aomiNoticeKind
+  );
+};
+var isMergeableAssistant = (message) => message.role === "assistant" && !hasNoticeKind(message);
+var toContentParts = (content) => {
+  if (typeof content === "string") {
+    return content.length > 0 ? [{ type: "text", text: content }] : [];
+  }
+  return [...content];
+};
+var reindexToolCallIds = (message, messageIndex) => {
+  if (typeof message.content === "string") return message;
+  let changed = false;
+  const content = message.content.map((part, i) => {
+    if (part.type === "tool-call") {
+      changed = true;
+      return __spreadProps(__spreadValues({}, part), { toolCallId: `aomi-tc-${messageIndex}-${i}` });
+    }
+    return part;
+  });
+  return changed ? __spreadProps(__spreadValues({}, message), { content }) : message;
+};
+function mergeAssistantTurns(messages) {
+  const out = [];
+  let run = [];
+  const flush = () => {
+    if (run.length === 0) return;
+    if (run.length === 1) {
+      out.push(run[0]);
+    } else {
+      const first = run[0];
+      const mergedContent = [];
+      for (const message of run) {
+        mergedContent.push(...toContentParts(message.content));
+      }
+      out.push(__spreadProps(__spreadValues({}, first), {
+        content: mergedContent
+      }));
+    }
+    run = [];
+  };
+  for (const message of messages) {
+    if (isMergeableAssistant(message)) {
+      run.push(message);
+    } else {
+      flush();
+      out.push(message);
+    }
+  }
+  flush();
+  return out.map((message, index) => reindexToolCallIds(message, index));
+}
+
 // src/runtime/orchestrator.ts
 var toErrorMessage = (error) => error instanceof Error ? error.message : "Message failed to send";
 var getHttpStatus = (error) => {
@@ -1874,7 +1931,10 @@ function useRuntimeOrchestrator(aomiClient, options) {
           if (threadMessages.length === 0 && hasUnhydratedOptimisticMessage(existingMessages)) {
             return;
           }
-          threadContextRef.current.setThreadMessages(threadId, threadMessages);
+          threadContextRef.current.setThreadMessages(
+            threadId,
+            mergeAssistantTurns(threadMessages)
+          );
         })
       );
       cleanups.push(
@@ -3040,34 +3100,6 @@ function AomiRuntimeCore({
       currentMessages
     ]
   );
-  (0, import_react14.useEffect)(() => {
-    const showToolNotification = (eventType) => (event) => {
-      const payload = event.payload;
-      const toolName = typeof (payload == null ? void 0 : payload.tool_name) === "string" ? payload.tool_name : void 0;
-      if (eventType === "tool_complete" && toolName === "commit_txs") {
-        return;
-      }
-      const title = toolName ? `${eventType === "tool_update" ? "Tool update" : "Tool complete"}: ${toolName}` : eventType === "tool_update" ? "Tool update" : "Tool complete";
-      const message = typeof (payload == null ? void 0 : payload.message) === "string" ? payload.message : typeof (payload == null ? void 0 : payload.result) === "string" ? payload.result : void 0;
-      notificationContext.showNotification({
-        type: "notice",
-        title,
-        message
-      });
-    };
-    const unsubscribeUpdate = eventContext.subscribe(
-      "tool_update",
-      showToolNotification("tool_update")
-    );
-    const unsubscribeComplete = eventContext.subscribe(
-      "tool_complete",
-      showToolNotification("tool_complete")
-    );
-    return () => {
-      unsubscribeUpdate();
-      unsubscribeComplete();
-    };
-  }, [eventContext, notificationContext]);
   (0, import_react14.useEffect)(() => {
     const unsubscribe = eventContext.subscribe("system_notice", (_event) => {
     });

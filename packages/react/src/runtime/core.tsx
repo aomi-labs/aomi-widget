@@ -307,56 +307,10 @@ export function AomiRuntimeCore({
     ],
   );
 
-  // ---------------------------------------------------------------------------
-  // Show notifications for tool updates/completions
-  // ---------------------------------------------------------------------------
-  useEffect(() => {
-    const showToolNotification =
-      (eventType: "tool_update" | "tool_complete") =>
-      (event: { payload?: unknown }) => {
-        const payload = event.payload as Record<string, unknown> | undefined;
-        const toolName =
-          typeof payload?.tool_name === "string"
-            ? payload.tool_name
-            : undefined;
-
-        if (eventType === "tool_complete" && toolName === "commit_txs") {
-          return;
-        }
-
-        const title = toolName
-          ? `${eventType === "tool_update" ? "Tool update" : "Tool complete"}: ${toolName}`
-          : eventType === "tool_update"
-            ? "Tool update"
-            : "Tool complete";
-        const message =
-          typeof payload?.message === "string"
-            ? payload.message
-            : typeof payload?.result === "string"
-              ? payload.result
-              : undefined;
-
-        notificationContext.showNotification({
-          type: "notice",
-          title,
-          message,
-        });
-      };
-
-    const unsubscribeUpdate = eventContext.subscribe(
-      "tool_update",
-      showToolNotification("tool_update"),
-    );
-    const unsubscribeComplete = eventContext.subscribe(
-      "tool_complete",
-      showToolNotification("tool_complete"),
-    );
-
-    return () => {
-      unsubscribeUpdate();
-      unsubscribeComplete();
-    };
-  }, [eventContext, notificationContext]);
+  // Tool update/complete SSE events intentionally raise NO toasts: the Working
+  // trace renders tool activity inline, so raw "Tool complete: <tool>" toasts
+  // were just noise (notably on tx signing, e.g. `evm_commit_txs`). The events
+  // are still emitted on the bus for any other consumer.
 
   // ---------------------------------------------------------------------------
   // Show notifications for system notices
