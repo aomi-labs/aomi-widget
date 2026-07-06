@@ -1,11 +1,16 @@
 "use client";
 
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { Settings } from "lucide-react";
 import { AomiFrame, useAomiWalletKit } from "@aomi-labs/widget-lib";
-import { type AomiClientOptions, useControl } from "@aomi-labs/react";
+import {
+  type AomiClientOptions,
+  useAomiRuntime,
+  usePerThreadControl,
+} from "@aomi-labs/react";
 import { RequiredSecretsGate } from "@portal/components/shell/required-secrets-gate";
+import { createPortalAccountAccessTokenProvider } from "@portal/lib/account-access-token";
 import { x402Client } from "@x402/core/client";
 import { ExactEvmScheme } from "@x402/evm/exact/client";
 import { wrapFetchWithPayment } from "@x402/fetch";
@@ -13,28 +18,61 @@ import { Mppx, tempo } from "mppx/client";
 import { useConfig, useWalletClient } from "wagmi";
 import { getConnectorClient } from "wagmi/actions";
 import { getBackendUrl } from "@portal/lib/settings-api";
-import { createPortalAccountAccessTokenProvider } from "@portal/lib/account-access-token";
 
-function getRequestedAppFromSearch(search: string): string | null {
+type RequestedAppConfig = {
+  app: string | null;
+  applicationId: string | null;
+  locked: boolean;
+};
+
+function getRequestedAppConfig(search: string): RequestedAppConfig {
   const params = new URLSearchParams(search);
+  let app: string | null = null;
 
   for (const key of ["aomi_app", "app"] as const) {
     const value = params.get(key)?.trim();
     if (value) {
-      return value;
+      app = value;
+      break;
     }
   }
 
-  return null;
+  return {
+    app,
+    applicationId:
+      params.get("application_id")?.trim() ||
+      params.get("applicationId")?.trim() ||
+      null,
+    locked:
+      params.get("lock_app") === "1" ||
+      params.get("lock_app") === "true" ||
+      params.get("app_locked") === "1" ||
+      params.get("app_locked") === "true",
+  };
 }
 
-function usePortalClientOptions():
-  | Omit<AomiClientOptions, "baseUrl">
-  | undefined {
-  const { getAccountCredential } = useAomiWalletKit();
+function useRequestedAppConfig(): RequestedAppConfig {
+  const [config, setConfig] = useState<RequestedAppConfig>({
+    app: null,
+    applicationId: null,
+    locked: false,
+  });
+
+  useEffect(() => {
+    setConfig(getRequestedAppConfig(window.location.search));
+  }, []);
+
+  return config;
+}
+
+function usePortalClientOptions(
+  lockedApp: string | null,
+  lockedApplicationId: string | null,
+): Omit<AomiClientOptions, "baseUrl"> | undefined {
   const wagmiConfig = useConfig();
   const walletClient = useWalletClient();
   const nativeFetch = useMemo(() => globalThis.fetch.bind(globalThis), []);
+  const { getAccountCredential } = useAomiWalletKit();
 
   const accountAccessTokenProvider = useMemo(() => {
     return createPortalAccountAccessTokenProvider(getAccountCredential, {
@@ -71,14 +109,7 @@ function usePortalClientOptions():
   }, [wagmiConfig]);
 
   return useMemo(() => {
-    const fetchDebugEnabled = (() => {
-      try {
-        return localStorage.getItem("aomi.portal.fetch.debug") === "1";
-      } catch {
-        return false;
-      }
-    })();
-    const withRequestUrlNormalization = (
+    const withDebugLogging = (
       fetchName: string,
       fetchImpl: typeof fetch,
     ): typeof fetch => {
@@ -90,45 +121,34 @@ function usePortalClientOptions():
               ? input.toString()
               : input.url;
         const normalizeLocalhostUrl = (value: string) => {
-          const isAbsoluteUrl = /^[a-z][a-z\d+.-]*:/i.test(value);
-          if (!isAbsoluteUrl) {
+          try {
+            // Keep requests same-origin as the page. Rewriting the host (e.g.
+            // localhost → 127.0.0.1) drops the httpOnly `aomi_session` cookie,
+            // which is host-scoped to wherever the user logged in — so the proxy
+            // can't inject the AccountBearer and session routes 401.
+            return new URL(value, window.location.href).toString();
+          } catch {
             return value;
           }
-
-          try {
-            const parsed = new URL(value);
-            if (parsed.hostname === "localhost") {
-              parsed.hostname = "127.0.0.1";
-              return parsed.toString();
-            }
-          } catch {
-            // Fall through to the original input.
-          }
-
-          return value;
         };
         const url = normalizeLocalhostUrl(rawUrl);
         const method =
           init?.method ?? (input instanceof Request ? input.method : "GET");
         const startedAt = Date.now();
-        if (fetchDebugEnabled) {
-          console.debug("[aomi][portal-fetch] start", {
+        console.debug("[aomi][portal-fetch] start", {
+          fetchName,
+          method,
+          url,
+        });
+
+        const pendingWarning = setTimeout(() => {
+          console.debug("[aomi][portal-fetch] still pending", {
             fetchName,
             method,
             url,
+            pendingMs: Date.now() - startedAt,
           });
-        }
-
-        const pendingWarning = fetchDebugEnabled
-          ? setTimeout(() => {
-              console.debug("[aomi][portal-fetch] still pending", {
-                fetchName,
-                method,
-                url,
-                pendingMs: Date.now() - startedAt,
-              });
-            }, 5000)
-          : null;
+        }, 5000);
 
         try {
           const normalizedInput =
@@ -138,37 +158,25 @@ function usePortalClientOptions():
                 ? new URL(url)
                 : new Request(url, input);
           const response = await fetchImpl(normalizedInput, init);
-          if (pendingWarning) clearTimeout(pendingWarning);
-          if (fetchDebugEnabled) {
-            console.debug("[aomi][portal-fetch] response", {
-              fetchName,
-              method,
-              url,
-              status: response.status,
-              ok: response.ok,
-              durationMs: Date.now() - startedAt,
-            });
-          }
+          clearTimeout(pendingWarning);
+          console.debug("[aomi][portal-fetch] response", {
+            fetchName,
+            method,
+            url,
+            status: response.status,
+            ok: response.ok,
+            durationMs: Date.now() - startedAt,
+          });
           return response;
         } catch (error) {
-          if (pendingWarning) clearTimeout(pendingWarning);
-          if (fetchDebugEnabled) {
-            console.error("[aomi][portal-fetch] failed", {
-              fetchName,
-              method,
-              url,
-              durationMs: Date.now() - startedAt,
-              error:
-                error instanceof Error
-                  ? {
-                      name: error.name,
-                      message: error.message,
-                      stack: error.stack,
-                      cause: error.cause,
-                    }
-                  : error,
-            });
-          }
+          clearTimeout(pendingWarning);
+          console.error("[aomi][portal-fetch] failed", {
+            fetchName,
+            method,
+            url,
+            durationMs: Date.now() - startedAt,
+            error,
+          });
           throw error;
         }
       };
@@ -188,6 +196,39 @@ function usePortalClientOptions():
       }
     };
 
+    const withLockedAppScope = (
+      input: RequestInfo | URL,
+    ): RequestInfo | URL => {
+      if (!lockedApp) {
+        return input;
+      }
+      const url = parseUrl(input);
+      if (
+        !url ||
+        ![
+          "/api/chat",
+          "/api/system",
+          "/api/thread/model",
+          "/api/session/model",
+        ].includes(
+          url.pathname,
+        )
+      ) {
+        return input;
+      }
+      url.searchParams.set("app", lockedApp);
+      if (lockedApplicationId) {
+        url.searchParams.set("application_id", lockedApplicationId);
+      }
+      if (typeof input === "string") {
+        return url.toString();
+      }
+      if (input instanceof URL) {
+        return url;
+      }
+      return new Request(url, input);
+    };
+
     const isChatPost = (input: RequestInfo | URL, init?: RequestInit) => {
       const url = parseUrl(input);
       if (!url) return false;
@@ -197,7 +238,7 @@ function usePortalClientOptions():
       return method === "POST" && url.pathname === "/api/chat";
     };
 
-    const rawFetch = withRequestUrlNormalization("native.fetch", nativeFetch);
+    const rawFetch = withDebugLogging("native.fetch", nativeFetch);
     const baseFetch = mppClientOptions?.fetch;
     const connectorClient = walletClient?.data;
     const paymentFetch = (() => {
@@ -205,7 +246,7 @@ function usePortalClientOptions():
         return null;
       }
       if (!connectorClient) {
-        return withRequestUrlNormalization("mppx.fetch", baseFetch);
+        return withDebugLogging("mppx.fetch", baseFetch);
       }
 
       const paymentClient = new x402Client();
@@ -214,28 +255,27 @@ function usePortalClientOptions():
         new ExactEvmScheme(connectorClient as never),
       );
 
-      return withRequestUrlNormalization(
+      return withDebugLogging(
         "wrapFetchWithPayment",
         wrapFetchWithPayment(baseFetch, paymentClient),
       );
     })();
 
     const routedFetch: typeof fetch = async (input, init) => {
-      if (!isChatPost(input, init)) {
-        return rawFetch(input, init);
+      const routedInput = withLockedAppScope(input);
+      if (!isChatPost(routedInput, init)) {
+        return rawFetch(routedInput, init);
       }
 
-      const firstResponse = await rawFetch(input, init);
+      const firstResponse = await rawFetch(routedInput, init);
       if (firstResponse.status !== 402 || !paymentFetch) {
         return firstResponse;
       }
 
-      if (fetchDebugEnabled) {
-        console.debug(
-          "[aomi][portal-fetch] retrying /api/chat with payment transport after 402",
-        );
-      }
-      return paymentFetch(input, init);
+      console.debug(
+        "[aomi][portal-fetch] retrying /api/chat with payment transport after 402",
+      );
+      return paymentFetch(withLockedAppScope(input), init);
     };
 
     return {
@@ -244,35 +284,102 @@ function usePortalClientOptions():
     };
   }, [
     accountAccessTokenProvider,
+    lockedApp,
+    lockedApplicationId,
     mppClientOptions,
     nativeFetch,
     walletClient?.data,
   ]);
 }
 
-function AppSelectUrlBootstrap() {
-  const { onAppSelect } = useControl();
+function AppSelectUrlBootstrap({
+  requestedApp,
+  requestedApplicationId,
+  locked,
+}: {
+  requestedApp: string | null;
+  requestedApplicationId: string | null;
+  locked: boolean;
+}) {
+  const { createThread, currentThreadId } = useAomiRuntime();
+  const { onAppSelect } = usePerThreadControl().actions;
   const hasAppliedRequestedAppRef = useRef(false);
+  const hasStartedLockedThreadRef = useRef<string | null>(null);
+  const isDisposedRef = useRef(false);
+  const [lockedThreadId, setLockedThreadId] = useState<string | null>(null);
+
+  useEffect(() => {
+    return () => {
+      isDisposedRef.current = true;
+    };
+  }, []);
 
   useEffect(() => {
     if (hasAppliedRequestedAppRef.current) {
       return;
     }
 
-    const requestedApp = getRequestedAppFromSearch(window.location.search);
     if (!requestedApp) {
       return;
     }
 
-    onAppSelect(requestedApp);
+    if (!locked) {
+      onAppSelect(requestedApp, { applicationId: requestedApplicationId });
+      hasAppliedRequestedAppRef.current = true;
+      return;
+    }
+
+    if (hasStartedLockedThreadRef.current === requestedApp) {
+      return;
+    }
+    hasStartedLockedThreadRef.current = requestedApp;
+    void createThread()
+      .then((threadId) => {
+        if (
+          !isDisposedRef.current &&
+          hasStartedLockedThreadRef.current === requestedApp
+        ) {
+          setLockedThreadId(threadId);
+        }
+      })
+      .catch((error) => {
+        console.error("[aomi][portal-frame] failed to create locked thread", {
+          app: requestedApp,
+          error,
+        });
+      });
+  }, [createThread, locked, onAppSelect, requestedApp, requestedApplicationId]);
+
+  useEffect(() => {
+    if (
+      hasAppliedRequestedAppRef.current ||
+      !locked ||
+      !requestedApp ||
+      !lockedThreadId ||
+      currentThreadId !== lockedThreadId
+    ) {
+      return;
+    }
+
+    onAppSelect(requestedApp, { applicationId: requestedApplicationId });
     hasAppliedRequestedAppRef.current = true;
-  }, [onAppSelect]);
+  }, [
+    currentThreadId,
+    locked,
+    lockedThreadId,
+    onAppSelect,
+    requestedApp,
+    requestedApplicationId,
+  ]);
 
   return null;
 }
 
 export function PortalAomiFrame() {
-  const clientOptions = usePortalClientOptions();
+  const requestedApp = useRequestedAppConfig();
+  const lockedApp = requestedApp.locked ? requestedApp.app : null;
+  const lockedApplicationId = lockedApp ? requestedApp.applicationId : null;
+  const clientOptions = usePortalClientOptions(lockedApp, lockedApplicationId);
   const backendUrl = getBackendUrl();
 
   return (
@@ -286,7 +393,11 @@ export function PortalAomiFrame() {
         className="rounded-none border-0 shadow-none"
         clientOptions={clientOptions}
       >
-        <AppSelectUrlBootstrap />
+        <AppSelectUrlBootstrap
+          requestedApp={requestedApp.app}
+          requestedApplicationId={requestedApp.applicationId}
+          locked={Boolean(lockedApp)}
+        />
         <AomiFrame.Header>
           <Link
             href="/settings"
@@ -300,6 +411,7 @@ export function PortalAomiFrame() {
           withControl
           controlBarProps={{
             hideApiKey: true,
+            hideApp: Boolean(lockedApp),
           }}
         />
         <RequiredSecretsGate />

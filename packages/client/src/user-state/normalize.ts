@@ -9,6 +9,14 @@ function asObject(value: unknown): UnknownRecord | undefined {
   return value as UnknownRecord;
 }
 
+// The threads-era backend serializes `evm` as an array of per-chain wallets
+// whose first entry is the primary operating wallet; older backends sent a
+// single object. Collapse to the primary object at the boundary so the rest
+// of the pipeline keeps a single shape.
+function asEvmObject(value: unknown): UnknownRecord | undefined {
+  return Array.isArray(value) ? asObject(value[0]) : asObject(value);
+}
+
 function pick(record: UnknownRecord | undefined, ...keys: string[]): unknown {
   if (!record) {
     return undefined;
@@ -260,7 +268,7 @@ function parseChainId(value: unknown): number | undefined {
 }
 
 function address(state: UserState | undefined): string | undefined {
-  const value = asObject(state?.evm)?.address;
+  const value = asEvmObject(state?.evm)?.address;
   return typeof value === "string" && value.length > 0 ? value : undefined;
 }
 
@@ -270,7 +278,7 @@ function svmAddress(state: UserState | undefined): string | undefined {
 }
 
 function chainId(state: UserState | undefined): number | undefined {
-  return parseChainId(asObject(state?.evm)?.chain_id);
+  return parseChainId(asEvmObject(state?.evm)?.chain_id);
 }
 
 function isConnected(state: UserState | undefined): boolean | undefined {
@@ -295,7 +303,7 @@ export function normalizeUserState(
   const out: UserState = {};
   const connection = buildConnection(asObject(pick(src, "connection")), src);
   if (connection) out.connection = connection;
-  const evm = buildEvm(asObject(pick(src, "evm")), src);
+  const evm = buildEvm(asEvmObject(pick(src, "evm")), src);
   if (evm) out.evm = evm;
   const svm = buildSvm(asObject(pick(src, "svm", "solana")), src);
   if (svm) out.svm = svm;
