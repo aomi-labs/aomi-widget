@@ -29,11 +29,26 @@ onlyBuiltDependencies:
   - "@reown/appkit"
   - "@tailwindcss/oxide"
   - bufferutil
+  - es5-ext
   - esbuild
   - keccak
+  - protobufjs
+  - secp256k1
   - sharp
+  - tiny-secp256k1
   - unrs-resolver
   - utf-8-validate
 
 allowBuilds:
-  '@reown/appkit': true
+  "@reown/appkit": true
+  "@tailwindcss/oxide": true
+  bufferutil: true
+  es5-ext: true
+  esbuild: true
+  keccak: true
+  protobufjs: true
+  secp256k1: true
+  sharp: true
+  tiny-secp256k1: true
+  unrs-resolver: true
+  utf-8-validate: true
