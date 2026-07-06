@@ -190,7 +190,12 @@ function usePortalClientOptions(
       const url = parseUrl(input);
       if (
         !url ||
-        !["/api/chat", "/api/system", "/api/session/model"].includes(
+        ![
+          "/api/chat",
+          "/api/system",
+          "/api/thread/model",
+          "/api/session/model",
+        ].includes(
           url.pathname,
         )
       ) {
