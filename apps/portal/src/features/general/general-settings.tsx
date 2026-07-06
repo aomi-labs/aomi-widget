@@ -5,9 +5,9 @@ import { getChainInfo } from "@aomi-labs/react";
 import {
   Button,
   formatAuthMethod,
-  useAomiAuthAdapter,
+  useAomiWalletKit,
 } from "@aomi-labs/widget-lib";
-import { accountScopedFetch } from "@portal/lib/settings-api";
+import { settingsApiFetch } from "@portal/lib/settings-api";
 import {
   settingsBodyTextClass,
   settingsCardClass,
@@ -19,7 +19,7 @@ import {
   settingsTitleClass,
 } from "@portal/lib/settings-styles";
 
-type CanonicalUser = {
+type AccountProfile = {
   user_id: string;
   public_key: string;
   username?: string | null;
@@ -32,7 +32,7 @@ type CanonicalUser = {
   last_seen_at?: number | null;
 };
 
-type UsageStats = {
+type AccountUsage = {
   period_utc_month: string;
   input_tokens: number;
   output_tokens: number;
@@ -40,28 +40,11 @@ type UsageStats = {
   credit_paid: number;
 };
 
-type AuthIdentity = {
-  id: number;
-  application?: string | null;
-  wallet_provider: string;
-  auth_method: string;
-  auth_verified_at?: number | null;
-  is_primary: boolean;
-  created_at: number;
-};
-
-type IdentityWallet = {
-  wallet_id?: string | null;
-  address: string;
-  chain_type: string;
-  wallet_provider: string;
-};
-
-type AccountProfile = {
-  user: CanonicalUser;
-  auth_identities?: AuthIdentity[];
-  identity_wallets?: IdentityWallet[];
-  usage: UsageStats;
+type AccountOverview = {
+  user: AccountProfile;
+  auth_identities?: unknown[];
+  identity_wallets?: unknown[];
+  usage?: AccountUsage | null;
 };
 
 function formatTs(ts?: number | null): string {
@@ -75,9 +58,9 @@ function formatNumber(n?: number): string {
 }
 
 export function GeneralSettings() {
-  const adapter = useAomiAuthAdapter();
+  const adapter = useAomiWalletKit();
   const identity = adapter.identity;
-  const [account, setAccount] = useState<AccountProfile | null>(null);
+  const [account, setAccount] = useState<AccountOverview | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -92,14 +75,10 @@ export function GeneralSettings() {
 
   useEffect(() => {
     const run = async () => {
-      if (!identity.address) {
-        setAccount(null);
-        return;
-      }
       setLoading(true);
       setError(null);
       try {
-        const data = await accountScopedFetch<AccountProfile>("/api/account");
+        const data = await settingsApiFetch<AccountOverview>("/api/account");
         setAccount(data);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to load account");
@@ -109,7 +88,7 @@ export function GeneralSettings() {
     };
 
     void run();
-  }, [identity.address]);
+  }, []);
 
   return (
     <div className={settingsPageClass}>
@@ -170,7 +149,7 @@ export function GeneralSettings() {
           )}
           {!loading && !error && !account && (
             <p className={settingsBodyTextClass}>
-              Connect your wallet to load account details.
+              Sign in or connect a wallet to load account details.
             </p>
           )}
           {!loading && !error && account && (
@@ -186,15 +165,15 @@ export function GeneralSettings() {
                 Status: {account.user.status}
               </p>
               <p className={settingsBodyTextClass}>
-                Month: {account.usage.period_utc_month}
+                Month: {account.usage?.period_utc_month ?? "-"}
               </p>
               <p className={settingsBodyTextClass}>
-                Credits: {formatNumber(account.usage.credit_used)} /{" "}
-                {formatNumber(account.usage.credit_paid)}
+                Credits: {formatNumber(account.usage?.credit_used)} /{" "}
+                {formatNumber(account.usage?.credit_paid)}
               </p>
               <p className={settingsBodyTextClass}>
-                Tokens: in {formatNumber(account.usage.input_tokens)} | out{" "}
-                {formatNumber(account.usage.output_tokens)}
+                Tokens: in {formatNumber(account.usage?.input_tokens)} | out{" "}
+                {formatNumber(account.usage?.output_tokens)}
               </p>
               <p className={settingsBodyTextClass}>
                 Created at: {formatTs(account.user.created_at)}

@@ -6,6 +6,7 @@ const appRoot = path.dirname(fileURLToPath(import.meta.url));
 const workspaceRoot = path.resolve(appRoot, "../..");
 const appNodeModules = path.join(appRoot, "node_modules");
 const portalSrc = path.join(appRoot, "src");
+const accountSrc = path.join(workspaceRoot, "packages/account/src");
 const widgetSrc = path.join(workspaceRoot, "apps/shadcn-registry/src");
 
 const emptyModulePath = path.join(appRoot, "empty-module.js");
@@ -14,16 +15,6 @@ const nobleHashesAssertCompatPath = path.join(
   "noble-hashes-assert-compat.js",
 );
 
-function defaultBackendUrl() {
-  if (process.env.VERCEL_ENV === "preview") {
-    return "https://api-staging.aomi.dev";
-  }
-  if (process.env.VERCEL_ENV === "production") {
-    return "https://api.aomi.dev";
-  }
-  return "http://127.0.0.1:8080";
-}
-
 // Portal-local code should import from `@portal/*`.
 // These `@/components|hooks|lib` aliases exist only so registry source imported
 // through `@aomi-labs/widget-lib` can resolve its own internal paths.
@@ -31,6 +22,8 @@ const widgetTurbopackAliases = {
   "@/components": "../../apps/shadcn-registry/src/components",
   "@/hooks": "../../apps/shadcn-registry/src/hooks",
   "@/lib": "../../apps/shadcn-registry/src/lib",
+  "@aomi-labs/widget-lib/providers/para":
+    "../../apps/shadcn-registry/src/lib/wallet-kit/providers/para/index.ts",
   "@aomi-labs/widget-lib": "../../apps/shadcn-registry/src/index.ts",
 } as const;
 
@@ -40,6 +33,10 @@ const widgetWebpackAliases = {
   "@/components": path.join(widgetSrc, "components"),
   "@/hooks": path.join(widgetSrc, "hooks"),
   "@/lib": path.join(widgetSrc, "lib"),
+  "@aomi-labs/widget-lib/providers/para": path.join(
+    widgetSrc,
+    "lib/wallet-kit/providers/para/index.ts",
+  ),
   "@aomi-labs/widget-lib": path.join(widgetSrc, "index.ts"),
 } as const;
 
@@ -48,7 +45,7 @@ const nextConfig: NextConfig = {
     NEXT_PUBLIC_BACKEND_URL:
       process.env.NEXT_PUBLIC_BACKEND_URL ||
       process.env.BACKEND_URL ||
-      defaultBackendUrl(),
+      "http://127.0.0.1:8080",
     NEXT_PUBLIC_ANVIL_URL:
       process.env.NEXT_PUBLIC_ANVIL_URL ||
       process.env.ANVIL_URL ||
@@ -58,18 +55,6 @@ const nextConfig: NextConfig = {
   },
   output: process.env.VERCEL === "1" ? undefined : "standalone",
   outputFileTracingRoot: workspaceRoot,
-  // The service-topology TOML is read at runtime via a dynamic path, so
-  // @vercel/nft can't trace it automatically — include it explicitly for every
-  // route that mints/verifies a bearer. Per the Next docs, include-glob values
-  // resolve from the Next.js project root (apps/portal), NOT from
-  // outputFileTracingRoot.
-  outputFileTracingIncludes: {
-    "/*": [
-      "./service.portal.toml",
-      "./service.portal.staging.toml",
-      "./service.portal.production.toml",
-    ],
-  },
   experimental: {
     externalDir: true,
     webpackMemoryOptimizations: true,
@@ -77,28 +62,13 @@ const nextConfig: NextConfig = {
   images: {
     unoptimized: true,
   },
-  async rewrites() {
-    const backendProxyTarget = process.env.AOMI_BACKEND_PROXY_TARGET;
-    if (!backendProxyTarget) {
-      return [];
-    }
-
-    return [
-      {
-        source: "/api/:path*",
-        destination: `${backendProxyTarget}/api/:path*`,
-      },
-    ];
-  },
   typescript: {
     ignoreBuildErrors: true,
   },
   transpilePackages: [
     "@aomi-labs/account",
     "@aomi-labs/client",
-    "@aomi-labs/deploy",
     "@aomi-labs/react",
-    "@aomi-labs/service",
     "@aomi-labs/widget-lib",
     "@getpara/react-sdk",
   ],
@@ -106,11 +76,14 @@ const nextConfig: NextConfig = {
     resolveAlias: {
       "@portal": "./src",
       ...widgetTurbopackAliases,
+      "@aomi-labs/account/account": "../../packages/account/src/account.ts",
+      "@aomi-labs/account/better-auth":
+        "../../packages/account/src/better-auth/index.ts",
+      "@aomi-labs/account/providers":
+        "../../packages/account/src/providers/index.ts",
       "@aomi-labs/account": "../../packages/account/src/index.ts",
       "@aomi-labs/client": "../../packages/client/src/index.ts",
-      "@aomi-labs/deploy": "../../packages/deploy/src/index.ts",
       "@aomi-labs/react": "../../packages/react/src/index.ts",
-      "@aomi-labs/service": "../../packages/service/src/index.ts",
       "@assistant-ui/react": "./node_modules/@assistant-ui/react",
       "@noble/hashes/_assert": "./noble-hashes-assert-compat.js",
       "@tanstack/react-query": "./node_modules/@tanstack/react-query",
@@ -130,25 +103,23 @@ const nextConfig: NextConfig = {
       ...(config.resolve.alias ?? {}),
       "@portal": portalSrc,
       ...widgetWebpackAliases,
-      "@aomi-labs/account": path.join(
-        workspaceRoot,
-        "packages/account/src/index.ts",
+      "@aomi-labs/account/account": path.join(accountSrc, "account.ts"),
+      "@aomi-labs/account/better-auth": path.join(
+        accountSrc,
+        "better-auth/index.ts",
       ),
+      "@aomi-labs/account/providers": path.join(
+        accountSrc,
+        "providers/index.ts",
+      ),
+      "@aomi-labs/account": path.join(accountSrc, "index.ts"),
       "@aomi-labs/client": path.join(
         workspaceRoot,
         "packages/client/src/index.ts",
       ),
-      "@aomi-labs/deploy": path.join(
-        workspaceRoot,
-        "packages/deploy/src/index.ts",
-      ),
       "@aomi-labs/react": path.join(
         workspaceRoot,
         "packages/react/src/index.ts",
-      ),
-      "@aomi-labs/service": path.join(
-        workspaceRoot,
-        "packages/service/src/index.ts",
       ),
       "@assistant-ui/react": path.join(appNodeModules, "@assistant-ui/react"),
       "@noble/hashes/_assert": nobleHashesAssertCompatPath,
