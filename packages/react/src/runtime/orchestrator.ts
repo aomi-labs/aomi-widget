@@ -12,6 +12,7 @@ import {
 } from "../contexts/thread-context";
 import { SessionManager } from "./session-manager";
 import { toInboundMessage } from "./utils";
+import { mergeAssistantTurns } from "./merge-turns";
 
 type OrchestratorOptions = {
   getUserState?: () => UserState;
@@ -288,7 +289,10 @@ export function useRuntimeOrchestrator(
           ) {
             return;
           }
-          threadContextRef.current.setThreadMessages(threadId, threadMessages);
+          threadContextRef.current.setThreadMessages(
+            threadId,
+            mergeAssistantTurns(threadMessages),
+          );
         }),
       );
 

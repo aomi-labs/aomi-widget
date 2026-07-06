@@ -13,6 +13,13 @@ overrides:
   # alignment, not a bump past anyone's range.
   react: 19.2.7
   react-dom: 19.2.7
+  # Pin a single @types/react so peer-dep resolution doesn't fan out into
+  # multiple physical copies of @assistant-ui/* (react/store/core). Duplicate
+  # copies each get their own React context, which breaks the shared AuiProvider
+  # (the runtime provider and the UI primitives would resolve to different
+  # instances → "requires an AuiProvider" at runtime).
+  "@types/react": 19.2.14
+  "@types/react-dom": 19.2.3
 
 # @inkjs/ui declares no react dependency (nor peer), so its bare `import react`
 # falls through to a hoisted copy that differs from the one ink's reconciler is

@@ -253,3 +253,41 @@
     font-size: 16px;
   }
 }
+
+/* ============================================
+   Working trace (chain-of-thought)
+   ============================================ */
+
+@keyframes aui-working-sweep {
+  from {
+    background-position: 160% 0;
+  }
+  to {
+    background-position: -60% 0;
+  }
+}
+
+/* Shimmering "Working" label — a highlight sweeps across the text while the
+   agent is still working. Uses the theme's own foreground/muted tokens so it
+   inherits each app's palette (and dark mode) automatically. */
+.aui-working-shimmer {
+  background-image: linear-gradient(
+    100deg,
+    var(--muted-foreground) 35%,
+    var(--foreground) 50%,
+    var(--muted-foreground) 65%
+  );
+  background-size: 220% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: aui-working-sweep 1.5s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .aui-working-shimmer {
+    animation: none;
+    color: var(--muted-foreground);
+    -webkit-text-fill-color: var(--muted-foreground);
+  }
+}

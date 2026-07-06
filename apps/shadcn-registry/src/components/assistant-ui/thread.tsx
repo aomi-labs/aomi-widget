@@ -34,6 +34,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { MarkdownText } from "@/components/assistant-ui/markdown-text";
 import { ToolFallback } from "@/components/assistant-ui/tool-fallback";
+import { AssistantTurnParts } from "@/components/assistant-ui/working-trace";
 import { TooltipIconButton } from "@/components/assistant-ui/tooltip-icon-button";
 
 import { cn, useNotification, useThreadContext } from "@aomi-labs/react";
@@ -47,25 +48,24 @@ import { SecretGate } from "@/components/control-bar/secret-gate";
 import { PaymentRequiredGate } from "@/components/control-bar/payment-required-gate";
 import { shouldShowThreadLoadingSkeleton } from "@/components/assistant-ui/thread-loading";
 import {
-  useAssistantApi,
-  useAssistantState,
+  useThread,
+  useComposerRuntime,
   useMessage,
 } from "@assistant-ui/react";
 
 const seenSystemMessages = new Set<string>();
 
 export const Thread: FC = () => {
-  const api = useAssistantApi();
+  const composerRuntime = useComposerRuntime();
   const { threadViewKey } = useThreadContext();
 
   useEffect(() => {
     try {
-      const composer = api.composer();
-      composer.setText("");
+      composerRuntime.setText("");
     } catch (error) {
       console.error("Failed to reset composer input:", error);
     }
-  }, [api, threadViewKey]);
+  }, [composerRuntime, threadViewKey]);
 
   return (
     <LazyMotion features={domAnimation}>
@@ -121,7 +121,7 @@ const ThreadScrollToBottom: FC = () => {
 };
 
 const ThreadWelcome: FC = () => {
-  const isLoading = useAssistantState(({ thread }) => thread.isLoading);
+  const isLoading = useThread((t) => t.isLoading);
 
   if (isLoading) return null;
 
@@ -304,10 +304,10 @@ const MessageError: FC = () => {
 };
 
 const ThreadLoadingSkeleton: FC = () => {
-  const showSkeleton = useAssistantState(({ thread }) =>
+  const showSkeleton = useThread((t) =>
     shouldShowThreadLoadingSkeleton({
-      isLoading: thread.isLoading,
-      messageCount: thread.messages.length,
+      isLoading: t.isLoading,
+      messageCount: t.messages.length,
     }),
   );
 
@@ -394,12 +394,7 @@ const AssistantMessage: FC = () => {
             {showLoadingDot ? (
               <AssistantLoadingDot />
             ) : (
-              <MessagePrimitive.Parts
-                components={{
-                  Text: MarkdownText,
-                  tools: { Fallback: ToolFallback },
-                }}
-              />
+              <AssistantTurnParts />
             )}
             <MessageError />
           </div>

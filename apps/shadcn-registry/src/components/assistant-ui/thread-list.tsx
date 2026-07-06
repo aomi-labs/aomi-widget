@@ -4,7 +4,7 @@ import { type FC, useState } from "react";
 import {
   ThreadListItemPrimitive,
   ThreadListPrimitive,
-  useAssistantState,
+  useThreadList,
 } from "@assistant-ui/react";
 import { PlusIcon, TrashIcon } from "lucide-react";
 
@@ -45,7 +45,7 @@ const ThreadListNew: FC = () => {
 };
 
 const ThreadListItems: FC = () => {
-  const isLoading = useAssistantState(({ threads }) => threads.isLoading);
+  const isLoading = useThreadList((t) => t.isLoading);
 
   if (isLoading) {
     return <ThreadListSkeleton />;
