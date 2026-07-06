@@ -5,6 +5,7 @@ import {
   launchDeployRoute,
   launchStatusRoute,
   redeployLaunchRoute,
+  syncInstalledLaunchRoute,
 } from "./routes";
 
 vi.mock("@aomi-labs/account", () => ({
@@ -36,6 +37,7 @@ describe("launchDeployRoute", () => {
   afterEach(() => {
     vi.unstubAllEnvs();
     vi.restoreAllMocks();
+    getGitHubSession.mockReset();
   });
 
   it("propagates BackendError status codes (400-599)", async () => {
@@ -70,6 +72,10 @@ describe("launchDeployRoute", () => {
   });
 
   it("preflight mints the source row by repo, then previews by app source id", async () => {
+    getGitHubSession.mockResolvedValueOnce({
+      githubUserId: "42",
+      githubLogin: "alice",
+    });
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(
@@ -115,7 +121,10 @@ describe("launchDeployRoute", () => {
       "http://127.0.0.1:8080/api/platforms/community/sources/sync-installed",
       expect.objectContaining({
         method: "POST",
-        body: expect.stringContaining('"repo":"alice/bot"'),
+        body: JSON.stringify({
+          repo: "alice/bot",
+          github_user_id: "42",
+        }),
       }),
     );
     expect(fetchMock).toHaveBeenNthCalledWith(
@@ -124,6 +133,53 @@ describe("launchDeployRoute", () => {
       expect.objectContaining({
         method: "POST",
         body: expect.stringContaining('"source_ref":"abc1234def5678"'),
+      }),
+    );
+  });
+
+  it("sync-installed binds the source to the signed-in GitHub user", async () => {
+    getGitHubSession.mockResolvedValueOnce({
+      githubUserId: "42",
+      githubLogin: "alice",
+    });
+    const fetchMock = vi.fn().mockResolvedValueOnce(
+      Response.json({
+        ok: true,
+        source: {
+          id: 123,
+          installation_id: 555,
+          repository_link: "alice/bot",
+          source_ref: "abc1234def5678",
+          github_user_id: "42",
+        },
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const req = new Request(
+      "http://localhost:3000/api/bff/launch/sync-installed",
+      {
+        method: "POST",
+        headers: {
+          origin: "http://localhost:3000",
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ repo: "alice/bot" }),
+      },
+    );
+    const res = await syncInstalledLaunchRoute(req);
+    const body = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(body.appSourceId).toBe(123);
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://127.0.0.1:8080/api/platforms/community/sources/sync-installed",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          repo: "alice/bot",
+          github_user_id: "42",
+        }),
       }),
     );
   });

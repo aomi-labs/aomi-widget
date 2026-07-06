@@ -384,9 +384,13 @@ export class DeploymentClient {
     const platform = cleanPlatform(input.platform);
     const repo = required(input.repo, "repo");
     const bearer = this.resolveBearer(input.bearer);
+    const body: { repo: string; github_user_id?: string } = { repo };
+    if (input.githubUserId !== undefined) {
+      body.github_user_id = required(input.githubUserId, "githubUserId");
+    }
     const raw = await this.post<{ ok?: boolean; source?: unknown }>(
       `/api/platforms/${encodeURIComponent(platform)}/sources/sync-installed`,
-      { repo },
+      body,
       "sync_source",
       bearer,
     );

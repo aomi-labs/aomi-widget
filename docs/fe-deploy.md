@@ -7,6 +7,7 @@ the browser never holds GitHub tokens or service credentials.
 > **Latest changes (2026-06-25 launch cleanup):**
 >
 > - Portal BFF source dashboard now calls backend `user/sources` with the configured launch platform; backend hides unrelated repos from broad GitHub App installations.
+> - Existing-repo sync now sends the signed-in GitHub user id so the backend can prove ownership and bind `app_source.github_user_id`; otherwise deployed/admin-synced repos can be live but missing from the Source Repositories dashboard.
 > - The deploy preview route is `preflight`, not `dry-run`.
 > - Launch config is server-env-driven: `APP_DEPLOY_PLATFORMS` (JSON array or comma-separated list), `APP_DEPLOY_AOMI_TOML_PATHS`, and optional `APP_DEPLOY_TARGET_TAGS`. The first platform is the primary deploy target; app pickers can merge all configured platforms. The deploy source ref is an immutable commit SHA from `APP_DEPLOY_SOURCE_REF` (or `APP_DEPLOY_SOURCE_COMMIT`).
 > - Chat links are controlled by `NEXT_PUBLIC_CHAT_URL`.
@@ -77,17 +78,17 @@ stateDiagram-v2
 
 **Portal BFF** — `aomi-widget/apps/portal/src/app/api/launch/*` (each proxies the BE)
 
-| BFF route                         | → Backend                                                                                  |
-| --------------------------------- | ------------------------------------------------------------------------------------------ |
-| `GET  /api/launch/sources`        | `GET /api/integrations/github-app/user/sources?github_user_id&platform`                    |
-| `POST /api/launch/preflight`      | `POST …/sources/sync-installed` when needed, then `POST …/deploy` with `preflight: true`   |
-| `POST /api/launch/deploy`         | `POST …/deploy` with explicit `app_source_id`                                              |
-| `POST /api/launch/create`         | `…/sources/create-from-template`                                                           |
-| `POST /api/launch/sync-installed` | `…/sources/sync-installed` for exactly the pasted `owner/repo`                             |
-| `GET  /api/launch/status`         | deployment status                                                                          |
-| `POST /api/launch/activate`       | `…/activate`                                                                               |
-| `GET  /api/launch/app`            | app load status                                                                            |
-| `POST /api/launch/redeploy`       | backend single-source latest-deployment lookup, then GitHub `actions/runs/{ciRunId}/rerun` |
+| BFF route                         | → Backend                                                                                                                        |
+| --------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| `GET  /api/launch/sources`        | `GET /api/integrations/github-app/user/sources?github_user_id&platform`                                                          |
+| `POST /api/launch/preflight`      | `POST …/sources/sync-installed` when needed, then `POST …/deploy` with `preflight: true`                                         |
+| `POST /api/launch/deploy`         | `POST …/deploy` with explicit `app_source_id`                                                                                    |
+| `POST /api/launch/create`         | `…/sources/create-from-template`                                                                                                 |
+| `POST /api/launch/sync-installed` | `…/sources/sync-installed` for exactly the pasted `owner/repo`, with the signed-in `github_user_id` for source ownership binding |
+| `GET  /api/launch/status`         | deployment status                                                                                                                |
+| `POST /api/launch/activate`       | `…/activate`                                                                                                                     |
+| `GET  /api/launch/app`            | app load status                                                                                                                  |
+| `POST /api/launch/redeploy`       | backend single-source latest-deployment lookup, then GitHub `actions/runs/{ciRunId}/rerun`                                       |
 
 ---
 

@@ -51,7 +51,11 @@ describe("DeploymentClient bootstrap — tokens", () => {
     expect(JSON.parse((init as RequestInit).body as string)).toEqual({
       scope: "platform",
     });
-    expect(result).toEqual({ id: 12, token: "plaintext-once", scope: "platform" });
+    expect(result).toEqual({
+      id: 12,
+      token: "plaintext-once",
+      scope: "platform",
+    });
     expect(audits).toEqual([
       expect.objectContaining({
         action: "mint_token",
@@ -197,6 +201,21 @@ describe("DeploymentClient bootstrap — sources", () => {
       createdBy: null,
       templateRepo: null,
       launchSourceKind: null,
+    });
+  });
+
+  it("binds an installed source to the signed-in GitHub user when provided", async () => {
+    jsonOnce(fetchMock, sourceBody);
+    await client({ activationToken: "plat-tok" }).syncSource({
+      platform: "playground",
+      repo: "alice/alice-bot",
+      githubUserId: "222",
+    });
+
+    const [, init] = fetchMock.mock.calls[0];
+    expect(JSON.parse((init as RequestInit).body as string)).toEqual({
+      repo: "alice/alice-bot",
+      github_user_id: "222",
     });
   });
 
