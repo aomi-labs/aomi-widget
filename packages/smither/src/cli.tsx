@@ -28,11 +28,7 @@ import {
   startConsoleForApp,
   type ConsoleHandle,
 } from "./console";
-import {
-  executePromote,
-  planPromote,
-  promoteClientFromEnv,
-} from "./promote";
+import { executePromote, planPromote, promoteClientFromEnv } from "./promote";
 
 // ---------------------------------------------------------------------------
 // Argument parsing
@@ -76,7 +72,10 @@ function parseFlagMap(argv: string[]): Map<string, string | boolean> {
   return values;
 }
 
-function stringValue(values: Map<string, string | boolean>, key: string): string | undefined {
+function stringValue(
+  values: Map<string, string | boolean>,
+  key: string,
+): string | undefined {
   const value = values.get(key);
   return typeof value === "string" ? value : undefined;
 }
@@ -87,7 +86,10 @@ function parseArgs(argv: string[]): CliArgs {
     sdkRoot: path.resolve(stringValue(values, "sdk-root") ?? defaultSdkRoot()),
   };
   const provided = new Set<string>();
-  const setField = <K extends keyof BuildPlan>(key: K, value: BuildPlan[K] | undefined) => {
+  const setField = <K extends keyof BuildPlan>(
+    key: K,
+    value: BuildPlan[K] | undefined,
+  ) => {
     if (value === undefined) return;
     draft[key] = value;
     provided.add(key);
@@ -104,15 +106,18 @@ function parseArgs(argv: string[]): CliArgs {
   if (values.get("force")) setField("force", true);
   if (values.get("no-build")) setField("build", false);
   setField("userStory", stringValue(values, "user-story"));
-  const builder = stringValue(values, "builder") ?? stringValue(values, "agent");
+  const builder =
+    stringValue(values, "builder") ?? stringValue(values, "agent");
   if (builder === "claude" || builder === "codex" || builder === "none") {
     setField("builder", builder);
   }
   if (values.get("review")) setField("review", true);
   const reviewer = stringValue(values, "reviewer");
-  if (reviewer === "claude" || reviewer === "codex") setField("reviewer", reviewer);
+  if (reviewer === "claude" || reviewer === "codex")
+    setField("reviewer", reviewer);
   const fixRounds = stringValue(values, "max-fix-rounds");
-  if (fixRounds && /^\d+$/.test(fixRounds)) setField("maxFixRounds", Number(fixRounds));
+  if (fixRounds && /^\d+$/.test(fixRounds))
+    setField("maxFixRounds", Number(fixRounds));
   if (values.get("smoke")) setField("smoke", true);
   setField("smokePrompt", stringValue(values, "smoke-prompt"));
   if (values.get("deploy")) setField("deploy", true);
@@ -134,9 +139,15 @@ function parseArgs(argv: string[]): CliArgs {
     runsRoot: stringValue(values, "state-root") ?? defaultRunsRoot,
     activationToken: stringValue(values, "activation-token"),
     intentAgent: intentAgent === "codex" ? "codex" : "claude",
-    console: values.get("no-console") ? false : values.get("console") ? true : undefined,
+    console: values.get("no-console")
+      ? false
+      : values.get("console")
+        ? true
+        : undefined,
     consolePort:
-      consolePortRaw && /^\d+$/.test(consolePortRaw) ? Number(consolePortRaw) : undefined,
+      consolePortRaw && /^\d+$/.test(consolePortRaw)
+        ? Number(consolePortRaw)
+        : undefined,
     consoleBuiltin: Boolean(values.get("console-builtin")),
     draft,
     provided,
@@ -276,7 +287,9 @@ function reduceEvent(
   switch (event.type) {
     case "NodeStarted":
       setStage(event.nodeId, "running");
-      push(`▸ ${event.nodeId}${event.iteration > 0 ? ` (round ${event.iteration + 1})` : ""}`);
+      push(
+        `▸ ${event.nodeId}${event.iteration > 0 ? ` (round ${event.iteration + 1})` : ""}`,
+      );
       break;
     case "NodeFinished":
       setStage(event.nodeId, "complete");
@@ -300,10 +313,14 @@ function reduceEvent(
       setStage(event.nodeId, "waiting");
       const exists = next.approvals.some(
         (approval) =>
-          approval.nodeId === event.nodeId && approval.iteration === event.iteration,
+          approval.nodeId === event.nodeId &&
+          approval.iteration === event.iteration,
       );
       if (!exists) {
-        next.approvals.push({ nodeId: event.nodeId, iteration: event.iteration });
+        next.approvals.push({
+          nodeId: event.nodeId,
+          iteration: event.iteration,
+        });
         push(`⏸ ${event.nodeId} awaiting approval`);
       }
       break;
@@ -321,7 +338,9 @@ function reduceEvent(
     case "ApprovalGranted":
     case "ApprovalDenied": {
       const nodeIdValue = (event as { nodeId?: string }).nodeId;
-      next.approvals = next.approvals.filter((approval) => approval.nodeId !== nodeIdValue);
+      next.approvals = next.approvals.filter(
+        (approval) => approval.nodeId !== nodeIdValue,
+      );
       break;
     }
     case "RunStatusChanged":
@@ -363,9 +382,14 @@ type Screen =
 
 function SmitherApp({ args }: { args: CliArgs }) {
   const { exit } = useApp();
-  const [turns, setTurns] = useState<IntentTurn[]>([{ role: "smither", text: GREETING }]);
+  const [turns, setTurns] = useState<IntentTurn[]>([
+    { role: "smither", text: GREETING },
+  ]);
   const [draft, setDraft] = useState<Partial<BuildPlan>>(args.draft);
-  const [screen, setScreen] = useState<Screen>({ name: "chat", thinking: false });
+  const [screen, setScreen] = useState<Screen>({
+    name: "chat",
+    thinking: false,
+  });
 
   const submitChat = useCallback(
     (text: string) => {
@@ -382,12 +406,18 @@ function SmitherApp({ args }: { args: CliArgs }) {
         } else {
           setTurns((prev) => [
             ...prev,
-            { role: "smither", text: `Not runnable yet: ${outcome.issues.join("; ")}` },
+            {
+              role: "smither",
+              text: `Not runnable yet: ${outcome.issues.join("; ")}`,
+            },
           ]);
         }
         return;
       }
-      const nextTurns: IntentTurn[] = [...turns, { role: "user", text: trimmed }];
+      const nextTurns: IntentTurn[] = [
+        ...turns,
+        { role: "user", text: trimmed },
+      ];
       setTurns(nextTurns);
       setScreen({ name: "chat", thinking: true });
       void (async () => {
@@ -437,7 +467,10 @@ function SmitherApp({ args }: { args: CliArgs }) {
       <Box flexDirection="column" gap={0}>
         <Text bold>Aomi Smither</Text>
         {turns.slice(-12).map((turn, index) => (
-          <Text key={index} color={turn.role === "smither" ? "cyan" : undefined}>
+          <Text
+            key={index}
+            color={turn.role === "smither" ? "cyan" : undefined}
+          >
             {turn.role === "smither" ? "smither" : "you"}: {turn.text}
           </Text>
         ))}
@@ -447,7 +480,10 @@ function SmitherApp({ args }: { args: CliArgs }) {
         ) : (
           <Box>
             <Text>{"> "}</Text>
-            <TextInput placeholder="describe the app (/go to run, /quit to exit)" onSubmit={submitChat} />
+            <TextInput
+              placeholder="describe the app (/go to run, /quit to exit)"
+              onSubmit={submitChat}
+            />
           </Box>
         )}
       </Box>
@@ -463,10 +499,7 @@ function SmitherApp({ args }: { args: CliArgs }) {
         ))}
         <Text bold>Workflow</Text>
         {stagesFor(screen.plan).map((stage) => (
-          <Text key={stage.id}>
-            {" "}
-            · {stage.label}
-          </Text>
+          <Text key={stage.id}> · {stage.label}</Text>
         ))}
         <Text>Start this run? (state persists; re-running resumes)</Text>
         <ConfirmInput
@@ -504,7 +537,9 @@ function ThinkingLine() {
     const timer = setInterval(() => setSeconds((prev) => prev + 1), 1000);
     return () => clearInterval(timer);
   }, []);
-  return <Text dimColor>thinking… ({seconds}s — one claude call per turn)</Text>;
+  return (
+    <Text dimColor>thinking… ({seconds}s — one claude call per turn)</Text>
+  );
 }
 
 function RunView({
@@ -616,7 +651,10 @@ function RunView({
         ...prev,
         approvals: prev.approvals.filter(
           (pending) =>
-            !(pending.nodeId === approval.nodeId && pending.iteration === approval.iteration),
+            !(
+              pending.nodeId === approval.nodeId &&
+              pending.iteration === approval.iteration
+            ),
         ),
       }));
     },
@@ -720,7 +758,9 @@ async function runHeadless(args: CliArgs): Promise<void> {
         if (event.type === "NodeFinished") console.error(`✓ ${event.nodeId}`);
         if (event.type === "NodeFailed") {
           const message =
-            event.error instanceof Error ? event.error.message : String(event.error);
+            event.error instanceof Error
+              ? event.error.message
+              : String(event.error);
           console.error(`✗ ${event.nodeId}: ${message}`);
         }
       },
@@ -728,9 +768,17 @@ async function runHeadless(args: CliArgs): Promise<void> {
     console.log(`run ${result.status}`);
     // The engine keeps timer handles alive after the run resolves; exit
     // explicitly so headless invocations terminate.
-    process.exit(result.status === "finished" ? 0 : result.status === "waiting-approval" ? 2 : 1);
+    process.exit(
+      result.status === "finished"
+        ? 0
+        : result.status === "waiting-approval"
+          ? 2
+          : 1,
+    );
   } catch (error) {
-    console.error(`Failed: ${error instanceof Error ? error.message : String(error)}`);
+    console.error(
+      `Failed: ${error instanceof Error ? error.message : String(error)}`,
+    );
     process.exit(1);
   }
 }
@@ -754,7 +802,11 @@ function printDryRun(plan: BuildPlan): void {
 type PromotePhase =
   | { name: "loading" }
   | { name: "select"; plan: ReturnType<typeof planPromote> }
-  | { name: "confirm"; plan: ReturnType<typeof planPromote> | null; deploymentId: string }
+  | {
+      name: "confirm";
+      plan: ReturnType<typeof planPromote> | null;
+      deploymentId: string;
+    }
   | { name: "running"; deploymentId: string }
   | { name: "done"; status: string; releaseTags: string[] }
   | { name: "error"; message: string };
@@ -779,7 +831,8 @@ function PromoteApp({ args }: { args: PromoteArgs }) {
         } else if (!plan.previous) {
           setPhase({
             name: "error",
-            message: "No promote target: only one release has ever been recorded.",
+            message:
+              "No promote target: only one release has ever been recorded.",
           });
         } else {
           setPhase({ name: "select", plan });
@@ -865,7 +918,8 @@ function PromoteApp({ args }: { args: PromoteArgs }) {
     <Box flexDirection="column" gap={0}>
       {phase.plan.current ? (
         <Text>
-          Current: {phase.plan.current.deploymentId} ({phase.plan.current.releaseTag})
+          Current: {phase.plan.current.deploymentId} (
+          {phase.plan.current.releaseTag})
         </Text>
       ) : null}
       <Text>Pick a promote target for {args.app}:</Text>
@@ -903,7 +957,9 @@ async function runPromoteHeadless(args: PromoteArgs): Promise<void> {
   );
   const deploymentId = args.deployment ?? plan.previous?.deploymentId;
   if (!deploymentId) {
-    console.error("No promote target: only one release has ever been recorded.");
+    console.error(
+      "No promote target: only one release has ever been recorded.",
+    );
     process.exitCode = 1;
     return;
   }
@@ -954,7 +1010,8 @@ async function runConsoleCommand(argv: string[]): Promise<void> {
     process.exitCode = app ? 0 : 1;
     return;
   }
-  const portRaw = stringValue(values, "port") ?? stringValue(values, "console-port");
+  const portRaw =
+    stringValue(values, "port") ?? stringValue(values, "console-port");
   try {
     const handle = await startConsoleForApp({
       app,
@@ -969,7 +1026,9 @@ async function runConsoleCommand(argv: string[]): Promise<void> {
     );
     // The gateway's HTTP server keeps the event loop alive until Ctrl-C.
   } catch (error) {
-    console.error(`Failed: ${error instanceof Error ? error.message : String(error)}`);
+    console.error(
+      `Failed: ${error instanceof Error ? error.message : String(error)}`,
+    );
     process.exitCode = 1;
   }
 }
