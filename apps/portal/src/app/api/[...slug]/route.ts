@@ -25,12 +25,23 @@ const ALLOWED_ROUTES: AllowedRoute[] = [
   { pattern: /^\/api\/secrets$/, methods: new Set(["GET", "POST", "DELETE"]) },
   { pattern: /^\/api\/secrets\/[^/]+$/, methods: new Set(["DELETE"]) },
   { pattern: /^\/api\/updates$/, methods: new Set(["GET"]) },
+  // Threads-era backend routes plus their pre-rename `session` twins: the
+  // old patterns stay allowlisted (they just 404 upstream on a new backend)
+  // so portal deploys don't have to be lockstep with the backend cutover.
+  { pattern: /^\/api\/threads$/, methods: new Set(["GET", "POST"]) },
+  {
+    pattern: /^\/api\/threads\/[^/]+$/,
+    methods: new Set(["GET", "PATCH", "DELETE"]),
+  },
   { pattern: /^\/api\/sessions$/, methods: new Set(["GET", "POST"]) },
   {
     pattern: /^\/api\/sessions\/[^/]+$/,
     methods: new Set(["GET", "PATCH", "DELETE"]),
   },
   { pattern: /^\/api\/events$/, methods: new Set(["GET"]) },
+  { pattern: /^\/api\/thread\/apps$/, methods: new Set(["GET"]) },
+  { pattern: /^\/api\/thread\/models$/, methods: new Set(["GET"]) },
+  { pattern: /^\/api\/thread\/model$/, methods: new Set(["POST"]) },
   { pattern: /^\/api\/session\/apps$/, methods: new Set(["GET"]) },
   { pattern: /^\/api\/session\/models$/, methods: new Set(["GET"]) },
   { pattern: /^\/api\/session\/model$/, methods: new Set(["POST"]) },
@@ -68,7 +79,8 @@ const ALLOWED_ROUTES: AllowedRoute[] = [
 
 function applyPortalDefaults(upstreamUrl: URL): void {
   if (
-    upstreamUrl.pathname === "/api/session/apps" &&
+    (upstreamUrl.pathname === "/api/thread/apps" ||
+      upstreamUrl.pathname === "/api/session/apps") &&
     !upstreamUrl.searchParams.get("platform")
   ) {
     for (const platform of launchConfig().catalogPlatforms) {
