@@ -622,46 +622,28 @@ export async function listBetterAuthSiweWallets(
     createdAt: Date;
   }>
 > {
-  const candidates = [
-    {
-      table: '"walletAddress"',
-      userId: '"userId"',
-      chainId: '"chainId"',
-      isPrimary: '"isPrimary"',
-      createdAt: '"createdAt"',
-    },
-    {
-      table: "wallet_address",
-      userId: "user_id",
-      chainId: "chain_id",
-      isPrimary: "is_primary",
-      createdAt: "created_at",
-    },
-  ];
-  for (const candidate of candidates) {
-    try {
-      const result = await db.query(
-        `select ${candidate.userId} as better_auth_user_id,
-                address,
-                ${candidate.chainId} as chain_id,
-                ${candidate.isPrimary} as is_primary,
-                ${candidate.createdAt} as created_at
-           from ${candidate.table}
-          where ${candidate.userId} = $1`,
-        [betterAuthUserId],
-      );
-      return result.rows.map((row) => ({
-        betterAuthUserId: String(row.better_auth_user_id),
-        address: String(row.address),
-        chainId: Number(row.chain_id),
-        isPrimary: Boolean(row.is_primary),
-        createdAt: new Date(row.created_at as string | Date),
-      }));
-    } catch (error) {
-      if (!isMissingRelation(error)) throw error;
-    }
+  try {
+    const result = await db.query(
+      `select user_id as better_auth_user_id,
+              address,
+              chain_id,
+              is_primary,
+              created_at
+         from ba_wallet_addresses
+        where user_id = $1`,
+      [betterAuthUserId],
+    );
+    return result.rows.map((row) => ({
+      betterAuthUserId: String(row.better_auth_user_id),
+      address: String(row.address),
+      chainId: Number(row.chain_id),
+      isPrimary: Boolean(row.is_primary),
+      createdAt: new Date(row.created_at as string | Date),
+    }));
+  } catch (error) {
+    if (!isMissingRelation(error)) throw error;
+    return [];
   }
-  return [];
 }
 
 export async function deleteBetterAuthSiweWallet(input: {
@@ -674,35 +656,29 @@ export async function deleteBetterAuthSiweWallet(input: {
   const betterAuthUserIds = new Set<string>();
   let deletedCount = 0;
 
-  for (const candidate of [
-    { table: '"walletAddress"', userId: '"userId"', chainId: '"chainId"' },
-    { table: "wallet_address", userId: "user_id", chainId: "chain_id" },
-  ]) {
-    try {
-      const result = await db.query(
-        `delete from ${candidate.table}
-          where lower(address) = lower($1)
-            and ($2::int is null or ${candidate.chainId} = $2)
-          returning ${candidate.userId} as better_auth_user_id`,
-        [input.address, input.chainId ?? null],
-      );
-      deletedCount += result.rowCount ?? 0;
-      for (const row of result.rows) {
-        betterAuthUserIds.add(String(row.better_auth_user_id));
-      }
-      break;
-    } catch (error) {
-      if (!isMissingRelation(error)) throw error;
+  try {
+    const result = await db.query(
+      `delete from ba_wallet_addresses
+        where lower(address) = lower($1)
+          and ($2::int is null or chain_id = $2)
+        returning user_id as better_auth_user_id`,
+      [input.address, input.chainId ?? null],
+    );
+    deletedCount += result.rowCount ?? 0;
+    for (const row of result.rows) {
+      betterAuthUserIds.add(String(row.better_auth_user_id));
     }
+  } catch (error) {
+    if (!isMissingRelation(error)) throw error;
   }
 
   try {
     const result = await db.query(
-      `delete from "account"
-        where "providerId" = 'siwe'
-          and lower(split_part("accountId", ':', 1)) = lower($1)
-          and ($2::int is null or split_part("accountId", ':', 2) = $2::text)
-        returning "userId" as better_auth_user_id`,
+      `delete from ba_accounts
+        where provider_id = 'siwe'
+          and lower(split_part(account_id, ':', 1)) = lower($1)
+          and ($2::int is null or split_part(account_id, ':', 2) = $2::text)
+        returning user_id as better_auth_user_id`,
       [input.address, input.chainId ?? null],
     );
     deletedCount += result.rowCount ?? 0;
