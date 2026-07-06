@@ -81,6 +81,19 @@ export interface IngestSecretsResult {
   handles: Record<string, string>;
 }
 
+export interface ListAppSecretsInput extends BearerOverride {
+  /** Vault key — the owning user's stable id (portal uses the GitHub user id). */
+  userId: string;
+  /** When present, only this app's handles are returned. */
+  app?: string;
+}
+
+export interface RemoveAppSecretInput extends BearerOverride {
+  userId: string;
+  app: string;
+  name: string;
+}
+
 export interface ServerTagsResult {
   serverTags: string[];
   sdkVersion: string;
