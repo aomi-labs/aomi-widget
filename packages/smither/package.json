@@ -1,13 +1,13 @@
 {
-  "name": "@aomi-labs/workbench",
+  "name": "@aomi-labs/smither",
   "version": "0.1.0",
-  "description": "Smithers-powered terminal workbench for building Aomi apps",
+  "description": "Smithers-powered terminal orchestrator for building Aomi apps",
   "type": "module",
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "bin": {
-    "aomi-workbench": "./dist/cli.js"
+    "aomi-smither": "./dist/cli.js"
   },
   "exports": {
     ".": {
@@ -30,11 +30,13 @@
     "clean:dist": "rm -rf dist"
   },
   "engines": {
-    "node": ">=20"
+    "node": ">=20",
+    "bun": ">=1.2"
   },
   "dependencies": {
     "@aomi-labs/deploy": "workspace:*",
     "@inkjs/ui": "^2.0.0",
+    "effect": "^3.21.1",
     "execa": "^9.6.0",
     "ink": "^7.1.0",
     "react": "^19.2.0",

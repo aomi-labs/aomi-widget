@@ -50,7 +50,7 @@ export async function executeRollback(
     platform: input.platform,
     deploymentId: input.deploymentId,
     apps: [input.app],
-    actor: "aomi-workbench",
+    actor: "aomi-smither",
   });
   return {
     ok: result.ok,
