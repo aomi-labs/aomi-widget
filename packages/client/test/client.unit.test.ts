@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { createAccountAccessTokenProvider } from "../src/account-session";
+import { createAccountBearerProvider } from "../src/account-session";
 import { AomiClient } from "../src/client";
 import { AOMI_BACKEND_ENDPOINTS } from "./routes";
 
@@ -97,7 +97,7 @@ describe("AomiClient account profile", () => {
     try {
       const client = new AomiClient({
         baseUrl: "http://unit.test",
-        getAccountAccessToken: async () => "bearer-1",
+        getAccountBearer: async () => "bearer-1",
       });
 
       const result = await client.fetchAccountProfile("session-1");
@@ -181,7 +181,7 @@ describe("AomiClient account profile", () => {
     try {
       const client = new AomiClient({
         baseUrl: "http://unit.test",
-        getAccountAccessToken: async () => "bearer-1",
+        getAccountBearer: async () => "bearer-1",
       });
 
       await expect(client.listByokKeys("session-1")).resolves.toHaveLength(1);
@@ -461,7 +461,7 @@ describe("AomiClient transport selection", () => {
       },
     ] as Response[];
     const nativeFetch = vi.fn(async () => responses.shift() as Response);
-    const getAccountAccessToken = vi.fn(
+    const getAccountBearer = vi.fn(
       async ({ forceRefresh = false } = {}) =>
         forceRefresh ? "fresh-token" : "stale-token",
     );
@@ -471,16 +471,16 @@ describe("AomiClient transport selection", () => {
     try {
       const client = new AomiClient({
         baseUrl: "http://unit.test",
-        getAccountAccessToken,
+        getAccountBearer,
       });
 
       await client.fetchState("session-1");
 
       expect(nativeFetch).toHaveBeenCalledTimes(2);
-      expect(getAccountAccessToken).toHaveBeenNthCalledWith(1, {
+      expect(getAccountBearer).toHaveBeenNthCalledWith(1, {
         forceRefresh: false,
       });
-      expect(getAccountAccessToken).toHaveBeenNthCalledWith(2, {
+      expect(getAccountBearer).toHaveBeenNthCalledWith(2, {
         forceRefresh: true,
       });
       expect(
@@ -499,7 +499,7 @@ describe("AomiClient transport selection", () => {
   });
 
   it("proceeds without a bearer when the token source throws", async () => {
-    // Defense-in-depth: a throwing getAccountAccessToken (e.g. an upstream
+    // Defense-in-depth: a throwing getAccountBearer (e.g. an upstream
     // wallet credential that 403s) must not break the request — the bearer is
     // additive, so we send the call without an Authorization header.
     const stateResponse = {
@@ -507,7 +507,7 @@ describe("AomiClient transport selection", () => {
       json: vi.fn(async () => ({ is_processing: false, messages: [] })),
     } as unknown as Response;
     const nativeFetch = vi.fn(async () => stateResponse);
-    const getAccountAccessToken = vi.fn(async () => {
+    const getAccountBearer = vi.fn(async () => {
       throw new Error(
         "ParaApiError: user must verify biometrics or external wallets",
       );
@@ -518,7 +518,7 @@ describe("AomiClient transport selection", () => {
     try {
       const client = new AomiClient({
         baseUrl: "http://unit.test",
-        getAccountAccessToken,
+        getAccountBearer,
       });
 
       await expect(client.fetchState("session-1")).resolves.toBeDefined();
@@ -545,7 +545,7 @@ describe("AomiClient transport selection", () => {
     try {
       const client = new AomiClient({
         baseUrl: "http://unit.test",
-        getAccountAccessToken: async () => "better-auth-session",
+        getAccountBearer: async () => "better-auth-session",
       });
 
       await expect(client.getAccount("session-1")).resolves.toEqual({
@@ -740,7 +740,7 @@ describe("AomiClient transport selection", () => {
     try {
       const client = new AomiClient({
         baseUrl: "http://unit.test",
-        getAccountAccessToken: async () => "sse-token",
+        getAccountBearer: async () => "sse-token",
       });
       const unsubscribe = client.subscribeSSE("session-2", vi.fn());
 
@@ -1021,7 +1021,7 @@ describe("AomiClient transport selection", () => {
       return connection.response;
     });
     let refreshListener: (() => void) | undefined;
-    const getAccountAccessToken = Object.assign(async () => "account-token", {
+    const getAccountBearer = Object.assign(async () => "account-token", {
       subscribe(listener: () => void) {
         refreshListener = listener;
         return () => {
@@ -1035,7 +1035,7 @@ describe("AomiClient transport selection", () => {
     try {
       const client = new AomiClient({
         baseUrl: "http://unit.test",
-        getAccountAccessToken,
+        getAccountBearer,
       });
       const unsubscribe = client.subscribeSSE("session-1", vi.fn());
 
@@ -1057,7 +1057,7 @@ describe("AomiClient transport selection", () => {
   });
 });
 
-describe("createAccountAccessTokenProvider", () => {
+describe("createAccountBearerProvider", () => {
   it("caches exchange responses and refreshes two minutes before expiration", async () => {
     let now = 1_000_000;
     const fetch = vi
@@ -1078,7 +1078,7 @@ describe("createAccountAccessTokenProvider", () => {
           user_id: "user-1",
         }),
       } as Response);
-    const getAccountAccessToken = createAccountAccessTokenProvider({
+    const getAccountBearer = createAccountBearerProvider({
       baseUrl: "http://unit.test/",
       getProviderCredential: async () => ({
         provider: "para",
@@ -1088,12 +1088,12 @@ describe("createAccountAccessTokenProvider", () => {
       now: () => now,
     });
 
-    await expect(getAccountAccessToken()).resolves.toBe("token-1");
-    await expect(getAccountAccessToken()).resolves.toBe("token-1");
+    await expect(getAccountBearer()).resolves.toBe("token-1");
+    await expect(getAccountBearer()).resolves.toBe("token-1");
     expect(fetch).toHaveBeenCalledTimes(1);
 
     now += 13 * 60 * 1000;
-    await expect(getAccountAccessToken()).resolves.toBe("token-2");
+    await expect(getAccountBearer()).resolves.toBe("token-2");
     expect(fetch).toHaveBeenCalledTimes(2);
     expect(fetch).toHaveBeenLastCalledWith(
       "http://unit.test/api/aomi/account-bearer",
@@ -1102,7 +1102,7 @@ describe("createAccountAccessTokenProvider", () => {
         credentials: "include",
       }),
     );
-    getAccountAccessToken.dispose();
+    getAccountBearer.dispose();
   });
 
   it("proactively refreshes and notifies subscribers before expiration", async () => {
@@ -1116,7 +1116,7 @@ describe("createAccountAccessTokenProvider", () => {
         user_id: "user-1",
       }),
     })) as unknown as typeof globalThis.fetch;
-    const getAccountAccessToken = createAccountAccessTokenProvider({
+    const getAccountBearer = createAccountBearerProvider({
       baseUrl: "http://unit.test",
       getProviderCredential: async () => ({
         provider: "privy",
@@ -1126,17 +1126,17 @@ describe("createAccountAccessTokenProvider", () => {
       now: () => now,
     });
     const onRefresh = vi.fn();
-    getAccountAccessToken.subscribe(onRefresh);
+    getAccountBearer.subscribe(onRefresh);
 
     try {
-      await expect(getAccountAccessToken()).resolves.toBe("token-1");
+      await expect(getAccountBearer()).resolves.toBe("token-1");
       now += 13 * 60 * 1000;
       await vi.advanceTimersByTimeAsync(13 * 60 * 1000);
 
       expect(fetch).toHaveBeenCalledTimes(2);
       expect(onRefresh).toHaveBeenCalledTimes(1);
     } finally {
-      getAccountAccessToken.dispose();
+      getAccountBearer.dispose();
       vi.useRealTimers();
     }
   });

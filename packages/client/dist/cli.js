@@ -1317,8 +1317,8 @@ async function fetchStateResponse(fetchImpl, url, sessionId) {
     headers: withSessionHeader(sessionId)
   });
 }
-function wrapFetchWithAccountBearer(fetchImpl, getAccountAccessToken) {
-  if (!getAccountAccessToken) return fetchImpl;
+function wrapFetchWithAccountBearer(fetchImpl, getAccountBearer) {
+  if (!getAccountBearer) return fetchImpl;
   return async (input2, init) => {
     var _a3;
     const baseHeaders = new Headers(
@@ -1328,7 +1328,7 @@ function wrapFetchWithAccountBearer(fetchImpl, getAccountAccessToken) {
       const headers = new Headers(baseHeaders);
       let bearer;
       try {
-        bearer = await getAccountAccessToken({ forceRefresh });
+        bearer = await getAccountBearer({ forceRefresh });
       } catch (e) {
         bearer = void 0;
       }
@@ -1428,11 +1428,11 @@ var init_client = __esm({
         const rawFetchImpl = typeof globalThis.fetch === "function" ? globalThis.fetch.bind(globalThis) : fetchImpl;
         this.fetchImpl = wrapFetchWithAccountBearer(
           fetchImpl,
-          options.getAccountAccessToken
+          options.getAccountBearer
         );
         this.rawFetchImpl = wrapFetchWithAccountBearer(
           rawFetchImpl,
-          options.getAccountAccessToken
+          options.getAccountBearer
         );
         this.logger = options.logger;
         this.sseSubscriber = createSseSubscriber({
@@ -1443,8 +1443,8 @@ var init_client = __esm({
           fetchImpl: this.rawFetchImpl,
           logger: this.logger
         });
-        if (supportsTokenRefreshSubscription(options.getAccountAccessToken)) {
-          options.getAccountAccessToken.subscribe(() => {
+        if (supportsTokenRefreshSubscription(options.getAccountBearer)) {
+          options.getAccountBearer.subscribe(() => {
             this.sseSubscriber.reconnect("account-token-refreshed");
           });
         }
@@ -4972,7 +4972,7 @@ Available: ${available}`);
           {
             baseUrl: this.state.baseUrl,
             apiKey: this.state.apiKey,
-            getAccountAccessToken: createCliAuthTokenProvider(() => this.state)
+            getAccountBearer: createCliAuthTokenProvider(() => this.state)
           },
           {
             sessionId: this.state.sessionId,
@@ -5144,7 +5144,7 @@ function createControlClient(config) {
   return new AomiClient({
     baseUrl: (_a3 = config.baseUrl) != null ? _a3 : "https://api.aomi.dev",
     apiKey: config.apiKey,
-    getAccountAccessToken: createCliAuthTokenProvider(() => {
+    getAccountBearer: createCliAuthTokenProvider(() => {
       var _a4;
       return (_a4 = readState()) != null ? _a4 : {};
     })
@@ -7711,7 +7711,7 @@ function createCliClient(config, overrides = {}) {
   return new AomiClient({
     baseUrl: resolveCliBaseUrl(mergedConfig),
     apiKey: mergedConfig.apiKey,
-    getAccountAccessToken: createCliGetAccountBearer(mergedConfig)
+    getAccountBearer: createCliGetAccountBearer(mergedConfig)
   });
 }
 var DEFAULT_CLI_BASE_URL;
@@ -7987,7 +7987,7 @@ async function fetchRemoteSessionStats(record) {
   const client = new AomiClient({
     baseUrl: record.state.baseUrl,
     apiKey: record.state.apiKey,
-    getAccountAccessToken: createCliAuthTokenProvider(() => record.state)
+    getAccountBearer: createCliAuthTokenProvider(() => record.state)
   });
   try {
     const apiState = await client.fetchState(

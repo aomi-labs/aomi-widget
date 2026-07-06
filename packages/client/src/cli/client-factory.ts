@@ -1,5 +1,5 @@
 import { AomiClient } from "../client";
-import type { GetAccountAccessToken } from "../types";
+import type { GetAccountBearer } from "../types";
 import type { CliConfig } from "./types";
 
 export const DEFAULT_CLI_BASE_URL = "https://chat.aomi.dev";
@@ -15,7 +15,7 @@ export function resolveCliBaseUrl(config: Pick<CliConfig, "baseUrl">): string {
 
 export function createCliGetAccountBearer(
   config: CliConfig,
-): GetAccountAccessToken | undefined {
+): GetAccountBearer | undefined {
   // A static `--account-bearer` is the explicit escape hatch (CI / power users)
   // and wins when set.
   if (config.accountBearer) {
@@ -49,6 +49,6 @@ export function createCliClient(
   return new AomiClient({
     baseUrl: resolveCliBaseUrl(mergedConfig),
     apiKey: mergedConfig.apiKey,
-    getAccountAccessToken: createCliGetAccountBearer(mergedConfig),
+    getAccountBearer: createCliGetAccountBearer(mergedConfig),
   });
 }

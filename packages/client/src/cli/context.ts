@@ -10,7 +10,7 @@ export function createControlClient(config: CliConfig): AomiClient {
   return new AomiClient({
     baseUrl: config.baseUrl ?? "https://api.aomi.dev",
     apiKey: config.apiKey,
-    getAccountAccessToken: createCliAuthTokenProvider(() => readState() ?? {}),
+    getAccountBearer: createCliAuthTokenProvider(() => readState() ?? {}),
   });
 }
 
