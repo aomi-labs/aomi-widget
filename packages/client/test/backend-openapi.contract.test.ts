@@ -102,7 +102,7 @@ function isAomiAuthList(value: unknown): value is readonly AomiAuthClass[] {
 
 function isAomiAuthClass(value: unknown): value is AomiAuthClass {
   return (
-    value === "session" ||
+    value === "thread" ||
     value === "account" ||
     value === "app_gate" ||
     value === "service" ||
