@@ -144,6 +144,32 @@
         "x-aomi-auth": []
       }
     },
+    "/api/auth/para/begin": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "threadId": []
+          }
+        ],
+        "x-aomi-auth": ["thread"]
+      }
+    },
+    "/api/auth/para/callback": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "security": [],
+        "x-aomi-auth": []
+      }
+    },
     "/api/secrets": {
       "delete": {
         "responses": {
@@ -369,6 +395,21 @@
     },
     "/api/account/authorization/commit": {
       "post": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "accountBearer": []
+          }
+        ],
+        "x-aomi-auth": ["account"]
+      }
+    },
+    "/api/account/providers/{provider}/grant": {
+      "delete": {
         "responses": {
           "200": {
             "description": "OK"

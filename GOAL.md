@@ -122,3 +122,18 @@ Progress:
   canonical URL. Verified focused auth env/provider/linking tests, auth
   typecheck, portal test script, portal typecheck, and a Vercel-preview-shaped
   portal production build with branch/deployment URLs.
+- 2026-07-06 Vercel clean-deploy follow-up: fixed the current
+  `codex/merge-bff-betterauth` Vercel failure by making the pnpm build-script
+  approval policy deterministic for clean installs. Added the missing native
+  dependency build approvals to `onlyBuiltDependencies` and mirrored them as
+  boolean `allowBuilds` entries for pnpm 11. Verified `pnpm --filter portal
+  build`, `CI=true npx -y pnpm@10.28.0 install --frozen-lockfile`, and
+  `CI=true npx -y pnpm@10.28.0 --filter portal build`. Pushed commit
+  `33ecda7f`; GitHub/Vercel statuses for `base`, `chat-portal`,
+  `landing-page`, and `tg-mini-app` all completed successfully.
+- 2026-07-06 OpenAPI CI follow-up: refreshed the checked-in backend OpenAPI
+  fixture and generated client route manifest from
+  `https://api-staging.aomi.dev/api/openapi.json`, adding the provider grant
+  revoke route and Para auth begin/callback routes that staging exposes.
+  Verified the live OpenAPI contract against staging plus the full
+  `build-and-lint` workflow gates locally with pinned `pnpm@10.28.0`.

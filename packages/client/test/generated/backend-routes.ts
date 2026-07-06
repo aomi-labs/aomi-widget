@@ -25,6 +25,11 @@ export const AOMI_BACKEND_ENDPOINTS = [
   },
   {
     method: "DELETE",
+    path: "/api/account/providers/:provider/grant",
+    auth: ["account"],
+  },
+  {
+    method: "DELETE",
     path: "/api/account/scheduled-intents/:id",
     auth: ["account"],
   },
@@ -297,6 +302,16 @@ export const AOMI_BACKEND_ENDPOINTS = [
     method: "POST",
     path: "/api/admin/skills/rollback",
     auth: ["admin"],
+  },
+  {
+    method: "POST",
+    path: "/api/auth/para/begin",
+    auth: ["thread"],
+  },
+  {
+    method: "POST",
+    path: "/api/auth/para/callback",
+    auth: [],
   },
   {
     method: "POST",
