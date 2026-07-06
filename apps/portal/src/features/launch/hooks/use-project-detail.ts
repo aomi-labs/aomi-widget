@@ -90,15 +90,17 @@ export function useProjectDetail(sourceId: number) {
   const loadSecrets = useCallback(() => {
     if (secretsReq.current || secretsByApp !== null) return;
     secretsReq.current = true;
-    void deploymentSecrets()
+    void deploymentSecrets({ appSourceId: sourceId })
       .then((r) => setSecrets(r.byApp))
       .catch(() => setSecrets({}));
-  }, [secretsByApp]);
+  }, [sourceId, secretsByApp]);
 
   const refreshSecrets = useCallback(async () => {
-    const r = await deploymentSecrets().catch(() => null);
+    const r = await deploymentSecrets({ appSourceId: sourceId }).catch(
+      () => null,
+    );
     if (r) setSecrets(r.byApp);
-  }, []);
+  }, [sourceId]);
 
   const setEnvVars = useCallback(
     async (app: string, secrets: Record<string, string>) => {

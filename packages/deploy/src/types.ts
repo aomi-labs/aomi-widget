@@ -74,6 +74,8 @@ export interface IngestSecretsInput extends BearerOverride {
   /** Vault key — the owning user's stable id (portal uses the GitHub user id). */
   userId: string;
   app: string;
+  /** Optional portal source row id used to scope list/delete surfaces. */
+  sourceId?: string;
   secrets: Record<string, string>;
 }
 
@@ -86,11 +88,14 @@ export interface ListAppSecretsInput extends BearerOverride {
   userId: string;
   /** When present, only this app's handles are returned. */
   app?: string;
+  /** When present, only this source's handles are returned. */
+  sourceId?: string;
 }
 
 export interface RemoveAppSecretInput extends BearerOverride {
   userId: string;
   app: string;
+  sourceId?: string;
   name: string;
 }
 

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Rocket } from "lucide-react";
+import { PowerOff, Rocket } from "lucide-react";
 import { useProjectDetail } from "@portal/features/launch/hooks/use-project-detail";
 import { TimelineDeploymentRow } from "../ui/timeline-deployment-row";
 import { ConfirmDialog } from "../ui/confirm-dialog";
@@ -38,10 +38,16 @@ export function DeploymentsTab({ detail }: { detail: Detail }) {
     () => buildActivityList(detail.recordsByApp),
     [detail.recordsByApp],
   );
+  const currentDeployment =
+    deployments.find((deployment) => deployment.current) ?? null;
   const deploying =
     detail.deployFlow.phase !== "idle" &&
     detail.deployFlow.phase !== "done" &&
     detail.deployFlow.phase !== "error";
+  const deactivatingCurrent =
+    currentDeployment != null &&
+    op?.deploymentId === currentDeployment.deploymentId &&
+    op.status === "running";
   const runtimeByApp = useMemo(
     () => new Map(source?.apps.map((app) => [app.name, app]) ?? []),
     [source],
@@ -126,16 +132,36 @@ export function DeploymentsTab({ detail }: { detail: Detail }) {
             </button>
           ))}
         </div>
-        <button
-          type="button"
-          disabled={deploying}
-          onClick={() => void detail.deployNewVersion()}
-          className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md bg-zinc-900 px-3 text-xs font-medium text-white hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50"
-          title="Deploy the source repo's latest commit and activate it"
-        >
-          <Rocket className="size-3.5" aria-hidden />
-          {deploying ? "Deploying…" : "Deploy new version"}
-        </button>
+        <div className="flex items-center gap-2">
+          {currentDeployment && (
+            <button
+              type="button"
+              disabled={deploying || deactivatingCurrent}
+              onClick={() =>
+                setPending({
+                  kind: "deactivate",
+                  deploymentId: currentDeployment.deploymentId,
+                  apps: currentDeployment.apps,
+                })
+              }
+              className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-zinc-300 bg-white px-2.5 text-xs font-medium text-zinc-800 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50"
+              title="Deactivate: unload the binary and clear the live pointer"
+            >
+              <PowerOff className="size-3.5" aria-hidden />
+              Deactivate
+            </button>
+          )}
+          <button
+            type="button"
+            disabled={deploying}
+            onClick={() => void detail.deployNewVersion()}
+            className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md bg-zinc-900 px-3 text-xs font-medium text-white hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50"
+            title="Deploy the source repo's latest commit and activate it"
+          >
+            <Rocket className="size-3.5" aria-hidden />
+            {deploying ? "Deploying…" : "Deploy new version"}
+          </button>
+        </div>
       </div>
 
       {detail.deployFlow.phase !== "idle" && (
@@ -191,13 +217,6 @@ export function DeploymentsTab({ detail }: { detail: Detail }) {
                 setPending({
                   kind: "promote",
                   deploymentId: deployment.deploymentId,
-                })
-              }
-              onDeactivate={() =>
-                setPending({
-                  kind: "deactivate",
-                  deploymentId: deployment.deploymentId,
-                  apps: deployment.apps,
                 })
               }
             />

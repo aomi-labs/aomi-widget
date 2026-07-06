@@ -22,6 +22,7 @@ export function SettingsTab({ detail }: { detail: Detail }) {
   }
   const latest = source.latestDeployment;
   const stamped =
+    source.sdkVersion ??
     latest?.sdkVersion ??
     latest?.apps.find((a) => a.sdkVersion)?.sdkVersion ??
     null;

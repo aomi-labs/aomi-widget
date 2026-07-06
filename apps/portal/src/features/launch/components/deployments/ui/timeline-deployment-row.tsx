@@ -1,23 +1,21 @@
-import { GitCommitHorizontal, RotateCcw, PowerOff } from "lucide-react";
+import { GitCommitHorizontal, RotateCcw } from "lucide-react";
 import type { TimelineDeployment } from "../deployment-timeline";
 
 /** Deployment row rendered purely from the DB promotion records (no GitHub
- *  reads). The live deployment is marked Current and offers Deactivate; older
- *  deployments offer Promote. */
+ *  reads). The live deployment is marked Current; older deployments offer
+ *  Promote. */
 export function TimelineDeploymentRow({
   deployment,
   busy,
   message,
   runtimeState,
   onPromote,
-  onDeactivate,
 }: {
   deployment: TimelineDeployment;
   busy: boolean;
   message?: string | null;
   runtimeState?: "loaded" | "not-loaded";
   onPromote: () => void;
-  onDeactivate: () => void;
 }) {
   const { deploymentId, commit, apps, current, actor, sdkVersion, createdAt } =
     deployment;
@@ -57,18 +55,7 @@ export function TimelineDeploymentRow({
       </div>
 
       <div className="flex items-center gap-2">
-        {current ? (
-          <button
-            type="button"
-            disabled={busy}
-            onClick={onDeactivate}
-            className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-zinc-300 bg-white px-2.5 text-xs font-medium text-zinc-800 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50"
-            title="Deactivate: unload the binary and clear the live pointer"
-          >
-            <PowerOff className="size-3.5" aria-hidden />
-            Deactivate
-          </button>
-        ) : (
+        {!current && (
           <button
             type="button"
             disabled={busy}

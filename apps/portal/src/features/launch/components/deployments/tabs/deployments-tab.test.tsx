@@ -77,7 +77,7 @@ describe("DeploymentsTab", () => {
     ).toBeInTheDocument();
   });
 
-  it("offers Deactivate on the current deployment and Promote on older ones", () => {
+  it("offers Deactivate in the toolbar and Promote on older deployments", () => {
     render(<DeploymentsTab detail={detail} />);
     expect(
       screen.getByRole("button", { name: /deactivate/i }),
