@@ -19,6 +19,7 @@ export function EnvironmentTab({ detail }: { detail: Detail }) {
   );
   const [app, setApp] = useState<string>("");
   const [rows, setRows] = useState<Row[]>([{ key: "", value: "" }]);
+  const [savedKeys, setSavedKeys] = useState<Record<string, string[]>>({});
   const [status, setStatus] = useState<{
     kind: "idle" | "saving" | "done" | "error";
     message: string;
@@ -32,7 +33,9 @@ export function EnvironmentTab({ detail }: { detail: Detail }) {
     return <LoadingPanel label="Loading environment…" />;
   }
 
-  const currentHandles = app ? (detail.secretsByApp[app] ?? []) : [];
+  // The runtime read-back is session-scoped, so the console shows the keys
+  // written in this session rather than re-reading the vault.
+  const currentKeys = app ? (savedKeys[app] ?? []) : [];
 
   const save = async () => {
     const secrets: Record<string, string> = {};
@@ -47,6 +50,10 @@ export function EnvironmentTab({ detail }: { detail: Detail }) {
     setStatus({ kind: "saving", message: "Saving…" });
     try {
       const result = await detail.setEnvVars(app, secrets);
+      setSavedKeys((prev) => ({
+        ...prev,
+        [app]: [...new Set([...(prev[app] ?? []), ...result.keys])],
+      }));
       setStatus({
         kind: "done",
         message: `Saved ${result.keys.length} variable(s).`,
@@ -146,15 +153,15 @@ export function EnvironmentTab({ detail }: { detail: Detail }) {
         </div>
       </div>
 
-      {currentHandles.length > 0 && (
+      {currentKeys.length > 0 && (
         <div className="px-4 py-3">
           <div className="text-xs font-medium uppercase tracking-wide text-zinc-400">
-            Configured
+            Saved this session
           </div>
           <ul className="mt-2 space-y-1">
-            {currentHandles.map((handle) => (
-              <li key={handle} className="font-mono text-xs text-zinc-600">
-                {handle}
+            {currentKeys.map((key) => (
+              <li key={key} className="font-mono text-xs text-zinc-600">
+                {key}
               </li>
             ))}
           </ul>
