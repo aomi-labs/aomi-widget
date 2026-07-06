@@ -364,6 +364,113 @@ by the hosted platform.
 
 ---
 
+## 10. Overnight session: the three skipped agents, live on the console
+
+The first E2E only exercised one LLM agent (curate). This session ran the other
+three — intent-chat, reviewer, repairer — with the branded browser console
+recording each. Screenshots: `smither-fe-*.png` delivered alongside this log.
+
+### 10.1 Intent-chat agent (`distillIntent`)
+
+TUI session (pty capture — the same greeting/chat you drove for morpho):
+
+```
+Aomi Smither
+smither: What Aomi App do you wanna build? Tell me about the product or API —
+I'll compose the workflow (spec source, agents, validation, smoke, deploy)…
+> an app for tracking defi liquidity pools across chains - trending pools,
+  prices, volumes and recent trades
+thinking…
+```
+
+The agent's actual distillation (verbatim JSON — note it discovered the
+existing app and proposed reuse):
+
+```json
+{
+  "summary": "Build a DeFi liquidity pool tracker app covering trending pools, prices, volumes, and recent trades across chains — this maps to GeckoTerminal, which already exists at apps/geckoterminal with an openapi.yaml.",
+  "plan": { "app": "geckoterminal", "source": "existing",
+            "userStory": "Track DeFi liquidity pools across chains: surface trending pools, pool prices, trading volumes, and recent trades",
+            "builder": "claude" },
+  "questions": [
+    "apps/geckoterminal already exists with a spec — rebuild/refresh it, or did you want a brand-new app under a different name?",
+    "Should I add a review pass and a local smoke test after the build?"
+  ],
+  "ready": true
+}
+```
+
+### 10.2 Reviewer agent (codex) — and it REJECTED the curation
+
+Run: `--review --reviewer codex`. To make the repair loop fire deterministically,
+a type error was deliberately planted in a `#[cfg(test)]` module of
+`src/client/mod.rs` (invisible to `cargo build`, fatal to `cargo test`).
+Fun fact: the first planting went into `tool.rs` and the **curate agent
+erased it by rewriting the file wholesale** — the sabotage had to move to a
+file the curator never touches.
+
+Codex's persisted review (`approved: 0` — it found real API-correctness gaps):
+
+> The curated surface mostly covers the primary story, but **I would not
+> approve it as-is.** Concrete issues: tool.rs:450-494 defines
+> geckoterminal_get_pool_ohlcv **without the API's `token` parameter** and then
+> passes token=None… if the user's target asset is the quote token, the
+> chart/trend is inverted or simply the wrong side of the pool; it also lacks
+> before_timestamp… tool.rs:511-539 has the same omission for
+> geckoterminal_get_pool_trades: the API supports token='base'/'quote'/address
+> to invert trade perspective… Recent trades can therefore report buy/sell
+> direction and amounts from the wrong token perspective.
+
+(Screenshot `smither-fe-2`: activity feed full of `geckoterminal:review`
+heartbeats/agent events while codex worked.)
+
+### 10.3 Repair agent (claude) — validate red → fix → validate green
+
+The `validation` table shows the loop across iterations of the same node:
+
+```
+iteration 0  green: 0   error[E0308]: mismatched types --> src/client/mod.rs:16
+iteration 1  green: 1   Finished `test` profile … Executable unittests src/lib.rs
+```
+
+The fix agent's persisted summary (verbatim):
+
+> Fixed the E0308 type mismatch in apps/geckoterminal/src/client/mod.rs:16 —
+> the base_url_is_absolute smoke test annotated the URL string literal as f64
+> and called is_finite() on it. Changed the binding to &str and replaced the
+> assertion with url.starts_with("https://") so the test actually verifies the
+> base URL is absolute. cargo test in apps/geckoterminal now compiles and the
+> single test passes (1 passed; 0 failed).
+
+It didn't delete the broken test — it repaired it into a meaningful one.
+(Screenshots `smither-fe-3`/`smither-fe-4`: the validate/repair rail running,
+then every stage green, run `finished`.)
+
+### 10.4 What the live session fixed in the console itself
+
+- **Frame envelope bug**: the gateway streams engine events double-nested
+  (`{event:"run.event", payload:{event:"node.started", payload:{nodeId…}}}`);
+  the UI reducers expected flat frames, so the stage rail stayed "pending"
+  forever. Fixed with `unwrapFrame` (+ heartbeat/agent-activity ⇒ "running"
+  fallback for events older than the gateway's replay window); 51 tests green.
+- **`fork` is incompatible with CLI agents** in smithers-orchestrator 0.26.1:
+  ClaudeCodeAgent/CodexAgent persist no session snapshot, so review/fix forking
+  the curate session died with "no usable agent session snapshot" (and retried
+  infinitely — maxAttempts=infinite). Removed `fork` from both tasks; their
+  prompts are self-sufficient. Worth an upstream issue.
+- The gateway caches a UI bundle per entry path for the process lifetime —
+  live-editing the console mid-run needs a fresh observer process
+  (`aomi-smither console --app <name> --port <n>`), which is also how the
+  fix-agent screenshots were taken.
+
+### Agent census after this session
+
+Every LLM seat in the composed workflow has now run for real: intent-chat
+(claude, read-only), curate (claude, 4 runs), review (codex, 1 run — rejected),
+fix (claude, 1 round — repaired), plus the deterministic engine around them.
+
+---
+
 ## Appendix: what the PoC changed in smither itself
 
 Every failure above became a durable improvement:

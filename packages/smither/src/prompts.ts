@@ -13,8 +13,8 @@ export function curatePrompt(plan: BuildPlan): string {
 export function reviewPrompt(plan: BuildPlan): string {
   const appPath = `apps/${plan.app}`;
   return [
-    `You are reviewing the tool curation that just happened in this session for ${plan.app}.`,
-    `Re-read the changed files under ${appPath} with fresh eyes.`,
+    `You are an independent reviewer of the ${plan.app} Aomi app's curated tool surface.`,
+    `Read ${appPath}/src/tool.rs and ${appPath}/src/lib.rs with fresh eyes.`,
     `Judge whether the curated tools serve the primary user story: ${plan.userStory}.`,
     `Report concrete problems (missing tools, wrong parameters, unsafe defaults) — do not edit files.`,
   ].join(" ");
