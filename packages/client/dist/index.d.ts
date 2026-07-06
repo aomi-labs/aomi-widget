@@ -343,7 +343,13 @@ interface AomiAccessApproval {
     created_at: number;
     updated_at: number;
 }
+interface AomiBeginAccountAuthResponse {
+    state_token: string;
+    auth_url: string;
+    expires_at: number;
+}
 type AomiWalletFamily = "evm" | "svm";
+type AomiAuthWalletFamily = "evm" | "solana";
 /**
  * GET/POST/DELETE /api/account/payment/byok
  * Lists or saves BYOK keys (one per LLM provider) for the account.
@@ -466,6 +472,11 @@ declare class AomiClient {
     private readonly sseSubscriber;
     constructor(options: AomiClientOptions);
     /**
+     * Low-level request escape hatch for the full backend route manifest.
+     * Prefer the typed helpers below for common chat/session/account flows.
+     */
+    request<T = unknown>(method: AomiHttpMethod, path: string, options?: AomiRequestOptions): Promise<T>;
+    /**
      * Fetch current session state (messages, processing status, title).
      */
     fetchState(sessionId: string, userState?: UserState, clientId?: string): Promise<AomiStateResponse>;
@@ -525,11 +536,13 @@ declare class AomiClient {
      */
     subscribeSSE(sessionId: string, onUpdate: (event: AomiSSEEvent) => void, onError?: (error: unknown) => void): () => void;
     /**
-     * Return backend account identity for the current authenticated session.
+     * @deprecated Account bootstrap is handled by session create/chat requests and
+     * the account-token exchange. `/api/account` is now an authenticated
+     * profile endpoint, so this legacy helper intentionally does nothing.
      */
-    getAccount(sessionId: string): Promise<AomiAccountResponse>;
+    ensureAccount(_sessionId: string, _publicKey: string): Promise<void>;
     /**
-     * List all threads for the current authenticated Aomi account.
+     * List all threads for the authenticated account.
      */
     listThreads(sessionId: string): Promise<AomiThread[]>;
     /**
@@ -570,6 +583,28 @@ declare class AomiClient {
         platforms?: AomiPlatformFilter;
     }): Promise<AomiAppDescriptor[]>;
     /**
+     * Fetch the account bound to the authenticated request (resolved from the
+     * account bearer). Returns `null` when the session is not bound to a real
+     * user — the backend answers `/api/account` with HTTP 400 for
+     * anonymous sessions, which is the normal "no bearer / not logged in" case
+     * rather than an error.
+     */
+    fetchAccountProfile(sessionId: string): Promise<AomiAccountProfile | null>;
+    /**
+     * Fetch the full account for the authenticated request. Throws on any
+     * non-OK response; use `fetchAccountProfile` for the null-on-anonymous
+     * variant.
+     */
+    getAccount(sessionId: string): Promise<AomiAccountResponse>;
+    createAccountApproval(request: AomiCreateApprovalRequest): Promise<AomiAccessApproval>;
+    /**
+     * Mint a Privy browser auth URL bound to the current backend session.
+     */
+    beginPrivyAuth(sessionId: string, options?: {
+        application?: string;
+        walletFamily?: AomiAuthWalletFamily;
+    }): Promise<AomiBeginAccountAuthResponse>;
+    /**
      * Get available models.
      */
     getModels(sessionId: string, options?: {
@@ -590,15 +625,15 @@ declare class AomiClient {
         created: boolean;
     }>;
     /**
-     * List BYOK keys (one per LLM provider) bound to the current session's client.
+     * List BYOK keys (one per LLM provider) bound to the current account.
      */
-    listByokKeys(_sessionId: string): Promise<AomiByokKeyEntry[]>;
+    listByokKeys(sessionId: string): Promise<AomiByokKeyEntry[]>;
     /**
-     * Save or replace a BYOK key for the client bound to this session.
+     * Save or replace a BYOK key for the current account.
      */
     saveByokKey(sessionId: string, provider: string, byokKey: string, label?: string): Promise<AomiByokKeyEntry>;
     /**
-     * Delete a BYOK key for the client bound to this session.
+     * Delete a BYOK key for the current account.
      */
     deleteByokKey(sessionId: string, provider: string): Promise<boolean>;
     /**

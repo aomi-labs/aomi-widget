@@ -429,71 +429,15 @@ var init_shared = __esm({
   }
 });
 
-// src/app-descriptor.ts
-function normalizeAppDescriptor(item) {
-  var _a3, _b;
-  if (typeof item === "string") {
-    const name2 = item.trim();
-    return name2 ? { name: name2 } : null;
-  }
-  if (!item || typeof item !== "object") return null;
-  const raw = item;
-  const name = typeof raw.name === "string" ? raw.name.trim() : "";
-  if (!name) return null;
-  const descriptor = __spreadProps(__spreadValues({}, raw), {
-    name
-  });
-  const applicationId = (_b = (_a3 = raw.applicationId) != null ? _a3 : raw.application_id) != null ? _b : raw.id;
-  if (typeof applicationId === "number" || typeof applicationId === "string") {
-    descriptor.applicationId = applicationId;
-  }
-  if (typeof raw.platform === "string") descriptor.platform = raw.platform;
-  if (typeof raw.label === "string") descriptor.label = raw.label;
-  if (typeof raw.appReleaseTag === "string") {
-    descriptor.appReleaseTag = raw.appReleaseTag;
-  } else if (typeof raw.app_release_tag === "string") {
-    descriptor.appReleaseTag = raw.app_release_tag;
-  }
-  if (typeof raw.isActive === "boolean") {
-    descriptor.isActive = raw.isActive;
-  } else if (typeof raw.is_active === "boolean") {
-    descriptor.isActive = raw.is_active;
-  }
-  if (typeof raw.isPublic === "boolean") {
-    descriptor.isPublic = raw.isPublic;
-  } else if (typeof raw.is_public === "boolean") {
-    descriptor.isPublic = raw.is_public;
-  }
-  if (typeof raw.artifactReady === "boolean") {
-    descriptor.artifactReady = raw.artifactReady;
-  } else if (typeof raw.artifact_ready === "boolean") {
-    descriptor.artifactReady = raw.artifact_ready;
-  }
-  descriptor.secrets = Array.isArray(raw.secrets) ? raw.secrets : [];
-  for (const key of [
-    "id",
-    "application_id",
-    "app_release_tag",
-    "is_active",
-    "is_public",
-    "artifact_ready"
-  ]) {
-    delete descriptor[key];
-  }
-  return descriptor;
-}
-var init_app_descriptor = __esm({
-  "src/app-descriptor.ts"() {
-    "use strict";
-  }
-});
-
 // src/user-state/normalize.ts
 function asObject(value) {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     return void 0;
   }
   return value;
+}
+function asEvmObject(value) {
+  return Array.isArray(value) ? asObject(value[0]) : asObject(value);
 }
 function pick(record, ...keys) {
   if (!record) {
@@ -686,7 +630,7 @@ function parseChainId2(value) {
 }
 function address(state) {
   var _a3;
-  const value = (_a3 = asObject(state == null ? void 0 : state.evm)) == null ? void 0 : _a3.address;
+  const value = (_a3 = asEvmObject(state == null ? void 0 : state.evm)) == null ? void 0 : _a3.address;
   return typeof value === "string" && value.length > 0 ? value : void 0;
 }
 function svmAddress(state) {
@@ -696,7 +640,7 @@ function svmAddress(state) {
 }
 function chainId(state) {
   var _a3;
-  return parseChainId2((_a3 = asObject(state == null ? void 0 : state.evm)) == null ? void 0 : _a3.chain_id);
+  return parseChainId2((_a3 = asEvmObject(state == null ? void 0 : state.evm)) == null ? void 0 : _a3.chain_id);
 }
 function isConnected(state) {
   var _a3;
@@ -716,7 +660,7 @@ function normalizeUserState(userState) {
   const out = {};
   const connection = buildConnection(asObject(pick(src, "connection")), src);
   if (connection) out.connection = connection;
-  const evm = buildEvm(asObject(pick(src, "evm")), src);
+  const evm = buildEvm(asEvmObject(pick(src, "evm")), src);
   if (evm) out.evm = evm;
   const svm = buildSvm(asObject(pick(src, "svm", "solana")), src);
   if (svm) out.svm = svm;
@@ -1209,6 +1153,65 @@ var init_sse = __esm({
   }
 });
 
+// src/app-descriptor.ts
+function normalizeAppDescriptor(item) {
+  var _a3, _b;
+  if (typeof item === "string") {
+    const name2 = item.trim();
+    return name2 ? { name: name2 } : null;
+  }
+  if (!item || typeof item !== "object") return null;
+  const raw = item;
+  const name = typeof raw.name === "string" ? raw.name.trim() : "";
+  if (!name) return null;
+  const descriptor = __spreadProps(__spreadValues({}, raw), {
+    name
+  });
+  const applicationId = (_b = (_a3 = raw.applicationId) != null ? _a3 : raw.application_id) != null ? _b : raw.id;
+  if (typeof applicationId === "number" || typeof applicationId === "string") {
+    descriptor.applicationId = applicationId;
+  }
+  if (typeof raw.platform === "string") descriptor.platform = raw.platform;
+  if (typeof raw.label === "string") descriptor.label = raw.label;
+  if (typeof raw.appReleaseTag === "string") {
+    descriptor.appReleaseTag = raw.appReleaseTag;
+  } else if (typeof raw.app_release_tag === "string") {
+    descriptor.appReleaseTag = raw.app_release_tag;
+  }
+  if (typeof raw.isActive === "boolean") {
+    descriptor.isActive = raw.isActive;
+  } else if (typeof raw.is_active === "boolean") {
+    descriptor.isActive = raw.is_active;
+  }
+  if (typeof raw.isPublic === "boolean") {
+    descriptor.isPublic = raw.isPublic;
+  } else if (typeof raw.is_public === "boolean") {
+    descriptor.isPublic = raw.is_public;
+  }
+  if (typeof raw.artifactReady === "boolean") {
+    descriptor.artifactReady = raw.artifactReady;
+  } else if (typeof raw.artifact_ready === "boolean") {
+    descriptor.artifactReady = raw.artifact_ready;
+  }
+  descriptor.secrets = Array.isArray(raw.secrets) ? raw.secrets : [];
+  for (const key of [
+    "id",
+    "application_id",
+    "app_release_tag",
+    "is_active",
+    "is_public",
+    "artifact_ready"
+  ]) {
+    delete descriptor[key];
+  }
+  return descriptor;
+}
+var init_app_descriptor = __esm({
+  "src/app-descriptor.ts"() {
+    "use strict";
+  }
+});
+
 // src/client.ts
 function previewText(value, max = 80) {
   const singleLine = value.replace(/\s+/g, " ").trim();
@@ -1267,40 +1270,52 @@ function buildApiUrl(baseUrl, path, query) {
     if (typeof value === "string") {
       params.set(key, value);
     } else {
-      for (const item of value) params.append(key, item);
+      for (const item of value) {
+        params.append(key, item);
+      }
     }
   }
   const queryString = params.toString();
   return queryString ? `${url}?${queryString}` : url;
 }
+function normalizeQuery(query) {
+  if (!query) return void 0;
+  const normalized = {};
+  for (const [key, value] of Object.entries(query)) {
+    if (Array.isArray(value)) {
+      normalized[key] = value.map((item) => String(item));
+      continue;
+    }
+    normalized[key] = value === null || value === void 0 ? void 0 : String(value);
+  }
+  return normalized;
+}
+function normalizePlatformFilter(platforms) {
+  const rawValues = Array.isArray(platforms) ? platforms : platforms === null || platforms === void 0 ? [] : [platforms];
+  return Array.from(
+    new Set(
+      rawValues.flatMap((value) => value.split(",")).map((value) => value.trim()).filter(Boolean)
+    )
+  );
+}
+function encodeJsonBody(body) {
+  return body === void 0 ? void 0 : JSON.stringify(body);
+}
+function normalizeThreadWire(wire) {
+  var _b;
+  const _a3 = wire, { thread_id, session_id } = _a3, rest = __objRest(_a3, ["thread_id", "session_id"]);
+  return __spreadProps(__spreadValues({}, rest), { session_id: (_b = session_id != null ? session_id : thread_id) != null ? _b : "" });
+}
 function withSessionHeader(sessionId, init) {
   const headers = new Headers(init);
+  headers.set(SESSION_ID_HEADER, sessionId);
   headers.set(THREAD_ID_HEADER, sessionId);
   return headers;
 }
-function normalizeThreadResponse(data) {
-  if (!data || typeof data !== "object" || Array.isArray(data)) {
-    throw new Error("Backend thread response must be an object");
-  }
-  const record = data;
-  const threadId = typeof record.thread_id === "string" ? record.thread_id : typeof record.session_id === "string" ? record.session_id : null;
-  if (!threadId) {
-    throw new Error("Backend thread response missing thread_id");
-  }
-  return {
-    session_id: threadId,
-    thread_id: threadId,
-    title: typeof record.title === "string" ? record.title : record.title === null ? null : "",
-    is_archived: typeof record.is_archived === "boolean" ? record.is_archived : void 0
-  };
-}
-function normalizeCreateThreadResponse(data) {
-  const thread = normalizeThreadResponse(data);
-  return {
-    session_id: thread.session_id,
-    thread_id: thread.thread_id,
-    title: thread.title
-  };
+async function fetchStateResponse(fetchImpl, url, sessionId) {
+  return fetchImpl(url, {
+    headers: withSessionHeader(sessionId)
+  });
 }
 function wrapFetchWithAccountBearer(fetchImpl, getAccountAccessToken) {
   if (!getAccountAccessToken) return fetchImpl;
@@ -1311,14 +1326,14 @@ function wrapFetchWithAccountBearer(fetchImpl, getAccountAccessToken) {
     );
     const fetchWithBearer = async (forceRefresh) => {
       const headers = new Headers(baseHeaders);
-      let accessToken;
+      let bearer;
       try {
-        accessToken = await getAccountAccessToken({ forceRefresh });
+        bearer = await getAccountAccessToken({ forceRefresh });
       } catch (e) {
-        accessToken = void 0;
+        bearer = void 0;
       }
-      if (accessToken) {
-        headers.set("Authorization", `Bearer ${accessToken}`);
+      if (bearer) {
+        headers.set("Authorization", `Bearer ${bearer}`);
       }
       return fetchImpl(input2, __spreadProps(__spreadValues({}, init), { headers }));
     };
@@ -1330,19 +1345,14 @@ function wrapFetchWithAccountBearer(fetchImpl, getAccountAccessToken) {
 function supportsTokenRefreshSubscription(provider) {
   return typeof (provider == null ? void 0 : provider.subscribe) === "function";
 }
-function normalizePlatformFilter(platforms) {
-  const rawValues = Array.isArray(platforms) ? platforms : platforms === null || platforms === void 0 ? [] : [platforms];
-  return Array.from(
-    new Set(
-      rawValues.flatMap((value) => value.split(",")).map((value) => value.trim()).filter(Boolean)
-    )
-  );
-}
 async function postState(baseUrl, path, payload, sessionId, fetchImpl, apiKey, logger) {
-  const url = `${baseUrl}${path}`;
-  const body = JSON.stringify(payload);
+  const query = {};
+  for (const [key, value] of Object.entries(payload)) {
+    if (value === void 0 || value === null) continue;
+    query[key] = typeof value === "string" ? value : String(value);
+  }
+  const url = buildApiUrl(baseUrl, path, query);
   const headers = new Headers(withSessionHeader(sessionId));
-  headers.set("Content-Type", "application/json");
   if (apiKey) {
     headers.set(APP_KEY_HEADER, apiKey);
   }
@@ -1350,7 +1360,7 @@ async function postState(baseUrl, path, payload, sessionId, fetchImpl, apiKey, l
     path,
     sessionId,
     hasApiKey: Boolean(apiKey),
-    bodyLength: body.length
+    queryKeys: Object.keys(query)
   });
   let pendingWarning;
   if (typeof setTimeout === "function") {
@@ -1358,7 +1368,7 @@ async function postState(baseUrl, path, payload, sessionId, fetchImpl, apiKey, l
       logger == null ? void 0 : logger.debug("[aomi][client] POST still pending", {
         path,
         sessionId,
-        bodyLength: body.length
+        queryKeys: Object.keys(query)
       });
     }, 5e3);
   }
@@ -1366,8 +1376,7 @@ async function postState(baseUrl, path, payload, sessionId, fetchImpl, apiKey, l
   try {
     response = await fetchImpl(url, {
       method: "POST",
-      headers,
-      body
+      headers
     });
   } finally {
     if (pendingWarning) {
@@ -1385,15 +1394,16 @@ async function postState(baseUrl, path, payload, sessionId, fetchImpl, apiKey, l
   }
   return await response.json();
 }
-var THREAD_ID_HEADER, APP_KEY_HEADER, BULKY_PENDING_FIELDS, AomiClient;
+var SESSION_ID_HEADER, THREAD_ID_HEADER, APP_KEY_HEADER, BULKY_PENDING_FIELDS, AomiClient;
 var init_client = __esm({
   "src/client.ts"() {
     "use strict";
-    init_app_descriptor();
     init_user_state();
     init_sse();
+    init_app_descriptor();
+    SESSION_ID_HEADER = "X-Session-Id";
     THREAD_ID_HEADER = "X-Thread-Id";
-    APP_KEY_HEADER = "AOMI-APP-KEY";
+    APP_KEY_HEADER = "Aomi-App-Key";
     BULKY_PENDING_FIELDS = /* @__PURE__ */ new Set([
       "messageBase64",
       "message_base64",
@@ -1443,26 +1453,89 @@ var init_client = __esm({
       // Chat & State
       // ===========================================================================
       /**
+       * Low-level request escape hatch for the full backend route manifest.
+       * Prefer the typed helpers below for common chat/session/account flows.
+       */
+      async request(method, path, options) {
+        var _a3, _b;
+        const url = buildApiUrl(this.baseUrl, path, normalizeQuery(options == null ? void 0 : options.query));
+        const headers = new Headers(options == null ? void 0 : options.headers);
+        if (options == null ? void 0 : options.sessionId) {
+          headers.set(SESSION_ID_HEADER, options.sessionId);
+          headers.set(THREAD_ID_HEADER, options.sessionId);
+        }
+        const apiKey = (_a3 = options == null ? void 0 : options.apiKey) != null ? _a3 : this.apiKey;
+        if (apiKey) {
+          headers.set(APP_KEY_HEADER, apiKey);
+        }
+        if ((options == null ? void 0 : options.body) !== void 0 && !headers.has("Content-Type")) {
+          headers.set("Content-Type", "application/json");
+        }
+        const response = await ((options == null ? void 0 : options.raw) ? this.rawFetchImpl : this.fetchImpl)(
+          url,
+          {
+            method,
+            headers,
+            body: encodeJsonBody(options == null ? void 0 : options.body)
+          }
+        );
+        if (!response.ok) {
+          const body = await response.text().catch(() => "");
+          throw new Error(
+            `HTTP ${response.status}: ${response.statusText}${body ? `
+${body}` : ""}`
+          );
+        }
+        if (response.status === 204) {
+          return void 0;
+        }
+        const contentType = (_b = response.headers.get("content-type")) != null ? _b : "";
+        if (contentType.includes("application/json")) {
+          return await response.json();
+        }
+        return await response.text();
+      }
+      /**
        * Fetch current session state (messages, processing status, title).
        */
       async fetchState(sessionId, userState, clientId) {
-        var _a3, _b;
+        var _a3, _b, _c;
         const normalizedUserState = stripBulkyPendingFields(
           UserState.normalize(userState)
         );
-        const url = buildApiUrl(this.baseUrl, "/api/state", {
+        const urlWithSyncParams = buildApiUrl(this.baseUrl, "/api/state", {
           user_state: normalizedUserState ? JSON.stringify(normalizedUserState) : void 0,
           client_id: clientId
         });
+        const bareUrl = buildApiUrl(this.baseUrl, "/api/state");
+        const shouldRetryWithoutSyncParams = Boolean(normalizedUserState) || Boolean(clientId);
         (_a3 = this.logger) == null ? void 0 : _a3.debug("[aomi][client] GET /api/state start", {
           sessionId,
           clientId,
           hasUserState: Boolean(normalizedUserState)
         });
-        const response = await this.rawFetchImpl(url, {
-          headers: withSessionHeader(sessionId)
-        });
-        (_b = this.logger) == null ? void 0 : _b.debug("[aomi][client] GET /api/state response", {
+        let response = await fetchStateResponse(
+          this.rawFetchImpl,
+          urlWithSyncParams,
+          sessionId
+        );
+        if (!response.ok && shouldRetryWithoutSyncParams && (response.status === 400 || response.status === 414)) {
+          (_b = this.logger) == null ? void 0 : _b.debug(
+            "[aomi][client] GET /api/state retrying without sync params",
+            {
+              sessionId,
+              initialStatus: response.status,
+              hadClientId: Boolean(clientId),
+              hadUserState: Boolean(normalizedUserState)
+            }
+          );
+          response = await fetchStateResponse(
+            this.rawFetchImpl,
+            bareUrl,
+            sessionId
+          );
+        }
+        (_c = this.logger) == null ? void 0 : _c.debug("[aomi][client] GET /api/state response", {
           sessionId,
           status: response.status,
           ok: response.ok
@@ -1677,20 +1750,15 @@ var init_client = __esm({
       // Thread / Session Management
       // ===========================================================================
       /**
-       * Return backend account identity for the current authenticated session.
+       * @deprecated Account bootstrap is handled by session create/chat requests and
+       * the account-token exchange. `/api/account` is now an authenticated
+       * profile endpoint, so this legacy helper intentionally does nothing.
        */
-      async getAccount(sessionId) {
-        const url = buildApiUrl(this.baseUrl, "/api/account");
-        const response = await this.fetchImpl(url, {
-          headers: withSessionHeader(sessionId)
-        });
-        if (!response.ok) {
-          throw new Error(`Failed to fetch account: HTTP ${response.status}`);
-        }
-        return await response.json();
+      async ensureAccount(_sessionId, _publicKey) {
+        return void 0;
       }
       /**
-       * List all threads for the current authenticated Aomi account.
+       * List all threads for the authenticated account.
        */
       async listThreads(sessionId) {
         const url = buildApiUrl(this.baseUrl, "/api/threads");
@@ -1700,9 +1768,8 @@ var init_client = __esm({
         if (!response.ok) {
           throw new Error(`Failed to fetch threads: HTTP ${response.status}`);
         }
-        const data = await response.json();
-        if (!Array.isArray(data)) return [];
-        return data.map((item) => normalizeThreadResponse(item));
+        const threads = await response.json();
+        return threads.map(normalizeThreadWire);
       }
       /**
        * Get a single thread by ID.
@@ -1718,7 +1785,7 @@ var init_client = __esm({
         if (!response.ok) {
           throw new Error(`HTTP ${response.status}: ${response.statusText}`);
         }
-        return normalizeThreadResponse(await response.json());
+        return normalizeThreadWire(await response.json());
       }
       /**
        * Create a new thread. The client generates the session ID.
@@ -1727,15 +1794,12 @@ var init_client = __esm({
         const url = buildApiUrl(this.baseUrl, "/api/threads");
         const response = await this.fetchImpl(url, {
           method: "POST",
-          headers: withSessionHeader(threadId, {
-            "Content-Type": "application/json"
-          }),
-          body: JSON.stringify({})
+          headers: withSessionHeader(threadId)
         });
         if (!response.ok) {
           throw new Error(`Failed to create thread: HTTP ${response.status}`);
         }
-        return normalizeCreateThreadResponse(await response.json());
+        return normalizeThreadWire(await response.json());
       }
       /**
        * Delete a thread by ID.
@@ -1835,6 +1899,69 @@ var init_client = __esm({
         return data.map((item) => normalizeAppDescriptor(item)).filter((item) => item !== null);
       }
       /**
+       * Fetch the account bound to the authenticated request (resolved from the
+       * account bearer). Returns `null` when the session is not bound to a real
+       * user — the backend answers `/api/account` with HTTP 400 for
+       * anonymous sessions, which is the normal "no bearer / not logged in" case
+       * rather than an error.
+       */
+      async fetchAccountProfile(sessionId) {
+        const url = buildApiUrl(this.baseUrl, "/api/account");
+        const response = await this.rawFetchImpl(url, {
+          headers: withSessionHeader(sessionId)
+        });
+        if (response.status === 400 || response.status === 401 || response.status === 403) {
+          return null;
+        }
+        if (!response.ok) {
+          throw new Error(
+            `Failed to fetch account profile: HTTP ${response.status}`
+          );
+        }
+        return await response.json();
+      }
+      /**
+       * Fetch the full account for the authenticated request. Throws on any
+       * non-OK response; use `fetchAccountProfile` for the null-on-anonymous
+       * variant.
+       */
+      async getAccount(sessionId) {
+        const url = buildApiUrl(this.baseUrl, "/api/account");
+        const response = await this.fetchImpl(url, {
+          headers: withSessionHeader(sessionId)
+        });
+        if (!response.ok) {
+          throw new Error(`Failed to fetch account: HTTP ${response.status}`);
+        }
+        return await response.json();
+      }
+      async createAccountApproval(request) {
+        return this.request("POST", "/api/account/approvals", {
+          body: request,
+          raw: true
+        });
+      }
+      /**
+       * Mint a Privy browser auth URL bound to the current backend session.
+       */
+      async beginPrivyAuth(sessionId, options) {
+        const url = buildApiUrl(this.baseUrl, "/api/auth/privy/begin");
+        const response = await this.rawFetchImpl(url, {
+          method: "POST",
+          headers: withSessionHeader(sessionId, {
+            "Content-Type": "application/json"
+          }),
+          body: JSON.stringify({
+            application: options == null ? void 0 : options.application,
+            wallet_family: (options == null ? void 0 : options.walletFamily) === "evm" ? void 0 : options == null ? void 0 : options.walletFamily
+          })
+        });
+        if (!response.ok) {
+          throw new Error(`Failed to begin Privy auth: HTTP ${response.status}`);
+        }
+        return await response.json();
+      }
+      /**
        * Get available models.
        */
       async getModels(sessionId, options) {
@@ -1880,20 +2007,22 @@ var init_client = __esm({
         return await response.json();
       }
       /**
-       * List BYOK keys (one per LLM provider) bound to the current session's client.
+       * List BYOK keys (one per LLM provider) bound to the current account.
        */
-      async listByokKeys(_sessionId) {
-        var _a3, _b;
+      async listByokKeys(sessionId) {
+        var _a3;
         const url = buildApiUrl(this.baseUrl, "/api/account/payment");
-        const response = await this.fetchImpl(url);
+        const response = await this.fetchImpl(url, {
+          headers: withSessionHeader(sessionId)
+        });
         if (!response.ok) {
           throw new Error(`Failed to get BYOK keys: HTTP ${response.status}`);
         }
         const data = await response.json();
-        return (_b = (_a3 = data.byok_keys) != null ? _a3 : data.byok) != null ? _b : [];
+        return (_a3 = data.byok) != null ? _a3 : [];
       }
       /**
-       * Save or replace a BYOK key for the client bound to this session.
+       * Save or replace a BYOK key for the current account.
        */
       async saveByokKey(sessionId, provider, byokKey, label) {
         const url = joinApiPath(this.baseUrl, "/api/account/payment/byok");
@@ -1915,7 +2044,7 @@ var init_client = __esm({
         return data.key;
       }
       /**
-       * Delete a BYOK key for the client bound to this session.
+       * Delete a BYOK key for the current account.
        */
       async deleteByokKey(sessionId, provider) {
         const url = buildApiUrl(
@@ -10270,7 +10399,7 @@ init_shared();
 // package.json
 var package_default = {
   name: "@aomi-labs/client",
-  version: "0.1.42",
+  version: "0.2.0",
   description: "Platform-agnostic TypeScript client for the Aomi backend API",
   type: "module",
   main: "./dist/index.cjs",

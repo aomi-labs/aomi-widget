@@ -1,6 +1,12 @@
 import type {
+  AomiAccountProfile,
+  AomiAccountResponse,
+  AomiAccessApproval,
+  AomiAuthWalletFamily,
   AomiAppDescriptor,
+  AomiBeginAccountAuthResponse,
   AomiClientOptions,
+  AomiCreateApprovalRequest,
   AomiMessage,
   AomiChatResponse,
   AomiClearSecretsResponse,
@@ -11,29 +17,35 @@ import type {
   AomiInterruptResponse,
   AomiListByokKeysResponse,
   AomiListSecretsResponse,
+  AomiRequestOptions,
   AomiByokKeyEntry,
   AomiSaveByokKeyResponse,
-  AomiAccountResponse,
   AomiSSEEvent,
   AomiSimulateResponse,
   AomiStateResponse,
   AomiSystemEvent,
   AomiSystemResponse,
   AomiThread,
-  AomiPlatformFilter,
   GetAccountAccessToken,
   Logger,
+  AomiHttpMethod,
+  AomiPlatformFilter,
 } from "./types";
-import { normalizeAppDescriptor } from "./app-descriptor";
 import { UserState, type UserState as UserStateShape } from "./user-state";
 import { createSseSubscriber, type SseSubscriber } from "./sse";
+import { normalizeAppDescriptor } from "./app-descriptor";
 
 // =============================================================================
 // Internal helpers
 // =============================================================================
 
+const SESSION_ID_HEADER = "X-Session-Id";
+// The threads-era backend reads `X-Thread-Id`; older backends read
+// `X-Session-Id`. Both are sent during the migration so routes whose paths
+// didn't change (`/api/chat`, `/api/state`, `/api/updates`) work against
+// either backend.
 const THREAD_ID_HEADER = "X-Thread-Id";
-const APP_KEY_HEADER = "AOMI-APP-KEY";
+const APP_KEY_HEADER = "Aomi-App-Key";
 
 function previewText(value: string, max = 80): string {
   const singleLine = value.replace(/\s+/g, " ").trim();
@@ -113,10 +125,12 @@ function joinApiPath(baseUrl: string, path: string): string {
   return `${normalizedBase}${normalizedPath}` || normalizedPath;
 }
 
+type ApiQueryValue = string | readonly string[] | undefined;
+
 function buildApiUrl(
   baseUrl: string,
   path: string,
-  query?: Record<string, readonly string[] | string | undefined>,
+  query?: Record<string, ApiQueryValue>,
 ): string {
   const url = joinApiPath(baseUrl, path);
   if (!query) return url;
@@ -127,7 +141,9 @@ function buildApiUrl(
     if (typeof value === "string") {
       params.set(key, value);
     } else {
-      for (const item of value) params.append(key, item);
+      for (const item of value) {
+        params.append(key, item);
+      }
     }
   }
 
@@ -135,52 +151,73 @@ function buildApiUrl(
   return queryString ? `${url}?${queryString}` : url;
 }
 
+function normalizeQuery(
+  query: AomiRequestOptions["query"],
+): Record<string, ApiQueryValue> | undefined {
+  if (!query) return undefined;
+  const normalized: Record<string, ApiQueryValue> = {};
+  for (const [key, value] of Object.entries(query)) {
+    if (Array.isArray(value)) {
+      normalized[key] = value.map((item) => String(item));
+      continue;
+    }
+    normalized[key] =
+      value === null || value === undefined ? undefined : String(value);
+  }
+  return normalized;
+}
+
+function normalizePlatformFilter(platforms: AomiPlatformFilter): string[] {
+  const rawValues = Array.isArray(platforms)
+    ? platforms
+    : platforms === null || platforms === undefined
+      ? []
+      : [platforms];
+
+  return Array.from(
+    new Set(
+      rawValues
+        .flatMap((value) => value.split(","))
+        .map((value) => value.trim())
+        .filter(Boolean),
+    ),
+  );
+}
+
+function encodeJsonBody(body: unknown): BodyInit | undefined {
+  return body === undefined ? undefined : JSON.stringify(body);
+}
+
+// The threads-era backend returns `thread_id`; older backends returned
+// `session_id`. The SDK's public types keep `session_id` as the id field, so
+// normalize at the wire boundary.
+type ThreadWire = {
+  thread_id?: string;
+  session_id?: string;
+  title?: string | null;
+  is_archived?: boolean;
+};
+
+function normalizeThreadWire(wire: ThreadWire): AomiThread {
+  const { thread_id, session_id, ...rest } = wire;
+  return { ...rest, session_id: session_id ?? thread_id ?? "" } as AomiThread;
+}
+
 function withSessionHeader(sessionId: string, init?: HeadersInit): HeadersInit {
   const headers = new Headers(init);
+  headers.set(SESSION_ID_HEADER, sessionId);
   headers.set(THREAD_ID_HEADER, sessionId);
   return headers;
 }
 
-function normalizeThreadResponse(data: unknown): AomiThread {
-  if (!data || typeof data !== "object" || Array.isArray(data)) {
-    throw new Error("Backend thread response must be an object");
-  }
-
-  const record = data as Record<string, unknown>;
-  const threadId =
-    typeof record.thread_id === "string"
-      ? record.thread_id
-      : typeof record.session_id === "string"
-        ? record.session_id
-        : null;
-
-  if (!threadId) {
-    throw new Error("Backend thread response missing thread_id");
-  }
-
-  return {
-    session_id: threadId,
-    thread_id: threadId,
-    title:
-      typeof record.title === "string"
-        ? record.title
-        : record.title === null
-          ? null
-          : "",
-    is_archived:
-      typeof record.is_archived === "boolean" ? record.is_archived : undefined,
-  };
-}
-
-function normalizeCreateThreadResponse(
-  data: unknown,
-): AomiCreateThreadResponse {
-  const thread = normalizeThreadResponse(data);
-  return {
-    session_id: thread.session_id,
-    thread_id: thread.thread_id,
-    title: thread.title,
-  };
+async function fetchStateResponse(
+  fetchImpl: typeof fetch,
+  url: string,
+  sessionId: string,
+): Promise<Response> {
+  return fetchImpl(url, {
+    headers: withSessionHeader(sessionId),
+  });
 }
 
 function wrapFetchWithAccountBearer(
@@ -195,16 +232,16 @@ function wrapFetchWithAccountBearer(
     );
     const fetchWithBearer = async (forceRefresh: boolean) => {
       const headers = new Headers(baseHeaders);
-      // The account bearer is additive — never let a failing token source break
-      // the request. A throwing/absent token just means no Authorization header.
-      let accessToken: string | null | undefined;
+      // The account bearer is additive — never let a failing source break the
+      // request. A throwing/absent bearer just means no Authorization header.
+      let bearer: string | null | undefined;
       try {
-        accessToken = await getAccountAccessToken({ forceRefresh });
+        bearer = await getAccountAccessToken({ forceRefresh });
       } catch {
-        accessToken = undefined;
+        bearer = undefined;
       }
-      if (accessToken) {
-        headers.set("Authorization", `Bearer ${accessToken}`);
+      if (bearer) {
+        headers.set("Authorization", `Bearer ${bearer}`);
       }
       return fetchImpl(input, { ...init, headers });
     };
@@ -226,23 +263,6 @@ function supportsTokenRefreshSubscription(
   );
 }
 
-function normalizePlatformFilter(platforms: AomiPlatformFilter): string[] {
-  const rawValues = Array.isArray(platforms)
-    ? platforms
-    : platforms === null || platforms === undefined
-      ? []
-      : [platforms];
-
-  return Array.from(
-    new Set(
-      rawValues
-        .flatMap((value) => value.split(","))
-        .map((value) => value.trim())
-        .filter(Boolean),
-    ),
-  );
-}
-
 async function postState<T>(
   baseUrl: string,
   path: string,
@@ -252,11 +272,14 @@ async function postState<T>(
   apiKey?: string,
   logger?: Logger,
 ): Promise<T> {
-  const url = `${baseUrl}${path}`;
-  const body = JSON.stringify(payload);
+  const query: Record<string, string | undefined> = {};
+  for (const [key, value] of Object.entries(payload)) {
+    if (value === undefined || value === null) continue;
+    query[key] = typeof value === "string" ? value : String(value);
+  }
+  const url = buildApiUrl(baseUrl, path, query);
 
   const headers = new Headers(withSessionHeader(sessionId));
-  headers.set("Content-Type", "application/json");
   if (apiKey) {
     headers.set(APP_KEY_HEADER, apiKey);
   }
@@ -265,7 +288,7 @@ async function postState<T>(
     path,
     sessionId,
     hasApiKey: Boolean(apiKey),
-    bodyLength: body.length,
+    queryKeys: Object.keys(query),
   });
 
   let pendingWarning: ReturnType<typeof setTimeout> | undefined;
@@ -274,7 +297,7 @@ async function postState<T>(
       logger?.debug("[aomi][client] POST still pending", {
         path,
         sessionId,
-        bodyLength: body.length,
+        queryKeys: Object.keys(query),
       });
     }, 5000);
   }
@@ -284,7 +307,6 @@ async function postState<T>(
     response = await fetchImpl(url, {
       method: "POST",
       headers,
-      body,
     });
   } finally {
     if (pendingWarning) {
@@ -358,6 +380,56 @@ export class AomiClient {
   // ===========================================================================
 
   /**
+   * Low-level request escape hatch for the full backend route manifest.
+   * Prefer the typed helpers below for common chat/session/account flows.
+   */
+  async request<T = unknown>(
+    method: AomiHttpMethod,
+    path: string,
+    options?: AomiRequestOptions,
+  ): Promise<T> {
+    const url = buildApiUrl(this.baseUrl, path, normalizeQuery(options?.query));
+    const headers = new Headers(options?.headers);
+    if (options?.sessionId) {
+      headers.set(SESSION_ID_HEADER, options.sessionId);
+      headers.set(THREAD_ID_HEADER, options.sessionId);
+    }
+    const apiKey = options?.apiKey ?? this.apiKey;
+    if (apiKey) {
+      headers.set(APP_KEY_HEADER, apiKey);
+    }
+    if (options?.body !== undefined && !headers.has("Content-Type")) {
+      headers.set("Content-Type", "application/json");
+    }
+
+    const response = await (options?.raw ? this.rawFetchImpl : this.fetchImpl)(
+      url,
+      {
+        method,
+        headers,
+        body: encodeJsonBody(options?.body),
+      },
+    );
+
+    if (!response.ok) {
+      const body = await response.text().catch(() => "");
+      throw new Error(
+        `HTTP ${response.status}: ${response.statusText}${body ? `\n${body}` : ""}`,
+      );
+    }
+
+    if (response.status === 204) {
+      return undefined as T;
+    }
+
+    const contentType = response.headers.get("content-type") ?? "";
+    if (contentType.includes("application/json")) {
+      return (await response.json()) as T;
+    }
+    return (await response.text()) as T;
+  }
+
+  /**
    * Fetch current session state (messages, processing status, title).
    */
   async fetchState(
@@ -368,12 +440,15 @@ export class AomiClient {
     const normalizedUserState = stripBulkyPendingFields(
       UserState.normalize(userState),
     );
-    const url = buildApiUrl(this.baseUrl, "/api/state", {
+    const urlWithSyncParams = buildApiUrl(this.baseUrl, "/api/state", {
       user_state: normalizedUserState
         ? JSON.stringify(normalizedUserState)
         : undefined,
       client_id: clientId,
     });
+    const bareUrl = buildApiUrl(this.baseUrl, "/api/state");
+    const shouldRetryWithoutSyncParams =
+      Boolean(normalizedUserState) || Boolean(clientId);
 
     this.logger?.debug("[aomi][client] GET /api/state start", {
       sessionId,
@@ -381,9 +456,32 @@ export class AomiClient {
       hasUserState: Boolean(normalizedUserState),
     });
 
-    const response = await this.rawFetchImpl(url, {
-      headers: withSessionHeader(sessionId),
-    });
+    let response = await fetchStateResponse(
+      this.rawFetchImpl,
+      urlWithSyncParams,
+      sessionId,
+    );
+
+    if (
+      !response.ok &&
+      shouldRetryWithoutSyncParams &&
+      (response.status === 400 || response.status === 414)
+    ) {
+      this.logger?.debug(
+        "[aomi][client] GET /api/state retrying without sync params",
+        {
+          sessionId,
+          initialStatus: response.status,
+          hadClientId: Boolean(clientId),
+          hadUserState: Boolean(normalizedUserState),
+        },
+      );
+      response = await fetchStateResponse(
+        this.rawFetchImpl,
+        bareUrl,
+        sessionId,
+      );
+    }
 
     this.logger?.debug("[aomi][client] GET /api/state response", {
       sessionId,
@@ -632,6 +730,9 @@ export class AomiClient {
     sessionId: string,
     clientId?: string,
   ): Promise<AomiListSecretsResponse> {
+    // Pass the client_id explicitly so the read resolves the vault by the key
+    // the caller already holds, not via the in-memory session→client_id binding
+    // (which is lost on a backend restart, leaving cold reads empty).
     const url =
       clientId && clientId.trim().length > 0
         ? buildApiUrl(this.baseUrl, "/api/secrets", { client_id: clientId })
@@ -670,23 +771,16 @@ export class AomiClient {
   // ===========================================================================
 
   /**
-   * Return backend account identity for the current authenticated session.
+   * @deprecated Account bootstrap is handled by session create/chat requests and
+   * the account-token exchange. `/api/account` is now an authenticated
+   * profile endpoint, so this legacy helper intentionally does nothing.
    */
-  async getAccount(sessionId: string): Promise<AomiAccountResponse> {
-    const url = buildApiUrl(this.baseUrl, "/api/account");
-    const response = await this.fetchImpl(url, {
-      headers: withSessionHeader(sessionId),
-    });
-
-    if (!response.ok) {
-      throw new Error(`Failed to fetch account: HTTP ${response.status}`);
-    }
-
-    return (await response.json()) as AomiAccountResponse;
+  async ensureAccount(_sessionId: string, _publicKey: string): Promise<void> {
+    return undefined;
   }
 
   /**
-   * List all threads for the current authenticated Aomi account.
+   * List all threads for the authenticated account.
    */
   async listThreads(sessionId: string): Promise<AomiThread[]> {
     const url = buildApiUrl(this.baseUrl, "/api/threads");
@@ -698,9 +792,8 @@ export class AomiClient {
       throw new Error(`Failed to fetch threads: HTTP ${response.status}`);
     }
 
-    const data = (await response.json()) as unknown;
-    if (!Array.isArray(data)) return [];
-    return data.map((item) => normalizeThreadResponse(item));
+    const threads = (await response.json()) as ThreadWire[];
+    return threads.map(normalizeThreadWire);
   }
 
   /**
@@ -719,7 +812,7 @@ export class AomiClient {
       throw new Error(`HTTP ${response.status}: ${response.statusText}`);
     }
 
-    return normalizeThreadResponse(await response.json());
+    return normalizeThreadWire((await response.json()) as ThreadWire);
   }
 
   /**
@@ -729,17 +822,14 @@ export class AomiClient {
     const url = buildApiUrl(this.baseUrl, "/api/threads");
     const response = await this.fetchImpl(url, {
       method: "POST",
-      headers: withSessionHeader(threadId, {
-        "Content-Type": "application/json",
-      }),
-      body: JSON.stringify({}),
+      headers: withSessionHeader(threadId),
     });
 
     if (!response.ok) {
       throw new Error(`Failed to create thread: HTTP ${response.status}`);
     }
 
-    return normalizeCreateThreadResponse(await response.json());
+    return normalizeThreadWire((await response.json()) as ThreadWire);
   }
 
   /**
@@ -863,6 +953,91 @@ export class AomiClient {
   }
 
   /**
+   * Fetch the account bound to the authenticated request (resolved from the
+   * account bearer). Returns `null` when the session is not bound to a real
+   * user — the backend answers `/api/account` with HTTP 400 for
+   * anonymous sessions, which is the normal "no bearer / not logged in" case
+   * rather than an error.
+   */
+  async fetchAccountProfile(
+    sessionId: string,
+  ): Promise<AomiAccountProfile | null> {
+    const url = buildApiUrl(this.baseUrl, "/api/account");
+    const response = await this.rawFetchImpl(url, {
+      headers: withSessionHeader(sessionId),
+    });
+
+    if (
+      response.status === 400 ||
+      response.status === 401 ||
+      response.status === 403
+    ) {
+      return null;
+    }
+    if (!response.ok) {
+      throw new Error(
+        `Failed to fetch account profile: HTTP ${response.status}`,
+      );
+    }
+
+    return (await response.json()) as AomiAccountProfile;
+  }
+
+  /**
+   * Fetch the full account for the authenticated request. Throws on any
+   * non-OK response; use `fetchAccountProfile` for the null-on-anonymous
+   * variant.
+   */
+  async getAccount(sessionId: string): Promise<AomiAccountResponse> {
+    const url = buildApiUrl(this.baseUrl, "/api/account");
+    const response = await this.fetchImpl(url, {
+      headers: withSessionHeader(sessionId),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to fetch account: HTTP ${response.status}`);
+    }
+
+    return (await response.json()) as AomiAccountResponse;
+  }
+
+  async createAccountApproval(
+    request: AomiCreateApprovalRequest,
+  ): Promise<AomiAccessApproval> {
+    return this.request<AomiAccessApproval>("POST", "/api/account/approvals", {
+      body: request,
+      raw: true,
+    });
+  }
+
+  /**
+   * Mint a Privy browser auth URL bound to the current backend session.
+   */
+  async beginPrivyAuth(
+    sessionId: string,
+    options?: { application?: string; walletFamily?: AomiAuthWalletFamily },
+  ): Promise<AomiBeginAccountAuthResponse> {
+    const url = buildApiUrl(this.baseUrl, "/api/auth/privy/begin");
+    const response = await this.rawFetchImpl(url, {
+      method: "POST",
+      headers: withSessionHeader(sessionId, {
+        "Content-Type": "application/json",
+      }),
+      body: JSON.stringify({
+        application: options?.application,
+        wallet_family:
+          options?.walletFamily === "evm" ? undefined : options?.walletFamily,
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to begin Privy auth: HTTP ${response.status}`);
+    }
+
+    return (await response.json()) as AomiBeginAccountAuthResponse;
+  }
+
+  /**
    * Get available models.
    */
   async getModels(
@@ -937,24 +1112,24 @@ export class AomiClient {
   }
 
   /**
-   * List BYOK keys (one per LLM provider) bound to the current session's client.
+   * List BYOK keys (one per LLM provider) bound to the current account.
    */
-  async listByokKeys(_sessionId: string): Promise<AomiByokKeyEntry[]> {
+  async listByokKeys(sessionId: string): Promise<AomiByokKeyEntry[]> {
     const url = buildApiUrl(this.baseUrl, "/api/account/payment");
-    const response = await this.fetchImpl(url);
+    const response = await this.fetchImpl(url, {
+      headers: withSessionHeader(sessionId),
+    });
 
     if (!response.ok) {
       throw new Error(`Failed to get BYOK keys: HTTP ${response.status}`);
     }
 
-    const data = (await response.json()) as AomiListByokKeysResponse & {
-      byok_keys?: AomiByokKeyEntry[];
-    };
-    return data.byok_keys ?? data.byok ?? [];
+    const data = (await response.json()) as AomiListByokKeysResponse;
+    return data.byok ?? [];
   }
 
   /**
-   * Save or replace a BYOK key for the client bound to this session.
+   * Save or replace a BYOK key for the current account.
    */
   async saveByokKey(
     sessionId: string,
@@ -984,7 +1159,7 @@ export class AomiClient {
   }
 
   /**
-   * Delete a BYOK key for the client bound to this session.
+   * Delete a BYOK key for the current account.
    */
   async deleteByokKey(sessionId: string, provider: string): Promise<boolean> {
     const url = buildApiUrl(

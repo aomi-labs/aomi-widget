@@ -89,3 +89,36 @@ describe("normalizeUserState null pruning", () => {
     expect(normalized?.ext).toEqual({ client_type: "web_ui", custom: null });
   });
 });
+
+describe("normalizeUserState evm wire shapes", () => {
+  // The threads-era backend serializes `evm` as an array of per-chain
+  // wallets (primary = first entry); older backends sent a single object.
+  // Normalization must read both so the portal keeps its wallet context
+  // across the backend cutover.
+  it("collapses the array shape to the primary wallet", () => {
+    const normalized = UserState.normalize({
+      connection: { is_connected: true },
+      evm: [
+        { address: "0xC764D92E312195114595cB645f31C38Fad9c14eE", chain_id: 1 },
+        { address: "0xC764D92E312195114595cB645f31C38Fad9c14eE", chain_id: 8453 },
+      ],
+    } as unknown as Parameters<typeof UserState.normalize>[0]);
+
+    expect(UserState.address(normalized)).toBe(
+      "0xC764D92E312195114595cB645f31C38Fad9c14eE",
+    );
+    expect(UserState.chainId(normalized)).toBe(1);
+  });
+
+  it("still reads the legacy object shape", () => {
+    const normalized = UserState.normalize({
+      connection: { is_connected: true },
+      evm: { address: "0xC764D92E312195114595cB645f31C38Fad9c14eE", chain_id: 1 },
+    });
+
+    expect(UserState.address(normalized)).toBe(
+      "0xC764D92E312195114595cB645f31C38Fad9c14eE",
+    );
+    expect(UserState.chainId(normalized)).toBe(1);
+  });
+});
