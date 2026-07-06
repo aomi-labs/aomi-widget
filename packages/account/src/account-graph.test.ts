@@ -35,7 +35,7 @@ class FakeClient {
 }
 
 function mockPoolWith(client: FakeClient) {
-  return vi.doMock("./db", () => ({
+  return vi.doMock("./db/pool", () => ({
     getPool: () => ({ connect: async () => client }),
   }));
 }

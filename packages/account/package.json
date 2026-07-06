@@ -7,10 +7,13 @@
   "module": "./src/index.ts",
   "types": "./src/index.ts",
   "exports": {
-    ".": {
-      "import": "./src/index.ts",
-      "types": "./src/index.ts"
-    }
+    ".": "./src/index.ts",
+    "./account": "./src/account.ts",
+    "./better-auth": "./src/better-auth/index.ts",
+    "./better-auth/client": "./src/better-auth/auth-client.ts",
+    "./better-auth/env": "./src/better-auth/env.ts",
+    "./better-auth/siwe": "./src/better-auth/siwe.ts",
+    "./providers": "./src/providers/index.ts"
   },
   "scripts": {
     "type-check": "tsc --noEmit"
@@ -20,7 +23,11 @@
   },
   "dependencies": {
     "@aomi-labs/service": "workspace:*",
-    "pg": "^8.22.0"
+    "better-auth": "^1.6.19",
+    "jose": "^6.1.3",
+    "pg": "^8.22.0",
+    "viem": "^2.47.11",
+    "zod": "^4.4.3"
   },
   "peerDependencies": {
     "next": ">=15"

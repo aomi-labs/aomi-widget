@@ -1,7 +1,7 @@
 import { exchangeDeviceAuthGrant } from "@portal/lib/device-auth-grants";
 import { json } from "@portal/lib/aomi-account/session";
-import { exchangeProviderForExistingSession } from "@aomi-labs/auth/account";
-import type { AomiAccountCredential } from "@aomi-labs/auth";
+import { exchangeProviderForExistingSession } from "@aomi-labs/account/account";
+import type { AomiAccountCredential } from "@aomi-labs/account";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

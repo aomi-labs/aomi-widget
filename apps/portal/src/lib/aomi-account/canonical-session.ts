@@ -4,7 +4,7 @@ import {
   getBetterAuthSession,
   sessionUserSeed,
 } from "@portal/lib/aomi-account/session";
-import { getOrCreateAomiUserForBetterAuthSession } from "@aomi-labs/auth/account";
+import { getOrCreateAomiUserForBetterAuthSession } from "@aomi-labs/account/account";
 
 export async function resolveBetterAuthCanonicalUserId(
   req: Request,
