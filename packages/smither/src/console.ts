@@ -1,5 +1,9 @@
+import { existsSync } from "node:fs";
 import { createServer as createNetServer } from "node:net";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import type { GatewayOptions } from "smithers-orchestrator";
+import { stagesFor, type BuildPlan } from "./plan";
 import { assertBunRuntime } from "./run";
 import { defaultRunsRoot, loadPlan, smitherDbPath } from "./state";
 import {
@@ -8,13 +12,19 @@ import {
   type AomiWorkflow,
 } from "./workflow";
 
+/** A gateway UI registration: `true` mounts the built-in operator console;
+ *  the object form points at a custom browser entry bundled by the gateway. */
+type UiRegistration =
+  | boolean
+  | { entry: string; title?: string; props?: Record<string, unknown> };
+
 /** Structural view of the Gateway surface we drive. The class itself is
  *  imported lazily so the CLI stays fast when no console is requested. */
 type GatewayLike = {
   register: (
     key: string,
     workflow: AomiWorkflow,
-    options?: { ui?: boolean | { entry: string; title?: string } },
+    options?: { ui?: UiRegistration },
   ) => GatewayLike;
   listen: (options?: {
     port?: number;
@@ -23,12 +33,31 @@ type GatewayLike = {
   close: () => Promise<void>;
 };
 
+/**
+ * Absolute path to the branded UI entry (`src/ui/aomi-smither.tsx`), resolved
+ * relative to this module so it works from `dist/` and from source alike (both
+ * sit one level under the package root). Returns null if the source file isn't
+ * present (e.g. an install without `src/`), so the caller falls back to the
+ * built-in console. The gateway bundles this with `Bun.build` on first request.
+ */
+function resolveBrandedEntry(): string | null {
+  try {
+    const packageRoot = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
+    const entry = path.join(packageRoot, "src", "ui", "aomi-smither.tsx");
+    return existsSync(entry) ? entry : null;
+  } catch {
+    return null;
+  }
+}
+
 export type ConsoleHandle = {
   port: number;
   host: string;
-  /** Built-in operator console — every registered workflow, runs, approvals. */
+  /** Built-in Smithers operator console (gateway-level, at /console) — every
+   *  registered workflow, generic run tree, approvals. */
   consoleUrl: string;
-  /** Per-workflow view inside the operator console. */
+  /** Per-workflow view at /workflows/<app>: the aomi-branded UI when its entry
+   *  is available, else the built-in workflow console. */
   workflowUrl: string;
   close: () => Promise<void>;
 };
@@ -36,6 +65,13 @@ export type ConsoleHandle = {
 export type ConsoleOptions = {
   workflow: AomiWorkflow;
   app: string;
+  /** The plan behind this workflow. When present, its stage list is passed to
+   *  the branded UI as boot props so the stage rail shows friendly labels
+   *  immediately (before any event arrives). */
+  plan?: BuildPlan;
+  /** Force the built-in Smithers operator console instead of the aomi-branded
+   *  UI (escape hatch / parity check). @default false */
+  builtinConsole?: boolean;
   /** First port to try; increments on EADDRINUSE. @default 7331 */
   port?: number;
   /** @default "127.0.0.1" — loopback only; no auth is configured, so the
@@ -44,6 +80,24 @@ export type ConsoleOptions = {
   /** @default 10 */
   maxPortTries?: number;
 };
+
+/** Choose the UI registration for `register()`: branded custom entry when
+ *  available, else the built-in operator console. */
+function uiRegistration(options: ConsoleOptions): UiRegistration {
+  if (options.builtinConsole) return true;
+  const entry = resolveBrandedEntry();
+  if (!entry) return true;
+  return {
+    entry,
+    title: `aomi smither · ${options.app}`,
+    props: {
+      app: options.app,
+      stages: options.plan ? stagesFor(options.plan) : [],
+      deploy: options.plan?.deploy ?? false,
+      smoke: options.plan?.smoke ?? false,
+    },
+  };
+}
 
 export const DEFAULT_CONSOLE_PORT = 7331;
 
@@ -96,6 +150,7 @@ export async function startConsole(options: ConsoleOptions): Promise<ConsoleHand
   const firstPort = options.port ?? DEFAULT_CONSOLE_PORT;
   const tries = Math.max(1, options.maxPortTries ?? 10);
 
+  const ui = uiRegistration(options);
   let lastError: unknown;
   for (let attempt = 0; attempt < tries; attempt += 1) {
     const port = firstPort + attempt;
@@ -106,7 +161,7 @@ export async function startConsole(options: ConsoleOptions): Promise<ConsoleHand
     // A fresh Gateway per attempt: a failed listen() can leave a dead server
     // handle on the instance, and register() is cheap (config + idempotent DDL).
     const gateway = new Gateway({});
-    gateway.register(options.app, options.workflow, { ui: true });
+    gateway.register(options.app, options.workflow, { ui });
     try {
       const server = await gateway.listen({ port, host });
       const actualPort = boundPort(server, port);
@@ -148,6 +203,7 @@ export async function startConsoleForApp(options: {
   runsRoot?: string;
   port?: number;
   host?: string;
+  builtinConsole?: boolean;
 }): Promise<ConsoleHandle> {
   assertBunRuntime();
   const runsRoot = options.runsRoot ?? defaultRunsRoot;
@@ -163,6 +219,8 @@ export async function startConsoleForApp(options: {
   return startConsole({
     workflow,
     app: options.app,
+    plan,
+    builtinConsole: options.builtinConsole,
     port: options.port,
     host: options.host,
   });

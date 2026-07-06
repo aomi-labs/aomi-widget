@@ -50,6 +50,8 @@ type CliArgs = {
    *  headless ones (scripts/CI must opt in with --console). */
   console?: boolean;
   consolePort?: number;
+  /** Force the built-in Smithers operator console over the aomi-branded UI. */
+  consoleBuiltin: boolean;
   /** Plan fields provided via flags; the chat fills in the rest. */
   draft: Partial<BuildPlan>;
   provided: Set<string>;
@@ -114,6 +116,10 @@ function parseArgs(argv: string[]): CliArgs {
   if (values.get("smoke")) setField("smoke", true);
   setField("smokePrompt", stringValue(values, "smoke-prompt"));
   if (values.get("deploy")) setField("deploy", true);
+  const deployPath = stringValue(values, "deploy-path");
+  if (deployPath) setField("deployPath", path.resolve(deployPath));
+  setField("deployAomiToml", stringValue(values, "deploy-aomi-toml"));
+  setField("deployPlatform", stringValue(values, "deploy-platform"));
   if (values.get("allow-stale-sdk")) setField("allowStaleSdk", true);
   const yes = Boolean(values.get("yes") || values.get("y"));
   if (yes) setField("autoApprove", true);
@@ -131,6 +137,7 @@ function parseArgs(argv: string[]): CliArgs {
     console: values.get("no-console") ? false : values.get("console") ? true : undefined,
     consolePort:
       consolePortRaw && /^\d+$/.test(consolePortRaw) ? Number(consolePortRaw) : undefined,
+    consoleBuiltin: Boolean(values.get("console-builtin")),
     draft,
     provided,
   };
@@ -186,6 +193,8 @@ OPTIONS
   --smoke                     Run aomi-run --prompt after validation
   --smoke-prompt <text>       Prompt for local smoke
   --deploy                    Deploy after validation, behind an approval gate
+  --deploy-path <path>        Standalone deploy repo (tracked aomi.toml + pushed commit)
+  --deploy-aomi-toml <rel>    Repo-relative aomi.toml to scope the deploy to one app
   --activation-token <token>  Runtime deploy token; not persisted
   --intent-agent claude|codex Agent that distills the intake chat (default: claude)
   --allow-stale-sdk           Skip the GitHub-freshness guarantee for the SDK checkout
@@ -194,10 +203,12 @@ OPTIONS
   --resume                    (implicit) an existing run for the app resumes automatically
   --yes                       Auto-approve gates; required for headless runs
   --console / --no-console    Browser console sidecar (Smithers Gateway on
-                              127.0.0.1): live task graph, node outputs, and
-                              approve/deny. Default: on for interactive runs,
-                              off for headless.
+                              127.0.0.1): aomi-branded live stage rail, node
+                              outputs, and approve/deny. Default: on for
+                              interactive runs, off for headless.
   --console-port <n>          First port to try for the console (default: 7331)
+  --console-builtin           Use the generic Smithers operator console instead
+                              of the aomi-branded UI
 
 SUBCOMMANDS
   console                     Observe an app's run from a browser (works while
@@ -205,6 +216,7 @@ SUBCOMMANDS
     --app <name>              App whose run state to watch (required)
     --state-root <path>       Run state root (default: packages/smither/.smithers/runs)
     --port <n>                Console port (default: 7331)
+    --console-builtin         Use the generic operator console instead of aomi UI
 
   rollback                    Roll an app back to a previous deployment
     --app <name>              App to roll back (required)
@@ -555,6 +567,8 @@ function RunView({
             const handle = await startConsole({
               workflow: prepared.workflow,
               app: plan.app,
+              plan,
+              builtinConsole: args.consoleBuiltin,
               port: args.consolePort,
             });
             consoleRef.current = handle;
@@ -689,6 +703,8 @@ async function runHeadless(args: CliArgs): Promise<void> {
         const handle = await startConsole({
           workflow: prepared.workflow,
           app: plan.app,
+          plan,
+          builtinConsole: args.consoleBuiltin,
           port: args.consolePort,
         });
         console.error(`live console: ${handle.workflowUrl}`);
@@ -944,9 +960,10 @@ async function runConsoleCommand(argv: string[]): Promise<void> {
       app,
       runsRoot: stringValue(values, "state-root") ?? defaultRunsRoot,
       port: portRaw && /^\d+$/.test(portRaw) ? Number(portRaw) : undefined,
+      builtinConsole: Boolean(values.get("console-builtin")),
     });
-    console.log(`console:  ${handle.consoleUrl}`);
-    console.log(`workflow: ${handle.workflowUrl}`);
+    console.log(`aomi console: ${handle.workflowUrl}`);
+    console.log(`operator:     ${handle.consoleUrl}`);
     console.log(
       "Streaming run state from this app's smithers.sqlite (live if a run is executing elsewhere). Ctrl-C to stop.",
     );

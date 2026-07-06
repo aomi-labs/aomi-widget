@@ -43,18 +43,32 @@ pnpm --filter @aomi-labs/smither exec aomi-smither console --app my-app
 ## Browser console (live workflow visualization)
 
 Interactive runs boot a [Smithers Gateway](https://smithers.sh) sidecar on
-`127.0.0.1` (`console.ts`) and print a `⌗ live console:` URL — the built-in
-operator console with the live task graph, per-node outputs, event stream,
-and **approve/deny buttons** (an approval can be answered from the TUI or the
-browser; both write the same durable decision). Headless runs opt in with
-`--console`; `--no-console` disables, `--console-port` moves it off 7331.
+`127.0.0.1` (`console.ts`) and print a `⌗ live console:` URL — an **aomi-branded
+React UI** (`ui/aomi-smither.tsx`, served at `/workflows/<app>`) showing the
+plan's named build stages coloured by the live event stream, per-node output,
+the activity feed, and **approve/deny buttons** (an approval can be answered
+from the TUI or the browser; both write the same durable decision). Headless
+runs opt in with `--console`; `--no-console` disables, `--console-port` moves
+it off 7331, and `--console-builtin` swaps in the generic Smithers operator
+console (also always available at `/console`).
+
+The UI is a first-class Gateway UI entry: the gateway bundles it with
+`Bun.build` on first request and exposes the full [`gateway-react`] hook
+surface (`useGatewayRunEvents`, `useGatewayApprovals`, `useGatewayActions`, …).
+Live runs light the stage rail from streaming events; a run that finished
+before the console attached is reconstructed from the persisted devtools
+snapshot (`getDevToolsSnapshot`) — only stages that actually mounted show
+`done`. The pure event→stage reducer lives in `console-model.ts` and is unit
+tested.
 
 Because the gateway reads the run's own SQLite (`smithers.sqlite`) and
 bridges persisted events from runs executed by other processes,
 `aomi-smither console --app <name>` observes a run *from outside* — start the
 build in one terminal, watch its graph from a browser via another. The
 `plan.json` persisted beside the run state is what lets the observer rebuild
-the identical workflow shape.
+the identical workflow shape and stage labels.
+
+[`gateway-react`]: https://smithers.sh/examples/workflow-ui-react
 
 ## Fresh-from-GitHub binaries
 
