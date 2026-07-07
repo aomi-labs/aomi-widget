@@ -10,7 +10,7 @@ import {
 } from "@assistant-ui/react";
 import { ChevronRightIcon } from "lucide-react";
 
-import { cn } from "@aomi-labs/react";
+import { cn, useCurrentThreadMetadata } from "@aomi-labs/react";
 import { MarkdownText } from "@/components/assistant-ui/markdown-text";
 import { resolveToolIcon } from "@/components/assistant-ui/tool-icon";
 
@@ -208,6 +208,15 @@ const WorkingTrace: FC<{
   );
 };
 
+const MinimalWorkingTrace: FC = () => (
+  <div className="aui-working-trace mb-3">
+    <div className="aui-working-trace-header text-muted-foreground flex items-center gap-1.5 text-sm">
+      <ChevronRightIcon className="size-3.5 shrink-0" />
+      <span className="aui-working-shimmer font-medium">Working</span>
+    </div>
+  </div>
+);
+
 const NullPart: FC = () => null;
 
 /**
@@ -223,6 +232,9 @@ const NullPart: FC = () => null;
 export const AssistantTurnParts: FC = () => {
   const content = useMessage((s) => s.content);
   const running = useMessage((s) => s.status?.type === "running");
+  const turnPhase =
+    useCurrentThreadMetadata()?.control.turnPhase ??
+    (running ? "working" : "idle");
 
   const lastToolIndex = content.reduce(
     (last, part, i) => (part.type === "tool-call" ? i : last),
@@ -230,6 +242,14 @@ export const AssistantTurnParts: FC = () => {
   );
 
   if (lastToolIndex < 0) {
+    if (running && turnPhase === "working") {
+      return <MinimalWorkingTrace />;
+    }
+
+    if (running) {
+      return null;
+    }
+
     // Plain reply — no tools. Stream the text live.
     return (
       <MessagePrimitive.Parts

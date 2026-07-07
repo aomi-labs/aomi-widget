@@ -46,10 +46,13 @@ describe("Chat API", () => {
       const call = postChatMessage.mock.calls[0] as unknown as [
         string,
         string,
-        {
-          applicationId?: number | string | null;
-          userState?: Record<string, unknown>;
-        } | undefined,
+        (
+          | {
+              applicationId?: number | string | null;
+              userState?: Record<string, unknown>;
+            }
+          | undefined
+        ),
       ];
       expect(call[1]).toBe("Hello world");
     });
@@ -105,6 +108,9 @@ describe("Chat API", () => {
           },
         },
       });
+      expect(
+        api.getThreadMetadata(api.currentThreadId)?.control.turnPhase,
+      ).toBe("submitting");
       expect(createThread).toHaveBeenCalledWith(api.currentThreadId);
       expect(postChatMessage).toHaveBeenCalled();
 
@@ -112,6 +118,41 @@ describe("Chat API", () => {
         resolveChat?.({ is_processing: false, messages: [] });
         await sendPromise!;
       });
+
+      expect(
+        api.getThreadMetadata(api.currentThreadId)?.control.turnPhase,
+      ).toBe("idle");
+    });
+
+    it("marks the turn as working after the backend accepts async processing", async () => {
+      let resolveChat: ((value: AomiChatResponse) => void) | undefined;
+      const postChatMessage = vi.fn(
+        () =>
+          new Promise<AomiChatResponse>((resolve) => {
+            resolveChat = resolve;
+          }),
+      );
+      setAomiClientConfig({ postChatMessage });
+
+      const { api } = renderRuntime();
+      let sendPromise: Promise<void>;
+
+      await act(async () => {
+        sendPromise = api.sendMessage("Check ETH price");
+      });
+
+      expect(
+        api.getThreadMetadata(api.currentThreadId)?.control.turnPhase,
+      ).toBe("submitting");
+
+      await act(async () => {
+        resolveChat?.({ is_processing: true, messages: [] });
+        await sendPromise!;
+      });
+
+      expect(
+        api.getThreadMetadata(api.currentThreadId)?.control.turnPhase,
+      ).toBe("working");
     });
 
     it("marks the optimistic message as failed when sending fails", async () => {

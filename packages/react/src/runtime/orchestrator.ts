@@ -10,6 +10,7 @@ import {
   useThreadContext,
   type ThreadContext,
 } from "../contexts/thread-context";
+import type { ThreadTurnPhase } from "../state/thread-store";
 import { SessionManager } from "./session-manager";
 import { toInboundMessage } from "./utils";
 import { mergeAssistantTurns } from "./merge-turns";
@@ -130,6 +131,22 @@ const updateOptimisticMessage = (
   if (changed) {
     threadContext.setThreadMessages(threadId, nextMessages);
   }
+};
+
+const updateTurnPhase = (
+  threadContext: ThreadContext,
+  threadId: string,
+  turnPhase: ThreadTurnPhase,
+) => {
+  const metadata = threadContext.getThreadMetadata(threadId);
+  if (!metadata || metadata.control.turnPhase === turnPhase) return;
+
+  threadContext.updateThreadMetadata(threadId, {
+    control: {
+      ...metadata.control,
+      turnPhase,
+    },
+  });
 };
 
 const appendPaymentRequiredMessage = (
@@ -299,6 +316,7 @@ export function useRuntimeOrchestrator(
       // Processing state
       cleanups.push(
         session.on("processing_start", () => {
+          updateTurnPhase(threadContextRef.current, threadId, "working");
           if (threadContextRef.current.currentThreadId === threadId) {
             setIsRunning(true);
           }
@@ -306,6 +324,7 @@ export function useRuntimeOrchestrator(
       );
       cleanups.push(
         session.on("processing_end", () => {
+          updateTurnPhase(threadContextRef.current, threadId, "idle");
           if (threadContextRef.current.currentThreadId === threadId) {
             setIsRunning(false);
           }
@@ -438,6 +457,7 @@ export function useRuntimeOrchestrator(
       threadContextRef.current.updateThreadMetadata(threadId, {
         lastActiveAt: new Date().toISOString(),
       });
+      updateTurnPhase(threadContextRef.current, threadId, "submitting");
 
       // Immediately show "generating" state so the UI switches to the stop
       // button and displays a loading indicator while the message is in flight.
@@ -466,6 +486,9 @@ export function useRuntimeOrchestrator(
           pendingRequestCount: session.getPendingRequests().length,
         });
         optionsRef.current.onSendSuccess?.(threadId);
+        if (!session.getIsProcessing()) {
+          updateTurnPhase(threadContextRef.current, threadId, "idle");
+        }
         if (threadContextRef.current.currentThreadId === threadId) {
           setIsRunning(session.getIsProcessing());
         }
@@ -487,6 +510,7 @@ export function useRuntimeOrchestrator(
         if (threadContextRef.current.currentThreadId === threadId) {
           setIsRunning(false);
         }
+        updateTurnPhase(threadContextRef.current, threadId, "idle");
         updateOptimisticMessage(
           threadContextRef.current,
           threadId,
@@ -509,6 +533,8 @@ export function useRuntimeOrchestrator(
     const session = sessionManagerRef.current?.get(threadId);
     if (session) {
       await session.interrupt();
+    } else {
+      updateTurnPhase(threadContextRef.current, threadId, "idle");
     }
   }, []);
 

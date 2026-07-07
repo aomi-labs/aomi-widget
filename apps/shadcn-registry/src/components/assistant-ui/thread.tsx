@@ -37,7 +37,12 @@ import { ToolFallback } from "@/components/assistant-ui/tool-fallback";
 import { AssistantTurnParts } from "@/components/assistant-ui/working-trace";
 import { TooltipIconButton } from "@/components/assistant-ui/tooltip-icon-button";
 
-import { cn, useNotification, useThreadContext } from "@aomi-labs/react";
+import {
+  cn,
+  useCurrentThreadMetadata,
+  useNotification,
+  useThreadContext,
+} from "@aomi-labs/react";
 import { useComposerControl } from "@/components/aomi-frame";
 import { ModelSelect } from "@/components/control-bar/model-select";
 import { AppSelect } from "@/components/control-bar/app-select";
@@ -47,11 +52,7 @@ import { ConnectButton } from "@/components/control-bar/connect-button";
 import { SecretGate } from "@/components/control-bar/secret-gate";
 import { PaymentRequiredGate } from "@/components/control-bar/payment-required-gate";
 import { shouldShowThreadLoadingSkeleton } from "@/components/assistant-ui/thread-loading";
-import {
-  useThread,
-  useComposerRuntime,
-  useMessage,
-} from "@assistant-ui/react";
+import { useThread, useComposerRuntime, useMessage } from "@assistant-ui/react";
 
 const seenSystemMessages = new Set<string>();
 
@@ -357,12 +358,14 @@ const AssistantMessage: FC = () => {
   const isEmpty = useMessage((state) => state.content.length === 0);
   const isRunning = useMessage((state) => state.status?.type === "running");
   const isLast = useMessage((state) => state.isLast);
+  const turnPhase = useCurrentThreadMetadata()?.control.turnPhase ?? "idle";
   const notice = useMessage((state) => state.metadata?.custom) as
     | { aomiNoticeKind?: string; aomiNoticeTitle?: string }
     | undefined;
   const isPaymentRequiredNotice = notice?.aomiNoticeKind === "payment_required";
-  const showLoadingDot = isEmpty && isRunning && isLast;
-  const showFinishedEmptyMessage = isEmpty && !showLoadingDot;
+  const showLoadingDot =
+    isEmpty && isRunning && isLast && turnPhase !== "working";
+  const showFinishedEmptyMessage = isEmpty && !isRunning;
 
   return (
     <MessagePrimitive.Root asChild>
@@ -391,11 +394,7 @@ const AssistantMessage: FC = () => {
 
         {!showFinishedEmptyMessage && !isPaymentRequiredNotice && (
           <div className="aui-assistant-message-content text-foreground break-words px-3 text-sm leading-5">
-            {showLoadingDot ? (
-              <AssistantLoadingDot />
-            ) : (
-              <AssistantTurnParts />
-            )}
+            {showLoadingDot ? <AssistantLoadingDot /> : <AssistantTurnParts />}
             <MessageError />
           </div>
         )}

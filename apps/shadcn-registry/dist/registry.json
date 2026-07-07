@@ -438,6 +438,14 @@
         {
           "type": "registry:component",
           "path": "components/assistant-ui/thread-loading.ts"
+        },
+        {
+          "type": "registry:component",
+          "path": "components/assistant-ui/working-trace.tsx"
+        },
+        {
+          "type": "registry:component",
+          "path": "components/assistant-ui/tool-icon.ts"
         }
       ],
       "dependencies": [

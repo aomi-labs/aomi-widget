@@ -142,3 +142,9 @@ Progress:
   composer, wallet/auth controls, and message text read closer to standard chat
   UI proportions without a visual redesign. Verified registry build with pinned
   `pnpm@10.28.0` and targeted ESLint on touched TSX files.
+- 2026-07-07 assistant turn phase polish: split chat sending into
+  `submitting` vs `working` phases so the UI keeps the blinking dot only while
+  the backend request is still pending, switches to a minimal Working shimmer
+  after the backend accepts processing, and buffers provisional pre-tool text
+  out of the final answer area. Verified focused React chat tests, React package
+  build, registry build, and targeted ESLint with pinned `pnpm@10.28.0`.

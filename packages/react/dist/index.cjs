@@ -498,7 +498,8 @@ function initThreadControl() {
     app: null,
     applicationId: null,
     controlDirty: false,
-    isProcessing: false
+    isProcessing: false,
+    turnPhase: "idle"
   };
 }
 var ThreadStore = class {
@@ -1808,6 +1809,15 @@ var updateOptimisticMessage = (threadContext, threadId, messageId, status, error
     threadContext.setThreadMessages(threadId, nextMessages);
   }
 };
+var updateTurnPhase = (threadContext, threadId, turnPhase) => {
+  const metadata = threadContext.getThreadMetadata(threadId);
+  if (!metadata || metadata.control.turnPhase === turnPhase) return;
+  threadContext.updateThreadMetadata(threadId, {
+    control: __spreadProps(__spreadValues({}, metadata.control), {
+      turnPhase
+    })
+  });
+};
 var appendPaymentRequiredMessage = (threadContext, threadId) => {
   var _a, _b;
   const messages = threadContext.getThreadMessages(threadId);
@@ -1939,6 +1949,7 @@ function useRuntimeOrchestrator(aomiClient, options) {
       );
       cleanups.push(
         session.on("processing_start", () => {
+          updateTurnPhase(threadContextRef.current, threadId, "working");
           if (threadContextRef.current.currentThreadId === threadId) {
             setIsRunning(true);
           }
@@ -1946,6 +1957,7 @@ function useRuntimeOrchestrator(aomiClient, options) {
       );
       cleanups.push(
         session.on("processing_end", () => {
+          updateTurnPhase(threadContextRef.current, threadId, "idle");
           if (threadContextRef.current.currentThreadId === threadId) {
             setIsRunning(false);
           }
@@ -2066,6 +2078,7 @@ function useRuntimeOrchestrator(aomiClient, options) {
       threadContextRef.current.updateThreadMetadata(threadId, {
         lastActiveAt: (/* @__PURE__ */ new Date()).toISOString()
       });
+      updateTurnPhase(threadContextRef.current, threadId, "submitting");
       if (threadContextRef.current.currentThreadId === threadId) {
         setIsRunning(true);
       }
@@ -2090,6 +2103,9 @@ function useRuntimeOrchestrator(aomiClient, options) {
           pendingRequestCount: session.getPendingRequests().length
         });
         (_d = (_c = optionsRef.current).onSendSuccess) == null ? void 0 : _d.call(_c, threadId);
+        if (!session.getIsProcessing()) {
+          updateTurnPhase(threadContextRef.current, threadId, "idle");
+        }
         if (threadContextRef.current.currentThreadId === threadId) {
           setIsRunning(session.getIsProcessing());
         }
@@ -2112,6 +2128,7 @@ function useRuntimeOrchestrator(aomiClient, options) {
         if (threadContextRef.current.currentThreadId === threadId) {
           setIsRunning(false);
         }
+        updateTurnPhase(threadContextRef.current, threadId, "idle");
         updateOptimisticMessage(
           threadContextRef.current,
           threadId,
@@ -2133,6 +2150,8 @@ function useRuntimeOrchestrator(aomiClient, options) {
     const session = (_a = sessionManagerRef.current) == null ? void 0 : _a.get(threadId);
     if (session) {
       await session.interrupt();
+    } else {
+      updateTurnPhase(threadContextRef.current, threadId, "idle");
     }
   }, []);
   (0, import_react10.useEffect)(() => {
@@ -3062,12 +3081,15 @@ function AomiRuntimeCore({
     warmThread
   ]);
   (0, import_react14.useEffect)(() => {
+    var _a;
     const threadId = threadContext.currentThreadId;
     const currentMeta = threadContext.getThreadMetadata(threadId);
-    if (currentMeta && currentMeta.control.isProcessing !== isRunning) {
+    const nextTurnPhase = isRunning ? (_a = currentMeta == null ? void 0 : currentMeta.control.turnPhase) != null ? _a : "working" : "idle";
+    if (currentMeta && (currentMeta.control.isProcessing !== isRunning || currentMeta.control.turnPhase !== nextTurnPhase)) {
       threadContext.updateThreadMetadata(threadId, {
         control: __spreadProps(__spreadValues({}, currentMeta.control), {
-          isProcessing: isRunning
+          isProcessing: isRunning,
+          turnPhase: nextTurnPhase
         })
       });
     }

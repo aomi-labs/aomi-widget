@@ -262,11 +262,19 @@ export function AomiRuntimeCore({
   useEffect(() => {
     const threadId = threadContext.currentThreadId;
     const currentMeta = threadContext.getThreadMetadata(threadId);
-    if (currentMeta && currentMeta.control.isProcessing !== isRunning) {
+    const nextTurnPhase = isRunning
+      ? (currentMeta?.control.turnPhase ?? "working")
+      : "idle";
+    if (
+      currentMeta &&
+      (currentMeta.control.isProcessing !== isRunning ||
+        currentMeta.control.turnPhase !== nextTurnPhase)
+    ) {
       threadContext.updateThreadMetadata(threadId, {
         control: {
           ...currentMeta.control,
           isProcessing: isRunning,
+          turnPhase: nextTurnPhase,
         },
       });
     }
