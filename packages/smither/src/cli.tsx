@@ -19,7 +19,7 @@ import type { CommandRunner } from "./types";
 import { defaultRunsRoot } from "./state";
 import {
   decideApproval,
-  executeRun,
+  executeRunUntilSettled,
   prepareRun,
   type PreparedRun,
 } from "./run";
@@ -28,6 +28,7 @@ import {
   startConsoleForApp,
   type ConsoleHandle,
 } from "./console";
+import { startIntakeServer, type IntakeServerHandle } from "./intake";
 import {
   executeRollback,
   planRollback,
@@ -366,6 +367,50 @@ function SmitherApp({ args }: { args: CliArgs }) {
   const [turns, setTurns] = useState<IntentTurn[]>([{ role: "smither", text: GREETING }]);
   const [draft, setDraft] = useState<Partial<BuildPlan>>(args.draft);
   const [screen, setScreen] = useState<Screen>({ name: "chat", thinking: false });
+  const intakeRef = useRef<IntakeServerHandle | null>(null);
+  const [intakeUrl, setIntakeUrl] = useState<string | null>(null);
+
+  // Boot the intake view at t=0 so the browser shows the composer working —
+  // the conversation, the plan forming, the composed stages — before any
+  // Smithers workflow exists. Off when the console is disabled or headless.
+  useEffect(() => {
+    if (args.console === false) return;
+    let handle: IntakeServerHandle | null = null;
+    void (async () => {
+      try {
+        handle = await startIntakeServer({
+          app: typeof args.draft.app === "string" ? args.draft.app : "new app",
+          port: args.consolePort,
+        });
+        intakeRef.current = handle;
+        setIntakeUrl(handle.url);
+      } catch {
+        /* intake view is best-effort; the terminal chat proceeds regardless */
+      }
+    })();
+    return () => {
+      handle?.close();
+    };
+  }, []);
+
+  // Mirror chat state into the intake view every time it changes.
+  useEffect(() => {
+    const outcome = finalizePlan(draft);
+    intakeRef.current?.update({
+      app: typeof draft.app === "string" ? draft.app : "new app",
+      turns,
+      draft,
+      thinking: screen.name === "chat" && screen.thinking,
+      thinkingSince: screen.name === "chat" && screen.thinking ? Date.now() : null,
+      stages: outcome.plan ? stagesFor(outcome.plan) : [],
+      phase:
+        screen.name === "running"
+          ? "building"
+          : screen.name === "preview"
+            ? "preview"
+            : "intake",
+    });
+  }, [turns, draft, screen]);
 
   const submitChat = useCallback(
     (text: string) => {
@@ -436,6 +481,7 @@ function SmitherApp({ args }: { args: CliArgs }) {
     return (
       <Box flexDirection="column" gap={0}>
         <Text bold>Aomi Smither</Text>
+        {intakeUrl ? <Text dimColor>⌗ intake view: {intakeUrl}</Text> : null}
         {turns.slice(-12).map((turn, index) => (
           <Text key={index} color={turn.role === "smither" ? "cyan" : undefined}>
             {turn.role === "smither" ? "smither" : "you"}: {turn.text}
@@ -487,8 +533,14 @@ function SmitherApp({ args }: { args: CliArgs }) {
     <RunView
       plan={screen.plan}
       args={args}
+      onConsoleUrl={(url) => {
+        // Hand the gateway console URL to the intake page so the browser tab
+        // that watched the composition follows into the live build graph.
+        intakeRef.current?.update({ phase: "building", buildUrl: url });
+      }}
       onExit={(code) => {
         process.exitCode = code;
+        intakeRef.current?.close();
         exit();
         // The Smithers engine keeps heartbeat/timer handles alive after the
         // run resolves; give Ink one tick to flush, then exit for real.
@@ -511,10 +563,12 @@ function RunView({
   plan,
   args,
   onExit,
+  onConsoleUrl,
 }: {
   plan: BuildPlan;
   args: CliArgs;
   onExit: (code: number) => void;
+  onConsoleUrl?: (url: string) => void;
 }) {
   const stages = stagesFor(plan);
   const [view, setView] = useState<RunViewState>({
@@ -567,12 +621,14 @@ function RunView({
             const handle = await startConsole({
               workflow: prepared.workflow,
               app: plan.app,
+              api: prepared.api,
               plan,
               builtinConsole: args.consoleBuiltin,
               port: args.consolePort,
             });
             consoleRef.current = handle;
             setConsoleUrl(handle.workflowUrl);
+            onConsoleUrl?.(handle.workflowUrl);
           } catch (error) {
             setView((prev) => ({
               ...prev,
@@ -583,7 +639,7 @@ function RunView({
             }));
           }
         }
-        const result = await executeRun(prepared, {
+        const result = await executeRunUntilSettled(prepared, {
           onEvent: (event) => setView((prev) => reduceEvent(plan, prev, event)),
         });
         setOutcome(result.status);
@@ -596,7 +652,11 @@ function RunView({
   }, []);
 
   const decide = useCallback(
-    (approval: { nodeId: string; iteration: number }, approve: boolean) => {
+    (
+      approval: { nodeId: string; iteration: number },
+      approve: boolean,
+      selection?: { selected: string; notes?: string },
+    ) => {
       const prepared = preparedRef.current;
       if (!prepared) return;
       void decideApproval({
@@ -605,6 +665,7 @@ function RunView({
         nodeId: approval.nodeId,
         iteration: approval.iteration,
         approve,
+        selection,
       }).catch((error) => {
         setView((prev) => ({
           ...prev,
@@ -650,15 +711,37 @@ function RunView({
         </Box>
       ) : null}
       {pendingApproval && !outcome ? (
-        <Box flexDirection="column">
-          <Text color="yellow">
-            {pendingApproval.title ?? `Approve ${pendingApproval.nodeId}?`}
-          </Text>
-          <ConfirmInput
-            onConfirm={() => decide(pendingApproval, true)}
-            onCancel={() => decide(pendingApproval, false)}
-          />
-        </Box>
+        (() => {
+          const stage = stages.find((s) => s.id === pendingApproval.nodeId);
+          if (stage?.kind === "clarify" && stage.clarify) {
+            return (
+              <Box flexDirection="column">
+                <Text color="yellow">{stage.clarify.question}</Text>
+                {stage.clarify.summary ? <Text dimColor>{stage.clarify.summary}</Text> : null}
+                <Select
+                  options={stage.clarify.options.map((option) => ({
+                    label: option.summary
+                      ? `${option.label} — ${option.summary}`
+                      : option.label,
+                    value: option.key,
+                  }))}
+                  onChange={(value) => decide(pendingApproval, true, { selected: value })}
+                />
+              </Box>
+            );
+          }
+          return (
+            <Box flexDirection="column">
+              <Text color="yellow">
+                {pendingApproval.title ?? `Approve ${pendingApproval.nodeId}?`}
+              </Text>
+              <ConfirmInput
+                onConfirm={() => decide(pendingApproval, true)}
+                onCancel={() => decide(pendingApproval, false)}
+              />
+            </Box>
+          );
+        })()
       ) : null}
     </Box>
   );
@@ -703,6 +786,7 @@ async function runHeadless(args: CliArgs): Promise<void> {
         const handle = await startConsole({
           workflow: prepared.workflow,
           app: plan.app,
+          api: prepared.api,
           plan,
           builtinConsole: args.consoleBuiltin,
           port: args.consolePort,
@@ -714,7 +798,7 @@ async function runHeadless(args: CliArgs): Promise<void> {
         );
       }
     }
-    const result = await executeRun(prepared, {
+    const result = await executeRunUntilSettled(prepared, {
       onEvent: (event) => {
         if (event.type === "NodeStarted") console.error(`▸ ${event.nodeId}`);
         if (event.type === "NodeFinished") console.error(`✓ ${event.nodeId}`);

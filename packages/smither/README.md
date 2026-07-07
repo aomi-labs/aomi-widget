@@ -26,19 +26,66 @@ pnpm --filter @aomi-labs/smither exec aomi-smither console --app my-app
 ## How it works
 
 1. **Intent chat** (`intent.ts`) — a read-only CLI agent turns the
-   conversation into a partial `BuildPlan` plus follow-up questions.
+   conversation into a partial `BuildPlan` plus follow-up questions. It is
+   also the **composer**: for targets the standard pipeline can't serve, it
+   proposes a `phases` composition (see below) that the human reviews in the
+   preview. It probes viability first — a platform with no public HTTP API
+   (e.g. Morpho: GraphQL + contracts only) is caught in the chat, not at
+   codegen, with research-mode / draft-spec / different-target offered as
+   choices.
 2. **Plan** (`plan.ts`) — the validated `BuildPlan` is the single contract:
    `stagesFor(plan)` is the composed stage list shown in the preview, and the
    workflow renders from the same ids.
-3. **Smithers run** (`workflow.tsx`, `run.ts`) — the plan becomes a JSX task
-   graph executed by `smithers-orchestrator` on Bun's SQLite runtime. Outputs
-   persist per task; **a completed task is never re-executed**, so crashes and
-   Ctrl-C resume exactly where they stopped (state under
-   `.smithers/runs/<app>/`). Approval gates (agent curation, deploy) are
-   durable — the TUI prompts inline, and a headless `--yes` run auto-approves.
-4. **Repair loop** — validation failures mount a repair agent task that forks
-   the curator's session (full context, no re-prompting), up to
-   `--max-fix-rounds` times.
+3. **Smithers run** (`workflow.tsx`, `run.ts`) — the composition becomes a JSX
+   task graph executed by `smithers-orchestrator` on Bun's SQLite runtime.
+   Outputs persist per task; **a completed task is never re-executed**, so
+   crashes and Ctrl-C resume exactly where they stopped (state under
+   `.smithers/runs/<app>/`). Approval gates (agent curation, clarify, deploy)
+   are durable — the TUI prompts inline, and a headless `--yes` run
+   auto-approves.
+4. **Repair loop** — validation failures mount a repair agent task carrying
+   the validation log (fresh session; CLI agents don't persist forkable
+   session snapshots in 0.26.1), up to `--max-fix-rounds` times.
+
+## Composition & clarify
+
+A plan is a composition of typed phases (`plan.ts`), not flags on one
+hardcoded pipeline — the flag-driven pipeline is just the default composition,
+with identical node ids (existing runs resume cleanly). The vocabulary:
+
+- **compute** — deterministic ops (`binaries`, `codegen`, `validate`,
+  `smoke`, `deploy`, `result`); the only phases that touch the shell.
+- **agent** — LLM roles: `curate`/`review`/`fix` (classic), plus `research`
+  (protocol study → `apps/<app>/research.md`), `draft-spec` (OpenAPI from
+  docs), and `synthesize` (research → preambles/building blocks) for
+  spec-less targets. Each takes an optional `brief`.
+- **clarify** — the run pauses on a human question with 2–6 options
+  (select-mode Smithers approval). Answerable from the TUI **or** the browser
+  console; the durable `{selected, notes}` decision is folded into every
+  later agent prompt as context. Headless `--yes` auto-selects the first
+  (recommended) option.
+- **gate** — binary approval (the deploy gate).
+- **loop** — bounded retry (`until: validation-green`); body phases can be
+  conditional (`onlyIf: "prev-red"` for the repair agent).
+
+`executeRunUntilSettled` (run.ts) is the approval-aware runner: the engine
+*returns* `waiting-approval` rather than blocking on it, so the runner
+re-executes with resume after each durable decision — from whichever surface
+wrote it. The browser console gets a loopback **decision endpoint**
+(`POST /decide`) beside the gateway, because the stock gateway approve route
+drops decision payloads (0.26.1) and select-mode clarifies need them.
+
+## Intake view (watch the composition from t=0)
+
+The composer (`distillIntent`) runs *before* any Smithers workflow exists, so
+it can't be a gateway node. Interactive runs instead boot a lightweight
+**intake view** (`intake.ts`) at startup and print a `⌗ intake view:` URL — an
+aomi-branded page that streams the conversation, the composer thinking, the
+plan taking shape, and the composed stage preview live as you chat. When you
+confirm the plan and the build starts, the page **follows itself** to the
+gateway console (`buildUrl`) — one browser tab across the whole flow: intake →
+compose → build → deploy. `--no-console` disables it along with the build
+console.
 
 ## Browser console (live workflow visualization)
 

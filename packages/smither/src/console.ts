@@ -1,14 +1,16 @@
 import { existsSync } from "node:fs";
+import { createServer as createHttpServer, type Server } from "node:http";
 import { createServer as createNetServer } from "node:net";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import type { GatewayOptions } from "smithers-orchestrator";
 import { stagesFor, type BuildPlan } from "./plan";
-import { assertBunRuntime } from "./run";
+import { assertBunRuntime, decideApproval } from "./run";
 import { defaultRunsRoot, loadPlan, smitherDbPath } from "./state";
 import {
   buildAppWorkflow,
   createAomiSmither,
+  type AomiSmitherApi,
   type AomiWorkflow,
 } from "./workflow";
 
@@ -59,12 +61,20 @@ export type ConsoleHandle = {
   /** Per-workflow view at /workflows/<app>: the aomi-branded UI when its entry
    *  is available, else the built-in workflow console. */
   workflowUrl: string;
+  /** Loopback decision endpoint (POST /decide) when the console was started
+   *  with a run api — the write path for select-mode clarify decisions. */
+  decideUrl?: string;
   close: () => Promise<void>;
 };
 
 export type ConsoleOptions = {
   workflow: AomiWorkflow;
   app: string;
+  /** The Smithers api backing this run's SQLite. When present, a small
+   *  decision endpoint boots beside the gateway so the branded UI can submit
+   *  select-mode (clarify) decisions — the stock gateway approve route drops
+   *  the decision payload in 0.26.1, so selections need this side channel. */
+  api?: AomiSmitherApi;
   /** The plan behind this workflow. When present, its stage list is passed to
    *  the branded UI as boot props so the stage rail shows friendly labels
    *  immediately (before any event arrives). */
@@ -83,7 +93,7 @@ export type ConsoleOptions = {
 
 /** Choose the UI registration for `register()`: branded custom entry when
  *  available, else the built-in operator console. */
-function uiRegistration(options: ConsoleOptions): UiRegistration {
+function uiRegistration(options: ConsoleOptions, decideUrl?: string): UiRegistration {
   if (options.builtinConsole) return true;
   const entry = resolveBrandedEntry();
   if (!entry) return true;
@@ -95,8 +105,84 @@ function uiRegistration(options: ConsoleOptions): UiRegistration {
       stages: options.plan ? stagesFor(options.plan) : [],
       deploy: options.plan?.deploy ?? false,
       smoke: options.plan?.smoke ?? false,
+      ...(decideUrl ? { decideUrl } : {}),
     },
   };
+}
+
+/**
+ * Loopback decision endpoint beside the gateway. POST {runId, nodeId,
+ * iteration, approve, selected?, notes?} → the same durable `decideApproval`
+ * write the TUI does. Exists because the stock gateway's approve route drops
+ * the decision payload, which select-mode clarifies need.
+ */
+function startDecisionServer(api: AomiSmitherApi, host: string): Promise<{
+  server: Server;
+  port: number;
+}> {
+  const server = createHttpServer((req, res) => {
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
+    res.setHeader("Access-Control-Allow-Headers", "content-type");
+    if (req.method === "OPTIONS") {
+      res.writeHead(204).end();
+      return;
+    }
+    if (req.method !== "POST" || req.url !== "/decide") {
+      res.writeHead(404).end(JSON.stringify({ error: "POST /decide only" }));
+      return;
+    }
+    let body = "";
+    req.on("data", (chunk: Buffer) => {
+      body += chunk.toString("utf8");
+      if (body.length > 64_000) req.destroy();
+    });
+    req.on("end", () => {
+      void (async () => {
+        try {
+          const parsed = JSON.parse(body) as {
+            runId?: string;
+            nodeId?: string;
+            iteration?: number;
+            approve?: boolean;
+            selected?: string;
+            notes?: string;
+          };
+          if (!parsed.runId || !parsed.nodeId) {
+            res.writeHead(400).end(JSON.stringify({ error: "runId and nodeId required" }));
+            return;
+          }
+          await decideApproval({
+            api,
+            runId: parsed.runId,
+            nodeId: parsed.nodeId,
+            iteration: parsed.iteration ?? 0,
+            approve: parsed.approve ?? true,
+            decidedBy: "aomi-smither-console",
+            ...(parsed.selected
+              ? { selection: { selected: parsed.selected, notes: parsed.notes } }
+              : {}),
+          });
+          res.writeHead(200, { "content-type": "application/json" }).end(
+            JSON.stringify({ ok: true }),
+          );
+        } catch (error) {
+          res.writeHead(500, { "content-type": "application/json" }).end(
+            JSON.stringify({ error: String(error instanceof Error ? error.message : error) }),
+          );
+        }
+      })();
+    });
+  });
+  return new Promise((resolvePort, reject) => {
+    server.once("error", reject);
+    // Port 0: the OS picks a free port; no retry loop needed.
+    server.listen({ host, port: 0 }, () => {
+      const addr = server.address();
+      const port = addr && typeof addr === "object" ? addr.port : 0;
+      resolvePort({ server, port });
+    });
+  });
 }
 
 export const DEFAULT_CONSOLE_PORT = 7331;
@@ -150,7 +236,11 @@ export async function startConsole(options: ConsoleOptions): Promise<ConsoleHand
   const firstPort = options.port ?? DEFAULT_CONSOLE_PORT;
   const tries = Math.max(1, options.maxPortTries ?? 10);
 
-  const ui = uiRegistration(options);
+  const decisions = options.api ? await startDecisionServer(options.api, host) : null;
+  const ui = uiRegistration(
+    options,
+    decisions ? `http://${host}:${decisions.port}/decide` : undefined,
+  );
   let lastError: unknown;
   for (let attempt = 0; attempt < tries; attempt += 1) {
     const port = firstPort + attempt;
@@ -173,7 +263,13 @@ export async function startConsole(options: ConsoleOptions): Promise<ConsoleHand
         // ui:true mounts the built-in console at the workflow-level default
         // path, /workflows/<key> (see resolveGatewayUiConfig).
         workflowUrl: `${origin}/workflows/${encodeURIComponent(options.app)}`,
-        close: () => gateway.close(),
+        ...(decisions
+          ? { decideUrl: `http://${host}:${decisions.port}/decide` }
+          : {}),
+        close: async () => {
+          decisions?.server.close();
+          await gateway.close();
+        },
       };
     } catch (error) {
       // Backstop for the probe→listen race; keep trying on address conflicts.
@@ -219,6 +315,7 @@ export async function startConsoleForApp(options: {
   return startConsole({
     workflow,
     app: options.app,
+    api,
     plan,
     builtinConsole: options.builtinConsole,
     port: options.port,

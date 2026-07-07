@@ -2,11 +2,136 @@ import { z } from "zod";
 
 export const WORKFLOW_NAME = "aomi-app-from-scratch";
 
+// ---------------------------------------------------------------------------
+// Phase vocabulary — the composition model
+// ---------------------------------------------------------------------------
+//
+// A plan is no longer flags on one hardcoded pipeline: it is a composition of
+// typed phases the intent agent proposes and the human edits in the preview.
+// The classic flag-driven pipeline is just one canned composition
+// (`classicComposition`), so flag-only CLI invocations behave exactly as
+// before — including node ids, which resume depends on.
+
+export const clarifyOptionSchema = z.object({
+  key: z
+    .string()
+    .min(1)
+    .regex(/^[a-z0-9][a-z0-9-]*$/, "option keys are short kebab-case slugs"),
+  label: z.string().min(1),
+  summary: z.string().optional(),
+});
+export type ClarifyOption = z.infer<typeof clarifyOptionSchema>;
+
+const phaseIdSchema = z
+  .string()
+  .min(1)
+  .regex(/^[a-z0-9][a-z0-9-]*$/, "phase ids are short kebab-case slugs");
+
+/** Deterministic command steps. Each op maps to one step function and one
+ *  output table; ops are the only things allowed to touch the shell. */
+export const computeOpSchema = z.enum([
+  "binaries",
+  "codegen",
+  "validate",
+  "smoke",
+  "deploy",
+  "result",
+]);
+export type ComputeOp = z.infer<typeof computeOpSchema>;
+
+/** LLM roles. curate/review/fix are the classic trio; research, draft-spec,
+ *  and synthesize exist for spec-less targets (protocol research distilled
+ *  into preambles/building blocks) and for drafting OpenAPI specs from docs. */
+export const agentRoleSchema = z.enum([
+  "curate",
+  "review",
+  "fix",
+  "research",
+  "draft-spec",
+  "synthesize",
+]);
+export type AgentRole = z.infer<typeof agentRoleSchema>;
+
+export const computePhaseSchema = z.object({
+  kind: z.literal("compute"),
+  id: phaseIdSchema,
+  op: computeOpSchema,
+  label: z.string().optional(),
+});
+
+export const agentPhaseSchema = z.object({
+  kind: z.literal("agent"),
+  id: phaseIdSchema,
+  role: agentRoleSchema,
+  /** Which CLI agent runs it. Defaults to plan.builder (plan.reviewer for
+   *  role "review"). */
+  agent: z.enum(["claude", "codex"]).optional(),
+  /** Composer- or human-supplied focus folded into the role prompt. */
+  brief: z.string().optional(),
+  /** Loop-body conditional: mount only when the latest validation is red. */
+  onlyIf: z.enum(["prev-red"]).optional(),
+  label: z.string().optional(),
+});
+
+/** A human question the run pauses on. Renders as a select-mode Smithers
+ *  approval: durable, answerable from the TUI or the browser console, and the
+ *  `{selected, notes}` decision becomes context for later phases. */
+export const clarifyPhaseSchema = z.object({
+  kind: z.literal("clarify"),
+  id: phaseIdSchema,
+  question: z.string().min(1),
+  summary: z.string().optional(),
+  /** First option is the recommendation — headless --yes runs auto-select it. */
+  options: z.array(clarifyOptionSchema).min(2).max(6),
+  label: z.string().optional(),
+});
+
+export const gatePhaseSchema = z.object({
+  kind: z.literal("gate"),
+  id: phaseIdSchema,
+  title: z.string().min(1),
+  summary: z.string().optional(),
+  label: z.string().optional(),
+});
+
+export const innerPhaseSchema = z.discriminatedUnion("kind", [
+  computePhaseSchema,
+  agentPhaseSchema,
+  clarifyPhaseSchema,
+  gatePhaseSchema,
+]);
+export type InnerPhase = z.infer<typeof innerPhaseSchema>;
+
+/** A bounded retry loop. `until` names a persisted exit predicate; hitting
+ *  maxRounds fails the run (stage 2 will escalate to a clarify instead). */
+export const loopPhaseSchema = z.object({
+  kind: z.literal("loop"),
+  id: phaseIdSchema,
+  until: z.enum(["validation-green"]),
+  maxRounds: z.number().int().min(1).max(6).default(3),
+  body: z.array(innerPhaseSchema).min(1),
+  label: z.string().optional(),
+});
+
+export const phaseSchema = z.discriminatedUnion("kind", [
+  computePhaseSchema,
+  agentPhaseSchema,
+  clarifyPhaseSchema,
+  gatePhaseSchema,
+  loopPhaseSchema,
+]);
+export type Phase = z.infer<typeof phaseSchema>;
+
+// ---------------------------------------------------------------------------
+// BuildPlan
+// ---------------------------------------------------------------------------
+
 /**
  * The contract between the intent conversation and the Smithers workflow.
  * The chat distills user intent into this plan; `buildAppWorkflow` renders
- * the task graph from it. Everything the workflow's shape depends on lives
- * here so the composed graph is a pure function of (plan, persisted state).
+ * the task graph from `resolveComposition(plan)`. Everything the workflow's
+ * shape depends on lives here so the composed graph is a pure function of
+ * (plan, persisted state).
  */
 export const buildPlanSchema = z.object({
   app: z
@@ -44,6 +169,10 @@ export const buildPlanSchema = z.object({
   autoApprove: z.boolean().default(false),
   /** Proceed even when the SDK checkout can't be synced with GitHub. */
   allowStaleSdk: z.boolean().default(false),
+  /** Composed phase list. Absent ⇒ `classicComposition` (the flag-driven
+   *  pipeline). Present ⇒ the intent agent (edited by the human in preview)
+   *  chose the shape: research-mode, draft-spec, extra clarifies, etc. */
+  phases: z.array(phaseSchema).optional(),
 });
 
 export type BuildPlan = z.infer<typeof buildPlanSchema>;
@@ -54,60 +183,199 @@ export function nodeId(app: string, stage: string): string {
   return `${app}:${stage}`;
 }
 
+// ---------------------------------------------------------------------------
+// Composition
+// ---------------------------------------------------------------------------
+
+/** The flag-driven pipeline as a composition. Ids match the pre-composition
+ *  workflow exactly, so existing run state resumes cleanly. */
+export function classicComposition(plan: BuildPlan): Phase[] {
+  const phases: Phase[] = [
+    { kind: "compute", id: "binaries", op: "binaries" },
+    { kind: "compute", id: "codegen", op: "codegen" },
+  ];
+  if (plan.builder !== "none") {
+    phases.push({ kind: "agent", id: "curate", role: "curate" });
+    if (plan.review) {
+      phases.push({ kind: "agent", id: "review", role: "review", agent: plan.reviewer });
+    }
+  }
+  phases.push({
+    kind: "loop",
+    id: "validate-loop",
+    until: "validation-green",
+    maxRounds: plan.builder === "none" ? 1 : plan.maxFixRounds + 1,
+    body:
+      plan.builder === "none"
+        ? [{ kind: "compute", id: "validate", op: "validate" }]
+        : [
+            { kind: "compute", id: "validate", op: "validate" },
+            { kind: "agent", id: "fix", role: "fix", onlyIf: "prev-red" },
+          ],
+  });
+  if (plan.smoke) {
+    phases.push({ kind: "compute", id: "smoke", op: "smoke" });
+  }
+  if (plan.deploy) {
+    if (!plan.autoApprove) {
+      phases.push({
+        kind: "gate",
+        id: "deploy-gate",
+        title: `Deploy ${plan.app} to Aomi?`,
+        summary:
+          "Ships the validated build via aomi-build deploy. Requires an activation token (flag, AOMI_APP_ACTIVATION_TOKEN, or ~/.config/aomi/config.toml).",
+      });
+    }
+    phases.push({ kind: "compute", id: "deploy", op: "deploy" });
+  }
+  phases.push({ kind: "compute", id: "result", op: "result" });
+  return phases;
+}
+
+/** The composition the workflow renders: the composed phases when the intent
+ *  agent proposed them, else the classic pipeline. A trailing `result` compute
+ *  phase is guaranteed so every run summarizes. */
+export function resolveComposition(plan: BuildPlan): Phase[] {
+  if (!plan.phases || plan.phases.length === 0) return classicComposition(plan);
+  const phases = [...plan.phases];
+  const hasResult = phases.some((p) => p.kind === "compute" && p.op === "result");
+  if (!hasResult) phases.push({ kind: "compute", id: "result", op: "result" });
+  return phases;
+}
+
+/** Structural problems in a composed phase list — surfaced at finalize time
+ *  so the TUI can bounce them back into the conversation. */
+export function compositionIssues(plan: BuildPlan): string[] {
+  if (!plan.phases || plan.phases.length === 0) return [];
+  const issues: string[] = [];
+  const phases = resolveComposition(plan);
+  const seen = new Set<string>();
+  const flat: InnerPhase[] = [];
+  for (const phase of phases) {
+    for (const p of phase.kind === "loop" ? [phase, ...phase.body] : [phase]) {
+      if (seen.has(p.id)) issues.push(`phases: duplicate id "${p.id}"`);
+      seen.add(p.id);
+      if (p.kind !== "loop") flat.push(p);
+    }
+  }
+  const opIndex = (op: ComputeOp) =>
+    flat.findIndex((p) => p.kind === "compute" && p.op === op);
+  const binariesAt = opIndex("binaries");
+  for (const op of ["codegen", "smoke", "deploy"] as const) {
+    const at = opIndex(op);
+    if (at !== -1 && (binariesAt === -1 || binariesAt > at)) {
+      issues.push(`phases: "${op}" needs a "binaries" compute phase before it`);
+    }
+  }
+  const fixOutsideLoop = phases.some(
+    (p) => p.kind === "agent" && p.role === "fix",
+  );
+  if (fixOutsideLoop) {
+    issues.push('phases: role "fix" only makes sense inside a loop body');
+  }
+  for (const phase of phases) {
+    if (phase.kind !== "loop") continue;
+    if (
+      phase.until === "validation-green" &&
+      !phase.body.some((p) => p.kind === "compute" && p.op === "validate")
+    ) {
+      issues.push(
+        `phases: loop "${phase.id}" exits on validation-green but has no "validate" compute phase in its body`,
+      );
+    }
+  }
+  return issues;
+}
+
+// ---------------------------------------------------------------------------
+// Stage rail (preview / TUI / console all derive from this)
+// ---------------------------------------------------------------------------
+
 export type PlanStage = {
   id: string;
   label: string;
-  kind: "compute" | "agent" | "loop" | "approval";
+  kind: "compute" | "agent" | "loop" | "approval" | "clarify";
+  /** Clarify metadata rides along so every surface (TUI, browser console) can
+   *  render the options without a second data path. */
+  clarify?: { question: string; summary?: string; options: ClarifyOption[] };
 };
+
+const OP_LABEL: Record<ComputeOp, string> = {
+  binaries: "Sync SDK from GitHub, build aomi binaries",
+  codegen: "aomi-build codegen",
+  validate: "Validate (cargo fmt/clippy/test)",
+  smoke: "Compile plugin, local aomi-run smoke",
+  deploy: "Deploy via aomi-build",
+  result: "Summarize run",
+};
+
+const ROLE_LABEL: Record<AgentRole, (agent: string) => string> = {
+  curate: (a) => `Curate tools with ${a}`,
+  review: (a) => `Review curation with ${a}`,
+  fix: (a) => `Repair validation with ${a}`,
+  research: (a) => `Research protocols with ${a}`,
+  "draft-spec": (a) => `Draft OpenAPI spec with ${a}`,
+  synthesize: (a) => `Synthesize preambles with ${a}`,
+};
+
+export function phaseAgent(plan: BuildPlan, phase: { role: AgentRole; agent?: "claude" | "codex" }): "claude" | "codex" {
+  if (phase.agent) return phase.agent;
+  if (phase.role === "review") return plan.reviewer;
+  return plan.builder === "none" ? "claude" : plan.builder;
+}
+
+function stageLabel(plan: BuildPlan, phase: Phase): string {
+  if (phase.label) return phase.label;
+  switch (phase.kind) {
+    case "compute":
+      if (phase.op === "codegen") {
+        return plan.source === "existing"
+          ? "aomi-build gen-client + gen-tool from existing spec"
+          : "aomi-build new-app codegen";
+      }
+      return OP_LABEL[phase.op];
+    case "agent":
+      return ROLE_LABEL[phase.role](phaseAgent(plan, phase));
+    case "clarify":
+      return phase.question;
+    case "gate":
+      return phase.title;
+    case "loop": {
+      const repairs = phase.body.filter((p) => p.kind === "agent").length;
+      return repairs > 0
+        ? `Validate, repair (up to ${phase.maxRounds - 1} rounds)`
+        : "Validate (cargo fmt/clippy/test)";
+    }
+  }
+}
 
 /** The stage list the plan composes to — the preview screen, dry-run output,
  *  and the workflow all derive from this single source. */
 export function stagesFor(plan: BuildPlan): PlanStage[] {
   const id = (stage: string) => nodeId(plan.app, stage);
-  const stages: PlanStage[] = [
-    { id: id("binaries"), label: "Sync SDK from GitHub, build aomi binaries", kind: "compute" },
-    {
-      id: id("codegen"),
-      label:
-        plan.source === "existing"
-          ? "aomi-build gen-client + gen-tool from existing spec"
-          : "aomi-build new-app codegen",
-      kind: "compute",
-    },
-  ];
-  if (plan.builder !== "none") {
-    stages.push({
-      id: id("curate"),
-      label: `Curate tools with ${plan.builder}`,
-      kind: "agent",
-    });
-    if (plan.review) {
-      stages.push({
-        id: id("review"),
-        label: `Review curation with ${plan.reviewer}`,
-        kind: "agent",
-      });
+  return resolveComposition(plan).map((phase): PlanStage => {
+    const base = { id: id(phase.id), label: stageLabel(plan, phase) };
+    switch (phase.kind) {
+      case "compute":
+        return { ...base, kind: "compute" };
+      case "agent":
+        return { ...base, kind: "agent" };
+      case "loop":
+        return { ...base, kind: "loop" };
+      case "gate":
+        return { ...base, kind: "approval" };
+      case "clarify":
+        return {
+          ...base,
+          kind: "clarify",
+          clarify: {
+            question: phase.question,
+            summary: phase.summary,
+            options: phase.options,
+          },
+        };
     }
-  }
-  stages.push({
-    id: id("validate-loop"),
-    label:
-      plan.builder === "none"
-        ? "Validate (cargo fmt/clippy/test)"
-        : `Validate, repair with ${plan.builder} (up to ${plan.maxFixRounds} rounds)`,
-    kind: "loop",
   });
-  if (plan.smoke) {
-    stages.push({ id: id("smoke"), label: "Compile plugin, local aomi-run smoke", kind: "compute" });
-  }
-  if (plan.deploy) {
-    if (!plan.autoApprove) {
-      stages.push({ id: id("deploy-gate"), label: "Deploy approval gate", kind: "approval" });
-    }
-    stages.push({ id: id("deploy"), label: "Deploy via aomi-build", kind: "compute" });
-  }
-  stages.push({ id: id("result"), label: "Summarize run", kind: "compute" });
-  return stages;
 }
 
 /** Human-readable plan summary for the preview screen and dry-run output. */
@@ -130,6 +398,9 @@ export function describePlan(plan: BuildPlan): string[] {
   ];
   if (plan.shared) lines.push("shared: generate provider under ext/");
   if (plan.force) lines.push("force: overwrite generated files");
+  if (plan.phases && plan.phases.length > 0) {
+    lines.push(`composition: ${plan.phases.length} custom phases (composed from intent)`);
+  }
   return lines;
 }
 
@@ -164,6 +435,10 @@ export function finalizePlan(
   }
   if (parsed.data.source === "url" && !parsed.data.openApiUrl) {
     return { plan: null, issues: ["openApiUrl: required when source is \"url\""] };
+  }
+  const issues = compositionIssues(parsed.data);
+  if (issues.length > 0) {
+    return { plan: null, issues };
   }
   return { plan: parsed.data, issues: [] };
 }

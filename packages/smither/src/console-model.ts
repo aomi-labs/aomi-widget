@@ -15,6 +15,13 @@ export type UiStage = {
   id: string;
   label: string;
   kind: string;
+  /** Clarify metadata (question + options) rides on the stage so the browser
+   *  UI can render option buttons without a second data path. */
+  clarify?: {
+    question: string;
+    summary?: string;
+    options: Array<{ key: string; label: string; summary?: string }>;
+  };
 };
 
 /** Minimal view of a gateway run-event frame (see `GatewayEventFrame`). */

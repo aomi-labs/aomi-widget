@@ -38,6 +38,10 @@ type BootProps = {
   stages?: UiStage[];
   deploy?: boolean;
   smoke?: boolean;
+  /** Loopback decision endpoint (console.ts startDecisionServer). Present when
+   *  the console runs beside a live run api; carries select-mode clarify
+   *  decisions that the stock gateway approve route drops. */
+  decideUrl?: string;
 };
 
 const boot = (globalThis as { __SMITHERS_GATEWAY_UI__?: { workflowKey?: string | null; props?: BootProps } })
@@ -210,13 +214,32 @@ function App() {
 
   const actions = useGatewayActions();
   const decide = useCallback(
-    (approval: ApprovalRow, approved: boolean) => {
+    (approval: ApprovalRow, approved: boolean, selected?: string) => {
+      // Selections need the loopback decision endpoint — the gateway approve
+      // route drops decision payloads. Binary decisions prefer it too when
+      // available (one write path), falling back to the gateway RPC.
+      if (bootProps.decideUrl) {
+        void fetch(bootProps.decideUrl, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            runId: approval.runId,
+            nodeId: approval.nodeId,
+            iteration: approval.iteration,
+            approve: approved,
+            ...(selected ? { selected } : {}),
+          }),
+        }).catch(() => {
+          /* pending card stays until the next approvals pull re-confirms */
+        });
+        return;
+      }
       void actions
         .submitApproval({
           runId: approval.runId,
           nodeId: approval.nodeId,
           iteration: approval.iteration,
-          decision: { approved },
+          decision: selected ? { selected, notes: null } : { approved },
         })
         .catch(() => {
           /* the approvals collection re-pulls on invalidate; nothing to do here */
@@ -280,26 +303,56 @@ function App() {
 
       {pendingApprovals.length > 0 ? (
         <section className="approvals">
-          {pendingApprovals.map((approval) => (
-            <div className="approval-card" key={`${approval.nodeId}:${approval.iteration}`}>
-              <div className="approval-body">
-                <div className="approval-title">
-                  {approval.requestTitle ?? `Approve ${approval.nodeId}?`}
+          {pendingApprovals.map((approval) => {
+            const stage = planStages.find((s) => s.id === approval.nodeId);
+            if (stage?.clarify) {
+              return (
+                <div
+                  className="approval-card approval-clarify"
+                  key={`${approval.nodeId}:${approval.iteration}`}
+                >
+                  <div className="approval-body">
+                    <div className="approval-title">{stage.clarify.question}</div>
+                    {stage.clarify.summary ? (
+                      <div className="approval-summary">{stage.clarify.summary}</div>
+                    ) : null}
+                    <div className="clarify-options">
+                      {stage.clarify.options.map((option, index) => (
+                        <button
+                          key={option.key}
+                          className={`btn ${index === 0 ? "btn-primary" : "btn-ghost"}`}
+                          title={option.summary}
+                          onClick={() => decide(approval, true, option.key)}
+                        >
+                          {option.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
                 </div>
-                {approval.requestSummary ? (
-                  <div className="approval-summary">{approval.requestSummary}</div>
-                ) : null}
+              );
+            }
+            return (
+              <div className="approval-card" key={`${approval.nodeId}:${approval.iteration}`}>
+                <div className="approval-body">
+                  <div className="approval-title">
+                    {approval.requestTitle ?? `Approve ${approval.nodeId}?`}
+                  </div>
+                  {approval.requestSummary ? (
+                    <div className="approval-summary">{approval.requestSummary}</div>
+                  ) : null}
+                </div>
+                <div className="approval-actions">
+                  <button className="btn btn-primary" onClick={() => decide(approval, true)}>
+                    Approve
+                  </button>
+                  <button className="btn btn-ghost" onClick={() => decide(approval, false)}>
+                    Deny
+                  </button>
+                </div>
               </div>
-              <div className="approval-actions">
-                <button className="btn btn-primary" onClick={() => decide(approval, true)}>
-                  Approve
-                </button>
-                <button className="btn btn-ghost" onClick={() => decide(approval, false)}>
-                  Deny
-                </button>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </section>
       ) : null}
 
@@ -428,6 +481,8 @@ body { margin: 0; background: var(--aomi-bg); color: var(--aomi-ink); font-famil
 .approval-title { font-family: var(--aomi-font-display); font-size: 18px; }
 .approval-summary { color: var(--aomi-muted); font-size: 13px; margin-top: 4px; }
 .approval-actions { display: flex; gap: 8px; flex-shrink: 0; }
+.approval-clarify { border-left-color: var(--aomi-info); }
+.clarify-options { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
 .btn { font-family: inherit; font-size: 14px; font-weight: 500; padding: 9px 18px; border-radius: 9999px; cursor: pointer; border: 1px solid transparent; }
 .btn-primary { background: var(--aomi-ink); color: #fff; }
 .btn-primary:hover { opacity: 0.9; }

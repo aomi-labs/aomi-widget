@@ -99,3 +99,103 @@ describe("finalizePlan", () => {
     expect(lines.join("\n")).toContain("deploy: yes (gated)");
   });
 });
+
+describe("composition", () => {
+  const base = { app: "demo", sdkRoot: "/tmp/sdk" };
+
+  it("classic composition preserves the pre-composition node ids", () => {
+    const plan = buildPlanSchema.parse({
+      ...base,
+      review: true,
+      smoke: true,
+      deploy: true,
+    });
+    expect(stagesFor(plan).map((s) => s.id)).toEqual([
+      "demo:binaries",
+      "demo:codegen",
+      "demo:curate",
+      "demo:review",
+      "demo:validate-loop",
+      "demo:smoke",
+      "demo:deploy-gate",
+      "demo:deploy",
+      "demo:result",
+    ]);
+  });
+
+  it("guarantees a trailing result phase for custom compositions", () => {
+    const plan = buildPlanSchema.parse({
+      ...base,
+      phases: [
+        { kind: "agent", id: "research", role: "research" },
+        { kind: "agent", id: "synthesize", role: "synthesize" },
+      ],
+    });
+    const ids = stagesFor(plan).map((s) => s.id);
+    expect(ids).toEqual(["demo:research", "demo:synthesize", "demo:result"]);
+  });
+
+  it("carries clarify metadata onto the stage rail", () => {
+    const plan = buildPlanSchema.parse({
+      ...base,
+      phases: [
+        {
+          kind: "clarify",
+          id: "spec-path",
+          question: "Morpho has no public OpenAPI. How should we proceed?",
+          options: [
+            { key: "research-mode", label: "Research + preambles" },
+            { key: "draft-spec", label: "Draft a spec from docs" },
+          ],
+        },
+        { kind: "agent", id: "research", role: "research" },
+      ],
+    });
+    const clarifyStage = stagesFor(plan).find((s) => s.kind === "clarify");
+    expect(clarifyStage?.clarify?.options.map((o) => o.key)).toEqual([
+      "research-mode",
+      "draft-spec",
+    ]);
+  });
+
+  it("finalizePlan rejects structurally broken compositions", () => {
+    const outcome = finalizePlan({
+      ...base,
+      phases: [
+        { kind: "compute", id: "codegen", op: "codegen" },
+        {
+          kind: "loop",
+          id: "check",
+          until: "validation-green",
+          maxRounds: 2,
+          body: [{ kind: "agent", id: "patch", role: "fix", onlyIf: "prev-red" }],
+        },
+      ],
+    });
+    expect(outcome.plan).toBeNull();
+    expect(outcome.issues.join(" ")).toMatch(/binaries/);
+    expect(outcome.issues.join(" ")).toMatch(/validate/);
+  });
+
+  it("accepts a research-mode composition and merges it through drafts", () => {
+    const merged = mergePlanDraft(base, {
+      phases: [
+        { kind: "agent", id: "research", role: "research", brief: "morpho + etherfi" },
+        { kind: "agent", id: "synthesize", role: "synthesize" },
+        {
+          kind: "loop",
+          id: "validate-loop",
+          until: "validation-green",
+          maxRounds: 3,
+          body: [
+            { kind: "compute", id: "validate", op: "validate" },
+            { kind: "agent", id: "fix", role: "fix", onlyIf: "prev-red" },
+          ],
+        },
+      ],
+    });
+    const outcome = finalizePlan(merged);
+    expect(outcome.plan).not.toBeNull();
+    expect(outcome.plan?.phases?.length).toBe(3);
+  });
+});
