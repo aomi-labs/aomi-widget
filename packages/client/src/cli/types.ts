@@ -9,9 +9,7 @@ export type CliConfig = {
   baseUrl?: string;
   apiKey?: string;
   accountBearer?: string;
-  /** BFF session token (`aomi_session`) from `aomi login`. The CLI holds this
-   * long-lived session and fetches short-lived AccountBearers from the BFF's
-   * `/api/bff/auth/token`. Preferred over a static `accountBearer`. */
+  /** Legacy persisted session token slot. Prefer `auth.sessionToken`. */
   sessionCookie?: string;
   embeddedProvider?: CliEmbeddedProvider;
   embeddedProviderToken?: string;

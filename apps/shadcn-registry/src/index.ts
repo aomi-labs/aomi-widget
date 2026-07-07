@@ -3,7 +3,10 @@
 export { AomiFrame } from "./components/aomi-frame";
 
 // Dual-wallet UI
-export { DualWalletBar, type DualWalletBarProps } from "./components/control-bar/dual-wallet-bar";
+export {
+  DualWalletBar,
+  type DualWalletBarProps,
+} from "./components/control-bar/dual-wallet-bar";
 
 // Notification UI
 export { NotificationToaster } from "./components/ui/notification";
@@ -35,38 +38,38 @@ export {
 } from "@aomi-labs/react";
 export { ExtUserProvider, useUser, UserState } from "@aomi-labs/react";
 export { monad, monadTestnet } from "@aomi-labs/client";
-export type { AomiAuthAdapter } from "./lib/auth-adapter";
+export type {
+  AomiWalletKit,
+  AomiWalletKit as AomiAuthAdapter,
+  AomiSessionIdentity,
+  AomiSessionIdentity as AomiAuthIdentity,
+  AomiSessionStatus,
+  AomiSessionStatus as AomiAuthStatus,
+} from "./lib/wallet-kit";
 export {
-  AomiAuthAdapterProvider,
-  useAomiAuthAdapter,
-} from "./lib/auth-adapter";
-export { AomiWalletProvider } from "./lib/auth-adapter/providers";
-export { AomiBaseAccountProvider } from "./lib/auth-adapter/providers/base-account";
+  AOMI_SESSION_BOOTING_IDENTITY as AOMI_AUTH_BOOTING_IDENTITY,
+  AOMI_SESSION_DISCONNECTED_IDENTITY as AOMI_AUTH_DISCONNECTED_IDENTITY,
+  AomiWalletKitContextProvider as AomiAuthAdapterProvider,
+  AomiWalletKitContextProvider,
+  AomiWalletKitProvider,
+  useAomiWalletKit as useAomiAuthAdapter,
+  useAomiWalletKit,
+} from "./lib/wallet-kit";
+export { AomiWalletProvider } from "./lib/wallet-kit/providers";
 export {
-  AomiParaAdapterProvider,
-  AomiParaProvider,
-} from "./lib/auth-adapter/providers/para";
-export { AomiPrivyProvider } from "./lib/auth-adapter/providers/privy";
-export type { AomiParaAdapterProviderProps } from "./lib/auth-adapter/providers/para";
-export type { AomiAuthIdentity, AomiAuthStatus } from "./lib/auth-adapter";
+  AomiBaseAccountProvider,
+  type AomiBaseAccountProviderProps,
+  type BaseAccountSponsorshipOptions,
+} from "./lib/wallet-kit/providers/base-account";
 export {
-  AOMI_AUTH_BOOTING_IDENTITY,
-  AOMI_AUTH_DISCONNECTED_IDENTITY,
+  AOMI_SESSION_BOOTING_IDENTITY,
+  AOMI_SESSION_DISCONNECTED_IDENTITY,
   formatAuthMethod,
   formatWalletProvider,
   inferAuthMethod,
-} from "./lib/auth-adapter";
+} from "./lib/wallet-kit";
 export {
   FullTestnetWalletRouter,
   isFullTestnet,
   useFullTestnet,
-} from "./lib/auth-adapter";
-export {
-  AomiSessionProvider,
-  useAomiSession,
-  type AomiSessionStatus,
-} from "./lib/session/jwt";
-export {
-  AomiWalletSiweSessionProvider,
-  useWalletSiweSession,
-} from "./lib/session/siwe";
+} from "./lib/wallet-kit";

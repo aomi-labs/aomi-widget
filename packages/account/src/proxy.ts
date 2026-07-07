@@ -1,18 +1,17 @@
 import { type NextRequest, NextResponse } from "next/server";
 
 import { mintAccountBearer } from "./bearer";
-import { getSessionedCanonicalId } from "./session";
 
 /**
  * The shared same-origin proxy that fronts the Rust backend and **injects the
- * AccountBearer server-side** from the `aomi_session` cookie (Option 2). Every
- * Aomi BFF (portal, base, landing) mounts this with its own route allowlist; the
+ * AccountBearer server-side** from the Better Auth session cookie. Every Aomi
+ * BFF (portal, base, landing) mounts this with its own route allowlist; the
  * machinery — header filtering, upstream forwarding, bearer minting, SSE — is
  * identical, only the policy (`allowedRoutes`) and a couple of hooks differ.
  *
- * The browser holds no bearer: it calls `/api/*` same-origin, this handler reads
- * `aomi_session`, mints `sub` = canonical user id, and forwards with
- * `Authorization` set. See
+ * The browser holds no bearer: it calls `/api/*` same-origin, this handler
+ * resolves the `better-auth.session_token` cookie, mints `sub` = canonical user
+ * id, and forwards with `Authorization` set. See
  * docs/topics/account-authentication/facts/service-identity.md ("Transport").
  */
 const HOP_BY_HOP_HEADERS = new Set([
@@ -34,12 +33,29 @@ const ALLOWED_REQUEST_HEADERS = new Set([
   "content-type",
   "aomi-app-key",
   "x-session-id",
+  "x-thread-id",
 ]);
 
 export type AllowedRoute = {
   pattern: RegExp;
   methods: ReadonlySet<string>;
+  /**
+   * `required` (default) means the proxy must inject a trusted AccountBearer
+   * before forwarding. `optional` is for explicitly public backend routes that
+   * may be reached anonymously, while still receiving a bearer when a valid
+   * session is present.
+   */
+  auth?: "required" | "optional";
 };
+
+export type ResolveCanonicalUserId = (
+  request: NextRequest,
+) => Promise<string | null>;
+
+type ProxyAuthState =
+  | { kind: "anonymous" }
+  | { kind: "authenticated"; bearer: string }
+  | { kind: "mint_failed"; error: unknown };
 
 export type ProxyConfig = {
   /**
@@ -64,16 +80,20 @@ export type ProxyConfig = {
   }) => Promise<NextResponse | null>;
   /** Override the upstream backend base URL (defaults to env-derived). */
   upstreamBaseUrl?: string;
+  /** Resolve the canonical backend user id for bearer injection. */
+  resolveCanonicalUserId: ResolveCanonicalUserId;
 };
 
 function defaultBackendUrl(): string {
-  if (process.env.VERCEL_ENV === "preview") return "https://api-staging.aomi.dev";
+  if (process.env.VERCEL_ENV === "preview")
+    return "https://api-staging.aomi.dev";
   if (process.env.VERCEL_ENV === "production") return "https://api.aomi.dev";
   return "http://127.0.0.1:8080";
 }
 
 function resolveUpstreamBaseUrl(config: ProxyConfig): string {
-  const configured = config.upstreamBaseUrl ?? process.env.AOMI_PROXY_BACKEND_URL;
+  const configured =
+    config.upstreamBaseUrl ?? process.env.AOMI_PROXY_BACKEND_URL;
   if (configured) {
     try {
       return new URL(configured).toString();
@@ -99,14 +119,77 @@ function buildUpstreamUrl(
   return target;
 }
 
-function isAllowedProxyRequest(
+function findAllowedProxyRoute(
   routes: ReadonlyArray<AllowedRoute>,
   pathname: string,
   method: string,
-): boolean {
-  return routes.some(
-    (route) => route.pattern.test(pathname) && route.methods.has(method),
+): AllowedRoute | null {
+  return (
+    routes.find(
+      (route) => route.pattern.test(pathname) && route.methods.has(method),
+    ) ?? null
   );
+}
+
+function routeRequiresAuth(route: AllowedRoute): boolean {
+  return (route.auth ?? "required") === "required";
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+function bearerMintFailureResponse(error: unknown): NextResponse {
+  console.error("Aomi proxy: could not mint AccountBearer", {
+    message: errorMessage(error),
+  });
+  return NextResponse.json(
+    { error: "Account bearer mint failed" },
+    { status: 502 },
+  );
+}
+
+function authenticationRequiredResponse(): NextResponse {
+  return NextResponse.json(
+    { error: "Authentication required" },
+    { status: 401 },
+  );
+}
+
+async function resolveProxyAuthState(
+  req: NextRequest,
+  resolveCanonicalUserId: ResolveCanonicalUserId,
+): Promise<ProxyAuthState> {
+  const canonicalId = await resolveCanonicalUserId(req);
+  if (!canonicalId) return { kind: "anonymous" };
+
+  try {
+    const { bearer } = await mintAccountBearer(canonicalId);
+    return { kind: "authenticated", bearer };
+  } catch (error) {
+    return { kind: "mint_failed", error };
+  }
+}
+
+function applyProxyAuthState(
+  route: AllowedRoute,
+  authState: ProxyAuthState,
+  headers: Headers,
+): NextResponse | null {
+  if (authState.kind === "authenticated") {
+    headers.set("authorization", `Bearer ${authState.bearer}`);
+    return null;
+  }
+
+  if (authState.kind === "mint_failed") {
+    return bearerMintFailureResponse(authState.error);
+  }
+
+  if (routeRequiresAuth(route)) {
+    return authenticationRequiredResponse();
+  }
+
+  return null;
 }
 
 function copyRequestHeaders(req: NextRequest): Headers {
@@ -120,27 +203,11 @@ function copyRequestHeaders(req: NextRequest): Headers {
       headers.set(key, value);
     }
   });
-  return headers;
-}
-
-/**
- * Inject `Authorization: Bearer <AccountBearer>` minted from the session, when
- * the request carries a valid `aomi_session` cookie. No session → forward
- * unauthenticated (the backend treats it as anonymous). A misconfigured signer
- * degrades to anonymous + a warning rather than failing every API call.
- */
-async function injectBearer(req: NextRequest, headers: Headers): Promise<void> {
-  const canonicalId = await getSessionedCanonicalId(req);
-  if (!canonicalId) return;
-  try {
-    const { bearer } = await mintAccountBearer(canonicalId);
-    headers.set("authorization", `Bearer ${bearer}`);
-  } catch (error) {
-    console.warn(
-      "Aomi proxy: could not mint AccountBearer; forwarding anonymous",
-      { message: error instanceof Error ? error.message : String(error) },
-    );
+  const legacySessionId = headers.get("x-session-id");
+  if (legacySessionId && !headers.has("x-thread-id")) {
+    headers.set("x-thread-id", legacySessionId);
   }
+  return headers;
 }
 
 function copyResponseHeaders(upstream: Response): Headers {
@@ -176,15 +243,32 @@ export function createBackendProxy(config: ProxyConfig) {
     const { slug } = await context.params;
     // Resolve per request, not at factory creation, so the upstream tracks env
     // (and stays test-friendly — tests can set the backend URL before a call).
-    const upstreamUrl = buildUpstreamUrl(resolveUpstreamBaseUrl(config), req, slug);
+    const upstreamUrl = buildUpstreamUrl(
+      resolveUpstreamBaseUrl(config),
+      req,
+      slug,
+    );
     config.applyDefaults?.(upstreamUrl);
 
-    if (!isAllowedProxyRequest(config.allowedRoutes, upstreamUrl.pathname, req.method)) {
-      return NextResponse.json({ error: "Unsupported API route" }, { status: 404 });
+    const allowedRoute = findAllowedProxyRoute(
+      config.allowedRoutes,
+      upstreamUrl.pathname,
+      req.method,
+    );
+    if (!allowedRoute) {
+      return NextResponse.json(
+        { error: "Unsupported API route" },
+        { status: 404 },
+      );
     }
 
     const headers = copyRequestHeaders(req);
-    await injectBearer(req, headers);
+    const authState = await resolveProxyAuthState(
+      req,
+      config.resolveCanonicalUserId,
+    );
+    const authResponse = applyProxyAuthState(allowedRoute, authState, headers);
+    if (authResponse) return authResponse;
 
     try {
       const upstream = await fetch(upstreamUrl, {
@@ -216,9 +300,18 @@ export function createBackendProxy(config: ProxyConfig) {
       console.error("Aomi upstream request failed", {
         message: error instanceof Error ? error.message : String(error),
       });
-      return NextResponse.json({ error: "Upstream request failed" }, { status: 502 });
+      return NextResponse.json(
+        { error: "Upstream request failed" },
+        { status: 502 },
+      );
     }
   }
 
-  return { GET: handle, POST: handle, PUT: handle, PATCH: handle, DELETE: handle };
+  return {
+    GET: handle,
+    POST: handle,
+    PUT: handle,
+    PATCH: handle,
+    DELETE: handle,
+  };
 }

@@ -19,8 +19,6 @@ export const API_PATHS = {
         signout: `${BFF}/auth/github/signout`,
         devSession: `${BFF}/auth/github/dev-session`,
       },
-      // Exchange a wallet provider credential (Para/Privy) for an aomi_session.
-      exchange: `${BFF}/auth/exchange`,
     },
     launch: {
       preflight: `${BFF}/launch/preflight`,

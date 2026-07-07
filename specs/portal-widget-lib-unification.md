@@ -2,7 +2,7 @@
 
 ## Summary
 
-Replace `apps/portal`'s forked chat/widget stack with direct `@aomi-labs/widget-lib` consumption, keep `/settings` as a slim account/admin surface, and remove the local auth-adapter shim plus other portal-only UI copies. Preserve portal's current wallet-aware `mppx`/`x402` runtime behavior without making that behavior the default for all widget-lib consumers.
+Replace `apps/portal`'s forked chat/widget stack with direct `@aomi-labs/widget-lib` consumption, keep `/settings` as a slim account/admin surface, and remove the local wallet-kit shim plus other portal-only UI copies. Preserve portal's current wallet-aware `mppx`/`x402` runtime behavior without making that behavior the default for all widget-lib consumers.
 
 ## Public API / Shared Interface Changes
 
@@ -13,7 +13,7 @@ Replace `apps/portal`'s forked chat/widget stack with direct `@aomi-labs/widget-
   - Portal should provide its payment-aware `fetch` through that prop from a thin local wrapper or helper.
   - `landing` and `miniapp` continue using widget-lib without `x402`/`mppx` dependencies or behavior changes.
 - Use the existing widget-lib root exports for auth providers and adapter hooks:
-  - `AomiWalletProvider`, `AomiParaProvider`, `AomiBaseAccountProvider`, and `useAomiAuthAdapter` come from `@aomi-labs/widget-lib`.
+  - `AomiWalletProvider`, `AomiParaProvider`, `AomiBaseAccountProvider`, and `useAomiWalletKit` come from `@aomi-labs/widget-lib`.
   - `useControl` and `useUser` continue to come from `@aomi-labs/react`, not widget-lib.
 - Do not add portal-specific URL/query semantics to widget-lib. Keep `?app=` / `?aomi_app=` handling in portal as a tiny non-UI bootstrap helper.
 
@@ -29,7 +29,7 @@ Replace `apps/portal`'s forked chat/widget stack with direct `@aomi-labs/widget-
 - Replace portal's local chat/widget imports with package imports:
   - `Hero` should render `AomiFrame.Root/Header/Composer` from `@aomi-labs/widget-lib`,
   - `WalletProviders` should import wallet providers directly from `@aomi-labs/widget-lib`,
-  - any auth adapter hooks should come from widget-lib exports instead of `src/lib/aomi-auth-adapter.ts`,
+  - any wallet kit hooks should come from widget-lib exports instead of `src/lib/wallet-kit.ts`,
   - `useControl` / `useUser` usages should import from `@aomi-labs/react`.
 - Replace portal's current frame fork with a thin portal-local wrapper around `AomiFrame.Root` only if needed for payment-aware runtime fetch.
   - That wrapper should build the same wallet-aware `fetch` currently implemented in `apps/portal/src/components/aomi-frame.tsx`.
@@ -41,7 +41,7 @@ Replace `apps/portal`'s forked chat/widget stack with direct `@aomi-labs/widget-
   - `src/components/control-bar/**`,
   - `src/components/ui/**` that only exist for the forked widget,
   - `src/components/wallet-tx-handler.tsx`,
-  - `src/lib/aomi-auth-adapter.ts`.
+  - `src/lib/wallet-kit.ts`.
 - Keep portal-only routing behavior as a thin helper:
   - replace `AppSelectUrlSync` with a small bootstrap component mounted inside `AomiFrame.Root` so `useControl()` is in scope,
   - the helper should read `?app=` / `?aomi_app=` once on initial load and call `useControl().onAppSelect(...)`.
@@ -57,7 +57,7 @@ Replace `apps/portal`'s forked chat/widget stack with direct `@aomi-labs/widget-
 - Reuse shared control/runtime state on `/settings`:
   - wire `settings-runtime-provider.tsx` into the settings route,
   - make it provide `ThreadContextProvider`, `ExtUserProvider`, and `ControlContextProvider`,
-  - sync wallet identity from `useAomiAuthAdapter()` into `useUser()` so settings pages use the same persisted API key, client id, and provider-key conventions as the widget.
+  - sync wallet identity from `useAomiWalletKit()` into `useUser()` so settings pages use the same persisted API key, client id, and provider-key conventions as the widget.
 - Treat `/` and `/settings` as separate provider trees.
   - Shared behavior across route navigations should come from persisted storage and wallet identity rehydration, not from live React state surviving navigation.
   - Do not assume `currentThreadId`, pending wallet requests, or other ephemeral per-mount runtime state persists between the two routes.

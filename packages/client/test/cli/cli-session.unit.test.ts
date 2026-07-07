@@ -52,6 +52,7 @@ describe("CLI session lifecycle", () => {
 
   it("supports newSessionCommand as an explicit fresh-session command", async () => {
     const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+    const { CliSession } = await import("../../src/cli/cli-session");
     const { newSessionCommand } =
       await import("../../src/cli/commands/sessions");
     const { readState } = await import("../../src/cli/state");
@@ -63,9 +64,29 @@ describe("CLI session lifecycle", () => {
       secrets: {},
     };
 
+    const existing = CliSession.loadOrCreate({
+      ...config,
+      chain: 11155111,
+      privateKey:
+        "0x0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+    });
+    existing.setAuthSession({
+      sessionToken: "bff-session-token",
+      expiresAt: Date.now() + 60_000,
+      walletAddress: "0xFCAd0B19bB29D4674531d6f115237E16AfCE377c",
+      chainId: 11155111,
+    });
+
     newSessionCommand(config);
 
-    expect(readState()?.sessionId).toBeDefined();
+    const state = readState();
+    expect(state?.sessionId).toBeDefined();
+    expect(state?.sessionId).not.toBe(existing.sessionId);
+    expect(state?.auth?.sessionToken).toBe("bff-session-token");
+    expect(state?.privateKey).toBe(
+      "0x0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+    );
+    expect(state?.chainId).toBe(11155111);
     expect(logSpy).toHaveBeenCalledWith(
       expect.stringContaining("Active session set to"),
     );
@@ -520,7 +541,7 @@ describe("CLI session lifecycle", () => {
       const headers = new Headers(
         (nativeFetch.mock.calls[0]?.[1] as RequestInit).headers,
       );
-      expect(headers.get("Authorization")).toBeNull();
+      expect(headers.get("Authorization")).toBe("Bearer legacy-bearer");
     } finally {
       vi.stubGlobal("fetch", originalFetch);
     }

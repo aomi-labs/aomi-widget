@@ -1,6 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { useSearchParams } from "next/navigation";
 import {
   Connection,
@@ -13,7 +19,6 @@ import {
 import bs58 from "bs58";
 import {
   AomiRuntimeApiProvider,
-  ExtUserProvider,
   UserState,
   type AomiRuntimeApi,
   type WalletRequest,
@@ -23,8 +28,8 @@ import {
 } from "@aomi-labs/react";
 import type { UserState as UserStateShape } from "@aomi-labs/client";
 import { RuntimeTxHandler } from "../../../shadcn-registry/src/components/runtime-tx-handler";
-import { AomiAuthAdapterProvider } from "../../../shadcn-registry/src/lib/auth-adapter/context";
-import type { AomiAuthAdapter } from "../../../shadcn-registry/src/lib/auth-adapter/types";
+import { AomiWalletKitContextProvider } from "../../../shadcn-registry/src/lib/wallet-kit/context";
+import type { AomiWalletKit } from "../../../shadcn-registry/src/lib/wallet-kit/types";
 
 type DriverMode =
   | "sign"
@@ -210,10 +215,7 @@ async function buildUnsignedSolanaTransaction(
   return encodeBase64(serialized);
 }
 
-async function postDriverReport(
-  runId: string,
-  payload: Record<string, unknown>,
-) {
+async function postDriverReport(runId: string, payload: Record<string, unknown>) {
   try {
     await fetch("/api/dev/solana-runtime-driver", {
       method: "POST",
@@ -230,9 +232,7 @@ async function postDriverReport(
   }
 }
 
-function getRequestKindForMode(
-  mode: DriverMode,
-): Extract<
+function getRequestKindForMode(mode: DriverMode): Extract<
   WalletRequestKind,
   "solana_sign" | "solana_send" | "solana_sign_and_send"
 > {
@@ -265,9 +265,7 @@ export function SolanaRuntimeDriver() {
     WalletRequest[]
   >([]);
   const [reportStatus, setReportStatus] = useState<DriverReportStatus>("idle");
-  const [lastResult, setLastResult] = useState<WalletRequestResult | null>(
-    null,
-  );
+  const [lastResult, setLastResult] = useState<WalletRequestResult | null>(null);
   const [lastError, setLastError] = useState<string | null>(null);
   const [logs, setLogs] = useState<DriverLog[]>([]);
   const requestCounterRef = useRef(1);
@@ -281,6 +279,7 @@ export function SolanaRuntimeDriver() {
     () => ({
       connection: {
         is_connected: true,
+        primary_family: "svm",
         provider_label: "Local Solana Driver",
       },
       solana: {
@@ -298,8 +297,8 @@ export function SolanaRuntimeDriver() {
     [signer],
   );
 
-  const adapter = useMemo<AomiAuthAdapter>(() => {
-    const baseAdapter: AomiAuthAdapter = {
+  const adapter = useMemo<AomiWalletKit>(() => {
+    const baseAdapter: AomiWalletKit = {
       identity: {
         status: "connected",
         isConnected: true,
@@ -318,7 +317,7 @@ export function SolanaRuntimeDriver() {
       accounts: [
         {
           id: "Local Dev Signer",
-          family: "solana",
+          family: "svm",
           address: signer.publicKey.toBase58(),
           walletName: "Local Dev Signer",
           active: true,
@@ -425,6 +424,7 @@ export function SolanaRuntimeDriver() {
       onUserStateChange: () => () => undefined,
       currentThreadId: DRIVER_SESSION_ID,
       threadViewKey: 0,
+      threadListError: false,
       threadMetadata: new Map(),
       getThreadMetadata: () => undefined,
       createThread: async () => DRIVER_SESSION_ID,
@@ -446,9 +446,7 @@ export function SolanaRuntimeDriver() {
       resolveWalletRequest,
       rejectWalletRequest,
       simulateBatchTransactions: async () => {
-        throw new Error(
-          "simulateBatchTransactions is not used in Solana driver",
-        );
+        throw new Error("simulateBatchTransactions is not used in Solana driver");
       },
       subscribe: () => () => undefined,
       sendSystemCommand: async () => undefined,
@@ -499,7 +497,10 @@ export function SolanaRuntimeDriver() {
 
       const kind = getRequestKindForMode(mode);
       const requiresFunds = kind !== "solana_sign";
-      appendLog("info", `enqueuing ${kind} request against ${DRIVER_RPC_URL}`);
+      appendLog(
+        "info",
+        `enqueuing ${kind} request against ${DRIVER_RPC_URL}`,
+      );
 
       try {
         const unsignedTx = await buildUnsignedSolanaTransaction(
@@ -525,7 +526,8 @@ export function SolanaRuntimeDriver() {
           } as WalletRequest,
         ]);
       } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
+        const message =
+          error instanceof Error ? error.message : String(error);
         setReportStatus("failed");
         setLastError(message);
         appendLog("err", message);
@@ -569,155 +571,149 @@ export function SolanaRuntimeDriver() {
   }, [lastError, lastResult, reportRunState, reportStatus, runId]);
 
   return (
-    <ExtUserProvider>
-      <AomiAuthAdapterProvider value={adapter}>
-        <AomiRuntimeApiProvider value={runtimeApi}>
-          <RuntimeTxHandler />
+    <AomiWalletKitContextProvider value={adapter}>
+      <AomiRuntimeApiProvider value={runtimeApi}>
+        <RuntimeTxHandler />
 
-          <main className="min-h-screen bg-stone-950 px-8 py-10 text-stone-100">
-            <div className="mx-auto max-w-4xl space-y-6">
-              <header className="space-y-2">
-                <h1 className="text-3xl font-semibold">
-                  Solana Runtime Driver
-                </h1>
-                <p className="max-w-2xl text-sm text-stone-400">
-                  Backendless harness for the frontend Solana wallet pipeline.
-                  This page injects Solana wallet requests locally, lets{" "}
-                  <code>RuntimeTxHandler</code> process them, and records the
-                  result so a local script can poll for pass or fail.
+        <main className="min-h-screen bg-stone-950 px-8 py-10 text-stone-100">
+          <div className="mx-auto max-w-4xl space-y-6">
+            <header className="space-y-2">
+              <h1 className="text-3xl font-semibold">
+                Solana Runtime Driver
+              </h1>
+              <p className="max-w-2xl text-sm text-stone-400">
+                Backendless harness for the frontend Solana wallet pipeline.
+                This page injects Solana wallet requests locally, lets{" "}
+                <code>RuntimeTxHandler</code> process them, and records the
+                result so a local script can poll for pass or fail.
+              </p>
+            </header>
+
+            <section className="grid gap-4 rounded-2xl border border-stone-800 bg-stone-900/60 p-4 md:grid-cols-2">
+              <div className="space-y-2 text-sm">
+                <div>
+                  <span className="text-stone-400">Signer:</span>{" "}
+                  <code>{signer.publicKey.toBase58()}</code>
+                </div>
+                <div>
+                  <span className="text-stone-400">RPC:</span>{" "}
+                  <code>{DRIVER_RPC_URL}</code>
+                </div>
+                <div>
+                  <span className="text-stone-400">Status:</span>{" "}
+                  <span
+                    className={
+                      reportStatus === "completed"
+                        ? "text-emerald-300"
+                        : reportStatus === "failed"
+                          ? "text-rose-300"
+                          : reportStatus === "running"
+                            ? "text-amber-300"
+                            : "text-stone-200"
+                    }
+                  >
+                    {reportStatus}
+                  </span>
+                </div>
+                {runId ? (
+                  <div>
+                    <span className="text-stone-400">Run ID:</span>{" "}
+                    <code>{runId}</code>
+                  </div>
+                ) : null}
+              </div>
+
+              <div className="space-y-3">
+                <div className="flex flex-wrap gap-2">
+                  {(
+                    [
+                      ["sign", "sign only"],
+                      ["send_fallback", "send via sign+broadcast"],
+                      ["send_direct", "send direct"],
+                      ["sign_and_send_direct", "sign and send direct"],
+                    ] as const
+                  ).map(([value, label]) => (
+                    <button
+                      key={value}
+                      type="button"
+                      onClick={() => setDriverMode(value)}
+                      className={`rounded-full border px-3 py-1.5 text-sm ${
+                        driverMode === value
+                          ? "border-emerald-300 bg-emerald-300 text-stone-900"
+                          : "border-stone-600 hover:border-stone-400"
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => void enqueueRequest(driverMode)}
+                  disabled={reportStatus === "running"}
+                  className="rounded-lg bg-emerald-400 px-4 py-2 text-sm font-semibold text-stone-950 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {reportStatus === "running"
+                    ? "Running…"
+                    : `Run ${getRequestKindForMode(driverMode)}`}
+                </button>
+              </div>
+            </section>
+
+            <section className="grid gap-4 md:grid-cols-2">
+              <div className="rounded-2xl border border-stone-800 bg-stone-900/60 p-4">
+                <h2 className="mb-3 text-sm uppercase tracking-wide text-stone-400">
+                  Last Result
+                </h2>
+                <pre className="overflow-x-auto text-xs text-stone-200">
+                  {JSON.stringify(lastResult ?? { error: lastError }, null, 2)}
+                </pre>
+              </div>
+
+              <div className="rounded-2xl border border-stone-800 bg-stone-900/60 p-4">
+                <h2 className="mb-3 text-sm uppercase tracking-wide text-stone-400">
+                  Pending Queue
+                </h2>
+                <pre className="overflow-x-auto text-xs text-stone-200">
+                  {JSON.stringify(pendingWalletRequests, null, 2)}
+                </pre>
+              </div>
+            </section>
+
+            <section className="rounded-2xl border border-stone-800 bg-stone-900/60 p-4">
+              <h2 className="mb-3 text-sm uppercase tracking-wide text-stone-400">
+                Log
+              </h2>
+              {logs.length === 0 ? (
+                <p className="text-sm text-stone-500">
+                  Run a request to populate the log.
                 </p>
-              </header>
-
-              <section className="grid gap-4 rounded-2xl border border-stone-800 bg-stone-900/60 p-4 md:grid-cols-2">
+              ) : (
                 <div className="space-y-2 text-sm">
-                  <div>
-                    <span className="text-stone-400">Signer:</span>{" "}
-                    <code>{signer.publicKey.toBase58()}</code>
-                  </div>
-                  <div>
-                    <span className="text-stone-400">RPC:</span>{" "}
-                    <code>{DRIVER_RPC_URL}</code>
-                  </div>
-                  <div>
-                    <span className="text-stone-400">Status:</span>{" "}
-                    <span
+                  {logs.map((entry) => (
+                    <div
+                      key={`${entry.ts}-${entry.text}`}
                       className={
-                        reportStatus === "completed"
+                        entry.level === "ok"
                           ? "text-emerald-300"
-                          : reportStatus === "failed"
+                          : entry.level === "err"
                             ? "text-rose-300"
-                            : reportStatus === "running"
-                              ? "text-amber-300"
-                              : "text-stone-200"
+                            : "text-stone-300"
                       }
                     >
-                      {reportStatus}
-                    </span>
-                  </div>
-                  {runId ? (
-                    <div>
-                      <span className="text-stone-400">Run ID:</span>{" "}
-                      <code>{runId}</code>
+                      <span className="mr-2 text-stone-500">
+                        {new Date(entry.ts).toLocaleTimeString()}
+                      </span>
+                      {entry.text}
                     </div>
-                  ) : null}
+                  ))}
                 </div>
-
-                <div className="space-y-3">
-                  <div className="flex flex-wrap gap-2">
-                    {(
-                      [
-                        ["sign", "sign only"],
-                        ["send_fallback", "send via sign+broadcast"],
-                        ["send_direct", "send direct"],
-                        ["sign_and_send_direct", "sign and send direct"],
-                      ] as const
-                    ).map(([value, label]) => (
-                      <button
-                        key={value}
-                        type="button"
-                        onClick={() => setDriverMode(value)}
-                        className={`rounded-full border px-3 py-1.5 text-sm ${
-                          driverMode === value
-                            ? "border-emerald-300 bg-emerald-300 text-stone-900"
-                            : "border-stone-600 hover:border-stone-400"
-                        }`}
-                      >
-                        {label}
-                      </button>
-                    ))}
-                  </div>
-
-                  <button
-                    type="button"
-                    onClick={() => void enqueueRequest(driverMode)}
-                    disabled={reportStatus === "running"}
-                    className="rounded-lg bg-emerald-400 px-4 py-2 text-sm font-semibold text-stone-950 disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    {reportStatus === "running"
-                      ? "Running…"
-                      : `Run ${getRequestKindForMode(driverMode)}`}
-                  </button>
-                </div>
-              </section>
-
-              <section className="grid gap-4 md:grid-cols-2">
-                <div className="rounded-2xl border border-stone-800 bg-stone-900/60 p-4">
-                  <h2 className="mb-3 text-sm tracking-wide text-stone-400 uppercase">
-                    Last Result
-                  </h2>
-                  <pre className="overflow-x-auto text-xs text-stone-200">
-                    {JSON.stringify(
-                      lastResult ?? { error: lastError },
-                      null,
-                      2,
-                    )}
-                  </pre>
-                </div>
-
-                <div className="rounded-2xl border border-stone-800 bg-stone-900/60 p-4">
-                  <h2 className="mb-3 text-sm tracking-wide text-stone-400 uppercase">
-                    Pending Queue
-                  </h2>
-                  <pre className="overflow-x-auto text-xs text-stone-200">
-                    {JSON.stringify(pendingWalletRequests, null, 2)}
-                  </pre>
-                </div>
-              </section>
-
-              <section className="rounded-2xl border border-stone-800 bg-stone-900/60 p-4">
-                <h2 className="mb-3 text-sm tracking-wide text-stone-400 uppercase">
-                  Log
-                </h2>
-                {logs.length === 0 ? (
-                  <p className="text-sm text-stone-500">
-                    Run a request to populate the log.
-                  </p>
-                ) : (
-                  <div className="space-y-2 text-sm">
-                    {logs.map((entry) => (
-                      <div
-                        key={`${entry.ts}-${entry.text}`}
-                        className={
-                          entry.level === "ok"
-                            ? "text-emerald-300"
-                            : entry.level === "err"
-                              ? "text-rose-300"
-                              : "text-stone-300"
-                        }
-                      >
-                        <span className="mr-2 text-stone-500">
-                          {new Date(entry.ts).toLocaleTimeString()}
-                        </span>
-                        {entry.text}
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </section>
-            </div>
-          </main>
-        </AomiRuntimeApiProvider>
-      </AomiAuthAdapterProvider>
-    </ExtUserProvider>
+              )}
+            </section>
+          </div>
+        </main>
+      </AomiRuntimeApiProvider>
+    </AomiWalletKitContextProvider>
   );
 }

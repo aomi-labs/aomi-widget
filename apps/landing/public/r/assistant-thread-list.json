@@ -15,7 +15,7 @@
     "lucide-react"
   ],
   "registryDependencies": [
-    "https://aomi.dev/r/aomi-auth-adapter.json",
+    "https://aomi.dev/r/aomi-wallet-kit.json",
     "https://r.assistant-ui.com/tooltip-icon-button.json",
     "button",
     "dialog",
