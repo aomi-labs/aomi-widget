@@ -11,6 +11,7 @@ export function ProjectRow({
 }) {
   const live = source.apps.filter((a) => a.isActive && a.loaded).length;
   const stamped =
+    source.sdkVersion ??
     source.latestDeployment?.sdkVersion ??
     source.latestDeployment?.apps.find((app) => app.sdkVersion)?.sdkVersion ??
     null;

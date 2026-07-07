@@ -53,12 +53,12 @@
         },
         "security": [
           {
-            "sessionId": [],
+            "threadId": [],
             "appKey": []
           }
         ],
         "x-aomi-auth": [
-          "session",
+          "thread",
           "app_gate"
         ]
       }
@@ -72,11 +72,11 @@
         },
         "security": [
           {
-            "sessionId": []
+            "threadId": []
           }
         ],
         "x-aomi-auth": [
-          "session"
+          "thread"
         ]
       }
     },
@@ -89,11 +89,11 @@
         },
         "security": [
           {
-            "sessionId": []
+            "threadId": []
           }
         ],
         "x-aomi-auth": [
-          "session"
+          "thread"
         ]
       }
     },
@@ -106,16 +106,46 @@
         },
         "security": [
           {
-            "sessionId": []
+            "threadId": []
           }
         ],
         "x-aomi-auth": [
-          "session"
+          "thread"
         ]
       }
     },
     "/api/_internal/secrets": {
       "post": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "serviceBearer": []
+          }
+        ],
+        "x-aomi-auth": [
+          "service"
+        ]
+      },
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "serviceBearer": []
+          }
+        ],
+        "x-aomi-auth": [
+          "service"
+        ]
+      },
+      "delete": {
         "responses": {
           "200": {
             "description": "OK"
@@ -140,15 +170,43 @@
         },
         "security": [
           {
-            "sessionId": []
+            "threadId": []
           }
         ],
         "x-aomi-auth": [
-          "session"
+          "thread"
         ]
       }
     },
     "/api/auth/privy/callback": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "security": [],
+        "x-aomi-auth": []
+      }
+    },
+    "/api/auth/para/begin": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "threadId": []
+          }
+        ],
+        "x-aomi-auth": [
+          "thread"
+        ]
+      }
+    },
+    "/api/auth/para/callback": {
       "post": {
         "responses": {
           "200": {
@@ -169,12 +227,12 @@
         "security": [
           {
             "accountBearer": [],
-            "sessionId": []
+            "threadId": []
           }
         ],
         "x-aomi-auth": [
           "account",
-          "session"
+          "thread"
         ]
       },
       "get": {
@@ -186,12 +244,12 @@
         "security": [
           {
             "accountBearer": [],
-            "sessionId": []
+            "threadId": []
           }
         ],
         "x-aomi-auth": [
           "account",
-          "session"
+          "thread"
         ]
       },
       "post": {
@@ -203,12 +261,12 @@
         "security": [
           {
             "accountBearer": [],
-            "sessionId": []
+            "threadId": []
           }
         ],
         "x-aomi-auth": [
           "account",
-          "session"
+          "thread"
         ]
       }
     },
@@ -222,16 +280,16 @@
         "security": [
           {
             "accountBearer": [],
-            "sessionId": []
+            "threadId": []
           }
         ],
         "x-aomi-auth": [
           "account",
-          "session"
+          "thread"
         ]
       }
     },
-    "/api/sessions": {
+    "/api/threads": {
       "get": {
         "responses": {
           "200": {
@@ -241,12 +299,12 @@
         "security": [
           {
             "accountBearer": [],
-            "sessionId": []
+            "threadId": []
           }
         ],
         "x-aomi-auth": [
           "account",
-          "session"
+          "thread"
         ]
       },
       "post": {
@@ -257,15 +315,15 @@
         },
         "security": [
           {
-            "sessionId": []
+            "threadId": []
           }
         ],
         "x-aomi-auth": [
-          "session"
+          "thread"
         ]
       }
     },
-    "/api/sessions/{session_id}": {
+    "/api/threads/{thread_id}": {
       "delete": {
         "responses": {
           "200": {
@@ -275,12 +333,12 @@
         "security": [
           {
             "accountBearer": [],
-            "sessionId": []
+            "threadId": []
           }
         ],
         "x-aomi-auth": [
           "account",
-          "session"
+          "thread"
         ]
       },
       "get": {
@@ -292,12 +350,12 @@
         "security": [
           {
             "accountBearer": [],
-            "sessionId": []
+            "threadId": []
           }
         ],
         "x-aomi-auth": [
           "account",
-          "session"
+          "thread"
         ]
       },
       "patch": {
@@ -309,12 +367,12 @@
         "security": [
           {
             "accountBearer": [],
-            "sessionId": []
+            "threadId": []
           }
         ],
         "x-aomi-auth": [
           "account",
-          "session"
+          "thread"
         ]
       }
     },
@@ -354,6 +412,140 @@
     },
     "/api/account/usage": {
       "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "accountBearer": []
+          }
+        ],
+        "x-aomi-auth": [
+          "account"
+        ]
+      }
+    },
+    "/api/account/status": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "accountBearer": []
+          }
+        ],
+        "x-aomi-auth": [
+          "account"
+        ]
+      }
+    },
+    "/api/account/wallets": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "accountBearer": []
+          }
+        ],
+        "x-aomi-auth": [
+          "account"
+        ]
+      }
+    },
+    "/api/account/authorization/challenge": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "accountBearer": []
+          }
+        ],
+        "x-aomi-auth": [
+          "account"
+        ]
+      }
+    },
+    "/api/account/authorization/commit": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "accountBearer": []
+          }
+        ],
+        "x-aomi-auth": [
+          "account"
+        ]
+      }
+    },
+    "/api/account/providers/{provider}/grant": {
+      "delete": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "accountBearer": []
+          }
+        ],
+        "x-aomi-auth": [
+          "account"
+        ]
+      }
+    },
+    "/api/account/scheduled-intents": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "accountBearer": []
+          }
+        ],
+        "x-aomi-auth": [
+          "account"
+        ]
+      }
+    },
+    "/api/account/scheduled-intents/{id}": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "accountBearer": []
+          }
+        ],
+        "x-aomi-auth": [
+          "account"
+        ]
+      },
+      "delete": {
         "responses": {
           "200": {
             "description": "OK"
@@ -467,55 +659,6 @@
         ]
       }
     },
-    "/api/account/approvals": {
-      "get": {
-        "responses": {
-          "200": {
-            "description": "OK"
-          }
-        },
-        "security": [
-          {
-            "accountBearer": []
-          }
-        ],
-        "x-aomi-auth": [
-          "account"
-        ]
-      },
-      "post": {
-        "responses": {
-          "200": {
-            "description": "OK"
-          }
-        },
-        "security": [
-          {
-            "accountBearer": []
-          }
-        ],
-        "x-aomi-auth": [
-          "account"
-        ]
-      }
-    },
-    "/api/account/approvals/{id}": {
-      "delete": {
-        "responses": {
-          "200": {
-            "description": "OK"
-          }
-        },
-        "security": [
-          {
-            "accountBearer": []
-          }
-        ],
-        "x-aomi-auth": [
-          "account"
-        ]
-      }
-    },
     "/api/account/payment": {
       "get": {
         "responses": {
@@ -599,7 +742,7 @@
         ]
       }
     },
-    "/api/session/apps": {
+    "/api/thread/apps": {
       "get": {
         "responses": {
           "200": {
@@ -608,15 +751,15 @@
         },
         "security": [
           {
-            "sessionId": []
+            "threadId": []
           }
         ],
         "x-aomi-auth": [
-          "session"
+          "thread"
         ]
       }
     },
-    "/api/session/runtime/models": {
+    "/api/thread/runtime/models": {
       "get": {
         "responses": {
           "200": {
@@ -625,15 +768,15 @@
         },
         "security": [
           {
-            "sessionId": []
+            "threadId": []
           }
         ],
         "x-aomi-auth": [
-          "session"
+          "thread"
         ]
       }
     },
-    "/api/session/runtime/model": {
+    "/api/thread/runtime/model": {
       "post": {
         "responses": {
           "200": {
@@ -642,15 +785,15 @@
         },
         "security": [
           {
-            "sessionId": []
+            "threadId": []
           }
         ],
         "x-aomi-auth": [
-          "session"
+          "thread"
         ]
       }
     },
-    "/api/session/models": {
+    "/api/thread/models": {
       "get": {
         "responses": {
           "200": {
@@ -659,15 +802,15 @@
         },
         "security": [
           {
-            "sessionId": []
+            "threadId": []
           }
         ],
         "x-aomi-auth": [
-          "session"
+          "thread"
         ]
       }
     },
-    "/api/session/model": {
+    "/api/thread/model": {
       "post": {
         "responses": {
           "200": {
@@ -676,11 +819,11 @@
         },
         "security": [
           {
-            "sessionId": []
+            "threadId": []
           }
         ],
         "x-aomi-auth": [
-          "session"
+          "thread"
         ]
       }
     },
@@ -774,6 +917,23 @@
         ]
       }
     },
+    "/api/platforms/{name}/apps/{app}/records": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "platformBearer": []
+          }
+        ],
+        "x-aomi-auth": [
+          "activation"
+        ]
+      }
+    },
     "/api/platforms/{name}/deploy": {
       "post": {
         "responses": {
@@ -793,6 +953,23 @@
     },
     "/api/platforms/{name}/deployments/{deployment}/status": {
       "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "platformBearer": []
+          }
+        ],
+        "x-aomi-auth": [
+          "activation"
+        ]
+      }
+    },
+    "/api/platforms/{name}/deployments/{deployment}/promote": {
+      "post": {
         "responses": {
           "200": {
             "description": "OK"
@@ -1020,6 +1197,23 @@
         ]
       }
     },
+    "/api/integrations/github-app/user/sources/{id}/deployments": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "serviceBearer": []
+          }
+        ],
+        "x-aomi-auth": [
+          "service"
+        ]
+      }
+    },
     "/api/integrations/github-app/platforms/{name}/sources/create-from-template": {
       "post": {
         "responses": {
@@ -1206,11 +1400,11 @@
         },
         "security": [
           {
-            "sessionId": []
+            "threadId": []
           }
         ],
         "x-aomi-auth": [
-          "session"
+          "thread"
         ]
       }
     },
@@ -1223,11 +1417,11 @@
         },
         "security": [
           {
-            "sessionId": []
+            "threadId": []
           }
         ],
         "x-aomi-auth": [
-          "session"
+          "thread"
         ]
       }
     },
@@ -1252,22 +1446,22 @@
         "security": [
           {
             "accountBearer": [],
-            "sessionId": []
+            "threadId": []
           }
         ],
         "x-aomi-auth": [
           "account",
-          "session"
+          "thread"
         ]
       }
     }
   },
   "components": {
     "securitySchemes": {
-      "sessionId": {
+      "threadId": {
         "type": "apiKey",
         "in": "header",
-        "name": "X-Session-Id"
+        "name": "X-Thread-Id"
       },
       "accountBearer": {
         "type": "http",

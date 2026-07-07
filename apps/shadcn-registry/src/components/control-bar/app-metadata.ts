@@ -43,7 +43,7 @@ const APP_DISPLAY_NAMES: Record<
   { displayName: string; abbr: string; category: AppCategoryInfo }
 > = {
   default: {
-    displayName: "All Apps",
+    displayName: "Basic Apps",
     abbr: "All",
     category: APP_CATEGORIES.all!,
   },

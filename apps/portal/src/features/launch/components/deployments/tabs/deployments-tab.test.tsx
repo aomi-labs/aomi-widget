@@ -8,12 +8,12 @@ import {
 } from "@testing-library/react";
 import { DeploymentsTab } from "./deployments-tab";
 
-const rollback = vi.fn(async () => ({
+const promote = vi.fn(async () => ({
   ok: true,
-  rollback: {
+  promote: {
     deploymentId: "dep_1_ra_bbbb",
     releaseTags: ["t1"],
-    status: "rolled_back",
+    status: "promoted",
   },
 }));
 const deactivate = vi.fn(async () => ({ ok: true, apps: ["my-bot"] }));
@@ -21,31 +21,31 @@ const deactivate = vi.fn(async () => ({ ok: true, apps: ["my-bot"] }));
 const detail = {
   source: { id: 1, repositoryLink: "a/b", apps: [{ name: "my-bot" }] },
   loading: false,
-  loadActivations: vi.fn(),
-  refreshActivations: vi.fn(),
+  loadRecords: vi.fn(),
+  refreshRecords: vi.fn(),
   deployNewVersion: vi.fn(),
   deployFlow: { phase: "idle" },
-  activationsByApp: {
+  recordsByApp: {
     "my-bot": [
       {
         deploymentId: "dep_1_ra_currentcmt",
         releaseTag: "t-current",
-        action: "activate",
         actor: "alice",
         createdAt: 200,
+        sdkVersion: "3.0.1",
         current: true,
       },
       {
         deploymentId: "dep_1_ra_oldcommit1",
         releaseTag: "t-old",
-        action: "activate",
         actor: "alice",
         createdAt: 100,
+        sdkVersion: "3.0.1",
         current: false,
       },
     ],
   },
-  rollback,
+  promote,
   deactivate,
   reload: vi.fn(),
 } as unknown as ReturnType<
@@ -55,7 +55,7 @@ const detail = {
 describe("DeploymentsTab", () => {
   it("renders deployments from the DB timeline, current first", async () => {
     render(<DeploymentsTab detail={detail} />);
-    expect(detail.loadActivations).toHaveBeenCalled();
+    expect(detail.loadRecords).toHaveBeenCalled();
     expect(await screen.findByText("dep_1_ra_currentcmt")).toBeInTheDocument();
     expect(screen.getByText("dep_1_ra_oldcommit1")).toBeInTheDocument();
     expect(screen.getByText("Current")).toBeInTheDocument();
@@ -65,7 +65,7 @@ describe("DeploymentsTab", () => {
     );
   });
 
-  it("renders activation activity in the Logs subtab", async () => {
+  it("renders promotion activity in the Logs subtab", async () => {
     render(<DeploymentsTab detail={detail} />);
     fireEvent.click(screen.getByRole("tab", { name: /logs/i }));
     expect(screen.getByRole("tab", { name: /logs/i })).toHaveAttribute(
@@ -73,27 +73,28 @@ describe("DeploymentsTab", () => {
       "true",
     );
     expect(
-      await screen.findByText(/activate · dep_1_ra_currentcmt/),
+      await screen.findByText(/promoted · dep_1_ra_currentcmt/),
     ).toBeInTheDocument();
   });
 
-  it("offers Deactivate on the current deployment and Rollback on older ones", () => {
+  it("offers Deactivate in the toolbar and Promote on older deployments", () => {
     render(<DeploymentsTab detail={detail} />);
     expect(
       screen.getByRole("button", { name: /deactivate/i }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: /rollback/i }),
+      screen.getByRole("button", { name: /promote/i }),
     ).toBeInTheDocument();
   });
 
-  it("confirms before rolling back an older deployment", async () => {
+  it("confirms before promoting an older deployment", async () => {
     render(<DeploymentsTab detail={detail} />);
-    fireEvent.click(screen.getByRole("button", { name: /rollback/i }));
-    expect(rollback).not.toHaveBeenCalled();
-    fireEvent.click(screen.getByRole("button", { name: /roll back/i }));
+    fireEvent.click(screen.getByRole("button", { name: /promote/i }));
+    expect(promote).not.toHaveBeenCalled();
+    const dialog = screen.getByRole("dialog", { name: /promote deployment/i });
+    fireEvent.click(within(dialog).getByRole("button", { name: /promote/i }));
     await waitFor(() =>
-      expect(rollback).toHaveBeenCalledWith("dep_1_ra_oldcommit1"),
+      expect(promote).toHaveBeenCalledWith("dep_1_ra_oldcommit1"),
     );
   });
 

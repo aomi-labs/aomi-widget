@@ -67,6 +67,45 @@ async function ownsAppSource(
   return sources.some((source) => source.id === appSourceId);
 }
 
+type OwnedSource = Awaited<
+  ReturnType<DeploymentClientInstance["listUserSources"]>
+>[number];
+
+/** The signed-in user's source with `appSourceId`, or null if not theirs. */
+async function findOwnedSource(
+  client: DeploymentClientInstance,
+  githubUserId: string,
+  platform: string,
+  appSourceId: number,
+): Promise<OwnedSource | null> {
+  const sources = await client.listUserSources({ githubUserId, platform });
+  return sources.find((source) => source.id === appSourceId) ?? null;
+}
+
+/** Every deployment id in the source's DB promotion records (all its apps).
+ *  This is the same timeline the console lists, so promote authorization and
+ *  what the user sees never diverge. */
+async function sourceDeploymentIds(
+  client: DeploymentClientInstance,
+  platform: string,
+  source: OwnedSource,
+): Promise<Set<string>> {
+  const ids = new Set<string>();
+  await Promise.all(
+    source.apps.map(async (app) => {
+      const { records } = await client
+        .listDeploymentRecords({
+          platform,
+          app: app.name,
+          appSourceId: source.id,
+        })
+        .catch(() => ({ records: [] }));
+      for (const record of records) ids.add(record.deploymentId);
+    }),
+  );
+  return ids;
+}
+
 function defaultRepoName() {
   const normalized = CREATED_REPO_PREFIX.trim()
     .toLowerCase()
@@ -589,11 +628,33 @@ export async function deploymentSecretsRoute(req: Request) {
       { status: 401 },
     );
   }
+  const params = new URL(req.url).searchParams;
+  const appSourceId = Number(params.get("appSourceId"));
+  if (!isValidAppSourceId(appSourceId)) {
+    return NextResponse.json(
+      { error: "missing or invalid `appSourceId`" },
+      { status: 400 },
+    );
+  }
 
   try {
+    const config = launchConfig();
     const client = await deploymentClient();
-    const { byApp } = await client.listSecrets({
+    const source = await findOwnedSource(
+      client,
+      session.githubUserId,
+      config.platform,
+      appSourceId,
+    );
+    if (!source) {
+      return NextResponse.json(
+        { error: "source not found for this user" },
+        { status: 404 },
+      );
+    }
+    const { byApp } = await client.listAppSecrets({
       githubUserId: session.githubUserId,
+      sourceId: String(appSourceId),
     });
     return NextResponse.json({ byApp });
   } catch (err) {
@@ -601,7 +662,133 @@ export async function deploymentSecretsRoute(req: Request) {
   }
 }
 
-export async function deploymentActivationsRoute(req: Request) {
+export async function deploymentSecretsWriteRoute(req: Request) {
+  const blocked = checkWrite(req);
+  if (blocked) return blocked;
+
+  const auth = await requireSession();
+  if ("response" in auth) return auth.response;
+  const { session } = auth;
+
+  const body = (await req.json().catch(() => ({}))) as {
+    app?: unknown;
+    appSourceId?: unknown;
+    secrets?: unknown;
+  };
+  const app = typeof body.app === "string" ? body.app.trim() : "";
+  if (!app) {
+    return NextResponse.json({ error: "missing `app`" }, { status: 400 });
+  }
+  if (!isValidAppSourceId(body.appSourceId)) {
+    return NextResponse.json(
+      { error: "missing or invalid `appSourceId`" },
+      { status: 400 },
+    );
+  }
+  // Accept a { KEY: value } map of non-empty string values.
+  const secrets: Record<string, string> = {};
+  if (body.secrets && typeof body.secrets === "object") {
+    for (const [k, v] of Object.entries(
+      body.secrets as Record<string, unknown>,
+    )) {
+      const key = k.trim();
+      if (key && typeof v === "string" && v.length > 0) secrets[key] = v;
+    }
+  }
+  if (Object.keys(secrets).length === 0) {
+    return NextResponse.json(
+      { error: "no valid secrets provided" },
+      { status: 400 },
+    );
+  }
+
+  try {
+    const config = launchConfig();
+    const client = await deploymentClient();
+    // The app must belong to a source the signed-in user owns.
+    const source = await findOwnedSource(
+      client,
+      session.githubUserId,
+      config.platform,
+      body.appSourceId,
+    );
+    if (!source || !source.apps.some((a) => a.name === app)) {
+      return NextResponse.json(
+        { error: "app not found for this user" },
+        { status: 404 },
+      );
+    }
+    const { handles } = await client.ingestSecrets({
+      githubUserId: session.githubUserId,
+      app,
+      sourceId: String(body.appSourceId),
+      secrets,
+    });
+    return NextResponse.json(
+      { ok: true, keys: Object.keys(handles) },
+      { status: 202 },
+    );
+  } catch (err) {
+    return launchErrorResponse(err);
+  }
+}
+
+export async function deploymentSecretsDeleteRoute(req: Request) {
+  const blocked = checkWrite(req);
+  if (blocked) return blocked;
+
+  const auth = await requireSession();
+  if ("response" in auth) return auth.response;
+  const { session } = auth;
+
+  const body = (await req.json().catch(() => ({}))) as {
+    app?: unknown;
+    appSourceId?: unknown;
+    name?: unknown;
+  };
+  const app = typeof body.app === "string" ? body.app.trim() : "";
+  const name = typeof body.name === "string" ? body.name.trim() : "";
+  if (!app || !name) {
+    return NextResponse.json(
+      { error: "missing `app` or `name`" },
+      { status: 400 },
+    );
+  }
+  if (!isValidAppSourceId(body.appSourceId)) {
+    return NextResponse.json(
+      { error: "missing or invalid `appSourceId`" },
+      { status: 400 },
+    );
+  }
+
+  try {
+    const config = launchConfig();
+    const client = await deploymentClient();
+    const source = await findOwnedSource(
+      client,
+      session.githubUserId,
+      config.platform,
+      body.appSourceId,
+    );
+    if (!source || !source.apps.some((a) => a.name === app)) {
+      return NextResponse.json(
+        { error: "app not found for this user" },
+        { status: 404 },
+      );
+    }
+    const removed = await client.removeAppSecret({
+      githubUserId: session.githubUserId,
+      app,
+      sourceId: String(body.appSourceId),
+      name,
+    });
+    return NextResponse.json({ ok: true, removed });
+  } catch (err) {
+    return launchErrorResponse(err);
+  }
+}
+
+export async function deploymentRecordsRoute(req: Request) {
   const blocked = checkRead(req);
   if (blocked) return blocked;
 
@@ -622,7 +809,7 @@ export async function deploymentActivationsRoute(req: Request) {
   try {
     const config = launchConfig();
     const client = await deploymentClient();
-    const result = await client.listActivations({
+    const result = await client.listDeploymentRecords({
       platform: config.platform,
       app,
       appSourceId: isValidAppSourceId(appSourceId) ? appSourceId : undefined,
@@ -633,7 +820,7 @@ export async function deploymentActivationsRoute(req: Request) {
   }
 }
 
-export async function deploymentRollbackRoute(req: Request) {
+export async function deploymentPromoteRoute(req: Request) {
   const blocked = checkWrite(req);
   if (blocked) return blocked;
 
@@ -659,6 +846,8 @@ export async function deploymentRollbackRoute(req: Request) {
       { status: 400 },
     );
   }
+  const deploymentId = body.deploymentId;
+  const appSourceId = body.appSourceId;
   const apps =
     Array.isArray(body.apps) &&
     body.apps.every((app) => typeof app === "string")
@@ -669,43 +858,40 @@ export async function deploymentRollbackRoute(req: Request) {
     const config = launchConfig();
     const client = await deploymentClient();
 
-    // Authorize the rollback target against the signed-in user: the source
-    // must be theirs, and the deployment must belong to that source. Both
-    // lookups are scoped to the session's GitHub user id server-side.
-    if (
-      !(await ownsAppSource(
-        client,
-        session.githubUserId,
-        config.platform,
-        body.appSourceId,
-      ))
-    ) {
+    // Authorize the promote target against the signed-in user: the source
+    // must be theirs, and the deployment must appear in that source's DB
+    // promotion records — the same timeline the console lists. (Authorizing
+    // against the GitHub history fanout instead falsely rejected deployments
+    // that are in the DB but not on a live GitHub branch.)
+    const source = await findOwnedSource(
+      client,
+      session.githubUserId,
+      config.platform,
+      appSourceId,
+    );
+    if (!source) {
       return NextResponse.json(
         { error: "app source not found for this user" },
         { status: 404 },
       );
     }
-    const deployments = await client.listUserSourceDeployments({
-      githubUserId: session.githubUserId,
-      platform: config.platform,
-      appSourceId: body.appSourceId,
-    });
-    if (!deployments.some((d) => d.deploymentId === body.deploymentId)) {
+    const known = await sourceDeploymentIds(client, config.platform, source);
+    if (!known.has(deploymentId)) {
       return NextResponse.json(
         { error: "deployment does not belong to this source" },
         { status: 404 },
       );
     }
 
-    // Default the activation-log actor to the signed-in GitHub user so
-    // portal rollbacks are attributable without the client threading it.
+    // Default the promotion actor to the signed-in GitHub user so portal
+    // promotions are attributable without the client threading it.
     const actor =
       typeof body.actor === "string" && body.actor.trim()
         ? body.actor
         : session.githubLogin;
-    const result = await client.rollback({
+    const result = await client.promote({
       platform: config.platform,
-      deploymentId: body.deploymentId,
+      deploymentId,
       apps,
       targetTags: config.targetTags,
       actor,

@@ -45,6 +45,7 @@ import { NetworkSelect } from "@/components/control-bar/network-select";
 import { ConnectButton } from "@/components/control-bar/connect-button";
 import { SecretGate } from "@/components/control-bar/secret-gate";
 import { PaymentRequiredGate } from "@/components/control-bar/payment-required-gate";
+import { shouldShowThreadLoadingSkeleton } from "@/components/assistant-ui/thread-loading";
 import {
   useAssistantApi,
   useAssistantState,
@@ -77,7 +78,7 @@ export const Thread: FC = () => {
         >
           <SecretGate />
           <PaymentRequiredGate />
-          <ThreadPrimitive.Viewport className="aui-thread-viewport relative flex min-h-0 flex-1 flex-col overflow-x-auto overflow-y-scroll px-2 [scrollbar-gutter:stable_both-edges]">
+          <ThreadPrimitive.Viewport className="aui-thread-viewport relative flex min-h-0 flex-1 flex-col overflow-y-auto overflow-x-hidden px-2">
             <ThreadPrimitive.If empty>
               <ThreadWelcome />
             </ThreadPrimitive.If>
@@ -223,7 +224,7 @@ const Composer: FC = () => {
       <ComposerPrimitive.Root className="aui-composer-root rounded-4xl bg-muted/20 text-card-foreground border-border/40 relative flex w-full flex-col border px-1 pt-2">
         <ComposerPrimitive.Input
           placeholder="Send a message..."
-          className="aui-composer-input text-foreground placeholder:text-muted-foreground/70 ml-3 mt-1 max-h-32 min-h-14 w-full resize-none bg-transparent px-3.5 pb-2 pt-1.5 text-sm outline-none dark:text-foreground dark:placeholder:text-muted-foreground/80"
+          className="aui-composer-input text-foreground placeholder:text-muted-foreground/70 dark:text-foreground dark:placeholder:text-muted-foreground/80 ml-3 mt-1 max-h-32 min-h-14 w-full resize-none bg-transparent px-3.5 pb-2 pt-1.5 text-sm outline-none"
           rows={1}
           autoFocus
           aria-label="Message input"
@@ -303,22 +304,27 @@ const MessageError: FC = () => {
 };
 
 const ThreadLoadingSkeleton: FC = () => {
-  const isLoading = useAssistantState(({ thread }) => thread.isLoading);
+  const showSkeleton = useAssistantState(({ thread }) =>
+    shouldShowThreadLoadingSkeleton({
+      isLoading: thread.isLoading,
+      messageCount: thread.messages.length,
+    }),
+  );
 
-  if (!isLoading) return null;
+  if (!showSkeleton) return null;
 
   return (
     <div
       role="status"
       aria-label="Loading conversation"
       aria-live="polite"
-      className="aui-thread-loading-skeleton mx-auto flex w-full max-w-[var(--thread-max-width)] flex-col gap-6 px-2 py-5"
+      className="aui-thread-loading-skeleton mx-auto flex w-full max-w-[var(--thread-max-width)] flex-col gap-3 px-4 py-6"
     >
-      <AssistantMessageSkeleton widths={["76%", "58%", "68%"]} />
-      <UserMessageSkeleton width="44%" />
-      <AssistantMessageSkeleton widths={["82%", "71%", "38%"]} />
-      <UserMessageSkeleton width="56%" />
-      <AssistantMessageSkeleton widths={["64%", "46%"]} />
+      <AssistantMessageSkeleton widths={["42%", "68%", "56%"]} />
+      <div className="aui-thread-loading-skeleton-status flex items-center gap-2 px-2 pt-1">
+        <span className="bg-muted-foreground/30 size-2 animate-pulse rounded-full" />
+        <Skeleton className="h-2.5 w-24 rounded-full opacity-60" />
+      </div>
     </div>
   );
 };
@@ -335,17 +341,6 @@ const AssistantMessageSkeleton: FC<{ widths?: string[] }> = ({
           style={{ width }}
         />
       ))}
-    </div>
-  );
-};
-
-const UserMessageSkeleton: FC<{ width?: string }> = ({ width = "48%" }) => {
-  return (
-    <div className="aui-user-message-skeleton flex justify-end px-2">
-      <Skeleton
-        className="aui-user-message-skeleton-bubble h-10 rounded-3xl"
-        style={{ width }}
-      />
     </div>
   );
 };

@@ -8,8 +8,8 @@ import {
   type LaunchCreateRepoResult,
   type DeploymentHistoryResult,
   type DeploymentSecretsResult,
-  type ListActivationsResult,
-  type DeploymentRollbackResult,
+  type ListDeploymentRecordsResult,
+  type DeploymentPromoteResult,
   type DeploymentSourcesResult,
   type LaunchDeployInput,
   type LaunchDeployResult,
@@ -128,29 +128,34 @@ export function deploymentHistory(input: {
   );
 }
 
-export function deploymentSecrets(): Promise<DeploymentSecretsResult> {
-  return launchFetch(API_PATHS.bff.deployments.secrets, "deployment secrets");
-}
-
-export function deploymentActivations(input: {
-  app: string;
-  appSourceId?: number;
-}): Promise<ListActivationsResult> {
+export function deploymentSecrets(input: {
+  appSourceId: number;
+}): Promise<DeploymentSecretsResult> {
   return launchFetch(
-    API_PATHS.bff.deployments.activations(input.app, input.appSourceId),
-    "deployment activations",
+    API_PATHS.bff.deployments.secrets(input.appSourceId),
+    "deployment secrets",
   );
 }
 
-export function deploymentRollback(input: {
+export function deploymentRecords(input: {
+  app: string;
+  appSourceId?: number;
+}): Promise<ListDeploymentRecordsResult> {
+  return launchFetch(
+    API_PATHS.bff.deployments.records(input.app, input.appSourceId),
+    "deployment records",
+  );
+}
+
+export function deploymentPromote(input: {
   deploymentId: string;
   appSourceId: number;
   apps?: string[];
   actor?: string;
-}): Promise<DeploymentRollbackResult> {
+}): Promise<DeploymentPromoteResult> {
   return postJson(
-    API_PATHS.bff.deployments.rollback,
-    "deployment rollback",
+    API_PATHS.bff.deployments.promote,
+    "deployment promote",
     input,
   );
 }
@@ -171,6 +176,34 @@ export function deploymentDeactivate(input: {
     API_PATHS.bff.deployments.deactivate,
     "deployment deactivate",
     input,
+  );
+}
+
+export function deploymentSetSecrets(input: {
+  app: string;
+  appSourceId: number;
+  secrets: Record<string, string>;
+}): Promise<{ ok: boolean; keys: string[] }> {
+  return postJson(
+    API_PATHS.bff.deployments.secrets(input.appSourceId),
+    "set environment variables",
+    input,
+  );
+}
+
+export function deploymentDeleteSecret(input: {
+  app: string;
+  appSourceId: number;
+  name: string;
+}): Promise<{ ok: boolean; removed: boolean }> {
+  return launchFetch(
+    API_PATHS.bff.deployments.secrets(input.appSourceId),
+    "delete environment variable",
+    {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input),
+    },
   );
 }
 

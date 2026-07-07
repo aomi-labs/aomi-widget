@@ -9,7 +9,7 @@ import {
   PlusIcon,
   XIcon,
 } from "lucide-react";
-import { useByok, cn } from "@aomi-labs/react";
+import { useControl, cn } from "@aomi-labs/react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -36,7 +36,7 @@ export const SecretInput: FC<SecretInputProps> = ({
   title = "Secrets",
   description = "Add API keys for third-party services. Secrets are stored in memory only and never saved to disk.",
 }) => {
-  const { ingestSecrets, clearSecrets } = useByok().actions;
+  const { ingestSecrets, clearSecrets } = useControl();
   const [open, setOpen] = useState(false);
   const [entries, setEntries] = useState<SecretEntry[]>([
     { name: "", value: "" },
