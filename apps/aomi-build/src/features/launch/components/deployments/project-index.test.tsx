@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 
-vi.mock("@portal/features/launch/hooks/use-projects", () => ({
+vi.mock("@build/features/launch/hooks/use-projects", () => ({
   useProjects: () => ({
     state: {
       status: "ready",

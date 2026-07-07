@@ -1,6 +1,6 @@
 {
   "name": "@aomi-labs/deploy",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Server-side TypeScript client for the Aomi platform deploy API. Node-only; never bundle into a browser.",
   "type": "module",
   "main": "./dist/index.cjs",

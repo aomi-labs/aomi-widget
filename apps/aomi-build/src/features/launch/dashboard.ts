@@ -1,8 +1,8 @@
 // Client seam for the GitHub-signed-in deploy dashboard. Talks only to the
-// same-origin portal BFF (`/api/bff/auth/github/*`, `/api/bff/launch/sources`);
+// same-origin Aomi Build BFF (`/api/bff/auth/github/*`, `/api/bff/launch/sources`);
 // the GitHub session cookie + service bearer stay server-side.
 
-import { API_PATHS } from "@portal/lib/api-paths";
+import { API_PATHS } from "@build/lib/api-paths";
 import type { UserSource } from "@aomi-labs/deploy";
 
 export type { UserSource };

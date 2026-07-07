@@ -9,8 +9,8 @@ import {
   oneshotStep,
   TEMPLATE_REPO,
   type LaunchProgress,
-} from "@portal/features/launch";
-import { chatAppUrl } from "@portal/lib/chat-url";
+} from "@build/features/launch";
+import { chatAppUrl } from "@build/lib/chat-url";
 import { Stepper } from "./stepper";
 import { DeployStep } from "./deploy-step";
 import { LivePanel } from "./live-panel";

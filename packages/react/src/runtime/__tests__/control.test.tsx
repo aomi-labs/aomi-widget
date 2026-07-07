@@ -29,7 +29,9 @@ describe("Control context", () => {
       getModels: async () => [],
     });
 
-    const { api } = renderRuntime({ appPlatforms: ["somm.finance", "community"] });
+    const { api } = renderRuntime({
+      appPlatforms: ["somm.finance", "community"],
+    });
 
     await waitFor(() => {
       expect(getApps).toHaveBeenCalledTimes(1);
@@ -137,6 +139,70 @@ describe("Control context", () => {
         evm: expect.objectContaining({ address: "0xabc" }),
       }),
     });
+  });
+
+  it("selects duplicate hosted app names by application id", async () => {
+    const sendMessage = vi.fn(
+      async (): Promise<AomiChatResponse> => ({
+        is_processing: false,
+        messages: [],
+      }),
+    );
+    const setModel = vi.fn(async () => ({ rig: "auto-model" }));
+
+    setAomiClientConfig({
+      getApps: async () => [
+        { name: "default" },
+        { name: "analytics", applicationId: 41, platform: "community" },
+        { name: "analytics", applicationId: 42, platform: "somm.finance" },
+      ],
+      getModels: async () => ["auto-model"],
+      sendMessage,
+      setModel,
+    });
+
+    const { getApi, getControl } = renderRuntime();
+
+    await waitFor(() => {
+      expect(getControl().state.authorizedApps).toEqual([
+        "default",
+        "analytics",
+        "analytics",
+      ]);
+    });
+
+    act(() => {
+      getControl().onAppSelect("analytics", { applicationId: 42 });
+    });
+
+    expect(getControl().getCurrentThreadApp()).toBe("analytics");
+    expect(getControl().getCurrentThreadApplicationId()).toBe(42);
+
+    await act(async () => {
+      await getControl().onModelSelect("auto-model");
+    });
+
+    expect(setModel).toHaveBeenCalledWith(
+      expect.any(String),
+      "auto-model",
+      expect.objectContaining({
+        app: "analytics",
+        applicationId: 42,
+      }),
+    );
+
+    await act(async () => {
+      await getApi().sendMessage("hello duplicate app");
+    });
+
+    expect(sendMessage).toHaveBeenCalledWith(
+      expect.any(String),
+      "hello duplicate app",
+      expect.objectContaining({
+        app: "analytics",
+        applicationId: 42,
+      }),
+    );
   });
 
   it("does not select a hosted app by bare name when an application id is required", async () => {

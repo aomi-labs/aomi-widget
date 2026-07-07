@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { Plus, Trash2 } from "lucide-react";
-import { useProjectDetail } from "@portal/features/launch/hooks/use-project-detail";
+import { useProjectDetail } from "@build/features/launch/hooks/use-project-detail";
 import { LoadingPanel } from "../ui/state-panels";
 
 type Detail = ReturnType<typeof useProjectDetail>;

@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 
 export const runtime = "nodejs";
 
-import { setGitHubSessionCookie } from "@portal/server/cookies/github";
+import { setGitHubSessionCookie } from "@build/server/cookies/github";
 
 type GitHubUserResponse = {
   id?: unknown;
@@ -25,7 +25,7 @@ async function resolveGitHubUserId(login: string): Promise<string> {
   const response = await fetch(`https://api.github.com/users/${login}`, {
     headers: {
       Accept: "application/vnd.github+json",
-      "User-Agent": "aomi-portal-dev-session",
+      "User-Agent": "aomi-build-dev-session",
     },
     cache: "no-store",
   });

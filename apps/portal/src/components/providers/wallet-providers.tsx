@@ -1,13 +1,7 @@
 "use client";
 
-import {
-  Environment,
-  type TOAuthMethod,
-  type TExternalWallet,
-} from "@getpara/react-sdk";
-import { usePathname } from "next/navigation";
-import { type ReactNode, useEffect } from "react";
-import { useAccount, useSwitchChain } from "wagmi";
+import "@aomi-labs/widget-lib/providers/para";
+import { type ReactNode, useEffect, useMemo, useState } from "react";
 import {
   mainnet,
   arbitrum,
@@ -18,55 +12,25 @@ import {
   linea,
   lineaSepolia,
 } from "wagmi/chains";
-import { defineChain, type Chain } from "viem";
+import { type Chain } from "viem";
 import {
-  AomiWalletProvider,
-  isFullTestnet,
+  AomiWalletKitProvider,
   monad,
   monadTestnet,
 } from "@aomi-labs/widget-lib";
 import {
   E2EWalletProvider,
   type E2EWalletSeedClient,
-} from "./e2e-wallet-provider";
-import { AomiSessionProvider } from "./aomi-session-bridge";
-
-// Enable localhost/Anvil network for E2E testing with `pnpm dev:localhost`
-const useLocalhost = process.env.NEXT_PUBLIC_USE_LOCALHOST === "true";
-const LOCALHOST_CHAIN_ID = 31337;
-
-// Custom localhost network for Anvil (local testing)
-const localhost = defineChain({
-  id: 31337,
-  name: "Localhost",
-  nativeCurrency: {
-    decimals: 18,
-    name: "Ether",
-    symbol: "ETH",
-  },
-  rpcUrls: {
-    default: {
-      http: ["http://127.0.0.1:8545"],
-    },
-  },
-  blockExplorers: {
-    default: {
-      name: "Local",
-      url: "http://127.0.0.1:8545",
-    },
-  },
-});
+} from "@portal/components/providers/e2e-wallet-provider";
 
 const paraApiKey = process.env.NEXT_PUBLIC_PARA_API_KEY?.trim() ?? "";
+const paraEnvironment =
+  process.env.NEXT_PUBLIC_PARA_ENVIRONMENT === "PROD" ? "PROD" : "BETA";
 
 const walletConnectProjectId =
   process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID?.trim() ||
   process.env.NEXT_PUBLIC_PROJECT_ID?.trim() ||
   "";
-
-const paraEnvironment =
-  (process.env.NEXT_PUBLIC_PARA_ENVIRONMENT as Environment | undefined) ??
-  Environment.BETA;
 
 const defaultNetworks = [
   mainnet,
@@ -81,19 +45,8 @@ const defaultNetworks = [
   monadTestnet,
 ] as const;
 
-export const networks = (
-  useLocalhost ? [localhost, ...defaultNetworks] : [...defaultNetworks]
-) as readonly [Chain, ...Chain[]];
+export const networks = [...defaultNetworks] as readonly [Chain, ...Chain[]];
 
-const externalWallets: TExternalWallet[] = [
-  "WALLETCONNECT",
-  "METAMASK",
-  "COINBASE",
-  "RAINBOW",
-  "RABBY",
-];
-
-const oAuthMethods: TOAuthMethod[] = ["GOOGLE"];
 const solanaNetworks = [
   {
     id: "solana-devnet",
@@ -128,92 +81,49 @@ const solanaNetworks = [
   },
 ] as const;
 
-// Stable reference for the Para `solana` prop. An inline object literal here is
-// a new reference every render, which busts para's `resolvedSolanaConfig` memo
-// (keyed on `solana`) and re-renders the whole Para subtree in a loop
-// ("Maximum update depth exceeded"). Its contents are fully static, so hoist it
-// to module scope like `networks` / `solanaNetworks` above.
-const paraSolanaConfig = {
-  networks: solanaNetworks,
-  preferDirectSend: true,
-};
-
-/**
- * Component that auto-switches to localhost network when in localhost mode.
- * Must be rendered inside ParaProvider.
- */
-function LocalhostNetworkEnforcer({ children }: { children: ReactNode }) {
-  const { isConnected, chainId, connector } = useAccount();
-  const { switchChain } = useSwitchChain();
-
-  useEffect(() => {
-    if (isFullTestnet()) return;
-    if (!useLocalhost) return;
-    if (!isConnected || chainId === LOCALHOST_CHAIN_ID) return;
-
-    const switchToLocalhost = async () => {
-      console.log(
-        `[LocalhostNetworkEnforcer] Switching from chain ${chainId} to localhost (${LOCALHOST_CHAIN_ID})`,
-      );
-
-      try {
-        const provider = await connector?.getProvider();
-        if (provider && typeof provider === "object" && "request" in provider) {
-          const ethProvider = provider as {
-            request: (args: {
-              method: string;
-              params: unknown[];
-            }) => Promise<unknown>;
-          };
-          try {
-            await ethProvider.request({
-              method: "wallet_addEthereumChain",
-              params: [
-                {
-                  chainId: `0x${LOCALHOST_CHAIN_ID.toString(16)}`,
-                  chainName: "Localhost",
-                  nativeCurrency: {
-                    name: "Ether",
-                    symbol: "ETH",
-                    decimals: 18,
-                  },
-                  rpcUrls: ["http://127.0.0.1:8545"],
-                },
-              ],
-            });
-          } catch (addError) {
-            console.log(
-              "[LocalhostNetworkEnforcer] Chain add result:",
-              addError,
-            );
-          }
-        }
-
-        switchChain({ chainId: LOCALHOST_CHAIN_ID });
-      } catch (error) {
-        console.error(
-          "[LocalhostNetworkEnforcer] Failed to switch network:",
-          error,
-        );
-      }
-    };
-
-    void switchToLocalhost();
-  }, [isConnected, chainId, connector, switchChain]);
-
-  return <>{children}</>;
-}
-
 type Props = {
   children: ReactNode;
+  cookies?: string | null;
   e2eWallet?: E2EWalletSeedClient | null;
 };
 
+type BrowserAuthOrigin = {
+  authDomain: string;
+  authUri: string;
+};
+
+function getBrowserAuthOrigin(): BrowserAuthOrigin | null {
+  if (typeof window === "undefined") return null;
+  return {
+    authDomain: window.location.host,
+    authUri: window.location.origin,
+  };
+}
+
 export function WalletProviders({ children, e2eWallet }: Props) {
-  const pathname = usePathname();
-  if (pathname?.startsWith("/auth/privy")) {
-    return <>{children}</>;
-  }
+  const [browserAuthOrigin, setBrowserAuthOrigin] =
+    useState<BrowserAuthOrigin | null>(() => getBrowserAuthOrigin());
+  useEffect(() => {
+    setBrowserAuthOrigin(getBrowserAuthOrigin());
+  }, []);
+  const account = useMemo(
+    () => ({
+      mode: "aomi-backend" as const,
+      ...(browserAuthOrigin ?? {}),
+    }),
+    [browserAuthOrigin],
+  );
+  const evmWallets =
+    typeof window !== "undefined" && walletConnectProjectId
+      ? (["metamask", "rabby", "coinbase", "walletconnect"] as const)
+      : (["metamask", "rabby", "coinbase"] as const);
+  const auth =
+    paraApiKey.length > 0
+      ? ({
+          provider: "para",
+          methods: ["email", "google"],
+        } as const)
+      : false;
 
   if (e2eWallet) {
     return (
@@ -223,31 +133,34 @@ export function WalletProviders({ children, e2eWallet }: Props) {
     );
   }
 
-  const content = paraApiKey ? (
-    <LocalhostNetworkEnforcer>{children}</LocalhostNetworkEnforcer>
-  ) : (
-    children
-  );
-
   return (
-    <AomiWalletProvider
-      provider="para"
-      apiKey={paraApiKey}
-      environment={paraEnvironment}
-      appName="Aomi Labs"
-      appDescription="AI-powered blockchain operations assistant"
-      appUrl={
-        typeof window !== "undefined"
-          ? window.location.origin
-          : "https://aomi.dev"
-      }
-      walletConnectProjectId={walletConnectProjectId}
-      networks={networks}
-      externalWallets={externalWallets}
-      oAuthMethods={oAuthMethods}
-      solana={paraSolanaConfig}
+    <AomiWalletKitProvider
+      auth={auth}
+      account={account}
+      providers={{
+        para: paraApiKey
+          ? {
+              appName: "Aomi Labs",
+              appDescription: "Aomi portal testing",
+              apiKey: paraApiKey,
+              environment: paraEnvironment,
+            }
+          : false,
+      }}
+      wallets={{
+        evm: {
+          chains: networks,
+          appName: "Aomi Labs",
+          wallets: evmWallets,
+          walletConnectProjectId,
+        },
+        solana: {
+          networks: solanaNetworks,
+          preferDirectSend: true,
+        },
+      }}
     >
-      <AomiSessionProvider>{content}</AomiSessionProvider>
-    </AomiWalletProvider>
+      {children}
+    </AomiWalletKitProvider>
   );
 }

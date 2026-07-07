@@ -2,8 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { UserSource } from "@aomi-labs/deploy";
-import { deploymentRecords } from "@portal/features/launch/client";
-import type { DeploymentRecord } from "@portal/features/launch/contracts";
+import { deploymentRecords } from "@build/features/launch/client";
+import type { DeploymentRecord } from "@build/features/launch/contracts";
 import {
   buildDeploymentList,
   type TimelineDeployment,

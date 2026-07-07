@@ -1,5 +1,6 @@
 import type {
   AomiAccountProfile,
+  AomiAccountResponse,
   AomiAccessApproval,
   AomiAuthWalletFamily,
   AomiAppDescriptor,
@@ -39,6 +40,11 @@ import { normalizeAppDescriptor } from "./app-descriptor";
 // =============================================================================
 
 const SESSION_ID_HEADER = "X-Session-Id";
+// The threads-era backend reads `X-Thread-Id`; older backends read
+// `X-Session-Id`. Both are sent during the migration so routes whose paths
+// didn't change (`/api/chat`, `/api/state`, `/api/updates`) work against
+// either backend.
+const THREAD_ID_HEADER = "X-Thread-Id";
 const APP_KEY_HEADER = "Aomi-App-Key";
 
 function previewText(value: string, max = 80): string {
@@ -182,9 +188,25 @@ function encodeJsonBody(body: unknown): BodyInit | undefined {
   return body === undefined ? undefined : JSON.stringify(body);
 }
 
+// The threads-era backend returns `thread_id`; older backends returned
+// `session_id`. The SDK's public types keep `session_id` as the id field, so
+// normalize at the wire boundary.
+type ThreadWire = {
+  thread_id?: string;
+  session_id?: string;
+  title?: string | null;
+  is_archived?: boolean;
+};
+
+function normalizeThreadWire(wire: ThreadWire): AomiThread {
+  const { thread_id, session_id, ...rest } = wire;
+  return { ...rest, session_id: session_id ?? thread_id ?? "" } as AomiThread;
+}
+
 function withSessionHeader(sessionId: string, init?: HeadersInit): HeadersInit {
   const headers = new Headers(init);
   headers.set(SESSION_ID_HEADER, sessionId);
+  headers.set(THREAD_ID_HEADER, sessionId);
   return headers;
 }
 
@@ -370,6 +392,7 @@ export class AomiClient {
     const headers = new Headers(options?.headers);
     if (options?.sessionId) {
       headers.set(SESSION_ID_HEADER, options.sessionId);
+      headers.set(THREAD_ID_HEADER, options.sessionId);
     }
     const apiKey = options?.apiKey ?? this.apiKey;
     if (apiKey) {
@@ -489,7 +512,9 @@ export class AomiClient {
   ): Promise<AomiChatResponse> {
     const app = options?.app ?? "default";
     const apiKey = options?.apiKey ?? this.apiKey;
-    const normalizedUserState = UserState.normalize(options?.userState);
+    const normalizedUserState = stripBulkyPendingFields(
+      UserState.normalize(options?.userState),
+    );
     const applicationId = options?.applicationId?.toString().trim();
     const url = buildApiUrl(this.baseUrl, "/api/chat", {
       app,
@@ -758,7 +783,7 @@ export class AomiClient {
    * List all threads for the authenticated account.
    */
   async listThreads(sessionId: string): Promise<AomiThread[]> {
-    const url = buildApiUrl(this.baseUrl, "/api/sessions");
+    const url = buildApiUrl(this.baseUrl, "/api/threads");
     const response = await this.fetchImpl(url, {
       headers: withSessionHeader(sessionId),
     });
@@ -767,7 +792,8 @@ export class AomiClient {
       throw new Error(`Failed to fetch threads: HTTP ${response.status}`);
     }
 
-    return (await response.json()) as AomiThread[];
+    const threads = (await response.json()) as ThreadWire[];
+    return threads.map(normalizeThreadWire);
   }
 
   /**
@@ -776,7 +802,7 @@ export class AomiClient {
   async getThread(sessionId: string): Promise<AomiThread> {
     const url = buildApiUrl(
       this.baseUrl,
-      `/api/sessions/${encodeURIComponent(sessionId)}`,
+      `/api/threads/${encodeURIComponent(sessionId)}`,
     );
     const response = await this.fetchImpl(url, {
       headers: withSessionHeader(sessionId),
@@ -786,14 +812,14 @@ export class AomiClient {
       throw new Error(`HTTP ${response.status}: ${response.statusText}`);
     }
 
-    return (await response.json()) as AomiThread;
+    return normalizeThreadWire((await response.json()) as ThreadWire);
   }
 
   /**
    * Create a new thread. The client generates the session ID.
    */
   async createThread(threadId: string): Promise<AomiCreateThreadResponse> {
-    const url = buildApiUrl(this.baseUrl, "/api/sessions");
+    const url = buildApiUrl(this.baseUrl, "/api/threads");
     const response = await this.fetchImpl(url, {
       method: "POST",
       headers: withSessionHeader(threadId),
@@ -803,7 +829,7 @@ export class AomiClient {
       throw new Error(`Failed to create thread: HTTP ${response.status}`);
     }
 
-    return (await response.json()) as AomiCreateThreadResponse;
+    return normalizeThreadWire((await response.json()) as ThreadWire);
   }
 
   /**
@@ -812,7 +838,7 @@ export class AomiClient {
   async deleteThread(sessionId: string): Promise<void> {
     const url = buildApiUrl(
       this.baseUrl,
-      `/api/sessions/${encodeURIComponent(sessionId)}`,
+      `/api/threads/${encodeURIComponent(sessionId)}`,
     );
     const response = await this.fetchImpl(url, {
       method: "DELETE",
@@ -830,7 +856,7 @@ export class AomiClient {
   async renameThread(sessionId: string, newTitle: string): Promise<void> {
     const url = buildApiUrl(
       this.baseUrl,
-      `/api/sessions/${encodeURIComponent(sessionId)}`,
+      `/api/threads/${encodeURIComponent(sessionId)}`,
     );
     const response = await this.fetchImpl(url, {
       method: "PATCH",
@@ -850,7 +876,7 @@ export class AomiClient {
    */
   async archiveThread(sessionId: string): Promise<void> {
     throw new Error(
-      "Failed to archive thread: current backend does not expose /api/sessions/:id/archive",
+      "Failed to archive thread: current backend does not expose /api/threads/:id/archive",
     );
   }
 
@@ -859,7 +885,7 @@ export class AomiClient {
    */
   async unarchiveThread(sessionId: string): Promise<void> {
     throw new Error(
-      "Failed to unarchive thread: current backend does not expose /api/sessions/:id/unarchive",
+      "Failed to unarchive thread: current backend does not expose /api/threads/:id/unarchive",
     );
   }
 
@@ -903,7 +929,7 @@ export class AomiClient {
     options?: { apiKey?: string; platforms?: AomiPlatformFilter },
   ): Promise<AomiAppDescriptor[]> {
     const platforms = normalizePlatformFilter(options?.platforms);
-    const url = buildApiUrl(this.baseUrl, "/api/session/apps", {
+    const url = buildApiUrl(this.baseUrl, "/api/thread/apps", {
       platform: platforms.length > 0 ? platforms : undefined,
     });
 
@@ -957,6 +983,24 @@ export class AomiClient {
     return (await response.json()) as AomiAccountProfile;
   }
 
+  /**
+   * Fetch the full account for the authenticated request. Throws on any
+   * non-OK response; use `fetchAccountProfile` for the null-on-anonymous
+   * variant.
+   */
+  async getAccount(sessionId: string): Promise<AomiAccountResponse> {
+    const url = buildApiUrl(this.baseUrl, "/api/account");
+    const response = await this.fetchImpl(url, {
+      headers: withSessionHeader(sessionId),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to fetch account: HTTP ${response.status}`);
+    }
+
+    return (await response.json()) as AomiAccountResponse;
+  }
+
   async createAccountApproval(
     request: AomiCreateApprovalRequest,
   ): Promise<AomiAccessApproval> {
@@ -1000,7 +1044,7 @@ export class AomiClient {
     sessionId: string,
     options?: { apiKey?: string },
   ): Promise<string[]> {
-    const url = buildApiUrl(this.baseUrl, "/api/session/models");
+    const url = buildApiUrl(this.baseUrl, "/api/thread/models");
     const apiKey = options?.apiKey ?? this.apiKey;
     const headers = new Headers(withSessionHeader(sessionId));
     if (apiKey) {
@@ -1038,7 +1082,7 @@ export class AomiClient {
   }> {
     const apiKey = options?.apiKey ?? this.apiKey;
     const applicationId = options?.applicationId?.toString().trim();
-    const url = buildApiUrl(this.baseUrl, "/api/session/model", {
+    const url = buildApiUrl(this.baseUrl, "/api/thread/model", {
       rig,
       app: options?.app,
       application_id: applicationId || undefined,

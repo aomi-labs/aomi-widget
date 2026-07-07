@@ -2,11 +2,11 @@
 
 import { useEffect, useState } from "react";
 import { ArrowLeft } from "lucide-react";
-import { Onboarding } from "@portal/features/launch/components/onboarding";
+import { Onboarding } from "@build/features/launch/components/onboarding";
 import {
   fetchGitHubSession,
   type GitHubSessionInfo,
-} from "@portal/features/launch/dashboard";
+} from "@build/features/launch/dashboard";
 import { GitHubSignInPanel } from "./ui/state-panels";
 import { LoadingPanel } from "./ui/state-panels";
 

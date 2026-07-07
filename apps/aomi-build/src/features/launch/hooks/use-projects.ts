@@ -5,12 +5,12 @@ import type { UserSource } from "@aomi-labs/deploy";
 import {
   deploymentSources,
   deploymentSdkStatus,
-} from "@portal/features/launch/client";
-import type { LaunchSdkStatus } from "@portal/features/launch/contracts";
+} from "@build/features/launch/client";
+import type { LaunchSdkStatus } from "@build/features/launch/contracts";
 import {
   fetchGitHubSession,
   type GitHubSessionInfo,
-} from "@portal/features/launch/dashboard";
+} from "@build/features/launch/dashboard";
 
 export type ProjectsState =
   | { status: "loading" }

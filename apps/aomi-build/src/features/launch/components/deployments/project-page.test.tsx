@@ -5,7 +5,7 @@ vi.mock("next/navigation", () => ({
   useSearchParams: () => new URLSearchParams("tab=environment"),
   useRouter: () => ({ push: vi.fn() }),
 }));
-vi.mock("@portal/features/launch/hooks/use-project-detail", () => ({
+vi.mock("@build/features/launch/hooks/use-project-detail", () => ({
   useProjectDetail: () => ({
     source: {
       id: 1,

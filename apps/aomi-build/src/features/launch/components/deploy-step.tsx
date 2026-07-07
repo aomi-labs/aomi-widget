@@ -21,7 +21,7 @@ import {
   launchStatus,
   type LaunchDeployPayload,
   type LaunchProgress,
-} from "@portal/features/launch";
+} from "@build/features/launch";
 
 type Phase =
   | "idle"

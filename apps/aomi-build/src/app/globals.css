@@ -387,7 +387,7 @@
 }
 
 /* Temporary compatibility map for the backend-wired deployment console copied
-   from the white portal app. New Aomi Build UI should use semantic tokens
+   from the white legacy app. New Aomi Build UI should use semantic tokens
    directly; this lets the existing raw zinc classes inherit Gordian's mock
    control-plane palette while we migrate components incrementally. */
 @layer utilities {

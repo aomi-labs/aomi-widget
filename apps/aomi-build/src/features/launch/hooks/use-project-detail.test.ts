@@ -1,7 +1,7 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { renderHook, waitFor, act } from "@testing-library/react";
 
-vi.mock("@portal/features/launch/client", () => ({
+vi.mock("@build/features/launch/client", () => ({
   deploymentSources: vi.fn(async () => ({
     sources: [
       {
@@ -57,7 +57,7 @@ import {
   deploymentRecords,
   deploymentHistory,
   deploymentSecrets,
-} from "@portal/features/launch/client";
+} from "@build/features/launch/client";
 
 describe("useProjectDetail", () => {
   beforeEach(() => vi.clearAllMocks());

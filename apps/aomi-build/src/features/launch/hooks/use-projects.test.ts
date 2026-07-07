@@ -1,7 +1,7 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { renderHook, waitFor } from "@testing-library/react";
 
-vi.mock("@portal/features/launch/client", () => ({
+vi.mock("@build/features/launch/client", () => ({
   deploymentSources: vi.fn(async () => ({
     sources: [
       {
@@ -20,7 +20,7 @@ vi.mock("@portal/features/launch/client", () => ({
   })),
   deploymentHistory: vi.fn(),
 }));
-vi.mock("@portal/features/launch/dashboard", () => ({
+vi.mock("@build/features/launch/dashboard", () => ({
   fetchGitHubSession: vi.fn(async () => ({
     signedIn: true,
     githubLogin: "alice",
@@ -29,7 +29,7 @@ vi.mock("@portal/features/launch/dashboard", () => ({
 }));
 
 import { useProjects } from "./use-projects";
-import { deploymentHistory } from "@portal/features/launch/client";
+import { deploymentHistory } from "@build/features/launch/client";
 
 describe("useProjects", () => {
   beforeEach(() => vi.clearAllMocks());

@@ -1,8 +1,8 @@
-# The AOMI service topology — the portal's committed view of the mesh.
+# The AOMI service topology — Aomi Build's committed view of the mesh.
 #
 # One node per service: its identity (`name`/`kid`), SPKI `public_key` (the
 # private half lives in that service's env, never here), the `issues` roles it
-# may mint, and the `audiences` it may sign for. The portal selects its own node
+# may mint, and the `audiences` it may sign for. Aomi Build selects its own node
 # (`aomi-bff`) and mints `service.portal.toml`-authorized bearers with
 # PORTAL_SERVICE_PRIVATE_KEY (env). Public keys here MUST match the
 # backend's `service.toml` (verifier view) — same mesh, two vantages
@@ -12,7 +12,7 @@
 # service.toml). They hold their own private key and mint `service` bearers.
 
 [[services]]
-name = "aomi-bff"           # the portal BFF — mints user + service bearers
+name = "aomi-bff"           # the Aomi Build BFF — mints user + service bearers
 kid = "aomi-bff-dev-1"
 issues = ["user", "service"]
 audiences = ["aomi-backend"]

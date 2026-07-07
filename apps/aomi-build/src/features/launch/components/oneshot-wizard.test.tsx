@@ -1,8 +1,8 @@
 import { describe, it, expect, vi } from "vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { OneshotWizard } from "./oneshot-wizard";
-import { launchCreateRepo } from "@portal/features/launch";
-import type { LaunchProgress } from "@portal/features/launch";
+import { launchCreateRepo } from "@build/features/launch";
+import type { LaunchProgress } from "@build/features/launch";
 
 const noop = () => {};
 
@@ -29,10 +29,10 @@ vi.mock("@aomi-labs/widget-lib", () => ({
   ),
 }));
 
-// `@portal/lib/chat-url` is intentionally NOT mocked: it is a pure helper and
+// `@build/lib/chat-url` is intentionally NOT mocked: it is a pure helper and
 // a stale fake here previously dropped `application_id` from asserted URLs.
 
-vi.mock("@portal/features/launch", () => ({
+vi.mock("@build/features/launch", () => ({
   oneshotStep: (p: LaunchProgress) => {
     if (p.live) return "live";
     if (p.deploymentId || p.deployment) return "build";

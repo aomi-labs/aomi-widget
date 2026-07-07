@@ -1,6 +1,6 @@
 "use client";
 
-import { useProjects } from "@portal/features/launch/hooks/use-projects";
+import { useProjects } from "@build/features/launch/hooks/use-projects";
 import { ProjectRow } from "./project-row";
 import { SdkBadge } from "./ui/sdk-badge";
 import {

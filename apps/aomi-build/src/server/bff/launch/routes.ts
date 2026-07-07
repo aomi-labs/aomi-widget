@@ -2,19 +2,19 @@ import "server-only";
 
 import { randomBytes } from "crypto";
 import { NextResponse } from "next/server";
-import { deploymentClient } from "@portal/server/bff/backend";
+import { deploymentClient } from "@build/server/bff/backend";
 import { launchErrorResponse } from "./errors";
 import { launchConfig } from "./config";
 import { appNamesFromDeployment, releaseTagsFromDeployment } from "./mappers";
-import { checkRateLimit, getClientIp } from "@portal/lib/rate-limit";
-import { validateOrigin } from "@portal/lib/csrf";
-import { getGitHubSession } from "@portal/server/cookies/github";
+import { checkRateLimit, getClientIp } from "@build/lib/rate-limit";
+import { validateOrigin } from "@build/lib/csrf";
+import { getGitHubSession } from "@build/server/cookies/github";
 import {
   isValidDeploymentId,
   isValidInstallationId,
   isValidReleaseTags,
   isValidRepo,
-} from "@portal/lib/validate-input";
+} from "@build/lib/validate-input";
 
 const CREATED_REPO_PREFIX = "my-playground";
 
@@ -187,7 +187,7 @@ export function launchDeployRoute(preflight: boolean) {
       }
 
       // Deploy uses a stable source row plus an immutable source commit. When
-      // the portal only has a repo, sync-installed resolves both from GitHub.
+      // Aomi Build only has a repo, sync-installed resolves both from GitHub.
       let appSourceId: number;
       let deploySourceRef = sourceRef(body.sourceRef);
       if (isValidAppSourceId(body.appSourceId)) {
@@ -399,7 +399,7 @@ async function enrichPendingCiStatus(
   const token = process.env.GITHUB_TOKEN?.trim();
   const headers: Record<string, string> = {
     Accept: "application/vnd.github+json",
-    "User-Agent": "aomi-portal",
+    "User-Agent": "aomi-build",
     "X-GitHub-Api-Version": "2022-11-28",
   };
   if (token) headers.Authorization = `Bearer ${token}`;
@@ -884,7 +884,7 @@ export async function deploymentPromoteRoute(req: Request) {
       );
     }
 
-    // Default the promotion actor to the signed-in GitHub user so portal
+    // Default the promotion actor to the signed-in GitHub user so Aomi Build
     // promotions are attributable without the client threading it.
     const actor =
       typeof body.actor === "string" && body.actor.trim()
@@ -1032,7 +1032,7 @@ export async function redeployLaunchRoute(req: Request) {
         headers: {
           Accept: "application/vnd.github+json",
           Authorization: `Bearer ${token}`,
-          "User-Agent": "aomi-portal",
+          "User-Agent": "aomi-build",
           "X-GitHub-Api-Version": "2022-11-28",
         },
       },

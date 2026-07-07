@@ -60,7 +60,7 @@ const detail = {
   deactivate,
   reload: vi.fn(),
 } as unknown as ReturnType<
-  typeof import("@portal/features/launch/hooks/use-project-detail").useProjectDetail
+  typeof import("@build/features/launch/hooks/use-project-detail").useProjectDetail
 >;
 
 describe("DeploymentsTab", () => {

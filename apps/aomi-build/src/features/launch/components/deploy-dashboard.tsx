@@ -34,7 +34,7 @@ import {
   type LaunchUrlContext,
   type LaunchProgress,
   type LaunchSdkStatus,
-} from "@portal/features/launch";
+} from "@build/features/launch";
 import type { UserSource } from "@aomi-labs/deploy";
 import {
   deploymentLifecycleFromSource,
@@ -44,7 +44,7 @@ import {
   firstActivatedApp,
   type DeploymentLifecycle,
 } from "@aomi-labs/deploy/lifecycle";
-import { chatAppUrl } from "@portal/lib/chat-url";
+import { chatAppUrl } from "@build/lib/chat-url";
 import { DeployStep } from "./deploy-step";
 import { Onboarding } from "./onboarding";
 

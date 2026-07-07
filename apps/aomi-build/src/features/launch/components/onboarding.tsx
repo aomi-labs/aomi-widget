@@ -16,7 +16,7 @@ import {
   type LaunchState,
   type LaunchProgress,
   type UserSource,
-} from "@portal/features/launch";
+} from "@build/features/launch";
 import { OneshotWizard } from "./oneshot-wizard";
 
 const PATH = "oneshot" as const;

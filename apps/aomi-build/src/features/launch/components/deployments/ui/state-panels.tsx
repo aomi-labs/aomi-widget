@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { Github } from "lucide-react";
-import { GITHUB_SIGNIN_URL } from "@portal/features/launch/dashboard";
+import { GITHUB_SIGNIN_URL } from "@build/features/launch/dashboard";
 
 export function LoadingPanel({ label }: { label: string }) {
   return (
@@ -29,7 +29,7 @@ export function EmptyPanel({ children }: { children: ReactNode }) {
 export function GitHubSignInPanel({ error }: { error?: string | null }) {
   const errorMessage =
     error === "service_auth_forbidden"
-      ? "The backend rejected the portal service bearer. Use a local backend with the dev service key, or set PORTAL_SERVICE_PRIVATE_KEY to the matching staging or production BFF key for the backend you are targeting."
+      ? "The backend rejected the Aomi Build service bearer. Use a local backend with the dev service key, or set PORTAL_SERVICE_PRIVATE_KEY to the matching staging or production BFF key for the backend you are targeting."
       : error === "exchange_failed"
         ? "GitHub sign-in reached the backend, but the OAuth exchange failed. Check the backend GitHub App OAuth settings and callback URL."
         : error === "invalid_oauth_state"

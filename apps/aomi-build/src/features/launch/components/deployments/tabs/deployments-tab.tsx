@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { PowerOff, Rocket } from "lucide-react";
-import { useProjectDetail } from "@portal/features/launch/hooks/use-project-detail";
+import { useProjectDetail } from "@build/features/launch/hooks/use-project-detail";
 import { TimelineDeploymentRow } from "../ui/timeline-deployment-row";
 import { ConfirmDialog } from "../ui/confirm-dialog";
 import { LoadingPanel, EmptyPanel } from "../ui/state-panels";

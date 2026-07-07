@@ -31,13 +31,10 @@ export function getSettingsSessionId(): string {
 }
 
 export function getBackendUrl(): string {
-  // Always same-origin: the browser calls `/api/*` on the portal, and the
-  // catch-all proxy (apps/portal/src/app/api/[...slug]/route.ts) injects the
-  // AccountBearer from the httpOnly session cookie and forwards to the backend.
-  // An empty base makes the client build same-origin relative URLs. The proxy
-  // ships with the portal, so this is always available; the upstream backend is
-  // configured server-side in the proxy, not here. (httpOnly session cookies are
-  // same-origin only, so direct cross-origin calls could never carry auth.)
+  // Always same-origin: the browser calls `/api/*` on Aomi Build, and app-local
+  // BFF routes or the catch-all proxy forward to the backend. An empty base makes
+  // the client build same-origin relative URLs; the upstream backend is
+  // configured server-side, not here.
   return "";
 }
 
@@ -90,7 +87,7 @@ export async function accountScopedFetch<T>(
   path: string,
   options?: RequestInit,
 ): Promise<T> {
-  // Same-origin `/api/account/*` through the portal proxy, which injects the
+  // Same-origin `/api/account/*` through the app proxy, which injects the
   // AccountBearer from the `aomi_session` cookie (established by
   // AomiSessionBridge). The browser carries no bearer itself.
   const response = await fetch(`${getBackendUrl()}${path}`, {

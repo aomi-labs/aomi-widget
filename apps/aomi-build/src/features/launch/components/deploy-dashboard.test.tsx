@@ -13,7 +13,7 @@ vi.mock("@aomi-labs/widget-lib", () => ({
   ),
 }));
 
-vi.mock("@portal/features/launch", () => ({
+vi.mock("@build/features/launch", () => ({
   fetchGitHubSession: vi.fn(async () => ({
     signedIn: true,
     githubLogin: "alice",

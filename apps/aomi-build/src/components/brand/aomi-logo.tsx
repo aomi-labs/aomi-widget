@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-import { cn } from "@portal/lib/utils";
+import { cn } from "@build/lib/utils";
 
 type AomiLogoProps = {
   href?: string;

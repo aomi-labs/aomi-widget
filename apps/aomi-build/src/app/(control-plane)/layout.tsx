@@ -1,4 +1,4 @@
-import { ControlPlaneShell } from "@portal/components/control-plane/control-plane-shell";
+import { ControlPlaneShell } from "@build/components/control-plane/control-plane-shell";
 
 export default function ControlPlaneLayout({
   children,

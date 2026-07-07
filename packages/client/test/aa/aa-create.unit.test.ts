@@ -33,10 +33,14 @@ const {
   requestAccountMock: vi.fn(),
   sendCallsMock: vi.fn(),
   waitForCallsStatusMock: vi.fn(),
-  signAuthorizationMock: vi.fn().mockResolvedValue({ r: "0x1", s: "0x2", v: 27n }),
+  signAuthorizationMock: vi
+    .fn()
+    .mockResolvedValue({ r: "0x1", s: "0x2", v: 27n }),
   sendTransactionMock: vi.fn().mockResolvedValue("0xmock7702hash"),
   estimateGasMock: vi.fn().mockResolvedValue(50000n),
-  waitForTransactionReceiptMock: vi.fn().mockResolvedValue({ status: "success", gasUsed: 47000n }),
+  waitForTransactionReceiptMock: vi
+    .fn()
+    .mockResolvedValue({ status: "success", gasUsed: 47000n }),
 }));
 
 vi.mock("@getpara/aa-alchemy", () => ({
@@ -101,12 +105,26 @@ const SIGNER = {
   signTypedData: vi.fn(),
   signAuthorization: vi.fn(),
 } as const;
+const EXTERNAL_WALLET_CLIENT = {
+  account: {
+    address: "0x9999999999999999999999999999999999999999",
+  },
+  transport: { type: "custom" },
+  getChainId: vi.fn().mockResolvedValue(137),
+  signMessage: vi.fn(),
+  signTransaction: vi.fn(),
+  signTypedData: vi.fn(),
+} as const;
 const PARA = { id: "para-session" } as const;
 const CALL_LIST = [
   { to: "0x1111111111111111111111111111111111111111", value: "1", chainId: 1 },
 ] as const;
 const POLYGON_CALLS = [
-  { to: "0x1111111111111111111111111111111111111111", value: "1", chainId: 137 },
+  {
+    to: "0x1111111111111111111111111111111111111111",
+    value: "1",
+    chainId: 137,
+  },
 ] as const;
 
 const ORIGINAL_ENV = { ...process.env };
@@ -493,6 +511,65 @@ describe("createAAProviderState owner modes", () => {
     expect(createAlchemySmartAccountMock).not.toHaveBeenCalled();
     expect(state.account).toBeNull();
     expect(state.error).toBeInstanceOf(Error);
-    expect(state.error!.message).toBe('Session adapter "privy" is not implemented.');
+    expect(state.error!.message).toBe(
+      'Session adapter "privy" is not implemented.',
+    );
+  });
+
+  it("creates a Pimlico 4337 provider state for a sessionless external wallet owner", async () => {
+    const state = await createAAProviderState({
+      provider: "pimlico",
+      owner: {
+        kind: "external-wallet",
+        signer: EXTERNAL_WALLET_CLIENT,
+        address: EXTERNAL_WALLET_CLIENT.account.address,
+      },
+      chain: polygon,
+      callList: [...POLYGON_CALLS],
+      rpcUrl: "https://example-rpc.invalid",
+      apiKey: "pimlico-key",
+      mode: "4337",
+    });
+
+    expect(createPimlicoSmartAccountMock).not.toHaveBeenCalled();
+    expect(toSimpleSmartAccountMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        owner: expect.objectContaining({
+          address: EXTERNAL_WALLET_CLIENT.account.address,
+        }),
+      }),
+    );
+    expect(state.account).toMatchObject({
+      provider: "pimlico",
+      mode: "4337",
+      address: EXTERNAL_WALLET_CLIENT.account.address,
+      SmartAccount4337: "0xcccccccccccccccccccccccccccccccccccccccc",
+    });
+    expect(state.error).toBeNull();
+  });
+
+  it("returns a clear unsupported state for Alchemy external wallet owners", async () => {
+    const state = await createAAProviderState({
+      provider: "alchemy",
+      owner: {
+        kind: "external-wallet",
+        signer: EXTERNAL_WALLET_CLIENT,
+        address: EXTERNAL_WALLET_CLIENT.account.address,
+      },
+      chain: mainnet,
+      callList: [...CALL_LIST],
+      rpcUrl: "https://example-rpc.invalid",
+      apiKey: "alchemy-key",
+      gasPolicyId: "policy-1",
+      mode: "4337",
+    });
+
+    expect(createAlchemySmartAccountMock).not.toHaveBeenCalled();
+    expect(createSmartWalletClientMock).not.toHaveBeenCalled();
+    expect(state.account).toBeNull();
+    expect(state.error).toBeInstanceOf(Error);
+    expect(state.error!.message).toContain(
+      "Alchemy AA external-wallet owners are not implemented yet",
+    );
   });
 });

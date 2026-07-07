@@ -38,4 +38,4 @@ sources_of_truth:
 
 - [apps/facts/widget-frame.md](../../apps/facts/widget-frame.md)
 - [client-runtime/facts/transport-client.md](../../client-runtime/facts/transport-client.md)
-- [auth/facts/auth-adapter.md](../../auth/facts/auth-adapter.md)
+- [auth/facts/wallet-kit.md](../../auth/facts/wallet-kit.md)

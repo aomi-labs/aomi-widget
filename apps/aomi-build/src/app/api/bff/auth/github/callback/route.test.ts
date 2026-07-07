@@ -19,13 +19,13 @@ vi.mock("next/headers", () => ({
   })),
 }));
 
-vi.mock("@portal/server/bff/backend", () => ({
+vi.mock("@build/server/bff/backend", () => ({
   deploymentClient: vi.fn(async () => ({
     exchangeGitHubCode: mocks.exchangeGitHubCode,
   })),
 }));
 
-vi.mock("@portal/server/cookies/github", () => ({
+vi.mock("@build/server/cookies/github", () => ({
   setGitHubSessionCookie: mocks.setGitHubSessionCookie,
 }));
 

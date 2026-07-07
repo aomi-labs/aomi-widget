@@ -3,7 +3,11 @@ packages:
   - apps/*
   - packages/*
 
+overrides:
+  viem: 2.47.11
+
 onlyBuiltDependencies:
+  - "@reown/appkit"
   - "@tailwindcss/oxide"
   - bufferutil
   - esbuild
@@ -11,3 +15,6 @@ onlyBuiltDependencies:
   - sharp
   - unrs-resolver
   - utf-8-validate
+
+allowBuilds:
+  '@reown/appkit': true

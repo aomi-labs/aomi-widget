@@ -11,7 +11,8 @@ const walletSetDef = defineCommand({
   args: {
     privateKey: {
       type: "positional",
-      description: "Hex EVM private key (default) or Solana base58 key when --solana is set",
+      description:
+        "Hex EVM private key (default) or Solana base58 key when --solana is set",
       required: false,
     },
     evm: {
@@ -58,44 +59,15 @@ const walletCurrentDef = defineCommand({
   },
 });
 
-const walletLoginDef = defineCommand({
-  meta: {
-    name: "login",
-    description:
-      "Mint a Privy browser auth URL for the active session. Defaults to EVM; pass --solana to require a Solana wallet.",
-  },
-  args: {
-    ...globalArgs,
-    evm: {
-      type: "boolean",
-      description: "Request the default EVM embedded-wallet flow explicitly",
-    },
-    solana: {
-      type: "boolean",
-      description: "Request a Solana embedded-wallet login flow",
-    },
-  },
-  async run({ args }) {
-    if (args.evm === true && args.solana === true) {
-      const { fatal } = await import("../../errors");
-      fatal("Choose only one of `--evm` or `--solana`.");
-    }
-    const { loginCommand } = await import("../account");
-    await loginCommand(buildCliConfig(args), {
-      walletFamily: args.solana === true ? "solana" : "evm",
-    });
-  },
-});
-
 const walletWhoamiDef = defineCommand({
   meta: {
     name: "whoami",
-    description: "Show the bound account and every linked wallet on the backend",
+    description: "Show the authenticated backend account",
   },
   args: { ...globalArgs },
   async run({ args }) {
-    const { whoamiCommand } = await import("../account");
-    await whoamiCommand(buildCliConfig(args));
+    const { accountWhoamiCommand } = await import("../account");
+    await accountWhoamiCommand(buildCliConfig(args));
   },
 });
 
@@ -104,7 +76,6 @@ export const walletDef = defineCommand({
   subCommands: {
     set: walletSetDef,
     current: walletCurrentDef,
-    login: walletLoginDef,
     whoami: walletWhoamiDef,
   },
 });

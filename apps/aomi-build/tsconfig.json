@@ -15,7 +15,7 @@
     "incremental": true,
     "plugins": [{ "name": "next" }],
     "paths": {
-      "@portal/*": ["./src/*"],
+      "@build/*": ["./src/*"],
       "@aomi-labs/widget-lib": ["../shadcn-registry/src/index.ts"],
       "@aomi-labs/widget-lib/*": ["../shadcn-registry/src/*"],
       "@/components/*": ["../shadcn-registry/src/components/*"],

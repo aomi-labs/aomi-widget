@@ -1,7 +1,7 @@
 import { randomBytes } from "crypto";
 import { NextResponse } from "next/server";
 
-import { API_PATHS } from "@portal/lib/api-paths";
+import { API_PATHS } from "@build/lib/api-paths";
 
 export const runtime = "nodejs";
 
@@ -14,7 +14,7 @@ const PRODUCTION_CLIENT_ID = "Iv23li4wPpAfoGOJ6v0Q";
 
 function githubOAuthClientId(req: Request): string {
   const host = new URL(req.url).hostname;
-  if (process.env.VERCEL_ENV === "production" || host === "portal.aomi.dev") {
+  if (process.env.VERCEL_ENV === "production" || host === "build.aomi.dev") {
     return PRODUCTION_CLIENT_ID;
   }
   return STAGING_CLIENT_ID;
@@ -22,7 +22,7 @@ function githubOAuthClientId(req: Request): string {
 
 // GET /api/bff/auth/github/login — kick off "Sign in with GitHub".
 // Redirects to GitHub's user-authorization page; the callback below mints the
-// portal GitHub session. The client id is public; only the matching client
+// Aomi Build GitHub session. The client id is public; only the matching client
 // secret lives backend-side in the GitHub App config used by oauth/exchange.
 export async function GET(req: Request) {
   const origin = new URL(req.url).origin;
