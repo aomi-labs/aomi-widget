@@ -12,7 +12,10 @@ import { ChevronRightIcon } from "lucide-react";
 
 import { cn, useCurrentThreadMetadata } from "@aomi-labs/react";
 import { MarkdownText } from "@/components/assistant-ui/markdown-text";
-import { resolveToolIcon } from "@/components/assistant-ui/tool-icon";
+import {
+  interpretToolStep,
+  type ToolChip,
+} from "@/components/assistant-ui/tool-interpreter";
 
 /**
  * Working trace — the chain-of-thought UI.
@@ -29,15 +32,6 @@ import { resolveToolIcon } from "@/components/assistant-ui/tool-icon";
  * revealed. Plain replies with no tool calls skip the trace and stream normally.
  */
 
-const humanizeToolName = (name: string): string => {
-  if (!name) return "Tool";
-  const spaced = name
-    .replace(/[_-]+/g, " ")
-    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
-    .trim();
-  return spaced.charAt(0).toUpperCase() + spaced.slice(1);
-};
-
 const formatDuration = (seconds: number): string => {
   if (seconds < 1) return "less than a second";
   if (seconds < 60) return `${seconds.toFixed(seconds < 10 ? 1 : 0)}s`;
@@ -49,6 +43,25 @@ const formatDuration = (seconds: number): string => {
 const toDetailString = (result: unknown): string =>
   typeof result === "string" ? result : JSON.stringify(result, null, 2);
 
+const MAX_VISIBLE_CHIPS = 4;
+
+const ToolChipView: FC<{ chip: ToolChip }> = ({ chip }) => {
+  const Glyph = chip.icon;
+  return (
+    <span className="border-border/60 bg-muted/40 text-foreground/80 inline-flex min-w-0 max-w-full items-center gap-1.5 rounded-md border px-2 py-0.5 text-xs tabular-nums leading-4">
+      {chip.dot && (
+        <span
+          className="size-1.5 shrink-0 rounded-full"
+          style={{ backgroundColor: chip.dot }}
+          aria-hidden="true"
+        />
+      )}
+      {Glyph && <Glyph className="text-muted-foreground size-3 shrink-0" />}
+      <span className="truncate">{chip.label}</span>
+    </span>
+  );
+};
+
 const WorkingStep: FC<{ tool: ToolCallMessagePart; active: boolean }> = ({
   tool,
   active,
@@ -58,7 +71,17 @@ const WorkingStep: FC<{ tool: ToolCallMessagePart; active: boolean }> = ({
   const argsText =
     tool.argsText && tool.argsText !== "undefined" ? tool.argsText : undefined;
   const hasDetail = done || argsText !== undefined;
-  const Icon = resolveToolIcon(tool.toolName, tool.result);
+  const interpretation = interpretToolStep({
+    toolName: tool.toolName,
+    argsText,
+    result: tool.result,
+  });
+  const Icon = interpretation.icon;
+  const shownChips =
+    interpretation.chips.length > MAX_VISIBLE_CHIPS
+      ? interpretation.chips.slice(0, MAX_VISIBLE_CHIPS)
+      : interpretation.chips;
+  const overflow = interpretation.chips.length - shownChips.length;
 
   return (
     <div className="aui-working-step animate-in fade-in-0 slide-in-from-bottom-1 duration-300 motion-reduce:animate-none">
@@ -77,7 +100,7 @@ const WorkingStep: FC<{ tool: ToolCallMessagePart; active: boolean }> = ({
             active ? "aui-working-shimmer font-medium" : "text-foreground",
           )}
         >
-          {humanizeToolName(tool.toolName)}
+          {interpretation.title}
         </span>
         {hasDetail && (
           <ChevronRightIcon
@@ -88,6 +111,19 @@ const WorkingStep: FC<{ tool: ToolCallMessagePart; active: boolean }> = ({
           />
         )}
       </button>
+
+      {interpretation.chips.length > 0 && (
+        <div className="aui-working-step-chips mb-1 ml-6 flex max-w-full flex-wrap items-center gap-1.5">
+          {shownChips.map((chip, i) => (
+            <ToolChipView key={`${chip.label}-${i}`} chip={chip} />
+          ))}
+          {overflow > 0 && (
+            <span className="border-border/60 bg-muted/40 text-muted-foreground inline-flex items-center rounded-md border px-2 py-0.5 text-xs leading-4">
+              +{overflow} more
+            </span>
+          )}
+        </div>
+      )}
 
       {open && hasDetail && (
         <div className="aui-working-step-detail mb-1 ml-6 flex flex-col gap-1.5">

@@ -148,3 +148,56 @@ Progress:
   after the backend accepts processing, and buffers provisional pre-tool text
   out of the final answer area. Verified focused React chat tests, React package
   build, registry build, and targeted ESLint with pinned `pnpm@10.28.0`.
+- 2026-07-07 working trace interpreter follow-up: replaced icon-only trace
+  guessing with a typed registry plus deterministic interpreter for web search,
+  skill activation, chain context, native/token balances, token lookup,
+  ERC-20/Aerodrome calls, staged transactions, simulations, and wallet approval.
+  Trace rows now show concise interpreted titles with up to three under-label
+  chips and `+N more` overflow while raw args/results remain expandable.
+  Verified focused interpreter Vitest coverage, targeted ESLint, and registry
+  build with pinned `pnpm@10.28.0`.
+- 2026-07-07 trace chip cleanup: simplified skill chips to activated skill names
+  only with capitalization, removed gas-price chips from network checks, and
+  swapped network color dots for the existing chain logo components in trace
+  chips. Verified focused interpreter Vitest coverage, targeted ESLint, and
+  registry build with pinned `pnpm@10.28.0`.
+- 2026-07-07 trace interpreter hardcode cleanup: removed the non-scalable
+  contract/token/pool registry, protocol-specific selector handling, route
+  reconstruction, and token-decimal formatting from working-trace chips. The
+  interpreter now keeps only generic ERC-20 selector decoding plus structural
+  result parsing, and falls back to the model-provided tool label for
+  protocol-specific calls. Verified focused interpreter Vitest coverage,
+  targeted ESLint, and registry build with pinned `pnpm@10.28.0`.
+- 2026-07-07 trace chip polish follow-up: resolved numeric chain ids and
+  lowercase network strings through shared `@aomi-labs/react` chain metadata so
+  trace chips show names/logos such as Base instead of `chain 8453`, capitalized
+  success/failure/status chips, and changed chip overflow to show four facts
+  plus a `+N more` chip. Verified focused interpreter Vitest coverage, targeted
+  ESLint, and registry build with pinned `pnpm@10.28.0`.
+- 2026-07-07 trace chip semantics follow-up: replaced block `#` chips with a
+  block icon plus plain number, removed nonce from native balance chips, changed
+  custom/protocol EVM calls to show structural from/to address chips instead of
+  selector/success chips, capitalized staged action chips, and added tx/gas
+  icons for staged, simulated, and committed transaction counts. Verified
+  focused interpreter Vitest coverage, targeted ESLint, and registry build with
+  pinned `pnpm@10.28.0`.
+- 2026-07-07 token/allowance chip polish: standardized token-related chips so
+  token resolution, token balance, metadata, and allowance rows put the resolved
+  chain chip first, use a generic token icon for symbols, use a user icon for
+  wallet owner addresses, and omit noisy contract-address/count/value chips
+  where they do not help scanning. Verified focused interpreter Vitest coverage,
+  targeted ESLint, and registry build with pinned `pnpm@10.28.0`.
+- 2026-07-07 token-miss chip cleanup: removed the redundant `not found` badge
+  from unresolved token rows so the trace keeps only the queried token symbol.
+  Verified focused interpreter Vitest coverage, targeted ESLint, and registry
+  build with pinned `pnpm@10.28.0`.
+- 2026-07-07 staged action chip icons: added deterministic icons for staged
+  approve, swap, transfer/send, bridge, burn, mint/claim, and
+  deposit/withdraw-style action chips, with a generic staged fallback for
+  custom actions. Verified focused interpreter Vitest coverage, targeted
+  ESLint, and registry build with pinned `pnpm@10.28.0`.
+- 2026-07-07 tool interpreter architecture planning: drafted
+  `specs/TOOL-INTERPRETER-PLAN.md` from `tmp-examples.md`, current frontend
+  trace behavior, and backend operation-shape exploration. The plan separates
+  unwrap, normalization, family parsing, operation facts, and presentation
+  rules while preserving the current `interpretToolStep()` UI contract.

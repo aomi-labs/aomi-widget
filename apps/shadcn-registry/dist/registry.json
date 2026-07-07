@@ -445,7 +445,19 @@
         },
         {
           "type": "registry:component",
-          "path": "components/assistant-ui/tool-icon.ts"
+          "path": "components/assistant-ui/tool-interpreter.ts"
+        },
+        {
+          "type": "registry:component",
+          "path": "components/assistant-ui/tool-registry.ts"
+        },
+        {
+          "type": "registry:component",
+          "path": "components/icons/chain-map.tsx"
+        },
+        {
+          "type": "registry:component",
+          "path": "components/icons/chains/index.tsx"
         }
       ],
       "dependencies": [

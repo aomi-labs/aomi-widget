@@ -174,7 +174,10 @@ export const registry: RegistryComponent[] = [
       "components/assistant-ui/thread.tsx",
       "components/assistant-ui/thread-loading.ts",
       "components/assistant-ui/working-trace.tsx",
-      "components/assistant-ui/tool-icon.ts",
+      "components/assistant-ui/tool-interpreter.ts",
+      "components/assistant-ui/tool-registry.ts",
+      "components/icons/chain-map.tsx",
+      "components/icons/chains/index.tsx",
     ],
     dependencies: [
       "@aomi-labs/react",
