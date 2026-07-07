@@ -242,6 +242,34 @@ publishing 0.2.0; unifying the portal's own launch routes onto these factories.
 
 ## Recent Changes
 
+### Working trace: windowed view with animated expand/collapse (2026-07-07)
+
+Branch `feat/working-trace-a`. A long turn's trace marched down the whole screen.
+The open trace (live or after completion) is now **capped to a scrolling window**
+(~5 steps / `WORKING_WINDOW_PX = 260`): newest steps stay pinned at the bottom via
+flex `justify-end`, older ones clip and dissolve under a top mask. A "Show all N
+steps" pill lifts the cap; "Collapse to recent steps" restores it. Both directions
+tween the window height with the **Web Animations API** (`WINDOW_ANIM_MS = 300`,
+ease-out), which — unlike a CSS transition — animates cleanly to/from the uncapped
+`auto` height in both directions. Entirely presentational — no
+runtime/merge/interpreter changes. The pill uses a horizontal-ellipsis marker (not
+a chevron) so its glyph doesn't point at the header's open-chevron above it.
+
+- `apps/shadcn-registry/src/components/assistant-ui/working-trace.tsx`
+  (`WorkingTrace`): `expanded`/`overflowing`/`animating` state + `viewportRef`/
+  `bodyRef`; a `windowed = !expanded` viewport with `maxHeight`/`overflow-hidden`
+  and flex-end pinning; an effect measuring overflow (`bodyRef` natural height vs
+  the cap); a layout effect that runs a WAAP `max-height` tween when `expanded`
+  flips (skipped under reduced motion); the "Show all N steps" /
+  "Collapse to recent steps" pill.
+- `apps/shadcn-registry/src/themes/default.css`: new `.aui-working-trace-windowed`
+  rule — a `mask-image` gradient fading the top 60px (applied only while content
+  overflows and not mid-tween, so short traces are never faded).
+- Verified: file typecheck (only pre-existing unrelated wallet-kit test errors)
+  and eslint green. `packages/react/dist` rebuilt to sync the earlier
+  `SUBMITTING_TO_WORKING_GRACE_MS` source change (650→300). Live streaming path
+  (needs a real multi-tool agent turn) exercised in the user's environment.
+
 ### Working trace: paced/staggered reveal (2026-07-07)
 
 Branch `feat/working-trace-a`. The Working trace looked "aggressive" — a burst of

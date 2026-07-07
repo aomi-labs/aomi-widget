@@ -1,13 +1,19 @@
 "use client";
 
-import { type FC, useEffect, useRef, useState } from "react";
+import {
+  type FC,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 import {
   TextMessagePartProvider,
   useMessage,
   type TextMessagePart,
   type ToolCallMessagePart,
 } from "@assistant-ui/react";
-import { ChevronRightIcon } from "lucide-react";
+import { ChevronRightIcon, MoreHorizontalIcon } from "lucide-react";
 
 import { cn, useCurrentThreadMetadata } from "@aomi-labs/react";
 import { MarkdownText } from "@/components/assistant-ui/markdown-text";
@@ -54,6 +60,13 @@ const prefersReducedMotion = (): boolean =>
   typeof window.matchMedia === "function" &&
   window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
+/** useLayoutEffect on the client, useEffect on the server (dodges the SSR warning). */
+const useIsomorphicLayoutEffect =
+  typeof window !== "undefined" ? useLayoutEffect : useEffect;
+
+/** Matches the header collapse (duration-300 ease-out). */
+const WINDOW_ANIM_MS = 300;
+
 /**
  * Paces how many trace items are shown, revealing them one at a time so a burst
  * of tool calls that lands in a single update cascades instead of flashing in.
@@ -74,6 +87,16 @@ const REVEAL_BASE_MS = 1200;
 const REVEAL_MIN_MS = 360;
 const REVEAL_STEP_MS = 320;
 const REVEAL_TAIL_MS = 220;
+
+/**
+ * Whenever the trace is open — live or after completion — it is capped to this
+ * height so a long run of steps doesn't march down the whole screen. Newest
+ * steps stay pinned at the bottom; older ones scroll up under a top fade (see the
+ * `.aui-working-trace-windowed` mask). Sized to show ~5 full steps with the 6th
+ * fading out under the top mask. Only "Show all" (expanding) lifts the cap to
+ * reveal the full trace.
+ */
+const WORKING_WINDOW_PX = 260;
 
 const useStaggeredReveal = (target: number, running: boolean): number => {
   const reduced = prefersReducedMotion();
@@ -290,6 +313,19 @@ const WorkingTrace: FC<{
   revealed: number;
 }> = ({ running, items, revealed }) => {
   const [open, setOpen] = useState(running);
+  const [expanded, setExpanded] = useState(false);
+  const [overflowing, setOverflowing] = useState(false);
+  // True only while the expand/collapse height tween is in flight; keeps the
+  // viewport clipped and suppresses the top mask so the animation reads cleanly.
+  const [animating, setAnimating] = useState(false);
+  const viewportRef = useRef<HTMLDivElement>(null);
+  // The inner content's natural height, read for overflow detection and the
+  // expand/collapse tween. Measured off the body (not the viewport's
+  // scrollHeight): the viewport's `justify-end` + `overflow-hidden` makes
+  // scrollHeight report only the visible slice once content overflows upward.
+  const bodyRef = useRef<HTMLDivElement>(null);
+  const prevExpanded = useRef(expanded);
+  const animRef = useRef<Animation | null>(null);
   const [elapsed, setElapsed] = useState<number | null>(null);
   const wasRunning = useRef(running);
   const startedAt = useRef<number>(Date.now());
@@ -304,6 +340,63 @@ const WorkingTrace: FC<{
 
   // The trace has fully caught up once every queued item has been revealed.
   const fullyRevealed = !running && revealed >= items.length;
+
+  // Cap the open trace to a scrolling window — live and after completion alike:
+  // the newest steps stay pinned at the bottom and older ones slide up under a
+  // top mask instead of the whole run marching down the page. Only expanding
+  // ("Show all") lifts the cap. The mask/pin only engage once content actually
+  // overflows the cap, so a short trace is never faded.
+  const windowed = !expanded;
+  useEffect(() => {
+    const body = bodyRef.current;
+    if (!body || !windowed) {
+      setOverflowing(false);
+      return;
+    }
+    // Compare the full content height to the cap directly, so the reading stays
+    // stable while the expand/collapse height animation is mid-flight — otherwise
+    // the "Show all" control would flicker out. The bottom-of-last-step anchoring
+    // is handled by the viewport's flex-end layout, not scrollTop, so shrinking
+    // the window clips the top rather than the bottom.
+    setOverflowing(body.offsetHeight - WORKING_WINDOW_PX > 24);
+  }, [windowed, revealed, open]);
+
+  // Animate the expand/collapse of the window height (cap ⇄ full content),
+  // mirroring the header's collapse feel. Plain CSS can't transition to/from the
+  // uncapped `auto` height, so we drive it with the Web Animations API: measure
+  // the natural height and tween `max-height` between the cap and full. WAAP
+  // overrides the declarative style while playing and reverts to it on finish —
+  // which already matches the tween's end value, so it settles seamlessly. Runs
+  // in a layout effect (before paint, so the first frame is already clipped) and
+  // only when `expanded` actually flips — not on mount, streaming re-renders, or
+  // under reduced motion.
+  useIsomorphicLayoutEffect(() => {
+    if (prevExpanded.current === expanded) return;
+    prevExpanded.current = expanded;
+    const viewport = viewportRef.current;
+    const body = bodyRef.current;
+    if (!viewport || !body || prefersReducedMotion()) return;
+    const cap = WORKING_WINDOW_PX;
+    const full = body.offsetHeight;
+    const from = expanded ? cap : full;
+    const to = expanded ? full : cap;
+    animRef.current?.cancel();
+    setAnimating(true);
+    const anim = viewport.animate(
+      [{ maxHeight: `${from}px` }, { maxHeight: `${to}px` }],
+      { duration: WINDOW_ANIM_MS, easing: "ease-out" },
+    );
+    animRef.current = anim;
+    const settle = () => {
+      if (animRef.current !== anim) return;
+      animRef.current = null;
+      setAnimating(false);
+    };
+    anim.onfinish = settle;
+    anim.oncancel = settle;
+  }, [expanded]);
+
+  useEffect(() => () => animRef.current?.cancel(), []);
 
   useEffect(() => {
     if (wasRunning.current && !running) {
@@ -364,30 +457,64 @@ const WorkingTrace: FC<{
         )}
       >
         <div className="min-h-0 overflow-hidden">
-          <div className="aui-working-trace-body relative isolate ml-1 mt-1.5 flex flex-col text-sm">
-            {/* Timeline rail threading through the icon column; each icon's
-                opaque background knocks it out, so it reads as connecting them. */}
-            <span
-              aria-hidden="true"
-              className="bg-border absolute bottom-[14px] left-[7.5px] top-[14px] w-px"
-            />
-            {visibleItems.map((item, i) =>
-              item.kind === "tool" ? (
-                <WorkingStep
-                  key={item.key}
-                  tool={item.tool}
-                  active={i === activeIndex}
-                  animate={i >= animatedCount.current}
-                />
-              ) : (
-                <WorkingNote
-                  key={item.key}
-                  text={item.text}
-                  animate={i >= animatedCount.current}
-                />
-              ),
+          <div
+            ref={viewportRef}
+            className={cn(
+              // flex-end keeps the last tool call pinned to the bottom edge, so
+              // capping/animating the height clips (and fades) the OLDEST steps
+              // off the top rather than cutting off the newest at the bottom.
+              "aui-working-trace-viewport mt-1.5 flex flex-col justify-end",
+              (windowed || animating) && "overflow-hidden",
+              windowed &&
+                overflowing &&
+                !animating &&
+                "aui-working-trace-windowed",
             )}
+            style={{ maxHeight: windowed ? WORKING_WINDOW_PX : undefined }}
+          >
+            <div
+              ref={bodyRef}
+              className="aui-working-trace-body relative isolate ml-1 flex flex-col text-sm"
+            >
+              {/* Timeline rail threading through the icon column; each icon's
+                  opaque background knocks it out, so it reads as connecting them. */}
+              <span
+                aria-hidden="true"
+                className="bg-border absolute bottom-[14px] left-[7.5px] top-[14px] w-px"
+              />
+              {visibleItems.map((item, i) =>
+                item.kind === "tool" ? (
+                  <WorkingStep
+                    key={item.key}
+                    tool={item.tool}
+                    active={i === activeIndex}
+                    animate={i >= animatedCount.current}
+                  />
+                ) : (
+                  <WorkingNote
+                    key={item.key}
+                    text={item.text}
+                    animate={i >= animatedCount.current}
+                  />
+                ),
+              )}
+            </div>
           </div>
+          {/* Below the window: while it's hiding older steps, offer a way to lift
+              the cap; while expanded, offer the way back to just the recent steps.
+              Shown live and after completion — the window persists either way. */}
+          {((windowed && overflowing) || expanded) && (
+            <button
+              type="button"
+              onClick={() => setExpanded((e) => !e)}
+              className="aui-working-trace-more text-muted-foreground/80 hover:text-foreground ml-1 mt-1 flex items-center gap-1.5 text-xs"
+            >
+              <MoreHorizontalIcon className="size-3.5 shrink-0" />
+              {expanded
+                ? "Collapse to recent steps"
+                : `Show all ${revealed} steps`}
+            </button>
+          )}
         </div>
       </div>
     </div>

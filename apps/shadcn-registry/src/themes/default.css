@@ -304,3 +304,13 @@
     -webkit-text-fill-color: var(--muted-foreground);
   }
 }
+
+/* While a turn is live the open trace is capped to a scrolling window (see
+   WorkingTrace). When older steps are pushed above the fold, this mask dissolves
+   them into transparency at the top edge instead of hard-clipping — the newest
+   steps stay fully legible at the bottom. Applied only while content overflows,
+   so a short trace is never faded. */
+.aui-working-trace-windowed {
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 60px);
+  mask-image: linear-gradient(to bottom, transparent 0, #000 60px);
+}
