@@ -73,7 +73,7 @@ export const Thread: FC = () => {
         <ThreadPrimitive.Root
           className="aui-root aui-thread-root @container bg-background relative flex h-full flex-col"
           style={{
-            ["--thread-max-width" as string]: "44rem",
+            ["--thread-max-width" as string]: "50rem",
           }}
         >
           <SecretGate />
@@ -267,7 +267,7 @@ const ComposerAction: FC = () => {
               type="submit"
               variant="default"
               size="icon"
-              className="aui-composer-send bg-foreground text-background hover:bg-foreground/90 mr-2 size-[38px] shrink-0 rounded-full p-1 md:mr-3 md:size-[34px]"
+              className="aui-composer-send bg-foreground text-background hover:bg-foreground/90 mr-2 size-[38px] shrink-0 rounded-full p-1 md:mr-3"
               aria-label="Send message"
             >
               <ArrowUpIcon className="aui-composer-send-icon size-5" />
@@ -281,7 +281,7 @@ const ComposerAction: FC = () => {
               type="button"
               variant="default"
               size="icon"
-              className="aui-composer-cancel border-muted-foreground/60 hover:bg-primary/75 dark:border-muted-foreground/90 mr-2 size-[38px] shrink-0 rounded-full border md:mr-3 md:size-[34px]"
+              className="aui-composer-cancel border-muted-foreground/60 hover:bg-primary/75 dark:border-muted-foreground/90 mr-2 size-[38px] shrink-0 rounded-full border md:mr-3"
               aria-label="Stop generating"
             >
               <Square className="aui-composer-cancel-icon size-3.5 fill-white dark:fill-black" />

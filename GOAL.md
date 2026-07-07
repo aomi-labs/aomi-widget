@@ -137,3 +137,8 @@ Progress:
   revoke route and Para auth begin/callback routes that staging exposes.
   Verified the live OpenAPI contract against staging plus the full
   `build-and-lint` workflow gates locally with pinned `pnpm@10.28.0`.
+- 2026-07-07 widget proportion polish: tuned the shadcn registry widget's
+  global small text scale and chat rail proportions so sidebar, trace,
+  composer, wallet/auth controls, and message text read closer to standard chat
+  UI proportions without a visual redesign. Verified registry build with pinned
+  `pnpm@10.28.0` and targeted ESLint on touched TSX files.

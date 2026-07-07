@@ -92,12 +92,12 @@ const WorkingStep: FC<{ tool: ToolCallMessagePart; active: boolean }> = ({
       {open && hasDetail && (
         <div className="aui-working-step-detail mb-1 ml-6 flex flex-col gap-1.5">
           {argsText && (
-            <pre className="border-border/60 bg-muted/40 text-muted-foreground overflow-x-auto whitespace-pre-wrap break-words rounded-md border p-2 font-mono text-[0.6875rem] leading-relaxed">
+            <pre className="border-border/60 bg-muted/40 text-muted-foreground overflow-x-auto whitespace-pre-wrap break-words rounded-md border p-2 font-mono text-xs leading-relaxed">
               {argsText}
             </pre>
           )}
           {done && (
-            <pre className="border-border/60 bg-muted/40 text-muted-foreground overflow-x-auto whitespace-pre-wrap break-words rounded-md border p-2 font-mono text-[0.6875rem] leading-relaxed">
+            <pre className="border-border/60 bg-muted/40 text-muted-foreground overflow-x-auto whitespace-pre-wrap break-words rounded-md border p-2 font-mono text-xs leading-relaxed">
               {toDetailString(tool.result)}
             </pre>
           )}
