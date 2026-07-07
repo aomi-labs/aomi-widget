@@ -39,7 +39,6 @@
     "build:lib": "pnpm run build:client && tsup",
     "build:client": "pnpm --filter @aomi-labs/client build",
     "build:deploy": "pnpm --filter @aomi-labs/deploy build",
-    "build:smither": "pnpm --filter @aomi-labs/smither build",
     "build:packages": "pnpm run build:client && pnpm --filter @aomi-labs/react build && pnpm run build:deploy && pnpm run build:registry",
     "build:landing": "pnpm --filter landing build",
     "build:base": "pnpm --filter base build",
@@ -51,7 +50,7 @@
     "clean:landing": "rm -rf apps/landing/.next",
     "clean:base": "rm -rf apps/base/.next",
     "clean:apps": "rm -rf apps/landing/.next apps/base/.next",
-    "clean:packages": "pnpm --filter @aomi-labs/client clean:dist && pnpm --filter @aomi-labs/react clean:dist && pnpm --filter @aomi-labs/deploy clean:dist && pnpm --filter @aomi-labs/smither clean:dist && pnpm --filter @aomi-labs/widget-lib clean:dist && rm -rf dist",
+    "clean:packages": "pnpm --filter @aomi-labs/client clean:dist && pnpm --filter @aomi-labs/react clean:dist && pnpm --filter @aomi-labs/deploy clean:dist && pnpm --filter @aomi-labs/widget-lib clean:dist && rm -rf dist",
     "clean:next": "rm -rf .next apps/landing/.next apps/base/.next",
     "clean:all": "rm -rf .next apps/landing/.next apps/base/.next dist .turbo node_modules/.cache .eslintcache",
     "clean": "rm -rf .next apps/landing/.next apps/base/.next dist .turbo node_modules/.cache .eslintcache",
@@ -119,16 +118,7 @@
   },
   "pnpm": {
     "overrides": {
-      "viem": "2.47.11",
-      "react": "19.2.7",
-      "react-dom": "19.2.7"
-    },
-    "packageExtensions": {
-      "@inkjs/ui": {
-        "peerDependencies": {
-          "react": "*"
-        }
-      }
+      "viem": "2.47.11"
     }
   },
   "devDependencies": {
