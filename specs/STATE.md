@@ -242,6 +242,40 @@ publishing 0.2.0; unifying the portal's own launch routes onto these factories.
 
 ## Recent Changes
 
+### Working trace: paced/staggered reveal (2026-07-07)
+
+Branch `feat/working-trace-a`. The Working trace looked "aggressive" — a burst of
+2-4 tool calls flashed in together and chips popped all at once, because tool
+steps arrive already-complete and a burst lands in one `messages` event, so React
+committed every `WorkingStep` in a single frame. Fix is entirely in
+`apps/shadcn-registry/src/components/assistant-ui/working-trace.tsx` +
+a shimmer tweak in `src/themes/default.css` (no backend/runtime change):
+
+- New `useStaggeredReveal(target, running)` hook reveals trace items one at a
+  time. Adaptive cadence (1200ms base, tightening to ~360ms as backlog grows) so a
+  model running ahead is caught up fast and in order; a ~220ms tail drain once the
+  turn ends so the final answer is never gated on the stagger. Respects
+  `prefers-reduced-motion`.
+- Hook lifted into `AssistantTurnParts`; the answer now reveals only after the
+  trace fully catches up. The newest revealed step shimmers as "live" (frontier
+  follows the reveal); auto-collapse waits for full reveal + a 500ms grace.
+- Chips fan in left-to-right via CSS `animationDelay` (100 + i·70ms) with
+  `fill-mode-both`. Shimmer slowed to `3.8s ease-in-out`.
+- Entrance animations play once: an `animatedCount` ref in `WorkingTrace` (survives
+  the body's collapse/remount) gates each item's animate class on first reveal, so
+  reopening a finished trace shows steps/chips static.
+- Pacing only applies to a turn that's live at mount (`useStaggeredReveal` seeds
+  `revealed = target` when not running), so a reloaded/scrollback/completed turn
+  reveals everything at once and the answer never sits behind a replayed animation.
+- Collapse is animated (grid-rows 1fr→0fr + opacity over 300ms, body stays
+  mounted) instead of snapping shut. The final answer fake-streams via a ~500ms
+  ease-out synthetic typewriter (`FakeStreamedText`); both the fake-stream and the
+  entrance are gated on `liveTurn` (a `liveTurnRef` in `AssistantTurnParts`) so a
+  loaded/completed turn renders the answer in full with no replay.
+- Verified: widget-lib tsc + eslint clean (only 2 pre-existing unrelated
+  `aomi-backend-runtime.test.ts` errors). Not yet eyeballed on a live
+  tool-calling turn (needs backend + funded wallet).
+
 ### Auth docs cleanup pass (2026-07-02)
 
 Branch `codex/merge-bff-betterauth`. Consolidated the stale root

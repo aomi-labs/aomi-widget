@@ -53,7 +53,8 @@ export const matchStagedTx: ToolMatcher = ({ rawLabel, resultRecord }) => {
       : null,
     pendingTxId != null
       ? {
-          kind: "txId",
+          kind: "count",
+          role: "tx",
           value: String(pendingTxId),
           source: "result",
         }

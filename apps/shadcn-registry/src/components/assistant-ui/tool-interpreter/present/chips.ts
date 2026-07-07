@@ -8,6 +8,7 @@ import {
   ClockIcon,
   CoinsIcon,
   FuelIcon,
+  HashIcon,
   PuzzleIcon,
   ReceiptTextIcon,
   UserIcon,
@@ -31,6 +32,19 @@ const shortenAddress = (address: string): string =>
   /^0x[a-fA-F0-9]{40}$/.test(address)
     ? `${address.slice(0, 6)}...${address.slice(-4)}`
     : address;
+
+const formatNativeAmount = (value: string): string => {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return value;
+  if (numeric === 0) return "0";
+
+  const formatted = numeric.toLocaleString("en-US", {
+    maximumFractionDigits: 5,
+    useGrouping: false,
+  });
+
+  return formatted === "0" ? "<0.00001" : formatted;
+};
 
 const statusChip = (value: string): ToolChip => {
   switch (value) {
@@ -81,6 +95,12 @@ export const chipForFact = (fact: ToolFact): ToolChip | null => {
       }
       return { label: shortenAddress(fact.value) };
     case "amount":
+      if (fact.role === "native") {
+        return {
+          label: formatNativeAmount(fact.value),
+          icon: getChainIcon(1),
+        };
+      }
       return { label: fact.label ?? fact.value };
     case "block":
       return { label: formatInteger(fact.value), icon: BlocksIcon };
@@ -106,6 +126,12 @@ export const chipForFact = (fact: ToolFact): ToolChip | null => {
       }
       return { label: fact.value };
     case "decoded":
+      if (fact.role === "decimals") {
+        return {
+          label: fact.label ?? `${fact.value} decimals`,
+          icon: HashIcon,
+        };
+      }
       return { label: fact.label ?? fact.value };
     case "gas":
       return { label: `${formatInteger(fact.value)} gas`, icon: FuelIcon };

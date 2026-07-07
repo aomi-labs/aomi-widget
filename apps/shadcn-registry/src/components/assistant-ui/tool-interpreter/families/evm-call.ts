@@ -52,10 +52,9 @@ export const matchEvmCall: ToolMatcher = ({ rawLabel, resultRecord }) => {
   }
 
   if (selectorMeta?.kind === "erc20_metadata") {
+    const isDecimals = selectorMeta.name === "decimals";
     return op(
-      selectorMeta.name === "decimals"
-        ? "evm.call.erc20.decimals"
-        : "evm.call.erc20.metadata",
+      isDecimals ? "evm.call.erc20.decimals" : "evm.call.erc20.metadata",
       rawLabel,
       [
         chainFactFromRecord(tx),
@@ -64,7 +63,9 @@ export const matchEvmCall: ToolMatcher = ({ rawLabel, resultRecord }) => {
         decoded != null
           ? {
               kind: "decoded",
+              role: isDecimals ? "decimals" : undefined,
               value: String(decoded),
+              label: isDecimals ? `${String(decoded)} decimals` : undefined,
               source: "decoded",
             }
           : null,

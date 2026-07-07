@@ -228,3 +228,14 @@ build`, `CI=true npx -y pnpm@10.28.0 install --frozen-lockfile`, and
   capability icon instead of reusing the Activate skill sparkle. Verified
   focused interpreter Vitest coverage, targeted ESLint, Prettier, and registry
   build with pinned `pnpm@10.28.0`.
+- 2026-07-07 native/staged/error chip polish: made native ETH balance chips
+  render with a compact amount (for example `0.00087`), the Ethereum logo, and
+  no trailing `ETH` text while leaving ERC-20 amount chips unchanged; staged
+  transaction rows now show `1 tx` / `N txs`; failed tool calls now show only
+  the `Failed` badge instead of the backend error code chip. Verified focused
+  interpreter Vitest coverage, targeted ESLint, Prettier, and registry build
+  with pinned `pnpm@10.28.0`.
+- 2026-07-07 decimals chip polish: collapsed token decimals rows from separate
+  `decimals` and value chips into a single numeric metadata chip such as
+  `6 decimals` with a hash icon. Verified focused interpreter Vitest coverage,
+  targeted ESLint, Prettier, and registry build with pinned `pnpm@10.28.0`.

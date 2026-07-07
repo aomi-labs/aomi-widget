@@ -86,9 +86,9 @@ describe("tool interpreter", () => {
     });
 
     expect(step.title).toBe("Call token contract");
-    expect(labelsFor(step.chips)).toEqual(["rpc_error", "Failed"]);
-    expect(step.chips[1].icon).toBeTypeOf("object");
-    expect(step.chips[1].dot).toBeUndefined();
+    expect(labelsFor(step.chips)).toEqual(["Failed"]);
+    expect(step.chips[0].icon).toBeTypeOf("object");
+    expect(step.chips[0].dot).toBeUndefined();
   });
 
   it("recognizes skill activation", () => {
@@ -138,10 +138,8 @@ describe("tool interpreter", () => {
     });
 
     expect(step.title).toBe("Check connected wallet balance on Base");
-    expect(labelsFor(step.chips)).toEqual([
-      "0xda65...3cf0",
-      "0.000865899754337366 ETH",
-    ]);
+    expect(labelsFor(step.chips)).toEqual(["0xda65...3cf0", "0.00087"]);
+    expect(step.chips[1].icon).toBeTypeOf("function");
   });
 
   it("standardizes token resolution chips", () => {
@@ -245,7 +243,8 @@ describe("tool interpreter", () => {
     });
 
     expect(step.title).toBe("Read token decimals");
-    expect(labelsFor(step.chips)).toEqual(["Base", "USDT", "decimals", "6"]);
+    expect(labelsFor(step.chips)).toEqual(["Base", "USDT", "6 decimals"]);
+    expect(step.chips[2].icon).toBeTypeOf("object");
   });
 
   it("recognizes allowance checks without value chips", () => {
@@ -323,7 +322,7 @@ describe("tool interpreter", () => {
     });
 
     expect(step.title).toBe("Stage Aerodrome USDC to AERO swap");
-    expect(labelsFor(step.chips)).toEqual(["Base", "Swap", "2", "Queued"]);
+    expect(labelsFor(step.chips)).toEqual(["Base", "Swap", "2 txs", "Queued"]);
     expect(step.chips[0].icon).toBeTypeOf("function");
     expect(step.chips[1].icon).toBeTypeOf("object");
     expect(step.chips[2].icon).toBeTypeOf("object");
@@ -342,7 +341,12 @@ describe("tool interpreter", () => {
     });
 
     expect(step.title).toBe("Stage exact USDC approval for Aerodrome swap");
-    expect(labelsFor(step.chips)).toEqual(["Base", "Approve", "1", "Queued"]);
+    expect(labelsFor(step.chips)).toEqual([
+      "Base",
+      "Approve",
+      "1 tx",
+      "Queued",
+    ]);
     expect(step.chips[1].icon).toBe(PencilLineIcon);
     expect(step.chips[2].icon).toBeTypeOf("object");
   });
@@ -362,7 +366,7 @@ describe("tool interpreter", () => {
     expect(labelsFor(step.chips)).toEqual([
       "Base",
       "Delegate vote",
-      "3",
+      "3 txs",
       "Queued",
     ]);
     expect(step.chips[1].icon).toBeTypeOf("object");

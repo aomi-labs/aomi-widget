@@ -45,10 +45,93 @@ const toDetailString = (result: unknown): string =>
 
 const MAX_VISIBLE_CHIPS = 4;
 
-const ToolChipView: FC<{ chip: ToolChip }> = ({ chip }) => {
+/** Base + per-chip stagger for the left-to-right chip cascade (ms). */
+const CHIP_BASE_DELAY_MS = 100;
+const CHIP_STEP_DELAY_MS = 70;
+
+const prefersReducedMotion = (): boolean =>
+  typeof window !== "undefined" &&
+  typeof window.matchMedia === "function" &&
+  window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+/**
+ * Paces how many trace items are shown, revealing them one at a time so a burst
+ * of tool calls that lands in a single update cascades instead of flashing in.
+ *
+ * The cadence adapts to backlog: a lone pending step waits ~1200ms (a deliberate
+ * beat that fills the otherwise-idle shimmer time), but the delay tightens toward
+ * ~360ms as more items queue up, so a model that ran ahead is caught up quickly
+ * and in order — never held back. Once the turn ends we drain any remainder fast
+ * (~220ms) so the final answer is never gated on the stagger. Under
+ * `prefers-reduced-motion` everything is revealed immediately.
+ *
+ * Pacing applies ONLY to a turn that is live (running) while this is mounted.
+ * A turn that's already complete when it mounts — a reloaded thread, scrollback,
+ * a thread switch — reveals everything at once, so a finished answer never sits
+ * behind an animation replaying from scratch.
+ */
+const REVEAL_BASE_MS = 1200;
+const REVEAL_MIN_MS = 360;
+const REVEAL_STEP_MS = 320;
+const REVEAL_TAIL_MS = 220;
+
+const useStaggeredReveal = (target: number, running: boolean): number => {
+  const reduced = prefersReducedMotion();
+  // Only pace a turn we saw working live. If it wasn't running at mount, it's a
+  // completed/loaded turn — start fully revealed.
+  const startedLive = useRef(running && !reduced);
+  const [revealed, setRevealed] = useState(
+    startedLive.current ? 0 : target,
+  );
+
+  useEffect(() => {
+    if (running && !reduced) startedLive.current = true;
+  }, [running, reduced]);
+
+  useEffect(() => {
+    if (!startedLive.current) {
+      if (revealed !== target) setRevealed(target);
+      return;
+    }
+    if (revealed >= target) return;
+    // Reveal the first item promptly for responsiveness; pace the rest.
+    if (revealed === 0) {
+      setRevealed(1);
+      return;
+    }
+    const backlog = target - revealed;
+    const delay = running
+      ? Math.max(REVEAL_MIN_MS, REVEAL_BASE_MS - (backlog - 1) * REVEAL_STEP_MS)
+      : REVEAL_TAIL_MS;
+    const timer = setTimeout(() => setRevealed((n) => n + 1), delay);
+    return () => clearTimeout(timer);
+  }, [revealed, target, running, reduced]);
+
+  // Clamp in case a turn's content ever shrinks (it is append-only in practice).
+  return Math.min(revealed, target);
+};
+
+const ToolChipView: FC<{ chip: ToolChip; index: number; animate: boolean }> = ({
+  chip,
+  index,
+  animate,
+}) => {
   const Glyph = chip.icon;
   return (
-    <span className="border-border/60 bg-muted/40 text-foreground/80 inline-flex min-w-0 max-w-full items-center gap-1.5 rounded-md border px-2 py-0.5 text-xs tabular-nums leading-4">
+    <span
+      className={cn(
+        "border-border/60 bg-muted/40 text-foreground/80 inline-flex min-w-0 max-w-full items-center gap-1.5 rounded-md border px-2 py-0.5 text-xs tabular-nums leading-4",
+        animate &&
+          "animate-in fade-in-0 slide-in-from-bottom-1 fill-mode-both duration-300 motion-reduce:animate-none",
+      )}
+      style={
+        animate
+          ? {
+              animationDelay: `${CHIP_BASE_DELAY_MS + index * CHIP_STEP_DELAY_MS}ms`,
+            }
+          : undefined
+      }
+    >
       {chip.dot && (
         <span
           className="size-1.5 shrink-0 rounded-full"
@@ -62,10 +145,11 @@ const ToolChipView: FC<{ chip: ToolChip }> = ({ chip }) => {
   );
 };
 
-const WorkingStep: FC<{ tool: ToolCallMessagePart; active: boolean }> = ({
-  tool,
-  active,
-}) => {
+const WorkingStep: FC<{
+  tool: ToolCallMessagePart;
+  active: boolean;
+  animate: boolean;
+}> = ({ tool, active, animate }) => {
   const [open, setOpen] = useState(false);
   const done = tool.result !== undefined;
   const argsText =
@@ -84,7 +168,13 @@ const WorkingStep: FC<{ tool: ToolCallMessagePart; active: boolean }> = ({
   const overflow = interpretation.chips.length - shownChips.length;
 
   return (
-    <div className="aui-working-step animate-in fade-in-0 slide-in-from-bottom-1 duration-300 motion-reduce:animate-none">
+    <div
+      className={cn(
+        "aui-working-step",
+        animate &&
+          "animate-in fade-in-0 slide-in-from-bottom-1 duration-300 motion-reduce:animate-none",
+      )}
+    >
       <button
         type="button"
         disabled={!hasDetail}
@@ -115,10 +205,28 @@ const WorkingStep: FC<{ tool: ToolCallMessagePart; active: boolean }> = ({
       {interpretation.chips.length > 0 && (
         <div className="aui-working-step-chips mb-1 ml-6 flex max-w-full flex-wrap items-center gap-1.5">
           {shownChips.map((chip, i) => (
-            <ToolChipView key={`${chip.label}-${i}`} chip={chip} />
+            <ToolChipView
+              key={`${chip.label}-${i}`}
+              chip={chip}
+              index={i}
+              animate={animate}
+            />
           ))}
           {overflow > 0 && (
-            <span className="border-border/60 bg-muted/40 text-muted-foreground inline-flex items-center rounded-md border px-2 py-0.5 text-xs leading-4">
+            <span
+              className={cn(
+                "border-border/60 bg-muted/40 text-muted-foreground inline-flex items-center rounded-md border px-2 py-0.5 text-xs leading-4",
+                animate &&
+                  "animate-in fade-in-0 slide-in-from-bottom-1 fill-mode-both duration-300 motion-reduce:animate-none",
+              )}
+              style={
+                animate
+                  ? {
+                      animationDelay: `${CHIP_BASE_DELAY_MS + shownChips.length * CHIP_STEP_DELAY_MS}ms`,
+                    }
+                  : undefined
+              }
+            >
               +{overflow} more
             </span>
           )}
@@ -153,8 +261,17 @@ type TraceItem =
  * muted markdown note with a dot marker in the icon column so it lines up with
  * the tool steps on the rail (in order, inside the trace — not in the answer).
  */
-const WorkingNote: FC<{ text: string }> = ({ text }) => (
-  <div className="aui-working-note animate-in fade-in-0 slide-in-from-bottom-1 flex items-start gap-2 py-1 duration-300 motion-reduce:animate-none">
+const WorkingNote: FC<{ text: string; animate: boolean }> = ({
+  text,
+  animate,
+}) => (
+  <div
+    className={cn(
+      "aui-working-note flex items-start gap-2 py-1",
+      animate &&
+        "animate-in fade-in-0 slide-in-from-bottom-1 duration-300 motion-reduce:animate-none",
+    )}
+  >
     <span
       className="bg-background relative flex h-5 w-4 shrink-0 items-center justify-center"
       aria-hidden="true"
@@ -172,20 +289,39 @@ const WorkingNote: FC<{ text: string }> = ({ text }) => (
 const WorkingTrace: FC<{
   running: boolean;
   items: TraceItem[];
-}> = ({ running, items }) => {
+  revealed: number;
+}> = ({ running, items, revealed }) => {
   const [open, setOpen] = useState(running);
   const [elapsed, setElapsed] = useState<number | null>(null);
   const wasRunning = useRef(running);
   const startedAt = useRef<number>(Date.now());
 
+  // How many items have already played their entrance. Survives the body's
+  // collapse/remount (this component stays mounted), so an item only animates
+  // the first time it's revealed — reopening a finished trace shows it static.
+  const animatedCount = useRef(0);
+  useEffect(() => {
+    if (revealed > animatedCount.current) animatedCount.current = revealed;
+  }, [revealed]);
+
+  // The trace has fully caught up once every queued item has been revealed.
+  const fullyRevealed = !running && revealed >= items.length;
+
   useEffect(() => {
     if (wasRunning.current && !running) {
-      // turn just finished: freeze the timer and auto-collapse
+      // turn just finished: freeze the timer (collapse waits for full reveal)
       setElapsed((Date.now() - startedAt.current) / 1000);
-      setOpen(false);
     }
     wasRunning.current = running;
   }, [running]);
+
+  // Auto-collapse only after the tail has finished cascading, and leave the last
+  // step on screen for a beat so it isn't hidden the instant it appears.
+  useEffect(() => {
+    if (!fullyRevealed) return;
+    const timer = setTimeout(() => setOpen(false), 500);
+    return () => clearTimeout(timer);
+  }, [fullyRevealed]);
 
   const label = running
     ? "Working"
@@ -193,14 +329,16 @@ const WorkingTrace: FC<{
       ? `Worked for ${formatDuration(elapsed)}`
       : "Worked it out";
 
-  // Exactly one "live" signal: the last item (always a tool step) shimmers while
-  // the trace is open; if the user collapses mid-run, the header shimmers instead.
-  const activeIndex = running ? items.length - 1 : -1;
+  // Exactly one "live" signal: the newest *revealed* step shimmers while running
+  // and the trace is open; if the user collapses mid-run, the header shimmers.
+  const activeIndex = running ? revealed - 1 : -1;
   const headerClass = !running
     ? "text-muted-foreground"
     : open
       ? "text-muted-foreground font-medium"
       : "aui-working-shimmer font-medium";
+
+  const visibleItems = items.slice(0, revealed);
 
   return (
     <div className="aui-working-trace mb-3">
@@ -219,27 +357,41 @@ const WorkingTrace: FC<{
         <span className={headerClass}>{label}</span>
       </button>
 
-      {open && (
-        <div className="aui-working-trace-body relative isolate ml-1 mt-1.5 flex flex-col text-sm">
-          {/* Timeline rail threading through the icon column; each icon's
-              opaque background knocks it out, so it reads as connecting them. */}
-          <span
-            aria-hidden="true"
-            className="bg-border absolute bottom-[14px] left-[7.5px] top-[14px] w-px"
-          />
-          {items.map((item, i) =>
-            item.kind === "tool" ? (
-              <WorkingStep
-                key={item.key}
-                tool={item.tool}
-                active={i === activeIndex}
-              />
-            ) : (
-              <WorkingNote key={item.key} text={item.text} />
-            ),
-          )}
+      {/* Collapse animates the grid row from 1fr→0fr (plus a fade) instead of
+          snapping shut. The body stays mounted so items never remount. */}
+      <div
+        className={cn(
+          "grid transition-[grid-template-rows,opacity] duration-300 ease-out motion-reduce:transition-none",
+          open ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0",
+        )}
+      >
+        <div className="min-h-0 overflow-hidden">
+          <div className="aui-working-trace-body relative isolate ml-1 mt-1.5 flex flex-col text-sm">
+            {/* Timeline rail threading through the icon column; each icon's
+                opaque background knocks it out, so it reads as connecting them. */}
+            <span
+              aria-hidden="true"
+              className="bg-border absolute bottom-[14px] left-[7.5px] top-[14px] w-px"
+            />
+            {visibleItems.map((item, i) =>
+              item.kind === "tool" ? (
+                <WorkingStep
+                  key={item.key}
+                  tool={item.tool}
+                  active={i === activeIndex}
+                  animate={i >= animatedCount.current}
+                />
+              ) : (
+                <WorkingNote
+                  key={item.key}
+                  text={item.text}
+                  animate={i >= animatedCount.current}
+                />
+              ),
+            )}
+          </div>
         </div>
-      )}
+      </div>
     </div>
   );
 };
@@ -254,6 +406,48 @@ const MinimalWorkingTrace: FC = () => (
 );
 
 const NullPart: FC = () => null;
+
+/** Total wall-clock of the synthetic typewriter for the final answer. */
+const FAKE_STREAM_MS = 500;
+
+/**
+ * Reveals a finished answer with a quick synthetic typewriter (~500ms, ease-out)
+ * so it feels streamed rather than pasted in. `stream={false}` (a completed turn
+ * loaded from history) renders it in full at once — no replay on every reload.
+ */
+const FakeStreamedText: FC<{ text: string; stream: boolean }> = ({
+  text,
+  stream,
+}) => {
+  const reduced = prefersReducedMotion();
+  const animate = stream && !reduced;
+  const [count, setCount] = useState(animate ? 0 : text.length);
+
+  useEffect(() => {
+    if (!animate) {
+      setCount(text.length);
+      return;
+    }
+    const total = text.length;
+    let raf = 0;
+    let start: number | null = null;
+    const tick = (now: number) => {
+      if (start === null) start = now;
+      const t = Math.min(1, (now - start) / FAKE_STREAM_MS);
+      const eased = 1 - (1 - t) * (1 - t); // ease-out
+      setCount(Math.max(1, Math.round(eased * total)));
+      if (t < 1) raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [text, animate]);
+
+  return (
+    <TextMessagePartProvider text={text.slice(0, count)}>
+      <MarkdownText />
+    </TextMessagePartProvider>
+  );
+};
 
 /**
  * Drop-in replacement for `<MessagePrimitive.Parts>` in an assistant message.
@@ -277,6 +471,39 @@ export const AssistantTurnParts: FC = () => {
     -1,
   );
 
+  // Build the trace rows in order, merging consecutive talk into one note.
+  // Empty when the turn has no tool calls (the plain-reply branch below).
+  const items: TraceItem[] = [];
+  if (lastToolIndex >= 0) {
+    content.slice(0, lastToolIndex + 1).forEach((part, i) => {
+      if (part.type === "tool-call") {
+        items.push({
+          kind: "tool",
+          tool: part,
+          key: part.toolCallId ?? `tool-${i}`,
+        });
+        return;
+      }
+      if (part.type !== "text" || part.text.trim().length === 0) return;
+      const prev = items[items.length - 1];
+      if (prev?.kind === "note") prev.text += `\n\n${part.text}`;
+      else items.push({ kind: "note", text: part.text, key: `note-${i}` });
+    });
+  }
+
+  // Pace the reveal so a burst of tool calls cascades instead of flashing in.
+  // Called unconditionally (before the branches below) to satisfy hook rules;
+  // it's a harmless no-op with an empty trace.
+  const revealed = useStaggeredReveal(items.length, running);
+
+  // Whether this turn was seen working live (vs. loaded already complete). Gates
+  // the entrance/fake-stream so a reloaded thread doesn't replay the animation.
+  const liveTurnRef = useRef(running);
+  useEffect(() => {
+    if (running) liveTurnRef.current = true;
+  }, [running]);
+  const liveTurn = liveTurnRef.current;
+
   if (lastToolIndex < 0) {
     if (running && turnPhase === "working") {
       return <MinimalWorkingTrace />;
@@ -294,23 +521,6 @@ export const AssistantTurnParts: FC = () => {
     );
   }
 
-  // Build the trace rows in order, merging consecutive talk into one note.
-  const items: TraceItem[] = [];
-  content.slice(0, lastToolIndex + 1).forEach((part, i) => {
-    if (part.type === "tool-call") {
-      items.push({
-        kind: "tool",
-        tool: part,
-        key: part.toolCallId ?? `tool-${i}`,
-      });
-      return;
-    }
-    if (part.type !== "text" || part.text.trim().length === 0) return;
-    const prev = items[items.length - 1];
-    if (prev?.kind === "note") prev.text += `\n\n${part.text}`;
-    else items.push({ kind: "note", text: part.text, key: `note-${i}` });
-  });
-
   const answerText = content
     .slice(lastToolIndex + 1)
     .filter((p): p is TextMessagePart => p.type === "text")
@@ -318,14 +528,16 @@ export const AssistantTurnParts: FC = () => {
     .join("\n\n")
     .trim();
 
+  // Hold the answer until the trace has fully caught up, so the steps finish
+  // cascading before it fades in — nothing moves between the two regions.
+  const answerReady = !running && revealed >= items.length;
+
   return (
     <>
-      <WorkingTrace running={running} items={items} />
-      {!running && answerText.length > 0 && (
-        <div className="aui-working-answer animate-in fade-in-0 slide-in-from-bottom-1 duration-300 motion-reduce:animate-none">
-          <TextMessagePartProvider text={answerText}>
-            <MarkdownText />
-          </TextMessagePartProvider>
+      <WorkingTrace running={running} items={items} revealed={revealed} />
+      {answerReady && answerText.length > 0 && (
+        <div className="aui-working-answer">
+          <FakeStreamedText text={answerText} stream={liveTurn} />
         </div>
       )}
     </>

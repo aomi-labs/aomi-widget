@@ -42,9 +42,11 @@ export type FactKind =
 
 export type FactRole =
   | "contract"
+  | "decimals"
   | "error"
   | "from"
   | "metadata"
+  | "native"
   | "null"
   | "owner"
   | "primary"

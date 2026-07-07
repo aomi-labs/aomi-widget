@@ -82,8 +82,7 @@ const descriptorById: Record<string, Descriptor> = {
     chipPlan: [
       { kind: "chain" },
       { kind: "token" },
-      { kind: "selector", role: "metadata" },
-      { kind: "decoded" },
+      { kind: "decoded", role: "decimals" },
     ],
   },
   "evm.call.erc20.metadata": {
@@ -155,7 +154,7 @@ const descriptorById: Record<string, Descriptor> = {
   "tool.error": {
     title: "label",
     icon: "fallback",
-    chipPlan: [{ kind: "code", role: "error" }, { kind: "status" }],
+    chipPlan: [{ kind: "status" }],
   },
   "wallet.tx.pending_approval": {
     title: "fixed",
@@ -185,7 +184,7 @@ const stagedDescriptor: Descriptor = {
   chipPlan: [
     { kind: "chain" },
     { kind: "action" },
-    { kind: "txId" },
+    { kind: "count", role: "tx" },
     { kind: "status" },
   ],
 };

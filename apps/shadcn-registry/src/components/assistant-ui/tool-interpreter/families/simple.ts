@@ -104,7 +104,7 @@ export const matchNativeBalance: ToolMatcher = ({ rawLabel, resultRecord }) => {
   return op("evm.account.native_balance", rawLabel, [
     chainFactFromRecord(resultRecord),
     address,
-    balance,
+    { ...balance, role: "native" },
   ]);
 };
 
