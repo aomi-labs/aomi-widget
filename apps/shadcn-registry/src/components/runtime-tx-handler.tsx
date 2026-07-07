@@ -13,7 +13,8 @@ import {
   type WalletRequest,
   type WalletTxPayload,
 } from "@aomi-labs/react";
-import { useAomiAuthAdapter } from "../lib/auth-adapter";
+import { useAomiWalletKit } from "../lib/wallet-kit";
+import { walletDebug } from "../lib/wallet-kit/wallet-debug";
 
 function hasHydratedCalls(payload: WalletTxPayload): boolean {
   return Array.isArray(payload.calls) && payload.calls.length > 0;
@@ -59,7 +60,7 @@ function toSimulationTransactions(payload: WalletTxPayload): Array<{
 
 /**
  * Invisible bridge component that processes wallet transaction and EIP-712
- * signing requests from the AI backend through the active Aomi auth adapter.
+ * signing requests from the AI backend through the active Aomi wallet kit.
  *
  * Auto-mounted inside AomiFrame.Root.
  */
@@ -72,7 +73,7 @@ export function RuntimeTxHandler() {
     simulateBatchTransactions,
     showNotification,
   } = useAomiRuntime();
-  const adapter = useAomiAuthAdapter();
+  const adapter = useAomiWalletKit();
   const { chainId: currentChainId } = adapter.identity;
   const processingRef = useRef(false);
 
@@ -213,7 +214,10 @@ export function RuntimeTxHandler() {
           await maybeSwitchSolanaCluster(req.payload.cluster);
 
           const result = await adapter.signSolanaTransaction(req.payload);
-          await resolveWalletRequest(req.id, { kind: "solana_sign", ...result });
+          await resolveWalletRequest(req.id, {
+            kind: "solana_sign",
+            ...result,
+          });
           return;
         }
 
@@ -230,18 +234,18 @@ export function RuntimeTxHandler() {
             return;
           }
 
-          console.debug("[RuntimeTxHandler] invoking solana_sign_message", {
+          walletDebug("runtime-tx:solana-sign-message:invoke", {
             requestId: req.id,
             pendingSolanaId: req.payload.pendingSolanaId,
             cluster: req.payload.cluster,
             description: req.payload.description,
             adapterReady: adapter.isReady,
             svmAddress: adapter.identity.svmAddress,
-            solanaWalletName: adapter.identity.solanaWalletName,
+            svmWalletName: adapter.identity.svmWalletName,
             hasSignSolanaMessage: Boolean(adapter.signSolanaMessage),
           });
           const result = await adapter.signSolanaMessage(req.payload);
-          console.debug("[RuntimeTxHandler] resolved solana_sign_message", {
+          walletDebug("runtime-tx:solana-sign-message:resolved", {
             requestId: req.id,
             pendingSolanaId: req.payload.pendingSolanaId,
             signatureLength: result.signature?.length,
@@ -253,10 +257,7 @@ export function RuntimeTxHandler() {
           return;
         }
 
-        if (
-          req.kind === "solana_send" ||
-          req.kind === "solana_sign_and_send"
-        ) {
+        if (req.kind === "solana_send" || req.kind === "solana_sign_and_send") {
           if (!req.payload.unsignedTx) {
             await rejectWalletRequest(req.id, "Missing unsigned_tx payload");
             return;

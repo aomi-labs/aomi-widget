@@ -13,6 +13,7 @@ import {
   getMissingOwnerState,
   getOwnerParams,
   getUnsupportedAdapterState,
+  getUnsupportedOwnerState,
   type AAOwner,
 } from "../owner";
 import { resolveAlchemyApiKey, resolveAlchemyGasPolicyId } from "./defaults";
@@ -95,7 +96,7 @@ async function createAlchemySdkState(params: {
     chain: params.chain,
     rpcUrl: params.rpcUrl,
     mode: params.mode,
-  });
+  } as never);
 
   if (!smartAccount) {
     return {
@@ -106,9 +107,10 @@ async function createAlchemySdkState(params: {
     };
   }
 
-  const ownerAddress = "address" in params.ownerParams
-    ? (params.ownerParams.address as Hex | undefined)
-    : undefined;
+  const ownerAddress =
+    "address" in params.ownerParams
+      ? (params.ownerParams.address as Hex | undefined)
+      : undefined;
   if (!ownerAddress) {
     return {
       resolved: params.resolved,
@@ -210,6 +212,15 @@ export async function createAlchemyAAState(
     }
   }
 
+  if (owner.kind === "external-wallet") {
+    return getUnsupportedOwnerState(
+      execution,
+      "alchemy",
+      owner.kind,
+      "Alchemy AA external-wallet owners are not implemented yet. Use Pimlico for sessionless external-wallet 4337 execution.",
+    );
+  }
+
   // Session/adapter path — requires a real API key (no proxy support)
   if (!apiKey) {
     return {
@@ -254,9 +265,8 @@ export async function createAlchemyAAState(
 async function createAlchemyWalletApisState(
   params: AlchemyDirectOwnerParams,
 ): Promise<AAState> {
-  const { createSmartWalletClient, alchemyWalletTransport } = await import(
-    "@alchemy/wallet-apis"
-  );
+  const { createSmartWalletClient, alchemyWalletTransport } =
+    await import("@alchemy/wallet-apis");
 
   // Proxy mode: the aomi account credential rides the transport's bearer
   // channel (`{ url, jwt }` is a documented connection variant); the
@@ -274,7 +284,9 @@ async function createAlchemyWalletApisState(
     transport,
     chain: params.chain,
     signer,
-    ...(params.gasPolicyId ? { paymaster: { policyId: params.gasPolicyId } } : {}),
+    ...(params.gasPolicyId
+      ? { paymaster: { policyId: params.gasPolicyId } }
+      : {}),
   });
 
   const signerAddress = signer.address as Hex;
@@ -331,7 +343,9 @@ async function createAlchemyWalletApisState(
         ...(params.resolved.mode === "4337" ? { account: accountAddress } : {}),
         calls,
       });
-      aaDebug(`${params.resolved.mode}:sendCalls:submitted`, { callId: result.id });
+      aaDebug(`${params.resolved.mode}:sendCalls:submitted`, {
+        callId: result.id,
+      });
 
       const status = await alchemyClient.waitForCallsStatus({ id: result.id });
       const transactionHash = status.receipts?.[0]?.transactionHash;
@@ -341,7 +355,9 @@ async function createAlchemyWalletApisState(
         receipts: status.receipts?.length ?? 0,
       });
       if (!transactionHash) {
-        throw new Error("Alchemy Wallets API did not return a transaction hash.");
+        throw new Error(
+          "Alchemy Wallets API did not return a transaction hash.",
+        );
       }
       return { transactionHash };
     } catch (error) {

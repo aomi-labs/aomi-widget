@@ -1,9 +1,4 @@
-import {
-  mkdirSync,
-  readFileSync,
-  rmSync,
-  writeFileSync,
-} from "node:fs";
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -11,6 +6,9 @@ import { registry } from "../src/registry.js";
 
 const REGISTRY_NAME = "aomi";
 const REGISTRY_HOMEPAGE = "https://r.aomi.dev";
+const SOURCE_EXTENSIONS = [".ts", ".tsx", ".js", ".jsx", ".css"];
+const IMPORT_EXPORT_RE =
+  /(?:import|export)\s+(?:[^'";]+?\s+from\s+)?["']([^"']+)["']/g;
 
 const baseDir = path.dirname(fileURLToPath(import.meta.url));
 const distDir = path.resolve(baseDir, "../dist");
@@ -23,6 +21,86 @@ function resolveFileType(filePath) {
   return "registry:component";
 }
 
+function fileExists(registryFilePath) {
+  try {
+    readFileSync(path.join(srcDir, registryFilePath), "utf8");
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function resolveRelativeImport(fromFilePath, specifier) {
+  if (!specifier.startsWith(".")) return null;
+
+  const basePath = path
+    .join(path.dirname(fromFilePath), specifier)
+    .replaceAll(path.sep, "/");
+  const candidates = [];
+
+  if (path.extname(basePath)) {
+    candidates.push(basePath);
+  }
+  for (const extension of SOURCE_EXTENSIONS) {
+    candidates.push(`${basePath}${extension}`);
+  }
+  for (const extension of SOURCE_EXTENSIONS) {
+    candidates.push(
+      path.join(basePath, `index${extension}`).replaceAll(path.sep, "/"),
+    );
+  }
+
+  return candidates.find(fileExists) ?? null;
+}
+
+function registryDependencyName(dependency) {
+  if (!dependency.startsWith("http")) return dependency;
+  return path.basename(dependency, ".json");
+}
+
+function collectAvailablePaths(entry, seen = new Set()) {
+  if (seen.has(entry.name)) return [];
+  seen.add(entry.name);
+
+  const filePaths = Array.isArray(entry.file) ? entry.file : [entry.file];
+  const dependencyPaths = (entry.registryDependencies ?? []).flatMap(
+    (dependency) => {
+      const dependencyEntry = registry.find(
+        (candidate) => candidate.name === registryDependencyName(dependency),
+      );
+      return dependencyEntry
+        ? collectAvailablePaths(dependencyEntry, seen)
+        : [];
+    },
+  );
+
+  return [...filePaths, ...dependencyPaths];
+}
+
+function validateInternalImports(entry, files) {
+  const includedPaths = new Set(collectAvailablePaths(entry));
+  const missing = [];
+
+  for (const file of files) {
+    IMPORT_EXPORT_RE.lastIndex = 0;
+    for (const match of file.content.matchAll(IMPORT_EXPORT_RE)) {
+      const resolved = resolveRelativeImport(file.path, match[1]);
+      if (resolved && !includedPaths.has(resolved)) {
+        missing.push(`${file.path} -> ${match[1]} (${resolved})`);
+      }
+    }
+  }
+
+  if (missing.length) {
+    throw new Error(
+      [
+        `Registry item "${entry.name}" is missing internal files:`,
+        ...missing.map((item) => `  - ${item}`),
+      ].join("\n"),
+    );
+  }
+}
+
 function buildComponent(entry) {
   // Support single file (string) or multiple files (array)
   const filePaths = Array.isArray(entry.file) ? entry.file : [entry.file];
@@ -31,6 +109,7 @@ function buildComponent(entry) {
     const content = readFileSync(path.join(srcDir, f), "utf8");
     return { type: resolveFileType(f), path: f, content };
   });
+  validateInternalImports(entry, files);
 
   const payload = {
     $schema: "https://ui.shadcn.com/schema/registry-item.json",

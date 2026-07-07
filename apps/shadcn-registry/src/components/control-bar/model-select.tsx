@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, type FC } from "react";
+import { useEffect, useState, type FC } from "react";
 import { ChevronDownIcon, CheckIcon } from "lucide-react";
-import { useAuthEndpoints, usePerThreadControl, cn } from "@aomi-labs/react";
+import { useControl, cn } from "@aomi-labs/react";
 import { Button } from "@/components/ui/button";
 import {
   Popover,
@@ -35,24 +35,30 @@ export const ModelSelect: FC<ModelSelectProps> = ({
   className,
   placeholder = "Select model",
 }) => {
-  const { state: authState } = useAuthEndpoints();
   const {
-    actions: { getCurrentThreadControl, onModelSelect },
+    state,
+    getAvailableModels,
+    getCurrentThreadControl,
+    onModelSelect,
     isProcessing,
-  } = usePerThreadControl();
+  } = useControl();
   const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    void getAvailableModels();
+  }, [getAvailableModels]);
 
   const threadControl = getCurrentThreadControl();
   const rawSelected = threadControl.model;
   const modelMode =
     threadControl.modelMode ?? (rawSelected === null ? "auto" : "manual");
-  const models = authState.availableModels;
+  const models = state.availableModels;
 
   const autoBackendModel = resolveAutoModel(models);
   const isAuto = modelMode === "auto";
   const selectedModel = isAuto
     ? autoBackendModel
-    : (rawSelected ?? authState.defaultModel ?? models[0]);
+    : (rawSelected ?? state.defaultModel ?? models[0]);
 
   if (models.length === 0) {
     return (

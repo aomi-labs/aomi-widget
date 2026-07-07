@@ -3,20 +3,33 @@
 // =============================================================================
 
 export { AomiClient } from "./client";
+export {
+  AccountCredentialUnavailableError,
+  createAccountBearerProvider,
+} from "./account-session";
+export type {
+  AccountBearerProviderOptions,
+  AccountBearerProvider,
+  AccountCredentialProvider,
+  AccountSessionExchangeResponse,
+  BetterAuthAccountTokenSourceOptions,
+  BetterAuthTokenResponse,
+} from "./account-session";
 
 // =============================================================================
 // Types
 // =============================================================================
 
 export type {
+  AomiAppDescriptor,
+  AomiPlatformFilter,
   AomiRequestOptions,
   AomiRequestQueryValue,
-  AomiPlatformFilter,
-  AomiAppDescriptor,
+  AomiClientOptions,
+  AomiHttpMethod,
   AomiAccessApproval,
   AomiAccountProfile,
   AomiAuthIdentity,
-  AomiClientOptions,
   AomiCreateApprovalRequest,
   AomiIdentityWallet,
   AomiUsageStats,
@@ -27,6 +40,7 @@ export type {
   AomiChatResponse,
   AomiClearSecretsResponse,
   AomiCreateThreadResponse,
+  AomiAccountResponse,
   AomiDeleteSecretResponse,
   AomiIngestSecretsResponse,
   AomiInterruptResponse,
@@ -40,9 +54,9 @@ export type {
   AomiSystemEvent,
   AomiSystemResponse,
   AomiThread,
-  AomiHttpMethod,
   Logger,
 } from "./types";
+export { normalizeAppDescriptor, appIdentityKey } from "./app-descriptor";
 export type {
   AomiClientType,
   UserStateAAMode,
@@ -67,12 +81,6 @@ export {
   isSystemError,
   isSystemNotice,
 } from "./types";
-
-// =============================================================================
-// App Descriptors
-// =============================================================================
-
-export { normalizeAppDescriptor, appIdentityKey } from "./app-descriptor";
 
 // =============================================================================
 // Session (high-level orchestrated client)

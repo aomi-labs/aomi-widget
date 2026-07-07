@@ -10,13 +10,13 @@
 
 import { ClientSession } from "../session";
 import type { CliConfig } from "./types";
-import { DEFAULT_CLI_BASE_URL, createCliClient } from "./client-factory";
 import {
   readState,
   hasSameBackendPendingId,
   hasSameSolanaPendingId,
   syncPendingTxsFromUserState,
   writeState,
+  type CliAuthSession,
   type CliSessionState,
   type PendingSolTx,
   type PendingTx,
@@ -26,60 +26,7 @@ import {
 import { buildCliUserState } from "./user-state";
 import { fatal } from "./errors";
 import { parseSolanaKeypairSecret } from "./solana-signer";
-
-function applyAccountCredentialConfig(
-  state: CliSessionState,
-  config: Pick<
-    Partial<CliConfig>,
-    "accountBearer" | "embeddedProvider" | "embeddedProviderToken"
-  >,
-): boolean {
-  let changed = false;
-  const selectsBearer = config.accountBearer !== undefined;
-  const selectsProviderExchange =
-    config.embeddedProvider !== undefined ||
-    config.embeddedProviderToken !== undefined;
-
-  if (selectsBearer) {
-    if (state.accountBearer !== config.accountBearer) {
-      state.accountBearer = config.accountBearer;
-      changed = true;
-    }
-    if (state.embeddedProvider !== undefined) {
-      state.embeddedProvider = undefined;
-      changed = true;
-    }
-    if (state.embeddedProviderToken !== undefined) {
-      state.embeddedProviderToken = undefined;
-      changed = true;
-    }
-    return changed;
-  }
-
-  if (!selectsProviderExchange) {
-    return changed;
-  }
-
-  if (state.accountBearer !== undefined) {
-    state.accountBearer = undefined;
-    changed = true;
-  }
-  if (
-    config.embeddedProvider !== undefined &&
-    state.embeddedProvider !== config.embeddedProvider
-  ) {
-    state.embeddedProvider = config.embeddedProvider;
-    changed = true;
-  }
-  if (
-    config.embeddedProviderToken !== undefined &&
-    state.embeddedProviderToken !== config.embeddedProviderToken
-  ) {
-    state.embeddedProviderToken = config.embeddedProviderToken;
-    changed = true;
-  }
-  return changed;
-}
+import { createCliAuthTokenProvider } from "./auth";
 
 export class CliSession {
   private state: CliSessionState;
@@ -129,14 +76,15 @@ export class CliSession {
     const state: CliSessionState = {
       sessionId: crypto.randomUUID(),
       clientId: crypto.randomUUID(),
-      baseUrl: config.baseUrl ?? seed?.baseUrl ?? DEFAULT_CLI_BASE_URL,
+      baseUrl: config.baseUrl ?? seed?.baseUrl ?? "https://api.aomi.dev",
       app: config.app ?? seed?.app,
       model: config.model ?? seed?.model,
       apiKey: config.apiKey ?? seed?.apiKey,
-      accountBearer: seed?.accountBearer,
+      accountBearer: config.accountBearer ?? seed?.accountBearer,
       sessionCookie: config.sessionCookie ?? seed?.sessionCookie,
-      embeddedProvider: seed?.embeddedProvider,
-      embeddedProviderToken: seed?.embeddedProviderToken,
+      embeddedProvider: config.embeddedProvider ?? seed?.embeddedProvider,
+      embeddedProviderToken:
+        config.embeddedProviderToken ?? seed?.embeddedProviderToken,
       publicKey: config.publicKey ?? seed?.publicKey,
       privateKey: config.privateKey ?? seed?.privateKey,
       svmPublicKey: svmPublicKey ?? seed?.svmPublicKey,
@@ -146,8 +94,8 @@ export class CliSession {
       svmPrivateKey: config.solanaPrivateKey ?? seed?.svmPrivateKey,
       chainId: config.chain ?? seed?.chainId,
       secretHandles: seed?.secretHandles,
+      auth: seed?.auth,
     };
-    applyAccountCredentialConfig(state, config);
     const cli = new CliSession(state);
     cli.save();
     return cli;
@@ -181,9 +129,6 @@ export class CliSession {
   get privateKey(): string | undefined {
     return this.state.privateKey;
   }
-  get sessionCookie(): string | undefined {
-    return this.state.sessionCookie;
-  }
   get svmPublicKey(): string | undefined {
     return this.state.svmPublicKey;
   }
@@ -207,6 +152,9 @@ export class CliSession {
   }
   get secretHandles(): Readonly<Record<string, string>> {
     return this.state.secretHandles ?? {};
+  }
+  get auth(): CliAuthSession | undefined {
+    return this.state.auth;
   }
 
   // ---------------------------------------------------------------------------
@@ -234,7 +182,38 @@ export class CliSession {
       this.state.apiKey = config.apiKey;
       changed = true;
     }
-    changed = applyAccountCredentialConfig(this.state, config) || changed;
+    if (
+      config.accountBearer !== undefined &&
+      config.accountBearer !== this.state.accountBearer
+    ) {
+      this.state.accountBearer = config.accountBearer;
+      delete this.state.embeddedProvider;
+      delete this.state.embeddedProviderToken;
+      changed = true;
+    }
+    if (
+      config.sessionCookie !== undefined &&
+      config.sessionCookie !== this.state.sessionCookie
+    ) {
+      this.state.sessionCookie = config.sessionCookie;
+      changed = true;
+    }
+    if (
+      config.embeddedProvider !== undefined &&
+      config.embeddedProvider !== this.state.embeddedProvider
+    ) {
+      this.state.embeddedProvider = config.embeddedProvider;
+      delete this.state.accountBearer;
+      changed = true;
+    }
+    if (
+      config.embeddedProviderToken !== undefined &&
+      config.embeddedProviderToken !== this.state.embeddedProviderToken
+    ) {
+      this.state.embeddedProviderToken = config.embeddedProviderToken;
+      delete this.state.accountBearer;
+      changed = true;
+    }
     if (
       config.publicKey !== undefined &&
       config.publicKey !== this.state.publicKey
@@ -289,14 +268,6 @@ export class CliSession {
     this.save();
   }
 
-  /** Persist the BFF session token established by `aomi login` (SIWE). Clears
-   * any static `accountBearer` so the session becomes the single credential. */
-  setSessionCookie(sessionCookie: string): void {
-    this.state.sessionCookie = sessionCookie;
-    this.state.accountBearer = undefined;
-    this.save();
-  }
-
   setWallet(privateKey: string, publicKey: string): void {
     this.state.privateKey = privateKey;
     this.state.publicKey = publicKey;
@@ -331,6 +302,17 @@ export class CliSession {
 
   clearSecretHandles(): void {
     this.state.secretHandles = {};
+    this.save();
+  }
+
+  setAuthSession(auth: CliAuthSession): void {
+    this.state.auth = auth;
+    this.save();
+  }
+
+  clearAuthSession(): void {
+    if (!this.state.auth) return;
+    delete this.state.auth;
     this.save();
   }
 
@@ -478,42 +460,13 @@ export class CliSession {
   // ---------------------------------------------------------------------------
 
   /** Build a ClientSession from the current state. */
-  createClientSession(config: Partial<CliConfig> = {}): ClientSession {
-    const resolvedEmbeddedProvider =
-      config.accountBearer !== undefined
-        ? undefined
-        : (config.embeddedProvider ?? this.state.embeddedProvider);
-    const resolvedEmbeddedProviderToken =
-      config.accountBearer !== undefined
-        ? undefined
-        : (config.embeddedProviderToken ?? this.state.embeddedProviderToken);
-    const shouldUseProviderExchange = Boolean(
-      resolvedEmbeddedProvider && resolvedEmbeddedProviderToken,
-    );
-
+  createClientSession(_config?: Partial<CliConfig>): ClientSession {
     const session = new ClientSession(
-      createCliClient(
-        {
-          ...config,
-          baseUrl: this.state.baseUrl,
-          apiKey: this.state.apiKey,
-          // Provider-token exchange is disabled. Keep the persisted fields for
-          // compatibility, but do not let them create or replace a bearer.
-          accountBearer: shouldUseProviderExchange
-            ? undefined
-            : (config.accountBearer ?? this.state.accountBearer),
-          // SIWE-established BFF session: the CLI mints short-lived bearers from
-          // it. Preferred over a static accountBearer when both are present.
-          sessionCookie: config.sessionCookie ?? this.state.sessionCookie,
-          embeddedProvider: resolvedEmbeddedProvider,
-          embeddedProviderToken: resolvedEmbeddedProviderToken,
-          secrets: config.secrets ?? {},
-        },
-        {
-          baseUrl: this.state.baseUrl,
-          apiKey: this.state.apiKey,
-        },
-      ),
+      {
+        baseUrl: this.state.baseUrl,
+        apiKey: this.state.apiKey,
+        getAccountBearer: createCliAuthTokenProvider(() => this.state),
+      },
       {
         sessionId: this.state.sessionId,
         clientId: this.state.clientId,

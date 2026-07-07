@@ -1,5 +1,6 @@
 import type {
   AomiAccountProfile,
+  AomiAccountResponse,
   AomiAccessApproval,
   AomiAuthWalletFamily,
   AomiAppDescriptor,
@@ -511,7 +512,9 @@ export class AomiClient {
   ): Promise<AomiChatResponse> {
     const app = options?.app ?? "default";
     const apiKey = options?.apiKey ?? this.apiKey;
-    const normalizedUserState = UserState.normalize(options?.userState);
+    const normalizedUserState = stripBulkyPendingFields(
+      UserState.normalize(options?.userState),
+    );
     const applicationId = options?.applicationId?.toString().trim();
     const url = buildApiUrl(this.baseUrl, "/api/chat", {
       app,
@@ -978,6 +981,24 @@ export class AomiClient {
     }
 
     return (await response.json()) as AomiAccountProfile;
+  }
+
+  /**
+   * Fetch the full account for the authenticated request. Throws on any
+   * non-OK response; use `fetchAccountProfile` for the null-on-anonymous
+   * variant.
+   */
+  async getAccount(sessionId: string): Promise<AomiAccountResponse> {
+    const url = buildApiUrl(this.baseUrl, "/api/account");
+    const response = await this.fetchImpl(url, {
+      headers: withSessionHeader(sessionId),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to fetch account: HTTP ${response.status}`);
+    }
+
+    return (await response.json()) as AomiAccountResponse;
   }
 
   async createAccountApproval(

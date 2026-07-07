@@ -7,7 +7,7 @@
                                                                                                            
   import {                                                                                                 
     AomiFrame,
-    AomiAuthAdapterProvider,
+    AomiWalletKitContextProvider,
     ExtUserProvider,
   } from "@aomi-labs/widget-lib";
   import "@aomi-labs/widget-lib/styles.css";
@@ -50,20 +50,20 @@
 
   2. The Adapter Bridge (KrexaPrivyAdapter)
 
-  This component reads from Krexa's existing Privy/wagmi hooks and maps them into the AomiAuthAdapter
+  This component reads from Krexa's existing Privy/wagmi hooks and maps them into the AomiWalletKit
   interface that RuntimeTxHandler consumes.
 
   "use client";
 
   import { useMemo, type ReactNode } from "react";
   import {
-    AomiAuthAdapterProvider,
-    AOMI_AUTH_DISCONNECTED_IDENTITY,
-    AOMI_AUTH_BOOTING_IDENTITY,
+    AomiWalletKitContextProvider,
+    AOMI_SESSION_DISCONNECTED_IDENTITY,
+    AOMI_SESSION_BOOTING_IDENTITY,
   } from "@aomi-labs/widget-lib";
   import type {
-    AomiAuthAdapter,
-    AomiAuthIdentity,
+    AomiWalletKit,
+    AomiSessionIdentity,
   } from "@aomi-labs/widget-lib";
   import {
     toViemSignTypedDataArgs,
@@ -88,10 +88,10 @@
     const { signTypedDataAsync } = useSignTypedData();
     const { switchChainAsync } = useSwitchChain();
 
-    const adapter = useMemo<AomiAuthAdapter>(() => {
+    const adapter = useMemo<AomiWalletKit>(() => {
       const isBooting = !ready;
-      const identity: AomiAuthIdentity = isBooting
-        ? AOMI_AUTH_BOOTING_IDENTITY
+      const identity: AomiSessionIdentity = isBooting
+        ? AOMI_SESSION_BOOTING_IDENTITY
         : isConnected && address
           ? {
               status: "connected",
@@ -103,7 +103,7 @@
               authMethod: undefined,      // fill if you expose login method
             }
           : {
-              ...AOMI_AUTH_DISCONNECTED_IDENTITY,
+              ...AOMI_SESSION_DISCONNECTED_IDENTITY,
               chainId: chainId ?? undefined,
             };
 
@@ -157,9 +157,9 @@
     ]);
 
     return (
-      <AomiAuthAdapterProvider value={adapter}>
+      <AomiWalletKitContextProvider value={adapter}>
         {children}
-      </AomiAuthAdapterProvider>
+      </AomiWalletKitContextProvider>
     );
   }
 
@@ -167,9 +167,9 @@
 
   Once mounted, the data flow becomes:
 
-  Krexa Privy login → wagmi hooks → KrexaPrivyAdapter (builds AomiAuthAdapter)
-    → AomiAuthAdapterProvider (context)
-      → AomiAuthAdapterSync (auto-syncs identity → setUser → user_state)
+  Krexa Privy login → wagmi hooks → KrexaPrivyAdapter (builds AomiWalletKit)
+    → AomiWalletKitContextProvider (context)
+      → AomiWalletKitSync (auto-syncs identity → setUser → user_state)
         → RuntimeTxHandler reads pendingWalletRequests + calls adapter.sendTransaction
           → wagmi sendTransactionAsync (Krexa's Privy signer)
             → session.resolve(id, result) → backend
@@ -183,10 +183,10 @@
   The simple adapter above does single-call EOA sends. If Krexa wants batch transactions or AA (4337), they
    should use the shared execution engine instead of raw sendTransactionAsync:
 
-  import { executeAdapterTransaction } from "@aomi-labs/widget-lib";
+  import { executeWalletKitTransaction } from "@aomi-labs/widget-lib";
   // ...inside the adapter useMemo:
   sendTransaction: async (payload: WalletTxPayload) => {
-    return executeAdapterTransaction({
+    return executeWalletKitTransaction({
       payload,
       state: {
         currentChainId: chainId,

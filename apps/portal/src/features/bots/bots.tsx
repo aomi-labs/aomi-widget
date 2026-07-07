@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Button, Input } from "@aomi-labs/widget-lib";
-import { accountScopedFetch } from "@portal/lib/settings-api";
+import { settingsApiFetch } from "@portal/lib/settings-api";
 import {
   settingsActionRowClass,
   settingsBodyTextClass,
@@ -98,24 +98,32 @@ export function Bots() {
     text: string;
   } | null>(null);
 
+  const ensureBoundSession = useCallback(async () => {
+    await settingsApiFetch<{ thread_id: string; title?: string | null }>(
+      "/api/threads",
+      { method: "POST", body: JSON.stringify({}) },
+    );
+  }, []);
+
   const loadBots = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
+      await ensureBoundSession();
       const data =
-        await accountScopedFetch<BotRegistrationsResponse>("/api/account/bots");
+        await settingsApiFetch<BotRegistrationsResponse>("/api/account/bots");
       setBots(data.bot_registrations ?? []);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load bots");
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [ensureBoundSession]);
 
   const loadApps = useCallback(async () => {
     setLoadingApps(true);
     try {
-      const data = await accountScopedFetch<AppOption[]>("/api/account/apps");
+      const data = await settingsApiFetch<AppOption[]>("/api/account/apps");
       const normalized = normalizeAppOptions(data ?? []);
       setAvailableApps(normalized);
       setSelectedApp((previous) => {
@@ -140,8 +148,7 @@ export function Bots() {
   }, [loadApps, loadBots]);
 
   const canCreate = useMemo(
-    () =>
-      selectedApp.length > 0 && tokenInput.trim().length > 0 && !creating,
+    () => selectedApp.length > 0 && tokenInput.trim().length > 0 && !creating,
     [creating, selectedApp, tokenInput],
   );
 
@@ -151,7 +158,8 @@ export function Bots() {
     setCreating(true);
     setStatus(null);
     try {
-      const data = await accountScopedFetch<CreateBotRegistrationResponse>(
+      await ensureBoundSession();
+      const data = await settingsApiFetch<CreateBotRegistrationResponse>(
         "/api/account/bots",
         {
           method: "POST",
@@ -179,7 +187,14 @@ export function Bots() {
     } finally {
       setCreating(false);
     }
-  }, [canCreate, labelInput, selectedApp, threadMode, tokenInput]);
+  }, [
+    canCreate,
+    ensureBoundSession,
+    labelInput,
+    selectedApp,
+    threadMode,
+    tokenInput,
+  ]);
 
   return (
     <div className={settingsPageClass}>

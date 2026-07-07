@@ -16,10 +16,16 @@ export type AAOwner =
       session: unknown;
       signer?: unknown;
       address?: Hex;
+    }
+  | {
+      kind: "external-wallet";
+      signer: unknown;
+      address: Hex;
     };
 
 type DirectOwner = Extract<AAOwner, { kind: "direct" }>;
 type SessionOwner = Extract<AAOwner, { kind: "session" }>;
+type ExternalWalletOwner = Extract<AAOwner, { kind: "external-wallet" }>;
 
 type SDKOwnerParams =
   | {
@@ -33,6 +39,7 @@ type SDKOwnerParams =
     }
   | {
       para: never;
+      signer?: unknown;
       address?: Hex;
     };
 
@@ -81,6 +88,19 @@ function getSessionOwnerParams(owner: SessionOwner): ResolvedOwnerParams {
   }
 }
 
+function getExternalWalletOwnerParams(
+  owner: ExternalWalletOwner,
+): ResolvedOwnerParams {
+  return {
+    kind: "ready",
+    ownerParams: {
+      para: undefined as never,
+      signer: owner.signer,
+      address: owner.address,
+    },
+  };
+}
+
 export function getOwnerParams(
   owner: AAOwner | undefined,
 ): ResolvedOwnerParams {
@@ -93,6 +113,8 @@ export function getOwnerParams(
       return getDirectOwnerParams(owner);
     case "session":
       return getSessionOwnerParams(owner);
+    case "external-wallet":
+      return getExternalWalletOwnerParams(owner);
   }
 }
 
@@ -119,5 +141,22 @@ export function getUnsupportedAdapterState(
     account: null,
     pending: false,
     error: new Error(`Session adapter "${adapter}" is not implemented.`),
+  };
+}
+
+export function getUnsupportedOwnerState(
+  resolved: AAState["resolved"],
+  provider: AAProvider,
+  ownerKind: AAOwner["kind"],
+  message?: string,
+): AAState {
+  return {
+    resolved,
+    account: null,
+    pending: false,
+    error: new Error(
+      message ??
+        `${provider} AA does not support ${ownerKind} owners in this build.`,
+    ),
   };
 }

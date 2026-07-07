@@ -188,6 +188,42 @@
   scrollbar-width: none;
 }
 
+/* Thread viewport scrollbars stay scoped to the widget and disappear until useful. */
+.aui-thread-viewport {
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+}
+
+.aui-thread-viewport:hover,
+.aui-thread-viewport:focus-within {
+  scrollbar-color: hsl(var(--muted-foreground) / 0.22) transparent;
+}
+
+.aui-thread-viewport::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.aui-thread-viewport::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.aui-thread-viewport::-webkit-scrollbar-thumb {
+  background: transparent;
+  border: 2px solid transparent;
+  border-radius: 9999px;
+  background-clip: padding-box;
+}
+
+.aui-thread-viewport:hover::-webkit-scrollbar-thumb,
+.aui-thread-viewport:focus-within::-webkit-scrollbar-thumb {
+  background-color: hsl(var(--muted-foreground) / 0.22);
+}
+
+.aui-thread-viewport::-webkit-scrollbar-thumb:hover {
+  background-color: hsl(var(--muted-foreground) / 0.38);
+}
+
 /* Thin, subtle scrollbar for command list dropdowns */
 .aui-command-list {
   scrollbar-width: thin;

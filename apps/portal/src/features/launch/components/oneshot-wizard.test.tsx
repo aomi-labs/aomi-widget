@@ -30,8 +30,11 @@ vi.mock("@aomi-labs/widget-lib", () => ({
 }));
 
 vi.mock("@portal/lib/chat-url", () => ({
-  chatAppUrl: (name: string, options?: { locked?: boolean }) =>
-    `https://chat.aomi.dev?app=${name}${options?.locked ? "&lock_app=1" : ""}`,
+  chatAppUrl: (
+    name: string,
+    options?: { applicationId?: number | string | null; locked?: boolean },
+  ) =>
+    `https://chat.aomi.dev?app=${name}${options?.applicationId ? `&application_id=${options.applicationId}` : ""}${options?.locked ? "&lock_app=1" : ""}`,
 }));
 
 vi.mock("@portal/features/launch", () => ({
