@@ -2,22 +2,62 @@
 
 ## Last Updated
 
-2026-07-07 — aomi-smither: multi-loop + eval + parallel (stage 2)
+2026-07-07 — aomi-smither: wait-external + cross-repo agents (stage 3) — roadmap complete
 
-## Flexible-orchestration roadmap (Cecilia's direction)
+## Flexible-orchestration roadmap (Cecilia's direction) — COMPLETE
 
 - **Stage 1 — composition + clarify** ✅. Plan is a composition of typed
   phases; clarify pauses answerable from TUI + console.
 - **Stage 1.5 — intake in the browser from t=0** ✅. The composer is visible
   before the workflow exists; one tab follows into the build.
-- **Stage 2 — multi-loop + eval + parallel** ✅ (this entry). `eval` phase
-  (run + judge → metric), `eval-pass` loops with graceful `return-last` max,
-  parallel fan-out. Proven on the defi-pools shape.
-- **Stage 3 — wait-external + cross-repo agents** (next). Durable pauses for
-  outside-Aomi work; agent phases in another repo. Proof target: GameFi
-  companion (design proposal → wait for game-server APIs → integration eval).
+- **Stage 2 — multi-loop + eval + parallel** ✅. `eval` phase (run + judge →
+  metric), `eval-pass` loops with graceful `return-last` max, parallel fan-out.
+  Proven on the defi-pools shape.
+- **Stage 3 — wait-external + cross-repo agents** ✅ (this entry). Durable
+  external pauses; agent phases in other repos. Proven on the GameFi shape.
 
 ## Recent Changes
+
+### wait-external + cross-repo agents (2026-07-07, stage 3)
+
+The last two primitives — for full-stack / outside-Aomi work (the GameFi
+scenario):
+
+- **plan.ts** — `wait-external` phase (waitingFor / timeoutHours / onTimeout);
+  agent phases gained `repo` (run in another codebase); new `design` role
+  (writes DESIGN.md for a human to build the other side from). `agentSpecsFor`
+  is a pure export listing the distinct (agent, cwd) pairs the workflow
+  instantiates — so cross-repo wiring is testable without running an agent.
+- **schemas.ts** — `external` table doubles as the wait-external signal payload
+  ({ ready, note, receivedBy }) and its output row.
+- **workflow.tsx** — renders `wait-external` as a Smithers `<Signal>` keyed by
+  the phase node id (schema = the registered `external` table); done when its
+  row lands. Agents instantiated one-per-(agent, repo).
+- **run.ts** — `sendSignal` (wraps engine `signalRun`); `executeRunUntilSettled`
+  now also resumes on `waiting-event`, not just `waiting-approval`.
+- **console.ts / cli.tsx** — console side channel gained `POST /signal`; new
+  `aomi-smither signal --app <app> --node <phase>` subcommand. Composer intake
+  prompt teaches wait-external + cross-repo + the full-stack shape.
+
+Grounding first: an empirical `<Signal>` probe established the contract —
+signalName === the Signal node id, the Signal's schema must be registered in
+createSmithers, and the parked status is **`waiting-event`** (NOT
+waiting-approval — that gap would have hung the settle loop; fixed).
+
+Verified live through the real runtime, CROSS-PROCESS (the true durability
+claim): process A parked a run on wait-external (`waiting-event`); process B —
+the *built* `aomi-smither signal` CLI — delivered the signal by loading the
+run off disk; process C resumed (`resuming? true`) and finished, with the
+`external` row carrying the note from process B. Plus an in-process GameFi
+proof: binaries → wait-external (park → signal → resume) → eval-loop (0.9 pass)
+→ result complete. 73 vitest green (4 new: GameFi shape, wait-external stage,
+cross-repo cwd separation, same-repo agent dedup); tsc + eslint clean; dist
+rebuilt.
+
+Known gap (noted, not blocking): the branded browser console shows a
+wait-external node as a rail row but has no in-page "signal ready" button yet
+— resume it from the CLI or a `POST /signal`. A button is UI polish for a
+follow-up.
 
 ### Multi-loop + eval + parallel (2026-07-07, stage 2)
 

@@ -4,15 +4,18 @@ import { Fragment, type ReactNode } from "react";
 import type { CreateSmithersApi } from "smithers-orchestrator";
 import {
   WORKFLOW_NAME,
-  innerPhasesOf,
+  agentSpecsFor,
   nodeId,
   phaseAgent,
+  resolveAgentCwd,
   resolveComposition,
+  type AgentPhase,
   type BuildPlan,
   type EvalPhase,
   type InnerPhase,
   type Phase,
 } from "./plan";
+import { innerPhasesOf } from "./plan";
 import {
   boundedLog,
   smitherSchemas,
@@ -94,6 +97,8 @@ function outputKeyFor(phase: InnerPhase | Phase): keyof SmitherSchemas {
       }
     case "eval":
       return "evaluation";
+    case "wait-external":
+      return "external";
     case "clarify":
       return "clarify";
     case "gate":
@@ -127,22 +132,19 @@ export async function buildAppWorkflow(
   plan: BuildPlan,
   deps: WorkflowDeps = {},
 ): Promise<AomiWorkflow> {
-  const { Workflow, Task, Approval, Sequence, Loop, Parallel, smithers, outputs } = api;
+  const { Workflow, Task, Approval, Sequence, Loop, Parallel, Signal, smithers, outputs } = api;
   const runner = deps.runner ?? defaultRunner;
   const id = (stage: string) => nodeId(plan.app, stage);
   const composition = resolveComposition(plan);
 
-  // One CLI agent instance per distinct agent named anywhere in the
-  // composition — including inside loop bodies and parallel branches.
-  const agentNames = new Set<"claude" | "codex">();
-  for (const phase of composition) {
-    for (const p of innerPhasesOf(phase)) {
-      if (p.kind === "agent") agentNames.add(phaseAgent(plan, p));
-    }
-  }
-  const agents = new Map<"claude" | "codex", Awaited<ReturnType<typeof makeWorkAgent>>>();
-  for (const name of agentNames) {
-    agents.set(name, await makeWorkAgent(name, { cwd: plan.sdkRoot, env: deps.env }));
+  const resolveRepo = (repo?: string) => resolveAgentCwd(plan, repo);
+  const agentKey = (name: "claude" | "codex", cwd: string) => `${name}::${cwd}`;
+
+  // One CLI agent instance per distinct (agent, repo) used anywhere in the
+  // composition — cross-repo agents run in another codebase entirely.
+  const agents = new Map<string, Awaited<ReturnType<typeof makeWorkAgent>>>();
+  for (const spec of agentSpecsFor(plan)) {
+    agents.set(agentKey(spec.name, spec.cwd), await makeWorkAgent(spec.name, { cwd: spec.cwd, env: deps.env }));
   }
 
   return smithers((ctx) => {
@@ -261,6 +263,10 @@ export async function buildAppWorkflow(
         case "eval":
           done = !!row(outputKeyFor(phase), phase.id);
           break;
+        case "wait-external":
+          // The Signal node records the received payload into `external`.
+          done = !!row("external", phase.id);
+          break;
         case "clarify":
           done = plan.autoApprove || !!row("clarify", phase.id);
           break;
@@ -335,7 +341,10 @@ export async function buildAppWorkflow(
             const evaluation = loopContext?.latestEval;
             if (!evaluation || evaluation.pass) return null;
           }
-          const agent = agents.get(phaseAgent(plan, phase));
+          const agentPhase = phase as AgentPhase;
+          const agent = agents.get(
+            agentKey(phaseAgent(plan, phase), resolveRepo(agentPhase.repo)),
+          );
           if (!agent) return null;
           const context: PromptContext & { validationLog?: string } = {
             brief: phase.brief,
@@ -497,6 +506,19 @@ export async function buildAppWorkflow(
               </Sequence>
             ))}
           </Parallel>
+        );
+      }
+      if (phase.kind === "wait-external") {
+        // Durable pause: parks the run (status waiting-event) until a signal
+        // keyed by this node id arrives (sendSignal / console /signal / CLI
+        // signal). The Signal validates + records the payload into `external`.
+        return (
+          <Signal
+            id={id(phase.id)}
+            schema={smitherSchemas.external}
+            {...(phase.timeoutHours ? { timeoutMs: phase.timeoutHours * 3_600_000 } : {})}
+            {...(phase.onTimeout ? { onTimeout: phase.onTimeout } : {})}
+          />
         );
       }
       return renderInner(phase);

@@ -1,11 +1,11 @@
 import { existsSync } from "node:fs";
-import { createServer as createHttpServer, type Server } from "node:http";
+import { createServer as createHttpServer, type IncomingMessage, type Server } from "node:http";
 import { createServer as createNetServer } from "node:net";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import type { GatewayOptions } from "smithers-orchestrator";
 import { stagesFor, type BuildPlan } from "./plan";
-import { assertBunRuntime, decideApproval } from "./run";
+import { assertBunRuntime, decideApproval, sendSignal } from "./run";
 import { defaultRunsRoot, loadPlan, smitherDbPath } from "./state";
 import {
   buildAppWorkflow,
@@ -111,15 +111,32 @@ function uiRegistration(options: ConsoleOptions, decideUrl?: string): UiRegistra
 }
 
 /**
- * Loopback decision endpoint beside the gateway. POST {runId, nodeId,
- * iteration, approve, selected?, notes?} → the same durable `decideApproval`
- * write the TUI does. Exists because the stock gateway's approve route drops
- * the decision payload, which select-mode clarifies need.
+ * Loopback endpoint beside the gateway for run inputs the stock gateway can't
+ * carry. `POST /decide` writes an approval/clarify decision (the gateway
+ * approve route drops the decision payload in 0.26.1). `POST /signal` delivers
+ * an external signal that resolves a wait-external pause. Both are durable
+ * writes any external system can make (a CI, a teammate) — not just the TUI.
  */
 function startDecisionServer(api: AomiSmitherApi, host: string): Promise<{
   server: Server;
   port: number;
 }> {
+  const readJson = (req: IncomingMessage) =>
+    new Promise<Record<string, unknown>>((resolveBody, reject) => {
+      let body = "";
+      req.on("data", (chunk: Buffer) => {
+        body += chunk.toString("utf8");
+        if (body.length > 64_000) req.destroy();
+      });
+      req.on("end", () => {
+        try {
+          resolveBody(JSON.parse(body || "{}"));
+        } catch (error) {
+          reject(error);
+        }
+      });
+    });
+
   const server = createHttpServer((req, res) => {
     res.setHeader("Access-Control-Allow-Origin", "*");
     res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
@@ -128,30 +145,37 @@ function startDecisionServer(api: AomiSmitherApi, host: string): Promise<{
       res.writeHead(204).end();
       return;
     }
-    if (req.method !== "POST" || req.url !== "/decide") {
-      res.writeHead(404).end(JSON.stringify({ error: "POST /decide only" }));
+    const route = req.url === "/decide" || req.url === "/signal" ? req.url : null;
+    if (req.method !== "POST" || !route) {
+      res.writeHead(404).end(JSON.stringify({ error: "POST /decide or /signal only" }));
       return;
     }
-    let body = "";
-    req.on("data", (chunk: Buffer) => {
-      body += chunk.toString("utf8");
-      if (body.length > 64_000) req.destroy();
-    });
-    req.on("end", () => {
-      void (async () => {
-        try {
-          const parsed = JSON.parse(body) as {
-            runId?: string;
-            nodeId?: string;
-            iteration?: number;
-            approve?: boolean;
-            selected?: string;
-            notes?: string;
-          };
-          if (!parsed.runId || !parsed.nodeId) {
-            res.writeHead(400).end(JSON.stringify({ error: "runId and nodeId required" }));
-            return;
-          }
+    void (async () => {
+      try {
+        const parsed = (await readJson(req)) as {
+          runId?: string;
+          nodeId?: string;
+          iteration?: number;
+          approve?: boolean;
+          selected?: string;
+          notes?: string;
+          ready?: boolean;
+          receivedBy?: string;
+        };
+        if (!parsed.runId || !parsed.nodeId) {
+          res.writeHead(400).end(JSON.stringify({ error: "runId and nodeId required" }));
+          return;
+        }
+        if (route === "/signal") {
+          await sendSignal({
+            api,
+            runId: parsed.runId,
+            nodeId: parsed.nodeId,
+            ready: parsed.ready ?? true,
+            note: parsed.notes ?? "",
+            receivedBy: parsed.receivedBy ?? "aomi-smither-console",
+          });
+        } else {
           await decideApproval({
             api,
             runId: parsed.runId,
@@ -163,16 +187,14 @@ function startDecisionServer(api: AomiSmitherApi, host: string): Promise<{
               ? { selection: { selected: parsed.selected, notes: parsed.notes } }
               : {}),
           });
-          res.writeHead(200, { "content-type": "application/json" }).end(
-            JSON.stringify({ ok: true }),
-          );
-        } catch (error) {
-          res.writeHead(500, { "content-type": "application/json" }).end(
-            JSON.stringify({ error: String(error instanceof Error ? error.message : error) }),
-          );
         }
-      })();
-    });
+        res.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify({ ok: true }));
+      } catch (error) {
+        res.writeHead(500, { "content-type": "application/json" }).end(
+          JSON.stringify({ error: String(error instanceof Error ? error.message : error) }),
+        );
+      }
+    })();
   });
   return new Promise((resolvePort, reject) => {
     server.once("error", reject);
