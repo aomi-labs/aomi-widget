@@ -7,6 +7,8 @@ settings:
 overrides:
   viem: 2.47.11
 
+packageExtensionsChecksum: sha256-E7Cci1c7RII7uQbBWBCSDIn5m5iFwi+BxEDdK9b4Yj8=
+
 importers:
 
   .:
