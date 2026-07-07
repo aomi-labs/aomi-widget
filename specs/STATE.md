@@ -2,7 +2,41 @@
 
 ## Last Updated
 
+2026-07-07 — Partner deploy primitives (`@aomi-labs/deploy` `./bff` + `./launch` + `aomi-deploy` skill) extracted **additively** on top of Han's #292; portal console + registry untouched.
+
 2026-07-03 - Tri-repo pre-merge review (aomi vs origin/main, product-mono vs origin/refactor/dbthread-unification, db-master). Local checks all green. Blockers logged below.
+
+## Partner deploy primitives — additive on Han's main (2026-07-07)
+
+Branch `partner-deploy-additive` (off `origin/main` `bf890120`, which merged Han's
+#292 deployment-SDK-guardrails **including** his portal deployment console — codex
+did NOT strip it; it is present + mounted at `/deployments`). Rather than the
+earlier plan of gutting the portal launch feature into packages (which would have
+collided head-on with Han's now-live console), this ships the partner-facing
+primitives **purely additively** — 24 files, all under `packages/deploy/`, zero
+changes to `apps/portal` or `apps/shadcn-registry`:
+
+- **`@aomi-labs/deploy/bff`** (server-only) — framework-agnostic `(Request) =>
+  Response` route factories: `createLaunchRoutes`, `createGitHubAuthRoutes`,
+  `createGitHubSessionCodec`, default guards, config, validators, error mapper.
+- **`@aomi-labs/deploy/launch`** (browser) — `createLaunchClient` typed client +
+  wizard state machine + contracts + url-context.
+- **`packages/deploy/skills/aomi-deploy/SKILL.md`** — agent-paste-able integration
+  guide; ships with npm (`files` includes `skills`). Points partners at Han's
+  portal console (`apps/portal/src/features/launch/`) as the worked example to
+  read, not vendor.
+- **`package.json`** 0.1.1 → 0.2.0 (adds `./bff` + `./launch` exports, `jose` dep,
+  `skills` to files); `tsup.config.ts` adds the two entries.
+
+Inherits Han's new SDK methods (`deactivateApp`/`promote`/`listSecrets`/
+`listDeploymentRecords`/`serverTags`) from `packages/deploy/src/client.ts` with no
+conflict (his additions were to files this extraction never touches). Build (4
+entries) + 98 pkg tests green. **Superseded decisions:** the registry `aomi-launch`
+shadcn item and the portal-as-thin-consumer rewrite are dropped — Han's console is
+the portal's deploy UI + the reference; my registry component copies (old branch
+`partner-deploy-readiness`, kept as backup) are redundant and not carried forward.
+Deferred (not done): browser-exposed "stop"/deactivate in `createLaunchClient`;
+publishing 0.2.0; unifying the portal's own launch routes onto these factories.
 
 ## Pending (from 2026-07-03 pre-merge review)
 
