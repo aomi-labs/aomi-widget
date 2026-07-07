@@ -42,11 +42,33 @@ function extractMentionedTxIds(content: string | undefined): string[] {
   return Array.from(new Set(matches.map((id) => id.toLowerCase()))).sort();
 }
 
+function hasAccountCredential(cli: CliSession): boolean {
+  const state = cli.toState();
+  return Boolean(
+    state.auth?.sessionToken || state.accountBearer || state.sessionCookie,
+  );
+}
+
+async function ensureAccountBoundThread(
+  cli: CliSession,
+  session: ReturnType<CliSession["createClientSession"]>,
+): Promise<void> {
+  if (!hasAccountCredential(cli)) return;
+  try {
+    await session.client.createThread(cli.sessionId);
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error);
+    fatal(`Failed to create account-bound backend thread: ${detail}`);
+  }
+}
+
 /**
  * Derive the Solana public key from a keypair secret string if provided.
  * Returns undefined on any parse failure (non-fatal — just omits svm.address).
  */
-function deriveSvmAddress(solanaPrivateKey: string | undefined): string | undefined {
+function deriveSvmAddress(
+  solanaPrivateKey: string | undefined,
+): string | undefined {
   if (!solanaPrivateKey) return undefined;
   try {
     return parseSolanaKeypairSecret(solanaPrivateKey).publicKey.toBase58();
@@ -92,7 +114,13 @@ export async function syncWalletStateForChat(
   session: {
     resolveUserState: (userState: ReturnType<typeof buildCliUserState>) => void;
     syncUserState: () => Promise<unknown>;
-    client: { sendSystemMessage: (sessionId: string, message: string, options?: { app?: string }) => Promise<unknown> };
+    client: {
+      sendSystemMessage: (
+        sessionId: string,
+        message: string,
+        options?: { app?: string },
+      ) => Promise<unknown>;
+    };
   },
 ): Promise<void> {
   if (
@@ -156,6 +184,7 @@ export async function chatCommand(
   const svmAddress = deriveSvmAddress(resolvedSolanaKey) ?? cli.svmPublicKey;
 
   try {
+    await ensureAccountBoundThread(cli, session);
     await ingestSecretsForSession(config, cli, session.client);
     await applyRequestedModelIfPresent(config, cli, session);
     await syncWalletStateForChat(

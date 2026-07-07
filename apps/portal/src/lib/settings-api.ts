@@ -41,6 +41,12 @@ export function getBackendUrl(): string {
   return "";
 }
 
+function joinApiPath(baseUrl: string, path: string): string {
+  const normalizedBase = baseUrl === "/" ? "" : baseUrl.replace(/\/+$/, "");
+  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
+  return `${normalizedBase}${normalizedPath}` || normalizedPath;
+}
+
 export function getSettingsSecret(): string | null {
   if (typeof window === "undefined") {
     return null;
@@ -60,9 +66,10 @@ export async function sessionScopedFetch<T>(
   options?: RequestInit & { secret?: string | null },
 ): Promise<T> {
   const { secret, ...requestInit } = options ?? {};
-  const url = `${getBackendUrl()}${path}`;
+  const url = joinApiPath(getBackendUrl(), path);
   const headers = new Headers(requestInit.headers ?? {});
   headers.set("X-Session-Id", getSettingsSessionId());
+  headers.set("X-Thread-Id", getSettingsSessionId());
   const resolvedSecret =
     secret === undefined ? getSettingsSecret() : secret?.trim() || null;
   if (resolvedSecret) {
@@ -86,13 +93,15 @@ export async function sessionScopedFetch<T>(
   return (await response.json()) as T;
 }
 
+export const settingsApiFetch = sessionScopedFetch;
+
 export async function accountScopedFetch<T>(
   path: string,
   options?: RequestInit,
 ): Promise<T> {
   // Same-origin `/api/account/*` through the portal proxy, which injects the
-  // AccountBearer from the `aomi_session` cookie (established by
-  // AomiSessionBridge). The browser carries no bearer itself.
+  // AccountBearer from the BetterAuth session. The browser carries no bearer
+  // itself.
   const response = await fetch(`${getBackendUrl()}${path}`, {
     ...options,
     headers: {

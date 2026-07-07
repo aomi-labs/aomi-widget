@@ -78,31 +78,97 @@ export function Assistant() {
 
 ### With wallet providers
 
-Wrap the frame in Para + React Query to enable wallet connection and transaction requests:
+Wrap the frame in `AomiWalletKitProvider` to enable wallet connection and transaction requests. External wallets such as MetaMask, Rabby, Rainbow, Coinbase Wallet, and WalletConnect are configured through the generic EVM wallet catalog; Para/Privy are only needed when you want their auth session or embedded-wallet features.
 
 ```tsx
-import "@getpara/react-sdk/styles.css";
-import { Environment, ParaProvider } from "@getpara/react-sdk";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { AomiFrame } from "@aomi-labs/widget-lib";
-
-const queryClient = new QueryClient();
+import { AomiFrame, AomiWalletKitProvider } from "@aomi-labs/widget-lib";
 
 export function Assistant() {
   return (
-    <QueryClientProvider client={queryClient}>
-      <ParaProvider
-        paraClientConfig={{
-          apiKey: process.env.NEXT_PUBLIC_PARA_API_KEY!,
-          env: Environment.BETA,
-        }}
-      >
-        <AomiFrame height="640px" width="100%" />
-      </ParaProvider>
-    </QueryClientProvider>
+    <AomiWalletKitProvider
+      wallets={{
+        evm: {
+          wallets: ["metamask", "rabby", "walletconnect", "coinbase"],
+          walletConnectProjectId:
+            process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID,
+        },
+      }}
+      execution={{
+        aa: "optional",
+        provider: "pimlico",
+        modes: ["4337"],
+        owner: "external-wallet",
+      }}
+    >
+      <AomiFrame height="640px" width="100%" />
+    </AomiWalletKitProvider>
   );
 }
 ```
+
+To add Para auth or embedded wallets, keep the same external-wallet config and add a Para auth provider:
+
+```tsx
+import "@aomi-labs/widget-lib/providers/para";
+import { AomiFrame, AomiWalletKitProvider } from "@aomi-labs/widget-lib";
+
+export function Assistant() {
+  return (
+    <AomiWalletKitProvider
+      auth={{ provider: "para", methods: ["google", "email", "wallet"] }}
+      providers={{
+        para: {
+          apiKey: process.env.NEXT_PUBLIC_PARA_API_KEY,
+          environment: "BETA",
+        },
+      }}
+      wallets={{
+        evm: {
+          wallets: ["metamask", "rabby", "walletconnect"],
+          walletConnectProjectId:
+            process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID,
+        },
+      }}
+    >
+      <AomiFrame height="640px" width="100%" />
+    </AomiWalletKitProvider>
+  );
+}
+```
+
+Base Account is also a generic wallet entry now:
+
+```tsx
+import { AomiFrame, AomiWalletKitProvider } from "@aomi-labs/widget-lib";
+import { base } from "wagmi/chains";
+
+export function Assistant() {
+  return (
+    <AomiWalletKitProvider
+      wallets={{
+        evm: {
+          chains: [base],
+          wallets: ["baseAccount"],
+          coinbase: false,
+          appName: "Aomi",
+        },
+        solana: false,
+      }}
+      execution={{
+        aa: "optional",
+        sponsorship: {
+          mode: "optional",
+          paymasterServiceUrl: "/api/paymaster",
+        },
+      }}
+    >
+      <AomiFrame height="640px" width="100%" />
+    </AomiWalletKitProvider>
+  );
+}
+```
+
+`AomiBaseAccountProvider` remains as a deprecated compatibility wrapper, but new integrations should use `AomiWalletKitProvider`.
 
 ### AomiFrame props
 
@@ -346,22 +412,6 @@ The skill file lives at [`packages/client/skills/aomi-transact/SKILL.md`](packag
 - Troubleshooting for RPC, simulation, and AA failures.
 
 A companion skill, `aomi-build`, scaffolds new backend apps from OpenAPI specs, REST endpoints, or SDK examples.
-
-## Aomi Smither
-
-`aomi-smither` is the Bun-based CLI/TUI that builds Aomi apps by composing a Smithers workflow on the fly from your intent: an intake chat distills a `BuildPlan`, which renders into a durable task graph — GitHub-fresh SDK binaries, deterministic codegen, Claude/Codex curation with a validate/repair loop, optional smoke, and an approval-gated deploy.
-
-```bash
-pnpm --filter @aomi-labs/smither build
-pnpm --filter @aomi-labs/smither exec aomi-smither                    # interactive chat
-pnpm --filter @aomi-labs/smither exec aomi-smither --app my-app --yes # headless
-```
-
-Runs persist in `packages/smither/.smithers/runs/<app>/` (bun:sqlite); a completed
-task is never re-executed, so crashes and Ctrl-C resume where they stopped.
-Requires Bun (https://bun.sh).
-
-`aomi-build` remains the deterministic Rust CLI for codegen, compile, deploy, status, and activate. Running `aomi-build` with no subcommand still opens its lightweight deploy/codegen wizard; `aomi-smither` is the recommended app-from-scratch path when agents and workflow persistence are needed.
 
 ---
 

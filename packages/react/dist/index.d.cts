@@ -28,61 +28,14 @@ declare class SessionManager {
     closeAll(): void;
 }
 
-declare class ThreadRegistry {
-    /** Threads the backend already knows about (from /threads list or createThread). */
-    readonly remoteThreads: Set<string>;
-    /** Threads whose initial state has been fetched at least once this session. */
-    readonly hydratedThreads: Set<string>;
-    /** Threads where the backend record was created specifically to receive a send. */
-    readonly materializedForSend: Set<string>;
-    /** Active in-flight initial-state fetches, keyed by thread id (for dedup). */
-    readonly initialStatePromises: Map<string, Promise<void>>;
-    /** Currently-pending fetches (subset of above, kept separately for diagnostics). */
-    readonly pendingFetches: Set<string>;
-    private readonly listenerCleanups;
-    readonly sessionManager: SessionManager;
-    constructor(clientFactory: () => AomiClient);
-    setListenerCleanup(threadId: string, cleanup: () => void): void;
-    private runAndDropListeners;
-    /**
-     * Close a single thread's session and drop its session-scoped bookkeeping.
-     * Keeps `remoteThreads` and `materializedForSend` (structural facts about the
-     * thread itself, unaffected by whether a Session instance is alive).
-     */
-    closeSession(threadId: string): void;
-    /**
-     * Forget every record for a thread (delete-thread flow). Closes the session
-     * and also wipes structural facts. After this the registry behaves as though
-     * the thread never existed.
-     */
-    forget(threadId: string): void;
-    /**
-     * Close every session that isn't the active one AND isn't busy (processing,
-     * polling, or holding pending wallet requests). Returns ids closed so callers
-     * can react if they need to.
-     */
-    closeIdleSessionsExcept(activeThreadId: string): string[];
-    /**
-     * Close every session and drop all session-scoped state. Used on unmount.
-     * Structural facts (remoteThreads, materializedForSend) are preserved so a
-     * remount can reuse what the user already had.
-     */
-    closeAllSessions(): void;
-    /**
-     * Wipe everything. Used when the user disconnects every wallet — we no
-     * longer have a stable identity to bind threads to.
-     */
-    reset(): void;
-}
-
 type RuntimeUserStateProviderProps = {
     children: ReactNode;
-    registry: ThreadRegistry;
+    sessionManager: SessionManager;
     getUserState: () => UserState;
     setUser: (data: Partial<UserState>) => void;
     onUserStateChange: (callback: (user: UserState) => void) => () => void;
 };
-declare function RuntimeUserStateProvider({ children, registry, getUserState, setUser, onUserStateChange, }: RuntimeUserStateProviderProps): react_jsx_runtime.JSX.Element;
+declare function RuntimeUserStateProvider({ children, sessionManager, getUserState, setUser, onUserStateChange, }: RuntimeUserStateProviderProps): react_jsx_runtime.JSX.Element;
 
 type ThreadContext = {
     currentThreadId: string;
@@ -259,6 +212,8 @@ type AomiRuntimeApi = {
     threadViewKey: number;
     /** Metadata for all threads (title, status, lastActiveAt) */
     threadMetadata: Map<string, ThreadMetadata>;
+    /** True when the authenticated thread list failed to load. */
+    threadListError: boolean;
     /** Get metadata for a specific thread */
     getThreadMetadata: (threadId: string) => ThreadMetadata | undefined;
     /** Create a new thread and return its ID */
@@ -388,12 +343,12 @@ declare function useUser(): {
  * Idempotent provider: if a parent already provided `UserContext`, render
  * children straight through. Otherwise mount a fresh store.
  *
- * The widget layers (`AomiFrame.Root` / `AomiRuntime`) and the auth-adapter
+ * The widget layers (`AomiFrame.Root` / `AomiRuntime`) and the wallet-kit
  * layers (`AomiParaProvider` / `AomiBaseAccountProvider`) both want to be
  * usable standalone. Each historically wrapped with `<ExtUserProvider>` —
  * but when they nest, the inner provider created a *second* store that
  * shadowed the outer. The chat composer would read from one store while
- * `AomiAuthAdapterSync` wrote to another, so wallet connects never
+ * `AomiWalletKitSync` wrote to another, so wallet connects never
  * propagated to the chat's `user_state`. Collapsing nested mounts to the
  * outermost store fixes that without forcing host apps to wire the
  * provider themselves.
@@ -486,7 +441,9 @@ type PerThreadControlActions = {
     }) => Promise<void>;
     onAppSelect: (app: string, options?: AppSelectionOptions) => void;
     markControlSynced: () => void;
-    syncCurrentThreadControl: () => Promise<void>;
+    syncCurrentThreadControl: (options?: {
+        ignoreProcessing?: boolean;
+    }) => Promise<void>;
 };
 
 /**

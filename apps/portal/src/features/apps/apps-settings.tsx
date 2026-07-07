@@ -1,8 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Input, useAomiAuthAdapter } from "@aomi-labs/widget-lib";
-import { accountScopedFetch } from "@portal/lib/settings-api";
+import { Input } from "@aomi-labs/widget-lib";
+import { settingsApiFetch } from "@portal/lib/settings-api";
 import { defaultUsageDateRange } from "@portal/lib/usage-range";
 import {
   settingsBodyTextClass,
@@ -50,7 +50,6 @@ function formatNumber(n?: number): string {
 }
 
 export function AppsSettings() {
-  const { identity } = useAomiAuthAdapter();
   const [overview, setOverview] = useState<AppOverview | null>(null);
   const [fromDate, setFromDate] = useState<string>(
     () => defaultUsageDateRange().fromDate,
@@ -62,10 +61,6 @@ export function AppsSettings() {
   const [error, setError] = useState<string | null>(null);
 
   const fetchOverview = useCallback(async () => {
-    if (!identity.address) {
-      setOverview(null);
-      return;
-    }
     if (fromDate > toDate) {
       setOverview(null);
       setError("From date must be on or before to date.");
@@ -79,7 +74,7 @@ export function AppsSettings() {
         from_date: fromDate,
         to_date: toDate,
       });
-      const data = await accountScopedFetch<AppOverview>(
+      const data = await settingsApiFetch<AppOverview>(
         `/api/account/usage?${query.toString()}`,
       );
       setOverview(data);
@@ -90,7 +85,7 @@ export function AppsSettings() {
     } finally {
       setLoading(false);
     }
-  }, [fromDate, identity.address, toDate]);
+  }, [fromDate, toDate]);
 
   useEffect(() => {
     void fetchOverview();
@@ -101,11 +96,6 @@ export function AppsSettings() {
       <div>
         <h1 className={`${settingsTitleClass} mb-4`}>Usage</h1>
         <div className={settingsCardStackClass}>
-          {!identity.address && (
-            <p className={settingsBodyTextClass}>
-              Connect a wallet to view usage across your apps.
-            </p>
-          )}
           {loading && <p className={settingsBodyTextClass}>Loading usage...</p>}
           {error && (
             <p className="text-destructive text-sm">

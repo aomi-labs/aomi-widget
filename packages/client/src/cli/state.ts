@@ -92,6 +92,14 @@ export type SignedSolTx = {
   timestamp: number;
 };
 
+export type CliAuthSession = {
+  sessionToken: string;
+  expiresAt: number;
+  walletAddress?: string;
+  chainId?: number;
+  betterAuthUserId?: string;
+};
+
 export type CliSessionState = {
   sessionId: string;
   clientId?: string;
@@ -104,9 +112,8 @@ export type CliSessionState = {
   /** Aomi account bearer for authenticated requests. Persisted so a bearer
    * supplied once (via `--account-bearer`) survives across CLI invocations. */
   accountBearer?: string;
-  /** BFF session token (`aomi_session`) established by `aomi login` (SIWE).
-   * Persisted so the session survives across invocations; the CLI mints
-   * short-lived AccountBearers from it via the BFF's `/api/bff/auth/token`. */
+  /** Legacy persisted session token slot. New logins write BetterAuth bearer
+   * sessions to `auth`; this remains for older local state migration. */
   sessionCookie?: string;
   /** Deprecated legacy provider-exchange config. */
   embeddedProvider?: CliEmbeddedProvider;
@@ -128,6 +135,7 @@ export type CliSessionState = {
   signedTxs?: SignedTx[];
   signedSolTxs?: SignedSolTx[];
   secretHandles?: Record<string, string>;
+  auth?: CliAuthSession;
 };
 
 function getBackendPendingId(
@@ -230,6 +238,7 @@ function toCliSessionState(stored: StoredSessionState): CliSessionState {
     signedTxs: stored.signedTxs,
     signedSolTxs: stored.signedSolTxs,
     secretHandles: stored.secretHandles,
+    auth: stored.auth,
   };
 }
 
@@ -283,6 +292,7 @@ function readStoredSession(path: string): StoredSessionState | null {
       signedTxs: normalizeSignedTxs(parsed.signedTxs),
       signedSolTxs: parsed.signedSolTxs,
       secretHandles: parsed.secretHandles,
+      auth: normalizeAuthSession(parsed.auth),
       localId:
         typeof parsed.localId === "number" && parsed.localId > 0
           ? parsed.localId
@@ -299,6 +309,26 @@ function readStoredSession(path: string): StoredSessionState | null {
   } catch {
     return null;
   }
+}
+
+function normalizeAuthSession(value: unknown): CliAuthSession | undefined {
+  if (!value || typeof value !== "object") return undefined;
+  const auth = value as Partial<CliAuthSession>;
+  if (
+    typeof auth.sessionToken !== "string" ||
+    !auth.sessionToken ||
+    typeof auth.expiresAt !== "number" ||
+    !Number.isFinite(auth.expiresAt)
+  ) {
+    return undefined;
+  }
+  return {
+    sessionToken: auth.sessionToken,
+    expiresAt: auth.expiresAt,
+    walletAddress: auth.walletAddress,
+    chainId: auth.chainId,
+    betterAuthUserId: auth.betterAuthUserId,
+  };
 }
 
 function readActiveLocalId(): number | null {

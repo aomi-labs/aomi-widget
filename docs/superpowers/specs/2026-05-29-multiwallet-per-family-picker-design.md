@@ -19,7 +19,7 @@ family.
 ## Background / why
 
 Two sibling branches forked from `dcca76c` (PR #148) and both rewrote
-`apps/registry/src/lib/aomi-auth-adapter/`:
+`apps/registry/src/lib/wallet-kit/`:
 
 - **Ours** (`codex/para-solana-support-wip`) — deep Solana/dual-family
   support (`para-sol.tsx`, `solana-networks.ts`, `network-preferences.tsx`,
@@ -93,7 +93,7 @@ contract is unchanged.
 
 ## Adapter interface (`types.ts`)
 
-New on `AomiAuthAdapter`, alongside the existing single-active fields (which
+New on `AomiWalletKit`, alongside the existing single-active fields (which
 stay):
 
 ```ts
@@ -106,7 +106,7 @@ type AomiAccount = {
   active: boolean;       // the live account for its family
 };
 
-// on AomiAuthAdapter:
+// on AomiWalletKit:
 accounts: readonly AomiAccount[];
 selectAccount: (id: string) => Promise<void>;     // make active for its family
 disconnect?: (options?: {

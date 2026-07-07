@@ -22,20 +22,20 @@ vi.mock("@portal/features/launch/client", () => ({
   deploymentSecrets: vi.fn(async () => ({
     byApp: { demo: ["$SECRET:APP:demo::KEY"] },
   })),
-  deploymentRollback: vi.fn(),
+  deploymentPromote: vi.fn(),
   deploymentDeactivate: vi.fn(async () => ({ ok: true, apps: ["my-bot"] })),
   launchPreflight: vi.fn(),
   launchDeploy: vi.fn(),
   launchStatus: vi.fn(),
   launchActivate: vi.fn(),
-  deploymentActivations: vi.fn(async () => ({
+  deploymentRecords: vi.fn(async () => ({
     app: "my-bot",
     currentReleaseTag: "tag-b",
-    activations: [
+    records: [
       {
         deploymentId: "dep_b",
         releaseTag: "tag-b",
-        action: "rollback",
+        sdkVersion: "3.0.1",
         actor: null,
         createdAt: 2,
         current: true,
@@ -43,7 +43,7 @@ vi.mock("@portal/features/launch/client", () => ({
       {
         deploymentId: "dep_a",
         releaseTag: "tag-a",
-        action: "activate",
+        sdkVersion: "3.0.1",
         actor: null,
         createdAt: 1,
         current: false,
@@ -54,7 +54,7 @@ vi.mock("@portal/features/launch/client", () => ({
 
 import { useProjectDetail } from "./use-project-detail";
 import {
-  deploymentActivations,
+  deploymentRecords,
   deploymentHistory,
   deploymentSecrets,
 } from "@portal/features/launch/client";
@@ -73,34 +73,34 @@ describe("useProjectDetail", () => {
     expect(deploymentSecrets).not.toHaveBeenCalled();
   });
 
-  it("lazily loads activations per app once", async () => {
+  it("lazily loads records per app once", async () => {
     const { result } = renderHook(() => useProjectDetail(7));
     await waitFor(() => expect(result.current.source?.id).toBe(7));
-    expect(deploymentActivations).not.toHaveBeenCalled();
-    act(() => result.current.loadActivations());
-    act(() => result.current.loadActivations());
+    expect(deploymentRecords).not.toHaveBeenCalled();
+    act(() => result.current.loadRecords());
+    act(() => result.current.loadRecords());
     await waitFor(() =>
-      expect(result.current.activationsByApp?.["my-bot"]).toHaveLength(2),
+      expect(result.current.recordsByApp?.["my-bot"]).toHaveLength(2),
     );
-    expect(deploymentActivations).toHaveBeenCalledTimes(1);
-    expect(deploymentActivations).toHaveBeenCalledWith({
+    expect(deploymentRecords).toHaveBeenCalledTimes(1);
+    expect(deploymentRecords).toHaveBeenCalledWith({
       app: "my-bot",
       appSourceId: 7,
     });
   });
 
-  it("surfaces activation load failures instead of silently emptying logs", async () => {
-    vi.mocked(deploymentActivations).mockRejectedValueOnce(
+  it("surfaces record load failures instead of silently emptying logs", async () => {
+    vi.mocked(deploymentRecords).mockRejectedValueOnce(
       new Error("deployment activations failed (401)"),
     );
     const { result } = renderHook(() => useProjectDetail(7));
     await waitFor(() => expect(result.current.source?.id).toBe(7));
-    act(() => result.current.loadActivations());
+    act(() => result.current.loadRecords());
     await waitFor(() =>
-      expect(result.current.activationsError).toContain(
+      expect(result.current.recordsError).toContain(
         "deployment activations failed",
       ),
     );
-    expect(result.current.activationsByApp).toEqual({});
+    expect(result.current.recordsByApp).toEqual({});
   });
 });

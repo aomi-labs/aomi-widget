@@ -25,7 +25,7 @@ export interface AuditEvent {
     | "preflight"
     | "deploy"
     | "activate"
-    | "rollback"
+    | "promote"
     | "status"
     | "mint_token"
     | "list_tokens"
@@ -37,8 +37,10 @@ export interface AuditEvent {
     | "exchange_github_code"
     | "list_user_sources"
     | "list_user_source_deployments"
+    | "list_deployment_records"
     | "get_user_source_latest_deployment"
-    | "deactivate";
+    | "deactivate"
+    | "ingest_secrets";
   platform?: string;
   appSourceId?: number;
   apps?: string[];
@@ -66,6 +68,36 @@ export interface ListSecretsInput extends BearerOverride {
 
 export interface ListSecretsResult {
   byApp: Record<string, string[]>;
+}
+
+export interface IngestSecretsInput extends BearerOverride {
+  /** GitHub user id used as the only owner scope for app secret vault entries. */
+  githubUserId: string;
+  app: string;
+  /** Optional portal source row id used to scope list/delete surfaces. */
+  sourceId?: string;
+  secrets: Record<string, string>;
+}
+
+export interface IngestSecretsResult {
+  handles: Record<string, string>;
+}
+
+export interface ListAppSecretsInput extends BearerOverride {
+  /** GitHub user id used as the only owner scope for app secret vault entries. */
+  githubUserId: string;
+  /** When present, only this app's handles are returned. */
+  app?: string;
+  /** When present, only this source's handles are returned. */
+  sourceId?: string;
+}
+
+export interface RemoveAppSecretInput extends BearerOverride {
+  /** GitHub user id used as the only owner scope for app secret vault entries. */
+  githubUserId: string;
+  app: string;
+  sourceId?: string;
+  name: string;
 }
 
 export interface ServerTagsResult {
@@ -449,17 +481,17 @@ export interface ListUserSourceDeploymentsInput extends BearerOverride {
   limit?: number;
 }
 
-/** One append-only activation event from the backend activation log. */
-export interface DeploymentActivation {
+/** One append-only promotion record from the backend deployment log. */
+export interface DeploymentRecord {
   deploymentId: string;
   releaseTag: string;
-  action: string;
   actor: string | null;
   createdAt: number;
+  sdkVersion: string | null;
   current: boolean;
 }
 
-export interface ListActivationsInput extends BearerOverride {
+export interface ListDeploymentRecordsInput extends BearerOverride {
   platform: string;
   app: string;
   /** Disambiguates same-named apps across sources on one platform. */
@@ -474,10 +506,10 @@ export interface DeactivateAppInput extends BearerOverride {
   actor?: string;
 }
 
-export interface ListActivationsResult {
+export interface ListDeploymentRecordsResult {
   app: string;
   currentReleaseTag: string | null;
-  activations: DeploymentActivation[];
+  records: DeploymentRecord[];
 }
 
 export interface UserSourceDeploymentApp {
@@ -513,48 +545,15 @@ export interface UserSourceLatestDeployment {
 export interface UserSource extends AppSource {
   apps: PlatformApp[];
   latestDeployment?: UserSourceLatestDeployment | null;
+  /** SDK version of the source's live app, from the DB promotion records
+   *  (populated in the source list without a GitHub read). */
+  sdkVersion?: string | null;
 }
 
 // =============================================================================
 // Deployment-management surface. These types are shared by the standalone
 // dashboard/TUI work while the current launch routes remain compatible.
 // =============================================================================
-
-export interface DeploymentProject {
-  id: number;
-  platform: string;
-  source: AppSource;
-  apps: PlatformApp[];
-  activeReleaseTags: string[];
-  latestDeployment?: DeploymentRecord | null;
-  sdkStatus?: SdkVersionStatus | null;
-}
-
-export interface DeploymentRecord {
-  id: string;
-  platform: string;
-  appSourceId: number;
-  sourceRef: string | null;
-  commitHash: string | null;
-  state: DeploymentStatus["state"] | string | null;
-  ciStatus: string | null;
-  ciUrl: string | null;
-  releaseTags: string[];
-  sdkVersion?: string | null;
-  target?: string | null;
-  createdAt?: string | null;
-  activatedAt?: string | null;
-  apps: DeploymentRecordApp[];
-}
-
-export interface DeploymentRecordApp {
-  name: string;
-  releaseTag: string | null;
-  sdkVersion?: string | null;
-  target?: string | null;
-  isActive?: boolean;
-  loaded?: boolean;
-}
 
 export interface RedactedDeploymentSecret {
   name: string;
@@ -572,7 +571,7 @@ export interface RedactedDeploymentEnvVar {
   updatedAt?: string | null;
 }
 
-export interface RollbackInput {
+export interface PromoteInput {
   platform: string;
   deploymentId: string;
   apps?: string[];
@@ -580,12 +579,12 @@ export interface RollbackInput {
   actor?: string;
 }
 
-export interface RollbackResult {
+export interface PromoteResult {
   ok: boolean;
-  rollback: {
+  promote: {
     deploymentId: string;
     releaseTags: string[];
-    status: "rolled_back" | "blocked" | string;
+    status: "promoted" | "blocked" | string;
     sdkStatus?: SdkVersionStatus | null;
     activation?: ActivateResult["activation"];
   };

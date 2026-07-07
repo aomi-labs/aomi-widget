@@ -3,7 +3,22 @@ packages:
   - apps/*
   - packages/*
 
+overrides:
+  viem: 2.47.11
+
+# @inkjs/ui declares no react dependency (nor peer), so its bare `import react`
+# falls through to a hoisted copy that differs from the one ink's reconciler is
+# bound to — "Invalid hook call" crashes the aomi-smither TUI at startup.
+# Granting it a react peer makes pnpm resolve react within the smither context
+# so it shares ink's instance. (Restored after the main merge relocated pnpm
+# config here from package.json.)
+packageExtensions:
+  "@inkjs/ui":
+    peerDependencies:
+      react: "*"
+
 onlyBuiltDependencies:
+  - "@reown/appkit"
   - "@tailwindcss/oxide"
   - bufferutil
   - esbuild
@@ -11,3 +26,6 @@ onlyBuiltDependencies:
   - sharp
   - unrs-resolver
   - utf-8-validate
+
+allowBuilds:
+  '@reown/appkit': true

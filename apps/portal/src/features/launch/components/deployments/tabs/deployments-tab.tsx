@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Rocket } from "lucide-react";
+import { PowerOff, Rocket } from "lucide-react";
 import { useProjectDetail } from "@portal/features/launch/hooks/use-project-detail";
 import { TimelineDeploymentRow } from "../ui/timeline-deployment-row";
 import { ConfirmDialog } from "../ui/confirm-dialog";
@@ -15,7 +15,7 @@ type OpState = {
   message: string;
 };
 type Pending =
-  | { kind: "rollback"; deploymentId: string }
+  | { kind: "promote"; deploymentId: string }
   | { kind: "deactivate"; deploymentId: string; apps: string[] }
   | null;
 type View = "deployments" | "logs";
@@ -26,22 +26,28 @@ export function DeploymentsTab({ detail }: { detail: Detail }) {
   const [view, setView] = useState<View>("deployments");
 
   useEffect(() => {
-    detail.loadActivations();
+    detail.loadRecords();
   }, [detail]);
 
   const source = detail.source;
   const deployments = useMemo(
-    () => buildDeploymentList(detail.activationsByApp),
-    [detail.activationsByApp],
+    () => buildDeploymentList(detail.recordsByApp),
+    [detail.recordsByApp],
   );
   const activity = useMemo(
-    () => buildActivityList(detail.activationsByApp),
-    [detail.activationsByApp],
+    () => buildActivityList(detail.recordsByApp),
+    [detail.recordsByApp],
   );
+  const currentDeployment =
+    deployments.find((deployment) => deployment.current) ?? null;
   const deploying =
     detail.deployFlow.phase !== "idle" &&
     detail.deployFlow.phase !== "done" &&
     detail.deployFlow.phase !== "error";
+  const deactivatingCurrent =
+    currentDeployment != null &&
+    op?.deploymentId === currentDeployment.deploymentId &&
+    op.status === "running";
   const runtimeByApp = useMemo(
     () => new Map(source?.apps.map((app) => [app.name, app]) ?? []),
     [source],
@@ -54,29 +60,29 @@ export function DeploymentsTab({ detail }: { detail: Detail }) {
       <EmptyPanel>Project not found.</EmptyPanel>
     );
   }
-  if (detail.activationsByApp === null) {
+  if (detail.recordsByApp === null) {
     return <LoadingPanel label="Loading deployments…" />;
   }
 
-  const runRollback = async (deploymentId: string) => {
+  const runPromote = async (deploymentId: string) => {
     setPending(null);
-    setOp({ deploymentId, status: "running", message: "Rolling back…" });
+    setOp({ deploymentId, status: "running", message: "Promoting…" });
     try {
-      const result = await detail.rollback(deploymentId);
+      const result = await detail.promote(deploymentId);
       setOp({
         deploymentId,
         status: result.ok ? "done" : "error",
         message: result.ok
-          ? `Rolled back ${result.rollback.releaseTags.length} release tag(s).`
-          : result.rollback.status,
+          ? `Promoted ${result.promote.releaseTags.length} release tag(s).`
+          : result.promote.status,
       });
       detail.reload();
-      detail.refreshActivations();
+      detail.refreshRecords();
     } catch (err) {
       setOp({
         deploymentId,
         status: "error",
-        message: err instanceof Error ? err.message : "Rollback failed",
+        message: err instanceof Error ? err.message : "Promote failed",
       });
     }
   };
@@ -88,7 +94,7 @@ export function DeploymentsTab({ detail }: { detail: Detail }) {
       await detail.deactivate(apps);
       setOp({ deploymentId, status: "done", message: "Deactivated." });
       detail.reload();
-      detail.refreshActivations();
+      detail.refreshRecords();
     } catch (err) {
       setOp({
         deploymentId,
@@ -126,16 +132,36 @@ export function DeploymentsTab({ detail }: { detail: Detail }) {
             </button>
           ))}
         </div>
-        <button
-          type="button"
-          disabled={deploying}
-          onClick={() => void detail.deployNewVersion()}
-          className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md bg-zinc-900 px-3 text-xs font-medium text-white hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50"
-          title="Deploy the source repo's latest commit and activate it"
-        >
-          <Rocket className="size-3.5" aria-hidden />
-          {deploying ? "Deploying…" : "Deploy new version"}
-        </button>
+        <div className="flex items-center gap-2">
+          {currentDeployment && (
+            <button
+              type="button"
+              disabled={deploying || deactivatingCurrent}
+              onClick={() =>
+                setPending({
+                  kind: "deactivate",
+                  deploymentId: currentDeployment.deploymentId,
+                  apps: currentDeployment.apps,
+                })
+              }
+              className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-zinc-300 bg-white px-2.5 text-xs font-medium text-zinc-800 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50"
+              title="Deactivate: unload the binary and clear the live pointer"
+            >
+              <PowerOff className="size-3.5" aria-hidden />
+              Deactivate
+            </button>
+          )}
+          <button
+            type="button"
+            disabled={deploying}
+            onClick={() => void detail.deployNewVersion()}
+            className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md bg-zinc-900 px-3 text-xs font-medium text-white hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50"
+            title="Deploy the source repo's latest commit and activate it"
+          >
+            <Rocket className="size-3.5" aria-hidden />
+            {deploying ? "Deploying…" : "Deploy new version"}
+          </button>
+        </div>
       </div>
 
       {detail.deployFlow.phase !== "idle" && (
@@ -150,15 +176,15 @@ export function DeploymentsTab({ detail }: { detail: Detail }) {
         </div>
       )}
 
-      {detail.activationsError && (
+      {detail.recordsError && (
         <div className="border-b border-red-100 bg-red-50 px-4 py-2 text-xs text-red-700">
-          {detail.activationsError}
+          {detail.recordsError}
         </div>
       )}
 
       {view === "deployments" &&
       deployments.length === 0 &&
-      !detail.activationsError ? (
+      !detail.recordsError ? (
         <EmptyPanel>
           No deployments yet. Use “Deploy new version” to publish this project.
         </EmptyPanel>
@@ -187,17 +213,10 @@ export function DeploymentsTab({ detail }: { detail: Detail }) {
               busy={running}
               message={message}
               runtimeState={hasUnloadedCurrentApp ? "not-loaded" : "loaded"}
-              onRollback={() =>
+              onPromote={() =>
                 setPending({
-                  kind: "rollback",
+                  kind: "promote",
                   deploymentId: deployment.deploymentId,
-                })
-              }
-              onDeactivate={() =>
-                setPending({
-                  kind: "deactivate",
-                  deploymentId: deployment.deploymentId,
-                  apps: deployment.apps,
                 })
               }
             />
@@ -205,7 +224,7 @@ export function DeploymentsTab({ detail }: { detail: Detail }) {
         })
       ) : null}
 
-      {view === "logs" && activity.length === 0 && !detail.activationsError && (
+      {view === "logs" && activity.length === 0 && !detail.recordsError && (
         <EmptyPanel>No activity logs for this project.</EmptyPanel>
       )}
 
@@ -217,7 +236,7 @@ export function DeploymentsTab({ detail }: { detail: Detail }) {
               className="flex min-h-10 items-center justify-between gap-4 border-b border-zinc-100 px-4 py-2 text-xs text-zinc-600 last:border-b-0"
             >
               <span className="min-w-0 truncate font-mono">
-                {row.action} · {row.deploymentId}
+                promoted · {row.deploymentId}
               </span>
               <span className="shrink-0 text-right">
                 {row.app}
@@ -235,19 +254,17 @@ export function DeploymentsTab({ detail }: { detail: Detail }) {
         title={
           pending?.kind === "deactivate"
             ? "Deactivate deployment?"
-            : "Roll back deployment?"
+            : "Promote deployment?"
         }
         body={
           pending?.kind === "deactivate"
             ? "This unloads the running binary and clears the live pointer. The deployment record and history are kept."
-            : "This re-activates the release tags recorded for this deployment. Cross-SDK rollbacks are blocked by the backend."
+            : "This makes the deployment's release live. Cross-SDK promotions are blocked by the backend."
         }
-        confirmLabel={
-          pending?.kind === "deactivate" ? "Deactivate" : "Roll back"
-        }
+        confirmLabel={pending?.kind === "deactivate" ? "Deactivate" : "Promote"}
         onConfirm={() => {
-          if (pending?.kind === "rollback") {
-            void runRollback(pending.deploymentId);
+          if (pending?.kind === "promote") {
+            void runPromote(pending.deploymentId);
           } else if (pending?.kind === "deactivate") {
             void runDeactivate(pending.deploymentId, pending.apps);
           }

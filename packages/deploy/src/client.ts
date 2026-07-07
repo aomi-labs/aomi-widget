@@ -1,5 +1,9 @@
 import { BackendError, BrowserEnvironmentError, DeployError } from "./errors";
 import type {
+  IngestSecretsInput,
+  IngestSecretsResult,
+  ListAppSecretsInput,
+  RemoveAppSecretInput,
   ListSecretsInput,
   ListSecretsResult,
   ActivateInput,
@@ -18,8 +22,8 @@ import type {
   GitHubIdentity,
   ListAppsInput,
   DeactivateAppInput,
-  ListActivationsInput,
-  ListActivationsResult,
+  ListDeploymentRecordsInput,
+  ListDeploymentRecordsResult,
   ListUserSourceDeploymentsInput,
   ListUserSourcesInput,
   UserSource,
@@ -30,8 +34,8 @@ import type {
   PlatformApp,
   PreflightInput,
   ProgressModel,
-  RollbackInput,
-  RollbackResult,
+  PromoteInput,
+  PromoteResult,
   ServerTagsResult,
   RevokeTokenInput,
   ScaffoldInput,
@@ -196,22 +200,22 @@ export class DeploymentClient {
     });
   }
 
-  async rollback(input: RollbackInput): Promise<RollbackResult> {
+  async promote(input: PromoteInput): Promise<PromoteResult> {
     const platform = cleanPlatform(input.platform);
     const deploymentId = required(input.deploymentId, "deploymentId");
     const result = await this.post<ActivateResult>(
-      `/api/platforms/${encodeURIComponent(platform)}/deployments/${encodeURIComponent(deploymentId)}/rollback`,
+      `/api/platforms/${encodeURIComponent(platform)}/deployments/${encodeURIComponent(deploymentId)}/promote`,
       {
         deployment_id: deploymentId,
         apps: input.apps,
         target_tags: input.targetTags,
         actor: input.actor,
       },
-      "rollback",
+      "promote",
       this.resolveBearer(),
     );
     await this.audit({
-      action: "rollback",
+      action: "promote",
       platform,
       apps: input.apps ?? [],
       targetTags: input.targetTags,
@@ -224,10 +228,10 @@ export class DeploymentClient {
       .filter((tag): tag is string => Boolean(tag));
     return {
       ok: cameled.ok,
-      rollback: {
+      promote: {
         deploymentId,
         releaseTags,
-        status: cameled.ok ? "rolled_back" : "blocked",
+        status: cameled.ok ? "promoted" : "blocked",
         activation: cameled.activation,
       },
     };
@@ -691,9 +695,9 @@ export class DeploymentClient {
       );
   }
 
-  async listActivations(
-    input: ListActivationsInput,
-  ): Promise<ListActivationsResult> {
+  async listDeploymentRecords(
+    input: ListDeploymentRecordsInput,
+  ): Promise<ListDeploymentRecordsResult> {
     const platform = cleanPlatform(input.platform);
     const app = required(input.app, "app");
     const query =
@@ -703,21 +707,21 @@ export class DeploymentClient {
     const raw = await this.get<{
       app?: string;
       current_release_tag?: string | null;
-      activations?: Array<Record<string, unknown>>;
+      records?: Array<Record<string, unknown>>;
     }>(
-      `/api/platforms/${encodeURIComponent(platform)}/apps/${encodeURIComponent(app)}/activations${query}`,
-      "list_activations",
+      `/api/platforms/${encodeURIComponent(platform)}/apps/${encodeURIComponent(app)}/records${query}`,
+      "list_deployment_records",
       this.resolveBearer(input.bearer),
     );
     return {
       app: raw.app ?? app,
       currentReleaseTag: (raw.current_release_tag as string | null) ?? null,
-      activations: (raw.activations ?? []).map((row) => ({
+      records: (raw.records ?? []).map((row) => ({
         deploymentId: String(row.deployment_id ?? ""),
         releaseTag: String(row.release_tag ?? ""),
-        action: String(row.action ?? ""),
         actor: (row.actor as string | null) ?? null,
         createdAt: timestampSeconds(row.created_at),
+        sdkVersion: (row.sdk_version as string | null) ?? null,
         current: Boolean(row.current),
       })),
     };
@@ -725,14 +729,72 @@ export class DeploymentClient {
 
   async listSecrets(input: ListSecretsInput = {}): Promise<ListSecretsResult> {
     const params = new URLSearchParams();
-    if (input.clientId) params.set("client_id", input.clientId);
+    const clientId = input.clientId ?? input.githubUserId;
+    if (clientId) params.set("client_id", clientId);
     const query = params.toString();
     const raw = await this.get<{ by_app?: Record<string, string[]> }>(
       `/api/secrets${query ? `?${query}` : ""}`,
       "list_secrets",
-      this.resolveBearer(input.bearer),
+      this.resolveBearer(input.bearer, { privileged: true }),
     );
     return { byApp: raw.by_app ?? {} };
+  }
+
+  /** Ingest app-scoped env vars into the secret vault under the GitHub user id.
+   *  The backend field is still named `user_id`, but GitHub is the only owner
+   *  scope this client accepts for app secrets. Service op. */
+  async ingestSecrets(input: IngestSecretsInput): Promise<IngestSecretsResult> {
+    const githubUserId = required(input.githubUserId, "githubUserId");
+    const app = required(input.app, "app");
+    const sourceId = input.sourceId?.trim();
+    const raw = await this.post<{ handles?: Record<string, string> }>(
+      `/api/_internal/secrets`,
+      {
+        user_id: githubUserId,
+        app,
+        ...(sourceId ? { source_id: sourceId } : {}),
+        secrets: input.secrets,
+      },
+      "ingest_secrets",
+      this.resolveBearer(input.bearer, { privileged: true }),
+    );
+    return { handles: raw.handles ?? {} };
+  }
+
+  /** List vault handle names (never values) for the GitHub user id, keyed by
+   *  app. Service read, so it works with the portal's service bearer (unlike
+   *  the session-scoped `listSecrets`). */
+  async listAppSecrets(input: ListAppSecretsInput): Promise<ListSecretsResult> {
+    const githubUserId = required(input.githubUserId, "githubUserId");
+    const params = new URLSearchParams({ user_id: githubUserId });
+    if (input.app?.trim()) params.set("app", input.app.trim());
+    if (input.sourceId?.trim()) params.set("source_id", input.sourceId.trim());
+    const raw = await this.get<{ by_app?: Record<string, string[]> }>(
+      `/api/_internal/secrets?${params.toString()}`,
+      "list_secrets",
+      this.resolveBearer(input.bearer, { privileged: true }),
+    );
+    return { byApp: raw.by_app ?? {} };
+  }
+
+  /** Remove one app-scoped secret. Service op. Returns whether it existed. */
+  async removeAppSecret(input: RemoveAppSecretInput): Promise<boolean> {
+    const githubUserId = required(input.githubUserId, "githubUserId");
+    const app = required(input.app, "app");
+    const name = required(input.name, "name");
+    const sourceId = input.sourceId?.trim();
+    const raw = await this.del<{ removed?: boolean }>(
+      `/api/_internal/secrets`,
+      "ingest_secrets",
+      this.resolveBearer(input.bearer, { privileged: true }),
+      {
+        user_id: githubUserId,
+        app,
+        ...(sourceId ? { source_id: sourceId } : {}),
+        name,
+      },
+    );
+    return Boolean(raw.removed);
   }
 
   endpoint(path: string): string {
@@ -801,8 +863,17 @@ export class DeploymentClient {
     path: string,
     operation: string,
     bearer: string,
+    body?: unknown,
   ): Promise<Resp> {
-    return this.request<Resp>(path, { method: "DELETE" }, operation, bearer);
+    const init: RequestInit =
+      body === undefined
+        ? { method: "DELETE" }
+        : {
+            method: "DELETE",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(body),
+          };
+    return this.request<Resp>(path, init, operation, bearer);
   }
 
   private async request<Resp>(
@@ -1221,5 +1292,6 @@ function camelUserSource(raw: unknown): UserSource {
     latestDeployment: camelUserSourceLatestDeployment(
       s.latest_deployment ?? s.latestDeployment,
     ),
+    sdkVersion: s.sdk_version ?? s.sdkVersion ?? null,
   };
 }

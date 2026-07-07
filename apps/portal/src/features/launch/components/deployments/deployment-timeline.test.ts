@@ -12,7 +12,7 @@ describe("buildDeploymentList", () => {
         {
           deploymentId: "dep_555_r0123abcdef_aaaaaaaaaaaa",
           releaseTag: "apps-555-r0123abcdef-api-aaaaaaaaaaaa",
-          action: "activate",
+          sdkVersion: "3.0.1",
           actor: "alice",
           createdAt: 10,
           current: true,
@@ -22,7 +22,7 @@ describe("buildDeploymentList", () => {
         {
           deploymentId: "dep_555_r0123abcdef_aaaaaaaaaaaa",
           releaseTag: "apps-555-r0123abcdef-web-aaaaaaaaaaaa",
-          action: "activate",
+          sdkVersion: "3.0.1",
           actor: "alice",
           createdAt: 10,
           current: false,
@@ -37,13 +37,13 @@ describe("buildDeploymentList", () => {
     expect(rows[0].current).toBe(true);
   });
 
-  it("sorts newest-first and carries the latest action/actor", () => {
+  it("sorts newest-first and carries the latest actor", () => {
     const rows = buildDeploymentList({
       api: [
         {
           deploymentId: "dep_1_ra_new0",
           releaseTag: "t-new",
-          action: "rollback",
+          sdkVersion: "3.0.1",
           actor: "bob",
           createdAt: 20,
           current: true,
@@ -51,7 +51,7 @@ describe("buildDeploymentList", () => {
         {
           deploymentId: "dep_1_ra_old0",
           releaseTag: "t-old",
-          action: "activate",
+          sdkVersion: "3.0.1",
           actor: "alice",
           createdAt: 5,
           current: false,
@@ -62,7 +62,7 @@ describe("buildDeploymentList", () => {
       "dep_1_ra_new0",
       "dep_1_ra_old0",
     ]);
-    expect(rows[0].lastAction).toBe("rollback");
+    
     expect(rows[0].actor).toBe("bob");
   });
 
@@ -72,7 +72,7 @@ describe("buildDeploymentList", () => {
         {
           deploymentId: "dep_1_ra_old0",
           releaseTag: "t-old",
-          action: "activate",
+          sdkVersion: "3.0.1",
           actor: "alice",
           createdAt: 5,
           current: false,
@@ -82,7 +82,7 @@ describe("buildDeploymentList", () => {
         {
           deploymentId: "dep_1_ra_new0",
           releaseTag: "t-new",
-          action: "rollback",
+          sdkVersion: "3.0.1",
           actor: "bob",
           createdAt: 20,
           current: true,

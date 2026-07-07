@@ -9,7 +9,7 @@
 //
 // Background: the deps on these effects USED to include `sessionId` (current
 // thread id) before the May 2026 fix. That caused refire on every thread
-// switch — a ~3 s `/api/session/apps` call burned per click. The stable
+// switch — a ~3 s `/api/thread/apps` call burned per click. The stable
 // `getControlSessionId` callback (provided by the caller) reads from refs
 // inside, so the effect deps stay quiet across thread switches.
 

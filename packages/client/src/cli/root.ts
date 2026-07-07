@@ -6,11 +6,10 @@ import { modelDef } from "./commands/defs/model";
 import { appDef } from "./commands/defs/app";
 import { chainDef } from "./commands/defs/chain";
 import { walletDef } from "./commands/defs/wallet";
+import { accountDef } from "./commands/defs/account";
 import { configDef } from "./commands/defs/config";
 import { secretDef } from "./commands/defs/secret";
-import { accountDef } from "./commands/defs/account";
-import { deployDef } from "./commands/defs/deploy";
-import { globalArgs } from "./commands/defs/shared";
+import { buildCliConfig, globalArgs } from "./commands/defs/shared";
 import packageJson from "../../package.json";
 
 const SUBCOMMAND_NAMES = new Set([
@@ -21,11 +20,23 @@ const SUBCOMMAND_NAMES = new Set([
   "app",
   "chain",
   "wallet",
+  "account",
+  "logout",
   "config",
   "secret",
-  "account",
-  "deploy",
 ]);
+
+const logoutDef = defineCommand({
+  meta: {
+    name: "logout",
+    description: "Sign out and clear the CLI auth session",
+  },
+  args: { ...globalArgs },
+  async run({ args }) {
+    const { logoutCommand } = await import("./commands/account");
+    await logoutCommand(buildCliConfig(args));
+  },
+});
 
 export const root = defineCommand({
   meta: {
@@ -70,9 +81,9 @@ export const root = defineCommand({
     app: appDef,
     chain: chainDef,
     wallet: walletDef,
+    account: accountDef,
+    logout: logoutDef,
     config: configDef,
     secret: secretDef,
-    account: accountDef,
-    deploy: deployDef,
   },
 });

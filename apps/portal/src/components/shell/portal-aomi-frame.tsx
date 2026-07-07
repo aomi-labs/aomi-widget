@@ -3,13 +3,14 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { Settings } from "lucide-react";
-import { AomiFrame } from "@aomi-labs/widget-lib";
+import { AomiFrame, useAomiWalletKit } from "@aomi-labs/widget-lib";
 import {
   type AomiClientOptions,
   useAomiRuntime,
   usePerThreadControl,
 } from "@aomi-labs/react";
 import { RequiredSecretsGate } from "@portal/components/shell/required-secrets-gate";
+import { createPortalAccountBearerProvider } from "@portal/lib/account-bearer";
 import { x402Client } from "@x402/core/client";
 import { ExactEvmScheme } from "@x402/evm/exact/client";
 import { wrapFetchWithPayment } from "@x402/fetch";
@@ -87,6 +88,20 @@ function usePortalClientOptions(
   const wagmiConfig = useOptionalWagmiConfig();
   const walletClient = useOptionalWalletClient();
   const nativeFetch = useMemo(() => globalThis.fetch.bind(globalThis), []);
+  const { getAccountCredential } = useAomiWalletKit();
+
+  const accountAccessTokenProvider = useMemo(() => {
+    return createPortalAccountBearerProvider(getAccountCredential, {
+      fetch: nativeFetch,
+    });
+  }, [getAccountCredential, nativeFetch]);
+
+  useEffect(
+    () => () => {
+      accountAccessTokenProvider?.dispose();
+    },
+    [accountAccessTokenProvider],
+  );
 
   const mppClientOptions = useMemo(() => {
     if (!wagmiConfig) {
@@ -206,7 +221,12 @@ function usePortalClientOptions(
       const url = parseUrl(input);
       if (
         !url ||
-        !["/api/chat", "/api/system", "/api/session/model"].includes(
+        ![
+          "/api/chat",
+          "/api/system",
+          "/api/thread/model",
+          "/api/session/model",
+        ].includes(
           url.pathname,
         )
       ) {
@@ -276,8 +296,10 @@ function usePortalClientOptions(
 
     return {
       fetch: routedFetch,
+      getAccountBearer: accountAccessTokenProvider ?? undefined,
     };
   }, [
+    accountAccessTokenProvider,
     lockedApp,
     lockedApplicationId,
     mppClientOptions,
@@ -382,7 +404,6 @@ export function PortalAomiFrame() {
         width="100%"
         height="100%"
         backendUrl={backendUrl}
-        applicationId={lockedApplicationId}
         walletPosition="footer"
         walletFamilies={["evm", "solana"]}
         className="rounded-none border-0 shadow-none"
