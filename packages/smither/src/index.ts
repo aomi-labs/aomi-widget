@@ -1,5 +1,6 @@
 export * from "./binaries";
 export * from "./commands";
+export * from "./intake";
 export * from "./intent";
 export * from "./plan";
 export * from "./prompts";

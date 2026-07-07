@@ -87,8 +87,39 @@ export async function executeRun(
   );
 }
 
-/** Write a durable approval decision for a paused node (deploy gate or a
- *  needsApproval task). The in-process engine picks it up on its next frame. */
+/**
+ * Run to a terminal status. `runWorkflow` RETURNS `waiting-approval` when the
+ * only pending work is a human decision (gate, clarify, needsApproval task) —
+ * it does not block on it. Decisions are durable writes from any surface (TUI,
+ * browser console decision endpoint), so this loop re-executes with resume
+ * until the run settles: completed nodes replay from cache, decided approvals
+ * unblock, and an undecided run cheaply returns to waiting.
+ */
+export async function executeRunUntilSettled(
+  prepared: PreparedRun,
+  options: {
+    onEvent?: (event: SmithersEvent) => void;
+    signal?: AbortSignal;
+    maxConcurrency?: number;
+    /** How often to re-check for an approval decision. @default 2500 */
+    approvalPollMs?: number;
+  } = {},
+): Promise<RunResult> {
+  let attempt = prepared;
+  for (;;) {
+    const result = await executeRun(attempt, options);
+    if (result.status !== "waiting-approval" || options.signal?.aborted) {
+      return result;
+    }
+    attempt = { ...attempt, resume: true };
+    await new Promise((wake) => setTimeout(wake, options.approvalPollMs ?? 2500));
+  }
+}
+
+/** Write a durable approval decision for a paused node (deploy gate, a
+ *  needsApproval task, or a select-mode clarify). The in-process engine picks
+ *  it up on its next frame. For clarifies pass `selection` — it becomes the
+ *  `{selected, notes}` decision row later phases read as context. */
 export async function decideApproval(options: {
   api: AomiSmitherApi;
   runId: string;
@@ -97,6 +128,7 @@ export async function decideApproval(options: {
   approve: boolean;
   note?: string;
   decidedBy?: string;
+  selection?: { selected: string; notes?: string };
 }): Promise<void> {
   const { SmithersDb, approveNode, denyNode } = await import("smithers-orchestrator");
   const adapter = new SmithersDb(options.api.db as never);
@@ -109,6 +141,9 @@ export async function decideApproval(options: {
       options.iteration,
       options.note,
       options.decidedBy ?? "aomi-smither",
+      options.selection
+        ? { selected: options.selection.selected, notes: options.selection.notes ?? null }
+        : undefined,
     ),
   );
 }

@@ -2,9 +2,97 @@
 
 ## Last Updated
 
-2026-07-06 — aomi-smither: branded gateway-react console UI shipped (on `feat/deployment-sdk-guardrails`)
+2026-07-06 — aomi-smither: intake visible in browser from t=0 (stage 1.5)
+
+## Flexible-orchestration roadmap (Cecilia's direction)
+
+- **Stage 1 — composition + clarify** ✅ (see entry below). Plan is a
+  composition of typed phases; clarify pauses answerable from TUI + console.
+- **Stage 1.5 — intake in the browser from t=0** ✅ (this entry). The composer
+  is visible before the workflow exists; one tab follows into the build.
+- **Stage 2 — multi-loop + eval + parallel** (next). Loops as general wrappers
+  with eval-threshold and human-break exits; an `eval` phase (aomi-run +
+  judge); parallel fan-out. Proof target: the spec-less DeFi-pools scenario
+  (research → synthesize → behavioral eval loop).
+- **Stage 3 — wait-external + cross-repo agents**. Durable pauses for
+  outside-Aomi work; agent phases in another repo. Proof target: GameFi
+  companion (design proposal → wait for game-server APIs → integration eval).
 
 ## Recent Changes
+
+### Intake visible in browser from t=0 (2026-07-06, stage 1.5)
+
+Cecilia's ask after driving the morpho chat: "why stare at the terminal during
+'thinking…' — give me a UI that monitors from the start." The composer isn't a
+Smithers node (no graph until the plan is composed), so it can't ride the
+gateway. Instead:
+
+- **intake.ts** — `startIntakeServer`: a loopback HTTP server booted at CLI
+  startup serving a self-contained aomi-branded page (`GET /`) + live state
+  (`GET /intake`, polled). Shows the conversation, composer thinking (elapsed),
+  the draft plan forming, and the composed stage preview. When the build
+  starts it flips to `phase:"building"` with a `buildUrl` and the page follows
+  itself to the gateway console — one tab across intake → compose → build.
+- **cli.tsx** — `SmitherApp` boots the intake server at t=0 (prints
+  `⌗ intake view:`), mirrors chat state (turns/draft/thinking/composed stages/
+  phase) into it every change, and hands the console URL back from `RunView`
+  via `onConsoleUrl` so the page follows on run start. `--no-console` disables.
+
+Verified: intake server serves the page, reflects turns/thinking/draft/stages,
+transitions intake→preview→building with buildUrl, and picks the next free
+port on conflict (3 vitest). Live screenshot of the morpho preview state
+(conversation + forming plan + composed clarify→research→synthesize→loop rail)
+captured via playwright. 59 vitest green total; tsc + eslint clean; dist built.
+
+Seam (honest): the transition is a redirect (intake server on 7331, gateway on
+7332), not an in-place swap — one tab, one brief navigation. The composer is
+streamed, not itself a durable node; making intent a true workflow node is the
+stage-2+ "conversational orchestrator" direction and is noted, not built.
+
+### Composition model + clarify primitive (2026-07-06, stage 1)
+
+### Composition model + clarify primitive (2026-07-06, stage 1)
+
+Cecilia's direction after reviewing three scenarios (arb bot, GameFi
+companion, spec-less DeFi pools): the plan is now a **composition of typed
+phases**, not flags on one pipeline. Stage 1 of 3 (next: multi-loop + eval +
+parallel for defi-pools; then wait-external + cross-repo for GameFi).
+
+- **plan.ts** — phase vocabulary (compute ops / agent roles incl. research,
+  draft-spec, synthesize / clarify / gate / loop) as zod discriminated
+  unions; `BuildPlan.phases?` optional; `classicComposition` reproduces the
+  old pipeline with identical node ids (resume-safe); `compositionIssues`
+  validates structure at finalize.
+- **workflow.tsx** — generic renderer: walks `resolveComposition(plan)`,
+  chain-mounts phases as predecessors' rows appear; denied gate skips
+  downstream except result. Clarify = select-mode `<Approval>` with options
+  mirrored into request.metadata; clarify answers are folded into later
+  agent prompts (`PromptContext.clarifications`).
+- **run.ts** — `executeRunUntilSettled`: the engine RETURNS
+  `waiting-approval` (does not block) — discovered live; the settle loop
+  re-executes with resume after durable decisions from any surface.
+  `decideApproval` gained `selection` (approveNode's 7th arg).
+- **console.ts** — loopback decision endpoint (`POST /decide`, port 0)
+  beside the gateway: the stock 0.26.1 gateway approve route DROPS decision
+  payloads (`approveNode(..., body.note, body.decidedBy)` — no decision
+  arg), so browser select-mode decisions need this side channel. decideUrl
+  rides into UI boot props; `ConsoleHandle.decideUrl` exposed.
+- **cli.tsx / ui/aomi-smither.tsx** — TUI renders clarify options as a
+  Select; branded console renders option buttons (first = recommended) and
+  posts to the decision endpoint. Intake prompt teaches the composer the
+  vocabulary + viability probe.
+
+Verified live: (1) morpho intake — "build a morpho pool manager" →
+ready:false, explains GraphQL-only, offers research-mode (recommended) /
+draft-spec, asks positions-vs-vault-curation; (2) engine proof — composed
+clarify workflow paused (ApprovalRequested → NodeWaitingApproval), decision
+POSTed over the endpoint, "approval granted", resumed, finished;
+`clarify` row persisted `{selected: "research-mode", notes}`; (3) browser
+page serves options + decideUrl in boot props. 56 vitest green (5 new
+composition tests), tsc + eslint clean, dist rebuilt.
+
+Note for reviewers: headless `--yes` auto-selects each clarify's FIRST
+option — compositions should order options recommendation-first.
 
 ### aomi-smither engine rewrite: Smithers-native, compose-from-intent (2026-07-05)
 
