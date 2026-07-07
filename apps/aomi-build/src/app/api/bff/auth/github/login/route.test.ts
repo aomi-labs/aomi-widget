@@ -16,7 +16,7 @@ describe("GitHub login route", () => {
   });
 
   it("uses the production one-shot-app client id on the production host", async () => {
-    const res = await GET(new Request("https://portal.aomi.dev/api/bff/auth/github/login"));
+    const res = await GET(new Request("https://build.aomi.dev/api/bff/auth/github/login"));
     expect(res.headers.get("location")).toContain("client_id=Iv23li4wPpAfoGOJ6v0Q");
   });
 });

@@ -6,20 +6,17 @@ const withMDX = createMDX();
 
 // Absolute paths for webpack aliases
 const landingNodeModules = path.resolve(__dirname, "node_modules");
+const clientPkgSrc = path.resolve(__dirname, "../../packages/client/src");
 const reactPkgSrc = path.resolve(__dirname, "../../packages/react/src");
 const docsSrc = path.resolve(__dirname);
 const landingSrc = path.resolve(__dirname, "src");
-const registryComponents = path.resolve(
-  __dirname,
-  "../shadcn-registry/src/components",
-);
+const registryComponents = path.resolve(__dirname, "../shadcn-registry/src/components");
 const contentDir = path.resolve(__dirname, "content");
 const contentExamplesComponents = path.join(
   contentDir,
   "components",
   "examples",
 );
-const useRootNextOutput = process.env.AOMI_ROOT_NEXT_OUTPUT === "1";
 
 // Turbopack resolveAlias needs package specifiers or relative paths, not absolute.
 // We point singleton packages to the landing app's copies so registry code
@@ -35,21 +32,20 @@ const turbopackAliases: Record<string, string> = {
   // Docs-only interactive components (playground, API consoles) live under content/.
   "@/content": "./content",
   "@/hooks": "./src/hooks",
+  "@aomi-labs/client": "../../packages/client/src/index.ts",
   "@aomi-labs/react": "../../packages/react/src/index.ts",
   "@assistant-ui/react": "./node_modules/@assistant-ui/react",
   "@assistant-ui/react-markdown": "./node_modules/@assistant-ui/react-markdown",
   "@getpara/react-sdk": "./node_modules/@getpara/react-sdk",
   "@tanstack/react-query": "./node_modules/@tanstack/react-query",
-  // Force single physical package instances when registry/runtime code is
-  // compiled through externalDir. These packages expose React contexts or
-  // shared stores that break if pnpm resolves a second copy.
+  // Force a single Zustand version so Para's SDK packages share the same store
+  // implementation when registry code is compiled through externalDir.
   zustand: "./node_modules/zustand",
   viem: "./node_modules/viem",
   wagmi: "./node_modules/wagmi",
 };
 
 const nextConfig: NextConfig = {
-  distDir: useRootNextOutput ? "../../.next" : undefined,
   reactStrictMode: false,
   experimental: {
     externalDir: true,
@@ -57,18 +53,18 @@ const nextConfig: NextConfig = {
   async headers() {
     return [
       {
-        source: "/embed-playground",
+        source: '/embed-playground',
         headers: [
           {
-            key: "Content-Security-Policy",
-            value:
-              "frame-ancestors 'self' https://aomilabs.mintlify.app https://*.mintlify.app",
+            key: 'Content-Security-Policy',
+            value: "frame-ancestors 'self' https://aomilabs.mintlify.app https://*.mintlify.app",
           },
         ],
       },
     ];
   },
   transpilePackages: [
+    "@aomi-labs/client",
     "@aomi-labs/react",
     "@aomi-labs/widget-lib",
     "@getpara/react-sdk",
@@ -97,6 +93,7 @@ const nextConfig: NextConfig = {
       "@/components": registryComponents,
       "@/content": contentDir,
       "@/hooks": path.join(landingSrc, "hooks"),
+      "@aomi-labs/client": path.join(clientPkgSrc, "index.ts"),
       "@aomi-labs/react": path.join(reactPkgSrc, "index.ts"),
       "@assistant-ui/react": path.join(
         landingNodeModules,
@@ -106,7 +103,10 @@ const nextConfig: NextConfig = {
         landingNodeModules,
         "@assistant-ui/react-markdown",
       ),
-      "@getpara/react-sdk": path.join(landingNodeModules, "@getpara/react-sdk"),
+      "@getpara/react-sdk": path.join(
+        landingNodeModules,
+        "@getpara/react-sdk",
+      ),
       "@tanstack/react-query": path.join(
         landingNodeModules,
         "@tanstack/react-query",

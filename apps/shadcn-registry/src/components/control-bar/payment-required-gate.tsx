@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useMemo, useState } from "react";
-import { useByok, useNotification } from "@aomi-labs/react";
+import { useControl, useNotification } from "@aomi-labs/react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
@@ -16,7 +16,7 @@ type ProviderId = (typeof PROVIDERS)[number]["id"];
 export function PaymentRequiredGate() {
   const { notifications, dismissNotification, showNotification } =
     useNotification();
-  const { setByok } = useByok().actions;
+  const { setByok } = useControl();
   const paymentNotification = notifications.find(
     (notification) => notification.kind === "payment_required",
   );

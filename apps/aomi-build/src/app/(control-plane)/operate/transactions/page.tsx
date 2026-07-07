@@ -1,5 +1,5 @@
 import { Suspense } from "react";
-import { OperatePlaceholder } from "@portal/features/launch/components/deployments/operate-placeholder";
+import { OperatePlaceholder } from "@build/features/launch/components/deployments/operate-placeholder";
 
 export default function OperateTransactionsPage() {
   return (

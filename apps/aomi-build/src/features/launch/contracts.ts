@@ -13,7 +13,7 @@ export type {
   ListDeploymentRecordsResult,
 } from "@aomi-labs/deploy";
 
-// One-click is the only launch path: the portal forks the template and deploys
+// One-click is the only launch path: Aomi Build forks the template and deploys
 // it for the user. (Kept as a single-member union so the small amount of
 // path-keyed state plumbing stays typed.)
 export type LaunchPath = "oneshot";

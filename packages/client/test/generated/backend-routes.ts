@@ -15,11 +15,6 @@ export const AOMI_BACKEND_ENDPOINTS = [
   },
   {
     method: "DELETE",
-    path: "/api/account/approvals/:id",
-    auth: ["account"],
-  },
-  {
-    method: "DELETE",
     path: "/api/account/bots/:id",
     auth: ["account"],
   },
@@ -35,23 +30,33 @@ export const AOMI_BACKEND_ENDPOINTS = [
   },
   {
     method: "DELETE",
+    path: "/api/account/providers/:provider/grant",
+    auth: ["account"],
+  },
+  {
+    method: "DELETE",
+    path: "/api/account/scheduled-intents/:id",
+    auth: ["account"],
+  },
+  {
+    method: "DELETE",
     path: "/api/platforms/:name/tokens/:id",
     auth: ["activation"],
   },
   {
     method: "DELETE",
     path: "/api/secrets",
-    auth: ["account","session"],
+    auth: ["account","thread"],
   },
   {
     method: "DELETE",
     path: "/api/secrets/:name",
-    auth: ["account","session"],
+    auth: ["account","thread"],
   },
   {
     method: "DELETE",
-    path: "/api/sessions/:session_id",
-    auth: ["account","session"],
+    path: "/api/threads/:thread_id",
+    auth: ["account","thread"],
   },
   {
     method: "GET",
@@ -66,11 +71,6 @@ export const AOMI_BACKEND_ENDPOINTS = [
   {
     method: "GET",
     path: "/api/account/app-keys",
-    auth: ["account"],
-  },
-  {
-    method: "GET",
-    path: "/api/account/approvals",
     auth: ["account"],
   },
   {
@@ -90,7 +90,27 @@ export const AOMI_BACKEND_ENDPOINTS = [
   },
   {
     method: "GET",
+    path: "/api/account/scheduled-intents",
+    auth: ["account"],
+  },
+  {
+    method: "GET",
+    path: "/api/account/scheduled-intents/:id",
+    auth: ["account"],
+  },
+  {
+    method: "GET",
+    path: "/api/account/status",
+    auth: ["account"],
+  },
+  {
+    method: "GET",
     path: "/api/account/usage",
+    auth: ["account"],
+  },
+  {
+    method: "GET",
+    path: "/api/account/wallets",
     auth: ["account"],
   },
   {
@@ -116,7 +136,7 @@ export const AOMI_BACKEND_ENDPOINTS = [
   {
     method: "GET",
     path: "/api/events",
-    auth: ["session"],
+    auth: ["thread"],
   },
   {
     method: "GET",
@@ -196,32 +216,7 @@ export const AOMI_BACKEND_ENDPOINTS = [
   {
     method: "GET",
     path: "/api/secrets",
-    auth: ["account","session"],
-  },
-  {
-    method: "GET",
-    path: "/api/session/apps",
-    auth: ["session"],
-  },
-  {
-    method: "GET",
-    path: "/api/session/models",
-    auth: ["session"],
-  },
-  {
-    method: "GET",
-    path: "/api/session/runtime/models",
-    auth: ["session"],
-  },
-  {
-    method: "GET",
-    path: "/api/sessions",
-    auth: ["account","session"],
-  },
-  {
-    method: "GET",
-    path: "/api/sessions/:session_id",
-    auth: ["account","session"],
+    auth: ["account","thread"],
   },
   {
     method: "GET",
@@ -231,12 +226,37 @@ export const AOMI_BACKEND_ENDPOINTS = [
   {
     method: "GET",
     path: "/api/state",
-    auth: ["session"],
+    auth: ["thread"],
+  },
+  {
+    method: "GET",
+    path: "/api/thread/apps",
+    auth: ["thread"],
+  },
+  {
+    method: "GET",
+    path: "/api/thread/models",
+    auth: ["thread"],
+  },
+  {
+    method: "GET",
+    path: "/api/thread/runtime/models",
+    auth: ["thread"],
+  },
+  {
+    method: "GET",
+    path: "/api/threads",
+    auth: ["account","thread"],
+  },
+  {
+    method: "GET",
+    path: "/api/threads/:thread_id",
+    auth: ["account","thread"],
   },
   {
     method: "GET",
     path: "/api/updates",
-    auth: ["session"],
+    auth: ["thread"],
   },
   {
     method: "GET",
@@ -250,8 +270,8 @@ export const AOMI_BACKEND_ENDPOINTS = [
   },
   {
     method: "PATCH",
-    path: "/api/sessions/:session_id",
-    auth: ["account","session"],
+    path: "/api/threads/:thread_id",
+    auth: ["account","thread"],
   },
   {
     method: "POST",
@@ -265,7 +285,12 @@ export const AOMI_BACKEND_ENDPOINTS = [
   },
   {
     method: "POST",
-    path: "/api/account/approvals",
+    path: "/api/account/authorization/challenge",
+    auth: ["account"],
+  },
+  {
+    method: "POST",
+    path: "/api/account/authorization/commit",
     auth: ["account"],
   },
   {
@@ -300,8 +325,18 @@ export const AOMI_BACKEND_ENDPOINTS = [
   },
   {
     method: "POST",
+    path: "/api/auth/para/begin",
+    auth: ["thread"],
+  },
+  {
+    method: "POST",
+    path: "/api/auth/para/callback",
+    auth: [],
+  },
+  {
+    method: "POST",
     path: "/api/auth/privy/begin",
-    auth: ["session"],
+    auth: ["thread"],
   },
   {
     method: "POST",
@@ -316,7 +351,7 @@ export const AOMI_BACKEND_ENDPOINTS = [
   {
     method: "POST",
     path: "/api/chat",
-    auth: ["session","app_gate"],
+    auth: ["thread","app_gate"],
   },
   {
     method: "POST",
@@ -331,7 +366,7 @@ export const AOMI_BACKEND_ENDPOINTS = [
   {
     method: "POST",
     path: "/api/interrupt",
-    auth: ["session"],
+    auth: ["thread"],
   },
   {
     method: "POST",
@@ -381,32 +416,32 @@ export const AOMI_BACKEND_ENDPOINTS = [
   {
     method: "POST",
     path: "/api/secrets",
-    auth: ["account","session"],
-  },
-  {
-    method: "POST",
-    path: "/api/session/model",
-    auth: ["session"],
-  },
-  {
-    method: "POST",
-    path: "/api/session/runtime/model",
-    auth: ["session"],
-  },
-  {
-    method: "POST",
-    path: "/api/sessions",
-    auth: ["session"],
+    auth: ["account","thread"],
   },
   {
     method: "POST",
     path: "/api/simulate",
-    auth: ["session"],
+    auth: ["thread"],
   },
   {
     method: "POST",
     path: "/api/system",
-    auth: ["account","session"],
+    auth: ["account","thread"],
+  },
+  {
+    method: "POST",
+    path: "/api/thread/model",
+    auth: ["thread"],
+  },
+  {
+    method: "POST",
+    path: "/api/thread/runtime/model",
+    auth: ["thread"],
+  },
+  {
+    method: "POST",
+    path: "/api/threads",
+    auth: ["thread"],
   },
   {
     method: "PUT",

@@ -16,12 +16,12 @@ import {
   launchDeploy,
   launchStatus,
   launchActivate,
-} from "@portal/features/launch/client";
+} from "@build/features/launch/client";
 import type {
   LaunchSdkStatus,
   DeploymentPromoteResult,
   DeploymentRecord,
-} from "@portal/features/launch/contracts";
+} from "@build/features/launch/contracts";
 
 /** Progress of an in-flight "deploy new version" pipeline (deploy → CI → activate). */
 export type DeployFlowState =

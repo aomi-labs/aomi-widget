@@ -26,8 +26,8 @@ import {
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
-import { AomiLogo } from "@portal/components/brand/aomi-logo";
-import { cn } from "@portal/lib/utils";
+import { AomiLogo } from "@build/components/brand/aomi-logo";
+import { cn } from "@build/lib/utils";
 
 type NavItem = {
   label: string;

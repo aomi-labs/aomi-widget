@@ -1,4 +1,4 @@
-import { NewProject } from "@portal/features/launch/components/deployments/new-project";
+import { NewProject } from "@build/features/launch/components/deployments/new-project";
 
 export default function NewOperateDeploymentPage() {
   return (

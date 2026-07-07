@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { GET } from "./route";
 
-vi.mock("@portal/server/cookies/github", () => ({
+vi.mock("@build/server/cookies/github", () => ({
   setGitHubSessionCookie: vi.fn(),
 }));
 

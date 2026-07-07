@@ -12,7 +12,7 @@ export default defineConfig({
   plugins: [react()],
   resolve: {
     alias: {
-      "@portal": srcDir,
+      "@build": srcDir,
       "@/components": resolve(registryDir, "components"),
       "@/hooks": resolve(registryDir, "hooks"),
       "@/lib": resolve(registryDir, "lib"),

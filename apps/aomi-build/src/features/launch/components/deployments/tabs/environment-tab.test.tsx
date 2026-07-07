@@ -18,7 +18,7 @@ const detail = {
   deleteEnvVar,
   secretsByApp: { demo: ["$SECRET:APP:demo::EXISTING_KEY"] },
 } as unknown as ReturnType<
-  typeof import("@portal/features/launch/hooks/use-project-detail").useProjectDetail
+  typeof import("@build/features/launch/hooks/use-project-detail").useProjectDetail
 >;
 
 describe("EnvironmentTab", () => {

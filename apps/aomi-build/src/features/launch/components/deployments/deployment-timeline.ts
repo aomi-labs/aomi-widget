@@ -1,4 +1,4 @@
-import type { DeploymentRecord } from "@portal/features/launch/contracts";
+import type { DeploymentRecord } from "@build/features/launch/contracts";
 
 /** One deployment as derived purely from the DB promotion records — no GitHub
  *  reads. `commit` is decoded from the deployment id

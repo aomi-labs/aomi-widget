@@ -1,7 +1,7 @@
 "use client";
 
-import { API_PATHS } from "@portal/lib/api-paths";
-import { sessionScopedFetch } from "@portal/lib/settings-api";
+import { API_PATHS } from "@build/lib/api-paths";
+import { sessionScopedFetch } from "@build/lib/settings-api";
 import {
   type LaunchActivateResult,
   type LaunchAppStatus,

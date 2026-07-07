@@ -1,12 +1,12 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { DeployStep } from "./deploy-step";
-import type { LaunchDeployPayload } from "@portal/features/launch";
-import type { LaunchProgress } from "@portal/features/launch";
+import type { LaunchDeployPayload } from "@build/features/launch";
+import type { LaunchProgress } from "@build/features/launch";
 
 const noop = () => {};
 
-vi.mock("@portal/features/launch", () => ({
+vi.mock("@build/features/launch", () => ({
   launchPreflight: vi.fn(),
   launchDeploy: vi.fn(),
   launchStatus: vi.fn(),

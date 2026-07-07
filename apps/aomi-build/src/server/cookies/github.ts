@@ -5,14 +5,14 @@ import type { NextResponse } from "next/server";
 import { jwtVerify, SignJWT } from "jose";
 
 /**
- * The portal's **standalone GitHub session** — a sibling of `aomi_session`
- * ([./session.ts]). After "Sign in with GitHub", the portal exchanges the OAuth
+ * Aomi Build's standalone GitHub session. After "Sign in with GitHub", the app
+ * exchanges the OAuth
  * code for the user's GitHub identity (backend-side, secret never in the
  * browser), then mints this cookie. It carries the GitHub user id (`sub`) the
  * onboarding dashboard scopes every "my sources" read to.
  *
- * HS256 JWT signed with `PORTAL_ONLY_SESSION_SECRET` — the same portal-only
- * symmetric secret. The portal both signs and verifies; the backend never sees
+ * HS256 JWT signed with `PORTAL_ONLY_SESSION_SECRET` for launch compatibility.
+ * Aomi Build both signs and verifies; the backend never sees
  * this cookie. httpOnly so the browser can't read it; the client learns "am I
  * signed in" only through `/api/bff/auth/github/status`.
  */

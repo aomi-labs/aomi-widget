@@ -1,6 +1,6 @@
 import "server-only";
 
-import { DEFAULT_DEPLOY_PLATFORM } from "@portal/lib/deploy-platform";
+import { DEFAULT_DEPLOY_PLATFORM } from "@build/lib/deploy-platform";
 
 const DEFAULT_TEMPLATE_REPO = "aomi-labs/playground-example";
 

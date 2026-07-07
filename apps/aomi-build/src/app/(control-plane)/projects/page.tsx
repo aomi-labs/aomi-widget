@@ -1,5 +1,5 @@
-import { ErrorBoundary } from "@portal/components/shell/error-boundary";
-import { ProjectIndex } from "@portal/features/launch/components/deployments";
+import { ErrorBoundary } from "@build/components/shell/error-boundary";
+import { ProjectIndex } from "@build/features/launch/components/deployments";
 
 export default function ProjectsPage() {
   return (

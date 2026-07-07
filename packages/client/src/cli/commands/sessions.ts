@@ -1,5 +1,5 @@
+import { AomiClient } from "../../client";
 import { CliSession } from "../cli-session";
-import { createCliClient } from "../client-factory";
 import { fatal } from "../errors";
 import { RESET, YELLOW, printDataFileLocation } from "../output";
 import {
@@ -8,6 +8,7 @@ import {
   setActiveSession,
   type StoredSessionRecord,
 } from "../state";
+import { createCliAuthTokenProvider } from "../auth";
 import { pendingTxsFromBackendUserState } from "../user-state";
 import {
   estimateTokenCount,
@@ -26,15 +27,19 @@ type RemoteSessionStats = {
 
 async function fetchRemoteSessionStats(
   record: StoredSessionRecord,
-  config: CliConfig,
 ): Promise<RemoteSessionStats | null> {
-  const client = createCliClient(config, {
+  const client = new AomiClient({
     baseUrl: record.state.baseUrl,
     apiKey: record.state.apiKey,
+    getAccountBearer: createCliAuthTokenProvider(() => record.state),
   });
 
   try {
-    const apiState = await client.fetchState(record.sessionId, undefined, record.state.clientId);
+    const apiState = await client.fetchState(
+      record.sessionId,
+      undefined,
+      record.state.clientId,
+    );
     const messages = apiState.messages ?? [];
     return {
       topic: apiState.title ?? "Untitled Session",
@@ -82,8 +87,10 @@ function printSessionSummary(
   printTransactionTable(pendingTxs, signedTxs);
 }
 
-export async function sessionsCommand(config: CliConfig): Promise<void> {
-  const sessions = listStoredSessions().sort((a, b) => b.updatedAt - a.updatedAt);
+export async function sessionsCommand(_config: CliConfig): Promise<void> {
+  const sessions = listStoredSessions().sort(
+    (a, b) => b.updatedAt - a.updatedAt,
+  );
   if (sessions.length === 0) {
     console.log("No local sessions.");
     printDataFileLocation();
@@ -93,7 +100,7 @@ export async function sessionsCommand(config: CliConfig): Promise<void> {
   const activeSessionId = CliSession.load()?.sessionId;
 
   const statsResults = await Promise.all(
-    sessions.map((record) => fetchRemoteSessionStats(record, config)),
+    sessions.map((record) => fetchRemoteSessionStats(record)),
   );
 
   for (let i = 0; i < sessions.length; i++) {
@@ -111,7 +118,8 @@ export async function sessionsCommand(config: CliConfig): Promise<void> {
 }
 
 export function newSessionCommand(config: CliConfig): void {
-  const cli = CliSession.create(config);
+  const existing = CliSession.load();
+  const cli = CliSession.create(config, existing?.toState());
   console.log(`Active session set to ${cli.sessionId} (new).`);
   printDataFileLocation();
 }
@@ -121,7 +129,9 @@ export function resumeSessionCommand(selector: string): void {
   if (!resumed) {
     fatal(`No local session found for selector "${selector}".`);
   }
-  console.log(`Active session set to ${resumed.sessionId} (session-${resumed.localId}).`);
+  console.log(
+    `Active session set to ${resumed.sessionId} (session-${resumed.localId}).`,
+  );
   printDataFileLocation();
 }
 
@@ -130,7 +140,9 @@ export function deleteSessionCommand(selector: string): void {
   if (!deleted) {
     fatal(`No local session found for selector "${selector}".`);
   }
-  console.log(`Deleted local session ${deleted.sessionId} (session-${deleted.localId}).`);
+  console.log(
+    `Deleted local session ${deleted.sessionId} (session-${deleted.localId}).`,
+  );
   const active = CliSession.load();
   if (active) {
     console.log(`Active session: ${active.sessionId}`);

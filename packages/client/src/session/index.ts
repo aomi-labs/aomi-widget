@@ -465,10 +465,10 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
     applySessionState(state, {
       userState: () => this.userState,
       resolveUserState: (userState) => this.resolveUserState(userState),
-      getMessages: () => this._messages,
       setMessages: (messages) => {
         this._messages = messages;
       },
+      getMessages: () => this.getMessages(),
       setTitle: (title) => {
         this._title = title;
       },

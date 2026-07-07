@@ -4,10 +4,10 @@ import { BackendError } from "@aomi-labs/deploy";
 
 export const runtime = "nodejs";
 
-import { API_PATHS } from "@portal/lib/api-paths";
-import { configuredBackendUrl } from "@portal/server/backend-url";
-import { deploymentClient } from "@portal/server/bff/backend";
-import { setGitHubSessionCookie } from "@portal/server/cookies/github";
+import { API_PATHS } from "@build/lib/api-paths";
+import { configuredBackendUrl } from "@build/server/backend-url";
+import { deploymentClient } from "@build/server/bff/backend";
+import { setGitHubSessionCookie } from "@build/server/cookies/github";
 
 const OAUTH_STATE_COOKIE = "aomi_github_oauth_state";
 // Sign-in runs against the one-shot App so the resulting user token can
@@ -24,7 +24,7 @@ function deploymentsUrl(req: Request): URL {
 
 // GET /api/bff/auth/github/callback?code=...&state=... — finish "Sign in with
 // GitHub": verify CSRF state, exchange the code for the GitHub identity
-// (backend-side), mint the portal GitHub session cookie, return to Operate.
+// (backend-side), mint the Aomi Build GitHub session cookie, return to Operate.
 export async function GET(req: Request) {
   const url = new URL(req.url);
   const code = url.searchParams.get("code");

@@ -46,7 +46,7 @@ export type AomiClientOptions = {
 };
 
 export type GetAccountBearer = (options?: {
-  /** Re-exchange the upstream Para/Privy credential after an API 401. */
+  /** Force a refresh after an API 401. */
   forceRefresh?: boolean;
 }) => Promise<string | null | undefined>;
 
@@ -63,7 +63,7 @@ export type AomiPlatformFilter = string | readonly string[] | null | undefined;
 export type AomiHttpMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 
 export interface AomiRequestOptions {
-  /** Session id for session-scoped routes. */
+  /** Thread id for thread-scoped routes. Kept as sessionId for SDK compatibility. */
   sessionId?: string;
   /** App key for app-key checked routes; defaults to the client's apiKey. */
   apiKey?: string;
@@ -165,22 +165,26 @@ export interface AomiSimulateResponse {
 export type AomiInterruptResponse = AomiChatResponse;
 
 /**
- * GET /api/sessions
+ * GET /api/threads
  * Returns array of AomiThread
  */
 export interface AomiThread {
+  thread_id?: string;
   session_id: string;
-  title: string;
+  title: string | null;
   is_archived?: boolean;
 }
 
+export type AomiAccountResponse = AomiAccountProfile;
+
 /**
- * POST /api/sessions
+ * POST /api/threads
  * Creates a new thread/session
  */
 export interface AomiCreateThreadResponse {
+  thread_id?: string;
   session_id: string;
-  title?: string;
+  title?: string | null;
 }
 
 /**
@@ -298,7 +302,8 @@ export interface AomiDeleteByokKeyResponse {
 // =============================================================================
 
 /**
- * Base SSE event - all events have session_id and type
+ * Base SSE event. Newer backends may include `thread_id`; `session_id` stays
+ * optional for SDK compatibility with existing consumers.
  */
 export type AomiSSEEvent = {
   type:
@@ -307,7 +312,8 @@ export type AomiSSEEvent = {
     | "tool_complete"
     | "system_notice"
     | string;
-  session_id: string;
+  session_id?: string;
+  thread_id?: string;
   new_title?: string;
   [key: string]: unknown;
 };
@@ -357,7 +363,7 @@ export interface AomiSecretSlot {
 }
 
 /**
- * GET /api/session/apps
+ * GET /api/thread/apps
  * One entry per app the user can use. `secrets` is empty for apps that
  * declare no slots.
  */

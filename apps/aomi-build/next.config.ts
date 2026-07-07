@@ -5,7 +5,7 @@ import path from "node:path";
 const appRoot = path.dirname(fileURLToPath(import.meta.url));
 const workspaceRoot = path.resolve(appRoot, "../..");
 const appNodeModules = path.join(appRoot, "node_modules");
-const portalSrc = path.join(appRoot, "src");
+const buildSrc = path.join(appRoot, "src");
 const widgetSrc = path.join(workspaceRoot, "apps/shadcn-registry/src");
 
 const emptyModulePath = path.join(appRoot, "empty-module.js");
@@ -24,7 +24,7 @@ function defaultBackendUrl() {
   return "http://127.0.0.1:8080";
 }
 
-// Portal-local code should import from `@portal/*`.
+// Aomi Build-local code should import from `@build/*`.
 // These `@/components|hooks|lib` aliases exist only so registry source imported
 // through `@aomi-labs/widget-lib` can resolve its own internal paths.
 const widgetTurbopackAliases = {
@@ -35,7 +35,7 @@ const widgetTurbopackAliases = {
 } as const;
 
 // Keep these in sync with the corresponding `paths` entries in
-// `apps/portal/tsconfig.json`.
+// `apps/aomi-build/tsconfig.json`.
 const widgetWebpackAliases = {
   "@/components": path.join(widgetSrc, "components"),
   "@/hooks": path.join(widgetSrc, "hooks"),
@@ -61,7 +61,7 @@ const nextConfig: NextConfig = {
   // The service-topology TOML is read at runtime via a dynamic path, so
   // @vercel/nft can't trace it automatically — include it explicitly for every
   // route that mints/verifies a bearer. Per the Next docs, include-glob values
-  // resolve from the Next.js project root (apps/portal), NOT from
+  // resolve from the Next.js project root (apps/aomi-build), NOT from
   // outputFileTracingRoot.
   outputFileTracingIncludes: {
     "/*": [
@@ -104,7 +104,7 @@ const nextConfig: NextConfig = {
   ],
   turbopack: {
     resolveAlias: {
-      "@portal": "./src",
+      "@build": "./src",
       ...widgetTurbopackAliases,
       "@aomi-labs/account": "../../packages/account/src/index.ts",
       "@aomi-labs/client": "../../packages/client/src/index.ts",
@@ -128,7 +128,7 @@ const nextConfig: NextConfig = {
     config.resolve = config.resolve ?? {};
     config.resolve.alias = {
       ...(config.resolve.alias ?? {}),
-      "@portal": portalSrc,
+      "@build": buildSrc,
       ...widgetWebpackAliases,
       "@aomi-labs/account": path.join(
         workspaceRoot,

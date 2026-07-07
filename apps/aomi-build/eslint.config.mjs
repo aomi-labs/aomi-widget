@@ -27,7 +27,7 @@ const eslintConfig = [
         {
           patterns: [
             {
-              group: ["@portal/server/*", "**/server/*"],
+              group: ["@build/server/*", "**/server/*"],
               message:
                 "Client/shared code must not import server-only modules — call a /api/bff route instead.",
               allowTypeImports: true,

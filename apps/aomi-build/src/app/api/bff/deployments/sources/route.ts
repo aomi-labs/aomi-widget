@@ -1,3 +1,3 @@
-import { deploymentSourcesRoute } from "@portal/server/bff/launch/routes";
+import { deploymentSourcesRoute } from "@build/server/bff/launch/routes";
 
 export const GET = deploymentSourcesRoute;

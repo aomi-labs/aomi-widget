@@ -1,7 +1,7 @@
 "use client";
 
 import { useSearchParams, useRouter } from "next/navigation";
-import { useProjectDetail } from "@portal/features/launch/hooks/use-project-detail";
+import { useProjectDetail } from "@build/features/launch/hooks/use-project-detail";
 import { ProjectHeader } from "./project-header";
 import { DeploymentsTab } from "./tabs/deployments-tab";
 import { EnvironmentTab } from "./tabs/environment-tab";

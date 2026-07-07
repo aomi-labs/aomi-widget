@@ -29,8 +29,13 @@ vi.mock("@aomi-labs/widget-lib", () => ({
   ),
 }));
 
-// `@portal/lib/chat-url` is intentionally NOT mocked: it is a pure helper and
-// a stale fake here previously dropped `application_id` from asserted URLs.
+vi.mock("@portal/lib/chat-url", () => ({
+  chatAppUrl: (
+    name: string,
+    options?: { applicationId?: number | string | null; locked?: boolean },
+  ) =>
+    `https://chat.aomi.dev?app=${name}${options?.applicationId ? `&application_id=${options.applicationId}` : ""}${options?.locked ? "&lock_app=1" : ""}`,
+}));
 
 vi.mock("@portal/features/launch", () => ({
   oneshotStep: (p: LaunchProgress) => {
