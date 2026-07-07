@@ -199,3 +199,109 @@ describe("composition", () => {
     expect(outcome.plan?.phases?.length).toBe(3);
   });
 });
+
+describe("stage 2 — eval, loops, parallel", () => {
+  const base = { app: "pools", sdkRoot: "/tmp/sdk", builder: "claude" as const };
+
+  const defiPools = () =>
+    buildPlanSchema.parse({
+      ...base,
+      userStory: "Manage Morpho + EtherFi positions",
+      phases: [
+        { kind: "compute", id: "binaries", op: "binaries" },
+        {
+          kind: "parallel",
+          id: "research",
+          branches: [
+            [{ kind: "agent", id: "research-morpho", role: "research", brief: "morpho" }],
+            [{ kind: "agent", id: "research-etherfi", role: "research", brief: "etherfi" }],
+          ],
+        },
+        { kind: "agent", id: "synthesize", role: "synthesize" },
+        {
+          kind: "loop",
+          id: "behavior-loop",
+          until: "eval-pass",
+          onMax: "return-last",
+          maxRounds: 3,
+          body: [
+            { kind: "eval", id: "behavior-eval", scenario: "supply to the best vault", rubric: "picks a real vault", threshold: 0.7 },
+            { kind: "agent", id: "refine", role: "synthesize", onlyIf: "prev-eval-fail" },
+          ],
+        },
+      ],
+    });
+
+  it("composes the defi-pools program (parallel research → synthesize → eval loop)", () => {
+    const stages = stagesFor(defiPools());
+    // parallel emits a header row plus one row per branch leaf.
+    expect(stages.map((s) => s.id)).toEqual([
+      "pools:binaries",
+      "pools:research",
+      "pools:research-morpho",
+      "pools:research-etherfi",
+      "pools:synthesize",
+      "pools:behavior-loop",
+      "pools:result",
+    ]);
+    const parallelHeader = stages.find((s) => s.id === "pools:research");
+    expect(parallelHeader?.kind).toBe("parallel");
+    expect(stages.find((s) => s.id === "pools:research-morpho")?.branchOf).toBe("research");
+    expect(stages.find((s) => s.id === "pools:behavior-loop")?.kind).toBe("loop");
+  });
+
+  it("accepts the defi-pools composition through finalize", () => {
+    const outcome = finalizePlan(defiPools());
+    expect(outcome.plan).not.toBeNull();
+    expect(outcome.issues).toEqual([]);
+  });
+
+  it("rejects an eval-pass loop with no eval phase in its body", () => {
+    const outcome = finalizePlan({
+      ...base,
+      phases: [
+        { kind: "compute", id: "binaries", op: "binaries" },
+        {
+          kind: "loop",
+          id: "bad",
+          until: "eval-pass",
+          maxRounds: 2,
+          body: [{ kind: "agent", id: "refine", role: "synthesize" }],
+        },
+      ],
+    });
+    expect(outcome.plan).toBeNull();
+    expect(outcome.issues.join(" ")).toMatch(/eval-pass.*no "eval"/);
+  });
+
+  it("rejects an eval phase with no binaries before it", () => {
+    const outcome = finalizePlan({
+      ...base,
+      phases: [
+        { kind: "eval", id: "e", scenario: "x", rubric: "y", threshold: 0.5 },
+        { kind: "compute", id: "binaries", op: "binaries" },
+      ],
+    });
+    expect(outcome.plan).toBeNull();
+    expect(outcome.issues.join(" ")).toMatch(/"eval" needs a "binaries"/);
+  });
+
+  it("flags duplicate ids across parallel branches", () => {
+    const outcome = finalizePlan({
+      ...base,
+      phases: [
+        { kind: "compute", id: "binaries", op: "binaries" },
+        {
+          kind: "parallel",
+          id: "p",
+          branches: [
+            [{ kind: "agent", id: "dup", role: "research" }],
+            [{ kind: "agent", id: "dup", role: "research" }],
+          ],
+        },
+      ],
+    });
+    expect(outcome.plan).toBeNull();
+    expect(outcome.issues.join(" ")).toMatch(/duplicate id "dup"/);
+  });
+});
