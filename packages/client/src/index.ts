@@ -127,6 +127,27 @@ export type {
 } from "./wallet-utils";
 
 // =============================================================================
+// Signing Authorization (kernel policy ceremony)
+// =============================================================================
+
+export {
+  authorizationChallenge,
+  authorizationCommit,
+  ensureSvmWalletBound,
+  ensureSvmWalletBoundVia,
+  isUnboundWalletError,
+  posterFromClient,
+} from "./authorization";
+
+export type {
+  AomiAuthorizationPermit,
+  AomiAuthorizationChallenge,
+  AomiAuthorizationState,
+  AomiEnsureBoundResult,
+  AuthorizationPoster,
+} from "./authorization";
+
+// =============================================================================
 // Chains
 // =============================================================================
 

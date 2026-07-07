@@ -20,6 +20,8 @@ export interface CreateAAStateOptions {
   sponsored?: boolean;
   /** Backend proxy base URL for Alchemy. Used when apiKey is omitted. */
   proxyBaseUrl?: string;
+  /** Bearer presented to the (thread-authed) proxy. */
+  proxyBearer?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -44,6 +46,7 @@ export async function createAAProviderState(
       gasPolicyId: options.gasPolicyId,
       sponsored: options.sponsored,
       proxyBaseUrl: options.proxyBaseUrl,
+      proxyBearer: options.proxyBearer,
     });
   }
 

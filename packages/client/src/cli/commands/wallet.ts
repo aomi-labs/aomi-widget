@@ -510,6 +510,7 @@ export async function signCommand(
               rpcUrl: resolvedRpcUrl,
               callList: baseCallList,
               baseUrl: cli.baseUrl,
+              config,
             })
           : undefined;
       const simulationAAMode =
@@ -590,6 +591,7 @@ export async function signCommand(
           rpcUrl: resolvedRpcUrl,
           callList: decisionCallList,
           baseUrl: cli.baseUrl,
+          config,
         });
 
         let executionCallList = decisionCallList;

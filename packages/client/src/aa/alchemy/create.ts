@@ -69,6 +69,7 @@ interface AlchemyDirectOwnerParams {
   privateKey: `0x${string}`;
   apiKey?: string;
   proxyBaseUrl?: string;
+  proxyBearer?: string;
   gasPolicyId?: string;
 }
 
@@ -139,6 +140,8 @@ export interface CreateAlchemyAAStateOptions {
   sponsored?: boolean;
   /** Backend proxy base URL. Used when apiKey is omitted. */
   proxyBaseUrl?: string;
+  /** Bearer presented to the (thread-authed) proxy. */
+  proxyBearer?: string;
 }
 
 export async function createAlchemyAAState(
@@ -192,6 +195,7 @@ export async function createAlchemyAAState(
       privateKey: owner.privateKey,
       apiKey,
       proxyBaseUrl: options.proxyBaseUrl,
+      proxyBearer: options.proxyBearer,
       gasPolicyId,
     };
     try {
@@ -254,8 +258,15 @@ async function createAlchemyWalletApisState(
     "@alchemy/wallet-apis"
   );
 
+  // Proxy mode: the aomi account credential rides the transport's bearer
+  // channel (`{ url, jwt }` is a documented connection variant); the
+  // thread-authed backend consumes it and re-auths upstream with the
+  // server-side Alchemy key.
   const transport = params.proxyBaseUrl
-    ? alchemyWalletTransport({ url: params.proxyBaseUrl })
+    ? alchemyWalletTransport({
+        url: params.proxyBaseUrl,
+        ...(params.proxyBearer ? { jwt: params.proxyBearer } : {}),
+      })
     : alchemyWalletTransport({ apiKey: params.apiKey! });
 
   const signer = privateKeyToAccount(params.privateKey);

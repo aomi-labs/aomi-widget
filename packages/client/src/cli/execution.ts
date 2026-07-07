@@ -9,6 +9,7 @@ import {
   createAAProviderState,
 } from "../aa";
 import { ALCHEMY_CHAIN_SLUGS } from "../chains";
+import { createCliGetAccountBearer } from "./client-factory";
 import type { CliAAProvider, CliAAMode, CliConfig } from "./types";
 import { resolveAlchemyApiKey } from "../aa/alchemy/defaults";
 
@@ -154,16 +155,25 @@ export async function createCliProviderState(params: {
   rpcUrl: string;
   callList: AAWalletCall[];
   baseUrl: string;
+  config: CliConfig;
 }): Promise<AAState> {
-  const { decision, chain, privateKey, rpcUrl, callList, baseUrl } = params;
+  const { decision, chain, privateKey, rpcUrl, callList, baseUrl, config } =
+    params;
 
   if (decision.execution === "eoa") {
     return DISABLED_PROVIDER_STATE;
   }
 
+  // The proxy is a `[thread]`-authed backend route: the CLI's account
+  // credential rides the transport's bearer channel and the backend swaps
+  // it for the server-side Alchemy key upstream.
   const chainSlug = ALCHEMY_CHAIN_SLUGS[chain.id];
   const proxyBaseUrl = decision.proxy && chainSlug
-    ? `${baseUrl}/aa/v1/${chainSlug}`
+    ? `${baseUrl}/api/aa/v1/${chainSlug}`
+    : undefined;
+  const proxyBearer = proxyBaseUrl
+    ? ((await createCliGetAccountBearer(config)?.({ forceRefresh: false })) ??
+      undefined)
     : undefined;
   const resolvedRpcUrl =
     rpcUrl ||
@@ -180,6 +190,7 @@ export async function createCliProviderState(params: {
     mode: decision.aaMode,
     apiKey: decision.apiKey,
     proxyBaseUrl,
+    proxyBearer,
   });
 }
 

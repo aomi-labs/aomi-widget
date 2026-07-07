@@ -417,6 +417,7 @@ describe("CLI execution controls", () => {
       rpcUrl: "https://example-rpc.invalid",
       callList: [...CALL_LIST],
       baseUrl: "https://api.aomi.dev",
+      config: {},
     });
 
     expect(providerState.resolved).toBeNull();
@@ -437,6 +438,7 @@ describe("CLI execution controls", () => {
       rpcUrl: "https://example-rpc.invalid",
       callList: [...CALL_LIST],
       baseUrl: "https://api.aomi.dev",
+      config: {},
     });
 
     expect(createSmartWalletClientMock).toHaveBeenCalledTimes(1);
@@ -462,9 +464,17 @@ describe("CLI execution controls", () => {
       rpcUrl: "https://example-rpc.invalid",
       callList: [...CALL_LIST],
       baseUrl: "https://api.aomi.dev",
+      config: { sessionCookie: "session-token" },
     });
 
     expect(alchemyWalletTransportMock).toHaveBeenCalledTimes(1);
+    // The proxy is the `[thread]`-authed backend route: under /api (the
+    // edge worker only forwards /api/*), with the CLI credential riding
+    // the transport's bearer channel.
+    expect(alchemyWalletTransportMock).toHaveBeenCalledWith({
+      url: "https://api.aomi.dev/api/aa/v1/eth-mainnet",
+      jwt: "session-token",
+    });
     expect(providerState.resolved).toMatchObject({
       provider: "alchemy",
       mode: "7702",
@@ -488,6 +498,7 @@ describe("CLI execution controls", () => {
       rpcUrl: "https://example-rpc.invalid",
       callList: [...CALL_LIST],
       baseUrl: "https://api.aomi.dev",
+      config: {},
     });
 
     // 4337 smart account has zero balance — paymaster must be attached
