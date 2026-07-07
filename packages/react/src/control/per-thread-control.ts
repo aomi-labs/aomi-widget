@@ -178,7 +178,9 @@ export type PerThreadControlActions = {
   ) => Promise<void>;
   onAppSelect: (app: string, options?: AppSelectionOptions) => void;
   markControlSynced: () => void;
-  syncCurrentThreadControl: () => Promise<void>;
+  syncCurrentThreadControl: (options?: {
+    ignoreProcessing?: boolean;
+  }) => Promise<void>;
 };
 
 type UsePerThreadControlOptions = {
@@ -400,14 +402,16 @@ export function usePerThreadControlImpl({
     }
   }, []);
 
-  const syncCurrentThreadControl = useCallback(async () => {
+  const syncCurrentThreadControl = useCallback(async (options?: {
+    ignoreProcessing?: boolean;
+  }) => {
     const threadId = sessionIdRef.current;
     const currentControl =
       getThreadMetadataRef.current(threadId)?.control ?? initThreadControl();
 
     if (
       !currentControl.controlDirty ||
-      currentControl.isProcessing ||
+      (!options?.ignoreProcessing && currentControl.isProcessing) ||
       !currentControl.model
     ) {
       return;

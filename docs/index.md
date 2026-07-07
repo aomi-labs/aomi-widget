@@ -24,12 +24,13 @@ sources_of_truth:
 - [topics/index.md](topics/index.md): curated topic list
 - [generated/repo-inventory.md](generated/repo-inventory.md): generated workspace inventory
 - [generated/markdown-inventory.md](generated/markdown-inventory.md): generated markdown inventory
+- [local-dev-stack.md](local-dev-stack.md): local BFF/BetterAuth stack setup
 - [../specs/DOMAIN.md](../specs/DOMAIN.md): architecture and runtime invariants
 - [../specs/METADATA.md](../specs/METADATA.md): environment and package reference
 
 ## Topic Set
 
-- auth: [topics/auth/facts/auth.md](topics/auth/facts/auth.md), [topics/auth/facts/auth-adapter.md](topics/auth/facts/auth-adapter.md), [topics/auth/facts/base-account.md](topics/auth/facts/base-account.md)
+- auth: [topics/auth/facts/auth.md](topics/auth/facts/auth.md), [topics/auth/facts/wallet-kit.md](topics/auth/facts/wallet-kit.md), [topics/auth/facts/base-account.md](topics/auth/facts/base-account.md)
 - apps: [topics/apps/facts/app-surfaces.md](topics/apps/facts/app-surfaces.md), [topics/apps/facts/widget-frame.md](topics/apps/facts/widget-frame.md)
 - bff: [topics/bff/facts/endpoints.md](topics/bff/facts/endpoints.md)
 - client-runtime: [topics/client-runtime/facts/react-runtime.md](topics/client-runtime/facts/react-runtime.md), [topics/client-runtime/facts/transport-client.md](topics/client-runtime/facts/transport-client.md), [topics/client-runtime/facts/cli.md](topics/client-runtime/facts/cli.md)

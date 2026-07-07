@@ -12,6 +12,9 @@
       "types": "./src/index.ts"
     }
   },
+  "scripts": {
+    "type-check": "tsc --noEmit"
+  },
   "engines": {
     "node": ">=18"
   },

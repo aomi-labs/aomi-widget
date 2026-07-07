@@ -12,7 +12,6 @@ import {
   cn,
   useAomiRuntime,
   type AomiClientOptions,
-  type AomiPlatformFilter,
 } from "@aomi-labs/react";
 import { Thread } from "@/components/assistant-ui/thread";
 import { ThreadListSidebar } from "@/components/assistant-ui/threadlist-sidebar";
@@ -62,10 +61,6 @@ type RootProps = {
   showSidebar?: boolean;
   /** Backend URL for the Aomi runtime */
   backendUrl?: string;
-  /** Optional concrete application row to route runtime calls to. */
-  applicationId?: number | string | null;
-  /** Optional backend platform filter for the session app catalog. */
-  appPlatforms?: AomiPlatformFilter;
   /** Optional runtime client overrides. */
   clientOptions?: Omit<AomiClientOptions, "baseUrl">;
 };
@@ -109,8 +104,6 @@ const Root: FC<RootProps> = ({
   walletFamilies,
   showSidebar = true,
   backendUrl,
-  applicationId,
-  appPlatforms,
   clientOptions,
 }) => {
   const resolvedBackendUrl =
@@ -122,8 +115,6 @@ const Root: FC<RootProps> = ({
   return (
     <AomiRuntimeProvider
       backendUrl={resolvedBackendUrl}
-      applicationId={applicationId}
-      appPlatforms={appPlatforms}
       clientOptions={clientOptions}
     >
       <SidebarProvider className="min-h-0! h-full">
@@ -194,7 +185,7 @@ const Header: FC<HeaderProps> = ({
           {children}
         </div>
       </header>
-      <div className="pointer-events-none relative z-10 -mb-4 h-4 shrink-0 bg-gradient-to-b from-white/80 to-transparent dark:from-neutral-950/80" />
+      <div className="pointer-events-none -mb-4 h-4 shrink-0" />
     </>
   );
 };

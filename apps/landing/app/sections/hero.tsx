@@ -2,7 +2,7 @@
 
 import { useState, type CSSProperties } from "react";
 import { AomiFrame } from "@aomi-labs/widget-lib";
-import { LandingParaProvider } from "../components/landing-para-provider";
+import { LandingWalletKitProvider } from "../components/landing-wallet-kit-provider";
 
 const DEMO_BACKEND_URL = "/";
 
@@ -270,7 +270,7 @@ export function Hero() {
               id="terminal-container"
               className="mb-14 h-[680px] w-full max-w-[900px] origin-bottom-left transition-all duration-300"
             >
-              <LandingParaProvider>
+              <LandingWalletKitProvider>
                 <AomiFrame.Root
                   height="100%"
                   width="100%"
@@ -284,7 +284,7 @@ export function Hero() {
                     controlBarProps={{ hideApiKey: true, hideNetwork: false }}
                   />
                 </AomiFrame.Root>
-              </LandingParaProvider>
+              </LandingWalletKitProvider>
             </div>
           ) : (
             <div className="mb-14 flex w-full justify-center">
