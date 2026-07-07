@@ -25,6 +25,7 @@ export interface AuditEvent {
     | "preflight"
     | "deploy"
     | "activate"
+    | "promote"
     | "status"
     | "mint_token"
     | "list_tokens"
@@ -35,7 +36,11 @@ export interface AuditEvent {
     | "get_app"
     | "exchange_github_code"
     | "list_user_sources"
-    | "get_user_source_latest_deployment";
+    | "list_user_source_deployments"
+    | "list_deployment_records"
+    | "get_user_source_latest_deployment"
+    | "deactivate"
+    | "ingest_secrets";
   platform?: string;
   appSourceId?: number;
   apps?: string[];
@@ -54,6 +59,59 @@ export interface DeploymentClientOptions {
   aomi: AomiConfig;
   /** Called on every privileged op. The proxy should persist this. */
   onAudit?: (event: AuditEvent) => void | Promise<void>;
+}
+
+export interface ListSecretsInput extends BearerOverride {
+  githubUserId?: string;
+  clientId?: string;
+}
+
+export interface ListSecretsResult {
+  byApp: Record<string, string[]>;
+}
+
+export interface IngestSecretsInput extends BearerOverride {
+  /** GitHub user id used as the only owner scope for app secret vault entries. */
+  githubUserId: string;
+  app: string;
+  /** Optional portal source row id used to scope list/delete surfaces. */
+  sourceId?: string;
+  secrets: Record<string, string>;
+}
+
+export interface IngestSecretsResult {
+  handles: Record<string, string>;
+}
+
+export interface ListAppSecretsInput extends BearerOverride {
+  /** GitHub user id used as the only owner scope for app secret vault entries. */
+  githubUserId: string;
+  /** When present, only this app's handles are returned. */
+  app?: string;
+  /** When present, only this source's handles are returned. */
+  sourceId?: string;
+}
+
+export interface RemoveAppSecretInput extends BearerOverride {
+  /** GitHub user id used as the only owner scope for app secret vault entries. */
+  githubUserId: string;
+  app: string;
+  sourceId?: string;
+  name: string;
+}
+
+export interface ServerTagsResult {
+  serverTags: string[];
+  sdkVersion: string;
+}
+
+export interface SdkVersionStatus {
+  requiredVersion: string;
+  projectVersion?: string | null;
+  lockfileVersion?: string | null;
+  cliVersion?: string | null;
+  status: "unknown" | "matching" | "outdated" | "loose" | "missing";
+  fixCommand?: string | null;
 }
 
 /** Immutable git commit SHA accepted by the platform deploy backend. */
@@ -86,6 +144,7 @@ export interface DeployResult {
 export interface DeployPayload {
   id: string;
   status: DeployStatus | string;
+  sdkVersion?: string | null;
   source: Source;
   platform: Platform;
 }
@@ -118,6 +177,7 @@ export interface AppRecord {
   path: string;
   aomiTomlPath: string;
   releaseTag: string;
+  sdkVersion?: string | null;
   target?: string | null;
   files: AppFileRecord[];
 }
@@ -389,6 +449,8 @@ export interface ExchangeGitHubCodeInput extends BearerOverride {
   code: string;
   /** Which configured GitHub App (1 = build, 2 = oneshot). */
   app?: number;
+  /** Redirect URI used when the authorization code was issued. */
+  redirectUri?: string;
 }
 
 export interface GitHubIdentity {
@@ -412,9 +474,48 @@ export interface GetUserSourceLatestDeploymentInput extends BearerOverride {
   appSourceId: number;
 }
 
+export interface ListUserSourceDeploymentsInput extends BearerOverride {
+  githubUserId: string;
+  platform: string;
+  appSourceId: number;
+  limit?: number;
+}
+
+/** One append-only promotion record from the backend deployment log. */
+export interface DeploymentRecord {
+  deploymentId: string;
+  releaseTag: string;
+  actor: string | null;
+  createdAt: number;
+  sdkVersion: string | null;
+  current: boolean;
+}
+
+export interface ListDeploymentRecordsInput extends BearerOverride {
+  platform: string;
+  app: string;
+  /** Disambiguates same-named apps across sources on one platform. */
+  appSourceId?: number;
+}
+
+export interface DeactivateAppInput extends BearerOverride {
+  platform: string;
+  app: string;
+  /** Disambiguates same-named apps across sources on one platform. */
+  appSourceId?: number;
+  actor?: string;
+}
+
+export interface ListDeploymentRecordsResult {
+  app: string;
+  currentReleaseTag: string | null;
+  records: DeploymentRecord[];
+}
+
 export interface UserSourceDeploymentApp {
   name: string;
   releaseTag: string | null;
+  sdkVersion?: string | null;
   target?: string | null;
   applicationId?: number | null;
   appSourceId?: number | null;
@@ -434,6 +535,7 @@ export interface UserSourceLatestDeployment {
   ciUrl: string | null;
   ciRunId?: string | number | null;
   releaseTags: string[];
+  sdkVersion?: string | null;
   artifactTarget?: string | null;
   buildTarget?: string | null;
   apps: UserSourceDeploymentApp[];
@@ -443,4 +545,47 @@ export interface UserSourceLatestDeployment {
 export interface UserSource extends AppSource {
   apps: PlatformApp[];
   latestDeployment?: UserSourceLatestDeployment | null;
+  /** SDK version of the source's live app, from the DB promotion records
+   *  (populated in the source list without a GitHub read). */
+  sdkVersion?: string | null;
+}
+
+// =============================================================================
+// Deployment-management surface. These types are shared by the standalone
+// dashboard/TUI work while the current launch routes remain compatible.
+// =============================================================================
+
+export interface RedactedDeploymentSecret {
+  name: string;
+  app?: string | null;
+  scope: "user_app" | "user" | "project" | string;
+  configured: boolean;
+  updatedAt?: string | null;
+}
+
+export interface RedactedDeploymentEnvVar {
+  name: string;
+  app?: string | null;
+  scope: "app" | "project" | string;
+  configured: boolean;
+  updatedAt?: string | null;
+}
+
+export interface PromoteInput {
+  platform: string;
+  deploymentId: string;
+  apps?: string[];
+  targetTags?: string[];
+  actor?: string;
+}
+
+export interface PromoteResult {
+  ok: boolean;
+  promote: {
+    deploymentId: string;
+    releaseTags: string[];
+    status: "promoted" | "blocked" | string;
+    sdkStatus?: SdkVersionStatus | null;
+    activation?: ActivateResult["activation"];
+  };
 }

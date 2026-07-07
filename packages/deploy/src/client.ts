@@ -1,5 +1,11 @@
 import { BackendError, BrowserEnvironmentError, DeployError } from "./errors";
 import type {
+  IngestSecretsInput,
+  IngestSecretsResult,
+  ListAppSecretsInput,
+  RemoveAppSecretInput,
+  ListSecretsInput,
+  ListSecretsResult,
   ActivateInput,
   ActivateResult,
   AppSource,
@@ -15,6 +21,10 @@ import type {
   GetUserSourceLatestDeploymentInput,
   GitHubIdentity,
   ListAppsInput,
+  DeactivateAppInput,
+  ListDeploymentRecordsInput,
+  ListDeploymentRecordsResult,
+  ListUserSourceDeploymentsInput,
   ListUserSourcesInput,
   UserSource,
   UserSourceLatestDeployment,
@@ -24,6 +34,9 @@ import type {
   PlatformApp,
   PreflightInput,
   ProgressModel,
+  PromoteInput,
+  PromoteResult,
+  ServerTagsResult,
   RevokeTokenInput,
   ScaffoldInput,
   StatusInput,
@@ -163,6 +176,67 @@ export class DeploymentClient {
     return cameled;
   }
 
+  /** Deactivate one app: clears its live pointer and unloads the binary. The
+   *  deployment's git record and activation history are untouched. */
+  async deactivateApp(input: DeactivateAppInput): Promise<void> {
+    const platform = cleanPlatform(input.platform);
+    const app = required(input.app, "app");
+    const query =
+      input.appSourceId != null
+        ? `?app_source_id=${encodeURIComponent(String(input.appSourceId))}`
+        : "";
+    await this.post<unknown>(
+      `/api/platforms/${encodeURIComponent(platform)}/apps/${encodeURIComponent(app)}/deactivate${query}`,
+      {},
+      "deactivate",
+      this.resolveBearer(input.bearer),
+    );
+    await this.audit({
+      action: "deactivate",
+      platform,
+      apps: [app],
+      actor: input.actor,
+      ts: Date.now(),
+    });
+  }
+
+  async promote(input: PromoteInput): Promise<PromoteResult> {
+    const platform = cleanPlatform(input.platform);
+    const deploymentId = required(input.deploymentId, "deploymentId");
+    const result = await this.post<ActivateResult>(
+      `/api/platforms/${encodeURIComponent(platform)}/deployments/${encodeURIComponent(deploymentId)}/promote`,
+      {
+        deployment_id: deploymentId,
+        apps: input.apps,
+        target_tags: input.targetTags,
+        actor: input.actor,
+      },
+      "promote",
+      this.resolveBearer(),
+    );
+    await this.audit({
+      action: "promote",
+      platform,
+      apps: input.apps ?? [],
+      targetTags: input.targetTags,
+      actor: input.actor,
+      ts: Date.now(),
+    });
+    const cameled = camelActivateResult(result);
+    const releaseTags = cameled.activation.apps
+      .map((app) => app.releaseTag)
+      .filter((tag): tag is string => Boolean(tag));
+    return {
+      ok: cameled.ok,
+      promote: {
+        deploymentId,
+        releaseTags,
+        status: cameled.ok ? "promoted" : "blocked",
+        activation: cameled.activation,
+      },
+    };
+  }
+
   async status(input: StatusInput): Promise<DeploymentStatus> {
     const platform = cleanPlatform(input.platform);
     const path = input.deploymentId
@@ -180,6 +254,18 @@ export class DeploymentClient {
       ts: Date.now(),
     });
     return camelStatusResult(result);
+  }
+
+  async serverTags(): Promise<ServerTagsResult> {
+    const result = await this.get<Record<string, unknown>>(
+      "/api/platforms/server-tags",
+      "server tags",
+      this.resolveBearer(),
+    );
+    return {
+      serverTags: (result.server_tags ?? result.serverTags ?? []) as string[],
+      sdkVersion: String(result.sdk_version ?? result.sdkVersion ?? ""),
+    };
   }
 
   /**
@@ -500,6 +586,9 @@ export class DeploymentClient {
     const code = required(input.code, "code");
     const params = new URLSearchParams({ code });
     if (input.app) params.set("app", String(input.app));
+    if (input.redirectUri?.trim()) {
+      params.set("redirect_uri", input.redirectUri.trim());
+    }
     const bearer = this.resolveBearer(input.bearer);
     const raw = await this.get<{
       github_user_id?: string;
@@ -571,6 +660,143 @@ export class DeploymentClient {
     return camelUserSourceLatestDeployment(raw.latest_deployment) ?? null;
   }
 
+  async listUserSourceDeployments(
+    input: ListUserSourceDeploymentsInput,
+  ): Promise<UserSourceLatestDeployment[]> {
+    const githubUserId = required(input.githubUserId, "githubUserId");
+    const platform = cleanPlatform(input.platform);
+    const appSourceId = required(String(input.appSourceId), "appSourceId");
+    const bearer = this.resolveBearer(input.bearer);
+    const params = new URLSearchParams({
+      github_user_id: githubUserId,
+      platform,
+    });
+    if (input.limit && Number.isSafeInteger(input.limit) && input.limit > 0) {
+      params.set("limit", String(input.limit));
+    }
+    const raw = await this.get<{ deployments?: unknown[] }>(
+      `/api/integrations/github-app/user/sources/${encodeURIComponent(
+        appSourceId,
+      )}/deployments?${params.toString()}`,
+      "list_user_source_deployments",
+      bearer,
+    );
+    await this.audit({
+      action: "list_user_source_deployments",
+      platform,
+      appSourceId: input.appSourceId,
+      actor: input.actor,
+      ts: Date.now(),
+    });
+    return (raw.deployments ?? [])
+      .map(camelUserSourceLatestDeployment)
+      .filter((deployment): deployment is UserSourceLatestDeployment =>
+        Boolean(deployment),
+      );
+  }
+
+  async listDeploymentRecords(
+    input: ListDeploymentRecordsInput,
+  ): Promise<ListDeploymentRecordsResult> {
+    const platform = cleanPlatform(input.platform);
+    const app = required(input.app, "app");
+    const query =
+      input.appSourceId != null
+        ? `?app_source_id=${encodeURIComponent(String(input.appSourceId))}`
+        : "";
+    const raw = await this.get<{
+      app?: string;
+      current_release_tag?: string | null;
+      records?: Array<Record<string, unknown>>;
+    }>(
+      `/api/platforms/${encodeURIComponent(platform)}/apps/${encodeURIComponent(app)}/records${query}`,
+      "list_deployment_records",
+      this.resolveBearer(input.bearer),
+    );
+    return {
+      app: raw.app ?? app,
+      currentReleaseTag: (raw.current_release_tag as string | null) ?? null,
+      records: (raw.records ?? []).map((row) => ({
+        deploymentId: String(row.deployment_id ?? ""),
+        releaseTag: String(row.release_tag ?? ""),
+        actor: (row.actor as string | null) ?? null,
+        createdAt: timestampSeconds(row.created_at),
+        sdkVersion: (row.sdk_version as string | null) ?? null,
+        current: Boolean(row.current),
+      })),
+    };
+  }
+
+  async listSecrets(input: ListSecretsInput = {}): Promise<ListSecretsResult> {
+    const params = new URLSearchParams();
+    const clientId = input.clientId ?? input.githubUserId;
+    if (clientId) params.set("client_id", clientId);
+    const query = params.toString();
+    const raw = await this.get<{ by_app?: Record<string, string[]> }>(
+      `/api/secrets${query ? `?${query}` : ""}`,
+      "list_secrets",
+      this.resolveBearer(input.bearer, { privileged: true }),
+    );
+    return { byApp: raw.by_app ?? {} };
+  }
+
+  /** Ingest app-scoped env vars into the secret vault under the GitHub user id.
+   *  The backend field is still named `user_id`, but GitHub is the only owner
+   *  scope this client accepts for app secrets. Service op. */
+  async ingestSecrets(input: IngestSecretsInput): Promise<IngestSecretsResult> {
+    const githubUserId = required(input.githubUserId, "githubUserId");
+    const app = required(input.app, "app");
+    const sourceId = input.sourceId?.trim();
+    const raw = await this.post<{ handles?: Record<string, string> }>(
+      `/api/_internal/secrets`,
+      {
+        user_id: githubUserId,
+        app,
+        ...(sourceId ? { source_id: sourceId } : {}),
+        secrets: input.secrets,
+      },
+      "ingest_secrets",
+      this.resolveBearer(input.bearer, { privileged: true }),
+    );
+    return { handles: raw.handles ?? {} };
+  }
+
+  /** List vault handle names (never values) for the GitHub user id, keyed by
+   *  app. Service read, so it works with the portal's service bearer (unlike
+   *  the session-scoped `listSecrets`). */
+  async listAppSecrets(input: ListAppSecretsInput): Promise<ListSecretsResult> {
+    const githubUserId = required(input.githubUserId, "githubUserId");
+    const params = new URLSearchParams({ user_id: githubUserId });
+    if (input.app?.trim()) params.set("app", input.app.trim());
+    if (input.sourceId?.trim()) params.set("source_id", input.sourceId.trim());
+    const raw = await this.get<{ by_app?: Record<string, string[]> }>(
+      `/api/_internal/secrets?${params.toString()}`,
+      "list_secrets",
+      this.resolveBearer(input.bearer, { privileged: true }),
+    );
+    return { byApp: raw.by_app ?? {} };
+  }
+
+  /** Remove one app-scoped secret. Service op. Returns whether it existed. */
+  async removeAppSecret(input: RemoveAppSecretInput): Promise<boolean> {
+    const githubUserId = required(input.githubUserId, "githubUserId");
+    const app = required(input.app, "app");
+    const name = required(input.name, "name");
+    const sourceId = input.sourceId?.trim();
+    const raw = await this.del<{ removed?: boolean }>(
+      `/api/_internal/secrets`,
+      "ingest_secrets",
+      this.resolveBearer(input.bearer, { privileged: true }),
+      {
+        user_id: githubUserId,
+        app,
+        ...(sourceId ? { source_id: sourceId } : {}),
+        name,
+      },
+    );
+    return Boolean(raw.removed);
+  }
+
   endpoint(path: string): string {
     const cleanPath = path.startsWith("/") ? path : `/${path}`;
     return `${this.baseUrl}${cleanPath}`;
@@ -637,8 +863,17 @@ export class DeploymentClient {
     path: string,
     operation: string,
     bearer: string,
+    body?: unknown,
   ): Promise<Resp> {
-    return this.request<Resp>(path, { method: "DELETE" }, operation, bearer);
+    const init: RequestInit =
+      body === undefined
+        ? { method: "DELETE" }
+        : {
+            method: "DELETE",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(body),
+          };
+    return this.request<Resp>(path, init, operation, bearer);
   }
 
   private async request<Resp>(
@@ -661,7 +896,7 @@ export class DeploymentClient {
       throw new BackendError(
         operation,
         0,
-        `${operation} request failed: ${err instanceof Error ? err.message : String(err)}`,
+        `${operation} request to ${url} failed: ${err instanceof Error ? err.message : String(err)}`,
       );
     }
 
@@ -813,6 +1048,7 @@ function camelDeployResult(result: unknown): DeployResult {
     deployment: {
       id: deployment.id,
       status: deployment.status,
+      sdkVersion: deployment.sdk_version ?? deployment.sdkVersion ?? null,
       source: {
         installationId: source.installation_id,
         repositoryId: source.repository_id,
@@ -837,6 +1073,7 @@ function camelDeployResult(result: unknown): DeployResult {
           path: app.path,
           aomiTomlPath: app.aomi_toml_path,
           releaseTag: app.release_tag,
+          sdkVersion: app.sdk_version ?? app.sdkVersion ?? null,
           target: app.target ?? null,
           files: (app.files ?? []).map((file: Record<string, any>) => ({
             path: file.path,
@@ -997,6 +1234,21 @@ function camelPlatformApp(raw: unknown): PlatformApp {
   };
 }
 
+function timestampSeconds(value: unknown): number {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value > 100_000_000_000 ? Math.floor(value / 1000) : value;
+  }
+  if (typeof value !== "string") return 0;
+  const trimmed = value.trim();
+  if (!trimmed) return 0;
+  const numeric = Number(trimmed);
+  if (Number.isFinite(numeric)) {
+    return numeric > 100_000_000_000 ? Math.floor(numeric / 1000) : numeric;
+  }
+  const parsed = Date.parse(trimmed);
+  return Number.isFinite(parsed) ? Math.floor(parsed / 1000) : 0;
+}
+
 function camelUserSourceLatestDeployment(
   raw: unknown,
 ): UserSource["latestDeployment"] {
@@ -1014,11 +1266,13 @@ function camelUserSourceLatestDeployment(
     ciUrl: d.ci_url ?? d.ciUrl ?? d.ci?.url ?? null,
     ciRunId: d.ci_run_id ?? d.ciRunId ?? null,
     releaseTags: (d.release_tags ?? d.releaseTags ?? []) as string[],
+    sdkVersion: d.sdk_version ?? d.sdkVersion ?? null,
     artifactTarget: d.artifact_target ?? d.artifactTarget ?? null,
     buildTarget: d.build_target ?? d.buildTarget ?? d.target ?? null,
     apps: apps.map((app) => ({
       name: app.name,
       releaseTag: app.release_tag ?? app.releaseTag ?? null,
+      sdkVersion: app.sdk_version ?? app.sdkVersion ?? null,
       target: app.target ?? null,
       applicationId: app.application_id ?? app.applicationId ?? null,
       appSourceId: app.app_source_id ?? app.appSourceId ?? null,
@@ -1038,5 +1292,6 @@ function camelUserSource(raw: unknown): UserSource {
     latestDeployment: camelUserSourceLatestDeployment(
       s.latest_deployment ?? s.latestDeployment,
     ),
+    sdkVersion: s.sdk_version ?? s.sdkVersion ?? null,
   };
 }

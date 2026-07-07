@@ -2,6 +2,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
+  deploymentDeactivateRoute,
+  deploymentPromoteRoute,
   launchDeployRoute,
   launchStatusRoute,
   redeployLaunchRoute,
@@ -32,20 +34,109 @@ function writeReq(body: unknown) {
   });
 }
 
+/** The listUserSources response granting the signed-in user these source ids. */
+function ownedSources(...ids: number[]) {
+  return Response.json({
+    sources: ids.map((id) => ({
+      id,
+      installation_id: 555,
+      apps: [{ name: "my-bot" }],
+    })),
+  });
+}
+
+/** The DB promotion-records response for one app (the promote authz source). */
+function appRecords(...deploymentIds: string[]) {
+  return Response.json({
+    app: "my-bot",
+    current_release_tag: null,
+    records: deploymentIds.map((deployment_id) => ({
+      deployment_id,
+      release_tag: `${deployment_id}-tag`,
+      actor: null,
+      created_at: 0,
+      sdk_version: "3.0.1",
+      current: false,
+    })),
+  });
+}
+
 describe("launchDeployRoute", () => {
+  beforeEach(() => {
+    getGitHubSession.mockResolvedValue({
+      githubUserId: "42",
+      githubLogin: "alice",
+    });
+  });
+
   afterEach(() => {
     vi.unstubAllEnvs();
     vi.restoreAllMocks();
     getGitHubSession.mockReset();
   });
 
-  it("propagates BackendError status codes (400-599)", async () => {
-    const fetchMock = vi.fn().mockResolvedValueOnce(
-      new Response(JSON.stringify({ error: "deploy rejected" }), {
-        status: 409,
-        headers: { "Content-Type": "application/json" },
+  it("rejects deploy without a GitHub session before any backend call", async () => {
+    getGitHubSession.mockResolvedValue(null);
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    const POST = launchDeployRoute(false);
+    const res = await POST(
+      new Request("http://localhost:3000/api/bff/launch/deploy", {
+        method: "POST",
+        headers: {
+          origin: "http://localhost:3000",
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          appSourceId: 123,
+          sourceRef: "abc1234def5678",
+        }),
       }),
     );
+
+    expect(res.status).toBe(401);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects deploy of an app source the user does not own", async () => {
+    const fetchMock = vi.fn().mockResolvedValueOnce(ownedSources(1, 2));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const POST = launchDeployRoute(false);
+    const res = await POST(
+      new Request("http://localhost:3000/api/bff/launch/deploy", {
+        method: "POST",
+        headers: {
+          origin: "http://localhost:3000",
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          appSourceId: 123,
+          sourceRef: "abc1234def5678",
+        }),
+      }),
+    );
+    const body = await res.json();
+
+    expect(res.status).toBe(404);
+    expect(body.error).toContain("app source not found");
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(String(fetchMock.mock.calls[0][0])).toContain(
+      "/api/integrations/github-app/user/sources?github_user_id=42",
+    );
+  });
+
+  it("propagates BackendError status codes (400-599)", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(ownedSources(123))
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ error: "deploy rejected" }), {
+          status: 409,
+          headers: { "Content-Type": "application/json" },
+        }),
+      );
 
     vi.stubGlobal("fetch", fetchMock);
 
@@ -65,7 +156,7 @@ describe("launchDeployRoute", () => {
     const res = await POST(req);
     const body = await res.json();
 
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(res.status).toBe(409);
     expect(body).toEqual({ error: "deploy rejected" });
   });
@@ -156,19 +247,22 @@ describe("launchDeployRoute", () => {
   });
 
   it("deploys directly by appSourceId when the source identity is already known", async () => {
-    const fetchMock = vi.fn().mockResolvedValueOnce(
-      Response.json({
-        ok: true,
-        deployment: {
-          id: "dep_999_rabc1234_deadbeef",
-          source: {
-            installation_id: 999,
-            repository_link: "alice/bot",
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(ownedSources(777))
+      .mockResolvedValueOnce(
+        Response.json({
+          ok: true,
+          deployment: {
+            id: "dep_999_rabc1234_deadbeef",
+            source: {
+              installation_id: 999,
+              repository_link: "alice/bot",
+            },
+            platform: { apps: [] },
           },
-          platform: { apps: [] },
-        },
-      }),
-    );
+        }),
+      );
     vi.stubGlobal("fetch", fetchMock);
 
     const POST = launchDeployRoute(false);
@@ -195,7 +289,7 @@ describe("launchDeployRoute", () => {
       appSourceId: 777,
     });
     expect(fetchMock).toHaveBeenNthCalledWith(
-      1,
+      2,
       "http://127.0.0.1:8080/api/platforms/community/deploy",
       expect.objectContaining({
         method: "POST",
@@ -206,7 +300,9 @@ describe("launchDeployRoute", () => {
 
   it("rejects deploy requests when no source commit is supplied or resolved", async () => {
     vi.unstubAllEnvs();
-    const fetchMock = vi.fn();
+    // The ownership lookup runs before commit resolution (authorize before
+    // acting on the caller's behalf), so exactly one backend read happens.
+    const fetchMock = vi.fn().mockResolvedValueOnce(ownedSources(777));
     vi.stubGlobal("fetch", fetchMock);
 
     const POST = launchDeployRoute(false);
@@ -224,7 +320,10 @@ describe("launchDeployRoute", () => {
 
     expect(res.status).toBe(400);
     expect(body.error).toContain("missing source commit");
-    expect(fetchMock).not.toHaveBeenCalled();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(String(fetchMock.mock.calls[0][0])).toContain(
+      "/api/integrations/github-app/user/sources",
+    );
   });
 
   it("rejects a request without appSourceId or repo before calling the backend", async () => {
@@ -266,7 +365,10 @@ describe("launchDeployRoute", () => {
   });
 
   it("returns 502 for non-BackendError exceptions", async () => {
-    const fetchMock = vi.fn().mockRejectedValueOnce(new Error("network down"));
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(ownedSources(123))
+      .mockRejectedValueOnce(new Error("network down"));
     vi.stubGlobal("fetch", fetchMock);
 
     const POST = launchDeployRoute(false);
@@ -284,6 +386,124 @@ describe("launchDeployRoute", () => {
 
     const res = await POST(req);
     expect(res.status).toBe(502);
+  });
+});
+
+describe("deploymentPromoteRoute", () => {
+  const DEPLOYMENT = "dep_555_r0123abcdef_a5a81b6b8be1";
+
+  function promoteReq(body: unknown) {
+    return new Request("http://localhost:3000/api/bff/deployments/promote", {
+      method: "POST",
+      headers: {
+        origin: "http://localhost:3000",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(body),
+    });
+  }
+
+  beforeEach(() => {
+    getGitHubSession.mockResolvedValue({
+      githubUserId: "42",
+      githubLogin: "alice",
+    });
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    getGitHubSession.mockReset();
+  });
+
+  it("rejects promote without a GitHub session before any backend call", async () => {
+    getGitHubSession.mockResolvedValue(null);
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    const res = await deploymentPromoteRoute(
+      promoteReq({ deploymentId: DEPLOYMENT, appSourceId: 99 }),
+    );
+
+    expect(res.status).toBe(401);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("requires appSourceId so the promote target can be authorized", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    const res = await deploymentPromoteRoute(
+      promoteReq({ deploymentId: DEPLOYMENT }),
+    );
+    const body = await res.json();
+
+    expect(res.status).toBe(400);
+    expect(body.error).toContain("appSourceId");
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects promote of an app source the user does not own", async () => {
+    const fetchMock = vi.fn().mockResolvedValueOnce(ownedSources(1, 2));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const res = await deploymentPromoteRoute(
+      promoteReq({ deploymentId: DEPLOYMENT, appSourceId: 99 }),
+    );
+    const body = await res.json();
+
+    expect(res.status).toBe(404);
+    expect(body.error).toContain("app source not found");
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("rejects a deployment absent from the source's DB records", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(ownedSources(99))
+      .mockResolvedValueOnce(appRecords("dep_555_r0123abcdef_other001"));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const res = await deploymentPromoteRoute(
+      promoteReq({ deploymentId: DEPLOYMENT, appSourceId: 99 }),
+    );
+    const body = await res.json();
+
+    expect(res.status).toBe(404);
+    expect(body.error).toContain("deployment does not belong");
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    // The records lookup is DB, not the GitHub history fanout.
+    expect(String(fetchMock.mock.calls[1][0])).toContain(
+      "/apps/my-bot/records",
+    );
+  });
+
+  it("promotes an owned deployment and attributes the GitHub login", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(ownedSources(99))
+      .mockResolvedValueOnce(appRecords(DEPLOYMENT))
+      .mockResolvedValueOnce(
+        Response.json({
+          ok: true,
+          activation: {
+            status: "activating",
+            apps: [{ name: "my-bot", release_tag: "apps-555-tag" }],
+          },
+        }),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const res = await deploymentPromoteRoute(
+      promoteReq({ deploymentId: DEPLOYMENT, appSourceId: 99 }),
+    );
+    const body = await res.json();
+
+    expect(res.status).toBe(202);
+    expect(body.ok).toBe(true);
+    expect(body.promote.deploymentId).toBe(DEPLOYMENT);
+    const [promoteUrl, promoteInit] = fetchMock.mock.calls[2];
+    expect(String(promoteUrl)).toContain(`/deployments/${DEPLOYMENT}/promote`);
+    expect(String(promoteInit?.body)).toContain('"actor":"alice"');
   });
 });
 
@@ -379,6 +599,90 @@ describe("redeployLaunchRoute", () => {
     expect(res.status).toBe(503);
     expect(body.error).toContain("GitHub rerun token is not configured");
     expect(fetchMock).toHaveBeenCalledOnce();
+  });
+});
+
+describe("deploymentDeactivateRoute", () => {
+  function deactReq(body: unknown) {
+    return new Request("http://localhost:3000/api/bff/deployments/deactivate", {
+      method: "POST",
+      headers: {
+        origin: "http://localhost:3000",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(body),
+    });
+  }
+
+  beforeEach(() => {
+    getGitHubSession.mockResolvedValue({
+      githubUserId: "42",
+      githubLogin: "alice",
+    });
+  });
+  afterEach(() => {
+    vi.restoreAllMocks();
+    getGitHubSession.mockReset();
+  });
+
+  it("rejects without a session", async () => {
+    getGitHubSession.mockResolvedValue(null);
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    const res = await deploymentDeactivateRoute(
+      deactReq({ appSourceId: 99, apps: ["my-bot"] }),
+    );
+    expect(res.status).toBe(401);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("requires appSourceId and apps", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    expect((await deploymentDeactivateRoute(deactReq({ apps: ["x"] }))).status).toBe(
+      400,
+    );
+    expect(
+      (await deploymentDeactivateRoute(deactReq({ appSourceId: 99 }))).status,
+    ).toBe(400);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects a foreign app source", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        Response.json({ sources: [{ id: 1, installation_id: 5 }] }),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+    const res = await deploymentDeactivateRoute(
+      deactReq({ appSourceId: 99, apps: ["my-bot"] }),
+    );
+    expect(res.status).toBe(404);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("deactivates each owned app", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        Response.json({ sources: [{ id: 99, installation_id: 5 }] }),
+      )
+      .mockResolvedValueOnce(Response.json(true))
+      .mockResolvedValueOnce(Response.json(true));
+    vi.stubGlobal("fetch", fetchMock);
+    const res = await deploymentDeactivateRoute(
+      deactReq({ appSourceId: 99, apps: ["api", "web"] }),
+    );
+    const body = await res.json();
+    expect(res.status).toBe(202);
+    expect(body).toMatchObject({ ok: true, apps: ["api", "web"] });
+    expect(String(fetchMock.mock.calls[1][0])).toContain(
+      "/apps/api/deactivate",
+    );
+    expect(String(fetchMock.mock.calls[2][0])).toContain(
+      "/apps/web/deactivate",
+    );
   });
 });
 
