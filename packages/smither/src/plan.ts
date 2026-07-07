@@ -68,8 +68,9 @@ export const agentPhaseSchema = z.object({
   agent: z.enum(["claude", "codex"]).optional(),
   /** Composer- or human-supplied focus folded into the role prompt. */
   brief: z.string().optional(),
-  /** Loop-body conditional: mount only when the latest validation is red. */
-  onlyIf: z.enum(["prev-red"]).optional(),
+  /** Loop-body conditional: mount only when the latest validation is red
+   *  ("prev-red") or the latest eval failed ("prev-eval-fail"). */
+  onlyIf: z.enum(["prev-red", "prev-eval-fail"]).optional(),
   label: z.string().optional(),
 });
 
@@ -94,22 +95,63 @@ export const gatePhaseSchema = z.object({
   label: z.string().optional(),
 });
 
+/** A behavioral eval: run the compiled plugin against a scenario prompt, then
+ *  score the transcript against a rubric with an LLM judge. Produces a metric
+ *  and a pass/fail against `threshold` — the exit signal for an `eval-pass`
+ *  loop. Generalizes smoke from "did it run" to "did it do the right thing". */
+export const evalPhaseSchema = z.object({
+  kind: z.literal("eval"),
+  id: phaseIdSchema,
+  /** Prompt fed to `aomi-run` against the compiled plugin. */
+  scenario: z.string().min(1),
+  /** How the judge scores the transcript (0..1). */
+  rubric: z.string().min(1),
+  /** Pass bar; the loop exits when the latest eval's score ≥ threshold. */
+  threshold: z.number().min(0).max(1).default(0.7),
+  /** Judge agent. Defaults to plan.builder (claude when builder is none). */
+  judge: z.enum(["claude", "codex"]).optional(),
+  label: z.string().optional(),
+});
+export type EvalPhase = z.infer<typeof evalPhaseSchema>;
+
 export const innerPhaseSchema = z.discriminatedUnion("kind", [
   computePhaseSchema,
   agentPhaseSchema,
   clarifyPhaseSchema,
   gatePhaseSchema,
+  evalPhaseSchema,
 ]);
 export type InnerPhase = z.infer<typeof innerPhaseSchema>;
 
-/** A bounded retry loop. `until` names a persisted exit predicate; hitting
- *  maxRounds fails the run (stage 2 will escalate to a clarify instead). */
+/**
+ * A bounded retry loop. `until` names the persisted exit predicate
+ * (validation green, or an eval scoring at/above its threshold). `onMax`
+ * governs the tail: "fail" aborts the run; "return-last" stops gracefully and
+ * lets the composition continue — pair it with a following clarify/gate to
+ * escalate the decision to the human instead of hard-failing.
+ */
 export const loopPhaseSchema = z.object({
   kind: z.literal("loop"),
   id: phaseIdSchema,
-  until: z.enum(["validation-green"]),
+  until: z.enum(["validation-green", "eval-pass"]),
   maxRounds: z.number().int().min(1).max(6).default(3),
+  /** Tail behavior. Omitted ⇒ "fail" (abort the run). "return-last" stops the
+   *  loop gracefully at maxRounds so the composition can continue. */
+  onMax: z.enum(["fail", "return-last"]).optional(),
   body: z.array(innerPhaseSchema).min(1),
+  label: z.string().optional(),
+});
+
+/** Fan-out: every branch runs concurrently (each branch is its own sequence),
+ *  and the composition waits for all branches before the next phase. For
+ *  independent work — researching several protocols, building several venues —
+ *  where branches don't write the same files. */
+export const parallelPhaseSchema = z.object({
+  kind: z.literal("parallel"),
+  id: phaseIdSchema,
+  branches: z.array(z.array(innerPhaseSchema).min(1)).min(2),
+  /** Cap on concurrent branches. Omit for unbounded (engine still caps). */
+  maxConcurrency: z.number().int().min(1).max(16).optional(),
   label: z.string().optional(),
 });
 
@@ -118,7 +160,9 @@ export const phaseSchema = z.discriminatedUnion("kind", [
   agentPhaseSchema,
   clarifyPhaseSchema,
   gatePhaseSchema,
+  evalPhaseSchema,
   loopPhaseSchema,
+  parallelPhaseSchema,
 ]);
 export type Phase = z.infer<typeof phaseSchema>;
 
@@ -243,36 +287,66 @@ export function resolveComposition(plan: BuildPlan): Phase[] {
   return phases;
 }
 
+/** The inner phases a container holds (loop body / parallel branches), or the
+ *  phase itself for leaves. Used to walk a composition uniformly. */
+export function innerPhasesOf(phase: Phase): InnerPhase[] {
+  if (phase.kind === "loop") return phase.body;
+  if (phase.kind === "parallel") return phase.branches.flat();
+  return [phase as InnerPhase];
+}
+
+/** Every phase in top-level order, with container inner phases spliced in
+ *  place — the ordered flat list dependency checks read. */
+function orderedFlat(phases: Phase[]): Array<InnerPhase | Phase> {
+  const out: Array<InnerPhase | Phase> = [];
+  for (const phase of phases) {
+    if (phase.kind === "loop" || phase.kind === "parallel") {
+      out.push(phase, ...innerPhasesOf(phase));
+    } else {
+      out.push(phase);
+    }
+  }
+  return out;
+}
+
 /** Structural problems in a composed phase list — surfaced at finalize time
  *  so the TUI can bounce them back into the conversation. */
 export function compositionIssues(plan: BuildPlan): string[] {
   if (!plan.phases || plan.phases.length === 0) return [];
   const issues: string[] = [];
   const phases = resolveComposition(plan);
+
+  // id uniqueness across every phase, container and leaf alike.
   const seen = new Set<string>();
-  const flat: InnerPhase[] = [];
   for (const phase of phases) {
-    for (const p of phase.kind === "loop" ? [phase, ...phase.body] : [phase]) {
+    for (const p of [phase, ...(phase.kind === "loop" || phase.kind === "parallel" ? innerPhasesOf(phase) : [])]) {
       if (seen.has(p.id)) issues.push(`phases: duplicate id "${p.id}"`);
       seen.add(p.id);
-      if (p.kind !== "loop") flat.push(p);
     }
   }
-  const opIndex = (op: ComputeOp) =>
-    flat.findIndex((p) => p.kind === "compute" && p.op === op);
-  const binariesAt = opIndex("binaries");
-  for (const op of ["codegen", "smoke", "deploy"] as const) {
-    const at = opIndex(op);
+
+  // binaries must precede anything that reads the built binaries or plugin.
+  const flat = orderedFlat(phases);
+  const flatIndex = (pred: (p: InnerPhase | Phase) => boolean) => flat.findIndex(pred);
+  const binariesAt = flatIndex((p) => p.kind === "compute" && p.op === "binaries");
+  const needsBinaries: Array<{ what: string; at: number }> = [
+    { what: "codegen", at: flatIndex((p) => p.kind === "compute" && p.op === "codegen") },
+    { what: "smoke", at: flatIndex((p) => p.kind === "compute" && p.op === "smoke") },
+    { what: "deploy", at: flatIndex((p) => p.kind === "compute" && p.op === "deploy") },
+    { what: "eval", at: flatIndex((p) => p.kind === "eval") },
+  ];
+  for (const { what, at } of needsBinaries) {
     if (at !== -1 && (binariesAt === -1 || binariesAt > at)) {
-      issues.push(`phases: "${op}" needs a "binaries" compute phase before it`);
+      issues.push(`phases: "${what}" needs a "binaries" compute phase before it`);
     }
   }
-  const fixOutsideLoop = phases.some(
-    (p) => p.kind === "agent" && p.role === "fix",
-  );
-  if (fixOutsideLoop) {
+
+  // fix only belongs inside a loop; a bare fix has no validation log to act on.
+  if (phases.some((p) => p.kind === "agent" && p.role === "fix")) {
     issues.push('phases: role "fix" only makes sense inside a loop body');
   }
+
+  // a loop's exit predicate must have the phase that produces its signal.
   for (const phase of phases) {
     if (phase.kind !== "loop") continue;
     if (
@@ -281,6 +355,11 @@ export function compositionIssues(plan: BuildPlan): string[] {
     ) {
       issues.push(
         `phases: loop "${phase.id}" exits on validation-green but has no "validate" compute phase in its body`,
+      );
+    }
+    if (phase.until === "eval-pass" && !phase.body.some((p) => p.kind === "eval")) {
+      issues.push(
+        `phases: loop "${phase.id}" exits on eval-pass but has no "eval" phase in its body`,
       );
     }
   }
@@ -294,10 +373,13 @@ export function compositionIssues(plan: BuildPlan): string[] {
 export type PlanStage = {
   id: string;
   label: string;
-  kind: "compute" | "agent" | "loop" | "approval" | "clarify";
+  kind: "compute" | "agent" | "loop" | "approval" | "clarify" | "eval" | "parallel";
   /** Clarify metadata rides along so every surface (TUI, browser console) can
    *  render the options without a second data path. */
   clarify?: { question: string; summary?: string; options: ClarifyOption[] };
+  /** Set on rows that are one branch of a parallel phase, so surfaces can
+   *  indent/group them under the fan-out. */
+  branchOf?: string;
 };
 
 const OP_LABEL: Record<ComputeOp, string> = {
@@ -324,7 +406,7 @@ export function phaseAgent(plan: BuildPlan, phase: { role: AgentRole; agent?: "c
   return plan.builder === "none" ? "claude" : plan.builder;
 }
 
-function stageLabel(plan: BuildPlan, phase: Phase): string {
+function stageLabel(plan: BuildPlan, phase: Phase | InnerPhase): string {
   if (phase.label) return phase.label;
   switch (phase.kind) {
     case "compute":
@@ -340,42 +422,64 @@ function stageLabel(plan: BuildPlan, phase: Phase): string {
       return phase.question;
     case "gate":
       return phase.title;
+    case "eval":
+      return `Eval: run scenario, judge (pass ≥ ${phase.threshold})`;
     case "loop": {
+      if (phase.until === "eval-pass") {
+        return `Run + eval, refine (up to ${phase.maxRounds - 1} rounds)`;
+      }
       const repairs = phase.body.filter((p) => p.kind === "agent").length;
       return repairs > 0
         ? `Validate, repair (up to ${phase.maxRounds - 1} rounds)`
         : "Validate (cargo fmt/clippy/test)";
     }
+    case "parallel":
+      return `Parallel — ${phase.branches.length} branches`;
+  }
+}
+
+function stageFor(plan: BuildPlan, phase: Phase | InnerPhase, branchOf?: string): PlanStage {
+  const id = (stage: string) => nodeId(plan.app, stage);
+  const base = { id: id(phase.id), label: stageLabel(plan, phase), ...(branchOf ? { branchOf } : {}) };
+  switch (phase.kind) {
+    case "compute":
+      return { ...base, kind: "compute" };
+    case "agent":
+      return { ...base, kind: "agent" };
+    case "eval":
+      return { ...base, kind: "eval" };
+    case "loop":
+      return { ...base, kind: "loop" };
+    case "gate":
+      return { ...base, kind: "approval" };
+    case "parallel":
+      return { ...base, kind: "parallel" };
+    case "clarify":
+      return {
+        ...base,
+        kind: "clarify",
+        clarify: { question: phase.question, summary: phase.summary, options: phase.options },
+      };
   }
 }
 
 /** The stage list the plan composes to — the preview screen, dry-run output,
- *  and the workflow all derive from this single source. */
+ *  and the workflow all derive from this single source. A parallel phase emits
+ *  a header row plus one row per branch leaf (each has its own node id and
+ *  lights up independently); a loop stays a single row (its body collapses). */
 export function stagesFor(plan: BuildPlan): PlanStage[] {
-  const id = (stage: string) => nodeId(plan.app, stage);
-  return resolveComposition(plan).map((phase): PlanStage => {
-    const base = { id: id(phase.id), label: stageLabel(plan, phase) };
-    switch (phase.kind) {
-      case "compute":
-        return { ...base, kind: "compute" };
-      case "agent":
-        return { ...base, kind: "agent" };
-      case "loop":
-        return { ...base, kind: "loop" };
-      case "gate":
-        return { ...base, kind: "approval" };
-      case "clarify":
-        return {
-          ...base,
-          kind: "clarify",
-          clarify: {
-            question: phase.question,
-            summary: phase.summary,
-            options: phase.options,
-          },
-        };
+  const stages: PlanStage[] = [];
+  for (const phase of resolveComposition(plan)) {
+    if (phase.kind === "parallel") {
+      stages.push(stageFor(plan, phase));
+      for (const branch of phase.branches) {
+        for (const inner of branch) stages.push(stageFor(plan, inner, phase.id));
+      }
+      continue;
     }
-  });
+    stages.push(stageFor(plan, phase));
+  }
+  return stages;
 }
 
 /** Human-readable plan summary for the preview screen and dry-run output. */

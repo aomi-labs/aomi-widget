@@ -65,8 +65,19 @@ with identical node ids (existing runs resume cleanly). The vocabulary:
   later agent prompt as context. Headless `--yes` auto-selects the first
   (recommended) option.
 - **gate** — binary approval (the deploy gate).
-- **loop** — bounded retry (`until: validation-green`); body phases can be
-  conditional (`onlyIf: "prev-red"` for the repair agent).
+- **eval** — run the compiled plugin against a `scenario` prompt, then an LLM
+  `judge` scores the transcript 0..1 against a `rubric`; passes at `threshold`.
+  Behavioral testing ("did it do the right thing"), not just cargo. The exit
+  signal for an `eval-pass` loop. (`evals.ts`)
+- **loop** — bounded retry. `until: "validation-green"` (body: a `validate`
+  compute + optional `fix` agent `onlyIf: "prev-red"`) or `until: "eval-pass"`
+  (body: an `eval` + optional refine agent `onlyIf: "prev-eval-fail"` that
+  improves the app from the judge's feedback). `onMax: "return-last"` stops
+  gracefully at the round cap so the composition continues — pair it with a
+  following clarify to escalate to the human instead of hard-failing.
+- **parallel** — `branches` run concurrently (each is its own sequence); the
+  composition waits for all. For independent work that doesn't write the same
+  files — researching several protocols, building several venues.
 
 `executeRunUntilSettled` (run.ts) is the approval-aware runner: the engine
 *returns* `waiting-approval` rather than blocking on it, so the runner

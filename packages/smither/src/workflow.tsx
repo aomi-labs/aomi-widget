@@ -4,10 +4,12 @@ import { Fragment, type ReactNode } from "react";
 import type { CreateSmithersApi } from "smithers-orchestrator";
 import {
   WORKFLOW_NAME,
+  innerPhasesOf,
   nodeId,
   phaseAgent,
   resolveComposition,
   type BuildPlan,
+  type EvalPhase,
   type InnerPhase,
   type Phase,
 } from "./plan";
@@ -19,6 +21,7 @@ import {
   type ClarifyRow,
   type CodegenRow,
   type DeploymentRow,
+  type EvaluationRow,
   type GateRow,
   type ResultRow,
   type SmokeRow,
@@ -34,6 +37,7 @@ import {
   runAppCargoChecks,
 } from "./commands";
 import { makeWorkAgent } from "./agents";
+import { runEvalStep } from "./evals";
 import { rolePrompt, type PromptContext } from "./prompts";
 import type { CommandRunner, ResolvedBinaries } from "./types";
 
@@ -88,12 +92,18 @@ function outputKeyFor(phase: InnerPhase | Phase): keyof SmitherSchemas {
         default:
           return "agentWork";
       }
+    case "eval":
+      return "evaluation";
     case "clarify":
       return "clarify";
     case "gate":
       return "gate";
     case "loop":
       return "validation";
+    case "parallel":
+      // Parallel has no output row of its own; done is derived from its
+      // branches. Never read directly.
+      return "result";
   }
 }
 
@@ -117,15 +127,16 @@ export async function buildAppWorkflow(
   plan: BuildPlan,
   deps: WorkflowDeps = {},
 ): Promise<AomiWorkflow> {
-  const { Workflow, Task, Approval, Sequence, Loop, smithers, outputs } = api;
+  const { Workflow, Task, Approval, Sequence, Loop, Parallel, smithers, outputs } = api;
   const runner = deps.runner ?? defaultRunner;
   const id = (stage: string) => nodeId(plan.app, stage);
   const composition = resolveComposition(plan);
 
-  // One CLI agent instance per distinct agent named anywhere in the composition.
+  // One CLI agent instance per distinct agent named anywhere in the
+  // composition — including inside loop bodies and parallel branches.
   const agentNames = new Set<"claude" | "codex">();
   for (const phase of composition) {
-    for (const p of phase.kind === "loop" ? phase.body : [phase]) {
+    for (const p of innerPhasesOf(phase)) {
       if (p.kind === "agent") agentNames.add(phaseAgent(plan, p));
     }
   }
@@ -143,7 +154,7 @@ export async function buildAppWorkflow(
     // --- well-known rows the step functions depend on -----------------------
     const findCompute = (op: string): InnerPhase | undefined => {
       for (const phase of composition) {
-        for (const p of phase.kind === "loop" ? phase.body : [phase]) {
+        for (const p of innerPhasesOf(phase)) {
           if (p.kind === "compute" && p.op === op) return p;
         }
       }
@@ -159,6 +170,48 @@ export async function buildAppWorkflow(
       return validate
         ? (ctx.latest(outputs.validation, id(validate.id)) as ValidationRow | undefined)
         : undefined;
+    };
+    const latestEvalFor = (loop: Extract<Phase, { kind: "loop" }>) => {
+      const evalPhase = loop.body.find((p) => p.kind === "eval");
+      return evalPhase
+        ? (ctx.latest(outputs.evaluation, id(evalPhase.id)) as EvaluationRow | undefined)
+        : undefined;
+    };
+    // Current iteration count for a loop node — lets a `return-last` loop that
+    // maxed out (never passed) still settle so the composition can continue.
+    const loopIteration = (loopId: string): number =>
+      (ctx as { iterations?: Record<string, number> }).iterations?.[id(loopId)] ?? 0;
+    const loopDone = (loop: Extract<Phase, { kind: "loop" }>): boolean => {
+      const passed =
+        loop.until === "eval-pass"
+          ? !!latestEvalFor(loop)?.pass
+          : !!latestValidationFor(loop)?.green;
+      if (passed) return true;
+      // A graceful loop also settles once it has spent its budget: `iterations`
+      // is the 0-indexed current iteration, so the final round is maxRounds-1.
+      // The enclosing <Sequence> still holds downstream tasks until the loop
+      // node itself completes, so flipping here during the last round is safe.
+      return loop.onMax === "return-last" && loopIteration(loop.id) >= loop.maxRounds - 1;
+    };
+
+    // Whether every leaf of a parallel phase has produced its row.
+    const leafDone = (p: InnerPhase): boolean => {
+      switch (p.kind) {
+        case "compute":
+          return (
+            !!row(outputKeyFor(p), p.id) &&
+            (p.op === "codegen" || p.op === "smoke"
+              ? (row(outputKeyFor(p), p.id) as { ok?: boolean }).ok === true
+              : true)
+          );
+        case "agent":
+        case "eval":
+          return !!row(outputKeyFor(p), p.id);
+        case "clarify":
+          return plan.autoApprove || !!row("clarify", p.id);
+        case "gate":
+          return !!(row("gate", p.id) as GateRow | undefined)?.approved;
+      }
     };
 
     // --- clarify answers become prompt context for later agent phases -------
@@ -205,6 +258,7 @@ export async function buildAppWorkflow(
           break;
         }
         case "agent":
+        case "eval":
           done = !!row(outputKeyFor(phase), phase.id);
           break;
         case "clarify":
@@ -220,7 +274,10 @@ export async function buildAppWorkflow(
           break;
         }
         case "loop":
-          done = !!latestValidationFor(phase)?.green;
+          done = loopDone(phase);
+          break;
+        case "parallel":
+          done = phase.branches.every((branch) => branch.every(leafDone));
           break;
       }
       states.push({
@@ -250,15 +307,33 @@ export async function buildAppWorkflow(
 
     const renderInner = (
       phase: InnerPhase,
-      loopContext?: { latestValidation: ValidationRow | undefined },
+      loopContext?: {
+        latestValidation?: ValidationRow;
+        latestEval?: EvaluationRow;
+      },
     ): ReactNode => {
       switch (phase.kind) {
         case "compute":
           return renderCompute(phase);
+        case "eval":
+          return binaries ? (
+            <Task
+              id={id(phase.id)}
+              label={phase.label ?? `Eval (judge ${phase.judge ?? plan.builder})`}
+              output={outputs.evaluation}
+              noRetry
+            >
+              {() => runEvalStep({ plan, phase: phase as EvalPhase, binaries: toResolvedBinaries(binaries), runner })}
+            </Task>
+          ) : null;
         case "agent": {
           if (phase.onlyIf === "prev-red") {
             const validation = loopContext?.latestValidation;
             if (!validation || validation.green) return null;
+          }
+          if (phase.onlyIf === "prev-eval-fail") {
+            const evaluation = loopContext?.latestEval;
+            if (!evaluation || evaluation.pass) return null;
           }
           const agent = agents.get(phaseAgent(plan, phase));
           if (!agent) return null;
@@ -266,6 +341,15 @@ export async function buildAppWorkflow(
             brief: phase.brief,
             clarifications,
             validationLog: loopContext?.latestValidation?.log,
+            ...(loopContext?.latestEval
+              ? {
+                  evalFeedback: {
+                    score: loopContext.latestEval.score,
+                    threshold: loopContext.latestEval.threshold,
+                    notes: loopContext.latestEval.notes,
+                  },
+                }
+              : {}),
           };
           return (
             <Task
@@ -379,22 +463,40 @@ export async function buildAppWorkflow(
       if (!mountable(index)) return null;
       if (phase.kind === "loop") {
         const latestValidation = latestValidationFor(phase);
-        const green = !!latestValidation?.green;
+        const latestEval = latestEvalFor(phase);
+        const until =
+          phase.until === "eval-pass" ? !!latestEval?.pass : !!latestValidation?.green;
         return (
           <Loop
             id={id(phase.id)}
-            until={green}
+            until={until}
             maxIterations={phase.maxRounds}
-            onMaxReached="fail"
+            onMaxReached={phase.onMax === "return-last" ? "return-last" : "fail"}
           >
             <Sequence>
               {phase.body.map((inner) => (
                 <Fragment key={inner.id}>
-                  {renderInner(inner, { latestValidation })}
+                  {renderInner(inner, { latestValidation, latestEval })}
                 </Fragment>
               ))}
             </Sequence>
           </Loop>
+        );
+      }
+      if (phase.kind === "parallel") {
+        return (
+          <Parallel
+            id={id(phase.id)}
+            {...(phase.maxConcurrency ? { maxConcurrency: phase.maxConcurrency } : {})}
+          >
+            {phase.branches.map((branch, branchIndex) => (
+              <Sequence key={`${phase.id}-b${branchIndex}`}>
+                {branch.map((inner) => (
+                  <Fragment key={inner.id}>{renderInner(inner)}</Fragment>
+                ))}
+              </Sequence>
+            ))}
+          </Parallel>
         );
       }
       return renderInner(phase);

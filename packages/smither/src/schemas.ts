@@ -69,6 +69,15 @@ export const smitherSchemas = {
     artifacts: z.string().default(""),
     followUps: z.string().default(""),
   }),
+  /** Behavioral eval result: the judge's score (0..1), pass/fail against the
+   *  phase threshold, the judge's notes, and the run transcript it scored. */
+  evaluation: z.object({
+    score: z.number(),
+    pass: z.boolean(),
+    threshold: z.number(),
+    notes: z.string().default(""),
+    transcript: z.string().default(""),
+  }),
   result: z.object({
     status: z.enum(["complete", "deploy-denied", "blocked"]),
     summary: z.string(),
@@ -85,6 +94,7 @@ export type SmokeRow = z.infer<SmitherSchemas["smoke"]>;
 export type GateRow = z.infer<SmitherSchemas["gate"]>;
 export type ClarifyRow = z.infer<SmitherSchemas["clarify"]>;
 export type AgentWorkRow = z.infer<SmitherSchemas["agentWork"]>;
+export type EvaluationRow = z.infer<SmitherSchemas["evaluation"]>;
 export type DeploymentRow = z.infer<SmitherSchemas["deployment"]>;
 export type ResultRow = z.infer<SmitherSchemas["result"]>;
 

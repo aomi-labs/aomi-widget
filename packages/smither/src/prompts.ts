@@ -2,10 +2,12 @@ import type { AgentRole, BuildPlan } from "./plan";
 import { buildPlanSchema } from "./plan";
 
 /** Context an agent phase can fold into its prompt: the composer's brief for
- *  this phase, and any clarify answers the human gave earlier in the run. */
+ *  this phase, clarify answers the human gave earlier, and — inside an eval
+ *  loop — the judge's feedback from the last failing attempt to refine against. */
 export type PromptContext = {
   brief?: string;
   clarifications?: Array<{ question: string; selected: string; notes?: string | null }>;
+  evalFeedback?: { score: number; threshold: number; notes: string };
 };
 
 function contextLines(context?: PromptContext): string {
@@ -15,6 +17,12 @@ function contextLines(context?: PromptContext): string {
   for (const c of context.clarifications ?? []) {
     lines.push(
       `Human decision — "${c.question}": chose "${c.selected}"${c.notes ? ` (${c.notes})` : ""}`,
+    );
+  }
+  if (context.evalFeedback) {
+    const f = context.evalFeedback;
+    lines.push(
+      `Last eval scored ${f.score.toFixed(2)} (need ≥ ${f.threshold.toFixed(2)}). Judge notes: ${f.notes || "(none)"}. Improve the app to raise this score.`,
     );
   }
   return lines.length > 0 ? `\n${lines.join("\n")}` : "";
@@ -88,6 +96,31 @@ export function synthesizePrompt(plan: BuildPlan, context?: PromptContext): stri
   );
 }
 
+/** Judge prompt: score a run transcript against a rubric, 0..1. Returns strict
+ *  JSON so the eval step can parse it — the judge never edits files. */
+export function judgePrompt(input: {
+  app: string;
+  scenario: string;
+  rubric: string;
+  transcript: string;
+}): string {
+  return `You are grading how well the Aomi app "${input.app}" handled a scenario.
+Do not edit any files — only read and judge.
+
+Scenario given to the app:
+${input.scenario}
+
+Rubric (what a good response looks like):
+${input.rubric}
+
+The app's transcript:
+${input.transcript}
+
+Score how well the transcript satisfies the rubric, from 0.0 (fails) to 1.0
+(fully satisfies). Respond with ONLY a JSON object, no markdown fences:
+{"score": <number 0..1>, "notes": "<one or two sentences on what was good or missing>"}`;
+}
+
 /** Prompt for an agent phase by role. */
 export function rolePrompt(
   role: AgentRole,
@@ -151,8 +184,18 @@ Phase vocabulary (each: unique kebab-case "id"):
 - {"kind":"clarify","id","question","options":[{"key","label","summary"?},...]} — pause the RUN and
   ask the human; first option is your recommendation. Use for decisions that only surface mid-run.
 - {"kind":"gate","id","title","summary"?} — binary approval pause (e.g. before deploy).
-- {"kind":"loop","id","until":"validation-green","maxRounds",body:[phases]} — put a
-  {"op":"validate"} compute and a {"role":"fix","onlyIf":"prev-red"} agent in the body.
+- {"kind":"eval","id","scenario","rubric","threshold"} — run the compiled plugin against the
+  scenario prompt, then an LLM judge scores the transcript 0..1 against the rubric. Needs a
+  {"op":"binaries"} phase earlier. This is behavioral testing ("did it do the right thing"), not
+  just cargo (which is the validate loop).
+- {"kind":"loop","id","until","maxRounds","onMax"?,body:[phases]} — until is "validation-green"
+  (body needs an {"op":"validate"} compute + optional {"role":"fix","onlyIf":"prev-red"} agent) or
+  "eval-pass" (body needs an {"kind":"eval"} + optional refine agent {"onlyIf":"prev-eval-fail"}
+  that improves the app from the judge's feedback). onMax "return-last" stops gracefully at the
+  round cap so the composition continues (pair with a following clarify to let the human decide);
+  omit onMax to hard-fail.
+- {"kind":"parallel","id","branches":[[phases],[phases],...]} — run branches concurrently. For
+  independent work that doesn't write the same files, e.g. researching several protocols at once.
 
 Omit "phases" entirely when the standard pipeline fits (spec exists or a URL is given):
 binaries → codegen → curate → validate-loop → result comes built-in from the flags.

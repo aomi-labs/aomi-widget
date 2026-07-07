@@ -2,23 +2,58 @@
 
 ## Last Updated
 
-2026-07-06 — aomi-smither: intake visible in browser from t=0 (stage 1.5)
+2026-07-07 — aomi-smither: multi-loop + eval + parallel (stage 2)
 
 ## Flexible-orchestration roadmap (Cecilia's direction)
 
-- **Stage 1 — composition + clarify** ✅ (see entry below). Plan is a
-  composition of typed phases; clarify pauses answerable from TUI + console.
-- **Stage 1.5 — intake in the browser from t=0** ✅ (this entry). The composer
-  is visible before the workflow exists; one tab follows into the build.
-- **Stage 2 — multi-loop + eval + parallel** (next). Loops as general wrappers
-  with eval-threshold and human-break exits; an `eval` phase (aomi-run +
-  judge); parallel fan-out. Proof target: the spec-less DeFi-pools scenario
-  (research → synthesize → behavioral eval loop).
-- **Stage 3 — wait-external + cross-repo agents**. Durable pauses for
+- **Stage 1 — composition + clarify** ✅. Plan is a composition of typed
+  phases; clarify pauses answerable from TUI + console.
+- **Stage 1.5 — intake in the browser from t=0** ✅. The composer is visible
+  before the workflow exists; one tab follows into the build.
+- **Stage 2 — multi-loop + eval + parallel** ✅ (this entry). `eval` phase
+  (run + judge → metric), `eval-pass` loops with graceful `return-last` max,
+  parallel fan-out. Proven on the defi-pools shape.
+- **Stage 3 — wait-external + cross-repo agents** (next). Durable pauses for
   outside-Aomi work; agent phases in another repo. Proof target: GameFi
   companion (design proposal → wait for game-server APIs → integration eval).
 
 ## Recent Changes
+
+### Multi-loop + eval + parallel (2026-07-07, stage 2)
+
+Extended the composition vocabulary with the three primitives the arb-bot /
+GameFi / defi-pools scenarios jointly demanded:
+
+- **plan.ts** — `eval` phase (scenario/rubric/threshold/judge), `parallel`
+  phase (branches[][], maxConcurrency), and loops generalized: `until` is
+  "validation-green" | "eval-pass"; `onMax` "fail" | "return-last"; agent
+  `onlyIf` gained "prev-eval-fail". `innerPhasesOf` centralizes the descent
+  into loop bodies + parallel branches; `compositionIssues` validates the new
+  shapes (eval needs binaries; eval-pass loop needs an eval in body; ids unique
+  across branches). `stagesFor` expands a parallel into a header row + one row
+  per branch leaf (each lights up independently); loops stay one row.
+- **evals.ts** (new) — `runEvalStep`: compile → aomi-run(scenario) →
+  read-only judge (claude/codex → strict JSON score) → EvaluationRow. Judge
+  never edits files. Malformed score clamps to 0 (a failing eval, not a crash).
+- **workflow.tsx** — renders `<Parallel>` (branch = `<Sequence>`) and eval
+  Tasks; eval-pass loops use the latest eval's `pass` as the `until` predicate;
+  refine agents get the judge's feedback folded into their prompt. `loopDone`
+  detects graceful `return-last` max via `ctx.iterations` (0-indexed → final
+  round is maxRounds-1; the enclosing Sequence still orders downstream).
+- **prompts.ts** — composer intake prompt teaches the eval/parallel/loop
+  vocabulary; `judgePrompt` + `PromptContext.evalFeedback`.
+
+Verified live through the real Smithers runtime (stubbed commands): (1) parallel
+fan-out — both branches ran concurrently and the run waited; (2) eval-pass loop
+— judge scored 0.3 then 0.9 across iterations 0/1, loop exited on pass; (3)
+graceful return-last — judge always 0.2, loop ran its 2-round budget, never
+passed, and the result phase STILL mounted (status complete) instead of
+hard-failing. 69 vitest green (10 new: composition shapes + eval judge + clamp +
+failure paths); tsc + eslint clean; dist rebuilt.
+
+Bug found + fixed during the proof: `return-last` max detection was off by one
+(`ctx.iterations` is the 0-indexed current round, maxing at maxRounds-1), so
+the result phase never mounted after a graceful loop. Fixed and re-proven.
 
 ### Intake visible in browser from t=0 (2026-07-06, stage 1.5)
 
