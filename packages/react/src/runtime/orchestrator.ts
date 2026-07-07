@@ -137,14 +137,21 @@ const updateTurnPhase = (
   threadContext: ThreadContext,
   threadId: string,
   turnPhase: ThreadTurnPhase,
+  options?: { completed?: boolean },
 ) => {
   const metadata = threadContext.getThreadMetadata(threadId);
-  if (!metadata || metadata.control.turnPhase === turnPhase) return;
+  if (
+    !metadata ||
+    (metadata.control.turnPhase === turnPhase && !options?.completed)
+  ) {
+    return;
+  }
 
   threadContext.updateThreadMetadata(threadId, {
     control: {
       ...metadata.control,
       turnPhase,
+      ...(options?.completed ? { lastCompletedAt: Date.now() } : null),
     },
   });
 };
@@ -324,7 +331,9 @@ export function useRuntimeOrchestrator(
       );
       cleanups.push(
         session.on("processing_end", () => {
-          updateTurnPhase(threadContextRef.current, threadId, "idle");
+          updateTurnPhase(threadContextRef.current, threadId, "idle", {
+            completed: true,
+          });
           if (threadContextRef.current.currentThreadId === threadId) {
             setIsRunning(false);
           }
@@ -487,7 +496,9 @@ export function useRuntimeOrchestrator(
         });
         optionsRef.current.onSendSuccess?.(threadId);
         if (!session.getIsProcessing()) {
-          updateTurnPhase(threadContextRef.current, threadId, "idle");
+          updateTurnPhase(threadContextRef.current, threadId, "idle", {
+            completed: true,
+          });
         }
         if (threadContextRef.current.currentThreadId === threadId) {
           setIsRunning(session.getIsProcessing());

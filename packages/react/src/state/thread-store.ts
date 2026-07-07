@@ -45,6 +45,8 @@ export type ThreadControlState = {
   isProcessing: boolean;
   /** Fine-grained turn phase for rendering pending/working assistant states */
   turnPhase: ThreadTurnPhase;
+  /** Epoch ms when the latest assistant turn completed in this thread. */
+  lastCompletedAt?: number;
 };
 
 export type ThreadMetadata = {

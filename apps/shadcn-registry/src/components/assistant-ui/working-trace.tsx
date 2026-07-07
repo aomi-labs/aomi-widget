@@ -2,7 +2,6 @@
 
 import { type FC, useEffect, useRef, useState } from "react";
 import {
-  MessagePrimitive,
   TextMessagePartProvider,
   useMessage,
   type TextMessagePart,
@@ -29,7 +28,8 @@ import {
  * sweeping whenever the turn is running, including the common case where a tool
  * call has finished and we're just waiting on the model to say what's next. When
  * the turn completes the trace collapses to "Worked for Ns" and the answer is
- * revealed. Plain replies with no tool calls skip the trace and stream normally.
+ * revealed. Plain replies with no tool calls buffer while running, then reveal
+ * with the same final-answer fake stream once the turn settles.
  */
 
 const formatDuration = (seconds: number): string => {
@@ -80,9 +80,7 @@ const useStaggeredReveal = (target: number, running: boolean): number => {
   // Only pace a turn we saw working live. If it wasn't running at mount, it's a
   // completed/loaded turn — start fully revealed.
   const startedLive = useRef(running && !reduced);
-  const [revealed, setRevealed] = useState(
-    startedLive.current ? 0 : target,
-  );
+  const [revealed, setRevealed] = useState(startedLive.current ? 0 : target);
 
   useEffect(() => {
     if (running && !reduced) startedLive.current = true;
@@ -405,7 +403,11 @@ const MinimalWorkingTrace: FC = () => (
   </div>
 );
 
-const NullPart: FC = () => null;
+const collectText = (parts: TextMessagePart[]): string =>
+  parts
+    .map((part) => part.text)
+    .join("\n\n")
+    .trim();
 
 /** Total wall-clock of the synthetic typewriter for the final answer. */
 const FAKE_STREAM_MS = 500;
@@ -457,14 +459,18 @@ const FakeStreamedText: FC<{ text: string; stream: boolean }> = ({
  * everything up to and including it is the Working trace (tool steps + muted
  * interstitial notes, in order); the trailing `text` run is the final answer,
  * buffered out of view until the turn finishes so only it streams out below.
- * A plain reply with no tool calls skips the trace and streams live.
+ * A plain reply with no tool calls is also buffered while running, then
+ * fake-streamed once it is known to be the final answer.
  */
 export const AssistantTurnParts: FC = () => {
   const content = useMessage((s) => s.content);
   const running = useMessage((s) => s.status?.type === "running");
+  const isLast = useMessage((s) => s.isLast);
   const turnPhase =
     useCurrentThreadMetadata()?.control.turnPhase ??
     (running ? "working" : "idle");
+  const lastCompletedAt =
+    useCurrentThreadMetadata()?.control.lastCompletedAt ?? 0;
 
   const lastToolIndex = content.reduce(
     (last, part, i) => (part.type === "tool-call" ? i : last),
@@ -502,31 +508,34 @@ export const AssistantTurnParts: FC = () => {
   useEffect(() => {
     if (running) liveTurnRef.current = true;
   }, [running]);
-  const liveTurn = liveTurnRef.current;
+  const recentlyCompleted =
+    isLast && lastCompletedAt > 0 && Date.now() - lastCompletedAt < 5000;
+  const liveTurn = liveTurnRef.current || recentlyCompleted;
 
   if (lastToolIndex < 0) {
-    if (running && turnPhase === "working") {
-      return <MinimalWorkingTrace />;
-    }
-
+    // While a turn is still live, text before the first tool call is provisional:
+    // a later tool call can arrive and move that text into the Working trace.
+    // Keep it buffered so it never flashes as the final answer and jumps upward.
     if (running) {
-      return null;
+      return turnPhase === "working" ? <MinimalWorkingTrace /> : null;
     }
 
-    // Plain reply — no tools. Stream the text live.
-    return (
-      <MessagePrimitive.Parts
-        components={{ Text: MarkdownText, Reasoning: NullPart }}
-      />
+    const answerText = collectText(
+      content.filter((p): p is TextMessagePart => p.type === "text"),
     );
+
+    // Plain reply — no tools. Reveal it with the same short fake-stream used
+    // after tool calls, once we know it is the final answer.
+    return answerText.length > 0 ? (
+      <FakeStreamedText text={answerText} stream={liveTurn} />
+    ) : null;
   }
 
-  const answerText = content
-    .slice(lastToolIndex + 1)
-    .filter((p): p is TextMessagePart => p.type === "text")
-    .map((p) => p.text)
-    .join("\n\n")
-    .trim();
+  const answerText = collectText(
+    content
+      .slice(lastToolIndex + 1)
+      .filter((p): p is TextMessagePart => p.type === "text"),
+  );
 
   // Hold the answer until the trace has fully caught up, so the steps finish
   // cascading before it fades in — nothing moves between the two regions.

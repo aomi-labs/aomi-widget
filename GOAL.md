@@ -239,3 +239,21 @@ build`, `CI=true npx -y pnpm@10.28.0 install --frozen-lockfile`, and
   `decimals` and value chips into a single numeric metadata chip such as
   `6 decimals` with a hash icon. Verified focused interpreter Vitest coverage,
   targeted ESLint, Prettier, and registry build with pinned `pnpm@10.28.0`.
+- 2026-07-07 assistant footer icon polish: shrank the assistant response copy
+  and rerun glyphs by half while keeping their existing button hit targets.
+  Verified targeted ESLint, Prettier, and registry build with pinned
+  `pnpm@10.28.0`.
+- 2026-07-07 final-answer streaming fix: buffered no-tool assistant text while
+  the turn is still running because a later tool call can move that text into
+  the Working trace, then fake-streamed the settled final answer after completion
+  using the same path as post-tool answers. Fixed runtime turn merging so
+  tool-bearing assistant fragments still fold into one Working-trace turn, but
+  contiguous text-only assistant snapshots collapse to the latest final answer
+  instead of being glued together; kept a conservative exact duplicate collapse
+  for single-fragment `answeranswer` content, and retained a `lastCompletedAt`
+  completion marker so late-mounted final answers still fake-stream. Cleaned up
+  the intermediate UI-side fuzzy de-duping/debug scaffold so text normalization
+  is owned by the runtime. Regenerated the shadcn registry payloads and landing
+  public mirror; verified targeted ESLint, focused runtime tests, React package
+  build, widget registry build, and generated JSON guards with pinned
+  `pnpm@10.28.0`.

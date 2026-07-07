@@ -57,6 +57,33 @@ describe("mergeAssistantTurns", () => {
     expect(partTypes(merged[1]!)).toEqual(["text"]);
   });
 
+  it("collapses contiguous text-only assistant fragments to the latest answer", () => {
+    const merged = mergeAssistantTurns([
+      user("hey"),
+      assistantText(
+        "I'm connected on Base and ready. Tell me what you'd like to do.",
+      ),
+      assistantText("Hey — I'm connected on Base and ready."),
+    ]);
+
+    expect(merged).toHaveLength(2);
+    expect(merged[1]!.content).toEqual([
+      { type: "text", text: "Hey — I'm connected on Base and ready." },
+    ]);
+  });
+
+  it("collapses duplicated adjacent text inside one assistant fragment", () => {
+    const text =
+      "I'm here — connected on Base with your wallet. What would you like to do next?";
+    const merged = mergeAssistantTurns([
+      user("hey"),
+      assistantText(text + text),
+    ]);
+
+    expect(merged).toHaveLength(2);
+    expect(merged[1]!.content).toEqual([{ type: "text", text }]);
+  });
+
   it("keeps separate turns separate (bounded by user messages)", () => {
     const merged = mergeAssistantTurns([
       user("q1"),
@@ -93,14 +120,15 @@ describe("mergeAssistantTurns", () => {
     ).toBe("payment_required");
   });
 
-  it("normalizes string content when merging", () => {
+  it("keeps the latest string content for text-only fragments", () => {
     const merged = mergeAssistantTurns([
       { role: "assistant", content: "part one " },
       { role: "assistant", content: [{ type: "text", text: "part two" }] },
     ]);
 
     expect(merged).toHaveLength(1);
-    expect(partTypes(merged[0]!)).toEqual(["text", "text"]);
+    expect(partTypes(merged[0]!)).toEqual(["text"]);
+    expect(merged[0]!.content).toEqual([{ type: "text", text: "part two" }]);
   });
 
   it("returns an empty list unchanged", () => {

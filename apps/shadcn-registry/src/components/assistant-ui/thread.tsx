@@ -434,7 +434,7 @@ const AssistantActionBar: FC = () => {
             <CheckIcon />
           </MessagePrimitive.If>
           <MessagePrimitive.If copied={false}>
-            <CopyIcon />
+            <CopyIcon className="size-3.5" />
           </MessagePrimitive.If>
         </Button>
       </ActionBarPrimitive.Copy>
@@ -445,7 +445,7 @@ const AssistantActionBar: FC = () => {
           className="aui-button-icon size-6 rounded-xl p-1"
           aria-label="Refresh"
         >
-          <RefreshCwIcon />
+          <RefreshCwIcon className="size-3.5" />
         </Button>
       </ActionBarPrimitive.Reload>
     </ActionBarPrimitive.Root>

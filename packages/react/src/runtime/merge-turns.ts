@@ -7,11 +7,17 @@ import type { ThreadMessageLike } from "@assistant-ui/react";
  *
  * The backend emits a flat `AomiMessage[]` where each message is either text or
  * a single tool result, so `toInboundMessage` produces one `ThreadMessageLike`
- * per fragment. A turn therefore arrives as several contiguous assistant
- * messages. assistant-ui only groups parts *within* a message, so we merge the
- * contiguous run into one message whose parts are `[tool-call, …, text]`. The
- * Working-trace UI then partitions that single message into the collapsible
- * trace (tool-call / reasoning parts) and the final answer (trailing text).
+ * per fragment. A tool-using turn therefore arrives as several contiguous
+ * assistant messages. assistant-ui only groups parts *within* a message, so we
+ * merge tool-bearing runs into one message whose parts are
+ * `[tool-call, …, text]`. The Working-trace UI then partitions that single
+ * message into the collapsible trace (tool-call / reasoning parts) and the final
+ * answer (trailing text).
+ *
+ * Plain text-only runs are different: during streaming/polling the backend can
+ * leave earlier text snapshots adjacent to the settled final answer. Merging
+ * those snapshots glues duplicate replies into one bubble, so text-only runs
+ * keep only the latest assistant fragment.
  *
  * Special assistant notices (e.g. the `payment_required` gate) carry an
  * `aomiNoticeKind` and are kept standalone. User/system messages break a run.
@@ -41,6 +47,52 @@ const toContentParts = (
       : [];
   }
   return [...(content as readonly MessageContentPart[])];
+};
+
+const hasToolCallPart = (message: ThreadMessageLike): boolean =>
+  toContentParts(message.content).some(
+    (part) => (part as { type?: string }).type === "tool-call",
+  );
+
+const isTextPart = (
+  part: MessageContentPart,
+): part is MessageContentPart & { type: "text"; text: string } =>
+  (part as { type?: string }).type === "text" &&
+  typeof (part as { text?: unknown }).text === "string";
+
+const collapseExactlyRepeatedText = (text: string): string => {
+  const trimmed = text.trim();
+  for (let len = Math.floor(trimmed.length / 2); len >= 20; len--) {
+    const prefix = trimmed.slice(0, len);
+    const suffix = trimmed.slice(trimmed.length - len);
+    const middle = trimmed.slice(len, trimmed.length - len);
+    if (prefix === suffix && middle.trim().length === 0) {
+      return collapseExactlyRepeatedText(suffix);
+    }
+  }
+
+  return trimmed;
+};
+
+const normalizeTextOnlyMessage = (
+  message: ThreadMessageLike,
+): ThreadMessageLike => {
+  const parts = toContentParts(message.content);
+  if (parts.length === 0 || parts.some((part) => !isTextPart(part))) {
+    return message;
+  }
+
+  return {
+    ...message,
+    content: [
+      {
+        type: "text",
+        text: collapseExactlyRepeatedText(
+          parts.map((part) => part.text).join("\n\n"),
+        ),
+      },
+    ] as ThreadMessageLike["content"],
+  };
 };
 
 /**
@@ -80,7 +132,9 @@ export function mergeAssistantTurns(
   const flush = () => {
     if (run.length === 0) return;
     if (run.length === 1) {
-      out.push(run[0]!);
+      out.push(normalizeTextOnlyMessage(run[0]!));
+    } else if (!run.some(hasToolCallPart)) {
+      out.push(normalizeTextOnlyMessage(run[run.length - 1]!));
     } else {
       const first = run[0]!;
       const mergedContent: MessageContentPart[] = [];

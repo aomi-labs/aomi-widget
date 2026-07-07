@@ -272,9 +272,26 @@ a shimmer tweak in `src/themes/default.css` (no backend/runtime change):
   ease-out synthetic typewriter (`FakeStreamedText`); both the fake-stream and the
   entrance are gated on `liveTurn` (a `liveTurnRef` in `AssistantTurnParts`) so a
   loaded/completed turn renders the answer in full with no replay.
-- Verified: widget-lib tsc + eslint clean (only 2 pre-existing unrelated
-  `aomi-backend-runtime.test.ts` errors). Not yet eyeballed on a live
-  tool-calling turn (needs backend + funded wallet).
+- Plain replies (no tool calls) buffer while the turn is still running, because
+  text before the first tool call is provisional and may move into the Working
+  trace if a tool arrives later. If no tool arrives, the settled final answer
+  fake-streams through `FakeStreamedText` after completion, matching post-tool
+  answer behavior without the pre-tool text jumping.
+- Runtime turn merging only folds assistant runs that contain tool-call parts.
+  Contiguous text-only assistant fragments are treated as backend streaming
+  snapshots and collapse to the latest fragment, preventing duplicate replies
+  such as `...?Hey — ...` from being glued into one final bubble.
+- Text finalization also conservatively collapses a single text fragment that
+  already contains the same answer twice back-to-back, records
+  `control.lastCompletedAt` when a turn settles so late-mounted answers can
+  fake-stream, and keeps final-answer text normalization in the runtime instead
+  of duplicating fuzzy UI-side cleanup.
+- The generated assistant-thread registry payload and landing `/r` mirror were
+  refreshed so installed/served widgets get the same final-answer reveal branch.
+- Verified: focused React runtime/chat Vitest coverage, targeted ESLint, React
+  package build, widget registry build, and generated assistant-thread payload
+  guards with pinned `pnpm@10.28.0`. Not yet eyeballed on a live tool-calling
+  turn (needs backend + funded wallet).
 
 ### Auth docs cleanup pass (2026-07-02)
 
@@ -330,7 +347,7 @@ load until a manual page refresh.
 
 - **Root cause:** the thread-list effect in
   `packages/react/src/runtime/user-state-provider.tsx` fires when `isConnected`
-  flips true, but `isConnected` is forwarded from wallet *connection*
+  flips true, but `isConnected` is forwarded from wallet _connection_
   (`apps/registry/.../wallet-kit/context.tsx` -> `identity.isConnected`), which
   lands before the SIWE/provider sign-in writes the BetterAuth `better-auth.session_token`
   cookie. On the portal every `/api/*` call is same-origin through the BFF proxy

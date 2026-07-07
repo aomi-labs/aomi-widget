@@ -1696,6 +1696,38 @@ var toContentParts = (content) => {
   }
   return [...content];
 };
+var hasToolCallPart = (message) => toContentParts(message.content).some(
+  (part) => part.type === "tool-call"
+);
+var isTextPart = (part) => part.type === "text" && typeof part.text === "string";
+var collapseExactlyRepeatedText = (text) => {
+  const trimmed = text.trim();
+  for (let len = Math.floor(trimmed.length / 2); len >= 20; len--) {
+    const prefix = trimmed.slice(0, len);
+    const suffix = trimmed.slice(trimmed.length - len);
+    const middle = trimmed.slice(len, trimmed.length - len);
+    if (prefix === suffix && middle.trim().length === 0) {
+      return collapseExactlyRepeatedText(suffix);
+    }
+  }
+  return trimmed;
+};
+var normalizeTextOnlyMessage = (message) => {
+  const parts = toContentParts(message.content);
+  if (parts.length === 0 || parts.some((part) => !isTextPart(part))) {
+    return message;
+  }
+  return __spreadProps(__spreadValues({}, message), {
+    content: [
+      {
+        type: "text",
+        text: collapseExactlyRepeatedText(
+          parts.map((part) => part.text).join("\n\n")
+        )
+      }
+    ]
+  });
+};
 var reindexToolCallIds = (message, messageIndex) => {
   if (typeof message.content === "string") return message;
   let changed = false;
@@ -1714,7 +1746,9 @@ function mergeAssistantTurns(messages) {
   const flush = () => {
     if (run.length === 0) return;
     if (run.length === 1) {
-      out.push(run[0]);
+      out.push(normalizeTextOnlyMessage(run[0]));
+    } else if (!run.some(hasToolCallPart)) {
+      out.push(normalizeTextOnlyMessage(run[run.length - 1]));
     } else {
       const first = run[0];
       const mergedContent = [];
@@ -1809,13 +1843,15 @@ var updateOptimisticMessage = (threadContext, threadId, messageId, status, error
     threadContext.setThreadMessages(threadId, nextMessages);
   }
 };
-var updateTurnPhase = (threadContext, threadId, turnPhase) => {
+var updateTurnPhase = (threadContext, threadId, turnPhase, options) => {
   const metadata = threadContext.getThreadMetadata(threadId);
-  if (!metadata || metadata.control.turnPhase === turnPhase) return;
+  if (!metadata || metadata.control.turnPhase === turnPhase && !(options == null ? void 0 : options.completed)) {
+    return;
+  }
   threadContext.updateThreadMetadata(threadId, {
-    control: __spreadProps(__spreadValues({}, metadata.control), {
+    control: __spreadValues(__spreadProps(__spreadValues({}, metadata.control), {
       turnPhase
-    })
+    }), (options == null ? void 0 : options.completed) ? { lastCompletedAt: Date.now() } : null)
   });
 };
 var appendPaymentRequiredMessage = (threadContext, threadId) => {
@@ -1957,7 +1993,9 @@ function useRuntimeOrchestrator(aomiClient, options) {
       );
       cleanups.push(
         session.on("processing_end", () => {
-          updateTurnPhase(threadContextRef.current, threadId, "idle");
+          updateTurnPhase(threadContextRef.current, threadId, "idle", {
+            completed: true
+          });
           if (threadContextRef.current.currentThreadId === threadId) {
             setIsRunning(false);
           }
@@ -2104,7 +2142,9 @@ function useRuntimeOrchestrator(aomiClient, options) {
         });
         (_d = (_c = optionsRef.current).onSendSuccess) == null ? void 0 : _d.call(_c, threadId);
         if (!session.getIsProcessing()) {
-          updateTurnPhase(threadContextRef.current, threadId, "idle");
+          updateTurnPhase(threadContextRef.current, threadId, "idle", {
+            completed: true
+          });
         }
         if (threadContextRef.current.currentThreadId === threadId) {
           setIsRunning(session.getIsProcessing());
