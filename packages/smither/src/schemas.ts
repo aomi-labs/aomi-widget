@@ -78,6 +78,15 @@ export const smitherSchemas = {
     notes: z.string().default(""),
     transcript: z.string().default(""),
   }),
+  /** Payload of an external signal that resolves a wait-external pause. The
+   *  Signal validates the incoming payload against this schema, so it doubles
+   *  as the wait-external output row. `ready:false` lets an outside system
+   *  report the work was abandoned. */
+  external: z.object({
+    ready: z.boolean(),
+    note: z.string().default(""),
+    receivedBy: z.string().default(""),
+  }),
   result: z.object({
     status: z.enum(["complete", "deploy-denied", "blocked"]),
     summary: z.string(),
@@ -95,6 +104,7 @@ export type GateRow = z.infer<SmitherSchemas["gate"]>;
 export type ClarifyRow = z.infer<SmitherSchemas["clarify"]>;
 export type AgentWorkRow = z.infer<SmitherSchemas["agentWork"]>;
 export type EvaluationRow = z.infer<SmitherSchemas["evaluation"]>;
+export type ExternalRow = z.infer<SmitherSchemas["external"]>;
 export type DeploymentRow = z.infer<SmitherSchemas["deployment"]>;
 export type ResultRow = z.infer<SmitherSchemas["result"]>;
 

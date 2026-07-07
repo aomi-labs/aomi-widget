@@ -1,5 +1,7 @@
+import path from "node:path";
 import { describe, expect, it } from "vitest";
 import {
+  agentSpecsFor,
   buildPlanSchema,
   describePlan,
   finalizePlan,
@@ -303,5 +305,67 @@ describe("stage 2 — eval, loops, parallel", () => {
     });
     expect(outcome.plan).toBeNull();
     expect(outcome.issues.join(" ")).toMatch(/duplicate id "dup"/);
+  });
+});
+
+describe("stage 3 — wait-external + cross-repo agents", () => {
+  const base = { app: "gamefi", sdkRoot: "/tmp/sdk", builder: "claude" as const };
+
+  const gamefi = () =>
+    buildPlanSchema.parse({
+      ...base,
+      userStory: "A GameFi companion around the player's game + on-chain state",
+      phases: [
+        { kind: "agent", id: "design-apis", role: "design", repo: "/tmp/game-engine", brief: "companion endpoints" },
+        { kind: "gate", id: "review-design", title: "Approve the proposed game-server APIs?" },
+        { kind: "wait-external", id: "await-apis", waitingFor: "the game server ships the APIs", timeoutHours: 168 },
+        { kind: "compute", id: "binaries", op: "binaries" },
+        { kind: "compute", id: "codegen", op: "codegen" },
+        { kind: "agent", id: "curate", role: "curate" },
+        { kind: "eval", id: "integration", scenario: "ask about my loadout", rubric: "calls the game API", threshold: 0.7 },
+      ],
+    });
+
+  it("composes the GameFi cross-stack shape (design → gate → wait-external → build → eval)", () => {
+    const stages = stagesFor(gamefi());
+    expect(stages.map((s) => s.id)).toEqual([
+      "gamefi:design-apis",
+      "gamefi:review-design",
+      "gamefi:await-apis",
+      "gamefi:binaries",
+      "gamefi:codegen",
+      "gamefi:curate",
+      "gamefi:integration",
+      "gamefi:result",
+    ]);
+    expect(stages.find((s) => s.id === "gamefi:await-apis")?.kind).toBe("wait-external");
+    expect(stages.find((s) => s.id === "gamefi:await-apis")?.label).toMatch(/game server ships/);
+  });
+
+  it("accepts the GameFi composition through finalize", () => {
+    expect(finalizePlan(gamefi()).plan).not.toBeNull();
+  });
+
+  it("gives a cross-repo design agent a cwd separate from SDK-checkout agents", () => {
+    const specs = agentSpecsFor(gamefi());
+    const cwds = specs.map((s) => s.cwd).sort();
+    // one claude in the game-engine repo (design), one in the SDK (curate).
+    expect(cwds).toContain(path.resolve("/tmp/game-engine"));
+    expect(cwds).toContain("/tmp/sdk");
+    expect(new Set(cwds).size).toBe(2);
+  });
+
+  it("collapses same-repo same-agent phases into one instance", () => {
+    const plan = buildPlanSchema.parse({
+      ...base,
+      phases: [
+        { kind: "compute", id: "binaries", op: "binaries" },
+        { kind: "compute", id: "codegen", op: "codegen" },
+        { kind: "agent", id: "curate", role: "curate" },
+        { kind: "agent", id: "review", role: "review", agent: "claude" },
+      ],
+    });
+    // curate + review both claude in the SDK checkout → a single instance.
+    expect(agentSpecsFor(plan)).toEqual([{ name: "claude", cwd: "/tmp/sdk" }]);
   });
 });

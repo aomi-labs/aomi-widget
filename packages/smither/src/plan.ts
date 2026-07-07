@@ -1,3 +1,4 @@
+import path from "node:path";
 import { z } from "zod";
 
 export const WORKFLOW_NAME = "aomi-app-from-scratch";
@@ -40,8 +41,8 @@ export const computeOpSchema = z.enum([
 export type ComputeOp = z.infer<typeof computeOpSchema>;
 
 /** LLM roles. curate/review/fix are the classic trio; research, draft-spec,
- *  and synthesize exist for spec-less targets (protocol research distilled
- *  into preambles/building blocks) and for drafting OpenAPI specs from docs. */
+ *  and synthesize exist for spec-less targets; design proposes an integration
+ *  (e.g. APIs to add to an external service) — typically in a cross-repo agent. */
 export const agentRoleSchema = z.enum([
   "curate",
   "review",
@@ -49,6 +50,7 @@ export const agentRoleSchema = z.enum([
   "research",
   "draft-spec",
   "synthesize",
+  "design",
 ]);
 export type AgentRole = z.infer<typeof agentRoleSchema>;
 
@@ -68,6 +70,10 @@ export const agentPhaseSchema = z.object({
   agent: z.enum(["claude", "codex"]).optional(),
   /** Composer- or human-supplied focus folded into the role prompt. */
   brief: z.string().optional(),
+  /** Run this agent in a different repo (absolute path, or relative to the
+   *  process cwd) instead of the SDK checkout — for cross-codebase work like
+   *  proposing APIs inside a game engine's repo. */
+  repo: z.string().optional(),
   /** Loop-body conditional: mount only when the latest validation is red
    *  ("prev-red") or the latest eval failed ("prev-eval-fail"). */
   onlyIf: z.enum(["prev-red", "prev-eval-fail"]).optional(),
@@ -114,6 +120,8 @@ export const evalPhaseSchema = z.object({
 });
 export type EvalPhase = z.infer<typeof evalPhaseSchema>;
 
+export type AgentPhase = z.infer<typeof agentPhaseSchema>;
+
 export const innerPhaseSchema = z.discriminatedUnion("kind", [
   computePhaseSchema,
   agentPhaseSchema,
@@ -155,6 +163,24 @@ export const parallelPhaseSchema = z.object({
   label: z.string().optional(),
 });
 
+/** A durable pause for work that happens OUTSIDE this run — a human building
+ *  the other side of an integration, an external CI, a partner's deploy. The
+ *  run parks (durably, across restarts) until a signal arrives: a human in the
+ *  TUI/console, or any external system POSTing to the console's signal
+ *  endpoint / the `aomi-smither signal` CLI. Optional deadline. */
+export const waitExternalPhaseSchema = z.object({
+  kind: z.literal("wait-external"),
+  id: phaseIdSchema,
+  /** What outside work the run is waiting on — shown in the pause UI and the
+   *  signal instructions. */
+  waitingFor: z.string().min(1),
+  /** Deadline in hours; omit to wait indefinitely. */
+  timeoutHours: z.number().positive().max(720).optional(),
+  /** On deadline: "fail" the run (default) or "continue" as if signaled. */
+  onTimeout: z.enum(["fail", "continue"]).optional(),
+  label: z.string().optional(),
+});
+
 export const phaseSchema = z.discriminatedUnion("kind", [
   computePhaseSchema,
   agentPhaseSchema,
@@ -163,8 +189,10 @@ export const phaseSchema = z.discriminatedUnion("kind", [
   evalPhaseSchema,
   loopPhaseSchema,
   parallelPhaseSchema,
+  waitExternalPhaseSchema,
 ]);
 export type Phase = z.infer<typeof phaseSchema>;
+export type WaitExternalPhase = z.infer<typeof waitExternalPhaseSchema>;
 
 // ---------------------------------------------------------------------------
 // BuildPlan
@@ -288,10 +316,12 @@ export function resolveComposition(plan: BuildPlan): Phase[] {
 }
 
 /** The inner phases a container holds (loop body / parallel branches), or the
- *  phase itself for leaves. Used to walk a composition uniformly. */
+ *  phase itself for leaves. Top-level-only phases (wait-external) hold nothing
+ *  to descend into. Used to walk a composition uniformly. */
 export function innerPhasesOf(phase: Phase): InnerPhase[] {
   if (phase.kind === "loop") return phase.body;
   if (phase.kind === "parallel") return phase.branches.flat();
+  if (phase.kind === "wait-external") return [];
   return [phase as InnerPhase];
 }
 
@@ -373,7 +403,15 @@ export function compositionIssues(plan: BuildPlan): string[] {
 export type PlanStage = {
   id: string;
   label: string;
-  kind: "compute" | "agent" | "loop" | "approval" | "clarify" | "eval" | "parallel";
+  kind:
+    | "compute"
+    | "agent"
+    | "loop"
+    | "approval"
+    | "clarify"
+    | "eval"
+    | "parallel"
+    | "wait-external";
   /** Clarify metadata rides along so every surface (TUI, browser console) can
    *  render the options without a second data path. */
   clarify?: { question: string; summary?: string; options: ClarifyOption[] };
@@ -398,12 +436,39 @@ const ROLE_LABEL: Record<AgentRole, (agent: string) => string> = {
   research: (a) => `Research protocols with ${a}`,
   "draft-spec": (a) => `Draft OpenAPI spec with ${a}`,
   synthesize: (a) => `Synthesize preambles with ${a}`,
+  design: (a) => `Design integration with ${a}`,
 };
 
 export function phaseAgent(plan: BuildPlan, phase: { role: AgentRole; agent?: "claude" | "codex" }): "claude" | "codex" {
   if (phase.agent) return phase.agent;
   if (phase.role === "review") return plan.reviewer;
   return plan.builder === "none" ? "claude" : plan.builder;
+}
+
+/** Working directory for an agent phase: its cross-repo `repo` (resolved
+ *  against the process cwd) when set, else the SDK checkout. */
+export function resolveAgentCwd(plan: BuildPlan, repo?: string): string {
+  return repo ? path.resolve(repo) : plan.sdkRoot;
+}
+
+/** The distinct (agent, cwd) pairs the workflow will instantiate — one CLI
+ *  agent per pair. Pure, so cross-repo wiring is testable without running an
+ *  agent: a `design` phase with `repo` set yields a spec whose cwd is that
+ *  repo, separate from same-named SDK-checkout agents. */
+export function agentSpecsFor(
+  plan: BuildPlan,
+): Array<{ name: "claude" | "codex"; cwd: string }> {
+  const map = new Map<string, { name: "claude" | "codex"; cwd: string }>();
+  for (const phase of resolveComposition(plan)) {
+    for (const p of innerPhasesOf(phase)) {
+      if (p.kind === "agent") {
+        const name = phaseAgent(plan, p);
+        const cwd = resolveAgentCwd(plan, p.repo);
+        map.set(`${name}::${cwd}`, { name, cwd });
+      }
+    }
+  }
+  return [...map.values()];
 }
 
 function stageLabel(plan: BuildPlan, phase: Phase | InnerPhase): string {
@@ -424,6 +489,8 @@ function stageLabel(plan: BuildPlan, phase: Phase | InnerPhase): string {
       return phase.title;
     case "eval":
       return `Eval: run scenario, judge (pass ≥ ${phase.threshold})`;
+    case "wait-external":
+      return `Wait for external: ${phase.waitingFor}`;
     case "loop": {
       if (phase.until === "eval-pass") {
         return `Run + eval, refine (up to ${phase.maxRounds - 1} rounds)`;
@@ -448,6 +515,8 @@ function stageFor(plan: BuildPlan, phase: Phase | InnerPhase, branchOf?: string)
       return { ...base, kind: "agent" };
     case "eval":
       return { ...base, kind: "eval" };
+    case "wait-external":
+      return { ...base, kind: "wait-external" };
     case "loop":
       return { ...base, kind: "loop" };
     case "gate":

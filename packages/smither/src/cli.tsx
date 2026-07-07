@@ -1058,9 +1058,55 @@ async function runConsoleCommand(argv: string[]): Promise<void> {
   }
 }
 
+/** `aomi-smither signal --app <app> --node <phaseId>` — deliver the external
+ *  signal that resolves a wait-external pause. Run from another terminal (or an
+ *  external system) once the outside work the run is parked on is done. */
+async function runSignalCommand(argv: string[]): Promise<void> {
+  const values = parseFlagMap(argv);
+  const app = stringValue(values, "app") ?? "";
+  const node = stringValue(values, "node") ?? stringValue(values, "phase") ?? "";
+  if (values.get("help") || values.get("h") || !app || !node) {
+    if (!app || !node) console.error("signal requires --app <name> and --node <phaseId>");
+    printHelp();
+    process.exitCode = app && node ? 0 : 1;
+    return;
+  }
+  try {
+    const { loadPlan } = await import("./state");
+    const { createAomiSmither } = await import("./workflow");
+    const { loadRunState, smitherDbPath } = await import("./state");
+    const runsRoot = stringValue(values, "state-root") ?? defaultRunsRoot;
+    const plan = await loadPlan(app, runsRoot);
+    const state = await loadRunState(app, runsRoot);
+    if (!plan || !state) {
+      console.error(`No run found for app "${app}" under ${runsRoot}. Start a run first.`);
+      process.exitCode = 1;
+      return;
+    }
+    // The wait-external node id is namespaced by app, same as every stage.
+    const nodeId = node.includes(":") ? node : `${app}:${node}`;
+    const api = await createAomiSmither(smitherDbPath(app, runsRoot));
+    const { sendSignal } = await import("./run");
+    await sendSignal({
+      api,
+      runId: state.runId,
+      nodeId,
+      ready: !values.get("not-ready"),
+      note: stringValue(values, "note") ?? "",
+      receivedBy: stringValue(values, "by") ?? "cli",
+    });
+    console.log(`signalled ${nodeId} (run ${state.runId}). Re-run the app to resume, or it resumes if a run is live.`);
+  } catch (error) {
+    console.error(`Failed: ${error instanceof Error ? error.message : String(error)}`);
+    process.exitCode = 1;
+  }
+}
+
 const [subcommand, ...restArgv] = process.argv.slice(2);
 if (subcommand === "console") {
   await runConsoleCommand(restArgv);
+} else if (subcommand === "signal") {
+  await runSignalCommand(restArgv);
 } else if (subcommand === "rollback") {
   const rollbackArgs = parseRollbackArgs(restArgv);
   if (rollbackArgs.help) {

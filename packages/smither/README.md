@@ -21,6 +21,9 @@ pnpm --filter @aomi-labs/smither exec aomi-smither --app my-app --deploy --dry-r
 
 # Watch an app's run from a browser while it executes in another terminal
 pnpm --filter @aomi-labs/smither exec aomi-smither console --app my-app
+
+# Resume a run parked on a wait-external pause (once the outside work is done)
+pnpm --filter @aomi-labs/smither exec aomi-smither signal --app my-app --node await-apis
 ```
 
 ## How it works
@@ -78,6 +81,19 @@ with identical node ids (existing runs resume cleanly). The vocabulary:
 - **parallel** — `branches` run concurrently (each is its own sequence); the
   composition waits for all. For independent work that doesn't write the same
   files — researching several protocols, building several venues.
+- **wait-external** — a durable pause (Smithers `<Signal>`) for work that
+  happens *outside* this run: a teammate building the other side of an
+  integration, an external CI, a partner's deploy. The run parks (status
+  `waiting-event`) and **survives restarts** until a signal keyed by the
+  phase's node id arrives — from the console signal button, `aomi-smither
+  signal --app <app> --node <phase>`, or any system POSTing the console's
+  `/signal` endpoint. Optional `timeoutHours`. (`run.ts` `sendSignal`)
+- **cross-repo agents** — any agent phase can set `repo: "<path>"` to run in a
+  *different* codebase (the workflow makes one CLI agent per distinct
+  (agent, repo)). The `design` role writes an integration `DESIGN.md` a human
+  builds the other side from. Full-stack shape: `design(repo: game-engine)` →
+  `gate` (review the design) → `wait-external` (other side shipped) →
+  codegen/curate → `eval`.
 
 `executeRunUntilSettled` (run.ts) is the approval-aware runner: the engine
 *returns* `waiting-approval` rather than blocking on it, so the runner

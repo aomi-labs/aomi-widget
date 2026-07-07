@@ -84,6 +84,19 @@ export function draftSpecPrompt(plan: BuildPlan, context?: PromptContext): strin
   );
 }
 
+export function designPrompt(plan: BuildPlan, context?: PromptContext): string {
+  return (
+    [
+      `Design the integration for "${plan.app}" in service of: ${plan.userStory}.`,
+      `You are proposing the contract between the Aomi app and an external system`,
+      `(e.g. HTTP endpoints to add to a game server). Write a concrete design to`,
+      `DESIGN.md in the current repo: the endpoints/events the Aomi side needs, their`,
+      `shapes, and what the other side's owner must implement. Be specific enough that`,
+      `a human can build the other side from it. Do not implement the other side.`,
+    ].join(" ") + contextLines(context)
+  );
+}
+
 export function synthesizePrompt(plan: BuildPlan, context?: PromptContext): string {
   return (
     [
@@ -140,6 +153,8 @@ export function rolePrompt(
       return draftSpecPrompt(plan, context);
     case "synthesize":
       return synthesizePrompt(plan, context);
+    case "design":
+      return designPrompt(plan, context);
   }
 }
 
@@ -196,6 +211,14 @@ Phase vocabulary (each: unique kebab-case "id"):
   omit onMax to hard-fail.
 - {"kind":"parallel","id","branches":[[phases],[phases],...]} — run branches concurrently. For
   independent work that doesn't write the same files, e.g. researching several protocols at once.
+- {"kind":"wait-external","id","waitingFor","timeoutHours"?} — durably PAUSE the run until an
+  outside party signals it's done (a human building the other side of an integration, an external
+  CI). Use when the app depends on work that happens outside this repo. The run survives restarts
+  while parked; a human resumes it from the console or "aomi-smither signal".
+- An agent phase may set {"repo":"<path>"} to run in a DIFFERENT codebase (e.g. propose APIs in a
+  game engine's repo). Role "design" writes an integration design (DESIGN.md) for a human to build.
+  Cross-repo/full-stack shape: design(repo:<other>) → gate(review the design) → wait-external(the
+  other side is implemented) → codegen/curate → eval → result.
 
 Omit "phases" entirely when the standard pipeline fits (spec exists or a URL is given):
 binaries → codegen → curate → validate-loop → result comes built-in from the flags.
