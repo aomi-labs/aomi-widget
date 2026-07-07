@@ -127,7 +127,7 @@ Progress:
   approval policy deterministic for clean installs. Added the missing native
   dependency build approvals to `onlyBuiltDependencies` and mirrored them as
   boolean `allowBuilds` entries for pnpm 11. Verified `pnpm --filter portal
-  build`, `CI=true npx -y pnpm@10.28.0 install --frozen-lockfile`, and
+build`, `CI=true npx -y pnpm@10.28.0 install --frozen-lockfile`, and
   `CI=true npx -y pnpm@10.28.0 --filter portal build`. Pushed commit
   `33ecda7f`; GitHub/Vercel statuses for `base`, `chat-portal`,
   `landing-page`, and `tg-mini-app` all completed successfully.
@@ -201,3 +201,30 @@ Progress:
   trace behavior, and backend operation-shape exploration. The plan separates
   unwrap, normalization, family parsing, operation facts, and presentation
   rules while preserving the current `interpretToolStep()` UI contract.
+- 2026-07-07 tool interpreter architecture implementation: split the shadcn
+  registry interpreter into the planned unwrap, normalization, ordered pipeline,
+  simple/EVM family parsers, and descriptor/chip presentation modules while
+  keeping the public `interpretToolStep()` API and current EVM golden behavior.
+  SVM remains reserved for the first real payload. Updated registry packaging
+  so installed assistant-thread components include the interpreter module tree.
+  Verified focused interpreter Vitest coverage, targeted ESLint, and registry
+  build with pinned `pnpm@10.28.0`; app-wide typecheck still reports unrelated
+  wallet-kit account runtime test fixture type drift.
+- 2026-07-07 trace chain-chip tuning: made EVM-family trace rows show a chain
+  chip whenever an explicit chain field is present, including generic
+  protocol-specific calls such as quotes/pool checks, token lookup misses,
+  native balance payloads that carry chain, ERC-20 approve/transfer calls, and
+  pending wallet approval/commit rows. Verified focused interpreter Vitest
+  coverage, targeted ESLint, Prettier, and registry build with pinned
+  `pnpm@10.28.0`.
+- 2026-07-07 trace status chip tuning: made status/outcome chips render last
+  regardless of descriptor order and replaced status color dots with neutral
+  lucide icons for queued/pending, success, failed, and revoked states. Verified
+  focused interpreter Vitest coverage, targeted ESLint, Prettier, and registry
+  build with pinned `pnpm@10.28.0`.
+- 2026-07-07 trace icon tuning: switched approval/permit action chips and
+  ERC-20 approve row icons to the clearer pencil-write icon while keeping
+  allowance on the pen-line icon, and gave skill chips a distinct puzzle-piece
+  capability icon instead of reusing the Activate skill sparkle. Verified
+  focused interpreter Vitest coverage, targeted ESLint, Prettier, and registry
+  build with pinned `pnpm@10.28.0`.

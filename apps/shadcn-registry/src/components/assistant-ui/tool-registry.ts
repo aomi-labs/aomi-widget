@@ -8,6 +8,7 @@ import {
   GlobeIcon,
   LayersIcon,
   PenLineIcon,
+  PencilLineIcon,
   SearchIcon,
   SendIcon,
   SparklesIcon,
@@ -68,7 +69,7 @@ export const EVM_SELECTOR_REGISTRY: Record<string, SelectorMeta> = {
     name: "approve",
     title: "Approve token spend",
     chip: "approve",
-    icon: PenLineIcon,
+    icon: PencilLineIcon,
     kind: "erc20_approve",
   },
   "0xdd62ed3e": {
@@ -133,7 +134,8 @@ export const TOPIC_ICON_REGISTRY: ReadonlyArray<readonly [RegExp, LucideIcon]> =
 export const STAGED_ACTION_ICON_REGISTRY: ReadonlyArray<
   readonly [RegExp, LucideIcon]
 > = [
-  [/\b(approv|allowance|permit)\b/, PenLineIcon],
+  [/\b(approv\w*|permit)\b/, PencilLineIcon],
+  [/\b(allowance)\b/, PenLineIcon],
   [/\b(swap|trade|route)\b/, ArrowRightLeftIcon],
   [/\b(transfer|send|commit|execute|submit|broadcast)\b/, SendIcon],
   [/\b(bridge)\b/, CableIcon],
