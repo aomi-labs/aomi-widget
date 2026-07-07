@@ -1761,6 +1761,7 @@ function mergeAssistantTurns(messages) {
 }
 
 // src/runtime/orchestrator.ts
+var SUBMITTING_TO_WORKING_GRACE_MS = 650;
 var toErrorMessage = (error) => error instanceof Error ? error.message : "Message failed to send";
 var getHttpStatus = (error) => {
   const status = error == null ? void 0 : error.status;
@@ -2104,6 +2105,11 @@ function useRuntimeOrchestrator(aomiClient, options) {
         lastActiveAt: (/* @__PURE__ */ new Date()).toISOString()
       });
       updateTurnPhase(threadContextRef.current, threadId, "submitting");
+      const submittingFallbackTimer = setTimeout(() => {
+        const metadata = threadContextRef.current.getThreadMetadata(threadId);
+        if ((metadata == null ? void 0 : metadata.control.turnPhase) !== "submitting") return;
+        updateTurnPhase(threadContextRef.current, threadId, "working");
+      }, SUBMITTING_TO_WORKING_GRACE_MS);
       if (threadContextRef.current.currentThreadId === threadId) {
         setIsRunning(true);
       }
@@ -2121,6 +2127,7 @@ function useRuntimeOrchestrator(aomiClient, options) {
           sessionId: session.sessionId
         });
         await session.sendAsync(text);
+        clearTimeout(submittingFallbackTimer);
         console.debug("[aomi][runtime] sendMessage sendAsync complete", {
           threadId,
           sessionId: session.sessionId,
@@ -2147,6 +2154,7 @@ function useRuntimeOrchestrator(aomiClient, options) {
           session.getPendingRequests()
         );
       } catch (error) {
+        clearTimeout(submittingFallbackTimer);
         console.error("[aomi][runtime] sendMessage failed", {
           threadId,
           messagePreview: previewText(text),

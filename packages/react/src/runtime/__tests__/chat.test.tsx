@@ -20,6 +20,7 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup();
+  vi.useRealTimers();
 });
 
 describe("Chat API", () => {
@@ -153,6 +154,54 @@ describe("Chat API", () => {
       expect(
         api.getThreadMetadata(api.currentThreadId)?.control.turnPhase,
       ).toBe("working");
+    });
+
+    it("promotes slow backend acknowledgements to working on the frontend", async () => {
+      vi.useFakeTimers();
+      let resolveChat: ((value: AomiChatResponse) => void) | undefined;
+      const postChatMessage = vi.fn(
+        () =>
+          new Promise<AomiChatResponse>((resolve) => {
+            resolveChat = resolve;
+          }),
+      );
+      setAomiClientConfig({ postChatMessage });
+
+      const { api } = renderRuntime();
+      let sendPromise: Promise<void>;
+
+      await act(async () => {
+        sendPromise = api.sendMessage("Slow backend acknowledgement");
+      });
+
+      expect(
+        api.getThreadMetadata(api.currentThreadId)?.control.turnPhase,
+      ).toBe("submitting");
+
+      await act(async () => {
+        vi.advanceTimersByTime(649);
+      });
+
+      expect(
+        api.getThreadMetadata(api.currentThreadId)?.control.turnPhase,
+      ).toBe("submitting");
+
+      await act(async () => {
+        vi.advanceTimersByTime(1);
+      });
+
+      expect(
+        api.getThreadMetadata(api.currentThreadId)?.control.turnPhase,
+      ).toBe("working");
+
+      await act(async () => {
+        resolveChat?.({ is_processing: false, messages: [] });
+        await sendPromise!;
+      });
+
+      expect(
+        api.getThreadMetadata(api.currentThreadId)?.control.turnPhase,
+      ).toBe("idle");
     });
 
     it("marks the optimistic message as failed when sending fails", async () => {

@@ -222,6 +222,17 @@ build`, `CI=true npx -y pnpm@10.28.0 install --frozen-lockfile`, and
   lucide icons for queued/pending, success, failed, and revoked states. Verified
   focused interpreter Vitest coverage, targeted ESLint, Prettier, and registry
   build with pinned `pnpm@10.28.0`.
+- 2026-07-07 frontend submitting fallback: added a React runtime grace timer so
+  slow `/api/chat` acknowledgements keep the black submitting dot only briefly
+  before promoting the visible turn to the existing Working shimmer, while
+  clearing back to idle on synchronous completion or send failure. Verified
+  focused React chat tests, targeted ESLint, and React package build with
+  pinned `pnpm@10.28.0`.
+- 2026-07-07 working shimmer timing polish: tuned the Working-label shimmer to
+  use less off-screen travel, a wider highlight band, and a steadier linear
+  sweep so it spends less time looking static and no longer flashes through as
+  quickly. Rebuilt the shadcn registry, refreshed the landing registry mirror,
+  and verified CSS formatting with pinned `pnpm@10.28.0`.
 - 2026-07-07 trace icon tuning: switched approval/permit action chips and
   ERC-20 approve row icons to the clearer pencil-write icon while keeping
   allowance on the pen-line icon, and gave skill chips a distinct puzzle-piece

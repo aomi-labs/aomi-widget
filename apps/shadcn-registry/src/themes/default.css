@@ -260,28 +260,41 @@
 
 @keyframes aui-working-sweep {
   from {
-    background-position: 160% 0;
+    background-position: 0% 0;
   }
   to {
-    background-position: -60% 0;
+    /* Shift by exactly one tile width so the tiled gradient loops with no
+       visible seam or snap. background-size is 50%, so 100% of the
+       positionable range equals one full tile. */
+    background-position: 100% 0;
   }
 }
 
-/* Shimmering "Working" label — a highlight sweeps across the text while the
-   agent is still working. Uses the theme's own foreground/muted tokens so it
-   inherits each app's palette (and dark mode) automatically. */
+/* Shimmering "Working" label — a soft highlight drifts across the text while
+   the agent is still working. Uses the theme's own foreground/muted tokens so
+   it inherits each app's palette (and dark mode) automatically.
+
+   The gradient is a single soft bump (muted → foreground peak → muted) that is
+   *tiled* twice across the text (background-size: 50%, repeat). Because the
+   image repeats, a new highlight enters from the right exactly as the previous
+   one leaves — there is never a fully-muted "dead" stretch, and the foreground
+   peak is only ever a hairline so the text never goes solid. Translating by one
+   whole tile per cycle makes the loop seamless (no snap on restart). */
 .aui-working-shimmer {
   background-image: linear-gradient(
     100deg,
-    var(--muted-foreground) 36%,
+    var(--muted-foreground) 0%,
+    var(--muted-foreground) 20%,
     var(--foreground) 50%,
-    var(--muted-foreground) 64%
+    var(--muted-foreground) 80%,
+    var(--muted-foreground) 100%
   );
-  background-size: 220% 100%;
+  background-size: 50% 100%;
+  background-repeat: repeat;
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
-  animation: aui-working-sweep 3.8s ease-in-out infinite;
+  animation: aui-working-sweep 2s linear infinite;
 }
 
 @media (prefers-reduced-motion: reduce) {

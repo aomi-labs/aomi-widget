@@ -34,6 +34,8 @@ type OrchestratorOptions = {
 
 type OptimisticSendStatus = "sending" | "sent" | "failed";
 
+const SUBMITTING_TO_WORKING_GRACE_MS = 300;
+
 const toErrorMessage = (error: unknown) =>
   error instanceof Error ? error.message : "Message failed to send";
 
@@ -467,6 +469,11 @@ export function useRuntimeOrchestrator(
         lastActiveAt: new Date().toISOString(),
       });
       updateTurnPhase(threadContextRef.current, threadId, "submitting");
+      const submittingFallbackTimer = setTimeout(() => {
+        const metadata = threadContextRef.current.getThreadMetadata(threadId);
+        if (metadata?.control.turnPhase !== "submitting") return;
+        updateTurnPhase(threadContextRef.current, threadId, "working");
+      }, SUBMITTING_TO_WORKING_GRACE_MS);
 
       // Immediately show "generating" state so the UI switches to the stop
       // button and displays a loading indicator while the message is in flight.
@@ -488,6 +495,7 @@ export function useRuntimeOrchestrator(
           sessionId: session.sessionId,
         });
         await session.sendAsync(text);
+        clearTimeout(submittingFallbackTimer);
         console.debug("[aomi][runtime] sendMessage sendAsync complete", {
           threadId,
           sessionId: session.sessionId,
@@ -513,6 +521,7 @@ export function useRuntimeOrchestrator(
           session.getPendingRequests(),
         );
       } catch (error) {
+        clearTimeout(submittingFallbackTimer);
         console.error("[aomi][runtime] sendMessage failed", {
           threadId,
           messagePreview: previewText(text),
