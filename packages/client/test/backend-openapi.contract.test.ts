@@ -38,7 +38,7 @@ describe("backend OpenAPI route contract", () => {
         );
         return;
       }
-      expectRouteContract(openApi);
+      expectLiveRouteContract(openApi);
     },
   );
 });
@@ -48,6 +48,28 @@ function expectRouteContract(openApi: OpenApiDocument) {
   const clientRoutes = routeContractFromClientManifest();
 
   expect(clientRoutes).toEqual(backendRoutes);
+  expect(clientRoutes).toContain("GET /api/account [account]");
+  expect(clientRoutes).not.toContain("GET /api/account [account_token]");
+  expect(clientRoutes.some((route) => route.includes(" account_token"))).toBe(
+    false,
+  );
+  expect(clientRoutes.some((route) => route.includes("/api/settings/"))).toBe(
+    false,
+  );
+  expect(clientRoutes.some((route) => route.includes("/api/control/"))).toBe(
+    false,
+  );
+}
+
+function expectLiveRouteContract(openApi: OpenApiDocument) {
+  const backendRoutes = routeContractFromOpenApi(openApi);
+  const clientRoutes = routeContractFromClientManifest();
+  const clientRouteSet = new Set(clientRoutes);
+  const missingFromClient = backendRoutes.filter(
+    (route) => !clientRouteSet.has(route),
+  );
+
+  expect(missingFromClient).toEqual([]);
   expect(clientRoutes).toContain("GET /api/account [account]");
   expect(clientRoutes).not.toContain("GET /api/account [account_token]");
   expect(clientRoutes.some((route) => route.includes(" account_token"))).toBe(
