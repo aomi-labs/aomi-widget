@@ -40,8 +40,8 @@ vi.mock("@aomi-labs/react", () => ({
   useAomiRuntime: () => runtimeState,
 }));
 
-vi.mock("../lib/auth-adapter", () => ({
-  useAomiAuthAdapter: () => authState,
+vi.mock("../lib/wallet-kit", () => ({
+  useAomiWalletKit: () => authState,
 }));
 
 import { RuntimeTxHandler } from "./runtime-tx-handler";

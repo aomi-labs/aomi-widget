@@ -11,6 +11,8 @@ const ROOT_SUBCOMMANDS = new Set([
   "app",
   "chain",
   "wallet",
+  "account",
+  "logout",
   "config",
   "secret",
   "account",
@@ -101,11 +103,14 @@ function printRootHelp(): void {
   console.log("  app                          App management");
   console.log("  chain                        Chain information");
   console.log("  wallet                       Wallet configuration");
+  console.log(
+    "  account                      Account login and link management",
+  );
+  console.log(
+    "  logout                       Sign out and clear the CLI auth session",
+  );
   console.log("  config                       CLI configuration");
   console.log("  secret                       Secret management");
-  console.log(
-    "  account                      Account identity (login, whoami)",
-  );
   console.log(
     "  deploy                       Deploy your app (requires --activation-token)",
   );

@@ -46,7 +46,10 @@ describe("Chat API", () => {
       const call = postChatMessage.mock.calls[0] as unknown as [
         string,
         string,
-        { userState?: Record<string, unknown> } | undefined,
+        {
+          applicationId?: number | string | null;
+          userState?: Record<string, unknown>;
+        } | undefined,
       ];
       expect(call[1]).toBe("Hello world");
     });
@@ -202,6 +205,9 @@ describe("Chat API", () => {
         "auto-model",
         expect.objectContaining({ app: "default" }),
       );
+      expect(createThread.mock.invocationCallOrder[0]).toBeLessThan(
+        setModel.mock.invocationCallOrder[0],
+      );
       expect(setModel.mock.invocationCallOrder[0]).toBeLessThan(
         postChatMessage.mock.invocationCallOrder[0],
       );
@@ -209,6 +215,9 @@ describe("Chat API", () => {
     });
 
     it("syncs dirty control state before the first message on a new thread", async () => {
+      const createThread = vi.fn(async (threadId: string) => ({
+        session_id: threadId,
+      }));
       const setModel = vi.fn(async () => ({ rig: "auto-model" }));
       const postChatMessage = vi.fn(
         async (): Promise<AomiChatResponse> => ({
@@ -217,6 +226,7 @@ describe("Chat API", () => {
         }),
       );
       setAomiClientConfig({
+        createThread,
         getModels: vi.fn(async () => ["auto-model"]),
         setModel,
         postChatMessage,
@@ -244,6 +254,9 @@ describe("Chat API", () => {
         expect.objectContaining({ app: "default" }),
       );
       expect(postChatMessage).toHaveBeenCalled();
+      expect(createThread.mock.invocationCallOrder[0]).toBeLessThan(
+        setModel.mock.invocationCallOrder[0],
+      );
       expect(setModel.mock.invocationCallOrder[0]).toBeLessThan(
         postChatMessage.mock.invocationCallOrder[0],
       );
@@ -283,7 +296,7 @@ describe("Chat API", () => {
       );
     });
 
-    it("sends a Solana-only chat through user_state", async () => {
+    it("sends a Solana-only chat without legacy public_key bootstrap", async () => {
       const ensureAccount = vi.fn(async () => undefined);
       const createThread = vi.fn(async (threadId: string) => ({
         session_id: threadId,
@@ -300,7 +313,7 @@ describe("Chat API", () => {
 
       await act(async () => {
         api.setUser({
-          connection: { is_connected: true },
+          connection: { is_connected: true, primary_family: "svm" },
           svm: {
             address: "So1anaCaseSensitiveSigner",
             cluster: "solana:mainnet",
@@ -464,12 +477,7 @@ describe("Chat API", () => {
       const call = postChatMessage.mock.calls[0] as unknown as [
         string,
         string,
-        (
-          | {
-              userState?: Record<string, unknown>;
-            }
-          | undefined
-        ),
+        { userState?: Record<string, unknown> } | undefined,
       ];
 
       expect(call[2]?.userState).toMatchObject({

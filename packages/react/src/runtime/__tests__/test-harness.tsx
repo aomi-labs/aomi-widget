@@ -26,7 +26,10 @@ export type AomiClientConfig = {
     sessionId: string,
     userState?: Record<string, unknown>,
   ) => Promise<AomiStateResponse>;
-  createThread?: (threadId: string) => Promise<AomiCreateThreadResponse>;
+  createThread?: (
+    threadId: string,
+    publicKey?: string,
+  ) => Promise<AomiCreateThreadResponse>;
   sendMessage?: (
     sessionId: string,
     message: string,
@@ -34,7 +37,9 @@ export type AomiClientConfig = {
       app?: string;
       applicationId?: number | string | null;
       apiKey?: string;
+      clientId?: string;
       userState?: Record<string, unknown>;
+      clientId?: string;
     },
   ) => Promise<AomiChatResponse>;
   sendSystemMessage?: (
@@ -67,7 +72,7 @@ export type AomiClientConfig = {
   ) => Promise<{ rig: string; app?: string }>;
 
   // Legacy aliases (so existing tests keep working without changes)
-  fetchThreads?: () => Promise<AomiThread[]>;
+  fetchThreads?: (publicKey?: string) => Promise<AomiThread[]>;
   postChatMessage?: (
     sessionId: string,
     message: string,
@@ -76,6 +81,7 @@ export type AomiClientConfig = {
       applicationId?: number | string | null;
       apiKey?: string;
       userState?: Record<string, unknown>;
+      clientId?: string;
     },
   ) => Promise<AomiChatResponse>;
   postSystemMessage?: (
@@ -138,6 +144,7 @@ vi.mock("@aomi-labs/client", async (importOriginal) => {
       userState?: Record<string, unknown> | null,
     ) => Record<string, unknown> | undefined;
     address: (userState?: Record<string, unknown> | null) => string | undefined;
+    chainId: (userState?: Record<string, unknown> | null) => number | undefined;
     isConnected: (
       userState?: Record<string, unknown> | null,
     ) => boolean | undefined;
@@ -185,7 +192,9 @@ vi.mock("@aomi-labs/client", async (importOriginal) => {
           app?: string;
           applicationId?: number | string | null;
           apiKey?: string;
+          clientId?: string;
           userState?: Record<string, unknown>;
+          clientId?: string;
         },
       ) => {
         const fn =

@@ -22,12 +22,13 @@ import {
   type WalletRequestKind,
   type WalletRequestResult,
 } from "@aomi-labs/react";
-import { LandingParaProvider } from "../../app/components/landing-para-provider";
 import { RuntimeTxHandler } from "../../../shadcn-registry/src/components/runtime-tx-handler";
 import {
-  useAomiAuthAdapter,
-  type AomiAuthAdapter,
-} from "../../../shadcn-registry/src/lib/auth-adapter";
+  AomiWalletKitProvider,
+  useAomiWalletKit,
+  type AomiWalletKit,
+} from "../../../shadcn-registry/src/lib/wallet-kit";
+import { registerAomiParaWalletProvider } from "@aomi-labs/widget-lib/providers/para";
 
 type DriverMode =
   | "sign"
@@ -49,6 +50,20 @@ const DRIVER_RPC_URL =
   process.env.NEXT_PUBLIC_SOLANA_RPC_URL?.trim() ||
   "https://api.devnet.solana.com";
 const PARA_API_KEY = process.env.NEXT_PUBLIC_PARA_API_KEY?.trim();
+const PARA_ENVIRONMENT =
+  process.env.NEXT_PUBLIC_PARA_ENVIRONMENT === "PROD" ? "PROD" : "BETA";
+const PARA_SOLANA_NETWORKS = [
+  {
+    id: "solana-devnet",
+    label: "Solana Devnet",
+    cluster: DRIVER_CLUSTER,
+    rpcHttpUrl: DRIVER_RPC_URL,
+    rpcWsUrl: process.env.NEXT_PUBLIC_SOLANA_RPC_WS_URL,
+    isDefault: true,
+  },
+] as const;
+
+registerAomiParaWalletProvider();
 
 function encodeBase64(bytes: Uint8Array): string {
   if (typeof Buffer !== "undefined") {
@@ -127,13 +142,21 @@ function getRequestKindForMode(mode: DriverMode): Extract<
 }
 
 function identityToUserState(
-  adapter: AomiAuthAdapter,
+  adapter: AomiWalletKit,
 ): UserStateShape {
   const identity = adapter.identity;
 
   return {
     connection: {
       is_connected: identity.isConnected,
+      primary_family:
+        identity.address && identity.svmAddress
+          ? "dual"
+          : identity.address
+            ? "evm"
+            : identity.svmAddress
+              ? "svm"
+              : null,
       provider: "para",
       provider_label: identity.secondaryLabel ?? undefined,
     },
@@ -170,7 +193,7 @@ function identityToUserState(
 
 function ParaSolanaRuntimeDriverInner() {
   const searchParams = useSearchParams();
-  const adapter = useAomiAuthAdapter();
+  const adapter = useAomiWalletKit();
   const connection = useMemo(
     () => new Connection(DRIVER_RPC_URL, "confirmed"),
     [],
@@ -232,6 +255,7 @@ function ParaSolanaRuntimeDriverInner() {
       onUserStateChange: () => () => undefined,
       currentThreadId: DRIVER_SESSION_ID,
       threadViewKey: 0,
+      threadListError: false,
       threadMetadata: new Map(),
       getThreadMetadata: () => undefined,
       createThread: async () => DRIVER_SESSION_ID,
@@ -625,8 +649,26 @@ function ParaSolanaRuntimeDriverInner() {
 
 export function ParaSolanaRuntimeDriver() {
   return (
-    <LandingParaProvider>
+    <AomiWalletKitProvider
+      auth={{ provider: "para", methods: ["google", "wallet"] }}
+      providers={{
+        para: {
+          apiKey: PARA_API_KEY,
+          environment: PARA_ENVIRONMENT,
+          appName: "Aomi Labs",
+          appDescription: "Aomi Para Solana runtime driver",
+        },
+      }}
+      wallets={{
+        evm: false,
+        solana: {
+          networks: PARA_SOLANA_NETWORKS,
+          preferDirectSend: true,
+        },
+      }}
+      execution={{ aa: "off" }}
+    >
       <ParaSolanaRuntimeDriverInner />
-    </LandingParaProvider>
+    </AomiWalletKitProvider>
   );
 }

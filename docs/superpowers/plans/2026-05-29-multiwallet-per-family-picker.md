@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Add a per-family multi-account wallet registry (one active EVM + one active Solana account, switchable) to the Para auth adapter, fix the SOL→EVM display loss + Para-re-popup + persistence bugs, and surface it through a ported, polished picker modal.
+**Goal:** Add a per-family multi-account wallet registry (one active EVM + one active Solana account, switchable) to the Para wallet kit, fix the SOL→EVM display loss + Para-re-popup + persistence bugs, and surface it through a ported, polished picker modal.
 
 **Architecture:** The adapter (`providers/para.tsx`) derives an `accounts: AomiAccount[]` registry from wagmi `useConnections()` (EVM) + the Solana wallet-adapter (single-active), tagging each account `evm`/`solana`. Pure helpers (`accounts.ts`, `persistence.ts`) hold the testable logic. The picker modal (ported from `origin/multiple-wallet-providers`) renders provider rows on top and two family sections below, with the inactive family greyed. Backend contract is unchanged — `identity.address`/`svmAddress` stay as "active per family".
 
@@ -20,20 +20,20 @@
 
 | File | Responsibility | Action |
 | --- | --- | --- |
-| `apps/registry/src/lib/aomi-auth-adapter/types.ts` | `AomiAccount` type + adapter interface additions | Modify |
-| `apps/registry/src/lib/aomi-auth-adapter/accounts.ts` | Pure helpers: `buildAccounts`, `isAccountSelectable` | Create |
-| `apps/registry/src/lib/aomi-auth-adapter/accounts.test.ts` | Unit tests for account helpers | Create |
-| `apps/registry/src/lib/aomi-auth-adapter/persistence.ts` | localStorage read/write for wallet preferences | Create |
-| `apps/registry/src/lib/aomi-auth-adapter/persistence.test.ts` | Unit tests for persistence | Create |
-| `apps/registry/src/lib/aomi-auth-adapter/network-preferences.tsx` | Add persistence + `storageKey` prop | Modify |
-| `apps/registry/src/lib/aomi-auth-adapter/safe-wagmi-hooks.ts` | Add `useSafeConnections`, `useSafeSwitchAccount` | Modify |
-| `apps/registry/src/lib/aomi-auth-adapter/context.tsx` | Default `accounts`/`selectAccount` on disconnected adapter | Modify |
-| `apps/registry/src/lib/aomi-auth-adapter/providers/para.tsx` | Build `accounts`, `selectAccount`, per-account disconnect, EVM-connect guard | Modify |
+| `apps/registry/src/lib/wallet-kit/types.ts` | `AomiAccount` type + adapter interface additions | Modify |
+| `apps/registry/src/lib/wallet-kit/accounts.ts` | Pure helpers: `buildAccounts`, `isAccountSelectable` | Create |
+| `apps/registry/src/lib/wallet-kit/accounts.test.ts` | Unit tests for account helpers | Create |
+| `apps/registry/src/lib/wallet-kit/persistence.ts` | localStorage read/write for wallet preferences | Create |
+| `apps/registry/src/lib/wallet-kit/persistence.test.ts` | Unit tests for persistence | Create |
+| `apps/registry/src/lib/wallet-kit/network-preferences.tsx` | Add persistence + `storageKey` prop | Modify |
+| `apps/registry/src/lib/wallet-kit/safe-wagmi-hooks.ts` | Add `useSafeConnections`, `useSafeSwitchAccount` | Modify |
+| `apps/registry/src/lib/wallet-kit/context.tsx` | Default `accounts`/`selectAccount` on disconnected adapter | Modify |
+| `apps/registry/src/lib/wallet-kit/providers/para.tsx` | Build `accounts`, `selectAccount`, per-account disconnect, EVM-connect guard | Modify |
 | `apps/registry/src/components/control-bar/wallet-picker-context.tsx` | Picker open/close state + provider list | Create (ported) |
 | `apps/registry/src/components/control-bar/wallet-picker.tsx` | Picker modal: provider rows + family sections | Create (ported + extended) |
 | `apps/registry/src/components/control-bar/wallet-picker.test.tsx` | Picker component test | Create |
 | `apps/registry/src/components/control-bar/dual-wallet-bar.tsx` | Becomes the trigger that opens the picker | Modify |
-| `apps/registry/src/lib/aomi-auth-adapter/index.ts` | Export new modules | Modify |
+| `apps/registry/src/lib/wallet-kit/index.ts` | Export new modules | Modify |
 
 `wallet-family-slot.tsx` is deleted in Task 9 once the picker covers its role.
 
@@ -42,9 +42,9 @@
 ## Task 1: `AomiAccount` type + account helpers
 
 **Files:**
-- Modify: `apps/registry/src/lib/aomi-auth-adapter/types.ts`
-- Create: `apps/registry/src/lib/aomi-auth-adapter/accounts.ts`
-- Test: `apps/registry/src/lib/aomi-auth-adapter/accounts.test.ts`
+- Modify: `apps/registry/src/lib/wallet-kit/types.ts`
+- Create: `apps/registry/src/lib/wallet-kit/accounts.ts`
+- Test: `apps/registry/src/lib/wallet-kit/accounts.test.ts`
 
 - [ ] **Step 1: Add the `AomiAccount` type and adapter fields to `types.ts`**
 
@@ -70,7 +70,7 @@ export type AomiAccount = {
 };
 ```
 
-Then inside the `AomiAuthAdapter` type, add these members (next to `solanaWallets`):
+Then inside the `AomiWalletKit` type, add these members (next to `solanaWallets`):
 
 ```ts
   /** All wallet accounts known to the adapter, tagged by family. */
@@ -91,7 +91,7 @@ And change the existing `disconnect` signature to add a per-account option:
 
 - [ ] **Step 2: Write the failing test**
 
-Create `apps/registry/src/lib/aomi-auth-adapter/accounts.test.ts`:
+Create `apps/registry/src/lib/wallet-kit/accounts.test.ts`:
 
 ```ts
 import { describe, expect, it } from "vitest";
@@ -149,12 +149,12 @@ describe("isAccountSelectable", () => {
 
 - [ ] **Step 3: Run test to verify it fails**
 
-Run: `cd apps/registry && npx vitest run src/lib/aomi-auth-adapter/accounts.test.ts`
+Run: `cd apps/registry && npx vitest run src/lib/wallet-kit/accounts.test.ts`
 Expected: FAIL — cannot find module `./accounts`.
 
 - [ ] **Step 4: Write minimal implementation**
 
-Create `apps/registry/src/lib/aomi-auth-adapter/accounts.ts`:
+Create `apps/registry/src/lib/wallet-kit/accounts.ts`:
 
 ```ts
 import { formatAddress } from "./identity";
@@ -210,15 +210,15 @@ export function isAccountSelectable(
 
 - [ ] **Step 5: Run test to verify it passes**
 
-Run: `cd apps/registry && npx vitest run src/lib/aomi-auth-adapter/accounts.test.ts`
+Run: `cd apps/registry && npx vitest run src/lib/wallet-kit/accounts.test.ts`
 Expected: PASS (5 tests).
 
 - [ ] **Step 6: Commit**
 
 ```bash
-git add apps/registry/src/lib/aomi-auth-adapter/types.ts \
-  apps/registry/src/lib/aomi-auth-adapter/accounts.ts \
-  apps/registry/src/lib/aomi-auth-adapter/accounts.test.ts
+git add apps/registry/src/lib/wallet-kit/types.ts \
+  apps/registry/src/lib/wallet-kit/accounts.ts \
+  apps/registry/src/lib/wallet-kit/accounts.test.ts
 git commit -m "feat(adapter): add AomiAccount type and account-registry helpers"
 ```
 
@@ -227,12 +227,12 @@ git commit -m "feat(adapter): add AomiAccount type and account-registry helpers"
 ## Task 2: Wallet preferences persistence helper
 
 **Files:**
-- Create: `apps/registry/src/lib/aomi-auth-adapter/persistence.ts`
-- Test: `apps/registry/src/lib/aomi-auth-adapter/persistence.test.ts`
+- Create: `apps/registry/src/lib/wallet-kit/persistence.ts`
+- Test: `apps/registry/src/lib/wallet-kit/persistence.test.ts`
 
 - [ ] **Step 1: Write the failing test**
 
-Create `apps/registry/src/lib/aomi-auth-adapter/persistence.test.ts`:
+Create `apps/registry/src/lib/wallet-kit/persistence.test.ts`:
 
 ```ts
 import { afterEach, describe, expect, it } from "vitest";
@@ -274,12 +274,12 @@ describe("wallet preferences persistence", () => {
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `cd apps/registry && npx vitest run src/lib/aomi-auth-adapter/persistence.test.ts`
+Run: `cd apps/registry && npx vitest run src/lib/wallet-kit/persistence.test.ts`
 Expected: FAIL — cannot find module `./persistence`.
 
 - [ ] **Step 3: Write minimal implementation**
 
-Create `apps/registry/src/lib/aomi-auth-adapter/persistence.ts`:
+Create `apps/registry/src/lib/wallet-kit/persistence.ts`:
 
 ```ts
 import type { WalletFamily } from "./types";
@@ -322,14 +322,14 @@ export function saveWalletPreferences(
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `cd apps/registry && npx vitest run src/lib/aomi-auth-adapter/persistence.test.ts`
+Run: `cd apps/registry && npx vitest run src/lib/wallet-kit/persistence.test.ts`
 Expected: PASS (4 tests).
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add apps/registry/src/lib/aomi-auth-adapter/persistence.ts \
-  apps/registry/src/lib/aomi-auth-adapter/persistence.test.ts
+git add apps/registry/src/lib/wallet-kit/persistence.ts \
+  apps/registry/src/lib/wallet-kit/persistence.test.ts
 git commit -m "feat(adapter): add wallet preferences persistence helper"
 ```
 
@@ -338,12 +338,12 @@ git commit -m "feat(adapter): add wallet preferences persistence helper"
 ## Task 3: Wire persistence into network-preferences
 
 **Files:**
-- Modify: `apps/registry/src/lib/aomi-auth-adapter/network-preferences.tsx`
-- Test: `apps/registry/src/lib/aomi-auth-adapter/network-preferences.test.tsx` (create)
+- Modify: `apps/registry/src/lib/wallet-kit/network-preferences.tsx`
+- Test: `apps/registry/src/lib/wallet-kit/network-preferences.test.tsx` (create)
 
 - [ ] **Step 1: Write the failing test**
 
-Create `apps/registry/src/lib/aomi-auth-adapter/network-preferences.test.tsx`:
+Create `apps/registry/src/lib/wallet-kit/network-preferences.test.tsx`:
 
 ```tsx
 import { afterEach, describe, expect, it } from "vitest";
@@ -403,7 +403,7 @@ describe("network preferences persistence", () => {
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `cd apps/registry && npx vitest run src/lib/aomi-auth-adapter/network-preferences.test.tsx`
+Run: `cd apps/registry && npx vitest run src/lib/wallet-kit/network-preferences.test.tsx`
 Expected: FAIL — `storageKey` prop not accepted / selections not restored.
 
 - [ ] **Step 3: Implement persistence in `network-preferences.tsx`**
@@ -476,12 +476,12 @@ Add a persistence effect after the existing effects (before the `selectedSolanaN
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `cd apps/registry && npx vitest run src/lib/aomi-auth-adapter/network-preferences.test.tsx`
+Run: `cd apps/registry && npx vitest run src/lib/wallet-kit/network-preferences.test.tsx`
 Expected: PASS (1 test).
 
 - [ ] **Step 5: Pass `storageKey` from the Para provider**
 
-In `apps/registry/src/lib/aomi-auth-adapter/providers/para.tsx`, find the `AomiWalletNetworkPreferencesProvider` usage at the bottom (`AomiParaProvider`) and add the prop:
+In `apps/registry/src/lib/wallet-kit/providers/para.tsx`, find the `AomiWalletNetworkPreferencesProvider` usage at the bottom (`AomiParaProvider`) and add the prop:
 
 ```tsx
     <AomiWalletNetworkPreferencesProvider
@@ -493,13 +493,13 @@ In `apps/registry/src/lib/aomi-auth-adapter/providers/para.tsx`, find the `AomiW
 
 - [ ] **Step 6: Verify the wider suite still passes + commit**
 
-Run: `cd apps/registry && npx vitest run src/lib/aomi-auth-adapter/`
+Run: `cd apps/registry && npx vitest run src/lib/wallet-kit/`
 Expected: PASS (all adapter tests).
 
 ```bash
-git add apps/registry/src/lib/aomi-auth-adapter/network-preferences.tsx \
-  apps/registry/src/lib/aomi-auth-adapter/network-preferences.test.tsx \
-  apps/registry/src/lib/aomi-auth-adapter/providers/para.tsx
+git add apps/registry/src/lib/wallet-kit/network-preferences.tsx \
+  apps/registry/src/lib/wallet-kit/network-preferences.test.tsx \
+  apps/registry/src/lib/wallet-kit/providers/para.tsx
 git commit -m "feat(adapter): persist network/family selection to localStorage"
 ```
 
@@ -508,7 +508,7 @@ git commit -m "feat(adapter): persist network/family selection to localStorage"
 ## Task 4: Safe wagmi multi-connection hooks
 
 **Files:**
-- Modify: `apps/registry/src/lib/aomi-auth-adapter/safe-wagmi-hooks.ts`
+- Modify: `apps/registry/src/lib/wallet-kit/safe-wagmi-hooks.ts`
 
 No new test — these are thin try/catch wrappers like the existing hooks in the file; they are exercised by Task 5 + the build.
 
@@ -586,7 +586,7 @@ Run: `cd apps/registry && npx tsc --noEmit -p tsconfig.json` (if a tsconfig exis
 Expected: no new errors in `safe-wagmi-hooks.ts`.
 
 ```bash
-git add apps/registry/src/lib/aomi-auth-adapter/safe-wagmi-hooks.ts
+git add apps/registry/src/lib/wallet-kit/safe-wagmi-hooks.ts
 git commit -m "feat(adapter): add safe useConnections + useSwitchAccount wrappers"
 ```
 
@@ -595,16 +595,16 @@ git commit -m "feat(adapter): add safe useConnections + useSwitchAccount wrapper
 ## Task 5: Build `accounts` + `selectAccount` + per-account disconnect + connect guard in para.tsx
 
 **Files:**
-- Modify: `apps/registry/src/lib/aomi-auth-adapter/providers/para.tsx`
-- Modify: `apps/registry/src/lib/aomi-auth-adapter/context.tsx`
+- Modify: `apps/registry/src/lib/wallet-kit/providers/para.tsx`
+- Modify: `apps/registry/src/lib/wallet-kit/context.tsx`
 
 - [ ] **Step 1: Add defaults to the disconnected adapter in `context.tsx`**
 
-In `context.tsx`, the `DISCONNECTED_ADAPTER` object must satisfy the new required fields. Add:
+In `context.tsx`, the `DISCONNECTED_WALLET_KIT` object must satisfy the new required fields. Add:
 
 ```ts
-const DISCONNECTED_ADAPTER: AomiAuthAdapter = {
-  identity: AOMI_AUTH_DISCONNECTED_IDENTITY,
+const DISCONNECTED_WALLET_KIT: AomiWalletKit = {
+  identity: AOMI_SESSION_DISCONNECTED_IDENTITY,
   isReady: true,
   isSwitchingChain: false,
   canConnect: false,
@@ -641,7 +641,7 @@ import {
 import { buildAccounts } from "../accounts";
 ```
 
-- [ ] **Step 3: Call the new hooks inside `AomiParaAdapterProvider`**
+- [ ] **Step 3: Call the new hooks inside `AomiParaPluginProvider`**
 
 After the existing `const { disconnectAsync: wagmiDisconnectAsync } = useSafeDisconnect();` line, add:
 
@@ -764,7 +764,7 @@ In the returned `disconnect` function, handle `options.accountId` first (EVM-onl
                 connector ? { connector } : undefined,
               );
             } catch (error) {
-              console.warn("[aomi-auth-adapter] EVM account disconnect failed", error);
+              console.warn("[aomi-wallet-kit] EVM account disconnect failed", error);
             }
             return;
           }
@@ -778,15 +778,15 @@ Expected: build succeeds with no type errors in `para.tsx`, `context.tsx`, `safe
 
 - [ ] **Step 9: Run the adapter test suite**
 
-Run: `cd apps/registry && npx vitest run src/lib/aomi-auth-adapter/`
+Run: `cd apps/registry && npx vitest run src/lib/wallet-kit/`
 Expected: PASS (existing + Task 1-3 tests).
 
 - [ ] **Step 10: Commit**
 
 ```bash
-git add apps/registry/src/lib/aomi-auth-adapter/providers/para.tsx \
-  apps/registry/src/lib/aomi-auth-adapter/context.tsx \
-  apps/registry/src/lib/aomi-auth-adapter/safe-wagmi-hooks.ts
+git add apps/registry/src/lib/wallet-kit/providers/para.tsx \
+  apps/registry/src/lib/wallet-kit/context.tsx \
+  apps/registry/src/lib/wallet-kit/safe-wagmi-hooks.ts
 git commit -m "feat(adapter): account registry, selectAccount, per-account disconnect, EVM connect guard"
 ```
 
@@ -815,14 +815,14 @@ import {
   type SVGProps,
 } from "react";
 import { ParaIcon } from "@/components/icons";
-import type { AomiAuthAdapter } from "../../lib/aomi-auth-adapter";
+import type { AomiWalletKit } from "../../lib/wallet-kit";
 
 export type WalletPickerProvider = {
   id: string;
   label: string;
   description?: string;
   icon?: FC<SVGProps<SVGSVGElement>>;
-  onSelect?: (adapter: AomiAuthAdapter) => void | Promise<void>;
+  onSelect?: (adapter: AomiWalletKit) => void | Promise<void>;
   disabled?: boolean;
 };
 
@@ -911,9 +911,9 @@ Create `apps/registry/src/components/control-bar/wallet-picker.test.tsx`:
 ```tsx
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
-import type { AomiAuthAdapter } from "@/lib/aomi-auth-adapter";
-import { AomiAuthAdapterProvider } from "@/lib/aomi-auth-adapter";
-import { AomiWalletNetworkPreferencesProvider } from "@/lib/aomi-auth-adapter/network-preferences";
+import type { AomiWalletKit } from "@/lib/wallet-kit";
+import { AomiWalletKitContextProvider } from "@/lib/wallet-kit";
+import { AomiWalletNetworkPreferencesProvider } from "@/lib/wallet-kit/network-preferences";
 import { WalletPickerProvider } from "./wallet-picker-context";
 import { WalletPicker } from "./wallet-picker";
 
@@ -926,7 +926,7 @@ const solanaNetworks = [
   { id: "solana-mainnet", label: "Mainnet", cluster: "solana:mainnet", rpcHttpUrl: "https://m.example", isDefault: true },
 ] as const;
 
-function makeAdapter(overrides: Partial<AomiAuthAdapter> = {}): AomiAuthAdapter {
+function makeAdapter(overrides: Partial<AomiWalletKit> = {}): AomiWalletKit {
   return {
     identity: {
       status: "connected",
@@ -954,15 +954,15 @@ function makeAdapter(overrides: Partial<AomiAuthAdapter> = {}): AomiAuthAdapter 
   };
 }
 
-function renderPicker(adapter: AomiAuthAdapter) {
+function renderPicker(adapter: AomiWalletKit) {
   return render(
-    <AomiAuthAdapterProvider value={adapter}>
+    <AomiWalletKitContextProvider value={adapter}>
       <AomiWalletNetworkPreferencesProvider storageKey="test" evmChains={evmChains} solanaNetworks={solanaNetworks}>
         <WalletPickerProvider>
           <OpenAndRender />
         </WalletPickerProvider>
       </AomiWalletNetworkPreferencesProvider>
-    </AomiAuthAdapterProvider>,
+    </AomiWalletKitContextProvider>,
   );
 }
 
@@ -1009,13 +1009,13 @@ import { useCallback, useEffect, useMemo, useState, type FC, type SVGProps } fro
 import { Loader2Icon, LogOutIcon, Settings2Icon, WalletIcon, XIcon, CheckIcon, ChevronRightIcon } from "lucide-react";
 import { cn, getChainInfo } from "@aomi-labs/react";
 import {
-  useAomiAuthAdapter,
+  useAomiWalletKit,
   formatAddress,
-  formatAuthProvider,
-} from "../../lib/aomi-auth-adapter";
-import { isAccountSelectable } from "../../lib/aomi-auth-adapter/accounts";
-import { useAomiWalletNetworkPreferences } from "../../lib/aomi-auth-adapter/network-preferences";
-import type { AomiAccount, WalletFamily } from "../../lib/aomi-auth-adapter/types";
+  formatAuthMethod,
+} from "../../lib/wallet-kit";
+import { isAccountSelectable } from "../../lib/wallet-kit/accounts";
+import { useAomiWalletNetworkPreferences } from "../../lib/wallet-kit/network-preferences";
+import type { AomiAccount, WalletFamily } from "../../lib/wallet-kit/types";
 import { useWalletPicker } from "./wallet-picker-context";
 
 function familyLabel(family: WalletFamily): string {
@@ -1024,7 +1024,7 @@ function familyLabel(family: WalletFamily): string {
 
 export function WalletPicker() {
   const { open, closePicker } = useWalletPicker();
-  const adapter = useAomiAuthAdapter();
+  const adapter = useAomiWalletKit();
   const identity = adapter.identity;
   const { selectedFamily, setSelectedFamily } = useAomiWalletNetworkPreferences();
   const activeFamily: WalletFamily = adapter.activeFamily ?? selectedFamily;
@@ -1068,7 +1068,7 @@ export function WalletPicker() {
   if (!open) return null;
 
   const providerLabel =
-    identity.secondaryLabel ?? formatAuthProvider(identity.authProvider);
+    identity.secondaryLabel ?? formatAuthMethod(identity.authProvider);
 
   return (
     <div
@@ -1180,7 +1180,7 @@ function RowIconButton({ icon: Icon, onClick, disabled, loading, ariaLabel }: { 
 }
 ```
 
-Note: `formatAddress` and `formatAuthProvider` are exported from `../../lib/aomi-auth-adapter` (via `identity.ts` re-export). `Settings2Icon` import can be dropped if unused — keep the import list matching what's referenced (remove `Settings2Icon` if the build flags it as unused under lint).
+Note: `formatAddress` and `formatAuthMethod` are exported from `../../lib/wallet-kit` (via `identity.ts` re-export). `Settings2Icon` import can be dropped if unused — keep the import list matching what's referenced (remove `Settings2Icon` if the build flags it as unused under lint).
 
 - [ ] **Step 4: Run test to verify it passes**
 
@@ -1212,9 +1212,9 @@ Rewrite `dual-wallet-bar.tsx` so the collapsed button opens the picker modal ins
 import { useEffect, useMemo, type FC } from "react";
 import { ChevronDownIcon } from "lucide-react";
 import { cn, getChainInfo } from "@aomi-labs/react";
-import { useAomiAuthAdapter } from "../../lib/aomi-auth-adapter";
-import { useAomiWalletNetworkPreferences } from "../../lib/aomi-auth-adapter/network-preferences";
-import { formatAddress } from "../../lib/aomi-auth-adapter/identity";
+import { useAomiWalletKit } from "../../lib/wallet-kit";
+import { useAomiWalletNetworkPreferences } from "../../lib/wallet-kit/network-preferences";
+import { formatAddress } from "../../lib/wallet-kit/identity";
 import { WalletPicker } from "./wallet-picker";
 import {
   WalletPickerProvider,
@@ -1244,7 +1244,7 @@ const DualWalletBarInner: FC<DualWalletBarProps> = ({
   className,
   onConnectionChange,
 }) => {
-  const adapter = useAomiAuthAdapter();
+  const adapter = useAomiWalletKit();
   const identity = adapter.identity;
   const { selectedFamily } = useAomiWalletNetworkPreferences();
   const { openPicker } = useWalletPicker();
