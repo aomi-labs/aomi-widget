@@ -2,6 +2,7 @@ import type { Chain, Hex } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 
 import { adaptSmartAccount } from "../adapt";
+import { captureSigner } from "../capture";
 import type { AAState, SmartAccount, AAMode, AAWalletCall } from "../types";
 import {
   DEFAULT_AA_CONFIG,
@@ -279,7 +280,10 @@ async function createAlchemyWalletApisState(
       })
     : alchemyWalletTransport({ apiKey: params.apiKey! });
 
-  const signer = privateKeyToAccount(params.privateKey);
+  const signer = captureSigner(privateKeyToAccount(params.privateKey), {
+    mode: params.resolved.mode,
+    chainId: params.chain.id,
+  });
   const alchemyClient = createSmartWalletClient({
     transport,
     chain: params.chain,

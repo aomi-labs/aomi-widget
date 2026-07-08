@@ -4251,6 +4251,67 @@ function isAlchemySponsorshipLimitError(error) {
   return normalized.includes("gas sponsorship limit") || normalized.includes("put your team over your gas sponsorship limit") || normalized.includes("buy gas credits in your gas manager dashboard");
 }
 
+// src/aa/capture.ts
+var SIGN_METHODS = /* @__PURE__ */ new Set([
+  "sign",
+  "signMessage",
+  "signTypedData",
+  "signTransaction",
+  "signAuthorization"
+]);
+function captureEnabled() {
+  const globals = globalThis;
+  if (globals.__AOMI_AA_CAPTURE === true) {
+    return true;
+  }
+  try {
+    return typeof process !== "undefined" && process.env.AOMI_AA_CAPTURE === "1";
+  } catch (e) {
+    return false;
+  }
+}
+function sink() {
+  const globals = globalThis;
+  if (!globals.__AOMI_AA_CAPTURES) {
+    globals.__AOMI_AA_CAPTURES = [];
+  }
+  return globals.__AOMI_AA_CAPTURES;
+}
+function plain(value) {
+  return JSON.parse(
+    JSON.stringify(
+      value,
+      (_key, val) => typeof val === "bigint" ? val.toString() : val
+    )
+  );
+}
+function captureSigner(account, meta) {
+  if (!captureEnabled()) {
+    return account;
+  }
+  return new Proxy(account, {
+    get(target, prop, receiver) {
+      const original = Reflect.get(target, prop, receiver);
+      if (typeof prop === "string" && SIGN_METHODS.has(prop) && typeof original === "function") {
+        return async (...args) => {
+          const signature = await original.apply(target, args);
+          const entry = {
+            mode: meta.mode,
+            chainId: meta.chainId,
+            method: prop,
+            args: plain(args),
+            signature: plain(signature)
+          };
+          sink().push(entry);
+          console.info("[aomi][aa-capture]", JSON.stringify(entry));
+          return signature;
+        };
+      }
+      return original;
+    }
+  });
+}
+
 // src/aa/owner.ts
 var import_accounts2 = require("viem/accounts");
 function getDirectOwnerParams(owner) {
@@ -4501,7 +4562,10 @@ async function createAlchemyWalletApisState(params) {
   const transport = params.proxyBaseUrl ? alchemyWalletTransport(__spreadValues({
     url: params.proxyBaseUrl
   }, params.proxyBearer ? { jwt: params.proxyBearer } : {})) : alchemyWalletTransport({ apiKey: params.apiKey });
-  const signer = (0, import_accounts3.privateKeyToAccount)(params.privateKey);
+  const signer = captureSigner((0, import_accounts3.privateKeyToAccount)(params.privateKey), {
+    mode: params.resolved.mode,
+    chainId: params.chain.id
+  });
   const alchemyClient = createSmartWalletClient(__spreadValues({
     transport,
     chain: params.chain,

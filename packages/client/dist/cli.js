@@ -6079,6 +6079,73 @@ var init_adapt = __esm({
   }
 });
 
+// src/aa/capture.ts
+function captureEnabled() {
+  const globals = globalThis;
+  if (globals.__AOMI_AA_CAPTURE === true) {
+    return true;
+  }
+  try {
+    return typeof process !== "undefined" && process.env.AOMI_AA_CAPTURE === "1";
+  } catch (e) {
+    return false;
+  }
+}
+function sink() {
+  const globals = globalThis;
+  if (!globals.__AOMI_AA_CAPTURES) {
+    globals.__AOMI_AA_CAPTURES = [];
+  }
+  return globals.__AOMI_AA_CAPTURES;
+}
+function plain(value) {
+  return JSON.parse(
+    JSON.stringify(
+      value,
+      (_key, val) => typeof val === "bigint" ? val.toString() : val
+    )
+  );
+}
+function captureSigner(account, meta) {
+  if (!captureEnabled()) {
+    return account;
+  }
+  return new Proxy(account, {
+    get(target, prop, receiver) {
+      const original = Reflect.get(target, prop, receiver);
+      if (typeof prop === "string" && SIGN_METHODS.has(prop) && typeof original === "function") {
+        return async (...args) => {
+          const signature = await original.apply(target, args);
+          const entry = {
+            mode: meta.mode,
+            chainId: meta.chainId,
+            method: prop,
+            args: plain(args),
+            signature: plain(signature)
+          };
+          sink().push(entry);
+          console.info("[aomi][aa-capture]", JSON.stringify(entry));
+          return signature;
+        };
+      }
+      return original;
+    }
+  });
+}
+var SIGN_METHODS;
+var init_capture = __esm({
+  "src/aa/capture.ts"() {
+    "use strict";
+    SIGN_METHODS = /* @__PURE__ */ new Set([
+      "sign",
+      "signMessage",
+      "signTypedData",
+      "signTransaction",
+      "signAuthorization"
+    ]);
+  }
+});
+
 // src/aa/owner.ts
 import { privateKeyToAccount as privateKeyToAccount4 } from "viem/accounts";
 function getDirectOwnerParams(owner) {
@@ -6333,7 +6400,10 @@ async function createAlchemyWalletApisState(params) {
   const transport = params.proxyBaseUrl ? alchemyWalletTransport(__spreadValues({
     url: params.proxyBaseUrl
   }, params.proxyBearer ? { jwt: params.proxyBearer } : {})) : alchemyWalletTransport({ apiKey: params.apiKey });
-  const signer = privateKeyToAccount5(params.privateKey);
+  const signer = captureSigner(privateKeyToAccount5(params.privateKey), {
+    mode: params.resolved.mode,
+    chainId: params.chain.id
+  });
   const alchemyClient = createSmartWalletClient(__spreadValues({
     transport,
     chain: params.chain,
@@ -6434,6 +6504,7 @@ var init_create = __esm({
   "src/aa/alchemy/create.ts"() {
     "use strict";
     init_adapt();
+    init_capture();
     init_types2();
     init_policy();
     init_owner();
