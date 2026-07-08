@@ -12,8 +12,16 @@ type AomiRuntimeProviderProps = {
     applicationId?: number | string | null;
     appPlatforms?: AomiPlatformFilter;
     clientOptions?: Omit<AomiClientOptions, "baseUrl">;
+    /** Optional explicit initial thread. Takes precedence over stored state. */
+    initialThreadId?: string;
+    /** Persist the active materialized thread in localStorage. Defaults to true. */
+    persistThread?: boolean;
+    /** Full localStorage key override for vendors that need exact isolation. */
+    threadPersistenceKey?: string;
+    /** Extra key segment for tenant/user/app scoping without owning the full key. */
+    threadPersistenceScope?: string | null;
 };
-declare function AomiRuntimeProvider({ children, backendUrl, applicationId, appPlatforms, clientOptions, }: Readonly<AomiRuntimeProviderProps>): react_jsx_runtime.JSX.Element;
+declare function AomiRuntimeProvider({ children, backendUrl, applicationId, appPlatforms, clientOptions, initialThreadId, persistThread, threadPersistenceKey, threadPersistenceScope, }: Readonly<AomiRuntimeProviderProps>): react_jsx_runtime.JSX.Element;
 
 declare class SessionManager {
     private readonly clientFactory;

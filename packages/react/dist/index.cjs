@@ -2666,7 +2666,7 @@ function useUserStateRequestResponder(context, sessions) {
     return unsubscribe;
   }, [eventContext, getSession, getUserState, threadContextRef]);
 }
-function useRemoteThreadListSync(context, sessions, remoteThreads) {
+function useRemoteThreadListSync(context, sessions, remoteThreads, threadPersistence) {
   const [isThreadListLoading, setIsThreadListLoading] = (0, import_react13.useState)(true);
   const [threadListError, setThreadListError] = (0, import_react13.useState)(false);
   const prefetchCancelRef = (0, import_react13.useRef)(null);
@@ -2686,6 +2686,7 @@ function useRemoteThreadListSync(context, sessions, remoteThreads) {
     warmThread
   } = remoteThreads;
   const isConnected = import_client6.UserState.isConnected(user) === true;
+  const restoredThreadId = threadPersistence == null ? void 0 : threadPersistence.restoredThreadId;
   const listThreadsWithAuthRetry = (0, import_react13.useCallback)(
     async (sessionId, isCancelled) => {
       let nextDelay = THREAD_LIST_AUTH_RETRY_BASE_DELAY_MS;
@@ -2745,7 +2746,7 @@ function useRemoteThreadListSync(context, sessions, remoteThreads) {
     [ensureInitialState, remoteThreadIdsRef, threadContextRef, warmThread]
   );
   (0, import_react13.useEffect)(() => {
-    var _a;
+    var _a, _b;
     if (!isConnected) {
       const wasPreviouslyConnected = wasConnectedRef.current;
       wasConnectedRef.current = false;
@@ -2761,6 +2762,7 @@ function useRemoteThreadListSync(context, sessions, remoteThreads) {
         closeAllSessions();
         if (hadRemoteThreads || hadSessions) {
           threadContextRef.current.resetToDefault();
+          (_b = threadPersistence == null ? void 0 : threadPersistence.onInvalidRestoredThread) == null ? void 0 : _b.call(threadPersistence);
         }
       }
       return;
@@ -2770,7 +2772,7 @@ function useRemoteThreadListSync(context, sessions, remoteThreads) {
     setIsThreadListLoading(true);
     setThreadListError(false);
     const fetchThreadList = async () => {
-      var _a2, _b, _c;
+      var _a2, _b2, _c, _d;
       try {
         const remoteThreadIdsAtFetchStart = new Set(remoteThreadIdsRef.current);
         const currentContext = threadContextRef.current;
@@ -2793,7 +2795,7 @@ function useRemoteThreadListSync(context, sessions, remoteThreads) {
           const rawTitle = (_a2 = thread.title) != null ? _a2 : "";
           const title = isPlaceholderTitle(rawTitle) ? "" : rawTitle;
           const serverLastActiveAt = thread.last_active_at;
-          const lastActive = (serverLastActiveAt != null ? serverLastActiveAt : (_b = previousMetadata.get(thread.session_id)) == null ? void 0 : _b.lastActiveAt) || (/* @__PURE__ */ new Date()).toISOString();
+          const lastActive = (serverLastActiveAt != null ? serverLastActiveAt : (_b2 = previousMetadata.get(thread.session_id)) == null ? void 0 : _b2.lastActiveAt) || (/* @__PURE__ */ new Date()).toISOString();
           const existingControl = (_c = previousMetadata.get(
             thread.session_id
           )) == null ? void 0 : _c.control;
@@ -2833,12 +2835,43 @@ function useRemoteThreadListSync(context, sessions, remoteThreads) {
         }
         scheduleThreadPrefetch(threadList.map((thread) => thread.session_id));
         const activeThreadId = threadContextRef.current.currentThreadId;
-        if (remoteThreadIds.has(activeThreadId)) {
+        let threadIdToLoad = activeThreadId;
+        const activeMessages = currentContext.getThreadMessages(activeThreadId);
+        const activeHasUserMessage = activeMessages.some(
+          (message) => message.role === "user"
+        );
+        if (restoredThreadId && activeThreadId === restoredThreadId && !remoteThreadIds.has(activeThreadId) && !activeHasUserMessage) {
+          (_d = threadPersistence == null ? void 0 : threadPersistence.onInvalidRestoredThread) == null ? void 0 : _d.call(threadPersistence);
+          currentContext.setThreadMetadata((prev) => {
+            const next = new Map(prev);
+            next.delete(activeThreadId);
+            return next;
+          });
+          currentContext.setThreads((prev) => {
+            const next = new Map(prev);
+            next.delete(activeThreadId);
+            return next;
+          });
+          const fallbackThread = threadList.filter((thread) => !thread.is_archived).sort((a, b) => {
+            var _a3, _b3;
+            const aLastActive = (_a3 = a.last_active_at) != null ? _a3 : 0;
+            const bLastActive = (_b3 = b.last_active_at) != null ? _b3 : 0;
+            return bLastActive - aLastActive;
+          })[0];
+          if (fallbackThread) {
+            threadIdToLoad = fallbackThread.session_id;
+            currentContext.setCurrentThreadId(fallbackThread.session_id);
+            currentContext.bumpThreadViewKey();
+          } else {
+            threadIdToLoad = currentContext.resetToDefault();
+          }
+        }
+        if (remoteThreadIds.has(threadIdToLoad)) {
           setIsThreadLoading(true);
           try {
-            await warmThread(activeThreadId);
+            await warmThread(threadIdToLoad);
             if (!cancelled) {
-              await ensureInitialState(activeThreadId);
+              await ensureInitialState(threadIdToLoad);
             }
           } finally {
             if (!cancelled) {
@@ -2874,6 +2907,8 @@ function useRemoteThreadListSync(context, sessions, remoteThreads) {
     sessionManager,
     setIsThreadLoading,
     threadContextRef,
+    restoredThreadId,
+    threadPersistence,
     isConnected,
     warmPromisesRef,
     warmedThreadIdsRef,
@@ -2890,7 +2925,8 @@ function useRuntimeUserStateEffects({
     ensureInitialState,
     setIsThreadLoading
   },
-  remoteThreads
+  remoteThreads,
+  threadPersistence
 }) {
   const threadContext = useThreadContext();
   const { user, getUserState, onUserStateChange } = useUser();
@@ -2915,7 +2951,12 @@ function useRuntimeUserStateEffects({
   };
   useWalletStateSync(context, sessions, remoteThreads);
   useUserStateRequestResponder(context, sessions);
-  return useRemoteThreadListSync(context, sessions, remoteThreads);
+  return useRemoteThreadListSync(
+    context,
+    sessions,
+    remoteThreads,
+    threadPersistence
+  );
 }
 function RuntimeUserStateProvider({
   children,
@@ -2956,12 +2997,58 @@ function RuntimeUserStateProvider({
   return /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(import_jsx_runtime6.Fragment, { children });
 }
 
+// src/runtime/thread-persistence.ts
+var THREAD_PERSISTENCE_KEY_PREFIX = "aomi:lastThread";
+var DEFAULT_SCOPE = "default";
+var normalizeKeyPart = (value) => {
+  if (value === null || value === void 0) return DEFAULT_SCOPE;
+  const text = String(value).trim();
+  return text.length > 0 ? text : DEFAULT_SCOPE;
+};
+function buildThreadPersistenceKey({
+  backendUrl,
+  applicationId,
+  scope
+}) {
+  return [
+    THREAD_PERSISTENCE_KEY_PREFIX,
+    normalizeKeyPart(backendUrl),
+    normalizeKeyPart(applicationId),
+    normalizeKeyPart(scope)
+  ].join(":");
+}
+function readPersistedThreadId(storageKey) {
+  var _a, _b;
+  try {
+    const threadId = (_b = (_a = globalThis.localStorage) == null ? void 0 : _a.getItem(storageKey)) == null ? void 0 : _b.trim();
+    return threadId && threadId.length > 0 ? threadId : null;
+  } catch (e) {
+    return null;
+  }
+}
+function writePersistedThreadId(storageKey, threadId) {
+  var _a;
+  try {
+    (_a = globalThis.localStorage) == null ? void 0 : _a.setItem(storageKey, threadId);
+  } catch (e) {
+  }
+}
+function clearPersistedThreadId(storageKey) {
+  var _a;
+  try {
+    (_a = globalThis.localStorage) == null ? void 0 : _a.removeItem(storageKey);
+  } catch (e) {
+  }
+}
+
 // src/runtime/core.tsx
 var import_jsx_runtime7 = require("react/jsx-runtime");
 function AomiRuntimeCore({
   children,
   aomiClient,
-  applicationId
+  applicationId,
+  restoredThreadId,
+  threadPersistenceKey
 }) {
   const threadContext = useThreadContext();
   const eventContext = useEventContext();
@@ -3016,6 +3103,9 @@ function AomiRuntimeCore({
       const wasRemote = remoteThreadIdsRef.current.has(threadId);
       remoteThreadIdsRef.current.add(threadId);
       warmedThreadIdsRef.current.add(threadId);
+      if (threadPersistenceKey) {
+        writePersistedThreadId(threadPersistenceKey, threadId);
+      }
       threadsMaterializedForSendRef.current.delete(threadId);
       if (!wasRemote && threadContextRef.current.currentThreadId === threadId) {
         void syncCurrentThreadControl().catch((error) => {
@@ -3095,6 +3185,17 @@ function AomiRuntimeCore({
     },
     [getSession]
   );
+  const threadPersistence = (0, import_react14.useMemo)(
+    () => ({
+      restoredThreadId,
+      onInvalidRestoredThread: () => {
+        if (threadPersistenceKey) {
+          clearPersistedThreadId(threadPersistenceKey);
+        }
+      }
+    }),
+    [restoredThreadId, threadPersistenceKey]
+  );
   const { isThreadListLoading, threadListError } = useRuntimeUserStateEffects({
     sessions: {
       aomiClientRef,
@@ -3109,7 +3210,8 @@ function AomiRuntimeCore({
       warmPromisesRef,
       warmedThreadIdsRef,
       warmThread
-    }
+    },
+    threadPersistence
   });
   (0, import_react14.useEffect)(() => {
     const threadId = threadContext.currentThreadId;
@@ -3158,6 +3260,18 @@ function AomiRuntimeCore({
   const currentMessages = threadContext.getThreadMessages(
     threadContext.currentThreadId
   );
+  (0, import_react14.useEffect)(() => {
+    if (!threadPersistenceKey) return;
+    const threadId = threadContext.currentThreadId;
+    if (!remoteThreadIdsRef.current.has(threadId)) {
+      return;
+    }
+    writePersistedThreadId(threadPersistenceKey, threadId);
+  }, [
+    threadContext.allThreadsMetadata,
+    threadContext.currentThreadId,
+    threadPersistenceKey
+  ]);
   const isRemoteThread = (0, import_react14.useCallback)(
     (threadId) => remoteThreadIdsRef.current.has(threadId),
     []
@@ -3241,8 +3355,15 @@ function AomiRuntimeCore({
     async (threadId) => {
       closeSession(threadId);
       await threadListAdapter.onDelete(threadId);
+      remoteThreadIdsRef.current.delete(threadId);
+      warmedThreadIdsRef.current.delete(threadId);
+      warmPromisesRef.current.delete(threadId);
+      const nextThreadId = threadContextRef.current.currentThreadId;
+      if (!remoteThreadIdsRef.current.has(nextThreadId) && threadPersistenceKey) {
+        clearPersistedThreadId(threadPersistenceKey);
+      }
     },
-    [closeSession, threadListAdapter]
+    [closeSession, threadListAdapter, threadPersistenceKey]
   );
   const renameThread = (0, import_react14.useCallback)(
     async (threadId, title) => {
@@ -3376,8 +3497,33 @@ function AomiRuntimeProvider({
   backendUrl = "http://127.0.0.1:8080",
   applicationId,
   appPlatforms,
-  clientOptions
+  clientOptions,
+  initialThreadId,
+  persistThread = true,
+  threadPersistenceKey,
+  threadPersistenceScope
 }) {
+  const normalizedBackendUrl = normalizeBackendUrl(backendUrl);
+  const resolvedThreadPersistenceKey = (0, import_react16.useMemo)(() => {
+    if (!persistThread) return null;
+    return threadPersistenceKey != null ? threadPersistenceKey : buildThreadPersistenceKey({
+      backendUrl: normalizedBackendUrl,
+      applicationId,
+      scope: threadPersistenceScope
+    });
+  }, [
+    applicationId,
+    normalizedBackendUrl,
+    persistThread,
+    threadPersistenceKey,
+    threadPersistenceScope
+  ]);
+  const restoredThreadId = (0, import_react16.useMemo)(() => {
+    var _a;
+    if (initialThreadId) return initialThreadId;
+    if (!resolvedThreadPersistenceKey) return void 0;
+    return (_a = readPersistedThreadId(resolvedThreadPersistenceKey)) != null ? _a : void 0;
+  }, [initialThreadId, resolvedThreadPersistenceKey]);
   const resolvedClientOptions = (0, import_react16.useMemo)(
     () => __spreadValues({
       logger: {
@@ -3388,16 +3534,18 @@ function AomiRuntimeProvider({
   );
   const aomiClient = (0, import_react16.useMemo)(
     () => new import_client7.AomiClient(__spreadValues({
-      baseUrl: normalizeBackendUrl(backendUrl)
+      baseUrl: normalizedBackendUrl
     }, resolvedClientOptions)),
-    [backendUrl, resolvedClientOptions]
+    [normalizedBackendUrl, resolvedClientOptions]
   );
-  return /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(ThreadContextProvider, { children: /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(NotificationContextProvider, { children: /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(ExtUserProvider, { children: /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(
+  return /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(ThreadContextProvider, { initialThreadId: restoredThreadId, children: /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(NotificationContextProvider, { children: /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(ExtUserProvider, { children: /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(
     AomiRuntimeInner,
     {
       aomiClient,
       applicationId,
       appPlatforms,
+      restoredThreadId,
+      threadPersistenceKey: resolvedThreadPersistenceKey,
       children
     }
   ) }) }) });
@@ -3406,7 +3554,9 @@ function AomiRuntimeInner({
   children,
   aomiClient,
   applicationId,
-  appPlatforms
+  appPlatforms,
+  restoredThreadId,
+  threadPersistenceKey
 }) {
   const threadContext = useThreadContext();
   return /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(
@@ -3422,7 +3572,16 @@ function AomiRuntimeInner({
         {
           aomiClient,
           sessionId: threadContext.currentThreadId,
-          children: /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(AomiRuntimeCore, { aomiClient, applicationId, children })
+          children: /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(
+            AomiRuntimeCore,
+            {
+              aomiClient,
+              applicationId,
+              restoredThreadId,
+              threadPersistenceKey,
+              children
+            }
+          )
         }
       )
     }

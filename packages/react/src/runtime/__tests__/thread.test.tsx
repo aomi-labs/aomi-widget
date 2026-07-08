@@ -24,10 +24,12 @@ import { buildThreadListAdapter } from "../threadlist-adapter";
 
 beforeEach(() => {
   resetAomiClientMocks();
+  localStorage.clear();
 });
 
 afterEach(() => {
   cleanup();
+  localStorage.clear();
 });
 
 describe("Thread API", () => {
@@ -198,6 +200,121 @@ describe("Thread API", () => {
     it("has threadViewKey starting at 0", () => {
       const { api } = renderRuntime();
       expect(api.threadViewKey).toBe(0);
+    });
+  });
+
+  describe("thread persistence", () => {
+    const storageKey = "aomi:test:last-thread";
+
+    it("does not persist an empty local draft thread", () => {
+      renderRuntime({ threadPersistenceKey: storageKey });
+
+      expect(localStorage.getItem(storageKey)).toBeNull();
+    });
+
+    it("persists a selected remote thread", async () => {
+      const listThreads = vi.fn(
+        async (): Promise<AomiThread[]> => [
+          { session_id: "thread-1", title: "Thread 1" },
+          { session_id: "thread-2", title: "Thread 2" },
+        ],
+      );
+      setAomiClientConfig({ listThreads });
+
+      const { api, getApi } = renderRuntime({
+        threadPersistenceKey: storageKey,
+      });
+
+      await act(async () => {
+        api.setUser({ address: "0x123", chainId: 1, isConnected: true });
+        await flushPromises();
+      });
+
+      await waitFor(() => {
+        expect(getApi().getThreadMetadata("thread-2")?.title).toBe("Thread 2");
+      });
+
+      act(() => {
+        getApi().selectThread("thread-2");
+      });
+
+      await waitFor(() => {
+        expect(localStorage.getItem(storageKey)).toBe("thread-2");
+      });
+    });
+
+    it("restores a persisted thread after the authenticated list loads", async () => {
+      localStorage.setItem(storageKey, "thread-2");
+      const listThreads = vi.fn(
+        async (): Promise<AomiThread[]> => [
+          { session_id: "thread-1", title: "Thread 1" },
+          { session_id: "thread-2", title: "Thread 2" },
+        ],
+      );
+      const fetchState = vi.fn(
+        async (sessionId: string): Promise<AomiStateResponse> => ({
+          is_processing: false,
+          messages: [
+            {
+              sender: "agent",
+              content: `Loaded ${sessionId}`,
+            },
+          ],
+        }),
+      );
+      setAomiClientConfig({ listThreads, fetchState });
+
+      const { api, getApi } = renderRuntime({
+        threadPersistenceKey: storageKey,
+      });
+
+      expect(api.currentThreadId).toBe("thread-2");
+
+      await act(async () => {
+        api.setUser({ address: "0x123", chainId: 1, isConnected: true });
+        await flushPromises();
+      });
+
+      await waitFor(() => {
+        expect(getApi().currentThreadId).toBe("thread-2");
+        expect(getApi().getMessages("thread-2")).toEqual([
+          expect.objectContaining({
+            role: "assistant",
+            content: [
+              expect.objectContaining({
+                type: "text",
+                text: "Loaded thread-2",
+              }),
+            ],
+          }),
+        ]);
+      });
+    });
+
+    it("falls back from a stale persisted thread to the newest regular thread", async () => {
+      localStorage.setItem(storageKey, "deleted-thread");
+      const listThreads = vi.fn(
+        async (): Promise<AomiThread[]> => [
+          { session_id: "older-thread", title: "Older", last_active_at: 100 },
+          { session_id: "newer-thread", title: "Newer", last_active_at: 200 },
+        ],
+      );
+      setAomiClientConfig({ listThreads });
+
+      const { api, getApi } = renderRuntime({
+        threadPersistenceKey: storageKey,
+      });
+
+      await act(async () => {
+        api.setUser({ address: "0x123", chainId: 1, isConnected: true });
+        await flushPromises();
+      });
+
+      await waitFor(() => {
+        expect(getApi().currentThreadId).toBe("newer-thread");
+        expect(getApi().getThreadMetadata("deleted-thread")).toBeUndefined();
+        expect(localStorage.getItem(storageKey)).toBe("newer-thread");
+      });
     });
   });
 

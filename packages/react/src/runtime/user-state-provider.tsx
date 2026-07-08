@@ -93,6 +93,10 @@ type RemoteThreadRegistry = {
 type RuntimeUserStateEffectsOptions = {
   sessions: RuntimeSessionBridge;
   remoteThreads: RemoteThreadRegistry;
+  threadPersistence?: {
+    restoredThreadId?: string;
+    onInvalidRestoredThread?: () => void;
+  };
 };
 
 type RuntimeUserStateContext = {
@@ -261,6 +265,7 @@ function useRemoteThreadListSync(
   context: RuntimeUserStateContext,
   sessions: RuntimeSessionBridge,
   remoteThreads: RemoteThreadRegistry,
+  threadPersistence?: RuntimeUserStateEffectsOptions["threadPersistence"],
 ): { isThreadListLoading: boolean; threadListError: boolean } {
   const [isThreadListLoading, setIsThreadListLoading] = useState(true);
   const [threadListError, setThreadListError] = useState(false);
@@ -281,6 +286,7 @@ function useRemoteThreadListSync(
     warmThread,
   } = remoteThreads;
   const isConnected = UserStateHelpers.isConnected(user) === true;
+  const restoredThreadId = threadPersistence?.restoredThreadId;
 
   const listThreadsWithAuthRetry = useCallback(
     async (sessionId: string, isCancelled: () => boolean) => {
@@ -376,6 +382,7 @@ function useRemoteThreadListSync(
         closeAllSessions();
         if (hadRemoteThreads || hadSessions) {
           threadContextRef.current.resetToDefault();
+          threadPersistence?.onInvalidRestoredThread?.();
         }
       }
       return;
@@ -463,12 +470,57 @@ function useRemoteThreadListSync(
         scheduleThreadPrefetch(threadList.map((thread) => thread.session_id));
 
         const activeThreadId = threadContextRef.current.currentThreadId;
-        if (remoteThreadIds.has(activeThreadId)) {
+        let threadIdToLoad = activeThreadId;
+        const activeMessages = currentContext.getThreadMessages(activeThreadId);
+        const activeHasUserMessage = activeMessages.some(
+          (message) => message.role === "user",
+        );
+
+        if (
+          restoredThreadId &&
+          activeThreadId === restoredThreadId &&
+          !remoteThreadIds.has(activeThreadId) &&
+          !activeHasUserMessage
+        ) {
+          threadPersistence?.onInvalidRestoredThread?.();
+          currentContext.setThreadMetadata((prev) => {
+            const next = new Map(prev);
+            next.delete(activeThreadId);
+            return next;
+          });
+          currentContext.setThreads((prev) => {
+            const next = new Map(prev);
+            next.delete(activeThreadId);
+            return next;
+          });
+
+          const fallbackThread = threadList
+            .filter((thread) => !thread.is_archived)
+            .sort((a, b) => {
+              const aLastActive =
+                (a as AomiThread & { last_active_at?: number })
+                  .last_active_at ?? 0;
+              const bLastActive =
+                (b as AomiThread & { last_active_at?: number })
+                  .last_active_at ?? 0;
+              return bLastActive - aLastActive;
+            })[0];
+
+          if (fallbackThread) {
+            threadIdToLoad = fallbackThread.session_id;
+            currentContext.setCurrentThreadId(fallbackThread.session_id);
+            currentContext.bumpThreadViewKey();
+          } else {
+            threadIdToLoad = currentContext.resetToDefault();
+          }
+        }
+
+        if (remoteThreadIds.has(threadIdToLoad)) {
           setIsThreadLoading(true);
           try {
-            await warmThread(activeThreadId);
+            await warmThread(threadIdToLoad);
             if (!cancelled) {
-              await ensureInitialState(activeThreadId);
+              await ensureInitialState(threadIdToLoad);
             }
           } finally {
             if (!cancelled) {
@@ -505,6 +557,8 @@ function useRemoteThreadListSync(
     sessionManager,
     setIsThreadLoading,
     threadContextRef,
+    restoredThreadId,
+    threadPersistence,
     isConnected,
     warmPromisesRef,
     warmedThreadIdsRef,
@@ -524,6 +578,7 @@ export function useRuntimeUserStateEffects({
     setIsThreadLoading,
   },
   remoteThreads,
+  threadPersistence,
 }: RuntimeUserStateEffectsOptions): {
   isThreadListLoading: boolean;
   threadListError: boolean;
@@ -553,7 +608,12 @@ export function useRuntimeUserStateEffects({
 
   useWalletStateSync(context, sessions, remoteThreads);
   useUserStateRequestResponder(context, sessions);
-  return useRemoteThreadListSync(context, sessions, remoteThreads);
+  return useRemoteThreadListSync(
+    context,
+    sessions,
+    remoteThreads,
+    threadPersistence,
+  );
 }
 
 export function RuntimeUserStateProvider({

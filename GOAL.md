@@ -196,6 +196,12 @@ build`, `CI=true npx -y pnpm@10.28.0 install --frozen-lockfile`, and
   deposit/withdraw-style action chips, with a generic staged fallback for
   custom actions. Verified focused interpreter Vitest coverage, targeted
   ESLint, and registry build with pinned `pnpm@10.28.0`.
+- 2026-07-08 thread refresh persistence: added widget-local active-thread
+  persistence with vendor-scoped storage keys, restored valid materialized
+  threads after authenticated list load, ignored empty local drafts, and fell
+  back from stale stored thread ids to the newest valid regular thread.
+  Verified focused React thread tests, React package build, targeted ESLint,
+  and registry build.
 - 2026-07-07 tool interpreter architecture planning: drafted
   `specs/TOOL-INTERPRETER-PLAN.md` from `tmp-examples.md`, current frontend
   trace behavior, and backend operation-shape exploration. The plan separates

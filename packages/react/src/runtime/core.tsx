@@ -23,6 +23,10 @@ import {
   useRuntimeUserStateEffects,
 } from "./user-state-provider";
 import { getHttpStatus } from "./http-status";
+import {
+  clearPersistedThreadId,
+  writePersistedThreadId,
+} from "./thread-persistence";
 
 // =============================================================================
 // Core Props
@@ -32,6 +36,8 @@ export type AomiRuntimeCoreProps = {
   children: ReactNode;
   aomiClient: AomiClient;
   applicationId?: number | string | null;
+  restoredThreadId?: string;
+  threadPersistenceKey?: string | null;
 };
 
 // =============================================================================
@@ -42,6 +48,8 @@ export function AomiRuntimeCore({
   children,
   aomiClient,
   applicationId,
+  restoredThreadId,
+  threadPersistenceKey,
 }: Readonly<AomiRuntimeCoreProps>) {
   const threadContext = useThreadContext();
   const eventContext = useEventContext();
@@ -99,6 +107,9 @@ export function AomiRuntimeCore({
       const wasRemote = remoteThreadIdsRef.current.has(threadId);
       remoteThreadIdsRef.current.add(threadId);
       warmedThreadIdsRef.current.add(threadId);
+      if (threadPersistenceKey) {
+        writePersistedThreadId(threadPersistenceKey, threadId);
+      }
       threadsMaterializedForSendRef.current.delete(threadId);
       if (!wasRemote && threadContextRef.current.currentThreadId === threadId) {
         void syncCurrentThreadControl().catch((error) => {
@@ -203,6 +214,18 @@ export function AomiRuntimeCore({
     [getSession],
   );
 
+  const threadPersistence = useMemo(
+    () => ({
+      restoredThreadId,
+      onInvalidRestoredThread: () => {
+        if (threadPersistenceKey) {
+          clearPersistedThreadId(threadPersistenceKey);
+        }
+      },
+    }),
+    [restoredThreadId, threadPersistenceKey],
+  );
+
   const { isThreadListLoading, threadListError } = useRuntimeUserStateEffects({
     sessions: {
       aomiClientRef,
@@ -218,6 +241,7 @@ export function AomiRuntimeCore({
       warmedThreadIdsRef,
       warmThread,
     },
+    threadPersistence,
   });
 
   // ---------------------------------------------------------------------------
@@ -283,6 +307,19 @@ export function AomiRuntimeCore({
   const currentMessages = threadContext.getThreadMessages(
     threadContext.currentThreadId,
   );
+
+  useEffect(() => {
+    if (!threadPersistenceKey) return;
+    const threadId = threadContext.currentThreadId;
+    if (!remoteThreadIdsRef.current.has(threadId)) {
+      return;
+    }
+    writePersistedThreadId(threadPersistenceKey, threadId);
+  }, [
+    threadContext.allThreadsMetadata,
+    threadContext.currentThreadId,
+    threadPersistenceKey,
+  ]);
 
   // ---------------------------------------------------------------------------
   // Thread list adapter
@@ -405,8 +442,19 @@ export function AomiRuntimeCore({
     async (threadId: string) => {
       closeSession(threadId);
       await threadListAdapter.onDelete(threadId);
+      remoteThreadIdsRef.current.delete(threadId);
+      warmedThreadIdsRef.current.delete(threadId);
+      warmPromisesRef.current.delete(threadId);
+
+      const nextThreadId = threadContextRef.current.currentThreadId;
+      if (
+        !remoteThreadIdsRef.current.has(nextThreadId) &&
+        threadPersistenceKey
+      ) {
+        clearPersistedThreadId(threadPersistenceKey);
+      }
     },
-    [closeSession, threadListAdapter],
+    [closeSession, threadListAdapter, threadPersistenceKey],
   );
 
   const renameThread = useCallback(

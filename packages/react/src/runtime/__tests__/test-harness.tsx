@@ -649,6 +649,10 @@ export type RenderRuntimeOptions = {
   backendUrl?: string;
   applicationId?: number | string | null;
   appPlatforms?: string | readonly string[] | null;
+  initialThreadId?: string;
+  persistThread?: boolean;
+  threadPersistenceKey?: string;
+  threadPersistenceScope?: string | null;
 };
 
 export type RenderRuntimeResult = {
@@ -665,6 +669,10 @@ export const renderRuntime = ({
   backendUrl = "http://test-backend",
   applicationId,
   appPlatforms,
+  initialThreadId,
+  persistThread,
+  threadPersistenceKey,
+  threadPersistenceScope,
 }: RenderRuntimeOptions = {}): RenderRuntimeResult => {
   const ref = React.createRef<RuntimeHarnessHandle>();
 
@@ -673,6 +681,10 @@ export const renderRuntime = ({
       backendUrl={backendUrl}
       applicationId={applicationId}
       appPlatforms={appPlatforms}
+      initialThreadId={initialThreadId}
+      persistThread={persistThread}
+      threadPersistenceKey={threadPersistenceKey}
+      threadPersistenceScope={threadPersistenceScope}
     >
       <RuntimeHarness ref={ref} />
     </AomiRuntimeProvider>,
