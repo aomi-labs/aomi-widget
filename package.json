@@ -43,6 +43,7 @@
     "build:lib": "pnpm run build:client && tsup",
     "build:client": "pnpm --filter @aomi-labs/client build",
     "build:deploy": "pnpm --filter @aomi-labs/deploy build",
+    "build:smither": "pnpm --filter @aomi-labs/smither build",
     "build:packages": "pnpm --filter @aomi-labs/service type-check && pnpm --filter @aomi-labs/account type-check && pnpm run build:client && pnpm --filter @aomi-labs/react build && pnpm run build:deploy && pnpm run build:registry",
     "build:landing": "pnpm --filter landing build",
     "build:base": "pnpm --filter base build",
