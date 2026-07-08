@@ -811,6 +811,10 @@ importers:
         version: 4.8.0
 
   packages/deploy:
+    dependencies:
+      jose:
+        specifier: ^5.9.6
+        version: 5.10.0
     devDependencies:
       fast-check:
         specifier: ^4.8.0
