@@ -42,7 +42,7 @@ describe("DeploymentClient app-scoped service secrets", () => {
       });
 
     const result = await c.listAppSecrets({
-      userId: "github-user",
+      githubUserId: "github-user",
       sourceId: "42",
     });
 
@@ -64,13 +64,13 @@ describe("DeploymentClient app-scoped service secrets", () => {
       .mockResolvedValue({ removed: true });
 
     await c.ingestSecrets({
-      userId: "github-user",
+      githubUserId: "github-user",
       app: "demo",
       sourceId: "42",
       secrets: { API_KEY: "secret" },
     });
     const removed = await c.removeAppSecret({
-      userId: "github-user",
+      githubUserId: "github-user",
       app: "demo",
       sourceId: "42",
       name: "API_KEY",

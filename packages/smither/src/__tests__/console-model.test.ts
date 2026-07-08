@@ -7,6 +7,7 @@ import {
   stageKeyForNodeId,
   statusFromFrame,
   summarizeFrame,
+  unwrapFrame,
   type EventFrameLike,
   type SnapshotNode,
   type UiStage,
@@ -23,6 +24,45 @@ const stages: UiStage[] = [
 function frame(event: string, payload: Record<string, unknown>, seq: number): EventFrameLike {
   return { event, payload, seq };
 }
+
+describe("unwrapFrame", () => {
+  // Live wire shape observed on the gateway's streamRunEvents channel: the
+  // engine event is double-nested under the transport envelope.
+  it("unwraps the run.event transport envelope", () => {
+    const wire = frame(
+      "run.event",
+      {
+        streamId: "s1",
+        runId: "r1",
+        seq: 42,
+        event: "NodeStarted",
+        payload: { nodeId: "demo:curate", iteration: 0 },
+      },
+      7,
+    );
+    const flat = unwrapFrame(wire);
+    expect(flat.event).toBe("NodeStarted");
+    expect(flat.seq).toBe(42);
+    expect(eventNodeId(flat)).toBe("demo:curate");
+    expect(statusFromFrame(flat)).toBe("running");
+  });
+
+  it("passes flat frames and non-event channels through", () => {
+    const flat = frame("NodeFinished", { nodeId: "demo:codegen" }, 3);
+    expect(unwrapFrame(flat)).toEqual(flat);
+    const heartbeat = frame("run.heartbeat", { streamId: "s1" }, 4);
+    expect(unwrapFrame(heartbeat)).toEqual(heartbeat);
+  });
+
+  it("treats node heartbeats and agent activity as running (replay window gap)", () => {
+    expect(statusFromFrame(frame("task.heartbeat", { nodeId: "demo:curate" }, 5))).toBe("running");
+    expect(statusFromFrame(frame("agent.event", { nodeId: "demo:curate" }, 6))).toBe("running");
+    const rail = reduceStageStatuses(stages, [
+      frame("task.heartbeat", { nodeId: "demo:curate" }, 5),
+    ]);
+    expect(rail["demo:curate"]).toBe("running");
+  });
+});
 
 describe("console-model", () => {
   it("reads the node id from the event payload", () => {
