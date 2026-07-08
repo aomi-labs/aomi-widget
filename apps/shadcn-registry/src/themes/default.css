@@ -188,15 +188,21 @@
   scrollbar-width: none;
 }
 
-/* Thread viewport scrollbars stay scoped to the widget and disappear until useful. */
-.aui-thread-viewport {
-  scrollbar-width: thin;
-  scrollbar-color: transparent transparent;
-}
+/* Thread viewport scrollbars stay scoped to the widget and disappear until useful.
+   We rely on ::-webkit-scrollbar (Chrome/Safari) for a transparent, channel-less
+   track and reserve `scrollbar-color` for Firefox only — in Chrome, setting
+   `scrollbar-color` switches on the native themed track (the ugly channel) and
+   overrides the custom track below. */
+@supports (-moz-appearance: none) {
+  .aui-thread-viewport {
+    scrollbar-width: thin;
+    scrollbar-color: transparent transparent;
+  }
 
-.aui-thread-viewport:hover,
-.aui-thread-viewport:focus-within {
-  scrollbar-color: hsl(var(--muted-foreground) / 0.22) transparent;
+  .aui-thread-viewport:hover,
+  .aui-thread-viewport:focus-within {
+    scrollbar-color: hsl(var(--muted-foreground) / 0.22) transparent;
+  }
 }
 
 .aui-thread-viewport::-webkit-scrollbar {
