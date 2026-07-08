@@ -88,6 +88,20 @@ describe("Thread API", () => {
       expect(adapter.threads).toEqual([]);
     });
 
+    it("does nothing when new chat is selected from an empty local draft", () => {
+      const threadContext = createThreadContext(
+        new Map([["local-empty", createMetadata()]]),
+      );
+      const adapter = createAdapter(threadContext);
+
+      adapter.onSwitchToNewThread();
+
+      expect(threadContext.setThreadMetadata).not.toHaveBeenCalled();
+      expect(threadContext.setThreadMessages).not.toHaveBeenCalled();
+      expect(threadContext.setCurrentThreadId).not.toHaveBeenCalled();
+      expect(threadContext.bumpThreadViewKey).not.toHaveBeenCalled();
+    });
+
     it("shows a local draft thread after the user sends a message", () => {
       const threadContext = createThreadContext(
         new Map([["local-active", createMetadata()]]),
@@ -133,6 +147,36 @@ describe("Thread API", () => {
           title: "Remote thread",
           status: "regular",
         },
+      ]);
+    });
+
+    it("sorts visible threads by last activity without touching selection time", () => {
+      const threadContext = createThreadContext(
+        new Map([
+          [
+            "older-thread",
+            {
+              ...createMetadata("Older thread"),
+              lastActiveAt: 1_700_000_000,
+            },
+          ],
+          [
+            "newer-thread",
+            {
+              ...createMetadata("Newer thread"),
+              lastActiveAt: 1_800_000_000,
+            },
+          ],
+        ]),
+      );
+
+      const adapter = createAdapter(threadContext, {
+        isRemoteThread: () => true,
+      });
+
+      expect(adapter.threads.map((thread) => thread.id)).toEqual([
+        "newer-thread",
+        "older-thread",
       ]);
     });
   });
@@ -257,8 +301,8 @@ describe("Thread API", () => {
     it("fetches threads when user connects", async () => {
       const listThreads = vi.fn(
         async (): Promise<AomiThread[]> => [
-          { session_id: "thread-1", title: "Chat 1" },
-          { session_id: "thread-2", title: "Chat 2" },
+          { session_id: "thread-1", title: "Chat 1", last_active_at: 100 },
+          { session_id: "thread-2", title: "Chat 2", last_active_at: 200 },
         ],
       );
       setAomiClientConfig({ listThreads });
@@ -277,6 +321,8 @@ describe("Thread API", () => {
       await waitFor(() => {
         expect(getApi().getThreadMetadata("thread-1")?.title).toBe("Chat 1");
         expect(getApi().getThreadMetadata("thread-2")?.title).toBe("Chat 2");
+        expect(getApi().getThreadMetadata("thread-1")?.lastActiveAt).toBe(100);
+        expect(getApi().getThreadMetadata("thread-2")?.lastActiveAt).toBe(200);
       });
     });
 

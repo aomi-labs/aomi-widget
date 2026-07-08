@@ -268,3 +268,8 @@ build`, `CI=true npx -y pnpm@10.28.0 install --frozen-lockfile`, and
   public mirror; verified targeted ESLint, focused runtime tests, React package
   build, widget registry build, and generated JSON guards with pinned
   `pnpm@10.28.0`.
+- 2026-07-08 empty new-chat no-op: guarded the React thread-list adapter so
+  selecting New Chat from the current empty local draft leaves the thread id and
+  `threadViewKey` unchanged instead of remounting/refreshing another blank
+  chat. Added focused adapter regression coverage and verified with the focused
+  React thread Vitest file, targeted ESLint, and React package build.

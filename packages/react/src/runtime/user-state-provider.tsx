@@ -16,7 +16,7 @@ import { useEventContext } from "../contexts/event-context";
 import type { ThreadContext } from "../contexts/thread-context";
 import { useThreadContext } from "../contexts/thread-context";
 import { useUser } from "../contexts/ext-user-context";
-import { initThreadControl } from "../state/thread-store";
+import { initThreadControl, type ThreadMetadata } from "../state/thread-store";
 import { getControlSessionId } from "../utils/client-session";
 import { isPlaceholderTitle } from "./utils";
 import { SessionManager } from "./session-manager";
@@ -402,7 +402,8 @@ function useRemoteThreadListSync(
         if (cancelled) return;
 
         const remoteThreadIds = new Set<string>();
-        const newMetadata = new Map(currentContext.allThreadsMetadata);
+        const previousMetadata = currentContext.allThreadsMetadata;
+        const newMetadata = new Map<string, ThreadMetadata>();
         const baseThreadCount = currentContext.threadCnt;
         let maxChatNum = baseThreadCount;
 
@@ -410,10 +411,16 @@ function useRemoteThreadListSync(
           remoteThreadIds.add(thread.session_id);
           const rawTitle = thread.title ?? "";
           const title = isPlaceholderTitle(rawTitle) ? "" : rawTitle;
+          const serverLastActiveAt = (
+            thread as AomiThread & { last_active_at?: number }
+          ).last_active_at;
           const lastActive =
-            newMetadata.get(thread.session_id)?.lastActiveAt ||
+            (serverLastActiveAt ??
+              previousMetadata.get(thread.session_id)?.lastActiveAt) ||
             new Date().toISOString();
-          const existingControl = newMetadata.get(thread.session_id)?.control;
+          const existingControl = previousMetadata.get(
+            thread.session_id,
+          )?.control;
           newMetadata.set(thread.session_id, {
             title,
             status: thread.is_archived ? "archived" : "regular",
@@ -427,6 +434,12 @@ function useRemoteThreadListSync(
             if (num > maxChatNum) {
               maxChatNum = num;
             }
+          }
+        }
+
+        for (const [threadId, metadata] of previousMetadata.entries()) {
+          if (!newMetadata.has(threadId)) {
+            newMetadata.set(threadId, metadata);
           }
         }
 
