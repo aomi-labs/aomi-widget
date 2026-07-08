@@ -10,6 +10,7 @@ import { buildActivityList, buildDeploymentList } from "../deployment-timeline";
 
 type Detail = ReturnType<typeof useProjectDetail>;
 type OpState = {
+  kind: "promote" | "deactivate";
   deploymentId: string;
   status: "running" | "done" | "error";
   message: string;
@@ -30,7 +31,7 @@ export function DeploymentsTab({ detail }: { detail: Detail }) {
   }, [detail]);
 
   const source = detail.source;
-  const deployments = useMemo(
+  const recordDeployments = useMemo(
     () => buildDeploymentList(detail.recordsByApp),
     [detail.recordsByApp],
   );
@@ -38,8 +39,53 @@ export function DeploymentsTab({ detail }: { detail: Detail }) {
     () => buildActivityList(detail.recordsByApp),
     [detail.recordsByApp],
   );
+  const runtimeHasActiveState =
+    source?.apps.some((app) => typeof app.isActive === "boolean") ?? false;
+  const activeAppMissingReleaseTag =
+    source?.apps.some((app) => app.isActive && app.appReleaseTag == null) ??
+    false;
+  const runtimeCanResolveLive =
+    runtimeHasActiveState && !activeAppMissingReleaseTag;
+  const optimisticallyPromotedId =
+    op?.kind === "promote" && op.status === "done" ? op.deploymentId : null;
+  const optimisticallyDeactivated =
+    op?.kind === "deactivate" && op.status === "done";
+  const liveReleaseTags = useMemo(
+    () =>
+      new Set(
+        optimisticallyDeactivated
+          ? []
+          : (source?.apps
+              .filter(
+                (app) => app.isActive && typeof app.appReleaseTag === "string",
+              )
+              .map((app) => app.appReleaseTag as string) ?? []),
+      ),
+    [source, optimisticallyDeactivated],
+  );
+  const deployments = useMemo(
+    () =>
+      recordDeployments.map((deployment) => ({
+        ...deployment,
+        current: optimisticallyPromotedId
+          ? deployment.deploymentId === optimisticallyPromotedId
+          : runtimeCanResolveLive
+            ? deployment.releaseTags.some((tag) => liveReleaseTags.has(tag))
+            : deployment.current,
+      })),
+    [
+      recordDeployments,
+      optimisticallyPromotedId,
+      runtimeCanResolveLive,
+      liveReleaseTags,
+    ],
+  );
   const currentDeployment =
     deployments.find((deployment) => deployment.current) ?? null;
+  const deactivated =
+    runtimeCanResolveLive &&
+    deployments.length > 0 &&
+    currentDeployment == null;
   const deploying =
     detail.deployFlow.phase !== "idle" &&
     detail.deployFlow.phase !== "done" &&
@@ -66,10 +112,16 @@ export function DeploymentsTab({ detail }: { detail: Detail }) {
 
   const runPromote = async (deploymentId: string) => {
     setPending(null);
-    setOp({ deploymentId, status: "running", message: "Promoting…" });
+    setOp({
+      kind: "promote",
+      deploymentId,
+      status: "running",
+      message: "Promoting…",
+    });
     try {
       const result = await detail.promote(deploymentId);
       setOp({
+        kind: "promote",
         deploymentId,
         status: result.ok ? "done" : "error",
         message: result.ok
@@ -80,6 +132,7 @@ export function DeploymentsTab({ detail }: { detail: Detail }) {
       detail.refreshRecords();
     } catch (err) {
       setOp({
+        kind: "promote",
         deploymentId,
         status: "error",
         message: err instanceof Error ? err.message : "Promote failed",
@@ -89,14 +142,25 @@ export function DeploymentsTab({ detail }: { detail: Detail }) {
 
   const runDeactivate = async (deploymentId: string, apps: string[]) => {
     setPending(null);
-    setOp({ deploymentId, status: "running", message: "Deactivating…" });
+    setOp({
+      kind: "deactivate",
+      deploymentId,
+      status: "running",
+      message: "Deactivating…",
+    });
     try {
       await detail.deactivate(apps);
-      setOp({ deploymentId, status: "done", message: "Deactivated." });
+      setOp({
+        kind: "deactivate",
+        deploymentId,
+        status: "done",
+        message: "Deactivated.",
+      });
       detail.reload();
       detail.refreshRecords();
     } catch (err) {
       setOp({
+        kind: "deactivate",
         deploymentId,
         status: "error",
         message: err instanceof Error ? err.message : "Deactivate failed",
@@ -133,19 +197,25 @@ export function DeploymentsTab({ detail }: { detail: Detail }) {
           ))}
         </div>
         <div className="flex items-center gap-2">
-          {currentDeployment && (
+          {(currentDeployment || deactivated) && (
             <button
               type="button"
-              disabled={deploying || deactivatingCurrent}
+              disabled={deploying || deactivatingCurrent || deactivated}
               onClick={() =>
-                setPending({
-                  kind: "deactivate",
-                  deploymentId: currentDeployment.deploymentId,
-                  apps: currentDeployment.apps,
-                })
+                currentDeployment
+                  ? setPending({
+                      kind: "deactivate",
+                      deploymentId: currentDeployment.deploymentId,
+                      apps: currentDeployment.apps,
+                    })
+                  : undefined
               }
               className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-zinc-300 bg-white px-2.5 text-xs font-medium text-zinc-800 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50"
-              title="Deactivate: unload the binary and clear the live pointer"
+              title={
+                deactivated
+                  ? "No deployment is live"
+                  : "Deactivate: unload the binary and clear the live pointer"
+              }
             >
               <PowerOff className="size-3.5" aria-hidden />
               Deactivate
@@ -154,7 +224,10 @@ export function DeploymentsTab({ detail }: { detail: Detail }) {
           <button
             type="button"
             disabled={deploying}
-            onClick={() => void detail.deployNewVersion()}
+            onClick={() => {
+              setOp(null);
+              void detail.deployNewVersion();
+            }}
             className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md bg-zinc-900 px-3 text-xs font-medium text-white hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50"
             title="Deploy the source repo's latest commit and activate it"
           >
@@ -173,6 +246,18 @@ export function DeploymentsTab({ detail }: { detail: Detail }) {
           }`}
         >
           {detail.deployFlow.message}
+        </div>
+      )}
+
+      {deactivated && (
+        <div className="flex items-center gap-2 border-b border-red-100 bg-red-50 px-4 py-2 text-xs text-red-700">
+          <span className="rounded-full bg-red-100 px-2 py-0.5 font-medium">
+            Deactivated
+          </span>
+          <span>
+            No deployment is currently live. Promote a deployment or deploy a
+            new version.
+          </span>
         </div>
       )}
 
