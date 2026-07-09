@@ -5,6 +5,11 @@ import type { AomiEndpointSpec } from "../routes";
 export const AOMI_BACKEND_ENDPOINTS = [
   {
     method: "DELETE",
+    path: "/api/_internal/secrets",
+    auth: ["service"],
+  },
+  {
+    method: "DELETE",
     path: "/api/account/app-keys/:key_hash",
     auth: ["account"],
   },
@@ -52,6 +57,11 @@ export const AOMI_BACKEND_ENDPOINTS = [
     method: "DELETE",
     path: "/api/threads/:thread_id",
     auth: ["account","thread"],
+  },
+  {
+    method: "GET",
+    path: "/api/_internal/secrets",
+    auth: ["service"],
   },
   {
     method: "GET",
@@ -155,7 +165,37 @@ export const AOMI_BACKEND_ENDPOINTS = [
   },
   {
     method: "GET",
+    path: "/api/integrations/github-app/user/sources/:id/agents",
+    auth: ["service"],
+  },
+  {
+    method: "GET",
+    path: "/api/integrations/github-app/user/sources/:id/deployments",
+    auth: ["service"],
+  },
+  {
+    method: "GET",
     path: "/api/integrations/github-app/user/sources/:id/latest-deployment",
+    auth: ["service"],
+  },
+  {
+    method: "GET",
+    path: "/api/integrations/github-app/user/sources/:id/logs",
+    auth: ["service"],
+  },
+  {
+    method: "GET",
+    path: "/api/integrations/github-app/user/sources/:id/observability",
+    auth: ["service"],
+  },
+  {
+    method: "GET",
+    path: "/api/integrations/github-app/user/sources/:id/transactions",
+    auth: ["service"],
+  },
+  {
+    method: "GET",
+    path: "/api/integrations/github-app/user/sources/:id/usage",
     auth: ["service"],
   },
   {
@@ -176,6 +216,11 @@ export const AOMI_BACKEND_ENDPOINTS = [
   {
     method: "GET",
     path: "/api/platforms/:name/apps/:app",
+    auth: ["activation"],
+  },
+  {
+    method: "GET",
+    path: "/api/platforms/:name/apps/:app/records",
     auth: ["activation"],
   },
   {
@@ -366,6 +411,11 @@ export const AOMI_BACKEND_ENDPOINTS = [
   {
     method: "POST",
     path: "/api/platforms/:name/deploy",
+    auth: ["activation"],
+  },
+  {
+    method: "POST",
+    path: "/api/platforms/:name/deployments/:deployment/promote",
     auth: ["activation"],
   },
   {

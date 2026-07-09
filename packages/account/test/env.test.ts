@@ -56,10 +56,12 @@ describe("readAccountAuthEnv", () => {
     );
   });
 
-  it("derives preview auth URLs from arbitrary Vercel branch URLs", () => {
+  it("derives preview auth URLs from arbitrary Vercel branch URLs when no explicit override is set", () => {
+    // Ephemeral PR previews get a unique *.vercel.app URL and no BETTER_AUTH_URL,
+    // so auth derives from the branch URL (and AOMI_AUTH_DOMAIN is ignored on
+    // preview in favour of that derived host).
     const env = readAccountAuthEnv({
       BETTER_AUTH_SECRET: "preview-secret",
-      BETTER_AUTH_URL: "https://chat-staging.aomi.dev",
       DATABASE_URL: "postgresql://preview.example/aomi",
       NODE_ENV: "production",
       VERCEL_ENV: "preview",
@@ -84,6 +86,30 @@ describe("readAccountAuthEnv", () => {
       "https://chat-portal-git-codex-merge-bff-betterauth-aomi-labs.vercel.app",
       "https://chat-portal-random-deployment-id-aomi-labs.vercel.app",
       "https://chat.aomi.dev",
+    ]);
+  });
+
+  it("lets an explicit BETTER_AUTH_URL win on preview (stable custom-alias deploys)", () => {
+    // chat-staging.aomi.dev is a stable alias over a `preview` build; the browser
+    // is served on the alias, not the *.vercel.app URL, so auth must key off the
+    // explicit host or SIWE domain/origin checks reject every login.
+    const env = readAccountAuthEnv({
+      BETTER_AUTH_SECRET: "preview-secret",
+      BETTER_AUTH_URL: "https://chat-staging.aomi.dev",
+      DATABASE_URL: "postgresql://preview.example/aomi",
+      NODE_ENV: "production",
+      VERCEL_ENV: "preview",
+      VERCEL_BRANCH_URL: "chat-portal-git-main-aomi-labs.vercel.app",
+      VERCEL_URL: "chat-portal-random-deployment-id-aomi-labs.vercel.app",
+    });
+
+    expect(env.betterAuthUrl).toBe("https://chat-staging.aomi.dev");
+    expect(env.siweDomain).toBe("chat-staging.aomi.dev");
+    // still trusts the auto-detected preview URLs so the deploy's own hostname works
+    expect(env.trustedOrigins).toEqual([
+      "https://chat-staging.aomi.dev",
+      "https://chat-portal-git-main-aomi-labs.vercel.app",
+      "https://chat-portal-random-deployment-id-aomi-labs.vercel.app",
     ]);
   });
 
