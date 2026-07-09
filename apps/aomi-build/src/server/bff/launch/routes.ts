@@ -342,6 +342,10 @@ export async function launchStatusRoute(req: Request) {
   const blocked = checkRead(req);
   if (blocked) return blocked;
 
+  const auth = await requireSession();
+  if ("response" in auth) return auth.response;
+  const { session } = auth;
+
   const deploymentId = new URL(req.url).searchParams.get("deploymentId");
   if (!isValidDeploymentId(deploymentId)) {
     return NextResponse.json(
@@ -356,6 +360,7 @@ export async function launchStatusRoute(req: Request) {
     const result = await client.status({
       platform: config.platform,
       deploymentId,
+      githubUserId: session.githubUserId,
     });
     const enriched = await enrichPendingCiStatus(result);
     return NextResponse.json({
@@ -479,6 +484,9 @@ export async function activateLaunchRoute(req: Request) {
   const blocked = checkWrite(req);
   if (blocked) return blocked;
 
+  const auth = await requireSession();
+  if ("response" in auth) return auth.response;
+
   try {
     const body = (await req.json().catch(() => ({}))) as {
       releaseTags?: unknown;
@@ -520,6 +528,10 @@ export async function launchAppRoute(req: Request) {
   const blocked = checkRead(req);
   if (blocked) return blocked;
 
+  const auth = await requireSession();
+  if ("response" in auth) return auth.response;
+  const { session } = auth;
+
   const params = new URL(req.url).searchParams;
   const name = params.get("name")?.trim();
   const releaseTag = params.get("releaseTag")?.trim();
@@ -530,6 +542,23 @@ export async function launchAppRoute(req: Request) {
   try {
     const config = launchConfig();
     const client = await deploymentClient();
+    const sources = await client.listUserSources({
+      githubUserId: session.githubUserId,
+      platform: config.platform,
+    });
+    const owned = sources.some((source) =>
+      source.apps.some(
+        (app) =>
+          app.name === name &&
+          (!releaseTag || app.appReleaseTag === releaseTag),
+      ),
+    );
+    if (!owned) {
+      return NextResponse.json(
+        { error: "app not found for this user" },
+        { status: 404 },
+      );
+    }
     const app = await client.getApp({
       platform: config.platform,
       app: name,
@@ -806,14 +835,32 @@ export async function deploymentRecordsRoute(req: Request) {
     return NextResponse.json({ error: "missing `app`" }, { status: 400 });
   }
   const appSourceId = Number(params.get("appSourceId"));
+  if (!isValidAppSourceId(appSourceId)) {
+    return NextResponse.json(
+      { error: "missing or invalid `appSourceId`" },
+      { status: 400 },
+    );
+  }
 
   try {
     const config = launchConfig();
     const client = await deploymentClient();
+    const source = await findOwnedSource(
+      client,
+      session.githubUserId,
+      config.platform,
+      appSourceId,
+    );
+    if (!source || !source.apps.some((candidate) => candidate.name === app)) {
+      return NextResponse.json(
+        { error: "app not found for this user" },
+        { status: 404 },
+      );
+    }
     const result = await client.listDeploymentRecords({
       platform: config.platform,
       app,
-      appSourceId: isValidAppSourceId(appSourceId) ? appSourceId : undefined,
+      appSourceId,
     });
     return NextResponse.json(result);
   } catch (err) {

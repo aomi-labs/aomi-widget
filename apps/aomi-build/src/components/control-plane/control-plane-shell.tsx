@@ -4,9 +4,9 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   Activity,
-  Bell,
   Bot,
   CircleUserRound,
+  Github,
   FolderKanban,
   Gauge,
   Hammer,
@@ -19,7 +19,6 @@ import {
   Rocket,
   ScrollText,
   Settings,
-  Star,
   WalletCards,
   X,
   type LucideIcon,
@@ -27,6 +26,12 @@ import {
 import { useEffect, useRef, useState } from "react";
 
 import { AomiLogo } from "@build/components/brand/aomi-logo";
+import {
+  fetchGitHubSession,
+  GITHUB_SIGNIN_URL,
+  signOutGitHub,
+  type GitHubSessionInfo,
+} from "@build/features/launch/dashboard";
 import { cn } from "@build/lib/utils";
 
 type NavItem = {
@@ -50,7 +55,12 @@ const navGroups: NavGroup[] = [
     title: "Build",
     items: [
       { label: "Build", href: "/build", icon: Hammer, enabled: false },
-      { label: "Projects", href: "/projects", icon: FolderKanban, enabled: true },
+      {
+        label: "Projects",
+        href: "/projects",
+        icon: FolderKanban,
+        enabled: true,
+      },
     ],
   },
   {
@@ -66,38 +76,30 @@ const navGroups: NavGroup[] = [
         label: "Transactions",
         href: "/operate/transactions",
         icon: WalletCards,
-        enabled: false,
+        enabled: true,
       },
       {
         label: "Observability",
-        href: "/observability",
+        href: "/operate/observability",
         icon: Activity,
-        enabled: false,
+        enabled: true,
       },
-      { label: "Usage", href: "/usage", icon: Gauge, enabled: false },
-      { label: "Agents", href: "/operate/agents", icon: Bot, enabled: false },
-      { label: "Logs", href: "/logs", icon: ScrollText, enabled: false },
+      { label: "Usage", href: "/operate/usage", icon: Gauge, enabled: true },
+      { label: "Agents", href: "/operate/agents", icon: Bot, enabled: true },
+      { label: "Logs", href: "/operate/logs", icon: ScrollText, enabled: true },
     ],
   },
   {
     title: "Account",
     items: [
-      { label: "Integrations", href: "/integrations", icon: Plug, enabled: false },
+      {
+        label: "Integrations",
+        href: "/integrations",
+        icon: Plug,
+        enabled: false,
+      },
       { label: "Settings", href: "/settings", icon: Settings, enabled: true },
     ],
-  },
-];
-
-const notifications = [
-  {
-    id: "deploy-failed",
-    title: "Deploy failed",
-    detail: "Last build step needs attention",
-  },
-  {
-    id: "service-key",
-    title: "Service auth restored",
-    detail: "aomi-bff local key is loaded",
   },
 ];
 
@@ -118,12 +120,104 @@ function IconButton({
       onClick={onClick}
       aria-label={label}
       className={cn(
-        "inline-flex h-8 w-8 items-center justify-center rounded-md text-dim transition hover:bg-accent-hover hover:text-foreground focus-visible:ring-1 focus-visible:ring-ring",
+        "text-dim hover:bg-accent-hover hover:text-foreground focus-visible:ring-ring inline-flex h-8 w-8 items-center justify-center rounded-md transition focus-visible:ring-1",
         className,
       )}
     >
       {children}
     </button>
+  );
+}
+
+type AccountState = GitHubSessionInfo & {
+  loading: boolean;
+};
+
+function githubAvatarUrl(login: string | null) {
+  return login
+    ? `https://github.com/${encodeURIComponent(login)}.png?size=96`
+    : null;
+}
+
+function githubInitials(login: string | null) {
+  const normalized = login?.trim();
+  if (!normalized) return "GH";
+  return normalized.slice(0, 2).toUpperCase();
+}
+
+function accountLabel(account: AccountState) {
+  if (account.loading) return "Loading GitHub account";
+  if (!account.signedIn) return "Not signed in";
+  return account.githubLogin ? `@${account.githubLogin}` : "GitHub account";
+}
+
+function Avatar({
+  login,
+  size = "md",
+}: {
+  login: string | null;
+  size?: "sm" | "md" | "lg";
+}) {
+  const avatar = githubAvatarUrl(login);
+  const sizeClass =
+    size === "lg"
+      ? "h-9 w-9 text-[12px]"
+      : size === "sm"
+        ? "h-7 w-7 text-[11px]"
+        : "h-8 w-8 text-[11px]";
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    setFailed(false);
+  }, [avatar]);
+
+  if (avatar && !failed) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        key={avatar}
+        src={avatar}
+        alt=""
+        onError={() => setFailed(true)}
+        className={cn(
+          "bg-surface-3 shrink-0 rounded-full object-cover",
+          sizeClass,
+        )}
+      />
+    );
+  }
+
+  return (
+    <span
+      className={cn(
+        "bg-surface-3 text-foreground flex shrink-0 items-center justify-center rounded-full font-medium",
+        sizeClass,
+      )}
+    >
+      {githubInitials(login)}
+    </span>
+  );
+}
+
+function AccountCard({ account }: { account: AccountState }) {
+  return (
+    <div className="border-border bg-surface-1 flex items-center gap-2.5 rounded-lg border px-3 py-2">
+      {account.signedIn ? (
+        <Avatar login={account.githubLogin} size="sm" />
+      ) : (
+        <span className="bg-surface-3 text-foreground flex h-7 w-7 shrink-0 items-center justify-center rounded-full">
+          <Github className="size-3.5" />
+        </span>
+      )}
+      <div className="min-w-0">
+        <p className="text-foreground truncate text-[13px]">
+          {accountLabel(account)}
+        </p>
+        <p className="text-dim truncate text-[11px]">
+          {account.signedIn ? "GitHub account" : "Sign in with GitHub"}
+        </p>
+      </div>
+    </div>
   );
 }
 
@@ -152,7 +246,7 @@ function NavItemLink({
         <>
           <span className="min-w-0 flex-1 truncate">{item.label}</span>
           {!item.enabled ? (
-            <span className="rounded-sm border border-border px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-dim">
+            <span className="border-border text-dim rounded-sm border px-1.5 py-0.5 text-[10px] uppercase tracking-wide">
               Soon
             </span>
           ) : null}
@@ -200,7 +294,7 @@ function NavGroupList({
   return (
     <div className="mb-1">
       {expanded ? (
-        <div className="px-2.5 py-1.5 text-[11px] font-medium text-dim">
+        <div className="text-dim px-2.5 py-1.5 text-[11px] font-medium">
           {group.title}
         </div>
       ) : null}
@@ -222,10 +316,12 @@ function NavGroupList({
 function SidebarNav({
   expanded,
   pathname,
+  account,
   onNavigate,
 }: {
   expanded: boolean;
   pathname: string;
+  account: AccountState;
   onNavigate?: () => void;
 }) {
   return (
@@ -241,37 +337,8 @@ function SidebarNav({
       ))}
 
       {expanded ? (
-        <div className="mt-auto space-y-2 px-2 pt-4">
-          <div className="rounded-lg border border-border bg-surface-1 p-3 transition-colors hover:border-border-hover">
-            <div className="mb-2 flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <p className="truncate text-[13px] font-medium text-foreground">
-                  Aomi Build Pass
-                </p>
-                <p className="mt-1 text-[11px] text-dim">
-                  Up to 50% free AI credits
-                </p>
-              </div>
-              <Star className="size-4 shrink-0 text-dim" />
-            </div>
-            <button
-              type="button"
-              disabled
-              className="mt-2 flex h-8 w-full cursor-not-allowed items-center justify-center rounded-md bg-primary/60 text-[12px] font-medium text-primary-foreground opacity-70"
-            >
-              Get Pass
-            </button>
-          </div>
-
-          <div className="flex items-center gap-2.5 rounded-lg border border-border bg-surface-1 px-3 py-2">
-            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-surface-3 text-[11px] font-medium text-foreground">
-              HX
-            </div>
-            <div className="min-w-0">
-              <p className="truncate text-[13px] text-foreground">Han</p>
-              <p className="truncate text-[11px] text-dim">han@aomi.dev</p>
-            </div>
-          </div>
+        <div className="mt-auto px-2 pt-4">
+          <AccountCard account={account} />
         </div>
       ) : null}
     </nav>
@@ -306,12 +373,12 @@ function TopBarMenu({
         onClick={() => setOpen((value) => !value)}
         aria-label={label}
         aria-expanded={open}
-        className="relative inline-flex h-8 w-8 items-center justify-center rounded-full text-dim transition hover:bg-accent-hover hover:text-foreground focus-visible:ring-1 focus-visible:ring-ring"
+        className="text-dim hover:bg-accent-hover hover:text-foreground focus-visible:ring-ring relative inline-flex h-8 w-8 items-center justify-center rounded-full transition focus-visible:ring-1"
       >
         {trigger}
       </button>
       {open ? (
-        <div className="absolute right-0 top-10 z-50 w-72 overflow-hidden rounded-md border border-border bg-surface-2 p-1 text-subtle shadow-lg">
+        <div className="border-border bg-surface-2 text-subtle absolute right-0 top-10 z-50 w-72 overflow-hidden rounded-md border p-1 shadow-lg">
           {children}
         </div>
       ) : null}
@@ -319,108 +386,130 @@ function TopBarMenu({
   );
 }
 
-function UserMenu() {
+function AccountMenu({
+  account,
+  onSignedOut,
+}: {
+  account: AccountState;
+  onSignedOut: () => void;
+}) {
+  const [signingOut, setSigningOut] = useState(false);
+
+  async function handleSignOut() {
+    setSigningOut(true);
+    try {
+      await signOutGitHub();
+      onSignedOut();
+    } finally {
+      setSigningOut(false);
+    }
+  }
+
   return (
     <div className="flex items-center gap-2">
       <TopBarMenu
-        label={`Notifications, ${notifications.length} unread`}
-        trigger={
-          <>
-            <Bell className="size-4" />
-            <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-negative" />
-          </>
-        }
-      >
-        <div className="px-2 py-1.5 text-[12px] font-medium text-foreground">
-          Notifications
-        </div>
-        <div className="-mx-1 my-1 h-px bg-border" />
-        {notifications.map((notification) => (
-          <div
-            key={notification.id}
-            className="rounded-md px-2 py-2 transition hover:bg-accent-hover"
-          >
-            <p className="text-[13px] text-foreground">{notification.title}</p>
-            <p className="mt-0.5 text-[11px] text-dim">
-              {notification.detail}
-            </p>
-          </div>
-        ))}
-        <div className="-mx-1 my-1 h-px bg-border" />
-        <Link
-          href="/settings/notifications"
-          className="flex w-full items-center rounded-md px-2 py-1.5 text-left text-xs transition hover:bg-accent-hover hover:text-foreground"
-        >
-          Notification settings
-        </Link>
-      </TopBarMenu>
-
-      <TopBarMenu
         label="Account menu"
         trigger={
-          <span className="flex h-7 w-7 items-center justify-center rounded-full bg-surface-3 text-[11px] font-medium text-foreground">
-            HX
-          </span>
+          account.signedIn ? (
+            <Avatar login={account.githubLogin} size="sm" />
+          ) : (
+            <CircleUserRound className="size-4" />
+          )
         }
       >
         <div className="flex items-center gap-2.5 px-2 py-2">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-surface-3 text-[12px] font-medium text-foreground">
-            HX
-          </div>
+          <Avatar login={account.githubLogin} size="lg" />
           <div className="min-w-0">
-            <p className="truncate text-[13px] font-medium text-foreground">
-              Han
+            <p className="text-foreground truncate text-[13px] font-medium">
+              {accountLabel(account)}
             </p>
-            <p className="truncate text-[11px] text-dim">han@aomi.dev</p>
+            <p className="text-dim truncate text-[11px]">
+              {account.signedIn ? "GitHub account" : "No active GitHub session"}
+            </p>
           </div>
         </div>
-        <div className="-mx-1 my-1 h-px bg-border" />
-        <Link
-          href="/settings/general"
-          className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-xs transition hover:bg-accent-hover hover:text-foreground"
-        >
-          <CircleUserRound className="size-3.5" />
-          Profile
-        </Link>
+        <div className="bg-border -mx-1 my-1 h-px" />
+        {account.signedIn && account.githubLogin ? (
+          <a
+            href={`https://github.com/${encodeURIComponent(account.githubLogin)}`}
+            target="_blank"
+            rel="noreferrer"
+            className="hover:bg-accent-hover hover:text-foreground flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-xs transition"
+          >
+            <Github className="size-3.5" />
+            GitHub profile
+          </a>
+        ) : (
+          <a
+            href={GITHUB_SIGNIN_URL}
+            className="hover:bg-accent-hover hover:text-foreground flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-xs transition"
+          >
+            <Github className="size-3.5" />
+            Sign in with GitHub
+          </a>
+        )}
         <Link
           href="/settings"
-          className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-xs transition hover:bg-accent-hover hover:text-foreground"
+          className="hover:bg-accent-hover hover:text-foreground flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-xs transition"
         >
           <Settings className="size-3.5" />
           Settings
         </Link>
-        <div className="-mx-1 my-1 h-px bg-border" />
+        <div className="bg-border -mx-1 my-1 h-px" />
         <button
           type="button"
-          disabled
-          className="flex w-full cursor-not-allowed items-center gap-2 rounded-md px-2 py-1.5 text-xs opacity-50"
+          onClick={handleSignOut}
+          disabled={!account.signedIn || signingOut}
+          className="hover:bg-accent-hover hover:text-foreground flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-xs transition disabled:cursor-not-allowed disabled:opacity-50"
         >
           <LogOut className="size-3.5" />
-          Log out
+          {signingOut ? "Signing out" : "Sign out"}
         </button>
       </TopBarMenu>
     </div>
   );
 }
 
+function useGitHubAccount(): [AccountState, (account: AccountState) => void] {
+  const [account, setAccount] = useState<AccountState>({
+    loading: true,
+    signedIn: false,
+    githubLogin: null,
+    installationId: null,
+  });
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchGitHubSession().then((session) => {
+      if (!cancelled) setAccount({ ...session, loading: false });
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  return [account, setAccount];
+}
+
 export function ControlPlaneShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [expanded, setExpanded] = useState(true);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [account, setAccount] = useGitHubAccount();
 
   useEffect(() => {
     setMobileOpen(false);
   }, [pathname]);
 
   return (
-    <div className="grid h-screen min-h-0 grid-cols-1 bg-background text-foreground lg:grid-cols-[auto_minmax(0,1fr)]">
+    <div className="bg-background text-foreground grid h-screen min-h-0 grid-cols-1 lg:grid-cols-[auto_minmax(0,1fr)]">
       <aside
         className={cn(
-          "hidden min-h-0 flex-col border-r border-border bg-sidebar transition-all duration-200 lg:flex",
+          "border-border bg-sidebar hidden min-h-0 flex-col border-r transition-all duration-200 lg:flex",
           expanded ? "w-56" : "w-14",
         )}
       >
-        <div className="relative border-b border-border">
+        <div className="border-border relative border-b">
           <div
             className={cn(
               "flex h-11 items-center gap-2 px-3",
@@ -456,7 +545,7 @@ export function ControlPlaneShell({ children }: { children: React.ReactNode }) {
           ) : null}
         </div>
 
-        <SidebarNav expanded={expanded} pathname={pathname} />
+        <SidebarNav expanded={expanded} pathname={pathname} account={account} />
       </aside>
 
       {mobileOpen ? (
@@ -467,20 +556,24 @@ export function ControlPlaneShell({ children }: { children: React.ReactNode }) {
             className="h-full flex-1 bg-black/50"
             aria-label="Close sidebar"
           />
-          <aside className="flex h-full w-72 flex-col border-l border-border bg-sidebar">
-            <div className="flex h-11 items-center justify-between gap-3 border-b border-border px-3">
+          <aside className="border-border bg-sidebar flex h-full w-72 flex-col border-l">
+            <div className="border-border flex h-11 items-center justify-between gap-3 border-b px-3">
               <AomiLogo
                 href="/"
                 className="min-w-0 flex-1"
                 onClick={() => setMobileOpen(false)}
               />
-              <IconButton label="Close menu" onClick={() => setMobileOpen(false)}>
+              <IconButton
+                label="Close menu"
+                onClick={() => setMobileOpen(false)}
+              >
                 <X className="size-4" />
               </IconButton>
             </div>
             <SidebarNav
               expanded
               pathname={pathname}
+              account={account}
               onNavigate={() => setMobileOpen(false)}
             />
           </aside>
@@ -488,7 +581,7 @@ export function ControlPlaneShell({ children }: { children: React.ReactNode }) {
       ) : null}
 
       <div className="flex min-h-0 min-w-0 flex-col">
-        <header className="flex h-11 shrink-0 items-center justify-between border-b border-border px-4">
+        <header className="border-border flex h-11 shrink-0 items-center justify-between border-b px-4">
           <IconButton
             label="Open menu"
             onClick={() => setMobileOpen(true)}
@@ -497,7 +590,17 @@ export function ControlPlaneShell({ children }: { children: React.ReactNode }) {
             <Menu className="size-4" />
           </IconButton>
           <div className="hidden lg:block" />
-          <UserMenu />
+          <AccountMenu
+            account={account}
+            onSignedOut={() =>
+              setAccount({
+                loading: false,
+                signedIn: false,
+                githubLogin: null,
+                installationId: null,
+              })
+            }
+          />
         </header>
         <main className="min-h-0 flex-1 overflow-y-auto">{children}</main>
       </div>

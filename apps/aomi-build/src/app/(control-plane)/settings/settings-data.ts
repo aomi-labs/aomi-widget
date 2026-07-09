@@ -55,7 +55,7 @@ export const settingsSections: SettingsSection[] = [
     enabled: false,
     status: "planned",
     detail:
-      "The top-bar notification UI is present, but notification preferences need backend storage and delivery channels.",
+      "Notification preferences need backend storage and delivery channels before this can be actionable.",
   },
   {
     slug: "appearance",
@@ -93,7 +93,8 @@ export const settingsSections: SettingsSection[] = [
     icon: Bot,
     enabled: false,
     status: "planned",
-    detail: "Bot configuration needs backend support before this can be actionable.",
+    detail:
+      "Bot configuration needs backend support before this can be actionable.",
   },
   {
     slug: "wallets",
@@ -102,7 +103,8 @@ export const settingsSections: SettingsSection[] = [
     icon: WalletCards,
     enabled: false,
     status: "planned",
-    detail: "Wallet management belongs here, but the current deployments flow does not expose this account API yet.",
+    detail:
+      "Wallet management belongs here, but the current deployments flow does not expose this account API yet.",
   },
   {
     slug: "observability",
@@ -111,7 +113,8 @@ export const settingsSections: SettingsSection[] = [
     icon: Activity,
     enabled: false,
     status: "planned",
-    detail: "Runtime metrics and alert exports are not wired in the current frontend/backend contract.",
+    detail:
+      "Runtime metrics and alert exports are not wired in the current frontend/backend contract.",
   },
   {
     slug: "danger",
@@ -120,7 +123,8 @@ export const settingsSections: SettingsSection[] = [
     icon: ShieldAlert,
     enabled: false,
     status: "planned",
-    detail: "Destructive workspace operations need real account auth and audit logging before we expose them.",
+    detail:
+      "Destructive workspace operations need real account auth and audit logging before we expose them.",
   },
 ];
 

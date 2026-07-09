@@ -37,6 +37,11 @@ export interface AuditEvent {
     | "exchange_github_code"
     | "list_user_sources"
     | "list_user_source_deployments"
+    | "list_user_source_agents"
+    | "list_user_source_transactions"
+    | "get_user_source_usage"
+    | "list_user_source_logs"
+    | "get_user_source_observability"
     | "list_deployment_records"
     | "get_user_source_latest_deployment"
     | "deactivate"
@@ -253,6 +258,8 @@ export interface StatusInput {
   platform: string;
   /** Deployment ID to poll `/api/platforms/:platform/deployments/:id/status`. */
   deploymentId?: string;
+  /** Optional owner filter for deployment status reads made from Aomi Build. */
+  githubUserId?: string;
   /** Optional backend status path. Defaults to `/api/platforms/:platform/status`. */
   path?: string;
   actor?: string;
@@ -547,6 +554,141 @@ export interface UserSource extends AppSource {
   /** SDK version of the source's live app, from the DB promotion records
    *  (populated in the source list without a GitHub read). */
   sdkVersion?: string | null;
+}
+
+export interface OwnedOperateSourceInput extends BearerOverride {
+  githubUserId: string;
+  platform: string;
+  appSourceId: number;
+}
+
+export interface ListUserSourceTransactionsInput extends OwnedOperateSourceInput {
+  cursor?: OperateTransactionCursor | string | null;
+  limit?: number;
+  status?: string;
+}
+
+export interface GetUserSourceUsageInput extends OwnedOperateSourceInput {
+  fromDate?: string;
+  toDate?: string;
+}
+
+export interface ListUserSourceLogsInput extends OwnedOperateSourceInput {
+  cursor?: OperateLogCursor | string | null;
+  limit?: number;
+  type?: "deployment" | "usage" | "transaction" | string;
+}
+
+export interface OperateTransactionCursor {
+  createdAt: number;
+  id: string;
+}
+
+export interface OperateLogCursor {
+  occurredAt: number;
+  eventType: string;
+  id: string;
+}
+
+export interface OperateAgentsResult {
+  source: AppSource;
+  platform: string;
+  agents: PlatformApp[];
+}
+
+export interface OperateTransaction {
+  id: string;
+  externalTxId: string;
+  application: string;
+  applicationId: number | null;
+  status: string;
+  txHash: string | null;
+  chainId: number;
+  fromAddress: string;
+  toAddress: string;
+  value: string;
+  hasCalldata: boolean;
+  calldataPreview: string | null;
+  description: string | null;
+  createdAt: number;
+  updatedAt: number;
+  submittedAt: number | null;
+}
+
+export interface OperateTransactionsResult {
+  source: AppSource;
+  platform: string;
+  transactions: OperateTransaction[];
+  nextCursor: OperateTransactionCursor | null;
+}
+
+export interface OperateUsageDailyRow {
+  periodUtcDay: string;
+  application: string;
+  applicationId: number;
+  inputTokens: number;
+  outputTokens: number;
+  creditsUsed: number;
+}
+
+export interface OperateUsageBreakdownRow {
+  provider: string;
+  model: string;
+  paymentMethod: string;
+  inputTokens: number;
+  outputTokens: number;
+  creditsUsed: number;
+  events: number;
+}
+
+export interface OperateUsageResult {
+  source: AppSource;
+  platform: string;
+  range: { fromDate: string; toDate: string; maxDays: number };
+  daily: OperateUsageDailyRow[];
+  breakdown: OperateUsageBreakdownRow[];
+}
+
+export interface OperateLogEntry {
+  occurredAt: number;
+  eventType: string;
+  id: string;
+  application: string;
+  applicationId: number | null;
+  summary: string;
+  details: Record<string, unknown>;
+}
+
+export interface OperateLogsResult {
+  source: AppSource;
+  platform: string;
+  logs: OperateLogEntry[];
+  nextCursor: OperateLogCursor | null;
+}
+
+export interface OperateAppHealth {
+  applicationId: number;
+  application: string;
+  active: boolean;
+  loaded: boolean;
+  releaseTag: string | null;
+  sdkVersion: string | null;
+  status: "healthy" | "not_loaded" | "inactive" | string;
+}
+
+export interface OperateDashboardLink {
+  label: string;
+  url: string;
+  scope: string;
+}
+
+export interface OperateObservabilityResult {
+  source: AppSource;
+  platform: string;
+  scope: "owned_applications" | string;
+  apps: OperateAppHealth[];
+  dashboardLinks: OperateDashboardLink[];
+  platformMetrics: unknown[];
 }
 
 // =============================================================================
