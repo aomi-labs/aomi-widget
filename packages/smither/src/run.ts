@@ -87,8 +87,69 @@ export async function executeRun(
   );
 }
 
-/** Write a durable approval decision for a paused node (deploy gate or a
- *  needsApproval task). The in-process engine picks it up on its next frame. */
+/** Statuses where the run is parked on something external and re-executing
+ *  with resume is the way forward once that thing arrives: a durable approval
+ *  decision (`waiting-approval`) or an external signal (`waiting-event`). */
+const PARKED_STATUSES = new Set(["waiting-approval", "waiting-event"]);
+
+/**
+ * Run to a terminal status. `runWorkflow` RETURNS a parked status when the only
+ * pending work is a human decision or an external signal — it does not block on
+ * it. Those unblock via durable writes from any surface (TUI, browser console,
+ * `sendSignal`), so this loop re-executes with resume until the run settles:
+ * completed nodes replay from cache, decided/signaled nodes advance, and a
+ * still-parked run cheaply returns to waiting.
+ */
+export async function executeRunUntilSettled(
+  prepared: PreparedRun,
+  options: {
+    onEvent?: (event: SmithersEvent) => void;
+    signal?: AbortSignal;
+    maxConcurrency?: number;
+    /** How often to re-check while parked. @default 2500 */
+    approvalPollMs?: number;
+  } = {},
+): Promise<RunResult> {
+  let attempt = prepared;
+  for (;;) {
+    const result = await executeRun(attempt, options);
+    if (!PARKED_STATUSES.has(result.status) || options.signal?.aborted) {
+      return result;
+    }
+    attempt = { ...attempt, resume: true };
+    await new Promise((wake) => setTimeout(wake, options.approvalPollMs ?? 2500));
+  }
+}
+
+/**
+ * Deliver an external signal that resolves a `wait-external` pause (a Smithers
+ * `<Signal>` node keyed by the phase's node id). The durable write is picked up
+ * by the next resume; call from the CLI `signal` subcommand, the console
+ * `/signal` endpoint, or any external system with access to the run's SQLite.
+ */
+export async function sendSignal(options: {
+  api: AomiSmitherApi;
+  runId: string;
+  nodeId: string;
+  ready?: boolean;
+  note?: string;
+  receivedBy?: string;
+}): Promise<void> {
+  const { SmithersDb, signalRun } = await import("smithers-orchestrator");
+  const adapter = new SmithersDb(options.api.db as never);
+  await Effect.runPromise(
+    signalRun(adapter, options.runId, options.nodeId, {
+      ready: options.ready ?? true,
+      note: options.note ?? "",
+      receivedBy: options.receivedBy ?? "aomi-smither",
+    }),
+  );
+}
+
+/** Write a durable approval decision for a paused node (deploy gate, a
+ *  needsApproval task, or a select-mode clarify). The in-process engine picks
+ *  it up on its next frame. For clarifies pass `selection` — it becomes the
+ *  `{selected, notes}` decision row later phases read as context. */
 export async function decideApproval(options: {
   api: AomiSmitherApi;
   runId: string;
@@ -97,6 +158,7 @@ export async function decideApproval(options: {
   approve: boolean;
   note?: string;
   decidedBy?: string;
+  selection?: { selected: string; notes?: string };
 }): Promise<void> {
   const { SmithersDb, approveNode, denyNode } = await import("smithers-orchestrator");
   const adapter = new SmithersDb(options.api.db as never);
@@ -109,6 +171,9 @@ export async function decideApproval(options: {
       options.iteration,
       options.note,
       options.decidedBy ?? "aomi-smither",
+      options.selection
+        ? { selected: options.selection.selected, notes: options.selection.notes ?? null }
+        : undefined,
     ),
   );
 }

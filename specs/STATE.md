@@ -2,7 +2,207 @@
 
 ## Last Updated
 
+2026-07-07 — aomi-smither: wait-external + cross-repo agents (stage 3) — roadmap complete
+
+## Flexible-orchestration roadmap (Cecilia's direction) — COMPLETE
+
+- **Stage 1 — composition + clarify** ✅. Plan is a composition of typed
+  phases; clarify pauses answerable from TUI + console.
+- **Stage 1.5 — intake in the browser from t=0** ✅. The composer is visible
+  before the workflow exists; one tab follows into the build.
+- **Stage 2 — multi-loop + eval + parallel** ✅. `eval` phase (run + judge →
+  metric), `eval-pass` loops with graceful `return-last` max, parallel fan-out.
+  Proven on the defi-pools shape.
+- **Stage 3 — wait-external + cross-repo agents** ✅ (this entry). Durable
+  external pauses; agent phases in other repos. Proven on the GameFi shape.
+
+## Recent Changes
+
+### wait-external + cross-repo agents (2026-07-07, stage 3)
+
+The last two primitives — for full-stack / outside-Aomi work (the GameFi
+scenario):
+
+- **plan.ts** — `wait-external` phase (waitingFor / timeoutHours / onTimeout);
+  agent phases gained `repo` (run in another codebase); new `design` role
+  (writes DESIGN.md for a human to build the other side from). `agentSpecsFor`
+  is a pure export listing the distinct (agent, cwd) pairs the workflow
+  instantiates — so cross-repo wiring is testable without running an agent.
+- **schemas.ts** — `external` table doubles as the wait-external signal payload
+  ({ ready, note, receivedBy }) and its output row.
+- **workflow.tsx** — renders `wait-external` as a Smithers `<Signal>` keyed by
+  the phase node id (schema = the registered `external` table); done when its
+  row lands. Agents instantiated one-per-(agent, repo).
+- **run.ts** — `sendSignal` (wraps engine `signalRun`); `executeRunUntilSettled`
+  now also resumes on `waiting-event`, not just `waiting-approval`.
+- **console.ts / cli.tsx** — console side channel gained `POST /signal`; new
+  `aomi-smither signal --app <app> --node <phase>` subcommand. Composer intake
+  prompt teaches wait-external + cross-repo + the full-stack shape.
+
+Grounding first: an empirical `<Signal>` probe established the contract —
+signalName === the Signal node id, the Signal's schema must be registered in
+createSmithers, and the parked status is **`waiting-event`** (NOT
+waiting-approval — that gap would have hung the settle loop; fixed).
+
+Verified live through the real runtime, CROSS-PROCESS (the true durability
+claim): process A parked a run on wait-external (`waiting-event`); process B —
+the *built* `aomi-smither signal` CLI — delivered the signal by loading the
+run off disk; process C resumed (`resuming? true`) and finished, with the
+`external` row carrying the note from process B. Plus an in-process GameFi
+proof: binaries → wait-external (park → signal → resume) → eval-loop (0.9 pass)
+→ result complete. 73 vitest green (4 new: GameFi shape, wait-external stage,
+cross-repo cwd separation, same-repo agent dedup); tsc + eslint clean; dist
+rebuilt.
+
+Known gap (noted, not blocking): the branded browser console shows a
+wait-external node as a rail row but has no in-page "signal ready" button yet
+— resume it from the CLI or a `POST /signal`. A button is UI polish for a
+follow-up.
+
+### Multi-loop + eval + parallel (2026-07-07, stage 2)
+
+Extended the composition vocabulary with the three primitives the arb-bot /
+GameFi / defi-pools scenarios jointly demanded:
+
+- **plan.ts** — `eval` phase (scenario/rubric/threshold/judge), `parallel`
+  phase (branches[][], maxConcurrency), and loops generalized: `until` is
+  "validation-green" | "eval-pass"; `onMax` "fail" | "return-last"; agent
+  `onlyIf` gained "prev-eval-fail". `innerPhasesOf` centralizes the descent
+  into loop bodies + parallel branches; `compositionIssues` validates the new
+  shapes (eval needs binaries; eval-pass loop needs an eval in body; ids unique
+  across branches). `stagesFor` expands a parallel into a header row + one row
+  per branch leaf (each lights up independently); loops stay one row.
+- **evals.ts** (new) — `runEvalStep`: compile → aomi-run(scenario) →
+  read-only judge (claude/codex → strict JSON score) → EvaluationRow. Judge
+  never edits files. Malformed score clamps to 0 (a failing eval, not a crash).
+- **workflow.tsx** — renders `<Parallel>` (branch = `<Sequence>`) and eval
+  Tasks; eval-pass loops use the latest eval's `pass` as the `until` predicate;
+  refine agents get the judge's feedback folded into their prompt. `loopDone`
+  detects graceful `return-last` max via `ctx.iterations` (0-indexed → final
+  round is maxRounds-1; the enclosing Sequence still orders downstream).
+- **prompts.ts** — composer intake prompt teaches the eval/parallel/loop
+  vocabulary; `judgePrompt` + `PromptContext.evalFeedback`.
+
+Verified live through the real Smithers runtime (stubbed commands): (1) parallel
+fan-out — both branches ran concurrently and the run waited; (2) eval-pass loop
+— judge scored 0.3 then 0.9 across iterations 0/1, loop exited on pass; (3)
+graceful return-last — judge always 0.2, loop ran its 2-round budget, never
+passed, and the result phase STILL mounted (status complete) instead of
+hard-failing. 69 vitest green (10 new: composition shapes + eval judge + clamp +
+failure paths); tsc + eslint clean; dist rebuilt.
+
+Bug found + fixed during the proof: `return-last` max detection was off by one
+(`ctx.iterations` is the 0-indexed current round, maxing at maxRounds-1), so
+the result phase never mounted after a graceful loop. Fixed and re-proven.
+
+### Intake visible in browser from t=0 (2026-07-06, stage 1.5)
+
+Cecilia's ask after driving the morpho chat: "why stare at the terminal during
+'thinking…' — give me a UI that monitors from the start." The composer isn't a
+Smithers node (no graph until the plan is composed), so it can't ride the
+gateway. Instead:
+
+- **intake.ts** — `startIntakeServer`: a loopback HTTP server booted at CLI
+  startup serving a self-contained aomi-branded page (`GET /`) + live state
+  (`GET /intake`, polled). Shows the conversation, composer thinking (elapsed),
+  the draft plan forming, and the composed stage preview. When the build
+  starts it flips to `phase:"building"` with a `buildUrl` and the page follows
+  itself to the gateway console — one tab across intake → compose → build.
+- **cli.tsx** — `SmitherApp` boots the intake server at t=0 (prints
+  `⌗ intake view:`), mirrors chat state (turns/draft/thinking/composed stages/
+  phase) into it every change, and hands the console URL back from `RunView`
+  via `onConsoleUrl` so the page follows on run start. `--no-console` disables.
+
+Verified: intake server serves the page, reflects turns/thinking/draft/stages,
+transitions intake→preview→building with buildUrl, and picks the next free
+port on conflict (3 vitest). Live screenshot of the morpho preview state
+(conversation + forming plan + composed clarify→research→synthesize→loop rail)
+captured via playwright. 59 vitest green total; tsc + eslint clean; dist built.
+
+Seam (honest): the transition is a redirect (intake server on 7331, gateway on
+7332), not an in-place swap — one tab, one brief navigation. The composer is
+streamed, not itself a durable node; making intent a true workflow node is the
+stage-2+ "conversational orchestrator" direction and is noted, not built.
+
+### Composition model + clarify primitive (2026-07-06, stage 1)
+
+### Composition model + clarify primitive (2026-07-06, stage 1)
+
+Cecilia's direction after reviewing three scenarios (arb bot, GameFi
+companion, spec-less DeFi pools): the plan is now a **composition of typed
+phases**, not flags on one pipeline. Stage 1 of 3 (next: multi-loop + eval +
+parallel for defi-pools; then wait-external + cross-repo for GameFi).
+
+- **plan.ts** — phase vocabulary (compute ops / agent roles incl. research,
+  draft-spec, synthesize / clarify / gate / loop) as zod discriminated
+  unions; `BuildPlan.phases?` optional; `classicComposition` reproduces the
+  old pipeline with identical node ids (resume-safe); `compositionIssues`
+  validates structure at finalize.
+- **workflow.tsx** — generic renderer: walks `resolveComposition(plan)`,
+  chain-mounts phases as predecessors' rows appear; denied gate skips
+  downstream except result. Clarify = select-mode `<Approval>` with options
+  mirrored into request.metadata; clarify answers are folded into later
+  agent prompts (`PromptContext.clarifications`).
+- **run.ts** — `executeRunUntilSettled`: the engine RETURNS
+  `waiting-approval` (does not block) — discovered live; the settle loop
+  re-executes with resume after durable decisions from any surface.
+  `decideApproval` gained `selection` (approveNode's 7th arg).
+- **console.ts** — loopback decision endpoint (`POST /decide`, port 0)
+  beside the gateway: the stock 0.26.1 gateway approve route DROPS decision
+  payloads (`approveNode(..., body.note, body.decidedBy)` — no decision
+  arg), so browser select-mode decisions need this side channel. decideUrl
+  rides into UI boot props; `ConsoleHandle.decideUrl` exposed.
+- **cli.tsx / ui/aomi-smither.tsx** — TUI renders clarify options as a
+  Select; branded console renders option buttons (first = recommended) and
+  posts to the decision endpoint. Intake prompt teaches the composer the
+  vocabulary + viability probe.
+
+Verified live: (1) morpho intake — "build a morpho pool manager" →
+ready:false, explains GraphQL-only, offers research-mode (recommended) /
+draft-spec, asks positions-vs-vault-curation; (2) engine proof — composed
+clarify workflow paused (ApprovalRequested → NodeWaitingApproval), decision
+POSTed over the endpoint, "approval granted", resumed, finished;
+`clarify` row persisted `{selected: "research-mode", notes}`; (3) browser
+page serves options + decideUrl in boot props. 56 vitest green (5 new
+composition tests), tsc + eslint clean, dist rebuilt.
+
+Note for reviewers: headless `--yes` auto-selects each clarify's FIRST
+option — compositions should order options recommendation-first.
+
+### aomi-smither engine rewrite: Smithers-native, compose-from-intent (2026-07-05)
 2026-07-03 - Tri-repo pre-merge review (aomi vs origin/main, product-mono vs origin/refactor/dbthread-unification, db-master). Local checks all green. Blockers logged below.
+
+## Partner deploy primitives — additive on Han's main (2026-07-07)
+
+Branch `partner-deploy-additive` (off `origin/main` `bf890120`, which merged Han's
+#292 deployment-SDK-guardrails **including** his portal deployment console — codex
+did NOT strip it; it is present + mounted at `/deployments`). Rather than the
+earlier plan of gutting the portal launch feature into packages (which would have
+collided head-on with Han's now-live console), this ships the partner-facing
+primitives **purely additively** — 24 files, all under `packages/deploy/`, zero
+changes to `apps/portal` or `apps/shadcn-registry`:
+
+- **`@aomi-labs/deploy/bff`** (server-only) — framework-agnostic `(Request) =>
+  Response` route factories: `createLaunchRoutes`, `createGitHubAuthRoutes`,
+  `createGitHubSessionCodec`, default guards, config, validators, error mapper.
+- **`@aomi-labs/deploy/launch`** (browser) — `createLaunchClient` typed client +
+  wizard state machine + contracts + url-context.
+- **`packages/deploy/skills/aomi-deploy/SKILL.md`** — agent-paste-able integration
+  guide; ships with npm (`files` includes `skills`). Points partners at Han's
+  portal console (`apps/portal/src/features/launch/`) as the worked example to
+  read, not vendor.
+- **`package.json`** 0.1.1 → 0.2.0 (adds `./bff` + `./launch` exports, `jose` dep,
+  `skills` to files); `tsup.config.ts` adds the two entries.
+
+Inherits Han's new SDK methods (`deactivateApp`/`promote`/`listSecrets`/
+`listDeploymentRecords`/`serverTags`) from `packages/deploy/src/client.ts` with no
+conflict (his additions were to files this extraction never touches). Build (4
+entries) + 98 pkg tests green. **Superseded decisions:** the registry `aomi-launch`
+shadcn item and the portal-as-thin-consumer rewrite are dropped — Han's console is
+the portal's deploy UI + the reference; my registry component copies (old branch
+`partner-deploy-readiness`, kept as backup) are redundant and not carried forward.
+Deferred (not done): browser-exposed "stop"/deactivate in `createLaunchClient`;
+publishing 0.2.0; unifying the portal's own launch routes onto these factories.
 
 ## Pending (from 2026-07-03 pre-merge review)
 

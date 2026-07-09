@@ -53,6 +53,40 @@ export const smitherSchemas = {
     ok: z.boolean(),
     log: z.string(),
   }),
+  /** Clarify decision — a select-mode approval's `{selected, notes}` plus the
+   *  engine's decidedBy/decidedAt stamps (mirrors how `gate` maps
+   *  approvalDecisionSchema). */
+  clarify: z.object({
+    selected: z.string(),
+    notes: z.string().nullable().default(null),
+    decidedBy: z.string().nullable().default(null),
+    decidedAt: z.string().nullable().default(null),
+  }),
+  /** Generic agent-phase report for the composed roles (research, draft-spec,
+   *  synthesize) that don't have a bespoke table. */
+  agentWork: z.object({
+    summary: z.string(),
+    artifacts: z.string().default(""),
+    followUps: z.string().default(""),
+  }),
+  /** Behavioral eval result: the judge's score (0..1), pass/fail against the
+   *  phase threshold, the judge's notes, and the run transcript it scored. */
+  evaluation: z.object({
+    score: z.number(),
+    pass: z.boolean(),
+    threshold: z.number(),
+    notes: z.string().default(""),
+    transcript: z.string().default(""),
+  }),
+  /** Payload of an external signal that resolves a wait-external pause. The
+   *  Signal validates the incoming payload against this schema, so it doubles
+   *  as the wait-external output row. `ready:false` lets an outside system
+   *  report the work was abandoned. */
+  external: z.object({
+    ready: z.boolean(),
+    note: z.string().default(""),
+    receivedBy: z.string().default(""),
+  }),
   result: z.object({
     status: z.enum(["complete", "deploy-denied", "blocked"]),
     summary: z.string(),
@@ -67,6 +101,10 @@ export type ReviewRow = z.infer<SmitherSchemas["review"]>;
 export type ValidationRow = z.infer<SmitherSchemas["validation"]>;
 export type SmokeRow = z.infer<SmitherSchemas["smoke"]>;
 export type GateRow = z.infer<SmitherSchemas["gate"]>;
+export type ClarifyRow = z.infer<SmitherSchemas["clarify"]>;
+export type AgentWorkRow = z.infer<SmitherSchemas["agentWork"]>;
+export type EvaluationRow = z.infer<SmitherSchemas["evaluation"]>;
+export type ExternalRow = z.infer<SmitherSchemas["external"]>;
 export type DeploymentRow = z.infer<SmitherSchemas["deployment"]>;
 export type ResultRow = z.infer<SmitherSchemas["result"]>;
 

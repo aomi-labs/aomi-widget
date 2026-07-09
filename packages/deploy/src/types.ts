@@ -76,8 +76,8 @@ export interface ListSecretsResult {
 }
 
 export interface IngestSecretsInput extends BearerOverride {
-  /** Vault key — the owning user's stable id (portal uses the GitHub user id). */
-  userId: string;
+  /** GitHub user id used as the only owner scope for app secret vault entries. */
+  githubUserId: string;
   app: string;
   /** Optional portal source row id used to scope list/delete surfaces. */
   sourceId?: string;
@@ -89,8 +89,8 @@ export interface IngestSecretsResult {
 }
 
 export interface ListAppSecretsInput extends BearerOverride {
-  /** Vault key — the owning user's stable id (portal uses the GitHub user id). */
-  userId: string;
+  /** GitHub user id used as the only owner scope for app secret vault entries. */
+  githubUserId: string;
   /** When present, only this app's handles are returned. */
   app?: string;
   /** When present, only this source's handles are returned. */
@@ -98,7 +98,8 @@ export interface ListAppSecretsInput extends BearerOverride {
 }
 
 export interface RemoveAppSecretInput extends BearerOverride {
-  userId: string;
+  /** GitHub user id used as the only owner scope for app secret vault entries. */
+  githubUserId: string;
   app: string;
   sourceId?: string;
   name: string;

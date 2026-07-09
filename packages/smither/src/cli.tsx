@@ -19,7 +19,7 @@ import type { CommandRunner } from "./types";
 import { defaultRunsRoot } from "./state";
 import {
   decideApproval,
-  executeRun,
+  executeRunUntilSettled,
   prepareRun,
   type PreparedRun,
 } from "./run";
@@ -28,7 +28,12 @@ import {
   startConsoleForApp,
   type ConsoleHandle,
 } from "./console";
-import { executePromote, planPromote, promoteClientFromEnv } from "./promote";
+import { startIntakeServer, type IntakeServerHandle } from "./intake";
+import {
+  executeRollback,
+  planRollback,
+  rollbackClientFromEnv,
+} from "./rollback";
 
 // ---------------------------------------------------------------------------
 // Argument parsing
@@ -72,10 +77,7 @@ function parseFlagMap(argv: string[]): Map<string, string | boolean> {
   return values;
 }
 
-function stringValue(
-  values: Map<string, string | boolean>,
-  key: string,
-): string | undefined {
+function stringValue(values: Map<string, string | boolean>, key: string): string | undefined {
   const value = values.get(key);
   return typeof value === "string" ? value : undefined;
 }
@@ -86,10 +88,7 @@ function parseArgs(argv: string[]): CliArgs {
     sdkRoot: path.resolve(stringValue(values, "sdk-root") ?? defaultSdkRoot()),
   };
   const provided = new Set<string>();
-  const setField = <K extends keyof BuildPlan>(
-    key: K,
-    value: BuildPlan[K] | undefined,
-  ) => {
+  const setField = <K extends keyof BuildPlan>(key: K, value: BuildPlan[K] | undefined) => {
     if (value === undefined) return;
     draft[key] = value;
     provided.add(key);
@@ -106,18 +105,15 @@ function parseArgs(argv: string[]): CliArgs {
   if (values.get("force")) setField("force", true);
   if (values.get("no-build")) setField("build", false);
   setField("userStory", stringValue(values, "user-story"));
-  const builder =
-    stringValue(values, "builder") ?? stringValue(values, "agent");
+  const builder = stringValue(values, "builder") ?? stringValue(values, "agent");
   if (builder === "claude" || builder === "codex" || builder === "none") {
     setField("builder", builder);
   }
   if (values.get("review")) setField("review", true);
   const reviewer = stringValue(values, "reviewer");
-  if (reviewer === "claude" || reviewer === "codex")
-    setField("reviewer", reviewer);
+  if (reviewer === "claude" || reviewer === "codex") setField("reviewer", reviewer);
   const fixRounds = stringValue(values, "max-fix-rounds");
-  if (fixRounds && /^\d+$/.test(fixRounds))
-    setField("maxFixRounds", Number(fixRounds));
+  if (fixRounds && /^\d+$/.test(fixRounds)) setField("maxFixRounds", Number(fixRounds));
   if (values.get("smoke")) setField("smoke", true);
   setField("smokePrompt", stringValue(values, "smoke-prompt"));
   if (values.get("deploy")) setField("deploy", true);
@@ -139,22 +135,16 @@ function parseArgs(argv: string[]): CliArgs {
     runsRoot: stringValue(values, "state-root") ?? defaultRunsRoot,
     activationToken: stringValue(values, "activation-token"),
     intentAgent: intentAgent === "codex" ? "codex" : "claude",
-    console: values.get("no-console")
-      ? false
-      : values.get("console")
-        ? true
-        : undefined,
+    console: values.get("no-console") ? false : values.get("console") ? true : undefined,
     consolePort:
-      consolePortRaw && /^\d+$/.test(consolePortRaw)
-        ? Number(consolePortRaw)
-        : undefined,
+      consolePortRaw && /^\d+$/.test(consolePortRaw) ? Number(consolePortRaw) : undefined,
     consoleBuiltin: Boolean(values.get("console-builtin")),
     draft,
     provided,
   };
 }
 
-type PromoteArgs = {
+type RollbackArgs = {
   help: boolean;
   yes: boolean;
   app: string;
@@ -165,7 +155,7 @@ type PromoteArgs = {
   activationToken?: string;
 };
 
-function parsePromoteArgs(argv: string[]): PromoteArgs {
+function parseRollbackArgs(argv: string[]): RollbackArgs {
   const values = parseFlagMap(argv);
   const source = stringValue(values, "source");
   return {
@@ -229,8 +219,8 @@ SUBCOMMANDS
     --port <n>                Console port (default: 7331)
     --console-builtin         Use the generic operator console instead of aomi UI
 
-  promote                     Promote a deployment to live
-    --app <name>              App to promote (required)
+  rollback                    Roll an app back to a previous deployment
+    --app <name>              App to roll back (required)
     --platform <name>         Hosted platform name (required)
     --deployment <id>         Explicit deployment id (default: previous)
     --source <id>             App source id when the name exists for several sources
@@ -287,9 +277,7 @@ function reduceEvent(
   switch (event.type) {
     case "NodeStarted":
       setStage(event.nodeId, "running");
-      push(
-        `▸ ${event.nodeId}${event.iteration > 0 ? ` (round ${event.iteration + 1})` : ""}`,
-      );
+      push(`▸ ${event.nodeId}${event.iteration > 0 ? ` (round ${event.iteration + 1})` : ""}`);
       break;
     case "NodeFinished":
       setStage(event.nodeId, "complete");
@@ -313,14 +301,10 @@ function reduceEvent(
       setStage(event.nodeId, "waiting");
       const exists = next.approvals.some(
         (approval) =>
-          approval.nodeId === event.nodeId &&
-          approval.iteration === event.iteration,
+          approval.nodeId === event.nodeId && approval.iteration === event.iteration,
       );
       if (!exists) {
-        next.approvals.push({
-          nodeId: event.nodeId,
-          iteration: event.iteration,
-        });
+        next.approvals.push({ nodeId: event.nodeId, iteration: event.iteration });
         push(`⏸ ${event.nodeId} awaiting approval`);
       }
       break;
@@ -338,9 +322,7 @@ function reduceEvent(
     case "ApprovalGranted":
     case "ApprovalDenied": {
       const nodeIdValue = (event as { nodeId?: string }).nodeId;
-      next.approvals = next.approvals.filter(
-        (approval) => approval.nodeId !== nodeIdValue,
-      );
+      next.approvals = next.approvals.filter((approval) => approval.nodeId !== nodeIdValue);
       break;
     }
     case "RunStatusChanged":
@@ -382,14 +364,53 @@ type Screen =
 
 function SmitherApp({ args }: { args: CliArgs }) {
   const { exit } = useApp();
-  const [turns, setTurns] = useState<IntentTurn[]>([
-    { role: "smither", text: GREETING },
-  ]);
+  const [turns, setTurns] = useState<IntentTurn[]>([{ role: "smither", text: GREETING }]);
   const [draft, setDraft] = useState<Partial<BuildPlan>>(args.draft);
-  const [screen, setScreen] = useState<Screen>({
-    name: "chat",
-    thinking: false,
-  });
+  const [screen, setScreen] = useState<Screen>({ name: "chat", thinking: false });
+  const intakeRef = useRef<IntakeServerHandle | null>(null);
+  const [intakeUrl, setIntakeUrl] = useState<string | null>(null);
+
+  // Boot the intake view at t=0 so the browser shows the composer working —
+  // the conversation, the plan forming, the composed stages — before any
+  // Smithers workflow exists. Off when the console is disabled or headless.
+  useEffect(() => {
+    if (args.console === false) return;
+    let handle: IntakeServerHandle | null = null;
+    void (async () => {
+      try {
+        handle = await startIntakeServer({
+          app: typeof args.draft.app === "string" ? args.draft.app : "new app",
+          port: args.consolePort,
+        });
+        intakeRef.current = handle;
+        setIntakeUrl(handle.url);
+      } catch {
+        /* intake view is best-effort; the terminal chat proceeds regardless */
+      }
+    })();
+    return () => {
+      handle?.close();
+    };
+  }, []);
+
+  // Mirror chat state into the intake view every time it changes.
+  useEffect(() => {
+    const outcome = finalizePlan(draft);
+    intakeRef.current?.update({
+      app: typeof draft.app === "string" ? draft.app : "new app",
+      turns,
+      draft,
+      thinking: screen.name === "chat" && screen.thinking,
+      thinkingSince: screen.name === "chat" && screen.thinking ? Date.now() : null,
+      stages: outcome.plan ? stagesFor(outcome.plan) : [],
+      phase:
+        screen.name === "running"
+          ? "building"
+          : screen.name === "preview"
+            ? "preview"
+            : "intake",
+    });
+  }, [turns, draft, screen]);
 
   const submitChat = useCallback(
     (text: string) => {
@@ -406,18 +427,12 @@ function SmitherApp({ args }: { args: CliArgs }) {
         } else {
           setTurns((prev) => [
             ...prev,
-            {
-              role: "smither",
-              text: `Not runnable yet: ${outcome.issues.join("; ")}`,
-            },
+            { role: "smither", text: `Not runnable yet: ${outcome.issues.join("; ")}` },
           ]);
         }
         return;
       }
-      const nextTurns: IntentTurn[] = [
-        ...turns,
-        { role: "user", text: trimmed },
-      ];
+      const nextTurns: IntentTurn[] = [...turns, { role: "user", text: trimmed }];
       setTurns(nextTurns);
       setScreen({ name: "chat", thinking: true });
       void (async () => {
@@ -466,11 +481,9 @@ function SmitherApp({ args }: { args: CliArgs }) {
     return (
       <Box flexDirection="column" gap={0}>
         <Text bold>Aomi Smither</Text>
+        {intakeUrl ? <Text dimColor>⌗ intake view: {intakeUrl}</Text> : null}
         {turns.slice(-12).map((turn, index) => (
-          <Text
-            key={index}
-            color={turn.role === "smither" ? "cyan" : undefined}
-          >
+          <Text key={index} color={turn.role === "smither" ? "cyan" : undefined}>
             {turn.role === "smither" ? "smither" : "you"}: {turn.text}
           </Text>
         ))}
@@ -480,10 +493,7 @@ function SmitherApp({ args }: { args: CliArgs }) {
         ) : (
           <Box>
             <Text>{"> "}</Text>
-            <TextInput
-              placeholder="describe the app (/go to run, /quit to exit)"
-              onSubmit={submitChat}
-            />
+            <TextInput placeholder="describe the app (/go to run, /quit to exit)" onSubmit={submitChat} />
           </Box>
         )}
       </Box>
@@ -499,7 +509,10 @@ function SmitherApp({ args }: { args: CliArgs }) {
         ))}
         <Text bold>Workflow</Text>
         {stagesFor(screen.plan).map((stage) => (
-          <Text key={stage.id}> · {stage.label}</Text>
+          <Text key={stage.id}>
+            {" "}
+            · {stage.label}
+          </Text>
         ))}
         <Text>Start this run? (state persists; re-running resumes)</Text>
         <ConfirmInput
@@ -520,8 +533,14 @@ function SmitherApp({ args }: { args: CliArgs }) {
     <RunView
       plan={screen.plan}
       args={args}
+      onConsoleUrl={(url) => {
+        // Hand the gateway console URL to the intake page so the browser tab
+        // that watched the composition follows into the live build graph.
+        intakeRef.current?.update({ phase: "building", buildUrl: url });
+      }}
       onExit={(code) => {
         process.exitCode = code;
+        intakeRef.current?.close();
         exit();
         // The Smithers engine keeps heartbeat/timer handles alive after the
         // run resolves; give Ink one tick to flush, then exit for real.
@@ -537,19 +556,19 @@ function ThinkingLine() {
     const timer = setInterval(() => setSeconds((prev) => prev + 1), 1000);
     return () => clearInterval(timer);
   }, []);
-  return (
-    <Text dimColor>thinking… ({seconds}s — one claude call per turn)</Text>
-  );
+  return <Text dimColor>thinking… ({seconds}s — one claude call per turn)</Text>;
 }
 
 function RunView({
   plan,
   args,
   onExit,
+  onConsoleUrl,
 }: {
   plan: BuildPlan;
   args: CliArgs;
   onExit: (code: number) => void;
+  onConsoleUrl?: (url: string) => void;
 }) {
   const stages = stagesFor(plan);
   const [view, setView] = useState<RunViewState>({
@@ -602,12 +621,14 @@ function RunView({
             const handle = await startConsole({
               workflow: prepared.workflow,
               app: plan.app,
+              api: prepared.api,
               plan,
               builtinConsole: args.consoleBuiltin,
               port: args.consolePort,
             });
             consoleRef.current = handle;
             setConsoleUrl(handle.workflowUrl);
+            onConsoleUrl?.(handle.workflowUrl);
           } catch (error) {
             setView((prev) => ({
               ...prev,
@@ -618,7 +639,7 @@ function RunView({
             }));
           }
         }
-        const result = await executeRun(prepared, {
+        const result = await executeRunUntilSettled(prepared, {
           onEvent: (event) => setView((prev) => reduceEvent(plan, prev, event)),
         });
         setOutcome(result.status);
@@ -631,7 +652,11 @@ function RunView({
   }, []);
 
   const decide = useCallback(
-    (approval: { nodeId: string; iteration: number }, approve: boolean) => {
+    (
+      approval: { nodeId: string; iteration: number },
+      approve: boolean,
+      selection?: { selected: string; notes?: string },
+    ) => {
       const prepared = preparedRef.current;
       if (!prepared) return;
       void decideApproval({
@@ -640,6 +665,7 @@ function RunView({
         nodeId: approval.nodeId,
         iteration: approval.iteration,
         approve,
+        selection,
       }).catch((error) => {
         setView((prev) => ({
           ...prev,
@@ -651,10 +677,7 @@ function RunView({
         ...prev,
         approvals: prev.approvals.filter(
           (pending) =>
-            !(
-              pending.nodeId === approval.nodeId &&
-              pending.iteration === approval.iteration
-            ),
+            !(pending.nodeId === approval.nodeId && pending.iteration === approval.iteration),
         ),
       }));
     },
@@ -688,15 +711,37 @@ function RunView({
         </Box>
       ) : null}
       {pendingApproval && !outcome ? (
-        <Box flexDirection="column">
-          <Text color="yellow">
-            {pendingApproval.title ?? `Approve ${pendingApproval.nodeId}?`}
-          </Text>
-          <ConfirmInput
-            onConfirm={() => decide(pendingApproval, true)}
-            onCancel={() => decide(pendingApproval, false)}
-          />
-        </Box>
+        (() => {
+          const stage = stages.find((s) => s.id === pendingApproval.nodeId);
+          if (stage?.kind === "clarify" && stage.clarify) {
+            return (
+              <Box flexDirection="column">
+                <Text color="yellow">{stage.clarify.question}</Text>
+                {stage.clarify.summary ? <Text dimColor>{stage.clarify.summary}</Text> : null}
+                <Select
+                  options={stage.clarify.options.map((option) => ({
+                    label: option.summary
+                      ? `${option.label} — ${option.summary}`
+                      : option.label,
+                    value: option.key,
+                  }))}
+                  onChange={(value) => decide(pendingApproval, true, { selected: value })}
+                />
+              </Box>
+            );
+          }
+          return (
+            <Box flexDirection="column">
+              <Text color="yellow">
+                {pendingApproval.title ?? `Approve ${pendingApproval.nodeId}?`}
+              </Text>
+              <ConfirmInput
+                onConfirm={() => decide(pendingApproval, true)}
+                onCancel={() => decide(pendingApproval, false)}
+              />
+            </Box>
+          );
+        })()
       ) : null}
     </Box>
   );
@@ -741,6 +786,7 @@ async function runHeadless(args: CliArgs): Promise<void> {
         const handle = await startConsole({
           workflow: prepared.workflow,
           app: plan.app,
+          api: prepared.api,
           plan,
           builtinConsole: args.consoleBuiltin,
           port: args.consolePort,
@@ -752,15 +798,13 @@ async function runHeadless(args: CliArgs): Promise<void> {
         );
       }
     }
-    const result = await executeRun(prepared, {
+    const result = await executeRunUntilSettled(prepared, {
       onEvent: (event) => {
         if (event.type === "NodeStarted") console.error(`▸ ${event.nodeId}`);
         if (event.type === "NodeFinished") console.error(`✓ ${event.nodeId}`);
         if (event.type === "NodeFailed") {
           const message =
-            event.error instanceof Error
-              ? event.error.message
-              : String(event.error);
+            event.error instanceof Error ? event.error.message : String(event.error);
           console.error(`✗ ${event.nodeId}: ${message}`);
         }
       },
@@ -768,17 +812,9 @@ async function runHeadless(args: CliArgs): Promise<void> {
     console.log(`run ${result.status}`);
     // The engine keeps timer handles alive after the run resolves; exit
     // explicitly so headless invocations terminate.
-    process.exit(
-      result.status === "finished"
-        ? 0
-        : result.status === "waiting-approval"
-          ? 2
-          : 1,
-    );
+    process.exit(result.status === "finished" ? 0 : result.status === "waiting-approval" ? 2 : 1);
   } catch (error) {
-    console.error(
-      `Failed: ${error instanceof Error ? error.message : String(error)}`,
-    );
+    console.error(`Failed: ${error instanceof Error ? error.message : String(error)}`);
     process.exit(1);
   }
 }
@@ -796,31 +832,27 @@ function printDryRun(plan: BuildPlan): void {
 }
 
 // ---------------------------------------------------------------------------
-// Promote (deterministic, no Smithers involvement)
+// Rollback (unchanged flow: deterministic, no Smithers involvement)
 // ---------------------------------------------------------------------------
 
-type PromotePhase =
+type RollbackPhase =
   | { name: "loading" }
-  | { name: "select"; plan: ReturnType<typeof planPromote> }
-  | {
-      name: "confirm";
-      plan: ReturnType<typeof planPromote> | null;
-      deploymentId: string;
-    }
+  | { name: "select"; plan: ReturnType<typeof planRollback> }
+  | { name: "confirm"; plan: ReturnType<typeof planRollback> | null; deploymentId: string }
   | { name: "running"; deploymentId: string }
   | { name: "done"; status: string; releaseTags: string[] }
   | { name: "error"; message: string };
 
-function PromoteApp({ args }: { args: PromoteArgs }) {
+function RollbackApp({ args }: { args: RollbackArgs }) {
   const { exit } = useApp();
-  const [phase, setPhase] = useState<PromotePhase>({ name: "loading" });
+  const [phase, setPhase] = useState<RollbackPhase>({ name: "loading" });
 
   useEffect(() => {
     void (async () => {
       try {
-        const client = await promoteClientFromEnv(args);
-        const plan = planPromote(
-          await client.listDeploymentRecords({
+        const client = await rollbackClientFromEnv(args);
+        const plan = planRollback(
+          await client.listActivations({
             platform: args.platform,
             app: args.app,
             appSourceId: args.appSourceId,
@@ -831,8 +863,7 @@ function PromoteApp({ args }: { args: PromoteArgs }) {
         } else if (!plan.previous) {
           setPhase({
             name: "error",
-            message:
-              "No promote target: only one release has ever been recorded.",
+            message: "No rollback target: only one release has ever been activated.",
           });
         } else {
           setPhase({ name: "select", plan });
@@ -861,8 +892,8 @@ function PromoteApp({ args }: { args: PromoteArgs }) {
       setPhase({ name: "running", deploymentId });
       void (async () => {
         try {
-          const client = await promoteClientFromEnv(args);
-          const result = await executePromote(client, {
+          const client = await rollbackClientFromEnv(args);
+          const result = await executeRollback(client, {
             platform: args.platform,
             app: args.app,
             deploymentId,
@@ -874,10 +905,10 @@ function PromoteApp({ args }: { args: PromoteArgs }) {
               releaseTags: result.releaseTags,
             });
           } else {
-            setPhase({ name: "error", message: `promote ${result.status}` });
+            setPhase({ name: "error", message: `rollback ${result.status}` });
           }
         } catch (error) {
-          setPhase({ name: "error", message: promoteErrorMessage(error) });
+          setPhase({ name: "error", message: rollbackErrorMessage(error) });
         }
       })();
     },
@@ -885,18 +916,18 @@ function PromoteApp({ args }: { args: PromoteArgs }) {
   );
 
   if (phase.name === "loading") {
-    return <Text>Loading deployment records for {args.app}…</Text>;
+    return <Text>Loading activation timeline for {args.app}…</Text>;
   }
   if (phase.name === "error") {
     return <Text color="red">Failed: {phase.message}</Text>;
   }
   if (phase.name === "running") {
-    return <Text>Promoting to {phase.deploymentId}…</Text>;
+    return <Text>Rolling back to {phase.deploymentId}…</Text>;
   }
   if (phase.name === "done") {
     return (
       <Text color="green">
-        Promote {phase.status}: {phase.releaseTags.join(", ")}
+        Rollback {phase.status}: {phase.releaseTags.join(", ")}
       </Text>
     );
   }
@@ -904,7 +935,7 @@ function PromoteApp({ args }: { args: PromoteArgs }) {
     return (
       <Box flexDirection="column" gap={0}>
         <Text>
-          Promote {args.app} to {phase.deploymentId}?
+          Roll back {args.app} to {phase.deploymentId}?
         </Text>
         <ConfirmInput
           onConfirm={() => run(phase.deploymentId)}
@@ -913,22 +944,21 @@ function PromoteApp({ args }: { args: PromoteArgs }) {
       </Box>
     );
   }
-  const selectable = phase.plan.records.filter((row) => !row.current);
+  const selectable = phase.plan.activations.filter((row) => !row.current);
   return (
     <Box flexDirection="column" gap={0}>
       {phase.plan.current ? (
         <Text>
-          Current: {phase.plan.current.deploymentId} (
-          {phase.plan.current.releaseTag})
+          Current: {phase.plan.current.deploymentId} ({phase.plan.current.releaseTag})
         </Text>
       ) : null}
-      <Text>Pick a promote target for {args.app}:</Text>
+      <Text>Pick a rollback target for {args.app}:</Text>
       {/* No defaultValue: @inkjs/ui Select only fires onChange when the value
           changes, so a preselected value could never be confirmed. The
           previous release is the top option (timeline is newest-first). */}
       <Select
         options={selectable.map((row) => ({
-          label: `${row.deploymentId} · ${row.releaseTag}`,
+          label: `${row.action} · ${row.deploymentId} · ${row.releaseTag}`,
           value: row.deploymentId,
         }))}
         onChange={(deploymentId) =>
@@ -939,8 +969,8 @@ function PromoteApp({ args }: { args: PromoteArgs }) {
   );
 }
 
-async function runPromoteHeadless(args: PromoteArgs): Promise<void> {
-  const client = await promoteClientFromEnv(args).catch((error: unknown) => {
+async function runRollbackHeadless(args: RollbackArgs): Promise<void> {
+  const client = await rollbackClientFromEnv(args).catch((error: unknown) => {
     console.error(error instanceof Error ? error.message : String(error));
     process.exitCode = 1;
     return null;
@@ -948,8 +978,8 @@ async function runPromoteHeadless(args: PromoteArgs): Promise<void> {
   if (!client) {
     return;
   }
-  const plan = planPromote(
-    await client.listDeploymentRecords({
+  const plan = planRollback(
+    await client.listActivations({
       platform: args.platform,
       app: args.app,
       appSourceId: args.appSourceId,
@@ -957,32 +987,30 @@ async function runPromoteHeadless(args: PromoteArgs): Promise<void> {
   );
   const deploymentId = args.deployment ?? plan.previous?.deploymentId;
   if (!deploymentId) {
-    console.error(
-      "No promote target: only one release has ever been recorded.",
-    );
+    console.error("No rollback target: only one release has ever been activated.");
     process.exitCode = 1;
     return;
   }
   try {
-    const result = await executePromote(client, {
+    const result = await executeRollback(client, {
       platform: args.platform,
       app: args.app,
       deploymentId,
     });
     console.log(
-      `promote ${result.status}: ${args.app} -> ${deploymentId} (${result.releaseTags.join(", ")})`,
+      `rollback ${result.status}: ${args.app} -> ${deploymentId} (${result.releaseTags.join(", ")})`,
     );
     if (!result.ok) {
       process.exitCode = 1;
     }
   } catch (error) {
-    console.error(`promote failed: ${promoteErrorMessage(error)}`);
+    console.error(`rollback failed: ${rollbackErrorMessage(error)}`);
     process.exitCode = 1;
   }
 }
 
 /** Prefer the backend's structured error message over a raw stack trace. */
-function promoteErrorMessage(error: unknown): string {
+function rollbackErrorMessage(error: unknown): string {
   const body = (error as { body?: string })?.body;
   if (typeof body === "string") {
     try {
@@ -1010,8 +1038,7 @@ async function runConsoleCommand(argv: string[]): Promise<void> {
     process.exitCode = app ? 0 : 1;
     return;
   }
-  const portRaw =
-    stringValue(values, "port") ?? stringValue(values, "console-port");
+  const portRaw = stringValue(values, "port") ?? stringValue(values, "console-port");
   try {
     const handle = await startConsoleForApp({
       app,
@@ -1026,9 +1053,51 @@ async function runConsoleCommand(argv: string[]): Promise<void> {
     );
     // The gateway's HTTP server keeps the event loop alive until Ctrl-C.
   } catch (error) {
-    console.error(
-      `Failed: ${error instanceof Error ? error.message : String(error)}`,
-    );
+    console.error(`Failed: ${error instanceof Error ? error.message : String(error)}`);
+    process.exitCode = 1;
+  }
+}
+
+/** `aomi-smither signal --app <app> --node <phaseId>` — deliver the external
+ *  signal that resolves a wait-external pause. Run from another terminal (or an
+ *  external system) once the outside work the run is parked on is done. */
+async function runSignalCommand(argv: string[]): Promise<void> {
+  const values = parseFlagMap(argv);
+  const app = stringValue(values, "app") ?? "";
+  const node = stringValue(values, "node") ?? stringValue(values, "phase") ?? "";
+  if (values.get("help") || values.get("h") || !app || !node) {
+    if (!app || !node) console.error("signal requires --app <name> and --node <phaseId>");
+    printHelp();
+    process.exitCode = app && node ? 0 : 1;
+    return;
+  }
+  try {
+    const { loadPlan } = await import("./state");
+    const { createAomiSmither } = await import("./workflow");
+    const { loadRunState, smitherDbPath } = await import("./state");
+    const runsRoot = stringValue(values, "state-root") ?? defaultRunsRoot;
+    const plan = await loadPlan(app, runsRoot);
+    const state = await loadRunState(app, runsRoot);
+    if (!plan || !state) {
+      console.error(`No run found for app "${app}" under ${runsRoot}. Start a run first.`);
+      process.exitCode = 1;
+      return;
+    }
+    // The wait-external node id is namespaced by app, same as every stage.
+    const nodeId = node.includes(":") ? node : `${app}:${node}`;
+    const api = await createAomiSmither(smitherDbPath(app, runsRoot));
+    const { sendSignal } = await import("./run");
+    await sendSignal({
+      api,
+      runId: state.runId,
+      nodeId,
+      ready: !values.get("not-ready"),
+      note: stringValue(values, "note") ?? "",
+      receivedBy: stringValue(values, "by") ?? "cli",
+    });
+    console.log(`signalled ${nodeId} (run ${state.runId}). Re-run the app to resume, or it resumes if a run is live.`);
+  } catch (error) {
+    console.error(`Failed: ${error instanceof Error ? error.message : String(error)}`);
     process.exitCode = 1;
   }
 }
@@ -1036,25 +1105,27 @@ async function runConsoleCommand(argv: string[]): Promise<void> {
 const [subcommand, ...restArgv] = process.argv.slice(2);
 if (subcommand === "console") {
   await runConsoleCommand(restArgv);
-} else if (subcommand === "promote") {
-  const promoteArgs = parsePromoteArgs(restArgv);
-  if (promoteArgs.help) {
+} else if (subcommand === "signal") {
+  await runSignalCommand(restArgv);
+} else if (subcommand === "rollback") {
+  const rollbackArgs = parseRollbackArgs(restArgv);
+  if (rollbackArgs.help) {
     printHelp();
-  } else if (!promoteArgs.app || !promoteArgs.platform) {
-    console.error("promote requires --app and --platform");
+  } else if (!rollbackArgs.app || !rollbackArgs.platform) {
+    console.error("rollback requires --app and --platform");
     process.exitCode = 1;
-  } else if (promoteArgs.yes) {
-    await runPromoteHeadless(promoteArgs);
+  } else if (rollbackArgs.yes) {
+    await runRollbackHeadless(rollbackArgs);
   } else if (!process.stdin.isTTY) {
-    // Promote is destructive (re-activates an older release). Unlike the
+    // Rollback is destructive (re-activates an older release). Unlike the
     // build workflow, there is no safe partial outcome, so a non-interactive
     // invocation must opt in explicitly rather than auto-executing.
     console.error(
-      "promote needs a TTY for the confirm prompt; pass --yes to promote non-interactively",
+      "rollback needs a TTY for the confirm prompt; pass --yes to roll back non-interactively",
     );
     process.exitCode = 1;
   } else {
-    render(<PromoteApp args={promoteArgs} />);
+    render(<RollbackApp args={rollbackArgs} />);
   }
 } else {
   const args = parseArgs(process.argv.slice(2));
