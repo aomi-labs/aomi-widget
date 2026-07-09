@@ -682,7 +682,7 @@ export async function deploymentSecretsRoute(req: Request) {
       );
     }
     const { byApp } = await client.listAppSecrets({
-      userId: session.githubUserId,
+      githubUserId: session.githubUserId,
       sourceId: String(appSourceId),
     });
     return NextResponse.json({ byApp });
@@ -749,7 +749,7 @@ export async function deploymentSecretsWriteRoute(req: Request) {
     }
     // Vault key is the GitHub user id, matching the read side.
     const { handles } = await client.ingestSecrets({
-      userId: session.githubUserId,
+      githubUserId: session.githubUserId,
       app,
       sourceId: String(body.appSourceId),
       secrets,
@@ -807,7 +807,7 @@ export async function deploymentSecretsDeleteRoute(req: Request) {
       );
     }
     const removed = await client.removeAppSecret({
-      userId: session.githubUserId,
+      githubUserId: session.githubUserId,
       app,
       sourceId: String(body.appSourceId),
       name,
