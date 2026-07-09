@@ -884,16 +884,17 @@ export class DeploymentClient {
     return { byApp: raw.by_app ?? {} };
   }
 
-  /** Ingest app-scoped env vars into the secret vault under `userId` (the vault
-   *  key). `listAppSecrets({ userId })` then returns them. Service op. */
+  /** Ingest app-scoped env vars into the secret vault under the GitHub user id.
+   *  The backend field is still named `user_id`, but GitHub is the only owner
+   *  scope this client accepts for app secrets. Service op. */
   async ingestSecrets(input: IngestSecretsInput): Promise<IngestSecretsResult> {
-    const userId = required(input.userId, "userId");
+    const githubUserId = required(input.githubUserId, "githubUserId");
     const app = required(input.app, "app");
     const sourceId = input.sourceId?.trim();
     const raw = await this.post<{ handles?: Record<string, string> }>(
       `/api/_internal/secrets`,
       {
-        user_id: userId,
+        user_id: githubUserId,
         app,
         ...(sourceId ? { source_id: sourceId } : {}),
         secrets: input.secrets,
@@ -904,12 +905,12 @@ export class DeploymentClient {
     return { handles: raw.handles ?? {} };
   }
 
-  /** List vault handle names (never values) for `userId`, keyed by app. Service
-   *  read, so it works with the portal's service bearer (unlike the
-   *  session-scoped `listSecrets`). */
+  /** List vault handle names (never values) for the GitHub user id, keyed by
+   *  app. Service read, so it works with the portal's service bearer (unlike
+   *  the session-scoped `listSecrets`). */
   async listAppSecrets(input: ListAppSecretsInput): Promise<ListSecretsResult> {
-    const userId = required(input.userId, "userId");
-    const params = new URLSearchParams({ user_id: userId });
+    const githubUserId = required(input.githubUserId, "githubUserId");
+    const params = new URLSearchParams({ user_id: githubUserId });
     if (input.app?.trim()) params.set("app", input.app.trim());
     if (input.sourceId?.trim()) params.set("source_id", input.sourceId.trim());
     const raw = await this.get<{ by_app?: Record<string, string[]> }>(
@@ -922,7 +923,7 @@ export class DeploymentClient {
 
   /** Remove one app-scoped secret. Service op. Returns whether it existed. */
   async removeAppSecret(input: RemoveAppSecretInput): Promise<boolean> {
-    const userId = required(input.userId, "userId");
+    const githubUserId = required(input.githubUserId, "githubUserId");
     const app = required(input.app, "app");
     const name = required(input.name, "name");
     const sourceId = input.sourceId?.trim();
@@ -931,7 +932,7 @@ export class DeploymentClient {
       "ingest_secrets",
       this.resolveBearer(input.bearer, { privileged: true }),
       {
-        user_id: userId,
+        user_id: githubUserId,
         app,
         ...(sourceId ? { source_id: sourceId } : {}),
         name,

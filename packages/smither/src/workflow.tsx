@@ -1,14 +1,31 @@
 import path from "node:path";
 import { existsSync } from "node:fs";
+import { Fragment, type ReactNode } from "react";
 import type { CreateSmithersApi } from "smithers-orchestrator";
-import { WORKFLOW_NAME, nodeId, type BuildPlan } from "./plan";
+import {
+  WORKFLOW_NAME,
+  agentSpecsFor,
+  nodeId,
+  phaseAgent,
+  resolveAgentCwd,
+  resolveComposition,
+  type AgentPhase,
+  type BuildPlan,
+  type EvalPhase,
+  type InnerPhase,
+  type Phase,
+} from "./plan";
+import { innerPhasesOf } from "./plan";
 import {
   boundedLog,
   smitherSchemas,
   type SmitherSchemas,
   type BinariesRow,
+  type ClarifyRow,
   type CodegenRow,
   type DeploymentRow,
+  type EvaluationRow,
+  type GateRow,
   type ResultRow,
   type SmokeRow,
   type ValidationRow,
@@ -23,7 +40,8 @@ import {
   runAppCargoChecks,
 } from "./commands";
 import { makeWorkAgent } from "./agents";
-import { curatePrompt, fixPrompt, reviewPrompt } from "./prompts";
+import { runEvalStep } from "./evals";
+import { rolePrompt, type PromptContext } from "./prompts";
 import type { CommandRunner, ResolvedBinaries } from "./types";
 
 export type AomiSmitherApi = CreateSmithersApi<SmitherSchemas>;
@@ -34,7 +52,7 @@ export async function createAomiSmither(dbPath: string): Promise<AomiSmitherApi>
   return createSmithers(smitherSchemas, {
     readableName: "Aomi Smither",
     description:
-      "Composes a Smithers workflow from user intent: deterministic Rust codegen, multi-agent curation, a validate/repair loop, local smoke, and gated deploy.",
+      "Composes a Smithers workflow from user intent: deterministic Rust codegen, multi-agent curation, clarify pauses, validate/repair loops, local smoke, and gated deploy.",
     dbPath,
   });
 }
@@ -46,182 +64,472 @@ export type WorkflowDeps = {
   activationConfigPath?: string;
 };
 
+/** Output table for a phase. Classic roles keep their bespoke tables (node
+ *  ids and resume depend on it); composed roles share `agentWork`. */
+function outputKeyFor(phase: InnerPhase | Phase): keyof SmitherSchemas {
+  switch (phase.kind) {
+    case "compute":
+      switch (phase.op) {
+        case "binaries":
+          return "binaries";
+        case "codegen":
+          return "codegen";
+        case "validate":
+          return "validation";
+        case "smoke":
+          return "smoke";
+        case "deploy":
+          return "deployment";
+        case "result":
+          return "result";
+      }
+      break;
+    case "agent":
+      switch (phase.role) {
+        case "curate":
+          return "curation";
+        case "review":
+          return "review";
+        case "fix":
+          return "fix";
+        default:
+          return "agentWork";
+      }
+    case "eval":
+      return "evaluation";
+    case "wait-external":
+      return "external";
+    case "clarify":
+      return "clarify";
+    case "gate":
+      return "gate";
+    case "loop":
+      return "validation";
+    case "parallel":
+      // Parallel has no output row of its own; done is derived from its
+      // branches. Never read directly.
+      return "result";
+  }
+}
+
+type PhaseState = {
+  phase: Phase;
+  done: boolean;
+  /** settled = done, or a decided-but-denied gate, or skipped downstream of a
+   *  denied gate. The result phase mounts on settled; everything else on done. */
+  settled: boolean;
+  skipped: boolean;
+};
+
 /**
- * Render the app-from-scratch task graph from a BuildPlan. The graph is a pure
- * function of (plan, persisted outputs): stages mount as their dependencies'
- * rows appear, so resume re-renders straight past completed work. Node ids
- * come from `nodeId(app, stage)` and must stay stable across renders.
+ * Render the task graph from `resolveComposition(plan)`. The graph is a pure
+ * function of (plan, persisted outputs): phase N mounts when phases 0..N-1 are
+ * done, so resume re-renders straight past completed work. Node ids come from
+ * `nodeId(app, phase.id)` and must stay stable across renders.
  */
 export async function buildAppWorkflow(
   api: AomiSmitherApi,
   plan: BuildPlan,
   deps: WorkflowDeps = {},
 ): Promise<AomiWorkflow> {
-  const { Workflow, Task, Approval, Sequence, Loop, smithers, outputs } = api;
+  const { Workflow, Task, Approval, Sequence, Loop, Parallel, Signal, smithers, outputs } = api;
   const runner = deps.runner ?? defaultRunner;
   const id = (stage: string) => nodeId(plan.app, stage);
-  const builderAgent =
-    plan.builder === "none"
-      ? null
-      : await makeWorkAgent(plan.builder, { cwd: plan.sdkRoot, env: deps.env });
-  const reviewerAgent = plan.review
-    ? await makeWorkAgent(plan.reviewer, { cwd: plan.sdkRoot, env: deps.env })
-    : null;
-  // One validation per loop pass; each red pass mounts one repair task.
-  const maxLoopIterations = plan.builder === "none" ? 1 : plan.maxFixRounds + 1;
+  const composition = resolveComposition(plan);
+
+  const resolveRepo = (repo?: string) => resolveAgentCwd(plan, repo);
+  const agentKey = (name: "claude" | "codex", cwd: string) => `${name}::${cwd}`;
+
+  // One CLI agent instance per distinct (agent, repo) used anywhere in the
+  // composition — cross-repo agents run in another codebase entirely.
+  const agents = new Map<string, Awaited<ReturnType<typeof makeWorkAgent>>>();
+  for (const spec of agentSpecsFor(plan)) {
+    agents.set(agentKey(spec.name, spec.cwd), await makeWorkAgent(spec.name, { cwd: spec.cwd, env: deps.env }));
+  }
 
   return smithers((ctx) => {
-    const binaries = ctx.outputMaybe(outputs.binaries, { nodeId: id("binaries") }) as
-      | BinariesRow
-      | undefined;
-    const codegen = ctx.outputMaybe(outputs.codegen, { nodeId: id("codegen") }) as
-      | CodegenRow
-      | undefined;
-    const curation = builderAgent
-      ? ctx.outputMaybe(outputs.curation, { nodeId: id("curate") })
-      : undefined;
-    const review = reviewerAgent
-      ? ctx.outputMaybe(outputs.review, { nodeId: id("review") })
-      : undefined;
-    const curateDone = builderAgent ? !!curation : !!codegen?.ok;
-    const reviewDone = !reviewerAgent || !!review;
-    const readyToValidate = !!codegen?.ok && curateDone && reviewDone;
+    const row = <K extends keyof SmitherSchemas>(key: K, phaseId: string) =>
+      ctx.outputMaybe(outputs[key as keyof typeof outputs], { nodeId: id(phaseId) }) as
+        | Record<string, unknown>
+        | undefined;
 
-    const latestValidation = ctx.latest(outputs.validation, id("validate")) as
-      | ValidationRow
-      | undefined;
-    const green = !!latestValidation?.green;
-
-    const smoke = plan.smoke
-      ? (ctx.outputMaybe(outputs.smoke, { nodeId: id("smoke") }) as SmokeRow | undefined)
+    // --- well-known rows the step functions depend on -----------------------
+    const findCompute = (op: string): InnerPhase | undefined => {
+      for (const phase of composition) {
+        for (const p of innerPhasesOf(phase)) {
+          if (p.kind === "compute" && p.op === op) return p;
+        }
+      }
+      return undefined;
+    };
+    const binariesPhase = findCompute("binaries");
+    const binaries = binariesPhase
+      ? (row("binaries", binariesPhase.id) as BinariesRow | undefined)
       : undefined;
-    const smokeDone = !plan.smoke || !!smoke?.ok;
 
-    const gate =
-      plan.deploy && !plan.autoApprove
-        ? ctx.outputMaybe(outputs.gate, { nodeId: id("deploy-gate") })
+    const latestValidationFor = (loop: Extract<Phase, { kind: "loop" }>) => {
+      const validate = loop.body.find((p) => p.kind === "compute" && p.op === "validate");
+      return validate
+        ? (ctx.latest(outputs.validation, id(validate.id)) as ValidationRow | undefined)
         : undefined;
-    const gateApproved = plan.deploy && (plan.autoApprove || !!gate?.approved);
-    const gateDenied = !!gate && !gate.approved;
+    };
+    const latestEvalFor = (loop: Extract<Phase, { kind: "loop" }>) => {
+      const evalPhase = loop.body.find((p) => p.kind === "eval");
+      return evalPhase
+        ? (ctx.latest(outputs.evaluation, id(evalPhase.id)) as EvaluationRow | undefined)
+        : undefined;
+    };
+    // Current iteration count for a loop node — lets a `return-last` loop that
+    // maxed out (never passed) still settle so the composition can continue.
+    const loopIteration = (loopId: string): number =>
+      (ctx as { iterations?: Record<string, number> }).iterations?.[id(loopId)] ?? 0;
+    const loopDone = (loop: Extract<Phase, { kind: "loop" }>): boolean => {
+      const passed =
+        loop.until === "eval-pass"
+          ? !!latestEvalFor(loop)?.pass
+          : !!latestValidationFor(loop)?.green;
+      if (passed) return true;
+      // A graceful loop also settles once it has spent its budget: `iterations`
+      // is the 0-indexed current iteration, so the final round is maxRounds-1.
+      // The enclosing <Sequence> still holds downstream tasks until the loop
+      // node itself completes, so flipping here during the last round is safe.
+      return loop.onMax === "return-last" && loopIteration(loop.id) >= loop.maxRounds - 1;
+    };
 
-    const deployment = plan.deploy
-      ? (ctx.outputMaybe(outputs.deployment, { nodeId: id("deploy") }) as
-          | DeploymentRow
-          | undefined)
+    // Whether every leaf of a parallel phase has produced its row.
+    const leafDone = (p: InnerPhase): boolean => {
+      switch (p.kind) {
+        case "compute":
+          return (
+            !!row(outputKeyFor(p), p.id) &&
+            (p.op === "codegen" || p.op === "smoke"
+              ? (row(outputKeyFor(p), p.id) as { ok?: boolean }).ok === true
+              : true)
+          );
+        case "agent":
+        case "eval":
+          return !!row(outputKeyFor(p), p.id);
+        case "clarify":
+          return plan.autoApprove || !!row("clarify", p.id);
+        case "gate":
+          return !!(row("gate", p.id) as GateRow | undefined)?.approved;
+      }
+    };
+
+    // --- clarify answers become prompt context for later agent phases -------
+    const clarifications: NonNullable<PromptContext["clarifications"]> = [];
+    for (const phase of composition) {
+      if (phase.kind !== "clarify") continue;
+      if (plan.autoApprove) {
+        clarifications.push({
+          question: phase.question,
+          selected: phase.options[0].key,
+          notes: "auto-selected (--yes)",
+        });
+        continue;
+      }
+      const decision = row("clarify", phase.id) as ClarifyRow | undefined;
+      if (decision) {
+        clarifications.push({
+          question: phase.question,
+          selected: decision.selected,
+          notes: decision.notes,
+        });
+      }
+    }
+
+    // --- walk the composition: done/settled per phase ------------------------
+    const states: PhaseState[] = [];
+    let denialUpstream = false;
+    let gateDenied = false;
+    for (const phase of composition) {
+      const isResult = phase.kind === "compute" && phase.op === "result";
+      if (denialUpstream && !isResult) {
+        states.push({ phase, done: false, settled: true, skipped: true });
+        continue;
+      }
+      let done = false;
+      switch (phase.kind) {
+        case "compute": {
+          const r = row(outputKeyFor(phase), phase.id);
+          done =
+            !!r &&
+            (phase.op === "codegen" || phase.op === "smoke"
+              ? (r as { ok?: boolean }).ok === true
+              : true);
+          break;
+        }
+        case "agent":
+        case "eval":
+          done = !!row(outputKeyFor(phase), phase.id);
+          break;
+        case "wait-external":
+          // The Signal node records the received payload into `external`.
+          done = !!row("external", phase.id);
+          break;
+        case "clarify":
+          done = plan.autoApprove || !!row("clarify", phase.id);
+          break;
+        case "gate": {
+          const decision = row("gate", phase.id) as GateRow | undefined;
+          done = !!decision?.approved;
+          if (decision && !decision.approved) {
+            denialUpstream = true;
+            gateDenied = true;
+          }
+          break;
+        }
+        case "loop":
+          done = loopDone(phase);
+          break;
+        case "parallel":
+          done = phase.branches.every((branch) => branch.every(leafDone));
+          break;
+      }
+      states.push({
+        phase,
+        done,
+        settled: done || (phase.kind === "gate" && denialUpstream),
+        skipped: false,
+      });
+    }
+
+    const mountable = (index: number): boolean => {
+      const state = states[index];
+      if (state.skipped) return false;
+      const isResult = state.phase.kind === "compute" && state.phase.op === "result";
+      return states
+        .slice(0, index)
+        .every((prev) => (isResult ? prev.settled : prev.done));
+    };
+
+    // --- render one phase ----------------------------------------------------
+    const smokePhase = findCompute("smoke");
+    const smoke = smokePhase ? (row("smoke", smokePhase.id) as SmokeRow | undefined) : undefined;
+    const deployPhase = findCompute("deploy");
+    const deployment = deployPhase
+      ? (row("deployment", deployPhase.id) as DeploymentRow | undefined)
       : undefined;
-    const resultReady =
-      green && smokeDone && (!plan.deploy || !!deployment || gateDenied);
 
-    return (
-      <Workflow name={`${WORKFLOW_NAME}:${plan.app}`}>
-        <Sequence>
-          <Task
-            id={id("binaries")}
-            label="Sync SDK from GitHub, build aomi binaries"
-            output={outputs.binaries}
-            noRetry
-          >
-            {() => syncBinariesStep(plan, runner)}
-          </Task>
-          {binaries ? (
+    const renderInner = (
+      phase: InnerPhase,
+      loopContext?: {
+        latestValidation?: ValidationRow;
+        latestEval?: EvaluationRow;
+      },
+    ): ReactNode => {
+      switch (phase.kind) {
+        case "compute":
+          return renderCompute(phase);
+        case "eval":
+          return binaries ? (
             <Task
-              id={id("codegen")}
-              label="aomi-build codegen"
-              output={outputs.codegen}
+              id={id(phase.id)}
+              label={phase.label ?? `Eval (judge ${phase.judge ?? plan.builder})`}
+              output={outputs.evaluation}
               noRetry
             >
+              {() => runEvalStep({ plan, phase: phase as EvalPhase, binaries: toResolvedBinaries(binaries), runner })}
+            </Task>
+          ) : null;
+        case "agent": {
+          if (phase.onlyIf === "prev-red") {
+            const validation = loopContext?.latestValidation;
+            if (!validation || validation.green) return null;
+          }
+          if (phase.onlyIf === "prev-eval-fail") {
+            const evaluation = loopContext?.latestEval;
+            if (!evaluation || evaluation.pass) return null;
+          }
+          const agentPhase = phase as AgentPhase;
+          const agent = agents.get(
+            agentKey(phaseAgent(plan, phase), resolveRepo(agentPhase.repo)),
+          );
+          if (!agent) return null;
+          const context: PromptContext & { validationLog?: string } = {
+            brief: phase.brief,
+            clarifications,
+            validationLog: loopContext?.latestValidation?.log,
+            ...(loopContext?.latestEval
+              ? {
+                  evalFeedback: {
+                    score: loopContext.latestEval.score,
+                    threshold: loopContext.latestEval.threshold,
+                    notes: loopContext.latestEval.notes,
+                  },
+                }
+              : {}),
+          };
+          return (
+            <Task
+              id={id(phase.id)}
+              label={phase.label ?? `${phase.role} (${phaseAgent(plan, phase)})`}
+              output={outputs[outputKeyFor(phase) as "curation"]}
+              agent={agent}
+              needsApproval={phase.role === "curate" && !plan.autoApprove}
+            >
+              {rolePrompt(phase.role, plan, context)}
+            </Task>
+          );
+        }
+        case "clarify": {
+          if (plan.autoApprove) return null;
+          return (
+            <Approval
+              id={id(phase.id)}
+              mode="select"
+              options={phase.options.map((o) => ({
+                key: o.key,
+                label: o.label,
+                ...(o.summary ? { summary: o.summary } : {}),
+              }))}
+              output={outputs.clarify}
+              request={{
+                title: phase.question,
+                ...(phase.summary ? { summary: phase.summary } : {}),
+                // Mirror the options into request metadata so every surface
+                // (TUI events, gateway console) can render them from the
+                // request alone.
+                metadata: { clarify: true, options: phase.options },
+              }}
+              onDeny="continue"
+            />
+          );
+        }
+        case "gate":
+          return (
+            <Approval
+              id={id(phase.id)}
+              output={outputs.gate}
+              request={{
+                title: phase.title,
+                ...(phase.summary ? { summary: phase.summary } : {}),
+              }}
+              onDeny="continue"
+            />
+          );
+      }
+    };
+
+    const renderCompute = (phase: Extract<InnerPhase, { kind: "compute" }>): ReactNode => {
+      const label = phase.label;
+      switch (phase.op) {
+        case "binaries":
+          return (
+            <Task
+              id={id(phase.id)}
+              label={label ?? "Sync SDK from GitHub, build aomi binaries"}
+              output={outputs.binaries}
+              noRetry
+            >
+              {() => syncBinariesStep(plan, runner)}
+            </Task>
+          );
+        case "codegen":
+          return binaries ? (
+            <Task id={id(phase.id)} label={label ?? "aomi-build codegen"} output={outputs.codegen} noRetry>
               {() => codegenStep(plan, toResolvedBinaries(binaries), runner)}
             </Task>
-          ) : null}
-          {builderAgent && codegen?.ok ? (
+          ) : null;
+        case "validate":
+          return (
             <Task
-              id={id("curate")}
-              label={`Curate tools with ${plan.builder}`}
-              output={outputs.curation}
-              agent={builderAgent}
-              needsApproval={!plan.autoApprove}
+              id={id(phase.id)}
+              label={label ?? "cargo fmt/clippy/test"}
+              output={outputs.validation}
+              noRetry
             >
-              {curatePrompt(plan)}
+              {() => validationStep(plan, runner)}
             </Task>
-          ) : null}
-          {reviewerAgent && curation ? (
+          );
+        case "smoke":
+          return binaries ? (
             <Task
-              id={id("review")}
-              label={`Review curation with ${plan.reviewer}`}
-              output={outputs.review}
-              agent={reviewerAgent}
-              fork={id("curate")}
-            >
-              {reviewPrompt(plan)}
-            </Task>
-          ) : null}
-          {readyToValidate ? (
-            <Loop
-              id={id("validate-loop")}
-              until={green}
-              maxIterations={maxLoopIterations}
-              onMaxReached="fail"
-            >
-              <Sequence>
-                <Task
-                  id={id("validate")}
-                  label="cargo fmt/clippy/test"
-                  output={outputs.validation}
-                  noRetry
-                >
-                  {() => validationStep(plan, runner)}
-                </Task>
-                {builderAgent && latestValidation && !latestValidation.green ? (
-                  <Task
-                    id={id("fix")}
-                    label={`Repair validation with ${plan.builder}`}
-                    output={outputs.fix}
-                    agent={builderAgent}
-                    fork={id("curate")}
-                  >
-                    {fixPrompt(plan, latestValidation.log)}
-                  </Task>
-                ) : null}
-              </Sequence>
-            </Loop>
-          ) : null}
-          {plan.smoke && green && binaries ? (
-            <Task
-              id={id("smoke")}
-              label="Compile plugin, local smoke"
+              id={id(phase.id)}
+              label={label ?? "Compile plugin, local smoke"}
               output={outputs.smoke}
               noRetry
             >
               {() => smokeStep(plan, toResolvedBinaries(binaries), runner)}
             </Task>
-          ) : null}
-          {plan.deploy && !plan.autoApprove && green && smokeDone ? (
-            <Approval
-              id={id("deploy-gate")}
-              output={outputs.gate}
-              request={{
-                title: `Deploy ${plan.app} to Aomi?`,
-                summary:
-                  "Ships the validated build via aomi-build deploy. Requires an activation token (flag, AOMI_APP_ACTIVATION_TOKEN, or ~/.config/aomi/config.toml).",
-              }}
-              onDeny="continue"
-            />
-          ) : null}
-          {gateApproved && green && smokeDone && binaries ? (
-            <Task
-              id={id("deploy")}
-              label="Deploy via aomi-build"
-              output={outputs.deployment}
-              noRetry
-            >
+          ) : null;
+        case "deploy":
+          return binaries ? (
+            <Task id={id(phase.id)} label={label ?? "Deploy via aomi-build"} output={outputs.deployment} noRetry>
               {() => deployStep(plan, toResolvedBinaries(binaries), runner, deps)}
             </Task>
-          ) : null}
-          {resultReady ? (
-            <Task id={id("result")} label="Summarize run" output={outputs.result} noRetry>
+          ) : null;
+        case "result":
+          return (
+            <Task id={id(phase.id)} label={label ?? "Summarize run"} output={outputs.result} noRetry>
               {() => resultStep(plan, { gateDenied, deployment, smoke })}
             </Task>
-          ) : null}
+          );
+      }
+    };
+
+    const renderPhase = (phase: Phase, index: number): ReactNode => {
+      if (!mountable(index)) return null;
+      if (phase.kind === "loop") {
+        const latestValidation = latestValidationFor(phase);
+        const latestEval = latestEvalFor(phase);
+        const until =
+          phase.until === "eval-pass" ? !!latestEval?.pass : !!latestValidation?.green;
+        return (
+          <Loop
+            id={id(phase.id)}
+            until={until}
+            maxIterations={phase.maxRounds}
+            onMaxReached={phase.onMax === "return-last" ? "return-last" : "fail"}
+          >
+            <Sequence>
+              {phase.body.map((inner) => (
+                <Fragment key={inner.id}>
+                  {renderInner(inner, { latestValidation, latestEval })}
+                </Fragment>
+              ))}
+            </Sequence>
+          </Loop>
+        );
+      }
+      if (phase.kind === "parallel") {
+        return (
+          <Parallel
+            id={id(phase.id)}
+            {...(phase.maxConcurrency ? { maxConcurrency: phase.maxConcurrency } : {})}
+          >
+            {phase.branches.map((branch, branchIndex) => (
+              <Sequence key={`${phase.id}-b${branchIndex}`}>
+                {branch.map((inner) => (
+                  <Fragment key={inner.id}>{renderInner(inner)}</Fragment>
+                ))}
+              </Sequence>
+            ))}
+          </Parallel>
+        );
+      }
+      if (phase.kind === "wait-external") {
+        // Durable pause: parks the run (status waiting-event) until a signal
+        // keyed by this node id arrives (sendSignal / console /signal / CLI
+        // signal). The Signal validates + records the payload into `external`.
+        return (
+          <Signal
+            id={id(phase.id)}
+            schema={smitherSchemas.external}
+            {...(phase.timeoutHours ? { timeoutMs: phase.timeoutHours * 3_600_000 } : {})}
+            {...(phase.onTimeout ? { onTimeout: phase.onTimeout } : {})}
+          />
+        );
+      }
+      return renderInner(phase);
+    };
+
+    return (
+      <Workflow name={`${WORKFLOW_NAME}:${plan.app}`}>
+        <Sequence>
+          {composition.map((phase, index) => (
+            <Fragment key={phase.id}>{renderPhase(phase, index)}</Fragment>
+          ))}
         </Sequence>
       </Workflow>
     );
