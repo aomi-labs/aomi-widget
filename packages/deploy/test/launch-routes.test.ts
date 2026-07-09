@@ -34,6 +34,41 @@ function writeReq(path: string, body: unknown) {
   });
 }
 
+function readReq(path: string, query = "") {
+  return new Request(
+    `http://localhost:3000/api/bff/launch/${path}${query ? `?${query}` : ""}`,
+  );
+}
+
+function activationSource(id = 99) {
+  return Response.json({
+    sources: [
+      {
+        id,
+        installation_id: 555,
+        apps: [
+          {
+            name: "my-bot",
+            app_release_tag: "apps-555-r1-my-bot-abc",
+          },
+        ],
+      },
+    ],
+  });
+}
+
+function sourceDeployments() {
+  return Response.json({
+    deployments: [
+      {
+        deployment_id: "dep_1",
+        release_tags: ["apps-555-r1-my-bot-abc"],
+        apps: [{ name: "my-bot", release_tag: "apps-555-r1-my-bot-abc" }],
+      },
+    ],
+  });
+}
+
 afterEach(() => {
   vi.unstubAllEnvs();
   vi.restoreAllMocks();
@@ -268,7 +303,9 @@ describe("createLaunchRoutes redeploy", () => {
       .mockResolvedValueOnce(Response.json({ latest_deployment: null }));
     vi.stubGlobal("fetch", fetchMock);
 
-    const res = await routes().redeploy(writeReq("redeploy", { appSourceId: 99 }));
+    const res = await routes().redeploy(
+      writeReq("redeploy", { appSourceId: 99 }),
+    );
     const body = await res.json();
 
     expect(res.status).toBe(409);
@@ -292,7 +329,9 @@ describe("createLaunchRoutes redeploy", () => {
     );
     vi.stubGlobal("fetch", fetchMock);
 
-    const res = await routes().redeploy(writeReq("redeploy", { appSourceId: 99 }));
+    const res = await routes().redeploy(
+      writeReq("redeploy", { appSourceId: 99 }),
+    );
     const body = await res.json();
 
     expect(res.status).toBe(503);
@@ -501,5 +540,122 @@ describe("createLaunchRoutes sources", () => {
     expect(String(url)).toContain(
       "/api/integrations/github-app/user/sources?github_user_id=42&platform=community",
     );
+  });
+});
+
+describe("createLaunchRoutes activate/app security", () => {
+  it("rejects activate without a GitHub session before backend calls", async () => {
+    session.mockResolvedValueOnce(null);
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    const res = await routes().activate(
+      writeReq("activate", {
+        appSourceId: 99,
+        apps: ["my-bot"],
+        releaseTags: ["apps-555-r1-my-bot-abc"],
+      }),
+    );
+
+    expect(res.status).toBe(401);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("requires activate appSourceId and app/tag pairs", async () => {
+    session.mockResolvedValue({ githubUserId: "42", githubLogin: "alice" });
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    expect(
+      (
+        await routes().activate(
+          writeReq("activate", {
+            apps: ["my-bot"],
+            releaseTags: ["apps-555-r1-my-bot-abc"],
+          }),
+        )
+      ).status,
+    ).toBe(400);
+    expect(
+      (
+        await routes().activate(
+          writeReq("activate", {
+            appSourceId: 99,
+            releaseTags: ["apps-555-r1-my-bot-abc"],
+          }),
+        )
+      ).status,
+    ).toBe(400);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects unmatched activate app/tag pairs", async () => {
+    session.mockResolvedValueOnce({ githubUserId: "42", githubLogin: "alice" });
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(activationSource())
+      .mockResolvedValueOnce(sourceDeployments());
+    vi.stubGlobal("fetch", fetchMock);
+
+    const res = await routes().activate(
+      writeReq("activate", {
+        appSourceId: 99,
+        apps: ["my-bot"],
+        releaseTags: ["apps-555-r1-my-bot-wrong"],
+      }),
+    );
+
+    expect(res.status).toBe(404);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("activates an owned app/tag pair", async () => {
+    session.mockResolvedValueOnce({ githubUserId: "42", githubLogin: "alice" });
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(activationSource())
+      .mockResolvedValueOnce(sourceDeployments())
+      .mockResolvedValueOnce(
+        Response.json({ ok: true, activation: { apps: [] } }),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const res = await routes().activate(
+      writeReq("activate", {
+        appSourceId: 99,
+        apps: ["my-bot"],
+        releaseTags: ["apps-555-r1-my-bot-abc"],
+      }),
+    );
+
+    expect(res.status).toBe(200);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(fetchMock.mock.calls[2][1]).toMatchObject({
+      method: "POST",
+      body: JSON.stringify({
+        target: {
+          kind: "release_tags",
+          value: ["apps-555-r1-my-bot-abc"],
+        },
+        apps: ["my-bot"],
+      }),
+    });
+  });
+
+  it("scopes app reads to the GitHub session", async () => {
+    session.mockResolvedValueOnce(null);
+    let fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    let res = await routes().app(readReq("app", "name=my-bot"));
+    expect(res.status).toBe(401);
+    expect(fetchMock).not.toHaveBeenCalled();
+
+    vi.restoreAllMocks();
+    session.mockResolvedValueOnce({ githubUserId: "42", githubLogin: "alice" });
+    fetchMock = vi.fn().mockResolvedValueOnce(activationSource());
+    vi.stubGlobal("fetch", fetchMock);
+    res = await routes().app(readReq("app", "name=other"));
+    expect(res.status).toBe(404);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 });

@@ -60,6 +60,13 @@ export const API_PATHS = {
         }`,
       deactivate: `${BFF}/deployments/deactivate`,
     },
+    operate: {
+      agents: `${BFF}/operate/agents`,
+      transactions: `${BFF}/operate/transactions`,
+      usage: `${BFF}/operate/usage`,
+      logs: `${BFF}/operate/logs`,
+      observability: `${BFF}/operate/observability`,
+    },
     e2e: {
       execute: `${BFF}/e2e/execute`,
       wallet: `${BFF}/e2e/wallet`,

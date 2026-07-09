@@ -70,16 +70,16 @@ describe("DeploymentsTab", () => {
     expect(await screen.findByText("dep_1_ra_currentcmt")).toBeInTheDocument();
     expect(screen.getByText("dep_1_ra_oldcommit1")).toBeInTheDocument();
     expect(screen.getByText("Current")).toBeInTheDocument();
-    expect(screen.getByRole("tab", { name: /logs/i })).toHaveAttribute(
+    expect(screen.getByRole("tab", { name: /activity/i })).toHaveAttribute(
       "aria-selected",
       "false",
     );
   });
 
-  it("renders promotion activity in the Logs subtab", async () => {
+  it("renders promotion activity in the Activity subtab", async () => {
     render(<DeploymentsTab detail={detail} />);
-    fireEvent.click(screen.getByRole("tab", { name: /logs/i }));
-    expect(screen.getByRole("tab", { name: /logs/i })).toHaveAttribute(
+    fireEvent.click(screen.getByRole("tab", { name: /activity/i }));
+    expect(screen.getByRole("tab", { name: /activity/i })).toHaveAttribute(
       "aria-selected",
       "true",
     );

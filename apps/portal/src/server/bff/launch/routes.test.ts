@@ -3,7 +3,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   deploymentDeactivateRoute,
+  deploymentRecordsRoute,
   deploymentPromoteRoute,
+  activateLaunchRoute,
+  launchAppRoute,
   launchDeployRoute,
   launchStatusRoute,
   redeployLaunchRoute,
@@ -45,6 +48,18 @@ function ownedSources(...ids: number[]) {
   });
 }
 
+function sourceWithApps(id: number, apps: Array<Record<string, unknown>>) {
+  return Response.json({
+    sources: [
+      {
+        id,
+        installation_id: 555,
+        apps,
+      },
+    ],
+  });
+}
+
 /** The DB promotion-records response for one app (the promote authz source). */
 function appRecords(...deploymentIds: string[]) {
   return Response.json({
@@ -58,6 +73,35 @@ function appRecords(...deploymentIds: string[]) {
       sdk_version: "3.0.1",
       current: false,
     })),
+  });
+}
+
+function activationSource(id = 99) {
+  return Response.json({
+    sources: [
+      {
+        id,
+        installation_id: 555,
+        apps: [
+          {
+            name: "my-bot",
+            app_release_tag: "apps-555-r1-my-bot-abc",
+          },
+        ],
+      },
+    ],
+  });
+}
+
+function sourceDeployments() {
+  return Response.json({
+    deployments: [
+      {
+        deployment_id: "dep_1",
+        release_tags: ["apps-555-r1-my-bot-abc"],
+        apps: [{ name: "my-bot", release_tag: "apps-555-r1-my-bot-abc" }],
+      },
+    ],
   });
 }
 
@@ -639,9 +683,9 @@ describe("deploymentDeactivateRoute", () => {
   it("requires appSourceId and apps", async () => {
     const fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);
-    expect((await deploymentDeactivateRoute(deactReq({ apps: ["x"] }))).status).toBe(
-      400,
-    );
+    expect(
+      (await deploymentDeactivateRoute(deactReq({ apps: ["x"] }))).status,
+    ).toBe(400);
     expect(
       (await deploymentDeactivateRoute(deactReq({ appSourceId: 99 }))).status,
     ).toBe(400);
@@ -686,10 +730,220 @@ describe("deploymentDeactivateRoute", () => {
   });
 });
 
+describe("activateLaunchRoute", () => {
+  function activateReq(body: unknown) {
+    return new Request("http://localhost:3000/api/bff/launch/activate", {
+      method: "POST",
+      headers: {
+        origin: "http://localhost:3000",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(body),
+    });
+  }
+
+  beforeEach(() => {
+    getGitHubSession.mockResolvedValue({
+      githubUserId: "42",
+      githubLogin: "alice",
+    });
+  });
+  afterEach(() => {
+    vi.restoreAllMocks();
+    getGitHubSession.mockReset();
+  });
+
+  it("rejects without a session", async () => {
+    getGitHubSession.mockResolvedValue(null);
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    const res = await activateLaunchRoute(
+      activateReq({
+        appSourceId: 99,
+        apps: ["my-bot"],
+        releaseTags: ["apps-555-r1-my-bot-abc"],
+      }),
+    );
+    expect(res.status).toBe(401);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("requires appSourceId and app/tag pairs", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    expect(
+      (
+        await activateLaunchRoute(
+          activateReq({
+            apps: ["my-bot"],
+            releaseTags: ["apps-555-r1-my-bot-abc"],
+          }),
+        )
+      ).status,
+    ).toBe(400);
+    expect(
+      (
+        await activateLaunchRoute(
+          activateReq({
+            appSourceId: 99,
+            releaseTags: ["apps-555-r1-my-bot-abc"],
+          }),
+        )
+      ).status,
+    ).toBe(400);
+    expect(
+      (
+        await activateLaunchRoute(
+          activateReq({
+            appSourceId: 99,
+            apps: ["my-bot", "web"],
+            releaseTags: ["apps-555-r1-my-bot-abc"],
+          }),
+        )
+      ).status,
+    ).toBe(400);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects a foreign app source or unmatched app/tag pair", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValueOnce(ownedSources(1)));
+    expect(
+      (
+        await activateLaunchRoute(
+          activateReq({
+            appSourceId: 99,
+            apps: ["my-bot"],
+            releaseTags: ["apps-555-r1-my-bot-abc"],
+          }),
+        )
+      ).status,
+    ).toBe(404);
+
+    vi.restoreAllMocks();
+    getGitHubSession.mockResolvedValue({
+      githubUserId: "42",
+      githubLogin: "alice",
+    });
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn()
+        .mockResolvedValueOnce(activationSource())
+        .mockResolvedValueOnce(sourceDeployments()),
+    );
+    expect(
+      (
+        await activateLaunchRoute(
+          activateReq({
+            appSourceId: 99,
+            apps: ["my-bot"],
+            releaseTags: ["apps-555-r1-my-bot-wrong"],
+          }),
+        )
+      ).status,
+    ).toBe(404);
+  });
+
+  it("activates only an owned app/tag pair", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(activationSource())
+      .mockResolvedValueOnce(sourceDeployments())
+      .mockResolvedValueOnce(
+        Response.json({ ok: true, activation: { apps: [] } }),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const res = await activateLaunchRoute(
+      activateReq({
+        appSourceId: 99,
+        apps: ["my-bot"],
+        releaseTags: ["apps-555-r1-my-bot-abc"],
+      }),
+    );
+    expect(res.status).toBe(200);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(fetchMock.mock.calls[2][1]).toMatchObject({
+      method: "POST",
+      body: JSON.stringify({
+        target: {
+          kind: "release_tags",
+          value: ["apps-555-r1-my-bot-abc"],
+        },
+        apps: ["my-bot"],
+      }),
+    });
+  });
+});
+
+describe("launchAppRoute", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+    getGitHubSession.mockReset();
+  });
+
+  it("401s without a session and 404s for an unowned app", async () => {
+    getGitHubSession.mockResolvedValue(null);
+    let fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    let res = await launchAppRoute(
+      new Request("http://localhost:3000/api/bff/launch/app?name=my-bot"),
+    );
+    expect(res.status).toBe(401);
+    expect(fetchMock).not.toHaveBeenCalled();
+
+    vi.restoreAllMocks();
+    getGitHubSession.mockResolvedValue({
+      githubUserId: "42",
+      githubLogin: "alice",
+    });
+    fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(sourceWithApps(1, [{ name: "other-bot" }]));
+    vi.stubGlobal("fetch", fetchMock);
+    res = await launchAppRoute(
+      new Request("http://localhost:3000/api/bff/launch/app?name=my-bot"),
+    );
+    expect(res.status).toBe(404);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("deploymentRecordsRoute", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+    getGitHubSession.mockReset();
+  });
+
+  it("requires appSourceId ownership before listing records", async () => {
+    getGitHubSession.mockResolvedValue({
+      githubUserId: "42",
+      githubLogin: "alice",
+    });
+    const fetchMock = vi.fn().mockResolvedValueOnce(ownedSources(1));
+    vi.stubGlobal("fetch", fetchMock);
+    const res = await deploymentRecordsRoute(
+      new Request(
+        "http://localhost:3000/api/bff/deployments/records?app=my-bot&appSourceId=99",
+      ),
+    );
+    expect(res.status).toBe(404);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe("launchStatusRoute", () => {
+  beforeEach(() => {
+    getGitHubSession.mockResolvedValue({
+      githubUserId: "42",
+      githubLogin: "alice",
+    });
+  });
+
   afterEach(() => {
     vi.unstubAllEnvs();
     vi.restoreAllMocks();
+    getGitHubSession.mockReset();
   });
 
   it("propagates backend 404 instead of masking deployment status as pending", async () => {

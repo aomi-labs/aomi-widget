@@ -19,7 +19,7 @@ type Pending =
   | { kind: "promote"; deploymentId: string }
   | { kind: "deactivate"; deploymentId: string; apps: string[] }
   | null;
-type View = "deployments" | "logs";
+type View = "deployments" | "activity";
 
 export function DeploymentsTab({ detail }: { detail: Detail }) {
   const [op, setOp] = useState<OpState | null>(null);
@@ -178,7 +178,7 @@ export function DeploymentsTab({ detail }: { detail: Detail }) {
         >
           {[
             ["deployments", "Deployments"],
-            ["logs", "Logs"],
+            ["activity", "Activity"],
           ].map(([id, label]) => (
             <button
               key={id}
@@ -309,11 +309,11 @@ export function DeploymentsTab({ detail }: { detail: Detail }) {
         })
       ) : null}
 
-      {view === "logs" && activity.length === 0 && !detail.recordsError && (
-        <EmptyPanel>No activity logs for this project.</EmptyPanel>
+      {view === "activity" && activity.length === 0 && !detail.recordsError && (
+        <EmptyPanel>No promotion activity for this project.</EmptyPanel>
       )}
 
-      {view === "logs" && activity.length > 0 && (
+      {view === "activity" && activity.length > 0 && (
         <div>
           {activity.map((row) => (
             <div

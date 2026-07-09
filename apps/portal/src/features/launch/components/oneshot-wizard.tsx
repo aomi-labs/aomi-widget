@@ -111,7 +111,11 @@ export function OneshotWizard({
         onAction={onRestart}
       />
 
-      <Stepper steps={STEPS} current={step} />
+      <Stepper
+        steps={STEPS}
+        current={step}
+        activeBusy={installing || creating}
+      />
 
       {/* completed-fact summary */}
       {(progress.installationId || progress.repo) && (
@@ -133,7 +137,7 @@ export function OneshotWizard({
 
       {step === "install" && (
         <div className="space-y-3">
-          <div className="border-input space-y-3 rounded-2xl border p-4">
+          <div className="border-input bg-surface-1 space-y-3 rounded-md border p-4">
             <div className="text-foreground text-sm font-medium">
               Step 1 — Install the Aomi GitHub App
             </div>
@@ -146,7 +150,7 @@ export function OneshotWizard({
               <Button
                 onClick={beginInstall}
                 disabled={installing}
-                className="h-10 rounded-full px-4 text-sm font-medium"
+                className="h-9 rounded-md px-3 text-sm font-medium"
               >
                 {installing ? "Waiting for GitHub..." : "Install on GitHub"}
                 <ExternalLink className="ml-1 h-4 w-4" />
@@ -159,7 +163,7 @@ export function OneshotWizard({
 
       {step === "create" && progress.installationId && (
         <div className="space-y-3">
-          <div className="border-input space-y-3 rounded-2xl border p-4">
+          <div className="border-input bg-surface-1 space-y-3 rounded-md border p-4">
             <div className="text-foreground text-sm font-medium">
               Step 2 — Create your repo
             </div>
@@ -190,7 +194,7 @@ export function OneshotWizard({
             <Button
               onClick={createRepo}
               disabled={creating || Boolean(repoError)}
-              className="h-10 rounded-full px-4 text-sm font-medium"
+              className="h-9 rounded-md px-3 text-sm font-medium"
             >
               {creating ? (
                 <Loader2 className="mr-1 h-4 w-4 animate-spin" />
@@ -205,7 +209,7 @@ export function OneshotWizard({
       )}
 
       {step === "build" && progress.installationId && progress.repo && (
-        <div className="border-input space-y-3 rounded-2xl border p-4">
+        <div className="border-input bg-surface-1 space-y-3 rounded-md border p-4">
           <div className="text-foreground text-sm font-medium">
             Step 3 — Build and activate
           </div>
@@ -279,7 +283,7 @@ function WizardHeader({
         {actionLabel && onAction && (
           <Button
             onClick={onAction}
-            className="h-9 max-w-full rounded-full px-3 text-sm font-medium"
+            className="h-9 max-w-full rounded-md px-3 text-sm font-medium"
           >
             <RotateCcw className="mr-1 h-4 w-4 shrink-0" />
             {actionLabel}
