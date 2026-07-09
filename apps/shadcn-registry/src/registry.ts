@@ -183,6 +183,7 @@ export const registry: RegistryComponent[] = [
       "components/assistant-ui/tool-interpreter/families/simple.ts",
       "components/assistant-ui/tool-interpreter/families/evm-call.ts",
       "components/assistant-ui/tool-interpreter/families/evm-tx.ts",
+      "components/assistant-ui/tool-interpreter/families/lifi.ts",
       "components/assistant-ui/tool-interpreter/present/index.ts",
       "components/assistant-ui/tool-interpreter/present/chips.ts",
       "components/assistant-ui/tool-interpreter/present/descriptors.ts",

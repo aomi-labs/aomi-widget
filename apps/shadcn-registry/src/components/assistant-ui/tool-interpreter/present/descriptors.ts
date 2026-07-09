@@ -145,6 +145,36 @@ const descriptorById: Record<string, Descriptor> = {
       { kind: "status" },
     ],
   },
+  "lifi.approval": {
+    title: "label",
+    icon: EVM_SELECTOR_REGISTRY["0x095ea7b3"].icon,
+    chipPlan: [
+      { kind: "chain" },
+      { kind: "token" },
+      { kind: "amount", role: "primary" },
+    ],
+  },
+  "lifi.quote": {
+    title: "label",
+    icon: SHAPE_ICONS.swap,
+    chipPlan: [
+      { kind: "chain" },
+      { kind: "amount", role: "primary" },
+      { kind: "amount", role: "secondary" },
+      { kind: "token", role: "primary" },
+    ],
+  },
+  "lifi.swap.prepare": {
+    title: "label",
+    icon: SHAPE_ICONS.swap,
+    chipPlan: [
+      { kind: "chain" },
+      { kind: "sourceHost" },
+      { kind: "amount", role: "primary" },
+      { kind: "amount", role: "secondary" },
+      { kind: "token", role: "primary" },
+    ],
+  },
   "skill.activate": {
     title: "fixed",
     fixedTitle: "Activate skill",

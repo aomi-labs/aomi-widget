@@ -156,6 +156,7 @@ export const SHAPE_ICONS = {
   simulation: FlaskConicalIcon,
   skillActivation: SparklesIcon,
   staged: LayersIcon,
+  swap: ArrowRightLeftIcon,
   tokenLookup: SearchIcon,
   verified: BadgeCheckIcon,
 } satisfies Record<string, LucideIcon>;

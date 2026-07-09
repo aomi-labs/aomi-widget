@@ -25,6 +25,11 @@ const op = (
   rawLabel,
 });
 
+const displaySkillLabel = (skillId: string): string | undefined => {
+  if (skillId === "lifi_swap") return "Lifi";
+  return undefined;
+};
+
 export const matchWebSearch: ToolMatcher = ({ rawLabel, resultRecord }) => {
   if (!resultRecord) return null;
   const body = asString(resultRecord.args) ?? asString(resultRecord.result);
@@ -65,6 +70,7 @@ export const matchSkillActivation: ToolMatcher = ({
       ? activated.map((value) => ({
           kind: "skill",
           value,
+          label: displaySkillLabel(value),
           source: "result" as const,
         }))
       : [{ kind: "skill", value: "Skill", source: "result" }],

@@ -88,7 +88,10 @@ const normalizeTextOnlyMessage = (
       {
         type: "text",
         text: collapseExactlyRepeatedText(
-          parts.map((part) => part.text).join("\n\n"),
+          parts
+            .filter(isTextPart)
+            .map((part) => part.text)
+            .join("\n\n"),
         ),
       },
     ] as ThreadMessageLike["content"],

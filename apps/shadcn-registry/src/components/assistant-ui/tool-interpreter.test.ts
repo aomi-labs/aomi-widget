@@ -107,6 +107,140 @@ describe("tool interpreter", () => {
     expect(step.chips[0].icon).not.toBe(step.icon);
   });
 
+  it("uses the display name for LI.FI skill activation", () => {
+    const step = interpretToolStep({
+      toolName: "Activate skills",
+      result: {
+        activated: ["common_erc20", "lifi_swap"],
+        applied_scope: "current_serve_cycle",
+      },
+    });
+
+    expect(step.title).toBe("Activate skill");
+    expect(labelsFor(step.chips)).toEqual(["Common erc20", "Lifi"]);
+  });
+
+  it("shows LI.FI quote chain, amounts, and token direction", () => {
+    const step = interpretToolStep({
+      toolName: "Quote Base swap 0.05 USDC to ETH",
+      result: {
+        quote_id: "lifi_q_5c95b4e6841348fbba3c4e66374498a7",
+        chain_id: 8453,
+        from_token: {
+          symbol: "USDC",
+          address: "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
+          decimals: 6,
+          chain_id: 8453,
+          name: "USD Coin",
+          is_native: false,
+        },
+        to_token: {
+          symbol: "ETH",
+          address: "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+          decimals: 18,
+          chain_id: 8453,
+          name: "Native token",
+          is_native: true,
+        },
+        from_amount: {
+          raw: "50000",
+          display: "0.05 USDC",
+        },
+        estimate: {
+          to_amount_raw: "28514600000000",
+          to_amount_display: "0.0000285146 ETH",
+          to_amount_min_raw: "28372100000000",
+          to_amount_min_display: "0.0000283721 ETH",
+          slippage_bps: 50,
+        },
+      },
+    });
+
+    expect(step.title).toBe("Quote Base swap 0.05 USDC to ETH");
+    expect(labelsFor(step.chips)).toEqual([
+      "Base",
+      "0.05 USDC",
+      "0.0000285146 ETH",
+      "USDC -> ETH",
+    ]);
+    expect(step.chips[0].icon).toBeTypeOf("function");
+    expect(step.chips[1].icon).toBeTypeOf("object");
+    expect(step.chips[2].icon).toBeTypeOf("object");
+  });
+
+  it("shows LI.FI approval chain from nested token metadata", () => {
+    const step = interpretToolStep({
+      toolName: "Prepare exact USDC approval for LI.FI Base swap",
+      result: {
+        quote_id: "lifi_q_5c95b4e6841348fbba3c4e66374498a7",
+        approval_required: true,
+        current_allowance: "0",
+        required_allowance: "50000",
+        approval: {
+          spender: "0x1231deb6f5749ef6ce6943a275a1d3e7486f4eae",
+          token: {
+            symbol: "USDC",
+            address: "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
+            decimals: 6,
+            chain_id: 8453,
+          },
+          amount_raw: "50000",
+          amount: {
+            raw: "50000",
+            display: "0.05 USDC",
+          },
+          policy: "exact",
+        },
+      },
+    });
+
+    expect(step.title).toBe("Prepare exact USDC approval for LI.FI Base swap");
+    expect(labelsFor(step.chips)).toEqual(["Base", "USDC", "0.05 USDC"]);
+    expect(step.chips[0].icon).toBeTypeOf("function");
+  });
+
+  it("shows Lifi instead of LI for LI.FI swap prep", () => {
+    const step = interpretToolStep({
+      toolName: "Prepare LI.FI Base swap transaction for 0.05 USDC to ETH",
+      result: {
+        quote_id: "lifi_q_5c95b4e6841348fbba3c4e66374498a7",
+        chain_id: 8453,
+        from_token: {
+          symbol: "USDC",
+          chain_id: 8453,
+        },
+        to_token: {
+          symbol: "ETH",
+          chain_id: 8453,
+        },
+        from_amount: {
+          raw: "50000",
+          display: "0.05 USDC",
+        },
+        estimate: {
+          to_amount_display: "0.0000285146 ETH",
+        },
+        stage_tx: {
+          to: "0x1231deb6f5749ef6ce6943a275a1d3e7486f4eae",
+          data: { raw: "0xabcdef" },
+          value: "0",
+          kind: "lifi_swap",
+        },
+      },
+    });
+
+    expect(step.title).toBe(
+      "Prepare LI.FI Base swap transaction for 0.05 USDC to ETH",
+    );
+    expect(labelsFor(step.chips)).toEqual([
+      "Base",
+      "Lifi",
+      "0.05 USDC",
+      "0.0000285146 ETH",
+      "USDC -> ETH",
+    ]);
+  });
+
   it("recognizes Base chain context", () => {
     const step = interpretToolStep({
       toolName: "Confirm Base network and current block time",

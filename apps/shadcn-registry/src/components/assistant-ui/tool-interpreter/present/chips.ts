@@ -101,6 +101,9 @@ export const chipForFact = (fact: ToolFact): ToolChip | null => {
           icon: getChainIcon(1),
         };
       }
+      if (fact.role === "primary" || fact.role === "secondary") {
+        return { label: fact.label ?? fact.value, icon: CoinsIcon };
+      }
       return { label: fact.label ?? fact.value };
     case "block":
       return { label: formatInteger(fact.value), icon: BlocksIcon };

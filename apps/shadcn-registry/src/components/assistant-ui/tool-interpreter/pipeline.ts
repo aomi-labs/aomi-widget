@@ -19,6 +19,11 @@ import {
   matchSimulation,
   matchStagedTx,
 } from "./families/evm-tx";
+import {
+  matchLifiApproval,
+  matchLifiQuote,
+  matchLifiSwapPrep,
+} from "./families/lifi";
 import { matchEvmCall } from "./families/evm-call";
 import { presentOperation } from "./present";
 import type {
@@ -34,6 +39,9 @@ const matchers: ToolMatcher[] = [
   matchChainContext,
   matchNativeBalance,
   matchTokenLookup,
+  matchLifiSwapPrep,
+  matchLifiQuote,
+  matchLifiApproval,
   matchStagedTx,
   matchSimulation,
   matchPendingApproval,
