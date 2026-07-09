@@ -165,12 +165,37 @@ export const AOMI_BACKEND_ENDPOINTS = [
   },
   {
     method: "GET",
+    path: "/api/integrations/github-app/user/sources/:id/agents",
+    auth: ["service"],
+  },
+  {
+    method: "GET",
     path: "/api/integrations/github-app/user/sources/:id/deployments",
     auth: ["service"],
   },
   {
     method: "GET",
     path: "/api/integrations/github-app/user/sources/:id/latest-deployment",
+    auth: ["service"],
+  },
+  {
+    method: "GET",
+    path: "/api/integrations/github-app/user/sources/:id/logs",
+    auth: ["service"],
+  },
+  {
+    method: "GET",
+    path: "/api/integrations/github-app/user/sources/:id/observability",
+    auth: ["service"],
+  },
+  {
+    method: "GET",
+    path: "/api/integrations/github-app/user/sources/:id/transactions",
+    auth: ["service"],
+  },
+  {
+    method: "GET",
+    path: "/api/integrations/github-app/user/sources/:id/usage",
     auth: ["service"],
   },
   {
