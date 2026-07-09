@@ -93,19 +93,23 @@ function requiredDatabaseUrl(env: AccountAuthEnvInput): string {
 }
 
 function resolveBetterAuthUrl(env: AccountAuthEnvInput): string {
-  const vercelDeploymentUrl = firstUrl(env.VERCEL_BRANCH_URL, env.VERCEL_URL);
+  // An explicit override always wins, including on Vercel `preview`. Stable
+  // custom-alias deployments (e.g. chat-staging.aomi.dev fronting a `preview`
+  // build) are served on a host that is NOT the auto-detected *.vercel.app URL;
+  // deriving the SIWE domain / trusted origins from that URL breaks every login
+  // on the alias (domain/origin mismatch). Ephemeral PR previews leave this
+  // unset and keep the *.vercel.app fallback below.
+  const explicit = firstUrl(env.BETTER_AUTH_URL, env.AOMI_PORTAL_BASE_URL);
+  if (explicit) return explicit;
 
+  const vercelDeploymentUrl = firstUrl(env.VERCEL_BRANCH_URL, env.VERCEL_URL);
   if (env.VERCEL_ENV === "preview" && vercelDeploymentUrl) {
     return vercelDeploymentUrl;
   }
 
   return (
-    firstUrl(
-      env.BETTER_AUTH_URL,
-      env.AOMI_PORTAL_BASE_URL,
-      env.VERCEL_PROJECT_PRODUCTION_URL,
-      env.VERCEL_URL,
-    ) ?? "http://localhost:3001"
+    firstUrl(env.VERCEL_PROJECT_PRODUCTION_URL, env.VERCEL_URL) ??
+    "http://localhost:3001"
   );
 }
 
