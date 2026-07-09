@@ -1648,37 +1648,17 @@ function camelOperateObservability(
 function camelOperateAppMetrics(raw: unknown) {
   if (!raw || typeof raw !== "object") return null;
   const metrics = raw as Record<string, any>;
+  const metricNumber = (snake: string, camel: string): number | null => {
+    const value = metrics[snake] ?? metrics[camel];
+    return value === null || value === undefined ? null : Number(value);
+  };
   return {
     provider: String(metrics.provider ?? ""),
     windowSeconds: Number(metrics.window_seconds ?? metrics.windowSeconds ?? 0),
     available: Boolean(metrics.available),
-    requestsPerMinute:
-      metrics.requests_per_minute === null ||
-      metrics.requestsPerMinute === null ||
-      metrics.requests_per_minute === undefined ||
-      metrics.requestsPerMinute === undefined
-        ? null
-        : Number(metrics.requests_per_minute ?? metrics.requestsPerMinute),
-    errorRate:
-      metrics.error_rate === null ||
-      metrics.errorRate === null ||
-      metrics.error_rate === undefined ||
-      metrics.errorRate === undefined
-        ? null
-        : Number(metrics.error_rate ?? metrics.errorRate),
-    p95LatencyMs:
-      metrics.p95_latency_ms === null ||
-      metrics.p95LatencyMs === null ||
-      metrics.p95_latency_ms === undefined ||
-      metrics.p95LatencyMs === undefined
-        ? null
-        : Number(metrics.p95_latency_ms ?? metrics.p95LatencyMs),
-    inflightRequests:
-      metrics.inflight_requests === null ||
-      metrics.inflightRequests === null ||
-      metrics.inflight_requests === undefined ||
-      metrics.inflightRequests === undefined
-        ? null
-        : Number(metrics.inflight_requests ?? metrics.inflightRequests),
+    requestsPerMinute: metricNumber("requests_per_minute", "requestsPerMinute"),
+    errorRate: metricNumber("error_rate", "errorRate"),
+    p95LatencyMs: metricNumber("p95_latency_ms", "p95LatencyMs"),
+    inflightRequests: metricNumber("inflight_requests", "inflightRequests"),
   };
 }
