@@ -378,6 +378,104 @@ describe("DeploymentClient.activate", () => {
   });
 });
 
+describe("DeploymentClient operate observability", () => {
+  let fetchMock: ReturnType<typeof vi.fn>;
+
+  beforeEach(() => {
+    fetchMock = vi.fn(async () =>
+      Response.json({
+        source: {
+          id: 42,
+          installation_id: 123,
+          repository_id: 987,
+          repository_link: "https://github.com/alice/demo.git",
+          github_account: "alice",
+        },
+        platform: "community",
+        scope: "owned_applications",
+        monitoring: {
+          provider: "grafana_prometheus",
+          status: "ok",
+          window_seconds: 300,
+        },
+        apps: [
+          {
+            application_id: 77,
+            application: "demo",
+            active: true,
+            loaded: true,
+            release_tag: "apps-123-demo-abc1234def56",
+            sdk_version: "3.0.2",
+            status: "healthy",
+            metrics: {
+              provider: "grafana_prometheus",
+              window_seconds: 300,
+              available: true,
+              requests_per_minute: 42,
+              error_rate: 0.025,
+              p95_latency_ms: 1234,
+              inflight_requests: 3,
+            },
+          },
+        ],
+        dashboard_links: [
+          {
+            label: "Operate dashboard",
+            url: "https://grafana.example.com/d/app",
+            scope: "owned_applications",
+          },
+        ],
+        platform_metrics: [
+          {
+            label: "DB pool waiting",
+            value: 0,
+            unit: "connections",
+            scope: "platform",
+            description: "Shared DB pressure.",
+          },
+        ],
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+  });
+
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("maps snake_case Grafana metrics into app observability fields", async () => {
+    const result = await client().getUserSourceObservability({
+      githubUserId: "4738254",
+      platform: "community",
+      appSourceId: 42,
+    });
+
+    expect(fetchMock).toHaveBeenCalledOnce();
+    expect(fetchMock.mock.calls[0][0]).toBe(
+      "https://staging-api.example.com/api/integrations/github-app/user/sources/42/observability?github_user_id=4738254&platform=community",
+    );
+    expect(result.monitoring).toEqual({
+      provider: "grafana_prometheus",
+      status: "ok",
+      windowSeconds: 300,
+    });
+    expect(result.apps[0].metrics).toEqual({
+      provider: "grafana_prometheus",
+      windowSeconds: 300,
+      available: true,
+      requestsPerMinute: 42,
+      errorRate: 0.025,
+      p95LatencyMs: 1234,
+      inflightRequests: 3,
+    });
+    expect(result.platformMetrics[0]).toEqual({
+      label: "DB pool waiting",
+      value: 0,
+      unit: "connections",
+      scope: "platform",
+      description: "Shared DB pressure.",
+    });
+  });
+});
+
 describe("server-only guard", () => {
   it("throws in a browser-like environment", () => {
     const g = globalThis as Record<string, unknown>;
