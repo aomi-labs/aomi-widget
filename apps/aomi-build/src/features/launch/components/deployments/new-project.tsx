@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { ArrowLeft } from "lucide-react";
 import { Onboarding } from "@build/features/launch/components/onboarding";
@@ -28,26 +29,26 @@ export function NewProject({
   }, []);
 
   return (
-    <main className="min-h-screen bg-white text-zinc-950">
+    <main className="bg-background text-foreground min-h-screen">
       <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 py-8 sm:px-6">
         <div>
-          <a
+          <Link
             href={backHref}
-            className="inline-flex items-center gap-1 text-sm text-zinc-500 hover:text-zinc-900"
+            className="text-dim hover:text-foreground inline-flex items-center gap-1 text-sm"
           >
             <ArrowLeft className="size-4" aria-hidden />
             {backLabel}
-          </a>
+          </Link>
           <h1 className="mt-2 text-2xl font-semibold tracking-normal">
             New app
           </h1>
-          <p className="mt-1 text-sm text-zinc-500">
+          <p className="text-dim mt-1 text-sm">
             Fork the template, deploy it, and go live — all from your GitHub
             account.
           </p>
         </div>
 
-        <div className="rounded-lg border border-zinc-200 bg-white p-4 sm:p-6">
+        <div className="border-border bg-surface-1 rounded-md border p-4 sm:p-6">
           {session === null ? (
             <LoadingPanel label="Loading…" />
           ) : session.signedIn ? (

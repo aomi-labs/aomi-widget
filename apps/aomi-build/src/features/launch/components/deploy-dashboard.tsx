@@ -632,6 +632,7 @@ function LifecyclePanel({
     setAction("activating");
     try {
       const result = await launchActivate({
+        appSourceId,
         releaseTags: lifecycle.releaseTags,
         apps: lifecycle.appNames,
       });
@@ -667,7 +668,7 @@ function LifecyclePanel({
       }
       setAction("idle");
     }
-  }, [lifecycle, onLifecycleChange, onLive]);
+  }, [appSourceId, lifecycle, onLifecycleChange, onLive]);
 
   const redeploy = useCallback(async () => {
     setError(null);

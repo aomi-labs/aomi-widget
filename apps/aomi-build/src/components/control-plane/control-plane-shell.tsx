@@ -27,11 +27,15 @@ import { useEffect, useRef, useState } from "react";
 
 import { AomiLogo } from "@build/components/brand/aomi-logo";
 import {
-  fetchGitHubSession,
   GITHUB_SIGNIN_URL,
   signOutGitHub,
-  type GitHubSessionInfo,
 } from "@build/features/launch/dashboard";
+import {
+  GitHubSessionProvider,
+  signedOutGitHubAccount,
+  useGitHubSession,
+  type GitHubAccountState,
+} from "@build/components/control-plane/github-session-context";
 import { cn } from "@build/lib/utils";
 
 type NavItem = {
@@ -39,6 +43,7 @@ type NavItem = {
   href: string;
   icon: LucideIcon;
   enabled: boolean;
+  requiresGitHub?: boolean;
 };
 
 type NavGroup = {
@@ -71,22 +76,43 @@ const navGroups: NavGroup[] = [
         href: "/operate/deployments",
         icon: Rocket,
         enabled: true,
+        requiresGitHub: true,
       },
       {
         label: "Transactions",
         href: "/operate/transactions",
         icon: WalletCards,
         enabled: true,
+        requiresGitHub: true,
       },
       {
         label: "Observability",
         href: "/operate/observability",
         icon: Activity,
         enabled: true,
+        requiresGitHub: true,
       },
-      { label: "Usage", href: "/operate/usage", icon: Gauge, enabled: true },
-      { label: "Agents", href: "/operate/agents", icon: Bot, enabled: true },
-      { label: "Logs", href: "/operate/logs", icon: ScrollText, enabled: true },
+      {
+        label: "Usage",
+        href: "/operate/usage",
+        icon: Gauge,
+        enabled: true,
+        requiresGitHub: true,
+      },
+      {
+        label: "Agents",
+        href: "/operate/agents",
+        icon: Bot,
+        enabled: true,
+        requiresGitHub: true,
+      },
+      {
+        label: "Logs",
+        href: "/operate/logs",
+        icon: ScrollText,
+        enabled: true,
+        requiresGitHub: true,
+      },
     ],
   },
   {
@@ -129,11 +155,8 @@ function IconButton({
   );
 }
 
-type AccountState = GitHubSessionInfo & {
-  loading: boolean;
-};
-
-function githubAvatarUrl(login: string | null) {
+function githubAvatarUrl(login: string | null, explicitUrl?: string | null) {
+  if (explicitUrl?.trim()) return explicitUrl.trim();
   return login
     ? `https://github.com/${encodeURIComponent(login)}.png?size=96`
     : null;
@@ -145,7 +168,7 @@ function githubInitials(login: string | null) {
   return normalized.slice(0, 2).toUpperCase();
 }
 
-function accountLabel(account: AccountState) {
+function accountLabel(account: GitHubAccountState) {
   if (account.loading) return "Loading GitHub account";
   if (!account.signedIn) return "Not signed in";
   return account.githubLogin ? `@${account.githubLogin}` : "GitHub account";
@@ -153,12 +176,14 @@ function accountLabel(account: AccountState) {
 
 function Avatar({
   login,
+  imageUrl,
   size = "md",
 }: {
   login: string | null;
+  imageUrl?: string | null;
   size?: "sm" | "md" | "lg";
 }) {
-  const avatar = githubAvatarUrl(login);
+  const avatar = githubAvatarUrl(login, imageUrl);
   const sizeClass =
     size === "lg"
       ? "h-9 w-9 text-[12px]"
@@ -199,11 +224,15 @@ function Avatar({
   );
 }
 
-function AccountCard({ account }: { account: AccountState }) {
+function AccountCard({ account }: { account: GitHubAccountState }) {
   return (
     <div className="border-border bg-surface-1 flex items-center gap-2.5 rounded-lg border px-3 py-2">
       {account.signedIn ? (
-        <Avatar login={account.githubLogin} size="sm" />
+        <Avatar
+          login={account.githubLogin}
+          imageUrl={account.githubAvatarUrl}
+          size="sm"
+        />
       ) : (
         <span className="bg-surface-3 text-foreground flex h-7 w-7 shrink-0 items-center justify-center rounded-full">
           <Github className="size-3.5" />
@@ -231,23 +260,26 @@ function NavItemLink({
   item,
   active,
   expanded,
+  signedIn,
   onNavigate,
 }: {
   item: NavItem;
   active: boolean;
   expanded: boolean;
+  signedIn: boolean;
   onNavigate?: () => void;
 }) {
   const Icon = item.icon;
+  const enabled = item.enabled && (!item.requiresGitHub || signedIn);
   const content = (
     <>
       <Icon className="nav-icon size-4 shrink-0" />
       {expanded ? (
         <>
           <span className="min-w-0 flex-1 truncate">{item.label}</span>
-          {!item.enabled ? (
+          {!enabled ? (
             <span className="border-border text-dim rounded-sm border px-1.5 py-0.5 text-[10px] uppercase tracking-wide">
-              Soon
+              {item.requiresGitHub ? "Sign in" : "Soon"}
             </span>
           ) : null}
         </>
@@ -255,11 +287,17 @@ function NavItemLink({
     </>
   );
 
-  if (!item.enabled) {
+  if (!enabled) {
     return (
       <div
         className="nav-link cursor-not-allowed opacity-45"
-        title={!expanded ? `${item.label} - soon` : undefined}
+        title={
+          !expanded
+            ? item.requiresGitHub
+              ? `${item.label} - sign in`
+              : `${item.label} - soon`
+            : undefined
+        }
         aria-disabled="true"
       >
         {content}
@@ -284,11 +322,13 @@ function NavGroupList({
   group,
   expanded,
   pathname,
+  signedIn,
   onNavigate,
 }: {
   group: NavGroup;
   expanded: boolean;
   pathname: string;
+  signedIn: boolean;
   onNavigate?: () => void;
 }) {
   return (
@@ -305,6 +345,7 @@ function NavGroupList({
             item={item}
             active={isActivePath(pathname, item.href)}
             expanded={expanded}
+            signedIn={signedIn}
             onNavigate={onNavigate}
           />
         ))}
@@ -321,7 +362,7 @@ function SidebarNav({
 }: {
   expanded: boolean;
   pathname: string;
-  account: AccountState;
+  account: GitHubAccountState;
   onNavigate?: () => void;
 }) {
   return (
@@ -332,6 +373,7 @@ function SidebarNav({
           group={group}
           expanded={expanded}
           pathname={pathname}
+          signedIn={account.loading || account.signedIn}
           onNavigate={onNavigate}
         />
       ))}
@@ -390,7 +432,7 @@ function AccountMenu({
   account,
   onSignedOut,
 }: {
-  account: AccountState;
+  account: GitHubAccountState;
   onSignedOut: () => void;
 }) {
   const [signingOut, setSigningOut] = useState(false);
@@ -411,14 +453,22 @@ function AccountMenu({
         label="Account menu"
         trigger={
           account.signedIn ? (
-            <Avatar login={account.githubLogin} size="sm" />
+            <Avatar
+              login={account.githubLogin}
+              imageUrl={account.githubAvatarUrl}
+              size="sm"
+            />
           ) : (
             <CircleUserRound className="size-4" />
           )
         }
       >
         <div className="flex items-center gap-2.5 px-2 py-2">
-          <Avatar login={account.githubLogin} size="lg" />
+          <Avatar
+            login={account.githubLogin}
+            imageUrl={account.githubAvatarUrl}
+            size="lg"
+          />
           <div className="min-w-0">
             <p className="text-foreground truncate text-[13px] font-medium">
               {accountLabel(account)}
@@ -470,32 +520,19 @@ function AccountMenu({
   );
 }
 
-function useGitHubAccount(): [AccountState, (account: AccountState) => void] {
-  const [account, setAccount] = useState<AccountState>({
-    loading: true,
-    signedIn: false,
-    githubLogin: null,
-    installationId: null,
-  });
-
-  useEffect(() => {
-    let cancelled = false;
-    fetchGitHubSession().then((session) => {
-      if (!cancelled) setAccount({ ...session, loading: false });
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  return [account, setAccount];
+export function ControlPlaneShell({ children }: { children: React.ReactNode }) {
+  return (
+    <GitHubSessionProvider>
+      <ControlPlaneShellContent>{children}</ControlPlaneShellContent>
+    </GitHubSessionProvider>
+  );
 }
 
-export function ControlPlaneShell({ children }: { children: React.ReactNode }) {
+function ControlPlaneShellContent({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [expanded, setExpanded] = useState(true);
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [account, setAccount] = useGitHubAccount();
+  const { account, setAccount } = useGitHubSession();
 
   useEffect(() => {
     setMobileOpen(false);
@@ -592,14 +629,7 @@ export function ControlPlaneShell({ children }: { children: React.ReactNode }) {
           <div className="hidden lg:block" />
           <AccountMenu
             account={account}
-            onSignedOut={() =>
-              setAccount({
-                loading: false,
-                signedIn: false,
-                githubLogin: null,
-                installationId: null,
-              })
-            }
+            onSignedOut={() => setAccount(signedOutGitHubAccount())}
           />
         </header>
         <main className="min-h-0 flex-1 overflow-y-auto">{children}</main>

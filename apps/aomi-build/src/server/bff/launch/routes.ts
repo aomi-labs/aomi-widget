@@ -106,6 +106,60 @@ async function sourceDeploymentIds(
   return ids;
 }
 
+type ActivationPair = { app: string; releaseTag: string };
+
+function releaseTagForApp(app: {
+  releaseTag?: string | null;
+  appReleaseTag?: string | null;
+}): string | null {
+  return app.releaseTag?.trim() || app.appReleaseTag?.trim() || null;
+}
+
+function deploymentContainsPair(
+  deployment: NonNullable<OwnedSource["latestDeployment"]>,
+  pair: ActivationPair,
+): boolean {
+  return deployment.apps.some(
+    (app) => app.name === pair.app && releaseTagForApp(app) === pair.releaseTag,
+  );
+}
+
+function sourceContainsCurrentPair(
+  source: OwnedSource,
+  pair: ActivationPair,
+): boolean {
+  return (
+    (source.latestDeployment
+      ? deploymentContainsPair(source.latestDeployment, pair)
+      : false) ||
+    source.apps.some(
+      (app) =>
+        app.name === pair.app && releaseTagForApp(app) === pair.releaseTag,
+    )
+  );
+}
+
+async function activationPairsBelongToSource(
+  client: DeploymentClientInstance,
+  githubUserId: string,
+  platform: string,
+  source: OwnedSource,
+  pairs: ActivationPair[],
+): Promise<boolean> {
+  const deployments = await client.listUserSourceDeployments({
+    githubUserId,
+    platform,
+    appSourceId: source.id,
+    limit: 100,
+  });
+  return pairs.every(
+    (pair) =>
+      deployments.some((deployment) =>
+        deploymentContainsPair(deployment, pair),
+      ) || sourceContainsCurrentPair(source, pair),
+  );
+}
+
 function defaultRepoName() {
   const normalized = CREATED_REPO_PREFIX.trim()
     .toLowerCase()
@@ -490,7 +544,8 @@ export async function activateLaunchRoute(req: Request) {
   try {
     const body = (await req.json().catch(() => ({}))) as {
       releaseTags?: unknown;
-      apps?: string[];
+      appSourceId?: unknown;
+      apps?: unknown;
       actor?: string;
     };
     if (!isValidReleaseTags(body.releaseTags)) {
@@ -499,10 +554,25 @@ export async function activateLaunchRoute(req: Request) {
         { status: 400 },
       );
     }
+    if (!isValidAppSourceId(body.appSourceId)) {
+      return NextResponse.json(
+        { error: "missing or invalid `appSourceId`" },
+        { status: 400 },
+      );
+    }
+    if (
+      !Array.isArray(body.apps) ||
+      !body.apps.every((app) => typeof app === "string")
+    ) {
+      return NextResponse.json(
+        { error: "missing or invalid `apps`" },
+        { status: 400 },
+      );
+    }
 
     const releaseTags = body.releaseTags;
-    const apps = (body.apps ?? []).map((app) => app.trim()).filter(Boolean);
-    if (apps.length > 0 && apps.length !== releaseTags.length) {
+    const apps = body.apps.map((app) => app.trim()).filter(Boolean);
+    if (apps.length === 0 || apps.length !== releaseTags.length) {
       return NextResponse.json(
         { error: "`apps` must match `releaseTags` length" },
         { status: 400 },
@@ -511,10 +581,40 @@ export async function activateLaunchRoute(req: Request) {
 
     const config = launchConfig();
     const client = await deploymentClient();
+    const { session } = auth;
+    const source = await findOwnedSource(
+      client,
+      session.githubUserId,
+      config.platform,
+      body.appSourceId,
+    );
+    if (!source) {
+      return NextResponse.json(
+        { error: "app source not found for this user" },
+        { status: 404 },
+      );
+    }
+    const pairs = apps.map((app, index) => ({
+      app,
+      releaseTag: releaseTags[index],
+    }));
+    const authorized = await activationPairsBelongToSource(
+      client,
+      session.githubUserId,
+      config.platform,
+      source,
+      pairs,
+    );
+    if (!authorized) {
+      return NextResponse.json(
+        { error: "release not found for this user" },
+        { status: 404 },
+      );
+    }
     const result = await client.activate({
       platform: config.platform,
       target: { kind: "release_tags", value: releaseTags },
-      apps: apps.length ? apps : undefined,
+      apps,
       targetTags: config.targetTags,
       actor: typeof body.actor === "string" ? body.actor : undefined,
     });

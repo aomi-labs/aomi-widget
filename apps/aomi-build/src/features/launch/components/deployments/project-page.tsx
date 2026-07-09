@@ -3,6 +3,7 @@
 import { useSearchParams, useRouter } from "next/navigation";
 import { useProjectDetail } from "@build/features/launch/hooks/use-project-detail";
 import { ProjectHeader } from "./project-header";
+import { ChatTab } from "./tabs/chat-tab";
 import { DeploymentsTab } from "./tabs/deployments-tab";
 import { EnvironmentTab } from "./tabs/environment-tab";
 import { SettingsTab } from "./tabs/settings-tab";
@@ -10,6 +11,7 @@ import { LoadingPanel, ErrorPanel } from "./ui/state-panels";
 
 const TABS = [
   { id: "deployments", label: "Deployments" },
+  { id: "chat", label: "Chat" },
   { id: "environment", label: "Environment" },
   { id: "settings", label: "Settings" },
 ] as const;
@@ -82,6 +84,8 @@ export function ProjectPage({
             <ErrorPanel message={detail.error} />
           ) : active === "deployments" ? (
             <DeploymentsTab detail={detail} />
+          ) : active === "chat" ? (
+            <ChatTab detail={detail} />
           ) : active === "environment" ? (
             <EnvironmentTab detail={detail} />
           ) : (

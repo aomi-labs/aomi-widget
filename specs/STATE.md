@@ -2,9 +2,35 @@
 
 ## Last Updated
 
-2026-07-07 — aomi-smither: wait-external + cross-repo agents (stage 3) — roadmap complete
+2026-07-08 — Aomi Build owned-application operate hardening + UI polish
+
+## Aomi Build owned operate + pre-prod fixes (2026-07-08)
+
+- Hardened launch/operate-adjacent BFF reads and writes around the signed-in
+  GitHub user's owned `app_source` rows: activate requires `appSourceId` plus
+  app/release-tag pair ownership; app/status/records reads are session scoped;
+  portal and the shared `@aomi-labs/deploy/bff` route factory follow the same
+  contract.
+- Added explicit error state for deployment history and environment secret
+  loads so failed reads no longer collapse into empty UI. Deployment activity
+  wording now uses "Activity" instead of "Logs" for promotion records.
+- Replaced the static overview placeholder with a signed-in owned-app overview,
+  added a project Chat tab using the existing chat deep-link contract, split
+  environment variables by app, and made the deploy stepper's busy/current/done
+  states explicit.
+- Follow-up review fixes split the Environment tab into plain env vs masked
+  secret sections, stopped the outer wizard stepper from spinning while waiting
+  on input, tightened the wizard styling to the control-plane shape, removed the
+  signed-in nav flash, and avoided simultaneous overview loading/empty states.
+- Shared the Aomi Build GitHub session through a control-plane context, gated
+  operate pages/navigation on that session, and renders the GitHub sign-in panel
+  without calling protected BFF endpoints when signed out.
+- Verified with focused Vitest suites for `aomi-build`, `portal`, and
+  `packages/deploy`, plus `@aomi-labs/deploy` build and app typechecks.
 
 ## Flexible-orchestration roadmap (Cecilia's direction) — COMPLETE
+
+2026-07-07 — aomi-smither: wait-external + cross-repo agents (stage 3) — roadmap complete
 
 - **Stage 1 — composition + clarify** ✅. Plan is a composition of typed
   phases; clarify pauses answerable from TUI + console.

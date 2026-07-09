@@ -18,7 +18,9 @@ vi.mock("@portal/features/launch/hooks/use-project-detail", () => ({
     error: null,
     sdk: null,
     history: null,
+    historyError: null,
     secretsByApp: {},
+    secretsError: null,
     loadHistory: vi.fn(),
     loadSecrets: vi.fn(),
     rollback: vi.fn(),
@@ -31,8 +33,9 @@ import { ProjectPage } from "./project-page";
 describe("ProjectPage", () => {
   it("renders the tab named by ?tab=", () => {
     render(<ProjectPage sourceId={1} />);
-    expect(
-      screen.getByRole("tab", { name: /environment/i }),
-    ).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("tab", { name: /environment/i })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
   });
 });

@@ -10,6 +10,11 @@ import {
   WalletCards,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import { useGitHubSession } from "@build/components/control-plane/github-session-context";
+import {
+  GitHubSignInPanel,
+  LoadingPanel,
+} from "@build/features/launch/components/deployments/ui/state-panels";
 import { operateFetch, type OperateKind } from "./client";
 
 type Sourceish = AppSource & { apps?: unknown[] };
@@ -232,14 +237,30 @@ function Rows({
 }
 
 export function OperateView({ kind }: { kind: OperateKind }) {
+  const { account } = useGitHubSession();
   const [payload, setPayload] = useState<OperatePayload | null>(null);
   const [sourceId, setSourceId] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const Icon = meta[kind].icon;
+  const sources = useMemo(() => payload?.sources ?? [], [payload?.sources]);
+  const canPage = kind === "transactions" || kind === "logs";
+  const nextCursor = canPage ? payload?.nextCursor : null;
 
   useEffect(() => {
+    if (account.loading) {
+      setLoading(true);
+      setError(null);
+      setPayload(null);
+      return;
+    }
+    if (!account.signedIn) {
+      setLoading(false);
+      setError(null);
+      setPayload(null);
+      return;
+    }
     let alive = true;
     setLoading(true);
     setError(null);
@@ -257,11 +278,23 @@ export function OperateView({ kind }: { kind: OperateKind }) {
     return () => {
       alive = false;
     };
-  }, [kind, sourceId]);
+  }, [account.loading, account.signedIn, kind, sourceId]);
 
-  const sources = useMemo(() => payload?.sources ?? [], [payload?.sources]);
-  const canPage = kind === "transactions" || kind === "logs";
-  const nextCursor = canPage ? payload?.nextCursor : null;
+  if (account.loading) {
+    return (
+      <div className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+        <LoadingPanel label="Checking GitHub session..." />
+      </div>
+    );
+  }
+
+  if (!account.signedIn) {
+    return (
+      <div className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+        <GitHubSignInPanel error={null} />
+      </div>
+    );
+  }
 
   async function loadMore() {
     if (!nextCursor || loadingMore) return;
