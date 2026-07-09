@@ -258,6 +258,19 @@ build`, `CI=true npx -y pnpm@10.28.0 install --frozen-lockfile`, and
   targeted ESLint, Prettier, and registry build with pinned `pnpm@10.28.0`.
 - 2026-07-07 assistant footer icon polish: shrank the assistant response copy
   and rerun glyphs by half while keeping their existing button hit targets.
+- 2026-07-09 CLI skills review completion: finished the remaining
+  `specs/CLI-SKILLS-REVIEW-PLAN.md` items. Canonicalized the CLI default BFF
+  URL to `https://chat.aomi.dev`, added `--json`/`--verbose` ergonomics, made
+  account summary vs link-graph output distinct, hid local state path noise by
+  default, moved deprecated embedded-provider flags out of root help's primary
+  option list, made empty chat responses exit non-zero, and fixed wallet
+  label/relink semantics so wallet labels live on wallet metadata while relinks
+  return no-op. Refreshed both `aomi-transact` skill mirrors for JSON/verbose
+  docs and reran the CLI surface verifier. Verified with auth/client focused
+  Vitest suites, auth/root typechecks, client build, official SIWE auth smoke,
+  built-CLI native SIWE with a private key, parseable JSON account/wallet/tx/
+  app/chain output, state permissions, live wallet rename/relink checks, and a
+  real local Anvil transaction submission through `aomi tx sign`.
   Verified targeted ESLint, Prettier, and registry build with pinned
   `pnpm@10.28.0`.
 - 2026-07-07 final-answer streaming fix: buffered no-tool assistant text while
@@ -279,3 +292,22 @@ build`, `CI=true npx -y pnpm@10.28.0 install --frozen-lockfile`, and
   `threadViewKey` unchanged instead of remounting/refreshing another blank
   chat. Added focused adapter regression coverage and verified with the focused
   React thread Vitest file, targeted ESLint, and React package build.
+- 2026-07-09 CLI skills review phase 1: fixed expected CLI error handling so
+  `fatal()` exits before citty can print stacks while Vitest keeps the strict
+  `CliExit` hook; switched normal command execution to `runCommand` under the
+  CLI's own catch path so HTTP 401s and missing transaction errors stay
+  one-line. Added upfront EVM/Solana private-key validation for `wallet set`,
+  CLI flags, and env vars; hardened CLI state storage to `0700` dirs and
+  `0600` files; made logout clear stored EVM/Solana signing keys; and stopped
+  persisting one-shot `--private-key` / env secrets. Verified focused CLI
+  Vitest coverage, client package build, and real `dist/cli.js` smokes for bad
+  provider, bad private key, missing tx, 401 chat, and no one-shot key leak.
+- 2026-07-09 CLI skills review phase 0: refreshed `aomi-transact` skill docs
+  and the plugin mirror against the real v0.1.42 CLI help surface. Removed
+  nonexistent `wallet login` guidance, corrected app examples (`zerox`,
+  `polymarket_rewards`, default-app Lido/Uniswap flows), documented the full
+  account link/unlink/rename/update/delete/session-switch surface, widened the
+  skill network allowlist for `chat.aomi.dev`, staging, and local dev, and
+  added `scripts/verify-cli-surface.mjs` to catch command/app drift. The
+  docs/help check passes; live `localhost:3000` app comparison currently fails
+  because that backend exposes a stale registry, which the new check reports.
