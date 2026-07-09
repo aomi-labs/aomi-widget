@@ -161,8 +161,9 @@ export function deploymentPromote(input: {
 }
 
 export function launchActivate(input: {
+  appSourceId: number;
   releaseTags: string[];
-  apps?: string[];
+  apps: string[];
   actor?: string;
 }): Promise<LaunchActivateResult> {
   return postJson(API_PATHS.bff.launch.activate, "launch activation", input);

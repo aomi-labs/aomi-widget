@@ -10,10 +10,12 @@ export function Stepper({
   steps,
   current,
   failed,
+  activeBusy = false,
 }: {
   steps: { key: string; label: string }[];
   current: string;
   failed?: boolean;
+  activeBusy?: boolean;
 }) {
   const currentIndex = steps.findIndex((s) => s.key === current);
   return (
@@ -30,9 +32,12 @@ export function Stepper({
                   : "active"
               : "pending";
         return (
-          <li key={step.key} className="flex flex-1 items-center last:flex-none">
+          <li
+            key={step.key}
+            className="flex flex-1 items-center last:flex-none"
+          >
             <div className="flex flex-col items-center gap-1">
-              <Dot status={status} />
+              <Dot status={status} busy={activeBusy} />
               <span
                 className={
                   status === "pending"
@@ -57,12 +62,19 @@ export function Stepper({
   );
 }
 
-function Dot({ status }: { status: StepStatus }) {
+function Dot({ status, busy = false }: { status: StepStatus; busy?: boolean }) {
   if (status === "done")
     return <CheckCircle2 className="h-5 w-5 text-green-500" />;
   if (status === "failed") return <XCircle className="h-5 w-5 text-red-500" />;
-  if (status === "active")
-    return <Loader2 className="h-5 w-5 animate-spin text-blue-500" />;
+  if (status === "active") {
+    return busy ? (
+      <Loader2 className="h-5 w-5 animate-spin text-blue-500" />
+    ) : (
+      <span className="flex h-5 w-5 items-center justify-center rounded-full border border-blue-500">
+        <span className="h-2 w-2 rounded-full bg-blue-500" />
+      </span>
+    );
+  }
   return <Circle className="text-muted-foreground/40 h-5 w-5" />;
 }
 
@@ -81,7 +93,7 @@ export function StepCard({
   const dim = state === "pending";
   return (
     <div
-      className={`border-input rounded-2xl border p-4 ${
+      className={`border-input rounded-md border p-4 ${
         dim ? "opacity-50" : ""
       }`}
     >
@@ -100,7 +112,11 @@ function StepBadge({ index, state }: { index: number; state: StepStatus }) {
   if (state === "failed")
     return <XCircle className="h-4 w-4 shrink-0 text-red-500" />;
   if (state === "active")
-    return <Loader2 className="h-4 w-4 shrink-0 animate-spin text-blue-500" />;
+    return (
+      <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full border border-blue-500">
+        <span className="h-1.5 w-1.5 rounded-full bg-blue-500" />
+      </span>
+    );
   return (
     <span className="border-border text-muted-foreground flex h-4 w-4 shrink-0 items-center justify-center rounded-full border text-[10px]">
       {index}

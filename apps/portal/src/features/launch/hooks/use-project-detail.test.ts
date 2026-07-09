@@ -103,4 +103,53 @@ describe("useProjectDetail", () => {
     );
     expect(result.current.recordsByApp).toEqual({});
   });
+
+  it("surfaces history load failures and allows retry", async () => {
+    vi.mocked(deploymentHistory)
+      .mockRejectedValueOnce(new Error("history failed (401)"))
+      .mockResolvedValueOnce({
+        deployments: [
+          {
+            deploymentId: "dep_retry",
+            apps: [],
+            releaseTags: [],
+            state: "recorded",
+          },
+        ],
+      });
+    const { result } = renderHook(() => useProjectDetail(7));
+    await waitFor(() => expect(result.current.source?.id).toBe(7));
+
+    act(() => result.current.loadHistory());
+    await waitFor(() =>
+      expect(result.current.historyError).toContain("history failed"),
+    );
+    expect(result.current.history).toBeNull();
+
+    act(() => result.current.loadHistory());
+    await waitFor(() => expect(result.current.history).toHaveLength(1));
+    expect(result.current.historyError).toBeNull();
+  });
+
+  it("surfaces secret load failures and allows retry", async () => {
+    vi.mocked(deploymentSecrets)
+      .mockRejectedValueOnce(new Error("vault failed (401)"))
+      .mockResolvedValueOnce({
+        byApp: { demo: ["$SECRET:APP:demo::KEY"] },
+      });
+    const { result } = renderHook(() => useProjectDetail(7));
+    await waitFor(() => expect(result.current.source?.id).toBe(7));
+
+    act(() => result.current.loadSecrets());
+    await waitFor(() =>
+      expect(result.current.secretsError).toContain("vault failed"),
+    );
+    expect(result.current.secretsByApp).toBeNull();
+
+    act(() => result.current.loadSecrets());
+    await waitFor(() =>
+      expect(result.current.secretsByApp?.demo).toHaveLength(1),
+    );
+    expect(result.current.secretsError).toBeNull();
+  });
 });

@@ -43,9 +43,11 @@ export function useProjectDetail(sourceId: number) {
   const [history, setHistory] = useState<UserSourceLatestDeployment[] | null>(
     null,
   );
+  const [historyError, setHistoryError] = useState<string | null>(null);
   const [secretsByApp, setSecrets] = useState<Record<string, string[]> | null>(
     null,
   );
+  const [secretsError, setSecretsError] = useState<string | null>(null);
   const [recordsByApp, setRecords] = useState<Record<
     string,
     DeploymentRecord[]
@@ -82,24 +84,46 @@ export function useProjectDetail(sourceId: number) {
   const loadHistory = useCallback(() => {
     if (historyReq.current || history !== null) return;
     historyReq.current = true;
+    setHistoryError(null);
     void deploymentHistory({ appSourceId: sourceId, limit: 20 })
       .then((r) => setHistory(r.deployments))
-      .catch(() => setHistory([]));
+      .catch((err) => {
+        setHistoryError(
+          err instanceof Error ? err.message : "Failed to load history",
+        );
+        historyReq.current = false;
+      });
   }, [sourceId, history]);
 
   const loadSecrets = useCallback(() => {
     if (secretsReq.current || secretsByApp !== null) return;
     secretsReq.current = true;
+    setSecretsError(null);
     void deploymentSecrets({ appSourceId: sourceId })
       .then((r) => setSecrets(r.byApp))
-      .catch(() => setSecrets({}));
+      .catch((err) => {
+        setSecretsError(
+          err instanceof Error
+            ? err.message
+            : "Failed to load environment variables",
+        );
+        secretsReq.current = false;
+      });
   }, [sourceId, secretsByApp]);
 
   const refreshSecrets = useCallback(async () => {
-    const r = await deploymentSecrets({ appSourceId: sourceId }).catch(
-      () => null,
-    );
-    if (r) setSecrets(r.byApp);
+    setSecretsError(null);
+    try {
+      const r = await deploymentSecrets({ appSourceId: sourceId });
+      setSecrets(r.byApp);
+    } catch (err) {
+      setSecretsError(
+        err instanceof Error
+          ? err.message
+          : "Failed to load environment variables",
+      );
+      throw err;
+    }
   }, [sourceId]);
 
   const setEnvVars = useCallback(
@@ -234,7 +258,11 @@ export function useProjectDetail(sourceId: number) {
       }
 
       setDeployFlow({ phase: "activating", message: "Activating release…" });
-      const activated = await launchActivate({ releaseTags, apps });
+      const activated = await launchActivate({
+        appSourceId,
+        releaseTags,
+        apps,
+      });
       const unloaded = activated.activation.apps.filter((app) => !app.loaded);
       setDeployFlow({
         phase: unloaded.length ? "error" : "done",
@@ -258,7 +286,9 @@ export function useProjectDetail(sourceId: number) {
     error,
     sdk,
     history,
+    historyError,
     secretsByApp,
+    secretsError,
     recordsByApp,
     recordsError,
     deployFlow,
