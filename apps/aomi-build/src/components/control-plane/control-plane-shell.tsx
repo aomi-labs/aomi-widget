@@ -198,7 +198,6 @@ function Avatar({
 
   if (avatar && !failed) {
     return (
-      // eslint-disable-next-line @next/next/no-img-element
       <img
         key={avatar}
         src={avatar}
