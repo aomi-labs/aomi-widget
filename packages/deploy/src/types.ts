@@ -675,6 +675,17 @@ export interface OperateAppHealth {
   releaseTag: string | null;
   sdkVersion: string | null;
   status: "healthy" | "not_loaded" | "inactive" | string;
+  metrics?: OperateAppMetrics | null;
+}
+
+export interface OperateAppMetrics {
+  provider: "grafana_prometheus" | string;
+  windowSeconds: number;
+  available: boolean;
+  requestsPerMinute: number | null;
+  errorRate: number | null;
+  p95LatencyMs: number | null;
+  inflightRequests: number | null;
 }
 
 export interface OperateDashboardLink {
@@ -683,13 +694,28 @@ export interface OperateDashboardLink {
   scope: string;
 }
 
+export interface OperatePlatformMetric {
+  label: string;
+  value: number | null;
+  unit: string;
+  scope: "platform" | string;
+  description?: string;
+}
+
+export interface OperateMonitoringStatus {
+  provider: "grafana_prometheus" | string;
+  status: "ok" | "partial" | "unavailable" | "unconfigured" | string;
+  windowSeconds: number;
+}
+
 export interface OperateObservabilityResult {
   source: AppSource;
   platform: string;
   scope: "owned_applications" | string;
+  monitoring?: OperateMonitoringStatus | null;
   apps: OperateAppHealth[];
   dashboardLinks: OperateDashboardLink[];
-  platformMetrics: unknown[];
+  platformMetrics: OperatePlatformMetric[];
 }
 
 // =============================================================================

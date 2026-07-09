@@ -28,6 +28,8 @@ type OperatePayload = {
   logs?: Array<Record<string, any>>;
   apps?: Array<Record<string, any>>;
   dashboardLinks?: Array<Record<string, any>>;
+  monitoring?: Record<string, any> | null;
+  platformMetrics?: Array<Record<string, any>>;
   nextCursor?: unknown | null;
 };
 
@@ -46,6 +48,23 @@ function sourceLabel(source: Sourceish) {
 function secondsLabel(value: unknown) {
   const n = Number(value ?? 0);
   return n > 0 ? new Date(n * 1000).toLocaleString() : "";
+}
+
+function numberLabel(value: unknown, digits = 1) {
+  if (value === null || value === undefined || value === "") return "No data";
+  const n = Number(value);
+  return Number.isFinite(n) ? n.toFixed(digits) : "No data";
+}
+
+function percentLabel(value: unknown) {
+  if (value === null || value === undefined || value === "") return "No data";
+  const n = Number(value);
+  return Number.isFinite(n) ? `${(n * 100).toFixed(1)}%` : "No data";
+}
+
+function unitLabel(value: unknown, unit: string, digits = 1) {
+  const label = numberLabel(value, digits);
+  return label === "No data" ? label : `${label} ${unit}`;
 }
 
 function EmptyState({ title }: { title: string }) {
@@ -212,26 +231,122 @@ function Rows({
 
   const apps = payload.apps ?? [];
   if (!apps.length) return <EmptyState title="Observability" />;
+  const monitoring = payload.monitoring;
+  const platformMetrics = payload.platformMetrics ?? [];
+  const dashboardLinks = payload.dashboardLinks ?? [];
   return (
-    <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
-      {apps.map((app) => (
-        <div
-          key={`${app.source?.id}-${app.applicationId}`}
-          className="border-border bg-surface rounded-md border px-3 py-3"
-        >
-          <div className="flex items-center justify-between gap-3">
-            <div className="min-w-0">
-              <div className="truncate text-sm font-medium">
-                {app.application}
+    <div className="space-y-4">
+      <div className="border-border bg-surface-subtle flex flex-wrap items-center justify-between gap-3 rounded-md border px-3 py-2 text-sm">
+        <div>
+          <span className="text-dim">Monitoring</span>{" "}
+          <span className="text-foreground">
+            {monitoring?.status ?? "unconfigured"}
+          </span>
+          {monitoring?.windowSeconds ? (
+            <span className="text-dim">
+              {" "}
+              · {Math.round(Number(monitoring.windowSeconds) / 60)}m window
+            </span>
+          ) : null}
+        </div>
+        {dashboardLinks.length ? (
+          <div className="flex flex-wrap gap-2">
+            {dashboardLinks.map((link, index) => (
+              <a
+                key={`${link.url}-${index}`}
+                href={String(link.url)}
+                target="_blank"
+                rel="noreferrer"
+                className="border-border bg-surface hover:bg-accent-hover rounded-md border px-2 py-1 text-xs"
+              >
+                {link.label || "Open dashboard"}
+              </a>
+            ))}
+          </div>
+        ) : null}
+      </div>
+
+      <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+        {apps.map((app) => {
+          const metrics = app.metrics ?? {};
+          return (
+            <div
+              key={`${app.source?.id}-${app.applicationId}`}
+              className="border-border bg-surface rounded-md border px-3 py-3"
+            >
+              <div className="flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="truncate text-sm font-medium">
+                    {app.application}
+                  </div>
+                  <div className="text-dim truncate text-xs">
+                    {app.releaseTag ?? "No release"}
+                  </div>
+                </div>
+                <span className="text-dim text-xs">{app.status}</span>
               </div>
-              <div className="text-dim truncate text-xs">
-                {app.releaseTag ?? "No release"}
+              <div className="mt-3 grid grid-cols-2 gap-x-3 gap-y-2 text-xs">
+                <div>
+                  <div className="text-dim">Requests/min</div>
+                  <div className="text-foreground font-medium">
+                    {numberLabel(metrics.requestsPerMinute)}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-dim">Error rate</div>
+                  <div className="text-foreground font-medium">
+                    {percentLabel(metrics.errorRate)}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-dim">P95 latency</div>
+                  <div className="text-foreground font-medium">
+                    {unitLabel(metrics.p95LatencyMs, "ms", 0)}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-dim">Inflight</div>
+                  <div className="text-foreground font-medium">
+                    {numberLabel(metrics.inflightRequests, 0)}
+                  </div>
+                </div>
               </div>
             </div>
-            <span className="text-dim text-xs">{app.status}</span>
-          </div>
+          );
+        })}
+      </div>
+
+      {platformMetrics.length ? (
+        <div className="border-border overflow-hidden rounded-md border">
+          <table className="divide-border min-w-full divide-y text-sm">
+            <thead className="bg-surface-subtle text-dim text-left text-xs uppercase">
+              <tr>
+                <th className="px-3 py-2">Platform metric</th>
+                <th className="px-3 py-2">Value</th>
+                <th className="px-3 py-2">Scope</th>
+              </tr>
+            </thead>
+            <tbody className="divide-border bg-surface divide-y">
+              {platformMetrics.map((metric, index) => (
+                <tr key={`${metric.label}-${index}`}>
+                  <td className="px-3 py-2">
+                    <div>{metric.label}</div>
+                    {metric.description ? (
+                      <div className="text-dim text-xs">
+                        {metric.description}
+                      </div>
+                    ) : null}
+                  </td>
+                  <td className="px-3 py-2">
+                    {unitLabel(metric.value, String(metric.unit ?? ""))}
+                  </td>
+                  <td className="text-dim px-3 py-2">{metric.scope}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
-      ))}
+      ) : null}
     </div>
   );
 }

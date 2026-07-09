@@ -1594,10 +1594,21 @@ function camelOperateObservability(
   raw: Record<string, unknown>,
   fallbackPlatform: string,
 ): OperateObservabilityResult {
+  const monitoring = (raw.monitoring ?? {}) as Record<string, any>;
   return {
     source: camelAppSource(raw.source),
     platform: String(raw.platform ?? fallbackPlatform),
     scope: String(raw.scope ?? "owned_applications"),
+    monitoring:
+      raw.monitoring && typeof raw.monitoring === "object"
+        ? {
+            provider: String(monitoring.provider ?? ""),
+            status: String(monitoring.status ?? ""),
+            windowSeconds: Number(
+              monitoring.window_seconds ?? monitoring.windowSeconds ?? 0,
+            ),
+          }
+        : null,
     apps: ((raw.apps ?? []) as Record<string, any>[]).map((app) => ({
       applicationId: Number(app.application_id ?? app.applicationId ?? 0),
       application: String(app.application ?? ""),
@@ -1606,6 +1617,7 @@ function camelOperateObservability(
       releaseTag: app.release_tag ?? app.releaseTag ?? null,
       sdkVersion: app.sdk_version ?? app.sdkVersion ?? null,
       status: String(app.status ?? ""),
+      metrics: camelOperateAppMetrics(app.metrics),
     })),
     dashboardLinks: (
       (raw.dashboard_links ?? raw.dashboardLinks ?? []) as Record<string, any>[]
@@ -1614,8 +1626,59 @@ function camelOperateObservability(
       url: String(link.url ?? ""),
       scope: String(link.scope ?? ""),
     })),
-    platformMetrics: (raw.platform_metrics ??
-      raw.platformMetrics ??
-      []) as unknown[],
+    platformMetrics: (
+      (raw.platform_metrics ?? raw.platformMetrics ?? []) as Record<
+        string,
+        any
+      >[]
+    ).map((metric) => ({
+      label: String(metric.label ?? ""),
+      value:
+        metric.value === null || metric.value === undefined
+          ? null
+          : Number(metric.value),
+      unit: String(metric.unit ?? ""),
+      scope: String(metric.scope ?? ""),
+      description:
+        typeof metric.description === "string" ? metric.description : undefined,
+    })),
+  };
+}
+
+function camelOperateAppMetrics(raw: unknown) {
+  if (!raw || typeof raw !== "object") return null;
+  const metrics = raw as Record<string, any>;
+  return {
+    provider: String(metrics.provider ?? ""),
+    windowSeconds: Number(metrics.window_seconds ?? metrics.windowSeconds ?? 0),
+    available: Boolean(metrics.available),
+    requestsPerMinute:
+      metrics.requests_per_minute === null ||
+      metrics.requestsPerMinute === null ||
+      metrics.requests_per_minute === undefined ||
+      metrics.requestsPerMinute === undefined
+        ? null
+        : Number(metrics.requests_per_minute ?? metrics.requestsPerMinute),
+    errorRate:
+      metrics.error_rate === null ||
+      metrics.errorRate === null ||
+      metrics.error_rate === undefined ||
+      metrics.errorRate === undefined
+        ? null
+        : Number(metrics.error_rate ?? metrics.errorRate),
+    p95LatencyMs:
+      metrics.p95_latency_ms === null ||
+      metrics.p95LatencyMs === null ||
+      metrics.p95_latency_ms === undefined ||
+      metrics.p95LatencyMs === undefined
+        ? null
+        : Number(metrics.p95_latency_ms ?? metrics.p95LatencyMs),
+    inflightRequests:
+      metrics.inflight_requests === null ||
+      metrics.inflightRequests === null ||
+      metrics.inflight_requests === undefined ||
+      metrics.inflightRequests === undefined
+        ? null
+        : Number(metrics.inflight_requests ?? metrics.inflightRequests),
   };
 }

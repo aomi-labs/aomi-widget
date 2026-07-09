@@ -344,6 +344,15 @@ export async function operateObservabilityRoute(req: Request) {
     return NextResponse.json({
       sources: results.map((result) => result.source),
       scope: "owned_applications",
+      monitoring: {
+        provider: "grafana_prometheus",
+        status: results.some((result) => result.monitoring?.status === "ok")
+          ? results.some((result) => result.monitoring?.status !== "ok")
+            ? "partial"
+            : "ok"
+          : (results[0]?.monitoring?.status ?? "unconfigured"),
+        windowSeconds: results[0]?.monitoring?.windowSeconds ?? 0,
+      },
       apps: results.flatMap((result) =>
         result.apps.map((app) => ({
           ...app,
@@ -352,7 +361,7 @@ export async function operateObservabilityRoute(req: Request) {
         })),
       ),
       dashboardLinks: results.flatMap((result) => result.dashboardLinks),
-      platformMetrics: [],
+      platformMetrics: results[0]?.platformMetrics ?? [],
     });
   } catch (err) {
     return launchErrorResponse(err);
