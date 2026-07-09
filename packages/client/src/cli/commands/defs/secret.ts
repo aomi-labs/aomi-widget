@@ -3,7 +3,10 @@ import { fatal } from "../../errors";
 import { globalArgs, buildCliConfig, getPositionals } from "./shared";
 
 const secretListDef = defineCommand({
-  meta: { name: "list", description: "List configured secrets for the active session" },
+  meta: {
+    name: "list",
+    description: "List configured secrets for the active thread",
+  },
   args: {},
   async run() {
     const { listSecretsCommand } = await import("../secrets");
@@ -12,7 +15,10 @@ const secretListDef = defineCommand({
 });
 
 const secretClearDef = defineCommand({
-  meta: { name: "clear", description: "Clear all secrets for the active session" },
+  meta: {
+    name: "clear",
+    description: "Clear all secrets for the active thread",
+  },
   args: { ...globalArgs },
   async run({ args }) {
     const { clearSecretsCommand } = await import("../secrets");

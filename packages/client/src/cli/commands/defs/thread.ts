@@ -1,8 +1,8 @@
 import { defineCommand } from "citty";
 import { globalArgs, buildCliConfig } from "./shared";
 
-const sessionListDef = defineCommand({
-  meta: { name: "list", description: "List local sessions with metadata" },
+const threadListDef = defineCommand({
+  meta: { name: "list", description: "List local threads with metadata" },
   args: { ...globalArgs },
   async run({ args }) {
     const { sessionsCommand } = await import("../sessions");
@@ -10,8 +10,8 @@ const sessionListDef = defineCommand({
   },
 });
 
-const sessionNewDef = defineCommand({
-  meta: { name: "new", description: "Start a fresh session and make it active" },
+const threadNewDef = defineCommand({
+  meta: { name: "new", description: "Start a fresh thread and make it active" },
   args: { ...globalArgs },
   async run({ args }) {
     const { newSessionCommand } = await import("../sessions");
@@ -19,12 +19,12 @@ const sessionNewDef = defineCommand({
   },
 });
 
-const sessionResumeDef = defineCommand({
-  meta: { name: "resume", description: "Resume a local session" },
+const threadResumeDef = defineCommand({
+  meta: { name: "resume", description: "Resume a local thread" },
   args: {
     id: {
       type: "positional",
-      description: "Session ID or session-N",
+      description: "Thread ID, thread-N, or N",
       required: true,
     },
   },
@@ -34,12 +34,12 @@ const sessionResumeDef = defineCommand({
   },
 });
 
-const sessionDeleteDef = defineCommand({
-  meta: { name: "delete", description: "Delete a local session" },
+const threadDeleteDef = defineCommand({
+  meta: { name: "delete", description: "Delete a local thread" },
   args: {
     id: {
       type: "positional",
-      description: "Session ID or session-N",
+      description: "Thread ID, thread-N, or N",
       required: true,
     },
   },
@@ -49,8 +49,8 @@ const sessionDeleteDef = defineCommand({
   },
 });
 
-const sessionStatusDef = defineCommand({
-  meta: { name: "status", description: "Show current session state" },
+const threadStatusDef = defineCommand({
+  meta: { name: "status", description: "Show current thread state" },
   args: { ...globalArgs },
   async run({ args }) {
     const { statusCommand } = await import("../control");
@@ -58,7 +58,7 @@ const sessionStatusDef = defineCommand({
   },
 });
 
-const sessionLogDef = defineCommand({
+const threadLogDef = defineCommand({
   meta: { name: "log", description: "Show conversation history" },
   args: { ...globalArgs },
   async run({ args }) {
@@ -67,7 +67,7 @@ const sessionLogDef = defineCommand({
   },
 });
 
-const sessionEventsDef = defineCommand({
+const threadEventsDef = defineCommand({
   meta: { name: "events", description: "List system events" },
   args: { ...globalArgs },
   async run({ args }) {
@@ -76,8 +76,8 @@ const sessionEventsDef = defineCommand({
   },
 });
 
-const sessionCloseDef = defineCommand({
-  meta: { name: "close", description: "Close the current session" },
+const threadCloseDef = defineCommand({
+  meta: { name: "close", description: "Close the current thread" },
   args: { ...globalArgs },
   async run({ args }) {
     const { closeCommand } = await import("../history");
@@ -85,16 +85,16 @@ const sessionCloseDef = defineCommand({
   },
 });
 
-export const sessionDef = defineCommand({
-  meta: { name: "session", description: "Session management" },
+export const threadDef = defineCommand({
+  meta: { name: "thread", description: "Thread management" },
   subCommands: {
-    list: sessionListDef,
-    new: sessionNewDef,
-    resume: sessionResumeDef,
-    delete: sessionDeleteDef,
-    status: sessionStatusDef,
-    log: sessionLogDef,
-    events: sessionEventsDef,
-    close: sessionCloseDef,
+    list: threadListDef,
+    new: threadNewDef,
+    resume: threadResumeDef,
+    delete: threadDeleteDef,
+    status: threadStatusDef,
+    log: threadLogDef,
+    events: threadEventsDef,
+    close: threadCloseDef,
   },
 });

@@ -25,7 +25,7 @@ export async function statusCommand(config: CliConfig): Promise<void> {
     console.log(
       JSON.stringify(
         {
-          sessionId: cli.sessionId,
+          threadId: cli.sessionId,
           baseUrl: cli.baseUrl,
           app: cli.app,
           model: cli.model ?? null,

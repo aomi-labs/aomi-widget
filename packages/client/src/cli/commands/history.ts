@@ -29,14 +29,18 @@ export async function logCommand(config: CliConfig): Promise<void> {
 
   const session = cli.createClientSession(config);
   try {
-    const apiState = await session.client.fetchState(cli.sessionId, undefined, cli.clientId);
+    const apiState = await session.client.fetchState(
+      cli.sessionId,
+      undefined,
+      cli.clientId,
+    );
     cli.syncPendingFromUserState(apiState.user_state);
     const messages = apiState.messages ?? [];
     const pendingTxs = [...cli.pendingTxs];
     const signedTxs = [...cli.signedTxs];
     const toolCalls = messages.filter((msg) => Boolean(msg.tool_result)).length;
     const tokenCountEstimate = estimateTokenCount(messages);
-    const topic = apiState.title ?? "Untitled Session";
+    const topic = apiState.title ?? "Untitled Thread";
 
     if (messages.length === 0) {
       console.log("No messages in this session.");
@@ -44,7 +48,7 @@ export async function logCommand(config: CliConfig): Promise<void> {
       return;
     }
 
-    console.log(`------ Session id: ${cli.sessionId} ------`);
+    console.log(`------ Thread id: ${cli.sessionId} ------`);
     printKeyValueTable([
       ["topic", topic],
       ["msg count", String(messages.length)],
@@ -90,10 +94,7 @@ export async function logCommand(config: CliConfig): Promise<void> {
           console.log(`${time}${CYAN}🤖 Agent:${RESET} ${content}`);
         }
       } else if (sender === "system") {
-        if (
-          content &&
-          !content.startsWith("Response of system endpoint:")
-        ) {
+        if (content && !content.startsWith("Response of system endpoint:")) {
           console.log(`${time}${YELLOW}⚙️  System:${RESET} ${content}`);
         }
       } else {
@@ -118,5 +119,5 @@ export function closeCommand(config: CliConfig): void {
     session.close();
   }
   clearState();
-  console.log("Session closed");
+  console.log("Thread closed");
 }

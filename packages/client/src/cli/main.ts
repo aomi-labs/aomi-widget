@@ -3,22 +3,6 @@ import { root } from "./root";
 import { CliExit, DeployCliError } from "./errors";
 import packageJson from "../../package.json";
 
-const ROOT_SUBCOMMANDS = new Set([
-  "chat",
-  "tx",
-  "session",
-  "model",
-  "app",
-  "chain",
-  "wallet",
-  "account",
-  "logout",
-  "config",
-  "secret",
-  "account",
-  "deploy",
-]);
-
 function isPnpmExecWrapper(): boolean {
   const npmCommand = process.env.npm_command ?? "";
   const userAgent = process.env.npm_config_user_agent ?? "";
@@ -31,7 +15,37 @@ function shouldPrintRootHelp(rawArgs: string[]): boolean {
   }
 
   const firstToken = rawArgs.find((arg) => !arg.startsWith("-"));
-  return !firstToken || !ROOT_SUBCOMMANDS.has(firstToken);
+  return !firstToken;
+}
+
+function rejectLegacyRootCommand(rawArgs: string[]): void {
+  const positional = rawArgs.filter((arg) => !arg.startsWith("-"));
+  const firstToken = positional[0];
+  const secondToken = positional[1];
+  if (firstToken === "session") {
+    throw new Error("Unknown command `session`. Use `aomi thread ...`.");
+  }
+  if (firstToken === "schedule") {
+    throw new Error("Unknown command `schedule`. Use `aomi cron ...`.");
+  }
+  if (firstToken === "wallet" && secondToken === "set") {
+    throw new Error("Unknown command `wallet set`. Use `aomi wallet dev-key`.");
+  }
+  if (firstToken === "wallet" && secondToken === "current") {
+    throw new Error("Unknown command `wallet current`. Use `aomi wallet ls`.");
+  }
+  if (firstToken === "wallet" && secondToken === "whoami") {
+    throw new Error("Unknown command `wallet whoami`. Use `aomi account`.");
+  }
+  if (firstToken === "account" && secondToken === "login") {
+    throw new Error("Unknown command `account login`. Use `aomi login`.");
+  }
+  if (firstToken === "account" && secondToken === "whoami") {
+    throw new Error("Unknown command `account whoami`. Use `aomi account`.");
+  }
+  if (firstToken === "account" && secondToken === "logout") {
+    throw new Error("Unknown command `account logout`. Use `aomi logout`.");
+  }
 }
 
 function printRootHelp(): void {
@@ -75,9 +89,9 @@ function printRootHelp(): void {
   );
   console.log("  --app <name>                 Active app");
   console.log("  --model <rig>                Active model");
-  console.log("  --new-session                Create a fresh active session");
+  console.log("  --new-session                Create a fresh active thread");
   console.log(
-    "  --chain <id>                 Active chain for chat/session context",
+    "  --chain <id>                 Active chain for chat/thread context",
   );
   console.log("  --public-key <address>       Wallet address for chat context");
   console.log("  --private-key <hex>          Signing key for EVM tx sign");
@@ -98,17 +112,17 @@ function printRootHelp(): void {
   console.log("");
   console.log("  chat                         Explicit one-shot chat command");
   console.log("  tx                           Transaction management");
-  console.log("  session                      Session management");
+  console.log("  thread                       Thread management");
   console.log("  model                        Model management");
   console.log("  app                          App management");
   console.log("  chain                        Chain information");
   console.log("  wallet                       Wallet configuration");
-  console.log(
-    "  account                      Account login and link management",
-  );
+  console.log("  login                        Sign in to an Aomi account");
+  console.log("  account                      Account and link management");
   console.log(
     "  logout                       Sign out and clear the CLI auth session",
   );
+  console.log("  cron                         Scheduled thread management");
   console.log("  config                       CLI configuration");
   console.log("  secret                       Secret management");
   console.log(
@@ -123,6 +137,8 @@ export async function runCli(argv: string[] = process.argv): Promise<void> {
   const rawArgs = argv.slice(2);
 
   try {
+    rejectLegacyRootCommand(rawArgs);
+
     if (shouldPrintRootHelp(rawArgs)) {
       printRootHelp();
       return;

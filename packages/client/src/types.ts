@@ -237,6 +237,65 @@ export interface AomiAccountProfile {
   usage?: AomiUsageStats;
 }
 
+export interface AomiAccountWallet {
+  address: string;
+  chain_type: string;
+  wallet_provider: string;
+  signing: string;
+  signing_mode: "autonomous" | "human_sync" | "denied" | (string & {});
+  has_delegated_grant: boolean;
+  can_use_autonomous: boolean;
+  wallet_ref?: string | null;
+  label?: string | null;
+  expires_at?: number | null;
+}
+
+export interface AomiListWalletsResponse {
+  wallets: AomiAccountWallet[];
+}
+
+export interface AomiAuthorizationPermit {
+  account: string;
+  chain_type: string;
+  wallet: string;
+  mode: string;
+  version: number;
+  expiry: number;
+}
+
+export interface AomiAuthorizationChallengeResponse {
+  permit: AomiAuthorizationPermit;
+  typed_data: unknown;
+}
+
+export interface AomiAuthorizationState {
+  address: string;
+  chain_type: string;
+  signing_mode: string;
+  authorization_version: number;
+}
+
+export interface AomiScheduledThread {
+  id: string;
+  user_id: string;
+  root_thread_id: string;
+  application: string;
+  intent: string;
+  trigger_at: number;
+  recurrence_seconds?: number | null;
+  last_run_at?: number | null;
+  created_at: number;
+  updated_at: number;
+}
+
+export interface AomiListScheduledThreadsResponse {
+  scheduled_threads: AomiScheduledThread[];
+}
+
+export interface AomiDeleteScheduledThreadResponse {
+  deleted: boolean;
+}
+
 export interface AomiCreateApprovalRequest {
   auth_identity_id: number;
   grant_kind: string;
