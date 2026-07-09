@@ -106,6 +106,60 @@ async function sourceDeploymentIds(
   return ids;
 }
 
+type ActivationPair = { app: string; releaseTag: string };
+
+function releaseTagForApp(app: {
+  releaseTag?: string | null;
+  appReleaseTag?: string | null;
+}): string | null {
+  return app.releaseTag?.trim() || app.appReleaseTag?.trim() || null;
+}
+
+function deploymentContainsPair(
+  deployment: NonNullable<OwnedSource["latestDeployment"]>,
+  pair: ActivationPair,
+): boolean {
+  return deployment.apps.some(
+    (app) => app.name === pair.app && releaseTagForApp(app) === pair.releaseTag,
+  );
+}
+
+function sourceContainsCurrentPair(
+  source: OwnedSource,
+  pair: ActivationPair,
+): boolean {
+  return (
+    (source.latestDeployment
+      ? deploymentContainsPair(source.latestDeployment, pair)
+      : false) ||
+    source.apps.some(
+      (app) =>
+        app.name === pair.app && releaseTagForApp(app) === pair.releaseTag,
+    )
+  );
+}
+
+async function activationPairsBelongToSource(
+  client: DeploymentClientInstance,
+  githubUserId: string,
+  platform: string,
+  source: OwnedSource,
+  pairs: ActivationPair[],
+): Promise<boolean> {
+  const deployments = await client.listUserSourceDeployments({
+    githubUserId,
+    platform,
+    appSourceId: source.id,
+    limit: 100,
+  });
+  return pairs.every(
+    (pair) =>
+      deployments.some((deployment) =>
+        deploymentContainsPair(deployment, pair),
+      ) || sourceContainsCurrentPair(source, pair),
+  );
+}
+
 function defaultRepoName() {
   const normalized = CREATED_REPO_PREFIX.trim()
     .toLowerCase()
@@ -342,6 +396,10 @@ export async function launchStatusRoute(req: Request) {
   const blocked = checkRead(req);
   if (blocked) return blocked;
 
+  const auth = await requireSession();
+  if ("response" in auth) return auth.response;
+  const { session } = auth;
+
   const deploymentId = new URL(req.url).searchParams.get("deploymentId");
   if (!isValidDeploymentId(deploymentId)) {
     return NextResponse.json(
@@ -356,6 +414,7 @@ export async function launchStatusRoute(req: Request) {
     const result = await client.status({
       platform: config.platform,
       deploymentId,
+      githubUserId: session.githubUserId,
     });
     const enriched = await enrichPendingCiStatus(result);
     return NextResponse.json({
@@ -479,10 +538,14 @@ export async function activateLaunchRoute(req: Request) {
   const blocked = checkWrite(req);
   if (blocked) return blocked;
 
+  const auth = await requireSession();
+  if ("response" in auth) return auth.response;
+
   try {
     const body = (await req.json().catch(() => ({}))) as {
       releaseTags?: unknown;
-      apps?: string[];
+      appSourceId?: unknown;
+      apps?: unknown;
       actor?: string;
     };
     if (!isValidReleaseTags(body.releaseTags)) {
@@ -491,10 +554,25 @@ export async function activateLaunchRoute(req: Request) {
         { status: 400 },
       );
     }
+    if (!isValidAppSourceId(body.appSourceId)) {
+      return NextResponse.json(
+        { error: "missing or invalid `appSourceId`" },
+        { status: 400 },
+      );
+    }
+    if (
+      !Array.isArray(body.apps) ||
+      !body.apps.every((app) => typeof app === "string")
+    ) {
+      return NextResponse.json(
+        { error: "missing or invalid `apps`" },
+        { status: 400 },
+      );
+    }
 
     const releaseTags = body.releaseTags;
-    const apps = (body.apps ?? []).map((app) => app.trim()).filter(Boolean);
-    if (apps.length > 0 && apps.length !== releaseTags.length) {
+    const apps = body.apps.map((app) => app.trim()).filter(Boolean);
+    if (apps.length === 0 || apps.length !== releaseTags.length) {
       return NextResponse.json(
         { error: "`apps` must match `releaseTags` length" },
         { status: 400 },
@@ -503,10 +581,40 @@ export async function activateLaunchRoute(req: Request) {
 
     const config = launchConfig();
     const client = await deploymentClient();
+    const { session } = auth;
+    const source = await findOwnedSource(
+      client,
+      session.githubUserId,
+      config.platform,
+      body.appSourceId,
+    );
+    if (!source) {
+      return NextResponse.json(
+        { error: "app source not found for this user" },
+        { status: 404 },
+      );
+    }
+    const pairs = apps.map((app, index) => ({
+      app,
+      releaseTag: releaseTags[index],
+    }));
+    const authorized = await activationPairsBelongToSource(
+      client,
+      session.githubUserId,
+      config.platform,
+      source,
+      pairs,
+    );
+    if (!authorized) {
+      return NextResponse.json(
+        { error: "release not found for this user" },
+        { status: 404 },
+      );
+    }
     const result = await client.activate({
       platform: config.platform,
       target: { kind: "release_tags", value: releaseTags },
-      apps: apps.length ? apps : undefined,
+      apps,
       targetTags: config.targetTags,
       actor: typeof body.actor === "string" ? body.actor : undefined,
     });
@@ -520,6 +628,10 @@ export async function launchAppRoute(req: Request) {
   const blocked = checkRead(req);
   if (blocked) return blocked;
 
+  const auth = await requireSession();
+  if ("response" in auth) return auth.response;
+  const { session } = auth;
+
   const params = new URL(req.url).searchParams;
   const name = params.get("name")?.trim();
   const releaseTag = params.get("releaseTag")?.trim();
@@ -530,6 +642,23 @@ export async function launchAppRoute(req: Request) {
   try {
     const config = launchConfig();
     const client = await deploymentClient();
+    const sources = await client.listUserSources({
+      githubUserId: session.githubUserId,
+      platform: config.platform,
+    });
+    const owned = sources.some((source) =>
+      source.apps.some(
+        (app) =>
+          app.name === name &&
+          (!releaseTag || app.appReleaseTag === releaseTag),
+      ),
+    );
+    if (!owned) {
+      return NextResponse.json(
+        { error: "app not found for this user" },
+        { status: 404 },
+      );
+    }
     const app = await client.getApp({
       platform: config.platform,
       app: name,
@@ -805,14 +934,32 @@ export async function deploymentRecordsRoute(req: Request) {
     return NextResponse.json({ error: "missing `app`" }, { status: 400 });
   }
   const appSourceId = Number(params.get("appSourceId"));
+  if (!isValidAppSourceId(appSourceId)) {
+    return NextResponse.json(
+      { error: "missing or invalid `appSourceId`" },
+      { status: 400 },
+    );
+  }
 
   try {
     const config = launchConfig();
     const client = await deploymentClient();
+    const source = await findOwnedSource(
+      client,
+      session.githubUserId,
+      config.platform,
+      appSourceId,
+    );
+    if (!source || !source.apps.some((candidate) => candidate.name === app)) {
+      return NextResponse.json(
+        { error: "app not found for this user" },
+        { status: 404 },
+      );
+    }
     const result = await client.listDeploymentRecords({
       platform: config.platform,
       app,
-      appSourceId: isValidAppSourceId(appSourceId) ? appSourceId : undefined,
+      appSourceId,
     });
     return NextResponse.json(result);
   } catch (err) {

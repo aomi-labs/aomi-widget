@@ -42,6 +42,17 @@ type ProgressModel = {
   label: string;
 };
 
+type StepStatus = "todo" | "active" | "done";
+
+const BUSY_PHASES: Phase[] = [
+  "preflight_running",
+  "deploying",
+  "building",
+  "releasing",
+  "activating",
+  "verifying",
+];
+
 function deploymentApps(deployment?: LaunchDeployPayload) {
   return deployment?.platform?.apps ?? [];
 }
@@ -100,6 +111,39 @@ function initialPhase(progress: LaunchProgress): Phase {
   if (!progress.deploymentId)
     return progress.deployment ? "preflight_ready" : "idle";
   return "building";
+}
+
+function isBusyPhase(phase: Phase): boolean {
+  return BUSY_PHASES.includes(phase);
+}
+
+function stepStatus(
+  phase: Phase,
+  step: "preflight" | "deploy" | "activate" | "live",
+): StepStatus {
+  const order: Record<Phase, number> = {
+    idle: 0,
+    preflight_running: 1,
+    preflight_ready: 2,
+    deploying: 3,
+    building: 3,
+    releasing: 3,
+    ready: 4,
+    activating: 5,
+    verifying: 5,
+    live: 6,
+    error: 0,
+  };
+  const threshold = {
+    preflight: 1,
+    deploy: 3,
+    activate: 5,
+    live: 6,
+  }[step];
+  const value = order[phase];
+  if (value > threshold || (step === "live" && phase === "live")) return "done";
+  if (value === threshold) return "active";
+  return "todo";
 }
 
 export function DeployStep({
@@ -411,10 +455,20 @@ export function DeployStep({
   );
 
   const activate = useCallback(async () => {
+    if (!progress.appSourceId) {
+      setError("App source is missing; rerun deployment before activation.");
+      setPhase("error");
+      return;
+    }
     setPhase("activating");
     setError(null);
     try {
-      const result = await launchActivate({ releaseTags: tags, apps, actor });
+      const result = await launchActivate({
+        appSourceId: progress.appSourceId,
+        releaseTags: tags,
+        apps,
+        actor,
+      });
       const activatedApps = result.activation?.apps ?? [];
       if (!result.ok || activatedApps.some((app) => app.error)) {
         const failed = activatedApps.find((app) => app.error);
@@ -429,7 +483,7 @@ export function DeployStep({
       setError(e instanceof Error ? e.message : String(e));
       setPhase("error");
     }
-  }, [actor, apps, onProgress, tags, verifyLive]);
+  }, [actor, apps, onProgress, progress.appSourceId, tags, verifyLive]);
 
   const reset = useCallback(() => {
     setError(null);
@@ -487,8 +541,11 @@ export function DeployStep({
     );
   }
 
+  const busy = isBusyPhase(phase);
+
   return (
-    <div className="space-y-4 text-sm">
+    <div className="space-y-4 text-sm" aria-busy={busy}>
+      <StepTrack phase={phase} />
       <div className="flex flex-wrap items-center gap-2">
         <Button
           onClick={preflight}
@@ -543,7 +600,11 @@ export function DeployStep({
         )}
       </div>
 
-      <div className="text-muted-foreground flex items-center gap-2 text-xs">
+      <div
+        className="text-muted-foreground flex min-h-5 items-center gap-2 text-xs"
+        role="status"
+        aria-live="polite"
+      >
         {[
           "preflight_running",
           "deploying",
@@ -734,6 +795,43 @@ function DeploymentSummary({
           {manifestJson}
         </pre>
       )}
+    </div>
+  );
+}
+
+function StepTrack({ phase }: { phase: Phase }) {
+  const steps: Array<{
+    id: "preflight" | "deploy" | "activate" | "live";
+    label: string;
+  }> = [
+    { id: "preflight", label: "Preflight" },
+    { id: "deploy", label: "Deploy" },
+    { id: "activate", label: "Activate" },
+    { id: "live", label: "Live" },
+  ];
+  return (
+    <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+      {steps.map((step) => {
+        const status = stepStatus(phase, step.id);
+        return (
+          <div
+            key={step.id}
+            data-status={status}
+            className="border-input bg-muted/20 flex h-9 items-center gap-2 rounded-md border px-2.5 text-xs data-[status=active]:border-blue-500/40 data-[status=done]:border-green-500/30 data-[status=active]:bg-blue-500/10 data-[status=done]:bg-green-500/10"
+          >
+            <span className="flex size-4 items-center justify-center">
+              {status === "active" ? (
+                <Loader2 className="size-3.5 animate-spin text-blue-500" />
+              ) : status === "done" ? (
+                <CheckCircle2 className="size-3.5 text-green-500" />
+              ) : (
+                <span className="bg-muted-foreground/40 size-2 rounded-full" />
+              )}
+            </span>
+            <span className="truncate font-medium">{step.label}</span>
+          </div>
+        );
+      })}
     </div>
   );
 }

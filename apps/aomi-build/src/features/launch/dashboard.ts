@@ -10,6 +10,7 @@ export type { UserSource };
 export interface GitHubSessionInfo {
   signedIn: boolean;
   githubLogin: string | null;
+  githubAvatarUrl?: string | null;
   /** Present when the one-shot App is already installed (skip-install). */
   installationId?: string | null;
 }
