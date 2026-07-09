@@ -11,13 +11,16 @@ describe("AomiClient route manifest", () => {
         `${endpoint.method} ${endpoint.path} [${endpoint.auth.join(", ")}]`,
     );
 
-    expect(routeKeys).toHaveLength(90);
+    expect(routeKeys).toHaveLength(95);
     expect(new Set(routeKeys).size).toBe(routeKeys.length);
     expect(routeKeys).toContain("GET /api/thread/apps [thread]");
     expect(routeKeys).toContain("GET /api/_internal/secrets [service]");
     expect(routeKeys).toContain("DELETE /api/_internal/secrets [service]");
     expect(routeKeys).toContain(
       "GET /api/integrations/github-app/user/sources/:id/deployments [service]",
+    );
+    expect(routeKeys).toContain(
+      "GET /api/integrations/github-app/user/sources/:id/observability [service]",
     );
     expect(routeKeys).toContain(
       "GET /api/platforms/:name/apps/:app/records [activation]",
