@@ -345,4 +345,6 @@ build`, `CI=true npx -y pnpm@10.28.0 install --frozen-lockfile`, and
   artifacts and verified packed tarballs. The changed account and smither
   workspaces are not npm-published, and product-mono has no changed npm
   package. Re-ran frontend lint, package builds, 656 root tests, 221 registry
-  tests, and the landing production build before draft PR publication.
+  tests, and the landing production build before draft PR publication. Opened
+  related draft PRs `aomi#304` and `product-mono#780`, with reciprocal links
+  and coordinated review/deploy notes.
