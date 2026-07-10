@@ -329,3 +329,12 @@ build`, `CI=true npx -y pnpm@10.28.0 install --frozen-lockfile`, and
   added attribution-column/index convergence checks, applied the missing July 7
   migrations to `aomi_local`, and verified in the user's signed-in Chrome flow
   that a fresh 1-wei Base request opens Rabby approval without broadcasting it.
+- 2026-07-10 message edit/rerun recovery: implemented the assistant-ui external
+  runtime's missing edit and reload capabilities, rewound visible history to
+  the selected user turn, and projected new backend turns in place of superseded
+  responses. Persisted compact raw-message branch ranges so the selected edited
+  path survives reload without storing message content locally. Added focused
+  edit, rerun, and remount regression coverage; verified React tests, targeted
+  ESLint, root and portal typechecks, React/registry builds, and signed-in Chrome
+  E2E for rerun, editing FIRST to SECOND/THIRD, and post-edit page refresh with
+  no new runtime-capability errors.

@@ -16,6 +16,7 @@ import type { AomiChatResponse } from "@aomi-labs/client";
 
 beforeEach(() => {
   resetAomiClientMocks();
+  window.localStorage.clear();
 });
 
 afterEach(() => {
@@ -24,6 +25,14 @@ afterEach(() => {
 });
 
 describe("Chat API", () => {
+  const message = (sender: "user" | "agent", content: string) => ({
+    sender,
+    content,
+    tool_result: null,
+    timestamp: new Date().toISOString(),
+    is_streaming: false,
+  });
+
   describe("sendMessage", () => {
     it("sends message to backend", async () => {
       const postChatMessage = vi.fn(
@@ -667,6 +676,150 @@ describe("Chat API", () => {
     it("is a function", () => {
       const { api } = renderRuntime();
       expect(api.cancelGeneration).toBeInstanceOf(Function);
+    });
+  });
+
+  describe("message regeneration", () => {
+    it("edits a user message and replaces the visible turn", async () => {
+      const postChatMessage = vi
+        .fn()
+        .mockResolvedValueOnce({
+          is_processing: false,
+          messages: [message("user", "Original"), message("agent", "First")],
+        })
+        .mockResolvedValueOnce({
+          is_processing: false,
+          messages: [
+            message("user", "Original"),
+            message("agent", "First"),
+            message("user", "Edited"),
+            message("agent", "Second"),
+          ],
+        });
+      setAomiClientConfig({ postChatMessage });
+
+      const { api, assistantRuntime } = renderRuntime();
+      await act(async () => {
+        await api.sendMessage("Original");
+      });
+
+      expect(assistantRuntime.thread.getState().capabilities.edit).toBe(true);
+      const composer = assistantRuntime.thread.getMessageByIndex(0).composer;
+
+      await act(async () => {
+        composer.beginEdit();
+        composer.setText("Edited");
+        composer.send();
+      });
+
+      await waitFor(() => expect(postChatMessage).toHaveBeenCalledTimes(2));
+      await waitFor(() => {
+        expect(api.getMessages().map((item) => item.content)).toEqual([
+          [{ type: "text", text: "Edited" }],
+          [{ type: "text", text: "Second" }],
+        ]);
+      });
+    });
+
+    it("reruns an assistant response from its user message", async () => {
+      const postChatMessage = vi
+        .fn()
+        .mockResolvedValueOnce({
+          is_processing: false,
+          messages: [message("user", "Original"), message("agent", "First")],
+        })
+        .mockResolvedValueOnce({
+          is_processing: false,
+          messages: [
+            message("user", "Original"),
+            message("agent", "First"),
+            message("user", "Original"),
+            message("agent", "Regenerated"),
+          ],
+        });
+      setAomiClientConfig({ postChatMessage });
+
+      const { api, assistantRuntime } = renderRuntime();
+      await act(async () => {
+        await api.sendMessage("Original");
+      });
+
+      expect(assistantRuntime.thread.getState().capabilities.reload).toBe(true);
+      await act(async () => {
+        assistantRuntime.thread.getMessageByIndex(1).reload();
+      });
+
+      await waitFor(() => expect(postChatMessage).toHaveBeenCalledTimes(2));
+      await waitFor(() => {
+        expect(api.getMessages().map((item) => item.content)).toEqual([
+          [{ type: "text", text: "Original" }],
+          [{ type: "text", text: "Regenerated" }],
+        ]);
+      });
+    });
+
+    it("restores the selected edited branch after remounting", async () => {
+      const rawHistory = [
+        message("user", "Original"),
+        message("agent", "First"),
+        message("user", "Edited"),
+        message("agent", "Second"),
+      ];
+      const postChatMessage = vi
+        .fn()
+        .mockResolvedValueOnce({
+          is_processing: false,
+          messages: rawHistory.slice(0, 2),
+        })
+        .mockResolvedValueOnce({
+          is_processing: false,
+          messages: rawHistory,
+        });
+      setAomiClientConfig({ postChatMessage });
+
+      const firstRender = renderRuntime({ persistThread: false });
+      await act(async () => {
+        await firstRender.api.sendMessage("Original");
+      });
+      const threadId = firstRender.api.currentThreadId;
+      const composer =
+        firstRender.assistantRuntime.thread.getMessageByIndex(0).composer;
+      await act(async () => {
+        composer.beginEdit();
+        composer.setText("Edited");
+        composer.send();
+      });
+      await waitFor(() => expect(postChatMessage).toHaveBeenCalledTimes(2));
+      firstRender.unmount();
+
+      setAomiClientConfig({
+        listThreads: async () => [
+          { session_id: threadId, title: "Edited thread" },
+        ],
+        fetchState: async () => ({
+          is_processing: false,
+          messages: rawHistory,
+        }),
+      });
+      const restored = renderRuntime({
+        initialThreadId: threadId,
+        persistThread: false,
+      });
+
+      await act(async () => {
+        restored.api.setUser({
+          address: "0xabc",
+          chainId: 8453,
+          isConnected: true,
+        });
+      });
+
+      await waitFor(() => {
+        expect(restored.getApi().getMessages()).toMatchObject([
+          { role: "user", content: [{ type: "text", text: "Edited" }] },
+          { role: "assistant", content: [{ type: "text", text: "Second" }] },
+        ]);
+      });
     });
   });
 });

@@ -3,7 +3,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ThreadMessageLike } from "@assistant-ui/react";
 
-import type { AomiClient, UserState, WalletRequest } from "@aomi-labs/client";
+import type {
+  AomiClient,
+  AomiMessage,
+  UserState,
+  WalletRequest,
+} from "@aomi-labs/client";
 import { CLIENT_TYPE_WEB_UI } from "@aomi-labs/client";
 import { Session as ClientSession } from "@aomi-labs/client";
 import {
@@ -33,6 +38,119 @@ type OrchestratorOptions = {
 };
 
 type OptimisticSendStatus = "sending" | "sent" | "failed";
+
+type RawMessageRange = {
+  start: number;
+  end: number | null;
+};
+
+type MessageProjection = { ranges: RawMessageRange[] };
+
+const MESSAGE_PROJECTION_STORAGE_PREFIX = "aomi:message-projection:v1:";
+
+const getMessageProjectionStorageKey = (threadId: string) =>
+  `${MESSAGE_PROJECTION_STORAGE_PREFIX}${threadId}`;
+
+const readMessageProjection = (threadId: string): MessageProjection | null => {
+  if (typeof window === "undefined") return null;
+  const key = getMessageProjectionStorageKey(threadId);
+  const raw = window.localStorage.getItem(key);
+  if (!raw) return null;
+
+  try {
+    const parsed = JSON.parse(raw) as MessageProjection;
+    if (
+      !Array.isArray(parsed.ranges) ||
+      parsed.ranges.some(
+        (range) =>
+          !Number.isSafeInteger(range.start) ||
+          range.start < 0 ||
+          (range.end !== null &&
+            (!Number.isSafeInteger(range.end) || range.end < range.start)),
+      )
+    ) {
+      throw new Error("Invalid message projection");
+    }
+    return parsed;
+  } catch {
+    window.localStorage.removeItem(key);
+    return null;
+  }
+};
+
+const writeMessageProjection = (
+  threadId: string,
+  projection: MessageProjection,
+) => {
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(
+    getMessageProjectionStorageKey(threadId),
+    JSON.stringify(projection),
+  );
+};
+
+const clearMessageProjection = (threadId: string) => {
+  if (typeof window === "undefined") return;
+  window.localStorage.removeItem(getMessageProjectionStorageKey(threadId));
+};
+
+const selectProjectedMessageEntries = (
+  messages: readonly AomiMessage[],
+  projection: MessageProjection | null,
+) => {
+  if (!projection) {
+    return messages.map((message, rawIndex) => ({ message, rawIndex }));
+  }
+
+  return projection.ranges.flatMap((range) => {
+    const end = Math.min(range.end ?? messages.length, messages.length);
+    const entries: Array<{ message: AomiMessage; rawIndex: number }> = [];
+    for (let rawIndex = range.start; rawIndex < end; rawIndex += 1) {
+      const message = messages[rawIndex];
+      if (message) entries.push({ message, rawIndex });
+    }
+    return entries;
+  });
+};
+
+const projectInboundMessages = (
+  messages: readonly AomiMessage[],
+  projection: MessageProjection | null,
+) => {
+  const projectedMessages: ThreadMessageLike[] = [];
+  for (const { message } of selectProjectedMessageEntries(
+    messages,
+    projection,
+  )) {
+    const converted = toInboundMessage(message);
+    if (converted) projectedMessages.push(converted);
+  }
+  return mergeAssistantTurns(projectedMessages);
+};
+
+const truncateProjectionBefore = (
+  projection: MessageProjection | null,
+  rawIndex: number,
+): RawMessageRange[] => {
+  const sourceRanges = projection?.ranges ?? [
+    { start: 0, end: null } satisfies RawMessageRange,
+  ];
+  const prefix: RawMessageRange[] = [];
+
+  for (const range of sourceRanges) {
+    const rangeEnd = range.end ?? Number.POSITIVE_INFINITY;
+    if (rawIndex >= rangeEnd) {
+      prefix.push(range);
+      continue;
+    }
+    if (rawIndex > range.start) {
+      prefix.push({ start: range.start, end: rawIndex });
+    }
+    break;
+  }
+
+  return prefix;
+};
 
 const SUBMITTING_TO_WORKING_GRACE_MS = 300;
 
@@ -210,8 +328,34 @@ export function useRuntimeOrchestrator(
   const pendingFetches = useRef<Set<string>>(new Set());
   const initialStatePromises = useRef<Map<string, Promise<void>>>(new Map());
   const hydratedThreadIds = useRef<Set<string>>(new Set());
+  const messageProjections = useRef<Map<string, MessageProjection>>(new Map());
+  const loadedMessageProjectionIds = useRef<Set<string>>(new Set());
   // Track event listener cleanup per thread
   const listenerCleanups = useRef<Map<string, () => void>>(new Map());
+
+  const getMessageProjection = useCallback((threadId: string) => {
+    if (!loadedMessageProjectionIds.current.has(threadId)) {
+      loadedMessageProjectionIds.current.add(threadId);
+      const stored = readMessageProjection(threadId);
+      if (stored) messageProjections.current.set(threadId, stored);
+    }
+    return messageProjections.current.get(threadId) ?? null;
+  }, []);
+
+  const setMessageProjection = useCallback(
+    (threadId: string, projection: MessageProjection) => {
+      loadedMessageProjectionIds.current.add(threadId);
+      messageProjections.current.set(threadId, projection);
+      writeMessageProjection(threadId, projection);
+    },
+    [],
+  );
+
+  const deleteMessageProjection = useCallback((threadId: string) => {
+    loadedMessageProjectionIds.current.delete(threadId);
+    messageProjections.current.delete(threadId);
+    clearMessageProjection(threadId);
+  }, []);
 
   const cleanupSessionListeners = useCallback((threadId: string) => {
     listenerCleanups.current.get(threadId)?.();
@@ -224,9 +368,10 @@ export function useRuntimeOrchestrator(
       pendingFetches.current.delete(threadId);
       initialStatePromises.current.delete(threadId);
       hydratedThreadIds.current.delete(threadId);
+      deleteMessageProjection(threadId);
       sessionManagerRef.current?.close(threadId);
     },
-    [cleanupSessionListeners],
+    [cleanupSessionListeners, deleteMessageProjection],
   );
 
   const closeIdleSessionsExcept = useCallback(
@@ -252,6 +397,8 @@ export function useRuntimeOrchestrator(
     pendingFetches.current.clear();
     initialStatePromises.current.clear();
     hydratedThreadIds.current.clear();
+    messageProjections.current.clear();
+    loadedMessageProjectionIds.current.clear();
     for (const threadId of Array.from(listenerCleanups.current.keys())) {
       cleanupSessionListeners(threadId);
     }
@@ -302,11 +449,8 @@ export function useRuntimeOrchestrator(
       // Messages → thread context
       cleanups.push(
         session.on("messages", (msgs) => {
-          const threadMessages: ThreadMessageLike[] = [];
-          for (const msg of msgs) {
-            const converted = toInboundMessage(msg);
-            if (converted) threadMessages.push(converted);
-          }
+          const projection = getMessageProjection(threadId);
+          const threadMessages = projectInboundMessages(msgs, projection);
           const existingMessages =
             threadContextRef.current.getThreadMessages(threadId);
           if (
@@ -315,10 +459,7 @@ export function useRuntimeOrchestrator(
           ) {
             return;
           }
-          threadContextRef.current.setThreadMessages(
-            threadId,
-            mergeAssistantTurns(threadMessages),
-          );
+          threadContextRef.current.setThreadMessages(threadId, threadMessages);
         }),
       );
 
@@ -382,7 +523,7 @@ export function useRuntimeOrchestrator(
       return session;
     },
     // Stable deps — option getters are refs
-    [],
+    [getMessageProjection],
   );
 
   const ensureInitialState = useCallback(
@@ -548,6 +689,87 @@ export function useRuntimeOrchestrator(
     [getSession],
   );
 
+  const regenerateMessage = useCallback(
+    async (
+      threadId: string,
+      messageId: string | null,
+      replacementText?: string,
+    ) => {
+      const visibleMessages =
+        threadContextRef.current.getThreadMessages(threadId);
+      const explicitIndex = visibleMessages.findIndex(
+        (message) => message.id === messageId,
+      );
+      const numericIndex =
+        explicitIndex === -1 && messageId !== null && /^\d+$/.test(messageId)
+          ? Number(messageId)
+          : -1;
+      let userMessageIndex =
+        explicitIndex !== -1 ? explicitIndex : numericIndex;
+
+      if (userMessageIndex < 0 || userMessageIndex >= visibleMessages.length) {
+        throw new Error("Message to regenerate was not found.");
+      }
+
+      while (
+        userMessageIndex >= 0 &&
+        visibleMessages[userMessageIndex]?.role !== "user"
+      ) {
+        userMessageIndex -= 1;
+      }
+
+      const userMessage = visibleMessages[userMessageIndex];
+      if (!userMessage || userMessage.role !== "user") {
+        throw new Error("Regeneration requires a user message.");
+      }
+
+      const originalText =
+        typeof userMessage.content === "string"
+          ? userMessage.content.trim()
+          : userMessage.content
+              .filter(
+                (part): part is Extract<typeof part, { type: "text" }> =>
+                  part.type === "text",
+              )
+              .map((part) => part.text)
+              .join("\n")
+              .trim();
+      const nextText = replacementText?.trim() || originalText;
+      if (!nextText) {
+        throw new Error("Regeneration requires message text.");
+      }
+
+      const session = getSession(threadId);
+      const rawMessages = session.getMessages();
+      const currentProjection = getMessageProjection(threadId);
+      const userOrdinal = visibleMessages
+        .slice(0, userMessageIndex + 1)
+        .filter((message) => message.role === "user").length;
+      const targetEntry = selectProjectedMessageEntries(
+        rawMessages,
+        currentProjection,
+      ).filter(({ message }) => message.sender === "user")[userOrdinal - 1];
+      if (!targetEntry) {
+        throw new Error("Backend message to regenerate was not found.");
+      }
+
+      const nextProjection: MessageProjection = {
+        ranges: [
+          ...truncateProjectionBefore(currentProjection, targetEntry.rawIndex),
+          { start: rawMessages.length, end: null },
+        ],
+      };
+      setMessageProjection(threadId, nextProjection);
+      threadContextRef.current.setThreadMessages(
+        threadId,
+        projectInboundMessages(rawMessages, nextProjection),
+      );
+
+      await sendMessage(nextText, threadId);
+    },
+    [getMessageProjection, getSession, sendMessage, setMessageProjection],
+  );
+
   /** Cancel the current generation on the given thread. */
   const cancelGeneration = useCallback(async (threadId: string) => {
     const session = sessionManagerRef.current?.get(threadId);
@@ -579,6 +801,7 @@ export function useRuntimeOrchestrator(
     setIsRunning,
     ensureInitialState,
     sendMessage,
+    regenerateMessage,
     cancelGeneration,
     closeSession,
     closeAllSessions,

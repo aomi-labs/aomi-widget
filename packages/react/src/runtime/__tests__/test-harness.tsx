@@ -608,6 +608,10 @@ vi.mock("@aomi-labs/client", async (importOriginal) => {
 // =============================================================================
 
 import { AomiRuntimeProvider } from "../aomi-runtime";
+import {
+  useAssistantRuntime,
+  type AssistantRuntime,
+} from "@assistant-ui/react";
 import { useAomiRuntime, type AomiRuntimeApi } from "../../interface";
 import {
   useControl,
@@ -621,19 +625,26 @@ import { useThreadContext } from "../../contexts/thread-context";
 
 export type RuntimeHarnessHandle = {
   api: AomiRuntimeApi;
+  assistantRuntime: AssistantRuntime;
   control: ControlContextApi;
   threadCount: number;
 };
 
 const RuntimeHarness = forwardRef<RuntimeHarnessHandle>((_, ref) => {
   const api = useAomiRuntime();
+  const assistantRuntime = useAssistantRuntime();
   const control = useControl();
   const threadContext = useThreadContext();
 
   useImperativeHandle(
     ref,
-    () => ({ api, control, threadCount: threadContext.threadCnt }),
-    [api, control, threadContext.threadCnt],
+    () => ({
+      api,
+      assistantRuntime,
+      control,
+      threadCount: threadContext.threadCnt,
+    }),
+    [api, assistantRuntime, control, threadContext.threadCnt],
   );
 
   return null;
@@ -657,6 +668,7 @@ export type RenderRuntimeOptions = {
 
 export type RenderRuntimeResult = {
   api: AomiRuntimeApi;
+  assistantRuntime: AssistantRuntime;
   control: ControlContextApi;
   getThreadCount: () => number;
   getApi: () => AomiRuntimeApi;
@@ -696,6 +708,7 @@ export const renderRuntime = ({
 
   return {
     api: ref.current.api,
+    assistantRuntime: ref.current.assistantRuntime,
     control: ref.current.control,
     getThreadCount: () => ref.current!.threadCount,
     getApi: () => ref.current!.api,

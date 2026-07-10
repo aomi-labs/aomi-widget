@@ -85,6 +85,7 @@ export function AomiRuntimeCore({
     setIsRunning,
     ensureInitialState,
     sendMessage: orchestratorSendMessage,
+    regenerateMessage: orchestratorRegenerateMessage,
     cancelGeneration: orchestratorCancel,
     closeSession,
     closeIdleSessionsExcept,
@@ -391,6 +392,34 @@ export function AomiRuntimeCore({
         } catch (error) {
           console.error("Failed to send message:", error);
         }
+      }
+    },
+    onEdit: async (message: AppendMessage) => {
+      const text = message.content
+        .filter(
+          (part): part is Extract<typeof part, { type: "text" }> =>
+            part.type === "text",
+        )
+        .map((part) => part.text)
+        .join("\n");
+      try {
+        await orchestratorRegenerateMessage(
+          threadContext.currentThreadId,
+          message.sourceId ?? message.parentId,
+          text,
+        );
+      } catch (error) {
+        console.error("Failed to edit message:", error);
+      }
+    },
+    onReload: async (parentId) => {
+      try {
+        await orchestratorRegenerateMessage(
+          threadContext.currentThreadId,
+          parentId,
+        );
+      } catch (error) {
+        console.error("Failed to reload message:", error);
       }
     },
     onCancel: async () => {

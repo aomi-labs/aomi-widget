@@ -1774,6 +1774,82 @@ function mergeAssistantTurns(messages) {
 }
 
 // src/runtime/orchestrator.ts
+var MESSAGE_PROJECTION_STORAGE_PREFIX = "aomi:message-projection:v1:";
+var getMessageProjectionStorageKey = (threadId) => `${MESSAGE_PROJECTION_STORAGE_PREFIX}${threadId}`;
+var readMessageProjection = (threadId) => {
+  if (typeof window === "undefined") return null;
+  const key = getMessageProjectionStorageKey(threadId);
+  const raw = window.localStorage.getItem(key);
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed.ranges) || parsed.ranges.some(
+      (range) => !Number.isSafeInteger(range.start) || range.start < 0 || range.end !== null && (!Number.isSafeInteger(range.end) || range.end < range.start)
+    )) {
+      throw new Error("Invalid message projection");
+    }
+    return parsed;
+  } catch (e) {
+    window.localStorage.removeItem(key);
+    return null;
+  }
+};
+var writeMessageProjection = (threadId, projection) => {
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(
+    getMessageProjectionStorageKey(threadId),
+    JSON.stringify(projection)
+  );
+};
+var clearMessageProjection = (threadId) => {
+  if (typeof window === "undefined") return;
+  window.localStorage.removeItem(getMessageProjectionStorageKey(threadId));
+};
+var selectProjectedMessageEntries = (messages, projection) => {
+  if (!projection) {
+    return messages.map((message, rawIndex) => ({ message, rawIndex }));
+  }
+  return projection.ranges.flatMap((range) => {
+    var _a;
+    const end = Math.min((_a = range.end) != null ? _a : messages.length, messages.length);
+    const entries = [];
+    for (let rawIndex = range.start; rawIndex < end; rawIndex += 1) {
+      const message = messages[rawIndex];
+      if (message) entries.push({ message, rawIndex });
+    }
+    return entries;
+  });
+};
+var projectInboundMessages = (messages, projection) => {
+  const projectedMessages = [];
+  for (const { message } of selectProjectedMessageEntries(
+    messages,
+    projection
+  )) {
+    const converted = toInboundMessage(message);
+    if (converted) projectedMessages.push(converted);
+  }
+  return mergeAssistantTurns(projectedMessages);
+};
+var truncateProjectionBefore = (projection, rawIndex) => {
+  var _a, _b;
+  const sourceRanges = (_a = projection == null ? void 0 : projection.ranges) != null ? _a : [
+    { start: 0, end: null }
+  ];
+  const prefix = [];
+  for (const range of sourceRanges) {
+    const rangeEnd = (_b = range.end) != null ? _b : Number.POSITIVE_INFINITY;
+    if (rawIndex >= rangeEnd) {
+      prefix.push(range);
+      continue;
+    }
+    if (rawIndex > range.start) {
+      prefix.push({ start: range.start, end: rawIndex });
+    }
+    break;
+  }
+  return prefix;
+};
 var SUBMITTING_TO_WORKING_GRACE_MS = 300;
 var toErrorMessage = (error) => error instanceof Error ? error.message : "Message failed to send";
 var getHttpStatus = (error) => {
@@ -1887,7 +1963,31 @@ function useRuntimeOrchestrator(aomiClient, options) {
   const pendingFetches = (0, import_react10.useRef)(/* @__PURE__ */ new Set());
   const initialStatePromises = (0, import_react10.useRef)(/* @__PURE__ */ new Map());
   const hydratedThreadIds = (0, import_react10.useRef)(/* @__PURE__ */ new Set());
+  const messageProjections = (0, import_react10.useRef)(/* @__PURE__ */ new Map());
+  const loadedMessageProjectionIds = (0, import_react10.useRef)(/* @__PURE__ */ new Set());
   const listenerCleanups = (0, import_react10.useRef)(/* @__PURE__ */ new Map());
+  const getMessageProjection = (0, import_react10.useCallback)((threadId) => {
+    var _a;
+    if (!loadedMessageProjectionIds.current.has(threadId)) {
+      loadedMessageProjectionIds.current.add(threadId);
+      const stored = readMessageProjection(threadId);
+      if (stored) messageProjections.current.set(threadId, stored);
+    }
+    return (_a = messageProjections.current.get(threadId)) != null ? _a : null;
+  }, []);
+  const setMessageProjection = (0, import_react10.useCallback)(
+    (threadId, projection) => {
+      loadedMessageProjectionIds.current.add(threadId);
+      messageProjections.current.set(threadId, projection);
+      writeMessageProjection(threadId, projection);
+    },
+    []
+  );
+  const deleteMessageProjection = (0, import_react10.useCallback)((threadId) => {
+    loadedMessageProjectionIds.current.delete(threadId);
+    messageProjections.current.delete(threadId);
+    clearMessageProjection(threadId);
+  }, []);
   const cleanupSessionListeners = (0, import_react10.useCallback)((threadId) => {
     var _a;
     (_a = listenerCleanups.current.get(threadId)) == null ? void 0 : _a();
@@ -1900,9 +2000,10 @@ function useRuntimeOrchestrator(aomiClient, options) {
       pendingFetches.current.delete(threadId);
       initialStatePromises.current.delete(threadId);
       hydratedThreadIds.current.delete(threadId);
+      deleteMessageProjection(threadId);
       (_a = sessionManagerRef.current) == null ? void 0 : _a.close(threadId);
     },
-    [cleanupSessionListeners]
+    [cleanupSessionListeners, deleteMessageProjection]
   );
   const closeIdleSessionsExcept = (0, import_react10.useCallback)(
     (activeThreadId) => {
@@ -1925,6 +2026,8 @@ function useRuntimeOrchestrator(aomiClient, options) {
     pendingFetches.current.clear();
     initialStatePromises.current.clear();
     hydratedThreadIds.current.clear();
+    messageProjections.current.clear();
+    loadedMessageProjectionIds.current.clear();
     for (const threadId of Array.from(listenerCleanups.current.keys())) {
       cleanupSessionListeners(threadId);
     }
@@ -1969,19 +2072,13 @@ function useRuntimeOrchestrator(aomiClient, options) {
       const cleanups = [];
       cleanups.push(
         session.on("messages", (msgs) => {
-          const threadMessages = [];
-          for (const msg of msgs) {
-            const converted = toInboundMessage(msg);
-            if (converted) threadMessages.push(converted);
-          }
+          const projection = getMessageProjection(threadId);
+          const threadMessages = projectInboundMessages(msgs, projection);
           const existingMessages = threadContextRef.current.getThreadMessages(threadId);
           if (threadMessages.length === 0 && hasUnhydratedOptimisticMessage(existingMessages)) {
             return;
           }
-          threadContextRef.current.setThreadMessages(
-            threadId,
-            mergeAssistantTurns(threadMessages)
-          );
+          threadContextRef.current.setThreadMessages(threadId, threadMessages);
         })
       );
       cleanups.push(
@@ -2039,7 +2136,7 @@ function useRuntimeOrchestrator(aomiClient, options) {
       return session;
     },
     // Stable deps — option getters are refs
-    []
+    [getMessageProjection]
   );
   const ensureInitialState = (0, import_react10.useCallback)(
     async (threadId) => {
@@ -2193,6 +2290,58 @@ function useRuntimeOrchestrator(aomiClient, options) {
     },
     [getSession]
   );
+  const regenerateMessage = (0, import_react10.useCallback)(
+    async (threadId, messageId, replacementText) => {
+      var _a;
+      const visibleMessages = threadContextRef.current.getThreadMessages(threadId);
+      const explicitIndex = visibleMessages.findIndex(
+        (message) => message.id === messageId
+      );
+      const numericIndex = explicitIndex === -1 && messageId !== null && /^\d+$/.test(messageId) ? Number(messageId) : -1;
+      let userMessageIndex = explicitIndex !== -1 ? explicitIndex : numericIndex;
+      if (userMessageIndex < 0 || userMessageIndex >= visibleMessages.length) {
+        throw new Error("Message to regenerate was not found.");
+      }
+      while (userMessageIndex >= 0 && ((_a = visibleMessages[userMessageIndex]) == null ? void 0 : _a.role) !== "user") {
+        userMessageIndex -= 1;
+      }
+      const userMessage = visibleMessages[userMessageIndex];
+      if (!userMessage || userMessage.role !== "user") {
+        throw new Error("Regeneration requires a user message.");
+      }
+      const originalText = typeof userMessage.content === "string" ? userMessage.content.trim() : userMessage.content.filter(
+        (part) => part.type === "text"
+      ).map((part) => part.text).join("\n").trim();
+      const nextText = (replacementText == null ? void 0 : replacementText.trim()) || originalText;
+      if (!nextText) {
+        throw new Error("Regeneration requires message text.");
+      }
+      const session = getSession(threadId);
+      const rawMessages = session.getMessages();
+      const currentProjection = getMessageProjection(threadId);
+      const userOrdinal = visibleMessages.slice(0, userMessageIndex + 1).filter((message) => message.role === "user").length;
+      const targetEntry = selectProjectedMessageEntries(
+        rawMessages,
+        currentProjection
+      ).filter(({ message }) => message.sender === "user")[userOrdinal - 1];
+      if (!targetEntry) {
+        throw new Error("Backend message to regenerate was not found.");
+      }
+      const nextProjection = {
+        ranges: [
+          ...truncateProjectionBefore(currentProjection, targetEntry.rawIndex),
+          { start: rawMessages.length, end: null }
+        ]
+      };
+      setMessageProjection(threadId, nextProjection);
+      threadContextRef.current.setThreadMessages(
+        threadId,
+        projectInboundMessages(rawMessages, nextProjection)
+      );
+      await sendMessage(nextText, threadId);
+    },
+    [getMessageProjection, getSession, sendMessage, setMessageProjection]
+  );
   const cancelGeneration = (0, import_react10.useCallback)(async (threadId) => {
     var _a;
     const session = (_a = sessionManagerRef.current) == null ? void 0 : _a.get(threadId);
@@ -2220,6 +2369,7 @@ function useRuntimeOrchestrator(aomiClient, options) {
     setIsRunning,
     ensureInitialState,
     sendMessage,
+    regenerateMessage,
     cancelGeneration,
     closeSession,
     closeAllSessions,
@@ -3075,6 +3225,7 @@ function AomiRuntimeCore({
     setIsRunning,
     ensureInitialState,
     sendMessage: orchestratorSendMessage,
+    regenerateMessage: orchestratorRegenerateMessage,
     cancelGeneration: orchestratorCancel,
     closeSession,
     closeIdleSessionsExcept,
@@ -3317,6 +3468,31 @@ function AomiRuntimeCore({
         } catch (error) {
           console.error("Failed to send message:", error);
         }
+      }
+    },
+    onEdit: async (message) => {
+      var _a;
+      const text = message.content.filter(
+        (part) => part.type === "text"
+      ).map((part) => part.text).join("\n");
+      try {
+        await orchestratorRegenerateMessage(
+          threadContext.currentThreadId,
+          (_a = message.sourceId) != null ? _a : message.parentId,
+          text
+        );
+      } catch (error) {
+        console.error("Failed to edit message:", error);
+      }
+    },
+    onReload: async (parentId) => {
+      try {
+        await orchestratorRegenerateMessage(
+          threadContext.currentThreadId,
+          parentId
+        );
+      } catch (error) {
+        console.error("Failed to reload message:", error);
       }
     },
     onCancel: async () => {
