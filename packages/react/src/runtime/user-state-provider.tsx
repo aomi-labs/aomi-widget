@@ -16,7 +16,7 @@ import { useEventContext } from "../contexts/event-context";
 import type { ThreadContext } from "../contexts/thread-context";
 import { useThreadContext } from "../contexts/thread-context";
 import { useUser } from "../contexts/ext-user-context";
-import { initThreadControl } from "../state/thread-store";
+import { initThreadControl, type ThreadMetadata } from "../state/thread-store";
 import { getControlSessionId } from "../utils/client-session";
 import { isPlaceholderTitle } from "./utils";
 import { SessionManager } from "./session-manager";
@@ -93,6 +93,10 @@ type RemoteThreadRegistry = {
 type RuntimeUserStateEffectsOptions = {
   sessions: RuntimeSessionBridge;
   remoteThreads: RemoteThreadRegistry;
+  threadPersistence?: {
+    restoredThreadId?: string;
+    onInvalidRestoredThread?: () => void;
+  };
 };
 
 type RuntimeUserStateContext = {
@@ -261,6 +265,7 @@ function useRemoteThreadListSync(
   context: RuntimeUserStateContext,
   sessions: RuntimeSessionBridge,
   remoteThreads: RemoteThreadRegistry,
+  threadPersistence?: RuntimeUserStateEffectsOptions["threadPersistence"],
 ): { isThreadListLoading: boolean; threadListError: boolean } {
   const [isThreadListLoading, setIsThreadListLoading] = useState(true);
   const [threadListError, setThreadListError] = useState(false);
@@ -281,6 +286,7 @@ function useRemoteThreadListSync(
     warmThread,
   } = remoteThreads;
   const isConnected = UserStateHelpers.isConnected(user) === true;
+  const restoredThreadId = threadPersistence?.restoredThreadId;
 
   const listThreadsWithAuthRetry = useCallback(
     async (sessionId: string, isCancelled: () => boolean) => {
@@ -376,6 +382,7 @@ function useRemoteThreadListSync(
         closeAllSessions();
         if (hadRemoteThreads || hadSessions) {
           threadContextRef.current.resetToDefault();
+          threadPersistence?.onInvalidRestoredThread?.();
         }
       }
       return;
@@ -402,7 +409,8 @@ function useRemoteThreadListSync(
         if (cancelled) return;
 
         const remoteThreadIds = new Set<string>();
-        const newMetadata = new Map(currentContext.allThreadsMetadata);
+        const previousMetadata = currentContext.allThreadsMetadata;
+        const newMetadata = new Map<string, ThreadMetadata>();
         const baseThreadCount = currentContext.threadCnt;
         let maxChatNum = baseThreadCount;
 
@@ -410,10 +418,16 @@ function useRemoteThreadListSync(
           remoteThreadIds.add(thread.session_id);
           const rawTitle = thread.title ?? "";
           const title = isPlaceholderTitle(rawTitle) ? "" : rawTitle;
+          const serverLastActiveAt = (
+            thread as AomiThread & { last_active_at?: number }
+          ).last_active_at;
           const lastActive =
-            newMetadata.get(thread.session_id)?.lastActiveAt ||
+            (serverLastActiveAt ??
+              previousMetadata.get(thread.session_id)?.lastActiveAt) ||
             new Date().toISOString();
-          const existingControl = newMetadata.get(thread.session_id)?.control;
+          const existingControl = previousMetadata.get(
+            thread.session_id,
+          )?.control;
           newMetadata.set(thread.session_id, {
             title,
             status: thread.is_archived ? "archived" : "regular",
@@ -427,6 +441,12 @@ function useRemoteThreadListSync(
             if (num > maxChatNum) {
               maxChatNum = num;
             }
+          }
+        }
+
+        for (const [threadId, metadata] of previousMetadata.entries()) {
+          if (!newMetadata.has(threadId)) {
+            newMetadata.set(threadId, metadata);
           }
         }
 
@@ -450,12 +470,57 @@ function useRemoteThreadListSync(
         scheduleThreadPrefetch(threadList.map((thread) => thread.session_id));
 
         const activeThreadId = threadContextRef.current.currentThreadId;
-        if (remoteThreadIds.has(activeThreadId)) {
+        let threadIdToLoad = activeThreadId;
+        const activeMessages = currentContext.getThreadMessages(activeThreadId);
+        const activeHasUserMessage = activeMessages.some(
+          (message) => message.role === "user",
+        );
+
+        if (
+          restoredThreadId &&
+          activeThreadId === restoredThreadId &&
+          !remoteThreadIds.has(activeThreadId) &&
+          !activeHasUserMessage
+        ) {
+          threadPersistence?.onInvalidRestoredThread?.();
+          currentContext.setThreadMetadata((prev) => {
+            const next = new Map(prev);
+            next.delete(activeThreadId);
+            return next;
+          });
+          currentContext.setThreads((prev) => {
+            const next = new Map(prev);
+            next.delete(activeThreadId);
+            return next;
+          });
+
+          const fallbackThread = threadList
+            .filter((thread) => !thread.is_archived)
+            .sort((a, b) => {
+              const aLastActive =
+                (a as AomiThread & { last_active_at?: number })
+                  .last_active_at ?? 0;
+              const bLastActive =
+                (b as AomiThread & { last_active_at?: number })
+                  .last_active_at ?? 0;
+              return bLastActive - aLastActive;
+            })[0];
+
+          if (fallbackThread) {
+            threadIdToLoad = fallbackThread.session_id;
+            currentContext.setCurrentThreadId(fallbackThread.session_id);
+            currentContext.bumpThreadViewKey();
+          } else {
+            threadIdToLoad = currentContext.resetToDefault();
+          }
+        }
+
+        if (remoteThreadIds.has(threadIdToLoad)) {
           setIsThreadLoading(true);
           try {
-            await warmThread(activeThreadId);
+            await warmThread(threadIdToLoad);
             if (!cancelled) {
-              await ensureInitialState(activeThreadId);
+              await ensureInitialState(threadIdToLoad);
             }
           } finally {
             if (!cancelled) {
@@ -492,6 +557,8 @@ function useRemoteThreadListSync(
     sessionManager,
     setIsThreadLoading,
     threadContextRef,
+    restoredThreadId,
+    threadPersistence,
     isConnected,
     warmPromisesRef,
     warmedThreadIdsRef,
@@ -511,6 +578,7 @@ export function useRuntimeUserStateEffects({
     setIsThreadLoading,
   },
   remoteThreads,
+  threadPersistence,
 }: RuntimeUserStateEffectsOptions): {
   isThreadListLoading: boolean;
   threadListError: boolean;
@@ -540,7 +608,12 @@ export function useRuntimeUserStateEffects({
 
   useWalletStateSync(context, sessions, remoteThreads);
   useUserStateRequestResponder(context, sessions);
-  return useRemoteThreadListSync(context, sessions, remoteThreads);
+  return useRemoteThreadListSync(
+    context,
+    sessions,
+    remoteThreads,
+    threadPersistence,
+  );
 }
 
 export function RuntimeUserStateProvider({

@@ -67,7 +67,10 @@ function fatal(message) {
     }
     console.error(`${DIM2}${detail}${RESET2}`);
   }
-  throw new CliExit(1);
+  if (process.env.AOMI_CLI_STRICT_EXIT === "1") {
+    throw new CliExit(1);
+  }
+  process.exit(1);
 }
 var CliExit, DeployCliError;
 var init_errors = __esm({
@@ -190,6 +193,96 @@ var init_chains = __esm({
   }
 });
 
+// src/cli/solana-signer.ts
+import {
+  Keypair,
+  Transaction,
+  VersionedTransaction
+} from "@solana/web3.js";
+import bs58 from "bs58";
+function parseSolanaKeypairSecret(input2) {
+  const trimmed = input2.trim();
+  if (!trimmed) {
+    throw new Error("Solana keypair secret is empty.");
+  }
+  let bytes;
+  if (trimmed.startsWith("[") && trimmed.endsWith("]")) {
+    const parsed = JSON.parse(trimmed);
+    if (!Array.isArray(parsed) || parsed.some((value) => typeof value !== "number")) {
+      throw new Error(
+        "Solana keypair JSON must be an array of byte values (e.g. `[1,2,...,64]`)."
+      );
+    }
+    bytes = Uint8Array.from(parsed);
+  } else {
+    try {
+      bytes = bs58.decode(trimmed);
+    } catch (err) {
+      throw new Error(
+        `Failed to decode Solana keypair as base58: ${err instanceof Error ? err.message : String(err)}`
+      );
+    }
+  }
+  if (bytes.length !== 64) {
+    throw new Error(
+      `Solana keypair secret must be 64 bytes (got ${bytes.length}). Use the full secret key, not just the seed.`
+    );
+  }
+  return Keypair.fromSecretKey(bytes);
+}
+function decodeBase64(value) {
+  if (typeof Buffer !== "undefined") {
+    return new Uint8Array(Buffer.from(value, "base64"));
+  }
+  const binary = atob(value);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+  return bytes;
+}
+function encodeBase64(bytes) {
+  if (typeof Buffer !== "undefined") {
+    return Buffer.from(bytes).toString("base64");
+  }
+  let binary = "";
+  for (let i = 0; i < bytes.byteLength; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  return btoa(binary);
+}
+function signSolanaTransaction(unsignedTxBase64, keypair) {
+  const bytes = decodeBase64(unsignedTxBase64);
+  try {
+    const versioned = VersionedTransaction.deserialize(bytes);
+    versioned.sign([keypair]);
+    return {
+      signer: keypair.publicKey.toBase58(),
+      signedTxBase64: encodeBase64(versioned.serialize())
+    };
+  } catch (versionedErr) {
+    try {
+      const legacy = Transaction.from(bytes);
+      legacy.partialSign(keypair);
+      return {
+        signer: keypair.publicKey.toBase58(),
+        signedTxBase64: encodeBase64(legacy.serialize())
+      };
+    } catch (legacyErr) {
+      const versionedMsg = versionedErr instanceof Error ? versionedErr.message : String(versionedErr);
+      const legacyMsg = legacyErr instanceof Error ? legacyErr.message : String(legacyErr);
+      throw new Error(
+        `Failed to deserialize Solana transaction (versioned: ${versionedMsg}; legacy: ${legacyMsg}).`
+      );
+    }
+  }
+}
+var init_solana_signer = __esm({
+  "src/cli/solana-signer.ts"() {
+    "use strict";
+  }
+});
+
 // src/cli/validation.ts
 function parseChainId(value) {
   if (value === void 0) return void 0;
@@ -209,7 +302,23 @@ function normalizePrivateKey(value) {
   if (value === void 0) return void 0;
   const trimmed = value.trim();
   if (!trimmed) return void 0;
-  return trimmed.startsWith("0x") ? trimmed : `0x${trimmed}`;
+  if (!EVM_PRIVATE_KEY_PATTERN.test(trimmed)) {
+    fatal("Invalid private key. Expected a 0x-prefixed 32-byte hex string.");
+  }
+  return trimmed;
+}
+function validateSolanaPrivateKey(value) {
+  if (value === void 0) return void 0;
+  const trimmed = value.trim();
+  if (!trimmed) return void 0;
+  try {
+    parseSolanaKeypairSecret(trimmed);
+  } catch (err) {
+    fatal(
+      `Invalid Solana private key: ${err instanceof Error ? err.message : String(err)}`
+    );
+  }
+  return trimmed;
 }
 function parseAAProvider(value) {
   if (value === void 0 || value.trim() === "") return void 0;
@@ -225,11 +334,14 @@ function parseAAMode(value) {
   }
   fatal("Unsupported AA mode. Use `4337` or `7702`.");
 }
+var EVM_PRIVATE_KEY_PATTERN;
 var init_validation = __esm({
   "src/cli/validation.ts"() {
     "use strict";
     init_chains();
     init_errors();
+    init_solana_signer();
+    EVM_PRIVATE_KEY_PATTERN = /^0x[0-9a-fA-F]{64}$/;
   }
 });
 
@@ -271,9 +383,7 @@ function derivePublicKeyFromPrivateKey(privateKey) {
   try {
     return privateKeyToAccount(privateKey).address;
   } catch (e) {
-    fatal(
-      "Invalid private key. Pass a 32-byte hex key via `--private-key` or `PRIVATE_KEY`."
-    );
+    fatal("Invalid private key. Expected a 0x-prefixed 32-byte hex string.");
   }
 }
 function resolveExecution(args) {
@@ -328,13 +438,17 @@ function buildCliConfig(args) {
       "`--embedded-provider` is required when `--embedded-provider-token` is set."
     );
   }
-  const solanaPrivateKey = (_h = str(args["solana-private-key"])) != null ? _h : process.env.SOLANA_PRIVATE_KEY;
+  const solanaPrivateKey = validateSolanaPrivateKey(
+    (_h = str(args["solana-private-key"])) != null ? _h : process.env.SOLANA_PRIVATE_KEY
+  );
   const svmCluster = parseSvmCluster(
     (_i = str(args.cluster)) != null ? _i : process.env.AOMI_SOLANA_CLUSTER
   );
   return {
     baseUrl: (_j = str(args["backend-url"])) != null ? _j : process.env.AOMI_BACKEND_URL,
     apiKey: (_k = str(args["api-key"])) != null ? _k : process.env.AOMI_API_KEY,
+    json: args.json === true,
+    verbose: args.verbose === true,
     accountBearer,
     embeddedProvider,
     embeddedProviderToken,
@@ -376,6 +490,14 @@ var init_shared = __esm({
       "api-key": {
         type: "string",
         description: "API key for non-default apps"
+      },
+      json: {
+        type: "boolean",
+        description: "Print machine-readable JSON where supported"
+      },
+      verbose: {
+        type: "boolean",
+        description: "Show extra diagnostics such as local state file paths"
       },
       "account-bearer": {
         type: "string",
@@ -1303,8 +1425,12 @@ function encodeJsonBody(body) {
 }
 function normalizeThreadWire(wire) {
   var _b;
-  const _a3 = wire, { thread_id, session_id } = _a3, rest = __objRest(_a3, ["thread_id", "session_id"]);
-  return __spreadProps(__spreadValues({}, rest), { session_id: (_b = session_id != null ? session_id : thread_id) != null ? _b : "" });
+  const _a3 = wire, { thread_id, session_id, last_active_at } = _a3, rest = __objRest(_a3, ["thread_id", "session_id", "last_active_at"]);
+  const normalizedLastActiveAt = typeof last_active_at === "number" ? last_active_at : typeof last_active_at === "string" ? Number(last_active_at) : void 0;
+  return __spreadProps(__spreadValues({}, rest), {
+    session_id: (_b = session_id != null ? session_id : thread_id) != null ? _b : "",
+    last_active_at: normalizedLastActiveAt === void 0 || Number.isNaN(normalizedLastActiveAt) ? void 0 : normalizedLastActiveAt
+  });
 }
 function withSessionHeader(sessionId, init) {
   const headers = new Headers(init);
@@ -3880,6 +4006,7 @@ var init_user_state2 = __esm({
 
 // src/cli/state.ts
 import {
+  chmodSync,
   existsSync,
   mkdirSync,
   readFileSync,
@@ -3898,7 +4025,12 @@ function hasSameBackendPendingId(existing, next) {
   return existing.kind === next.kind && existingBackendId !== void 0 && nextBackendId !== void 0 && existingBackendId === nextBackendId;
 }
 function ensureStorageDirs() {
-  mkdirSync(SESSIONS_DIR, { recursive: true });
+  mkdirSync(SESSIONS_DIR, { recursive: true, mode: STATE_DIR_MODE });
+  try {
+    chmodSync(STATE_ROOT_DIR, STATE_DIR_MODE);
+    chmodSync(SESSIONS_DIR, STATE_DIR_MODE);
+  } catch (e) {
+  }
 }
 function parseSessionFileLocalId(filename) {
   const match = filename.match(/^session-(\d+)\.json$/);
@@ -4025,7 +4157,13 @@ function writeActiveLocalId(localId) {
       return;
     }
     ensureStorageDirs();
-    writeFileSync(ACTIVE_SESSION_FILE, String(localId));
+    writeFileSync(ACTIVE_SESSION_FILE, String(localId), {
+      mode: STATE_FILE_MODE
+    });
+    try {
+      chmodSync(ACTIVE_SESSION_FILE, STATE_FILE_MODE);
+    } catch (e) {
+    }
   } catch (e) {
   }
 }
@@ -4078,7 +4216,14 @@ function migrateLegacyStateIfNeeded() {
       updatedAt: now
     });
     ensureStorageDirs();
-    writeFileSync(toSessionFilePath(1), JSON.stringify(migrated, null, 2));
+    const migratedPath = toSessionFilePath(1);
+    writeFileSync(migratedPath, JSON.stringify(migrated, null, 2), {
+      mode: STATE_FILE_MODE
+    });
+    try {
+      chmodSync(migratedPath, STATE_FILE_MODE);
+    } catch (e) {
+    }
     writeActiveLocalId(1);
     rmSync(LEGACY_STATE_FILE);
   } catch (e) {
@@ -4185,7 +4330,14 @@ function writeState(state) {
     createdAt,
     updatedAt: now
   });
-  writeFileSync(toSessionFilePath(localId), JSON.stringify(payload, null, 2));
+  const stateFilePath = toSessionFilePath(localId);
+  writeFileSync(stateFilePath, JSON.stringify(payload, null, 2), {
+    mode: STATE_FILE_MODE
+  });
+  try {
+    chmodSync(stateFilePath, STATE_FILE_MODE);
+  } catch (e) {
+  }
   writeActiveLocalId(localId);
 }
 function clearState() {
@@ -4234,7 +4386,7 @@ function syncPendingTxsFromUserState(state, userState) {
     pendingSolTxs: state.pendingSolTxs
   };
 }
-var SESSION_FILE_PREFIX, SESSION_FILE_SUFFIX, _a, LEGACY_STATE_FILE, _a2, STATE_ROOT_DIR, SESSIONS_DIR, ACTIVE_SESSION_FILE, _migrationDone;
+var SESSION_FILE_PREFIX, SESSION_FILE_SUFFIX, STATE_DIR_MODE, STATE_FILE_MODE, _a, LEGACY_STATE_FILE, _a2, STATE_ROOT_DIR, SESSIONS_DIR, ACTIVE_SESSION_FILE, _migrationDone;
 var init_state2 = __esm({
   "src/cli/state.ts"() {
     "use strict";
@@ -4242,6 +4394,8 @@ var init_state2 = __esm({
     init_user_state2();
     SESSION_FILE_PREFIX = "session-";
     SESSION_FILE_SUFFIX = ".json";
+    STATE_DIR_MODE = 448;
+    STATE_FILE_MODE = 384;
     LEGACY_STATE_FILE = join(
       (_a = process.env.XDG_RUNTIME_DIR) != null ? _a : tmpdir(),
       "aomi-session.json"
@@ -4250,96 +4404,6 @@ var init_state2 = __esm({
     SESSIONS_DIR = join(STATE_ROOT_DIR, "sessions");
     ACTIVE_SESSION_FILE = join(STATE_ROOT_DIR, "active-session.txt");
     _migrationDone = false;
-  }
-});
-
-// src/cli/solana-signer.ts
-import {
-  Keypair,
-  Transaction,
-  VersionedTransaction
-} from "@solana/web3.js";
-import bs58 from "bs58";
-function parseSolanaKeypairSecret(input2) {
-  const trimmed = input2.trim();
-  if (!trimmed) {
-    throw new Error("Solana keypair secret is empty.");
-  }
-  let bytes;
-  if (trimmed.startsWith("[") && trimmed.endsWith("]")) {
-    const parsed = JSON.parse(trimmed);
-    if (!Array.isArray(parsed) || parsed.some((value) => typeof value !== "number")) {
-      throw new Error(
-        "Solana keypair JSON must be an array of byte values (e.g. `[1,2,...,64]`)."
-      );
-    }
-    bytes = Uint8Array.from(parsed);
-  } else {
-    try {
-      bytes = bs58.decode(trimmed);
-    } catch (err) {
-      throw new Error(
-        `Failed to decode Solana keypair as base58: ${err instanceof Error ? err.message : String(err)}`
-      );
-    }
-  }
-  if (bytes.length !== 64) {
-    throw new Error(
-      `Solana keypair secret must be 64 bytes (got ${bytes.length}). Use the full secret key, not just the seed.`
-    );
-  }
-  return Keypair.fromSecretKey(bytes);
-}
-function decodeBase64(value) {
-  if (typeof Buffer !== "undefined") {
-    return new Uint8Array(Buffer.from(value, "base64"));
-  }
-  const binary = atob(value);
-  const bytes = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i++) {
-    bytes[i] = binary.charCodeAt(i);
-  }
-  return bytes;
-}
-function encodeBase64(bytes) {
-  if (typeof Buffer !== "undefined") {
-    return Buffer.from(bytes).toString("base64");
-  }
-  let binary = "";
-  for (let i = 0; i < bytes.byteLength; i++) {
-    binary += String.fromCharCode(bytes[i]);
-  }
-  return btoa(binary);
-}
-function signSolanaTransaction(unsignedTxBase64, keypair) {
-  const bytes = decodeBase64(unsignedTxBase64);
-  try {
-    const versioned = VersionedTransaction.deserialize(bytes);
-    versioned.sign([keypair]);
-    return {
-      signer: keypair.publicKey.toBase58(),
-      signedTxBase64: encodeBase64(versioned.serialize())
-    };
-  } catch (versionedErr) {
-    try {
-      const legacy = Transaction.from(bytes);
-      legacy.partialSign(keypair);
-      return {
-        signer: keypair.publicKey.toBase58(),
-        signedTxBase64: encodeBase64(legacy.serialize())
-      };
-    } catch (legacyErr) {
-      const versionedMsg = versionedErr instanceof Error ? versionedErr.message : String(versionedErr);
-      const legacyMsg = legacyErr instanceof Error ? legacyErr.message : String(legacyErr);
-      throw new Error(
-        `Failed to deserialize Solana transaction (versioned: ${versionedMsg}; legacy: ${legacyMsg}).`
-      );
-    }
-  }
-}
-var init_solana_signer = __esm({
-  "src/cli/solana-signer.ts"() {
-    "use strict";
   }
 });
 
@@ -4586,6 +4650,43 @@ var init_auth = __esm({
   }
 });
 
+// src/cli/client-factory.ts
+function resolveCliBaseUrl(config) {
+  var _a3;
+  return (_a3 = config.baseUrl) != null ? _a3 : DEFAULT_CLI_BASE_URL;
+}
+function createCliGetAccountBearer(config) {
+  if (config.accountBearer) {
+    const bearer = config.accountBearer;
+    return async () => bearer;
+  }
+  if (config.sessionCookie) {
+    const sessionCookie = config.sessionCookie;
+    return async () => sessionCookie;
+  }
+  return void 0;
+}
+function createCliClient(config, overrides = {}) {
+  var _a3, _b;
+  const mergedConfig = __spreadProps(__spreadValues({}, config), {
+    baseUrl: (_a3 = overrides.baseUrl) != null ? _a3 : config.baseUrl,
+    apiKey: (_b = overrides.apiKey) != null ? _b : config.apiKey
+  });
+  return new AomiClient({
+    baseUrl: resolveCliBaseUrl(mergedConfig),
+    apiKey: mergedConfig.apiKey,
+    getAccountBearer: createCliGetAccountBearer(mergedConfig)
+  });
+}
+var DEFAULT_CLI_BASE_URL;
+var init_client_factory = __esm({
+  "src/cli/client-factory.ts"() {
+    "use strict";
+    init_client();
+    DEFAULT_CLI_BASE_URL = "https://chat.aomi.dev";
+  }
+});
+
 // src/cli/cli-session.ts
 var CliSession;
 var init_cli_session = __esm({
@@ -4597,6 +4698,7 @@ var init_cli_session = __esm({
     init_errors();
     init_solana_signer();
     init_auth();
+    init_client_factory();
     CliSession = class _CliSession {
       constructor(state) {
         this.state = state;
@@ -4624,7 +4726,7 @@ var init_cli_session = __esm({
       }
       /** Create a fresh session and persist it. */
       static create(config, seed) {
-        var _a3, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m;
+        var _a3, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k;
         let svmPublicKey;
         if (config.solanaPrivateKey) {
           try {
@@ -4637,7 +4739,7 @@ var init_cli_session = __esm({
         const state = {
           sessionId: crypto.randomUUID(),
           clientId: crypto.randomUUID(),
-          baseUrl: (_b = (_a3 = config.baseUrl) != null ? _a3 : seed == null ? void 0 : seed.baseUrl) != null ? _b : "https://api.aomi.dev",
+          baseUrl: (_b = (_a3 = config.baseUrl) != null ? _a3 : seed == null ? void 0 : seed.baseUrl) != null ? _b : DEFAULT_CLI_BASE_URL,
           app: (_c = config.app) != null ? _c : seed == null ? void 0 : seed.app,
           model: (_d = config.model) != null ? _d : seed == null ? void 0 : seed.model,
           apiKey: (_e = config.apiKey) != null ? _e : seed == null ? void 0 : seed.apiKey,
@@ -4646,13 +4748,12 @@ var init_cli_session = __esm({
           embeddedProvider: (_h = config.embeddedProvider) != null ? _h : seed == null ? void 0 : seed.embeddedProvider,
           embeddedProviderToken: (_i = config.embeddedProviderToken) != null ? _i : seed == null ? void 0 : seed.embeddedProviderToken,
           publicKey: (_j = config.publicKey) != null ? _j : seed == null ? void 0 : seed.publicKey,
-          privateKey: (_k = config.privateKey) != null ? _k : seed == null ? void 0 : seed.privateKey,
+          privateKey: seed == null ? void 0 : seed.privateKey,
           svmPublicKey: svmPublicKey != null ? svmPublicKey : seed == null ? void 0 : seed.svmPublicKey,
-          // Carry forward the persisted Solana private key so `wallet set --solana`
-          // survives `--new-session` — signing key is a user preference, not a
-          // per-session artifact.
-          svmPrivateKey: (_l = config.solanaPrivateKey) != null ? _l : seed == null ? void 0 : seed.svmPrivateKey,
-          chainId: (_m = config.chain) != null ? _m : seed == null ? void 0 : seed.chainId,
+          // Carry forward only persisted Solana keys from `wallet set --solana`.
+          // Keys supplied via --solana-private-key/env stay transient.
+          svmPrivateKey: seed == null ? void 0 : seed.svmPrivateKey,
+          chainId: (_k = config.chain) != null ? _k : seed == null ? void 0 : seed.chainId,
           secretHandles: seed == null ? void 0 : seed.secretHandles,
           auth: seed == null ? void 0 : seed.auth
         };
@@ -4843,6 +4944,18 @@ var init_cli_session = __esm({
         delete this.state.auth;
         this.save();
       }
+      clearSigningKeys() {
+        let changed = false;
+        if (this.state.privateKey !== void 0) {
+          delete this.state.privateKey;
+          changed = true;
+        }
+        if (this.state.svmPrivateKey !== void 0) {
+          delete this.state.svmPrivateKey;
+          changed = true;
+        }
+        if (changed) this.save();
+      }
       /** Ensure clientId exists, generate if absent. Returns the clientId. */
       ensureClientId() {
         if (!this.state.clientId) {
@@ -5030,13 +5143,19 @@ Available: ${available}`);
 });
 
 // src/cli/output.ts
-function printDataFileLocation() {
+function printDataFileLocation(options) {
+  if ((options == null ? void 0 : options.verbose) !== true) {
+    return;
+  }
   const activeFile = getActiveStateFilePath();
   if (activeFile) {
     console.log(`Data stored at ${activeFile} \u{1F4DD}`);
     return;
   }
   console.log(`Data stored under ${STATE_ROOT_DIR} \u{1F4DD}`);
+}
+function printJson(value) {
+  console.log(JSON.stringify(value, null, 2));
 }
 function printToolUpdate(event) {
   var _a3;
@@ -5142,7 +5261,7 @@ var init_output = __esm({
 function createControlClient(config) {
   var _a3;
   return new AomiClient({
-    baseUrl: (_a3 = config.baseUrl) != null ? _a3 : "https://api.aomi.dev",
+    baseUrl: (_a3 = config.baseUrl) != null ? _a3 : DEFAULT_CLI_BASE_URL,
     apiKey: config.apiKey,
     getAccountBearer: createCliAuthTokenProvider(() => {
       var _a4;
@@ -5182,6 +5301,7 @@ var init_context = __esm({
     "use strict";
     init_client();
     init_auth();
+    init_client_factory();
     init_state2();
   }
 });
@@ -5407,6 +5527,7 @@ async function chatCommand(config, message, verbose) {
         console.log(last.content);
       } else if (newPendingTxs.length === 0) {
         console.log("(no response)");
+        fatal("Backend returned an empty agent message.");
       }
       if (newPendingTxs.length === 0) {
         const mentionedTxIds = extractMentionedTxIds(last == null ? void 0 : last.content);
@@ -7048,6 +7169,153 @@ var init_transactions = __esm({
   }
 });
 
+// src/cli/tables.ts
+function truncateCell(value, maxWidth) {
+  if (value.length <= maxWidth) return value;
+  return `${value.slice(0, maxWidth - 1)}\u2026`;
+}
+function padRight(value, width) {
+  return value.padEnd(width, " ");
+}
+function estimateTokenCount(messages) {
+  var _a3;
+  let totalChars = 0;
+  for (const message of messages) {
+    const content = formatLogContent(message.content);
+    if (content) {
+      totalChars += content.length + 1;
+    }
+    if ((_a3 = message.tool_result) == null ? void 0 : _a3[1]) {
+      totalChars += message.tool_result[1].length;
+    }
+  }
+  return Math.round(totalChars / 4);
+}
+function toIsoTimestamp(timestamp2) {
+  if (typeof timestamp2 !== "number" || !Number.isFinite(timestamp2)) {
+    return null;
+  }
+  try {
+    return new Date(timestamp2).toISOString();
+  } catch (e) {
+    return null;
+  }
+}
+function toPendingTxMetadata(tx) {
+  var _a3, _b, _c, _d, _e, _f;
+  return {
+    id: tx.id,
+    kind: tx.kind,
+    txId: (_a3 = tx.txId) != null ? _a3 : null,
+    eip712Id: (_b = tx.eip712Id) != null ? _b : null,
+    to: (_c = tx.to) != null ? _c : null,
+    value: (_d = tx.value) != null ? _d : null,
+    chainId: (_e = tx.chainId) != null ? _e : null,
+    description: (_f = tx.description) != null ? _f : null,
+    timestamp: toIsoTimestamp(tx.timestamp)
+  };
+}
+function toSignedTxMetadata(tx) {
+  var _a3, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o;
+  return {
+    id: tx.id,
+    kind: tx.kind,
+    txHash: (_a3 = tx.txHash) != null ? _a3 : null,
+    txHashes: (_b = tx.txHashes) != null ? _b : null,
+    executionKind: (_c = tx.executionKind) != null ? _c : null,
+    aaProvider: (_d = tx.aaProvider) != null ? _d : null,
+    aaMode: (_e = tx.aaMode) != null ? _e : null,
+    batched: (_f = tx.batched) != null ? _f : null,
+    sponsored: (_g = tx.sponsored) != null ? _g : null,
+    smartAccount4337: (_h = tx.smartAccount4337) != null ? _h : null,
+    Delegation7702: (_i = tx.Delegation7702) != null ? _i : null,
+    signature: (_j = tx.signature) != null ? _j : null,
+    from: (_k = tx.from) != null ? _k : null,
+    to: (_l = tx.to) != null ? _l : null,
+    value: (_m = tx.value) != null ? _m : null,
+    chainId: (_n = tx.chainId) != null ? _n : null,
+    description: (_o = tx.description) != null ? _o : null,
+    timestamp: toIsoTimestamp(tx.timestamp)
+  };
+}
+function printKeyValueTable(rows, color = CYAN) {
+  const labels = rows.map(([label]) => label);
+  const values = rows.map(
+    ([, value]) => truncateCell(value, MAX_TABLE_VALUE_WIDTH)
+  );
+  const keyWidth = Math.max("field".length, ...labels.map((label) => label.length));
+  const valueWidth = Math.max("value".length, ...values.map((value) => value.length));
+  const border = `+${"-".repeat(keyWidth + 2)}+${"-".repeat(valueWidth + 2)}+`;
+  console.log(`${color}${border}${RESET}`);
+  console.log(
+    `${color}| ${padRight("field", keyWidth)} | ${padRight("value", valueWidth)} |${RESET}`
+  );
+  console.log(`${color}${border}${RESET}`);
+  for (let i = 0; i < rows.length; i++) {
+    console.log(
+      `${color}| ${padRight(labels[i], keyWidth)} | ${padRight(values[i], valueWidth)} |${RESET}`
+    );
+    console.log(`${color}${border}${RESET}`);
+  }
+}
+function printTransactionTable(pendingTxs, signedTxs, color = GREEN) {
+  const safePendingTxs = pendingTxs.filter(
+    (tx) => typeof tx === "object" && tx !== null
+  );
+  const safeSignedTxs = signedTxs.filter(
+    (tx) => typeof tx === "object" && tx !== null
+  );
+  const rows = [
+    ...safePendingTxs.map((tx) => ({
+      status: "pending",
+      metadata: toPendingTxMetadata(tx)
+    })),
+    ...safeSignedTxs.map((tx) => ({
+      status: "signed",
+      metadata: toSignedTxMetadata(tx)
+    }))
+  ];
+  if (rows.length === 0) {
+    console.log(`${YELLOW}No transactions in local CLI state.${RESET}`);
+    return;
+  }
+  const visibleRows = rows.slice(0, MAX_TX_ROWS);
+  const statusWidth = Math.max(
+    "status".length,
+    ...visibleRows.map((row) => row.status.length)
+  );
+  const jsonCells = visibleRows.map(
+    (row) => truncateCell(JSON.stringify(row.metadata), MAX_TX_JSON_WIDTH)
+  );
+  const jsonWidth = Math.max("metadata_json".length, ...jsonCells.map((v) => v.length));
+  const border = `+${"-".repeat(statusWidth + 2)}+${"-".repeat(jsonWidth + 2)}+`;
+  console.log(`${color}${border}${RESET}`);
+  console.log(
+    `${color}| ${padRight("status", statusWidth)} | ${padRight("metadata_json", jsonWidth)} |${RESET}`
+  );
+  console.log(`${color}${border}${RESET}`);
+  for (let i = 0; i < visibleRows.length; i++) {
+    console.log(
+      `${color}| ${padRight(visibleRows[i].status, statusWidth)} | ${padRight(jsonCells[i], jsonWidth)} |${RESET}`
+    );
+    console.log(`${color}${border}${RESET}`);
+  }
+  if (rows.length > MAX_TX_ROWS) {
+    const omitted = rows.length - MAX_TX_ROWS;
+    console.log(`${DIM}${omitted} transaction rows omitted${RESET}`);
+  }
+}
+var MAX_TABLE_VALUE_WIDTH, MAX_TX_JSON_WIDTH, MAX_TX_ROWS;
+var init_tables = __esm({
+  "src/cli/tables.ts"() {
+    "use strict";
+    init_output();
+    MAX_TABLE_VALUE_WIDTH = 72;
+    MAX_TX_JSON_WIDTH = 96;
+    MAX_TX_ROWS = 8;
+  }
+});
+
 // src/cli/commands/wallet.ts
 var wallet_exports = {};
 __export(wallet_exports, {
@@ -7060,8 +7328,12 @@ import * as viemChains from "viem/chains";
 async function txCommand(config) {
   const cli = CliSession.load();
   if (!cli) {
+    if (config.json) {
+      printJson({ active: false, pending: [], signed: [] });
+      return;
+    }
     console.log("No active session");
-    printDataFileLocation();
+    printDataFileLocation({ verbose: config.verbose });
     return;
   }
   const session = cli.createClientSession(config);
@@ -7082,9 +7354,45 @@ async function txCommand(config) {
   const signedSol = [...cli.signedSolTxs];
   const totalPending = pending.length + pendingSol.length;
   const totalSigned = signed.length + signedSol.length;
+  if (config.json) {
+    printJson({
+      active: true,
+      pending: [
+        ...pending.map((tx) => toPendingTxMetadata(tx)),
+        ...pendingSol.map((tx) => {
+          var _a3, _b, _c;
+          return {
+            id: tx.id,
+            kind: tx.kind,
+            solanaId: tx.solanaId,
+            signer: (_a3 = tx.signer) != null ? _a3 : null,
+            cluster: (_b = tx.cluster) != null ? _b : null,
+            description: (_c = tx.description) != null ? _c : null,
+            timestamp: new Date(tx.timestamp).toISOString()
+          };
+        })
+      ],
+      signed: [
+        ...signed.map((tx) => toSignedTxMetadata(tx)),
+        ...signedSol.map((tx) => {
+          var _a3, _b, _c, _d;
+          return {
+            id: tx.id,
+            kind: "solana_sign",
+            signedTx: (_a3 = tx.signedTx) != null ? _a3 : null,
+            signer: (_b = tx.signer) != null ? _b : null,
+            cluster: (_c = tx.cluster) != null ? _c : null,
+            description: (_d = tx.description) != null ? _d : null,
+            timestamp: new Date(tx.timestamp).toISOString()
+          };
+        })
+      ]
+    });
+    return;
+  }
   if (totalPending === 0 && totalSigned === 0) {
     console.log("No transactions.");
-    printDataFileLocation();
+    printDataFileLocation({ verbose: config.verbose });
     return;
   }
   if (totalPending > 0) {
@@ -7106,7 +7414,7 @@ async function txCommand(config) {
       console.log(formatSignedSolTxLine(tx, "  \u2705"));
     }
   }
-  printDataFileLocation();
+  printDataFileLocation({ verbose: config.verbose });
 }
 function resolveChain(targetChainId, rpcUrl) {
   const knownChain = Object.values(viemChains).find((candidate) => {
@@ -7598,7 +7906,9 @@ Available: ${available}`
             }));
           }
         } catch (err) {
-          console.warn(`[aomi tx sign] failed to fetch typed_data from backend: ${err}`);
+          console.warn(
+            `[aomi tx sign] failed to fetch typed_data from backend: ${err}`
+          );
         }
       }
       if (signArgs && messageArgs) {
@@ -7683,43 +7993,7 @@ var init_wallet2 = __esm({
     init_transactions();
     init_chains();
     init_defaults();
-  }
-});
-
-// src/cli/client-factory.ts
-function resolveCliBaseUrl(config) {
-  var _a3;
-  return (_a3 = config.baseUrl) != null ? _a3 : DEFAULT_CLI_BASE_URL;
-}
-function createCliGetAccountBearer(config) {
-  if (config.accountBearer) {
-    const bearer = config.accountBearer;
-    return async () => bearer;
-  }
-  if (config.sessionCookie) {
-    const sessionCookie = config.sessionCookie;
-    return async () => sessionCookie;
-  }
-  return void 0;
-}
-function createCliClient(config, overrides = {}) {
-  var _a3, _b;
-  const mergedConfig = __spreadProps(__spreadValues({}, config), {
-    baseUrl: (_a3 = overrides.baseUrl) != null ? _a3 : config.baseUrl,
-    apiKey: (_b = overrides.apiKey) != null ? _b : config.apiKey
-  });
-  return new AomiClient({
-    baseUrl: resolveCliBaseUrl(mergedConfig),
-    apiKey: mergedConfig.apiKey,
-    getAccountBearer: createCliGetAccountBearer(mergedConfig)
-  });
-}
-var DEFAULT_CLI_BASE_URL;
-var init_client_factory = __esm({
-  "src/cli/client-factory.ts"() {
-    "use strict";
-    init_client();
-    DEFAULT_CLI_BASE_URL = "https://chat.aomi.dev";
+    init_tables();
   }
 });
 
@@ -7824,153 +8098,6 @@ var init_simulate = __esm({
     init_client_factory();
     init_errors();
     init_output();
-  }
-});
-
-// src/cli/tables.ts
-function truncateCell(value, maxWidth) {
-  if (value.length <= maxWidth) return value;
-  return `${value.slice(0, maxWidth - 1)}\u2026`;
-}
-function padRight(value, width) {
-  return value.padEnd(width, " ");
-}
-function estimateTokenCount(messages) {
-  var _a3;
-  let totalChars = 0;
-  for (const message of messages) {
-    const content = formatLogContent(message.content);
-    if (content) {
-      totalChars += content.length + 1;
-    }
-    if ((_a3 = message.tool_result) == null ? void 0 : _a3[1]) {
-      totalChars += message.tool_result[1].length;
-    }
-  }
-  return Math.round(totalChars / 4);
-}
-function toIsoTimestamp(timestamp2) {
-  if (typeof timestamp2 !== "number" || !Number.isFinite(timestamp2)) {
-    return null;
-  }
-  try {
-    return new Date(timestamp2).toISOString();
-  } catch (e) {
-    return null;
-  }
-}
-function toPendingTxMetadata(tx) {
-  var _a3, _b, _c, _d, _e, _f;
-  return {
-    id: tx.id,
-    kind: tx.kind,
-    txId: (_a3 = tx.txId) != null ? _a3 : null,
-    eip712Id: (_b = tx.eip712Id) != null ? _b : null,
-    to: (_c = tx.to) != null ? _c : null,
-    value: (_d = tx.value) != null ? _d : null,
-    chainId: (_e = tx.chainId) != null ? _e : null,
-    description: (_f = tx.description) != null ? _f : null,
-    timestamp: toIsoTimestamp(tx.timestamp)
-  };
-}
-function toSignedTxMetadata(tx) {
-  var _a3, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o;
-  return {
-    id: tx.id,
-    kind: tx.kind,
-    txHash: (_a3 = tx.txHash) != null ? _a3 : null,
-    txHashes: (_b = tx.txHashes) != null ? _b : null,
-    executionKind: (_c = tx.executionKind) != null ? _c : null,
-    aaProvider: (_d = tx.aaProvider) != null ? _d : null,
-    aaMode: (_e = tx.aaMode) != null ? _e : null,
-    batched: (_f = tx.batched) != null ? _f : null,
-    sponsored: (_g = tx.sponsored) != null ? _g : null,
-    smartAccount4337: (_h = tx.smartAccount4337) != null ? _h : null,
-    Delegation7702: (_i = tx.Delegation7702) != null ? _i : null,
-    signature: (_j = tx.signature) != null ? _j : null,
-    from: (_k = tx.from) != null ? _k : null,
-    to: (_l = tx.to) != null ? _l : null,
-    value: (_m = tx.value) != null ? _m : null,
-    chainId: (_n = tx.chainId) != null ? _n : null,
-    description: (_o = tx.description) != null ? _o : null,
-    timestamp: toIsoTimestamp(tx.timestamp)
-  };
-}
-function printKeyValueTable(rows, color = CYAN) {
-  const labels = rows.map(([label]) => label);
-  const values = rows.map(
-    ([, value]) => truncateCell(value, MAX_TABLE_VALUE_WIDTH)
-  );
-  const keyWidth = Math.max("field".length, ...labels.map((label) => label.length));
-  const valueWidth = Math.max("value".length, ...values.map((value) => value.length));
-  const border = `+${"-".repeat(keyWidth + 2)}+${"-".repeat(valueWidth + 2)}+`;
-  console.log(`${color}${border}${RESET}`);
-  console.log(
-    `${color}| ${padRight("field", keyWidth)} | ${padRight("value", valueWidth)} |${RESET}`
-  );
-  console.log(`${color}${border}${RESET}`);
-  for (let i = 0; i < rows.length; i++) {
-    console.log(
-      `${color}| ${padRight(labels[i], keyWidth)} | ${padRight(values[i], valueWidth)} |${RESET}`
-    );
-    console.log(`${color}${border}${RESET}`);
-  }
-}
-function printTransactionTable(pendingTxs, signedTxs, color = GREEN) {
-  const safePendingTxs = pendingTxs.filter(
-    (tx) => typeof tx === "object" && tx !== null
-  );
-  const safeSignedTxs = signedTxs.filter(
-    (tx) => typeof tx === "object" && tx !== null
-  );
-  const rows = [
-    ...safePendingTxs.map((tx) => ({
-      status: "pending",
-      metadata: toPendingTxMetadata(tx)
-    })),
-    ...safeSignedTxs.map((tx) => ({
-      status: "signed",
-      metadata: toSignedTxMetadata(tx)
-    }))
-  ];
-  if (rows.length === 0) {
-    console.log(`${YELLOW}No transactions in local CLI state.${RESET}`);
-    return;
-  }
-  const visibleRows = rows.slice(0, MAX_TX_ROWS);
-  const statusWidth = Math.max(
-    "status".length,
-    ...visibleRows.map((row) => row.status.length)
-  );
-  const jsonCells = visibleRows.map(
-    (row) => truncateCell(JSON.stringify(row.metadata), MAX_TX_JSON_WIDTH)
-  );
-  const jsonWidth = Math.max("metadata_json".length, ...jsonCells.map((v) => v.length));
-  const border = `+${"-".repeat(statusWidth + 2)}+${"-".repeat(jsonWidth + 2)}+`;
-  console.log(`${color}${border}${RESET}`);
-  console.log(
-    `${color}| ${padRight("status", statusWidth)} | ${padRight("metadata_json", jsonWidth)} |${RESET}`
-  );
-  console.log(`${color}${border}${RESET}`);
-  for (let i = 0; i < visibleRows.length; i++) {
-    console.log(
-      `${color}| ${padRight(visibleRows[i].status, statusWidth)} | ${padRight(jsonCells[i], jsonWidth)} |${RESET}`
-    );
-    console.log(`${color}${border}${RESET}`);
-  }
-  if (rows.length > MAX_TX_ROWS) {
-    const omitted = rows.length - MAX_TX_ROWS;
-    console.log(`${DIM}${omitted} transaction rows omitted${RESET}`);
-  }
-}
-var MAX_TABLE_VALUE_WIDTH, MAX_TX_JSON_WIDTH, MAX_TX_ROWS;
-var init_tables = __esm({
-  "src/cli/tables.ts"() {
-    "use strict";
-    init_output();
-    MAX_TABLE_VALUE_WIDTH = 72;
-    MAX_TX_JSON_WIDTH = 96;
-    MAX_TX_ROWS = 8;
   }
 });
 
@@ -8125,8 +8252,12 @@ async function statusCommand(config) {
   var _a3, _b, _c, _d, _e, _f;
   const cli = CliSession.load();
   if (!cli) {
+    if (config.json) {
+      printJson({ active: false });
+      return;
+    }
     console.log("No active session");
-    printDataFileLocation();
+    printDataFileLocation({ verbose: config.verbose });
     return;
   }
   cli.mergeConfig(config);
@@ -8155,7 +8286,7 @@ async function statusCommand(config) {
         2
       )
     );
-    printDataFileLocation();
+    printDataFileLocation({ verbose: config.verbose });
   } finally {
     session.close();
   }
@@ -8184,10 +8315,22 @@ async function appsCommand(config) {
     apiKey: (_b = config.apiKey) != null ? _b : cli == null ? void 0 : cli.apiKey
   });
   if (apps.length === 0) {
+    if (config.json) {
+      printJson([]);
+      return;
+    }
     console.log("No apps available.");
     return;
   }
   const currentApp = (_c = cli == null ? void 0 : cli.app) != null ? _c : config.app;
+  if (config.json) {
+    printJson(
+      apps.map((descriptor) => __spreadProps(__spreadValues({}, descriptor), {
+        current: currentApp === descriptor.name
+      }))
+    );
+    return;
+  }
   for (const descriptor of apps) {
     const name = descriptor.name;
     const marker = currentApp === name ? "  (current)" : "";
@@ -8213,22 +8356,39 @@ async function modelsCommand(config) {
     console.log(`${model}${marker}`);
   }
 }
-function currentAppCommand() {
+function currentAppCommand(config = { secrets: {} }) {
+  var _a3, _b;
+  const cli = CliSession.load();
+  if (!cli) {
+    if (config.json) {
+      printJson({ active: false, app: null });
+      return;
+    }
+    console.log("No active session");
+    printDataFileLocation({ verbose: config.verbose });
+    return;
+  }
+  if (config.json) {
+    printJson({ active: true, app: (_a3 = cli.app) != null ? _a3 : "default" });
+    return;
+  }
+  console.log((_b = cli.app) != null ? _b : "(default)");
+  printDataFileLocation({ verbose: config.verbose });
+}
+function currentChainCommand(config = { secrets: {} }) {
   var _a3;
   const cli = CliSession.load();
   if (!cli) {
+    if (config.json) {
+      printJson({ active: false, chainId: null });
+      return;
+    }
     console.log("No active session");
-    printDataFileLocation();
+    printDataFileLocation({ verbose: config.verbose });
     return;
   }
-  console.log((_a3 = cli.app) != null ? _a3 : "(default)");
-  printDataFileLocation();
-}
-function currentChainCommand() {
-  const cli = CliSession.load();
-  if (!cli) {
-    console.log("No active session");
-    printDataFileLocation();
+  if (config.json) {
+    printJson({ active: true, chainId: (_a3 = cli.chainId) != null ? _a3 : null });
     return;
   }
   if (cli.chainId === void 0) {
@@ -8236,7 +8396,7 @@ function currentChainCommand() {
   } else {
     console.log(String(cli.chainId));
   }
-  printDataFileLocation();
+  printDataFileLocation({ verbose: config.verbose });
 }
 function currentBackendCommand() {
   const cli = CliSession.load();
@@ -8248,18 +8408,41 @@ function currentBackendCommand() {
   console.log(cli.baseUrl);
   printDataFileLocation();
 }
-function currentWalletCommand() {
+function currentWalletCommand(config = { secrets: {} }) {
+  var _a3, _b;
   const cli = CliSession.load();
   if (!cli) {
+    if (config.json) {
+      printJson({ active: false, wallets: [] });
+      return;
+    }
     console.log("No active session");
-    printDataFileLocation();
+    printDataFileLocation({ verbose: config.verbose });
     return;
   }
   const state = cli.toState();
+  const wallets = [
+    cli.publicKey ? {
+      family: "evm",
+      address: cli.publicKey,
+      chainId: (_a3 = cli.chainId) != null ? _a3 : null,
+      hasSavedSigner: Boolean(cli.privateKey)
+    } : null,
+    state.svmPublicKey ? {
+      family: "solana",
+      address: state.svmPublicKey,
+      cluster: (_b = state.svmCluster) != null ? _b : null,
+      hasSavedSigner: Boolean(state.svmPrivateKey)
+    } : null
+  ].filter((wallet) => wallet !== null);
+  if (config.json) {
+    printJson({ active: true, wallets });
+    return;
+  }
   const hasAny = cli.publicKey || state.svmPublicKey;
   if (!hasAny) {
     console.log("No wallet configured");
-    printDataFileLocation();
+    printDataFileLocation({ verbose: config.verbose });
     return;
   }
   if (cli.publicKey) {
@@ -8270,7 +8453,7 @@ function currentWalletCommand() {
     const signerStatus = state.svmPrivateKey ? "saved signer" : "address only";
     console.log(`Solana: ${state.svmPublicKey} (${signerStatus})`);
   }
-  printDataFileLocation();
+  printDataFileLocation({ verbose: config.verbose });
 }
 function currentModelCommand() {
   var _a3;
@@ -8310,18 +8493,36 @@ async function setModelCommand(config, model, options) {
     cli.setModel(model);
     console.log(`Model set to ${model}`);
     if ((options == null ? void 0 : options.printLocation) !== false) {
-      printDataFileLocation();
+      printDataFileLocation({ verbose: config.verbose });
     }
   } finally {
     session.close();
   }
 }
-function chainsCommand() {
-  var _a3;
+function chainsCommand(config = { secrets: {} }) {
   const cli = CliSession.load();
   const currentChainId = cli == null ? void 0 : cli.chainId;
-  for (const id of SUPPORTED_CHAIN_IDS) {
-    const name = (_a3 = CHAIN_NAMES[id]) != null ? _a3 : `Chain ${id}`;
+  const chains = SUPPORTED_CHAIN_IDS.map((id) => {
+    var _a3;
+    const aaChain = DEFAULT_AA_CONFIG.chains.find((c) => c.chainId === id);
+    return {
+      id,
+      name: (_a3 = CHAIN_NAMES[id]) != null ? _a3 : `Chain ${id}`,
+      aa: (aaChain == null ? void 0 : aaChain.enabled) ? {
+        enabled: true,
+        defaultMode: aaChain.defaultMode,
+        supportedModes: aaChain.supportedModes
+      } : { enabled: false },
+      current: currentChainId === id
+    };
+  });
+  if (config.json) {
+    printJson(chains);
+    return;
+  }
+  for (const chain of chains) {
+    const id = chain.id;
+    const name = chain.name;
     const aaChain = DEFAULT_AA_CONFIG.chains.find((c) => c.chainId === id);
     const aaInfo = (aaChain == null ? void 0 : aaChain.enabled) ? `  AA: ${aaChain.defaultMode} (${aaChain.supportedModes.join(", ")})` : "";
     const marker = currentChainId === id ? "  (current)" : "";
@@ -9036,9 +9237,15 @@ __export(account_exports, {
   whoamiCommand: () => whoamiCommand
 });
 async function accountLoginCommand(config, options = {}) {
+  var _a3;
   const cli = CliSession.loadOrCreate(config);
+  let rewroteLegacyBackend = false;
   if (!config.baseUrl && cli.baseUrl === LEGACY_RAW_BACKEND_URL) {
     cli.setBaseUrl(DEFAULT_CLI_BASE_URL);
+    rewroteLegacyBackend = true;
+  }
+  if (rewroteLegacyBackend && !config.json) {
+    console.log(`Backend updated to ${DEFAULT_CLI_BASE_URL}`);
   }
   if (options.wallet || options.noBrowser || config.privateKey) {
     await accountLoginWithSiwe(cli, config);
@@ -9053,13 +9260,23 @@ async function accountLoginCommand(config, options = {}) {
     provider
   });
   cli.setAuthSession(result.auth);
+  if (config.json) {
+    printJson({
+      status: "signed_in",
+      provider: (_a3 = result.provider) != null ? _a3 : null,
+      baseUrl: cli.baseUrl,
+      migratedLegacyBackend: rewroteLegacyBackend,
+      expiresAt: new Date(result.auth.expiresAt).toISOString()
+    });
+    return;
+  }
   console.log(
     `Signed in${result.provider ? ` with ${formatProvider(result.provider)}` : ""}`
   );
   console.log(
     `Session expires at ${new Date(result.auth.expiresAt).toISOString()}`
   );
-  printDataFileLocation();
+  printDataFileLocation({ verbose: config.verbose });
 }
 async function accountLoginWithSiwe(cli, config) {
   var _a3, _b, _c;
@@ -9080,11 +9297,22 @@ async function accountLoginWithSiwe(cli, config) {
     cli.setChainId(chainId3);
   }
   cli.setAuthSession(result.auth);
+  if (config.json) {
+    printJson({
+      status: "signed_in",
+      provider: "siwe",
+      address: result.address,
+      chainId: chainId3,
+      baseUrl: cli.baseUrl,
+      expiresAt: new Date(result.auth.expiresAt).toISOString()
+    });
+    return;
+  }
   console.log(`Signed in with ${result.address}`);
   console.log(
     `Session expires at ${new Date(result.auth.expiresAt).toISOString()}`
   );
-  printDataFileLocation();
+  printDataFileLocation({ verbose: config.verbose });
 }
 function formatProvider(provider) {
   return provider === "privy" ? "Privy" : "Para";
@@ -9093,16 +9321,24 @@ async function accountWhoamiCommand(config) {
   var _a3, _b;
   const cli = CliSession.load();
   if (!cli) {
+    if (config.json) {
+      printJson({ active: false });
+      return;
+    }
     console.log("No active session");
-    printDataFileLocation();
+    printDataFileLocation({ verbose: config.verbose });
     return;
   }
   cli.mergeConfig(config);
   if ((_a3 = cli.auth) == null ? void 0 : _a3.sessionToken) {
     try {
       const account = await requireAccountGraphClient(cli).getAccount();
-      printAccountGraph(account);
-      printDataFileLocation();
+      if (config.json) {
+        printJson(account);
+        return;
+      }
+      printAccountSummary(account);
+      printDataFileLocation({ verbose: config.verbose });
       return;
     } catch (e) {
     }
@@ -9110,6 +9346,10 @@ async function accountWhoamiCommand(config) {
   const session = cli.createClientSession();
   try {
     const account = await session.client.getAccount(cli.sessionId);
+    if (config.json) {
+      printJson(account);
+      return;
+    }
     const user = account.user;
     console.log(`Account:  ${user.user_id}`);
     if (user.username) console.log(`Username: ${user.username}`);
@@ -9126,8 +9366,16 @@ async function accountWhoamiCommand(config) {
         `- ${formatWalletChainType(wallet.chain_type)} [${wallet.wallet_provider}]: ${wallet.address}${walletId}`
       );
     }
-    printDataFileLocation();
+    printDataFileLocation({ verbose: config.verbose });
   } catch (e) {
+    if (config.json) {
+      printJson({
+        active: true,
+        bound: false,
+        hasCredential: hasAccountCredential2(cli.toState())
+      });
+      return;
+    }
     console.log("Not bound to an account (anonymous session).");
     if (!hasAccountCredential2(cli.toState())) {
       console.log(
@@ -9138,7 +9386,7 @@ async function accountWhoamiCommand(config) {
         "An account credential was sent, but the backend did not bind or accept this session."
       );
     }
-    printDataFileLocation();
+    printDataFileLocation({ verbose: config.verbose });
   } finally {
     session.close();
   }
@@ -9147,8 +9395,12 @@ async function accountLinksCommand(config) {
   const cli = loadMergedCli(config);
   const client = requireAccountGraphClient(cli);
   const account = await client.getAccount();
-  printAccountGraph(account);
-  printDataFileLocation();
+  if (config.json) {
+    printJson(account);
+    return;
+  }
+  printAccountLinks(account);
+  printDataFileLocation({ verbose: config.verbose });
 }
 async function accountLinkCommand(config, options = {}) {
   var _a3, _b;
@@ -9168,11 +9420,15 @@ async function accountLinkCommand(config, options = {}) {
     if (result.status === "conflict") {
       fatal("This login method is already linked to another Aomi account.");
     }
+    if (config.json) {
+      printJson(result);
+      return;
+    }
     console.log(`Linked ${formatProvider(provider)} login method`);
     if (result.status === "linked" && result.account) {
-      printAccountGraph(result.account);
+      printAccountLinks(result.account);
     }
-    printDataFileLocation();
+    printDataFileLocation({ verbose: config.verbose });
     return;
   }
   if (wantsWallet) {
@@ -9182,13 +9438,17 @@ async function accountLinkCommand(config, options = {}) {
       label: options.label
     });
     const result = await client.linkWallet(body);
+    if (config.json) {
+      printJson(result);
+      return;
+    }
     console.log(
       result.status === "noop" ? `Login method already linked for ${body.address}` : `Linked wallet login method ${body.address}`
     );
     if (result.account) {
-      printAccountGraph(result.account);
+      printAccountLinks(result.account);
     }
-    printDataFileLocation();
+    printDataFileLocation({ verbose: config.verbose });
   }
 }
 async function accountUnlinkCommand(config, selector, options = {}) {
@@ -9202,8 +9462,12 @@ async function accountUnlinkCommand(config, selector, options = {}) {
   } else {
     await client.unlinkWallet(link.id);
   }
+  if (config.json) {
+    printJson({ status: "unlinked", link: serializeResolvedLink(link) });
+    return;
+  }
   console.log(`Unlinked ${formatResolvedLink(link)}`);
-  printDataFileLocation();
+  printDataFileLocation({ verbose: config.verbose });
 }
 async function accountRenameCommand(config, selector, options = {}) {
   if (options.label === void 0) {
@@ -9218,8 +9482,16 @@ async function accountRenameCommand(config, selector, options = {}) {
   } else {
     await client.updateWallet(link.id, { label: options.label });
   }
+  if (config.json) {
+    printJson({
+      status: "renamed",
+      label: options.label,
+      link: serializeResolvedLink(link)
+    });
+    return;
+  }
   console.log(`Renamed ${formatResolvedLink(link)}`);
-  printDataFileLocation();
+  printDataFileLocation({ verbose: config.verbose });
 }
 async function accountUpdateCommand(config, input2) {
   if (input2.displayName === void 0 && input2.avatarUrl === void 0) {
@@ -9231,9 +9503,13 @@ async function accountUpdateCommand(config, input2) {
     displayName: input2.displayName,
     avatarUrl: input2.avatarUrl
   });
+  if (config.json) {
+    printJson(account);
+    return;
+  }
   console.log("Updated account profile");
-  printAccountGraph(account);
-  printDataFileLocation();
+  printAccountSummary(account);
+  printDataFileLocation({ verbose: config.verbose });
 }
 async function accountDeleteCommand(config, options = {}) {
   requireConfirmed(options.yes, "delete this Aomi account");
@@ -9241,10 +9517,14 @@ async function accountDeleteCommand(config, options = {}) {
   const client = requireAccountGraphClient(cli);
   const result = await client.deleteAccount();
   cli.clearAuthSession();
+  if (config.json) {
+    printJson(result);
+    return;
+  }
   console.log(
     `Deleted account (${result.revokedIdentities} login methods, ${result.revokedWallets} wallets revoked)`
   );
-  printDataFileLocation();
+  printDataFileLocation({ verbose: config.verbose });
 }
 async function accountSessionsCommand(config) {
   await sessionsCommand(config);
@@ -9270,8 +9550,12 @@ async function logoutCommand(config) {
   var _a3;
   const cli = CliSession.load();
   if (!cli) {
+    if (config.json) {
+      printJson({ active: false });
+      return;
+    }
     console.log("No active session");
-    printDataFileLocation();
+    printDataFileLocation({ verbose: config.verbose });
     return;
   }
   cli.mergeConfig(config);
@@ -9283,9 +9567,14 @@ async function logoutCommand(config) {
     });
   } finally {
     cli.clearAuthSession();
+    cli.clearSigningKeys();
+  }
+  if (config.json) {
+    printJson({ status: "signed_out" });
+    return;
   }
   console.log("Signed out");
-  printDataFileLocation();
+  printDataFileLocation({ verbose: config.verbose });
 }
 function loadMergedCli(config) {
   const cli = CliSession.load();
@@ -9301,7 +9590,28 @@ function normalizeProviderOption(provider) {
   if (normalized === "privy" || normalized === "para") return normalized;
   fatal('Unknown --provider value. Use "privy" or "para".');
 }
-function printAccountGraph(account) {
+function printAccountSummary(account) {
+  var _a3;
+  if (!account.user) {
+    console.log("No active account");
+    return;
+  }
+  console.log(`Account:  ${account.user.id}`);
+  if (account.user.displayName) {
+    console.log(`Name:     ${account.user.displayName}`);
+  }
+  if (account.user.email) {
+    console.log(`Email:    ${account.user.email}`);
+  }
+  if ((_a3 = account.session) == null ? void 0 : _a3.expiresAt) {
+    console.log(
+      `Session:  expires ${new Date(account.session.expiresAt).toISOString()}`
+    );
+  }
+  console.log(`Login methods: ${account.linkedAccounts.length}`);
+  console.log(`Wallets:       ${account.wallets.length}`);
+}
+function printAccountLinks(account) {
   var _a3, _b;
   if (!account.user) {
     console.log("No active account");
@@ -9320,7 +9630,7 @@ function printAccountGraph(account) {
     );
   }
   const identities = (_b = account.linkedAccounts) != null ? _b : [];
-  console.log(`Links:    ${identities.length}`);
+  console.log(`Login methods: ${identities.length}`);
   for (const identity of identities) {
     console.log(formatIdentityLine(identity));
     const childWallets = account.wallets.filter(
@@ -9344,6 +9654,14 @@ function printAccountGraph(account) {
       console.log(formatWalletLine(wallet));
     }
   }
+}
+function serializeResolvedLink(link) {
+  return {
+    kind: link.kind,
+    id: link.id,
+    provider: link.kind === "identity" ? link.link.provider : link.link.provider,
+    family: link.kind === "wallet" ? link.link.family : void 0
+  };
 }
 function formatIdentityLine(identity) {
   const label = identity.displayLabel ? ` "${identity.displayLabel}"` : "";
@@ -9708,7 +10026,7 @@ var init_repl = __esm({
 });
 
 // src/cli/main.ts
-import { runMain } from "citty";
+import { runCommand, runMain } from "citty";
 
 // src/cli/root.ts
 import { defineCommand as defineCommand11 } from "citty";
@@ -9951,10 +10269,10 @@ var appListDef = defineCommand5({
 });
 var appCurrentDef = defineCommand5({
   meta: { name: "current", description: "Show the current app" },
-  args: {},
-  async run() {
+  args: __spreadValues({}, globalArgs),
+  async run({ args }) {
     const { currentAppCommand: currentAppCommand2 } = await Promise.resolve().then(() => (init_control(), control_exports));
-    currentAppCommand2();
+    currentAppCommand2(buildCliConfig(args));
   }
 });
 var appDef = defineCommand5({
@@ -9966,13 +10284,14 @@ var appDef = defineCommand5({
 });
 
 // src/cli/commands/defs/chain.ts
+init_shared();
 import { defineCommand as defineCommand6 } from "citty";
 var chainListDef = defineCommand6({
   meta: { name: "list", description: "List supported chains" },
-  args: {},
-  async run() {
+  args: __spreadValues({}, globalArgs),
+  async run({ args }) {
     const { chainsCommand: chainsCommand2 } = await Promise.resolve().then(() => (init_control(), control_exports));
-    chainsCommand2();
+    chainsCommand2(buildCliConfig(args));
   }
 });
 var chainSetDef = defineCommand6({
@@ -9991,10 +10310,10 @@ var chainSetDef = defineCommand6({
 });
 var chainCurrentDef = defineCommand6({
   meta: { name: "current", description: "Show the active chain ID" },
-  args: {},
-  async run() {
+  args: __spreadValues({}, globalArgs),
+  async run({ args }) {
     const { currentChainCommand: currentChainCommand2 } = await Promise.resolve().then(() => (init_control(), control_exports));
-    currentChainCommand2();
+    currentChainCommand2(buildCliConfig(args));
   }
 });
 var chainDef = defineCommand6({
@@ -10052,10 +10371,10 @@ var walletSetDef = defineCommand7({
 });
 var walletCurrentDef = defineCommand7({
   meta: { name: "current", description: "Show the configured wallet address" },
-  args: {},
-  async run() {
+  args: __spreadValues({}, globalArgs),
+  async run({ args }) {
     const { currentWalletCommand: currentWalletCommand2 } = await Promise.resolve().then(() => (init_control(), control_exports));
-    currentWalletCommand2();
+    currentWalletCommand2(buildCliConfig(args));
   }
 });
 var walletWhoamiDef = defineCommand7({
@@ -10399,7 +10718,7 @@ init_shared();
 // package.json
 var package_default = {
   name: "@aomi-labs/client",
-  version: "0.3.0",
+  version: "0.3.1",
   description: "Platform-agnostic TypeScript client for the Aomi backend API",
   type: "module",
   main: "./dist/index.cjs",
@@ -10527,7 +10846,6 @@ var ROOT_SUBCOMMANDS = /* @__PURE__ */ new Set([
   "logout",
   "config",
   "secret",
-  "account",
   "deploy"
 ]);
 function isPnpmExecWrapper() {
@@ -10576,12 +10894,9 @@ function printRootHelp() {
     "  --account-bearer <token>     Aomi account bearer for authenticated requests"
   );
   console.log(
-    "  --embedded-provider <name>    Deprecated; provider exchange is disabled"
+    "  --json                       Print machine-readable JSON where supported"
   );
-  console.log("  --embedded-provider-token <t>");
-  console.log(
-    "                               Deprecated; use --account-bearer"
-  );
+  console.log("  --verbose                    Show extra diagnostics");
   console.log("  --app <name>                 Active app");
   console.log("  --model <rig>                Active model");
   console.log("  --new-session                Create a fresh active session");
@@ -10625,6 +10940,10 @@ function printRootHelp() {
   );
   console.log("");
   console.log("Use aomi <command> --help for command-specific details.");
+  console.log("");
+  console.log(
+    "Deprecated compatibility flags: --embedded-provider, --embedded-provider-token"
+  );
 }
 async function runCli(argv = process.argv) {
   const strictExit = process.env.AOMI_CLI_STRICT_EXIT === "1";
@@ -10634,7 +10953,15 @@ async function runCli(argv = process.argv) {
       printRootHelp();
       return;
     }
-    await runMain(root, { rawArgs });
+    if (rawArgs.includes("--help") || rawArgs.includes("-h")) {
+      await runMain(root, { rawArgs });
+      return;
+    }
+    if (rawArgs.length === 1 && (rawArgs[0] === "--version" || rawArgs[0] === "-v")) {
+      await runMain(root, { rawArgs });
+      return;
+    }
+    await runCommand(root, { rawArgs });
   } catch (err) {
     if (err instanceof CliExit) {
       if (!strictExit && isPnpmExecWrapper()) {
