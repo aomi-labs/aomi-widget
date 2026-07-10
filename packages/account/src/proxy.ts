@@ -32,7 +32,6 @@ const ALLOWED_REQUEST_HEADERS = new Set([
   "accept",
   "content-type",
   "aomi-app-key",
-  "x-session-id",
   "x-thread-id",
 ]);
 
@@ -203,10 +202,6 @@ function copyRequestHeaders(req: NextRequest): Headers {
       headers.set(key, value);
     }
   });
-  const legacySessionId = headers.get("x-session-id");
-  if (legacySessionId && !headers.has("x-thread-id")) {
-    headers.set("x-thread-id", legacySessionId);
-  }
   return headers;
 }
 

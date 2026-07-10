@@ -51,7 +51,7 @@ describe("Base backend proxy route", () => {
           authorization: "Bearer browser-token",
           cookie: "better-auth.session_token=secret",
           "content-type": "application/json",
-          "x-session-id": "thread-1",
+          "x-thread-id": "thread-1",
         },
         body: JSON.stringify({ message: "hello" }),
       }),
@@ -65,7 +65,6 @@ describe("Base backend proxy route", () => {
     const headers = init?.headers as Headers;
     expect(headers.get("authorization")).toBeNull();
     expect(headers.get("cookie")).toBeNull();
-    expect(headers.get("x-session-id")).toBe("thread-1");
     expect(headers.get("x-thread-id")).toBe("thread-1");
   });
 

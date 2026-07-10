@@ -59,7 +59,7 @@ export async function sessionScopedFetch<T>(
   const { secret, ...requestInit } = options ?? {};
   const url = `${getBackendUrl()}${path}`;
   const headers = new Headers(requestInit.headers ?? {});
-  headers.set("X-Session-Id", getSettingsSessionId());
+  headers.set("X-Thread-Id", getSettingsSessionId());
   const resolvedSecret =
     secret === undefined ? getSettingsSecret() : secret?.trim() || null;
   if (resolvedSecret) {

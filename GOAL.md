@@ -191,6 +191,15 @@ build`, `CI=true npx -y pnpm@10.28.0 install --frozen-lockfile`, and
   from unresolved token rows so the trace keeps only the queried token symbol.
   Verified focused interpreter Vitest coverage, targeted ESLint, and registry
   build with pinned `pnpm@10.28.0`.
+- 2026-07-10 staging app selector follow-up: restored hosted app selection on
+  main by passing concrete `applicationId` values from the registry app picker
+  into per-thread control state. Verified registry build, targeted lint,
+  focused app-select/control tests, and local portal browser smoke against the
+  staging backend/database env.
+- 2026-07-10 thread header canonicalization: made `X-Thread-Id` the only
+  current transport header name in the SDK, shared proxy, settings helpers,
+  examples, and docs. Removed legacy emission and proxy aliasing, then verified
+  focused client/account/portal/base transport tests.
 - 2026-07-07 staged action chip icons: added deterministic icons for staged
   approve, swap, transfer/send, bridge, burn, mint/claim, and
   deposit/withdraw-style action chips, with a generic staged fallback for

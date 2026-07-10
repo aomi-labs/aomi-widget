@@ -1,8 +1,14 @@
 "use client";
 
-import { useState, useEffect, type FC } from "react";
+import { useState, type FC } from "react";
 import { ChevronDownIcon, CheckIcon } from "lucide-react";
-import { useControl, cn } from "@aomi-labs/react";
+import {
+  useAuthEndpoints,
+  usePerThreadControl,
+  cn,
+  appIdentityKey,
+  type AomiAppDescriptor,
+} from "@aomi-labs/react";
 import { Button } from "@/components/ui/button";
 import {
   Popover,
@@ -18,7 +24,7 @@ import {
   CommandInput,
   CommandSeparator,
 } from "@/components/ui/command";
-import { getAppInfo, groupAppsByCategory } from "./app-metadata";
+import { getAppInfo, type AppInfo } from "./app-metadata";
 import { AllAppsIcon, getAppIcon } from "@/components/icons";
 
 export type AppSelectProps = {
@@ -29,35 +35,85 @@ export type AppSelectProps = {
 /** The "default" app id that means "all apps". */
 const ALL_APPS_ID = "default";
 
+type AppSelectEntry = {
+  key: string;
+  descriptor: AomiAppDescriptor;
+  info: AppInfo;
+};
+
+function isSelected(
+  descriptor: AomiAppDescriptor,
+  selectedApp: string,
+  selectedApplicationId: AomiAppDescriptor["applicationId"],
+): boolean {
+  if (descriptor.name !== selectedApp) return false;
+  const left = descriptor.applicationId?.toString().trim() ?? "";
+  const right = selectedApplicationId?.toString().trim() ?? "";
+  return left === right;
+}
+
+function groupEntries(entries: AppSelectEntry[]) {
+  const grouped = new Map<string, AppSelectEntry[]>();
+  for (const entry of entries) {
+    const existing = grouped.get(entry.info.category.id) ?? [];
+    existing.push(entry);
+    grouped.set(entry.info.category.id, existing);
+  }
+  return Array.from(grouped.values())
+    .map((apps) => ({
+      category: apps[0]!.info.category,
+      apps: apps.sort((a, b) =>
+        a.info.displayName.localeCompare(b.info.displayName, undefined, {
+          numeric: true,
+          sensitivity: "base",
+        }),
+      ),
+    }))
+    .sort(
+      (a, b) =>
+        a.category.order - b.category.order ||
+        a.category.label.localeCompare(b.category.label),
+    );
+}
+
 export const AppSelect: FC<AppSelectProps> = ({
   className,
   placeholder = "Select App",
 }) => {
+  const { state: authState } = useAuthEndpoints();
   const {
-    state,
-    getAuthorizedApps,
-    getCurrentThreadApp,
-    onAppSelect,
+    actions: {
+      getCurrentThreadApp,
+      getCurrentThreadApplicationId,
+      onAppSelect,
+    },
     isProcessing,
-  } = useControl();
+  } = usePerThreadControl();
   const [open, setOpen] = useState(false);
 
-  useEffect(() => {
-    void getAuthorizedApps();
-  }, [getAuthorizedApps]);
-
   const selectedApp = getCurrentThreadApp();
+  const selectedApplicationId = getCurrentThreadApplicationId();
   const selectedInfo = getAppInfo(selectedApp);
   const SelectedAppIcon = getAppIcon(selectedApp);
 
-  const apps = state.authorizedApps;
+  const appDescriptors: AomiAppDescriptor[] =
+    authState.appDescriptors.length > 0
+      ? authState.appDescriptors
+      : authState.authorizedApps.map((name) => ({ name }));
 
   // Separate "default" (All Apps) from the rest for pinned treatment
-  const hasAllApps = apps.includes(ALL_APPS_ID);
-  const otherApps = apps.filter((a) => a !== ALL_APPS_ID);
-  const groups = groupAppsByCategory(otherApps);
+  const allAppsDescriptor = appDescriptors.find((d) => d.name === ALL_APPS_ID);
+  const hasAllApps = Boolean(allAppsDescriptor);
+  const otherEntries = appDescriptors
+    .filter((descriptor) => descriptor.name !== ALL_APPS_ID)
+    .map((descriptor) => ({
+      key: appIdentityKey(descriptor),
+      descriptor,
+      info: getAppInfo(descriptor.name),
+    }));
+  const groups = groupEntries(otherEntries);
 
-  if (apps.length === 0) {
+  if (appDescriptors.length === 0) {
     return (
       <Button
         variant="ghost"
@@ -119,7 +175,9 @@ export const AppSelect: FC<AppSelectProps> = ({
                     disabled={isProcessing}
                     onSelect={() => {
                       if (isProcessing) return;
-                      onAppSelect(ALL_APPS_ID);
+                      onAppSelect(ALL_APPS_ID, {
+                        applicationId: allAppsDescriptor?.applicationId,
+                      });
                       setOpen(false);
                     }}
                     className="flex items-center justify-between gap-2"
@@ -140,12 +198,15 @@ export const AppSelect: FC<AppSelectProps> = ({
                         </span>
                       </div>
                     </div>
-                    {selectedApp === ALL_APPS_ID && (
-                      <CheckIcon className="h-4 w-4 shrink-0" />
-                    )}
+                    {allAppsDescriptor &&
+                      isSelected(
+                        allAppsDescriptor,
+                        selectedApp,
+                        selectedApplicationId,
+                      ) && <CheckIcon className="h-4 w-4 shrink-0" />}
                   </CommandItem>
                 </CommandGroup>
-                {otherApps.length > 0 && <CommandSeparator />}
+                {otherEntries.length > 0 && <CommandSeparator />}
               </>
             )}
 
@@ -155,16 +216,24 @@ export const AppSelect: FC<AppSelectProps> = ({
                 key={group.category.id}
                 heading={group.category.label}
               >
-                {group.apps.map((app) => {
-                  const AppIcon = getAppIcon(app.id);
+                {group.apps.map((entry) => {
+                  const app = entry.info;
+                  const AppIcon = getAppIcon(entry.descriptor.name);
+                  const selected = isSelected(
+                    entry.descriptor,
+                    selectedApp,
+                    selectedApplicationId,
+                  );
                   return (
                     <CommandItem
-                      key={app.id}
-                      value={`${app.displayName} ${app.category.label} ${app.id}`}
+                      key={entry.key}
+                      value={`${app.displayName} ${app.category.label} ${entry.descriptor.name} ${entry.descriptor.platform ?? ""}`}
                       disabled={isProcessing}
                       onSelect={() => {
                         if (isProcessing) return;
-                        onAppSelect(app.id);
+                        onAppSelect(entry.descriptor.name, {
+                          applicationId: entry.descriptor.applicationId,
+                        });
                         setOpen(false);
                       }}
                       className="flex items-center justify-between gap-2"
@@ -174,15 +243,14 @@ export const AppSelect: FC<AppSelectProps> = ({
                           className={cn(
                             "flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-[10px] font-medium",
                             "bg-muted text-muted-foreground",
-                            selectedApp === app.id &&
-                              "bg-primary/10 text-primary",
+                            selected && "bg-primary/10 text-primary",
                           )}
                         >
                           {AppIcon ? <AppIcon className="h-4 w-4" /> : app.abbr}
                         </span>
                         <span className="truncate">{app.displayName}</span>
                       </div>
-                      {selectedApp === app.id && (
+                      {selected && (
                         <CheckIcon className="text-primary h-4 w-4 shrink-0" />
                       )}
                     </CommandItem>
