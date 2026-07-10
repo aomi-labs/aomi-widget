@@ -11,8 +11,9 @@ describe("AomiClient route manifest", () => {
         `${endpoint.method} ${endpoint.path} [${endpoint.auth.join(", ")}]`,
     );
 
-    expect(routeKeys).toHaveLength(95);
+    expect(routeKeys).toHaveLength(96);
     expect(new Set(routeKeys).size).toBe(routeKeys.length);
+    expect(routeKeys).toContain("POST /api/aa/v1/:chain_slug [thread]");
     expect(routeKeys).toContain("GET /api/thread/apps [thread]");
     expect(routeKeys).toContain("GET /api/_internal/secrets [service]");
     expect(routeKeys).toContain("DELETE /api/_internal/secrets [service]");
@@ -475,9 +476,8 @@ describe("AomiClient transport selection", () => {
       },
     ] as Response[];
     const nativeFetch = vi.fn(async () => responses.shift() as Response);
-    const getAccountBearer = vi.fn(
-      async ({ forceRefresh = false } = {}) =>
-        forceRefresh ? "fresh-token" : "stale-token",
+    const getAccountBearer = vi.fn(async ({ forceRefresh = false } = {}) =>
+      forceRefresh ? "fresh-token" : "stale-token",
     );
     const originalFetch = globalThis.fetch;
     vi.stubGlobal("fetch", nativeFetch);
@@ -664,10 +664,16 @@ describe("AomiClient transport selection", () => {
     const fetch = vi
       .fn<typeof globalThis.fetch>()
       .mockResolvedValueOnce(
-        Response.json({ thread_id: "thread-1", title: null }),
+        Response.json({
+          thread_id: "thread-1",
+          title: null,
+          last_active_at: "123",
+        }),
       )
       .mockResolvedValueOnce(
-        Response.json([{ thread_id: "thread-1", title: "One" }]),
+        Response.json([
+          { thread_id: "thread-1", title: "One", last_active_at: 456 },
+        ]),
       );
     const client = new AomiClient({
       baseUrl: "http://unit.test",
@@ -677,12 +683,14 @@ describe("AomiClient transport selection", () => {
     await expect(client.createThread("thread-1")).resolves.toEqual({
       session_id: "thread-1",
       title: null,
+      last_active_at: 123,
     });
     await expect(client.listThreads("thread-1")).resolves.toEqual([
       {
         session_id: "thread-1",
         title: "One",
         is_archived: undefined,
+        last_active_at: 456,
       },
     ]);
 

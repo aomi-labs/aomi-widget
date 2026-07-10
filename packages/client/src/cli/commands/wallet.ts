@@ -27,7 +27,7 @@ import {
   resolveCliExecutionDecision,
   type CliExecutionDecision,
 } from "../execution";
-import { DIM, GREEN, RESET, printDataFileLocation } from "../output";
+import { DIM, GREEN, RESET, printDataFileLocation, printJson } from "../output";
 import type { PendingSolTx, PendingTx, SignedTx } from "../state";
 import {
   formatPendingSolTxLine,
@@ -40,12 +40,17 @@ import {
 import type { CliConfig } from "../types";
 import { ALCHEMY_CHAIN_SLUGS } from "../../chains";
 import { resolveAlchemyApiKey } from "../../aa/alchemy/defaults";
+import { toPendingTxMetadata, toSignedTxMetadata } from "../tables";
 
 export async function txCommand(config: CliConfig): Promise<void> {
   const cli = CliSession.load();
   if (!cli) {
+    if (config.json) {
+      printJson({ active: false, pending: [], signed: [] });
+      return;
+    }
     console.log("No active session");
-    printDataFileLocation();
+    printDataFileLocation({ verbose: config.verbose });
     return;
   }
 
@@ -71,9 +76,40 @@ export async function txCommand(config: CliConfig): Promise<void> {
   const totalPending = pending.length + pendingSol.length;
   const totalSigned = signed.length + signedSol.length;
 
+  if (config.json) {
+    printJson({
+      active: true,
+      pending: [
+        ...pending.map((tx) => toPendingTxMetadata(tx)),
+        ...pendingSol.map((tx) => ({
+          id: tx.id,
+          kind: tx.kind,
+          solanaId: tx.solanaId,
+          signer: tx.signer ?? null,
+          cluster: tx.cluster ?? null,
+          description: tx.description ?? null,
+          timestamp: new Date(tx.timestamp).toISOString(),
+        })),
+      ],
+      signed: [
+        ...signed.map((tx) => toSignedTxMetadata(tx)),
+        ...signedSol.map((tx) => ({
+          id: tx.id,
+          kind: "solana_sign",
+          signedTx: tx.signedTx ?? null,
+          signer: tx.signer ?? null,
+          cluster: tx.cluster ?? null,
+          description: tx.description ?? null,
+          timestamp: new Date(tx.timestamp).toISOString(),
+        })),
+      ],
+    });
+    return;
+  }
+
   if (totalPending === 0 && totalSigned === 0) {
     console.log("No transactions.");
-    printDataFileLocation();
+    printDataFileLocation({ verbose: config.verbose });
     return;
   }
 
@@ -98,7 +134,7 @@ export async function txCommand(config: CliConfig): Promise<void> {
     }
   }
 
-  printDataFileLocation();
+  printDataFileLocation({ verbose: config.verbose });
 }
 
 function resolveChain(targetChainId: number, rpcUrl?: string): Chain {

@@ -123,6 +123,7 @@ export type {
   ModelSelectionMode,
   ThreadMetadata,
   ThreadControlState,
+  ThreadTurnPhase,
 } from "./state/thread-store";
 export { initThreadControl } from "./state/thread-store";
 

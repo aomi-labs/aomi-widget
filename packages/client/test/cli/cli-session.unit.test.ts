@@ -1,4 +1,10 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import {
+  mkdirSync,
+  mkdtempSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -67,9 +73,11 @@ describe("CLI session lifecycle", () => {
     const existing = CliSession.loadOrCreate({
       ...config,
       chain: 11155111,
-      privateKey:
-        "0x0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
     });
+    existing.setWallet(
+      "0x0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+      "0xFCAd0B19bB29D4674531d6f115237E16AfCE377c",
+    );
     existing.setAuthSession({
       sessionToken: "bff-session-token",
       expiresAt: Date.now() + 60_000,
@@ -98,7 +106,7 @@ describe("CLI session lifecycle", () => {
     const { readState } = await import("../../src/cli/state");
 
     setWalletCommand(
-      "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+      "0x0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
     );
     setChainCommand("1");
     setBackendCommand("http://127.0.0.1:18765");
@@ -114,6 +122,30 @@ describe("CLI session lifecycle", () => {
     );
   });
 
+  it("writes state directories and session files with private permissions", async () => {
+    const { CliSession } = await import("../../src/cli/cli-session");
+    const { STATE_ROOT_DIR, SESSIONS_DIR, getActiveStateFilePath } =
+      await import("../../src/cli/state");
+
+    CliSession.loadOrCreate({
+      baseUrl: "https://api.aomi.dev",
+      app: "default",
+      privateKey:
+        "0x0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+      execution: "eoa" as const,
+      secrets: {},
+    });
+
+    const activePath = getActiveStateFilePath();
+    expect(activePath).toBeTruthy();
+    expect(statSync(STATE_ROOT_DIR).mode & 0o777).toBe(0o700);
+    expect(statSync(SESSIONS_DIR).mode & 0o777).toBe(0o700);
+    expect(statSync(activePath!).mode & 0o777).toBe(0o600);
+    expect(statSync(join(stateDir, "active-session.txt")).mode & 0o777).toBe(
+      0o600,
+    );
+  });
+
   it("preserves saved wallet, chain, and backend settings across fresh sessions", async () => {
     const { CliSession } = await import("../../src/cli/cli-session");
 
@@ -122,11 +154,13 @@ describe("CLI session lifecycle", () => {
       app: "default",
       chain: 1,
       publicKey: "0xabc",
-      privateKey:
-        "0x0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
       execution: "eoa" as const,
       secrets: {},
     });
+    initial.setWallet(
+      "0x0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+      "0xabc",
+    );
 
     const fresh = CliSession.loadOrCreate({
       baseUrl: "https://api.aomi.dev",
@@ -143,6 +177,28 @@ describe("CLI session lifecycle", () => {
     );
     expect(fresh.chainId).toBe(1);
     expect(fresh.baseUrl).toBe("https://api.aomi.dev");
+  });
+
+  it("does not persist private keys supplied as one-shot config", async () => {
+    const { CliSession } = await import("../../src/cli/cli-session");
+    const { readState } = await import("../../src/cli/state");
+
+    CliSession.loadOrCreate({
+      baseUrl: "https://api.aomi.dev",
+      app: "default",
+      privateKey:
+        "0x0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+      solanaPrivateKey: JSON.stringify(Array(64).fill(1)),
+      execution: "eoa" as const,
+      secrets: {},
+    });
+
+    expect(readState()).toEqual(
+      expect.objectContaining({
+        privateKey: undefined,
+        svmPrivateKey: undefined,
+      }),
+    );
   });
 
   it("keeps distinct backend-staged transactions even when calldata matches", async () => {

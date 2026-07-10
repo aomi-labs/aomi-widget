@@ -305,6 +305,11 @@ export const AOMI_BACKEND_ENDPOINTS = [
   },
   {
     method: "POST",
+    path: "/api/aa/v1/:chain_slug",
+    auth: ["thread"],
+  },
+  {
+    method: "POST",
     path: "/api/account/app-keys",
     auth: ["account"],
   },

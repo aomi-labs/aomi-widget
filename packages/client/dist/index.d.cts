@@ -260,6 +260,7 @@ interface AomiThread {
     session_id: string;
     title: string | null;
     is_archived?: boolean;
+    last_active_at?: number;
 }
 type AomiAccountResponse = AomiAccountProfile;
 /**

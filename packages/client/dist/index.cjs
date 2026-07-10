@@ -982,8 +982,12 @@ function encodeJsonBody(body) {
 }
 function normalizeThreadWire(wire) {
   var _b;
-  const _a = wire, { thread_id, session_id } = _a, rest = __objRest(_a, ["thread_id", "session_id"]);
-  return __spreadProps(__spreadValues({}, rest), { session_id: (_b = session_id != null ? session_id : thread_id) != null ? _b : "" });
+  const _a = wire, { thread_id, session_id, last_active_at } = _a, rest = __objRest(_a, ["thread_id", "session_id", "last_active_at"]);
+  const normalizedLastActiveAt = typeof last_active_at === "number" ? last_active_at : typeof last_active_at === "string" ? Number(last_active_at) : void 0;
+  return __spreadProps(__spreadValues({}, rest), {
+    session_id: (_b = session_id != null ? session_id : thread_id) != null ? _b : "",
+    last_active_at: normalizedLastActiveAt === void 0 || Number.isNaN(normalizedLastActiveAt) ? void 0 : normalizedLastActiveAt
+  });
 }
 function withSessionHeader(sessionId, init) {
   const headers = new Headers(init);

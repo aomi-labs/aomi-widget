@@ -1,4 +1,5 @@
 import {
+  chmodSync,
   existsSync,
   mkdirSync,
   readFileSync,
@@ -184,6 +185,8 @@ export type StoredSessionRecord = {
 
 const SESSION_FILE_PREFIX = "session-";
 const SESSION_FILE_SUFFIX = ".json";
+const STATE_DIR_MODE = 0o700;
+const STATE_FILE_MODE = 0o600;
 
 const LEGACY_STATE_FILE = join(
   process.env.XDG_RUNTIME_DIR ?? tmpdir(),
@@ -196,7 +199,13 @@ export const SESSIONS_DIR = join(STATE_ROOT_DIR, "sessions");
 const ACTIVE_SESSION_FILE = join(STATE_ROOT_DIR, "active-session.txt");
 
 function ensureStorageDirs(): void {
-  mkdirSync(SESSIONS_DIR, { recursive: true });
+  mkdirSync(SESSIONS_DIR, { recursive: true, mode: STATE_DIR_MODE });
+  try {
+    chmodSync(STATE_ROOT_DIR, STATE_DIR_MODE);
+    chmodSync(SESSIONS_DIR, STATE_DIR_MODE);
+  } catch {
+    // Best effort only; writes still proceed so the CLI remains usable.
+  }
 }
 
 function parseSessionFileLocalId(filename: string): number | null {
@@ -352,7 +361,14 @@ function writeActiveLocalId(localId: number | null): void {
       return;
     }
     ensureStorageDirs();
-    writeFileSync(ACTIVE_SESSION_FILE, String(localId));
+    writeFileSync(ACTIVE_SESSION_FILE, String(localId), {
+      mode: STATE_FILE_MODE,
+    });
+    try {
+      chmodSync(ACTIVE_SESSION_FILE, STATE_FILE_MODE);
+    } catch {
+      // Best-effort hardening only.
+    }
   } catch {
     // Ignore active pointer write failures.
   }
@@ -426,7 +442,15 @@ function migrateLegacyStateIfNeeded(): void {
     };
 
     ensureStorageDirs();
-    writeFileSync(toSessionFilePath(1), JSON.stringify(migrated, null, 2));
+    const migratedPath = toSessionFilePath(1);
+    writeFileSync(migratedPath, JSON.stringify(migrated, null, 2), {
+      mode: STATE_FILE_MODE,
+    });
+    try {
+      chmodSync(migratedPath, STATE_FILE_MODE);
+    } catch {
+      // Best-effort hardening only.
+    }
     writeActiveLocalId(1);
     rmSync(LEGACY_STATE_FILE);
   } catch {
@@ -564,7 +588,15 @@ export function writeState(state: CliSessionState): void {
     updatedAt: now,
   };
 
-  writeFileSync(toSessionFilePath(localId), JSON.stringify(payload, null, 2));
+  const stateFilePath = toSessionFilePath(localId);
+  writeFileSync(stateFilePath, JSON.stringify(payload, null, 2), {
+    mode: STATE_FILE_MODE,
+  });
+  try {
+    chmodSync(stateFilePath, STATE_FILE_MODE);
+  } catch {
+    // Best-effort hardening only.
+  }
   writeActiveLocalId(localId);
 }
 
