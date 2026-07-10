@@ -16,6 +16,7 @@ import {
   launchDeploy,
   launchStatus,
   launchActivate,
+  launchAppStatus,
 } from "@portal/features/launch/client";
 import type {
   LaunchSdkStatus,
@@ -34,6 +35,8 @@ export type DeployFlowState =
 
 const DEPLOY_POLL_MS = 4000;
 const DEPLOY_TIMEOUT_MS = 8 * 60 * 1000;
+const RUNTIME_POLL_MS = 3000;
+const RUNTIME_POLL_ATTEMPTS = 30;
 
 export function useProjectDetail(sourceId: number) {
   const [source, setSource] = useState<UserSource | null>(null);
@@ -263,12 +266,48 @@ export function useProjectDetail(sourceId: number) {
         releaseTags,
         apps,
       });
-      const unloaded = activated.activation.apps.filter((app) => !app.loaded);
+      const activatedApps = activated.activation.apps;
+      for (let attempt = 0; attempt < RUNTIME_POLL_ATTEMPTS; attempt += 1) {
+        const checks = await Promise.all(
+          activatedApps.map((app) =>
+            launchAppStatus({
+              name: app.name,
+              releaseTag: app.releaseTag ?? undefined,
+            }),
+          ),
+        );
+        if (
+          checks.length > 0 &&
+          checks.every((check) => check.ok && check.state === "live")
+        ) {
+          setDeployFlow({ phase: "done", message: "New version is live." });
+          await reload();
+          refreshRecords();
+          return;
+        }
+        const terminal = checks.find(
+          (check) =>
+            check.app?.is_active === false && check.app?.loaded === false,
+        );
+        if (terminal) {
+          setDeployFlow({
+            phase: "error",
+            message: terminal.app?.name
+              ? `Runtime check failed for ${terminal.app.name}.`
+              : "Runtime reported a terminal error during activation.",
+          });
+          return;
+        }
+        setDeployFlow({
+          phase: "activating",
+          message: `Waiting for runtime… (${attempt + 1}/${RUNTIME_POLL_ATTEMPTS})`,
+        });
+        await new Promise((resolve) => setTimeout(resolve, RUNTIME_POLL_MS));
+      }
       setDeployFlow({
-        phase: unloaded.length ? "error" : "done",
-        message: unloaded.length
-          ? `Release selected, but ${unloaded.map((app) => app.name).join(", ")} is not loaded in this runtime.`
-          : "New version is live.",
+        phase: "error",
+        message:
+          "Activation was accepted, but the app artifact did not become ready.",
       });
       await reload();
       refreshRecords();
