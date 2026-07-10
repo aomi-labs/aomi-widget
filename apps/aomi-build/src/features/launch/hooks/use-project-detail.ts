@@ -35,6 +35,12 @@ export type DeployFlowState =
 const DEPLOY_POLL_MS = 4000;
 const DEPLOY_TIMEOUT_MS = 8 * 60 * 1000;
 
+function isMissingAppRecords(err: unknown) {
+  return (
+    err instanceof Error && err.message.toLowerCase().includes("unknown app")
+  );
+}
+
 export function useProjectDetail(sourceId: number) {
   const [source, setSource] = useState<UserSource | null>(null);
   const [sdk, setSdk] = useState<LaunchSdkStatus | null>(null);
@@ -162,6 +168,11 @@ export function useProjectDetail(sourceId: number) {
           const result = await deploymentRecords({
             app: app.name,
             appSourceId: src.id,
+          }).catch((err: unknown) => {
+            if (isMissingAppRecords(err)) {
+              return { records: [] };
+            }
+            throw err;
           });
           return [app.name, result.records] as const;
         }),
