@@ -65,12 +65,28 @@ function useRequestedAppConfig(): RequestedAppConfig {
   return config;
 }
 
+function useOptionalWagmiConfig(): ReturnType<typeof useConfig> | undefined {
+  try {
+    return useConfig();
+  } catch {
+    return undefined;
+  }
+}
+
+function useOptionalWalletClient(): ReturnType<typeof useWalletClient> {
+  try {
+    return useWalletClient();
+  } catch {
+    return { data: undefined } as ReturnType<typeof useWalletClient>;
+  }
+}
+
 function usePortalClientOptions(
   lockedApp: string | null,
   lockedApplicationId: string | null,
 ): Omit<AomiClientOptions, "baseUrl"> | undefined {
-  const wagmiConfig = useConfig();
-  const walletClient = useWalletClient();
+  const wagmiConfig = useOptionalWagmiConfig();
+  const walletClient = useOptionalWalletClient();
   const nativeFetch = useMemo(() => globalThis.fetch.bind(globalThis), []);
   const { getAccountCredential } = useAomiWalletKit();
 

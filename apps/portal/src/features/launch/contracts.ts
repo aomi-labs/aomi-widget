@@ -2,6 +2,15 @@ import type {
   ActivateResult,
   DeployPayload,
   DeploymentStatus,
+  PromoteResult,
+  SdkVersionStatus,
+  UserSource,
+  UserSourceLatestDeployment,
+} from "@aomi-labs/deploy";
+
+export type {
+  DeploymentRecord,
+  ListDeploymentRecordsResult,
 } from "@aomi-labs/deploy";
 
 // One-click is the only launch path: the portal forks the template and deploys
@@ -97,3 +106,24 @@ export type LaunchRedeployResult = {
   ciRunId: string;
   ciUrl: string;
 };
+
+export type LaunchSdkStatus = {
+  ok: boolean;
+  serverTags: string[];
+  sdkStatus: SdkVersionStatus;
+};
+
+export type DeploymentSourcesResult = {
+  sources: UserSource[];
+  githubLogin?: string;
+};
+
+export type DeploymentHistoryResult = {
+  deployments: UserSourceLatestDeployment[];
+};
+
+export type DeploymentSecretsResult = {
+  byApp: Record<string, string[]>;
+};
+
+export type DeploymentPromoteResult = PromoteResult;

@@ -6,10 +6,16 @@ import {
   type LaunchActivateResult,
   type LaunchAppStatus,
   type LaunchCreateRepoResult,
+  type DeploymentHistoryResult,
+  type DeploymentSecretsResult,
+  type ListDeploymentRecordsResult,
+  type DeploymentPromoteResult,
+  type DeploymentSourcesResult,
   type LaunchDeployInput,
   type LaunchDeployResult,
   type LaunchPreflightInput,
   type LaunchRedeployResult,
+  type LaunchSdkStatus,
   type LaunchStatus,
 } from "./contracts";
 import { normalizeRepo } from "./state";
@@ -91,15 +97,115 @@ export function launchCreateRepo(input: {
 }
 
 export function launchStatus(deploymentId: string): Promise<LaunchStatus> {
-  return launchFetch(API_PATHS.bff.launch.status(deploymentId), "launch status");
+  return launchFetch(
+    API_PATHS.bff.launch.status(deploymentId),
+    "launch status",
+  );
+}
+
+export function launchSdkStatus(): Promise<LaunchSdkStatus> {
+  return launchFetch(API_PATHS.bff.launch.sdkStatus, "launch SDK status");
+}
+
+export function deploymentSources(): Promise<DeploymentSourcesResult> {
+  return launchFetch(API_PATHS.bff.deployments.sources, "deployment sources");
+}
+
+export function deploymentSdkStatus(): Promise<LaunchSdkStatus> {
+  return launchFetch(
+    API_PATHS.bff.deployments.sdkStatus,
+    "deployment SDK status",
+  );
+}
+
+export function deploymentHistory(input: {
+  appSourceId: number;
+  limit?: number;
+}): Promise<DeploymentHistoryResult> {
+  return launchFetch(
+    API_PATHS.bff.deployments.history(input.appSourceId, input.limit),
+    "deployment history",
+  );
+}
+
+export function deploymentSecrets(input: {
+  appSourceId: number;
+}): Promise<DeploymentSecretsResult> {
+  return launchFetch(
+    API_PATHS.bff.deployments.secrets(input.appSourceId),
+    "deployment secrets",
+  );
+}
+
+export function deploymentRecords(input: {
+  app: string;
+  appSourceId?: number;
+}): Promise<ListDeploymentRecordsResult> {
+  return launchFetch(
+    API_PATHS.bff.deployments.records(input.app, input.appSourceId),
+    "deployment records",
+  );
+}
+
+export function deploymentPromote(input: {
+  deploymentId: string;
+  appSourceId: number;
+  apps?: string[];
+  actor?: string;
+}): Promise<DeploymentPromoteResult> {
+  return postJson(
+    API_PATHS.bff.deployments.promote,
+    "deployment promote",
+    input,
+  );
 }
 
 export function launchActivate(input: {
+  appSourceId: number;
   releaseTags: string[];
-  apps?: string[];
+  apps: string[];
   actor?: string;
 }): Promise<LaunchActivateResult> {
   return postJson(API_PATHS.bff.launch.activate, "launch activation", input);
+}
+
+export function deploymentDeactivate(input: {
+  appSourceId: number;
+  apps: string[];
+}): Promise<{ ok: boolean; apps: string[] }> {
+  return postJson(
+    API_PATHS.bff.deployments.deactivate,
+    "deployment deactivate",
+    input,
+  );
+}
+
+export function deploymentSetSecrets(input: {
+  app: string;
+  appSourceId: number;
+  secrets: Record<string, string>;
+}): Promise<{ ok: boolean; keys: string[] }> {
+  return postJson(
+    API_PATHS.bff.deployments.secrets(input.appSourceId),
+    "set environment variables",
+    input,
+  );
+}
+
+export function deploymentDeleteSecret(input: {
+  app: string;
+  appSourceId: number;
+  name: string;
+}): Promise<{ ok: boolean; removed: boolean }> {
+  return launchFetch(
+    API_PATHS.bff.deployments.secrets(input.appSourceId),
+    "delete environment variable",
+    {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input),
+    },
+  );
 }
 
 export function launchAppStatus(input: {
@@ -111,4 +217,3 @@ export function launchAppStatus(input: {
     "launch app status",
   );
 }
-
