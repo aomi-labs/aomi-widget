@@ -114,6 +114,23 @@
         ]
       }
     },
+    "/api/aa/v1/{chain_slug}": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "threadId": []
+          }
+        ],
+        "x-aomi-auth": [
+          "thread"
+        ]
+      }
+    },
     "/api/_internal/secrets": {
       "post": {
         "responses": {
