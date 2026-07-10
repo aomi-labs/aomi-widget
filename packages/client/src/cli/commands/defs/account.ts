@@ -1,60 +1,6 @@
 import { defineCommand } from "citty";
 import { buildCliConfig, globalArgs } from "./shared";
 
-const accountLoginDef = defineCommand({
-  meta: {
-    name: "login",
-    description: "Sign in to an Aomi account",
-  },
-  args: {
-    ...globalArgs,
-    provider: {
-      type: "string",
-      description: 'Browser auth provider ("privy" or "para")',
-    },
-    wallet: {
-      type: "boolean",
-      description: "Use native CLI SIWE with the configured EVM wallet",
-    },
-    "no-browser": {
-      type: "boolean",
-      description: "Do not open provider auth; use native CLI SIWE",
-    },
-  },
-  async run({ args }) {
-    const { accountLoginCommand } = await import("../account");
-    await accountLoginCommand(buildCliConfig(args), {
-      provider: typeof args.provider === "string" ? args.provider : undefined,
-      wallet: args.wallet === true,
-      noBrowser: args["no-browser"] === true,
-    });
-  },
-});
-
-const accountWhoamiDef = defineCommand({
-  meta: {
-    name: "whoami",
-    description: "Show the authenticated backend account",
-  },
-  args: { ...globalArgs },
-  async run({ args }) {
-    const { accountWhoamiCommand } = await import("../account");
-    await accountWhoamiCommand(buildCliConfig(args));
-  },
-});
-
-const accountLogoutDef = defineCommand({
-  meta: {
-    name: "logout",
-    description: "Sign out and clear the CLI auth session",
-  },
-  args: { ...globalArgs },
-  async run({ args }) {
-    const { logoutCommand } = await import("../account");
-    await logoutCommand(buildCliConfig(args));
-  },
-});
-
 const accountLinksDef = defineCommand({
   meta: {
     name: "links",
@@ -197,49 +143,35 @@ const accountDeleteDef = defineCommand({
   },
 });
 
-const accountSessionsDef = defineCommand({
-  meta: {
-    name: "sessions",
-    description: "List local CLI sessions for account switching",
-  },
-  args: { ...globalArgs },
-  async run({ args }) {
-    const { accountSessionsCommand } = await import("../account");
-    await accountSessionsCommand(buildCliConfig(args));
-  },
-});
-
-const accountSwitchDef = defineCommand({
-  meta: {
-    name: "switch",
-    description: "Switch the active local CLI session",
-  },
-  args: {
-    id: {
-      type: "positional",
-      description: "Session ID or session-N",
-      required: true,
-    },
-  },
-  async run({ args }) {
-    const { accountSwitchCommand } = await import("../account");
-    accountSwitchCommand(args.id);
-  },
-});
-
 export const accountDef = defineCommand({
-  meta: { name: "account", description: "Account authentication" },
+  meta: { name: "account", description: "Account and link management" },
+  args: { ...globalArgs },
+  async run({ args, rawArgs }) {
+    const firstToken = rawArgs.find((arg) => !arg.startsWith("-"));
+    if (firstToken) {
+      if (firstToken === "login") {
+        const { fatal } = await import("../../errors");
+        fatal("Unknown account command `login`. Use `aomi login`.");
+      }
+      if (firstToken === "whoami") {
+        const { fatal } = await import("../../errors");
+        fatal("Unknown account command `whoami`. Use `aomi account`.");
+      }
+      if (firstToken === "logout") {
+        const { fatal } = await import("../../errors");
+        fatal("Unknown account command `logout`. Use `aomi logout`.");
+      }
+      return;
+    }
+    const { accountWhoamiCommand } = await import("../account");
+    await accountWhoamiCommand(buildCliConfig(args));
+  },
   subCommands: {
-    login: accountLoginDef,
-    whoami: accountWhoamiDef,
-    logout: accountLogoutDef,
     links: accountLinksDef,
     link: accountLinkDef,
     unlink: accountUnlinkDef,
     rename: accountRenameDef,
     update: accountUpdateDef,
     delete: accountDeleteDef,
-    sessions: accountSessionsDef,
-    switch: accountSwitchDef,
   },
 });

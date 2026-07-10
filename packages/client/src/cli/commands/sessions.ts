@@ -42,7 +42,7 @@ async function fetchRemoteSessionStats(
     );
     const messages = apiState.messages ?? [];
     return {
-      topic: apiState.title ?? "Untitled Session",
+      topic: apiState.title ?? "Untitled Thread",
       messageCount: messages.length,
       tokenCountEstimate: estimateTokenCount(messages),
       toolCalls: messages.filter((msg) => Boolean(msg.tool_result)).length,
@@ -64,8 +64,8 @@ function printSessionSummary(
   const pendingTxs = stats?.pendingTxs ?? record.state.pendingTxs ?? [];
   const signedTxs = record.state.signedTxs ?? [];
   const header = isActive
-    ? `🧵 Session id: ${record.sessionId} (session-${record.localId}, active)`
-    : `🧵 Session id: ${record.sessionId} (session-${record.localId})`;
+    ? `🧵 Thread id: ${record.sessionId} (thread-${record.localId}, active)`
+    : `🧵 Thread id: ${record.sessionId} (thread-${record.localId})`;
 
   console.log(`${YELLOW}------ ${header} ------${RESET}`);
   printKeyValueTable([
@@ -92,7 +92,7 @@ export async function sessionsCommand(_config: CliConfig): Promise<void> {
     (a, b) => b.updatedAt - a.updatedAt,
   );
   if (sessions.length === 0) {
-    console.log("No local sessions.");
+    console.log("No local threads.");
     printDataFileLocation();
     return;
   }
@@ -120,17 +120,17 @@ export async function sessionsCommand(_config: CliConfig): Promise<void> {
 export function newSessionCommand(config: CliConfig): void {
   const existing = CliSession.load();
   const cli = CliSession.create(config, existing?.toState());
-  console.log(`Active session set to ${cli.sessionId} (new).`);
+  console.log(`Active thread set to ${cli.sessionId} (new).`);
   printDataFileLocation();
 }
 
 export function resumeSessionCommand(selector: string): void {
   const resumed = setActiveSession(selector);
   if (!resumed) {
-    fatal(`No local session found for selector "${selector}".`);
+    fatal(`No local thread found for selector "${selector}".`);
   }
   console.log(
-    `Active session set to ${resumed.sessionId} (session-${resumed.localId}).`,
+    `Active thread set to ${resumed.sessionId} (thread-${resumed.localId}).`,
   );
   printDataFileLocation();
 }
@@ -138,16 +138,16 @@ export function resumeSessionCommand(selector: string): void {
 export function deleteSessionCommand(selector: string): void {
   const deleted = deleteStoredSession(selector);
   if (!deleted) {
-    fatal(`No local session found for selector "${selector}".`);
+    fatal(`No local thread found for selector "${selector}".`);
   }
   console.log(
-    `Deleted local session ${deleted.sessionId} (session-${deleted.localId}).`,
+    `Deleted local thread ${deleted.sessionId} (thread-${deleted.localId}).`,
   );
   const active = CliSession.load();
   if (active) {
-    console.log(`Active session: ${active.sessionId}`);
+    console.log(`Active thread: ${active.sessionId}`);
   } else {
-    console.log("No active session");
+    console.log("No active thread");
   }
   printDataFileLocation();
 }

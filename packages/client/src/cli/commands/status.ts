@@ -43,11 +43,7 @@ function resolveBackendUrl(args: StatusArgs): string {
 }
 
 function resolvePlatform(args: StatusArgs): string {
-  return (
-    str(args.platform) ??
-    process.env.AOMI_DEPLOY_PLATFORM ??
-    "community"
-  );
+  return str(args.platform) ?? process.env.AOMI_DEPLOY_PLATFORM ?? "community";
 }
 
 async function fetchStatus(
@@ -77,12 +73,16 @@ async function fetchStatus(
     const message = (() => {
       try {
         const json = JSON.parse(text);
-        if (json && typeof json === "object" && json.error) return json.error as string;
+        if (json && typeof json === "object" && json.error)
+          return json.error as string;
       } catch {}
       return `${res.status} ${res.statusText}`;
     })();
     if (res.status === 401 || res.status === 403) {
-      throw new DeployCliError("AUTH_FAILED", "Session expired; run `aomi account login`");
+      throw new DeployCliError(
+        "AUTH_FAILED",
+        "Session expired; run `aomi login`",
+      );
     }
     throw new DeployCliError("BACKEND_ERROR", message);
   }
@@ -106,7 +106,8 @@ function printStatus(status: DeploymentStatus): void {
   }
 
   if (status.deployment) {
-    const platform = (status.deployment as Record<string, unknown>)?.platform as Record<string, unknown> | undefined;
+    const platform = (status.deployment as Record<string, unknown>)
+      ?.platform as Record<string, unknown> | undefined;
     if (platform?.pr_url) {
       console.log(`${DIM}PR:${RESET}    ${platform.pr_url}`);
     }
@@ -134,8 +135,7 @@ function sleep(ms: number): Promise<void> {
 
 export async function statusCommand(args: StatusArgs): Promise<void> {
   const deploymentId =
-    str(args["deployment-id"]) ??
-    (await readDeploymentState())?.deploymentId;
+    str(args["deployment-id"]) ?? (await readDeploymentState())?.deploymentId;
 
   if (!deploymentId) {
     throw new DeployCliError(
@@ -150,7 +150,12 @@ export async function statusCommand(args: StatusArgs): Promise<void> {
   const watch = args.watch === true;
 
   if (!watch) {
-    const status = await fetchStatus(deploymentId, platform, activationToken, backendUrl);
+    const status = await fetchStatus(
+      deploymentId,
+      platform,
+      activationToken,
+      backendUrl,
+    );
     printStatus(status);
     return;
   }
@@ -164,7 +169,12 @@ export async function statusCommand(args: StatusArgs): Promise<void> {
 
   while (true) {
     try {
-      const status = await fetchStatus(deploymentId, platform, activationToken, backendUrl);
+      const status = await fetchStatus(
+        deploymentId,
+        platform,
+        activationToken,
+        backendUrl,
+      );
       if (status.ci?.url) lastCiUrl = status.ci.url;
       printStatus(status);
       failures = 0;
@@ -188,7 +198,10 @@ export async function statusCommand(args: StatusArgs): Promise<void> {
           `Deployment timed out after ${MAX_FAILURES} attempts${ciSuffix}`,
         );
       }
-      const backoffMs = Math.min(BASE_DELAY_MS * Math.pow(2, failures), MAX_DELAY_MS);
+      const backoffMs = Math.min(
+        BASE_DELAY_MS * Math.pow(2, failures),
+        MAX_DELAY_MS,
+      );
       await sleep(backoffMs);
     }
   }

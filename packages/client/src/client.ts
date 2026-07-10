@@ -2,6 +2,9 @@ import type {
   AomiAccountProfile,
   AomiAccountResponse,
   AomiAccessApproval,
+  AomiAuthorizationChallengeResponse,
+  AomiAuthorizationPermit,
+  AomiAuthorizationState,
   AomiAuthWalletFamily,
   AomiAppDescriptor,
   AomiBeginAccountAuthResponse,
@@ -13,14 +16,18 @@ import type {
   AomiCreateThreadResponse,
   AomiDeleteByokKeyResponse,
   AomiDeleteSecretResponse,
+  AomiDeleteScheduledThreadResponse,
   AomiIngestSecretsResponse,
   AomiInterruptResponse,
   AomiListByokKeysResponse,
+  AomiListScheduledThreadsResponse,
+  AomiListWalletsResponse,
   AomiListSecretsResponse,
   AomiRequestOptions,
   AomiByokKeyEntry,
   AomiSaveByokKeyResponse,
   AomiSSEEvent,
+  AomiScheduledThread,
   AomiSimulateResponse,
   AomiStateResponse,
   AomiSystemEvent,
@@ -1014,6 +1021,86 @@ export class AomiClient {
     }
 
     return (await response.json()) as AomiAccountResponse;
+  }
+
+  async listAccountWallets(
+    sessionId: string,
+  ): Promise<AomiListWalletsResponse> {
+    return this.request<AomiListWalletsResponse>(
+      "GET",
+      "/api/account/wallets",
+      {
+        sessionId,
+      },
+    );
+  }
+
+  async createAuthorizationChallenge(
+    sessionId: string,
+    request: { chain_type: string; wallet: string; mode: string },
+  ): Promise<AomiAuthorizationChallengeResponse> {
+    return this.request<AomiAuthorizationChallengeResponse>(
+      "POST",
+      "/api/account/authorization/challenge",
+      {
+        sessionId,
+        body: request,
+      },
+    );
+  }
+
+  async commitAuthorization(
+    sessionId: string,
+    request: { permit: AomiAuthorizationPermit; signature: string },
+  ): Promise<AomiAuthorizationState> {
+    return this.request<AomiAuthorizationState>(
+      "POST",
+      "/api/account/authorization/commit",
+      {
+        sessionId,
+        body: request,
+      },
+    );
+  }
+
+  async listScheduledThreads(
+    sessionId: string,
+    query?: { app?: string; limit?: number; offset?: number },
+  ): Promise<AomiListScheduledThreadsResponse> {
+    return this.request<AomiListScheduledThreadsResponse>(
+      "GET",
+      "/api/account/scheduled-intents",
+      {
+        sessionId,
+        query,
+      },
+    );
+  }
+
+  async getScheduledThread(
+    sessionId: string,
+    id: string,
+  ): Promise<AomiScheduledThread> {
+    return this.request<AomiScheduledThread>(
+      "GET",
+      `/api/account/scheduled-intents/${encodeURIComponent(id)}`,
+      {
+        sessionId,
+      },
+    );
+  }
+
+  async deleteScheduledThread(
+    sessionId: string,
+    id: string,
+  ): Promise<AomiDeleteScheduledThreadResponse> {
+    return this.request<AomiDeleteScheduledThreadResponse>(
+      "DELETE",
+      `/api/account/scheduled-intents/${encodeURIComponent(id)}`,
+      {
+        sessionId,
+      },
+    );
   }
 
   async createAccountApproval(

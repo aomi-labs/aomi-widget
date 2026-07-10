@@ -1593,6 +1593,63 @@ ${body}` : ""}`
     }
     return await response.json();
   }
+  async listAccountWallets(sessionId) {
+    return this.request(
+      "GET",
+      "/api/account/wallets",
+      {
+        sessionId
+      }
+    );
+  }
+  async createAuthorizationChallenge(sessionId, request) {
+    return this.request(
+      "POST",
+      "/api/account/authorization/challenge",
+      {
+        sessionId,
+        body: request
+      }
+    );
+  }
+  async commitAuthorization(sessionId, request) {
+    return this.request(
+      "POST",
+      "/api/account/authorization/commit",
+      {
+        sessionId,
+        body: request
+      }
+    );
+  }
+  async listScheduledThreads(sessionId, query) {
+    return this.request(
+      "GET",
+      "/api/account/scheduled-intents",
+      {
+        sessionId,
+        query
+      }
+    );
+  }
+  async getScheduledThread(sessionId, id) {
+    return this.request(
+      "GET",
+      `/api/account/scheduled-intents/${encodeURIComponent(id)}`,
+      {
+        sessionId
+      }
+    );
+  }
+  async deleteScheduledThread(sessionId, id) {
+    return this.request(
+      "DELETE",
+      `/api/account/scheduled-intents/${encodeURIComponent(id)}`,
+      {
+        sessionId
+      }
+    );
+  }
   async createAccountApproval(request) {
     return this.request("POST", "/api/account/approvals", {
       body: request,

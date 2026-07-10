@@ -236,7 +236,7 @@ export class AccountGraphClient {
 export function requireAccountGraphClient(cli: CliSession): AccountGraphClient {
   const sessionToken = cli.auth?.sessionToken;
   if (!sessionToken) {
-    fatal("No account session. Run `aomi account login` first.");
+    fatal("No account session. Run `aomi login` first.");
   }
   return new AccountGraphClient({
     baseUrl: cli.baseUrl,
@@ -252,7 +252,7 @@ export function resolveAccountPrivateKey(
   if (!privateKey) {
     fatal(
       "No EVM private key configured.\n" +
-        "Run `aomi wallet set <evm-private-key>` or pass `--private-key`.",
+        "Run `aomi wallet dev-key <evm-private-key>` or pass `--private-key`.",
     );
   }
   return privateKey as `0x${string}`;
@@ -366,7 +366,7 @@ function formatAccountGraphError(
 ): string {
   const code = extractErrorCode(body);
   if (status === 401) {
-    return "Session expired; run `aomi account login`";
+    return "Session expired; run `aomi login`";
   }
   if (status === 409 && code === "cannot_unlink_last_login_factor") {
     return "Cannot unlink the last login method. Link another account method first.";

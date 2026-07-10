@@ -93,15 +93,15 @@ export const globalArgs = {
   },
   model: {
     type: "string",
-    description: "Set the active model for this session",
+    description: "Set the active model for this thread",
   },
   "new-session": {
     type: "boolean",
-    description: "Create a fresh active session for this command",
+    description: "Create a fresh active thread for this command",
   },
   chain: {
     type: "string",
-    description: "Active chain for chat/session context",
+    description: "Active chain for chat/thread context",
   },
   "public-key": {
     type: "string",

@@ -18,7 +18,6 @@ import {
   type AccountGraphWallet,
   type ResolvedAccountLink,
 } from "../account-graph";
-import { resumeSessionCommand, sessionsCommand } from "./sessions";
 
 const DEFAULT_CHAIN_ID = 1;
 const LEGACY_RAW_BACKEND_URL = "https://api.aomi.dev";
@@ -27,6 +26,7 @@ export type AccountLoginOptions = {
   provider?: string;
   wallet?: boolean;
   noBrowser?: boolean;
+  walletFamily?: "evm" | "solana";
 };
 
 export type AccountLinkOptions = {
@@ -73,6 +73,7 @@ export async function accountLoginCommand(
   const result = await signInWithDeviceProvider({
     baseUrl: cli.baseUrl,
     provider,
+    walletFamily: options.walletFamily,
   });
   cli.setAuthSession(result.auth);
 
@@ -103,7 +104,7 @@ async function accountLoginWithSiwe(
   if (!privateKey) {
     fatal(
       "No EVM private key configured.\n" +
-        "Run `aomi wallet set <evm-private-key>` or pass `--private-key`.",
+        "Run `aomi wallet dev-key <evm-private-key>` or pass `--private-key`.",
     );
   }
 
@@ -207,7 +208,7 @@ export async function accountWhoamiCommand(config: CliConfig): Promise<void> {
     console.log("Not bound to an account (anonymous session).");
     if (!hasAccountCredential(cli.toState())) {
       console.log(
-        "No account credential configured. Run `aomi account login` or pass --account-bearer.",
+        "No account credential configured. Run `aomi login` or pass --account-bearer.",
       );
     } else {
       console.log(
@@ -384,14 +385,6 @@ export async function accountDeleteCommand(
   printDataFileLocation({ verbose: config.verbose });
 }
 
-export async function accountSessionsCommand(config: CliConfig): Promise<void> {
-  await sessionsCommand(config);
-}
-
-export function accountSwitchCommand(selector: string): void {
-  resumeSessionCommand(selector);
-}
-
 function hasAccountCredential(
   state: ReturnType<CliSession["toState"]>,
 ): boolean {
@@ -409,7 +402,10 @@ function formatWalletChainType(chainType: string): string {
   return chainType;
 }
 
-export async function logoutCommand(config: CliConfig): Promise<void> {
+export async function logoutCommand(
+  config: CliConfig,
+  _options: { provider?: string } = {},
+): Promise<void> {
   const cli = CliSession.load();
   if (!cli) {
     if (config.json) {
@@ -444,7 +440,7 @@ export async function logoutCommand(config: CliConfig): Promise<void> {
 function loadMergedCli(config: CliConfig): CliSession {
   const cli = CliSession.load();
   if (!cli) {
-    fatal("No active session. Run `aomi account login` first.");
+    fatal("No active thread. Run `aomi login` first.");
   }
   cli!.mergeConfig(config);
   return cli!;
