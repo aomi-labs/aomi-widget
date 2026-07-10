@@ -19,7 +19,7 @@ sources_of_truth:
 ## Main Surface
 
 - `AomiClient` wraps the backend HTTP and SSE APIs behind a single class.
-- The client normalizes API URL construction, session headers, API-key headers, and common fetch error handling.
+- The client normalizes API URL construction, thread headers, API-key headers, and common fetch error handling.
 - Shared types for chat, state, threads, system events, simulation, and wallet results live in `packages/client/src/types.ts`.
 
 ## Request Families

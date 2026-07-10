@@ -70,7 +70,7 @@ describe("AomiClient route manifest", () => {
     expect(JSON.parse(init.body as string)).toEqual({ source: "github" });
 
     const headers = new Headers(init.headers);
-    expect(headers.get("X-Session-Id")).toBe("session-1");
+    expect(headers.get("X-Thread-Id")).toBe("session-1");
     expect(headers.get("Aomi-App-Key")).toBe("app-key-1");
     expect(headers.get("Content-Type")).toBe("application/json");
   });
@@ -81,7 +81,7 @@ describe("AomiClient account profile", () => {
     vi.restoreAllMocks();
   });
 
-  it("fetches the bound account profile with the session header and account bearer", async () => {
+  it("fetches the bound account profile with the thread header and account bearer", async () => {
     const profile = {
       account: {
         user_id: "user-1",
@@ -124,7 +124,7 @@ describe("AomiClient account profile", () => {
         (nativeFetch.mock.calls[0]?.[1] as RequestInit).headers,
       );
       expect(headers.get("Authorization")).toBe("Bearer bearer-1");
-      expect(headers.get("X-Session-Id")).toBe("session-1");
+      expect(headers.get("X-Thread-Id")).toBe("session-1");
       expect(result?.account.user_id).toBe("user-1");
       expect(result?.wallets?.[0]?.wallet_id).toBe("wallet-evm-1");
     } finally {
@@ -228,7 +228,7 @@ describe("AomiClient account profile", () => {
       for (const [, init] of nativeFetch.mock.calls) {
         const headers = new Headers((init as RequestInit).headers);
         expect(headers.get("Authorization")).toBe("Bearer bearer-1");
-        expect(headers.get("X-Session-Id")).toBe("session-1");
+        expect(headers.get("X-Thread-Id")).toBe("session-1");
       }
     } finally {
       vi.stubGlobal("fetch", originalFetch);
@@ -307,7 +307,7 @@ describe("AomiClient account profile", () => {
       );
       expect((init as RequestInit | undefined)?.body).toBeUndefined();
       expect(
-        new Headers((init as RequestInit).headers).get("X-Session-Id"),
+        new Headers((init as RequestInit).headers).get("X-Thread-Id"),
       ).toBe("session-1");
     } finally {
       vi.stubGlobal("fetch", originalFetch);
@@ -344,7 +344,7 @@ describe("AomiClient account profile", () => {
       );
       expect((init as RequestInit | undefined)?.body).toBeUndefined();
       expect(
-        new Headers((init as RequestInit).headers).get("X-Session-Id"),
+        new Headers((init as RequestInit).headers).get("X-Thread-Id"),
       ).toBe("session-1");
     } finally {
       vi.stubGlobal("fetch", originalFetch);

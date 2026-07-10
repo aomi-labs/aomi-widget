@@ -23,7 +23,7 @@ const METAMASK_ENDPOINTS: EndpointDef[] = [
     ],
     headers: [
       {
-        key: "X-Session-Id",
+        key: "X-Thread-Id",
         placeholder: "Session UUID",
         required: true,
       },
@@ -50,7 +50,7 @@ const METAMASK_ENDPOINTS: EndpointDef[] = [
     ],
     headers: [
       {
-        key: "X-Session-Id",
+        key: "X-Thread-Id",
         placeholder: "Session UUID",
         required: true,
       },
@@ -65,7 +65,7 @@ const METAMASK_ENDPOINTS: EndpointDef[] = [
       "Queue a transaction for wallet approval. Returns a pending transaction object.",
     headers: [
       {
-        key: "X-Session-Id",
+        key: "X-Thread-Id",
         placeholder: "Session UUID",
         required: true,
       },
@@ -90,7 +90,7 @@ const METAMASK_ENDPOINTS: EndpointDef[] = [
       "Request a personal_sign or signTypedData from the connected wallet.",
     headers: [
       {
-        key: "X-Session-Id",
+        key: "X-Thread-Id",
         placeholder: "Session UUID",
         required: true,
       },
@@ -113,7 +113,7 @@ const METAMASK_ENDPOINTS: EndpointDef[] = [
       "Request the wallet to switch to a different chain by chain ID.",
     headers: [
       {
-        key: "X-Session-Id",
+        key: "X-Thread-Id",
         placeholder: "Session UUID",
         required: true,
       },
@@ -148,7 +148,7 @@ const METAMASK_ENDPOINTS: EndpointDef[] = [
     ],
     headers: [
       {
-        key: "X-Session-Id",
+        key: "X-Thread-Id",
         placeholder: "Session UUID",
         required: true,
       },

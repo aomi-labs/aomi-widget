@@ -792,7 +792,6 @@ function appIdentityKey(descriptor) {
 }
 
 // src/client.ts
-var SESSION_ID_HEADER = "X-Session-Id";
 var THREAD_ID_HEADER = "X-Thread-Id";
 var APP_KEY_HEADER = "Aomi-App-Key";
 function previewText(value, max = 80) {
@@ -907,15 +906,14 @@ function normalizeThreadWire(wire) {
     last_active_at: normalizedLastActiveAt === void 0 || Number.isNaN(normalizedLastActiveAt) ? void 0 : normalizedLastActiveAt
   });
 }
-function withSessionHeader(sessionId, init) {
+function withThreadHeader(sessionId, init) {
   const headers = new Headers(init);
-  headers.set(SESSION_ID_HEADER, sessionId);
   headers.set(THREAD_ID_HEADER, sessionId);
   return headers;
 }
 async function fetchStateResponse(fetchImpl, url, sessionId) {
   return fetchImpl(url, {
-    headers: withSessionHeader(sessionId)
+    headers: withThreadHeader(sessionId)
   });
 }
 function wrapFetchWithAccountBearer(fetchImpl, getAccountBearer) {
@@ -953,7 +951,7 @@ async function postState(baseUrl, path, payload, sessionId, fetchImpl, apiKey, l
     query[key] = typeof value === "string" ? value : String(value);
   }
   const url = buildApiUrl(baseUrl, path, query);
-  const headers = new Headers(withSessionHeader(sessionId));
+  const headers = new Headers(withThreadHeader(sessionId));
   if (apiKey) {
     headers.set(APP_KEY_HEADER, apiKey);
   }
@@ -1013,7 +1011,7 @@ var AomiClient = class {
     this.logger = options.logger;
     this.sseSubscriber = createSseSubscriber({
       backendUrl: this.baseUrl,
-      getHeaders: (sessionId) => withSessionHeader(sessionId, { Accept: "text/event-stream" }),
+      getHeaders: (sessionId) => withThreadHeader(sessionId, { Accept: "text/event-stream" }),
       // Keep SSE on the browser-native fetch path. Payment/auth wrappers used
       // by some web runtimes can delay or buffer streaming responses.
       fetchImpl: this.rawFetchImpl,
@@ -1037,7 +1035,6 @@ var AomiClient = class {
     const url = buildApiUrl(this.baseUrl, path, normalizeQuery(options == null ? void 0 : options.query));
     const headers = new Headers(options == null ? void 0 : options.headers);
     if (options == null ? void 0 : options.sessionId) {
-      headers.set(SESSION_ID_HEADER, options.sessionId);
       headers.set(THREAD_ID_HEADER, options.sessionId);
     }
     const apiKey = (_a = options == null ? void 0 : options.apiKey) != null ? _a : this.apiKey;
@@ -1147,7 +1144,7 @@ ${body}` : ""}`
       hasUserState: Boolean(normalizedUserState),
       messagePreview: previewText(message)
     });
-    const headers = new Headers(withSessionHeader(sessionId));
+    const headers = new Headers(withThreadHeader(sessionId));
     if (apiKey) {
       headers.set(APP_KEY_HEADER, apiKey);
     }
@@ -1242,7 +1239,7 @@ ${body}` : ""}`
     }
     const response = await this.fetchImpl(url, {
       method: "POST",
-      headers: withSessionHeader(sessionId, {
+      headers: withThreadHeader(sessionId, {
         "Content-Type": "application/json"
       }),
       body: JSON.stringify(body)
@@ -1265,7 +1262,7 @@ ${body}` : ""}`
     const url = buildApiUrl(this.baseUrl, "/api/secrets", params);
     const response = await this.fetchImpl(url, {
       method: "DELETE",
-      headers: withSessionHeader(sessionId)
+      headers: withThreadHeader(sessionId)
     });
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}: ${response.statusText}`);
@@ -1288,7 +1285,7 @@ ${body}` : ""}`
     );
     const response = await this.fetchImpl(url, {
       method: "DELETE",
-      headers: withSessionHeader(sessionId)
+      headers: withThreadHeader(sessionId)
     });
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}: ${response.statusText}`);
@@ -1304,7 +1301,7 @@ ${body}` : ""}`
     const url = clientId && clientId.trim().length > 0 ? buildApiUrl(this.baseUrl, "/api/secrets", { client_id: clientId }) : joinApiPath(this.baseUrl, "/api/secrets");
     const response = await this.fetchImpl(url, {
       method: "GET",
-      headers: withSessionHeader(sessionId)
+      headers: withThreadHeader(sessionId)
     });
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}: ${response.statusText}`);
@@ -1339,7 +1336,7 @@ ${body}` : ""}`
   async listThreads(sessionId) {
     const url = buildApiUrl(this.baseUrl, "/api/threads");
     const response = await this.fetchImpl(url, {
-      headers: withSessionHeader(sessionId)
+      headers: withThreadHeader(sessionId)
     });
     if (!response.ok) {
       throw new Error(`Failed to fetch threads: HTTP ${response.status}`);
@@ -1356,7 +1353,7 @@ ${body}` : ""}`
       `/api/threads/${encodeURIComponent(sessionId)}`
     );
     const response = await this.fetchImpl(url, {
-      headers: withSessionHeader(sessionId)
+      headers: withThreadHeader(sessionId)
     });
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}: ${response.statusText}`);
@@ -1370,7 +1367,7 @@ ${body}` : ""}`
     const url = buildApiUrl(this.baseUrl, "/api/threads");
     const response = await this.fetchImpl(url, {
       method: "POST",
-      headers: withSessionHeader(threadId)
+      headers: withThreadHeader(threadId)
     });
     if (!response.ok) {
       throw new Error(`Failed to create thread: HTTP ${response.status}`);
@@ -1387,7 +1384,7 @@ ${body}` : ""}`
     );
     const response = await this.fetchImpl(url, {
       method: "DELETE",
-      headers: withSessionHeader(sessionId)
+      headers: withThreadHeader(sessionId)
     });
     if (!response.ok) {
       throw new Error(`Failed to delete thread: HTTP ${response.status}`);
@@ -1403,7 +1400,7 @@ ${body}` : ""}`
     );
     const response = await this.fetchImpl(url, {
       method: "PATCH",
-      headers: withSessionHeader(sessionId, {
+      headers: withThreadHeader(sessionId, {
         "Content-Type": "application/json"
       }),
       body: JSON.stringify({ title: newTitle })
@@ -1439,7 +1436,7 @@ ${body}` : ""}`
       count: count !== void 0 ? String(count) : void 0
     });
     const response = await this.fetchImpl(url, {
-      headers: withSessionHeader(sessionId)
+      headers: withThreadHeader(sessionId)
     });
     if (!response.ok) {
       if (response.status === 404) return [];
@@ -1462,7 +1459,7 @@ ${body}` : ""}`
       platform: platforms.length > 0 ? platforms : void 0
     });
     const apiKey = (_a = options == null ? void 0 : options.apiKey) != null ? _a : this.apiKey;
-    const headers = new Headers(withSessionHeader(sessionId));
+    const headers = new Headers(withThreadHeader(sessionId));
     if (apiKey) {
       headers.set(APP_KEY_HEADER, apiKey);
     }
@@ -1484,7 +1481,7 @@ ${body}` : ""}`
   async fetchAccountProfile(sessionId) {
     const url = buildApiUrl(this.baseUrl, "/api/account");
     const response = await this.rawFetchImpl(url, {
-      headers: withSessionHeader(sessionId)
+      headers: withThreadHeader(sessionId)
     });
     if (response.status === 400 || response.status === 401 || response.status === 403) {
       return null;
@@ -1504,7 +1501,7 @@ ${body}` : ""}`
   async getAccount(sessionId) {
     const url = buildApiUrl(this.baseUrl, "/api/account");
     const response = await this.fetchImpl(url, {
-      headers: withSessionHeader(sessionId)
+      headers: withThreadHeader(sessionId)
     });
     if (!response.ok) {
       throw new Error(`Failed to fetch account: HTTP ${response.status}`);
@@ -1581,7 +1578,7 @@ ${body}` : ""}`
     const url = buildApiUrl(this.baseUrl, "/api/auth/privy/begin");
     const response = await this.rawFetchImpl(url, {
       method: "POST",
-      headers: withSessionHeader(sessionId, {
+      headers: withThreadHeader(sessionId, {
         "Content-Type": "application/json"
       }),
       body: JSON.stringify({
@@ -1601,7 +1598,7 @@ ${body}` : ""}`
     var _a;
     const url = buildApiUrl(this.baseUrl, "/api/thread/models");
     const apiKey = (_a = options == null ? void 0 : options.apiKey) != null ? _a : this.apiKey;
-    const headers = new Headers(withSessionHeader(sessionId));
+    const headers = new Headers(withThreadHeader(sessionId));
     if (apiKey) {
       headers.set(APP_KEY_HEADER, apiKey);
     }
@@ -1626,7 +1623,7 @@ ${body}` : ""}`
       application_id: applicationId || void 0,
       client_id: options == null ? void 0 : options.clientId
     });
-    const headers = new Headers(withSessionHeader(sessionId));
+    const headers = new Headers(withThreadHeader(sessionId));
     if (apiKey) {
       headers.set(APP_KEY_HEADER, apiKey);
     }
@@ -1646,7 +1643,7 @@ ${body}` : ""}`
     var _a;
     const url = buildApiUrl(this.baseUrl, "/api/account/payment");
     const response = await this.fetchImpl(url, {
-      headers: withSessionHeader(sessionId)
+      headers: withThreadHeader(sessionId)
     });
     if (!response.ok) {
       throw new Error(`Failed to get BYOK keys: HTTP ${response.status}`);
@@ -1661,7 +1658,7 @@ ${body}` : ""}`
     const url = joinApiPath(this.baseUrl, "/api/account/payment/byok");
     const response = await this.fetchImpl(url, {
       method: "POST",
-      headers: withSessionHeader(sessionId, {
+      headers: withThreadHeader(sessionId, {
         "Content-Type": "application/json"
       }),
       body: JSON.stringify({
@@ -1686,7 +1683,7 @@ ${body}` : ""}`
     );
     const response = await this.fetchImpl(url, {
       method: "DELETE",
-      headers: withSessionHeader(sessionId)
+      headers: withThreadHeader(sessionId)
     });
     if (!response.ok) {
       throw new Error(`Failed to delete BYOK key: HTTP ${response.status}`);
@@ -1705,7 +1702,7 @@ ${body}` : ""}`
   async simulateBatch(sessionId, transactions, options) {
     const url = joinApiPath(this.baseUrl, "/api/simulate");
     const headers = new Headers(
-      withSessionHeader(sessionId, { "Content-Type": "application/json" })
+      withThreadHeader(sessionId, { "Content-Type": "application/json" })
     );
     if (this.apiKey) {
       headers.set(APP_KEY_HEADER, this.apiKey);
