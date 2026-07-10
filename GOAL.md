@@ -338,3 +338,11 @@ build`, `CI=true npx -y pnpm@10.28.0 install --frozen-lockfile`, and
   ESLint, root and portal typechecks, React/registry builds, and signed-in Chrome
   E2E for rerun, editing FIRST to SECOND/THIRD, and post-edit page refresh with
   no new runtime-capability errors.
+- 2026-07-10 release/PR preparation: audited every changed workspace against
+  the npm publish workflow and registry. Patch-bumped the three changed
+  published packages to `@aomi-labs/client@0.3.1`,
+  `@aomi-labs/react@0.5.1`, and `@aomi-labs/widget-lib@1.4.1`; rebuilt their
+  artifacts and verified packed tarballs. The changed account and smither
+  workspaces are not npm-published, and product-mono has no changed npm
+  package. Re-ran frontend lint, package builds, 656 root tests, 221 registry
+  tests, and the landing production build before draft PR publication.
