@@ -1,12 +1,12 @@
 import {
   DeploymentClient,
-  type ListActivationsResult,
+  type ListDeploymentRecordsResult,
 } from "@aomi-labs/deploy";
 import { resolveActivationCredential } from "./commands";
 
 export type RollbackClient = Pick<
   DeploymentClient,
-  "listActivations" | "rollback"
+  "listDeploymentRecords" | "promote"
 >;
 
 export type RollbackTarget = {
@@ -26,12 +26,12 @@ export type RollbackPlanSummary = {
 };
 
 export function planRollback(
-  result: ListActivationsResult,
+  result: ListDeploymentRecordsResult,
 ): RollbackPlanSummary {
-  const activations = result.activations.map((row) => ({
+  const activations = result.records.map((row) => ({
     deploymentId: row.deploymentId,
     releaseTag: row.releaseTag,
-    action: row.action,
+    action: "promote",
     createdAt: row.createdAt,
     current: row.current,
   }));
@@ -46,7 +46,7 @@ export async function executeRollback(
   client: RollbackClient,
   input: { platform: string; app: string; deploymentId: string },
 ): Promise<{ ok: boolean; releaseTags: string[]; status: string }> {
-  const result = await client.rollback({
+  const result = await client.promote({
     platform: input.platform,
     deploymentId: input.deploymentId,
     apps: [input.app],
@@ -54,8 +54,8 @@ export async function executeRollback(
   });
   return {
     ok: result.ok,
-    releaseTags: result.rollback.releaseTags,
-    status: result.rollback.status,
+    releaseTags: result.promote.releaseTags,
+    status: result.promote.status,
   };
 }
 

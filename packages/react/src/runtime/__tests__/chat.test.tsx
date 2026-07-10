@@ -179,7 +179,7 @@ describe("Chat API", () => {
       ).toBe("submitting");
 
       await act(async () => {
-        vi.advanceTimersByTime(649);
+        vi.advanceTimersByTime(299);
       });
 
       expect(

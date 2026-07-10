@@ -311,3 +311,13 @@ build`, `CI=true npx -y pnpm@10.28.0 install --frozen-lockfile`, and
   added `scripts/verify-cli-surface.mjs` to catch command/app drift. The
   docs/help check passes; live `localhost:3000` app comparison currently fails
   because that backend exposes a stale registry, which the new check reports.
+- 2026-07-10 main rebase integration: rebased `feat/working-trace-a` onto
+  `origin/main`, reconciled the newer thread wire format and workspace build
+  policy, regenerated client/React/registry artifacts, and migrated Smither's
+  rollback flow to the current deployment-record/promote API. Updated stale UI
+  timing and route assertions, aligned the local auth bootstrap with the
+  consolidated account package, and added coverage for numeric/string
+  `last_active_at` normalization. Verified the frozen install, lint, root and
+  app typechecks, all package/app Vitest suites, package builds, and production
+  builds for landing, base, portal, Aomi Build, Telegram, and Smither; the user
+  also confirmed the integrated UI works in manual testing.

@@ -33,12 +33,15 @@ packageExtensions:
       react: "*"
 
 onlyBuiltDependencies:
+  - "@parcel/watcher"
   - "@reown/appkit"
+  - "@smithers-orchestrator/jj-darwin-arm64"
   - "@tailwindcss/oxide"
   - bufferutil
   - es5-ext
   - esbuild
   - keccak
+  - msgpackr-extract
   - protobufjs
   - secp256k1
   - sharp
@@ -47,12 +50,15 @@ onlyBuiltDependencies:
   - utf-8-validate
 
 allowBuilds:
+  "@parcel/watcher": true
   "@reown/appkit": true
+  "@smithers-orchestrator/jj-darwin-arm64": true
   "@tailwindcss/oxide": true
   bufferutil: true
   es5-ext: true
   esbuild: true
   keccak: true
+  msgpackr-extract: true
   protobufjs: true
   secp256k1: true
   sharp: true

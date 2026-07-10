@@ -174,14 +174,6 @@ ensure_backend_schema() {
 }
 
 ensure_auth_schema() {
-  if [ ! -f "$ROOT_DIR/packages/auth/src/db/schema.sql" ]; then
-    echo "Missing Aomi auth schema.sql" >&2
-    exit 1
-  fi
-
-  echo "Ensuring Aomi auth tables"
-  psql "$LOCAL_DB_URL" -v ON_ERROR_STOP=1 -q -f "$ROOT_DIR/packages/auth/src/db/schema.sql"
-
   if [ ! -x "$ROOT_DIR/node_modules/.bin/tsx" ]; then
     echo "Missing node_modules/.bin/tsx. Run pnpm install in $ROOT_DIR first." >&2
     exit 1
@@ -196,7 +188,7 @@ import { getMigrations } from "better-auth/db/migration";
 (async () => {
   const root = process.cwd();
   const authModule = await import(
-    pathToFileURL(`${root}/packages/auth/src/better-auth/auth.ts`).href
+    pathToFileURL(`${root}/packages/account/src/better-auth/auth.ts`).href
   );
   const migrations = await getMigrations(authModule.auth.options);
   await migrations.runMigrations();
