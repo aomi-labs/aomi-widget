@@ -11,8 +11,11 @@ describe("AomiClient route manifest", () => {
         `${endpoint.method} ${endpoint.path} [${endpoint.auth.join(", ")}]`,
     );
 
-    expect(routeKeys).toHaveLength(85);
+    expect(routeKeys).toHaveLength(93);
     expect(new Set(routeKeys).size).toBe(routeKeys.length);
+    expect(routeKeys).toContain("POST /api/exec/run [account, thread]");
+    expect(routeKeys).toContain("GET /api/resource/search/apps [account]");
+    expect(routeKeys).toContain("GET /api/resource/search/tools [account]");
     expect(routeKeys).toContain("GET /api/thread/apps [thread]");
     expect(routeKeys).toContain(
       "POST /api/platforms/:name/deploy [activation]",
@@ -288,7 +291,7 @@ describe("AomiClient account profile", () => {
 
       const [url, init] = nativeFetch.mock.calls[0] ?? [];
       expect(String(url)).toBe(
-        "http://unit.test/api/chat?app=default&message=swap+20+mon+to+usdc&client_id=client-1",
+        "http://unit.test/api/thread/chat?app=default&message=swap+20+mon+to+usdc&client_id=client-1",
       );
       expect((init as RequestInit | undefined)?.body).toBeUndefined();
       expect(

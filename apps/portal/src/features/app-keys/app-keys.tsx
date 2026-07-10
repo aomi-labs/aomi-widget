@@ -222,7 +222,7 @@ export function AppKeys() {
         <h1 className={settingsTitleClass}>App Keys</h1>
         <p className={settingsDescriptionClass}>
           Programmatic access keys for Aomi. Send as <code>AOMI-APP-KEY</code>{" "}
-          to call <code>/api/chat</code> from your own services. Newly generated
+          to call <code>/api/thread/chat</code> from your own services. Newly generated
           keys are shown only once.
         </p>
       </div>

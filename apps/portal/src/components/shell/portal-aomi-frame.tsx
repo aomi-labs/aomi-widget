@@ -206,7 +206,7 @@ function usePortalClientOptions(
       if (
         !url ||
         ![
-          "/api/chat",
+          "/api/thread/chat",
           "/api/system",
           "/api/thread/model",
           "/api/session/model",
@@ -235,7 +235,7 @@ function usePortalClientOptions(
       const method = (
         init?.method ?? (input instanceof Request ? input.method : "GET")
       ).toUpperCase();
-      return method === "POST" && url.pathname === "/api/chat";
+      return method === "POST" && url.pathname === "/api/thread/chat";
     };
 
     const rawFetch = withDebugLogging("native.fetch", nativeFetch);
@@ -273,7 +273,7 @@ function usePortalClientOptions(
       }
 
       console.debug(
-        "[aomi][portal-fetch] retrying /api/chat with payment transport after 402",
+        "[aomi][portal-fetch] retrying /api/thread/chat with payment transport after 402",
       );
       return paymentFetch(withLockedAppScope(input), init);
     };
