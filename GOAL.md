@@ -321,3 +321,11 @@ build`, `CI=true npx -y pnpm@10.28.0 install --frozen-lockfile`, and
   app typechecks, all package/app Vitest suites, package builds, and production
   builds for landing, base, portal, Aomi Build, Telegram, and Smither; the user
   also confirmed the integrated UI works in manual testing.
+- 2026-07-10 wallet approval popup recovery: traced the missing web-wallet
+  prompt to the local backend failing transaction-event persistence because
+  `user_transactions.application_id` was absent. The local stack bootstrap had
+  preferred the lagging `db-master` migrations over the migrations paired with
+  the running `product-mono` backend. Switched the bootstrap source order,
+  added attribution-column/index convergence checks, applied the missing July 7
+  migrations to `aomi_local`, and verified in the user's signed-in Chrome flow
+  that a fresh 1-wei Base request opens Rabby approval without broadcasting it.
