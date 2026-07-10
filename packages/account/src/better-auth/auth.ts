@@ -133,9 +133,17 @@ export const auth = betterAuth({
     bearer(),
     // OAuth provider for MCP clients (Claude, Codex): dynamic client
     // registration + PKCE + access tokens. `withMcpAuth` on the /api/mcp
-    // route consumes the sessions this issues. The login page is the portal
-    // root, which hosts the wallet/SIWE sign-in.
-    snakeCasedMcp(mcp({ loginPage: "/" })),
+    // route consumes the sessions this issues. /mcp/connect handles both
+    // halves of the ceremony: sign-in (loginPage) and the explicit
+    // approve/deny step (consentPage → POST /oauth2/consent).
+    snakeCasedMcp(
+      mcp({
+        loginPage: "/mcp/connect",
+        // `mcp()` copies its own `loginPage` over this one; the field is only
+        // repeated because `OIDCOptions` requires it.
+        oidcConfig: { loginPage: "/mcp/connect", consentPage: "/mcp/connect" },
+      }),
+    ),
     aomiProviderAuthPlugin(),
     nextCookies(),
   ],
