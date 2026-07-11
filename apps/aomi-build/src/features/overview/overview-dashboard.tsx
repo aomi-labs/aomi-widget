@@ -96,7 +96,10 @@ export function OverviewDashboard() {
     );
   }, [usage]);
 
-  if (account.loading || projectsState.status === "loading") {
+  // Only the (fast) session check blocks the page. While the project list is
+  // still loading, the shell renders immediately with placeholder stats so the
+  // user never stares at a full-page spinner waiting for sources.
+  if (account.loading) {
     return <LoadingPanel label="Loading overview..." />;
   }
   if (!account.signedIn || projectsState.status === "signed_out") {
@@ -105,6 +108,11 @@ export function OverviewDashboard() {
   if (projectsState.status === "error") {
     return <ErrorPanel message={projectsState.error} />;
   }
+  const projectsLoading = projectsState.status === "loading";
+  const recordsPending =
+    projectsLoading ||
+    recordsState.status === "idle" ||
+    recordsState.status === "loading";
 
   return (
     <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 py-6 sm:px-6 lg:px-8">
@@ -128,12 +136,12 @@ export function OverviewDashboard() {
       <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
         <StatCard
           label="Projects"
-          value={String(sources.length)}
+          value={projectsLoading ? "—" : String(sources.length)}
           helper="GitHub-owned app sources"
         />
         <StatCard
           label="Live deployments"
-          value={String(currentDeployments.length)}
+          value={recordsPending ? "—" : String(currentDeployments.length)}
           helper="Current deployment records"
         />
         <StatCard
@@ -168,7 +176,7 @@ export function OverviewDashboard() {
               View all
             </Link>
           </div>
-          {recordsState.status === "loading" ? (
+          {recordsPending ? (
             <LoadingPanel label="Loading deployments..." />
           ) : recordsState.status === "error" ? (
             <div className="border-b border-red-100 bg-red-50 px-4 py-2 text-xs text-red-700">
@@ -177,7 +185,7 @@ export function OverviewDashboard() {
           ) : null}
           {recordsState.status === "ready" && deployments.length === 0 ? (
             <EmptyPanel>No deployments yet.</EmptyPanel>
-          ) : recordsState.status !== "loading" ? (
+          ) : !recordsPending ? (
             <div className="divide-border divide-y">
               {deployments.slice(0, 5).map((deployment) => (
                 <Link

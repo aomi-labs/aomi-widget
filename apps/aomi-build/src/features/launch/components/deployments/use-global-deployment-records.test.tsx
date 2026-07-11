@@ -12,26 +12,29 @@ vi.mock("@build/features/launch/client", () => ({
     ],
   })),
   deploymentSdkStatus: vi.fn(async () => null),
-  deploymentRecords: vi.fn(async ({ app }: { app: string }) => {
-    if (app === "cecilia-test-2") {
-      throw new Error("unknown app `cecilia-test-2`");
-    }
-    return {
-      app,
-      currentReleaseTag:
-        "apps-141779906-r229e1090c5-geckoterminal-cb7227310237",
-      records: [
-        {
-          deploymentId: "dep_gecko",
-          releaseTag: "apps-141779906-r229e1090c5-geckoterminal-cb7227310237",
-          actor: null,
-          createdAt: 1,
-          current: true,
-          sdkVersion: "3.0.1",
-        },
-      ],
-    };
-  }),
+  deploymentHistory: vi.fn(async () => ({
+    deployments: [
+      {
+        deploymentId: "dep_gecko",
+        state: "recorded",
+        deployBranch: null,
+        platformRepo: null,
+        commitHash: "cb7227310237",
+        ciStatus: null,
+        ciUrl: null,
+        releaseTags: ["apps-141779906-r229e1090c5-geckoterminal-cb7227310237"],
+        sdkVersion: "3.0.1",
+        createdAt: 1,
+        apps: [
+          {
+            name: "geckoterminal",
+            releaseTag: "apps-141779906-r229e1090c5-geckoterminal-cb7227310237",
+            isActive: true,
+          },
+        ],
+      },
+    ],
+  })),
 }));
 
 vi.mock("@build/features/launch/dashboard", () => ({
@@ -41,19 +44,27 @@ vi.mock("@build/features/launch/dashboard", () => ({
   })),
 }));
 
-import { deploymentRecords } from "@build/features/launch/client";
+import { GitHubSessionProvider } from "@build/components/control-plane/github-session-context";
+import { deploymentHistory } from "@build/features/launch/client";
 import { useGlobalDeploymentRecords } from "./use-global-deployment-records";
 
 describe("useGlobalDeploymentRecords", () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it("ignores stale apps that no longer have deployment records", async () => {
-    const { result } = renderHook(() => useGlobalDeploymentRecords());
+  it("loads one history call per source, not one per app", async () => {
+    const { result } = renderHook(() => useGlobalDeploymentRecords(), {
+      wrapper: GitHubSessionProvider,
+    });
 
     await waitFor(() =>
       expect(result.current.recordsState.status).toBe("ready"),
     );
-    expect(deploymentRecords).toHaveBeenCalledTimes(2);
+    // One source with two apps must cost exactly one request.
+    expect(deploymentHistory).toHaveBeenCalledTimes(1);
+    expect(deploymentHistory).toHaveBeenCalledWith({
+      appSourceId: 1,
+      limit: 20,
+    });
     expect(
       result.current.recordsState.status === "ready"
         ? result.current.recordsState.deployments
@@ -61,6 +72,10 @@ describe("useGlobalDeploymentRecords", () => {
     ).toMatchObject([
       {
         deploymentId: "dep_gecko",
+        commit: "cb7227310237",
+        current: true,
+        apps: ["geckoterminal"],
+        createdAt: 1,
         sourceId: 1,
         repositoryLink: "ceciliaz030/my-aomi-bots",
       },

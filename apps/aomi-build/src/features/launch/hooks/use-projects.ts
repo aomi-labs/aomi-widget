@@ -2,15 +2,13 @@
 
 import { useCallback, useEffect, useState } from "react";
 import type { UserSource } from "@aomi-labs/deploy";
+import { useGitHubSession } from "@build/components/control-plane/github-session-context";
 import {
   deploymentSources,
   deploymentSdkStatus,
 } from "@build/features/launch/client";
 import type { LaunchSdkStatus } from "@build/features/launch/contracts";
-import {
-  fetchGitHubSession,
-  type GitHubSessionInfo,
-} from "@build/features/launch/dashboard";
+import type { GitHubSessionInfo } from "@build/features/launch/dashboard";
 
 export type ProjectsState =
   | { status: "loading" }
@@ -24,20 +22,25 @@ export type ProjectsState =
   | { status: "error"; error: string };
 
 export function useProjects() {
+  // The GitHub session comes from the shell-level provider — reusing it here
+  // avoids a second `/auth/github/status` round trip on every page mount.
+  const { account } = useGitHubSession();
   const [state, setState] = useState<ProjectsState>({ status: "loading" });
 
   const reload = useCallback(async () => {
+    if (account.loading) return;
     setState({ status: "loading" });
+    const { loading: _loading, ...github } = account;
     try {
-      const [github, sdk] = await Promise.all([
-        fetchGitHubSession(),
-        deploymentSdkStatus().catch(() => null),
-      ]);
+      const sdkPromise = deploymentSdkStatus().catch(() => null);
       if (!github.signedIn) {
-        setState({ status: "signed_out", sdk });
+        setState({ status: "signed_out", sdk: await sdkPromise });
         return;
       }
-      const { sources } = await deploymentSources();
+      const [{ sources }, sdk] = await Promise.all([
+        deploymentSources(),
+        sdkPromise,
+      ]);
       setState({ status: "ready", sources, sdk, github });
     } catch (err) {
       const message =
@@ -48,7 +51,7 @@ export function useProjects() {
       }
       setState({ status: "error", error: message });
     }
-  }, []);
+  }, [account]);
 
   useEffect(() => {
     void reload();

@@ -2,8 +2,34 @@
 
 ## Last Updated
 
-2026-07-10 — Deploy control-plane design plan drafted; deploy-flow usability
-fixes verified in working tree
+2026-07-11 — Overview read-path perf fixes (PR #309 follow-up from Codex
+review)
+
+## Overview read-path perf (2026-07-11, aomi-build)
+
+Follow-up to the Codex performance review of PR #309 / product-mono#787 —
+the initial Overview load path, which the first round left untouched:
+
+- `useProjects` now consumes the shell-level `GitHubSessionProvider` instead
+  of refetching `/auth/github/status` (one session round trip per page, not
+  two).
+- Overview renders its shell immediately once the session is known; project
+  stats and the deployments card hydrate independently (no more full-page
+  `Loading overview...` gate on the sources fetch).
+- `useGlobalDeploymentRecords` fetches per-source `deploymentHistory()` (one
+  call per source, DB-backed via the `deployments` projection after
+  product-mono#787) instead of `deploymentRecords()` per app per source.
+  Needs backend `created_at` in deployment JSON (added in #787 branch) for
+  cross-source sorting; legacy records sort last at 0.
+- Operate BFF `ownedSources` caches `listUserSources` per user+platform for
+  15s with in-flight coalescing — concurrent operate widgets share one
+  backend ownership lookup.
+- NOT addressed (pre-existing, unrelated failures): `deploy-step.test.tsx` /
+  `project-row.test.tsx` fail at the branch base; another session appears to
+  be fixing them — left alone.
+- Projection cold start (Codex point 5) needs no new code: both latest and
+  history GitHub fallbacks already write back via `project_deployment`, so
+  each legacy source pays GitHub once and is DB-served afterwards.
 
 ## Deploy control-plane plan (2026-07-10)
 

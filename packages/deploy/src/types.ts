@@ -546,6 +546,9 @@ export interface UserSourceLatestDeployment {
   sdkVersion?: string | null;
   artifactTarget?: string | null;
   buildTarget?: string | null;
+  /** Epoch seconds of the deploy request (`created_at`); null on legacy
+   *  records that predate the timestamp. */
+  createdAt?: number | null;
   apps: UserSourceDeploymentApp[];
 }
 

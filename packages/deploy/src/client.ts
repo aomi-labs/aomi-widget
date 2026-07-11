@@ -1478,6 +1478,10 @@ function camelUserSourceLatestDeployment(
     sdkVersion: d.sdk_version ?? d.sdkVersion ?? null,
     artifactTarget: d.artifact_target ?? d.artifactTarget ?? null,
     buildTarget: d.build_target ?? d.buildTarget ?? d.target ?? null,
+    createdAt:
+      typeof (d.created_at ?? d.createdAt) === "number"
+        ? (d.created_at ?? d.createdAt)
+        : null,
     apps: apps.map((app) => ({
       name: app.name,
       releaseTag: app.release_tag ?? app.releaseTag ?? null,
