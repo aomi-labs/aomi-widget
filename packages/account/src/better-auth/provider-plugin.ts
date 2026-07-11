@@ -1,6 +1,7 @@
 import { APIError, createAuthEndpoint } from "better-auth/api";
 import { setSessionCookie } from "better-auth/cookies";
 import type { BetterAuthPlugin } from "better-auth";
+import { decodeJwt, decodeProtectedHeader } from "jose";
 import { z } from "zod";
 import {
   providerSessionUserSeed,
@@ -13,6 +14,17 @@ import {
 import { linkVerifiedProviderCredentialForUser } from "../service/provider-exchange";
 import { buildAccountResponse } from "../db/queries";
 import type { AomiAccountCredential } from "../types";
+
+/** aud/iss/exp of a rejected provider token, for the server log. Never the token. */
+function decodeClaimsForLog(token: string): Record<string, unknown> {
+  try {
+    const { aud, iss, exp, sub } = decodeJwt(token);
+    const { kid, alg } = decodeProtectedHeader(token);
+    return { aud, iss, exp, sub_present: Boolean(sub), kid, alg };
+  } catch {
+    return { decode: "failed (not a JWT?)" };
+  }
+}
 
 const bodySchema = z.discriminatedUnion("provider", [
   z.object({
@@ -45,6 +57,14 @@ export function aomiProviderAuthPlugin(): BetterAuthPlugin {
           try {
             verified = await verifyProviderCredential(credential);
           } catch (error) {
+            // Surface the rejection server-side: a silent 400 here reads as
+            // "login broken" with no trace. Claims only — never the token.
+            console.error(
+              "provider exchange rejected",
+              credential.provider,
+              error instanceof Error ? error.message : error,
+              decodeClaimsForLog(credential.providerToken),
+            );
             throw new APIError("BAD_REQUEST", {
               message:
                 error instanceof Error
@@ -84,6 +104,12 @@ export function aomiProviderAuthPlugin(): BetterAuthPlugin {
             });
           } catch (error) {
             if (isIdentityAlreadyLinkedError(error)) {
+              console.error("provider exchange conflict", {
+                provider: verified.provider,
+                subject: verified.token.subject,
+                betterAuthUserId: betterAuthUser.id,
+                detail: error instanceof Error ? error.message : error,
+              });
               throw new APIError("CONFLICT", {
                 message: "already_linked_to_another_account",
               });
@@ -95,6 +121,12 @@ export function aomiProviderAuthPlugin(): BetterAuthPlugin {
             verified,
           });
           if (resolution.status === "conflict") {
+            console.error("provider credential link conflict", {
+              provider: verified.provider,
+              subject: verified.token.subject,
+              resolvedAomiUser: aomiUser.id,
+              betterAuthUserId: betterAuthUser.id,
+            });
             throw new APIError("CONFLICT", {
               message: "already_linked_to_another_account",
             });

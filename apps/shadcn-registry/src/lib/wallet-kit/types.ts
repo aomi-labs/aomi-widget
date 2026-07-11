@@ -128,7 +128,7 @@ export type AomiSessionIdentity = {
   /** How the active wallet signs or connects. */
   walletSource?: WalletSource;
   /** Wallet platform backing this session.
-   * @deprecated use sessionProvider/embeddedProvider; kept for /api/state
+   * @deprecated use sessionProvider/embeddedProvider; kept for /api/thread/state
    * compatibility until the backend payload migrates.
    */
   walletProvider?: AomiWalletProvider;

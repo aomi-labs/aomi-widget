@@ -67,10 +67,7 @@ function fatal(message) {
     }
     console.error(`${DIM2}${detail}${RESET2}`);
   }
-  if (process.env.AOMI_CLI_STRICT_EXIT === "1") {
-    throw new CliExit(1);
-  }
-  process.exit(1);
+  throw new CliExit(1);
 }
 var CliExit, DeployCliError;
 var init_errors = __esm({
@@ -193,96 +190,6 @@ var init_chains = __esm({
   }
 });
 
-// src/cli/solana-signer.ts
-import {
-  Keypair,
-  Transaction,
-  VersionedTransaction
-} from "@solana/web3.js";
-import bs58 from "bs58";
-function parseSolanaKeypairSecret(input2) {
-  const trimmed = input2.trim();
-  if (!trimmed) {
-    throw new Error("Solana keypair secret is empty.");
-  }
-  let bytes;
-  if (trimmed.startsWith("[") && trimmed.endsWith("]")) {
-    const parsed = JSON.parse(trimmed);
-    if (!Array.isArray(parsed) || parsed.some((value) => typeof value !== "number")) {
-      throw new Error(
-        "Solana keypair JSON must be an array of byte values (e.g. `[1,2,...,64]`)."
-      );
-    }
-    bytes = Uint8Array.from(parsed);
-  } else {
-    try {
-      bytes = bs58.decode(trimmed);
-    } catch (err) {
-      throw new Error(
-        `Failed to decode Solana keypair as base58: ${err instanceof Error ? err.message : String(err)}`
-      );
-    }
-  }
-  if (bytes.length !== 64) {
-    throw new Error(
-      `Solana keypair secret must be 64 bytes (got ${bytes.length}). Use the full secret key, not just the seed.`
-    );
-  }
-  return Keypair.fromSecretKey(bytes);
-}
-function decodeBase64(value) {
-  if (typeof Buffer !== "undefined") {
-    return new Uint8Array(Buffer.from(value, "base64"));
-  }
-  const binary = atob(value);
-  const bytes = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i++) {
-    bytes[i] = binary.charCodeAt(i);
-  }
-  return bytes;
-}
-function encodeBase64(bytes) {
-  if (typeof Buffer !== "undefined") {
-    return Buffer.from(bytes).toString("base64");
-  }
-  let binary = "";
-  for (let i = 0; i < bytes.byteLength; i++) {
-    binary += String.fromCharCode(bytes[i]);
-  }
-  return btoa(binary);
-}
-function signSolanaTransaction(unsignedTxBase64, keypair) {
-  const bytes = decodeBase64(unsignedTxBase64);
-  try {
-    const versioned = VersionedTransaction.deserialize(bytes);
-    versioned.sign([keypair]);
-    return {
-      signer: keypair.publicKey.toBase58(),
-      signedTxBase64: encodeBase64(versioned.serialize())
-    };
-  } catch (versionedErr) {
-    try {
-      const legacy = Transaction.from(bytes);
-      legacy.partialSign(keypair);
-      return {
-        signer: keypair.publicKey.toBase58(),
-        signedTxBase64: encodeBase64(legacy.serialize())
-      };
-    } catch (legacyErr) {
-      const versionedMsg = versionedErr instanceof Error ? versionedErr.message : String(versionedErr);
-      const legacyMsg = legacyErr instanceof Error ? legacyErr.message : String(legacyErr);
-      throw new Error(
-        `Failed to deserialize Solana transaction (versioned: ${versionedMsg}; legacy: ${legacyMsg}).`
-      );
-    }
-  }
-}
-var init_solana_signer = __esm({
-  "src/cli/solana-signer.ts"() {
-    "use strict";
-  }
-});
-
 // src/cli/validation.ts
 function parseChainId(value) {
   if (value === void 0) return void 0;
@@ -302,23 +209,7 @@ function normalizePrivateKey(value) {
   if (value === void 0) return void 0;
   const trimmed = value.trim();
   if (!trimmed) return void 0;
-  if (!EVM_PRIVATE_KEY_PATTERN.test(trimmed)) {
-    fatal("Invalid private key. Expected a 0x-prefixed 32-byte hex string.");
-  }
-  return trimmed;
-}
-function validateSolanaPrivateKey(value) {
-  if (value === void 0) return void 0;
-  const trimmed = value.trim();
-  if (!trimmed) return void 0;
-  try {
-    parseSolanaKeypairSecret(trimmed);
-  } catch (err) {
-    fatal(
-      `Invalid Solana private key: ${err instanceof Error ? err.message : String(err)}`
-    );
-  }
-  return trimmed;
+  return trimmed.startsWith("0x") ? trimmed : `0x${trimmed}`;
 }
 function parseAAProvider(value) {
   if (value === void 0 || value.trim() === "") return void 0;
@@ -334,14 +225,11 @@ function parseAAMode(value) {
   }
   fatal("Unsupported AA mode. Use `4337` or `7702`.");
 }
-var EVM_PRIVATE_KEY_PATTERN;
 var init_validation = __esm({
   "src/cli/validation.ts"() {
     "use strict";
     init_chains();
     init_errors();
-    init_solana_signer();
-    EVM_PRIVATE_KEY_PATTERN = /^0x[0-9a-fA-F]{64}$/;
   }
 });
 
@@ -383,7 +271,9 @@ function derivePublicKeyFromPrivateKey(privateKey) {
   try {
     return privateKeyToAccount(privateKey).address;
   } catch (e) {
-    fatal("Invalid private key. Expected a 0x-prefixed 32-byte hex string.");
+    fatal(
+      "Invalid private key. Pass a 32-byte hex key via `--private-key` or `PRIVATE_KEY`."
+    );
   }
 }
 function resolveExecution(args) {
@@ -438,17 +328,13 @@ function buildCliConfig(args) {
       "`--embedded-provider` is required when `--embedded-provider-token` is set."
     );
   }
-  const solanaPrivateKey = validateSolanaPrivateKey(
-    (_h = str(args["solana-private-key"])) != null ? _h : process.env.SOLANA_PRIVATE_KEY
-  );
+  const solanaPrivateKey = (_h = str(args["solana-private-key"])) != null ? _h : process.env.SOLANA_PRIVATE_KEY;
   const svmCluster = parseSvmCluster(
     (_i = str(args.cluster)) != null ? _i : process.env.AOMI_SOLANA_CLUSTER
   );
   return {
     baseUrl: (_j = str(args["backend-url"])) != null ? _j : process.env.AOMI_BACKEND_URL,
     apiKey: (_k = str(args["api-key"])) != null ? _k : process.env.AOMI_API_KEY,
-    json: args.json === true,
-    verbose: args.verbose === true,
     accountBearer,
     embeddedProvider,
     embeddedProviderToken,
@@ -491,14 +377,6 @@ var init_shared = __esm({
         type: "string",
         description: "API key for non-default apps"
       },
-      json: {
-        type: "boolean",
-        description: "Print machine-readable JSON where supported"
-      },
-      verbose: {
-        type: "boolean",
-        description: "Show extra diagnostics such as local state file paths"
-      },
       "account-bearer": {
         type: "string",
         description: "Aomi account bearer for authenticated REST/SSE requests"
@@ -517,15 +395,15 @@ var init_shared = __esm({
       },
       model: {
         type: "string",
-        description: "Set the active model for this thread"
+        description: "Set the active model for this session"
       },
       "new-session": {
         type: "boolean",
-        description: "Create a fresh active thread for this command"
+        description: "Create a fresh active session for this command"
       },
       chain: {
         type: "string",
-        description: "Active chain for chat/thread context"
+        description: "Active chain for chat/session context"
       },
       "public-key": {
         type: "string",
@@ -1425,21 +1303,18 @@ function encodeJsonBody(body) {
 }
 function normalizeThreadWire(wire) {
   var _b;
-  const _a3 = wire, { thread_id, session_id, last_active_at } = _a3, rest = __objRest(_a3, ["thread_id", "session_id", "last_active_at"]);
-  const normalizedLastActiveAt = typeof last_active_at === "number" ? last_active_at : typeof last_active_at === "string" ? Number(last_active_at) : void 0;
-  return __spreadProps(__spreadValues({}, rest), {
-    session_id: (_b = session_id != null ? session_id : thread_id) != null ? _b : "",
-    last_active_at: normalizedLastActiveAt === void 0 || Number.isNaN(normalizedLastActiveAt) ? void 0 : normalizedLastActiveAt
-  });
+  const _a3 = wire, { thread_id, session_id } = _a3, rest = __objRest(_a3, ["thread_id", "session_id"]);
+  return __spreadProps(__spreadValues({}, rest), { session_id: (_b = session_id != null ? session_id : thread_id) != null ? _b : "" });
 }
-function withThreadHeader(sessionId, init) {
+function withSessionHeader(sessionId, init) {
   const headers = new Headers(init);
+  headers.set(SESSION_ID_HEADER, sessionId);
   headers.set(THREAD_ID_HEADER, sessionId);
   return headers;
 }
 async function fetchStateResponse(fetchImpl, url, sessionId) {
   return fetchImpl(url, {
-    headers: withThreadHeader(sessionId)
+    headers: withSessionHeader(sessionId)
   });
 }
 function wrapFetchWithAccountBearer(fetchImpl, getAccountBearer) {
@@ -1477,7 +1352,7 @@ async function postState(baseUrl, path, payload, sessionId, fetchImpl, apiKey, l
     query[key] = typeof value === "string" ? value : String(value);
   }
   const url = buildApiUrl(baseUrl, path, query);
-  const headers = new Headers(withThreadHeader(sessionId));
+  const headers = new Headers(withSessionHeader(sessionId));
   if (apiKey) {
     headers.set(APP_KEY_HEADER, apiKey);
   }
@@ -1519,13 +1394,14 @@ async function postState(baseUrl, path, payload, sessionId, fetchImpl, apiKey, l
   }
   return await response.json();
 }
-var THREAD_ID_HEADER, APP_KEY_HEADER, BULKY_PENDING_FIELDS, AomiClient;
+var SESSION_ID_HEADER, THREAD_ID_HEADER, APP_KEY_HEADER, BULKY_PENDING_FIELDS, AomiClient;
 var init_client = __esm({
   "src/client.ts"() {
     "use strict";
     init_user_state();
     init_sse();
     init_app_descriptor();
+    SESSION_ID_HEADER = "X-Session-Id";
     THREAD_ID_HEADER = "X-Thread-Id";
     APP_KEY_HEADER = "Aomi-App-Key";
     BULKY_PENDING_FIELDS = /* @__PURE__ */ new Set([
@@ -1561,7 +1437,7 @@ var init_client = __esm({
         this.logger = options.logger;
         this.sseSubscriber = createSseSubscriber({
           backendUrl: this.baseUrl,
-          getHeaders: (sessionId) => withThreadHeader(sessionId, { Accept: "text/event-stream" }),
+          getHeaders: (sessionId) => withSessionHeader(sessionId, { Accept: "text/event-stream" }),
           // Keep SSE on the browser-native fetch path. Payment/auth wrappers used
           // by some web runtimes can delay or buffer streaming responses.
           fetchImpl: this.rawFetchImpl,
@@ -1585,6 +1461,7 @@ var init_client = __esm({
         const url = buildApiUrl(this.baseUrl, path, normalizeQuery(options == null ? void 0 : options.query));
         const headers = new Headers(options == null ? void 0 : options.headers);
         if (options == null ? void 0 : options.sessionId) {
+          headers.set(SESSION_ID_HEADER, options.sessionId);
           headers.set(THREAD_ID_HEADER, options.sessionId);
         }
         const apiKey = (_a3 = options == null ? void 0 : options.apiKey) != null ? _a3 : this.apiKey;
@@ -1694,7 +1571,7 @@ ${body}` : ""}`
           hasUserState: Boolean(normalizedUserState),
           messagePreview: previewText(message)
         });
-        const headers = new Headers(withThreadHeader(sessionId));
+        const headers = new Headers(withSessionHeader(sessionId));
         if (apiKey) {
           headers.set(APP_KEY_HEADER, apiKey);
         }
@@ -1789,7 +1666,7 @@ ${body}` : ""}`
         }
         const response = await this.fetchImpl(url, {
           method: "POST",
-          headers: withThreadHeader(sessionId, {
+          headers: withSessionHeader(sessionId, {
             "Content-Type": "application/json"
           }),
           body: JSON.stringify(body)
@@ -1812,7 +1689,7 @@ ${body}` : ""}`
         const url = buildApiUrl(this.baseUrl, "/api/secrets", params);
         const response = await this.fetchImpl(url, {
           method: "DELETE",
-          headers: withThreadHeader(sessionId)
+          headers: withSessionHeader(sessionId)
         });
         if (!response.ok) {
           throw new Error(`HTTP ${response.status}: ${response.statusText}`);
@@ -1835,7 +1712,7 @@ ${body}` : ""}`
         );
         const response = await this.fetchImpl(url, {
           method: "DELETE",
-          headers: withThreadHeader(sessionId)
+          headers: withSessionHeader(sessionId)
         });
         if (!response.ok) {
           throw new Error(`HTTP ${response.status}: ${response.statusText}`);
@@ -1851,7 +1728,7 @@ ${body}` : ""}`
         const url = clientId && clientId.trim().length > 0 ? buildApiUrl(this.baseUrl, "/api/secrets", { client_id: clientId }) : joinApiPath(this.baseUrl, "/api/secrets");
         const response = await this.fetchImpl(url, {
           method: "GET",
-          headers: withThreadHeader(sessionId)
+          headers: withSessionHeader(sessionId)
         });
         if (!response.ok) {
           throw new Error(`HTTP ${response.status}: ${response.statusText}`);
@@ -1886,7 +1763,7 @@ ${body}` : ""}`
       async listThreads(sessionId) {
         const url = buildApiUrl(this.baseUrl, "/api/threads");
         const response = await this.fetchImpl(url, {
-          headers: withThreadHeader(sessionId)
+          headers: withSessionHeader(sessionId)
         });
         if (!response.ok) {
           throw new Error(`Failed to fetch threads: HTTP ${response.status}`);
@@ -1903,7 +1780,7 @@ ${body}` : ""}`
           `/api/threads/${encodeURIComponent(sessionId)}`
         );
         const response = await this.fetchImpl(url, {
-          headers: withThreadHeader(sessionId)
+          headers: withSessionHeader(sessionId)
         });
         if (!response.ok) {
           throw new Error(`HTTP ${response.status}: ${response.statusText}`);
@@ -1917,7 +1794,7 @@ ${body}` : ""}`
         const url = buildApiUrl(this.baseUrl, "/api/threads");
         const response = await this.fetchImpl(url, {
           method: "POST",
-          headers: withThreadHeader(threadId)
+          headers: withSessionHeader(threadId)
         });
         if (!response.ok) {
           throw new Error(`Failed to create thread: HTTP ${response.status}`);
@@ -1934,7 +1811,7 @@ ${body}` : ""}`
         );
         const response = await this.fetchImpl(url, {
           method: "DELETE",
-          headers: withThreadHeader(sessionId)
+          headers: withSessionHeader(sessionId)
         });
         if (!response.ok) {
           throw new Error(`Failed to delete thread: HTTP ${response.status}`);
@@ -1950,7 +1827,7 @@ ${body}` : ""}`
         );
         const response = await this.fetchImpl(url, {
           method: "PATCH",
-          headers: withThreadHeader(sessionId, {
+          headers: withSessionHeader(sessionId, {
             "Content-Type": "application/json"
           }),
           body: JSON.stringify({ title: newTitle })
@@ -1986,7 +1863,7 @@ ${body}` : ""}`
           count: count !== void 0 ? String(count) : void 0
         });
         const response = await this.fetchImpl(url, {
-          headers: withThreadHeader(sessionId)
+          headers: withSessionHeader(sessionId)
         });
         if (!response.ok) {
           if (response.status === 404) return [];
@@ -2009,7 +1886,7 @@ ${body}` : ""}`
           platform: platforms.length > 0 ? platforms : void 0
         });
         const apiKey = (_a3 = options == null ? void 0 : options.apiKey) != null ? _a3 : this.apiKey;
-        const headers = new Headers(withThreadHeader(sessionId));
+        const headers = new Headers(withSessionHeader(sessionId));
         if (apiKey) {
           headers.set(APP_KEY_HEADER, apiKey);
         }
@@ -2031,7 +1908,7 @@ ${body}` : ""}`
       async fetchAccountProfile(sessionId) {
         const url = buildApiUrl(this.baseUrl, "/api/account");
         const response = await this.rawFetchImpl(url, {
-          headers: withThreadHeader(sessionId)
+          headers: withSessionHeader(sessionId)
         });
         if (response.status === 400 || response.status === 401 || response.status === 403) {
           return null;
@@ -2051,69 +1928,12 @@ ${body}` : ""}`
       async getAccount(sessionId) {
         const url = buildApiUrl(this.baseUrl, "/api/account");
         const response = await this.fetchImpl(url, {
-          headers: withThreadHeader(sessionId)
+          headers: withSessionHeader(sessionId)
         });
         if (!response.ok) {
           throw new Error(`Failed to fetch account: HTTP ${response.status}`);
         }
         return await response.json();
-      }
-      async listAccountWallets(sessionId) {
-        return this.request(
-          "GET",
-          "/api/account/wallets",
-          {
-            sessionId
-          }
-        );
-      }
-      async createAuthorizationChallenge(sessionId, request) {
-        return this.request(
-          "POST",
-          "/api/account/authorization/challenge",
-          {
-            sessionId,
-            body: request
-          }
-        );
-      }
-      async commitAuthorization(sessionId, request) {
-        return this.request(
-          "POST",
-          "/api/account/authorization/commit",
-          {
-            sessionId,
-            body: request
-          }
-        );
-      }
-      async listScheduledThreads(sessionId, query) {
-        return this.request(
-          "GET",
-          "/api/account/scheduled-intents",
-          {
-            sessionId,
-            query
-          }
-        );
-      }
-      async getScheduledThread(sessionId, id) {
-        return this.request(
-          "GET",
-          `/api/account/scheduled-intents/${encodeURIComponent(id)}`,
-          {
-            sessionId
-          }
-        );
-      }
-      async deleteScheduledThread(sessionId, id) {
-        return this.request(
-          "DELETE",
-          `/api/account/scheduled-intents/${encodeURIComponent(id)}`,
-          {
-            sessionId
-          }
-        );
       }
       async createAccountApproval(request) {
         return this.request("POST", "/api/account/approvals", {
@@ -2128,7 +1948,7 @@ ${body}` : ""}`
         const url = buildApiUrl(this.baseUrl, "/api/auth/privy/begin");
         const response = await this.rawFetchImpl(url, {
           method: "POST",
-          headers: withThreadHeader(sessionId, {
+          headers: withSessionHeader(sessionId, {
             "Content-Type": "application/json"
           }),
           body: JSON.stringify({
@@ -2148,7 +1968,7 @@ ${body}` : ""}`
         var _a3;
         const url = buildApiUrl(this.baseUrl, "/api/thread/models");
         const apiKey = (_a3 = options == null ? void 0 : options.apiKey) != null ? _a3 : this.apiKey;
-        const headers = new Headers(withThreadHeader(sessionId));
+        const headers = new Headers(withSessionHeader(sessionId));
         if (apiKey) {
           headers.set(APP_KEY_HEADER, apiKey);
         }
@@ -2173,7 +1993,7 @@ ${body}` : ""}`
           application_id: applicationId || void 0,
           client_id: options == null ? void 0 : options.clientId
         });
-        const headers = new Headers(withThreadHeader(sessionId));
+        const headers = new Headers(withSessionHeader(sessionId));
         if (apiKey) {
           headers.set(APP_KEY_HEADER, apiKey);
         }
@@ -2193,7 +2013,7 @@ ${body}` : ""}`
         var _a3;
         const url = buildApiUrl(this.baseUrl, "/api/account/payment");
         const response = await this.fetchImpl(url, {
-          headers: withThreadHeader(sessionId)
+          headers: withSessionHeader(sessionId)
         });
         if (!response.ok) {
           throw new Error(`Failed to get BYOK keys: HTTP ${response.status}`);
@@ -2208,7 +2028,7 @@ ${body}` : ""}`
         const url = joinApiPath(this.baseUrl, "/api/account/payment/byok");
         const response = await this.fetchImpl(url, {
           method: "POST",
-          headers: withThreadHeader(sessionId, {
+          headers: withSessionHeader(sessionId, {
             "Content-Type": "application/json"
           }),
           body: JSON.stringify({
@@ -2233,7 +2053,7 @@ ${body}` : ""}`
         );
         const response = await this.fetchImpl(url, {
           method: "DELETE",
-          headers: withThreadHeader(sessionId)
+          headers: withSessionHeader(sessionId)
         });
         if (!response.ok) {
           throw new Error(`Failed to delete BYOK key: HTTP ${response.status}`);
@@ -2252,7 +2072,7 @@ ${body}` : ""}`
       async simulateBatch(sessionId, transactions, options) {
         const url = joinApiPath(this.baseUrl, "/api/simulate");
         const headers = new Headers(
-          withThreadHeader(sessionId, { "Content-Type": "application/json" })
+          withSessionHeader(sessionId, { "Content-Type": "application/json" })
         );
         if (this.apiKey) {
           headers.set(APP_KEY_HEADER, this.apiKey);
@@ -4060,7 +3880,6 @@ var init_user_state2 = __esm({
 
 // src/cli/state.ts
 import {
-  chmodSync,
   existsSync,
   mkdirSync,
   readFileSync,
@@ -4079,12 +3898,7 @@ function hasSameBackendPendingId(existing, next) {
   return existing.kind === next.kind && existingBackendId !== void 0 && nextBackendId !== void 0 && existingBackendId === nextBackendId;
 }
 function ensureStorageDirs() {
-  mkdirSync(SESSIONS_DIR, { recursive: true, mode: STATE_DIR_MODE });
-  try {
-    chmodSync(STATE_ROOT_DIR, STATE_DIR_MODE);
-    chmodSync(SESSIONS_DIR, STATE_DIR_MODE);
-  } catch (e) {
-  }
+  mkdirSync(SESSIONS_DIR, { recursive: true });
 }
 function parseSessionFileLocalId(filename) {
   const match = filename.match(/^session-(\d+)\.json$/);
@@ -4211,13 +4025,7 @@ function writeActiveLocalId(localId) {
       return;
     }
     ensureStorageDirs();
-    writeFileSync(ACTIVE_SESSION_FILE, String(localId), {
-      mode: STATE_FILE_MODE
-    });
-    try {
-      chmodSync(ACTIVE_SESSION_FILE, STATE_FILE_MODE);
-    } catch (e) {
-    }
+    writeFileSync(ACTIVE_SESSION_FILE, String(localId));
   } catch (e) {
   }
 }
@@ -4270,14 +4078,7 @@ function migrateLegacyStateIfNeeded() {
       updatedAt: now
     });
     ensureStorageDirs();
-    const migratedPath = toSessionFilePath(1);
-    writeFileSync(migratedPath, JSON.stringify(migrated, null, 2), {
-      mode: STATE_FILE_MODE
-    });
-    try {
-      chmodSync(migratedPath, STATE_FILE_MODE);
-    } catch (e) {
-    }
+    writeFileSync(toSessionFilePath(1), JSON.stringify(migrated, null, 2));
     writeActiveLocalId(1);
     rmSync(LEGACY_STATE_FILE);
   } catch (e) {
@@ -4287,7 +4088,7 @@ function resolveStoredSession(selector, sessions) {
   var _a3, _b;
   const trimmed = selector.trim();
   if (!trimmed) return null;
-  const localMatch = trimmed.match(/^(?:thread-)?(\d+)$/);
+  const localMatch = trimmed.match(/^(?:session-)?(\d+)$/);
   if (localMatch) {
     const localId = parseInt(localMatch[1], 10);
     if (!Number.isNaN(localId)) {
@@ -4384,14 +4185,7 @@ function writeState(state) {
     createdAt,
     updatedAt: now
   });
-  const stateFilePath = toSessionFilePath(localId);
-  writeFileSync(stateFilePath, JSON.stringify(payload, null, 2), {
-    mode: STATE_FILE_MODE
-  });
-  try {
-    chmodSync(stateFilePath, STATE_FILE_MODE);
-  } catch (e) {
-  }
+  writeFileSync(toSessionFilePath(localId), JSON.stringify(payload, null, 2));
   writeActiveLocalId(localId);
 }
 function clearState() {
@@ -4440,7 +4234,7 @@ function syncPendingTxsFromUserState(state, userState) {
     pendingSolTxs: state.pendingSolTxs
   };
 }
-var SESSION_FILE_PREFIX, SESSION_FILE_SUFFIX, STATE_DIR_MODE, STATE_FILE_MODE, _a, LEGACY_STATE_FILE, _a2, STATE_ROOT_DIR, SESSIONS_DIR, ACTIVE_SESSION_FILE, _migrationDone;
+var SESSION_FILE_PREFIX, SESSION_FILE_SUFFIX, _a, LEGACY_STATE_FILE, _a2, STATE_ROOT_DIR, SESSIONS_DIR, ACTIVE_SESSION_FILE, _migrationDone;
 var init_state2 = __esm({
   "src/cli/state.ts"() {
     "use strict";
@@ -4448,8 +4242,6 @@ var init_state2 = __esm({
     init_user_state2();
     SESSION_FILE_PREFIX = "session-";
     SESSION_FILE_SUFFIX = ".json";
-    STATE_DIR_MODE = 448;
-    STATE_FILE_MODE = 384;
     LEGACY_STATE_FILE = join(
       (_a = process.env.XDG_RUNTIME_DIR) != null ? _a : tmpdir(),
       "aomi-session.json"
@@ -4458,6 +4250,96 @@ var init_state2 = __esm({
     SESSIONS_DIR = join(STATE_ROOT_DIR, "sessions");
     ACTIVE_SESSION_FILE = join(STATE_ROOT_DIR, "active-session.txt");
     _migrationDone = false;
+  }
+});
+
+// src/cli/solana-signer.ts
+import {
+  Keypair,
+  Transaction,
+  VersionedTransaction
+} from "@solana/web3.js";
+import bs58 from "bs58";
+function parseSolanaKeypairSecret(input2) {
+  const trimmed = input2.trim();
+  if (!trimmed) {
+    throw new Error("Solana keypair secret is empty.");
+  }
+  let bytes;
+  if (trimmed.startsWith("[") && trimmed.endsWith("]")) {
+    const parsed = JSON.parse(trimmed);
+    if (!Array.isArray(parsed) || parsed.some((value) => typeof value !== "number")) {
+      throw new Error(
+        "Solana keypair JSON must be an array of byte values (e.g. `[1,2,...,64]`)."
+      );
+    }
+    bytes = Uint8Array.from(parsed);
+  } else {
+    try {
+      bytes = bs58.decode(trimmed);
+    } catch (err) {
+      throw new Error(
+        `Failed to decode Solana keypair as base58: ${err instanceof Error ? err.message : String(err)}`
+      );
+    }
+  }
+  if (bytes.length !== 64) {
+    throw new Error(
+      `Solana keypair secret must be 64 bytes (got ${bytes.length}). Use the full secret key, not just the seed.`
+    );
+  }
+  return Keypair.fromSecretKey(bytes);
+}
+function decodeBase64(value) {
+  if (typeof Buffer !== "undefined") {
+    return new Uint8Array(Buffer.from(value, "base64"));
+  }
+  const binary = atob(value);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+  return bytes;
+}
+function encodeBase64(bytes) {
+  if (typeof Buffer !== "undefined") {
+    return Buffer.from(bytes).toString("base64");
+  }
+  let binary = "";
+  for (let i = 0; i < bytes.byteLength; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  return btoa(binary);
+}
+function signSolanaTransaction(unsignedTxBase64, keypair) {
+  const bytes = decodeBase64(unsignedTxBase64);
+  try {
+    const versioned = VersionedTransaction.deserialize(bytes);
+    versioned.sign([keypair]);
+    return {
+      signer: keypair.publicKey.toBase58(),
+      signedTxBase64: encodeBase64(versioned.serialize())
+    };
+  } catch (versionedErr) {
+    try {
+      const legacy = Transaction.from(bytes);
+      legacy.partialSign(keypair);
+      return {
+        signer: keypair.publicKey.toBase58(),
+        signedTxBase64: encodeBase64(legacy.serialize())
+      };
+    } catch (legacyErr) {
+      const versionedMsg = versionedErr instanceof Error ? versionedErr.message : String(versionedErr);
+      const legacyMsg = legacyErr instanceof Error ? legacyErr.message : String(legacyErr);
+      throw new Error(
+        `Failed to deserialize Solana transaction (versioned: ${versionedMsg}; legacy: ${legacyMsg}).`
+      );
+    }
+  }
+}
+var init_solana_signer = __esm({
+  "src/cli/solana-signer.ts"() {
+    "use strict";
   }
 });
 
@@ -4704,43 +4586,6 @@ var init_auth = __esm({
   }
 });
 
-// src/cli/client-factory.ts
-function resolveCliBaseUrl(config) {
-  var _a3;
-  return (_a3 = config.baseUrl) != null ? _a3 : DEFAULT_CLI_BASE_URL;
-}
-function createCliGetAccountBearer(config) {
-  if (config.accountBearer) {
-    const bearer = config.accountBearer;
-    return async () => bearer;
-  }
-  if (config.sessionCookie) {
-    const sessionCookie = config.sessionCookie;
-    return async () => sessionCookie;
-  }
-  return void 0;
-}
-function createCliClient(config, overrides = {}) {
-  var _a3, _b;
-  const mergedConfig = __spreadProps(__spreadValues({}, config), {
-    baseUrl: (_a3 = overrides.baseUrl) != null ? _a3 : config.baseUrl,
-    apiKey: (_b = overrides.apiKey) != null ? _b : config.apiKey
-  });
-  return new AomiClient({
-    baseUrl: resolveCliBaseUrl(mergedConfig),
-    apiKey: mergedConfig.apiKey,
-    getAccountBearer: createCliGetAccountBearer(mergedConfig)
-  });
-}
-var DEFAULT_CLI_BASE_URL;
-var init_client_factory = __esm({
-  "src/cli/client-factory.ts"() {
-    "use strict";
-    init_client();
-    DEFAULT_CLI_BASE_URL = "https://chat.aomi.dev";
-  }
-});
-
 // src/cli/cli-session.ts
 var CliSession;
 var init_cli_session = __esm({
@@ -4752,7 +4597,6 @@ var init_cli_session = __esm({
     init_errors();
     init_solana_signer();
     init_auth();
-    init_client_factory();
     CliSession = class _CliSession {
       constructor(state) {
         this.state = state;
@@ -4780,7 +4624,7 @@ var init_cli_session = __esm({
       }
       /** Create a fresh session and persist it. */
       static create(config, seed) {
-        var _a3, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k;
+        var _a3, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m;
         let svmPublicKey;
         if (config.solanaPrivateKey) {
           try {
@@ -4793,7 +4637,7 @@ var init_cli_session = __esm({
         const state = {
           sessionId: crypto.randomUUID(),
           clientId: crypto.randomUUID(),
-          baseUrl: (_b = (_a3 = config.baseUrl) != null ? _a3 : seed == null ? void 0 : seed.baseUrl) != null ? _b : DEFAULT_CLI_BASE_URL,
+          baseUrl: (_b = (_a3 = config.baseUrl) != null ? _a3 : seed == null ? void 0 : seed.baseUrl) != null ? _b : "https://api.aomi.dev",
           app: (_c = config.app) != null ? _c : seed == null ? void 0 : seed.app,
           model: (_d = config.model) != null ? _d : seed == null ? void 0 : seed.model,
           apiKey: (_e = config.apiKey) != null ? _e : seed == null ? void 0 : seed.apiKey,
@@ -4802,12 +4646,13 @@ var init_cli_session = __esm({
           embeddedProvider: (_h = config.embeddedProvider) != null ? _h : seed == null ? void 0 : seed.embeddedProvider,
           embeddedProviderToken: (_i = config.embeddedProviderToken) != null ? _i : seed == null ? void 0 : seed.embeddedProviderToken,
           publicKey: (_j = config.publicKey) != null ? _j : seed == null ? void 0 : seed.publicKey,
-          privateKey: seed == null ? void 0 : seed.privateKey,
+          privateKey: (_k = config.privateKey) != null ? _k : seed == null ? void 0 : seed.privateKey,
           svmPublicKey: svmPublicKey != null ? svmPublicKey : seed == null ? void 0 : seed.svmPublicKey,
-          // Carry forward only persisted Solana keys from `wallet set --solana`.
-          // Keys supplied via --solana-private-key/env stay transient.
-          svmPrivateKey: seed == null ? void 0 : seed.svmPrivateKey,
-          chainId: (_k = config.chain) != null ? _k : seed == null ? void 0 : seed.chainId,
+          // Carry forward the persisted Solana private key so `wallet set --solana`
+          // survives `--new-session` — signing key is a user preference, not a
+          // per-session artifact.
+          svmPrivateKey: (_l = config.solanaPrivateKey) != null ? _l : seed == null ? void 0 : seed.svmPrivateKey,
+          chainId: (_m = config.chain) != null ? _m : seed == null ? void 0 : seed.chainId,
           secretHandles: seed == null ? void 0 : seed.secretHandles,
           auth: seed == null ? void 0 : seed.auth
         };
@@ -4998,18 +4843,6 @@ var init_cli_session = __esm({
         delete this.state.auth;
         this.save();
       }
-      clearSigningKeys() {
-        let changed = false;
-        if (this.state.privateKey !== void 0) {
-          delete this.state.privateKey;
-          changed = true;
-        }
-        if (this.state.svmPrivateKey !== void 0) {
-          delete this.state.svmPrivateKey;
-          changed = true;
-        }
-        if (changed) this.save();
-      }
       /** Ensure clientId exists, generate if absent. Returns the clientId. */
       ensureClientId() {
         if (!this.state.clientId) {
@@ -5197,19 +5030,13 @@ Available: ${available}`);
 });
 
 // src/cli/output.ts
-function printDataFileLocation(options) {
-  if ((options == null ? void 0 : options.verbose) !== true) {
-    return;
-  }
+function printDataFileLocation() {
   const activeFile = getActiveStateFilePath();
   if (activeFile) {
     console.log(`Data stored at ${activeFile} \u{1F4DD}`);
     return;
   }
   console.log(`Data stored under ${STATE_ROOT_DIR} \u{1F4DD}`);
-}
-function printJson(value) {
-  console.log(JSON.stringify(value, null, 2));
 }
 function printToolUpdate(event) {
   var _a3;
@@ -5315,7 +5142,7 @@ var init_output = __esm({
 function createControlClient(config) {
   var _a3;
   return new AomiClient({
-    baseUrl: (_a3 = config.baseUrl) != null ? _a3 : DEFAULT_CLI_BASE_URL,
+    baseUrl: (_a3 = config.baseUrl) != null ? _a3 : "https://api.aomi.dev",
     apiKey: config.apiKey,
     getAccountBearer: createCliAuthTokenProvider(() => {
       var _a4;
@@ -5355,7 +5182,6 @@ var init_context = __esm({
     "use strict";
     init_client();
     init_auth();
-    init_client_factory();
     init_state2();
   }
 });
@@ -5581,7 +5407,6 @@ async function chatCommand(config, message, verbose) {
         console.log(last.content);
       } else if (newPendingTxs.length === 0) {
         console.log("(no response)");
-        fatal("Backend returned an empty agent message.");
       }
       if (newPendingTxs.length === 0) {
         const mentionedTxIds = extractMentionedTxIds(last == null ? void 0 : last.content);
@@ -7223,153 +7048,6 @@ var init_transactions = __esm({
   }
 });
 
-// src/cli/tables.ts
-function truncateCell(value, maxWidth) {
-  if (value.length <= maxWidth) return value;
-  return `${value.slice(0, maxWidth - 1)}\u2026`;
-}
-function padRight(value, width) {
-  return value.padEnd(width, " ");
-}
-function estimateTokenCount(messages) {
-  var _a3;
-  let totalChars = 0;
-  for (const message of messages) {
-    const content = formatLogContent(message.content);
-    if (content) {
-      totalChars += content.length + 1;
-    }
-    if ((_a3 = message.tool_result) == null ? void 0 : _a3[1]) {
-      totalChars += message.tool_result[1].length;
-    }
-  }
-  return Math.round(totalChars / 4);
-}
-function toIsoTimestamp(timestamp2) {
-  if (typeof timestamp2 !== "number" || !Number.isFinite(timestamp2)) {
-    return null;
-  }
-  try {
-    return new Date(timestamp2).toISOString();
-  } catch (e) {
-    return null;
-  }
-}
-function toPendingTxMetadata(tx) {
-  var _a3, _b, _c, _d, _e, _f;
-  return {
-    id: tx.id,
-    kind: tx.kind,
-    txId: (_a3 = tx.txId) != null ? _a3 : null,
-    eip712Id: (_b = tx.eip712Id) != null ? _b : null,
-    to: (_c = tx.to) != null ? _c : null,
-    value: (_d = tx.value) != null ? _d : null,
-    chainId: (_e = tx.chainId) != null ? _e : null,
-    description: (_f = tx.description) != null ? _f : null,
-    timestamp: toIsoTimestamp(tx.timestamp)
-  };
-}
-function toSignedTxMetadata(tx) {
-  var _a3, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o;
-  return {
-    id: tx.id,
-    kind: tx.kind,
-    txHash: (_a3 = tx.txHash) != null ? _a3 : null,
-    txHashes: (_b = tx.txHashes) != null ? _b : null,
-    executionKind: (_c = tx.executionKind) != null ? _c : null,
-    aaProvider: (_d = tx.aaProvider) != null ? _d : null,
-    aaMode: (_e = tx.aaMode) != null ? _e : null,
-    batched: (_f = tx.batched) != null ? _f : null,
-    sponsored: (_g = tx.sponsored) != null ? _g : null,
-    smartAccount4337: (_h = tx.smartAccount4337) != null ? _h : null,
-    Delegation7702: (_i = tx.Delegation7702) != null ? _i : null,
-    signature: (_j = tx.signature) != null ? _j : null,
-    from: (_k = tx.from) != null ? _k : null,
-    to: (_l = tx.to) != null ? _l : null,
-    value: (_m = tx.value) != null ? _m : null,
-    chainId: (_n = tx.chainId) != null ? _n : null,
-    description: (_o = tx.description) != null ? _o : null,
-    timestamp: toIsoTimestamp(tx.timestamp)
-  };
-}
-function printKeyValueTable(rows, color = CYAN) {
-  const labels = rows.map(([label]) => label);
-  const values = rows.map(
-    ([, value]) => truncateCell(value, MAX_TABLE_VALUE_WIDTH)
-  );
-  const keyWidth = Math.max("field".length, ...labels.map((label) => label.length));
-  const valueWidth = Math.max("value".length, ...values.map((value) => value.length));
-  const border = `+${"-".repeat(keyWidth + 2)}+${"-".repeat(valueWidth + 2)}+`;
-  console.log(`${color}${border}${RESET}`);
-  console.log(
-    `${color}| ${padRight("field", keyWidth)} | ${padRight("value", valueWidth)} |${RESET}`
-  );
-  console.log(`${color}${border}${RESET}`);
-  for (let i = 0; i < rows.length; i++) {
-    console.log(
-      `${color}| ${padRight(labels[i], keyWidth)} | ${padRight(values[i], valueWidth)} |${RESET}`
-    );
-    console.log(`${color}${border}${RESET}`);
-  }
-}
-function printTransactionTable(pendingTxs, signedTxs, color = GREEN) {
-  const safePendingTxs = pendingTxs.filter(
-    (tx) => typeof tx === "object" && tx !== null
-  );
-  const safeSignedTxs = signedTxs.filter(
-    (tx) => typeof tx === "object" && tx !== null
-  );
-  const rows = [
-    ...safePendingTxs.map((tx) => ({
-      status: "pending",
-      metadata: toPendingTxMetadata(tx)
-    })),
-    ...safeSignedTxs.map((tx) => ({
-      status: "signed",
-      metadata: toSignedTxMetadata(tx)
-    }))
-  ];
-  if (rows.length === 0) {
-    console.log(`${YELLOW}No transactions in local CLI state.${RESET}`);
-    return;
-  }
-  const visibleRows = rows.slice(0, MAX_TX_ROWS);
-  const statusWidth = Math.max(
-    "status".length,
-    ...visibleRows.map((row) => row.status.length)
-  );
-  const jsonCells = visibleRows.map(
-    (row) => truncateCell(JSON.stringify(row.metadata), MAX_TX_JSON_WIDTH)
-  );
-  const jsonWidth = Math.max("metadata_json".length, ...jsonCells.map((v) => v.length));
-  const border = `+${"-".repeat(statusWidth + 2)}+${"-".repeat(jsonWidth + 2)}+`;
-  console.log(`${color}${border}${RESET}`);
-  console.log(
-    `${color}| ${padRight("status", statusWidth)} | ${padRight("metadata_json", jsonWidth)} |${RESET}`
-  );
-  console.log(`${color}${border}${RESET}`);
-  for (let i = 0; i < visibleRows.length; i++) {
-    console.log(
-      `${color}| ${padRight(visibleRows[i].status, statusWidth)} | ${padRight(jsonCells[i], jsonWidth)} |${RESET}`
-    );
-    console.log(`${color}${border}${RESET}`);
-  }
-  if (rows.length > MAX_TX_ROWS) {
-    const omitted = rows.length - MAX_TX_ROWS;
-    console.log(`${DIM}${omitted} transaction rows omitted${RESET}`);
-  }
-}
-var MAX_TABLE_VALUE_WIDTH, MAX_TX_JSON_WIDTH, MAX_TX_ROWS;
-var init_tables = __esm({
-  "src/cli/tables.ts"() {
-    "use strict";
-    init_output();
-    MAX_TABLE_VALUE_WIDTH = 72;
-    MAX_TX_JSON_WIDTH = 96;
-    MAX_TX_ROWS = 8;
-  }
-});
-
 // src/cli/commands/wallet.ts
 var wallet_exports = {};
 __export(wallet_exports, {
@@ -7382,12 +7060,8 @@ import * as viemChains from "viem/chains";
 async function txCommand(config) {
   const cli = CliSession.load();
   if (!cli) {
-    if (config.json) {
-      printJson({ active: false, pending: [], signed: [] });
-      return;
-    }
     console.log("No active session");
-    printDataFileLocation({ verbose: config.verbose });
+    printDataFileLocation();
     return;
   }
   const session = cli.createClientSession(config);
@@ -7408,45 +7082,9 @@ async function txCommand(config) {
   const signedSol = [...cli.signedSolTxs];
   const totalPending = pending.length + pendingSol.length;
   const totalSigned = signed.length + signedSol.length;
-  if (config.json) {
-    printJson({
-      active: true,
-      pending: [
-        ...pending.map((tx) => toPendingTxMetadata(tx)),
-        ...pendingSol.map((tx) => {
-          var _a3, _b, _c;
-          return {
-            id: tx.id,
-            kind: tx.kind,
-            solanaId: tx.solanaId,
-            signer: (_a3 = tx.signer) != null ? _a3 : null,
-            cluster: (_b = tx.cluster) != null ? _b : null,
-            description: (_c = tx.description) != null ? _c : null,
-            timestamp: new Date(tx.timestamp).toISOString()
-          };
-        })
-      ],
-      signed: [
-        ...signed.map((tx) => toSignedTxMetadata(tx)),
-        ...signedSol.map((tx) => {
-          var _a3, _b, _c, _d;
-          return {
-            id: tx.id,
-            kind: "solana_sign",
-            signedTx: (_a3 = tx.signedTx) != null ? _a3 : null,
-            signer: (_b = tx.signer) != null ? _b : null,
-            cluster: (_c = tx.cluster) != null ? _c : null,
-            description: (_d = tx.description) != null ? _d : null,
-            timestamp: new Date(tx.timestamp).toISOString()
-          };
-        })
-      ]
-    });
-    return;
-  }
   if (totalPending === 0 && totalSigned === 0) {
     console.log("No transactions.");
-    printDataFileLocation({ verbose: config.verbose });
+    printDataFileLocation();
     return;
   }
   if (totalPending > 0) {
@@ -7468,7 +7106,7 @@ async function txCommand(config) {
       console.log(formatSignedSolTxLine(tx, "  \u2705"));
     }
   }
-  printDataFileLocation({ verbose: config.verbose });
+  printDataFileLocation();
 }
 function resolveChain(targetChainId, rpcUrl) {
   const knownChain = Object.values(viemChains).find((candidate) => {
@@ -7546,7 +7184,7 @@ async function signSolanaPending(params) {
       [
         "Solana keypair required for `aomi tx sign` on a solana_sign request.",
         "Pass one of:",
-        "  aomi wallet dev-key --solana <base58-key>         # persist once",
+        "  aomi wallet set --solana <base58-key>             # persist once",
         "  aomi tx sign --solana-private-key <base58|json> <tx-id>",
         "  SOLANA_PRIVATE_KEY=<base58|json> aomi tx sign <tx-id>",
         "",
@@ -7695,7 +7333,7 @@ Available: ${available}`
         [
           "Private key required for `aomi tx sign`.",
           "Pass one of:",
-          "  aomi wallet dev-key <hex-key>",
+          "  aomi wallet set <hex-key>",
           "  aomi tx sign --private-key <hex-key> <tx-id>",
           "  PRIVATE_KEY=<hex-key> aomi tx sign <tx-id>"
         ].join("\n")
@@ -7960,9 +7598,7 @@ Available: ${available}`
             }));
           }
         } catch (err) {
-          console.warn(
-            `[aomi tx sign] failed to fetch typed_data from backend: ${err}`
-          );
+          console.warn(`[aomi tx sign] failed to fetch typed_data from backend: ${err}`);
         }
       }
       if (signArgs && messageArgs) {
@@ -8047,7 +7683,43 @@ var init_wallet2 = __esm({
     init_transactions();
     init_chains();
     init_defaults();
-    init_tables();
+  }
+});
+
+// src/cli/client-factory.ts
+function resolveCliBaseUrl(config) {
+  var _a3;
+  return (_a3 = config.baseUrl) != null ? _a3 : DEFAULT_CLI_BASE_URL;
+}
+function createCliGetAccountBearer(config) {
+  if (config.accountBearer) {
+    const bearer = config.accountBearer;
+    return async () => bearer;
+  }
+  if (config.sessionCookie) {
+    const sessionCookie = config.sessionCookie;
+    return async () => sessionCookie;
+  }
+  return void 0;
+}
+function createCliClient(config, overrides = {}) {
+  var _a3, _b;
+  const mergedConfig = __spreadProps(__spreadValues({}, config), {
+    baseUrl: (_a3 = overrides.baseUrl) != null ? _a3 : config.baseUrl,
+    apiKey: (_b = overrides.apiKey) != null ? _b : config.apiKey
+  });
+  return new AomiClient({
+    baseUrl: resolveCliBaseUrl(mergedConfig),
+    apiKey: mergedConfig.apiKey,
+    getAccountBearer: createCliGetAccountBearer(mergedConfig)
+  });
+}
+var DEFAULT_CLI_BASE_URL;
+var init_client_factory = __esm({
+  "src/cli/client-factory.ts"() {
+    "use strict";
+    init_client();
+    DEFAULT_CLI_BASE_URL = "https://chat.aomi.dev";
   }
 });
 
@@ -8155,6 +7827,153 @@ var init_simulate = __esm({
   }
 });
 
+// src/cli/tables.ts
+function truncateCell(value, maxWidth) {
+  if (value.length <= maxWidth) return value;
+  return `${value.slice(0, maxWidth - 1)}\u2026`;
+}
+function padRight(value, width) {
+  return value.padEnd(width, " ");
+}
+function estimateTokenCount(messages) {
+  var _a3;
+  let totalChars = 0;
+  for (const message of messages) {
+    const content = formatLogContent(message.content);
+    if (content) {
+      totalChars += content.length + 1;
+    }
+    if ((_a3 = message.tool_result) == null ? void 0 : _a3[1]) {
+      totalChars += message.tool_result[1].length;
+    }
+  }
+  return Math.round(totalChars / 4);
+}
+function toIsoTimestamp(timestamp2) {
+  if (typeof timestamp2 !== "number" || !Number.isFinite(timestamp2)) {
+    return null;
+  }
+  try {
+    return new Date(timestamp2).toISOString();
+  } catch (e) {
+    return null;
+  }
+}
+function toPendingTxMetadata(tx) {
+  var _a3, _b, _c, _d, _e, _f;
+  return {
+    id: tx.id,
+    kind: tx.kind,
+    txId: (_a3 = tx.txId) != null ? _a3 : null,
+    eip712Id: (_b = tx.eip712Id) != null ? _b : null,
+    to: (_c = tx.to) != null ? _c : null,
+    value: (_d = tx.value) != null ? _d : null,
+    chainId: (_e = tx.chainId) != null ? _e : null,
+    description: (_f = tx.description) != null ? _f : null,
+    timestamp: toIsoTimestamp(tx.timestamp)
+  };
+}
+function toSignedTxMetadata(tx) {
+  var _a3, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o;
+  return {
+    id: tx.id,
+    kind: tx.kind,
+    txHash: (_a3 = tx.txHash) != null ? _a3 : null,
+    txHashes: (_b = tx.txHashes) != null ? _b : null,
+    executionKind: (_c = tx.executionKind) != null ? _c : null,
+    aaProvider: (_d = tx.aaProvider) != null ? _d : null,
+    aaMode: (_e = tx.aaMode) != null ? _e : null,
+    batched: (_f = tx.batched) != null ? _f : null,
+    sponsored: (_g = tx.sponsored) != null ? _g : null,
+    smartAccount4337: (_h = tx.smartAccount4337) != null ? _h : null,
+    Delegation7702: (_i = tx.Delegation7702) != null ? _i : null,
+    signature: (_j = tx.signature) != null ? _j : null,
+    from: (_k = tx.from) != null ? _k : null,
+    to: (_l = tx.to) != null ? _l : null,
+    value: (_m = tx.value) != null ? _m : null,
+    chainId: (_n = tx.chainId) != null ? _n : null,
+    description: (_o = tx.description) != null ? _o : null,
+    timestamp: toIsoTimestamp(tx.timestamp)
+  };
+}
+function printKeyValueTable(rows, color = CYAN) {
+  const labels = rows.map(([label]) => label);
+  const values = rows.map(
+    ([, value]) => truncateCell(value, MAX_TABLE_VALUE_WIDTH)
+  );
+  const keyWidth = Math.max("field".length, ...labels.map((label) => label.length));
+  const valueWidth = Math.max("value".length, ...values.map((value) => value.length));
+  const border = `+${"-".repeat(keyWidth + 2)}+${"-".repeat(valueWidth + 2)}+`;
+  console.log(`${color}${border}${RESET}`);
+  console.log(
+    `${color}| ${padRight("field", keyWidth)} | ${padRight("value", valueWidth)} |${RESET}`
+  );
+  console.log(`${color}${border}${RESET}`);
+  for (let i = 0; i < rows.length; i++) {
+    console.log(
+      `${color}| ${padRight(labels[i], keyWidth)} | ${padRight(values[i], valueWidth)} |${RESET}`
+    );
+    console.log(`${color}${border}${RESET}`);
+  }
+}
+function printTransactionTable(pendingTxs, signedTxs, color = GREEN) {
+  const safePendingTxs = pendingTxs.filter(
+    (tx) => typeof tx === "object" && tx !== null
+  );
+  const safeSignedTxs = signedTxs.filter(
+    (tx) => typeof tx === "object" && tx !== null
+  );
+  const rows = [
+    ...safePendingTxs.map((tx) => ({
+      status: "pending",
+      metadata: toPendingTxMetadata(tx)
+    })),
+    ...safeSignedTxs.map((tx) => ({
+      status: "signed",
+      metadata: toSignedTxMetadata(tx)
+    }))
+  ];
+  if (rows.length === 0) {
+    console.log(`${YELLOW}No transactions in local CLI state.${RESET}`);
+    return;
+  }
+  const visibleRows = rows.slice(0, MAX_TX_ROWS);
+  const statusWidth = Math.max(
+    "status".length,
+    ...visibleRows.map((row) => row.status.length)
+  );
+  const jsonCells = visibleRows.map(
+    (row) => truncateCell(JSON.stringify(row.metadata), MAX_TX_JSON_WIDTH)
+  );
+  const jsonWidth = Math.max("metadata_json".length, ...jsonCells.map((v) => v.length));
+  const border = `+${"-".repeat(statusWidth + 2)}+${"-".repeat(jsonWidth + 2)}+`;
+  console.log(`${color}${border}${RESET}`);
+  console.log(
+    `${color}| ${padRight("status", statusWidth)} | ${padRight("metadata_json", jsonWidth)} |${RESET}`
+  );
+  console.log(`${color}${border}${RESET}`);
+  for (let i = 0; i < visibleRows.length; i++) {
+    console.log(
+      `${color}| ${padRight(visibleRows[i].status, statusWidth)} | ${padRight(jsonCells[i], jsonWidth)} |${RESET}`
+    );
+    console.log(`${color}${border}${RESET}`);
+  }
+  if (rows.length > MAX_TX_ROWS) {
+    const omitted = rows.length - MAX_TX_ROWS;
+    console.log(`${DIM}${omitted} transaction rows omitted${RESET}`);
+  }
+}
+var MAX_TABLE_VALUE_WIDTH, MAX_TX_JSON_WIDTH, MAX_TX_ROWS;
+var init_tables = __esm({
+  "src/cli/tables.ts"() {
+    "use strict";
+    init_output();
+    MAX_TABLE_VALUE_WIDTH = 72;
+    MAX_TX_JSON_WIDTH = 96;
+    MAX_TX_ROWS = 8;
+  }
+});
+
 // src/cli/commands/sessions.ts
 var sessions_exports = {};
 __export(sessions_exports, {
@@ -8178,7 +7997,7 @@ async function fetchRemoteSessionStats(record) {
     );
     const messages = (_a3 = apiState.messages) != null ? _a3 : [];
     return {
-      topic: (_b = apiState.title) != null ? _b : "Untitled Thread",
+      topic: (_b = apiState.title) != null ? _b : "Untitled Session",
       messageCount: messages.length,
       tokenCountEstimate: estimateTokenCount(messages),
       toolCalls: messages.filter((msg) => Boolean(msg.tool_result)).length,
@@ -8195,7 +8014,7 @@ function printSessionSummary(record, stats, isActive) {
   var _a3, _b, _c, _d;
   const pendingTxs = (_b = (_a3 = stats == null ? void 0 : stats.pendingTxs) != null ? _a3 : record.state.pendingTxs) != null ? _b : [];
   const signedTxs = (_c = record.state.signedTxs) != null ? _c : [];
-  const header = isActive ? `\u{1F9F5} Thread id: ${record.sessionId} (thread-${record.localId}, active)` : `\u{1F9F5} Thread id: ${record.sessionId} (thread-${record.localId})`;
+  const header = isActive ? `\u{1F9F5} Session id: ${record.sessionId} (session-${record.localId}, active)` : `\u{1F9F5} Session id: ${record.sessionId} (session-${record.localId})`;
   console.log(`${YELLOW}------ ${header} ------${RESET}`);
   printKeyValueTable([
     ["\u{1F9E0} topic", (_d = stats == null ? void 0 : stats.topic) != null ? _d : "Unavailable (fetch failed)"],
@@ -8220,7 +8039,7 @@ async function sessionsCommand(_config) {
     (a, b) => b.updatedAt - a.updatedAt
   );
   if (sessions.length === 0) {
-    console.log("No local threads.");
+    console.log("No local sessions.");
     printDataFileLocation();
     return;
   }
@@ -8243,32 +8062,32 @@ async function sessionsCommand(_config) {
 function newSessionCommand(config) {
   const existing = CliSession.load();
   const cli = CliSession.create(config, existing == null ? void 0 : existing.toState());
-  console.log(`Active thread set to ${cli.sessionId} (new).`);
+  console.log(`Active session set to ${cli.sessionId} (new).`);
   printDataFileLocation();
 }
 function resumeSessionCommand(selector) {
   const resumed = setActiveSession(selector);
   if (!resumed) {
-    fatal(`No local thread found for selector "${selector}".`);
+    fatal(`No local session found for selector "${selector}".`);
   }
   console.log(
-    `Active thread set to ${resumed.sessionId} (thread-${resumed.localId}).`
+    `Active session set to ${resumed.sessionId} (session-${resumed.localId}).`
   );
   printDataFileLocation();
 }
 function deleteSessionCommand(selector) {
   const deleted = deleteStoredSession(selector);
   if (!deleted) {
-    fatal(`No local thread found for selector "${selector}".`);
+    fatal(`No local session found for selector "${selector}".`);
   }
   console.log(
-    `Deleted local thread ${deleted.sessionId} (thread-${deleted.localId}).`
+    `Deleted local session ${deleted.sessionId} (session-${deleted.localId}).`
   );
   const active = CliSession.load();
   if (active) {
-    console.log(`Active thread: ${active.sessionId}`);
+    console.log(`Active session: ${active.sessionId}`);
   } else {
-    console.log("No active thread");
+    console.log("No active session");
   }
   printDataFileLocation();
 }
@@ -8306,12 +8125,8 @@ async function statusCommand(config) {
   var _a3, _b, _c, _d, _e, _f;
   const cli = CliSession.load();
   if (!cli) {
-    if (config.json) {
-      printJson({ active: false });
-      return;
-    }
     console.log("No active session");
-    printDataFileLocation({ verbose: config.verbose });
+    printDataFileLocation();
     return;
   }
   cli.mergeConfig(config);
@@ -8325,7 +8140,7 @@ async function statusCommand(config) {
     console.log(
       JSON.stringify(
         {
-          threadId: cli.sessionId,
+          sessionId: cli.sessionId,
           baseUrl: cli.baseUrl,
           app: cli.app,
           model: (_a3 = cli.model) != null ? _a3 : null,
@@ -8340,7 +8155,7 @@ async function statusCommand(config) {
         2
       )
     );
-    printDataFileLocation({ verbose: config.verbose });
+    printDataFileLocation();
   } finally {
     session.close();
   }
@@ -8369,27 +8184,15 @@ async function appsCommand(config) {
     apiKey: (_b = config.apiKey) != null ? _b : cli == null ? void 0 : cli.apiKey
   });
   if (apps.length === 0) {
-    if (config.json) {
-      printJson([]);
-      return;
-    }
     console.log("No apps available.");
     return;
   }
   const currentApp = (_c = cli == null ? void 0 : cli.app) != null ? _c : config.app;
-  if (config.json) {
-    printJson(
-      apps.map((descriptor) => __spreadProps(__spreadValues({}, descriptor), {
-        current: currentApp === descriptor.name
-      }))
-    );
-    return;
-  }
   for (const descriptor of apps) {
     const name = descriptor.name;
     const marker = currentApp === name ? "  (current)" : "";
-    const required2 = ((_d = descriptor.secrets) != null ? _d : []).filter((s) => s.required).map((s) => s.name);
-    const requiredSuffix = required2.length > 0 ? `  [requires: ${required2.join(", ")}]` : "";
+    const required = ((_d = descriptor.secrets) != null ? _d : []).filter((s) => s.required).map((s) => s.name);
+    const requiredSuffix = required.length > 0 ? `  [requires: ${required.join(", ")}]` : "";
     console.log(`${name}${marker}${requiredSuffix}`);
   }
 }
@@ -8410,39 +8213,22 @@ async function modelsCommand(config) {
     console.log(`${model}${marker}`);
   }
 }
-function currentAppCommand(config = { secrets: {} }) {
-  var _a3, _b;
-  const cli = CliSession.load();
-  if (!cli) {
-    if (config.json) {
-      printJson({ active: false, app: null });
-      return;
-    }
-    console.log("No active session");
-    printDataFileLocation({ verbose: config.verbose });
-    return;
-  }
-  if (config.json) {
-    printJson({ active: true, app: (_a3 = cli.app) != null ? _a3 : "default" });
-    return;
-  }
-  console.log((_b = cli.app) != null ? _b : "(default)");
-  printDataFileLocation({ verbose: config.verbose });
-}
-function currentChainCommand(config = { secrets: {} }) {
+function currentAppCommand() {
   var _a3;
   const cli = CliSession.load();
   if (!cli) {
-    if (config.json) {
-      printJson({ active: false, chainId: null });
-      return;
-    }
     console.log("No active session");
-    printDataFileLocation({ verbose: config.verbose });
+    printDataFileLocation();
     return;
   }
-  if (config.json) {
-    printJson({ active: true, chainId: (_a3 = cli.chainId) != null ? _a3 : null });
+  console.log((_a3 = cli.app) != null ? _a3 : "(default)");
+  printDataFileLocation();
+}
+function currentChainCommand() {
+  const cli = CliSession.load();
+  if (!cli) {
+    console.log("No active session");
+    printDataFileLocation();
     return;
   }
   if (cli.chainId === void 0) {
@@ -8450,7 +8236,7 @@ function currentChainCommand(config = { secrets: {} }) {
   } else {
     console.log(String(cli.chainId));
   }
-  printDataFileLocation({ verbose: config.verbose });
+  printDataFileLocation();
 }
 function currentBackendCommand() {
   const cli = CliSession.load();
@@ -8462,41 +8248,18 @@ function currentBackendCommand() {
   console.log(cli.baseUrl);
   printDataFileLocation();
 }
-function currentWalletCommand(config = { secrets: {} }) {
-  var _a3, _b;
+function currentWalletCommand() {
   const cli = CliSession.load();
   if (!cli) {
-    if (config.json) {
-      printJson({ active: false, wallets: [] });
-      return;
-    }
     console.log("No active session");
-    printDataFileLocation({ verbose: config.verbose });
+    printDataFileLocation();
     return;
   }
   const state = cli.toState();
-  const wallets = [
-    cli.publicKey ? {
-      family: "evm",
-      address: cli.publicKey,
-      chainId: (_a3 = cli.chainId) != null ? _a3 : null,
-      hasSavedSigner: Boolean(cli.privateKey)
-    } : null,
-    state.svmPublicKey ? {
-      family: "solana",
-      address: state.svmPublicKey,
-      cluster: (_b = state.svmCluster) != null ? _b : null,
-      hasSavedSigner: Boolean(state.svmPrivateKey)
-    } : null
-  ].filter((wallet) => wallet !== null);
-  if (config.json) {
-    printJson({ active: true, wallets });
-    return;
-  }
   const hasAny = cli.publicKey || state.svmPublicKey;
   if (!hasAny) {
     console.log("No wallet configured");
-    printDataFileLocation({ verbose: config.verbose });
+    printDataFileLocation();
     return;
   }
   if (cli.publicKey) {
@@ -8507,7 +8270,7 @@ function currentWalletCommand(config = { secrets: {} }) {
     const signerStatus = state.svmPrivateKey ? "saved signer" : "address only";
     console.log(`Solana: ${state.svmPublicKey} (${signerStatus})`);
   }
-  printDataFileLocation({ verbose: config.verbose });
+  printDataFileLocation();
 }
 function currentModelCommand() {
   var _a3;
@@ -8547,36 +8310,18 @@ async function setModelCommand(config, model, options) {
     cli.setModel(model);
     console.log(`Model set to ${model}`);
     if ((options == null ? void 0 : options.printLocation) !== false) {
-      printDataFileLocation({ verbose: config.verbose });
+      printDataFileLocation();
     }
   } finally {
     session.close();
   }
 }
-function chainsCommand(config = { secrets: {} }) {
+function chainsCommand() {
+  var _a3;
   const cli = CliSession.load();
   const currentChainId = cli == null ? void 0 : cli.chainId;
-  const chains = SUPPORTED_CHAIN_IDS.map((id) => {
-    var _a3;
-    const aaChain = DEFAULT_AA_CONFIG.chains.find((c) => c.chainId === id);
-    return {
-      id,
-      name: (_a3 = CHAIN_NAMES[id]) != null ? _a3 : `Chain ${id}`,
-      aa: (aaChain == null ? void 0 : aaChain.enabled) ? {
-        enabled: true,
-        defaultMode: aaChain.defaultMode,
-        supportedModes: aaChain.supportedModes
-      } : { enabled: false },
-      current: currentChainId === id
-    };
-  });
-  if (config.json) {
-    printJson(chains);
-    return;
-  }
-  for (const chain of chains) {
-    const id = chain.id;
-    const name = chain.name;
+  for (const id of SUPPORTED_CHAIN_IDS) {
+    const name = (_a3 = CHAIN_NAMES[id]) != null ? _a3 : `Chain ${id}`;
     const aaChain = DEFAULT_AA_CONFIG.chains.find((c) => c.chainId === id);
     const aaInfo = (aaChain == null ? void 0 : aaChain.enabled) ? `  AA: ${aaChain.defaultMode} (${aaChain.supportedModes.join(", ")})` : "";
     const marker = currentChainId === id ? "  (current)" : "";
@@ -8612,24 +8357,20 @@ async function logCommand(config) {
   cli.mergeConfig(config);
   const session = cli.createClientSession(config);
   try {
-    const apiState = await session.client.fetchState(
-      cli.sessionId,
-      void 0,
-      cli.clientId
-    );
+    const apiState = await session.client.fetchState(cli.sessionId, void 0, cli.clientId);
     cli.syncPendingFromUserState(apiState.user_state);
     const messages = (_a3 = apiState.messages) != null ? _a3 : [];
     const pendingTxs = [...cli.pendingTxs];
     const signedTxs = [...cli.signedTxs];
     const toolCalls = messages.filter((msg) => Boolean(msg.tool_result)).length;
     const tokenCountEstimate = estimateTokenCount(messages);
-    const topic = (_b = apiState.title) != null ? _b : "Untitled Thread";
+    const topic = (_b = apiState.title) != null ? _b : "Untitled Session";
     if (messages.length === 0) {
       console.log("No messages in this session.");
       printDataFileLocation();
       return;
     }
-    console.log(`------ Thread id: ${cli.sessionId} ------`);
+    console.log(`------ Session id: ${cli.sessionId} ------`);
     printKeyValueTable([
       ["topic", topic],
       ["msg count", String(messages.length)],
@@ -8692,7 +8433,7 @@ function closeCommand(config) {
     session.close();
   }
   clearState();
-  console.log("Thread closed");
+  console.log("Session closed");
 }
 var init_history = __esm({
   "src/cli/commands/history.ts"() {
@@ -8725,7 +8466,7 @@ function loadOrCreateForSettings() {
 function setWalletCommand(privateKeyInput) {
   const privateKey = normalizePrivateKey(privateKeyInput);
   if (!privateKey) {
-    fatal("Usage: aomi wallet dev-key <private-key>  (EVM hex key)");
+    fatal("Usage: aomi wallet set <private-key>  (EVM hex key)");
   }
   const account = privateKeyToAccount8(privateKey);
   const cli = loadOrCreateForSettings();
@@ -8740,7 +8481,7 @@ function setSvmWalletCommand(keyInput) {
   } catch (err) {
     fatal(
       `Invalid Solana private key: ${err instanceof Error ? err.message : err}
-Usage: aomi wallet dev-key --solana <base58-secret-key>`
+Usage: aomi wallet set --solana <base58-secret-key>`
     );
   }
   const publicKey = keypair.publicKey.toBase58();
@@ -8781,125 +8522,6 @@ var init_preferences = __esm({
   }
 });
 
-// src/cli/commands/wallet-auth.ts
-var wallet_auth_exports = {};
-__export(wallet_auth_exports, {
-  walletListCommand: () => walletListCommand,
-  walletSetModeCommand: () => walletSetModeCommand
-});
-import { privateKeyToAccount as privateKeyToAccount9 } from "viem/accounts";
-function requireActiveCli(config) {
-  const cli = CliSession.load();
-  if (!cli) {
-    fatal("No active thread. Run `aomi thread new` first.");
-  }
-  cli.mergeConfig(config);
-  return cli;
-}
-function normalizeSigningMode(mode) {
-  const normalized = mode.trim().toLowerCase();
-  if (normalized === "autonomous" || normalized === "human_sync" || normalized === "denied") {
-    return normalized;
-  }
-  fatal('Mode must be one of "autonomous", "human_sync", or "denied".');
-}
-function formatProviderFilter(provider) {
-  const normalized = provider == null ? void 0 : provider.trim().toLowerCase();
-  return normalized || void 0;
-}
-async function walletListCommand(config, options = {}) {
-  const cli = requireActiveCli(config);
-  const provider = formatProviderFilter(options.provider);
-  const session = cli.createClientSession(config);
-  try {
-    const result = await session.client.listAccountWallets(cli.sessionId);
-    const wallets = provider ? result.wallets.filter(
-      (wallet) => wallet.wallet_provider.toLowerCase() === provider
-    ) : result.wallets;
-    if (wallets.length === 0) {
-      console.log("No wallets.");
-      printDataFileLocation();
-      return;
-    }
-    for (const wallet of wallets) {
-      const label = wallet.label ? ` "${wallet.label}"` : "";
-      const delegated = wallet.has_delegated_grant ? "delegated" : "client";
-      const autonomous = wallet.can_use_autonomous ? "autonomous-ready" : "human-sync-only";
-      console.log(
-        `${wallet.chain_type} [${wallet.wallet_provider}] ${wallet.address}${label}`
-      );
-      console.log(
-        `  signing=${wallet.signing} mode=${wallet.signing_mode} grant=${delegated} ${autonomous}`
-      );
-      if (wallet.wallet_ref) console.log(`  ref=${wallet.wallet_ref}`);
-    }
-    printDataFileLocation();
-  } finally {
-    session.close();
-  }
-}
-async function walletSetModeCommand(config, address3, mode, options = {}) {
-  var _a3, _b;
-  const targetMode = normalizeSigningMode(mode);
-  const chainType = ((_a3 = options.chainType) == null ? void 0 : _a3.trim().toLowerCase()) || "evm";
-  if (chainType !== "evm") {
-    fatal("`wallet set-mode` currently signs EVM authorization permits.");
-  }
-  const cli = requireActiveCli(config);
-  const privateKey = (_b = config.privateKey) != null ? _b : cli.privateKey;
-  if (!privateKey) {
-    fatal(
-      "No EVM private key configured.\nRun `aomi wallet dev-key <evm-private-key>` or pass `--private-key`."
-    );
-  }
-  const account = privateKeyToAccount9(privateKey);
-  if (account.address.toLowerCase() !== address3.trim().toLowerCase()) {
-    fatal(
-      `\`wallet set-mode\` must be signed by the target wallet. Configured key resolves to ${account.address}.`
-    );
-  }
-  const session = cli.createClientSession(config);
-  try {
-    const challenge = await session.client.createAuthorizationChallenge(
-      cli.sessionId,
-      {
-        chain_type: chainType,
-        wallet: address3,
-        mode: targetMode
-      }
-    );
-    const signArgs = toViemSignTypedDataArgs({
-      typed_data: challenge.typed_data
-    });
-    if (!signArgs) {
-      fatal(
-        "Backend authorization challenge did not include EIP-712 typed data."
-      );
-    }
-    const signature = await account.signTypedData(signArgs);
-    const state = await session.client.commitAuthorization(cli.sessionId, {
-      permit: challenge.permit,
-      signature
-    });
-    console.log(
-      `Wallet ${state.address} (${state.chain_type}) mode set to ${state.signing_mode}.`
-    );
-    console.log(`Authorization version: ${state.authorization_version}`);
-    printDataFileLocation();
-  } finally {
-    session.close();
-  }
-}
-var init_wallet_auth = __esm({
-  "src/cli/commands/wallet-auth.ts"() {
-    "use strict";
-    init_wallet_utils();
-    init_cli_session();
-    init_errors();
-    init_output();
-  }
-});
-
 // src/cli/device-auth.ts
 import { spawn } from "child_process";
 import { createHash, randomBytes } from "crypto";
@@ -8907,7 +8529,6 @@ import { createServer } from "http";
 async function signInWithDeviceProvider({
   baseUrl,
   provider,
-  walletFamily,
   fetch: fetchImpl = fetch,
   now = Date.now,
   timeoutMs = DEFAULT_TIMEOUT_MS,
@@ -8929,8 +8550,7 @@ async function signInWithDeviceProvider({
       state,
       codeChallenge,
       redirectUri,
-      provider,
-      walletFamily
+      provider
     });
     console.log(`Opening browser for Aomi account login: ${authUrl}`);
     await openBrowser(authUrl);
@@ -9057,9 +8677,6 @@ function buildDeviceAuthUrl(input2) {
   url.searchParams.set("code_challenge", input2.codeChallenge);
   url.searchParams.set("redirect_uri", input2.redirectUri);
   if (input2.provider) url.searchParams.set("provider", input2.provider);
-  if (input2.walletFamily) {
-    url.searchParams.set("wallet_family", input2.walletFamily);
-  }
   if (input2.mode && input2.mode !== "login") {
     url.searchParams.set("mode", input2.mode);
   }
@@ -9164,12 +8781,12 @@ var init_device_auth = __esm({
 });
 
 // src/cli/account-graph.ts
-import { privateKeyToAccount as privateKeyToAccount10 } from "viem/accounts";
+import { privateKeyToAccount as privateKeyToAccount9 } from "viem/accounts";
 function requireAccountGraphClient(cli) {
   var _a3;
   const sessionToken = (_a3 = cli.auth) == null ? void 0 : _a3.sessionToken;
   if (!sessionToken) {
-    fatal("No account session. Run `aomi login` first.");
+    fatal("No account session. Run `aomi account login` first.");
   }
   return new AccountGraphClient({
     baseUrl: cli.baseUrl,
@@ -9181,7 +8798,7 @@ function resolveAccountPrivateKey(cli, config) {
   const privateKey = (_a3 = config.privateKey) != null ? _a3 : cli.privateKey;
   if (!privateKey) {
     fatal(
-      "No EVM private key configured.\nRun `aomi wallet dev-key <evm-private-key>` or pass `--private-key`."
+      "No EVM private key configured.\nRun `aomi wallet set <evm-private-key>` or pass `--private-key`."
     );
   }
   return privateKey;
@@ -9206,7 +8823,7 @@ async function buildSignedWalletLink(input2) {
   var _a3, _b, _c;
   const client = requireAccountGraphClient(input2.cli);
   const privateKey = resolveAccountPrivateKey(input2.cli, input2.config);
-  const account = privateKeyToAccount10(privateKey);
+  const account = privateKeyToAccount9(privateKey);
   const chainId3 = (_b = (_a3 = input2.config.chain) != null ? _a3 : input2.cli.chainId) != null ? _b : 1;
   const nonce = await client.getWalletLinkNonce({
     address: account.address,
@@ -9260,7 +8877,7 @@ function formatAccountGraphError(status, body, fallback) {
   var _a3;
   const code = extractErrorCode(body);
   if (status === 401) {
-    return "Session expired; run `aomi login`";
+    return "Session expired; run `aomi account login`";
   }
   if (status === 409 && code === "cannot_unlink_last_login_factor") {
     return "Cannot unlink the last login method. Link another account method first.";
@@ -9410,6 +9027,8 @@ __export(account_exports, {
   accountLinksCommand: () => accountLinksCommand,
   accountLoginCommand: () => accountLoginCommand,
   accountRenameCommand: () => accountRenameCommand,
+  accountSessionsCommand: () => accountSessionsCommand,
+  accountSwitchCommand: () => accountSwitchCommand,
   accountUnlinkCommand: () => accountUnlinkCommand,
   accountUpdateCommand: () => accountUpdateCommand,
   accountWhoamiCommand: () => accountWhoamiCommand,
@@ -9417,15 +9036,9 @@ __export(account_exports, {
   whoamiCommand: () => whoamiCommand
 });
 async function accountLoginCommand(config, options = {}) {
-  var _a3;
   const cli = CliSession.loadOrCreate(config);
-  let rewroteLegacyBackend = false;
   if (!config.baseUrl && cli.baseUrl === LEGACY_RAW_BACKEND_URL) {
     cli.setBaseUrl(DEFAULT_CLI_BASE_URL);
-    rewroteLegacyBackend = true;
-  }
-  if (rewroteLegacyBackend && !config.json) {
-    console.log(`Backend updated to ${DEFAULT_CLI_BASE_URL}`);
   }
   if (options.wallet || options.noBrowser || config.privateKey) {
     await accountLoginWithSiwe(cli, config);
@@ -9437,34 +9050,23 @@ async function accountLoginCommand(config, options = {}) {
   const provider = options.provider;
   const result = await signInWithDeviceProvider({
     baseUrl: cli.baseUrl,
-    provider,
-    walletFamily: options.walletFamily
+    provider
   });
   cli.setAuthSession(result.auth);
-  if (config.json) {
-    printJson({
-      status: "signed_in",
-      provider: (_a3 = result.provider) != null ? _a3 : null,
-      baseUrl: cli.baseUrl,
-      migratedLegacyBackend: rewroteLegacyBackend,
-      expiresAt: new Date(result.auth.expiresAt).toISOString()
-    });
-    return;
-  }
   console.log(
     `Signed in${result.provider ? ` with ${formatProvider(result.provider)}` : ""}`
   );
   console.log(
     `Session expires at ${new Date(result.auth.expiresAt).toISOString()}`
   );
-  printDataFileLocation({ verbose: config.verbose });
+  printDataFileLocation();
 }
 async function accountLoginWithSiwe(cli, config) {
   var _a3, _b, _c;
   const privateKey = (_a3 = config.privateKey) != null ? _a3 : cli.privateKey;
   if (!privateKey) {
     fatal(
-      "No EVM private key configured.\nRun `aomi wallet dev-key <evm-private-key>` or pass `--private-key`."
+      "No EVM private key configured.\nRun `aomi wallet set <evm-private-key>` or pass `--private-key`."
     );
   }
   const chainId3 = (_c = (_b = config.chain) != null ? _b : cli.chainId) != null ? _c : DEFAULT_CHAIN_ID2;
@@ -9478,22 +9080,11 @@ async function accountLoginWithSiwe(cli, config) {
     cli.setChainId(chainId3);
   }
   cli.setAuthSession(result.auth);
-  if (config.json) {
-    printJson({
-      status: "signed_in",
-      provider: "siwe",
-      address: result.address,
-      chainId: chainId3,
-      baseUrl: cli.baseUrl,
-      expiresAt: new Date(result.auth.expiresAt).toISOString()
-    });
-    return;
-  }
   console.log(`Signed in with ${result.address}`);
   console.log(
     `Session expires at ${new Date(result.auth.expiresAt).toISOString()}`
   );
-  printDataFileLocation({ verbose: config.verbose });
+  printDataFileLocation();
 }
 function formatProvider(provider) {
   return provider === "privy" ? "Privy" : "Para";
@@ -9502,24 +9093,16 @@ async function accountWhoamiCommand(config) {
   var _a3, _b;
   const cli = CliSession.load();
   if (!cli) {
-    if (config.json) {
-      printJson({ active: false });
-      return;
-    }
     console.log("No active session");
-    printDataFileLocation({ verbose: config.verbose });
+    printDataFileLocation();
     return;
   }
   cli.mergeConfig(config);
   if ((_a3 = cli.auth) == null ? void 0 : _a3.sessionToken) {
     try {
       const account = await requireAccountGraphClient(cli).getAccount();
-      if (config.json) {
-        printJson(account);
-        return;
-      }
-      printAccountSummary(account);
-      printDataFileLocation({ verbose: config.verbose });
+      printAccountGraph(account);
+      printDataFileLocation();
       return;
     } catch (e) {
     }
@@ -9527,10 +9110,6 @@ async function accountWhoamiCommand(config) {
   const session = cli.createClientSession();
   try {
     const account = await session.client.getAccount(cli.sessionId);
-    if (config.json) {
-      printJson(account);
-      return;
-    }
     const user = account.user;
     console.log(`Account:  ${user.user_id}`);
     if (user.username) console.log(`Username: ${user.username}`);
@@ -9547,27 +9126,19 @@ async function accountWhoamiCommand(config) {
         `- ${formatWalletChainType(wallet.chain_type)} [${wallet.wallet_provider}]: ${wallet.address}${walletId}`
       );
     }
-    printDataFileLocation({ verbose: config.verbose });
+    printDataFileLocation();
   } catch (e) {
-    if (config.json) {
-      printJson({
-        active: true,
-        bound: false,
-        hasCredential: hasAccountCredential2(cli.toState())
-      });
-      return;
-    }
     console.log("Not bound to an account (anonymous session).");
     if (!hasAccountCredential2(cli.toState())) {
       console.log(
-        "No account credential configured. Run `aomi login` or pass --account-bearer."
+        "No account credential configured. Run `aomi account login` or pass --account-bearer."
       );
     } else {
       console.log(
         "An account credential was sent, but the backend did not bind or accept this session."
       );
     }
-    printDataFileLocation({ verbose: config.verbose });
+    printDataFileLocation();
   } finally {
     session.close();
   }
@@ -9576,12 +9147,8 @@ async function accountLinksCommand(config) {
   const cli = loadMergedCli(config);
   const client = requireAccountGraphClient(cli);
   const account = await client.getAccount();
-  if (config.json) {
-    printJson(account);
-    return;
-  }
-  printAccountLinks(account);
-  printDataFileLocation({ verbose: config.verbose });
+  printAccountGraph(account);
+  printDataFileLocation();
 }
 async function accountLinkCommand(config, options = {}) {
   var _a3, _b;
@@ -9601,15 +9168,11 @@ async function accountLinkCommand(config, options = {}) {
     if (result.status === "conflict") {
       fatal("This login method is already linked to another Aomi account.");
     }
-    if (config.json) {
-      printJson(result);
-      return;
-    }
     console.log(`Linked ${formatProvider(provider)} login method`);
     if (result.status === "linked" && result.account) {
-      printAccountLinks(result.account);
+      printAccountGraph(result.account);
     }
-    printDataFileLocation({ verbose: config.verbose });
+    printDataFileLocation();
     return;
   }
   if (wantsWallet) {
@@ -9619,17 +9182,13 @@ async function accountLinkCommand(config, options = {}) {
       label: options.label
     });
     const result = await client.linkWallet(body);
-    if (config.json) {
-      printJson(result);
-      return;
-    }
     console.log(
       result.status === "noop" ? `Login method already linked for ${body.address}` : `Linked wallet login method ${body.address}`
     );
     if (result.account) {
-      printAccountLinks(result.account);
+      printAccountGraph(result.account);
     }
-    printDataFileLocation({ verbose: config.verbose });
+    printDataFileLocation();
   }
 }
 async function accountUnlinkCommand(config, selector, options = {}) {
@@ -9643,12 +9202,8 @@ async function accountUnlinkCommand(config, selector, options = {}) {
   } else {
     await client.unlinkWallet(link.id);
   }
-  if (config.json) {
-    printJson({ status: "unlinked", link: serializeResolvedLink(link) });
-    return;
-  }
   console.log(`Unlinked ${formatResolvedLink(link)}`);
-  printDataFileLocation({ verbose: config.verbose });
+  printDataFileLocation();
 }
 async function accountRenameCommand(config, selector, options = {}) {
   if (options.label === void 0) {
@@ -9663,16 +9218,8 @@ async function accountRenameCommand(config, selector, options = {}) {
   } else {
     await client.updateWallet(link.id, { label: options.label });
   }
-  if (config.json) {
-    printJson({
-      status: "renamed",
-      label: options.label,
-      link: serializeResolvedLink(link)
-    });
-    return;
-  }
   console.log(`Renamed ${formatResolvedLink(link)}`);
-  printDataFileLocation({ verbose: config.verbose });
+  printDataFileLocation();
 }
 async function accountUpdateCommand(config, input2) {
   if (input2.displayName === void 0 && input2.avatarUrl === void 0) {
@@ -9684,13 +9231,9 @@ async function accountUpdateCommand(config, input2) {
     displayName: input2.displayName,
     avatarUrl: input2.avatarUrl
   });
-  if (config.json) {
-    printJson(account);
-    return;
-  }
   console.log("Updated account profile");
-  printAccountSummary(account);
-  printDataFileLocation({ verbose: config.verbose });
+  printAccountGraph(account);
+  printDataFileLocation();
 }
 async function accountDeleteCommand(config, options = {}) {
   requireConfirmed(options.yes, "delete this Aomi account");
@@ -9698,14 +9241,16 @@ async function accountDeleteCommand(config, options = {}) {
   const client = requireAccountGraphClient(cli);
   const result = await client.deleteAccount();
   cli.clearAuthSession();
-  if (config.json) {
-    printJson(result);
-    return;
-  }
   console.log(
     `Deleted account (${result.revokedIdentities} login methods, ${result.revokedWallets} wallets revoked)`
   );
-  printDataFileLocation({ verbose: config.verbose });
+  printDataFileLocation();
+}
+async function accountSessionsCommand(config) {
+  await sessionsCommand(config);
+}
+function accountSwitchCommand(selector) {
+  resumeSessionCommand(selector);
 }
 function hasAccountCredential2(state) {
   var _a3;
@@ -9721,16 +9266,12 @@ function formatWalletChainType(chainType) {
   }
   return chainType;
 }
-async function logoutCommand(config, _options = {}) {
+async function logoutCommand(config) {
   var _a3;
   const cli = CliSession.load();
   if (!cli) {
-    if (config.json) {
-      printJson({ active: false });
-      return;
-    }
     console.log("No active session");
-    printDataFileLocation({ verbose: config.verbose });
+    printDataFileLocation();
     return;
   }
   cli.mergeConfig(config);
@@ -9742,19 +9283,14 @@ async function logoutCommand(config, _options = {}) {
     });
   } finally {
     cli.clearAuthSession();
-    cli.clearSigningKeys();
-  }
-  if (config.json) {
-    printJson({ status: "signed_out" });
-    return;
   }
   console.log("Signed out");
-  printDataFileLocation({ verbose: config.verbose });
+  printDataFileLocation();
 }
 function loadMergedCli(config) {
   const cli = CliSession.load();
   if (!cli) {
-    fatal("No active thread. Run `aomi login` first.");
+    fatal("No active session. Run `aomi account login` first.");
   }
   cli.mergeConfig(config);
   return cli;
@@ -9765,28 +9301,7 @@ function normalizeProviderOption(provider) {
   if (normalized === "privy" || normalized === "para") return normalized;
   fatal('Unknown --provider value. Use "privy" or "para".');
 }
-function printAccountSummary(account) {
-  var _a3;
-  if (!account.user) {
-    console.log("No active account");
-    return;
-  }
-  console.log(`Account:  ${account.user.id}`);
-  if (account.user.displayName) {
-    console.log(`Name:     ${account.user.displayName}`);
-  }
-  if (account.user.email) {
-    console.log(`Email:    ${account.user.email}`);
-  }
-  if ((_a3 = account.session) == null ? void 0 : _a3.expiresAt) {
-    console.log(
-      `Session:  expires ${new Date(account.session.expiresAt).toISOString()}`
-    );
-  }
-  console.log(`Login methods: ${account.linkedAccounts.length}`);
-  console.log(`Wallets:       ${account.wallets.length}`);
-}
-function printAccountLinks(account) {
+function printAccountGraph(account) {
   var _a3, _b;
   if (!account.user) {
     console.log("No active account");
@@ -9805,7 +9320,7 @@ function printAccountLinks(account) {
     );
   }
   const identities = (_b = account.linkedAccounts) != null ? _b : [];
-  console.log(`Login methods: ${identities.length}`);
+  console.log(`Links:    ${identities.length}`);
   for (const identity of identities) {
     console.log(formatIdentityLine(identity));
     const childWallets = account.wallets.filter(
@@ -9829,14 +9344,6 @@ function printAccountLinks(account) {
       console.log(formatWalletLine(wallet));
     }
   }
-}
-function serializeResolvedLink(link) {
-  return {
-    kind: link.kind,
-    id: link.id,
-    provider: link.kind === "identity" ? link.link.provider : link.link.provider,
-    family: link.kind === "wallet" ? link.link.family : void 0
-  };
 }
 function formatIdentityLine(identity) {
   const label = identity.displayLabel ? ` "${identity.displayLabel}"` : "";
@@ -9885,6 +9392,7 @@ var init_account = __esm({
     init_device_auth();
     init_client_factory();
     init_account_graph();
+    init_sessions();
     DEFAULT_CHAIN_ID2 = 1;
     LEGACY_RAW_BACKEND_URL = "https://api.aomi.dev";
     whoamiCommand = accountWhoamiCommand;
@@ -9963,680 +9471,6 @@ var init_secrets = __esm({
     init_context();
     init_errors();
     init_output();
-  }
-});
-
-// src/cli/commands/cron.ts
-var cron_exports = {};
-__export(cron_exports, {
-  cronCancelCommand: () => cronCancelCommand,
-  cronListCommand: () => cronListCommand,
-  cronShowCommand: () => cronShowCommand
-});
-function requireActiveCli2(config) {
-  const cli = CliSession.load();
-  if (!cli) {
-    fatal("No active thread. Run `aomi thread new` first.");
-  }
-  cli.mergeConfig(config);
-  return cli;
-}
-function parseOptionalInteger(name, value) {
-  if (value === void 0) return void 0;
-  const parsed = Number.parseInt(value, 10);
-  if (!Number.isInteger(parsed) || parsed < 0) {
-    fatal(`--${name} must be a non-negative integer.`);
-  }
-  return parsed;
-}
-function formatTimestamp(value) {
-  return new Date(value * 1e3).toISOString();
-}
-async function cronListCommand(config, options = {}) {
-  const cli = requireActiveCli2(config);
-  const session = cli.createClientSession(config);
-  try {
-    const result = await session.client.listScheduledThreads(cli.sessionId, {
-      app: options.app,
-      limit: parseOptionalInteger("limit", options.limit),
-      offset: parseOptionalInteger("offset", options.offset)
-    });
-    if (result.scheduled_threads.length === 0) {
-      console.log("No scheduled threads.");
-      printDataFileLocation();
-      return;
-    }
-    for (const job of result.scheduled_threads) {
-      const recurrence = job.recurrence_seconds === null || job.recurrence_seconds === void 0 ? "one-shot" : `every ${job.recurrence_seconds}s`;
-      console.log(
-        `${job.id}  ${formatTimestamp(job.trigger_at)}  ${recurrence}  ${job.application || "(default)"}`
-      );
-      console.log(`  root: ${job.root_thread_id || "(none)"}`);
-      console.log(`  intent: ${job.intent}`);
-    }
-    printDataFileLocation();
-  } finally {
-    session.close();
-  }
-}
-async function cronShowCommand(config, id) {
-  const cli = requireActiveCli2(config);
-  const session = cli.createClientSession(config);
-  try {
-    const job = await session.client.getScheduledThread(cli.sessionId, id);
-    console.log(JSON.stringify(job, null, 2));
-  } finally {
-    session.close();
-  }
-}
-async function cronCancelCommand(config, id) {
-  const cli = requireActiveCli2(config);
-  const session = cli.createClientSession(config);
-  try {
-    const result = await session.client.deleteScheduledThread(
-      cli.sessionId,
-      id
-    );
-    console.log(
-      result.deleted ? `Cancelled ${id}` : `No scheduled thread ${id}`
-    );
-    printDataFileLocation();
-  } finally {
-    session.close();
-  }
-}
-var init_cron = __esm({
-  "src/cli/commands/cron.ts"() {
-    "use strict";
-    init_cli_session();
-    init_errors();
-    init_output();
-  }
-});
-
-// src/lib/deployment-state.ts
-import { mkdir, readFile, writeFile } from "fs/promises";
-import { join as join2 } from "path";
-function statePath(cwd) {
-  return join2(cwd, DIR, FILE);
-}
-async function writeDeploymentState(state, cwd = process.cwd()) {
-  const dir = join2(cwd, DIR);
-  await mkdir(dir, { recursive: true });
-  await writeFile(statePath(cwd), JSON.stringify(state, null, 2), "utf-8");
-}
-async function readDeploymentState(cwd = process.cwd()) {
-  try {
-    const raw = await readFile(statePath(cwd), "utf-8");
-    return JSON.parse(raw);
-  } catch (e) {
-    return null;
-  }
-}
-var DIR, FILE;
-var init_deployment_state = __esm({
-  "src/lib/deployment-state.ts"() {
-    "use strict";
-    DIR = ".aomi";
-    FILE = "deployment.json";
-  }
-});
-
-// src/cli/commands/status.ts
-var status_exports = {};
-__export(status_exports, {
-  statusCommand: () => statusCommand2
-});
-function str2(value) {
-  return typeof value === "string" && value.trim() ? value.trim() : void 0;
-}
-function requireToken(args) {
-  var _a3;
-  const token = (_a3 = str2(args["activation-token"])) != null ? _a3 : process.env.AOMI_DEPLOY_TOKEN;
-  if (!token) {
-    throw new DeployCliError(
-      "VALIDATION_ERROR",
-      "`--activation-token` is required. Pass it or set the AOMI_DEPLOY_TOKEN env var."
-    );
-  }
-  return token;
-}
-function resolveBackendUrl(args) {
-  var _a3, _b;
-  return ((_b = (_a3 = str2(args["backend-url"])) != null ? _a3 : process.env.AOMI_BACKEND_URL) != null ? _b : "https://api.aomi.dev").replace(/\/+$/, "");
-}
-function resolvePlatform(args) {
-  var _a3, _b;
-  return (_b = (_a3 = str2(args.platform)) != null ? _a3 : process.env.AOMI_DEPLOY_PLATFORM) != null ? _b : "community";
-}
-async function fetchStatus(deploymentId, platform, activationToken, backendUrl) {
-  const url = `${backendUrl}/api/platforms/${encodeURIComponent(platform)}/deployments/${encodeURIComponent(deploymentId)}/status`;
-  let res;
-  try {
-    res = await fetch(url, {
-      headers: {
-        Authorization: `Bearer ${activationToken}`,
-        "Content-Type": "application/json"
-      }
-    });
-  } catch (err) {
-    throw new DeployCliError(
-      "NETWORK_ERROR",
-      "Cannot reach Aomi backend; check your connection"
-    );
-  }
-  const text = await res.text();
-  if (!res.ok) {
-    const message = (() => {
-      try {
-        const json = JSON.parse(text);
-        if (json && typeof json === "object" && json.error)
-          return json.error;
-      } catch (e) {
-      }
-      return `${res.status} ${res.statusText}`;
-    })();
-    if (res.status === 401 || res.status === 403) {
-      throw new DeployCliError(
-        "AUTH_FAILED",
-        "Session expired; run `aomi login`"
-      );
-    }
-    throw new DeployCliError("BACKEND_ERROR", message);
-  }
-  try {
-    return JSON.parse(text);
-  } catch (e) {
-    throw new DeployCliError("BACKEND_ERROR", "Backend returned invalid JSON.");
-  }
-}
-function printStatus(status) {
-  var _a3, _b;
-  const CYAN2 = "\x1B[36m";
-  const DIM2 = "\x1B[2m";
-  const RESET2 = "\x1B[0m";
-  console.log(`${CYAN2}State:${RESET2} ${status.state}`);
-  if ((_a3 = status.ci) == null ? void 0 : _a3.url) {
-    console.log(`${DIM2}CI:${RESET2}    ${status.ci.url}`);
-  }
-  if (status.deployment) {
-    const platform = (_b = status.deployment) == null ? void 0 : _b.platform;
-    if (platform == null ? void 0 : platform.pr_url) {
-      console.log(`${DIM2}PR:${RESET2}    ${platform.pr_url}`);
-    }
-  }
-  if (status.apps && status.apps.length > 0) {
-    for (const app of status.apps) {
-      const tag = app.releaseTag ? ` (${app.releaseTag})` : "";
-      console.log(`${DIM2}App:${RESET2}   ${app.name}${tag}`);
-    }
-  } else if (status.releaseTags && status.releaseTags.length > 0) {
-    for (const tag of status.releaseTags) {
-      console.log(`${DIM2}Tag:${RESET2}   ${tag}`);
-    }
-  }
-  if (status.message) {
-    console.log(`${DIM2}Msg:${RESET2}   ${status.message}`);
-  }
-}
-function sleep(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-async function statusCommand2(args) {
-  var _a3, _b, _c;
-  const deploymentId = (_b = str2(args["deployment-id"])) != null ? _b : (_a3 = await readDeploymentState()) == null ? void 0 : _a3.deploymentId;
-  if (!deploymentId) {
-    throw new DeployCliError(
-      "VALIDATION_ERROR",
-      "No deployment ID found. Pass --deployment-id or run `aomi deploy` first."
-    );
-  }
-  const activationToken = requireToken(args);
-  const backendUrl = resolveBackendUrl(args);
-  const platform = resolvePlatform(args);
-  const watch = args.watch === true;
-  if (!watch) {
-    const status = await fetchStatus(
-      deploymentId,
-      platform,
-      activationToken,
-      backendUrl
-    );
-    printStatus(status);
-    return;
-  }
-  const MAX_FAILURES = 8;
-  const BASE_DELAY_MS = 3e3;
-  const MAX_DELAY_MS = 3e4;
-  let failures = 0;
-  let lastCiUrl;
-  while (true) {
-    try {
-      const status = await fetchStatus(
-        deploymentId,
-        platform,
-        activationToken,
-        backendUrl
-      );
-      if ((_c = status.ci) == null ? void 0 : _c.url) lastCiUrl = status.ci.url;
-      printStatus(status);
-      failures = 0;
-      if (status.state === "ready") {
-        process.exit(0);
-        return;
-      }
-      if (status.state === "failed") {
-        process.exit(1);
-        return;
-      }
-      await sleep(BASE_DELAY_MS);
-    } catch (err) {
-      failures++;
-      if (failures >= MAX_FAILURES) {
-        const ciSuffix = lastCiUrl ? `; check CI status at ${lastCiUrl}` : "";
-        throw new DeployCliError(
-          "BACKEND_ERROR",
-          `Deployment timed out after ${MAX_FAILURES} attempts${ciSuffix}`
-        );
-      }
-      const backoffMs = Math.min(
-        BASE_DELAY_MS * Math.pow(2, failures),
-        MAX_DELAY_MS
-      );
-      await sleep(backoffMs);
-    }
-  }
-}
-var init_status = __esm({
-  "src/cli/commands/status.ts"() {
-    "use strict";
-    init_errors();
-    init_deployment_state();
-  }
-});
-
-// src/cli/commands/activate.ts
-var activate_exports = {};
-__export(activate_exports, {
-  activateCommand: () => activateCommand
-});
-function str3(value) {
-  return typeof value === "string" && value.trim() ? value.trim() : void 0;
-}
-function requireToken2(args) {
-  var _a3;
-  const token = (_a3 = str3(args["activation-token"])) != null ? _a3 : process.env.AOMI_DEPLOY_TOKEN;
-  if (!token) {
-    throw new DeployCliError(
-      "VALIDATION_ERROR",
-      "`--activation-token` is required. Pass it or set the AOMI_DEPLOY_TOKEN env var."
-    );
-  }
-  return token;
-}
-function resolveBackendUrl2(args) {
-  var _a3, _b;
-  return ((_b = (_a3 = str3(args["backend-url"])) != null ? _a3 : process.env.AOMI_BACKEND_URL) != null ? _b : "https://api.aomi.dev").replace(/\/+$/, "");
-}
-function resolvePlatform2(args) {
-  var _a3, _b;
-  return (_b = (_a3 = str3(args.platform)) != null ? _a3 : process.env.AOMI_DEPLOY_PLATFORM) != null ? _b : "community";
-}
-async function extractError(res) {
-  try {
-    const text = await res.text();
-    const json = JSON.parse(text);
-    if (json && typeof json === "object" && json.error)
-      return json.error;
-    return text || `${res.status} ${res.statusText}`;
-  } catch (e) {
-    return `${res.status} ${res.statusText}`;
-  }
-}
-async function activateCommand(args) {
-  var _a3, _b, _c;
-  const state = await readDeploymentState();
-  const deploymentId = (_a3 = str3(args["deployment-id"])) != null ? _a3 : state == null ? void 0 : state.deploymentId;
-  const releaseTagsRaw = str3(args["release-tags"]);
-  const releaseTags = releaseTagsRaw !== void 0 ? releaseTagsRaw.split(",").map((t) => t.trim()).filter(Boolean) : (_b = state == null ? void 0 : state.releaseTags) != null ? _b : [];
-  if (!deploymentId || releaseTags.length === 0) {
-    throw new DeployCliError(
-      "VALIDATION_ERROR",
-      "No deployment found. Run `aomi deploy` first, or pass --deployment-id and --release-tags."
-    );
-  }
-  const activationToken = requireToken2(args);
-  const backendUrl = resolveBackendUrl2(args);
-  const platform = resolvePlatform2(args);
-  const url = `${backendUrl}/api/platforms/${encodeURIComponent(platform)}/apps/activate`;
-  const body = { target: { kind: "release_tags", value: releaseTags } };
-  let res;
-  try {
-    res = await fetch(url, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${activationToken}`,
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify(body)
-    });
-  } catch (err) {
-    throw new DeployCliError(
-      "NETWORK_ERROR",
-      "Cannot reach Aomi backend; check your connection"
-    );
-  }
-  if (!res.ok) {
-    const msg = await extractError(res);
-    const code = res.status === 401 || res.status === 403 ? "AUTH_FAILED" : "BACKEND_ERROR";
-    if (code === "AUTH_FAILED") {
-      throw new DeployCliError(code, "Session expired; run `aomi login`");
-    }
-    throw new DeployCliError(code, msg);
-  }
-  const resultText = await res.text();
-  const result = (() => {
-    try {
-      return JSON.parse(resultText);
-    } catch (e) {
-      return null;
-    }
-  })();
-  const activation = result == null ? void 0 : result.activation;
-  const apps = activation == null ? void 0 : activation.apps;
-  if (apps) {
-    const failures = apps.filter((a) => a.error);
-    if (failures.length > 0) {
-      console.log(" Activation completed with errors:");
-      for (const f of failures) {
-        console.log(`   ${(_c = f.name) != null ? _c : "?"}: ${f.error}`);
-      }
-    }
-  }
-  if (state) {
-    await writeDeploymentState(__spreadProps(__spreadValues({}, state), {
-      timestamp: (/* @__PURE__ */ new Date()).toISOString()
-    }));
-  }
-  console.log(" Activation succeeded.");
-}
-var init_activate = __esm({
-  "src/cli/commands/activate.ts"() {
-    "use strict";
-    init_errors();
-    init_deployment_state();
-  }
-});
-
-// src/cli/commands/deploy.ts
-var deploy_exports = {};
-__export(deploy_exports, {
-  deployCommand: () => deployCommand
-});
-import { execFileSync, execSync } from "child_process";
-function str4(value) {
-  return typeof value === "string" && value.trim() ? value.trim() : void 0;
-}
-function required(value, flag, env) {
-  if (value) return value;
-  throw new DeployCliError(
-    "VALIDATION_ERROR",
-    `\`--${flag}\` is required. Pass it or set the ${env} env var.`
-  );
-}
-function currentBranch() {
-  try {
-    return execSync("git rev-parse --abbrev-ref HEAD", {
-      encoding: "utf-8"
-    }).trim();
-  } catch (e) {
-    throw new DeployCliError(
-      "NOT_A_GIT_REPO",
-      "Run this from inside a git repository"
-    );
-  }
-}
-function resolveGitCommit(ref) {
-  try {
-    const commit = execFileSync(
-      "git",
-      ["rev-parse", "--verify", `${ref}^{commit}`],
-      {
-        encoding: "utf-8"
-      }
-    ).trim();
-    if (!/^[0-9a-f]{7,40}$/i.test(commit)) {
-      throw new Error(`unexpected git commit hash: ${commit}`);
-    }
-    return commit.toLowerCase();
-  } catch (e) {
-    throw new DeployCliError(
-      "VALIDATION_ERROR",
-      `Could not resolve \`${ref}\` to a git commit SHA.`
-    );
-  }
-}
-function checkGitRemote() {
-  try {
-    const remote = execSync("git remote", { encoding: "utf-8" }).trim();
-    if (!remote) {
-      throw new DeployCliError(
-        "VALIDATION_ERROR",
-        "No git remote found; push your code first"
-      );
-    }
-  } catch (err) {
-    if (err instanceof DeployCliError) throw err;
-    throw new DeployCliError(
-      "VALIDATION_ERROR",
-      "No git remote found; push your code first"
-    );
-  }
-}
-async function deviceAuthFlow(backendUrl, platform) {
-  var _a3, _b;
-  console.log(
-    "\n No activation token found. Starting browser-based GitHub auth...\n"
-  );
-  const beginRes = await fetch(`${backendUrl}/api/auth/cli/begin`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ platform })
-  });
-  if (!beginRes.ok) {
-    const text = await beginRes.text().catch(() => "");
-    throw new DeployCliError(
-      "BACKEND_ERROR",
-      `Failed to start device auth: ${beginRes.status} ${text}`
-    );
-  }
-  const { device_code, verification_uri } = await beginRes.json();
-  console.log(" \u2192 Open this URL in your browser to authenticate with GitHub:");
-  console.log(`   ${verification_uri}
-`);
-  const { platform: os } = process;
-  const openCmd = os === "darwin" ? "open" : os === "win32" ? "start" : "xdg-open";
-  try {
-    execSync(`${openCmd} "${verification_uri}"`, { stdio: "ignore" });
-    console.log(" (Browser opened automatically.)\n");
-  } catch (e) {
-  }
-  console.log(" Waiting for authorization...");
-  const pollUrl = `${backendUrl}/api/auth/cli/status?device_code=${device_code}`;
-  const start = Date.now();
-  const timeoutMs = 6e5;
-  while (Date.now() - start < timeoutMs) {
-    await new Promise((r) => setTimeout(r, 2e3));
-    const statusRes = await fetch(pollUrl);
-    if (!statusRes.ok) continue;
-    const body = await statusRes.json();
-    if (body.status === "complete" && body.activation_token) {
-      console.log(` Authenticated as @${(_a3 = body.github_login) != null ? _a3 : "?"}
-`);
-      console.log(
-        ` Tip: save your token to skip this step next time:
-   export AOMI_DEPLOY_TOKEN="${body.activation_token}"
-`
-      );
-      return {
-        token: body.activation_token,
-        githubLogin: (_b = body.github_login) != null ? _b : ""
-      };
-    }
-    if (body.status === "expired") {
-      throw new DeployCliError(
-        "AUTH_FAILED",
-        "Authorization session expired. Run `aomi deploy` again to retry."
-      );
-    }
-  }
-  throw new DeployCliError(
-    "AUTH_TIMEOUT",
-    "Authorization timed out after 10 minutes. Run `aomi deploy` again to retry."
-  );
-}
-async function deployCommand(args) {
-  var _a3, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o;
-  const backendUrl = ((_b = (_a3 = str4(args["backend-url"])) != null ? _a3 : process.env.AOMI_BACKEND_URL) != null ? _b : "https://api.aomi.dev").replace(/\/+$/, "");
-  const platform = (_d = (_c = str4(args.platform)) != null ? _c : process.env.AOMI_DEPLOY_PLATFORM) != null ? _d : "community";
-  const activationToken = (_f = (_e = str4(args["activation-token"])) != null ? _e : process.env.AOMI_DEPLOY_TOKEN) != null ? _f : (await deviceAuthFlow(backendUrl, platform)).token;
-  const appSourceId = Number(
-    required(
-      (_g = str4(args["app-source-id"])) != null ? _g : process.env.AOMI_APP_SOURCE_ID,
-      "app-source-id",
-      "AOMI_APP_SOURCE_ID"
-    )
-  );
-  if (!Number.isSafeInteger(appSourceId) || appSourceId <= 0) {
-    throw new DeployCliError(
-      "VALIDATION_ERROR",
-      "`--app-source-id` must be a positive integer."
-    );
-  }
-  const branch = str4(args.branch);
-  const commit = str4(args.commit);
-  if (branch && commit) {
-    throw new DeployCliError(
-      "VALIDATION_ERROR",
-      "--commit and --branch are mutually exclusive. Provide one or neither."
-    );
-  }
-  const selectedRef = (_h = commit != null ? commit : branch) != null ? _h : currentBranch();
-  const sourceRef = resolveGitCommit(selectedRef);
-  if (!commit && !branch) {
-    checkGitRemote();
-  }
-  const aomiTomlPaths = ((_i = str4(args["aomi-toml-paths"])) != null ? _i : "").split(",").map((p) => p.trim()).filter(Boolean);
-  const preflight = args["preflight"] === true;
-  console.log(` Deploying to ${backendUrl} (platform: ${platform})`);
-  console.log(`   app source id: ${appSourceId}`);
-  if (branch) console.log(`   branch:        ${branch}`);
-  console.log(`   commit:        ${sourceRef}`);
-  console.log(
-    `   aomi.toml:     ${aomiTomlPaths.length ? aomiTomlPaths.join(", ") : "discover"}`
-  );
-  if (preflight) console.log("   preflight:      yes");
-  const url = `${backendUrl}/api/platforms/${encodeURIComponent(platform)}/deploy`;
-  const body = {
-    app_source_id: appSourceId,
-    source_ref: sourceRef,
-    aomi_toml_paths: aomiTomlPaths,
-    preflight
-  };
-  let res;
-  try {
-    res = await fetch(url, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${activationToken}`,
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify(body)
-    });
-  } catch (err) {
-    throw new DeployCliError(
-      "NETWORK_ERROR",
-      "Cannot reach Aomi backend; check your connection"
-    );
-  }
-  const text = await res.text();
-  if (!res.ok) {
-    const message = (() => {
-      var _a4, _b2;
-      try {
-        const json = JSON.parse(text);
-        if (json && typeof json === "object")
-          return (_b2 = (_a4 = json.error) != null ? _a4 : json.reason) != null ? _b2 : `${res.status} ${res.statusText}`;
-      } catch (e) {
-      }
-      return `${res.status} ${res.statusText}`;
-    })();
-    if (res.status === 401 || res.status === 403) {
-      throw new DeployCliError(
-        "AUTH_FAILED",
-        "Session expired; run `aomi login`"
-      );
-    }
-    throw new DeployCliError("BACKEND_ERROR", message);
-  }
-  let result;
-  try {
-    result = JSON.parse(text);
-  } catch (e) {
-    throw new DeployCliError("BACKEND_ERROR", "Backend returned invalid JSON.");
-  }
-  const deployment = result.deployment;
-  const platformInfo = deployment == null ? void 0 : deployment.platform;
-  const sourceInfo = deployment == null ? void 0 : deployment.source;
-  console.log();
-  if (preflight) {
-    console.log(" Preflight complete. Review the manifest below:");
-    console.log(`   ${JSON.stringify(result, null, 2)}`);
-    return;
-  }
-  console.log(` Deployment created: ${(_j = deployment == null ? void 0 : deployment.id) != null ? _j : "unknown"}`);
-  console.log(`   status:  ${(_k = deployment == null ? void 0 : deployment.status) != null ? _k : "unknown"}`);
-  if (sourceInfo == null ? void 0 : sourceInfo.repository_link) {
-    console.log(`   source:  ${sourceInfo.repository_link}`);
-  }
-  if (platformInfo == null ? void 0 : platformInfo.pr_url) {
-    console.log(`   PR:      ${platformInfo.pr_url}`);
-  }
-  if (platformInfo == null ? void 0 : platformInfo.ci_url) {
-    console.log(`   CI:      ${platformInfo.ci_url}`);
-  }
-  const releaseTags = [];
-  const apps = [];
-  if (platformInfo == null ? void 0 : platformInfo.apps) {
-    const appsArr = platformInfo.apps;
-    for (const app of appsArr) {
-      const name = String((_l = app.name) != null ? _l : "?");
-      const tag = String((_n = (_m = app.release_tag) != null ? _m : app.releaseTag) != null ? _n : "");
-      apps.push(name);
-      if (tag) releaseTags.push(tag);
-      console.log(`   app:     ${name}${tag ? ` (${tag})` : ""}`);
-    }
-  }
-  if (platformInfo == null ? void 0 : platformInfo.commit_hash) {
-    console.log(`   commit:  ${platformInfo.commit_hash}`);
-  }
-  const deploymentId = String((_o = deployment == null ? void 0 : deployment.id) != null ? _o : "");
-  if (deploymentId) {
-    await writeDeploymentState({
-      deploymentId,
-      platform,
-      appSourceId,
-      releaseTags,
-      apps,
-      timestamp: (/* @__PURE__ */ new Date()).toISOString()
-    });
-  }
-}
-var init_deploy = __esm({
-  "src/cli/commands/deploy.ts"() {
-    "use strict";
-    init_errors();
-    init_deployment_state();
   }
 });
 
@@ -10728,7 +9562,7 @@ __export(repl_exports, {
 });
 import { createInterface } from "readline/promises";
 import { stdin as input, stdout as output } from "process";
-function str5(value) {
+function str2(value) {
   return typeof value === "string" && value.trim() ? value : void 0;
 }
 function printReplHelp() {
@@ -10848,9 +9682,9 @@ async function runInteractiveCli(config, options) {
 }
 async function runRootCli(args) {
   let config = buildCliConfig(args);
-  const prompt = str5(args.prompt);
+  const prompt = str2(args.prompt);
   const showTool = args["show-tool"] === true;
-  const byokKey = str5(args["provider-key"]);
+  const byokKey = str2(args["provider-key"]);
   if (byokKey) {
     await saveByokKeyCommand(config, byokKey, { printLocation: false });
     config = __spreadProps(__spreadValues({}, config), { freshSession: false });
@@ -10874,10 +9708,10 @@ var init_repl = __esm({
 });
 
 // src/cli/main.ts
-import { runCommand, runMain } from "citty";
+import { runMain } from "citty";
 
 // src/cli/root.ts
-import { defineCommand as defineCommand15 } from "citty";
+import { defineCommand as defineCommand11 } from "citty";
 
 // src/cli/commands/defs/chat.ts
 init_shared();
@@ -10969,31 +9803,31 @@ var txDef = defineCommand2({
   }
 });
 
-// src/cli/commands/defs/thread.ts
+// src/cli/commands/defs/session.ts
 init_shared();
 import { defineCommand as defineCommand3 } from "citty";
-var threadListDef = defineCommand3({
-  meta: { name: "list", description: "List local threads with metadata" },
+var sessionListDef = defineCommand3({
+  meta: { name: "list", description: "List local sessions with metadata" },
   args: __spreadValues({}, globalArgs),
   async run({ args }) {
     const { sessionsCommand: sessionsCommand2 } = await Promise.resolve().then(() => (init_sessions(), sessions_exports));
     await sessionsCommand2(buildCliConfig(args));
   }
 });
-var threadNewDef = defineCommand3({
-  meta: { name: "new", description: "Start a fresh thread and make it active" },
+var sessionNewDef = defineCommand3({
+  meta: { name: "new", description: "Start a fresh session and make it active" },
   args: __spreadValues({}, globalArgs),
   async run({ args }) {
     const { newSessionCommand: newSessionCommand2 } = await Promise.resolve().then(() => (init_sessions(), sessions_exports));
     newSessionCommand2(buildCliConfig(args));
   }
 });
-var threadResumeDef = defineCommand3({
-  meta: { name: "resume", description: "Resume a local thread" },
+var sessionResumeDef = defineCommand3({
+  meta: { name: "resume", description: "Resume a local session" },
   args: {
     id: {
       type: "positional",
-      description: "Thread ID, thread-N, or N",
+      description: "Session ID or session-N",
       required: true
     }
   },
@@ -11002,12 +9836,12 @@ var threadResumeDef = defineCommand3({
     resumeSessionCommand2(args.id);
   }
 });
-var threadDeleteDef = defineCommand3({
-  meta: { name: "delete", description: "Delete a local thread" },
+var sessionDeleteDef = defineCommand3({
+  meta: { name: "delete", description: "Delete a local session" },
   args: {
     id: {
       type: "positional",
-      description: "Thread ID, thread-N, or N",
+      description: "Session ID or session-N",
       required: true
     }
   },
@@ -11016,15 +9850,15 @@ var threadDeleteDef = defineCommand3({
     deleteSessionCommand2(args.id);
   }
 });
-var threadStatusDef = defineCommand3({
-  meta: { name: "status", description: "Show current thread state" },
+var sessionStatusDef = defineCommand3({
+  meta: { name: "status", description: "Show current session state" },
   args: __spreadValues({}, globalArgs),
   async run({ args }) {
-    const { statusCommand: statusCommand3 } = await Promise.resolve().then(() => (init_control(), control_exports));
-    await statusCommand3(buildCliConfig(args));
+    const { statusCommand: statusCommand2 } = await Promise.resolve().then(() => (init_control(), control_exports));
+    await statusCommand2(buildCliConfig(args));
   }
 });
-var threadLogDef = defineCommand3({
+var sessionLogDef = defineCommand3({
   meta: { name: "log", description: "Show conversation history" },
   args: __spreadValues({}, globalArgs),
   async run({ args }) {
@@ -11032,7 +9866,7 @@ var threadLogDef = defineCommand3({
     await logCommand2(buildCliConfig(args));
   }
 });
-var threadEventsDef = defineCommand3({
+var sessionEventsDef = defineCommand3({
   meta: { name: "events", description: "List system events" },
   args: __spreadValues({}, globalArgs),
   async run({ args }) {
@@ -11040,25 +9874,25 @@ var threadEventsDef = defineCommand3({
     await eventsCommand2(buildCliConfig(args));
   }
 });
-var threadCloseDef = defineCommand3({
-  meta: { name: "close", description: "Close the current thread" },
+var sessionCloseDef = defineCommand3({
+  meta: { name: "close", description: "Close the current session" },
   args: __spreadValues({}, globalArgs),
   async run({ args }) {
     const { closeCommand: closeCommand2 } = await Promise.resolve().then(() => (init_history(), history_exports));
     closeCommand2(buildCliConfig(args));
   }
 });
-var threadDef = defineCommand3({
-  meta: { name: "thread", description: "Thread management" },
+var sessionDef = defineCommand3({
+  meta: { name: "session", description: "Session management" },
   subCommands: {
-    list: threadListDef,
-    new: threadNewDef,
-    resume: threadResumeDef,
-    delete: threadDeleteDef,
-    status: threadStatusDef,
-    log: threadLogDef,
-    events: threadEventsDef,
-    close: threadCloseDef
+    list: sessionListDef,
+    new: sessionNewDef,
+    resume: sessionResumeDef,
+    delete: sessionDeleteDef,
+    status: sessionStatusDef,
+    log: sessionLogDef,
+    events: sessionEventsDef,
+    close: sessionCloseDef
   }
 });
 
@@ -11066,10 +9900,7 @@ var threadDef = defineCommand3({
 init_shared();
 import { defineCommand as defineCommand4 } from "citty";
 var modelListDef = defineCommand4({
-  meta: {
-    name: "list",
-    description: "List models available to the current backend"
-  },
+  meta: { name: "list", description: "List models available to the current backend" },
   args: __spreadValues({}, globalArgs),
   async run({ args }) {
     const { modelsCommand: modelsCommand2 } = await Promise.resolve().then(() => (init_control(), control_exports));
@@ -11077,10 +9908,7 @@ var modelListDef = defineCommand4({
   }
 });
 var modelSetDef = defineCommand4({
-  meta: {
-    name: "set",
-    description: "Set the active model for the current thread"
-  },
+  meta: { name: "set", description: "Set the active model for the current session" },
   args: __spreadProps(__spreadValues({}, globalArgs), {
     rig: {
       type: "positional",
@@ -11123,10 +9951,10 @@ var appListDef = defineCommand5({
 });
 var appCurrentDef = defineCommand5({
   meta: { name: "current", description: "Show the current app" },
-  args: __spreadValues({}, globalArgs),
-  async run({ args }) {
+  args: {},
+  async run() {
     const { currentAppCommand: currentAppCommand2 } = await Promise.resolve().then(() => (init_control(), control_exports));
-    currentAppCommand2(buildCliConfig(args));
+    currentAppCommand2();
   }
 });
 var appDef = defineCommand5({
@@ -11138,14 +9966,13 @@ var appDef = defineCommand5({
 });
 
 // src/cli/commands/defs/chain.ts
-init_shared();
 import { defineCommand as defineCommand6 } from "citty";
 var chainListDef = defineCommand6({
   meta: { name: "list", description: "List supported chains" },
-  args: __spreadValues({}, globalArgs),
-  async run({ args }) {
+  args: {},
+  async run() {
     const { chainsCommand: chainsCommand2 } = await Promise.resolve().then(() => (init_control(), control_exports));
-    chainsCommand2(buildCliConfig(args));
+    chainsCommand2();
   }
 });
 var chainSetDef = defineCommand6({
@@ -11164,10 +9991,10 @@ var chainSetDef = defineCommand6({
 });
 var chainCurrentDef = defineCommand6({
   meta: { name: "current", description: "Show the active chain ID" },
-  args: __spreadValues({}, globalArgs),
-  async run({ args }) {
+  args: {},
+  async run() {
     const { currentChainCommand: currentChainCommand2 } = await Promise.resolve().then(() => (init_control(), control_exports));
-    currentChainCommand2(buildCliConfig(args));
+    currentChainCommand2();
   }
 });
 var chainDef = defineCommand6({
@@ -11182,9 +10009,9 @@ var chainDef = defineCommand6({
 // src/cli/commands/defs/wallet.ts
 init_shared();
 import { defineCommand as defineCommand7 } from "citty";
-var walletDevKeyDef = defineCommand7({
+var walletSetDef = defineCommand7({
   meta: {
-    name: "dev-key",
+    name: "set",
     description: "Persist a signing key and derived wallet address. Defaults to EVM (hex key). Pass --solana for a Solana keypair (base58)."
   },
   args: {
@@ -11216,86 +10043,94 @@ var walletDevKeyDef = defineCommand7({
     if (!evmKey) {
       const { fatal: fatal2 } = await Promise.resolve().then(() => (init_errors(), errors_exports));
       fatal2(
-        "Usage:\n  aomi wallet dev-key <evm-hex-key>          # EVM (default)\n  aomi wallet dev-key --evm <evm-hex-key>    # EVM (explicit)\n  aomi wallet dev-key --solana <base58-key>  # Solana"
+        "Usage:\n  aomi wallet set <evm-hex-key>          # EVM (default)\n  aomi wallet set --evm <evm-hex-key>    # EVM (explicit)\n  aomi wallet set --solana <base58-key>  # Solana"
       );
     }
     const { setWalletCommand: setWalletCommand2 } = await Promise.resolve().then(() => (init_preferences(), preferences_exports));
     setWalletCommand2(evmKey);
   }
 });
-var walletListDef = defineCommand7({
-  meta: {
-    name: "ls",
-    description: "List account wallets and signing policy"
-  },
-  args: __spreadProps(__spreadValues({}, globalArgs), {
-    provider: {
-      type: "string",
-      description: "Filter by wallet provider"
-    }
-  }),
-  async run({ args }) {
-    const { walletListCommand: walletListCommand2 } = await Promise.resolve().then(() => (init_wallet_auth(), wallet_auth_exports));
-    await walletListCommand2(buildCliConfig(args), {
-      provider: typeof args.provider === "string" ? args.provider : void 0
-    });
+var walletCurrentDef = defineCommand7({
+  meta: { name: "current", description: "Show the configured wallet address" },
+  args: {},
+  async run() {
+    const { currentWalletCommand: currentWalletCommand2 } = await Promise.resolve().then(() => (init_control(), control_exports));
+    currentWalletCommand2();
   }
 });
-var walletSetModeDef = defineCommand7({
+var walletWhoamiDef = defineCommand7({
   meta: {
-    name: "set-mode",
-    description: "Set per-wallet signing policy with a signed permit"
+    name: "whoami",
+    description: "Show the authenticated backend account"
   },
-  args: __spreadProps(__spreadValues({}, globalArgs), {
-    address: {
-      type: "positional",
-      description: "Wallet address",
-      required: true
-    },
-    mode: {
-      type: "positional",
-      description: "autonomous, human_sync, or denied",
-      required: true
-    },
-    "chain-type": {
-      type: "string",
-      description: "Wallet chain type (default: evm)"
-    }
-  }),
+  args: __spreadValues({}, globalArgs),
   async run({ args }) {
-    const { walletSetModeCommand: walletSetModeCommand2 } = await Promise.resolve().then(() => (init_wallet_auth(), wallet_auth_exports));
-    await walletSetModeCommand2(buildCliConfig(args), args.address, args.mode, {
-      chainType: typeof args["chain-type"] === "string" ? args["chain-type"] : void 0
-    });
+    const { accountWhoamiCommand: accountWhoamiCommand2 } = await Promise.resolve().then(() => (init_account(), account_exports));
+    await accountWhoamiCommand2(buildCliConfig(args));
   }
 });
 var walletDef = defineCommand7({
   meta: { name: "wallet", description: "Wallet configuration" },
-  async run({ rawArgs }) {
-    const firstToken = rawArgs.find((arg) => !arg.startsWith("-"));
-    if (firstToken === "set") {
-      const { fatal: fatal2 } = await Promise.resolve().then(() => (init_errors(), errors_exports));
-      fatal2("Unknown wallet command `set`. Use `aomi wallet dev-key`.");
-    }
-    if (firstToken === "current") {
-      const { fatal: fatal2 } = await Promise.resolve().then(() => (init_errors(), errors_exports));
-      fatal2("Unknown wallet command `current`. Use `aomi wallet ls`.");
-    }
-    if (firstToken === "whoami") {
-      const { fatal: fatal2 } = await Promise.resolve().then(() => (init_errors(), errors_exports));
-      fatal2("Unknown wallet command `whoami`. Use `aomi account`.");
-    }
-  },
   subCommands: {
-    "dev-key": walletDevKeyDef,
-    ls: walletListDef,
-    "set-mode": walletSetModeDef
+    set: walletSetDef,
+    current: walletCurrentDef,
+    whoami: walletWhoamiDef
   }
 });
 
 // src/cli/commands/defs/account.ts
 init_shared();
 import { defineCommand as defineCommand8 } from "citty";
+var accountLoginDef = defineCommand8({
+  meta: {
+    name: "login",
+    description: "Sign in to an Aomi account"
+  },
+  args: __spreadProps(__spreadValues({}, globalArgs), {
+    provider: {
+      type: "string",
+      description: 'Browser auth provider ("privy" or "para")'
+    },
+    wallet: {
+      type: "boolean",
+      description: "Use native CLI SIWE with the configured EVM wallet"
+    },
+    "no-browser": {
+      type: "boolean",
+      description: "Do not open provider auth; use native CLI SIWE"
+    }
+  }),
+  async run({ args }) {
+    const { accountLoginCommand: accountLoginCommand2 } = await Promise.resolve().then(() => (init_account(), account_exports));
+    await accountLoginCommand2(buildCliConfig(args), {
+      provider: typeof args.provider === "string" ? args.provider : void 0,
+      wallet: args.wallet === true,
+      noBrowser: args["no-browser"] === true
+    });
+  }
+});
+var accountWhoamiDef = defineCommand8({
+  meta: {
+    name: "whoami",
+    description: "Show the authenticated backend account"
+  },
+  args: __spreadValues({}, globalArgs),
+  async run({ args }) {
+    const { accountWhoamiCommand: accountWhoamiCommand2 } = await Promise.resolve().then(() => (init_account(), account_exports));
+    await accountWhoamiCommand2(buildCliConfig(args));
+  }
+});
+var accountLogoutDef = defineCommand8({
+  meta: {
+    name: "logout",
+    description: "Sign out and clear the CLI auth session"
+  },
+  args: __spreadValues({}, globalArgs),
+  async run({ args }) {
+    const { logoutCommand: logoutCommand2 } = await Promise.resolve().then(() => (init_account(), account_exports));
+    await logoutCommand2(buildCliConfig(args));
+  }
+});
 var accountLinksDef = defineCommand8({
   meta: {
     name: "links",
@@ -11423,36 +10258,48 @@ var accountDeleteDef = defineCommand8({
     });
   }
 });
-var accountDef = defineCommand8({
-  meta: { name: "account", description: "Account and link management" },
-  args: __spreadValues({}, globalArgs),
-  async run({ args, rawArgs }) {
-    const firstToken = rawArgs.find((arg) => !arg.startsWith("-"));
-    if (firstToken) {
-      if (firstToken === "login") {
-        const { fatal: fatal2 } = await Promise.resolve().then(() => (init_errors(), errors_exports));
-        fatal2("Unknown account command `login`. Use `aomi login`.");
-      }
-      if (firstToken === "whoami") {
-        const { fatal: fatal2 } = await Promise.resolve().then(() => (init_errors(), errors_exports));
-        fatal2("Unknown account command `whoami`. Use `aomi account`.");
-      }
-      if (firstToken === "logout") {
-        const { fatal: fatal2 } = await Promise.resolve().then(() => (init_errors(), errors_exports));
-        fatal2("Unknown account command `logout`. Use `aomi logout`.");
-      }
-      return;
-    }
-    const { accountWhoamiCommand: accountWhoamiCommand2 } = await Promise.resolve().then(() => (init_account(), account_exports));
-    await accountWhoamiCommand2(buildCliConfig(args));
+var accountSessionsDef = defineCommand8({
+  meta: {
+    name: "sessions",
+    description: "List local CLI sessions for account switching"
   },
+  args: __spreadValues({}, globalArgs),
+  async run({ args }) {
+    const { accountSessionsCommand: accountSessionsCommand2 } = await Promise.resolve().then(() => (init_account(), account_exports));
+    await accountSessionsCommand2(buildCliConfig(args));
+  }
+});
+var accountSwitchDef = defineCommand8({
+  meta: {
+    name: "switch",
+    description: "Switch the active local CLI session"
+  },
+  args: {
+    id: {
+      type: "positional",
+      description: "Session ID or session-N",
+      required: true
+    }
+  },
+  async run({ args }) {
+    const { accountSwitchCommand: accountSwitchCommand2 } = await Promise.resolve().then(() => (init_account(), account_exports));
+    accountSwitchCommand2(args.id);
+  }
+});
+var accountDef = defineCommand8({
+  meta: { name: "account", description: "Account authentication" },
   subCommands: {
+    login: accountLoginDef,
+    whoami: accountWhoamiDef,
+    logout: accountLogoutDef,
     links: accountLinksDef,
     link: accountLinkDef,
     unlink: accountUnlinkDef,
     rename: accountRenameDef,
     update: accountUpdateDef,
-    delete: accountDeleteDef
+    delete: accountDeleteDef,
+    sessions: accountSessionsDef,
+    switch: accountSwitchDef
   }
 });
 
@@ -11493,10 +10340,7 @@ init_errors();
 init_shared();
 import { defineCommand as defineCommand10 } from "citty";
 var secretListDef = defineCommand10({
-  meta: {
-    name: "list",
-    description: "List configured secrets for the active thread"
-  },
+  meta: { name: "list", description: "List configured secrets for the active session" },
   args: {},
   async run() {
     const { listSecretsCommand: listSecretsCommand2 } = await Promise.resolve().then(() => (init_secrets(), secrets_exports));
@@ -11504,10 +10348,7 @@ var secretListDef = defineCommand10({
   }
 });
 var secretClearDef = defineCommand10({
-  meta: {
-    name: "clear",
-    description: "Clear all secrets for the active thread"
-  },
+  meta: { name: "clear", description: "Clear all secrets for the active session" },
   args: __spreadValues({}, globalArgs),
   async run({ args }) {
     const { clearSecretsCommand: clearSecretsCommand2 } = await Promise.resolve().then(() => (init_secrets(), secrets_exports));
@@ -11552,201 +10393,13 @@ var secretDef = defineCommand10({
   }
 });
 
-// src/cli/commands/defs/cron.ts
-init_shared();
-import { defineCommand as defineCommand11 } from "citty";
-var cronListDef = defineCommand11({
-  meta: { name: "ls", description: "List scheduled threads" },
-  args: __spreadProps(__spreadValues({}, globalArgs), {
-    app: {
-      type: "string",
-      description: "Filter by app"
-    },
-    limit: {
-      type: "string",
-      description: "Maximum rows to return"
-    },
-    offset: {
-      type: "string",
-      description: "Rows to skip"
-    }
-  }),
-  async run({ args }) {
-    const { cronListCommand: cronListCommand2 } = await Promise.resolve().then(() => (init_cron(), cron_exports));
-    await cronListCommand2(buildCliConfig(args), {
-      app: typeof args.app === "string" ? args.app : void 0,
-      limit: typeof args.limit === "string" ? args.limit : void 0,
-      offset: typeof args.offset === "string" ? args.offset : void 0
-    });
-  }
-});
-var cronShowDef = defineCommand11({
-  meta: { name: "show", description: "Show a scheduled thread" },
-  args: __spreadProps(__spreadValues({}, globalArgs), {
-    id: {
-      type: "positional",
-      description: "Cron job id",
-      required: true
-    }
-  }),
-  async run({ args }) {
-    const { cronShowCommand: cronShowCommand2 } = await Promise.resolve().then(() => (init_cron(), cron_exports));
-    await cronShowCommand2(buildCliConfig(args), args.id);
-  }
-});
-var cronCancelDef = defineCommand11({
-  meta: { name: "cancel", description: "Cancel a scheduled thread" },
-  args: __spreadProps(__spreadValues({}, globalArgs), {
-    id: {
-      type: "positional",
-      description: "Cron job id",
-      required: true
-    }
-  }),
-  async run({ args }) {
-    const { cronCancelCommand: cronCancelCommand2 } = await Promise.resolve().then(() => (init_cron(), cron_exports));
-    await cronCancelCommand2(buildCliConfig(args), args.id);
-  }
-});
-var cronDef = defineCommand11({
-  meta: { name: "cron", description: "Scheduled thread management" },
-  subCommands: {
-    ls: cronListDef,
-    show: cronShowDef,
-    cancel: cronCancelDef
-  }
-});
-
-// src/cli/commands/defs/deploy.ts
-import { defineCommand as defineCommand14 } from "citty";
-
-// src/cli/commands/defs/status.ts
-import { defineCommand as defineCommand12 } from "citty";
-var statusDef = defineCommand12({
-  meta: {
-    name: "status",
-    description: "Show current deployment status"
-  },
-  args: {
-    "deployment-id": {
-      type: "string",
-      description: "Deployment ID (reads .aomi/deployment.json if absent)"
-    },
-    watch: {
-      type: "boolean",
-      description: "Poll until a terminal state is reached"
-    },
-    "activation-token": {
-      type: "string",
-      description: "Platform activation token (or set AOMI_DEPLOY_TOKEN env)"
-    },
-    "backend-url": {
-      type: "string",
-      description: "Backend URL (default: https://api.aomi.dev)"
-    },
-    platform: {
-      type: "string",
-      description: "Deploy platform (default: community; or set AOMI_DEPLOY_PLATFORM env)"
-    }
-  },
-  async run({ args }) {
-    const { statusCommand: statusCommand3 } = await Promise.resolve().then(() => (init_status(), status_exports));
-    await statusCommand3(args);
-  }
-});
-
-// src/cli/commands/defs/activate.ts
-import { defineCommand as defineCommand13 } from "citty";
-var activateDef = defineCommand13({
-  meta: {
-    name: "activate",
-    description: "Activate a deployment by promoting release tags"
-  },
-  args: {
-    "deployment-id": {
-      type: "string",
-      description: "Deployment ID (reads .aomi/deployment.json if absent)"
-    },
-    "release-tags": {
-      type: "string",
-      description: "Comma-separated release tags to activate (reads .aomi/deployment.json if absent)"
-    },
-    "activation-token": {
-      type: "string",
-      description: "Platform activation token (or set AOMI_DEPLOY_TOKEN env)"
-    },
-    "backend-url": {
-      type: "string",
-      description: "Backend URL (default: https://api.aomi.dev)"
-    },
-    platform: {
-      type: "string",
-      description: "Deploy platform (default: community; or set AOMI_DEPLOY_PLATFORM env)"
-    }
-  },
-  async run({ args }) {
-    const { activateCommand: activateCommand2 } = await Promise.resolve().then(() => (init_activate(), activate_exports));
-    await activateCommand2(args);
-  }
-});
-
-// src/cli/commands/defs/deploy.ts
-var deployDef = defineCommand14({
-  meta: {
-    name: "deploy",
-    description: "Deploy your app to the Aomi platform"
-  },
-  args: {
-    "backend-url": {
-      type: "string",
-      description: "Backend URL (default: https://api.aomi.dev)"
-    },
-    "activation-token": {
-      type: "string",
-      description: "Platform activation token (required; or set AOMI_DEPLOY_TOKEN env)"
-    },
-    "app-source-id": {
-      type: "string",
-      description: "Backend app source ID (required; or set AOMI_APP_SOURCE_ID env)"
-    },
-    "preflight": {
-      type: "boolean",
-      description: "Preview the deployment manifest without applying it"
-    },
-    branch: {
-      type: "string",
-      description: "Git branch to deploy (default: current branch via git rev-parse)"
-    },
-    commit: {
-      type: "string",
-      description: "Deploy a specific commit SHA instead of a branch tip"
-    },
-    "aomi-toml-paths": {
-      type: "string",
-      description: "Comma-separated paths to aomi.toml files (default: discover)"
-    },
-    platform: {
-      type: "string",
-      description: "Deploy platform (default: community; or set AOMI_DEPLOY_PLATFORM env)"
-    }
-  },
-  async run({ args }) {
-    const { deployCommand: deployCommand2 } = await Promise.resolve().then(() => (init_deploy(), deploy_exports));
-    await deployCommand2(args);
-  },
-  subCommands: {
-    status: statusDef,
-    activate: activateDef
-  }
-});
-
 // src/cli/root.ts
 init_shared();
 
 // package.json
 var package_default = {
   name: "@aomi-labs/client",
-  version: "0.4.0",
+  version: "0.3.0",
   description: "Platform-agnostic TypeScript client for the Aomi backend API",
   type: "module",
   main: "./dist/index.cjs",
@@ -11795,79 +10448,28 @@ var package_default = {
 var SUBCOMMAND_NAMES = /* @__PURE__ */ new Set([
   "chat",
   "tx",
-  "thread",
+  "session",
   "model",
   "app",
   "chain",
   "wallet",
   "account",
-  "login",
   "logout",
-  "cron",
   "config",
-  "secret",
-  "deploy"
+  "secret"
 ]);
-var loginDef = defineCommand15({
-  meta: {
-    name: "login",
-    description: "Sign in to an Aomi account"
-  },
-  args: __spreadProps(__spreadValues({}, globalArgs), {
-    provider: {
-      type: "string",
-      description: 'Browser auth provider ("privy" or "para")'
-    },
-    evm: {
-      type: "boolean",
-      description: "Request an EVM provider wallet"
-    },
-    solana: {
-      type: "boolean",
-      description: "Request a Solana provider wallet"
-    },
-    wallet: {
-      type: "boolean",
-      description: "Use native CLI SIWE with the configured EVM wallet"
-    },
-    "no-browser": {
-      type: "boolean",
-      description: "Do not open provider auth; use native CLI SIWE"
-    }
-  }),
-  async run({ args }) {
-    const { accountLoginCommand: accountLoginCommand2 } = await Promise.resolve().then(() => (init_account(), account_exports));
-    if (args.evm === true && args.solana === true) {
-      const { fatal: fatal2 } = await Promise.resolve().then(() => (init_errors(), errors_exports));
-      fatal2("Choose only one of `--evm` or `--solana`.");
-    }
-    await accountLoginCommand2(buildCliConfig(args), {
-      provider: typeof args.provider === "string" ? args.provider : void 0,
-      wallet: args.wallet === true,
-      noBrowser: args["no-browser"] === true,
-      walletFamily: args.solana === true ? "solana" : args.evm === true ? "evm" : void 0
-    });
-  }
-});
-var logoutDef = defineCommand15({
+var logoutDef = defineCommand11({
   meta: {
     name: "logout",
     description: "Sign out and clear the CLI auth session"
   },
-  args: __spreadProps(__spreadValues({}, globalArgs), {
-    provider: {
-      type: "string",
-      description: 'Provider to sign out locally ("privy" or "para")'
-    }
-  }),
+  args: __spreadValues({}, globalArgs),
   async run({ args }) {
     const { logoutCommand: logoutCommand2 } = await Promise.resolve().then(() => (init_account(), account_exports));
-    await logoutCommand2(buildCliConfig(args), {
-      provider: typeof args.provider === "string" ? args.provider : void 0
-    });
+    await logoutCommand2(buildCliConfig(args));
   }
 });
-var root = defineCommand15({
+var root = defineCommand11({
   meta: {
     name: "aomi",
     version: package_default.version,
@@ -11899,23 +10501,35 @@ var root = defineCommand15({
   subCommands: {
     chat: chatDef,
     tx: txDef,
-    thread: threadDef,
+    session: sessionDef,
     model: modelDef,
     app: appDef,
     chain: chainDef,
     wallet: walletDef,
     account: accountDef,
-    login: loginDef,
     logout: logoutDef,
-    cron: cronDef,
     config: configDef,
-    secret: secretDef,
-    deploy: deployDef
+    secret: secretDef
   }
 });
 
 // src/cli/main.ts
 init_errors();
+var ROOT_SUBCOMMANDS = /* @__PURE__ */ new Set([
+  "chat",
+  "tx",
+  "session",
+  "model",
+  "app",
+  "chain",
+  "wallet",
+  "account",
+  "logout",
+  "config",
+  "secret",
+  "account",
+  "deploy"
+]);
 function isPnpmExecWrapper() {
   var _a3, _b;
   const npmCommand = (_a3 = process.env.npm_command) != null ? _a3 : "";
@@ -11927,36 +10541,7 @@ function shouldPrintRootHelp(rawArgs) {
     return false;
   }
   const firstToken = rawArgs.find((arg) => !arg.startsWith("-"));
-  return !firstToken;
-}
-function rejectLegacyRootCommand(rawArgs) {
-  const positional = rawArgs.filter((arg) => !arg.startsWith("-"));
-  const firstToken = positional[0];
-  const secondToken = positional[1];
-  if (firstToken === "session") {
-    throw new Error("Unknown command `session`. Use `aomi thread ...`.");
-  }
-  if (firstToken === "schedule") {
-    throw new Error("Unknown command `schedule`. Use `aomi cron ...`.");
-  }
-  if (firstToken === "wallet" && secondToken === "set") {
-    throw new Error("Unknown command `wallet set`. Use `aomi wallet dev-key`.");
-  }
-  if (firstToken === "wallet" && secondToken === "current") {
-    throw new Error("Unknown command `wallet current`. Use `aomi wallet ls`.");
-  }
-  if (firstToken === "wallet" && secondToken === "whoami") {
-    throw new Error("Unknown command `wallet whoami`. Use `aomi account`.");
-  }
-  if (firstToken === "account" && secondToken === "login") {
-    throw new Error("Unknown command `account login`. Use `aomi login`.");
-  }
-  if (firstToken === "account" && secondToken === "whoami") {
-    throw new Error("Unknown command `account whoami`. Use `aomi account`.");
-  }
-  if (firstToken === "account" && secondToken === "logout") {
-    throw new Error("Unknown command `account logout`. Use `aomi logout`.");
-  }
+  return !firstToken || !ROOT_SUBCOMMANDS.has(firstToken);
 }
 function printRootHelp() {
   console.log(
@@ -11991,14 +10576,17 @@ function printRootHelp() {
     "  --account-bearer <token>     Aomi account bearer for authenticated requests"
   );
   console.log(
-    "  --json                       Print machine-readable JSON where supported"
+    "  --embedded-provider <name>    Deprecated; provider exchange is disabled"
   );
-  console.log("  --verbose                    Show extra diagnostics");
+  console.log("  --embedded-provider-token <t>");
+  console.log(
+    "                               Deprecated; use --account-bearer"
+  );
   console.log("  --app <name>                 Active app");
   console.log("  --model <rig>                Active model");
-  console.log("  --new-session                Create a fresh active thread");
+  console.log("  --new-session                Create a fresh active session");
   console.log(
-    "  --chain <id>                 Active chain for chat/thread context"
+    "  --chain <id>                 Active chain for chat/session context"
   );
   console.log("  --public-key <address>       Wallet address for chat context");
   console.log("  --private-key <hex>          Signing key for EVM tx sign");
@@ -12019,17 +10607,17 @@ function printRootHelp() {
   console.log("");
   console.log("  chat                         Explicit one-shot chat command");
   console.log("  tx                           Transaction management");
-  console.log("  thread                       Thread management");
+  console.log("  session                      Session management");
   console.log("  model                        Model management");
   console.log("  app                          App management");
   console.log("  chain                        Chain information");
   console.log("  wallet                       Wallet configuration");
-  console.log("  login                        Sign in to an Aomi account");
-  console.log("  account                      Account and link management");
+  console.log(
+    "  account                      Account login and link management"
+  );
   console.log(
     "  logout                       Sign out and clear the CLI auth session"
   );
-  console.log("  cron                         Scheduled thread management");
   console.log("  config                       CLI configuration");
   console.log("  secret                       Secret management");
   console.log(
@@ -12037,29 +10625,16 @@ function printRootHelp() {
   );
   console.log("");
   console.log("Use aomi <command> --help for command-specific details.");
-  console.log("");
-  console.log(
-    "Deprecated compatibility flags: --embedded-provider, --embedded-provider-token"
-  );
 }
 async function runCli(argv = process.argv) {
   const strictExit = process.env.AOMI_CLI_STRICT_EXIT === "1";
   const rawArgs = argv.slice(2);
   try {
-    rejectLegacyRootCommand(rawArgs);
     if (shouldPrintRootHelp(rawArgs)) {
       printRootHelp();
       return;
     }
-    if (rawArgs.includes("--help") || rawArgs.includes("-h")) {
-      await runMain(root, { rawArgs });
-      return;
-    }
-    if (rawArgs.length === 1 && (rawArgs[0] === "--version" || rawArgs[0] === "-v")) {
-      await runMain(root, { rawArgs });
-      return;
-    }
-    await runCommand(root, { rawArgs });
+    await runMain(root, { rawArgs });
   } catch (err) {
     if (err instanceof CliExit) {
       if (!strictExit && isPnpmExecWrapper()) {

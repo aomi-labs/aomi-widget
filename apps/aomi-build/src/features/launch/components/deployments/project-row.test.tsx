@@ -17,7 +17,7 @@ describe("ProjectRow", () => {
       />,
     );
     const link = screen.getByRole("link", { name: /alice\/bot/ });
-    expect(link).toHaveAttribute("href", "/projects/42");
+    expect(link).toHaveAttribute("href", "/operate/deployments?project=42");
   });
 
   it("shows deployment status instead of a live app count", () => {

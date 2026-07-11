@@ -12,16 +12,8 @@ type AomiRuntimeProviderProps = {
     applicationId?: number | string | null;
     appPlatforms?: AomiPlatformFilter;
     clientOptions?: Omit<AomiClientOptions, "baseUrl">;
-    /** Optional explicit initial thread. Takes precedence over stored state. */
-    initialThreadId?: string;
-    /** Persist the active materialized thread in localStorage. Defaults to true. */
-    persistThread?: boolean;
-    /** Full localStorage key override for vendors that need exact isolation. */
-    threadPersistenceKey?: string;
-    /** Extra key segment for tenant/user/app scoping without owning the full key. */
-    threadPersistenceScope?: string | null;
 };
-declare function AomiRuntimeProvider({ children, backendUrl, applicationId, appPlatforms, clientOptions, initialThreadId, persistThread, threadPersistenceKey, threadPersistenceScope, }: Readonly<AomiRuntimeProviderProps>): react_jsx_runtime.JSX.Element;
+declare function AomiRuntimeProvider({ children, backendUrl, applicationId, appPlatforms, clientOptions, }: Readonly<AomiRuntimeProviderProps>): react_jsx_runtime.JSX.Element;
 
 declare class SessionManager {
     private readonly clientFactory;
@@ -73,7 +65,6 @@ declare function useCurrentThreadMetadata(): ThreadMetadata | undefined;
 
 type ThreadStatus = "regular" | "archived";
 type ModelSelectionMode = "auto" | "manual";
-type ThreadTurnPhase = "idle" | "submitting" | "working";
 type ThreadControlState = {
     /** Selected model for this thread (human-readable label) */
     model: string | null;
@@ -87,10 +78,6 @@ type ThreadControlState = {
     controlDirty: boolean;
     /** Whether this thread is currently processing (assistant generating) */
     isProcessing: boolean;
-    /** Fine-grained turn phase for rendering pending/working assistant states */
-    turnPhase: ThreadTurnPhase;
-    /** Epoch ms when the latest assistant turn completed in this thread. */
-    lastCompletedAt?: number;
 };
 type ThreadMetadata = {
     title: string;
@@ -503,4 +490,4 @@ type ControlContextProviderProps = {
 };
 declare function ControlContextProvider({ children, aomiClient, sessionId, getThreadMetadata, updateThreadMetadata, appPlatforms, }: ControlContextProviderProps): react_jsx_runtime.JSX.Element;
 
-export { type AomiRuntimeApi, AomiRuntimeApiProvider, AomiRuntimeProvider, type AomiRuntimeProviderProps, type ControlContextApi, ControlContextProvider, type ControlContextProviderProps, type ControlState, type EventContext, EventContextProvider, type EventContextProviderProps, type EventSubscriber, ExtUserProvider, type InboundEvent, type ModelSelectionMode, type Notification$1 as Notification, type NotificationApi, NotificationContextProvider, type NotificationContextProviderProps, type NotificationContextApi as NotificationContextValue, type NotificationHandlerConfig, type NotificationType, RuntimeUserStateProvider, type SSEStatus, SUPPORTED_CHAINS, type NotificationData as ShowNotificationParams, type StoredByokKey, type ThreadContext, ThreadContextProvider, type ThreadControlState, type ThreadMetadata, type ThreadTurnPhase, type UserConfig, type WalletHandlerApi, type WalletHandlerConfig, type WalletRequestStatus, cn, formatAddress, getChainInfo, getNetworkName, initThreadControl, resolveAutoModel, useAomiRuntime, useApiKey, useAuthEndpoints, useByok, useControl, useCurrentThreadMessages, useCurrentThreadMetadata, useEventContext, useNotification, useNotificationHandler, useOptionalAomiRuntime, usePerThreadControl, useThreadContext, useUser, useWalletHandler };
+export { type AomiRuntimeApi, AomiRuntimeApiProvider, AomiRuntimeProvider, type AomiRuntimeProviderProps, type ControlContextApi, ControlContextProvider, type ControlContextProviderProps, type ControlState, type EventContext, EventContextProvider, type EventContextProviderProps, type EventSubscriber, ExtUserProvider, type InboundEvent, type ModelSelectionMode, type Notification$1 as Notification, type NotificationApi, NotificationContextProvider, type NotificationContextProviderProps, type NotificationContextApi as NotificationContextValue, type NotificationHandlerConfig, type NotificationType, RuntimeUserStateProvider, type SSEStatus, SUPPORTED_CHAINS, type NotificationData as ShowNotificationParams, type StoredByokKey, type ThreadContext, ThreadContextProvider, type ThreadControlState, type ThreadMetadata, type UserConfig, type WalletHandlerApi, type WalletHandlerConfig, type WalletRequestStatus, cn, formatAddress, getChainInfo, getNetworkName, initThreadControl, resolveAutoModel, useAomiRuntime, useApiKey, useAuthEndpoints, useByok, useControl, useCurrentThreadMessages, useCurrentThreadMetadata, useEventContext, useNotification, useNotificationHandler, useOptionalAomiRuntime, usePerThreadControl, useThreadContext, useUser, useWalletHandler };

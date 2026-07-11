@@ -173,7 +173,7 @@ System A = the live account path; System B = the deprecated MCP-approvals island
 | 8 | Para provider token | JWT via remote JWKS | `sub`=Para uid, `aud`=Para appId | Para | `providers/para.ts::verifyParaJwt` | Para |
 | 9 | Wallet-link nonce | `base64url(payload).HMAC-SHA256` | `{userId,address,chainId,domain}` | `service/wallet-linking.ts` | same file (`timingSafeEqual`) | 5 min |
 | 10 | `Aomi-App-Key` | opaque header, DB-hashed | gates non-public apps | app registration | Rust `authenticator.rs::resolve_app_key` | rotated |
-| 11 | `X-Thread-Id` | opaque id (not auth) | conversation id | client-generated | Rust `Session` extractor | n/a |
+| 11 | `X-Session-Id` | opaque id (not auth) | conversation id | client-generated | Rust `Session` extractor | n/a |
 | 12 | Platform activation token | opaque, DB-hashed | scope + platform binding | Rust `mint_token` | `platform_activation.rs` | DB-managed |
 | — | System B (deprecated) | `stateToken` (24B) + `X-Aomi-Auth` secret + provider secrets | MCP-approvals OAuth capture | `mcp-approvals/*` | backend `/api/_internal/approvals` | state 1h |
 

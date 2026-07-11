@@ -56,13 +56,9 @@ describe("DeployStep", () => {
 
   it("renders idle state with preflight and deploy buttons", () => {
     render(<DeployStep {...defaultProps} />);
-    expect(
-      screen.getByRole("button", { name: "Preflight" }),
-    ).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Deploy" })).toBeInTheDocument();
-    expect(
-      screen.getByRole("button", { name: "Activate" }),
-    ).toBeInTheDocument();
+    expect(screen.getByText("Preflight")).toBeInTheDocument();
+    expect(screen.getByText("Deploy")).toBeInTheDocument();
+    expect(screen.getByText("Activate")).toBeInTheDocument();
   });
 
   it("shows the deployment ID when progress has one", () => {
@@ -106,12 +102,12 @@ describe("DeployStep", () => {
       } satisfies LaunchDeployPayload,
     };
     render(<DeployStep {...defaultProps} progress={progress} />);
-    expect(screen.getByRole("button", { name: "Deploy" })).toBeDisabled();
+    expect(screen.getByText("Deploy")).toBeDisabled();
   });
 
   it("disables activate when phase is not ready", () => {
     render(<DeployStep {...defaultProps} />);
-    expect(screen.getByRole("button", { name: "Activate" })).toBeDisabled();
+    expect(screen.getByText("Activate")).toBeDisabled();
   });
 
   it("shows the idle phase hint text", () => {
@@ -126,8 +122,6 @@ describe("DeployStep", () => {
     );
 
     // just verify the component renders without crashing
-    expect(
-      screen.getByRole("button", { name: "Preflight" }),
-    ).toBeInTheDocument();
+    expect(screen.getByText("Preflight")).toBeInTheDocument();
   });
 });

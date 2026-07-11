@@ -4,19 +4,19 @@ import { type NextRequest, NextResponse } from "next/server";
 const LOCAL_BACKEND_URL = "http://127.0.0.1:8080";
 
 const ALLOWED_ROUTES: AllowedRoute[] = [
-  { pattern: /^\/api\/state$/, methods: new Set(["GET"]), auth: "optional" },
-  { pattern: /^\/api\/chat$/, methods: new Set(["POST"]), auth: "optional" },
+  { pattern: /^\/api\/thread\/state$/, methods: new Set(["GET"]), auth: "optional" },
+  { pattern: /^\/api\/thread\/chat$/, methods: new Set(["POST"]), auth: "optional" },
   { pattern: /^\/api\/system$/, methods: new Set(["POST"]), auth: "optional" },
   {
-    pattern: /^\/api\/interrupt$/,
+    pattern: /^\/api\/thread\/interrupt$/,
     methods: new Set(["POST"]),
     auth: "optional",
   },
-  { pattern: /^\/api\/updates$/, methods: new Set(["GET"]), auth: "optional" },
-  { pattern: /^\/api\/events$/, methods: new Set(["GET"]), auth: "optional" },
+  { pattern: /^\/api\/thread\/updates$/, methods: new Set(["GET"]), auth: "optional" },
+  { pattern: /^\/api\/thread\/events$/, methods: new Set(["GET"]), auth: "optional" },
   { pattern: /^\/api\/threads$/, methods: new Set(["POST"]), auth: "optional" },
   {
-    pattern: /^\/api\/simulate$/,
+    pattern: /^\/api\/exec\/simulate$/,
     methods: new Set(["POST"]),
     auth: "optional",
   },

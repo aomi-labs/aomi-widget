@@ -262,7 +262,7 @@ accept
 authorization
 content-type
 aomi-app-key
-x-thread-id
+x-session-id
 ```
 
 The proxy currently allowlists account, session/thread, state, chat, events,

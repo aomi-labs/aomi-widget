@@ -260,7 +260,6 @@ interface AomiThread {
     session_id: string;
     title: string | null;
     is_archived?: boolean;
-    last_active_at?: number;
 }
 type AomiAccountResponse = AomiAccountProfile;
 /**
@@ -316,57 +315,6 @@ interface AomiAccountProfile {
     auth_identities?: AomiAuthIdentity[];
     identity_wallets?: AomiIdentityWallet[];
     usage?: AomiUsageStats;
-}
-interface AomiAccountWallet {
-    address: string;
-    chain_type: string;
-    wallet_provider: string;
-    signing: string;
-    signing_mode: "autonomous" | "human_sync" | "denied" | (string & {});
-    has_delegated_grant: boolean;
-    can_use_autonomous: boolean;
-    wallet_ref?: string | null;
-    label?: string | null;
-    expires_at?: number | null;
-}
-interface AomiListWalletsResponse {
-    wallets: AomiAccountWallet[];
-}
-interface AomiAuthorizationPermit {
-    account: string;
-    chain_type: string;
-    wallet: string;
-    mode: string;
-    version: number;
-    expiry: number;
-}
-interface AomiAuthorizationChallengeResponse {
-    permit: AomiAuthorizationPermit;
-    typed_data: unknown;
-}
-interface AomiAuthorizationState {
-    address: string;
-    chain_type: string;
-    signing_mode: string;
-    authorization_version: number;
-}
-interface AomiScheduledThread {
-    id: string;
-    user_id: string;
-    root_thread_id: string;
-    application: string;
-    intent: string;
-    trigger_at: number;
-    recurrence_seconds?: number | null;
-    last_run_at?: number | null;
-    created_at: number;
-    updated_at: number;
-}
-interface AomiListScheduledThreadsResponse {
-    scheduled_threads: AomiScheduledThread[];
-}
-interface AomiDeleteScheduledThreadResponse {
-    deleted: boolean;
 }
 interface AomiCreateApprovalRequest {
     auth_identity_id: number;
@@ -647,23 +595,6 @@ declare class AomiClient {
      * variant.
      */
     getAccount(sessionId: string): Promise<AomiAccountResponse>;
-    listAccountWallets(sessionId: string): Promise<AomiListWalletsResponse>;
-    createAuthorizationChallenge(sessionId: string, request: {
-        chain_type: string;
-        wallet: string;
-        mode: string;
-    }): Promise<AomiAuthorizationChallengeResponse>;
-    commitAuthorization(sessionId: string, request: {
-        permit: AomiAuthorizationPermit;
-        signature: string;
-    }): Promise<AomiAuthorizationState>;
-    listScheduledThreads(sessionId: string, query?: {
-        app?: string;
-        limit?: number;
-        offset?: number;
-    }): Promise<AomiListScheduledThreadsResponse>;
-    getScheduledThread(sessionId: string, id: string): Promise<AomiScheduledThread>;
-    deleteScheduledThread(sessionId: string, id: string): Promise<AomiDeleteScheduledThreadResponse>;
     createAccountApproval(request: AomiCreateApprovalRequest): Promise<AomiAccessApproval>;
     /**
      * Mint a Privy browser auth URL bound to the current backend session.

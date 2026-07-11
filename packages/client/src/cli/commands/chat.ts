@@ -340,7 +340,6 @@ export async function chatCommand(
         console.log(last.content);
       } else if (newPendingTxs.length === 0) {
         console.log("(no response)");
-        fatal("Backend returned an empty agent message.");
       }
 
       if (newPendingTxs.length === 0) {

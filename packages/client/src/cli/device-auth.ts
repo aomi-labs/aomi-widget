@@ -18,7 +18,6 @@ export type DeviceAuthProvider = "privy" | "para";
 export type DeviceProviderAuthOptions = {
   baseUrl: string;
   provider?: DeviceAuthProvider;
-  walletFamily?: "evm" | "solana";
   fetch?: typeof fetch;
   now?: () => number;
   timeoutMs?: number;
@@ -54,7 +53,6 @@ const DEFAULT_TIMEOUT_MS = 5 * 60 * 1000;
 export async function signInWithDeviceProvider({
   baseUrl,
   provider,
-  walletFamily,
   fetch: fetchImpl = fetch,
   now = Date.now,
   timeoutMs = DEFAULT_TIMEOUT_MS,
@@ -77,7 +75,6 @@ export async function signInWithDeviceProvider({
       codeChallenge,
       redirectUri,
       provider,
-      walletFamily,
     });
     console.log(`Opening browser for Aomi account login: ${authUrl}`);
     await openBrowser(authUrl);
@@ -232,7 +229,6 @@ export function buildDeviceAuthUrl(input: {
   codeChallenge: string;
   redirectUri: string;
   provider?: DeviceAuthProvider;
-  walletFamily?: "evm" | "solana";
   mode?: "login" | "link";
   linkIntent?: string;
 }): string {
@@ -241,9 +237,6 @@ export function buildDeviceAuthUrl(input: {
   url.searchParams.set("code_challenge", input.codeChallenge);
   url.searchParams.set("redirect_uri", input.redirectUri);
   if (input.provider) url.searchParams.set("provider", input.provider);
-  if (input.walletFamily) {
-    url.searchParams.set("wallet_family", input.walletFamily);
-  }
   if (input.mode && input.mode !== "login") {
     url.searchParams.set("mode", input.mode);
   }
