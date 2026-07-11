@@ -8,6 +8,22 @@ import { verifySiweMessage } from "./siwe";
 import { aomiProviderAuthPlugin } from "./provider-plugin";
 
 const env = readAccountAuthEnv();
+const HEADLESS_MCP_AUTH_METADATA = {
+  aomi_headless_authentication: {
+    proof: "siwe",
+    nonce_endpoint: `${env.betterAuthUrl}/siwe/nonce`,
+    verify_endpoint: `${env.betterAuthUrl}/siwe/verify`,
+    oauth_register_endpoint: `${env.betterAuthUrl}/mcp/register`,
+    oauth_authorize_endpoint: `${env.betterAuthUrl}/mcp/authorize`,
+    oauth_token_endpoint: `${env.betterAuthUrl}/mcp/token`,
+    session_token_usage:
+      "Use the token returned by SIWE verify as Authorization: Bearer for MCP OAuth authorize, or keep the returned session cookie.",
+    public_key_policy:
+      "A public key is only an identifier; Aomi requires signed SIWE possession proof before MCP OAuth.",
+  },
+} as unknown as NonNullable<
+  NonNullable<Parameters<typeof mcp>[0]["oidcConfig"]>["metadata"]
+>;
 
 // BetterAuth's storage lives in the SAME database as the canonical account
 // graph, but under our house schema style: `ba_`-prefixed snake_case tables
@@ -141,7 +157,11 @@ export const auth = betterAuth({
         loginPage: "/mcp/connect",
         // `mcp()` copies its own `loginPage` over this one; the field is only
         // repeated because `OIDCOptions` requires it.
-        oidcConfig: { loginPage: "/mcp/connect", consentPage: "/mcp/connect" },
+        oidcConfig: {
+          loginPage: "/mcp/connect",
+          consentPage: "/mcp/connect",
+          metadata: HEADLESS_MCP_AUTH_METADATA,
+        },
       }),
     ),
     aomiProviderAuthPlugin(),

@@ -16,13 +16,17 @@ export async function waitForProviderCredential(
     options.attemptTimeoutMs ?? DEFAULT_CREDENTIAL_ATTEMPT_TIMEOUT_MS;
   const deadline = Date.now() + timeoutMs;
 
-  while (Date.now() < deadline) {
+  for (let remainingMs = deadline - Date.now(); remainingMs > 0; ) {
     const credential = await resolveCredentialAttempt(
       getCredential,
-      Math.min(attemptTimeoutMs, Math.max(1, deadline - Date.now())),
+      Math.min(attemptTimeoutMs, remainingMs),
     );
     if (credential) return credential;
-    await sleep(Math.min(pollMs, Math.max(1, deadline - Date.now())));
+    remainingMs = deadline - Date.now();
+    if (remainingMs > 0) {
+      await sleep(Math.min(pollMs, remainingMs));
+    }
+    remainingMs = deadline - Date.now();
   }
 
   throw new Error("Provider did not return an exchangeable credential");
