@@ -182,6 +182,7 @@ function ProviderSignIn({
   );
   const [pending, setPending] = useState(false);
   const [complete, setComplete] = useState(false);
+  const [providerRequested, setProviderRequested] = useState(false);
   const [exchangeRequested, setExchangeRequested] = useState(false);
 
   const start = useCallback(async () => {
@@ -189,15 +190,36 @@ function ProviderSignIn({
     setStatus(`Opening ${providerLabels[provider]}...`);
     try {
       await walletKit.connectSocial?.("google");
-      setStatus("Waiting for provider credential...");
-      setExchangeRequested(true);
+      setProviderRequested(true);
+      setStatus(`Complete sign-in in ${providerLabels[provider]}...`);
     } catch (error) {
       setStatus(
         error instanceof Error ? error.message : "Authentication failed",
       );
+      setProviderRequested(false);
       setPending(false);
     }
   }, [provider, walletKit]);
+
+  useEffect(() => {
+    if (
+      !providerRequested ||
+      exchangeRequested ||
+      complete ||
+      !pending ||
+      !walletKit.getAccountCredential
+    ) {
+      return;
+    }
+    setStatus("Waiting for provider credential...");
+    setExchangeRequested(true);
+  }, [
+    complete,
+    exchangeRequested,
+    pending,
+    providerRequested,
+    walletKit.getAccountCredential,
+  ]);
 
   useEffect(() => {
     if (!exchangeRequested || complete || !pending) return;
@@ -229,6 +251,7 @@ function ProviderSignIn({
         setStatus(
           error instanceof Error ? error.message : "Authentication failed",
         );
+        setExchangeRequested(false);
         setPending(false);
       }
     };
