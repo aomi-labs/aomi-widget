@@ -46,6 +46,12 @@ export const AppSelect: FC<AppSelectProps> = ({
     void getAuthorizedApps();
   }, [getAuthorizedApps]);
 
+  const selectApp = (id: string) => {
+    if (isProcessing) return;
+    onAppSelect(id);
+    setOpen(false);
+  };
+
   const selectedApp = getCurrentThreadApp();
   const selectedInfo = getAppInfo(selectedApp);
   const SelectedAppIcon = getAppIcon(selectedApp);
@@ -117,11 +123,7 @@ export const AppSelect: FC<AppSelectProps> = ({
                   <CommandItem
                     value="basic apps all default"
                     disabled={isProcessing}
-                    onSelect={() => {
-                      if (isProcessing) return;
-                      onAppSelect(ALL_APPS_ID);
-                      setOpen(false);
-                    }}
+                    onSelect={() => selectApp(ALL_APPS_ID)}
                     className="flex items-center justify-between gap-2"
                   >
                     <div className="flex items-center gap-2">
@@ -162,11 +164,7 @@ export const AppSelect: FC<AppSelectProps> = ({
                       key={app.id}
                       value={`${app.displayName} ${app.category.label} ${app.id}`}
                       disabled={isProcessing}
-                      onSelect={() => {
-                        if (isProcessing) return;
-                        onAppSelect(app.id);
-                        setOpen(false);
-                      }}
+                      onSelect={() => selectApp(app.id)}
                       className="flex items-center justify-between gap-2"
                     >
                       <div className="flex min-w-0 items-center gap-2">
