@@ -102,7 +102,7 @@ import {
   lineaSepolia,
   foundry
 } from "viem/chains";
-var monad, monadTestnet, SUPPORTED_CHAINS, SUPPORTED_CHAIN_IDS, CHAIN_NAMES, ALCHEMY_CHAIN_SLUGS, CHAINS_BY_ID;
+var monad, monadTestnet, SUPPORTED_CHAINS, SUPPORTED_CHAIN_IDS, CHAIN_NAMES;
 var init_chains = __esm({
   "src/chains.ts"() {
     "use strict";
@@ -164,29 +164,6 @@ var init_chains = __esm({
     CHAIN_NAMES = Object.fromEntries(
       SUPPORTED_CHAINS.map((chain) => [chain.id, chain.name])
     );
-    ALCHEMY_CHAIN_SLUGS = {
-      1: "eth-mainnet",
-      137: "polygon-mainnet",
-      42161: "arb-mainnet",
-      8453: "base-mainnet",
-      10: "opt-mainnet",
-      11155111: "eth-sepolia",
-      59144: "linea-mainnet",
-      59141: "linea-sepolia"
-    };
-    CHAINS_BY_ID = {
-      1: mainnet,
-      137: polygon,
-      42161: arbitrum,
-      10: optimism,
-      8453: base,
-      11155111: sepolia,
-      59144: linea,
-      59141: lineaSepolia,
-      143: monad,
-      10143: monadTestnet,
-      31337: foundry
-    };
   }
 });
 
@@ -210,20 +187,6 @@ function normalizePrivateKey(value) {
   const trimmed = value.trim();
   if (!trimmed) return void 0;
   return trimmed.startsWith("0x") ? trimmed : `0x${trimmed}`;
-}
-function parseAAProvider(value) {
-  if (value === void 0 || value.trim() === "") return void 0;
-  if (value === "alchemy") {
-    return value;
-  }
-  fatal("Unsupported AA provider. Only `alchemy` is supported (Pimlico was removed).");
-}
-function parseAAMode(value) {
-  if (value === void 0 || value.trim() === "") return void 0;
-  if (value === "4337" || value === "7702") {
-    return value;
-  }
-  fatal("Unsupported AA mode. Use `4337` or `7702`.");
 }
 var init_validation = __esm({
   "src/cli/validation.ts"() {
@@ -276,21 +239,8 @@ function derivePublicKeyFromPrivateKey(privateKey) {
     );
   }
 }
-function resolveExecution(args) {
-  const flagAA = args.aa === true;
-  const flagEoa = args.eoa === true;
-  if (flagAA && flagEoa) {
-    fatal("Choose only one of `--aa` or `--eoa`.");
-  }
-  if (flagEoa) return "eoa";
-  if (flagAA || str(args["aa-provider"]) !== void 0 || str(args["aa-mode"]) !== void 0) {
-    return "aa";
-  }
-  return void 0;
-}
 function buildCliConfig(args) {
-  var _a3, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o;
-  const execution = resolveExecution(args);
+  var _a3, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m;
   const privateKey = normalizePrivateKey(
     (_a3 = str(args["private-key"])) != null ? _a3 : process.env.PRIVATE_KEY
   );
@@ -305,13 +255,6 @@ function buildCliConfig(args) {
     fatal(
       "`--public-key` does not match the address derived from `--private-key`."
     );
-  }
-  const aaProvider = parseAAProvider(
-    (_f = str(args["aa-provider"])) != null ? _f : process.env.AOMI_AA_PROVIDER
-  );
-  const aaMode2 = parseAAMode((_g = str(args["aa-mode"])) != null ? _g : process.env.AOMI_AA_MODE);
-  if (execution === "eoa" && (aaProvider || aaMode2)) {
-    fatal("`--aa-provider` and `--aa-mode` cannot be used with `--eoa`.");
   }
   if (accountBearer && (embeddedProvider || embeddedProviderToken)) {
     fatal(
@@ -328,29 +271,26 @@ function buildCliConfig(args) {
       "`--embedded-provider` is required when `--embedded-provider-token` is set."
     );
   }
-  const solanaPrivateKey = (_h = str(args["solana-private-key"])) != null ? _h : process.env.SOLANA_PRIVATE_KEY;
+  const solanaPrivateKey = (_f = str(args["solana-private-key"])) != null ? _f : process.env.SOLANA_PRIVATE_KEY;
   const svmCluster = parseSvmCluster(
-    (_i = str(args.cluster)) != null ? _i : process.env.AOMI_SOLANA_CLUSTER
+    (_g = str(args.cluster)) != null ? _g : process.env.AOMI_SOLANA_CLUSTER
   );
   return {
-    baseUrl: (_j = str(args["backend-url"])) != null ? _j : process.env.AOMI_BACKEND_URL,
-    apiKey: (_k = str(args["api-key"])) != null ? _k : process.env.AOMI_API_KEY,
+    baseUrl: (_h = str(args["backend-url"])) != null ? _h : process.env.AOMI_BACKEND_URL,
+    apiKey: (_i = str(args["api-key"])) != null ? _i : process.env.AOMI_API_KEY,
     accountBearer,
     embeddedProvider,
     embeddedProviderToken,
-    app: (_l = str(args.app)) != null ? _l : process.env.AOMI_APP,
-    model: (_m = str(args.model)) != null ? _m : process.env.AOMI_MODEL,
+    app: (_j = str(args.app)) != null ? _j : process.env.AOMI_APP,
+    model: (_k = str(args.model)) != null ? _k : process.env.AOMI_MODEL,
     freshSession: args["new-session"] === true,
     publicKey: configuredPublicKey != null ? configuredPublicKey : derivedPublicKey,
     privateKey,
     solanaPrivateKey,
     svmCluster,
-    chainRpcUrl: (_n = str(args["rpc-url"])) != null ? _n : process.env.CHAIN_RPC_URL,
-    chain: parseChainId((_o = str(args.chain)) != null ? _o : process.env.AOMI_CHAIN_ID),
-    secrets: {},
-    execution,
-    aaProvider,
-    aaMode: aaMode2
+    chainRpcUrl: (_l = str(args["rpc-url"])) != null ? _l : process.env.CHAIN_RPC_URL,
+    chain: parseChainId((_m = str(args.chain)) != null ? _m : process.env.AOMI_CHAIN_ID),
+    secrets: {}
   };
 }
 function getPositionals(args) {
@@ -2839,9 +2779,6 @@ function aaModeFromExecutionKind(executionKind) {
   if (executionKind.endsWith("_7702")) return "7702";
   if (executionKind === "eoa") return "none";
   return void 0;
-}
-function resolveAASponsorship(mode, configuredSponsorship) {
-  return mode === "7702" ? "disabled" : configuredSponsorship;
 }
 var init_policy = __esm({
   "src/aa/policy.ts"() {
@@ -5440,102 +5377,6 @@ var init_chat = __esm({
   }
 });
 
-// src/aa/types.ts
-function getAAChainConfig(config, calls, chainsById) {
-  if (!config.enabled || calls.length === 0) {
-    return null;
-  }
-  const chainIds = Array.from(new Set(calls.map((call) => call.chainId)));
-  if (chainIds.length !== 1) {
-    return null;
-  }
-  const chainId3 = chainIds[0];
-  if (!chainsById[chainId3]) {
-    return null;
-  }
-  const chainConfig = config.chains.find((item) => item.chainId === chainId3);
-  if (!(chainConfig == null ? void 0 : chainConfig.enabled)) {
-    return null;
-  }
-  if (calls.length > 1 && !chainConfig.allowBatching) {
-    return null;
-  }
-  return chainConfig;
-}
-function buildAAExecutionPlan(config, chainConfig) {
-  const mode = chainConfig.supportedModes.includes(chainConfig.defaultMode) ? chainConfig.defaultMode : chainConfig.supportedModes[0];
-  if (!mode) {
-    throw new Error(
-      `No smart account mode configured for chain ${chainConfig.chainId}`
-    );
-  }
-  return {
-    provider: config.provider,
-    chainId: chainConfig.chainId,
-    mode,
-    batchingEnabled: chainConfig.allowBatching,
-    sponsorship: chainConfig.sponsorship
-  };
-}
-var DEFAULT_AA_CONFIG, DISABLED_PROVIDER_STATE;
-var init_types2 = __esm({
-  "src/aa/types.ts"() {
-    "use strict";
-    DEFAULT_AA_CONFIG = {
-      enabled: true,
-      provider: "alchemy",
-      chains: [
-        {
-          chainId: 1,
-          enabled: true,
-          defaultMode: "7702",
-          supportedModes: ["7702", "4337"],
-          allowBatching: true,
-          sponsorship: "optional"
-        },
-        {
-          chainId: 137,
-          enabled: true,
-          defaultMode: "7702",
-          supportedModes: ["7702", "4337"],
-          allowBatching: true,
-          sponsorship: "optional"
-        },
-        {
-          chainId: 42161,
-          enabled: true,
-          defaultMode: "7702",
-          supportedModes: ["7702", "4337"],
-          allowBatching: true,
-          sponsorship: "optional"
-        },
-        {
-          chainId: 10,
-          enabled: true,
-          defaultMode: "7702",
-          supportedModes: ["7702", "4337"],
-          allowBatching: true,
-          sponsorship: "optional"
-        },
-        {
-          chainId: 8453,
-          enabled: true,
-          defaultMode: "7702",
-          supportedModes: ["7702", "4337"],
-          allowBatching: true,
-          sponsorship: "optional"
-        }
-      ]
-    };
-    DISABLED_PROVIDER_STATE = {
-      resolved: null,
-      account: void 0,
-      pending: false,
-      error: null
-    };
-  }
-});
-
 // src/aa/execute.ts
 import { createPublicClient, createWalletClient, http } from "viem";
 import { privateKeyToAccount as privateKeyToAccount3 } from "viem/accounts";
@@ -5562,137 +5403,19 @@ function debugAA(label, data) {
   console.info(`[aomi][aa][debug] ${label}`, data);
 }
 async function executeWalletCalls(params) {
+  var _a3, _b, _c;
   const {
     callList,
     currentChainId,
     capabilities,
     localPrivateKey,
     nativeWalletExecution,
-    providerState,
     sendCallsSyncAsync,
     sendTransactionAsync,
     switchChainAsync,
     chainsById,
     getPreferredRpcUrl: getPreferredRpcUrl2
   } = params;
-  if (providerState.resolved && providerState.account) {
-    return executeViaAA(callList, providerState, getPreferredRpcUrl2);
-  }
-  if (providerState.resolved && providerState.error) {
-    throw providerState.error;
-  }
-  return executeViaEoa({
-    callList,
-    currentChainId,
-    capabilities,
-    localPrivateKey,
-    nativeWalletExecution,
-    sendCallsSyncAsync,
-    sendTransactionAsync,
-    switchChainAsync,
-    chainsById,
-    getPreferredRpcUrl: getPreferredRpcUrl2
-  });
-}
-async function executeViaAA(callList, providerState, getPreferredRpcUrl2) {
-  var _a3;
-  const account = providerState.account;
-  const resolved = providerState.resolved;
-  if (!account || !resolved) {
-    throw (_a3 = providerState.error) != null ? _a3 : new Error("smart_account_unavailable");
-  }
-  const callsPayload = callList.map(({ to, value, data }) => ({
-    to,
-    value,
-    data: normalizeRpcCallData(data)
-  }));
-  const sendAARequest = async () => {
-    return callList.length > 1 ? account.sendBatchTransaction(callsPayload) : account.sendTransaction(callsPayload[0]);
-  };
-  let receipt;
-  try {
-    receipt = await sendAARequest();
-  } catch (error) {
-    if (!isRetryableBundlerSubmissionError(error)) {
-      throw error;
-    }
-    console.warn(
-      "[aomi][aa] transient bundler submission error; retrying once",
-      {
-        provider: account.provider,
-        mode: account.mode,
-        chainId: resolved.chainId,
-        callCount: callList.length,
-        error: toErrorMessage(error)
-      }
-    );
-    try {
-      receipt = await sendAARequest();
-    } catch (retryError) {
-      console.error(
-        "[aomi][aa] AA retry failed after transient bundler submission error",
-        {
-          provider: account.provider,
-          mode: account.mode,
-          chainId: resolved.chainId,
-          callCount: callList.length,
-          firstError: toErrorMessage(error),
-          retryError: toErrorMessage(retryError)
-        }
-      );
-      throw retryError;
-    }
-  }
-  const txHash = receipt.transactionHash;
-  const providerPrefix = account.provider.toLowerCase();
-  let Delegation77022 = account.mode === "7702" ? account.Delegation7702 : void 0;
-  if (account.mode === "7702" && !Delegation77022) {
-    Delegation77022 = await resolve7702Delegation(
-      txHash,
-      callList,
-      getPreferredRpcUrl2
-    );
-  }
-  return __spreadValues(__spreadValues({
-    txHash,
-    txHashes: [txHash],
-    executionKind: `${providerPrefix}_${account.mode}`,
-    batched: callList.length > 1,
-    sponsored: resolved.sponsorship !== "disabled"
-  }, account.mode === "4337" && account.SmartAccount4337 ? { SmartAccount4337: account.SmartAccount4337 } : {}), Delegation77022 ? { Delegation7702: Delegation77022 } : {});
-}
-async function resolve7702Delegation(txHash, callList, getPreferredRpcUrl2) {
-  var _a3, _b, _c, _d;
-  try {
-    const chainId3 = (_a3 = callList[0]) == null ? void 0 : _a3.chainId;
-    if (!chainId3) return void 0;
-    const chain = CHAINS_BY_ID[chainId3];
-    if (!chain) return void 0;
-    const rpcUrl = getPreferredRpcUrl2(chain);
-    const client = createPublicClient({ chain, transport: http(rpcUrl) });
-    const tx = await client.getTransaction({ hash: txHash });
-    const authList = tx.authorizationList;
-    const target = (_d = (_b = authList == null ? void 0 : authList[0]) == null ? void 0 : _b.address) != null ? _d : (_c = authList == null ? void 0 : authList[0]) == null ? void 0 : _c.contractAddress;
-    if (target) {
-      return target;
-    }
-  } catch (e) {
-  }
-  return void 0;
-}
-async function executeViaEoa({
-  callList,
-  currentChainId,
-  capabilities,
-  localPrivateKey,
-  nativeWalletExecution,
-  sendCallsSyncAsync,
-  sendTransactionAsync,
-  switchChainAsync,
-  chainsById,
-  getPreferredRpcUrl: getPreferredRpcUrl2
-}) {
-  var _a3, _b, _c;
   const hashes = [];
   const normalizedCalls = callList.map((call) => __spreadProps(__spreadValues({}, call), {
     data: normalizeRpcCallData(call.data)
@@ -5916,18 +5639,6 @@ function canFallbackToSequentialWalletSends(error, requiresSponsoredSendCalls) {
   }
   return isUnsupportedAtomicCapabilityError(error) || isRecoverableOptionalPaymasterError(error);
 }
-function toErrorMessage(error) {
-  var _a3;
-  if (error instanceof Error) {
-    return (_a3 = error.stack) != null ? _a3 : error.message;
-  }
-  return String(error);
-}
-function isRetryableBundlerSubmissionError(error) {
-  const message = error instanceof Error ? error.message : String(error);
-  const lowered = message.toLowerCase();
-  return lowered.includes("bundle id is unknown") || lowered.includes("bundle id unknown") || lowered.includes("has not been submitted") || lowered.includes("userop") && lowered.includes("not found") || lowered.includes("user operation") && lowered.includes("not found");
-}
 function resolveChainCapabilities(capabilities, chainId3) {
   var _a3, _b;
   if (!capabilities) {
@@ -5943,7 +5654,6 @@ var ERC20_PAYMENT_CONTEXT_KEYS, AA_DEBUG_STORAGE_KEYS;
 var init_execute = __esm({
   "src/aa/execute.ts"() {
     "use strict";
-    init_chains();
     ERC20_PAYMENT_CONTEXT_KEYS = /* @__PURE__ */ new Set(["erc20", "paymasterAddress"]);
     AA_DEBUG_STORAGE_KEYS = ["aomi:debug-aa", "AOMI_DEBUG_AA"];
   }
@@ -5987,634 +5697,12 @@ var init_fee = __esm({
   }
 });
 
-// src/aa/alchemy/defaults.ts
-function trimToUndefined(value) {
-  const trimmed = value == null ? void 0 : value.trim();
-  return trimmed ? trimmed : void 0;
-}
-function resolveAlchemyApiKey(options) {
-  const explicit = trimToUndefined(options == null ? void 0 : options.apiKey);
-  if (explicit) return explicit;
-  if (!(options == null ? void 0 : options.publicOnly)) {
-    const privateEnv = trimToUndefined(process.env.ALCHEMY_API_KEY);
-    if (privateEnv) return privateEnv;
-  }
-  const publicEnv = trimToUndefined(process.env.NEXT_PUBLIC_ALCHEMY_API_KEY);
-  if (publicEnv) return publicEnv;
-  return DEFAULT_ALCHEMY_API_KEY;
-}
-function resolveAlchemyGasPolicyId(options) {
-  const explicit = trimToUndefined(options == null ? void 0 : options.gasPolicyId);
-  if (explicit) return explicit;
-  if (!(options == null ? void 0 : options.publicOnly)) {
-    const privateEnv = trimToUndefined(process.env.ALCHEMY_GAS_POLICY_ID);
-    if (privateEnv) return privateEnv;
-  }
-  const publicEnv = trimToUndefined(process.env.NEXT_PUBLIC_ALCHEMY_GAS_POLICY_ID);
-  if (publicEnv) return publicEnv;
-  return DEFAULT_ALCHEMY_GAS_POLICY_ID;
-}
-var DEFAULT_ALCHEMY_API_KEY, DEFAULT_ALCHEMY_GAS_POLICY_ID;
-var init_defaults = __esm({
-  "src/aa/alchemy/defaults.ts"() {
-    "use strict";
-    DEFAULT_ALCHEMY_API_KEY = "72eIUle_3rfixX00QJVwk";
-    DEFAULT_ALCHEMY_GAS_POLICY_ID = "fb17d7d7-9a32-479d-937a-52d72b849c40";
-  }
-});
-
-// src/aa/alchemy/provider.ts
-var init_provider = __esm({
-  "src/aa/alchemy/provider.ts"() {
-    "use strict";
-    init_types2();
-    init_defaults();
-  }
-});
-
-// src/aa/adapt.ts
-function normalizeAAProvider(value) {
-  const lowered = value.toLowerCase();
-  if (lowered === "alchemy") {
-    return lowered;
-  }
-  throw new Error(`Unsupported AA provider from SDK: ${value}`);
-}
-function adaptSmartAccount(account, address3) {
-  if (account.mode === "4337") {
-    return {
-      provider: normalizeAAProvider(account.provider),
-      mode: "4337",
-      address: address3,
-      SmartAccount4337: account.smartAccountAddress,
-      sendTransaction: async (call) => {
-        const receipt = await account.sendTransaction(call);
-        return { transactionHash: receipt.transactionHash };
-      },
-      sendBatchTransaction: async (calls) => {
-        const receipt = await account.sendBatchTransaction(calls);
-        return { transactionHash: receipt.transactionHash };
-      }
-    };
-  }
-  const Delegation77022 = account.delegationAddress && account.smartAccountAddress && account.delegationAddress.toLowerCase() !== account.smartAccountAddress.toLowerCase() ? account.delegationAddress : void 0;
-  return __spreadProps(__spreadValues({
-    provider: normalizeAAProvider(account.provider),
-    mode: "7702",
-    address: address3
-  }, Delegation77022 ? { Delegation7702: Delegation77022 } : {}), {
-    sendTransaction: async (call) => {
-      const receipt = await account.sendTransaction(call);
-      return { transactionHash: receipt.transactionHash };
-    },
-    sendBatchTransaction: async (calls) => {
-      const receipt = await account.sendBatchTransaction(calls);
-      return { transactionHash: receipt.transactionHash };
-    }
-  });
-}
-var init_adapt = __esm({
-  "src/aa/adapt.ts"() {
-    "use strict";
-  }
-});
-
-// src/aa/owner.ts
-import { privateKeyToAccount as privateKeyToAccount4 } from "viem/accounts";
-function getDirectOwnerParams(owner) {
-  return {
-    kind: "ready",
-    ownerParams: {
-      para: void 0,
-      signer: privateKeyToAccount4(owner.privateKey)
-    }
-  };
-}
-function getParaSessionOwnerParams(owner) {
-  if (owner.signer) {
-    return {
-      kind: "ready",
-      ownerParams: __spreadValues({
-        para: owner.session,
-        signer: owner.signer
-      }, owner.address ? { address: owner.address } : {})
-    };
-  }
-  return {
-    kind: "ready",
-    ownerParams: __spreadValues({
-      para: owner.session
-    }, owner.address ? { address: owner.address } : {})
-  };
-}
-function getSessionOwnerParams(owner) {
-  switch (owner.adapter) {
-    case "para":
-      return getParaSessionOwnerParams(owner);
-    default:
-      return { kind: "unsupported_adapter", adapter: owner.adapter };
-  }
-}
-function getExternalWalletOwnerParams(owner) {
-  return {
-    kind: "ready",
-    ownerParams: {
-      para: void 0,
-      signer: owner.signer,
-      address: owner.address
-    }
-  };
-}
-function getOwnerParams(owner) {
-  if (!owner) {
-    return { kind: "missing" };
-  }
-  switch (owner.kind) {
-    case "direct":
-      return getDirectOwnerParams(owner);
-    case "session":
-      return getSessionOwnerParams(owner);
-    case "external-wallet":
-      return getExternalWalletOwnerParams(owner);
-  }
-}
-function getMissingOwnerState(resolved, provider) {
-  return {
-    resolved,
-    account: null,
-    pending: false,
-    error: new Error(
-      `${provider} AA account creation requires a direct owner or a supported session owner.`
-    )
-  };
-}
-function getUnsupportedAdapterState(resolved, adapter) {
-  return {
-    resolved,
-    account: null,
-    pending: false,
-    error: new Error(`Session adapter "${adapter}" is not implemented.`)
-  };
-}
-function getUnsupportedOwnerState(resolved, provider, ownerKind, message) {
-  return {
-    resolved,
-    account: null,
-    pending: false,
-    error: new Error(
-      message != null ? message : `${provider} AA does not support ${ownerKind} owners in this build.`
-    )
-  };
-}
-var init_owner = __esm({
-  "src/aa/owner.ts"() {
-    "use strict";
-  }
-});
-
-// src/aa/alchemy/create.ts
-import { privateKeyToAccount as privateKeyToAccount5 } from "viem/accounts";
-function extractExistingAccountAddress(error) {
-  var _a3;
-  const message = error instanceof Error ? error.message : String(error);
-  const match = message.match(
-    /Account with address (0x[a-fA-F0-9]{40}) already exists/
-  );
-  return (_a3 = match == null ? void 0 : match[1]) != null ? _a3 : null;
-}
-function deriveAlchemy4337AccountId(address3) {
-  var _a3;
-  const hex = address3.toLowerCase().slice(2).padEnd(32, "0").slice(0, 32).split("");
-  const namespace = ["4", "3", "3", "7", "5", "a", "a", "b"];
-  for (let index = 0; index < namespace.length; index += 1) {
-    hex[index] = namespace[index];
-  }
-  hex[12] = "4";
-  const variant = Number.parseInt((_a3 = hex[16]) != null ? _a3 : "0", 16);
-  hex[16] = (variant & 3 | 8).toString(16);
-  return [
-    hex.slice(0, 8).join(""),
-    hex.slice(8, 12).join(""),
-    hex.slice(12, 16).join(""),
-    hex.slice(16, 20).join(""),
-    hex.slice(20, 32).join("")
-  ].join("-");
-}
-function aaDebug(message, fields) {
-  if (!AA_DEBUG_ENABLED) return;
-  if (fields) {
-    console.debug(`[aomi][aa][alchemy] ${message}`, fields);
-    return;
-  }
-  console.debug(`[aomi][aa][alchemy] ${message}`);
-}
-async function createAlchemySdkState(params) {
-  const { createAlchemySmartAccount } = await import("@getpara/aa-alchemy");
-  const smartAccount = await createAlchemySmartAccount(__spreadProps(__spreadValues({}, params.ownerParams), {
-    apiKey: params.apiKey,
-    gasPolicyId: params.gasPolicyId,
-    chain: params.chain,
-    rpcUrl: params.rpcUrl,
-    mode: params.mode
-  }));
-  if (!smartAccount) {
-    return {
-      resolved: params.resolved,
-      account: null,
-      pending: false,
-      error: new Error("Alchemy AA account could not be initialized.")
-    };
-  }
-  const ownerAddress = "address" in params.ownerParams ? params.ownerParams.address : void 0;
-  if (!ownerAddress) {
-    return {
-      resolved: params.resolved,
-      account: null,
-      pending: false,
-      error: new Error(
-        "Alchemy AA session owner is missing a wallet address. Connect a wallet first."
-      )
-    };
-  }
-  return {
-    resolved: params.resolved,
-    account: adaptSmartAccount(smartAccount, ownerAddress),
-    pending: false,
-    error: null
-  };
-}
-async function createAlchemyAAState(options) {
-  const { chain, owner, callList, mode } = options;
-  const apiKey = resolveAlchemyApiKey({ apiKey: options.apiKey });
-  const chainConfig = getAAChainConfig(DEFAULT_AA_CONFIG, callList, {
-    [chain.id]: chain
-  });
-  if (!chainConfig) {
-    throw new Error(`AA is not configured for chain ${chain.id}.`);
-  }
-  const effectiveMode = mode != null ? mode : chainConfig.defaultMode;
-  const plan = buildAAExecutionPlan(
-    __spreadProps(__spreadValues({}, DEFAULT_AA_CONFIG), { provider: "alchemy" }),
-    __spreadProps(__spreadValues({}, chainConfig), { defaultMode: effectiveMode })
-  );
-  const sponsored2 = effectiveMode === "4337";
-  const gasPolicyId = sponsored2 ? resolveAlchemyGasPolicyId({ gasPolicyId: options.gasPolicyId }) : void 0;
-  const execution = __spreadProps(__spreadValues({}, plan), {
-    mode: effectiveMode,
-    sponsorship: gasPolicyId ? resolveAASponsorship(effectiveMode, plan.sponsorship) : "disabled"
-  });
-  const ownerParams = getOwnerParams(owner);
-  if (ownerParams.kind === "missing") {
-    return getMissingOwnerState(execution, "alchemy");
-  }
-  if (ownerParams.kind === "unsupported_adapter") {
-    return getUnsupportedAdapterState(execution, ownerParams.adapter);
-  }
-  if (owner.kind === "direct") {
-    const directParams = {
-      resolved: execution,
-      chain,
-      privateKey: owner.privateKey,
-      apiKey,
-      proxyBaseUrl: options.proxyBaseUrl,
-      proxyBearer: options.proxyBearer,
-      gasPolicyId
-    };
-    try {
-      return await createAlchemyWalletApisState(directParams);
-    } catch (error) {
-      return {
-        resolved: execution,
-        account: null,
-        pending: false,
-        error: error instanceof Error ? error : new Error(String(error))
-      };
-    }
-  }
-  if (owner.kind === "external-wallet") {
-    return getUnsupportedOwnerState(
-      execution,
-      "alchemy",
-      owner.kind,
-      "Alchemy AA external-wallet owners are not implemented yet. Sign with the wallet directly (EOA) instead."
-    );
-  }
-  if (!apiKey) {
-    return {
-      resolved: execution,
-      account: null,
-      pending: false,
-      error: new Error(
-        "Alchemy AA with session/adapter owner requires ALCHEMY_API_KEY."
-      )
-    };
-  }
-  try {
-    return await createAlchemySdkState({
-      resolved: execution,
-      ownerParams: ownerParams.ownerParams,
-      chain,
-      rpcUrl: options.rpcUrl,
-      apiKey,
-      gasPolicyId,
-      mode: execution.mode
-    });
-  } catch (error) {
-    return {
-      resolved: execution,
-      account: null,
-      pending: false,
-      error: error instanceof Error ? error : new Error(String(error))
-    };
-  }
-}
-async function createAlchemyWalletApisState(params) {
-  const { createSmartWalletClient, alchemyWalletTransport } = await import("@alchemy/wallet-apis");
-  const transport = params.proxyBaseUrl ? alchemyWalletTransport(__spreadValues({
-    url: params.proxyBaseUrl
-  }, params.proxyBearer ? { jwt: params.proxyBearer } : {})) : alchemyWalletTransport({ apiKey: params.apiKey });
-  const signer = privateKeyToAccount5(params.privateKey);
-  const alchemyClient = createSmartWalletClient(__spreadValues({
-    transport,
-    chain: params.chain,
-    signer
-  }, params.gasPolicyId ? { paymaster: { policyId: params.gasPolicyId } } : {}));
-  const signerAddress = signer.address;
-  let accountAddress = signerAddress;
-  if (params.resolved.mode === "4337") {
-    const accountId = deriveAlchemy4337AccountId(signerAddress);
-    aaDebug("4337:requestAccount:start", {
-      signerAddress,
-      chainId: params.chain.id,
-      accountId,
-      hasGasPolicyId: Boolean(params.gasPolicyId)
-    });
-    try {
-      const account = await alchemyClient.requestAccount({
-        signerAddress,
-        id: accountId,
-        creationHint: {
-          accountType: "sma-b",
-          createAdditional: true
-        }
-      });
-      accountAddress = account.address;
-    } catch (error) {
-      const existingAccountAddress = extractExistingAccountAddress(error);
-      if (!existingAccountAddress) {
-        throw error;
-      }
-      aaDebug("4337:requestAccount:existing-account", {
-        signerAddress,
-        existingAccountAddress
-      });
-      const account = await alchemyClient.requestAccount({
-        accountAddress: existingAccountAddress
-      });
-      accountAddress = account.address;
-    }
-    aaDebug("4337:requestAccount:done", { signerAddress, accountAddress });
-  }
-  const sendCalls = async (calls) => {
-    var _a3, _b, _c, _d;
-    aaDebug(`${params.resolved.mode}:sendCalls:start`, {
-      signerAddress,
-      accountAddress,
-      chainId: params.chain.id,
-      callCount: calls.length,
-      hasGasPolicyId: Boolean(params.gasPolicyId)
-    });
-    try {
-      const result = await alchemyClient.sendCalls(__spreadProps(__spreadValues({}, params.resolved.mode === "4337" ? { account: accountAddress } : {}), {
-        calls
-      }));
-      aaDebug(`${params.resolved.mode}:sendCalls:submitted`, {
-        callId: result.id
-      });
-      const status = await alchemyClient.waitForCallsStatus({ id: result.id });
-      const transactionHash = (_b = (_a3 = status.receipts) == null ? void 0 : _a3[0]) == null ? void 0 : _b.transactionHash;
-      aaDebug(`${params.resolved.mode}:sendCalls:receipt`, {
-        callId: result.id,
-        hasTransactionHash: Boolean(transactionHash),
-        receipts: (_d = (_c = status.receipts) == null ? void 0 : _c.length) != null ? _d : 0
-      });
-      if (!transactionHash) {
-        throw new Error(
-          "Alchemy Wallets API did not return a transaction hash."
-        );
-      }
-      return { transactionHash };
-    } catch (error) {
-      aaDebug(`${params.resolved.mode}:sendCalls:error`, {
-        signerAddress,
-        accountAddress,
-        chainId: params.chain.id,
-        error: error instanceof Error ? error.message : String(error)
-      });
-      throw error;
-    }
-  };
-  const smartAccount = __spreadProps(__spreadValues({
-    provider: "alchemy",
-    mode: params.resolved.mode,
-    address: signerAddress
-  }, params.resolved.mode === "4337" ? { SmartAccount4337: accountAddress } : { Delegation7702: ALCHEMY_7702_DELEGATION_ADDRESS }), {
-    sendTransaction: async (call) => sendCalls([call]),
-    sendBatchTransaction: async (calls) => sendCalls(calls)
-  });
-  return {
-    resolved: params.resolved,
-    account: smartAccount,
-    pending: false,
-    error: null
-  };
-}
-var ALCHEMY_7702_DELEGATION_ADDRESS, AA_DEBUG_ENABLED;
-var init_create = __esm({
-  "src/aa/alchemy/create.ts"() {
-    "use strict";
-    init_adapt();
-    init_types2();
-    init_policy();
-    init_owner();
-    init_defaults();
-    ALCHEMY_7702_DELEGATION_ADDRESS = "0x69007702764179f14F51cdce752f4f775d74E139";
-    AA_DEBUG_ENABLED = process.env.AOMI_AA_DEBUG === "1";
-  }
-});
-
-// src/aa/alchemy/index.ts
-var init_alchemy = __esm({
-  "src/aa/alchemy/index.ts"() {
-    "use strict";
-    init_provider();
-    init_create();
-  }
-});
-
-// src/aa/create.ts
-async function createAAProviderState(options) {
-  return createAlchemyAAState({
-    chain: options.chain,
-    owner: options.owner,
-    rpcUrl: options.rpcUrl,
-    callList: options.callList,
-    mode: options.mode,
-    apiKey: options.apiKey,
-    gasPolicyId: options.gasPolicyId,
-    sponsored: options.sponsored,
-    proxyBaseUrl: options.proxyBaseUrl,
-    proxyBearer: options.proxyBearer
-  });
-}
-var init_create2 = __esm({
-  "src/aa/create.ts"() {
-    "use strict";
-    init_create();
-  }
-});
-
 // src/aa/index.ts
 var init_aa = __esm({
   "src/aa/index.ts"() {
     "use strict";
-    init_types2();
     init_execute();
     init_fee();
-    init_alchemy();
-    init_adapt();
-    init_create2();
-  }
-});
-
-// src/cli/client-factory.ts
-function resolveCliBaseUrl(config) {
-  var _a3;
-  return (_a3 = config.baseUrl) != null ? _a3 : DEFAULT_CLI_BASE_URL;
-}
-function createCliGetAccountBearer(config) {
-  if (config.accountBearer) {
-    const bearer = config.accountBearer;
-    return async () => bearer;
-  }
-  if (config.sessionCookie) {
-    const sessionCookie = config.sessionCookie;
-    return async () => sessionCookie;
-  }
-  return void 0;
-}
-function createCliClient(config, overrides = {}) {
-  var _a3, _b;
-  const mergedConfig = __spreadProps(__spreadValues({}, config), {
-    baseUrl: (_a3 = overrides.baseUrl) != null ? _a3 : config.baseUrl,
-    apiKey: (_b = overrides.apiKey) != null ? _b : config.apiKey
-  });
-  return new AomiClient({
-    baseUrl: resolveCliBaseUrl(mergedConfig),
-    apiKey: mergedConfig.apiKey,
-    getAccountBearer: createCliGetAccountBearer(mergedConfig)
-  });
-}
-var DEFAULT_CLI_BASE_URL;
-var init_client_factory = __esm({
-  "src/cli/client-factory.ts"() {
-    "use strict";
-    init_client();
-    DEFAULT_CLI_BASE_URL = "https://chat.aomi.dev";
-  }
-});
-
-// src/cli/execution.ts
-function callsContainTokenOperations(calls) {
-  return calls.some(
-    (call) => call.data && ERC20_SELECTORS.has(call.data.slice(0, 10).toLowerCase())
-  );
-}
-function warnIfTokenOpsIn4337(mode, callList) {
-  if (mode !== "4337" || !callsContainTokenOperations(callList)) return;
-  console.log(
-    "\u26A0\uFE0F  4337 batch contains ERC-20 calls. Tokens must be in the smart account, not your EOA."
-  );
-  console.log(
-    "   This batch may revert. Consider transferring tokens to the smart account first."
-  );
-}
-function resolveMode(chain, callList, explicitMode) {
-  var _a3;
-  const chainConfig = getAAChainConfig(DEFAULT_AA_CONFIG, callList, {
-    [chain.id]: chain
-  });
-  const mode = (_a3 = explicitMode != null ? explicitMode : chainConfig == null ? void 0 : chainConfig.defaultMode) != null ? _a3 : "7702";
-  warnIfTokenOpsIn4337(mode, callList);
-  return mode;
-}
-function resolveCliExecutionDecision(params) {
-  const { config, chain, callList } = params;
-  if (config.execution === "eoa") {
-    return { execution: "eoa" };
-  }
-  const aaMode2 = resolveMode(chain, callList, config.aaMode);
-  return {
-    execution: "aa",
-    provider: "alchemy",
-    aaMode: aaMode2,
-    modeExplicit: Boolean(config.aaMode),
-    proxy: true
-  };
-}
-function getAlternativeAAMode(decision) {
-  if (decision.execution !== "aa") return null;
-  if (decision.modeExplicit) return null;
-  const alt = decision.aaMode === "7702" ? "4337" : "7702";
-  return __spreadProps(__spreadValues({}, decision), { aaMode: alt });
-}
-async function createCliProviderState(params) {
-  var _a3, _b, _c;
-  const { decision, chain, privateKey, rpcUrl, callList, baseUrl, config } = params;
-  if (decision.execution === "eoa") {
-    return DISABLED_PROVIDER_STATE;
-  }
-  const chainSlug = ALCHEMY_CHAIN_SLUGS[chain.id];
-  if (!chainSlug) {
-    throw new Error(
-      `AA is not supported on chain ${chain.id} (no backend AA proxy route). Use --eoa.`
-    );
-  }
-  const proxyBaseUrl = `${baseUrl}/api/aa/v1/${chainSlug}`;
-  const proxyBearer = (_b = await ((_a3 = createCliGetAccountBearer(config)) == null ? void 0 : _a3({ forceRefresh: false }))) != null ? _b : void 0;
-  const resolvedRpcUrl = rpcUrl || chain.rpcUrls.default.http[0] || ((_c = chain.rpcUrls.public) == null ? void 0 : _c.http[0]) || "";
-  return createAAProviderState({
-    provider: decision.provider,
-    chain,
-    owner: { kind: "direct", privateKey },
-    rpcUrl: resolvedRpcUrl,
-    callList,
-    mode: decision.aaMode,
-    proxyBaseUrl,
-    proxyBearer
-  });
-}
-function describeExecutionDecision(decision) {
-  if (decision.execution === "eoa") {
-    return "eoa";
-  }
-  return `aa (${decision.provider}, ${decision.aaMode}, proxy)`;
-}
-var ERC20_SELECTORS;
-var init_execution = __esm({
-  "src/cli/execution.ts"() {
-    "use strict";
-    init_aa();
-    init_chains();
-    init_client_factory();
-    ERC20_SELECTORS = /* @__PURE__ */ new Set([
-      "0x095ea7b3",
-      // approve(address,uint256)
-      "0xa9059cbb",
-      // transfer(address,uint256)
-      "0x23b872dd"
-      // transferFrom(address,address,uint256)
-    ]);
   }
 });
 
@@ -6632,19 +5720,15 @@ function pendingTxToCallList(tx) {
     })
   ];
 }
-function toSignedTransactionRecord(tx, execution, from, chainId3, timestamp2, aaProvider, aaMode2) {
+function toSignedTransactionRecord(tx, execution, from, chainId3, timestamp2) {
   return {
     id: tx.id,
     kind: "transaction",
     txHash: execution.txHash,
     txHashes: execution.txHashes,
     executionKind: execution.executionKind,
-    aaProvider,
-    aaMode: aaMode2,
     batched: execution.batched,
     sponsored: execution.sponsored,
-    smartAccount4337: execution.SmartAccount4337,
-    Delegation7702: execution.Delegation7702,
     from,
     to: tx.to,
     value: tx.value,
@@ -6722,7 +5806,7 @@ __export(wallet_exports, {
   txCommand: () => txCommand
 });
 import { createWalletClient as createWalletClient2, http as http2 } from "viem";
-import { privateKeyToAccount as privateKeyToAccount6 } from "viem/accounts";
+import { privateKeyToAccount as privateKeyToAccount4 } from "viem/accounts";
 import * as viemChains from "viem/chains";
 async function txCommand(config) {
   const cli = CliSession.load();
@@ -6799,28 +5883,7 @@ function getPreferredRpcUrl(chain, override) {
   if (override) {
     return override;
   }
-  const alchemyApiKey = resolveAlchemyApiKey();
-  const alchemyChainSlug = ALCHEMY_CHAIN_SLUGS[chain.id];
-  if (alchemyApiKey && alchemyChainSlug) {
-    return `https://${alchemyChainSlug}.g.alchemy.com/v2/${alchemyApiKey}`;
-  }
   return (_c = (_b = chain.rpcUrls.default.http[0]) != null ? _b : (_a3 = chain.rpcUrls.public) == null ? void 0 : _a3.http[0]) != null ? _c : "";
-}
-function buildCliTxCompletionMetadata(params) {
-  var _a3;
-  const requestedMode = params.requestedDecision.execution === "aa" ? params.requestedDecision.aaMode : "none";
-  const resolvedMode = (_a3 = aaModeFromExecutionKind(params.execution.executionKind)) != null ? _a3 : params.finalDecision.execution === "aa" ? params.finalDecision.aaMode : "none";
-  let fallbackReason;
-  if (requestedMode === "7702" && resolvedMode === "4337") {
-    fallbackReason = "requested_7702_fallback_4337";
-  } else if (requestedMode !== "none" && resolvedMode === "none") {
-    fallbackReason = "aa_failed_fallback_eoa";
-  }
-  return {
-    aa_requested_mode: requestedMode,
-    aa_resolved_mode: resolvedMode,
-    aa_fallback_reason: fallbackReason
-  };
 }
 async function simulatePendingTransactions(params) {
   const { session, cli, pendingTxs, resolvedChainIds, chainId: chainId3 } = params;
@@ -6908,14 +5971,7 @@ async function signSolanaPending(params) {
   console.log("Backend notified.");
 }
 async function executeCliTransaction(params) {
-  const {
-    privateKey,
-    currentChainId,
-    chainsById,
-    rpcUrl,
-    providerState,
-    callList
-  } = params;
+  const { privateKey, currentChainId, chainsById, rpcUrl, callList } = params;
   const unsupportedWalletMethod = async () => {
     throw new Error("wallet_client_path_unavailable_in_cli_private_key_mode");
   };
@@ -6924,7 +5980,6 @@ async function executeCliTransaction(params) {
     currentChainId,
     capabilities: void 0,
     localPrivateKey: privateKey,
-    providerState,
     sendCallsSyncAsync: unsupportedWalletMethod,
     sendTransactionAsync: unsupportedWalletMethod,
     switchChainAsync: async () => void 0,
@@ -6933,7 +5988,7 @@ async function executeCliTransaction(params) {
   });
 }
 async function signCommand(config, txIds) {
-  var _a3, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q, _r;
+  var _a3, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m;
   if (txIds.length === 0) {
     fatal(
       "Usage: aomi tx sign <tx-id> [<tx-id> ...]\nRun `aomi tx list` to see pending transaction IDs."
@@ -7006,7 +6061,7 @@ Available: ${available}`
         ].join("\n")
       );
     }
-    const account = privateKeyToAccount6(privateKey);
+    const account = privateKeyToAccount4(privateKey);
     if (cli.publicKey && account.address.toLowerCase() !== cli.publicKey.toLowerCase()) {
       console.log(
         `\u26A0\uFE0F  Signer ${account.address} differs from session public key ${cli.publicKey}`
@@ -7033,10 +6088,6 @@ Available: ${available}`
     console.log(`IDs:     ${pendingTxs.map((tx) => tx.id).join(", ")}`);
     let signedRecords = [];
     let backendNotifications = [];
-    let resolvedUserStateAAMode = null;
-    let resolvedUserStateSmartAccount = null;
-    let resolvedUserStateSmartAccount4337 = null;
-    let resolvedUserStateDelegation7702 = null;
     if (pendingTxs.every((tx) => tx.kind === "transaction")) {
       console.log(
         `Kind:    transaction${pendingTxs.length > 1 ? " (batch)" : ""}`
@@ -7061,25 +6112,9 @@ Available: ${available}`
           "A single `--rpc-url` override cannot be used for a mixed-chain multi-sign request."
         );
       }
-      const simulationDecision = resolveCliExecutionDecision({
-        config,
-        chain,
-        callList: baseCallList
-      });
-      const simulationProviderState = simulationDecision.execution === "aa" ? await createCliProviderState({
-        decision: simulationDecision,
-        chain,
-        privateKey,
-        rpcUrl: resolvedRpcUrl,
-        callList: baseCallList,
-        baseUrl: cli.baseUrl,
-        config
-      }) : void 0;
-      const simulationAAMode = simulationDecision.execution === "aa" ? simulationDecision.aaMode : null;
-      const simulationSmartAccount = simulationAAMode === "4337" ? (_e = (_d = simulationProviderState == null ? void 0 : simulationProviderState.account) == null ? void 0 : _d.SmartAccount4337) != null ? _e : null : null;
       session.resolveWallet(account.address, primaryChainId, {
-        aaMode: simulationAAMode,
-        smartAccount: simulationSmartAccount
+        aaMode: null,
+        smartAccount: null
       });
       await session.syncUserState();
       let simFee;
@@ -7094,7 +6129,7 @@ Available: ${available}`
         if (!sim.batch_success) {
           const failed = sim.steps.find((s) => !s.success);
           console.log(
-            `\x1B[31m\u274C Simulation failed at step ${(_f = failed == null ? void 0 : failed.step) != null ? _f : "?"}: ${(_g = failed == null ? void 0 : failed.revert_reason) != null ? _g : "unknown"}${RESET}`
+            `\x1B[31m\u274C Simulation failed at step ${(_d = failed == null ? void 0 : failed.step) != null ? _d : "?"}: ${(_e = failed == null ? void 0 : failed.revert_reason) != null ? _e : "unknown"}${RESET}`
           );
         }
         simFee = sim.fee;
@@ -7113,125 +6148,42 @@ Available: ${available}`
         }
         autoFeeCall = buildFeeAAWalletCall(simFee, primaryChainId);
       }
-      const decisionCallList = autoFeeCall ? [...baseCallList, autoFeeCall] : baseCallList;
-      const decision = resolveCliExecutionDecision({
-        config,
-        chain,
-        callList: decisionCallList
+      const executionCallList = autoFeeCall ? [...baseCallList, autoFeeCall] : baseCallList;
+      console.log("Exec:    eoa");
+      const execution = await executeCliTransaction({
+        privateKey,
+        currentChainId: primaryChainId,
+        chainsById,
+        rpcUrl,
+        callList: executionCallList
       });
-      console.log(`Exec:    ${describeExecutionDecision(decision)}`);
-      const strategies = [decision];
-      const altDecision = getAlternativeAAMode(decision);
-      if (altDecision) strategies.push(altDecision);
-      if (config.execution !== "aa") strategies.push({ execution: "eoa" });
-      const runWithDecision = async (d) => {
-        var _a4;
-        const ps = await createCliProviderState({
-          decision: d,
-          chain,
-          privateKey,
-          rpcUrl: resolvedRpcUrl,
-          callList: decisionCallList,
-          baseUrl: cli.baseUrl,
-          config
-        });
-        let executionCallList = decisionCallList;
-        if (autoFeeCall && d.execution === "aa" && ((_a4 = ps.resolved) == null ? void 0 : _a4.sponsorship) !== "disabled") {
-          console.log(
-            `${DIM}Skipping native fee injection for sponsored AA. The paymaster covers gas only; a native fee transfer would require sender balance.${RESET}`
-          );
-          executionCallList = baseCallList;
-        }
-        return executeCliTransaction({
-          privateKey,
-          currentChainId: primaryChainId,
-          chainsById,
-          rpcUrl,
-          providerState: ps,
-          callList: executionCallList
-        });
-      };
-      let finalDecision = decision;
-      let execution;
-      const failures = [];
-      for (const strategy of strategies) {
-        if (failures.length > 0) {
-          const prev = strategies[failures.length - 1];
-          console.log(
-            `${describeExecutionDecision(prev)} failed: ${failures[failures.length - 1].message}`
-          );
-          console.log(
-            `Retrying with ${describeExecutionDecision(strategy)}...`
-          );
-        }
-        try {
-          execution = await runWithDecision(strategy);
-          finalDecision = strategy;
-          break;
-        } catch (error) {
-          const message = error instanceof Error ? error.message : String(error);
-          failures.push({ decision: strategy, message });
-          if (strategy === strategies[strategies.length - 1]) {
-            if (config.execution === "aa") {
-              fatal(
-                `\u274C AA execution failed with all modes.
-` + failures.map(
-                  (f) => `  ${describeExecutionDecision(f.decision)}: ${f.message}`
-                ).join("\n") + "\nUse `--eoa` to sign without account abstraction."
-              );
-            }
-            throw error;
-          }
-        }
-      }
       console.log(`\u2705 Sent! Hash: ${execution.txHash}`);
       if (execution.txHashes.length > 1) {
         console.log(`Count:   ${execution.txHashes.length}`);
       }
-      if (execution.sponsored) {
-        console.log("Gas:     sponsored");
-      }
-      if (execution.SmartAccount4337) {
-        console.log(`AA:      ${execution.SmartAccount4337}`);
-      }
-      if (execution.Delegation7702) {
-        console.log(`Deleg:   ${execution.Delegation7702}`);
-      }
-      const executionUsedAA = finalDecision.execution === "aa" && execution.executionKind !== "eoa";
-      resolvedUserStateAAMode = executionUsedAA && finalDecision.execution === "aa" ? finalDecision.aaMode : null;
-      resolvedUserStateSmartAccount = resolvedUserStateAAMode === "4337" ? (_h = execution.SmartAccount4337) != null ? _h : null : null;
-      resolvedUserStateSmartAccount4337 = resolvedUserStateAAMode === "4337" ? (_i = execution.SmartAccount4337) != null ? _i : null : null;
-      resolvedUserStateDelegation7702 = resolvedUserStateAAMode === "7702" ? (_j = execution.Delegation7702) != null ? _j : null : null;
       signedRecords = pendingTxs.map(
         (tx, index) => toSignedTransactionRecord(
           tx,
           execution,
           account.address,
           resolvedChainIds[index],
-          Date.now(),
-          executionUsedAA && finalDecision.execution === "aa" ? finalDecision.provider : void 0,
-          executionUsedAA && finalDecision.execution === "aa" ? finalDecision.aaMode : void 0
+          Date.now()
         )
       );
-      const completionMetadata = buildCliTxCompletionMetadata({
-        requestedDecision: decision,
-        finalDecision,
-        execution
-      });
       backendNotifications = pendingTxs.map((tx) => ({
         type: "wallet:tx_complete",
-        payload: __spreadProps(__spreadValues({
+        payload: {
           txHash: execution.txHash,
           status: "success",
-          pending_tx_ids: tx.txId !== void 0 ? [tx.txId] : []
-        }, completionMetadata), {
+          pending_tx_ids: tx.txId !== void 0 ? [tx.txId] : [],
+          aa_requested_mode: "none",
+          aa_resolved_mode: "none",
+          aa_fallback_reason: void 0,
           execution_kind: execution.executionKind,
           batched: execution.batched,
           call_count: execution.txHashes.length,
-          sponsored: execution.sponsored,
-          smart_account_4337: execution.SmartAccount4337,
-          delegation_7702: execution.Delegation7702
-        })
+          sponsored: execution.sponsored
+        }
       }));
     } else {
       if (pendingTxs.length > 1) {
@@ -7257,13 +6209,13 @@ Available: ${available}`
             cli.clientId
           );
           session2.close();
-          const evmSigs = (_p = (_o = (_l = (_k = apiState.user_state) == null ? void 0 : _k.pending) == null ? void 0 : _l.evmSigs) != null ? _o : (_n = (_m = apiState.user_state) == null ? void 0 : _m.pending) == null ? void 0 : _n.evm_sigs) != null ? _p : {};
+          const evmSigs = (_k = (_j = (_g = (_f = apiState.user_state) == null ? void 0 : _f.pending) == null ? void 0 : _g.evmSigs) != null ? _j : (_i = (_h = apiState.user_state) == null ? void 0 : _h.pending) == null ? void 0 : _i.evm_sigs) != null ? _k : {};
           const sig = evmSigs[String(pendingTx.eip712Id)];
-          const typed = (_q = sig == null ? void 0 : sig.typedData) != null ? _q : sig == null ? void 0 : sig.typed_data;
+          const typed = (_l = sig == null ? void 0 : sig.typedData) != null ? _l : sig == null ? void 0 : sig.typed_data;
           if (typed) {
             signArgs = toViemSignTypedDataArgs(__spreadProps(__spreadValues({}, pendingTx.payload), {
               typed_data: typed,
-              description: (_r = sig.description) != null ? _r : pendingTx.description
+              description: (_m = sig.description) != null ? _m : pendingTx.description
             }));
           }
         } catch (err) {
@@ -7312,10 +6264,10 @@ Available: ${available}`
     }
     cli.setPublicKey(account.address);
     session.resolveWallet(account.address, primaryChainId, {
-      aaMode: resolvedUserStateAAMode,
-      smartAccount: resolvedUserStateSmartAccount,
-      smartAccount4337: resolvedUserStateSmartAccount4337,
-      delegation7702: resolvedUserStateDelegation7702
+      aaMode: null,
+      smartAccount: null,
+      smartAccount4337: null,
+      delegation7702: null
     });
     for (const backendNotification of backendNotifications) {
       await session.client.sendSystemMessage(
@@ -7342,16 +6294,49 @@ var init_wallet2 = __esm({
   "src/cli/commands/wallet.ts"() {
     "use strict";
     init_aa();
-    init_policy();
     init_wallet_utils();
     init_cli_session();
     init_errors();
     init_solana_signer();
-    init_execution();
     init_output();
     init_transactions();
-    init_chains();
-    init_defaults();
+  }
+});
+
+// src/cli/client-factory.ts
+function resolveCliBaseUrl(config) {
+  var _a3;
+  return (_a3 = config.baseUrl) != null ? _a3 : DEFAULT_CLI_BASE_URL;
+}
+function createCliGetAccountBearer(config) {
+  if (config.accountBearer) {
+    const bearer = config.accountBearer;
+    return async () => bearer;
+  }
+  if (config.sessionCookie) {
+    const sessionCookie = config.sessionCookie;
+    return async () => sessionCookie;
+  }
+  return void 0;
+}
+function createCliClient(config, overrides = {}) {
+  var _a3, _b;
+  const mergedConfig = __spreadProps(__spreadValues({}, config), {
+    baseUrl: (_a3 = overrides.baseUrl) != null ? _a3 : config.baseUrl,
+    apiKey: (_b = overrides.apiKey) != null ? _b : config.apiKey
+  });
+  return new AomiClient({
+    baseUrl: resolveCliBaseUrl(mergedConfig),
+    apiKey: mergedConfig.apiKey,
+    getAccountBearer: createCliGetAccountBearer(mergedConfig)
+  });
+}
+var DEFAULT_CLI_BASE_URL;
+var init_client_factory = __esm({
+  "src/cli/client-factory.ts"() {
+    "use strict";
+    init_client();
+    DEFAULT_CLI_BASE_URL = "https://chat.aomi.dev";
   }
 });
 
@@ -7954,10 +6939,8 @@ function chainsCommand() {
   const currentChainId = cli == null ? void 0 : cli.chainId;
   for (const id of SUPPORTED_CHAIN_IDS) {
     const name = (_a3 = CHAIN_NAMES[id]) != null ? _a3 : `Chain ${id}`;
-    const aaChain = DEFAULT_AA_CONFIG.chains.find((c) => c.chainId === id);
-    const aaInfo = (aaChain == null ? void 0 : aaChain.enabled) ? `  AA: ${aaChain.defaultMode} (${aaChain.supportedModes.join(", ")})` : "";
     const marker = currentChainId === id ? "  (current)" : "";
-    console.log(`${id}  ${name}${aaInfo}${marker}`);
+    console.log(`${id}  ${name}${marker}`);
   }
 }
 var init_control = __esm({
@@ -7967,7 +6950,6 @@ var init_control = __esm({
     init_cli_session();
     init_context();
     init_output();
-    init_types2();
     init_errors();
   }
 });
@@ -8085,7 +7067,7 @@ __export(preferences_exports, {
   setSvmWalletCommand: () => setSvmWalletCommand,
   setWalletCommand: () => setWalletCommand
 });
-import { privateKeyToAccount as privateKeyToAccount7 } from "viem/accounts";
+import { privateKeyToAccount as privateKeyToAccount5 } from "viem/accounts";
 function loadOrCreateForSettings() {
   const existing = CliSession.load();
   if (existing) return existing;
@@ -8100,7 +7082,7 @@ function setWalletCommand(privateKeyInput) {
   if (!privateKey) {
     fatal("Usage: aomi wallet set <private-key>  (EVM hex key)");
   }
-  const account = privateKeyToAccount7(privateKey);
+  const account = privateKeyToAccount5(privateKey);
   const cli = loadOrCreateForSettings();
   cli.setWallet(privateKey, account.address);
   console.log(`EVM wallet set to ${account.address}`);
@@ -8413,7 +7395,7 @@ var init_device_auth = __esm({
 });
 
 // src/cli/account-graph.ts
-import { privateKeyToAccount as privateKeyToAccount8 } from "viem/accounts";
+import { privateKeyToAccount as privateKeyToAccount6 } from "viem/accounts";
 function requireAccountGraphClient(cli) {
   var _a3;
   const sessionToken = (_a3 = cli.auth) == null ? void 0 : _a3.sessionToken;
@@ -8455,7 +7437,7 @@ async function buildSignedWalletLink(input2) {
   var _a3, _b, _c;
   const client = requireAccountGraphClient(input2.cli);
   const privateKey = resolveAccountPrivateKey(input2.cli, input2.config);
-  const account = privateKeyToAccount8(privateKey);
+  const account = privateKeyToAccount6(privateKey);
   const chainId3 = (_b = (_a3 = input2.config.chain) != null ? _a3 : input2.cli.chainId) != null ? _b : 1;
   const nonce = await client.getWalletLinkNonce({
     address: account.address,
@@ -9398,22 +8380,6 @@ var txSimulateDef = defineCommand2({
 var txSignDef = defineCommand2({
   meta: { name: "sign", description: "Sign and submit pending transactions" },
   args: __spreadProps(__spreadValues({}, globalArgs), {
-    eoa: {
-      type: "boolean",
-      description: "Force plain EOA execution, skip AA even if configured"
-    },
-    aa: {
-      type: "boolean",
-      description: "Force AA execution, error if provider not configured (default: auto-detect)"
-    },
-    "aa-provider": {
-      type: "string",
-      description: "AA provider override: alchemy"
-    },
-    "aa-mode": {
-      type: "string",
-      description: "AA mode override: 4337 | 7702"
-    },
     txIds: {
       type: "positional",
       description: "Transaction IDs to sign",
@@ -10065,8 +9031,6 @@ var package_default = {
     "fast-check": "^4.8.0"
   },
   dependencies: {
-    "@alchemy/wallet-apis": "5.0.0-beta.22",
-    "@getpara/aa-alchemy": "2.21.0",
     "@solana/web3.js": "^1.98.4",
     bs58: "^6.0.0",
     citty: "^0.2.2",

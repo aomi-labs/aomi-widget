@@ -1,12 +1,8 @@
 import { createPublicClient, createWalletClient, http } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
-import type { Chain, Hex } from "viem";
-import { CHAINS_BY_ID } from "../chains";
+import type { Hex } from "viem";
 
 import type {
-  AACallPayload,
-  AAState,
-  AAWalletCall,
   AtomicBatchArgs,
   ExecuteWalletCallsParams,
   ExecutionResult,
@@ -51,6 +47,15 @@ function debugAA(label: string, data: unknown) {
 // Public Entry Point
 // ---------------------------------------------------------------------------
 
+/**
+ * Execute staged wallet calls with the native wallet surface: a local private
+ * key (sequential sends), or the connected wallet via EIP-5792 `sendCalls`
+ * (atomic batching + wallet-side paymaster sponsorship) with sequential
+ * `sendTransaction` fallback.
+ *
+ * Client-side smart-account (4337/7702) construction was removed — account
+ * abstraction for held keys is executed server-side by the backend.
+ */
 export async function executeWalletCalls(
   params: ExecuteWalletCallsParams,
 ): Promise<ExecutionResult> {
@@ -60,7 +65,6 @@ export async function executeWalletCalls(
     capabilities,
     localPrivateKey,
     nativeWalletExecution,
-    providerState,
     sendCallsSyncAsync,
     sendTransactionAsync,
     switchChainAsync,
@@ -68,170 +72,6 @@ export async function executeWalletCalls(
     getPreferredRpcUrl,
   } = params;
 
-  if (providerState.resolved && providerState.account) {
-    return executeViaAA(callList, providerState, getPreferredRpcUrl);
-  }
-
-  if (providerState.resolved && providerState.error) {
-    throw providerState.error;
-  }
-
-  return executeViaEoa({
-    callList,
-    currentChainId,
-    capabilities,
-    localPrivateKey,
-    nativeWalletExecution,
-    sendCallsSyncAsync,
-    sendTransactionAsync,
-    switchChainAsync,
-    chainsById,
-    getPreferredRpcUrl,
-  });
-}
-
-// ---------------------------------------------------------------------------
-// Internal — AA Path
-// ---------------------------------------------------------------------------
-
-async function executeViaAA(
-  callList: AAWalletCall[],
-  providerState: AAState,
-  getPreferredRpcUrl: (chain: Chain) => string,
-): Promise<ExecutionResult> {
-  const account = providerState.account;
-  const resolved = providerState.resolved;
-
-  if (!account || !resolved) {
-    throw providerState.error ?? new Error("smart_account_unavailable");
-  }
-
-  const callsPayload: AACallPayload[] = callList.map(({ to, value, data }) => ({
-    to,
-    value,
-    data: normalizeRpcCallData(data),
-  }));
-  const sendAARequest = async () => {
-    return callList.length > 1
-      ? account.sendBatchTransaction(callsPayload)
-      : account.sendTransaction(callsPayload[0]);
-  };
-
-  let receipt;
-  try {
-    receipt = await sendAARequest();
-  } catch (error) {
-    if (!isRetryableBundlerSubmissionError(error)) {
-      throw error;
-    }
-    console.warn(
-      "[aomi][aa] transient bundler submission error; retrying once",
-      {
-        provider: account.provider,
-        mode: account.mode,
-        chainId: resolved.chainId,
-        callCount: callList.length,
-        error: toErrorMessage(error),
-      },
-    );
-    try {
-      receipt = await sendAARequest();
-    } catch (retryError) {
-      console.error(
-        "[aomi][aa] AA retry failed after transient bundler submission error",
-        {
-          provider: account.provider,
-          mode: account.mode,
-          chainId: resolved.chainId,
-          callCount: callList.length,
-          firstError: toErrorMessage(error),
-          retryError: toErrorMessage(retryError),
-        },
-      );
-      throw retryError;
-    }
-  }
-  const txHash = receipt.transactionHash;
-  const providerPrefix = account.provider.toLowerCase();
-
-  // For 7702, the SDK may not provide the delegation address (or provide the
-  // EOA which is already filtered out by adaptSmartAccount).  Fall back to
-  // reading the authorization list from the on-chain transaction.
-  let Delegation7702: Hex | undefined =
-    account.mode === "7702" ? account.Delegation7702 : undefined;
-
-  if (account.mode === "7702" && !Delegation7702) {
-    Delegation7702 = await resolve7702Delegation(
-      txHash,
-      callList,
-      getPreferredRpcUrl,
-    );
-  }
-
-  return {
-    txHash,
-    txHashes: [txHash],
-    executionKind: `${providerPrefix}_${account.mode}`,
-    batched: callList.length > 1,
-    sponsored: resolved.sponsorship !== "disabled",
-    ...(account.mode === "4337" && account.SmartAccount4337
-      ? { SmartAccount4337: account.SmartAccount4337 }
-      : {}),
-    ...(Delegation7702 ? { Delegation7702 } : {}),
-  };
-}
-
-/**
- * Best-effort extraction of the 7702 delegation target from the on-chain
- * transaction's authorization list.  Returns `undefined` on any failure so
- * the caller can safely fall through.
- */
-async function resolve7702Delegation(
-  txHash: string,
-  callList: AAWalletCall[],
-  getPreferredRpcUrl: (chain: Chain) => string,
-): Promise<Hex | undefined> {
-  try {
-    const chainId = callList[0]?.chainId;
-    if (!chainId) return undefined;
-
-    const chain = CHAINS_BY_ID[chainId];
-    if (!chain) return undefined;
-
-    const rpcUrl = getPreferredRpcUrl(chain);
-    const client = createPublicClient({ chain, transport: http(rpcUrl) });
-    const tx = await client.getTransaction({ hash: txHash as Hex });
-    const authList = (
-      tx as unknown as {
-        authorizationList?: Array<{ address?: Hex; contractAddress?: Hex }>;
-      }
-    ).authorizationList;
-    const target = authList?.[0]?.address ?? authList?.[0]?.contractAddress;
-    if (target) {
-      return target;
-    }
-  } catch {
-    // Best-effort — don't fail the whole execution.
-  }
-  return undefined;
-}
-
-// ---------------------------------------------------------------------------
-// Internal — EOA Path
-// ---------------------------------------------------------------------------
-
-async function executeViaEoa({
-  callList,
-  currentChainId,
-  capabilities,
-  localPrivateKey,
-  nativeWalletExecution,
-  sendCallsSyncAsync,
-  sendTransactionAsync,
-  switchChainAsync,
-  chainsById,
-  getPreferredRpcUrl,
-}: Omit<ExecuteWalletCallsParams, "providerState">): Promise<ExecutionResult> {
   const hashes: string[] = [];
   const normalizedCalls = callList.map((call) => ({
     ...call,
@@ -541,26 +381,6 @@ function canFallbackToSequentialWalletSends(
   return (
     isUnsupportedAtomicCapabilityError(error) ||
     isRecoverableOptionalPaymasterError(error)
-  );
-}
-
-function toErrorMessage(error: unknown): string {
-  if (error instanceof Error) {
-    return error.stack ?? error.message;
-  }
-  return String(error);
-}
-
-function isRetryableBundlerSubmissionError(error: unknown): boolean {
-  const message = error instanceof Error ? error.message : String(error);
-  const lowered = message.toLowerCase();
-
-  return (
-    lowered.includes("bundle id is unknown") ||
-    lowered.includes("bundle id unknown") ||
-    lowered.includes("has not been submitted") ||
-    (lowered.includes("userop") && lowered.includes("not found")) ||
-    (lowered.includes("user operation") && lowered.includes("not found"))
   );
 }
 

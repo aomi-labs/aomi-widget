@@ -23,7 +23,6 @@ import type { Chain } from "viem";
 import { AomiWalletKitComposer } from "../composer/AomiWalletKitComposer";
 import type { AuthRuntime, ExecutionRuntime } from "../composer/types";
 import { useResolvedAccountRuntime } from "../account/use-resolved-account-runtime";
-import { resolveAAProviderState } from "../execution/aa-provider-state";
 import { buildEvmExecutionRuntime } from "../execution/execution-runtime";
 import {
   AomiWalletNetworkPreferencesProvider,
@@ -108,19 +107,8 @@ function ExternalWalletComposerProvider({
     () => ({
       sponsorship: resolveExecutionSponsorshipIdentity(execution),
       evm: buildEvmExecutionRuntime(evmRuntime, {
-        aaModes: execution?.modes,
-        aaOwner: execution?.owner ?? "auto",
-        aaPolicy: execution?.aa ?? "optional",
-        aaProvider: execution?.provider ?? "auto",
         nativeWalletExecution:
           resolveConfiguredNativeWalletExecutionPolicy(execution),
-        resolveAAProviderState: async (params, context) =>
-          resolveAAProviderState({
-            ...params,
-            ownerStrategy: { kind: "external-wallet" },
-            walletClient: context.walletClient,
-            address: context.address,
-          }),
       }),
     }),
     [evmRuntime, execution],

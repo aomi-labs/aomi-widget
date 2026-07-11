@@ -1,34 +1,17 @@
 export {
   // Types
-  type AAProvider,
   type AAMode,
   type AASponsorship,
   type AAWalletCall,
   type AACallPayload,
-  type AAChainConfig,
-  type AAConfig,
-  type AAResolvedConfig,
   type WalletCapabilities,
   type WalletAtomicCapability,
   type NativeWalletExecutionPolicy,
   type NativeWalletSponsorship,
   type SponsorshipPaymasterServiceContext,
-  type SmartAccount,
-  type AAState,
   type ExecutionResult,
   type AtomicBatchArgs,
   type ExecuteWalletCallsParams,
-
-  // Constants
-  DEFAULT_AA_CONFIG,
-  DISABLED_PROVIDER_STATE,
-  MODES,
-  SPONSORSHIP_MODES,
-
-  // Functions
-  getAAChainConfig,
-  buildAAExecutionPlan,
-  getWalletExecutorReady,
 } from "./types";
 
 export { executeWalletCalls } from "./execute";
@@ -39,26 +22,3 @@ export {
   appendFeeCallToPayload,
   type NormalizedSimulatedFee,
 } from "./fee";
-
-export {
-  type AlchemyHookParams,
-  type UseAlchemyAAHook,
-  type CreateAlchemyAAProviderOptions,
-  createAlchemyAAProvider,
-} from "./alchemy";
-
-// ---------------------------------------------------------------------------
-// Adapt
-// ---------------------------------------------------------------------------
-
-export { adaptSmartAccount, isAlchemySponsorshipLimitError } from "./adapt";
-
-// ---------------------------------------------------------------------------
-// Create (async smart account creation)
-// ---------------------------------------------------------------------------
-
-export {
-  type AAOwner,
-  type CreateAAStateOptions,
-  createAAProviderState,
-} from "./create";

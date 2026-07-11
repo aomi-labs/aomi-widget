@@ -3,7 +3,6 @@ import { CliSession } from "../cli-session";
 import { createControlClient } from "../context";
 import { printDataFileLocation } from "../output";
 import type { CliConfig } from "../types";
-import { DEFAULT_AA_CONFIG } from "../../aa/types";
 import { fatal } from "../errors";
 
 export async function statusCommand(config: CliConfig): Promise<void> {
@@ -236,11 +235,7 @@ export function chainsCommand(): void {
 
   for (const id of SUPPORTED_CHAIN_IDS) {
     const name = CHAIN_NAMES[id] ?? `Chain ${id}`;
-    const aaChain = DEFAULT_AA_CONFIG.chains.find((c) => c.chainId === id);
-    const aaInfo = aaChain?.enabled
-      ? `  AA: ${aaChain.defaultMode} (${aaChain.supportedModes.join(", ")})`
-      : "";
     const marker = currentChainId === id ? "  (current)" : "";
-    console.log(`${id}  ${name}${aaInfo}${marker}`);
+    console.log(`${id}  ${name}${marker}`);
   }
 }

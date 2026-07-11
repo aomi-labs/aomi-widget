@@ -38,10 +38,7 @@ vi.mock("viem/accounts", async () => {
   };
 });
 
-import {
-  DISABLED_PROVIDER_STATE,
-  executeWalletCalls,
-} from "../../src/aa";
+import { executeWalletCalls } from "../../src/aa";
 import { toSignedTxMetadata } from "../../src/cli/tables";
 import type { PendingTx } from "../../src/cli/state";
 import {
@@ -50,7 +47,7 @@ import {
   toSignedTransactionRecord,
 } from "../../src/cli/transactions";
 
-describe("CLI wallet generic AA execution", () => {
+describe("CLI wallet execution", () => {
   beforeEach(() => {
     sendTransactionMock.mockReset();
     waitForReceiptMock.mockReset();
@@ -102,7 +99,6 @@ describe("CLI wallet generic AA execution", () => {
       capabilities: undefined,
       localPrivateKey:
         "0x0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
-      providerState: DISABLED_PROVIDER_STATE,
       sendCallsSyncAsync: vi.fn(),
       sendTransactionAsync: vi.fn(),
       switchChainAsync: vi.fn(),
@@ -146,7 +142,6 @@ describe("CLI wallet generic AA execution", () => {
       currentChainId: 1,
       capabilities: undefined,
       localPrivateKey: PRIVATE_KEY,
-      providerState: DISABLED_PROVIDER_STATE,
       sendCallsSyncAsync: vi.fn(),
       sendTransactionAsync: vi.fn(),
       switchChainAsync: vi.fn(),

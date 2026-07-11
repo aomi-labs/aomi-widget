@@ -29,10 +29,7 @@ import { REGISTRY_STORAGE_KEY } from "../../registry/types";
 import { walletDebug } from "../../wallet-debug";
 import { buildEvmExecutionRuntime } from "../../execution/execution-runtime";
 import type { AomiAccount, SvmNetworkOption } from "../../types";
-import {
-  resolveAAProviderState,
-  resolveAASponsorship,
-} from "../../execution/aa-provider-state";
+import { resolveExecutionSponsorshipIdentity } from "../../config/execution";
 import { PARA_BRAND_KEY } from "./para-brand";
 import {
   DEFAULT_SVM_ENDPOINT,
@@ -419,31 +416,15 @@ export function AomiParaPluginProvider({
     [exposeParaSession, paraModal],
   );
   const sponsorship = useMemo(
-    () => resolveAASponsorship(execution?.provider ?? "auto"),
-    [execution?.provider],
+    () => resolveExecutionSponsorshipIdentity(execution),
+    [execution],
   );
   const executionRuntime = useMemo<ExecutionRuntime>(
     () => ({
       sponsorship,
-      evm: buildEvmExecutionRuntime(evmRuntime, {
-        aaModes: execution?.modes,
-        aaOwner: execution?.owner ?? "auto",
-        aaPolicy: execution?.aa ?? "optional",
-        aaProvider: execution?.provider ?? "auto",
-        resolveAAProviderState: async (params, context) =>
-          resolveAAProviderState({
-            ...params,
-            ownerStrategy: {
-              kind: "provider-session",
-              provider: "para",
-              session: paraSession,
-            },
-            walletClient: context.walletClient,
-            address: context.address,
-          }),
-      }),
+      evm: buildEvmExecutionRuntime(evmRuntime),
     }),
-    [evmRuntime, execution, paraSession, sponsorship],
+    [evmRuntime, sponsorship],
   );
   const accountRuntime = useResolvedAccountRuntime({
     account,
