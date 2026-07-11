@@ -985,6 +985,23 @@
         ]
       }
     },
+    "/api/platforms/{name}/deployments/{deployment}/rerun": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "platformBearer": []
+          }
+        ],
+        "x-aomi-auth": [
+          "activation"
+        ]
+      }
+    },
     "/api/platforms/{name}/deployments/{deployment}/promote": {
       "post": {
         "responses": {

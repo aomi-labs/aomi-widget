@@ -18,6 +18,29 @@ import { launchErrorResponse } from "@build/server/bff/launch/errors";
 
 type DeploymentClientInstance = Awaited<ReturnType<typeof deploymentClient>>;
 
+// Fan out a per-source read and keep only the sources that succeed. One source
+// failing — a freshly scaffolded source with no deployed app, or a transient
+// backend blip — must not take down the whole operate page; drop it and render
+// the healthy sources instead of failing the entire request.
+async function settleBySource<T>(
+  sources: UserSource[],
+  run: (source: UserSource) => Promise<T>,
+): Promise<T[]> {
+  const settled = await Promise.allSettled(sources.map(run));
+  const ok: T[] = [];
+  settled.forEach((result, index) => {
+    if (result.status === "fulfilled") {
+      ok.push(result.value);
+    } else {
+      console.warn(
+        `operate: dropping source ${sources[index]?.id} from this page:`,
+        result.reason instanceof Error ? result.reason.message : result.reason,
+      );
+    }
+  });
+  return ok;
+}
+
 function checkRead(req: Request): NextResponse | null {
   return checkRateLimit(getClientIp(req)).allowed
     ? null
@@ -164,14 +187,12 @@ export async function operateAgentsRoute(req: Request) {
   try {
     const owned = await ownedSources(req);
     if ("response" in owned) return owned.response;
-    const results = await Promise.all(
-      owned.sources.map((source) =>
-        owned.client.listUserSourceAgents({
-          githubUserId: owned.githubUserId,
-          platform: owned.platform,
-          appSourceId: source.id,
-        }),
-      ),
+    const results = await settleBySource(owned.sources, (source) =>
+      owned.client.listUserSourceAgents({
+        githubUserId: owned.githubUserId,
+        platform: owned.platform,
+        appSourceId: source.id,
+      }),
     );
     return NextResponse.json({
       sources: results.map((result) => result.source),
@@ -195,8 +216,9 @@ export async function operateTransactionsRoute(req: Request) {
     const params = new URL(req.url).searchParams;
     const limit = pageLimit(params, 50, 100);
     const cursor = parseCompositeCursor(params.get("cursor"));
-    const results: OperateTransactionsResult[] = await Promise.all(
-      owned.sources.map((source) =>
+    const results: OperateTransactionsResult[] = await settleBySource(
+      owned.sources,
+      (source) =>
         owned.client.listUserSourceTransactions({
           githubUserId: owned.githubUserId,
           platform: owned.platform,
@@ -208,7 +230,6 @@ export async function operateTransactionsRoute(req: Request) {
             | string
             | undefined,
         }),
-      ),
     );
     const transactions = results
       .flatMap((result) =>
@@ -241,8 +262,9 @@ export async function operateUsageRoute(req: Request) {
     const owned = await ownedSources(req);
     if ("response" in owned) return owned.response;
     const params = new URL(req.url).searchParams;
-    const results: OperateUsageResult[] = await Promise.all(
-      owned.sources.map((source) =>
+    const results: OperateUsageResult[] = await settleBySource(
+      owned.sources,
+      (source) =>
         owned.client.getUserSourceUsage({
           githubUserId: owned.githubUserId,
           platform: owned.platform,
@@ -250,7 +272,6 @@ export async function operateUsageRoute(req: Request) {
           fromDate: params.get("fromDate") ?? undefined,
           toDate: params.get("toDate") ?? undefined,
         }),
-      ),
     );
     return NextResponse.json({
       sources: results.map((result) => result.source),
@@ -282,8 +303,9 @@ export async function operateLogsRoute(req: Request) {
     const params = new URL(req.url).searchParams;
     const limit = pageLimit(params, 100, 200);
     const cursor = parseCompositeCursor(params.get("cursor"));
-    const results: OperateLogsResult[] = await Promise.all(
-      owned.sources.map((source) =>
+    const results: OperateLogsResult[] = await settleBySource(
+      owned.sources,
+      (source) =>
         owned.client.listUserSourceLogs({
           githubUserId: owned.githubUserId,
           platform: owned.platform,
@@ -295,7 +317,6 @@ export async function operateLogsRoute(req: Request) {
             | string
             | undefined,
         }),
-      ),
     );
     const logs = results
       .flatMap((result) =>
@@ -332,14 +353,14 @@ export async function operateObservabilityRoute(req: Request) {
   try {
     const owned = await ownedSources(req);
     if ("response" in owned) return owned.response;
-    const results: OperateObservabilityResult[] = await Promise.all(
-      owned.sources.map((source) =>
+    const results: OperateObservabilityResult[] = await settleBySource(
+      owned.sources,
+      (source) =>
         owned.client.getUserSourceObservability({
           githubUserId: owned.githubUserId,
           platform: owned.platform,
           appSourceId: source.id,
         }),
-      ),
     );
     return NextResponse.json({
       sources: results.map((result) => result.source),

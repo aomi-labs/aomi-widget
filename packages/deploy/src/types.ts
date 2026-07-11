@@ -26,6 +26,7 @@ export interface AuditEvent {
     | "deploy"
     | "activate"
     | "promote"
+    | "rerun"
     | "status"
     | "mint_token"
     | "list_tokens"
@@ -756,4 +757,20 @@ export interface PromoteResult {
     sdkStatus?: SdkVersionStatus | null;
     activation?: ActivateResult["activation"];
   };
+}
+
+export interface RerunDeploymentInput {
+  platform: string;
+  deploymentId: string;
+  /** Optional owner filter enforced by the backend for Aomi Build calls. */
+  githubUserId?: string;
+  actor?: string;
+}
+
+export interface RerunDeploymentResult {
+  ok: boolean;
+  deploymentId: string;
+  commitHash: string | null;
+  runId: number | null;
+  ciUrl: string | null;
 }

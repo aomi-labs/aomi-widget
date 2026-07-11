@@ -2,7 +2,44 @@
 
 ## Last Updated
 
-2026-07-08 — Aomi Build owned-application operate hardening + UI polish
+2026-07-10 — Deploy control-plane design plan drafted; deploy-flow usability
+fixes verified in working tree
+
+## Deploy control-plane plan (2026-07-10)
+
+- Drafted `docs/topics/deploy-control-plane-plan.md`: phased plan to restore
+  the "GitHub only behind the BE" invariant — Phase 1 BE rerun endpoint +
+  delete `enrichPendingCiStatus`/`githubToken` from app and
+  `@aomi-labs/deploy`; Phase 2 webhook-fed DB projection (kills per-poll
+  GitHub fan-out and the manifest/DB dual source of truth); Phase 3 R2
+  artifact store for release assets; Phase 4 extract a Rust control-plane bin
+  (move, not copy). Decisions + rejected alternatives recorded in the doc.
+- Working tree (`fix/deploy-flow-usability`, uncommitted): `commitMatches`
+  redeploy stale-run fix, activation error surfacing, sign-out wizard-state
+  reset, refresh latch fix, `settleBySource` operate fault tolerance.
+  Verified: launch suite 32/32, typecheck, lint. Note: the package copy
+  (`packages/deploy/src/bff/launch-routes.ts`) still has the pre-fix
+  `?? runs[0]` stale-fail behavior — either port or accept until Phase 1
+  deletes the function.
+- Phases 0–2 of the plan are IMPLEMENTED and verified in working trees
+  (uncommitted): Phase 1 backend (rerun endpoint, `CiOutcome.run_id`, run-URL
+  deep link) + Phase 1 TS (enrich/`githubToken` deleted from aomi-build,
+  portal AND `packages/deploy`; redeploy repointed via new
+  `DeploymentClient.rerunDeployment()`; OpenAPI fixture + route manifests
+  regenerated) + Phase 2 (github_ci_runs migration/entity, workflow_run
+  webhook projection, projection-first `resolve_deploy_ci` with 30-min
+  in-flight trust window + backfill, rerun marks row queued, release reads
+  skipped while CI in flight). Verified: backend 195/195 + fmt + clippy;
+  widget workspace 630 passed + typechecks. Phase 1 TS deletions subsume the
+  Phase 0 `commitMatches` fix; the other four Phase 0 fixes are intact in
+  this diff. Phases 3–4 intentionally blocked (see plan doc §5): Phase 4
+  moves the files Phases 1–2 edited (land those first); Phase 3 needs an R2
+  bucket + creds; both need the bin-name call.
+- Operational follow-ups for Phase 2: run the new supabase migration;
+  subscribe the GitHub App to `workflow_run` webhooks; grant the App
+  `Actions: read + write`.
+
+## Aomi Build owned operate + pre-prod fixes (2026-07-08)
 
 ## Aomi Build owned operate + pre-prod fixes (2026-07-08)
 
