@@ -91,9 +91,7 @@ export async function POST(req: Request): Promise<Response> {
     });
     console.warn("[aomi][wallet-link] invalid wallet signature", {
       expectedAddress: shortAddress(body.address),
-      recoveredAddress: recoveredAddress
-        ? shortAddress(recoveredAddress)
-        : null,
+      recoveredAddress: recoveredAddress ? shortAddress(recoveredAddress) : null,
       chainId: body.chainId,
       messageMatches: walletLinkMessageMatches({
         message: body.message,
@@ -131,7 +129,7 @@ export async function POST(req: Request): Promise<Response> {
     });
   }
   return Response.json({
-    status: resolution.status,
+    status: resolution.status === "noop" ? "linked" : resolution.status,
     account: await accountResponseFromSession(req),
   });
 }

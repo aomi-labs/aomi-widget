@@ -242,85 +242,6 @@ publishing 0.2.0; unifying the portal's own launch routes onto these factories.
 
 ## Recent Changes
 
-### Working trace: windowed view with animated expand/collapse (2026-07-07)
-
-Branch `feat/working-trace-a`. A long turn's trace marched down the whole screen.
-The open trace (live or after completion) is now **capped to a scrolling window**
-(~5 steps / `WORKING_WINDOW_PX = 260`): newest steps stay pinned at the bottom via
-flex `justify-end`, older ones clip and dissolve under a top mask. A "Show all N
-steps" pill lifts the cap; "Collapse to recent steps" restores it. Both directions
-tween the window height with the **Web Animations API** (`WINDOW_ANIM_MS = 300`,
-ease-out), which — unlike a CSS transition — animates cleanly to/from the uncapped
-`auto` height in both directions. Entirely presentational — no
-runtime/merge/interpreter changes. The pill uses a horizontal-ellipsis marker (not
-a chevron) so its glyph doesn't point at the header's open-chevron above it.
-
-- `apps/shadcn-registry/src/components/assistant-ui/working-trace.tsx`
-  (`WorkingTrace`): `expanded`/`overflowing`/`animating` state + `viewportRef`/
-  `bodyRef`; a `windowed = !expanded` viewport with `maxHeight`/`overflow-hidden`
-  and flex-end pinning; an effect measuring overflow (`bodyRef` natural height vs
-  the cap); a layout effect that runs a WAAP `max-height` tween when `expanded`
-  flips (skipped under reduced motion); the "Show all N steps" /
-  "Collapse to recent steps" pill.
-- `apps/shadcn-registry/src/themes/default.css`: new `.aui-working-trace-windowed`
-  rule — a `mask-image` gradient fading the top 60px (applied only while content
-  overflows and not mid-tween, so short traces are never faded).
-- Verified: file typecheck (only pre-existing unrelated wallet-kit test errors)
-  and eslint green. `packages/react/dist` rebuilt to sync the earlier
-  `SUBMITTING_TO_WORKING_GRACE_MS` source change (650→300). Live streaming path
-  (needs a real multi-tool agent turn) exercised in the user's environment.
-
-### Working trace: paced/staggered reveal (2026-07-07)
-
-Branch `feat/working-trace-a`. The Working trace looked "aggressive" — a burst of
-2-4 tool calls flashed in together and chips popped all at once, because tool
-steps arrive already-complete and a burst lands in one `messages` event, so React
-committed every `WorkingStep` in a single frame. Fix is entirely in
-`apps/shadcn-registry/src/components/assistant-ui/working-trace.tsx` +
-a shimmer tweak in `src/themes/default.css` (no backend/runtime change):
-
-- New `useStaggeredReveal(target, running)` hook reveals trace items one at a
-  time. Adaptive cadence (1200ms base, tightening to ~360ms as backlog grows) so a
-  model running ahead is caught up fast and in order; a ~220ms tail drain once the
-  turn ends so the final answer is never gated on the stagger. Respects
-  `prefers-reduced-motion`.
-- Hook lifted into `AssistantTurnParts`; the answer now reveals only after the
-  trace fully catches up. The newest revealed step shimmers as "live" (frontier
-  follows the reveal); auto-collapse waits for full reveal + a 500ms grace.
-- Chips fan in left-to-right via CSS `animationDelay` (100 + i·70ms) with
-  `fill-mode-both`. Shimmer slowed to `3.8s ease-in-out`.
-- Entrance animations play once: an `animatedCount` ref in `WorkingTrace` (survives
-  the body's collapse/remount) gates each item's animate class on first reveal, so
-  reopening a finished trace shows steps/chips static.
-- Pacing only applies to a turn that's live at mount (`useStaggeredReveal` seeds
-  `revealed = target` when not running), so a reloaded/scrollback/completed turn
-  reveals everything at once and the answer never sits behind a replayed animation.
-- Collapse is animated (grid-rows 1fr→0fr + opacity over 300ms, body stays
-  mounted) instead of snapping shut. The final answer fake-streams via a ~500ms
-  ease-out synthetic typewriter (`FakeStreamedText`); both the fake-stream and the
-  entrance are gated on `liveTurn` (a `liveTurnRef` in `AssistantTurnParts`) so a
-  loaded/completed turn renders the answer in full with no replay.
-- Plain replies (no tool calls) buffer while the turn is still running, because
-  text before the first tool call is provisional and may move into the Working
-  trace if a tool arrives later. If no tool arrives, the settled final answer
-  fake-streams through `FakeStreamedText` after completion, matching post-tool
-  answer behavior without the pre-tool text jumping.
-- Runtime turn merging only folds assistant runs that contain tool-call parts.
-  Contiguous text-only assistant fragments are treated as backend streaming
-  snapshots and collapse to the latest fragment, preventing duplicate replies
-  such as `...?Hey — ...` from being glued into one final bubble.
-- Text finalization also conservatively collapses a single text fragment that
-  already contains the same answer twice back-to-back, records
-  `control.lastCompletedAt` when a turn settles so late-mounted answers can
-  fake-stream, and keeps final-answer text normalization in the runtime instead
-  of duplicating fuzzy UI-side cleanup.
-- The generated assistant-thread registry payload and landing `/r` mirror were
-  refreshed so installed/served widgets get the same final-answer reveal branch.
-- Verified: focused React runtime/chat Vitest coverage, targeted ESLint, React
-  package build, widget registry build, and generated assistant-thread payload
-  guards with pinned `pnpm@10.28.0`. Not yet eyeballed on a live tool-calling
-  turn (needs backend + funded wallet).
-
 ### Auth docs cleanup pass (2026-07-02)
 
 Branch `codex/merge-bff-betterauth`. Consolidated the stale root
@@ -375,7 +296,7 @@ load until a manual page refresh.
 
 - **Root cause:** the thread-list effect in
   `packages/react/src/runtime/user-state-provider.tsx` fires when `isConnected`
-  flips true, but `isConnected` is forwarded from wallet _connection_
+  flips true, but `isConnected` is forwarded from wallet *connection*
   (`apps/registry/.../wallet-kit/context.tsx` -> `identity.isConnected`), which
   lands before the SIWE/provider sign-in writes the BetterAuth `better-auth.session_token`
   cookie. On the portal every `/api/*` call is same-origin through the BFF proxy

@@ -128,23 +128,23 @@ npx @aomi-labs/client chat "swap 1 ETH" --verbose        # stream tool calls + r
 npx @aomi-labs/client --provider-key anthropic:sk-ant-... --prompt "hello"
 npx @aomi-labs/client app list                           # list available apps
 npx @aomi-labs/client model list                         # list available models
-npx @aomi-labs/client model set claude-sonnet-4          # switch the current thread model
-npx @aomi-labs/client thread new                         # create a fresh active thread
+npx @aomi-labs/client model set claude-sonnet-4          # switch the current session model
+npx @aomi-labs/client session new                        # create a fresh active session
 npx @aomi-labs/client secret list                        # list configured secret handles
-npx @aomi-labs/client secret add ALCHEMY_API_KEY=...     # ingest a secret for the active thread
-npx @aomi-labs/client thread log                         # show full conversation history
+npx @aomi-labs/client secret add ALCHEMY_API_KEY=...     # ingest a secret for the active session
+npx @aomi-labs/client session log                        # show full conversation history
 npx @aomi-labs/client tx list                            # list pending + signed txs
 npx @aomi-labs/client tx sign tx-1                       # sign a specific pending tx
-npx @aomi-labs/client thread status                      # thread info
-npx @aomi-labs/client thread events                      # system events
-npx @aomi-labs/client thread close                       # clear thread
+npx @aomi-labs/client session status                     # session info
+npx @aomi-labs/client session events                     # system events
+npx @aomi-labs/client session close                      # clear session
 ```
 
 The root command now mirrors the Rust CLI shape:
 
 - `aomi` starts an interactive REPL with `/app`, `/model`, `/key`, and `:exit`.
 - `aomi --prompt "..."` sends a single prompt and exits.
-- The noun-verb subcommands remain available for transaction, thread, secret, and control flows.
+- The noun-verb subcommands remain available for transaction, session, secret, and control flows.
 
 ### Wallet connection
 
@@ -170,15 +170,15 @@ $ npx @aomi-labs/client chat "swap 1 POL for USDC on Polygon" --chain 137
 Use `AOMI_CHAIN_ID` when several consecutive commands should share the same
 chain context.
 
-### Fresh threads
+### Fresh sessions
 
 Use `--new-session` when you want a command to start a fresh backend/local
-thread instead of reusing the currently active one:
+session instead of reusing the currently active one:
 
 ```bash
 $ npx @aomi-labs/client chat "show my balances" --new-session
 $ npx @aomi-labs/client secret add ALCHEMY_API_KEY=... --new-session
-$ npx @aomi-labs/client thread new
+$ npx @aomi-labs/client session new
 ```
 
 This is useful when starting a new operator flow or a new external chat thread
@@ -186,7 +186,7 @@ and you do not want stale session state to bleed into the next run.
 
 ### Model selection
 
-The CLI can discover and switch backend models for the active thread:
+The CLI can discover and switch backend models for the active session:
 
 ```bash
 $ npx @aomi-labs/client model list
@@ -199,32 +199,32 @@ Model set to gpt-5
 $ npx @aomi-labs/client chat "hello" --model claude-sonnet-4
 ```
 
-`aomi model set` persists the selected model in the local thread state after a
+`aomi model set` persists the selected model in the local session state after a
 successful backend update. `aomi chat --model ...` applies the requested model
 before sending the message and updates that persisted state as well.
 
 ### Secret management
 
-The CLI supports per-thread secret ingestion. This lets the backend use opaque
+The CLI supports per-session secret ingestion. This lets the backend use opaque
 handles instead of raw secret values:
 
 ```bash
 $ npx @aomi-labs/client secret add ALCHEMY_API_KEY=sk_live_123
-Configured 1 secret for thread 7f8a...
+Configured 1 secret for session 7f8a...
 ALCHEMY_API_KEY  $SECRET:ALCHEMY_API_KEY
 
 $ npx @aomi-labs/client secret add ALCHEMY_API_KEY=sk_live_123 --new-session
 $ npx @aomi-labs/client --prompt "simulate a swap on Base"
 ```
 
-You can inspect or clear the current thread's secret handles:
+You can inspect or clear the current session's secret handles:
 
 ```bash
 $ npx @aomi-labs/client secret list
 ALCHEMY_API_KEY  $SECRET:ALCHEMY_API_KEY
 
 $ npx @aomi-labs/client secret clear
-Cleared all secrets for the active thread.
+Cleared all secrets for the active session.
 ```
 
 ### Transaction flow
@@ -299,10 +299,10 @@ $ npx @aomi-labs/client chat "what's the price of ETH?" --verbose
 
 Without `--verbose`, only the final agent message is printed.
 
-Use `aomi thread log` to replay the full conversation with all messages and tool results:
+Use `aomi session log` to replay the full conversation with all messages and tool results:
 
 ```
-$ npx @aomi-labs/client thread log
+$ npx @aomi-labs/client session log
 10:30:15 AM 👤 You: what's the price of ETH?
 10:30:16 AM 🤖 Agent: Let me check the current on-chain context for you.
 10:30:16 AM 🔧 [Current ETH price] {"price": 2045.67, "symbol": "ETH"}
@@ -315,21 +315,21 @@ $ npx @aomi-labs/client thread log
 
 All config can be passed as flags (which take priority over env vars):
 
-| Flag              | Env Variable       | Default                 | Description                                  |
-| ----------------- | ------------------ | ----------------------- | -------------------------------------------- |
-| `--backend-url`   | `AOMI_BACKEND_URL` | `https://chat.aomi.dev` | Aomi API/BFF URL                             |
-| `--api-key`       | `AOMI_API_KEY`     | —                       | API key for non-default apps                 |
-| `--app`           | `AOMI_APP`         | `default`               | App                                          |
-| `--model`         | `AOMI_MODEL`       | —                       | Model rig to apply before chat               |
-| `--prompt`, `-p`  | —                  | —                       | Send a single prompt and exit                |
-| `--show-tool`     | —                  | —                       | Show tool output in root prompt/REPL mode    |
-| `--provider-key`  | —                  | —                       | Save a BYOK provider key as `PROVIDER:KEY`   |
-| `--public-key`    | `AOMI_PUBLIC_KEY`  | —                       | Wallet address (tells agent your wallet)     |
-| `--private-key`   | `PRIVATE_KEY`      | —                       | Hex private key for `aomi tx sign`           |
-| `--rpc-url`       | `CHAIN_RPC_URL`    | —                       | RPC URL for transaction submission           |
-| `--chain`         | `AOMI_CHAIN_ID`    | `1`                     | Chain ID (1, 137, 42161, 8453, 10, 11155111) |
-| `--verbose`, `-v` | —                  | —                       | Stream tool calls and agent responses live   |
-| `--version`, `-V` | —                  | —                       | Print the installed CLI version              |
+| Flag                    | Env Variable      | Default                | Description                                  |
+| ----------------------- | ----------------- | ---------------------- | -------------------------------------------- |
+| `--backend-url`         | `AOMI_BACKEND_URL` | `https://chat.aomi.dev` | Aomi API/BFF URL                            |
+| `--api-key`             | `AOMI_API_KEY`    | —                      | API key for non-default apps                 |
+| `--app`                 | `AOMI_APP`        | `default`              | App                                          |
+| `--model`               | `AOMI_MODEL`      | —                      | Model rig to apply before chat               |
+| `--prompt`, `-p`        | —                 | —                      | Send a single prompt and exit                |
+| `--show-tool`           | —                 | —                      | Show tool output in root prompt/REPL mode    |
+| `--provider-key`        | —                 | —                      | Save a BYOK provider key as `PROVIDER:KEY`   |
+| `--public-key`          | `AOMI_PUBLIC_KEY` | —                      | Wallet address (tells agent your wallet)     |
+| `--private-key`         | `PRIVATE_KEY`     | —                      | Hex private key for `aomi tx sign`           |
+| `--rpc-url`             | `CHAIN_RPC_URL`   | —                      | RPC URL for transaction submission           |
+| `--chain`               | `AOMI_CHAIN_ID`   | `1`                    | Chain ID (1, 137, 42161, 8453, 10, 11155111) |
+| `--verbose`, `-v`       | —                 | —                      | Stream tool calls and agent responses live   |
+| `--version`, `-V`       | —                 | —                      | Print the installed CLI version              |
 
 ```bash
 # Use a custom backend
@@ -360,24 +360,24 @@ The CLI is **not** a long-running process — each command starts, runs, and
 exits. Conversation history lives on the backend. Between invocations, the CLI
 persists local state under `AOMI_STATE_DIR` or `~/.aomi` by default:
 
-| Field           | Purpose                                               |
-| --------------- | ----------------------------------------------------- |
-| `sessionId`     | Thread ID for the conversation                        |
-| `clientId`      | Stable client identity used for thread secret handles |
-| `model`         | Last successfully applied model for the thread        |
-| `publicKey`     | Wallet address (from `--public-key`)                  |
-| `chainId`       | Active chain ID (from `--chain`)                      |
-| `secretHandles` | Opaque handles returned for ingested secrets          |
-| `pendingTxs`    | Unsigned transactions waiting for `aomi tx sign <id>` |
-| `signedTxs`     | Completed transactions with hashes/signatures         |
+| Field           | Purpose                                                |
+| --------------- | ------------------------------------------------------ |
+| `sessionId`     | Which conversation to continue                         |
+| `clientId`      | Stable client identity used for session secret handles |
+| `model`         | Last successfully applied model for the session        |
+| `publicKey`     | Wallet address (from `--public-key`)                   |
+| `chainId`       | Active chain ID (from `--chain`)                       |
+| `secretHandles` | Opaque handles returned for ingested secrets           |
+| `pendingTxs`    | Unsigned transactions waiting for `aomi tx sign <id>`  |
+| `signedTxs`     | Completed transactions with hashes/signatures          |
 
 ```
-$ npx @aomi-labs/client chat "hello"           # creates thread, saves sessionId
-$ npx @aomi-labs/client chat "swap 1 ETH"     # reuses thread, queues tx-1 if wallet request arrives
+$ npx @aomi-labs/client chat "hello"           # creates session, saves sessionId
+$ npx @aomi-labs/client chat "swap 1 ETH"     # reuses session, queues tx-1 if wallet request arrives
 $ npx @aomi-labs/client tx sign tx-1           # signs tx-1, moves to signedTxs, notifies backend
 $ npx @aomi-labs/client tx list                # shows all txs
-$ npx @aomi-labs/client thread close           # clears the active local thread pointer
+$ npx @aomi-labs/client close                  # clears the active local session pointer
 ```
 
-Thread files live under `~/.aomi/sessions/` by default, with an active thread
+Session files live under `~/.aomi/sessions/` by default, with an active session
 pointer stored in the state root.

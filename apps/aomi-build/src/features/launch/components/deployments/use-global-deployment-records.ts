@@ -20,12 +20,6 @@ type RecordsState =
   | { status: "ready"; deployments: GlobalDeployment[] }
   | { status: "error"; error: string; deployments: GlobalDeployment[] };
 
-function isMissingAppRecords(err: unknown) {
-  return (
-    err instanceof Error && err.message.toLowerCase().includes("unknown app")
-  );
-}
-
 async function loadSourceDeployments(
   source: UserSource,
 ): Promise<GlobalDeployment[]> {
@@ -34,11 +28,6 @@ async function loadSourceDeployments(
       const result = await deploymentRecords({
         app: app.name,
         appSourceId: source.id,
-      }).catch((err: unknown) => {
-        if (isMissingAppRecords(err)) {
-          return { records: [] };
-        }
-        throw err;
       });
       return [app.name, result.records] as const;
     }),

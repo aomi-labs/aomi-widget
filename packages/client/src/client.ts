@@ -2,9 +2,6 @@ import type {
   AomiAccountProfile,
   AomiAccountResponse,
   AomiAccessApproval,
-  AomiAuthorizationChallengeResponse,
-  AomiAuthorizationPermit,
-  AomiAuthorizationState,
   AomiAuthWalletFamily,
   AomiAppDescriptor,
   AomiBeginAccountAuthResponse,
@@ -16,18 +13,14 @@ import type {
   AomiCreateThreadResponse,
   AomiDeleteByokKeyResponse,
   AomiDeleteSecretResponse,
-  AomiDeleteScheduledThreadResponse,
   AomiIngestSecretsResponse,
   AomiInterruptResponse,
   AomiListByokKeysResponse,
-  AomiListScheduledThreadsResponse,
-  AomiListWalletsResponse,
   AomiListSecretsResponse,
   AomiRequestOptions,
   AomiByokKeyEntry,
   AomiSaveByokKeyResponse,
   AomiSSEEvent,
-  AomiScheduledThread,
   AomiSimulateResponse,
   AomiStateResponse,
   AomiSystemEvent,
@@ -46,6 +39,11 @@ import { normalizeAppDescriptor } from "./app-descriptor";
 // Internal helpers
 // =============================================================================
 
+const SESSION_ID_HEADER = "X-Session-Id";
+// The threads-era backend reads `X-Thread-Id`; older backends read
+// `X-Session-Id`. Both are sent during the migration so routes whose paths
+// didn't change (`/api/thread/chat`, `/api/thread/state`, `/api/thread/updates`) work against
+// either backend.
 const THREAD_ID_HEADER = "X-Thread-Id";
 const APP_KEY_HEADER = "Aomi-App-Key";
 
@@ -198,30 +196,16 @@ type ThreadWire = {
   session_id?: string;
   title?: string | null;
   is_archived?: boolean;
-  last_active_at?: number | string;
 };
 
 function normalizeThreadWire(wire: ThreadWire): AomiThread {
-  const { thread_id, session_id, last_active_at, ...rest } = wire;
-  const normalizedLastActiveAt =
-    typeof last_active_at === "number"
-      ? last_active_at
-      : typeof last_active_at === "string"
-        ? Number(last_active_at)
-        : undefined;
-  return {
-    ...rest,
-    session_id: session_id ?? thread_id ?? "",
-    last_active_at:
-      normalizedLastActiveAt === undefined ||
-      Number.isNaN(normalizedLastActiveAt)
-        ? undefined
-        : normalizedLastActiveAt,
-  } as AomiThread;
+  const { thread_id, session_id, ...rest } = wire;
+  return { ...rest, session_id: session_id ?? thread_id ?? "" } as AomiThread;
 }
 
-function withThreadHeader(sessionId: string, init?: HeadersInit): HeadersInit {
+function withSessionHeader(sessionId: string, init?: HeadersInit): HeadersInit {
   const headers = new Headers(init);
+  headers.set(SESSION_ID_HEADER, sessionId);
   headers.set(THREAD_ID_HEADER, sessionId);
   return headers;
 }
@@ -232,7 +216,7 @@ async function fetchStateResponse(
   sessionId: string,
 ): Promise<Response> {
   return fetchImpl(url, {
-    headers: withThreadHeader(sessionId),
+    headers: withSessionHeader(sessionId),
   });
 }
 
@@ -295,7 +279,7 @@ async function postState<T>(
   }
   const url = buildApiUrl(baseUrl, path, query);
 
-  const headers = new Headers(withThreadHeader(sessionId));
+  const headers = new Headers(withSessionHeader(sessionId));
   if (apiKey) {
     headers.set(APP_KEY_HEADER, apiKey);
   }
@@ -378,7 +362,7 @@ export class AomiClient {
     this.sseSubscriber = createSseSubscriber({
       backendUrl: this.baseUrl,
       getHeaders: (sessionId) =>
-        withThreadHeader(sessionId, { Accept: "text/event-stream" }),
+        withSessionHeader(sessionId, { Accept: "text/event-stream" }),
       // Keep SSE on the browser-native fetch path. Payment/auth wrappers used
       // by some web runtimes can delay or buffer streaming responses.
       fetchImpl: this.rawFetchImpl,
@@ -407,6 +391,7 @@ export class AomiClient {
     const url = buildApiUrl(this.baseUrl, path, normalizeQuery(options?.query));
     const headers = new Headers(options?.headers);
     if (options?.sessionId) {
+      headers.set(SESSION_ID_HEADER, options.sessionId);
       headers.set(THREAD_ID_HEADER, options.sessionId);
     }
     const apiKey = options?.apiKey ?? this.apiKey;
@@ -455,17 +440,17 @@ export class AomiClient {
     const normalizedUserState = stripBulkyPendingFields(
       UserState.normalize(userState),
     );
-    const urlWithSyncParams = buildApiUrl(this.baseUrl, "/api/state", {
+    const urlWithSyncParams = buildApiUrl(this.baseUrl, "/api/thread/state", {
       user_state: normalizedUserState
         ? JSON.stringify(normalizedUserState)
         : undefined,
       client_id: clientId,
     });
-    const bareUrl = buildApiUrl(this.baseUrl, "/api/state");
+    const bareUrl = buildApiUrl(this.baseUrl, "/api/thread/state");
     const shouldRetryWithoutSyncParams =
       Boolean(normalizedUserState) || Boolean(clientId);
 
-    this.logger?.debug("[aomi][client] GET /api/state start", {
+    this.logger?.debug("[aomi][client] GET /api/thread/state start", {
       sessionId,
       clientId,
       hasUserState: Boolean(normalizedUserState),
@@ -483,7 +468,7 @@ export class AomiClient {
       (response.status === 400 || response.status === 414)
     ) {
       this.logger?.debug(
-        "[aomi][client] GET /api/state retrying without sync params",
+        "[aomi][client] GET /api/thread/state retrying without sync params",
         {
           sessionId,
           initialStatus: response.status,
@@ -498,7 +483,7 @@ export class AomiClient {
       );
     }
 
-    this.logger?.debug("[aomi][client] GET /api/state response", {
+    this.logger?.debug("[aomi][client] GET /api/thread/state response", {
       sessionId,
       status: response.status,
       ok: response.ok,
@@ -531,7 +516,7 @@ export class AomiClient {
       UserState.normalize(options?.userState),
     );
     const applicationId = options?.applicationId?.toString().trim();
-    const url = buildApiUrl(this.baseUrl, "/api/chat", {
+    const url = buildApiUrl(this.baseUrl, "/api/thread/chat", {
       app,
       application_id: applicationId || undefined,
       message,
@@ -541,7 +526,7 @@ export class AomiClient {
       client_id: options?.clientId,
     });
 
-    this.logger?.debug("[aomi][client] POST /api/chat prepared", {
+    this.logger?.debug("[aomi][client] POST /api/thread/chat prepared", {
       sessionId,
       app,
       applicationId,
@@ -550,13 +535,13 @@ export class AomiClient {
       messagePreview: previewText(message),
     });
 
-    const headers = new Headers(withThreadHeader(sessionId));
+    const headers = new Headers(withSessionHeader(sessionId));
     if (apiKey) {
       headers.set(APP_KEY_HEADER, apiKey);
     }
 
     this.logger?.debug("[aomi][client] POST start", {
-      path: "/api/chat",
+      path: "/api/thread/chat",
       sessionId,
       hasApiKey: Boolean(apiKey),
       url,
@@ -568,7 +553,7 @@ export class AomiClient {
     });
 
     this.logger?.debug("[aomi][client] POST response", {
-      path: "/api/chat",
+      path: "/api/thread/chat",
       sessionId,
       status: response.status,
       ok: response.ok,
@@ -619,12 +604,12 @@ export class AomiClient {
    * Interrupt the AI's current response.
    */
   async interrupt(sessionId: string): Promise<AomiInterruptResponse> {
-    this.logger?.debug("[aomi][client] POST /api/interrupt prepared", {
+    this.logger?.debug("[aomi][client] POST /api/thread/interrupt prepared", {
       sessionId,
     });
     return postState<AomiInterruptResponse>(
       this.baseUrl,
-      "/api/interrupt",
+      "/api/thread/interrupt",
       {},
       sessionId,
       this.fetchImpl,
@@ -665,7 +650,7 @@ export class AomiClient {
     }
     const response = await this.fetchImpl(url, {
       method: "POST",
-      headers: withThreadHeader(sessionId, {
+      headers: withSessionHeader(sessionId, {
         "Content-Type": "application/json",
       }),
       body: JSON.stringify(body),
@@ -695,7 +680,7 @@ export class AomiClient {
     const url = buildApiUrl(this.baseUrl, "/api/secrets", params);
     const response = await this.fetchImpl(url, {
       method: "DELETE",
-      headers: withThreadHeader(sessionId),
+      headers: withSessionHeader(sessionId),
     });
 
     if (!response.ok) {
@@ -726,7 +711,7 @@ export class AomiClient {
     );
     const response = await this.fetchImpl(url, {
       method: "DELETE",
-      headers: withThreadHeader(sessionId),
+      headers: withSessionHeader(sessionId),
     });
 
     if (!response.ok) {
@@ -754,7 +739,7 @@ export class AomiClient {
         : joinApiPath(this.baseUrl, "/api/secrets");
     const response = await this.fetchImpl(url, {
       method: "GET",
-      headers: withThreadHeader(sessionId),
+      headers: withSessionHeader(sessionId),
     });
 
     if (!response.ok) {
@@ -800,7 +785,7 @@ export class AomiClient {
   async listThreads(sessionId: string): Promise<AomiThread[]> {
     const url = buildApiUrl(this.baseUrl, "/api/threads");
     const response = await this.fetchImpl(url, {
-      headers: withThreadHeader(sessionId),
+      headers: withSessionHeader(sessionId),
     });
 
     if (!response.ok) {
@@ -820,7 +805,7 @@ export class AomiClient {
       `/api/threads/${encodeURIComponent(sessionId)}`,
     );
     const response = await this.fetchImpl(url, {
-      headers: withThreadHeader(sessionId),
+      headers: withSessionHeader(sessionId),
     });
 
     if (!response.ok) {
@@ -837,7 +822,7 @@ export class AomiClient {
     const url = buildApiUrl(this.baseUrl, "/api/threads");
     const response = await this.fetchImpl(url, {
       method: "POST",
-      headers: withThreadHeader(threadId),
+      headers: withSessionHeader(threadId),
     });
 
     if (!response.ok) {
@@ -857,7 +842,7 @@ export class AomiClient {
     );
     const response = await this.fetchImpl(url, {
       method: "DELETE",
-      headers: withThreadHeader(sessionId),
+      headers: withSessionHeader(sessionId),
     });
 
     if (!response.ok) {
@@ -875,7 +860,7 @@ export class AomiClient {
     );
     const response = await this.fetchImpl(url, {
       method: "PATCH",
-      headers: withThreadHeader(sessionId, {
+      headers: withSessionHeader(sessionId, {
         "Content-Type": "application/json",
       }),
       body: JSON.stringify({ title: newTitle }),
@@ -915,11 +900,11 @@ export class AomiClient {
     sessionId: string,
     count?: number,
   ): Promise<AomiSystemEvent[]> {
-    const url = buildApiUrl(this.baseUrl, "/api/events", {
+    const url = buildApiUrl(this.baseUrl, "/api/thread/events", {
       count: count !== undefined ? String(count) : undefined,
     });
     const response = await this.fetchImpl(url, {
-      headers: withThreadHeader(sessionId),
+      headers: withSessionHeader(sessionId),
     });
 
     if (!response.ok) {
@@ -949,7 +934,7 @@ export class AomiClient {
     });
 
     const apiKey = options?.apiKey ?? this.apiKey;
-    const headers = new Headers(withThreadHeader(sessionId));
+    const headers = new Headers(withSessionHeader(sessionId));
     if (apiKey) {
       headers.set(APP_KEY_HEADER, apiKey);
     }
@@ -979,7 +964,7 @@ export class AomiClient {
   ): Promise<AomiAccountProfile | null> {
     const url = buildApiUrl(this.baseUrl, "/api/account");
     const response = await this.rawFetchImpl(url, {
-      headers: withThreadHeader(sessionId),
+      headers: withSessionHeader(sessionId),
     });
 
     if (
@@ -1006,7 +991,7 @@ export class AomiClient {
   async getAccount(sessionId: string): Promise<AomiAccountResponse> {
     const url = buildApiUrl(this.baseUrl, "/api/account");
     const response = await this.fetchImpl(url, {
-      headers: withThreadHeader(sessionId),
+      headers: withSessionHeader(sessionId),
     });
 
     if (!response.ok) {
@@ -1014,86 +999,6 @@ export class AomiClient {
     }
 
     return (await response.json()) as AomiAccountResponse;
-  }
-
-  async listAccountWallets(
-    sessionId: string,
-  ): Promise<AomiListWalletsResponse> {
-    return this.request<AomiListWalletsResponse>(
-      "GET",
-      "/api/account/wallets",
-      {
-        sessionId,
-      },
-    );
-  }
-
-  async createAuthorizationChallenge(
-    sessionId: string,
-    request: { chain_type: string; wallet: string; mode: string },
-  ): Promise<AomiAuthorizationChallengeResponse> {
-    return this.request<AomiAuthorizationChallengeResponse>(
-      "POST",
-      "/api/account/authorization/challenge",
-      {
-        sessionId,
-        body: request,
-      },
-    );
-  }
-
-  async commitAuthorization(
-    sessionId: string,
-    request: { permit: AomiAuthorizationPermit; signature: string },
-  ): Promise<AomiAuthorizationState> {
-    return this.request<AomiAuthorizationState>(
-      "POST",
-      "/api/account/authorization/commit",
-      {
-        sessionId,
-        body: request,
-      },
-    );
-  }
-
-  async listScheduledThreads(
-    sessionId: string,
-    query?: { app?: string; limit?: number; offset?: number },
-  ): Promise<AomiListScheduledThreadsResponse> {
-    return this.request<AomiListScheduledThreadsResponse>(
-      "GET",
-      "/api/account/scheduled-intents",
-      {
-        sessionId,
-        query,
-      },
-    );
-  }
-
-  async getScheduledThread(
-    sessionId: string,
-    id: string,
-  ): Promise<AomiScheduledThread> {
-    return this.request<AomiScheduledThread>(
-      "GET",
-      `/api/account/scheduled-intents/${encodeURIComponent(id)}`,
-      {
-        sessionId,
-      },
-    );
-  }
-
-  async deleteScheduledThread(
-    sessionId: string,
-    id: string,
-  ): Promise<AomiDeleteScheduledThreadResponse> {
-    return this.request<AomiDeleteScheduledThreadResponse>(
-      "DELETE",
-      `/api/account/scheduled-intents/${encodeURIComponent(id)}`,
-      {
-        sessionId,
-      },
-    );
   }
 
   async createAccountApproval(
@@ -1115,7 +1020,7 @@ export class AomiClient {
     const url = buildApiUrl(this.baseUrl, "/api/auth/privy/begin");
     const response = await this.rawFetchImpl(url, {
       method: "POST",
-      headers: withThreadHeader(sessionId, {
+      headers: withSessionHeader(sessionId, {
         "Content-Type": "application/json",
       }),
       body: JSON.stringify({
@@ -1141,7 +1046,7 @@ export class AomiClient {
   ): Promise<string[]> {
     const url = buildApiUrl(this.baseUrl, "/api/thread/models");
     const apiKey = options?.apiKey ?? this.apiKey;
-    const headers = new Headers(withThreadHeader(sessionId));
+    const headers = new Headers(withSessionHeader(sessionId));
     if (apiKey) {
       headers.set(APP_KEY_HEADER, apiKey);
     }
@@ -1184,7 +1089,7 @@ export class AomiClient {
       client_id: options?.clientId,
     });
 
-    const headers = new Headers(withThreadHeader(sessionId));
+    const headers = new Headers(withSessionHeader(sessionId));
     if (apiKey) {
       headers.set(APP_KEY_HEADER, apiKey);
     }
@@ -1212,7 +1117,7 @@ export class AomiClient {
   async listByokKeys(sessionId: string): Promise<AomiByokKeyEntry[]> {
     const url = buildApiUrl(this.baseUrl, "/api/account/payment");
     const response = await this.fetchImpl(url, {
-      headers: withThreadHeader(sessionId),
+      headers: withSessionHeader(sessionId),
     });
 
     if (!response.ok) {
@@ -1235,7 +1140,7 @@ export class AomiClient {
     const url = joinApiPath(this.baseUrl, "/api/account/payment/byok");
     const response = await this.fetchImpl(url, {
       method: "POST",
-      headers: withThreadHeader(sessionId, {
+      headers: withSessionHeader(sessionId, {
         "Content-Type": "application/json",
       }),
       body: JSON.stringify({
@@ -1263,7 +1168,7 @@ export class AomiClient {
     );
     const response = await this.fetchImpl(url, {
       method: "DELETE",
-      headers: withThreadHeader(sessionId),
+      headers: withSessionHeader(sessionId),
     });
 
     if (!response.ok) {
@@ -1295,9 +1200,9 @@ export class AomiClient {
     }>,
     options?: { from?: string; chainId?: number },
   ): Promise<AomiSimulateResponse> {
-    const url = joinApiPath(this.baseUrl, "/api/simulate");
+    const url = joinApiPath(this.baseUrl, "/api/exec/simulate");
     const headers = new Headers(
-      withThreadHeader(sessionId, { "Content-Type": "application/json" }),
+      withSessionHeader(sessionId, { "Content-Type": "application/json" }),
     );
     if (this.apiKey) {
       headers.set(APP_KEY_HEADER, this.apiKey);

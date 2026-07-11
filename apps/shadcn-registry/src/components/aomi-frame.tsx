@@ -63,12 +63,6 @@ type RootProps = {
   backendUrl?: string;
   /** Optional runtime client overrides. */
   clientOptions?: Omit<AomiClientOptions, "baseUrl">;
-  /** Persist the active materialized thread in localStorage. Defaults to true. */
-  persistThread?: boolean;
-  /** Full localStorage key override for vendors that need exact isolation. */
-  threadPersistenceKey?: string;
-  /** Extra key segment for tenant/user/app scoping without owning the full key. */
-  threadPersistenceScope?: string | null;
 };
 
 type HeaderProps = {
@@ -111,9 +105,6 @@ const Root: FC<RootProps> = ({
   showSidebar = true,
   backendUrl,
   clientOptions,
-  persistThread,
-  threadPersistenceKey,
-  threadPersistenceScope,
 }) => {
   const resolvedBackendUrl =
     backendUrl ??
@@ -125,9 +116,6 @@ const Root: FC<RootProps> = ({
     <AomiRuntimeProvider
       backendUrl={resolvedBackendUrl}
       clientOptions={clientOptions}
-      persistThread={persistThread}
-      threadPersistenceKey={threadPersistenceKey}
-      threadPersistenceScope={threadPersistenceScope}
     >
       <SidebarProvider className="min-h-0! h-full">
         <div

@@ -1,7 +1,7 @@
 import { betterAuth } from "better-auth";
 import { generateRandomString } from "better-auth/crypto";
 import { nextCookies } from "better-auth/next-js";
-import { bearer, siwe } from "better-auth/plugins";
+import { bearer, mcp, siwe } from "better-auth/plugins";
 import { getPool } from "../db/pool";
 import { readAccountAuthEnv } from "./env";
 import { verifySiweMessage } from "./siwe";
@@ -34,6 +34,36 @@ function snakeCasedSiwe(plugin: ReturnType<typeof siwe>) {
       },
     },
   };
+}
+
+// Same ba_ + snake_case treatment for the MCP plugin's OAuth-provider models
+// (client registrations, access tokens, consents). Tables live in
+// supabase/migrations/*_better_auth_mcp_oauth_tables.sql (product-mono);
+// keep names in lockstep.
+function snakeCasedMcp(plugin: ReturnType<typeof mcp>) {
+  const modelNames: Record<string, string> = {
+    oauthApplication: "ba_oauth_applications",
+    oauthAccessToken: "ba_oauth_access_tokens",
+    oauthConsent: "ba_oauth_consents",
+  };
+  const snake = (name: string) =>
+    name.replace(/[A-Z]/g, (c) => `_${c.toLowerCase()}`);
+  const schema = Object.fromEntries(
+    Object.entries(plugin.schema!).map(([model, definition]) => [
+      model,
+      {
+        ...definition,
+        modelName: modelNames[model] ?? model,
+        fields: Object.fromEntries(
+          Object.entries(definition.fields).map(([name, field]) => [
+            name,
+            { ...field, fieldName: snake(name) },
+          ]),
+        ),
+      },
+    ]),
+  ) as unknown as typeof plugin.schema;
+  return { ...plugin, schema };
 }
 
 export const auth = betterAuth({
@@ -101,6 +131,19 @@ export const auth = betterAuth({
       }),
     ),
     bearer(),
+    // OAuth provider for MCP clients (Claude, Codex): dynamic client
+    // registration + PKCE + access tokens. `withMcpAuth` on the /api/mcp
+    // route consumes the sessions this issues. /mcp/connect handles both
+    // halves of the ceremony: sign-in (loginPage) and the explicit
+    // approve/deny step (consentPage → POST /oauth2/consent).
+    snakeCasedMcp(
+      mcp({
+        loginPage: "/mcp/connect",
+        // `mcp()` copies its own `loginPage` over this one; the field is only
+        // repeated because `OIDCOptions` requires it.
+        oidcConfig: { loginPage: "/mcp/connect", consentPage: "/mcp/connect" },
+      }),
+    ),
     aomiProviderAuthPlugin(),
     nextCookies(),
   ],

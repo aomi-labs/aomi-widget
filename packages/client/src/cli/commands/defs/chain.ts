@@ -1,12 +1,11 @@
 import { defineCommand } from "citty";
-import { buildCliConfig, globalArgs } from "./shared";
 
 const chainListDef = defineCommand({
   meta: { name: "list", description: "List supported chains" },
-  args: { ...globalArgs },
-  async run({ args }) {
+  args: {},
+  async run() {
     const { chainsCommand } = await import("../control");
-    chainsCommand(buildCliConfig(args));
+    chainsCommand();
   },
 });
 
@@ -27,10 +26,10 @@ const chainSetDef = defineCommand({
 
 const chainCurrentDef = defineCommand({
   meta: { name: "current", description: "Show the active chain ID" },
-  args: { ...globalArgs },
-  async run({ args }) {
+  args: {},
+  async run() {
     const { currentChainCommand } = await import("../control");
-    currentChainCommand(buildCliConfig(args));
+    currentChainCommand();
   },
 });
 

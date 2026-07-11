@@ -28,7 +28,6 @@ const logThreadMetadataChange = (
 
 export type ThreadStatus = "regular" | "archived";
 export type ModelSelectionMode = "auto" | "manual";
-export type ThreadTurnPhase = "idle" | "submitting" | "working";
 
 export type ThreadControlState = {
   /** Selected model for this thread (human-readable label) */
@@ -43,10 +42,6 @@ export type ThreadControlState = {
   controlDirty: boolean;
   /** Whether this thread is currently processing (assistant generating) */
   isProcessing: boolean;
-  /** Fine-grained turn phase for rendering pending/working assistant states */
-  turnPhase: ThreadTurnPhase;
-  /** Epoch ms when the latest assistant turn completed in this thread. */
-  lastCompletedAt?: number;
 };
 
 export type ThreadMetadata = {
@@ -66,7 +61,6 @@ export function initThreadControl(): ThreadControlState {
     applicationId: null,
     controlDirty: false,
     isProcessing: false,
-    turnPhase: "idle",
   };
 }
 

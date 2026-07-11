@@ -7,7 +7,7 @@ import { fatal } from "../errors";
 import { parseSolanaKeypairSecret } from "../solana-signer";
 
 function loadOrCreateForSettings(): CliSession {
-  // Settings commands (`wallet dev-key`, `chain set`, `config set-backend`) only
+  // Settings commands (`wallet set`, `chain set`, `config set-backend`) only
   // mutate the one field they were given. Reuse any existing session verbatim;
   // if none exists, create an empty one with minimal defaults. Never fold a
   // default baseUrl/app through mergeConfig — that would clobber a previously-
@@ -24,7 +24,7 @@ function loadOrCreateForSettings(): CliSession {
 export function setWalletCommand(privateKeyInput: string): void {
   const privateKey = normalizePrivateKey(privateKeyInput);
   if (!privateKey) {
-    fatal("Usage: aomi wallet dev-key <private-key>  (EVM hex key)");
+    fatal("Usage: aomi wallet set <private-key>  (EVM hex key)");
   }
 
   const account = privateKeyToAccount(privateKey as `0x${string}`);
@@ -41,7 +41,7 @@ export function setSvmWalletCommand(keyInput: string): void {
   } catch (err) {
     fatal(
       `Invalid Solana private key: ${err instanceof Error ? err.message : err}\n` +
-        "Usage: aomi wallet dev-key --solana <base58-secret-key>",
+        "Usage: aomi wallet set --solana <base58-secret-key>",
     );
   }
 

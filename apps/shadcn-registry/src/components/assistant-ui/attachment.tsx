@@ -7,7 +7,8 @@ import {
   AttachmentPrimitive,
   ComposerPrimitive,
   MessagePrimitive,
-  useAttachment,
+  useAssistantState,
+  useAssistantApi,
 } from "@assistant-ui/react";
 import { useShallow } from "zustand/shallow";
 import {
@@ -46,8 +47,8 @@ const useFileSrc = (file: File | undefined) => {
 };
 
 const useAttachmentSrc = () => {
-  const { file, src } = useAttachment(
-    useShallow((attachment): { file?: File; src?: string } => {
+  const { file, src } = useAssistantState(
+    useShallow(({ attachment }): { file?: File; src?: string } => {
       if (attachment.type !== "image") return {};
       if (attachment.file) return { file: attachment.file };
       const src = attachment.content?.filter((c) => c.type === "image")[0]
@@ -109,7 +110,9 @@ const AttachmentPreviewDialog: FC<PropsWithChildren> = ({ children }) => {
 };
 
 const AttachmentThumb: FC = () => {
-  const isImage = useAttachment((a) => a.type === "image");
+  const isImage = useAssistantState(
+    ({ attachment }) => attachment.type === "image",
+  );
   const src = useAttachmentSrc();
 
   return (
@@ -127,11 +130,14 @@ const AttachmentThumb: FC = () => {
 };
 
 const AttachmentUI: FC = () => {
-  const isComposer = useAttachment((a) => a.source !== "message");
+  const api = useAssistantApi();
+  const isComposer = api.attachment.source === "composer";
 
-  const isImage = useAttachment((a) => a.type === "image");
-  const typeLabel = useAttachment((a) => {
-    const type = a.type;
+  const isImage = useAssistantState(
+    ({ attachment }) => attachment.type === "image",
+  );
+  const typeLabel = useAssistantState(({ attachment }) => {
+    const type = attachment.type;
     switch (type) {
       case "image":
         return "Image";

@@ -49,16 +49,12 @@ vi.mock("viem", async (importOriginal) => {
   return {
     ...actual,
     createWalletClient: vi.fn(() => ({
-      signAuthorization: vi
-        .fn()
-        .mockResolvedValue({ r: "0x1", s: "0x2", v: 27n }),
+      signAuthorization: vi.fn().mockResolvedValue({ r: "0x1", s: "0x2", v: 27n }),
       sendTransaction: vi.fn().mockResolvedValue("0xmock7702hash"),
     })),
     createPublicClient: vi.fn(() => ({
       estimateGas: vi.fn().mockResolvedValue(50000n),
-      waitForTransactionReceipt: vi
-        .fn()
-        .mockResolvedValue({ status: "success", gasUsed: 47000n }),
+      waitForTransactionReceipt: vi.fn().mockResolvedValue({ status: "success", gasUsed: 47000n }),
       getCode: vi.fn().mockResolvedValue("0x"),
     })),
   };
@@ -68,10 +64,7 @@ vi.mock("viem/experimental/erc7821", () => ({
   encodeExecuteData: vi.fn(() => "0xmockexecutedata"),
 }));
 
-import {
-  buildCliConfig,
-  getPositionals,
-} from "../../src/cli/commands/defs/shared";
+import { buildCliConfig, getPositionals } from "../../src/cli/commands/defs/shared";
 import {
   createCliProviderState,
   describeExecutionDecision,
@@ -168,19 +161,10 @@ describe("CLI execution controls", () => {
     expect(config.freshSession).toBe(true);
   });
 
-  it("rejects private keys without the 0x prefix", () => {
-    expect(() =>
-      buildCliConfig({
-        "private-key":
-          "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
-      }),
-    ).toThrow(CliExit);
-  });
-
-  it("accepts 0x-prefixed 32-byte private keys", () => {
+  it("normalizes bare private keys by adding the 0x prefix", () => {
     const config = buildCliConfig({
       "private-key":
-        "0x0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+        "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
     });
     expect(config.privateKey).toBe(
       "0x0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
@@ -276,7 +260,9 @@ describe("CLI execution controls", () => {
       modeExplicit: false,
       apiKey: "72eIUle_3rfixX00QJVwk",
     });
-    expect(describeExecutionDecision(decision)).toBe("aa (alchemy, 7702)");
+    expect(describeExecutionDecision(decision)).toBe(
+      "aa (alchemy, 7702)",
+    );
   });
 
   // -------------------------------------------------------------------------
@@ -309,16 +295,8 @@ describe("CLI execution controls", () => {
       config: { baseUrl: "https://api.aomi.dev", app: "default" },
       chain: polygon,
       callList: [
-        {
-          ...ERC20_TRANSFER_CALL_LIST[0],
-          data: "0x",
-          to: "0x1111111111111111111111111111111111111111",
-        },
-        {
-          ...ERC20_TRANSFER_CALL_LIST[0],
-          data: "0x",
-          to: "0x2222222222222222222222222222222222222222",
-        },
+        { ...ERC20_TRANSFER_CALL_LIST[0], data: "0x", to: "0x1111111111111111111111111111111111111111" },
+        { ...ERC20_TRANSFER_CALL_LIST[0], data: "0x", to: "0x2222222222222222222222222222222222222222" },
       ],
     });
 
@@ -576,4 +554,5 @@ describe("CLI execution controls", () => {
       }),
     ).toBeNull();
   });
+
 });
