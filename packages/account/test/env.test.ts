@@ -131,4 +131,41 @@ describe("readAccountAuthEnv", () => {
       "https://chat-portal-prod-deployment-aomi-labs.vercel.app",
     ]);
   });
+
+  it("prefers the explicit Para JWT audience over the public API key", () => {
+    const env = readAccountAuthEnv({
+      BETTER_AUTH_URL: "http://localhost:3001",
+      DATABASE_URL: TEST_DATABASE_URL,
+      NODE_ENV: "test",
+      PARA_JWT_AUDIENCE: "para-audience-uuid",
+      NEXT_PUBLIC_PARA_API_KEY: "beta_public_api_key",
+    });
+
+    expect(env.paraAudience).toBe("para-audience-uuid");
+  });
+
+  it("treats blank provider env values as unset", () => {
+    // A var added with an empty value (easy in the Vercel dashboard/CLI) must
+    // fall through to the next audience source, not poison the chain: "" is
+    // not nullish, so without normalization paraAudience would be "" and the
+    // Para verifier would report itself unconfigured despite PARA_JWKS_URL
+    // being set.
+    const env = readAccountAuthEnv({
+      BETTER_AUTH_URL: "http://localhost:3001",
+      DATABASE_URL: TEST_DATABASE_URL,
+      NODE_ENV: "test",
+      PARA_JWT_AUDIENCE: "",
+      PARA_AUDIENCE: "  ",
+      NEXT_PUBLIC_PARA_API_KEY: "beta_public_api_key",
+      PARA_JWKS_URL: "",
+      PRIVY_IDENTITY_JWT_VERIFICATION_KEY: "",
+      PRIVY_JWT_VERIFICATION_KEY: "privy-verification-key",
+    });
+
+    expect(env.paraAudience).toBe("beta_public_api_key");
+    expect(env.paraJwksUrl).toBeUndefined();
+    expect(env.privyIdentityTokenVerificationKey).toBe(
+      "privy-verification-key",
+    );
+  });
 });
