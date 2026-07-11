@@ -2,7 +2,6 @@ import type { Chain } from "viem";
 
 import type { AAProvider } from "./types";
 import { createAlchemyAAState } from "./alchemy/create";
-import { createPimlicoAAState } from "./pimlico/create";
 import type { AAOwner } from "./owner";
 import type { AAMode, AAState, AAWalletCall } from "./types";
 
@@ -29,33 +28,23 @@ export interface CreateAAStateOptions {
 // ---------------------------------------------------------------------------
 
 /**
- * Creates an AA state by instantiating the appropriate smart account via
- * `@getpara/aa-alchemy` or `@getpara/aa-pimlico`.
+ * Creates an AA state by instantiating the Alchemy smart account via
+ * `@getpara/aa-alchemy` (Alchemy is the only provider; server-side AA and the
+ * backend `/api/aa/v1/:chain_slug` proxy are Alchemy-shaped).
  */
 export async function createAAProviderState(
   options: CreateAAStateOptions,
 ): Promise<AAState> {
-  if (options.provider === "alchemy") {
-    return createAlchemyAAState({
-      chain: options.chain,
-      owner: options.owner,
-      rpcUrl: options.rpcUrl,
-      callList: options.callList,
-      mode: options.mode,
-      apiKey: options.apiKey,
-      gasPolicyId: options.gasPolicyId,
-      sponsored: options.sponsored,
-      proxyBaseUrl: options.proxyBaseUrl,
-      proxyBearer: options.proxyBearer,
-    });
-  }
-
-  return createPimlicoAAState({
+  return createAlchemyAAState({
     chain: options.chain,
     owner: options.owner,
     rpcUrl: options.rpcUrl,
     callList: options.callList,
     mode: options.mode,
     apiKey: options.apiKey,
+    gasPolicyId: options.gasPolicyId,
+    sponsored: options.sponsored,
+    proxyBaseUrl: options.proxyBaseUrl,
+    proxyBearer: options.proxyBearer,
   });
 }

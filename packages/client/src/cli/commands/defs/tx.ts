@@ -41,7 +41,7 @@ const txSignDef = defineCommand({
     },
     "aa-provider": {
       type: "string",
-      description: "AA provider override: alchemy | pimlico",
+      description: "AA provider override: alchemy",
     },
     "aa-mode": {
       type: "string",

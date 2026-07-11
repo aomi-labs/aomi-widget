@@ -11,7 +11,7 @@ import type {
 // ---------------------------------------------------------------------------
 
 type SdkSmartAccount = {
-  /** Para SDKs emit uppercase (e.g. "ALCHEMY", "PIMLICO"); normalized by the adapter. */
+  /** Para SDKs emit uppercase (e.g. "ALCHEMY"); normalized by the adapter. */
   provider: string;
   mode: AAMode;
   smartAccountAddress: Hex;
@@ -26,9 +26,9 @@ type SdkSmartAccount = {
   ) => Promise<TransactionReceipt>;
 };
 
-function normalizeAAProvider(value: string): "alchemy" | "pimlico" {
+function normalizeAAProvider(value: string): "alchemy" {
   const lowered = value.toLowerCase();
-  if (lowered === "alchemy" || lowered === "pimlico") {
+  if (lowered === "alchemy") {
     return lowered;
   }
   throw new Error(`Unsupported AA provider from SDK: ${value}`);

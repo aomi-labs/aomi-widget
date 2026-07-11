@@ -3,13 +3,7 @@ import { mainnet, polygon } from "viem/chains";
 
 const {
   createAlchemySmartAccountMock,
-  createPimlicoSmartAccountMock,
   createSmartWalletClientMock,
-  createPermissionlessSmartAccountClientMock,
-  createPimlicoClientMock,
-  getUserOperationGasPriceMock,
-  toSimpleSmartAccountMock,
-  to7702SimpleSmartAccountMock,
   alchemyWalletTransportMock,
   requestAccountMock,
   sendCallsMock,
@@ -20,15 +14,7 @@ const {
   waitForTransactionReceiptMock,
 } = vi.hoisted(() => ({
   createAlchemySmartAccountMock: vi.fn(),
-  createPimlicoSmartAccountMock: vi.fn(),
   createSmartWalletClientMock: vi.fn(),
-  createPermissionlessSmartAccountClientMock: vi.fn(),
-  createPimlicoClientMock: vi.fn(),
-  getUserOperationGasPriceMock: vi.fn().mockResolvedValue({
-    fast: { maxFeePerGas: 1n, maxPriorityFeePerGas: 1n },
-  }),
-  toSimpleSmartAccountMock: vi.fn(),
-  to7702SimpleSmartAccountMock: vi.fn(),
   alchemyWalletTransportMock: vi.fn(() => ({ transport: "alchemy-wallet" })),
   requestAccountMock: vi.fn(),
   sendCallsMock: vi.fn(),
@@ -47,26 +33,9 @@ vi.mock("@getpara/aa-alchemy", () => ({
   createAlchemySmartAccount: createAlchemySmartAccountMock,
 }));
 
-vi.mock("@getpara/aa-pimlico", () => ({
-  createPimlicoSmartAccount: createPimlicoSmartAccountMock,
-}));
-
 vi.mock("@alchemy/wallet-apis", () => ({
   createSmartWalletClient: createSmartWalletClientMock,
   alchemyWalletTransport: alchemyWalletTransportMock,
-}));
-
-vi.mock("permissionless", () => ({
-  createSmartAccountClient: createPermissionlessSmartAccountClientMock,
-}));
-
-vi.mock("permissionless/accounts", () => ({
-  toSimpleSmartAccount: toSimpleSmartAccountMock,
-  to7702SimpleSmartAccount: to7702SimpleSmartAccountMock,
-}));
-
-vi.mock("permissionless/clients/pimlico", () => ({
-  createPimlicoClient: createPimlicoClientMock,
 }));
 
 vi.mock("viem", async (importOriginal) => {
@@ -133,39 +102,18 @@ describe("createAAProviderState", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
     createAlchemySmartAccountMock.mockReset();
-    createPimlicoSmartAccountMock.mockReset();
     createSmartWalletClientMock.mockReset();
-    createPermissionlessSmartAccountClientMock.mockReset();
-    createPimlicoClientMock.mockReset();
-    getUserOperationGasPriceMock.mockReset();
-    toSimpleSmartAccountMock.mockReset();
     alchemyWalletTransportMock.mockClear();
     requestAccountMock.mockReset();
     sendCallsMock.mockReset();
     waitForCallsStatusMock.mockReset();
     process.env = { ...ORIGINAL_ENV };
     delete process.env.ALCHEMY_API_KEY;
-    delete process.env.PIMLICO_API_KEY;
     delete process.env.ALCHEMY_GAS_POLICY_ID;
     createSmartWalletClientMock.mockReturnValue({
       requestAccount: requestAccountMock,
       sendCalls: sendCallsMock,
       waitForCallsStatus: waitForCallsStatusMock,
-    });
-    createPermissionlessSmartAccountClientMock.mockReturnValue({
-      sendTransaction: vi.fn().mockResolvedValue("0xmockuserophash"),
-    });
-    createPimlicoClientMock.mockReturnValue({
-      getUserOperationGasPrice: getUserOperationGasPriceMock,
-    });
-    getUserOperationGasPriceMock.mockResolvedValue({
-      fast: { maxFeePerGas: 1n, maxPriorityFeePerGas: 1n },
-    });
-    toSimpleSmartAccountMock.mockResolvedValue({
-      address: "0xcccccccccccccccccccccccccccccccccccccccc",
-    });
-    to7702SimpleSmartAccountMock.mockResolvedValue({
-      address: DIRECT_OWNER_ADDRESS,
     });
     createAlchemySmartAccountMock.mockResolvedValue({
       provider: "ALCHEMY",
@@ -302,40 +250,6 @@ describe("createAAProviderState", () => {
     expect(state.error).toBeNull();
   });
 
-  it("creates a Pimlico 7702 provider state by default on 7702-first chains", async () => {
-    process.env.PIMLICO_API_KEY = "pimlico-key";
-
-    const state = await createAAProviderState({
-      provider: "pimlico",
-      chain: polygon,
-      owner: { kind: "direct", privateKey: PRIVATE_KEY },
-      rpcUrl: "https://example-rpc.invalid",
-      callList: [...POLYGON_CALLS],
-    });
-
-    expect(createPimlicoSmartAccountMock).not.toHaveBeenCalled();
-    expect(createPimlicoClientMock).not.toHaveBeenCalled();
-    expect(createPermissionlessSmartAccountClientMock).toHaveBeenCalledWith(
-      expect.not.objectContaining({
-        paymaster: expect.anything(),
-      }),
-    );
-    expect(toSimpleSmartAccountMock).not.toHaveBeenCalled();
-    expect(to7702SimpleSmartAccountMock).toHaveBeenCalledTimes(1);
-
-    expect(state.resolved).toMatchObject({
-      provider: "pimlico",
-      mode: "7702",
-      sponsorship: "disabled",
-    });
-    expect(state.account).toMatchObject({
-      provider: "pimlico",
-      mode: "7702",
-      address: DIRECT_OWNER_ADDRESS,
-    });
-    expect(state.error).toBeNull();
-  });
-
   it("captures errors without throwing", async () => {
     createSmartWalletClientMock.mockImplementation(() => {
       throw new Error("SDK init failed");
@@ -382,12 +296,7 @@ describe("createAAProviderState owner modes", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
     createAlchemySmartAccountMock.mockReset();
-    createPimlicoSmartAccountMock.mockReset();
     createSmartWalletClientMock.mockReset();
-    createPermissionlessSmartAccountClientMock.mockReset();
-    createPimlicoClientMock.mockReset();
-    getUserOperationGasPriceMock.mockReset();
-    toSimpleSmartAccountMock.mockReset();
     alchemyWalletTransportMock.mockClear();
     requestAccountMock.mockReset();
     sendCallsMock.mockReset();
@@ -396,21 +305,6 @@ describe("createAAProviderState owner modes", () => {
       requestAccount: requestAccountMock,
       sendCalls: sendCallsMock,
       waitForCallsStatus: waitForCallsStatusMock,
-    });
-    createPermissionlessSmartAccountClientMock.mockReturnValue({
-      sendTransaction: vi.fn().mockResolvedValue("0xmockuserophash"),
-    });
-    createPimlicoClientMock.mockReturnValue({
-      getUserOperationGasPrice: getUserOperationGasPriceMock,
-    });
-    getUserOperationGasPriceMock.mockResolvedValue({
-      fast: { maxFeePerGas: 1n, maxPriorityFeePerGas: 1n },
-    });
-    toSimpleSmartAccountMock.mockResolvedValue({
-      address: "0xcccccccccccccccccccccccccccccccccccccccc",
-    });
-    to7702SimpleSmartAccountMock.mockResolvedValue({
-      address: DIRECT_OWNER_ADDRESS,
     });
   });
 
@@ -457,41 +351,6 @@ describe("createAAProviderState owner modes", () => {
     });
   });
 
-  it("creates a Pimlico provider state for a session signer with the shared permissionless path", async () => {
-    const state = await createAAProviderState({
-      provider: "pimlico",
-      owner: {
-        kind: "session",
-        adapter: "para",
-        session: PARA,
-        signer: SIGNER,
-      },
-      chain: polygon,
-      callList: [...POLYGON_CALLS],
-      rpcUrl: "https://example-rpc.invalid",
-      apiKey: "pimlico-key",
-      mode: "4337",
-    });
-
-    expect(createPimlicoSmartAccountMock).not.toHaveBeenCalled();
-    expect(createPimlicoClientMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        entryPoint: expect.objectContaining({ version: "0.7" }),
-      }),
-    );
-    expect(createPermissionlessSmartAccountClientMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        chain: polygon,
-        paymaster: expect.any(Object),
-      }),
-    );
-    expect(state.account).toMatchObject({
-      provider: "pimlico",
-      mode: "4337",
-      SmartAccount4337: "0xcccccccccccccccccccccccccccccccccccccccc",
-    });
-  });
-
   it("returns a stable error state for unsupported session adapters", async () => {
     const state = await createAAProviderState({
       provider: "alchemy",
@@ -514,38 +373,6 @@ describe("createAAProviderState owner modes", () => {
     expect(state.error!.message).toBe(
       'Session adapter "privy" is not implemented.',
     );
-  });
-
-  it("creates a Pimlico 4337 provider state for a sessionless external wallet owner", async () => {
-    const state = await createAAProviderState({
-      provider: "pimlico",
-      owner: {
-        kind: "external-wallet",
-        signer: EXTERNAL_WALLET_CLIENT,
-        address: EXTERNAL_WALLET_CLIENT.account.address,
-      },
-      chain: polygon,
-      callList: [...POLYGON_CALLS],
-      rpcUrl: "https://example-rpc.invalid",
-      apiKey: "pimlico-key",
-      mode: "4337",
-    });
-
-    expect(createPimlicoSmartAccountMock).not.toHaveBeenCalled();
-    expect(toSimpleSmartAccountMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        owner: expect.objectContaining({
-          address: EXTERNAL_WALLET_CLIENT.account.address,
-        }),
-      }),
-    );
-    expect(state.account).toMatchObject({
-      provider: "pimlico",
-      mode: "4337",
-      address: EXTERNAL_WALLET_CLIENT.account.address,
-      SmartAccount4337: "0xcccccccccccccccccccccccccccccccccccccccc",
-    });
-    expect(state.error).toBeNull();
   });
 
   it("returns a clear unsupported state for Alchemy external wallet owners", async () => {

@@ -14,7 +14,6 @@ import {
   executeWalletCalls,
   getAAChainConfig,
   getWalletExecutorReady,
-  resolvePimlicoConfig,
   type AAOwner,
   type AAResolvedConfig,
   type AAState,
@@ -22,7 +21,6 @@ import {
   type AAProvider,
   type ExecutionResult,
   type SmartAccount,
-  type PimlicoResolvedConfig,
 } from '@aomi-labs/client';
 
 import { CHAIN_BY_ID } from '@/lib/chains';
@@ -51,7 +49,6 @@ function toWalletExecutionCall(call: TxCall): AAWalletCall {
 // ---------------------------------------------------------------------------
 
 const ALCHEMY_API_KEY = process.env.NEXT_PUBLIC_ALCHEMY_API_KEY?.trim() || '';
-const PIMLICO_API_KEY = process.env.NEXT_PUBLIC_PIMLICO_API_KEY?.trim() || '';
 const ALCHEMY_GAS_POLICY_ID = process.env.NEXT_PUBLIC_ALCHEMY_GAS_POLICY_ID?.trim();
 const AA_PROVIDER = normalizeAAProvider(process.env.NEXT_PUBLIC_AA_PROVIDER);
 
@@ -64,27 +61,22 @@ type AlchemyProviderConfig = AAResolvedConfig & {
   gasPolicyId?: string;
 };
 
-type ResolvedProviderConfig =
-  | AlchemyProviderConfig
-  | (PimlicoResolvedConfig & { provider: 'pimlico' });
+type ResolvedProviderConfig = AlchemyProviderConfig;
 
 function normalizeAAProvider(value: string | undefined): AAProviderPreference {
   const normalized = value?.trim().toLowerCase();
-  if (normalized === 'alchemy' || normalized === 'pimlico') {
+  if (normalized === 'alchemy') {
     return normalized;
   }
   return 'auto';
 }
 
 function getSelectedAAProvider(): AAProvider | null {
-  if (AA_PROVIDER === 'alchemy' || AA_PROVIDER === 'pimlico') {
+  if (AA_PROVIDER === 'alchemy') {
     return AA_PROVIDER;
   }
   if (ALCHEMY_API_KEY) {
     return 'alchemy';
-  }
-  if (PIMLICO_API_KEY) {
-    return 'pimlico';
   }
   return null;
 }
@@ -99,19 +91,6 @@ function resolveConfig(
   modeOverride?: '4337' | '7702',
 ): ResolvedProviderConfig | null {
   const provider = getSelectedAAProvider();
-
-  if (provider === 'pimlico') {
-    const resolved = resolvePimlicoConfig({
-      calls,
-      localPrivateKey,
-      chainsById: CHAIN_BY_ID as never,
-      publicOnly: true,
-      apiKey: PIMLICO_API_KEY || undefined,
-      modeOverride,
-    });
-
-    return resolved ? { ...resolved, provider } : null;
-  }
 
   if (provider !== 'alchemy') {
     return null;

@@ -1,7 +1,7 @@
 import type { AAMode } from "../aa/types";
 
 export type CliExecutionMode = "aa" | "eoa";
-export type CliAAProvider = "alchemy" | "pimlico";
+export type CliAAProvider = "alchemy";
 export type CliAAMode = AAMode;
 export type CliEmbeddedProvider = "para" | "privy";
 

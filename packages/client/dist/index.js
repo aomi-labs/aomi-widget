@@ -4129,7 +4129,7 @@ import { privateKeyToAccount as privateKeyToAccount3 } from "viem/accounts";
 // src/aa/adapt.ts
 function normalizeAAProvider(value) {
   const lowered = value.toLowerCase();
-  if (lowered === "alchemy" || lowered === "pimlico") {
+  if (lowered === "alchemy") {
     return lowered;
   }
   throw new Error(`Unsupported AA provider from SDK: ${value}`);
@@ -4386,7 +4386,7 @@ async function createAlchemyAAState(options) {
       execution,
       "alchemy",
       owner.kind,
-      "Alchemy AA external-wallet owners are not implemented yet. Use Pimlico for sessionless external-wallet 4337 execution."
+      "Alchemy AA external-wallet owners are not implemented yet. Sign with the wallet directly (EOA) instead."
     );
   }
   if (!apiKey) {
@@ -4520,430 +4520,19 @@ async function createAlchemyWalletApisState(params) {
   };
 }
 
-// src/aa/pimlico/resolve.ts
-function resolvePimlicoConfig(options) {
-  var _a, _b, _c;
-  const {
-    calls,
-    localPrivateKey,
-    accountAbstractionConfig = DEFAULT_AA_CONFIG,
-    chainsById,
-    rpcUrl,
-    modeOverride,
-    publicOnly = false,
-    throwOnMissingConfig = false,
-    apiKey: preResolvedApiKey
-  } = options;
-  if (!calls || localPrivateKey) {
-    return null;
-  }
-  const config = __spreadProps(__spreadValues({}, accountAbstractionConfig), {
-    provider: "pimlico"
-  });
-  const chainConfig = getAAChainConfig(config, calls, chainsById);
-  if (!chainConfig) {
-    if (throwOnMissingConfig) {
-      const chainIds = Array.from(new Set(calls.map((c) => c.chainId)));
-      throw new Error(
-        `AA is not configured for chain ${chainIds[0]}, or batching is disabled for that chain.`
-      );
-    }
-    return null;
-  }
-  const apiKey = (_c = preResolvedApiKey != null ? preResolvedApiKey : (_a = process.env.PIMLICO_API_KEY) == null ? void 0 : _a.trim()) != null ? _c : publicOnly ? (_b = process.env.NEXT_PUBLIC_PIMLICO_API_KEY) == null ? void 0 : _b.trim() : void 0;
-  if (!apiKey) {
-    if (throwOnMissingConfig) {
-      throw new Error("Pimlico AA requires PIMLICO_API_KEY.");
-    }
-    return null;
-  }
-  const chain = chainsById[chainConfig.chainId];
-  if (!chain) {
-    return null;
-  }
-  if (modeOverride && !chainConfig.supportedModes.includes(modeOverride)) {
-    if (throwOnMissingConfig) {
-      throw new Error(
-        `AA mode "${modeOverride}" is not supported on chain ${chainConfig.chainId}.`
-      );
-    }
-    return null;
-  }
-  const resolvedChainConfig = modeOverride ? __spreadProps(__spreadValues({}, chainConfig), { defaultMode: modeOverride }) : chainConfig;
-  const resolved = buildAAExecutionPlan(config, resolvedChainConfig);
-  return __spreadProps(__spreadValues({}, resolved), {
-    apiKey,
-    chain,
-    rpcUrl,
-    mode: resolvedChainConfig.defaultMode
-  });
-}
-
-// src/aa/pimlico/provider.ts
-function createPimlicoAAProvider({
-  accountAbstractionConfig = DEFAULT_AA_CONFIG,
-  usePimlicoAA,
-  chainsById,
-  rpcUrl
-}) {
-  return function usePimlicoAAProvider(calls, localPrivateKey) {
-    var _a;
-    const resolved = resolvePimlicoConfig({
-      calls,
-      localPrivateKey,
-      accountAbstractionConfig,
-      chainsById,
-      rpcUrl,
-      publicOnly: true
-    });
-    const params = resolved ? {
-      enabled: true,
-      apiKey: resolved.apiKey,
-      chain: resolved.chain,
-      mode: resolved.mode,
-      rpcUrl: resolved.rpcUrl
-    } : void 0;
-    const query = usePimlicoAA(params);
-    return {
-      resolved: resolved != null ? resolved : null,
-      account: query.account,
-      pending: Boolean(resolved && query.pending),
-      error: (_a = query.error) != null ? _a : null
-    };
-  };
-}
-
-// src/aa/pimlico/create.ts
-import { privateKeyToAccount as privateKeyToAccount4 } from "viem/accounts";
-var AA_DEBUG_ENABLED2 = process.env.AOMI_AA_DEBUG === "1";
-function pimDebug(message, fields) {
-  if (!AA_DEBUG_ENABLED2) return;
-  if (fields) {
-    console.debug(`[aomi][aa][pimlico] ${message}`, fields);
-    return;
-  }
-  console.debug(`[aomi][aa][pimlico] ${message}`);
-}
-async function createPimlicoAAState(options) {
-  var _a, _b;
-  const { chain, owner, callList, mode } = options;
-  const chainConfig = getAAChainConfig(DEFAULT_AA_CONFIG, callList, {
-    [chain.id]: chain
-  });
-  if (!chainConfig) {
-    throw new Error(`AA is not configured for chain ${chain.id}.`);
-  }
-  const effectiveMode = mode != null ? mode : chainConfig.defaultMode;
-  const plan = buildAAExecutionPlan(
-    __spreadProps(__spreadValues({}, DEFAULT_AA_CONFIG), { provider: "pimlico" }),
-    __spreadProps(__spreadValues({}, chainConfig), { defaultMode: effectiveMode })
-  );
-  const apiKey = (_b = options.apiKey) != null ? _b : (_a = process.env.PIMLICO_API_KEY) == null ? void 0 : _a.trim();
-  if (!apiKey) {
-    throw new Error("Pimlico AA requires PIMLICO_API_KEY.");
-  }
-  const execution = __spreadProps(__spreadValues({}, plan), {
-    mode: effectiveMode,
-    sponsorship: resolveAASponsorship(effectiveMode, plan.sponsorship)
-  });
-  const ownerParams = getOwnerParams(owner);
-  if (ownerParams.kind === "missing") {
-    return getMissingOwnerState(execution, "pimlico");
-  }
-  if (ownerParams.kind === "unsupported_adapter") {
-    return getUnsupportedAdapterState(execution, ownerParams.adapter);
-  }
-  const permissionlessSigner = owner.kind === "session" || owner.kind === "external-wallet" ? resolvePimlicoSessionSigner(ownerParams.ownerParams) : null;
-  try {
-    const signer = owner.kind === "direct" ? privateKeyToAccount4(owner.privateKey) : permissionlessSigner;
-    if (signer) {
-      return await createPimlicoPermissionlessState({
-        resolved: execution,
-        chain,
-        signer,
-        externalSigner: (owner.kind === "session" || owner.kind === "external-wallet") && "signer" in ownerParams.ownerParams ? ownerParams.ownerParams.signer : void 0,
-        rpcUrl: options.rpcUrl,
-        apiKey,
-        mode: effectiveMode
-      });
-    }
-    const { createPimlicoSmartAccount } = await import("@getpara/aa-pimlico");
-    const smartAccount = await createPimlicoSmartAccount(__spreadProps(__spreadValues({}, ownerParams.ownerParams), {
-      apiKey,
-      chain,
-      rpcUrl: options.rpcUrl,
-      mode: execution.mode
-    }));
-    if (!smartAccount) {
-      return {
-        resolved: execution,
-        account: null,
-        pending: false,
-        error: new Error("Pimlico AA account could not be initialized.")
-      };
-    }
-    const ownerAddress = "address" in ownerParams.ownerParams ? ownerParams.ownerParams.address : void 0;
-    if (!ownerAddress) {
-      return {
-        resolved: execution,
-        account: null,
-        pending: false,
-        error: new Error(
-          "Pimlico AA session owner is missing a wallet address. Connect a wallet first."
-        )
-      };
-    }
-    const account = adaptPimlicoSdkAccount(smartAccount, ownerAddress);
-    return {
-      resolved: execution,
-      account,
-      pending: false,
-      error: null
-    };
-  } catch (error) {
-    return {
-      resolved: execution,
-      account: null,
-      pending: false,
-      error: error instanceof Error ? error : new Error(String(error))
-    };
-  }
-}
-function buildPimlicoRpcUrl(chain, apiKey) {
-  const slug = chain.name.toLowerCase().replace(/\s+/g, "-");
-  return `https://api.pimlico.io/v2/${slug}/rpc?apikey=${apiKey}`;
-}
-function isExternalWalletSigner(signer) {
-  return !!signer && typeof signer === "object" && "transport" in signer && "account" in signer;
-}
-function resolvePimlicoSessionSigner(ownerParams) {
-  if (!("signer" in ownerParams) || !ownerParams.signer) {
-    return null;
-  }
-  if (!isExternalWalletSigner(ownerParams.signer)) {
-    return ownerParams.signer;
-  }
-  const account = ownerParams.signer.account;
-  if (!(account == null ? void 0 : account.address)) {
-    throw new Error(
-      "[resolvePimlicoSessionSigner] WalletClient must have an account set."
-    );
-  }
-  const externalSigner = ownerParams.signer;
-  return {
-    address: account.address,
-    publicKey: "0x",
-    source: "custom",
-    type: "local",
-    sign: async ({ hash }) => externalSigner.signMessage({
-      account: account.address,
-      message: { raw: hash }
-    }),
-    signMessage: async ({ message }) => externalSigner.signMessage({
-      account: account.address,
-      message
-    }),
-    signTransaction: async (tx) => externalSigner.signTransaction(__spreadProps(__spreadValues({}, tx), {
-      account
-    })),
-    signTypedData: async (typedData) => externalSigner.signTypedData(__spreadProps(__spreadValues({}, typedData), {
-      account: account.address
-    })),
-    signAuthorization: async () => {
-      throw new Error(
-        "EIP-7702 account delegation (signAuthorization) is not supported with external wallets."
-      );
-    }
-  };
-}
-async function ensureExternalWalletChain(signer, chain) {
-  if (!isExternalWalletSigner(signer)) return;
-  const currentChainId = await signer.getChainId();
-  if (currentChainId !== chain.id) {
-    throw new Error(
-      `External wallet is on chain ${currentChainId} but smart account targets chain ${chain.id} (${chain.name}).`
-    );
-  }
-}
-function rejectExternalWallet7702(signer) {
-  if (!isExternalWalletSigner(signer)) return;
-  throw new Error(
-    "EIP-7702 mode is not supported with external wallets. Use an embedded wallet or 4337 mode."
-  );
-}
-function adaptPimlicoSdkAccount(account, address3) {
-  const lowered = account.provider.toLowerCase();
-  if (lowered !== "alchemy" && lowered !== "pimlico") {
-    throw new Error(
-      `Unsupported AA provider from Pimlico SDK: ${account.provider}`
-    );
-  }
-  const provider = lowered;
-  if (account.mode === "4337") {
-    return {
-      provider,
-      mode: "4337",
-      address: address3,
-      SmartAccount4337: account.smartAccountAddress,
-      sendTransaction: async (call) => account.sendTransaction(call),
-      sendBatchTransaction: async (calls) => account.sendBatchTransaction(calls)
-    };
-  }
-  return __spreadProps(__spreadValues({
-    provider,
-    mode: "7702",
-    address: address3
-  }, account.delegationAddress ? { Delegation7702: account.delegationAddress } : {}), {
-    sendTransaction: async (call) => account.sendTransaction(call),
-    sendBatchTransaction: async (calls) => account.sendBatchTransaction(calls)
-  });
-}
-async function createPimlicoPermissionlessState(params) {
-  const { createSmartAccountClient } = await import("permissionless");
-  const { toSimpleSmartAccount, to7702SimpleSmartAccount } = await import("permissionless/accounts");
-  const { createPimlicoClient } = await import("permissionless/clients/pimlico");
-  const { createPublicClient: createPublicClient2, http: http2 } = await import("viem");
-  const { entryPoint07Address, entryPoint08Address, prepareUserOperation } = await import("viem/account-abstraction");
-  const signerAddress = params.signer.address;
-  const pimlicoRpcUrl = buildPimlicoRpcUrl(params.chain, params.apiKey);
-  const sponsored2 = params.resolved.sponsorship !== "disabled";
-  const entryPoint = params.mode === "7702" ? { address: entryPoint08Address, version: "0.8" } : { address: entryPoint07Address, version: "0.7" };
-  pimDebug(`${params.mode}:start`, {
-    signerAddress,
-    chainId: params.chain.id,
-    sponsored: sponsored2,
-    pimlicoRpcUrl: pimlicoRpcUrl.replace(params.apiKey, "***")
-  });
-  const publicClient = createPublicClient2({
-    chain: params.chain,
-    transport: http2(params.rpcUrl)
-  });
-  if (params.mode === "7702") {
-    rejectExternalWallet7702(params.externalSigner);
-  }
-  const paymasterClient = sponsored2 ? createPimlicoClient({
-    entryPoint,
-    transport: http2(pimlicoRpcUrl)
-  }) : void 0;
-  const smartAccount = params.mode === "7702" ? await to7702SimpleSmartAccount({
-    client: publicClient,
-    owner: params.signer,
-    entryPoint
-  }) : await toSimpleSmartAccount({
-    client: publicClient,
-    owner: params.signer,
-    entryPoint
-  });
-  if (params.mode === "7702") {
-    smartAccount.isDeployed = async () => false;
-  }
-  const accountAddress = smartAccount.address;
-  pimDebug(`${params.mode}:account-created`, {
-    signerAddress,
-    accountAddress
-  });
-  const userOperation = __spreadValues(__spreadValues({}, paymasterClient ? {
-    estimateFeesPerGas: async () => {
-      const gasPrice = await paymasterClient.getUserOperationGasPrice();
-      return gasPrice.fast;
-    }
-  } : {}), params.mode === "7702" ? {
-    prepareUserOperation: async (client, args) => {
-      const prepared = await prepareUserOperation(client, args);
-      if (prepared.authorization && params.signer.signAuthorization) {
-        prepared.authorization = await params.signer.signAuthorization({
-          contractAddress: prepared.authorization.address,
-          chainId: prepared.authorization.chainId,
-          nonce: prepared.authorization.nonce
-        });
-      }
-      return prepared;
-    }
-  } : {});
-  const smartAccountClient = createSmartAccountClient(__spreadProps(__spreadValues({
-    account: smartAccount,
-    chain: params.chain,
-    bundlerTransport: http2(pimlicoRpcUrl)
-  }, paymasterClient ? { paymaster: paymasterClient } : {}), {
-    userOperation
-  }));
-  const sendCalls = async (calls) => {
-    pimDebug(`${params.mode}:send:start`, {
-      accountAddress,
-      chainId: params.chain.id,
-      callCount: calls.length
-    });
-    await ensureExternalWalletChain(params.externalSigner, params.chain);
-    try {
-      const hash = await smartAccountClient.sendTransaction({
-        account: smartAccount,
-        calls: calls.map((c) => {
-          var _a;
-          return {
-            to: c.to,
-            value: c.value,
-            data: (_a = c.data) != null ? _a : "0x"
-          };
-        })
-      });
-      pimDebug(`${params.mode}:send:userOpHash`, { hash });
-      const receipt = await publicClient.waitForTransactionReceipt({
-        hash
-      });
-      pimDebug(`${params.mode}:send:confirmed`, {
-        transactionHash: receipt.transactionHash,
-        status: receipt.status
-      });
-      return { transactionHash: receipt.transactionHash };
-    } catch (error) {
-      throw error instanceof Error ? error : new Error(String(error));
-    }
-  };
-  const account = params.mode === "4337" ? {
-    provider: "pimlico",
-    mode: "4337",
-    address: signerAddress,
-    SmartAccount4337: accountAddress,
-    sendTransaction: async (call) => sendCalls([call]),
-    sendBatchTransaction: async (calls) => sendCalls(calls)
-  } : {
-    provider: "pimlico",
-    mode: "7702",
-    address: signerAddress,
-    sendTransaction: async (call) => sendCalls([call]),
-    sendBatchTransaction: async (calls) => sendCalls(calls)
-  };
-  return {
-    resolved: params.resolved,
-    account,
-    pending: false,
-    error: null
-  };
-}
-
 // src/aa/create.ts
 async function createAAProviderState(options) {
-  if (options.provider === "alchemy") {
-    return createAlchemyAAState({
-      chain: options.chain,
-      owner: options.owner,
-      rpcUrl: options.rpcUrl,
-      callList: options.callList,
-      mode: options.mode,
-      apiKey: options.apiKey,
-      gasPolicyId: options.gasPolicyId,
-      sponsored: options.sponsored,
-      proxyBaseUrl: options.proxyBaseUrl,
-      proxyBearer: options.proxyBearer
-    });
-  }
-  return createPimlicoAAState({
+  return createAlchemyAAState({
     chain: options.chain,
     owner: options.owner,
     rpcUrl: options.rpcUrl,
     callList: options.callList,
     mode: options.mode,
-    apiKey: options.apiKey
+    apiKey: options.apiKey,
+    gasPolicyId: options.gasPolicyId,
+    sponsored: options.sponsored,
+    proxyBaseUrl: options.proxyBaseUrl,
+    proxyBearer: options.proxyBearer
   });
 }
 export {
@@ -4973,7 +4562,6 @@ export {
   createAAProviderState,
   createAccountBearerProvider,
   createAlchemyAAProvider,
-  createPimlicoAAProvider,
   ensureSvmWalletBound,
   ensureSvmWalletBoundVia,
   executeWalletCalls,
@@ -4997,7 +4585,6 @@ export {
   normalizeTxPayload,
   parseChainId3 as parseChainId,
   posterFromClient,
-  resolvePimlicoConfig,
   toAAWalletCall,
   toAAWalletCalls,
   toViemSignMessageArgs,

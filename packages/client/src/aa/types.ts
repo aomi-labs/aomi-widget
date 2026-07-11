@@ -4,7 +4,7 @@ import type { Chain, Hex } from "viem";
 // Enums / Literal Types
 // ---------------------------------------------------------------------------
 
-export type AAProvider = "alchemy" | "pimlico";
+export type AAProvider = "alchemy";
 export type AAMode = "4337" | "7702";
 export type AASponsorship = "disabled" | "optional" | "required";
 
@@ -80,7 +80,7 @@ export type AACallPayload = Omit<AAWalletCall, "chainId">;
  *   `SmartAccount4337` is undefined.
  */
 export interface SmartAccount {
-  provider: "alchemy" | "pimlico";
+  provider: "alchemy";
   mode: "4337" | "7702";
   address: Hex;
   SmartAccount4337?: Hex;

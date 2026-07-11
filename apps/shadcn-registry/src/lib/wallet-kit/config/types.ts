@@ -88,7 +88,7 @@ export type WalletsConfig = {
 
 export type ExecutionConfig = {
   aa?: "off" | "optional" | "required";
-  provider?: "auto" | "alchemy" | "pimlico";
+  provider?: "auto" | "alchemy";
   modes?: ReadonlyArray<"4337" | "7702">;
   owner?: "auto" | "external-wallet" | "provider-session";
   sponsorship?:

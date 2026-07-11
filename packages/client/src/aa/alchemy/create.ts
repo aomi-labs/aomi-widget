@@ -217,7 +217,7 @@ export async function createAlchemyAAState(
       execution,
       "alchemy",
       owner.kind,
-      "Alchemy AA external-wallet owners are not implemented yet. Use Pimlico for sessionless external-wallet 4337 execution.",
+      "Alchemy AA external-wallet owners are not implemented yet. Sign with the wallet directly (EOA) instead.",
     );
   }
 

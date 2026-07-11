@@ -186,10 +186,8 @@ export {
   buildFeeAAWalletCall,
   appendFeeCallToPayload,
   createAlchemyAAProvider,
-  createPimlicoAAProvider,
   adaptSmartAccount,
   isAlchemySponsorshipLimitError,
-  resolvePimlicoConfig,
   createAAProviderState,
 } from "./aa";
 
@@ -215,11 +213,6 @@ export type {
   AlchemyHookParams,
   UseAlchemyAAHook,
   CreateAlchemyAAProviderOptions,
-  PimlicoHookParams,
-  UsePimlicoAAHook,
-  CreatePimlicoAAProviderOptions,
-  PimlicoResolveOptions,
-  PimlicoResolvedConfig,
   AAOwner,
   CreateAAStateOptions,
   NormalizedSimulatedFee,

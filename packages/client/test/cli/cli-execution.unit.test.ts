@@ -4,7 +4,6 @@ import { CliExit } from "../../src/cli/errors";
 
 const {
   createAlchemySmartAccountMock,
-  createPimlicoSmartAccountMock,
   createSmartWalletClientMock,
   alchemyWalletTransportMock,
   sendCallsMock,
@@ -17,7 +16,6 @@ const {
   });
   return {
     createAlchemySmartAccountMock: vi.fn(),
-    createPimlicoSmartAccountMock: vi.fn(),
     createSmartWalletClientMock: vi.fn(() => ({
       sendCalls: sendCallsMock,
       waitForCallsStatus: waitForCallsStatusMock,
@@ -33,10 +31,6 @@ const {
 
 vi.mock("@getpara/aa-alchemy", () => ({
   createAlchemySmartAccount: createAlchemySmartAccountMock,
-}));
-
-vi.mock("@getpara/aa-pimlico", () => ({
-  createPimlicoSmartAccount: createPimlicoSmartAccountMock,
 }));
 
 vi.mock("@alchemy/wallet-apis", () => ({
@@ -109,7 +103,6 @@ describe("CLI execution controls", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
     createAlchemySmartAccountMock.mockReset();
-    createPimlicoSmartAccountMock.mockReset();
     createSmartWalletClientMock.mockClear();
     alchemyWalletTransportMock.mockClear();
     sendCallsMock.mockClear();
@@ -229,7 +222,7 @@ describe("CLI execution controls", () => {
   // resolveCliExecutionDecision — default Alchemy key
   // -------------------------------------------------------------------------
 
-  it("defaults to 7702 AA for single-call auto mode", () => {
+  it("defaults to 7702 AA via the backend proxy for single-call auto mode", () => {
     const decision = resolveCliExecutionDecision({
       config: { baseUrl: "https://api.aomi.dev", app: "default" },
       chain: mainnet,
@@ -241,12 +234,12 @@ describe("CLI execution controls", () => {
       provider: "alchemy",
       aaMode: "7702",
       modeExplicit: false,
-      apiKey: "72eIUle_3rfixX00QJVwk",
+      proxy: true,
     });
-    expect(describeExecutionDecision(decision)).toBe("aa (alchemy, 7702)");
+    expect(describeExecutionDecision(decision)).toBe("aa (alchemy, 7702, proxy)");
   });
 
-  it("defaults to Alchemy direct AA for multi-call batches when no env vars are set", () => {
+  it("routes multi-call batches through the backend proxy", () => {
     const decision = resolveCliExecutionDecision({
       config: { baseUrl: "https://api.aomi.dev", app: "default" },
       chain: mainnet,
@@ -258,19 +251,16 @@ describe("CLI execution controls", () => {
       provider: "alchemy",
       aaMode: "7702",
       modeExplicit: false,
-      apiKey: "72eIUle_3rfixX00QJVwk",
+      proxy: true,
     });
     expect(describeExecutionDecision(decision)).toBe(
-      "aa (alchemy, 7702)",
+      "aa (alchemy, 7702, proxy)",
     );
   });
 
-  // -------------------------------------------------------------------------
-  // resolveCliExecutionDecision — BYOK
-  // -------------------------------------------------------------------------
-
-  it("uses Alchemy BYOK when ALCHEMY_API_KEY is set for multi-call batches", () => {
+  it("ignores client-side provider keys — the proxy owns the credential", () => {
     process.env.ALCHEMY_API_KEY = "alchemy-key";
+    process.env.PIMLICO_API_KEY = "pimlico-key";
 
     const decision = resolveCliExecutionDecision({
       config: { baseUrl: "https://api.aomi.dev", app: "default" },
@@ -283,14 +273,11 @@ describe("CLI execution controls", () => {
       provider: "alchemy",
       aaMode: "7702",
       modeExplicit: false,
-      apiKey: "alchemy-key",
+      proxy: true,
     });
-    expect(describeExecutionDecision(decision)).toBe("aa (alchemy, 7702)");
   });
 
   it("uses 7702 for multi-call batches on Polygon (all chains default to 7702)", () => {
-    process.env.ALCHEMY_API_KEY = "alchemy-key";
-
     const decision = resolveCliExecutionDecision({
       config: { baseUrl: "https://api.aomi.dev", app: "default" },
       chain: polygon,
@@ -305,31 +292,7 @@ describe("CLI execution controls", () => {
       provider: "alchemy",
       aaMode: "7702",
       modeExplicit: false,
-      apiKey: "alchemy-key",
-    });
-  });
-
-  it("uses Pimlico BYOK when PIMLICO_API_KEY is set and provider is pimlico", () => {
-    process.env.PIMLICO_API_KEY = "pimlico-key";
-
-    const decision = resolveCliExecutionDecision({
-      config: {
-        baseUrl: "https://api.aomi.dev",
-        app: "default",
-        execution: "aa",
-        aaProvider: "pimlico",
-        aaMode: "4337",
-      },
-      chain: mainnet,
-      callList: [...CALL_LIST],
-    });
-
-    expect(decision).toEqual({
-      execution: "aa",
-      provider: "pimlico",
-      aaMode: "4337",
-      modeExplicit: true,
-      apiKey: "pimlico-key",
+      proxy: true,
     });
   });
 
@@ -539,14 +502,16 @@ describe("CLI execution controls", () => {
         execution: "aa",
         provider: "alchemy",
         aaMode: "7702",
+        proxy: true,
       }),
     ).toMatchObject({ aaMode: "4337" });
 
     expect(
       getAlternativeAAMode({
         execution: "aa",
-        provider: "pimlico",
+        provider: "alchemy",
         aaMode: "4337",
+        proxy: true,
       }),
     ).toMatchObject({ aaMode: "7702" });
   });
@@ -562,6 +527,7 @@ describe("CLI execution controls", () => {
         provider: "alchemy",
         aaMode: "7702",
         modeExplicit: true,
+        proxy: true,
       }),
     ).toBeNull();
   });

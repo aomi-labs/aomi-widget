@@ -16,7 +16,7 @@ import type { AomiTxResult } from "../types";
 
 export type RequestedAAMode = "none" | "4337" | "7702";
 export type WalletKitAAPolicy = "off" | "optional" | "required";
-export type WalletKitAAProviderPreference = "auto" | "alchemy" | "pimlico";
+export type WalletKitAAProviderPreference = "auto" | "alchemy";
 export type WalletProviderState = Parameters<
   typeof executeWalletCalls
 >[0]["providerState"];

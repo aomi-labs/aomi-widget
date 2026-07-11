@@ -47,16 +47,6 @@ export {
   createAlchemyAAProvider,
 } from "./alchemy";
 
-export {
-  type PimlicoHookParams,
-  type UsePimlicoAAHook,
-  type CreatePimlicoAAProviderOptions,
-  createPimlicoAAProvider,
-  type PimlicoResolveOptions,
-  type PimlicoResolvedConfig,
-  resolvePimlicoConfig,
-} from "./pimlico";
-
 // ---------------------------------------------------------------------------
 // Adapt
 // ---------------------------------------------------------------------------

@@ -53,7 +53,7 @@ export type AomiNetworkTarget =
   | { family: "svm" | "solana"; networkId: string };
 export type AomiWalletKind = "eoa" | "smart-account";
 export type AomiAAMode = "none" | "4337" | "7702";
-export type AomiSponsorProvider = "alchemy" | "coinbase" | "pimlico" | "self";
+export type AomiSponsorProvider = "alchemy" | "coinbase" | "self";
 export type SessionProvider = "para" | "privy" | "custom" | (string & {});
 export type EmbeddedProvider = "para" | "privy" | "aomi" | (string & {});
 export type AuthProviderId = SessionProvider | "none" | "baseAccount";

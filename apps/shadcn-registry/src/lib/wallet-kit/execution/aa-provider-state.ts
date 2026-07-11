@@ -19,25 +19,20 @@ import type { EvmWalletRuntime } from "../runtime/evm/wallet-runtime";
 const ALCHEMY_API_KEY = process.env.NEXT_PUBLIC_ALCHEMY_API_KEY?.trim() ?? "";
 const ALCHEMY_GAS_POLICY_ID =
   process.env.NEXT_PUBLIC_ALCHEMY_GAS_POLICY_ID?.trim();
-const PIMLICO_API_KEY = process.env.NEXT_PUBLIC_PIMLICO_API_KEY?.trim() ?? "";
 const AA_PROVIDER_OVERRIDE =
   process.env.NEXT_PUBLIC_AA_PROVIDER?.trim().toLowerCase();
 
 function resolveAAProvider(
   preference: WalletKitAAProviderPreference = "auto",
 ): AAProvider | null {
-  if (preference === "alchemy" || preference === "pimlico") {
+  if (preference === "alchemy") {
     return preference;
   }
 
-  if (
-    AA_PROVIDER_OVERRIDE === "alchemy" ||
-    AA_PROVIDER_OVERRIDE === "pimlico"
-  ) {
+  if (AA_PROVIDER_OVERRIDE === "alchemy") {
     return AA_PROVIDER_OVERRIDE;
   }
 
-  if (PIMLICO_API_KEY) return "pimlico";
   if (ALCHEMY_API_KEY) return "alchemy";
   return null;
 }
@@ -131,10 +126,7 @@ export async function resolveAAProviderState({
     };
   }
 
-  const apiKey =
-    provider === "alchemy"
-      ? ALCHEMY_API_KEY || undefined
-      : PIMLICO_API_KEY || undefined;
+  const apiKey = ALCHEMY_API_KEY || undefined;
   if (!apiKey) {
     return {
       providerState: { resolved: null, pending: false, error: null },
@@ -172,7 +164,7 @@ export async function resolveAAProviderState({
       callList,
       mode: resolvedMode as AAMode,
       apiKey,
-      gasPolicyId: provider === "alchemy" ? ALCHEMY_GAS_POLICY_ID : undefined,
+      gasPolicyId: ALCHEMY_GAS_POLICY_ID,
       sponsored,
     });
 
@@ -216,7 +208,7 @@ export function resolveAASponsorship(
   providerPreference: WalletKitAAProviderPreference = "auto",
 ): {
   sponsored: boolean;
-  sponsorProvider: "alchemy" | "pimlico" | "self";
+  sponsorProvider: "alchemy" | "self";
   sponsorAccount?: string;
 } {
   const aaProvider = resolveAAProvider(providerPreference);
@@ -225,13 +217,6 @@ export function resolveAASponsorship(
       sponsored: Boolean(ALCHEMY_GAS_POLICY_ID),
       sponsorProvider: "alchemy",
       sponsorAccount: ALCHEMY_GAS_POLICY_ID || undefined,
-    };
-  }
-  if (aaProvider === "pimlico") {
-    return {
-      sponsored: Boolean(PIMLICO_API_KEY),
-      sponsorProvider: "pimlico",
-      sponsorAccount: undefined,
     };
   }
   return {

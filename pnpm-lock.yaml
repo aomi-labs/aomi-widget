@@ -783,9 +783,6 @@ importers:
       '@getpara/aa-alchemy':
         specifier: 2.21.0
         version: 2.21.0(bufferutil@4.1.0)(encoding@0.1.13)(typescript@5.9.3)(utf-8-validate@5.0.10)(viem@2.47.11(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@3.25.76))
-      '@getpara/aa-pimlico':
-        specifier: 2.21.0
-        version: 2.21.0(viem@2.47.11(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@3.25.76))
       '@solana/web3.js':
         specifier: ^1.98.4
         version: 1.98.4(bufferutil@4.1.0)(encoding@0.1.13)(typescript@5.9.3)(utf-8-validate@5.0.10)
@@ -795,9 +792,6 @@ importers:
       citty:
         specifier: ^0.2.2
         version: 0.2.2
-      permissionless:
-        specifier: ^0.3.5
-        version: 0.3.5(viem@2.47.11(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@3.25.76))
       viem:
         specifier: 2.47.11
         version: 2.47.11(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@3.25.76)
@@ -1976,11 +1970,6 @@ packages:
 
   '@getpara/aa-pimlico@2.19.0':
     resolution: {integrity: sha512-ohedTfG8QwybRZZvEOwYAgsc/dTTkTz5qU5bm7Kzlg+6lS4eizZ2KzbiIvr7DZ1pJV1WXp+FB85he2RZvm3o7A==}
-    peerDependencies:
-      viem: 2.47.11
-
-  '@getpara/aa-pimlico@2.21.0':
-    resolution: {integrity: sha512-4FVn4smJpLR07wlyNdQJi4o5n7Mw6Q5PGQ0wAJwwTcdYwnRurOaX2OEsWDaSZex+BAjorRcC6Tvrc8k+0Ym76w==}
     peerDependencies:
       viem: 2.47.11
 
@@ -10758,15 +10747,6 @@ packages:
       ox:
         optional: true
 
-  permissionless@0.3.5:
-    resolution: {integrity: sha512-hYc9ALMMQVc3kETuDss60Xs3mb2wHhNu4kTwR9DLNu9+BwrPhzt0ZtPJyLAaeYMuw3BtPiRte+reumFpAfYChQ==}
-    peerDependencies:
-      ox: ^0.11.3
-      viem: 2.47.11
-    peerDependenciesMeta:
-      ox:
-        optional: true
-
   pg-cloudflare@1.4.0:
     resolution: {integrity: sha512-Vo7z/6rrQYxpNRylp4Tlob2elzbh+N/MOQbxFVWCxS7oEx6jF53GTJFxK2WWpKuBRkmiin4Mt+xofFDjx09R0A==}
 
@@ -15584,15 +15564,6 @@ snapshots:
       '@getpara/viem-v2-integration': 2.19.0(viem@2.47.11(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@4.4.3))
       permissionless: 0.2.57(viem@2.47.11(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@4.4.3))
       viem: 2.47.11(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@4.4.3)
-    transitivePeerDependencies:
-      - debug
-      - ox
-
-  '@getpara/aa-pimlico@2.21.0(viem@2.47.11(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@3.25.76))':
-    dependencies:
-      '@getpara/viem-v2-integration': 2.21.0(viem@2.47.11(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@3.25.76))
-      permissionless: 0.2.57(viem@2.47.11(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@3.25.76))
-      viem: 2.47.11(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@3.25.76)
     transitivePeerDependencies:
       - debug
       - ox
@@ -38843,10 +38814,6 @@ snapshots:
   permissionless@0.2.57(viem@2.47.11(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@4.4.3)):
     dependencies:
       viem: 2.47.11(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@4.4.3)
-
-  permissionless@0.3.5(viem@2.47.11(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@3.25.76)):
-    dependencies:
-      viem: 2.47.11(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@3.25.76)
 
   pg-cloudflare@1.4.0:
     optional: true

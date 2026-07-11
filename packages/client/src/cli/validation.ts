@@ -24,10 +24,10 @@ export function normalizePrivateKey(value: string | undefined): string | undefin
 
 export function parseAAProvider(value: string | undefined): CliAAProvider | undefined {
   if (value === undefined || value.trim() === "") return undefined;
-  if (value === "alchemy" || value === "pimlico") {
+  if (value === "alchemy") {
     return value;
   }
-  fatal("Unsupported AA provider. Use `alchemy` or `pimlico`.");
+  fatal("Unsupported AA provider. Only `alchemy` is supported (Pimlico was removed).");
 }
 
 export function parseAAMode(value: string | undefined): CliAAMode | undefined {

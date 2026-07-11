@@ -10,8 +10,7 @@ import {
 } from "../aa";
 import { ALCHEMY_CHAIN_SLUGS } from "../chains";
 import { createCliGetAccountBearer } from "./client-factory";
-import type { CliAAProvider, CliAAMode, CliConfig } from "./types";
-import { resolveAlchemyApiKey } from "../aa/alchemy/defaults";
+import type { CliAAMode, CliConfig } from "./types";
 
 // ---------------------------------------------------------------------------
 // ERC-20 Call Detection
@@ -54,11 +53,10 @@ export type CliExecutionDecision =
     }
   | {
       execution: "aa";
-      provider: CliAAProvider;
+      provider: "alchemy";
       aaMode: CliAAMode;
       modeExplicit?: boolean;
-      apiKey?: string;
-      proxy?: boolean;
+      proxy: true;
     };
 
 /**
@@ -77,10 +75,11 @@ function resolveMode(chain: Chain, callList: AAWalletCall[], explicitMode?: CliA
 /**
  * Decide how to execute a transaction: AA or EOA.
  *
- * - `--eoa`  → EOA, always.
- * - PIMLICO_API_KEY + --aa-provider pimlico → Pimlico direct
- * - Alchemy key resolved (env or built-in default) → Alchemy direct
- * - (fallback) → Alchemy proxy via backend
+ * - `--eoa` → EOA, always.
+ * - otherwise → Alchemy via the backend AA proxy (`/api/aa/v1/:chain_slug`).
+ *
+ * Client-side provider keys are gone: the backend proxy owns the Alchemy
+ * credential (and sponsorship policy), the CLI only signs.
  */
 export function resolveCliExecutionDecision(params: {
   config: CliConfig;
@@ -94,34 +93,6 @@ export function resolveCliExecutionDecision(params: {
     return { execution: "eoa" };
   }
 
-  const pimlicoKey = process.env.PIMLICO_API_KEY?.trim();
-  const alchemyKey = resolveAlchemyApiKey();
-
-  // Pimlico BYOK (only when explicitly requested)
-  if (pimlicoKey && config.aaProvider === "pimlico") {
-    const aaMode = resolveMode(chain, callList, config.aaMode);
-    return {
-      execution: "aa",
-      provider: "pimlico",
-      aaMode,
-      modeExplicit: Boolean(config.aaMode),
-      apiKey: pimlicoKey,
-    };
-  }
-
-  // Alchemy direct (user key or built-in default)
-  if (alchemyKey) {
-    const aaMode = resolveMode(chain, callList, config.aaMode);
-    return {
-      execution: "aa",
-      provider: "alchemy",
-      aaMode,
-      modeExplicit: Boolean(config.aaMode),
-      apiKey: alchemyKey,
-    };
-  }
-
-  // Default: Alchemy proxy (zero-config)
   const aaMode = resolveMode(chain, callList, config.aaMode);
   return {
     execution: "aa",
@@ -168,13 +139,15 @@ export async function createCliProviderState(params: {
   // credential rides the transport's bearer channel and the backend swaps
   // it for the server-side Alchemy key upstream.
   const chainSlug = ALCHEMY_CHAIN_SLUGS[chain.id];
-  const proxyBaseUrl = decision.proxy && chainSlug
-    ? `${baseUrl}/api/aa/v1/${chainSlug}`
-    : undefined;
-  const proxyBearer = proxyBaseUrl
-    ? ((await createCliGetAccountBearer(config)?.({ forceRefresh: false })) ??
-      undefined)
-    : undefined;
+  if (!chainSlug) {
+    throw new Error(
+      `AA is not supported on chain ${chain.id} (no backend AA proxy route). Use --eoa.`,
+    );
+  }
+  const proxyBaseUrl = `${baseUrl}/api/aa/v1/${chainSlug}`;
+  const proxyBearer =
+    (await createCliGetAccountBearer(config)?.({ forceRefresh: false })) ??
+    undefined;
   const resolvedRpcUrl =
     rpcUrl ||
     chain.rpcUrls.default.http[0] ||
@@ -188,7 +161,6 @@ export async function createCliProviderState(params: {
     rpcUrl: resolvedRpcUrl,
     callList,
     mode: decision.aaMode,
-    apiKey: decision.apiKey,
     proxyBaseUrl,
     proxyBearer,
   });
@@ -205,6 +177,5 @@ export function describeExecutionDecision(
     return "eoa";
   }
 
-  const suffix = decision.proxy ? ", proxy" : "";
-  return `aa (${decision.provider}, ${decision.aaMode}${suffix})`;
+  return `aa (${decision.provider}, ${decision.aaMode}, proxy)`;
 }
