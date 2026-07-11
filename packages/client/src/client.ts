@@ -42,7 +42,7 @@ import { normalizeAppDescriptor } from "./app-descriptor";
 const SESSION_ID_HEADER = "X-Session-Id";
 // The threads-era backend reads `X-Thread-Id`; older backends read
 // `X-Session-Id`. Both are sent during the migration so routes whose paths
-// didn't change (`/api/chat`, `/api/state`, `/api/updates`) work against
+// didn't change (`/api/thread/chat`, `/api/thread/state`, `/api/thread/updates`) work against
 // either backend.
 const THREAD_ID_HEADER = "X-Thread-Id";
 const APP_KEY_HEADER = "Aomi-App-Key";
@@ -440,17 +440,17 @@ export class AomiClient {
     const normalizedUserState = stripBulkyPendingFields(
       UserState.normalize(userState),
     );
-    const urlWithSyncParams = buildApiUrl(this.baseUrl, "/api/state", {
+    const urlWithSyncParams = buildApiUrl(this.baseUrl, "/api/thread/state", {
       user_state: normalizedUserState
         ? JSON.stringify(normalizedUserState)
         : undefined,
       client_id: clientId,
     });
-    const bareUrl = buildApiUrl(this.baseUrl, "/api/state");
+    const bareUrl = buildApiUrl(this.baseUrl, "/api/thread/state");
     const shouldRetryWithoutSyncParams =
       Boolean(normalizedUserState) || Boolean(clientId);
 
-    this.logger?.debug("[aomi][client] GET /api/state start", {
+    this.logger?.debug("[aomi][client] GET /api/thread/state start", {
       sessionId,
       clientId,
       hasUserState: Boolean(normalizedUserState),
@@ -468,7 +468,7 @@ export class AomiClient {
       (response.status === 400 || response.status === 414)
     ) {
       this.logger?.debug(
-        "[aomi][client] GET /api/state retrying without sync params",
+        "[aomi][client] GET /api/thread/state retrying without sync params",
         {
           sessionId,
           initialStatus: response.status,
@@ -483,7 +483,7 @@ export class AomiClient {
       );
     }
 
-    this.logger?.debug("[aomi][client] GET /api/state response", {
+    this.logger?.debug("[aomi][client] GET /api/thread/state response", {
       sessionId,
       status: response.status,
       ok: response.ok,
@@ -516,7 +516,7 @@ export class AomiClient {
       UserState.normalize(options?.userState),
     );
     const applicationId = options?.applicationId?.toString().trim();
-    const url = buildApiUrl(this.baseUrl, "/api/chat", {
+    const url = buildApiUrl(this.baseUrl, "/api/thread/chat", {
       app,
       application_id: applicationId || undefined,
       message,
@@ -526,7 +526,7 @@ export class AomiClient {
       client_id: options?.clientId,
     });
 
-    this.logger?.debug("[aomi][client] POST /api/chat prepared", {
+    this.logger?.debug("[aomi][client] POST /api/thread/chat prepared", {
       sessionId,
       app,
       applicationId,
@@ -541,7 +541,7 @@ export class AomiClient {
     }
 
     this.logger?.debug("[aomi][client] POST start", {
-      path: "/api/chat",
+      path: "/api/thread/chat",
       sessionId,
       hasApiKey: Boolean(apiKey),
       url,
@@ -553,7 +553,7 @@ export class AomiClient {
     });
 
     this.logger?.debug("[aomi][client] POST response", {
-      path: "/api/chat",
+      path: "/api/thread/chat",
       sessionId,
       status: response.status,
       ok: response.ok,
@@ -604,12 +604,12 @@ export class AomiClient {
    * Interrupt the AI's current response.
    */
   async interrupt(sessionId: string): Promise<AomiInterruptResponse> {
-    this.logger?.debug("[aomi][client] POST /api/interrupt prepared", {
+    this.logger?.debug("[aomi][client] POST /api/thread/interrupt prepared", {
       sessionId,
     });
     return postState<AomiInterruptResponse>(
       this.baseUrl,
-      "/api/interrupt",
+      "/api/thread/interrupt",
       {},
       sessionId,
       this.fetchImpl,
@@ -900,7 +900,7 @@ export class AomiClient {
     sessionId: string,
     count?: number,
   ): Promise<AomiSystemEvent[]> {
-    const url = buildApiUrl(this.baseUrl, "/api/events", {
+    const url = buildApiUrl(this.baseUrl, "/api/thread/events", {
       count: count !== undefined ? String(count) : undefined,
     });
     const response = await this.fetchImpl(url, {
@@ -1200,7 +1200,7 @@ export class AomiClient {
     }>,
     options?: { from?: string; chainId?: number },
   ): Promise<AomiSimulateResponse> {
-    const url = joinApiPath(this.baseUrl, "/api/simulate");
+    const url = joinApiPath(this.baseUrl, "/api/exec/simulate");
     const headers = new Headers(
       withSessionHeader(sessionId, { "Content-Type": "application/json" }),
     );

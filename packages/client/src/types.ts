@@ -94,7 +94,7 @@ export interface AomiMessage {
 // =============================================================================
 
 /**
- * GET /api/state
+ * GET /api/thread/state
  * Fetches current session state including messages and processing status
  */
 export interface AomiStateResponse {
@@ -106,7 +106,7 @@ export interface AomiStateResponse {
 }
 
 /**
- * POST /api/chat
+ * POST /api/thread/chat
  * Sends a chat message and returns updated session state
  */
 export interface AomiChatResponse {
@@ -126,7 +126,7 @@ export interface AomiSystemResponse {
 }
 
 /**
- * POST /api/simulate
+ * POST /api/exec/simulate
  * Batch-simulate pending transactions atomically (snapshot → sequential send → revert).
  */
 export interface AomiSimulateFee {
@@ -159,7 +159,7 @@ export interface AomiSimulateResponse {
 }
 
 /**
- * POST /api/interrupt
+ * POST /api/thread/interrupt
  * Interrupts current processing and returns updated session state
  */
 export type AomiInterruptResponse = AomiChatResponse;
@@ -298,7 +298,7 @@ export interface AomiDeleteByokKeyResponse {
 }
 
 // =============================================================================
-// SSE Event Types (/api/updates)
+// SSE Event Types (/api/thread/updates)
 // =============================================================================
 
 /**
@@ -386,7 +386,7 @@ export type AomiSSEEventType =
   | "system_notice";
 
 // =============================================================================
-// System Events (/api/events)
+// System Events (/api/thread/events)
 // =============================================================================
 
 /**
