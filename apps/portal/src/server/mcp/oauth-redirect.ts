@@ -2,6 +2,14 @@ import { getPool } from "@aomi-labs/account";
 
 const MCP_AUTHORIZE_PATH = "/api/auth/mcp/authorize";
 
+/**
+ * Something upstream of this route handler rewrites loopback `redirect_uri`
+ * hosts on the deployed stack (`127.0.0.1` -> `localhost`) — param-specific,
+ * so it is OAuth-aware, but it is NOT better-auth (1.6.19 does exact-match
+ * validation and no loopback rewriting; verified against its source) and not
+ * portal code. Rather than chase the platform layer, snap the param back to
+ * the client's registered URI, which holds regardless of which layer mutates.
+ */
 export async function withRegisteredMcpRedirectUri(
   request: Request,
   lookupRedirectUrls = registeredRedirectUrls,
@@ -14,7 +22,17 @@ export async function withRegisteredMcpRedirectUri(
   const redirectUri = url.searchParams.get("redirect_uri");
   if (!clientId || !redirectUri) return request;
 
-  const registered = await lookupRedirectUrls(clientId).catch(() => []);
+  const registered = await lookupRedirectUrls(clientId).catch(
+    (error: unknown) => {
+      // A silent [] here quietly disables the fix and resurfaces as an
+      // undebuggable "Invalid OAuth callback" at the client. Say something.
+      console.warn(
+        "mcp authorize: registered redirect_uri lookup failed; passing request through",
+        error,
+      );
+      return [];
+    },
+  );
   const exactRedirectUri = selectRegisteredRedirectUri(redirectUri, registered);
   if (!exactRedirectUri || exactRedirectUri === redirectUri) return request;
 

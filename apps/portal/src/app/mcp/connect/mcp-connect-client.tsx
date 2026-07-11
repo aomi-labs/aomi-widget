@@ -21,6 +21,9 @@ const providerLabels = { privy: "Privy", para: "Para" } as const;
 
 const STASH_KEY = "aomi.mcp.authorize.query";
 
+/** How long to wait for the provider modal before letting the user retry. */
+const PROVIDER_SIGN_IN_TIMEOUT_MS = 120_000;
+
 const SCOPE_DESCRIPTIONS: Record<string, string> = {
   openid: "Confirm your Aomi identity",
   profile: "Read your basic profile",
@@ -220,6 +223,22 @@ function ProviderSignIn({
     providerRequested,
     walletKit.getAccountCredential,
   ]);
+
+  // The provider modal can be dismissed without completing sign-in, in which
+  // case `getAccountCredential` never materializes and the effect above never
+  // fires. Without a deadline the page would sit disabled on "Complete
+  // sign-in..." forever; reset instead so the user can retry.
+  useEffect(() => {
+    if (!providerRequested || exchangeRequested || complete || !pending) {
+      return;
+    }
+    const timer = setTimeout(() => {
+      setStatus(`${providerLabels[provider]} sign-in timed out. Try again.`);
+      setProviderRequested(false);
+      setPending(false);
+    }, PROVIDER_SIGN_IN_TIMEOUT_MS);
+    return () => clearTimeout(timer);
+  }, [complete, exchangeRequested, pending, provider, providerRequested]);
 
   useEffect(() => {
     if (!exchangeRequested || complete || !pending) return;
