@@ -38,6 +38,49 @@ fixes verified in working tree
 - Operational follow-ups for Phase 2: run the new supabase migration;
   subscribe the GitHub App to `workflow_run` webhooks; grant the App
   `Actions: read + write`.
+- Decisions locked (plan doc §6): control-plane bin = `aomi/bin/manager`;
+  R2 provisioning agent-driven via wrangler; keep polling (no SSE);
+  partner-scoped bearers as their own change before first partner onboards.
+- 2026-07-10 later session: Phase 2 REDESIGNED per Cecilia — `github_ci_runs`
+  replaced by a proper `deployments` projection table (full manifest JSONB +
+  indexed columns + webhook-fed ci_* columns; write-through at deploy, lazy
+  backfill on status reads, workflow_run webhook matching by repo+branch+
+  commit-prefix). Phase 3 CODE done: `crates/artifact-store` (config-gated
+  R2/SigV4 client) + cache-through in `AppFetcher::fetch`. NO live
+  Cloudflare changes; R2 is not even enabled on the account yet (dashboard
+  step, Cecilia). All verified: backend 195/195, database + runtime + crate
+  tests, fmt, clippy. Pre-existing env failure: runtime
+  `all_plugins_load_and_have_valid_manifests` fails on SDK 3.0.1 dylibs vs
+  3.0.2 host (see teammate's `docs/plans/2026-07-10-sdk-bump-app-rebuild.md`).
+- Phase 4 CODE done, then upgraded to a physical extraction (Cecilia's
+  call): the deploy domain — `platforms/*` handlers, deploy-surface HTTP
+  endpoints (+webhook), activation auth (`PlatformActivationToken`,
+  `Activation`, `AuthorizationHeaderExt`), and the `github_app.*.toml`
+  configs — now LIVES in the `manager` crate (`aomi/bin/manager`, lib+bin,
+  edition 2021). Dependency arrow: backend → manager (never reverse);
+  backend re-exports keep `crate::handler::platforms::*` /
+  `crate::auth::Activation` paths alive for its remaining callers (runtime
+  reconciler, runtime-coupled `apps` endpoints, AuthRouter). Endpoints are
+  substate-typed (`State<PlatformHandler>`/`State<DbPool>`) so the same fns
+  mount in both routers. `PlatformHandler::new(&SharedRuntime)` was dropped
+  (backend constructs via `from_pool`), keeping manager runtime-free.
+  Deploy workflow toml paths updated to `aomi/bin/manager/…` (repo file
+  only). Tests: backend 135 + manager 60 = same 195, all green; fmt +
+  clippy clean of new warnings. NO infra/live changes anywhere.
+- Read-path perf fixes done + committed (commit 2 on seperate-github-proxy):
+  card hydration (`user_source_latest_deployment`), history
+  (`user_source_deployments`), and the `deployment_status` hot-poll window
+  now serve from the `deployments` projection (record JSONB + webhook-fed
+  CI); GitHub only on row-miss, with lazy write-back backfill. New
+  `DbDeployment::list_for_source` + widened index in the unapplied
+  migration. Projects/Overview page loads become GitHub-free once each
+  source has one row.
+- Next (Cecilia): review + land both repos' diffs; run the deployments
+  migration; GitHub App settings (workflow_run webhook + Actions r/w);
+  enable R2 in the Cloudflare dashboard → I provision bucket/token + env;
+  infra cutover for manager (systemd unit + edge routes + webhook URL) when
+  ready. Ops note: freed ~80GB by deleting product-mono cargo incremental
+  cache (disk hit ENOSPC mid-build; cache regenerates).
 
 ## Aomi Build owned operate + pre-prod fixes (2026-07-08)
 

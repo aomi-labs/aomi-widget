@@ -222,43 +222,106 @@ verified (launch suite, typecheck, lint).
   package + both apps. NOTE: Phase 1 subsumes the Phase 0 `commitMatches` fix
   (function deleted); the remaining four Phase 0 fixes are intact.
 
-**Phase 2 — done (CI hot path), verified.** In `product-mono`:
-- `supabase/migrations/20260710000000_github_ci_runs.sql` + schema +
-  `DbGithubCiRun` entity (upsert keyed on repository+run_id; prefix lookup by
-  commit).
-- Webhook ingress now projects `workflow_run` events (HMAC path reused).
-- `resolve_deploy_ci` is projection-first with trust rules (completed rows
-  always trusted; in-flight rows trusted for 30 min; else one live read that
-  backfills the projection). This IS the reconciler — reconcile-on-read, no
-  background task needed.
-- Rerun flips the projected row to `queued` (full-SHA rows only).
-- Per-app GitHub release reads are skipped while CI is in flight.
-- Unit tests for trust rules + webhook payload parsing. 195/195, fmt, clippy.
+**Phase 2 — done (redesigned per Cecilia to a proper `deployments`
+projection), verified.** In `product-mono`:
+- `supabase/migrations/20260710000000_deployments_projection.sql`: one
+  `deployments` table — the manifest read model (full `DeploymentRecord` as
+  JSONB + extracted/indexed columns) with webhook-fed `ci_*` columns
+  (GitHub vocabulary: `ci_status` queued|in_progress|completed +
+  `ci_conclusion`). Replaces the interim `github_ci_runs` design entirely.
+- `DbDeployment` entity: `upsert_record` (never touches `ci_*`), `set_ci`,
+  `apply_workflow_run` (matches on platform repo + branch, then commit
+  prefix — short-SHA tolerant), `commit_matches` helper.
+- Projection writers: write-through at deploy (`PlatformHandler::deploy`),
+  lazy backfill on every status read (old deployments gain rows when first
+  viewed), `workflow_run` webhook ingress (HMAC path reused).
+- `resolve_deploy_ci` is projection-first with trust rules (completed CI
+  always trusted; in-flight trusted 30 min via `ci_updated_at`; else one live
+  read that writes CI back). Reconcile-on-read — no background task.
+- Rerun flips the deployment's CI to `queued` by deployment id.
+- Per-app GitHub release reads skipped while CI is in flight.
+- Unit tests: trust rules, ci-column vocabulary, commit matching, webhook
+  payload parsing. Backend 195/195, database suite green, fmt, clippy.
 - Operational follow-ups: run the migration; subscribe the GitHub App to the
   `workflow_run` webhook event and grant `Actions: read + write`.
-- Deliberately deferred from Phase 2: manifest→DB projection for card
-  hydration/history (separate schema design), SSE.
+- Follow-up now unlocked by this table: switch latest-deployment / history /
+  card-hydration endpoints to read `deployments.record` DB-first (lazy
+  backfill populates rows organically; decide backfill posture before
+  cutting reads over).
 
-**Phase 3 + 4 — blocked, not started, on purpose.**
-- Phase 4 moves the exact files Phase 1–2 modified; doing it in the same
-  uncommitted tree destroys the reviewability of everything above. Land 1–2
-  first.
-- Phase 3 needs an R2 bucket + credentials provisioned (none exist) and
-  touches `handler/app/reconcile.rs` (runtime app loading) — unverifiable
-  without the bucket.
-- Both need the bin-name decision below.
-- Prepared move list for Phase 4: `endpoint/platform/`,
-  `endpoint/integration/github_app.rs`, `handler/platforms/*`,
-  `auth/header/platform_activation.rs`, `github_app.*.toml` loading; shared
-  crates stay; edge route `/api/platforms/*` + `/api/integrations/github/*`;
-  webhook URL repoint.
+**Phase 3 — code done, verified; infra deliberately NOT provisioned.**
+- New `crates/artifact-store` (`aomi-artifact-store`): S3-compatible client
+  for Cloudflare R2 with hand-rolled SigV4 (no AWS SDK; signature pinned
+  against an independent Python implementation), deterministic
+  `releases/{repo}/{tag}/{target}.tar.gz` keys, sanitized segments.
+  Config-gated via `AOMI_ARTIFACT_STORE_URL` / `_ACCESS_KEY_ID` /
+  `_SECRET_ACCESS_KEY` (+ optional `_REGION`, default `auto`) — env absent →
+  `from_env()` returns `None`, zero behavior change.
+- Runtime `AppFetcher::fetch` is cache-through: store hit = zero GitHub
+  calls; miss = existing GitHub download + best-effort backfill. Tarball
+  integrity unchanged — `stage_bundle` verifies per-file sha256 regardless
+  of byte origin.
+- NO live Cloudflare changes made (per Cecilia). Blocker discovered: R2 is
+  not enabled on the Aomi Cloudflare account at all (`code 10042`) —
+  enabling it is a dashboard/billing step only she can do. After that:
+  create bucket, mint S3 token, set the three env vars on the backend hosts.
+- Proactive push-at-activation belongs to `bin/manager` in Phase 4;
+  cache-through makes the fleet GitHub-free after the first fetch either way.
 
-## 6. Open questions
+**Phase 4 — done (code), physical extraction, verified.** The deploy domain
+now **lives in the `manager` crate** and the dependency arrow points the
+right way: `backend` depends on `manager` (lib), never the reverse.
+- Moved into `aomi/bin/manager/src/`: `platforms/*` (the whole
+  HostedPlatform domain — handler, source_repo, github_app, deploy_records,
+  platform_action, app_lifecycle, target_activation, + its 60 unit tests),
+  `endpoints/*` (all deploy-surface HTTP handlers incl. the `workflow_run`
+  webhook), `auth/*` (`PlatformActivationToken`, `Activation`,
+  `AuthorizationHeaderExt`), and the `github_app.*.toml` App configs
+  (deploy workflow paths updated to `aomi/bin/manager/…` — repo file only,
+  no live change).
+- Platform endpoints are typed on axum substates (`State<PlatformHandler>` /
+  `State<DbPool>` with `FromRef<AomiBackend>` impls in the backend), so one
+  set of handler fns mounts in both routers — zero duplication, no behavior
+  change (route manifest tests unchanged; backend re-exports keep
+  `crate::handler::platforms::*` paths alive for its remaining callers:
+  the runtime reconciler and the runtime-coupled `apps` endpoints).
+- `manager` (port env `MANAGER_PORT`, default 8081) serves: `/health`,
+  platform list/server-tags, deploy, deployment status, rerun, records,
+  sync-installed, tokens (mint/list/revoke), platform activate/deactivate,
+  and the GitHub `workflow_run` webhook. Its `require_activation` layer is
+  the same credentials-before-resources resolution as the backend's
+  `RouteAuthClass::Activation` (token parse → `DbPlatform` lookup →
+  `PlatformActivationToken::resolve` → `Activation` extension); the
+  `Activation` extractor was made state-generic (it only reads the request
+  extension).
+- Runtime-coupled routes stay backend-only by design: app
+  activation/promotion/live-app reads wake the in-process artifact
+  reconciler. They move in a follow-up once the DB desired-state seam
+  replaces the wake.
+- Cutover (infra, NOT done — no live changes): deploy manager as a second
+  systemd unit behind the existing tunnel; edge worker routes
+  `/api/platforms/{deploy,deployments/*,tokens,sources,activate,deactivate}`
+  and the GitHub App webhook URL to it; backend keeps serving everything
+  until then, so the cutover is reversible per-route.
+- Manager gains proactive artifact push at activation in the follow-up that
+  moves activation across (needs R2 live first).
 
-- Bin name for the control plane (`deployd`? `forge`? house style says avoid
-  cute — see aomi-smither naming).
-- SSE vs. keep-polling-the-DB for wizard status (Phase 2 optional item).
-- Shape of partner-scoped bearers (claims: platform id? source ids?).
-- Reconciler threshold N and whether the freshness timestamp is surfaced in
-  the UI or only in payloads.
-- Whether the App-slug-per-platform column lands in Phase 1 or 2.
+## 6. Decisions (answered by Cecilia, 2026-07-10)
+
+- **Bin name: `aomi/bin/manager`.** Deliberately general — the second
+  non-runtime service, intended to absorb more backend offloading over time,
+  not just deploy control.
+- **R2 provisioning: agent-driven via wrangler** (cloudflare-management
+  setup), then implement Phase 3 against the real bucket.
+- **Status transport: keep polling.** Polls are ~one DB read now; SSE only if
+  volume ever warrants it.
+- **Partner-scoped bearers: before the first partner onboards**, as its own
+  designed change — not folded into the Phase 1 diff.
+
+## 7. Remaining open questions
+
+- Reconciler trust window (currently 30 min, `CI_INFLIGHT_TRUST_SECS`) and
+  whether the projection freshness timestamp is surfaced in the UI or only in
+  payloads.
+- Whether the App-slug-per-platform column lands with Phase 3 or 4.
+- Partner-bearer claims shape (platform id only, or source-id allowlist).
