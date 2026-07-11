@@ -7,6 +7,16 @@ import {
   executeWalletCalls,
   type ExecutionResult,
 } from "../../aa";
+import { aaModeFromExecutionKind } from "../../aa/policy";
+import {
+  createCliAAExecutor,
+  describeExecutionDecision,
+  getAlternativeAAMode,
+  resolveCliExecutionDecision,
+  type CliAAExecution,
+  type CliAAExecutor,
+  type CliExecutionDecision,
+} from "../aa";
 import {
   toViemSignMessageArgs,
   toViemSignTypedDataArgs,
@@ -125,6 +135,39 @@ function getPreferredRpcUrl(chain: Chain, override?: string): string {
   }
 
   return chain.rpcUrls.default.http[0] ?? chain.rpcUrls.public?.http[0] ?? "";
+}
+
+function buildCliTxCompletionMetadata(params: {
+  requestedDecision: CliExecutionDecision;
+  finalDecision: CliExecutionDecision;
+  execution: CliAAExecution;
+}): {
+  aa_requested_mode: "4337" | "7702" | "none";
+  aa_resolved_mode: "4337" | "7702" | "none";
+  aa_fallback_reason: string | undefined;
+} {
+  const requestedMode =
+    params.requestedDecision.execution === "aa"
+      ? params.requestedDecision.aaMode
+      : "none";
+  const resolvedMode =
+    aaModeFromExecutionKind(params.execution.executionKind) ??
+    (params.finalDecision.execution === "aa"
+      ? params.finalDecision.aaMode
+      : "none");
+
+  let fallbackReason: string | undefined;
+  if (requestedMode === "7702" && resolvedMode === "4337") {
+    fallbackReason = "requested_7702_fallback_4337";
+  } else if (requestedMode !== "none" && resolvedMode === "none") {
+    fallbackReason = "aa_failed_fallback_eoa";
+  }
+
+  return {
+    aa_requested_mode: requestedMode,
+    aa_resolved_mode: resolvedMode,
+    aa_fallback_reason: fallbackReason,
+  };
 }
 
 async function simulatePendingTransactions(params: {
@@ -402,6 +445,10 @@ export async function signCommand(
       type: string;
       payload: Record<string, unknown>;
     }> = [];
+    let resolvedUserStateAAMode: "4337" | "7702" | null = null;
+    let resolvedUserStateSmartAccount: string | null = null;
+    let resolvedUserStateSmartAccount4337: string | null = null;
+    let resolvedUserStateDelegation7702: string | null = null;
 
     if (pendingTxs.every((tx) => tx.kind === "transaction")) {
       console.log(
@@ -434,9 +481,35 @@ export async function signCommand(
         );
       }
 
+      const decision = resolveCliExecutionDecision({
+        config,
+        chain,
+        callList: baseCallList,
+      });
+
+      // Resolve the primary AA executor up front: the 4337 smart-account
+      // address must be known before simulation, and attempt 1 reuses it.
+      let primaryExecutor: CliAAExecutor | null = null;
+      if (decision.execution === "aa") {
+        try {
+          primaryExecutor = await createCliAAExecutor({
+            decision,
+            chain,
+            privateKey: privateKey as `0x${string}`,
+            baseUrl: cli.baseUrl,
+            config,
+          });
+        } catch (error) {
+          if (config.execution === "aa") throw error;
+          console.log(
+            `${DIM}AA setup failed (${error instanceof Error ? error.message : String(error)}); will fall back to EOA.${RESET}`,
+          );
+        }
+      }
+
       session.resolveWallet(account.address, primaryChainId, {
-        aaMode: null,
-        smartAccount: null,
+        aaMode: primaryExecutor ? primaryExecutor.mode : null,
+        smartAccount: primaryExecutor?.smartAccount4337 ?? null,
       });
       await session.syncUserState();
 
@@ -476,24 +549,132 @@ export async function signCommand(
         autoFeeCall = buildFeeAAWalletCall(simFee, primaryChainId);
       }
 
-      const executionCallList = autoFeeCall
+      const decisionCallList = autoFeeCall
         ? [...baseCallList, autoFeeCall]
         : baseCallList;
 
-      console.log("Exec:    eoa");
+      const effectiveDecision: CliExecutionDecision = primaryExecutor
+        ? decision
+        : { execution: "eoa" };
+      console.log(`Exec:    ${describeExecutionDecision(effectiveDecision)}`);
 
-      const execution = await executeCliTransaction({
-        privateKey: privateKey as `0x${string}`,
-        currentChainId: primaryChainId,
-        chainsById,
-        rpcUrl,
-        callList: executionCallList,
-      });
+      // Ordered strategies:
+      // - `--aa`: [primary, alt] — fatal if both fail, no EOA.
+      // - auto:   [primary, alt, eoa] — transparently fall through to EOA.
+      const strategies: CliExecutionDecision[] = [effectiveDecision];
+      const altDecision = getAlternativeAAMode(effectiveDecision);
+      if (altDecision) strategies.push(altDecision);
+      if (config.execution !== "aa" && effectiveDecision.execution === "aa") {
+        strategies.push({ execution: "eoa" });
+      }
+
+      const runWithDecision = async (
+        d: CliExecutionDecision,
+      ): Promise<CliAAExecution> => {
+        if (d.execution === "eoa") {
+          return executeCliTransaction({
+            privateKey: privateKey as `0x${string}`,
+            currentChainId: primaryChainId,
+            chainsById,
+            rpcUrl,
+            callList: decisionCallList,
+          });
+        }
+
+        const executor =
+          d === effectiveDecision && primaryExecutor
+            ? primaryExecutor
+            : await createCliAAExecutor({
+                decision: d,
+                chain,
+                privateKey: privateKey as `0x${string}`,
+                baseUrl: cli.baseUrl,
+                config,
+              });
+
+        let executionCallList = decisionCallList;
+        if (autoFeeCall && executor.sponsored) {
+          console.log(
+            `${DIM}Skipping native fee injection for sponsored AA. The paymaster covers gas only; a native fee transfer would require sender balance.${RESET}`,
+          );
+          executionCallList = baseCallList;
+        }
+
+        return executor.execute(executionCallList);
+      };
+
+      let finalDecision: CliExecutionDecision = effectiveDecision;
+      let execution!: CliAAExecution;
+      const failures: Array<{
+        decision: CliExecutionDecision;
+        message: string;
+      }> = [];
+
+      for (const strategy of strategies) {
+        if (failures.length > 0) {
+          const prev = strategies[failures.length - 1]!;
+          console.log(
+            `${describeExecutionDecision(prev)} failed: ${failures[failures.length - 1]!.message}`,
+          );
+          console.log(
+            `Retrying with ${describeExecutionDecision(strategy)}...`,
+          );
+        }
+        try {
+          execution = await runWithDecision(strategy);
+          finalDecision = strategy;
+          break;
+        } catch (error) {
+          const message =
+            error instanceof Error ? error.message : String(error);
+          failures.push({ decision: strategy, message });
+          if (strategy === strategies[strategies.length - 1]) {
+            if (config.execution === "aa") {
+              fatal(
+                `❌ AA execution failed with all modes.\n` +
+                  failures
+                    .map(
+                      (f) =>
+                        `  ${describeExecutionDecision(f.decision)}: ${f.message}`,
+                    )
+                    .join("\n") +
+                  "\nUse `--eoa` to sign without account abstraction.",
+              );
+            }
+            throw error;
+          }
+        }
+      }
 
       console.log(`✅ Sent! Hash: ${execution.txHash}`);
       if (execution.txHashes.length > 1) {
         console.log(`Count:   ${execution.txHashes.length}`);
       }
+      if (execution.sponsored) {
+        console.log("Gas:     sponsored");
+      }
+      if (execution.SmartAccount4337) {
+        console.log(`AA:      ${execution.SmartAccount4337}`);
+      }
+      if (execution.Delegation7702) {
+        console.log(`Deleg:   ${execution.Delegation7702}`);
+      }
+
+      const executionUsedAA =
+        finalDecision.execution === "aa" && execution.executionKind !== "eoa";
+      resolvedUserStateAAMode =
+        executionUsedAA && finalDecision.execution === "aa"
+          ? finalDecision.aaMode
+          : null;
+      resolvedUserStateSmartAccount =
+        resolvedUserStateAAMode === "4337"
+          ? (execution.SmartAccount4337 ?? null)
+          : null;
+      resolvedUserStateSmartAccount4337 = resolvedUserStateSmartAccount;
+      resolvedUserStateDelegation7702 =
+        resolvedUserStateAAMode === "7702"
+          ? (execution.Delegation7702 ?? null)
+          : null;
 
       signedRecords = pendingTxs.map((tx, index) =>
         toSignedTransactionRecord(
@@ -502,21 +683,32 @@ export async function signCommand(
           account.address,
           resolvedChainIds[index],
           Date.now(),
+          executionUsedAA && finalDecision.execution === "aa"
+            ? finalDecision.provider
+            : undefined,
+          executionUsedAA && finalDecision.execution === "aa"
+            ? finalDecision.aaMode
+            : undefined,
         ),
       );
+      const completionMetadata = buildCliTxCompletionMetadata({
+        requestedDecision: decision,
+        finalDecision,
+        execution,
+      });
       backendNotifications = pendingTxs.map((tx) => ({
         type: "wallet:tx_complete",
         payload: {
           txHash: execution.txHash,
           status: "success",
           pending_tx_ids: tx.txId !== undefined ? [tx.txId] : [],
-          aa_requested_mode: "none",
-          aa_resolved_mode: "none",
-          aa_fallback_reason: undefined,
+          ...completionMetadata,
           execution_kind: execution.executionKind,
           batched: execution.batched,
           call_count: execution.txHashes.length,
           sponsored: execution.sponsored,
+          smart_account_4337: execution.SmartAccount4337,
+          delegation_7702: execution.Delegation7702,
         },
       }));
     } else {
@@ -620,10 +812,10 @@ export async function signCommand(
     // Persist signer state and notify the backend with authoritative staged ids.
     cli.setPublicKey(account.address);
     session.resolveWallet(account.address, primaryChainId, {
-      aaMode: null,
-      smartAccount: null,
-      smartAccount4337: null,
-      delegation7702: null,
+      aaMode: resolvedUserStateAAMode,
+      smartAccount: resolvedUserStateSmartAccount,
+      smartAccount4337: resolvedUserStateSmartAccount4337,
+      delegation7702: resolvedUserStateDelegation7702,
     });
 
     for (const backendNotification of backendNotifications) {

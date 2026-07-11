@@ -34,6 +34,7 @@
     "fast-check": "^4.8.0"
   },
   "dependencies": {
+    "@alchemy/wallet-apis": "5.0.0-beta.22",
     "@solana/web3.js": "^1.98.4",
     "bs58": "^6.0.0",
     "citty": "^0.2.2",

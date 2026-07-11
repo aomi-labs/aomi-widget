@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => ({
   resolveWallet: vi.fn(),
   close: vi.fn(),
   executeWalletCalls: vi.fn(),
+  createCliAAExecutor: vi.fn(),
   readState: vi.fn(),
   syncPendingTxsFromUserState: vi.fn(),
   writeState: vi.fn(),
@@ -48,6 +49,16 @@ vi.mock("../../src/aa", async () => {
   return {
     ...actual,
     executeWalletCalls: mocks.executeWalletCalls,
+  };
+});
+
+vi.mock("../../src/cli/aa", async () => {
+  const actual = await vi.importActual<typeof import("../../src/cli/aa")>(
+    "../../src/cli/aa",
+  );
+  return {
+    ...actual,
+    createCliAAExecutor: mocks.createCliAAExecutor,
   };
 });
 
@@ -230,6 +241,7 @@ describe("CLI wallet sign simulation integration", () => {
         baseUrl: "http://127.0.0.1:8080",
         app: "default",
         apiKey: "test-key",
+        execution: "eoa" as const,
         secrets: {},
       },
       ["tx-1"],
@@ -314,6 +326,7 @@ describe("CLI wallet sign simulation integration", () => {
         baseUrl: "http://127.0.0.1:8080",
         app: "default",
         apiKey: "test-key",
+        execution: "eoa" as const,
         secrets: {},
       },
       ["tx-1"],
@@ -339,6 +352,7 @@ describe("CLI wallet sign simulation integration", () => {
         baseUrl: "http://127.0.0.1:8080",
         app: "default",
         apiKey: "test-key",
+        execution: "eoa" as const,
         secrets: {},
       },
       ["tx-1"],
@@ -358,6 +372,7 @@ describe("CLI wallet sign simulation integration", () => {
           baseUrl: "http://127.0.0.1:8080",
           app: "default",
           apiKey: "test-key",
+          execution: "eoa" as const,
           secrets: {},
         },
         ["tx-1"],
@@ -365,6 +380,198 @@ describe("CLI wallet sign simulation integration", () => {
     ).rejects.toThrow();
 
     expect(mocks.executeWalletCalls).toHaveBeenCalledTimes(1);
+    expect(mocks.sendSystemMessage).not.toHaveBeenCalled();
+  });
+
+  it("executes AA (7702) via the backend proxy and reports the modes", async () => {
+    const execute = vi.fn().mockResolvedValue({
+      txHash: "0x7702hash",
+      txHashes: ["0x7702hash"],
+      executionKind: "alchemy_7702",
+      batched: true,
+      sponsored: false,
+      Delegation7702: "0x69007702764179f14F51cdce752f4f775d74E139",
+    });
+    mocks.createCliAAExecutor.mockResolvedValue({
+      mode: "7702",
+      signerAddress: MOCK_ADDRESS,
+      smartAccount4337: null,
+      delegation7702: "0x69007702764179f14F51cdce752f4f775d74E139",
+      sponsored: false,
+      execute,
+    });
+
+    await signCommand(
+      {
+        privateKey:
+          "0x0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+        baseUrl: "http://127.0.0.1:8080",
+        app: "default",
+        apiKey: "test-key",
+        secrets: {},
+      },
+      ["tx-1"],
+    );
+
+    // One executor, reused for simulation identity and attempt 1.
+    expect(mocks.createCliAAExecutor).toHaveBeenCalledTimes(1);
+    expect(mocks.resolveWallet).toHaveBeenCalledWith(MOCK_ADDRESS, 1, {
+      aaMode: "7702",
+      smartAccount: null,
+    });
+    // Unsponsored 7702 keeps the injected fee call in the batch.
+    expect(execute).toHaveBeenCalledWith([
+      {
+        to: "0x1111111111111111111111111111111111111111",
+        value: 0n,
+        data: "0x",
+        chainId: 1,
+      },
+      {
+        to: "0x9C7a99480c59955a635123EDa064456393e519f5",
+        value: 1000000000000n,
+        chainId: 1,
+      },
+    ]);
+    expect(mocks.executeWalletCalls).not.toHaveBeenCalled();
+    expect(
+      JSON.parse(mocks.sendSystemMessage.mock.calls[0]?.[1] as string),
+    ).toMatchObject({
+      type: "wallet:tx_complete",
+      payload: {
+        execution_kind: "alchemy_7702",
+        aa_requested_mode: "7702",
+        aa_resolved_mode: "7702",
+        delegation_7702: "0x69007702764179f14F51cdce752f4f775d74E139",
+      },
+    });
+  });
+
+  it("skips the native fee transfer for sponsored AA execution", async () => {
+    const execute = vi.fn().mockResolvedValue({
+      txHash: "0x4337hash",
+      txHashes: ["0x4337hash"],
+      executionKind: "alchemy_4337",
+      batched: false,
+      sponsored: true,
+      SmartAccount4337: "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    });
+    mocks.createCliAAExecutor.mockResolvedValue({
+      mode: "4337",
+      signerAddress: MOCK_ADDRESS,
+      smartAccount4337: "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      delegation7702: null,
+      sponsored: true,
+      execute,
+    });
+
+    await signCommand(
+      {
+        privateKey:
+          "0x0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+        baseUrl: "http://127.0.0.1:8080",
+        app: "default",
+        apiKey: "test-key",
+        execution: "aa" as const,
+        aaMode: "4337" as const,
+        secrets: {},
+      },
+      ["tx-1"],
+    );
+
+    expect(mocks.resolveWallet).toHaveBeenCalledWith(MOCK_ADDRESS, 1, {
+      aaMode: "4337",
+      smartAccount: "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    });
+    // Sponsored batch drops the injected native fee call.
+    expect(execute).toHaveBeenCalledWith([
+      {
+        to: "0x1111111111111111111111111111111111111111",
+        value: 0n,
+        data: "0x",
+        chainId: 1,
+      },
+    ]);
+  });
+
+  it("falls back 7702 → 4337 → EOA in auto mode", async () => {
+    const failingExecute = vi
+      .fn()
+      .mockRejectedValue(new Error("bundler rejected"));
+    mocks.createCliAAExecutor.mockResolvedValue({
+      mode: "7702",
+      signerAddress: MOCK_ADDRESS,
+      smartAccount4337: null,
+      delegation7702: "0x69007702764179f14F51cdce752f4f775d74E139",
+      sponsored: false,
+      execute: failingExecute,
+    });
+    mocks.executeWalletCalls.mockResolvedValue({
+      txHash: "0xeoahash",
+      txHashes: ["0xeoahash"],
+      executionKind: "eoa",
+      batched: true,
+      sponsored: false,
+    });
+
+    await signCommand(
+      {
+        privateKey:
+          "0x0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+        baseUrl: "http://127.0.0.1:8080",
+        app: "default",
+        apiKey: "test-key",
+        secrets: {},
+      },
+      ["tx-1"],
+    );
+
+    // primary (reused) + alt executor
+    expect(mocks.createCliAAExecutor).toHaveBeenCalledTimes(2);
+    expect(failingExecute).toHaveBeenCalledTimes(2);
+    expect(mocks.executeWalletCalls).toHaveBeenCalledTimes(1);
+    expect(
+      JSON.parse(mocks.sendSystemMessage.mock.calls[0]?.[1] as string),
+    ).toMatchObject({
+      payload: {
+        execution_kind: "eoa",
+        aa_requested_mode: "7702",
+        aa_resolved_mode: "none",
+        aa_fallback_reason: "aa_failed_fallback_eoa",
+      },
+    });
+  });
+
+  it("fails closed with --aa when both AA modes fail", async () => {
+    const failingExecute = vi
+      .fn()
+      .mockRejectedValue(new Error("bundler rejected"));
+    mocks.createCliAAExecutor.mockResolvedValue({
+      mode: "7702",
+      signerAddress: MOCK_ADDRESS,
+      smartAccount4337: null,
+      delegation7702: "0x69007702764179f14F51cdce752f4f775d74E139",
+      sponsored: false,
+      execute: failingExecute,
+    });
+
+    await expect(
+      signCommand(
+        {
+          privateKey:
+            "0x0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+          baseUrl: "http://127.0.0.1:8080",
+          app: "default",
+          apiKey: "test-key",
+          execution: "aa" as const,
+          secrets: {},
+        },
+        ["tx-1"],
+      ),
+    ).rejects.toThrow();
+
+    expect(failingExecute).toHaveBeenCalledTimes(2);
+    expect(mocks.executeWalletCalls).not.toHaveBeenCalled();
     expect(mocks.sendSystemMessage).not.toHaveBeenCalled();
   });
 });

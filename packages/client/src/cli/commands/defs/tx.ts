@@ -31,6 +31,22 @@ const txSignDef = defineCommand({
   meta: { name: "sign", description: "Sign and submit pending transactions" },
   args: {
     ...globalArgs,
+    eoa: {
+      type: "boolean",
+      description: "Force plain EOA execution, skip AA",
+    },
+    aa: {
+      type: "boolean",
+      description: "Force AA via the backend proxy, error instead of falling back to EOA",
+    },
+    "aa-provider": {
+      type: "string",
+      description: "AA provider override: alchemy",
+    },
+    "aa-mode": {
+      type: "string",
+      description: "AA mode override: 4337 | 7702",
+    },
     txIds: {
       type: "positional",
       description: "Transaction IDs to sign",

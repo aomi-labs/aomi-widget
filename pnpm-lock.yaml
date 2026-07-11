@@ -777,6 +777,9 @@ importers:
 
   packages/client:
     dependencies:
+      '@alchemy/wallet-apis':
+        specifier: 5.0.0-beta.22
+        version: 5.0.0-beta.22(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)(viem@2.47.11(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@4.4.3))(zod@4.4.3)
       '@solana/web3.js':
         specifier: ^1.98.4
         version: 1.98.4(bufferutil@4.1.0)(encoding@0.1.13)(typescript@5.9.3)(utf-8-validate@5.0.10)
@@ -896,6 +899,26 @@ packages:
     peerDependenciesMeta:
       zod:
         optional: true
+
+  '@alchemy/common@5.0.0-beta.22':
+    resolution: {integrity: sha512-doZTKutOUIEYqv9w//i29tEPEtK6DY1c+V+yXAv+4Pq2SHZdnzbBlkHrphDJSYca4xu9WTnGAGMDD9+6yWGhbw==}
+    peerDependencies:
+      viem: 2.47.11
+
+  '@alchemy/common@5.0.0-beta.24':
+    resolution: {integrity: sha512-kh99Nl0s2NRK7izXwx8T2kvJs+7IYEaUVnckOb4Z2DCf8OJSo7IAaq0HcSyrqmoz8h/fgcKlhnnjmK6EoDM0qQ==}
+    peerDependencies:
+      viem: 2.47.11
+
+  '@alchemy/wallet-api-types@0.1.0-alpha.32':
+    resolution: {integrity: sha512-ozNfKitz/LnGiMTM2V5bXVSIfxccKc3u1wYnIjVokjL+4OBHstGIwrtIPp0AK0kEysKOnQGfnNXSfAPee0k6uA==}
+    peerDependencies:
+      typescript: ^5.8.2
+
+  '@alchemy/wallet-apis@5.0.0-beta.22':
+    resolution: {integrity: sha512-X9wEEz2dEfBr5ziEo1q0/buOr7xbF8/Y5gXYRa+BZr5LbfNEN7NxDf6S4kiEIFysTPedus8MxlVPXvHmSPk27Q==}
+    peerDependencies:
+      viem: 2.47.11
 
   '@alloc/quick-lru@5.2.0':
     resolution: {integrity: sha512-UrcABB+4bUrFABwbluTIBErXwvbsU/V7TZWfmbgJfbkwiBuziS9gxdODUyuiecfdGQ85jglMW6juS3+z5TsKLw==}
@@ -7912,6 +7935,10 @@ packages:
     resolution: {integrity: sha512-h5k/5U50IJJFpzfL6nO9jaaumfjO/f2NjK/oYB2Djzm4p9L+3T9qWpZqZ2hAbLPuuYq9wrU08WQyBTL5GbPk5Q==}
     engines: {node: '>=6'}
 
+  deep-equal@2.2.3:
+    resolution: {integrity: sha512-ZIwpnevOurS8bpT4192sqAowWM76JDKSHYzMLty3BZGSswgq6pBaH3DhCSW5xVAZICZyKdOBPjwww5wfgT/6PA==}
+    engines: {node: '>= 0.4'}
+
   deep-is@0.1.4:
     resolution: {integrity: sha512-oIPzksmTg4/MriiaYGO+okXDT7ztn/w3Eptv/+gSIdMdKsJo0u4CfYNFJPy+4SKMuCqGw2wxnA+URMg3t8a/bQ==}
 
@@ -8112,6 +8139,9 @@ packages:
   es-errors@1.3.0:
     resolution: {integrity: sha512-Zf5H2Kxt2xjTvbJvP2ZWLEICxA6j+hAmMzIlypy4xcBg1vKVnx89Wy0GbS+kf5cwCVFFzdCFh2XSCFNULS6csw==}
     engines: {node: '>= 0.4'}
+
+  es-get-iterator@1.1.3:
+    resolution: {integrity: sha512-sPZmqHBe6JIiTfN5q2pEi//TwxmAFHwj/XEuYjTuse78i8KxaqMTTzxPoFKuzRpDpTJ+0NAbpfenkmH2rePtuw==}
 
   es-iterator-helpers@1.2.2:
     resolution: {integrity: sha512-BrUQ0cPTB/IwXj23HtwHjS9n7O4h9FX94b4xc5zlTHxeLgTAdzYUDyy6KdExAl9lbN5rtfe44xpjpmj9grxs5w==}
@@ -10562,6 +10592,14 @@ packages:
       typescript:
         optional: true
 
+  ox@0.6.12:
+    resolution: {integrity: sha512-78hziRGLj0qTDa0UW4+ynv9tW2Cp1vmCfGokL8D7kiSDh6Y0LAfHL+HaDN4l2a9jcrOG3fexTDtLNtDNkEwLtg==}
+    peerDependencies:
+      typescript: '>=5.4.0'
+    peerDependenciesMeta:
+      typescript:
+        optional: true
+
   ox@0.6.9:
     resolution: {integrity: sha512-wi5ShvzE4eOcTwQVsIPdFr+8ycyX+5le/96iAJutaZAvCes1J0+RvpEPg5QDPDiaR0XQQAvZVl7AwqQcINuUug==}
     peerDependencies:
@@ -12236,6 +12274,12 @@ packages:
   type@2.7.3:
     resolution: {integrity: sha512-8j+1QmAbPvLZow5Qpi6NCaN8FB60p/6x8/vfNqOk/hC+HuvFZhL4+WfekuhQLiqFZXOgQdrs3B+XxEmCc6b3FQ==}
 
+  typebox@1.0.81:
+    resolution: {integrity: sha512-bCslZUmZESHhBn4kHDghzH2oo3qu8m2W89xDLxQHv/aPvY4i81Nd1jvijlBp9wSpsVytDSfSoosbiBAjgsNb2Q==}
+
+  typebox@1.3.6:
+    resolution: {integrity: sha512-Sc8RA0NCMEFmApHNU9ZMzqcpQj46She44J8ffpLM/bdhLNUZKq7DJumcLcsFx1gRmDfQPgCgOmFFJ7rcnfWNyA==}
+
   typed-array-buffer@1.0.3:
     resolution: {integrity: sha512-nAYYwfY3qnzX30IkA6AQZjVbtK6duGontcQm1WSG1MD94YLqK0515GNApXkoxKOWMusVssAHWLh9SeaoefYFGw==}
     engines: {node: '>= 0.4'}
@@ -13263,6 +13307,43 @@ snapshots:
       throttleit: 2.1.0
     optionalDependencies:
       zod: 4.4.3
+
+  '@alchemy/common@5.0.0-beta.22(viem@2.47.11(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@4.4.3))':
+    dependencies:
+      viem: 2.47.11(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@4.4.3)
+      zod: 3.25.76
+
+  '@alchemy/common@5.0.0-beta.24(viem@2.47.11(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@4.4.3))':
+    dependencies:
+      viem: 2.47.11(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@4.4.3)
+      zod: 3.25.76
+
+  '@alchemy/wallet-api-types@0.1.0-alpha.32(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@4.4.3)':
+    dependencies:
+      '@alchemy/common': 5.0.0-beta.24(viem@2.47.11(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@4.4.3))
+      deep-equal: 2.2.3
+      ox: 0.6.12(typescript@5.9.3)(zod@4.4.3)
+      typebox: 1.0.81
+      typescript: 5.9.3
+      viem: 2.47.11(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@4.4.3)
+    transitivePeerDependencies:
+      - bufferutil
+      - utf-8-validate
+      - zod
+
+  '@alchemy/wallet-apis@5.0.0-beta.22(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)(viem@2.47.11(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@4.4.3))(zod@4.4.3)':
+    dependencies:
+      '@alchemy/common': 5.0.0-beta.22(viem@2.47.11(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@4.4.3))
+      '@alchemy/wallet-api-types': 0.1.0-alpha.32(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@4.4.3)
+      deep-equal: 2.2.3
+      ox: 0.11.3(typescript@5.9.3)(zod@4.4.3)
+      typebox: 1.3.6
+      viem: 2.47.11(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@4.4.3)
+    transitivePeerDependencies:
+      - bufferutil
+      - typescript
+      - utf-8-validate
+      - zod
 
   '@alloc/quick-lru@5.2.0': {}
 
@@ -34513,6 +34594,27 @@ snapshots:
 
   deep-eql@5.0.2: {}
 
+  deep-equal@2.2.3:
+    dependencies:
+      array-buffer-byte-length: 1.0.2
+      call-bind: 1.0.8
+      es-get-iterator: 1.1.3
+      get-intrinsic: 1.3.0
+      is-arguments: 1.2.0
+      is-array-buffer: 3.0.5
+      is-date-object: 1.1.0
+      is-regex: 1.2.1
+      is-shared-array-buffer: 1.0.4
+      isarray: 2.0.5
+      object-is: 1.1.6
+      object-keys: 1.1.1
+      object.assign: 4.1.7
+      regexp.prototype.flags: 1.5.4
+      side-channel: 1.1.0
+      which-boxed-primitive: 1.1.1
+      which-collection: 1.0.2
+      which-typed-array: 1.1.19
+
   deep-is@0.1.4: {}
 
   default-browser-id@5.0.1: {}
@@ -34754,6 +34856,18 @@ snapshots:
   es-define-property@1.0.1: {}
 
   es-errors@1.3.0: {}
+
+  es-get-iterator@1.1.3:
+    dependencies:
+      call-bind: 1.0.8
+      get-intrinsic: 1.3.0
+      has-symbols: 1.1.0
+      is-arguments: 1.2.0
+      is-map: 2.0.3
+      is-set: 2.0.3
+      is-string: 1.1.1
+      isarray: 2.0.5
+      stop-iteration-iterator: 1.1.0
 
   es-iterator-helpers@1.2.2:
     dependencies:
@@ -38400,6 +38514,20 @@ snapshots:
       - zod
     optional: true
 
+  ox@0.6.12(typescript@5.9.3)(zod@4.4.3):
+    dependencies:
+      '@adraffy/ens-normalize': 1.11.1
+      '@noble/curves': 1.9.7
+      '@noble/hashes': 1.8.0
+      '@scure/bip32': 1.7.0
+      '@scure/bip39': 1.6.0
+      abitype: 1.2.3(typescript@5.9.3)(zod@4.4.3)
+      eventemitter3: 5.0.1
+    optionalDependencies:
+      typescript: 5.9.3
+    transitivePeerDependencies:
+      - zod
+
   ox@0.6.9(typescript@5.9.3)(zod@3.25.75):
     dependencies:
       '@adraffy/ens-normalize': 1.11.1
@@ -40941,6 +41069,10 @@ snapshots:
 
   type@2.7.3:
     optional: true
+
+  typebox@1.0.81: {}
+
+  typebox@1.3.6: {}
 
   typed-array-buffer@1.0.3:
     dependencies:

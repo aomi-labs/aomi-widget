@@ -1,3 +1,6 @@
+export type CliExecutionMode = "aa" | "eoa";
+export type CliAAProvider = "alchemy";
+export type CliAAMode = "4337" | "7702";
 export type CliEmbeddedProvider = "para" | "privy";
 
 export type CliConfig = {
@@ -31,4 +34,8 @@ export type CliConfig = {
   chainRpcUrl?: string;
   chain?: number;
   secrets: Record<string, string>;
+  /** undefined = auto: AA via the backend proxy, falling back to EOA */
+  execution?: CliExecutionMode;
+  aaProvider?: CliAAProvider;
+  aaMode?: CliAAMode;
 };

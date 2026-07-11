@@ -1,4 +1,4 @@
-import { SUPPORTED_CHAIN_IDS, CHAIN_NAMES } from "../../chains";
+import { ALCHEMY_CHAIN_SLUGS, SUPPORTED_CHAIN_IDS, CHAIN_NAMES } from "../../chains";
 import { CliSession } from "../cli-session";
 import { createControlClient } from "../context";
 import { printDataFileLocation } from "../output";
@@ -235,7 +235,10 @@ export function chainsCommand(): void {
 
   for (const id of SUPPORTED_CHAIN_IDS) {
     const name = CHAIN_NAMES[id] ?? `Chain ${id}`;
+    const aaInfo = ALCHEMY_CHAIN_SLUGS[id]
+      ? "  AA: 7702 (7702, 4337 via backend proxy)"
+      : "";
     const marker = currentChainId === id ? "  (current)" : "";
-    console.log(`${id}  ${name}${marker}`);
+    console.log(`${id}  ${name}${aaInfo}${marker}`);
   }
 }

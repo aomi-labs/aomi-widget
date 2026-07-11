@@ -1,8 +1,17 @@
 import type { ArgsDef } from "citty";
 import { privateKeyToAccount } from "viem/accounts";
-import type { CliEmbeddedProvider, CliConfig } from "../../types";
+import type {
+  CliEmbeddedProvider,
+  CliConfig,
+  CliExecutionMode,
+} from "../../types";
 import { fatal } from "../../errors";
-import { parseChainId, normalizePrivateKey } from "../../validation";
+import {
+  parseChainId,
+  normalizePrivateKey,
+  parseAAProvider,
+  parseAAMode,
+} from "../../validation";
 
 type SvmCluster = NonNullable<CliConfig["svmCluster"]>;
 
@@ -132,6 +141,25 @@ function derivePublicKeyFromPrivateKey(
   }
 }
 
+function resolveExecution(
+  args: Record<string, unknown>,
+): CliExecutionMode | undefined {
+  const flagAA = args.aa === true;
+  const flagEoa = args.eoa === true;
+  if (flagAA && flagEoa) {
+    fatal("Choose only one of `--aa` or `--eoa`.");
+  }
+  if (flagEoa) return "eoa";
+  if (
+    flagAA ||
+    str(args["aa-provider"]) !== undefined ||
+    str(args["aa-mode"]) !== undefined
+  ) {
+    return "aa";
+  }
+  return undefined;
+}
+
 // ---------------------------------------------------------------------------
 // Config builder — replaces parseArgs() + getConfig()
 // ---------------------------------------------------------------------------
@@ -143,6 +171,7 @@ function derivePublicKeyFromPrivateKey(
  * No re-parsing of process.argv.
  */
 export function buildCliConfig(args: Record<string, unknown>): CliConfig {
+  const execution = resolveExecution(args);
   const privateKey = normalizePrivateKey(
     str(args["private-key"]) ?? process.env.PRIVATE_KEY,
   );
@@ -168,6 +197,14 @@ export function buildCliConfig(args: Record<string, unknown>): CliConfig {
     );
   }
 
+  const aaProvider = parseAAProvider(
+    str(args["aa-provider"]) ?? process.env.AOMI_AA_PROVIDER,
+  );
+  const aaMode = parseAAMode(str(args["aa-mode"]) ?? process.env.AOMI_AA_MODE);
+
+  if (execution === "eoa" && (aaProvider || aaMode)) {
+    fatal("`--aa-provider` and `--aa-mode` cannot be used with `--eoa`.");
+  }
   if (accountBearer && (embeddedProvider || embeddedProviderToken)) {
     fatal(
       "Choose either `--account-bearer` or the `--embedded-provider` + `--embedded-provider-token` pair.",
@@ -207,6 +244,9 @@ export function buildCliConfig(args: Record<string, unknown>): CliConfig {
     chainRpcUrl: str(args["rpc-url"]) ?? process.env.CHAIN_RPC_URL,
     chain: parseChainId(str(args.chain) ?? process.env.AOMI_CHAIN_ID),
     secrets: {},
+    execution,
+    aaProvider,
+    aaMode,
   };
 }
 

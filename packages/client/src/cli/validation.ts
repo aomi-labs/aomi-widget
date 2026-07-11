@@ -1,4 +1,5 @@
 import { SUPPORTED_CHAIN_IDS, CHAIN_NAMES } from "../chains";
+import type { CliAAMode, CliAAProvider } from "./types";
 import { fatal } from "./errors";
 
 export function parseChainId(value: string | undefined): number | undefined {
@@ -19,4 +20,20 @@ export function normalizePrivateKey(value: string | undefined): string | undefin
   const trimmed = value.trim();
   if (!trimmed) return undefined;
   return trimmed.startsWith("0x") ? trimmed : `0x${trimmed}`;
+}
+
+export function parseAAProvider(value: string | undefined): CliAAProvider | undefined {
+  if (value === undefined || value.trim() === "") return undefined;
+  if (value === "alchemy") {
+    return value;
+  }
+  fatal("Unsupported AA provider. Only `alchemy` is supported.");
+}
+
+export function parseAAMode(value: string | undefined): CliAAMode | undefined {
+  if (value === undefined || value.trim() === "") return undefined;
+  if (value === "4337" || value === "7702") {
+    return value;
+  }
+  fatal("Unsupported AA mode. Use `4337` or `7702`.");
 }
