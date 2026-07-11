@@ -196,9 +196,6 @@ export function LandingWalletKitProvider({ children }: { children: ReactNode }) 
       }}
       execution={{
         aa: "optional",
-        provider: "auto",
-        modes: ["4337"],
-        owner: "external-wallet",
       }}
       wallets={{
         evm: {
