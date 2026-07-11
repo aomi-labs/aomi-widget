@@ -638,7 +638,7 @@ function createSseSubscriber({
         if (subscription.lastEventId) {
           headers.set("Last-Event-ID", subscription.lastEventId);
         }
-        const response = await fetchImpl(`${backendUrl}/api/updates`, {
+        const response = await fetchImpl(`${backendUrl}/api/thread/updates`, {
           headers,
           signal: controller.signal
         });
@@ -1075,13 +1075,13 @@ ${body}` : ""}`
     const normalizedUserState = stripBulkyPendingFields(
       UserState.normalize(userState)
     );
-    const urlWithSyncParams = buildApiUrl(this.baseUrl, "/api/state", {
+    const urlWithSyncParams = buildApiUrl(this.baseUrl, "/api/thread/state", {
       user_state: normalizedUserState ? JSON.stringify(normalizedUserState) : void 0,
       client_id: clientId
     });
-    const bareUrl = buildApiUrl(this.baseUrl, "/api/state");
+    const bareUrl = buildApiUrl(this.baseUrl, "/api/thread/state");
     const shouldRetryWithoutSyncParams = Boolean(normalizedUserState) || Boolean(clientId);
-    (_a = this.logger) == null ? void 0 : _a.debug("[aomi][client] GET /api/state start", {
+    (_a = this.logger) == null ? void 0 : _a.debug("[aomi][client] GET /api/thread/state start", {
       sessionId,
       clientId,
       hasUserState: Boolean(normalizedUserState)
@@ -1093,7 +1093,7 @@ ${body}` : ""}`
     );
     if (!response.ok && shouldRetryWithoutSyncParams && (response.status === 400 || response.status === 414)) {
       (_b = this.logger) == null ? void 0 : _b.debug(
-        "[aomi][client] GET /api/state retrying without sync params",
+        "[aomi][client] GET /api/thread/state retrying without sync params",
         {
           sessionId,
           initialStatus: response.status,
@@ -1107,7 +1107,7 @@ ${body}` : ""}`
         sessionId
       );
     }
-    (_c = this.logger) == null ? void 0 : _c.debug("[aomi][client] GET /api/state response", {
+    (_c = this.logger) == null ? void 0 : _c.debug("[aomi][client] GET /api/thread/state response", {
       sessionId,
       status: response.status,
       ok: response.ok
@@ -1128,14 +1128,14 @@ ${body}` : ""}`
       UserState.normalize(options == null ? void 0 : options.userState)
     );
     const applicationId = (_c = options == null ? void 0 : options.applicationId) == null ? void 0 : _c.toString().trim();
-    const url = buildApiUrl(this.baseUrl, "/api/chat", {
+    const url = buildApiUrl(this.baseUrl, "/api/thread/chat", {
       app,
       application_id: applicationId || void 0,
       message,
       user_state: normalizedUserState ? JSON.stringify(normalizedUserState) : void 0,
       client_id: options == null ? void 0 : options.clientId
     });
-    (_d = this.logger) == null ? void 0 : _d.debug("[aomi][client] POST /api/chat prepared", {
+    (_d = this.logger) == null ? void 0 : _d.debug("[aomi][client] POST /api/thread/chat prepared", {
       sessionId,
       app,
       applicationId,
@@ -1148,7 +1148,7 @@ ${body}` : ""}`
       headers.set(APP_KEY_HEADER, apiKey);
     }
     (_e = this.logger) == null ? void 0 : _e.debug("[aomi][client] POST start", {
-      path: "/api/chat",
+      path: "/api/thread/chat",
       sessionId,
       hasApiKey: Boolean(apiKey),
       url
@@ -1158,7 +1158,7 @@ ${body}` : ""}`
       headers
     });
     (_f = this.logger) == null ? void 0 : _f.debug("[aomi][client] POST response", {
-      path: "/api/chat",
+      path: "/api/thread/chat",
       sessionId,
       status: response.status,
       ok: response.ok
@@ -1203,12 +1203,12 @@ ${body}` : ""}`
    */
   async interrupt(sessionId) {
     var _a;
-    (_a = this.logger) == null ? void 0 : _a.debug("[aomi][client] POST /api/interrupt prepared", {
+    (_a = this.logger) == null ? void 0 : _a.debug("[aomi][client] POST /api/thread/interrupt prepared", {
       sessionId
     });
     return postState(
       this.baseUrl,
-      "/api/interrupt",
+      "/api/thread/interrupt",
       {},
       sessionId,
       this.fetchImpl,
@@ -1431,7 +1431,7 @@ ${body}` : ""}`
    * Get system events for a session.
    */
   async getSystemEvents(sessionId, count) {
-    const url = buildApiUrl(this.baseUrl, "/api/events", {
+    const url = buildApiUrl(this.baseUrl, "/api/thread/events", {
       count: count !== void 0 ? String(count) : void 0
     });
     const response = await this.fetchImpl(url, {
@@ -1642,7 +1642,7 @@ ${body}` : ""}`
    * Sends full tx payloads — the backend does not look up by ID.
    */
   async simulateBatch(sessionId, transactions, options) {
-    const url = joinApiPath(this.baseUrl, "/api/simulate");
+    const url = joinApiPath(this.baseUrl, "/api/exec/simulate");
     const headers = new Headers(
       withSessionHeader(sessionId, { "Content-Type": "application/json" })
     );
