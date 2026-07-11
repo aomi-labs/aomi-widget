@@ -6,14 +6,11 @@ export default defineConfig({
   test: {
     environment: "jsdom",
     setupFiles: ["./vitest.setup.ts"],
-    include: ["packages/**/*.{test,spec}.{ts,tsx,mjs,cjs,js,jsx}"],
-    exclude: [
-      ".claude/**",
-      "**/.claude/**",
-      "**/node_modules/**",
-      "apps/**",
-      "dist/**",
+    include: [
+      "packages/**/*.{test,spec}.{ts,tsx,mjs,cjs,js,jsx}",
+      "apps/portal/src/app/mcp/connect/provider-credential.test.ts",
     ],
+    exclude: [".claude/**", "**/.claude/**", "**/node_modules/**", "dist/**"],
     restoreMocks: true,
   },
 });
