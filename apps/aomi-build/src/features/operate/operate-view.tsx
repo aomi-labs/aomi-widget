@@ -10,7 +10,10 @@ import {
   WalletCards,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-import { useGitHubSession } from "@build/components/control-plane/github-session-context";
+import {
+  useGitHubSession,
+  type GitHubAccountState,
+} from "@build/components/control-plane/github-session-context";
 import {
   GitHubSignInPanel,
   LoadingPanel,
@@ -404,12 +407,38 @@ function Rows({
   );
 }
 
+// Module-level cache so switching away from an Operate tab and back shows the
+// last-known data instantly while it revalidates in the background, instead of
+// resetting to the "Loading" state on every remount. Lives for the SPA session.
+const operateCache = new Map<string, OperatePayload>();
+
+function operateAccountCacheKey(account: GitHubAccountState): string | null {
+  if (!account.signedIn || !account.githubLogin) return null;
+  return account.githubLogin.toLowerCase();
+}
+
+function operateCacheKey(
+  accountKey: string,
+  kind: OperateKind,
+  sourceId: number | null,
+): string {
+  return `${accountKey}:${kind}:${sourceId ?? "all"}`;
+}
+
 export function OperateView({ kind }: { kind: OperateKind }) {
   const { account } = useGitHubSession();
-  const [payload, setPayload] = useState<OperatePayload | null>(null);
+  const accountCacheKey = operateAccountCacheKey(account);
+  const initialCacheKey = accountCacheKey
+    ? operateCacheKey(accountCacheKey, kind, null)
+    : null;
   const [sourceId, setSourceId] = useState<number | null>(null);
+  const [payload, setPayload] = useState<OperatePayload | null>(
+    () => (initialCacheKey ? operateCache.get(initialCacheKey) : null) ?? null,
+  );
   const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(
+    () => (initialCacheKey ? !operateCache.has(initialCacheKey) : true),
+  );
   const [loadingMore, setLoadingMore] = useState(false);
   const Icon = meta[kind].icon;
   const sources = useMemo(() => payload?.sources ?? [], [payload?.sources]);
@@ -430,15 +459,30 @@ export function OperateView({ kind }: { kind: OperateKind }) {
       return;
     }
     let alive = true;
-    setLoading(true);
+    const key = accountCacheKey
+      ? operateCacheKey(accountCacheKey, kind, sourceId)
+      : null;
+    const cached = key ? operateCache.get(key) : null;
     setError(null);
-    setPayload(null);
+    if (cached) {
+      // Show last-known data immediately and revalidate silently.
+      setPayload(cached);
+      setLoading(false);
+    } else {
+      setPayload(null);
+      setLoading(true);
+    }
     operateFetch<OperatePayload>(kind, sourceId)
       .then((next) => {
+        if (key) operateCache.set(key, next);
         if (alive) setPayload(next);
       })
       .catch((err) => {
-        if (alive) setError(err instanceof Error ? err.message : String(err));
+        // Keep showing stale data if we have it; only surface the error when
+        // there is nothing cached to fall back on.
+        if (alive && (!key || !operateCache.has(key))) {
+          setError(err instanceof Error ? err.message : String(err));
+        }
       })
       .finally(() => {
         if (alive) setLoading(false);
@@ -446,7 +490,7 @@ export function OperateView({ kind }: { kind: OperateKind }) {
     return () => {
       alive = false;
     };
-  }, [account.loading, account.signedIn, kind, sourceId]);
+  }, [account.loading, account.signedIn, accountCacheKey, kind, sourceId]);
 
   if (account.loading) {
     return (
@@ -474,10 +518,17 @@ export function OperateView({ kind }: { kind: OperateKind }) {
         sourceId,
         nextCursor,
       );
+      const key = accountCacheKey
+        ? operateCacheKey(accountCacheKey, kind, sourceId)
+        : null;
       setPayload((current) => {
-        if (!current) return next;
+        if (!current) {
+          if (key) operateCache.set(key, next);
+          return next;
+        }
+        let merged: OperatePayload;
         if (kind === "transactions") {
-          return {
+          merged = {
             ...next,
             sources: current.sources ?? next.sources,
             transactions: [
@@ -485,15 +536,17 @@ export function OperateView({ kind }: { kind: OperateKind }) {
               ...(next.transactions ?? []),
             ],
           };
-        }
-        if (kind === "logs") {
-          return {
+        } else if (kind === "logs") {
+          merged = {
             ...next,
             sources: current.sources ?? next.sources,
             logs: [...(current.logs ?? []), ...(next.logs ?? [])],
           };
+        } else {
+          merged = next;
         }
-        return next;
+        if (key) operateCache.set(key, merged);
+        return merged;
       });
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
