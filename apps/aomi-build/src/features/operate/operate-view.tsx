@@ -9,6 +9,7 @@ import {
   ScrollText,
   WalletCards,
 } from "lucide-react";
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useGitHubSession } from "@build/components/control-plane/github-session-context";
 import {
@@ -215,7 +216,10 @@ function Rows({
       <div className="space-y-3">
         <p className="text-dim text-xs leading-5">
           Platform LLM/token credits by app and day. Partner tool fees (when
-          priced) settle in chat — they are not listed here. Account → Billing
+          priced) settle in chat — they are not listed here.{" "}
+          <Link href="/settings/billing" className="text-foreground hover:underline">
+            Account → Billing
+          </Link>{" "}
           will hold plans and invoices once connected.
         </p>
         <div className="grid gap-4 xl:grid-cols-[1fr_380px]">
