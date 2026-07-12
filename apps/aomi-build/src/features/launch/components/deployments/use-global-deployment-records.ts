@@ -64,24 +64,26 @@ export function useGlobalDeploymentRecords() {
   const loadRecords = useCallback(async (readyState: ProjectsState) => {
     if (readyState.status !== "ready") return;
     setRecordsState({ status: "loading" });
-    try {
-      const perSource = await Promise.all(
-        readyState.sources.map((source) => loadSourceDeployments(source)),
-      );
-      const deployments = perSource
-        .flat()
-        .sort((a, b) => b.createdAt - a.createdAt);
-      setRecordsState({ status: "ready", deployments });
-    } catch (err) {
+    const settled = await Promise.allSettled(
+      readyState.sources.map((source) => loadSourceDeployments(source)),
+    );
+    const deployments = settled
+      .flatMap((result) => (result.status === "fulfilled" ? result.value : []))
+      .sort((a, b) => b.createdAt - a.createdAt);
+    const failures = settled.filter((result) => result.status === "rejected");
+    if (failures.length > 0 && deployments.length === 0) {
+      const first = failures[0] as PromiseRejectedResult;
       setRecordsState({
         status: "error",
         error:
-          err instanceof Error
-            ? err.message
+          first.reason instanceof Error
+            ? first.reason.message
             : "Failed to load deployment records",
         deployments: [],
       });
+      return;
     }
+    setRecordsState({ status: "ready", deployments });
   }, []);
 
   useEffect(() => {
