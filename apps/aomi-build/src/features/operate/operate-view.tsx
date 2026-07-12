@@ -50,6 +50,20 @@ function secondsLabel(value: unknown) {
   return n > 0 ? new Date(n * 1000).toLocaleString() : "";
 }
 
+/** Truncate 0x addresses for dense table cells; leave short/empty values alone. */
+export function truncateAddress(value: unknown, chars = 4): string {
+  const raw = String(value ?? "").trim();
+  if (!raw) return "";
+  if (raw.length <= chars * 2 + 2) return raw;
+  return `${raw.slice(0, chars + 2)}…${raw.slice(-chars)}`;
+}
+
+function valueLabel(value: unknown): string {
+  const raw = String(value ?? "").trim();
+  if (!raw || raw === "0") return "—";
+  return raw;
+}
+
 function numberLabel(value: unknown, digits = 1) {
   if (value === null || value === undefined || value === "") return "No data";
   const n = Number(value);
@@ -124,7 +138,7 @@ function Rows({
       return (
         <EmptyState
           title="Transactions"
-          description="Transactions appear after your apps submit on-chain actions. Deploy an app and use it in chat to generate activity."
+          description="On-chain actions from your apps show up here. Deploy an app, configure its Environment, and use it in chat to generate activity."
         />
       );
     return (
@@ -136,7 +150,10 @@ function Rows({
               <th className="px-3 py-2">App</th>
               <th className="px-3 py-2">Status</th>
               <th className="px-3 py-2">Chain</th>
+              <th className="px-3 py-2">From</th>
               <th className="px-3 py-2">To</th>
+              <th className="px-3 py-2">Value</th>
+              <th className="px-3 py-2">Description</th>
               <th className="px-3 py-2">Hash</th>
             </tr>
           </thead>
@@ -149,11 +166,32 @@ function Rows({
                 <td className="px-3 py-2">{tx.application}</td>
                 <td className="px-3 py-2">{tx.status}</td>
                 <td className="px-3 py-2">{tx.chainId}</td>
-                <td className="max-w-48 truncate px-3 py-2 font-mono text-xs">
-                  {tx.toAddress}
+                <td
+                  className="max-w-36 truncate px-3 py-2 font-mono text-xs"
+                  title={String(tx.fromAddress ?? "")}
+                >
+                  {truncateAddress(tx.fromAddress)}
                 </td>
-                <td className="max-w-48 truncate px-3 py-2 font-mono text-xs">
-                  {tx.txHash ?? ""}
+                <td
+                  className="max-w-36 truncate px-3 py-2 font-mono text-xs"
+                  title={String(tx.toAddress ?? "")}
+                >
+                  {truncateAddress(tx.toAddress)}
+                </td>
+                <td className="whitespace-nowrap px-3 py-2 font-mono text-xs">
+                  {valueLabel(tx.value)}
+                </td>
+                <td
+                  className="max-w-56 truncate px-3 py-2 text-xs"
+                  title={String(tx.description ?? "")}
+                >
+                  {tx.description ? String(tx.description) : "—"}
+                </td>
+                <td
+                  className="max-w-36 truncate px-3 py-2 font-mono text-xs"
+                  title={String(tx.txHash ?? "")}
+                >
+                  {truncateAddress(tx.txHash)}
                 </td>
               </tr>
             ))}
