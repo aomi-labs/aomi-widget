@@ -39,7 +39,7 @@ export function ProjectPage({
     : "deployments";
 
   return (
-    <main className="min-h-screen bg-white text-zinc-950">
+    <main className="min-h-screen bg-background text-foreground">
       <ProjectHeader
         source={detail.source}
         latest={detail.source?.latestDeployment ?? null}
@@ -50,7 +50,7 @@ export function ProjectPage({
       <div className="mx-auto w-full max-w-5xl px-4 py-6 sm:px-6">
         <div
           role="tablist"
-          className="mb-4 flex w-fit items-center gap-1 rounded-md bg-zinc-100 p-1 text-sm"
+          className="mb-4 flex w-fit items-center gap-1 rounded-md bg-surface-2 p-1 text-sm"
         >
           {TABS.map((tab) => (
             <button
@@ -69,15 +69,15 @@ export function ProjectPage({
               }
               className={`h-7 rounded px-2.5 text-xs font-medium ${
                 active === tab.id
-                  ? "bg-white text-zinc-950 shadow-sm"
-                  : "text-zinc-500"
+                  ? "bg-surface-1 text-foreground shadow-sm"
+                  : "text-dim"
               }`}
             >
               {tab.label}
             </button>
           ))}
         </div>
-        <div className="overflow-hidden rounded-lg border border-zinc-200 bg-white">
+        <div className="overflow-hidden rounded-lg border border-border bg-surface-1">
           {detail.loading && detail.source === null && !detail.error ? (
             <LoadingPanel label="Loading project…" />
           ) : detail.error ? (

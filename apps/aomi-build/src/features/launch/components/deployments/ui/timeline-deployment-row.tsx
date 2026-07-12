@@ -21,7 +21,7 @@ export function TimelineDeploymentRow({
     deployment;
 
   return (
-    <div className="grid min-h-[76px] grid-cols-[minmax(0,1fr)_auto] items-center gap-4 border-b border-zinc-100 px-4 py-3 last:border-b-0">
+    <div className="grid min-h-[76px] grid-cols-[minmax(0,1fr)_auto] items-center gap-4 border-b border-border px-4 py-3 last:border-b-0">
       <div className="min-w-0">
         <div className="flex min-w-0 items-center gap-2">
           <div className="truncate text-sm font-medium">{deploymentId}</div>
@@ -29,8 +29,8 @@ export function TimelineDeploymentRow({
             <span
               className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium ${
                 runtimeState === "not-loaded"
-                  ? "bg-amber-50 text-amber-700"
-                  : "bg-emerald-50 text-emerald-700"
+                  ? "bg-warning/10 text-warning"
+                  : "bg-positive/10 text-positive"
               }`}
             >
               {runtimeState === "not-loaded"
@@ -39,7 +39,7 @@ export function TimelineDeploymentRow({
             </span>
           )}
         </div>
-        <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-zinc-500">
+        <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-dim">
           <span className="inline-flex items-center gap-1 font-mono">
             <GitCommitHorizontal className="size-3.5" aria-hidden />
             {commit ?? "unknown"}
@@ -51,7 +51,7 @@ export function TimelineDeploymentRow({
             {new Date(createdAt * 1000).toLocaleString()}
           </span>
         </div>
-        {message && <div className="mt-1 text-xs text-zinc-500">{message}</div>}
+        {message && <div className="mt-1 text-xs text-dim">{message}</div>}
       </div>
 
       <div className="flex items-center gap-2">
@@ -60,7 +60,7 @@ export function TimelineDeploymentRow({
             type="button"
             disabled={busy}
             onClick={onPromote}
-            className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-zinc-300 bg-white px-2.5 text-xs font-medium text-zinc-800 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50"
+            className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-border bg-surface-1 px-2.5 text-xs font-medium text-foreground hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-50"
             title="Promote this deployment to live"
           >
             <RotateCcw className="size-3.5" aria-hidden />
