@@ -87,39 +87,38 @@ export function GlobalDeploymentsList() {
   }
 
   return (
-    <main className="min-h-screen bg-white text-zinc-950">
+    <main className="min-h-screen bg-background text-foreground">
       <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-4 py-8 sm:px-6">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="min-w-0">
             <h1 className="text-2xl font-semibold tracking-normal">
               Deployments
             </h1>
-            <p className="mt-1 text-sm text-zinc-500">
-              All project deployments. Use the project filter without leaving
-              this deployments view.
+            <p className="mt-1 text-sm text-dim">
+              Deployment history across all projects.
             </p>
           </div>
           <div className="flex shrink-0 items-center gap-2">
             <button
               type="button"
               onClick={reload}
-              className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-zinc-300 bg-white px-3 text-sm font-medium hover:bg-zinc-50"
+              className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-border bg-surface-1 px-3 text-sm font-medium hover:bg-accent-hover"
             >
               <RefreshCw className="size-3.5" aria-hidden />
               Refresh
             </button>
             <Link
               href="/operate/deployments/new"
-              className="inline-flex h-8 items-center justify-center rounded-md bg-zinc-900 px-3 text-sm font-medium text-white hover:bg-zinc-800"
+              className="inline-flex h-8 items-center justify-center rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground hover:opacity-90"
             >
               New app
             </Link>
           </div>
         </div>
 
-        <div className="rounded-lg border border-zinc-200 bg-white">
-          <div className="flex flex-wrap items-center gap-2 border-b border-zinc-200 px-4 py-3">
-            <Filter className="size-4 text-zinc-400" aria-hidden />
+        <div className="rounded-lg border border-border bg-surface-1">
+          <div className="flex flex-wrap items-center gap-2 border-b border-border px-4 py-3">
+            <Filter className="size-4 text-dim" aria-hidden />
             <select
               value={sourceFilter}
               onChange={(event) => {
@@ -131,7 +130,7 @@ export function GlobalDeploymentsList() {
                   router.push("/operate/deployments");
                 }
               }}
-              className="h-8 rounded-md border border-zinc-300 bg-white px-2 text-sm"
+              className="h-8 rounded-md border border-border bg-surface-1 px-2 text-sm"
             >
               <option value="all">All projects</option>
               {sources.map((source) => (
@@ -145,7 +144,7 @@ export function GlobalDeploymentsList() {
               onChange={(event) =>
                 setStatus(event.target.value as "all" | "current" | "previous")
               }
-              className="h-8 rounded-md border border-zinc-300 bg-white px-2 text-sm"
+              className="h-8 rounded-md border border-border bg-surface-1 px-2 text-sm"
             >
               <option value="all">All statuses</option>
               <option value="current">Current</option>
@@ -155,21 +154,21 @@ export function GlobalDeploymentsList() {
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               placeholder="Search deployment, app, commit, release tag"
-              className="h-8 min-w-[260px] flex-1 rounded-md border border-zinc-300 px-2 text-sm"
+              className="h-8 min-w-[260px] flex-1 rounded-md border border-border px-2 text-sm"
             />
           </div>
 
           {selectedDeployment ? (
-            <div className="border-b border-zinc-200 bg-zinc-50 px-4 py-4">
+            <div className="border-b border-border bg-surface-2 px-4 py-4">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div className="min-w-0">
-                  <div className="text-xs font-medium uppercase tracking-wide text-zinc-400">
+                  <div className="text-xs font-medium uppercase tracking-wide text-dim">
                     Selected deployment
                   </div>
                   <div className="mt-1 truncate font-mono text-sm font-medium">
                     {selectedDeployment.deploymentId}
                   </div>
-                  <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs text-zinc-500">
+                  <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs text-dim">
                     <span>
                       {selectedDeployment.repositoryLink ?? "Unknown project"}
                     </span>
@@ -183,7 +182,7 @@ export function GlobalDeploymentsList() {
                 <div className="flex shrink-0 items-center gap-2">
                   <Link
                     href={`/projects/${selectedDeployment.sourceId}`}
-                    className="inline-flex h-8 items-center rounded-md border border-zinc-300 bg-white px-3 text-xs font-medium hover:bg-zinc-50"
+                    className="inline-flex h-8 items-center rounded-md border border-border bg-surface-1 px-3 text-xs font-medium hover:bg-accent-hover"
                   >
                     Open project
                   </Link>
@@ -193,7 +192,7 @@ export function GlobalDeploymentsList() {
                         ? `/operate/deployments?project=${projectParam}`
                         : "/operate/deployments"
                     }
-                    className="inline-flex h-8 items-center rounded-md border border-zinc-300 bg-white px-3 text-xs font-medium hover:bg-zinc-50"
+                    className="inline-flex h-8 items-center rounded-md border border-border bg-surface-1 px-3 text-xs font-medium hover:bg-accent-hover"
                   >
                     Clear selection
                   </Link>
@@ -207,14 +206,34 @@ export function GlobalDeploymentsList() {
           ) : recordsState.status === "error" ? (
             <ErrorPanel message={recordsState.error} />
           ) : filtered.length === 0 ? (
-            <EmptyPanel>No deployments match the current filters.</EmptyPanel>
+            <EmptyPanel>
+              {deployments.length === 0 ? (
+                <div className="flex flex-col items-center gap-3">
+                  <p>
+                    No deployments yet. Deploy an app from a connected project
+                    to see history here.
+                  </p>
+                  <Link
+                    href="/operate/deployments/new"
+                    className="inline-flex h-8 items-center justify-center rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground hover:opacity-90"
+                  >
+                    New app
+                  </Link>
+                </div>
+              ) : (
+                <p>
+                  No deployments match the current filters. Clear filters or
+                  pick another project.
+                </p>
+              )}
+            </EmptyPanel>
           ) : (
-            <div className="divide-y divide-zinc-100">
+            <div className="divide-y divide-border">
               {filtered.map((deployment) => (
                 <Link
                   key={`${deployment.sourceId}-${deployment.deploymentId}`}
                   href={`/operate/deployments?project=${deployment.sourceId}&deployment=${encodeURIComponent(deployment.deploymentId)}`}
-                  className="grid min-h-[76px] grid-cols-[minmax(0,1fr)_auto] items-center gap-4 px-4 py-3 hover:bg-zinc-50"
+                  className="grid min-h-[76px] grid-cols-[minmax(0,1fr)_auto] items-center gap-4 px-4 py-3 hover:bg-accent-hover"
                 >
                   <div className="min-w-0">
                     <div className="flex min-w-0 items-center gap-2">
@@ -222,12 +241,12 @@ export function GlobalDeploymentsList() {
                         {deployment.deploymentId}
                       </div>
                       {deployment.current && (
-                        <span className="shrink-0 rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-700">
+                        <span className="shrink-0 rounded-full bg-positive/10 px-2 py-0.5 text-[11px] font-medium text-positive">
                           Current
                         </span>
                       )}
                     </div>
-                    <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-zinc-500">
+                    <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-dim">
                       <span>{deployment.repositoryLink ?? "Unknown project"}</span>
                       <span>{deployment.apps.join(", ") || "no apps"}</span>
                       <span className="font-mono">
@@ -236,7 +255,7 @@ export function GlobalDeploymentsList() {
                       <span>{formatDate(deployment.createdAt)}</span>
                     </div>
                   </div>
-                  <span className="text-xs font-medium text-zinc-500">
+                  <span className="text-xs font-medium text-dim">
                     View deployment
                   </span>
                 </Link>

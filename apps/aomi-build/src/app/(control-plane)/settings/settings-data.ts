@@ -38,14 +38,13 @@ export const settingsSections: SettingsSection[] = [
   {
     slug: "secrets",
     title: "Secrets",
-    description: "Deployment and runtime environment values.",
+    description:
+      "Per-project environment values. Pick a project to manage its secrets.",
     icon: KeyRound,
     enabled: true,
     status: "project-scoped",
     detail:
-      "Secrets are already implemented per project in the deployment Environment tab. There is no global secret store in this app yet.",
-    actionHref: "/operate/deployments?tab=environment",
-    actionLabel: "Open project environment",
+      "Secrets live on each project Environment tab. There is no account-wide secret store — choose a project below.",
   },
   {
     slug: "notifications",
