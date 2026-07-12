@@ -139,7 +139,7 @@ export function OverviewDashboard() {
         <StatCard
           label="Credits"
           value={formatNumber(usageTotals.creditsUsed)}
-          helper="Usage in the selected backend range"
+          helper="LLM/token usage meter — not partner fees or invoices"
         />
         <StatCard
           label="Tokens"
@@ -252,8 +252,8 @@ export function OverviewDashboard() {
               {usageError
                 ? `Usage unavailable: ${usageError}`
                 : latestDeployment
-                  ? "Daily app and model totals."
-                  : "Usage appears after app traffic."}
+                  ? "Credit meter by app. Billing plans live under Account → Billing later."
+                  : "Usage appears after app traffic. Not a billing invoice view."}
             </div>
           </Link>
         </div>

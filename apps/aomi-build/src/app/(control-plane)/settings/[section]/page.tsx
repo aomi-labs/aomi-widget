@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { getSettingsSection, settingsSections } from "../settings-data";
+import { SettingsBillingPanel } from "../settings-billing-panel";
 import { SettingsSecretsPanel } from "../settings-secrets-panel";
 
 export function generateStaticParams() {
@@ -40,6 +41,8 @@ export default async function SettingsSectionPage({
 
       {slug === "secrets" ? (
         <SettingsSecretsPanel />
+      ) : slug === "billing" ? (
+        <SettingsBillingPanel />
       ) : (
         <section className="rounded-lg border border-border bg-surface-1 p-4">
           <div className="text-sm font-medium text-foreground">

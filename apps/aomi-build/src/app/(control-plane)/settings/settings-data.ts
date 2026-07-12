@@ -79,11 +79,13 @@ export const settingsSections: SettingsSection[] = [
   {
     slug: "billing",
     title: "Billing",
-    description: "Credits, spend, invoices, and plan management.",
+    description:
+      "Credits, plans, and invoices — when wired. Spend today is on Usage.",
     icon: CreditCard,
-    enabled: false,
+    enabled: true,
     status: "planned",
-    detail: "No billing or invoice backend is connected to this app.",
+    detail:
+      "Invoices and plan management are not connected yet. See Operate → Usage for credit spend; set API keys on Project → Environment (via Account → Secrets).",
   },
   {
     slug: "bots",
