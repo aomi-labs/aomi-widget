@@ -1,9 +1,9 @@
 # Aomi Build — Builders' Experience Plan
 
-> **Status:** Phase three done — stop for Cecilia/Han review  
+> **Status:** Phase five in progress (transactions density); Phase four deferred  
 > **App:** `aomi/apps/aomi-build` → [build.aomi.dev](https://build.aomi.dev)  
 > **Owner:** Gordian (`0xgordian`)  
-> **Branch:** `feat/builders-experience-phase-1`  
+> **Branch:** `feat/builders-experience-phase-5-transactions`  
 > **Last updated:** 2026-07-12
 
 Execution plan for improving the **builders' experience** on Han's live Build app.  
