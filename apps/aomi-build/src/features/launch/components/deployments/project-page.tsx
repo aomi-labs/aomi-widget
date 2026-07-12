@@ -13,7 +13,7 @@ const TABS = [
   { id: "deployments", label: "Deployments" },
   { id: "chat", label: "Chat" },
   { id: "environment", label: "Environment" },
-  { id: "settings", label: "Settings" },
+  { id: "settings", label: "Details" },
 ] as const;
 type TabId = (typeof TABS)[number]["id"];
 

@@ -170,6 +170,9 @@ export function DeploymentsTab({ detail }: { detail: Detail }) {
 
   return (
     <div>
+      <div className="border-b border-zinc-100 px-4 py-2 text-xs text-zinc-500">
+        Deployment history for this project.
+      </div>
       <div className="flex items-center justify-between gap-3 border-b border-zinc-100 px-4 py-3">
         <div
           role="tablist"
@@ -271,7 +274,15 @@ export function DeploymentsTab({ detail }: { detail: Detail }) {
       deployments.length === 0 &&
       !detail.recordsError ? (
         <EmptyPanel>
-          No deployments yet. Use “Deploy new version” to publish this project.
+          <div className="flex flex-col items-center gap-2">
+            <p>
+              No deployments yet for this project. Use{" "}
+              <span className="font-medium text-zinc-700">
+                Deploy new version
+              </span>{" "}
+              to publish.
+            </p>
+          </div>
         </EmptyPanel>
       ) : view === "deployments" && deployments.length > 0 ? (
         deployments.map((deployment) => {

@@ -27,10 +27,10 @@ export function ProjectIndex() {
         <div className="flex items-center justify-between gap-4">
           <div className="min-w-0">
             <h1 className="text-2xl font-semibold tracking-normal">
-              Deployments
+              Projects
             </h1>
             <p className="mt-1 text-sm text-zinc-500">
-              Your connected projects and their latest deployments.
+              GitHub repositories connected as Aomi apps.
             </p>
           </div>
           <div className="flex shrink-0 items-center gap-2">
@@ -72,7 +72,20 @@ export function ProjectIndex() {
             <GitHubSignInPanel error={githubError} />
           )}
           {state.status === "ready" && state.sources.length === 0 && (
-            <EmptyPanel>No projects yet.</EmptyPanel>
+            <EmptyPanel>
+              <div className="flex flex-col items-center gap-3">
+                <p>
+                  No projects yet. Import a GitHub repository to deploy your
+                  first app.
+                </p>
+                <a
+                  href="/operate/deployments/new"
+                  className="inline-flex h-8 items-center justify-center rounded-md bg-zinc-900 px-3 text-sm font-medium text-white hover:bg-zinc-800"
+                >
+                  New app
+                </a>
+              </div>
+            </EmptyPanel>
           )}
           {state.status === "ready" &&
             state.sources.map((source) => (
