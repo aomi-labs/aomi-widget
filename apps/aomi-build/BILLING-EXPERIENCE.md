@@ -1,12 +1,12 @@
-# Aomi Build — Billing Clarity Plan
+# Aomi Build — Billing Experience Plan
 
 > **Status:** Phase A done — stop for staging click-through  
 > **App:** `aomi/apps/aomi-build` → [build.aomi.dev](https://build.aomi.dev)  
 > **Owner:** Gordian (`0xgordian`)  
-> **Branch:** `feat/builders-billing-phase-a-clarity`  
+> **Branch:** `feat/builders-billing-experience-phase-a`  
 > **Last updated:** 2026-07-12
 
-Execution plan for **Build control-plane clarity** around billing.  
+Execution plan for the **billing experience** on Build.  
 Not a payments product. Not a rewrite of Kevin’s rails. Not fake invoice UI.
 
 **Team visibility:** Pair with a Scrum Board issue when useful. This file is the local source of truth for Gordian’s UI/IA work.
@@ -78,7 +78,7 @@ Environment ≠ Billing. Usage ≠ broken Billing.
 Thin signal only when an API exposes priced tools / `billing.toml`: badge or Details note (“this app may charge users”).  
 No Build form for editing `billing.toml` until product asks.
 
-**Stop gate:** Only start after Phase A feels clear.
+**Stop gate:** Only start after Phase A feels solid.
 
 ---
 

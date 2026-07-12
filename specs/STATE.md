@@ -2,7 +2,20 @@
 
 ## Last Updated
 
-2026-07-11 — Staging Para sign-in fix (PARA_JWT_AUDIENCE) + blank-env hardening
+2026-07-12 — Billing plan doc rename (clarity → experience)
+
+## Billing experience plan rename (2026-07-12)
+
+- Renamed `apps/aomi-build/BILLING-CLARITY.md` → `BILLING-EXPERIENCE.md`
+  (matches `BUILDERS-EXPERIENCE.md` naming). Content uses "Billing Experience";
+  A→D phases and mental model unchanged.
+- Local branch renamed to `feat/builders-billing-experience-phase-a`
+  (was unpushed `feat/builders-billing-phase-a-clarity`).
+
+## Staging Para sign-in broken: aud mismatch (2026-07-11)
+
+Para login on chat-staging.aomi.dev authenticated at Para (embedded wallets
+connected) but never became an Aomi session: `POST /api/auth/aomi/provider/exchange`
 
 ## Staging Para sign-in broken: aud mismatch (2026-07-11)
 
