@@ -1,8 +1,9 @@
 # Aomi Build — Builders' Experience Plan
 
-> **Status:** Not started  
+> **Status:** Phase 1 in progress (trust & IA)  
 > **App:** `aomi/apps/aomi-build` → [build.aomi.dev](https://build.aomi.dev)  
 > **Owner:** Gordian (`0xgordian`)  
+> **Branch:** `feat/builders-experience-phase-1`  
 > **Last updated:** 2026-07-12
 
 Execution plan for improving the **builders' experience** on Han's live Build app.  

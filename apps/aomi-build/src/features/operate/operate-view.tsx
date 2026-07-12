@@ -67,10 +67,19 @@ function unitLabel(value: unknown, unit: string, digits = 1) {
   return label === "No data" ? label : `${label} ${unit}`;
 }
 
-function EmptyState({ title }: { title: string }) {
+function EmptyState({
+  title,
+  description,
+}: {
+  title: string;
+  description?: string;
+}) {
   return (
     <div className="border-border bg-surface-subtle text-dim rounded-md border px-4 py-10 text-center text-sm">
-      No {title.toLowerCase()} found.
+      <p>No {title.toLowerCase()} found.</p>
+      {description ? (
+        <p className="mt-2 text-xs leading-5">{description}</p>
+      ) : null}
     </div>
   );
 }
@@ -111,7 +120,13 @@ function Rows({
 
   if (kind === "transactions") {
     const rows = payload.transactions ?? [];
-    if (!rows.length) return <EmptyState title="Transactions" />;
+    if (!rows.length)
+      return (
+        <EmptyState
+          title="Transactions"
+          description="Transactions appear after your apps submit on-chain actions. Deploy an app and use it in chat to generate activity."
+        />
+      );
     return (
       <div className="border-border overflow-x-auto rounded-md border">
         <table className="divide-border min-w-full divide-y text-sm">

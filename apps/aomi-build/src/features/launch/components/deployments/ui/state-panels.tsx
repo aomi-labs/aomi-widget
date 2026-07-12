@@ -20,7 +20,7 @@ export function ErrorPanel({ message }: { message: string }) {
 
 export function EmptyPanel({ children }: { children: ReactNode }) {
   return (
-    <div className="flex min-h-[260px] items-center justify-center px-4 py-10 text-center text-sm text-zinc-500">
+    <div className="flex min-h-[260px] flex-col items-center justify-center gap-2 px-4 py-10 text-center text-sm text-zinc-500">
       {children}
     </div>
   );

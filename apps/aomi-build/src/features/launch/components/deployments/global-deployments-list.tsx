@@ -95,8 +95,7 @@ export function GlobalDeploymentsList() {
               Deployments
             </h1>
             <p className="mt-1 text-sm text-zinc-500">
-              All project deployments. Use the project filter without leaving
-              this deployments view.
+              Deployment history across all projects.
             </p>
           </div>
           <div className="flex shrink-0 items-center gap-2">
@@ -207,7 +206,27 @@ export function GlobalDeploymentsList() {
           ) : recordsState.status === "error" ? (
             <ErrorPanel message={recordsState.error} />
           ) : filtered.length === 0 ? (
-            <EmptyPanel>No deployments match the current filters.</EmptyPanel>
+            <EmptyPanel>
+              {deployments.length === 0 ? (
+                <div className="flex flex-col items-center gap-3">
+                  <p>
+                    No deployments yet. Deploy an app from a connected project
+                    to see history here.
+                  </p>
+                  <Link
+                    href="/operate/deployments/new"
+                    className="inline-flex h-8 items-center justify-center rounded-md bg-zinc-900 px-3 text-sm font-medium text-white hover:bg-zinc-800"
+                  >
+                    New app
+                  </Link>
+                </div>
+              ) : (
+                <p>
+                  No deployments match the current filters. Clear filters or
+                  pick another project.
+                </p>
+              )}
+            </EmptyPanel>
           ) : (
             <div className="divide-y divide-zinc-100">
               {filtered.map((deployment) => (

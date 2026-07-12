@@ -181,7 +181,7 @@ export function EnvironmentTab({ detail }: { detail: Detail }) {
         </div>
       </div>
 
-      {currentKeys.length > 0 && (
+      {currentKeys.length > 0 ? (
         <div className="px-4 py-3">
           <div className="text-xs font-medium uppercase tracking-wide text-zinc-400">
             Configured
@@ -213,6 +213,17 @@ export function EnvironmentTab({ detail }: { detail: Detail }) {
             ))}
           </ul>
         </div>
+      ) : (
+        appNames.length > 0 && (
+          <div className="px-4 py-4 text-sm text-zinc-500">
+            <p className="font-medium text-zinc-700">No variables yet</p>
+            <p className="mt-1 text-xs leading-5">
+              Add keys your agent needs (for example{" "}
+              <span className="font-mono">BINANCE_API_KEY</span>). Builders set
+              these here — chat users never paste API keys.
+            </p>
+          </div>
+        )
       )}
     </div>
   );
