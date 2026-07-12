@@ -1,6 +1,6 @@
 # Aomi Build — Builders' Experience Plan
 
-> **Status:** Phase 1 in progress (trust & IA)  
+> **Status:** Phase two in progress (secrets project picker)  
 > **App:** `aomi/apps/aomi-build` → [build.aomi.dev](https://build.aomi.dev)  
 > **Owner:** Gordian (`0xgordian`)  
 > **Branch:** `feat/builders-experience-phase-1`  
