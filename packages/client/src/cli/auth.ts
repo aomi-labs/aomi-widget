@@ -26,8 +26,6 @@ type PortalAccountResponse = {
   } | null;
 };
 
-export type CliAuthAccountInfo = PortalAccountResponse;
-
 export type CliSiweLoginOptions = {
   baseUrl: string;
   privateKey: `0x${string}`;

@@ -7,7 +7,6 @@ import type {
   AomiBeginAccountAuthResponse,
   AomiClientOptions,
   AomiCreateApprovalRequest,
-  AomiMessage,
   AomiChatResponse,
   AomiClearSecretsResponse,
   AomiCreateThreadResponse,
