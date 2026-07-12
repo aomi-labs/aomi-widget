@@ -4,7 +4,6 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   Activity,
-  Bot,
   CircleUserRound,
   Github,
   FolderKanban,
@@ -100,13 +99,6 @@ const navGroups: NavGroup[] = [
         requiresGitHub: true,
       },
       {
-        label: "Agents",
-        href: "/operate/agents",
-        icon: Bot,
-        enabled: true,
-        requiresGitHub: true,
-      },
-      {
         label: "Logs",
         href: "/operate/logs",
         icon: ScrollText,
@@ -122,7 +114,8 @@ const navGroups: NavGroup[] = [
         label: "Integrations",
         href: "/integrations",
         icon: Plug,
-        enabled: false,
+        enabled: true,
+        requiresGitHub: true,
       },
       { label: "Settings", href: "/settings", icon: Settings, enabled: true },
     ],
