@@ -1,7 +1,13 @@
 import type { Chain, Hex, LocalAccount, WalletClient } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 
-import type { AAState, SmartAccount, AAMode, AAWalletCall } from "../types";
+import type {
+  AAState,
+  AAResolvedConfig,
+  SmartAccount,
+  AAMode,
+  AAWalletCall,
+} from "../types";
 import {
   DEFAULT_AA_CONFIG,
   getAAChainConfig,
@@ -58,11 +64,11 @@ export async function createPimlicoAAState(
     throw new Error("Pimlico AA requires PIMLICO_API_KEY.");
   }
 
-  const execution = {
+  const execution: AAResolvedConfig = {
     ...plan,
     mode: effectiveMode,
     sponsorship: resolveAASponsorship(effectiveMode, plan.sponsorship),
-  } as AAState["resolved"];
+  };
 
   const ownerParams = getOwnerParams(owner);
   if (ownerParams.kind === "missing") {
@@ -85,7 +91,7 @@ export async function createPimlicoAAState(
 
     if (signer) {
       return await createPimlicoPermissionlessState({
-        resolved: execution!,
+        resolved: execution,
         chain,
         signer,
         externalSigner:
@@ -105,7 +111,7 @@ export async function createPimlicoAAState(
       apiKey,
       chain,
       rpcUrl: options.rpcUrl,
-      mode: execution!.mode,
+      mode: execution.mode,
     } as never);
 
     if (!smartAccount) {

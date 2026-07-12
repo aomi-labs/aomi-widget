@@ -27,7 +27,7 @@ import {
   resolveCliExecutionDecision,
   type CliExecutionDecision,
 } from "../execution";
-import { DIM, GREEN, RESET, printDataFileLocation } from "../output";
+import { DIM, RESET, printDataFileLocation } from "../output";
 import type { PendingSolTx, PendingTx, SignedTx } from "../state";
 import {
   formatPendingSolTxLine,

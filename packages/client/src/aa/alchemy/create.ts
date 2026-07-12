@@ -2,7 +2,13 @@ import type { Chain, Hex } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 
 import { adaptSmartAccount } from "../adapt";
-import type { AAState, SmartAccount, AAMode, AAWalletCall } from "../types";
+import type {
+  AAState,
+  AAResolvedConfig,
+  SmartAccount,
+  AAMode,
+  AAWalletCall,
+} from "../types";
 import {
   DEFAULT_AA_CONFIG,
   getAAChainConfig,
@@ -171,13 +177,13 @@ export async function createAlchemyAAState(
     ? resolveAlchemyGasPolicyId({ gasPolicyId: options.gasPolicyId })
     : undefined;
 
-  const execution = {
+  const execution: AAResolvedConfig = {
     ...plan,
     mode: effectiveMode,
     sponsorship: gasPolicyId
       ? resolveAASponsorship(effectiveMode, plan.sponsorship)
       : "disabled",
-  } as AAState["resolved"];
+  };
 
   const ownerParams = getOwnerParams(owner);
   if (ownerParams.kind === "missing") {
@@ -189,7 +195,7 @@ export async function createAlchemyAAState(
 
   if (owner.kind === "direct") {
     const directParams: AlchemyDirectOwnerParams = {
-      resolved: execution!,
+      resolved: execution,
       chain,
       privateKey: owner.privateKey,
       apiKey,
@@ -231,13 +237,13 @@ export async function createAlchemyAAState(
 
   try {
     return await createAlchemySdkState({
-      resolved: execution!,
+      resolved: execution,
       ownerParams: ownerParams.ownerParams,
       chain,
       rpcUrl: options.rpcUrl,
       apiKey,
       gasPolicyId,
-      mode: execution!.mode,
+      mode: execution.mode,
     });
   } catch (error) {
     return {

@@ -58,7 +58,7 @@ export function toInboundMessage(msg: AomiMessage): ThreadMessageLike | null {
     content.push({ type: "text" as const, text: msg.content });
   }
 
-  const [topic, toolContent] = parseToolPayload(msg) ?? [];
+  const [topic, toolContent] = parseToolResult(msg.tool_result) ?? [];
   if (topic && toolContent) {
     content.push({
       type: "tool-call" as const,
@@ -86,20 +86,6 @@ export function toInboundMessage(msg: AomiMessage): ThreadMessageLike | null {
   } satisfies ThreadMessageLike;
 
   return threadMessage;
-}
-
-function parseToolPayload(msg: AomiMessage): [string, string] | null {
-  return parseToolResult(msg.tool_result);
-}
-
-export function constructUITool(): string {
-  return "";
-}
-
-function parseMessageTimestamp(timestamp?: string) {
-  if (!timestamp) return undefined;
-  const parsed = new Date(timestamp);
-  return Number.isNaN(parsed.valueOf()) ? undefined : parsed;
 }
 
 function parseToolResult(
