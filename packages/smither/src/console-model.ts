@@ -61,8 +61,9 @@ export function eventNodeId(frame: EventFrameLike): string | undefined {
   const direct = payload.nodeId;
   if (typeof direct === "string" && direct) return direct;
   const node = payload.node;
-  if (node && typeof node === "object" && typeof (node as { id?: unknown }).id === "string") {
-    return (node as { id: string }).id;
+  if (node && typeof node === "object") {
+    const id = (node as { id?: unknown }).id;
+    if (typeof id === "string") return id;
   }
   return undefined;
 }

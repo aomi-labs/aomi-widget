@@ -96,15 +96,11 @@ export const smitherSchemas = {
 export type SmitherSchemas = typeof smitherSchemas;
 export type BinariesRow = z.infer<SmitherSchemas["binaries"]>;
 export type CodegenRow = z.infer<SmitherSchemas["codegen"]>;
-export type CurationRow = z.infer<SmitherSchemas["curation"]>;
-export type ReviewRow = z.infer<SmitherSchemas["review"]>;
 export type ValidationRow = z.infer<SmitherSchemas["validation"]>;
 export type SmokeRow = z.infer<SmitherSchemas["smoke"]>;
 export type GateRow = z.infer<SmitherSchemas["gate"]>;
 export type ClarifyRow = z.infer<SmitherSchemas["clarify"]>;
-export type AgentWorkRow = z.infer<SmitherSchemas["agentWork"]>;
 export type EvaluationRow = z.infer<SmitherSchemas["evaluation"]>;
-export type ExternalRow = z.infer<SmitherSchemas["external"]>;
 export type DeploymentRow = z.infer<SmitherSchemas["deployment"]>;
 export type ResultRow = z.infer<SmitherSchemas["result"]>;
 
