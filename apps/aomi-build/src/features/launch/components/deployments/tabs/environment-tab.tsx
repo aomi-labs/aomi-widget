@@ -104,12 +104,12 @@ export function EnvironmentTab({ detail }: { detail: Detail }) {
   };
 
   return (
-    <div className="divide-y divide-zinc-100">
+    <div className="divide-y divide-border">
       <div className="px-4 py-3">
         <div className="flex items-center justify-between gap-3">
           <div className="text-sm font-medium">Environment</div>
           {appNames.length === 1 && (
-            <span className="rounded-md border border-zinc-200 bg-zinc-50 px-2 py-1 font-mono text-xs text-zinc-600">
+            <span className="rounded-md border border-border bg-surface-2 px-2 py-1 font-mono text-xs text-dim">
               {appNames[0]}
             </span>
           )}
@@ -118,7 +118,7 @@ export function EnvironmentTab({ detail }: { detail: Detail }) {
           <div
             role="tablist"
             aria-label="Application environment scope"
-            className="mt-3 flex flex-wrap gap-1 rounded-md bg-zinc-100 p-1"
+            className="mt-3 flex flex-wrap gap-1 rounded-md bg-surface-2 p-1"
           >
             {appNames.map((name) => (
               <button
@@ -129,8 +129,8 @@ export function EnvironmentTab({ detail }: { detail: Detail }) {
                 onClick={() => setApp(name)}
                 className={`h-7 rounded px-2.5 font-mono text-xs font-medium ${
                   app === name
-                    ? "bg-white text-zinc-950 shadow-sm"
-                    : "text-zinc-500 hover:text-zinc-800"
+                    ? "bg-surface-1 text-foreground shadow-sm"
+                    : "text-dim hover:text-foreground"
                 }`}
               >
                 {name}
@@ -139,11 +139,11 @@ export function EnvironmentTab({ detail }: { detail: Detail }) {
           </div>
         )}
         {appNames.length === 0 && (
-          <div className="mt-3 rounded-md border border-zinc-200 bg-zinc-50 px-3 py-2 text-xs text-zinc-500">
+          <div className="mt-3 rounded-md border border-border bg-surface-2 px-3 py-2 text-xs text-dim">
             No applications are attached to this project yet.
           </div>
         )}
-        <p className="mt-3 text-xs leading-5 text-zinc-500">
+        <p className="mt-3 text-xs leading-5 text-dim">
           One vault for{" "}
           <span className="font-mono">{app || "this app"}</span>. Add
           KEY=value pairs here — they are injected into the running app.
@@ -151,14 +151,14 @@ export function EnvironmentTab({ detail }: { detail: Detail }) {
           these; chat users never paste API keys.
         </p>
         {detail.secretsError && (
-          <div className="mt-3 rounded-md border border-red-100 bg-red-50 px-3 py-2 text-xs text-red-700">
+          <div className="mt-3 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
             {detail.secretsError}
           </div>
         )}
       </div>
 
       <div className="px-4 py-3">
-        <div className="mb-2 text-xs font-medium uppercase tracking-wide text-zinc-400">
+        <div className="mb-2 text-xs font-medium uppercase tracking-wide text-dim">
           Add or overwrite
         </div>
         <div className="space-y-2">
@@ -175,7 +175,7 @@ export function EnvironmentTab({ detail }: { detail: Detail }) {
                 }
                 placeholder="KEY"
                 aria-label="Environment key"
-                className="h-8 w-40 rounded-md border border-zinc-300 px-2 font-mono text-xs"
+                className="bg-input text-foreground h-8 w-40 rounded-md border border-border px-2 font-mono text-xs"
               />
               <input
                 value={row.value}
@@ -189,14 +189,14 @@ export function EnvironmentTab({ detail }: { detail: Detail }) {
                 placeholder="value"
                 aria-label="Environment value"
                 type="password"
-                className="h-8 flex-1 rounded-md border border-zinc-300 px-2 text-xs"
+                className="bg-input text-foreground h-8 flex-1 rounded-md border border-border px-2 text-xs"
               />
             </div>
           ))}
           <button
             type="button"
             onClick={() => setRows((rs) => [...rs, { key: "", value: "" }])}
-            className="inline-flex h-7 items-center gap-1 rounded-md border border-zinc-300 bg-white px-2 text-xs font-medium hover:bg-zinc-50"
+            className="inline-flex h-7 items-center gap-1 rounded-md border border-border bg-surface-1 px-2 text-xs font-medium hover:bg-accent-hover"
           >
             <Plus className="size-3.5" aria-hidden />
             Add variable
@@ -208,14 +208,14 @@ export function EnvironmentTab({ detail }: { detail: Detail }) {
             type="button"
             disabled={!app || status.kind === "saving"}
             onClick={() => void save()}
-            className="inline-flex h-8 items-center justify-center rounded-md bg-zinc-900 px-3 text-xs font-medium text-white hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50"
+            className="inline-flex h-8 items-center justify-center rounded-md bg-primary px-3 text-xs font-medium text-primary-foreground hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
           >
             Save values
           </button>
           {status.kind !== "idle" && (
             <span
               className={`text-xs ${
-                status.kind === "error" ? "text-red-600" : "text-zinc-500"
+                status.kind === "error" ? "text-destructive" : "text-dim"
               }`}
             >
               {status.message}
@@ -226,7 +226,7 @@ export function EnvironmentTab({ detail }: { detail: Detail }) {
 
       {currentKeys.length > 0 ? (
         <div className="px-4 py-3">
-          <div className="text-xs font-medium uppercase tracking-wide text-zinc-400">
+          <div className="text-xs font-medium uppercase tracking-wide text-dim">
             Configured
           </div>
           <ul className="mt-2 space-y-2">
@@ -236,17 +236,17 @@ export function EnvironmentTab({ detail }: { detail: Detail }) {
                 className="flex flex-wrap items-center justify-between gap-2 py-0.5"
               >
                 <span className="flex min-w-0 flex-wrap items-center gap-2">
-                  <span className="truncate font-mono text-xs text-zinc-800">
+                  <span className="truncate font-mono text-xs text-foreground">
                     {key}
                   </span>
-                  <span className="rounded-sm border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-amber-700">
+                  <span className="rounded-sm border border-warning/40 bg-warning/10 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-warning">
                     Builder secret
                   </span>
-                  <span className="rounded-sm border border-zinc-200 bg-zinc-50 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-zinc-600">
+                  <span className="rounded-sm border border-border bg-surface-2 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-dim">
                     Runtime
                   </span>
                   <span
-                    className="font-mono text-xs tracking-widest text-zinc-400"
+                    className="font-mono text-xs tracking-widest text-dim"
                     title="Value is write-only and cannot be revealed"
                     aria-label="Value hidden"
                   >
@@ -257,7 +257,7 @@ export function EnvironmentTab({ detail }: { detail: Detail }) {
                   <button
                     type="button"
                     onClick={() => void copyKey(key)}
-                    className="inline-flex items-center gap-1 text-xs text-zinc-500 hover:text-zinc-800"
+                    className="inline-flex items-center gap-1 text-xs text-dim hover:text-foreground"
                     title={`Copy ${key}`}
                   >
                     <Copy className="size-3.5" aria-hidden />
@@ -266,7 +266,7 @@ export function EnvironmentTab({ detail }: { detail: Detail }) {
                   <button
                     type="button"
                     onClick={() => overwrite(key)}
-                    className="text-xs text-zinc-500 hover:text-zinc-800"
+                    className="text-xs text-dim hover:text-foreground"
                     title={`Overwrite ${key}`}
                   >
                     Overwrite
@@ -274,7 +274,7 @@ export function EnvironmentTab({ detail }: { detail: Detail }) {
                   <button
                     type="button"
                     onClick={() => void remove(key)}
-                    className="inline-flex items-center gap-1 text-xs text-zinc-400 hover:text-red-600"
+                    className="inline-flex items-center gap-1 text-xs text-dim hover:text-destructive"
                     title={`Delete ${key}`}
                   >
                     <Trash2 className="size-3.5" aria-hidden />
@@ -287,8 +287,8 @@ export function EnvironmentTab({ detail }: { detail: Detail }) {
         </div>
       ) : (
         appNames.length > 0 && (
-          <div className="px-4 py-4 text-sm text-zinc-500">
-            <p className="font-medium text-zinc-700">No variables yet</p>
+          <div className="px-4 py-4 text-sm text-dim">
+            <p className="font-medium text-foreground">No variables yet</p>
             <p className="mt-1 text-xs leading-5">
               Add keys your agent needs (for example{" "}
               <span className="font-mono">BINANCE_API_KEY</span>). Builders set

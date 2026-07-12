@@ -14,10 +14,10 @@ export function SdkBadge({
         : "missing";
   const tone =
     state === "ok"
-      ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+      ? "border-positive/40 bg-positive/10 text-positive"
       : state === "outdated"
-        ? "border-amber-200 bg-amber-50 text-amber-700"
-        : "border-zinc-200 bg-zinc-50 text-zinc-600";
+        ? "border-warning/40 bg-warning/10 text-warning"
+        : "border-border bg-surface-2 text-dim";
   return (
     <span
       data-testid="sdk-badge"

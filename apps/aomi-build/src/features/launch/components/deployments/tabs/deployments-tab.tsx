@@ -170,14 +170,14 @@ export function DeploymentsTab({ detail }: { detail: Detail }) {
 
   return (
     <div>
-      <div className="border-b border-zinc-100 px-4 py-2 text-xs text-zinc-500">
+      <div className="border-b border-border px-4 py-2 text-xs text-dim">
         Deployment history for this project.
       </div>
-      <div className="flex items-center justify-between gap-3 border-b border-zinc-100 px-4 py-3">
+      <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
         <div
           role="tablist"
           aria-label="Deployment views"
-          className="inline-flex rounded-md border border-zinc-200 bg-white p-0.5"
+          className="inline-flex rounded-md border border-border bg-surface-1 p-0.5"
         >
           {[
             ["deployments", "Deployments"],
@@ -191,8 +191,8 @@ export function DeploymentsTab({ detail }: { detail: Detail }) {
               onClick={() => setView(id as View)}
               className={`h-7 rounded px-2.5 text-xs font-medium ${
                 view === id
-                  ? "bg-zinc-900 text-white"
-                  : "text-zinc-600 hover:bg-zinc-50"
+                  ? "bg-primary text-primary-foreground"
+                  : "text-dim hover:bg-accent-hover"
               }`}
             >
               {label}
@@ -213,7 +213,7 @@ export function DeploymentsTab({ detail }: { detail: Detail }) {
                     })
                   : undefined
               }
-              className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-zinc-300 bg-white px-2.5 text-xs font-medium text-zinc-800 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50"
+              className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-border bg-surface-1 px-2.5 text-xs font-medium text-foreground hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-50"
               title={
                 deactivated
                   ? "No deployment is live"
@@ -231,7 +231,7 @@ export function DeploymentsTab({ detail }: { detail: Detail }) {
               setOp(null);
               void detail.deployNewVersion();
             }}
-            className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md bg-zinc-900 px-3 text-xs font-medium text-white hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50"
+            className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md bg-primary px-3 text-xs font-medium text-primary-foreground hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
             title="Deploy the source repo's latest commit and activate it"
           >
             <Rocket className="size-3.5" aria-hidden />
@@ -242,10 +242,10 @@ export function DeploymentsTab({ detail }: { detail: Detail }) {
 
       {detail.deployFlow.phase !== "idle" && (
         <div
-          className={`border-b border-zinc-100 px-4 py-2 text-xs ${
+          className={`border-b border-border px-4 py-2 text-xs ${
             detail.deployFlow.phase === "error"
-              ? "text-red-600"
-              : "text-zinc-500"
+              ? "text-destructive"
+              : "text-dim"
           }`}
         >
           {detail.deployFlow.message}
@@ -253,8 +253,8 @@ export function DeploymentsTab({ detail }: { detail: Detail }) {
       )}
 
       {deactivated && (
-        <div className="flex items-center gap-2 border-b border-red-100 bg-red-50 px-4 py-2 text-xs text-red-700">
-          <span className="rounded-full bg-red-100 px-2 py-0.5 font-medium">
+        <div className="flex items-center gap-2 border-b border-destructive/30 bg-destructive/10 px-4 py-2 text-xs text-destructive">
+          <span className="rounded-full bg-destructive/20 px-2 py-0.5 font-medium">
             Deactivated
           </span>
           <span>
@@ -265,7 +265,7 @@ export function DeploymentsTab({ detail }: { detail: Detail }) {
       )}
 
       {detail.recordsError && (
-        <div className="border-b border-red-100 bg-red-50 px-4 py-2 text-xs text-red-700">
+        <div className="border-b border-destructive/30 bg-destructive/10 px-4 py-2 text-xs text-destructive">
           {detail.recordsError}
         </div>
       )}
@@ -277,7 +277,7 @@ export function DeploymentsTab({ detail }: { detail: Detail }) {
           <div className="flex flex-col items-center gap-2">
             <p>
               No deployments yet for this project. Use{" "}
-              <span className="font-medium text-zinc-700">
+              <span className="font-medium text-foreground">
                 Deploy new version
               </span>{" "}
               to publish.
@@ -329,7 +329,7 @@ export function DeploymentsTab({ detail }: { detail: Detail }) {
           {activity.map((row) => (
             <div
               key={`${row.app}-${row.deploymentId}-${row.releaseTag}-${row.createdAt}`}
-              className="flex min-h-10 items-center justify-between gap-4 border-b border-zinc-100 px-4 py-2 text-xs text-zinc-600 last:border-b-0"
+              className="flex min-h-10 items-center justify-between gap-4 border-b border-border px-4 py-2 text-xs text-dim last:border-b-0"
             >
               <span className="min-w-0 truncate font-mono">
                 promoted · {row.deploymentId}

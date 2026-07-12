@@ -19,22 +19,22 @@ export function ConfirmDialog({
       <div
         role="dialog"
         aria-label={title}
-        className="w-full max-w-sm rounded-lg border border-zinc-200 bg-white p-4 shadow-lg"
+        className="w-full max-w-sm rounded-lg border border-border bg-surface-1 p-4 shadow-lg"
       >
         <div className="text-sm font-semibold">{title}</div>
-        <p className="mt-2 text-sm text-zinc-600">{body}</p>
+        <p className="mt-2 text-sm text-dim">{body}</p>
         <div className="mt-4 flex justify-end gap-2">
           <button
             type="button"
             onClick={onCancel}
-            className="h-8 rounded-md border border-zinc-300 px-3 text-sm font-medium hover:bg-zinc-50"
+            className="h-8 rounded-md border border-border px-3 text-sm font-medium hover:bg-accent-hover"
           >
             Cancel
           </button>
           <button
             type="button"
             onClick={onConfirm}
-            className="h-8 rounded-md bg-zinc-950 px-3 text-sm font-medium text-white hover:bg-zinc-800"
+            className="h-8 rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground hover:opacity-90"
           >
             {confirmLabel}
           </button>
