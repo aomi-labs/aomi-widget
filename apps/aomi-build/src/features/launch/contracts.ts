@@ -102,9 +102,9 @@ export type LaunchAppStatus = {
 export type LaunchRedeployResult = {
   ok: boolean;
   appSourceId: number;
-  platformRepo: string;
-  ciRunId: string;
-  ciUrl: string;
+  platformRepo: string | null;
+  ciRunId: string | null;
+  ciUrl: string | null;
 };
 
 export type LaunchSdkStatus = {

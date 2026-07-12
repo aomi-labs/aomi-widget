@@ -11,7 +11,7 @@ describe("AomiClient route manifest", () => {
         `${endpoint.method} ${endpoint.path} [${endpoint.auth.join(", ")}]`,
     );
 
-    expect(routeKeys).toHaveLength(104);
+    expect(routeKeys).toHaveLength(105);
     expect(new Set(routeKeys).size).toBe(routeKeys.length);
     expect(routeKeys).toContain("POST /api/exec/run [account, thread]");
     expect(routeKeys).toContain("GET /api/resource/search/apps [account]");
@@ -33,6 +33,9 @@ describe("AomiClient route manifest", () => {
     );
     expect(routeKeys).toContain(
       "POST /api/platforms/:name/deployments/:deployment/promote [activation]",
+    );
+    expect(routeKeys).toContain(
+      "POST /api/platforms/:name/deployments/:deployment/rerun [activation]",
     );
     expect(routeKeys).not.toContain("GET /api/control/apps [session]");
     expect(routeKeys.some((route) => route.includes("/api/control/"))).toBe(
